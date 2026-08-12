@@ -102,6 +102,23 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     ) -> ListMember(MachineState(plus(left_count, right_count)), Accepted(append_branch_marker(routine, EmitRight()), Nil()), filter_machine_states(plus(left_count, right_count), alternate_right_states(left_count, right_count, states, EmitRight()), boundary)) =
       lift_filtered_right_accepted_member(left_count, right_count, states, EmitRight(), boundary, routine, edge)
 
+    fn alternate_left_path_embedding(
+      left_count: Nat,
+      left_machine: PatternMachine(left_count),
+      right_count: Nat,
+      right_machine: PatternMachine(right_count),
+      prefer_right: Bool,
+      input: List(Char),
+      after_input: List(Char),
+      source: Bounded(left_count),
+      current_evidence: List(Evidence),
+      current_captures: List(CaptureFrame),
+      final_evidence: List(Evidence),
+      routine: List(ExtendedInstruction),
+      path: AcceptingFrom(left_count, left_machine, input, after_input, ThreadActive(source), current_evidence, current_captures, final_evidence, routine)
+    ) -> AlternateLeftActivePathEmbedding(left_count, left_machine, right_count, right_machine, prefer_right, input, after_input, source, current_evidence, current_captures, final_evidence) =
+      lift_alternate_left_active_path(left_count, left_machine, right_count, right_machine, prefer_right, input, after_input, source, current_evidence, current_captures, final_evidence, routine, path)
+
     fn predicate_completeness(
       denotation: PatternDenotation(CharC, PatternPredicate(accepts_a), subject_initial_position(), Cons('a', no_chars()), no_chars())
     ) -> PredicateAcceptance(accepts_a, 'a', no_chars(), subject_initial_position()) = predicate_denotation_is_complete(
