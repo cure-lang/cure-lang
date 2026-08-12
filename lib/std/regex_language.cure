@@ -50,6 +50,39 @@ mod Std.Regex.Language
   type PatternAcceptance indices (shape: ShapeCode, pattern: Pattern(shape), position: InitialPosition, input: List(Char), after_input: List(Char))
     PatternAccepted : {accepted_shape: ShapeCode} -> {accepted_pattern: Pattern(accepted_shape)} -> {accepted_position: InitialPosition} -> {accepted_input: List(Char)} -> {accepted_after_input: List(Char)} -> (final_evidence: List(Evidence)) -> (routine: List(ExtendedInstruction)) -> (@erased acceptance: MachineAcceptance(thompson_state_count(certify_thompson(accepted_pattern)), thompson_machine(certify_thompson(accepted_pattern)), accepted_position, accepted_input, accepted_after_input, final_evidence, routine)) -> PatternAcceptance(accepted_shape, accepted_pattern, accepted_position, accepted_input, accepted_after_input)
 
+  ## Structural evidence that the constructor-preserving Thompson IR is the
+  ## compilation of one exact typed pattern.  The generic language theorems
+  ## recurse over this relation, keeping syntax, compilation, and machine
+  ## identity synchronized without reconstructing provenance from transition
+  ## functions.
+  type PatternCompilationProof indices (shape: ShapeCode, pattern: Pattern(shape), compilation: ThompsonCompilation(shape))
+    CompilesPredicate : (test: (Char -> Bool)) -> PatternCompilationProof(CharC, PatternPredicate(test), ThompsonPredicate(test))
+    CompilesEmpty : PatternCompilationProof(UnitC, PatternEmpty(), ThompsonEmpty())
+    CompilesBoundary : (constraint: BoundaryConstraint) -> PatternCompilationProof(UnitC, PatternBoundary(constraint), ThompsonBoundary(constraint))
+    CompilesConcat : (left_pattern: Pattern(left_shape)) -> (left_compilation: ThompsonCompilation(left_shape)) -> (left_proof: PatternCompilationProof(left_shape, left_pattern, left_compilation)) -> (right_pattern: Pattern(right_shape)) -> (right_compilation: ThompsonCompilation(right_shape)) -> (right_proof: PatternCompilationProof(right_shape, right_pattern, right_compilation)) -> PatternCompilationProof(PairC(left_shape, right_shape), PatternConcat(left_pattern, right_pattern), ThompsonConcat(left_compilation, right_compilation))
+    CompilesGroup : (inner_pattern: Pattern(inner_shape)) -> (inner_compilation: ThompsonCompilation(inner_shape)) -> (inner_proof: PatternCompilationProof(inner_shape, inner_pattern, inner_compilation)) -> PatternCompilationProof(StringC, PatternGroup(inner_pattern), ThompsonGroup(inner_compilation))
+    CompilesAlternate : (left_pattern: Pattern(left_shape)) -> (left_compilation: ThompsonCompilation(left_shape)) -> (left_proof: PatternCompilationProof(left_shape, left_pattern, left_compilation)) -> (right_pattern: Pattern(right_shape)) -> (right_compilation: ThompsonCompilation(right_shape)) -> (right_proof: PatternCompilationProof(right_shape, right_pattern, right_compilation)) -> PatternCompilationProof(ChoiceC(left_shape, right_shape), PatternAlternate(left_pattern, right_pattern), ThompsonAlternate(left_compilation, right_compilation, False()))
+    CompilesAlternateMode : (left_pattern: Pattern(left_shape)) -> (left_compilation: ThompsonCompilation(left_shape)) -> (left_proof: PatternCompilationProof(left_shape, left_pattern, left_compilation)) -> (right_pattern: Pattern(right_shape)) -> (right_compilation: ThompsonCompilation(right_shape)) -> (right_proof: PatternCompilationProof(right_shape, right_pattern, right_compilation)) -> (prefer_right: Bool) -> PatternCompilationProof(ChoiceC(left_shape, right_shape), PatternAlternateMode(left_pattern, right_pattern, prefer_right), ThompsonAlternate(left_compilation, right_compilation, prefer_right))
+    CompilesRepeat : (inner_pattern: Pattern(inner_shape)) -> (inner_compilation: ThompsonCompilation(inner_shape)) -> (inner_proof: PatternCompilationProof(inner_shape, inner_pattern, inner_compilation)) -> PatternCompilationProof(ListC(inner_shape), PatternRepeat(inner_pattern), ThompsonRepeat(inner_compilation, False()))
+    CompilesRepeatMode : (inner_pattern: Pattern(inner_shape)) -> (inner_compilation: ThompsonCompilation(inner_shape)) -> (inner_proof: PatternCompilationProof(inner_shape, inner_pattern, inner_compilation)) -> (lazy: Bool) -> PatternCompilationProof(ListC(inner_shape), PatternRepeatMode(inner_pattern, lazy), ThompsonRepeat(inner_compilation, lazy))
+
+  fn certify_thompson_proof({shape: ShapeCode}, pattern: Pattern(shape)) -> PatternCompilationProof(shape, pattern, certify_thompson(pattern)) = match pattern
+    PatternPredicate(test) -> CompilesPredicate(test)
+    PatternEmpty() -> CompilesEmpty()
+    PatternBoundary(constraint) -> CompilesBoundary(constraint)
+    PatternConcat(left, right) -> CompilesConcat(left, certify_thompson(left), certify_thompson_proof(left), right, certify_thompson(right), certify_thompson_proof(right))
+    PatternGroup(inner) -> CompilesGroup(inner, certify_thompson(inner), certify_thompson_proof(inner))
+    PatternAlternate(left, right) -> CompilesAlternate(left, certify_thompson(left), certify_thompson_proof(left), right, certify_thompson(right), certify_thompson_proof(right))
+    PatternAlternateMode(left, right, prefer_right) -> CompilesAlternateMode(left, certify_thompson(left), certify_thompson_proof(left), right, certify_thompson(right), certify_thompson_proof(right), prefer_right)
+    PatternRepeat(inner) -> CompilesRepeat(inner, certify_thompson(inner), certify_thompson_proof(inner))
+    PatternRepeatMode(inner, lazy) -> CompilesRepeatMode(inner, certify_thompson(inner), certify_thompson_proof(inner), lazy)
+
+  type CompilationSoundnessRequest(shape: ShapeCode, pattern: Pattern(shape), compilation: ThompsonCompilation(shape), input: List(Char), after_input: List(Char), position: InitialPosition, input_evidence: List(Evidence), input_captures: List(CaptureFrame)) indices ()
+    CompilationSoundnessRequested : (compilation_proof: PatternCompilationProof(shape, pattern, compilation)) -> (@erased final_evidence: List(Evidence)) -> (acceptance: AcceptancePathFrom(thompson_state_count(compilation), thompson_machine(compilation), position, input, after_input, input_evidence, input_captures, final_evidence)) -> CompilationSoundnessRequest(shape, pattern, compilation, input, after_input, position, input_evidence, input_captures)
+
+  type CompilationSoundness(shape: ShapeCode, pattern: Pattern(shape), compilation: ThompsonCompilation(shape), input: List(Char), after_input: List(Char), position: InitialPosition, input_evidence: List(Evidence), input_captures: List(CaptureFrame)) indices ()
+    CompilationSoundnessReady : (prove_soundness: (CompilationSoundnessRequest(shape, pattern, compilation, input, after_input, position, input_evidence, input_captures) -> PatternDenotation(shape, pattern, position, input, after_input))) -> CompilationSoundness(shape, pattern, compilation, input, after_input, position, input_evidence, input_captures)
+
   type PredicateAlternateAcceptance indices (left_test: Char -> Bool, right_test: Char -> Bool, prefer_right: Bool, char: Char, after_input: List(Char), position: InitialPosition)
     PredicateAlternateAccepted : (final_evidence: List(Evidence)) -> (routine: List(ExtendedInstruction)) -> (@erased acceptance: MachineAcceptance(plus(S(Z()), S(Z())), predicate_alternate_mode_machine(left_test, right_test, prefer_right), position, Cons(char, Nil()), after_input, final_evidence, routine)) -> PredicateAlternateAcceptance(left_test, right_test, prefer_right, char, after_input, position)
 
@@ -405,6 +438,219 @@ mod Std.Regex.Language
     DenotesRepeatModeEmpty(_, _) -> DenotesRepeatEmpty(inner)
     DenotesRepeatModeMore(_, _, item_input, remaining_input, nonempty, partition, item_denotation, remaining_denotation) ->
       DenotesRepeatMore(inner, item_input, remaining_input, nonempty, partition, item_denotation, repeat_false_denotation_is_default(inner, advance_initial_position(position, item_input), remaining_input, after_input, remaining_denotation))
+
+  fn compilation_repeat_mode_projection_is_sound(
+    {inner_shape: ShapeCode},
+    inner: Pattern(inner_shape),
+    compilation: ThompsonCompilation(inner_shape),
+    compilation_proof: PatternCompilationProof(inner_shape, inner, compilation),
+    lazy: Bool,
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    item_input_evidence: List(Evidence),
+    item_input_captures: List(CaptureFrame),
+    state: Bounded(thompson_state_count(compilation)),
+    initial_routine: List(EvidenceInstruction),
+    initial_evidence: List(Evidence),
+    initial_captures: List(CaptureFrame),
+    initial_edge: ListMember(MachineState(thompson_state_count(compilation)), Active(state, initial_routine, Nil()), initial_machine_destinations(thompson_state_count(compilation), thompson_machine(compilation), position, input, after_input)),
+    initial_execution: RoutineExecution(initial_routine, item_input_evidence, item_input_captures, initial_evidence, initial_captures),
+    @erased final_evidence: List(Evidence),
+    {final_captures: List(CaptureFrame)},
+    projection: RepeatActivePathProjection(thompson_state_count(compilation), thompson_machine(compilation), lazy, position, input, after_input, state, initial_evidence, initial_captures, final_evidence, final_captures)
+  ) -> PatternDenotation(ListC(inner_shape), PatternRepeatMode(inner, lazy), position, input, after_input) = match projection
+    ProjectedRepeatFinalItem(child_final_evidence, _, child_routine, child_path, _, _, _, _, _) ->
+      let child_acceptance = active_acceptance_from_path(thompson_state_count(compilation), thompson_machine(compilation), position, input, after_input, item_input_evidence, item_input_captures, state, initial_routine, initial_evidence, initial_captures, child_routine, initial_edge, initial_execution, child_path)
+      let child_denotation = compilation_acceptance_path_is_sound(inner, compilation, compilation_proof, input, after_input, position, item_input_evidence, item_input_captures, child_final_evidence, child_acceptance)
+      DenotesRepeatModeMore(inner, lazy, input, Nil(), active_accepting_path_nonempty(thompson_state_count(compilation), thompson_machine(compilation), input, after_input, state, initial_evidence, initial_captures, child_final_evidence, child_routine, child_path), input_partition_all_left(input), child_denotation, DenotesRepeatModeEmpty(inner, lazy))
+    ProjectedRepeatMoreItems(child_input, remaining_input, partition, child_final_evidence, child_final_captures, child_routine, child_path, _, next_state, next_routine, next_evidence, next_captures, next_edge, next_execution, projected_final_evidence, combined_final_captures, continuation) ->
+      let original_filtered_edge = filtered_starts_from_initial_edge(thompson_state_count(compilation), thompson_machine(compilation), position, input, after_input, Active(state, initial_routine, Nil()), initial_edge)
+      let child_filtered_edge = transport_filtered_start_subject(thompson_state_count(compilation), thompson_machine(compilation), position, append_characters(input, after_input), append_characters(child_input, append_characters(remaining_input, after_input)), Active(state, initial_routine, Nil()), partition_append_after(after_input, partition), original_filtered_edge)
+      let child_initial_edge = initial_edge_from_filtered_starts(thompson_state_count(compilation), thompson_machine(compilation), position, child_input, append_characters(remaining_input, after_input), Active(state, initial_routine, Nil()), child_filtered_edge)
+      let child_acceptance = active_acceptance_from_path(thompson_state_count(compilation), thompson_machine(compilation), position, child_input, append_characters(remaining_input, after_input), item_input_evidence, item_input_captures, state, initial_routine, initial_evidence, initial_captures, child_routine, child_initial_edge, initial_execution, child_path)
+      let child_denotation = compilation_acceptance_path_is_sound(inner, compilation, compilation_proof, child_input, append_characters(remaining_input, after_input), position, item_input_evidence, item_input_captures, child_final_evidence, child_acceptance)
+      let remaining_denotation = compilation_repeat_mode_projection_is_sound(inner, compilation, compilation_proof, lazy, advance_initial_position(position, child_input), remaining_input, after_input, child_final_evidence, child_final_captures, next_state, next_routine, next_evidence, next_captures, next_edge, next_execution, projected_final_evidence, continuation)
+      DenotesRepeatModeMore(inner, lazy, child_input, remaining_input, active_accepting_path_nonempty(thompson_state_count(compilation), thompson_machine(compilation), child_input, append_characters(remaining_input, after_input), state, initial_evidence, initial_captures, child_final_evidence, child_routine, child_path), partition, child_denotation, remaining_denotation)
+
+  fn compilation_repeat_mode_acceptance_path_is_sound(
+    {inner_shape: ShapeCode},
+    inner: Pattern(inner_shape),
+    compilation: ThompsonCompilation(inner_shape),
+    compilation_proof: PatternCompilationProof(inner_shape, inner, compilation),
+    lazy: Bool,
+    input: List(Char),
+    after_input: List(Char),
+    position: InitialPosition,
+    input_evidence: List(Evidence),
+    input_captures: List(CaptureFrame),
+    @erased final_evidence: List(Evidence),
+    acceptance: AcceptancePathFrom(thompson_state_count(compilation), repeat_pattern_machine(thompson_state_count(compilation), thompson_machine(compilation), lazy), position, input, after_input, input_evidence, input_captures, final_evidence)
+  ) -> PatternDenotation(ListC(inner_shape), PatternRepeatMode(inner, lazy), position, input, after_input) =
+    match project_repeat_acceptance_from_machine(thompson_state_count(compilation), thompson_machine(compilation), lazy, position, input, after_input, input_evidence, input_captures, acceptance)
+      ProjectedRepeatEmptyAcceptance(input_empty, _, _, _, _) -> match input_empty
+        reflexive() -> DenotesRepeatModeEmpty(inner, lazy)
+      ProjectedRepeatItemsAcceptance(state, initial_routine, list_evidence, list_captures, initial_evidence, initial_captures, initial_edge, initial_execution, projection, _, _) -> compilation_repeat_mode_projection_is_sound(inner, compilation, compilation_proof, lazy, position, input, after_input, list_evidence, list_captures, state, initial_routine, initial_evidence, initial_captures, initial_edge, initial_execution, final_evidence, projection)
+
+  fn predicate_compilation_is_sound(
+    test: Char -> Bool,
+    {pattern: Pattern(CharC)},
+    proof: PatternCompilationProof(CharC, pattern, ThompsonPredicate(test)),
+    input: List(Char), after_input: List(Char), position: InitialPosition,
+    input_evidence: List(Evidence), input_captures: List(CaptureFrame),
+    @erased final_evidence: List(Evidence),
+    acceptance: AcceptancePathFrom(S(Z()), predicate_pattern_machine(test), position, input, after_input, input_evidence, input_captures, final_evidence)
+  ) -> PatternDenotation(CharC, pattern, position, input, after_input) = match proof
+    CompilesPredicate(_) -> predicate_acceptance_path_is_sound(test, input, after_input, position, input_evidence, input_captures, final_evidence, acceptance)
+
+  fn empty_compilation_is_sound(
+    {pattern: Pattern(UnitC)},
+    proof: PatternCompilationProof(UnitC, pattern, ThompsonEmpty()),
+    input: List(Char), after_input: List(Char), position: InitialPosition,
+    input_evidence: List(Evidence), input_captures: List(CaptureFrame),
+    @erased final_evidence: List(Evidence),
+    acceptance: AcceptancePathFrom(Z(), empty_pattern_machine(), position, input, after_input, input_evidence, input_captures, final_evidence)
+  ) -> PatternDenotation(UnitC, pattern, position, input, after_input) = match proof
+    CompilesEmpty() -> empty_acceptance_path_is_sound(input, after_input, position, input_evidence, input_captures, final_evidence, acceptance)
+
+  fn boundary_compilation_is_sound(
+    constraint: BoundaryConstraint,
+    {pattern: Pattern(UnitC)},
+    proof: PatternCompilationProof(UnitC, pattern, ThompsonBoundary(constraint)),
+    input: List(Char), after_input: List(Char), position: InitialPosition,
+    input_evidence: List(Evidence), input_captures: List(CaptureFrame),
+    @erased final_evidence: List(Evidence),
+    acceptance: AcceptancePathFrom(Z(), boundary_pattern_machine(constraint), position, input, after_input, input_evidence, input_captures, final_evidence)
+  ) -> PatternDenotation(UnitC, pattern, position, input, after_input) = match proof
+    CompilesBoundary(_) -> boundary_acceptance_path_is_sound(constraint, input, after_input, position, input_evidence, input_captures, final_evidence, acceptance)
+
+  fn concat_compilation_is_sound(
+    {left_shape: ShapeCode}, left_compilation: ThompsonCompilation(left_shape),
+    {right_shape: ShapeCode}, right_compilation: ThompsonCompilation(right_shape),
+    {pattern: Pattern(PairC(left_shape, right_shape))},
+    proof: PatternCompilationProof(PairC(left_shape, right_shape), pattern, ThompsonConcat(left_compilation, right_compilation)),
+    input: List(Char), after_input: List(Char), position: InitialPosition,
+    input_evidence: List(Evidence), input_captures: List(CaptureFrame),
+    @erased final_evidence: List(Evidence),
+    acceptance: AcceptancePathFrom(plus(thompson_state_count(left_compilation), thompson_state_count(right_compilation)), concat_pattern_machine(thompson_state_count(left_compilation), thompson_machine(left_compilation), thompson_state_count(right_compilation), thompson_machine(right_compilation)), position, input, after_input, input_evidence, input_captures, final_evidence)
+  ) -> PatternDenotation(PairC(left_shape, right_shape), pattern, position, input, after_input) = match proof
+    CompilesConcat(left, _, left_proof, right, _, right_proof) -> match project_concat_acceptance_from(thompson_state_count(left_compilation), thompson_machine(left_compilation), thompson_state_count(right_compilation), thompson_machine(right_compilation), position, input, after_input, input_evidence, input_captures, acceptance)
+      ProjectedConcatAcceptance(left_input, right_input, partition, left_final_evidence, left_final_captures, left_acceptance, _, right_final_evidence, right_acceptance, _) ->
+        DenotesConcat(left, right, left_input, right_input, partition, compilation_acceptance_path_is_sound(left, left_compilation, left_proof, left_input, append_characters(right_input, after_input), position, input_evidence, input_captures, left_final_evidence, left_acceptance), compilation_acceptance_path_is_sound(right, right_compilation, right_proof, right_input, after_input, advance_initial_position(position, left_input), left_final_evidence, left_final_captures, right_final_evidence, right_acceptance))
+
+  fn group_compilation_is_sound(
+    {inner_shape: ShapeCode}, inner_compilation: ThompsonCompilation(inner_shape),
+    {pattern: Pattern(StringC)},
+    proof: PatternCompilationProof(StringC, pattern, ThompsonGroup(inner_compilation)),
+    input: List(Char), after_input: List(Char), position: InitialPosition,
+    input_evidence: List(Evidence), input_captures: List(CaptureFrame),
+    @erased final_evidence: List(Evidence),
+    acceptance: AcceptancePathFrom(thompson_state_count(inner_compilation), thompson_machine(ThompsonGroup(inner_compilation)), position, input, after_input, input_evidence, input_captures, final_evidence)
+  ) -> PatternDenotation(StringC, pattern, position, input, after_input) = match proof
+    CompilesGroup(inner, _, inner_proof) -> match project_group_acceptance_from(thompson_state_count(inner_compilation), pattern_machine_starts(thompson_machine(inner_compilation)), pattern_machine_next(thompson_machine(inner_compilation)), position, input, after_input, input_evidence, input_captures, acceptance)
+      ProjectedGroupAcceptanceMissingFrame(child_final_evidence, child_projection, _, _, _, _) -> match transport_acceptance_with_execution(thompson_machine(inner_compilation), MkPatternMachine(pattern_machine_starts(thompson_machine(inner_compilation)), pattern_machine_next(thompson_machine(inner_compilation))), position, input, after_input, input_evidence, Cons(CaptureFrame(Nil(), input_evidence), input_captures), child_final_evidence, Nil(), pattern_machine_eta(thompson_machine(inner_compilation)), child_projection)
+        AcceptedWithExecution(child_acceptance, _) -> DenotesGroup(inner, compilation_acceptance_path_is_sound(inner, inner_compilation, inner_proof, input, after_input, position, input_evidence, Cons(CaptureFrame(Nil(), input_evidence), input_captures), child_final_evidence, child_acceptance))
+      ProjectedGroupAcceptanceClosedFrame(child_final_evidence, chars, saved, outer, child_projection, _, _, _, _) -> match transport_acceptance_with_execution(thompson_machine(inner_compilation), MkPatternMachine(pattern_machine_starts(thompson_machine(inner_compilation)), pattern_machine_next(thompson_machine(inner_compilation))), position, input, after_input, input_evidence, Cons(CaptureFrame(Nil(), input_evidence), input_captures), child_final_evidence, Cons(CaptureFrame(chars, saved), outer), pattern_machine_eta(thompson_machine(inner_compilation)), child_projection)
+        AcceptedWithExecution(child_acceptance, _) -> DenotesGroup(inner, compilation_acceptance_path_is_sound(inner, inner_compilation, inner_proof, input, after_input, position, input_evidence, Cons(CaptureFrame(Nil(), input_evidence), input_captures), child_final_evidence, child_acceptance))
+
+  fn alternate_compilation_is_sound(
+    {left_shape: ShapeCode}, left_compilation: ThompsonCompilation(left_shape),
+    {right_shape: ShapeCode}, right_compilation: ThompsonCompilation(right_shape),
+    prefer_right: Bool,
+    {pattern: Pattern(ChoiceC(left_shape, right_shape))},
+    proof: PatternCompilationProof(ChoiceC(left_shape, right_shape), pattern, ThompsonAlternate(left_compilation, right_compilation, prefer_right)),
+    input: List(Char), after_input: List(Char), position: InitialPosition,
+    input_evidence: List(Evidence), input_captures: List(CaptureFrame),
+    @erased final_evidence: List(Evidence),
+    acceptance: AcceptancePathFrom(plus(thompson_state_count(left_compilation), thompson_state_count(right_compilation)), alternate_pattern_machine(thompson_state_count(left_compilation), thompson_machine(left_compilation), thompson_state_count(right_compilation), thompson_machine(right_compilation), prefer_right), position, input, after_input, input_evidence, input_captures, final_evidence)
+  ) -> PatternDenotation(ChoiceC(left_shape, right_shape), pattern, position, input, after_input) = match proof
+    CompilesAlternate(left, _, left_proof, right, _, right_proof) -> match project_alternate_acceptance_from(thompson_state_count(left_compilation), thompson_machine(left_compilation), thompson_state_count(right_compilation), thompson_machine(right_compilation), False(), position, input, after_input, input_evidence, input_captures, acceptance)
+      mk_pair(False(), ProjectedAlternateFromLeft(mk_pair(child_final_evidence, mk_pair(child_acceptance, _)))) -> DenotesAlternateLeft(left, right, compilation_acceptance_path_is_sound(left, left_compilation, left_proof, input, after_input, position, input_evidence, input_captures, child_final_evidence, child_acceptance))
+      mk_pair(True(), ProjectedAlternateFromRight(mk_pair(child_final_evidence, mk_pair(child_acceptance, _)))) -> DenotesAlternateRight(left, right, compilation_acceptance_path_is_sound(right, right_compilation, right_proof, input, after_input, position, input_evidence, input_captures, child_final_evidence, child_acceptance))
+    CompilesAlternateMode(left, _, left_proof, right, _, right_proof, _) -> match project_alternate_acceptance_from(thompson_state_count(left_compilation), thompson_machine(left_compilation), thompson_state_count(right_compilation), thompson_machine(right_compilation), prefer_right, position, input, after_input, input_evidence, input_captures, acceptance)
+      mk_pair(False(), ProjectedAlternateFromLeft(mk_pair(child_final_evidence, mk_pair(child_acceptance, _)))) -> DenotesAlternateModeLeft(left, right, prefer_right, compilation_acceptance_path_is_sound(left, left_compilation, left_proof, input, after_input, position, input_evidence, input_captures, child_final_evidence, child_acceptance))
+      mk_pair(True(), ProjectedAlternateFromRight(mk_pair(child_final_evidence, mk_pair(child_acceptance, _)))) -> DenotesAlternateModeRight(left, right, prefer_right, compilation_acceptance_path_is_sound(right, right_compilation, right_proof, input, after_input, position, input_evidence, input_captures, child_final_evidence, child_acceptance))
+
+  fn repeat_compilation_is_sound(
+    {inner_shape: ShapeCode}, inner_compilation: ThompsonCompilation(inner_shape), lazy: Bool,
+    {pattern: Pattern(ListC(inner_shape))},
+    proof: PatternCompilationProof(ListC(inner_shape), pattern, ThompsonRepeat(inner_compilation, lazy)),
+    input: List(Char), after_input: List(Char), position: InitialPosition,
+    input_evidence: List(Evidence), input_captures: List(CaptureFrame),
+    @erased final_evidence: List(Evidence),
+    acceptance: AcceptancePathFrom(thompson_state_count(inner_compilation), repeat_pattern_machine(thompson_state_count(inner_compilation), thompson_machine(inner_compilation), lazy), position, input, after_input, input_evidence, input_captures, final_evidence)
+  ) -> PatternDenotation(ListC(inner_shape), pattern, position, input, after_input) = match proof
+    CompilesRepeat(inner, _, inner_proof) -> repeat_false_denotation_is_default(inner, position, input, after_input, compilation_repeat_mode_acceptance_path_is_sound(inner, inner_compilation, inner_proof, False(), input, after_input, position, input_evidence, input_captures, final_evidence, acceptance))
+    CompilesRepeatMode(inner, _, inner_proof, _) -> compilation_repeat_mode_acceptance_path_is_sound(inner, inner_compilation, inner_proof, lazy, input, after_input, position, input_evidence, input_captures, final_evidence, acceptance)
+
+  fn run_predicate_soundness(test: Char -> Bool, {pattern: Pattern(CharC)}, input: List(Char), after_input: List(Char), position: InitialPosition, input_evidence: List(Evidence), input_captures: List(CaptureFrame), request: CompilationSoundnessRequest(CharC, pattern, ThompsonPredicate(test), input, after_input, position, input_evidence, input_captures)) -> PatternDenotation(CharC, pattern, position, input, after_input) = match request
+    CompilationSoundnessRequested(proof, final_evidence, acceptance) -> predicate_compilation_is_sound(test, proof, input, after_input, position, input_evidence, input_captures, final_evidence, acceptance)
+
+  fn run_empty_soundness({pattern: Pattern(UnitC)}, input: List(Char), after_input: List(Char), position: InitialPosition, input_evidence: List(Evidence), input_captures: List(CaptureFrame), request: CompilationSoundnessRequest(UnitC, pattern, ThompsonEmpty(), input, after_input, position, input_evidence, input_captures)) -> PatternDenotation(UnitC, pattern, position, input, after_input) = match request
+    CompilationSoundnessRequested(proof, final_evidence, acceptance) -> empty_compilation_is_sound(proof, input, after_input, position, input_evidence, input_captures, final_evidence, acceptance)
+
+  fn run_boundary_soundness(constraint: BoundaryConstraint, {pattern: Pattern(UnitC)}, input: List(Char), after_input: List(Char), position: InitialPosition, input_evidence: List(Evidence), input_captures: List(CaptureFrame), request: CompilationSoundnessRequest(UnitC, pattern, ThompsonBoundary(constraint), input, after_input, position, input_evidence, input_captures)) -> PatternDenotation(UnitC, pattern, position, input, after_input) = match request
+    CompilationSoundnessRequested(proof, final_evidence, acceptance) -> boundary_compilation_is_sound(constraint, proof, input, after_input, position, input_evidence, input_captures, final_evidence, acceptance)
+
+  fn run_concat_soundness({left_shape: ShapeCode}, left_compilation: ThompsonCompilation(left_shape), {right_shape: ShapeCode}, right_compilation: ThompsonCompilation(right_shape), {pattern: Pattern(PairC(left_shape, right_shape))}, input: List(Char), after_input: List(Char), position: InitialPosition, input_evidence: List(Evidence), input_captures: List(CaptureFrame), request: CompilationSoundnessRequest(PairC(left_shape, right_shape), pattern, ThompsonConcat(left_compilation, right_compilation), input, after_input, position, input_evidence, input_captures)) -> PatternDenotation(PairC(left_shape, right_shape), pattern, position, input, after_input) = match request
+    CompilationSoundnessRequested(proof, final_evidence, acceptance) -> concat_compilation_is_sound(left_compilation, right_compilation, proof, input, after_input, position, input_evidence, input_captures, final_evidence, acceptance)
+
+  fn run_group_soundness({inner_shape: ShapeCode}, inner_compilation: ThompsonCompilation(inner_shape), {pattern: Pattern(StringC)}, input: List(Char), after_input: List(Char), position: InitialPosition, input_evidence: List(Evidence), input_captures: List(CaptureFrame), request: CompilationSoundnessRequest(StringC, pattern, ThompsonGroup(inner_compilation), input, after_input, position, input_evidence, input_captures)) -> PatternDenotation(StringC, pattern, position, input, after_input) = match request
+    CompilationSoundnessRequested(proof, final_evidence, acceptance) -> group_compilation_is_sound(inner_compilation, proof, input, after_input, position, input_evidence, input_captures, final_evidence, acceptance)
+
+  fn run_alternate_soundness({left_shape: ShapeCode}, left_compilation: ThompsonCompilation(left_shape), {right_shape: ShapeCode}, right_compilation: ThompsonCompilation(right_shape), prefer_right: Bool, {pattern: Pattern(ChoiceC(left_shape, right_shape))}, input: List(Char), after_input: List(Char), position: InitialPosition, input_evidence: List(Evidence), input_captures: List(CaptureFrame), request: CompilationSoundnessRequest(ChoiceC(left_shape, right_shape), pattern, ThompsonAlternate(left_compilation, right_compilation, prefer_right), input, after_input, position, input_evidence, input_captures)) -> PatternDenotation(ChoiceC(left_shape, right_shape), pattern, position, input, after_input) = match request
+    CompilationSoundnessRequested(proof, final_evidence, acceptance) -> alternate_compilation_is_sound(left_compilation, right_compilation, prefer_right, proof, input, after_input, position, input_evidence, input_captures, final_evidence, acceptance)
+
+  fn run_repeat_soundness({inner_shape: ShapeCode}, inner_compilation: ThompsonCompilation(inner_shape), lazy: Bool, {pattern: Pattern(ListC(inner_shape))}, input: List(Char), after_input: List(Char), position: InitialPosition, input_evidence: List(Evidence), input_captures: List(CaptureFrame), request: CompilationSoundnessRequest(ListC(inner_shape), pattern, ThompsonRepeat(inner_compilation, lazy), input, after_input, position, input_evidence, input_captures)) -> PatternDenotation(ListC(inner_shape), pattern, position, input, after_input) = match request
+    CompilationSoundnessRequested(proof, final_evidence, acceptance) -> repeat_compilation_is_sound(inner_compilation, lazy, proof, input, after_input, position, input_evidence, input_captures, final_evidence, acceptance)
+
+  fn compilation_sound_dispatch(
+    {shape: ShapeCode},
+    pattern: Pattern(shape),
+    compilation: ThompsonCompilation(shape),
+    input: List(Char),
+    after_input: List(Char),
+    position: InitialPosition,
+    input_evidence: List(Evidence),
+    input_captures: List(CaptureFrame)
+  ) -> CompilationSoundness(shape, pattern, compilation, input, after_input, position, input_evidence, input_captures) = match compilation
+    ThompsonPredicate(test) -> CompilationSoundnessReady(fn(request) -> run_predicate_soundness(test, input, after_input, position, input_evidence, input_captures, request))
+    ThompsonEmpty() -> CompilationSoundnessReady(fn(request) -> run_empty_soundness(input, after_input, position, input_evidence, input_captures, request))
+    ThompsonBoundary(constraint) -> CompilationSoundnessReady(fn(request) -> run_boundary_soundness(constraint, input, after_input, position, input_evidence, input_captures, request))
+    ThompsonConcat(left_compilation, right_compilation) -> CompilationSoundnessReady(fn(request) -> run_concat_soundness(left_compilation, right_compilation, input, after_input, position, input_evidence, input_captures, request))
+    ThompsonGroup(inner_compilation) -> CompilationSoundnessReady(fn(request) -> run_group_soundness(inner_compilation, input, after_input, position, input_evidence, input_captures, request))
+    ThompsonAlternate(left_compilation, right_compilation, prefer_right) -> CompilationSoundnessReady(fn(request) -> run_alternate_soundness(left_compilation, right_compilation, prefer_right, input, after_input, position, input_evidence, input_captures, request))
+    ThompsonRepeat(inner_compilation, lazy) -> CompilationSoundnessReady(fn(request) -> run_repeat_soundness(inner_compilation, lazy, input, after_input, position, input_evidence, input_captures, request))
+
+  fn compilation_acceptance_path_is_sound(
+    {shape: ShapeCode},
+    pattern: Pattern(shape),
+    compilation: ThompsonCompilation(shape),
+    compilation_proof: PatternCompilationProof(shape, pattern, compilation),
+    input: List(Char),
+    after_input: List(Char),
+    position: InitialPosition,
+    input_evidence: List(Evidence),
+    input_captures: List(CaptureFrame),
+    @erased final_evidence: List(Evidence),
+    acceptance: AcceptancePathFrom(thompson_state_count(compilation), thompson_machine(compilation), position, input, after_input, input_evidence, input_captures, final_evidence)
+  ) -> PatternDenotation(shape, pattern, position, input, after_input) = match compilation_sound_dispatch(pattern, compilation, input, after_input, position, input_evidence, input_captures)
+    CompilationSoundnessReady(prove_soundness) ->
+      let request: CompilationSoundnessRequest(shape, pattern, compilation, input, after_input, position, input_evidence, input_captures) = CompilationSoundnessRequested(compilation_proof, final_evidence, acceptance)
+      prove_soundness(request)
+
+  fn pattern_acceptance_path_is_sound(
+    {shape: ShapeCode},
+    pattern: Pattern(shape),
+    input: List(Char),
+    after_input: List(Char),
+    position: InitialPosition,
+    input_evidence: List(Evidence),
+    input_captures: List(CaptureFrame),
+    @erased final_evidence: List(Evidence),
+    acceptance: AcceptancePathFrom(thompson_state_count(certify_thompson(pattern)), thompson_machine(certify_thompson(pattern)), position, input, after_input, input_evidence, input_captures, final_evidence)
+  ) -> PatternDenotation(shape, pattern, position, input, after_input) =
+    compilation_acceptance_path_is_sound(pattern, certify_thompson(pattern), certify_thompson_proof(pattern), input, after_input, position, input_evidence, input_captures, final_evidence, acceptance)
 
   fn predicate_repeat_acceptance_is_sound(
     test: Char -> Bool,

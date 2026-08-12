@@ -148,6 +148,28 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     ) -> PatternDenotation(UnitC, PatternBoundary(constraint), position, input, after_input) =
       boundary_acceptance_path_is_sound(constraint, input, after_input, position, input_evidence, input_captures, final_evidence, acceptance)
 
+    fn generic_pattern_path_soundness(
+      {shape: ShapeCode},
+      pattern: Pattern(shape),
+      input: List(Char),
+      after_input: List(Char),
+      position: InitialPosition,
+      input_evidence: List(Evidence),
+      input_captures: List(CaptureFrame),
+      {final_evidence: List(Evidence)},
+      acceptance: AcceptancePathFrom(
+        thompson_state_count(certify_thompson(pattern)),
+        thompson_machine(certify_thompson(pattern)),
+        position,
+        input,
+        after_input,
+        input_evidence,
+        input_captures,
+        final_evidence
+      )
+    ) -> PatternDenotation(shape, pattern, position, input, after_input) =
+      pattern_acceptance_path_is_sound(pattern, input, after_input, position, input_evidence, input_captures, final_evidence, acceptance)
+
     fn boundary_completeness(
       denotation: PatternDenotation(UnitC, PatternBoundary(subject_start_constraint()), subject_initial_position(), no_chars(), no_chars())
     ) -> BoundaryAcceptance(subject_start_constraint(), no_chars(), subject_initial_position()) = boundary_denotation_is_complete(
