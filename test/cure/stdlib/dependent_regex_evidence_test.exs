@@ -45,14 +45,6 @@ defmodule Cure.Stdlib.DependentRegexEvidenceTest do
       fn parsed_left() -> Option(Choice(Char, Char)) = parse_pattern_full(ambiguous(), "a")
       fn parsed_list() -> Option(List(Char)) = parse_pattern_full(many(), "aaa")
       fn parsed_group() -> Option(String) = parse_pattern_full(grouped(), "ab")
-      fn malformed_pair_encoding() -> Option(Tuple(Char, Char)) =
-        extract_complete_encoding(
-          decode_pattern_encoding(ab(), [PairEvidence(), CharacterEvidence('b')])
-        )
-      fn trailing_pair_encoding() -> Option(Tuple(Char, Char)) =
-        extract_complete_encoding(
-          decode_pattern_encoding(ab(), [PairEvidence(), CharacterEvidence('b'), CharacterEvidence('a'), UnitEvidence()])
-        )
 
     end
     """
@@ -126,11 +118,6 @@ defmodule Cure.Stdlib.DependentRegexEvidenceTest do
     assert apply(module, :parsed_group, []) == {:some, cure_string(~c"ab")}
   end
 
-  test "the certified decoder rejects malformed and trailing evidence", %{runtime_module: module} do
-    assert apply(module, :malformed_pair_encoding, []) == :none
-    assert apply(module, :trailing_pair_encoding, []) == :none
-  end
-
   test "successful public parsing paths do not route through the fallible decoder" do
     source = File.read!("lib/std/regex.cure")
 
@@ -164,7 +151,7 @@ defmodule Cure.Stdlib.DependentRegexEvidenceTest do
 
     [search_prefix_body] =
       Regex.run(
-        ~r/fn pattern_prefix_program_at\([^\n]+\).*? =(?<body>.*?)(?=\n\n  fn convert_prefix_chars)/s,
+        ~r/fn pattern_prefix_program_at\([^\n]+\).*? =(?<body>.*?)(?=\n\n  fn list_length)/s,
         source,
         capture: :all_but_first
       )
@@ -181,7 +168,7 @@ defmodule Cure.Stdlib.DependentRegexEvidenceTest do
     refute search_prefix_body =~ "convert_prefix_chars"
   end
 
-  test "shape certificates are erased from emitted decoder functions" do
+  test "shape certificates are erased from emitted total extraction functions" do
     module = :"Cure.Std.Regex"
 
     {:ok, set} =
@@ -197,19 +184,18 @@ defmodule Cure.Stdlib.DependentRegexEvidenceTest do
     beam = File.read!(Path.join(set.artifact_root, artifact.path))
     {:beam_file, ^module, _exports, _attrs, _info, functions} = :beam_disasm.file(beam)
 
-    decoder_names = [
-      :decode_atomic_evidence,
-      :decode_many_prior,
-      :decode_pattern_encoding,
-      :extract_complete_decoding
+    extraction_names = [
+      :extract_encoding_result,
+      :extract_many_encoding_result,
+      :extract_encoding
     ]
 
-    decoder_code =
+    extraction_code =
       for {:function, name, _arity, _label, instructions} <- functions,
-          name in decoder_names,
+          name in extraction_names,
           do: instructions
 
-    binary = :erlang.term_to_binary(decoder_code)
+    binary = :erlang.term_to_binary(extraction_code)
     refute binary =~ "Encodes"
     refute binary =~ "EvidenceAppend"
   end

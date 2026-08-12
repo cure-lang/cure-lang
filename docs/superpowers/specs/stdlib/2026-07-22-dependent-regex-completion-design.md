@@ -134,28 +134,24 @@ The following are real foundations and should be evolved, not deleted:
 - focused shape, NFA, evidence, parsing, modifier, anchor, boundary, and source
   tests;
 - some generated and exhaustive-small-word comparison tests;
-- proof-erasure inspection for the current evidence decoder;
+- proof-erasure inspection for total evidence extraction;
 - source scans rejecting OTP `:re` in regex sources;
 - dependency-ordered stdlib bundling and direct execution of fresh checked
   stdlib macro BEAMs.
 
-### 4.2 Present but not yet equivalent to the thesis proof
+### 4.2 Thesis evidence/extraction parity now implemented
 
-Current `Encodes(shape, input, rest)` is useful, but is reconstructed by
-`decode_pattern_encoding` while parsing an untrusted evidence list. Consequently:
+Successful full, prefix, positioned-prefix, and search execution now returns an
+erased `MachineAcceptance` certificate. The constructor-complete Thompson
+theorem turns that certificate into `Encodes(shape, evidence, Nil())`, and the
+runtime evidence is consumed by total `extract_encoding`; no `Option` or error
+branch exists between accepted execution and the public result wrapper.
 
-- decoding still returns `Option`;
-- accepted execution is not accompanied by an `Accepting` path;
-- there is no theorem equating the accepting path's evidence with the winning
-  VM thread's evidence;
-- there is no constructor-by-constructor Thompson evidence theorem;
-- total extraction is not driven solely by a pre-existing erased proof;
-- an accepted machine run can, in principle, still be followed by decoder
-  failure.
-
-This is checked intrinsic decoding, not the thesis's end-to-end certificate. It
-must remain only as a temporary oracle while the real proof chain is built, then
-be removed from the successful parse path.
+The former `decode_pattern_encoding` oracle was compared against certified
+extraction over 500 generated cases spanning every Pattern constructor and then
+deleted. Language soundness and completeness remain Phase G: evidence shape
+safety is established, but denotational regex correctness is a separate theorem
+family.
 
 ### 4.3 Structural and performance gaps
 

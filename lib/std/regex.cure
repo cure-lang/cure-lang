@@ -853,47 +853,6 @@ mod Std.Regex
   fn extract_encoding({shape: ShapeCode}, input: List(Evidence), @erased encoding: Encodes(shape, input, Nil())) -> Sem(shape) = match extract_encoding_result(input, encoding)
     EncodingExtracted(Nil(), value) -> value
 
-  ## A successful decoding existentially exposes the evidence prefix consumed
-  ## for one Pattern and proves that the untouched suffix reconstructs the
-  ## original evidence stream. This is the proof-producing boundary between
-  ## the unindexed VM representation and total, shape-indexed extraction.
-  type EvidenceDecoding indices (shape: ShapeCode, input: List(Evidence))
-    EvidenceDecoded : (rest: List(Evidence)) -> (value: Sem(shape)) -> (@erased encoding : Encodes(shape, input, rest)) -> EvidenceDecoding(shape, input)
-
-  fn decode_atomic_evidence({shape: ShapeCode}, pattern: Pattern(shape), evidence: List(Evidence)) -> Option(EvidenceDecoding(shape, evidence)) = match pattern
-    PatternEmpty() -> match evidence
-      [UnitEvidence() | rest] -> Some(EvidenceDecoded(rest, (), EncodesUnit()))
-      _ -> None()
-    PatternPredicate(_) -> match evidence
-      [CharacterEvidence(char) | rest] -> Some(EvidenceDecoded(rest, char, EncodesCharacter(char)))
-      _ -> None()
-    PatternGroup(_) -> match evidence
-      [StringEvidence(value) | rest] -> Some(EvidenceDecoded(rest, value, EncodesString(value)))
-      _ -> None()
-    PatternBoundary(_) -> match evidence
-      [UnitEvidence() | rest] -> Some(EvidenceDecoded(rest, (), EncodesUnit()))
-      _ -> None()
-    _ -> None()
-
-  type ManyEvidenceDecoding indices (shape: ShapeCode, input: List(Evidence))
-    ManyEvidenceDecoded : (rest: List(Evidence)) -> (values: List(Sem(shape))) -> (@erased encoding : EncodesMany(shape, input, rest)) -> ManyEvidenceDecoding(shape, input)
-
-  fn decode_many_evidence({shape: ShapeCode}, pattern: Pattern(shape), evidence: List(Evidence)) -> Option(ManyEvidenceDecoding(shape, evidence)) = with evidence
-    [] -> None()
-    [BeginListEvidence() | rest] -> Some(ManyEvidenceDecoded(rest, [], EncodesManyEmpty()))
-    [head | tail] -> decode_many_item(pattern, [head | tail], decode_pattern_encoding(pattern, [head | tail]))
-
-  fn decode_many_item({shape: ShapeCode}, pattern: Pattern(shape), evidence: List(Evidence), decoded: Option(EvidenceDecoding(shape, evidence))) -> Option(ManyEvidenceDecoding(shape, evidence)) = match decoded
-    None() -> None()
-    Some(item) -> decode_many_item_tail(pattern, item)
-
-  fn decode_many_item_tail({shape: ShapeCode}, pattern: Pattern(shape), {evidence: List(Evidence)}, decoded: EvidenceDecoding(shape, evidence)) -> Option(ManyEvidenceDecoding(shape, evidence)) = match decoded
-    EvidenceDecoded(after_item, item_value, item) -> decode_many_prior(pattern, item_value, item, decode_many_evidence(pattern, after_item))
-
-  fn decode_many_prior({shape: ShapeCode}, pattern: Pattern(shape), {evidence: List(Evidence)}, {after_item: List(Evidence)}, item_value: Sem(shape), @erased item : Encodes(shape, evidence, after_item), decoded: Option(ManyEvidenceDecoding(shape, after_item))) -> Option(ManyEvidenceDecoding(shape, evidence)) = match decoded
-    None() -> None()
-    Some(ManyEvidenceDecoded(final_rest, prior_values, prior)) -> Some(ManyEvidenceDecoded(final_rest, [item_value | prior_values], EncodesManyItem(item, prior)))
-
   fn reverse_sem_values({shape: ShapeCode}, values: List(Sem(shape))) -> List(Sem(shape)) = reverse_sem_values_into(values, [])
   fn reverse_sem_values_into({shape: ShapeCode}, values: List(Sem(shape)), output: List(Sem(shape))) -> List(Sem(shape)) = match values
     [] -> output
@@ -905,56 +864,6 @@ mod Std.Regex
   fn decoded_right_value({left: ShapeCode}, {right: ShapeCode}, value: Sem(right)) -> Sem(ChoiceC(left, right)) =
     let choice = assert_type ChoseRight(value) : Choice(Sem(left), Sem(right))
     choice
-
-  fn decode_pattern_encoding({shape: ShapeCode}, pattern: Pattern(shape), evidence: List(Evidence)) -> Option(EvidenceDecoding(shape, evidence)) = match pattern
-    PatternEmpty() -> decode_atomic_evidence(pattern, evidence)
-    PatternPredicate(_) -> decode_atomic_evidence(pattern, evidence)
-    PatternGroup(_) -> decode_atomic_evidence(pattern, evidence)
-    PatternBoundary(_) -> decode_atomic_evidence(pattern, evidence)
-    PatternConcat(left, right) -> match evidence
-      [PairEvidence() | pair_evidence] -> match decode_pattern_encoding(right, pair_evidence)
-        None() -> None()
-        Some(EvidenceDecoded(after_right, right_value, right_proof)) -> match decode_pattern_encoding(left, after_right)
-          None() -> None()
-          Some(EvidenceDecoded(rest, left_value, left_proof)) -> Some(EvidenceDecoded(rest, %[left_value, right_value], EncodesPair(right_proof, left_proof)))
-      _ -> None()
-    PatternAlternate(left, right) -> match evidence
-      [LeftEvidence() | branch_evidence] -> match decode_pattern_encoding(left, branch_evidence)
-        None() -> None()
-        Some(EvidenceDecoded(rest, value, branch)) -> Some(EvidenceDecoded(rest, decoded_left_value(value), EncodesLeft(branch)))
-      [RightEvidence() | branch_evidence] -> match decode_pattern_encoding(right, branch_evidence)
-        None() -> None()
-        Some(EvidenceDecoded(rest, value, branch)) -> Some(EvidenceDecoded(rest, decoded_right_value(value), EncodesRight(branch)))
-      _ -> None()
-    PatternAlternateMode(left, right, _) -> match evidence
-      [LeftEvidence() | branch_evidence] -> match decode_pattern_encoding(left, branch_evidence)
-        None() -> None()
-        Some(EvidenceDecoded(rest, value, branch)) -> Some(EvidenceDecoded(rest, decoded_left_value(value), EncodesLeft(branch)))
-      [RightEvidence() | branch_evidence] -> match decode_pattern_encoding(right, branch_evidence)
-        None() -> None()
-        Some(EvidenceDecoded(rest, value, branch)) -> Some(EvidenceDecoded(rest, decoded_right_value(value), EncodesRight(branch)))
-      _ -> None()
-    PatternRepeat(inner) -> match evidence
-      [EndListEvidence() | list_evidence] -> match decode_many_evidence(inner, list_evidence)
-        None() -> None()
-        Some(ManyEvidenceDecoded(rest, values, items)) -> Some(EvidenceDecoded(rest, reverse_sem_values(values), EncodesList(items)))
-      _ -> None()
-    PatternRepeatMode(inner, _) -> match evidence
-      [EndListEvidence() | list_evidence] -> match decode_many_evidence(inner, list_evidence)
-        None() -> None()
-        Some(ManyEvidenceDecoded(rest, values, items)) -> Some(EvidenceDecoded(rest, reverse_sem_values(values), EncodesList(items)))
-      _ -> None()
-
-  fn extract_complete_encoding({shape: ShapeCode}, {evidence: List(Evidence)}, decoded: Option(EvidenceDecoding(shape, evidence))) -> Option(Sem(shape)) = match decoded
-    None() -> None()
-    Some(value) -> extract_complete_decoding(value)
-
-  fn extract_complete_decoding({shape: ShapeCode}, {evidence: List(Evidence)}, decoded: EvidenceDecoding(shape, evidence)) -> Option(Sem(shape)) = match decoded
-    EvidenceDecoded(rest, value, _) -> extract_if_no_evidence(rest, value)
-
-  fn extract_if_no_evidence({shape: ShapeCode}, rest: List(Evidence), value: Sem(shape)) -> Option(Sem(shape)) = match rest
-    [] -> Some(value)
-    _ -> None()
 
   type CaptureFrame = CaptureFrame(List(Char), List(Evidence))
   type EvidenceExecution = EvidenceExecution(List(Evidence), List(CaptureFrame))
@@ -1594,21 +1503,12 @@ mod Std.Regex
       else -> SomeProgram(BuiltRegex(UnitC, PatternBoundary(subject_end_constraint()), unit_identity_conversion()))
     StrictEndAnchor() -> SomeProgram(BuiltRegex(UnitC, PatternBoundary(strict_end_constraint()), unit_identity_conversion()))
 
-  fn convert_complete_extraction({shape: ShapeCode}, {result: Type}, pattern: Pattern(shape), conversion: Conversion(Sem(shape), result), evidence: List(Evidence)) -> Option(result) = match extract_complete_encoding(decode_pattern_encoding(pattern, evidence))
-    None() -> None()
-    Some(value) -> Some(execute_conversion(conversion, value))
-
   fn parse_program_full({result: Type}, program: RegexProgram(result), input: String) -> Option(result) = match program
     BuiltRegex(_shape, _pattern, _conversion) -> Std.Regex.Proof.parse_program_full_verified(program, input)
 
   fn parse_full({result: Type}, regex: Regex(result), input: String) -> Option(result) = match compile_regex(regex)
     NoProgram() -> None()
     SomeProgram(program) -> parse_program_full(program, input)
-
-  fn convert_prefix_extraction({shape: ShapeCode}, {result: Type}, pattern: Pattern(shape), conversion: Conversion(Sem(shape), result), prefix: EvidencePrefix) -> Option(Tuple(result, String)) = match prefix
-    EvidencePrefix(evidence, rest) -> match convert_complete_extraction(pattern, conversion, evidence)
-      None() -> None()
-      Some(value) -> Some(%[value, Std.String.from_characters(rest)])
 
   fn parse_prefix_with({result: Type}, regex: Regex(result), input: String, greedy: Bool) -> Option(Tuple(result, String)) = match compile_regex(regex)
     NoProgram() -> None()
@@ -1646,11 +1546,6 @@ mod Std.Regex
   fn pattern_prefix_program_at({result: Type}, regex: Regex(result), input: List(Char), subject_start: Bool, line_start: Bool, previous_ascii_word: Bool, previous_unicode_word: Bool) -> Option(Tuple(result, List(Char))) = match compile_regex(regex)
     NoProgram() -> None()
     SomeProgram(program) -> Std.Regex.Proof.parse_program_prefix_chars_verified_at(program, input, true, subject_start, line_start, previous_ascii_word, previous_unicode_word)
-
-  fn convert_prefix_chars({shape: ShapeCode}, {result: Type}, pattern: Pattern(shape), conversion: Conversion(Sem(shape), result), prefix: EvidencePrefix) -> Option(Tuple(result, List(Char))) = match prefix
-    EvidencePrefix(evidence, rest) -> match convert_complete_extraction(pattern, conversion, evidence)
-      None() -> None()
-      Some(value) -> Some(%[value, rest])
 
   fn list_length(values: List(Char)) -> Int = match values
     [] -> 0
