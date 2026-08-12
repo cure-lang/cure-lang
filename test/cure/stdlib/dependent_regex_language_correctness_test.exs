@@ -100,6 +100,15 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
       denotation
     )
 
+    fn generic_empty_path_completeness(
+      after_input: List(Char),
+      position: InitialPosition,
+      input_evidence: List(Evidence),
+      input_captures: List(CaptureFrame),
+      denotation: PatternDenotation(UnitC, PatternEmpty(), position, Nil(), after_input)
+    ) -> PatternAcceptanceFrom(UnitC, PatternEmpty(), position, Nil(), after_input, input_evidence, input_captures) =
+      empty_denotation_is_complete_from(after_input, position, input_evidence, input_captures, denotation)
+
     fn empty_pattern_completeness(
       denotation: PatternDenotation(UnitC, PatternEmpty(), subject_initial_position(), no_chars(), no_chars())
     ) -> PatternAcceptance(UnitC, PatternEmpty(), subject_initial_position(), no_chars(), no_chars()) = empty_pattern_denotation_is_complete(
@@ -189,6 +198,16 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
       subject_initial_position(),
       denotation
     )
+
+    fn generic_boundary_path_completeness(
+      constraint: BoundaryConstraint,
+      after_input: List(Char),
+      position: InitialPosition,
+      input_evidence: List(Evidence),
+      input_captures: List(CaptureFrame),
+      denotation: PatternDenotation(UnitC, PatternBoundary(constraint), position, Nil(), after_input)
+    ) -> PatternAcceptanceFrom(UnitC, PatternBoundary(constraint), position, Nil(), after_input, input_evidence, input_captures) =
+      boundary_denotation_is_complete_from(constraint, after_input, position, input_evidence, input_captures, denotation)
 
     fn boundary_pattern_completeness(
       denotation: PatternDenotation(UnitC, PatternBoundary(subject_start_constraint()), subject_initial_position(), no_chars(), no_chars())

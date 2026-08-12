@@ -744,6 +744,23 @@ mod Std.Regex.Language
     match predicate_denotation_is_complete(test, char, after_input, position, denotation)
       PredicateAccepted(final_evidence, routine, acceptance) -> PatternAccepted(final_evidence, routine, acceptance)
 
+  fn empty_denotation_is_complete_from(
+    after_input: List(Char),
+    position: InitialPosition,
+    input_evidence: List(Evidence),
+    input_captures: List(CaptureFrame),
+    _denotation: PatternDenotation(UnitC, PatternEmpty(), position, Nil(), after_input)
+  ) -> PatternAcceptanceFrom(UnitC, PatternEmpty(), position, Nil(), after_input, input_evidence, input_captures) =
+    let no_extended: List(ExtendedInstruction) = Nil()
+    let final_evidence: List(Evidence) = Cons(UnitEvidence(), input_evidence)
+    let regular: List(EvidenceInstruction) = Cons(EmitUnit(), Nil())
+    let destination: MachineState(Z()) = Accepted(regular, Nil())
+    let edge: ListMember(MachineState(Z()), destination, initial_machine_destinations(Z(), empty_pattern_machine(), position, Nil(), after_input)) = member_here(destination, Nil())
+    let execution: RoutineExecution(regular, input_evidence, input_captures, final_evidence, input_captures) = RoutineStep(EmitUnit(), RoutineDone())
+    let path: AcceptingFrom(Z(), empty_pattern_machine(), Nil(), after_input, ThreadAccepted(), final_evidence, input_captures, final_evidence, Nil()) = AcceptingNow()
+    let acceptance: AcceptancePathFrom(Z(), empty_pattern_machine(), position, Nil(), after_input, input_evidence, input_captures, final_evidence) = %[destination, final_evidence, input_captures, no_extended, edge, execution, path]
+    PatternAcceptedFrom(ThompsonEmpty(), CompilesEmpty(), final_evidence, regular_routine(regular), acceptance)
+
   fn empty_denotation_is_complete(
     after_input: List(Char),
     position: InitialPosition,
@@ -769,6 +786,32 @@ mod Std.Regex.Language
   ) -> PatternAcceptance(UnitC, PatternEmpty(), position, Nil(), after_input) =
     match empty_denotation_is_complete(after_input, position, denotation)
       EmptyAccepted(final_evidence, routine, acceptance) -> PatternAccepted(final_evidence, routine, acceptance)
+
+  fn boundary_denotation_holds(
+    constraint: BoundaryConstraint,
+    after_input: List(Char),
+    position: InitialPosition,
+    denotation: PatternDenotation(UnitC, PatternBoundary(constraint), position, Nil(), after_input)
+  ) -> IsTrue(constraints_hold(Cons(constraint, Nil()), initial_position_boundary(position, after_input))) = match denotation
+    DenotesBoundary(holds) -> holds
+
+  fn boundary_denotation_is_complete_from(
+    constraint: BoundaryConstraint,
+    after_input: List(Char),
+    position: InitialPosition,
+    input_evidence: List(Evidence),
+    input_captures: List(CaptureFrame),
+    denotation: PatternDenotation(UnitC, PatternBoundary(constraint), position, Nil(), after_input)
+  ) -> PatternAcceptanceFrom(UnitC, PatternBoundary(constraint), position, Nil(), after_input, input_evidence, input_captures) =
+    let no_extended: List(ExtendedInstruction) = Nil()
+    let final_evidence: List(Evidence) = Cons(UnitEvidence(), input_evidence)
+    let regular: List(EvidenceInstruction) = Cons(EmitUnit(), Nil())
+    let destination: MachineState(Z()) = Accepted(regular, Nil())
+    let edge: ListMember(MachineState(Z()), destination, initial_machine_destinations(Z(), boundary_pattern_machine(constraint), position, Nil(), after_input)) = boundary_result_member(constraint, after_input, position, boundary_denotation_holds(constraint, after_input, position, denotation))
+    let execution: RoutineExecution(regular, input_evidence, input_captures, final_evidence, input_captures) = RoutineStep(EmitUnit(), RoutineDone())
+    let path: AcceptingFrom(Z(), boundary_pattern_machine(constraint), Nil(), after_input, ThreadAccepted(), final_evidence, input_captures, final_evidence, Nil()) = AcceptingNow()
+    let acceptance: AcceptancePathFrom(Z(), boundary_pattern_machine(constraint), position, Nil(), after_input, input_evidence, input_captures, final_evidence) = %[destination, final_evidence, input_captures, no_extended, edge, execution, path]
+    PatternAcceptedFrom(ThompsonBoundary(constraint), CompilesBoundary(constraint), final_evidence, regular_routine(regular), acceptance)
 
   fn boundary_denotation_is_complete(
     constraint: BoundaryConstraint,
