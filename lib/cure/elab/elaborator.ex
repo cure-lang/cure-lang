@@ -19,7 +19,6 @@ defmodule Cure.Elab.Elaborator do
   import Cure.Elab.Rewrite,
     only: [
       abstract_term: 3,
-      contains_term?: 2,
       contains_term_scoped?: 2,
       mk_eq: 3,
       mk_refl: 1,
@@ -6094,7 +6093,11 @@ defmodule Cure.Elab.Elaborator do
           type_term = resplit_data(Quote.reify(Context.lookup(ctx, i), depth), env)
           type_term = expose_reducible_dependency(type_term, scrut_term, ctx, env)
 
-          if contains_term?(type_term, scrut_term),
+          # `type_term` may expose the dependency beneath Π/Σ binders (for
+          # example `AcceptancePathFrom`, a nested Sigma).  The scrutinee's
+          # de Bruijn index shifts at every such binder; the binder-blind check
+          # silently missed that sibling and left its type unrefined.
+          if contains_term_scoped?(type_term, scrut_term),
             do: [%{name: name, index: i, type_term: type_term, grade: Context.grade(ctx, i) || Grade.unrestricted()}],
             else: []
         else

@@ -304,5 +304,114 @@ defmodule Cure.Elab.LinearSiblingRefinementTest do
 
       assert {:ok, _env} = Program.elaborate(src)
     end
+
+    test "overlapping result indices still refine a computed dependent sibling" do
+      src = """
+      mod OverlappingComputed
+        type Shape = UnitShape
+        type Pattern indices (shape: Shape)
+          EmptyPattern : Pattern(UnitShape)
+          BoundaryPattern : Nat -> Pattern(UnitShape)
+        type Compilation indices (shape: Shape)
+          EmptyCompilation : Compilation(UnitShape)
+          BoundaryCompilation : Nat -> Compilation(UnitShape)
+        @reducible
+        fn tag({shape: Shape}, compilation: Compilation(shape)) -> Nat = match compilation
+          EmptyCompilation() -> Z()
+          BoundaryCompilation(value) -> S(value)
+        type Machine indices (tag: Nat)
+          EmptyMachine : Machine(Z())
+          BoundaryMachine : (tag: Nat) -> Machine(S(tag))
+        @reducible
+        fn machine({shape: Shape}, compilation: Compilation(shape)) -> Machine(tag(compilation)) = match compilation
+          EmptyCompilation() -> EmptyMachine()
+          BoundaryCompilation(tag) -> BoundaryMachine(tag)
+        type Path(tag: Nat, machine: Machine(tag)) indices ()
+          MkPath : Path(tag, machine)
+        type Denotation indices (shape: Shape, pattern: Pattern(shape))
+          DenotesEmpty : Denotation(UnitShape, EmptyPattern())
+          DenotesBoundary : (tag: Nat) -> Denotation(UnitShape, BoundaryPattern(tag))
+        type CompilationProof indices (shape: Shape, pattern: Pattern(shape), compilation: Compilation(shape))
+          ProvesEmpty : CompilationProof(UnitShape, EmptyPattern(), EmptyCompilation())
+          ProvesBoundary : (tag: Nat) -> CompilationProof(UnitShape, BoundaryPattern(tag), BoundaryCompilation(tag))
+        fn sound({shape: Shape}, pattern: Pattern(shape), compilation: Compilation(shape), proof: CompilationProof(shape, pattern, compilation), path: Path(tag(compilation), machine(compilation))) -> Denotation(shape, pattern) = match proof
+          ProvesEmpty() -> match path
+            MkPath() -> DenotesEmpty()
+          ProvesBoundary(value) -> match path
+            MkPath() -> DenotesBoundary(value)
+        fn inspect_compilation({shape: Shape}, compilation: Compilation(shape), path: Path(tag(compilation), machine(compilation))) -> Nat = match compilation
+          EmptyCompilation() -> match path
+            MkPath() -> Z()
+          BoundaryCompilation(value) -> match path
+            MkPath() -> S(value)
+        fn inspect_nested_compilation({shape: Shape}, compilation: Compilation(shape), packed: Sigma(destination: Nat, Path(tag(compilation), machine(compilation)))) -> Nat = match compilation
+          EmptyCompilation() -> match packed
+            mk_pair(_, path) -> match path
+              MkPath() -> Z()
+          BoundaryCompilation(value) -> match packed
+            mk_pair(_, path) -> match path
+              MkPath() -> S(value)
+        type FlatCompilation indices ()
+          FlatEmpty : FlatCompilation()
+          FlatBoundary : Nat -> FlatCompilation()
+        @reducible
+        fn flat_tag(compilation: FlatCompilation()) -> Nat = match compilation
+          FlatEmpty() -> Z()
+          FlatBoundary(value) -> S(value)
+        type FlatPath(tag: Nat) indices ()
+          FlatPathHere : FlatPath(tag)
+        fn consume_flat_empty(path: FlatPath(Z())) -> Nat = match path
+          FlatPathHere() -> Z()
+        fn consume_flat_boundary(value: Nat, path: FlatPath(S(value))) -> Nat = match path
+          FlatPathHere() -> S(value)
+        fn inspect_flat_nested(compilation: FlatCompilation(), packed: Sigma(destination: Nat, FlatPath(flat_tag(compilation)))) -> Nat = match compilation
+          FlatEmpty() -> match packed
+            mk_pair(_, path) -> consume_flat_empty(path)
+          FlatBoundary(value) -> match packed
+            mk_pair(_, path) -> consume_flat_boundary(value, path)
+        type FlatPattern indices ()
+          FlatEmptyPattern : FlatPattern()
+          FlatBoundaryPattern : Nat -> FlatPattern()
+        type FlatCompilationProof indices (pattern: FlatPattern(), compilation: FlatCompilation())
+          FlatProvesEmpty : FlatCompilationProof(FlatEmptyPattern(), FlatEmpty())
+          FlatProvesBoundary : (value: Nat) -> FlatCompilationProof(FlatBoundaryPattern(value), FlatBoundary(value))
+        type FlatDenotation indices (pattern: FlatPattern())
+          FlatDenotesEmpty : FlatDenotation(FlatEmptyPattern())
+          FlatDenotesBoundary : (value: Nat) -> FlatDenotation(FlatBoundaryPattern(value))
+        fn denote_flat_empty(path: FlatPath(Z())) -> FlatDenotation(FlatEmptyPattern()) = match path
+          FlatPathHere() -> FlatDenotesEmpty()
+        fn denote_flat_boundary(value: Nat, path: FlatPath(S(value))) -> FlatDenotation(FlatBoundaryPattern(value)) = match path
+          FlatPathHere() -> FlatDenotesBoundary(value)
+        fn inspect_flat_proof(pattern: FlatPattern(), compilation: FlatCompilation(), proof: FlatCompilationProof(pattern, compilation), packed: Sigma(destination: Nat, FlatPath(flat_tag(compilation)))) -> FlatDenotation(pattern) = match proof
+          FlatProvesEmpty() -> match packed
+            mk_pair(_, path) -> denote_flat_empty(path)
+          FlatProvesBoundary(value) -> match packed
+            mk_pair(_, path) -> denote_flat_boundary(value, path)
+      end
+
+      """
+
+      assert {:ok, _env} = Program.elaborate(src)
+
+      regex_src = """
+      mod ImportedNestedComputed
+        use Std.Regex
+        use Std.Regex.Proof
+        type BaseCompilationProof indices (shape: ShapeCode, pattern: Pattern(shape), compilation: ThompsonCompilation(shape))
+          BasePredicate : (test: (Char -> Bool)) -> BaseCompilationProof(CharC, PatternPredicate(test), ThompsonPredicate(test))
+          BaseEmpty : BaseCompilationProof(UnitC, PatternEmpty(), ThompsonEmpty())
+          BaseBoundary : (constraint: BoundaryConstraint) -> BaseCompilationProof(UnitC, PatternBoundary(constraint), ThompsonBoundary(constraint))
+        fn consume_predicate(test: Char -> Bool, input: List(Char), after_input: List(Char), position: InitialPosition, input_evidence: List(Evidence), input_captures: List(CaptureFrame), @erased final_evidence: List(Evidence), acceptance: AcceptancePathFrom(S(Z()), predicate_pattern_machine(test), position, input, after_input, input_evidence, input_captures, final_evidence)) -> Nat = Z()
+        fn consume_empty(input: List(Char), after_input: List(Char), position: InitialPosition, input_evidence: List(Evidence), input_captures: List(CaptureFrame), @erased final_evidence: List(Evidence), acceptance: AcceptancePathFrom(Z(), empty_pattern_machine(), position, input, after_input, input_evidence, input_captures, final_evidence)) -> Nat = Z()
+        fn consume_boundary(constraint: BoundaryConstraint, input: List(Char), after_input: List(Char), position: InitialPosition, input_evidence: List(Evidence), input_captures: List(CaptureFrame), @erased final_evidence: List(Evidence), acceptance: AcceptancePathFrom(Z(), boundary_pattern_machine(constraint), position, input, after_input, input_evidence, input_captures, final_evidence)) -> Nat = Z()
+        fn inspect_base({shape: ShapeCode}, pattern: Pattern(shape), compilation: ThompsonCompilation(shape), proof: BaseCompilationProof(shape, pattern, compilation), input: List(Char), after_input: List(Char), position: InitialPosition, input_evidence: List(Evidence), input_captures: List(CaptureFrame), {final_evidence: List(Evidence)}, acceptance: AcceptancePathFrom(thompson_state_count(compilation), thompson_machine(compilation), position, input, after_input, input_evidence, input_captures, final_evidence)) -> Nat = match proof
+          BasePredicate(test) -> consume_predicate(test, input, after_input, position, input_evidence, input_captures, final_evidence, acceptance)
+          BaseEmpty() -> consume_empty(input, after_input, position, input_evidence, input_captures, final_evidence, acceptance)
+          BaseBoundary(constraint) -> consume_boundary(constraint, input, after_input, position, input_evidence, input_captures, final_evidence, acceptance)
+      end
+      """
+
+      assert {:ok, _env} = Program.elaborate(regex_src)
+    end
   end
 end
