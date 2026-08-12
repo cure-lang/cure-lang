@@ -131,6 +131,20 @@ defmodule Cure.Stdlib.DependentRegexEvidenceTest do
     assert apply(module, :trailing_pair_encoding, []) == :none
   end
 
+  test "successful public parsing does not route through the fallible decoder" do
+    source = File.read!("lib/std/regex.cure")
+
+    [body] =
+      Regex.run(
+        ~r/fn parse_pattern_full\([^\n]+\).*? =(?<body>.*?)(?=\n\n  ## Public typed combinator layer)/s,
+        source,
+        capture: :all_but_first
+      )
+
+    refute body =~ "decode_pattern_encoding"
+    refute body =~ "extract_complete_encoding"
+  end
+
   test "shape certificates are erased from emitted decoder functions" do
     module = :"Cure.Std.Regex"
 

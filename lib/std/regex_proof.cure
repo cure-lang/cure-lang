@@ -2389,6 +2389,40 @@ mod Std.Regex.Proof
 
   fn thompson_machine_acceptance_encodes({shape: ShapeCode}, compilation: ThompsonCompilation(shape), proof: ThompsonEvidenceProof(shape, compilation), input: List(Char), after_input: List(Char), position: InitialPosition, {final_evidence: List(Evidence)}, {routine: List(ExtendedInstruction)}, acceptance: MachineAcceptance(thompson_state_count(compilation), thompson_machine(compilation), position, input, after_input, final_evidence, routine)) -> Encodes(shape, final_evidence, empty_evidence()) = thompson_machine_acceptance_encodes_explicit(shape, compilation, proof, input, after_input, position, acceptance)
 
+  ## Compilation and its structural evidence theorem are constructed together.
+  ## The existential package avoids asking conversion to rediscover that two
+  ## independent recursive traversals of `pattern` produced the same indexed
+  ## compilation.
+  type CertifiedThompsonCompilation indices (shape: ShapeCode)
+    CertifiedThompson : (compilation: ThompsonCompilation(shape)) -> (@erased proof: ThompsonEvidenceProof(shape, compilation)) -> CertifiedThompsonCompilation(shape)
+
+  fn certify_thompson_evidence({shape: ShapeCode}, pattern: Pattern(shape)) -> CertifiedThompsonCompilation(shape) = match pattern
+    PatternPredicate(test) -> CertifiedThompson(ThompsonPredicate(test), ThompsonEvidencePredicate(test))
+    PatternEmpty() -> CertifiedThompson(ThompsonEmpty(), ThompsonEvidenceEmpty())
+    PatternBoundary(constraint) -> CertifiedThompson(ThompsonBoundary(constraint), ThompsonEvidenceBoundary(constraint))
+    PatternConcat(left, right) -> match certify_thompson_evidence(left)
+      CertifiedThompson(left_compilation, left_proof) -> match certify_thompson_evidence(right)
+        CertifiedThompson(right_compilation, right_proof) -> CertifiedThompson(ThompsonConcat(left_compilation, right_compilation), ThompsonEvidenceConcat(left_compilation, right_compilation, left_proof, right_proof))
+    PatternGroup(inner) -> match certify_thompson_evidence(inner)
+      CertifiedThompson(inner_compilation, inner_proof) -> CertifiedThompson(ThompsonGroup(inner_compilation), ThompsonEvidenceGroup(inner_compilation, inner_proof))
+    PatternAlternate(left, right) -> match certify_thompson_evidence(left)
+      CertifiedThompson(left_compilation, left_proof) -> match certify_thompson_evidence(right)
+        CertifiedThompson(right_compilation, right_proof) -> CertifiedThompson(ThompsonAlternate(left_compilation, right_compilation, false), ThompsonEvidenceAlternate(left_compilation, right_compilation, false, left_proof, right_proof))
+    PatternAlternateMode(left, right, prefer_right) -> match certify_thompson_evidence(left)
+      CertifiedThompson(left_compilation, left_proof) -> match certify_thompson_evidence(right)
+        CertifiedThompson(right_compilation, right_proof) -> CertifiedThompson(ThompsonAlternate(left_compilation, right_compilation, prefer_right), ThompsonEvidenceAlternate(left_compilation, right_compilation, prefer_right, left_proof, right_proof))
+    PatternRepeat(inner) -> match certify_thompson_evidence(inner)
+      CertifiedThompson(inner_compilation, inner_proof) -> CertifiedThompson(ThompsonRepeat(inner_compilation, false), ThompsonEvidenceRepeat(inner_compilation, false, inner_proof))
+    PatternRepeatMode(inner, lazy) -> match certify_thompson_evidence(inner)
+      CertifiedThompson(inner_compilation, inner_proof) -> CertifiedThompson(ThompsonRepeat(inner_compilation, lazy), ThompsonEvidenceRepeat(inner_compilation, lazy, inner_proof))
+
+  fn parse_pattern_full_verified({shape: ShapeCode}, pattern: Pattern(shape), input: String) -> Option(Sem(shape)) = match certify_thompson_evidence(pattern)
+    CertifiedThompson(compilation, proof) ->
+      let characters = Std.String.characters(input)
+      match search_machine_acceptance(thompson_state_count(compilation), thompson_machine(compilation), subject_initial_position(), characters, empty_characters())
+        MachineNoAcceptingPath() -> None()
+        MachineAcceptingPath(evidence, _, acceptance) -> Some(extract_encoding(evidence, thompson_machine_acceptance_encodes(compilation, proof, characters, empty_characters(), subject_initial_position(), acceptance)))
+
   type CertifiedPatternMachine = CertifiedEmptyMachine | CertifiedBoundaryMachine(BoundaryConstraint) | CertifiedPredicateMachine(Char -> Bool)
 
   @reducible

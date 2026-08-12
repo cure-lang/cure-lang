@@ -1387,9 +1387,8 @@ mod Std.Regex
   fn pattern_prefix_evidence({shape: ShapeCode}, pattern: Pattern(shape), input: List(Char), greedy: Bool) -> Option(EvidencePrefix) =
     pattern_prefix_evidence_at(pattern, input, greedy, true, true, false, false)
 
-  fn parse_pattern_full({shape: ShapeCode}, pattern: Pattern(shape), input: String) -> Option(Sem(shape)) = match pattern_evidence(pattern, Std.String.characters(input))
-    None() -> None()
-    Some(evidence) -> extract_complete_encoding(decode_pattern_encoding(pattern, evidence))
+  fn parse_pattern_full({shape: ShapeCode}, pattern: Pattern(shape), input: String) -> Option(Sem(shape)) =
+    Std.Regex.Proof.parse_pattern_full_verified(pattern, input)
 
   ## Public typed combinator layer. `Mapped` is the semantic bridge from a
   ## structurally extracted Pattern value to the user-facing result type. It is
