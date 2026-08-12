@@ -57,7 +57,7 @@ mod Std.Regex.Language
   ## starting states explicit makes the theorem compositional instead of
   ## rebuilding special-case paths for each surface pattern.
   type PatternAcceptanceFrom indices (shape: ShapeCode, pattern: Pattern(shape), position: InitialPosition, input: List(Char), after_input: List(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame))
-    PatternAcceptedFrom : {accepted_shape: ShapeCode} -> {accepted_pattern: Pattern(accepted_shape)} -> {accepted_position: InitialPosition} -> {accepted_input: List(Char)} -> {accepted_after_input: List(Char)} -> {accepted_input_evidence: List(Evidence)} -> {accepted_input_captures: List(CaptureFrame)} -> (compilation: ThompsonCompilation(accepted_shape)) -> (compilation_proof: PatternCompilationProof(accepted_shape, accepted_pattern, compilation)) -> (final_evidence: List(Evidence)) -> (routine: List(ExtendedInstruction)) -> (acceptance: AcceptancePathFrom(thompson_state_count(compilation), thompson_machine(compilation), accepted_position, accepted_input, accepted_after_input, accepted_input_evidence, accepted_input_captures, final_evidence)) -> PatternAcceptanceFrom(accepted_shape, accepted_pattern, accepted_position, accepted_input, accepted_after_input, accepted_input_evidence, accepted_input_captures)
+    PatternAcceptedFrom : {accepted_shape: ShapeCode} -> {accepted_pattern: Pattern(accepted_shape)} -> {accepted_position: InitialPosition} -> {accepted_input: List(Char)} -> {accepted_after_input: List(Char)} -> {accepted_input_evidence: List(Evidence)} -> {accepted_input_captures: List(CaptureFrame)} -> (final_evidence: List(Evidence)) -> (routine: List(ExtendedInstruction)) -> (acceptance: AcceptancePathFrom(thompson_state_count(certify_thompson(accepted_pattern)), thompson_machine(certify_thompson(accepted_pattern)), accepted_position, accepted_input, accepted_after_input, accepted_input_evidence, accepted_input_captures, final_evidence)) -> PatternAcceptanceFrom(accepted_shape, accepted_pattern, accepted_position, accepted_input, accepted_after_input, accepted_input_evidence, accepted_input_captures)
 
   ## Structural evidence that the constructor-preserving Thompson IR is the
   ## compilation of one exact typed pattern.  The generic language theorems
@@ -704,7 +704,47 @@ mod Std.Regex.Language
     let initial_execution: RoutineExecution(no_regular, input_evidence, input_captures, input_evidence, input_captures) = RoutineDone()
     let transition_execution: RoutineExecution(predicate_regular, input_evidence, record_capture_char(input_captures, char), final_evidence, final_captures) = RoutineStep(EmitChar(char), RoutineDone())
     let path: AcceptingFrom(S(Z()), predicate_pattern_machine(test), Cons(char, Nil()), after_input, predicate_machine_thread(), input_evidence, input_captures, final_evidence, path_routine) = AcceptingNextAccepted(predicate_regular, Nil(), final_evidence, final_captures, no_extended, transition_edge, transition_execution, AcceptingNow())
-    PatternAcceptedFrom(ThompsonPredicate(test), CompilesPredicate(test), final_evidence, path_routine, %[predicate_machine_start(), input_evidence, input_captures, path_routine, initial_edge, initial_execution, path])
+    PatternAcceptedFrom(final_evidence, path_routine, %[predicate_machine_start(), input_evidence, input_captures, path_routine, initial_edge, initial_execution, path])
+
+  fn complete_alternate_mode_left_from(
+    left_shape: ShapeCode,
+    right_shape: ShapeCode,
+    left: Pattern(left_shape),
+    right: Pattern(right_shape),
+    prefer_right: Bool,
+    input: List(Char),
+    after_input: List(Char),
+    position: InitialPosition,
+    input_evidence: List(Evidence),
+    input_captures: List(CaptureFrame),
+    completion: PatternAcceptanceFrom(left_shape, left, position, input, after_input, input_evidence, input_captures)
+  ) -> PatternAcceptanceFrom(ChoiceC(left_shape, right_shape), PatternAlternateMode(left, right, prefer_right), position, input, after_input, input_evidence, input_captures) = match completion
+    PatternAcceptedFrom(child_final_evidence, child_routine, child_acceptance) ->
+      let left_compilation: ThompsonCompilation(left_shape) = certify_thompson(left)
+      let right_compilation: ThompsonCompilation(right_shape) = certify_thompson(right)
+      let final_evidence = Cons(LeftEvidence(), child_final_evidence)
+      let combined = lift_alternate_left_acceptance(thompson_state_count(left_compilation), thompson_machine(left_compilation), thompson_state_count(right_compilation), thompson_machine(right_compilation), prefer_right, position, input, after_input, input_evidence, input_captures, child_final_evidence, child_acceptance)
+      PatternAcceptedFrom(final_evidence, acceptance_extended_routine(plus(thompson_state_count(left_compilation), thompson_state_count(right_compilation)), alternate_pattern_machine(thompson_state_count(left_compilation), thompson_machine(left_compilation), thompson_state_count(right_compilation), thompson_machine(right_compilation), prefer_right), position, input, after_input, input_evidence, input_captures, final_evidence, combined), combined)
+
+  fn complete_alternate_mode_right_from(
+    left_shape: ShapeCode,
+    right_shape: ShapeCode,
+    left: Pattern(left_shape),
+    right: Pattern(right_shape),
+    prefer_right: Bool,
+    input: List(Char),
+    after_input: List(Char),
+    position: InitialPosition,
+    input_evidence: List(Evidence),
+    input_captures: List(CaptureFrame),
+    completion: PatternAcceptanceFrom(right_shape, right, position, input, after_input, input_evidence, input_captures)
+  ) -> PatternAcceptanceFrom(ChoiceC(left_shape, right_shape), PatternAlternateMode(left, right, prefer_right), position, input, after_input, input_evidence, input_captures) = match completion
+    PatternAcceptedFrom(child_final_evidence, child_routine, child_acceptance) ->
+      let left_compilation: ThompsonCompilation(left_shape) = certify_thompson(left)
+      let right_compilation: ThompsonCompilation(right_shape) = certify_thompson(right)
+      let final_evidence = Cons(RightEvidence(), child_final_evidence)
+      let combined = lift_alternate_right_acceptance(thompson_state_count(left_compilation), thompson_machine(left_compilation), thompson_state_count(right_compilation), thompson_machine(right_compilation), prefer_right, position, input, after_input, input_evidence, input_captures, child_final_evidence, child_acceptance)
+      PatternAcceptedFrom(final_evidence, acceptance_extended_routine(plus(thompson_state_count(left_compilation), thompson_state_count(right_compilation)), alternate_pattern_machine(thompson_state_count(left_compilation), thompson_machine(left_compilation), thompson_state_count(right_compilation), thompson_machine(right_compilation), prefer_right), position, input, after_input, input_evidence, input_captures, final_evidence, combined), combined)
 
   fn predicate_denotation_is_complete(
     test: Char -> Bool,
@@ -759,7 +799,7 @@ mod Std.Regex.Language
     let execution: RoutineExecution(regular, input_evidence, input_captures, final_evidence, input_captures) = RoutineStep(EmitUnit(), RoutineDone())
     let path: AcceptingFrom(Z(), empty_pattern_machine(), Nil(), after_input, ThreadAccepted(), final_evidence, input_captures, final_evidence, Nil()) = AcceptingNow()
     let acceptance: AcceptancePathFrom(Z(), empty_pattern_machine(), position, Nil(), after_input, input_evidence, input_captures, final_evidence) = %[destination, final_evidence, input_captures, no_extended, edge, execution, path]
-    PatternAcceptedFrom(ThompsonEmpty(), CompilesEmpty(), final_evidence, regular_routine(regular), acceptance)
+    PatternAcceptedFrom(final_evidence, regular_routine(regular), acceptance)
 
   fn empty_denotation_is_complete(
     after_input: List(Char),
@@ -811,7 +851,7 @@ mod Std.Regex.Language
     let execution: RoutineExecution(regular, input_evidence, input_captures, final_evidence, input_captures) = RoutineStep(EmitUnit(), RoutineDone())
     let path: AcceptingFrom(Z(), boundary_pattern_machine(constraint), Nil(), after_input, ThreadAccepted(), final_evidence, input_captures, final_evidence, Nil()) = AcceptingNow()
     let acceptance: AcceptancePathFrom(Z(), boundary_pattern_machine(constraint), position, Nil(), after_input, input_evidence, input_captures, final_evidence) = %[destination, final_evidence, input_captures, no_extended, edge, execution, path]
-    PatternAcceptedFrom(ThompsonBoundary(constraint), CompilesBoundary(constraint), final_evidence, regular_routine(regular), acceptance)
+    PatternAcceptedFrom(final_evidence, regular_routine(regular), acceptance)
 
   fn boundary_denotation_is_complete(
     constraint: BoundaryConstraint,
