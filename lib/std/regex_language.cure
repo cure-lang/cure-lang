@@ -249,6 +249,110 @@ mod Std.Regex.Language
           predicate_acceptance_path_is_sound(right_test, right_input, after_input, advance_initial_position(position, left_input), left_final_evidence, left_final_captures, right_final_evidence, right_acceptance)
         )
 
+  fn input_partition_all_left(input: List(Char)) -> InputPartition(input, input, Nil()) = match input
+    Nil() -> InputPartitionHere(Nil())
+    Cons(char, rest) -> InputPartitionThere(char, input_partition_all_left(rest))
+
+  fn active_accepting_path_nonempty(
+    n: Nat,
+    machine: PatternMachine(n),
+    input: List(Char),
+    after_input: List(Char),
+    source: Bounded(n),
+    current_evidence: List(Evidence),
+    current_captures: List(CaptureFrame),
+    @erased final_evidence: List(Evidence),
+    @erased routine: List(ExtendedInstruction),
+    path: AcceptingFrom(n, machine, input, after_input, ThreadActive(source), current_evidence, current_captures, final_evidence, routine)
+  ) -> NonEmptyCharacters(input) = match input
+    Nil() -> match path
+      AcceptingNow() -> impossible
+      AcceptingNextActive(_, _, _, _, _, _, _, _, _) -> impossible
+      AcceptingNextAccepted(_, _, _, _, _, _, _, _) -> impossible
+    Cons(char, rest) -> CharactersPresent(char, rest)
+
+  fn predicate_repeat_mode_projection_is_sound(
+    test: Char -> Bool,
+    lazy: Bool,
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    item_input_evidence: List(Evidence),
+    item_input_captures: List(CaptureFrame),
+    state: Bounded(S(Z())),
+    initial_routine: List(EvidenceInstruction),
+    initial_evidence: List(Evidence),
+    initial_captures: List(CaptureFrame),
+    initial_edge: ListMember(MachineState(S(Z())), Active(state, initial_routine, Nil()), initial_machine_destinations(S(Z()), predicate_pattern_machine(test), position, input, after_input)),
+    initial_execution: RoutineExecution(initial_routine, item_input_evidence, item_input_captures, initial_evidence, initial_captures),
+    @erased final_evidence: List(Evidence),
+    {final_captures: List(CaptureFrame)},
+    projection: RepeatActivePathProjection(S(Z()), predicate_pattern_machine(test), lazy, position, input, after_input, state, initial_evidence, initial_captures, final_evidence, final_captures)
+  ) -> PatternDenotation(ListC(CharC), PatternRepeatMode(PatternPredicate(test), lazy), position, input, after_input) = match projection
+    ProjectedRepeatFinalItem(child_final_evidence, _, child_routine, child_path, _, _, _, _, _) ->
+      let child_acceptance = active_acceptance_from_path(S(Z()), predicate_pattern_machine(test), position, input, after_input, item_input_evidence, item_input_captures, state, initial_routine, initial_evidence, initial_captures, child_routine, initial_edge, initial_execution, child_path)
+      let child_denotation = predicate_acceptance_path_is_sound(test, input, after_input, position, item_input_evidence, item_input_captures, child_final_evidence, child_acceptance)
+      DenotesRepeatModeMore(PatternPredicate(test), lazy, input, Nil(), active_accepting_path_nonempty(S(Z()), predicate_pattern_machine(test), input, after_input, state, initial_evidence, initial_captures, child_final_evidence, child_routine, child_path), input_partition_all_left(input), child_denotation, DenotesRepeatModeEmpty(PatternPredicate(test), lazy))
+    ProjectedRepeatMoreItems(child_input, remaining_input, partition, child_final_evidence, child_final_captures, child_routine, child_path, _, next_state, next_routine, next_evidence, next_captures, next_edge, next_execution, projected_final_evidence, combined_final_captures, continuation) ->
+      let original_filtered_edge = filtered_starts_from_initial_edge(S(Z()), predicate_pattern_machine(test), position, input, after_input, Active(state, initial_routine, Nil()), initial_edge)
+      let child_filtered_edge = transport_filtered_start_subject(S(Z()), predicate_pattern_machine(test), position, append_characters(input, after_input), append_characters(child_input, append_characters(remaining_input, after_input)), Active(state, initial_routine, Nil()), partition_append_after(after_input, partition), original_filtered_edge)
+      let child_initial_edge = initial_edge_from_filtered_starts(S(Z()), predicate_pattern_machine(test), position, child_input, append_characters(remaining_input, after_input), Active(state, initial_routine, Nil()), child_filtered_edge)
+      let child_acceptance = active_acceptance_from_path(S(Z()), predicate_pattern_machine(test), position, child_input, append_characters(remaining_input, after_input), item_input_evidence, item_input_captures, state, initial_routine, initial_evidence, initial_captures, child_routine, child_initial_edge, initial_execution, child_path)
+      let child_denotation = predicate_acceptance_path_is_sound(test, child_input, append_characters(remaining_input, after_input), position, item_input_evidence, item_input_captures, child_final_evidence, child_acceptance)
+      let remaining_denotation = predicate_repeat_mode_projection_is_sound(test, lazy, advance_initial_position(position, child_input), remaining_input, after_input, child_final_evidence, child_final_captures, next_state, next_routine, next_evidence, next_captures, next_edge, next_execution, projected_final_evidence, continuation)
+      DenotesRepeatModeMore(PatternPredicate(test), lazy, child_input, remaining_input, active_accepting_path_nonempty(S(Z()), predicate_pattern_machine(test), child_input, append_characters(remaining_input, after_input), state, initial_evidence, initial_captures, child_final_evidence, child_routine, child_path), partition, child_denotation, remaining_denotation)
+
+  fn predicate_repeat_mode_acceptance_path_is_sound(
+    test: Char -> Bool,
+    lazy: Bool,
+    input: List(Char),
+    after_input: List(Char),
+    position: InitialPosition,
+    @erased final_evidence: List(Evidence),
+    acceptance: AcceptancePathFrom(S(Z()), repeat_pattern_machine(S(Z()), predicate_pattern_machine(test), lazy), position, input, after_input, Nil(), Nil(), final_evidence)
+  ) -> PatternDenotation(ListC(CharC), PatternRepeatMode(PatternPredicate(test), lazy), position, input, after_input) =
+    let no_evidence: List(Evidence) = Nil()
+    let no_captures: List(CaptureFrame) = Nil()
+    match project_repeat_acceptance_from_machine(S(Z()), predicate_pattern_machine(test), lazy, position, input, after_input, no_evidence, no_captures, acceptance)
+      ProjectedRepeatEmptyAcceptance(input_empty, _, _, _, _) -> match input_empty
+        reflexive() -> DenotesRepeatModeEmpty(PatternPredicate(test), lazy)
+      ProjectedRepeatItemsAcceptance(state, initial_routine, list_evidence, list_captures, initial_evidence, initial_captures, initial_edge, initial_execution, projection, _, _) -> predicate_repeat_mode_projection_is_sound(test, lazy, position, input, after_input, list_evidence, list_captures, state, initial_routine, initial_evidence, initial_captures, initial_edge, initial_execution, final_evidence, projection)
+
+  fn predicate_repeat_mode_acceptance_is_sound(
+    test: Char -> Bool,
+    lazy: Bool,
+    input: List(Char),
+    after_input: List(Char),
+    position: InitialPosition,
+    @erased final_evidence: List(Evidence),
+    @erased routine: List(ExtendedInstruction),
+    acceptance: MachineAcceptance(S(Z()), repeat_pattern_machine(S(Z()), predicate_pattern_machine(test), lazy), position, input, after_input, final_evidence, routine)
+  ) -> PatternDenotation(ListC(CharC), PatternRepeatMode(PatternPredicate(test), lazy), position, input, after_input) =
+    predicate_repeat_mode_acceptance_path_is_sound(test, lazy, input, after_input, position, final_evidence, machine_acceptance_path(S(Z()), repeat_pattern_machine(S(Z()), predicate_pattern_machine(test), lazy), position, input, after_input, acceptance))
+
+  fn repeat_false_denotation_is_default(
+    {inner_shape: ShapeCode},
+    inner: Pattern(inner_shape),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    denotation: PatternDenotation(ListC(inner_shape), PatternRepeatMode(inner, False()), position, input, after_input)
+  ) -> PatternDenotation(ListC(inner_shape), PatternRepeat(inner), position, input, after_input) = match denotation
+    DenotesRepeatModeEmpty(_, _) -> DenotesRepeatEmpty(inner)
+    DenotesRepeatModeMore(_, _, item_input, remaining_input, nonempty, partition, item_denotation, remaining_denotation) ->
+      DenotesRepeatMore(inner, item_input, remaining_input, nonempty, partition, item_denotation, repeat_false_denotation_is_default(inner, advance_initial_position(position, item_input), remaining_input, after_input, remaining_denotation))
+
+  fn predicate_repeat_acceptance_is_sound(
+    test: Char -> Bool,
+    input: List(Char),
+    after_input: List(Char),
+    position: InitialPosition,
+    @erased final_evidence: List(Evidence),
+    @erased routine: List(ExtendedInstruction),
+    acceptance: MachineAcceptance(S(Z()), repeat_pattern_machine(S(Z()), predicate_pattern_machine(test), False()), position, input, after_input, final_evidence, routine)
+  ) -> PatternDenotation(ListC(CharC), PatternRepeat(PatternPredicate(test)), position, input, after_input) =
+    repeat_false_denotation_is_default(PatternPredicate(test), position, input, after_input, predicate_repeat_mode_acceptance_is_sound(test, False(), input, after_input, position, final_evidence, routine, acceptance))
+
   fn predicate_denotation_truth(
     test: Char -> Bool,
     char: Char,
