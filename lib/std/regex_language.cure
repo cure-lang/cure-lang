@@ -22,6 +22,12 @@ mod Std.Regex.Language
   type PredicateAcceptance indices (test: Char -> Bool, char: Char, after_input: List(Char), position: InitialPosition)
     PredicateAccepted : (final_evidence: List(Evidence)) -> (routine: List(ExtendedInstruction)) -> (@erased acceptance: MachineAcceptance(S(Z()), predicate_pattern_machine(test), position, Cons(char, Nil()), after_input, final_evidence, routine)) -> PredicateAcceptance(test, char, after_input, position)
 
+  type EmptyAcceptance indices (after_input: List(Char), position: InitialPosition)
+    EmptyAccepted : (final_evidence: List(Evidence)) -> (routine: List(ExtendedInstruction)) -> (@erased acceptance: MachineAcceptance(Z(), empty_pattern_machine(), position, Nil(), after_input, final_evidence, routine)) -> EmptyAcceptance(after_input, position)
+
+  type BoundaryAcceptance indices (constraint: BoundaryConstraint, after_input: List(Char), position: InitialPosition)
+    BoundaryAccepted : (final_evidence: List(Evidence)) -> (routine: List(ExtendedInstruction)) -> (@erased acceptance: MachineAcceptance(Z(), boundary_pattern_machine(constraint), position, Nil(), after_input, final_evidence, routine)) -> BoundaryAcceptance(constraint, after_input, position)
+
   fn predicate_result_member(
     test: Char -> Bool,
     char: Char,
@@ -29,6 +35,41 @@ mod Std.Regex.Language
     predicate_holds: Equivalent(Bool, test(char), True())
   ) -> ListMember(MachineState(S(Z())), predicate_accepting_destination(char), machine_destinations(S(Z()), predicate_pattern_machine(test), predicate_machine_thread(), char, transition_boundary_before(char, Nil(), after_input))) =
     rewrite predicate_holds in member_here(predicate_accepting_destination(char), Nil())
+
+  fn boundary_result_member(
+    constraint: BoundaryConstraint,
+    after_input: List(Char),
+    position: InitialPosition,
+    holds: IsTrue(constraints_hold(Cons(constraint, Nil()), initial_position_boundary(position, after_input)))
+  ) -> ListMember(MachineState(Z()), boundary_accepting_destination(), initial_machine_destinations(Z(), boundary_pattern_machine(constraint), position, Nil(), after_input)) =
+    let routine: List(EvidenceInstruction) = Cons(EmitUnit(), Nil())
+    let constraints: List(BoundaryConstraint) = Cons(constraint, Nil())
+    let states: List(MachineState(Z())) = Cons(Accepted(routine, constraints), Nil())
+    let raw_edge = member_here(Accepted(routine, constraints), Nil())
+    let boundary = initial_position_boundary(position, after_input)
+    let equality = is_true_equivalence(constraints_hold(constraints, boundary), holds)
+    filter_accepted_member(Z(), states, boundary, routine, constraints, raw_edge, equality)
+
+  fn is_true_equivalence(claim: Bool, proof: IsTrue(claim)) -> Equivalent(Bool, claim, True()) = match proof
+    Confirmed() -> reflexive(True())
+
+  fn equivalent_true_is_true(claim: Bool, equality: Equivalent(Bool, claim, True())) -> IsTrue(claim) = match equality
+    reflexive() -> Confirmed()
+
+  fn boundary_acceptance_truth(
+    constraint: BoundaryConstraint,
+    after_input: List(Char),
+    position: InitialPosition,
+    destination: MachineState(Z()),
+    edge: ListMember(MachineState(Z()), destination, initial_machine_destinations(Z(), boundary_pattern_machine(constraint), position, Nil(), after_input))
+  ) -> Equivalent(Bool, constraints_hold(Cons(constraint, Nil()), initial_position_boundary(position, after_input)), True()) =
+    let filtered_edge = filtered_starts_from_initial_edge(Z(), boundary_pattern_machine(constraint), position, Nil(), after_input, destination, edge)
+    match filtered_state_origin(Z(), Cons(Accepted(Cons(EmitUnit(), Nil()), Cons(constraint, Nil())), Nil()), initial_position_boundary(position, after_input), destination, filtered_edge)
+      FilteredActiveStateOrigin(_, _, _, raw_edge, _) -> match raw_edge
+        ListMemberThere(prior) -> impossible_list_member(prior)
+      FilteredAcceptedStateOrigin(_, _, raw_edge, holds) -> match raw_edge
+        ListMemberHere() -> holds
+        ListMemberThere(prior) -> impossible_list_member(prior)
 
   fn predicate_acceptance_truth(
     test: Char -> Bool,
@@ -62,6 +103,26 @@ mod Std.Regex.Language
   ) -> PatternDenotation(CharC, PatternPredicate(test), position, Cons(char, Nil()), after_input) =
     DenotesPredicate(predicate_acceptance_truth(test, char, after_input, position, final_evidence, routine, acceptance))
 
+  fn empty_acceptance_is_sound(
+    after_input: List(Char),
+    position: InitialPosition,
+    @erased final_evidence: List(Evidence),
+    @erased routine: List(ExtendedInstruction),
+    _acceptance: MachineAcceptance(Z(), empty_pattern_machine(), position, Nil(), after_input, final_evidence, routine)
+  ) -> PatternDenotation(UnitC, PatternEmpty(), position, Nil(), after_input) = DenotesEmpty()
+
+  fn boundary_acceptance_is_sound(
+    constraint: BoundaryConstraint,
+    after_input: List(Char),
+    position: InitialPosition,
+    @erased final_evidence: List(Evidence),
+    @erased routine: List(ExtendedInstruction),
+    acceptance: MachineAcceptance(Z(), boundary_pattern_machine(constraint), position, Nil(), after_input, final_evidence, routine)
+  ) -> PatternDenotation(UnitC, PatternBoundary(constraint), position, Nil(), after_input) = match acceptance
+    MachineAccepted(destination, _, _, _, edge, _, _, _) ->
+      let truth = boundary_acceptance_truth(constraint, after_input, position, destination, edge)
+      DenotesBoundary(equivalent_true_is_true(constraints_hold(Cons(constraint, Nil()), initial_position_boundary(position, after_input)), truth))
+
   fn predicate_denotation_is_complete(
     test: Char -> Bool,
     char: Char,
@@ -89,3 +150,40 @@ mod Std.Regex.Language
       let complete_routine = append_extended_routines(regular_routine(no_regular), path_routine)
       let routine_certificate: CertifiedPathRoutine(complete_routine, Nil(), Nil(), final_evidence) = PathRoutineInitial(no_regular, path_routine, no_evidence, no_captures, ExtendedEvidenceDone(), path_certificate)
       PredicateAccepted(final_evidence, complete_routine, MachineAccepted(predicate_machine_start(), no_evidence, no_captures, path_routine, initial_edge, initial_execution, routine_certificate, path))
+
+  fn empty_denotation_is_complete(
+    after_input: List(Char),
+    position: InitialPosition,
+    denotation: PatternDenotation(UnitC, PatternEmpty(), position, Nil(), after_input)
+  ) -> EmptyAcceptance(after_input, position) = match denotation
+    DenotesEmpty() ->
+      let no_captures: List(CaptureFrame) = Nil()
+      let no_extended: List(ExtendedInstruction) = Nil()
+      let final_evidence: List(Evidence) = Cons(UnitEvidence(), Nil())
+      let regular: List(EvidenceInstruction) = Cons(EmitUnit(), Nil())
+      let destination = boundary_accepting_destination()
+      let edge: ListMember(MachineState(Z()), destination, initial_machine_destinations(Z(), empty_pattern_machine(), position, Nil(), after_input)) = member_here(destination, Nil())
+      let execution: RoutineExecution(regular, Nil(), Nil(), final_evidence, no_captures) = RoutineStep(EmitUnit(), RoutineDone())
+      let extended_execution: ExtendedEvidenceRoutineExecution(regular_routine(regular), Nil(), Nil(), final_evidence, no_captures) = ExtendedEvidenceRegular(EmitUnit(), ExtendedEvidenceDone())
+      let complete_routine = regular_routine(regular)
+      let certificate: CertifiedPathRoutine(complete_routine, Nil(), Nil(), final_evidence) = PathRoutineInitial(regular, no_extended, final_evidence, no_captures, extended_execution, PathRoutineDone())
+      EmptyAccepted(final_evidence, complete_routine, MachineAccepted(destination, final_evidence, no_captures, no_extended, edge, execution, certificate, AcceptingNow()))
+
+  fn boundary_denotation_is_complete(
+    constraint: BoundaryConstraint,
+    after_input: List(Char),
+    position: InitialPosition,
+    denotation: PatternDenotation(UnitC, PatternBoundary(constraint), position, Nil(), after_input)
+  ) -> BoundaryAcceptance(constraint, after_input, position) = match denotation
+    DenotesBoundary(holds) ->
+      let no_captures: List(CaptureFrame) = Nil()
+      let no_extended: List(ExtendedInstruction) = Nil()
+      let final_evidence: List(Evidence) = Cons(UnitEvidence(), Nil())
+      let regular: List(EvidenceInstruction) = Cons(EmitUnit(), Nil())
+      let destination = boundary_accepting_destination()
+      let edge = boundary_result_member(constraint, after_input, position, holds)
+      let execution: RoutineExecution(regular, Nil(), Nil(), final_evidence, no_captures) = RoutineStep(EmitUnit(), RoutineDone())
+      let extended_execution: ExtendedEvidenceRoutineExecution(regular_routine(regular), Nil(), Nil(), final_evidence, no_captures) = ExtendedEvidenceRegular(EmitUnit(), ExtendedEvidenceDone())
+      let complete_routine = regular_routine(regular)
+      let certificate: CertifiedPathRoutine(complete_routine, Nil(), Nil(), final_evidence) = PathRoutineInitial(regular, no_extended, final_evidence, no_captures, extended_execution, PathRoutineDone())
+      BoundaryAccepted(final_evidence, complete_routine, MachineAccepted(destination, final_evidence, no_captures, no_extended, edge, execution, certificate, AcceptingNow()))

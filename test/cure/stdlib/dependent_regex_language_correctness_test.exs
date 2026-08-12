@@ -36,6 +36,48 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
       denotation
     )
 
+    fn empty_soundness(
+      @erased final_evidence: List(Evidence),
+      @erased routine: List(ExtendedInstruction),
+      acceptance: MachineAcceptance(0, empty_pattern_machine(), subject_initial_position(), no_chars(), no_chars(), final_evidence, routine)
+    ) -> PatternDenotation(UnitC, PatternEmpty(), subject_initial_position(), no_chars(), no_chars()) = empty_acceptance_is_sound(
+      no_chars(),
+      subject_initial_position(),
+      final_evidence,
+      routine,
+      acceptance
+    )
+
+    fn empty_completeness(
+      denotation: PatternDenotation(UnitC, PatternEmpty(), subject_initial_position(), no_chars(), no_chars())
+    ) -> EmptyAcceptance(no_chars(), subject_initial_position()) = empty_denotation_is_complete(
+      no_chars(),
+      subject_initial_position(),
+      denotation
+    )
+
+    fn boundary_soundness(
+      @erased final_evidence: List(Evidence),
+      @erased routine: List(ExtendedInstruction),
+      acceptance: MachineAcceptance(0, boundary_pattern_machine(subject_start_constraint()), subject_initial_position(), no_chars(), no_chars(), final_evidence, routine)
+    ) -> PatternDenotation(UnitC, PatternBoundary(subject_start_constraint()), subject_initial_position(), no_chars(), no_chars()) = boundary_acceptance_is_sound(
+      subject_start_constraint(),
+      no_chars(),
+      subject_initial_position(),
+      final_evidence,
+      routine,
+      acceptance
+    )
+
+    fn boundary_completeness(
+      denotation: PatternDenotation(UnitC, PatternBoundary(subject_start_constraint()), subject_initial_position(), no_chars(), no_chars())
+    ) -> BoundaryAcceptance(subject_start_constraint(), no_chars(), subject_initial_position()) = boundary_denotation_is_complete(
+      subject_start_constraint(),
+      no_chars(),
+      subject_initial_position(),
+      denotation
+    )
+
   """
 
   test "predicate denotation is sound for certified execution" do
@@ -48,5 +90,22 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     assert {:ok, env} = Program.elaborate(@source)
     assert Env.total?(env, :predicate_completeness)
     assert Env.total?(env, :"Std.Regex.Language#predicate_denotation_is_complete")
+  end
+
+  test "empty and boundary denotations are sound and constructively complete" do
+    assert {:ok, env} = Program.elaborate(@source)
+
+    for name <- [
+          :empty_soundness,
+          :empty_completeness,
+          :boundary_soundness,
+          :boundary_completeness,
+          :"Std.Regex.Language#empty_acceptance_is_sound",
+          :"Std.Regex.Language#empty_denotation_is_complete",
+          :"Std.Regex.Language#boundary_acceptance_is_sound",
+          :"Std.Regex.Language#boundary_denotation_is_complete"
+        ] do
+      assert Env.total?(env, name), "expected #{inspect(name)} to be total"
+    end
   end
 end
