@@ -238,6 +238,19 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     ) -> ListMember(MachineState(plus(left_count, right_count)), Accepted(append_routine(append_routine(left_routine, right_routine), Cons(EmitPair(), Nil())), append_constraints(left_constraints, right_constraints)), enter_right_with_constraints(left_count, left_routine, left_constraints, right_starts)) =
       lift_enter_right_accepted_member(left_count, right_count, left_routine, left_constraints, right_starts, right_routine, right_constraints, edge)
 
+    fn concat_continue_entered_right_member(
+      left_count: Nat,
+      right_count: Nat,
+      left_starts: List(MachineState(left_count)),
+      right_starts: List(MachineState(right_count)),
+      left_routine: List(EvidenceInstruction),
+      left_constraints: List(BoundaryConstraint),
+      left_edge: ListMember(MachineState(left_count), Accepted(left_routine, left_constraints), left_starts),
+      combined: MachineState(plus(left_count, right_count)),
+      entered_edge: ListMember(MachineState(plus(left_count, right_count)), combined, enter_right_with_constraints(left_count, left_routine, left_constraints, right_starts))
+    ) -> ListMember(MachineState(plus(left_count, right_count)), combined, continue_with_right(left_count, left_starts, right_starts)) =
+      lift_continue_entered_right_member(left_count, right_count, left_starts, right_starts, left_routine, left_constraints, left_edge, combined, entered_edge)
+
     fn generic_alternate_mode_left_composition(
       left_shape: ShapeCode,
       right_shape: ShapeCode,

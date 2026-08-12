@@ -593,6 +593,16 @@ mod Std.Regex.Proof
         AppendMemberLeft(origin) -> append_member_left(left, right, value, member_there(head, origin))
         AppendMemberRight(origin) -> append_member_right(left, right, value, origin)
 
+  fn lift_append_left_member(n: Nat, left: List(MachineState(n)), right: List(MachineState(n)), value: MachineState(n), edge: ListMember(MachineState(n), value, left)) -> ListMember(MachineState(n), value, append_machine_states(n, left, right)) = match left
+    Nil() -> impossible_list_member(edge)
+    Cons(head, rest) -> match edge
+      ListMemberHere() -> member_here(head, append_machine_states(n, rest, right))
+      ListMemberThere(prior) -> member_there(head, lift_append_left_member(n, rest, right, value, prior))
+
+  fn lift_append_right_member(n: Nat, left: List(MachineState(n)), right: List(MachineState(n)), value: MachineState(n), edge: ListMember(MachineState(n), value, right)) -> ListMember(MachineState(n), value, append_machine_states(n, left, right)) = match left
+    Nil() -> edge
+    Cons(head, rest) -> member_there(head, lift_append_right_member(n, rest, right, value, edge))
+
   ## Repetition re-enters only active child starts.  This inversion retains the
   ## exact child start edge and the routine/constraint prefix contributed by the
   ## just-completed iteration.
@@ -1146,6 +1156,15 @@ mod Std.Regex.Proof
   fn prepend_continue_with_right_origin(left_count: Nat, right_count: Nat, head: MachineState(left_count), tail: List(MachineState(left_count)), right_starts: List(MachineState(right_count)), combined: MachineState(plus(left_count, right_count)), origin: ContinueWithRightStateOrigin(left_count, right_count, tail, right_starts, combined)) -> ContinueWithRightStateOrigin(left_count, right_count, Cons(head, tail), right_starts, combined) = match origin
     ContinueLeftActiveOrigin(state, routine, constraints, edge) -> ContinueLeftActiveOrigin(state, routine, constraints, ListMemberThere(edge))
     ContinueEnteredRightOrigin(left_routine, left_constraints, left_edge, right_origin) -> ContinueEnteredRightOrigin(left_routine, left_constraints, ListMemberThere(left_edge), right_origin)
+
+  fn lift_continue_entered_right_member(left_count: Nat, right_count: Nat, left_starts: List(MachineState(left_count)), right_starts: List(MachineState(right_count)), left_routine: List(EvidenceInstruction), left_constraints: List(BoundaryConstraint), left_edge: ListMember(MachineState(left_count), Accepted(left_routine, left_constraints), left_starts), combined: MachineState(plus(left_count, right_count)), entered_edge: ListMember(MachineState(plus(left_count, right_count)), combined, enter_right_with_constraints(left_count, left_routine, left_constraints, right_starts))) -> ListMember(MachineState(plus(left_count, right_count)), combined, continue_with_right(left_count, left_starts, right_starts)) = match left_starts
+    Nil() -> impossible_list_member(left_edge)
+    Cons(Active(state, routine, constraints), rest) -> match left_edge
+      ListMemberHere() -> impossible
+      ListMemberThere(prior) -> member_there(Active(inject_alternate_left(left_count, right_count, state), routine, constraints), lift_continue_entered_right_member(left_count, right_count, rest, right_starts, left_routine, left_constraints, prior, combined, entered_edge))
+    Cons(Accepted(head_routine, head_constraints), rest) -> match left_edge
+      ListMemberHere() -> lift_append_left_member(plus(left_count, right_count), enter_right_with_constraints(left_count, head_routine, head_constraints, right_starts), continue_with_right(left_count, rest, right_starts), combined, entered_edge)
+      ListMemberThere(prior) -> lift_append_right_member(plus(left_count, right_count), enter_right_with_constraints(left_count, head_routine, head_constraints, right_starts), continue_with_right(left_count, rest, right_starts), combined, lift_continue_entered_right_member(left_count, right_count, rest, right_starts, left_routine, left_constraints, prior, combined, entered_edge))
 
   fn continue_with_right_state_origin(left_count: Nat, right_count: Nat, left_states: List(MachineState(left_count)), right_starts: List(MachineState(right_count)), combined: MachineState(plus(left_count, right_count)), edge: ListMember(MachineState(plus(left_count, right_count)), combined, continue_with_right(left_count, left_states, right_starts))) -> ContinueWithRightStateOrigin(left_count, right_count, left_states, right_starts, combined) = match left_states
     Nil() -> impossible_list_member(edge)
