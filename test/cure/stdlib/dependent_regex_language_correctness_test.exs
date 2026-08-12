@@ -218,6 +218,34 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     ) -> PatternAcceptanceFrom(ChoiceC(left_shape, right_shape), PatternAlternateMode(left, right, prefer_right), position, input, after_input, input_evidence, input_captures) =
       complete_alternate_mode_right_from(left_shape, right_shape, left, right, prefer_right, input, after_input, position, input_evidence, input_captures, completion)
 
+    fn generic_alternate_left_composition(
+      left_shape: ShapeCode,
+      right_shape: ShapeCode,
+      left: Pattern(left_shape),
+      right: Pattern(right_shape),
+      input: List(Char),
+      after_input: List(Char),
+      position: InitialPosition,
+      input_evidence: List(Evidence),
+      input_captures: List(CaptureFrame),
+      completion: PatternAcceptanceFrom(left_shape, left, position, input, after_input, input_evidence, input_captures)
+    ) -> PatternAcceptanceFrom(ChoiceC(left_shape, right_shape), PatternAlternate(left, right), position, input, after_input, input_evidence, input_captures) =
+      complete_alternate_left_from(left_shape, right_shape, left, right, input, after_input, position, input_evidence, input_captures, completion)
+
+    fn generic_alternate_right_composition(
+      left_shape: ShapeCode,
+      right_shape: ShapeCode,
+      left: Pattern(left_shape),
+      right: Pattern(right_shape),
+      input: List(Char),
+      after_input: List(Char),
+      position: InitialPosition,
+      input_evidence: List(Evidence),
+      input_captures: List(CaptureFrame),
+      completion: PatternAcceptanceFrom(right_shape, right, position, input, after_input, input_evidence, input_captures)
+    ) -> PatternAcceptanceFrom(ChoiceC(left_shape, right_shape), PatternAlternate(left, right), position, input, after_input, input_evidence, input_captures) =
+      complete_alternate_right_from(left_shape, right_shape, left, right, input, after_input, position, input_evidence, input_captures, completion)
+
     fn predicate_completeness(
       denotation: PatternDenotation(CharC, PatternPredicate(accepts_a), subject_initial_position(), Cons('a', no_chars()), no_chars())
     ) -> PredicateAcceptance(accepts_a, 'a', no_chars(), subject_initial_position()) = predicate_denotation_is_complete(

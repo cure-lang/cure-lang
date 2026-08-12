@@ -746,6 +746,46 @@ mod Std.Regex.Language
       let combined = lift_alternate_right_acceptance(thompson_state_count(left_compilation), thompson_machine(left_compilation), thompson_state_count(right_compilation), thompson_machine(right_compilation), prefer_right, position, input, after_input, input_evidence, input_captures, child_final_evidence, child_acceptance)
       PatternAcceptedFrom(final_evidence, acceptance_extended_routine(plus(thompson_state_count(left_compilation), thompson_state_count(right_compilation)), alternate_pattern_machine(thompson_state_count(left_compilation), thompson_machine(left_compilation), thompson_state_count(right_compilation), thompson_machine(right_compilation), prefer_right), position, input, after_input, input_evidence, input_captures, final_evidence, combined), combined)
 
+  fn complete_alternate_left_from(
+    left_shape: ShapeCode,
+    right_shape: ShapeCode,
+    left: Pattern(left_shape),
+    right: Pattern(right_shape),
+    input: List(Char),
+    after_input: List(Char),
+    position: InitialPosition,
+    input_evidence: List(Evidence),
+    input_captures: List(CaptureFrame),
+    completion: PatternAcceptanceFrom(left_shape, left, position, input, after_input, input_evidence, input_captures)
+  ) -> PatternAcceptanceFrom(ChoiceC(left_shape, right_shape), PatternAlternate(left, right), position, input, after_input, input_evidence, input_captures) = match completion
+    PatternAcceptedFrom(child_final_evidence, child_routine, child_acceptance) ->
+      let left_compilation: ThompsonCompilation(left_shape) = certify_thompson(left)
+      let right_compilation: ThompsonCompilation(right_shape) = certify_thompson(right)
+      let prefer_right = False()
+      let final_evidence = Cons(LeftEvidence(), child_final_evidence)
+      let combined = lift_alternate_left_acceptance(thompson_state_count(left_compilation), thompson_machine(left_compilation), thompson_state_count(right_compilation), thompson_machine(right_compilation), prefer_right, position, input, after_input, input_evidence, input_captures, child_final_evidence, child_acceptance)
+      PatternAcceptedFrom(final_evidence, acceptance_extended_routine(plus(thompson_state_count(left_compilation), thompson_state_count(right_compilation)), alternate_pattern_machine(thompson_state_count(left_compilation), thompson_machine(left_compilation), thompson_state_count(right_compilation), thompson_machine(right_compilation), prefer_right), position, input, after_input, input_evidence, input_captures, final_evidence, combined), combined)
+
+  fn complete_alternate_right_from(
+    left_shape: ShapeCode,
+    right_shape: ShapeCode,
+    left: Pattern(left_shape),
+    right: Pattern(right_shape),
+    input: List(Char),
+    after_input: List(Char),
+    position: InitialPosition,
+    input_evidence: List(Evidence),
+    input_captures: List(CaptureFrame),
+    completion: PatternAcceptanceFrom(right_shape, right, position, input, after_input, input_evidence, input_captures)
+  ) -> PatternAcceptanceFrom(ChoiceC(left_shape, right_shape), PatternAlternate(left, right), position, input, after_input, input_evidence, input_captures) = match completion
+    PatternAcceptedFrom(child_final_evidence, child_routine, child_acceptance) ->
+      let left_compilation: ThompsonCompilation(left_shape) = certify_thompson(left)
+      let right_compilation: ThompsonCompilation(right_shape) = certify_thompson(right)
+      let prefer_right = False()
+      let final_evidence = Cons(RightEvidence(), child_final_evidence)
+      let combined = lift_alternate_right_acceptance(thompson_state_count(left_compilation), thompson_machine(left_compilation), thompson_state_count(right_compilation), thompson_machine(right_compilation), prefer_right, position, input, after_input, input_evidence, input_captures, child_final_evidence, child_acceptance)
+      PatternAcceptedFrom(final_evidence, acceptance_extended_routine(plus(thompson_state_count(left_compilation), thompson_state_count(right_compilation)), alternate_pattern_machine(thompson_state_count(left_compilation), thompson_machine(left_compilation), thompson_state_count(right_compilation), thompson_machine(right_compilation), prefer_right), position, input, after_input, input_evidence, input_captures, final_evidence, combined), combined)
+
   fn predicate_denotation_is_complete(
     test: Char -> Bool,
     char: Char,
