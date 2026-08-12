@@ -213,6 +213,31 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     ) -> Equivalent(Bool, constraints_hold(append_constraints(left, right), boundary), True()) =
       appended_constraints_hold(left, right, boundary, left_holds, right_holds)
 
+    fn concat_enter_right_active_member(
+      left_count: Nat,
+      right_count: Nat,
+      left_routine: List(EvidenceInstruction),
+      left_constraints: List(BoundaryConstraint),
+      right_starts: List(MachineState(right_count)),
+      state: Bounded(right_count),
+      right_routine: List(EvidenceInstruction),
+      right_constraints: List(BoundaryConstraint),
+      edge: ListMember(MachineState(right_count), Active(state, right_routine, right_constraints), right_starts)
+    ) -> ListMember(MachineState(plus(left_count, right_count)), Active(inject_alternate_right(left_count, right_count, state), append_routine(left_routine, right_routine), append_constraints(left_constraints, right_constraints)), enter_right_with_constraints(left_count, left_routine, left_constraints, right_starts)) =
+      lift_enter_right_active_member(left_count, right_count, left_routine, left_constraints, right_starts, state, right_routine, right_constraints, edge)
+
+    fn concat_enter_right_accepted_member(
+      left_count: Nat,
+      right_count: Nat,
+      left_routine: List(EvidenceInstruction),
+      left_constraints: List(BoundaryConstraint),
+      right_starts: List(MachineState(right_count)),
+      right_routine: List(EvidenceInstruction),
+      right_constraints: List(BoundaryConstraint),
+      edge: ListMember(MachineState(right_count), Accepted(right_routine, right_constraints), right_starts)
+    ) -> ListMember(MachineState(plus(left_count, right_count)), Accepted(append_routine(append_routine(left_routine, right_routine), Cons(EmitPair(), Nil())), append_constraints(left_constraints, right_constraints)), enter_right_with_constraints(left_count, left_routine, left_constraints, right_starts)) =
+      lift_enter_right_accepted_member(left_count, right_count, left_routine, left_constraints, right_starts, right_routine, right_constraints, edge)
+
     fn generic_alternate_mode_left_composition(
       left_shape: ShapeCode,
       right_shape: ShapeCode,
