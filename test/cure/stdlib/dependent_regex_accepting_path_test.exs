@@ -401,12 +401,17 @@ defmodule Cure.Stdlib.DependentRegexAcceptingPathTest do
         ThompsonEvidencePredicate(test)
       )
 
+    @reducible
+    fn repeated_predicate_compilation(test: Char -> Bool, lazy: Bool) -> ThompsonCompilation(ListC(CharC())) =
+      ThompsonRepeat(ThompsonPredicate(test), lazy)
+
+    @reducible
     fn repeated_predicate_evidence_proof(
       test: Char -> Bool,
       lazy: Bool
     ) -> ThompsonEvidenceProof(
       ListC(CharC()),
-      ThompsonRepeat(ThompsonPredicate(test), lazy)
+      repeated_predicate_compilation(test, lazy)
     ) =
       ThompsonEvidenceRepeat(
         ThompsonPredicate(test),
@@ -834,7 +839,7 @@ defmodule Cure.Stdlib.DependentRegexAcceptingPathTest do
       @erased routine: List(ExtendedInstruction),
       acceptance: MachineAcceptance(
         1,
-        predicate_repeat_machine(accepts_a, lazy),
+        thompson_machine(repeated_predicate_compilation(accepts_a, lazy)),
         subject_initial_position(),
         input,
         empty_characters(),
@@ -842,25 +847,24 @@ defmodule Cure.Stdlib.DependentRegexAcceptingPathTest do
         routine
       )
     ) -> Encodes(ListC(CharC), final_evidence, empty_evidence()) =
-      predicate_repeat_machine_acceptance_encodes(
-        accepts_a,
-        lazy,
+      thompson_machine_acceptance_encodes_explicit(
+        ListC(CharC),
+        repeated_predicate_compilation(accepts_a, lazy),
+        repeated_predicate_evidence_proof(accepts_a, lazy),
         input,
         empty_characters(),
         subject_initial_position(),
-        final_evidence,
-        routine,
         acceptance
       )
 
-    fn repeated_greedy() -> MachineAcceptingSearch(1, predicate_repeat_machine(accepts_a, False()), subject_initial_position(), Cons('a', Cons('a', Nil())), Nil()) =
-      search_machine_acceptance(1, predicate_repeat_machine(accepts_a, False()), subject_initial_position(), ['a', 'a'], [])
+    fn repeated_greedy() -> MachineAcceptingSearch(1, thompson_machine(repeated_predicate_compilation(accepts_a, False())), subject_initial_position(), Cons('a', Cons('a', Nil())), Nil()) =
+      search_machine_acceptance(1, thompson_machine(repeated_predicate_compilation(accepts_a, False())), subject_initial_position(), ['a', 'a'], [])
 
-    fn repeated_lazy() -> MachineAcceptingSearch(1, predicate_repeat_machine(accepts_a, True()), subject_initial_position(), Cons('a', Cons('a', Nil())), Nil()) =
-      search_machine_acceptance(1, predicate_repeat_machine(accepts_a, True()), subject_initial_position(), ['a', 'a'], [])
+    fn repeated_lazy() -> MachineAcceptingSearch(1, thompson_machine(repeated_predicate_compilation(accepts_a, True())), subject_initial_position(), Cons('a', Cons('a', Nil())), Nil()) =
+      search_machine_acceptance(1, thompson_machine(repeated_predicate_compilation(accepts_a, True())), subject_initial_position(), ['a', 'a'], [])
 
-    fn repeated_empty() -> MachineAcceptingSearch(1, predicate_repeat_machine(accepts_a, False()), subject_initial_position(), Nil(), Nil()) =
-      search_machine_acceptance(1, predicate_repeat_machine(accepts_a, False()), subject_initial_position(), [], [])
+    fn repeated_empty() -> MachineAcceptingSearch(1, thompson_machine(repeated_predicate_compilation(accepts_a, False())), subject_initial_position(), Nil(), Nil()) =
+      search_machine_acceptance(1, thompson_machine(repeated_predicate_compilation(accepts_a, False())), subject_initial_position(), [], [])
 
     fn end_machine() -> PatternMachine(0) =
       MkPatternMachine([Accepted([EmitUnit()], [subject_end_constraint()])], zero_next)

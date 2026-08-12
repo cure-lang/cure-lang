@@ -2385,7 +2385,9 @@ mod Std.Regex.Proof
 
   fn thompson_evidence_acceptance_encodes({shape: ShapeCode}, compilation: ThompsonCompilation(shape), proof: ThompsonEvidenceProof(shape, compilation), input: List(Char), after_input: List(Char), position: InitialPosition, {final_evidence: List(Evidence)}, acceptance: AcceptancePath(thompson_state_count(compilation), thompson_machine(compilation), position, input, after_input, final_evidence)) -> Encodes(shape, final_evidence, empty_evidence()) = thompson_evidence_acceptance_from_encodes(compilation, proof, input, after_input, position, empty_evidence(), empty_captures(), acceptance)
 
-  fn thompson_machine_acceptance_encodes({shape: ShapeCode}, compilation: ThompsonCompilation(shape), proof: ThompsonEvidenceProof(shape, compilation), input: List(Char), after_input: List(Char), position: InitialPosition, {final_evidence: List(Evidence)}, {routine: List(ExtendedInstruction)}, acceptance: MachineAcceptance(thompson_state_count(compilation), thompson_machine(compilation), position, input, after_input, final_evidence, routine)) -> Encodes(shape, final_evidence, empty_evidence()) = thompson_evidence_acceptance_encodes(compilation, proof, input, after_input, position, machine_acceptance_path(thompson_state_count(compilation), thompson_machine(compilation), position, input, after_input, acceptance))
+  fn thompson_machine_acceptance_encodes_explicit(@erased shape: ShapeCode, compilation: ThompsonCompilation(shape), proof: ThompsonEvidenceProof(shape, compilation), input: List(Char), after_input: List(Char), position: InitialPosition, {final_evidence: List(Evidence)}, {routine: List(ExtendedInstruction)}, acceptance: MachineAcceptance(thompson_state_count(compilation), thompson_machine(compilation), position, input, after_input, final_evidence, routine)) -> Encodes(shape, final_evidence, empty_evidence()) = thompson_evidence_acceptance_encodes(compilation, proof, input, after_input, position, machine_acceptance_path(thompson_state_count(compilation), thompson_machine(compilation), position, input, after_input, acceptance))
+
+  fn thompson_machine_acceptance_encodes({shape: ShapeCode}, compilation: ThompsonCompilation(shape), proof: ThompsonEvidenceProof(shape, compilation), input: List(Char), after_input: List(Char), position: InitialPosition, {final_evidence: List(Evidence)}, {routine: List(ExtendedInstruction)}, acceptance: MachineAcceptance(thompson_state_count(compilation), thompson_machine(compilation), position, input, after_input, final_evidence, routine)) -> Encodes(shape, final_evidence, empty_evidence()) = thompson_machine_acceptance_encodes_explicit(shape, compilation, proof, input, after_input, position, acceptance)
 
   type CertifiedPatternMachine = CertifiedEmptyMachine | CertifiedBoundaryMachine(BoundaryConstraint) | CertifiedPredicateMachine(Char -> Bool)
 
@@ -2635,94 +2637,6 @@ mod Std.Regex.Proof
     MachineAccepted(destination, initial_evidence, initial_captures, path_routine, edge, initial_execution, _, path) -> predicate_alternate_initial_path_encodes(left, right, prefer_right, char, after_input, position, destination, final_evidence, path_routine, edge, initial_execution, path)
 
   fn predicate_alternate_machine_acceptance_encodes(left: Char -> Bool, right: Char -> Bool, char: Char, after_input: List(Char), position: InitialPosition, @erased final_evidence: List(Evidence), @erased routine: List(ExtendedInstruction), acceptance: MachineAcceptance(plus(S(Z()), S(Z())), predicate_alternate_machine(left, right), position, Cons(char, Nil()), after_input, final_evidence, routine)) -> Encodes(ChoiceC(CharC, CharC), final_evidence, empty_evidence()) = predicate_alternate_mode_machine_acceptance_encodes(left, right, false, char, after_input, position, final_evidence, routine, acceptance)
-
-  ## Repeat carries an intrinsic EncodesMany prefix alongside the accepting path.
-  ## Every consuming transition extends that prefix by one character; the sole
-  ## accepting transition closes it with EndList. The proof is structural in the
-  ## path and is independent of greedy/lazy ordering.
-  @reducible
-  fn predicate_repeat_machine(test: Char -> Bool, lazy: Bool) -> PatternMachine(S(Z())) =
-    MkPatternMachine(
-      repeat_machine_starts(Cons(predicate_machine_start(), Nil()), lazy),
-      repeat_machine_next(Cons(predicate_machine_start(), Nil()), lazy, predicate_machine_next(test))
-    )
-
-  type PredicateRepeatInitialView indices (lazy: Bool, destination: MachineState(S(Z())))
-    PredicateRepeatInitialActive : PredicateRepeatInitialView(lazy, Active(First(), Cons(BeginList(), Nil()), Nil()))
-    PredicateRepeatInitialAccepted : PredicateRepeatInitialView(lazy, Accepted(Cons(BeginList(), Cons(EndList(), Nil())), Nil()))
-
-  type PredicateRepeatDestinationView indices (lazy: Bool, holds: Bool, char: Char, destination: MachineState(S(Z())))
-    PredicateRepeatContinues : PredicateRepeatDestinationView(lazy, true, char, Active(First(), Cons(EmitChar(char), Nil()), Nil()))
-    PredicateRepeatFinishes : PredicateRepeatDestinationView(lazy, true, char, Accepted(Cons(EmitChar(char), Cons(EndList(), Nil())), Nil()))
-
-  type PredicateRepeatDestinationsView indices (lazy: Bool, holds: Bool, char: Char, destinations: List(MachineState(S(Z()))))
-    PredicateRepeatRejects : PredicateRepeatDestinationsView(lazy, false, char, Nil())
-    PredicateRepeatGreedy : PredicateRepeatDestinationsView(false, true, char, Cons(Active(First(), Cons(EmitChar(char), Nil()), Nil()), Cons(Accepted(Cons(EmitChar(char), Cons(EndList(), Nil())), Nil()), Nil())))
-    PredicateRepeatLazy : PredicateRepeatDestinationsView(true, true, char, Cons(Accepted(Cons(EmitChar(char), Cons(EndList(), Nil())), Nil()), Cons(Active(First(), Cons(EmitChar(char), Nil()), Nil()), Nil())))
-
-  fn predicate_repeat_initial_view(test: Char -> Bool, lazy: Bool, position: InitialPosition, input: List(Char), after_input: List(Char), destination: MachineState(S(Z())), edge: ListMember(MachineState(S(Z())), destination, initial_machine_destinations(S(Z()), predicate_repeat_machine(test, lazy), position, input, after_input))) -> PredicateRepeatInitialView(lazy, destination) = match lazy
-    False() -> match edge
-      ListMemberHere() -> PredicateRepeatInitialActive()
-      ListMemberThere(prior) -> match prior
-        ListMemberHere() -> PredicateRepeatInitialAccepted()
-        ListMemberThere(impossible) -> impossible_list_member(impossible)
-    True() -> match edge
-      ListMemberHere() -> PredicateRepeatInitialAccepted()
-      ListMemberThere(prior) -> match prior
-        ListMemberHere() -> PredicateRepeatInitialActive()
-        ListMemberThere(impossible) -> impossible_list_member(impossible)
-
-  fn predicate_repeat_destinations_view(test: Char -> Bool, lazy: Bool, char: Char, boundary: Boundary) -> PredicateRepeatDestinationsView(lazy, test(char), char, machine_destinations(S(Z()), predicate_repeat_machine(test, lazy), ThreadActive(First()), char, boundary)) = match test(char)
-    False() -> PredicateRepeatRejects()
-    True() -> match lazy
-      False() -> PredicateRepeatGreedy()
-      True() -> PredicateRepeatLazy()
-
-  fn predicate_repeat_destination_view(test: Char -> Bool, lazy: Bool, char: Char, boundary: Boundary, destination: MachineState(S(Z())), edge: ListMember(MachineState(S(Z())), destination, machine_destinations(S(Z()), predicate_repeat_machine(test, lazy), ThreadActive(First()), char, boundary))) -> PredicateRepeatDestinationView(lazy, test(char), char, destination) = match predicate_repeat_destinations_view(test, lazy, char, boundary)
-    PredicateRepeatRejects() -> impossible_list_member(edge)
-    PredicateRepeatGreedy() -> match edge
-        ListMemberHere() -> PredicateRepeatContinues()
-        ListMemberThere(prior) -> match prior
-          ListMemberHere() -> PredicateRepeatFinishes()
-          ListMemberThere(impossible) -> impossible_list_member(impossible)
-    PredicateRepeatLazy() -> match edge
-        ListMemberHere() -> PredicateRepeatFinishes()
-        ListMemberThere(prior) -> match prior
-          ListMemberHere() -> PredicateRepeatContinues()
-          ListMemberThere(impossible) -> impossible_list_member(impossible)
-
-  fn predicate_repeat_path_encodes(test: Char -> Bool, lazy: Bool, input: List(Char), after_input: List(Char), @erased current_evidence: List(Evidence), @erased prior: EncodesMany(CharC, current_evidence, empty_evidence()), @erased final_evidence: List(Evidence), @erased routine: List(ExtendedInstruction), path: AcceptingFrom(S(Z()), predicate_repeat_machine(test, lazy), input, after_input, ThreadActive(First()), current_evidence, Nil(), final_evidence, routine)) -> Encodes(ListC(CharC), final_evidence, empty_evidence()) = match input
-    Nil() -> match path
-      AcceptingNow() -> impossible
-      AcceptingNextActive(_, _, _, _, _, _, _, _, _) -> impossible
-      AcceptingNextAccepted(_, _, _, _, _, _, _, _) -> impossible
-    Cons(char, rest) -> match path
-      AcceptingNow() -> impossible
-      AcceptingNextActive(destination, regular, constraints, destination_evidence, _, suffix_routine, edge, execution, suffix) -> match predicate_repeat_destination_view(test, lazy, char, transition_boundary_before(char, rest, after_input), Active(destination, regular, constraints), edge)
-        PredicateRepeatContinues() -> match execution
-          RoutineStep(_, after_char) -> match after_char
-            RoutineDone() -> predicate_repeat_path_encodes(test, lazy, rest, after_input, destination_evidence, EncodesManyItem(encodes_character_on(char, current_evidence), prior), final_evidence, suffix_routine, suffix)
-        PredicateRepeatFinishes() -> impossible
-      AcceptingNextAccepted(regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix) -> match predicate_repeat_destination_view(test, lazy, char, transition_boundary_before(char, rest, after_input), Accepted(regular, constraints), edge)
-        PredicateRepeatContinues() -> impossible
-        PredicateRepeatFinishes() -> match execution
-          RoutineStep(_, after_char) -> match after_char
-            RoutineStep(_, after_end) -> match after_end
-              RoutineDone() -> match accepted_path_view(S(Z()), predicate_repeat_machine(test, lazy), rest, after_input, destination_evidence, destination_captures, final_evidence, suffix_routine, suffix)
-                AcceptedPathNow() -> EncodesList(EncodesManyItem(encodes_character_on(char, current_evidence), prior))
-
-  fn predicate_repeat_initial_path_encodes(test: Char -> Bool, lazy: Bool, input: List(Char), after_input: List(Char), position: InitialPosition, destination: MachineState(S(Z())), {initial_evidence: List(Evidence)}, {initial_captures: List(CaptureFrame)}, @erased final_evidence: List(Evidence), @erased path_routine: List(ExtendedInstruction), edge: ListMember(MachineState(S(Z())), destination, initial_machine_destinations(S(Z()), predicate_repeat_machine(test, lazy), position, input, after_input)), initial_execution: RoutineExecution(machine_state_routine(S(Z()), destination), Nil(), Nil(), initial_evidence, initial_captures), path: AcceptingFrom(S(Z()), predicate_repeat_machine(test, lazy), input, after_input, machine_state_thread(S(Z()), destination), initial_evidence, initial_captures, final_evidence, path_routine)) -> Encodes(ListC(CharC), final_evidence, empty_evidence()) = match predicate_repeat_initial_view(test, lazy, position, input, after_input, destination, edge)
-    PredicateRepeatInitialActive() -> match initial_execution
-      RoutineStep(_, after_begin) -> match after_begin
-        RoutineDone() -> predicate_repeat_path_encodes(test, lazy, input, after_input, initial_evidence, encodes_many_characters_empty(), final_evidence, path_routine, path)
-    PredicateRepeatInitialAccepted() -> match initial_execution
-      RoutineStep(_, after_begin) -> match after_begin
-        RoutineStep(_, after_end) -> match after_end
-          RoutineDone() -> match accepted_path_view(S(Z()), predicate_repeat_machine(test, lazy), input, after_input, initial_evidence, initial_captures, final_evidence, path_routine, path)
-            AcceptedPathNow() -> encodes_character_list_empty()
-
-  fn predicate_repeat_machine_acceptance_encodes(test: Char -> Bool, lazy: Bool, input: List(Char), after_input: List(Char), position: InitialPosition, @erased final_evidence: List(Evidence), @erased routine: List(ExtendedInstruction), acceptance: MachineAcceptance(S(Z()), predicate_repeat_machine(test, lazy), position, input, after_input, final_evidence, routine)) -> Encodes(ListC(CharC), final_evidence, empty_evidence()) = match acceptance
-    MachineAccepted(destination, initial_evidence, initial_captures, path_routine, edge, initial_execution, _, path) -> predicate_repeat_initial_path_encodes(test, lazy, input, after_input, position, destination, final_evidence, path_routine, edge, initial_execution, path)
 
   fn predicate_path_routine_view(test: Char -> Bool, char: Char, after_input: List(Char), {path_evidence: List(Evidence)}, {path_captures: List(CaptureFrame)}, {path_final_evidence: List(Evidence)}, {routine: List(ExtendedInstruction)}, path: AcceptingFrom(S(Z()), predicate_pattern_machine(test), Cons(char, Nil()), after_input, predicate_machine_thread(), path_evidence, path_captures, path_final_evidence, routine)) -> PredicateRoutineView(char, routine) = match path
     AcceptingNextActive(_, _, _, _, _, _, edge, _, _) -> match predicate_destinations_view(test, char, transition_boundary_before(char, [], after_input))
