@@ -50,6 +50,15 @@ mod Std.Regex.Language
   type PatternAcceptance indices (shape: ShapeCode, pattern: Pattern(shape), position: InitialPosition, input: List(Char), after_input: List(Char))
     PatternAccepted : {accepted_shape: ShapeCode} -> {accepted_pattern: Pattern(accepted_shape)} -> {accepted_position: InitialPosition} -> {accepted_input: List(Char)} -> {accepted_after_input: List(Char)} -> (final_evidence: List(Evidence)) -> (routine: List(ExtendedInstruction)) -> (@erased acceptance: MachineAcceptance(thompson_state_count(certify_thompson(accepted_pattern)), thompson_machine(certify_thompson(accepted_pattern)), accepted_position, accepted_input, accepted_after_input, final_evidence, routine)) -> PatternAcceptance(accepted_shape, accepted_pattern, accepted_position, accepted_input, accepted_after_input)
 
+  ## The induction hypothesis needed by constructive completeness.  Composite
+  ## machines do not run every child from empty evidence and capture stacks:
+  ## concat threads the left result into the right, group opens a capture before
+  ## entering its child, and repeat threads every prior item.  Keeping those
+  ## starting states explicit makes the theorem compositional instead of
+  ## rebuilding special-case paths for each surface pattern.
+  type PatternAcceptanceFrom indices (shape: ShapeCode, pattern: Pattern(shape), position: InitialPosition, input: List(Char), after_input: List(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame))
+    PatternAcceptedFrom : {accepted_shape: ShapeCode} -> {accepted_pattern: Pattern(accepted_shape)} -> {accepted_position: InitialPosition} -> {accepted_input: List(Char)} -> {accepted_after_input: List(Char)} -> {accepted_input_evidence: List(Evidence)} -> {accepted_input_captures: List(CaptureFrame)} -> (compilation: ThompsonCompilation(accepted_shape)) -> (compilation_proof: PatternCompilationProof(accepted_shape, accepted_pattern, compilation)) -> (final_evidence: List(Evidence)) -> (routine: List(ExtendedInstruction)) -> (acceptance: AcceptancePathFrom(thompson_state_count(compilation), thompson_machine(compilation), accepted_position, accepted_input, accepted_after_input, accepted_input_evidence, accepted_input_captures, final_evidence)) -> PatternAcceptanceFrom(accepted_shape, accepted_pattern, accepted_position, accepted_input, accepted_after_input, accepted_input_evidence, accepted_input_captures)
+
   ## Structural evidence that the constructor-preserving Thompson IR is the
   ## compilation of one exact typed pattern.  The generic language theorems
   ## recurse over this relation, keeping syntax, compilation, and machine
@@ -673,6 +682,29 @@ mod Std.Regex.Language
     DenotesPredicate(_, _, singleton, predicate_holds) -> match singleton
       IsSingleCharacter(_, _, exact) -> match exact
         reflexive() -> predicate_holds
+
+  fn predicate_denotation_is_complete_from(
+    test: Char -> Bool,
+    char: Char,
+    after_input: List(Char),
+    position: InitialPosition,
+    input_evidence: List(Evidence),
+    input_captures: List(CaptureFrame),
+    denotation: PatternDenotation(CharC, PatternPredicate(test), position, Cons(char, Nil()), after_input)
+  ) -> PatternAcceptanceFrom(CharC, PatternPredicate(test), position, Cons(char, Nil()), after_input, input_evidence, input_captures) =
+    let predicate_holds = predicate_denotation_truth(test, char, after_input, position, denotation)
+    let no_regular: List(EvidenceInstruction) = Nil()
+    let no_extended: List(ExtendedInstruction) = Nil()
+    let final_evidence: List(Evidence) = Cons(CharacterEvidence(char), input_evidence)
+    let final_captures: List(CaptureFrame) = record_capture_char(input_captures, char)
+    let predicate_regular: List(EvidenceInstruction) = Cons(EmitChar(char), Nil())
+    let path_routine: List(ExtendedInstruction) = transition_routine(char, predicate_regular)
+    let initial_edge: ListMember(MachineState(S(Z())), predicate_machine_start(), initial_machine_destinations(S(Z()), predicate_pattern_machine(test), position, Cons(char, Nil()), after_input)) = member_here(predicate_machine_start(), Nil())
+    let transition_edge: ListMember(MachineState(S(Z())), predicate_accepting_destination(char), machine_destinations(S(Z()), predicate_pattern_machine(test), predicate_machine_thread(), char, transition_boundary_before(char, Nil(), after_input))) = predicate_result_member(test, char, after_input, predicate_holds)
+    let initial_execution: RoutineExecution(no_regular, input_evidence, input_captures, input_evidence, input_captures) = RoutineDone()
+    let transition_execution: RoutineExecution(predicate_regular, input_evidence, record_capture_char(input_captures, char), final_evidence, final_captures) = RoutineStep(EmitChar(char), RoutineDone())
+    let path: AcceptingFrom(S(Z()), predicate_pattern_machine(test), Cons(char, Nil()), after_input, predicate_machine_thread(), input_evidence, input_captures, final_evidence, path_routine) = AcceptingNextAccepted(predicate_regular, Nil(), final_evidence, final_captures, no_extended, transition_edge, transition_execution, AcceptingNow())
+    PatternAcceptedFrom(ThompsonPredicate(test), CompilesPredicate(test), final_evidence, path_routine, %[predicate_machine_start(), input_evidence, input_captures, path_routine, initial_edge, initial_execution, path])
 
   fn predicate_denotation_is_complete(
     test: Char -> Bool,

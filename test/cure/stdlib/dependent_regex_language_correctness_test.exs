@@ -49,6 +49,17 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     ) -> PatternDenotation(CharC, PatternPredicate(test), position, input, after_input) =
       predicate_acceptance_path_is_sound(test, input, after_input, position, input_evidence, input_captures, final_evidence, acceptance)
 
+    fn generic_predicate_path_completeness(
+      test: Char -> Bool,
+      char: Char,
+      after_input: List(Char),
+      position: InitialPosition,
+      input_evidence: List(Evidence),
+      input_captures: List(CaptureFrame),
+      denotation: PatternDenotation(CharC, PatternPredicate(test), position, Cons(char, Nil()), after_input)
+    ) -> PatternAcceptanceFrom(CharC, PatternPredicate(test), position, Cons(char, Nil()), after_input, input_evidence, input_captures) =
+      predicate_denotation_is_complete_from(test, char, after_input, position, input_evidence, input_captures, denotation)
+
     fn predicate_completeness(
       denotation: PatternDenotation(CharC, PatternPredicate(accepts_a), subject_initial_position(), Cons('a', no_chars()), no_chars())
     ) -> PredicateAcceptance(accepts_a, 'a', no_chars(), subject_initial_position()) = predicate_denotation_is_complete(
