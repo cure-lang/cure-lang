@@ -1901,6 +1901,30 @@ mod Std.Regex.Proof
         CaptureActiveOrigin(child_state, child_routine, child_constraints, child_edge) -> CaptureActiveOrigin(child_state, child_routine, child_constraints, ListMemberThere(child_edge))
         CaptureAcceptedOrigin(child_routine, child_constraints, child_edge) -> CaptureAcceptedOrigin(child_routine, child_constraints, ListMemberThere(child_edge))
 
+  @reducible
+  fn finish_capture_state({n: Nat}, state: MachineState(n)) -> MachineState(n) = match state
+    Active(destination, routine, constraints) -> Active(destination, routine, constraints)
+    Accepted(routine, constraints) -> Accepted(append_routine(routine, Cons(EndCapture(), Nil())), constraints)
+
+  fn lift_filtered_finish_capture_member(
+    n: Nat,
+    states: List(MachineState(n)),
+    boundary: Boundary,
+    state: MachineState(n),
+    edge: ListMember(MachineState(n), state, filter_machine_states(n, states, boundary))
+  ) -> ListMember(MachineState(n), finish_capture_state(state), filter_machine_states(n, finish_capture(states), boundary)) = match states
+    Nil() -> impossible_list_member(edge)
+    Cons(Active(destination, routine, constraints), rest) -> with constraints_hold(constraints, boundary)
+      True() -> match edge
+        ListMemberHere() -> member_here(Active(destination, routine, Nil()), filter_machine_states(n, finish_capture(rest), boundary))
+        ListMemberThere(prior) -> member_there(Active(destination, routine, Nil()), lift_filtered_finish_capture_member(n, rest, boundary, state, prior))
+      False() -> lift_filtered_finish_capture_member(n, rest, boundary, state, edge)
+    Cons(Accepted(routine, constraints), rest) -> with constraints_hold(constraints, boundary)
+      True() -> match edge
+        ListMemberHere() -> member_here(Accepted(append_routine(routine, Cons(EndCapture(), Nil())), Nil()), filter_machine_states(n, finish_capture(rest), boundary))
+        ListMemberThere(prior) -> member_there(Accepted(append_routine(routine, Cons(EndCapture(), Nil())), Nil()), lift_filtered_finish_capture_member(n, rest, boundary, state, prior))
+      False() -> lift_filtered_finish_capture_member(n, rest, boundary, state, edge)
+
   type FilteredFinishCaptureOrigin(n: Nat, states: List(MachineState(n)), boundary: Boundary) indices (filtered: MachineState(n))
     FilteredCaptureActiveOrigin : (state: Bounded(n)) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (edge: ListMember(MachineState(n), Active(state, routine, constraints), states)) -> (holds: Equivalent(Bool, constraints_hold(constraints, boundary), True())) -> FilteredFinishCaptureOrigin(n, states, boundary, Active(state, routine, Nil()))
     FilteredCaptureAcceptedOrigin : (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (edge: ListMember(MachineState(n), Accepted(routine, constraints), states)) -> (holds: Equivalent(Bool, constraints_hold(constraints, boundary), True())) -> FilteredFinishCaptureOrigin(n, states, boundary, Accepted(append_routine(routine, Cons(EndCapture(), Nil())), Nil()))

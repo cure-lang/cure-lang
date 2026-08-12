@@ -110,6 +110,11 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     fn grouped_predicate_denotation() -> PatternDenotation(StringC, PatternGroup(PatternPredicate(accepts_a)), subject_initial_position(), Cons('a', no_chars()), no_chars()) =
       DenotesGroup(PatternPredicate(accepts_a), DenotesPredicate(Cons('a', Nil()), 'a', IsSingleCharacter(Cons('a', Nil()), 'a', reflexive(Cons('a', Nil()))), reflexive(true)))
 
+    fn grouped_predicate_completeness(
+      denotation: PatternDenotation(CharC, PatternPredicate(accepts_a), subject_initial_position(), Cons('a', Nil()), Nil())
+    ) -> PatternAcceptance(StringC, PatternGroup(PatternPredicate(accepts_a)), subject_initial_position(), Cons('a', Nil()), Nil()) =
+      grouped_predicate_denotation_is_complete(accepts_a, 'a', Nil(), subject_initial_position(), denotation)
+
     fn grouped_predicate_soundness(
       {final_evidence: List(Evidence)},
       {routine: List(ExtendedInstruction)},
@@ -239,6 +244,8 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
   test "recursive denotation preserves grouped child membership" do
     assert {:ok, env} = Program.elaborate(@source)
     assert Env.total?(env, :grouped_predicate_denotation)
+    assert Env.total?(env, :grouped_predicate_completeness)
+    assert Env.total?(env, :"Std.Regex.Language#grouped_predicate_denotation_is_complete")
     assert Env.total?(env, :grouped_predicate_soundness)
     assert Env.total?(env, :"Std.Regex.Language#grouped_predicate_acceptance_is_sound")
     assert Env.total?(env, :concatenated_empty_denotation)

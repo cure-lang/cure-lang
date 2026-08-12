@@ -678,3 +678,52 @@ mod Std.Regex.Language
   ) -> PatternAcceptance(ChoiceC(CharC, CharC), PatternAlternate(PatternPredicate(left_test), PatternPredicate(right_test)), position, Cons(char, Nil()), after_input) =
     match predicate_alternate_mode_right_acceptance_is_complete(left_test, right_test, False(), char, after_input, position, denotation)
       PredicateAlternateAccepted(final_evidence, routine, acceptance) -> PatternAccepted(final_evidence, routine, acceptance)
+
+  @reducible
+  fn grouped_predicate_accepting(char: Char) -> MachineState(S(Z())) =
+    let regular: List(EvidenceInstruction) = Cons(EmitChar(char), Cons(EndCapture(), Nil()))
+    let constraints: List(BoundaryConstraint) = Nil()
+    Accepted(regular, constraints)
+
+  fn grouped_predicate_result_member(
+    test: Char -> Bool,
+    char: Char,
+    after_input: List(Char),
+    holds: Equivalent(Bool, test(char), True())
+  ) -> ListMember(MachineState(S(Z())), grouped_predicate_accepting(char), machine_destinations(S(Z()), group_pattern_machine(S(Z()), Cons(predicate_machine_start(), Nil()), predicate_machine_next(test)), ThreadActive(First()), char, transition_boundary_before(char, Nil(), after_input))) =
+    lift_filtered_finish_capture_member(
+      S(Z()),
+      predicate_machine_next(test)(First(), char),
+      transition_boundary_before(char, Nil(), after_input),
+      predicate_accepting_destination(char),
+      predicate_result_member(test, char, after_input, holds)
+    )
+
+  fn grouped_predicate_denotation_is_complete(
+    test: Char -> Bool,
+    char: Char,
+    after_input: List(Char),
+    position: InitialPosition,
+    denotation: PatternDenotation(CharC, PatternPredicate(test), position, Cons(char, Nil()), after_input)
+  ) -> PatternAcceptance(StringC, PatternGroup(PatternPredicate(test)), position, Cons(char, Nil()), after_input) =
+    let holds = predicate_denotation_truth(test, char, after_input, position, denotation)
+    let no_evidence: List(Evidence) = Nil()
+    let no_captures: List(CaptureFrame) = Nil()
+    let opened_captures: List(CaptureFrame) = Cons(CaptureFrame(Nil(), Nil()), Nil())
+    let recorded_captures: List(CaptureFrame) = record_capture_char(opened_captures, char)
+    let no_extended: List(ExtendedInstruction) = Nil()
+    let initial_regular: List(EvidenceInstruction) = Cons(BeginCapture(), Nil())
+    let transition_regular: List(EvidenceInstruction) = Cons(EmitChar(char), Cons(EndCapture(), Nil()))
+    let final_evidence: List(Evidence) = Cons(StringEvidence(Std.String.from_characters(Cons(char, Nil()))), Nil())
+    let path_routine = transition_routine(char, transition_regular)
+    let initial_edge: ListMember(MachineState(S(Z())), Active(First(), initial_regular, Nil()), initial_machine_destinations(S(Z()), group_pattern_machine(S(Z()), Cons(predicate_machine_start(), Nil()), predicate_machine_next(test)), position, Cons(char, Nil()), after_input)) = member_here(Active(First(), initial_regular, Nil()), Nil())
+    let transition_edge = grouped_predicate_result_member(test, char, after_input, holds)
+    let initial_execution: RoutineExecution(initial_regular, no_evidence, no_captures, no_evidence, opened_captures) = RoutineStep(BeginCapture(), RoutineDone())
+    let transition_execution: RoutineExecution(transition_regular, no_evidence, recorded_captures, final_evidence, no_captures) = RoutineStep(EmitChar(char), RoutineStep(EndCapture(), RoutineDone()))
+    let initial_extended: ExtendedEvidenceRoutineExecution(regular_routine(initial_regular), no_evidence, no_captures, no_evidence, opened_captures) = ExtendedEvidenceRegular(BeginCapture(), ExtendedEvidenceDone())
+    let transition_extended: ExtendedEvidenceRoutineExecution(regular_routine(transition_regular), no_evidence, recorded_captures, final_evidence, no_captures) = ExtendedEvidenceRegular(EmitChar(char), ExtendedEvidenceRegular(EndCapture(), ExtendedEvidenceDone()))
+    let path: AcceptingFrom(S(Z()), group_pattern_machine(S(Z()), Cons(predicate_machine_start(), Nil()), predicate_machine_next(test)), Cons(char, Nil()), after_input, ThreadActive(First()), no_evidence, opened_captures, final_evidence, path_routine) = AcceptingNextAccepted(transition_regular, Nil(), final_evidence, no_captures, no_extended, transition_edge, transition_execution, AcceptingNow())
+    let path_certificate: CertifiedPathRoutine(path_routine, no_evidence, opened_captures, final_evidence) = PathRoutineTransition(char, transition_regular, no_extended, final_evidence, no_captures, transition_extended, PathRoutineDone())
+    let complete_routine = append_extended_routines(regular_routine(initial_regular), path_routine)
+    let certificate: CertifiedPathRoutine(complete_routine, Nil(), Nil(), final_evidence) = PathRoutineInitial(initial_regular, path_routine, no_evidence, opened_captures, initial_extended, path_certificate)
+    PatternAccepted(final_evidence, complete_routine, MachineAccepted(Active(First(), initial_regular, Nil()), no_evidence, opened_captures, path_routine, initial_edge, initial_execution, certificate, path))
