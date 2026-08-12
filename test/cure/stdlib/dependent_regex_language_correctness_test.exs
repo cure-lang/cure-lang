@@ -60,6 +60,48 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     ) -> PatternAcceptanceFrom(CharC, PatternPredicate(test), position, Cons(char, Nil()), after_input, input_evidence, input_captures) =
       predicate_denotation_is_complete_from(test, char, after_input, position, input_evidence, input_captures, denotation)
 
+    fn alternate_left_active_edge_embedding(
+      left_count: Nat,
+      right_count: Nat,
+      states: List(MachineState(left_count)),
+      boundary: Boundary,
+      state: Bounded(left_count),
+      routine: List(EvidenceInstruction),
+      edge: ListMember(MachineState(left_count), Active(state, routine, Nil()), filter_machine_states(left_count, states, boundary))
+    ) -> ListMember(MachineState(plus(left_count, right_count)), Active(inject_alternate_left(left_count, right_count, state), routine, Nil()), filter_machine_states(plus(left_count, right_count), alternate_left_states(left_count, right_count, states, EmitLeft()), boundary)) =
+      lift_filtered_left_active_member(left_count, right_count, states, EmitLeft(), boundary, state, routine, edge)
+
+    fn alternate_left_accepted_edge_embedding(
+      left_count: Nat,
+      right_count: Nat,
+      states: List(MachineState(left_count)),
+      boundary: Boundary,
+      routine: List(EvidenceInstruction),
+      edge: ListMember(MachineState(left_count), Accepted(routine, Nil()), filter_machine_states(left_count, states, boundary))
+    ) -> ListMember(MachineState(plus(left_count, right_count)), Accepted(append_branch_marker(routine, EmitLeft()), Nil()), filter_machine_states(plus(left_count, right_count), alternate_left_states(left_count, right_count, states, EmitLeft()), boundary)) =
+      lift_filtered_left_accepted_member(left_count, right_count, states, EmitLeft(), boundary, routine, edge)
+
+    fn alternate_right_active_edge_embedding(
+      left_count: Nat,
+      right_count: Nat,
+      states: List(MachineState(right_count)),
+      boundary: Boundary,
+      state: Bounded(right_count),
+      routine: List(EvidenceInstruction),
+      edge: ListMember(MachineState(right_count), Active(state, routine, Nil()), filter_machine_states(right_count, states, boundary))
+    ) -> ListMember(MachineState(plus(left_count, right_count)), Active(inject_alternate_right(left_count, right_count, state), routine, Nil()), filter_machine_states(plus(left_count, right_count), alternate_right_states(left_count, right_count, states, EmitRight()), boundary)) =
+      lift_filtered_right_active_member(left_count, right_count, states, EmitRight(), boundary, state, routine, edge)
+
+    fn alternate_right_accepted_edge_embedding(
+      left_count: Nat,
+      right_count: Nat,
+      states: List(MachineState(right_count)),
+      boundary: Boundary,
+      routine: List(EvidenceInstruction),
+      edge: ListMember(MachineState(right_count), Accepted(routine, Nil()), filter_machine_states(right_count, states, boundary))
+    ) -> ListMember(MachineState(plus(left_count, right_count)), Accepted(append_branch_marker(routine, EmitRight()), Nil()), filter_machine_states(plus(left_count, right_count), alternate_right_states(left_count, right_count, states, EmitRight()), boundary)) =
+      lift_filtered_right_accepted_member(left_count, right_count, states, EmitRight(), boundary, routine, edge)
+
     fn predicate_completeness(
       denotation: PatternDenotation(CharC, PatternPredicate(accepts_a), subject_initial_position(), Cons('a', no_chars()), no_chars())
     ) -> PredicateAcceptance(accepts_a, 'a', no_chars(), subject_initial_position()) = predicate_denotation_is_complete(

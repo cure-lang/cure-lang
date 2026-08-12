@@ -812,6 +812,61 @@ mod Std.Regex.Proof
       True() -> filtered_right_accepted_true_origin(left_count, right_count, routine, rest, marker, boundary, combined, edge)
       False() -> filtered_right_marked_state_origin(left_count, right_count, rest, marker, boundary, combined, edge)
 
+  ## Constructive inverses of the origin views above. Completeness uses these
+  ## to embed a certified child edge into an alternate machine while preserving
+  ## filtering, state injection, and the branch evidence marker exactly.
+  fn lift_filtered_left_active_member(left_count: Nat, right_count: Nat, states: List(MachineState(left_count)), marker: EvidenceInstruction, boundary: Boundary, state: Bounded(left_count), routine: List(EvidenceInstruction), edge: ListMember(MachineState(left_count), Active(state, routine, Nil()), filter_machine_states(left_count, states, boundary))) -> ListMember(MachineState(plus(left_count, right_count)), Active(inject_alternate_left(left_count, right_count, state), routine, Nil()), filter_machine_states(plus(left_count, right_count), alternate_left_states(left_count, right_count, states, marker), boundary)) = match states
+    Nil() -> impossible_list_member(edge)
+    Cons(Active(head_state, head_routine, constraints), rest) -> with constraints_hold(constraints, boundary)
+      True() -> match edge
+        ListMemberHere() -> member_here(Active(inject_alternate_left(left_count, right_count, head_state), head_routine, Nil()), filter_machine_states(plus(left_count, right_count), alternate_left_states(left_count, right_count, rest, marker), boundary))
+        ListMemberThere(prior) -> member_there(Active(inject_alternate_left(left_count, right_count, head_state), head_routine, Nil()), lift_filtered_left_active_member(left_count, right_count, rest, marker, boundary, state, routine, prior))
+      False() -> lift_filtered_left_active_member(left_count, right_count, rest, marker, boundary, state, routine, edge)
+    Cons(Accepted(head_routine, constraints), rest) -> with constraints_hold(constraints, boundary)
+      True() -> match edge
+        ListMemberHere() -> impossible
+        ListMemberThere(prior) -> member_there(Accepted(append_branch_marker(head_routine, marker), Nil()), lift_filtered_left_active_member(left_count, right_count, rest, marker, boundary, state, routine, prior))
+      False() -> lift_filtered_left_active_member(left_count, right_count, rest, marker, boundary, state, routine, edge)
+
+  fn lift_filtered_left_accepted_member(left_count: Nat, right_count: Nat, states: List(MachineState(left_count)), marker: EvidenceInstruction, boundary: Boundary, routine: List(EvidenceInstruction), edge: ListMember(MachineState(left_count), Accepted(routine, Nil()), filter_machine_states(left_count, states, boundary))) -> ListMember(MachineState(plus(left_count, right_count)), Accepted(append_branch_marker(routine, marker), Nil()), filter_machine_states(plus(left_count, right_count), alternate_left_states(left_count, right_count, states, marker), boundary)) = match states
+    Nil() -> impossible_list_member(edge)
+    Cons(Active(head_state, head_routine, constraints), rest) -> with constraints_hold(constraints, boundary)
+      True() -> match edge
+        ListMemberHere() -> impossible
+        ListMemberThere(prior) -> member_there(Active(inject_alternate_left(left_count, right_count, head_state), head_routine, Nil()), lift_filtered_left_accepted_member(left_count, right_count, rest, marker, boundary, routine, prior))
+      False() -> lift_filtered_left_accepted_member(left_count, right_count, rest, marker, boundary, routine, edge)
+    Cons(Accepted(head_routine, constraints), rest) -> with constraints_hold(constraints, boundary)
+      True() -> match edge
+        ListMemberHere() -> member_here(Accepted(append_branch_marker(head_routine, marker), Nil()), filter_machine_states(plus(left_count, right_count), alternate_left_states(left_count, right_count, rest, marker), boundary))
+        ListMemberThere(prior) -> member_there(Accepted(append_branch_marker(head_routine, marker), Nil()), lift_filtered_left_accepted_member(left_count, right_count, rest, marker, boundary, routine, prior))
+      False() -> lift_filtered_left_accepted_member(left_count, right_count, rest, marker, boundary, routine, edge)
+
+  fn lift_filtered_right_active_member(left_count: Nat, right_count: Nat, states: List(MachineState(right_count)), marker: EvidenceInstruction, boundary: Boundary, state: Bounded(right_count), routine: List(EvidenceInstruction), edge: ListMember(MachineState(right_count), Active(state, routine, Nil()), filter_machine_states(right_count, states, boundary))) -> ListMember(MachineState(plus(left_count, right_count)), Active(inject_alternate_right(left_count, right_count, state), routine, Nil()), filter_machine_states(plus(left_count, right_count), alternate_right_states(left_count, right_count, states, marker), boundary)) = match states
+    Nil() -> impossible_list_member(edge)
+    Cons(Active(head_state, head_routine, constraints), rest) -> with constraints_hold(constraints, boundary)
+      True() -> match edge
+        ListMemberHere() -> member_here(Active(inject_alternate_right(left_count, right_count, head_state), head_routine, Nil()), filter_machine_states(plus(left_count, right_count), alternate_right_states(left_count, right_count, rest, marker), boundary))
+        ListMemberThere(prior) -> member_there(Active(inject_alternate_right(left_count, right_count, head_state), head_routine, Nil()), lift_filtered_right_active_member(left_count, right_count, rest, marker, boundary, state, routine, prior))
+      False() -> lift_filtered_right_active_member(left_count, right_count, rest, marker, boundary, state, routine, edge)
+    Cons(Accepted(head_routine, constraints), rest) -> with constraints_hold(constraints, boundary)
+      True() -> match edge
+        ListMemberHere() -> impossible
+        ListMemberThere(prior) -> member_there(Accepted(append_branch_marker(head_routine, marker), Nil()), lift_filtered_right_active_member(left_count, right_count, rest, marker, boundary, state, routine, prior))
+      False() -> lift_filtered_right_active_member(left_count, right_count, rest, marker, boundary, state, routine, edge)
+
+  fn lift_filtered_right_accepted_member(left_count: Nat, right_count: Nat, states: List(MachineState(right_count)), marker: EvidenceInstruction, boundary: Boundary, routine: List(EvidenceInstruction), edge: ListMember(MachineState(right_count), Accepted(routine, Nil()), filter_machine_states(right_count, states, boundary))) -> ListMember(MachineState(plus(left_count, right_count)), Accepted(append_branch_marker(routine, marker), Nil()), filter_machine_states(plus(left_count, right_count), alternate_right_states(left_count, right_count, states, marker), boundary)) = match states
+    Nil() -> impossible_list_member(edge)
+    Cons(Active(head_state, head_routine, constraints), rest) -> with constraints_hold(constraints, boundary)
+      True() -> match edge
+        ListMemberHere() -> impossible
+        ListMemberThere(prior) -> member_there(Active(inject_alternate_right(left_count, right_count, head_state), head_routine, Nil()), lift_filtered_right_accepted_member(left_count, right_count, rest, marker, boundary, routine, prior))
+      False() -> lift_filtered_right_accepted_member(left_count, right_count, rest, marker, boundary, routine, edge)
+    Cons(Accepted(head_routine, constraints), rest) -> with constraints_hold(constraints, boundary)
+      True() -> match edge
+        ListMemberHere() -> member_here(Accepted(append_branch_marker(head_routine, marker), Nil()), filter_machine_states(plus(left_count, right_count), alternate_right_states(left_count, right_count, rest, marker), boundary))
+        ListMemberThere(prior) -> member_there(Accepted(append_branch_marker(head_routine, marker), Nil()), lift_filtered_right_accepted_member(left_count, right_count, rest, marker, boundary, routine, prior))
+      False() -> lift_filtered_right_accepted_member(left_count, right_count, rest, marker, boundary, routine, edge)
+
   ## Once an alternate thread is known to inhabit one injection image, every
   ## outgoing edge comes from that same child machine. The Bounded inverse laws
   ## rewrite the combined source before the transition is classified; no raw-Nat
