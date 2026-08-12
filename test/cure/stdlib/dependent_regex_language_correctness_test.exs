@@ -187,6 +187,37 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
         DenotesRepeatEmpty(PatternPredicate(accepts_a))
       )
 
+    fn repeated_predicate_recursive_completeness(
+      denotation: PatternDenotation(ListC(CharC), PatternRepeat(PatternPredicate(accepts_a)), subject_initial_position(), Cons('a', Nil()), Nil())
+    ) -> PatternAcceptance(ListC(CharC), PatternRepeat(PatternPredicate(accepts_a)), subject_initial_position(), Cons('a', Nil()), Nil()) =
+      predicate_repeat_denotation_is_complete(accepts_a, Cons('a', Nil()), Nil(), subject_initial_position(), denotation)
+
+    fn repeated_mode_pair_denotation() -> PatternDenotation(ListC(CharC), PatternRepeatMode(PatternPredicate(accepts_a), True()), subject_initial_position(), Cons('a', Cons('a', Nil())), Nil()) =
+      DenotesRepeatModeMore(
+        PatternPredicate(accepts_a),
+        True(),
+        Cons('a', Nil()),
+        Cons('a', Nil()),
+        CharactersPresent('a', Nil()),
+        Std.Regex.Proof.input_partition_there('a', Std.Regex.Proof.input_partition_here(Cons('a', Nil()))),
+        DenotesPredicate(Cons('a', Nil()), 'a', IsSingleCharacter(Cons('a', Nil()), 'a', reflexive(Cons('a', Nil()))), reflexive(True())),
+        DenotesRepeatModeMore(
+          PatternPredicate(accepts_a),
+          True(),
+          Cons('a', Nil()),
+          Nil(),
+          CharactersPresent('a', Nil()),
+          Std.Regex.Proof.input_partition_there('a', Std.Regex.Proof.input_partition_here(Nil())),
+          DenotesPredicate(Cons('a', Nil()), 'a', IsSingleCharacter(Cons('a', Nil()), 'a', reflexive(Cons('a', Nil()))), reflexive(True())),
+          DenotesRepeatModeEmpty(PatternPredicate(accepts_a), True())
+        )
+      )
+
+    fn repeated_mode_recursive_completeness(
+      denotation: PatternDenotation(ListC(CharC), PatternRepeatMode(PatternPredicate(accepts_a), True()), subject_initial_position(), Cons('a', Cons('a', Nil())), Nil())
+    ) -> PatternAcceptance(ListC(CharC), PatternRepeatMode(PatternPredicate(accepts_a), True()), subject_initial_position(), Cons('a', Cons('a', Nil())), Nil()) =
+      predicate_repeat_mode_denotation_is_complete(accepts_a, True(), Cons('a', Cons('a', Nil())), Nil(), subject_initial_position(), denotation)
+
     fn repeated_mode_empty_denotation() -> PatternDenotation(ListC(CharC), PatternRepeatMode(PatternPredicate(accepts_a), True()), subject_initial_position(), Nil(), Nil()) =
       DenotesRepeatModeEmpty(PatternPredicate(accepts_a), True())
 
@@ -300,6 +331,11 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     assert Env.total?(env, :alternate_predicate_soundness)
     assert Env.total?(env, :"Std.Regex.Language#predicate_alternate_mode_acceptance_is_sound")
     assert Env.total?(env, :repeated_predicate_denotation)
+    assert Env.total?(env, :repeated_predicate_recursive_completeness)
+    assert Env.total?(env, :"Std.Regex.Language#predicate_repeat_denotation_is_complete")
+    assert Env.total?(env, :repeated_mode_pair_denotation)
+    assert Env.total?(env, :repeated_mode_recursive_completeness)
+    assert Env.total?(env, :"Std.Regex.Language#predicate_repeat_mode_denotation_is_complete")
     assert Env.total?(env, :repeated_mode_empty_denotation)
     assert Env.total?(env, :repeated_mode_empty_completeness)
     assert Env.total?(env, :repeated_default_empty_completeness)

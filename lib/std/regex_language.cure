@@ -12,22 +12,28 @@ mod Std.Regex.Language
     CharactersPresent : (head: Char) -> (tail: List(Char)) -> NonEmptyCharacters(Cons(head, tail))
 
   type SingleCharacter indices (input: List(Char), char: Char)
-    IsSingleCharacter : (input: List(Char)) -> (char: Char) -> (@erased exact: Equivalent(List(Char), input, Cons(char, Nil()))) -> SingleCharacter(input, char)
+    IsSingleCharacter : (input: List(Char)) -> (char: Char) -> (exact: Equivalent(List(Char), input, Cons(char, Nil()))) -> SingleCharacter(input, char)
 
+  ## A denotation is the constructive witness consumed by completeness, not a
+  ## proof-irrelevant proposition: branch choices, partitions, and recursive
+  ## child denotations determine the accepting path that completeness returns.
+  ## Keep those fields runtime-relevant while the witness is interpreted.  The
+  ## resulting machine acceptance is still erased at PatternAccepted, which is
+  ## the public proof boundary.
   type PatternDenotation indices (shape: ShapeCode, pattern: Pattern(shape), position: InitialPosition, input: List(Char), after_input: List(Char))
     DenotesEmpty : PatternDenotation(UnitC, PatternEmpty(), position, Nil(), after_input)
-    DenotesPredicate : (input: List(Char)) -> (char: Char) -> (@erased singleton: SingleCharacter(input, char)) -> (proof: Equivalent(Bool, test(char), True())) -> PatternDenotation(CharC, PatternPredicate(test), position, input, after_input)
+    DenotesPredicate : (input: List(Char)) -> (char: Char) -> (singleton: SingleCharacter(input, char)) -> (proof: Equivalent(Bool, test(char), True())) -> PatternDenotation(CharC, PatternPredicate(test), position, input, after_input)
     DenotesBoundary : (proof: IsTrue(constraints_hold(Cons(constraint, Nil()), initial_position_boundary(position, after_input)))) -> PatternDenotation(UnitC, PatternBoundary(constraint), position, Nil(), after_input)
-    DenotesConcat : (left: Pattern(left_shape)) -> (right: Pattern(right_shape)) -> (left_input: List(Char)) -> (right_input: List(Char)) -> (@erased partition: InputPartition(input, left_input, right_input)) -> (@erased left_denotation: PatternDenotation(left_shape, left, position, left_input, append_characters(right_input, after_input))) -> (@erased right_denotation: PatternDenotation(right_shape, right, advance_initial_position(position, left_input), right_input, after_input)) -> PatternDenotation(PairC(left_shape, right_shape), PatternConcat(left, right), position, input, after_input)
-    DenotesGroup : (inner: Pattern(inner_shape)) -> (@erased inner_denotation: PatternDenotation(inner_shape, inner, position, input, after_input)) -> PatternDenotation(StringC, PatternGroup(inner), position, input, after_input)
-    DenotesAlternateLeft : (left: Pattern(left_shape)) -> (right: Pattern(right_shape)) -> (@erased left_denotation: PatternDenotation(left_shape, left, position, input, after_input)) -> PatternDenotation(ChoiceC(left_shape, right_shape), PatternAlternate(left, right), position, input, after_input)
-    DenotesAlternateRight : (left: Pattern(left_shape)) -> (right: Pattern(right_shape)) -> (@erased right_denotation: PatternDenotation(right_shape, right, position, input, after_input)) -> PatternDenotation(ChoiceC(left_shape, right_shape), PatternAlternate(left, right), position, input, after_input)
-    DenotesAlternateModeLeft : (left: Pattern(left_shape)) -> (right: Pattern(right_shape)) -> (prefer_right: Bool) -> (@erased left_denotation: PatternDenotation(left_shape, left, position, input, after_input)) -> PatternDenotation(ChoiceC(left_shape, right_shape), PatternAlternateMode(left, right, prefer_right), position, input, after_input)
-    DenotesAlternateModeRight : (left: Pattern(left_shape)) -> (right: Pattern(right_shape)) -> (prefer_right: Bool) -> (@erased right_denotation: PatternDenotation(right_shape, right, position, input, after_input)) -> PatternDenotation(ChoiceC(left_shape, right_shape), PatternAlternateMode(left, right, prefer_right), position, input, after_input)
+    DenotesConcat : (left: Pattern(left_shape)) -> (right: Pattern(right_shape)) -> (left_input: List(Char)) -> (right_input: List(Char)) -> (@erased partition: InputPartition(input, left_input, right_input)) -> (left_denotation: PatternDenotation(left_shape, left, position, left_input, append_characters(right_input, after_input))) -> (right_denotation: PatternDenotation(right_shape, right, advance_initial_position(position, left_input), right_input, after_input)) -> PatternDenotation(PairC(left_shape, right_shape), PatternConcat(left, right), position, input, after_input)
+    DenotesGroup : (inner: Pattern(inner_shape)) -> (inner_denotation: PatternDenotation(inner_shape, inner, position, input, after_input)) -> PatternDenotation(StringC, PatternGroup(inner), position, input, after_input)
+    DenotesAlternateLeft : (left: Pattern(left_shape)) -> (right: Pattern(right_shape)) -> (left_denotation: PatternDenotation(left_shape, left, position, input, after_input)) -> PatternDenotation(ChoiceC(left_shape, right_shape), PatternAlternate(left, right), position, input, after_input)
+    DenotesAlternateRight : (left: Pattern(left_shape)) -> (right: Pattern(right_shape)) -> (right_denotation: PatternDenotation(right_shape, right, position, input, after_input)) -> PatternDenotation(ChoiceC(left_shape, right_shape), PatternAlternate(left, right), position, input, after_input)
+    DenotesAlternateModeLeft : (left: Pattern(left_shape)) -> (right: Pattern(right_shape)) -> (prefer_right: Bool) -> (left_denotation: PatternDenotation(left_shape, left, position, input, after_input)) -> PatternDenotation(ChoiceC(left_shape, right_shape), PatternAlternateMode(left, right, prefer_right), position, input, after_input)
+    DenotesAlternateModeRight : (left: Pattern(left_shape)) -> (right: Pattern(right_shape)) -> (prefer_right: Bool) -> (right_denotation: PatternDenotation(right_shape, right, position, input, after_input)) -> PatternDenotation(ChoiceC(left_shape, right_shape), PatternAlternateMode(left, right, prefer_right), position, input, after_input)
     DenotesRepeatEmpty : (inner: Pattern(inner_shape)) -> PatternDenotation(ListC(inner_shape), PatternRepeat(inner), position, Nil(), after_input)
-    DenotesRepeatMore : (inner: Pattern(inner_shape)) -> (item_input: List(Char)) -> (remaining_input: List(Char)) -> (@erased nonempty: NonEmptyCharacters(item_input)) -> (@erased partition: InputPartition(input, item_input, remaining_input)) -> (@erased item_denotation: PatternDenotation(inner_shape, inner, position, item_input, append_characters(remaining_input, after_input))) -> (@erased remaining_denotation: PatternDenotation(ListC(inner_shape), PatternRepeat(inner), advance_initial_position(position, item_input), remaining_input, after_input)) -> PatternDenotation(ListC(inner_shape), PatternRepeat(inner), position, input, after_input)
+    DenotesRepeatMore : (inner: Pattern(inner_shape)) -> (item_input: List(Char)) -> (remaining_input: List(Char)) -> (nonempty: NonEmptyCharacters(item_input)) -> (partition: InputPartition(input, item_input, remaining_input)) -> (item_denotation: PatternDenotation(inner_shape, inner, position, item_input, append_characters(remaining_input, after_input))) -> (remaining_denotation: PatternDenotation(ListC(inner_shape), PatternRepeat(inner), advance_initial_position(position, item_input), remaining_input, after_input)) -> PatternDenotation(ListC(inner_shape), PatternRepeat(inner), position, input, after_input)
     DenotesRepeatModeEmpty : (inner: Pattern(inner_shape)) -> (lazy: Bool) -> PatternDenotation(ListC(inner_shape), PatternRepeatMode(inner, lazy), position, Nil(), after_input)
-    DenotesRepeatModeMore : (inner: Pattern(inner_shape)) -> (lazy: Bool) -> (item_input: List(Char)) -> (remaining_input: List(Char)) -> (@erased nonempty: NonEmptyCharacters(item_input)) -> (@erased partition: InputPartition(input, item_input, remaining_input)) -> (@erased item_denotation: PatternDenotation(inner_shape, inner, position, item_input, append_characters(remaining_input, after_input))) -> (@erased remaining_denotation: PatternDenotation(ListC(inner_shape), PatternRepeatMode(inner, lazy), advance_initial_position(position, item_input), remaining_input, after_input)) -> PatternDenotation(ListC(inner_shape), PatternRepeatMode(inner, lazy), position, input, after_input)
+    DenotesRepeatModeMore : (inner: Pattern(inner_shape)) -> (lazy: Bool) -> (item_input: List(Char)) -> (remaining_input: List(Char)) -> (nonempty: NonEmptyCharacters(item_input)) -> (partition: InputPartition(input, item_input, remaining_input)) -> (item_denotation: PatternDenotation(inner_shape, inner, position, item_input, append_characters(remaining_input, after_input))) -> (remaining_denotation: PatternDenotation(ListC(inner_shape), PatternRepeatMode(inner, lazy), advance_initial_position(position, item_input), remaining_input, after_input)) -> PatternDenotation(ListC(inner_shape), PatternRepeatMode(inner, lazy), position, input, after_input)
 
   ## Constructive completeness packages the runtime outputs existentially while
   ## retaining the erased certificate that those outputs came from the verified
@@ -794,8 +800,9 @@ mod Std.Regex.Language
     lazy: Bool,
     position: InitialPosition,
     char: Char,
+    rest: List(Char),
     after_input: List(Char)
-  ) -> ListMember(MachineState(S(Z())), predicate_repeat_consuming_start(), initial_machine_destinations(S(Z()), repeat_pattern_machine(S(Z()), predicate_pattern_machine(test), lazy), position, Cons(char, Nil()), after_input)) = match lazy
+  ) -> ListMember(MachineState(S(Z())), predicate_repeat_consuming_start(), initial_machine_destinations(S(Z()), repeat_pattern_machine(S(Z()), predicate_pattern_machine(test), lazy), position, Cons(char, rest), after_input)) = match lazy
     False() -> member_here(predicate_repeat_consuming_start(), Cons(predicate_repeat_empty_start(), Nil()))
     True() -> member_there(predicate_repeat_empty_start(), member_here(predicate_repeat_consuming_start(), Nil()))
 
@@ -825,7 +832,7 @@ mod Std.Regex.Language
     let initial_regular: List(EvidenceInstruction) = Cons(BeginList(), Nil())
     let transition_regular: List(EvidenceInstruction) = Cons(EmitChar(char), Cons(EndList(), Nil()))
     let path_routine = transition_routine(char, transition_regular)
-    let initial_edge = predicate_repeat_consuming_initial_member(test, lazy, position, char, after_input)
+    let initial_edge = predicate_repeat_consuming_initial_member(test, lazy, position, char, Nil(), after_input)
     let transition_edge = predicate_repeat_singleton_result_member(test, lazy, char, after_input, holds)
     let initial_execution: RoutineExecution(initial_regular, Nil(), Nil(), initial_evidence, no_captures) = RoutineStep(BeginList(), RoutineDone())
     let transition_execution: RoutineExecution(transition_regular, initial_evidence, record_capture_char(no_captures, char), final_evidence, no_captures) = RoutineStep(EmitChar(char), RoutineStep(EndList(), RoutineDone()))
@@ -889,7 +896,7 @@ mod Std.Regex.Language
     let initial_regular: List(EvidenceInstruction) = Cons(BeginList(), Nil())
     let first_regular: List(EvidenceInstruction) = Cons(EmitChar(first_char), Nil())
     let second_regular: List(EvidenceInstruction) = Cons(EmitChar(second_char), Cons(EndList(), Nil()))
-    let initial_edge = predicate_repeat_consuming_initial_member(test, lazy, position, first_char, Cons(second_char, after_input))
+    let initial_edge = predicate_repeat_consuming_initial_member(test, lazy, position, first_char, Cons(second_char, Nil()), after_input)
     let first_edge = predicate_repeat_reentry_result_member(test, lazy, first_char, Cons(second_char, Nil()), after_input, first_holds)
     let second_edge = predicate_repeat_singleton_result_member(test, lazy, second_char, after_input, second_holds)
     let initial_execution: RoutineExecution(initial_regular, Nil(), Nil(), initial_evidence, no_captures) = RoutineStep(BeginList(), RoutineDone())
@@ -931,4 +938,103 @@ mod Std.Regex.Language
     second_denotation: PatternDenotation(CharC, PatternPredicate(test), advance_initial_position(position, Cons(first_char, Nil())), Cons(second_char, Nil()), after_input)
   ) -> PatternAcceptance(ListC(CharC), PatternRepeat(PatternPredicate(test)), position, Cons(first_char, Cons(second_char, Nil())), after_input) =
     match predicate_repeat_mode_pair_acceptance_is_complete(test, False(), first_char, second_char, after_input, position, first_denotation, second_denotation)
+      PredicateRepeatAccepted(final_evidence, routine, acceptance) -> PatternAccepted(final_evidence, routine, acceptance)
+
+  type PredicateRepeatContinuation indices (test: Char -> Bool, lazy: Bool, input: List(Char), after_input: List(Char), current_evidence: List(Evidence))
+    PredicateRepeatContinued : (final_evidence: List(Evidence)) -> (routine: List(ExtendedInstruction)) -> (path: AcceptingFrom(S(Z()), repeat_pattern_machine(S(Z()), predicate_pattern_machine(test), lazy), input, after_input, ThreadActive(First()), current_evidence, Nil(), final_evidence, routine)) -> (certificate: CertifiedPathRoutine(routine, current_evidence, Nil(), final_evidence)) -> PredicateRepeatContinuation(test, lazy, input, after_input, current_evidence)
+
+  fn predicate_repeat_mode_continuation(
+    test: Char -> Bool,
+    lazy: Bool,
+    char: Char,
+    rest: List(Char),
+    after_input: List(Char),
+    current_evidence: List(Evidence),
+    position: InitialPosition,
+    denotation: PatternDenotation(ListC(CharC), PatternRepeatMode(PatternPredicate(test), lazy), position, Cons(char, rest), after_input)
+  ) -> PredicateRepeatContinuation(test, lazy, Cons(char, rest), after_input, current_evidence) = match denotation
+    DenotesRepeatModeMore(_, _, _, _, _, partition, item_denotation, remaining_denotation) -> match item_denotation
+      DenotesPredicate(_, _, singleton, holds) -> match singleton
+        IsSingleCharacter(_, _, exact) -> match exact
+          reflexive() -> match partition
+            InputPartitionThere(_, prior) -> match prior
+              InputPartitionHere(_) -> match rest
+                Nil() ->
+                  let no_captures: List(CaptureFrame) = Nil()
+                  let no_extended: List(ExtendedInstruction) = Nil()
+                  let regular: List(EvidenceInstruction) = Cons(EmitChar(char), Cons(EndList(), Nil()))
+                  let final_evidence: List(Evidence) = Cons(EndListEvidence(), Cons(CharacterEvidence(char), current_evidence))
+                  let edge = predicate_repeat_singleton_result_member(test, lazy, char, after_input, holds)
+                  let execution: RoutineExecution(regular, current_evidence, record_capture_char(no_captures, char), final_evidence, no_captures) = RoutineStep(EmitChar(char), RoutineStep(EndList(), RoutineDone()))
+                  let extended: ExtendedEvidenceRoutineExecution(regular_routine(regular), current_evidence, record_capture_char(no_captures, char), final_evidence, no_captures) = ExtendedEvidenceRegular(EmitChar(char), ExtendedEvidenceRegular(EndList(), ExtendedEvidenceDone()))
+                  let routine = transition_routine(char, regular)
+                  let path: AcceptingFrom(S(Z()), repeat_pattern_machine(S(Z()), predicate_pattern_machine(test), lazy), Cons(char, Nil()), after_input, ThreadActive(First()), current_evidence, no_captures, final_evidence, routine) = AcceptingNextAccepted(regular, Nil(), final_evidence, no_captures, no_extended, edge, execution, AcceptingNow())
+                  let certificate: CertifiedPathRoutine(routine, current_evidence, no_captures, final_evidence) = PathRoutineTransition(char, regular, no_extended, final_evidence, no_captures, extended, PathRoutineDone())
+                  PredicateRepeatContinued(final_evidence, routine, path, certificate)
+                Cons(next_char, tail) ->
+                  let no_captures: List(CaptureFrame) = Nil()
+                  let regular: List(EvidenceInstruction) = Cons(EmitChar(char), Nil())
+                  let next_evidence: List(Evidence) = Cons(CharacterEvidence(char), current_evidence)
+                  let edge = predicate_repeat_reentry_result_member(test, lazy, char, Cons(next_char, tail), after_input, holds)
+                  let execution: RoutineExecution(regular, current_evidence, record_capture_char(no_captures, char), next_evidence, no_captures) = RoutineStep(EmitChar(char), RoutineDone())
+                  let extended: ExtendedEvidenceRoutineExecution(regular_routine(regular), current_evidence, record_capture_char(no_captures, char), next_evidence, no_captures) = ExtendedEvidenceRegular(EmitChar(char), ExtendedEvidenceDone())
+                  match predicate_repeat_mode_continuation(test, lazy, next_char, tail, after_input, next_evidence, advance_initial_position(position, Cons(char, Nil())), remaining_denotation)
+                    PredicateRepeatContinued(final_evidence, suffix_routine, suffix, suffix_certificate) ->
+                      let routine = append_extended_routines(transition_routine(char, regular), suffix_routine)
+                      let path: AcceptingFrom(S(Z()), repeat_pattern_machine(S(Z()), predicate_pattern_machine(test), lazy), Cons(char, Cons(next_char, tail)), after_input, ThreadActive(First()), current_evidence, no_captures, final_evidence, routine) = AcceptingNextActive(First(), regular, Nil(), next_evidence, no_captures, suffix_routine, edge, execution, suffix)
+                      let certificate: CertifiedPathRoutine(routine, current_evidence, no_captures, final_evidence) = PathRoutineTransition(char, regular, suffix_routine, next_evidence, no_captures, extended, suffix_certificate)
+                      PredicateRepeatContinued(final_evidence, routine, path, certificate)
+
+  fn predicate_repeat_mode_acceptance_from_denotation(
+    test: Char -> Bool,
+    lazy: Bool,
+    input: List(Char),
+    after_input: List(Char),
+    position: InitialPosition,
+    denotation: PatternDenotation(ListC(CharC), PatternRepeatMode(PatternPredicate(test), lazy), position, input, after_input)
+  ) -> PredicateRepeatAcceptance(test, lazy, input, after_input, position) = match input
+    Nil() -> predicate_repeat_mode_empty_acceptance_is_complete(test, lazy, after_input, position)
+    Cons(char, rest) ->
+      let no_captures: List(CaptureFrame) = Nil()
+      let initial_evidence: List(Evidence) = Cons(BeginListEvidence(), Nil())
+      let initial_regular: List(EvidenceInstruction) = Cons(BeginList(), Nil())
+      let initial_edge = predicate_repeat_consuming_initial_member(test, lazy, position, char, rest, after_input)
+      let initial_execution: RoutineExecution(initial_regular, Nil(), Nil(), initial_evidence, no_captures) = RoutineStep(BeginList(), RoutineDone())
+      let initial_extended: ExtendedEvidenceRoutineExecution(regular_routine(initial_regular), Nil(), Nil(), initial_evidence, no_captures) = ExtendedEvidenceRegular(BeginList(), ExtendedEvidenceDone())
+      match predicate_repeat_mode_continuation(test, lazy, char, rest, after_input, initial_evidence, position, denotation)
+        PredicateRepeatContinued(final_evidence, path_routine, path, path_certificate) ->
+          let complete_routine = append_extended_routines(regular_routine(initial_regular), path_routine)
+          let certificate: CertifiedPathRoutine(complete_routine, Nil(), Nil(), final_evidence) = PathRoutineInitial(initial_regular, path_routine, initial_evidence, no_captures, initial_extended, path_certificate)
+          PredicateRepeatAccepted(final_evidence, complete_routine, MachineAccepted(predicate_repeat_consuming_start(), initial_evidence, no_captures, path_routine, initial_edge, initial_execution, certificate, path))
+
+  fn repeat_default_denotation_is_false_mode(
+    {inner_shape: ShapeCode},
+    inner: Pattern(inner_shape),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    denotation: PatternDenotation(ListC(inner_shape), PatternRepeat(inner), position, input, after_input)
+  ) -> PatternDenotation(ListC(inner_shape), PatternRepeatMode(inner, False()), position, input, after_input) = match denotation
+    DenotesRepeatEmpty(_) -> DenotesRepeatModeEmpty(inner, False())
+    DenotesRepeatMore(_, item_input, remaining_input, nonempty, partition, item_denotation, remaining_denotation) ->
+      DenotesRepeatModeMore(inner, False(), item_input, remaining_input, nonempty, partition, item_denotation, repeat_default_denotation_is_false_mode(inner, advance_initial_position(position, item_input), remaining_input, after_input, remaining_denotation))
+
+  fn predicate_repeat_mode_denotation_is_complete(
+    test: Char -> Bool,
+    lazy: Bool,
+    input: List(Char),
+    after_input: List(Char),
+    position: InitialPosition,
+    denotation: PatternDenotation(ListC(CharC), PatternRepeatMode(PatternPredicate(test), lazy), position, input, after_input)
+  ) -> PatternAcceptance(ListC(CharC), PatternRepeatMode(PatternPredicate(test), lazy), position, input, after_input) = match predicate_repeat_mode_acceptance_from_denotation(test, lazy, input, after_input, position, denotation)
+    PredicateRepeatAccepted(final_evidence, routine, acceptance) -> PatternAccepted(final_evidence, routine, acceptance)
+
+  fn predicate_repeat_denotation_is_complete(
+    test: Char -> Bool,
+    input: List(Char),
+    after_input: List(Char),
+    position: InitialPosition,
+    denotation: PatternDenotation(ListC(CharC), PatternRepeat(PatternPredicate(test)), position, input, after_input)
+  ) -> PatternAcceptance(ListC(CharC), PatternRepeat(PatternPredicate(test)), position, input, after_input) =
+    match predicate_repeat_mode_acceptance_from_denotation(test, False(), input, after_input, position, repeat_default_denotation_is_false_mode(PatternPredicate(test), position, input, after_input, denotation))
       PredicateRepeatAccepted(final_evidence, routine, acceptance) -> PatternAccepted(final_evidence, routine, acceptance)
