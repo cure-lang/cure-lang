@@ -455,9 +455,13 @@ mod Std.Regex
     enter_repeat_with_constraints(routine, [], starts)
 
   @reducible
-  fn predicate_machine_next(test: Char -> Bool, _state: Bounded(S(Z())), char: Char) -> List(MachineState(S(Z()))) = pickup
-    test(char) -> [Accepted([EmitChar(char)], [])]
-    else -> []
+  fn predicate_machine_destinations(holds: Bool, char: Char) -> List(MachineState(S(Z()))) = match holds
+    False() -> []
+    True() -> [Accepted([EmitChar(char)], [])]
+
+  @reducible
+  fn predicate_machine_next(test: Char -> Bool, _state: Bounded(S(Z())), char: Char) -> List(MachineState(S(Z()))) =
+    predicate_machine_destinations(test(char), char)
 
   fn empty_machine_next({n: Nat}, _state: Bounded(n), _char: Char) -> List(MachineState(n)) = []
 

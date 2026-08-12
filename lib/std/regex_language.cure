@@ -16,6 +16,20 @@ mod Std.Regex.Language
     DenotesPredicate : (proof: Equivalent(Bool, test(char), True())) -> PatternDenotation(CharC, PatternPredicate(test), position, Cons(char, Nil()), after_input)
     DenotesBoundary : (proof: IsTrue(constraints_hold(Cons(constraint, Nil()), initial_position_boundary(position, after_input)))) -> PatternDenotation(UnitC, PatternBoundary(constraint), position, Nil(), after_input)
 
+  ## Constructive completeness packages the runtime outputs existentially while
+  ## retaining the erased certificate that those outputs came from the verified
+  ## machine.  Callers do not have to guess the evidence stream or routine.
+  type PredicateAcceptance indices (test: Char -> Bool, char: Char, after_input: List(Char), position: InitialPosition)
+    PredicateAccepted : (final_evidence: List(Evidence)) -> (routine: List(ExtendedInstruction)) -> (@erased acceptance: MachineAcceptance(S(Z()), predicate_pattern_machine(test), position, Cons(char, Nil()), after_input, final_evidence, routine)) -> PredicateAcceptance(test, char, after_input, position)
+
+  fn predicate_result_member(
+    test: Char -> Bool,
+    char: Char,
+    after_input: List(Char),
+    predicate_holds: Equivalent(Bool, test(char), True())
+  ) -> ListMember(MachineState(S(Z())), predicate_accepting_destination(char), machine_destinations(S(Z()), predicate_pattern_machine(test), predicate_machine_thread(), char, transition_boundary_before(char, Nil(), after_input))) =
+    rewrite predicate_holds in member_here(predicate_accepting_destination(char), Nil())
+
   fn predicate_acceptance_truth(
     test: Char -> Bool,
     char: Char,
@@ -47,3 +61,31 @@ mod Std.Regex.Language
     acceptance: MachineAcceptance(S(Z()), predicate_pattern_machine(test), position, Cons(char, Nil()), after_input, final_evidence, routine)
   ) -> PatternDenotation(CharC, PatternPredicate(test), position, Cons(char, Nil()), after_input) =
     DenotesPredicate(predicate_acceptance_truth(test, char, after_input, position, final_evidence, routine, acceptance))
+
+  fn predicate_denotation_is_complete(
+    test: Char -> Bool,
+    char: Char,
+    after_input: List(Char),
+    position: InitialPosition,
+    denotation: PatternDenotation(CharC, PatternPredicate(test), position, Cons(char, Nil()), after_input)
+  ) -> PredicateAcceptance(test, char, after_input, position) = match denotation
+    DenotesPredicate(predicate_holds) ->
+      let no_evidence: List(Evidence) = Nil()
+      let no_captures: List(CaptureFrame) = Nil()
+      let no_regular: List(EvidenceInstruction) = Nil()
+      let no_extended: List(ExtendedInstruction) = Nil()
+      let final_evidence: List(Evidence) = Cons(CharacterEvidence(char), Nil())
+      let final_captures: List(CaptureFrame) = Nil()
+      let predicate_regular: List(EvidenceInstruction) = Cons(EmitChar(char), Nil())
+      let path_routine: List(ExtendedInstruction) = transition_routine(char, predicate_regular)
+      let no_initial_states: List(MachineState(S(Z()))) = Nil()
+      let initial_edge: ListMember(MachineState(S(Z())), predicate_machine_start(), initial_machine_destinations(S(Z()), predicate_pattern_machine(test), position, Cons(char, Nil()), after_input)) = member_here(predicate_machine_start(), no_initial_states)
+      let transition_edge: ListMember(MachineState(S(Z())), predicate_accepting_destination(char), machine_destinations(S(Z()), predicate_pattern_machine(test), predicate_machine_thread(), char, transition_boundary_before(char, Nil(), after_input))) = predicate_result_member(test, char, after_input, predicate_holds)
+      let initial_execution: RoutineExecution(no_regular, Nil(), Nil(), no_evidence, no_captures) = RoutineDone()
+      let transition_execution: RoutineExecution(predicate_regular, no_evidence, record_capture_char(no_captures, char), final_evidence, final_captures) = RoutineStep(EmitChar(char), RoutineDone())
+      let transition_extended: ExtendedEvidenceRoutineExecution(regular_routine(predicate_regular), no_evidence, record_capture_char(no_captures, char), final_evidence, final_captures) = ExtendedEvidenceRegular(EmitChar(char), ExtendedEvidenceDone())
+      let path: AcceptingFrom(S(Z()), predicate_pattern_machine(test), Cons(char, Nil()), after_input, predicate_machine_thread(), no_evidence, no_captures, final_evidence, path_routine) = AcceptingNextAccepted(predicate_regular, Nil(), final_evidence, final_captures, no_extended, transition_edge, transition_execution, AcceptingNow())
+      let path_certificate: CertifiedPathRoutine(path_routine, no_evidence, no_captures, final_evidence) = PathRoutineTransition(char, predicate_regular, no_extended, final_evidence, final_captures, transition_extended, PathRoutineDone())
+      let complete_routine = append_extended_routines(regular_routine(no_regular), path_routine)
+      let routine_certificate: CertifiedPathRoutine(complete_routine, Nil(), Nil(), final_evidence) = PathRoutineInitial(no_regular, path_routine, no_evidence, no_captures, ExtendedEvidenceDone(), path_certificate)
+      PredicateAccepted(final_evidence, complete_routine, MachineAccepted(predicate_machine_start(), no_evidence, no_captures, path_routine, initial_edge, initial_execution, routine_certificate, path))
