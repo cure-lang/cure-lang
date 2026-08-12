@@ -62,6 +62,13 @@ defmodule Cure.Migrate.ModuleRenameTest do
              apply_rule("mod M\n  use Std.Equatable\n  fn f(x: Int) -> Bool = eq(x, x)\n", "d.cure")
   end
 
+  test "renames module references inside signature type meta positions" do
+    {out, _warns} = migrate("mod M\n  fn f(x: Std.Eq.T) -> Std.Eq.T = Std.Eq.eq(x)\n", "e.cure")
+    assert out =~ "Std.Equatable.T"
+    assert out =~ "Std.Equatable.eq"
+    refute out =~ "Std.Eq."
+  end
+
   # Every qualified `name` string in a parsed tree.
   defp qualified_names({:function_call, meta, ch}),
     do: [Keyword.get(meta, :name) | qualified_names(ch)]

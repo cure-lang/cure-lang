@@ -68,6 +68,7 @@ defmodule Cure.Migrate.Rules.ModuleRename do
 
   # `use <Module>`: rename an exact module `source`.
   defp walk({:import, meta, ch}, lines) do
+    {meta, lines} = walk_meta(meta, lines)
     {ch, lines} = walk(ch, lines)
 
     case Map.fetch(@renames, Keyword.get(meta, :source)) do
@@ -78,6 +79,7 @@ defmodule Cure.Migrate.Rules.ModuleRename do
 
   # Qualified call `<Module>.<fn>(…)`: rename the module prefix of `name`.
   defp walk({:function_call, meta, ch}, lines) do
+    {meta, lines} = walk_meta(meta, lines)
     {ch, lines} = walk(ch, lines)
 
     case rename_qualified(Keyword.get(meta, :name)) do
@@ -88,18 +90,22 @@ defmodule Cure.Migrate.Rules.ModuleRename do
 
   # Bare qualified value reference `<Module>.<name>` (defensive).
   defp walk({:variable, meta, name}, lines) when is_binary(name) do
+    {meta, lines} = walk_meta(meta, lines)
+
     case rename_qualified(name) do
       {:ok, new} -> {{:variable, meta, new}, [location(meta, :name) | lines]}
       :error -> {{:variable, meta, name}, lines}
     end
   end
 
-  defp walk({k, meta, ch}, lines) when is_list(ch) do
+  defp walk({k, meta, ch}, lines) when is_list(meta) do
+    {meta, lines} = walk_meta(meta, lines)
     {ch, lines} = walk(ch, lines)
     {{k, meta, ch}, lines}
   end
 
   defp walk({k, meta, name, inner}, lines) when is_binary(name) do
+    {meta, lines} = walk_meta(meta, lines)
     {inner, lines} = walk(inner, lines)
     {{k, meta, name, inner}, lines}
   end
@@ -109,6 +115,34 @@ defmodule Cure.Migrate.Rules.ModuleRename do
   end
 
   defp walk(other, lines), do: {other, lines}
+
+  defp walk_meta(meta, lines) when is_list(meta) do
+    if Keyword.keyword?(meta) do
+      Enum.map_reduce(meta, lines, fn {k, v}, lines ->
+        {new_v, lines} = walk_meta_val(v, lines)
+        {{k, new_v}, lines}
+      end)
+    else
+      {meta, lines}
+    end
+  end
+
+  defp walk_meta(meta, lines), do: {meta, lines}
+
+  defp walk_meta_val({type, meta, _} = node, lines)
+       when is_atom(type) and is_list(meta) and tuple_size(node) == 3 do
+    walk(node, lines)
+  end
+
+  defp walk_meta_val(list, lines) when is_list(list) do
+    if Enum.any?(list, &match?({t, m, _} when is_atom(t) and is_list(m), &1)) do
+      Enum.map_reduce(list, lines, fn el, lines -> walk_meta_val(el, lines) end)
+    else
+      {list, lines}
+    end
+  end
+
+  defp walk_meta_val(other, lines), do: {other, lines}
 
   # ── Helpers ─────────────────────────────────────────────────────────────────
 
