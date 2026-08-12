@@ -188,6 +188,22 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     ) -> AlternateRightAcceptanceEmbedding(left_count, left_machine, right_count, right_machine, prefer_right, position, input, after_input, input_evidence, input_captures, final_evidence) =
       lift_alternate_right_acceptance(left_count, left_machine, right_count, right_machine, prefer_right, position, input, after_input, input_evidence, input_captures, final_evidence, acceptance)
 
+    fn concat_right_active_path_embedding(
+      left_count: Nat,
+      left_machine: PatternMachine(left_count),
+      right_count: Nat,
+      right_machine: PatternMachine(right_count),
+      input: List(Char),
+      after_input: List(Char),
+      source: Bounded(right_count),
+      current_evidence: List(Evidence),
+      current_captures: List(CaptureFrame),
+      final_evidence: List(Evidence),
+      routine: List(ExtendedInstruction),
+      path: AcceptingFrom(right_count, right_machine, input, after_input, ThreadActive(source), current_evidence, current_captures, final_evidence, routine)
+    ) -> ConcatRightActivePathEmbedding(left_count, left_machine, right_count, right_machine, input, after_input, source, current_evidence, current_captures, final_evidence) =
+      lift_concat_right_active_path(left_count, left_machine, right_count, right_machine, input, after_input, source, current_evidence, current_captures, final_evidence, routine, path)
+
     fn generic_alternate_mode_left_composition(
       left_shape: ShapeCode,
       right_shape: ShapeCode,
