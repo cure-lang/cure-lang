@@ -124,6 +124,31 @@ defmodule Cure.Stdlib.DependentRegexNfaPropertyTest do
         kind == 8 -> legacy_prefix(grouped(), Std.String.characters(input), greedy)
         else -> legacy_prefix(empty_then_a(), Std.String.characters(input), greedy)
 
+      fn legacy_parse({shape: ShapeCode}, pattern: Pattern(shape), input: String) -> Option(Sem(shape)) = match pattern_evidence(pattern, Std.String.characters(input))
+        None() -> None()
+        Some(evidence) -> extract_complete_encoding(decode_pattern_encoding(pattern, evidence))
+
+      fn current_parse_0(input: String) -> Option(Unit) = parse_pattern_full(empty(), input)
+      fn legacy_parse_0(input: String) -> Option(Unit) = legacy_parse(empty(), input)
+      fn current_parse_1(input: String) -> Option(Char) = parse_pattern_full(atom('a'), input)
+      fn legacy_parse_1(input: String) -> Option(Char) = legacy_parse(atom('a'), input)
+      fn current_parse_2(input: String) -> Option(Tuple(Char, Char)) = parse_pattern_full(ab(), input)
+      fn legacy_parse_2(input: String) -> Option(Tuple(Char, Char)) = legacy_parse(ab(), input)
+      fn current_parse_3(input: String) -> Option(Choice(Char, Char)) = parse_pattern_full(either(), input)
+      fn legacy_parse_3(input: String) -> Option(Choice(Char, Char)) = legacy_parse(either(), input)
+      fn current_parse_4(input: String) -> Option(List(Char)) = parse_pattern_full(many_a(), input)
+      fn legacy_parse_4(input: String) -> Option(List(Char)) = legacy_parse(many_a(), input)
+      fn current_parse_5(input: String) -> Option(List(Choice(Char, Char))) = parse_pattern_full(many_either(), input)
+      fn legacy_parse_5(input: String) -> Option(List(Choice(Char, Char))) = legacy_parse(many_either(), input)
+      fn current_parse_6(input: String) -> Option(Tuple(List(Char), Char)) = parse_pattern_full(many_a_then_b(), input)
+      fn legacy_parse_6(input: String) -> Option(Tuple(List(Char), Char)) = legacy_parse(many_a_then_b(), input)
+      fn current_parse_7(input: String) -> Option(List(Choice(Unit, Char))) = parse_pattern_full(nullable_star(), input)
+      fn legacy_parse_7(input: String) -> Option(List(Choice(Unit, Char))) = legacy_parse(nullable_star(), input)
+      fn current_parse_8(input: String) -> Option(String) = parse_pattern_full(grouped(), input)
+      fn legacy_parse_8(input: String) -> Option(String) = legacy_parse(grouped(), input)
+      fn current_parse_9(input: String) -> Option(Tuple(Unit, Char)) = parse_pattern_full(empty_then_a(), input)
+      fn legacy_parse_9(input: String) -> Option(Tuple(Unit, Char)) = legacy_parse(empty_then_a(), input)
+
       fn parsed({value: Type}, result: Option(value)) -> Bool = match result
         Some(_) -> true
         None() -> false
@@ -215,6 +240,18 @@ defmodule Cure.Stdlib.DependentRegexNfaPropertyTest do
                    apply(module, :legacy_prefix_for, [kind, subject, false]) and
                  apply(module, :current_prefix, [kind, subject, true]) ==
                    apply(module, :legacy_prefix_for, [kind, subject, true])
+             end)
+  end
+
+  test "proof-directed extraction agrees with the temporary decoder oracle", %{
+    runtime_module: module
+  } do
+    assert :ok =
+             Property.check_all(case_gen(), @runs, fn {kind, input} ->
+               subject = cure_string(input)
+               current = String.to_atom("current_parse_#{kind}")
+               legacy = String.to_atom("legacy_parse_#{kind}")
+               apply(module, current, [subject]) == apply(module, legacy, [subject])
              end)
   end
 end
