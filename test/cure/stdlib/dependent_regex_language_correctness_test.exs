@@ -10,6 +10,7 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     use Std.Regex.Language
 
     fn accepts_a(char: Char) -> Bool = char == 'a'
+    fn accepts_b(char: Char) -> Bool = char == 'b'
     fn no_chars() -> List(Char) = Nil()
 
     fn predicate_soundness(
@@ -79,7 +80,7 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     )
 
     fn grouped_predicate_denotation() -> PatternDenotation(StringC, PatternGroup(PatternPredicate(accepts_a)), subject_initial_position(), Cons('a', no_chars()), no_chars()) =
-      DenotesGroup(PatternPredicate(accepts_a), DenotesPredicate(reflexive(true)))
+      DenotesGroup(PatternPredicate(accepts_a), DenotesPredicate(Cons('a', Nil()), 'a', IsSingleCharacter(Cons('a', Nil()), 'a', reflexive(Cons('a', Nil()))), reflexive(true)))
 
     fn grouped_predicate_soundness(
       {final_evidence: List(Evidence)},
@@ -90,6 +91,13 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
 
     fn concatenated_empty_denotation() -> PatternDenotation(PairC(UnitC, UnitC), PatternConcat(PatternEmpty(), PatternEmpty()), subject_initial_position(), no_chars(), no_chars()) =
       DenotesConcat(PatternEmpty(), PatternEmpty(), no_chars(), no_chars(), Std.Regex.Proof.input_partition_here(no_chars()), DenotesEmpty(), DenotesEmpty())
+
+    fn concatenated_predicate_soundness(
+      {final_evidence: List(Evidence)},
+      {routine: List(ExtendedInstruction)},
+      acceptance: MachineAcceptance(2, concat_pattern_machine(1, predicate_pattern_machine(accepts_a), 1, predicate_pattern_machine(accepts_b)), subject_initial_position(), Cons('a', Cons('b', Nil())), Nil(), final_evidence, routine)
+    ) -> PatternDenotation(PairC(CharC, CharC), PatternConcat(PatternPredicate(accepts_a), PatternPredicate(accepts_b)), subject_initial_position(), Cons('a', Cons('b', Nil())), Nil()) =
+      predicate_concat_acceptance_is_sound(accepts_a, accepts_b, Cons('a', Cons('b', Nil())), Nil(), subject_initial_position(), final_evidence, routine, acceptance)
 
     fn alternate_left_denotation() -> PatternDenotation(ChoiceC(UnitC, UnitC), PatternAlternate(PatternEmpty(), PatternEmpty()), subject_initial_position(), no_chars(), no_chars()) =
       DenotesAlternateLeft(PatternEmpty(), PatternEmpty(), DenotesEmpty())
@@ -111,7 +119,7 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
         Nil(),
         CharactersPresent('a', Nil()),
         Std.Regex.Proof.input_partition_there('a', Std.Regex.Proof.input_partition_here(Nil())),
-        DenotesPredicate(reflexive(True())),
+        DenotesPredicate(Cons('a', Nil()), 'a', IsSingleCharacter(Cons('a', Nil()), 'a', reflexive(Cons('a', Nil()))), reflexive(True())),
         DenotesRepeatEmpty(PatternPredicate(accepts_a))
       )
 
@@ -155,6 +163,8 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     assert Env.total?(env, :grouped_predicate_soundness)
     assert Env.total?(env, :"Std.Regex.Language#grouped_predicate_acceptance_is_sound")
     assert Env.total?(env, :concatenated_empty_denotation)
+    assert Env.total?(env, :concatenated_predicate_soundness)
+    assert Env.total?(env, :"Std.Regex.Language#predicate_concat_acceptance_is_sound")
     assert Env.total?(env, :alternate_left_denotation)
     assert Env.total?(env, :alternate_mode_right_denotation)
     assert Env.total?(env, :alternate_predicate_soundness)

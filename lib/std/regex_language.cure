@@ -11,9 +11,12 @@ mod Std.Regex.Language
   type NonEmptyCharacters indices (input: List(Char))
     CharactersPresent : (head: Char) -> (tail: List(Char)) -> NonEmptyCharacters(Cons(head, tail))
 
+  type SingleCharacter indices (input: List(Char), char: Char)
+    IsSingleCharacter : (input: List(Char)) -> (char: Char) -> (@erased exact: Equivalent(List(Char), input, Cons(char, Nil()))) -> SingleCharacter(input, char)
+
   type PatternDenotation indices (shape: ShapeCode, pattern: Pattern(shape), position: InitialPosition, input: List(Char), after_input: List(Char))
     DenotesEmpty : PatternDenotation(UnitC, PatternEmpty(), position, Nil(), after_input)
-    DenotesPredicate : (proof: Equivalent(Bool, test(char), True())) -> PatternDenotation(CharC, PatternPredicate(test), position, Cons(char, Nil()), after_input)
+    DenotesPredicate : (input: List(Char)) -> (char: Char) -> (@erased singleton: SingleCharacter(input, char)) -> (proof: Equivalent(Bool, test(char), True())) -> PatternDenotation(CharC, PatternPredicate(test), position, input, after_input)
     DenotesBoundary : (proof: IsTrue(constraints_hold(Cons(constraint, Nil()), initial_position_boundary(position, after_input)))) -> PatternDenotation(UnitC, PatternBoundary(constraint), position, Nil(), after_input)
     DenotesConcat : (left: Pattern(left_shape)) -> (right: Pattern(right_shape)) -> (left_input: List(Char)) -> (right_input: List(Char)) -> (@erased partition: InputPartition(input, left_input, right_input)) -> (@erased left_denotation: PatternDenotation(left_shape, left, position, left_input, append_characters(right_input, after_input))) -> (@erased right_denotation: PatternDenotation(right_shape, right, advance_initial_position(position, left_input), right_input, after_input)) -> PatternDenotation(PairC(left_shape, right_shape), PatternConcat(left, right), position, input, after_input)
     DenotesGroup : (inner: Pattern(inner_shape)) -> (@erased inner_denotation: PatternDenotation(inner_shape, inner, position, input, after_input)) -> PatternDenotation(StringC, PatternGroup(inner), position, input, after_input)
@@ -65,6 +68,9 @@ mod Std.Regex.Language
 
   fn equivalent_true_is_true(claim: Bool, equality: Equivalent(Bool, claim, True())) -> IsTrue(claim) = match equality
     reflexive() -> Confirmed()
+
+  fn singleton_from_empty_rest(char: Char, rest: List(Char), rest_empty: Equivalent(List(Char), rest, Nil())) -> SingleCharacter(Cons(char, rest), char) = match rest_empty
+    reflexive() -> IsSingleCharacter(Cons(char, Nil()), char, reflexive(Cons(char, Nil())))
 
   fn boundary_acceptance_truth(
     constraint: BoundaryConstraint,
@@ -125,6 +131,36 @@ mod Std.Regex.Language
                   PredicateTransitionHeld(predicate_holds) -> predicate_holds
           ListMemberThere(prior) -> impossible_list_member(prior)
 
+  fn predicate_active_path_is_sound(
+    test: Char -> Bool,
+    input: List(Char),
+    after_input: List(Char),
+    position: InitialPosition,
+    current_evidence: List(Evidence),
+    current_captures: List(CaptureFrame),
+    @erased final_evidence: List(Evidence),
+    @erased routine: List(ExtendedInstruction),
+    path: AcceptingFrom(S(Z()), predicate_pattern_machine(test), input, after_input, predicate_machine_thread(), current_evidence, current_captures, final_evidence, routine)
+  ) -> PatternDenotation(CharC, PatternPredicate(test), position, input, after_input) = match input
+    Nil() -> match path
+        AcceptingNow() -> impossible
+        AcceptingNextActive(_, _, _, _, _, _, _, _, _) -> impossible
+        AcceptingNextAccepted(_, _, _, _, _, _, _, _) -> impossible
+    Cons(char, rest) -> match path
+      AcceptingNow() -> impossible
+      AcceptingNextActive(destination, regular, constraints, _, _, _, edge, _, _) -> predicate_active_capture_impossible(test, char, transition_boundary_before(char, rest, after_input), edge)
+      AcceptingNextAccepted(regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, _, suffix) -> match predicate_transition_truth(test, char, transition_boundary_before(char, rest, after_input), Accepted(regular, constraints), edge)
+        PredicateTransitionHeld(predicate_holds) ->
+          let rest_empty = accepted_path_input_empty(S(Z()), predicate_pattern_machine(test), rest, after_input, destination_evidence, destination_captures, final_evidence, suffix_routine, suffix)
+          DenotesPredicate(Cons(char, rest), char, singleton_from_empty_rest(char, rest, rest_empty), predicate_holds)
+
+  fn predicate_acceptance_path_is_sound(test: Char -> Bool, input: List(Char), after_input: List(Char), position: InitialPosition, input_evidence: List(Evidence), input_captures: List(CaptureFrame), @erased final_evidence: List(Evidence), acceptance: AcceptancePathFrom(S(Z()), predicate_pattern_machine(test), position, input, after_input, input_evidence, input_captures, final_evidence)) -> PatternDenotation(CharC, PatternPredicate(test), position, input, after_input) = match acceptance
+    mk_pair(destination, mk_pair(initial_evidence, mk_pair(initial_captures, mk_pair(path_routine, mk_pair(initial_edge, mk_pair(initial_execution, path)))))) -> match predicate_starts_view(test, position, input, after_input)
+      PredicateStartsExact() -> match initial_edge
+        ListMemberHere() -> match initial_execution
+          RoutineDone() -> predicate_active_path_is_sound(test, input, after_input, position, input_evidence, input_captures, final_evidence, path_routine, path)
+        ListMemberThere(prior) -> impossible_list_member(prior)
+
   fn predicate_acceptance_is_sound(
     test: Char -> Bool,
     char: Char,
@@ -134,7 +170,7 @@ mod Std.Regex.Language
     @erased routine: List(ExtendedInstruction),
     acceptance: MachineAcceptance(S(Z()), predicate_pattern_machine(test), position, Cons(char, Nil()), after_input, final_evidence, routine)
   ) -> PatternDenotation(CharC, PatternPredicate(test), position, Cons(char, Nil()), after_input) =
-    DenotesPredicate(predicate_acceptance_truth(test, char, after_input, position, final_evidence, routine, acceptance))
+    DenotesPredicate(Cons(char, Nil()), char, IsSingleCharacter(Cons(char, Nil()), char, reflexive(Cons(char, Nil()))), predicate_acceptance_truth(test, char, after_input, position, final_evidence, routine, acceptance))
 
   fn empty_acceptance_is_sound(
     after_input: List(Char),
@@ -170,9 +206,9 @@ mod Std.Regex.Language
     let opened_captures: List(CaptureFrame) = Cons(CaptureFrame(Nil(), no_evidence), no_captures)
     match project_group_acceptance_from(S(Z()), Cons(predicate_machine_start(), Nil()), predicate_machine_next(test), position, Cons(char, Nil()), after_input, no_evidence, no_captures, machine_acceptance_path(S(Z()), group_pattern_machine(S(Z()), Cons(predicate_machine_start(), Nil()), predicate_machine_next(test)), position, Cons(char, Nil()), after_input, acceptance))
       ProjectedGroupAcceptanceMissingFrame(child_final_evidence, AcceptedWithExecution(child_acceptance, _), _, _, _, _) ->
-        DenotesGroup(PatternPredicate(test), DenotesPredicate(predicate_acceptance_path_truth(test, char, after_input, position, no_evidence, opened_captures, child_final_evidence, child_acceptance)))
+        DenotesGroup(PatternPredicate(test), DenotesPredicate(Cons(char, Nil()), char, IsSingleCharacter(Cons(char, Nil()), char, reflexive(Cons(char, Nil()))), predicate_acceptance_path_truth(test, char, after_input, position, no_evidence, opened_captures, child_final_evidence, child_acceptance)))
       ProjectedGroupAcceptanceClosedFrame(child_final_evidence, _, _, _, AcceptedWithExecution(child_acceptance, _), _, _, _, _) ->
-        DenotesGroup(PatternPredicate(test), DenotesPredicate(predicate_acceptance_path_truth(test, char, after_input, position, no_evidence, opened_captures, child_final_evidence, child_acceptance)))
+        DenotesGroup(PatternPredicate(test), DenotesPredicate(Cons(char, Nil()), char, IsSingleCharacter(Cons(char, Nil()), char, reflexive(Cons(char, Nil()))), predicate_acceptance_path_truth(test, char, after_input, position, no_evidence, opened_captures, child_final_evidence, child_acceptance)))
 
   fn predicate_alternate_mode_acceptance_is_sound(
     left_test: Char -> Bool,
@@ -189,9 +225,40 @@ mod Std.Regex.Language
     let no_captures: List(CaptureFrame) = Nil()
     match project_alternate_acceptance_from(S(Z()), predicate_pattern_machine(left_test), S(Z()), predicate_pattern_machine(right_test), prefer_right, position, Cons(char, Nil()), after_input, no_evidence, no_captures, machine_acceptance_path(plus(S(Z()), S(Z())), alternate_pattern_machine(S(Z()), predicate_pattern_machine(left_test), S(Z()), predicate_pattern_machine(right_test), prefer_right), position, Cons(char, Nil()), after_input, acceptance))
       mk_pair(False(), ProjectedAlternateFromLeft(mk_pair(child_final_evidence, mk_pair(child_acceptance, _)))) ->
-        DenotesAlternateModeLeft(PatternPredicate(left_test), PatternPredicate(right_test), prefer_right, DenotesPredicate(predicate_acceptance_path_truth(left_test, char, after_input, position, no_evidence, no_captures, child_final_evidence, child_acceptance)))
+        DenotesAlternateModeLeft(PatternPredicate(left_test), PatternPredicate(right_test), prefer_right, DenotesPredicate(Cons(char, Nil()), char, IsSingleCharacter(Cons(char, Nil()), char, reflexive(Cons(char, Nil()))), predicate_acceptance_path_truth(left_test, char, after_input, position, no_evidence, no_captures, child_final_evidence, child_acceptance)))
       mk_pair(True(), ProjectedAlternateFromRight(mk_pair(child_final_evidence, mk_pair(child_acceptance, _)))) ->
-        DenotesAlternateModeRight(PatternPredicate(left_test), PatternPredicate(right_test), prefer_right, DenotesPredicate(predicate_acceptance_path_truth(right_test, char, after_input, position, no_evidence, no_captures, child_final_evidence, child_acceptance)))
+        DenotesAlternateModeRight(PatternPredicate(left_test), PatternPredicate(right_test), prefer_right, DenotesPredicate(Cons(char, Nil()), char, IsSingleCharacter(Cons(char, Nil()), char, reflexive(Cons(char, Nil()))), predicate_acceptance_path_truth(right_test, char, after_input, position, no_evidence, no_captures, child_final_evidence, child_acceptance)))
+
+  fn predicate_concat_acceptance_is_sound(
+    left_test: Char -> Bool,
+    right_test: Char -> Bool,
+    input: List(Char),
+    after_input: List(Char),
+    position: InitialPosition,
+    @erased final_evidence: List(Evidence),
+    @erased routine: List(ExtendedInstruction),
+    acceptance: MachineAcceptance(plus(S(Z()), S(Z())), concat_pattern_machine(S(Z()), predicate_pattern_machine(left_test), S(Z()), predicate_pattern_machine(right_test)), position, input, after_input, final_evidence, routine)
+  ) -> PatternDenotation(PairC(CharC, CharC), PatternConcat(PatternPredicate(left_test), PatternPredicate(right_test)), position, input, after_input) =
+    let no_evidence: List(Evidence) = Nil()
+    let no_captures: List(CaptureFrame) = Nil()
+    match project_concat_acceptance_from(S(Z()), predicate_pattern_machine(left_test), S(Z()), predicate_pattern_machine(right_test), position, input, after_input, no_evidence, no_captures, machine_acceptance_path(plus(S(Z()), S(Z())), concat_pattern_machine(S(Z()), predicate_pattern_machine(left_test), S(Z()), predicate_pattern_machine(right_test)), position, input, after_input, acceptance))
+      ProjectedConcatAcceptance(left_input, right_input, partition, left_final_evidence, left_final_captures, left_acceptance, _, right_final_evidence, right_acceptance, _) ->
+        DenotesConcat(
+          PatternPredicate(left_test), PatternPredicate(right_test), left_input, right_input, partition,
+          predicate_acceptance_path_is_sound(left_test, left_input, append_characters(right_input, after_input), position, no_evidence, no_captures, left_final_evidence, left_acceptance),
+          predicate_acceptance_path_is_sound(right_test, right_input, after_input, advance_initial_position(position, left_input), left_final_evidence, left_final_captures, right_final_evidence, right_acceptance)
+        )
+
+  fn predicate_denotation_truth(
+    test: Char -> Bool,
+    char: Char,
+    after_input: List(Char),
+    position: InitialPosition,
+    denotation: PatternDenotation(CharC, PatternPredicate(test), position, Cons(char, Nil()), after_input)
+  ) -> Equivalent(Bool, test(char), True()) = match denotation
+    DenotesPredicate(_, _, singleton, predicate_holds) -> match singleton
+      IsSingleCharacter(_, _, exact) -> match exact
+        reflexive() -> predicate_holds
 
   fn predicate_denotation_is_complete(
     test: Char -> Bool,
@@ -199,8 +266,8 @@ mod Std.Regex.Language
     after_input: List(Char),
     position: InitialPosition,
     denotation: PatternDenotation(CharC, PatternPredicate(test), position, Cons(char, Nil()), after_input)
-  ) -> PredicateAcceptance(test, char, after_input, position) = match denotation
-    DenotesPredicate(predicate_holds) ->
+  ) -> PredicateAcceptance(test, char, after_input, position) =
+      let predicate_holds = predicate_denotation_truth(test, char, after_input, position, denotation)
       let no_evidence: List(Evidence) = Nil()
       let no_captures: List(CaptureFrame) = Nil()
       let no_regular: List(EvidenceInstruction) = Nil()
