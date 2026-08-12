@@ -187,6 +187,44 @@ mod Std.Regex.Language
         AcceptedPathNow() -> DenotesEmpty()
       ListMemberThere(prior) -> impossible_list_member(prior)
 
+  fn boundary_nil_acceptance_path_is_sound(
+    constraint: BoundaryConstraint,
+    after_input: List(Char),
+    position: InitialPosition,
+    input_evidence: List(Evidence),
+    input_captures: List(CaptureFrame),
+    @erased final_evidence: List(Evidence),
+    acceptance: AcceptancePathFrom(Z(), boundary_pattern_machine(constraint), position, Nil(), after_input, input_evidence, input_captures, final_evidence)
+  ) -> PatternDenotation(UnitC, PatternBoundary(constraint), position, Nil(), after_input) = match acceptance
+    mk_pair(destination, mk_pair(_, mk_pair(_, mk_pair(_, mk_pair(edge, mk_pair(_, _)))))) ->
+      let truth = boundary_acceptance_truth(constraint, after_input, position, destination, edge)
+      DenotesBoundary(equivalent_true_is_true(constraints_hold(Cons(constraint, Nil()), initial_position_boundary(position, after_input)), truth))
+
+  fn transport_boundary_nil_soundness(
+    constraint: BoundaryConstraint,
+    input: List(Char),
+    after_input: List(Char),
+    position: InitialPosition,
+    input_evidence: List(Evidence),
+    input_captures: List(CaptureFrame),
+    @erased final_evidence: List(Evidence),
+    input_empty: Equivalent(List(Char), input, Nil()),
+    acceptance: AcceptancePathFrom(Z(), boundary_pattern_machine(constraint), position, input, after_input, input_evidence, input_captures, final_evidence)
+  ) -> PatternDenotation(UnitC, PatternBoundary(constraint), position, input, after_input) = match input_empty
+    reflexive() -> boundary_nil_acceptance_path_is_sound(constraint, after_input, position, input_evidence, input_captures, final_evidence, acceptance)
+
+  fn boundary_acceptance_path_is_sound(
+    constraint: BoundaryConstraint,
+    input: List(Char),
+    after_input: List(Char),
+    position: InitialPosition,
+    input_evidence: List(Evidence),
+    input_captures: List(CaptureFrame),
+    @erased final_evidence: List(Evidence),
+    acceptance: AcceptancePathFrom(Z(), boundary_pattern_machine(constraint), position, input, after_input, input_evidence, input_captures, final_evidence)
+  ) -> PatternDenotation(UnitC, PatternBoundary(constraint), position, input, after_input) =
+    transport_boundary_nil_soundness(constraint, input, after_input, position, input_evidence, input_captures, final_evidence, boundary_acceptance_input_empty(constraint, input, after_input, position, input_evidence, input_captures, acceptance), acceptance)
+
   fn predicate_acceptance_is_sound(
     test: Char -> Bool,
     char: Char,
