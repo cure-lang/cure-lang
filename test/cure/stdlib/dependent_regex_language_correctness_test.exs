@@ -156,6 +156,22 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     ) -> ListMember(MachineState(n), value, filter_machine_states(n, append_machine_states(n, left, right), boundary)) =
       lift_filtered_append_right_member(n, left, right, boundary, value, edge)
 
+    fn alternate_left_acceptance_embedding(
+      left_count: Nat,
+      left_machine: PatternMachine(left_count),
+      right_count: Nat,
+      right_machine: PatternMachine(right_count),
+      prefer_right: Bool,
+      position: InitialPosition,
+      input: List(Char),
+      after_input: List(Char),
+      input_evidence: List(Evidence),
+      input_captures: List(CaptureFrame),
+      final_evidence: List(Evidence),
+      acceptance: AcceptancePathFrom(left_count, left_machine, position, input, after_input, input_evidence, input_captures, final_evidence)
+    ) -> AlternateLeftAcceptanceEmbedding(left_count, left_machine, right_count, right_machine, prefer_right, position, input, after_input, input_evidence, input_captures, final_evidence) =
+      lift_alternate_left_acceptance(left_count, left_machine, right_count, right_machine, prefer_right, position, input, after_input, input_evidence, input_captures, final_evidence, acceptance)
+
     fn predicate_completeness(
       denotation: PatternDenotation(CharC, PatternPredicate(accepts_a), subject_initial_position(), Cons('a', no_chars()), no_chars())
     ) -> PredicateAcceptance(accepts_a, 'a', no_chars(), subject_initial_position()) = predicate_denotation_is_complete(
