@@ -89,6 +89,14 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
       acceptance
     )
 
+    fn empty_path_soundness(
+      input_evidence: List(Evidence),
+      input_captures: List(CaptureFrame),
+      {final_evidence: List(Evidence)},
+      acceptance: AcceptancePathFrom(0, empty_pattern_machine(), subject_initial_position(), Nil(), Nil(), input_evidence, input_captures, final_evidence)
+    ) -> PatternDenotation(UnitC, PatternEmpty(), subject_initial_position(), Nil(), Nil()) =
+      empty_acceptance_path_is_sound(Nil(), Nil(), subject_initial_position(), input_evidence, input_captures, final_evidence, acceptance)
+
     fn boundary_completeness(
       denotation: PatternDenotation(UnitC, PatternBoundary(subject_start_constraint()), subject_initial_position(), no_chars(), no_chars())
     ) -> BoundaryAcceptance(subject_start_constraint(), no_chars(), subject_initial_position()) = boundary_denotation_is_complete(
@@ -303,12 +311,14 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
           :boundary_soundness,
           :boundary_completeness,
           :boundary_pattern_completeness,
+          :empty_path_soundness,
           :"Std.Regex.Language#empty_acceptance_is_sound",
           :"Std.Regex.Language#empty_denotation_is_complete",
           :"Std.Regex.Language#empty_pattern_denotation_is_complete",
           :"Std.Regex.Language#boundary_acceptance_is_sound",
           :"Std.Regex.Language#boundary_denotation_is_complete",
-          :"Std.Regex.Language#boundary_pattern_denotation_is_complete"
+          :"Std.Regex.Language#boundary_pattern_denotation_is_complete",
+          :"Std.Regex.Language#empty_acceptance_path_is_sound"
         ] do
       assert Env.total?(env, name), "expected #{inspect(name)} to be total"
     end

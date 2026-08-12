@@ -173,6 +173,20 @@ mod Std.Regex.Language
           RoutineDone() -> predicate_active_path_is_sound(test, input, after_input, position, input_evidence, input_captures, final_evidence, path_routine, path)
         ListMemberThere(prior) -> impossible_list_member(prior)
 
+  fn empty_acceptance_path_is_sound(
+    input: List(Char),
+    after_input: List(Char),
+    position: InitialPosition,
+    input_evidence: List(Evidence),
+    input_captures: List(CaptureFrame),
+    @erased final_evidence: List(Evidence),
+    acceptance: AcceptancePathFrom(Z(), empty_pattern_machine(), position, input, after_input, input_evidence, input_captures, final_evidence)
+  ) -> PatternDenotation(UnitC, PatternEmpty(), position, input, after_input) = match acceptance
+    mk_pair(_, mk_pair(initial_evidence, mk_pair(initial_captures, mk_pair(path_routine, mk_pair(edge, mk_pair(_, path)))))) -> match edge
+      ListMemberHere() -> match accepted_path_view(Z(), empty_pattern_machine(), input, after_input, initial_evidence, initial_captures, final_evidence, path_routine, path)
+        AcceptedPathNow() -> DenotesEmpty()
+      ListMemberThere(prior) -> impossible_list_member(prior)
+
   fn predicate_acceptance_is_sound(
     test: Char -> Bool,
     char: Char,
