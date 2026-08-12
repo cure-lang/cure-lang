@@ -224,7 +224,9 @@ defmodule Cure.MetaAST.ConformanceTest do
       param = {:param, [type: param_type], ["x"]}
 
       conformant = Conformance.to_conformant(param)
-      assert {:param, [], [{:type_wrapper, [], [{:variable, [scope: :local], "Nat"}]}], ["x"]} = conformant
+
+      assert {:param, [], [{:type_wrapper, [], [{:variable, [scope: :local], "Nat"}]}, "x"]} =
+               conformant
     end
   end
 end
