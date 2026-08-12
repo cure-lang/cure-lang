@@ -247,5 +247,62 @@ defmodule Cure.Elab.LinearSiblingRefinementTest do
 
       assert idx_verdict(src) == :accept
     end
+
+    test "sibling indexed by a projection of a dependent computation refines" do
+      src = """
+      mod DependentComputedCore
+        type Shape = LeftShape | RightShape | PairShape(Shape, Shape)
+        type Pattern indices (shape: Shape)
+          LeftPattern : (Nat -> Bool) -> Pattern(LeftShape)
+          RightPattern : Pattern(RightShape)
+          PairPattern : Pattern(left_shape) -> Pattern(right_shape) -> Pattern(PairShape(left_shape, right_shape))
+        type Compilation indices (shape: Shape)
+          LeftCompilation : (Nat -> Bool) -> Compilation(LeftShape)
+          RightCompilation : Compilation(RightShape)
+          PairCompilation : Compilation(left_shape) -> Compilation(right_shape) -> Compilation(PairShape(left_shape, right_shape))
+        fn compile({shape: Shape}, pattern: Pattern(shape)) -> Compilation(shape) = match pattern
+          LeftPattern(test) -> LeftCompilation(test)
+          RightPattern() -> RightCompilation()
+          PairPattern(left, right) -> PairCompilation(compile(left), compile(right))
+        fn state_count({shape: Shape}, compilation: Compilation(shape)) -> Nat = match compilation
+          LeftCompilation(_) -> S(Z())
+          RightCompilation() -> Z()
+          PairCompilation(_, _) -> Z()
+        type Machine indices (state_count: Nat)
+          LeftMachine : Machine(S(Z()))
+          RightMachine : Machine(Z())
+        fn machine({shape: Shape}, compilation: Compilation(shape)) -> Machine(state_count(compilation)) = match compilation
+          LeftCompilation(_) -> LeftMachine()
+          RightCompilation() -> RightMachine()
+          PairCompilation(_, _) -> RightMachine()
+        type Path(n: Nat, machine: Machine(n)) indices ()
+          MkPath : Path(n, machine)
+        type CompilationProof indices (shape: Shape, pattern: Pattern(shape), compilation: Compilation(shape))
+          ProvesLeft : (test: (Nat -> Bool)) -> CompilationProof(LeftShape, LeftPattern(test), LeftCompilation(test))
+          ProvesRight : CompilationProof(RightShape, RightPattern(), RightCompilation())
+          ProvesPair : (left: Pattern(left_shape)) -> (right: Pattern(right_shape)) -> (left_proof: CompilationProof(left_shape, left, compile(left))) -> (right_proof: CompilationProof(right_shape, right, compile(right))) -> CompilationProof(PairShape(left_shape, right_shape), PairPattern(left, right), PairCompilation(compile(left), compile(right)))
+      end
+
+      mod DependentComputedIdx
+        use DependentComputedCore
+        type Denotation indices (shape: Shape, pattern: Pattern(shape))
+          DenotesLeft : (test: (Nat -> Bool)) -> Denotation(LeftShape, LeftPattern(test))
+          DenotesRight : Denotation(RightShape, RightPattern())
+          DenotesPair : (left: Pattern(left_shape)) -> (right: Pattern(right_shape)) -> Denotation(PairShape(left_shape, right_shape), PairPattern(left, right))
+        fn consume_left(test: (Nat -> Bool), path: Path(S(Z()), LeftMachine())) -> Denotation(LeftShape, LeftPattern(test)) = match path
+          MkPath() -> DenotesLeft(test)
+        fn consume_right(path: Path(Z(), RightMachine())) -> Denotation(RightShape, RightPattern()) = match path
+          MkPath() -> DenotesRight()
+        fn consume_pair({left_shape: Shape}, {right_shape: Shape}, left: Pattern(left_shape), right: Pattern(right_shape), path: Path(Z(), RightMachine())) -> Denotation(PairShape(left_shape, right_shape), PairPattern(left, right)) = match path
+          MkPath() -> DenotesPair(left, right)
+        fn sound({shape: Shape}, pattern: Pattern(shape), compilation: Compilation(shape), proof: CompilationProof(shape, pattern, compilation), path: Path(state_count(compilation), machine(compilation))) -> Denotation(shape, pattern) = match proof
+          ProvesLeft(test) -> consume_left(test, path)
+          ProvesRight() -> consume_right(path)
+          ProvesPair(left, right, _, _) -> consume_pair(left, right, path)
+      end
+      """
+
+      assert {:ok, _env} = Program.elaborate(src)
+    end
   end
 end

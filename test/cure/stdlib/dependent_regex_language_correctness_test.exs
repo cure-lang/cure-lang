@@ -28,6 +28,27 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
       acceptance
     )
 
+    fn generic_predicate_path_soundness(
+      test: Char -> Bool,
+      input: List(Char),
+      after_input: List(Char),
+      position: InitialPosition,
+      input_evidence: List(Evidence),
+      input_captures: List(CaptureFrame),
+      {final_evidence: List(Evidence)},
+      acceptance: AcceptancePathFrom(
+        thompson_state_count(certify_thompson(PatternPredicate(test))),
+        thompson_machine(certify_thompson(PatternPredicate(test))),
+        position,
+        input,
+        after_input,
+        input_evidence,
+        input_captures,
+        final_evidence
+      )
+    ) -> PatternDenotation(CharC, PatternPredicate(test), position, input, after_input) =
+      predicate_acceptance_path_is_sound(test, input, after_input, position, input_evidence, input_captures, final_evidence, acceptance)
+
     fn predicate_completeness(
       denotation: PatternDenotation(CharC, PatternPredicate(accepts_a), subject_initial_position(), Cons('a', no_chars()), no_chars())
     ) -> PredicateAcceptance(accepts_a, 'a', no_chars(), subject_initial_position()) = predicate_denotation_is_complete(
@@ -105,6 +126,27 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
       acceptance: AcceptancePathFrom(0, boundary_pattern_machine(subject_start_constraint()), subject_initial_position(), input, Nil(), input_evidence, input_captures, final_evidence)
     ) -> PatternDenotation(UnitC, PatternBoundary(subject_start_constraint()), subject_initial_position(), input, Nil()) =
       boundary_acceptance_path_is_sound(subject_start_constraint(), input, Nil(), subject_initial_position(), input_evidence, input_captures, final_evidence, acceptance)
+
+    fn generic_boundary_path_soundness(
+      constraint: BoundaryConstraint,
+      input: List(Char),
+      after_input: List(Char),
+      position: InitialPosition,
+      input_evidence: List(Evidence),
+      input_captures: List(CaptureFrame),
+      {final_evidence: List(Evidence)},
+      acceptance: AcceptancePathFrom(
+        thompson_state_count(certify_thompson(PatternBoundary(constraint))),
+        thompson_machine(certify_thompson(PatternBoundary(constraint))),
+        position,
+        input,
+        after_input,
+        input_evidence,
+        input_captures,
+        final_evidence
+      )
+    ) -> PatternDenotation(UnitC, PatternBoundary(constraint), position, input, after_input) =
+      boundary_acceptance_path_is_sound(constraint, input, after_input, position, input_evidence, input_captures, final_evidence, acceptance)
 
     fn boundary_completeness(
       denotation: PatternDenotation(UnitC, PatternBoundary(subject_start_constraint()), subject_initial_position(), no_chars(), no_chars())
