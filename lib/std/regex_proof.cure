@@ -1189,6 +1189,16 @@ mod Std.Regex.Proof
     Nil() -> reflexive(constraints_hold(right, boundary))
     Cons(head, rest) -> rewrite constraints_hold_append(rest, right, boundary) in and_associative(constraint_holds(head, boundary), constraints_hold(rest, boundary), constraints_hold(right, boundary))
 
+  fn both_true(a: Bool, b: Bool, a_holds: Equivalent(Bool, a, True()), b_holds: Equivalent(Bool, b, True())) -> Equivalent(Bool, a and b, True()) = match a_holds
+    reflexive() -> match b_holds
+      reflexive() -> reflexive(True())
+
+  fn bool_equivalent_transitive(left: Bool, middle: Bool, right: Bool, first: Equivalent(Bool, left, middle), second: Equivalent(Bool, middle, right)) -> Equivalent(Bool, left, right) = match first
+    reflexive() -> second
+
+  fn appended_constraints_hold(left: List(BoundaryConstraint), right: List(BoundaryConstraint), boundary: Boundary, left_holds: Equivalent(Bool, constraints_hold(left, boundary), True()), right_holds: Equivalent(Bool, constraints_hold(right, boundary), True())) -> Equivalent(Bool, constraints_hold(append_constraints(left, right), boundary), True()) =
+    bool_equivalent_transitive(constraints_hold(append_constraints(left, right), boundary), constraints_hold(left, boundary) and constraints_hold(right, boundary), True(), constraints_hold_append(left, right, boundary), both_true(constraints_hold(left, boundary), constraints_hold(right, boundary), left_holds, right_holds))
+
   fn appended_constraints_left_hold(left: List(BoundaryConstraint), right: List(BoundaryConstraint), boundary: Boundary, equality: Equivalent(Bool, constraints_hold(append_constraints(left, right), boundary), True())) -> Equivalent(Bool, constraints_hold(left, boundary), True()) =
     and_true_left(constraints_hold(left, boundary), constraints_hold(right, boundary), transport_equivalent_source(constraints_hold(append_constraints(left, right), boundary), constraints_hold(left, boundary) and constraints_hold(right, boundary), True(), constraints_hold_append(left, right, boundary), equality))
 

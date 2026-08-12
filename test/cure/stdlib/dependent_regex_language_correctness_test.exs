@@ -204,6 +204,15 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     ) -> ConcatRightActivePathEmbedding(left_count, left_machine, right_count, right_machine, input, after_input, source, current_evidence, current_captures, final_evidence) =
       lift_concat_right_active_path(left_count, left_machine, right_count, right_machine, input, after_input, source, current_evidence, current_captures, final_evidence, routine, path)
 
+    fn concat_appended_constraints_hold(
+      left: List(BoundaryConstraint),
+      right: List(BoundaryConstraint),
+      boundary: Boundary,
+      left_holds: Equivalent(Bool, constraints_hold(left, boundary), True()),
+      right_holds: Equivalent(Bool, constraints_hold(right, boundary), True())
+    ) -> Equivalent(Bool, constraints_hold(append_constraints(left, right), boundary), True()) =
+      appended_constraints_hold(left, right, boundary, left_holds, right_holds)
+
     fn generic_alternate_mode_left_composition(
       left_shape: ShapeCode,
       right_shape: ShapeCode,
