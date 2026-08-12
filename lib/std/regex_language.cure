@@ -727,3 +727,133 @@ mod Std.Regex.Language
     let complete_routine = append_extended_routines(regular_routine(initial_regular), path_routine)
     let certificate: CertifiedPathRoutine(complete_routine, Nil(), Nil(), final_evidence) = PathRoutineInitial(initial_regular, path_routine, no_evidence, opened_captures, initial_extended, path_certificate)
     PatternAccepted(final_evidence, complete_routine, MachineAccepted(Active(First(), initial_regular, Nil()), no_evidence, opened_captures, path_routine, initial_edge, initial_execution, certificate, path))
+
+  type PredicateRepeatAcceptance indices (test: Char -> Bool, lazy: Bool, input: List(Char), after_input: List(Char), position: InitialPosition)
+    PredicateRepeatAccepted : (final_evidence: List(Evidence)) -> (routine: List(ExtendedInstruction)) -> (@erased acceptance: MachineAcceptance(S(Z()), repeat_pattern_machine(S(Z()), predicate_pattern_machine(test), lazy), position, input, after_input, final_evidence, routine)) -> PredicateRepeatAcceptance(test, lazy, input, after_input, position)
+
+  @reducible
+  fn predicate_repeat_empty_start() -> MachineState(S(Z())) =
+    Accepted(Cons(BeginList(), Cons(EndList(), Nil())), Nil())
+
+  @reducible
+  fn predicate_repeat_consuming_start() -> MachineState(S(Z())) =
+    Active(First(), Cons(BeginList(), Nil()), Nil())
+
+  fn predicate_repeat_empty_initial_member(
+    test: Char -> Bool,
+    lazy: Bool,
+    position: InitialPosition,
+    after_input: List(Char)
+  ) -> ListMember(MachineState(S(Z())), predicate_repeat_empty_start(), initial_machine_destinations(S(Z()), repeat_pattern_machine(S(Z()), predicate_pattern_machine(test), lazy), position, Nil(), after_input)) = match lazy
+    False() -> member_there(predicate_repeat_consuming_start(), member_here(predicate_repeat_empty_start(), Nil()))
+    True() -> member_here(predicate_repeat_empty_start(), Cons(predicate_repeat_consuming_start(), Nil()))
+
+  fn predicate_repeat_mode_empty_acceptance_is_complete(
+    test: Char -> Bool,
+    lazy: Bool,
+    after_input: List(Char),
+    position: InitialPosition
+  ) -> PredicateRepeatAcceptance(test, lazy, Nil(), after_input, position) =
+    let no_captures: List(CaptureFrame) = Nil()
+    let no_path_routine: List(ExtendedInstruction) = Nil()
+    let final_evidence: List(Evidence) = Cons(EndListEvidence(), Cons(BeginListEvidence(), Nil()))
+    let regular: List(EvidenceInstruction) = Cons(BeginList(), Cons(EndList(), Nil()))
+    let edge = predicate_repeat_empty_initial_member(test, lazy, position, after_input)
+    let execution: RoutineExecution(regular, Nil(), Nil(), final_evidence, no_captures) = RoutineStep(BeginList(), RoutineStep(EndList(), RoutineDone()))
+    let extended_execution: ExtendedEvidenceRoutineExecution(regular_routine(regular), Nil(), Nil(), final_evidence, no_captures) = ExtendedEvidenceRegular(BeginList(), ExtendedEvidenceRegular(EndList(), ExtendedEvidenceDone()))
+    let certificate: CertifiedPathRoutine(regular_routine(regular), Nil(), Nil(), final_evidence) = PathRoutineInitial(regular, no_path_routine, final_evidence, no_captures, extended_execution, PathRoutineDone())
+    PredicateRepeatAccepted(final_evidence, regular_routine(regular), MachineAccepted(predicate_repeat_empty_start(), final_evidence, no_captures, no_path_routine, edge, execution, certificate, AcceptingNow()))
+
+  fn predicate_repeat_mode_empty_denotation_is_complete(
+    test: Char -> Bool,
+    lazy: Bool,
+    after_input: List(Char),
+    position: InitialPosition,
+    @erased denotation: PatternDenotation(ListC(CharC), PatternRepeatMode(PatternPredicate(test), lazy), position, Nil(), after_input)
+  ) -> PatternAcceptance(ListC(CharC), PatternRepeatMode(PatternPredicate(test), lazy), position, Nil(), after_input) = match predicate_repeat_mode_empty_acceptance_is_complete(test, lazy, after_input, position)
+    PredicateRepeatAccepted(final_evidence, routine, acceptance) -> PatternAccepted(final_evidence, routine, acceptance)
+
+  fn predicate_repeat_empty_denotation_is_complete(
+    test: Char -> Bool,
+    after_input: List(Char),
+    position: InitialPosition,
+    @erased denotation: PatternDenotation(ListC(CharC), PatternRepeat(PatternPredicate(test)), position, Nil(), after_input)
+  ) -> PatternAcceptance(ListC(CharC), PatternRepeat(PatternPredicate(test)), position, Nil(), after_input) = match predicate_repeat_mode_empty_acceptance_is_complete(test, False(), after_input, position)
+    PredicateRepeatAccepted(final_evidence, routine, acceptance) -> PatternAccepted(final_evidence, routine, acceptance)
+
+  @reducible
+  fn predicate_repeat_singleton_accepting(char: Char) -> MachineState(S(Z())) =
+    Accepted(Cons(EmitChar(char), Cons(EndList(), Nil())), Nil())
+
+  @reducible
+  fn predicate_repeat_singleton_reentry(char: Char) -> MachineState(S(Z())) =
+    Active(First(), Cons(EmitChar(char), Nil()), Nil())
+
+  fn predicate_repeat_consuming_initial_member(
+    test: Char -> Bool,
+    lazy: Bool,
+    position: InitialPosition,
+    char: Char,
+    after_input: List(Char)
+  ) -> ListMember(MachineState(S(Z())), predicate_repeat_consuming_start(), initial_machine_destinations(S(Z()), repeat_pattern_machine(S(Z()), predicate_pattern_machine(test), lazy), position, Cons(char, Nil()), after_input)) = match lazy
+    False() -> member_here(predicate_repeat_consuming_start(), Cons(predicate_repeat_empty_start(), Nil()))
+    True() -> member_there(predicate_repeat_empty_start(), member_here(predicate_repeat_consuming_start(), Nil()))
+
+  fn predicate_repeat_singleton_result_member(
+    test: Char -> Bool,
+    lazy: Bool,
+    char: Char,
+    after_input: List(Char),
+    holds: Equivalent(Bool, test(char), True())
+  ) -> ListMember(MachineState(S(Z())), predicate_repeat_singleton_accepting(char), machine_destinations(S(Z()), repeat_pattern_machine(S(Z()), predicate_pattern_machine(test), lazy), ThreadActive(First()), char, transition_boundary_before(char, Nil(), after_input))) = match lazy
+    False() -> rewrite holds in member_there(predicate_repeat_singleton_reentry(char), member_here(predicate_repeat_singleton_accepting(char), Nil()))
+    True() -> rewrite holds in member_here(predicate_repeat_singleton_accepting(char), Cons(predicate_repeat_singleton_reentry(char), Nil()))
+
+  fn predicate_repeat_mode_singleton_acceptance_is_complete(
+    test: Char -> Bool,
+    lazy: Bool,
+    char: Char,
+    after_input: List(Char),
+    position: InitialPosition,
+    denotation: PatternDenotation(CharC, PatternPredicate(test), position, Cons(char, Nil()), after_input)
+  ) -> PredicateRepeatAcceptance(test, lazy, Cons(char, Nil()), after_input, position) =
+    let holds = predicate_denotation_truth(test, char, after_input, position, denotation)
+    let no_captures: List(CaptureFrame) = Nil()
+    let no_extended: List(ExtendedInstruction) = Nil()
+    let initial_evidence: List(Evidence) = Cons(BeginListEvidence(), Nil())
+    let final_evidence: List(Evidence) = Cons(EndListEvidence(), Cons(CharacterEvidence(char), initial_evidence))
+    let initial_regular: List(EvidenceInstruction) = Cons(BeginList(), Nil())
+    let transition_regular: List(EvidenceInstruction) = Cons(EmitChar(char), Cons(EndList(), Nil()))
+    let path_routine = transition_routine(char, transition_regular)
+    let initial_edge = predicate_repeat_consuming_initial_member(test, lazy, position, char, after_input)
+    let transition_edge = predicate_repeat_singleton_result_member(test, lazy, char, after_input, holds)
+    let initial_execution: RoutineExecution(initial_regular, Nil(), Nil(), initial_evidence, no_captures) = RoutineStep(BeginList(), RoutineDone())
+    let transition_execution: RoutineExecution(transition_regular, initial_evidence, record_capture_char(no_captures, char), final_evidence, no_captures) = RoutineStep(EmitChar(char), RoutineStep(EndList(), RoutineDone()))
+    let initial_extended: ExtendedEvidenceRoutineExecution(regular_routine(initial_regular), Nil(), Nil(), initial_evidence, no_captures) = ExtendedEvidenceRegular(BeginList(), ExtendedEvidenceDone())
+    let transition_extended: ExtendedEvidenceRoutineExecution(regular_routine(transition_regular), initial_evidence, record_capture_char(no_captures, char), final_evidence, no_captures) = ExtendedEvidenceRegular(EmitChar(char), ExtendedEvidenceRegular(EndList(), ExtendedEvidenceDone()))
+    let path: AcceptingFrom(S(Z()), repeat_pattern_machine(S(Z()), predicate_pattern_machine(test), lazy), Cons(char, Nil()), after_input, ThreadActive(First()), initial_evidence, no_captures, final_evidence, path_routine) = AcceptingNextAccepted(transition_regular, Nil(), final_evidence, no_captures, no_extended, transition_edge, transition_execution, AcceptingNow())
+    let path_certificate: CertifiedPathRoutine(path_routine, initial_evidence, no_captures, final_evidence) = PathRoutineTransition(char, transition_regular, no_extended, final_evidence, no_captures, transition_extended, PathRoutineDone())
+    let complete_routine = append_extended_routines(regular_routine(initial_regular), path_routine)
+    let certificate: CertifiedPathRoutine(complete_routine, Nil(), Nil(), final_evidence) = PathRoutineInitial(initial_regular, path_routine, initial_evidence, no_captures, initial_extended, path_certificate)
+    PredicateRepeatAccepted(final_evidence, complete_routine, MachineAccepted(predicate_repeat_consuming_start(), initial_evidence, no_captures, path_routine, initial_edge, initial_execution, certificate, path))
+
+  fn predicate_repeat_mode_singleton_is_complete(
+    test: Char -> Bool,
+    lazy: Bool,
+    char: Char,
+    after_input: List(Char),
+    position: InitialPosition,
+    denotation: PatternDenotation(CharC, PatternPredicate(test), position, Cons(char, Nil()), after_input)
+  ) -> PatternAcceptance(ListC(CharC), PatternRepeatMode(PatternPredicate(test), lazy), position, Cons(char, Nil()), after_input) =
+    match predicate_repeat_mode_singleton_acceptance_is_complete(test, lazy, char, after_input, position, denotation)
+      PredicateRepeatAccepted(final_evidence, routine, acceptance) -> PatternAccepted(final_evidence, routine, acceptance)
+
+  fn predicate_repeat_singleton_is_complete(
+    test: Char -> Bool,
+    char: Char,
+    after_input: List(Char),
+    position: InitialPosition,
+    denotation: PatternDenotation(CharC, PatternPredicate(test), position, Cons(char, Nil()), after_input)
+  ) -> PatternAcceptance(ListC(CharC), PatternRepeat(PatternPredicate(test)), position, Cons(char, Nil()), after_input) =
+    match predicate_repeat_mode_singleton_acceptance_is_complete(test, False(), char, after_input, position, denotation)
+      PredicateRepeatAccepted(final_evidence, routine, acceptance) -> PatternAccepted(final_evidence, routine, acceptance)
