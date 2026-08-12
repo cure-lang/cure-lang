@@ -119,6 +119,11 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     fn concatenated_empty_denotation() -> PatternDenotation(PairC(UnitC, UnitC), PatternConcat(PatternEmpty(), PatternEmpty()), subject_initial_position(), no_chars(), no_chars()) =
       DenotesConcat(PatternEmpty(), PatternEmpty(), no_chars(), no_chars(), Std.Regex.Proof.input_partition_here(no_chars()), DenotesEmpty(), DenotesEmpty())
 
+    fn concatenated_empty_completeness(
+      denotation: PatternDenotation(PairC(UnitC, UnitC), PatternConcat(PatternEmpty(), PatternEmpty()), subject_initial_position(), no_chars(), no_chars())
+    ) -> PatternAcceptance(PairC(UnitC, UnitC), PatternConcat(PatternEmpty(), PatternEmpty()), subject_initial_position(), no_chars(), no_chars()) =
+      empty_concat_denotation_is_complete(no_chars(), subject_initial_position(), denotation)
+
     fn concatenated_predicate_soundness(
       {final_evidence: List(Evidence)},
       {routine: List(ExtendedInstruction)},
@@ -210,6 +215,8 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     assert Env.total?(env, :grouped_predicate_soundness)
     assert Env.total?(env, :"Std.Regex.Language#grouped_predicate_acceptance_is_sound")
     assert Env.total?(env, :concatenated_empty_denotation)
+    assert Env.total?(env, :concatenated_empty_completeness)
+    assert Env.total?(env, :"Std.Regex.Language#empty_concat_denotation_is_complete")
     assert Env.total?(env, :concatenated_predicate_soundness)
     assert Env.total?(env, :"Std.Regex.Language#predicate_concat_acceptance_is_sound")
     assert Env.total?(env, :alternate_left_denotation)

@@ -458,3 +458,24 @@ mod Std.Regex.Language
   ) -> PatternAcceptance(UnitC, PatternBoundary(constraint), position, Nil(), after_input) =
     match boundary_denotation_is_complete(constraint, after_input, position, denotation)
       BoundaryAccepted(final_evidence, routine, acceptance) -> PatternAccepted(final_evidence, routine, acceptance)
+
+  fn empty_concat_denotation_is_complete(
+    after_input: List(Char),
+    position: InitialPosition,
+    denotation: PatternDenotation(PairC(UnitC, UnitC), PatternConcat(PatternEmpty(), PatternEmpty()), position, Nil(), after_input)
+  ) -> PatternAcceptance(PairC(UnitC, UnitC), PatternConcat(PatternEmpty(), PatternEmpty()), position, Nil(), after_input) = match denotation
+    DenotesConcat(_, _, _, _, _, _, _) ->
+      let no_captures: List(CaptureFrame) = Nil()
+      let no_path_routine: List(ExtendedInstruction) = Nil()
+      let first_evidence: List(Evidence) = Cons(UnitEvidence(), Nil())
+      let second_evidence: List(Evidence) = Cons(UnitEvidence(), first_evidence)
+      let final_evidence: List(Evidence) = Cons(PairEvidence(), second_evidence)
+      let routine: List(EvidenceInstruction) = Cons(EmitUnit(), Cons(EmitUnit(), Cons(EmitPair(), Nil())))
+      let destination: MachineState(Z()) = Accepted(routine, Nil())
+      let machine = concat_pattern_machine(Z(), empty_pattern_machine(), Z(), empty_pattern_machine())
+      let edge: ListMember(MachineState(Z()), destination, initial_machine_destinations(Z(), machine, position, Nil(), after_input)) = member_here(destination, Nil())
+      let execution: RoutineExecution(routine, Nil(), Nil(), final_evidence, no_captures) = RoutineStep(EmitUnit(), RoutineStep(EmitUnit(), RoutineStep(EmitPair(), RoutineDone())))
+      let extended_execution: ExtendedEvidenceRoutineExecution(regular_routine(routine), Nil(), Nil(), final_evidence, no_captures) = ExtendedEvidenceRegular(EmitUnit(), ExtendedEvidenceRegular(EmitUnit(), ExtendedEvidenceRegular(EmitPair(), ExtendedEvidenceDone())))
+      let complete_routine = regular_routine(routine)
+      let certificate: CertifiedPathRoutine(complete_routine, Nil(), Nil(), final_evidence) = PathRoutineInitial(routine, no_path_routine, final_evidence, no_captures, extended_execution, PathRoutineDone())
+      PatternAccepted(final_evidence, complete_routine, MachineAccepted(destination, final_evidence, no_captures, no_path_routine, edge, execution, certificate, AcceptingNow()))
