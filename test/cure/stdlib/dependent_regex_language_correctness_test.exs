@@ -97,6 +97,13 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     fn alternate_mode_right_denotation() -> PatternDenotation(ChoiceC(UnitC, UnitC), PatternAlternateMode(PatternEmpty(), PatternEmpty(), True()), subject_initial_position(), Nil(), Nil()) =
       DenotesAlternateModeRight(PatternEmpty(), PatternEmpty(), True(), DenotesEmpty())
 
+    fn alternate_predicate_soundness(
+      {final_evidence: List(Evidence)},
+      {routine: List(ExtendedInstruction)},
+      acceptance: MachineAcceptance(2, alternate_pattern_machine(1, predicate_pattern_machine(accepts_a), 1, predicate_pattern_machine(accepts_a), True()), subject_initial_position(), Cons('a', Nil()), Nil(), final_evidence, routine)
+    ) -> PatternDenotation(ChoiceC(CharC, CharC), PatternAlternateMode(PatternPredicate(accepts_a), PatternPredicate(accepts_a), True()), subject_initial_position(), Cons('a', Nil()), Nil()) =
+      predicate_alternate_mode_acceptance_is_sound(accepts_a, accepts_a, True(), 'a', Nil(), subject_initial_position(), final_evidence, routine, acceptance)
+
     fn repeated_predicate_denotation() -> PatternDenotation(ListC(CharC), PatternRepeat(PatternPredicate(accepts_a)), subject_initial_position(), Cons('a', Nil()), Nil()) =
       DenotesRepeatMore(
         PatternPredicate(accepts_a),
@@ -150,6 +157,8 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     assert Env.total?(env, :concatenated_empty_denotation)
     assert Env.total?(env, :alternate_left_denotation)
     assert Env.total?(env, :alternate_mode_right_denotation)
+    assert Env.total?(env, :alternate_predicate_soundness)
+    assert Env.total?(env, :"Std.Regex.Language#predicate_alternate_mode_acceptance_is_sound")
     assert Env.total?(env, :repeated_predicate_denotation)
     assert Env.total?(env, :repeated_mode_empty_denotation)
   end
