@@ -231,6 +231,16 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     ) -> PatternAcceptance(ListC(CharC), PatternRepeat(PatternPredicate(accepts_a)), subject_initial_position(), Nil(), Nil()) =
       predicate_repeat_empty_denotation_is_complete(accepts_a, Nil(), subject_initial_position(), denotation)
 
+    fn repeated_nullable_inner_completeness(
+      denotation: PatternDenotation(ListC(UnitC), PatternRepeat(PatternEmpty()), subject_initial_position(), Nil(), Nil())
+    ) -> PatternAcceptance(ListC(UnitC), PatternRepeat(PatternEmpty()), subject_initial_position(), Nil(), Nil()) =
+      repeat_empty_denotation_is_complete(UnitC, PatternEmpty(), Nil(), subject_initial_position(), denotation)
+
+    fn repeated_nullable_inner_mode_completeness(
+      denotation: PatternDenotation(ListC(UnitC), PatternRepeatMode(PatternEmpty(), True()), subject_initial_position(), Nil(), Nil())
+    ) -> PatternAcceptance(ListC(UnitC), PatternRepeatMode(PatternEmpty(), True()), subject_initial_position(), Nil(), Nil()) =
+      repeat_mode_empty_denotation_is_complete(UnitC, PatternEmpty(), True(), Nil(), subject_initial_position(), denotation)
+
     fn repeated_mode_singleton_completeness(
       item_denotation: PatternDenotation(CharC, PatternPredicate(accepts_a), subject_initial_position(), Cons('a', Nil()), Nil())
     ) -> PatternAcceptance(ListC(CharC), PatternRepeatMode(PatternPredicate(accepts_a), True()), subject_initial_position(), Cons('a', Nil()), Nil()) =
@@ -339,6 +349,10 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     assert Env.total?(env, :repeated_mode_empty_denotation)
     assert Env.total?(env, :repeated_mode_empty_completeness)
     assert Env.total?(env, :repeated_default_empty_completeness)
+    assert Env.total?(env, :repeated_nullable_inner_completeness)
+    assert Env.total?(env, :repeated_nullable_inner_mode_completeness)
+    assert Env.total?(env, :"Std.Regex.Language#repeat_empty_denotation_is_complete")
+    assert Env.total?(env, :"Std.Regex.Language#repeat_mode_empty_denotation_is_complete")
     assert Env.total?(env, :repeated_mode_singleton_completeness)
     assert Env.total?(env, :repeated_default_singleton_completeness)
     assert Env.total?(env, :repeated_mode_pair_completeness)

@@ -787,6 +787,71 @@ mod Std.Regex.Language
   ) -> PatternAcceptance(ListC(CharC), PatternRepeat(PatternPredicate(test)), position, Nil(), after_input) = match predicate_repeat_mode_empty_acceptance_is_complete(test, False(), after_input, position)
     PredicateRepeatAccepted(final_evidence, routine, acceptance) -> PatternAccepted(final_evidence, routine, acceptance)
 
+  fn repeat_empty_after_filtered_states(
+    n: Nat,
+    states: List(MachineState(n)),
+    boundary: Boundary
+  ) -> ListMember(MachineState(n), Accepted(Cons(BeginList(), Cons(EndList(), Nil())), Nil()), filter_machine_states(n, append_machine_states(n, states, Cons(Accepted(Cons(BeginList(), Cons(EndList(), Nil())), Nil()), Nil())), boundary)) = match states
+    Nil() -> member_here(Accepted(Cons(BeginList(), Cons(EndList(), Nil())), Nil()), Nil())
+    Cons(Active(state, routine, constraints), rest) -> match constraints_hold(constraints, boundary)
+      False() -> repeat_empty_after_filtered_states(n, rest, boundary)
+      True() -> member_there(Active(state, routine, Nil()), repeat_empty_after_filtered_states(n, rest, boundary))
+    Cons(Accepted(routine, constraints), rest) -> match constraints_hold(constraints, boundary)
+      False() -> repeat_empty_after_filtered_states(n, rest, boundary)
+      True() -> member_there(Accepted(routine, Nil()), repeat_empty_after_filtered_states(n, rest, boundary))
+
+  fn repeat_empty_initial_member(
+    n: Nat,
+    machine: PatternMachine(n),
+    lazy: Bool,
+    position: InitialPosition,
+    after_input: List(Char)
+  ) -> ListMember(MachineState(n), Accepted(Cons(BeginList(), Cons(EndList(), Nil())), Nil()), initial_machine_destinations(n, repeat_pattern_machine(n, machine, lazy), position, Nil(), after_input)) = match machine
+    MkPatternMachine(starts, _) -> match lazy
+      False() -> repeat_empty_after_filtered_states(n, enter_repeat(Cons(BeginList(), Nil()), starts), initial_position_boundary(position, after_input))
+      True() -> member_here(Accepted(Cons(BeginList(), Cons(EndList(), Nil())), Nil()), filter_machine_states(n, enter_repeat(Cons(BeginList(), Nil()), starts), initial_position_boundary(position, after_input)))
+
+  fn repeat_mode_empty_denotation_is_complete(
+    inner_shape: ShapeCode,
+    inner: Pattern(inner_shape),
+    lazy: Bool,
+    after_input: List(Char),
+    position: InitialPosition,
+    denotation: PatternDenotation(ListC(inner_shape), PatternRepeatMode(inner, lazy), position, Nil(), after_input)
+  ) -> PatternAcceptance(ListC(inner_shape), PatternRepeatMode(inner, lazy), position, Nil(), after_input) =
+    let compilation = certify_thompson(inner)
+    let n = thompson_state_count(compilation)
+    let machine = thompson_machine(compilation)
+    let no_captures: List(CaptureFrame) = Nil()
+    let no_path_routine: List(ExtendedInstruction) = Nil()
+    let final_evidence: List(Evidence) = Cons(EndListEvidence(), Cons(BeginListEvidence(), Nil()))
+    let regular: List(EvidenceInstruction) = Cons(BeginList(), Cons(EndList(), Nil()))
+    let edge = repeat_empty_initial_member(n, machine, lazy, position, after_input)
+    let execution: RoutineExecution(regular, Nil(), Nil(), final_evidence, no_captures) = RoutineStep(BeginList(), RoutineStep(EndList(), RoutineDone()))
+    let extended_execution: ExtendedEvidenceRoutineExecution(regular_routine(regular), Nil(), Nil(), final_evidence, no_captures) = ExtendedEvidenceRegular(BeginList(), ExtendedEvidenceRegular(EndList(), ExtendedEvidenceDone()))
+    let certificate: CertifiedPathRoutine(regular_routine(regular), Nil(), Nil(), final_evidence) = PathRoutineInitial(regular, no_path_routine, final_evidence, no_captures, extended_execution, PathRoutineDone())
+    PatternAccepted(final_evidence, regular_routine(regular), MachineAccepted(Accepted(regular, Nil()), final_evidence, no_captures, no_path_routine, edge, execution, certificate, AcceptingNow()))
+
+  fn repeat_empty_denotation_is_complete(
+    inner_shape: ShapeCode,
+    inner: Pattern(inner_shape),
+    after_input: List(Char),
+    position: InitialPosition,
+    denotation: PatternDenotation(ListC(inner_shape), PatternRepeat(inner), position, Nil(), after_input)
+  ) -> PatternAcceptance(ListC(inner_shape), PatternRepeat(inner), position, Nil(), after_input) =
+    let compilation = certify_thompson(inner)
+    let n = thompson_state_count(compilation)
+    let machine = thompson_machine(compilation)
+    let no_captures: List(CaptureFrame) = Nil()
+    let no_path_routine: List(ExtendedInstruction) = Nil()
+    let final_evidence: List(Evidence) = Cons(EndListEvidence(), Cons(BeginListEvidence(), Nil()))
+    let regular: List(EvidenceInstruction) = Cons(BeginList(), Cons(EndList(), Nil()))
+    let edge = repeat_empty_initial_member(n, machine, False(), position, after_input)
+    let execution: RoutineExecution(regular, Nil(), Nil(), final_evidence, no_captures) = RoutineStep(BeginList(), RoutineStep(EndList(), RoutineDone()))
+    let extended_execution: ExtendedEvidenceRoutineExecution(regular_routine(regular), Nil(), Nil(), final_evidence, no_captures) = ExtendedEvidenceRegular(BeginList(), ExtendedEvidenceRegular(EndList(), ExtendedEvidenceDone()))
+    let certificate: CertifiedPathRoutine(regular_routine(regular), Nil(), Nil(), final_evidence) = PathRoutineInitial(regular, no_path_routine, final_evidence, no_captures, extended_execution, PathRoutineDone())
+    PatternAccepted(final_evidence, regular_routine(regular), MachineAccepted(Accepted(regular, Nil()), final_evidence, no_captures, no_path_routine, edge, execution, certificate, AcceptingNow()))
+
   @reducible
   fn predicate_repeat_singleton_accepting(char: Char) -> MachineState(S(Z())) =
     Accepted(Cons(EmitChar(char), Cons(EndList(), Nil())), Nil())
