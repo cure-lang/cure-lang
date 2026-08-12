@@ -210,6 +210,18 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     ) -> PatternAcceptance(ListC(CharC), PatternRepeat(PatternPredicate(accepts_a)), subject_initial_position(), Cons('a', Nil()), Nil()) =
       predicate_repeat_singleton_is_complete(accepts_a, 'a', Nil(), subject_initial_position(), item_denotation)
 
+    fn repeated_mode_pair_completeness(
+      first_denotation: PatternDenotation(CharC, PatternPredicate(accepts_a), subject_initial_position(), Cons('a', Nil()), Cons('a', Nil())),
+      second_denotation: PatternDenotation(CharC, PatternPredicate(accepts_a), advance_initial_position(subject_initial_position(), Cons('a', Nil())), Cons('a', Nil()), Nil())
+    ) -> PatternAcceptance(ListC(CharC), PatternRepeatMode(PatternPredicate(accepts_a), True()), subject_initial_position(), Cons('a', Cons('a', Nil())), Nil()) =
+      predicate_repeat_mode_pair_is_complete(accepts_a, True(), 'a', 'a', Nil(), subject_initial_position(), first_denotation, second_denotation)
+
+    fn repeated_default_pair_completeness(
+      first_denotation: PatternDenotation(CharC, PatternPredicate(accepts_a), subject_initial_position(), Cons('a', Nil()), Cons('a', Nil())),
+      second_denotation: PatternDenotation(CharC, PatternPredicate(accepts_a), advance_initial_position(subject_initial_position(), Cons('a', Nil())), Cons('a', Nil()), Nil())
+    ) -> PatternAcceptance(ListC(CharC), PatternRepeat(PatternPredicate(accepts_a)), subject_initial_position(), Cons('a', Cons('a', Nil())), Nil()) =
+      predicate_repeat_pair_is_complete(accepts_a, 'a', 'a', Nil(), subject_initial_position(), first_denotation, second_denotation)
+
     fn repeated_predicate_soundness(
       {final_evidence: List(Evidence)},
       {routine: List(ExtendedInstruction)},
@@ -293,10 +305,14 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     assert Env.total?(env, :repeated_default_empty_completeness)
     assert Env.total?(env, :repeated_mode_singleton_completeness)
     assert Env.total?(env, :repeated_default_singleton_completeness)
+    assert Env.total?(env, :repeated_mode_pair_completeness)
+    assert Env.total?(env, :repeated_default_pair_completeness)
     assert Env.total?(env, :"Std.Regex.Language#predicate_repeat_mode_empty_denotation_is_complete")
     assert Env.total?(env, :"Std.Regex.Language#predicate_repeat_empty_denotation_is_complete")
     assert Env.total?(env, :"Std.Regex.Language#predicate_repeat_mode_singleton_is_complete")
     assert Env.total?(env, :"Std.Regex.Language#predicate_repeat_singleton_is_complete")
+    assert Env.total?(env, :"Std.Regex.Language#predicate_repeat_mode_pair_is_complete")
+    assert Env.total?(env, :"Std.Regex.Language#predicate_repeat_pair_is_complete")
     assert Env.total?(env, :repeated_predicate_soundness)
     assert Env.total?(env, :"Std.Regex.Language#predicate_repeat_mode_acceptance_is_sound")
     assert Env.total?(env, :repeated_predicate_default_soundness)
