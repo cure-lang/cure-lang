@@ -912,6 +912,45 @@ mod Std.Regex.Proof
             AcceptingNextActive(_, _, _, _, _, _, _, _, _) -> impossible
             AcceptingNextAccepted(_, _, _, _, _, _, _, _) -> impossible
 
+  typealias AlternateRightActivePathEmbedding(left_count: Nat, left_machine: PatternMachine(left_count), right_count: Nat, right_machine: PatternMachine(right_count), prefer_right: Bool, input: List(Char), after_input: List(Char), source: Bounded(right_count), current_evidence: List(Evidence), current_captures: List(CaptureFrame), child_final_evidence: List(Evidence)) = Sigma(combined_routine: List(ExtendedInstruction), AcceptingFrom(plus(left_count, right_count), alternate_pattern_machine(left_count, left_machine, right_count, right_machine, prefer_right), input, after_input, ThreadActive(inject_alternate_right(left_count, right_count, source)), current_evidence, current_captures, Cons(RightEvidence(), child_final_evidence), combined_routine))
+
+  fn lift_alternate_right_active_edge(left_count: Nat, right_count: Nat, states: List(MachineState(right_count)), marker: EvidenceInstruction, boundary: Boundary, state: Bounded(right_count), routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(right_count), Active(state, routine, constraints), filter_machine_states(right_count, states, boundary)), origin: FilteredStateOrigin(right_count, states, boundary, Active(state, routine, constraints))) -> ListMember(MachineState(plus(left_count, right_count)), Active(inject_alternate_right(left_count, right_count, state), routine, Nil()), filter_machine_states(plus(left_count, right_count), alternate_right_states(left_count, right_count, states, marker), boundary)) = match origin
+    FilteredActiveStateOrigin(_, _, _, _, _) -> lift_filtered_right_active_member(left_count, right_count, states, marker, boundary, state, routine, edge)
+    FilteredAcceptedStateOrigin(_, _, _, _) -> impossible
+
+  fn lift_alternate_right_accepted_edge(left_count: Nat, right_count: Nat, states: List(MachineState(right_count)), marker: EvidenceInstruction, boundary: Boundary, routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(right_count), Accepted(routine, constraints), filter_machine_states(right_count, states, boundary)), origin: FilteredStateOrigin(right_count, states, boundary, Accepted(routine, constraints))) -> ListMember(MachineState(plus(left_count, right_count)), Accepted(append_branch_marker(routine, marker), Nil()), filter_machine_states(plus(left_count, right_count), alternate_right_states(left_count, right_count, states, marker), boundary)) = match origin
+    FilteredActiveStateOrigin(_, _, _, _, _) -> impossible
+    FilteredAcceptedStateOrigin(_, _, _, _) -> lift_filtered_right_accepted_member(left_count, right_count, states, marker, boundary, routine, edge)
+
+  fn lift_alternate_right_active_path(left_count: Nat, left_machine: PatternMachine(left_count), right_count: Nat, right_machine: PatternMachine(right_count), prefer_right: Bool, input: List(Char), after_input: List(Char), source: Bounded(right_count), current_evidence: List(Evidence), current_captures: List(CaptureFrame), child_final_evidence: List(Evidence), child_routine: List(ExtendedInstruction), path: AcceptingFrom(right_count, right_machine, input, after_input, ThreadActive(source), current_evidence, current_captures, child_final_evidence, child_routine)) -> AlternateRightActivePathEmbedding(left_count, left_machine, right_count, right_machine, prefer_right, input, after_input, source, current_evidence, current_captures, child_final_evidence) = match input
+    Nil() -> match path
+      AcceptingNow() -> impossible
+      AcceptingNextActive(_, _, _, _, _, _, _, _, _) -> impossible
+      AcceptingNextAccepted(_, _, _, _, _, _, _, _) -> impossible
+    Cons(char, rest) -> match left_machine
+      MkPatternMachine(left_starts, left_next) -> match right_machine
+        MkPatternMachine(right_starts, right_next) -> match path
+          AcceptingNow() -> impossible
+          AcceptingNextActive(destination, regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix) -> match lift_alternate_right_active_path(left_count, MkPatternMachine(left_starts, left_next), right_count, MkPatternMachine(right_starts, right_next), prefer_right, rest, after_input, destination, destination_evidence, destination_captures, child_final_evidence, suffix_routine, suffix)
+            mk_pair(combined_suffix_routine, combined_suffix) ->
+              let origin = filtered_state_origin(right_count, right_next(source, char), transition_boundary_before(char, rest, after_input), Active(destination, regular, constraints), edge)
+              let filtered_combined_edge = lift_alternate_right_active_edge(left_count, right_count, right_next(source, char), EmitRight(), transition_boundary_before(char, rest, after_input), destination, regular, constraints, edge, origin)
+              let combined_edge = alternate_right_transition_member(left_count, left_starts, left_next, right_count, right_starts, right_next, prefer_right, source, char, transition_boundary_before(char, rest, after_input), Active(inject_alternate_right(left_count, right_count, destination), regular, Nil()), filtered_combined_edge)
+              let combined_routine = append_extended_routines(transition_routine(char, regular), combined_suffix_routine)
+              %[combined_routine, AcceptingNextActive(inject_alternate_right(left_count, right_count, destination), regular, empty_constraints(), destination_evidence, destination_captures, combined_suffix_routine, combined_edge, execution, combined_suffix)]
+          AcceptingNextAccepted(regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix) -> match suffix
+            AcceptingNow() ->
+              let marker_execution: RoutineExecution(Cons(EmitRight(), Nil()), destination_evidence, destination_captures, Cons(RightEvidence(), destination_evidence), destination_captures) = RoutineStep(EmitRight(), RoutineDone())
+              let combined_execution = append_routine_execution(regular, Cons(EmitRight(), Nil()), current_evidence, record_capture_char(current_captures, char), destination_evidence, destination_captures, Cons(RightEvidence(), destination_evidence), destination_captures, execution, marker_execution)
+              let origin = filtered_state_origin(right_count, right_next(source, char), transition_boundary_before(char, rest, after_input), Accepted(regular, constraints), edge)
+              let filtered_combined_edge = lift_alternate_right_accepted_edge(left_count, right_count, right_next(source, char), EmitRight(), transition_boundary_before(char, rest, after_input), regular, constraints, edge, origin)
+              let combined_edge = alternate_right_transition_member(left_count, left_starts, left_next, right_count, right_starts, right_next, prefer_right, source, char, transition_boundary_before(char, rest, after_input), Accepted(append_branch_marker(regular, EmitRight()), Nil()), filtered_combined_edge)
+              let no_extended: List(ExtendedInstruction) = Nil()
+              let combined_routine = append_extended_routines(transition_routine(char, append_branch_marker(regular, EmitRight())), no_extended)
+              %[combined_routine, AcceptingNextAccepted(append_branch_marker(regular, EmitRight()), empty_constraints(), Cons(RightEvidence(), destination_evidence), destination_captures, no_extended, combined_edge, combined_execution, AcceptingNow())]
+            AcceptingNextActive(_, _, _, _, _, _, _, _, _) -> impossible
+            AcceptingNextAccepted(_, _, _, _, _, _, _, _) -> impossible
+
   ## Once an alternate thread is known to inhabit one injection image, every
   ## outgoing edge comes from that same child machine. The Bounded inverse laws
   ## rewrite the combined source before the transition is classified; no raw-Nat
@@ -924,6 +963,9 @@ mod Std.Regex.Proof
 
   fn alternate_right_destinations_equivalent(left_count: Nat, left_starts: List(MachineState(left_count)), left_next: (Bounded(left_count)) -> Char -> List(MachineState(left_count)), right_count: Nat, right_starts: List(MachineState(right_count)), right_next: (Bounded(right_count)) -> Char -> List(MachineState(right_count)), prefer_right: Bool, source: Bounded(right_count), char: Char, boundary: Boundary) -> Equivalent(List(MachineState(plus(left_count, right_count))), machine_destinations(plus(left_count, right_count), alternate_pattern_machine(left_count, MkPatternMachine(left_starts, left_next), right_count, MkPatternMachine(right_starts, right_next), prefer_right), ThreadActive(inject_alternate_right(left_count, right_count, source)), char, boundary), filter_machine_states(plus(left_count, right_count), alternate_right_states(left_count, right_count, right_next(source, char), EmitRight()), boundary)) =
     rewrite split_injected_right(left_count, source) in reflexive(filter_machine_states(plus(left_count, right_count), alternate_right_states(left_count, right_count, right_next(source, char), EmitRight()), boundary))
+
+  fn alternate_right_transition_member(left_count: Nat, left_starts: List(MachineState(left_count)), left_next: (Bounded(left_count)) -> Char -> List(MachineState(left_count)), right_count: Nat, right_starts: List(MachineState(right_count)), right_next: (Bounded(right_count)) -> Char -> List(MachineState(right_count)), prefer_right: Bool, source: Bounded(right_count), char: Char, boundary: Boundary, destination: MachineState(plus(left_count, right_count)), edge: ListMember(MachineState(plus(left_count, right_count)), destination, filter_machine_states(plus(left_count, right_count), alternate_right_states(left_count, right_count, right_next(source, char), EmitRight()), boundary))) -> ListMember(MachineState(plus(left_count, right_count)), destination, machine_destinations(plus(left_count, right_count), alternate_pattern_machine(left_count, MkPatternMachine(left_starts, left_next), right_count, MkPatternMachine(right_starts, right_next), prefer_right), ThreadActive(inject_alternate_right(left_count, right_count, source)), char, boundary)) = match alternate_right_destinations_equivalent(left_count, left_starts, left_next, right_count, right_starts, right_next, prefer_right, source, char, boundary)
+    reflexive() -> edge
 
   fn transport_alternate_edge({n: Nat}, {value: MachineState(n)}, {source: List(MachineState(n))}, {target: List(MachineState(n))}, equality: Equivalent(List(MachineState(n)), source, target), edge: ListMember(MachineState(n), value, source)) -> ListMember(MachineState(n), value, target) = match equality
     reflexive() -> edge
