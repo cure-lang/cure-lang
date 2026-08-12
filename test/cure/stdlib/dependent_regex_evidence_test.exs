@@ -131,18 +131,54 @@ defmodule Cure.Stdlib.DependentRegexEvidenceTest do
     assert apply(module, :trailing_pair_encoding, []) == :none
   end
 
-  test "successful public parsing does not route through the fallible decoder" do
+  test "successful public parsing paths do not route through the fallible decoder" do
     source = File.read!("lib/std/regex.cure")
 
-    [body] =
+    [pattern_full_body] =
       Regex.run(
         ~r/fn parse_pattern_full\([^\n]+\).*? =(?<body>.*?)(?=\n\n  ## Public typed combinator layer)/s,
         source,
         capture: :all_but_first
       )
 
-    refute body =~ "decode_pattern_encoding"
-    refute body =~ "extract_complete_encoding"
+    [program_full_body] =
+      Regex.run(
+        ~r/fn parse_program_full\([^\n]+\).*? =(?<body>.*?)(?=\n\n  fn parse_full)/s,
+        source,
+        capture: :all_but_first
+      )
+
+    [prefix_body] =
+      Regex.run(
+        ~r/fn parse_prefix_with\([^\n]+\).*? =(?<body>.*?)(?=\n\n  fn parse_prefix)/s,
+        source,
+        capture: :all_but_first
+      )
+
+    [positioned_prefix_body] =
+      Regex.run(
+        ~r/fn parse_prefix_at\([^\n]+\).*? =(?<body>.*?)(?=\n\n  fn parse_prefix)/s,
+        source,
+        capture: :all_but_first
+      )
+
+    [search_prefix_body] =
+      Regex.run(
+        ~r/fn pattern_prefix_program_at\([^\n]+\).*? =(?<body>.*?)(?=\n\n  fn convert_prefix_chars)/s,
+        source,
+        capture: :all_but_first
+      )
+
+    refute pattern_full_body =~ "decode_pattern_encoding"
+    refute pattern_full_body =~ "extract_complete_encoding"
+    refute program_full_body =~ "pattern_evidence"
+    refute program_full_body =~ "convert_complete_extraction"
+    refute prefix_body =~ "pattern_prefix_evidence"
+    refute prefix_body =~ "convert_prefix_extraction"
+    refute positioned_prefix_body =~ "pattern_prefix_evidence_at"
+    refute positioned_prefix_body =~ "convert_prefix_extraction"
+    refute search_prefix_body =~ "pattern_prefix_evidence_at"
+    refute search_prefix_body =~ "convert_prefix_chars"
   end
 
   test "shape certificates are erased from emitted decoder functions" do

@@ -1599,9 +1599,7 @@ mod Std.Regex
     Some(value) -> Some(execute_conversion(conversion, value))
 
   fn parse_program_full({result: Type}, program: RegexProgram(result), input: String) -> Option(result) = match program
-    BuiltRegex(_shape, pattern, conversion) -> match pattern_evidence(pattern, Std.String.characters(input))
-      None() -> None()
-      Some(evidence) -> convert_complete_extraction(pattern, conversion, evidence)
+    BuiltRegex(_shape, _pattern, _conversion) -> Std.Regex.Proof.parse_program_full_verified(program, input)
 
   fn parse_full({result: Type}, regex: Regex(result), input: String) -> Option(result) = match compile_regex(regex)
     NoProgram() -> None()
@@ -1614,15 +1612,11 @@ mod Std.Regex
 
   fn parse_prefix_with({result: Type}, regex: Regex(result), input: String, greedy: Bool) -> Option(Tuple(result, String)) = match compile_regex(regex)
     NoProgram() -> None()
-    SomeProgram(BuiltRegex(_shape, pattern, conversion)) -> match pattern_prefix_evidence(pattern, Std.String.characters(input), greedy)
-      None() -> None()
-      Some(prefix) -> convert_prefix_extraction(pattern, conversion, prefix)
+    SomeProgram(program) -> Std.Regex.Proof.parse_program_prefix_verified_at(program, input, greedy, true, true, false, false)
 
   fn parse_prefix_at({result: Type}, regex: Regex(result), input: String, subject_start: Bool, line_start: Bool, previous_ascii_word: Bool, previous_unicode_word: Bool) -> Option(Tuple(result, String)) = match compile_regex(regex)
     NoProgram() -> None()
-    SomeProgram(BuiltRegex(_shape, pattern, conversion)) -> match pattern_prefix_evidence_at(pattern, Std.String.characters(input), true, subject_start, line_start, previous_ascii_word, previous_unicode_word)
-      None() -> None()
-      Some(prefix) -> convert_prefix_extraction(pattern, conversion, prefix)
+    SomeProgram(program) -> Std.Regex.Proof.parse_program_prefix_verified_at(program, input, true, subject_start, line_start, previous_ascii_word, previous_unicode_word)
 
   fn parse_prefix({result: Type}, regex: Regex(result), input: String) -> Option(Tuple(result, String)) =
     parse_prefix_with(regex, input, true)
@@ -1651,9 +1645,7 @@ mod Std.Regex
 
   fn pattern_prefix_program_at({result: Type}, regex: Regex(result), input: List(Char), subject_start: Bool, line_start: Bool, previous_ascii_word: Bool, previous_unicode_word: Bool) -> Option(Tuple(result, List(Char))) = match compile_regex(regex)
     NoProgram() -> None()
-    SomeProgram(BuiltRegex(_shape, pattern, conversion)) -> match pattern_prefix_evidence_at(pattern, input, true, subject_start, line_start, previous_ascii_word, previous_unicode_word)
-      None() -> None()
-      Some(prefix) -> convert_prefix_chars(pattern, conversion, prefix)
+    SomeProgram(program) -> Std.Regex.Proof.parse_program_prefix_chars_verified_at(program, input, true, subject_start, line_start, previous_ascii_word, previous_unicode_word)
 
   fn convert_prefix_chars({shape: ShapeCode}, {result: Type}, pattern: Pattern(shape), conversion: Conversion(Sem(shape), result), prefix: EvidencePrefix) -> Option(Tuple(result, List(Char))) = match prefix
     EvidencePrefix(evidence, rest) -> match convert_complete_extraction(pattern, conversion, evidence)
