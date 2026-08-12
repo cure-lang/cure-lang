@@ -3951,13 +3951,21 @@ defmodule Cure.Elab.Declarations do
   defp maybe_solve_index_constructor_field_type(true, _value, _expected, mctx, _env, nil), do: {:ok, mctx}
 
   defp maybe_solve_index_constructor_field_type(true, value, expected, mctx, env, ctx) do
-    case Kernel.infer(ctx, value) do
-      {:ok, actual_value} ->
-        actual = Quote.reify(actual_value, Context.length(ctx), Context.signature(ctx))
-        Unify.unify(expected, actual, mctx, env)
+    # This retry exists only to learn hidden constructor arguments that remain
+    # open after result-index unification. Do not re-unify a field whose expected
+    # type is already settled: a later proof field may normalize an index (for
+    # example to `Nil`) and must not overwrite the explicit field that fixed it.
+    if expected |> Unify.zonk(mctx) |> index_term_has_meta?() do
+      case Kernel.infer(ctx, value) do
+        {:ok, actual_value} ->
+          actual = Quote.reify(actual_value, Context.length(ctx), Context.signature(ctx))
+          Unify.unify(expected, actual, mctx, env)
 
-      {:error, reason} ->
-        {:error, reason}
+        {:error, reason} ->
+          {:error, reason}
+      end
+    else
+      {:ok, mctx}
     end
   end
 

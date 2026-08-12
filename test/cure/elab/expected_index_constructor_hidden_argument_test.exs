@@ -27,4 +27,21 @@ defmodule Cure.Elab.ExpectedIndexConstructorHiddenArgumentTest do
     assert {:ok, env} = Program.elaborate(source)
     assert Env.total?(env, :wrap)
   end
+
+  test "field-type fallback preserves an index fixed by an earlier explicit field" do
+    source = """
+    mod PreservedExplicitIndex
+      type Singleton indices (input: List(Nat), item: Nat)
+        IsSingleton : (input: List(Nat)) -> (item: Nat) -> (@erased exact: Equivalent(List(Nat), input, Cons(item, Nil()))) -> Singleton(input, item)
+
+      type Witness indices (input: List(Nat))
+        Exact : (input: List(Nat)) -> (item: Nat) -> (@erased singleton: Singleton(input, item)) -> Witness(input)
+
+      fn preserve(input: List(Nat), item: Nat, @erased exact: Equivalent(List(Nat), input, Cons(item, Nil()))) -> Witness(input) =
+        Exact(input, item, IsSingleton(input, item, exact))
+    """
+
+    assert {:ok, env} = Program.elaborate(source)
+    assert Env.total?(env, :preserve)
+  end
 end
