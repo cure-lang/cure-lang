@@ -488,6 +488,16 @@ mod Std.Regex.Proof
     False() -> PredicateRejects()
     True() -> PredicateAccepts()
 
+  ## Any actual member of the predicate transition relation certifies that its
+  ## predicate held.  The dependent edge is transported by `with`; in the false
+  ## branch its destination list is definitionally empty.
+  type PredicateTransitionTruth indices (test: Char -> Bool, char: Char)
+    PredicateTransitionHeld : (proof: Equivalent(Bool, test(char), True())) -> PredicateTransitionTruth(test, char)
+
+  fn predicate_transition_truth(test: Char -> Bool, char: Char, boundary: Boundary, destination: MachineState(S(Z())), edge: ListMember(MachineState(S(Z())), destination, machine_destinations(S(Z()), predicate_pattern_machine(test), predicate_machine_thread(), char, boundary))) -> PredicateTransitionTruth(test, char) = with test(char) proof predicate_holds
+    True() -> PredicateTransitionHeld(predicate_holds)
+    False() -> impossible_list_member(edge)
+
   fn predicate_path_routine_encodes(test: Char -> Bool, char: Char, after_input: List(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame), {path_evidence: List(Evidence)}, {path_captures: List(CaptureFrame)}, {path_final_evidence: List(Evidence)}, {routine: List(ExtendedInstruction)}, {output_evidence: List(Evidence)}, {output_captures: List(CaptureFrame)}, path: AcceptingFrom(S(Z()), predicate_pattern_machine(test), Cons(char, Nil()), after_input, predicate_machine_thread(), path_evidence, path_captures, path_final_evidence, routine), execution: ExtendedEvidenceRoutineExecution(routine, input_evidence, input_captures, output_evidence, output_captures)) -> Encodes(CharC, output_evidence, input_evidence) =
     match predicate_path_routine_view(test, char, after_input, path)
       PredicateRoutineExact() -> predicate_transition_routine_encodes(char, execution)

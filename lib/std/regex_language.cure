@@ -1,0 +1,49 @@
+@group(:text)
+mod Std.Regex.Language
+  use Std.Regex
+  use Std.Regex.Proof
+  use Std.Proof.IntMath
+
+  ## Structural membership in the language of a typed pattern.  The relation is
+  ## indexed by the exact consumed input, the contextual suffix, and the
+  ## position at which matching began; boundary assertions therefore remain
+  ## part of the language rather than an unchecked side condition.
+  type NonEmptyCharacters indices (input: List(Char))
+    CharactersPresent : (head: Char) -> (tail: List(Char)) -> NonEmptyCharacters(Cons(head, tail))
+
+  type PatternDenotation indices (shape: ShapeCode, pattern: Pattern(shape), position: InitialPosition, input: List(Char), after_input: List(Char))
+    DenotesEmpty : PatternDenotation(UnitC, PatternEmpty(), position, Nil(), after_input)
+    DenotesPredicate : (proof: Equivalent(Bool, test(char), True())) -> PatternDenotation(CharC, PatternPredicate(test), position, Cons(char, Nil()), after_input)
+    DenotesBoundary : (proof: IsTrue(constraints_hold(Cons(constraint, Nil()), initial_position_boundary(position, after_input)))) -> PatternDenotation(UnitC, PatternBoundary(constraint), position, Nil(), after_input)
+
+  fn predicate_acceptance_truth(
+    test: Char -> Bool,
+    char: Char,
+    after_input: List(Char),
+    position: InitialPosition,
+    @erased final_evidence: List(Evidence),
+    @erased routine: List(ExtendedInstruction),
+    acceptance: MachineAcceptance(S(Z()), predicate_pattern_machine(test), position, Cons(char, Nil()), after_input, final_evidence, routine)
+  ) -> Equivalent(Bool, test(char), True()) = match acceptance
+    MachineAccepted(_, _, _, _, initial_edge, initial_execution, _, path) -> match predicate_starts_view(test, position, Cons(char, Nil()), after_input)
+      PredicateStartsExact() -> match initial_edge
+        ListMemberHere() -> match initial_execution
+          RoutineDone() -> match path
+            AcceptingNextActive(destination, regular, constraints, _, _, _, edge, _, _) ->
+              match predicate_transition_truth(test, char, transition_boundary_before(char, Nil(), after_input), Active(destination, regular, constraints), edge)
+                PredicateTransitionHeld(predicate_holds) -> predicate_holds
+            AcceptingNextAccepted(regular, constraints, _, _, _, edge, _, _) ->
+              match predicate_transition_truth(test, char, transition_boundary_before(char, Nil(), after_input), Accepted(regular, constraints), edge)
+                PredicateTransitionHeld(predicate_holds) -> predicate_holds
+        ListMemberThere(prior) -> impossible_list_member(prior)
+
+  fn predicate_acceptance_is_sound(
+    test: Char -> Bool,
+    char: Char,
+    after_input: List(Char),
+    position: InitialPosition,
+    @erased final_evidence: List(Evidence),
+    @erased routine: List(ExtendedInstruction),
+    acceptance: MachineAcceptance(S(Z()), predicate_pattern_machine(test), position, Cons(char, Nil()), after_input, final_evidence, routine)
+  ) -> PatternDenotation(CharC, PatternPredicate(test), position, Cons(char, Nil()), after_input) =
+    DenotesPredicate(predicate_acceptance_truth(test, char, after_input, position, final_evidence, routine, acceptance))
