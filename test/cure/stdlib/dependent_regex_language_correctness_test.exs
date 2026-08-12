@@ -136,6 +136,26 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     ) -> AlternateRightActivePathEmbedding(left_count, left_machine, right_count, right_machine, prefer_right, input, after_input, source, current_evidence, current_captures, final_evidence) =
       lift_alternate_right_active_path(left_count, left_machine, right_count, right_machine, prefer_right, input, after_input, source, current_evidence, current_captures, final_evidence, routine, path)
 
+    fn filtered_append_left_embedding(
+      n: Nat,
+      left: List(MachineState(n)),
+      right: List(MachineState(n)),
+      boundary: Boundary,
+      value: MachineState(n),
+      edge: ListMember(MachineState(n), value, filter_machine_states(n, left, boundary))
+    ) -> ListMember(MachineState(n), value, filter_machine_states(n, append_machine_states(n, left, right), boundary)) =
+      lift_filtered_append_left_member(n, left, right, boundary, value, edge)
+
+    fn filtered_append_right_embedding(
+      n: Nat,
+      left: List(MachineState(n)),
+      right: List(MachineState(n)),
+      boundary: Boundary,
+      value: MachineState(n),
+      edge: ListMember(MachineState(n), value, filter_machine_states(n, right, boundary))
+    ) -> ListMember(MachineState(n), value, filter_machine_states(n, append_machine_states(n, left, right), boundary)) =
+      lift_filtered_append_right_member(n, left, right, boundary, value, edge)
+
     fn predicate_completeness(
       denotation: PatternDenotation(CharC, PatternPredicate(accepts_a), subject_initial_position(), Cons('a', no_chars()), no_chars())
     ) -> PredicateAcceptance(accepts_a, 'a', no_chars(), subject_initial_position()) = predicate_denotation_is_complete(

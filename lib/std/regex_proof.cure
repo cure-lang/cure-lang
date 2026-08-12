@@ -722,6 +722,28 @@ mod Std.Regex.Proof
       True() -> filtered_append_accepted_true_origin(n, routine, rest, right, boundary, value, edge)
       False() -> filtered_append_member_origin(n, rest, right, boundary, value, edge)
 
+  fn lift_filtered_append_left_member(n: Nat, left: List(MachineState(n)), right: List(MachineState(n)), boundary: Boundary, value: MachineState(n), edge: ListMember(MachineState(n), value, filter_machine_states(n, left, boundary))) -> ListMember(MachineState(n), value, filter_machine_states(n, append_machine_states(n, left, right), boundary)) = match left
+    Nil() -> impossible_list_member(edge)
+    Cons(Active(state, routine, constraints), rest) -> with constraints_hold(constraints, boundary)
+      True() -> match edge
+        ListMemberHere() -> member_here(Active(state, routine, Nil()), filter_machine_states(n, append_machine_states(n, rest, right), boundary))
+        ListMemberThere(prior) -> member_there(Active(state, routine, Nil()), lift_filtered_append_left_member(n, rest, right, boundary, value, prior))
+      False() -> lift_filtered_append_left_member(n, rest, right, boundary, value, edge)
+    Cons(Accepted(routine, constraints), rest) -> with constraints_hold(constraints, boundary)
+      True() -> match edge
+        ListMemberHere() -> member_here(Accepted(routine, Nil()), filter_machine_states(n, append_machine_states(n, rest, right), boundary))
+        ListMemberThere(prior) -> member_there(Accepted(routine, Nil()), lift_filtered_append_left_member(n, rest, right, boundary, value, prior))
+      False() -> lift_filtered_append_left_member(n, rest, right, boundary, value, edge)
+
+  fn lift_filtered_append_right_member(n: Nat, left: List(MachineState(n)), right: List(MachineState(n)), boundary: Boundary, value: MachineState(n), edge: ListMember(MachineState(n), value, filter_machine_states(n, right, boundary))) -> ListMember(MachineState(n), value, filter_machine_states(n, append_machine_states(n, left, right), boundary)) = match left
+    Nil() -> edge
+    Cons(Active(state, routine, constraints), rest) -> with constraints_hold(constraints, boundary)
+      True() -> member_there(Active(state, routine, Nil()), lift_filtered_append_right_member(n, rest, right, boundary, value, edge))
+      False() -> lift_filtered_append_right_member(n, rest, right, boundary, value, edge)
+    Cons(Accepted(routine, constraints), rest) -> with constraints_hold(constraints, boundary)
+      True() -> member_there(Accepted(routine, Nil()), lift_filtered_append_right_member(n, rest, right, boundary, value, edge))
+      False() -> lift_filtered_append_right_member(n, rest, right, boundary, value, edge)
+
   type LeftMarkedStateOrigin(left_count: Nat, right_count: Nat, marker: EvidenceInstruction, states: List(MachineState(left_count))) indices (combined: MachineState(plus(left_count, right_count)))
     LeftMarkedActiveOrigin : (state: Bounded(left_count)) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (edge: ListMember(MachineState(left_count), Active(state, routine, constraints), states)) -> LeftMarkedStateOrigin(left_count, right_count, marker, states, Active(inject_alternate_left(left_count, right_count, state), routine, constraints))
     LeftMarkedAcceptedOrigin : (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (edge: ListMember(MachineState(left_count), Accepted(routine, constraints), states)) -> LeftMarkedStateOrigin(left_count, right_count, marker, states, Accepted(append_branch_marker(routine, marker), constraints))
