@@ -81,6 +81,29 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     fn grouped_predicate_denotation() -> PatternDenotation(StringC, PatternGroup(PatternPredicate(accepts_a)), subject_initial_position(), Cons('a', no_chars()), no_chars()) =
       DenotesGroup(PatternPredicate(accepts_a), DenotesPredicate(reflexive(true)))
 
+    fn concatenated_empty_denotation() -> PatternDenotation(PairC(UnitC, UnitC), PatternConcat(PatternEmpty(), PatternEmpty()), subject_initial_position(), no_chars(), no_chars()) =
+      DenotesConcat(PatternEmpty(), PatternEmpty(), no_chars(), no_chars(), Std.Regex.Proof.input_partition_here(no_chars()), DenotesEmpty(), DenotesEmpty())
+
+    fn alternate_left_denotation() -> PatternDenotation(ChoiceC(UnitC, UnitC), PatternAlternate(PatternEmpty(), PatternEmpty()), subject_initial_position(), no_chars(), no_chars()) =
+      DenotesAlternateLeft(PatternEmpty(), PatternEmpty(), DenotesEmpty())
+
+    fn alternate_mode_right_denotation() -> PatternDenotation(ChoiceC(UnitC, UnitC), PatternAlternateMode(PatternEmpty(), PatternEmpty(), True()), subject_initial_position(), Nil(), Nil()) =
+      DenotesAlternateModeRight(PatternEmpty(), PatternEmpty(), True(), DenotesEmpty())
+
+    fn repeated_predicate_denotation() -> PatternDenotation(ListC(CharC), PatternRepeat(PatternPredicate(accepts_a)), subject_initial_position(), Cons('a', Nil()), Nil()) =
+      DenotesRepeatMore(
+        PatternPredicate(accepts_a),
+        Cons('a', Nil()),
+        Nil(),
+        CharactersPresent('a', Nil()),
+        Std.Regex.Proof.input_partition_there('a', Std.Regex.Proof.input_partition_here(Nil())),
+        DenotesPredicate(reflexive(True())),
+        DenotesRepeatEmpty(PatternPredicate(accepts_a))
+      )
+
+    fn repeated_mode_empty_denotation() -> PatternDenotation(ListC(CharC), PatternRepeatMode(PatternPredicate(accepts_a), True()), subject_initial_position(), Nil(), Nil()) =
+      DenotesRepeatModeEmpty(PatternPredicate(accepts_a), True())
+
   """
 
   test "predicate denotation is sound for certified execution" do
@@ -115,5 +138,10 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
   test "recursive denotation preserves grouped child membership" do
     assert {:ok, env} = Program.elaborate(@source)
     assert Env.total?(env, :grouped_predicate_denotation)
+    assert Env.total?(env, :concatenated_empty_denotation)
+    assert Env.total?(env, :alternate_left_denotation)
+    assert Env.total?(env, :alternate_mode_right_denotation)
+    assert Env.total?(env, :repeated_predicate_denotation)
+    assert Env.total?(env, :repeated_mode_empty_denotation)
   end
 end
