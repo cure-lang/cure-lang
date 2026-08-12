@@ -98,6 +98,19 @@ defmodule Cure.Migrate.Rules.ModuleRename do
     end
   end
 
+  # Attribute access chain `<Module>.<Attr>` in type/value positions.
+  defp walk({:attribute_access, meta, [target]} = node, lines) do
+    case rename_attribute_access(node) do
+      {:ok, new_node, loc_meta} ->
+        {new_node, [location(loc_meta, :name) | lines]}
+
+      :error ->
+        {meta, lines} = walk_meta(meta, lines)
+        {target, lines} = walk(target, lines)
+        {{:attribute_access, meta, [target]}, lines}
+    end
+  end
+
   defp walk({k, meta, ch}, lines) when is_list(meta) do
     {meta, lines} = walk_meta(meta, lines)
     {ch, lines} = walk(ch, lines)
@@ -115,6 +128,32 @@ defmodule Cure.Migrate.Rules.ModuleRename do
   end
 
   defp walk(other, lines), do: {other, lines}
+
+  defp rename_attribute_access({:attribute_access, meta, [{:variable, v_meta, "Std"}]}) do
+    attr = Keyword.get(meta, :attribute)
+    full = "Std." <> to_string(attr)
+
+    case Map.fetch(@renames, full) do
+      {:ok, new_full} ->
+        "Std." <> new_attr = new_full
+        {:ok, {:attribute_access, Keyword.put(meta, :attribute, new_attr), [{:variable, v_meta, "Std"}]}, meta}
+
+      :error ->
+        :error
+    end
+  end
+
+  defp rename_attribute_access({:attribute_access, meta, [target]}) do
+    case rename_attribute_access(target) do
+      {:ok, new_target, loc_meta} ->
+        {:ok, {:attribute_access, meta, [new_target]}, loc_meta}
+
+      :error ->
+        :error
+    end
+  end
+
+  defp rename_attribute_access(_), do: :error
 
   defp walk_meta(meta, lines) when is_list(meta) do
     if Keyword.keyword?(meta) do
