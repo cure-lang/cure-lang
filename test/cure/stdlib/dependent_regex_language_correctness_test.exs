@@ -278,6 +278,32 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     ) -> NullableLeftActiveRightConcatEmbedding(left_count, left_machine, right_count, right_machine, position, input, after_input, input_evidence, input_captures, right_final_evidence) =
       splice_nullable_left_active_right(left_count, left_machine, right_count, right_machine, position, input, after_input, input_evidence, input_captures, left_regular, left_final_evidence, left_final_captures, left_edge, left_execution, right_state, right_regular, right_initial_evidence, right_initial_captures, right_path_routine, right_edge, right_execution, right_final_evidence, right_path)
 
+    fn concat_nullable_left_accepted_right_splice(
+      left_count: Nat,
+      left_machine: PatternMachine(left_count),
+      right_count: Nat,
+      right_machine: PatternMachine(right_count),
+      position: InitialPosition,
+      input: List(Char),
+      after_input: List(Char),
+      input_evidence: List(Evidence),
+      input_captures: List(CaptureFrame),
+      left_regular: List(EvidenceInstruction),
+      left_final_evidence: List(Evidence),
+      left_final_captures: List(CaptureFrame),
+      left_edge: ListMember(MachineState(left_count), Accepted(left_regular, Nil()), initial_machine_destinations(left_count, left_machine, position, empty_characters(), append_characters(input, after_input))),
+      left_execution: RoutineExecution(left_regular, input_evidence, input_captures, left_final_evidence, left_final_captures),
+      right_regular: List(EvidenceInstruction),
+      right_initial_evidence: List(Evidence),
+      right_initial_captures: List(CaptureFrame),
+      right_path_routine: List(ExtendedInstruction),
+      right_edge: ListMember(MachineState(right_count), Accepted(right_regular, Nil()), initial_machine_destinations(right_count, right_machine, position, input, after_input)),
+      right_execution: RoutineExecution(right_regular, left_final_evidence, left_final_captures, right_initial_evidence, right_initial_captures),
+      right_final_evidence: List(Evidence),
+      right_path: AcceptingFrom(right_count, right_machine, input, after_input, ThreadAccepted(), right_initial_evidence, right_initial_captures, right_final_evidence, right_path_routine)
+    ) -> NullableLeftAcceptedRightConcatEmbedding(left_count, left_machine, right_count, right_machine, position, input, after_input, input_evidence, input_captures, right_final_evidence) =
+      splice_nullable_left_accepted_right(left_count, left_machine, right_count, right_machine, position, input, after_input, input_evidence, input_captures, left_regular, left_final_evidence, left_final_captures, left_edge, left_execution, right_regular, right_initial_evidence, right_initial_captures, right_path_routine, right_edge, right_execution, right_final_evidence, right_path)
+
     fn generic_alternate_mode_left_composition(
       left_shape: ShapeCode,
       right_shape: ShapeCode,
