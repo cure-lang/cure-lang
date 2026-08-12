@@ -857,6 +857,85 @@ defmodule Cure.Stdlib.DependentRegexAcceptingPathTest do
         acceptance
       )
 
+    fn predicate_repeat_total_extraction(
+      input: List(Char),
+      lazy: Bool,
+      final_evidence: List(Evidence),
+      @erased routine: List(ExtendedInstruction),
+      acceptance: MachineAcceptance(
+        1,
+        thompson_machine(repeated_predicate_compilation(accepts_a, lazy)),
+        subject_initial_position(),
+        input,
+        empty_characters(),
+        final_evidence,
+        routine
+      )
+    ) -> List(Char) =
+      extract_encoding(
+        final_evidence,
+        predicate_repeat_acceptance_case(
+          input,
+          lazy,
+          final_evidence,
+          routine,
+          acceptance
+        )
+      )
+
+    @reducible
+    fn repeated_alternate_compilation(lazy: Bool) -> ThompsonCompilation(ListC(ChoiceC(CharC(), CharC()))) =
+      ThompsonRepeat(
+        ThompsonAlternate(
+          ThompsonPredicate(accepts_a),
+          ThompsonPredicate(accepts_b),
+          False()
+        ),
+        lazy
+      )
+
+    fn repeated_alternate_proof(lazy: Bool) -> ThompsonEvidenceProof(
+      ListC(ChoiceC(CharC(), CharC())),
+      repeated_alternate_compilation(lazy)
+    ) =
+      ThompsonEvidenceRepeat(
+        ThompsonAlternate(
+          ThompsonPredicate(accepts_a),
+          ThompsonPredicate(accepts_b),
+          False()
+        ),
+        lazy,
+        predicate_alternate_evidence_proof(accepts_a, accepts_b, False())
+      )
+
+    fn repeated_alternate_total_extraction(
+      input: List(Char),
+      lazy: Bool,
+      final_evidence: List(Evidence),
+      @erased routine: List(ExtendedInstruction),
+      acceptance: MachineAcceptance(
+        2,
+        thompson_machine(repeated_alternate_compilation(lazy)),
+        subject_initial_position(),
+        input,
+        empty_characters(),
+        final_evidence,
+        routine
+      )
+    ) -> List(Choice(Char, Char)) =
+      extract_encoding(
+        final_evidence,
+        thompson_machine_acceptance_encodes_explicit(
+          ListC(ChoiceC(CharC, CharC)),
+          repeated_alternate_compilation(lazy),
+          repeated_alternate_proof(lazy),
+          input,
+          empty_characters(),
+          subject_initial_position(),
+          acceptance
+        )
+      )
+
     fn repeated_greedy() -> MachineAcceptingSearch(1, thompson_machine(repeated_predicate_compilation(accepts_a, False())), subject_initial_position(), Cons('a', Cons('a', Nil())), Nil()) =
       search_machine_acceptance(1, thompson_machine(repeated_predicate_compilation(accepts_a, False())), subject_initial_position(), ['a', 'a'], [])
 
@@ -1093,6 +1172,9 @@ defmodule Cure.Stdlib.DependentRegexAcceptingPathTest do
     assert Env.total?(env, :"Std.Regex#extract_encoding")
     assert Env.total?(env, :generic_predicate_alternate_total_extraction)
     assert Env.total?(env, :repeated_predicate_evidence_proof)
+    assert Env.total?(env, :predicate_repeat_total_extraction)
+    assert Env.total?(env, :repeated_alternate_proof)
+    assert Env.total?(env, :repeated_alternate_total_extraction)
     assert Env.get_def(env, :"Std.Regex.Proof#thompson_machine_acceptance_encodes")
     assert Env.total?(env, :"Std.Regex.Proof#thompson_machine_acceptance_encodes")
     assert Map.has_key?(env.ctors, :"Std.Regex.Proof#ThompsonEvidenceBoundary")
