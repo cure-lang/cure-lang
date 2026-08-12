@@ -3789,23 +3789,20 @@ defmodule Cure.Elab.Declarations do
       case Unify.unify(result, expected, mctx, env) do
         {:ok, solved} ->
           solved_params = Enum.map(params, &Unify.zonk(&1, solved))
+          args = {ctor.args, plicities, explicit, field_seed, solved_params, solved, scope, fam, env, ctx}
 
-          with {:ok, fields, final_mctx} <-
-                 lower_index_constructor_fields(
-                   ctor.args,
-                   plicities,
-                   explicit,
-                   field_seed,
-                   solved_params,
-                   solved,
-                   scope,
-                   fam,
-                   env,
-                   ctx,
-                   []
-                 ) do
-            values = Enum.map(fields, &Unify.zonk(&1, final_mctx))
-            if Enum.any?(values, &index_term_has_meta?/1), do: :error, else: {:ok, {:ctor, cname, values}}
+          case lower_complete_index_constructor_fields(args, false) do
+            {:ok, values} ->
+              {:ok, {:ctor, cname, values}}
+
+            :unsolved ->
+              case lower_complete_index_constructor_fields(args, true) do
+                {:ok, values} -> {:ok, {:ctor, cname, values}}
+                _ -> :error
+              end
+
+            :error ->
+              :error
           end
 
         {:error, _} ->
@@ -3813,6 +3810,33 @@ defmodule Cure.Elab.Declarations do
       end
     else
       :error
+    end
+  end
+
+  defp lower_complete_index_constructor_fields(
+         {fields, plicities, explicit, seeds, params, mctx, scope, fam, env, ctx},
+         solve_field_types
+       ) do
+    case lower_index_constructor_fields(
+           fields,
+           plicities,
+           explicit,
+           seeds,
+           params,
+           mctx,
+           scope,
+           fam,
+           env,
+           ctx,
+           solve_field_types,
+           []
+         ) do
+      {:ok, lowered, final_mctx} ->
+        values = Enum.map(lowered, &Unify.zonk(&1, final_mctx))
+        if Enum.any?(values, &index_term_has_meta?/1), do: :unsolved, else: {:ok, values}
+
+      _ ->
+        :error
     end
   end
 
@@ -3827,6 +3851,7 @@ defmodule Cure.Elab.Declarations do
          _fam,
          _env,
          _ctx,
+         _solve_field_types,
          acc
        ),
        do: {:ok, Enum.reverse(acc), mctx}
@@ -3842,6 +3867,7 @@ defmodule Cure.Elab.Declarations do
          fam,
          env,
          ctx,
+         solve_field_types,
          acc
        ) do
     lower_index_constructor_fields(
@@ -3855,6 +3881,7 @@ defmodule Cure.Elab.Declarations do
       fam,
       env,
       ctx,
+      solve_field_types,
       [Unify.zonk(seed, mctx) | acc]
     )
   end
@@ -3870,13 +3897,15 @@ defmodule Cure.Elab.Declarations do
          fam,
          env,
          ctx,
+         solve_field_types,
          acc
        ) do
     prior = Enum.reverse(acc)
     expected = dom |> Subst.instantiate(params ++ prior) |> Unify.zonk(mctx)
 
     with {:ok, value} <- idx_to_core_expected(ast, expected, scope, fam, env, ctx),
-         {:ok, solved} <- Unify.unify(seed, value, mctx, env) do
+         {:ok, typed} <- maybe_solve_index_constructor_field_type(solve_field_types, value, expected, mctx, env, ctx),
+         {:ok, solved} <- Unify.unify(seed, value, typed, env) do
       lower_index_constructor_fields(
         fields,
         plicities,
@@ -3888,6 +3917,7 @@ defmodule Cure.Elab.Declarations do
         fam,
         env,
         ctx,
+        solve_field_types,
         [value | acc]
       )
     end
@@ -3904,9 +3934,32 @@ defmodule Cure.Elab.Declarations do
          _fam,
          _env,
          _ctx,
+         _solve_field_types,
          _acc
        ),
        do: :error
+
+  # Expected-result solving can leave a constructor's hidden indices open when
+  # they do not occur in its result (`PatternGroup(inner) : Pattern(StringC)`
+  # forgets `inner`'s shape).  The explicit field still determines those metas
+  # through its inferred type.  Solve that equation at the single expected-index
+  # constructor path before accepting the field value; otherwise the unsolved
+  # implicit is dropped and interface registration later reports only an opaque
+  # dependent-index mismatch.
+  defp maybe_solve_index_constructor_field_type(false, _value, _expected, mctx, _env, _ctx), do: {:ok, mctx}
+
+  defp maybe_solve_index_constructor_field_type(true, _value, _expected, mctx, _env, nil), do: {:ok, mctx}
+
+  defp maybe_solve_index_constructor_field_type(true, value, expected, mctx, env, ctx) do
+    case Kernel.infer(ctx, value) do
+      {:ok, actual_value} ->
+        actual = Quote.reify(actual_value, Context.length(ctx), Context.signature(ctx))
+        Unify.unify(expected, actual, mctx, env)
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
 
   defp fresh_index_seed(mctx, 0, acc), do: {mctx, Enum.reverse(acc)}
 
@@ -4034,6 +4087,7 @@ defmodule Cure.Elab.Declarations do
              fam,
              env,
              ctx,
+             false,
              []
            ) do
       values = Enum.map(fields, &Unify.zonk(&1, solved))
