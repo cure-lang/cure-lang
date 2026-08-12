@@ -5133,10 +5133,75 @@ defmodule Cure.Elab.Program do
   defp register_pass(items, env, prelude?) do
     with {:ok, env_h} <- declare_type_headers(items, env),
          {:ok, alias_order} <- typealias_order(items, env_h),
-         {:ok, env_with_aliases} <- complete_typealiases(alias_order, items, env_h, :skip) do
-      body_register_pass(items, env_with_aliases, prelude?)
+         {:ok, env_with_aliases} <- complete_typealiases(alias_order, items, env_h, :skip),
+         {:ok, env_with_signatures} <- pre_register_function_signatures(items, env_with_aliases) do
+      body_register_pass(items, env_with_signatures, prelude?)
     end
   end
+
+  # A module is one mutually-recursive declaration block, but the old
+  # `body_register_pass/3` elaborated function signatures in source order.  An
+  # earlier signature that mentioned a later local function therefore saw no
+  # canonical def entry and lowered the reference as a bare global.  Re-running
+  # the same signature after the later declaration existed produced the proper
+  # `Owner#name` key, leaving two definitionally different Core types in one
+  # environment.
+  #
+  # Register every signature that is currently checkable, retrying only an
+  # unknown global whose base name is another function in this block.  This is a
+  # dependency work-list, not error swallowing: once no declaration makes
+  # progress, the first real elaboration error is returned unchanged.  The
+  # ordinary registration pass remains authoritative for implementations,
+  # labels, overload legality, and declaration ordering; re-registering an
+  # already-known ordinary signature is intentionally idempotent.
+  defp pre_register_function_signatures(items, env) do
+    declarations = Enum.filter(items, &match?({:function_def, _, _}, &1))
+
+    local_names =
+      declarations
+      |> Enum.map(fn {:function_def, meta, _body} ->
+        meta |> Keyword.fetch!(:name) |> to_string()
+      end)
+      |> MapSet.new()
+
+    pre_register_function_signatures(declarations, env, local_names)
+  end
+
+  defp pre_register_function_signatures([], env, _local_names), do: {:ok, env}
+
+  defp pre_register_function_signatures(declarations, env, local_names) do
+    {env, deferred, first_error, progress?} =
+      Enum.reduce(declarations, {env, [], nil, false}, fn declaration, {acc, pending, first_error, progress?} ->
+        case Declarations.register_signature(declaration, acc) do
+          {:ok, next} ->
+            {next, pending, first_error, true}
+
+          {:error, reason} = error ->
+            if sibling_signature_dependency?(reason, local_names) do
+              {acc, [declaration | pending], first_error || error, progress?}
+            else
+              {acc, pending, error, progress?}
+            end
+        end
+      end)
+
+    cond do
+      first_error != nil and deferred == [] -> first_error
+      deferred == [] -> {:ok, env}
+      progress? -> pre_register_function_signatures(Enum.reverse(deferred), env, local_names)
+      true -> first_error
+    end
+  end
+
+  defp sibling_signature_dependency?({:source_context, reason, _context}, local_names),
+    do: sibling_signature_dependency?(reason, local_names)
+
+  defp sibling_signature_dependency?({:unknown_global, name}, local_names) when is_atom(name) do
+    base = Cure.Elab.Name.base(name) || Atom.to_string(name)
+    MapSet.member?(local_names, base)
+  end
+
+  defp sibling_signature_dependency?(_reason, _local_names), do: false
 
   # Header pre-pass: register every ctor-bearing type family's HEADER (name +
   # telescopes, empty ctors) before any constructor body is elaborated, so a
