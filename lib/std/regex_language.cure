@@ -102,6 +102,29 @@ mod Std.Regex.Language
                 PredicateTransitionHeld(predicate_holds) -> predicate_holds
         ListMemberThere(prior) -> impossible_list_member(prior)
 
+  fn predicate_acceptance_path_truth(
+    test: Char -> Bool,
+    char: Char,
+    after_input: List(Char),
+    position: InitialPosition,
+    input_evidence: List(Evidence),
+    input_captures: List(CaptureFrame),
+    @erased final_evidence: List(Evidence),
+    acceptance: AcceptancePathFrom(S(Z()), predicate_pattern_machine(test), position, Cons(char, Nil()), after_input, input_evidence, input_captures, final_evidence)
+  ) -> Equivalent(Bool, test(char), True()) = match acceptance
+    mk_pair(destination, mk_pair(initial_evidence, mk_pair(initial_captures, mk_pair(path_routine, mk_pair(initial_edge, mk_pair(initial_execution, path)))))) ->
+      match predicate_starts_view(test, position, Cons(char, Nil()), after_input)
+        PredicateStartsExact() -> match initial_edge
+          ListMemberHere() -> match initial_execution
+            RoutineDone() -> match path
+              AcceptingNextActive(next_destination, regular, constraints, _, _, _, edge, _, _) ->
+                match predicate_transition_truth(test, char, transition_boundary_before(char, Nil(), after_input), Active(next_destination, regular, constraints), edge)
+                  PredicateTransitionHeld(predicate_holds) -> predicate_holds
+              AcceptingNextAccepted(regular, constraints, _, _, _, edge, _, _) ->
+                match predicate_transition_truth(test, char, transition_boundary_before(char, Nil(), after_input), Accepted(regular, constraints), edge)
+                  PredicateTransitionHeld(predicate_holds) -> predicate_holds
+          ListMemberThere(prior) -> impossible_list_member(prior)
+
   fn predicate_acceptance_is_sound(
     test: Char -> Bool,
     char: Char,
@@ -132,6 +155,24 @@ mod Std.Regex.Language
     MachineAccepted(destination, _, _, _, edge, _, _, _) ->
       let truth = boundary_acceptance_truth(constraint, after_input, position, destination, edge)
       DenotesBoundary(equivalent_true_is_true(constraints_hold(Cons(constraint, Nil()), initial_position_boundary(position, after_input)), truth))
+
+  fn grouped_predicate_acceptance_is_sound(
+    test: Char -> Bool,
+    char: Char,
+    after_input: List(Char),
+    position: InitialPosition,
+    @erased final_evidence: List(Evidence),
+    @erased routine: List(ExtendedInstruction),
+    acceptance: MachineAcceptance(S(Z()), group_pattern_machine(S(Z()), Cons(predicate_machine_start(), Nil()), predicate_machine_next(test)), position, Cons(char, Nil()), after_input, final_evidence, routine)
+  ) -> PatternDenotation(StringC, PatternGroup(PatternPredicate(test)), position, Cons(char, Nil()), after_input) =
+    let no_evidence: List(Evidence) = Nil()
+    let no_captures: List(CaptureFrame) = Nil()
+    let opened_captures: List(CaptureFrame) = Cons(CaptureFrame(Nil(), no_evidence), no_captures)
+    match project_group_acceptance_from(S(Z()), Cons(predicate_machine_start(), Nil()), predicate_machine_next(test), position, Cons(char, Nil()), after_input, no_evidence, no_captures, machine_acceptance_path(S(Z()), group_pattern_machine(S(Z()), Cons(predicate_machine_start(), Nil()), predicate_machine_next(test)), position, Cons(char, Nil()), after_input, acceptance))
+      ProjectedGroupAcceptanceMissingFrame(child_final_evidence, AcceptedWithExecution(child_acceptance, _), _, _, _, _) ->
+        DenotesGroup(PatternPredicate(test), DenotesPredicate(predicate_acceptance_path_truth(test, char, after_input, position, no_evidence, opened_captures, child_final_evidence, child_acceptance)))
+      ProjectedGroupAcceptanceClosedFrame(child_final_evidence, _, _, _, AcceptedWithExecution(child_acceptance, _), _, _, _, _) ->
+        DenotesGroup(PatternPredicate(test), DenotesPredicate(predicate_acceptance_path_truth(test, char, after_input, position, no_evidence, opened_captures, child_final_evidence, child_acceptance)))
 
   fn predicate_denotation_is_complete(
     test: Char -> Bool,
