@@ -15,6 +15,7 @@ mod Std.Regex.Language
     DenotesEmpty : PatternDenotation(UnitC, PatternEmpty(), position, Nil(), after_input)
     DenotesPredicate : (proof: Equivalent(Bool, test(char), True())) -> PatternDenotation(CharC, PatternPredicate(test), position, Cons(char, Nil()), after_input)
     DenotesBoundary : (proof: IsTrue(constraints_hold(Cons(constraint, Nil()), initial_position_boundary(position, after_input)))) -> PatternDenotation(UnitC, PatternBoundary(constraint), position, Nil(), after_input)
+    DenotesGroup : (inner: Pattern(inner_shape)) -> (@erased inner_denotation: PatternDenotation(inner_shape, inner, position, input, after_input)) -> PatternDenotation(StringC, PatternGroup(inner), position, input, after_input)
 
   ## Constructive completeness packages the runtime outputs existentially while
   ## retaining the erased certificate that those outputs came from the verified
