@@ -41,22 +41,8 @@ mod Std.Regex.Language
   type BoundaryAcceptance indices (constraint: BoundaryConstraint, after_input: List(Char), position: InitialPosition)
     BoundaryAccepted : (final_evidence: List(Evidence)) -> (routine: List(ExtendedInstruction)) -> (@erased acceptance: MachineAcceptance(Z(), boundary_pattern_machine(constraint), position, Nil(), after_input, final_evidence, routine)) -> BoundaryAcceptance(constraint, after_input, position)
 
-  ## A structural graph of `certify_thompson`. Keeping the compilation as an
-  ## index lets completeness package an existential machine while proving that
-  ## it is exactly the one belonging to the source pattern.
-  type PatternCompilation indices (shape: ShapeCode, pattern: Pattern(shape), compilation: ThompsonCompilation(shape))
-    CompilesPredicate : (test: (Char -> Bool)) -> PatternCompilation(CharC, PatternPredicate(test), ThompsonPredicate(test))
-    CompilesEmpty : PatternCompilation(UnitC, PatternEmpty(), ThompsonEmpty())
-    CompilesBoundary : (constraint: BoundaryConstraint) -> PatternCompilation(UnitC, PatternBoundary(constraint), ThompsonBoundary(constraint))
-    CompilesConcat : {left_shape: ShapeCode} -> {right_shape: ShapeCode} -> (left: Pattern(left_shape)) -> (right: Pattern(right_shape)) -> (left_compilation: ThompsonCompilation(left_shape)) -> (right_compilation: ThompsonCompilation(right_shape)) -> (@erased left_proof: PatternCompilation(left_shape, left, left_compilation)) -> (@erased right_proof: PatternCompilation(right_shape, right, right_compilation)) -> PatternCompilation(PairC(left_shape, right_shape), PatternConcat(left, right), ThompsonConcat(left_compilation, right_compilation))
-    CompilesGroup : {inner_shape: ShapeCode} -> (inner: Pattern(inner_shape)) -> (inner_compilation: ThompsonCompilation(inner_shape)) -> (@erased inner_proof: PatternCompilation(inner_shape, inner, inner_compilation)) -> PatternCompilation(StringC, PatternGroup(inner), ThompsonGroup(inner_compilation))
-    CompilesAlternate : {left_shape: ShapeCode} -> {right_shape: ShapeCode} -> (left: Pattern(left_shape)) -> (right: Pattern(right_shape)) -> (left_compilation: ThompsonCompilation(left_shape)) -> (right_compilation: ThompsonCompilation(right_shape)) -> (@erased left_proof: PatternCompilation(left_shape, left, left_compilation)) -> (@erased right_proof: PatternCompilation(right_shape, right, right_compilation)) -> PatternCompilation(ChoiceC(left_shape, right_shape), PatternAlternate(left, right), ThompsonAlternate(left_compilation, right_compilation, False()))
-    CompilesAlternateMode : {left_shape: ShapeCode} -> {right_shape: ShapeCode} -> (left: Pattern(left_shape)) -> (right: Pattern(right_shape)) -> (prefer_right: Bool) -> (left_compilation: ThompsonCompilation(left_shape)) -> (right_compilation: ThompsonCompilation(right_shape)) -> (@erased left_proof: PatternCompilation(left_shape, left, left_compilation)) -> (@erased right_proof: PatternCompilation(right_shape, right, right_compilation)) -> PatternCompilation(ChoiceC(left_shape, right_shape), PatternAlternateMode(left, right, prefer_right), ThompsonAlternate(left_compilation, right_compilation, prefer_right))
-    CompilesRepeat : {inner_shape: ShapeCode} -> (inner: Pattern(inner_shape)) -> (inner_compilation: ThompsonCompilation(inner_shape)) -> (@erased inner_proof: PatternCompilation(inner_shape, inner, inner_compilation)) -> PatternCompilation(ListC(inner_shape), PatternRepeat(inner), ThompsonRepeat(inner_compilation, False()))
-    CompilesRepeatMode : {inner_shape: ShapeCode} -> (inner: Pattern(inner_shape)) -> (lazy: Bool) -> (inner_compilation: ThompsonCompilation(inner_shape)) -> (@erased inner_proof: PatternCompilation(inner_shape, inner, inner_compilation)) -> PatternCompilation(ListC(inner_shape), PatternRepeatMode(inner, lazy), ThompsonRepeat(inner_compilation, lazy))
-
   type PatternAcceptance indices (shape: ShapeCode, pattern: Pattern(shape), position: InitialPosition, input: List(Char), after_input: List(Char))
-    PatternAccepted : {accepted_shape: ShapeCode} -> {accepted_pattern: Pattern(accepted_shape)} -> {accepted_position: InitialPosition} -> {accepted_input: List(Char)} -> {accepted_after_input: List(Char)} -> (compilation: ThompsonCompilation(accepted_shape)) -> (@erased compiled: PatternCompilation(accepted_shape, accepted_pattern, compilation)) -> (final_evidence: List(Evidence)) -> (routine: List(ExtendedInstruction)) -> (@erased acceptance: MachineAcceptance(thompson_state_count(compilation), thompson_machine(compilation), accepted_position, accepted_input, accepted_after_input, final_evidence, routine)) -> PatternAcceptance(accepted_shape, accepted_pattern, accepted_position, accepted_input, accepted_after_input)
+    PatternAccepted : {accepted_shape: ShapeCode} -> {accepted_pattern: Pattern(accepted_shape)} -> {accepted_position: InitialPosition} -> {accepted_input: List(Char)} -> {accepted_after_input: List(Char)} -> (final_evidence: List(Evidence)) -> (routine: List(ExtendedInstruction)) -> (@erased acceptance: MachineAcceptance(thompson_state_count(certify_thompson(accepted_pattern)), thompson_machine(certify_thompson(accepted_pattern)), accepted_position, accepted_input, accepted_after_input, final_evidence, routine)) -> PatternAcceptance(accepted_shape, accepted_pattern, accepted_position, accepted_input, accepted_after_input)
 
   fn predicate_result_member(
     test: Char -> Bool,
@@ -417,7 +403,7 @@ mod Std.Regex.Language
     denotation: PatternDenotation(CharC, PatternPredicate(test), position, Cons(char, Nil()), after_input)
   ) -> PatternAcceptance(CharC, PatternPredicate(test), position, Cons(char, Nil()), after_input) =
     match predicate_denotation_is_complete(test, char, after_input, position, denotation)
-      PredicateAccepted(final_evidence, routine, acceptance) -> PatternAccepted(ThompsonPredicate(test), CompilesPredicate(test), final_evidence, routine, acceptance)
+      PredicateAccepted(final_evidence, routine, acceptance) -> PatternAccepted(final_evidence, routine, acceptance)
 
   fn empty_denotation_is_complete(
     after_input: List(Char),
@@ -443,7 +429,7 @@ mod Std.Regex.Language
     denotation: PatternDenotation(UnitC, PatternEmpty(), position, Nil(), after_input)
   ) -> PatternAcceptance(UnitC, PatternEmpty(), position, Nil(), after_input) =
     match empty_denotation_is_complete(after_input, position, denotation)
-      EmptyAccepted(final_evidence, routine, acceptance) -> PatternAccepted(ThompsonEmpty(), CompilesEmpty(), final_evidence, routine, acceptance)
+      EmptyAccepted(final_evidence, routine, acceptance) -> PatternAccepted(final_evidence, routine, acceptance)
 
   fn boundary_denotation_is_complete(
     constraint: BoundaryConstraint,
@@ -471,4 +457,4 @@ mod Std.Regex.Language
     denotation: PatternDenotation(UnitC, PatternBoundary(constraint), position, Nil(), after_input)
   ) -> PatternAcceptance(UnitC, PatternBoundary(constraint), position, Nil(), after_input) =
     match boundary_denotation_is_complete(constraint, after_input, position, denotation)
-      BoundaryAccepted(final_evidence, routine, acceptance) -> PatternAccepted(ThompsonBoundary(constraint), CompilesBoundary(constraint), final_evidence, routine, acceptance)
+      BoundaryAccepted(final_evidence, routine, acceptance) -> PatternAccepted(final_evidence, routine, acceptance)
