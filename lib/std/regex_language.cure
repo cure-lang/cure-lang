@@ -44,6 +44,9 @@ mod Std.Regex.Language
   type PatternAcceptance indices (shape: ShapeCode, pattern: Pattern(shape), position: InitialPosition, input: List(Char), after_input: List(Char))
     PatternAccepted : {accepted_shape: ShapeCode} -> {accepted_pattern: Pattern(accepted_shape)} -> {accepted_position: InitialPosition} -> {accepted_input: List(Char)} -> {accepted_after_input: List(Char)} -> (final_evidence: List(Evidence)) -> (routine: List(ExtendedInstruction)) -> (@erased acceptance: MachineAcceptance(thompson_state_count(certify_thompson(accepted_pattern)), thompson_machine(certify_thompson(accepted_pattern)), accepted_position, accepted_input, accepted_after_input, final_evidence, routine)) -> PatternAcceptance(accepted_shape, accepted_pattern, accepted_position, accepted_input, accepted_after_input)
 
+  type PredicateAlternateAcceptance indices (left_test: Char -> Bool, right_test: Char -> Bool, prefer_right: Bool, char: Char, after_input: List(Char), position: InitialPosition)
+    PredicateAlternateAccepted : (final_evidence: List(Evidence)) -> (routine: List(ExtendedInstruction)) -> (@erased acceptance: MachineAcceptance(plus(S(Z()), S(Z())), predicate_alternate_mode_machine(left_test, right_test, prefer_right), position, Cons(char, Nil()), after_input, final_evidence, routine)) -> PredicateAlternateAcceptance(left_test, right_test, prefer_right, char, after_input, position)
+
   fn predicate_result_member(
     test: Char -> Bool,
     char: Char,
@@ -535,3 +538,143 @@ mod Std.Regex.Language
     let initial_edge: ListMember(MachineState(plus(S(Z()), S(Z()))), predicate_concat_start(), initial_machine_destinations(plus(S(Z()), S(Z())), predicate_concat_machine(left_test, right_test), position, Cons(left_char, Cons(right_char, Nil())), after_input)) = member_here(predicate_concat_start(), Nil())
     let routine_certificate: CertifiedPathRoutine(complete_path_routine, Nil(), Nil(), final_evidence) = PathRoutineInitial(no_regular, complete_path_routine, no_evidence, no_captures, ExtendedEvidenceDone(), path_certificate)
     PatternAccepted(final_evidence, complete_path_routine, MachineAccepted(predicate_concat_start(), no_evidence, no_captures, complete_path_routine, initial_edge, RoutineDone(), routine_certificate, complete_path))
+
+  fn predicate_alternate_left_initial_member(
+    left_test: Char -> Bool,
+    right_test: Char -> Bool,
+    prefer_right: Bool,
+    position: InitialPosition,
+    char: Char,
+    after_input: List(Char)
+  ) -> ListMember(MachineState(plus(S(Z()), S(Z()))), predicate_alternate_left_start(), initial_machine_destinations(plus(S(Z()), S(Z())), predicate_alternate_mode_machine(left_test, right_test, prefer_right), position, Cons(char, Nil()), after_input)) = match prefer_right
+    False() -> member_here(predicate_alternate_left_start(), Cons(predicate_alternate_right_start(), Nil()))
+    True() -> member_there(predicate_alternate_right_start(), member_here(predicate_alternate_left_start(), Nil()))
+
+  fn predicate_alternate_right_initial_member(
+    left_test: Char -> Bool,
+    right_test: Char -> Bool,
+    prefer_right: Bool,
+    position: InitialPosition,
+    char: Char,
+    after_input: List(Char)
+  ) -> ListMember(MachineState(plus(S(Z()), S(Z()))), predicate_alternate_right_start(), initial_machine_destinations(plus(S(Z()), S(Z())), predicate_alternate_mode_machine(left_test, right_test, prefer_right), position, Cons(char, Nil()), after_input)) = match prefer_right
+    False() -> member_there(predicate_alternate_left_start(), member_here(predicate_alternate_right_start(), Nil()))
+    True() -> member_here(predicate_alternate_right_start(), Cons(predicate_alternate_left_start(), Nil()))
+
+  fn predicate_alternate_left_result_member(
+    left_test: Char -> Bool,
+    right_test: Char -> Bool,
+    prefer_right: Bool,
+    char: Char,
+    after_input: List(Char),
+    holds: Equivalent(Bool, left_test(char), True())
+  ) -> ListMember(MachineState(plus(S(Z()), S(Z()))), Accepted(Cons(EmitChar(char), Cons(EmitLeft(), Nil())), Nil()), machine_destinations(plus(S(Z()), S(Z())), predicate_alternate_mode_machine(left_test, right_test, prefer_right), ThreadActive(First()), char, transition_boundary_before(char, Nil(), after_input))) =
+    rewrite holds in member_here(Accepted(Cons(EmitChar(char), Cons(EmitLeft(), Nil())), Nil()), Nil())
+
+  fn predicate_alternate_right_result_member(
+    left_test: Char -> Bool,
+    right_test: Char -> Bool,
+    prefer_right: Bool,
+    char: Char,
+    after_input: List(Char),
+    holds: Equivalent(Bool, right_test(char), True())
+  ) -> ListMember(MachineState(plus(S(Z()), S(Z()))), Accepted(Cons(EmitChar(char), Cons(EmitRight(), Nil())), Nil()), machine_destinations(plus(S(Z()), S(Z())), predicate_alternate_mode_machine(left_test, right_test, prefer_right), ThreadActive(Next(First())), char, transition_boundary_before(char, Nil(), after_input))) =
+    rewrite holds in member_here(Accepted(Cons(EmitChar(char), Cons(EmitRight(), Nil())), Nil()), Nil())
+
+  fn predicate_alternate_mode_left_acceptance_is_complete(
+    left_test: Char -> Bool,
+    right_test: Char -> Bool,
+    prefer_right: Bool,
+    char: Char,
+    after_input: List(Char),
+    position: InitialPosition,
+    denotation: PatternDenotation(CharC, PatternPredicate(left_test), position, Cons(char, Nil()), after_input)
+  ) -> PredicateAlternateAcceptance(left_test, right_test, prefer_right, char, after_input, position) =
+    let holds = predicate_denotation_truth(left_test, char, after_input, position, denotation)
+    let no_evidence: List(Evidence) = Nil()
+    let no_captures: List(CaptureFrame) = Nil()
+    let no_regular: List(EvidenceInstruction) = Nil()
+    let no_extended: List(ExtendedInstruction) = Nil()
+    let final_evidence: List(Evidence) = Cons(LeftEvidence(), Cons(CharacterEvidence(char), Nil()))
+    let regular: List(EvidenceInstruction) = Cons(EmitChar(char), Cons(EmitLeft(), Nil()))
+    let path_routine = transition_routine(char, regular)
+    let initial_edge = predicate_alternate_left_initial_member(left_test, right_test, prefer_right, position, char, after_input)
+    let transition_edge = predicate_alternate_left_result_member(left_test, right_test, prefer_right, char, after_input, holds)
+    let execution: RoutineExecution(regular, no_evidence, record_capture_char(no_captures, char), final_evidence, no_captures) = RoutineStep(EmitChar(char), RoutineStep(EmitLeft(), RoutineDone()))
+    let extended_execution: ExtendedEvidenceRoutineExecution(regular_routine(regular), no_evidence, record_capture_char(no_captures, char), final_evidence, no_captures) = ExtendedEvidenceRegular(EmitChar(char), ExtendedEvidenceRegular(EmitLeft(), ExtendedEvidenceDone()))
+    let path: AcceptingFrom(plus(S(Z()), S(Z())), predicate_alternate_mode_machine(left_test, right_test, prefer_right), Cons(char, Nil()), after_input, ThreadActive(First()), no_evidence, no_captures, final_evidence, path_routine) = AcceptingNextAccepted(regular, Nil(), final_evidence, no_captures, no_extended, transition_edge, execution, AcceptingNow())
+    let path_certificate: CertifiedPathRoutine(path_routine, no_evidence, no_captures, final_evidence) = PathRoutineTransition(char, regular, no_extended, final_evidence, no_captures, extended_execution, PathRoutineDone())
+    let certificate: CertifiedPathRoutine(path_routine, Nil(), Nil(), final_evidence) = PathRoutineInitial(no_regular, path_routine, no_evidence, no_captures, ExtendedEvidenceDone(), path_certificate)
+    PredicateAlternateAccepted(final_evidence, path_routine, MachineAccepted(predicate_alternate_left_start(), no_evidence, no_captures, path_routine, initial_edge, RoutineDone(), certificate, path))
+
+  fn predicate_alternate_mode_left_denotation_is_complete(
+    left_test: Char -> Bool,
+    right_test: Char -> Bool,
+    prefer_right: Bool,
+    char: Char,
+    after_input: List(Char),
+    position: InitialPosition,
+    denotation: PatternDenotation(CharC, PatternPredicate(left_test), position, Cons(char, Nil()), after_input)
+  ) -> PatternAcceptance(ChoiceC(CharC, CharC), PatternAlternateMode(PatternPredicate(left_test), PatternPredicate(right_test), prefer_right), position, Cons(char, Nil()), after_input) =
+    match predicate_alternate_mode_left_acceptance_is_complete(left_test, right_test, prefer_right, char, after_input, position, denotation)
+      PredicateAlternateAccepted(final_evidence, routine, acceptance) -> PatternAccepted(final_evidence, routine, acceptance)
+
+  fn predicate_alternate_mode_right_acceptance_is_complete(
+    left_test: Char -> Bool,
+    right_test: Char -> Bool,
+    prefer_right: Bool,
+    char: Char,
+    after_input: List(Char),
+    position: InitialPosition,
+    denotation: PatternDenotation(CharC, PatternPredicate(right_test), position, Cons(char, Nil()), after_input)
+  ) -> PredicateAlternateAcceptance(left_test, right_test, prefer_right, char, after_input, position) =
+    let holds = predicate_denotation_truth(right_test, char, after_input, position, denotation)
+    let no_evidence: List(Evidence) = Nil()
+    let no_captures: List(CaptureFrame) = Nil()
+    let no_regular: List(EvidenceInstruction) = Nil()
+    let no_extended: List(ExtendedInstruction) = Nil()
+    let final_evidence: List(Evidence) = Cons(RightEvidence(), Cons(CharacterEvidence(char), Nil()))
+    let regular: List(EvidenceInstruction) = Cons(EmitChar(char), Cons(EmitRight(), Nil()))
+    let path_routine = transition_routine(char, regular)
+    let initial_edge = predicate_alternate_right_initial_member(left_test, right_test, prefer_right, position, char, after_input)
+    let transition_edge = predicate_alternate_right_result_member(left_test, right_test, prefer_right, char, after_input, holds)
+    let execution: RoutineExecution(regular, no_evidence, record_capture_char(no_captures, char), final_evidence, no_captures) = RoutineStep(EmitChar(char), RoutineStep(EmitRight(), RoutineDone()))
+    let extended_execution: ExtendedEvidenceRoutineExecution(regular_routine(regular), no_evidence, record_capture_char(no_captures, char), final_evidence, no_captures) = ExtendedEvidenceRegular(EmitChar(char), ExtendedEvidenceRegular(EmitRight(), ExtendedEvidenceDone()))
+    let path: AcceptingFrom(plus(S(Z()), S(Z())), predicate_alternate_mode_machine(left_test, right_test, prefer_right), Cons(char, Nil()), after_input, ThreadActive(Next(First())), no_evidence, no_captures, final_evidence, path_routine) = AcceptingNextAccepted(regular, Nil(), final_evidence, no_captures, no_extended, transition_edge, execution, AcceptingNow())
+    let path_certificate: CertifiedPathRoutine(path_routine, no_evidence, no_captures, final_evidence) = PathRoutineTransition(char, regular, no_extended, final_evidence, no_captures, extended_execution, PathRoutineDone())
+    let certificate: CertifiedPathRoutine(path_routine, Nil(), Nil(), final_evidence) = PathRoutineInitial(no_regular, path_routine, no_evidence, no_captures, ExtendedEvidenceDone(), path_certificate)
+    PredicateAlternateAccepted(final_evidence, path_routine, MachineAccepted(predicate_alternate_right_start(), no_evidence, no_captures, path_routine, initial_edge, RoutineDone(), certificate, path))
+
+  fn predicate_alternate_mode_right_denotation_is_complete(
+    left_test: Char -> Bool,
+    right_test: Char -> Bool,
+    prefer_right: Bool,
+    char: Char,
+    after_input: List(Char),
+    position: InitialPosition,
+    denotation: PatternDenotation(CharC, PatternPredicate(right_test), position, Cons(char, Nil()), after_input)
+  ) -> PatternAcceptance(ChoiceC(CharC, CharC), PatternAlternateMode(PatternPredicate(left_test), PatternPredicate(right_test), prefer_right), position, Cons(char, Nil()), after_input) =
+    match predicate_alternate_mode_right_acceptance_is_complete(left_test, right_test, prefer_right, char, after_input, position, denotation)
+      PredicateAlternateAccepted(final_evidence, routine, acceptance) -> PatternAccepted(final_evidence, routine, acceptance)
+
+  fn predicate_alternate_left_denotation_is_complete(
+    left_test: Char -> Bool,
+    right_test: Char -> Bool,
+    char: Char,
+    after_input: List(Char),
+    position: InitialPosition,
+    denotation: PatternDenotation(CharC, PatternPredicate(left_test), position, Cons(char, Nil()), after_input)
+  ) -> PatternAcceptance(ChoiceC(CharC, CharC), PatternAlternate(PatternPredicate(left_test), PatternPredicate(right_test)), position, Cons(char, Nil()), after_input) =
+    match predicate_alternate_mode_left_acceptance_is_complete(left_test, right_test, False(), char, after_input, position, denotation)
+      PredicateAlternateAccepted(final_evidence, routine, acceptance) -> PatternAccepted(final_evidence, routine, acceptance)
+
+  fn predicate_alternate_right_denotation_is_complete(
+    left_test: Char -> Bool,
+    right_test: Char -> Bool,
+    char: Char,
+    after_input: List(Char),
+    position: InitialPosition,
+    denotation: PatternDenotation(CharC, PatternPredicate(right_test), position, Cons(char, Nil()), after_input)
+  ) -> PatternAcceptance(ChoiceC(CharC, CharC), PatternAlternate(PatternPredicate(left_test), PatternPredicate(right_test)), position, Cons(char, Nil()), after_input) =
+    match predicate_alternate_mode_right_acceptance_is_complete(left_test, right_test, False(), char, after_input, position, denotation)
+      PredicateAlternateAccepted(final_evidence, routine, acceptance) -> PatternAccepted(final_evidence, routine, acceptance)

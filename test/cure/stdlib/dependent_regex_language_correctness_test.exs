@@ -144,6 +144,26 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     fn alternate_mode_right_denotation() -> PatternDenotation(ChoiceC(UnitC, UnitC), PatternAlternateMode(PatternEmpty(), PatternEmpty(), True()), subject_initial_position(), Nil(), Nil()) =
       DenotesAlternateModeRight(PatternEmpty(), PatternEmpty(), True(), DenotesEmpty())
 
+    fn alternate_predicate_left_completeness(
+      denotation: PatternDenotation(CharC, PatternPredicate(accepts_a), subject_initial_position(), Cons('a', Nil()), Nil())
+    ) -> PatternAcceptance(ChoiceC(CharC, CharC), PatternAlternateMode(PatternPredicate(accepts_a), PatternPredicate(accepts_b), True()), subject_initial_position(), Cons('a', Nil()), Nil()) =
+      predicate_alternate_mode_left_denotation_is_complete(accepts_a, accepts_b, True(), 'a', Nil(), subject_initial_position(), denotation)
+
+    fn alternate_predicate_right_completeness(
+      denotation: PatternDenotation(CharC, PatternPredicate(accepts_b), subject_initial_position(), Cons('b', Nil()), Nil())
+    ) -> PatternAcceptance(ChoiceC(CharC, CharC), PatternAlternateMode(PatternPredicate(accepts_a), PatternPredicate(accepts_b), False()), subject_initial_position(), Cons('b', Nil()), Nil()) =
+      predicate_alternate_mode_right_denotation_is_complete(accepts_a, accepts_b, False(), 'b', Nil(), subject_initial_position(), denotation)
+
+    fn alternate_predicate_default_left_completeness(
+      denotation: PatternDenotation(CharC, PatternPredicate(accepts_a), subject_initial_position(), Cons('a', Nil()), Nil())
+    ) -> PatternAcceptance(ChoiceC(CharC, CharC), PatternAlternate(PatternPredicate(accepts_a), PatternPredicate(accepts_b)), subject_initial_position(), Cons('a', Nil()), Nil()) =
+      predicate_alternate_left_denotation_is_complete(accepts_a, accepts_b, 'a', Nil(), subject_initial_position(), denotation)
+
+    fn alternate_predicate_default_right_completeness(
+      denotation: PatternDenotation(CharC, PatternPredicate(accepts_b), subject_initial_position(), Cons('b', Nil()), Nil())
+    ) -> PatternAcceptance(ChoiceC(CharC, CharC), PatternAlternate(PatternPredicate(accepts_a), PatternPredicate(accepts_b)), subject_initial_position(), Cons('b', Nil()), Nil()) =
+      predicate_alternate_right_denotation_is_complete(accepts_a, accepts_b, 'b', Nil(), subject_initial_position(), denotation)
+
     fn alternate_predicate_soundness(
       {final_evidence: List(Evidence)},
       {routine: List(ExtendedInstruction)},
@@ -230,6 +250,14 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     assert Env.total?(env, :"Std.Regex.Language#predicate_concat_acceptance_is_sound")
     assert Env.total?(env, :alternate_left_denotation)
     assert Env.total?(env, :alternate_mode_right_denotation)
+    assert Env.total?(env, :alternate_predicate_left_completeness)
+    assert Env.total?(env, :alternate_predicate_right_completeness)
+    assert Env.total?(env, :alternate_predicate_default_left_completeness)
+    assert Env.total?(env, :alternate_predicate_default_right_completeness)
+    assert Env.total?(env, :"Std.Regex.Language#predicate_alternate_mode_left_denotation_is_complete")
+    assert Env.total?(env, :"Std.Regex.Language#predicate_alternate_mode_right_denotation_is_complete")
+    assert Env.total?(env, :"Std.Regex.Language#predicate_alternate_left_denotation_is_complete")
+    assert Env.total?(env, :"Std.Regex.Language#predicate_alternate_right_denotation_is_complete")
     assert Env.total?(env, :alternate_predicate_soundness)
     assert Env.total?(env, :"Std.Regex.Language#predicate_alternate_mode_acceptance_is_sound")
     assert Env.total?(env, :repeated_predicate_denotation)
