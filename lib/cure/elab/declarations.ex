@@ -2620,19 +2620,19 @@ defmodule Cure.Elab.Declarations do
 
       impl_names = Enum.map(implicits, &elem(&1, 0))
 
-      case build_explicit_tele(dom_exprs, impl_names, param_scope, fam, env) do
+      # Each inferred binder pushes the family's parameters one slot farther
+      # out. `infer_implicits/6` returns types in the bare parameter frame, so
+      # lift them over the preceding inferred binders before either the explicit
+      # domains or result indices are elaborated.
+      impl_tele =
+        implicits
+        |> Enum.with_index()
+        |> Enum.map(fn {{n, ty}, i} -> {String.to_atom(n), Term.shift(ty, i, 0)} end)
+
+      case build_explicit_tele(dom_exprs, impl_names, impl_tele, param_scope, param_tele, fam, env) do
         {:ok, expl_tele, expl_names, expl_plicities, expl_quantities} ->
           full_scope = Enum.reverse(impl_names ++ expl_names) ++ param_scope
           {param_exprs, index_exprs} = Enum.split(applied_exprs, param_count)
-
-          # Each inferred binder pushes the family's parameters one slot
-          # farther out. `infer_implicits/6` returns types in the bare
-          # parameter frame, so lift them over the preceding inferred binders
-          # as the telescope is assembled.
-          impl_tele =
-            implicits
-            |> Enum.with_index()
-            |> Enum.map(fn {{n, ty}, i} -> {String.to_atom(n), Term.shift(ty, i, 0)} end)
 
           # Result indices are full term expressions, not merely syntax trees.
           # Give their lowering the constructor telescope's real typing context
@@ -2804,7 +2804,7 @@ defmodule Cure.Elab.Declarations do
   # telescope, the bound names, and the per-slot plicity — a NAMED `(k:T)` binder
   # is `:explicit` (positional), a RELEVANT IMPLICIT `{k:T}` binder is
   # `:implicit` (solved/named), an anonymous arg is `:explicit`.
-  defp build_explicit_tele(dom_exprs, impl_names, param_scope, fam, env) do
+  defp build_explicit_tele(dom_exprs, impl_names, impl_tele, param_scope, param_tele, fam, env) do
     dom_exprs
     |> Enum.with_index()
     |> Enum.reduce_while({:ok, [], Enum.reverse(impl_names) ++ param_scope, [], [], []}, fn {dom, i},
@@ -2826,7 +2826,16 @@ defmodule Cure.Elab.Declarations do
             {"_a#{i}", dom, :explicit, :unrestricted}
         end
 
-      case idx_to_core(type_expr, scope, fam, env) do
+      # Every constructor domain is checked in the typed telescope formed by
+      # the family parameters, inferred indices, and preceding source fields.
+      # Besides validating ordinary dependent references, this lets the shared
+      # application elaborator insert a global function's hidden arguments from
+      # an explicit later argument. Syntax-only lowering cannot do that: it
+      # would turn `f(value)` into `f(value)` even when Core's telescope is
+      # `{index} -> value -> ...`, shifting `value` into the hidden slot.
+      ctx = build_context(env, param_tele ++ impl_tele ++ tele)
+
+      case idx_to_core(type_expr, scope, fam, env, ctx) do
         {:ok, core} ->
           {:cont,
            {:ok, tele ++ [{String.to_atom(argname), core}], [argname | scope], names ++ [argname], plics ++ [plicity],

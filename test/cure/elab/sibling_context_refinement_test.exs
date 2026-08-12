@@ -91,6 +91,23 @@ defmodule Cure.Elab.SiblingContextRefinementTest do
     assert {:ok, _env} = Program.elaborate(source)
   end
 
+  test "constructor fields can apply a function whose hidden index is fixed by an earlier field" do
+    source = """
+    mod ConstructorHiddenIndexApplication
+      type Shape = One
+      type Compilation indices (shape: Shape)
+        OneCompilation : Compilation(One())
+      fn compilation_size({shape: Shape}, compilation: Compilation(shape)) -> Nat = 0
+      type Witness indices (n: Nat)
+        Witnessed : Witness(n)
+      type Packed indices (shape: Shape)
+        Pack : {packed_shape: Shape} -> (compilation: Compilation(packed_shape)) -> (@erased witness: Witness(compilation_size(compilation))) -> Packed(packed_shape)
+    end
+    """
+
+    assert {:ok, _env} = Program.elaborate(source)
+  end
+
   test "nested pattern lowering preserves contextual impossible branches" do
     source = """
     mod NestedContextualImpossible
