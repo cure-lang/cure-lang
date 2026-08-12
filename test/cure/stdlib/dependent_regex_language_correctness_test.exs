@@ -7,6 +7,7 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
   @source """
   mod RegexLanguageCorrectness
     use Std.Regex
+    use Std.Regex.Proof
     use Std.Regex.Language
 
     fn accepts_a(char: Char) -> Bool = char == 'a'
@@ -131,6 +132,12 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     ) -> PatternDenotation(PairC(CharC, CharC), PatternConcat(PatternPredicate(accepts_a), PatternPredicate(accepts_b)), subject_initial_position(), Cons('a', Cons('b', Nil())), Nil()) =
       predicate_concat_acceptance_is_sound(accepts_a, accepts_b, Cons('a', Cons('b', Nil())), Nil(), subject_initial_position(), final_evidence, routine, acceptance)
 
+    fn concatenated_predicate_completeness(
+      left_denotation: PatternDenotation(CharC, PatternPredicate(accepts_a), subject_initial_position(), Cons('a', Nil()), Cons('b', Nil())),
+      right_denotation: PatternDenotation(CharC, PatternPredicate(accepts_b), advance_initial_position(subject_initial_position(), Cons('a', Nil())), Cons('b', Nil()), Nil())
+    ) -> PatternAcceptance(PairC(CharC, CharC), PatternConcat(PatternPredicate(accepts_a), PatternPredicate(accepts_b)), subject_initial_position(), Cons('a', Cons('b', Nil())), Nil()) =
+      predicate_concat_denotations_are_complete(accepts_a, accepts_b, 'a', 'b', Nil(), subject_initial_position(), left_denotation, right_denotation)
+
     fn alternate_left_denotation() -> PatternDenotation(ChoiceC(UnitC, UnitC), PatternAlternate(PatternEmpty(), PatternEmpty()), subject_initial_position(), no_chars(), no_chars()) =
       DenotesAlternateLeft(PatternEmpty(), PatternEmpty(), DenotesEmpty())
 
@@ -218,6 +225,8 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     assert Env.total?(env, :concatenated_empty_completeness)
     assert Env.total?(env, :"Std.Regex.Language#empty_concat_denotation_is_complete")
     assert Env.total?(env, :concatenated_predicate_soundness)
+    assert Env.total?(env, :concatenated_predicate_completeness)
+    assert Env.total?(env, :"Std.Regex.Language#predicate_concat_denotations_are_complete")
     assert Env.total?(env, :"Std.Regex.Language#predicate_concat_acceptance_is_sound")
     assert Env.total?(env, :alternate_left_denotation)
     assert Env.total?(env, :alternate_mode_right_denotation)

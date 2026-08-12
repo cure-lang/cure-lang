@@ -479,3 +479,59 @@ mod Std.Regex.Language
       let complete_routine = regular_routine(routine)
       let certificate: CertifiedPathRoutine(complete_routine, Nil(), Nil(), final_evidence) = PathRoutineInitial(routine, no_path_routine, final_evidence, no_captures, extended_execution, PathRoutineDone())
       PatternAccepted(final_evidence, complete_routine, MachineAccepted(destination, final_evidence, no_captures, no_path_routine, edge, execution, certificate, AcceptingNow()))
+
+  fn predicate_concat_first_member(
+    left_test: Char -> Bool,
+    right_test: Char -> Bool,
+    left_char: Char,
+    right_char: Char,
+    after_input: List(Char),
+    holds: Equivalent(Bool, left_test(left_char), True())
+  ) -> ListMember(MachineState(plus(S(Z()), S(Z()))), predicate_concat_middle(left_char), machine_destinations(plus(S(Z()), S(Z())), predicate_concat_machine(left_test, right_test), predicate_concat_start_thread(), left_char, transition_boundary_before(left_char, Cons(right_char, Nil()), after_input))) =
+    rewrite holds in member_here(predicate_concat_middle(left_char), Nil())
+
+  fn predicate_concat_second_member(
+    left_test: Char -> Bool,
+    right_test: Char -> Bool,
+    right_char: Char,
+    after_input: List(Char),
+    holds: Equivalent(Bool, right_test(right_char), True())
+  ) -> ListMember(MachineState(plus(S(Z()), S(Z()))), predicate_concat_accepting(right_char), machine_destinations(plus(S(Z()), S(Z())), predicate_concat_machine(left_test, right_test), predicate_concat_middle_thread(), right_char, transition_boundary_before(right_char, Nil(), after_input))) =
+    rewrite holds in member_here(predicate_concat_accepting(right_char), Nil())
+
+  fn predicate_concat_denotations_are_complete(
+    left_test: Char -> Bool,
+    right_test: Char -> Bool,
+    left_char: Char,
+    right_char: Char,
+    after_input: List(Char),
+    position: InitialPosition,
+    left_denotation: PatternDenotation(CharC, PatternPredicate(left_test), position, Cons(left_char, Nil()), Cons(right_char, after_input)),
+    right_denotation: PatternDenotation(CharC, PatternPredicate(right_test), advance_initial_position(position, Cons(left_char, Nil())), Cons(right_char, Nil()), after_input)
+  ) -> PatternAcceptance(PairC(CharC, CharC), PatternConcat(PatternPredicate(left_test), PatternPredicate(right_test)), position, Cons(left_char, Cons(right_char, Nil())), after_input) =
+    let left_holds = predicate_denotation_truth(left_test, left_char, Cons(right_char, after_input), position, left_denotation)
+    let right_holds = predicate_denotation_truth(right_test, right_char, after_input, advance_initial_position(position, Cons(left_char, Nil())), right_denotation)
+    let no_evidence: List(Evidence) = Nil()
+    let no_captures: List(CaptureFrame) = Nil()
+    let no_regular: List(EvidenceInstruction) = Nil()
+    let no_extended: List(ExtendedInstruction) = Nil()
+    let left_evidence: List(Evidence) = Cons(CharacterEvidence(left_char), Nil())
+    let right_evidence: List(Evidence) = Cons(CharacterEvidence(right_char), left_evidence)
+    let final_evidence: List(Evidence) = Cons(PairEvidence(), right_evidence)
+    let first_regular: List(EvidenceInstruction) = Cons(EmitChar(left_char), Nil())
+    let second_regular: List(EvidenceInstruction) = Cons(EmitChar(right_char), Cons(EmitPair(), Nil()))
+    let first_edge = predicate_concat_first_member(left_test, right_test, left_char, right_char, after_input, left_holds)
+    let second_edge = predicate_concat_second_member(left_test, right_test, right_char, after_input, right_holds)
+    let first_execution: RoutineExecution(first_regular, no_evidence, no_captures, left_evidence, no_captures) = RoutineStep(EmitChar(left_char), RoutineDone())
+    let second_execution: RoutineExecution(second_regular, left_evidence, no_captures, final_evidence, no_captures) = RoutineStep(EmitChar(right_char), RoutineStep(EmitPair(), RoutineDone()))
+    let first_extended: ExtendedEvidenceRoutineExecution(regular_routine(first_regular), no_evidence, no_captures, left_evidence, no_captures) = ExtendedEvidenceRegular(EmitChar(left_char), ExtendedEvidenceDone())
+    let second_extended: ExtendedEvidenceRoutineExecution(regular_routine(second_regular), left_evidence, no_captures, final_evidence, no_captures) = ExtendedEvidenceRegular(EmitChar(right_char), ExtendedEvidenceRegular(EmitPair(), ExtendedEvidenceDone()))
+    let second_path_routine = transition_routine(right_char, second_regular)
+    let second_path: AcceptingFrom(plus(S(Z()), S(Z())), predicate_concat_machine(left_test, right_test), Cons(right_char, Nil()), after_input, predicate_concat_middle_thread(), left_evidence, no_captures, final_evidence, second_path_routine) = AcceptingNextAccepted(second_regular, Nil(), final_evidence, no_captures, no_extended, second_edge, second_execution, AcceptingNow())
+    let second_certificate: CertifiedPathRoutine(second_path_routine, left_evidence, no_captures, final_evidence) = PathRoutineTransition(right_char, second_regular, no_extended, final_evidence, no_captures, second_extended, PathRoutineDone())
+    let complete_path_routine = append_extended_routines(transition_routine(left_char, first_regular), second_path_routine)
+    let complete_path: AcceptingFrom(plus(S(Z()), S(Z())), predicate_concat_machine(left_test, right_test), Cons(left_char, Cons(right_char, Nil())), after_input, predicate_concat_start_thread(), no_evidence, no_captures, final_evidence, complete_path_routine) = AcceptingNextActive(Next(First()), first_regular, Nil(), left_evidence, no_captures, second_path_routine, first_edge, first_execution, second_path)
+    let path_certificate: CertifiedPathRoutine(complete_path_routine, no_evidence, no_captures, final_evidence) = PathRoutineTransition(left_char, first_regular, second_path_routine, left_evidence, no_captures, first_extended, second_certificate)
+    let initial_edge: ListMember(MachineState(plus(S(Z()), S(Z()))), predicate_concat_start(), initial_machine_destinations(plus(S(Z()), S(Z())), predicate_concat_machine(left_test, right_test), position, Cons(left_char, Cons(right_char, Nil())), after_input)) = member_here(predicate_concat_start(), Nil())
+    let routine_certificate: CertifiedPathRoutine(complete_path_routine, Nil(), Nil(), final_evidence) = PathRoutineInitial(no_regular, complete_path_routine, no_evidence, no_captures, ExtendedEvidenceDone(), path_certificate)
+    PatternAccepted(final_evidence, complete_path_routine, MachineAccepted(predicate_concat_start(), no_evidence, no_captures, complete_path_routine, initial_edge, RoutineDone(), routine_certificate, complete_path))
