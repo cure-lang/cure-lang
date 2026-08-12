@@ -194,6 +194,57 @@ defmodule Cure.Compiler.CanonicalModulePipelineFullRedTest do
       assert pipeline(:interfaces_frozen_together?, [checked, ["Cycle.TypeA", "Cycle.TypeB"]])
     end
 
+    test "a runtime back-edge does not hide an earlier member's dependent signatures", %{
+      tmp_dir: dir
+    } do
+      base =
+        write!(
+          dir,
+          "base.cure",
+          """
+          mod Cycle.ZDependentBase
+            type Shape = AtomShape
+
+            type Pattern indices (shape: Shape)
+              AtomPattern : Pattern(AtomShape)
+
+            type Compilation indices (shape: Shape)
+              AtomCompilation : Compilation(AtomShape)
+
+            @reducible
+            fn compile({shape: Shape}, pattern: Pattern(shape)) -> Compilation(shape) = match pattern
+              AtomPattern() -> AtomCompilation()
+
+            fn call_proof() -> Int = Cycle.ADependentProof.value()
+          """
+        )
+
+      proof =
+        write!(
+          dir,
+          "proof.cure",
+          """
+          mod Cycle.ADependentProof
+            use Cycle.ZDependentBase
+
+            type Evidence indices (shape: Shape, compilation: Compilation(shape))
+              AtomEvidence : Evidence(AtomShape, AtomCompilation)
+
+            fn certify({shape: Shape}, pattern: Pattern(shape)) -> Evidence(shape, compile(pattern)) = match pattern
+              AtomPattern() -> AtomEvidence()
+
+            fn value() -> Int = 1
+          """
+        )
+
+      assert {:ok, checked} = check([proof, base], dir)
+
+      assert pipeline(:component_members, [checked, "Cycle.ZDependentBase"]) == [
+               "Cycle.ADependentProof",
+               "Cycle.ZDependentBase"
+             ]
+    end
+
     test "compile-time cycles report the body-requiring edge and complete path", %{tmp_dir: dir} do
       a = write!(dir, "a.cure", "mod Cycle.MetaA\n  type T = Cycle.MetaB.F(T)\n")
       b = write!(dir, "b.cure", "mod Cycle.MetaB\n  fn F(t: Type) -> Type = Cycle.MetaA.T\n")

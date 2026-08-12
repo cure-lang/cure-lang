@@ -7,7 +7,7 @@ defmodule Cure.Compiler.ModulePipeline do
   add checked interfaces, bodies, closure, and artifacts to the same result.
   """
 
-  alias Cure.Compiler.{ModuleInterface, ModuleManifest, Printer}
+  alias Cure.Compiler.{DepGraph, ModuleInterface, ModuleManifest, Printer}
 
   alias Cure.Compiler.ModulePipeline.{
     BodyElaborationTrace,
@@ -829,20 +829,30 @@ defmodule Cure.Compiler.ModulePipeline do
 
   defp check_component(request, manifest, skeletons, component, asts, sources, interfaces, checked_envs) do
     members = MapSet.new(component)
+    check_order = component_check_order(manifest, component)
     timing_metadata = %{modules: component |> Enum.map(&elem(&1, 1)) |> Enum.sort()}
 
     with :ok <- Cycle.classify(manifest, component, asts, skeletons),
          {:ok, prepared} <-
            timed(request, :component_register, timing_metadata, fn ->
-             register_component(manifest, component, members, asts, sources, interfaces, checked_envs)
+             register_component(
+               manifest,
+               component,
+               check_order,
+               members,
+               asts,
+               sources,
+               interfaces,
+               checked_envs
+             )
            end),
          {:ok, component_env} <-
            timed(request, :component_merge, timing_metadata, fn ->
-             merge_component_environments(prepared)
+             merge_component_environments(prepared, check_order)
            end),
          {:ok, checked} <-
            timed(request, :component_bodies, timing_metadata, fn ->
-             check_component_bodies(request, component, skeletons, prepared, component_env)
+             check_component_bodies(request, check_order, component, skeletons, prepared, component_env)
            end),
          {:ok, component_interfaces, component_envs} <-
            timed(request, :component_freeze, timing_metadata, fn ->
@@ -852,13 +862,22 @@ defmodule Cure.Compiler.ModulePipeline do
     end
   end
 
-  defp register_component(manifest, component, members, asts, sources, interfaces, checked_envs) do
+  defp register_component(
+         manifest,
+         component,
+         check_order,
+         members,
+         asts,
+         sources,
+         interfaces,
+         checked_envs
+       ) do
     with {:ok, skeletons} <-
            register_component_type_skeletons(manifest, component, members, asts, interfaces, checked_envs),
          {:ok, component_skeleton} <- merge_environments(skeletons, :component_type_skeleton_merge_failed) do
       register_component_interfaces(
         manifest,
-        component,
+        check_order,
         members,
         asts,
         sources,
@@ -896,28 +915,41 @@ defmodule Cure.Compiler.ModulePipeline do
          checked_envs,
          component_skeleton
        ) do
-    Enum.reduce_while(component, {:ok, %{}}, fn identity, {:ok, prepared} ->
+    component
+    |> Enum.reduce_while({:ok, %{}, component_skeleton}, fn identity, {:ok, prepared, available} ->
       entry = Map.fetch!(manifest.entries, identity)
 
       with {:ok, imported} <- imported_environment(manifest, identity, interfaces, checked_envs, members),
-           {:ok, imported} <- Program.merge_canonical_environments(imported, component_skeleton),
+           {:ok, imported} <- Program.merge_canonical_environments(imported, available),
            {:ok, module} <-
              Program.canonical_register_interface(Map.fetch!(asts, identity), imported,
                module_name: entry.module_name,
                source: Map.fetch!(sources, identity),
                file: entry.source_path,
                module_visibility: module_visibility(manifest, identity)
-             ) do
-        {:cont, {:ok, Map.put(prepared, identity, module)}}
+             ),
+           {:ok, available} <-
+             Program.merge_canonical_environments(available, module.interface_env) do
+        {:cont, {:ok, Map.put(prepared, identity, module), available}}
       else
         {:error, reason} -> {:halt, {:error, {:module_interface_registration_failed, identity, reason}}}
       end
     end)
+    |> case do
+      {:ok, prepared, _available} -> {:ok, prepared}
+      {:error, _reason} = error -> error
+    end
   end
 
-  defp merge_component_environments(prepared) do
-    environments = Map.new(prepared, fn {identity, module} -> {identity, module.interface_env} end)
-    merge_environments(environments, :component_interface_merge_failed)
+  defp merge_component_environments(prepared, check_order) do
+    Enum.reduce_while(check_order, {:ok, Env.empty()}, fn identity, {:ok, merged} ->
+      environment = prepared |> Map.fetch!(identity) |> Map.fetch!(:interface_env)
+
+      case Program.merge_canonical_environments(merged, environment) do
+        {:ok, env} -> {:cont, {:ok, env}}
+        {:error, reason} -> {:halt, {:error, {:component_interface_merge_failed, reason}}}
+      end
+    end)
   end
 
   defp merge_environments(environments, error_tag) do
@@ -931,12 +963,13 @@ defmodule Cure.Compiler.ModulePipeline do
     end)
   end
 
-  defp check_component_bodies(request, component, skeletons, prepared, component_env) do
-    Enum.reduce_while(component, {:ok, %{}}, fn identity, {:ok, checked} ->
+  defp check_component_bodies(request, check_order, component, skeletons, prepared, component_env) do
+    check_order
+    |> Enum.reduce_while({:ok, %{}, component_env}, fn identity, {:ok, checked, available} ->
       module =
         prepared
         |> Map.fetch!(identity)
-        |> Program.canonical_install_component_environment(component_env)
+        |> Program.canonical_install_component_environment(available)
 
       # A component's members are elaborated against each other's bodies — that
       # is what makes them one component. Recording it here means the graph
@@ -952,12 +985,48 @@ defmodule Cure.Compiler.ModulePipeline do
 
       case Program.canonical_check_bodies(module, event_sink: declaration_timing) do
         {:ok, env} ->
-          {:cont, {:ok, Map.put(checked, identity, env)}}
+          case Program.merge_canonical_environments(available, env) do
+            {:ok, available} ->
+              {:cont, {:ok, Map.put(checked, identity, env), available}}
+
+            {:error, reason} ->
+              {:halt, {:error, Diagnosis.body_failure(identity, Map.get(skeletons, identity), reason)}}
+          end
 
         {:error, reason} ->
           {:halt, {:error, Diagnosis.body_failure(identity, Map.get(skeletons, identity), reason)}}
       end
     end)
+    |> case do
+      {:ok, checked, _available} -> {:ok, checked}
+      {:error, _reason} = error -> error
+    end
+  end
+
+  # The full dependency graph deliberately groups runtime back-edges into one
+  # component, but those edges must not force an arbitrary alphabetical order
+  # on interface checking. A lexical `use` is an interface-bearing dependency:
+  # its checked names and reducible definitions must be available before the
+  # consumer's dependent signatures and bodies. Runtime-only qualified calls
+  # remain symbolic and therefore do not reverse this order.
+  defp component_check_order(manifest, component) do
+    members = MapSet.new(component)
+
+    dependencies =
+      Map.new(component, fn identity ->
+        required =
+          manifest
+          |> ModuleManifest.dependencies(identity)
+          |> Enum.filter(&(&1.kind in [:use_import, :prelude_symbol_use]))
+          |> Enum.map(& &1.target)
+          |> Enum.filter(&MapSet.member?(members, &1))
+          |> Enum.uniq()
+          |> Enum.sort()
+
+        {identity, required}
+      end)
+
+    DepGraph.toposort(dependencies, component)
   end
 
   defp record_component_body_elaboration(identity, component) do
