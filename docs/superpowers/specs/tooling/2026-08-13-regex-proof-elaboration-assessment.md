@@ -45,6 +45,15 @@ the equality between the caller's certificate and the reconstructed
 certificate. A direct nested `Sigma` match likewise did not refine the later
 `machine_state_thread` projection sufficiently.
 
+This boundary is now separated from ordinary nested-constructor refinement by
+`nested_constructor_sibling_refinement_test.exs`. Its outer package carries an
+unknown list index, a nested `NonEmpty` constructor refines that index to
+`Cons(head, tail)`, and a later sibling indexed by the original list is accepted
+at the refined type. Therefore the refinement machinery does transport a
+constructor-established index through the branch context. The Regex failure is
+specifically the missing whole-certificate identity in the plain `Sigma`
+result, not a failure to apply the constructor's index substitution.
+
 Other failures in the same proof had different, local causes:
 
 - implicit `inject_left` and `widen` terms normalized to a form different from
