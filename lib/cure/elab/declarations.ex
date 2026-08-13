@@ -464,7 +464,8 @@ defmodule Cure.Elab.Declarations do
 
     with {:ok, param_tele} <-
            elaborate_index_telescope(params, name, env, [], :duplicate_parameter),
-         {:ok, index_tele} <- elaborate_index_telescope(index_params, name, env, param_scope, :duplicate_index, param_tele) do
+         {:ok, index_tele} <-
+           elaborate_index_telescope(index_params, name, env, param_scope, :duplicate_index, param_tele) do
       {:ok, Inductive.declare(env, Inductive.family(name, param_tele, index_tele, 0), [])}
     end
   end
@@ -2859,7 +2860,7 @@ defmodule Cure.Elab.Declarations do
             {Keyword.fetch!(meta, :name), inner, :explicit, Keyword.get(meta, :grade, :unrestricted)}
 
           {:implicit_dom, meta, [inner]} ->
-            {Keyword.fetch!(meta, :name), inner, :implicit, :unrestricted}
+            {Keyword.fetch!(meta, :name), inner, :implicit, Keyword.get(meta, :grade, :unrestricted)}
 
           _ ->
             {"_a#{i}", dom, :explicit, :unrestricted}

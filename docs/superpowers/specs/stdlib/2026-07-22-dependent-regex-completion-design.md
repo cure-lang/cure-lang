@@ -16,6 +16,14 @@
   induction are the current proof frontier. The Concat convoy and elaborator
   decision are recorded below and in
   `../tooling/2026-08-13-regex-proof-elaboration-assessment.md`.
+- 2026-08-14 — generic Group completeness composition is discharged. The
+  compiler now accepts graded implicit constructor domains
+  (`{@erased index: T}`), preserving their quantity in constructor metadata;
+  `ThompsonEvidenceProof` uses that syntax for proof-only shape indices. Group
+  completion transports the child acceptance and its capture theorem together
+  across `PatternMachine` η before lifting it into the capture-wrapping machine.
+  Repeat composition and the final structural completeness induction are the
+  current proof frontier.
 
 **Supersedes for unfinished work:**
 `2026-07-21-dependently-typed-regex-design.md`
@@ -159,10 +167,9 @@ The former `decode_pattern_encoding` oracle was compared against certified
 extraction over 500 generated cases spanning every Pattern constructor and then
 deleted. Language correctness is now in Phase G. Generic soundness is complete
 for the whole `Pattern` algebra. Completeness is constructive for Predicate,
-Empty, and Boundary; has generic acceptance composition for Alternate and
-Concat; and has focused Predicate/Empty instances for Group and Repeat. Generic
-Group and Repeat composition plus the final structural completeness induction
-remain.
+Empty, and Boundary; has generic acceptance composition for Alternate, Concat,
+and Group; and has a focused Empty instance for Repeat. Generic Repeat
+composition plus the final structural completeness induction remain.
 
 ### 4.3 Structural and performance gaps
 
@@ -213,9 +220,9 @@ Phase G has two directions with different status:
 - **soundness is complete:** `pattern_acceptance_path_is_sound` dispatches over
   the complete certified compilation proof and produces `PatternDenotation`;
 - **completeness is in progress:** Predicate, Empty, and Boundary are complete;
-  Alternate has generic left/right composition; and Concat has generic
-  sequential acceptance composition. Group and Repeat still need generic
-  composition, followed by the final induction from arbitrary
+  Alternate has generic left/right composition; Concat has generic sequential
+  acceptance composition; and Group has generic capture-wrapping composition.
+  Repeat still needs generic composition, followed by the final induction from arbitrary
   `PatternDenotation` to certified acceptance.
 
 The Concat milestone is not a fixed-pattern special case. Given arbitrary left
@@ -244,6 +251,15 @@ initial edge after boundary filtering, and transports the corresponding
 `RoutineExecution` in one indexed result. Group and Repeat should reuse these
 combinators and their existing projection-specific transports instead of
 open-coding the witness/filter/transport sequence.
+
+Group now does so through `lift_group_acceptance`. The child acceptance is
+initially indexed by `thompson_machine(compilation)`; destructuring a
+`PatternMachine` alone does not transport the dependent capture certificate.
+`transport_certified_acceptance_machine` therefore eliminates
+`pattern_machine_eta(machine)` once and carries the acceptance and its exact
+final-capture equality together to the canonical
+`MkPatternMachine(pattern_machine_starts(machine), pattern_machine_next(machine))`
+index. This is a local propositional transport, not stronger global reduction.
 
 Do not add stronger global reducible-index simplification before Group and
 Repeat. The Concat failure was loss of propositional identity, not a stuck
@@ -598,8 +614,8 @@ match result is wrapped; proof erasure inspection passes.
 
 **Status: in progress; this is the earliest incomplete phase.** Generic
 soundness is complete. Constructive completeness is complete for base cases,
-Alternate composition, and Concat composition. Proceed next with generic Group
-composition, then generic Repeat composition, then the final structural
+Alternate composition, Concat composition, and Group composition. Proceed next
+with generic Repeat composition, then the final structural
 completeness induction. Do not regress to fixed-pattern-only theorems.
 
 Define denotation and prove the stronger Cure theorem family in §5.4. Use

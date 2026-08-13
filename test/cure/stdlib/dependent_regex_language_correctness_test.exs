@@ -322,6 +322,34 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     ) -> AcceptancePathFrom(plus(left_count, right_count), concat_pattern_machine(left_count, left_machine, right_count, right_machine), position, append_characters(left_input, right_input), after_input, input_evidence, input_captures, Cons(PairEvidence(), right_final_evidence)) =
       lift_concat_acceptances(left_count, left_machine, right_count, right_machine, position, left_input, right_input, after_input, input_evidence, input_captures, left_final_evidence, left_acceptance, right_final_evidence, right_acceptance)
 
+    fn generic_group_acceptance_composition(
+      inner_shape: ShapeCode,
+      inner: Pattern(inner_shape),
+      input: List(Char),
+      after_input: List(Char),
+      position: InitialPosition,
+      input_evidence: List(Evidence),
+      input_captures: List(CaptureFrame),
+      completion: PatternAcceptanceFrom(
+        inner_shape,
+        inner,
+        position,
+        input,
+        after_input,
+        input_evidence,
+        Cons(CaptureFrame(Nil(), input_evidence), input_captures)
+      )
+    ) -> PatternAcceptanceFrom(
+      StringC,
+      PatternGroup(inner),
+      position,
+      input,
+      after_input,
+      input_evidence,
+      input_captures
+    ) =
+      complete_group_from(inner_shape, inner, input, after_input, position, input_evidence, input_captures, completion)
+
     fn generic_alternate_mode_left_composition(
       left_shape: ShapeCode,
       right_shape: ShapeCode,
@@ -754,6 +782,8 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     assert Env.total?(env, :grouped_predicate_denotation)
     assert Env.total?(env, :grouped_predicate_completeness)
     assert Env.total?(env, :"Std.Regex.Language#grouped_predicate_denotation_is_complete")
+    assert Env.total?(env, :generic_group_acceptance_composition)
+    assert Env.total?(env, :"Std.Regex.Language#complete_group_from")
     assert Env.total?(env, :grouped_predicate_soundness)
     assert Env.total?(env, :"Std.Regex.Language#grouped_predicate_acceptance_is_sound")
     assert Env.total?(env, :concatenated_empty_denotation)

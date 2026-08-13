@@ -93,6 +93,41 @@ defmodule Cure.Elab.SiblingContextRefinementTest do
     assert {:ok, _env} = Program.elaborate(source)
   end
 
+  test "an erased family index stays erased while constructing an indexed certificate" do
+    source = """
+    mod IndexedCertificateErasure
+      type Shape = Leaf | Pair(Shape, Shape)
+
+      type Pattern indices (shape: Shape)
+        LeafPattern : Pattern(Leaf())
+        PairPattern : Pattern(left) -> Pattern(right) -> Pattern(Pair(left, right))
+
+      type Compilation indices (shape: Shape)
+        LeafCompilation : Compilation(Leaf())
+        PairCompilation : Compilation(left) -> Compilation(right) -> Compilation(Pair(left, right))
+
+      fn compile({shape: Shape}, pattern: Pattern(shape)) -> Compilation(shape) = match pattern
+        LeafPattern() -> LeafCompilation()
+        PairPattern(left, right) -> PairCompilation(compile(left), compile(right))
+
+      type Proof indices (shape: Shape, compilation: Compilation(shape))
+        LeafProof : Proof(Leaf(), LeafCompilation())
+        PairProof : {@erased left_shape: Shape} -> {@erased right_shape: Shape} -> (left: Compilation(left_shape)) -> (right: Compilation(right_shape)) -> (left_proof: Proof(left_shape, left)) -> (right_proof: Proof(right_shape, right)) -> Proof(Pair(left_shape, right_shape), PairCompilation(left, right))
+
+      type Certified indices (shape: Shape, compilation: Compilation(shape))
+        MkCertified : (compilation: Compilation(shape)) -> (proof: Proof(shape, compilation)) -> Certified(shape, compilation)
+
+      fn certify({shape: Shape}, pattern: Pattern(shape)) -> Certified(shape, compile(pattern)) = match pattern
+        LeafPattern() -> MkCertified(LeafCompilation(), LeafProof())
+        PairPattern(left, right) -> match certify(left)
+          MkCertified(left_compilation, left_proof) -> match certify(right)
+            MkCertified(right_compilation, right_proof) -> MkCertified(PairCompilation(left_compilation, right_compilation), PairProof(left_compilation, right_compilation, left_proof, right_proof))
+    end
+    """
+
+    assert {:ok, _env} = Program.elaborate(source)
+  end
+
   test "constructor fields can apply a function whose hidden index is fixed by an earlier field" do
     source = """
     mod ConstructorHiddenIndexApplication

@@ -10648,14 +10648,31 @@ defmodule Cure.Compiler.Parser do
       # `parse_type_atom` routes to `parse_refinement_type`) by the ABSENCE of a
       # top-level `|` before the closing `}`: `parse_refinement_type` requires the
       # bar, so a bar-less `{ident: …}` is never a valid refinement here.
-      {%Token{type: :lbrace}, %Token{type: :colon}} ->
+      {%Token{type: :lbrace}, %Token{type: kind}}
+      when kind == :colon or kind == :at ->
         if implicit_dom_brace?(state) do
           open_token = peek(state)
           state = advance(state)
+          {grade_prefix, state} = parse_binder_grade_prefix(state)
           name_token = peek(state)
           name = to_string(name_token.value)
           state = advance(state)
-          state = advance(state)
+
+          {grade, state} =
+            case grade_prefix do
+              {:grade_prefix, prefix_grade, _at_token, _grade_token} ->
+                case expect_token(state, :colon) do
+                  {:ok, _colon, next} -> {prefix_grade, next}
+                  {:error, next} -> {prefix_grade, next}
+                end
+
+              nil ->
+                case expect_token(state, :colon) do
+                  {:ok, _colon, next} -> {nil, next}
+                  {:error, next} -> {nil, next}
+                end
+            end
+
           {inner, state} = parse_type_atom(state)
 
           {state, close_token} =
@@ -10666,7 +10683,9 @@ defmodule Cure.Compiler.Parser do
           span = through_spans(open_token.span, close_token && close_token.span) || open_token.span
 
           meta =
-            Metadata.put_source_info([name: name, line: open_token.line, col: open_token.col], %SourceInfo{
+            [name: name, line: open_token.line, col: open_token.col]
+            |> then(fn meta -> if grade, do: Keyword.put(meta, :grade, grade), else: meta end)
+            |> Metadata.put_source_info(%SourceInfo{
               whole: span,
               name: name_token.span,
               opener: open_token.span,
