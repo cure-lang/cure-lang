@@ -2,6 +2,8 @@ defmodule Cure.Elab.SiblingContextRefinementTest do
   use ExUnit.Case, async: true
 
   alias Cure.Elab.Program
+  alias Cure.Compiler.{Lexer, Parser}
+  alias Cure.Core.Env
 
   test "E1: indexed evidence refines a sibling value for nested coverage" do
     source = """
@@ -147,5 +149,104 @@ defmodule Cure.Elab.SiblingContextRefinementTest do
     """
 
     assert {:ok, _env} = Program.elaborate(source)
+  end
+
+  test "nested indexed certificates preserve hidden telescope positions" do
+    source = """
+    mod NestedIndexedCertificateTelescope
+      type Shape = Character | Text
+
+      type Pattern indices (shape: Shape)
+        Predicate : Pattern(Character())
+        Group : (inner: Pattern(inner_shape)) -> Pattern(Text())
+
+      type Compilation indices (shape: Shape)
+        PredicateCompilation : Compilation(Character())
+        GroupCompilation : (inner: Compilation(inner_shape)) -> Compilation(Text())
+
+      fn compile({shape: Shape}, pattern: Pattern(shape)) -> Compilation(shape) = match pattern
+        Predicate() -> PredicateCompilation()
+        Group(inner) -> GroupCompilation(compile(inner))
+
+      type Path indices (shape: Shape, compilation: Compilation(shape))
+        PredicatePath : Path(Character(), PredicateCompilation())
+
+      type Captures indices (shape: Shape, compilation: Compilation(shape), path: Path(shape, compilation))
+        CapturesExact : {shape: Shape} -> {compilation: Compilation(shape)} -> {path: Path(shape, compilation)} -> Captures(shape, compilation, path)
+
+      type Marker = Mark
+
+      type Certificate indices (shape: Shape, pattern: Pattern(shape), first: Marker, second: Marker, third: Marker, fourth: Marker, fifth: Marker, path: Path(shape, compile(pattern)))
+        Certified : {shape: Shape} -> {pattern: Pattern(shape)} -> {first: Marker} -> {second: Marker} -> {third: Marker} -> {fourth: Marker} -> {fifth: Marker} -> {path: Path(shape, compile(pattern))} -> (captures: Captures(shape, compile(pattern), path)) -> Certificate(shape, pattern, first, second, third, fourth, fifth, path)
+
+      type Completion(shape: Shape, pattern: Pattern(shape), first: Marker, second: Marker, third: Marker, fourth: Marker, fifth: Marker) indices ()
+        Completed : (path: Path(shape, compile(pattern))) -> (certificate: Certificate(shape, pattern, first, second, third, fourth, fifth, path)) -> Completion(shape, pattern, first, second, third, fourth, fifth)
+
+      fn retain_computed_local_annotation(
+        shape: Shape,
+        pattern: Pattern(shape),
+        path: Path(shape, compile(pattern))
+      ) -> Path(shape, compile(pattern)) =
+        let same: Path(shape, compile(pattern)) = path
+        same
+
+      type Machine indices (n: Nat)
+        MkMachine : {n: Nat} -> (starts: List(Nat)) -> (next: (Nat -> Nat -> List(Nat))) -> Machine(n)
+
+      fn state_count({shape: Shape}, compilation: Compilation(shape)) -> Nat = match compilation
+        PredicateCompilation() -> S(Z())
+        GroupCompilation(_) -> S(S(Z()))
+
+      fn machine({shape: Shape}, compilation: Compilation(shape)) -> Machine(state_count(compilation)) = match compilation
+        PredicateCompilation() -> MkMachine(Nil(), fn(_) -> fn(_) -> Nil())
+        GroupCompilation(_) -> MkMachine(Nil(), fn(_) -> fn(_) -> Nil())
+
+      fn group_machine(n: Nat, starts: List(Nat), next: (Nat -> Nat -> List(Nat))) -> Machine(n) =
+        MkMachine(starts, next)
+
+      type Embedding indices (n: Nat, grouped: Machine(n))
+        Embedded : {n: Nat} -> {grouped: Machine(n)} -> Embedding(n, grouped)
+
+      type Acceptance(n: Nat, accepted_machine: Machine(n)) indices ()
+        Accepted : Acceptance(n, accepted_machine)
+
+      type MachineCaptures(n: Nat, accepted_machine: Machine(n), acceptance: Acceptance(n, accepted_machine)) indices ()
+        Captured : MachineCaptures(n, accepted_machine, acceptance)
+
+      fn lift(n: Nat, starts: List(Nat), next: (Nat -> Nat -> List(Nat)), acceptance: Acceptance(n, MkMachine(starts, next)), captures: MachineCaptures(n, MkMachine(starts, next), acceptance)) -> Embedding(n, group_machine(n, starts, next)) =
+        Embedded()
+
+      fn retain_nested_computed_annotation(
+        shape: Shape,
+        pattern: Pattern(shape),
+        path: Path(shape, compile(pattern)),
+        acceptance: Acceptance(state_count(compile(pattern)), machine(compile(pattern))),
+        captures: MachineCaptures(state_count(compile(pattern)), machine(compile(pattern)), acceptance)
+      ) -> Unit =
+        let compilation: Compilation(shape) = compile(pattern)
+        let concrete_machine = machine(compilation)
+        match concrete_machine
+          MkMachine(starts, next) ->
+            let lifted: Embedding(state_count(compilation), group_machine(state_count(compilation), starts, next)) = lift(state_count(compilation), starts, next, acceptance, captures)
+            ()
+
+      fn consume(
+        shape: Shape,
+        pattern: Pattern(shape),
+        first: Marker,
+        second: Marker,
+        third: Marker,
+        fourth: Marker,
+        fifth: Marker,
+        completion: Completion(shape, pattern, first, second, third, fourth, fifth)
+      ) -> Unit = match completion
+        Completed(_, Certified(_)) -> ()
+
+    """
+
+    assert {:ok, tokens} = Lexer.tokenize(source)
+    assert {:ok, ast} = Parser.parse(tokens)
+    assert {:ok, prepared} = Program.canonical_register_interface(ast, Env.empty())
+    assert {:ok, _env} = Program.canonical_check_bodies(prepared)
   end
 end

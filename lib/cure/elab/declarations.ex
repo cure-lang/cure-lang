@@ -464,7 +464,7 @@ defmodule Cure.Elab.Declarations do
 
     with {:ok, param_tele} <-
            elaborate_index_telescope(params, name, env, [], :duplicate_parameter),
-         {:ok, index_tele} <- elaborate_index_telescope(index_params, name, env, param_scope) do
+         {:ok, index_tele} <- elaborate_index_telescope(index_params, name, env, param_scope, :duplicate_index, param_tele) do
       {:ok, Inductive.declare(env, Inductive.family(name, param_tele, index_tele, 0), [])}
     end
   end
@@ -1806,7 +1806,8 @@ defmodule Cure.Elab.Declarations do
     param_scope = params |> Enum.map(fn {:param, _m, n} -> n end) |> Enum.reverse()
 
     with {:ok, param_tele} <- elaborate_index_telescope(params, name, env, [], :duplicate_parameter),
-         {:ok, index_tele} <- elaborate_index_telescope(index_params, name, env, param_scope),
+         {:ok, index_tele} <-
+           elaborate_index_telescope(index_params, name, env, param_scope, :duplicate_index, param_tele),
          # Pre-register the family signature (empty ctors, tentative level) so
          # self-references in constructor signatures — e.g. `Vector(a, n)` as a
          # `prepend` domain — resolve their parameter arity via param_count when
@@ -2533,21 +2534,35 @@ defmodule Cure.Elab.Declarations do
   # `dup_tag` names the binder kind for the linearity error — this builder is shared
   # by the family PARAMETER telescope (`:duplicate_parameter`) and the INDEX
   # telescope (`:duplicate_index`).
-  defp elaborate_index_telescope(params, fam, env, init_scope, dup_tag \\ :duplicate_index) do
+  defp elaborate_index_telescope(params, fam, env, init_scope, dup_tag),
+    do: elaborate_index_telescope(params, fam, env, init_scope, dup_tag, [])
+
+  defp elaborate_index_telescope(params, fam, env, init_scope, dup_tag, init_tele) do
     case duplicate_param_name(params) do
-      nil -> elaborate_index_telescope_rec(params, fam, env, init_scope)
+      nil -> elaborate_index_telescope_rec(params, fam, env, init_scope, init_tele)
       dup -> {:error, {dup_tag, String.to_atom(dup)}}
     end
   end
 
-  defp elaborate_index_telescope_rec(params, fam, env, init_scope) do
+  defp elaborate_index_telescope_rec(params, fam, env, init_scope, init_tele) do
     params
     |> Enum.reduce_while({:ok, [], init_scope}, fn {:param, pmeta, pname}, {:ok, tele, scope} ->
       # A bare type parameter (`type Box(a)` → `{:param, [], "a"}`) carries no
       # explicit kind; it ranges over types, so default its kind to `Type`.
       type_ast = Keyword.get(pmeta, :type, {:variable, [scope: :local], "Type"})
 
-      case idx_to_core(type_ast, scope, fam, env) do
+      # Index telescopes are dependent telescopes just like function and
+      # constructor telescopes. A computed later index may call a definition
+      # with hidden arguments inferred from an earlier index; supply the typed
+      # prefix so the shared bidirectional application path can insert them.
+      ctx =
+        if index_expr_needs_typed_context?(type_ast, scope, env) do
+          build_context(env, init_tele ++ tele)
+        else
+          nil
+        end
+
+      case idx_to_core(type_ast, scope, fam, env, ctx) do
         {:ok, core} ->
           {:cont, {:ok, tele ++ [{String.to_atom(pname), core}], [pname | scope]}}
 
@@ -2609,10 +2624,8 @@ defmodule Cure.Elab.Declarations do
 
       parameter_names = MapSet.new(param_scope)
 
-      infer_exprs = Enum.map(dom_exprs, &strip_named_dom/1) ++ [result_expr]
-
       implicits =
-        infer_exprs
+        (Enum.map(dom_exprs, &strip_named_dom/1) ++ [result_expr])
         |> infer_implicits(fam, index_tele, env, param_count, param_scope)
         |> Enum.reject(fn {n, _t} ->
           MapSet.member?(bound_names, n) or MapSet.member?(parameter_names, n)
@@ -2766,6 +2779,32 @@ defmodule Cure.Elab.Declarations do
   defp strip_named_dom({:implicit_dom, _meta, [inner]}), do: inner
   defp strip_named_dom(other), do: other
 
+  # Preserve the historical syntax-directed index lowering unless a computed
+  # call genuinely needs a typed local argument to solve one of its hidden
+  # parameters. Supplying a context to every index expression unnecessarily
+  # routes unrelated syntax (notably tuple projections such as `.2`) through the
+  # term elaborator. The predicate is structural and conservative: only a
+  # defined implicit global with an argument mentioning an in-scope telescope
+  # binder activates bidirectional lowering.
+  defp index_expr_needs_typed_context?({:function_call, meta, args}, scope, env) do
+    name = meta |> Keyword.get(:name, "") |> String.split(".") |> List.last() |> String.to_atom()
+
+    (implicit_global?(env, name) and Enum.any?(args, &surface_mentions_scope?(&1, scope))) or
+      Enum.any?(args, &index_expr_needs_typed_context?(&1, scope, env))
+  end
+
+  defp index_expr_needs_typed_context?({_tag, _meta, children}, scope, env) when is_list(children),
+    do: Enum.any?(children, &index_expr_needs_typed_context?(&1, scope, env))
+
+  defp index_expr_needs_typed_context?(_other, _scope, _env), do: false
+
+  defp surface_mentions_scope?({:variable, _meta, name}, scope), do: name in scope
+
+  defp surface_mentions_scope?({_tag, _meta, children}, scope) when is_list(children),
+    do: Enum.any?(children, &surface_mentions_scope?(&1, scope))
+
+  defp surface_mentions_scope?(_other, _scope), do: false
+
   # The name a domain binds into the constructor's local scope, or `nil` for an
   # anonymous positional argument. Both `(k: T)` and `{k: T}` bind `k`.
   defp bound_dom_name({:named_dom, meta, _children}), do: Keyword.get(meta, :name)
@@ -2855,8 +2894,8 @@ defmodule Cure.Elab.Declarations do
 
   defp infer_implicits(exprs, fam, index_tele, env, self_param_count, param_scope) do
     {ordered, _seen} =
-      Enum.reduce(exprs, {[], MapSet.new()}, fn e, acc ->
-        collect_implicit_vars(e, fam, index_tele, env, self_param_count, param_scope, acc)
+      Enum.reduce(exprs, {[], MapSet.new()}, fn expression, acc ->
+        collect_implicit_vars(expression, fam, index_tele, env, self_param_count, param_scope, acc)
       end)
 
     ordered
@@ -3054,11 +3093,6 @@ defmodule Cure.Elab.Declarations do
       tele
       |> Enum.with_index()
       |> Enum.map(fn {{_binder, type}, index_position} ->
-        # An index telescope entry is scoped over the family parameters and all
-        # earlier indices. Instantiate that prefix with the actual application
-        # arguments, yielding a type in the surrounding constructor-parameter
-        # frame. This is the crucial difference between `Consumed(t, …)` and
-        # blindly copying `Consumed`'s internal `a` slot.
         Subst.instantiate(type, Enum.take(actuals, param_count + index_position))
       end)
     else
@@ -3150,6 +3184,10 @@ defmodule Cure.Elab.Declarations do
   """
   @spec lower_type(tuple(), [String.t()], Env.t()) :: {:ok, tuple()} | {:error, term()}
   def lower_type(ast, scope, env), do: idx_to_core(ast, scope, nil, env, nil)
+
+  @doc false
+  @spec lower_type(tuple(), [String.t()], Env.t(), Context.t()) :: {:ok, tuple()} | {:error, term()}
+  def lower_type(ast, scope, env, %Context{} = ctx), do: idx_to_core(ast, scope, nil, env, ctx)
 
   @doc """
   The free type variables of one or more surface type ASTs, in order of first
@@ -3653,8 +3691,10 @@ defmodule Cure.Elab.Declarations do
       delegable? and
           (implicit_global?(env, atom) or
              (args_contain_lambda?(args) and term_level_def?(env, atom))) ->
+        term_args = Enum.map(args, &index_argument_for_term_elaboration/1)
+
         with {:ok, term, _result_type} <-
-               Cure.Elab.Elaborator.elaborate_implicit_global_app(env, atom, args, scope, ctx) do
+               Cure.Elab.Elaborator.elaborate_implicit_global_app(env, atom, term_args, scope, ctx) do
           {:ok, term}
         end
 
@@ -4319,6 +4359,24 @@ defmodule Cure.Elab.Declarations do
   end
 
   defp args_contain_lambda?(args), do: Enum.any?(args, &match?({:lambda, _, _}, &1))
+
+  # The type/index parser intentionally retains numerals as variable-shaped
+  # nodes for the compact index lowering path. When an applied index must be
+  # delegated to the term elaborator for hidden-argument insertion, translate
+  # that one representation boundary back to the ordinary literal AST; otherwise
+  # term lookup reports the spelling (`2`, `3`, …) as an unknown global.
+  defp index_argument_for_term_elaboration({:variable, meta, spelling} = argument) do
+    case Integer.parse(spelling) do
+      {value, ""} -> {:literal, Keyword.put(meta, :subtype, :integer), value}
+      _ -> argument
+    end
+  end
+
+  defp index_argument_for_term_elaboration({tag, meta, children}) when is_atom(tag) and is_list(children) do
+    {tag, meta, Enum.map(children, &index_argument_for_term_elaboration/1)}
+  end
+
+  defp index_argument_for_term_elaboration(argument), do: argument
 
   # The head resolves to a term-level DEFINITION (carries a `:quantities` list),
   # i.e. `Env.get_def` places it and `elaborate_implicit_app_bidirectional` can

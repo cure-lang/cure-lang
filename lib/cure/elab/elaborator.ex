@@ -1075,7 +1075,7 @@ defmodule Cure.Elab.Elaborator do
   # The wrapper carries no runtime content: the result IS the checked term at type
   # `T`, so emit sees only `expr`. Mirrors the classic codegen, which strips it.
   def elaborate_expr_typed({:assert_type, _meta, [expr, type_ast]}, names, ctx, env) do
-    with {:ok, expected_core} <- elaborate_type(type_ast, names, env),
+    with {:ok, expected_core} <- elaborate_type(type_ast, names, env, ctx),
          {:ok, term} <- elaborate_expr_checked(expr, expected_core, names, ctx, env) do
       {:ok, term, Eval.eval(expected_core, Context.env(ctx))}
     end
@@ -6092,6 +6092,7 @@ defmodule Cure.Elab.Elaborator do
         if is_binary(name) do
           type_term = resplit_data(Quote.reify(Context.lookup(ctx, i), depth), env)
           type_term = expose_reducible_dependency(type_term, scrut_term, ctx, env)
+          type_term = expose_local_definition_dependency(type_term, scrut_term, ctx, env)
 
           # `type_term` may expose the dependency beneath Π/Σ binders (for
           # example `AcceptancePathFrom`, a nested Sigma).  The scrutinee's
@@ -6106,16 +6107,56 @@ defmodule Cure.Elab.Elaborator do
       end)
       |> Enum.sort_by(& &1.index, :desc)
 
+    # The motive builder below now constructs a genuinely dependent telescope,
+    # so carry the transitive closure too: if `captures` depends on a selected
+    # `acceptance`, both must move into the convoy. The older independent-set
+    # rejection predates `generalize_sibling_telescope/2` and discarded exactly
+    # this ordinary dependent-context shape.
+    gen = close_sibling_dependency_set(gen, names, ctx, env, depth, MapSet.new())
     gen_set = gen |> Enum.map(& &1.index) |> MapSet.new()
 
-    case independent_sibling_dependency(gen, gen_set, names, ctx, env, depth) do
+    case sibling_dependency(gen, gen_set, names, ctx, env, depth) do
       nil ->
         {:ok, gen}
 
-      %{reason: reason} = details ->
-        {:error, {:source_context, {:with_sibling_dependency_unsupported, reason}, Map.delete(details, :reason)}}
+      details ->
+        {:error,
+         {:source_context, {:with_sibling_dependency_unsupported, details.reason}, Map.delete(details, :reason)}}
     end
   end
+
+  # A transparent local `let` is represented by a variable in Core syntax but
+  # by its value in `Context.env/1`. Older siblings therefore mention the let's
+  # defining expression rather than the fresh variable itself:
+  #
+  #     let machine = thompson_machine(compilation)
+  #     match machine
+  #       MkPatternMachine(starts, next) -> ... child_acceptance ...
+  #
+  # `child_acceptance` depends on `thompson_machine(compilation)`, so the value
+  # convoy must recognize that as a dependency on `machine`. Reify the local
+  # definition and replace that exact, definitionally-equal occurrence with the
+  # scrutinee variable before the existing motive generalization runs. Opaque
+  # binders reify to themselves and are unchanged. The generated case/motive is
+  # still checked by the kernel; this only exposes the dependency already stored
+  # at the canonical local-definition binding site.
+  defp expose_local_definition_dependency(type_term, {:var, index} = target, ctx, env) do
+    depth = Context.length(ctx)
+
+    case Enum.at(Context.env(ctx), index) do
+      nil ->
+        type_term
+
+      value ->
+        definition = resplit_data(Quote.reify(value, depth, Context.signature(ctx)), env)
+
+        if definition != target and contains_term_scoped?(type_term, definition),
+          do: replace_term_scoped(type_term, definition, target),
+          else: type_term
+    end
+  end
+
+  defp expose_local_definition_dependency(type_term, _target, _ctx, _env), do: type_term
 
   defp collect_index_motive_siblings(scrut_term, idx_terms, names, ctx, env) do
     depth = Context.length(ctx)
@@ -6549,20 +6590,6 @@ defmodule Cure.Elab.Elaborator do
         }
       end
     end)
-  end
-
-  defp independent_sibling_dependency(gen, gen_set, names, ctx, env, depth) do
-    generated_dependency =
-      Enum.find_value(gen, fn %{type_term: type, index: index, name: dependent} ->
-        dependencies = MapSet.intersection(free_indices(type, 0), MapSet.delete(gen_set, index))
-
-        case Enum.find(gen, &MapSet.member?(dependencies, &1.index)) do
-          nil -> nil
-          dependency -> %{reason: :sibling_references_sibling, dependent: dependent, dependency: dependency.name}
-        end
-      end)
-
-    generated_dependency || sibling_dependency(gen, gen_set, names, ctx, env, depth)
   end
 
   # Emit one Core branch per surface arm. Reuses partition_arms (same validation
@@ -11372,7 +11399,7 @@ defmodule Cure.Elab.Elaborator do
         end
 
       ann ->
-        with {:ok, ty_core} <- elaborate_type(ann, names, env),
+        with {:ok, ty_core} <- elaborate_type(ann, names, env, ctx),
              {:ok, rhs_core} <- elaborate_expr_checked(rhs, ty_core, names, ctx, env) do
           {:ok, rhs_core, ty_core, Eval.eval(ty_core, Context.env(ctx))}
         end
@@ -11384,7 +11411,7 @@ defmodule Cure.Elab.Elaborator do
   # (exactly what surface substitution did at each use site) and bound ONCE.
   # This is the general escape from the check-only residual.
   defp let_ascribed(name, rhs, ann, meta, grade, rest, expected_core, names, ctx, env) do
-    with {:ok, ty_core} <- elaborate_type(ann, names, env),
+    with {:ok, ty_core} <- elaborate_type(ann, names, env, ctx),
          ty_value = Eval.eval(ty_core, Context.env(ctx)) do
       case Normalise.whnf_value(ty_value, Context.signature(ctx)) do
         {:veffect_type, _} ->
@@ -15189,6 +15216,7 @@ defmodule Cure.Elab.Elaborator do
   # lowering (`Bounded(5)` → `{:nat_lit, 5}`) rather than reinventing an
   # impoverished copy that turned every unbound name into a phantom `{:data, …}`.
   defp elaborate_type(ast, scope, env), do: Cure.Elab.Declarations.lower_type(ast, scope, env)
+  defp elaborate_type(ast, scope, env, ctx), do: Cure.Elab.Declarations.lower_type(ast, scope, env, ctx)
 
   # -- helpers ----------------------------------------------------------------
 
