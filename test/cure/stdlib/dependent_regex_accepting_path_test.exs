@@ -1138,7 +1138,7 @@ defmodule Cure.Stdlib.DependentRegexAcceptingPathTest do
     assert Env.total?(env, :"Std.Regex.Proof#filter_accepted_member")
     assert Env.get_def(env, :"Std.Regex.Proof#concat_initial_origin")
     assert Env.total?(env, :"Std.Regex.Proof#concat_initial_origin")
-    assert Env.total?(env, :"Std.Regex.Proof#advance_initial_position")
+    assert Env.total?(env, :"Std.Regex#advance_initial_position")
     assert Env.total?(env, :"Std.Regex.Proof#advanced_position_boundary")
     assert Env.get_def(env, :"Std.Regex.Proof#project_concat_entered_right_active_acceptance_from")
     assert Env.total?(env, :"Std.Regex.Proof#project_concat_entered_right_active_acceptance_from")

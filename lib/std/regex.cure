@@ -351,7 +351,7 @@ mod Std.Regex
   fn inject_left_states({left_count: Nat}, {right_count: Nat}, states: List(MachineState(left_count))) -> List(MachineState(plus(left_count, right_count))) = match states
     [] -> []
     [Accepted(routine, constraints) | rest] -> [Accepted(routine, constraints) | inject_left_states(rest)]
-    [Active(state, routine, constraints) | rest] -> [Active(inject_left(state), routine, constraints) | inject_left_states(rest)]
+    [Active(state, routine, constraints) | rest] -> [Active(inject_left_at(left_count, right_count, state), routine, constraints) | inject_left_states(rest)]
 
   @reducible
   fn inject_alternate_left(left_count: Nat, right_count: Nat, state: Bounded(left_count)) -> Bounded(plus(left_count, right_count)) =
@@ -391,7 +391,7 @@ mod Std.Regex
   fn continue_with_right(left_count: Nat, {right_count: Nat}, left_states: List(MachineState(left_count)), right_starts: List(MachineState(right_count))) -> List(MachineState(plus(left_count, right_count))) = match left_states
     [] -> []
     [Accepted(left_routine, constraints) | rest] -> append_states(enter_right_with_constraints(left_count, left_routine, constraints, right_starts), continue_with_right(left_count, rest, right_starts))
-    [Active(state, routine, constraints) | rest] -> [Active(inject_left(state), routine, constraints) | continue_with_right(left_count, rest, right_starts)]
+    [Active(state, routine, constraints) | rest] -> [Active(inject_left_at(left_count, right_count, state), routine, constraints) | continue_with_right(left_count, rest, right_starts)]
 
   @reducible
   fn finish_pair({n: Nat}, states: List(MachineState(n))) -> List(MachineState(n)) = match states
@@ -1061,6 +1061,15 @@ mod Std.Regex
     transition_boundary(char, append_characters(rest, after_input))
 
   type InitialPosition = InitialPosition(Bool, Bool, Bool, Bool)
+
+  @reducible
+  fn position_after_character(char: Char) -> InitialPosition =
+    InitialPosition(False(), Std.Char.is_newline(char), ascii_word(char), option_word(char, True()))
+
+  @reducible
+  fn advance_initial_position(position: InitialPosition, input: List(Char)) -> InitialPosition = match input
+    Nil() -> position
+    Cons(char, rest) -> advance_initial_position(position_after_character(char), rest)
 
   fn initial_position_boundary(position: InitialPosition, input: List(Char)) -> Boundary = match position
     InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word) ->

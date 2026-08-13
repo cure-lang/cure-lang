@@ -304,6 +304,24 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     ) -> NullableLeftAcceptedRightConcatEmbedding(left_count, left_machine, right_count, right_machine, position, input, after_input, input_evidence, input_captures, right_final_evidence) =
       splice_nullable_left_accepted_right(left_count, left_machine, right_count, right_machine, position, input, after_input, input_evidence, input_captures, left_regular, left_final_evidence, left_final_captures, left_edge, left_execution, right_regular, right_initial_evidence, right_initial_captures, right_path_routine, right_edge, right_execution, right_final_evidence, right_path)
 
+    fn generic_concat_acceptance_composition(
+      left_count: Nat,
+      left_machine: PatternMachine(left_count),
+      right_count: Nat,
+      right_machine: PatternMachine(right_count),
+      position: InitialPosition,
+      left_input: List(Char),
+      right_input: List(Char),
+      after_input: List(Char),
+      input_evidence: List(Evidence),
+      input_captures: List(CaptureFrame),
+      left_final_evidence: List(Evidence),
+      left_acceptance: AcceptancePathFrom(left_count, left_machine, position, left_input, append_characters(right_input, after_input), input_evidence, input_captures, left_final_evidence),
+      right_final_evidence: List(Evidence),
+      right_acceptance: AcceptancePathFrom(right_count, right_machine, advance_initial_position(position, left_input), right_input, after_input, left_final_evidence, acceptance_path_final_captures(left_count, left_machine, position, left_input, append_characters(right_input, after_input), input_evidence, input_captures, left_final_evidence, left_acceptance), right_final_evidence)
+    ) -> AcceptancePathFrom(plus(left_count, right_count), concat_pattern_machine(left_count, left_machine, right_count, right_machine), position, append_characters(left_input, right_input), after_input, input_evidence, input_captures, Cons(PairEvidence(), right_final_evidence)) =
+      lift_concat_acceptances(left_count, left_machine, right_count, right_machine, position, left_input, right_input, after_input, input_evidence, input_captures, left_final_evidence, left_acceptance, right_final_evidence, right_acceptance)
+
     fn generic_alternate_mode_left_composition(
       left_shape: ShapeCode,
       right_shape: ShapeCode,
