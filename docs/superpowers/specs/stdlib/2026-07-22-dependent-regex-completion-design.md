@@ -4,10 +4,18 @@
 
 **Date:** 2026-07-22
 
-**Amended:** 2026-08-10 — runtime module decomposition is measurement-triggered,
-not a prerequisite for the proof phases. The post-CharacterLiteral baseline and
-decision are recorded in `docs/COMPILER_PERFORMANCE_BASELINES.md` and
-`2026-08-10-regex-actor-module-split-design.md`.
+**Amended:**
+
+- 2026-08-10 — runtime module decomposition is measurement-triggered, not a
+  prerequisite for the proof phases. The post-CharacterLiteral baseline and
+  decision are recorded in `docs/COMPILER_PERFORMANCE_BASELINES.md` and
+  `2026-08-10-regex-actor-module-split-design.md`.
+- 2026-08-13 — Phases C–F are discharged. Phase G soundness is generic and
+  complete; completeness has generic base cases, Alternate composition, and
+  Concat composition. Group, Repeat, and the final structural completeness
+  induction are the current proof frontier. The Concat convoy and elaborator
+  decision are recorded below and in
+  `../tooling/2026-08-13-regex-proof-elaboration-assessment.md`.
 
 **Supersedes for unfinished work:**
 `2026-07-21-dependently-typed-regex-design.md`
@@ -17,11 +25,11 @@ Idris*, MSc thesis, University of Edinburgh, 2021
 (`docs/research/idris-tyre-2305.04480.pdf`; owner copy:
 `/Users/ch/Downloads/msc_proj.pdf`).
 
-**Implementation baseline:** committed through `45be0d5c` ("Stage pure Cure
-regex literal expansion and execute checked macro BEAMs"). The uncommitted
-bounded-quantifier draft present while this specification was written is not
-credited as complete until its compilation, behavior, property, and full-suite
-gates pass and it is committed.
+**Implementation baseline:** committed through `f17e747c` ("Normalize initial
+regex certificates"). The generic Concat acceptance composition theorem landed
+in `08dab797`; its reusable initial-certificate normalization combinators and
+the elaborator assessment landed in `f17e747c`. No uncommitted work is credited
+as complete.
 
 ## 1. Purpose
 
@@ -149,14 +157,18 @@ branch exists between accepted execution and the public result wrapper.
 
 The former `decode_pattern_encoding` oracle was compared against certified
 extraction over 500 generated cases spanning every Pattern constructor and then
-deleted. Language soundness and completeness remain Phase G: evidence shape
-safety is established, but denotational regex correctness is a separate theorem
-family.
+deleted. Language correctness is now in Phase G. Generic soundness is complete
+for the whole `Pattern` algebra. Completeness is constructive for Predicate,
+Empty, and Boundary; has generic acceptance composition for Alternate and
+Concat; and has focused Predicate/Empty instances for Group and Repeat. Generic
+Group and Repeat composition plus the final structural completeness induction
+remain.
 
 ### 4.3 Structural and performance gaps
 
-- `PatternMachine` stores a `Nat` count but states are raw `Nat`, not
-  `Bounded(state_count)`.
+- `PatternMachine(n)` now uses `Bounded(n)` for every active state and
+  transition source/target. The remaining machine gap is not range safety but
+  the representation and performance of ordered thread sets.
 - thread deduplication is quadratic list scanning.
 - Thompson transition functions are closure-composed and re-traverse
   construction structure during execution.
@@ -174,13 +186,89 @@ The suite does not yet provide all of:
 
 - generated surface-AST print/parse round trips;
 - exhaustive regex enumeration rather than a representative fixed menu;
-- accepting-path/evidence theorem tests;
-- proof-directed extraction tests where failure is unrepresentable;
+- exhaustive mutation/property coverage for the complete accepting-path and
+  evidence theorem (focused constructor and totality tests exist);
+- broader generated proof-directed extraction coverage (the accepted path is
+  already total and failure is unrepresentable);
 - all ambiguity examples required below;
 - all malformed-syntax subspan diagnostics;
 - all supported Elixir-compatible escapes and classes;
 - benchmark thresholds and complexity ratchets;
 - final Unix and AtomVM runs.
+
+### 4.5 Current proof checkpoint (2026-08-13)
+
+Phases C–F are implemented and retained:
+
+- active states are intrinsically `Bounded(n)` throughout `PatternMachine(n)`;
+- successful execution carries `MachineAcceptance`, including a checked
+  `AcceptingFrom` path and certified extended-routine replay;
+- `ThompsonEvidenceProof` covers Predicate, Empty, Boundary, Concat, Group,
+  Alternate, and Repeat and yields `Encodes` for any certified acceptance;
+- successful public parsing uses total `extract_encoding`; the old fallible
+  decoder has been differentially checked and removed.
+
+Phase G has two directions with different status:
+
+- **soundness is complete:** `pattern_acceptance_path_is_sound` dispatches over
+  the complete certified compilation proof and produces `PatternDenotation`;
+- **completeness is in progress:** Predicate, Empty, and Boundary are complete;
+  Alternate has generic left/right composition; and Concat has generic
+  sequential acceptance composition. Group and Repeat still need generic
+  composition, followed by the final induction from arbitrary
+  `PatternDenotation` to certified acceptance.
+
+The Concat milestone is not a fixed-pattern special case. Given arbitrary left
+and right `AcceptancePathFrom` certificates whose inputs partition the combined
+input and whose evidence/capture states line up, `lift_concat_acceptances`
+constructs an acceptance for `concat_pattern_machine` with `PairEvidence`. It
+covers:
+
+- paths that remain in the left machine before entering the right;
+- paths already executing in the right machine;
+- nullable-left starts into active or immediately accepted right starts;
+- boundary-constraint filtering and routine concatenation; and
+- explicit canonical `Bounded(left + right)` injections.
+
+The load-bearing convoy is `ExactAcceptanceStartView`, indexed by the original
+machine, input, and acceptance certificate. Its constructors return the exact
+`active_acceptance_certificate(...)` or `accepted_now_certificate(...)`, so
+matching the view preserves the relational identity needed by dependent
+projections such as `machine_state_thread`. An ordinary payload-only view or a
+direct nested-`Sigma` match loses that identity and is insufficient.
+
+Repeated boundary normalization is factored into the total checked
+`normalize_initial_active` and `normalize_initial_accepted` combinators. Each
+recovers the raw routine and constraints, reconstructs a `Nil()`-constraint
+initial edge after boundary filtering, and transports the corresponding
+`RoutineExecution` in one indexed result. Group and Repeat should reuse these
+combinators and their existing projection-specific transports instead of
+open-coding the witness/filter/transport sequence.
+
+Do not add stronger global reducible-index simplification before Group and
+Repeat. The Concat failure was loss of propositional identity, not a stuck
+definitionally equal index. The elaborator already provides homogeneous
+Eq-arrow motives for non-indexed `with ... proof` and kernel-checked indexed
+LHS-rematch convoys. A whole-value equation for an indexed scrutinee crosses the
+heterogeneous-equality boundary and is not a modest elaborator-only change.
+Revisit compiler work only with a minimal Group/Repeat red case meeting the gate
+in `2026-08-13-regex-proof-elaboration-assessment.md`.
+
+Checkpoint evidence:
+
+- `08dab797` committed the generic Concat theorem and its exact convoy;
+- `f17e747c` committed the checked normalization combinators, their totality
+  assertions, and the elaborator assessment;
+- the focused language-correctness and accepting-path command completed with 12
+  tests and 0 failures after the checkpoint:
+
+  ```sh
+  MIX_ENV=test mix test \
+    test/cure/stdlib/dependent_regex_language_correctness_test.exs \
+    test/cure/stdlib/dependent_regex_accepting_path_test.exs
+  ```
+
+- the worktree was clean at that commit boundary.
 
 ## 5. Final architecture
 
@@ -320,7 +408,9 @@ types whose only material difference is the original abstract `path` versus the
 branch constructor. The improved diagnostic must isolate that pair and indicate
 whether the programmer must transport across their equality or the elaborator
 failed to refine the dependent motive. Add a focused compiler diagnostic test
-before relying on the improved behavior during Phase E.
+before relying on the improved behavior for further Phase G proof work. This
+diagnostic requirement is independent of the decision not to broaden global
+reducible-index simplification.
 
 ## 6. Literal and Elixir-compatibility contract
 
@@ -450,6 +540,11 @@ document; Phase C may proceed without runtime decomposition.
 
 ### Phase C — intrinsic finite states
 
+**Status: discharged.** `PatternMachine(n)`, `MachineState(n)`, threads, paths,
+and transition functions use `Bounded(n)` for active states. Structural
+left/right injections are checked and tested; no unchecked Nat-to-Bounded path
+is part of the machine.
+
 Replace raw state `Nat` with `Bounded(n)` inside an existential machine package.
 Implement structural shift/injection helpers with erased proofs. Property-test
 that every generated start and transition target is in range.
@@ -458,6 +553,10 @@ Gate: no unchecked state conversion; `Bounded` remains inductive; TCB, totality,
 compact-Bounded, and Antigen regression suites pass.
 
 ### Phase D — accepting paths from execution
+
+**Status: discharged.** Successful full, prefix, positioned-prefix, and search
+execution carries an erased `MachineAcceptance` with a checked path and routine
+replay certificate.
 
 Define `AcceptingFrom`/`Accepting`, retain predecessor/history data in winning
 threads, and construct a path plus evidence equality from every successful full
@@ -468,6 +567,10 @@ path certificate; fixed and generated replay equality tests pass.
 
 ### Phase E — Thompson evidence theorem
 
+**Status: discharged.** The constructor-complete `ThompsonEvidenceProof`
+dispatch covers every current Pattern constructor, including boundary and
+priority variants, and converts arbitrary certified acceptances to `Encodes`.
+
 Introduce extended routines and prove the generalized evidence theorem for
 `Predicate`, `Empty`, `Concat`, `Group`, `Alternate`, `Repeat`, boundary, and
 priority variants. Handle nullable starts and nullable star explicitly.
@@ -476,6 +579,10 @@ Gate: the theorem kernel-checks over the complete totality closure; no
 postulates; constructor mutation tests fail for the expected proof reason.
 
 ### Phase F — total extraction and seam removal
+
+**Status: discharged.** Accepted execution flows through total
+`extract_encoding`; the fallible decoder was used as a differential oracle and
+then deleted.
 
 Implement proof-directed extraction and contextual remainder validity. Route
 successful parsing through it. Delete the fallible post-hoc decoder from the
@@ -488,6 +595,12 @@ match result is wrapped; proof erasure inspection passes.
 **This gate is faithful thesis parity.**
 
 ### Phase G — language soundness and completeness
+
+**Status: in progress; this is the earliest incomplete phase.** Generic
+soundness is complete. Constructive completeness is complete for base cases,
+Alternate composition, and Concat composition. Proceed next with generic Group
+composition, then generic Repeat composition, then the final structural
+completeness induction. Do not regress to fixed-pattern-only theorems.
 
 Define denotation and prove the stronger Cure theorem family in §5.4. Use
 exhaustive small models while developing the proofs.
