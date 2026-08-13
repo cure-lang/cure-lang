@@ -73,6 +73,15 @@
   arbitrary preceding child path into it. The proof transports capture-stack,
   position, suffix-association, and boundary identities explicitly and is
   totality-certified by structural recursion on the child input.
+- 2026-08-14 — complete arbitrary child acceptances now enter that path algebra
+  through `repeat_closing_continuation_from_acceptance` and
+  `repeat_reentry_continuation_from_acceptance`. These bridges retain the exact
+  indexed acceptance while normalizing its start, transport the child start
+  boundary to the whole repeated input, and align certificate-level final
+  captures with the active child path before closing or splicing. Remaining
+  Repeat work is at the language-induction layer: recursively complete each
+  child denotation, choose closing or re-entry from the remaining denotation,
+  and add the single outer `BeginList`.
 
 **Supersedes for unfinished work:**
 `2026-07-21-dependently-typed-regex-design.md`

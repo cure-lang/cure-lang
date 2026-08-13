@@ -849,6 +849,58 @@ mod Std.Regex.Proof
             let path = splice_repeat_reentry_step(n, starts, next, lazy, char, remaining_input, after_input, source, current_evidence, current_captures, regular, constraints, child_final_evidence, destination_captures, child_edge_at_remaining, execution, next_state, start_regular, Nil(), filtered_start_edge, start_evidence, start_captures, start_execution, final_evidence, repeat_suffix_routine, repeat_suffix)
             RepeatReentryPathLifted(final_evidence, append_extended_routines(transition_routine(char, append_routine(regular, start_regular)), repeat_suffix_routine), path)
 
+  ## Turn a complete, non-empty child acceptance into the first item of a
+  ## Repeat continuation.  Keeping the exact acceptance in the indexed start
+  ## view is essential: a plain nested Sigma match forgets the relationship
+  ## between its destination and `machine_state_thread`.
+  fn repeat_closing_continuation_from_acceptance(
+    n: Nat,
+    starts: List(MachineState(n)),
+    next: (Bounded(n)) -> Char -> List(MachineState(n)),
+    lazy: Bool,
+    position: InitialPosition,
+    char: Char,
+    rest: List(Char),
+    after_input: List(Char),
+    input_evidence: List(Evidence),
+    input_captures: List(CaptureFrame),
+    child_final_evidence: List(Evidence),
+    child_acceptance: AcceptancePathFrom(n, MkPatternMachine(starts, next), position, Cons(char, rest), after_input, input_evidence, input_captures, child_final_evidence)
+  ) -> RepeatContinuationFrom(n, starts, next, lazy, position, Cons(char, rest), after_input, input_evidence, input_captures) = match exact_acceptance_start_view(n, MkPatternMachine(starts, next), position, Cons(char, rest), after_input, input_evidence, input_captures, child_final_evidence, child_acceptance)
+    ExactAcceptanceStartsActive(_, _, _, state, regular, constraints, start_evidence, start_captures, child_routine, edge, execution, child_path) -> match normalize_initial_active(n, starts, next, position, Cons(char, rest), after_input, input_evidence, input_captures, state, regular, constraints, start_evidence, start_captures, edge, execution)
+      InitialActiveNormalized(raw_regular, normalized_edge, normalized_execution) -> match lift_repeat_closing_active_path(n, starts, next, lazy, Cons(char, rest), after_input, state, start_evidence, start_captures, child_final_evidence, child_routine, child_path)
+        RepeatClosingPathLifted(repeat_routine, repeat_path) -> RepeatContinuationActive(state, raw_regular, start_evidence, start_captures, Cons(EndListEvidence(), child_final_evidence), repeat_routine, normalized_edge, normalized_execution, repeat_path)
+
+  ## As above, but splice a previously constructed continuation after this
+  ## child instead of closing the evidence list.
+  fn repeat_reentry_continuation_from_acceptance(
+    n: Nat,
+    starts: List(MachineState(n)),
+    next: (Bounded(n)) -> Char -> List(MachineState(n)),
+    lazy: Bool,
+    position: InitialPosition,
+    char: Char,
+    child_rest: List(Char),
+    remaining_input: List(Char),
+    after_input: List(Char),
+    input_evidence: List(Evidence),
+    input_captures: List(CaptureFrame),
+    child_final_evidence: List(Evidence),
+    child_acceptance: AcceptancePathFrom(n, MkPatternMachine(starts, next), position, Cons(char, child_rest), append_characters(remaining_input, after_input), input_evidence, input_captures, child_final_evidence),
+    continuation: RepeatContinuationFrom(n, starts, next, lazy, advance_initial_position(position, Cons(char, child_rest)), remaining_input, after_input, child_final_evidence, acceptance_path_final_captures(n, MkPatternMachine(starts, next), position, Cons(char, child_rest), append_characters(remaining_input, after_input), input_evidence, input_captures, child_final_evidence, child_acceptance))
+  ) -> RepeatContinuationFrom(n, starts, next, lazy, position, append_characters(Cons(char, child_rest), remaining_input), after_input, input_evidence, input_captures) = match exact_acceptance_start_view(n, MkPatternMachine(starts, next), position, Cons(char, child_rest), append_characters(remaining_input, after_input), input_evidence, input_captures, child_final_evidence, child_acceptance)
+    ExactAcceptanceStartsActive(_, _, _, state, regular, constraints, start_evidence, start_captures, child_routine, edge, execution, child_path) ->
+      let acceptance_captures = acceptance_path_final_captures(n, MkPatternMachine(starts, next), position, Cons(char, child_rest), append_characters(remaining_input, after_input), input_evidence, input_captures, child_final_evidence, child_acceptance)
+      let active_captures_exact = active_acceptance_path_captures_exact(n, MkPatternMachine(starts, next), position, Cons(char, child_rest), append_characters(remaining_input, after_input), input_evidence, input_captures, child_final_evidence, state, regular, constraints, start_evidence, start_captures, child_routine, edge, execution, child_path, acceptance_captures, reflexive(acceptance_captures))
+      let aligned_continuation = transport_repeat_continuation_captures(n, starts, next, lazy, advance_initial_position(position, Cons(char, child_rest)), remaining_input, after_input, child_final_evidence, acceptance_captures, accepting_final_captures(n, MkPatternMachine(starts, next), Cons(char, child_rest), append_characters(remaining_input, after_input), ThreadActive(state), start_evidence, start_captures, child_final_evidence, child_routine, child_path), capture_equivalent_symmetric(accepting_final_captures(n, MkPatternMachine(starts, next), Cons(char, child_rest), append_characters(remaining_input, after_input), ThreadActive(state), start_evidence, start_captures, child_final_evidence, child_routine, child_path), acceptance_captures, active_captures_exact), continuation)
+      match normalize_initial_active(n, starts, next, position, Cons(char, child_rest), append_characters(remaining_input, after_input), input_evidence, input_captures, state, regular, constraints, start_evidence, start_captures, edge, execution)
+        InitialActiveNormalized(raw_regular, normalized_edge, normalized_execution) ->
+          let child_filtered_edge = filtered_starts_from_initial_edge(n, MkPatternMachine(starts, next), position, Cons(char, child_rest), append_characters(remaining_input, after_input), Active(state, raw_regular, Nil()), normalized_edge)
+          let full_filtered_edge = transport_filtered_start_subject(n, MkPatternMachine(starts, next), position, append_characters(Cons(char, child_rest), append_characters(remaining_input, after_input)), append_characters(append_characters(Cons(char, child_rest), remaining_input), after_input), Active(state, raw_regular, Nil()), character_list_equivalent_symmetric(append_characters(append_characters(Cons(char, child_rest), remaining_input), after_input), append_characters(Cons(char, child_rest), append_characters(remaining_input, after_input)), partition_append_after(after_input, append_input_partition(Cons(char, child_rest), remaining_input))), child_filtered_edge)
+          let full_start_edge = initial_edge_from_filtered_starts(n, MkPatternMachine(starts, next), position, append_characters(Cons(char, child_rest), remaining_input), after_input, Active(state, raw_regular, Nil()), full_filtered_edge)
+          match lift_repeat_reentry_active_path(n, starts, next, lazy, position, Cons(char, child_rest), remaining_input, after_input, state, start_evidence, start_captures, child_final_evidence, child_routine, child_path, aligned_continuation)
+            RepeatReentryPathLifted(final_evidence, repeat_routine, repeat_path) -> RepeatContinuationActive(state, raw_regular, start_evidence, start_captures, final_evidence, repeat_routine, full_start_edge, normalized_execution, repeat_path)
+
   ## Invert the full `repeat_destinations` map while retaining the exact child
   ## edge. Active child destinations pass through unchanged; accepted child
   ## destinations either close the list or re-enter an active child start.
