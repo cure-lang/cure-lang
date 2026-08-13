@@ -350,6 +350,25 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     ) =
       complete_group_from(inner_shape, inner, input, after_input, position, input_evidence, input_captures, completion)
 
+    fn generic_repeat_mode_empty_composition(
+      inner_shape: ShapeCode,
+      inner: Pattern(inner_shape),
+      lazy: Bool,
+      after_input: List(Char),
+      position: InitialPosition,
+      input_evidence: List(Evidence),
+      input_captures: List(CaptureFrame)
+    ) -> PatternAcceptanceFrom(
+      ListC(inner_shape),
+      PatternRepeatMode(inner, lazy),
+      position,
+      Nil(),
+      after_input,
+      input_evidence,
+      input_captures
+    ) =
+      complete_repeat_mode_empty_from(inner_shape, inner, lazy, after_input, position, input_evidence, input_captures)
+
     fn generic_alternate_mode_left_composition(
       left_shape: ShapeCode,
       right_shape: ShapeCode,
@@ -784,6 +803,8 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     assert Env.total?(env, :"Std.Regex.Language#grouped_predicate_denotation_is_complete")
     assert Env.total?(env, :generic_group_acceptance_composition)
     assert Env.total?(env, :"Std.Regex.Language#complete_group_from")
+    assert Env.total?(env, :generic_repeat_mode_empty_composition)
+    assert Env.total?(env, :"Std.Regex.Language#complete_repeat_mode_empty_from")
     assert Env.total?(env, :grouped_predicate_soundness)
     assert Env.total?(env, :"Std.Regex.Language#grouped_predicate_acceptance_is_sound")
     assert Env.total?(env, :concatenated_empty_denotation)

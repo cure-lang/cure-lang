@@ -739,6 +739,28 @@ mod Std.Regex.Language
                   PatternAcceptanceCertified(acceptance, captures)
                 )
 
+  fn complete_repeat_mode_empty_from(
+    inner_shape: ShapeCode,
+    inner: Pattern(inner_shape),
+    lazy: Bool,
+    after_input: List(Char),
+    position: InitialPosition,
+    input_evidence: List(Evidence),
+    input_captures: List(CaptureFrame)
+  ) -> PatternAcceptanceFrom(ListC(inner_shape), PatternRepeatMode(inner, lazy), position, Nil(), after_input, input_evidence, input_captures) =
+    let compilation = certify_thompson(inner)
+    let count = thompson_state_count(compilation)
+    let machine = thompson_machine(compilation)
+    let no_path_routine: List(ExtendedInstruction) = Nil()
+    let regular: List(EvidenceInstruction) = Cons(BeginList(), Cons(EndList(), Nil()))
+    let final_evidence: List(Evidence) = Cons(EndListEvidence(), Cons(BeginListEvidence(), input_evidence))
+    let destination: MachineState(count) = Accepted(regular, Nil())
+    let edge = repeat_empty_initial_member(count, machine, lazy, position, after_input)
+    let execution: RoutineExecution(regular, input_evidence, input_captures, final_evidence, input_captures) = RoutineStep(BeginList(), RoutineStep(EndList(), RoutineDone()))
+    let path: AcceptingFrom(count, repeat_pattern_machine(count, machine, lazy), Nil(), after_input, ThreadAccepted(), final_evidence, input_captures, final_evidence, no_path_routine) = AcceptingNow()
+    let acceptance: AcceptancePathFrom(count, repeat_pattern_machine(count, machine, lazy), position, Nil(), after_input, input_evidence, input_captures, final_evidence) = %[destination, final_evidence, input_captures, no_path_routine, edge, execution, path]
+    PatternAcceptedFrom(final_evidence, regular_routine(regular), PatternAcceptanceCertified(acceptance, AcceptanceCapturesExact(reflexive(input_captures))))
+
   fn complete_alternate_mode_left_from(
     left_shape: ShapeCode,
     right_shape: ShapeCode,

@@ -24,6 +24,11 @@
   across `PatternMachine` η before lifting it into the capture-wrapping machine.
   Repeat composition and the final structural completeness induction are the
   current proof frontier.
+- 2026-08-14 — the generic Repeat continuation base is discharged:
+  `complete_repeat_mode_empty_from` constructs the empty repeated acceptance
+  from arbitrary incoming evidence and captures, preserving the capture stack
+  and emitting exactly one list-open/list-close pair. Non-empty Repeat
+  continuation composition remains the active frontier.
 
 **Supersedes for unfinished work:**
 `2026-07-21-dependently-typed-regex-design.md`
@@ -260,6 +265,14 @@ initially indexed by `thompson_machine(compilation)`; destructuring a
 final-capture equality together to the canonical
 `MkPatternMachine(pattern_machine_starts(machine), pattern_machine_next(machine))`
 index. This is a local propositional transport, not stronger global reduction.
+
+Repeat completeness cannot recursively splice a fresh
+`PatternAcceptanceFrom(PatternRepeat...)` for the remaining input: that package
+would emit another `BeginList`. Its recursive proof must instead maintain a
+repeat continuation inside the one already-open evidence list. The checked
+base of that continuation is `complete_repeat_mode_empty_from`, parameterized
+by arbitrary incoming evidence and captures; the non-empty composer must
+thread child acceptances into this continuation without reopening the list.
 
 Do not add stronger global reducible-index simplification before Group and
 Repeat. The Concat failure was loss of propositional identity, not a stuck
