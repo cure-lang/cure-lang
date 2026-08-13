@@ -33,8 +33,14 @@
   discharged. `lift_repeat_closing_transition_member` embeds any accepted child
   edge into the Repeat machine's greedy or lazy closing alternative and then
   through canonical boundary filtering. This is the forward counterpart of
-  the existing projection relation; active-child and re-entry embeddings still
-  precede recursive non-empty Repeat composition.
+  the existing projection relation.
+- 2026-08-14 — Repeat's remaining one-step forward algebra is discharged.
+  `lift_repeat_active_transition_member` preserves an active child destination
+  through Repeat transformation and filtering;
+  `lift_repeat_reentry_transition_member` combines an accepted child edge with
+  an exact active start edge, including routine/constraint prefixing and
+  greedy/lazy ordering. Recursive non-empty Repeat path composition is now the
+  active frontier.
 
 **Supersedes for unfinished work:**
 `2026-07-21-dependently-typed-regex-design.md`
@@ -634,10 +640,10 @@ match result is wrapped; proof erasure inspection passes.
 **Status: in progress; this is the earliest incomplete phase.** Generic
 soundness is complete. Constructive completeness is complete for base cases,
 Alternate composition, Concat composition, Group composition, the empty Repeat
-continuation, and the closing edge of a non-empty Repeat iteration. Proceed next
-with the active-child and re-entry embeddings needed by generic Repeat
-composition, then the final structural completeness induction. Do not regress
-to fixed-pattern-only theorems.
+continuation, and all three forward transition embeddings needed for a
+non-empty Repeat iteration (active, close, and re-enter). Proceed next with
+generic Repeat path composition, then the final structural completeness
+induction. Do not regress to fixed-pattern-only theorems.
 
 Define denotation and prove the stronger Cure theorem family in §5.4. Use
 exhaustive small models while developing the proofs.

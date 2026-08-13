@@ -700,6 +700,47 @@ mod Std.Regex.Proof
   fn lift_repeat_closing_transition_member(n: Nat, destinations: List(MachineState(n)), starts: List(MachineState(n)), lazy: Bool, boundary: Boundary, routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(n), Accepted(routine, constraints), destinations), holds: Equivalent(Bool, constraints_hold(constraints, boundary), True())) -> ListMember(MachineState(n), Accepted(append_routine(routine, Cons(EndList(), Nil())), Nil()), filter_machine_states(n, repeat_destinations(destinations, starts, lazy), boundary)) =
     filter_accepted_member(n, repeat_destinations(destinations, starts, lazy), boundary, append_routine(routine, Cons(EndList(), Nil())), constraints, lift_repeat_destinations_closing_member(n, destinations, starts, lazy, routine, constraints, edge), holds)
 
+  ## Active child destinations are preserved verbatim by Repeat.  Accepted
+  ## destinations before the selected child expand into closing/re-entry
+  ## alternatives, so membership in the transformed tail must be lifted across
+  ## those prefixes.
+  fn lift_repeat_destinations_active_member(n: Nat, destinations: List(MachineState(n)), starts: List(MachineState(n)), lazy: Bool, state: Bounded(n), routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(n), Active(state, routine, constraints), destinations)) -> ListMember(MachineState(n), Active(state, routine, constraints), repeat_destinations(destinations, starts, lazy)) = match destinations
+    Nil() -> impossible_list_member(edge)
+    Cons(Active(head_state, head_routine, head_constraints), rest) -> match edge
+      ListMemberHere() -> member_here(Active(head_state, head_routine, head_constraints), repeat_destinations(rest, starts, lazy))
+      ListMemberThere(prior) -> member_there(Active(head_state, head_routine, head_constraints), lift_repeat_destinations_active_member(n, rest, starts, lazy, state, routine, constraints, prior))
+    Cons(Accepted(head_routine, head_constraints), rest) -> match edge
+      ListMemberThere(prior) -> lift_append_right_member(n, repeat_destination_order(head_routine, head_constraints, starts, lazy), repeat_destinations(rest, starts, lazy), Active(state, routine, constraints), lift_repeat_destinations_active_member(n, rest, starts, lazy, state, routine, constraints, prior))
+
+  fn lift_repeat_active_transition_member(n: Nat, destinations: List(MachineState(n)), starts: List(MachineState(n)), lazy: Bool, boundary: Boundary, state: Bounded(n), routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(n), Active(state, routine, constraints), destinations), holds: Equivalent(Bool, constraints_hold(constraints, boundary), True())) -> ListMember(MachineState(n), Active(state, routine, Nil()), filter_machine_states(n, repeat_destinations(destinations, starts, lazy), boundary)) =
+    filter_active_member(n, repeat_destinations(destinations, starts, lazy), boundary, state, routine, constraints, lift_repeat_destinations_active_member(n, destinations, starts, lazy, state, routine, constraints, edge), holds)
+
+  ## Construct the active restart selected after one child acceptance.  This is
+  ## the forward counterpart of EnterRepeatActiveOrigin and retains the exact
+  ## start edge while prefixing the completed iteration's routine/constraints.
+  fn lift_enter_repeat_active_member(n: Nat, routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), starts: List(MachineState(n)), state: Bounded(n), start_routine: List(EvidenceInstruction), start_constraints: List(BoundaryConstraint), edge: ListMember(MachineState(n), Active(state, start_routine, start_constraints), starts)) -> ListMember(MachineState(n), Active(state, append_routine(routine, start_routine), append_constraints(constraints, start_constraints)), enter_repeat_with_constraints(routine, constraints, starts)) = match starts
+    Nil() -> impossible_list_member(edge)
+    Cons(Accepted(head_routine, head_constraints), rest) -> match edge
+      ListMemberThere(prior) -> lift_enter_repeat_active_member(n, routine, constraints, rest, state, start_routine, start_constraints, prior)
+    Cons(Active(head_state, head_routine, head_constraints), rest) -> match edge
+      ListMemberHere() -> member_here(Active(head_state, append_routine(routine, head_routine), append_constraints(constraints, head_constraints)), enter_repeat_with_constraints(routine, constraints, rest))
+      ListMemberThere(prior) -> member_there(Active(head_state, append_routine(routine, head_routine), append_constraints(constraints, head_constraints)), lift_enter_repeat_active_member(n, routine, constraints, rest, state, start_routine, start_constraints, prior))
+
+  fn lift_repeat_destination_reentry_order_member(n: Nat, routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), starts: List(MachineState(n)), lazy: Bool, state: Bounded(n), start_routine: List(EvidenceInstruction), start_constraints: List(BoundaryConstraint), start_edge: ListMember(MachineState(n), Active(state, start_routine, start_constraints), starts)) -> ListMember(MachineState(n), Active(state, append_routine(routine, start_routine), append_constraints(constraints, start_constraints)), repeat_destination_order(routine, constraints, starts, lazy)) = match lazy
+    False() -> lift_append_left_member(n, enter_repeat_with_constraints(routine, constraints, starts), repeat_accepting(routine, constraints), Active(state, append_routine(routine, start_routine), append_constraints(constraints, start_constraints)), lift_enter_repeat_active_member(n, routine, constraints, starts, state, start_routine, start_constraints, start_edge))
+    True() -> lift_append_right_member(n, repeat_accepting(routine, constraints), enter_repeat_with_constraints(routine, constraints, starts), Active(state, append_routine(routine, start_routine), append_constraints(constraints, start_constraints)), lift_enter_repeat_active_member(n, routine, constraints, starts, state, start_routine, start_constraints, start_edge))
+
+  fn lift_repeat_destinations_reentry_member(n: Nat, destinations: List(MachineState(n)), starts: List(MachineState(n)), lazy: Bool, routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(n), Accepted(routine, constraints), destinations), state: Bounded(n), start_routine: List(EvidenceInstruction), start_constraints: List(BoundaryConstraint), start_edge: ListMember(MachineState(n), Active(state, start_routine, start_constraints), starts)) -> ListMember(MachineState(n), Active(state, append_routine(routine, start_routine), append_constraints(constraints, start_constraints)), repeat_destinations(destinations, starts, lazy)) = match destinations
+    Nil() -> impossible_list_member(edge)
+    Cons(Active(head_state, head_routine, head_constraints), rest) -> match edge
+      ListMemberThere(prior) -> member_there(Active(head_state, head_routine, head_constraints), lift_repeat_destinations_reentry_member(n, rest, starts, lazy, routine, constraints, prior, state, start_routine, start_constraints, start_edge))
+    Cons(Accepted(head_routine, head_constraints), rest) -> match edge
+      ListMemberHere() -> lift_append_left_member(n, repeat_destination_order(head_routine, head_constraints, starts, lazy), repeat_destinations(rest, starts, lazy), Active(state, append_routine(head_routine, start_routine), append_constraints(head_constraints, start_constraints)), lift_repeat_destination_reentry_order_member(n, head_routine, head_constraints, starts, lazy, state, start_routine, start_constraints, start_edge))
+      ListMemberThere(prior) -> lift_append_right_member(n, repeat_destination_order(head_routine, head_constraints, starts, lazy), repeat_destinations(rest, starts, lazy), Active(state, append_routine(routine, start_routine), append_constraints(constraints, start_constraints)), lift_repeat_destinations_reentry_member(n, rest, starts, lazy, routine, constraints, prior, state, start_routine, start_constraints, start_edge))
+
+  fn lift_repeat_reentry_transition_member(n: Nat, destinations: List(MachineState(n)), starts: List(MachineState(n)), lazy: Bool, boundary: Boundary, routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(n), Accepted(routine, constraints), destinations), state: Bounded(n), start_routine: List(EvidenceInstruction), start_constraints: List(BoundaryConstraint), start_edge: ListMember(MachineState(n), Active(state, start_routine, start_constraints), starts), holds: Equivalent(Bool, constraints_hold(append_constraints(constraints, start_constraints), boundary), True())) -> ListMember(MachineState(n), Active(state, append_routine(routine, start_routine), Nil()), filter_machine_states(n, repeat_destinations(destinations, starts, lazy), boundary)) =
+    filter_active_member(n, repeat_destinations(destinations, starts, lazy), boundary, state, append_routine(routine, start_routine), append_constraints(constraints, start_constraints), lift_repeat_destinations_reentry_member(n, destinations, starts, lazy, routine, constraints, edge, state, start_routine, start_constraints, start_edge), holds)
+
   ## Invert the full `repeat_destinations` map while retaining the exact child
   ## edge. Active child destinations pass through unchanged; accepted child
   ## destinations either close the list or re-enter an active child start.
