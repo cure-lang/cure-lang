@@ -67,6 +67,12 @@
   executions, takes the canonical filtered re-entry edge, and attaches an
   arbitrary already-built Repeat suffix. It consumes no extra character and
   emits no second `BeginList`.
+- 2026-08-14 — generic non-final child path composition is discharged.
+  `RepeatContinuationFrom` packages an ordinary child start with a path already
+  running in the Repeat machine, and `lift_repeat_reentry_active_path` lifts an
+  arbitrary preceding child path into it. The proof transports capture-stack,
+  position, suffix-association, and boundary identities explicitly and is
+  totality-certified by structural recursion on the child input.
 
 **Supersedes for unfinished work:**
 `2026-07-21-dependently-typed-regex-design.md`
