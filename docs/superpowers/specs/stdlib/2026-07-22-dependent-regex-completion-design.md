@@ -46,6 +46,11 @@
   Repeat's greedy/lazy start ordering and boundary filter while prefixing
   `BeginList` exactly once. Together with the transition embeddings, the
   remaining work is path/execution composition rather than machine membership.
+- 2026-08-14 — post-filter child edges now have canonical Repeat adapters for
+  active, closing, and re-entry transitions. Each adapter recovers the raw
+  boundary constraints and their proofs before invoking the transformation
+  lemmas, so path construction does not duplicate filter internals. The
+  adapters are the direct inputs to recursive path/execution composition.
 
 **Supersedes for unfinished work:**
 `2026-07-21-dependently-typed-regex-design.md`
