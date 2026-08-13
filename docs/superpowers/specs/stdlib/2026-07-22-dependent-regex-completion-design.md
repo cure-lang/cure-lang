@@ -61,6 +61,12 @@
   structurally anchored on the matched input tail (rather than a refined view
   binder), and `filtered_starts_from_advanced_initial_edge` supplies the inverse
   boundary conversion needed by the forthcoming non-final handoff.
+- 2026-08-14 — the one-step non-final handoff is discharged.
+  `splice_repeat_reentry_step` combines the accepting routine of the completed
+  child with the next child's active start routine, composes their certified
+  executions, takes the canonical filtered re-entry edge, and attaches an
+  arbitrary already-built Repeat suffix. It consumes no extra character and
+  emits no second `BeginList`.
 
 **Supersedes for unfinished work:**
 `2026-07-21-dependently-typed-regex-design.md`
