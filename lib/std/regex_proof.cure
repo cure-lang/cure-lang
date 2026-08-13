@@ -799,6 +799,16 @@ mod Std.Regex.Proof
       AppendMemberRight(entered_edge) -> match enter_repeat_state_origin(n, Cons(BeginList(), Nil()), Nil(), starts, destination, entered_edge)
         EnterRepeatActiveOrigin(state, routine, constraints, start_edge) -> RepeatEnteredStartOrigin(state, routine, constraints, start_edge)
 
+  ## Embed an exact active child start into Repeat's consuming initial branch.
+  ## The list opener is prefixed once here; subsequent iterations use the
+  ## re-entry embedding and therefore never reopen the list.
+  fn lift_repeat_start_active_member(n: Nat, starts: List(MachineState(n)), lazy: Bool, state: Bounded(n), routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(n), Active(state, routine, constraints), starts)) -> ListMember(MachineState(n), Active(state, Cons(BeginList(), routine), constraints), repeat_machine_starts(starts, lazy)) = match lazy
+    False() -> lift_append_left_member(n, enter_repeat(Cons(BeginList(), Nil()), starts), Cons(Accepted(Cons(BeginList(), Cons(EndList(), Nil())), Nil()), Nil()), Active(state, Cons(BeginList(), routine), constraints), lift_enter_repeat_active_member(n, Cons(BeginList(), Nil()), Nil(), starts, state, routine, constraints, edge))
+    True() -> lift_append_right_member(n, Cons(Accepted(Cons(BeginList(), Cons(EndList(), Nil())), Nil()), Nil()), enter_repeat(Cons(BeginList(), Nil()), starts), Active(state, Cons(BeginList(), routine), constraints), lift_enter_repeat_active_member(n, Cons(BeginList(), Nil()), Nil(), starts, state, routine, constraints, edge))
+
+  fn lift_repeat_initial_active_member(n: Nat, starts: List(MachineState(n)), lazy: Bool, boundary: Boundary, state: Bounded(n), routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(n), Active(state, routine, constraints), starts), holds: Equivalent(Bool, constraints_hold(constraints, boundary), True())) -> ListMember(MachineState(n), Active(state, Cons(BeginList(), routine), Nil()), filter_machine_states(n, repeat_machine_starts(starts, lazy), boundary)) =
+    filter_active_member(n, repeat_machine_starts(starts, lazy), boundary, state, Cons(BeginList(), routine), constraints, lift_repeat_start_active_member(n, starts, lazy, state, routine, constraints, edge), holds)
+
   type FilteredRepeatStartsOrigin(n: Nat, starts: List(MachineState(n)), lazy: Bool, boundary: Boundary) indices (filtered: MachineState(n))
     FilteredRepeatEmptyStartOrigin : FilteredRepeatStartsOrigin(n, starts, lazy, boundary, Accepted(Cons(BeginList(), Cons(EndList(), Nil())), Nil()))
     FilteredRepeatEnteredStartOrigin : (state: Bounded(n)) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (edge: ListMember(MachineState(n), Active(state, routine, constraints), starts)) -> (holds: Equivalent(Bool, constraints_hold(constraints, boundary), True())) -> FilteredRepeatStartsOrigin(n, starts, lazy, boundary, Active(state, Cons(BeginList(), routine), Nil()))

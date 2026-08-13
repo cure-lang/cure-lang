@@ -41,6 +41,11 @@
   an exact active start edge, including routine/constraint prefixing and
   greedy/lazy ordering. Recursive non-empty Repeat path composition is now the
   active frontier.
+- 2026-08-14 — the consuming initial edge is discharged:
+  `lift_repeat_initial_active_member` embeds an exact active child start through
+  Repeat's greedy/lazy start ordering and boundary filter while prefixing
+  `BeginList` exactly once. Together with the transition embeddings, the
+  remaining work is path/execution composition rather than machine membership.
 
 **Supersedes for unfinished work:**
 `2026-07-21-dependently-typed-regex-design.md`
