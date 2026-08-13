@@ -777,28 +777,30 @@ mod Std.Regex.Proof
   fn transport_repeat_closing_embedding_input(n: Nat, starts: List(MachineState(n)), next: (Bounded(n)) -> Char -> List(MachineState(n)), lazy: Bool, source: Bounded(n), current_evidence: List(Evidence), current_captures: List(CaptureFrame), child_final_evidence: List(Evidence), first_input: List(Char), second_input: List(Char), after_input: List(Char), equality: Equivalent(List(Char), first_input, second_input), embedding: RepeatClosingPathEmbedding(n, starts, next, lazy, source, current_evidence, current_captures, child_final_evidence, first_input, after_input)) -> RepeatClosingPathEmbedding(n, starts, next, lazy, source, current_evidence, current_captures, child_final_evidence, second_input, after_input) = match equality
     reflexive() -> embedding
 
-  fn lift_repeat_closing_active_path(n: Nat, starts: List(MachineState(n)), next: (Bounded(n)) -> Char -> List(MachineState(n)), lazy: Bool, input: List(Char), after_input: List(Char), source: Bounded(n), current_evidence: List(Evidence), current_captures: List(CaptureFrame), child_final_evidence: List(Evidence), child_routine: List(ExtendedInstruction), child_path: AcceptingFrom(n, MkPatternMachine(starts, next), input, after_input, ThreadActive(source), current_evidence, current_captures, child_final_evidence, child_routine)) -> RepeatClosingPathEmbedding(n, starts, next, lazy, source, current_evidence, current_captures, child_final_evidence, input, after_input) = match exact_repeat_child_active_path_view(n, starts, next, input, after_input, source, current_evidence, current_captures, child_final_evidence, child_routine, child_path)
-    ExactRepeatChildNextActive(char, rest, destination, regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix) -> match lift_repeat_closing_active_path(n, starts, next, lazy, rest, after_input, destination, destination_evidence, destination_captures, child_final_evidence, suffix_routine, suffix)
-        RepeatClosingPathLifted(repeat_suffix_routine, repeat_suffix) ->
-          let boundary = transition_boundary_before(char, rest, after_input)
-          let repeat_edge = lift_repeat_filtered_active_transition_member(n, next(source, char), starts, lazy, boundary, destination, regular, constraints, edge)
-          let repeat_routine = append_extended_routines(transition_routine(char, regular), repeat_suffix_routine)
-          let repeat_path: AcceptingFrom(n, repeat_pattern_machine(n, MkPatternMachine(starts, next), lazy), Cons(char, rest), after_input, ThreadActive(source), current_evidence, current_captures, Cons(EndListEvidence(), child_final_evidence), repeat_routine) = AcceptingNextActive(destination, regular, Nil(), destination_evidence, destination_captures, repeat_suffix_routine, repeat_edge, execution, repeat_suffix)
-          RepeatClosingPathLifted(repeat_routine, repeat_path)
-    ExactRepeatChildNextAccepted(char, rest, regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix) -> match exact_accepted_path_view(n, MkPatternMachine(starts, next), rest, after_input, destination_evidence, destination_captures, child_final_evidence, suffix_routine, suffix)
-        ExactAcceptedPathNow() ->
-          let boundary = transition_boundary_before(char, Nil(), after_input)
-          let closing_regular = append_routine(regular, Cons(EndList(), Nil()))
-          let closing_evidence = Cons(EndListEvidence(), child_final_evidence)
-          let ending: RoutineExecution(Cons(EndList(), Nil()), child_final_evidence, destination_captures, closing_evidence, destination_captures) = RoutineStep(EndList(), RoutineDone())
-          let closing_execution = append_routine_execution(regular, Cons(EndList(), Nil()), current_evidence, record_capture_char(current_captures, char), child_final_evidence, destination_captures, closing_evidence, destination_captures, execution, ending)
-          let repeat_edge = lift_repeat_filtered_closing_transition_member(n, next(source, char), starts, lazy, boundary, regular, constraints, edge)
-          let no_constraints: List(BoundaryConstraint) = Nil()
-          let no_suffix: List(ExtendedInstruction) = Nil()
-          let repeat_suffix: AcceptingFrom(n, repeat_pattern_machine(n, MkPatternMachine(starts, next), lazy), Nil(), after_input, ThreadAccepted(), closing_evidence, destination_captures, closing_evidence, no_suffix) = AcceptingNow()
-          let repeat_routine = append_extended_routines(transition_routine(char, closing_regular), no_suffix)
-          let repeat_path: AcceptingFrom(n, repeat_pattern_machine(n, MkPatternMachine(starts, next), lazy), Cons(char, Nil()), after_input, ThreadActive(source), current_evidence, current_captures, closing_evidence, repeat_routine) = AcceptingNextAccepted(closing_regular, no_constraints, closing_evidence, destination_captures, no_suffix, repeat_edge, closing_execution, repeat_suffix)
-          RepeatClosingPathLifted(repeat_routine, repeat_path)
+  fn lift_repeat_closing_active_path(n: Nat, starts: List(MachineState(n)), next: (Bounded(n)) -> Char -> List(MachineState(n)), lazy: Bool, input: List(Char), after_input: List(Char), source: Bounded(n), current_evidence: List(Evidence), current_captures: List(CaptureFrame), child_final_evidence: List(Evidence), child_routine: List(ExtendedInstruction), child_path: AcceptingFrom(n, MkPatternMachine(starts, next), input, after_input, ThreadActive(source), current_evidence, current_captures, child_final_evidence, child_routine)) -> RepeatClosingPathEmbedding(n, starts, next, lazy, source, current_evidence, current_captures, child_final_evidence, input, after_input) = match input
+    Nil() -> impossible_empty_active_path(n, MkPatternMachine(starts, next), after_input, source, current_evidence, current_captures, child_final_evidence, child_routine, child_path)
+    Cons(input_char, input_rest) -> match exact_repeat_child_active_path_view(n, starts, next, input, after_input, source, current_evidence, current_captures, child_final_evidence, child_routine, child_path)
+      ExactRepeatChildNextActive(char, rest, destination, regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix) -> match lift_repeat_closing_active_path(n, starts, next, lazy, input_rest, after_input, destination, destination_evidence, destination_captures, child_final_evidence, suffix_routine, suffix)
+          RepeatClosingPathLifted(repeat_suffix_routine, repeat_suffix) ->
+            let boundary = transition_boundary_before(char, rest, after_input)
+            let repeat_edge = lift_repeat_filtered_active_transition_member(n, next(source, char), starts, lazy, boundary, destination, regular, constraints, edge)
+            let repeat_routine = append_extended_routines(transition_routine(char, regular), repeat_suffix_routine)
+            let repeat_path: AcceptingFrom(n, repeat_pattern_machine(n, MkPatternMachine(starts, next), lazy), Cons(char, rest), after_input, ThreadActive(source), current_evidence, current_captures, Cons(EndListEvidence(), child_final_evidence), repeat_routine) = AcceptingNextActive(destination, regular, Nil(), destination_evidence, destination_captures, repeat_suffix_routine, repeat_edge, execution, repeat_suffix)
+            RepeatClosingPathLifted(repeat_routine, repeat_path)
+      ExactRepeatChildNextAccepted(char, rest, regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix) -> match exact_accepted_path_view(n, MkPatternMachine(starts, next), rest, after_input, destination_evidence, destination_captures, child_final_evidence, suffix_routine, suffix)
+          ExactAcceptedPathNow() ->
+            let boundary = transition_boundary_before(char, Nil(), after_input)
+            let closing_regular = append_routine(regular, Cons(EndList(), Nil()))
+            let closing_evidence = Cons(EndListEvidence(), child_final_evidence)
+            let ending: RoutineExecution(Cons(EndList(), Nil()), child_final_evidence, destination_captures, closing_evidence, destination_captures) = RoutineStep(EndList(), RoutineDone())
+            let closing_execution = append_routine_execution(regular, Cons(EndList(), Nil()), current_evidence, record_capture_char(current_captures, char), child_final_evidence, destination_captures, closing_evidence, destination_captures, execution, ending)
+            let repeat_edge = lift_repeat_filtered_closing_transition_member(n, next(source, char), starts, lazy, boundary, regular, constraints, edge)
+            let no_constraints: List(BoundaryConstraint) = Nil()
+            let no_suffix: List(ExtendedInstruction) = Nil()
+            let repeat_suffix: AcceptingFrom(n, repeat_pattern_machine(n, MkPatternMachine(starts, next), lazy), Nil(), after_input, ThreadAccepted(), closing_evidence, destination_captures, closing_evidence, no_suffix) = AcceptingNow()
+            let repeat_routine = append_extended_routines(transition_routine(char, closing_regular), no_suffix)
+            let repeat_path: AcceptingFrom(n, repeat_pattern_machine(n, MkPatternMachine(starts, next), lazy), Cons(char, Nil()), after_input, ThreadActive(source), current_evidence, current_captures, closing_evidence, repeat_routine) = AcceptingNextAccepted(closing_regular, no_constraints, closing_evidence, destination_captures, no_suffix, repeat_edge, closing_execution, repeat_suffix)
+            RepeatClosingPathLifted(repeat_routine, repeat_path)
 
   ## Invert the full `repeat_destinations` map while retaining the exact child
   ## edge. Active child destinations pass through unchanged; accepted child
@@ -2043,6 +2045,9 @@ mod Std.Regex.Proof
 
   fn advanced_initial_edge_from_filtered_starts(n: Nat, machine: PatternMachine(n), position: InitialPosition, char: Char, rest: List(Char), after_input: List(Char), value: MachineState(n), edge: ListMember(MachineState(n), value, filter_machine_states(n, proof_machine_starts(machine), transition_boundary_before(char, rest, after_input)))) -> ListMember(MachineState(n), value, initial_machine_destinations(n, machine, advance_initial_position(position, Cons(char, Nil())), rest, after_input)) = match advanced_position_boundary(position, char, rest, after_input)
     reflexive() -> initial_edge_from_filtered_starts(n, machine, advance_initial_position(position, Cons(char, Nil())), rest, after_input, value, edge)
+
+  fn filtered_starts_from_advanced_initial_edge(n: Nat, machine: PatternMachine(n), position: InitialPosition, char: Char, rest: List(Char), after_input: List(Char), value: MachineState(n), edge: ListMember(MachineState(n), value, initial_machine_destinations(n, machine, advance_initial_position(position, Cons(char, Nil())), rest, after_input))) -> ListMember(MachineState(n), value, filter_machine_states(n, proof_machine_starts(machine), transition_boundary_before(char, rest, after_input))) = match advanced_position_boundary(position, char, rest, after_input)
+    reflexive() -> filtered_starts_from_initial_edge(n, machine, advance_initial_position(position, Cons(char, Nil())), rest, after_input, value, edge)
 
   fn single_left_input_partition(char: Char, right: List(Char)) -> InputPartition(Cons(char, right), Cons(char, Nil()), right) = InputPartitionThere(char, InputPartitionHere(right))
 

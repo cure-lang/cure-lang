@@ -57,6 +57,10 @@
   alternative, executes `EndList`, and returns the exact closed evidence list.
   An indexed active-path view supplies the full sibling refinements required by
   the kernel; no fixed-pattern or predicate-only path is used.
+- 2026-08-14 — the final-item lift is also totality-certified. Its recursion is
+  structurally anchored on the matched input tail (rather than a refined view
+  binder), and `filtered_starts_from_advanced_initial_edge` supplies the inverse
+  boundary conversion needed by the forthcoming non-final handoff.
 
 **Supersedes for unfinished work:**
 `2026-07-21-dependently-typed-regex-design.md`
