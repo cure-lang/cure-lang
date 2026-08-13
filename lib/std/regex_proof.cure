@@ -680,6 +680,26 @@ mod Std.Regex.Proof
         ListMemberThere(impossible) -> impossible_list_member(impossible)
       AppendMemberRight(entered_edge) -> RepeatDestinationReenteredOrigin(enter_repeat_state_origin(n, routine, constraints, starts, destination, entered_edge))
 
+  ## Embed the accepting alternative contributed by a completed child
+  ## iteration.  This is the constructive counterpart of
+  ## `repeat_destination_order_origin`: completeness proofs must be able to
+  ## build the closing edge, not merely recover its origin from an existing
+  ## Repeat execution.
+  fn lift_repeat_destination_closing_order_member(n: Nat, routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), starts: List(MachineState(n)), lazy: Bool) -> ListMember(MachineState(n), Accepted(append_routine(routine, Cons(EndList(), Nil())), constraints), repeat_destination_order(routine, constraints, starts, lazy)) = match lazy
+    False() -> lift_append_right_member(n, enter_repeat_with_constraints(routine, constraints, starts), repeat_accepting(routine, constraints), Accepted(append_routine(routine, Cons(EndList(), Nil())), constraints), member_here(Accepted(append_routine(routine, Cons(EndList(), Nil())), constraints), Nil()))
+    True() -> lift_append_left_member(n, repeat_accepting(routine, constraints), enter_repeat_with_constraints(routine, constraints, starts), Accepted(append_routine(routine, Cons(EndList(), Nil())), constraints), member_here(Accepted(append_routine(routine, Cons(EndList(), Nil())), constraints), Nil()))
+
+  fn lift_repeat_destinations_closing_member(n: Nat, destinations: List(MachineState(n)), starts: List(MachineState(n)), lazy: Bool, routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(n), Accepted(routine, constraints), destinations)) -> ListMember(MachineState(n), Accepted(append_routine(routine, Cons(EndList(), Nil())), constraints), repeat_destinations(destinations, starts, lazy)) = match destinations
+    Nil() -> impossible_list_member(edge)
+    Cons(Active(state, head_routine, head_constraints), rest) -> match edge
+      ListMemberThere(prior) -> member_there(Active(state, head_routine, head_constraints), lift_repeat_destinations_closing_member(n, rest, starts, lazy, routine, constraints, prior))
+    Cons(Accepted(head_routine, head_constraints), rest) -> match edge
+      ListMemberHere() -> lift_append_left_member(n, repeat_destination_order(head_routine, head_constraints, starts, lazy), repeat_destinations(rest, starts, lazy), Accepted(append_routine(head_routine, Cons(EndList(), Nil())), head_constraints), lift_repeat_destination_closing_order_member(n, head_routine, head_constraints, starts, lazy))
+      ListMemberThere(prior) -> lift_append_right_member(n, repeat_destination_order(head_routine, head_constraints, starts, lazy), repeat_destinations(rest, starts, lazy), Accepted(append_routine(routine, Cons(EndList(), Nil())), constraints), lift_repeat_destinations_closing_member(n, rest, starts, lazy, routine, constraints, prior))
+
+  fn lift_repeat_closing_transition_member(n: Nat, destinations: List(MachineState(n)), starts: List(MachineState(n)), lazy: Bool, boundary: Boundary, routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(n), Accepted(routine, constraints), destinations), holds: Equivalent(Bool, constraints_hold(constraints, boundary), True())) -> ListMember(MachineState(n), Accepted(append_routine(routine, Cons(EndList(), Nil())), Nil()), filter_machine_states(n, repeat_destinations(destinations, starts, lazy), boundary)) =
+    filter_accepted_member(n, repeat_destinations(destinations, starts, lazy), boundary, append_routine(routine, Cons(EndList(), Nil())), constraints, lift_repeat_destinations_closing_member(n, destinations, starts, lazy, routine, constraints, edge), holds)
+
   ## Invert the full `repeat_destinations` map while retaining the exact child
   ## edge. Active child destinations pass through unchanged; accepted child
   ## destinations either close the list or re-enter an active child start.

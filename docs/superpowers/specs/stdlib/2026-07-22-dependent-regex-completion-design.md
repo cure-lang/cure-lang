@@ -29,6 +29,12 @@
   from arbitrary incoming evidence and captures, preserving the capture stack
   and emitting exactly one list-open/list-close pair. Non-empty Repeat
   continuation composition remains the active frontier.
+- 2026-08-14 — the first constructive non-empty Repeat transition is
+  discharged. `lift_repeat_closing_transition_member` embeds any accepted child
+  edge into the Repeat machine's greedy or lazy closing alternative and then
+  through canonical boundary filtering. This is the forward counterpart of
+  the existing projection relation; active-child and re-entry embeddings still
+  precede recursive non-empty Repeat composition.
 
 **Supersedes for unfinished work:**
 `2026-07-21-dependently-typed-regex-design.md`
@@ -627,9 +633,11 @@ match result is wrapped; proof erasure inspection passes.
 
 **Status: in progress; this is the earliest incomplete phase.** Generic
 soundness is complete. Constructive completeness is complete for base cases,
-Alternate composition, Concat composition, and Group composition. Proceed next
-with generic Repeat composition, then the final structural
-completeness induction. Do not regress to fixed-pattern-only theorems.
+Alternate composition, Concat composition, Group composition, the empty Repeat
+continuation, and the closing edge of a non-empty Repeat iteration. Proceed next
+with the active-child and re-entry embeddings needed by generic Repeat
+composition, then the final structural completeness induction. Do not regress
+to fixed-pattern-only theorems.
 
 Define denotation and prove the stronger Cure theorem family in §5.4. Use
 exhaustive small models while developing the proofs.

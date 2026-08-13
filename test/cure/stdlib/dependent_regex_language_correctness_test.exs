@@ -805,6 +805,7 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     assert Env.total?(env, :"Std.Regex.Language#complete_group_from")
     assert Env.total?(env, :generic_repeat_mode_empty_composition)
     assert Env.total?(env, :"Std.Regex.Language#complete_repeat_mode_empty_from")
+    assert Env.total?(env, :"Std.Regex.Proof#lift_repeat_closing_transition_member")
     assert Env.total?(env, :grouped_predicate_soundness)
     assert Env.total?(env, :"Std.Regex.Language#grouped_predicate_acceptance_is_sound")
     assert Env.total?(env, :concatenated_empty_denotation)
