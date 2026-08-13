@@ -35,6 +35,17 @@ mod Std.Regex.Language
     DenotesRepeatModeEmpty : (inner: Pattern(inner_shape)) -> (lazy: Bool) -> PatternDenotation(ListC(inner_shape), PatternRepeatMode(inner, lazy), position, Nil(), after_input)
     DenotesRepeatModeMore : (inner: Pattern(inner_shape)) -> (lazy: Bool) -> (item_input: List(Char)) -> (remaining_input: List(Char)) -> (nonempty: NonEmptyCharacters(item_input)) -> (partition: InputPartition(input, item_input, remaining_input)) -> (item_denotation: PatternDenotation(inner_shape, inner, position, item_input, append_characters(remaining_input, after_input))) -> (remaining_denotation: PatternDenotation(ListC(inner_shape), PatternRepeatMode(inner, lazy), advance_initial_position(position, item_input), remaining_input, after_input)) -> PatternDenotation(ListC(inner_shape), PatternRepeatMode(inner, lazy), position, input, after_input)
 
+  ## The non-empty item shape and the exact denotation value travel in one
+  ## index. Keeping `NonEmptyCharacters` as a sibling field loses the
+  ## substitution that turns `item_input` into `Cons(item_char, item_rest)` in
+  ## recursive Repeat completeness.
+  type ExactRepeatModeMoreView(inner_shape: ShapeCode, inner: Pattern(inner_shape), lazy: Bool, position: InitialPosition, input: List(Char), after_input: List(Char)) indices (denotation: PatternDenotation(ListC(inner_shape), PatternRepeatMode(inner, lazy), position, input, after_input))
+    ExactRepeatModeMoreItem : (item_char: Char) -> (item_rest: List(Char)) -> (remaining_input: List(Char)) -> (partition: InputPartition(input, Cons(item_char, item_rest), remaining_input)) -> (item_denotation: PatternDenotation(inner_shape, inner, position, Cons(item_char, item_rest), append_characters(remaining_input, after_input))) -> (remaining_denotation: PatternDenotation(ListC(inner_shape), PatternRepeatMode(inner, lazy), advance_initial_position(position, Cons(item_char, item_rest)), remaining_input, after_input)) -> ExactRepeatModeMoreView(inner_shape, inner, lazy, position, input, after_input, DenotesRepeatModeMore(inner, lazy, Cons(item_char, item_rest), remaining_input, CharactersPresent(item_char, item_rest), partition, item_denotation, remaining_denotation))
+
+  fn exact_repeat_mode_more_view(inner_shape: ShapeCode, inner: Pattern(inner_shape), lazy: Bool, position: InitialPosition, char: Char, rest: List(Char), after_input: List(Char), denotation: PatternDenotation(ListC(inner_shape), PatternRepeatMode(inner, lazy), position, Cons(char, rest), after_input)) -> ExactRepeatModeMoreView(inner_shape, inner, lazy, position, Cons(char, rest), after_input, denotation) = match denotation
+    DenotesRepeatModeMore(_, _, item_input, remaining_input, nonempty, partition, item_denotation, remaining_denotation) -> match nonempty
+      CharactersPresent(item_char, item_rest) -> ExactRepeatModeMoreItem(item_char, item_rest, remaining_input, partition, item_denotation, remaining_denotation)
+
   ## Constructive completeness packages the runtime outputs existentially while
   ## retaining the erased certificate that those outputs came from the verified
   ## machine.  Callers do not have to guess the evidence stream or routine.
@@ -61,6 +72,9 @@ mod Std.Regex.Language
 
   type PatternAcceptanceFrom(shape: ShapeCode, pattern: Pattern(shape), position: InitialPosition, input: List(Char), after_input: List(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame)) indices ()
     PatternAcceptedFrom : (final_evidence: List(Evidence)) -> (routine: List(ExtendedInstruction)) -> (certificate: PatternAcceptanceCertificate(shape, pattern, position, input, after_input, input_evidence, input_captures, final_evidence)) -> PatternAcceptanceFrom(shape, pattern, position, input, after_input, input_evidence, input_captures)
+
+  type PatternCompleteness(shape: ShapeCode, pattern: Pattern(shape)) indices ()
+    PatternCompletenessReady : (complete: ((position: InitialPosition) -> (input: List(Char)) -> (after_input: List(Char)) -> (input_evidence: List(Evidence)) -> (input_captures: List(CaptureFrame)) -> (denotation: PatternDenotation(shape, pattern, position, input, after_input)) -> PatternAcceptanceFrom(shape, pattern, position, input, after_input, input_evidence, input_captures))) -> PatternCompleteness(shape, pattern)
 
   ## Structural evidence that the constructor-preserving Thompson IR is the
   ## compilation of one exact typed pattern.  The generic language theorems
@@ -760,6 +774,64 @@ mod Std.Regex.Language
     let path: AcceptingFrom(count, repeat_pattern_machine(count, machine, lazy), Nil(), after_input, ThreadAccepted(), final_evidence, input_captures, final_evidence, no_path_routine) = AcceptingNow()
     let acceptance: AcceptancePathFrom(count, repeat_pattern_machine(count, machine, lazy), position, Nil(), after_input, input_evidence, input_captures, final_evidence) = %[destination, final_evidence, input_captures, no_path_routine, edge, execution, path]
     PatternAcceptedFrom(final_evidence, regular_routine(regular), PatternAcceptanceCertified(acceptance, AcceptanceCapturesExact(reflexive(input_captures))))
+
+  fn complete_repeat_mode_continuation_from(
+    inner_shape: ShapeCode,
+    inner: Pattern(inner_shape),
+    lazy: Bool,
+    position: InitialPosition,
+    char: Char,
+    rest: List(Char),
+    after_input: List(Char),
+    input_evidence: List(Evidence),
+    input_captures: List(CaptureFrame),
+    child_completeness: PatternCompleteness(inner_shape, inner),
+    denotation: PatternDenotation(ListC(inner_shape), PatternRepeatMode(inner, lazy), position, Cons(char, rest), after_input)
+  ) -> RepeatContinuationFrom(thompson_state_count(certify_thompson(inner)), pattern_machine_starts(thompson_machine(certify_thompson(inner))), pattern_machine_next(thompson_machine(certify_thompson(inner))), lazy, position, Cons(char, rest), after_input, input_evidence, input_captures) =
+    complete_repeat_mode_continuation_view_from(inner_shape, inner, lazy, position, char, rest, after_input, input_evidence, input_captures, child_completeness, exact_repeat_mode_more_view(inner_shape, inner, lazy, position, char, rest, after_input, denotation))
+
+  fn complete_repeat_mode_continuation_view_from(
+    inner_shape: ShapeCode,
+    inner: Pattern(inner_shape),
+    lazy: Bool,
+    position: InitialPosition,
+    char: Char,
+    rest: List(Char),
+    after_input: List(Char),
+    input_evidence: List(Evidence),
+    input_captures: List(CaptureFrame),
+    child_completeness: PatternCompleteness(inner_shape, inner),
+    {denotation: PatternDenotation(ListC(inner_shape), PatternRepeatMode(inner, lazy), position, Cons(char, rest), after_input)},
+    view: ExactRepeatModeMoreView(inner_shape, inner, lazy, position, Cons(char, rest), after_input, denotation)
+  ) -> RepeatContinuationFrom(thompson_state_count(certify_thompson(inner)), pattern_machine_starts(thompson_machine(certify_thompson(inner))), pattern_machine_next(thompson_machine(certify_thompson(inner))), lazy, position, Cons(char, rest), after_input, input_evidence, input_captures) = match view
+    ExactRepeatModeMoreItem(item_char, item_rest, remaining_input, partition, item_denotation, remaining_denotation) -> match child_completeness
+      PatternCompletenessReady(complete_child) -> match complete_child(position, Cons(item_char, item_rest), append_characters(remaining_input, after_input), input_evidence, input_captures, item_denotation)
+        PatternAcceptedFrom(child_final_evidence, _, PatternAcceptanceCertified(child_acceptance, child_captures)) ->
+          let compilation = certify_thompson(inner)
+          let count = thompson_state_count(compilation)
+          let machine = thompson_machine(compilation)
+          let starts = pattern_machine_starts(machine)
+          let next = pattern_machine_next(machine)
+          let child_captures_exact = certified_acceptance_captures_proof(count, machine, position, Cons(item_char, item_rest), append_characters(remaining_input, after_input), input_evidence, input_captures, child_final_evidence, child_acceptance, child_captures)
+          match transport_certified_acceptance_machine(machine, MkPatternMachine(starts, next), position, Cons(item_char, item_rest), append_characters(remaining_input, after_input), input_evidence, input_captures, child_final_evidence, record_capture_input(input_captures, Cons(item_char, item_rest)), pattern_machine_eta(machine), child_acceptance, child_captures_exact)
+            CertifiedAcceptanceTransported(canonical_child_acceptance, canonical_child_captures) ->
+              let canonical_final_captures = acceptance_path_final_captures(count, MkPatternMachine(starts, next), position, Cons(item_char, item_rest), append_characters(remaining_input, after_input), input_evidence, input_captures, child_final_evidence, canonical_child_acceptance)
+              let whole_input = input_partition_equivalent(partition)
+              match remaining_denotation
+                DenotesRepeatModeEmpty(_, _) ->
+                  let closed = repeat_closing_continuation_from_acceptance(count, starts, next, lazy, position, item_char, item_rest, after_input, input_evidence, input_captures, child_final_evidence, canonical_child_acceptance)
+                  let combined = transport_repeat_continuation_input(count, starts, next, lazy, position, Cons(item_char, item_rest), append_characters(Cons(item_char, item_rest), Nil()), after_input, input_evidence, input_captures, append_characters_empty_right(Cons(item_char, item_rest)), closed)
+                  transport_repeat_continuation_input(count, starts, next, lazy, position, append_characters(Cons(item_char, item_rest), Nil()), Cons(char, rest), after_input, input_evidence, input_captures, character_list_equivalent_symmetric(Cons(char, rest), append_characters(Cons(item_char, item_rest), Nil()), whole_input), combined)
+                DenotesRepeatModeMore(_, _, next_item_input, next_remaining_input, next_nonempty, next_partition, next_item_denotation, next_remaining_denotation) -> match next_nonempty
+                  CharactersPresent(next_char, next_rest) ->
+                    let next_whole = input_partition_equivalent(next_partition)
+                    match next_whole
+                      reflexive() ->
+                        let canonical_remaining = Cons(next_char, append_characters(next_rest, next_remaining_input))
+                        let suffix_view = exact_repeat_mode_more_view(inner_shape, inner, lazy, advance_initial_position(position, Cons(item_char, item_rest)), next_char, append_characters(next_rest, next_remaining_input), after_input, remaining_denotation)
+                        let suffix = complete_repeat_mode_continuation_view_from(inner_shape, inner, lazy, advance_initial_position(position, Cons(item_char, item_rest)), next_char, append_characters(next_rest, next_remaining_input), after_input, child_final_evidence, canonical_final_captures, child_completeness, suffix_view)
+                        let combined = repeat_reentry_continuation_from_acceptance(count, starts, next, lazy, position, item_char, item_rest, canonical_remaining, after_input, input_evidence, input_captures, child_final_evidence, canonical_child_acceptance, suffix)
+                        transport_repeat_continuation_input(count, starts, next, lazy, position, append_characters(Cons(item_char, item_rest), canonical_remaining), Cons(char, rest), after_input, input_evidence, input_captures, character_list_equivalent_symmetric(Cons(char, rest), append_characters(Cons(item_char, item_rest), canonical_remaining), whole_input), combined)
 
   fn complete_alternate_mode_left_from(
     left_shape: ShapeCode,

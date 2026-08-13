@@ -82,6 +82,15 @@
   Repeat work is at the language-induction layer: recursively complete each
   child denotation, choose closing or re-entry from the remaining denotation,
   and add the single outer `BeginList`.
+- 2026-08-14 — generic recursive non-empty Repeat continuation is discharged.
+  `complete_repeat_mode_continuation_from` recursively completes every
+  non-empty child denotation, closes on the final item, and otherwise re-enters
+  through the next child while preserving the entire residual partition
+  (`next child ++ later input`). `ExactRepeatModeMoreView` keeps the non-empty
+  child shape and exact denotation in one index, and the totality regression
+  certifies the public recursive theorem. The remaining Repeat step is to wrap
+  this continuation in the single outer `BeginList`; after that, only the final
+  structural completeness induction remains.
 
 **Supersedes for unfinished work:**
 `2026-07-21-dependently-typed-regex-design.md`
@@ -680,11 +689,11 @@ match result is wrapped; proof erasure inspection passes.
 
 **Status: in progress; this is the earliest incomplete phase.** Generic
 soundness is complete. Constructive completeness is complete for base cases,
-Alternate composition, Concat composition, Group composition, the empty Repeat
-continuation, and all three forward transition embeddings needed for a
-non-empty Repeat iteration (active, close, and re-enter). Proceed next with
-generic Repeat path composition, then the final structural completeness
-induction. Do not regress to fixed-pattern-only theorems.
+Alternate composition, Concat composition, Group composition, and recursive
+Repeat continuation from arbitrary denotations. Proceed next by wrapping the
+Repeat continuation with exactly one outer `BeginList`, then finish the final
+structural completeness induction. Do not regress to fixed-pattern-only
+theorems.
 
 Define denotation and prove the stronger Cure theorem family in §5.4. Use
 exhaustive small models while developing the proofs.

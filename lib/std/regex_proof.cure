@@ -822,6 +822,9 @@ mod Std.Regex.Proof
   fn transport_repeat_continuation_captures(n: Nat, starts: List(MachineState(n)), next: (Bounded(n)) -> Char -> List(MachineState(n)), lazy: Bool, position: InitialPosition, input: List(Char), after_input: List(Char), input_evidence: List(Evidence), first_captures: List(CaptureFrame), second_captures: List(CaptureFrame), equality: Equivalent(List(CaptureFrame), first_captures, second_captures), continuation: RepeatContinuationFrom(n, starts, next, lazy, position, input, after_input, input_evidence, first_captures)) -> RepeatContinuationFrom(n, starts, next, lazy, position, input, after_input, input_evidence, second_captures) = match equality
     reflexive() -> continuation
 
+  fn transport_repeat_continuation_input(n: Nat, starts: List(MachineState(n)), next: (Bounded(n)) -> Char -> List(MachineState(n)), lazy: Bool, position: InitialPosition, first_input: List(Char), second_input: List(Char), after_input: List(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame), equality: Equivalent(List(Char), first_input, second_input), continuation: RepeatContinuationFrom(n, starts, next, lazy, position, first_input, after_input, input_evidence, input_captures)) -> RepeatContinuationFrom(n, starts, next, lazy, position, second_input, after_input, input_evidence, input_captures) = match equality
+    reflexive() -> continuation
+
   type RepeatReentryPathEmbedding(n: Nat, starts: List(MachineState(n)), next: (Bounded(n)) -> Char -> List(MachineState(n)), lazy: Bool, source: Bounded(n), current_evidence: List(Evidence), current_captures: List(CaptureFrame)) indices (child_input: List(Char), remaining_input: List(Char), after_input: List(Char))
     RepeatReentryPathLifted : (final_evidence: List(Evidence)) -> (routine: List(ExtendedInstruction)) -> (path: AcceptingFrom(n, repeat_pattern_machine(n, MkPatternMachine(starts, next), lazy), append_characters(child_input, remaining_input), after_input, ThreadActive(source), current_evidence, current_captures, final_evidence, routine)) -> RepeatReentryPathEmbedding(n, starts, next, lazy, source, current_evidence, current_captures, child_input, remaining_input, after_input)
 
@@ -1924,6 +1927,18 @@ mod Std.Regex.Proof
   fn append_input_partition(left: List(Char), right: List(Char)) -> InputPartition(append_characters(left, right), left, right) = match left
     Nil() -> InputPartitionHere(right)
     Cons(char, rest) -> InputPartitionThere(char, append_input_partition(rest, right))
+
+  fn input_partition_equivalent({input: List(Char)}, {left: List(Char)}, {right: List(Char)}, partition: InputPartition(input, left, right)) -> Equivalent(List(Char), input, append_characters(left, right)) = match partition
+    InputPartitionHere(_) -> reflexive()
+    InputPartitionThere(char, prior) -> match input_partition_equivalent(prior)
+      reflexive() -> reflexive()
+
+  fn character_cons_congruent(char: Char, left: List(Char), right: List(Char), equality: Equivalent(List(Char), left, right)) -> Equivalent(List(Char), Cons(char, left), Cons(char, right)) = match equality
+    reflexive() -> reflexive()
+
+  fn append_characters_empty_right(input: List(Char)) -> Equivalent(List(Char), input, append_characters(input, Nil())) = match input
+    Nil() -> reflexive()
+    Cons(char, rest) -> character_cons_congruent(char, rest, append_characters(rest, Nil()), append_characters_empty_right(rest))
 
   fn input_partition_there(char: Char, {input: List(Char)}, {left: List(Char)}, {right: List(Char)}, proof: InputPartition(input, left, right)) -> InputPartition(Cons(char, input), Cons(char, left), right) = InputPartitionThere(char, proof)
 
