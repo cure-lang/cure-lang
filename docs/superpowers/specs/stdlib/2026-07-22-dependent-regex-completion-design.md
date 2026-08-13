@@ -51,6 +51,12 @@
   boundary constraints and their proofs before invoking the transformation
   lemmas, so path construction does not duplicate filter internals. The
   adapters are the direct inputs to recursive path/execution composition.
+- 2026-08-14 — final-item path composition is discharged.
+  `lift_repeat_closing_active_path` recursively preserves every active child
+  transition, turns the child's unique accepted transition into Repeat's close
+  alternative, executes `EndList`, and returns the exact closed evidence list.
+  An indexed active-path view supplies the full sibling refinements required by
+  the kernel; no fixed-pattern or predicate-only path is used.
 
 **Supersedes for unfinished work:**
 `2026-07-21-dependently-typed-regex-design.md`
