@@ -22,6 +22,9 @@ mod Std.Regex.Syntax.Model
     | LiteralRepeat(LiteralPattern, Bool)
     | LiteralPlus(LiteralPattern, Bool)
     | LiteralOptional(LiteralPattern, Bool)
+    | LiteralBoundedExact(LiteralPattern, Nat)
+    | LiteralBoundedAtLeast(LiteralPattern, Nat, Bool)
+    | LiteralBoundedBetween(LiteralPattern, Nat, Nat, Bool)
     | LiteralCapture(LiteralPattern)
     | LiteralStart
     | LiteralEnd
@@ -33,6 +36,7 @@ mod Std.Regex.Syntax.Model
   type LiteralParse = LiteralParsed(LiteralPattern, List(Char)) | LiteralInvalid(Atom)
   type LiteralClassParse = LiteralClassParsed(List(Char), List(LiteralCharacterRange), LiteralClassKinds, List(Char)) | LiteralClassInvalid(Atom)
   type LiteralFlags = LiteralFlagsParsed(LiteralRegexOptions) | LiteralFlagsInvalid(Atom)
+  type LiteralCountParse = LiteralCountParsed(Nat, Bool, List(Char)) | LiteralCountInvalid(Atom)
 
 
   type LiteralClassKind =
@@ -198,6 +202,32 @@ mod Std.Regex.Syntax.Model
       Next(left_rest) -> match right
         First() -> false
         Next(right_rest) -> literal_bounded_less(left_rest, right_rest)
+
+  fn literal_nat_less(left: Nat, right: Nat) -> Bool = match left
+    Z() -> match right
+      Z() -> false
+      S(_) -> true
+    S(left_rest) -> match right
+      Z() -> false
+      S(right_rest) -> literal_nat_less(left_rest, right_rest)
+
+  fn literal_nat_times_ten(value: Nat) -> Nat =
+    plus(value, plus(value, plus(value, plus(value, plus(value, plus(value, plus(value, plus(value, plus(value, value)))))))))
+
+  fn literal_decimal_digit(char: Char) -> Option(Nat) = match char
+    '0' -> Some(Z())
+    '1' -> Some(1)
+    '2' -> Some(2)
+    '3' -> Some(3)
+    '4' -> Some(4)
+    '5' -> Some(5)
+    '6' -> Some(6)
+    '7' -> Some(7)
+    '8' -> Some(8)
+    '9' -> Some(9)
+    _ -> None()
+
+  fn literal_quantifier_limit() -> Nat = 64
 
   fn empty_regex_input() -> List(Char) = []
 

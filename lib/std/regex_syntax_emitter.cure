@@ -20,6 +20,9 @@ mod Std.Regex.Syntax.Emitter
     LiteralRepeat(inner, _) -> ListC(literal_shape(inner))
     LiteralPlus(inner, _) -> ListC(literal_shape(inner))
     LiteralOptional(inner, _) -> ChoiceC(literal_shape(inner), UnitC)
+    LiteralBoundedExact(inner, _) -> ListC(literal_shape(inner))
+    LiteralBoundedAtLeast(inner, _, _) -> ListC(literal_shape(inner))
+    LiteralBoundedBetween(inner, _, _, _) -> ListC(literal_shape(inner))
     LiteralCapture(_) -> StringC
     LiteralStart -> UnitC
     LiteralEnd -> UnitC
@@ -56,6 +59,9 @@ mod Std.Regex.Syntax.Emitter
     LiteralRepeat(inner, lazy) -> call("Std.Regex.repeated_pattern", [emit_literal(inner), bool_literal(lazy)])
     LiteralPlus(inner, lazy) -> call("Std.Regex.one_or_more_pattern", [emit_literal(inner), bool_literal(lazy)])
     LiteralOptional(inner, lazy) -> call("Std.Regex.optional_literal", [emit_literal(inner), bool_literal(lazy)])
+    LiteralBoundedExact(inner, count) -> call("Std.Regex.bounded_exact_pattern", [emit_literal(inner), emit_nat(count)])
+    LiteralBoundedAtLeast(inner, count, lazy) -> call("Std.Regex.bounded_at_least_pattern", [emit_literal(inner), emit_nat(count), bool_literal(lazy)])
+    LiteralBoundedBetween(inner, minimum, maximum, lazy) -> call("Std.Regex.bounded_between_pattern", [emit_literal(inner), emit_nat(minimum), emit_nat(maximum), bool_literal(lazy)])
     LiteralCapture(inner) -> call("Std.Regex.captured", [emit_literal(inner)])
     LiteralStart -> call("Std.Regex.start_anchor", [])
     LiteralEnd -> call("Std.Regex.end_anchor", [])
@@ -86,6 +92,9 @@ mod Std.Regex.Syntax.Emitter
       LiteralRepeat(inner, lazy) -> call("Std.Regex.repeated_pattern", [emit_literal_with_options(inner, options), bool_literal(lazy != ungreedy)])
       LiteralPlus(inner, lazy) -> call("Std.Regex.one_or_more_pattern", [emit_literal_with_options(inner, options), bool_literal(lazy != ungreedy)])
       LiteralOptional(inner, lazy) -> call("Std.Regex.optional_literal", [emit_literal_with_options(inner, options), bool_literal(lazy != ungreedy)])
+      LiteralBoundedExact(inner, count) -> call("Std.Regex.bounded_exact_pattern", [emit_literal_with_options(inner, options), emit_nat(count)])
+      LiteralBoundedAtLeast(inner, count, lazy) -> call("Std.Regex.bounded_at_least_pattern", [emit_literal_with_options(inner, options), emit_nat(count), bool_literal(lazy != ungreedy)])
+      LiteralBoundedBetween(inner, minimum, maximum, lazy) -> call("Std.Regex.bounded_between_pattern", [emit_literal_with_options(inner, options), emit_nat(minimum), emit_nat(maximum), bool_literal(lazy != ungreedy)])
       LiteralCapture(inner) -> call("Std.Regex.captured", [emit_literal_with_options(inner, options)])
       LiteralStart -> call("Std.Regex.start_anchor_with_options", [bool_literal(multiline)])
       LiteralEnd -> call("Std.Regex.end_anchor_with_options", [bool_literal(multiline)])
@@ -97,6 +106,10 @@ mod Std.Regex.Syntax.Emitter
   fn emit_chars(chars: List(Char)) -> Syntax = match chars
     [] -> list([])
     [head | rest] -> prepend_syntax(char_literal(head), emit_chars(rest))
+
+  fn emit_nat(value: Nat) -> Syntax = match value
+    Z() -> call("Std.Nat.Z", [])
+    S(rest) -> call("Std.Nat.S", [emit_nat(rest)])
 
   fn emit_ranges(ranges: List(LiteralCharacterRange)) -> Syntax = match ranges
     [] -> list([])

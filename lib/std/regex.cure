@@ -1628,6 +1628,35 @@ mod Std.Regex
   fn optional_literal({a: Type}, regex: Regex(a), lazy: Bool) -> Regex(Choice(a, Unit)) =
     OptionalLiteral(regex, lazy)
 
+  fn empty_repetition_transform({a: Type}, _: Regex(a)) -> (Unit -> List(a)) =
+    fn(_) -> []
+
+  fn prepend_repetition_result({a: Type}, value: Tuple(a, List(a))) -> List(a) = match value
+    %[head, rest] -> [head | rest]
+
+  fn prepend_optional_repetition_result({a: Type}, value: Tuple(Choice(a, Unit), List(a))) -> List(a) = match value
+    %[choice, rest] -> match choice
+      ChoseLeft(head) -> [head | rest]
+      ChoseRight(_) -> rest
+
+  fn bounded_exact_pattern({a: Type}, regex: Regex(a), count: Nat) -> Regex(List(a)) = match count
+    Z() -> Mapped(empty_repetition_transform(regex), FromPattern(UnitC, PatternEmpty()))
+    S(rest) -> Mapped(prepend_repetition_result, Concatenated(regex, bounded_exact_pattern(regex, rest)))
+
+  fn bounded_at_least_pattern({a: Type}, regex: Regex(a), minimum: Nat, lazy: Bool) -> Regex(List(a)) = match minimum
+    Z() -> repeated_pattern(regex, lazy)
+    S(rest) -> Mapped(prepend_repetition_result, Concatenated(regex, bounded_at_least_pattern(regex, rest, lazy)))
+
+  fn bounded_up_to_pattern({a: Type}, regex: Regex(a), maximum: Nat, lazy: Bool) -> Regex(List(a)) = match maximum
+    Z() -> Mapped(empty_repetition_transform(regex), FromPattern(UnitC, PatternEmpty()))
+    S(rest) -> Mapped(prepend_optional_repetition_result, Concatenated(optional_literal(regex, lazy), bounded_up_to_pattern(regex, rest, lazy)))
+
+  fn bounded_between_pattern({a: Type}, regex: Regex(a), minimum: Nat, maximum: Nat, lazy: Bool) -> Regex(List(a)) = match minimum
+    Z() -> bounded_up_to_pattern(regex, maximum, lazy)
+    S(minimum_rest) -> match maximum
+      Z() -> bounded_exact_pattern(regex, S(minimum_rest))
+      S(maximum_rest) -> Mapped(prepend_repetition_result, Concatenated(regex, bounded_between_pattern(regex, minimum_rest, maximum_rest, lazy)))
+
   fn configured({a: Type}, options: RegexOptions, regex: Regex(a)) -> Regex(a) =
     ConfiguredRegex(options, regex)
 

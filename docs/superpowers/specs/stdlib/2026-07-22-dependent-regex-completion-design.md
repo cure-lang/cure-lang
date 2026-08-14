@@ -100,6 +100,14 @@
   starting-state parameters as erased indices; only final evidence and
   executable routines survive at runtime. Phase H is the earliest incomplete
   phase.
+- 2026-08-14 — Phase H bounded quantifiers are implemented. `{m}`, `{m,}`, and
+  `{m,n}` (plus lazy suffixes) parse into dedicated literal nodes and lower
+  through typed recursive combinators that return `Regex(List(a))` directly;
+  repeated `Unit` therefore simplifies to `Nat` without exposing nested tuple
+  shapes. Missing bounds, reversed ranges, unclosed/malformed delimiters,
+  atomless quantifiers, and the documented 64-repetition expansion limit have
+  dedicated macro diagnostics. Scalar/property escapes and the remaining
+  diagnostic-span matrix are the active Phase H frontier.
 
 **Supersedes for unfinished work:**
 `2026-07-21-dependently-typed-regex-design.md`
@@ -707,6 +715,11 @@ NFA paths, VM acceptance, and public parsing.
 ### Phase H — finish literal parity and diagnostics
 
 **Status: in progress; this is the earliest incomplete phase.**
+
+Bounded quantifiers and their first structured diagnostic matrix are complete.
+Continue with scalar escapes, Unicode property classes, precise quantifier and
+escape subspans, unsupported-construct diagnostics, the remaining modifier
+interaction matrix, and raw character-integer cleanup.
 
 Complete bounded quantifiers, scalar escapes, Unicode properties, malformed
 construct rejection, exact source subspans, and the modifier matrix. Remove raw
