@@ -1,5 +1,5 @@
 defmodule Cure.Core.CertificateTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
   alias Cure.Core.{Inductive, Env, Kernel, Conv}
   alias Cure.Elab.TotalityClosure
 
@@ -116,6 +116,21 @@ defmodule Cure.Core.CertificateTest do
 
     replaced = Env.add_def(checked, :stable, @dec, {:global, :stable})
     assert is_nil(Env.direct_call_summary(replaced, :stable))
+  end
+
+  test "an unchanged checked body is summarized once across repeated preparation" do
+    env = Env.add_def(base(), :stable, @dec, @causal)
+    :ok = Cure.Pipeline.Events.subscribe(:kernel, :totality_metric)
+
+    assert {:ok, prepared} = Kernel.prepare_direct_call_summaries(env, [:stable])
+
+    assert_receive {Cure.Pipeline.Events, :kernel, :totality_metric,
+                    %{operation: :direct_summary, definition: :stable, cache: :miss}, _metadata}
+
+    assert {:ok, _again} = Kernel.prepare_direct_call_summaries(prepared, [:stable])
+
+    assert_receive {Cure.Pipeline.Events, :kernel, :totality_metric,
+                    %{operation: :direct_summary, definition: :stable, cache: :hit}, _metadata}
   end
 
   test "a pending forward declaration preserves a sealed definition certificate" do

@@ -13,7 +13,42 @@ defmodule Cure.Core.Certificate do
 
   alias Cure.Core.{Env, SizeChange}
 
-  @direct_summary_version 1
+  @direct_summary_version 2
+
+  @doc "The semantic format/checker version of trusted direct-call summaries."
+  @spec summary_version() :: pos_integer()
+  def summary_version, do: @direct_summary_version
+
+  @doc "Hash the checked Core body used as a direct-summary cache identity."
+  @spec body_hash(Cure.Core.Term.t()) :: binary()
+  def body_hash(body), do: semantic_hash(body)
+
+  @doc """
+  Validate a cached local summary without traversing the Core body again.
+
+  This is the warm counterpart to Agda's per-definition call cache: body and
+  checker identities must match, every callee remains canonical with the same
+  arity, matrix dimensions remain exact, and the summary's own digest must
+  authenticate the complete semantic payload.
+  """
+  @spec cached_summary_valid?(map() | nil, atom(), Cure.Core.Term.t(), Env.t()) :: boolean()
+  def cached_summary_valid?(nil, _name, _body, _env), do: false
+
+  def cached_summary_valid?(summary, name, body, %Env{} = env) when is_map(summary) do
+    caller = Env.resolve_key(env, env.defs, name)
+    {caller_arity, _inner} = peel_lams(body, 0)
+
+    summary.version == @direct_summary_version and
+      summary.caller == caller and
+      summary.body_hash == body_hash(body) and
+      summary.caller_arity == caller_arity and
+      summary.summary_hash == semantic_hash(Map.delete(summary, :summary_hash)) and
+      Enum.all?(summary.calls, &valid_cached_call?(&1, caller, caller_arity, env))
+  rescue
+    KeyError -> false
+  end
+
+  def cached_summary_valid?(_summary, _name, _body, _env), do: false
 
   @doc """
   Extract the complete canonical direct-call summary of one checked Core body.
@@ -50,7 +85,7 @@ defmodule Cure.Core.Certificate do
       |> Enum.reverse()
       |> Enum.sort_by(fn call -> {call.callee, call.id} end)
 
-    body_hash = semantic_hash(body)
+    body_hash = body_hash(body)
 
     summary = %{
       version: @direct_summary_version,
@@ -68,6 +103,20 @@ defmodule Cure.Core.Certificate do
       %{body: body} when is_tuple(body) and elem(body, 0) not in [:extern, :hole] -> arity_of(body)
       _ -> fallback
     end
+  end
+
+  defp valid_cached_call?(call, caller, caller_arity, env) do
+    canonical_callee = Env.resolve_key(env, env.defs, call.callee)
+    matrix = SizeChange.sparse(call.matrix)
+
+    call.callee == canonical_callee and
+      call.callee_arity == definition_arity(env, canonical_callee, call.callee_arity) and
+      matrix.rows == call.callee_arity and
+      matrix.columns == caller_arity and
+      call.provenance.caller == caller
+  rescue
+    KeyError -> false
+    ArgumentError -> false
   end
 
   defp arity_of(body), do: body |> peel_lams(0) |> elem(0)

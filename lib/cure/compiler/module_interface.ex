@@ -20,7 +20,7 @@ defmodule Cure.Compiler.ModuleInterface do
   # separates checked totality from permission to δ-unfold a published body.
   # Version 5 publishes body-hash-keyed direct-call summaries and atomic SCC
   # certificate identities for Agda-style incremental totality checking.
-  @schema_version 5
+  @schema_version 6
 
   @enforce_keys [
     :module_name,

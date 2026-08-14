@@ -19,6 +19,7 @@ defmodule Cure.Core.TotalityCertificate do
     with :ok <- verify_identity(env, members, candidate),
          {:ok, expected_base_keys} <- expected_base_keys(env, members),
          :ok <- verify_base_keys(candidate, expected_base_keys),
+         :ok <- verify_base_derivations(candidate, expected_base_keys),
          :ok <- verify_derivations(candidate, expected_base_keys),
          :ok <- verify_saturation(candidate) do
       bad =
@@ -84,6 +85,24 @@ defmodule Cure.Core.TotalityCertificate do
     if candidate.base_keys == expected,
       do: :ok,
       else: invalid(:base_edge_mismatch, expected: expected, submitted: candidate.base_keys)
+  end
+
+  defp verify_base_derivations(candidate, expected) do
+    Enum.reduce_while(expected, :ok, fn key, :ok ->
+      id = edge_id(key)
+
+      case Map.get(candidate.edges, id) do
+        %{source: source, target: target, matrix: matrix, derivation: {:base, ^key}}
+        when {source, target, matrix} == key ->
+          {:cont, :ok}
+
+        nil ->
+          {:halt, invalid(:missing_base_derivation, edge: id, key: key)}
+
+        _other ->
+          {:halt, invalid(:invalid_base_derivation, edge: id, key: key)}
+      end
+    end)
   end
 
   defp verify_derivations(candidate, base_keys) do

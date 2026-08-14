@@ -760,16 +760,38 @@ defmodule Cure.Core.Kernel do
   end
 
   defp ensure_direct_call_summary(env, name, body) do
-    summary = Certificate.direct_summary(name, body, env)
+    started = System.monotonic_time(:microsecond)
 
     case Env.direct_call_summary(env, name) do
-      %{body_hash: hash, version: version}
-      when hash == summary.body_hash and version == summary.version ->
-        env
+      cached when not is_nil(cached) ->
+        if Certificate.cached_summary_valid?(cached, name, body, env) do
+          emit_totality_metric(:direct_summary, name, :hit, started)
+          env
+        else
+          summary = Certificate.direct_summary(name, body, env)
+          emit_totality_metric(:direct_summary, name, :stale, started)
+          Env.put_direct_call_summary(env, name, summary)
+        end
 
-      _ ->
+      nil ->
+        summary = Certificate.direct_summary(name, body, env)
+        emit_totality_metric(:direct_summary, name, :miss, started)
         Env.put_direct_call_summary(env, name, summary)
     end
+  end
+
+  defp emit_totality_metric(operation, definition, cache, started) do
+    Cure.Pipeline.Events.emit(
+      :kernel,
+      :totality_metric,
+      %{
+        operation: operation,
+        definition: definition,
+        cache: cache,
+        elapsed_us: System.monotonic_time(:microsecond) - started
+      },
+      %{}
+    )
   end
 
   @doc """
