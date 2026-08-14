@@ -2,12 +2,12 @@
 ; corpus.sexp + seeds.sexp + reach.sexp + coverage.sexp (no generation). A drop
 ; below any floor fails test/antigen/coverage_baseline_test.exs. Regenerate ONLY via:
 ;   mix antigen cover --record-new-coverage-baseline
-(cover-floor Cure.Core.Certificate 191 197)
-(cover-floor Cure.Core.Conv 80 84)
-(cover-floor Cure.Core.Eval 97 104)
-(cover-floor Cure.Core.Inductive 103 125)
-(cover-floor Cure.Core.Kernel 443 501)
-(cover-floor Cure.Core.Normalise 105 105)
+(cover-floor Cure.Core.Certificate 186 205)
+(cover-floor Cure.Core.Conv 81 87)
+(cover-floor Cure.Core.Eval 100 109)
+(cover-floor Cure.Core.Inductive 108 141)
+(cover-floor Cure.Core.Kernel 555 684)
+(cover-floor Cure.Core.Normalise 115 119)
 (cover-floor Cure.Core.Quote 35 36)
 (cover-floor Cure.Core.Serialize 115 127)
-(cover-total 1169 1279)
+(cover-total 1295 1508)
