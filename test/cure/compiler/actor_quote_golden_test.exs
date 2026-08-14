@@ -49,6 +49,12 @@
 # advertised `gen_server` behaviour and preserving state for raw BEAM callers.
 # GLifecycle is the cast-only fixture, so this intentional generated-program
 # addition changes only its semantic hash.
+#
+# Canonical computed-index branch instantiation now substitutes the constructor
+# indices into each branch motive before erasure. GStructuredCall is the only
+# fixture here whose generated request/reply path exercises that dependent
+# motive; its typed actor API and OTP behavior are covered separately. The
+# other three semantic hashes remain unchanged.
 defmodule Cure.Compiler.ActorQuoteGoldenTest do
   use ExUnit.Case, async: false
 
@@ -66,7 +72,7 @@ defmodule Cure.Compiler.ActorQuoteGoldenTest do
            reply state
 
      fn make_request() -> ActorRequest = Read()
-     """, "af82ce724002dece40f265167d51f940618bbe9b8fc84023f36b23f4df52fb39"},
+     """, "0dd122257591d90cb9668681586205a028b990bf6d7ccdae1171add1d8c33a52"},
     {"GSup",
      """
      mod M
