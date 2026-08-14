@@ -117,4 +117,18 @@ defmodule Cure.Elab.TotalityGraphTest do
                provenance: %{caller: :caller, core_path: 0}
              }}} = SCCCertificate.verify_partition(env, certificate)
   end
+
+  test "malformed partition certificates are rejected without field-access exceptions" do
+    env = env_with_graph()
+    certificate = TotalityGraph.propose_partition(env, [:a, :b, :c, :leaf])
+
+    assert {:error, {:totality_scc_invalid, %{reason: :malformed_certificate, missing: [:components]}}} =
+             SCCCertificate.verify_partition(env, Map.delete(certificate, :components))
+
+    component = certificate.component_of.a
+    malformed_component = update_in(certificate.components[component], &Map.delete(&1, :root))
+
+    assert {:error, {:totality_scc_invalid, %{reason: :malformed_component, component: ^component, missing: [:root]}}} =
+             SCCCertificate.verify_partition(env, malformed_component)
+  end
 end

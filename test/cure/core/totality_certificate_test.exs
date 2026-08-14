@@ -135,4 +135,18 @@ defmodule Cure.Core.TotalityCertificateTest do
     assert expected_matrix == elem(trusted, 2)
     assert submitted_matrix == elem(overstated, 2)
   end
+
+  test "malformed closure certificates are rejected without field-access exceptions" do
+    env = env_with_cycle(:smaller)
+    candidate = Candidate.propose(env, [:f, :g])
+
+    assert {:error, {:totality_derivation_invalid, %{reason: :malformed_certificate, missing: [:edges]}}} =
+             TotalityCertificate.verify(env, [:f, :g], Map.delete(candidate, :edges))
+
+    {edge_id, _edge} = Enum.at(candidate.edges, 0)
+    malformed_edge = update_in(candidate.edges[edge_id], &Map.delete(&1, :matrix))
+
+    assert {:error, {:totality_derivation_invalid, %{reason: :malformed_edge, edge: ^edge_id, missing: [:matrix]}}} =
+             TotalityCertificate.verify(env, [:f, :g], malformed_edge)
+  end
 end

@@ -18,7 +18,8 @@ defmodule Cure.Core.TotalityCertificate do
     members = Enum.sort(Enum.uniq(members))
 
     result =
-      with :ok <- verify_identity(env, members, candidate),
+      with :ok <- verify_candidate_shape(candidate),
+           :ok <- verify_identity(env, members, candidate),
            {:ok, expected_base_keys} <- expected_base_keys(env, members),
            :ok <- verify_base_keys(env, candidate, expected_base_keys),
            :ok <- verify_base_derivations(candidate, expected_base_keys),
@@ -44,6 +45,67 @@ defmodule Cure.Core.TotalityCertificate do
 
   def verify(_env, _members, candidate),
     do: invalid(:unsupported_version, version: Map.get(candidate, :version))
+
+  @required_fields [:members, :member_body_hashes, :direct_summary_hashes, :base_keys, :edges]
+  @edge_fields [:id, :source, :target, :matrix, :derivation]
+
+  defp verify_candidate_shape(candidate) do
+    missing = Enum.reject(@required_fields, &Map.has_key?(candidate, &1))
+
+    cond do
+      missing != [] ->
+        invalid(:malformed_certificate, missing: missing)
+
+      not is_list(candidate.members) or not is_map(candidate.member_body_hashes) or
+        not is_map(candidate.direct_summary_hashes) or not is_list(candidate.base_keys) or
+          not is_map(candidate.edges) ->
+        invalid(:malformed_certificate, fields: @required_fields)
+
+      not Enum.all?(candidate.members, &is_atom/1) or not Enum.all?(candidate.base_keys, &valid_base_key?/1) ->
+        invalid(:malformed_certificate, fields: @required_fields)
+
+      true ->
+        verify_edge_shapes(candidate.edges)
+    end
+  end
+
+  defp valid_base_key?({source, target, matrix}),
+    do: is_atom(source) and is_atom(target) and valid_matrix?(matrix)
+
+  defp valid_base_key?(_other), do: false
+
+  defp verify_edge_shapes(edges) do
+    Enum.reduce_while(edges, :ok, fn
+      {id, edge}, :ok when is_map(edge) ->
+        missing = Enum.reject(@edge_fields, &Map.has_key?(edge, &1))
+
+        cond do
+          missing != [] ->
+            {:halt, invalid(:malformed_edge, edge: id, missing: missing)}
+
+          edge.id != id or not is_atom(edge.source) or not is_atom(edge.target) or
+            not valid_matrix?(edge.matrix) or not valid_derivation_shape?(edge.derivation) ->
+            {:halt, invalid(:malformed_edge, edge: id, fields: @edge_fields)}
+
+          true ->
+            {:cont, :ok}
+        end
+
+      {id, _edge}, :ok ->
+        {:halt, invalid(:malformed_edge, edge: id, fields: @edge_fields)}
+    end)
+  end
+
+  defp valid_matrix?(matrix) do
+    matrix = SizeChange.sparse(matrix)
+    is_integer(matrix.rows) and matrix.rows >= 0 and is_integer(matrix.columns) and matrix.columns >= 0
+  rescue
+    _ -> false
+  end
+
+  defp valid_derivation_shape?({:base, key}), do: valid_base_key?(key)
+  defp valid_derivation_shape?({:compose, left, right}), do: is_binary(left) and is_binary(right)
+  defp valid_derivation_shape?(_other), do: false
 
   defp emit_metric(members, candidate, result, started) do
     outcome =

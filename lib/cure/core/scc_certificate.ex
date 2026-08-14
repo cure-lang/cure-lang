@@ -17,7 +17,8 @@ defmodule Cure.Core.SCCCertificate do
     started = System.monotonic_time(:microsecond)
 
     result =
-      with :ok <- verify_universe(env, certificate),
+      with :ok <- verify_certificate_shape(certificate),
+           :ok <- verify_universe(env, certificate),
            {:ok, expected_edges} <- verify_edge_completeness(env, certificate),
            :ok <- verify_submitted_edges(certificate, expected_edges),
            :ok <- verify_partition_totality(certificate),
@@ -38,6 +39,73 @@ defmodule Cure.Core.SCCCertificate do
 
   def verify_partition(_env, certificate) do
     {:error, {:totality_scc_invalid, %{reason: :unsupported_version, version: Map.get(certificate, :version)}}}
+  end
+
+  @required_fields [
+    :universe,
+    :summary_hashes,
+    :component_of,
+    :rank,
+    :components,
+    :edges,
+    :sealed_boundaries
+  ]
+
+  @component_fields [:members, :root, :forward_tree, :reverse_tree]
+
+  defp verify_certificate_shape(certificate) do
+    missing = Enum.reject(@required_fields, &Map.has_key?(certificate, &1))
+
+    cond do
+      missing != [] ->
+        invalid(:malformed_certificate, missing: missing)
+
+      not is_list(certificate.universe) or not is_map(certificate.summary_hashes) or
+        not is_map(certificate.component_of) or not is_map(certificate.rank) or
+        not is_map(certificate.components) or not is_list(certificate.edges) or
+          not is_map(certificate.sealed_boundaries) ->
+        invalid(:malformed_certificate, fields: @required_fields)
+
+      not Enum.all?(certificate.universe, &is_atom/1) or
+        not Enum.all?(certificate.component_of, fn {name, component} ->
+          is_atom(name) and is_atom(component)
+        end) or
+        not Enum.all?(certificate.rank, fn {component, rank} ->
+          is_atom(component) and is_integer(rank) and rank >= 0
+        end) or
+          not Enum.all?(certificate.edges, &valid_direct_edge?/1) ->
+        invalid(:malformed_certificate, fields: @required_fields)
+
+      true ->
+        verify_component_shapes(certificate.components)
+    end
+  end
+
+  defp valid_direct_edge?(%{id: _id, source: source, target: target}),
+    do: is_atom(source) and is_atom(target)
+
+  defp valid_direct_edge?(_edge), do: false
+
+  defp verify_component_shapes(components) do
+    Enum.reduce_while(components, :ok, fn
+      {id, component}, :ok when is_map(component) ->
+        missing = Enum.reject(@component_fields, &Map.has_key?(component, &1))
+
+        cond do
+          missing != [] ->
+            {:halt, invalid(:malformed_component, component: id, missing: missing)}
+
+          not is_list(component.members) or not is_atom(component.root) or
+            not is_list(component.forward_tree) or not is_list(component.reverse_tree) ->
+            {:halt, invalid(:malformed_component, component: id, fields: @component_fields)}
+
+          true ->
+            {:cont, :ok}
+        end
+
+      {id, _component}, :ok ->
+        {:halt, invalid(:malformed_component, component: id, fields: @component_fields)}
+    end)
   end
 
   defp emit_metric(certificate, result, started) do
