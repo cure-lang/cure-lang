@@ -36,6 +36,9 @@ defmodule Antigen.Generators.ErasureTerm do
 
   defp app2(head, x0, x1), do: {:app, {:app, head, x0}, x1}
 
+  defp runtime_case(scrutinee),
+    do: {:case, scrutinee, il(0), [{:MkQ, 2, il(0)}, {:MkP, 2, il(0)}]}
+
   @doc """
   Coverage-manifest cells (`Antigen.CoverManifest`). The relevance catalog's shape-
   classes are the four per-site rejected bodies (an erased binder returned, applied,
@@ -89,7 +92,7 @@ defmodule Antigen.Generators.ErasureTerm do
     [
       rel(e, {:var, 0}, :returned, 0),
       rel(e, {:app, {:var, 0}, il(0)}, :applied, 1),
-      rel(e, {:case, {:var, 0}, il(0), []}, :scrutinee, 2),
+      rel(cenv, runtime_case({:var, 0}), :scrutinee, 2),
       rel(cenv, {:ctor, :MkQ, [{:var, 0}, il(0)]}, :present_arg, 3),
       Challenge.new(
         kind: :erasure_term,

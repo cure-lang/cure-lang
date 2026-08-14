@@ -39,6 +39,10 @@ defmodule Antigen.Assays.ErasureTest do
 
   defp app2(head, x0, x1), do: {:app, {:app, head, x0}, x1}
 
+  defp runtime_case(scrutinee) do
+    {:case, scrutinee, il(0), [{:MkQ, 2, il(0)}, {:MkP, 2, il(0)}]}
+  end
+
   test "idempotent baseline: present-first ctor erases idempotently" do
     env = ctor_env()
     assert Erasure.run(idem_ch(env, {:ctor, :MkQ, [il(1), il(2)]})) == :ok
@@ -163,7 +167,11 @@ defmodule Antigen.Assays.ErasureTest do
     end
 
     test "scrutinee site: erased binder matched in a case — rejected" do
-      assert Erasure.run(rel_ch(Env.empty(), {:case, {:var, 0}, {:int_lit, 0}, []}, :scrutinee)) == :ok
+      # An empty case is erased as unreachable and therefore does not inspect its
+      # scrutinee at runtime.  Use a genuine two-alternative runtime case so this
+      # fixture tests the relevant discriminant path rather than the collapsible
+      # proof-elimination exemption.
+      assert Erasure.run(rel_ch(ctor_env(), runtime_case({:var, 0}), :scrutinee)) == :ok
     end
 
     test "present_arg site: erased binder passed in a :unrestricted ctor position — rejected" do
