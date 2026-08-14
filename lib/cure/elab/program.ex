@@ -5154,9 +5154,49 @@ defmodule Cure.Elab.Program do
     with {:ok, env_h} <- declare_type_headers(items, env),
          {:ok, alias_order} <- typealias_order(items, env_h),
          {:ok, env_with_aliases} <- complete_typealiases(alias_order, items, env_h, :skip),
-         {:ok, env_with_signatures} <- pre_register_function_signatures(items, env_with_aliases) do
+         {:ok, env_with_constructors} <- pre_register_constructor_declarations(items, env_with_aliases),
+         {:ok, env_with_signatures} <- pre_register_function_signatures(items, env_with_constructors) do
       body_register_pass(items, env_with_signatures, prelude?)
     end
+  end
+
+  # Canonical module SCC staging is types → signatures → conformances → bodies.
+  # `declare_type_headers/2` establishes family identities, but a dependent
+  # function signature may also contain constructor VALUES in an index
+  # (`choose(value, On())`, `bind(m, fn(x) -> Pure(x))`). Register the checked
+  # constructor payloads before the signature work-list so those values resolve
+  # through the same canonical table as they do during body elaboration.
+  #
+  # This pass has no separate authority: `body_register_pass/3` revisits the same
+  # declarations for deriving/builtin side effects, and `Inductive.declare/3` is
+  # idempotent for an identical checked family. Type declarations whose payload
+  # genuinely depends on a local function remain for the ordinary source pass;
+  # only that later pass reports their error.
+  defp pre_register_constructor_declarations(items, env) do
+    local_functions =
+      items
+      |> Enum.flat_map(&function_bindings/1)
+      |> MapSet.new(fn {name, _meta} -> Atom.to_string(name) end)
+
+    items
+    |> Enum.filter(fn
+      {:container, meta, _variants} = declaration when is_list(meta) ->
+        constructor_bindings(declaration) != []
+
+      _indexed_or_non_constructor ->
+        false
+    end)
+    |> Enum.reduce_while({:ok, env}, fn declaration, {:ok, acc} ->
+      case Declarations.elaborate(declaration, acc) do
+        {:ok, next} ->
+          {:cont, {:ok, next}}
+
+        {:error, reason} = error ->
+          if sibling_signature_dependency?(reason, local_functions),
+            do: {:cont, {:ok, acc}},
+            else: {:halt, error}
+      end
+    end)
   end
 
   # A module is one mutually-recursive declaration block, but the old
@@ -5220,6 +5260,9 @@ defmodule Cure.Elab.Program do
     base = Cure.Elab.Name.base(name) || Atom.to_string(name)
     MapSet.member?(local_names, base)
   end
+
+  defp sibling_signature_dependency?({:unknown_global, name, _details}, local_names) when is_atom(name),
+    do: sibling_signature_dependency?({:unknown_global, name}, local_names)
 
   defp sibling_signature_dependency?(_reason, _local_names), do: false
 
