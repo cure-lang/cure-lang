@@ -119,6 +119,31 @@ defmodule Cure.Elab.TotalityGraphTest do
              SCCCertificate.verify_partition(env, bad_reverse_tree)
   end
 
+  test "the checker rejects merging distinct one-way-connected SCCs" do
+    env = env_with_graph()
+    certificate = TotalityGraph.propose_partition(env, [:a, :b, :c, :leaf])
+    a_component = certificate.component_of.a
+    c_component = certificate.component_of.c
+    c_to_a = Enum.find(certificate.edges, &(&1.source == :c and &1.target == :a))
+
+    merged =
+      certificate
+      |> put_in([:component_of, :c], a_component)
+      |> put_in([:components, a_component, :members], [:a, :b, :c])
+      |> put_in(
+        [:components, a_component, :reverse_tree],
+        certificate.components[a_component].reverse_tree ++ [c_to_a.id]
+      )
+      |> update_in([:components], &Map.delete(&1, c_component))
+      |> then(fn candidate ->
+        ids = candidate.components |> Map.keys() |> Enum.sort()
+        %{candidate | rank: ids |> Enum.with_index() |> Map.new()}
+      end)
+
+    assert {:error, {:totality_scc_invalid, %{reason: :tree_edge_count, component: ^a_component, direction: :forward}}} =
+             SCCCertificate.verify_partition(env, merged)
+  end
+
   test "the checker rejects an alias-shaped forged canonical universe key" do
     env = env_with_graph()
     certificate = TotalityGraph.propose_partition(env, [:a, :b, :c, :leaf])

@@ -38,6 +38,12 @@ defmodule Cure.Compiler.InterfaceBenchmarkTest do
     assert Enum.any?(report.cold.totality_metrics, &(&1.operation == :direct_summary and &1.cache == :miss))
     assert Enum.any?(report.cold.totality_metrics, &(&1.operation == :scc_proposal))
     assert Enum.any?(report.cold.totality_metrics, &(&1.operation == :partition_verification))
+
+    assert Enum.any?(
+             report.cold.totality_metrics,
+             &(&1.operation == :component_certificate and &1.cache == :miss and &1.reason == :not_cached)
+           )
+
     assert [%{modules: [^expected_module], elapsed_us: elapsed}] = report.cold.components
     assert elapsed >= 0
 
