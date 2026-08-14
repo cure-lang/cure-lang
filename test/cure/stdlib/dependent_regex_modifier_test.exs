@@ -159,20 +159,20 @@ defmodule Cure.Stdlib.DependentRegexModifierTest do
     assert apply(module, :anchored_search, [cure_string(~c"x\nabc\ny")]) == :none
 
     assert apply(module, :multiline_anchored_search, [cure_string(~c"x\nabc\ny")]) ==
-             {:some, {:Match, :unit, cure_string(~c"x\n"), cure_string(~c"abc"), cure_string(~c"\ny")}}
+             {:some, {:Match, :unit, cure_string(~c"x\n"), cure_string(~c"abc"), cure_string(~c"\ny"), 2, 3}}
 
     assert apply(module, :anchored_search, [cure_string(~c"abc\n")]) ==
-             {:some, {:Match, :unit, cure_string(~c""), cure_string(~c"abc"), cure_string(~c"\n")}}
+             {:some, {:Match, :unit, cure_string(~c""), cure_string(~c"abc"), cure_string(~c"\n"), 0, 3}}
   end
 
   test "f restricts possible match starts to the first line", %{runtime_module: module} do
     assert apply(module, :ordinary_later_line_search, [cure_string(~c"x\nabc")]) ==
-             {:some, {:Match, :unit, cure_string(~c"x\n"), cure_string(~c"abc"), cure_string(~c"")}}
+             {:some, {:Match, :unit, cure_string(~c"x\n"), cure_string(~c"abc"), cure_string(~c""), 2, 3}}
 
     assert apply(module, :firstline_search, [cure_string(~c"x\nabc")]) == :none
 
     assert apply(module, :firstline_search, [cure_string(~c"xabc\nrest")]) ==
-             {:some, {:Match, :unit, cure_string(~c"x"), cure_string(~c"abc"), cure_string(~c"\nrest")}}
+             {:some, {:Match, :unit, cure_string(~c"x"), cure_string(~c"abc"), cure_string(~c"\nrest"), 1, 3}}
 
     assert apply(module, :multiline_firstline_search, [cure_string(~c"x\nabc")]) == :none
   end

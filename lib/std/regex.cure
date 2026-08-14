@@ -883,7 +883,10 @@ mod Std.Regex
     EvidenceThread : ThreadState(n) -> List(Evidence) -> List(CaptureFrame) -> EvidenceThread(n)
   type EvidencePrefix = EvidencePrefix(List(Evidence), List(Char))
 
-  type Match(result: Type) = Match(result, String, String, String)
+  ## Match positions are zero-based Unicode-scalar offsets, not UTF-8 byte
+  ## offsets. `start` and `length` are native Int values so large subjects do
+  ## not allocate unary Nat structures at runtime.
+  type Match(result: Type) = Match(result, String, String, String, Int, Int)
 
   @reducible
   fn evidence_reverse_chars(input: List(Char)) -> List(Char) = evidence_reverse_chars_into(input, [])
@@ -1568,7 +1571,7 @@ mod Std.Regex
       Some(found) ->
         let rest = found.2
         let matched = list_drop_last(candidate, list_length(rest))
-        Some(Match(found.1, Std.String.from_characters(evidence_reverse_chars(reversed_prefix)), Std.String.from_characters(matched), Std.String.from_characters(rest)))
+        Some(Match(found.1, Std.String.from_characters(evidence_reverse_chars(reversed_prefix)), Std.String.from_characters(matched), Std.String.from_characters(rest), list_length(reversed_prefix), list_length(matched)))
       None() -> match candidate
         [] -> None()
         [char | rest] -> pickup

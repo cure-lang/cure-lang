@@ -38,6 +38,8 @@ defmodule Cure.Stdlib.DependentRegexParseTest do
           captured(or_same(as_string(concatenate(atom('a'), atom('a'))), as_string(atom('a')))),
           "xaay"
         )
+      fn searched_unicode_positions() -> Option(Match(String)) =
+        search(captured(one_or_more(atom('é'))), "λééx")
       fn search_matches() -> Bool = matches(atom('a'), "xxax")
       fn search_misses() -> Bool = matches(atom('z'), "xxax")
       fn failed() -> Option(Char) = parse_full(atom('a'), "b")
@@ -75,12 +77,17 @@ defmodule Cure.Stdlib.DependentRegexParseTest do
     assert apply(module, :searched, []) ==
              {:some,
               {:Match, cure_string(~c"aaa"), cure_string(~c"xx"), cure_string(~c"aaa"),
-               cure_string(~c"y")}}
+               cure_string(~c"y"), 2, 3}}
 
     assert apply(module, :searched_leftmost_longest, []) ==
              {:some,
               {:Match, cure_string(~c"aa"), cure_string(~c"x"), cure_string(~c"aa"),
-               cure_string(~c"y")}}
+               cure_string(~c"y"), 1, 2}}
+
+    assert apply(module, :searched_unicode_positions, []) ==
+             {:some,
+              {:Match, cure_string(~c"éé"), cure_string(~c"λ"), cure_string(~c"éé"),
+               cure_string(~c"x"), 1, 2}}
 
     assert apply(module, :search_matches, [])
     refute apply(module, :search_misses, [])

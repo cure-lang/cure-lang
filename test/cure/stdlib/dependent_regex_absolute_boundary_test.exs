@@ -26,6 +26,6 @@ defmodule Cure.Stdlib.DependentRegexAbsoluteBoundaryTest do
     assert apply(module, :strict_end_search, [cure_string(~c"abc\n")]) == :none
 
     assert apply(module, :final_end_search, [cure_string(~c"abc\n")]) ==
-             {:some, {:Match, :unit, cure_string(~c""), cure_string(~c"abc"), cure_string(~c"\n")}}
+             {:some, {:Match, :unit, cure_string(~c""), cure_string(~c"abc"), cure_string(~c"\n"), 0, 3}}
   end
 end

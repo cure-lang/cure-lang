@@ -40,19 +40,19 @@ defmodule Cure.Stdlib.DependentRegexWordBoundaryTest do
 
   test "\\b observes the current search position and ASCII/Unicode word mode", %{runtime_module: module} do
     assert apply(module, :ascii_word, [cure_string(~c"a cat!")]) ==
-             {:some, {:Match, :unit, cure_string(~c"a "), cure_string(~c"cat"), cure_string(~c"!")}}
+             {:some, {:Match, :unit, cure_string(~c"a "), cure_string(~c"cat"), cure_string(~c"!"), 2, 3}}
 
     assert apply(module, :ascii_word, [cure_string(~c"concatenate")]) == :none
 
     assert apply(module, :unicode_word, [cure_string([?\s, ?é, ?\s])]) ==
-             {:some, {:Match, :unit, cure_string(~c" "), cure_string(~c"é"), cure_string(~c" ")}}
+             {:some, {:Match, :unit, cure_string(~c" "), cure_string(~c"é"), cure_string(~c" "), 1, 1}}
 
     assert apply(module, :ascii_unicode_letter, [cure_string([?\s, ?é, ?\s])]) == :none
   end
 
   test "\\B is the complement and \\b inside a class is backspace", %{runtime_module: module} do
     assert apply(module, :interior, [cure_string(~c"scatx")]) ==
-             {:some, {:Match, :unit, cure_string(~c"s"), cure_string(~c"cat"), cure_string(~c"x")}}
+             {:some, {:Match, :unit, cure_string(~c"s"), cure_string(~c"cat"), cure_string(~c"x"), 1, 3}}
 
     assert apply(module, :class_backspace, [cure_string([8])]) == {:some, 8}
   end
