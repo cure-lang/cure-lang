@@ -574,29 +574,51 @@ defmodule Cure.Core.Certificate do
   defp row_len([]), do: 0
   defp row_len([r | _]), do: length(r)
 
-  # Close the base edge set under `compose_pair` (both orderings of each pair) to
-  # a fixpoint, dedup by `{f, g, matrix}`. Finite (bounded names × bounded 3-valued
-  # matrices) with a strictly-growing dedup set ⇒ always terminates.
+  # Close the base edge set under `compose_pair` to a fixpoint, dedup by
+  # `{f, g, matrix}`. The processed-edge indexes are important here: the old
+  # implementation compared every work item with every known edge in both
+  # directions. Besides attempting source/target-incompatible pairs, it retried
+  # an ordered pair when each member later became the work item. The growing
+  # closure made that quadratic scan dominate certification for large proof SCCs.
+  #
+  # `by_source` and `by_target` contain only already-processed edges. When `edge`
+  # is popped, compose it with compatible processed predecessors/successors and
+  # with itself. Thus every compatible ordered pair is considered exactly once:
+  # when its second-processed member is popped. Newly discovered edges enter the
+  # same worklist, so this remains the full transitive fixpoint. Finite (bounded
+  # names × bounded 3-valued matrices) with a strictly-growing dedup set ⇒ always
+  # terminates.
   defp group_closure(edges) do
     set = MapSet.new(edges)
-    gc(MapSet.to_list(set), set)
+    gc(MapSet.to_list(set), set, %{}, %{})
   end
 
-  defp gc([], set), do: MapSet.to_list(set)
+  defp gc([], set, _by_source, _by_target), do: MapSet.to_list(set)
 
-  defp gc([e | work], set) do
+  defp gc([{source, target, _matrix} = edge | work], set, by_source, by_target) do
+    successors = Map.get(by_source, target, MapSet.new())
+    predecessors = Map.get(by_target, source, MapSet.new())
+
+    self_compositions = if source == target, do: [compose_pair(edge, edge)], else: []
+
+    compositions =
+      self_compositions ++
+        Enum.map(successors, &compose_pair(edge, &1)) ++
+        Enum.map(predecessors, &compose_pair(&1, edge))
+
     {work, set} =
-      Enum.reduce(MapSet.to_list(set), {work, set}, fn n, {wk, st} ->
-        [compose_pair(e, n), compose_pair(n, e)]
-        |> Enum.reject(&is_nil/1)
-        |> Enum.reduce({wk, st}, fn c, {wk2, st2} ->
-          if MapSet.member?(st2, c),
-            do: {wk2, st2},
-            else: {[c | wk2], MapSet.put(st2, c)}
-        end)
+      compositions
+      |> Enum.reject(&is_nil/1)
+      |> Enum.reduce({work, set}, fn composed, {pending, known} ->
+        if MapSet.member?(known, composed),
+          do: {pending, known},
+          else: {[composed | pending], MapSet.put(known, composed)}
       end)
 
-    gc(work, set)
+    by_source = Map.update(by_source, source, MapSet.new([edge]), &MapSet.put(&1, edge))
+    by_target = Map.update(by_target, target, MapSet.new([edge]), &MapSet.put(&1, edge))
+
+    gc(work, set, by_source, by_target)
   end
 
   defp reaches?(_env, [], _target, _visited), do: false
