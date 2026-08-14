@@ -146,6 +146,39 @@ defmodule Cure.Core.MutualSizeChangeTest do
     assert map_size(eager.totality_components) == 1
   end
 
+  test "caller components depend on certified callees and invalidate through the reverse cone" do
+    total_env =
+      Env.empty()
+      |> Env.add_def(:callee, @nat, z())
+      |> Env.add_def(:caller, @nat, {:global, :callee})
+
+    certified = TotalityClosure.certify_available(total_env, :caller)
+    assert Env.total?(certified, :callee)
+    assert Env.total?(certified, :caller)
+
+    callee_digest = certified.totality_component_of.callee
+    caller_digest = certified.totality_component_of.caller
+    assert certified.totality_components[caller_digest].dependency_digests == [callee_digest]
+    assert is_binary(certified.totality_components[caller_digest].certificate_digest)
+
+    invalidated = Env.add_def(certified, :callee, @nat, z())
+    refute Env.total?(invalidated, :callee)
+    refute Env.total?(invalidated, :caller)
+    assert invalidated.totality_components == %{}
+    assert invalidated.totality_component_of == %{}
+  end
+
+  test "a caller is not certified when an ordinary callee component is partial" do
+    env =
+      Env.empty()
+      |> Env.add_def(:callee, @nat, {:global, :callee})
+      |> Env.add_def(:caller, @nat, {:global, :callee})
+      |> TotalityClosure.certify_available(:caller)
+
+    refute Env.total?(env, :callee)
+    refute Env.total?(env, :caller)
+  end
+
   test "ping/pong structural mutual pair certifies total" do
     env = with_defs(ping: ping_body(), pong: pong_body())
     assert terminating?(env, :ping)

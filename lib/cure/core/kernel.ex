@@ -832,23 +832,43 @@ defmodule Cure.Core.Kernel do
 
       Enum.reduce_while(selected_ids, {:ok, env}, fn component_id, {:ok, acc} ->
         members = partition.components[component_id].members
-        digest = scc_certificate_digest(partition, component_id, members)
+        certificate = totality_certificates[component_id]
 
-        cond do
-          Map.has_key?(acc.totality_components, digest) ->
-            {:cont, {:ok, acc}}
+        with {:ok, dependency_digests} <- component_dependency_digests(acc, partition, component_id),
+             sealed_digests = sealed_dependency_digests(acc, partition, members),
+             certificate_digest = semantic_hash(certificate),
+             digest =
+               scc_certificate_digest(
+                 partition,
+                 component_id,
+                 members,
+                 certificate_digest,
+                 dependency_digests,
+                 sealed_digests
+               ) do
+          cond do
+            Map.has_key?(acc.totality_components, digest) ->
+              {:cont, {:ok, acc}}
 
-          true ->
-            case verify_totality_component(acc, members, totality_certificates[component_id]) do
-              {:ok, :total} ->
-                {:cont, {:ok, Env.certify_component(acc, members, digest)}}
+            true ->
+              case verify_totality_component(acc, members, certificate) do
+                {:ok, :total} ->
+                  metadata = %{
+                    certificate_digest: certificate_digest,
+                    dependency_digests: dependency_digests ++ sealed_digests
+                  }
 
-              {:ok, {:not_total, _bad_edge}} ->
-                {:halt, {:error, {:not_total, members}}}
+                  {:cont, {:ok, Env.certify_component(acc, members, digest, metadata)}}
 
-              {:error, _} = error ->
-                {:halt, error}
-            end
+                {:ok, {:not_total, _bad_edge}} ->
+                  {:halt, {:error, {:not_total, members}}}
+
+                {:error, _} = error ->
+                  {:halt, error}
+              end
+          end
+        else
+          {:error, _} = error -> {:halt, error}
         end
       end)
     end
@@ -863,18 +883,45 @@ defmodule Cure.Core.Kernel do
       |> Enum.sort_by(&Map.fetch!(partition.rank, &1))
       |> Enum.reduce(env, fn component_id, acc ->
         members = partition.components[component_id].members
-        digest = scc_certificate_digest(partition, component_id, members)
+        certificate = totality_certificates[component_id]
 
-        cond do
-          Map.has_key?(acc.totality_components, digest) ->
-            acc
+        with {:ok, dependency_digests} <- component_dependency_digests(acc, partition, component_id) do
+          sealed_digests = sealed_dependency_digests(acc, partition, members)
+          certificate_digest = semantic_hash(certificate)
 
-          true ->
-            case verify_totality_component(acc, members, totality_certificates[component_id]) do
-              {:ok, :total} -> Env.certify_component(acc, members, digest)
-              {:ok, {:not_total, _bad_edge}} -> acc
-              {:error, _reason} -> acc
-            end
+          digest =
+            scc_certificate_digest(
+              partition,
+              component_id,
+              members,
+              certificate_digest,
+              dependency_digests,
+              sealed_digests
+            )
+
+          cond do
+            Map.has_key?(acc.totality_components, digest) ->
+              acc
+
+            true ->
+              case verify_totality_component(acc, members, certificate) do
+                {:ok, :total} ->
+                  metadata = %{
+                    certificate_digest: certificate_digest,
+                    dependency_digests: dependency_digests ++ sealed_digests
+                  }
+
+                  Env.certify_component(acc, members, digest, metadata)
+
+                {:ok, {:not_total, _bad_edge}} ->
+                  acc
+
+                {:error, _reason} ->
+                  acc
+              end
+          end
+        else
+          {:error, _dependency} -> acc
         end
       end)
       |> then(&{:ok, &1})
@@ -887,15 +934,69 @@ defmodule Cure.Core.Kernel do
   defp verify_totality_component(env, members, certificate),
     do: Cure.Core.TotalityCertificate.verify(env, members, certificate)
 
-  defp scc_certificate_digest(partition, component_id, members) do
+  defp component_dependency_digests(env, partition, component_id) do
+    dependency_ids =
+      partition.edges
+      |> Enum.flat_map(fn edge ->
+        source = Map.fetch!(partition.component_of, edge.source)
+        target = Map.fetch!(partition.component_of, edge.target)
+        if source == component_id and target != component_id, do: [target], else: []
+      end)
+      |> Enum.uniq()
+      |> Enum.sort_by(&Map.fetch!(partition.rank, &1))
+
+    Enum.reduce_while(dependency_ids, {:ok, []}, fn dependency_id, {:ok, digests} ->
+      dependency_members = partition.components[dependency_id].members
+
+      case dependency_members |> Enum.map(&Map.get(env.totality_component_of, &1)) |> Enum.uniq() do
+        [digest] when is_binary(digest) ->
+          {:cont, {:ok, [digest | digests]}}
+
+        _ ->
+          {:halt,
+           {:error,
+            {:totality_dependency_not_total,
+             %{component: component_id, dependency_component: dependency_id, members: dependency_members}}}}
+      end
+    end)
+    |> case do
+      {:ok, digests} -> {:ok, Enum.sort(digests)}
+      error -> error
+    end
+  end
+
+  defp sealed_dependency_digests(env, partition, members) do
+    member_set = MapSet.new(members)
+
+    partition.universe
+    |> Enum.filter(&MapSet.member?(member_set, &1))
+    |> Enum.flat_map(&Env.direct_call_summary(env, &1).calls)
+    |> Enum.map(& &1.callee)
+    |> Enum.reject(&Map.has_key?(partition.component_of, &1))
+    |> Enum.map(&Map.get(env.totality_component_of, &1))
+    |> Enum.filter(&is_binary/1)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  defp scc_certificate_digest(
+         partition,
+         component_id,
+         members,
+         certificate_digest,
+         dependency_digests,
+         sealed_digests
+       ) do
     material =
-      {partition.version, component_id,
+      {2, partition.version, component_id, certificate_digest, dependency_digests, sealed_digests,
        Enum.map(members, fn member ->
          {member, Map.fetch!(partition.summary_hashes, member)}
        end)}
 
-    :crypto.hash(:sha256, :erlang.term_to_binary(material, [:deterministic]))
+    semantic_hash(material)
   end
+
+  defp semantic_hash(term), do: :crypto.hash(:sha256, :erlang.term_to_binary(term, [:deterministic]))
 
   @doc """
   Check an indexed family declaration well-formed: parameter telescope, then

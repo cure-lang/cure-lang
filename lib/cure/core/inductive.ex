@@ -241,15 +241,37 @@ defmodule Cure.Core.Env do
         {certified, totality, env.totality_components, env.totality_component_of}
 
       digest ->
-        members = get_in(env.totality_components, [digest, :members]) || [name]
+        invalid_digests = dependent_component_closure(env.totality_components, MapSet.new([digest]))
+
+        members =
+          invalid_digests
+          |> Enum.flat_map(&(get_in(env.totality_components, [&1, :members]) || []))
+          |> Enum.uniq()
+
         member_set = MapSet.new(members)
         certified = if is_nil(env.certified), do: nil, else: MapSet.difference(env.certified, member_set)
 
         totality =
           if is_nil(env.totality_certified), do: nil, else: MapSet.difference(env.totality_certified, member_set)
 
-        {certified, totality, Map.delete(env.totality_components, digest), Map.drop(env.totality_component_of, members)}
+        {certified, totality, Map.drop(env.totality_components, MapSet.to_list(invalid_digests)),
+         Map.drop(env.totality_component_of, members)}
     end
+  end
+
+  defp dependent_component_closure(components, invalid) do
+    expanded =
+      Enum.reduce(components, invalid, fn {digest, component}, acc ->
+        dependencies = Map.get(component, :dependency_digests, [])
+
+        if Enum.any?(dependencies, &MapSet.member?(acc, &1)),
+          do: MapSet.put(acc, digest),
+          else: acc
+      end)
+
+    if MapSet.size(expanded) == MapSet.size(invalid),
+      do: expanded,
+      else: dependent_component_closure(components, expanded)
   end
 
   @doc "Store the trusted direct-call summary for a checked definition."
@@ -266,15 +288,20 @@ defmodule Cure.Core.Env do
   end
 
   @doc "Atomically publish a kernel-verified totality result for an SCC."
-  @spec certify_component(t(), [atom()], binary()) :: t()
-  def certify_component(%__MODULE__{} = env, members, digest)
-      when is_list(members) and is_binary(digest) do
+  @spec certify_component(t(), [atom()], binary(), map()) :: t()
+  def certify_component(%__MODULE__{} = env, members, digest, metadata \\ %{})
+      when is_list(members) and is_binary(digest) and is_map(metadata) do
     members = Enum.sort(members)
     certified = Enum.reduce(members, env, &certify(&2, &1))
 
     %{
       certified
-      | totality_components: Map.put(certified.totality_components, digest, %{members: members, digest: digest}),
+      | totality_components:
+          Map.put(
+            certified.totality_components,
+            digest,
+            Map.merge(metadata, %{members: members, digest: digest})
+          ),
         totality_component_of: Enum.reduce(members, certified.totality_component_of, &Map.put(&2, &1, digest))
     }
   end
