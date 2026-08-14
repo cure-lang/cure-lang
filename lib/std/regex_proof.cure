@@ -1,3 +1,6 @@
+## Proof infrastructure for the typed regular-expression evidence machine.
+## These views expose the structural laws used to assemble and invert compiled
+## evidence routines while retaining their dependent input and output indices.
 @group(:text)
 mod Std.Regex.Proof
   use Std.Regex

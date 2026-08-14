@@ -43,7 +43,7 @@ defmodule Cure.Elab.CheckedModuleTest do
 
     assert {:ok, independently_loaded} = Program.module_interface("Checked.Sample", path)
     assert independently_loaded == interface
-    assert independently_loaded.schema_version == 3
+    assert independently_loaded.schema_version == ModuleInterface.schema_version()
   end
 
   test "compile_file_with_artifact checks an entry module once and reuses that artifact", %{root: root} do

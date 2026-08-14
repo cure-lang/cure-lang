@@ -168,8 +168,8 @@ defmodule Cure.MetaAST.MetadataInvarianceTest do
       assert {:ok, plain_env} = Program.check_ast(plain), family
       assert {:ok, decorated_env} = Program.check_ast(decorated), family
       assert {:ok, stripped_env} = Program.check_ast(stripped), family
-      assert plain_env == decorated_env, family
-      assert plain_env == stripped_env, family
+      assert semantic_env(plain_env) == semantic_env(decorated_env), family
+      assert semantic_env(plain_env) == semantic_env(stripped_env), family
       assert diagnostic_leaks(plain_env) == []
       assert diagnostic_leaks(decorated_env) == []
       assert diagnostic_leaks(stripped_env) == []
@@ -264,7 +264,6 @@ defmodule Cure.MetaAST.MetadataInvarianceTest do
     :construct_span,
     :name_span,
     :callee_span,
-    :provenance,
     :source_provenance,
     :expansion_provenance
   ]
@@ -295,12 +294,23 @@ defmodule Cure.MetaAST.MetadataInvarianceTest do
     term
     |> Map.delete(:__struct__)
     |> Enum.flat_map(fn
+      # Trusted direct-call summaries intentionally retain diagnostic call-site
+      # provenance for totality failures. Their semantic hash strips that
+      # decoration, so they are not part of this surface-AST leak invariant.
+      {:direct_call_summaries, _summaries} -> []
       {key, _value} when key in @diagnostic_keys -> [Enum.reverse([key | path])]
       {key, value} -> diagnostic_leaks(value, [key | path])
     end)
   end
 
   defp diagnostic_leaks(_term, _path), do: []
+
+  # Direct-call provenance is intentionally diagnostic-rich, while the trusted
+  # summary hash is its canonical semantic identity.
+  defp semantic_env(env) do
+    summaries = Map.new(env.direct_call_summaries, fn {name, summary} -> {name, summary.summary_hash} end)
+    %{env | direct_call_summaries: summaries}
+  end
 
   defp error_head({tag, _rest}) when is_atom(tag), do: tag
   defp error_head({tag, _, _}) when is_atom(tag), do: tag

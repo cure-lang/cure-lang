@@ -83,10 +83,10 @@ defmodule Cure.Compiler.CanonicalArtifactIncrementalTest do
     fn viaamb() -> Int = Amb.thing()
   """
 
-  # Two-hop fixture. The test above pins the cascade STOPPING at `Mid` when
-  # `Mid`'s own interface survives a `Leaf` change; these pin it CONTINUING when
-  # it does not. `Top` here `use`s only `Mid` and never mentions `Leaf`, so the
-  # only route from a `Leaf` edit to `Top` is through `Mid`'s interface.
+  # Two-hop fixture. Certificate identities include member body/summary hashes
+  # and dependency hashes, so reverse-dependant invalidation already crosses
+  # `Mid` for semantic `Leaf` edits. This fixture additionally changes Mid's
+  # inferred result type and checks the same propagation for its public surface.
   #
   # `Mid` omits its return annotation so that `Leaf`'s return type becomes part
   # of `Mid`'s own inferred surface. That specific edit is required: adding a
@@ -379,7 +379,7 @@ defmodule Cure.Compiler.CanonicalArtifactIncrementalTest do
     assert "Mid" in skipped(s) and "Top" in skipped(s)
   end
 
-  test "editing a public surface rebuilds direct consumers without a transitive false cascade",
+  test "editing a public surface invalidates reverse certificate dependants",
        %{src: src, out: out, write: write} do
     assert {:ok, _} = compile(src, out)
     write.("leaf.cure", @leaf_v3_public)
@@ -387,19 +387,20 @@ defmodule Cure.Compiler.CanonicalArtifactIncrementalTest do
     assert "Leaf" in compiled(s)
     assert "Mid" in compiled(s)
 
-    assert "Top" in skipped(s),
-           "Mid was rechecked against Leaf's new interface, but Mid's own public interface stayed stable"
+    assert "Top" in compiled(s),
+           "Mid's certificate digest changed with Leaf's dependency identity, so Top must revalidate"
   end
 
-  test "editing only a directly-depended module body preserves its caller",
+  test "editing a directly-depended module body invalidates its caller certificate",
        %{src: src, out: out, write: write} do
     assert {:ok, _} = compile(src, out)
     write.("amb.cure", @amb_v2)
     assert {:ok, s} = compile(src, out)
     assert "Amb" in compiled(s)
-    assert "Top" in skipped(s)
-    # Neither caller needs rebuilding when Amb's canonical interface is stable.
+    assert "Top" in compiled(s)
+    # Leaf and Mid are outside Amb's reverse-dependency closure.
     assert "Mid" in skipped(s)
+    assert "Leaf" in skipped(s)
   end
 
   test "a change propagates the second hop when the middle module's own interface moves",
@@ -772,7 +773,7 @@ defmodule Cure.Compiler.CanonicalArtifactIncrementalTest do
     fn qval() -> Int = 42
   """
 
-  test "an ambient consumer is not rebuilt when a provider's own interface is unchanged" do
+  test "an ambient consumer rebuilds when its provider certificate identity changes" do
     root = Path.join(System.tmp_dir!(), "cure_ambient_#{:erlang.unique_integer([:positive])}")
     src = Path.join(root, "src")
     out = Path.join(root, "ebin")
@@ -798,11 +799,11 @@ defmodule Cure.Compiler.CanonicalArtifactIncrementalTest do
     assert {:ok, s} = canonical_sweep(paths, out, source_roots: [src])
 
     assert "R" in compiled(s)
-    assert "P" in skipped(s), "R's body changed without changing P's checked dependency interface"
+    assert "P" in compiled(s),
+           "R's body hash changes P's dependency-bound certificate identity"
 
-    assert "Q" in skipped(s),
-           "P's dependency-validation hashes changed, but its own declarations did not; " <>
-             "an ambient consumer with no reference to P remains valid"
+    assert "Q" in compiled(s),
+           "P is an ambient provider, so its certificate change invalidates ambient consumers"
   end
 
   # Regression: `interface_hash_for/3` recomputes a module's fresh interface via
@@ -828,7 +829,7 @@ defmodule Cure.Compiler.CanonicalArtifactIncrementalTest do
   # `lib/std`. (Verified this is not a BEAM hot-code-loading artifact: the
   # driver's OWN `s2.compiled`/`skipped_fresh` bookkeeping is asserted below,
   # never the runtime behavior of a loaded module.)
-  test "a repeated same-process build preserves consumers across a body-only stdlib edit",
+  test "a repeated same-process build invalidates consumers across a body-only stdlib edit",
        %{out: out} do
     stdlib_src =
       Path.join(System.tmp_dir!(), "cure_stdlib_cache_#{:erlang.unique_integer([:positive])}")
@@ -861,8 +862,8 @@ defmodule Cure.Compiler.CanonicalArtifactIncrementalTest do
 
     assert "R" in compiled(s2)
 
-    assert "P" in skipped(s2),
-           "R's implementation changed but its canonical interface did not"
+    assert "P" in compiled(s2),
+           "R's changed body hash invalidates P's dependency-bound certificate identity"
   end
 
   test "compile_order places every module after its use-dependencies (real stdlib graph)" do

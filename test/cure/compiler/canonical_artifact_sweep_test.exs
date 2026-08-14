@@ -52,8 +52,8 @@ defmodule Cure.Compiler.CanonicalArtifactSweepTest do
     File.write!(provider, "mod Sweep.Provider\n  fn value() -> Int = 42\n")
 
     assert {:ok, body_only} = sweep.()
-    assert Map.keys(body_only.rebuilt) == ["Sweep.Provider"]
-    assert body_only.reused == ["Sweep.Consumer"]
+    assert Map.keys(body_only.rebuilt) == ["Sweep.Consumer", "Sweep.Provider"]
+    assert body_only.reused == []
 
     {:ok, current} = Cure.Compiler.Artifacts.open_verified_set(body_only.artifact_root)
     File.write!(Path.join(current.artifact_root, "Cure.Sweep.Consumer.beam"), "corrupt")

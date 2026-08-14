@@ -1,3 +1,6 @@
+## Constructive language semantics for typed regular expressions. Denotations
+## retain the exact input partition, contextual suffix, and recursive evidence
+## needed to relate an accepted Thompson-machine path to the authored pattern.
 @group(:text)
 mod Std.Regex.Language
   use Std.Regex
