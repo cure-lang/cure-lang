@@ -71,7 +71,7 @@ defmodule Cure.Core.TotalityCertificate do
       |> Enum.flat_map(fn source ->
         for call <- Env.direct_call_summary(env, source).calls,
             MapSet.member?(member_set, call.callee) do
-          {source, call.callee, call.matrix}
+          {source, call.callee, SizeChange.sparse(call.matrix)}
         end
       end)
       |> Enum.uniq()

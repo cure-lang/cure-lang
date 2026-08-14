@@ -106,7 +106,7 @@ defmodule Cure.Core.CertificateTest do
     assert is_binary(body_hash) and byte_size(body_hash) == 32
     assert is_binary(summary_hash) and byte_size(summary_hash) == 32
     assert call.callee == :"Summary#id"
-    assert call.matrix == [[:equal]]
+    assert Cure.Core.SizeChange.to_dense(call.matrix) == [[:equal]]
   end
 
   test "replacing a definition invalidates its cached direct-call summary" do

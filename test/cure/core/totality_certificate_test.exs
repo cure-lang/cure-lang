@@ -48,8 +48,10 @@ defmodule Cure.Core.TotalityCertificateTest do
     env = env_with_cycle(:equal)
     candidate = Candidate.propose(env, [:f, :g])
 
-    assert {:ok, {:not_total, %{source: source, target: source, matrix: [[:equal]]}}} =
+    assert {:ok, {:not_total, %{source: source, target: source, matrix: matrix}}} =
              TotalityCertificate.verify(env, [:f, :g], candidate)
+
+    assert Cure.Core.SizeChange.to_dense(matrix) == [[:equal]]
   end
 
   test "omitting a composed edge fails saturation instead of hiding a bad loop" do

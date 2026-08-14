@@ -11,7 +11,7 @@ defmodule Cure.Core.Certificate do
   verifies their finite certificates.
   """
 
-  alias Cure.Core.Env
+  alias Cure.Core.{Env, SizeChange}
 
   @direct_summary_version 1
 
@@ -228,6 +228,7 @@ defmodule Cure.Core.Certificate do
       arg = Enum.at(args, i)
       rows(k, fn j -> arg_relation(arg, param_view(st, j)) end)
     end)
+    |> SizeChange.from_dense()
   end
 
   # Map over `0..(n-1)`, yielding `[]` for `n <= 0` (empty dimension).
