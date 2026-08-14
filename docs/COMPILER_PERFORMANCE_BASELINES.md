@@ -100,6 +100,67 @@ measurements on a non-isolated development machine. The new sample does establis
 the current post-fix baseline and preserves the same ranking: Actor elaboration,
 not Regex, is the next measured target.
 
+## 2026-08-14 Agda-style SCC-certificate profile
+
+Environment: Apple arm64, macOS 26.4, Erlang/OTP 29 (ERTS 17.0.2), Elixir
+1.20.1. The source universe is all 77 files under `lib/std`, including the
+dependent runtime/proof SCC `Std.Regex` + `Std.Regex.Proof` and
+`Std.Regex.Language`. Reproduce one independent cold sample and three warm
+samples with:
+
+```sh
+CURE_SKIP_DOC_FENCES=1 mix cure.bench.interfaces --warm-iterations 3 --top 20
+```
+
+Three serialized invocations produced these independent cold totals:
+
+| Sample | Cold total | `Regex` + `Regex.Proof` | `Regex.Language` |
+|---|---:|---:|---:|
+| 1 | 167.339 s | 105.756 s | 40.755 s |
+| 2 | 149.305 s | 102.483 s | 26.542 s |
+| 3 | 177.370 s | 123.594 s | 23.882 s |
+| median / range | 167.339 s / 149.305–177.370 s | 105.756 s / 102.483–123.594 s | 26.542 s / 23.882–40.755 s |
+
+All nine warm samples rebuilt zero modules. Their median was 5.146 s and their
+range was 4.684–8.354 s. Warm module checking remained approximately
+1.929–2.134 s; the remainder is manifest/expansion/interface work, not repeated
+Core-body or size-change closure work.
+
+The instrumented totality counts were identical in the two bounded-output
+profiles: 5,493 direct-summary requests (4,943 misses, 484 hits, 66 stale-body
+reconstructions), 3,601 SCC proposals and partition checks, 575 closure
+generations, 506 closure verifications, 786 summed direct edges, 4,357 summed
+closure edges, 357,262 matrix-composition attempts, and 3,571 admitted derived
+edges. Depending on host load, measured totals were:
+
+| Certificate operation | Total time |
+|---|---:|
+| trusted direct-summary extraction/validation | 1.359–2.357 s |
+| untrusted SCC proposal | 0.050–0.104 s |
+| kernel partition verification | 0.059–0.091 s |
+| untrusted sparse closure generation | 1.229–1.231 s |
+| kernel closure verification | 0.356–0.454 s |
+
+The largest recursive component (`Std.Regex.Language` soundness) generated a
+1,650-edge exact closure from 20 direct edges: 223,508 compatible sparse
+compositions in 0.616–0.620 s, followed by 0.210–0.232 s of finite kernel proof
+checking. This is measurable but not the dominant cold-build cost.
+
+The dominant cost is typed elaboration of dependent proof declarations. In the
+second sample, `Std.Regex` + `Std.Regex.Proof` and `Std.Regex.Language` consumed
+129.025 of 149.305 seconds (86.4%). Individual typed-elaboration stages reached
+25.295 s for `thompson_alternate_acceptance_captures`, 17.449 s for
+`alternate_compilation_is_sound`, and 14.602 s for
+`certified_alternate_acceptance_captures`. Thus the SCC migration has achieved
+cheap finite kernel verification and zero warm closure work, but it cannot by
+itself solve the current dependent-proof elaboration slowdown.
+
+The 2026-08-10 75-source, pre-proof baseline is not a like-for-like wall-time
+baseline: the current 77-source universe contains the subsequently added large
+dependent regex proof development. It remains useful only as historical
+evidence of how much authored proof work was added, not as evidence that the SCC
+certificate implementation caused a cold-time regression.
+
 ## Stabilization warning policy
 
 The stabilization gate means **no unexpected compiler warnings**, rather than
