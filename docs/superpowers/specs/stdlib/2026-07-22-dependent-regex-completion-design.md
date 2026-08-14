@@ -139,6 +139,21 @@
   bounds have also moved out of regex syntax into named `Std.Char` predicates.
   Structured macro-authored subspans and user-facing reason content are now the
   only remaining Phase H implementation frontier.
+- 2026-08-14 — Phase H is discharged. Every parser failure now crosses the
+  macro boundary with authored message/hint content, and malformed groups,
+  classes, ranges, quantifiers, scalar/property escapes, unsupported features,
+  and POSIX classes carry exact source subspans. Extended-mode preprocessing
+  retains a Unicode-scalar source map, so skipped whitespace and comments do
+  not corrupt diagnostics. All fourteen POSIX class names accepted by the
+  installed Elixir/PCRE version are implemented with ASCII semantics by default
+  and Unicode-property semantics under `u`, including inner/outer negation.
+  Numeric escapes are rejected explicitly because PCRE assigns octal versus
+  backreference meaning contextually; users are directed to `\\xHH` or
+  `\\x{...}`. Per-literal newline/BSR control verbs are rejected explicitly:
+  Cure's verified engine uses one Unicode newline relation across execution and
+  boundary proofs. The complete dependent-regex suite passes 72 tests, and the
+  documentation fence gate passes 329 snippets. Phase I is now the earliest
+  incomplete phase.
 
 **Supersedes for unfinished work:**
 `2026-07-21-dependently-typed-regex-design.md`
@@ -148,11 +163,10 @@ Idris*, MSc thesis, University of Edinburgh, 2021
 (`docs/research/idris-tyre-2305.04480.pdf`; owner copy:
 `/Users/ch/Downloads/msc_proj.pdf`).
 
-**Implementation baseline:** committed through `f17e747c` ("Normalize initial
-regex certificates"). The generic Concat acceptance composition theorem landed
-in `08dab797`; its reusable initial-certificate normalization combinators and
-the elaborator assessment landed in `f17e747c`. No uncommitted work is credited
-as complete.
+**Implementation baseline:** committed through `39d0b003` ("Complete regex
+parser fallback diagnostics"). The complete proof core and Phase H literal
+surface are credited only where the ordered ledger below marks them discharged.
+No uncommitted work is credited as complete.
 
 ## 1. Purpose
 
@@ -313,8 +327,6 @@ The suite does not yet provide all of:
 - broader generated proof-directed extraction coverage (the accepted path is
   already total and failure is unrepresentable);
 - all ambiguity examples required below;
-- all malformed-syntax subspan diagnostics;
-- all supported Elixir-compatible escapes and classes;
 - benchmark thresholds and complexity ratchets;
 - final Unix and AtomVM runs.
 
@@ -745,23 +757,22 @@ NFA paths, VM acceptance, and public parsing.
 
 ### Phase H — finish literal parity and diagnostics
 
-**Status: in progress; this is the earliest incomplete phase.**
+**Status: discharged.**
 
-Bounded quantifiers, hexadecimal scalar escapes, Unicode general-category
-properties, and their first structured diagnostic matrices are complete.
-Continue with precise quantifier/property/escape subspans,
-and user-facing diagnostic content through the structured macro-authored
-diagnostic boundary.
-
-Complete bounded quantifiers, scalar escapes, Unicode properties, malformed
-construct rejection, exact source subspans, and the modifier matrix. Remove raw
-integer character constants from regex modules in favor of character literals or
-named `Std.Char` APIs/constants.
+Bounded quantifiers, hexadecimal scalar escapes, Unicode general-category and
+POSIX classes, malformed/unsupported construct rejection, exact source
+subspans, extended-mode source mapping, and the modifier matrix are complete.
+Regex character semantics use character literals and named `Std.Char`
+predicates/constants rather than hidden integer-code arithmetic.
 
 Gate: every accepted grammar row has positive, negative, interaction, Unicode,
 and inferred-shape tests; every rejected row has a structured diagnostic test.
+The recorded gate is 72 tests with zero failures plus 329 documentation
+snippets with zero failures.
 
 ### Phase I — complete typed APIs
+
+**Status: in progress; this is the earliest incomplete phase.**
 
 Finalize positions in `Match`, then implement `scan`, `split`, and typed
 replacement where specified. Lock empty-match progress and leftmost behavior.
