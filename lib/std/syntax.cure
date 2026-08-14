@@ -171,6 +171,18 @@ mod Std.Syntax
   @reducible
   fn reject_all(diagnostics: List(Diagnostic)) -> MacroResult = Rejected(diagnostics)
 
+  ## Select a Unicode-scalar-relative range inside syntax captured from the
+  ## caller. The compiler validates the range against the captured source span;
+  ## an invalid or generated target falls back to the macro invocation. Macro
+  ## authors therefore cannot forge a path or escape the captured syntax.
+  @reducible
+  fn diagnostic_subspan(target: Syntax, start: Int, length: Int) -> Syntax =
+    Node(
+      :diagnostic_subspan,
+      [KV(:relative_start, SInt(start)), KV(:relative_length, SInt(length))],
+      [target]
+    )
+
   @reducible
   fn attr_value(name: Atom, value: SynLit) -> Attr = KV(name, value)
 

@@ -18,6 +18,7 @@ defmodule Cure.Diagnostic.Adapter.Macro do
   }
 
   alias Cure.Diagnostic.Suggest
+  alias Cure.Diagnostic.SourceRegistry
   alias Cure.Diagnostic.Adapter.Type, as: TypeAdapter
   alias Cure.MetaAST.Metadata
 
@@ -635,7 +636,8 @@ defmodule Cure.Diagnostic.Adapter.Macro do
     keyword = Keyword.get(meta, :keyword, "computed")
     payload = %{keyword: keyword, reason: computed_macro_payload(reason)} |> maybe_put_meta_location(meta)
     source_info = Metadata.source_info(meta)
-    span = (source_info && source_info.whole) || Keyword.get(opts, :span)
+    invocation_span = (source_info && source_info.whole) || Keyword.get(opts, :span)
+    {span, selected_authored_syntax?} = computed_macro_primary_span(reason, invocation_span, opts)
     provenance = ((source_info && source_info.provenance) || []) ++ Keyword.get(opts, :provenance, [])
     {title, message, primary_message, note} = computed_macro_content(keyword, reason)
 
@@ -645,13 +647,85 @@ defmodule Cure.Diagnostic.Adapter.Macro do
       severity: :error,
       title: title,
       body: Doc.paragraph(message),
-      primary: label(span, :primary, primary_message),
+      primary:
+        label(
+          span,
+          :primary,
+          if(selected_authored_syntax?, do: "this captured syntax was rejected by the macro", else: primary_message)
+        ),
       notes: [note],
       suggestions: computed_macro_suggestions(reason),
       provenance: provenance,
       payload: payload
     )
   end
+
+  defp computed_macro_primary_span({:author_diagnostics, diagnostics}, fallback, opts)
+       when is_list(diagnostics) do
+    case Enum.find_value(diagnostics, &author_diagnostic_primary_span(&1, opts)) do
+      %Span{} = span -> {span, true}
+      _ -> {fallback, false}
+    end
+  end
+
+  defp computed_macro_primary_span(_reason, fallback, _opts), do: {fallback, false}
+
+  defp author_diagnostic_primary_span({:macro_failure, _name, arguments}, opts) when is_list(arguments) do
+    Enum.find_value(arguments, &diagnostic_argument_span(&1, opts))
+  end
+
+  defp author_diagnostic_primary_span(_diagnostic, _opts), do: nil
+
+  defp diagnostic_argument_span(
+         {:diagnostic_subspan, selector_meta, [target]},
+         opts
+       )
+       when is_list(selector_meta) do
+    with start when is_integer(start) and start >= 0 <- Keyword.get(selector_meta, :relative_start),
+         length when is_integer(length) and length >= 0 <- Keyword.get(selector_meta, :relative_length),
+         %Span{} = base <- syntax_span(target),
+         %SourceRegistry{} = registry <- Keyword.get(opts, :source_registry),
+         source_id when not is_nil(source_id) <- diagnostic_source_id(registry, base.source_id, opts),
+         {:ok, source} <- SourceRegistry.fetch(registry, source_id),
+         true <- base.start_byte >= 0 and base.end_byte <= byte_size(source),
+         fragment <- binary_part(source, base.start_byte, base.end_byte - base.start_byte),
+         true <- start + length <= String.length(fragment),
+         prefix <- String.slice(fragment, 0, start),
+         selected <- String.slice(fragment, start, length),
+         {:ok, span} <-
+           SourceRegistry.span(
+             registry,
+             source_id,
+             base.start_byte + byte_size(prefix),
+             base.start_byte + byte_size(prefix) + byte_size(selected)
+           ) do
+      span
+    else
+      _ -> nil
+    end
+  end
+
+  defp diagnostic_argument_span(target, _opts), do: syntax_span(target)
+
+  defp diagnostic_source_id(registry, source_id, opts) do
+    case SourceRegistry.fetch(registry, source_id) do
+      {:ok, _source} ->
+        source_id
+
+      :error ->
+        source_file = Keyword.get(opts, :source_file)
+        if match?({:ok, _}, SourceRegistry.fetch(registry, source_file)), do: source_file, else: nil
+    end
+  end
+
+  defp syntax_span({_tag, meta, _third}) when is_list(meta) do
+    case Metadata.source_info(meta) do
+      %{whole: %Span{} = span} -> span
+      _ -> nil
+    end
+  end
+
+  defp syntax_span(_target), do: nil
 
   def computed_macro_error(meta, reason, opts) when is_list(meta),
     do: computed_macro_failure(meta, reason, opts)
