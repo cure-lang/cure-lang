@@ -859,9 +859,9 @@ defmodule Cure.Core.Kernel do
   end
 
   @doc "Verify an SCC partition once and atomically certify selected components."
-  @spec validate_scc_certificates(Env.t(), map(), [atom()]) ::
+  @spec validate_scc_certificates(Env.t(), map(), map(), [atom()]) ::
           {:ok, Env.t()} | {:error, {:not_total, [atom()]}} | {:error, term()}
-  def validate_scc_certificates(%Env{} = env, partition, selected_names) do
+  def validate_scc_certificates(%Env{} = env, partition, totality_certificates, selected_names) do
     with {:ok, _components} <- Cure.Core.SCCCertificate.verify_partition(env, partition) do
       selected_ids =
         selected_names
@@ -878,19 +878,25 @@ defmodule Cure.Core.Kernel do
           Map.has_key?(acc.totality_components, digest) ->
             {:cont, {:ok, acc}}
 
-          Certificate.terminating_group?(members, acc) ->
-            {:cont, {:ok, Env.certify_component(acc, members, digest)}}
-
           true ->
-            {:halt, {:error, {:not_total, members}}}
+            case verify_totality_component(acc, members, totality_certificates[component_id]) do
+              {:ok, :total} ->
+                {:cont, {:ok, Env.certify_component(acc, members, digest)}}
+
+              {:ok, {:not_total, _bad_edge}} ->
+                {:halt, {:error, {:not_total, members}}}
+
+              {:error, _} = error ->
+                {:halt, error}
+            end
         end
       end)
     end
   end
 
   @doc "Verify one partition and certify every provably total component, skipping partial SCCs."
-  @spec certify_sccs_lenient(Env.t(), map()) :: {:ok, Env.t()} | {:error, term()}
-  def certify_sccs_lenient(%Env{} = env, partition) do
+  @spec certify_sccs_lenient(Env.t(), map(), map()) :: {:ok, Env.t()} | {:error, term()}
+  def certify_sccs_lenient(%Env{} = env, partition, totality_certificates) do
     with {:ok, _components} <- Cure.Core.SCCCertificate.verify_partition(env, partition) do
       partition.components
       |> Map.keys()
@@ -900,14 +906,26 @@ defmodule Cure.Core.Kernel do
         digest = scc_certificate_digest(partition, component_id, members)
 
         cond do
-          Map.has_key?(acc.totality_components, digest) -> acc
-          Certificate.terminating_group?(members, acc) -> Env.certify_component(acc, members, digest)
-          true -> acc
+          Map.has_key?(acc.totality_components, digest) ->
+            acc
+
+          true ->
+            case verify_totality_component(acc, members, totality_certificates[component_id]) do
+              {:ok, :total} -> Env.certify_component(acc, members, digest)
+              {:ok, {:not_total, _bad_edge}} -> acc
+              {:error, _reason} -> acc
+            end
         end
       end)
       |> then(&{:ok, &1})
     end
   end
+
+  defp verify_totality_component(_env, _members, nil),
+    do: {:error, {:totality_derivation_invalid, %{reason: :missing_component_certificate}}}
+
+  defp verify_totality_component(env, members, certificate),
+    do: Cure.Core.TotalityCertificate.verify(env, members, certificate)
 
   defp scc_certificate_digest(partition, component_id, members) do
     material =

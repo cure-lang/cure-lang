@@ -18,7 +18,7 @@ defmodule Cure.Elab.TotalityClosure do
   """
 
   alias Cure.Core.{Env, Kernel}
-  alias Cure.Elab.TotalityGraph
+  alias Cure.Elab.{TotalityCertificate, TotalityGraph}
 
   @doc "The set of global function names reachable from a type position (transitively)."
   @spec type_level_fns(Env.t()) :: MapSet.t(atom())
@@ -104,7 +104,8 @@ defmodule Cure.Elab.TotalityClosure do
     else
       with {:ok, prepared} <- Kernel.prepare_direct_call_summaries(env, names) do
         partition = TotalityGraph.propose_partition(prepared, names)
-        Kernel.validate_scc_certificates(prepared, partition, names)
+        certificates = TotalityCertificate.propose_all(prepared, partition)
+        Kernel.validate_scc_certificates(prepared, partition, certificates, names)
       end
     end
   end
@@ -145,8 +146,9 @@ defmodule Cure.Elab.TotalityClosure do
 
     with {:ok, prepared, names} <- prepare_available_slice(env, [name], MapSet.new()) do
       partition = TotalityGraph.propose_partition(prepared, names)
+      certificates = TotalityCertificate.propose_all(prepared, partition)
 
-      case Kernel.certify_sccs_lenient(prepared, partition) do
+      case Kernel.certify_sccs_lenient(prepared, partition, certificates) do
         {:ok, certified} -> certified
         {:error, _reason} -> env
       end
@@ -243,8 +245,9 @@ defmodule Cure.Elab.TotalityClosure do
 
             _ ->
               partition = TotalityGraph.propose_partition(prepared, safe_names)
+              certificates = TotalityCertificate.propose_all(prepared, partition)
 
-              case Kernel.certify_sccs_lenient(prepared, partition) do
+              case Kernel.certify_sccs_lenient(prepared, partition, certificates) do
                 {:ok, certified} -> certified
                 {:error, _} -> env
               end

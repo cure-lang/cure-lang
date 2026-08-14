@@ -119,9 +119,15 @@ defmodule Cure.Core.MutualSizeChangeTest do
     env = with_defs(even: even_body(), odd: odd_body())
     assert {:ok, prepared} = Kernel.prepare_direct_call_summaries(env, [:even, :odd])
     partition = TotalityGraph.propose_partition(prepared, [:odd, :even])
+    certificates = Cure.Elab.TotalityCertificate.propose_all(prepared, partition)
 
     assert {:ok, certified} =
-             Kernel.validate_scc_certificates(prepared, partition, [:even, :odd])
+             Kernel.validate_scc_certificates(
+               prepared,
+               partition,
+               certificates,
+               [:even, :odd]
+             )
 
     assert Env.total?(certified, :even)
     assert Env.total?(certified, :odd)
