@@ -57,6 +57,8 @@ defmodule Cure.Elab.TotalityClosureTest do
   test "certifying type-level functions succeeds for a total and" do
     assert {:ok, env2} = TotalityClosure.certify_type_level(env_with(and_body()))
     assert Env.certified?(env2, :and)
+    assert map_size(env2.totality_components) == 1
+    assert is_binary(env2.totality_component_of.and)
   end
 
   test "a non-total function used in a type raises :totality_required naming it" do

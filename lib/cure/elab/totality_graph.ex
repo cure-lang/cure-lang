@@ -44,6 +44,17 @@ defmodule Cure.Elab.TotalityGraph do
          }}
       end)
 
+    sealed_boundaries =
+      universe
+      |> Enum.flat_map(fn source -> Env.direct_call_summary(env, source).calls end)
+      |> Enum.map(& &1.callee)
+      |> Enum.reject(&MapSet.member?(universe_set, &1))
+      |> Enum.uniq()
+      |> Enum.filter(&Env.total?(env, &1))
+      |> Map.new(fn callee ->
+        {callee, Map.get(env.totality_component_of, callee, :legacy_totality)}
+      end)
+
     %{
       version: @partition_version,
       universe: universe,
@@ -55,7 +66,7 @@ defmodule Cure.Elab.TotalityGraph do
       rank: ranks,
       components: component_records,
       edges: edges,
-      sealed_boundaries: %{}
+      sealed_boundaries: sealed_boundaries
     }
   end
 

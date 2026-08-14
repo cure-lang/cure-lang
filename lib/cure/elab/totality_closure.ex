@@ -18,6 +18,7 @@ defmodule Cure.Elab.TotalityClosure do
   """
 
   alias Cure.Core.{Env, Kernel}
+  alias Cure.Elab.TotalityGraph
 
   @doc "The set of global function names reachable from a type position (transitively)."
   @spec type_level_fns(Env.t()) :: MapSet.t(atom())
@@ -48,19 +49,18 @@ defmodule Cure.Elab.TotalityClosure do
     seeds = seed_globals(env)
 
     with {:ok, closure} <- checked_closure(env, MapSet.to_list(seeds)) do
-      closure
-      |> MapSet.to_list()
-      # Wave-3: an @extern global has no Core body to certify (it is an asserted FFI
-      # postulate — spec §2.1 point 4). Certification is a category error for it, so
-      # skip it here rather than hand its sentinel body to Kernel.check.
-      |> Enum.reject(&extern_def?(env, &1))
-      |> Enum.reject(&bodyless_def?(env, &1))
-      |> Enum.reduce_while({:ok, env}, fn name, {:ok, acc} ->
-        case Kernel.validate_certificate(acc, name) do
-          {:ok, acc2} -> {:cont, {:ok, acc2}}
-          {:error, reason} -> {:halt, {:error, {:totality_required, name, reason}}}
-        end
-      end)
+      names = certifiable_names(env, closure)
+
+      case certify_partition(env, names) do
+        {:ok, certified} ->
+          {:ok, certified}
+
+        {:error, {:not_total, members}} ->
+          {:error, {:totality_required, first_required(members, names), :not_total}}
+
+        {:error, reason} ->
+          {:error, {:totality_required, List.first(names), reason}}
+      end
     end
   end
 
@@ -78,17 +78,59 @@ defmodule Cure.Elab.TotalityClosure do
   @spec certify_roots(Env.t(), [atom()]) :: {:ok, Env.t()} | {:error, term()}
   def certify_roots(%Env{} = env, roots) when is_list(roots) do
     with {:ok, closure} <- checked_closure(env, roots) do
-      closure
-      |> MapSet.to_list()
-      |> Enum.reject(&extern_def?(env, &1))
-      |> Enum.reject(&(not is_nil(env.totality_certified) and Env.total?(env, &1)))
-      |> Enum.reduce_while({:ok, env}, fn name, {:ok, acc} ->
-        case Kernel.validate_certificate(acc, name) do
-          {:ok, acc2} -> {:cont, {:ok, acc2}}
-          {:error, reason} -> {:halt, {:error, {:compile_time_totality, name, reason}}}
-        end
-      end)
+      names = certifiable_names(env, closure)
+
+      case certify_partition(env, names) do
+        {:ok, certified} ->
+          {:ok, certified}
+
+        {:error, {:not_total, members}} ->
+          {:error, {:compile_time_totality, first_required(members, names), :not_total}}
+
+        {:error, reason} ->
+          {:error, {:compile_time_totality, List.first(names), reason}}
+      end
     end
+  end
+
+  defp certify_partition(env, []), do: {:ok, env}
+
+  defp certify_partition(env, names) do
+    if Enum.any?(names, &pending_definition?(env, &1)) do
+      # Agda's `termMutual` waits for the complete mutual block. A pending
+      # skeleton has no trustworthy outgoing calls, so the only sound result is
+      # deferral: retain opacity and retry after body checking completes.
+      {:ok, env}
+    else
+      with {:ok, prepared} <- Kernel.prepare_direct_call_summaries(env, names) do
+        partition = TotalityGraph.propose_partition(prepared, names)
+        Kernel.validate_scc_certificates(prepared, partition, names)
+      end
+    end
+  end
+
+  defp pending_definition?(env, name),
+    do: match?(%{body: {:hole, _}}, Env.get_def(env, name))
+
+  defp certifiable_names(env, names) do
+    names
+    |> Enum.filter(fn name ->
+      case Env.get_def(env, name) do
+        %{body: {:hole, _}} -> not Env.total?(env, name)
+        %{body: body} when not is_nil(body) and not is_tuple(body) -> true
+        %{body: {:extern, _}} -> false
+        %{body: nil} -> false
+        %{body: _body} -> true
+        nil -> false
+      end
+    end)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  defp first_required(members, names) do
+    member_set = MapSet.new(members)
+    Enum.find(names, List.first(members), &MapSet.member?(member_set, &1))
   end
 
   @doc """
@@ -138,9 +180,6 @@ defmodule Cure.Elab.TotalityClosure do
       end
     end)
   end
-
-  defp extern_def?(env, name), do: match?(%{body: {:extern, _}}, Env.get_def(env, name))
-  defp bodyless_def?(env, name), do: match?(%{body: nil}, Env.get_def(env, name))
 
   # -- seeds: globals appearing in family/constructor type positions ----------
 

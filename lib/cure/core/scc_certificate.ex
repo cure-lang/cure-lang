@@ -104,8 +104,14 @@ defmodule Cure.Core.SCCCertificate do
     case Env.get_def(env, callee) do
       %{body: {:extern, _}} -> true
       %{builtin_op: op} when not is_nil(op) -> true
-      _ -> Map.has_key?(Map.get(certificate, :sealed_boundaries, %{}), callee)
+      _ -> valid_sealed_boundary?(env, callee, certificate)
     end
+  end
+
+  defp valid_sealed_boundary?(env, callee, certificate) do
+    submitted = Map.get(Map.get(certificate, :sealed_boundaries, %{}), callee)
+    expected = Map.get(env.totality_component_of, callee, :legacy_totality)
+    Env.total?(env, callee) and not is_nil(submitted) and submitted == expected
   end
 
   defp verify_submitted_edges(certificate, expected) do
