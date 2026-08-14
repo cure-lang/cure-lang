@@ -888,6 +888,11 @@ mod Std.Regex
   ## not allocate unary Nat structures at runtime.
   type Match(result: Type) = Match(result, String, String, String, Int, Int)
 
+  type SplitInclusion = ExcludeSeparators | IncludeSeparators
+  type SplitTrimming = KeepEmptyParts | TrimEmptyParts
+  type SplitLimit = UnlimitedSplit | AtMostSplitParts(Int)
+  type SplitOptions = SplitOptions(SplitInclusion, SplitTrimming, SplitLimit)
+
   @reducible
   fn evidence_reverse_chars(input: List(Char)) -> List(Char) = evidence_reverse_chars_into(input, [])
   @reducible
@@ -1630,6 +1635,68 @@ mod Std.Regex
               [char | rest] ->
                 let advanced = append_characters(consumed, [char])
                 [found | scan_from(regex, rest, evidence_reverse_chars(advanced), advance_initial_position(subject_initial_position(), advanced), firstline_only, not characters_contain_newline(advanced))]
+
+  fn character_list_drop(values: List(Char), count: Int) -> List(Char) = pickup
+    Std.Builtin.int_lt(0, count) -> match values
+      [] -> []
+      [_ | rest] -> character_list_drop(rest, Std.Builtin.int_sub(count, 1))
+    else -> values
+
+  fn character_list_take(values: List(Char), count: Int) -> List(Char) = pickup
+    Std.Builtin.int_lt(0, count) -> match values
+      [] -> []
+      [head | rest] -> [head | character_list_take(rest, Std.Builtin.int_sub(count, 1))]
+    else -> []
+
+  fn split_can_continue(limit: SplitLimit) -> Bool = match limit
+    UnlimitedSplit -> true
+    AtMostSplitParts(remaining) -> Std.Builtin.int_lt(1, remaining)
+
+  fn split_next_limit(limit: SplitLimit) -> SplitLimit = match limit
+    UnlimitedSplit -> UnlimitedSplit
+    AtMostSplitParts(remaining) -> AtMostSplitParts(Std.Builtin.int_sub(remaining, 1))
+
+  fn prepend_split_part(chars: List(Char), trimming: SplitTrimming, rest: List(String)) -> List(String) = match trimming
+    KeepEmptyParts -> [Std.String.from_characters(chars) | rest]
+    TrimEmptyParts -> match chars
+      [] -> rest
+      _ -> [Std.String.from_characters(chars) | rest]
+
+  fn split_matches({result: Type}, input: List(Char), cursor: Int, matches: List(Match(result)), options: SplitOptions) -> List(String) = match options
+    SplitOptions(inclusion, trimming, limit) -> match matches
+      [] -> prepend_split_part(character_list_drop(input, cursor), trimming, [])
+      [found | rest] -> pickup
+        not split_can_continue(limit) -> prepend_split_part(character_list_drop(input, cursor), trimming, [])
+        else -> match found
+          Match(_, _, matched, _, start, length) ->
+            let field = character_list_take(character_list_drop(input, cursor), Std.Builtin.int_sub(start, cursor))
+            let next_cursor = Std.Builtin.int_add(start, length)
+            let tail = split_matches(input, next_cursor, rest, SplitOptions(inclusion, trimming, split_next_limit(limit)))
+            let with_separator = match inclusion
+              ExcludeSeparators -> tail
+              IncludeSeparators -> prepend_split_part(Std.String.characters(matched), trimming, tail)
+            prepend_split_part(field, trimming, with_separator)
+
+  fn split({result: Type}, regex: Regex(result), input: String, options: SplitOptions) -> List(String) =
+    split_matches(Std.String.characters(input), 0, scan(regex, input), options)
+
+  fn split_default({result: Type}, regex: Regex(result), input: String) -> List(String) =
+    split(regex, input, SplitOptions(ExcludeSeparators, KeepEmptyParts, UnlimitedSplit))
+
+  fn replace_matches({result: Type}, input: List(Char), cursor: Int, matches: List(Match(result)), replacement: (Match(result)) -> String) -> List(Char) = match matches
+    [] -> character_list_drop(input, cursor)
+    [found | rest] -> match found
+      Match(_, _, _, _, start, length) ->
+        let field = character_list_take(character_list_drop(input, cursor), Std.Builtin.int_sub(start, cursor))
+        let replacement_text: String = replacement(found)
+        let replaced = Std.String.characters(replacement_text)
+        append_characters(field, append_characters(replaced, replace_matches(input, Std.Builtin.int_add(start, length), rest, replacement)))
+
+  fn replace({result: Type}, regex: Regex(result), input: String, replacement: (Match(result)) -> String) -> String =
+    Std.String.from_characters(replace_matches(Std.String.characters(input), 0, scan(regex, input), replacement))
+
+  fn replace_literal({result: Type}, regex: Regex(result), input: String, replacement: String) -> String =
+    replace(regex, input, fn(_) -> replacement)
 
   fn empty() -> Regex(Unit) = FromPattern(UnitC, PatternEmpty())
 

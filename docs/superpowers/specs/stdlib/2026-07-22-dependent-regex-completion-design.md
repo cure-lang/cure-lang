@@ -154,6 +154,17 @@
   boundary proofs. The complete dependent-regex suite passes 72 tests, and the
   documentation fence gate passes 329 snippets. Phase I is now the earliest
   incomplete phase.
+- 2026-08-14 — Phase I is discharged. `Match(a)` carries Unicode-scalar
+  `start` and `length` positions alongside the exact subject partition. Typed
+  `scan` is non-overlapping, preserves the original boundary state, and advances
+  one scalar after an empty match while emitting the terminal empty match once.
+  `split` exposes separator inclusion, empty-field trimming, and subject-part
+  limits as Cure data. Callback replacement receives the complete typed match;
+  literal replacement is its specialization. All three APIs consume `scan`, so
+  they share the certified VM and its one progress rule. The complete
+  dependent-regex suite passes 78 tests, including 300 generated Unicode
+  subjects checking scan partitions/offsets, comma splitting, and literal
+  replacement. Phase J is now the earliest incomplete phase.
 
 **Supersedes for unfinished work:**
 `2026-07-21-dependently-typed-regex-design.md`
@@ -163,10 +174,9 @@ Idris*, MSc thesis, University of Edinburgh, 2021
 (`docs/research/idris-tyre-2305.04480.pdf`; owner copy:
 `/Users/ch/Downloads/msc_proj.pdf`).
 
-**Implementation baseline:** committed through `39d0b003` ("Complete regex
-parser fallback diagnostics"). The complete proof core and Phase H literal
-surface are credited only where the ordered ledger below marks them discharged.
-No uncommitted work is credited as complete.
+**Implementation baseline:** committed through `f723ce19` ("Add typed regex
+scan"). The ordered ledger is authoritative for later work; no uncommitted work
+is credited as complete.
 
 ## 1. Purpose
 
@@ -772,7 +782,11 @@ snippets with zero failures.
 
 ### Phase I — complete typed APIs
 
-**Status: in progress; this is the earliest incomplete phase.**
+**Status: discharged.** `Match(a)` records Unicode-scalar positions; `scan`,
+typed-option `split`, callback `replace`, and literal replacement share the
+certified search engine. Empty matches advance one scalar and the terminal empty
+match is emitted once. Fixed examples and 300 generated collection-law cases
+pass; the complete dependent-regex suite is 78 tests with zero failures.
 
 Finalize positions in `Match`, then implement `scan`, `split`, and typed
 replacement where specified. Lock empty-match progress and leftmost behavior.
