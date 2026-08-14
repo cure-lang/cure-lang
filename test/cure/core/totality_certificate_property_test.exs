@@ -74,6 +74,44 @@ defmodule Cure.Core.TotalityCertificatePropertyTest do
     end
   end
 
+  property "every Core position containing a global contributes one canonical direct edge" do
+    positions = [
+      :app_head,
+      :app_argument,
+      :constructor_argument,
+      :lambda_domain,
+      :lambda_body,
+      :let_type,
+      :let_value,
+      :let_body,
+      :pi_domain,
+      :pi_codomain,
+      :data_parameter,
+      :data_index,
+      :case_scrutinee,
+      :case_motive,
+      :case_branch,
+      :effect_type,
+      :effect_pure,
+      :effect_bind_effect,
+      :effect_bind_continuation
+    ]
+
+    check all(path <- list_of(member_of(positions), min_length: 1, max_length: 24), max_runs: 100) do
+      env =
+        Env.empty()
+        |> Env.with_owner("Property")
+        |> Env.add_def(:leaf, {:type, 0}, {:type, 0})
+
+      body = {:ctor, :Root, [Enum.reduce(path, {:global, :"Property#leaf"}, &wrap_global_position/2)]}
+      env = Env.add_def(env, :root, {:type, 0}, body)
+      summary = Certificate.direct_summary(:root, body, env)
+
+      assert Enum.map(summary.calls, & &1.callee) == [:"Property#leaf"]
+      assert Enum.all?(summary.calls, &(Cure.Elab.Name.owner(&1.callee) == "Property"))
+    end
+  end
+
   defp cycle_and_permutation do
     bind(integer(1..length(@names)), fn count ->
       names = Enum.take(@names, count)
@@ -168,6 +206,40 @@ defmodule Cure.Core.TotalityCertificatePropertyTest do
     expanded = MapSet.union(edges, composed)
     if MapSet.equal?(expanded, edges), do: edges, else: dense_relation_closure(expanded)
   end
+
+  defp wrap_global_position(:app_head, term), do: {:app, term, {:nat_lit, 0}}
+  defp wrap_global_position(:app_argument, term), do: {:app, {:ctor, :F, []}, term}
+  defp wrap_global_position(:constructor_argument, term), do: {:ctor, :Box, [term]}
+  defp wrap_global_position(:lambda_domain, term), do: {:lam, Cure.Core.Grade.unrestricted(), term, {:var, 0}}
+  defp wrap_global_position(:lambda_body, term), do: {:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, term}
+
+  defp wrap_global_position(:let_type, term),
+    do: {:let, Cure.Core.Grade.unrestricted(), term, {:nat_lit, 0}, {:var, 0}}
+
+  defp wrap_global_position(:let_value, term),
+    do: {:let, Cure.Core.Grade.unrestricted(), {:type, 0}, term, {:var, 0}}
+
+  defp wrap_global_position(:let_body, term),
+    do: {:let, Cure.Core.Grade.unrestricted(), {:type, 0}, {:nat_lit, 0}, term}
+
+  defp wrap_global_position(:pi_domain, term), do: {:pi, Cure.Core.Grade.unrestricted(), term, {:type, 0}}
+  defp wrap_global_position(:pi_codomain, term), do: {:pi, Cure.Core.Grade.unrestricted(), {:type, 0}, term}
+  defp wrap_global_position(:data_parameter, term), do: {:data, :D, [term], []}
+  defp wrap_global_position(:data_index, term), do: {:data, :D, [], [term]}
+
+  defp wrap_global_position(:case_scrutinee, term),
+    do: {:case, term, {:type, 0}, [{:Unit, 0, {:ctor, :Unit, []}}]}
+
+  defp wrap_global_position(:case_motive, term),
+    do: {:case, {:ctor, :Unit, []}, term, [{:Unit, 0, {:ctor, :Unit, []}}]}
+
+  defp wrap_global_position(:case_branch, term),
+    do: {:case, {:ctor, :Unit, []}, {:type, 0}, [{:Unit, 0, term}]}
+
+  defp wrap_global_position(:effect_type, term), do: {:effect_type, term}
+  defp wrap_global_position(:effect_pure, term), do: {:effect_pure, term}
+  defp wrap_global_position(:effect_bind_effect, term), do: {:effect_bind, term, {:ctor, :K, []}}
+  defp wrap_global_position(:effect_bind_continuation, term), do: {:effect_bind, {:effect_pure, {:nat_lit, 0}}, term}
 
   defp nested_calls(0), do: {:type, 0}
 
