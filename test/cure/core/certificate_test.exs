@@ -142,6 +142,62 @@ defmodule Cure.Core.CertificateTest do
     assert summary == Certificate.direct_summary(:twice, body, env)
   end
 
+  test "an applied dependent case preserves the proof parameter as a branch alias" do
+    chain = {:data, :Chain, [], []}
+
+    env =
+      base()
+      |> Inductive.declare(Inductive.family(:Chain, [], [], 0), [
+        Inductive.ctor(:Stop, [], []),
+        Inductive.ctor(:Step, [prior: chain], [])
+      ])
+
+    chain_motive = {:lam, Cure.Core.Grade.unrestricted(), chain, chain}
+
+    recurse_on_prior =
+      {:case, {:var, 0}, chain_motive,
+       [
+         {:Stop, 0, {:ctor, :Stop, []}},
+         {:Step, 1, {:app, {:global, :consume}, {:var, 0}}}
+       ]}
+
+    # Dependent elimination lowers to a case returning a function, immediately
+    # applied to the transported proof. The branch lambda's binder is therefore
+    # definitionally the original `proof` parameter.
+    applied_dependent_case =
+      {:app,
+       {:case, @causal, {:lam, Cure.Core.Grade.unrestricted(), @dec, {:pi, Cure.Core.Grade.zero(), chain, chain}},
+        [{:Causal, 0, {:lam, Cure.Core.Grade.zero(), chain, recurse_on_prior}}]}, {:var, 0}}
+
+    body = {:lam, Cure.Core.Grade.zero(), chain, applied_dependent_case}
+    type = {:pi, Cure.Core.Grade.zero(), chain, chain}
+    env = Env.add_def(env, :consume, type, body)
+
+    assert [%{callee: :consume, matrix: matrix}] = Certificate.direct_summary(:consume, body, env).calls
+    assert Cure.Core.SizeChange.to_dense(matrix) == [[:smaller]]
+
+    recurse_on_original =
+      {:case, {:var, 0}, chain_motive,
+       [
+         {:Stop, 0, {:ctor, :Stop, []}},
+         # prior = 0, branch alias = 1, original caller parameter = 2
+         {:Step, 1, {:app, {:global, :consume_control}, {:var, 2}}}
+       ]}
+
+    control_case =
+      {:app,
+       {:case, @causal, {:lam, Cure.Core.Grade.unrestricted(), @dec, {:pi, Cure.Core.Grade.zero(), chain, chain}},
+        [{:Causal, 0, {:lam, Cure.Core.Grade.zero(), chain, recurse_on_original}}]}, {:var, 0}}
+
+    control_body = {:lam, Cure.Core.Grade.zero(), chain, control_case}
+    env = Env.add_def(env, :consume_control, type, control_body)
+
+    assert [%{callee: :consume_control, matrix: control_matrix}] =
+             Certificate.direct_summary(:consume_control, control_body, env).calls
+
+    assert Cure.Core.SizeChange.to_dense(control_matrix) == [[:equal]]
+  end
+
   test "replacing a definition invalidates its cached direct-call summary" do
     env = Env.add_def(base(), :stable, @dec, @causal)
     assert {:ok, checked} = certify(env, :stable)

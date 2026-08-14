@@ -11,9 +11,9 @@ defmodule Cure.Core.Certificate do
   verifies their finite certificates.
   """
 
-  alias Cure.Core.{Env, SizeChange}
+  alias Cure.Core.{Env, SizeChange, Term}
 
-  @direct_summary_version 4
+  @direct_summary_version 5
   @diagnostic_provenance_keys [:source_span, :macro_expansion]
 
   @doc "The semantic format/checker version of trusted direct-call summaries."
@@ -164,8 +164,11 @@ defmodule Cure.Core.Certificate do
   #                 (a Core ctor-of-vars term, or nil), for reconstruct-equal.
   # Param i (0-based, outermost first) starts at de Bruijn index arity-1-i.
   defp initial_state(arity) do
+    roots = Enum.map(0..(arity - 1)//1, fn i -> arity - 1 - i end)
+
     %{
-      roots: Enum.map(0..(arity - 1)//1, fn i -> arity - 1 - i end),
+      roots: roots,
+      equals: Enum.map(roots, &MapSet.new([&1])),
       smallers: List.duplicate(MapSet.new(), arity),
       recons: List.duplicate(nil, arity)
     }
@@ -182,6 +185,16 @@ defmodule Cure.Core.Certificate do
       {{:global, g}, args} ->
         acc = emit.(g, args, st, acc)
         Enum.reduce(args, acc, fn a, ac -> walk(emit, a, st, ac) end)
+
+      {{:case, scrut, motive, branches}, args} when args != [] ->
+        acc = walk(emit, scrut, st, acc)
+        acc = walk(emit, motive, st, acc)
+        acc = Enum.reduce(args, acc, fn arg, ac -> walk(emit, arg, st, ac) end)
+
+        Enum.reduce(branches, acc, fn {ctor, arity, body}, ac ->
+          branch_state = refine_branch(st, scrut, ctor, arity)
+          walk_applied_branch(emit, body, args, branch_state, arity, ac)
+        end)
 
       {head, args} when args != [] ->
         acc = walk(emit, head, st, acc)
@@ -254,6 +267,20 @@ defmodule Cure.Core.Certificate do
 
   defp walk_node(_emit, _term, _st, acc), do: acc
 
+  # A dependent eliminator is represented as a case returning lambdas followed
+  # by applications to the transported indices/proofs. In each branch, the
+  # lambda binder is definitionally equal to its application argument. Preserve
+  # that fact while walking the branch so a subsequent constructor match can
+  # expose genuine structural subterms of the original caller parameter.
+  defp walk_applied_branch(emit, {:lam, _grade, domain, body}, [arg | rest], st, branch_binders, acc) do
+    acc = walk(emit, domain, st, acc)
+    arg = Term.shift(arg, branch_binders)
+    walk_applied_branch(emit, body, rest, enter_alias(st, arg), branch_binders + 1, acc)
+  end
+
+  defp walk_applied_branch(emit, body, _args, st, _branch_binders, acc),
+    do: walk(emit, body, st, acc)
+
   defp descend_unknown(emit, child, st, acc) when is_tuple(child), do: walk(emit, child, st, acc)
   defp descend_unknown(_emit, _child, _st, acc), do: acc
 
@@ -267,22 +294,22 @@ defmodule Cure.Core.Certificate do
     idx = scrut_index(scrut)
 
     smallers =
-      Enum.zip_with([st.roots, st.smallers, shifted.smallers], fn [root, sm0, sm_sh] ->
-        if idx != nil and (idx == root or MapSet.member?(sm0, idx)),
+      Enum.zip_with([st.equals, st.smallers, shifted.smallers], fn [equals, sm0, sm_sh] ->
+        if idx != nil and (MapSet.member?(equals, idx) or MapSet.member?(sm0, idx)),
           do: add_fields(sm_sh, ar),
           else: sm_sh
       end)
 
     recons =
-      Enum.zip_with([st.roots, shifted.recons], fn [root, rc_sh] ->
+      Enum.zip_with([st.equals, shifted.recons], fn [equals, rc_sh] ->
         # reconstruct-EQUAL only on an EXACT parameter match (`scrut` IS xⱼ):
         # then xⱼ is definitionally `ctor(fields)`. A merely-smaller scrutinee
         # never yields `:equal` (guardrail: never `:smaller`/over-claim from a
         # reconstruction), so its recon is left untouched.
-        if idx != nil and idx == root, do: recon, else: rc_sh
+        if idx != nil and MapSet.member?(equals, idx), do: recon, else: rc_sh
       end)
 
-    %{roots: shifted.roots, smallers: smallers, recons: recons}
+    %{shifted | smallers: smallers, recons: recons}
   end
 
   defp scrut_index({:var, i}), do: i
@@ -319,7 +346,12 @@ defmodule Cure.Core.Certificate do
   defp rows(n, f), do: Enum.map(0..(n - 1)//1, f)
 
   defp param_view(st, j),
-    do: %{root: Enum.at(st.roots, j), smaller: Enum.at(st.smallers, j), recon: Enum.at(st.recons, j)}
+    do: %{
+      root: Enum.at(st.roots, j),
+      equal: Enum.at(st.equals, j),
+      smaller: Enum.at(st.smallers, j),
+      recon: Enum.at(st.recons, j)
+    }
 
   # Relation of a single call-argument to a single parameter.
   #   :smaller — a variable proven structurally < xⱼ, OR an application whose
@@ -329,10 +361,10 @@ defmodule Cure.Core.Certificate do
   #   :unknown — anything else (never claim ≤ for a possibly-larger term)
   defp arg_relation(nil, _pv), do: :unknown
 
-  defp arg_relation({:var, i}, %{root: root, smaller: smaller}) do
+  defp arg_relation({:var, i}, %{equal: equal, smaller: smaller}) do
     cond do
       MapSet.member?(smaller, i) -> :smaller
-      i == root -> :equal
+      MapSet.member?(equal, i) -> :equal
       true -> :unknown
     end
   end
@@ -373,6 +405,7 @@ defmodule Cure.Core.Certificate do
   defp shift_state(st, by) do
     %{
       roots: Enum.map(st.roots, &(&1 + by)),
+      equals: Enum.map(st.equals, &shift(&1, by)),
       smallers: Enum.map(st.smallers, &shift(&1, by)),
       recons:
         Enum.map(st.recons, fn
@@ -380,6 +413,23 @@ defmodule Cure.Core.Certificate do
           t -> shift_term(t, by)
         end)
     }
+  end
+
+  defp enter_alias(st, argument) do
+    relations = rows(length(st.roots), &arg_relation(argument, param_view(st, &1)))
+    shifted = shift_state(st, 1)
+
+    equals =
+      Enum.zip_with([shifted.equals, relations], fn [aliases, relation] ->
+        if relation == :equal, do: MapSet.put(aliases, 0), else: aliases
+      end)
+
+    smallers =
+      Enum.zip_with([shifted.smallers, relations], fn [subterms, relation] ->
+        if relation == :smaller, do: MapSet.put(subterms, 0), else: subterms
+      end)
+
+    %{shifted | equals: equals, smallers: smallers}
   end
 
   # A branch binds `ar` fresh fields at indices 0..ar-1 (outer indices already
