@@ -314,12 +314,20 @@ modes.
 
 - `PatternMachine(n)` now uses `Bounded(n)` for every active state and
   transition source/target. The remaining machine gap is not range safety but
-  the representation and performance of ordered thread sets.
-- thread deduplication is quadratic list scanning.
+  eliminating function-composed transition reconstruction.
+- ordered thread deduplication uses a structurally indexed
+  `ThreadWinnerTable`. Each active `Bounded(n)` state has exactly one slot,
+  accepted has its own slot, and the first (highest-priority) thread wins
+  without rescanning an ever-growing winner list.
 - Thompson transition functions are closure-composed and re-traverse
   construction structure during execution.
-- evidence is a front-built list rather than an explicitly append-efficient
-  builder/snoc structure.
+- executed evidence is already an append-efficient reverse-list builder:
+  every evidence instruction prepends in constant time, capture characters are
+  accumulated in reverse, and reversal occurs only at the materialization
+  boundary. The remaining linear appends construct `EvidenceInstruction` and
+  proof-only `ExtendedInstruction` programs while rebuilding transition
+  destinations; they belong to the compiled-transition-row work above rather
+  than the runtime evidence builder.
 - literal expansion emits typed combinator construction, not a completely
   staged finite machine.
 - the runtime module remains monolithic, but the post-CharacterLiteral baseline
@@ -796,9 +804,12 @@ Gate: fixed and generated API laws pass; all APIs call the same verified VM.
 ### Phase J — stage and optimize
 
 1. Stage literal machines at compile time.
-2. Replace list `distinct` with a state-indexed winner table/set preserving
-   priority and evidence.
-3. Use append-efficient evidence/capture builders.
+2. **Discharged.** Replace list `distinct` with a state-indexed winner
+   table/set preserving priority and evidence.
+3. **Discharged for executed evidence and captures.** Evidence and captured
+   characters use reverse-list builders. Eliminate the remaining instruction-
+   program appends as part of item 4 instead of adding a second runtime evidence
+   representation.
 4. Remove repeated Thompson traversal and closure reconstruction.
 5. Preserve an unstaged reference path in tests only for differential checking.
 
