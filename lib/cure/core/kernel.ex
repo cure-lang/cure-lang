@@ -20,9 +20,28 @@ defmodule Cure.Core.Kernel do
 
   @type result :: {:ok, Cure.Core.Value.t()} | {:error, term()}
 
+  @certificate_timing_sink_key {__MODULE__, :certificate_timing_sink}
+
   # The fixed predicative ceiling (`Universe.ceiling()`), mirrored into a compile
   # constant so it is usable in guards. Single source of truth stays `Universe`.
   @universe_ceiling Universe.ceiling()
+
+  @doc false
+  @spec with_certificate_timing_sink((term() -> any()), (-> result)) :: result when result: term()
+  def with_certificate_timing_sink(sink, operation)
+      when is_function(sink, 1) and is_function(operation, 0) do
+    previous = Process.put(@certificate_timing_sink_key, sink)
+
+    try do
+      operation.()
+    after
+      if is_nil(previous) do
+        Process.delete(@certificate_timing_sink_key)
+      else
+        Process.put(@certificate_timing_sink_key, previous)
+      end
+    end
+  end
 
   @doc """
   Normalize `term` in `ctx` via the shared trusted Core normalizer
@@ -649,19 +668,46 @@ defmodule Cure.Core.Kernel do
       # was silently unenforced along this admission path — the exact gap the validator exists
       # to close, and one `validator_test.exs` already pins for the generic branch.
       %{builtin_op: op, type: type_term} when not is_nil(op) ->
-        with {:ok, _level} <- infer_sort(Context.empty(env), type_term),
-             :ok <- run_final_core_validator([type_term]) do
+        with {:ok, _level} <-
+               timed_certificate_stage(name, :type_sort, fn ->
+                 infer_sort(Context.empty(env), type_term)
+               end),
+             :ok <-
+               timed_certificate_stage(name, :final_core_validation, fn ->
+                 run_final_core_validator([type_term])
+               end) do
           :ok
         end
 
       %{type: type_term, body: body_term} ->
         ctx = Context.empty(env)
 
-        with {:ok, _level} <- infer_sort(ctx, type_term),
-             :ok <- check(ctx, body_term, Eval.eval(type_term, [])),
-             :ok <- run_final_core_validator([type_term, body_term]) do
+        with {:ok, _level} <-
+               timed_certificate_stage(name, :type_sort, fn -> infer_sort(ctx, type_term) end),
+             :ok <-
+               timed_certificate_stage(name, :body_check, fn ->
+                 check(ctx, body_term, Eval.eval(type_term, []))
+               end),
+             :ok <-
+               timed_certificate_stage(name, :final_core_validation, fn ->
+                 run_final_core_validator([type_term, body_term])
+               end) do
           :ok
         end
+    end
+  end
+
+  defp timed_certificate_stage(name, stage, operation) when is_function(operation, 0) do
+    case Process.get(@certificate_timing_sink_key) do
+      sink when is_function(sink, 1) ->
+        started = System.monotonic_time(:microsecond)
+        result = operation.()
+        elapsed = System.monotonic_time(:microsecond) - started
+        sink.({:kernel_certificate_timing, stage, elapsed, %{definition: name}})
+        result
+
+      _ ->
+        operation.()
     end
   end
 
@@ -736,33 +782,37 @@ defmodule Cure.Core.Kernel do
       # Builtin-op def (K2, R4): total by fiat, no body to submit to the
       # termination checker. Type-check the declared type, then certify.
       %{builtin_op: op} when not is_nil(op) ->
-        with :ok <- check_def(env, name), do: {:ok, Env.certify(env, name)}
+        with :ok <- check_def(env, name) do
+          timed_certificate_stage(name, :termination, fn -> {:ok, Env.certify(env, name)} end)
+        end
 
       _ ->
         with :ok <- check_def(env, name) do
           %{body: body} = Env.get_def(env, name)
 
-          if Certificate.terminating?(name, body, env) do
-            # Certify the WHOLE proven-total SCC, not just `name`. A mutual group
-            # is certified member-by-member in declaration order; the first-declared
-            # member defers (its sibling's body is still a pending hole) and the
-            # last-declared member's check proves the group total but — before this —
-            # certified only itself, leaving the earlier member opaque to δ until the
-            # end-of-module sweep, which is too late for a dependent def checked in
-            # between. `terminating?` being true here means `pending_callee?` was
-            # false (every SCC member has a real, already-`check_def`'d body) and, for
-            # a genuine group, `mutual_group_total?` proved every member terminating
-            # together — so certifying them all is sound (Idris/Agda/Lean certify a
-            # `mutual` block as a unit). For a non-mutual def the group is `{name}`,
-            # so this is behaviour-preserving.
-            certified =
-              Certificate.total_group(name, body, env)
-              |> Enum.reduce(env, fn m, acc -> Env.certify(acc, m) end)
+          timed_certificate_stage(name, :termination, fn ->
+            if Certificate.terminating?(name, body, env) do
+              # Certify the WHOLE proven-total SCC, not just `name`. A mutual group
+              # is certified member-by-member in declaration order; the first-declared
+              # member defers (its sibling's body is still a pending hole) and the
+              # last-declared member's check proves the group total but — before this —
+              # certified only itself, leaving the earlier member opaque to δ until the
+              # end-of-module sweep, which is too late for a dependent def checked in
+              # between. `terminating?` being true here means `pending_callee?` was
+              # false (every SCC member has a real, already-`check_def`'d body) and, for
+              # a genuine group, `mutual_group_total?` proved every member terminating
+              # together — so certifying them all is sound (Idris/Agda/Lean certify a
+              # `mutual` block as a unit). For a non-mutual def the group is `{name}`,
+              # so this is behaviour-preserving.
+              certified =
+                Certificate.total_group(name, body, env)
+                |> Enum.reduce(env, fn m, acc -> Env.certify(acc, m) end)
 
-            {:ok, certified}
-          else
-            {:error, :not_total}
-          end
+              {:ok, certified}
+            else
+              {:error, :not_total}
+            end
+          end)
         end
     end
   end
@@ -1926,6 +1976,7 @@ defmodule Cure.Core.Kernel do
   defp occurs_index?(key, term), do: occurs_index?(key, term, 0)
 
   defp occurs_index?(key, {:var, k}, depth), do: k == key + depth
+
   defp occurs_index?(key, {:pi, _grade, domain, codomain}, depth),
     do: occurs_index?(key, domain, depth) or occurs_index?(key, codomain, depth + 1)
 

@@ -59,6 +59,17 @@ defmodule Cure.Compiler.InterfaceBenchmarkTest do
              stage.module == expected_module and stage.declaration == "answer" and stage.elapsed_us >= 0
            end)
 
+    assert Enum.map(report.cold.kernel_certificate_stages, & &1.stage) == [
+             :type_sort,
+             :body_check,
+             :final_core_validation,
+             :termination
+           ]
+
+    assert Enum.all?(report.cold.kernel_certificate_stages, fn stage ->
+             stage.definition == String.to_atom("#{expected_module}#answer") and stage.elapsed_us >= 0
+           end)
+
     assert length(report.warm) == 2
 
     assert Enum.all?(report.warm, fn sample ->

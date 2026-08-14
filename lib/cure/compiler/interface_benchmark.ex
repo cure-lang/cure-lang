@@ -12,6 +12,7 @@ defmodule Cure.Compiler.InterfaceBenchmark do
   """
 
   alias Cure.Compiler.ModulePipeline
+  alias Cure.Core.Kernel
   alias Cure.Elab.CallAttemptProfile
 
   @type sample :: %{
@@ -20,6 +21,7 @@ defmodule Cure.Compiler.InterfaceBenchmark do
           components: [%{modules: [String.t()], elapsed_us: non_neg_integer()}],
           declarations: [declaration_timing()],
           declaration_stages: [declaration_stage_timing()],
+          kernel_certificate_stages: [kernel_certificate_stage_timing()],
           call_attempts: [map()],
           rebuilt_modules: [String.t()]
         }
@@ -33,6 +35,12 @@ defmodule Cure.Compiler.InterfaceBenchmark do
   @type declaration_stage_timing :: %{
           module: String.t(),
           declaration: String.t(),
+          stage: atom(),
+          elapsed_us: non_neg_integer()
+        }
+
+  @type kernel_certificate_stage_timing :: %{
+          definition: atom(),
           stage: atom(),
           elapsed_us: non_neg_integer()
         }
@@ -110,7 +118,11 @@ defmodule Cure.Compiler.InterfaceBenchmark do
     event_sink = &send(owner, {reference, &1})
     started = System.monotonic_time(:microsecond)
 
-    operation = fn -> ModulePipeline.check(paths, Keyword.put(opts, :event_sink, event_sink)) end
+    operation = fn ->
+      Kernel.with_certificate_timing_sink(event_sink, fn ->
+        ModulePipeline.check(paths, Keyword.put(opts, :event_sink, event_sink))
+      end)
+    end
 
     {pipeline_result, call_attempts} =
       if profile_call_attempts? do
@@ -131,6 +143,7 @@ defmodule Cure.Compiler.InterfaceBenchmark do
            components: component_timings(events),
            declarations: declaration_timings(events),
            declaration_stages: declaration_stage_timings(events),
+           kernel_certificate_stages: kernel_certificate_stage_timings(events),
            call_attempts: call_attempts,
            rebuilt_modules: ModulePipeline.rebuilt_modules(result)
          }}
@@ -173,6 +186,12 @@ defmodule Cure.Compiler.InterfaceBenchmark do
     for {:module_pipeline_timing, :declaration_stage, elapsed,
          %{module: module, declaration: declaration, stage: stage}} <- events do
       %{module: module, declaration: declaration, stage: stage, elapsed_us: elapsed}
+    end
+  end
+
+  defp kernel_certificate_stage_timings(events) do
+    for {:kernel_certificate_timing, stage, elapsed, %{definition: definition}} <- events do
+      %{definition: definition, stage: stage, elapsed_us: elapsed}
     end
   end
 end

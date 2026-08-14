@@ -64,6 +64,14 @@ defmodule Mix.Tasks.Cure.Bench.Interfaces do
       Mix.shell().info("#{ms(stage.elapsed_us)}\t#{stage.module}\t#{stage.declaration}\t#{stage.stage}")
     end)
 
+    Mix.shell().info("kernel_certificate_stage_ms\tdefinition\tstage")
+
+    report.cold.kernel_certificate_stages
+    |> Cure.Compiler.InterfaceBenchmark.slowest(top)
+    |> Enum.each(fn stage ->
+      Mix.shell().info("#{ms(stage.elapsed_us)}\t#{stage.definition}\t#{stage.stage}")
+    end)
+
     report.warm
     |> Enum.with_index(1)
     |> Enum.each(fn {sample, index} ->
