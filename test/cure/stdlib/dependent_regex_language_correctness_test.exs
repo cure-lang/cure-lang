@@ -348,7 +348,7 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
       input_evidence,
       input_captures
     ) =
-      complete_group_from(inner_shape, inner, input, after_input, position, input_evidence, input_captures, completion)
+      complete_group_from(inner, input, after_input, position, input_evidence, input_captures, completion)
 
     fn generic_repeat_mode_empty_composition(
       inner_shape: ShapeCode,
@@ -367,7 +367,7 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
       input_evidence,
       input_captures
     ) =
-      complete_repeat_mode_empty_from(inner_shape, inner, lazy, after_input, position, input_evidence, input_captures)
+      complete_repeat_mode_empty_from(inner, lazy, after_input, position, input_evidence, input_captures)
 
     fn generic_alternate_mode_left_composition(
       left_shape: ShapeCode,
@@ -382,7 +382,7 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
       input_captures: List(CaptureFrame),
       completion: PatternAcceptanceFrom(left_shape, left, position, input, after_input, input_evidence, input_captures)
     ) -> PatternAcceptanceFrom(ChoiceC(left_shape, right_shape), PatternAlternateMode(left, right, prefer_right), position, input, after_input, input_evidence, input_captures) =
-      complete_alternate_mode_left_from(left_shape, right_shape, left, right, prefer_right, input, after_input, position, input_evidence, input_captures, completion)
+      complete_alternate_mode_left_from(left, right, prefer_right, input, after_input, position, input_evidence, input_captures, completion)
 
     fn generic_alternate_mode_right_composition(
       left_shape: ShapeCode,
@@ -397,7 +397,7 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
       input_captures: List(CaptureFrame),
       completion: PatternAcceptanceFrom(right_shape, right, position, input, after_input, input_evidence, input_captures)
     ) -> PatternAcceptanceFrom(ChoiceC(left_shape, right_shape), PatternAlternateMode(left, right, prefer_right), position, input, after_input, input_evidence, input_captures) =
-      complete_alternate_mode_right_from(left_shape, right_shape, left, right, prefer_right, input, after_input, position, input_evidence, input_captures, completion)
+      complete_alternate_mode_right_from(left, right, prefer_right, input, after_input, position, input_evidence, input_captures, completion)
 
     fn generic_alternate_left_composition(
       left_shape: ShapeCode,
@@ -411,7 +411,7 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
       input_captures: List(CaptureFrame),
       completion: PatternAcceptanceFrom(left_shape, left, position, input, after_input, input_evidence, input_captures)
     ) -> PatternAcceptanceFrom(ChoiceC(left_shape, right_shape), PatternAlternate(left, right), position, input, after_input, input_evidence, input_captures) =
-      complete_alternate_left_from(left_shape, right_shape, left, right, input, after_input, position, input_evidence, input_captures, completion)
+      complete_alternate_left_from(left, right, input, after_input, position, input_evidence, input_captures, completion)
 
     fn generic_alternate_right_composition(
       left_shape: ShapeCode,
@@ -425,7 +425,7 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
       input_captures: List(CaptureFrame),
       completion: PatternAcceptanceFrom(right_shape, right, position, input, after_input, input_evidence, input_captures)
     ) -> PatternAcceptanceFrom(ChoiceC(left_shape, right_shape), PatternAlternate(left, right), position, input, after_input, input_evidence, input_captures) =
-      complete_alternate_right_from(left_shape, right_shape, left, right, input, after_input, position, input_evidence, input_captures, completion)
+      complete_alternate_right_from(left, right, input, after_input, position, input_evidence, input_captures, completion)
 
     fn predicate_completeness(
       denotation: PatternDenotation(CharC, PatternPredicate(accepts_a), subject_initial_position(), Cons('a', no_chars()), no_chars())
@@ -806,6 +806,8 @@ defmodule Cure.Stdlib.DependentRegexLanguageCorrectnessTest do
     assert Env.total?(env, :generic_repeat_mode_empty_composition)
     assert Env.total?(env, :"Std.Regex.Language#complete_repeat_mode_empty_from")
     assert Env.total?(env, :"Std.Regex.Language#complete_repeat_mode_continuation_from")
+    assert Env.total?(env, :"Std.Regex.Language#complete_repeat_mode_more_from")
+    assert Env.total?(env, :"Std.Regex.Language#pattern_completeness")
     assert Env.total?(env, :"Std.Regex.Proof#lift_repeat_closing_transition_member")
     assert Env.total?(env, :"Std.Regex.Proof#lift_repeat_active_transition_member")
     assert Env.total?(env, :"Std.Regex.Proof#lift_repeat_reentry_transition_member")

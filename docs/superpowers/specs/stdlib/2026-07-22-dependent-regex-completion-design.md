@@ -91,6 +91,15 @@
   certifies the public recursive theorem. The remaining Repeat step is to wrap
   this continuation in the single outer `BeginList`; after that, only the final
   structural completeness induction remains.
+- 2026-08-14 — Phase G is discharged. `complete_repeat_continuation` adds the
+  single outer `BeginList` to an arbitrary non-empty recursive Repeat
+  continuation, and `complete_repeat_mode_more_from` transports that acceptance
+  back to the exact compiled machine while retaining the capture certificate.
+  `pattern_completeness` is the final structural induction over every `Pattern`
+  constructor. Its proof packages declare phantom shape, syntax, input, and
+  starting-state parameters as erased indices; only final evidence and
+  executable routines survive at runtime. Phase H is the earliest incomplete
+  phase.
 
 **Supersedes for unfinished work:**
 `2026-07-21-dependently-typed-regex-design.md`
@@ -232,11 +241,11 @@ branch exists between accepted execution and the public result wrapper.
 
 The former `decode_pattern_encoding` oracle was compared against certified
 extraction over 500 generated cases spanning every Pattern constructor and then
-deleted. Language correctness is now in Phase G. Generic soundness is complete
-for the whole `Pattern` algebra. Completeness is constructive for Predicate,
-Empty, and Boundary; has generic acceptance composition for Alternate, Concat,
-and Group; and has a focused Empty instance for Repeat. Generic Repeat
-composition plus the final structural completeness induction remain.
+deleted. Language correctness in Phase G is complete for the whole `Pattern`
+algebra in both directions. `pattern_acceptance_path_is_sound` is the generic
+soundness induction; `pattern_completeness` is the generic constructive
+completeness induction, including recursive Repeat and explicit greedy/lazy
+modes.
 
 ### 4.3 Structural and performance gaps
 
@@ -282,15 +291,12 @@ Phases C–F are implemented and retained:
 - successful public parsing uses total `extract_encoding`; the old fallible
   decoder has been differentially checked and removed.
 
-Phase G has two directions with different status:
+Phase G is complete in both directions:
 
-- **soundness is complete:** `pattern_acceptance_path_is_sound` dispatches over
-  the complete certified compilation proof and produces `PatternDenotation`;
-- **completeness is in progress:** Predicate, Empty, and Boundary are complete;
-  Alternate has generic left/right composition; Concat has generic sequential
-  acceptance composition; and Group has generic capture-wrapping composition.
-  Repeat still needs generic composition, followed by the final induction from arbitrary
-  `PatternDenotation` to certified acceptance.
+- `pattern_acceptance_path_is_sound` dispatches over the complete certified
+  compilation proof and produces `PatternDenotation`;
+- `pattern_completeness` recursively converts any `PatternDenotation` into a
+  certified acceptance from arbitrary incoming evidence and capture state.
 
 The Concat milestone is not a fixed-pattern special case. Given arbitrary left
 and right `AcceptancePathFrom` certificates whose inputs partition the combined
@@ -687,13 +693,10 @@ match result is wrapped; proof erasure inspection passes.
 
 ### Phase G — language soundness and completeness
 
-**Status: in progress; this is the earliest incomplete phase.** Generic
-soundness is complete. Constructive completeness is complete for base cases,
-Alternate composition, Concat composition, Group composition, and recursive
-Repeat continuation from arbitrary denotations. Proceed next by wrapping the
-Repeat continuation with exactly one outer `BeginList`, then finish the final
-structural completeness induction. Do not regress to fixed-pattern-only
-theorems.
+**Status: discharged.** Generic soundness and constructive completeness cover
+the entire `Pattern` algebra. Non-empty Repeat uses one recursively composed
+continuation and exactly one outer `BeginList`; the final theorem is not
+restricted to fixed patterns.
 
 Define denotation and prove the stronger Cure theorem family in §5.4. Use
 exhaustive small models while developing the proofs.
@@ -702,6 +705,8 @@ Gate: all proof modules kernel-check and all small models agree among denotation
 NFA paths, VM acceptance, and public parsing.
 
 ### Phase H — finish literal parity and diagnostics
+
+**Status: in progress; this is the earliest incomplete phase.**
 
 Complete bounded quantifiers, scalar escapes, Unicode properties, malformed
 construct rejection, exact source subspans, and the modifier matrix. Remove raw

@@ -588,7 +588,7 @@ mod Std.Regex
     ThompsonRepeat : (inner: ThompsonCompilation(inner_shape)) -> (lazy: Bool) -> ThompsonCompilation(ListC(inner_shape))
 
   @reducible
-  fn thompson_state_count({shape: ShapeCode}, compilation: ThompsonCompilation(shape)) -> Nat = match compilation
+  fn thompson_state_count({@erased shape: ShapeCode}, compilation: ThompsonCompilation(shape)) -> Nat = match compilation
     ThompsonPredicate(_) -> S(Z())
     ThompsonEmpty() -> Z()
     ThompsonBoundary(_) -> Z()
@@ -609,7 +609,7 @@ mod Std.Regex
     MkPatternMachine(starts, next) -> reflexive(MkPatternMachine(starts, next))
 
   @reducible
-  fn thompson_machine({shape: ShapeCode}, compilation: ThompsonCompilation(shape)) -> PatternMachine(thompson_state_count(compilation)) = match compilation
+  fn thompson_machine({@erased shape: ShapeCode}, compilation: ThompsonCompilation(shape)) -> PatternMachine(thompson_state_count(compilation)) = match compilation
     ThompsonPredicate(test) -> predicate_pattern_machine(test)
     ThompsonEmpty() -> empty_pattern_machine()
     ThompsonBoundary(constraint) -> boundary_pattern_machine(constraint)
@@ -618,7 +618,7 @@ mod Std.Regex
     ThompsonAlternate(left, right, prefer_right) -> alternate_pattern_machine(thompson_state_count(left), thompson_machine(left), thompson_state_count(right), thompson_machine(right), prefer_right)
     ThompsonRepeat(inner, lazy) -> repeat_pattern_machine(thompson_state_count(inner), thompson_machine(inner), lazy)
 
-  fn certify_thompson({shape: ShapeCode}, pattern: Pattern(shape)) -> ThompsonCompilation(shape) = match pattern
+  fn certify_thompson({@erased shape: ShapeCode}, pattern: Pattern(shape)) -> ThompsonCompilation(shape) = match pattern
     PatternPredicate(test) -> ThompsonPredicate(test)
     PatternEmpty() -> ThompsonEmpty()
     PatternBoundary(constraint) -> ThompsonBoundary(constraint)
