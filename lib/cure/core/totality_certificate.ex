@@ -33,7 +33,9 @@ defmodule Cure.Core.TotalityCertificate do
               not SizeChange.smaller_diagonal?(edge.matrix)
           end)
 
-        if bad, do: {:ok, {:not_total, bad}}, else: {:ok, :total}
+        if bad,
+          do: {:ok, {:not_total, explain_bad_edge(bad, candidate.edges)}},
+          else: {:ok, :total}
       end
 
     emit_metric(members, candidate, result, started)
@@ -64,6 +66,20 @@ defmodule Cure.Core.TotalityCertificate do
       },
       %{}
     )
+  end
+
+  defp explain_bad_edge(edge, edges) do
+    edge
+    |> Map.put(:diagonal, SizeChange.diagonal(edge.matrix))
+    |> Map.put(:source_call_path, derivation_base_path(edge, edges))
+  end
+
+  defp derivation_base_path(%{derivation: {:base, {source, target, _matrix}}}, _edges),
+    do: [{source, target}]
+
+  defp derivation_base_path(%{derivation: {:compose, left, right}}, edges) do
+    derivation_base_path(Map.fetch!(edges, left), edges) ++
+      derivation_base_path(Map.fetch!(edges, right), edges)
   end
 
   defp verify_identity(env, members, candidate) do

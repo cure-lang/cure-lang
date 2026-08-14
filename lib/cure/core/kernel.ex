@@ -842,7 +842,7 @@ defmodule Cure.Core.Kernel do
 
   @doc "Verify an SCC partition once and atomically certify selected components."
   @spec validate_scc_certificates(Env.t(), map(), map(), [atom()]) ::
-          {:ok, Env.t()} | {:error, {:not_total, [atom()]}} | {:error, term()}
+          {:ok, Env.t()} | {:error, {:not_total, [atom()], map()}} | {:error, term()}
   def validate_scc_certificates(%Env{} = env, partition, totality_certificates, selected_names) do
     with {:ok, _components} <- Cure.Core.SCCCertificate.verify_partition(env, partition) do
       selected_ids =
@@ -882,8 +882,8 @@ defmodule Cure.Core.Kernel do
 
                   {:cont, {:ok, Env.certify_component(acc, members, digest, metadata)}}
 
-                {:ok, {:not_total, _bad_edge}} ->
-                  {:halt, {:error, {:not_total, members}}}
+                {:ok, {:not_total, bad_edge}} ->
+                  {:halt, {:error, {:not_total, members, bad_edge}}}
 
                 {:error, _} = error ->
                   {:halt, error}

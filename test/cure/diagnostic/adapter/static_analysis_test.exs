@@ -112,6 +112,40 @@ defmodule Cure.Diagnostic.Adapter.StaticAnalysisTest do
     assert rendered =~ "Proof.Missing#lemma"
   end
 
+  test "a failed size-change proof reports the exact SCC, loop, diagonal, and call path" do
+    reason = %{
+      reason: :not_decreasing,
+      members: [:f, :g],
+      offending_edge: %{
+        source: :f,
+        target: :f,
+        diagonal: [:equal],
+        source_call_path: [{:f, :g}, {:g, :f}]
+      }
+    }
+
+    diagnostic =
+      Adapter.from_error({:source_context, {:totality_required, :f}, %{totality_reason: reason}})
+
+    rendered = Renderer.plain(diagnostic, nil, width: 100)
+    assert rendered =~ "Totality SCC: f, g"
+    assert rendered =~ "Offending idempotent loop: f -> f; diagonal [:equal]"
+    assert rendered =~ "Source-call path: f -> g; g -> f"
+    assert diagnostic.payload.reason == reason
+  end
+
+  test "invalid proof certificates render structured diagnostic details" do
+    diagnostic =
+      Adapter.from_error(
+        {:totality_derivation_invalid, %{reason: :composition_mismatch, edge: <<1, 2>>, left: <<3>>, right: <<4>>}}
+      )
+
+    assert diagnostic.code == "E013"
+    assert diagnostic.key == :totality_derivation_invalid
+    assert diagnostic.payload.reason == :composition_mismatch
+    assert Renderer.plain(diagnostic, nil) =~ "TOTALITY DERIVATION IS INVALID"
+  end
+
   test "resource usage preserves declaration and earlier-use regions" do
     source = "x x x\n"
     registry = SourceRegistry.new() |> SourceRegistry.register(:usage, source, "usage.cure")

@@ -55,8 +55,10 @@ defmodule Cure.Elab.TotalityClosure do
         {:ok, certified} ->
           {:ok, certified}
 
-        {:error, {:not_total, members}} ->
-          {:error, {:totality_required, first_required(members, names), :not_total}}
+        {:error, {:not_total, members, bad_edge}} ->
+          {:error,
+           {:totality_required, first_required(members, names),
+            %{reason: :not_decreasing, members: members, offending_edge: bad_edge}}}
 
         {:error, reason} ->
           {:error, {:totality_required, List.first(names), reason}}
@@ -84,8 +86,10 @@ defmodule Cure.Elab.TotalityClosure do
         {:ok, certified} ->
           {:ok, certified}
 
-        {:error, {:not_total, members}} ->
-          {:error, {:compile_time_totality, first_required(members, names), :not_total}}
+        {:error, {:not_total, members, bad_edge}} ->
+          {:error,
+           {:compile_time_totality, first_required(members, names),
+            %{reason: :not_decreasing, members: members, offending_edge: bad_edge}}}
 
         {:error, reason} ->
           {:error, {:compile_time_totality, List.first(names), reason}}

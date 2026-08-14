@@ -133,6 +133,14 @@ defmodule Cure.Core.SizeChange do
       Enum.any?(0..(matrix.rows - 1)//1, &(Map.get(matrix.entries, {&1, &1}) == :smaller))
   end
 
+  @doc "Return the complete diagonal, including implicit `:unknown` entries."
+  @spec diagonal(matrix() | legacy_matrix()) :: [relation()]
+  def diagonal(matrix) do
+    matrix = sparse(matrix)
+    size = min(matrix.rows, matrix.columns)
+    rows(size, &Map.get(matrix.entries, {&1, &1}, :unknown))
+  end
+
   defp path_multiply(:smaller, _), do: :smaller
   defp path_multiply(_, :smaller), do: :smaller
   defp path_multiply(:equal, :equal), do: :equal

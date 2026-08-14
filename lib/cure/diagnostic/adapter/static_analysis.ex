@@ -152,6 +152,17 @@ defmodule Cure.Diagnostic.Adapter.StaticAnalysis do
   def from_error({:totality_closure_unresolved, details}, opts) when is_map(details),
     do: totality_closure_failure(details, opts)
 
+  def from_error({kind, details}, opts)
+      when kind in [
+             :totality_summary_stale,
+             :totality_scc_incomplete,
+             :totality_scc_invalid,
+             :totality_derivation_invalid,
+             :totality_dependency_not_total,
+             :totality_unknown_callee
+           ] and is_map(details),
+      do: totality_certificate_failure(kind, details, opts)
+
   def from_error({:source_context, {:totality_required, name}, context}, opts)
       when is_map(context),
       do: totality_failure(name, context, opts)
@@ -568,13 +579,91 @@ defmodule Cure.Diagnostic.Adapter.StaticAnalysis do
           applicability: :manual
         }
       ],
-      notes: ["Runtime-only functions may remain partial; only compile-time computation requires a total definition."],
+      notes: totality_notes(Map.get(context, :totality_reason)),
       payload: %{
         name: name,
         checking: Map.get(context, :checking, Keyword.get(opts, :checking)),
         reason: Map.get(context, :totality_reason)
       }
     )
+  end
+
+  defp totality_notes(reason) do
+    base = ["Runtime-only functions may remain partial; only compile-time computation requires a total definition."]
+
+    case reason do
+      %{reason: :not_decreasing, members: members, offending_edge: edge} ->
+        path =
+          edge
+          |> Map.get(:source_call_path, [])
+          |> Enum.map_join("; ", fn {source, target} ->
+            "#{name_to_string(source)} -> #{name_to_string(target)}"
+          end)
+
+        (base ++
+           [
+             "Totality SCC: " <> Enum.map_join(members, ", ", &name_to_string/1),
+             "Offending idempotent loop: #{name_to_string(edge.source)} -> #{name_to_string(edge.target)}; diagonal #{inspect(Map.get(edge, :diagonal, []))}",
+             if(path == "", do: nil, else: "Source-call path: " <> path)
+           ])
+        |> Enum.reject(&is_nil/1)
+
+      _ ->
+        base
+    end
+  end
+
+  defp totality_certificate_failure(kind, details, opts) do
+    {title, explanation} =
+      case kind do
+        :totality_summary_stale ->
+          {"Totality summary is stale",
+           "The cached direct-call summary does not match the checked Core body or checker version."}
+
+        :totality_scc_incomplete ->
+          {"Totality component is incomplete",
+           "The proposed component omitted a definition reached by a trusted direct call."}
+
+        :totality_scc_invalid ->
+          {"Totality component certificate is invalid",
+           "The submitted SCC partition, rank, or connectivity witness does not match the trusted direct-call graph."}
+
+        :totality_derivation_invalid ->
+          {"Totality derivation is invalid",
+           "A Base or Compose step does not replay to the submitted size-change edge, or the exact closure is incomplete."}
+
+        :totality_dependency_not_total ->
+          {"Totality dependency is not certified",
+           "This component depends on another component that was not proved total, so it cannot be published as total."}
+
+        :totality_unknown_callee ->
+          {"Totality call target is unresolved",
+           "A trusted direct call does not resolve to a canonical definition, builtin, or extern."}
+      end
+
+    Diagnostic.new(
+      code: "E013",
+      key: kind,
+      severity: :error,
+      title: title,
+      body: Doc.paragraph(explanation),
+      primary: primary(opts, "the totality certificate cannot be accepted here"),
+      notes: totality_detail_notes(details),
+      suggestions: [
+        %Suggestion{
+          message:
+            "Rebuild the changed module and its totality dependencies; report this if a clean build reproduces it",
+          applicability: :manual
+        }
+      ],
+      payload: details
+    )
+  end
+
+  defp totality_detail_notes(details) do
+    details
+    |> Enum.sort_by(fn {key, _value} -> key end)
+    |> Enum.map(fn {key, value} -> "#{key}: #{inspect(value, limit: 20, printable_limit: 200)}" end)
   end
 
   defp totality_closure_failure(details, opts) do

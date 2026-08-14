@@ -1649,6 +1649,17 @@ defmodule Cure.Diagnostic.Adapter do
   def from_error({:totality_closure_unresolved, details} = error, opts) when is_map(details),
     do: StaticAnalysis.from_error(error, opts)
 
+  def from_error({kind, details} = error, opts)
+      when kind in [
+             :totality_summary_stale,
+             :totality_scc_incomplete,
+             :totality_scc_invalid,
+             :totality_derivation_invalid,
+             :totality_dependency_not_total,
+             :totality_unknown_callee
+           ] and is_map(details),
+      do: StaticAnalysis.from_error(error, opts)
+
   def from_error({:pickup_no_else, _details} = error, opts), do: StaticAnalysis.from_error(error, opts)
 
   def from_error({:pickup_else_not_last, _details} = error, opts), do: StaticAnalysis.from_error(error, opts)
