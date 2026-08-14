@@ -325,6 +325,36 @@ mod Std.Regex
   type PatternMachine indices (n: Nat)
     MkPatternMachine : List(MachineState(n)) -> ((Bounded(n)) -> Char -> List(MachineState(n))) -> PatternMachine(n)
 
+  ## A transition row fixes the source state once, outside the input loop. The
+  ## spine is indexed by both its remaining rows and the machine's total state
+  ## count, so lookup by `Bounded(n)` has no malformed-table fallback.
+  type TransitionRowsFrom indices (remaining: Nat, total: Nat)
+    NoTransitionRows : TransitionRowsFrom(Z(), total)
+    MoreTransitionRows : (Char -> List(MachineState(total))) -> TransitionRowsFrom(remaining, total) -> TransitionRowsFrom(S(remaining), total)
+
+  type TransitionRows indices (n: Nat)
+    TransitionRows : TransitionRowsFrom(n, n) -> TransitionRows(n)
+
+  fn build_transition_rows(remaining: Nat, {total: Nat}, inject: (Bounded(remaining)) -> Bounded(total), next: (Bounded(total)) -> Char -> List(MachineState(total))) -> TransitionRowsFrom(remaining, total) = match remaining
+    Z() -> NoTransitionRows()
+    S(rest) ->
+      MoreTransitionRows(
+        fn(char) -> next(inject(First()), char),
+        build_transition_rows(rest, fn(state) -> inject(Next(state)), next)
+      )
+
+  fn compile_transition_rows(n: Nat, machine: PatternMachine(n)) -> TransitionRows(n) = match machine
+    MkPatternMachine(_, next) -> TransitionRows(build_transition_rows(n, fn(state) -> state, next))
+
+  fn transition_rows_from_next({remaining: Nat}, {total: Nat}, rows: TransitionRowsFrom(remaining, total), state: Bounded(remaining), char: Char) -> List(MachineState(total)) = match rows
+    NoTransitionRows() -> match state
+    MoreTransitionRows(row, rest) -> match state
+      First() -> row(char)
+      Next(index) -> transition_rows_from_next(rest, index, char)
+
+  fn transition_rows_next({n: Nat}, rows: TransitionRows(n), state: Bounded(n), char: Char) -> List(MachineState(n)) = match rows
+    TransitionRows(values) -> transition_rows_from_next(values, state, char)
+
   @reducible
   fn machine_state_routine(n: Nat, state: MachineState(n)) -> List(EvidenceInstruction) = match state
     Active(_, routine, _) -> routine
