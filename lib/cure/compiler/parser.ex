@@ -39,7 +39,7 @@ defmodule Cure.Compiler.Parser do
   alias Cure.Compiler.{MacroFamily, MacroRaw, Token}
   alias Cure.Compiler.Parser.{BuiltinFixity, FixityTable, FixityScan, FixityResolver, Precedence}
   alias Cure.Compiler.Parser.Range
-  alias Cure.Diagnostic.ProvenanceFrame
+  alias Cure.Diagnostic.{ProvenanceFrame, Span}
   alias Cure.MetaAST.Metadata
   alias Cure.MetaAST.SourceInfo
   alias Cure.Diagnostic.ProofChainSyntaxProblem
@@ -4534,13 +4534,16 @@ defmodule Cure.Compiler.Parser do
   # Preserve the source pattern and flags for the staged `Std.Regex.literal/2`
   # expansion entry. It computes an indexed TyRE and must not leave a runtime
   # pattern parser or `:re` dispatch in generated code.
-  defp regex_literal_macro(%Token{value: {body, flags}, line: line, col: col}) do
+  defp regex_literal_macro(%Token{value: {body, flags}, line: line, col: col} = token) do
+    pattern_token = regex_literal_child_token(token, :string, body, "/")
+    flags_token = regex_literal_child_token(token, :string, flags, "/" <> body <> "/")
+
     {
       :function_call,
       [name: "Std.Regex.literal", line: line, col: col],
       [
-        {:literal, [subtype: :string, line: line, col: col], body},
-        {:literal, [subtype: :string, line: line, col: col], flags}
+        literal(:string, pattern_token),
+        literal(:string, flags_token)
       ]
     }
   end
@@ -4553,8 +4556,8 @@ defmodule Cure.Compiler.Parser do
   defp maybe_token_literal_macro(state, %Token{type: type, value: {body, flags}} = token) do
     case Map.get(state.literal_macros, {:token, type}, []) do
       [rule | _] ->
-        pattern = literal(:string, %Token{token | type: :string, value: body})
-        options = literal(:string, %Token{token | type: :string, value: flags})
+        pattern = literal(:string, regex_literal_child_token(token, :string, body, "/"))
+        options = literal(:string, regex_literal_child_token(token, :string, flags, "/" <> body <> "/"))
         input = {:macro_input, [keyword: Atom.to_string(type)], [pattern, options]}
 
         meta =
@@ -4578,6 +4581,33 @@ defmodule Cure.Compiler.Parser do
 
       [] ->
         {regex_literal_macro(token), state}
+    end
+  end
+
+  defp regex_literal_child_token(%Token{span: %Span{} = span} = token, type, value, prefix) do
+    {start_line, start_column} = advance_source_coordinates(span.start_line, span.start_column, prefix)
+    {end_line, end_column} = advance_source_coordinates(start_line, start_column, value)
+
+    child_span = %Span{
+      span
+      | start_byte: span.start_byte + byte_size(prefix),
+        end_byte: span.start_byte + byte_size(prefix) + byte_size(value),
+        start_line: start_line,
+        start_column: start_column,
+        end_line: end_line,
+        end_column: end_column
+    }
+
+    %Token{token | type: type, value: value, lexeme: value, span: child_span, line: start_line, col: start_column}
+  end
+
+  defp regex_literal_child_token(%Token{} = token, type, value, _prefix),
+    do: %Token{token | type: type, value: value, lexeme: value}
+
+  defp advance_source_coordinates(line, column, text) do
+    case String.split(text, "\n") do
+      [single] -> {line, column + String.length(single)}
+      lines -> {line + length(lines) - 1, String.length(List.last(lines)) + 1}
     end
   end
 

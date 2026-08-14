@@ -83,8 +83,12 @@ defmodule Cure.Compiler.ParserTest do
       assert input_meta[:keyword] == "regex"
       assert {:literal, pattern_meta, "[a-z]+"} = pattern
       assert pattern_meta[:subtype] == :string
+      assert pattern_meta[:source_info].whole.start_column == 2
+      assert pattern_meta[:source_info].whole.end_column == 8
       assert {:literal, flags_meta, "i"} = flags
       assert flags_meta[:subtype] == :string
+      assert flags_meta[:source_info].whole.start_column == 9
+      assert flags_meta[:source_info].whole.end_column == 10
     end
 
     test "bare slash regex expands to the pure Cure Regex literal macro" do
