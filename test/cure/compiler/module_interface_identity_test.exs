@@ -95,4 +95,56 @@ defmodule Cure.Compiler.ModuleInterfaceIdentityTest do
     assert left.interface_hash == right.interface_hash
     refute left.direct_edges == right.direct_edges
   end
+
+  test "direct-call spans and macro frames survive payloads without perturbing interface identity" do
+    summary = %{
+      version: Cure.Core.Certificate.summary_version(),
+      caller: :"Canonical.Provider#run",
+      caller_arity: 0,
+      body_hash: <<1>>,
+      summary_hash: <<2>>,
+      calls: [
+        %{
+          id: <<3>>,
+          callee: :"Canonical.Provider#value",
+          callee_arity: 0,
+          matrix: %Cure.Core.SizeChange.Matrix{rows: 0, columns: 0, entries: %{}},
+          provenance: %{caller: :"Canonical.Provider#run", core_path: 0}
+        }
+      ]
+    }
+
+    diagnostic =
+      update_in(summary.calls, fn [call] ->
+        [
+          %{
+            call
+            | provenance: %{
+                caller: :"Canonical.Provider#run",
+                core_path: 0,
+                source_span: %{line: 40},
+                macro_expansion: [%{name: "generated", invocation: %{line: 40}}]
+              }
+          }
+        ]
+      end)
+
+    attrs = %{
+      module_name: "Canonical.Provider",
+      source_path: "provider.cure",
+      source_hash: <<1>>,
+      canonical_declarations: %{direct_call_summaries: %{"Canonical.Provider#run": summary}}
+    }
+
+    semantic = ModuleInterface.new(attrs)
+
+    with_diagnostics =
+      ModuleInterface.new(
+        put_in(attrs, [:canonical_declarations, :direct_call_summaries, :"Canonical.Provider#run"], diagnostic)
+      )
+
+    assert semantic.interface_hash == with_diagnostics.interface_hash
+    refute semantic.canonical_declarations == with_diagnostics.canonical_declarations
+    assert :ok = ModuleInterface.validate(with_diagnostics)
+  end
 end
