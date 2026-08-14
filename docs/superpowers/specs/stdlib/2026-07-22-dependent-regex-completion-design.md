@@ -122,6 +122,13 @@
   malformed, empty, unknown, and unclosed properties have distinct structured
   diagnostics. Exact diagnostic subspans, unsupported-construct diagnostics,
   the modifier interaction matrix, and raw character-integer cleanup remain.
+- 2026-08-14 — Phase H unsupported constructs now reject at their first
+  distinguishing token with dedicated structured reasons. Numeric and named
+  backreferences, recursion/subroutines, conditionals, lookahead, lookbehind,
+  atomic groups, named captures, inline option groups, and possessive
+  quantifiers can no longer silently degrade into literals or unrelated parser
+  failures. Exact diagnostic subspans and user-facing reason content remain the
+  diagnostic frontier.
 
 **Supersedes for unfinished work:**
 `2026-07-21-dependently-typed-regex-design.md`
@@ -733,8 +740,8 @@ NFA paths, VM acceptance, and public parsing.
 Bounded quantifiers, hexadecimal scalar escapes, Unicode general-category
 properties, and their first structured diagnostic matrices are complete.
 Continue with precise quantifier/property/escape subspans,
-unsupported-construct diagnostics, the remaining modifier interaction matrix,
-and raw character-integer cleanup.
+user-facing diagnostic content, the remaining modifier interaction matrix, and
+raw character-integer cleanup.
 
 Complete bounded quantifiers, scalar escapes, Unicode properties, malformed
 construct rejection, exact source subspans, and the modifier matrix. Remove raw
