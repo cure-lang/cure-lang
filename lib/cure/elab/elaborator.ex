@@ -5305,6 +5305,7 @@ defmodule Cure.Elab.Elaborator do
                          env,
                          dname,
                          idx_vals,
+                         idx_terms,
                          param_vals,
                          scrut_term,
                          result_type_term,
@@ -5788,9 +5789,11 @@ defmodule Cure.Elab.Elaborator do
                    env,
                    dname,
                    idx_vals,
+                   idx_terms,
                    param_vals,
                    scrut_term,
-                   result_type_term
+                   result_type_term,
+                   motive
                  ) do
             {:ok, {:case, scrut_term, motive, branches}}
           end
@@ -5969,7 +5972,19 @@ defmodule Cure.Elab.Elaborator do
   # `elaborate_branches`: an omitted/impossible constructor is discharged with
   # `{:absurd}`; a matched constructor's body is elaborated under the kernel's
   # index-refinement substitution.
-  defp elaborate_rematch_branches(arm_map, names, ctx, env, dname, idx_vals, param_vals, scrut_term, result_type_term) do
+  defp elaborate_rematch_branches(
+         arm_map,
+         names,
+         ctx,
+         env,
+         dname,
+         idx_vals,
+         idx_terms,
+         param_vals,
+         scrut_term,
+         result_type_term,
+         motive
+       ) do
     sig = Context.signature(ctx)
 
     sig
@@ -5989,8 +6004,10 @@ defmodule Cure.Elab.Elaborator do
                  ctx,
                  env,
                  param_vals,
+                 idx_terms,
                  scrut_term,
-                 result_type_term
+                 result_type_term,
+                 motive
                ) do
             :omit -> {:cont, {:ok, acc}}
             {:ok, branch} -> {:cont, {:ok, acc ++ [branch]}}
@@ -6018,13 +6035,27 @@ defmodule Cure.Elab.Elaborator do
          ctx,
          env,
          param_vals,
+         _idx_terms,
          scrut_term,
-         result_type_term
+         _result_type_term,
+         motive
        ) do
     with_pattern = internalize_branch_wildcards(with_pattern)
     {:ok, {^cname, pattern_vars}} = constructor_pattern(with_pattern)
-    %{args: telescope, quantities: quantities, plicities: plicities} = Inductive.get_ctor(env, cname)
+
+    %{args: telescope, quantities: quantities, plicities: plicities, result_indices: result_indices} =
+      Inductive.get_ctor(env, cname)
+
     arity = length(telescope)
+
+    instantiated_result_indices =
+      Kernel.instantiate_branch_result_indices(
+        result_indices,
+        arity,
+        param_vals,
+        Context.length(ctx)
+      )
+
     branch_names = branch_scope(telescope, quantities, plicities, pattern_vars) ++ names
 
     case verdict do
@@ -6051,7 +6082,14 @@ defmodule Cure.Elab.Elaborator do
         # The rematch path abstracts the computed scrutinee in the MOTIVE (shared
         # `build_motive`); this refines the branch goal to the constructor too.
         branch_expected =
-          refine_branch_goal(result_type_term, scrut_term, cname, arity, subst, branch_ctx)
+          instantiate_branch_motive(
+            motive,
+            instantiated_result_indices,
+            cname,
+            arity,
+            subst,
+            branch_ctx
+          )
 
         body_expr = refine_scrutinee_in_body(body_expr, scrut_term, with_pattern, pattern_vars, names)
 
@@ -6893,11 +6931,7 @@ defmodule Cure.Elab.Elaborator do
           # Keep contextual ex-falso for the distinct case it was designed for:
           # the matched constructor is reachable at its own indices, but a
           # transported sibling in the convoy is empty.
-          direct_verdict =
-            case Map.fetch(cfg, :idx_vals) do
-              {:ok, idx_vals} -> Kernel.branch_unify(ctx, dname, cname, idx_vals, cfg.param_vals)
-              :error -> :trivial
-            end
+          direct_verdict = motivegen_branch_verdict(cfg, cname)
 
           case direct_verdict do
             :impossible ->
@@ -6916,13 +6950,24 @@ defmodule Cure.Elab.Elaborator do
           end
 
         {cname, {:matched, pattern, body_expr}}, {:ok, acc} ->
-          case elaborate_with_motivegen_branch(cname, pattern, body_expr, cfg) do
-            {:ok, branch} -> {:cont, {:ok, acc ++ [branch]}}
-            {:error, _} = err -> {:halt, err}
+          case motivegen_branch_verdict(cfg, cname) do
+            :impossible ->
+              {:cont, {:ok, acc}}
+
+            _reachable ->
+              case elaborate_with_motivegen_branch(cname, pattern, body_expr, cfg) do
+                {:ok, branch} -> {:cont, {:ok, acc ++ [branch]}}
+                {:error, _} = err -> {:halt, err}
+              end
           end
       end)
     end
   end
+
+  defp motivegen_branch_verdict(%{idx_vals: idx_vals, ctx: ctx, dname: dname, param_vals: param_vals}, cname),
+    do: Kernel.branch_unify(ctx, dname, cname, idx_vals, param_vals)
+
+  defp motivegen_branch_verdict(_cfg, _cname), do: :trivial
 
   defp elaborate_with_motivegen_branch(cname, pattern, body_expr, cfg) do
     %{
@@ -7078,35 +7123,40 @@ defmodule Cure.Elab.Elaborator do
 
     contextual_impossible? = body_expr == @contextual_impossible_body
 
-    body_expr =
-      if contextual_impossible? do
-        body_expr
-      else
-        # Surface reconstruction contains only positional pattern fields. When
-        # the constructor telescope also has inferred fields, substituting that
-        # partial call for the scrutinee manufactures an under-applied Core
-        # constructor if the surrounding expression offers no expected type at
-        # the call site. The branch motive already performs the authoritative
-        # Core-level value refinement, so retain the original surface name until
-        # reconstruction can represent the complete telescope.
-        if length(plicities) == arity and Enum.all?(plicities, &(&1 == :explicit)) do
-          refine_scrutinee_in_body(
-            body_expr,
-            Map.fetch!(cfg, :scrut_term),
-            pattern,
-            pattern_vars,
-            names
-          )
-        else
-          body_expr
-        end
-      end
+    refined_body_expr =
+      refine_scrutinee_in_body(
+        body_expr,
+        Map.fetch!(cfg, :scrut_term),
+        pattern,
+        pattern_vars,
+        names
+      )
 
     branch_body_result =
       if contextual_impossible? do
         contextual_absurd(branch_ctx, cod_expected, env)
       else
-        elaborate_branch_body(body_expr, cod_expected, branch_names, branch_ctx, env)
+        explicit_constructor? = length(plicities) == arity and Enum.all?(plicities, &(&1 == :explicit))
+
+        if explicit_constructor? do
+          elaborate_branch_body(refined_body_expr, cod_expected, branch_names, branch_ctx, env)
+        else
+          # Hidden constructor indices often infer from the explicit fields
+          # (`mk(l,r)` recovers `as`/`bs` from `l : F(as)`, `r : F(bs)`). Keep
+          # the original spelling as the compatibility-first attempt, then use
+          # the complete branch refinement when a dependent consumer requires
+          # the scrutinee VALUE rather than merely its family index.
+          case elaborate_branch_body(body_expr, cod_expected, branch_names, branch_ctx, env) do
+            {:ok, _} = ok ->
+              ok
+
+            {:error, _} = original ->
+              case elaborate_branch_body(refined_body_expr, cod_expected, branch_names, branch_ctx, env) do
+                {:ok, _} = ok -> ok
+                {:error, _} -> original
+              end
+          end
+        end
       end
 
     with :ok <-
@@ -7553,6 +7603,7 @@ defmodule Cure.Elab.Elaborator do
          env,
          dname,
          idx_vals,
+         idx_terms,
          param_vals,
          scrut_term,
          result_type_term,
@@ -7605,9 +7656,11 @@ defmodule Cure.Elab.Elaborator do
                      ctx,
                      env,
                      param_vals,
+                     idx_terms,
                      scrut_term,
                      result_type_term,
-                     carried
+                     carried,
+                     motive
                    ) do
                 {:ok, branch} -> {:cont, {:ok, acc ++ [branch]}}
                 {:error, _} = err -> {:halt, err}
@@ -7646,9 +7699,11 @@ defmodule Cure.Elab.Elaborator do
                          ctx,
                          env,
                          param_vals,
+                         idx_terms,
                          scrut_term,
                          result_type_term,
-                         carried
+                         carried,
+                         motive
                        ) do
                     {:ok, branch} -> {:cont, {:ok, acc ++ [branch]}}
                     {:error, _} = err -> {:halt, err}
@@ -10230,9 +10285,11 @@ defmodule Cure.Elab.Elaborator do
          ctx,
          env,
          param_vals,
+         idx_terms,
          scrut_term,
          result_type_term,
-         carried
+         carried,
+         motive
        ) do
     # A surface constructor pattern names only the PRESENT (non-erased) args; the
     # erased indices are reconstructed from the telescope, not bound in the source.
@@ -10251,9 +10308,11 @@ defmodule Cure.Elab.Elaborator do
           ctx,
           env,
           param_vals,
+          idx_terms,
           scrut_term,
           result_type_term,
-          carried
+          carried,
+          motive
         )
 
       true ->
@@ -10267,9 +10326,11 @@ defmodule Cure.Elab.Elaborator do
           ctx,
           env,
           param_vals,
+          idx_terms,
           scrut_term,
           result_type_term,
-          carried
+          carried,
+          motive
         )
     end
   end
@@ -10288,15 +10349,27 @@ defmodule Cure.Elab.Elaborator do
          ctx,
          env,
          scrut_param_vals,
+         _scrut_idx_terms,
          scrut_term,
          result_type_term,
-         carried
+         carried,
+         motive
        ) do
     pattern = internalize_branch_wildcards(pattern)
     {:ok, {cname, pattern_vars}} = constructor_pattern(pattern)
 
     %{args: telescope, quantities: quantities, result_indices: result_indices, plicities: plicities} =
       Inductive.get_ctor(env, cname)
+
+    arity = length(telescope)
+
+    instantiated_result_indices =
+      Kernel.instantiate_branch_result_indices(
+        result_indices,
+        arity,
+        scrut_param_vals,
+        Context.length(ctx)
+      )
 
     branch_names = branch_scope(telescope, quantities, plicities, pattern_vars) ++ names
 
@@ -10311,8 +10384,6 @@ defmodule Cure.Elab.Elaborator do
         end
 
       _solved_or_trivial ->
-        arity = length(telescope)
-
         # The kernel's `branch_unify` verdict is the COMPLETE index inversion for
         # this branch — both `ctor-arg := scrut-index` (Vec-style) AND
         # `scrut-index-var := ctor-result` (e.g. `n := Z` for `v : NV(n)` matched
@@ -10373,7 +10444,14 @@ defmodule Cure.Elab.Elaborator do
           # branch constructor alongside the index inversion — the shared
           # `refine_branch_goal` (Task 3.4), also used by the with-rematch path.
           branch_expected =
-            refine_branch_goal(result_type_term, scrut_term, cname, arity, subst, branch_ctx)
+            instantiate_branch_motive(
+              motive,
+              instantiated_result_indices,
+              cname,
+              arity,
+              subst,
+              branch_ctx
+            )
 
           # Lean substitutes a variable major premise by `ctor fields` in the
           # entire subgoal — context AND everything elaborated inside it
@@ -13237,9 +13315,17 @@ defmodule Cure.Elab.Elaborator do
   # variable scrutinee is keyed into the subst at `i + arity`; a computed one has
   # its occurrences replaced by the branch constructor as a whole term (matching
   # `build_motive`'s kabstract — the kernel checks this branch at `motive @ ctor`).
-  defp refine_branch_goal(result_type_term, scrut_term, cname, arity, subst, branch_ctx) do
-    result_type_term
-    |> refine_branch_goal_term(scrut_term, cname, arity, subst)
+  defp instantiate_branch_motive(motive, constructor_indices, cname, arity, subst, branch_ctx) do
+    ctor_term = branch_constructor_term(cname, arity)
+
+    motive
+    |> Subst.shift(arity, 0)
+    |> then(fn shifted_motive ->
+      Enum.reduce(constructor_indices ++ [ctor_term], shifted_motive, fn argument, application ->
+        {:app, application, argument}
+      end)
+    end)
+    |> replace_branch_vars(subst)
     |> then(&Kernel.normalize(branch_ctx, &1))
   end
 

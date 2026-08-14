@@ -128,6 +128,19 @@ defmodule Cure.Elab.EraseRelevanceCollapsibleAgreementGreenGuardTest do
     assert Relevance.check(env, :forced, [:erased], term) == :ok
   end
 
+  test "a convoy does not reapply runtime arguments after its case erases to unreachable" do
+    env = indexed_proof_env()
+
+    convoy =
+      {:app,
+       {:case, {:global, :proof}, @motive,
+        [
+          {:LeftProof, 0, {:lam, :erased, @dummy, {:case, {:global, :impossible_witness}, @motive, []}}}
+        ]}, {:global, :runtime_argument}}
+
+    assert Erase.erase(env, convoy) == {:ctor, :cure_erased, []}
+  end
+
   test "the two judgments AGREE with each other across the whole family table" do
     table = [
       {proof_env(), :MkProof, 1},

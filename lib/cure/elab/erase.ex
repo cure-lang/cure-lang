@@ -65,100 +65,118 @@ defmodule Cure.Elab.Erase do
   def erase(env, {:app, _f, _x} = app) do
     {head, args} = spine(app, [])
 
-    case head do
-      {:case, scrutinee, motive, branches} when branches != [] ->
-        case convoy_grades(branches, length(args)) do
-          {:ok, grades} ->
-            erased_branches =
-              Enum.map(branches, fn {cname, arity, body} ->
-                {cname, arity, erase_convoy_body(env, body, grades)}
-              end)
+    erased =
+      case head do
+        # `cure_erased` is the terminal runtime representation of a proof/index
+        # witness that has no computational content. Convoy discharge can expose
+        # an application whose function position was itself an erased binder;
+        # after that binder is replaced, the term is syntactically
+        # `cure_erased(arg)`. It is not a constructor function and must not reach
+        # Erlang lowering as a local call. The argument occupied an erased
+        # position already validated by Relevance, so the whole application
+        # contracts to the same terminal placeholder.
+        {:ctor, :cure_erased, []} ->
+          {:ctor, :cure_erased, []}
 
-            erased_head = erase(env, {:case, scrutinee, motive, erased_branches})
+        {:case, scrutinee, motive, branches} when branches != [] ->
+          case convoy_grades(branches, length(args)) do
+            {:ok, grades} ->
+              erased_branches =
+                Enum.map(branches, fn {cname, arity, body} ->
+                  {cname, arity, erase_convoy_body(env, body, grades)}
+                end)
 
-            args
-            |> Enum.zip(grades)
-            |> Enum.filter(fn {_arg, grade} -> Grade.present?(grade) end)
-            |> Enum.map(fn {arg, _grade} -> erase(env, arg) end)
-            |> Enum.reduce(erased_head, fn arg, acc -> {:app, acc, arg} end)
+              erased_head = erase(env, {:case, scrutinee, motive, erased_branches})
 
-          :error ->
-            args
-            |> Enum.map(&erase(env, &1))
-            |> Enum.reduce(erase(env, head), fn arg, acc -> {:app, acc, arg} end)
-        end
+              if erased_placeholder_application?(erased_head) do
+                {:ctor, :cure_erased, []}
+              else
+                args
+                |> Enum.zip(grades)
+                |> Enum.filter(fn {_arg, grade} -> Grade.present?(grade) end)
+                |> Enum.map(fn {arg, _grade} -> erase(env, arg) end)
+                |> Enum.reduce(erased_head, fn arg, acc -> {:app, acc, arg} end)
+              end
 
-      {:global, name} ->
-        quantities =
-          case Cure.Core.Env.get_def(env, name) do
-            %{quantities: qs} when is_list(qs) -> qs
-            _ -> List.duplicate(:unrestricted, length(args))
+            :error ->
+              args
+              |> Enum.map(&erase(env, &1))
+              |> Enum.reduce(erase(env, head), fn arg, acc -> {:app, acc, arg} end)
           end
 
-        if length(args) >= length(quantities) do
-          # Full or over-application: filter the callee's own parameters by their
-          # quantity, and keep every argument beyond them (those apply to the
-          # *result* `mk()(z)` and are always present).
-          padded = quantities ++ List.duplicate(:unrestricted, length(args) - length(quantities))
+        {:global, name} ->
+          quantities =
+            case Cure.Core.Env.get_def(env, name) do
+              %{quantities: qs} when is_list(qs) -> qs
+              _ -> List.duplicate(:unrestricted, length(args))
+            end
 
-          args
-          |> Enum.zip(padded)
-          # A runtime value exists for every grade EXCEPT `0`. Asking
-          # `q == :unrestricted` would silently drop `:linear` and `:affine`
-          # arguments — the grade carrier is not a two-point lattice any more.
-          |> Enum.filter(fn {_arg, q} -> Grade.present?(q) end)
-          |> Enum.map(fn {arg, _q} -> erase(env, arg) end)
-          |> Enum.reduce({:global, name}, fn arg, acc -> {:app, acc, arg} end)
-        else
-          # Fewer args than the callee's parameters means the erased ones were
-          # already dropped by a prior pass; re-filtering would realign the full
-          # quantity vector and drop a present arg. Keep all, recurse — idempotent.
-          args
-          |> Enum.map(&erase(env, &1))
-          |> Enum.reduce({:global, name}, fn arg, acc -> {:app, acc, arg} end)
-        end
+          if length(args) >= length(quantities) do
+            # Full or over-application: filter the callee's own parameters by their
+            # quantity, and keep every argument beyond them (those apply to the
+            # *result* `mk()(z)` and are always present).
+            padded = quantities ++ List.duplicate(:unrestricted, length(args) - length(quantities))
 
-      # A constructor heading a curried spine is the same term as the flat `{:ctor, name, args}`
-      # node, and must erase to the same runtime shape. The bare fallback below kept every
-      # argument, erased ones included — so an erased index literally survived into the runtime
-      # term, and two Core encodings of one value erased differently. `Relevance`, the dual
-      # pass, already anticipates this head shape in `callee_quantities/3`; `Erase` did not.
-      {:ctor, cname, head_args} ->
-        all = head_args ++ args
-        quantities = Inductive.ctor_quantities(env, cname) || List.duplicate(:unrestricted, length(all))
-
-        if length(all) >= length(quantities) do
-          # Saturated (or over-applied, when a field is itself a function): the leading
-          # `length(quantities)` arguments are the ctor's own fields and collapse into the flat
-          # node; anything beyond applies to the result and is always present.
-          {fields, extra} = Enum.split(all, length(quantities))
-
-          kept =
-            fields
-            |> Enum.zip(quantities)
+            args
+            |> Enum.zip(padded)
             # A runtime value exists for every grade EXCEPT `0`. Asking
             # `q == :unrestricted` would silently drop `:linear` and `:affine`
             # arguments — the grade carrier is not a two-point lattice any more.
             |> Enum.filter(fn {_arg, q} -> Grade.present?(q) end)
             |> Enum.map(fn {arg, _q} -> erase(env, arg) end)
+            |> Enum.reduce({:global, name}, fn arg, acc -> {:app, acc, arg} end)
+          else
+            # Fewer args than the callee's parameters means the erased ones were
+            # already dropped by a prior pass; re-filtering would realign the full
+            # quantity vector and drop a present arg. Keep all, recurse — idempotent.
+            args
+            |> Enum.map(&erase(env, &1))
+            |> Enum.reduce({:global, name}, fn arg, acc -> {:app, acc, arg} end)
+          end
 
-          extra
-          |> Enum.map(&erase(env, &1))
-          |> Enum.reduce({:ctor, cname, kept}, fn arg, acc -> {:app, acc, arg} end)
-        else
-          # Partially applied, or already erased: filtering would realign the quantity vector
-          # onto the wrong positions. Keep every argument and recurse, so erase(erase(t)) is
-          # erase(t) — the same reasoning as the flat `{:ctor, …}` and `{:global, …}` clauses.
+        # A constructor heading a curried spine is the same term as the flat `{:ctor, name, args}`
+        # node, and must erase to the same runtime shape. The bare fallback below kept every
+        # argument, erased ones included — so an erased index literally survived into the runtime
+        # term, and two Core encodings of one value erased differently. `Relevance`, the dual
+        # pass, already anticipates this head shape in `callee_quantities/3`; `Erase` did not.
+        {:ctor, cname, head_args} ->
+          all = head_args ++ args
+          quantities = Inductive.ctor_quantities(env, cname) || List.duplicate(:unrestricted, length(all))
+
+          if length(all) >= length(quantities) do
+            # Saturated (or over-applied, when a field is itself a function): the leading
+            # `length(quantities)` arguments are the ctor's own fields and collapse into the flat
+            # node; anything beyond applies to the result and is always present.
+            {fields, extra} = Enum.split(all, length(quantities))
+
+            kept =
+              fields
+              |> Enum.zip(quantities)
+              # A runtime value exists for every grade EXCEPT `0`. Asking
+              # `q == :unrestricted` would silently drop `:linear` and `:affine`
+              # arguments — the grade carrier is not a two-point lattice any more.
+              |> Enum.filter(fn {_arg, q} -> Grade.present?(q) end)
+              |> Enum.map(fn {arg, _q} -> erase(env, arg) end)
+
+            extra
+            |> Enum.map(&erase(env, &1))
+            |> Enum.reduce({:ctor, cname, kept}, fn arg, acc -> {:app, acc, arg} end)
+          else
+            # Partially applied, or already erased: filtering would realign the quantity vector
+            # onto the wrong positions. Keep every argument and recurse, so erase(erase(t)) is
+            # erase(t) — the same reasoning as the flat `{:ctor, …}` and `{:global, …}` clauses.
+            args
+            |> Enum.map(&erase(env, &1))
+            |> Enum.reduce(erase(env, head), fn arg, acc -> {:app, acc, arg} end)
+          end
+
+        _ ->
           args
           |> Enum.map(&erase(env, &1))
           |> Enum.reduce(erase(env, head), fn arg, acc -> {:app, acc, arg} end)
-        end
+      end
 
-      _ ->
-        args
-        |> Enum.map(&erase(env, &1))
-        |> Enum.reduce(erase(env, head), fn arg, acc -> {:app, acc, arg} end)
-    end
+    if erased_placeholder_application?(erased), do: {:ctor, :cure_erased, []}, else: erased
   end
 
   def erase(env, {:pi, g, d, c}), do: {:pi, g, erase(env, d), erase(env, c)}
@@ -206,6 +224,13 @@ defmodule Cure.Elab.Erase do
 
   defp spine({:app, f, x}, acc), do: spine(f, [x | acc])
   defp spine(head, acc), do: {head, acc}
+
+  defp erased_placeholder_application?(term) do
+    case spine(term, []) do
+      {{:ctor, :cure_erased, []}, _arguments} -> true
+      _ -> false
+    end
+  end
 
   defp convoy_grades(branches, arity) do
     grades = Enum.map(branches, fn {_cname, _ctor_arity, body} -> lambda_grades(body, arity, []) end)

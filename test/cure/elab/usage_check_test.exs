@@ -203,6 +203,12 @@ defmodule Cure.Elab.UsageCheckTest do
       assert {:case, {:global, :box}, _motive, [{:mk, 1, {:int_lit, 0}}]} =
                Erase.erase(box_env(:unrestricted), convoy)
     end
+
+    test "an erased convoy function placeholder absorbs its administrative application" do
+      term = {:app, {:ctor, :cure_erased, []}, {:global, :proof_argument}}
+
+      assert Erase.erase(Env.empty(), term) == {:ctor, :cure_erased, []}
+    end
   end
 
   describe "argument positions are gated by present?/1, not by == :unrestricted" do
