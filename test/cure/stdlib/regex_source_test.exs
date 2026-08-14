@@ -25,6 +25,16 @@ defmodule Cure.Stdlib.RegexSourceTest do
            end)
   end
 
+  test "thread deduplication uses intrinsic state slots rather than winner-list rescans" do
+    source = File.read!("lib/std/regex.cure")
+
+    assert source =~ "type ActiveWinnerSlots"
+    assert source =~ "fn active_winner_seen"
+    assert source =~ "fn record_active_winner"
+    refute source =~ "fn contains_thread_state"
+    refute source =~ "fn distinct_threads_seen"
+  end
+
   test "slash literals retain the staged computed expansion entry" do
     {:ok, tokens} = Lexer.tokenize("fn f() = /[A-z]*/", emit_events: false)
     {:ok, ast} = Parser.parse(tokens, emit_events: false)

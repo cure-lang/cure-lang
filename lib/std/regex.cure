@@ -1253,18 +1253,55 @@ mod Std.Regex
       ThreadAccepted() -> false
       ThreadActive(right_state) -> bounded_same(left_state, right_state)
 
-  fn contains_thread_state({n: Nat}, state: ThreadState(n), threads: List(EvidenceThread(n))) -> Bool = match threads
-    [] -> false
-    [EvidenceThread(other, _, _) | rest] -> pickup
-      same_thread_state(state, other) -> true
-      else -> contains_thread_state(state, rest)
+  ## One winner slot per encountered intrinsic active state plus one accepted-state bit.
+  ## Traversal is left-to-right, so setting a slot preserves the first (highest
+  ## priority) thread and discards every later duplicate without rescanning the
+  ## growing winner list. `Bounded(n)` structurally indexes the slot spine: no
+  ## unchecked Nat conversion enters the machine and the erased bound need not
+  ## be materialized at runtime.
+  type ActiveWinnerSlots = NoWinnerSlots | ActiveWinnerSlot(Bool, ActiveWinnerSlots)
+  type ThreadWinnerTable = ThreadWinnerTable(Bool, ActiveWinnerSlots)
 
-  fn distinct_threads({n: Nat}, threads: List(EvidenceThread(n))) -> List(EvidenceThread(n)) = distinct_threads_seen(threads, [])
-  fn distinct_threads_seen({n: Nat}, threads: List(EvidenceThread(n)), seen: List(EvidenceThread(n))) -> List(EvidenceThread(n)) = match threads
-    [] -> []
+  type DistinctThreadResult indices (n: Nat)
+    DistinctThreadResult : ThreadWinnerTable -> List(EvidenceThread(n)) -> DistinctThreadResult(n)
+
+  fn active_winner_seen({n: Nat}, slots: ActiveWinnerSlots, index: Bounded(n)) -> Bool = match index
+    First() -> match slots
+      NoWinnerSlots() -> false
+      ActiveWinnerSlot(seen, _) -> seen
+    Next(rest) -> match slots
+      NoWinnerSlots() -> false
+      ActiveWinnerSlot(_, tail) -> active_winner_seen(tail, rest)
+
+  fn record_active_winner({n: Nat}, slots: ActiveWinnerSlots, index: Bounded(n)) -> ActiveWinnerSlots = match index
+    First() -> match slots
+      NoWinnerSlots() -> ActiveWinnerSlot(true, NoWinnerSlots())
+      ActiveWinnerSlot(_, tail) -> ActiveWinnerSlot(true, tail)
+    Next(rest) -> match slots
+      NoWinnerSlots() -> ActiveWinnerSlot(false, record_active_winner(NoWinnerSlots(), rest))
+      ActiveWinnerSlot(seen, tail) -> ActiveWinnerSlot(seen, record_active_winner(tail, rest))
+
+  fn empty_thread_winners() -> ThreadWinnerTable = ThreadWinnerTable(false, NoWinnerSlots())
+
+  fn thread_winner_seen({n: Nat}, table: ThreadWinnerTable, state: ThreadState(n)) -> Bool = match table
+    ThreadWinnerTable(accepted, active) -> match state
+      ThreadAccepted() -> accepted
+      ThreadActive(index) -> active_winner_seen(active, index)
+
+  fn record_thread_winner({n: Nat}, table: ThreadWinnerTable, state: ThreadState(n)) -> ThreadWinnerTable = match table
+    ThreadWinnerTable(accepted, active) -> match state
+      ThreadAccepted() -> ThreadWinnerTable(true, active)
+      ThreadActive(index) -> ThreadWinnerTable(accepted, record_active_winner(active, index))
+
+  fn distinct_threads({n: Nat}, threads: List(EvidenceThread(n))) -> List(EvidenceThread(n)) = match distinct_threads_with(threads, empty_thread_winners())
+    DistinctThreadResult(_, winners) -> winners
+
+  fn distinct_threads_with({n: Nat}, threads: List(EvidenceThread(n)), table: ThreadWinnerTable) -> DistinctThreadResult(n) = match threads
+    [] -> DistinctThreadResult(table, [])
     [EvidenceThread(state, evidence, captures) | rest] -> pickup
-      contains_thread_state(state, seen) -> distinct_threads_seen(rest, seen)
-      else -> [EvidenceThread(state, evidence, captures) | distinct_threads_seen(rest, [EvidenceThread(state, evidence, captures) | seen])]
+      thread_winner_seen(table, state) -> distinct_threads_with(rest, table)
+      else -> match distinct_threads_with(rest, record_thread_winner(table, state))
+        DistinctThreadResult(final_table, winners) -> DistinctThreadResult(final_table, [EvidenceThread(state, evidence, captures) | winners])
 
   fn first_accepted_evidence({n: Nat}, threads: List(EvidenceThread(n))) -> Option(List(Evidence)) = match threads
     [] -> None()
