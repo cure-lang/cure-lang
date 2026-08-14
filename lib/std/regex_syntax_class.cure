@@ -3,13 +3,15 @@
 mod Std.Regex.Syntax.Class
   use Std.Regex.Syntax.Model
 
-  fn parse_literal_class(input: List(Char)) -> LiteralParse = match input
-    ['^' | rest] -> finish_literal_class(parse_literal_class_items_fuel(rest, [], [], no_class_kinds(), literal_fuel(input)), true)
-    _ -> finish_literal_class(parse_literal_class_items_fuel(input, [], [], no_class_kinds(), literal_fuel(input)), false)
+  fn parse_literal_class(input: List(Char), origin: List(Char)) -> LiteralParse = match input
+    ['^' | rest] -> finish_literal_class(parse_literal_class_items_fuel(rest, [], [], no_class_kinds(), literal_fuel(input)), true, origin)
+    _ -> finish_literal_class(parse_literal_class_items_fuel(input, [], [], no_class_kinds(), literal_fuel(input)), false, origin)
 
-  fn finish_literal_class(result: LiteralClassParse, negated: Bool) -> LiteralParse = match result
+  fn finish_literal_class(result: LiteralClassParse, negated: Bool, origin: List(Char)) -> LiteralParse = match result
     LiteralClassParsed(chars, ranges, kinds, rest) -> LiteralParsed(LiteralClass(reverse_chars(chars), reverse_ranges(ranges), kinds, negated), rest)
-    LiteralClassInvalid(reason) -> LiteralInvalid(reason)
+    LiteralClassInvalid(reason) -> pickup
+      reason == :UnclosedRegexClass -> LiteralAtInvalid(reason, origin, literal_length(origin))
+      else -> LiteralInvalid(reason)
     LiteralClassAtInvalid(reason, suffix, width) -> LiteralAtInvalid(reason, suffix, width)
 
   fn parse_literal_class_items_fuel(input: List(Char), chars: List(Char), ranges: List(LiteralCharacterRange), kinds: LiteralClassKinds, fuel: Nat) -> LiteralClassParse = match fuel
@@ -49,7 +51,7 @@ mod Std.Regex.Syntax.Class
   fn parse_literal_class_character(first: Char, rest: List(Char), chars: List(Char), ranges: List(LiteralCharacterRange), kinds: LiteralClassKinds, fuel: Nat) -> LiteralClassParse = pickup
     first == ']' -> LiteralClassParsed(chars, ranges, kinds, rest)
     first == '\\' -> match rest
-      [] -> LiteralClassInvalid(:TrailingRegexClassEscape)
+      [] -> LiteralClassAtInvalid(:TrailingRegexClassEscape, [first], 1)
       [escaped | tail] -> parse_literal_class_items_fuel(tail, [escaped | chars], ranges, kinds, fuel)
     else -> parse_literal_class_range(first, rest, chars, ranges, kinds, fuel)
 
@@ -63,7 +65,7 @@ mod Std.Regex.Syntax.Class
     [] -> parse_literal_class_items_fuel(original_rest, [first | chars], ranges, kinds, fuel)
     [last | tail] -> pickup
       last == ']' -> LiteralClassParsed(prepend_literal_dash(first, chars), ranges, kinds, tail)
-      Std.Char.less_than(last, first) -> LiteralClassInvalid(:ReversedRegexRange)
+      Std.Char.less_than(last, first) -> LiteralClassAtInvalid(:ReversedRegexRange, [first | original_rest], 3)
       else -> parse_literal_class_items_fuel(tail, chars, [LiteralCharacterRange(first, last) | ranges], kinds, fuel)
 
   fn prepend_literal_dash(first: Char, chars: List(Char)) -> List(Char) =
