@@ -528,6 +528,10 @@ defmodule Cure.Diagnostic.Adapter do
       when is_map(context),
       do: TypeAdapter.from_error(error, opts)
 
+  def from_error({:source_context, {:branch_type, _constructor, _reason}, context} = error, opts)
+      when is_map(context),
+      do: TypeAdapter.from_error(error, opts)
+
   def from_error({:source_context, {:reachable_impossible, _branch}, context} = error, opts)
       when is_map(context),
       do: StaticAnalysis.from_error(error, opts)

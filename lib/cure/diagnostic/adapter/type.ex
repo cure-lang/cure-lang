@@ -303,6 +303,20 @@ defmodule Cure.Diagnostic.Adapter.Type do
   def from_error({:source_context, {:branch_type, details}, context}, opts) when is_map(context),
     do: branch_failure(Map.put(context, :branch_details, details), opts)
 
+  def from_error({:source_context, {:branch_type, constructor, reason}, context}, opts)
+      when is_map(context) do
+    detail =
+      case reason do
+        {:conversion_failure, actual, expected} ->
+          %{constructor: constructor, status: {:error, reason}, actual: actual, expected: expected}
+
+        _ ->
+          %{constructor: constructor, status: {:error, reason}, actual: nil, expected: nil}
+      end
+
+    branch_failure(Map.put(context, :branch_details, %{branches: [detail]}), opts)
+  end
+
   def from_error({kind, operator}, opts)
       when kind in [:unsupported_operand_type, :no_operator_meaning],
       do: operator_failure(kind, operator, %{}, opts)
