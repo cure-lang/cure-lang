@@ -9,14 +9,14 @@ defmodule Antigen.Generators.SelfTest do
 
   alias Antigen.{Backend, Challenge}
   alias Antigen.Generators.{Totality, Positivity, Forcing}
-  alias Cure.Core.{Env, Certificate, Inductive, Eval, Term}
+  alias Cure.Core.{Env, Inductive, Eval, Term}
 
   # --- Totality: labels are correct by construction --------------------------
 
   test ":terminating def is genuinely accepted by the real certifier (completeness)" do
     c = Totality.structural_terminating()
     env = Totality.env_of(c)
-    assert Enum.all?(c.payload.focus, fn name -> Certificate.terminating?(name, Env.get_def(env, name).body, env) end)
+    assert Enum.all?(c.payload.focus, &Cure.Elab.TotalityClosure.provably_total?(env, &1))
   end
 
   test ":diverging mutual pair is genuinely non-terminating by construction (mutual back-edges, no self-call)" do
@@ -30,8 +30,8 @@ defmodule Antigen.Generators.SelfTest do
     assert mentions_global?(bf, :g) and not mentions_global?(bf, :f)
     assert mentions_global?(bg, :f) and not mentions_global?(bg, :g)
     # ...and (post-fix) the certifier now correctly REJECTS the mutual cycle.
-    refute Certificate.terminating?(:f, bf, env)
-    refute Certificate.terminating?(:g, bg, env)
+    refute Cure.Elab.TotalityClosure.provably_total?(env, :f)
+    refute Cure.Elab.TotalityClosure.provably_total?(env, :g)
   end
 
   # --- Positivity: labels agree with the real positivity checker -------------

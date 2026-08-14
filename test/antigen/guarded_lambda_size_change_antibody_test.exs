@@ -16,7 +16,7 @@ defmodule Antigen.GuardedLambdaSizeChangeAntibodyTest do
           Pure(x)   -> f(x)
           Bind(e,g) -> Bind(e, fn(y) -> bind(g(y), f))     -- self-call under fn(y)
 
-  `Cure.Core.Certificate.terminating?(:bind, body, env)` returns `false`. The
+  proof-carrying totality pipeline leaves `bind` uncertified. The
   `{:lam,...}` walk (`certificate.ex` ~197) correctly descends under the unapplied
   lambda, but the self-call's argument `g(y)` is an `{:app,...}` (a smaller field
   applied to the bound `y`), and `arg_relation/2` (~320–334) has cases only for a
@@ -54,7 +54,7 @@ defmodule Antigen.GuardedLambdaSizeChangeAntibodyTest do
   """
   use ExUnit.Case, async: true
 
-  alias Cure.Core.{Certificate, Env, Grade, Builtins}
+  alias Cure.Core.{Builtins, Env, Grade}
 
   # data F(a) = Pure(a) | Bind(Dec, Dec -> F(a))
   #   bind : Dec -> Dec -> Dec   (indices erased for the size-change frame)
@@ -98,14 +98,14 @@ defmodule Antigen.GuardedLambdaSizeChangeAntibodyTest do
   test "REACH: total guarded-lambda bind certifies" do
     body = total_body()
 
-    assert Certificate.terminating?(:bind, body, env_for(body)),
+    assert Cure.Elab.TotalityClosure.provably_total?(env_for(body), :bind),
            "total continuation-style bind must certify under guarded size-change"
   end
 
   test "CONTROL: regrowing (diverging) guarded-lambda bind stays rejected" do
     body = diverging_body()
 
-    refute Certificate.terminating?(:bind, body, env_for(body)),
+    refute Cure.Elab.TotalityClosure.provably_total?(env_for(body), :bind),
            "the regrowing guarded-lambda bind genuinely diverges and must NOT be certified"
   end
 end

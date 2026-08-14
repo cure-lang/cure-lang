@@ -1,6 +1,7 @@
 defmodule Cure.Core.CertificateTest do
   use ExUnit.Case, async: true
   alias Cure.Core.{Inductive, Env, Kernel, Conv}
+  alias Cure.Elab.TotalityClosure
 
   @dec {:data, :Dec, [], []}
   @dcoupled {:ctor, :Dcoupled, []}
@@ -27,10 +28,15 @@ defmodule Cure.Core.CertificateTest do
 
   defp and_app(a, b), do: {:app, {:app, {:global, :and}, a}, b}
 
+  defp certify(env, name) do
+    certified = TotalityClosure.certify_available(env, name)
+    if Env.total?(certified, name), do: {:ok, certified}, else: {:error, :not_total}
+  end
+
   test "a structurally-total global certifies and then delta-reduces in conversion" do
     env = Env.add_def(base(), :and, and_type(), and_body())
     assert :ok == Kernel.check_def(env, :and)
-    assert {:ok, env2} = Kernel.validate_certificate(env, :and)
+    assert {:ok, env2} = certify(env, :and)
 
     # Before certification: and(Causal,Causal) is stuck (no δ).
     refute Conv.conv?(and_app(@causal, @causal), @causal, [], 0, env)
@@ -43,19 +49,19 @@ defmodule Cure.Core.CertificateTest do
 
   test "a non-terminating global is rejected and stays opaque to δ" do
     env = Env.add_def(base(), :loop, @dec, {:global, :loop})
-    assert {:error, :not_total} = Kernel.validate_certificate(env, :loop)
+    assert {:error, :not_total} = certify(env, :loop)
     refute Conv.conv?({:global, :loop}, @causal, [], 0, env)
   end
 
   test "replacing a definition invalidates its prior totality certificate" do
     env = Env.add_def(base(), :stable, @dec, @causal)
-    assert {:ok, certified} = Kernel.validate_certificate(env, :stable)
+    assert {:ok, certified} = certify(env, :stable)
     assert Env.certified?(certified, :stable)
 
     replaced = Env.add_def(certified, :stable, @dec, {:global, :stable})
 
     refute Env.certified?(replaced, :stable)
-    assert {:error, :not_total} = Kernel.validate_certificate(replaced, :stable)
+    assert {:error, :not_total} = certify(replaced, :stable)
   end
 
   test "a mutually-recursive cycle f→g→f is NOT certified (mutual recursion is soundly rejected)" do
@@ -64,8 +70,8 @@ defmodule Cure.Core.CertificateTest do
     bg = {:lam, Cure.Core.Grade.unrestricted(), @dec, {:app, {:global, :f}, {:var, 0}}}
     env = base() |> Env.add_def(:f, ty, bf) |> Env.add_def(:g, ty, bg)
 
-    assert {:error, :not_total} = Kernel.validate_certificate(env, :f)
-    assert {:error, :not_total} = Kernel.validate_certificate(env, :g)
+    assert {:error, :not_total} = certify(env, :f)
+    assert {:error, :not_total} = certify(env, :g)
     # ...and neither δ-unfolds in conversion (stays opaque).
     refute Conv.conv?({:app, {:global, :f}, @causal}, @causal, [], 0, env)
   end
@@ -78,7 +84,7 @@ defmodule Cure.Core.CertificateTest do
     use_body = {:lam, Cure.Core.Grade.unrestricted(), @dec, {:app, {:global, :id}, {:var, 0}}}
     env = base() |> Env.add_def(:id, ty, id_body) |> Env.add_def(:use_id, ty, use_body)
 
-    assert {:ok, _} = Kernel.validate_certificate(env, :use_id)
+    assert {:ok, _} = certify(env, :use_id)
   end
 
   test "certificate validation records a canonical direct-call summary keyed by the checked body" do
@@ -92,7 +98,7 @@ defmodule Cure.Core.CertificateTest do
       |> Env.add_def(:id, ty, id_body)
       |> Env.add_def(:use_id, ty, use_body)
 
-    assert {:ok, checked} = Kernel.validate_certificate(env, :use_id)
+    assert {:ok, checked} = certify(env, :use_id)
 
     assert %{caller: :"Summary#use_id", body_hash: body_hash, summary_hash: summary_hash, calls: [call]} =
              Env.direct_call_summary(checked, :use_id)
@@ -105,7 +111,7 @@ defmodule Cure.Core.CertificateTest do
 
   test "replacing a definition invalidates its cached direct-call summary" do
     env = Env.add_def(base(), :stable, @dec, @causal)
-    assert {:ok, checked} = Kernel.validate_certificate(env, :stable)
+    assert {:ok, checked} = certify(env, :stable)
     assert Env.direct_call_summary(checked, :stable)
 
     replaced = Env.add_def(checked, :stable, @dec, {:global, :stable})
@@ -114,7 +120,7 @@ defmodule Cure.Core.CertificateTest do
 
   test "a pending forward declaration preserves a sealed definition certificate" do
     env = Env.add_def(base(), :stable, @dec, @causal)
-    assert {:ok, checked} = Kernel.validate_certificate(env, :stable)
+    assert {:ok, checked} = certify(env, :stable)
     summary = Env.direct_call_summary(checked, :stable)
 
     skeleton = Env.add_def(checked, :stable, @dec, {:hole, "__pending__"})

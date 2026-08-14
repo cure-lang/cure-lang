@@ -2,9 +2,9 @@ defmodule Cure.Elab.TotalityClosure do
   @moduledoc """
   The **untrusted** type-level totality driver (design spec §5, §7).
 
-  The kernel re-checks each totality certificate (`Kernel.validate_certificate`,
-  M7.2); this module decides *which* functions must be certified — the half of
-  §7 the kernel does not do. It computes the transitive closure of every global
+  The kernel replays each externally generated SCC and size-change certificate;
+  this module decides *which* functions must be certified — the half of §7 the
+  kernel does not do. It computes the transitive closure of every global
   reachable from a **type position** (an index expression in a constructor
   signature, a telescope type) — these are the functions whose reduction the
   type-checker relies on, so they must be total — and submits each to the
@@ -157,6 +157,12 @@ defmodule Cure.Elab.TotalityClosure do
     end
   end
 
+  @doc "Whether the component pipeline can certify `name` in the current environment."
+  @spec provably_total?(Env.t(), atom()) :: boolean()
+  def provably_total?(%Env{} = env, name) do
+    env |> certify_available(name) |> Env.total?(name)
+  end
+
   defp prepare_available_slice(env, [], seen),
     do: {:ok, env, seen |> MapSet.to_list() |> Enum.sort()}
 
@@ -199,9 +205,9 @@ defmodule Cure.Elab.TotalityClosure do
   @doc """
   Re-certify runtime defs that a *declaration-order* deferral left uncertified.
 
-  `Certificate.terminating?/3` deliberately defers (stays uncertified) a def with a
-  still-`{:hole, "__pending__"}` callee, because that callee's onward calls are
-  invisible and the SCC cannot be trusted (mutual-recursion soundness). The per-def
+  The component pipeline deliberately defers a def with a still-
+  `{:hole, "__pending__"}` callee, because that callee's onward calls are invisible
+  and the SCC cannot be trusted (mutual-recursion soundness). The per-def
   `maybe_certify` in `Declarations` runs in declaration order, so a total function
   that calls a helper declared *below* it — `reverse` → `reverse_acc` — is certified
   while the helper is still pending and is deferred. `certify_type_level/1` only
@@ -210,9 +216,8 @@ defmodule Cure.Elab.TotalityClosure do
 
   This sweep runs once every body is present. It resubmits every uncertified,
   non-extern, non-builtin def with a real (non-pending) body to the kernel. It is a
-  no-op for genuinely partial functions: the kernel re-derives the certificate and
-  rejects them exactly as before. No fixpoint is needed — `terminating?/3` reads
-  bodies, not the `certified` set, so a single pass over the complete env is exact.
+  no-op for genuinely partial functions: the kernel replays their exact closure
+  certificate and rejects them. One pass over the complete environment is exact.
   """
   @spec certify_deferred(Env.t()) :: Env.t()
   def certify_deferred(%Env{totality_certified: nil} = env), do: env

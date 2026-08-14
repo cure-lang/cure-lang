@@ -2,7 +2,7 @@ defmodule Cure.Core.SizeChangeTest do
   @moduledoc """
   Size-change termination certification (#14) in the totality certificate (TCB).
 
-  These exercise `Cure.Core.Certificate.terminating?/3` directly on Core terms
+  These exercise the proof-carrying totality path directly on Core terms
   whose shapes were pinned by empirically elaborating the corresponding Cure
   sources (`ack`, `f`, `loop`, `plus`) and inspecting the resulting bodies — so
   the de Bruijn indices and the `{:ctor, :S, [var: n]}` reconstructions here are
@@ -152,11 +152,10 @@ defmodule Cure.Core.SizeChangeTest do
 
   defp plus_type, do: {:pi, Cure.Core.Grade.unrestricted(), @nat, {:pi, Cure.Core.Grade.unrestricted(), @nat, @nat}}
 
-  alias Cure.Core.Certificate
+  alias Cure.Test.TotalityCertificateHelper
 
   defp terminating?(env, name) do
-    %{body: body} = Env.get_def(env, name)
-    Certificate.terminating?(name, body, env)
+    TotalityCertificateHelper.provably_total?(env, name)
   end
 
   # -- Must flip to TOTAL (currently rejected by the single-position check) ----

@@ -219,7 +219,8 @@ defmodule Cure.Elab.Equation do
     installed = put_in(installed.defs[canonical_theorem][:generated_equation], true)
 
     with :ok <- Kernel.check_def(installed, canonical_theorem),
-         {:ok, certified} <- Kernel.validate_certificate(installed, canonical_theorem) do
+         certified = Cure.Elab.TotalityClosure.certify_available(installed, canonical_theorem),
+         true <- Env.total?(certified, canonical_theorem) do
       info = Metadata.source_info(meta)
       surface = Map.get(surfaces, Enum.map(constructor_path, &Name.base/1), %{})
 
@@ -252,6 +253,7 @@ defmodule Cure.Elab.Equation do
       # Some compiled decision-tree branches carry convoy refinements that
       # cannot yet be re-abstracted as a closed standalone theorem. Never
       # publish an unchecked approximation; leave that branch unavailable.
+      false -> {:ok, env}
       {:error, _reason} -> {:ok, env}
     end
   end

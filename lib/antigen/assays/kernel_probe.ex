@@ -29,7 +29,6 @@ defmodule Antigen.Assays.KernelProbe do
     Normalise,
     Quote,
     Serialize,
-    Certificate,
     Validator
   }
 
@@ -81,7 +80,7 @@ defmodule Antigen.Assays.KernelProbe do
   # malformed) `body`. Registers `:f` so the call graph is realistic.
   defp cert_terminates?(body) do
     env = Env.add_def(base_env(), :f, {:pi, Cure.Core.Grade.unrestricted(), @nat, @nat}, body)
-    Certificate.terminating?(:f, body, env)
+    Cure.Elab.TotalityClosure.provably_total?(env, :f)
   end
 
   # -- per-probe kernel invocation (returns the raw kernel result) --
@@ -90,7 +89,7 @@ defmodule Antigen.Assays.KernelProbe do
   defp evaluate(:check_ctor_arity), do: Kernel.check(ctx(), {:ctor, :S, [@z, @z]}, Eval.eval(@nat, []))
   defp evaluate(:check_def_unknown), do: Kernel.check_def(base_env(), :nosuchdef)
   defp evaluate(:check_def_builtin_op), do: Kernel.check_def(base_env(), :int_add)
-  defp evaluate(:validate_cert_builtin_op), do: Kernel.validate_certificate(base_env(), :int_add)
+  defp evaluate(:validate_cert_builtin_op), do: Kernel.validate_builtin_certificate(base_env(), :int_add)
 
   defp evaluate(:family_ceiling) do
     fam = Inductive.family(:TooHigh, [], [], Universe.ceiling() + 1)
@@ -174,7 +173,7 @@ defmodule Antigen.Assays.KernelProbe do
         body
       )
 
-    Certificate.terminating?(:f, body, env)
+    Cure.Elab.TotalityClosure.provably_total?(env, :f)
   end
 
   # Certification whose forward reach pulls in a DANGLING callee (`f → g → h`,
@@ -189,7 +188,7 @@ defmodule Antigen.Assays.KernelProbe do
       |> Env.add_def(:f, {:pi, Cure.Core.Grade.unrestricted(), @nat, @nat}, body_f)
       |> Env.add_def(:g, {:pi, Cure.Core.Grade.unrestricted(), @nat, @nat}, body_g)
 
-    Certificate.terminating?(:f, body_f, env)
+    Cure.Elab.TotalityClosure.provably_total?(env, :f)
   end
 
   # -- adversarial "backstop" probes: malformed input at a real kernel boundary --

@@ -14,7 +14,7 @@ defmodule Antigen.Generators.Forcing do
   """
   alias Antigen.{Gen, Challenge}
   alias Antigen.Generators.Totality
-  alias Cure.Core.{Env, Certificate, Term}
+  alias Cure.Core.{Env, Term}
 
   # A closed Dec value to apply the cycle to (the group's domain is `Dec`).
   @n {:ctor, :Causal, []}
@@ -64,7 +64,7 @@ defmodule Antigen.Generators.Forcing do
     env = Enum.reduce(defs, Env.empty(), fn d, e -> Env.add_def(e, d.name, d.type, d.body) end)
 
     Enum.reduce(focus, env, fn name, e ->
-      if Certificate.terminating?(name, Env.get_def(e, name).body, e), do: Env.certify(e, name), else: e
+      Cure.Elab.TotalityClosure.certify_available(e, name)
     end)
   end
 end

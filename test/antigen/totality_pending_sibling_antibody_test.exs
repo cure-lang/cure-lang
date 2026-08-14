@@ -15,7 +15,7 @@ defmodule Antigen.TotalityPendingSiblingAntibodyTest do
   in the payload (honoured by `env_of`) closes that gap.
 
   Obligations:
-    * DISCRIMINATION — with `g` pending, `Certificate.terminating?(:f, …)` returns
+    * DISCRIMINATION — with `g` pending, component certification leaves `f`
       `false` (deferred); the pre-fix certifier returned `true` here (guarded by
       `mutual_cycle_pending_cert_test`). With BOTH bodies present the same pair is
       also rejected (the mutual check), so the antibody isolates the pending state.
@@ -25,7 +25,7 @@ defmodule Antigen.TotalityPendingSiblingAntibodyTest do
   use ExUnit.Case, async: true
   alias Antigen.Assays.Totality, as: Assay
   alias Antigen.Generators.Totality, as: Gen
-  alias Cure.Core.{Certificate, Env}
+  alias Cure.Core.Env
 
   test "env_of registers the pending sibling as a hole and keeps the focus body real" do
     c = Gen.diverging_pending_sibling()
@@ -38,9 +38,8 @@ defmodule Antigen.TotalityPendingSiblingAntibodyTest do
   test "the certifier DEFERS f while g is pending (does not certify)" do
     c = Gen.diverging_pending_sibling()
     env = Gen.env_of(c)
-    f_body = Env.get_def(env, :f).body
 
-    refute Certificate.terminating?(:f, f_body, env),
+    refute Cure.Elab.TotalityClosure.provably_total?(env, :f),
            "f must not be certified while sibling g is a pending placeholder"
   end
 

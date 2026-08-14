@@ -1,7 +1,7 @@
 defmodule Cure.Core.MutualSizeChangeTest do
   @moduledoc """
   Cross-function / mutual size-change termination (#13) in the TCB certificate
-  (`Cure.Core.Certificate.terminating?/3`).
+  (trusted direct-call summaries plus externally proposed closure evidence).
 
   Generalises the #14 single-function size-change from self-calls to calls to any
   global in the mutual group (the SCC of globals mutually reachable with `name`).
@@ -17,7 +17,7 @@ defmodule Cure.Core.MutualSizeChangeTest do
   one-leg, three-cycle) and the #14 Ackermann body.
   """
   use ExUnit.Case, async: true
-  alias Cure.Core.{Certificate, Env, Inductive, Kernel}
+  alias Cure.Core.{Env, Inductive, Kernel}
   alias Cure.Elab.TotalityGraph
   alias Cure.Elab.TotalityClosure
 
@@ -52,10 +52,7 @@ defmodule Cure.Core.MutualSizeChangeTest do
   # + the call graph); arity is read from leading lambdas.
   defp nat_arrow(_body), do: {:pi, Cure.Core.Grade.unrestricted(), @nat, @nat}
 
-  defp terminating?(env, name) do
-    %{body: body} = Env.get_def(env, name)
-    Certificate.terminating?(name, body, env)
-  end
+  defp terminating?(env, name), do: Cure.Test.TotalityCertificateHelper.provably_total?(env, name)
 
   # -- Bodies -----------------------------------------------------------------
 

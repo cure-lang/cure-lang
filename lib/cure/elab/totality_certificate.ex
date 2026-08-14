@@ -85,7 +85,7 @@ defmodule Cure.Elab.TotalityCertificate do
               {pending, known}
             else
               derived = Map.merge(composed, %{id: id, derivation: {:compose, left.id, right.id}})
-              {pending ++ [derived], Map.put(known, id, derived)}
+              {[derived | pending], Map.put(known, id, derived)}
             end
 
           :incompatible ->

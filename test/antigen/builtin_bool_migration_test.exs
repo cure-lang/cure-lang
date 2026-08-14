@@ -7,7 +7,7 @@ defmodule Antigen.BuiltinBoolMigrationTest do
   clauses used to carry), and primitive ops construct the inductive Bool.
   """
   use ExUnit.Case, async: true
-  alias Cure.Core.{Builtins, Certificate, Context, Env, Kernel, Term}
+  alias Cure.Core.{Builtins, Context, Env, Kernel, Term}
 
   test "the retired bool_elim term form is no longer a well-formed Core term" do
     refute Term.term?({:bool_elim, {:int_lit, 0}, {:int_type}, {:int_lit, 1}, {:int_lit, 2}})
@@ -21,7 +21,8 @@ defmodule Antigen.BuiltinBoolMigrationTest do
         {:lam, Cure.Core.Grade.unrestricted(), {:data, :Bool, [], []}, {:int_type}},
         [{:True, 0, {:int_lit, 0}}, {:False, 0, {:app, {:global, :f}, {:var, 0}}}]}}
 
-    refute Certificate.terminating?(:f, body, Builtins.seed(Env.empty()))
+    env = Builtins.seed(Env.empty()) |> Env.add_def(:f, {:int_type}, body)
+    refute Cure.Elab.TotalityClosure.provably_total?(env, :f)
   end
 
   test "a comparison constructs the inductive Bool, not a primitive Bool value" do

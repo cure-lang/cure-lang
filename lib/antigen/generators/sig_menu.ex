@@ -4,10 +4,10 @@ defmodule Antigen.Generators.SigMenu do
   defs the term generator draws goals and heads from, plus the totality
   scaffolding (`inhabitable?/2` + `canon/2`) that makes `gen_term` total.
 
-  Certification runs the REAL procedure (`Kernel.validate_certificate/2`) — never
-  a raw `Env.certify/2` bypass (locked decision #3/#5).
+  Certification runs the real proof-carrying component pipeline — never a raw
+  `Env.certify/2` bypass (locked decision #3/#5).
   """
-  alias Cure.Core.{Env, Inductive, Kernel, Context, Eval}
+  alias Cure.Core.{Context, Env, Eval, Inductive}
 
   # -- goal-type constructors -------------------------------------------------
   def nat, do: {:data, :Nat, [], []}
@@ -231,9 +231,9 @@ defmodule Antigen.Generators.SigMenu do
     dbl_body = {:lam, Cure.Core.Grade.unrestricted(), nat(), {:app, {:app, {:global, :plus}, {:var, 0}}, {:var, 0}}}
 
     env = Env.add_def(env, :plus, plus_type, plus_body)
-    {:ok, env} = Kernel.validate_certificate(env, :plus)
+    env = Cure.Elab.TotalityClosure.certify_available(env, :plus)
     env = Env.add_def(env, :dbl, dbl_type, dbl_body)
-    {:ok, env} = Kernel.validate_certificate(env, :dbl)
+    env = Cure.Elab.TotalityClosure.certify_available(env, :dbl)
 
     # app xs ys = case xs of SNil -> ys | SCons(h, t) -> SCons(h, app(t, ys))
     # (structural on arg 1) — the stuck function forming `H`'s carried index.
@@ -250,7 +250,7 @@ defmodule Antigen.Generators.SigMenu do
          ]}}}
 
     env = Env.add_def(env, :app, app_type, app_body)
-    {:ok, env} = Kernel.validate_certificate(env, :app)
+    env = Cure.Elab.TotalityClosure.certify_available(env, :app)
 
     # H : (n:Nat, xs:SList) -> Type0, ctor hmk : H(S(m), app(as, bs)) — a
     # TWO-index family whose FIRST index is ctor-pinned/invertible (S(m) against

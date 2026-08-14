@@ -759,65 +759,6 @@ defmodule Cure.Core.Kernel do
     end
   end
 
-  @doc """
-  Re-run the totality decision procedure on a registered, type-checked global
-  and, if it passes, certify it for δ-reduction (design spec §7). Coverage is
-  re-checked by `check_def` (the kernel's `case` typing); termination by
-  `Cure.Core.Certificate`. The kernel never trusts an elaborator's verdict — it
-  re-derives certification itself, returning the signature with the global
-  marked certified (the only way the certified set is populated).
-  """
-  @spec validate_certificate(Env.t(), atom()) :: {:ok, Env.t()} | {:error, term()}
-  def validate_certificate(env, name) do
-    # Canonicalize the lookup name to its def key BEFORE deriving the certificate.
-    # A def's body refers to itself (and its siblings) by owner-qualified key, but a
-    # caller may submit the bare name. `Certificate.terminating?` detects recursion by
-    # matching the submitted name against the `{:global, _}` nodes in the body: a bare
-    # name never matches a qualified self-reference, so an un-canonicalized name makes a
-    # self-looping function look non-recursive and be certified total (unsound). Resolve
-    # once here so recursion detection compares like against like.
-    name = Env.resolve_key(env, env.defs, name)
-
-    case Env.get_def(env, name) do
-      # Builtin-op def (K2, R4): total by fiat, no body to submit to the
-      # termination checker. Type-check the declared type, then certify.
-      %{builtin_op: op} when not is_nil(op) ->
-        with :ok <- check_def(env, name) do
-          timed_certificate_stage(name, :termination, fn -> {:ok, Env.certify(env, name)} end)
-        end
-
-      _ ->
-        with :ok <- check_def(env, name) do
-          %{body: body} = Env.get_def(env, name)
-          env = ensure_direct_call_summary(env, name, body)
-
-          timed_certificate_stage(name, :termination, fn ->
-            if Certificate.terminating?(name, body, env) do
-              # Certify the WHOLE proven-total SCC, not just `name`. A mutual group
-              # is certified member-by-member in declaration order; the first-declared
-              # member defers (its sibling's body is still a pending hole) and the
-              # last-declared member's check proves the group total but — before this —
-              # certified only itself, leaving the earlier member opaque to δ until the
-              # end-of-module sweep, which is too late for a dependent def checked in
-              # between. `terminating?` being true here means `pending_callee?` was
-              # false (every SCC member has a real, already-`check_def`'d body) and, for
-              # a genuine group, `mutual_group_total?` proved every member terminating
-              # together — so certifying them all is sound (Idris/Agda/Lean certify a
-              # `mutual` block as a unit). For a non-mutual def the group is `{name}`,
-              # so this is behaviour-preserving.
-              certified =
-                Certificate.total_group(name, body, env)
-                |> Enum.reduce(env, fn m, acc -> Env.certify(acc, m) end)
-
-              {:ok, certified}
-            else
-              {:error, :not_total}
-            end
-          end)
-        end
-    end
-  end
-
   defp ensure_direct_call_summary(env, name, body) do
     summary = Certificate.direct_summary(name, body, env)
 
@@ -831,7 +772,13 @@ defmodule Cure.Core.Kernel do
     end
   end
 
-  @doc "Prepare trusted direct-call summaries for a finite certification universe."
+  @doc """
+  Prepare trusted direct-call summaries for a finite certification universe.
+
+  Bodies reaching this phase were checked at definition publication. As in
+  Agda's `collectCalls`, this operation is a local extraction pass; it does not
+  re-run type checking for every later SCC query.
+  """
   @spec prepare_direct_call_summaries(Env.t(), [atom()]) :: {:ok, Env.t()} | {:error, term()}
   def prepare_direct_call_summaries(%Env{} = env, names) when is_list(names) do
     names
@@ -844,10 +791,7 @@ defmodule Cure.Core.Kernel do
           {:halt, {:error, {:totality_unknown_callee, %{definition: name}}}}
 
         %{body: body} when is_tuple(body) and elem(body, 0) not in [:extern, :hole] ->
-          case check_def(acc, name) do
-            :ok -> {:cont, {:ok, ensure_direct_call_summary(acc, name, body)}}
-            {:error, reason} -> {:halt, {:error, reason}}
-          end
+          {:cont, {:ok, ensure_direct_call_summary(acc, name, body)}}
 
         %{body: {:hole, _}} ->
           {:halt, {:error, {:totality_summary_stale, %{definition: name, reason: :pending_body}}}}
@@ -856,6 +800,22 @@ defmodule Cure.Core.Kernel do
           {:cont, {:ok, acc}}
       end
     end)
+  end
+
+  @doc "Validate and certify a bodyless builtin operation."
+  @spec validate_builtin_certificate(Env.t(), atom()) :: {:ok, Env.t()} | {:error, term()}
+  def validate_builtin_certificate(%Env{} = env, name) do
+    name = Env.resolve_key(env, env.defs, name)
+
+    case Env.get_def(env, name) do
+      %{builtin_op: op} when not is_nil(op) ->
+        with :ok <- check_def(env, name) do
+          {:ok, Env.certify(env, name)}
+        end
+
+      _ ->
+        {:error, {:not_builtin_operation, name}}
+    end
   end
 
   @doc "Verify an SCC partition once and atomically certify selected components."

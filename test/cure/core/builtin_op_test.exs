@@ -153,7 +153,7 @@ defmodule Cure.Core.BuiltinOpTest do
     # positions (post-Phase-2 dependent-index arithmetic). Behavioral pin: both
     # entries succeed on a seeded op.
     assert :ok = Kernel.check_def(env(), :int_add)
-    assert {:ok, env2} = Kernel.validate_certificate(env(), :int_add)
+    assert {:ok, env2} = Kernel.validate_builtin_certificate(env(), :int_add)
     assert Env.certified?(env2, :int_add)
   end
 end

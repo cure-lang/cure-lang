@@ -10,8 +10,6 @@ defmodule Antigen.Assays.Totality do
       rejected member is an incompleteness bug.
   """
   alias Antigen.{Challenge, Generators}
-  alias Cure.Core.{Env, Certificate}
-
   @spec run(Challenge.t()) :: :ok | {:violation, term()}
   def run(%Challenge{kind: :def_group, label: :diverging, payload: %{focus: focus}} = c) do
     env = Generators.Totality.env_of(c)
@@ -25,5 +23,5 @@ defmodule Antigen.Assays.Totality do
     if rejected == [], do: :ok, else: {:violation, {:wrongly_rejected, rejected}}
   end
 
-  defp certifies?(env, name), do: Certificate.terminating?(name, Env.get_def(env, name).body, env)
+  defp certifies?(env, name), do: Cure.Elab.TotalityClosure.provably_total?(env, name)
 end

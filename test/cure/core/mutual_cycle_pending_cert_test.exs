@@ -15,7 +15,7 @@ defmodule Cure.Core.MutualCyclePendingCertTest do
   once every body exists.
   """
   use ExUnit.Case, async: true
-  alias Cure.Core.{Certificate, Env}
+  alias Cure.Core.Env
 
   # f(n) = g(n) ; g(n) = f(n) — a divergent mutual pair.
   defp f_body, do: {:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, {:app, {:global, :g}, {:var, 0}}}
@@ -30,7 +30,7 @@ defmodule Cure.Core.MutualCyclePendingCertTest do
       |> Env.add_def(:f, pi(), f_body())
       |> Env.add_def(:g, pi(), {:hole, "__pending__"})
 
-    refute Certificate.terminating?(:f, f_body(), env),
+    refute Cure.Elab.TotalityClosure.provably_total?(env, :f),
            "f is half of a divergent cycle; with g pending the SCC is invisible — must defer"
   end
 
@@ -40,7 +40,7 @@ defmodule Cure.Core.MutualCyclePendingCertTest do
       |> Env.add_def(:f, pi(), f_body())
       |> Env.add_def(:g, pi(), g_body())
 
-    refute Certificate.terminating?(:f, f_body(), env),
+    refute Cure.Elab.TotalityClosure.provably_total?(env, :f),
            "f(n)=g(n), g(n)=f(n) is non-total — the mutual size-change check rejects it"
   end
 
@@ -55,6 +55,6 @@ defmodule Cure.Core.MutualCyclePendingCertTest do
         ]}}
 
     env = Env.empty() |> Env.add_def(:h, pi(), h_body)
-    assert Certificate.terminating?(:h, h_body, env)
+    assert Cure.Test.TotalityCertificateHelper.provably_total?(env, :h)
   end
 end

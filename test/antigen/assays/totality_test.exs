@@ -42,11 +42,7 @@ defmodule Antigen.Assays.TotalityTest do
     c = G.diverging_mediated_cycle()
     env = G.env_of(c)
 
-    assert Cure.Core.Certificate.terminating?(
-             :total_id,
-             Cure.Core.Env.get_def(env, :total_id).body,
-             env
-           )
+    assert Cure.Elab.TotalityClosure.provably_total?(env, :total_id)
   end
 
   test "W1: argument-permuting size-preserving pair is not certified" do

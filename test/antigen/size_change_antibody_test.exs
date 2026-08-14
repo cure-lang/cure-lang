@@ -1,7 +1,7 @@
 defmodule Antigen.SizeChangeAntibodyTest do
   @moduledoc """
   Size-change termination antibody (#14). Guards the size-change certification
-  added to the TCB certificate (`Cure.Core.Certificate.terminating?/3`) on both
+  added to trusted direct-call extraction and the proof-carrying closure path on both
   sides of the LJB principle, using the totality assay (oracle = known label):
 
     * REACH (must-eventually-accept): single-function, multi-argument lexicographic
@@ -27,7 +27,6 @@ defmodule Antigen.SizeChangeAntibodyTest do
 
   alias Antigen.Assays.Totality, as: Assay
   alias Antigen.Generators.Totality
-  alias Cure.Core.{Certificate, Env}
 
   test "REACH: Ackermann (lexicographic, single-function) now certifies total" do
     challenge = Totality.wellfounded_ackermann()
@@ -50,8 +49,7 @@ defmodule Antigen.SizeChangeAntibodyTest do
     # tracked pattern form — every change-matrix arc is :unknown, giving an
     # all-unknown idempotent loop with no :smaller diagonal.
     env = Totality.env_of(Totality.diverging_size_change_control())
-    %{body: body} = Env.get_def(env, :loop)
-    refute Certificate.terminating?(:loop, body, env)
+    refute Cure.Elab.TotalityClosure.provably_total?(env, :loop)
   end
 
   # -- Cross-function / mutual size-change (#13) ------------------------------

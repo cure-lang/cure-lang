@@ -39,7 +39,7 @@ defmodule Cure.Core.FailClosedWalkersTest do
   """
   use ExUnit.Case, async: true
 
-  alias Cure.Core.{Certificate, Context, Conv, Env, Inductive, Normalise}
+  alias Cure.Core.{Context, Conv, Env, Inductive, Normalise}
   alias Cure.Elab.TotalityClosure
 
   describe "nested fuel scopes" do
@@ -93,14 +93,15 @@ defmodule Cure.Core.FailClosedWalkersTest do
       body = {:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, {:audit_wrap, {:app, {:global, :f}, {:var, 0}}}}
       env = Env.empty() |> Env.add_def(:f, @ty, body)
 
-      refute Certificate.terminating?(:f, body, env)
+      refute Cure.Test.TotalityCertificateHelper.provably_total?(env, :f)
     end
 
     test "a self-call hidden inside a live :rewrite node is not certified total" do
       dom = {:type, 0}
       body = {:lam, Cure.Core.Grade.unrestricted(), dom, {:rewrite, dom, dom, {:app, {:global, :loop}, {:var, 0}}}}
 
-      refute Certificate.terminating?(:loop, body, Env.empty())
+      env = Env.add_def(Env.empty(), :loop, @ty, body)
+      refute Cure.Test.TotalityCertificateHelper.provably_total?(env, :loop)
     end
 
     test "a mutual cycle with one leg hidden inside a wrapper is not certified total" do
@@ -111,7 +112,7 @@ defmodule Cure.Core.FailClosedWalkersTest do
       g_body = {:lam, Cure.Core.Grade.unrestricted(), {:type, 0}, {:app, {:global, :f}, {:var, 0}}}
       env = Env.empty() |> Env.add_def(:f, @ty, f_body) |> Env.add_def(:g, @ty, g_body)
 
-      refute Certificate.terminating?(:f, f_body, env)
+      refute Cure.Test.TotalityCertificateHelper.provably_total?(env, :f)
     end
 
     test "a genuinely decreasing function is still certified" do
@@ -130,11 +131,8 @@ defmodule Cure.Core.FailClosedWalkersTest do
         {:lam, Cure.Core.Grade.unrestricted(), nat,
          {:case, {:var, 0}, nat, [{:Z, 0, {:ctor, :Z, []}}, {:S, 1, {:ctor, :S, [{:var, 0}]}}]}}
 
-      assert Certificate.terminating?(
-               :id,
-               body,
-               Env.add_def(env, :id, {:pi, Cure.Core.Grade.unrestricted(), nat, nat}, body)
-             )
+      env = Env.add_def(env, :id, {:pi, Cure.Core.Grade.unrestricted(), nat, nat}, body)
+      assert Cure.Test.TotalityCertificateHelper.provably_total?(env, :id)
     end
   end
 

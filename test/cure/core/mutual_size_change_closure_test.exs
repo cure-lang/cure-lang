@@ -1,8 +1,9 @@
 defmodule Cure.Core.MutualSizeChangeClosureTest do
   use ExUnit.Case, async: false
 
-  alias Cure.Core.{Certificate, Env}
+  alias Cure.Core.{Env, Kernel, SizeChange, TotalityCertificate}
   alias Cure.Dev.Trace
+  alias Cure.Elab.TotalityGraph
 
   @grade Cure.Core.Grade.unrestricted()
   @type0 {:type, 0}
@@ -14,14 +15,16 @@ defmodule Cure.Core.MutualSizeChangeClosureTest do
       |> add_cycle_def(:g, :h)
       |> add_cycle_def(:h, :f)
 
-    %{body: body} = Env.get_def(env, :f)
+    {:ok, env} = Kernel.prepare_direct_call_summaries(env, [:f, :g, :h])
+    partition = TotalityGraph.propose_partition(env, [:f, :g, :h])
+    %{members: members} = Map.fetch!(partition.components, partition.component_of.f)
     {:ok, counter} = Agent.start_link(fn -> 0 end)
 
-    {terminates?, events} =
+    {candidate, events} =
       Trace.calls(
-        Certificate,
-        :compose_pair,
-        fn -> Certificate.terminating?(:f, body, env) end,
+        SizeChange,
+        :compose_edges,
+        fn -> Cure.Elab.TotalityCertificate.propose(env, members) end,
         arity: 2,
         collect: false,
         format: fn _term -> :edge_pair end,
@@ -31,7 +34,7 @@ defmodule Cure.Core.MutualSizeChangeClosureTest do
     attempts = Agent.get(counter, & &1)
     Agent.stop(counter)
 
-    refute terminates?
+    assert {:ok, {:not_total, _edge}} = TotalityCertificate.verify(env, members, candidate)
     assert events == []
 
     # The closure has one 1x1 matrix for each of the 3x3 source/target pairs.
