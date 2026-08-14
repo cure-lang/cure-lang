@@ -1599,6 +1599,38 @@ mod Std.Regex
     Some(_) -> true
     None() -> false
 
+  fn search_from_position({result: Type}, regex: Regex(result), candidate: List(Char), reversed_prefix: List(Char), position: InitialPosition, firstline_only: Bool) -> Option(Match(result)) = match position
+    InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word) ->
+      search_from(regex, candidate, reversed_prefix, subject_start, line_start, previous_ascii_word, previous_unicode_word, firstline_only)
+
+  fn characters_contain_newline(input: List(Char)) -> Bool = match input
+    [] -> false
+    [char | rest] -> pickup
+      Std.Char.is_newline(char) -> true
+      else -> characters_contain_newline(rest)
+
+  fn scan({result: Type}, regex: Regex(result), input: String) -> List(Match(result)) =
+    scan_from(regex, Std.String.characters(input), [], subject_initial_position(), regex_firstline(regex), true)
+
+  fn scan_from({result: Type}, regex: Regex(result), candidate: List(Char), reversed_prefix: List(Char), position: InitialPosition, firstline_only: Bool, firstline_open: Bool) -> List(Match(result)) = pickup
+    firstline_only and not firstline_open -> []
+    else -> match search_from_position(regex, candidate, reversed_prefix, position, firstline_only)
+      None() -> []
+      Some(found) -> match found
+        Match(value, prefix, matched, suffix, start, length) ->
+          let prefix_chars = Std.String.characters(prefix)
+          let matched_chars = Std.String.characters(matched)
+          let consumed = append_characters(prefix_chars, matched_chars)
+          let next_firstline_open = not characters_contain_newline(consumed)
+          pickup
+            Std.Builtin.int_lt(0, length) ->
+              [found | scan_from(regex, Std.String.characters(suffix), evidence_reverse_chars(consumed), advance_initial_position(subject_initial_position(), consumed), firstline_only, next_firstline_open)]
+            else -> match Std.String.characters(suffix)
+              [] -> [found]
+              [char | rest] ->
+                let advanced = append_characters(consumed, [char])
+                [found | scan_from(regex, rest, evidence_reverse_chars(advanced), advance_initial_position(subject_initial_position(), advanced), firstline_only, not characters_contain_newline(advanced))]
+
   fn empty() -> Regex(Unit) = FromPattern(UnitC, PatternEmpty())
 
   fn predicate(test: Char -> Bool) -> Regex(Char) =
