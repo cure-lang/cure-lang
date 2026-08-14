@@ -15,40 +15,50 @@ mod Std.Regex.Syntax.Flags
     ['E' | rest] -> parse_literal_flags(rest, enable_modifier(ExportModifier, options))
     [_ | _] -> LiteralFlagsInvalid(:InvalidRegexModifier)
 
-  fn prepare_literal(pattern: List(Char), options: LiteralRegexOptions) -> List(Char) = pickup
-    has_modifier(options, ExtendedModifier) -> strip_extended(pattern)
-    else -> pattern
+  fn prepare_literal(pattern: List(Char), options: LiteralRegexOptions) -> LiteralPrepared =
+    let mapped = pickup
+      has_modifier(options, ExtendedModifier) -> strip_extended(pattern, Z())
+      else -> map_literal_source(pattern, Z())
+    match mapped
+      LiteralSourceMap(chars, positions) -> LiteralPrepared(chars, positions, literal_length(pattern))
 
-  fn strip_extended(input: List(Char)) -> List(Char) = match input
-    [] -> []
+  fn prepend_literal_source(char: Char, position: Nat, mapped: LiteralSourceMap) -> LiteralSourceMap = match mapped
+    LiteralSourceMap(chars, positions) -> LiteralSourceMap([char | chars], [position | positions])
+
+  fn map_literal_source(input: List(Char), position: Nat) -> LiteralSourceMap = match input
+    [] -> LiteralSourceMap([], [])
+    [char | rest] -> prepend_literal_source(char, position, map_literal_source(rest, S(position)))
+
+  fn strip_extended(input: List(Char), position: Nat) -> LiteralSourceMap = match input
+    [] -> LiteralSourceMap([], [])
     [char | rest] -> pickup
-      char == '\\' -> ['\\' | strip_extended_escaped(rest)]
-      char == '[' -> ['[' | strip_extended_class(rest)]
-      char == '#' -> strip_extended_comment(rest)
-      literal_extended_space(char) -> strip_extended(rest)
-      else -> [char | strip_extended(rest)]
+      char == '\\' -> prepend_literal_source(char, position, strip_extended_escaped(rest, S(position)))
+      char == '[' -> prepend_literal_source(char, position, strip_extended_class(rest, S(position)))
+      char == '#' -> strip_extended_comment(rest, S(position))
+      literal_extended_space(char) -> strip_extended(rest, S(position))
+      else -> prepend_literal_source(char, position, strip_extended(rest, S(position)))
 
   fn literal_extended_space(char: Char) -> Bool =
     char == ' ' or char == '\t' or char == '\n' or char == '\r' or
       char == '\f' or char == '\v'
 
-  fn strip_extended_escaped(input: List(Char)) -> List(Char) = match input
-    [] -> []
-    [char | rest] -> [char | strip_extended(rest)]
+  fn strip_extended_escaped(input: List(Char), position: Nat) -> LiteralSourceMap = match input
+    [] -> LiteralSourceMap([], [])
+    [char | rest] -> prepend_literal_source(char, position, strip_extended(rest, S(position)))
 
-  fn strip_extended_class(input: List(Char)) -> List(Char) = match input
-    [] -> []
+  fn strip_extended_class(input: List(Char), position: Nat) -> LiteralSourceMap = match input
+    [] -> LiteralSourceMap([], [])
     [char | rest] -> pickup
-      char == '\\' -> ['\\' | strip_extended_class_escaped(rest)]
-      char == ']' -> [']' | strip_extended(rest)]
-      else -> [char | strip_extended_class(rest)]
+      char == '\\' -> prepend_literal_source(char, position, strip_extended_class_escaped(rest, S(position)))
+      char == ']' -> prepend_literal_source(char, position, strip_extended(rest, S(position)))
+      else -> prepend_literal_source(char, position, strip_extended_class(rest, S(position)))
 
-  fn strip_extended_class_escaped(input: List(Char)) -> List(Char) = match input
-    [] -> []
-    [char | rest] -> [char | strip_extended_class(rest)]
+  fn strip_extended_class_escaped(input: List(Char), position: Nat) -> LiteralSourceMap = match input
+    [] -> LiteralSourceMap([], [])
+    [char | rest] -> prepend_literal_source(char, position, strip_extended_class(rest, S(position)))
 
-  fn strip_extended_comment(input: List(Char)) -> List(Char) = match input
-    [] -> []
+  fn strip_extended_comment(input: List(Char), position: Nat) -> LiteralSourceMap = match input
+    [] -> LiteralSourceMap([], [])
     [char | rest] -> pickup
-      char == '\n' -> strip_extended(rest)
-      else -> strip_extended_comment(rest)
+      char == '\n' -> strip_extended(rest, S(position))
+      else -> strip_extended_comment(rest, S(position))

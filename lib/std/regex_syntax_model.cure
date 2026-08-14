@@ -6,6 +6,9 @@ mod Std.Regex.Syntax.Model
   type LiteralCharacterRange = LiteralCharacterRange(Char, Char)
   type LiteralClassKinds = LiteralClassKinds(List(LiteralClassKind), List(LiteralUnicodePropertyMatch))
   type LiteralRegexOptions = LiteralRegexOptions(List(LiteralModifier))
+  type LiteralPrepared = LiteralPrepared(List(Char), List(Nat), Nat)
+  type LiteralSourceMap = LiteralSourceMap(List(Char), List(Nat))
+  type LiteralSourceSpan = LiteralSourceSpan(Nat, Nat)
 
   type LiteralPattern =
     | LiteralEmpty
@@ -231,6 +234,27 @@ mod Std.Regex.Syntax.Model
 
   fn literal_suffix_offset(input: List(Char), suffix: List(Char)) -> Nat =
     literal_nat_minus(literal_length(input), literal_length(suffix))
+
+  fn literal_source_positions_after(positions: List(Nat), count: Nat) -> List(Nat) = match count
+    Z() -> positions
+    S(rest_count) -> match positions
+      [] -> []
+      [_ | rest] -> literal_source_positions_after(rest, rest_count)
+
+  fn literal_source_span_end(positions: List(Nat), remaining: Nat, current_end: Nat) -> Nat = match remaining
+    Z() -> current_end
+    S(rest_remaining) -> match positions
+      [] -> current_end
+      [position | rest] -> literal_source_span_end(rest, rest_remaining, S(position))
+
+  fn literal_source_span(positions: List(Nat), source_length: Nat, start: Nat, width: Nat) -> LiteralSourceSpan =
+    match literal_source_positions_after(positions, start)
+      [] -> LiteralSourceSpan(source_length, Z())
+      [source_start | rest] -> match width
+        Z() -> LiteralSourceSpan(source_start, Z())
+        S(remaining) ->
+          let source_end = literal_source_span_end(rest, remaining, S(source_start))
+          LiteralSourceSpan(source_start, literal_nat_minus(source_end, source_start))
 
   fn literal_delimited_width(input: List(Char), closing: Char) -> Nat = match input
     [] -> Z()

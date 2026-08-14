@@ -24,6 +24,10 @@ mod Std.Regex.Syntax
     let primary = diagnostic_subspan(pattern_syntax, Std.Nat.to_integer(start), Std.Nat.to_integer(width))
     reject(Failure(reason, [diagnostic_details(primary, regex_failure_message(reason), regex_failure_hint(reason))]))
 
+  fn reject_mapped_literal(pattern_syntax: Syntax, reason: Atom, positions: List(Nat), source_length: Nat, start: Nat, width: Nat) -> MacroResult =
+    match literal_source_span(positions, source_length, start, width)
+      LiteralSourceSpan(source_start, source_width) -> reject_located_literal(pattern_syntax, reason, source_start, source_width)
+
   fn regex_failure_message(reason: Atom) -> String = match reason
     :MissingRegexQuantifierMinimum -> "This bounded quantifier is missing its minimum repetition count."
     :MissingRegexQuantifierMaximum -> "This bounded quantifier is missing its maximum repetition count."
@@ -96,17 +100,18 @@ mod Std.Regex.Syntax
 
   fn expand_literal_strings(pattern_syntax: Syntax, pattern: String, flags: String) -> MacroResult = match parse_literal_flags(Std.String.characters(flags), literal_default_options())
     LiteralFlagsParsed(options) ->
-      match parse_literal(prepare_literal(Std.String.characters(pattern), options))
-        LiteralParsed(parsed, rest) -> match rest
-          [] ->
-            expand(
-              call("Std.Regex.configured", [
-                emit_options(options),
-                call("Std.Regex.simplified", [emit_shape(literal_shape(parsed)), emit_literal_with_options(parsed, options)])
-              ])
-            )
-          _ -> reject(Failure(:UnexpectedRegexSuffix, []))
-        LiteralInvalid(reason) -> reject(Failure(reason, []))
-        LiteralAtInvalid(reason, _, _) -> reject(Failure(reason, []))
-        LiteralLocatedInvalid(reason, start, width) -> reject_located_literal(pattern_syntax, reason, start, width)
+      match prepare_literal(Std.String.characters(pattern), options)
+        LiteralPrepared(prepared, positions, source_length) -> match parse_literal(prepared)
+          LiteralParsed(parsed, rest) -> match rest
+            [] ->
+              expand(
+                call("Std.Regex.configured", [
+                  emit_options(options),
+                  call("Std.Regex.simplified", [emit_shape(literal_shape(parsed)), emit_literal_with_options(parsed, options)])
+                ])
+              )
+            _ -> reject(Failure(:UnexpectedRegexSuffix, []))
+          LiteralInvalid(reason) -> reject(Failure(reason, []))
+          LiteralAtInvalid(reason, _, _) -> reject(Failure(reason, []))
+          LiteralLocatedInvalid(reason, start, width) -> reject_mapped_literal(pattern_syntax, reason, positions, source_length, start, width)
     LiteralFlagsInvalid(reason) -> reject(Failure(reason, []))

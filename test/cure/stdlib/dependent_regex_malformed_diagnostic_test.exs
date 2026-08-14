@@ -29,4 +29,29 @@ defmodule Cure.Stdlib.DependentRegexMalformedDiagnosticTest do
       refute Cure.Diagnostic.message(diagnostic) =~ "`#{expected}`"
     end)
   end
+
+  test "extended mode diagnostics retain original source coordinates" do
+    cases = [
+      {"  (?<=a)", :UnsupportedRegexLookbehind, "(?<="},
+      {~S"  \xGG", :InvalidRegexHexEscape, ~S"\xGG"},
+      {"a  {3,2}", :RegexQuantifierRangeReversed, "{3,2}"},
+      {"é  \\xGG", :InvalidRegexHexEscape, ~S"\xGG"},
+      {"a # ignored\n  (?<=b)", :UnsupportedRegexLookbehind, "(?<="}
+    ]
+
+    Enum.each(cases, fn {pattern, expected, expected_span} ->
+      source = "mod ExtendedMalformedRegex\n  use Std.Regex\n  fn run() = /#{pattern}/x\nend\n"
+
+      assert {:error,
+              {:source_context,
+               {:computed_macro_error, _meta,
+                {:author_diagnostics, [{:macro_failure, ^expected, _arguments}]}}, _context} = reason} =
+               Program.elaborate(source)
+
+      {diagnostic, _registry} = Errors.to_diagnostic(reason, "nofile", source)
+      span = diagnostic.primary.span
+
+      assert binary_part(source, span.start_byte, span.end_byte - span.start_byte) == expected_span
+    end)
+  end
 end
