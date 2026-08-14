@@ -72,6 +72,18 @@ defmodule Mix.Tasks.Cure.Bench.Interfaces do
       Mix.shell().info("#{ms(stage.elapsed_us)}\t#{stage.definition}\t#{stage.stage}")
     end)
 
+    Mix.shell().info("totality_metric\telapsed_ms\tdetails")
+
+    Enum.each(report.cold.totality_metrics, fn metric ->
+      details =
+        metric
+        |> Map.drop([:operation, :elapsed_us, :stage])
+        |> Enum.sort()
+        |> inspect(limit: 30, printable_limit: 300)
+
+      Mix.shell().info("#{metric.operation}\t#{ms(metric.elapsed_us)}\t#{details}")
+    end)
+
     report.warm
     |> Enum.with_index(1)
     |> Enum.each(fn {sample, index} ->
@@ -80,6 +92,22 @@ defmodule Mix.Tasks.Cure.Bench.Interfaces do
           "module_check_ms=#{ms(Map.get(sample.phases, :module_check, 0))}"
       )
     end)
+
+    warm_times = Enum.map(report.warm, & &1.total_us) |> Enum.sort()
+
+    Mix.shell().info(
+      "warm_summary_ms median=#{ms(median(warm_times))} " <>
+        "range=#{ms(List.first(warm_times))}..#{ms(List.last(warm_times))}"
+    )
+  end
+
+  defp median(values) do
+    count = length(values)
+    middle = div(count, 2)
+
+    if rem(count, 2) == 1,
+      do: Enum.at(values, middle),
+      else: div(Enum.at(values, middle - 1) + Enum.at(values, middle), 2)
   end
 
   defp ms(microseconds), do: :erlang.float_to_binary(microseconds / 1_000, decimals: 3)

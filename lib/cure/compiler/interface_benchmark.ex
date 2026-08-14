@@ -22,6 +22,7 @@ defmodule Cure.Compiler.InterfaceBenchmark do
           declarations: [declaration_timing()],
           declaration_stages: [declaration_stage_timing()],
           kernel_certificate_stages: [kernel_certificate_stage_timing()],
+          totality_metrics: [map()],
           call_attempts: [map()],
           rebuilt_modules: [String.t()]
         }
@@ -52,6 +53,8 @@ defmodule Cure.Compiler.InterfaceBenchmark do
 
     with true <- is_integer(iterations) and iterations > 0,
          expanded when expanded != [] <- paths |> Enum.map(&Path.expand/1) |> Enum.uniq() |> Enum.sort() do
+      subscribe_totality_metrics()
+
       cache_root =
         Path.join(
           System.tmp_dir!(),
@@ -135,6 +138,7 @@ defmodule Cure.Compiler.InterfaceBenchmark do
       {:ok, result} ->
         total = System.monotonic_time(:microsecond) - started
         events = drain_events(reference, [])
+        totality_metrics = drain_totality_metrics([])
 
         {:ok,
          %{
@@ -144,13 +148,37 @@ defmodule Cure.Compiler.InterfaceBenchmark do
            declarations: declaration_timings(events),
            declaration_stages: declaration_stage_timings(events),
            kernel_certificate_stages: kernel_certificate_stage_timings(events),
+           totality_metrics: totality_metrics,
            call_attempts: call_attempts,
            rebuilt_modules: ModulePipeline.rebuilt_modules(result)
          }}
 
       {:error, reason} ->
         _discarded = drain_events(reference, [])
+        _discarded_totality = drain_totality_metrics([])
         {:error, {:canonical_interface_benchmark_failed, reason}}
+    end
+  end
+
+  defp subscribe_totality_metrics do
+    subscribe_once(:kernel)
+    subscribe_once(:type_checker)
+  end
+
+  defp subscribe_once(stage) do
+    case Registry.register(Cure.Pipeline.Events.Registry, stage, :all) do
+      {:ok, _} -> :ok
+      {:error, {:already_registered, _pid}} -> :ok
+    end
+  end
+
+  defp drain_totality_metrics(events) do
+    receive do
+      {Cure.Pipeline.Events, stage, :totality_metric, payload, _metadata}
+      when stage in [:kernel, :type_checker] ->
+        drain_totality_metrics([Map.put(payload, :stage, stage) | events])
+    after
+      0 -> Enum.reverse(events)
     end
   end
 
