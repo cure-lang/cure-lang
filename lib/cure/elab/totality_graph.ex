@@ -8,9 +8,9 @@ defmodule Cure.Elab.TotalityGraph do
   module or rerunning SCC discovery.
   """
 
-  alias Cure.Core.Env
+  alias Cure.Core.{Certificate, Env}
 
-  @partition_version 1
+  @partition_version 2
 
   @doc "Propose a deterministic SCC partition and its checkable witnesses."
   @spec propose_partition(Env.t(), [atom()]) :: map()
@@ -63,6 +63,11 @@ defmodule Cure.Elab.TotalityGraph do
         Map.new(universe, fn name ->
           {name, env |> Env.direct_call_summary(name) |> Map.fetch!(:summary_hash)}
         end),
+      summary_body_hashes:
+        Map.new(universe, fn name ->
+          {name, env |> Env.direct_call_summary(name) |> Map.fetch!(:body_hash)}
+        end),
+      summary_versions: Map.new(universe, &{&1, Certificate.summary_version()}),
       component_of: component_of,
       rank: ranks,
       components: component_records,

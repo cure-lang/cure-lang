@@ -8,9 +8,9 @@ defmodule Cure.Core.SCCCertificate do
   no SCC search and never scans Core bodies.
   """
 
-  alias Cure.Core.Env
+  alias Cure.Core.{Certificate, Env}
 
-  @partition_version 1
+  @partition_version 2
 
   @spec verify_partition(Env.t(), map()) :: {:ok, [[atom()]]} | {:error, term()}
   def verify_partition(%Env{} = env, %{version: @partition_version} = certificate) do
@@ -44,6 +44,8 @@ defmodule Cure.Core.SCCCertificate do
   @required_fields [
     :universe,
     :summary_hashes,
+    :summary_body_hashes,
+    :summary_versions,
     :component_of,
     :rank,
     :components,
@@ -61,6 +63,7 @@ defmodule Cure.Core.SCCCertificate do
         invalid(:malformed_certificate, missing: missing)
 
       not is_list(certificate.universe) or not is_map(certificate.summary_hashes) or
+        not is_map(certificate.summary_body_hashes) or not is_map(certificate.summary_versions) or
         not is_map(certificate.component_of) or not is_map(certificate.rank) or
         not is_map(certificate.components) or not is_list(certificate.edges) or
           not is_map(certificate.sealed_boundaries) ->
@@ -133,19 +136,41 @@ defmodule Cure.Core.SCCCertificate do
 
       true ->
         Enum.reduce_while(universe, :ok, fn name, :ok ->
-          case {Env.get_def(env, name), Env.direct_call_summary(env, name),
-                get_in(certificate, [:summary_hashes, name])} do
-            {nil, _, _} ->
+          definition = Env.get_def(env, name)
+          summary = Env.direct_call_summary(env, name)
+
+          case {definition, summary} do
+            {nil, _} ->
               {:halt, invalid(:unknown_definition, definition: name)}
 
-            {_, nil, _} ->
+            {_, nil} ->
               {:halt, invalid(:missing_direct_summary, definition: name)}
 
-            {_, %{summary_hash: actual}, actual} ->
-              {:cont, :ok}
-
-            {_, %{summary_hash: actual}, submitted} ->
-              {:halt, {:error, {:totality_summary_stale, %{definition: name, expected: actual, submitted: submitted}}}}
+            {_, %{summary_hash: actual_hash, body_hash: actual_body_hash, version: actual_version}} ->
+              with {:ok, submitted_hash} <- Map.fetch(certificate.summary_hashes, name),
+                   {:ok, submitted_body_hash} <- Map.fetch(certificate.summary_body_hashes, name),
+                   {:ok, submitted_version} <- Map.fetch(certificate.summary_versions, name) do
+                if submitted_hash == actual_hash and submitted_body_hash == actual_body_hash and
+                     submitted_version == actual_version do
+                  {:cont, :ok}
+                else
+                  {:halt,
+                   {:error,
+                    {:totality_summary_stale,
+                     %{
+                       definition: name,
+                       old_body_hash: submitted_body_hash,
+                       new_body_hash: actual_body_hash,
+                       checker_version: Certificate.summary_version(),
+                       old_checker_version: submitted_version,
+                       new_checker_version: actual_version,
+                       expected_summary_hash: actual_hash,
+                       submitted_summary_hash: submitted_hash
+                     }}}}
+                end
+              else
+                :error -> {:halt, invalid(:missing_summary_identity, definition: name)}
+              end
           end
         end)
     end
@@ -182,12 +207,24 @@ defmodule Cure.Core.SCCCertificate do
             {:cont, {:ok, acc}}
 
           true ->
+            component_id = Map.get(certificate.component_of, source)
+            component = Map.get(certificate.components, component_id, %{})
+            universe = MapSet.new(certificate.universe)
+
+            proposed_component =
+              component
+              |> Map.get(:members, [source])
+              |> Enum.filter(&MapSet.member?(universe, &1))
+
             {:halt,
              {:error,
               {:totality_scc_incomplete,
                %{
                  caller: source,
                  omitted: call.callee,
+                 proposed_component: proposed_component,
+                 verified_path: [source, call.callee],
+                 direct_call_id: call.id,
                  summary_hash: summary.summary_hash
                }}}}
         end

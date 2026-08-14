@@ -58,10 +58,40 @@ defmodule Cure.Elab.TotalityGraphTest do
     certificate = TotalityGraph.propose_partition(env, [:a, :b, :c, :leaf])
     bad = %{certificate | universe: [:a, :c, :leaf]}
 
-    assert {:error, {:totality_scc_incomplete, %{caller: :a, omitted: :b, summary_hash: summary_hash}}} =
+    assert {:error,
+            {:totality_scc_incomplete,
+             %{
+               caller: :a,
+               omitted: :b,
+               proposed_component: [:a],
+               verified_path: [:a, :b],
+               direct_call_id: direct_call_id,
+               summary_hash: summary_hash
+             }}} =
              SCCCertificate.verify_partition(env, bad)
 
+    assert is_binary(direct_call_id)
     assert is_binary(summary_hash)
+  end
+
+  test "stale summary diagnostics identify both bodies and the checker version" do
+    env = env_with_graph()
+    certificate = TotalityGraph.propose_partition(env, [:a, :b, :c, :leaf])
+    old_body_hash = :crypto.hash(:sha256, "old body")
+    bad = put_in(certificate.summary_body_hashes.a, old_body_hash)
+
+    assert {:error,
+            {:totality_summary_stale,
+             %{
+               definition: :a,
+               old_body_hash: ^old_body_hash,
+               new_body_hash: new_body_hash,
+               checker_version: checker_version
+             }}} = SCCCertificate.verify_partition(env, bad)
+
+    assert is_binary(new_body_hash)
+    assert is_integer(checker_version)
+    assert checker_version > 0
   end
 
   test "the checker rejects a forged rank and a forged connectivity edge" do
