@@ -1,6 +1,6 @@
 defmodule Cure.Core.CertificateTest do
   use ExUnit.Case, async: false
-  alias Cure.Core.{Inductive, Env, Kernel, Conv}
+  alias Cure.Core.{Certificate, Conv, Env, Inductive, Kernel}
   alias Cure.Elab.TotalityClosure
 
   @dec {:data, :Dec, [], []}
@@ -107,6 +107,30 @@ defmodule Cure.Core.CertificateTest do
     assert is_binary(summary_hash) and byte_size(summary_hash) == 32
     assert call.callee == :"Summary#id"
     assert Cure.Core.SizeChange.to_dense(call.matrix) == [[:equal]]
+  end
+
+  test "duplicate semantic calls retain distinct stable Core provenance" do
+    ty = {:pi, Cure.Core.Grade.unrestricted(), @dec, @dec}
+    id_body = {:lam, Cure.Core.Grade.unrestricted(), @dec, {:var, 0}}
+
+    body =
+      {:lam, Cure.Core.Grade.unrestricted(), @dec,
+       {:ctor, :Pair, [{:app, {:global, :id}, {:var, 0}}, {:app, {:global, :id}, {:var, 0}}]}}
+
+    env =
+      base()
+      |> Env.with_owner("Summary")
+      |> Env.add_def(:id, ty, id_body)
+      |> Env.add_def(:twice, ty, body)
+
+    summary = Certificate.direct_summary(:twice, body, env)
+    assert [left, right] = summary.calls
+    assert left.callee == right.callee
+    assert left.matrix == right.matrix
+    refute left.id == right.id
+    refute left.provenance.core_path == right.provenance.core_path
+
+    assert summary == Certificate.direct_summary(:twice, body, env)
   end
 
   test "replacing a definition invalidates its cached direct-call summary" do

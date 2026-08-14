@@ -13,7 +13,7 @@ defmodule Cure.Core.Certificate do
 
   alias Cure.Core.{Env, SizeChange}
 
-  @direct_summary_version 2
+  @direct_summary_version 3
 
   @doc "The semantic format/checker version of trusted direct-call summaries."
   @spec summary_version() :: pos_integer()
@@ -67,14 +67,11 @@ defmodule Cure.Core.Certificate do
       canonical_callee = Env.resolve_key(env, env.defs, callee)
       callee_arity = definition_arity(env, canonical_callee, length(args))
       matrix = build_cross_matrix(callee_arity, caller_arity, args, state)
-      semantic = {caller, canonical_callee, callee_arity, matrix}
 
       call = %{
-        id: semantic_hash(semantic),
         callee: canonical_callee,
         callee_arity: callee_arity,
-        matrix: matrix,
-        provenance: %{caller: caller}
+        matrix: matrix
       }
 
       [call | acc]
@@ -83,6 +80,11 @@ defmodule Cure.Core.Certificate do
     calls =
       walk(emit, inner, st, [])
       |> Enum.reverse()
+      |> Enum.with_index(fn call, ordinal ->
+        provenance = %{caller: caller, core_path: ordinal}
+        semantic = {caller, call.callee, call.callee_arity, call.matrix, provenance}
+        Map.merge(call, %{id: semantic_hash(semantic), provenance: provenance})
+      end)
       |> Enum.sort_by(fn call -> {call.callee, call.id} end)
 
     body_hash = body_hash(body)
@@ -113,7 +115,10 @@ defmodule Cure.Core.Certificate do
       call.callee_arity == definition_arity(env, canonical_callee, call.callee_arity) and
       matrix.rows == call.callee_arity and
       matrix.columns == caller_arity and
-      call.provenance.caller == caller
+      call.provenance.caller == caller and
+      is_integer(call.provenance.core_path) and call.provenance.core_path >= 0 and
+      call.id ==
+        semantic_hash({caller, call.callee, call.callee_arity, matrix, call.provenance})
   rescue
     KeyError -> false
     ArgumentError -> false
