@@ -167,4 +167,7 @@ mod Std.Regex.Syntax.Parser
     ['n' | rest] -> LiteralParsed(LiteralExact('\n'), rest)
     ['r' | rest] -> LiteralParsed(LiteralExact('\r'), rest)
     ['t' | rest] -> LiteralParsed(LiteralExact('\t'), rest)
+    ['x' | rest] -> match parse_literal_hex_scalar(rest)
+      LiteralScalarParsed(scalar, tail) -> LiteralParsed(LiteralExact(scalar), tail)
+      LiteralScalarInvalid(reason) -> LiteralInvalid(reason)
     [char | rest] -> LiteralParsed(LiteralExact(char), rest)

@@ -108,6 +108,12 @@
   atomless quantifiers, and the documented 64-repetition expansion limit have
   dedicated macro diagnostics. Scalar/property escapes and the remaining
   diagnostic-span matrix are the active Phase H frontier.
+- 2026-08-14 — Phase H hexadecimal scalar escapes are implemented in ordinary
+  atoms and character classes. Fixed `\xHH` and braced `\x{H...}` forms share
+  one checked scalar parser, accept astral code points, and reject incomplete or
+  invalid hex, empty/unclosed braces, values above `0x10FFFF`, and UTF-16
+  surrogates with dedicated macro diagnostics. Unicode property classes remain
+  the active syntax frontier.
 
 **Supersedes for unfinished work:**
 `2026-07-21-dependently-typed-regex-design.md`
@@ -716,10 +722,10 @@ NFA paths, VM acceptance, and public parsing.
 
 **Status: in progress; this is the earliest incomplete phase.**
 
-Bounded quantifiers and their first structured diagnostic matrix are complete.
-Continue with scalar escapes, Unicode property classes, precise quantifier and
-escape subspans, unsupported-construct diagnostics, the remaining modifier
-interaction matrix, and raw character-integer cleanup.
+Bounded quantifiers, hexadecimal scalar escapes, and their first structured
+diagnostic matrices are complete. Continue with Unicode property classes,
+precise quantifier and escape subspans, unsupported-construct diagnostics, the
+remaining modifier interaction matrix, and raw character-integer cleanup.
 
 Complete bounded quantifiers, scalar escapes, Unicode properties, malformed
 construct rejection, exact source subspans, and the modifier matrix. Remove raw

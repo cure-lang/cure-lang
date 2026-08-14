@@ -37,6 +37,7 @@ mod Std.Regex.Syntax.Model
   type LiteralClassParse = LiteralClassParsed(List(Char), List(LiteralCharacterRange), LiteralClassKinds, List(Char)) | LiteralClassInvalid(Atom)
   type LiteralFlags = LiteralFlagsParsed(LiteralRegexOptions) | LiteralFlagsInvalid(Atom)
   type LiteralCountParse = LiteralCountParsed(Nat, Bool, List(Char)) | LiteralCountInvalid(Atom)
+  type LiteralScalarParse = LiteralScalarParsed(Char, List(Char)) | LiteralScalarInvalid(Atom)
 
 
   type LiteralClassKind =
@@ -228,6 +229,34 @@ mod Std.Regex.Syntax.Model
     _ -> None()
 
   fn literal_quantifier_limit() -> Nat = 64
+
+  fn literal_unicode_scalar(value: Int, rest: List(Char)) -> LiteralScalarParse = pickup
+    value > 1114111 -> LiteralScalarInvalid(:RegexEscapeOutOfRange)
+    value >= 55296 and value <= 57343 -> LiteralScalarInvalid(:RegexEscapeNotUnicodeScalar)
+    else -> LiteralScalarParsed(Std.Char.from_valid_code_point(value), rest)
+
+  fn literal_fixed_hex_escape(input: List(Char)) -> LiteralScalarParse = match input
+    [first, second | rest] -> match Std.Char.hex_digit_value(first)
+      None() -> LiteralScalarInvalid(:InvalidRegexHexEscape)
+      Some(first_value) -> match Std.Char.hex_digit_value(second)
+        None() -> LiteralScalarInvalid(:InvalidRegexHexEscape)
+        Some(second_value) -> literal_unicode_scalar(first_value * 16 + second_value, rest)
+    _ -> LiteralScalarInvalid(:IncompleteRegexHexEscape)
+
+  fn literal_braced_hex_escape(input: List(Char), value: Int, digits: Nat) -> LiteralScalarParse = match input
+    [] -> LiteralScalarInvalid(:UnclosedRegexScalarEscape)
+    ['}' | rest] -> match digits
+      Z() -> LiteralScalarInvalid(:EmptyRegexScalarEscape)
+      S(_) -> literal_unicode_scalar(value, rest)
+    [char | rest] -> match Std.Char.hex_digit_value(char)
+      None() -> LiteralScalarInvalid(:InvalidRegexHexEscape)
+      Some(digit) -> pickup
+        value > 1114111 -> LiteralScalarInvalid(:RegexEscapeOutOfRange)
+        else -> literal_braced_hex_escape(rest, value * 16 + digit, S(digits))
+
+  fn parse_literal_hex_scalar(input: List(Char)) -> LiteralScalarParse = match input
+    ['{' | rest] -> literal_braced_hex_escape(rest, 0, Z())
+    _ -> literal_fixed_hex_escape(input)
 
   fn empty_regex_input() -> List(Char) = []
 

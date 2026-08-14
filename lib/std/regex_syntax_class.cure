@@ -34,6 +34,9 @@ mod Std.Regex.Syntax.Class
     ['\\', 'n' | rest] -> parse_literal_class_items_fuel(rest, ['\n' | chars], ranges, kinds, fuel)
     ['\\', 'r' | rest] -> parse_literal_class_items_fuel(rest, ['\r' | chars], ranges, kinds, fuel)
     ['\\', 't' | rest] -> parse_literal_class_items_fuel(rest, ['\t' | chars], ranges, kinds, fuel)
+    ['\\', 'x' | rest] -> match parse_literal_hex_scalar(rest)
+      LiteralScalarParsed(scalar, tail) -> parse_literal_class_character(scalar, tail, chars, ranges, kinds, fuel)
+      LiteralScalarInvalid(reason) -> LiteralClassInvalid(reason)
     [first | rest] -> parse_literal_class_character(first, rest, chars, ranges, kinds, fuel)
 
   fn parse_literal_class_character(first: Char, rest: List(Char), chars: List(Char), ranges: List(LiteralCharacterRange), kinds: LiteralClassKinds, fuel: Nat) -> LiteralClassParse = pickup
