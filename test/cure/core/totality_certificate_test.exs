@@ -111,4 +111,19 @@ defmodule Cure.Core.TotalityCertificateTest do
     assert {:error, {:totality_derivation_invalid, %{reason: :missing_base_derivation, edge: ^base_id}}} =
              TotalityCertificate.verify(env, [:f, :g], forged)
   end
+
+  test "a right-sized matrix that overstates the trusted relation is rejected" do
+    env = env_with_cycle(:equal)
+    candidate = Candidate.propose(env, [:f, :g])
+    [{source, target, _matrix} = trusted | rest] = candidate.base_keys
+    overstated = {source, target, Cure.Core.SizeChange.from_dense([[:smaller]])}
+    forged = %{candidate | base_keys: Enum.sort([overstated | rest])}
+
+    assert {:error,
+            {:totality_derivation_invalid, %{reason: :base_edge_mismatch, expected: expected, submitted: submitted}}} =
+             TotalityCertificate.verify(env, [:f, :g], forged)
+
+    assert trusted in expected
+    assert overstated in submitted
+  end
 end

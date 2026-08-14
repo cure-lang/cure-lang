@@ -82,5 +82,19 @@ defmodule Cure.Elab.TotalityGraphTest do
 
     assert {:error, {:totality_scc_invalid, %{reason: :unknown_tree_edge, edge: :forged}}} =
              SCCCertificate.verify_partition(env, bad_tree)
+
+    bad_reverse_tree = put_in(certificate.components[a_component].reverse_tree, [:forged_reverse])
+
+    assert {:error, {:totality_scc_invalid, %{reason: :unknown_tree_edge, edge: :forged_reverse}}} =
+             SCCCertificate.verify_partition(env, bad_reverse_tree)
+  end
+
+  test "the checker rejects an alias-shaped forged canonical universe key" do
+    env = env_with_graph()
+    certificate = TotalityGraph.propose_partition(env, [:a, :b, :c, :leaf])
+    forged = %{certificate | universe: [:"Alias#a", :b, :c, :leaf]}
+
+    assert {:error, {:totality_scc_invalid, %{reason: :unknown_definition, definition: :"Alias#a"}}} =
+             SCCCertificate.verify_partition(env, forged)
   end
 end
