@@ -161,19 +161,69 @@ dependent regex proof development. It remains useful only as historical
 evidence of how much authored proof work was added, not as evidence that the SCC
 certificate implementation caused a cold-time regression.
 
+### Final certificate/cache profile
+
+After the partition diagnostic identity, sparse-matrix validation, provenance,
+and component-cache instrumentation were complete, three more serialized
+invocations of the command above produced:
+
+| Sample | Cold total | Warm samples |
+|---|---:|---:|
+| 1 | 163.231 s | 11.794 / 5.416 / 10.070 s |
+| 2 | 172.981 s | 10.478 / 4.777 / 4.757 s |
+| 3 | 146.025 s | 4.554 / 8.322 / 4.918 s |
+| median / range | 163.231 s / 146.025–172.981 s | 5.416 s / 4.554–11.794 s |
+
+Every warm sample rebuilt zero modules. The cold median is 2.5% below the
+preceding 167.339 s median and therefore introduces no cold regression. The
+warm median is 5.2% (0.270 s) above the preceding 5.146 s median, but both
+sample ranges overlap substantially and the warm path emits no totality events:
+module checking remained approximately 1.895–2.330 s and the remaining variance
+is manifest/expansion/interface and host scheduling time. Component-cache
+instrumentation therefore cannot account for the difference.
+
+The three cold runs had identical operation counts:
+
+- 7,827 direct-summary requests: 4,098 misses, 3,339 hits, and 390 stale
+  reconstructions;
+- 3,601 SCC proposals and partition checks;
+- 575 exact closure generations and 506 finite closure verifications;
+- 4,213 component-certificate decisions: 4,051 misses and 162 hits;
+- 53 explicit definition-change invalidation events;
+- 357,262 compatible matrix compositions and 3,571 admitted derived edges.
+
+Measured operation totals across the three runs were:
+
+| Certificate operation | Total time |
+|---|---:|
+| trusted direct-summary extraction/validation | 2.392–2.812 s |
+| untrusted SCC proposal | 0.062–0.066 s |
+| kernel partition verification | 0.081–0.170 s |
+| untrusted sparse closure generation | 1.098–1.323 s |
+| kernel finite closure verification | 0.381–0.404 s |
+| component-certificate cache lookup | 0.0015 s |
+
+The detailed first sample again located the dominant work in typed elaboration:
+`Std.Regex` + `Std.Regex.Proof` took 115.323 s and `Std.Regex.Language` took
+25.902 s, together 86.5% of its 163.231 s cold total. The largest individual
+declaration, `thompson_alternate_acceptance_captures`, spent 29.420 s in typed
+elaboration. The completed SCC-certificate path remains measurable but is not
+the cold-build bottleneck.
+
 ## Stabilization warning policy
 
 The stabilization gate means **no unexpected compiler warnings**, rather than
-an unconditional zero-warning count. Exactly one reviewed `use` SCC is allowed,
-with membership equal to `{Std.Char, Std.Literal, Std.String}`; it is reported as
-W086. Any additional warning, additional SCC, or change to that membership fails
-the gate and requires review.
+an unconditional zero-warning count. Exactly two reviewed `use` SCCs are
+allowed, with membership equal to `{Std.Char, Std.Literal, Std.String}` and
+`{Std.Regex, Std.Regex.Proof}`; each is reported once as W086. Any additional
+warning, additional SCC, or change to either membership fails the gate and
+requires review.
 
 The gate compares complete SCC membership rather than the rendered closed walk.
 A traversal may print `Char -> Literal -> Char` or `Char -> String -> Char` for
-the same three-member component. The canonical-pipeline gate pins the component
-and the single W086 report; `mix cure.check.stdlib` independently rejects module
-compiler warnings.
+the same three-member component. The canonical-pipeline gate pins both complete
+components and their two W086 reports; `mix cure.check.stdlib` independently
+rejects unexpected module compiler warnings.
 
 ## Focused test startup
 
