@@ -3924,6 +3924,9 @@ defmodule Cure.Elab.Elaborator do
       {:error, {:bounded_lit_out_of_range, _value, _bound}} = error ->
         error
 
+      {:error, {:char_literal_out_of_range, _value}} = error ->
+        error
+
       {:error, {:bounded_bound_not_concrete, _bound}} = error ->
         error
 

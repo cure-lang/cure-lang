@@ -468,7 +468,7 @@ defmodule Cure.Core.Kernel do
       {:vdata, ^char_fid, []} when not is_nil(char_fid) ->
         if k < 0x110000,
           do: :ok,
-          else: {:error, {:bounded_lit_out_of_range, k, 0x110000}}
+          else: {:error, {:char_literal_out_of_range, k}}
 
       {:vdata, ^bounded_fid, [bound_val]} when not is_nil(bounded_fid) ->
         case concrete_nat(bound_val, sig) do
