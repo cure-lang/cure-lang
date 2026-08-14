@@ -565,6 +565,13 @@ defmodule Cure.Elab.Declarations do
     TotalityClosure.certify_available(env, name)
   end
 
+  defp prepare_direct_call_provenance(env, name, body_expr) do
+    case Kernel.prepare_direct_call_summaries(env, [name]) do
+      {:ok, prepared} -> Cure.Elab.DirectCallProvenance.attach(prepared, name, body_expr)
+      {:error, _reason} -> env
+    end
+  end
+
   # Elaborate a function's signature to its Π type and register it (with a
   # placeholder body) so that later-defined functions and mutually-recursive peers
   # resolve as globals. Called for every function in a first pass, before any body
@@ -996,7 +1003,12 @@ defmodule Cure.Elab.Declarations do
         # kernel's totality check simply stays uncertified — opaque to δ, never a
         # soundness hole (§7). Whole-program enforcement of the *required* set still
         # happens in TotalityClosure.certify_type_level.
-        final = timed_body_stage(opts, :totality, fn -> maybe_certify(final, sig.name) end)
+        final =
+          timed_body_stage(opts, :totality, fn ->
+            final
+            |> prepare_direct_call_provenance(sig.name, body_expr)
+            |> maybe_certify(sig.name)
+          end)
 
         timed_body_stage(opts, :equations, fn ->
           Cure.Elab.Equation.generate(final, sig.name, meta, body_expr)

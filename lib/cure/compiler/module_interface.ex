@@ -20,7 +20,9 @@ defmodule Cure.Compiler.ModuleInterface do
   # separates checked totality from permission to δ-unfold a published body.
   # Version 5 publishes body-hash-keyed direct-call summaries and atomic SCC
   # certificate identities for Agda-style incremental totality checking.
-  @schema_version 7
+  # Version 8 retains diagnostic call-site/macro provenance in direct summaries
+  # while excluding it from semantic interface identity.
+  @schema_version 8
 
   @enforce_keys [
     :module_name,
@@ -75,7 +77,7 @@ defmodule Cure.Compiler.ModuleInterface do
       # inserting a comment before an unchanged dependency must not force every
       # dependent module to rebuild.
       direct_edges: semantic_edges(direct_edges),
-      canonical_declarations: declarations,
+      canonical_declarations: semantic_declarations(declarations),
       canonical_externs: externs,
       extension_payloads: extensions
     }
@@ -132,5 +134,13 @@ defmodule Cure.Compiler.ModuleInterface do
     |> Enum.map(&Map.take(&1, [:kind, :target]))
     |> Enum.uniq()
     |> Enum.sort_by(&{&1.target, &1.kind})
+  end
+
+  defp semantic_declarations(declarations) do
+    Map.update(declarations, :direct_call_summaries, %{}, fn summaries ->
+      Map.new(summaries, fn {name, summary} ->
+        {name, Cure.Core.Certificate.semantic_summary(summary)}
+      end)
+    end)
   end
 end

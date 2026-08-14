@@ -13,7 +13,8 @@ defmodule Cure.Core.Certificate do
 
   alias Cure.Core.{Env, SizeChange}
 
-  @direct_summary_version 3
+  @direct_summary_version 4
+  @diagnostic_provenance_keys [:source_span, :macro_expansion]
 
   @doc "The semantic format/checker version of trusted direct-call summaries."
   @spec summary_version() :: pos_integer()
@@ -42,7 +43,7 @@ defmodule Cure.Core.Certificate do
       summary.caller == caller and
       summary.body_hash == body_hash(body) and
       summary.caller_arity == caller_arity and
-      summary.summary_hash == semantic_hash(Map.delete(summary, :summary_hash)) and
+      summary.summary_hash == summary_hash(summary) and
       Enum.all?(summary.calls, &valid_cached_call?(&1, caller, caller_arity, env))
   rescue
     KeyError -> false
@@ -97,7 +98,29 @@ defmodule Cure.Core.Certificate do
       calls: calls
     }
 
-    Map.put(summary, :summary_hash, semantic_hash(summary))
+    Map.put(summary, :summary_hash, summary_hash(summary))
+  end
+
+  @doc "Attach diagnostic-only source data by stable Core call ordinal."
+  @spec attach_provenance(map(), %{optional(non_neg_integer()) => map()}) :: map()
+  def attach_provenance(summary, provenance_by_path) when is_map(summary) and is_map(provenance_by_path) do
+    calls =
+      Enum.map(summary.calls, fn call ->
+        diagnostic = Map.get(provenance_by_path, call.provenance.core_path, %{})
+        %{call | provenance: Map.merge(call.provenance, diagnostic)}
+      end)
+
+    %{summary | calls: calls}
+  end
+
+  @doc "Remove diagnostic call-site data while preserving semantic call identity."
+  @spec semantic_summary(map()) :: map()
+  def semantic_summary(summary) when is_map(summary) do
+    Map.update(summary, :calls, [], fn calls ->
+      Enum.map(calls, fn call ->
+        Map.update(call, :provenance, %{}, &Map.drop(&1, @diagnostic_provenance_keys))
+      end)
+    end)
   end
 
   defp definition_arity(env, callee, fallback) do
@@ -118,7 +141,7 @@ defmodule Cure.Core.Certificate do
       call.provenance.caller == caller and
       is_integer(call.provenance.core_path) and call.provenance.core_path >= 0 and
       call.id ==
-        semantic_hash({caller, call.callee, call.callee_arity, matrix, call.provenance})
+        semantic_hash({caller, call.callee, call.callee_arity, matrix, semantic_provenance(call.provenance)})
   rescue
     KeyError -> false
     ArgumentError -> false
@@ -127,6 +150,11 @@ defmodule Cure.Core.Certificate do
   defp arity_of(body), do: body |> peel_lams(0) |> elem(0)
 
   defp semantic_hash(term), do: :crypto.hash(:sha256, :erlang.term_to_binary(term, [:deterministic]))
+
+  defp summary_hash(summary),
+    do: summary |> Map.delete(:summary_hash) |> semantic_summary() |> semantic_hash()
+
+  defp semantic_provenance(provenance), do: Map.drop(provenance, @diagnostic_provenance_keys)
 
   # Per-parameter tracking, generalised from the old single `root`/`smaller`:
   #   roots[j]    — current de Bruijn index of parameter xⱼ

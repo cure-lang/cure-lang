@@ -49,7 +49,10 @@ defmodule Cure.Compiler.ModulePipeline.Environment do
   def semantic_dump(%__MODULE__{env: env}) do
     %{
       defs: sorted(env.defs, & &1.type),
-      direct_call_summaries: Enum.sort(env.direct_call_summaries),
+      direct_call_summaries:
+        env.direct_call_summaries
+        |> Enum.map(fn {name, summary} -> {name, Cure.Core.Certificate.semantic_summary(summary)} end)
+        |> Enum.sort(),
       totality_components: Enum.sort(env.totality_components),
       totality_component_of: Enum.sort(env.totality_component_of),
       families: sorted(env.families, & &1),
