@@ -23,6 +23,8 @@ defmodule Cure.Stdlib.DependentRegexUnsupportedConstructTest do
       {~S"(?'name'a)", :UnsupportedRegexNamedCapture, "(?\'"},
       {~S"(?P<name>a)", :UnsupportedRegexNamedCapture, "(?P<"},
       {~S"(?i:a)", :UnsupportedRegexInlineOptions, "(?i"},
+      {~S"(*LF)a", :UnsupportedRegexNewlineControl, "(*LF)"},
+      {~S"(*BSR_UNICODE)a", :UnsupportedRegexNewlineControl, "(*BSR_UNICODE)"},
       {~S"a*+", :UnsupportedRegexPossessiveQuantifier, "*+"},
       {~S"a{2}+", :UnsupportedRegexPossessiveQuantifier, "{2}+"}
     ]

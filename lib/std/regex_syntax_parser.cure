@@ -149,6 +149,13 @@ mod Std.Regex.Syntax.Parser
   fn parse_literal_group_fuel(input: List(Char), fuel: Nat, origin: List(Char)) -> LiteralParse = match fuel
     Z() -> LiteralInvalid(:RegexParseLimit)
     S(next_fuel) -> match input
+      ['*', 'C', 'R', ')' | _] -> LiteralAtInvalid(:UnsupportedRegexNewlineControl, origin, literal_delimited_width(origin, ')'))
+      ['*', 'L', 'F', ')' | _] -> LiteralAtInvalid(:UnsupportedRegexNewlineControl, origin, literal_delimited_width(origin, ')'))
+      ['*', 'C', 'R', 'L', 'F', ')' | _] -> LiteralAtInvalid(:UnsupportedRegexNewlineControl, origin, literal_delimited_width(origin, ')'))
+      ['*', 'A', 'N', 'Y', 'C', 'R', 'L', 'F', ')' | _] -> LiteralAtInvalid(:UnsupportedRegexNewlineControl, origin, literal_delimited_width(origin, ')'))
+      ['*', 'A', 'N', 'Y', ')' | _] -> LiteralAtInvalid(:UnsupportedRegexNewlineControl, origin, literal_delimited_width(origin, ')'))
+      ['*', 'B', 'S', 'R', '_', 'A', 'N', 'Y', 'C', 'R', 'L', 'F', ')' | _] -> LiteralAtInvalid(:UnsupportedRegexNewlineControl, origin, literal_delimited_width(origin, ')'))
+      ['*', 'B', 'S', 'R', '_', 'U', 'N', 'I', 'C', 'O', 'D', 'E', ')' | _] -> LiteralAtInvalid(:UnsupportedRegexNewlineControl, origin, literal_delimited_width(origin, ')'))
       ['?', ':' | rest] -> parse_literal_non_capture_fuel(rest, next_fuel, origin)
       ['?', 'R' | _] -> LiteralAtInvalid(:UnsupportedRegexRecursion, origin, 3)
       ['?', '0' | _] -> LiteralAtInvalid(:UnsupportedRegexRecursion, origin, 3)
