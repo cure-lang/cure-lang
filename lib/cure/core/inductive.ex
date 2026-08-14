@@ -200,8 +200,20 @@ defmodule Cure.Core.Env do
   def add_def(%__MODULE__{} = env, name, type_term, body_term, quantities, plicities) do
     name = owned_name(env, name)
 
+    preserve_sealed? =
+      body_term == {:hole, "__pending__"} and total?(env, name)
+
     {certified, totality_certified, components, component_of} =
-      invalidate_totality_component(env, name)
+      if preserve_sealed? do
+        {env.certified, env.totality_certified, env.totality_components, env.totality_component_of}
+      else
+        invalidate_totality_component(env, name)
+      end
+
+    summaries =
+      if preserve_sealed?,
+        do: env.direct_call_summaries,
+        else: Map.delete(env.direct_call_summaries, name)
 
     %{
       env
@@ -213,7 +225,7 @@ defmodule Cure.Core.Env do
             quantities: quantities,
             plicities: plicities
           }),
-        direct_call_summaries: Map.delete(env.direct_call_summaries, name),
+        direct_call_summaries: summaries,
         totality_components: components,
         totality_component_of: component_of,
         certified: certified,

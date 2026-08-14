@@ -111,4 +111,15 @@ defmodule Cure.Core.CertificateTest do
     replaced = Env.add_def(checked, :stable, @dec, {:global, :stable})
     assert is_nil(Env.direct_call_summary(replaced, :stable))
   end
+
+  test "a pending forward declaration preserves a sealed definition certificate" do
+    env = Env.add_def(base(), :stable, @dec, @causal)
+    assert {:ok, checked} = Kernel.validate_certificate(env, :stable)
+    summary = Env.direct_call_summary(checked, :stable)
+
+    skeleton = Env.add_def(checked, :stable, @dec, {:hole, "__pending__"})
+
+    assert Env.total?(skeleton, :stable)
+    assert Env.direct_call_summary(skeleton, :stable) == summary
+  end
 end

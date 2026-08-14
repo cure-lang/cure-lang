@@ -134,6 +134,67 @@ defmodule Cure.Elab.TotalityClosure do
   end
 
   @doc """
+  Attempt safe eager certification without discovering a global SCC.
+
+  This is the declaration-time fast path. Like Agda before `termMutual`, it
+  leaves a definition unchecked when an unsealed peer may still join its SCC.
+  """
+  @spec certify_available(Env.t(), atom()) :: Env.t()
+  def certify_available(%Env{} = env, name) do
+    name = Env.resolve_key(env, env.defs, name)
+
+    with {:ok, prepared, names} <- prepare_available_slice(env, [name], MapSet.new()) do
+      partition = TotalityGraph.propose_partition(prepared, names)
+
+      case Kernel.certify_sccs_lenient(prepared, partition) do
+        {:ok, certified} -> certified
+        {:error, _reason} -> env
+      end
+    else
+      _ -> env
+    end
+  end
+
+  defp prepare_available_slice(env, [], seen),
+    do: {:ok, env, seen |> MapSet.to_list() |> Enum.sort()}
+
+  defp prepare_available_slice(env, [name | rest], seen) do
+    name = Env.resolve_key(env, env.defs, name)
+
+    cond do
+      MapSet.member?(seen, name) or Env.total?(env, name) ->
+        prepare_available_slice(env, rest, seen)
+
+      true ->
+        case Env.get_def(env, name) do
+          %{body: body} when is_tuple(body) and elem(body, 0) not in [:extern, :hole] ->
+            with {:ok, prepared} <- Kernel.prepare_direct_call_summaries(env, [name]) do
+              callees =
+                prepared
+                |> Env.direct_call_summary(name)
+                |> Map.fetch!(:calls)
+                |> Enum.map(& &1.callee)
+
+              prepare_available_slice(
+                prepared,
+                rest ++ callees,
+                MapSet.put(seen, name)
+              )
+            end
+
+          %{body: {:extern, _}} ->
+            prepare_available_slice(env, rest, seen)
+
+          %{builtin_op: op} when not is_nil(op) ->
+            prepare_available_slice(env, rest, seen)
+
+          pending_or_missing ->
+            {:error, {:incomplete_dependency_slice, name, pending_or_missing}}
+        end
+    end
+  end
+
+  @doc """
   Re-certify runtime defs that a *declaration-order* deferral left uncertified.
 
   `Certificate.terminating?/3` deliberately defers (stays uncertified) a def with a
@@ -155,30 +216,86 @@ defmodule Cure.Elab.TotalityClosure do
   def certify_deferred(%Env{totality_certified: nil} = env), do: env
 
   def certify_deferred(%Env{defs: defs} = env) do
-    Enum.reduce(defs, env, fn {name, def}, acc ->
-      cond do
-        Env.total?(acc, name) ->
-          acc
+    names =
+      defs
+      |> Enum.flat_map(fn {name, def} ->
+        cond do
+          Env.total?(env, name) -> []
+          is_nil(def.body) -> []
+          match?(%{body: {:hole, _}}, def) -> []
+          match?(%{body: {:extern, _}}, def) -> []
+          not is_nil(Map.get(def, :builtin_op)) -> []
+          true -> [name]
+        end
+      end)
+      |> Enum.sort()
 
-        is_nil(def.body) ->
-          acc
+    case names do
+      [] ->
+        env
 
-        match?(%{body: {:hole, _}}, def) ->
-          acc
+      _ ->
+        with {:ok, prepared} <- Kernel.prepare_direct_call_summaries(env, names),
+             safe_names = safe_certification_names(prepared, names) do
+          case safe_names do
+            [] ->
+              env
 
-        match?(%{body: {:extern, _}}, def) ->
-          acc
+            _ ->
+              partition = TotalityGraph.propose_partition(prepared, safe_names)
 
-        not is_nil(Map.get(def, :builtin_op)) ->
-          acc
-
-        true ->
-          case Kernel.validate_certificate(acc, name) do
-            {:ok, acc2} -> acc2
-            {:error, _} -> acc
+              case Kernel.certify_sccs_lenient(prepared, partition) do
+                {:ok, certified} -> certified
+                {:error, _} -> env
+              end
           end
-      end
-    end)
+        else
+          _ -> env
+        end
+    end
+  end
+
+  # Agda withholds a component whose call information is incomplete, but still
+  # checks independent SCCs in the same mutual scheduling region. Compute the
+  # reverse cone of every unsealed edge so one pending declaration does not
+  # suppress unrelated certificates.
+  defp safe_certification_names(env, names) do
+    name_set = MapSet.new(names)
+
+    calls =
+      Map.new(names, fn name ->
+        callees = env |> Env.direct_call_summary(name) |> Map.fetch!(:calls) |> Enum.map(& &1.callee)
+        {name, callees}
+      end)
+
+    unsafe =
+      Enum.reduce(calls, MapSet.new(), fn {caller, callees}, acc ->
+        if Enum.any?(callees, fn callee ->
+             not MapSet.member?(name_set, callee) and not sealed_boundary?(env, callee)
+           end),
+           do: MapSet.put(acc, caller),
+           else: acc
+      end)
+
+    unsafe = close_unsafe_callers(calls, unsafe)
+    Enum.reject(names, &MapSet.member?(unsafe, &1))
+  end
+
+  defp close_unsafe_callers(calls, unsafe) do
+    expanded =
+      Enum.reduce(calls, unsafe, fn {caller, callees}, acc ->
+        if Enum.any?(callees, &MapSet.member?(unsafe, &1)),
+          do: MapSet.put(acc, caller),
+          else: acc
+      end)
+
+    if MapSet.equal?(expanded, unsafe), do: unsafe, else: close_unsafe_callers(calls, expanded)
+  end
+
+  defp sealed_boundary?(env, callee) do
+    Env.total?(env, callee) or
+      not is_nil(Env.builtin_op(env, callee)) or
+      match?(%{body: {:extern, _}}, Env.get_def(env, callee))
   end
 
   # -- seeds: globals appearing in family/constructor type positions ----------

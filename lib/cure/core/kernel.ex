@@ -888,6 +888,27 @@ defmodule Cure.Core.Kernel do
     end
   end
 
+  @doc "Verify one partition and certify every provably total component, skipping partial SCCs."
+  @spec certify_sccs_lenient(Env.t(), map()) :: {:ok, Env.t()} | {:error, term()}
+  def certify_sccs_lenient(%Env{} = env, partition) do
+    with {:ok, _components} <- Cure.Core.SCCCertificate.verify_partition(env, partition) do
+      partition.components
+      |> Map.keys()
+      |> Enum.sort_by(&Map.fetch!(partition.rank, &1))
+      |> Enum.reduce(env, fn component_id, acc ->
+        members = partition.components[component_id].members
+        digest = scc_certificate_digest(partition, component_id, members)
+
+        cond do
+          Map.has_key?(acc.totality_components, digest) -> acc
+          Certificate.terminating_group?(members, acc) -> Env.certify_component(acc, members, digest)
+          true -> acc
+        end
+      end)
+      |> then(&{:ok, &1})
+    end
+  end
+
   defp scc_certificate_digest(partition, component_id, members) do
     material =
       {partition.version, component_id,

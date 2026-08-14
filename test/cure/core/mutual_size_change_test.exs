@@ -19,6 +19,7 @@ defmodule Cure.Core.MutualSizeChangeTest do
   use ExUnit.Case, async: true
   alias Cure.Core.{Certificate, Env, Inductive, Kernel}
   alias Cure.Elab.TotalityGraph
+  alias Cure.Elab.TotalityClosure
 
   @nat {:data, :Nat, [], []}
   @nat_motive {:lam, Cure.Core.Grade.unrestricted(), @nat, @nat}
@@ -132,6 +133,14 @@ defmodule Cure.Core.MutualSizeChangeTest do
     refute Env.total?(replaced, :odd)
     assert replaced.totality_components == %{}
     assert replaced.totality_component_of == %{}
+  end
+
+  test "declaration fast path decides a complete dependency SCC once" do
+    env = with_defs(even: even_body(), odd: odd_body())
+    eager = TotalityClosure.certify_available(env, :even)
+    assert Env.total?(eager, :even)
+    assert Env.total?(eager, :odd)
+    assert map_size(eager.totality_components) == 1
   end
 
   test "ping/pong structural mutual pair certifies total" do

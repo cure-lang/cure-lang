@@ -17,7 +17,7 @@ defmodule Cure.Elab.Declarations do
   """
 
   alias Cure.Core.{Context, Env, Eval, Grade, Inductive, Kernel, Quote, Term}
-  alias Cure.Elab.{Elaborator, Induction, MacroExpand, MetaCtx, Relevance, Subst, Unify}
+  alias Cure.Elab.{Elaborator, Induction, MacroExpand, MetaCtx, Relevance, Subst, TotalityClosure, Unify}
   alias Cure.MetaAST.Metadata
 
   @ceiling 2
@@ -562,10 +562,7 @@ defmodule Cure.Elab.Declarations do
   end
 
   defp maybe_certify(env, name) do
-    case Kernel.validate_certificate(env, name) do
-      {:ok, certified} -> certified
-      {:error, _} -> env
-    end
+    TotalityClosure.certify_available(env, name)
   end
 
   # Elaborate a function's signature to its Π type and register it (with a
