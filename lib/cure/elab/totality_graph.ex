@@ -51,10 +51,10 @@ defmodule Cure.Elab.TotalityGraph do
       |> Enum.map(& &1.callee)
       |> Enum.reject(&MapSet.member?(universe_set, &1))
       |> Enum.uniq()
-      |> Enum.filter(&Env.total?(env, &1))
-      |> Map.new(fn callee ->
-        {callee, Map.get(env.totality_component_of, callee, :legacy_totality)}
+      |> Enum.filter(fn callee ->
+        Env.total?(env, callee) and is_binary(Map.get(env.totality_component_of, callee))
       end)
+      |> Map.new(&{&1, Map.fetch!(env.totality_component_of, &1)})
 
     certificate = %{
       version: @partition_version,

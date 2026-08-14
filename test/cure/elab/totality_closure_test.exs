@@ -1,5 +1,5 @@
 defmodule Cure.Elab.TotalityClosureTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
   alias Cure.Core.{Inductive, Env}
   alias Cure.Elab.TotalityClosure
 
@@ -92,17 +92,19 @@ defmodule Cure.Elab.TotalityClosureTest do
 
     assert_receive {Cure.Pipeline.Events, :type_checker, :totality_metric, %{operation: :scc_proposal}, _metadata}
 
-    assert_receive {Cure.Pipeline.Events, :type_checker, :totality_metric,
-                    %{operation: :closure_generation, composition_attempts: attempts}, _metadata}
+    # `and` is an acyclic singleton. Like Agda's non-recursive definitions it
+    # certifies from the verified partition alone and generates no matrix closure.
+    refute_receive {Cure.Pipeline.Events, :type_checker, :totality_metric,
+                    %{operation: :closure_generation, members: [:and]}, _metadata},
+                   20
 
-    assert is_integer(attempts)
     drain_totality_metrics()
 
     again = TotalityClosure.certify_available(certified, :and)
     assert Env.total?(again, :and)
 
-    refute_receive {Cure.Pipeline.Events, :type_checker, :totality_metric, %{operation: :closure_generation},
-                    _metadata},
+    refute_receive {Cure.Pipeline.Events, :type_checker, :totality_metric,
+                    %{operation: :closure_generation, members: [:and]}, _metadata},
                    20
   end
 

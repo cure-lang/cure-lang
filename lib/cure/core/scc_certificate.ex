@@ -132,8 +132,8 @@ defmodule Cure.Core.SCCCertificate do
 
   defp valid_sealed_boundary?(env, callee, certificate) do
     submitted = Map.get(Map.get(certificate, :sealed_boundaries, %{}), callee)
-    expected = Map.get(env.totality_component_of, callee, :legacy_totality)
-    Env.total?(env, callee) and not is_nil(submitted) and submitted == expected
+    expected = Map.get(env.totality_component_of, callee)
+    Env.total?(env, callee) and is_binary(expected) and submitted == expected
   end
 
   defp verify_submitted_edges(certificate, expected) do

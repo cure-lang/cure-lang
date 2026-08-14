@@ -950,8 +950,16 @@ defmodule Cure.Core.Kernel do
     end
   end
 
-  defp verify_totality_component(_env, _members, nil),
-    do: {:error, {:totality_derivation_invalid, %{reason: :missing_component_certificate}}}
+  defp verify_totality_component(env, [member], nil) do
+    summary = Env.direct_call_summary(env, member)
+
+    if summary && Enum.all?(summary.calls, &(&1.callee != member)),
+      do: {:ok, :total},
+      else: {:error, {:totality_derivation_invalid, %{reason: :missing_component_certificate, members: [member]}}}
+  end
+
+  defp verify_totality_component(_env, members, nil),
+    do: {:error, {:totality_derivation_invalid, %{reason: :missing_component_certificate, members: members}}}
 
   defp verify_totality_component(env, members, certificate),
     do: Cure.Core.TotalityCertificate.verify(env, members, certificate)

@@ -64,8 +64,21 @@ defmodule Cure.Elab.TotalityCertificate do
   @doc "Generate one exact closure certificate for every proposed SCC."
   @spec propose_all(Env.t(), map()) :: %{atom() => map()}
   def propose_all(%Env{} = env, partition) do
-    Map.new(partition.components, fn {component_id, component} ->
+    partition.components
+    |> Enum.filter(fn {component_id, component} ->
+      recursive_component?(partition, component_id, component.members)
+    end)
+    |> Map.new(fn {component_id, component} ->
       {component_id, propose(env, component.members)}
+    end)
+  end
+
+  defp recursive_component?(_partition, _component_id, [_left, _right | _rest]), do: true
+
+  defp recursive_component?(partition, component_id, [_singleton]) do
+    Enum.any?(partition.edges, fn edge ->
+      partition.component_of[edge.source] == component_id and
+        partition.component_of[edge.target] == component_id
     end)
   end
 

@@ -174,7 +174,7 @@ defmodule Cure.Elab.TotalityClosure do
     name = Env.resolve_key(env, env.defs, name)
 
     cond do
-      MapSet.member?(seen, name) or Env.total?(env, name) ->
+      MapSet.member?(seen, name) or sealed_totality_boundary?(env, name) ->
         prepare_available_slice(env, rest, seen)
 
       true ->
@@ -203,6 +203,13 @@ defmodule Cure.Elab.TotalityClosure do
           pending_or_missing ->
             {:error, {:incomplete_dependency_slice, name, pending_or_missing}}
         end
+    end
+  end
+
+  defp sealed_totality_boundary?(env, name) do
+    case Env.get_def(env, name) do
+      %{builtin_op: op} when not is_nil(op) -> Env.total?(env, name)
+      _definition -> Env.total?(env, name) and is_binary(Map.get(env.totality_component_of, name))
     end
   end
 
