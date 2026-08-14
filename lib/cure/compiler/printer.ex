@@ -2514,12 +2514,18 @@ defmodule Cure.Compiler.Printer do
   defp type_annotation_to_string(meta, children, depth, indent) do
     name = Keyword.get(meta, :name)
     type_params = Keyword.get(meta, :type_params)
+    params = Keyword.get(meta, :params)
 
     tp_str =
-      if type_params && type_params != [] do
-        "(#{Enum.join(type_params, ", ")})"
-      else
-        ""
+      cond do
+        params && params != [] ->
+          "(#{typed_params_to_string(params, depth, indent)})"
+
+        type_params && type_params != [] ->
+          "(#{Enum.join(type_params, ", ")})"
+
+        true ->
+          ""
       end
 
     # A `:type_annotation` is produced by BOTH `type X = BareName` / `type X =
@@ -2530,7 +2536,10 @@ defmodule Cure.Compiler.Printer do
     # transparent synonym. Such a `{:function_call, …}` RHS therefore MUST reprint
     # with `typealias`; every other shape keeps the `type` spelling that all
     # non-alias code round-trips through.
-    keyword = if applied_type_rhs?(children), do: "typealias", else: "type"
+    keyword =
+      if Keyword.get(meta, :typealias) == true or applied_type_rhs?(children),
+        do: "typealias",
+        else: "type"
 
     case children do
       [type_expr] ->

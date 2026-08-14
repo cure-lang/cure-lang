@@ -326,6 +326,18 @@ defmodule Cure.Compiler.PrinterTotalityTest do
     assert parse!(out, "sigma.cure")
   end
 
+  test "typed typealias parameters round-trip with their annotations" do
+    src = """
+    mod M
+      typealias EqualPair(left: Nat, right: Nat) = Sigma(proof: Equivalent(Nat, left, right), Nat)
+    """
+
+    out = Cure.Compiler.Printer.quoted_to_string(parse!(src, "typed_alias.cure"))
+
+    assert out =~ "typealias EqualPair(left: Nat, right: Nat)"
+    assert parse!(out, "typed_alias.cure")
+  end
+
   test "with-abstraction round-trips" do
     src = """
     mod M
