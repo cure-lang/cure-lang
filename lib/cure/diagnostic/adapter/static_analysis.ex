@@ -157,6 +157,7 @@ defmodule Cure.Diagnostic.Adapter.StaticAnalysis do
              :totality_summary_stale,
              :totality_scc_incomplete,
              :totality_scc_invalid,
+             :totality_matrix_invalid,
              :totality_derivation_invalid,
              :totality_dependency_not_total,
              :totality_unknown_callee
@@ -628,6 +629,10 @@ defmodule Cure.Diagnostic.Adapter.StaticAnalysis do
           {"Totality component certificate is invalid",
            "The submitted SCC partition, rank, or connectivity witness does not match the trusted direct-call graph."}
 
+        :totality_matrix_invalid ->
+          {"Totality call matrix is invalid",
+           "The submitted size-change matrix overstates or otherwise disagrees with the relation extracted from the checked Core call."}
+
         :totality_derivation_invalid ->
           {"Totality derivation is invalid",
            "A Base or Compose step does not replay to the submitted size-change edge, or the exact closure is incomplete."}
@@ -639,6 +644,12 @@ defmodule Cure.Diagnostic.Adapter.StaticAnalysis do
         :totality_unknown_callee ->
           {"Totality call target is unresolved",
            "A trusted direct call does not resolve to a canonical definition, builtin, or extern."}
+      end
+
+    opts =
+      case Map.get(details, :source_span) do
+        %Span{} = span -> Keyword.put_new(opts, :span, span)
+        _ -> opts
       end
 
     Diagnostic.new(
@@ -656,9 +667,14 @@ defmodule Cure.Diagnostic.Adapter.StaticAnalysis do
           applicability: :manual
         }
       ],
+      provenance: Map.get(details, :provenance, []) |> diagnostic_provenance(),
       payload: details
     )
   end
+
+  defp diagnostic_provenance(%{macro_expansion: frames}) when is_list(frames), do: frames
+  defp diagnostic_provenance(frames) when is_list(frames), do: frames
+  defp diagnostic_provenance(_other), do: []
 
   defp totality_detail_notes(details) do
     details

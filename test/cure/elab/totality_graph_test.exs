@@ -97,4 +97,24 @@ defmodule Cure.Elab.TotalityGraphTest do
     assert {:error, {:totality_scc_invalid, %{reason: :unknown_definition, definition: :"Alias#a"}}} =
              SCCCertificate.verify_partition(env, forged)
   end
+
+  test "an unresolved direct callee is not misreported as an omitted SCC member" do
+    body = {:global, :missing}
+
+    env =
+      Env.empty()
+      |> Env.add_def(:caller, {:type, 0}, body)
+      |> then(&Env.put_direct_call_summary(&1, :caller, Certificate.direct_summary(:caller, body, &1)))
+
+    certificate = TotalityGraph.propose_partition(env, [:caller])
+
+    assert {:error,
+            {:totality_unknown_callee,
+             %{
+               caller: :caller,
+               callee: :missing,
+               core_term: {:global, :missing},
+               provenance: %{caller: :caller, core_path: 0}
+             }}} = SCCCertificate.verify_partition(env, certificate)
+  end
 end

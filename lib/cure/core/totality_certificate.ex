@@ -20,7 +20,7 @@ defmodule Cure.Core.TotalityCertificate do
     result =
       with :ok <- verify_identity(env, members, candidate),
            {:ok, expected_base_keys} <- expected_base_keys(env, members),
-           :ok <- verify_base_keys(candidate, expected_base_keys),
+           :ok <- verify_base_keys(env, candidate, expected_base_keys),
            :ok <- verify_base_derivations(candidate, expected_base_keys),
            :ok <- verify_derivations(candidate, expected_base_keys),
            :ok <- verify_saturation(candidate) do
@@ -125,10 +125,60 @@ defmodule Cure.Core.TotalityCertificate do
     {:ok, keys}
   end
 
-  defp verify_base_keys(candidate, expected) do
-    if candidate.base_keys == expected,
-      do: :ok,
-      else: invalid(:base_edge_mismatch, expected: expected, submitted: candidate.base_keys)
+  defp verify_base_keys(env, candidate, expected) do
+    if candidate.base_keys == expected do
+      :ok
+    else
+      case changed_matrix(expected, candidate.base_keys) do
+        {source, target, expected_matrix, submitted_matrix} ->
+          provenance = direct_call_provenance(env, source, target, expected_matrix)
+
+          {:error,
+           {:totality_matrix_invalid,
+            %{
+              caller: source,
+              callee: target,
+              expected_dimensions: matrix_dimensions(expected_matrix),
+              submitted_dimensions: matrix_dimensions(submitted_matrix),
+              expected_matrix: expected_matrix,
+              submitted_matrix: submitted_matrix,
+              provenance: provenance,
+              source_span: Map.get(provenance, :source_span),
+              core_term: {:global, target}
+            }}}
+
+        nil ->
+          invalid(:base_edge_mismatch, expected: expected, submitted: candidate.base_keys)
+      end
+    end
+  end
+
+  defp changed_matrix(expected, submitted) do
+    Enum.find_value(expected, fn {source, target, expected_matrix} ->
+      Enum.find_value(submitted, fn
+        {^source, ^target, submitted_matrix} when submitted_matrix != expected_matrix ->
+          {source, target, expected_matrix, submitted_matrix}
+
+        _other ->
+          nil
+      end)
+    end)
+  end
+
+  defp direct_call_provenance(env, source, target, matrix) do
+    env
+    |> Env.direct_call_summary(source)
+    |> Map.fetch!(:calls)
+    |> Enum.find_value(%{caller: source}, fn call ->
+      if call.callee == target and SizeChange.sparse(call.matrix) == matrix,
+        do: call.provenance,
+        else: nil
+    end)
+  end
+
+  defp matrix_dimensions(matrix) do
+    matrix = SizeChange.sparse(matrix)
+    {matrix.rows, matrix.columns}
   end
 
   defp verify_base_derivations(candidate, expected) do

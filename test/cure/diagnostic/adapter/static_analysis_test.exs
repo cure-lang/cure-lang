@@ -146,6 +146,43 @@ defmodule Cure.Diagnostic.Adapter.StaticAnalysisTest do
     assert Renderer.plain(diagnostic, nil) =~ "TOTALITY DERIVATION IS INVALID"
   end
 
+  test "invalid call matrices retain the trusted call-site diagnostic context" do
+    span =
+      Cure.Diagnostic.Span.new(
+        source_id: :totality,
+        path: "totality.cure",
+        start_byte: 0,
+        end_byte: 4,
+        start_line: 1,
+        start_column: 1,
+        end_line: 1,
+        end_column: 5
+      )
+
+    frame = %Cure.Diagnostic.ProvenanceFrame{kind: :macro_expansion, name: "loop", invocation: span}
+
+    diagnostic =
+      Adapter.from_error(
+        {:totality_matrix_invalid,
+         %{
+           caller: :f,
+           callee: :g,
+           expected_dimensions: {1, 1},
+           submitted_dimensions: {1, 1},
+           expected_matrix: [[:equal]],
+           submitted_matrix: [[:smaller]],
+           source_span: span,
+           provenance: %{caller: :f, core_path: 0, macro_expansion: [frame]}
+         }}
+      )
+
+    assert diagnostic.code == "E013"
+    assert diagnostic.key == :totality_matrix_invalid
+    assert diagnostic.primary.span == span
+    assert diagnostic.provenance == [frame]
+    assert Renderer.plain(diagnostic, nil) =~ "TOTALITY CALL MATRIX IS INVALID"
+  end
+
   test "resource usage preserves declaration and earlier-use regions" do
     source = "x x x\n"
     registry = SourceRegistry.new() |> SourceRegistry.register(:usage, source, "usage.cure")

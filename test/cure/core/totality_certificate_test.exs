@@ -120,10 +120,19 @@ defmodule Cure.Core.TotalityCertificateTest do
     forged = %{candidate | base_keys: Enum.sort([overstated | rest])}
 
     assert {:error,
-            {:totality_derivation_invalid, %{reason: :base_edge_mismatch, expected: expected, submitted: submitted}}} =
+            {:totality_matrix_invalid,
+             %{
+               caller: ^source,
+               callee: ^target,
+               expected_matrix: expected_matrix,
+               submitted_matrix: submitted_matrix,
+               expected_dimensions: {1, 1},
+               submitted_dimensions: {1, 1},
+               provenance: %{caller: ^source}
+             }}} =
              TotalityCertificate.verify(env, [:f, :g], forged)
 
-    assert trusted in expected
-    assert overstated in submitted
+    assert expected_matrix == elem(trusted, 2)
+    assert submitted_matrix == elem(overstated, 2)
   end
 end

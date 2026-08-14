@@ -1654,6 +1654,7 @@ defmodule Cure.Diagnostic.Adapter do
              :totality_summary_stale,
              :totality_scc_incomplete,
              :totality_scc_invalid,
+             :totality_matrix_invalid,
              :totality_derivation_invalid,
              :totality_dependency_not_total,
              :totality_unknown_callee

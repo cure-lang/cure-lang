@@ -97,6 +97,19 @@ defmodule Cure.Core.SCCCertificate do
             edge = %{id: {source, call.id, ordinal}, source: source, target: call.callee}
             {:cont, {:ok, [edge | acc]}}
 
+          is_nil(Env.get_def(env, call.callee)) ->
+            {:halt,
+             {:error,
+              {:totality_unknown_callee,
+               %{
+                 caller: source,
+                 callee: call.callee,
+                 unresolved_global: call.callee,
+                 provenance: call.provenance,
+                 source_span: Map.get(call.provenance, :source_span),
+                 core_term: {:global, call.callee}
+               }}}}
+
           terminal_boundary?(env, call.callee, certificate) ->
             {:cont, {:ok, acc}}
 
