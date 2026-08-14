@@ -939,44 +939,59 @@ defmodule Cure.Elab.Declarations do
            # `ignore`-style constrained function): the same criterion the relevance
            # check enforces, so erasure (dropping it) stays sound. Only demotion,
            # never promotion.
-           quantities = demote_unused_dicts(env, sig, body_term),
+           {:ok, quantities} <-
+             timed_body_stage(opts, :relevance, fn ->
+               quantities = demote_unused_dicts(env, sig, body_term)
+
+               case Relevance.check(env, sig.name, quantities, body_term) do
+                 :ok -> {:ok, quantities}
+                 {:error, _reason} = error -> error
+               end
+             end),
            # {0,ω} relevance check (M8.3): erasure will drop the `:erased` parameter
            # slots, so reject any body that uses one relevantly (returned / passed
            # in a present position / scrutinised / applied). E-layer; the kernel
            # stays quantity-blind. See `Cure.Elab.Relevance`.
-           :ok <- Relevance.check(env, sig.name, quantities, body_term),
            # The Pi is the single source of truth (slice 6). `sig.pi` was built from
            # the ORIGINAL quantities; `demote_unused_dicts/3` may have lowered a dict
            # since, so rebuild the stored type from the DEMOTED vector — otherwise the
            # stored Pi (dict `ω`) and λ (dict `:erased`) would disagree, a pairing the
            # graded `Conv` forbids. Both now come from one vector.
-           final_pi = wrap_binders(:pi, sig.telescope, quantities, return_core),
-           lambda = wrap_binders(:lam, sig.telescope, quantities, body_term),
-           # The assertion that would have caught the whole dichotomy class: the stored
-           # Π and λ must agree on every binder's grade. Compare the two grade spines
-           # STRUCTURALLY — do NOT re-run a full `Kernel.check` of the body. The body
-           # already type-checked at `:284` against `build_context`'s WHNF'd context; a
-           # second kernel check here would rebuild the context WITHOUT that whnf (the
-           # `:lam` rule's `Context.extend` does not normalise `exp_dom`), so a
-           # parameter whose type is a δ-unfoldable alias reaches the kernel as an
-           # opaque neutral and a `match` on it fails `:case_scrutinee_not_data` — a
-           # regression the first cut of this slice shipped (adversarial review F1).
-           # The grade check is all slice 6 needs, and it is O(telescope depth).
-           :ok <- assert_binder_grades_agree(final_pi, lambda, sig.name),
-           # §5.3: an `Effect`-typed binder may not be `:erased`. Erasure deletes
-           # erased binders, so an erased `Effect(T)` binder would silently drop a
-           # computation the type says must run. Walk the final Pi spine and reject.
-           # (Syntactic head-check; the `no_effect_in_erased_position` Validator
-           # clause is the trusted backstop for an aliased effect type, §8.)
-           :ok <- assert_no_erased_effect_binder(final_pi, sig.name) do
+           {:ok, final_pi, lambda} <-
+             timed_body_stage(opts, :core_packaging, fn ->
+               final_pi = wrap_binders(:pi, sig.telescope, quantities, return_core)
+               lambda = wrap_binders(:lam, sig.telescope, quantities, body_term)
+
+               with :ok <- assert_binder_grades_agree(final_pi, lambda, sig.name),
+                    :ok <- assert_no_erased_effect_binder(final_pi, sig.name) do
+                 {:ok, final_pi, lambda}
+               end
+             end) do
+        # The assertion that would have caught the whole dichotomy class: the stored
+        # Π and λ must agree on every binder's grade. Compare the two grade spines
+        # STRUCTURALLY — do NOT re-run a full `Kernel.check` of the body. The body
+        # already type-checked at `:284` against `build_context`'s WHNF'd context; a
+        # second kernel check here would rebuild the context WITHOUT that whnf (the
+        # `:lam` rule's `Context.extend` does not normalise `exp_dom`), so a
+        # parameter whose type is a δ-unfoldable alias reaches the kernel as an
+        # opaque neutral and a `match` on it fails `:case_scrutinee_not_data` — a
+        # regression the first cut of this slice shipped (adversarial review F1).
+        # The grade check is all slice 6 needs, and it is O(telescope depth).
+        # §5.3: an `Effect`-typed binder may not be `:erased`. Erasure deletes
+        # erased binders, so an erased `Effect(T)` binder would silently drop a
+        # computation the type says must run. Walk the final Pi spine and reject.
+        # (Syntactic head-check; the `no_effect_in_erased_position` Validator
+        # clause is the trusted backstop for an aliased effect type, §8.)
         final =
-          env
-          |> Env.add_def(sig.name, final_pi, lambda, quantities, sig.plicities)
-          |> maybe_register_unsafe(sig.name, meta)
-          |> maybe_register_reducible(sig.name, meta)
-          |> Env.put_source_holes(sig.name, collect_source_holes(body_expr, def_env, sig.return_span))
-          |> Env.put_labels(sig.name, param_label_vector(sig.params))
-          |> register_parameter_spans(sig.name, sig.params)
+          timed_body_stage(opts, :environment_publication, fn ->
+            env
+            |> Env.add_def(sig.name, final_pi, lambda, quantities, sig.plicities)
+            |> maybe_register_unsafe(sig.name, meta)
+            |> maybe_register_reducible(sig.name, meta)
+            |> Env.put_source_holes(sig.name, collect_source_holes(body_expr, def_env, sig.return_span))
+            |> Env.put_labels(sig.name, param_label_vector(sig.params))
+            |> register_parameter_spans(sig.name, sig.params)
+          end)
 
         # Best-effort totality certification, eagerly and in declaration order, so a
         # later def's type may δ-reduce this one (e.g. `plus` in `Vec(a, plus(m,n))`
@@ -984,8 +999,11 @@ defmodule Cure.Elab.Declarations do
         # kernel's totality check simply stays uncertified — opaque to δ, never a
         # soundness hole (§7). Whole-program enforcement of the *required* set still
         # happens in TotalityClosure.certify_type_level.
-        final = maybe_certify(final, sig.name)
-        Cure.Elab.Equation.generate(final, sig.name, meta, body_expr)
+        final = timed_body_stage(opts, :totality, fn -> maybe_certify(final, sig.name) end)
+
+        timed_body_stage(opts, :equations, fn ->
+          Cure.Elab.Equation.generate(final, sig.name, meta, body_expr)
+        end)
       end
     end
   end

@@ -47,7 +47,12 @@ defmodule Cure.Compiler.InterfaceBenchmarkTest do
              :macro_expansion,
              :signature,
              :induction,
-             :typed_elaboration
+             :typed_elaboration,
+             :relevance,
+             :core_packaging,
+             :environment_publication,
+             :totality,
+             :equations
            ]
 
     assert Enum.all?(report.cold.declaration_stages, fn stage ->
