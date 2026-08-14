@@ -32,7 +32,17 @@ defmodule Cure.Elab.TotalityWiringTest do
     assert diagnostic.code == "E013"
     assert diagnostic.primary.span.start_line == 4
     assert diagnostic.primary.span.start_column == 34
-    assert diagnostic.payload.reason == :not_total
+
+    assert %{
+             reason: :not_decreasing,
+             members: [:"Main#andd"],
+             offending_edge: %{
+               source: :"Main#andd",
+               target: :"Main#andd",
+               diagonal: [:equal, :equal],
+               source_call_path: [{:"Main#andd", :"Main#andd"}]
+             }
+           } = diagnostic.payload.reason
 
     assert rendered ==
              String.trim_trailing("""
@@ -48,6 +58,13 @@ defmodule Cure.Elab.TotalityWiringTest do
 
              Note: Runtime-only functions may remain partial; only compile-time computation
                    requires a total definition.
+
+             Note: Totality SCC: Main#andd
+
+             Note: Offending idempotent loop: Main#andd -> Main#andd; diagonal [:equal,
+                   :equal]
+
+             Note: Source-call path: Main#andd -> Main#andd
 
              Hint: Make each recursive call use a structurally smaller argument, or keep this function out of types
              """)

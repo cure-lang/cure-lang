@@ -16,7 +16,7 @@ defmodule Cure.Core.MutualSizeChangeTest do
   Shapes mirror the banked Antigen totality generators (even/odd, permuted pair,
   one-leg, three-cycle) and the #14 Ackermann body.
   """
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
   alias Cure.Core.{Env, Inductive, Kernel}
   alias Cure.Elab.TotalityGraph
   alias Cure.Elab.TotalityClosure

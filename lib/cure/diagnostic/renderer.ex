@@ -335,11 +335,15 @@ defmodule Cure.Diagnostic.Renderer do
   end
 
   defp stringify_keys(map) when is_map(map) do
-    Map.new(map, fn {key, value} -> {to_string(key), stringify_keys(value)} end)
+    Map.new(map, fn {key, value} -> {stringify_key(key), stringify_keys(value)} end)
   end
 
   defp stringify_keys(list) when is_list(list), do: Enum.map(list, &stringify_keys/1)
   defp stringify_keys(tuple) when is_tuple(tuple), do: tuple |> Tuple.to_list() |> Enum.map(&stringify_keys/1)
   defp stringify_keys(value) when is_atom(value), do: Atom.to_string(value)
   defp stringify_keys(value), do: value
+
+  defp stringify_key(key) when is_binary(key), do: key
+  defp stringify_key(key) when is_atom(key) or is_integer(key) or is_float(key), do: to_string(key)
+  defp stringify_key(key), do: inspect(key, limit: :infinity, printable_limit: :infinity)
 end
