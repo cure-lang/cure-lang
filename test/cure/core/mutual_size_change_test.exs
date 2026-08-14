@@ -150,7 +150,14 @@ defmodule Cure.Core.MutualSizeChangeTest do
              Kernel.validate_scc_certificates(prepared, partition, certificates, [:even, :odd])
 
     assert_receive {Cure.Pipeline.Events, :kernel, :totality_metric,
-                    %{operation: :component_certificate, cache: :miss, reason: :not_cached}, _metadata}
+                    %{
+                      operation: :component_certificate,
+                      cache: :miss,
+                      reason: :not_cached,
+                      elapsed_us: miss_elapsed
+                    }, _metadata}
+
+    assert miss_elapsed >= 0
 
     assert_receive {Cure.Pipeline.Events, :kernel, :totality_metric,
                     %{operation: :closure_verification, result: :total}, _metadata}
@@ -165,8 +172,10 @@ defmodule Cure.Core.MutualSizeChangeTest do
     assert_receive {Cure.Pipeline.Events, :kernel, :totality_metric, %{operation: :partition_verification, result: :ok},
                     _metadata}
 
-    assert_receive {Cure.Pipeline.Events, :kernel, :totality_metric, %{operation: :component_certificate, cache: :hit},
-                    _metadata}
+    assert_receive {Cure.Pipeline.Events, :kernel, :totality_metric,
+                    %{operation: :component_certificate, cache: :hit, elapsed_us: hit_elapsed}, _metadata}
+
+    assert hit_elapsed >= 0
 
     refute_receive {Cure.Pipeline.Events, :kernel, :totality_metric, %{operation: :closure_verification}, _metadata},
                    20

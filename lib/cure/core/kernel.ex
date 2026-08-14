@@ -868,13 +868,15 @@ defmodule Cure.Core.Kernel do
                  dependency_digests,
                  sealed_digests
                ) do
+          cache_started = System.monotonic_time(:microsecond)
+
           cond do
             Map.has_key?(acc.totality_components, digest) ->
-              emit_component_cache_metric(component_id, members, :hit)
+              emit_component_cache_metric(component_id, members, :hit, cache_started)
               {:cont, {:ok, acc}}
 
             true ->
-              emit_component_cache_metric(component_id, members, :miss)
+              emit_component_cache_metric(component_id, members, :miss, cache_started)
 
               case verify_totality_component(acc, members, certificate) do
                 {:ok, :total} ->
@@ -924,13 +926,15 @@ defmodule Cure.Core.Kernel do
               sealed_digests
             )
 
+          cache_started = System.monotonic_time(:microsecond)
+
           cond do
             Map.has_key?(acc.totality_components, digest) ->
-              emit_component_cache_metric(component_id, members, :hit)
+              emit_component_cache_metric(component_id, members, :hit, cache_started)
               acc
 
             true ->
-              emit_component_cache_metric(component_id, members, :miss)
+              emit_component_cache_metric(component_id, members, :miss, cache_started)
 
               case verify_totality_component(acc, members, certificate) do
                 {:ok, :total} ->
@@ -970,12 +974,13 @@ defmodule Cure.Core.Kernel do
   defp verify_totality_component(env, members, certificate),
     do: Cure.Core.TotalityCertificate.verify(env, members, certificate)
 
-  defp emit_component_cache_metric(component_id, members, cache) do
+  defp emit_component_cache_metric(component_id, members, cache, started) do
     payload = %{
       operation: :component_certificate,
       component: component_id,
       members: members,
-      cache: cache
+      cache: cache,
+      elapsed_us: System.monotonic_time(:microsecond) - started
     }
 
     payload = if cache == :miss, do: Map.put(payload, :reason, :not_cached), else: payload

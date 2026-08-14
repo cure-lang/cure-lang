@@ -262,7 +262,8 @@ defmodule Cure.Core.Env do
             reason: :definition_changed,
             definition: name,
             invalidated_components: MapSet.size(invalid_digests),
-            invalidated_members: members
+            invalidated_members: members,
+            elapsed_us: 0
           },
           %{}
         )
