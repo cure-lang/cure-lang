@@ -276,6 +276,16 @@ mod Std.Regex.Syntax.Model
     ['\\', _, '{' | _] -> literal_delimited_width(input, '}')
     _ -> literal_prefix_width(input, 3)
 
+  fn literal_decimal_prefix_width(input: List(Char)) -> Nat = match input
+    [] -> Z()
+    [char | rest] -> match literal_decimal_digit(char)
+      Some(_) -> S(literal_decimal_prefix_width(rest))
+      None() -> Z()
+
+  fn literal_numeric_escape_width(input: List(Char)) -> Nat = match input
+    ['\\' | rest] -> S(literal_decimal_prefix_width(rest))
+    _ -> Z()
+
   fn is_literal_stop(char: Char) -> Bool =
     char == '|' or char == ')'
 

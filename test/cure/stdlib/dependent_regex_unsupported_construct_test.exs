@@ -6,7 +6,9 @@ defmodule Cure.Stdlib.DependentRegexUnsupportedConstructTest do
 
   test "non-regular and deliberately unsupported constructs have dedicated diagnostics" do
     cases = [
-      {~S"(a)\1", :UnsupportedRegexBackreference, ~S"\1"},
+      {~S"(a)\1", :UnsupportedRegexNumericEscape, ~S"\1"},
+      {~S"\0", :UnsupportedRegexNumericEscape, ~S"\0"},
+      {~S"\123", :UnsupportedRegexNumericEscape, ~S"\123"},
       {~S"(?<name>a)\k<name>", :UnsupportedRegexNamedCapture, "(?<"},
       {~S"a\g{1}", :UnsupportedRegexBackreference, ~S"\g"},
       {~S"(?R)", :UnsupportedRegexRecursion, "(?R"},

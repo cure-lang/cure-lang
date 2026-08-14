@@ -228,5 +228,5 @@ mod Std.Regex.Syntax.Parser
     ['g' | _] -> LiteralAtInvalid(:UnsupportedRegexBackreference, origin, 2)
     ['k' | _] -> LiteralAtInvalid(:UnsupportedRegexBackreference, origin, 2)
     [char | rest] -> match literal_decimal_digit(char)
-      Some(_) -> LiteralAtInvalid(:UnsupportedRegexBackreference, origin, 2)
+      Some(_) -> LiteralAtInvalid(:UnsupportedRegexNumericEscape, origin, literal_numeric_escape_width(origin))
       None() -> LiteralParsed(LiteralExact(char), rest)
