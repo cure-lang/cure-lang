@@ -183,6 +183,17 @@ mod Std.Syntax
       [target]
     )
 
+  ## Attach user-facing content to an authored diagnostic while keeping its
+  ## stable failure name in the outer `Failure`. Presentation adapters consume
+  ## this record uniformly for source-defined macros.
+  @reducible
+  fn diagnostic_details(primary: Syntax, message: String, hint: String) -> Syntax =
+    Node(
+      :diagnostic_details,
+      [KV(:message, SStr(message)), KV(:hint, SStr(hint))],
+      [primary]
+    )
+
   @reducible
   fn attr_value(name: Atom, value: SynLit) -> Attr = KV(name, value)
 

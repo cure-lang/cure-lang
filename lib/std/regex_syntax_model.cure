@@ -34,7 +34,11 @@ mod Std.Regex.Syntax.Model
     | LiteralFinalEnd
     | LiteralWordBoundary(Bool)
 
-  type LiteralParse = LiteralParsed(LiteralPattern, List(Char)) | LiteralInvalid(Atom)
+  type LiteralParse =
+    | LiteralParsed(LiteralPattern, List(Char))
+    | LiteralInvalid(Atom)
+    | LiteralAtInvalid(Atom, List(Char), Nat)
+    | LiteralLocatedInvalid(Atom, Nat, Nat)
   type LiteralClassParse = LiteralClassParsed(List(Char), List(LiteralCharacterRange), LiteralClassKinds, List(Char)) | LiteralClassInvalid(Atom)
   type LiteralFlags = LiteralFlagsParsed(LiteralRegexOptions) | LiteralFlagsInvalid(Atom)
   type LiteralCountParse = LiteralCountParsed(Nat, Bool, List(Char)) | LiteralCountInvalid(Atom)
@@ -211,6 +215,25 @@ mod Std.Regex.Syntax.Model
   ## leaving enough room for nested groups and empty alternatives.
   fn parse_fuel_step(fuel: Nat) -> Nat =
     S(S(S(S(S(S(S(S(S(S(S(S(S(S(S(S(fuel))))))))))))))))
+
+  fn literal_length(input: List(Char)) -> Nat = match input
+    [] -> Z()
+    [_ | rest] -> S(literal_length(rest))
+
+  fn literal_nat_minus(left: Nat, right: Nat) -> Nat = match right
+    Z() -> left
+    S(right_rest) -> match left
+      Z() -> Z()
+      S(left_rest) -> literal_nat_minus(left_rest, right_rest)
+
+  fn literal_suffix_offset(input: List(Char), suffix: List(Char)) -> Nat =
+    literal_nat_minus(literal_length(input), literal_length(suffix))
+
+  fn literal_delimited_width(input: List(Char), closing: Char) -> Nat = match input
+    [] -> Z()
+    [char | rest] -> pickup
+      char == closing -> 1
+      else -> S(literal_delimited_width(rest, closing))
 
   fn is_literal_stop(char: Char) -> Bool =
     char == '|' or char == ')'

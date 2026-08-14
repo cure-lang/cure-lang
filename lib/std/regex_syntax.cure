@@ -15,12 +15,38 @@ mod Std.Regex.Syntax
   fn expand_literal(input: Syntax) -> MacroResult = match children(input)
     [pattern_syntax, flags_syntax] -> match leaf_value(pattern_syntax)
       SStr(pattern) -> match leaf_value(flags_syntax)
-        SStr(flags) -> expand_literal_strings(pattern, flags)
+        SStr(flags) -> expand_literal_strings(pattern_syntax, pattern, flags)
         _ -> reject(Failure(:InvalidRegexFlagsInput, []))
       _ -> reject(Failure(:InvalidRegexPatternInput, []))
     _ -> reject(Failure(:InvalidRegexLiteralInput, []))
 
-  fn expand_literal_strings(pattern: String, flags: String) -> MacroResult = match parse_literal_flags(Std.String.characters(flags), literal_default_options())
+  fn reject_located_literal(pattern_syntax: Syntax, reason: Atom, start: Nat, width: Nat) -> MacroResult =
+    let primary = diagnostic_subspan(pattern_syntax, Std.Nat.to_integer(start), Std.Nat.to_integer(width))
+    reject(Failure(reason, [diagnostic_details(primary, regex_failure_message(reason), regex_failure_hint(reason))]))
+
+  fn regex_failure_message(reason: Atom) -> String = match reason
+    :MissingRegexQuantifierMinimum -> "This bounded quantifier is missing its minimum repetition count."
+    :MissingRegexQuantifierMaximum -> "This bounded quantifier is missing its maximum repetition count."
+    :RegexQuantifierRangeReversed -> "This bounded quantifier has a maximum smaller than its minimum."
+    :UnclosedRegexQuantifier -> "This bounded quantifier is missing its closing `}`."
+    :MalformedRegexQuantifier -> "This bounded quantifier must contain decimal repetition counts."
+    :RegexQuantifierTooLarge -> "This bounded quantifier exceeds Cure's compile-time expansion limit of 64 repetitions."
+    :QuantifierWithoutAtom -> "This quantifier has no preceding regex atom to repeat."
+    :UnsupportedRegexPossessiveQuantifier -> "Possessive quantifiers are not supported by Cure's finite regex language."
+    _ -> "This regex literal contains malformed or unsupported syntax."
+
+  fn regex_failure_hint(reason: Atom) -> String = match reason
+    :MissingRegexQuantifierMinimum -> "Write a decimal minimum, for example `{2}`, `{2,}`, or `{2,4}`."
+    :MissingRegexQuantifierMaximum -> "Write a decimal maximum after the comma, or close immediately as `{m,}`."
+    :RegexQuantifierRangeReversed -> "Make the maximum greater than or equal to the minimum."
+    :UnclosedRegexQuantifier -> "Close the repetition range with `}`."
+    :MalformedRegexQuantifier -> "Use `{m}`, `{m,}`, or `{m,n}` with decimal counts."
+    :RegexQuantifierTooLarge -> "Reduce the bound to 64 or less, or build the repeated regex explicitly."
+    :QuantifierWithoutAtom -> "Place the quantifier after a literal, class, group, or other regex atom."
+    :UnsupportedRegexPossessiveQuantifier -> "Use the corresponding greedy or lazy quantifier without the possessive `+` suffix."
+    _ -> "Correct the highlighted regex syntax."
+
+  fn expand_literal_strings(pattern_syntax: Syntax, pattern: String, flags: String) -> MacroResult = match parse_literal_flags(Std.String.characters(flags), literal_default_options())
     LiteralFlagsParsed(options) ->
       match parse_literal(prepare_literal(Std.String.characters(pattern), options))
         LiteralParsed(parsed, rest) -> match rest
@@ -33,4 +59,6 @@ mod Std.Regex.Syntax
             )
           _ -> reject(Failure(:UnexpectedRegexSuffix, []))
         LiteralInvalid(reason) -> reject(Failure(reason, []))
+        LiteralAtInvalid(reason, _, _) -> reject(Failure(reason, []))
+        LiteralLocatedInvalid(reason, start, width) -> reject_located_literal(pattern_syntax, reason, start, width)
     LiteralFlagsInvalid(reason) -> reject(Failure(reason, []))

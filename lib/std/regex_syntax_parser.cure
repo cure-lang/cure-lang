@@ -6,19 +6,23 @@ mod Std.Regex.Syntax.Parser
   use Std.Regex.Syntax.Class
 
   fn parse_literal(input: List(Char)) -> LiteralParse =
-    parse_literal_complete(parse_literal_alternate_fuel(input, literal_fuel(input)))
+    parse_literal_complete(parse_literal_alternate_fuel(input, literal_fuel(input)), input)
 
-  fn parse_literal_complete(result: LiteralParse) -> LiteralParse = match result
+  fn parse_literal_complete(result: LiteralParse, original: List(Char)) -> LiteralParse = match result
     LiteralParsed(pattern, rest) -> match rest
       [] -> LiteralParsed(pattern, [])
       _ -> LiteralInvalid(:UnexpectedRegexToken)
     LiteralInvalid(reason) -> LiteralInvalid(reason)
+    LiteralAtInvalid(reason, suffix, width) -> LiteralLocatedInvalid(reason, literal_suffix_offset(original, suffix), width)
+    LiteralLocatedInvalid(reason, start, width) -> LiteralLocatedInvalid(reason, start, width)
 
   fn parse_literal_alternate_fuel(input: List(Char), fuel: Nat) -> LiteralParse = match fuel
     Z() -> LiteralInvalid(:RegexParseLimit)
     S(next_fuel) -> match parse_literal_sequence_fuel(input, next_fuel)
       LiteralParsed(left, rest) -> parse_literal_alternate_tail_fuel(left, rest, next_fuel)
       LiteralInvalid(reason) -> LiteralInvalid(reason)
+      LiteralAtInvalid(reason, suffix, width) -> LiteralAtInvalid(reason, suffix, width)
+      LiteralLocatedInvalid(reason, start, width) -> LiteralLocatedInvalid(reason, start, width)
 
   fn parse_literal_alternate_tail_fuel(left: LiteralPattern, input: List(Char), fuel: Nat) -> LiteralParse = match fuel
     Z() -> LiteralParsed(left, input)
@@ -26,6 +30,8 @@ mod Std.Regex.Syntax.Parser
       ['|' | rest] -> match parse_literal_sequence_fuel(rest, next_fuel)
         LiteralParsed(right, tail) -> parse_literal_alternate_tail_fuel(LiteralAlternate(left, right), tail, next_fuel)
         LiteralInvalid(reason) -> LiteralInvalid(reason)
+        LiteralAtInvalid(reason, suffix, width) -> LiteralAtInvalid(reason, suffix, width)
+        LiteralLocatedInvalid(reason, start, width) -> LiteralLocatedInvalid(reason, start, width)
       _ -> LiteralParsed(left, input)
 
   fn parse_literal_sequence_fuel(input: List(Char), fuel: Nat) -> LiteralParse = match fuel
@@ -37,6 +43,8 @@ mod Std.Regex.Syntax.Parser
         else -> match parse_literal_repetition_fuel(input, next_fuel)
           LiteralParsed(first, rest) -> parse_literal_sequence_tail_fuel(first, rest, next_fuel)
           LiteralInvalid(reason) -> LiteralInvalid(reason)
+          LiteralAtInvalid(reason, suffix, width) -> LiteralAtInvalid(reason, suffix, width)
+          LiteralLocatedInvalid(reason, start, width) -> LiteralLocatedInvalid(reason, start, width)
 
   fn parse_literal_sequence_tail_fuel(left: LiteralPattern, input: List(Char), fuel: Nat) -> LiteralParse = match fuel
     Z() -> LiteralParsed(left, input)
@@ -47,20 +55,22 @@ mod Std.Regex.Syntax.Parser
         else -> match parse_literal_repetition_fuel(input, next_fuel)
           LiteralParsed(right, rest) -> parse_literal_sequence_tail_fuel(LiteralSequence(left, right), rest, next_fuel)
           LiteralInvalid(reason) -> LiteralInvalid(reason)
+          LiteralAtInvalid(reason, suffix, width) -> LiteralAtInvalid(reason, suffix, width)
+          LiteralLocatedInvalid(reason, start, width) -> LiteralLocatedInvalid(reason, start, width)
 
   fn parse_literal_repetition_fuel(input: List(Char), fuel: Nat) -> LiteralParse = match fuel
     Z() -> LiteralInvalid(:RegexParseLimit)
     S(next_fuel) -> match parse_literal_atom_fuel(input, next_fuel)
-      LiteralParsed(_, ['*', '+' | _]) -> LiteralInvalid(:UnsupportedRegexPossessiveQuantifier)
-      LiteralParsed(_, ['+', '+' | _]) -> LiteralInvalid(:UnsupportedRegexPossessiveQuantifier)
-      LiteralParsed(_, ['?', '+' | _]) -> LiteralInvalid(:UnsupportedRegexPossessiveQuantifier)
+      LiteralParsed(_, ['*', '+' | rest]) -> LiteralAtInvalid(:UnsupportedRegexPossessiveQuantifier, ['*', '+' | rest], 2)
+      LiteralParsed(_, ['+', '+' | rest]) -> LiteralAtInvalid(:UnsupportedRegexPossessiveQuantifier, ['+', '+' | rest], 2)
+      LiteralParsed(_, ['?', '+' | rest]) -> LiteralAtInvalid(:UnsupportedRegexPossessiveQuantifier, ['?', '+' | rest], 2)
       LiteralParsed(atom, ['*', '?' | rest]) -> LiteralParsed(LiteralRepeat(atom, true), rest)
       LiteralParsed(atom, ['+', '?' | rest]) -> LiteralParsed(LiteralPlus(atom, true), rest)
       LiteralParsed(atom, ['?', '?' | rest]) -> LiteralParsed(LiteralOptional(atom, true), rest)
       LiteralParsed(atom, ['*' | rest]) -> LiteralParsed(LiteralRepeat(atom, false), rest)
       LiteralParsed(atom, ['+' | rest]) -> LiteralParsed(LiteralPlus(atom, false), rest)
       LiteralParsed(atom, ['?' | rest]) -> LiteralParsed(LiteralOptional(atom, false), rest)
-      LiteralParsed(atom, ['{' | rest]) -> parse_literal_bounded(atom, rest)
+      LiteralParsed(atom, ['{' | rest]) -> parse_literal_bounded(atom, rest, ['{' | rest])
       result -> result
 
   fn parse_literal_count(input: List(Char), value: Nat, seen: Bool) -> LiteralCountParse = match input
@@ -72,47 +82,53 @@ mod Std.Regex.Syntax.Parser
   fn bounded_count_allowed(value: Nat) -> Bool =
     not literal_nat_less(literal_quantifier_limit(), value)
 
-  fn finish_literal_exact_bounded(atom: LiteralPattern, count: Nat, rest: List(Char)) -> LiteralParse = pickup
+  fn literal_bounded_failure(reason: Atom, origin: List(Char)) -> LiteralParse =
+    LiteralAtInvalid(reason, origin, literal_delimited_width(origin, '}'))
+
+  fn literal_bounded_possessive_failure(origin: List(Char)) -> LiteralParse =
+    LiteralAtInvalid(:UnsupportedRegexPossessiveQuantifier, origin, S(literal_delimited_width(origin, '}')))
+
+  fn finish_literal_exact_bounded(atom: LiteralPattern, count: Nat, rest: List(Char), origin: List(Char)) -> LiteralParse = pickup
     bounded_count_allowed(count) -> match rest
       ['?' | tail] -> LiteralParsed(LiteralBoundedExact(atom, count), tail)
-      ['+' | _] -> LiteralInvalid(:UnsupportedRegexPossessiveQuantifier)
+      ['+' | _] -> literal_bounded_possessive_failure(origin)
       _ -> LiteralParsed(LiteralBoundedExact(atom, count), rest)
-    else -> LiteralInvalid(:RegexQuantifierTooLarge)
+    else -> literal_bounded_failure(:RegexQuantifierTooLarge, origin)
 
-  fn finish_literal_at_least_bounded(atom: LiteralPattern, count: Nat, rest: List(Char)) -> LiteralParse = pickup
+  fn finish_literal_at_least_bounded(atom: LiteralPattern, count: Nat, rest: List(Char), origin: List(Char)) -> LiteralParse = pickup
     bounded_count_allowed(count) -> match rest
       ['?' | tail] -> LiteralParsed(LiteralBoundedAtLeast(atom, count, true), tail)
-      ['+' | _] -> LiteralInvalid(:UnsupportedRegexPossessiveQuantifier)
+      ['+' | _] -> literal_bounded_possessive_failure(origin)
       _ -> LiteralParsed(LiteralBoundedAtLeast(atom, count, false), rest)
-    else -> LiteralInvalid(:RegexQuantifierTooLarge)
+    else -> literal_bounded_failure(:RegexQuantifierTooLarge, origin)
 
-  fn finish_literal_between_bounded(atom: LiteralPattern, minimum: Nat, maximum: Nat, rest: List(Char)) -> LiteralParse = pickup
-    not bounded_count_allowed(minimum) or not bounded_count_allowed(maximum) -> LiteralInvalid(:RegexQuantifierTooLarge)
-    literal_nat_less(maximum, minimum) -> LiteralInvalid(:RegexQuantifierRangeReversed)
+  fn finish_literal_between_bounded(atom: LiteralPattern, minimum: Nat, maximum: Nat, rest: List(Char), origin: List(Char)) -> LiteralParse = pickup
+    not bounded_count_allowed(minimum) or not bounded_count_allowed(maximum) -> literal_bounded_failure(:RegexQuantifierTooLarge, origin)
+    literal_nat_less(maximum, minimum) -> literal_bounded_failure(:RegexQuantifierRangeReversed, origin)
     else -> match rest
       ['?' | tail] -> LiteralParsed(LiteralBoundedBetween(atom, minimum, maximum, true), tail)
-      ['+' | _] -> LiteralInvalid(:UnsupportedRegexPossessiveQuantifier)
+      ['+' | _] -> literal_bounded_possessive_failure(origin)
       _ -> LiteralParsed(LiteralBoundedBetween(atom, minimum, maximum, false), rest)
 
-  fn parse_literal_bounded_maximum(atom: LiteralPattern, minimum: Nat, input: List(Char)) -> LiteralParse = match parse_literal_count(input, Z(), false)
-    LiteralCountInvalid(reason) -> LiteralInvalid(reason)
+  fn parse_literal_bounded_maximum(atom: LiteralPattern, minimum: Nat, input: List(Char), origin: List(Char)) -> LiteralParse = match parse_literal_count(input, Z(), false)
+    LiteralCountInvalid(reason) -> literal_bounded_failure(reason, origin)
     LiteralCountParsed(maximum, seen, rest) -> pickup
-      not seen -> LiteralInvalid(:MissingRegexQuantifierMaximum)
+      not seen -> literal_bounded_failure(:MissingRegexQuantifierMaximum, origin)
       else -> match rest
-        ['}' | tail] -> finish_literal_between_bounded(atom, minimum, maximum, tail)
-        [] -> LiteralInvalid(:UnclosedRegexQuantifier)
-        _ -> LiteralInvalid(:MalformedRegexQuantifier)
+        ['}' | tail] -> finish_literal_between_bounded(atom, minimum, maximum, tail, origin)
+        [] -> literal_bounded_failure(:UnclosedRegexQuantifier, origin)
+        _ -> literal_bounded_failure(:MalformedRegexQuantifier, origin)
 
-  fn parse_literal_bounded(atom: LiteralPattern, input: List(Char)) -> LiteralParse = match parse_literal_count(input, Z(), false)
-    LiteralCountInvalid(reason) -> LiteralInvalid(reason)
+  fn parse_literal_bounded(atom: LiteralPattern, input: List(Char), origin: List(Char)) -> LiteralParse = match parse_literal_count(input, Z(), false)
+    LiteralCountInvalid(reason) -> literal_bounded_failure(reason, origin)
     LiteralCountParsed(minimum, seen, rest) -> pickup
-      not seen -> LiteralInvalid(:MissingRegexQuantifierMinimum)
+      not seen -> literal_bounded_failure(:MissingRegexQuantifierMinimum, origin)
       else -> match rest
-        ['}' | tail] -> finish_literal_exact_bounded(atom, minimum, tail)
-        [',' , '}' | tail] -> finish_literal_at_least_bounded(atom, minimum, tail)
-        [',' | tail] -> parse_literal_bounded_maximum(atom, minimum, tail)
-        [] -> LiteralInvalid(:UnclosedRegexQuantifier)
-        _ -> LiteralInvalid(:MalformedRegexQuantifier)
+        ['}' | tail] -> finish_literal_exact_bounded(atom, minimum, tail, origin)
+        [',' , '}' | tail] -> finish_literal_at_least_bounded(atom, minimum, tail, origin)
+        [',' | tail] -> parse_literal_bounded_maximum(atom, minimum, tail, origin)
+        [] -> literal_bounded_failure(:UnclosedRegexQuantifier, origin)
+        _ -> literal_bounded_failure(:MalformedRegexQuantifier, origin)
 
   fn parse_literal_atom_fuel(input: List(Char), fuel: Nat) -> LiteralParse = match fuel
     Z() -> LiteralInvalid(:RegexParseLimit)
@@ -124,10 +140,10 @@ mod Std.Regex.Syntax.Parser
       ['(' | rest] -> parse_literal_group_fuel(rest, next_fuel)
       ['[' | rest] -> parse_literal_class(rest)
       ['\\' | rest] -> parse_literal_escape(rest)
-      ['*' | _] -> LiteralInvalid(:QuantifierWithoutAtom)
-      ['+' | _] -> LiteralInvalid(:QuantifierWithoutAtom)
-      ['?' | _] -> LiteralInvalid(:QuantifierWithoutAtom)
-      ['{' | _] -> LiteralInvalid(:QuantifierWithoutAtom)
+      ['*' | rest] -> LiteralAtInvalid(:QuantifierWithoutAtom, ['*' | rest], 1)
+      ['+' | rest] -> LiteralAtInvalid(:QuantifierWithoutAtom, ['+' | rest], 1)
+      ['?' | rest] -> LiteralAtInvalid(:QuantifierWithoutAtom, ['?' | rest], 1)
+      ['{' | rest] -> LiteralAtInvalid(:QuantifierWithoutAtom, ['{' | rest], literal_delimited_width(['{' | rest], '}'))
       [char | rest] -> LiteralParsed(LiteralExact(char), rest)
 
   fn parse_literal_group_fuel(input: List(Char), fuel: Nat) -> LiteralParse = match fuel
@@ -165,6 +181,8 @@ mod Std.Regex.Syntax.Parser
       LiteralParsed(pattern, [')' | rest]) -> LiteralParsed(LiteralCapture(pattern), rest)
       LiteralParsed(_, _) -> LiteralInvalid(:UnclosedRegexGroup)
       LiteralInvalid(reason) -> LiteralInvalid(reason)
+      LiteralAtInvalid(reason, suffix, width) -> LiteralAtInvalid(reason, suffix, width)
+      LiteralLocatedInvalid(reason, start, width) -> LiteralLocatedInvalid(reason, start, width)
 
   fn parse_literal_non_capture_fuel(input: List(Char), fuel: Nat) -> LiteralParse = match fuel
     Z() -> LiteralInvalid(:RegexParseLimit)
@@ -172,6 +190,8 @@ mod Std.Regex.Syntax.Parser
       LiteralParsed(pattern, [')' | rest]) -> LiteralParsed(pattern, rest)
       LiteralParsed(_, _) -> LiteralInvalid(:UnclosedRegexGroup)
       LiteralInvalid(reason) -> LiteralInvalid(reason)
+      LiteralAtInvalid(reason, suffix, width) -> LiteralAtInvalid(reason, suffix, width)
+      LiteralLocatedInvalid(reason, start, width) -> LiteralLocatedInvalid(reason, start, width)
 
   fn parse_literal_escape(input: List(Char)) -> LiteralParse = match input
     [] -> LiteralInvalid(:TrailingRegexEscape)

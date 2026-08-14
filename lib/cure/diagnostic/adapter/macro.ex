@@ -677,6 +677,12 @@ defmodule Cure.Diagnostic.Adapter.Macro do
   defp author_diagnostic_primary_span(_diagnostic, _opts), do: nil
 
   defp diagnostic_argument_span(
+         {:diagnostic_details, _details_meta, [primary]},
+         opts
+       ),
+       do: diagnostic_argument_span(primary, opts)
+
+  defp diagnostic_argument_span(
          {:diagnostic_subspan, selector_meta, [target]},
          opts
        )
@@ -2197,8 +2203,12 @@ defmodule Cure.Diagnostic.Adapter.Macro do
     "invalid macro expansion: #{String.downcase(message)}"
   end
 
-  defp computed_macro_reason({:author_diagnostics, diagnostics}) when is_list(diagnostics),
-    do: "macro rejected expansion: #{author_diagnostic_summary(diagnostics)}"
+  defp computed_macro_reason({:author_diagnostics, diagnostics}) when is_list(diagnostics) do
+    case author_diagnostic_content(diagnostics, :message) do
+      nil -> "macro rejected expansion: #{author_diagnostic_summary(diagnostics)}"
+      message -> message
+    end
+  end
 
   defp computed_macro_reason({:author_failure, name, args}) when is_list(args),
     do: "macro rejected expansion: the macro reported `#{name}`"
@@ -2220,7 +2230,12 @@ defmodule Cure.Diagnostic.Adapter.Macro do
 
   defp computed_macro_suggestions({:author_diagnostics, diagnostics}),
     do: [
-      %Suggestion{message: "Address #{author_diagnostic_hint(diagnostics)} at this invocation", applicability: :manual}
+      %Suggestion{
+        message:
+          author_diagnostic_content(diagnostics, :hint) ||
+            "Address #{author_diagnostic_hint(diagnostics)} at this invocation",
+        applicability: :manual
+      }
     ]
 
   defp computed_macro_suggestions({:author_failure, name, _args}),
@@ -2270,6 +2285,25 @@ defmodule Cure.Diagnostic.Adapter.Macro do
     end)
     |> Enum.uniq()
   end
+
+  defp author_diagnostic_content(diagnostics, key) do
+    Enum.find_value(diagnostics, fn
+      {:macro_failure, _name, arguments} when is_list(arguments) ->
+        Enum.find_value(arguments, &diagnostic_detail_content(&1, key))
+
+      _diagnostic ->
+        nil
+    end)
+  end
+
+  defp diagnostic_detail_content({:diagnostic_details, meta, [_primary]}, key) when is_list(meta) do
+    case Keyword.get(meta, key) do
+      value when is_binary(value) -> value
+      _ -> nil
+    end
+  end
+
+  defp diagnostic_detail_content(_argument, _key), do: nil
 
   defp diagnostic_fingerprint(term) do
     term
