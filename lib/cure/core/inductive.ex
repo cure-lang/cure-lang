@@ -254,6 +254,19 @@ defmodule Cure.Core.Env do
         totality =
           if is_nil(env.totality_certified), do: nil, else: MapSet.difference(env.totality_certified, member_set)
 
+        Cure.Pipeline.Events.emit(
+          :kernel,
+          :totality_metric,
+          %{
+            operation: :component_certificate_invalidation,
+            reason: :definition_changed,
+            definition: name,
+            invalidated_components: MapSet.size(invalid_digests),
+            invalidated_members: members
+          },
+          %{}
+        )
+
         {certified, totality, Map.drop(env.totality_components, MapSet.to_list(invalid_digests)),
          Map.drop(env.totality_component_of, members)}
     end

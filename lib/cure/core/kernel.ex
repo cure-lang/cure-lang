@@ -870,9 +870,12 @@ defmodule Cure.Core.Kernel do
                ) do
           cond do
             Map.has_key?(acc.totality_components, digest) ->
+              emit_component_cache_metric(component_id, members, :hit)
               {:cont, {:ok, acc}}
 
             true ->
+              emit_component_cache_metric(component_id, members, :miss)
+
               case verify_totality_component(acc, members, certificate) do
                 {:ok, :total} ->
                   metadata = %{
@@ -923,9 +926,12 @@ defmodule Cure.Core.Kernel do
 
           cond do
             Map.has_key?(acc.totality_components, digest) ->
+              emit_component_cache_metric(component_id, members, :hit)
               acc
 
             true ->
+              emit_component_cache_metric(component_id, members, :miss)
+
               case verify_totality_component(acc, members, certificate) do
                 {:ok, :total} ->
                   metadata = %{
@@ -963,6 +969,18 @@ defmodule Cure.Core.Kernel do
 
   defp verify_totality_component(env, members, certificate),
     do: Cure.Core.TotalityCertificate.verify(env, members, certificate)
+
+  defp emit_component_cache_metric(component_id, members, cache) do
+    payload = %{
+      operation: :component_certificate,
+      component: component_id,
+      members: members,
+      cache: cache
+    }
+
+    payload = if cache == :miss, do: Map.put(payload, :reason, :not_cached), else: payload
+    Cure.Pipeline.Events.emit(:kernel, :totality_metric, payload, %{})
+  end
 
   defp component_dependency_digests(env, partition, component_id) do
     dependency_ids =

@@ -57,8 +57,17 @@ defmodule Cure.Core.CertificateTest do
     env = Env.add_def(base(), :stable, @dec, @causal)
     assert {:ok, certified} = certify(env, :stable)
     assert Env.certified?(certified, :stable)
+    :ok = Cure.Pipeline.Events.subscribe(:kernel, :totality_metric)
 
     replaced = Env.add_def(certified, :stable, @dec, {:global, :stable})
+
+    assert_receive {Cure.Pipeline.Events, :kernel, :totality_metric,
+                    %{
+                      operation: :component_certificate_invalidation,
+                      reason: :definition_changed,
+                      definition: :stable,
+                      invalidated_components: 1
+                    }, _metadata}
 
     refute Env.certified?(replaced, :stable)
     assert {:error, :not_total} = certify(replaced, :stable)
