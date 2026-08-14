@@ -11,9 +11,9 @@ defmodule Cure.Core.Certificate do
   verifies their finite certificates.
   """
 
-  alias Cure.Core.{Env, SizeChange, Term}
+  alias Cure.Core.{Context, Env, Eval, Inductive, Kernel, SizeChange, Term}
 
-  @direct_summary_version 5
+  @direct_summary_version 6
   @diagnostic_provenance_keys [:source_span, :macro_expansion]
 
   @doc "The semantic format/checker version of trusted direct-call summaries."
@@ -61,7 +61,7 @@ defmodule Cure.Core.Certificate do
   @spec direct_summary(atom(), Cure.Core.Term.t(), Env.t()) :: map()
   def direct_summary(name, body, %Env{} = env) do
     caller = Env.resolve_key(env, env.defs, name)
-    {caller_arity, inner} = peel_lams(body, 0)
+    {caller_arity, inner, ctx} = peel_lams_with_context(body, Context.empty(env), 0)
     st = initial_state(caller_arity)
 
     emit = fn callee, args, state, acc ->
@@ -79,7 +79,7 @@ defmodule Cure.Core.Certificate do
     end
 
     calls =
-      walk(emit, inner, st, [])
+      walk(emit, inner, st, ctx, [])
       |> Enum.reverse()
       |> Enum.with_index(fn call, ordinal ->
         provenance = %{caller: caller, core_path: ordinal}
@@ -180,28 +180,29 @@ defmodule Cure.Core.Certificate do
   # corresponding change matrix / edge; the traversal itself is identical either
   # way, so both paths descend into EVERY node that can hide a call — a nested
   # call sitting inside an argument (e.g. Ackermann) is still reached.
-  defp walk(emit, term, st, acc) do
+  defp walk(emit, term, st, ctx, acc) do
     case spine(term) do
       {{:global, g}, args} ->
         acc = emit.(g, args, st, acc)
-        Enum.reduce(args, acc, fn a, ac -> walk(emit, a, st, ac) end)
+        Enum.reduce(args, acc, fn a, ac -> walk(emit, a, st, ctx, ac) end)
 
       {{:case, scrut, motive, branches}, args} when args != [] ->
-        acc = walk(emit, scrut, st, acc)
-        acc = walk(emit, motive, st, acc)
-        acc = Enum.reduce(args, acc, fn arg, ac -> walk(emit, arg, st, ac) end)
+        acc = walk(emit, scrut, st, ctx, acc)
+        acc = walk(emit, motive, st, ctx, acc)
+        acc = Enum.reduce(args, acc, fn arg, ac -> walk(emit, arg, st, ctx, ac) end)
 
         Enum.reduce(branches, acc, fn {ctor, arity, body}, ac ->
-          branch_state = refine_branch(st, scrut, ctor, arity)
-          walk_applied_branch(emit, body, args, branch_state, arity, ac)
+          {subst, branch_ctx} = indexed_branch_refinement(ctx, scrut, ctor, arity)
+          branch_state = refine_branch(st, scrut, ctor, arity, subst)
+          walk_applied_branch(emit, body, args, branch_state, branch_ctx, arity, ac)
         end)
 
       {head, args} when args != [] ->
-        acc = walk(emit, head, st, acc)
-        Enum.reduce(args, acc, fn a, ac -> walk(emit, a, st, ac) end)
+        acc = walk(emit, head, st, ctx, acc)
+        Enum.reduce(args, acc, fn a, ac -> walk(emit, a, st, ctx, ac) end)
 
       _ ->
-        walk_node(emit, term, st, acc)
+        walk_node(emit, term, st, ctx, acc)
     end
   end
 
@@ -209,18 +210,22 @@ defmodule Cure.Core.Certificate do
   # each branch shifts the frame by its arity, and matching a parameter (or a
   # known-smaller variable) exposes the branch's fields as smaller. Matching a
   # parameter *exactly* also records its reconstruction for reconstruct-equal.
-  defp walk_node(emit, {:case, scrut, motive, branches}, st, acc) do
-    acc = walk(emit, scrut, st, acc)
-    acc = walk(emit, motive, st, acc)
+  defp walk_node(emit, {:case, scrut, motive, branches}, st, ctx, acc) do
+    acc = walk(emit, scrut, st, ctx, acc)
+    acc = walk(emit, motive, st, ctx, acc)
 
     Enum.reduce(branches, acc, fn {ctor, ar, body}, ac ->
-      st2 = refine_branch(st, scrut, ctor, ar)
-      walk(emit, body, st2, ac)
+      {subst, branch_ctx} = indexed_branch_refinement(ctx, scrut, ctor, ar)
+      st2 = refine_branch(st, scrut, ctor, ar, subst)
+      walk(emit, body, st2, branch_ctx, ac)
     end)
   end
 
-  defp walk_node(emit, {:lam, _g, d, b}, st, acc),
-    do: walk(emit, b, shift_state(st, 1), walk(emit, d, st, acc))
+  defp walk_node(emit, {:lam, grade, domain, body}, st, ctx, acc) do
+    acc = walk(emit, domain, st, ctx, acc)
+    body_ctx = extend_context(ctx, domain, grade)
+    walk(emit, body, shift_state(st, 1), body_ctx, acc)
+  end
 
   # `:let` binds one variable in `body` only.
   #
@@ -230,19 +235,28 @@ defmodule Cure.Core.Certificate do
   # anyway found by `gather_globals/2`, which walks any tuple. Verified: deleting
   # this clause changes no `terminating?/3` verdict I could construct. It is here
   # because a traversal must not silently skip a binder's children.
-  defp walk_node(emit, {:let, _g, t, v, b}, st, acc),
-    do: walk(emit, b, shift_state(st, 1), walk(emit, v, st, walk(emit, t, st, acc)))
+  defp walk_node(emit, {:let, _grade, type, value, body}, st, ctx, acc) do
+    acc = walk(emit, type, st, ctx, acc)
+    acc = walk(emit, value, st, ctx, acc)
 
-  defp walk_node(emit, {:pi, _g, d, c}, st, acc),
-    do: walk(emit, c, shift_state(st, 1), walk(emit, d, st, acc))
+    body_ctx = extend_definition_context(ctx, type, value)
 
-  defp walk_node(emit, {:data, _n, ps, is}, st, acc) do
-    acc = Enum.reduce(ps, acc, fn t, ac -> walk(emit, t, st, ac) end)
-    Enum.reduce(is, acc, fn t, ac -> walk(emit, t, st, ac) end)
+    walk(emit, body, shift_state(st, 1), body_ctx, acc)
   end
 
-  defp walk_node(emit, {:ctor, _n, args}, st, acc),
-    do: Enum.reduce(args, acc, fn a, ac -> walk(emit, a, st, ac) end)
+  defp walk_node(emit, {:pi, grade, domain, codomain}, st, ctx, acc) do
+    acc = walk(emit, domain, st, ctx, acc)
+    codomain_ctx = extend_context(ctx, domain, grade)
+    walk(emit, codomain, shift_state(st, 1), codomain_ctx, acc)
+  end
+
+  defp walk_node(emit, {:data, _n, ps, is}, st, ctx, acc) do
+    acc = Enum.reduce(ps, acc, fn t, ac -> walk(emit, t, st, ctx, ac) end)
+    Enum.reduce(is, acc, fn t, ac -> walk(emit, t, st, ctx, ac) end)
+  end
+
+  defp walk_node(emit, {:ctor, _n, args}, st, ctx, acc),
+    do: Enum.reduce(args, acc, fn a, ac -> walk(emit, a, st, ctx, ac) end)
 
   # Fallback for any tuple node not matched above: a genuine leaf (`{:var,_}`,
   # `{:int_lit,_}`, an untracked `{:global,_}`), OR an unrecognized/future form. Descend
@@ -255,39 +269,130 @@ defmodule Cure.Core.Certificate do
   # change-matrix builder, and the moduledoc's claim that "the kernel never certifies a
   # function it cannot prove total" was false for `terminating?/3` called in isolation.
   # `terminating?/3` is public, and `certify_hardening_test.exs` already calls it directly.
-  defp walk_node(emit, term, st, acc) when is_tuple(term) do
+  defp walk_node(emit, term, st, ctx, acc) when is_tuple(term) do
     term
     |> Tuple.to_list()
     |> Enum.reduce(acc, fn
-      child, ac when is_tuple(child) -> walk(emit, child, st, ac)
-      children, ac when is_list(children) -> Enum.reduce(children, ac, &descend_unknown(emit, &1, st, &2))
+      child, ac when is_tuple(child) -> walk(emit, child, st, ctx, ac)
+      children, ac when is_list(children) -> Enum.reduce(children, ac, &descend_unknown(emit, &1, st, ctx, &2))
       _leaf, ac -> ac
     end)
   end
 
-  defp walk_node(_emit, _term, _st, acc), do: acc
+  defp walk_node(_emit, _term, _st, _ctx, acc), do: acc
 
   # A dependent eliminator is represented as a case returning lambdas followed
   # by applications to the transported indices/proofs. In each branch, the
   # lambda binder is definitionally equal to its application argument. Preserve
   # that fact while walking the branch so a subsequent constructor match can
   # expose genuine structural subterms of the original caller parameter.
-  defp walk_applied_branch(emit, {:lam, _grade, domain, body}, [arg | rest], st, branch_binders, acc) do
-    acc = walk(emit, domain, st, acc)
+  defp walk_applied_branch(
+         emit,
+         {:lam, grade, domain, body},
+         [arg | rest],
+         st,
+         ctx,
+         branch_binders,
+         acc
+       ) do
+    acc = walk(emit, domain, st, ctx, acc)
     arg = Term.shift(arg, branch_binders)
-    walk_applied_branch(emit, body, rest, enter_alias(st, arg), branch_binders + 1, acc)
+    body_ctx = extend_context(ctx, domain, grade)
+
+    walk_applied_branch(
+      emit,
+      body,
+      rest,
+      enter_alias(st, arg),
+      body_ctx,
+      branch_binders + 1,
+      acc
+    )
   end
 
-  defp walk_applied_branch(emit, body, _args, st, _branch_binders, acc),
-    do: walk(emit, body, st, acc)
+  defp walk_applied_branch(emit, body, _args, st, ctx, _branch_binders, acc),
+    do: walk(emit, body, st, ctx, acc)
 
-  defp descend_unknown(emit, child, st, acc) when is_tuple(child), do: walk(emit, child, st, acc)
-  defp descend_unknown(_emit, _child, _st, acc), do: acc
+  defp descend_unknown(emit, child, st, ctx, acc) when is_tuple(child),
+    do: walk(emit, child, st, ctx, acc)
+
+  defp descend_unknown(_emit, _child, _st, _ctx, acc), do: acc
+
+  # `direct_summary/3` is also a public hardening boundary and is deliberately
+  # exercised on future/malformed Core wrappers.  Context reconstruction must
+  # therefore preserve binder depth without crashing when such a wrapper has an
+  # ill-typed domain.  A universe placeholder can only make later indexed
+  # inference fail closed; it cannot manufacture a data-family equation.
+  defp extend_context(ctx, domain, grade) do
+    Context.extend(ctx, Eval.eval(domain, Context.env(ctx)), grade)
+  rescue
+    RuntimeError -> Context.extend(ctx, {:vtype, 0}, grade)
+  end
+
+  defp extend_definition_context(ctx, type, value) do
+    Context.extend_def(
+      ctx,
+      Eval.eval(type, Context.env(ctx)),
+      Eval.eval(value, Context.env(ctx))
+    )
+  rescue
+    RuntimeError -> Context.extend(ctx, {:vtype, 0})
+  end
+
+  # Recover the same checked index equation the kernel used when it admitted the
+  # branch.  This is the termination analogue of Agda's constructor-pattern
+  # refinement: if a view constructor returns at index `Cons(char, rest)` while
+  # the scrutinee is known at the caller's `input`, then `rest` is a genuine
+  # structural subterm of `input` even when the matched view was produced by a
+  # helper call rather than being `input` itself.
+  #
+  # The equation is never guessed from the motive or from names.  We infer the
+  # checked scrutinee type and ask the kernel's canonical branch unifier to replay
+  # the constructor-result equation.  Failure is conservative: the ordinary
+  # syntactic refinement remains, but no indexed decrease is claimed.
+  defp indexed_branch_refinement(ctx, scrutinee, constructor, arity) do
+    with {:ok, {:vdata, family, args}} <- Kernel.infer(ctx, scrutinee),
+         %{params: params_tele} <- Inductive.get_family(Context.signature(ctx), family),
+         {params, indices} <- Enum.split(args, length(params_tele)),
+         %{args: field_tele} <- Inductive.get_ctor(Context.signature(ctx), constructor),
+         true <- length(field_tele) == arity do
+      branch_ctx = extend_branch_context(ctx, field_tele, params)
+
+      subst =
+        case Kernel.branch_unify(ctx, family, constructor, indices, params) do
+          {:solved, solution} -> solution
+          _ -> %{}
+        end
+
+      {subst, branch_ctx}
+    else
+      _ -> {%{}, extend_unknown_branch_context(ctx, arity)}
+    end
+  rescue
+    RuntimeError -> {%{}, extend_unknown_branch_context(ctx, arity)}
+  end
+
+  defp extend_branch_context(ctx, telescope, params) do
+    {result, _local_values} =
+      Enum.reduce(telescope, {ctx, Enum.reverse(params)}, fn {_name, type_term}, {current, local_values} ->
+        type_value = Eval.eval(type_term, local_values)
+        level = Context.length(current)
+        {Context.extend(current, type_value), [{:vneutral, {:nvar, level}} | local_values]}
+      end)
+
+    result
+  end
+
+  # This path is reached only for malformed/future Core shapes.  The caller body
+  # was already checked, so neutral placeholder types are unnecessary and could
+  # make later inference lie; retain the outer context and let nested indexed
+  # refinement fail closed instead.
+  defp extend_unknown_branch_context(ctx, _arity), do: ctx
 
   # Enter a case branch matching `scrut` with constructor `ctor`/arity `ar`:
   # shift the frame by `ar`, then for each parameter decide whether `scrut`
   # exposes new smaller fields and (for an exact parameter match) a reconstruction.
-  defp refine_branch(st, scrut, ctor, ar) do
+  defp refine_branch(st, scrut, ctor, ar, index_subst) do
     shifted = shift_state(st, ar)
     recon = build_recon(ctor, ar)
 
@@ -309,8 +414,43 @@ defmodule Cure.Core.Certificate do
         if idx != nil and MapSet.member?(equals, idx), do: recon, else: rc_sh
       end)
 
-    %{shifted | smallers: smallers, recons: recons}
+    apply_index_refinement(%{shifted | smallers: smallers, recons: recons}, index_subst, ar)
   end
+
+  defp apply_index_refinement(st, subst, arity) do
+    {smallers, recons} =
+      Enum.zip_with([st.roots, st.smallers, st.recons], fn [root, smaller, recon] ->
+        case Map.fetch(subst, root) do
+          {:ok, replacement} ->
+            strict_fields = structural_field_vars(replacement, arity)
+            {MapSet.union(smaller, strict_fields), replacement}
+
+          :error ->
+            {smaller, recon}
+        end
+      end)
+      |> Enum.unzip()
+
+    %{st | smallers: smallers, recons: recons}
+  end
+
+  # Only variables underneath a checked constructor are strict subterms.  A
+  # neutral application in an index equation is not structural evidence, and an
+  # outer variable (index >= branch arity) is not a freshly exposed field.
+  defp structural_field_vars({:ctor, _constructor, args}, arity) do
+    args
+    |> Enum.reduce(MapSet.new(), &collect_structural_vars(&1, arity, &2))
+  end
+
+  defp structural_field_vars(_replacement, _arity), do: MapSet.new()
+
+  defp collect_structural_vars({:var, index}, arity, acc) when index >= 0 and index < arity,
+    do: MapSet.put(acc, index)
+
+  defp collect_structural_vars({:ctor, _constructor, args}, arity, acc),
+    do: Enum.reduce(args, acc, &collect_structural_vars(&1, arity, &2))
+
+  defp collect_structural_vars(_term, _arity, acc), do: acc
 
   defp scrut_index({:var, i}), do: i
   defp scrut_index(_), do: nil
@@ -458,4 +598,14 @@ defmodule Cure.Core.Certificate do
   # Count leading lambdas and return the wrapped body.
   defp peel_lams({:lam, _g, _d, b}, n), do: peel_lams(b, n + 1)
   defp peel_lams(term, n), do: {n, term}
+
+  # Peel a checked definition's parameter telescope while rebuilding the exact
+  # kernel context in which its body was validated.  Direct-summary extraction
+  # needs this context only to replay constructor-result index refinement at
+  # cases; ordinary call collection remains a single body traversal.
+  defp peel_lams_with_context({:lam, grade, domain, body}, ctx, arity) do
+    peel_lams_with_context(body, extend_context(ctx, domain, grade), arity + 1)
+  end
+
+  defp peel_lams_with_context(term, ctx, arity), do: {arity, term, ctx}
 end

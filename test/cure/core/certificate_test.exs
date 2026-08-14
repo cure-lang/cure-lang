@@ -1,7 +1,7 @@
 defmodule Cure.Core.CertificateTest do
   use ExUnit.Case, async: false
   alias Cure.Core.{Certificate, Conv, Env, Inductive, Kernel}
-  alias Cure.Elab.TotalityClosure
+  alias Cure.Elab.{Program, TotalityClosure}
 
   @dec {:data, :Dec, [], []}
   @dcoupled {:ctor, :Dcoupled, []}
@@ -51,6 +51,52 @@ defmodule Cure.Core.CertificateTest do
     env = Env.add_def(base(), :loop, @dec, {:global, :loop})
     assert {:error, :not_total} = certify(env, :loop)
     refute Conv.conv?({:global, :loop}, @causal, [], 0, env)
+  end
+
+  test "a constructor result index exposes a structural decrease through a checked view" do
+    source = """
+    mod IndexedViewTermination
+      use Std.List
+      use Std.Nat
+
+      type View indices (input: List(Nat))
+        Done : View(Nil())
+        Step : (head: Nat) -> (rest: List(Nat)) -> View(Cons(head, rest))
+
+      fn view(input: List(Nat)) -> View(input) = match input
+        Nil() -> Done()
+        Cons(head, rest) -> Step(head, rest)
+
+      fn consume(input: List(Nat)) -> Nat = match view(input)
+        Done() -> Z()
+        Step(_, rest) -> consume(rest)
+
+      fn diverge(input: List(Nat)) -> Nat = match view(input)
+        Done() -> Z()
+        Step(_, _) -> diverge(input)
+    end
+    """
+
+    assert {:ok, env} = Program.elaborate(source)
+    assert Env.total?(env, :consume)
+
+    assert %{matrix: matrix} =
+             Enum.find(
+               Env.direct_call_summary(env, :consume).calls,
+               &(&1.callee == :"IndexedViewTermination#consume")
+             )
+
+    assert Cure.Core.SizeChange.to_dense(matrix) == [[:smaller]]
+
+    refute Env.total?(env, :diverge)
+
+    assert %{matrix: control_matrix} =
+             Enum.find(
+               Env.direct_call_summary(env, :diverge).calls,
+               &(&1.callee == :"IndexedViewTermination#diverge")
+             )
+
+    assert Cure.Core.SizeChange.to_dense(control_matrix) == [[:equal]]
   end
 
   test "replacing a definition invalidates its prior totality certificate" do
