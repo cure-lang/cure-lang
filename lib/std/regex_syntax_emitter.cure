@@ -10,6 +10,7 @@ mod Std.Regex.Syntax.Emitter
     LiteralExact(_) -> UnitC
     LiteralAny -> CharC
     LiteralClass(_, _, _, _) -> CharC
+    LiteralProperty(_, _) -> CharC
     LiteralDigit(_) -> CharC
     LiteralWord(_) -> CharC
     LiteralSpace(_) -> CharC
@@ -48,7 +49,8 @@ mod Std.Regex.Syntax.Emitter
     LiteralExact(char) -> call("Std.Regex.exactly", [char_literal(char)])
     LiteralAny -> call("Std.Regex.any_char", [])
     LiteralClass(chars, ranges, kinds, negated) ->
-      call("Std.Regex.extended_character_class", [emit_chars(chars), emit_ranges(ranges), emit_class_kinds(kinds), bool_literal(negated), bool_literal(false), bool_literal(false)])
+      call("Std.Regex.extended_unicode_property_class", [emit_chars(chars), emit_ranges(ranges), emit_class_kinds(kinds), emit_unicode_property_matches(literal_class_properties(kinds)), bool_literal(negated), bool_literal(false), bool_literal(false)])
+    LiteralProperty(property, negated) -> call("Std.Regex.unicode_property_class", [emit_unicode_property(property), bool_literal(negated)])
     LiteralDigit(negated) -> call("Std.Regex.digit_class", [bool_literal(negated)])
     LiteralWord(negated) -> call("Std.Regex.word_class", [bool_literal(negated)])
     LiteralSpace(negated) -> call("Std.Regex.space_class", [bool_literal(negated)])
@@ -81,7 +83,8 @@ mod Std.Regex.Syntax.Emitter
       LiteralExact(char) -> call("Std.Regex.exactly_with_options", [char_literal(char), bool_literal(caseless), bool_literal(unicode)])
       LiteralAny -> call("Std.Regex.dot_with_options", [bool_literal(dotall)])
       LiteralClass(chars, ranges, kinds, negated) ->
-        call("Std.Regex.extended_character_class", [emit_chars(chars), emit_ranges(ranges), emit_class_kinds(kinds), bool_literal(negated), bool_literal(caseless), bool_literal(unicode)])
+        call("Std.Regex.extended_unicode_property_class", [emit_chars(chars), emit_ranges(ranges), emit_class_kinds(kinds), emit_unicode_property_matches(literal_class_properties(kinds)), bool_literal(negated), bool_literal(caseless), bool_literal(unicode)])
+      LiteralProperty(property, negated) -> call("Std.Regex.unicode_property_class", [emit_unicode_property(property), bool_literal(negated)])
       LiteralDigit(negated) -> call("Std.Regex.digit_class_with_options", [bool_literal(negated), bool_literal(unicode)])
       LiteralWord(negated) -> call("Std.Regex.word_class_with_options", [bool_literal(negated), bool_literal(unicode)])
       LiteralSpace(negated) -> call("Std.Regex.space_class_with_options", [bool_literal(negated), bool_literal(unicode)])
@@ -129,6 +132,51 @@ mod Std.Regex.Syntax.Emitter
       bool_literal(has_class_kind(kinds, VerticalKind)),
       bool_literal(has_class_kind(kinds, NotVerticalKind))
     ])
+
+  fn emit_unicode_property(property: LiteralUnicodeProperty) -> Syntax = match property
+    PropertyAny -> call("Std.Regex.PropertyAny", [])
+    PropertyLetter -> call("Std.Regex.PropertyLetter", [])
+    PropertyLowercaseLetter -> call("Std.Regex.PropertyLowercaseLetter", [])
+    PropertyUppercaseLetter -> call("Std.Regex.PropertyUppercaseLetter", [])
+    PropertyTitlecaseLetter -> call("Std.Regex.PropertyTitlecaseLetter", [])
+    PropertyModifierLetter -> call("Std.Regex.PropertyModifierLetter", [])
+    PropertyOtherLetter -> call("Std.Regex.PropertyOtherLetter", [])
+    PropertyMark -> call("Std.Regex.PropertyMark", [])
+    PropertySpacingMark -> call("Std.Regex.PropertySpacingMark", [])
+    PropertyEnclosingMark -> call("Std.Regex.PropertyEnclosingMark", [])
+    PropertyNonspacingMark -> call("Std.Regex.PropertyNonspacingMark", [])
+    PropertyNumber -> call("Std.Regex.PropertyNumber", [])
+    PropertyDecimalNumber -> call("Std.Regex.PropertyDecimalNumber", [])
+    PropertyLetterNumber -> call("Std.Regex.PropertyLetterNumber", [])
+    PropertyOtherNumber -> call("Std.Regex.PropertyOtherNumber", [])
+    PropertyPunctuation -> call("Std.Regex.PropertyPunctuation", [])
+    PropertyConnectorPunctuation -> call("Std.Regex.PropertyConnectorPunctuation", [])
+    PropertyDashPunctuation -> call("Std.Regex.PropertyDashPunctuation", [])
+    PropertyClosePunctuation -> call("Std.Regex.PropertyClosePunctuation", [])
+    PropertyFinalPunctuation -> call("Std.Regex.PropertyFinalPunctuation", [])
+    PropertyInitialPunctuation -> call("Std.Regex.PropertyInitialPunctuation", [])
+    PropertyOtherPunctuation -> call("Std.Regex.PropertyOtherPunctuation", [])
+    PropertyOpenPunctuation -> call("Std.Regex.PropertyOpenPunctuation", [])
+    PropertySymbol -> call("Std.Regex.PropertySymbol", [])
+    PropertyCurrencySymbol -> call("Std.Regex.PropertyCurrencySymbol", [])
+    PropertyModifierSymbol -> call("Std.Regex.PropertyModifierSymbol", [])
+    PropertyMathSymbol -> call("Std.Regex.PropertyMathSymbol", [])
+    PropertyOtherSymbol -> call("Std.Regex.PropertyOtherSymbol", [])
+    PropertySeparator -> call("Std.Regex.PropertySeparator", [])
+    PropertyLineSeparator -> call("Std.Regex.PropertyLineSeparator", [])
+    PropertyParagraphSeparator -> call("Std.Regex.PropertyParagraphSeparator", [])
+    PropertySpaceSeparator -> call("Std.Regex.PropertySpaceSeparator", [])
+    PropertyOther -> call("Std.Regex.PropertyOther", [])
+    PropertyControl -> call("Std.Regex.PropertyControl", [])
+    PropertyFormat -> call("Std.Regex.PropertyFormat", [])
+    PropertyUnassigned -> call("Std.Regex.PropertyUnassigned", [])
+    PropertyPrivateUse -> call("Std.Regex.PropertyPrivateUse", [])
+    PropertySurrogate -> call("Std.Regex.PropertySurrogate", [])
+
+  fn emit_unicode_property_matches(values: List(LiteralUnicodePropertyMatch)) -> Syntax = match values
+    [] -> list([])
+    [LiteralUnicodePropertyMatch(property, negated) | rest] ->
+      prepend_syntax(call("Std.Regex.UnicodePropertyMatch", [emit_unicode_property(property), bool_literal(negated)]), emit_unicode_property_matches(rest))
 
   fn emit_options(options: LiteralRegexOptions) -> Syntax =
     call("Std.Regex.RegexOptions", [

@@ -1321,6 +1321,18 @@ mod Std.Regex
   type ClassKinds = ClassKinds(Bool, Bool, Bool, Bool, Bool, Bool, Bool, Bool, Bool, Bool)
   type ClassKind = DigitKind | NotDigitKind | WordKind | NotWordKind | SpaceKind | NotSpaceKind | HorizontalKind | NotHorizontalKind | VerticalKind | NotVerticalKind
 
+  type UnicodeProperty =
+    | PropertyAny
+    | PropertyLetter | PropertyLowercaseLetter | PropertyUppercaseLetter | PropertyTitlecaseLetter | PropertyModifierLetter | PropertyOtherLetter
+    | PropertyMark | PropertySpacingMark | PropertyEnclosingMark | PropertyNonspacingMark
+    | PropertyNumber | PropertyDecimalNumber | PropertyLetterNumber | PropertyOtherNumber
+    | PropertyPunctuation | PropertyConnectorPunctuation | PropertyDashPunctuation | PropertyClosePunctuation | PropertyFinalPunctuation | PropertyInitialPunctuation | PropertyOtherPunctuation | PropertyOpenPunctuation
+    | PropertySymbol | PropertyCurrencySymbol | PropertyModifierSymbol | PropertyMathSymbol | PropertyOtherSymbol
+    | PropertySeparator | PropertyLineSeparator | PropertyParagraphSeparator | PropertySpaceSeparator
+    | PropertyOther | PropertyControl | PropertyFormat | PropertyUnassigned | PropertyPrivateUse | PropertySurrogate
+
+  type UnicodePropertyMatch = UnicodePropertyMatch(UnicodeProperty, Bool)
+
   fn no_class_kinds() -> ClassKinds =
     ClassKinds(false, false, false, false, false, false, false, false, false, false)
 
@@ -1807,6 +1819,69 @@ mod Std.Regex
         (vertical and Std.Char.is_vertical_space(actual)) or
         (not_vertical and not Std.Char.is_vertical_space(actual))
 
+  fn unicode_category_in(category: Atom, values: List(Atom)) -> Bool = match values
+    [] -> false
+    [head | rest] -> pickup
+      category == head -> true
+      else -> unicode_category_in(category, rest)
+
+  fn unicode_property_matches(property: UnicodeProperty, actual: Char) -> Bool =
+    let category = Std.Char.unicode_category(actual)
+    match property
+      PropertyAny -> true
+      PropertyLetter -> unicode_category_in(category, [:Lu, :Ll, :Lt, :Lm, :Lo])
+      PropertyLowercaseLetter -> category == :Ll
+      PropertyUppercaseLetter -> category == :Lu
+      PropertyTitlecaseLetter -> category == :Lt
+      PropertyModifierLetter -> category == :Lm
+      PropertyOtherLetter -> category == :Lo
+      PropertyMark -> unicode_category_in(category, [:Mc, :Me, :Mn])
+      PropertySpacingMark -> category == :Mc
+      PropertyEnclosingMark -> category == :Me
+      PropertyNonspacingMark -> category == :Mn
+      PropertyNumber -> unicode_category_in(category, [:Nd, :Nl, :No])
+      PropertyDecimalNumber -> category == :Nd
+      PropertyLetterNumber -> category == :Nl
+      PropertyOtherNumber -> category == :No
+      PropertyPunctuation -> unicode_category_in(category, [:Pc, :Pd, :Pe, :Pf, :Pi, :Po, :Ps])
+      PropertyConnectorPunctuation -> category == :Pc
+      PropertyDashPunctuation -> category == :Pd
+      PropertyClosePunctuation -> category == :Pe
+      PropertyFinalPunctuation -> category == :Pf
+      PropertyInitialPunctuation -> category == :Pi
+      PropertyOtherPunctuation -> category == :Po
+      PropertyOpenPunctuation -> category == :Ps
+      PropertySymbol -> unicode_category_in(category, [:Sc, :Sk, :Sm, :So])
+      PropertyCurrencySymbol -> category == :Sc
+      PropertyModifierSymbol -> category == :Sk
+      PropertyMathSymbol -> category == :Sm
+      PropertyOtherSymbol -> category == :So
+      PropertySeparator -> unicode_category_in(category, [:Zl, :Zp, :Zs])
+      PropertyLineSeparator -> category == :Zl
+      PropertyParagraphSeparator -> category == :Zp
+      PropertySpaceSeparator -> category == :Zs
+      PropertyOther -> unicode_category_in(category, [:Cc, :Cf, :Cn, :Co, :Cs])
+      PropertyControl -> category == :Cc
+      PropertyFormat -> category == :Cf
+      PropertyUnassigned -> category == :Cn
+      PropertyPrivateUse -> category == :Co
+      PropertySurrogate -> category == :Cs
+
+  fn unicode_property_match_matches(value: UnicodePropertyMatch, actual: Char) -> Bool = match value
+    UnicodePropertyMatch(property, negated) -> unicode_property_matches(property, actual) != negated
+
+  fn unicode_property_matches_any(values: List(UnicodePropertyMatch), actual: Char) -> Bool = match values
+    [] -> false
+    [head | rest] -> pickup
+      unicode_property_match_matches(head, actual) -> true
+      else -> unicode_property_matches_any(rest, actual)
+
+  fn unicode_property_test(property: UnicodeProperty, negated: Bool) -> Char -> Bool =
+    fn(actual) -> unicode_property_matches(property, actual) != negated
+
+  fn unicode_property_class(property: UnicodeProperty, negated: Bool) -> Regex(Char) =
+    predicate(unicode_property_test(property, negated))
+
   fn extended_class_predicate(chars: List(Char), ranges: List(CharacterRange), kinds: ClassKinds, negated: Bool, caseless: Bool, unicode: Bool, actual: Char) -> Bool =
     let found =
       contains_char_with_options(chars, actual, caseless, unicode) or
@@ -1819,6 +1894,20 @@ mod Std.Regex
 
   fn extended_character_class(chars: List(Char), ranges: List(CharacterRange), kinds: ClassKinds, negated: Bool, caseless: Bool, unicode: Bool) -> Regex(Char) =
     predicate(extended_class_test(chars, ranges, kinds, negated, caseless, unicode))
+
+  fn extended_property_class_predicate(chars: List(Char), ranges: List(CharacterRange), kinds: ClassKinds, properties: List(UnicodePropertyMatch), negated: Bool, caseless: Bool, unicode: Bool, actual: Char) -> Bool =
+    let found =
+      contains_char_with_options(chars, actual, caseless, unicode) or
+        in_ranges_with_options(ranges, actual, caseless, unicode) or
+        class_kinds_match(kinds, actual, unicode) or
+        unicode_property_matches_any(properties, actual)
+    found != negated
+
+  fn extended_property_class_test(chars: List(Char), ranges: List(CharacterRange), kinds: ClassKinds, properties: List(UnicodePropertyMatch), negated: Bool, caseless: Bool, unicode: Bool) -> Char -> Bool =
+    fn(actual) -> extended_property_class_predicate(chars, ranges, kinds, properties, negated, caseless, unicode, actual)
+
+  fn extended_unicode_property_class(chars: List(Char), ranges: List(CharacterRange), kinds: ClassKinds, properties: List(UnicodePropertyMatch), negated: Bool, caseless: Bool, unicode: Bool) -> Regex(Char) =
+    predicate(extended_property_class_test(chars, ranges, kinds, properties, negated, caseless, unicode))
 
   fn ascii_digit(char: Char) -> Bool = Std.Char.between(char, '0', '9')
 

@@ -37,6 +37,12 @@ mod Std.Regex.Syntax.Class
     ['\\', 'x' | rest] -> match parse_literal_hex_scalar(rest)
       LiteralScalarParsed(scalar, tail) -> parse_literal_class_character(scalar, tail, chars, ranges, kinds, fuel)
       LiteralScalarInvalid(reason) -> LiteralClassInvalid(reason)
+    ['\\', 'p' | rest] -> match parse_literal_unicode_property(rest)
+      LiteralPropertyParsed(property, tail) -> parse_literal_class_items_fuel(tail, chars, ranges, enable_unicode_property(property, false, kinds), fuel)
+      LiteralPropertyInvalid(reason) -> LiteralClassInvalid(reason)
+    ['\\', 'P' | rest] -> match parse_literal_unicode_property(rest)
+      LiteralPropertyParsed(property, tail) -> parse_literal_class_items_fuel(tail, chars, ranges, enable_unicode_property(property, true, kinds), fuel)
+      LiteralPropertyInvalid(reason) -> LiteralClassInvalid(reason)
     [first | rest] -> parse_literal_class_character(first, rest, chars, ranges, kinds, fuel)
 
   fn parse_literal_class_character(first: Char, rest: List(Char), chars: List(Char), ranges: List(LiteralCharacterRange), kinds: LiteralClassKinds, fuel: Nat) -> LiteralClassParse = pickup

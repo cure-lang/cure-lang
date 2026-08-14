@@ -67,6 +67,7 @@ defmodule :cure_std_char do
   def ascii_lowercased(cp) when is_integer(cp), do: cp
 
   def number?(cp), do: Unicode.category(cp) in [:Nd, :Nl, :No]
+  def unicode_category(cp) when is_integer(cp), do: Unicode.category(cp)
   def whole_number?(cp), do: Map.has_key?(@whole_number_values, cp)
 
   def whole_number_value(cp) when is_integer(cp) do

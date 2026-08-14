@@ -133,6 +133,12 @@ mod Std.Char
   @extern(:cure_std_char, :number?, 1)
   fn is_number(c: Char) -> Bool
 
+  ## Unicode General_Category as its stable two-letter atom (`:Lu`, `:Nd`, …).
+  ## Regex property matching consumes this immutable classification; no host
+  ## regex engine or compiled pattern crosses the boundary.
+  @extern(:cure_std_char, :unicode_category, 1)
+  fn unicode_category(c: Char) -> Atom
+
   @extern(:cure_std_char, :whole_number?, 1)
   fn is_whole_number(c: Char) -> Bool
 

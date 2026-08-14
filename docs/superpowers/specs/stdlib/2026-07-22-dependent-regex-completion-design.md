@@ -114,6 +114,14 @@
   invalid hex, empty/unclosed braces, values above `0x10FFFF`, and UTF-16
   surrogates with dedicated macro diagnostics. Unicode property classes remain
   the active syntax frontier.
+- 2026-08-14 — Phase H Unicode general-category properties are implemented in
+  ordinary atoms and bracket classes. `\p{...}` and `\P{...}` support the
+  Unicode two-letter general-category vocabulary, its one-letter aggregates,
+  and documented long aliases. Matching is driven by the principled
+  `Std.Char.unicode_category` primitive rather than a host regex engine;
+  malformed, empty, unknown, and unclosed properties have distinct structured
+  diagnostics. Exact diagnostic subspans, unsupported-construct diagnostics,
+  the modifier interaction matrix, and raw character-integer cleanup remain.
 
 **Supersedes for unfinished work:**
 `2026-07-21-dependently-typed-regex-design.md`
@@ -722,10 +730,11 @@ NFA paths, VM acceptance, and public parsing.
 
 **Status: in progress; this is the earliest incomplete phase.**
 
-Bounded quantifiers, hexadecimal scalar escapes, and their first structured
-diagnostic matrices are complete. Continue with Unicode property classes,
-precise quantifier and escape subspans, unsupported-construct diagnostics, the
-remaining modifier interaction matrix, and raw character-integer cleanup.
+Bounded quantifiers, hexadecimal scalar escapes, Unicode general-category
+properties, and their first structured diagnostic matrices are complete.
+Continue with precise quantifier/property/escape subspans,
+unsupported-construct diagnostics, the remaining modifier interaction matrix,
+and raw character-integer cleanup.
 
 Complete bounded quantifiers, scalar escapes, Unicode properties, malformed
 construct rejection, exact source subspans, and the modifier matrix. Remove raw
