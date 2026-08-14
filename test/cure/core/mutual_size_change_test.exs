@@ -138,6 +138,34 @@ defmodule Cure.Core.MutualSizeChangeTest do
     assert replaced.totality_component_of == %{}
   end
 
+  test "revalidating an unchanged SCC certificate performs no closure verification" do
+    env = with_defs(even: even_body(), odd: odd_body())
+    assert {:ok, prepared} = Kernel.prepare_direct_call_summaries(env, [:even, :odd])
+    partition = TotalityGraph.propose_partition(prepared, [:even, :odd])
+    certificates = Cure.Elab.TotalityCertificate.propose_all(prepared, partition)
+
+    :ok = Cure.Pipeline.Events.subscribe(:kernel, :totality_metric)
+
+    assert {:ok, certified} =
+             Kernel.validate_scc_certificates(prepared, partition, certificates, [:even, :odd])
+
+    assert_receive {Cure.Pipeline.Events, :kernel, :totality_metric,
+                    %{operation: :closure_verification, result: :total}, _metadata}
+
+    drain_totality_metrics()
+
+    assert {:ok, unchanged} =
+             Kernel.validate_scc_certificates(certified, partition, certificates, [:odd, :even])
+
+    assert unchanged == certified
+
+    assert_receive {Cure.Pipeline.Events, :kernel, :totality_metric, %{operation: :partition_verification, result: :ok},
+                    _metadata}
+
+    refute_receive {Cure.Pipeline.Events, :kernel, :totality_metric, %{operation: :closure_verification}, _metadata},
+                   20
+  end
+
   test "declaration fast path decides a complete dependency SCC once" do
     env = with_defs(even: even_body(), odd: odd_body())
     eager = TotalityClosure.certify_available(env, :even)
@@ -210,6 +238,14 @@ defmodule Cure.Core.MutualSizeChangeTest do
     refute terminating?(env, :f)
     refute terminating?(env, :g)
     refute terminating?(env, :h)
+  end
+
+  defp drain_totality_metrics do
+    receive do
+      {Cure.Pipeline.Events, :kernel, :totality_metric, _payload, _metadata} -> drain_totality_metrics()
+    after
+      0 -> :ok
+    end
   end
 
   test "arity-0 CAF cycle f = g; g = f is rejected (empty endo-edge, no descent)" do
