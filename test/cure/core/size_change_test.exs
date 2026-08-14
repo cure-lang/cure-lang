@@ -28,7 +28,7 @@ defmodule Cure.Core.SizeChangeTest do
     Env.empty()
     |> Inductive.declare(Inductive.family(:Nat, [], [], 0), [
       Inductive.ctor(:Z, [], []),
-      Inductive.ctor(:S, [{:data, :Nat, [], []}], [])
+      Inductive.ctor(:S, [predecessor: {:data, :Nat, [], []}], [])
     ])
   end
 
