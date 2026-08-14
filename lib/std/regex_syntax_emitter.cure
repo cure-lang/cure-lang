@@ -49,7 +49,7 @@ mod Std.Regex.Syntax.Emitter
     LiteralExact(char) -> call("Std.Regex.exactly", [char_literal(char)])
     LiteralAny -> call("Std.Regex.any_char", [])
     LiteralClass(chars, ranges, kinds, negated) ->
-      call("Std.Regex.extended_unicode_property_class", [emit_chars(chars), emit_ranges(ranges), emit_class_kinds(kinds), emit_unicode_property_matches(literal_class_properties(kinds)), bool_literal(negated), bool_literal(false), bool_literal(false)])
+      call("Std.Regex.extended_unicode_property_class", [emit_chars(chars), emit_ranges(ranges), emit_class_kinds(kinds), emit_unicode_property_matches(literal_class_properties(kinds)), emit_posix_class_matches(literal_class_posix(kinds)), bool_literal(negated), bool_literal(false), bool_literal(false)])
     LiteralProperty(property, negated) -> call("Std.Regex.unicode_property_class", [emit_unicode_property(property), bool_literal(negated)])
     LiteralDigit(negated) -> call("Std.Regex.digit_class", [bool_literal(negated)])
     LiteralWord(negated) -> call("Std.Regex.word_class", [bool_literal(negated)])
@@ -83,7 +83,7 @@ mod Std.Regex.Syntax.Emitter
       LiteralExact(char) -> call("Std.Regex.exactly_with_options", [char_literal(char), bool_literal(caseless), bool_literal(unicode)])
       LiteralAny -> call("Std.Regex.dot_with_options", [bool_literal(dotall)])
       LiteralClass(chars, ranges, kinds, negated) ->
-        call("Std.Regex.extended_unicode_property_class", [emit_chars(chars), emit_ranges(ranges), emit_class_kinds(kinds), emit_unicode_property_matches(literal_class_properties(kinds)), bool_literal(negated), bool_literal(caseless), bool_literal(unicode)])
+        call("Std.Regex.extended_unicode_property_class", [emit_chars(chars), emit_ranges(ranges), emit_class_kinds(kinds), emit_unicode_property_matches(literal_class_properties(kinds)), emit_posix_class_matches(literal_class_posix(kinds)), bool_literal(negated), bool_literal(caseless), bool_literal(unicode)])
       LiteralProperty(property, negated) -> call("Std.Regex.unicode_property_class", [emit_unicode_property(property), bool_literal(negated)])
       LiteralDigit(negated) -> call("Std.Regex.digit_class_with_options", [bool_literal(negated), bool_literal(unicode)])
       LiteralWord(negated) -> call("Std.Regex.word_class_with_options", [bool_literal(negated), bool_literal(unicode)])
@@ -177,6 +177,27 @@ mod Std.Regex.Syntax.Emitter
     [] -> list([])
     [LiteralUnicodePropertyMatch(property, negated) | rest] ->
       prepend_syntax(call("Std.Regex.UnicodePropertyMatch", [emit_unicode_property(property), bool_literal(negated)]), emit_unicode_property_matches(rest))
+
+  fn emit_posix_class(posix_class: LiteralPosixClass) -> Syntax = match posix_class
+    PosixAlnum -> call("Std.Regex.PosixAlnum", [])
+    PosixAlpha -> call("Std.Regex.PosixAlpha", [])
+    PosixAscii -> call("Std.Regex.PosixAscii", [])
+    PosixBlank -> call("Std.Regex.PosixBlank", [])
+    PosixCntrl -> call("Std.Regex.PosixCntrl", [])
+    PosixDigit -> call("Std.Regex.PosixDigit", [])
+    PosixGraph -> call("Std.Regex.PosixGraph", [])
+    PosixLower -> call("Std.Regex.PosixLower", [])
+    PosixPrint -> call("Std.Regex.PosixPrint", [])
+    PosixPunct -> call("Std.Regex.PosixPunct", [])
+    PosixSpace -> call("Std.Regex.PosixSpace", [])
+    PosixUpper -> call("Std.Regex.PosixUpper", [])
+    PosixWord -> call("Std.Regex.PosixWord", [])
+    PosixXdigit -> call("Std.Regex.PosixXdigit", [])
+
+  fn emit_posix_class_matches(values: List(LiteralPosixClassMatch)) -> Syntax = match values
+    [] -> list([])
+    [LiteralPosixClassMatch(posix_class, negated) | rest] ->
+      prepend_syntax(call("Std.Regex.PosixClassMatch", [emit_posix_class(posix_class), bool_literal(negated)]), emit_posix_class_matches(rest))
 
   fn emit_options(options: LiteralRegexOptions) -> Syntax =
     call("Std.Regex.RegexOptions", [

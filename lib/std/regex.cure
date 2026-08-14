@@ -1333,6 +1333,13 @@ mod Std.Regex
 
   type UnicodePropertyMatch = UnicodePropertyMatch(UnicodeProperty, Bool)
 
+  type PosixClass =
+    | PosixAlnum | PosixAlpha | PosixAscii | PosixBlank | PosixCntrl
+    | PosixDigit | PosixGraph | PosixLower | PosixPrint | PosixPunct
+    | PosixSpace | PosixUpper | PosixWord | PosixXdigit
+
+  type PosixClassMatch = PosixClassMatch(PosixClass, Bool)
+
   fn no_class_kinds() -> ClassKinds =
     ClassKinds(false, false, false, false, false, false, false, false, false, false)
 
@@ -1876,6 +1883,84 @@ mod Std.Regex
       unicode_property_match_matches(head, actual) -> true
       else -> unicode_property_matches_any(rest, actual)
 
+  fn ascii_alpha(actual: Char) -> Bool =
+    Std.Char.between(actual, 'a', 'z') or Std.Char.between(actual, 'A', 'Z')
+
+  fn ascii_alnum(actual: Char) -> Bool =
+    ascii_alpha(actual) or ascii_digit(actual)
+
+  fn ascii_blank(actual: Char) -> Bool =
+    Std.Char.same(actual, ' ') or Std.Char.same(actual, '\t')
+
+  fn ascii_control(actual: Char) -> Bool =
+    Std.Char.is_ascii(actual) and Std.Char.unicode_category(actual) == :Cc
+
+  fn ascii_graph(actual: Char) -> Bool =
+    Std.Char.between(actual, '!', '~')
+
+  fn ascii_print(actual: Char) -> Bool =
+    Std.Char.between(actual, ' ', '~')
+
+  fn ascii_punct(actual: Char) -> Bool =
+    ascii_graph(actual) and not ascii_alnum(actual)
+
+  fn unicode_alpha(actual: Char) -> Bool =
+    unicode_property_matches(PropertyLetter, actual) or unicode_property_matches(PropertyMark, actual)
+
+  fn unicode_alnum(actual: Char) -> Bool =
+    unicode_alpha(actual) or unicode_property_matches(PropertyNumber, actual)
+
+  fn unicode_graph(actual: Char) -> Bool =
+    unicode_alnum(actual) or unicode_property_matches(PropertyPunctuation, actual) or unicode_property_matches(PropertySymbol, actual)
+
+  fn unicode_print(actual: Char) -> Bool =
+    unicode_graph(actual) or unicode_property_matches(PropertySpaceSeparator, actual)
+
+  fn posix_class_matches(posix_class: PosixClass, actual: Char, unicode: Bool) -> Bool = match posix_class
+    PosixAlnum -> pickup
+      unicode -> unicode_alnum(actual)
+      else -> ascii_alnum(actual)
+    PosixAlpha -> pickup
+      unicode -> unicode_alpha(actual)
+      else -> ascii_alpha(actual)
+    PosixAscii -> Std.Char.is_ascii(actual)
+    PosixBlank -> pickup
+      unicode -> Std.Char.is_horizontal_space(actual)
+      else -> ascii_blank(actual)
+    PosixCntrl -> pickup
+      unicode -> Std.Char.unicode_category(actual) == :Cc
+      else -> ascii_control(actual)
+    PosixDigit -> option_digit(actual, unicode)
+    PosixGraph -> pickup
+      unicode -> unicode_graph(actual)
+      else -> ascii_graph(actual)
+    PosixLower -> pickup
+      unicode -> Std.Char.is_lowercase(actual)
+      else -> Std.Char.between(actual, 'a', 'z')
+    PosixPrint -> pickup
+      unicode -> unicode_print(actual)
+      else -> ascii_print(actual)
+    PosixPunct -> pickup
+      unicode -> unicode_property_matches(PropertyPunctuation, actual)
+      else -> ascii_punct(actual)
+    PosixSpace -> option_space(actual, unicode)
+    PosixUpper -> pickup
+      unicode -> Std.Char.is_uppercase(actual)
+      else -> Std.Char.between(actual, 'A', 'Z')
+    PosixWord -> option_word(actual, unicode)
+    PosixXdigit -> pickup
+      unicode -> Std.Char.is_hex_digit(actual)
+      else -> ascii_digit(actual) or Std.Char.between(actual, 'a', 'f') or Std.Char.between(actual, 'A', 'F')
+
+  fn posix_class_match_matches(value: PosixClassMatch, actual: Char, unicode: Bool) -> Bool = match value
+    PosixClassMatch(posix_class, negated) -> posix_class_matches(posix_class, actual, unicode) != negated
+
+  fn posix_class_matches_any(values: List(PosixClassMatch), actual: Char, unicode: Bool) -> Bool = match values
+    [] -> false
+    [head | rest] -> pickup
+      posix_class_match_matches(head, actual, unicode) -> true
+      else -> posix_class_matches_any(rest, actual, unicode)
+
   fn unicode_property_test(property: UnicodeProperty, negated: Bool) -> Char -> Bool =
     fn(actual) -> unicode_property_matches(property, actual) != negated
 
@@ -1895,19 +1980,20 @@ mod Std.Regex
   fn extended_character_class(chars: List(Char), ranges: List(CharacterRange), kinds: ClassKinds, negated: Bool, caseless: Bool, unicode: Bool) -> Regex(Char) =
     predicate(extended_class_test(chars, ranges, kinds, negated, caseless, unicode))
 
-  fn extended_property_class_predicate(chars: List(Char), ranges: List(CharacterRange), kinds: ClassKinds, properties: List(UnicodePropertyMatch), negated: Bool, caseless: Bool, unicode: Bool, actual: Char) -> Bool =
+  fn extended_property_class_predicate(chars: List(Char), ranges: List(CharacterRange), kinds: ClassKinds, properties: List(UnicodePropertyMatch), posix: List(PosixClassMatch), negated: Bool, caseless: Bool, unicode: Bool, actual: Char) -> Bool =
     let found =
       contains_char_with_options(chars, actual, caseless, unicode) or
         in_ranges_with_options(ranges, actual, caseless, unicode) or
         class_kinds_match(kinds, actual, unicode) or
-        unicode_property_matches_any(properties, actual)
+        unicode_property_matches_any(properties, actual) or
+        posix_class_matches_any(posix, actual, unicode)
     found != negated
 
-  fn extended_property_class_test(chars: List(Char), ranges: List(CharacterRange), kinds: ClassKinds, properties: List(UnicodePropertyMatch), negated: Bool, caseless: Bool, unicode: Bool) -> Char -> Bool =
-    fn(actual) -> extended_property_class_predicate(chars, ranges, kinds, properties, negated, caseless, unicode, actual)
+  fn extended_property_class_test(chars: List(Char), ranges: List(CharacterRange), kinds: ClassKinds, properties: List(UnicodePropertyMatch), posix: List(PosixClassMatch), negated: Bool, caseless: Bool, unicode: Bool) -> Char -> Bool =
+    fn(actual) -> extended_property_class_predicate(chars, ranges, kinds, properties, posix, negated, caseless, unicode, actual)
 
-  fn extended_unicode_property_class(chars: List(Char), ranges: List(CharacterRange), kinds: ClassKinds, properties: List(UnicodePropertyMatch), negated: Bool, caseless: Bool, unicode: Bool) -> Regex(Char) =
-    predicate(extended_property_class_test(chars, ranges, kinds, properties, negated, caseless, unicode))
+  fn extended_unicode_property_class(chars: List(Char), ranges: List(CharacterRange), kinds: ClassKinds, properties: List(UnicodePropertyMatch), posix: List(PosixClassMatch), negated: Bool, caseless: Bool, unicode: Bool) -> Regex(Char) =
+    predicate(extended_property_class_test(chars, ranges, kinds, properties, posix, negated, caseless, unicode))
 
   fn ascii_digit(char: Char) -> Bool = Std.Char.between(char, '0', '9')
 
@@ -1919,7 +2005,8 @@ mod Std.Regex
 
   fn ascii_space(char: Char) -> Bool =
     Std.Char.same(char, ' ') or Std.Char.same(char, '\t') or
-      Std.Char.same(char, '\n') or Std.Char.same(char, '\r')
+      Std.Char.same(char, '\n') or Std.Char.same(char, '\r') or
+      Std.Char.same(char, '\f') or Std.Char.same(char, '\v')
 
   fn negate_test(test: Char -> Bool) -> Char -> Bool = fn(char) -> not test(char)
 

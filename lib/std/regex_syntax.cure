@@ -62,6 +62,10 @@ mod Std.Regex.Syntax
     :ReversedRegexRange -> "This character range ends before it starts."
     :TrailingRegexEscape -> "This regex ends with an incomplete escape."
     :UnexpectedRegexToken -> "This token cannot occur at this position in the regex."
+    :EmptyRegexPosixClass -> "This POSIX character class has no class name."
+    :UnknownRegexPosixClass -> "This POSIX character class name is not supported."
+    :MalformedRegexPosixClass -> "A POSIX character class must end its name with `:]`."
+    :UnclosedRegexPosixClass -> "This POSIX character class is missing its `:]` terminator."
     _ -> "This regex literal contains malformed or unsupported syntax."
 
   fn regex_failure_hint(reason: Atom) -> String = match reason
@@ -98,6 +102,10 @@ mod Std.Regex.Syntax
     :ReversedRegexRange -> "Swap the endpoints or write the characters separately."
     :TrailingRegexEscape -> "Add the escaped character or remove the trailing backslash."
     :UnexpectedRegexToken -> "Remove the token or place it inside a matching group or character class."
+    :EmptyRegexPosixClass -> "Use a name such as `[:alpha:]`, `[:digit:]`, or `[:word:]`."
+    :UnknownRegexPosixClass -> "Use one of alnum, alpha, ascii, blank, cntrl, digit, graph, lower, print, punct, space, upper, word, or xdigit."
+    :MalformedRegexPosixClass -> "Write the class as `[:name:]` or its negated form `[:^name:]`."
+    :UnclosedRegexPosixClass -> "Close the POSIX class name with `:]`."
     _ -> "Correct the highlighted regex syntax."
 
   fn expand_literal_strings(pattern_syntax: Syntax, pattern: String, flags: String) -> MacroResult = match parse_literal_flags(Std.String.characters(flags), literal_default_options())

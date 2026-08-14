@@ -4,7 +4,7 @@
 @group(:text)
 mod Std.Regex.Syntax.Model
   type LiteralCharacterRange = LiteralCharacterRange(Char, Char)
-  type LiteralClassKinds = LiteralClassKinds(List(LiteralClassKind), List(LiteralUnicodePropertyMatch))
+  type LiteralClassKinds = LiteralClassKinds(List(LiteralClassKind), List(LiteralUnicodePropertyMatch), List(LiteralPosixClassMatch))
   type LiteralRegexOptions = LiteralRegexOptions(List(LiteralModifier))
   type LiteralPrepared = LiteralPrepared(List(Char), List(Nat), Nat)
   type LiteralSourceMap = LiteralSourceMap(List(Char), List(Nat))
@@ -50,6 +50,7 @@ mod Std.Regex.Syntax.Model
   type LiteralCountParse = LiteralCountParsed(Nat, Bool, List(Char)) | LiteralCountInvalid(Atom)
   type LiteralScalarParse = LiteralScalarParsed(Char, List(Char)) | LiteralScalarInvalid(Atom)
   type LiteralPropertyParse = LiteralPropertyParsed(LiteralUnicodeProperty, List(Char)) | LiteralPropertyInvalid(Atom)
+  type LiteralPosixParse = LiteralPosixParsed(LiteralPosixClass, Bool, List(Char)) | LiteralPosixInvalid(Atom)
 
 
   type LiteralClassKind =
@@ -76,6 +77,13 @@ mod Std.Regex.Syntax.Model
 
   type LiteralUnicodePropertyMatch = LiteralUnicodePropertyMatch(LiteralUnicodeProperty, Bool)
 
+  type LiteralPosixClass =
+    | PosixAlnum | PosixAlpha | PosixAscii | PosixBlank | PosixCntrl
+    | PosixDigit | PosixGraph | PosixLower | PosixPrint | PosixPunct
+    | PosixSpace | PosixUpper | PosixWord | PosixXdigit
+
+  type LiteralPosixClassMatch = LiteralPosixClassMatch(LiteralPosixClass, Bool)
+
   type LiteralModifier =
     | CaselessModifier
     | MultilineModifier
@@ -87,19 +95,25 @@ mod Std.Regex.Syntax.Model
     | ExportModifier
 
   fn no_class_kinds() -> LiteralClassKinds =
-    LiteralClassKinds([], [])
+    LiteralClassKinds([], [], [])
 
   fn enable_class_kind(kind: LiteralClassKind, kinds: LiteralClassKinds) -> LiteralClassKinds = match kinds
-    LiteralClassKinds(values, properties) -> LiteralClassKinds([kind | values], properties)
+    LiteralClassKinds(values, properties, posix) -> LiteralClassKinds([kind | values], properties, posix)
 
   fn enable_unicode_property(property: LiteralUnicodeProperty, negated: Bool, kinds: LiteralClassKinds) -> LiteralClassKinds = match kinds
-    LiteralClassKinds(values, properties) -> LiteralClassKinds(values, [LiteralUnicodePropertyMatch(property, negated) | properties])
+    LiteralClassKinds(values, properties, posix) -> LiteralClassKinds(values, [LiteralUnicodePropertyMatch(property, negated) | properties], posix)
+
+  fn enable_posix_class(posix_class: LiteralPosixClass, negated: Bool, kinds: LiteralClassKinds) -> LiteralClassKinds = match kinds
+    LiteralClassKinds(values, properties, posix) -> LiteralClassKinds(values, properties, [LiteralPosixClassMatch(posix_class, negated) | posix])
 
   fn has_class_kind(kinds: LiteralClassKinds, wanted: LiteralClassKind) -> Bool = match kinds
-    LiteralClassKinds(values, _) -> has_class_kind_in(values, wanted)
+    LiteralClassKinds(values, _, _) -> has_class_kind_in(values, wanted)
 
   fn literal_class_properties(kinds: LiteralClassKinds) -> List(LiteralUnicodePropertyMatch) = match kinds
-    LiteralClassKinds(_, properties) -> properties
+    LiteralClassKinds(_, properties, _) -> properties
+
+  fn literal_class_posix(kinds: LiteralClassKinds) -> List(LiteralPosixClassMatch) = match kinds
+    LiteralClassKinds(_, _, posix) -> posix
 
   fn has_class_kind_in(values: List(LiteralClassKind), wanted: LiteralClassKind) -> Bool = match values
     [] -> false
