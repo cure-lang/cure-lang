@@ -27,8 +27,8 @@ defmodule Cure.Core.UnifyIndicesTest do
     # are VALUES (levels); `unify_indices` reifies them to indices internally.
     ctx =
       Context.empty(s)
-      |> Context.extend({:vdata, :Nat, []})
-      |> Context.extend({:vdata, :Nat, []})
+      |> Context.extend({:vdata, q("M", :Nat), []})
+      |> Context.extend({:vdata, q("M", :Nat), []})
 
     # scrutinee index VALUES for [a, b] (SameLen(a, b)).
     scrut = [{:vneutral, {:nvar, 0}}, {:vneutral, {:nvar, 1}}]
@@ -53,7 +53,7 @@ defmodule Cure.Core.UnifyIndicesTest do
          s
        end).()
 
-  defp one_var_ctx(s), do: Context.extend(Context.empty(s), {:vdata, :Nat, []})
+  defp one_var_ctx(s), do: Context.extend(Context.empty(s), {:vdata, q("G", :Nat), []})
 
   # Does any key of `subst` occur in its own bound value? (a cyclic binding)
   defp cyclic?(subst) do

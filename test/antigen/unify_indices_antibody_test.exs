@@ -85,8 +85,11 @@ defmodule Antigen.UnifyIndicesAntibodyTest do
       )
 
   # A context with `n` outer Nat vars in scope; scrutinee index VALUES are levels.
-  defp ctx_with(sig, n),
-    do: Enum.reduce(1..n, Context.empty(sig), fn _, c -> Context.extend(c, {:vdata, :Nat, []}) end)
+  defp ctx_with(sig, n, owner),
+    do:
+      Enum.reduce(1..n, Context.empty(sig), fn _, c ->
+        Context.extend(c, {:vdata, q(owner, :Nat), []})
+      end)
 
   defp lvl(i), do: {:vneutral, {:nvar, i}}
 
@@ -179,7 +182,7 @@ defmodule Antigen.UnifyIndicesAntibodyTest do
 
   test "chained chase through >=2 already-bound keys terminates (returns, no loop)" do
     s = t8_sig()
-    ctx = ctx_with(s, 8)
+    ctx = ctx_with(s, 8, "C8")
     # T8(a,a,b,b,c,c,d,d) vs T8(i,j,j,k,k,l,l,i): a 4-cycle i≡j≡k≡l≡i forcing the
     # resolve chase through 3 intermediate keys.
     scrut = [lvl(0), lvl(1), lvl(1), lvl(2), lvl(2), lvl(3), lvl(3), lvl(0)]
@@ -197,7 +200,7 @@ defmodule Antigen.UnifyIndicesAntibodyTest do
 
   test "T(a,a,b,b) vs T(i,j,j,i) collapses i≡j with an ACYCLIC subst (no swap)" do
     s = t4_sig()
-    ctx = ctx_with(s, 2)
+    ctx = ctx_with(s, 2, "C4")
     i = lvl(0)
     j = lvl(1)
 
@@ -214,7 +217,7 @@ defmodule Antigen.UnifyIndicesAntibodyTest do
 
   test "deeper T6(a,a,b,b,c,c) vs T6(i,j,j,k,k,i) collapses i≡j≡k with an ACYCLIC subst" do
     s = t6_sig()
-    ctx = ctx_with(s, 6)
+    ctx = ctx_with(s, 6, "C6")
     scrut = [lvl(0), lvl(1), lvl(1), lvl(2), lvl(2), lvl(0)]
 
     assert {:solved, subst} = Kernel.branch_unify(ctx, q("C6", :T6), q("C6", :c6), scrut)
@@ -232,7 +235,7 @@ defmodule Antigen.UnifyIndicesAntibodyTest do
 
   test "forced entry is a genuine unifier: SameLen(k,k) vs SameLen(a,b)" do
     s = samelen_sig()
-    ctx = ctx_with(s, 2)
+    ctx = ctx_with(s, 2, "M")
     scrut = [lvl(0), lvl(1)]
 
     assert {:solved, subst} = Kernel.branch_unify(ctx, q("M", :SameLen), q("M", :same), scrut)
@@ -241,7 +244,7 @@ defmodule Antigen.UnifyIndicesAntibodyTest do
 
   test "forced entries are genuine unifiers: T(a,a,b,b) vs T(i,j,j,i)" do
     s = t4_sig()
-    ctx = ctx_with(s, 2)
+    ctx = ctx_with(s, 2, "C4")
     scrut = [lvl(0), lvl(1), lvl(1), lvl(0)]
 
     assert {:solved, subst} = Kernel.branch_unify(ctx, q("C4", :T), q("C4", :c), scrut)
@@ -250,7 +253,7 @@ defmodule Antigen.UnifyIndicesAntibodyTest do
 
   test "forced entries are genuine unifiers: T6(a,a,b,b,c,c) vs T6(i,j,j,k,k,i)" do
     s = t6_sig()
-    ctx = ctx_with(s, 6)
+    ctx = ctx_with(s, 6, "C6")
     scrut = [lvl(0), lvl(1), lvl(1), lvl(2), lvl(2), lvl(0)]
 
     assert {:solved, subst} = Kernel.branch_unify(ctx, q("C6", :T6), q("C6", :c6), scrut)
