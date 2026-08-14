@@ -133,6 +133,35 @@ defmodule Cure.Core.Certificate do
     Map.put(summary, :summary_hash, semantic_hash(summary))
   end
 
+  @doc "Check one verified SCC from trusted direct-call summaries."
+  @spec terminating_group?([atom()], Env.t()) :: boolean()
+  def terminating_group?(members, %Env{} = env) when is_list(members) do
+    member_set = MapSet.new(members)
+
+    edges =
+      members
+      |> Enum.flat_map(fn caller ->
+        case Env.direct_call_summary(env, caller) do
+          %{calls: calls} ->
+            for call <- calls, MapSet.member?(member_set, call.callee) do
+              {caller, call.callee, call.matrix}
+            end
+
+          nil ->
+            []
+        end
+      end)
+      |> Enum.uniq()
+
+    edges == [] or
+      edges
+      |> group_closure()
+      |> Enum.all?(fn
+        {f, f, matrix} -> not idempotent?(matrix) or smaller_diagonal?(matrix)
+        {_source, _target, _matrix} -> true
+      end)
+  end
+
   defp definition_arity(env, callee, fallback) do
     case Env.get_def(env, callee) do
       %{body: body} when is_tuple(body) and elem(body, 0) not in [:extern, :hole] -> arity_of(body)

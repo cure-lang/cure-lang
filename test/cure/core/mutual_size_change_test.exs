@@ -17,7 +17,8 @@ defmodule Cure.Core.MutualSizeChangeTest do
   one-leg, three-cycle) and the #14 Ackermann body.
   """
   use ExUnit.Case, async: true
-  alias Cure.Core.{Certificate, Env, Inductive}
+  alias Cure.Core.{Certificate, Env, Inductive, Kernel}
+  alias Cure.Elab.TotalityGraph
 
   @nat {:data, :Nat, [], []}
   @nat_motive {:lam, Cure.Core.Grade.unrestricted(), @nat, @nat}
@@ -36,7 +37,7 @@ defmodule Cure.Core.MutualSizeChangeTest do
     Env.empty()
     |> Inductive.declare(Inductive.family(:Nat, [], [], 0), [
       Inductive.ctor(:Z, [], []),
-      Inductive.ctor(:S, [{:data, :Nat, [], []}], [])
+      Inductive.ctor(:S, [{:n, @nat}], [])
     ])
   end
 
@@ -111,6 +112,26 @@ defmodule Cure.Core.MutualSizeChangeTest do
     env = with_defs(even: even_body(), odd: odd_body())
     assert terminating?(env, :even)
     assert terminating?(env, :odd)
+  end
+
+  test "verified SCC validation certifies a mutual group once and invalidates it atomically" do
+    env = with_defs(even: even_body(), odd: odd_body())
+    assert {:ok, prepared} = Kernel.prepare_direct_call_summaries(env, [:even, :odd])
+    partition = TotalityGraph.propose_partition(prepared, [:odd, :even])
+
+    assert {:ok, certified} =
+             Kernel.validate_scc_certificates(prepared, partition, [:even, :odd])
+
+    assert Env.total?(certified, :even)
+    assert Env.total?(certified, :odd)
+    assert map_size(certified.totality_components) == 1
+    assert certified.totality_component_of.even == certified.totality_component_of.odd
+
+    replaced = Env.add_def(certified, :even, nat_arrow(even_body()), even_body())
+    refute Env.total?(replaced, :even)
+    refute Env.total?(replaced, :odd)
+    assert replaced.totality_components == %{}
+    assert replaced.totality_component_of == %{}
   end
 
   test "ping/pong structural mutual pair certifies total" do

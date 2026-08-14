@@ -26,6 +26,8 @@ defmodule Cure.Core.Env do
             ctor_to_family: %{},
             defs: %{},
             direct_call_summaries: %{},
+            totality_components: %{},
+            totality_component_of: %{},
             certified: nil,
             totality_certified: nil,
             builtins: %{},
@@ -49,6 +51,8 @@ defmodule Cure.Core.Env do
           ctor_to_family: %{atom() => atom()},
           defs: %{atom() => map()},
           direct_call_summaries: %{atom() => map()},
+          totality_components: %{binary() => map()},
+          totality_component_of: %{atom() => binary()},
           certified: MapSet.t() | nil,
           totality_certified: MapSet.t() | nil,
           builtins: %{atom() => atom()},
@@ -195,10 +199,9 @@ defmodule Cure.Core.Env do
 
   def add_def(%__MODULE__{} = env, name, type_term, body_term, quantities, plicities) do
     name = owned_name(env, name)
-    certified = if is_nil(env.certified), do: nil, else: MapSet.delete(env.certified, name)
 
-    totality_certified =
-      if is_nil(env.totality_certified), do: nil, else: MapSet.delete(env.totality_certified, name)
+    {certified, totality_certified, components, component_of} =
+      invalidate_totality_component(env, name)
 
     %{
       env
@@ -211,9 +214,30 @@ defmodule Cure.Core.Env do
             plicities: plicities
           }),
         direct_call_summaries: Map.delete(env.direct_call_summaries, name),
+        totality_components: components,
+        totality_component_of: component_of,
         certified: certified,
         totality_certified: totality_certified
     }
+  end
+
+  defp invalidate_totality_component(env, name) do
+    case Map.get(env.totality_component_of, name) do
+      nil ->
+        certified = if is_nil(env.certified), do: nil, else: MapSet.delete(env.certified, name)
+        totality = if is_nil(env.totality_certified), do: nil, else: MapSet.delete(env.totality_certified, name)
+        {certified, totality, env.totality_components, env.totality_component_of}
+
+      digest ->
+        members = get_in(env.totality_components, [digest, :members]) || [name]
+        member_set = MapSet.new(members)
+        certified = if is_nil(env.certified), do: nil, else: MapSet.difference(env.certified, member_set)
+
+        totality =
+          if is_nil(env.totality_certified), do: nil, else: MapSet.difference(env.totality_certified, member_set)
+
+        {certified, totality, Map.delete(env.totality_components, digest), Map.drop(env.totality_component_of, members)}
+    end
   end
 
   @doc "Store the trusted direct-call summary for a checked definition."
@@ -227,6 +251,20 @@ defmodule Cure.Core.Env do
   @spec direct_call_summary(t(), atom()) :: map() | nil
   def direct_call_summary(%__MODULE__{} = env, name) do
     Map.get(env.direct_call_summaries, resolve_key(env, env.defs, name))
+  end
+
+  @doc "Atomically publish a kernel-verified totality result for an SCC."
+  @spec certify_component(t(), [atom()], binary()) :: t()
+  def certify_component(%__MODULE__{} = env, members, digest)
+      when is_list(members) and is_binary(digest) do
+    members = Enum.sort(members)
+    certified = Enum.reduce(members, env, &certify(&2, &1))
+
+    %{
+      certified
+      | totality_components: Map.put(certified.totality_components, digest, %{members: members, digest: digest}),
+        totality_component_of: Enum.reduce(members, certified.totality_component_of, &Map.put(&2, &1, digest))
+    }
   end
 
   @doc "Mark a registered definition as requiring the explicit `unsafe` call marker."

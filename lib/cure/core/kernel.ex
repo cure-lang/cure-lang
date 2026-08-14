@@ -831,6 +831,73 @@ defmodule Cure.Core.Kernel do
     end
   end
 
+  @doc "Prepare trusted direct-call summaries for a finite certification universe."
+  @spec prepare_direct_call_summaries(Env.t(), [atom()]) :: {:ok, Env.t()} | {:error, term()}
+  def prepare_direct_call_summaries(%Env{} = env, names) when is_list(names) do
+    names
+    |> Enum.map(&Env.resolve_key(env, env.defs, &1))
+    |> Enum.uniq()
+    |> Enum.sort()
+    |> Enum.reduce_while({:ok, env}, fn name, {:ok, acc} ->
+      case Env.get_def(acc, name) do
+        nil ->
+          {:halt, {:error, {:totality_unknown_callee, %{definition: name}}}}
+
+        %{body: body} when is_tuple(body) and elem(body, 0) not in [:extern, :hole] ->
+          case check_def(acc, name) do
+            :ok -> {:cont, {:ok, ensure_direct_call_summary(acc, name, body)}}
+            {:error, reason} -> {:halt, {:error, reason}}
+          end
+
+        %{body: {:hole, _}} ->
+          {:halt, {:error, {:totality_summary_stale, %{definition: name, reason: :pending_body}}}}
+
+        _terminal ->
+          {:cont, {:ok, acc}}
+      end
+    end)
+  end
+
+  @doc "Verify an SCC partition once and atomically certify selected components."
+  @spec validate_scc_certificates(Env.t(), map(), [atom()]) ::
+          {:ok, Env.t()} | {:error, {:not_total, [atom()]}} | {:error, term()}
+  def validate_scc_certificates(%Env{} = env, partition, selected_names) do
+    with {:ok, _components} <- Cure.Core.SCCCertificate.verify_partition(env, partition) do
+      selected_ids =
+        selected_names
+        |> Enum.map(&Env.resolve_key(env, env.defs, &1))
+        |> Enum.map(&Map.fetch!(partition.component_of, &1))
+        |> Enum.uniq()
+        |> Enum.sort_by(&Map.fetch!(partition.rank, &1))
+
+      Enum.reduce_while(selected_ids, {:ok, env}, fn component_id, {:ok, acc} ->
+        members = partition.components[component_id].members
+        digest = scc_certificate_digest(partition, component_id, members)
+
+        cond do
+          Map.has_key?(acc.totality_components, digest) ->
+            {:cont, {:ok, acc}}
+
+          Certificate.terminating_group?(members, acc) ->
+            {:cont, {:ok, Env.certify_component(acc, members, digest)}}
+
+          true ->
+            {:halt, {:error, {:not_total, members}}}
+        end
+      end)
+    end
+  end
+
+  defp scc_certificate_digest(partition, component_id, members) do
+    material =
+      {partition.version, component_id,
+       Enum.map(members, fn member ->
+         {member, Map.fetch!(partition.summary_hashes, member)}
+       end)}
+
+    :crypto.hash(:sha256, :erlang.term_to_binary(material, [:deterministic]))
+  end
+
   @doc """
   Check an indexed family declaration well-formed: parameter telescope, then
   index telescope (in the context of the parameters), each entry a valid type.
