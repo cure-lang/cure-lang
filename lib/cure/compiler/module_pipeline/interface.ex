@@ -162,6 +162,12 @@ defmodule Cure.Compiler.ModulePipeline.Interface do
     declarations =
       partition.declarations
       |> Map.update!(:defs, &published_definitions/1)
+      |> Map.put(:direct_call_summaries, Map.take(env.direct_call_summaries, MapSet.to_list(owned_def_keys)))
+      |> Map.put(:totality_component_of, Map.take(env.totality_component_of, MapSet.to_list(owned_def_keys)))
+      |> then(fn declarations ->
+        component_digests = declarations.totality_component_of |> Map.values() |> Enum.uniq()
+        Map.put(declarations, :totality_components, Map.take(env.totality_components, component_digests))
+      end)
       |> Map.put(
         :totality_certified,
         MapSet.intersection(env.totality_certified || MapSet.new(), owned_def_keys)
@@ -198,6 +204,9 @@ defmodule Cure.Compiler.ModulePipeline.Interface do
         %Env{
           empty
           | defs: Map.get(declarations, :defs, %{}),
+            direct_call_summaries: Map.get(declarations, :direct_call_summaries, %{}),
+            totality_components: Map.get(declarations, :totality_components, %{}),
+            totality_component_of: Map.get(declarations, :totality_component_of, %{}),
             families: Map.get(declarations, :families, %{}),
             ctors: Map.get(declarations, :ctors, %{}),
             ctor_to_family: Map.get(declarations, :ctor_to_family, %{}),

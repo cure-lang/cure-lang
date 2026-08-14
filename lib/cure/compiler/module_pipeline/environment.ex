@@ -49,6 +49,9 @@ defmodule Cure.Compiler.ModulePipeline.Environment do
   def semantic_dump(%__MODULE__{env: env}) do
     %{
       defs: sorted(env.defs, & &1.type),
+      direct_call_summaries: Enum.sort(env.direct_call_summaries),
+      totality_components: Enum.sort(env.totality_components),
+      totality_component_of: Enum.sort(env.totality_component_of),
       families: sorted(env.families, & &1),
       ctors: sorted(env.ctors, & &1),
       ctor_to_family: Enum.sort(env.ctor_to_family),

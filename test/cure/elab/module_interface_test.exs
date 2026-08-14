@@ -13,7 +13,18 @@ defmodule Cure.Elab.ModuleInterfaceTest do
     assert is_nil(iface.export_env)
     assert is_nil(iface.owned_env)
     assert is_map(iface.canonical_declarations)
-    assert {:ok, %Cure.Core.Env{}} = Cure.Compiler.ModulePipeline.Interface.to_env(iface)
+    assert is_map(iface.canonical_declarations.direct_call_summaries)
+    assert iface.canonical_declarations.direct_call_summaries != %{}
+
+    assert {:ok, %Cure.Core.Env{} = restored} =
+             Cure.Compiler.ModulePipeline.Interface.to_env(iface)
+
+    assert restored.direct_call_summaries ==
+             iface.canonical_declarations.direct_call_summaries
+
+    assert restored.totality_component_of ==
+             iface.canonical_declarations.totality_component_of
+
     assert is_binary(iface.source_hash) and byte_size(iface.source_hash) == 32
     assert is_binary(iface.interface_hash) and byte_size(iface.interface_hash) == 32
     assert :ok = ModuleInterface.validate(iface)

@@ -18,7 +18,9 @@ defmodule Cure.Compiler.ModuleInterface do
   # projection. Version 3 separates dependency-validation hashes from a
   # module's own public identity so cyclic interface graphs converge. Version 4
   # separates checked totality from permission to δ-unfold a published body.
-  @schema_version 4
+  # Version 5 publishes body-hash-keyed direct-call summaries and atomic SCC
+  # certificate identities for Agda-style incremental totality checking.
+  @schema_version 5
 
   @enforce_keys [
     :module_name,

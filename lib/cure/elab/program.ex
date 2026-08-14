@@ -941,9 +941,22 @@ defmodule Cure.Elab.Program do
         nil -> nil
       end
 
+    direct_call_summaries = reject_owned(env.direct_call_summaries, owner)
+
+    totality_component_of =
+      Map.reject(env.totality_component_of, fn {key, _digest} ->
+        Cure.Elab.Name.owner(key) == owner
+      end)
+
+    retained_digests = totality_component_of |> Map.values() |> MapSet.new()
+    totality_components = Map.take(env.totality_components, MapSet.to_list(retained_digests))
+
     %{
       env
       | defs: defs,
+        direct_call_summaries: direct_call_summaries,
+        totality_components: totality_components,
+        totality_component_of: totality_component_of,
         equations: equations,
         certified: certified,
         totality_certified: totality_certified,
