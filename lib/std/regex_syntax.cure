@@ -33,6 +33,16 @@ mod Std.Regex.Syntax
     :RegexQuantifierTooLarge -> "This bounded quantifier exceeds Cure's compile-time expansion limit of 64 repetitions."
     :QuantifierWithoutAtom -> "This quantifier has no preceding regex atom to repeat."
     :UnsupportedRegexPossessiveQuantifier -> "Possessive quantifiers are not supported by Cure's finite regex language."
+    :IncompleteRegexHexEscape -> "This hexadecimal escape does not contain the required two digits."
+    :InvalidRegexHexEscape -> "This hexadecimal escape contains a non-hexadecimal digit."
+    :EmptyRegexScalarEscape -> "This braced hexadecimal escape is empty."
+    :RegexEscapeOutOfRange -> "This hexadecimal escape is outside the Unicode code-point range."
+    :RegexEscapeNotUnicodeScalar -> "This hexadecimal escape names a reserved UTF-16 surrogate, not a Unicode scalar."
+    :UnclosedRegexScalarEscape -> "This hexadecimal escape is missing its closing `}`."
+    :EmptyRegexUnicodeProperty -> "This Unicode property name is empty."
+    :UnknownRegexUnicodeProperty -> "This Unicode property name is not supported."
+    :MalformedRegexUnicodeProperty -> "A Unicode property escape must put its property name inside braces."
+    :UnclosedRegexUnicodeProperty -> "This Unicode property escape is missing its closing `}`."
     _ -> "This regex literal contains malformed or unsupported syntax."
 
   fn regex_failure_hint(reason: Atom) -> String = match reason
@@ -44,6 +54,16 @@ mod Std.Regex.Syntax
     :RegexQuantifierTooLarge -> "Reduce the bound to 64 or less, or build the repeated regex explicitly."
     :QuantifierWithoutAtom -> "Place the quantifier after a literal, class, group, or other regex atom."
     :UnsupportedRegexPossessiveQuantifier -> "Use the corresponding greedy or lazy quantifier without the possessive `+` suffix."
+    :IncompleteRegexHexEscape -> "Write exactly two hexadecimal digits after `\\x`, or use the braced form `\\x{...}`."
+    :InvalidRegexHexEscape -> "Replace the highlighted value with hexadecimal digits `0`-`9`, `a`-`f`, or `A`-`F`."
+    :EmptyRegexScalarEscape -> "Put one or more hexadecimal digits between the braces."
+    :RegexEscapeOutOfRange -> "Use a code point between `0` and `10FFFF`."
+    :RegexEscapeNotUnicodeScalar -> "Choose a Unicode scalar outside the surrogate interval `D800`-`DFFF`."
+    :UnclosedRegexScalarEscape -> "Close the scalar escape with `}`."
+    :EmptyRegexUnicodeProperty -> "Name a general category such as `L`, `Lu`, or `Decimal_Number`."
+    :UnknownRegexUnicodeProperty -> "Use a supported Unicode general-category name or alias."
+    :MalformedRegexUnicodeProperty -> "Write the property as `\\p{L}` or its negated form `\\P{L}`."
+    :UnclosedRegexUnicodeProperty -> "Close the Unicode property name with `}`."
     _ -> "Correct the highlighted regex syntax."
 
   fn expand_literal_strings(pattern_syntax: Syntax, pattern: String, flags: String) -> MacroResult = match parse_literal_flags(Std.String.characters(flags), literal_default_options())

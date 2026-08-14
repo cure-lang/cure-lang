@@ -39,7 +39,10 @@ mod Std.Regex.Syntax.Model
     | LiteralInvalid(Atom)
     | LiteralAtInvalid(Atom, List(Char), Nat)
     | LiteralLocatedInvalid(Atom, Nat, Nat)
-  type LiteralClassParse = LiteralClassParsed(List(Char), List(LiteralCharacterRange), LiteralClassKinds, List(Char)) | LiteralClassInvalid(Atom)
+  type LiteralClassParse =
+    | LiteralClassParsed(List(Char), List(LiteralCharacterRange), LiteralClassKinds, List(Char))
+    | LiteralClassInvalid(Atom)
+    | LiteralClassAtInvalid(Atom, List(Char), Nat)
   type LiteralFlags = LiteralFlagsParsed(LiteralRegexOptions) | LiteralFlagsInvalid(Atom)
   type LiteralCountParse = LiteralCountParsed(Nat, Bool, List(Char)) | LiteralCountInvalid(Atom)
   type LiteralScalarParse = LiteralScalarParsed(Char, List(Char)) | LiteralScalarInvalid(Atom)
@@ -234,6 +237,20 @@ mod Std.Regex.Syntax.Model
     [char | rest] -> pickup
       char == closing -> 1
       else -> S(literal_delimited_width(rest, closing))
+
+  fn literal_prefix_width(input: List(Char), maximum: Nat) -> Nat = match maximum
+    Z() -> Z()
+    S(next_maximum) -> match input
+      [] -> Z()
+      [_ | rest] -> S(literal_prefix_width(rest, next_maximum))
+
+  fn literal_scalar_escape_width(input: List(Char)) -> Nat = match input
+    ['\\', 'x', '{' | _] -> literal_delimited_width(input, '}')
+    _ -> literal_prefix_width(input, 4)
+
+  fn literal_property_escape_width(input: List(Char)) -> Nat = match input
+    ['\\', _, '{' | _] -> literal_delimited_width(input, '}')
+    _ -> literal_prefix_width(input, 3)
 
   fn is_literal_stop(char: Char) -> Bool =
     char == '|' or char == ')'

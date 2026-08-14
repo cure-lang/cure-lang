@@ -10,6 +10,7 @@ mod Std.Regex.Syntax.Class
   fn finish_literal_class(result: LiteralClassParse, negated: Bool) -> LiteralParse = match result
     LiteralClassParsed(chars, ranges, kinds, rest) -> LiteralParsed(LiteralClass(reverse_chars(chars), reverse_ranges(ranges), kinds, negated), rest)
     LiteralClassInvalid(reason) -> LiteralInvalid(reason)
+    LiteralClassAtInvalid(reason, suffix, width) -> LiteralAtInvalid(reason, suffix, width)
 
   fn parse_literal_class_items_fuel(input: List(Char), chars: List(Char), ranges: List(LiteralCharacterRange), kinds: LiteralClassKinds, fuel: Nat) -> LiteralClassParse = match fuel
     Z() -> LiteralClassInvalid(:RegexParseLimit)
@@ -36,13 +37,13 @@ mod Std.Regex.Syntax.Class
     ['\\', 't' | rest] -> parse_literal_class_items_fuel(rest, ['\t' | chars], ranges, kinds, fuel)
     ['\\', 'x' | rest] -> match parse_literal_hex_scalar(rest)
       LiteralScalarParsed(scalar, tail) -> parse_literal_class_character(scalar, tail, chars, ranges, kinds, fuel)
-      LiteralScalarInvalid(reason) -> LiteralClassInvalid(reason)
+      LiteralScalarInvalid(reason) -> LiteralClassAtInvalid(reason, ['\\', 'x' | rest], literal_scalar_escape_width(['\\', 'x' | rest]))
     ['\\', 'p' | rest] -> match parse_literal_unicode_property(rest)
       LiteralPropertyParsed(property, tail) -> parse_literal_class_items_fuel(tail, chars, ranges, enable_unicode_property(property, false, kinds), fuel)
-      LiteralPropertyInvalid(reason) -> LiteralClassInvalid(reason)
+      LiteralPropertyInvalid(reason) -> LiteralClassAtInvalid(reason, ['\\', 'p' | rest], literal_property_escape_width(['\\', 'p' | rest]))
     ['\\', 'P' | rest] -> match parse_literal_unicode_property(rest)
       LiteralPropertyParsed(property, tail) -> parse_literal_class_items_fuel(tail, chars, ranges, enable_unicode_property(property, true, kinds), fuel)
-      LiteralPropertyInvalid(reason) -> LiteralClassInvalid(reason)
+      LiteralPropertyInvalid(reason) -> LiteralClassAtInvalid(reason, ['\\', 'P' | rest], literal_property_escape_width(['\\', 'P' | rest]))
     [first | rest] -> parse_literal_class_character(first, rest, chars, ranges, kinds, fuel)
 
   fn parse_literal_class_character(first: Char, rest: List(Char), chars: List(Char), ranges: List(LiteralCharacterRange), kinds: LiteralClassKinds, fuel: Nat) -> LiteralClassParse = pickup

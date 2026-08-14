@@ -2,6 +2,7 @@ defmodule Cure.Stdlib.DependentRegexScalarEscapeTest do
   use ExUnit.Case, async: false
 
   alias Cure.Elab.Program
+  alias Cure.Compiler.Errors
 
   setup_all do
     source = ~S'''
@@ -28,23 +29,30 @@ defmodule Cure.Stdlib.DependentRegexScalarEscapeTest do
 
   test "malformed and non-scalar hexadecimal escapes have dedicated diagnostics" do
     cases = [
-      {~S"\x", :IncompleteRegexHexEscape},
-      {~S"\x4", :IncompleteRegexHexEscape},
-      {~S"\xGG", :InvalidRegexHexEscape},
-      {~S"\x{}", :EmptyRegexScalarEscape},
-      {~S"\x{110000}", :RegexEscapeOutOfRange},
-      {~S"\x{D800}", :RegexEscapeNotUnicodeScalar},
-      {~S"\x{41", :UnclosedRegexScalarEscape}
+      {~S"\x", :IncompleteRegexHexEscape, ~S"\x"},
+      {~S"\x4", :IncompleteRegexHexEscape, ~S"\x4"},
+      {~S"\xGG", :InvalidRegexHexEscape, ~S"\xGG"},
+      {~S"\x{}", :EmptyRegexScalarEscape, ~S"\x{}"},
+      {~S"\x{110000}", :RegexEscapeOutOfRange, ~S"\x{110000}"},
+      {~S"\x{D800}", :RegexEscapeNotUnicodeScalar, ~S"\x{D800}"},
+      {~S"\x{41", :UnclosedRegexScalarEscape, ~S"\x{41"},
+      {~S"[\xGG]", :InvalidRegexHexEscape, ~S"\xGG"}
     ]
 
-    Enum.each(cases, fn {pattern, expected} ->
+    Enum.each(cases, fn {pattern, expected, expected_span} ->
       source = "mod BadScalar\n  use Std.Regex\n  fn run() = /#{pattern}/\nend\n"
 
       assert {:error,
               {:source_context,
                {:computed_macro_error, _meta,
-                {:author_diagnostics, [{:macro_failure, ^expected, _arguments}]}}, _context}} =
+                {:author_diagnostics, [{:macro_failure, ^expected, _arguments}]}}, _context} = reason} =
                Program.elaborate(source)
+
+      {diagnostic, _registry} = Errors.to_diagnostic(reason, "nofile", source)
+      span = diagnostic.primary.span
+
+      assert binary_part(source, span.start_byte, span.end_byte - span.start_byte) == expected_span
+      refute Cure.Diagnostic.message(diagnostic) =~ "`#{expected}`"
     end)
   end
 

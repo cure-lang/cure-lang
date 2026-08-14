@@ -2,6 +2,7 @@ defmodule Cure.Stdlib.DependentRegexUnicodePropertyTest do
   use ExUnit.Case, async: false
 
   alias Cure.Elab.Program
+  alias Cure.Compiler.Errors
 
   setup_all do
     source = ~S'''
@@ -42,20 +43,27 @@ defmodule Cure.Stdlib.DependentRegexUnicodePropertyTest do
 
   test "unknown, empty, malformed, and unclosed properties reject distinctly" do
     cases = [
-      {~S"\p{}", :EmptyRegexUnicodeProperty},
-      {~S"\p{Bogus}", :UnknownRegexUnicodeProperty},
-      {~S"\pL", :MalformedRegexUnicodeProperty},
-      {~S"\p{L", :UnclosedRegexUnicodeProperty}
+      {~S"\p{}", :EmptyRegexUnicodeProperty, ~S"\p{}"},
+      {~S"\p{Bogus}", :UnknownRegexUnicodeProperty, ~S"\p{Bogus}"},
+      {~S"\pL", :MalformedRegexUnicodeProperty, ~S"\pL"},
+      {~S"\p{L", :UnclosedRegexUnicodeProperty, ~S"\p{L"},
+      {~S"[\p{}]", :EmptyRegexUnicodeProperty, ~S"\p{}"}
     ]
 
-    Enum.each(cases, fn {pattern, expected} ->
+    Enum.each(cases, fn {pattern, expected, expected_span} ->
       source = "mod BadProperty\n  use Std.Regex\n  fn run() = /#{pattern}/u\nend\n"
 
       assert {:error,
               {:source_context,
                {:computed_macro_error, _meta,
-                {:author_diagnostics, [{:macro_failure, ^expected, _arguments}]}}, _context}} =
+                {:author_diagnostics, [{:macro_failure, ^expected, _arguments}]}}, _context} = reason} =
                Program.elaborate(source)
+
+      {diagnostic, _registry} = Errors.to_diagnostic(reason, "nofile", source)
+      span = diagnostic.primary.span
+
+      assert binary_part(source, span.start_byte, span.end_byte - span.start_byte) == expected_span
+      refute Cure.Diagnostic.message(diagnostic) =~ "`#{expected}`"
     end)
   end
 end
