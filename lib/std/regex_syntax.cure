@@ -28,6 +28,9 @@ mod Std.Regex.Syntax
     match literal_source_span(positions, source_length, start, width)
       LiteralSourceSpan(source_start, source_width) -> reject_located_literal(pattern_syntax, reason, source_start, source_width)
 
+  fn reject_unlocated_literal(pattern_syntax: Syntax, reason: Atom) -> MacroResult =
+    reject(Failure(reason, [diagnostic_details(pattern_syntax, regex_failure_message(reason), regex_failure_hint(reason))]))
+
   fn regex_failure_message(reason: Atom) -> String = match reason
     :MissingRegexQuantifierMinimum -> "This bounded quantifier is missing its minimum repetition count."
     :MissingRegexQuantifierMaximum -> "This bounded quantifier is missing its maximum repetition count."
@@ -67,6 +70,9 @@ mod Std.Regex.Syntax
     :UnknownRegexPosixClass -> "This POSIX character class name is not supported."
     :MalformedRegexPosixClass -> "A POSIX character class must end its name with `:]`."
     :UnclosedRegexPosixClass -> "This POSIX character class is missing its `:]` terminator."
+    :RegexParseLimit -> "This regex is too structurally deep for the compile-time parser's safety bound."
+    :MissingRegexAtom -> "This regex operator requires an atom, class, or group at this position."
+    :UnexpectedRegexSuffix -> "The regex parser left an unexpected suffix after the parsed expression."
     _ -> "This regex literal contains malformed or unsupported syntax."
 
   fn regex_failure_hint(reason: Atom) -> String = match reason
@@ -108,6 +114,9 @@ mod Std.Regex.Syntax
     :UnknownRegexPosixClass -> "Use one of alnum, alpha, ascii, blank, cntrl, digit, graph, lower, print, punct, space, upper, word, or xdigit."
     :MalformedRegexPosixClass -> "Write the class as `[:name:]` or its negated form `[:^name:]`."
     :UnclosedRegexPosixClass -> "Close the POSIX class name with `:]`."
+    :RegexParseLimit -> "Reduce the regex's nesting depth or split it into typed regex combinators."
+    :MissingRegexAtom -> "Add the missing atom or remove the operator that requires it."
+    :UnexpectedRegexSuffix -> "Correct the highlighted suffix so the complete pattern forms one regex expression."
     _ -> "Correct the highlighted regex syntax."
 
   fn expand_literal_strings(pattern_syntax: Syntax, pattern: String, flags: String) -> MacroResult = match parse_literal_flags(Std.String.characters(flags), literal_default_options())
@@ -123,7 +132,7 @@ mod Std.Regex.Syntax
                 ])
               )
             _ -> reject(Failure(:UnexpectedRegexSuffix, []))
-          LiteralInvalid(reason) -> reject(Failure(reason, []))
-          LiteralAtInvalid(reason, _, _) -> reject(Failure(reason, []))
+          LiteralInvalid(reason) -> reject_unlocated_literal(pattern_syntax, reason)
+          LiteralAtInvalid(reason, _, _) -> reject_unlocated_literal(pattern_syntax, reason)
           LiteralLocatedInvalid(reason, start, width) -> reject_mapped_literal(pattern_syntax, reason, positions, source_length, start, width)
-    LiteralFlagsInvalid(reason) -> reject(Failure(reason, []))
+    LiteralFlagsInvalid(reason) -> reject_unlocated_literal(pattern_syntax, reason)
