@@ -2,7 +2,8 @@ defmodule Cure.Core.TotalityCertificatePropertyTest do
   use ExUnit.Case, async: true
   use ExUnitProperties
 
-  alias Cure.Core.{Certificate, Env, SizeChange}
+  alias Cure.Core.{Certificate, Env, SizeChange, TotalityCertificate}
+  alias Cure.Elab.TotalityCertificate, as: Candidate
   alias Cure.Elab.TotalityGraph
 
   @names [:a, :b, :c, :d, :e, :f]
@@ -53,6 +54,26 @@ defmodule Cure.Core.TotalityCertificatePropertyTest do
     end
   end
 
+  property "proof-carrying exact closure agrees with an independent dense SCC oracle" do
+    check all(
+            count <- integer(1..4),
+            relations <- list_of(member_of(@relations), min_length: count, max_length: count),
+            max_runs: 120
+          ) do
+      names = Enum.take(@names, count)
+      env = relation_cycle_env(names, relations)
+      candidate = Candidate.propose(env, names)
+
+      actual =
+        case TotalityCertificate.verify(env, names, candidate) do
+          {:ok, :total} -> :total
+          {:ok, {:not_total, _edge}} -> :not_total
+        end
+
+      assert actual == dense_cycle_verdict(names, relations)
+    end
+  end
+
   defp cycle_and_permutation do
     bind(integer(1..length(@names)), fn count ->
       names = Enum.take(@names, count)
@@ -79,6 +100,73 @@ defmodule Cure.Core.TotalityCertificatePropertyTest do
         Env.put_direct_call_summary(acc, name, Certificate.direct_summary(name, body, acc))
       end)
     end)
+  end
+
+  defp relation_cycle_env(names, relations) do
+    names
+    |> Enum.with_index()
+    |> Enum.reduce(Env.empty(), fn {name, index}, env ->
+      callee = Enum.at(names, rem(index + 1, length(names)))
+      Env.add_def(env, name, {:type, 0}, {:global, callee})
+    end)
+    |> then(fn env ->
+      names
+      |> Enum.zip(relations)
+      |> Enum.with_index()
+      |> Enum.reduce(env, fn {{name, relation}, index}, acc ->
+        callee = Enum.at(names, rem(index + 1, length(names)))
+        matrix = SizeChange.from_dense([[relation]])
+
+        call = %{
+          id: :crypto.hash(:sha256, :erlang.term_to_binary({name, callee, matrix}, [:deterministic])),
+          callee: callee,
+          callee_arity: 1,
+          matrix: matrix,
+          provenance: %{caller: name, core_path: 0}
+        }
+
+        summary = %{
+          version: Certificate.summary_version(),
+          caller: name,
+          body_hash: Certificate.body_hash({:global, callee}),
+          caller_arity: 1,
+          calls: [call]
+        }
+
+        summary =
+          Map.put(summary, :summary_hash, :crypto.hash(:sha256, :erlang.term_to_binary(summary, [:deterministic])))
+
+        Env.put_direct_call_summary(acc, name, summary)
+      end)
+    end)
+  end
+
+  defp dense_cycle_verdict(names, relations) do
+    initial =
+      names
+      |> Enum.zip(relations)
+      |> Enum.with_index()
+      |> MapSet.new(fn {{source, relation}, index} ->
+        {source, Enum.at(names, rem(index + 1, length(names))), relation}
+      end)
+
+    closure = dense_relation_closure(initial)
+
+    if Enum.any?(closure, fn {source, target, relation} -> source == target and relation != :smaller end),
+      do: :not_total,
+      else: :total
+  end
+
+  defp dense_relation_closure(edges) do
+    composed =
+      for {source, middle, left} <- edges,
+          {^middle, target, right} <- edges,
+          into: MapSet.new() do
+        {source, target, multiply(left, right)}
+      end
+
+    expanded = MapSet.union(edges, composed)
+    if MapSet.equal?(expanded, edges), do: edges, else: dense_relation_closure(expanded)
   end
 
   defp nested_calls(0), do: {:type, 0}
