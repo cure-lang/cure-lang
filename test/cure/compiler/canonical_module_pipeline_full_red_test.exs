@@ -449,7 +449,7 @@ defmodule Cure.Compiler.CanonicalModulePipelineFullRedTest do
       end
     end
 
-    test "interface hashes ignore bodies but include semantic interface and direct dependency hashes", %{
+    test "interface hashes include body-keyed totality certificates and semantic declarations", %{
       tmp_dir: dir
     } do
       v1 = write!(dir, "v1.cure", "mod Hash.Provider\n  fn value() -> Int = 1\n")
@@ -458,11 +458,13 @@ defmodule Cure.Compiler.CanonicalModulePipelineFullRedTest do
 
       File.write!(v1, "mod Hash.Provider\n  fn value() -> Int = 2\n")
       assert {:ok, body_changed} = check([v1], dir)
-      assert pipeline(:interface_hash, [body_changed, "Hash.Provider"]) == first_hash
+      body_hash = pipeline(:interface_hash, [body_changed, "Hash.Provider"])
+      refute body_hash == first_hash
 
       File.write!(v1, "mod Hash.Provider\n  fn value() -> Nat = 2\n")
       assert {:ok, signature_changed} = check([v1], dir)
-      refute pipeline(:interface_hash, [signature_changed, "Hash.Provider"]) == first_hash
+      signature_hash = pipeline(:interface_hash, [signature_changed, "Hash.Provider"])
+      refute signature_hash == body_hash
     end
 
     test "corrupt, stale, and undeclared interface artifacts are rejected before body checking", %{
@@ -494,7 +496,10 @@ defmodule Cure.Compiler.CanonicalModulePipelineFullRedTest do
 
       File.write!(provider, "mod Inc.Provider\n  fn value() -> Int = 2\n")
       assert {:ok, body_only} = check([provider, consumer], dir, cache: cache)
-      assert pipeline(:rebuilt_modules, [body_only]) == ["Inc.Provider"]
+      # Direct summaries and SCC certificates are tied to the checked body.
+      # The consumer's certificate depends on the provider component digest,
+      # so a body change invalidates that exact reverse dependency.
+      assert pipeline(:rebuilt_modules, [body_only]) == ["Inc.Consumer", "Inc.Provider"]
 
       # An added declaration changes the provider's interface without breaking
       # the consumer: the consumer must rebuild because the interface it was
