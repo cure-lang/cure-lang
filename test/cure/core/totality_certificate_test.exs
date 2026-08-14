@@ -148,5 +148,18 @@ defmodule Cure.Core.TotalityCertificateTest do
 
     assert {:error, {:totality_derivation_invalid, %{reason: :malformed_edge, edge: ^edge_id, missing: [:matrix]}}} =
              TotalityCertificate.verify(env, [:f, :g], malformed_edge)
+
+    invalid_matrix = %Cure.Core.SizeChange.Matrix{
+      rows: 1,
+      columns: 1,
+      entries: %{{4, 0} => :strictly_better}
+    }
+
+    malformed_matrix = put_in(candidate.edges[edge_id].matrix, invalid_matrix)
+
+    assert {:error,
+            {:totality_derivation_invalid,
+             %{reason: :malformed_edge, edge: ^edge_id, fields: [:id, :source, :target, :matrix, :derivation]}}} =
+             TotalityCertificate.verify(env, [:f, :g], malformed_matrix)
   end
 end

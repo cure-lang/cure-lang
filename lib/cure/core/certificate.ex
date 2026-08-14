@@ -138,6 +138,7 @@ defmodule Cure.Core.Certificate do
       call.callee_arity == definition_arity(env, canonical_callee, call.callee_arity) and
       matrix.rows == call.callee_arity and
       matrix.columns == caller_arity and
+      SizeChange.valid?(matrix) and
       call.provenance.caller == caller and
       is_integer(call.provenance.core_path) and call.provenance.core_path >= 0 and
       call.id ==

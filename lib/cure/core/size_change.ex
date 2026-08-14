@@ -72,6 +72,27 @@ defmodule Cure.Core.SizeChange do
   def sparse(%Matrix{} = matrix), do: matrix
   def sparse(rows) when is_list(rows), do: from_dense(rows)
 
+  @doc "Whether a matrix is canonical sparse data with bounded coordinates."
+  @spec valid?(term()) :: boolean()
+  def valid?(matrix) do
+    matrix = sparse(matrix)
+
+    is_integer(matrix.rows) and matrix.rows >= 0 and
+      is_integer(matrix.columns) and matrix.columns >= 0 and
+      is_map(matrix.entries) and
+      Enum.all?(matrix.entries, fn
+        {{row, column}, relation} ->
+          is_integer(row) and row >= 0 and row < matrix.rows and
+            is_integer(column) and column >= 0 and column < matrix.columns and
+            relation in [:smaller, :equal]
+
+        _entry ->
+          false
+      end)
+  rescue
+    _ -> false
+  end
+
   @spec compose_edges(edge(), edge()) :: {:ok, edge()} | :incompatible
   def compose_edges(%{target: middle} = left, %{source: middle} = right) do
     left_matrix = sparse(left.matrix)

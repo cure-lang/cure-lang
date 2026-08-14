@@ -97,10 +97,7 @@ defmodule Cure.Core.TotalityCertificate do
   end
 
   defp valid_matrix?(matrix) do
-    matrix = SizeChange.sparse(matrix)
-    is_integer(matrix.rows) and matrix.rows >= 0 and is_integer(matrix.columns) and matrix.columns >= 0
-  rescue
-    _ -> false
+    SizeChange.valid?(matrix)
   end
 
   defp valid_derivation_shape?({:base, key}), do: valid_base_key?(key)

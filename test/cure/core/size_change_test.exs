@@ -13,7 +13,7 @@ defmodule Cure.Core.SizeChangeTest do
   the predecessor at index 0 and shifts outer indices up by 1.
   """
   use ExUnit.Case, async: true
-  alias Cure.Core.{Env, Inductive}
+  alias Cure.Core.{Env, Inductive, SizeChange}
 
   # -- Nat as an inductive, plus term constructors ----------------------------
 
@@ -194,5 +194,21 @@ defmodule Cure.Core.SizeChangeTest do
   test "plus (single fixed decreasing position) still certifies total" do
     env = Env.add_def(base_env(), :plus, plus_type(), plus_body())
     assert terminating?(env, :plus)
+  end
+
+  test "sparse matrix validation rejects invalid relations and coordinates" do
+    assert SizeChange.valid?(%SizeChange.Matrix{rows: 1, columns: 1, entries: %{{0, 0} => :smaller}})
+
+    refute SizeChange.valid?(%SizeChange.Matrix{
+             rows: 1,
+             columns: 1,
+             entries: %{{1, 0} => :smaller}
+           })
+
+    refute SizeChange.valid?(%SizeChange.Matrix{
+             rows: 1,
+             columns: 1,
+             entries: %{{0, 0} => :strictly_better}
+           })
   end
 end
