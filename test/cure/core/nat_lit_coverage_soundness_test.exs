@@ -27,6 +27,7 @@ defmodule Cure.Core.NatLitCoverageSoundnessTest do
         Inductive.ctor(:vs, [{:k, @nat}], [{:ctor, :S, [{:var, 0}]}])
       ]
     )
+    |> Inductive.register_builtin(:nat, :Nat)
   end
 
   defp ctx, do: Context.empty(env())

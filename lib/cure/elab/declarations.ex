@@ -1347,6 +1347,7 @@ defmodule Cure.Elab.Declarations do
 
   defp branch_type_reason?(:branch_type), do: true
   defp branch_type_reason?({:branch_type, _details}), do: true
+  defp branch_type_reason?({:branch_type, _constructor, _reason}), do: true
   defp branch_type_reason?({:source_context, reason, _context}), do: branch_type_reason?(reason)
   defp branch_type_reason?(_reason), do: false
 
