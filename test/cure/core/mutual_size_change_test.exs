@@ -174,6 +174,34 @@ defmodule Cure.Core.MutualSizeChangeTest do
     assert map_size(eager.totality_components) == 1
   end
 
+  test "a late proof-replay failure publishes no member of the SCC" do
+    env = with_defs(even: even_body(), odd: odd_body())
+    assert {:ok, prepared} = Kernel.prepare_direct_call_summaries(env, [:even, :odd])
+    partition = TotalityGraph.propose_partition(prepared, [:even, :odd])
+    certificates = Cure.Elab.TotalityCertificate.propose_all(prepared, partition)
+    component = partition.component_of.even
+    certificate = Map.fetch!(certificates, component)
+
+    {derived_id, _edge} =
+      Enum.find(certificate.edges, fn {_id, edge} -> match?({:compose, _, _}, edge.derivation) end)
+
+    forged = put_in(certificate.edges[derived_id].derivation, {:compose, derived_id, derived_id})
+    forged_certificates = Map.put(certificates, component, forged)
+
+    assert {:error, {:totality_derivation_invalid, %{reason: :cyclic_derivation, edge: ^derived_id}}} =
+             Kernel.validate_scc_certificates(
+               prepared,
+               partition,
+               forged_certificates,
+               [:even, :odd]
+             )
+
+    refute Env.total?(prepared, :even)
+    refute Env.total?(prepared, :odd)
+    assert prepared.totality_components == %{}
+    assert prepared.totality_component_of == %{}
+  end
+
   test "caller components depend on certified callees and invalidate through the reverse cone" do
     total_env =
       Env.empty()
