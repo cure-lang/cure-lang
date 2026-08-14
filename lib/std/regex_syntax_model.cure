@@ -251,8 +251,8 @@ mod Std.Regex.Syntax.Model
   fn literal_quantifier_limit() -> Nat = 64
 
   fn literal_unicode_scalar(value: Int, rest: List(Char)) -> LiteralScalarParse = pickup
-    value > 1114111 -> LiteralScalarInvalid(:RegexEscapeOutOfRange)
-    value >= 55296 and value <= 57343 -> LiteralScalarInvalid(:RegexEscapeNotUnicodeScalar)
+    Std.Char.is_utf16_surrogate_code_point(value) -> LiteralScalarInvalid(:RegexEscapeNotUnicodeScalar)
+    not Std.Char.is_unicode_scalar_code_point(value) -> LiteralScalarInvalid(:RegexEscapeOutOfRange)
     else -> LiteralScalarParsed(Std.Char.from_valid_code_point(value), rest)
 
   fn literal_fixed_hex_escape(input: List(Char)) -> LiteralScalarParse = match input
@@ -271,7 +271,7 @@ mod Std.Regex.Syntax.Model
     [char | rest] -> match Std.Char.hex_digit_value(char)
       None() -> LiteralScalarInvalid(:InvalidRegexHexEscape)
       Some(digit) -> pickup
-        value > 1114111 -> LiteralScalarInvalid(:RegexEscapeOutOfRange)
+        not Std.Char.is_unicode_code_point(value) -> LiteralScalarInvalid(:RegexEscapeOutOfRange)
         else -> literal_braced_hex_escape(rest, value * 16 + digit, S(digits))
 
   fn parse_literal_hex_scalar(input: List(Char)) -> LiteralScalarParse = match input

@@ -1,6 +1,8 @@
 defmodule Cure.Stdlib.DependentRegexModifierTest do
   use ExUnit.Case, async: false
 
+  alias Cure.Elab.Program
+
   # `String` is nominal -- `rec String { characters: List(Char) }` -- so it
   # erases to the tagged pair `{:String, code_points}`. Every subject below, and
   # every `String` partition of a `Match` or `captured` result, carries the tag;
@@ -28,7 +30,14 @@ defmodule Cure.Stdlib.DependentRegexModifierTest do
       fn unicode_caseless() -> Option(Unit) = parse_full(/é/iu, "É")
 
       fn extended_whitespace() -> Option(Unit) = parse_full(/a b/x, "ab")
+      fn extended_comment() -> Option(Unit) = parse_full(/ab# ignored/x, "ab")
+      fn extended_escaped_space() -> Option(Unit) = parse_full(/a\\ b/x, "a b")
+      fn extended_class_space() -> Option(Char) = parse_full(/[ a]/x, " ")
       fn exported_identity() -> Option(Unit) = parse_full(/abc/E, "abc")
+      fn reordered_flags(input: String) -> Option(List(Char)) = parse_full(/[é]+/ui, input)
+      fn canonical_flags(input: String) -> Option(List(Char)) = parse_full(/[é]+/iu, input)
+      fn duplicate_flags() -> Option(Unit) = parse_full(/abc/ii, "ABC")
+      fn combined_export() -> Option(Unit) = parse_full(/abc/Eiu, "ABC")
 
       fn alert_escape(input: String) -> Option(Unit) = parse_full(/\\a/, input)
       fn escape_escape(input: String) -> Option(Unit) = parse_full(/\\e/, input)
@@ -44,6 +53,13 @@ defmodule Cure.Stdlib.DependentRegexModifierTest do
       fn multiline_anchored_search(input: String) -> Option(Match(Unit)) = search(/^abc$/m, input)
       fn ordinary_later_line_search(input: String) -> Option(Match(Unit)) = search(/abc/, input)
       fn firstline_search(input: String) -> Option(Match(Unit)) = search(/abc/f, input)
+      fn multiline_firstline_search(input: String) -> Option(Match(Unit)) = search(/^abc/mf, input)
+
+      fn ungreedy_partition(input: String) -> Option(Tuple(String, String)) =
+        parse_full(/^(a*)(a*)$/U, input)
+
+      fn ungreedy_explicit_lazy_partition(input: String) -> Option(Tuple(String, String)) =
+        parse_full(/^(a*?)(a*)$/U, input)
 
       fn same(expected: Char) -> Char -> Bool =
         fn(actual) -> Std.Char.same(expected, actual)
@@ -97,10 +113,27 @@ defmodule Cure.Stdlib.DependentRegexModifierTest do
 
   test "x removes unescaped pattern whitespace before parsing", %{runtime_module: module} do
     assert apply(module, :extended_whitespace, []) == {:some, :unit}
+    assert apply(module, :extended_comment, []) == {:some, :unit}
+    assert apply(module, :extended_escaped_space, []) == {:some, :unit}
+    assert apply(module, :extended_class_space, []) == {:some, ?\s}
   end
 
-  test "E preserves direct behavior because Cure has no opaque pattern export", %{runtime_module: module} do
+  test "modifier order and duplication are semantically idempotent", %{runtime_module: module} do
+    input = cure_string(~c"É")
+    assert apply(module, :reordered_flags, [input]) == apply(module, :canonical_flags, [input])
+    assert apply(module, :reordered_flags, [input]) == {:some, ~c"É"}
+    assert apply(module, :duplicate_flags, []) == {:some, :unit}
+  end
+
+  test "unknown modifiers reject at the lexer boundary with their exact location" do
+    source = "mod InvalidRegexFlag\n  use Std.Regex\n  fn run() = /abc/q\nend\n"
+
+    assert {:error, {:invalid_regex_modifier, ?q, 3, 19}} = Program.elaborate(source)
+  end
+
+  test "E composes with behavioral flags while retaining direct Cure behavior", %{runtime_module: module} do
     assert apply(module, :exported_identity, []) == {:some, :unit}
+    assert apply(module, :combined_export, []) == {:some, :unit}
   end
 
   test "PCRE control and horizontal/vertical whitespace escapes behave directly", %{runtime_module: module} do
@@ -140,6 +173,16 @@ defmodule Cure.Stdlib.DependentRegexModifierTest do
 
     assert apply(module, :firstline_search, [cure_string(~c"xabc\nrest")]) ==
              {:some, {:Match, :unit, cure_string(~c"x"), cure_string(~c"abc"), cure_string(~c"\nrest")}}
+
+    assert apply(module, :multiline_firstline_search, [cure_string(~c"x\nabc")]) == :none
+  end
+
+  test "U inverts default and explicit quantifier greediness", %{runtime_module: module} do
+    assert apply(module, :ungreedy_partition, [cure_string(~c"aa")]) ==
+             {:some, {cure_string(~c""), cure_string(~c"aa")}}
+
+    assert apply(module, :ungreedy_explicit_lazy_partition, [cure_string(~c"aa")]) ==
+             {:some, {cure_string(~c"aa"), cure_string(~c"")}}
   end
 
   test "greedy and lazy repetition preserve ordered Thompson preference", %{runtime_module: module} do

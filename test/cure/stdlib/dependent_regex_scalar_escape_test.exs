@@ -47,4 +47,14 @@ defmodule Cure.Stdlib.DependentRegexScalarEscapeTest do
                Program.elaborate(source)
     end)
   end
+
+  test "regex syntax delegates Unicode scalar boundaries to Std.Char" do
+    source = File.read!("lib/std/regex_syntax_model.cure")
+
+    refute source =~ "1114111"
+    refute source =~ "55296"
+    refute source =~ "57343"
+    assert source =~ "Std.Char.is_unicode_scalar_code_point"
+    assert source =~ "Std.Char.is_utf16_surrogate_code_point"
+  end
 end

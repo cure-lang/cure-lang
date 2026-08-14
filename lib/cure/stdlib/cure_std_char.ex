@@ -34,12 +34,20 @@ defmodule :cure_std_char do
   def code_point(cp) when is_integer(cp), do: cp
 
   @doc "Construct a Char from a valid Unicode scalar value."
-  def from_code_point(cp)
-      when is_integer(cp) and cp >= 0 and cp <= 0x10FFFF and
-             not (cp >= 0xD800 and cp <= 0xDFFF),
-      do: {:some, cp}
+  def from_code_point(cp) when is_integer(cp) do
+    if unicode_scalar_code_point?(cp), do: {:some, cp}, else: :none
+  end
 
   def from_code_point(_cp), do: :none
+
+  def unicode_code_point?(cp) when is_integer(cp), do: cp >= 0 and cp <= 0x10FFFF
+  def unicode_code_point?(_cp), do: false
+
+  def utf16_surrogate_code_point?(cp) when is_integer(cp), do: cp >= 0xD800 and cp <= 0xDFFF
+  def utf16_surrogate_code_point?(_cp), do: false
+
+  def unicode_scalar_code_point?(cp),
+    do: unicode_code_point?(cp) and not utf16_surrogate_code_point?(cp)
 
   def same?(left, right) when is_integer(left) and is_integer(right), do: left == right
   def less_than?(left, right) when is_integer(left) and is_integer(right), do: left < right

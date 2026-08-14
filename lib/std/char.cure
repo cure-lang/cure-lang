@@ -63,6 +63,17 @@ mod Std.Char
   @extern(:cure_std_char, :code_point, 1)
   fn from_valid_code_point(value: Int) -> Char
 
+  ## Named scalar-boundary predicates keep parsers from duplicating Unicode's
+  ## numeric ceiling or the reserved UTF-16 surrogate interval.
+  @extern(:cure_std_char, :unicode_code_point?, 1)
+  fn is_unicode_code_point(value: Int) -> Bool
+
+  @extern(:cure_std_char, :utf16_surrogate_code_point?, 1)
+  fn is_utf16_surrogate_code_point(value: Int) -> Bool
+
+  @extern(:cure_std_char, :unicode_scalar_code_point?, 1)
+  fn is_unicode_scalar_code_point(value: Int) -> Bool
+
   ## Scalar equality and ordering. Keeping these operations here prevents
   ## consumers from unpacking `Char` into implementation-level integers.
   @extern(:cure_std_char, :same?, 2)

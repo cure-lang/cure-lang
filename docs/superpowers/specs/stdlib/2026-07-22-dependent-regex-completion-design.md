@@ -129,6 +129,16 @@
   quantifiers can no longer silently degrade into literals or unrelated parser
   failures. Exact diagnostic subspans and user-facing reason content remain the
   diagnostic frontier.
+- 2026-08-14 — the Phase H modifier matrix is complete for each supported flag
+  and the load-bearing interactions: flag order and duplication are
+  idempotent; `i` composes with Unicode literal/range folding; `m` composes
+  with first-line search; `x` distinguishes whitespace, comments, escaped
+  spaces, and class contents; `U` inverts both default and explicit lazy
+  quantifiers; and `E` composes with behavioral flags. Unknown modifiers retain
+  the lexer's exact character location. Unicode scalar ceilings and surrogate
+  bounds have also moved out of regex syntax into named `Std.Char` predicates.
+  Structured macro-authored subspans and user-facing reason content are now the
+  only remaining Phase H implementation frontier.
 
 **Supersedes for unfinished work:**
 `2026-07-21-dependently-typed-regex-design.md`
@@ -740,8 +750,8 @@ NFA paths, VM acceptance, and public parsing.
 Bounded quantifiers, hexadecimal scalar escapes, Unicode general-category
 properties, and their first structured diagnostic matrices are complete.
 Continue with precise quantifier/property/escape subspans,
-user-facing diagnostic content, the remaining modifier interaction matrix, and
-raw character-integer cleanup.
+and user-facing diagnostic content through the structured macro-authored
+diagnostic boundary.
 
 Complete bounded quantifiers, scalar escapes, Unicode properties, malformed
 construct rejection, exact source subspans, and the modifier matrix. Remove raw
