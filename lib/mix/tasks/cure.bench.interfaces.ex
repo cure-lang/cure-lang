@@ -72,16 +72,26 @@ defmodule Mix.Tasks.Cure.Bench.Interfaces do
       Mix.shell().info("#{ms(stage.elapsed_us)}\t#{stage.definition}\t#{stage.stage}")
     end)
 
-    Mix.shell().info("totality_metric\telapsed_ms\tdetails")
+    Mix.shell().info("totality_summary\tcount\telapsed_ms\tdetails")
 
-    Enum.each(report.cold.totality_metrics, fn metric ->
-      details =
-        metric
-        |> Map.drop([:operation, :elapsed_us, :stage])
-        |> Enum.sort()
-        |> inspect(limit: 30, printable_limit: 300)
+    report.cold.totality_metrics
+    |> Enum.group_by(& &1.operation)
+    |> Enum.sort_by(&elem(&1, 0))
+    |> Enum.each(fn {operation, metrics} ->
+      Mix.shell().info(
+        "#{operation}\t#{length(metrics)}\t#{ms(sum_field(metrics, :elapsed_us))}\t" <>
+          inspect(totality_totals(metrics), limit: 30, printable_limit: 500)
+      )
+    end)
 
-      Mix.shell().info("#{metric.operation}\t#{ms(metric.elapsed_us)}\t#{details}")
+    Mix.shell().info("totality_hotspot_ms\toperation\tdetails")
+
+    report.cold.totality_metrics
+    |> Enum.sort_by(&{-&1.elapsed_us, &1.operation})
+    |> Enum.take(top)
+    |> Enum.each(fn metric ->
+      details = metric |> Map.drop([:operation, :elapsed_us, :stage]) |> Enum.sort()
+      Mix.shell().info("#{ms(metric.elapsed_us)}\t#{metric.operation}\t#{inspect(details, printable_limit: 500)}")
     end)
 
     report.warm
@@ -109,6 +119,33 @@ defmodule Mix.Tasks.Cure.Bench.Interfaces do
       do: Enum.at(values, middle),
       else: div(Enum.at(values, middle - 1) + Enum.at(values, middle), 2)
   end
+
+  defp totality_totals(metrics) do
+    numeric_fields = [
+      :definitions,
+      :components,
+      :direct_edges,
+      :closure_edges,
+      :composition_attempts,
+      :admitted_edges
+    ]
+
+    totals =
+      for field <- numeric_fields,
+          total = sum_field(metrics, field),
+          total > 0,
+          into: %{},
+          do: {field, total}
+
+    cache_counts =
+      metrics
+      |> Enum.flat_map(fn metric -> if Map.has_key?(metric, :cache), do: [metric.cache], else: [] end)
+      |> Enum.frequencies()
+
+    if cache_counts == %{}, do: totals, else: Map.put(totals, :cache, cache_counts)
+  end
+
+  defp sum_field(metrics, field), do: Enum.reduce(metrics, 0, &(&2 + Map.get(&1, field, 0)))
 
   defp ms(microseconds), do: :erlang.float_to_binary(microseconds / 1_000, decimals: 3)
 end
