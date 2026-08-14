@@ -14,6 +14,7 @@ defmodule Cure.Elab.TotalityCertificate do
 
   @spec propose(Env.t(), [atom()]) :: map()
   def propose(%Env{} = env, members) do
+    started = System.monotonic_time(:microsecond)
     members = Enum.sort(Enum.uniq(members))
     member_set = MapSet.new(members)
     base_keys = base_keys(env, members, member_set)
@@ -24,9 +25,10 @@ defmodule Cure.Elab.TotalityCertificate do
         {edge.id, edge}
       end)
 
-    edges = complete(Map.values(base_edges), base_edges, %{}, %{})
+    {edges, composition_attempts, admitted_edges} =
+      complete(Map.values(base_edges), base_edges, %{}, %{}, 0, 0)
 
-    %{
+    certificate = %{
       version: @version,
       members: members,
       member_body_hashes:
@@ -40,6 +42,23 @@ defmodule Cure.Elab.TotalityCertificate do
       base_keys: base_keys,
       edges: edges
     }
+
+    Cure.Pipeline.Events.emit(
+      :type_checker,
+      :totality_metric,
+      %{
+        operation: :closure_generation,
+        members: members,
+        direct_edges: length(base_keys),
+        closure_edges: map_size(edges),
+        composition_attempts: composition_attempts,
+        admitted_edges: admitted_edges,
+        elapsed_us: System.monotonic_time(:microsecond) - started
+      },
+      %{}
+    )
+
+    certificate
   end
 
   @doc "Generate one exact closure certificate for every proposed SCC."
@@ -62,9 +81,10 @@ defmodule Cure.Elab.TotalityCertificate do
     |> Enum.sort()
   end
 
-  defp complete([], edges, _by_source, _by_target), do: edges
+  defp complete([], edges, _by_source, _by_target, attempts, admitted),
+    do: {edges, attempts, admitted}
 
-  defp complete([edge | work], edges, by_source, by_target) do
+  defp complete([edge | work], edges, by_source, by_target, attempts, admitted) do
     successors = Map.get(by_source, edge.target, MapSet.new())
     predecessors = Map.get(by_target, edge.source, MapSet.new())
     self = if edge.source == edge.target, do: [{edge, edge}], else: []
@@ -74,28 +94,29 @@ defmodule Cure.Elab.TotalityCertificate do
         Enum.map(successors, &{edge, Map.fetch!(edges, &1)}) ++
         Enum.map(predecessors, &{Map.fetch!(edges, &1), edge})
 
-    {work, edges} =
-      Enum.reduce(pairs, {work, edges}, fn {left, right}, {pending, known} ->
-        case SizeChange.compose_edges(left, right) do
-          {:ok, composed} ->
-            key = {composed.source, composed.target, composed.matrix}
-            id = edge_id(key)
+    {work, edges, attempts, admitted} =
+      Enum.reduce(pairs, {work, edges, attempts, admitted}, fn
+        {left, right}, {pending, known, attempt_count, admitted_count} ->
+          case SizeChange.compose_edges(left, right) do
+            {:ok, composed} ->
+              key = {composed.source, composed.target, composed.matrix}
+              id = edge_id(key)
 
-            if Map.has_key?(known, id) do
-              {pending, known}
-            else
-              derived = Map.merge(composed, %{id: id, derivation: {:compose, left.id, right.id}})
-              {[derived | pending], Map.put(known, id, derived)}
-            end
+              if Map.has_key?(known, id) do
+                {pending, known, attempt_count + 1, admitted_count}
+              else
+                derived = Map.merge(composed, %{id: id, derivation: {:compose, left.id, right.id}})
+                {[derived | pending], Map.put(known, id, derived), attempt_count + 1, admitted_count + 1}
+              end
 
-          :incompatible ->
-            {pending, known}
-        end
+            :incompatible ->
+              {pending, known, attempt_count + 1, admitted_count}
+          end
       end)
 
     by_source = Map.update(by_source, edge.source, MapSet.new([edge.id]), &MapSet.put(&1, edge.id))
     by_target = Map.update(by_target, edge.target, MapSet.new([edge.id]), &MapSet.put(&1, edge.id))
-    complete(work, edges, by_source, by_target)
+    complete(work, edges, by_source, by_target, attempts, admitted)
   end
 
   defp edge_from_key({source, target, matrix} = key, derivation) do

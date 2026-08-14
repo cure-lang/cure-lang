@@ -14,24 +14,46 @@ defmodule Cure.Core.SCCCertificate do
 
   @spec verify_partition(Env.t(), map()) :: {:ok, [[atom()]]} | {:error, term()}
   def verify_partition(%Env{} = env, %{version: @partition_version} = certificate) do
-    with :ok <- verify_universe(env, certificate),
-         {:ok, expected_edges} <- verify_edge_completeness(env, certificate),
-         :ok <- verify_submitted_edges(certificate, expected_edges),
-         :ok <- verify_partition_totality(certificate),
-         :ok <- verify_ranks(certificate, expected_edges),
-         :ok <- verify_components(certificate, expected_edges) do
-      components =
-        certificate.components
-        |> Map.values()
-        |> Enum.map(& &1.members)
-        |> Enum.sort()
+    started = System.monotonic_time(:microsecond)
 
-      {:ok, components}
-    end
+    result =
+      with :ok <- verify_universe(env, certificate),
+           {:ok, expected_edges} <- verify_edge_completeness(env, certificate),
+           :ok <- verify_submitted_edges(certificate, expected_edges),
+           :ok <- verify_partition_totality(certificate),
+           :ok <- verify_ranks(certificate, expected_edges),
+           :ok <- verify_components(certificate, expected_edges) do
+        components =
+          certificate.components
+          |> Map.values()
+          |> Enum.map(& &1.members)
+          |> Enum.sort()
+
+        {:ok, components}
+      end
+
+    emit_metric(certificate, result, started)
+    result
   end
 
   def verify_partition(_env, certificate) do
     {:error, {:totality_scc_invalid, %{reason: :unsupported_version, version: Map.get(certificate, :version)}}}
+  end
+
+  defp emit_metric(certificate, result, started) do
+    Cure.Pipeline.Events.emit(
+      :kernel,
+      :totality_metric,
+      %{
+        operation: :partition_verification,
+        definitions: length(Map.get(certificate, :universe, [])),
+        components: map_size(Map.get(certificate, :components, %{})),
+        direct_edges: length(Map.get(certificate, :edges, [])),
+        result: if(match?({:ok, _}, result), do: :ok, else: :error),
+        elapsed_us: System.monotonic_time(:microsecond) - started
+      },
+      %{}
+    )
   end
 
   defp verify_universe(env, certificate) do

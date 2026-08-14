@@ -14,29 +14,57 @@ defmodule Cure.Core.TotalityCertificate do
   @spec verify(Env.t(), [atom()], map()) ::
           {:ok, :total | {:not_total, map()}} | {:error, term()}
   def verify(%Env{} = env, members, %{version: @version} = candidate) do
+    started = System.monotonic_time(:microsecond)
     members = Enum.sort(Enum.uniq(members))
 
-    with :ok <- verify_identity(env, members, candidate),
-         {:ok, expected_base_keys} <- expected_base_keys(env, members),
-         :ok <- verify_base_keys(candidate, expected_base_keys),
-         :ok <- verify_base_derivations(candidate, expected_base_keys),
-         :ok <- verify_derivations(candidate, expected_base_keys),
-         :ok <- verify_saturation(candidate) do
-      bad =
-        candidate.edges
-        |> Map.values()
-        |> Enum.sort_by(&{&1.source, &1.target, &1.matrix})
-        |> Enum.find(fn edge ->
-          edge.source == edge.target and SizeChange.idempotent?(edge.matrix) and
-            not SizeChange.smaller_diagonal?(edge.matrix)
-        end)
+    result =
+      with :ok <- verify_identity(env, members, candidate),
+           {:ok, expected_base_keys} <- expected_base_keys(env, members),
+           :ok <- verify_base_keys(candidate, expected_base_keys),
+           :ok <- verify_base_derivations(candidate, expected_base_keys),
+           :ok <- verify_derivations(candidate, expected_base_keys),
+           :ok <- verify_saturation(candidate) do
+        bad =
+          candidate.edges
+          |> Map.values()
+          |> Enum.sort_by(&{&1.source, &1.target, &1.matrix})
+          |> Enum.find(fn edge ->
+            edge.source == edge.target and SizeChange.idempotent?(edge.matrix) and
+              not SizeChange.smaller_diagonal?(edge.matrix)
+          end)
 
-      if bad, do: {:ok, {:not_total, bad}}, else: {:ok, :total}
-    end
+        if bad, do: {:ok, {:not_total, bad}}, else: {:ok, :total}
+      end
+
+    emit_metric(members, candidate, result, started)
+    result
   end
 
   def verify(_env, _members, candidate),
     do: invalid(:unsupported_version, version: Map.get(candidate, :version))
+
+  defp emit_metric(members, candidate, result, started) do
+    outcome =
+      case result do
+        {:ok, :total} -> :total
+        {:ok, {:not_total, _}} -> :not_total
+        {:error, _} -> :invalid
+      end
+
+    Cure.Pipeline.Events.emit(
+      :kernel,
+      :totality_metric,
+      %{
+        operation: :closure_verification,
+        members: members,
+        direct_edges: length(Map.get(candidate, :base_keys, [])),
+        closure_edges: map_size(Map.get(candidate, :edges, %{})),
+        result: outcome,
+        elapsed_us: System.monotonic_time(:microsecond) - started
+      },
+      %{}
+    )
+  end
 
   defp verify_identity(env, members, candidate) do
     cond do

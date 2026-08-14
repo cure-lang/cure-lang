@@ -15,6 +15,7 @@ defmodule Cure.Elab.TotalityGraph do
   @doc "Propose a deterministic SCC partition and its checkable witnesses."
   @spec propose_partition(Env.t(), [atom()]) :: map()
   def propose_partition(%Env{} = env, names) when is_list(names) do
+    started = System.monotonic_time(:microsecond)
     universe = names |> Enum.map(&Env.resolve_key(env, env.defs, &1)) |> Enum.uniq() |> Enum.sort()
     universe_set = MapSet.new(universe)
     edges = direct_edges(env, universe, universe_set)
@@ -55,7 +56,7 @@ defmodule Cure.Elab.TotalityGraph do
         {callee, Map.get(env.totality_component_of, callee, :legacy_totality)}
       end)
 
-    %{
+    certificate = %{
       version: @partition_version,
       universe: universe,
       summary_hashes:
@@ -68,6 +69,21 @@ defmodule Cure.Elab.TotalityGraph do
       edges: edges,
       sealed_boundaries: sealed_boundaries
     }
+
+    Cure.Pipeline.Events.emit(
+      :type_checker,
+      :totality_metric,
+      %{
+        operation: :scc_proposal,
+        definitions: length(universe),
+        components: map_size(component_records),
+        direct_edges: length(edges),
+        elapsed_us: System.monotonic_time(:microsecond) - started
+      },
+      %{}
+    )
+
+    certificate
   end
 
   defp direct_edges(env, universe, universe_set) do

@@ -82,4 +82,36 @@ defmodule Cure.Elab.TotalityClosureTest do
     assert {:error, {:totality_closure_unresolved, %{definition: :missing, closure_path: [:missing], root: :missing}}} =
              TotalityClosure.certify_roots(Env.empty(), [:missing])
   end
+
+  test "a warm component cache hit performs no closure composition" do
+    :ok = Cure.Pipeline.Events.subscribe(:type_checker, :totality_metric)
+    env = env_with(and_body())
+
+    certified = TotalityClosure.certify_available(env, :and)
+    assert Env.total?(certified, :and)
+
+    assert_receive {Cure.Pipeline.Events, :type_checker, :totality_metric, %{operation: :scc_proposal}, _metadata}
+
+    assert_receive {Cure.Pipeline.Events, :type_checker, :totality_metric,
+                    %{operation: :closure_generation, composition_attempts: attempts}, _metadata}
+
+    assert is_integer(attempts)
+    drain_totality_metrics()
+
+    again = TotalityClosure.certify_available(certified, :and)
+    assert Env.total?(again, :and)
+
+    refute_receive {Cure.Pipeline.Events, :type_checker, :totality_metric, %{operation: :closure_generation},
+                    _metadata},
+                   20
+  end
+
+  defp drain_totality_metrics do
+    receive do
+      {Cure.Pipeline.Events, :type_checker, :totality_metric, _payload, _metadata} ->
+        drain_totality_metrics()
+    after
+      0 -> :ok
+    end
+  end
 end
