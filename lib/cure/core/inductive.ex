@@ -25,6 +25,7 @@ defmodule Cure.Core.Env do
             ctors: %{},
             ctor_to_family: %{},
             defs: %{},
+            direct_call_summaries: %{},
             certified: nil,
             totality_certified: nil,
             builtins: %{},
@@ -47,6 +48,7 @@ defmodule Cure.Core.Env do
           ctors: %{atom() => map()},
           ctor_to_family: %{atom() => atom()},
           defs: %{atom() => map()},
+          direct_call_summaries: %{atom() => map()},
           certified: MapSet.t() | nil,
           totality_certified: MapSet.t() | nil,
           builtins: %{atom() => atom()},
@@ -208,9 +210,23 @@ defmodule Cure.Core.Env do
             quantities: quantities,
             plicities: plicities
           }),
+        direct_call_summaries: Map.delete(env.direct_call_summaries, name),
         certified: certified,
         totality_certified: totality_certified
     }
+  end
+
+  @doc "Store the trusted direct-call summary for a checked definition."
+  @spec put_direct_call_summary(t(), atom(), map()) :: t()
+  def put_direct_call_summary(%__MODULE__{} = env, name, summary) when is_map(summary) do
+    key = resolve_key(env, env.defs, name)
+    %{env | direct_call_summaries: Map.put(env.direct_call_summaries, key, summary)}
+  end
+
+  @doc "Return the cached direct-call summary for a canonical definition, if any."
+  @spec direct_call_summary(t(), atom()) :: map() | nil
+  def direct_call_summary(%__MODULE__{} = env, name) do
+    Map.get(env.direct_call_summaries, resolve_key(env, env.defs, name))
   end
 
   @doc "Mark a registered definition as requiring the explicit `unsafe` call marker."

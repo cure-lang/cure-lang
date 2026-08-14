@@ -4134,7 +4134,7 @@ defmodule Cure.Elab.Program do
   # boundaries, making an imported interface's instances invisible to the importer
   # and quietly breaking global coherence. The assertion below turns the next such
   # omission into a compile error rather than a runtime mystery.
-  @merged_env_keys ~w(families ctors ctor_to_family defs certified totality_certified builtins
+  @merged_env_keys ~w(families ctors ctor_to_family defs direct_call_summaries certified totality_certified builtins
                       primitives interfaces interface_methods coherence constrained import_modules bare_modules bare_bindings
                       qualified_modules lemmas equations module_owner current_def)a
 
@@ -4158,6 +4158,11 @@ defmodule Cure.Elab.Program do
           ctors: Map.merge(left.ctors, right.ctors),
           ctor_to_family: Map.merge(left.ctor_to_family, right.ctor_to_family),
           defs: merge_defs(left.defs, right.defs),
+          # Summaries are self-authenticating through their body/checker hashes.
+          # A conflicting entry may be stale after `merge_defs/2` chooses the
+          # non-pending body; the kernel's summary gate rejects/rebuilds it before
+          # use. Right bias makes repeated import of the same interface idempotent.
+          direct_call_summaries: Map.merge(left.direct_call_summaries, right.direct_call_summaries),
           certified: MapSet.union(left.certified || MapSet.new(), right.certified || MapSet.new()),
           totality_certified:
             MapSet.union(

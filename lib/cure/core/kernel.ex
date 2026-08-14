@@ -789,6 +789,7 @@ defmodule Cure.Core.Kernel do
       _ ->
         with :ok <- check_def(env, name) do
           %{body: body} = Env.get_def(env, name)
+          env = ensure_direct_call_summary(env, name, body)
 
           timed_certificate_stage(name, :termination, fn ->
             if Certificate.terminating?(name, body, env) do
@@ -814,6 +815,19 @@ defmodule Cure.Core.Kernel do
             end
           end)
         end
+    end
+  end
+
+  defp ensure_direct_call_summary(env, name, body) do
+    summary = Certificate.direct_summary(name, body, env)
+
+    case Env.direct_call_summary(env, name) do
+      %{body_hash: hash, version: version}
+      when hash == summary.body_hash and version == summary.version ->
+        env
+
+      _ ->
+        Env.put_direct_call_summary(env, name, summary)
     end
   end
 

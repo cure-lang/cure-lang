@@ -80,4 +80,35 @@ defmodule Cure.Core.CertificateTest do
 
     assert {:ok, _} = Kernel.validate_certificate(env, :use_id)
   end
+
+  test "certificate validation records a canonical direct-call summary keyed by the checked body" do
+    ty = {:pi, Cure.Core.Grade.unrestricted(), @dec, @dec}
+    id_body = {:lam, Cure.Core.Grade.unrestricted(), @dec, {:var, 0}}
+    use_body = {:lam, Cure.Core.Grade.unrestricted(), @dec, {:app, {:global, :id}, {:var, 0}}}
+
+    env =
+      base()
+      |> Env.with_owner("Summary")
+      |> Env.add_def(:id, ty, id_body)
+      |> Env.add_def(:use_id, ty, use_body)
+
+    assert {:ok, checked} = Kernel.validate_certificate(env, :use_id)
+
+    assert %{caller: :"Summary#use_id", body_hash: body_hash, summary_hash: summary_hash, calls: [call]} =
+             Env.direct_call_summary(checked, :use_id)
+
+    assert is_binary(body_hash) and byte_size(body_hash) == 32
+    assert is_binary(summary_hash) and byte_size(summary_hash) == 32
+    assert call.callee == :"Summary#id"
+    assert call.matrix == [[:equal]]
+  end
+
+  test "replacing a definition invalidates its cached direct-call summary" do
+    env = Env.add_def(base(), :stable, @dec, @causal)
+    assert {:ok, checked} = Kernel.validate_certificate(env, :stable)
+    assert Env.direct_call_summary(checked, :stable)
+
+    replaced = Env.add_def(checked, :stable, @dec, {:global, :stable})
+    assert is_nil(Env.direct_call_summary(replaced, :stable))
+  end
 end

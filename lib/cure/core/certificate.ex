@@ -83,6 +83,65 @@ defmodule Cure.Core.Certificate do
 
   alias Cure.Core.Env
 
+  @direct_summary_version 1
+
+  @doc """
+  Extract the complete canonical direct-call summary of one checked Core body.
+
+  This is Cure's counterpart to Agda's per-definition `collectCalls`: it is a
+  local trusted traversal, not SCC discovery. The result is stable under map
+  ordering and is tied to the exact Core body by a semantic hash.
+  """
+  @spec direct_summary(atom(), Cure.Core.Term.t(), Env.t()) :: map()
+  def direct_summary(name, body, %Env{} = env) do
+    caller = Env.resolve_key(env, env.defs, name)
+    {caller_arity, inner} = peel_lams(body, 0)
+    st = initial_state(caller_arity)
+
+    emit = fn callee, args, state, acc ->
+      canonical_callee = Env.resolve_key(env, env.defs, callee)
+      callee_arity = definition_arity(env, canonical_callee, length(args))
+      matrix = build_cross_matrix(callee_arity, caller_arity, args, state)
+      semantic = {caller, canonical_callee, callee_arity, matrix}
+
+      call = %{
+        id: semantic_hash(semantic),
+        callee: canonical_callee,
+        callee_arity: callee_arity,
+        matrix: matrix,
+        provenance: %{caller: caller}
+      }
+
+      [call | acc]
+    end
+
+    calls =
+      walk(emit, inner, st, [])
+      |> Enum.reverse()
+      |> Enum.sort_by(fn call -> {call.callee, call.id} end)
+
+    body_hash = semantic_hash(body)
+
+    summary = %{
+      version: @direct_summary_version,
+      caller: caller,
+      body_hash: body_hash,
+      caller_arity: caller_arity,
+      calls: calls
+    }
+
+    Map.put(summary, :summary_hash, semantic_hash(summary))
+  end
+
+  defp definition_arity(env, callee, fallback) do
+    case Env.get_def(env, callee) do
+      %{body: body} when is_tuple(body) and elem(body, 0) not in [:extern, :hole] -> arity_of(body)
+      _ -> fallback
+    end
+  end
+
+  defp semantic_hash(term), do: :crypto.hash(:sha256, :erlang.term_to_binary(term, [:deterministic]))
+
   @doc """
   True when the Core `body` of global `name` is provably terminating under the
   signature `env` (needed to see mutual cycles through sibling globals).
