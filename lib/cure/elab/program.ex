@@ -22,7 +22,7 @@ defmodule Cure.Elab.Program do
   alias Cure.Compiler.ModulePipeline.Interface, as: PipelineInterface
   alias Cure.Compiler.Parser.FixityScan
   alias Cure.Core.{Env, Inductive, Validator}
-  alias Cure.Elab.{CheckedModule, Coherence, Declarations, Erase, MacroExpand, TotalityClosure}
+  alias Cure.Elab.{AttemptCache, CheckedModule, Coherence, Declarations, Erase, MacroExpand, TotalityClosure}
   alias Cure.Stdlib.Paths
 
   @loader_state_key {__MODULE__, :module_loader_state}
@@ -62,7 +62,7 @@ defmodule Cure.Elab.Program do
   type checker calls for dependent modules.
   """
   @spec check_ast(tuple() | list()) :: {:ok, Env.t()} | {:error, term()}
-  def check_ast(ast), do: check_ast(ast, [])
+  def check_ast(ast), do: AttemptCache.scope(fn -> check_ast(ast, []) end)
 
   @doc """
   Validate that every author-written `use Std.X` import names a stdlib module

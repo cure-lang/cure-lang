@@ -1,7 +1,7 @@
 defmodule Cure.Elab.DependentConstructorConstraintRetryTest do
   use ExUnit.Case, async: false
 
-  alias Cure.Elab.{CallAttemptProfile, Program}
+  alias Cure.Elab.{AttemptCache, CallAttemptProfile, Program}
 
   @source """
   mod DependentConstructorConstraintRetry
@@ -28,6 +28,8 @@ defmodule Cure.Elab.DependentConstructorConstraintRetryTest do
       end)
 
     assert metrics[:constructor_field_attempts] >= 1
+    assert metrics[:constructor_field_attempts] <= 4
+    assert metrics[:constructor_field_retries] >= 1
 
     assert Enum.find(attempts, fn attempt ->
              attempt.callee == "Witnessed" and attempt.strategy == :constructor_bidirectional
@@ -48,5 +50,41 @@ defmodule Cure.Elab.DependentConstructorConstraintRetryTest do
 
     assert {:unsolved_metavariables, :"DependentConstructorRigidMismatch#Nil"} =
              Program.semantic_error(error)
+  end
+
+  test "a rigid field mismatch is not converted into an unsolved-field retry" do
+    source = """
+    mod DependentConstructorRigidField
+      type Bit = F | T
+      type Pair(a: Type, b: Type) = MkPair(a, b)
+      type Wrapped indices (a: Type)
+        Bad : {b: Type} -> Pair(b, Nat) -> Wrapped(a)
+      fn bad() -> Wrapped(Int) = Bad(MkPair(Z(), T()))
+    end
+    """
+
+    assert {:error, error} = Program.elaborate(source, file: "dependent_constructor_rigid_field.cure")
+
+    assert {:index_mismatch,
+            {:cannot_unify, {:data, :"Std.Nat#Nat", [], []}, {:data, :"DependentConstructorRigidField#Bit", [], []}}} =
+             Program.semantic_error(error)
+  end
+
+  test "attempt-local normalization cache is scoped and reports hits" do
+    refute AttemptCache.active?()
+
+    AttemptCache.scope(fn ->
+      assert AttemptCache.active?()
+
+      key = {:probe, :normalized_term}
+
+      assert {:miss, {:normalized, :term}} =
+               AttemptCache.fetch(:normalize, key, fn -> {:normalized, :term} end)
+
+      assert {:hit, {:normalized, :term}} =
+               AttemptCache.fetch(:normalize, key, fn -> flunk("cache miss on repeated term") end)
+    end)
+
+    refute AttemptCache.active?()
   end
 end

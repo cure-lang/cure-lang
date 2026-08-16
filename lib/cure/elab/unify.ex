@@ -9,13 +9,14 @@ defmodule Cure.Elab.MetaCtx do
   away); an unsolved metavariable at that point is an elaboration error.
   """
 
-  defstruct next: 0, solutions: %{}, types: %{}
+  defstruct next: 0, solutions: %{}, types: %{}, revision: 0
 
   @type id :: non_neg_integer()
   @type t :: %__MODULE__{
           next: non_neg_integer(),
           solutions: %{id() => Cure.Core.Term.t()},
-          types: %{id() => Cure.Core.Term.t()}
+          types: %{id() => Cure.Core.Term.t()},
+          revision: non_neg_integer()
         }
 
   @doc "A fresh, empty metavariable context."
@@ -46,9 +47,18 @@ defmodule Cure.Elab.MetaCtx do
   @spec solved?(t(), id()) :: boolean()
   def solved?(%__MODULE__{solutions: s}, id), do: Map.has_key?(s, id)
 
+  @doc "Monotone revision of the solution set for attempt-local caches."
+  @spec revision(t()) :: non_neg_integer()
+  def revision(%__MODULE__{revision: revision}), do: revision
+
   @doc false
-  def put_solution(%__MODULE__{solutions: s} = ctx, id, term),
-    do: %{ctx | solutions: Map.put(s, id, term)}
+  def put_solution(%__MODULE__{solutions: s, revision: revision} = ctx, id, term) do
+    if Map.get(s, id) == term do
+      ctx
+    else
+      %{ctx | solutions: Map.put(s, id, term), revision: revision + 1}
+    end
+  end
 end
 
 defmodule Cure.Elab.Unify do

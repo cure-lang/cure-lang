@@ -14,7 +14,7 @@ defmodule Cure.Elab.Elaborator do
   """
 
   alias Cure.Core.{Context, Conv, Env, Eval, Grade, Inductive, Kernel, Normalise, Quote, Term}
-  alias Cure.Elab.{CallAttemptProfile, GuardLint, MetaCtx, Rewrite, Subst, Unify}
+  alias Cure.Elab.{AttemptCache, CallAttemptProfile, GuardLint, MetaCtx, Rewrite, Subst, Unify}
 
   import Cure.Elab.Rewrite,
     only: [
@@ -31,12 +31,6 @@ defmodule Cure.Elab.Elaborator do
   # `join_point?/5`, `elaborate_join/6`, `wrap_join/2`). Never reaches the kernel:
   # `wrap_join/2` replaces every marker before the term escapes `elaborate_match`.
   @join_marker :"$join_point"
-
-  # Operation-local bridge between the initial constructor inference attempt
-  # and its bidirectional fallback. A nested constructor that failed only
-  # because its index was underdetermined is recorded here so the fallback can
-  # postpone it instead of elaborating the same surface AST a second time.
-  @constructor_retry_cache_key {__MODULE__, :constructor_retry_cache}
 
   # Internal request used by motive-generalized matches when an authored
   # `Ctor(...) -> impossible` branch is reachable by the outer scrutinee but its
@@ -13569,8 +13563,8 @@ defmodule Cure.Elab.Elaborator do
       {:error, _} ->
         zonked_left = Unify.zonk(left, mctx)
         zonked_right = Unify.zonk(right, mctx)
-        normalized_left = contextual_normalize_meta_aware(zonked_left, ctx)
-        normalized_right = contextual_normalize_meta_aware(zonked_right, ctx)
+        normalized_left = contextual_normalize_cached(zonked_left, mctx, ctx)
+        normalized_right = contextual_normalize_cached(zonked_right, mctx, ctx)
 
         case Unify.unify(normalized_left, normalized_right, mctx, env) do
           {:ok, _} = ok ->
@@ -13593,6 +13587,31 @@ defmodule Cure.Elab.Elaborator do
               {:error, contextual_reason}
             end
         end
+    end
+  end
+
+  # Contextual normalization is pure for a fixed conversion environment: all
+  # metavariables have already been zonked and temporarily reified as synthetic
+  # globals. Keep this cache local to the current elaboration operation so a
+  # source-hash/interface never observes speculative normal forms.
+  defp contextual_normalize_cached(term, mctx, ctx) do
+    CallAttemptProfile.increment(:contextual_normalize_calls)
+
+    key = {
+      term,
+      MetaCtx.revision(mctx),
+      Context.signature(ctx),
+      Context.length(ctx)
+    }
+
+    case AttemptCache.fetch(:normalize, key, fn -> contextual_normalize_meta_aware(term, ctx) end) do
+      {:hit, normalized} ->
+        CallAttemptProfile.increment(:contextual_normalize_cache_hits)
+        normalized
+
+      {:miss, normalized} ->
+        CallAttemptProfile.increment(:contextual_normalize_cache_misses)
+        normalized
     end
   end
 
@@ -14522,7 +14541,7 @@ defmodule Cure.Elab.Elaborator do
     acc0 = for {i, _ft, _q, :implicit} <- slots, into: %{}, do: {i, Enum.at(seed, pc + i)}
     pending = for {i, ft, _q, :explicit} <- slots, do: {i, ft}
 
-    case resolve_ctor_fields(pending, acc0, args_by_pos, seed, pc, params, mctx, names, ctx, env, cname, deferred) do
+    case resolve_ctor_fields(pending, acc0, args_by_pos, seed, pc, params, mctx, names, ctx, env, cname, deferred, %{}) do
       {:ok, acc_map, mctx} ->
         vals = for i <- 0..(length(slots) - 1)//1, do: Unify.zonk(Map.fetch!(acc_map, i), mctx)
 
@@ -14540,10 +14559,24 @@ defmodule Cure.Elab.Elaborator do
   # tried by INFERENCE (solving the metavariable from the argument's own type, as a recursive
   # call or concrete constructor does) and otherwise DEFERRED to a later sweep, once a sibling
   # solves it.
-  defp resolve_ctor_fields([], acc_map, _args, _seed, _pc, _params, mctx, _names, _ctx, _env, _cname, _deferred),
-    do: {:ok, acc_map, mctx}
+  defp resolve_ctor_fields(
+         [],
+         acc_map,
+         _args,
+         _seed,
+         _pc,
+         _params,
+         mctx,
+         _names,
+         _ctx,
+         _env,
+         _cname,
+         _deferred,
+         _attempted
+       ),
+       do: {:ok, acc_map, mctx}
 
-  defp resolve_ctor_fields(pending, acc_map, args, seed, pc, params, mctx, names, ctx, env, cname, deferred) do
+  defp resolve_ctor_fields(pending, acc_map, args, seed, pc, params, mctx, names, ctx, env, cname, deferred, attempted) do
     # A DEFERRED result-index equation (`add(m1,m2) = S(Z)`) is retried at the head of
     # every sweep: once a sibling field solves its metas the computed index reduces
     # (`add(S(Z),m2)` → `S(m2)` via the meta-aware whnf in `Unify`) and the equation
@@ -14553,39 +14586,71 @@ defmodule Cure.Elab.Elaborator do
     {mctx, deferred, deferred_prog} = retry_deferred(deferred, mctx, env)
 
     swept =
-      Enum.reduce(pending, {[], acc_map, mctx, deferred_prog, nil}, fn {i, ftype}, {pend, amap, mctx, prog, err} ->
+      Enum.reduce(pending, {[], acc_map, mctx, deferred_prog, nil, attempted}, fn {i, ftype},
+                                                                                  {pend, amap, mctx, prog, err,
+                                                                                   attempted} ->
         if err != nil do
-          {pend, amap, mctx, prog, err}
+          {pend, amap, mctx, prog, err, attempted}
         else
           frame = params ++ frame_prefix(amap, seed, pc, i, mctx)
           ftype_inst = ftype |> Subst.instantiate(frame) |> Unify.zonk(mctx)
           arg = Map.fetch!(args, i)
 
           if has_meta?(ftype_inst) do
-            case try_infer_field(arg, ftype_inst, mctx, names, ctx, env) do
-              {:ok, term, mctx2} -> {pend, Map.put(amap, i, term), mctx2, true, nil}
-              :defer -> {[{i, ftype} | pend], amap, mctx, prog, nil}
+            fingerprint = {field_fingerprint(ftype_inst, mctx), deferred}
+
+            if Map.get(attempted, i) == fingerprint do
+              CallAttemptProfile.increment(:constructor_field_retries)
+              {[{i, ftype} | pend], amap, mctx, prog, nil, attempted}
+            else
+              attempted = Map.put(attempted, i, fingerprint)
+
+              case try_infer_field(arg, ftype_inst, mctx, names, ctx, env) do
+                {:ok, term, _typed_type, mctx2} ->
+                  {pend, Map.put(amap, i, term), mctx2, true, nil, attempted}
+
+                {:blocked, _blockers, _attempt_state} ->
+                  CallAttemptProfile.increment(:constructor_field_retries)
+                  {[{i, ftype} | pend], amap, mctx, prog, nil, attempted}
+
+                {:error, reason} ->
+                  {pend, amap, mctx, prog, {:error, reason}, attempted}
+              end
             end
           else
             case elaborate_expr_checked(arg, ftype_inst, names, ctx, env) do
-              {:ok, term} -> {pend, Map.put(amap, i, term), mctx, true, nil}
-              {:error, _} = e -> {pend, amap, mctx, prog, e}
+              {:ok, term} -> {pend, Map.put(amap, i, term), mctx, true, nil, attempted}
+              {:error, _} = e -> {pend, amap, mctx, prog, e, attempted}
             end
           end
         end
       end)
 
     case swept do
-      {_pend, _amap, _mctx, _prog, {:error, _} = err} ->
+      {_pend, _amap, _mctx, _prog, {:error, _} = err, _attempted} ->
         err
 
-      {[], acc_map, mctx, _prog, nil} ->
+      {[], acc_map, mctx, _prog, nil, _attempted} ->
         {:ok, acc_map, mctx}
 
-      {pend, acc_map, mctx, true, nil} ->
-        resolve_ctor_fields(Enum.reverse(pend), acc_map, args, seed, pc, params, mctx, names, ctx, env, cname, deferred)
+      {pend, acc_map, mctx, true, nil, attempted} ->
+        resolve_ctor_fields(
+          Enum.reverse(pend),
+          acc_map,
+          args,
+          seed,
+          pc,
+          params,
+          mctx,
+          names,
+          ctx,
+          env,
+          cname,
+          deferred,
+          attempted
+        )
 
-      {_pend, _amap, _mctx, false, nil} ->
+      {_pend, _amap, _mctx, false, nil, _attempted} ->
         # A full sweep resolved nothing — no field AND no deferred equation — but fields
         # remain: their types stay under-determined.
         {:error, {:unsolved_field_type, cname}}
@@ -14680,6 +14745,14 @@ defmodule Cure.Elab.Elaborator do
     end
   end
 
+  defp field_fingerprint(term, mctx) do
+    {
+      Unify.zonk(term, mctx),
+      MetaCtx.revision(mctx),
+      term |> meta_ids() |> Enum.sort()
+    }
+  end
+
   # Infer an argument independently and unify its type back into `mctx`, solving a field-type
   # metavariable that only this argument determines (e.g. a recursive call whose result type
   # fixes an intermediate index). Returns `:defer` when the argument cannot be inferred in
@@ -14690,7 +14763,8 @@ defmodule Cure.Elab.Elaborator do
 
     if has_meta?(ftype_inst) and blocked_constructor_cached?(arg, env) do
       CallAttemptProfile.increment(:constructor_field_blocked)
-      :defer
+      CallAttemptProfile.increment(:constructor_field_reused)
+      {:blocked, [], :cached_constructor}
     else
       try_infer_field_uncached(arg, ftype_inst, mctx, names, ctx, env)
     end
@@ -14700,37 +14774,58 @@ defmodule Cure.Elab.Elaborator do
     with {:ok, term, ty} <- elaborate_expr_typed(arg, names, ctx, env),
          ty_term = Quote.reify(ty, Context.length(ctx)),
          {:ok, mctx2} <- Unify.unify(ftype_inst, ty_term, mctx, env) do
-      {:ok, term, mctx2}
+      {:ok, term, ty_term, mctx2}
     else
-      _ -> :defer
+      {:error, reason} when is_tuple(reason) ->
+        if rigid_field_error?(reason) do
+          CallAttemptProfile.increment(:constructor_field_hard_failures)
+          {:error, reason}
+        else
+          CallAttemptProfile.increment(:constructor_field_blocked)
+          {:blocked, field_blockers(ftype_inst, reason), reason}
+        end
+
+      _other ->
+        CallAttemptProfile.increment(:constructor_field_blocked)
+        {:blocked, field_blockers(ftype_inst, :unknown_field_constraint), :unknown_field_constraint}
     end
   end
 
+  defp field_blockers(ftype_inst, reason) do
+    (meta_ids(ftype_inst) ++ meta_ids(reason)) |> Enum.uniq() |> Enum.sort()
+  end
+
+  defp meta_ids(term), do: meta_ids(term, MapSet.new()) |> MapSet.to_list()
+
+  defp meta_ids({:meta, id}, ids), do: MapSet.put(ids, id)
+
+  defp meta_ids(term, ids) when is_tuple(term),
+    do: term |> Tuple.to_list() |> Enum.reduce(ids, &meta_ids/2)
+
+  defp meta_ids(term, ids) when is_list(term), do: Enum.reduce(term, ids, &meta_ids/2)
+  defp meta_ids(_term, ids), do: ids
+
+  defp rigid_field_error?({:source_context, reason, _context}), do: rigid_field_error?(reason)
+
+  defp rigid_field_error?({:index_mismatch, reason}), do: rigid_field_error?(reason)
+
+  defp rigid_field_error?({:cannot_unify, left, right}),
+    do: not has_meta?(left) and not has_meta?(right) and definite_constructor_result_clash?(left, right)
+
+  defp rigid_field_error?({:conversion_failure, actual, expected}),
+    do:
+      not has_meta?(actual) and not has_meta?(expected) and
+        definite_constructor_result_clash?(actual, expected)
+
+  defp rigid_field_error?(_reason), do: false
+
   defp with_constructor_retry_cache(fun) when is_function(fun, 0) do
-    case Process.get(@constructor_retry_cache_key) do
-      cache when is_map(cache) ->
-        fun.()
-
-      _ ->
-        Process.put(@constructor_retry_cache_key, %{})
-
-        try do
-          fun.()
-        after
-          Process.delete(@constructor_retry_cache_key)
-        end
-    end
+    AttemptCache.scope(fun)
   end
 
   defp remember_blocked_constructor(cname, args, result) do
     if match?({:error, _}, result) and blocked_constructor_reason?(elem(result, 1)) do
-      case Process.get(@constructor_retry_cache_key) do
-        cache when is_map(cache) ->
-          Process.put(@constructor_retry_cache_key, Map.put(cache, {cname, args}, true))
-
-        _ ->
-          :ok
-      end
+      AttemptCache.put(:blocked, {cname, args}, true)
     end
 
     :ok
@@ -14742,10 +14837,7 @@ defmodule Cure.Elab.Elaborator do
     if is_binary(name) do
       key = resolve_ctor_key(env, String.to_atom(name))
 
-      case Process.get(@constructor_retry_cache_key) do
-        cache when is_map(cache) -> Map.has_key?(cache, {key, args})
-        _ -> false
-      end
+      match?({:ok, true}, AttemptCache.get(:blocked, {key, args}))
     else
       false
     end

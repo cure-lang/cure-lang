@@ -1,6 +1,6 @@
 # Dependent-constructor constraint retry remediation
 
-**Status:** phase 1 implemented; work-list and conversion-cache phases remain  
+**Status:** phase 2 implemented; prefix-frame representation remains for a later performance pass
 **Date:** 2026-08-16  
 **Scope:** typed elaboration of indexed constructor applications
 
@@ -272,6 +272,41 @@ the experiment changed a legitimate `Std.Regex.Language` indexed refinement
 into E093. Full blocker-keyed scheduling therefore remains a separate phase and
 must be introduced with a smaller classifier regression before it replaces the
 current fixpoint behavior.
+
+## Implemented in phase 2
+
+Phase 2 keeps the compatibility fixpoint but makes its retry authority explicit
+and revision-aware:
+
+* `try_infer_field/6` now returns tagged `{:ok, term, typed_type, mctx}`,
+  `{:blocked, blockers, attempt_state}`, or `{:error, reason}` outcomes. The
+  classifier only treats a constructor/data-head or primitive-head clash as
+  rigid; global/application mismatches and unsupported nested expressions stay
+  blocked because their surrounding telescope may still be refined.
+* Blocker fingerprints include the instantiated expected field type, its
+  metavariable IDs, the metavariable-context revision, and the deferred-index
+  equations. A field is not retried at the same fingerprint, but a sibling
+  solution or discharged deferred equation changes the fingerprint and wakes
+  it. This fixes the earlier unsound skip, which omitted the context revision
+  and regressed `Std.Regex.Language` with E093.
+* The operation-local `AttemptCache` now also caches contextual normalization
+  results. Its key includes the zonked term, metavariable revision, conversion
+  signature, and context length; it is scoped by `Program.check_ast/1` and is
+  never published in an interface or environment hash.
+* Field retry, reuse, blocked, hard-failure, and contextual-normalization
+  counters are exposed through `CallAttemptProfile`. The regression fixture
+  observes two field attempts, one blocked retry, and one reused nested term;
+  the cache regression also proves hit reuse and scope cleanup directly.
+* The incompatible-field regression asserts the existing structured
+  `index_mismatch` diagnostic, while the stdlib compatibility fixtures continue
+  to pass. Kernel checking remains the final authority for every assembled
+  constructor.
+
+The full O(1) prefix-frame representation and a wake-list that enqueues only
+fields registered under changed blocker IDs are intentionally not claimed here:
+the current resolver still retains its deterministic compatibility sweep. Those
+changes require a separate proof that local branch variables and deferred
+computed indices cannot invalidate a cached prefix.
 
 ## Soundness and acceptance criteria
 
