@@ -32,6 +32,12 @@ defmodule Cure.Elab.Elaborator do
   # `wrap_join/2` replaces every marker before the term escapes `elaborate_match`.
   @join_marker :"$join_point"
 
+  # Operation-local bridge between the initial constructor inference attempt
+  # and its bidirectional fallback. A nested constructor that failed only
+  # because its index was underdetermined is recorded here so the fallback can
+  # postpone it instead of elaborating the same surface AST a second time.
+  @constructor_retry_cache_key {__MODULE__, :constructor_retry_cache}
+
   # Internal request used by motive-generalized matches when an authored
   # `Ctor(...) -> impossible` branch is reachable by the outer scrutinee but its
   # refined dependent context contains an uninhabited indexed value. It is
@@ -530,33 +536,39 @@ defmodule Cure.Elab.Elaborator do
         end
 
       Inductive.get_ctor(env, resolved) ->
-        result =
-          profile_attempt(resolved, :constructor_infer, fn ->
-            with :ok <- validate_constructor_arity(env, resolved, args, name),
-                 {:ok, present} <- map_present_args(args, names, ctx, env) do
-              elaborate_ctor_app(env, resolved, present, ctx)
-            end
-          end)
+        with_constructor_retry_cache(fn ->
+          result =
+            profile_attempt(resolved, :constructor_infer, fn ->
+              with :ok <- validate_constructor_arity(env, resolved, args, name),
+                   {:ok, present} <- map_present_args(args, names, ctx, env) do
+                elaborate_ctor_app(env, resolved, present, ctx)
+              end
+            end)
 
-        # A nested underdetermined constructor in *inference* position —
-        # `Cons(Z(), Nil())` as a bare argument, whose inner `Nil()` cannot be
-        # inferred — fails up-front inference. Retry left-to-right: solve the
-        # constructor's parameters from the arguments that do infer (`Z() : Nat`
-        # fixes `a`), then *check* the rest (`Nil()` against `Lst(Nat)`). Additive:
-        # reached only after inference already failed, original error surfaced
-        # otherwise.
-        case result do
-          {:ok, _, _} = ok ->
-            ok
+          # A nested underdetermined constructor in *inference* position —
+          # `Cons(Z(), Nil())` as a bare argument, whose inner `Nil()` cannot be
+          # inferred — fails up-front inference. Retry left-to-right: solve the
+          # constructor's parameters from the arguments that do infer (`Z() : Nat`
+          # fixes `a`), then *check* the rest (`Nil()` against `Lst(Nat)`). Additive:
+          # reached only after inference already failed, original error surfaced
+          # otherwise. The retry cache records blocked nested constructors so
+          # this second strategy does not elaborate the same surface call again;
+          # it waits for the sibling field to make its expected type concrete.
+          case result do
+            {:ok, _, _} = ok ->
+              ok
 
-          {:error, _} = orig ->
-            case profile_attempt(resolved, :constructor_bidirectional, fn ->
-                   elaborate_ctor_app_infer_bidirectional(env, resolved, args, names, ctx)
-                 end) do
-              {:ok, _, _} = ok -> ok
-              {:error, _} -> orig
-            end
-        end
+            {:error, _} = orig ->
+              remember_blocked_constructor(resolved, args, orig)
+
+              case profile_attempt(resolved, :constructor_bidirectional, fn ->
+                     elaborate_ctor_app_infer_bidirectional(env, resolved, args, names, ctx)
+                   end) do
+                {:ok, _, _} = ok -> ok
+                {:error, _} -> orig
+              end
+          end
+        end)
 
       # A saturated call to a registered builtin primitive op — `Std.Builtin.int_add`,
       # `struct_eq`, … — spelled by its qualified name. These globals are body-less:
@@ -14674,6 +14686,17 @@ defmodule Cure.Elab.Elaborator do
   # isolation (e.g. a nullary constructor with its own implicit index) — it is retried once its
   # field type becomes concrete.
   defp try_infer_field(arg, ftype_inst, mctx, names, ctx, env) do
+    CallAttemptProfile.increment(:constructor_field_attempts)
+
+    if has_meta?(ftype_inst) and blocked_constructor_cached?(arg, env) do
+      CallAttemptProfile.increment(:constructor_field_blocked)
+      :defer
+    else
+      try_infer_field_uncached(arg, ftype_inst, mctx, names, ctx, env)
+    end
+  end
+
+  defp try_infer_field_uncached(arg, ftype_inst, mctx, names, ctx, env) do
     with {:ok, term, ty} <- elaborate_expr_typed(arg, names, ctx, env),
          ty_term = Quote.reify(ty, Context.length(ctx)),
          {:ok, mctx2} <- Unify.unify(ftype_inst, ty_term, mctx, env) do
@@ -14682,6 +14705,61 @@ defmodule Cure.Elab.Elaborator do
       _ -> :defer
     end
   end
+
+  defp with_constructor_retry_cache(fun) when is_function(fun, 0) do
+    case Process.get(@constructor_retry_cache_key) do
+      cache when is_map(cache) ->
+        fun.()
+
+      _ ->
+        Process.put(@constructor_retry_cache_key, %{})
+
+        try do
+          fun.()
+        after
+          Process.delete(@constructor_retry_cache_key)
+        end
+    end
+  end
+
+  defp remember_blocked_constructor(cname, args, result) do
+    if match?({:error, _}, result) and blocked_constructor_reason?(elem(result, 1)) do
+      case Process.get(@constructor_retry_cache_key) do
+        cache when is_map(cache) ->
+          Process.put(@constructor_retry_cache_key, Map.put(cache, {cname, args}, true))
+
+        _ ->
+          :ok
+      end
+    end
+
+    :ok
+  end
+
+  defp blocked_constructor_cached?({:function_call, meta, args}, env) when is_list(meta) do
+    name = Keyword.get(meta, :name)
+
+    if is_binary(name) do
+      key = resolve_ctor_key(env, String.to_atom(name))
+
+      case Process.get(@constructor_retry_cache_key) do
+        cache when is_map(cache) -> Map.has_key?(cache, {key, args})
+        _ -> false
+      end
+    else
+      false
+    end
+  end
+
+  defp blocked_constructor_cached?(_arg, _env), do: false
+
+  defp blocked_constructor_reason?({:source_context, reason, _context}),
+    do: blocked_constructor_reason?(reason)
+
+  defp blocked_constructor_reason?({:unsolved_metavariables, _}), do: true
+  defp blocked_constructor_reason?({:unsolved_index, _}), do: true
+  defp blocked_constructor_reason?({:unsolved_field_type, _}), do: true
+  defp blocked_constructor_reason?(_), do: false
 
   # Inference-mode counterpart of `elaborate_ctor_app_bidirectional`, used only as
   # a fallback when up-front inference of a constructor's arguments fails (a nested

@@ -11,6 +11,7 @@ defmodule Cure.Elab.CallAttemptProfile do
 
   @attempts_key {__MODULE__, :attempts}
   @call_key {__MODULE__, :call}
+  @metrics_key {__MODULE__, :metrics}
 
   @type call_identity :: %{
           required(:declaration) => atom() | String.t() | nil,
@@ -26,6 +27,7 @@ defmodule Cure.Elab.CallAttemptProfile do
   def run(fun) when is_function(fun, 0) do
     previous_attempts = Process.put(@attempts_key, %{})
     previous_call = Process.get(@call_key)
+    previous_metrics = Process.put(@metrics_key, %{})
     Process.delete(@call_key)
 
     try do
@@ -41,8 +43,26 @@ defmodule Cure.Elab.CallAttemptProfile do
     after
       restore(@attempts_key, previous_attempts)
       restore(@call_key, previous_call)
+      restore(@metrics_key, previous_metrics)
     end
   end
+
+  @doc "Increment an operation-local counter when profiling is active."
+  @spec increment(atom(), non_neg_integer()) :: :ok
+  def increment(name, amount \\ 1) when is_atom(name) and is_integer(amount) and amount >= 0 do
+    case Process.get(@metrics_key) do
+      metrics when is_map(metrics) ->
+        Process.put(@metrics_key, Map.update(metrics, name, amount, &(&1 + amount)))
+        :ok
+
+      _ ->
+        :ok
+    end
+  end
+
+  @doc "Return operation-local counters for the current profiling scope."
+  @spec metrics() :: %{optional(atom()) => non_neg_integer()}
+  def metrics, do: Process.get(@metrics_key, %{})
 
   @doc "Associate attempts made by `fun` with one authored call site."
   @spec with_call(call_identity(), (-> result)) :: result when result: term()
