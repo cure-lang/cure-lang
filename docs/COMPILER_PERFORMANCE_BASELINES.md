@@ -210,6 +210,34 @@ declaration, `thompson_alternate_acceptance_captures`, spent 29.420 s in typed
 elaboration. The completed SCC-certificate path remains measurable but is not
 the cold-build bottleneck.
 
+### 2026-08-16 blocked-constructor retry-cache profile
+
+After the phase-1 dependent-constructor retry cache (`7ac7c705`), one serialized
+`MIX_ENV=test` invocation of:
+
+```sh
+MIX_ENV=test CURE_SKIP_DOC_FENCES=1 mix cure.bench.interfaces --warm-iterations 1 --top 20
+```
+
+measured a cold total of **170.314 s** for all 77 sources, rebuilding all 77,
+and one no-rebuild warm sample of **5.824 s** (module checking 2.202 s). The
+single cold sample is within the existing 149–177 s investigation range and is
+not evidence of a wall-clock speedup or regression by itself.
+
+The dominant components remained `Std.Regex` + `Std.Regex.Proof` (103.865 s)
+and `Std.Regex.Language` (36.757 s). The largest typed-elaboration stages were
+`thompson_alternate_acceptance_captures` (20.087 s),
+`thompson_evidence_acceptance_from_encodes_explicit` (19.493 s), and
+`alternate_compilation_is_sound` (15.725 s). Totality and SCC work remained a
+small fraction of the cold build.
+
+The new focused regression records the relevant semantic signal rather than a
+machine-dependent timeout: the blocked nested `Witnessed` constructor has one
+bidirectional candidate attempt after the retry cache is installed. The cache
+is operation-local and does not change interface or totality counters. A future
+comparison needs three independent cold samples and should retain the same
+source universe and doc-fence setting.
+
 ## Stabilization warning policy
 
 The stabilization gate means **no unexpected compiler warnings**, rather than
