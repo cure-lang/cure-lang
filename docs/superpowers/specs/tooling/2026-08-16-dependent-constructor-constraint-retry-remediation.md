@@ -39,15 +39,24 @@ the kernel, accept unchecked terms, or make all definitions reducible.
 
 The implementation should follow the useful common boundary in Agda and Lean:
 
-* Agda's `checkArgumentsE` retains the checked prefix and postpones only a
+* Agda's `checkArgumentsE` (in
+  `/Users/ch/Develop/agda/src/full/Agda/TypeChecking/Rules/Application.hs`)
+  retains the checked prefix and postpones only a
   problem blocked on a known metavariable. A blocked problem is resumed when
   that metavariable is woken; the whole application is not restarted.
-* Agda's conversion checker returns a blocked constraint instead of repeatedly
+* Agda's conversion checker (in
+  `/Users/ch/Develop/agda/src/full/Agda/TypeChecking/Conversion.hs`) returns a
+  blocked constraint instead of repeatedly
   normalizing an unchanged term in the caller.
-* Lean's `ElabAppArgs.State` carries the current function type, already checked
+* Lean's `ElabAppArgs.State` (in
+  `/Users/ch/Develop/lean4/src/Lean/Elab/App.lean`) carries the current function
+  type, already checked
   arguments, and remaining arguments in an array. `addNewArg` advances the
   state, so successful arguments are never elaborated again.
-* Lean's defeq checker separates easy/explicit arguments from postponed
+* Lean's defeq checker (in
+  `/Users/ch/Develop/lean4/src/Lean/Meta/Basic.lean` and
+  `/Users/ch/Develop/lean4/src/Lean/Meta/ExprDefEq.lean`) separates
+  easy/explicit arguments from postponed
   higher-order or metavariable-dependent arguments and uses an attempt-local
   defeq cache. The cache is invalidated when local metavariable dependencies
   change.
