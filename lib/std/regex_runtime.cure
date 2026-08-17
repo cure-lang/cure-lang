@@ -10,6 +10,7 @@ mod Std.Regex.Runtime
   use Std.Equivalent
   use Std.Sigma
 
+  @reducible
   fn build_transition_rows(remaining: Nat, {total: Nat}, inject: (Bounded(remaining)) -> Bounded(total), next: (Bounded(total)) -> Char -> List(MachineState(total))) -> TransitionRowsFrom(remaining, total) = match remaining
     Z() -> NoTransitionRows()
     S(rest) ->
@@ -18,15 +19,18 @@ mod Std.Regex.Runtime
         build_transition_rows(rest, fn(state) -> inject(Next(state)), next)
       )
 
+  @reducible
   fn compile_transition_rows(n: Nat, machine: PatternMachine(n)) -> TransitionRows(n) = match machine
     MkPatternMachine(_, next) -> TransitionRows(build_transition_rows(n, fn(state) -> state, next))
 
+  @reducible
   fn transition_rows_from_next({remaining: Nat}, {total: Nat}, rows: TransitionRowsFrom(remaining, total), state: Bounded(remaining), char: Char) -> List(MachineState(total)) = match rows
     NoTransitionRows() -> match state
     MoreTransitionRows(row, rest) -> match state
       First() -> row(char)
       Next(index) -> transition_rows_from_next(rest, index, char)
 
+  @reducible
   fn transition_rows_next({n: Nat}, rows: TransitionRows(n), state: Bounded(n), char: Char) -> List(MachineState(n)) = match rows
     TransitionRows(values) -> transition_rows_from_next(values, state, char)
 
@@ -37,6 +41,40 @@ mod Std.Regex.Runtime
   ## for each input character.
   fn transition_rows_machine({n: Nat}, starts: List(MachineState(n)), rows: TransitionRows(n)) -> PatternMachine(n) =
     MkPatternMachine(starts, fn(state) -> fn(char) -> transition_rows_next(rows, state, char))
+
+  ## Pointwise correctness of the row compiler.  This is intentionally a
+  ## smaller theorem than function extensionality: every concrete bounded
+  ## source state reduces to the row installed for that state, so callers can
+  ## transport an edge without changing the existing PatternMachine proof
+  ## indices.
+  fn build_transition_rows_equivalent(
+    remaining: Nat,
+    {total: Nat},
+    inject: (Bounded(remaining)) -> Bounded(total),
+    next: (Bounded(total)) -> Char -> List(MachineState(total)),
+    state: Bounded(remaining),
+    char: Char
+  ) -> Equivalent(
+    List(MachineState(total)),
+    transition_rows_from_next(build_transition_rows(remaining, inject, next), state, char),
+    (next(inject(state), char))
+  ) = match remaining
+    Z() -> match state
+    S(rest) -> match state
+      First() -> reflexive(next(inject(First()), char))
+      Next(index) -> build_transition_rows_equivalent(rest, fn(state) -> inject(Next(state)), next, index, char)
+
+  fn transition_rows_next_equivalent(
+    n: Nat,
+    starts: List(MachineState(n)),
+    next: (Bounded(n)) -> Char -> List(MachineState(n)),
+    state: Bounded(n),
+    char: Char
+  ) -> Equivalent(
+    List(MachineState(n)),
+    transition_rows_next(compile_transition_rows(n, MkPatternMachine(starts, next)), state, char),
+    next(state, char)
+  ) = build_transition_rows_equivalent(n, fn(state) -> state, next, state, char)
 
   @reducible
   fn machine_state_routine(n: Nat, state: MachineState(n)) -> List(EvidenceInstruction) = match state

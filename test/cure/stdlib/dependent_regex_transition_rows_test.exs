@@ -39,6 +39,11 @@ defmodule Cure.Stdlib.DependentRegexTransitionRowsTest do
         let reference: PatternMachine(S(S(S(Z())))) = reference_thompson_machine(compilation)
         destination_count(pattern_machine_next(canonical)(state, char)) ==
           destination_count(pattern_machine_next(reference)(state, char))
+
+      fn row_theorem(state: Bounded(S(S(S(Z())))), char: Char) -> Bool =
+        let machine: PatternMachine(S(S(S(Z())))) = thompson_machine(certify_thompson(pattern()))
+        match transition_rows_next_equivalent(S(S(S(Z()))), pattern_machine_starts(machine), pattern_machine_next(machine), state, char)
+          reflexive() -> true
     end
     """
 
@@ -50,6 +55,7 @@ defmodule Cure.Stdlib.DependentRegexTransitionRowsTest do
       assert apply(module, :agrees, [state, char])
       assert apply(module, :staged_agrees, [state, char])
       assert apply(module, :canonical_agrees, [state, char])
+      assert apply(module, :row_theorem, [state, char])
     end
   end
 end
