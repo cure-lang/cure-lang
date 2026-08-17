@@ -12,9 +12,6 @@ mod Std.Regex.Syntax.Emitter
   fn core_call(name: String, args: List(Syntax)) -> Syntax =
     call(concat("Std.Regex.Core.", name), args)
 
-  fn equivalent_call(name: String, args: List(Syntax)) -> Syntax =
-    call(concat("Std.Equivalent.", name), args)
-
   fn literal_shape(pattern: LiteralPattern) -> LiteralShapeCode = match pattern
     LiteralEmpty -> UnitC
     LiteralExact(_) -> UnitC
@@ -75,11 +72,7 @@ mod Std.Regex.Syntax.Emitter
       emit_compilation_shape(pattern),
       emit_staged_pattern(pattern, options),
       emit_staged_compilation(pattern, options),
-      runtime_call("StagedMachineValue", [
-        emit_staged_compilation(pattern, options),
-        emit_staged_machine(pattern, options),
-        equivalent_call("reflexive", [])
-      ]),
+      runtime_call("StagedMachineValue", [emit_staged_compilation(pattern, options)]),
       emit_staged_conversion(pattern)
     ])
 
@@ -182,109 +175,12 @@ mod Std.Regex.Syntax.Emitter
     LiteralFinalEnd -> runtime_call("ThompsonBoundary", [runtime_call("subject_end_constraint", [])])
     LiteralWordBoundary(negated) -> runtime_call("ThompsonBoundary", [emit_staged_word_constraint(negated, options)])
 
-  ## Emit the machine expression corresponding to the staged compilation tree.
-  ## This deliberately mirrors `Std.Regex.Runtime.thompson_machine` one
-  ## constructor at a time.  The generated literal therefore contains the
-  ## checked machine value itself and does not call the Thompson dispatcher at
-  ## every parse.
-  fn emit_staged_machine(pattern: LiteralPattern, options: LiteralRegexOptions) -> Syntax = match pattern
-    LiteralEmpty -> runtime_call("empty_pattern_machine", [])
-    LiteralExact(char) -> runtime_call("predicate_pattern_machine", [runtime_call("option_exact_test", [char_literal(char), bool_literal(has_modifier(options, CaselessModifier)), bool_literal(has_modifier(options, UnicodeModifier))])])
-    LiteralAny -> runtime_call("predicate_pattern_machine", [runtime_call("dot_test", [bool_literal(has_modifier(options, DotallModifier))])])
-    LiteralClass(chars, ranges, kinds, negated) -> runtime_call("predicate_pattern_machine", [runtime_call("extended_property_class_test", [emit_chars(chars), emit_ranges(ranges), emit_class_kinds(kinds), emit_unicode_property_matches(literal_class_properties(kinds)), emit_posix_class_matches(literal_class_posix(kinds)), bool_literal(negated), bool_literal(has_modifier(options, CaselessModifier)), bool_literal(has_modifier(options, UnicodeModifier))])])
-    LiteralProperty(property, negated) -> runtime_call("predicate_pattern_machine", [runtime_call("unicode_property_test", [emit_unicode_property(property), bool_literal(negated)])])
-    LiteralDigit(negated) -> runtime_call("predicate_pattern_machine", [runtime_call("digit_options_test", [bool_literal(negated), bool_literal(has_modifier(options, UnicodeModifier))])])
-    LiteralWord(negated) -> runtime_call("predicate_pattern_machine", [runtime_call("word_options_test", [bool_literal(negated), bool_literal(has_modifier(options, UnicodeModifier))])])
-    LiteralSpace(negated) -> runtime_call("predicate_pattern_machine", [runtime_call("space_options_test", [bool_literal(negated), bool_literal(has_modifier(options, UnicodeModifier))])])
-    LiteralHorizontal(negated) -> runtime_call("predicate_pattern_machine", [runtime_call("horizontal_test", [bool_literal(negated)])])
-    LiteralVertical(negated) -> runtime_call("predicate_pattern_machine", [runtime_call("vertical_test", [bool_literal(negated)])])
-    LiteralSequence(left, right) -> runtime_call("concat_pattern_machine", [emit_machine_count(left), emit_staged_machine(left, options), emit_machine_count(right), emit_staged_machine(right, options)])
-    LiteralAlternate(left, right) -> runtime_call("alternate_pattern_machine", [emit_machine_count(left), emit_staged_machine(left, options), emit_machine_count(right), emit_staged_machine(right, options), bool_literal(false)])
-    LiteralRepeat(inner, lazy) -> runtime_call("repeat_pattern_machine", [emit_machine_count(inner), emit_staged_machine(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])
-    LiteralPlus(inner, lazy) -> runtime_call("concat_pattern_machine", [emit_machine_count(inner), emit_staged_machine(inner, options), emit_machine_count(inner), runtime_call("repeat_pattern_machine", [emit_machine_count(inner), emit_staged_machine(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])])
-    LiteralOptional(inner, lazy) -> runtime_call("alternate_pattern_machine", [emit_machine_count(inner), emit_staged_machine(inner, options), emit_nat(Z()), runtime_call("empty_pattern_machine", []), bool_literal(lazy != has_modifier(options, UngreedyModifier))])
-    LiteralBoundedExact(inner, count) -> emit_bounded_exact_machine(inner, count, options)
-    LiteralBoundedAtLeast(inner, count, lazy) -> emit_bounded_at_least_machine(inner, count, lazy != has_modifier(options, UngreedyModifier), options)
-    LiteralBoundedBetween(inner, minimum, maximum, lazy) -> emit_bounded_between_machine(inner, minimum, maximum, lazy != has_modifier(options, UngreedyModifier), options)
-    LiteralCapture(inner) -> runtime_call("group_pattern_machine", [emit_machine_count(inner), runtime_call("pattern_machine_starts", [emit_staged_machine(inner, options)]), runtime_call("pattern_machine_next", [emit_staged_machine(inner, options)])])
-    LiteralStart -> runtime_call("boundary_pattern_machine", [emit_staged_start_constraint(options)])
-    LiteralEnd -> runtime_call("boundary_pattern_machine", [emit_staged_end_constraint(options)])
-    LiteralAbsoluteStart -> runtime_call("boundary_pattern_machine", [runtime_call("subject_start_constraint", [])])
-    LiteralStrictEnd -> runtime_call("boundary_pattern_machine", [runtime_call("strict_end_constraint", [])])
-    LiteralFinalEnd -> runtime_call("boundary_pattern_machine", [runtime_call("subject_end_constraint", [])])
-    LiteralWordBoundary(negated) -> runtime_call("boundary_pattern_machine", [emit_staged_word_constraint(negated, options)])
+  ## The staged parser consumes a row-backed machine reconstructed from the
+  ## checked Thompson tree.  No closure-machine constructor is emitted into
+  ## the literal expansion.
+  fn emit_staged_rows(pattern: LiteralPattern, options: LiteralRegexOptions) -> Syntax =
+    runtime_call("staged_machine_from_compilation", [emit_staged_compilation(pattern, options)])
 
-  fn emit_bounded_exact_machine(inner: LiteralPattern, count: Nat, options: LiteralRegexOptions) -> Syntax = match count
-    Z() -> runtime_call("empty_pattern_machine", [])
-    S(rest) -> runtime_call("concat_pattern_machine", [emit_machine_count(inner), emit_staged_machine(inner, options), emit_bounded_exact_machine_count(inner, rest), emit_bounded_exact_machine(inner, rest, options)])
-
-  fn emit_bounded_at_least_machine(inner: LiteralPattern, count: Nat, lazy: Bool, options: LiteralRegexOptions) -> Syntax = match count
-    Z() -> runtime_call("repeat_pattern_machine", [emit_machine_count(inner), emit_staged_machine(inner, options), bool_literal(lazy)])
-    S(rest) -> runtime_call("concat_pattern_machine", [emit_machine_count(inner), emit_staged_machine(inner, options), emit_bounded_at_least_machine_count(inner, rest), emit_bounded_at_least_machine(inner, rest, lazy, options)])
-
-  fn emit_bounded_between_machine(inner: LiteralPattern, minimum: Nat, maximum: Nat, lazy: Bool, options: LiteralRegexOptions) -> Syntax = match minimum
-    Z() -> emit_bounded_up_to_machine(inner, maximum, lazy, options)
-    S(rest) -> match maximum
-      Z() -> emit_bounded_exact_machine(inner, S(rest), options)
-      S(maximum_rest) -> runtime_call("concat_pattern_machine", [emit_machine_count(inner), emit_staged_machine(inner, options), emit_bounded_between_machine_count(inner, rest, maximum_rest), emit_bounded_between_machine(inner, rest, maximum_rest, lazy, options)])
-
-  fn emit_bounded_up_to_machine(inner: LiteralPattern, maximum: Nat, lazy: Bool, options: LiteralRegexOptions) -> Syntax = match maximum
-    Z() -> runtime_call("empty_pattern_machine", [])
-    S(rest) -> runtime_call("concat_pattern_machine", [emit_machine_count(inner), runtime_call("alternate_pattern_machine", [emit_machine_count(inner), emit_staged_machine(inner, options), emit_nat(Z()), runtime_call("empty_pattern_machine", []), bool_literal(lazy)]), emit_bounded_up_to_machine_count(inner, rest), emit_bounded_up_to_machine(inner, rest, lazy, options)])
-
-  ## State counts are finite syntax data known while the literal is expanded.
-  ## Emit them as constructors rather than traversing ThompsonCompilation again
-  ## on every call to a compiled literal.
-  fn staged_machine_count(pattern: LiteralPattern) -> Nat = match pattern
-    LiteralEmpty -> Z()
-    LiteralExact(_) -> S(Z())
-    LiteralAny -> S(Z())
-    LiteralClass(_, _, _, _) -> S(Z())
-    LiteralProperty(_, _) -> S(Z())
-    LiteralDigit(_) -> S(Z())
-    LiteralWord(_) -> S(Z())
-    LiteralSpace(_) -> S(Z())
-    LiteralHorizontal(_) -> S(Z())
-    LiteralVertical(_) -> S(Z())
-    LiteralSequence(left, right) -> plus(staged_machine_count(left), staged_machine_count(right))
-    LiteralAlternate(left, right) -> plus(staged_machine_count(left), staged_machine_count(right))
-    LiteralRepeat(inner, _) -> staged_machine_count(inner)
-    LiteralPlus(inner, _) -> plus(staged_machine_count(inner), staged_machine_count(inner))
-    LiteralOptional(inner, _) -> staged_machine_count(inner)
-    LiteralBoundedExact(inner, count) -> staged_exact_machine_count(inner, count)
-    LiteralBoundedAtLeast(inner, count, _) -> staged_at_least_machine_count(inner, count)
-    LiteralBoundedBetween(inner, minimum, maximum, _) -> staged_between_machine_count(inner, minimum, maximum)
-    LiteralCapture(inner) -> staged_machine_count(inner)
-    LiteralStart -> Z()
-    LiteralEnd -> Z()
-    LiteralAbsoluteStart -> Z()
-    LiteralStrictEnd -> Z()
-    LiteralFinalEnd -> Z()
-    LiteralWordBoundary(_) -> Z()
-
-  fn staged_exact_machine_count(inner: LiteralPattern, count: Nat) -> Nat = match count
-    Z() -> Z()
-    S(rest) -> plus(staged_machine_count(inner), staged_exact_machine_count(inner, rest))
-
-  fn staged_at_least_machine_count(inner: LiteralPattern, count: Nat) -> Nat = match count
-    Z() -> staged_machine_count(inner)
-    S(rest) -> plus(staged_machine_count(inner), staged_at_least_machine_count(inner, rest))
-
-  fn staged_between_machine_count(inner: LiteralPattern, minimum: Nat, maximum: Nat) -> Nat = match minimum
-    Z() -> staged_up_to_machine_count(inner, maximum)
-    S(rest) -> match maximum
-      Z() -> staged_exact_machine_count(inner, S(rest))
-      S(maximum_rest) -> plus(staged_machine_count(inner), staged_between_machine_count(inner, rest, maximum_rest))
-
-  fn staged_up_to_machine_count(inner: LiteralPattern, maximum: Nat) -> Nat = match maximum
-    Z() -> Z()
-    S(rest) -> plus(staged_machine_count(inner), staged_up_to_machine_count(inner, rest))
-
-  fn emit_machine_count(pattern: LiteralPattern) -> Syntax = emit_nat(staged_machine_count(pattern))
-  fn emit_bounded_exact_machine_count(inner: LiteralPattern, count: Nat) -> Syntax = emit_nat(staged_exact_machine_count(inner, count))
-  fn emit_bounded_at_least_machine_count(inner: LiteralPattern, count: Nat) -> Syntax = emit_nat(staged_at_least_machine_count(inner, count))
-  fn emit_bounded_between_machine_count(inner: LiteralPattern, minimum: Nat, maximum: Nat) -> Syntax = emit_nat(staged_between_machine_count(inner, minimum, maximum))
-  fn emit_bounded_up_to_machine_count(inner: LiteralPattern, maximum: Nat) -> Syntax = emit_nat(staged_up_to_machine_count(inner, maximum))
 
   fn emit_bounded_exact_compilation(inner: LiteralPattern, count: Nat, options: LiteralRegexOptions) -> Syntax = match count
     Z() -> runtime_call("ThompsonEmpty", [])

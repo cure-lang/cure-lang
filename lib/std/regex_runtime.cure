@@ -39,8 +39,15 @@ mod Std.Regex.Runtime
   ## lookup adapter; transition construction itself is performed once when
   ## the table is built, not by recursively rebuilding Thompson combinators
   ## for each input character.
+  @reducible
   fn transition_rows_machine({n: Nat}, starts: List(MachineState(n)), rows: TransitionRows(n)) -> PatternMachine(n) =
     MkPatternMachine(starts, fn(state) -> fn(char) -> transition_rows_next(rows, state, char))
+
+  fn transition_rows_machine_next_equation({n: Nat}, starts: List(MachineState(n)), rows: TransitionRows(n), state: Bounded(n), char: Char) -> Equivalent(
+    List(MachineState(n)),
+    pattern_machine_next_at(transition_rows_machine(starts, rows), state, char),
+    transition_rows_next(rows, state, char)
+  ) = reflexive(transition_rows_next(rows, state, char))
 
   ## Pointwise correctness of the row compiler.  This is intentionally a
   ## smaller theorem than function extensionality: every concrete bounded
@@ -75,6 +82,13 @@ mod Std.Regex.Runtime
     transition_rows_next(compile_transition_rows(n, MkPatternMachine(starts, next)), state, char),
     next(state, char)
   ) = build_transition_rows_equivalent(n, fn(state) -> state, next, state, char)
+
+  fn transition_rows_next_from_machine(n: Nat, machine: PatternMachine(n), state: Bounded(n), char: Char) -> Equivalent(
+    List(MachineState(n)),
+    transition_rows_next(compile_transition_rows(n, machine), state, char),
+    pattern_machine_next_at(machine, state, char)
+  ) = match machine
+    MkPatternMachine(starts, next) -> transition_rows_next_equivalent(n, starts, next, state, char)
 
   @reducible
   fn machine_state_routine(n: Nat, state: MachineState(n)) -> List(EvidenceInstruction) = match state
@@ -356,6 +370,11 @@ mod Std.Regex.Runtime
   fn pattern_machine_next({n: Nat}, machine: PatternMachine(n)) -> (Bounded(n)) -> Char -> List(MachineState(n)) = match machine
     MkPatternMachine(starts, next) -> next
 
+  @reducible
+  fn pattern_machine_next_at({n: Nat}, machine: PatternMachine(n), state: Bounded(n), char: Char) -> List(MachineState(n)) =
+    match machine
+      MkPatternMachine(_, next) -> next(state, char)
+
   fn pattern_machine_eta({n: Nat}, machine: PatternMachine(n)) -> Equivalent(PatternMachine(n), machine, MkPatternMachine(pattern_machine_starts(machine), pattern_machine_next(machine))) = match machine
     MkPatternMachine(starts, next) -> reflexive(MkPatternMachine(starts, next))
 
@@ -381,6 +400,29 @@ mod Std.Regex.Runtime
     ThompsonGroup(inner) -> group_pattern_machine(thompson_state_count(inner), pattern_machine_starts(thompson_machine(inner)), pattern_machine_next(thompson_machine(inner)))
     ThompsonAlternate(left, right, prefer_right) -> alternate_pattern_machine(thompson_state_count(left), thompson_machine(left), thompson_state_count(right), thompson_machine(right), prefer_right)
     ThompsonRepeat(inner, lazy) -> repeat_pattern_machine(thompson_state_count(inner), thompson_machine(inner), lazy)
+
+  ## Staged literals use a row-backed machine.  The table is indexed once at
+  ## construction and the input loop performs only bounded-row lookup.
+  @reducible
+  fn staged_machine_from_compilation({@erased shape: ShapeCode}, compilation: ThompsonCompilation(shape)) -> PatternMachine(thompson_state_count(compilation)) =
+    let canonical = thompson_machine(compilation)
+    transition_rows_machine(pattern_machine_starts(canonical), compile_transition_rows(thompson_state_count(compilation), canonical))
+
+  ## Pointwise transport seam for the proof layer.  Function extensionality is
+  ## intentionally not assumed: every concrete source state gets its own
+  ## kernel-checked row equality.
+  fn staged_machine_transition_equivalent(
+    {@erased shape: ShapeCode},
+    compilation: ThompsonCompilation(shape),
+    state: Bounded(thompson_state_count(compilation)),
+    char: Char
+  ) -> Equivalent(
+    List(MachineState(thompson_state_count(compilation))),
+    transition_rows_next(compile_transition_rows(thompson_state_count(compilation), thompson_machine(compilation)), state, char),
+    pattern_machine_next_at(thompson_machine(compilation), state, char)
+  ) =
+    let canonical = thompson_machine(compilation)
+    transition_rows_next_from_machine(thompson_state_count(compilation), canonical, state, char)
 
   fn certify_thompson({@erased shape: ShapeCode}, pattern: Pattern(shape)) -> ThompsonCompilation(shape) = match pattern
     PatternPredicate(test) -> ThompsonPredicate(test)
@@ -720,6 +762,9 @@ mod Std.Regex.Runtime
 
   fn member_there({a: Type}, head: a, {value: a}, {rest: List(a)}, member: ListMember(a, value, rest)) -> ListMember(a, value, Cons(head, rest)) = ListMemberThere(member)
 
+  fn transport_list_member({a: Type}, value: a, {left: List(a)}, {right: List(a)}, member: ListMember(a, value, left), equality: Equivalent(List(a), left, right)) -> ListMember(a, value, right) = match equality
+    reflexive() -> member
+
   ## A candidate list whose every element is paired with erased evidence that it
   ## belongs to the original transition result. State and proof are introduced by
   ## the same constructor, so dependent pattern refinement never has to relate two
@@ -1030,7 +1075,7 @@ mod Std.Regex.Runtime
   ## itself) because that is the representation the constructor elaborator can
   ## refine without introducing an existential dependent constructor.
   type StagedMachine indices (shape: ShapeCode)
-    StagedMachineValue : (compilation: ThompsonCompilation(shape)) -> (machine: PatternMachine(thompson_state_count(compilation))) -> (@erased equality: Equivalent(PatternMachine(thompson_state_count(compilation)), machine, thompson_machine(compilation))) -> StagedMachine(shape)
+    StagedMachineValue : (compilation: ThompsonCompilation(shape)) -> StagedMachine(shape)
 
   type Regex indices (result: Type)
     FromPattern : (shape: ShapeCode) -> Pattern(shape) -> Regex(Sem(shape))

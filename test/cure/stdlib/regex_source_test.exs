@@ -72,7 +72,7 @@ defmodule Cure.Stdlib.RegexSourceTest do
     assert emitter =~ "emit_staged_compilation"
     assert emitter =~ "emit_staged_conversion"
     assert emitter =~ "StagedMachineValue"
-    assert emitter =~ "emit_staged_machine"
+    assert emitter =~ "emit_staged_rows"
     refute emitter =~ ~s(runtime_call("thompson_machine")
   end
 
@@ -96,6 +96,16 @@ defmodule Cure.Stdlib.RegexSourceTest do
     refute code =~ "thompson_machine"
     refute code =~ "parse_pattern_full_verified"
     refute code =~ "certify_thompson"
+  end
+
+  test "literal expansion publishes transition rows instead of rebuilding closure machines" do
+    emitter = File.read!("lib/std/regex_syntax_emitter.cure")
+
+    assert emitter =~ "emit_staged_rows"
+    refute emitter =~ "emit_staged_machine"
+    refute emitter =~ ~s(runtime_call("concat_pattern_machine")
+    refute emitter =~ ~s(runtime_call("alternate_pattern_machine")
+    refute emitter =~ ~s(runtime_call("repeat_pattern_machine")
   end
 
   @tag timeout: 600_000

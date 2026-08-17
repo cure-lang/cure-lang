@@ -5,6 +5,7 @@
 mod Std.Regex.Proof
   use Std.Regex.Core
   use Std.Regex.Runtime
+  use Std.Equivalent
 
   ## Structural execution law for the evidence VM. Thompson constructors append
   ## their own evidence instructions to child routines; this view recovers the
@@ -3403,11 +3404,173 @@ mod Std.Regex.Proof
   fn transport_acceptance_machine({n: Nat}, left: PatternMachine(n), right: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame), final_evidence: List(Evidence), equality: Equivalent(PatternMachine(n), left, right), acceptance: AcceptancePathFrom(n, left, position, input, after_input, input_evidence, input_captures, final_evidence)) -> AcceptancePathFrom(n, right, position, input, after_input, input_evidence, input_captures, final_evidence) = match equality
     reflexive() -> acceptance
 
-  fn transport_staged_search({shape: ShapeCode}, compilation: ThompsonCompilation(shape), machine: PatternMachine(thompson_state_count(compilation)), position: InitialPosition, input: List(Char), after_input: List(Char), @erased equality: Equivalent(PatternMachine(thompson_state_count(compilation)), machine, thompson_machine(compilation)), search: MachineAcceptingSearch(thompson_state_count(compilation), machine, position, input, after_input)) -> MachineAcceptingSearch(thompson_state_count(compilation), thompson_machine(compilation), position, input, after_input) = match equality
-    reflexive() -> search
+  fn initial_machine_destinations_equation(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char)) -> Equivalent(
+    List(MachineState(n)),
+    initial_machine_destinations(n, machine, position, input, after_input),
+    filter_boundary_states(pattern_machine_starts(machine), initial_position_boundary(position, append_characters(input, after_input)))
+  ) = match machine
+    MkPatternMachine(starts, next) -> reflexive(filter_boundary_states(starts, initial_position_boundary(position, append_characters(input, after_input))))
 
-  fn transport_staged_prefix({shape: ShapeCode}, compilation: ThompsonCompilation(shape), machine: PatternMachine(thompson_state_count(compilation)), position: InitialPosition, @erased equality: Equivalent(PatternMachine(thompson_state_count(compilation)), machine, thompson_machine(compilation)), search: CertifiedPrefixSearch(thompson_state_count(compilation), machine, position)) -> CertifiedPrefixSearch(thompson_state_count(compilation), thompson_machine(compilation), position) = match equality
-    reflexive() -> search
+  fn machine_destinations_equation(n: Nat, machine: PatternMachine(n), state: Bounded(n), char: Char, boundary: Boundary) -> Equivalent(
+    List(MachineState(n)),
+    machine_destinations(n, machine, ThreadActive(state), char, boundary),
+    filter_boundary_states(pattern_machine_next_at(machine, state, char), boundary)
+  ) = match machine
+    MkPatternMachine(starts, next) -> reflexive(filter_boundary_states(next(state, char), boundary))
+
+  fn filter_boundary_equation(n: Nat, left: List(MachineState(n)), right: List(MachineState(n)), boundary: Boundary, equality: Equivalent(List(MachineState(n)), left, right)) -> Equivalent(
+    List(MachineState(n)),
+    filter_boundary_states(left, boundary),
+    filter_boundary_states(right, boundary)
+  ) = match equality
+    reflexive() -> reflexive(filter_boundary_states(left, boundary))
+
+  fn staged_machine_next_equation(
+    {shape: ShapeCode},
+    compilation: ThompsonCompilation(shape),
+    state: Bounded(thompson_state_count(compilation)),
+    char: Char
+  ) -> Equivalent(
+    List(MachineState(thompson_state_count(compilation))),
+    pattern_machine_next_at(staged_machine_from_compilation(compilation), state, char),
+    transition_rows_next(compile_transition_rows(thompson_state_count(compilation), thompson_machine(compilation)), state, char)
+  ) =
+    transition_rows_machine_next_equation(
+      pattern_machine_starts(thompson_machine(compilation)),
+      compile_transition_rows(thompson_state_count(compilation), thompson_machine(compilation)),
+      state,
+      char
+    )
+
+  fn staged_initial_destinations_equivalent(
+    {shape: ShapeCode},
+    compilation: ThompsonCompilation(shape),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char)
+  ) -> Equivalent(
+    List(MachineState(thompson_state_count(compilation))),
+    initial_machine_destinations(thompson_state_count(compilation), staged_machine_from_compilation(compilation), position, input, after_input),
+    initial_machine_destinations(thompson_state_count(compilation), thompson_machine(compilation), position, input, after_input)
+  ) =
+    let canonical = thompson_machine(compilation)
+    trans(
+      initial_machine_destinations_equation(thompson_state_count(compilation), staged_machine_from_compilation(compilation), position, input, after_input),
+      sym(initial_machine_destinations_equation(thompson_state_count(compilation), canonical, position, input, after_input))
+    )
+
+  fn staged_machine_destinations_equivalent(
+    {shape: ShapeCode},
+    compilation: ThompsonCompilation(shape),
+    state: Bounded(thompson_state_count(compilation)),
+    char: Char,
+    boundary: Boundary
+  ) -> Equivalent(
+    List(MachineState(thompson_state_count(compilation))),
+    machine_destinations(thompson_state_count(compilation), staged_machine_from_compilation(compilation), ThreadActive(state), char, boundary),
+    machine_destinations(thompson_state_count(compilation), thompson_machine(compilation), ThreadActive(state), char, boundary)
+  ) =
+    let canonical = thompson_machine(compilation)
+    let staged = staged_machine_from_compilation(compilation)
+    let staged_destinations = machine_destinations_equation(thompson_state_count(compilation), staged, state, char, boundary)
+    let canonical_destinations = machine_destinations_equation(thompson_state_count(compilation), canonical, state, char, boundary)
+    let staged_next = staged_machine_next_equation(compilation, state, char)
+    let canonical_next = staged_machine_transition_equivalent(compilation, state, char)
+    trans(
+      staged_destinations,
+      trans(
+        filter_boundary_equation(thompson_state_count(compilation), pattern_machine_next_at(staged, state, char), transition_rows_next(compile_transition_rows(thompson_state_count(compilation), canonical), state, char), boundary, staged_next),
+        trans(
+          filter_boundary_equation(thompson_state_count(compilation), transition_rows_next(compile_transition_rows(thompson_state_count(compilation), canonical), state, char), pattern_machine_next_at(canonical, state, char), boundary, canonical_next),
+          sym(canonical_destinations)
+        )
+      )
+    )
+
+  fn staged_thread_destinations_equivalent(
+    {shape: ShapeCode},
+    compilation: ThompsonCompilation(shape),
+    source: ThreadState(thompson_state_count(compilation)),
+    char: Char,
+    boundary: Boundary
+  ) -> Equivalent(
+    List(MachineState(thompson_state_count(compilation))),
+    machine_destinations(thompson_state_count(compilation), staged_machine_from_compilation(compilation), source, char, boundary),
+    machine_destinations(thompson_state_count(compilation), thompson_machine(compilation), source, char, boundary)
+  ) = match source
+    ThreadAccepted() -> reflexive(machine_destinations(thompson_state_count(compilation), staged_machine_from_compilation(compilation), ThreadAccepted(), char, boundary))
+    ThreadActive(state) -> staged_machine_destinations_equivalent(compilation, state, char, boundary)
+
+  fn transport_staged_accepting_from(
+    {shape: ShapeCode},
+    compilation: ThompsonCompilation(shape),
+    input: List(Char),
+    after_input: List(Char),
+    source: ThreadState(thompson_state_count(compilation)),
+    current_evidence: List(Evidence),
+    captures: List(CaptureFrame),
+    final_evidence: List(Evidence),
+    path_routine: List(ExtendedInstruction),
+    path: AcceptingFrom(thompson_state_count(compilation), staged_machine_from_compilation(compilation), input, after_input, source, current_evidence, captures, final_evidence, path_routine)
+  ) -> AcceptingFrom(thompson_state_count(compilation), thompson_machine(compilation), input, after_input, source, current_evidence, captures, final_evidence, path_routine) = match input
+    [] -> match path
+      AcceptingNow() -> AcceptingNow()
+    [char | rest] -> match path
+      AcceptingNextActive(destination, regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix) ->
+        AcceptingNextActive(
+          destination,
+          regular,
+          constraints,
+          destination_evidence,
+          destination_captures,
+          suffix_routine,
+          transport_list_member(Active(destination, regular, constraints), edge, staged_thread_destinations_equivalent(compilation, source, char, transition_boundary_before(char, rest, after_input))),
+          execution,
+          transport_staged_accepting_from(compilation, rest, after_input, ThreadActive(destination), destination_evidence, destination_captures, final_evidence, suffix_routine, suffix)
+        )
+      AcceptingNextAccepted(regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix) ->
+        let accepted_destination: MachineState(thompson_state_count(compilation)) = Accepted(regular, constraints)
+        AcceptingNextAccepted(
+          regular,
+          constraints,
+          destination_evidence,
+          destination_captures,
+          suffix_routine,
+          transport_list_member(accepted_destination, edge, staged_thread_destinations_equivalent(compilation, source, char, transition_boundary_before(char, rest, after_input))),
+          execution,
+          transport_staged_accepting_from(compilation, rest, after_input, ThreadAccepted(), destination_evidence, destination_captures, final_evidence, suffix_routine, suffix)
+        )
+
+  fn transport_staged_machine_acceptance(
+    {shape: ShapeCode},
+    compilation: ThompsonCompilation(shape),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    final_evidence: List(Evidence),
+    extended_routine: List(ExtendedInstruction),
+    acceptance: MachineAcceptance(thompson_state_count(compilation), staged_machine_from_compilation(compilation), position, input, after_input, final_evidence, extended_routine)
+  ) -> MachineAcceptance(thompson_state_count(compilation), thompson_machine(compilation), position, input, after_input, final_evidence, extended_routine) = match acceptance
+    MachineAccepted(destination, initial_evidence, initial_captures, path_routine, edge, execution, routine_certificate, path) ->
+      let initial_edge = transport_list_member(destination, edge, staged_initial_destinations_equivalent(compilation, position, input, after_input))
+      MachineAccepted(
+        destination,
+        initial_evidence,
+        initial_captures,
+        path_routine,
+        initial_edge,
+        execution,
+        routine_certificate,
+        transport_staged_accepting_from(compilation, input, after_input, machine_state_thread(thompson_state_count(compilation), destination), initial_evidence, initial_captures, final_evidence, path_routine, path)
+      )
+
+  fn transport_staged_search({shape: ShapeCode}, compilation: ThompsonCompilation(shape), position: InitialPosition, input: List(Char), after_input: List(Char), search: MachineAcceptingSearch(thompson_state_count(compilation), staged_machine_from_compilation(compilation), position, input, after_input)) -> MachineAcceptingSearch(thompson_state_count(compilation), thompson_machine(compilation), position, input, after_input) = match search
+    MachineNoAcceptingPath() -> MachineNoAcceptingPath()
+    MachineAcceptingPath(evidence, routine, acceptance) -> MachineAcceptingPath(evidence, routine, transport_staged_machine_acceptance(compilation, position, input, after_input, evidence, routine, acceptance))
+
+  fn transport_staged_prefix({shape: ShapeCode}, compilation: ThompsonCompilation(shape), position: InitialPosition, search: CertifiedPrefixSearch(thompson_state_count(compilation), staged_machine_from_compilation(compilation), position)) -> CertifiedPrefixSearch(thompson_state_count(compilation), thompson_machine(compilation), position) = match search
+    NoCertifiedPrefix() -> NoCertifiedPrefix()
+    CertifiedPrefixPath(matched_input, remaining_input, final_evidence, extended_routine, acceptance) -> CertifiedPrefixPath(matched_input, remaining_input, final_evidence, extended_routine, transport_staged_machine_acceptance(compilation, position, matched_input, remaining_input, final_evidence, extended_routine, acceptance))
 
   fn pattern_machine_equivalent_symmetric({n: Nat}, left: PatternMachine(n), right: PatternMachine(n), equality: Equivalent(PatternMachine(n), left, right)) -> Equivalent(PatternMachine(n), right, left) = match equality
     reflexive() -> reflexive(left)
@@ -3833,14 +3996,15 @@ mod Std.Regex.Proof
       NoCompilationHint() -> match parse_pattern_full_verified(pattern, input)
         None() -> None()
         Some(value) -> Some(execute_conversion(conversion, value))
-      StagedCompilationHint(StagedMachineValue(compilation, machine, machine_equality)) -> match parse_compilation_full_verified(compilation, machine, machine_equality, input)
+      StagedCompilationHint(StagedMachineValue(compilation)) -> match parse_compilation_full_verified(compilation, input)
         None() -> None()
         Some(value) -> Some(execute_conversion(conversion, value))
 
-  fn parse_compilation_full_verified({shape: ShapeCode}, compilation: ThompsonCompilation(shape), machine: PatternMachine(thompson_state_count(compilation)), @erased machine_equality: Equivalent(PatternMachine(thompson_state_count(compilation)), machine, thompson_machine(compilation)), input: String) -> Option(Sem(shape)) =
+  fn parse_compilation_full_verified({shape: ShapeCode}, compilation: ThompsonCompilation(shape), input: String) -> Option(Sem(shape)) =
     let proof = proof_for_compilation(compilation)
     let characters = Std.String.characters(input)
-    let search = transport_staged_search(compilation, machine, subject_initial_position(), characters, empty_characters(), machine_equality, search_machine_acceptance(thompson_state_count(compilation), machine, subject_initial_position(), characters, empty_characters()))
+    let machine = staged_machine_from_compilation(compilation)
+    let search = transport_staged_search(compilation, subject_initial_position(), characters, empty_characters(), search_machine_acceptance(thompson_state_count(compilation), machine, subject_initial_position(), characters, empty_characters()))
     match search
       MachineNoAcceptingPath() -> None()
       MachineAcceptingPath(evidence, _, acceptance) -> Some(extract_encoding(evidence, thompson_machine_acceptance_encodes(compilation, proof, characters, empty_characters(), subject_initial_position(), acceptance)))
@@ -3859,15 +4023,16 @@ mod Std.Regex.Proof
       NoCompilationHint() -> match parse_pattern_prefix_verified_at(pattern, input, greedy, InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word))
         None() -> None()
         Some(%[value, rest]) -> Some(%[execute_conversion(conversion, value), rest])
-      StagedCompilationHint(StagedMachineValue(compilation, machine, machine_equality)) -> match parse_compilation_prefix_verified_at(compilation, machine, machine_equality, input, greedy, InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word))
+      StagedCompilationHint(StagedMachineValue(compilation)) -> match parse_compilation_prefix_verified_at(compilation, input, greedy, InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word))
         None() -> None()
         Some(%[value, rest]) -> Some(%[execute_conversion(conversion, value), rest])
 
-  fn parse_compilation_prefix_verified_at({shape: ShapeCode}, compilation: ThompsonCompilation(shape), machine: PatternMachine(thompson_state_count(compilation)), @erased machine_equality: Equivalent(PatternMachine(thompson_state_count(compilation)), machine, thompson_machine(compilation)), input: List(Char), greedy: Bool, position: InitialPosition) -> Option(Tuple(Sem(shape), List(Char))) =
+  fn parse_compilation_prefix_verified_at({shape: ShapeCode}, compilation: ThompsonCompilation(shape), input: List(Char), greedy: Bool, position: InitialPosition) -> Option(Tuple(Sem(shape), List(Char))) =
     let proof = proof_for_compilation(compilation)
+    let machine = staged_machine_from_compilation(compilation)
     let result = pickup
-      greedy -> transport_staged_prefix(compilation, machine, position, machine_equality, search_last_machine_prefix(thompson_state_count(compilation), machine, position, input))
-      else -> transport_staged_prefix(compilation, machine, position, machine_equality, search_first_machine_prefix(thompson_state_count(compilation), machine, position, input))
+      greedy -> transport_staged_prefix(compilation, position, search_last_machine_prefix(thompson_state_count(compilation), machine, position, input))
+      else -> transport_staged_prefix(compilation, position, search_first_machine_prefix(thompson_state_count(compilation), machine, position, input))
     match result
       NoCertifiedPrefix() -> None()
       CertifiedPrefixPath(matched, remaining, evidence, _, acceptance) -> Some(%[extract_encoding(evidence, thompson_machine_acceptance_encodes(compilation, proof, matched, remaining, position, acceptance)), remaining])
