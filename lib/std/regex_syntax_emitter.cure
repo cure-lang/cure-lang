@@ -350,22 +350,22 @@ mod Std.Regex.Syntax.Emitter
     LiteralWordBoundary(_) -> runtime_call("unit_identity_conversion", [])
 
   fn emit_bounded_exact_conversion(inner: LiteralPattern, count: Nat) -> Syntax = match count
-    Z() -> runtime_call("empty_list_conversion", [])
-    S(rest) -> runtime_call("ComposedConversion", [runtime_call("PairConversion", [emit_staged_conversion(inner), emit_bounded_exact_conversion(inner, rest)]), runtime_call("prepend_repetition_conversion", [])])
+    Z() -> runtime_call("empty_list_conversion_for", [emit_shape(literal_shape(inner))])
+    S(rest) -> runtime_call("ComposedConversion", [runtime_call("PairConversion", [emit_staged_conversion(inner), emit_bounded_exact_conversion(inner, rest)]), runtime_call("prepend_repetition_conversion_for", [emit_shape(literal_shape(inner))])])
 
   fn emit_bounded_at_least_conversion(inner: LiteralPattern, count: Nat) -> Syntax = match count
     Z() -> runtime_call("ListConversion", [emit_staged_conversion(inner)])
-    S(rest) -> runtime_call("ComposedConversion", [runtime_call("PairConversion", [emit_staged_conversion(inner), emit_bounded_at_least_conversion(inner, rest)]), runtime_call("prepend_repetition_conversion", [])])
+    S(rest) -> runtime_call("ComposedConversion", [runtime_call("PairConversion", [emit_staged_conversion(inner), emit_bounded_at_least_conversion(inner, rest)]), runtime_call("prepend_repetition_conversion_for", [emit_shape(literal_shape(inner))])])
 
   fn emit_bounded_between_conversion(inner: LiteralPattern, minimum: Nat, maximum: Nat) -> Syntax = match minimum
     Z() -> emit_bounded_up_to_conversion(inner, maximum)
     S(rest) -> match maximum
       Z() -> emit_bounded_exact_conversion(inner, S(rest))
-      S(maximum_rest) -> runtime_call("ComposedConversion", [runtime_call("PairConversion", [emit_staged_conversion(inner), emit_bounded_between_conversion(inner, rest, maximum_rest)]), runtime_call("prepend_repetition_conversion", [])])
+      S(maximum_rest) -> runtime_call("ComposedConversion", [runtime_call("PairConversion", [emit_staged_conversion(inner), emit_bounded_between_conversion(inner, rest, maximum_rest)]), runtime_call("prepend_repetition_conversion_for", [emit_shape(literal_shape(inner))])])
 
   fn emit_bounded_up_to_conversion(inner: LiteralPattern, maximum: Nat) -> Syntax = match maximum
-    Z() -> runtime_call("empty_list_conversion", [])
-    S(rest) -> runtime_call("ComposedConversion", [runtime_call("PairConversion", [runtime_call("OptionalConversion", [emit_staged_conversion(inner)]), emit_bounded_up_to_conversion(inner, rest)]), runtime_call("prepend_optional_repetition_conversion", [])])
+    Z() -> runtime_call("empty_list_conversion_for", [emit_shape(literal_shape(inner))])
+    S(rest) -> runtime_call("ComposedConversion", [runtime_call("PairConversion", [runtime_call("ChoiceConversion", [emit_staged_conversion(inner), runtime_call("IdentityConversion", [])]), emit_bounded_up_to_conversion(inner, rest)]), runtime_call("prepend_optional_repetition_conversion_for", [emit_shape(literal_shape(inner))])])
 
   fn emit_literal(pattern: LiteralPattern) -> Syntax = match pattern
     LiteralEmpty -> runtime_call("empty", [])

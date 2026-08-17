@@ -1127,10 +1127,22 @@ mod Std.Regex.Runtime
 
   fn empty_list_conversion({a: Type}) -> Conversion(Unit, List(a)) = ApplyConversion(fn(_) -> [])
 
+  ## Shape-indexed adapters keep generated bounded-literal conversions fully
+  ## inferable.  The emitter knows the inner shape, while the polymorphic
+  ## convenience form above has no expected type at the generated call site.
+  fn empty_list_conversion_for(shape: ShapeCode) -> Conversion(Unit, List(Sem(shape))) =
+    ApplyConversion(fn(_) -> [])
+
   fn prepend_repetition_conversion({a: Type}) -> Conversion(Tuple(a, List(a)), List(a)) =
     ApplyConversion(prepend_repetition_result)
 
+  fn prepend_repetition_conversion_for(shape: ShapeCode) -> Conversion(Tuple(Sem(shape), List(Sem(shape))), List(Sem(shape))) =
+    ApplyConversion(prepend_repetition_result)
+
   fn prepend_optional_repetition_conversion({a: Type}) -> Conversion(Tuple(Choice(a, Unit), List(a)), List(a)) =
+    ApplyConversion(prepend_optional_repetition_result)
+
+  fn prepend_optional_repetition_conversion_for(shape: ShapeCode) -> Conversion(Tuple(Choice(Sem(shape), Unit), List(Sem(shape))), List(Sem(shape))) =
     ApplyConversion(prepend_optional_repetition_result)
 
   fn simplify_program(shape: ShapeCode, program: RegexProgram(Sem(shape))) -> RegexProgram(Sem(Simplify(shape))) = match program
