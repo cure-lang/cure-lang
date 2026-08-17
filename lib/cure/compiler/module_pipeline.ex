@@ -830,18 +830,20 @@ defmodule Cure.Compiler.ModulePipeline do
   defp check_component(request, manifest, skeletons, component, asts, sources, interfaces, checked_envs) do
     members = MapSet.new(component)
     check_order = component_check_order(manifest, component)
-    timing_metadata = %{modules: component |> Enum.map(&elem(&1, 1)) |> Enum.sort()}
+    timing_metadata = component_timing_metadata(manifest, component, interfaces)
 
     with :ok <- Cycle.classify(manifest, component, asts, skeletons),
          {:ok, prepared} <-
            timed(request, :component_register, timing_metadata, fn ->
              register_component(
+               request,
                manifest,
                component,
                check_order,
                members,
                asts,
                sources,
+               skeletons,
                interfaces,
                checked_envs
              )
@@ -862,25 +864,71 @@ defmodule Cure.Compiler.ModulePipeline do
     end
   end
 
+  defp component_timing_metadata(manifest, component, interfaces) do
+    member_names = component |> Enum.map(&elem(&1, 1)) |> Enum.sort()
+    member_set = MapSet.new(component)
+
+    source_hashes =
+      component
+      |> Enum.map(fn identity ->
+        entry = Map.fetch!(manifest.entries, identity)
+        {entry.module_name, Base.encode16(entry.source_hash, case: :lower)}
+      end)
+      |> Map.new()
+
+    imported_interface_hashes =
+      component
+      |> Enum.flat_map(&ModuleManifest.dependencies(manifest, &1))
+      |> Enum.reject(&MapSet.member?(member_set, &1.target))
+      |> Enum.flat_map(fn dependency ->
+        case Map.get(interfaces, dependency.target) do
+          %{interface_hash: hash} -> [{elem(dependency.target, 1), Base.encode16(hash, case: :lower)}]
+          _ -> []
+        end
+      end)
+      |> Map.new()
+
+    %{
+      component: member_names,
+      modules: member_names,
+      source_hashes: source_hashes,
+      imported_interface_hashes: imported_interface_hashes
+    }
+  end
+
   defp register_component(
+         request,
          manifest,
          component,
          check_order,
          members,
          asts,
          sources,
+         source_skeletons,
          interfaces,
          checked_envs
        ) do
-    with {:ok, skeletons} <-
-           register_component_type_skeletons(manifest, component, members, asts, interfaces, checked_envs),
+    with {:ok, prepared_declarations} <- prepare_component_declarations(request, component, asts),
+         {:ok, skeletons} <-
+           register_component_type_skeletons(
+             manifest,
+             component,
+             members,
+             asts,
+             prepared_declarations,
+             source_skeletons,
+             interfaces,
+             checked_envs
+           ),
          {:ok, component_skeleton} <- merge_environments(skeletons, :component_type_skeleton_merge_failed) do
       register_component_interfaces(
         manifest,
         check_order,
         members,
         asts,
+        prepared_declarations,
         sources,
+        source_skeletons,
         interfaces,
         checked_envs,
         component_skeleton
@@ -888,7 +936,34 @@ defmodule Cure.Compiler.ModulePipeline do
     end
   end
 
-  defp register_component_type_skeletons(manifest, component, members, asts, interfaces, checked_envs) do
+  defp prepare_component_declarations(request, component, asts) do
+    Enum.reduce_while(component, {:ok, %{}}, fn identity, {:ok, prepared} ->
+      case Program.prepare_canonical_declarations(Map.fetch!(asts, identity)) do
+        {:ok, declarations} ->
+          emit_event(request, {
+            :module_pipeline_preparation,
+            elem(identity, 1),
+            declarations.declaration_count
+          })
+
+          {:cont, {:ok, Map.put(prepared, identity, declarations)}}
+
+        {:error, reason} ->
+          {:halt, {:error, {:module_declarations_prepare_failed, identity, reason}}}
+      end
+    end)
+  end
+
+  defp register_component_type_skeletons(
+         manifest,
+         component,
+         members,
+         asts,
+         prepared_declarations,
+         source_skeletons,
+         interfaces,
+         checked_envs
+       ) do
     Enum.reduce_while(component, {:ok, %{}}, fn identity, {:ok, skeletons} ->
       entry = Map.fetch!(manifest.entries, identity)
 
@@ -896,7 +971,8 @@ defmodule Cure.Compiler.ModulePipeline do
            {:ok, skeleton} <-
              Program.canonical_type_skeleton(Map.fetch!(asts, identity), imported,
                module_name: entry.module_name,
-               module_visibility: module_visibility(manifest, identity)
+               prepared_declarations: Map.fetch!(prepared_declarations, identity),
+               module_visibility: module_visibility(manifest, identity, source_skeletons)
              ) do
         {:cont, {:ok, Map.put(skeletons, identity, skeleton)}}
       else
@@ -910,7 +986,9 @@ defmodule Cure.Compiler.ModulePipeline do
          component,
          members,
          asts,
+         prepared_declarations,
          sources,
+         source_skeletons,
          interfaces,
          checked_envs,
          component_skeleton
@@ -924,9 +1002,10 @@ defmodule Cure.Compiler.ModulePipeline do
            {:ok, module} <-
              Program.canonical_register_interface(Map.fetch!(asts, identity), imported,
                module_name: entry.module_name,
+               prepared_declarations: Map.fetch!(prepared_declarations, identity),
                source: Map.fetch!(sources, identity),
                file: entry.source_path,
-               module_visibility: module_visibility(manifest, identity)
+               module_visibility: module_visibility(manifest, identity, source_skeletons)
              ),
            {:ok, available} <-
              Program.merge_canonical_environments(available, module.interface_env) do
@@ -1095,8 +1174,24 @@ defmodule Cure.Compiler.ModulePipeline do
   defp external_env_table(manifest, envs),
     do: Map.new(envs, fn {module_name, env} -> {{manifest.package, module_name}, env} end)
 
-  defp module_visibility(manifest, identity) do
+  defp module_visibility(manifest, identity, skeletons) do
     dependencies = ModuleManifest.dependencies(manifest, identity)
+
+    reexports = public_reexport_closure(identity, skeletons)
+
+    # Preserve the root of each authored `use` separately from its transitive
+    # public-reexport closure. Qualified compatibility spellings such as
+    # `Std.Regex.configured` are rooted at the module the author named, while
+    # the canonical declaration may be owned by `Std.Regex.Runtime`.
+    reexport_roots =
+      dependencies
+      |> Enum.filter(&(&1.kind == :use_import))
+      |> Enum.map(&elem(&1.target, 1))
+      |> Enum.uniq()
+      |> Map.new(fn root ->
+        target = {elem(identity, 0), root}
+        {root, public_reexport_closure(target, skeletons)}
+      end)
 
     lexical =
       dependencies
@@ -1113,6 +1208,44 @@ defmodule Cure.Compiler.ModulePipeline do
       |> MapSet.new(&elem(&1.target, 1))
 
     %{lexical: lexical, qualified: qualified, ambient: ambient}
+    |> Map.put(:reexports, reexports)
+    |> Map.put(:reexport_roots, reexport_roots)
+  end
+
+  # A public surface is transitive: `Facade public use Middle` must expose the
+  # declarations that `Middle public use Base` deliberately republishes. The
+  # skeleton table is the canonical source for this closure; do not reparse
+  # source files or infer reexports from ordinary `use` edges here.
+  defp public_reexport_closure(identity, skeletons) do
+    package = elem(identity, 0)
+
+    collect_public_reexports(identity, package, skeletons, MapSet.new(), MapSet.new())
+    |> elem(0)
+  end
+
+  defp collect_public_reexports(identity, package, skeletons, seen, owners) do
+    if MapSet.member?(seen, identity) do
+      {owners, seen}
+    else
+      seen = MapSet.put(seen, identity)
+
+      case Map.get(skeletons, identity) do
+        %{reexports: modules} ->
+          Enum.reduce(modules, {owners, seen}, fn module_name, {owners, seen} ->
+            target = {package, module_name}
+            owners = MapSet.put(owners, module_name)
+
+            if Map.has_key?(skeletons, target) do
+              collect_public_reexports(target, package, skeletons, seen, owners)
+            else
+              {owners, seen}
+            end
+          end)
+
+        _ ->
+          {owners, seen}
+      end
+    end
   end
 
   defp dependency_order(manifest) do

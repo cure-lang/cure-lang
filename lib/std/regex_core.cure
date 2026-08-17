@@ -1,0 +1,476 @@
+@group(:text)
+mod Std.Regex.Core
+  ## Shared indexed Regex vocabulary and definitionally relevant shape operations.
+  use Std.Char
+  use Std.Option
+  use Std.String
+  use Std.Syntax
+  use Std.Bounded
+  use Std.Equivalent
+  use Std.Sigma
+
+  ## Cure does not otherwise expose a general-purpose Either in the current
+  ## prelude. Keep the branch witness local to the typed regex result universe;
+  ## alternatives preserve which branch accepted.
+  type Choice(left: Type, right: Type) =
+    | ChoseLeft(left)
+    | ChoseRight(right)
+
+  type ShapeCode =
+    | UnitC
+    | CharC
+    | StringC
+    | BoolC
+    | NatC
+    | IntC
+    | PairC(ShapeCode, ShapeCode)
+    | ChoiceC(ShapeCode, ShapeCode)
+    | OptionC(ShapeCode)
+    | ListC(ShapeCode)
+
+  ## Genuine large elimination: each value-level shape computes to its Cure
+  ## result type. No runtime tag, Dynamic value, cast, or postulate is involved.
+  @reducible
+  fn Sem(shape: ShapeCode) -> Type = match shape
+    UnitC -> Unit
+    CharC -> Char
+    StringC -> String
+    BoolC -> Bool
+    NatC -> Nat
+    IntC -> Int
+    PairC(left, right) -> Tuple(Sem(left), Sem(right))
+    ChoiceC(left, right) -> Choice(Sem(left), Sem(right))
+    OptionC(inner) -> Option(Sem(inner))
+    ListC(inner) -> List(Sem(inner))
+
+  ## Phase-1 reduction witnesses. These bodies only check if Sem computes at
+  ## constructor applications rather than behaving as an opaque type function.
+  fn sem_unit_witness() -> Sem(UnitC) = ()
+
+  fn sem_char_witness(value: Char) -> Sem(CharC) = value
+
+  fn sem_nested_witness(value: Char) -> Sem(PairC(CharC, ListC(UnitC))) =
+    %[value, [(), ()]]
+
+  ## Normalize structural extraction shapes into ergonomic public results.
+  ## Every companion value function is total at the corresponding computed
+  ## type; no equality cast connects the raw and simplified interpretations.
+  fn SimplifyPairUnit(right: ShapeCode) -> ShapeCode = match right
+    UnitC -> UnitC
+    CharC -> CharC
+    StringC -> StringC
+    BoolC -> BoolC
+    NatC -> NatC
+    IntC -> IntC
+    PairC(left, right) -> PairC(left, right)
+    ChoiceC(left, right) -> ChoiceC(left, right)
+    OptionC(inner) -> OptionC(inner)
+    ListC(inner) -> ListC(inner)
+
+  fn SimplifyPairPresent(left: ShapeCode, right: ShapeCode) -> ShapeCode = match right
+    UnitC -> left
+    CharC -> PairC(left, CharC)
+    StringC -> PairC(left, StringC)
+    BoolC -> PairC(left, BoolC)
+    NatC -> PairC(left, NatC)
+    IntC -> PairC(left, IntC)
+    PairC(pair_left, pair_right) -> PairC(left, PairC(pair_left, pair_right))
+    ChoiceC(choice_left, choice_right) -> PairC(left, ChoiceC(choice_left, choice_right))
+    OptionC(inner) -> PairC(left, OptionC(inner))
+    ListC(inner) -> PairC(left, ListC(inner))
+
+  fn SimplifyPair(left: ShapeCode, right: ShapeCode) -> ShapeCode = match left
+    UnitC -> SimplifyPairUnit(right)
+    CharC -> SimplifyPairPresent(CharC, right)
+    StringC -> SimplifyPairPresent(StringC, right)
+    BoolC -> SimplifyPairPresent(BoolC, right)
+    NatC -> SimplifyPairPresent(NatC, right)
+    IntC -> SimplifyPairPresent(IntC, right)
+    PairC(pair_left, pair_right) -> SimplifyPairPresent(PairC(pair_left, pair_right), right)
+    ChoiceC(choice_left, choice_right) -> SimplifyPairPresent(ChoiceC(choice_left, choice_right), right)
+    OptionC(inner) -> SimplifyPairPresent(OptionC(inner), right)
+    ListC(inner) -> SimplifyPairPresent(ListC(inner), right)
+
+  fn SimplifyChoiceUnit(right: ShapeCode) -> ShapeCode = match right
+    UnitC -> BoolC
+    CharC -> ChoiceC(UnitC, CharC)
+    StringC -> ChoiceC(UnitC, StringC)
+    BoolC -> ChoiceC(UnitC, BoolC)
+    NatC -> ChoiceC(UnitC, NatC)
+    IntC -> ChoiceC(UnitC, IntC)
+    PairC(left, right) -> ChoiceC(UnitC, PairC(left, right))
+    ChoiceC(left, right) -> ChoiceC(UnitC, ChoiceC(left, right))
+    OptionC(inner) -> ChoiceC(UnitC, OptionC(inner))
+    ListC(inner) -> ChoiceC(UnitC, ListC(inner))
+
+  fn SimplifyChoice(left: ShapeCode, right: ShapeCode) -> ShapeCode = match left
+    UnitC -> SimplifyChoiceUnit(right)
+    CharC -> ChoiceC(CharC, right)
+    StringC -> ChoiceC(StringC, right)
+    BoolC -> ChoiceC(BoolC, right)
+    NatC -> ChoiceC(NatC, right)
+    IntC -> ChoiceC(IntC, right)
+    PairC(pair_left, pair_right) -> ChoiceC(PairC(pair_left, pair_right), right)
+    ChoiceC(choice_left, choice_right) -> ChoiceC(ChoiceC(choice_left, choice_right), right)
+    OptionC(inner) -> ChoiceC(OptionC(inner), right)
+    ListC(inner) -> ChoiceC(ListC(inner), right)
+
+  fn SimplifyOption(inner: ShapeCode) -> ShapeCode = match inner
+    UnitC -> BoolC
+    CharC -> OptionC(CharC)
+    StringC -> OptionC(StringC)
+    BoolC -> OptionC(BoolC)
+    NatC -> OptionC(NatC)
+    IntC -> OptionC(IntC)
+    PairC(left, right) -> OptionC(PairC(left, right))
+    ChoiceC(left, right) -> OptionC(ChoiceC(left, right))
+    OptionC(option_inner) -> OptionC(OptionC(option_inner))
+    ListC(list_inner) -> OptionC(ListC(list_inner))
+
+  fn SimplifyList(inner: ShapeCode) -> ShapeCode = match inner
+    UnitC -> NatC
+    CharC -> ListC(CharC)
+    StringC -> ListC(StringC)
+    BoolC -> ListC(BoolC)
+    NatC -> ListC(NatC)
+    IntC -> ListC(IntC)
+    PairC(left, right) -> ListC(PairC(left, right))
+    ChoiceC(left, right) -> ListC(ChoiceC(left, right))
+    OptionC(option_inner) -> ListC(OptionC(option_inner))
+    ListC(list_inner) -> ListC(ListC(list_inner))
+
+  fn Simplify(shape: ShapeCode) -> ShapeCode = match shape
+    UnitC -> UnitC
+    CharC -> CharC
+    StringC -> StringC
+    BoolC -> BoolC
+    NatC -> NatC
+    IntC -> IntC
+    PairC(left, right) -> SimplifyPair(Simplify(left), Simplify(right))
+    ChoiceC(left, right) -> SimplifyChoice(Simplify(left), Simplify(right))
+    OptionC(inner) -> SimplifyOption(Simplify(inner))
+    ListC(inner) -> SimplifyList(Simplify(inner))
+
+  fn simplify_pair_unit_value(right: ShapeCode, right_value: Sem(right)) -> Sem(SimplifyPairUnit(right)) = match right
+    UnitC -> ()
+    CharC -> right_value
+    StringC -> right_value
+    BoolC -> right_value
+    NatC -> right_value
+    IntC -> right_value
+    PairC(_, _) -> right_value
+    ChoiceC(_, _) -> right_value
+    OptionC(_) -> right_value
+    ListC(_) -> right_value
+
+  fn simplify_pair_present_value(left: ShapeCode, right: ShapeCode, left_value: Sem(left), right_value: Sem(right)) -> Sem(SimplifyPairPresent(left, right)) = match right
+    UnitC -> left_value
+    CharC -> %[left_value, right_value]
+    StringC -> %[left_value, right_value]
+    BoolC -> %[left_value, right_value]
+    NatC -> %[left_value, right_value]
+    IntC -> %[left_value, right_value]
+    PairC(_, _) -> %[left_value, right_value]
+    ChoiceC(_, _) -> %[left_value, right_value]
+    OptionC(_) -> %[left_value, right_value]
+    ListC(_) -> %[left_value, right_value]
+
+  fn simplify_pair_value(left: ShapeCode, right: ShapeCode, left_value: Sem(left), right_value: Sem(right)) -> Sem(SimplifyPair(left, right)) = match left
+    UnitC -> simplify_pair_unit_value(right, right_value)
+    CharC -> simplify_pair_present_value(CharC, right, left_value, right_value)
+    StringC -> simplify_pair_present_value(StringC, right, left_value, right_value)
+    BoolC -> simplify_pair_present_value(BoolC, right, left_value, right_value)
+    NatC -> simplify_pair_present_value(NatC, right, left_value, right_value)
+    IntC -> simplify_pair_present_value(IntC, right, left_value, right_value)
+    PairC(pair_left, pair_right) -> simplify_pair_present_value(PairC(pair_left, pair_right), right, left_value, right_value)
+    ChoiceC(choice_left, choice_right) -> simplify_pair_present_value(ChoiceC(choice_left, choice_right), right, left_value, right_value)
+    OptionC(inner) -> simplify_pair_present_value(OptionC(inner), right, left_value, right_value)
+    ListC(inner) -> simplify_pair_present_value(ListC(inner), right, left_value, right_value)
+
+  fn simplify_choice_unit_value(right: ShapeCode, value: Choice(Unit, Sem(right))) -> Sem(SimplifyChoiceUnit(right)) = match right
+    UnitC -> match value
+      ChoseLeft(_) -> true
+      ChoseRight(_) -> false
+    CharC -> value
+    StringC -> value
+    BoolC -> value
+    NatC -> value
+    IntC -> value
+    PairC(_, _) -> value
+    ChoiceC(_, _) -> value
+    OptionC(_) -> value
+    ListC(_) -> value
+
+  fn simplify_choice_value(left: ShapeCode, right: ShapeCode, value: Choice(Sem(left), Sem(right))) -> Sem(SimplifyChoice(left, right)) = match left
+    UnitC -> simplify_choice_unit_value(right, value)
+    CharC -> value
+    StringC -> value
+    BoolC -> value
+    NatC -> value
+    IntC -> value
+    PairC(_, _) -> value
+    ChoiceC(_, _) -> value
+    OptionC(_) -> value
+    ListC(_) -> value
+
+  fn simplify_option_value(inner: ShapeCode, value: Option(Sem(inner))) -> Sem(SimplifyOption(inner)) =
+    match inner
+      UnitC -> match value
+        Some(_) -> true
+        None() -> false
+      CharC -> value
+      StringC -> value
+      BoolC -> value
+      NatC -> value
+      IntC -> value
+      PairC(_, _) -> value
+      ChoiceC(_, _) -> value
+      OptionC(_) -> value
+      ListC(_) -> value
+
+  fn count_units(values: List(Unit)) -> Nat = match values
+    [] -> Z()
+    [_ | rest] -> S(count_units(rest))
+
+  fn simplify_list_values(inner: ShapeCode, values: List(Sem(inner))) -> Sem(SimplifyList(inner)) =
+    match inner
+      UnitC -> count_units(values)
+      CharC -> values
+      StringC -> values
+      BoolC -> values
+      NatC -> values
+      IntC -> values
+      PairC(_, _) -> values
+      ChoiceC(_, _) -> values
+      OptionC(_) -> values
+      ListC(_) -> values
+
+  fn simplify_value(shape: ShapeCode, value: Sem(shape)) -> Sem(Simplify(shape)) = match shape
+    UnitC -> value
+    CharC -> value
+    StringC -> value
+    BoolC -> value
+    NatC -> value
+    IntC -> value
+    PairC(left, right) ->
+      simplify_pair_value(
+        Simplify(left),
+        Simplify(right),
+        simplify_value(left, value.1),
+        simplify_value(right, value.2)
+      )
+    ChoiceC(left, right) -> match value
+      ChoseLeft(left_value) ->
+        simplify_choice_value(
+          Simplify(left),
+          Simplify(right),
+          ChoseLeft(simplify_value(left, left_value))
+        )
+      ChoseRight(right_value) ->
+        simplify_choice_value(
+          Simplify(left),
+          Simplify(right),
+          ChoseRight(simplify_value(right, right_value))
+        )
+    OptionC(inner) -> match value
+      Some(inner_value) -> simplify_option_value(Simplify(inner), Some(simplify_value(inner, inner_value)))
+      None() -> simplify_option_value(Simplify(inner), None())
+    ListC(inner) -> simplify_list_values(Simplify(inner), simplify_list(inner, value))
+
+  fn simplify_list(inner: ShapeCode, values: List(Sem(inner))) -> List(Sem(Simplify(inner))) = match values
+    [] -> []
+    [head | rest] -> [simplify_value(inner, head) | simplify_list(inner, rest)]
+
+  ## Minimal regular-language algebra. Every constructor fixes its result shape
+  ## definitionally, so Thompson construction and evidence extraction cannot
+  ## disagree later about what a successful path produces.
+  type Pattern indices (shape: ShapeCode)
+    PatternPredicate : (Char -> Bool) -> Pattern(CharC)
+    PatternEmpty : Pattern(UnitC)
+    PatternConcat : Pattern(left) -> Pattern(right) -> Pattern(PairC(left, right))
+    PatternGroup : Pattern(inner) -> Pattern(StringC)
+    PatternAlternate : Pattern(left) -> Pattern(right) -> Pattern(ChoiceC(left, right))
+    PatternAlternateMode : Pattern(left) -> Pattern(right) -> Bool -> Pattern(ChoiceC(left, right))
+    PatternRepeat : Pattern(inner) -> Pattern(ListC(inner))
+    PatternRepeatMode : Pattern(inner) -> Bool -> Pattern(ListC(inner))
+    PatternBoundary : BoundaryConstraint -> Pattern(UnitC)
+
+  ## State identifiers are naturals below `state_count`. Thompson construction
+  ## allocates disjoint contiguous ranges and preserves that invariant by
+  ## shifting the right machine by the left machine's count. `Accepted` is an
+  ## accepting edge (the paper's `Nothing`), not an allocated state. The runtime
+  ## transition relation is ordered and epsilon-free.
+  type EvidenceInstruction =
+    | EmitChar(Char)
+    | EmitUnit
+    | EmitPair
+    | EmitLeft
+    | EmitRight
+    | BeginList
+    | EndList
+    | BeginCapture
+    | EndCapture
+
+  type BoundaryConstraint = BoundaryConstraint(Bool, Bool, Bool, Bool, Bool, Bool, Bool, Bool, Bool)
+  type Boundary = Boundary(Bool, Bool, Bool, Bool, Bool, Bool, Bool)
+  type MachineState indices (n: Nat)
+    Active : Bounded(n) -> List(EvidenceInstruction) -> List(BoundaryConstraint) -> MachineState(n)
+    Accepted : List(EvidenceInstruction) -> List(BoundaryConstraint) -> MachineState(n)
+  type PatternMachine indices (n: Nat)
+    MkPatternMachine : List(MachineState(n)) -> ((Bounded(n)) -> Char -> List(MachineState(n))) -> PatternMachine(n)
+
+  ## A transition row fixes the source state once, outside the input loop. The
+  ## spine is indexed by both its remaining rows and the machine's total state
+  ## count, so lookup by `Bounded(n)` has no malformed-table fallback.
+  type TransitionRowsFrom indices (remaining: Nat, total: Nat)
+    NoTransitionRows : TransitionRowsFrom(Z(), total)
+    MoreTransitionRows : (Char -> List(MachineState(total))) -> TransitionRowsFrom(remaining, total) -> TransitionRowsFrom(S(remaining), total)
+
+  type TransitionRows indices (n: Nat)
+    TransitionRows : TransitionRowsFrom(n, n) -> TransitionRows(n)
+
+  ## Evidence is a postfix program result stored in reverse order, so emitting
+  ## is constant-time. Pair/branch/list markers precede their operands in the
+  ## final list, which lets the total extractor consume it in one pass.
+  type Evidence =
+    | CharacterEvidence(Char)
+    | UnitEvidence
+    | PairEvidence
+    | LeftEvidence
+    | RightEvidence
+    | BeginListEvidence
+    | EndListEvidence
+    | StringEvidence(String)
+
+  ## A suffix-indexed intrinsic grammar. `Encodes(shape, input, rest)` proves
+  ## that one value of `shape` consumes a prefix of `input` and leaves `rest`.
+  ## This is the context-threaded formulation from the thesis: concatenation and
+  ## repetition compose by sharing a middle suffix, with no append theorem or
+  ## runtime boundary witness.
+  type Encodes indices (shape: ShapeCode, input: List(Evidence), rest: List(Evidence))
+    EncodesUnit : Encodes(UnitC, Cons(UnitEvidence(), rest), rest)
+    EncodesCharacter : (char: Char) -> Encodes(CharC, Cons(CharacterEvidence(char), rest), rest)
+    EncodesString : (value: String) -> Encodes(StringC, Cons(StringEvidence(value), rest), rest)
+    EncodesPair : (@erased right : Encodes(right_shape, pair_evidence, left_evidence)) -> (@erased left : Encodes(left_shape, left_evidence, rest)) -> Encodes(PairC(left_shape, right_shape), Cons(PairEvidence(), pair_evidence), rest)
+    EncodesLeft : (@erased branch : Encodes(left, branch_evidence, rest)) -> Encodes(ChoiceC(left, right), Cons(LeftEvidence(), branch_evidence), rest)
+    EncodesRight : (@erased branch : Encodes(right, branch_evidence, rest)) -> Encodes(ChoiceC(left, right), Cons(RightEvidence(), branch_evidence), rest)
+    EncodesList : (@erased items : EncodesMany(inner, items_evidence, rest)) -> Encodes(ListC(inner), Cons(EndListEvidence(), items_evidence), rest)
+
+  type EncodesMany indices (shape: ShapeCode, input: List(Evidence), rest: List(Evidence))
+    EncodesManyEmpty : EncodesMany(shape, Cons(BeginListEvidence(), rest), rest)
+    EncodesManyItem : (@erased item : Encodes(shape, item_evidence, prior_evidence)) -> (@erased prior : EncodesMany(shape, prior_evidence, rest)) -> EncodesMany(shape, item_evidence, rest)
+
+  ## The runtime remainder returned by one extraction is also its result index.
+  ## Recursive callers therefore receive the exact boundary required by the next
+  ## erased `Encodes` witness without recovering runtime data from that witness.
+  type EncodingExtraction indices (shape: ShapeCode, input: List(Evidence), rest: List(Evidence))
+    EncodingExtracted : (remaining: List(Evidence)) -> (value: Sem(shape)) -> EncodingExtraction(shape, input, remaining)
+
+  type ManyEncodingExtraction indices (shape: ShapeCode, input: List(Evidence), rest: List(Evidence))
+    ManyEncodingExtracted : (remaining: List(Evidence)) -> (values: List(Sem(shape))) -> ManyEncodingExtraction(shape, input, remaining)
+
+  ## Total proof-directed extraction (thesis §5.3 / Fig. 5.8). `input` is an
+  ## explicit runtime argument, exactly like the paper's `ev`; only `encoding`
+  ## is erased. The evidence marker is inspected first and its index leaves one
+  ## possible proof constructor. There is no malformed-evidence branch and no
+  ## `Option` after an accepting run has produced the certificate.
+  fn extract_encoding_result({shape: ShapeCode}, input: List(Evidence), {rest: List(Evidence)}, @erased encoding: Encodes(shape, input, rest)) -> EncodingExtraction(shape, input, rest) = match input
+    [] -> impossible
+    [BeginListEvidence() | _] -> impossible
+    [UnitEvidence() | tail] -> match encoding
+      EncodesUnit() -> EncodingExtracted(tail, ())
+    [CharacterEvidence(char) | tail] -> match encoding
+      EncodesCharacter(_) -> EncodingExtracted(tail, char)
+    [StringEvidence(string_value) | tail] -> match encoding
+      EncodesString(_) -> EncodingExtracted(tail, string_value)
+    [PairEvidence() | pair_evidence] -> match encoding
+      EncodesPair(right, left) -> match extract_encoding_result(pair_evidence, right)
+        EncodingExtracted(left_evidence, right_value) -> match extract_encoding_result(left_evidence, left)
+          EncodingExtracted(remaining, left_value) -> EncodingExtracted(remaining, %[left_value, right_value])
+    [LeftEvidence() | branch_evidence] -> match encoding
+      EncodesLeft(branch) -> match extract_encoding_result(branch_evidence, branch)
+        EncodingExtracted(remaining, decoded_branch) -> EncodingExtracted(remaining, decoded_left_value(decoded_branch))
+    [RightEvidence() | branch_evidence] -> match encoding
+      EncodesRight(branch) -> match extract_encoding_result(branch_evidence, branch)
+        EncodingExtracted(remaining, decoded_branch) -> EncodingExtracted(remaining, decoded_right_value(decoded_branch))
+    [EndListEvidence() | items_evidence] -> match encoding
+      EncodesList(items) -> match extract_many_encoding_result(items_evidence, items)
+        ManyEncodingExtracted(remaining, values) -> EncodingExtracted(remaining, reverse_sem_values(values))
+
+  fn extract_many_encoding_result({shape: ShapeCode}, input: List(Evidence), {rest: List(Evidence)}, @erased encoding: EncodesMany(shape, input, rest)) -> ManyEncodingExtraction(shape, input, rest) = match input
+    [] -> match encoding
+      EncodesManyItem(item, prior) -> match item
+    [BeginListEvidence() | tail] -> match encoding
+      EncodesManyEmpty() -> ManyEncodingExtracted(tail, [])
+      EncodesManyItem(item, prior) -> match item
+    [CharacterEvidence(char) | tail] -> match encoding
+      EncodesManyItem(item, prior) -> match extract_encoding_result([CharacterEvidence(char) | tail], item)
+        EncodingExtracted(prior_evidence, value) -> match extract_many_encoding_result(prior_evidence, prior)
+          ManyEncodingExtracted(remaining, values) -> ManyEncodingExtracted(remaining, [value | values])
+    [UnitEvidence() | tail] -> match encoding
+      EncodesManyItem(item, prior) -> match extract_encoding_result([UnitEvidence() | tail], item)
+        EncodingExtracted(prior_evidence, value) -> match extract_many_encoding_result(prior_evidence, prior)
+          ManyEncodingExtracted(remaining, values) -> ManyEncodingExtracted(remaining, [value | values])
+    [PairEvidence() | tail] -> match encoding
+      EncodesManyItem(item, prior) -> match extract_encoding_result([PairEvidence() | tail], item)
+        EncodingExtracted(prior_evidence, value) -> match extract_many_encoding_result(prior_evidence, prior)
+          ManyEncodingExtracted(remaining, values) -> ManyEncodingExtracted(remaining, [value | values])
+    [LeftEvidence() | tail] -> match encoding
+      EncodesManyItem(item, prior) -> match extract_encoding_result([LeftEvidence() | tail], item)
+        EncodingExtracted(prior_evidence, value) -> match extract_many_encoding_result(prior_evidence, prior)
+          ManyEncodingExtracted(remaining, values) -> ManyEncodingExtracted(remaining, [value | values])
+    [RightEvidence() | tail] -> match encoding
+      EncodesManyItem(item, prior) -> match extract_encoding_result([RightEvidence() | tail], item)
+        EncodingExtracted(prior_evidence, value) -> match extract_many_encoding_result(prior_evidence, prior)
+          ManyEncodingExtracted(remaining, values) -> ManyEncodingExtracted(remaining, [value | values])
+    [EndListEvidence() | tail] -> match encoding
+      EncodesManyItem(item, prior) -> match extract_encoding_result([EndListEvidence() | tail], item)
+        EncodingExtracted(prior_evidence, value) -> match extract_many_encoding_result(prior_evidence, prior)
+          ManyEncodingExtracted(remaining, values) -> ManyEncodingExtracted(remaining, [value | values])
+    [StringEvidence(string_value) | tail] -> match encoding
+      EncodesManyItem(item, prior) -> match extract_encoding_result([StringEvidence(string_value) | tail], item)
+        EncodingExtracted(prior_evidence, value) -> match extract_many_encoding_result(prior_evidence, prior)
+          ManyEncodingExtracted(remaining, values) -> ManyEncodingExtracted(remaining, [value | values])
+
+  fn extract_encoding({shape: ShapeCode}, input: List(Evidence), @erased encoding: Encodes(shape, input, Nil())) -> Sem(shape) = match extract_encoding_result(input, encoding)
+    EncodingExtracted(Nil(), value) -> value
+
+  fn reverse_sem_values({shape: ShapeCode}, values: List(Sem(shape))) -> List(Sem(shape)) = reverse_sem_values_into(values, [])
+  fn reverse_sem_values_into({shape: ShapeCode}, values: List(Sem(shape)), output: List(Sem(shape))) -> List(Sem(shape)) = match values
+    [] -> output
+    [head | tail] -> reverse_sem_values_into(tail, [head | output])
+
+  fn decoded_left_value({left: ShapeCode}, {right: ShapeCode}, value: Sem(left)) -> Sem(ChoiceC(left, right)) =
+    let choice = assert_type ChoseLeft(value) : Choice(Sem(left), Sem(right))
+    choice
+  fn decoded_right_value({left: ShapeCode}, {right: ShapeCode}, value: Sem(right)) -> Sem(ChoiceC(left, right)) =
+    let choice = assert_type ChoseRight(value) : Choice(Sem(left), Sem(right))
+    choice
+
+  type CaptureFrame = CaptureFrame(List(Char), List(Evidence))
+  type EvidenceExecution = EvidenceExecution(List(Evidence), List(CaptureFrame))
+  type ThreadState indices (n: Nat)
+    ThreadActive : Bounded(n) -> ThreadState(n)
+    ThreadAccepted : ThreadState(n)
+
+  @reducible
+  fn machine_state_thread(n: Nat, state: MachineState(n)) -> ThreadState(n) = match state
+    Active(destination, _, _) -> ThreadActive(destination)
+    Accepted(_, _) -> ThreadAccepted()
+  type EvidenceThread indices (n: Nat)
+    EvidenceThread : ThreadState(n) -> List(Evidence) -> List(CaptureFrame) -> EvidenceThread(n)
+  type EvidencePrefix = EvidencePrefix(List(Evidence), List(Char))
+
+  type InitialPosition = InitialPosition(Bool, Bool, Bool, Bool)
+
+  @reducible
+  fn evidence_reverse_chars(input: List(Char)) -> List(Char) = evidence_reverse_chars_into(input, [])
+  @reducible
+  fn evidence_reverse_chars_into(input: List(Char), output: List(Char)) -> List(Char) = match input
+    [] -> output
+    [head | rest] -> evidence_reverse_chars_into(rest, [head | output])
+
+  @reducible
+  fn record_capture_char(frames: List(CaptureFrame), char: Char) -> List(CaptureFrame) = match frames
+    [] -> []
+    [CaptureFrame(chars, saved) | rest] -> [CaptureFrame([char | chars], saved) | record_capture_char(rest, char)]

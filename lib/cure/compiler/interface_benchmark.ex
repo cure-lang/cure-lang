@@ -17,6 +17,12 @@ defmodule Cure.Compiler.InterfaceBenchmark do
 
   @type sample :: %{
           total_us: non_neg_integer(),
+          sample_kind: :cold | :warm,
+          source_universe_hash: String.t(),
+          stdlib_source_hashes: %{String.t() => String.t()},
+          component_members: [[String.t()]],
+          component_edges: [%{source: String.t(), target: String.t(), kind: atom()}],
+          component_stage_us: [%{modules: [String.t()], phase: atom(), elapsed_us: non_neg_integer()}],
           phases: %{atom() => non_neg_integer()},
           components: [%{modules: [String.t()], elapsed_us: non_neg_integer()}],
           declarations: [declaration_timing()],
@@ -24,18 +30,26 @@ defmodule Cure.Compiler.InterfaceBenchmark do
           kernel_certificate_stages: [kernel_certificate_stage_timing()],
           totality_metrics: [map()],
           call_attempts: [map()],
+          call_metrics: %{optional(atom()) => non_neg_integer()},
           rebuilt_modules: [String.t()]
         }
 
   @type declaration_timing :: %{
           module: String.t(),
           declaration: String.t(),
-          elapsed_us: non_neg_integer()
+          canonical_declaration: String.t(),
+          arity: non_neg_integer(),
+          fingerprint: String.t(),
+          elapsed_us: non_neg_integer(),
+          call_metrics: %{optional(atom()) => non_neg_integer()}
         }
 
   @type declaration_stage_timing :: %{
           module: String.t(),
           declaration: String.t(),
+          canonical_declaration: String.t(),
+          arity: non_neg_integer(),
+          fingerprint: String.t(),
           stage: atom(),
           elapsed_us: non_neg_integer()
         }
@@ -51,7 +65,7 @@ defmodule Cure.Compiler.InterfaceBenchmark do
     iterations = Keyword.get(opts, :warm_iterations, 3)
     profile_call_attempts? = Keyword.get(opts, :profile_call_attempts, false)
 
-    with true <- is_integer(iterations) and iterations > 0,
+    with :ok <- validate_iterations(:warm_iterations, iterations),
          expanded when expanded != [] <- paths |> Enum.map(&Path.expand/1) |> Enum.uniq() |> Enum.sort() do
       subscribe_totality_metrics()
 
@@ -71,13 +85,14 @@ defmodule Cure.Compiler.InterfaceBenchmark do
           cache: cache_root
         ]
 
-        with {:ok, cold} <- timed_run(expanded, pipeline_opts, profile_call_attempts?),
+        with {:ok, cold} <- timed_run(expanded, pipeline_opts, profile_call_attempts?, :cold),
              {:ok, warm} <- warm_samples(expanded, pipeline_opts, iterations, profile_call_attempts?) do
           {:ok,
            %{
              pipeline: :canonical,
              source_count: length(expanded),
              warm_iterations: iterations,
+             doc_fence_setting: doc_fence_setting(),
              cold: cold,
              warm: warm
            }}
@@ -86,8 +101,41 @@ defmodule Cure.Compiler.InterfaceBenchmark do
         File.rm_rf!(cache_root)
       end
     else
-      false -> {:error, {:invalid_warm_iterations, iterations}}
+      {:error, _} = error -> error
       [] -> {:error, :no_sources}
+    end
+  end
+
+  @doc "Run serialized cold/warm pairs against fresh cache generations."
+  @spec run_repeated([Path.t()], keyword()) :: {:ok, map()} | {:error, term()}
+  def run_repeated(paths, opts \\ []) when is_list(paths) do
+    samples = Keyword.get(opts, :samples, 3)
+
+    if not (is_integer(samples) and samples > 0) do
+      {:error, {:invalid_samples, samples}}
+    else
+      opts = opts |> Keyword.delete(:samples) |> Keyword.put(:warm_iterations, 1)
+
+      with {:ok, reports} <- repeated_reports(paths, opts, samples),
+           :ok <- same_source_universe?(reports),
+           :ok <- same_doc_fence_setting?(reports) do
+        first = List.first(reports)
+        cold_samples = Enum.map(reports, & &1.cold)
+        warm_samples = Enum.flat_map(reports, & &1.warm)
+
+        {:ok,
+         first
+         |> Map.put(:samples, samples)
+         |> Map.put(:reports, reports)
+         |> Map.put(:cold_samples, cold_samples)
+         |> Map.put(:warm_samples, warm_samples)
+         |> Map.put(:cold_summary, timing_summary(cold_samples))
+         |> Map.put(:warm_summary, timing_summary(warm_samples))
+         |> Map.put(
+           :regex_component_summary,
+           cold_samples |> Enum.map(&regex_component_us/1) |> Enum.map(&%{total_us: &1}) |> timing_summary()
+         )}
+      end
     end
   end
 
@@ -104,7 +152,7 @@ defmodule Cure.Compiler.InterfaceBenchmark do
 
   defp warm_samples(paths, opts, iterations, profile_call_attempts?) do
     Enum.reduce_while(1..iterations, {:ok, []}, fn _, {:ok, samples} ->
-      case timed_run(paths, opts, profile_call_attempts?) do
+      case timed_run(paths, opts, profile_call_attempts?, :warm) do
         {:ok, sample} -> {:cont, {:ok, [sample | samples]}}
         {:error, reason} -> {:halt, {:error, reason}}
       end
@@ -115,7 +163,86 @@ defmodule Cure.Compiler.InterfaceBenchmark do
     end
   end
 
-  defp timed_run(paths, opts, profile_call_attempts?) do
+  defp repeated_reports(paths, opts, count) do
+    Enum.reduce_while(1..count, {:ok, []}, fn _, {:ok, reports} ->
+      case run_isolated(paths, opts) do
+        {:ok, report} -> {:cont, {:ok, [report | reports]}}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+    |> case do
+      {:ok, reports} -> {:ok, Enum.reverse(reports)}
+      error -> error
+    end
+  end
+
+  # A clean sample must not inherit process-local loader state, normalisation
+  # lenses, or large interface terms from the previous sample. The samples are
+  # still strictly serial: the next worker is not spawned until this one has
+  # returned. A worker also gives the VM a natural reclamation boundary instead
+  # of requiring benchmark code to know every process-dictionary key used by
+  # the elaborator.
+  defp run_isolated(paths, opts) do
+    parent = self()
+    reference = make_ref()
+
+    {pid, monitor} =
+      spawn_monitor(fn ->
+        send(parent, {reference, run(paths, opts)})
+      end)
+
+    receive do
+      {^reference, result} ->
+        Process.demonitor(monitor, [:flush])
+        result
+
+      {:DOWN, ^monitor, :process, ^pid, reason} ->
+        {:error, {:benchmark_worker_failed, reason}}
+    after
+      30 * 60 * 1_000 ->
+        Process.exit(pid, :kill)
+        {:error, {:benchmark_worker_timeout, 30 * 60}}
+    end
+  end
+
+  defp same_source_universe?(reports) do
+    hashes = reports |> Enum.map(& &1.cold.source_universe_hash) |> Enum.uniq()
+    if length(hashes) == 1, do: :ok, else: {:error, {:source_universe_changed, hashes}}
+  end
+
+  defp same_doc_fence_setting?(reports) do
+    settings = reports |> Enum.map(& &1.doc_fence_setting) |> Enum.uniq()
+    if length(settings) == 1, do: :ok, else: {:error, {:doc_fence_setting_changed, settings}}
+  end
+
+  defp timing_summary([]), do: %{median_us: 0, minimum_us: 0, maximum_us: 0, samples: 0}
+
+  defp timing_summary(samples) do
+    values = samples |> Enum.map(& &1.total_us) |> Enum.sort()
+    %{median_us: median(values), minimum_us: List.first(values), maximum_us: List.last(values), samples: length(values)}
+  end
+
+  defp regex_component_us(sample) do
+    sample.components
+    |> Enum.filter(fn %{modules: modules} -> Enum.any?(modules, &String.starts_with?(&1, "Std.Regex")) end)
+    |> Enum.reduce(0, &(&2 + &1.elapsed_us))
+  end
+
+  defp median(values) do
+    middle = div(length(values), 2)
+
+    if rem(length(values), 2) == 1,
+      do: Enum.at(values, middle),
+      else: div(Enum.at(values, middle - 1) + Enum.at(values, middle), 2)
+  end
+
+  defp validate_iterations(name, value) do
+    if is_integer(value) and value > 0,
+      do: :ok,
+      else: {:error, {String.to_atom("invalid_" <> Atom.to_string(name)), value}}
+  end
+
+  defp timed_run(paths, opts, profile_call_attempts?, sample_kind) do
     owner = self()
     reference = make_ref()
     event_sink = &send(owner, {reference, &1})
@@ -127,11 +254,17 @@ defmodule Cure.Compiler.InterfaceBenchmark do
       end)
     end
 
-    {pipeline_result, call_attempts} =
+    {pipeline_result, call_attempts, call_metrics} =
       if profile_call_attempts? do
-        CallAttemptProfile.run(operation)
+        {{result, metrics}, attempts} =
+          CallAttemptProfile.run(fn ->
+            result = operation.()
+            {result, CallAttemptProfile.metrics()}
+          end)
+
+        {result, attempts, metrics}
       else
-        {operation.(), []}
+        {operation.(), [], %{}}
       end
 
     case pipeline_result do
@@ -143,6 +276,12 @@ defmodule Cure.Compiler.InterfaceBenchmark do
         {:ok,
          %{
            total_us: total,
+           sample_kind: sample_kind,
+           source_universe_hash: source_universe_hash(result),
+           stdlib_source_hashes: stdlib_source_hashes(result),
+           component_members: component_members(result),
+           component_edges: component_edges(result),
+           component_stage_us: component_stage_timings(events),
            phases: phase_timings(events),
            components: component_timings(events),
            declarations: declaration_timings(events),
@@ -150,6 +289,7 @@ defmodule Cure.Compiler.InterfaceBenchmark do
            kernel_certificate_stages: kernel_certificate_stage_timings(events),
            totality_metrics: totality_metrics,
            call_attempts: call_attempts,
+           call_metrics: call_metrics,
            rebuilt_modules: ModulePipeline.rebuilt_modules(result)
          }}
 
@@ -204,22 +344,78 @@ defmodule Cure.Compiler.InterfaceBenchmark do
     end
   end
 
+  defp component_stage_timings(events) do
+    for {:module_pipeline_timing, phase, elapsed, %{modules: modules}} <- events,
+        phase in [:component_register, :component_merge, :component_bodies, :component_freeze] do
+      %{modules: modules, phase: phase, elapsed_us: elapsed}
+    end
+  end
+
   defp declaration_timings(events) do
-    for {:module_pipeline_timing, :declaration, elapsed, %{module: module, declaration: declaration}} <- events do
-      %{module: module, declaration: declaration, elapsed_us: elapsed}
+    for {:module_pipeline_timing, :declaration, elapsed, metadata} <- events do
+      %{
+        module: metadata.module,
+        declaration: metadata.declaration,
+        canonical_declaration: metadata.canonical_declaration,
+        arity: metadata.arity,
+        fingerprint: metadata.fingerprint,
+        elapsed_us: elapsed,
+        call_metrics: Map.get(metadata, :call_metrics, %{})
+      }
     end
   end
 
   defp declaration_stage_timings(events) do
-    for {:module_pipeline_timing, :declaration_stage, elapsed,
-         %{module: module, declaration: declaration, stage: stage}} <- events do
-      %{module: module, declaration: declaration, stage: stage, elapsed_us: elapsed}
+    for {:module_pipeline_timing, :declaration_stage, elapsed, metadata} <- events do
+      %{
+        module: metadata.module,
+        declaration: metadata.declaration,
+        canonical_declaration: metadata.canonical_declaration,
+        arity: metadata.arity,
+        fingerprint: metadata.fingerprint,
+        stage: metadata.stage,
+        elapsed_us: elapsed
+      }
     end
   end
 
   defp kernel_certificate_stage_timings(events) do
     for {:kernel_certificate_timing, stage, elapsed, %{definition: definition}} <- events do
       %{definition: definition, stage: stage, elapsed_us: elapsed}
+    end
+  end
+
+  defp source_universe_hash(%{manifest: manifest}) do
+    canonical = manifest |> Cure.Compiler.ModuleManifest.canonical_dump() |> :erlang.term_to_binary([:deterministic])
+    canonical |> then(&:crypto.hash(:sha256, &1)) |> Base.encode16(case: :lower)
+  end
+
+  defp stdlib_source_hashes(%{manifest: %{entries: entries}}) do
+    entries
+    |> Enum.map(fn {_identity, entry} -> {entry.module_name, Base.encode16(entry.source_hash, case: :lower)} end)
+    |> Map.new()
+  end
+
+  defp component_members(%{components: components}) do
+    Enum.map(components, fn component -> Enum.map(component, &elem(&1, 1)) |> Enum.sort() end)
+  end
+
+  defp component_edges(%{manifest: manifest}) do
+    manifest
+    |> Cure.Compiler.ModuleManifest.semantic_dump()
+    |> Enum.flat_map(fn entry ->
+      Enum.map(entry.dependencies, fn dependency ->
+        %{source: elem(entry.identity, 1), target: elem(dependency.target, 1), kind: dependency.kind}
+      end)
+    end)
+    |> Enum.uniq()
+    |> Enum.sort_by(&{&1.source, &1.target, &1.kind})
+  end
+
+  defp doc_fence_setting do
+    case System.get_env("CURE_SKIP_DOC_FENCES") do
+      nil -> :enabled
+      value -> {:skipped, value}
     end
   end
 end

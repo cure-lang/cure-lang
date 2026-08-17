@@ -30,6 +30,7 @@ defmodule Cure.Elab.DependentConstructorConstraintRetryTest do
     assert metrics[:constructor_field_attempts] >= 1
     assert metrics[:constructor_field_attempts] <= 4
     assert metrics[:constructor_field_retries] >= 1
+    assert metrics[:constructor_field_wakeups] >= 1
 
     assert Enum.find(attempts, fn attempt ->
              attempt.callee == "Witnessed" and attempt.strategy == :constructor_bidirectional

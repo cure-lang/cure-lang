@@ -3,7 +3,8 @@
 ## needed to relate an accepted Thompson-machine path to the authored pattern.
 @group(:text)
 mod Std.Regex.Language
-  use Std.Regex
+  use Std.Regex.Core
+  use Std.Regex.Runtime
   use Std.Regex.Proof
   use Std.Proof.IntMath
 

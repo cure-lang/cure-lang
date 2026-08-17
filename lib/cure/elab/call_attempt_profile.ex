@@ -64,6 +64,21 @@ defmodule Cure.Elab.CallAttemptProfile do
   @spec metrics() :: %{optional(atom()) => non_neg_integer()}
   def metrics, do: Process.get(@metrics_key, %{})
 
+  @doc "Return the counter delta from a previously captured metrics map."
+  @spec delta(%{optional(atom()) => non_neg_integer()}) :: %{optional(atom()) => non_neg_integer()}
+  def delta(previous) when is_map(previous) do
+    current = metrics()
+
+    current
+    |> Map.keys()
+    |> Kernel.++(Map.keys(previous))
+    |> Enum.uniq()
+    |> Enum.reduce(%{}, fn name, delta ->
+      amount = max(Map.get(current, name, 0) - Map.get(previous, name, 0), 0)
+      if amount == 0, do: delta, else: Map.put(delta, name, amount)
+    end)
+  end
+
   @doc "Associate attempts made by `fun` with one authored call site."
   @spec with_call(call_identity(), (-> result)) :: result when result: term()
   def with_call(call, fun) when is_map(call) and is_function(fun, 0) do

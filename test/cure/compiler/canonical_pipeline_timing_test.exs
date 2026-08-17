@@ -33,6 +33,14 @@ defmodule Cure.Compiler.CanonicalPipelineTimingTest do
 
     assert components == [["Timing.Provider"], ["Timing.Consumer"]]
 
+    preparations =
+      for {:module_pipeline_preparation, module, declaration_count} <- events do
+        assert declaration_count >= 1
+        module
+      end
+
+    assert preparations == ["Timing.Provider", "Timing.Consumer"]
+
     for phase <- [:component_register, :component_merge, :component_bodies, :component_freeze] do
       assert Enum.count(
                events,

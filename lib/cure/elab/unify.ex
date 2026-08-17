@@ -9,14 +9,15 @@ defmodule Cure.Elab.MetaCtx do
   away); an unsolved metavariable at that point is an elaboration error.
   """
 
-  defstruct next: 0, solutions: %{}, types: %{}, revision: 0
+  defstruct next: 0, solutions: %{}, types: %{}, revision: 0, change_log: %{}
 
   @type id :: non_neg_integer()
   @type t :: %__MODULE__{
           next: non_neg_integer(),
           solutions: %{id() => Cure.Core.Term.t()},
           types: %{id() => Cure.Core.Term.t()},
-          revision: non_neg_integer()
+          revision: non_neg_integer(),
+          change_log: %{non_neg_integer() => [id()]}
         }
 
   @doc "A fresh, empty metavariable context."
@@ -51,12 +52,31 @@ defmodule Cure.Elab.MetaCtx do
   @spec revision(t()) :: non_neg_integer()
   def revision(%__MODULE__{revision: revision}), do: revision
 
+  @doc "Return metavariable ids assigned after `revision` on this context lineage."
+  @spec changed_ids_since(t(), non_neg_integer()) :: [id()]
+  def changed_ids_since(%__MODULE__{revision: current}, revision) when revision >= current,
+    do: []
+
+  def changed_ids_since(%__MODULE__{revision: current, change_log: log}, revision)
+      when revision >= 0 do
+    (revision + 1)..current
+    |> Enum.flat_map(&Map.get(log, &1, []))
+    |> Enum.uniq()
+  end
+
   @doc false
-  def put_solution(%__MODULE__{solutions: s, revision: revision} = ctx, id, term) do
+  def put_solution(%__MODULE__{solutions: s, revision: revision, change_log: log} = ctx, id, term) do
     if Map.get(s, id) == term do
       ctx
     else
-      %{ctx | solutions: Map.put(s, id, term), revision: revision + 1}
+      next_revision = revision + 1
+
+      %{
+        ctx
+        | solutions: Map.put(s, id, term),
+          revision: next_revision,
+          change_log: Map.put(log, next_revision, [id])
+      }
     end
   end
 end

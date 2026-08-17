@@ -40,6 +40,7 @@ defmodule Cure.Core.Env do
             bare_modules: nil,
             bare_bindings: nil,
             qualified_modules: nil,
+            qualified_aliases: %{},
             lemmas: %{},
             equations: %{},
             module_owner: nil,
@@ -84,6 +85,10 @@ defmodule Cure.Core.Env do
           # authored qualified path. This is deliberately independent of
           # `import_modules`: `M.f` makes M available without opening `f`.
           qualified_modules: MapSet.t(String.t()) | nil,
+          # Compatibility-qualified spellings supplied by a module's public
+          # reexports. The key remains the reexporting surface (`Facade.name`),
+          # while the value is the one canonical owner-qualified declaration.
+          qualified_aliases: %{{String.t(), atom(), :value | :type} => atom()},
           # Inert elaborator metadata (the kernel never reads it): `@lemma`-tagged
           # theorems keyed by their conclusion-head atom, for auto proof-search
           # (see `Cure.Elab.ProofSearch`). Same status as `interfaces`/`coherence`.
@@ -152,6 +157,25 @@ defmodule Cure.Core.Env do
 
   def qualified_module_available?(%__MODULE__{qualified_modules: modules, module_owner: owner}, candidate),
     do: candidate == owner or MapSet.member?(modules, candidate)
+
+  @doc "Install canonical aliases for qualified public-reexport spellings."
+  @spec with_qualified_aliases(t(), %{optional({String.t(), atom(), :value | :type}) => atom()}) :: t()
+  def with_qualified_aliases(%__MODULE__{} = env, aliases), do: %{env | qualified_aliases: aliases}
+
+  @doc "Resolve a qualified public-reexport spelling, if one was published."
+  @spec qualified_alias(t(), String.t(), :value | :type) :: {:ok, atom()} | :error
+  def qualified_alias(%__MODULE__{qualified_aliases: aliases}, dotted, namespace)
+      when is_binary(dotted) and namespace in [:value, :type] do
+    segments = String.split(dotted, ".")
+
+    case Enum.split(segments, length(segments) - 1) do
+      {owner_segments, [base]} when owner_segments != [] ->
+        Map.fetch(aliases, {Enum.join(owner_segments, "."), String.to_atom(base), namespace})
+
+      _ ->
+        :error
+    end
+  end
 
   @doc """
   Attach the name of the def whose body is currently being elaborated (see the

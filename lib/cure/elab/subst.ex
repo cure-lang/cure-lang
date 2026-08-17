@@ -1,3 +1,94 @@
+defmodule Cure.Elab.Subst.Prefix do
+  @moduledoc false
+
+  alias Cure.Elab.CallAttemptProfile
+
+  @chunk_size 32
+  defstruct size: 0, chunks: %{}
+
+  @type t :: %__MODULE__{size: non_neg_integer(), chunks: %{non_neg_integer() => tuple()}}
+
+  @spec new([term()]) :: t()
+  def new(values) when is_list(values) do
+    chunks =
+      values
+      |> Enum.with_index()
+      |> Enum.group_by(fn {_value, index} -> div(index, @chunk_size) end, fn {value, _index} -> value end)
+      |> Map.new(fn {chunk, entries} -> {chunk, List.to_tuple(entries)} end)
+
+    %__MODULE__{size: length(values), chunks: chunks}
+  end
+
+  @spec get(t(), non_neg_integer()) :: term()
+  def get(%__MODULE__{size: size} = prefix, index) when index >= 0 and index < size do
+    CallAttemptProfile.increment(:constructor_prefix_cells_read)
+
+    prefix.chunks
+    |> Map.fetch!(div(index, @chunk_size))
+    |> elem(rem(index, @chunk_size))
+  end
+
+  @spec put(t(), non_neg_integer(), term()) :: t()
+  def put(%__MODULE__{} = prefix, index, value) when index >= 0 and index < prefix.size do
+    CallAttemptProfile.increment(:constructor_prefix_cells_reused)
+
+    chunk_index = div(index, @chunk_size)
+    chunk = Map.fetch!(prefix.chunks, chunk_index)
+    updated = put_elem(chunk, rem(index, @chunk_size), value)
+    %{prefix | chunks: Map.put(prefix.chunks, chunk_index, updated)}
+  end
+
+  @spec materialize(t(), non_neg_integer()) :: [term()]
+  def materialize(_prefix, 0), do: []
+
+  def materialize(%__MODULE__{} = prefix, count) when count >= 0 and count <= prefix.size do
+    CallAttemptProfile.increment(:constructor_prefix_cells_materialized, count)
+
+    for index <- 0..(count - 1)//1, do: get(prefix, index)
+  end
+end
+
+defmodule Cure.Elab.Subst.Frame do
+  @moduledoc false
+
+  alias Cure.Elab.Subst.Prefix
+  alias Cure.Elab.CallAttemptProfile
+
+  defstruct params: {}, prefix: nil, prefix_size: 0, zonker: nil
+
+  @type t :: %__MODULE__{
+          params: tuple(),
+          prefix: Prefix.t(),
+          prefix_size: non_neg_integer(),
+          zonker: (term() -> term()) | nil
+        }
+
+  @spec new([term()], Prefix.t(), non_neg_integer()) :: t()
+  @spec new([term()], Prefix.t(), non_neg_integer(), (term() -> term()) | nil) :: t()
+  def new(params, %Prefix{} = prefix, prefix_size, zonker \\ nil) when prefix_size >= 0 do
+    CallAttemptProfile.increment(:constructor_prefix_frames)
+
+    %__MODULE__{params: List.to_tuple(params), prefix: prefix, prefix_size: prefix_size, zonker: zonker}
+  end
+
+  @spec size(t()) :: non_neg_integer()
+  def size(%__MODULE__{params: params, prefix_size: prefix_size}),
+    do: tuple_size(params) + prefix_size
+
+  @spec get(t(), non_neg_integer()) :: term()
+  def get(%__MODULE__{} = frame, index) when is_integer(index) do
+    telescope_index = size(frame) - 1 - index
+    params_size = tuple_size(frame.params)
+
+    if telescope_index < params_size do
+      elem(frame.params, telescope_index)
+    else
+      value = Prefix.get(frame.prefix, telescope_index - params_size)
+      if is_function(frame.zonker, 1), do: frame.zonker.(value), else: value
+    end
+  end
+end
+
 defmodule Cure.Elab.Subst do
   @moduledoc """
   De Bruijn shifting and telescope instantiation for *elaborator* terms — Core
@@ -48,6 +139,7 @@ defmodule Cure.Elab.Subst do
   """
 
   alias Cure.Core.Term
+  alias Cure.Elab.Subst.Frame
 
   @type uterm :: Term.t() | {:meta, non_neg_integer()}
 
@@ -79,17 +171,20 @@ defmodule Cure.Elab.Subst do
   the telescope are strengthened by `length(values)`.
   """
   @spec instantiate(uterm(), [uterm()]) :: uterm()
-  def instantiate(term, values) do
+  def instantiate(term, values) when is_list(values) do
     env = Enum.reverse(values)
     replace(term, env, length(env), 0)
   end
+
+  @spec instantiate(uterm(), Frame.t()) :: uterm()
+  def instantiate(term, %Frame{} = frame), do: replace(term, frame, Frame.size(frame), 0)
 
   # `env` maps de Bruijn index j (0-based, innermost telescope binder first) to
   # its replacement; `k` = telescope size; `depth` = binders crossed so far.
   defp replace({:var, i}, env, k, depth) do
     cond do
       i < depth -> {:var, i}
-      i - depth < k -> shift(Enum.at(env, i - depth), depth, 0)
+      i - depth < k -> shift(env_get(env, i - depth), depth, 0)
       true -> {:var, i - k}
     end
   end
@@ -133,6 +228,9 @@ defmodule Cure.Elab.Subst do
 
   defp replace(leaf, _env, _k, _depth) when is_leaf(leaf), do: leaf
   defp replace(other, _env, _k, _depth), do: unrecognised!(other, "replace/4")
+
+  defp env_get(%Frame{} = frame, index), do: Frame.get(frame, index)
+  defp env_get(env, index), do: Enum.at(env, index)
 
   @doc "Shift free de Bruijn variables of a (meta-bearing) term above `cutoff` by `amount`."
   @spec shift(uterm(), integer(), non_neg_integer()) :: uterm()

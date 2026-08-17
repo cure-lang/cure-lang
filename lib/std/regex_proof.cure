@@ -3,7 +3,8 @@
 ## evidence routines while retaining their dependent input and output indices.
 @group(:text)
 mod Std.Regex.Proof
-  use Std.Regex
+  use Std.Regex.Core
+  use Std.Regex.Runtime
 
   ## Structural execution law for the evidence VM. Thompson constructors append
   ## their own evidence instructions to child routines; this view recovers the

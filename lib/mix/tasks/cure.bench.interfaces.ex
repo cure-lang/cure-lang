@@ -4,6 +4,7 @@ defmodule Mix.Tasks.Cure.Bench.Interfaces do
 
       mix cure.bench.interfaces
       mix cure.bench.interfaces lib/std/regex.cure --warm-iterations 5
+      mix cure.bench.interfaces --samples 3 --format json
       mix cure.bench.interfaces --top 30
   """
 
@@ -15,7 +16,13 @@ defmodule Mix.Tasks.Cure.Bench.Interfaces do
   def run(args) do
     {opts, paths, invalid} =
       OptionParser.parse(args,
-        strict: [warm_iterations: :integer, top: :integer],
+        strict: [
+          warm_iterations: :integer,
+          top: :integer,
+          samples: :integer,
+          format: :string,
+          profile_call_attempts: :boolean
+        ],
         aliases: [n: :warm_iterations, t: :top]
       )
 
@@ -27,9 +34,27 @@ defmodule Mix.Tasks.Cure.Bench.Interfaces do
 
     if top < 0, do: Mix.raise("--top must be non-negative")
 
-    case Cure.Compiler.InterfaceBenchmark.run(paths, warm_iterations: iterations) do
-      {:ok, report} -> print_report(report, top)
-      {:error, reason} -> Mix.raise("interface benchmark failed: #{inspect(reason)}")
+    benchmark_opts = [
+      warm_iterations: iterations,
+      profile_call_attempts: Keyword.get(opts, :profile_call_attempts, false)
+    ]
+
+    result =
+      case Keyword.get(opts, :samples) do
+        nil -> Cure.Compiler.InterfaceBenchmark.run(paths, benchmark_opts)
+        samples -> Cure.Compiler.InterfaceBenchmark.run_repeated(paths, Keyword.put(benchmark_opts, :samples, samples))
+      end
+
+    case result do
+      {:ok, report} ->
+        if Keyword.get(opts, :format) == "json" do
+          Mix.shell().info(Jason.encode!(json_safe(report)))
+        else
+          print_report(report, top)
+        end
+
+      {:error, reason} ->
+        Mix.raise("interface benchmark failed: #{inspect(reason)}")
     end
   end
 
@@ -38,6 +63,15 @@ defmodule Mix.Tasks.Cure.Bench.Interfaces do
       "pipeline=#{report.pipeline} sources=#{report.source_count} " <>
         "cold_ms=#{ms(report.cold.total_us)} rebuilt=#{length(report.cold.rebuilt_modules)}"
     )
+
+    if Map.has_key?(report, :regex_component_summary) do
+      summary = report.regex_component_summary
+
+      Mix.shell().info(
+        "regex_component_summary_ms median=#{ms(summary.median_us)} " <>
+          "range=#{ms(summary.minimum_us)}..#{ms(summary.maximum_us)}"
+      )
+    end
 
     Mix.shell().info("component_ms\tmodules")
 
@@ -53,7 +87,10 @@ defmodule Mix.Tasks.Cure.Bench.Interfaces do
     report.cold.declarations
     |> Cure.Compiler.InterfaceBenchmark.slowest(top)
     |> Enum.each(fn declaration ->
+      metrics = declaration |> Map.get(:call_metrics, %{}) |> inspect(limit: 20)
+
       Mix.shell().info("#{ms(declaration.elapsed_us)}\t#{declaration.module}\t#{declaration.declaration}")
+      if metrics != "%{}", do: Mix.shell().info("  call_metrics=#{metrics}")
     end)
 
     Mix.shell().info("declaration_stage_ms\tmodule\tdeclaration\tstage")
@@ -93,6 +130,10 @@ defmodule Mix.Tasks.Cure.Bench.Interfaces do
       details = metric |> Map.drop([:operation, :elapsed_us, :stage]) |> Enum.sort()
       Mix.shell().info("#{ms(metric.elapsed_us)}\t#{metric.operation}\t#{inspect(details, printable_limit: 500)}")
     end)
+
+    if report.cold.call_metrics != %{} do
+      Mix.shell().info("call_attempt_metrics\t#{inspect(report.cold.call_metrics, printable_limit: 500)}")
+    end
 
     report.warm
     |> Enum.with_index(1)
@@ -148,4 +189,17 @@ defmodule Mix.Tasks.Cure.Bench.Interfaces do
   defp sum_field(metrics, field), do: Enum.reduce(metrics, 0, &(&2 + Map.get(&1, field, 0)))
 
   defp ms(microseconds), do: :erlang.float_to_binary(microseconds / 1_000, decimals: 3)
+
+  defp json_safe(value) when is_map(value) do
+    value = if is_struct(value), do: Map.from_struct(value), else: value
+
+    value
+    |> Enum.map(fn {key, item} -> {to_string(key), json_safe(item)} end)
+    |> Map.new()
+  end
+
+  defp json_safe(value) when is_list(value), do: Enum.map(value, &json_safe/1)
+  defp json_safe(value) when is_tuple(value), do: value |> Tuple.to_list() |> Enum.map(&json_safe/1)
+  defp json_safe(value) when is_atom(value), do: Atom.to_string(value)
+  defp json_safe(value), do: value
 end

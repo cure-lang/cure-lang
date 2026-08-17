@@ -15,6 +15,7 @@ defmodule Cure.Elab.Elaborator do
 
   alias Cure.Core.{Context, Conv, Env, Eval, Grade, Inductive, Kernel, Normalise, Quote, Term}
   alias Cure.Elab.{AttemptCache, CallAttemptProfile, GuardLint, MetaCtx, Rewrite, Subst, Unify}
+  alias Cure.Elab.Subst.{Frame, Prefix}
 
   import Cure.Elab.Rewrite,
     only: [
@@ -37,6 +38,10 @@ defmodule Cure.Elab.Elaborator do
   # refined dependent context contains an uninhabited indexed value. It is
   # consumed before expression elaboration and never reaches Core.
   @contextual_impossible_body {:__cure_contextual_impossible__, [], []}
+
+  # A blocked field without discoverable metavariable dependencies gets a
+  # bounded conservative retry queue rather than a catch-all sweep.
+  @constructor_fallback_retry_limit 8
 
   @doc """
   Elaborate a top-level function definition into `{:ok, core_lambda, type_value}`
@@ -14554,106 +14559,307 @@ defmodule Cure.Elab.Elaborator do
     end
   end
 
-  # One sweep over the still-pending present fields, recursing while progress is made. A field
-  # whose instantiated type is CONCRETE is checked; one whose type still has a metavariable is
-  # tried by INFERENCE (solving the metavariable from the argument's own type, as a recursive
-  # call or concrete constructor does) and otherwise DEFERRED to a later sweep, once a sibling
-  # solves it.
-  defp resolve_ctor_fields(
-         [],
-         acc_map,
-         _args,
-         _seed,
-         _pc,
-         _params,
-         mctx,
-         _names,
-         _ctx,
-         _env,
-         _cname,
-         _deferred,
-         _attempted
-       ),
-       do: {:ok, acc_map, mctx}
-
+  # The retry queue is indexed by blocker metavariables. A successful field wakes
+  # only the fields that depend on the changed constraint (plus fields whose
+  # preceding frame value changed), instead of restarting every pending field.
   defp resolve_ctor_fields(pending, acc_map, args, seed, pc, params, mctx, names, ctx, env, cname, deferred, attempted) do
-    # A DEFERRED result-index equation (`add(m1,m2) = S(Z)`) is retried at the head of
-    # every sweep: once a sibling field solves its metas the computed index reduces
-    # (`add(S(Z),m2)` → `S(m2)` via the meta-aware whnf in `Unify`) and the equation
-    # solves the remaining index metas — which unblocks the fields that reference them.
-    # Discharging one counts as progress, so the fixpoint keeps sweeping even when the
-    # field sweep alone stalls.
-    {mctx, deferred, deferred_prog} = retry_deferred(deferred, mctx, env)
+    pending_map = Map.new(pending)
+    slot_count = max(length(seed) - pc, 0)
 
-    swept =
-      Enum.reduce(pending, {[], acc_map, mctx, deferred_prog, nil, attempted}, fn {i, ftype},
-                                                                                  {pend, amap, mctx, prog, err,
-                                                                                   attempted} ->
-        if err != nil do
-          {pend, amap, mctx, prog, err, attempted}
+    prefix_values =
+      for i <- 0..(slot_count - 1)//1 do
+        Map.get(acc_map, i, Enum.at(seed, pc + i))
+      end
+
+    state = %{
+      pending: pending_map,
+      field_types: pending_map,
+      seed_fields: acc_map,
+      args: args,
+      seed: seed,
+      pc: pc,
+      params: params,
+      names: names,
+      ctx: ctx,
+      env: env,
+      cname: cname,
+      declaration: Env.current_def(env),
+      deferred_equations: deferred,
+      mctx: mctx,
+      queue: Map.keys(pending_map) |> Enum.sort(),
+      acc_map: acc_map,
+      attempted: attempted,
+      blocker_index: %{},
+      field_blockers: %{},
+      fallback_fields: MapSet.new(),
+      fallback_attempts: %{},
+      prefix_view: Prefix.new(prefix_values),
+      value_revision: 0
+    }
+
+    resolve_ctor_fields_state(state)
+  end
+
+  defp resolve_ctor_fields_state(state) do
+    old_mctx = state.mctx
+    {mctx, deferred, deferred_prog} = retry_deferred(state.deferred_equations, state.mctx, state.env)
+
+    state =
+      state
+      |> Map.put(:mctx, mctx)
+      |> Map.put(:deferred_equations, deferred)
+      |> wake_constructor_fields(changed_meta_ids(old_mctx, mctx))
+      |> then(fn state -> if deferred_prog, do: enqueue_all_pending(state), else: state end)
+
+    case resolve_ctor_field_queue(state) do
+      {:error, _} = error ->
+        error
+
+      {state, progress} ->
+        cond do
+          map_size(state.pending) == 0 ->
+            {:ok, state.acc_map, state.mctx}
+
+          progress or state.queue != [] ->
+            resolve_ctor_fields_state(state)
+
+          true ->
+            {:error,
+             {:unsolved_field_type,
+              %{
+                constructor: state.cname,
+                fields: Map.keys(state.pending) |> Enum.sort(),
+                revision: MetaCtx.revision(state.mctx),
+                field_diagnostics:
+                  state.pending
+                  |> Map.keys()
+                  |> Enum.sort()
+                  |> Enum.map(&constructor_field_diagnostic(state, &1))
+              }}}
+        end
+    end
+  end
+
+  defp resolve_ctor_field_queue(%{queue: []} = state), do: {state, false}
+
+  defp resolve_ctor_field_queue(state) do
+    [i | queue] = state.queue
+    state = %{state | queue: queue}
+
+    if not Map.has_key?(state.pending, i) do
+      resolve_ctor_field_queue(state)
+    else
+      if Map.get(state.fallback_attempts, i, 0) >= @constructor_fallback_retry_limit do
+        {:error,
+         {:unsolved_field_type,
+          constructor_field_diagnostic(state, i,
+            fallback_attempts: Map.get(state.fallback_attempts, i, 0),
+            fallback_limit_exceeded: true
+          )}}
+      else
+        ftype = Map.fetch!(state.field_types, i)
+        frame = Frame.new(state.params, state.prefix_view, i, &Unify.zonk(&1, state.mctx))
+        ftype_inst = ftype |> Subst.instantiate(frame) |> Unify.zonk(state.mctx)
+        arg = Map.fetch!(state.args, i)
+
+        fingerprint =
+          {state.value_revision, field_fingerprint(ftype_inst, state.mctx), surface_attempt_fingerprint(arg)}
+
+        if Map.get(state.attempted, i) == fingerprint do
+          CallAttemptProfile.increment(:constructor_field_retry_skipped)
+          resolve_ctor_field_queue(state)
         else
-          frame = params ++ frame_prefix(amap, seed, pc, i, mctx)
-          ftype_inst = ftype |> Subst.instantiate(frame) |> Unify.zonk(mctx)
-          arg = Map.fetch!(args, i)
+          state = %{state | attempted: Map.put(state.attempted, i, fingerprint)}
 
-          if has_meta?(ftype_inst) do
-            fingerprint = {field_fingerprint(ftype_inst, mctx), deferred}
+          case try_ctor_field(arg, ftype_inst, state.mctx, state.names, state.ctx, state.env) do
+            {:blocked, blockers} ->
+              state = register_field_blockers(state, i, blockers)
+              resolve_ctor_field_queue(state)
 
-            if Map.get(attempted, i) == fingerprint do
-              CallAttemptProfile.increment(:constructor_field_retries)
-              {[{i, ftype} | pend], amap, mctx, prog, nil, attempted}
-            else
-              attempted = Map.put(attempted, i, fingerprint)
+            {:error, reason} ->
+              {:error, reason}
 
-              case try_infer_field(arg, ftype_inst, mctx, names, ctx, env) do
-                {:ok, term, _typed_type, mctx2} ->
-                  {pend, Map.put(amap, i, term), mctx2, true, nil, attempted}
+            {:ok, term, mctx2} ->
+              state = resolve_ctor_field(state, i, term)
+              # A later field may depend on this position through its de-Bruijn
+              # frame without mentioning a metavariable at all. Its blocker set
+              # is therefore empty until this value is present; enqueue the
+              # suffix explicitly when a preceding field resolves.
+              state =
+                enqueue_constructor_fields(
+                  state,
+                  Enum.filter(Map.keys(state.pending), &(&1 > i))
+                )
 
-                {:blocked, _blockers, _attempt_state} ->
-                  CallAttemptProfile.increment(:constructor_field_retries)
-                  {[{i, ftype} | pend], amap, mctx, prog, nil, attempted}
+              state =
+                state
+                |> Map.put(:mctx, mctx2)
+                |> wake_constructor_fields(changed_meta_ids(state.mctx, mctx2))
 
-                {:error, reason} ->
-                  {pend, amap, mctx, prog, {:error, reason}, attempted}
+              case resolve_ctor_field_queue(state) do
+                {state, _progress} -> {state, true}
+                error -> error
               end
-            end
-          else
-            case elaborate_expr_checked(arg, ftype_inst, names, ctx, env) do
-              {:ok, term} -> {pend, Map.put(amap, i, term), mctx, true, nil, attempted}
-              {:error, _} = e -> {pend, amap, mctx, prog, e, attempted}
-            end
           end
+        end
+      end
+    end
+  end
+
+  defp try_ctor_field(arg, ftype_inst, mctx, names, ctx, env) do
+    if has_meta?(ftype_inst) do
+      case try_infer_field(arg, ftype_inst, mctx, names, ctx, env) do
+        {:ok, term, _typed_type, mctx2} ->
+          {:ok, term, mctx2}
+
+        {:blocked, blockers, _attempt_state} ->
+          CallAttemptProfile.increment(:constructor_field_retries)
+          {:blocked, blockers}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+    else
+      case elaborate_expr_checked(arg, ftype_inst, names, ctx, env) do
+        {:ok, term} -> {:ok, term, mctx}
+        {:error, _} = error -> error
+      end
+    end
+  end
+
+  defp resolve_ctor_field(state, i, term) do
+    state
+    |> Map.update!(:pending, &Map.delete(&1, i))
+    |> Map.update!(:acc_map, &Map.put(&1, i, term))
+    |> Map.update!(:prefix_view, &Prefix.put(&1, i, term))
+    |> Map.update!(:value_revision, &(&1 + 1))
+    |> remove_field_blockers(i)
+  end
+
+  defp register_field_blockers(state, i, blockers) do
+    state = remove_field_blockers(state, i)
+    blockers = Enum.uniq(blockers)
+
+    if blockers == [] do
+      %{state | fallback_fields: MapSet.put(state.fallback_fields, i)}
+    else
+      index =
+        Enum.reduce(blockers, state.blocker_index, fn id, index ->
+          Map.update(index, id, MapSet.new([i]), &MapSet.put(&1, i))
+        end)
+
+      %{state | blocker_index: index, field_blockers: Map.put(state.field_blockers, i, blockers)}
+    end
+  end
+
+  defp remove_field_blockers(state, i) do
+    blockers = Map.get(state.field_blockers, i, [])
+
+    index =
+      Enum.reduce(blockers, state.blocker_index, fn id, index ->
+        case Map.get(index, id) do
+          nil ->
+            index
+
+          fields ->
+            fields = MapSet.delete(fields, i)
+            if MapSet.size(fields) == 0, do: Map.delete(index, id), else: Map.put(index, id, fields)
         end
       end)
 
-    case swept do
-      {_pend, _amap, _mctx, _prog, {:error, _} = err, _attempted} ->
-        err
+    %{
+      state
+      | blocker_index: index,
+        field_blockers: Map.delete(state.field_blockers, i),
+        fallback_fields: MapSet.delete(state.fallback_fields, i)
+    }
+  end
 
-      {[], acc_map, mctx, _prog, nil, _attempted} ->
-        {:ok, acc_map, mctx}
+  defp wake_constructor_fields(state, ids) do
+    waiting =
+      Enum.flat_map(Enum.uniq(ids), fn id ->
+        state.blocker_index |> Map.get(id, MapSet.new()) |> MapSet.to_list()
+      end)
 
-      {pend, acc_map, mctx, true, nil, attempted} ->
-        resolve_ctor_fields(
-          Enum.reverse(pend),
-          acc_map,
-          args,
-          seed,
-          pc,
-          params,
-          mctx,
-          names,
-          ctx,
-          env,
-          cname,
-          deferred,
-          attempted
-        )
+    fallback = if ids == [], do: [], else: MapSet.to_list(state.fallback_fields)
+    waiting = Enum.uniq(waiting ++ fallback)
+    CallAttemptProfile.increment(:constructor_field_wakeups, length(waiting))
 
-      {_pend, _amap, _mctx, false, nil, _attempted} ->
-        # A full sweep resolved nothing — no field AND no deferred equation — but fields
-        # remain: their types stay under-determined.
-        {:error, {:unsolved_field_type, cname}}
+    state =
+      Enum.reduce(waiting, state, fn field, state ->
+        fallback? = MapSet.member?(state.fallback_fields, field)
+
+        state = remove_field_blockers(state, field)
+
+        if fallback? do
+          Map.update!(state, :fallback_attempts, &Map.update(&1, field, 1, fn attempts -> attempts + 1 end))
+        else
+          state
+        end
+      end)
+
+    enqueue_constructor_fields(state, waiting)
+  end
+
+  defp enqueue_all_pending(state), do: enqueue_constructor_fields(state, Map.keys(state.pending))
+
+  defp enqueue_constructor_fields(state, indices) do
+    queue =
+      (state.queue ++ Enum.filter(indices, &Map.has_key?(state.pending, &1)))
+      |> Enum.uniq()
+      |> Enum.sort()
+
+    %{state | queue: queue}
+  end
+
+  defp changed_meta_ids(old, new) do
+    old_revision = MetaCtx.revision(old)
+    new_revision = MetaCtx.revision(new)
+
+    if new_revision >= old_revision do
+      MetaCtx.changed_ids_since(new, old_revision)
+    else
+      ids = MapSet.union(MapSet.new(Map.keys(old.solutions)), MapSet.new(Map.keys(new.solutions)))
+      Enum.filter(MapSet.to_list(ids), fn id -> MetaCtx.solution(old, id) != MetaCtx.solution(new, id) end)
+    end
+  end
+
+  defp surface_attempt_fingerprint(arg),
+    do: :erlang.phash2(Cure.MetaAST.Metadata.semantic_key(arg))
+
+  defp constructor_field_diagnostic(state, field, extra \\ []) do
+    arg = Map.get(state.args, field)
+    field_type = Map.get(state.field_types, field)
+
+    instantiated =
+      if field_type do
+        frame = Frame.new(state.params, state.prefix_view, field, &Unify.zonk(&1, state.mctx))
+        field_type |> Subst.instantiate(frame) |> Unify.zonk(state.mctx)
+      end
+
+    blockers = Map.get(state.field_blockers, field, [])
+
+    %{
+      constructor: state.cname,
+      field: field,
+      field_span: surface_expression_span(arg),
+      surface_argument: arg,
+      field_type: field_type,
+      instantiated_field_type: instantiated,
+      blocker_ids: blockers,
+      blocker_assignments: Map.new(blockers, &{&1, MetaCtx.solution(state.mctx, &1)}),
+      revision: MetaCtx.revision(state.mctx),
+      attempt_count: Map.get(state.fallback_attempts, field, 0),
+      declaration: Map.get(state, :declaration),
+      macro_provenance: surface_expression_provenance(arg)
+    }
+    |> Map.merge(Map.new(extra))
+  end
+
+  defp surface_expression_provenance(arg) do
+    case Cure.MetaAST.Metadata.source_info(arg) do
+      %{provenance: provenance} when is_list(provenance) and provenance != [] -> provenance
+      _ -> nil
     end
   end
 
@@ -14727,22 +14933,20 @@ defmodule Cure.Elab.Elaborator do
   # (progress, which keeps the field fixpoint iterating).
   defp retry_deferred(deferred, mctx, env) do
     Enum.reduce(deferred, {mctx, [], false}, fn {lhs, rhs}, {m, still, prog} ->
-      case Unify.unify(Unify.zonk(lhs, m), Unify.zonk(rhs, m), m, env) do
+      # A deferred equation may be stuck only because its head is a recursive
+      # definition.  Use the elaborator's meta-aware WHNF: unlike the ordinary
+      # kernel normalizer it treats unsolved metas as opaque neutrals, while
+      # still reducing a closed prefix such as `add(S(Z), ?m)` to `S(?m)`.
+      # Calling the kernel normalizer here would be invalid because it cannot
+      # evaluate elaborator-only `{:meta, id}` terms.
+      left = Unify.whnf_meta_aware(lhs, m, env)
+      right = Unify.whnf_meta_aware(rhs, m, env)
+
+      case Unify.unify(left, right, m, env) do
         {:ok, m2} -> {m2, still, true}
         {:error, _} -> {m, [{lhs, rhs} | still], prog}
       end
     end)
-  end
-
-  # The de Bruijn frame prefix for the field at position `i`: positions `0..i-1`, each taken from
-  # the resolved assembly, else its seed placeholder (an unresolved sibling is a metavariable,
-  # which keeps this field deferred until that sibling is resolved).
-  defp frame_prefix(_amap, _seed, _pc, 0, _mctx), do: []
-
-  defp frame_prefix(amap, seed, pc, i, mctx) do
-    for j <- 0..(i - 1)//1 do
-      (Map.get(amap, j) || Enum.at(seed, pc + j)) |> Unify.zonk(mctx)
-    end
   end
 
   defp field_fingerprint(term, mctx) do
@@ -14761,12 +14965,61 @@ defmodule Cure.Elab.Elaborator do
   defp try_infer_field(arg, ftype_inst, mctx, names, ctx, env) do
     CallAttemptProfile.increment(:constructor_field_attempts)
 
-    if has_meta?(ftype_inst) and blocked_constructor_cached?(arg, env) do
-      CallAttemptProfile.increment(:constructor_field_blocked)
-      CallAttemptProfile.increment(:constructor_field_reused)
-      {:blocked, [], :cached_constructor}
-    else
-      try_infer_field_uncached(arg, ftype_inst, mctx, names, ctx, env)
+    # Do not consult the ordinary constructor-attempt cache here. Its key is
+    # `{constructor, surface_args}` and deliberately omits the expected field
+    # type. A nested constructor can therefore have been blocked once against
+    # an unresolved `Acc(?p, ?n)` and later become solvable against
+    # `Acc(PStar(PA(TA)), ?n)`; reusing the old result would discard precisely
+    # the refinement the retry queue just made. The queue's fingerprint already
+    # suppresses identical field attempts, so this path remains bounded without
+    # conflating distinct expected types.
+    cached_block =
+      has_meta?(ftype_inst) and
+        blocked_constructor_cached?(arg, env) and
+        not partially_refined_field?(ftype_inst)
+
+    initial =
+      if cached_block do
+        CallAttemptProfile.increment(:constructor_field_blocked)
+        CallAttemptProfile.increment(:constructor_field_reused)
+        {:blocked, [], :cached_constructor}
+      else
+        try_infer_field_uncached(arg, ftype_inst, mctx, names, ctx, env)
+      end
+
+    case initial do
+      {:blocked, _blockers, _attempt_state} = blocked ->
+        # Inference cannot determine a constructor's own implicit indices when
+        # the field goal has already solved some indices but still contains a
+        # parent metavariable (`AStar : Acc(PStar(PA(TA)), ?n)`). Propagate the
+        # constructor's result template through the partial goal first; this is
+        # the same meta-solving pass used for deferred application domains and
+        # does not fabricate a value when the families/indices do not match.
+        solved =
+          if nullary_constructor_call?(arg, env) and partially_refined_field?(ftype_inst),
+            do: solve_deferred_domain(arg, ftype_inst, mctx, names, ctx, env),
+            else: mctx
+
+        if solved != mctx do
+          resolved_type = Unify.zonk(ftype_inst, solved)
+
+          if has_meta?(resolved_type) do
+            {:blocked, field_blockers(resolved_type, :deferred_field), :deferred_field}
+          else
+            case elaborate_expr_checked(arg, resolved_type, names, ctx, env) do
+              {:ok, term} ->
+                {:ok, term, resolved_type, solved}
+
+              {:error, reason} ->
+                {:error, reason}
+            end
+          end
+        else
+          blocked
+        end
+
+      other ->
+        other
     end
   end
 
@@ -14790,6 +15043,24 @@ defmodule Cure.Elab.Elaborator do
         {:blocked, field_blockers(ftype_inst, :unknown_field_constraint), :unknown_field_constraint}
     end
   end
+
+  defp partially_refined_field?({:data, _family, params, indices} = type) do
+    has_meta?(type) and Enum.any?(params ++ indices, &(not match?({:meta, _}, &1)))
+  end
+
+  defp partially_refined_field?(_type), do: false
+
+  defp nullary_constructor_call?({:function_call, meta, args}, env) when is_list(meta) do
+    with name when is_binary(name) <- Keyword.get(meta, :name),
+         ctor = Inductive.get_ctor(env, resolve_ctor_key(env, String.to_atom(name))),
+         true <- not is_nil(ctor) do
+      Enum.count(Inductive.plicities_of(ctor), &(&1 == :explicit)) == 0 and args == []
+    else
+      _ -> false
+    end
+  end
+
+  defp nullary_constructor_call?(_arg, _env), do: false
 
   defp field_blockers(ftype_inst, reason) do
     (meta_ids(ftype_inst) ++ meta_ids(reason)) |> Enum.uniq() |> Enum.sort()
@@ -14836,7 +15107,6 @@ defmodule Cure.Elab.Elaborator do
 
     if is_binary(name) do
       key = resolve_ctor_key(env, String.to_atom(name))
-
       match?({:ok, true}, AttemptCache.get(:blocked, {key, args}))
     else
       false

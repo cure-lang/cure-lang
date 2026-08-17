@@ -22,10 +22,23 @@ defmodule Cure.Elab.Program do
   alias Cure.Compiler.ModulePipeline.Interface, as: PipelineInterface
   alias Cure.Compiler.Parser.FixityScan
   alias Cure.Core.{Env, Inductive, Validator}
-  alias Cure.Elab.{AttemptCache, CheckedModule, Coherence, Declarations, Erase, MacroExpand, TotalityClosure}
+
+  alias Cure.Elab.{
+    AttemptCache,
+    CheckedModule,
+    Coherence,
+    Declarations,
+    Erase,
+    MacroExpand,
+    PreparedDeclarations,
+    CallAttemptProfile,
+    TotalityClosure
+  }
+
   alias Cure.Stdlib.Paths
 
   @loader_state_key {__MODULE__, :module_loader_state}
+  @public_reexport_cache_key {__MODULE__, :public_reexport_modules}
   @module_interface_cache_version 3
   @macro_home_cache_version 3
 
@@ -63,6 +76,23 @@ defmodule Cure.Elab.Program do
   """
   @spec check_ast(tuple() | list()) :: {:ok, Env.t()} | {:error, term()}
   def check_ast(ast), do: AttemptCache.scope(fn -> check_ast(ast, []) end)
+
+  @doc false
+  @spec prepare_canonical_declarations(tuple() | list()) ::
+          {:ok, PreparedDeclarations.t()} | {:error, term()}
+  def prepare_canonical_declarations(ast) do
+    with :ok <- check_declarations(ast),
+         {:ok, lifted} <- Cure.Elab.Induction.lift_declarations(declarations(ast)) do
+      items = lifted |> expand_where_declarations() |> annotate_overload_ordinals()
+
+      {:ok,
+       %PreparedDeclarations{
+         owner: find_module_name(ast) || "Main",
+         items: items,
+         declaration_count: length(items)
+       }}
+    end
+  end
 
   @doc """
   Validate that every author-written `use Std.X` import names a stdlib module
@@ -129,12 +159,11 @@ defmodule Cure.Elab.Program do
     owner = Keyword.get(opts, :module_name, find_module_name(ast) || "Main")
     source_opts = source_context_opts(Keyword.get(opts, :source), Keyword.get(opts, :file))
 
-    with :ok <- check_declarations(ast),
+    with {:ok, prepared} <- prepared_declarations(ast, opts),
          seeded = Env.with_owner(seed_with_telescope_support(ast), owner),
          {:ok, merged} <- merge_env(seeded, without_incoming_owner(imported_env, owner)),
          env0 = install_canonical_module_visibility(merged, ast, opts),
-         {:ok, lifted} <- Cure.Elab.Induction.lift_declarations(declarations(ast)),
-         items = lifted |> expand_where_declarations() |> annotate_overload_ordinals(),
+         items = prepared.items,
          # Whether a module may register a `@builtin(:key)` family is a property of
          # the SOURCE, not of the pipeline compiling it: `Std.Sigma` is the
          # designated provider of `:sigma` however it is scheduled. Passing a flat
@@ -164,12 +193,11 @@ defmodule Cure.Elab.Program do
   def canonical_type_skeleton(ast, %Env{} = imported_env, opts \\ []) do
     owner = Keyword.get(opts, :module_name, find_module_name(ast) || "Main")
 
-    with :ok <- check_declarations(ast),
+    with {:ok, prepared} <- prepared_declarations(ast, opts),
          seeded = Env.with_owner(seed_with_telescope_support(ast), owner),
          {:ok, merged} <- merge_env(seeded, without_incoming_owner(imported_env, owner)),
          env0 = install_canonical_module_visibility(merged, ast, opts),
-         {:ok, lifted} <- Cure.Elab.Induction.lift_declarations(declarations(ast)),
-         items = lifted |> expand_where_declarations() |> annotate_overload_ordinals(),
+         items = prepared.items,
          {:ok, skeleton} <- declare_type_headers(items, env0) do
       {:ok, skeleton}
     end
@@ -212,6 +240,7 @@ defmodule Cure.Elab.Program do
         bare_modules: local.bare_modules,
         bare_bindings: local.bare_bindings,
         qualified_modules: local.qualified_modules,
+        qualified_aliases: local.qualified_aliases,
         current_def: nil
     }
 
@@ -227,7 +256,14 @@ defmodule Cure.Elab.Program do
   # This widens nothing: `lexical`/`ambient` are the same manifest projections,
   # and a module that imported nothing gains nothing.
   defp component_bare_bindings(%{ast: ast, module_visibility: %{lexical: lexical} = visibility}, %Env{} = env),
-    do: canonical_bare_bindings(env, ast, lexical, Map.get(visibility, :ambient, MapSet.new()))
+    do:
+      canonical_bare_bindings(
+        env,
+        ast,
+        lexical,
+        Map.get(visibility, :ambient, MapSet.new()),
+        Map.get(visibility, :reexports, MapSet.new())
+      )
 
   defp component_bare_bindings(_prepared, %Env{bare_bindings: bindings}), do: bindings
 
@@ -324,6 +360,14 @@ defmodule Cure.Elab.Program do
          :ok <- check_no_precedence_cycle(ast),
          :ok <- check_proof_shapes(ast) do
       check_no_sibling_collision(ast)
+    end
+  end
+
+  defp prepared_declarations(ast, opts) do
+    case Keyword.get(opts, :prepared_declarations) do
+      %PreparedDeclarations{} = prepared -> {:ok, prepared}
+      nil -> prepare_canonical_declarations(ast)
+      other -> {:error, {:invalid_prepared_declarations, other}}
     end
   end
 
@@ -2600,6 +2644,14 @@ defmodule Cure.Elab.Program do
          {:ok, dependencies} <- interface_dependency_environment(interface),
          {:ok, merged} <- merge_env(dependencies, owned) do
       owned_bindings = MapSet.new(all_global_keys(owned))
+      reexported_bindings = public_reexport_bindings(interface.source_path, merged)
+
+      qualified_aliases =
+        merge_qualified_reexport_aliases(
+          merged,
+          %{interface.module_name => public_reexport_modules(interface.source_path)}
+        )
+
       owner_visibility = MapSet.new([interface.module_name])
 
       {:ok,
@@ -2608,8 +2660,9 @@ defmodule Cure.Elab.Program do
          | module_owner: interface.module_name,
            import_modules: MapSet.new(),
            bare_modules: owner_visibility,
-           bare_bindings: owned_bindings,
+           bare_bindings: MapSet.union(owned_bindings, reexported_bindings),
            qualified_modules: owner_visibility,
+           qualified_aliases: qualified_aliases,
            current_def: nil
        }}
     end
@@ -2738,6 +2791,7 @@ defmodule Cure.Elab.Program do
         bare_modules: MapSet.new(),
         bare_bindings: MapSet.new(),
         qualified_modules: MapSet.new(),
+        qualified_aliases: %{},
         module_owner: nil,
         current_def: nil
     }
@@ -3690,6 +3744,85 @@ defmodule Cure.Elab.Program do
     end
   end
 
+  # `public use` is part of a module's exported lexical surface, not merely a
+  # canonical-pipeline skeleton detail. Classic `Program.elaborate/2` still
+  # loads interfaces through this source loader, so construct the same
+  # re-export closure at the single interface-environment publication site.
+  # The semantic dependency environment already contains every transitive
+  # declaration; this helper only selects the canonical keys that may be named
+  # bare through the façade. No duplicate declaration or wrapper is created.
+  defp public_reexport_bindings(path, %Env{} = env) do
+    owners = public_reexport_modules(path)
+
+    env
+    |> all_global_keys()
+    |> Enum.filter(&(Cure.Elab.Name.owner(&1) in owners))
+    |> MapSet.new()
+  end
+
+  defp public_reexport_modules(path) do
+    fingerprint =
+      case File.stat(path) do
+        {:ok, stat} -> {stat.mtime, stat.size}
+        _ -> :missing
+      end
+
+    cache = Process.get(@public_reexport_cache_key, %{})
+
+    case Map.get(cache, path) do
+      {^fingerprint, owners} ->
+        owners
+
+      _ ->
+        owners =
+          path
+          |> public_reexport_modules_with_state(MapSet.new(), MapSet.new())
+          |> elem(1)
+
+        Process.put(@public_reexport_cache_key, Map.put(cache, path, {fingerprint, owners}))
+        owners
+    end
+  end
+
+  defp public_reexport_modules_with_state(path, seen, owners) do
+    case File.read(path) do
+      {:ok, source} ->
+        with {:ok, tokens} <- Lexer.tokenize(source, emit_events: false),
+             {:ok, ast} <- Parser.parse(tokens, emit_events: false) do
+          public_sources =
+            ast
+            |> import_entries()
+            |> Enum.flat_map(fn {sources, meta} ->
+              if Keyword.get(meta, :public, false), do: sources, else: []
+            end)
+
+          public_sources
+          |> Enum.uniq()
+          |> Enum.reduce({seen, owners}, fn module_name, {seen, owners} ->
+            if MapSet.member?(seen, module_name) do
+              {seen, owners}
+            else
+              case import_source_path(module_name) do
+                {kind, ^module_name, dependency_path} when kind in [:ok, :ok_user] ->
+                  {seen, owners} =
+                    {MapSet.put(seen, module_name), MapSet.put(owners, module_name)}
+
+                  public_reexport_modules_with_state(dependency_path, seen, owners)
+
+                _ ->
+                  {MapSet.put(seen, module_name), owners}
+              end
+            end
+          end)
+        else
+          _ -> {seen, owners}
+        end
+
+      _ ->
+        {seen, owners}
+    end
+  end
+
   defp dependency_module_names(sources) do
     Enum.flat_map(sources, fn source ->
       case import_source_path(source) do
@@ -3826,6 +3959,7 @@ defmodule Cure.Elab.Program do
     env
     |> Map.put(:import_modules, explicit)
     |> Env.with_module_visibility(bare, qualified)
+    |> merge_qualified_reexport_aliases(public_reexport_alias_roots(explicit))
     |> Map.put(:bare_bindings, visible_bare_bindings(env, ast, explicit))
   end
 
@@ -3841,13 +3975,18 @@ defmodule Cure.Elab.Program do
       {:ok, %{lexical: lexical, qualified: qualified} = visibility}
       when is_struct(lexical, MapSet) and is_struct(qualified, MapSet) ->
         ambient = Map.get(visibility, :ambient, MapSet.new())
+        reexports = Map.get(visibility, :reexports, MapSet.new())
 
         bare = lexical
 
         env
         |> Map.put(:import_modules, lexical)
         |> Env.with_module_visibility(bare, qualified)
-        |> Map.put(:bare_bindings, canonical_bare_bindings(env, ast, lexical, ambient))
+        |> merge_qualified_reexport_aliases(Map.get(visibility, :reexport_roots, %{}))
+        |> Map.put(
+          :bare_bindings,
+          canonical_bare_bindings(env, ast, lexical, ambient, reexports)
+        )
 
       {:ok, visibility} ->
         raise ArgumentError,
@@ -3855,10 +3994,10 @@ defmodule Cure.Elab.Program do
     end
   end
 
-  defp canonical_bare_bindings(env, ast, lexical, ambient) do
-    bindings = visible_bare_bindings(env, ast, lexical)
+  defp canonical_bare_bindings(env, ast, lexical, ambient, reexports) do
+    bindings = visible_bare_bindings(env, ast, MapSet.union(lexical, reexports), false)
     owner = find_module_name(ast)
-    explicit = canonical_explicit_modules(ast, lexical, ambient)
+    explicit = canonical_explicit_modules(ast, MapSet.union(lexical, reexports), ambient)
     preferred = preferred_bases_by_namespace(env, owner, explicit)
 
     MapSet.reject(bindings, fn key ->
@@ -3941,8 +4080,77 @@ defmodule Cure.Elab.Program do
       end)
   end
 
-  defp visible_bare_bindings(%Env{} = env, ast, explicit_modules) do
+  defp public_reexport_modules_for(explicit_modules) do
+    Enum.reduce(explicit_modules, MapSet.new(), fn module_name, acc ->
+      case import_source_path(module_name) do
+        {kind, ^module_name, path} when kind in [:ok, :ok_user] ->
+          MapSet.union(acc, public_reexport_modules(path))
+
+        _ ->
+          acc
+      end
+    end)
+  end
+
+  # Qualified compatibility spellings are rooted at the module the author
+  # imported, not at the importing module.  For `use Std.Regex`, a generated
+  # `Std.Regex.configured` must therefore be mapped to the single canonical
+  # `Std.Regex.Runtime#configured` key.  Keeping this root-to-closure map
+  # explicit also prevents a transitive `use` from accidentally publishing its
+  # names under the consumer's module name.
+  defp public_reexport_alias_roots(explicit_modules) do
+    Map.new(explicit_modules, fn module_name ->
+      modules =
+        case import_source_path(module_name) do
+          {kind, ^module_name, path} when kind in [:ok, :ok_user] ->
+            public_reexport_modules(path)
+
+          _ ->
+            MapSet.new()
+        end
+
+      {module_name, modules}
+    end)
+  end
+
+  # Preserve old qualified façade spellings without copying declarations into
+  # the façade's environment. Each alias points at the single canonical key
+  # owned by the public reexport; ambiguous values are deliberately omitted so
+  # the normal qualified resolver can report the conflict instead of guessing.
+  defp merge_qualified_reexport_aliases(%Env{} = env, roots) when is_map(roots) do
+    aliases = qualified_reexport_aliases(env, roots)
+    Env.with_qualified_aliases(env, Map.merge(env.qualified_aliases, aliases))
+  end
+
+  defp qualified_reexport_aliases(%Env{} = env, roots) when is_map(roots) do
+    namespaces = [
+      {:type, Map.keys(env.families)},
+      {:value, Map.keys(env.defs) ++ Map.keys(env.ctors)}
+    ]
+
+    for {root, reexport_modules} <- roots,
+        {namespace, keys} <- namespaces,
+        {base, owners} <-
+          keys
+          |> Enum.filter(fn key -> Cure.Elab.Name.owner(key) in reexport_modules end)
+          |> Enum.group_by(&(Cure.Elab.Name.base(&1) |> String.to_atom()), & &1)
+          |> Enum.map(fn {base, candidates} -> {base, Enum.uniq(candidates)} end),
+        [key] <- [owners],
+        into: %{} do
+      {{root, base, namespace}, key}
+    end
+  end
+
+  defp visible_bare_bindings(%Env{} = env, ast, explicit_modules, include_reexports? \\ true) do
     owner = find_module_name(ast)
+
+    # A direct `use` imports the façade's public surface as well as its own
+    # declarations. Keep this expansion at the shared visibility construction
+    # site so classic and canonical loaders agree; ordinary (non-public)
+    # transitive imports remain qualified-only.
+    reexported_modules = if include_reexports?, do: public_reexport_modules_for(explicit_modules), else: MapSet.new()
+
+    explicit_modules = MapSet.union(explicit_modules, reexported_modules)
 
     local_and_explicit =
       all_global_keys(env)
@@ -4149,7 +4357,7 @@ defmodule Cure.Elab.Program do
   # omission into a compile error rather than a runtime mystery.
   @merged_env_keys ~w(families ctors ctor_to_family defs direct_call_summaries totality_components totality_component_of certified totality_certified builtins
                       primitives interfaces interface_methods coherence constrained import_modules bare_modules bare_bindings
-                      qualified_modules lemmas equations module_owner current_def)a
+                      qualified_modules qualified_aliases lemmas equations module_owner current_def)a
 
   @env_keys Map.keys(Map.from_struct(%Env{}))
   missing = @env_keys -- @merged_env_keys
@@ -4194,6 +4402,7 @@ defmodule Cure.Elab.Program do
           bare_modules: merge_module_visibility(left.bare_modules, right.bare_modules),
           bare_bindings: merge_module_visibility(left.bare_bindings, right.bare_bindings),
           qualified_modules: merge_module_visibility(left.qualified_modules, right.qualified_modules),
+          qualified_aliases: Map.merge(left.qualified_aliases, right.qualified_aliases),
           lemmas: Map.merge(left.lemmas, right.lemmas, fn _head, ls, rs -> Enum.uniq(ls ++ rs) end),
           equations: Map.merge(left.equations, right.equations, fn _owner, ls, rs -> Enum.uniq(ls ++ rs) end),
           module_owner: left.module_owner || right.module_owner,
@@ -5684,6 +5893,7 @@ defmodule Cure.Elab.Program do
     Enum.reduce_while(body_pass_order(fn_decls), {:ok, env}, fn decl, {:ok, acc} ->
       started = System.monotonic_time(:microsecond)
       metadata = body_timing_metadata(owner, decl)
+      call_metrics_before = CallAttemptProfile.metrics()
 
       stage_sink = fn stage, elapsed ->
         emit_body_timing(event_sink, Map.put(metadata, :stage, stage), elapsed)
@@ -5691,7 +5901,12 @@ defmodule Cure.Elab.Program do
 
       result = Declarations.elaborate_function_body(decl, acc, event_sink: stage_sink)
       elapsed = System.monotonic_time(:microsecond) - started
-      emit_body_timing(event_sink, metadata, elapsed)
+
+      emit_body_timing(
+        event_sink,
+        Map.put(metadata, :call_metrics, CallAttemptProfile.delta(call_metrics_before)),
+        elapsed
+      )
 
       case result do
         {:ok, checked} -> {:cont, {:ok, checked}}
@@ -5774,10 +5989,23 @@ defmodule Cure.Elab.Program do
 
   defp body_timing_metadata(owner, {:function_def, meta, _body}) when is_list(meta) do
     source_info = Cure.MetaAST.Metadata.source_info(meta)
+    name = Keyword.get(meta, :name)
+    params = Keyword.get(meta, :params, [])
+    declaration_key = "#{owner}##{name}"
+
+    fingerprint =
+      {:function_def, Cure.MetaAST.Metadata.semantic_key(meta), Cure.MetaAST.Metadata.semantic_key(params)}
+      |> :erlang.term_to_binary([:deterministic])
+      |> then(&:crypto.hash(:sha256, &1))
+      |> Base.encode16(case: :lower)
 
     %{
       module: owner,
-      declaration: Keyword.get(meta, :name),
+      declaration: name,
+      canonical_owner: owner,
+      canonical_declaration: declaration_key,
+      arity: length(params),
+      fingerprint: fingerprint,
       span: if(source_info, do: source_info.whole)
     }
   end
@@ -5880,7 +6108,7 @@ defmodule Cure.Elab.Program do
 
   defp load_indexed_qualified_module(env, module_name) do
     with {:ok, source_path} <- canonical_module_path(module_name),
-         false <- module_loaded_in_env?(env, module_name),
+         false <- qualified_module_recorded?(env, module_name),
          {:ok, interface_env} <- load_module_interface(module_name, source_path),
          {:ok, merged} <- merge_env(env, qualified_surface(interface_env)) do
       qualified =
@@ -5901,6 +6129,11 @@ defmodule Cure.Elab.Program do
       _ -> :error
     end
   end
+
+  defp qualified_module_recorded?(%Env{qualified_modules: %MapSet{} = modules}, module_name),
+    do: MapSet.member?(modules, module_name)
+
+  defp qualified_module_recorded?(%Env{}, _module_name), do: false
 
   defp canonical_module_path(module_name) do
     case Process.get(:cure_module_index) do
@@ -5923,9 +6156,5 @@ defmodule Cure.Elab.Program do
         bare_modules: MapSet.new(),
         bare_bindings: MapSet.new()
     }
-  end
-
-  defp module_loaded_in_env?(env, owner) do
-    Enum.any?(all_global_keys(env), &(Cure.Elab.Name.owner(&1) == owner))
   end
 end

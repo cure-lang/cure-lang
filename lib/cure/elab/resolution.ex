@@ -19,36 +19,47 @@ defmodule Cure.Elab.Resolution do
   """
   @spec resolve_qualified(Env.t(), String.t(), :type | :value) :: {:ok, atom()} | :error
   def resolve_qualified(%Env{} = env, dotted, :value) do
-    env
-    |> spellings(dotted)
-    |> Enum.map(fn spelling ->
-      segs = String.split(spelling, ".")
-      {mod_segs, [last]} = Enum.split(segs, length(segs) - 1)
-      {Cure.Elab.Name.qualify(Enum.join(mod_segs, "."), String.to_atom(last)),
-       Enum.join(mod_segs, ".")}
-    end)
-    |> available_keys(env)
-    |> try_keys(env, :value)
+    case Env.qualified_alias(env, dotted, :value) do
+      {:ok, key} ->
+        {:ok, key}
+
+      :error ->
+        env
+        |> spellings(dotted)
+        |> Enum.map(fn spelling ->
+          segs = String.split(spelling, ".")
+          {mod_segs, [last]} = Enum.split(segs, length(segs) - 1)
+          {Cure.Elab.Name.qualify(Enum.join(mod_segs, "."), String.to_atom(last)), Enum.join(mod_segs, ".")}
+        end)
+        |> available_keys(env)
+        |> try_keys(env, :value)
+    end
   end
 
   def resolve_qualified(%Env{} = env, dotted, :type) do
-    env
-    |> spellings(dotted)
-    |> Enum.flat_map(fn spelling ->
-      segs = String.split(spelling, ".")
-      last = List.last(segs)
-      {mod_segs, [explicit_last]} = Enum.split(segs, length(segs) - 1)
-      mod = Enum.join(mod_segs, ".")
+    case Env.qualified_alias(env, dotted, :type) do
+      {:ok, key} ->
+        {:ok, key}
 
-      [
-        # Module==typename collapse: `Std.Nat` means `Std.Nat#Nat`.
-        {Cure.Elab.Name.qualify(spelling, String.to_atom(last)), spelling},
-        # Explicit `Mod.Type` spelling.
-        {Cure.Elab.Name.qualify(mod, String.to_atom(explicit_last)), mod}
-      ]
-    end)
-    |> available_keys(env)
-    |> try_keys(env, :type)
+      :error ->
+        env
+        |> spellings(dotted)
+        |> Enum.flat_map(fn spelling ->
+          segs = String.split(spelling, ".")
+          last = List.last(segs)
+          {mod_segs, [explicit_last]} = Enum.split(segs, length(segs) - 1)
+          mod = Enum.join(mod_segs, ".")
+
+          [
+            # Module==typename collapse: `Std.Nat` means `Std.Nat#Nat`.
+            {Cure.Elab.Name.qualify(spelling, String.to_atom(last)), spelling},
+            # Explicit `Mod.Type` spelling.
+            {Cure.Elab.Name.qualify(mod, String.to_atom(explicit_last)), mod}
+          ]
+        end)
+        |> available_keys(env)
+        |> try_keys(env, :type)
+    end
   end
 
   # The spellings a dotted path may denote, most specific first. The absolute

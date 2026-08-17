@@ -26,7 +26,7 @@ defmodule Cure.Stdlib.RegexSourceTest do
   end
 
   test "thread deduplication uses intrinsic state slots rather than winner-list rescans" do
-    source = File.read!("lib/std/regex.cure")
+    source = File.read!("lib/std/regex_runtime.cure")
 
     assert source =~ "type ActiveWinnerSlots"
     assert source =~ "fn active_winner_seen"

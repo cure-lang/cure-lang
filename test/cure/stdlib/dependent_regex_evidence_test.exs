@@ -123,7 +123,7 @@ defmodule Cure.Stdlib.DependentRegexEvidenceTest do
 
     [pattern_full_body] =
       Regex.run(
-        ~r/fn parse_pattern_full\([^\n]+\).*? =(?<body>.*?)(?=\n\n  ## Public typed combinator layer)/s,
+        ~r/fn parse_pattern_full\([^\n]+\).*? =(?<body>.*?)(?=\n\n  fn parse_program_full)/s,
         source,
         capture: :all_but_first
       )

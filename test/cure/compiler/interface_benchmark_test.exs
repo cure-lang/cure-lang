@@ -33,6 +33,7 @@ defmodule Cure.Compiler.InterfaceBenchmarkTest do
     assert report.source_count == 1
     assert report.cold.total_us >= 0
     assert report.cold.call_attempts == []
+    assert report.cold.call_metrics == %{}
     assert report.cold.rebuilt_modules == [expected_module]
     assert report.cold.phases.module_check >= 0
     assert Enum.any?(report.cold.totality_metrics, &(&1.operation == :direct_summary and &1.cache == :miss))
@@ -51,6 +52,8 @@ defmodule Cure.Compiler.InterfaceBenchmarkTest do
              report.cold.declarations
 
     assert declaration_elapsed >= 0
+    assert [%{call_metrics: declaration_call_metrics}] = report.cold.declarations
+    assert is_map(declaration_call_metrics)
 
     assert Enum.map(report.cold.declaration_stages, & &1.stage) == [
              :macro_expansion,
@@ -77,7 +80,21 @@ defmodule Cure.Compiler.InterfaceBenchmarkTest do
 
     assert Enum.all?(report.warm, fn sample ->
              sample.total_us >= 0 and sample.call_attempts == [] and sample.rebuilt_modules == [] and
+               sample.call_metrics == %{} and
                sample.phases.module_check >= 0 and sample.totality_metrics == []
            end)
+
+    assert {:ok, profiled} = InterfaceBenchmark.run([path], warm_iterations: 1, profile_call_attempts: true)
+    assert is_map(profiled.cold.call_metrics)
+
+    assert {:ok, repeated} = InterfaceBenchmark.run_repeated([path], samples: 2)
+    assert repeated.samples == 2
+    assert repeated.cold_summary.samples == 2
+    assert repeated.warm_summary.samples == 2
+    assert Enum.map(repeated.reports, & &1.cold.sample_kind) == [:cold, :cold]
+    assert Enum.all?(repeated.warm_samples, &(&1.sample_kind == :warm))
+
+    assert %{samples: 2, median_us: median} = repeated.regex_component_summary
+    assert is_integer(median)
   end
 end
