@@ -173,6 +173,18 @@
   differential, and bounded-quantifier suites pass; J4 (removing the remaining
   compile-time Thompson traversal) and the final J/K verification matrix remain
   open.
+- 2026-08-18 — Phase J4 is implemented at the canonical Runtime construction
+  site. `staged_machine_seed_from_compilation` let-binds each child machine
+  before consuming its starts and transition closure, and
+  `direct_staged_rows_values_from_compilation` compiles rows from that one
+  machine without calling `thompson_machine`. The proof layer transports the
+  direct rows and starts to the canonical machine through checked equivalence
+  theorems; the old `reference_thompson_machine` remains test-only. The source,
+  transition-row, language-correctness, and full canonical-pipeline gates pass.
+  One serialized 79-source profile measured 102.519 s cold and 8.148 s warm;
+  `Std.Regex.Proof` remained the dominant cold component at 62.392 s. Phase J5
+  differential reference coverage is retained, so Phase K is now the earliest
+  incomplete phase.
 
 **Supersedes for unfinished work:**
 `2026-07-21-dependently-typed-regex-design.md`
@@ -182,8 +194,8 @@ Idris*, MSc thesis, University of Edinburgh, 2021
 (`docs/research/idris-tyre-2305.04480.pdf`; owner copy:
 `/Users/ch/Downloads/msc_proj.pdf`).
 
-**Implementation baseline:** committed through `775b521d` ("stage regex
-transition rows with checked semantic transport"). The ordered ledger is
+**Implementation baseline:** committed through `50340c0d` ("optimize staged
+regex machine construction"). The ordered ledger is
 authoritative for later work; no uncommitted work is credited as complete.
 
 ## 1. Purpose
@@ -821,11 +833,15 @@ Gate: fixed and generated API laws pass; all APIs call the same verified VM.
    characters use reverse-list builders. Eliminate the remaining instruction-
    program appends as part of item 4 instead of adding a second runtime evidence
    representation.
-4. **Open.** Remove the remaining repeated Thompson traversal and closure
-   reconstruction from row construction; measure cold and warm builds after the
-   change.
-5. Preserve and exercise an unstaged reference path in tests only for
-   differential checking.
+4. **Discharged.** `staged_machine_seed_from_compilation` visits each
+   constructor child once, and the active row compiler consumes that direct
+   machine without reconstructing `thompson_machine` closures. The proof
+   transport covers starts and pointwise transitions for every Thompson
+   constructor. The 79-source cold/warm profile is recorded in
+   `docs/COMPILER_PERFORMANCE_BASELINES.md`.
+5. **Discharged.** `reference_thompson_machine` remains an unstaged reference
+   used by the transition-row and exhaustive staged-vs-unstaged tests only;
+   generated runtime artifacts do not reference it.
 
 Gate: generated literal BEAM contains neither parser nor Thompson builder calls;
 proofs remain erased; semantics are unchanged.

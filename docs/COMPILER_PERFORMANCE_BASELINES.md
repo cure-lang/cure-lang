@@ -238,6 +238,30 @@ is operation-local and does not change interface or totality counters. A future
 comparison needs three independent cold samples and should retain the same
 source universe and doc-fence setting.
 
+### 2026-08-18 direct staged-machine construction profile
+
+Environment: Apple M1 Pro, macOS arm64, Erlang/OTP 29, Elixir 1.20.1. This is
+one serialized sample over all 79 `lib/std` sources with
+`CURE_SKIP_DOC_FENCES=1`, after commit `50340c0d`. It is a diagnostic profile,
+not a new multi-sample CI threshold.
+
+| Measurement | Observed |
+|---|---:|
+| all 79 sources, cold total | 102.519 s |
+| cold `Std.Regex.Proof` component | 62.392 s |
+| cold `Std.Regex.Language` component | 6.974 s |
+| cold `Std.Regex.Runtime` component | 1.378 s |
+| cold `Std.Regex` component | 0.664 s |
+| warm total | 8.148 s |
+| warm module checking | 2.079 s |
+
+The active staged machine now let-binds each direct Thompson child once and
+compiles transition rows from that machine; the proof layer checks its starts
+and transitions against the reference constructor. Proof elaboration remains
+the dominant cold cost. The sample is below the earlier 149–177 s cold range,
+but one host-loaded run is insufficient to claim a stable percentage speedup;
+repeat the three-sample protocol before tightening the baseline band.
+
 ## Stabilization warning policy
 
 The stabilization gate means **no unexpected compiler warnings**, rather than
