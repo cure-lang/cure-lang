@@ -644,6 +644,31 @@ defmodule Cure.DiagnosticTest do
     assert terminal =~ IO.ANSI.red() <> "Z"
   end
 
+  test "dependent mismatches explain branch refinement and required transport", %{registry: registry} do
+    diagnostic =
+      Adapter.from_error(%Cure.Diagnostic.TypeProblem{
+        kind: :index_mismatch,
+        actual: "AcceptingNextAccepted(...)",
+        expected: "path",
+        origin: %Cure.Diagnostic.ExpectationOrigin{kind: :call_result, owner: "acceptance_final_captures"},
+        debug: %{
+          dependent_mismatch: %{
+            scrutinee: "path",
+            actual_subterm: "AcceptingNextAccepted(...)",
+            expected_subterm: "path",
+            cause: :missing_equality_transport
+          }
+        }
+      })
+
+    rendered = Renderer.plain(diagnostic, registry)
+
+    assert rendered =~ "Dependent mismatch"
+    assert rendered =~ "scrutinee `path`"
+    assert rendered =~ "AcceptingNextAccepted(...)"
+    assert rendered =~ "explicit equality transport"
+  end
+
   test "unrelated type roots remain uncoloured", %{registry: registry, span: span} do
     actual = {:data, :"Std.Bool#Bool", [], []}
     expected = {:data, :"Std.Int#Int", [], []}

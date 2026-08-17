@@ -148,14 +148,22 @@ defmodule Cure.Diagnostic.Adapter.Type do
         origin: Map.from_struct(problem.origin),
         expression_category: problem.expression
       }
+      |> maybe_put_dependent_mismatch(problem.debug)
       |> maybe_put_debug(problem.expected, problem.actual, problem.debug, opts)
+
+    body =
+      [
+        Doc.paragraph(context(problem.origin)),
+        comparison_doc(problem.expected, problem.actual)
+      ]
+      |> append_dependent_mismatch(problem.debug)
 
     Diagnostic.new(
       code: "E093",
       key: problem.kind,
       severity: :error,
       title: title(problem.origin),
-      body: Doc.stack([Doc.paragraph(context(problem.origin)), comparison_doc(problem.expected, problem.actual)]),
+      body: Doc.stack(body),
       primary: primary,
       secondary: expectation_labels(problem.origin, primary_span, problem.related),
       notes: Keyword.get(opts, :notes, []),
@@ -3813,6 +3821,46 @@ defmodule Cure.Diagnostic.Adapter.Type do
 
   defp plain_type_doc(type) when is_binary(type), do: Doc.text(type)
   defp plain_type_doc(type), do: Doc.text(print_core(type))
+
+  defp append_dependent_mismatch(blocks, %{dependent_mismatch: mismatch}) when is_map(mismatch) do
+    blocks ++ [dependent_mismatch_doc(mismatch)]
+  end
+
+  defp append_dependent_mismatch(blocks, _debug), do: blocks
+
+  defp maybe_put_dependent_mismatch(payload, %{dependent_mismatch: mismatch}) when is_map(mismatch) do
+    Map.put(payload, :dependent_mismatch, mismatch)
+  end
+
+  defp maybe_put_dependent_mismatch(payload, _debug), do: payload
+
+  defp dependent_mismatch_doc(mismatch) do
+    scrutinee = surface_type(Map.get(mismatch, :scrutinee, "the branch scrutinee"))
+    actual = surface_type(Map.get(mismatch, :actual_subterm, "the actual indexed term"))
+    expected = surface_type(Map.get(mismatch, :expected_subterm, "the expected indexed term"))
+
+    detail =
+      case Map.get(mismatch, :cause) do
+        :missing_equality_transport ->
+          "The branch refinement changes this indexed term, but no explicit equality transport connects the two forms."
+
+        :unsolved_metavariable ->
+          "The branch refinement is still blocked by an unsolved metavariable; infer or annotate the missing index."
+
+        :failed_branch_refinement ->
+          "The constructor branch does not refine the index enough to establish the required result type."
+
+        cause when is_binary(cause) ->
+          cause
+
+        _ ->
+          "The branch refinement does not establish the required indexed result."
+      end
+
+    Doc.paragraph(
+      "Dependent mismatch: scrutinee `#{scrutinee}` refines `#{actual}`, but the surrounding branch requires `#{expected}`. #{detail}"
+    )
+  end
 
   defp surface_type({:diagnostic_alias, name, original}), do: "#{name} (#{print_core(original)})"
   defp surface_type(type) when is_binary(type), do: type
