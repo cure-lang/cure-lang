@@ -30,6 +30,14 @@ mod Std.Regex.Runtime
   fn transition_rows_next({n: Nat}, rows: TransitionRows(n), state: Bounded(n), char: Char) -> List(MachineState(n)) = match rows
     TransitionRows(values) -> transition_rows_from_next(values, state, char)
 
+  ## A table-backed machine exposes the same indexed machine interface as the
+  ## reference closure machine.  The only runtime closure is this single row
+  ## lookup adapter; transition construction itself is performed once when
+  ## the table is built, not by recursively rebuilding Thompson combinators
+  ## for each input character.
+  fn transition_rows_machine({n: Nat}, starts: List(MachineState(n)), rows: TransitionRows(n)) -> PatternMachine(n) =
+    MkPatternMachine(starts, fn(state) -> fn(char) -> transition_rows_next(rows, state, char))
+
   @reducible
   fn machine_state_routine(n: Nat, state: MachineState(n)) -> List(EvidenceInstruction) = match state
     Active(_, routine, _) -> routine
@@ -314,6 +322,19 @@ mod Std.Regex.Runtime
     MkPatternMachine(starts, next) -> reflexive(MkPatternMachine(starts, next))
 
   @reducible
+  ## Reference constructor retained for differential tests.
+  fn reference_thompson_machine({@erased shape: ShapeCode}, compilation: ThompsonCompilation(shape)) -> PatternMachine(thompson_state_count(compilation)) = match compilation
+    ThompsonPredicate(test) -> predicate_pattern_machine(test)
+    ThompsonEmpty() -> empty_pattern_machine()
+    ThompsonBoundary(constraint) -> boundary_pattern_machine(constraint)
+    ThompsonConcat(left, right) -> concat_pattern_machine(thompson_state_count(left), reference_thompson_machine(left), thompson_state_count(right), reference_thompson_machine(right))
+    ThompsonGroup(inner) -> group_pattern_machine(thompson_state_count(inner), pattern_machine_starts(reference_thompson_machine(inner)), pattern_machine_next(reference_thompson_machine(inner)))
+    ThompsonAlternate(left, right, prefer_right) -> alternate_pattern_machine(thompson_state_count(left), reference_thompson_machine(left), thompson_state_count(right), reference_thompson_machine(right), prefer_right)
+    ThompsonRepeat(inner, lazy) -> repeat_pattern_machine(thompson_state_count(inner), reference_thompson_machine(inner), lazy)
+
+  ## Canonical constructor.  The reference copy above is deliberately kept
+  ## separate so transition-row implementations can be compared without
+  ## changing the proof theorem's original definitional equations.
   fn thompson_machine({@erased shape: ShapeCode}, compilation: ThompsonCompilation(shape)) -> PatternMachine(thompson_state_count(compilation)) = match compilation
     ThompsonPredicate(test) -> predicate_pattern_machine(test)
     ThompsonEmpty() -> empty_pattern_machine()
