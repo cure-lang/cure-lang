@@ -58,6 +58,19 @@ defmodule Cure.Stdlib.RegexSourceTest do
     assert flags_meta[:subtype] == :string
   end
 
+  test "literal expansion carries checked Thompson IR into the verified parser" do
+    runtime = File.read!("lib/std/regex_runtime.cure")
+    proof = File.read!("lib/std/regex_proof.cure")
+    emitter = File.read!("lib/std/regex_syntax_emitter.cure")
+
+    assert runtime =~ "StagedRegex"
+    assert runtime =~ "StagedCompilationHint"
+    assert proof =~ "proof_for_compilation"
+    assert proof =~ "StagedCompilationHint(compilation)"
+    assert emitter =~ "emit_staged_compilation"
+    assert emitter =~ "emit_staged_conversion"
+  end
+
   @tag timeout: 600_000
   test "a slash literal expands and elaborates without importing Std.Regex" do
     source = """

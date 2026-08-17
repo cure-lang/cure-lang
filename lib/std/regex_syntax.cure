@@ -128,7 +128,7 @@ mod Std.Regex.Syntax
               expand(
                 call("Std.Regex.Runtime.configured", [
                   emit_options(options),
-                  call("Std.Regex.Runtime.simplified", [emit_shape(literal_shape(parsed)), emit_literal_with_options(parsed, options)])
+                  call("Std.Regex.Runtime.simplified", [emit_shape(literal_shape(parsed)), emit_staged_literal_with_options(parsed, options)])
                 ])
               )
             _ -> reject(Failure(:UnexpectedRegexSuffix, []))

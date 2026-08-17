@@ -17,7 +17,7 @@ mod Std.Regex
     Std.Regex.Proof.parse_pattern_full_verified(pattern, input)
 
   fn parse_program_full({result: Type}, program: RegexProgram(result), input: String) -> Option(result) = match program
-    BuiltRegex(_shape, _pattern, _conversion) -> Std.Regex.Proof.parse_program_full_verified(program, input)
+    BuiltRegex(_shape, _pattern, _conversion, _hint) -> Std.Regex.Proof.parse_program_full_verified(program, input)
 
   fn parse_full({result: Type}, regex: Regex(result), input: String) -> Option(result) = match compile_regex(regex)
     NoProgram() -> None()

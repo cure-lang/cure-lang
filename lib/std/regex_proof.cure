@@ -3762,6 +3762,19 @@ mod Std.Regex.Proof
     PatternRepeatMode(inner, lazy) -> match certify_thompson_evidence(inner)
       CertifiedThompson(inner_compilation, inner_proof) -> CertifiedThompson(ThompsonRepeat(inner_compilation, lazy), ThompsonEvidenceRepeat(inner_compilation, lazy, inner_proof))
 
+  ## A staged literal publishes the constructor-preserving Thompson IR rather
+  ## than its source Pattern.  The IR is itself the complete regular algebra,
+  ## so its evidence certificate can be rebuilt structurally without traversing
+  ## a second source representation or reconstructing aliases at the use site.
+  fn proof_for_compilation({shape: ShapeCode}, compilation: ThompsonCompilation(shape)) -> ThompsonEvidenceProof(shape, compilation) = match compilation
+    ThompsonPredicate(test) -> ThompsonEvidencePredicate(test)
+    ThompsonEmpty() -> ThompsonEvidenceEmpty()
+    ThompsonBoundary(constraint) -> ThompsonEvidenceBoundary(constraint)
+    ThompsonConcat(left, right) -> ThompsonEvidenceConcat(left, right, proof_for_compilation(left), proof_for_compilation(right))
+    ThompsonGroup(inner) -> ThompsonEvidenceGroup(inner, proof_for_compilation(inner))
+    ThompsonAlternate(left, right, prefer_right) -> ThompsonEvidenceAlternate(left, right, prefer_right, proof_for_compilation(left), proof_for_compilation(right))
+    ThompsonRepeat(inner, lazy) -> ThompsonEvidenceRepeat(inner, lazy, proof_for_compilation(inner))
+
   fn certified_alternate_acceptance_captures(
     {left_shape: ShapeCode},
     {right_shape: ShapeCode},
@@ -3810,9 +3823,20 @@ mod Std.Regex.Proof
         MachineAcceptingPath(evidence, _, acceptance) -> Some(extract_encoding(evidence, thompson_machine_acceptance_encodes(compilation, proof, characters, empty_characters(), subject_initial_position(), acceptance)))
 
   fn parse_program_full_verified({result: Type}, program: RegexProgram(result), input: String) -> Option(result) = match program
-    BuiltRegex(_shape, pattern, conversion) -> match parse_pattern_full_verified(pattern, input)
-      None() -> None()
-      Some(value) -> Some(execute_conversion(conversion, value))
+    BuiltRegex(_shape, pattern, conversion, hint) -> match hint
+      NoCompilationHint() -> match parse_pattern_full_verified(pattern, input)
+        None() -> None()
+        Some(value) -> Some(execute_conversion(conversion, value))
+      StagedCompilationHint(compilation) -> match parse_compilation_full_verified(compilation, input)
+        None() -> None()
+        Some(value) -> Some(execute_conversion(conversion, value))
+
+  fn parse_compilation_full_verified({shape: ShapeCode}, compilation: ThompsonCompilation(shape), input: String) -> Option(Sem(shape)) =
+    let proof = proof_for_compilation(compilation)
+    let characters = Std.String.characters(input)
+    match search_machine_acceptance(thompson_state_count(compilation), thompson_machine(compilation), subject_initial_position(), characters, empty_characters())
+      MachineNoAcceptingPath() -> None()
+      MachineAcceptingPath(evidence, _, acceptance) -> Some(extract_encoding(evidence, thompson_machine_acceptance_encodes(compilation, proof, characters, empty_characters(), subject_initial_position(), acceptance)))
 
   fn parse_pattern_prefix_verified_at({shape: ShapeCode}, pattern: Pattern(shape), input: List(Char), greedy: Bool, position: InitialPosition) -> Option(Tuple(Sem(shape), List(Char))) = match certify_thompson_evidence(pattern)
     CertifiedThompson(compilation, proof) ->
@@ -3824,12 +3848,25 @@ mod Std.Regex.Proof
         CertifiedPrefixPath(matched, remaining, evidence, _, acceptance) -> Some(%[extract_encoding(evidence, thompson_machine_acceptance_encodes(compilation, proof, matched, remaining, position, acceptance)), remaining])
 
   fn parse_program_prefix_chars_verified_at({result: Type}, program: RegexProgram(result), input: List(Char), greedy: Bool, subject_start: Bool, line_start: Bool, previous_ascii_word: Bool, previous_unicode_word: Bool) -> Option(Tuple(result, List(Char))) = match program
-    BuiltRegex(_shape, pattern, conversion) -> match parse_pattern_prefix_verified_at(pattern, input, greedy, InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word))
-      None() -> None()
-      Some(%[value, rest]) -> Some(%[execute_conversion(conversion, value), rest])
+    BuiltRegex(_shape, pattern, conversion, hint) -> match hint
+      NoCompilationHint() -> match parse_pattern_prefix_verified_at(pattern, input, greedy, InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word))
+        None() -> None()
+        Some(%[value, rest]) -> Some(%[execute_conversion(conversion, value), rest])
+      StagedCompilationHint(compilation) -> match parse_compilation_prefix_verified_at(compilation, input, greedy, InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word))
+        None() -> None()
+        Some(%[value, rest]) -> Some(%[execute_conversion(conversion, value), rest])
+
+  fn parse_compilation_prefix_verified_at({shape: ShapeCode}, compilation: ThompsonCompilation(shape), input: List(Char), greedy: Bool, position: InitialPosition) -> Option(Tuple(Sem(shape), List(Char))) =
+    let proof = proof_for_compilation(compilation)
+    let result = pickup
+      greedy -> search_last_machine_prefix(thompson_state_count(compilation), thompson_machine(compilation), position, input)
+      else -> search_first_machine_prefix(thompson_state_count(compilation), thompson_machine(compilation), position, input)
+    match result
+      NoCertifiedPrefix() -> None()
+      CertifiedPrefixPath(matched, remaining, evidence, _, acceptance) -> Some(%[extract_encoding(evidence, thompson_machine_acceptance_encodes(compilation, proof, matched, remaining, position, acceptance)), remaining])
 
   fn parse_program_prefix_verified_at({result: Type}, program: RegexProgram(result), input: String, greedy: Bool, subject_start: Bool, line_start: Bool, previous_ascii_word: Bool, previous_unicode_word: Bool) -> Option(Tuple(result, String)) = match program
-    BuiltRegex(_shape, _pattern, _conversion) -> match parse_program_prefix_chars_verified_at(program, Std.String.characters(input), greedy, subject_start, line_start, previous_ascii_word, previous_unicode_word)
+    BuiltRegex(_shape, _pattern, _conversion, _hint) -> match parse_program_prefix_chars_verified_at(program, Std.String.characters(input), greedy, subject_start, line_start, previous_ascii_word, previous_unicode_word)
       None() -> None()
       Some(%[value, rest]) -> Some(%[value, Std.String.from_characters(rest)])
 
