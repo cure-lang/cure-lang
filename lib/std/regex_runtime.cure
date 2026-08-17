@@ -965,12 +965,20 @@ mod Std.Regex.Runtime
   fn default_options() -> RegexOptions =
     RegexOptions(false, false, false, false, false, false, false, false)
 
+  ## A staged literal carries its checked machine and the erased equality that
+  ## relates that machine to the canonical Thompson construction.  The wrapper
+  ## is indexed by the public shape (rather than by the dependent compilation
+  ## itself) because that is the representation the constructor elaborator can
+  ## refine without introducing an existential dependent constructor.
+  type StagedMachine indices (shape: ShapeCode)
+    StagedMachineValue : (compilation: ThompsonCompilation(shape)) -> (machine: PatternMachine(thompson_state_count(compilation))) -> (@erased equality: Equivalent(PatternMachine(thompson_state_count(compilation)), machine, thompson_machine(compilation))) -> StagedMachine(shape)
+
   type Regex indices (result: Type)
     FromPattern : (shape: ShapeCode) -> Pattern(shape) -> Regex(Sem(shape))
     ## A literal may publish its constructor-preserving Thompson IR directly.
     ## The proof layer certifies this IR structurally, so runtime compilation
     ## does not need to rediscover it from a Pattern value.
-    StagedRegex : (shape: ShapeCode) -> Pattern(shape) -> ThompsonCompilation(shape) -> Conversion(Sem(shape), result) -> Regex(result)
+    StagedRegex : (shape: ShapeCode) -> Pattern(shape) -> ThompsonCompilation(shape) -> StagedMachine(shape) -> Conversion(Sem(shape), result) -> Regex(result)
     Mapped : (a -> b) -> Regex(a) -> Regex(b)
     Concatenated : Regex(a) -> Regex(b) -> Regex(Tuple(a, b))
     Alternated : Regex(a) -> Regex(b) -> Regex(Choice(a, b))
@@ -1012,7 +1020,7 @@ mod Std.Regex.Runtime
 
   type CompilationHint indices (shape: ShapeCode)
     NoCompilationHint : CompilationHint(shape)
-    StagedCompilationHint : ThompsonCompilation(shape) -> CompilationHint(shape)
+    StagedCompilationHint : StagedMachine(shape) -> CompilationHint(shape)
 
   ## `Option` is a `Type`-level family, so it cannot hold a `RegexProgram(result)`:
   ## a family INDEXED by `Type` lives one universe up (`level: 1`), exactly as an
@@ -1080,7 +1088,7 @@ mod Std.Regex.Runtime
 
   fn compile_regex({result: Type}, regex: Regex(result)) -> CompiledRegex(result) = match regex
     FromPattern(shape, pattern) -> SomeProgram(BuiltRegex(shape, pattern, sem_identity_conversion(shape), NoCompilationHint()))
-    StagedRegex(shape, pattern, compilation, conversion) -> SomeProgram(BuiltRegex(shape, pattern, conversion, StagedCompilationHint(compilation)))
+    StagedRegex(shape, pattern, _compilation, machine, conversion) -> SomeProgram(BuiltRegex(shape, pattern, conversion, StagedCompilationHint(machine)))
     Mapped(transform, inner) -> match compile_regex(inner)
       NoProgram() -> NoProgram()
       SomeProgram(BuiltRegex(shape, pattern, convert, _hint)) -> SomeProgram(BuiltRegex(shape, pattern, ComposedConversion(convert, ApplyConversion(transform)), NoCompilationHint()))

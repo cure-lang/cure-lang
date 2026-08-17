@@ -65,10 +65,37 @@ defmodule Cure.Stdlib.RegexSourceTest do
 
     assert runtime =~ "StagedRegex"
     assert runtime =~ "StagedCompilationHint"
+    assert runtime =~ "type StagedMachine"
+    assert runtime =~ "StagedMachineValue"
     assert proof =~ "proof_for_compilation"
-    assert proof =~ "StagedCompilationHint(compilation)"
+    assert proof =~ "StagedCompilationHint(StagedMachineValue"
     assert emitter =~ "emit_staged_compilation"
     assert emitter =~ "emit_staged_conversion"
+    assert emitter =~ "StagedMachineValue"
+    assert emitter =~ "emit_staged_machine"
+    refute emitter =~ ~s(runtime_call("thompson_machine")
+  end
+
+  test "generated literal artifact has no parser or Thompson dispatcher reference" do
+    source = """
+    mod RegexStagedArtifact
+      use Std.Regex
+      fn literal() = /a*/
+    end
+    """
+
+    assert {:ok, env} = Program.elaborate(source)
+    assert {:ok, forms} =
+             Cure.Elab.Emit.compile_forms(env, :"Cure.RegexStagedArtifact", [
+               :"RegexStagedArtifact#literal"
+             ])
+    assert {:ok, :"Cure.RegexStagedArtifact", beam, _warnings} = Cure.Compiler.BeamWriter.compile_forms(forms)
+
+    {:beam_file, :"Cure.RegexStagedArtifact", _exports, _attrs, _info, functions} = :beam_disasm.file(beam)
+    code = :erlang.term_to_binary(functions)
+    refute code =~ "thompson_machine"
+    refute code =~ "parse_pattern_full_verified"
+    refute code =~ "certify_thompson"
   end
 
   @tag timeout: 600_000

@@ -3403,6 +3403,12 @@ mod Std.Regex.Proof
   fn transport_acceptance_machine({n: Nat}, left: PatternMachine(n), right: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame), final_evidence: List(Evidence), equality: Equivalent(PatternMachine(n), left, right), acceptance: AcceptancePathFrom(n, left, position, input, after_input, input_evidence, input_captures, final_evidence)) -> AcceptancePathFrom(n, right, position, input, after_input, input_evidence, input_captures, final_evidence) = match equality
     reflexive() -> acceptance
 
+  fn transport_staged_search({shape: ShapeCode}, compilation: ThompsonCompilation(shape), machine: PatternMachine(thompson_state_count(compilation)), position: InitialPosition, input: List(Char), after_input: List(Char), @erased equality: Equivalent(PatternMachine(thompson_state_count(compilation)), machine, thompson_machine(compilation)), search: MachineAcceptingSearch(thompson_state_count(compilation), machine, position, input, after_input)) -> MachineAcceptingSearch(thompson_state_count(compilation), thompson_machine(compilation), position, input, after_input) = match equality
+    reflexive() -> search
+
+  fn transport_staged_prefix({shape: ShapeCode}, compilation: ThompsonCompilation(shape), machine: PatternMachine(thompson_state_count(compilation)), position: InitialPosition, @erased equality: Equivalent(PatternMachine(thompson_state_count(compilation)), machine, thompson_machine(compilation)), search: CertifiedPrefixSearch(thompson_state_count(compilation), machine, position)) -> CertifiedPrefixSearch(thompson_state_count(compilation), thompson_machine(compilation), position) = match equality
+    reflexive() -> search
+
   fn pattern_machine_equivalent_symmetric({n: Nat}, left: PatternMachine(n), right: PatternMachine(n), equality: Equivalent(PatternMachine(n), left, right)) -> Equivalent(PatternMachine(n), right, left) = match equality
     reflexive() -> reflexive(left)
 
@@ -3827,14 +3833,15 @@ mod Std.Regex.Proof
       NoCompilationHint() -> match parse_pattern_full_verified(pattern, input)
         None() -> None()
         Some(value) -> Some(execute_conversion(conversion, value))
-      StagedCompilationHint(compilation) -> match parse_compilation_full_verified(compilation, input)
+      StagedCompilationHint(StagedMachineValue(compilation, machine, machine_equality)) -> match parse_compilation_full_verified(compilation, machine, machine_equality, input)
         None() -> None()
         Some(value) -> Some(execute_conversion(conversion, value))
 
-  fn parse_compilation_full_verified({shape: ShapeCode}, compilation: ThompsonCompilation(shape), input: String) -> Option(Sem(shape)) =
+  fn parse_compilation_full_verified({shape: ShapeCode}, compilation: ThompsonCompilation(shape), machine: PatternMachine(thompson_state_count(compilation)), @erased machine_equality: Equivalent(PatternMachine(thompson_state_count(compilation)), machine, thompson_machine(compilation)), input: String) -> Option(Sem(shape)) =
     let proof = proof_for_compilation(compilation)
     let characters = Std.String.characters(input)
-    match search_machine_acceptance(thompson_state_count(compilation), thompson_machine(compilation), subject_initial_position(), characters, empty_characters())
+    let search = transport_staged_search(compilation, machine, subject_initial_position(), characters, empty_characters(), machine_equality, search_machine_acceptance(thompson_state_count(compilation), machine, subject_initial_position(), characters, empty_characters()))
+    match search
       MachineNoAcceptingPath() -> None()
       MachineAcceptingPath(evidence, _, acceptance) -> Some(extract_encoding(evidence, thompson_machine_acceptance_encodes(compilation, proof, characters, empty_characters(), subject_initial_position(), acceptance)))
 
@@ -3852,15 +3859,15 @@ mod Std.Regex.Proof
       NoCompilationHint() -> match parse_pattern_prefix_verified_at(pattern, input, greedy, InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word))
         None() -> None()
         Some(%[value, rest]) -> Some(%[execute_conversion(conversion, value), rest])
-      StagedCompilationHint(compilation) -> match parse_compilation_prefix_verified_at(compilation, input, greedy, InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word))
+      StagedCompilationHint(StagedMachineValue(compilation, machine, machine_equality)) -> match parse_compilation_prefix_verified_at(compilation, machine, machine_equality, input, greedy, InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word))
         None() -> None()
         Some(%[value, rest]) -> Some(%[execute_conversion(conversion, value), rest])
 
-  fn parse_compilation_prefix_verified_at({shape: ShapeCode}, compilation: ThompsonCompilation(shape), input: List(Char), greedy: Bool, position: InitialPosition) -> Option(Tuple(Sem(shape), List(Char))) =
+  fn parse_compilation_prefix_verified_at({shape: ShapeCode}, compilation: ThompsonCompilation(shape), machine: PatternMachine(thompson_state_count(compilation)), @erased machine_equality: Equivalent(PatternMachine(thompson_state_count(compilation)), machine, thompson_machine(compilation)), input: List(Char), greedy: Bool, position: InitialPosition) -> Option(Tuple(Sem(shape), List(Char))) =
     let proof = proof_for_compilation(compilation)
     let result = pickup
-      greedy -> search_last_machine_prefix(thompson_state_count(compilation), thompson_machine(compilation), position, input)
-      else -> search_first_machine_prefix(thompson_state_count(compilation), thompson_machine(compilation), position, input)
+      greedy -> transport_staged_prefix(compilation, machine, position, machine_equality, search_last_machine_prefix(thompson_state_count(compilation), machine, position, input))
+      else -> transport_staged_prefix(compilation, machine, position, machine_equality, search_first_machine_prefix(thompson_state_count(compilation), machine, position, input))
     match result
       NoCertifiedPrefix() -> None()
       CertifiedPrefixPath(matched, remaining, evidence, _, acceptance) -> Some(%[extract_encoding(evidence, thompson_machine_acceptance_encodes(compilation, proof, matched, remaining, position, acceptance)), remaining])
