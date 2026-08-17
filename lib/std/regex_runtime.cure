@@ -478,6 +478,40 @@ mod Std.Regex.Runtime
     ThompsonAlternate(left, right, _) -> plus(thompson_state_count(left), thompson_state_count(right))
     ThompsonRepeat(inner, _) -> thompson_state_count(inner)
 
+  ## Construct the closure machine once per Thompson subtree.  Let-binding the
+  ## child results is important: starts and next are two projections of the
+  ## same child value, not two independent recursive reconstructions.
+  fn staged_machine_seed_from_compilation({@erased shape: ShapeCode}, compilation: ThompsonCompilation(shape)) -> PatternMachine(thompson_state_count(compilation)) = match compilation
+    ThompsonPredicate(test) -> predicate_pattern_machine(test)
+    ThompsonEmpty() -> empty_pattern_machine()
+    ThompsonBoundary(constraint) -> boundary_pattern_machine(constraint)
+    ThompsonGroup(inner) ->
+      let inner_machine = staged_machine_seed_from_compilation(inner)
+      group_pattern_machine(thompson_state_count(inner), pattern_machine_starts(inner_machine), pattern_machine_next(inner_machine))
+    ThompsonConcat(left, right) ->
+      let left_machine = staged_machine_seed_from_compilation(left)
+      let right_machine = staged_machine_seed_from_compilation(right)
+      concat_pattern_machine(thompson_state_count(left), left_machine, thompson_state_count(right), right_machine)
+    ThompsonAlternate(left, right, prefer_right) ->
+      let left_machine = staged_machine_seed_from_compilation(left)
+      let right_machine = staged_machine_seed_from_compilation(right)
+      alternate_pattern_machine(thompson_state_count(left), left_machine, thompson_state_count(right), right_machine, prefer_right)
+    ThompsonRepeat(inner, lazy) ->
+      let inner_machine = staged_machine_seed_from_compilation(inner)
+      repeat_pattern_machine(thompson_state_count(inner), inner_machine, lazy)
+
+  @reducible
+  fn direct_staged_rows_values_from_compilation({@erased shape: ShapeCode}, compilation: ThompsonCompilation(shape)) -> TransitionRows(thompson_state_count(compilation)) =
+    compile_transition_rows(thompson_state_count(compilation), staged_machine_seed_from_compilation(compilation))
+
+  @reducible
+  fn direct_staged_starts_from_compilation({@erased shape: ShapeCode}, compilation: ThompsonCompilation(shape)) -> List(MachineState(thompson_state_count(compilation))) =
+    pattern_machine_starts(staged_machine_seed_from_compilation(compilation))
+
+  ## Compatibility reference retained for differential checking.  It preserves
+  ## the original row formulas while the active machine below uses the direct
+  ## staged rows; this keeps the comparison path independent of the optimized
+  ## construction.
   @reducible
   fn staged_rows_values_from_compilation({@erased shape: ShapeCode}, compilation: ThompsonCompilation(shape)) -> TransitionRows(thompson_state_count(compilation)) = match compilation
     ThompsonPredicate(test) -> rows_from_next(S(Z()), staged_predicate_next_function(test))
@@ -650,214 +684,15 @@ mod Std.Regex.Runtime
     char
   )
 
-  fn staged_concat_rows_semantic(
-    {@erased left_shape: ShapeCode},
-    left_compilation: ThompsonCompilation(left_shape),
-    {@erased right_shape: ShapeCode},
-    right_compilation: ThompsonCompilation(right_shape),
-    side: BoundedSum(thompson_state_count(left_compilation), thompson_state_count(right_compilation)),
-    state: Bounded(plus(thompson_state_count(left_compilation), thompson_state_count(right_compilation))),
-    char: Char
-  ) -> Equivalent(
-    List(MachineState(plus(thompson_state_count(left_compilation), thompson_state_count(right_compilation)))),
-    staged_concat_next_from_side(thompson_state_count(left_compilation), staged_rows_values_from_compilation(left_compilation), pattern_machine_starts(thompson_machine(right_compilation)), staged_rows_values_from_compilation(right_compilation), side, char),
-    concat_machine_next_from_side(thompson_state_count(left_compilation), pattern_machine_next(thompson_machine(left_compilation)), pattern_machine_starts(thompson_machine(right_compilation)), pattern_machine_next(thompson_machine(right_compilation)), side, char)
-  ) = match side
-    BoundedLeft(left_state) -> cong(
-      fn(values) -> continue_with_right(thompson_state_count(left_compilation), values, pattern_machine_starts(thompson_machine(right_compilation))),
-      trans(
-        staged_rows_transition_equivalent(left_compilation, left_state, char),
-        pattern_machine_next_at_from_next(thompson_machine(left_compilation), left_state, char)
-      )
-    )
-
-    BoundedRight(right_state) -> cong(
-      fn(values) -> inject_right_states(thompson_state_count(left_compilation), finish_pair(values)),
-      trans(
-        staged_rows_transition_equivalent(right_compilation, right_state, char),
-        pattern_machine_next_at_from_next(thompson_machine(right_compilation), right_state, char)
-      )
-    )
-
-  fn staged_concat_next_side_equivalent(
-    left_count: Nat,
-    {right_count: Nat},
-    left_rows: TransitionRows(left_count),
-    right_starts: List(MachineState(right_count)),
-    right_rows: TransitionRows(right_count),
-    state: Bounded(plus(left_count, right_count)),
-    char: Char
-  ) -> Equivalent(
-    List(MachineState(plus(left_count, right_count))),
-    staged_concat_next(left_count, left_rows, right_starts, right_rows, state, char),
-    staged_concat_next_from_side(left_count, left_rows, right_starts, right_rows, split_sum(left_count, state), char)
-  ) = reflexive(staged_concat_next_from_side(left_count, left_rows, right_starts, right_rows, split_sum(left_count, state), char))
-
-  @reducible
-  fn staged_alternate_left_output(left_count: Nat, {right_count: Nat}, values: List(MachineState(left_count))) -> List(MachineState(plus(left_count, right_count))) =
-    inject_left_states(mark_branch(values, EmitLeft()))
-
-  @reducible
-  fn staged_alternate_left_output_function(left_count: Nat, right_count: Nat) -> (List(MachineState(left_count))) -> List(MachineState(plus(left_count, right_count))) =
-    fn(values) -> staged_alternate_left_output(left_count, values)
-
-  @reducible
-  fn staged_alternate_right_output(left_count: Nat, {right_count: Nat}, values: List(MachineState(right_count))) -> List(MachineState(plus(left_count, right_count))) =
-    inject_right_states(left_count, mark_branch(values, EmitRight()))
-
-  @reducible
-  fn staged_alternate_right_output_function(left_count: Nat, right_count: Nat) -> (List(MachineState(right_count))) -> List(MachineState(plus(left_count, right_count))) =
-    fn(values) -> staged_alternate_right_output(left_count, values)
-
-  fn alternate_pattern_machine_next_equation(
-    left_count: Nat,
-    left_machine: PatternMachine(left_count),
-    right_count: Nat,
-    right_machine: PatternMachine(right_count),
-    prefer_right: Bool,
-    state: Bounded(plus(left_count, right_count)),
-    char: Char
-  ) -> Equivalent(
-    List(MachineState(plus(left_count, right_count))),
-    pattern_machine_next_at(alternate_pattern_machine(left_count, left_machine, right_count, right_machine, prefer_right), state, char),
-    alternate_machine_next(left_count, pattern_machine_next(left_machine), pattern_machine_next(right_machine), state, char)
-  ) = match left_machine
-    MkPatternMachine(left_starts, left_next) -> match right_machine
-      MkPatternMachine(right_starts, right_next) -> reflexive(alternate_machine_next(left_count, left_next, right_next, state, char))
-
-  fn staged_alternate_rows_transition_equation(
-    left_count: Nat,
-    right_count: Nat,
-    left_rows: TransitionRows(left_count),
-    right_rows: TransitionRows(right_count),
-    state: Bounded(plus(left_count, right_count)),
-    char: Char
-  ) -> Equivalent(
-    List(MachineState(plus(left_count, right_count))),
-    transition_rows_next(rows_from_next(plus(left_count, right_count), staged_alternate_next_function(left_count, left_rows, right_rows)), state, char),
-    staged_alternate_next(left_count, left_rows, right_rows, state, char)
-  ) = rows_from_next_equivalent(
-    plus(left_count, right_count),
-    staged_alternate_next_function(left_count, left_rows, right_rows),
-    state,
-    char
-  )
-
-  fn staged_alternate_rows_semantic(
-    {@erased left_shape: ShapeCode},
-    left_compilation: ThompsonCompilation(left_shape),
-    {@erased right_shape: ShapeCode},
-    right_compilation: ThompsonCompilation(right_shape),
-    side: BoundedSum(thompson_state_count(left_compilation), thompson_state_count(right_compilation)),
-    prefer_right: Bool,
-    state: Bounded(plus(thompson_state_count(left_compilation), thompson_state_count(right_compilation))),
-    char: Char
-  ) -> Equivalent(
-    List(MachineState(plus(thompson_state_count(left_compilation), thompson_state_count(right_compilation)))),
-    staged_alternate_next_from_side(thompson_state_count(left_compilation), staged_rows_values_from_compilation(left_compilation), staged_rows_values_from_compilation(right_compilation), side, char),
-    alternate_machine_next_from_side(thompson_state_count(left_compilation), pattern_machine_next(thompson_machine(left_compilation)), pattern_machine_next(thompson_machine(right_compilation)), side, char)
-  ) = match side
-    BoundedLeft(left_state) -> cong(
-      staged_alternate_left_output_function(thompson_state_count(left_compilation), thompson_state_count(right_compilation)),
-      trans(
-        staged_rows_transition_equivalent(left_compilation, left_state, char),
-        pattern_machine_next_at_from_next(thompson_machine(left_compilation), left_state, char)
-      )
-    )
-    BoundedRight(right_state) -> cong(
-      staged_alternate_right_output_function(thompson_state_count(left_compilation), thompson_state_count(right_compilation)),
-      trans(
-        staged_rows_transition_equivalent(right_compilation, right_state, char),
-        pattern_machine_next_at_from_next(thompson_machine(right_compilation), right_state, char)
-      )
-    )
-
-  fn staged_alternate_next_side_equivalent(
-    left_count: Nat,
-    {right_count: Nat},
-    left_rows: TransitionRows(left_count),
-    right_rows: TransitionRows(right_count),
-    state: Bounded(plus(left_count, right_count)),
-    char: Char
-  ) -> Equivalent(
-    List(MachineState(plus(left_count, right_count))),
-    staged_alternate_next(left_count, left_rows, right_rows, state, char),
-    staged_alternate_next_from_side(left_count, left_rows, right_rows, split_sum(left_count, state), char)
-  ) = reflexive(staged_alternate_next_from_side(left_count, left_rows, right_rows, split_sum(left_count, state), char))
-
-  fn repeat_next_output_equivalent(
-    {n: Nat},
-    starts: List(MachineState(n)),
-    next: (Bounded(n)) -> Char -> List(MachineState(n)),
-    canonical_next: (Bounded(n)) -> Char -> List(MachineState(n)),
-    lazy: Bool,
-    state: Bounded(n),
-    char: Char,
-    equality: Equivalent(List(MachineState(n)), next(state, char), canonical_next(state, char))
-  ) -> Equivalent(
-    List(MachineState(n)),
-    repeat_machine_next(starts, lazy, next, state, char),
-    repeat_machine_next(starts, lazy, canonical_next, state, char)
-  ) = cong(
-    fn(values) -> repeat_destinations(values, starts, lazy),
-    equality
-  )
-
-  fn repeat_pattern_machine_next_equation(
-    n: Nat,
-    machine: PatternMachine(n),
-    lazy: Bool,
-    state: Bounded(n),
-    char: Char
-  ) -> Equivalent(
-    List(MachineState(n)),
-    pattern_machine_next_at(repeat_pattern_machine(n, machine, lazy), state, char),
-    repeat_machine_next(pattern_machine_starts(machine), lazy, pattern_machine_next(machine), state, char)
-  ) = match machine
-    MkPatternMachine(starts, next) -> reflexive(repeat_machine_next(starts, lazy, next, state, char))
-
-  fn staged_repeat_rows_transition_equation(
-    n: Nat,
-    starts: List(MachineState(n)),
-    rows: TransitionRows(n),
-    lazy: Bool,
-    state: Bounded(n),
-    char: Char
-  ) -> Equivalent(
-    List(MachineState(n)),
-    transition_rows_next(rows_from_next(n, staged_repeat_next_function(starts, rows, lazy)), state, char),
-    staged_repeat_next(starts, rows, lazy, state, char)
-  ) = rows_from_next_equivalent(n, staged_repeat_next_function(starts, rows, lazy), state, char)
-
-  fn staged_repeat_rows_semantic(
-    {@erased inner_shape: ShapeCode},
-    inner_compilation: ThompsonCompilation(inner_shape),
-    lazy: Bool,
-    state: Bounded(thompson_state_count(inner_compilation)),
-    char: Char
-  ) -> Equivalent(
-    List(MachineState(thompson_state_count(inner_compilation))),
-    staged_repeat_next(pattern_machine_starts(thompson_machine(inner_compilation)), staged_rows_values_from_compilation(inner_compilation), lazy, state, char),
-    repeat_machine_next(pattern_machine_starts(thompson_machine(inner_compilation)), lazy, pattern_machine_next(thompson_machine(inner_compilation)), state, char)
-  ) = repeat_next_output_equivalent(
-    pattern_machine_starts(thompson_machine(inner_compilation)),
-    rows_as_next(staged_rows_values_from_compilation(inner_compilation)),
-    pattern_machine_next(thompson_machine(inner_compilation)),
-    lazy,
-    state,
-    char,
-    trans(
-      staged_rows_transition_equivalent(inner_compilation, state, char),
-      pattern_machine_next_at_from_next(thompson_machine(inner_compilation), state, char)
-    )
-  )
-
-  ## Staged literals use a row-backed machine.  The table is indexed once at
-  ## construction and the input loop performs only bounded-row lookup.
+  ## Staged literals use a row-backed machine. The transition rows are built
+  ## from the direct staged machine seed below, rather than reconstructing a
+  ## canonical Thompson machine for every child closure.
   @reducible
   fn staged_machine_from_compilation({@erased shape: ShapeCode}, compilation: ThompsonCompilation(shape)) -> PatternMachine(thompson_state_count(compilation)) =
-    match staged_rows_from_compilation(compilation)
-      StagedRowsValue(starts, rows) -> transition_rows_machine(starts, rows)
+    transition_rows_machine(
+      direct_staged_starts_from_compilation(compilation),
+      direct_staged_rows_values_from_compilation(compilation)
+    )
 
   fn staged_machine_rows_transition_equivalent(
     {@erased shape: ShapeCode},
@@ -867,50 +702,126 @@ mod Std.Regex.Runtime
   ) -> Equivalent(
     List(MachineState(thompson_state_count(compilation))),
     pattern_machine_next_at(staged_machine_from_compilation(compilation), state, char),
-    transition_rows_next(staged_rows_values_from_compilation(compilation), state, char)
+    transition_rows_next(direct_staged_rows_values_from_compilation(compilation), state, char)
+  ) = transition_rows_machine_next_equation(
+    direct_staged_starts_from_compilation(compilation),
+    direct_staged_rows_values_from_compilation(compilation),
+    state,
+    char
+  )
+
+  fn direct_pattern_machine_next_congruence(
+    {n: Nat},
+    left: PatternMachine(n),
+    right: PatternMachine(n),
+    state: Bounded(n),
+    char: Char,
+    equality: Equivalent(PatternMachine(n), left, right)
+  ) -> Equivalent(
+    List(MachineState(n)),
+    pattern_machine_next_at(left, state, char),
+    pattern_machine_next_at(right, state, char)
+  ) = match equality
+    reflexive() -> reflexive(pattern_machine_next_at(left, state, char))
+
+  fn direct_pattern_machine_starts_congruence(
+    {n: Nat},
+    left: PatternMachine(n),
+    right: PatternMachine(n),
+    equality: Equivalent(PatternMachine(n), left, right)
+  ) -> Equivalent(
+    List(MachineState(n)),
+    pattern_machine_starts(left),
+    pattern_machine_starts(right)
+  ) = match equality
+    reflexive() -> reflexive(pattern_machine_starts(left))
+
+  fn direct_staged_group_machine_function(n: Nat) -> (PatternMachine(n)) -> PatternMachine(n) =
+    fn(machine) -> group_pattern_machine(n, pattern_machine_starts(machine), pattern_machine_next(machine))
+
+  fn direct_staged_concat_left_machine_function(left_count: Nat, right_count: Nat, right_machine: PatternMachine(right_count)) -> (PatternMachine(left_count)) -> PatternMachine(plus(left_count, right_count)) =
+    fn(machine) -> concat_pattern_machine(left_count, machine, right_count, right_machine)
+
+  fn direct_staged_concat_right_machine_function(left_count: Nat, right_count: Nat, left_machine: PatternMachine(left_count)) -> (PatternMachine(right_count)) -> PatternMachine(plus(left_count, right_count)) =
+    fn(machine) -> concat_pattern_machine(left_count, left_machine, right_count, machine)
+
+  fn direct_staged_alternate_left_machine_function(left_count: Nat, right_count: Nat, right_machine: PatternMachine(right_count), prefer_right: Bool) -> (PatternMachine(left_count)) -> PatternMachine(plus(left_count, right_count)) =
+    fn(machine) -> alternate_pattern_machine(left_count, machine, right_count, right_machine, prefer_right)
+
+  fn direct_staged_alternate_right_machine_function(left_count: Nat, right_count: Nat, left_machine: PatternMachine(left_count), prefer_right: Bool) -> (PatternMachine(right_count)) -> PatternMachine(plus(left_count, right_count)) =
+    fn(machine) -> alternate_pattern_machine(left_count, left_machine, right_count, machine, prefer_right)
+
+  fn direct_staged_repeat_machine_function(n: Nat, lazy: Bool) -> (PatternMachine(n)) -> PatternMachine(n) =
+    fn(machine) -> repeat_pattern_machine(n, machine, lazy)
+
+  fn direct_staged_machine_seed_equivalent({@erased shape: ShapeCode}, compilation: ThompsonCompilation(shape)) -> Equivalent(
+    PatternMachine(thompson_state_count(compilation)),
+    staged_machine_seed_from_compilation(compilation),
+    thompson_machine(compilation)
   ) = match compilation
-    ThompsonPredicate(test) -> transition_rows_machine_next_equation(
-      pattern_machine_starts(predicate_pattern_machine(test)),
-      staged_rows_values_from_compilation(ThompsonPredicate(test)),
+    ThompsonPredicate(test) -> reflexive(predicate_pattern_machine(test))
+    ThompsonEmpty() -> reflexive(empty_pattern_machine())
+    ThompsonBoundary(constraint) -> reflexive(boundary_pattern_machine(constraint))
+    ThompsonGroup(inner) -> trans(
+      cong(direct_staged_group_machine_function(thompson_state_count(inner)), direct_staged_machine_seed_equivalent(inner)),
+      reflexive(group_pattern_machine(thompson_state_count(inner), pattern_machine_starts(thompson_machine(inner)), pattern_machine_next(thompson_machine(inner))))
+    )
+    ThompsonConcat(left, right) -> trans(
+      cong(direct_staged_concat_left_machine_function(thompson_state_count(left), thompson_state_count(right), staged_machine_seed_from_compilation(right)), direct_staged_machine_seed_equivalent(left)),
+      trans(
+        cong(direct_staged_concat_right_machine_function(thompson_state_count(left), thompson_state_count(right), thompson_machine(left)), direct_staged_machine_seed_equivalent(right)),
+        reflexive(concat_pattern_machine(thompson_state_count(left), thompson_machine(left), thompson_state_count(right), thompson_machine(right)))
+      )
+    )
+    ThompsonAlternate(left, right, prefer_right) -> trans(
+      cong(direct_staged_alternate_left_machine_function(thompson_state_count(left), thompson_state_count(right), staged_machine_seed_from_compilation(right), prefer_right), direct_staged_machine_seed_equivalent(left)),
+      trans(
+        cong(direct_staged_alternate_right_machine_function(thompson_state_count(left), thompson_state_count(right), thompson_machine(left), prefer_right), direct_staged_machine_seed_equivalent(right)),
+        reflexive(alternate_pattern_machine(thompson_state_count(left), thompson_machine(left), thompson_state_count(right), thompson_machine(right), prefer_right))
+      )
+    )
+    ThompsonRepeat(inner, lazy) -> trans(
+      cong(direct_staged_repeat_machine_function(thompson_state_count(inner), lazy), direct_staged_machine_seed_equivalent(inner)),
+      reflexive(repeat_pattern_machine(thompson_state_count(inner), thompson_machine(inner), lazy))
+    )
+
+  fn direct_staged_rows_transition_equivalent(
+    {@erased shape: ShapeCode},
+    compilation: ThompsonCompilation(shape),
+    state: Bounded(thompson_state_count(compilation)),
+    char: Char
+  ) -> Equivalent(
+    List(MachineState(thompson_state_count(compilation))),
+    transition_rows_next(direct_staged_rows_values_from_compilation(compilation), state, char),
+    pattern_machine_next_at(thompson_machine(compilation), state, char)
+  ) = trans(
+    transition_rows_next_from_machine(
+      thompson_state_count(compilation),
+      staged_machine_seed_from_compilation(compilation),
       state,
       char
-    )
-    ThompsonEmpty() -> transition_rows_machine_next_equation(
-      pattern_machine_starts(empty_pattern_machine()),
-      staged_rows_values_from_compilation(ThompsonEmpty()),
+    ),
+    direct_pattern_machine_next_congruence(
+      staged_machine_seed_from_compilation(compilation),
+      thompson_machine(compilation),
       state,
-      char
+      char,
+      direct_staged_machine_seed_equivalent(compilation)
     )
-    ThompsonBoundary(constraint) -> transition_rows_machine_next_equation(
-      pattern_machine_starts(boundary_pattern_machine(constraint)),
-      staged_rows_values_from_compilation(ThompsonBoundary(constraint)),
-      state,
-      char
+  )
+
+  fn staged_machine_starts_equivalent({@erased shape: ShapeCode}, compilation: ThompsonCompilation(shape)) -> Equivalent(
+    List(MachineState(thompson_state_count(compilation))),
+    pattern_machine_starts(staged_machine_from_compilation(compilation)),
+    pattern_machine_starts(thompson_machine(compilation))
+  ) = trans(
+    reflexive(pattern_machine_starts(staged_machine_seed_from_compilation(compilation))),
+    direct_pattern_machine_starts_congruence(
+      staged_machine_seed_from_compilation(compilation),
+      thompson_machine(compilation),
+      direct_staged_machine_seed_equivalent(compilation)
     )
-    ThompsonGroup(inner) -> transition_rows_machine_next_equation(
-      pattern_machine_starts(group_pattern_machine(thompson_state_count(inner), pattern_machine_starts(thompson_machine(inner)), pattern_machine_next(thompson_machine(inner)))),
-      staged_rows_values_from_compilation(ThompsonGroup(inner)),
-      state,
-      char
-    )
-    ThompsonConcat(left, right) -> transition_rows_machine_next_equation(
-      pattern_machine_starts(concat_pattern_machine(thompson_state_count(left), thompson_machine(left), thompson_state_count(right), thompson_machine(right))),
-      staged_rows_values_from_compilation(ThompsonConcat(left, right)),
-      state,
-      char
-    )
-    ThompsonAlternate(left, right, prefer_right) -> transition_rows_machine_next_equation(
-      pattern_machine_starts(alternate_pattern_machine(thompson_state_count(left), thompson_machine(left), thompson_state_count(right), thompson_machine(right), prefer_right)),
-      staged_rows_values_from_compilation(ThompsonAlternate(left, right, prefer_right)),
-      state,
-      char
-    )
-    ThompsonRepeat(inner, lazy) -> transition_rows_machine_next_equation(
-      pattern_machine_starts(repeat_pattern_machine(thompson_state_count(inner), thompson_machine(inner), lazy)),
-      staged_rows_values_from_compilation(ThompsonRepeat(inner, lazy)),
-      state,
-      char
-    )
+  )
 
   fn staged_rows_transition_equivalent(
     {@erased shape: ShapeCode},
@@ -919,145 +830,9 @@ mod Std.Regex.Runtime
     char: Char
   ) -> Equivalent(
     List(MachineState(thompson_state_count(compilation))),
-    transition_rows_next(staged_rows_values_from_compilation(compilation), state, char),
+    transition_rows_next(direct_staged_rows_values_from_compilation(compilation), state, char),
     pattern_machine_next_at(thompson_machine(compilation), state, char)
-  ) = match compilation
-    ThompsonPredicate(test) -> trans(
-      rows_from_next_equivalent(S(Z()), staged_predicate_next_function(test), state, char),
-      sym(pattern_machine_next_at_from_next(predicate_pattern_machine(test), state, char))
-    )
-    ThompsonEmpty() -> trans(
-      rows_from_next_equivalent(Z(), empty_machine_next, state, char),
-      sym(pattern_machine_next_at_from_next(empty_pattern_machine(), state, char))
-    )
-    ThompsonBoundary(constraint) -> trans(
-      rows_from_next_equivalent(Z(), empty_machine_next, state, char),
-      sym(pattern_machine_next_at_from_next(boundary_pattern_machine(constraint), state, char))
-    )
-    ThompsonGroup(inner) -> trans(
-      rows_from_next_equivalent(thompson_state_count(inner), staged_group_next_function(staged_rows_values_from_compilation(inner)), state, char),
-      trans(
-        group_next_output_equivalent(
-          rows_as_next(staged_rows_values_from_compilation(inner)),
-          pattern_machine_next(thompson_machine(inner)),
-          state,
-          char,
-          trans(
-            staged_rows_transition_equivalent(inner, state, char),
-            pattern_machine_next_at_from_next(thompson_machine(inner), state, char)
-          )
-        ),
-        sym(group_pattern_machine_next_equation(
-          thompson_state_count(inner),
-          pattern_machine_starts(thompson_machine(inner)),
-          pattern_machine_next(thompson_machine(inner)),
-          state,
-          char
-        ))
-      )
-    )
-    ThompsonConcat(left, right) -> trans(
-      rows_from_next_equivalent(
-        plus(thompson_state_count(left), thompson_state_count(right)),
-        staged_concat_next_function(
-          thompson_state_count(left),
-          staged_rows_values_from_compilation(left),
-          pattern_machine_starts(thompson_machine(right)),
-          staged_rows_values_from_compilation(right)
-        ),
-        state,
-        char
-      ),
-      trans(
-        staged_concat_next_side_equivalent(
-          thompson_state_count(left),
-          staged_rows_values_from_compilation(left),
-          pattern_machine_starts(thompson_machine(right)),
-          staged_rows_values_from_compilation(right),
-          state,
-          char
-        ),
-        trans(
-          staged_concat_rows_semantic(
-            left,
-            right,
-            split_sum(thompson_state_count(left), state),
-            state,
-            char
-          ),
-          sym(concat_pattern_machine_next_equation(
-            thompson_state_count(left),
-            thompson_machine(left),
-            thompson_state_count(right),
-            thompson_machine(right),
-            state,
-            char
-          ))
-        )
-      )
-    )
-    ThompsonAlternate(left, right, prefer_right) -> trans(
-      rows_from_next_equivalent(
-        plus(thompson_state_count(left), thompson_state_count(right)),
-        staged_alternate_next_function(
-          thompson_state_count(left),
-          staged_rows_values_from_compilation(left),
-          staged_rows_values_from_compilation(right)
-        ),
-        state,
-        char
-      ),
-      trans(
-        staged_alternate_next_side_equivalent(
-          thompson_state_count(left),
-          staged_rows_values_from_compilation(left),
-          staged_rows_values_from_compilation(right),
-          state,
-          char
-        ),
-        trans(
-          staged_alternate_rows_semantic(
-            left,
-            right,
-            split_sum(thompson_state_count(left), state),
-            prefer_right,
-            state,
-            char
-          ),
-          sym(alternate_pattern_machine_next_equation(
-            thompson_state_count(left),
-            thompson_machine(left),
-            thompson_state_count(right),
-            thompson_machine(right),
-            prefer_right,
-            state,
-            char
-          ))
-        )
-      )
-    )
-    ThompsonRepeat(inner, lazy) -> trans(
-      rows_from_next_equivalent(
-        thompson_state_count(inner),
-        staged_repeat_next_function(
-          pattern_machine_starts(thompson_machine(inner)),
-          staged_rows_values_from_compilation(inner),
-          lazy
-        ),
-        state,
-        char
-      ),
-      trans(
-        staged_repeat_rows_semantic(inner, lazy, state, char),
-        sym(repeat_pattern_machine_next_equation(
-          thompson_state_count(inner),
-          thompson_machine(inner),
-          lazy,
-          state,
-          char
-        ))
-      )
-    )
+  ) = direct_staged_rows_transition_equivalent(compilation, state, char)
 
   fn certify_thompson({@erased shape: ShapeCode}, pattern: Pattern(shape)) -> ThompsonCompilation(shape) = match pattern
     PatternPredicate(test) -> ThompsonPredicate(test)

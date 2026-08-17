@@ -108,6 +108,16 @@ defmodule Cure.Stdlib.RegexSourceTest do
     refute emitter =~ ~s(runtime_call("repeat_pattern_machine")
   end
 
+  test "staged row construction builds each Thompson child once" do
+    runtime = File.read!("lib/std/regex_runtime.cure")
+    [_prefix, active] = String.split(runtime, "fn staged_machine_seed_from_compilation", parts: 2)
+    [builder, _rest] = String.split(active, "fn direct_staged_rows_values_from_compilation", parts: 2)
+
+    refute builder =~ "thompson_machine("
+    assert builder =~ "let left_machine = staged_machine_seed_from_compilation(left)"
+    assert builder =~ "let right_machine = staged_machine_seed_from_compilation(right)"
+  end
+
   @tag timeout: 600_000
   test "a slash literal expands and elaborates without importing Std.Regex" do
     source = """

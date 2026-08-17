@@ -3433,7 +3433,7 @@ mod Std.Regex.Proof
   ) -> Equivalent(
     List(MachineState(thompson_state_count(compilation))),
     pattern_machine_next_at(staged_machine_from_compilation(compilation), state, char),
-    transition_rows_next(staged_rows_values_from_compilation(compilation), state, char)
+    transition_rows_next(direct_staged_rows_values_from_compilation(compilation), state, char)
   ) = staged_machine_rows_transition_equivalent(compilation, state, char)
 
   fn staged_initial_destinations_equivalent(
@@ -3448,9 +3448,19 @@ mod Std.Regex.Proof
     initial_machine_destinations(thompson_state_count(compilation), thompson_machine(compilation), position, input, after_input)
   ) =
     let canonical = thompson_machine(compilation)
+    let boundary = initial_position_boundary(position, append_characters(input, after_input))
     trans(
       initial_machine_destinations_equation(thompson_state_count(compilation), staged_machine_from_compilation(compilation), position, input, after_input),
-      sym(initial_machine_destinations_equation(thompson_state_count(compilation), canonical, position, input, after_input))
+      trans(
+        filter_boundary_equation(
+          thompson_state_count(compilation),
+          pattern_machine_starts(staged_machine_from_compilation(compilation)),
+          pattern_machine_starts(canonical),
+          boundary,
+          staged_machine_starts_equivalent(compilation)
+        ),
+        sym(initial_machine_destinations_equation(thompson_state_count(compilation), canonical, position, input, after_input))
+      )
     )
 
   fn staged_machine_destinations_equivalent(
@@ -3469,13 +3479,12 @@ mod Std.Regex.Proof
     let staged_destinations = machine_destinations_equation(thompson_state_count(compilation), staged, state, char, boundary)
     let canonical_destinations = machine_destinations_equation(thompson_state_count(compilation), canonical, state, char, boundary)
     let staged_next = staged_machine_next_equation(compilation, state, char)
-    let canonical_next = staged_rows_transition_equivalent(compilation, state, char)
     trans(
       staged_destinations,
       trans(
-        filter_boundary_equation(thompson_state_count(compilation), pattern_machine_next_at(staged, state, char), transition_rows_next(staged_rows_values_from_compilation(compilation), state, char), boundary, staged_next),
+        filter_boundary_equation(thompson_state_count(compilation), pattern_machine_next_at(staged, state, char), transition_rows_next(direct_staged_rows_values_from_compilation(compilation), state, char), boundary, staged_next),
         trans(
-          filter_boundary_equation(thompson_state_count(compilation), transition_rows_next(staged_rows_values_from_compilation(compilation), state, char), pattern_machine_next_at(canonical, state, char), boundary, canonical_next),
+          filter_boundary_equation(thompson_state_count(compilation), transition_rows_next(direct_staged_rows_values_from_compilation(compilation), state, char), pattern_machine_next_at(canonical, state, char), boundary, staged_rows_transition_equivalent(compilation, state, char)),
           sym(canonical_destinations)
         )
       )
