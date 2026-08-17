@@ -165,6 +165,14 @@
   dependent-regex suite passes 78 tests, including 300 generated Unicode
   subjects checking scan partitions/offsets, comma splitting, and literal
   replacement. Phase J is now the earliest incomplete phase.
+- 2026-08-18 — Phase J1 now stages a direct indexed `TransitionRows` artifact
+  for every certified Thompson constructor. `staged_machine_from_compilation`
+  performs one row-backed construction, and the runtime proof layer transports
+  each row lookup pointwise to the canonical Thompson machine for predicate,
+  empty, boundary, group, concat, alternate, and repeat. The focused source,
+  differential, and bounded-quantifier suites pass; J4 (removing the remaining
+  compile-time Thompson traversal) and the final J/K verification matrix remain
+  open.
 
 **Supersedes for unfinished work:**
 `2026-07-21-dependently-typed-regex-design.md`
@@ -174,9 +182,9 @@ Idris*, MSc thesis, University of Edinburgh, 2021
 (`docs/research/idris-tyre-2305.04480.pdf`; owner copy:
 `/Users/ch/Downloads/msc_proj.pdf`).
 
-**Implementation baseline:** committed through `f723ce19` ("Add typed regex
-scan"). The ordered ledger is authoritative for later work; no uncommitted work
-is credited as complete.
+**Implementation baseline:** committed through `775b521d` ("stage regex
+transition rows with checked semantic transport"). The ordered ledger is
+authoritative for later work; no uncommitted work is credited as complete.
 
 ## 1. Purpose
 
@@ -803,15 +811,21 @@ Gate: fixed and generated API laws pass; all APIs call the same verified VM.
 
 ### Phase J — stage and optimize
 
-1. Stage literal machines at compile time.
+1. **Implemented.** Literal machines now stage a direct indexed transition-row
+   artifact; the checked semantic transport preserves canonical machine
+   behavior, and generated literal tests contain no runtime parser/Thompson
+   dispatcher reference.
 2. **Discharged.** Replace list `distinct` with a state-indexed winner
    table/set preserving priority and evidence.
 3. **Discharged for executed evidence and captures.** Evidence and captured
    characters use reverse-list builders. Eliminate the remaining instruction-
    program appends as part of item 4 instead of adding a second runtime evidence
    representation.
-4. Remove repeated Thompson traversal and closure reconstruction.
-5. Preserve an unstaged reference path in tests only for differential checking.
+4. **Open.** Remove the remaining repeated Thompson traversal and closure
+   reconstruction from row construction; measure cold and warm builds after the
+   change.
+5. Preserve and exercise an unstaged reference path in tests only for
+   differential checking.
 
 Gate: generated literal BEAM contains neither parser nor Thompson builder calls;
 proofs remain erased; semantics are unchanged.
