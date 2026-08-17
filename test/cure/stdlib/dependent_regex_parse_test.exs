@@ -16,6 +16,7 @@ defmodule Cure.Stdlib.DependentRegexParseTest do
         fn(actual) -> Std.Char.same(expected, actual)
 
       fn atom(char: Char) -> Regex(Char) = predicate(same(char))
+      fn pattern_atom(char: Char) -> Pattern(CharC) = PatternPredicate(same(char))
       fn as_text(char: Char) -> String = Std.String.from_characters([char])
 
       fn parsed_char() -> Option(Char) = parse_full(atom('a'), "a")
@@ -43,6 +44,10 @@ defmodule Cure.Stdlib.DependentRegexParseTest do
       fn search_matches() -> Bool = matches(atom('a'), "xxax")
       fn search_misses() -> Bool = matches(atom('z'), "xxax")
       fn failed() -> Option(Char) = parse_full(atom('a'), "b")
+      fn staged_many(input: String) -> Option(List(Char)) = parse_full(/[a]*/, input)
+      fn unstaged_many(input: String) -> Option(List(Char)) = parse_pattern_full(PatternRepeat(pattern_atom('a')), input)
+      fn staged_capture(input: String) -> Option(String) = parse_full(/([ab])/, input)
+      fn unstaged_capture(input: String) -> Option(String) = parse_pattern_full(PatternGroup(PatternAlternateMode(pattern_atom('a'), pattern_atom('b'), false)), input)
     end
     """
 
@@ -95,5 +100,25 @@ defmodule Cure.Stdlib.DependentRegexParseTest do
 
   test "failed full parsing returns None", %{runtime_module: module} do
     assert apply(module, :failed, []) == :none
+  end
+
+  test "staged literals and unstaged Pattern proofs agree on exhaustive small subjects", %{runtime_module: module} do
+    subjects =
+      for size <- 0..4,
+          word <- List.duplicate(~c"abc", size)
+                   |> List.foldl([[]], fn alphabet, words -> for c <- alphabet, w <- words, do: [c | w] end),
+          do: Enum.reverse(word)
+
+    for subject <- subjects do
+      input = cure_string(subject)
+
+      assert apply(module, :staged_many, [input]) ==
+               apply(module, :unstaged_many, [input]),
+             "repeat subject=#{inspect(subject)}"
+
+      assert apply(module, :staged_capture, [input]) ==
+               apply(module, :unstaged_capture, [input]),
+             "capture subject=#{inspect(subject)}"
+    end
   end
 end
