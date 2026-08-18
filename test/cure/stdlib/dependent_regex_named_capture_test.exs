@@ -35,6 +35,12 @@ defmodule Cure.Stdlib.DependentRegexNamedCaptureTest do
       fn branch_reset(input: String) -> Option(NamedMatch(Choice(String, String))) =
         search_named(/(?|(?<word>a)|(?<word>b))/, input)
 
+      fn branch_reset_empty(input: String) -> Option(NamedMatch(Choice(String, String))) =
+        search_named(/(?|(?<word>)|(?<word>a))/, input)
+
+      fn branch_reset_nested(input: String) -> Option(NamedMatch(Choice(Choice(String, String), Choice(String, String)))) =
+        search_named(/(?|(?|(?<word>a)|(?<word>b))|(?|(?<word>c)|(?<word>d)))/, input)
+
       fn conditional(input: String) -> Option(NamedParse(Tuple(Option(String), Choice(Unit, Unit)))) =
         parse_full_named(/(?<flag>a)?(?(1)b|c)/, input)
 
@@ -43,6 +49,12 @@ defmodule Cure.Stdlib.DependentRegexNamedCaptureTest do
 
       fn conditional_search(input: String) -> Option(NamedMatch(Tuple(Option(String), Choice(Unit, Unit)))) =
         search_named(/(?<flag>a)?(?(1)b|c)/, input)
+
+      fn conditional_empty(input: String) -> Option(NamedParse(Tuple(String, Choice(Unit, Unit)))) =
+        parse_full_named(/(?<flag>)(?(flag)a|b)/, input)
+
+      fn conditional_failed_capture(input: String) -> Option(NamedParse(Tuple(Choice(Tuple(String, Unit), Unit), Choice(Unit, Unit)))) =
+        parse_full_named(/(?:(?<flag>a)x|a)(?(flag)b|c)/, input)
 
       fn replay_probe() -> Option(List(NamedCapture)) =
         replay_named_capture_routine(
@@ -59,6 +71,7 @@ defmodule Cure.Stdlib.DependentRegexNamedCaptureTest do
   test "named captures preserve full-match parsing", %{runtime_module: module} do
     assert {:some, {:NamedParse, {:String, ~c"ab"}, [{:NamedCapture, {:String, ~c"word"}, {:some, {:String, ~c"ab"}}}]}} =
              apply(module, :parsed, [{:String, ~c"ab"}])
+
     assert apply(module, :parsed, [{:String, ~c"ac"}]) == :none
   end
 
@@ -81,18 +94,21 @@ defmodule Cure.Stdlib.DependentRegexNamedCaptureTest do
 
   test "nested, alternate, empty, and repeated captures have explicit participation", %{runtime_module: module} do
     assert {:some, {:NamedMatch, _match, nested}} = apply(module, :nested, [{:String, [0xE9]}])
+
     assert nested == [
              {:NamedCapture, {:String, ~c"outer"}, {:some, {:String, [0xE9]}}},
              {:NamedCapture, {:String, ~c"inner"}, {:some, {:String, [0xE9]}}}
            ]
 
     assert {:some, {:NamedMatch, _match, left}} = apply(module, :alternate, [{:String, ~c"a"}])
+
     assert left == [
              {:NamedCapture, {:String, ~c"left"}, {:some, {:String, ~c"a"}}},
              {:NamedCapture, {:String, ~c"right"}, :none}
            ]
 
     assert {:some, {:NamedMatch, _match, right}} = apply(module, :alternate, [{:String, ~c"b"}])
+
     assert right == [
              {:NamedCapture, {:String, ~c"left"}, :none},
              {:NamedCapture, {:String, ~c"right"}, {:some, {:String, ~c"b"}}}
@@ -108,6 +124,11 @@ defmodule Cure.Stdlib.DependentRegexNamedCaptureTest do
   test "branch reset reuses the corresponding named slot", %{runtime_module: module} do
     assert {:some, {:NamedMatch, _match, captures}} = apply(module, :branch_reset, [{:String, ~c"b"}])
     assert captures == [{:NamedCapture, {:String, ~c"word"}, {:some, {:String, ~c"b"}}}]
+  end
+
+  test "nested branch reset preserves the nested result shape and shared slot", %{runtime_module: module} do
+    assert {:some, {:NamedMatch, _match, captures}} = apply(module, :branch_reset_nested, [{:String, ~c"d"}])
+    assert captures == [{:NamedCapture, {:String, ~c"word"}, {:some, {:String, ~c"d"}}}]
   end
 
   test "branch reset rejects arms with different capture layouts" do
@@ -138,6 +159,21 @@ defmodule Cure.Stdlib.DependentRegexNamedCaptureTest do
     assert captures == [{:NamedCapture, {:String, ~c"flag"}, {:some, {:String, ~c"a"}}}]
   end
 
+  test "empty captures participate in conditionals", %{runtime_module: module} do
+    assert {:some, {:NamedParse, _value, captures}} = apply(module, :conditional_empty, [{:String, ~c"a"}])
+    assert captures == [{:NamedCapture, {:String, ~c"flag"}, {:some, {:String, []}}}]
+    assert apply(module, :conditional_empty, [{:String, ~c"b"}]) == :none
+  end
+
+  test "failed alternatives do not leak conditional participation", %{runtime_module: module} do
+    assert {:some, {:NamedParse, _value, captures}} = apply(module, :conditional_failed_capture, [{:String, ~c"ac"}])
+    assert captures == [{:NamedCapture, {:String, ~c"flag"}, :none}]
+    assert apply(module, :conditional_failed_capture, [{:String, ~c"ab"}]) == :none
+
+    assert {:some, {:NamedParse, _value, captures}} = apply(module, :conditional_failed_capture, [{:String, ~c"axb"}])
+    assert captures == [{:NamedCapture, {:String, ~c"flag"}, {:some, {:String, ~c"a"}}}]
+  end
+
   test "unknown conditional capture references are diagnosed" do
     missing = "mod BadConditional\n  use Std.Regex\n  fn run() = /(?(missing)a)/\nend\n"
 
@@ -146,6 +182,16 @@ defmodule Cure.Stdlib.DependentRegexNamedCaptureTest do
              {:computed_macro_error, _meta,
               {:author_diagnostics, [{:macro_failure, :UnknownRegexCaptureReference, _}]}}, _context}} =
              Program.elaborate(missing)
+  end
+
+  test "conditional arms with different capture layouts are diagnosed" do
+    source = "mod BadConditionalLayout\n  use Std.Regex\n  fn run() = /(?<flag>a)?(?(flag)(b)|(c)(d))/\nend\n"
+
+    assert {:error,
+            {:source_context,
+             {:computed_macro_error, _meta,
+              {:author_diagnostics, [{:macro_failure, :ConditionalCaptureLayoutMismatch, _}]}}, _context}} =
+             Program.elaborate(source)
   end
 
   test "malformed and duplicate names are structured macro diagnostics" do
@@ -161,8 +207,8 @@ defmodule Cure.Stdlib.DependentRegexNamedCaptureTest do
 
       assert {:error,
               {:source_context,
-               {:computed_macro_error, _meta,
-                {:author_diagnostics, [{:macro_failure, ^expected, _arguments}]}}, _context}} =
+               {:computed_macro_error, _meta, {:author_diagnostics, [{:macro_failure, ^expected, _arguments}]}},
+               _context}} =
                Program.elaborate(source)
     end)
   end

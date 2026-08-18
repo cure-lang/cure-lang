@@ -26,6 +26,16 @@ mod Std.Regex.Syntax.Model
     | LiteralCaptureWalkInvalid(Atom, String)
   type LiteralCaptureReference = LiteralCaptureSlotReference(Nat) | LiteralCaptureNameReference(String)
 
+  ## Capture-layout validation is a checked decision, not a Boolean side
+  ## condition.  The compatible branch is the certificate consumed by the
+  ## branch-reset and conditional walkers; the incompatible branch is the
+  ## only route to their structured diagnostics.  Keeping this distinction in
+  ## an indexed data type prevents a caller from accidentally treating a
+  ## failed comparison as a valid layout.
+  type LiteralCaptureLayoutDecision indices (left: List(LiteralCaptureSlotInfo), right: List(LiteralCaptureSlotInfo))
+    LiteralCaptureLayoutsCompatible : LiteralCaptureLayoutDecision(left, right)
+    LiteralCaptureLayoutsIncompatible : LiteralCaptureLayoutDecision(left, right)
+
   type LiteralPattern =
     | LiteralEmpty
     | LiteralExact(Char)
@@ -258,8 +268,9 @@ mod Std.Regex.Syntax.Model
           LiteralCaptureWalkInvalid(reason, name) -> LiteralCaptureWalkInvalid(reason, name)
           LiteralCaptureWalked(numbered_no, no_slots, no_next, _) -> pickup
             not same_literal_nat(yes_next, no_next) -> LiteralCaptureWalkInvalid(:ConditionalCaptureLayoutMismatch, "conditional")
-            not literal_capture_slots_compatible(yes_slots, no_slots) -> LiteralCaptureWalkInvalid(:ConditionalCaptureLayoutMismatch, "conditional")
-            else -> LiteralCaptureWalked(LiteralConditional(reference, numbered_yes, Some(numbered_no)), yes_slots, yes_next, yes_names)
+            else -> match literal_capture_layout_decision(yes_slots, no_slots)
+              LiteralCaptureLayoutsIncompatible() -> LiteralCaptureWalkInvalid(:ConditionalCaptureLayoutMismatch, "conditional")
+              LiteralCaptureLayoutsCompatible() -> LiteralCaptureWalked(LiteralConditional(reference, numbered_yes, Some(numbered_no)), yes_slots, yes_next, yes_names)
     LiteralSequence(left, right) -> walk_literal_binary(LiteralSequence, left, right, next, names)
     LiteralAlternate(left, right) -> walk_literal_binary(LiteralAlternate, left, right, next, names)
     LiteralRepeat(inner, lazy) -> walk_literal_unary(fn(value) -> LiteralRepeat(value, lazy), inner, next, names)
@@ -295,16 +306,25 @@ mod Std.Regex.Syntax.Model
       LiteralCaptureWalkInvalid(reason, name) -> LiteralCaptureWalkInvalid(reason, name)
       LiteralCaptureWalked(numbered, arm_slots, arm_next, _) -> pickup
         not same_literal_nat(expected_next, arm_next) -> LiteralCaptureWalkInvalid(:BranchResetCaptureLayoutMismatch, "branch reset")
-        not literal_capture_slots_compatible(slots, arm_slots) -> LiteralCaptureWalkInvalid(:BranchResetCaptureLayoutMismatch, "branch reset")
-        else -> walk_literal_branch_reset_rest(rest, next, names, [numbered | normalized_reverse], slots, expected_next, final_names)
+        else -> match literal_capture_layout_decision(slots, arm_slots)
+          LiteralCaptureLayoutsIncompatible() -> LiteralCaptureWalkInvalid(:BranchResetCaptureLayoutMismatch, "branch reset")
+          LiteralCaptureLayoutsCompatible() -> walk_literal_branch_reset_rest(rest, next, names, [numbered | normalized_reverse], slots, expected_next, final_names)
 
-  fn literal_capture_slots_compatible(left: List(LiteralCaptureSlotInfo), right: List(LiteralCaptureSlotInfo)) -> Bool = match left
+  ## A total, constructor-level decision for the slot ledger.  Unlike the
+  ## legacy Boolean helper below, callers must inspect the compatible branch
+  ## before they can proceed with a normalized layout.
+  fn literal_capture_layout_decision(left: List(LiteralCaptureSlotInfo), right: List(LiteralCaptureSlotInfo)) -> LiteralCaptureLayoutDecision(left, right) = match left
     [] -> match right
-      [] -> true
-      _ -> false
+      [] -> LiteralCaptureLayoutsCompatible()
+      _ -> LiteralCaptureLayoutsIncompatible()
     [LiteralCaptureSlotInfo(left_slot, left_name) | left_rest] -> match right
-      [LiteralCaptureSlotInfo(right_slot, right_name) | right_rest] -> same_literal_nat(left_slot, right_slot) and same_capture_name_option(left_name, right_name) and literal_capture_slots_compatible(left_rest, right_rest)
-      [] -> false
+      [] -> LiteralCaptureLayoutsIncompatible()
+      [LiteralCaptureSlotInfo(right_slot, right_name) | right_rest] -> pickup
+        not same_literal_nat(left_slot, right_slot) -> LiteralCaptureLayoutsIncompatible()
+        not same_capture_name_option(left_name, right_name) -> LiteralCaptureLayoutsIncompatible()
+        else -> match literal_capture_layout_decision(left_rest, right_rest)
+          LiteralCaptureLayoutsCompatible() -> LiteralCaptureLayoutsCompatible()
+          LiteralCaptureLayoutsIncompatible() -> LiteralCaptureLayoutsIncompatible()
 
   fn same_capture_name_option(left: Option(String), right: Option(String)) -> Bool = match left
     None() -> match right

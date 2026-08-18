@@ -988,13 +988,31 @@ mod Std.Regex.Runtime
 
   fn capture_condition_holds(condition: Option(CaptureCondition), routine: List(EvidenceInstruction)) -> Bool = match condition
     None() -> true
-    Some(CaptureParticipated(slot)) -> capture_slot_closed(slot, routine)
-    Some(CaptureAbsent(slot)) -> not capture_slot_closed(slot, routine)
+    Some(CaptureParticipated(slot)) -> match capture_participation_decision(slot, routine)
+      CaptureParticipatedByRoutine() -> true
+      CaptureAbsentByRoutine() -> false
+    Some(CaptureAbsent(slot)) -> match capture_participation_decision(slot, routine)
+      CaptureParticipatedByRoutine() -> false
+      CaptureAbsentByRoutine() -> true
 
-  fn capture_slot_closed(slot: Nat, routine: List(EvidenceInstruction)) -> Bool = match routine
-    [] -> false
-    [EndCaptureSlot(closed_slot) | rest] -> same_capture_slot(slot, closed_slot) or capture_slot_closed(slot, rest)
-    [_ | rest] -> capture_slot_closed(slot, rest)
+  ## The conditional guard consumes an indexed decision produced from the
+  ## destination epsilon routine. This is the finite participation fact used
+  ## by named conditionals; it is deliberately separate from capture text and
+  ## cannot be manufactured by replaying an unrelated slot.
+  type CaptureParticipationDecision indices (slot: Nat, routine: List(EvidenceInstruction))
+    CaptureParticipatedByRoutine : CaptureParticipationDecision(slot, routine)
+    CaptureAbsentByRoutine : CaptureParticipationDecision(slot, routine)
+
+  fn capture_participation_decision(slot: Nat, routine: List(EvidenceInstruction)) -> CaptureParticipationDecision(slot, routine) = match routine
+    [] -> CaptureAbsentByRoutine()
+    [EndCaptureSlot(closed_slot) | rest] -> pickup
+      same_capture_slot(slot, closed_slot) -> CaptureParticipatedByRoutine()
+      else -> match capture_participation_decision(slot, rest)
+        CaptureParticipatedByRoutine() -> CaptureParticipatedByRoutine()
+        CaptureAbsentByRoutine() -> CaptureAbsentByRoutine()
+    [_ | rest] -> match capture_participation_decision(slot, rest)
+      CaptureParticipatedByRoutine() -> CaptureParticipatedByRoutine()
+      CaptureAbsentByRoutine() -> CaptureAbsentByRoutine()
 
   fn newline_char(policy: NewlinePolicy, char: Char) -> Bool = match policy
     LFNewline() -> char == '\n'
@@ -1463,24 +1481,31 @@ mod Std.Regex.Runtime
       MkPatternMachine(_, next) -> filter_boundary_states(next(active, char), boundary)
 
   ## Named machines may carry capture-participation constraints on their
-  ## destination states. Those constraints are checked against the
-  ## destination's own epsilon routine: a group that participated contributes
-  ## its EndCaptureSlot instruction when the guarded branch is entered.
+  ## destination states. Those constraints are checked against the regular
+  ## evidence already executed on the path plus the destination's epsilon
+  ## routine: a group that participated contributes its EndCaptureSlot
+  ## instruction before the guarded branch is entered. Observe instructions
+  ## are intentionally erased from this view; they only advance capture text.
   ## Ordinary machines deliberately continue through `machine_destinations`,
   ## whose indexed proof contract does not mention capture conditions.
-  fn filter_boundary_states_with_routine({n: Nat}, states: List(MachineState(n)), boundary: Boundary) -> List(MachineState(n)) = match states
+  fn extended_regular_instructions(routine: List(ExtendedInstruction)) -> List(EvidenceInstruction) = match routine
+    [] -> []
+    [Regular(instruction) | rest] -> [instruction | extended_regular_instructions(rest)]
+    [Observe(_) | rest] -> extended_regular_instructions(rest)
+
+  fn filter_boundary_states_with_routine({n: Nat}, states: List(MachineState(n)), boundary: Boundary, prior_routine: List(EvidenceInstruction)) -> List(MachineState(n)) = match states
     [] -> []
     [Accepted(routine, constraints) | rest] -> pickup
-      constraints_hold_with_routine(constraints, boundary, routine) -> [Accepted(routine, constraints) | filter_boundary_states_with_routine(rest, boundary)]
-      else -> filter_boundary_states_with_routine(rest, boundary)
+      constraints_hold_with_routine(constraints, boundary, append_routine(prior_routine, routine)) -> [Accepted(routine, constraints) | filter_boundary_states_with_routine(rest, boundary, prior_routine)]
+      else -> filter_boundary_states_with_routine(rest, boundary, prior_routine)
     [Active(state, routine, constraints) | rest] -> pickup
-      constraints_hold_with_routine(constraints, boundary, routine) -> [Active(state, routine, constraints) | filter_boundary_states_with_routine(rest, boundary)]
-      else -> filter_boundary_states_with_routine(rest, boundary)
+      constraints_hold_with_routine(constraints, boundary, append_routine(prior_routine, routine)) -> [Active(state, routine, constraints) | filter_boundary_states_with_routine(rest, boundary, prior_routine)]
+      else -> filter_boundary_states_with_routine(rest, boundary, prior_routine)
 
-  fn named_machine_destinations(n: Nat, machine: PatternMachine(n), state: ThreadState(n), char: Char, boundary: Boundary) -> List(MachineState(n)) = match state
+  fn named_machine_destinations(n: Nat, machine: PatternMachine(n), state: ThreadState(n), char: Char, boundary: Boundary, prior_routine: List(EvidenceInstruction)) -> List(MachineState(n)) = match state
     ThreadAccepted() -> []
     ThreadActive(active) -> match machine
-      MkPatternMachine(_, next) -> filter_boundary_states_with_routine(next(active, char), boundary)
+      MkPatternMachine(_, next) -> filter_boundary_states_with_routine(next(active, char), boundary, prior_routine)
 
   ## Intrinsic list membership. The witness is erased at every accepting-run
   ## boundary; its only purpose is to make every path edge name a destination
@@ -1613,7 +1638,7 @@ mod Std.Regex.Runtime
     MkPatternMachine(starts, _) -> named_search_initial_members(n, machine, position, input, after_input, named_filter_initial(starts, position, input, after_input))
 
   fn named_filter_initial({n: Nat}, starts: List(MachineState(n)), position: InitialPosition, input: List(Char), after_input: List(Char)) -> List(MachineState(n)) =
-    filter_boundary_states_with_routine(starts, initial_position_boundary(position, append_characters(input, after_input)))
+    filter_boundary_states_with_routine(starts, initial_position_boundary(position, append_characters(input, after_input)), [])
 
   fn named_search_initial_members(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), starts: List(MachineState(n))) -> NamedMachineSearch = match starts
     [] -> NamedMachineNoPath()
@@ -1628,7 +1653,7 @@ mod Std.Regex.Runtime
     [] -> match state
       ThreadAccepted() -> NamedMachinePath(current_routine)
       ThreadActive(_) -> NamedMachineNoPath()
-    [char | rest] -> named_search_accepting_members(n, machine, char, rest, after_input, current_routine, named_machine_destinations(n, machine, state, char, transition_boundary_before(char, rest, after_input)))
+    [char | rest] -> named_search_accepting_members(n, machine, char, rest, after_input, current_routine, named_machine_destinations(n, machine, state, char, transition_boundary_before(char, rest, after_input), extended_regular_instructions(current_routine)))
 
   fn named_search_accepting_members(n: Nat, machine: PatternMachine(n), char: Char, rest: List(Char), after_input: List(Char), current_routine: List(ExtendedInstruction), destinations: List(MachineState(n))) -> NamedMachineSearch = match destinations
     [] -> NamedMachineNoPath()
