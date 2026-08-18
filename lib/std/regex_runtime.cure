@@ -355,6 +355,19 @@ mod Std.Regex.Runtime
     let starts: List(MachineState(Z())) = Cons(Accepted(routine, constraints), Nil())
     MkPatternMachine(starts, empty_machine_next)
 
+  fn capture_condition_constraint(slot: Nat, participated: Bool) -> BoundaryConstraint = pickup
+    participated -> capture_participated_constraint(slot)
+    else -> capture_absent_constraint(slot)
+
+  fn guard_states({n: Nat}, constraint: BoundaryConstraint, states: List(MachineState(n))) -> List(MachineState(n)) = match states
+    [] -> []
+    [Active(state, routine, constraints) | rest] -> [Active(state, routine, append_constraints([constraint], constraints)) | guard_states(constraint, rest)]
+    [Accepted(routine, constraints) | rest] -> [Accepted(routine, append_constraints([constraint], constraints)) | guard_states(constraint, rest)]
+
+  @reducible
+  fn guard_pattern_machine({n: Nat}, constraint: BoundaryConstraint, machine: PatternMachine(n)) -> PatternMachine(n) = match machine
+    MkPatternMachine(starts, next) -> MkPatternMachine(guard_states(constraint, starts), next)
+
   @reducible
   fn predicate_machine_start() -> MachineState(S(Z())) =
     let routine: List(EvidenceInstruction) = []
@@ -493,6 +506,7 @@ mod Std.Regex.Runtime
     NamedThompsonConcat : (left: NamedThompsonCompilation(left_shape)) -> (right: NamedThompsonCompilation(right_shape)) -> NamedThompsonCompilation(PairC(left_shape, right_shape))
     NamedThompsonCapture : (inner: NamedThompsonCompilation(inner_shape)) -> NamedThompsonCompilation(StringC)
     NamedThompsonGroup : (slot: Nat) -> (inner: NamedThompsonCompilation(inner_shape)) -> NamedThompsonCompilation(StringC)
+    NamedThompsonGuard : (slot: Nat) -> (participated: Bool) -> (inner: NamedThompsonCompilation(inner_shape)) -> NamedThompsonCompilation(inner_shape)
     NamedThompsonAlternate : (left: NamedThompsonCompilation(left_shape)) -> (right: NamedThompsonCompilation(right_shape)) -> (prefer_right: Bool) -> NamedThompsonCompilation(ChoiceC(left_shape, right_shape))
     NamedThompsonRepeat : (inner: NamedThompsonCompilation(inner_shape)) -> (lazy: Bool) -> NamedThompsonCompilation(ListC(inner_shape))
 
@@ -506,6 +520,7 @@ mod Std.Regex.Runtime
     NamedConcatErasure : {@erased left_shape: ShapeCode} -> {@erased right_shape: ShapeCode} -> {@erased left_named: NamedThompsonCompilation(left_shape)} -> {@erased right_named: NamedThompsonCompilation(right_shape)} -> {@erased left_ordinary: ThompsonCompilation(left_shape)} -> {@erased right_ordinary: ThompsonCompilation(right_shape)} -> (@erased left: NamedCompilationErasure(left_shape, left_named, left_ordinary)) -> (@erased right: NamedCompilationErasure(right_shape, right_named, right_ordinary)) -> NamedCompilationErasure(PairC(left_shape, right_shape), NamedThompsonConcat(left_named, right_named), ThompsonConcat(left_ordinary, right_ordinary))
     NamedCaptureErasure : {@erased inner_shape: ShapeCode} -> {@erased inner_named: NamedThompsonCompilation(inner_shape)} -> {@erased inner_ordinary: ThompsonCompilation(inner_shape)} -> (@erased inner: NamedCompilationErasure(inner_shape, inner_named, inner_ordinary)) -> NamedCompilationErasure(StringC, NamedThompsonCapture(inner_named), ThompsonGroup(inner_ordinary))
     NamedGroupErasure : {@erased inner_shape: ShapeCode} -> {@erased inner_named: NamedThompsonCompilation(inner_shape)} -> {@erased inner_ordinary: ThompsonCompilation(inner_shape)} -> (slot: Nat) -> (@erased inner: NamedCompilationErasure(inner_shape, inner_named, inner_ordinary)) -> NamedCompilationErasure(StringC, NamedThompsonGroup(slot, inner_named), ThompsonGroup(inner_ordinary))
+    NamedGuardErasure : {@erased inner_shape: ShapeCode} -> {@erased inner_named: NamedThompsonCompilation(inner_shape)} -> {@erased inner_ordinary: ThompsonCompilation(inner_shape)} -> (slot: Nat) -> (participated: Bool) -> (@erased inner: NamedCompilationErasure(inner_shape, inner_named, inner_ordinary)) -> NamedCompilationErasure(inner_shape, NamedThompsonGuard(slot, participated, inner_named), inner_ordinary)
     NamedAlternateErasure : {@erased left_shape: ShapeCode} -> {@erased right_shape: ShapeCode} -> {@erased left_named: NamedThompsonCompilation(left_shape)} -> {@erased right_named: NamedThompsonCompilation(right_shape)} -> {@erased left_ordinary: ThompsonCompilation(left_shape)} -> {@erased right_ordinary: ThompsonCompilation(right_shape)} -> (@erased left: NamedCompilationErasure(left_shape, left_named, left_ordinary)) -> (@erased right: NamedCompilationErasure(right_shape, right_named, right_ordinary)) -> (prefer_right: Bool) -> NamedCompilationErasure(ChoiceC(left_shape, right_shape), NamedThompsonAlternate(left_named, right_named, prefer_right), ThompsonAlternate(left_ordinary, right_ordinary, prefer_right))
     NamedRepeatErasure : {@erased inner_shape: ShapeCode} -> {@erased inner_named: NamedThompsonCompilation(inner_shape)} -> {@erased inner_ordinary: ThompsonCompilation(inner_shape)} -> (@erased inner: NamedCompilationErasure(inner_shape, inner_named, inner_ordinary)) -> (lazy: Bool) -> NamedCompilationErasure(ListC(inner_shape), NamedThompsonRepeat(inner_named, lazy), ThompsonRepeat(inner_ordinary, lazy))
 
@@ -516,6 +531,7 @@ mod Std.Regex.Runtime
     NamedThompsonConcat(left, right) -> NamedConcatErasure(certify_named_compilation(left), certify_named_compilation(right))
     NamedThompsonCapture(inner) -> NamedCaptureErasure(certify_named_compilation(inner))
     NamedThompsonGroup(slot, inner) -> NamedGroupErasure(slot, certify_named_compilation(inner))
+    NamedThompsonGuard(slot, participated, inner) -> NamedGuardErasure(slot, participated, certify_named_compilation(inner))
     NamedThompsonAlternate(left, right, prefer_right) -> NamedAlternateErasure(certify_named_compilation(left), certify_named_compilation(right), prefer_right)
     NamedThompsonRepeat(inner, lazy) -> NamedRepeatErasure(certify_named_compilation(inner), lazy)
 
@@ -527,6 +543,7 @@ mod Std.Regex.Runtime
     NamedThompsonConcat(left, right) -> plus(named_thompson_state_count(left), named_thompson_state_count(right))
     NamedThompsonCapture(inner) -> named_thompson_state_count(inner)
     NamedThompsonGroup(_, inner) -> named_thompson_state_count(inner)
+    NamedThompsonGuard(_, _, inner) -> named_thompson_state_count(inner)
     NamedThompsonAlternate(left, right, _) -> plus(named_thompson_state_count(left), named_thompson_state_count(right))
     NamedThompsonRepeat(inner, _) -> named_thompson_state_count(inner)
 
@@ -538,6 +555,7 @@ mod Std.Regex.Runtime
     NamedThompsonConcat(left, right) -> ThompsonConcat(erase_named_thompson(left), erase_named_thompson(right))
     NamedThompsonCapture(inner) -> ThompsonGroup(erase_named_thompson(inner))
     NamedThompsonGroup(_, inner) -> ThompsonGroup(erase_named_thompson(inner))
+    NamedThompsonGuard(_, _, inner) -> erase_named_thompson(inner)
     NamedThompsonAlternate(left, right, prefer_right) -> ThompsonAlternate(erase_named_thompson(left), erase_named_thompson(right), prefer_right)
     NamedThompsonRepeat(inner, lazy) -> ThompsonRepeat(erase_named_thompson(inner), lazy)
 
@@ -553,6 +571,7 @@ mod Std.Regex.Runtime
     NamedThompsonGroup(slot, inner) ->
       let inner_machine = named_thompson_machine(inner)
       group_pattern_machine_with_slot(named_thompson_state_count(inner), pattern_machine_starts(inner_machine), pattern_machine_next(inner_machine), slot)
+    NamedThompsonGuard(slot, participated, inner) -> guard_pattern_machine(capture_condition_constraint(slot, participated), named_thompson_machine(inner))
     NamedThompsonAlternate(left, right, prefer_right) -> alternate_pattern_machine(named_thompson_state_count(left), named_thompson_machine(left), named_thompson_state_count(right), named_thompson_machine(right), prefer_right)
     NamedThompsonRepeat(inner, lazy) -> repeat_pattern_machine(named_thompson_state_count(inner), named_thompson_machine(inner), lazy)
 
@@ -953,16 +972,29 @@ mod Std.Regex.Runtime
     [] -> []
     [head | rest] -> append_states(machine_step_one(next, char, head), machine_step(next, char, rest))
 
-  fn constraint_holds(constraint: BoundaryConstraint, boundary: Boundary) -> Bool = match boundary
+  fn constraint_holds(constraint: BoundaryConstraint, boundary: Boundary) -> Bool = constraint_holds_with_routine(constraint, boundary, [])
+
+  fn constraint_holds_with_routine(constraint: BoundaryConstraint, boundary: Boundary, routine: List(EvidenceInstruction)) -> Bool = match boundary
     Boundary(subject_start, _subject_end, strict_subject_end, _line_start, _line_end, ascii_boundary, unicode_boundary, previous_char, next_char, after_next_char) -> match constraint
-      BoundaryConstraint(require_subject_start, require_subject_end, require_strict_end, require_line_start, require_line_end, check_ascii, expected_ascii, check_unicode, expected_unicode, policy) ->
+      BoundaryConstraint(require_subject_start, require_subject_end, require_strict_end, require_line_start, require_line_end, check_ascii, expected_ascii, check_unicode, expected_unicode, policy, capture_condition) ->
         (not require_subject_start or subject_start) and
           (not require_subject_end or subject_end_for(policy, next_char, after_next_char)) and
           (not require_strict_end or strict_subject_end) and
           (not require_line_start or line_start_for(policy, previous_char, next_char)) and
           (not require_line_end or line_end_for(policy, next_char, after_next_char)) and
           (not check_ascii or ascii_boundary == expected_ascii) and
-          (not check_unicode or unicode_boundary == expected_unicode)
+          (not check_unicode or unicode_boundary == expected_unicode) and
+          capture_condition_holds(capture_condition, routine)
+
+  fn capture_condition_holds(condition: Option(CaptureCondition), routine: List(EvidenceInstruction)) -> Bool = match condition
+    None() -> true
+    Some(CaptureParticipated(slot)) -> capture_slot_closed(slot, routine)
+    Some(CaptureAbsent(slot)) -> not capture_slot_closed(slot, routine)
+
+  fn capture_slot_closed(slot: Nat, routine: List(EvidenceInstruction)) -> Bool = match routine
+    [] -> false
+    [EndCaptureSlot(closed_slot) | rest] -> same_capture_slot(slot, closed_slot) or capture_slot_closed(slot, rest)
+    [_ | rest] -> capture_slot_closed(slot, rest)
 
   fn newline_char(policy: NewlinePolicy, char: Char) -> Bool = match policy
     LFNewline() -> char == '\n'
@@ -1014,42 +1046,52 @@ mod Std.Regex.Runtime
     subject_start_constraint_with_policy(AnyUnicodeNewline())
 
   fn subject_start_constraint_with_policy(policy: NewlinePolicy) -> BoundaryConstraint =
-    BoundaryConstraint(true, false, false, false, false, false, false, false, false, policy)
+    BoundaryConstraint(true, false, false, false, false, false, false, false, false, policy, None())
 
   fn subject_end_constraint() -> BoundaryConstraint =
     subject_end_constraint_with_policy(AnyUnicodeNewline())
 
   fn subject_end_constraint_with_policy(policy: NewlinePolicy) -> BoundaryConstraint =
-    BoundaryConstraint(false, true, false, false, false, false, false, false, false, policy)
+    BoundaryConstraint(false, true, false, false, false, false, false, false, false, policy, None())
 
   fn strict_end_constraint() -> BoundaryConstraint =
     strict_end_constraint_with_policy(AnyUnicodeNewline())
 
   fn strict_end_constraint_with_policy(policy: NewlinePolicy) -> BoundaryConstraint =
-    BoundaryConstraint(false, false, true, false, false, false, false, false, false, policy)
+    BoundaryConstraint(false, false, true, false, false, false, false, false, false, policy, None())
 
   fn line_start_constraint() -> BoundaryConstraint =
     line_start_constraint_with_policy(AnyUnicodeNewline())
 
   fn line_start_constraint_with_policy(policy: NewlinePolicy) -> BoundaryConstraint =
-    BoundaryConstraint(false, false, false, true, false, false, false, false, false, policy)
+    BoundaryConstraint(false, false, false, true, false, false, false, false, false, policy, None())
 
   fn line_end_constraint() -> BoundaryConstraint =
     line_end_constraint_with_policy(AnyUnicodeNewline())
 
   fn line_end_constraint_with_policy(policy: NewlinePolicy) -> BoundaryConstraint =
-    BoundaryConstraint(false, false, false, false, true, false, false, false, false, policy)
+    BoundaryConstraint(false, false, false, false, true, false, false, false, false, policy, None())
 
   fn ascii_word_constraint(expected: Bool) -> BoundaryConstraint =
-    BoundaryConstraint(false, false, false, false, false, true, expected, false, false, AnyUnicodeNewline())
+    BoundaryConstraint(false, false, false, false, false, true, expected, false, false, AnyUnicodeNewline(), None())
 
   fn unicode_word_constraint(expected: Bool) -> BoundaryConstraint =
-    BoundaryConstraint(false, false, false, false, false, false, false, true, expected, AnyUnicodeNewline())
+    BoundaryConstraint(false, false, false, false, false, false, false, true, expected, AnyUnicodeNewline(), None())
+
+  fn capture_participated_constraint(slot: Nat) -> BoundaryConstraint =
+    BoundaryConstraint(false, false, false, false, false, false, false, false, false, AnyUnicodeNewline(), Some(CaptureParticipated(slot)))
+
+  fn capture_absent_constraint(slot: Nat) -> BoundaryConstraint =
+    BoundaryConstraint(false, false, false, false, false, false, false, false, false, AnyUnicodeNewline(), Some(CaptureAbsent(slot)))
 
   @reducible
   fn constraints_hold(constraints: List(BoundaryConstraint), boundary: Boundary) -> Bool = match constraints
     [] -> true
     [head | rest] -> constraint_holds(head, boundary) and constraints_hold(rest, boundary)
+
+  fn constraints_hold_with_routine(constraints: List(BoundaryConstraint), boundary: Boundary, routine: List(EvidenceInstruction)) -> Bool = match constraints
+    [] -> true
+    [head | rest] -> constraint_holds_with_routine(head, boundary, routine) and constraints_hold_with_routine(rest, boundary, routine)
 
   @reducible
   fn filter_active_decision({n: Nat}, keep: Bool, state: Bounded(n), routine: List(EvidenceInstruction), rest: List(MachineState(n)), boundary: Boundary) -> List(MachineState(n)) = match keep
@@ -1420,6 +1462,26 @@ mod Std.Regex.Runtime
     ThreadActive(active) -> match machine
       MkPatternMachine(_, next) -> filter_boundary_states(next(active, char), boundary)
 
+  ## Named machines may carry capture-participation constraints on their
+  ## destination states. Those constraints are checked against the
+  ## destination's own epsilon routine: a group that participated contributes
+  ## its EndCaptureSlot instruction when the guarded branch is entered.
+  ## Ordinary machines deliberately continue through `machine_destinations`,
+  ## whose indexed proof contract does not mention capture conditions.
+  fn filter_boundary_states_with_routine({n: Nat}, states: List(MachineState(n)), boundary: Boundary) -> List(MachineState(n)) = match states
+    [] -> []
+    [Accepted(routine, constraints) | rest] -> pickup
+      constraints_hold_with_routine(constraints, boundary, routine) -> [Accepted(routine, constraints) | filter_boundary_states_with_routine(rest, boundary)]
+      else -> filter_boundary_states_with_routine(rest, boundary)
+    [Active(state, routine, constraints) | rest] -> pickup
+      constraints_hold_with_routine(constraints, boundary, routine) -> [Active(state, routine, constraints) | filter_boundary_states_with_routine(rest, boundary)]
+      else -> filter_boundary_states_with_routine(rest, boundary)
+
+  fn named_machine_destinations(n: Nat, machine: PatternMachine(n), state: ThreadState(n), char: Char, boundary: Boundary) -> List(MachineState(n)) = match state
+    ThreadAccepted() -> []
+    ThreadActive(active) -> match machine
+      MkPatternMachine(_, next) -> filter_boundary_states_with_routine(next(active, char), boundary)
+
   ## Intrinsic list membership. The witness is erased at every accepting-run
   ## boundary; its only purpose is to make every path edge name a destination
   ## that the checked transition relation actually produced.
@@ -1540,6 +1602,68 @@ mod Std.Regex.Runtime
           let extended_routine = append_extended_routines(regular_routine(routine), path_routine)
           let routine_certificate = prepend_initial_certificate(routine, path_routine, initial_evidence, initial_captures, regular_execution, path_certificate)
           MachineAcceptingPath(final_evidence, extended_routine, MachineAccepted(Accepted(routine, constraints), initial_evidence, initial_captures, path_routine, edge, execution, routine_certificate, path))
+
+  ## Runtime-only search for named machines. The ordinary search above is
+  ## indexed by the evidence theorem and intentionally has no capture-guard
+  ## parameter. Named search carries only the replay routine, while preserving
+  ## the same ordered destination traversal and boundary calculations.
+  type NamedMachineSearch = NamedMachineNoPath | NamedMachinePath(List(ExtendedInstruction))
+
+  fn named_search_machine_acceptance(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char)) -> NamedMachineSearch = match machine
+    MkPatternMachine(starts, _) -> named_search_initial_members(n, machine, position, input, after_input, named_filter_initial(starts, position, input, after_input))
+
+  fn named_filter_initial({n: Nat}, starts: List(MachineState(n)), position: InitialPosition, input: List(Char), after_input: List(Char)) -> List(MachineState(n)) =
+    filter_boundary_states_with_routine(starts, initial_position_boundary(position, append_characters(input, after_input)))
+
+  fn named_search_initial_members(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), starts: List(MachineState(n))) -> NamedMachineSearch = match starts
+    [] -> NamedMachineNoPath()
+    [Active(state, routine, _) | rest] -> match named_search_accepting_from(n, machine, input, after_input, ThreadActive(state), regular_routine(routine))
+      NamedMachineNoPath() -> named_search_initial_members(n, machine, position, input, after_input, rest)
+      NamedMachinePath(path) -> NamedMachinePath(path)
+    [Accepted(routine, _) | rest] -> match named_search_accepting_from(n, machine, input, after_input, ThreadAccepted(), regular_routine(routine))
+      NamedMachineNoPath() -> named_search_initial_members(n, machine, position, input, after_input, rest)
+      NamedMachinePath(path) -> NamedMachinePath(path)
+
+  fn named_search_accepting_from(n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), state: ThreadState(n), current_routine: List(ExtendedInstruction)) -> NamedMachineSearch = match input
+    [] -> match state
+      ThreadAccepted() -> NamedMachinePath(current_routine)
+      ThreadActive(_) -> NamedMachineNoPath()
+    [char | rest] -> named_search_accepting_members(n, machine, char, rest, after_input, current_routine, named_machine_destinations(n, machine, state, char, transition_boundary_before(char, rest, after_input)))
+
+  fn named_search_accepting_members(n: Nat, machine: PatternMachine(n), char: Char, rest: List(Char), after_input: List(Char), current_routine: List(ExtendedInstruction), destinations: List(MachineState(n))) -> NamedMachineSearch = match destinations
+    [] -> NamedMachineNoPath()
+    [Active(state, routine, _) | remaining] -> match named_search_accepting_from(n, machine, rest, after_input, ThreadActive(state), append_extended_routines(current_routine, transition_routine(char, routine)))
+      NamedMachineNoPath() -> named_search_accepting_members(n, machine, char, rest, after_input, current_routine, remaining)
+      NamedMachinePath(path) -> NamedMachinePath(path)
+    [Accepted(routine, _) | remaining] -> match named_search_accepting_from(n, machine, rest, after_input, ThreadAccepted(), append_extended_routines(current_routine, transition_routine(char, routine)))
+      NamedMachineNoPath() -> named_search_accepting_members(n, machine, char, rest, after_input, current_routine, remaining)
+      NamedMachinePath(path) -> NamedMachinePath(path)
+
+  type NamedPrefixSearch = NamedNoPrefix | NamedPrefixPath(List(Char), List(Char), List(ExtendedInstruction))
+
+  fn named_search_first_prefix(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char)) -> NamedPrefixSearch =
+    named_search_first_prefix_loop(n, machine, position, [], input)
+
+  fn named_search_first_prefix_loop(n: Nat, machine: PatternMachine(n), position: InitialPosition, reversed_prefix: List(Char), remaining_input: List(Char)) -> NamedPrefixSearch =
+    let matched_input = evidence_reverse_chars(reversed_prefix)
+    match named_search_machine_acceptance(n, machine, position, matched_input, remaining_input)
+      NamedMachinePath(routine) -> NamedPrefixPath(matched_input, remaining_input, routine)
+      NamedMachineNoPath() -> match remaining_input
+        [] -> NamedNoPrefix()
+        [char | rest] -> named_search_first_prefix_loop(n, machine, position, [char | reversed_prefix], rest)
+
+  fn named_search_last_prefix(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char)) -> NamedPrefixSearch =
+    named_search_last_prefix_loop(n, machine, position, [], input, NamedNoPrefix())
+
+  fn named_search_last_prefix_loop(n: Nat, machine: PatternMachine(n), position: InitialPosition, reversed_prefix: List(Char), remaining_input: List(Char), previous: NamedPrefixSearch) -> NamedPrefixSearch =
+    let matched_input = evidence_reverse_chars(reversed_prefix)
+    match named_search_machine_acceptance(n, machine, position, matched_input, remaining_input)
+      NamedMachinePath(routine) -> named_continue_last_prefix(n, machine, position, reversed_prefix, remaining_input, NamedPrefixPath(matched_input, remaining_input, routine))
+      NamedMachineNoPath() -> named_continue_last_prefix(n, machine, position, reversed_prefix, remaining_input, previous)
+
+  fn named_continue_last_prefix(n: Nat, machine: PatternMachine(n), position: InitialPosition, reversed_prefix: List(Char), remaining_input: List(Char), previous: NamedPrefixSearch) -> NamedPrefixSearch = match remaining_input
+    [] -> previous
+    [char | rest] -> named_search_last_prefix_loop(n, machine, position, [char | reversed_prefix], rest, previous)
 
   type CertifiedPrefixSearch(n: Nat, machine: PatternMachine(n)) indices (position: InitialPosition)
     NoCertifiedPrefix : CertifiedPrefixSearch(n, machine, position)
@@ -1780,7 +1904,13 @@ mod Std.Regex.Runtime
   type NamedCapture = NamedCapture(String, Option(String))
   type NamedMatch(result: Type) = NamedMatch(Match(result), List(NamedCapture))
   type NamedParse(result: Type) = NamedParse(result, List(NamedCapture))
-  type NamedRegex(result: Type) = NamedRegex(Regex(result), NamedThompsonCompilation(shape), CaptureLayout, Bool, NewlinePolicy)
+  ## The public result type and the checked Thompson shape are independent:
+  ## conversions may expose `Option`, `List`, or a simplified tuple while the
+  ## machine still carries its constructor-preserving shape.  Keep the machine
+  ## shape as an explicit index instead of letting it unify accidentally with
+  ## the public result (which would reject optional/one-or-more captures).
+  type NamedRegex(result: Type) indices (shape: ShapeCode)
+    NamedRegex : Regex(result) -> NamedThompsonCompilation(shape) -> CaptureLayout -> Bool -> NewlinePolicy -> NamedRegex(result, shape)
 
   type Conversion indices (raw: Type, result: Type)
     IdentityConversion : Conversion(value, value)
@@ -2015,27 +2145,27 @@ mod Std.Regex.Runtime
       else -> SomeProgram(BuiltRegex(UnitC, PatternBoundary(subject_end_constraint()), unit_identity_conversion(), NoCompilationHint()))
     StrictEndAnchor() -> SomeProgram(BuiltRegex(UnitC, PatternBoundary(strict_end_constraint()), unit_identity_conversion(), NoCompilationHint()))
 
-  fn named_staged({result: Type}, {shape: ShapeCode}, ordinary: Regex(result), compilation: NamedThompsonCompilation(shape), layout: CaptureLayout, firstline_only: Bool, policy: NewlinePolicy) -> NamedRegex(result) =
+  fn named_staged({result: Type}, {shape: ShapeCode}, ordinary: Regex(result), compilation: NamedThompsonCompilation(shape), layout: CaptureLayout, firstline_only: Bool, policy: NewlinePolicy) -> NamedRegex(result, shape) =
     named_staged_checked(ordinary, compilation, layout, firstline_only, policy, certify_named_compilation(compilation))
 
-  fn named_staged_checked({result: Type}, {shape: ShapeCode}, ordinary: Regex(result), compilation: NamedThompsonCompilation(shape), layout: CaptureLayout, firstline_only: Bool, policy: NewlinePolicy, @erased _proof: NamedCompilationErasure(shape, compilation, erase_named_thompson(compilation))) -> NamedRegex(result) =
+  fn named_staged_checked({result: Type}, {shape: ShapeCode}, ordinary: Regex(result), compilation: NamedThompsonCompilation(shape), layout: CaptureLayout, firstline_only: Bool, policy: NewlinePolicy, @erased _proof: NamedCompilationErasure(shape, compilation, erase_named_thompson(compilation))) -> NamedRegex(result, shape) =
     NamedRegex(ordinary, compilation, layout, firstline_only, policy)
 
   type NamedPrefixCapture = NamedPrefixCapture(List(Char), List(Char), List(NamedCapture))
 
   fn named_full_capture({shape: ShapeCode}, compilation: NamedThompsonCompilation(shape), input: String, layout: CaptureLayout) -> Option(List(NamedCapture)) =
     let characters = Std.String.characters(input)
-    match search_machine_acceptance(named_thompson_state_count(compilation), named_thompson_machine(compilation), subject_initial_position(), characters, [])
-      MachineNoAcceptingPath() -> None()
-      MachineAcceptingPath(_, routine, _) -> replay_named_capture_routine(routine, layout)
+    match named_search_machine_acceptance(named_thompson_state_count(compilation), named_thompson_machine(compilation), subject_initial_position(), characters, [])
+      NamedMachineNoPath() -> None()
+      NamedMachinePath(routine) -> replay_named_capture_routine(routine, layout)
 
   fn named_prefix_capture_at({shape: ShapeCode}, compilation: NamedThompsonCompilation(shape), input: List(Char), greedy: Bool, position: InitialPosition, layout: CaptureLayout) -> Option(NamedPrefixCapture) =
     let result = pickup
-      greedy -> search_last_machine_prefix(named_thompson_state_count(compilation), named_thompson_machine(compilation), position, input)
-      else -> search_first_machine_prefix(named_thompson_state_count(compilation), named_thompson_machine(compilation), position, input)
+      greedy -> named_search_last_prefix(named_thompson_state_count(compilation), named_thompson_machine(compilation), position, input)
+      else -> named_search_first_prefix(named_thompson_state_count(compilation), named_thompson_machine(compilation), position, input)
     match result
-      NoCertifiedPrefix() -> None()
-      CertifiedPrefixPath(matched, remaining, _, routine, _) -> match replay_named_capture_routine(routine, layout)
+      NamedNoPrefix() -> None()
+      NamedPrefixPath(matched, remaining, routine) -> match replay_named_capture_routine(routine, layout)
         None() -> None()
         Some(captures) -> Some(NamedPrefixCapture(matched, remaining, captures))
 

@@ -314,7 +314,8 @@ mod Std.Regex.Core
     | EndCaptureSlot(Nat)
 
   type NewlinePolicy = LFNewline | CRNewline | CRLFNewline | AnyCRLFNewline | AnyUnicodeNewline
-  type BoundaryConstraint = BoundaryConstraint(Bool, Bool, Bool, Bool, Bool, Bool, Bool, Bool, Bool, NewlinePolicy)
+  type CaptureCondition = CaptureParticipated(Nat) | CaptureAbsent(Nat)
+  type BoundaryConstraint = BoundaryConstraint(Bool, Bool, Bool, Bool, Bool, Bool, Bool, Bool, Bool, NewlinePolicy, Option(CaptureCondition))
   type Boundary = Boundary(Bool, Bool, Bool, Bool, Bool, Bool, Bool, Option(Char), Option(Char), Option(Char))
   type MachineState indices (n: Nat)
     Active : Bounded(n) -> List(EvidenceInstruction) -> List(BoundaryConstraint) -> MachineState(n)

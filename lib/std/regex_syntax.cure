@@ -66,6 +66,9 @@ mod Std.Regex.Syntax
     :MalformedRegexCaptureName -> "A named capture name must start with a letter or `_` and contain only letters, digits, or `_`."
     :UnclosedRegexCaptureName -> "This named capture is missing the closing name delimiter."
     :DuplicateRegexCaptureName -> "This named capture name is already used by an earlier capture in the regex."
+    :MalformedRegexConditional -> "This capture conditional must use `(?(1)yes|no)`, `(?(name)yes|no)`, or `(?(<name>)yes|no)`."
+    :UnknownRegexCaptureReference -> "This capture conditional refers to a slot or name that does not exist."
+    :ConditionalCaptureLayoutMismatch -> "Capture condition arms must allocate compatible capture slots."
     :UnsupportedRegexInlineOptions -> "Regex modifiers cannot be changed inside a Cure regex literal."
     :UnsupportedRegexNewlineControl -> "This newline control is only valid as the first token of a regex literal."
     :UnclosedRegexGroup -> "This regex group is missing its closing `)`."
@@ -118,6 +121,9 @@ mod Std.Regex.Syntax
     :MalformedRegexCaptureName -> "Use a name such as `word` or `capture_1`."
     :UnclosedRegexCaptureName -> "Close the capture name with `>` or `'` before writing its body."
     :DuplicateRegexCaptureName -> "Rename one of the captures so every name identifies exactly one slot."
+    :MalformedRegexConditional -> "Use a numeric or named earlier capture followed by a yes arm and optional `|no` arm."
+    :UnknownRegexCaptureReference -> "Refer only to a capture declared earlier in the regex."
+    :ConditionalCaptureLayoutMismatch -> "Keep capture groups aligned between the yes and no arms."
     :UnsupportedRegexInlineOptions -> "Put modifiers after the closing `/`, for example `/pattern/im`."
     :UnsupportedRegexNewlineControl -> "Move the control to the beginning of the literal, before the first regex atom."
     :UnclosedRegexGroup -> "Close the highlighted group with `)`."
@@ -146,11 +152,23 @@ mod Std.Regex.Syntax
                 LiteralCaptureAllocated(numbered, layout) -> match literal_pattern_options(numbered, options)
                   LiteralPatternOptions(effective_pattern, effective_options) ->
                     pickup
+                      literal_pattern_has_conditionals(effective_pattern) -> expand(
+                        call("Std.Regex.Runtime.named_staged", [
+                          call("Std.Regex.Runtime.configured", [
+                            emit_options(effective_options),
+                            emit_staged_literal_with_options_conditional(effective_pattern, effective_options)
+                          ]),
+                          emit_named_staged_compilation(effective_pattern, effective_options),
+                          emit_capture_layout(layout),
+                          bool_literal(has_modifier(effective_options, FirstlineModifier)),
+                          emit_newline_policy(effective_options)
+                        ])
+                      )
                       literal_capture_layout_has_names(layout) -> expand(
                         call("Std.Regex.Runtime.named_staged", [
                           call("Std.Regex.Runtime.configured", [
                             emit_options(effective_options),
-                            call("Std.Regex.Runtime.simplified", [emit_shape(literal_shape(effective_pattern)), emit_staged_literal_with_options(effective_pattern, effective_options)])
+                            emit_staged_literal_with_options(effective_pattern, effective_options)
                           ]),
                           emit_named_staged_compilation(effective_pattern, effective_options),
                           emit_capture_layout(layout),

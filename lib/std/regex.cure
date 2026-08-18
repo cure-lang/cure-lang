@@ -23,14 +23,14 @@ mod Std.Regex
     NoProgram() -> None()
     SomeProgram(program) -> parse_program_full(program, input)
 
-  fn parse_full_named({result: Type}, named: NamedRegex(result), input: String) -> Option(NamedParse(result)) = match named
+  fn parse_full_named({result: Type}, {shape: ShapeCode}, named: NamedRegex(result, shape), input: String) -> Option(NamedParse(result)) = match named
     NamedRegex(ordinary, compilation, layout, _, _) -> match parse_full(ordinary, input)
       None() -> None()
       Some(value) -> match named_full_capture(compilation, input, layout)
         None() -> None()
         Some(captures) -> Some(NamedParse(value, captures))
 
-  fn search_named({result: Type}, named: NamedRegex(result), input: String) -> Option(NamedMatch(result)) = match named
+  fn search_named({result: Type}, {shape: ShapeCode}, named: NamedRegex(result, shape), input: String) -> Option(NamedMatch(result)) = match named
     NamedRegex(ordinary, compilation, layout, _firstline_only, policy) -> match search(ordinary, input)
       None() -> None()
       Some(found) -> match found

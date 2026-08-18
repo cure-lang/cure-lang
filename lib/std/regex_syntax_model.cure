@@ -24,6 +24,7 @@ mod Std.Regex.Syntax.Model
   type LiteralCaptureWalk =
     | LiteralCaptureWalked(LiteralPattern, List(LiteralCaptureSlotInfo), Nat, List(String))
     | LiteralCaptureWalkInvalid(Atom, String)
+  type LiteralCaptureReference = LiteralCaptureSlotReference(Nat) | LiteralCaptureNameReference(String)
 
   type LiteralPattern =
     | LiteralEmpty
@@ -40,6 +41,7 @@ mod Std.Regex.Syntax.Model
     | LiteralSequence(LiteralPattern, LiteralPattern)
     | LiteralAlternate(LiteralPattern, LiteralPattern)
     | LiteralBranchReset(List(LiteralPattern))
+    | LiteralConditional(LiteralCaptureReference, LiteralPattern, Option(LiteralPattern))
     | LiteralRepeat(LiteralPattern, Bool)
     | LiteralPlus(LiteralPattern, Bool)
     | LiteralOptional(LiteralPattern, Bool)
@@ -207,8 +209,13 @@ mod Std.Regex.Syntax.Model
   ## receive an unnamed slot as well: later branch-reset and participation
   ## phases can therefore reuse this layout without changing the parser again.
   fn allocate_literal_captures(pattern: LiteralPattern) -> LiteralCaptureAllocation = match walk_literal_captures(pattern, Z(), [])
-    LiteralCaptureWalked(numbered, slots, _, _) -> LiteralCaptureAllocated(numbered, LiteralCaptureLayout(slots))
+    LiteralCaptureWalked(numbered, slots, _, _) -> match resolve_literal_capture_references(numbered, LiteralCaptureLayout(slots), Z())
+      LiteralReferencesResolved(resolved) -> LiteralCaptureAllocated(resolved, LiteralCaptureLayout(slots))
+      LiteralReferencesInvalid(reason, name) -> LiteralCaptureAllocationInvalid(reason, name)
     LiteralCaptureWalkInvalid(reason, name) -> LiteralCaptureAllocationInvalid(reason, name)
+
+  type LiteralReferenceResolution = LiteralReferencesResolved(LiteralPattern) | LiteralReferencesInvalid(Atom, String)
+  type LiteralReferenceLookup = LiteralReferenceResolved(LiteralCaptureReference) | LiteralReferenceInvalid(Atom, String)
 
   fn walk_literal_captures(pattern: LiteralPattern, next: Nat, names: List(String)) -> LiteralCaptureWalk = match pattern
     LiteralEmpty -> LiteralCaptureWalked(LiteralEmpty, [], next, names)
@@ -243,6 +250,16 @@ mod Std.Regex.Syntax.Model
       LiteralCaptureWalked(numbered, slots, final_next, final_names) -> LiteralCaptureWalked(LiteralCaptureIndexed(slot, name, numbered), [LiteralCaptureSlotInfo(slot, name) | slots], final_next, final_names)
       LiteralCaptureWalkInvalid(reason, invalid_name) -> LiteralCaptureWalkInvalid(reason, invalid_name)
     LiteralBranchReset(arms) -> walk_literal_branch_reset(arms, next, names)
+    LiteralConditional(reference, yes, no) -> match walk_literal_captures(yes, next, names)
+      LiteralCaptureWalkInvalid(reason, name) -> LiteralCaptureWalkInvalid(reason, name)
+      LiteralCaptureWalked(numbered_yes, yes_slots, yes_next, yes_names) -> match no
+        None() -> LiteralCaptureWalked(LiteralConditional(reference, numbered_yes, None()), yes_slots, yes_next, yes_names)
+        Some(no_pattern) -> match walk_literal_captures(no_pattern, next, names)
+          LiteralCaptureWalkInvalid(reason, name) -> LiteralCaptureWalkInvalid(reason, name)
+          LiteralCaptureWalked(numbered_no, no_slots, no_next, _) -> pickup
+            not same_literal_nat(yes_next, no_next) -> LiteralCaptureWalkInvalid(:ConditionalCaptureLayoutMismatch, "conditional")
+            not literal_capture_slots_compatible(yes_slots, no_slots) -> LiteralCaptureWalkInvalid(:ConditionalCaptureLayoutMismatch, "conditional")
+            else -> LiteralCaptureWalked(LiteralConditional(reference, numbered_yes, Some(numbered_no)), yes_slots, yes_next, yes_names)
     LiteralSequence(left, right) -> walk_literal_binary(LiteralSequence, left, right, next, names)
     LiteralAlternate(left, right) -> walk_literal_binary(LiteralAlternate, left, right, next, names)
     LiteralRepeat(inner, lazy) -> walk_literal_unary(fn(value) -> LiteralRepeat(value, lazy), inner, next, names)
@@ -327,6 +344,75 @@ mod Std.Regex.Syntax.Model
     [] -> right
     [head | rest] -> [head | append_literal_capture_slots(rest, right)]
 
+  fn resolve_literal_capture_references(pattern: LiteralPattern, layout: LiteralCaptureLayout, _next: Nat) -> LiteralReferenceResolution = match pattern
+    LiteralConditional(reference, yes, no) -> match resolve_literal_capture_reference(reference, layout)
+      LiteralReferenceResolved(resolved_reference) -> match resolve_literal_capture_references(yes, layout, _next)
+        LiteralReferencesInvalid(reason, name) -> LiteralReferencesInvalid(reason, name)
+        LiteralReferencesResolved(resolved_yes) -> match no
+          None() -> LiteralReferencesResolved(LiteralConditional(resolved_reference, resolved_yes, None()))
+          Some(no_pattern) -> match resolve_literal_capture_references(no_pattern, layout, _next)
+            LiteralReferencesInvalid(reason, name) -> LiteralReferencesInvalid(reason, name)
+            LiteralReferencesResolved(resolved_no) -> LiteralReferencesResolved(LiteralConditional(resolved_reference, resolved_yes, Some(resolved_no)))
+      LiteralReferenceInvalid(reason, name) -> LiteralReferencesInvalid(reason, name)
+    LiteralSequence(left, right) -> match resolve_literal_capture_references(left, layout, _next)
+      LiteralReferencesInvalid(reason, name) -> LiteralReferencesInvalid(reason, name)
+      LiteralReferencesResolved(resolved_left) -> match resolve_literal_capture_references(right, layout, _next)
+        LiteralReferencesInvalid(reason, name) -> LiteralReferencesInvalid(reason, name)
+        LiteralReferencesResolved(resolved_right) -> LiteralReferencesResolved(LiteralSequence(resolved_left, resolved_right))
+    LiteralAlternate(left, right) -> match resolve_literal_capture_references(left, layout, _next)
+      LiteralReferencesInvalid(reason, name) -> LiteralReferencesInvalid(reason, name)
+      LiteralReferencesResolved(resolved_left) -> match resolve_literal_capture_references(right, layout, _next)
+        LiteralReferencesInvalid(reason, name) -> LiteralReferencesInvalid(reason, name)
+        LiteralReferencesResolved(resolved_right) -> LiteralReferencesResolved(LiteralAlternate(resolved_left, resolved_right))
+    LiteralBranchReset(arms) -> resolve_literal_capture_reference_arms(arms, layout)
+    LiteralCaptureIndexed(slot, name, inner) -> match resolve_literal_capture_references(inner, layout, S(slot))
+      LiteralReferencesInvalid(reason, invalid_name) -> LiteralReferencesInvalid(reason, invalid_name)
+      LiteralReferencesResolved(resolved_inner) -> LiteralReferencesResolved(LiteralCaptureIndexed(slot, name, resolved_inner))
+    LiteralCapture(inner) -> match resolve_literal_capture_references(inner, layout, _next)
+      LiteralReferencesInvalid(reason, name) -> LiteralReferencesInvalid(reason, name)
+      LiteralReferencesResolved(resolved_inner) -> LiteralReferencesResolved(LiteralCapture(resolved_inner))
+    LiteralNamedCapture(name, inner) -> match resolve_literal_capture_references(inner, layout, _next)
+      LiteralReferencesInvalid(reason, invalid_name) -> LiteralReferencesInvalid(reason, invalid_name)
+      LiteralReferencesResolved(resolved_inner) -> LiteralReferencesResolved(LiteralNamedCapture(name, resolved_inner))
+    LiteralRepeat(inner, lazy) -> resolve_literal_reference_unary(fn(value) -> LiteralRepeat(value, lazy), inner, layout, _next)
+    LiteralPlus(inner, lazy) -> resolve_literal_reference_unary(fn(value) -> LiteralPlus(value, lazy), inner, layout, _next)
+    LiteralOptional(inner, lazy) -> resolve_literal_reference_unary(fn(value) -> LiteralOptional(value, lazy), inner, layout, _next)
+    LiteralBoundedExact(inner, count) -> resolve_literal_reference_unary(fn(value) -> LiteralBoundedExact(value, count), inner, layout, _next)
+    LiteralBoundedAtLeast(inner, count, lazy) -> resolve_literal_reference_unary(fn(value) -> LiteralBoundedAtLeast(value, count, lazy), inner, layout, _next)
+    LiteralBoundedBetween(inner, minimum, maximum, lazy) -> resolve_literal_reference_unary(fn(value) -> LiteralBoundedBetween(value, minimum, maximum, lazy), inner, layout, _next)
+    LiteralConfigured(policy, inner) -> resolve_literal_reference_unary(fn(value) -> LiteralConfigured(policy, value), inner, layout, _next)
+    _ -> LiteralReferencesResolved(pattern)
+
+  fn resolve_literal_capture_reference(reference: LiteralCaptureReference, layout: LiteralCaptureLayout) -> LiteralReferenceLookup = match reference
+    LiteralCaptureSlotReference(slot) -> LiteralReferenceResolved(LiteralCaptureSlotReference(slot))
+    LiteralCaptureNameReference(name) -> match literal_capture_slot_by_name(name, layout)
+      None() -> LiteralReferenceInvalid(:UnknownRegexCaptureReference, name)
+      Some(slot) -> LiteralReferenceResolved(LiteralCaptureSlotReference(slot))
+
+  fn resolve_literal_capture_reference_arms(arms: List(LiteralPattern), layout: LiteralCaptureLayout) -> LiteralReferenceResolution = match arms
+    [] -> LiteralReferencesResolved(LiteralBranchReset([]))
+    [head | rest] -> match resolve_literal_capture_references(head, layout, Z())
+      LiteralReferencesInvalid(reason, name) -> LiteralReferencesInvalid(reason, name)
+      LiteralReferencesResolved(resolved_head) -> match resolve_literal_capture_reference_arms(rest, layout)
+        LiteralReferencesInvalid(reason, name) -> LiteralReferencesInvalid(reason, name)
+        LiteralReferencesResolved(resolved_rest) -> LiteralReferencesResolved(prepend_literal_pattern(resolved_head, resolved_rest))
+
+  fn prepend_literal_pattern(head: LiteralPattern, rest: LiteralPattern) -> LiteralPattern = LiteralSequence(head, rest)
+
+  fn resolve_literal_reference_unary(wrap: LiteralPattern -> LiteralPattern, inner: LiteralPattern, layout: LiteralCaptureLayout, next: Nat) -> LiteralReferenceResolution = match resolve_literal_capture_references(inner, layout, next)
+    LiteralReferencesInvalid(reason, name) -> LiteralReferencesInvalid(reason, name)
+    LiteralReferencesResolved(resolved_inner) -> LiteralReferencesResolved(wrap(resolved_inner))
+
+  fn literal_capture_slot_by_name(name: String, layout: LiteralCaptureLayout) -> Option(Nat) = match layout
+    LiteralCaptureLayout(slots) -> literal_capture_slot_by_name_in(name, slots)
+
+  fn literal_capture_slot_by_name_in(name: String, slots: List(LiteralCaptureSlotInfo)) -> Option(Nat) = match slots
+    [] -> None()
+    [LiteralCaptureSlotInfo(slot, Some(candidate)) | rest] -> pickup
+      capture_names_same(name, candidate) -> Some(slot)
+      else -> literal_capture_slot_by_name_in(name, rest)
+    [LiteralCaptureSlotInfo(_, None()) | rest] -> literal_capture_slot_by_name_in(name, rest)
+
   fn capture_name_seen(name: String, names: List(String)) -> Bool = match names
     [] -> false
     [head | rest] -> capture_names_same(name, head) or capture_name_seen(name, rest)
@@ -348,6 +434,31 @@ mod Std.Regex.Syntax.Model
     [] -> false
     [LiteralCaptureSlotInfo(_, Some(_)) | _] -> true
     [LiteralCaptureSlotInfo(_, None()) | rest] -> literal_capture_slots_have_names(rest)
+
+  fn literal_pattern_has_conditionals(pattern: LiteralPattern) -> Bool = match pattern
+    LiteralConditional(_, yes, no) -> literal_pattern_has_conditionals(yes) or literal_pattern_option_has_conditionals(no)
+    LiteralSequence(left, right) -> literal_pattern_has_conditionals(left) or literal_pattern_has_conditionals(right)
+    LiteralAlternate(left, right) -> literal_pattern_has_conditionals(left) or literal_pattern_has_conditionals(right)
+    LiteralBranchReset(arms) -> literal_pattern_list_has_conditionals(arms)
+    LiteralCapture(inner) -> literal_pattern_has_conditionals(inner)
+    LiteralNamedCapture(_, inner) -> literal_pattern_has_conditionals(inner)
+    LiteralCaptureIndexed(_, _, inner) -> literal_pattern_has_conditionals(inner)
+    LiteralRepeat(inner, _) -> literal_pattern_has_conditionals(inner)
+    LiteralPlus(inner, _) -> literal_pattern_has_conditionals(inner)
+    LiteralOptional(inner, _) -> literal_pattern_has_conditionals(inner)
+    LiteralBoundedExact(inner, _) -> literal_pattern_has_conditionals(inner)
+    LiteralBoundedAtLeast(inner, _, _) -> literal_pattern_has_conditionals(inner)
+    LiteralBoundedBetween(inner, _, _, _) -> literal_pattern_has_conditionals(inner)
+    LiteralConfigured(_, inner) -> literal_pattern_has_conditionals(inner)
+    _ -> false
+
+  fn literal_pattern_option_has_conditionals(pattern: Option(LiteralPattern)) -> Bool = match pattern
+    None() -> false
+    Some(inner) -> literal_pattern_has_conditionals(inner)
+
+  fn literal_pattern_list_has_conditionals(patterns: List(LiteralPattern)) -> Bool = match patterns
+    [] -> false
+    [head | rest] -> literal_pattern_has_conditionals(head) or literal_pattern_list_has_conditionals(rest)
 
   fn has_modifier_in(values: List(LiteralModifier), wanted: LiteralModifier) -> Bool = match values
     [] -> false

@@ -35,6 +35,15 @@ defmodule Cure.Stdlib.DependentRegexNamedCaptureTest do
       fn branch_reset(input: String) -> Option(NamedMatch(Choice(String, String))) =
         search_named(/(?|(?<word>a)|(?<word>b))/, input)
 
+      fn conditional(input: String) -> Option(NamedParse(Tuple(Option(String), Choice(Unit, Unit)))) =
+        parse_full_named(/(?<flag>a)?(?(1)b|c)/, input)
+
+      fn named_conditional(input: String) -> Option(NamedParse(Tuple(Option(String), Choice(Unit, Unit)))) =
+        parse_full_named(/(?<flag>a)?(?(<flag>)b|c)/, input)
+
+      fn conditional_search(input: String) -> Option(NamedMatch(Tuple(Option(String), Choice(Unit, Unit)))) =
+        search_named(/(?<flag>a)?(?(1)b|c)/, input)
+
       fn replay_probe() -> Option(List(NamedCapture)) =
         replay_named_capture_routine(
           [Regular(BeginCaptureSlot(Z())), Observe('a'), Regular(EndCaptureSlot(Z()))],
@@ -109,6 +118,34 @@ defmodule Cure.Stdlib.DependentRegexNamedCaptureTest do
              {:computed_macro_error, _meta,
               {:author_diagnostics, [{:macro_failure, :BranchResetCaptureLayoutMismatch, _}]}}, _context}} =
              Program.elaborate(source)
+  end
+
+  test "capture conditionals select the arm from participation", %{runtime_module: module} do
+    assert {:some, {:NamedParse, _value, captures}} = apply(module, :conditional, [{:String, ~c"ab"}])
+    assert captures == [{:NamedCapture, {:String, ~c"flag"}, {:some, {:String, ~c"a"}}}]
+
+    assert {:some, {:NamedParse, _value, captures}} = apply(module, :conditional, [{:String, ~c"c"}])
+    assert captures == [{:NamedCapture, {:String, ~c"flag"}, :none}]
+    assert apply(module, :conditional, [{:String, ~c"ac"}]) == :none
+    assert apply(module, :conditional, [{:String, ~c"b"}]) == :none
+
+    assert {:some, {:NamedParse, _value, captures}} = apply(module, :named_conditional, [{:String, ~c"ab"}])
+    assert captures == [{:NamedCapture, {:String, ~c"flag"}, {:some, {:String, ~c"a"}}}]
+  end
+
+  test "capture conditionals also work through named search", %{runtime_module: module} do
+    assert {:some, {:NamedMatch, _match, captures}} = apply(module, :conditional_search, [{:String, ~c"xxabyy"}])
+    assert captures == [{:NamedCapture, {:String, ~c"flag"}, {:some, {:String, ~c"a"}}}]
+  end
+
+  test "unknown conditional capture references are diagnosed" do
+    missing = "mod BadConditional\n  use Std.Regex\n  fn run() = /(?(missing)a)/\nend\n"
+
+    assert {:error,
+            {:source_context,
+             {:computed_macro_error, _meta,
+              {:author_diagnostics, [{:macro_failure, :UnknownRegexCaptureReference, _}]}}, _context}} =
+             Program.elaborate(missing)
   end
 
   test "malformed and duplicate names are structured macro diagnostics" do

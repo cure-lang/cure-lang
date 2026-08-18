@@ -176,7 +176,7 @@ mod Std.Regex.Syntax.Parser
       ['?', '|' | rest] -> parse_literal_branch_reset_fuel(rest, next_fuel, origin, [])
       ['?', 'R' | _] -> LiteralAtInvalid(:UnsupportedRegexRecursion, origin, 3)
       ['?', '0' | _] -> LiteralAtInvalid(:UnsupportedRegexRecursion, origin, 3)
-      ['?', '(' | _] -> LiteralAtInvalid(:UnsupportedRegexConditional, origin, 3)
+      ['?', '(' | rest] -> parse_literal_conditional_header(rest, next_fuel, origin, [])
       ['?', '<', '=' | _] -> LiteralAtInvalid(:UnsupportedRegexLookbehind, origin, 4)
       ['?', '<', '!' | _] -> LiteralAtInvalid(:UnsupportedRegexLookbehind, origin, 4)
       ['?', '<', first | rest] -> parse_literal_named_capture_angle(first, rest, next_fuel, origin, [])
@@ -256,6 +256,68 @@ mod Std.Regex.Syntax.Parser
   fn append_literal_patterns(left: List(LiteralPattern), right: List(LiteralPattern)) -> List(LiteralPattern) = match left
     [] -> right
     [head | rest] -> [head | append_literal_patterns(rest, right)]
+
+  fn parse_literal_conditional_header(input: List(Char), fuel: Nat, origin: List(Char), reversed: List(Char)) -> LiteralParse = match fuel
+    Z() -> LiteralInvalid(:RegexParseLimit)
+    S(next_fuel) -> match input
+      [] -> LiteralAtInvalid(:UnclosedRegexGroup, origin, literal_length(origin))
+      ['?' | _] -> LiteralAtInvalid(:UnsupportedRegexConditional, origin, 3)
+      ['<' | rest] -> parse_literal_conditional_named_header(rest, next_fuel, origin, [])
+      [char | rest] -> match literal_decimal_digit(char)
+        Some(_) -> parse_literal_conditional_numeric_header(input, next_fuel, origin)
+        None() -> parse_literal_conditional_name_header(rest, next_fuel, origin, [char | reversed])
+
+  fn parse_literal_conditional_numeric_header(input: List(Char), fuel: Nat, origin: List(Char)) -> LiteralParse = match parse_literal_count(input, Z(), false)
+    LiteralCountParsed(value, seen, [')' | rest]) -> pickup
+      not seen -> LiteralAtInvalid(:MalformedRegexConditional, origin, 3)
+      else -> match literal_nat_predecessor(value)
+        None() -> LiteralAtInvalid(:UnknownRegexCaptureReference, origin, 3)
+        Some(slot) -> parse_literal_conditional_body(rest, fuel, origin, LiteralCaptureSlotReference(slot))
+    LiteralCountParsed(_, _, _) -> LiteralAtInvalid(:MalformedRegexConditional, origin, 3)
+    LiteralCountInvalid(reason) -> LiteralAtInvalid(reason, input, 1)
+
+  fn literal_nat_predecessor(value: Nat) -> Option(Nat) = match value
+    Z() -> None()
+    S(rest) -> Some(rest)
+
+  fn parse_literal_conditional_named_header(input: List(Char), fuel: Nat, origin: List(Char), reversed: List(Char)) -> LiteralParse = match fuel
+    Z() -> LiteralInvalid(:RegexParseLimit)
+    S(next_fuel) -> match input
+      [] -> LiteralAtInvalid(:UnclosedRegexCaptureName, origin, literal_delimited_width(origin, '>'))
+      ['>' | rest] -> match reversed
+        [] -> LiteralAtInvalid(:EmptyRegexCaptureName, origin, literal_delimited_width(origin, '>'))
+        _ -> match capture_name_is_valid(reverse_chars(reversed))
+          false -> LiteralAtInvalid(:MalformedRegexCaptureName, origin, literal_delimited_width(origin, '>'))
+          true -> match rest
+            [')' | body] -> parse_literal_conditional_body(body, next_fuel, origin, LiteralCaptureNameReference(Std.String.from_characters(reverse_chars(reversed))))
+            _ -> LiteralAtInvalid(:MalformedRegexConditional, origin, 3)
+      [char | rest] -> parse_literal_conditional_named_header(rest, next_fuel, origin, [char | reversed])
+
+  fn parse_literal_conditional_name_header(input: List(Char), fuel: Nat, origin: List(Char), reversed: List(Char)) -> LiteralParse = match fuel
+    Z() -> LiteralInvalid(:RegexParseLimit)
+    S(next_fuel) -> match input
+      [] -> LiteralAtInvalid(:UnclosedRegexGroup, origin, literal_length(origin))
+      [')' | rest] -> match capture_name_is_valid(reverse_chars(reversed))
+        false -> LiteralAtInvalid(:MalformedRegexCaptureName, origin, 3)
+        true -> parse_literal_conditional_body(rest, next_fuel, origin, LiteralCaptureNameReference(Std.String.from_characters(reverse_chars(reversed))))
+      [char | rest] -> parse_literal_conditional_name_header(rest, next_fuel, origin, [char | reversed])
+
+  fn parse_literal_conditional_body(input: List(Char), fuel: Nat, origin: List(Char), reference: LiteralCaptureReference) -> LiteralParse = match fuel
+    Z() -> LiteralInvalid(:RegexParseLimit)
+    S(next_fuel) -> match parse_literal_sequence_fuel(input, next_fuel)
+      LiteralInvalid(reason) -> LiteralInvalid(reason)
+      LiteralAtInvalid(reason, suffix, width) -> LiteralAtInvalid(reason, suffix, width)
+      LiteralLocatedInvalid(reason, start, width) -> LiteralLocatedInvalid(reason, start, width)
+      LiteralParsed(yes, rest) -> match rest
+        [')' | tail] -> LiteralParsed(LiteralConditional(reference, yes, None()), tail)
+        ['|' | no_input] -> match parse_literal_sequence_fuel(no_input, next_fuel)
+          LiteralParsed(no, [')' | conditional_tail]) -> LiteralParsed(LiteralConditional(reference, yes, Some(no)), conditional_tail)
+          LiteralParsed(_, _) -> LiteralAtInvalid(:UnclosedRegexGroup, origin, literal_length(origin))
+          LiteralInvalid(reason) -> LiteralInvalid(reason)
+          LiteralAtInvalid(reason, suffix, width) -> LiteralAtInvalid(reason, suffix, width)
+          LiteralLocatedInvalid(reason, start, width) -> LiteralLocatedInvalid(reason, start, width)
+        _ -> LiteralAtInvalid(:UnexpectedRegexToken, origin, 3)
+
 
   fn capture_name_is_valid(name: List(Char)) -> Bool = match name
     [] -> false
