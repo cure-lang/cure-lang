@@ -160,6 +160,31 @@ green, proof gate, full relevant suite, documentation update, and commit.
 The order is intentional: later features depend on explicit capture slots and
 finite execution context, and lookaround depends on the boundary/history model.
 
+### 4.1 Difficulty ordering
+
+The same sequence is also the implementation-and-proof difficulty ranking. A
+phase may not be marked complete merely because its parser accepts the syntax;
+the lowering, machine correspondence, extraction, erasure, and differential
+gates listed below must all be green.
+
+| Rank | Feature | Why it belongs here |
+| ---: | --- | --- |
+| 1 | `\\R`, `\\N`, and newline policy | Finite alternatives and existing boundary facts; no new capture or search control. |
+| 2 | Named captures and capture layout | Adds compile-time metadata and replay, but leaves the accepted language and typed `ShapeCode` unchanged. |
+| 3 | Branch-reset groups | Reuses capture slots across finite alternatives; the main proof burden is layout compatibility and numbering stability. |
+| 4 | Capture-participation conditionals | Requires a finite participation fact to flow through ordered machine paths and to agree with capture replay. |
+| 5 | Atomic groups and possessive quantifiers | Changes ordered search control and therefore requires a commitment invariant in both the machine and language theorems. |
+| 6 | Fixed/bounded lookahead and lookbehind | Adds zero-width child-machine evaluation, subject-history context, width analysis, and reversal/window correspondence proofs. |
+| 7 | Combined differential/exhaustive stabilization | Cross-feature interactions multiply the state/context space; this is the final gate, not a syntax feature. |
+
+The ranking is deliberately by *fully proved* engineering effort, not by the
+number of parser branches. In particular, atomicity is harder than capture
+conditionals even though both can be represented with finite metadata, because
+atomicity changes which otherwise-valid ordered paths remain available after an
+outer continuation fails. Lookbehind is last among individual features because
+it must additionally prove bounded history, scalar-width analysis, and
+non-consumption at every search cursor.
+
 ## 5. Phase A — newline and Unicode-name extensions
 
 ### 5.1 `\\R` semantics
