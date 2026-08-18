@@ -57,8 +57,12 @@ mod Std.Regex.Syntax
     :UnsupportedRegexNumericEscape -> "Numeric escapes are not supported because PCRE interprets them contextually as octal escapes or backreferences."
     :UnsupportedRegexRecursion -> "Recursive and subroutine regex calls are not supported by Cure's finite regex language."
     :UnsupportedRegexConditional -> "Conditional regex groups are not supported by Cure's finite regex language."
-    :UnsupportedRegexLookbehind -> "Lookbehind assertions are not supported by Cure's finite regex language."
-    :UnsupportedRegexLookahead -> "Lookahead assertions are not supported by Cure's finite regex language."
+    :VariableLengthLookbehind -> "This lookbehind can match different scalar widths, so its required history is not finite and exact."
+    :LookbehindTooWide -> "This lookbehind exceeds Cure's bounded assertion history limit."
+    :AssertionCapturesUnsupported -> "Lookaround operands must not contain capture groups in this finite initial subset."
+    :NestedAssertionUnsupported -> "Lookaround operands cannot contain nested assertions or capture conditionals."
+    :AssertionAtomicityUnsupported -> "Atomic scopes inside lookaround operands are not yet part of the finite assertion machine."
+    :LookaroundAtomicityUnsupported -> "Atomic scopes and lookaround are not yet combined in the finite assertion machine."
     :UnsupportedRegexNamedCapture -> "Named capture syntax is not supported; captures are returned by their typed position."
     :EmptyRegexCaptureName -> "This named capture has an empty name."
     :MalformedRegexCaptureName -> "A named capture name must start with a letter or `_` and contain only letters, digits, or `_`."
@@ -110,8 +114,12 @@ mod Std.Regex.Syntax
     :UnsupportedRegexNumericEscape -> "Write the character with `\\xHH` or `\\x{...}`; compare captured values outside the regex instead of using a backreference."
     :UnsupportedRegexRecursion -> "Express the finite repeated structure directly instead of recursively invoking a group."
     :UnsupportedRegexConditional -> "Move the condition outside the regex or use an explicit regular alternation."
-    :UnsupportedRegexLookbehind -> "Match the required prefix explicitly and retain only the desired typed capture."
-    :UnsupportedRegexLookahead -> "Match the required suffix explicitly and retain only the desired typed capture."
+    :VariableLengthLookbehind -> "Use an exact-width operand such as `(?<=ab)` or rewrite the prefix explicitly."
+    :LookbehindTooWide -> "Shorten the assertion or make the required context explicit outside the regex."
+    :AssertionCapturesUnsupported -> "Move captures outside the assertion and inspect them in the surrounding match."
+    :NestedAssertionUnsupported -> "Flatten the assertion or move the inner condition outside the regex."
+    :AssertionAtomicityUnsupported -> "Move the atomic scope outside the assertion or use a plain finite operand."
+    :LookaroundAtomicityUnsupported -> "Use separate regexes for the assertion and atomic scope, or remove one of the two features."
     :UnsupportedRegexNamedCapture -> "Use an ordinary capture group and destructure the regex's inferred result type."
     :EmptyRegexCaptureName -> "Put a non-empty identifier between the capture delimiters."
     :MalformedRegexCaptureName -> "Use a name such as `word` or `capture_1`."
@@ -145,39 +153,43 @@ mod Std.Regex.Syntax
             LiteralParsed(parsed, rest) -> match rest
               [] -> match allocate_literal_captures(parsed)
                 LiteralCaptureAllocationInvalid(reason, name) -> reject_unlocated_literal(pattern_syntax, reason)
-                LiteralCaptureAllocated(numbered, layout) -> match literal_pattern_options(numbered, options)
-                  LiteralPatternOptions(effective_pattern, effective_options) ->
-                    pickup
-                      literal_pattern_has_conditionals(effective_pattern) -> expand(
-                        call("Std.Regex.Runtime.named_staged", [
+                LiteralCaptureAllocated(numbered, layout) -> match validate_literal_lookarounds(numbered)
+                  LiteralLookaroundInvalid(reason, _) -> reject_unlocated_literal(pattern_syntax, reason)
+                  LiteralLookaroundValid() -> pickup
+                    literal_pattern_has_lookaround(numbered) and literal_pattern_has_atomic(numbered) -> reject_unlocated_literal(pattern_syntax, :LookaroundAtomicityUnsupported)
+                    else -> match literal_pattern_options(numbered, options)
+                      LiteralPatternOptions(effective_pattern, effective_options) ->
+                        pickup
+                          literal_pattern_has_conditionals(effective_pattern) -> expand(
+                          call("Std.Regex.Runtime.named_staged", [
+                            call("Std.Regex.Runtime.configured", [
+                              emit_options(effective_options),
+                              emit_staged_literal_with_options_conditional(effective_pattern, effective_options)
+                            ]),
+                            emit_named_staged_compilation(effective_pattern, effective_options),
+                            emit_capture_layout(layout),
+                            bool_literal(has_modifier(effective_options, FirstlineModifier)),
+                            emit_newline_policy(effective_options)
+                          ])
+                        )
+                          literal_capture_layout_has_names(layout) -> expand(
+                          call("Std.Regex.Runtime.named_staged", [
+                            call("Std.Regex.Runtime.configured", [
+                              emit_options(effective_options),
+                              emit_staged_literal_with_options(effective_pattern, effective_options)
+                            ]),
+                            emit_named_staged_compilation(effective_pattern, effective_options),
+                            emit_capture_layout(layout),
+                            bool_literal(has_modifier(effective_options, FirstlineModifier)),
+                            emit_newline_policy(effective_options)
+                          ])
+                        )
+                          else -> expand(
                           call("Std.Regex.Runtime.configured", [
                             emit_options(effective_options),
-                            emit_staged_literal_with_options_conditional(effective_pattern, effective_options)
-                          ]),
-                          emit_named_staged_compilation(effective_pattern, effective_options),
-                          emit_capture_layout(layout),
-                          bool_literal(has_modifier(effective_options, FirstlineModifier)),
-                          emit_newline_policy(effective_options)
-                        ])
-                      )
-                      literal_capture_layout_has_names(layout) -> expand(
-                        call("Std.Regex.Runtime.named_staged", [
-                          call("Std.Regex.Runtime.configured", [
-                            emit_options(effective_options),
-                            emit_staged_literal_with_options(effective_pattern, effective_options)
-                          ]),
-                          emit_named_staged_compilation(effective_pattern, effective_options),
-                          emit_capture_layout(layout),
-                          bool_literal(has_modifier(effective_options, FirstlineModifier)),
-                          emit_newline_policy(effective_options)
-                        ])
-                      )
-                      else -> expand(
-                        call("Std.Regex.Runtime.configured", [
-                          emit_options(effective_options),
-                          call("Std.Regex.Runtime.simplified", [emit_shape(literal_shape(effective_pattern)), emit_staged_literal_with_options(effective_pattern, effective_options)])
-                        ])
-                      )
+                            call("Std.Regex.Runtime.simplified", [emit_shape(literal_shape(effective_pattern)), emit_staged_literal_with_options(effective_pattern, effective_options)])
+                            ])
+                          )
               _ -> reject(Failure(:UnexpectedRegexSuffix, []))
             LiteralInvalid(reason) -> reject_unlocated_literal(pattern_syntax, reason)
             LiteralAtInvalid(reason, _, _) -> reject_unlocated_literal(pattern_syntax, reason)

@@ -25,6 +25,9 @@ mod Std.Regex.Syntax.Model
     | LiteralCaptureWalked(LiteralPattern, List(LiteralCaptureSlotInfo), Nat, List(String))
     | LiteralCaptureWalkInvalid(Atom, String)
   type LiteralCaptureReference = LiteralCaptureSlotReference(Nat) | LiteralCaptureNameReference(String)
+  type LiteralAssertionPolarity = LiteralAssertionPositive | LiteralAssertionNegative
+  type LiteralWidth = LiteralWidthExact(Nat) | LiteralWidthVariable
+  type LiteralLookaroundValidation = LiteralLookaroundValid() | LiteralLookaroundInvalid(Atom, String)
 
   ## Capture-layout validation is a checked decision, not a Boolean side
   ## condition.  The compatible branch is the certificate consumed by the
@@ -56,6 +59,8 @@ mod Std.Regex.Syntax.Model
     | LiteralBranchReset(List(LiteralPattern))
     | LiteralConditional(LiteralCaptureReference, LiteralPattern, Option(LiteralPattern))
     | LiteralAtomic(LiteralPattern)
+    | LiteralLookahead(LiteralAssertionPolarity, LiteralPattern)
+    | LiteralLookbehind(LiteralAssertionPolarity, LiteralPattern)
     | LiteralRepeat(LiteralPattern, Bool)
     | LiteralPlus(LiteralPattern, Bool)
     | LiteralOptional(LiteralPattern, Bool)
@@ -228,6 +233,190 @@ mod Std.Regex.Syntax.Model
       LiteralReferencesInvalid(reason, name) -> LiteralCaptureAllocationInvalid(reason, name)
     LiteralCaptureWalkInvalid(reason, name) -> LiteralCaptureAllocationInvalid(reason, name)
 
+  ## Lookaround is deliberately checked before emission.  Assertions must be
+  ## capture-free and non-nested; lookbehind additionally needs one exact,
+  ## bounded scalar width so its history window is finite and unambiguous.
+  fn validate_literal_lookarounds(pattern: LiteralPattern) -> LiteralLookaroundValidation = match pattern
+    LiteralLookahead(_, inner) -> match validate_literal_lookaround_operand(inner)
+      LiteralLookaroundValid() -> LiteralLookaroundValid()
+      LiteralLookaroundInvalid(reason, detail) -> LiteralLookaroundInvalid(reason, detail)
+    LiteralLookbehind(_, inner) -> match validate_literal_lookaround_operand(inner)
+      LiteralLookaroundInvalid(reason, detail) -> LiteralLookaroundInvalid(reason, detail)
+      LiteralLookaroundValid() -> match literal_pattern_exact_width(inner)
+        None() -> LiteralLookaroundInvalid(:VariableLengthLookbehind, "lookbehind")
+        Some(width) -> pickup
+          literal_nat_less(literal_lookbehind_limit(), width) -> LiteralLookaroundInvalid(:LookbehindTooWide, "lookbehind")
+          else -> LiteralLookaroundValid()
+    LiteralSequence(left, right) -> match validate_literal_lookarounds(left)
+      LiteralLookaroundInvalid(reason, detail) -> LiteralLookaroundInvalid(reason, detail)
+      LiteralLookaroundValid() -> validate_literal_lookarounds(right)
+    LiteralAlternate(left, right) -> match validate_literal_lookarounds(left)
+      LiteralLookaroundInvalid(reason, detail) -> LiteralLookaroundInvalid(reason, detail)
+      LiteralLookaroundValid() -> validate_literal_lookarounds(right)
+    LiteralBranchReset(arms) -> validate_literal_lookaround_list(arms)
+    LiteralConditional(_, yes, no) -> match validate_literal_lookarounds(yes)
+      LiteralLookaroundInvalid(reason, detail) -> LiteralLookaroundInvalid(reason, detail)
+      LiteralLookaroundValid() -> validate_literal_lookaround_option(no)
+    LiteralAtomic(inner) -> validate_literal_lookarounds(inner)
+    LiteralRepeat(inner, _) -> validate_literal_lookarounds(inner)
+    LiteralPlus(inner, _) -> validate_literal_lookarounds(inner)
+    LiteralOptional(inner, _) -> validate_literal_lookarounds(inner)
+    LiteralBoundedExact(inner, _) -> validate_literal_lookarounds(inner)
+    LiteralBoundedAtLeast(inner, _, _) -> validate_literal_lookarounds(inner)
+    LiteralBoundedBetween(inner, _, _, _) -> validate_literal_lookarounds(inner)
+    LiteralCapture(inner) -> validate_literal_lookarounds(inner)
+    LiteralNamedCapture(_, inner) -> validate_literal_lookarounds(inner)
+    LiteralCaptureIndexed(_, _, inner) -> validate_literal_lookarounds(inner)
+    LiteralConfigured(_, inner) -> validate_literal_lookarounds(inner)
+    _ -> LiteralLookaroundValid()
+
+  fn validate_literal_lookaround_operand(pattern: LiteralPattern) -> LiteralLookaroundValidation = pickup
+    literal_pattern_has_capture(pattern) -> LiteralLookaroundInvalid(:AssertionCapturesUnsupported, "assertion")
+    literal_pattern_has_lookaround(pattern) -> LiteralLookaroundInvalid(:NestedAssertionUnsupported, "assertion")
+    literal_pattern_has_atomic(pattern) -> LiteralLookaroundInvalid(:AssertionAtomicityUnsupported, "assertion")
+    literal_pattern_has_conditionals(pattern) -> LiteralLookaroundInvalid(:NestedAssertionUnsupported, "assertion")
+    else -> validate_literal_lookarounds(pattern)
+
+  fn validate_literal_lookaround_list(patterns: List(LiteralPattern)) -> LiteralLookaroundValidation = match patterns
+    [] -> LiteralLookaroundValid()
+    [head | rest] -> match validate_literal_lookarounds(head)
+      LiteralLookaroundInvalid(reason, detail) -> LiteralLookaroundInvalid(reason, detail)
+      LiteralLookaroundValid() -> validate_literal_lookaround_list(rest)
+
+  fn validate_literal_lookaround_option(pattern: Option(LiteralPattern)) -> LiteralLookaroundValidation = match pattern
+    None() -> LiteralLookaroundValid()
+    Some(inner) -> validate_literal_lookarounds(inner)
+
+  fn literal_lookbehind_limit() -> Nat = S(S(S(S(S(S(S(S(Z()))))))))
+
+  fn literal_pattern_has_capture(pattern: LiteralPattern) -> Bool = match pattern
+    LiteralCapture(_) -> true
+    LiteralNamedCapture(_, _) -> true
+    LiteralCaptureIndexed(_, _, _) -> true
+    LiteralSequence(left, right) -> literal_pattern_has_capture(left) or literal_pattern_has_capture(right)
+    LiteralAlternate(left, right) -> literal_pattern_has_capture(left) or literal_pattern_has_capture(right)
+    LiteralBranchReset(arms) -> literal_pattern_list_has_capture(arms)
+    LiteralConditional(_, _, _) -> true
+    LiteralAtomic(inner) -> literal_pattern_has_capture(inner)
+    LiteralLookahead(_, inner) -> literal_pattern_has_capture(inner)
+    LiteralLookbehind(_, inner) -> literal_pattern_has_capture(inner)
+    LiteralRepeat(inner, _) -> literal_pattern_has_capture(inner)
+    LiteralPlus(inner, _) -> literal_pattern_has_capture(inner)
+    LiteralOptional(inner, _) -> literal_pattern_has_capture(inner)
+    LiteralBoundedExact(inner, _) -> literal_pattern_has_capture(inner)
+    LiteralBoundedAtLeast(inner, _, _) -> literal_pattern_has_capture(inner)
+    LiteralBoundedBetween(inner, _, _, _) -> literal_pattern_has_capture(inner)
+    LiteralConfigured(_, inner) -> literal_pattern_has_capture(inner)
+    _ -> false
+
+  fn literal_pattern_list_has_capture(patterns: List(LiteralPattern)) -> Bool = match patterns
+    [] -> false
+    [head | rest] -> literal_pattern_has_capture(head) or literal_pattern_list_has_capture(rest)
+
+  fn literal_pattern_has_lookaround(pattern: LiteralPattern) -> Bool = match pattern
+    LiteralLookahead(_, _) -> true
+    LiteralLookbehind(_, _) -> true
+    LiteralSequence(left, right) -> literal_pattern_has_lookaround(left) or literal_pattern_has_lookaround(right)
+    LiteralAlternate(left, right) -> literal_pattern_has_lookaround(left) or literal_pattern_has_lookaround(right)
+    LiteralBranchReset(arms) -> literal_pattern_list_has_lookaround(arms)
+    LiteralConditional(_, yes, no) -> literal_pattern_has_lookaround(yes) or literal_pattern_option_has_lookaround(no)
+    LiteralAtomic(inner) -> literal_pattern_has_lookaround(inner)
+    LiteralRepeat(inner, _) -> literal_pattern_has_lookaround(inner)
+    LiteralPlus(inner, _) -> literal_pattern_has_lookaround(inner)
+    LiteralOptional(inner, _) -> literal_pattern_has_lookaround(inner)
+    LiteralBoundedExact(inner, _) -> literal_pattern_has_lookaround(inner)
+    LiteralBoundedAtLeast(inner, _, _) -> literal_pattern_has_lookaround(inner)
+    LiteralBoundedBetween(inner, _, _, _) -> literal_pattern_has_lookaround(inner)
+    LiteralCapture(inner) -> literal_pattern_has_lookaround(inner)
+    LiteralNamedCapture(_, inner) -> literal_pattern_has_lookaround(inner)
+    LiteralCaptureIndexed(_, _, inner) -> literal_pattern_has_lookaround(inner)
+    LiteralConfigured(_, inner) -> literal_pattern_has_lookaround(inner)
+    _ -> false
+
+  fn literal_pattern_list_has_lookaround(patterns: List(LiteralPattern)) -> Bool = match patterns
+    [] -> false
+    [head | rest] -> literal_pattern_has_lookaround(head) or literal_pattern_list_has_lookaround(rest)
+
+  fn literal_pattern_option_has_lookaround(pattern: Option(LiteralPattern)) -> Bool = match pattern
+    None() -> false
+    Some(inner) -> literal_pattern_has_lookaround(inner)
+
+  fn literal_pattern_exact_width(pattern: LiteralPattern) -> Option(Nat) = match pattern
+    LiteralEmpty -> Some(Z())
+    LiteralExact(_) -> Some(S(Z()))
+    LiteralAny -> Some(S(Z()))
+    LiteralClass(_, _, _, _) -> Some(S(Z()))
+    LiteralProperty(_, _) -> Some(S(Z()))
+    LiteralDigit(_) -> Some(S(Z()))
+    LiteralWord(_) -> Some(S(Z()))
+    LiteralSpace(_) -> Some(S(Z()))
+    LiteralHorizontal(_) -> Some(S(Z()))
+    LiteralVertical(_) -> Some(S(Z()))
+    LiteralLineBreak() -> None()
+    LiteralStart -> Some(Z())
+    LiteralEnd -> Some(Z())
+    LiteralAbsoluteStart -> Some(Z())
+    LiteralStrictEnd -> Some(Z())
+    LiteralFinalEnd -> Some(Z())
+    LiteralWordBoundary(_) -> Some(Z())
+    LiteralAtomic(inner) -> literal_pattern_exact_width(inner)
+    LiteralLookahead(_, _) -> Some(Z())
+    LiteralLookbehind(_, _) -> Some(Z())
+    LiteralSequence(left, right) -> match literal_pattern_exact_width(left)
+      None() -> None()
+      Some(left_width) -> match literal_pattern_exact_width(right)
+        None() -> None()
+        Some(right_width) -> Some(literal_nat_add(left_width, right_width))
+    LiteralAlternate(left, right) -> match literal_pattern_exact_width(left)
+      None() -> None()
+      Some(left_width) -> match literal_pattern_exact_width(right)
+        Some(right_width) -> pickup
+          same_literal_nat(left_width, right_width) -> Some(left_width)
+          else -> None()
+        None() -> None()
+    LiteralBranchReset(arms) -> literal_pattern_list_exact_width(arms)
+    LiteralConditional(_, _, _) -> None()
+    LiteralRepeat(_, _) -> None()
+    LiteralPlus(_, _) -> None()
+    LiteralOptional(_, _) -> None()
+    LiteralBoundedExact(inner, count) -> match literal_pattern_exact_width(inner)
+      None() -> None()
+      Some(width) -> Some(literal_nat_multiply(width, count))
+    LiteralBoundedAtLeast(_, _, _) -> None()
+    LiteralBoundedBetween(inner, minimum, maximum, _) -> pickup
+      same_literal_nat(minimum, maximum) -> literal_pattern_exact_width(LiteralBoundedExact(inner, minimum))
+      else -> None()
+    LiteralCapture(inner) -> literal_pattern_exact_width(inner)
+    LiteralNamedCapture(_inner_name, inner) -> literal_pattern_exact_width(inner)
+    LiteralCaptureIndexed(_, _, inner) -> literal_pattern_exact_width(inner)
+    LiteralConfigured(_, inner) -> literal_pattern_exact_width(inner)
+
+  fn literal_pattern_exact_width_value(pattern: LiteralPattern) -> Nat = match literal_pattern_exact_width(pattern)
+    Some(width) -> width
+    None() -> Z()
+
+  fn literal_pattern_list_exact_width(patterns: List(LiteralPattern)) -> Option(Nat) = match patterns
+    [] -> Some(Z())
+    [head | rest] -> match literal_pattern_exact_width(head)
+      None() -> None()
+      Some(width) -> literal_pattern_tail_exact_width(rest, width)
+
+  fn literal_pattern_tail_exact_width(patterns: List(LiteralPattern), expected: Nat) -> Option(Nat) = match patterns
+    [] -> Some(expected)
+    [head | rest] -> match literal_pattern_exact_width(head)
+      Some(width) -> pickup
+        same_literal_nat(width, expected) -> literal_pattern_tail_exact_width(rest, expected)
+        else -> None()
+      None() -> None()
+
+  fn literal_nat_add(left: Nat, right: Nat) -> Nat = match left
+    Z() -> right
+    S(rest) -> S(literal_nat_add(rest, right))
+
+  fn literal_nat_multiply(left: Nat, right: Nat) -> Nat = match right
+    Z() -> Z()
+    S(rest) -> literal_nat_add(left, literal_nat_multiply(left, rest))
+
   type LiteralReferenceResolution = LiteralReferencesResolved(LiteralPattern) | LiteralReferencesInvalid(Atom, String)
   type LiteralReferenceLookup = LiteralReferenceResolved(LiteralCaptureReference) | LiteralReferenceInvalid(Atom, String)
 
@@ -276,6 +465,8 @@ mod Std.Regex.Syntax.Model
               LiteralCaptureLayoutsIncompatible() -> LiteralCaptureWalkInvalid(:ConditionalCaptureLayoutMismatch, "conditional")
               LiteralCaptureLayoutsCompatible() -> LiteralCaptureWalked(LiteralConditional(reference, numbered_yes, Some(numbered_no)), yes_slots, yes_next, yes_names)
     LiteralAtomic(inner) -> walk_literal_unary(fn(value) -> LiteralAtomic(value), inner, next, names)
+    LiteralLookahead(polarity, inner) -> walk_literal_unary(fn(value) -> LiteralLookahead(polarity, value), inner, next, names)
+    LiteralLookbehind(polarity, inner) -> walk_literal_unary(fn(value) -> LiteralLookbehind(polarity, value), inner, next, names)
     LiteralSequence(left, right) -> walk_literal_binary(LiteralSequence, left, right, next, names)
     LiteralAlternate(left, right) -> walk_literal_binary(LiteralAlternate, left, right, next, names)
     LiteralRepeat(inner, lazy) -> walk_literal_unary(fn(value) -> LiteralRepeat(value, lazy), inner, next, names)
@@ -380,6 +571,8 @@ mod Std.Regex.Syntax.Model
             LiteralReferencesResolved(resolved_no) -> LiteralReferencesResolved(LiteralConditional(resolved_reference, resolved_yes, Some(resolved_no)))
       LiteralReferenceInvalid(reason, name) -> LiteralReferencesInvalid(reason, name)
     LiteralAtomic(inner) -> resolve_literal_reference_unary(fn(value) -> LiteralAtomic(value), inner, layout, _next)
+    LiteralLookahead(polarity, inner) -> resolve_literal_reference_unary(fn(value) -> LiteralLookahead(polarity, value), inner, layout, _next)
+    LiteralLookbehind(polarity, inner) -> resolve_literal_reference_unary(fn(value) -> LiteralLookbehind(polarity, value), inner, layout, _next)
     LiteralSequence(left, right) -> match resolve_literal_capture_references(left, layout, _next)
       LiteralReferencesInvalid(reason, name) -> LiteralReferencesInvalid(reason, name)
       LiteralReferencesResolved(resolved_left) -> match resolve_literal_capture_references(right, layout, _next)
@@ -464,6 +657,8 @@ mod Std.Regex.Syntax.Model
   fn literal_pattern_has_conditionals(pattern: LiteralPattern) -> Bool = match pattern
     LiteralConditional(_, yes, no) -> literal_pattern_has_conditionals(yes) or literal_pattern_option_has_conditionals(no)
     LiteralAtomic(inner) -> literal_pattern_has_conditionals(inner)
+    LiteralLookahead(_, inner) -> literal_pattern_has_conditionals(inner)
+    LiteralLookbehind(_, inner) -> literal_pattern_has_conditionals(inner)
     LiteralSequence(left, right) -> literal_pattern_has_conditionals(left) or literal_pattern_has_conditionals(right)
     LiteralAlternate(left, right) -> literal_pattern_has_conditionals(left) or literal_pattern_has_conditionals(right)
     LiteralBranchReset(arms) -> literal_pattern_list_has_conditionals(arms)
@@ -481,6 +676,8 @@ mod Std.Regex.Syntax.Model
 
   fn literal_pattern_has_atomic(pattern: LiteralPattern) -> Bool = match pattern
     LiteralAtomic(_) -> true
+    LiteralLookahead(_, inner) -> literal_pattern_has_atomic(inner)
+    LiteralLookbehind(_, inner) -> literal_pattern_has_atomic(inner)
     LiteralSequence(left, right) -> literal_pattern_has_atomic(left) or literal_pattern_has_atomic(right)
     LiteralAlternate(left, right) -> literal_pattern_has_atomic(left) or literal_pattern_has_atomic(right)
     LiteralBranchReset(arms) -> literal_pattern_list_has_atomic(arms)

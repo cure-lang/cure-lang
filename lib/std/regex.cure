@@ -86,10 +86,13 @@ mod Std.Regex
     _ -> AnyUnicodeNewline()
 
   fn search({result: Type}, regex: Regex(result), input: String) -> Option(Match(result)) =
-    search_from(regex, Std.String.characters(input), [], true, true, false, false, regex_firstline(regex), regex_newline_policy(regex))
+    search_from_position(regex, Std.String.characters(input), [], subject_initial_position(), regex_firstline(regex), regex_newline_policy(regex))
 
   fn search_from({result: Type}, regex: Regex(result), candidate: List(Char), reversed_prefix: List(Char), subject_start: Bool, line_start: Bool, previous_ascii_word: Bool, previous_unicode_word: Bool, firstline_only: Bool, policy: NewlinePolicy) -> Option(Match(result)) =
-    match pattern_prefix_program_at(regex, candidate, subject_start, line_start, previous_ascii_word, previous_unicode_word)
+    search_from_position(regex, candidate, reversed_prefix, InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word, None()), firstline_only, policy)
+
+  fn search_from_position({result: Type}, regex: Regex(result), candidate: List(Char), reversed_prefix: List(Char), position: InitialPosition, firstline_only: Bool, policy: NewlinePolicy) -> Option(Match(result)) =
+    match pattern_prefix_program_at_position(regex, candidate, position, history_from_reversed_prefix(reversed_prefix))
       Some(found) ->
         let rest = found.2
         let matched = list_drop_last(candidate, list_length(rest))
@@ -98,11 +101,26 @@ mod Std.Regex
         [] -> None()
         [char | rest] -> pickup
           firstline_only and newline_char(policy, char) -> None()
-          else -> search_from(regex, rest, [char | reversed_prefix], false, Std.Char.is_newline(char), ascii_word(char), option_word(char, true), firstline_only, policy)
+          else -> search_from_position(regex, rest, [char | reversed_prefix], advance_initial_position(position, [char]), firstline_only, policy)
 
   fn pattern_prefix_program_at({result: Type}, regex: Regex(result), input: List(Char), subject_start: Bool, line_start: Bool, previous_ascii_word: Bool, previous_unicode_word: Bool) -> Option(Tuple(result, List(Char))) = match compile_regex(regex)
     NoProgram() -> None()
     SomeProgram(program) -> Std.Regex.Proof.parse_program_prefix_chars_verified_at(program, input, true, subject_start, line_start, previous_ascii_word, previous_unicode_word)
+
+  fn pattern_prefix_program_at_position({result: Type}, regex: Regex(result), input: List(Char), position: InitialPosition, history: List(Char)) -> Option(Tuple(result, List(Char))) = match compile_regex(regex)
+    NoProgram() -> None()
+    SomeProgram(program) -> Std.Regex.Proof.parse_program_prefix_chars_verified_at_position(program, input, true, position, history)
+
+  fn history_from_reversed_prefix(reversed_prefix: List(Char)) -> List(Char) =
+    history_take_limit(reversed_prefix, literal_history_limit())
+
+  fn literal_history_limit() -> Nat = S(S(S(S(S(S(S(S(S(Z())))))))))
+
+  fn history_take_limit(values: List(Char), limit: Nat) -> List(Char) = match limit
+    Z() -> []
+    S(rest_limit) -> match values
+      [] -> []
+      [head | rest] -> [head | history_take_limit(rest, rest_limit)]
 
   fn list_length(values: List(Char)) -> Int = match values
     [] -> 0
@@ -120,10 +138,6 @@ mod Std.Regex
   fn matches({result: Type}, regex: Regex(result), input: String) -> Bool = match search(regex, input)
     Some(_) -> true
     None() -> false
-
-  fn search_from_position({result: Type}, regex: Regex(result), candidate: List(Char), reversed_prefix: List(Char), position: InitialPosition, firstline_only: Bool, policy: NewlinePolicy) -> Option(Match(result)) = match position
-    InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word, _previous_char) ->
-      search_from(regex, candidate, reversed_prefix, subject_start, line_start, previous_ascii_word, previous_unicode_word, firstline_only, policy)
 
   fn characters_contain_newline(input: List(Char), policy: NewlinePolicy) -> Bool = match input
     [] -> false

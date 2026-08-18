@@ -319,9 +319,16 @@ mod Std.Regex.Core
     | EndAtomic
 
   type NewlinePolicy = LFNewline | CRNewline | CRLFNewline | AnyCRLFNewline | AnyUnicodeNewline
-  type CaptureCondition = CaptureParticipated(Nat) | CaptureAbsent(Nat)
-  type BoundaryConstraint = BoundaryConstraint(Bool, Bool, Bool, Bool, Bool, Bool, Bool, Bool, Bool, NewlinePolicy, Option(CaptureCondition))
+  type InitialPosition = InitialPosition(Bool, Bool, Bool, Bool, Option(Char))
+  ## Ordinary boundaries remain the small ten-field context used by the
+  ## existing Thompson proof. Lookaround evaluators carry their suffix and
+  ## bounded history separately, so adding assertions does not perturb the
+  ## ordinary proof indices.
   type Boundary = Boundary(Bool, Bool, Bool, Bool, Bool, Bool, Bool, Option(Char), Option(Char), Option(Char))
+  type CaptureCondition = CaptureParticipated(Nat) | CaptureAbsent(Nat)
+  typealias LookaroundMachine = Sigma(n: Nat, PatternMachine(n))
+  type LookaroundCondition = LookaheadCondition(Bool, LookaroundMachine) | LookbehindCondition(Bool, Nat, LookaroundMachine)
+  type BoundaryConstraint = BoundaryConstraint(Bool, Bool, Bool, Bool, Bool, Bool, Bool, Bool, Bool, NewlinePolicy, Option(CaptureCondition), Option(LookaroundCondition))
   type MachineState indices (n: Nat)
     Active : Bounded(n) -> List(EvidenceInstruction) -> List(BoundaryConstraint) -> MachineState(n)
     Accepted : List(EvidenceInstruction) -> List(BoundaryConstraint) -> MachineState(n)
@@ -469,8 +476,6 @@ mod Std.Regex.Core
   type EvidenceThread indices (n: Nat)
     EvidenceThread : ThreadState(n) -> List(Evidence) -> List(CaptureFrame) -> EvidenceThread(n)
   type EvidencePrefix = EvidencePrefix(List(Evidence), List(Char))
-
-  type InitialPosition = InitialPosition(Bool, Bool, Bool, Bool, Option(Char))
 
   @reducible
   fn evidence_reverse_chars(input: List(Char)) -> List(Char) = evidence_reverse_chars_into(input, [])

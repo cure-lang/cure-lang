@@ -13,10 +13,6 @@ defmodule Cure.Stdlib.DependentRegexUnsupportedConstructTest do
       {~S"a\g{1}", :UnsupportedRegexBackreference, ~S"\g"},
       {~S"(?R)", :UnsupportedRegexRecursion, "(?R"},
       {~S"(?1)", :UnsupportedRegexRecursion, "(?1"},
-      {~S"(?<=a)", :UnsupportedRegexLookbehind, "(?<="},
-      {~S"(?<!a)", :UnsupportedRegexLookbehind, "(?<!"},
-      {~S"(?=a)", :UnsupportedRegexLookahead, "(?="},
-      {~S"(?!a)", :UnsupportedRegexLookahead, "(?!"},
       {~S"(?i:a)", :UnsupportedRegexInlineOptions, "(?i"},
       {~S"a{2,1}", :RegexQuantifierRangeReversed, "{2,1}"}
     ]

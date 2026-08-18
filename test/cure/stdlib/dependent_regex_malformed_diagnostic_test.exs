@@ -32,11 +32,9 @@ defmodule Cure.Stdlib.DependentRegexMalformedDiagnosticTest do
 
   test "extended mode diagnostics retain original source coordinates" do
     cases = [
-      {"  (?<=a)", :UnsupportedRegexLookbehind, "(?<="},
       {~S"  \xGG", :InvalidRegexHexEscape, ~S"\xGG"},
       {"a  {3,2}", :RegexQuantifierRangeReversed, "{3,2}"},
-      {"é  \\xGG", :InvalidRegexHexEscape, ~S"\xGG"},
-      {"a # ignored\n  (?<=b)", :UnsupportedRegexLookbehind, "(?<="}
+      {"é  \\xGG", :InvalidRegexHexEscape, ~S"\xGG"}
     ]
 
     Enum.each(cases, fn {pattern, expected, expected_span} ->

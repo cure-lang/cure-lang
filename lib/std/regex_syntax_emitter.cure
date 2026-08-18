@@ -28,6 +28,8 @@ mod Std.Regex.Syntax.Emitter
     LiteralAlternate(left, right) -> ChoiceC(literal_shape(left), literal_shape(right))
     LiteralConditional(_, yes, no) -> ChoiceC(literal_shape(yes), literal_shape_or_unit(no))
     LiteralAtomic(inner) -> literal_shape(inner)
+    LiteralLookahead(_, _) -> UnitC
+    LiteralLookbehind(_, _) -> UnitC
     LiteralBranchReset(arms) -> literal_shape(literal_branch_reset_alternate(arms))
     LiteralRepeat(inner, _) -> ListC(literal_shape(inner))
     LiteralPlus(inner, _) -> ListC(literal_shape(inner))
@@ -91,6 +93,8 @@ mod Std.Regex.Syntax.Emitter
     LiteralBranchReset(arms) -> emit_atomic_runtime_pattern(literal_branch_reset_alternate(arms), options)
     LiteralConditional(_, yes, no) -> runtime_call("AtomicRuntimeAlternate", [emit_atomic_runtime_pattern(yes, options), emit_atomic_runtime_pattern_or_empty(no, options), bool_literal(false)])
     LiteralAtomic(inner) -> runtime_call("AtomicRuntimeScope", [emit_atomic_runtime_pattern(inner, options)])
+    LiteralLookahead(_, _) -> runtime_call("AtomicRuntimeLeaf", [core_call("PatternEmpty", [])])
+    LiteralLookbehind(_, _) -> runtime_call("AtomicRuntimeLeaf", [core_call("PatternEmpty", [])])
     LiteralRepeat(inner, lazy) -> runtime_call("AtomicRuntimeRepeat", [emit_atomic_runtime_pattern(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])
     LiteralPlus(inner, lazy) -> runtime_call("AtomicRuntimeConcat", [emit_atomic_runtime_pattern(inner, options), runtime_call("AtomicRuntimeRepeat", [emit_atomic_runtime_pattern(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])])
     LiteralOptional(inner, lazy) -> runtime_call("AtomicRuntimeAlternate", [emit_atomic_runtime_pattern(inner, options), runtime_call("AtomicRuntimeLeaf", [core_call("PatternEmpty", [])]), bool_literal(lazy != has_modifier(options, UngreedyModifier))])
@@ -149,8 +153,71 @@ mod Std.Regex.Syntax.Emitter
     ])
 
   fn emit_staged_hint(pattern: LiteralPattern, options: LiteralRegexOptions) -> Syntax = pickup
+    literal_pattern_has_lookaround(pattern) -> runtime_call("StagedLookaroundValue", [emit_staged_pattern(pattern, options), emit_lookaround_staged_compilation(pattern, options), emit_newline_policy(options)])
     literal_pattern_has_atomic(pattern) -> runtime_call("StagedAtomicPatternValue", [emit_atomic_runtime_pattern(pattern, options)])
     else -> runtime_call("StagedMachineValue", [emit_staged_compilation(pattern, options)])
+
+  fn emit_lookaround_polarity(polarity: LiteralAssertionPolarity) -> Syntax = match polarity
+    LiteralAssertionPositive -> bool_literal(true)
+    LiteralAssertionNegative -> bool_literal(false)
+
+  fn emit_lookaround_staged_compilation(pattern: LiteralPattern, options: LiteralRegexOptions) -> Syntax = match pattern
+    LiteralEmpty -> runtime_call("ThompsonEmpty", [])
+    LiteralExact(char) -> runtime_call("ThompsonPredicate", [runtime_call("option_exact_test", [char_literal(char), bool_literal(has_modifier(options, CaselessModifier)), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralAny -> runtime_call("ThompsonPredicate", [runtime_call("dot_test_with_policy", [bool_literal(has_modifier(options, DotallModifier)), emit_newline_policy(options)])])
+    LiteralClass(chars, ranges, kinds, negated) -> runtime_call("ThompsonPredicate", [runtime_call("extended_property_class_test", [emit_chars(chars), emit_ranges(ranges), emit_class_kinds(kinds), emit_unicode_property_matches(literal_class_properties(kinds)), emit_posix_class_matches(literal_class_posix(kinds)), bool_literal(negated), bool_literal(has_modifier(options, CaselessModifier)), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralProperty(property, negated) -> runtime_call("ThompsonPredicate", [runtime_call("unicode_property_test", [emit_unicode_property(property), bool_literal(negated)])])
+    LiteralDigit(negated) -> runtime_call("ThompsonPredicate", [runtime_call("digit_options_test", [bool_literal(negated), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralWord(negated) -> runtime_call("ThompsonPredicate", [runtime_call("word_options_test", [bool_literal(negated), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralSpace(negated) -> runtime_call("ThompsonPredicate", [runtime_call("space_options_test", [bool_literal(negated), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralHorizontal(negated) -> runtime_call("ThompsonPredicate", [runtime_call("horizontal_test", [bool_literal(negated)])])
+    LiteralVertical(negated) -> runtime_call("ThompsonPredicate", [runtime_call("vertical_test", [bool_literal(negated)])])
+    LiteralLineBreak() -> runtime_call("ThompsonGroup", [emit_line_break_compilation(options)])
+    LiteralSequence(left, right) -> runtime_call("ThompsonConcat", [emit_lookaround_staged_compilation(left, options), emit_lookaround_staged_compilation(right, options)])
+    LiteralAlternate(left, right) -> runtime_call("ThompsonAlternate", [emit_lookaround_staged_compilation(left, options), emit_lookaround_staged_compilation(right, options), bool_literal(false)])
+    LiteralConditional(_, yes, no) -> runtime_call("ThompsonAlternate", [emit_lookaround_staged_compilation(yes, options), emit_lookaround_staged_compilation_or_empty(no, options), bool_literal(false)])
+    LiteralAtomic(inner) -> emit_lookaround_staged_compilation(inner, options)
+    LiteralLookahead(polarity, inner) -> runtime_call("ThompsonBoundary", [runtime_call("lookahead_constraint", [emit_staged_compilation(inner, options), emit_lookaround_polarity(polarity), emit_newline_policy(options)])])
+    LiteralLookbehind(polarity, inner) -> runtime_call("ThompsonBoundary", [runtime_call("lookbehind_constraint", [emit_staged_compilation(inner, options), emit_lookaround_polarity(polarity), emit_nat(literal_pattern_exact_width_value(inner)), emit_newline_policy(options)])])
+    LiteralBranchReset(arms) -> emit_lookaround_staged_compilation(literal_branch_reset_alternate(arms), options)
+    LiteralRepeat(inner, lazy) -> runtime_call("ThompsonRepeat", [emit_lookaround_staged_compilation(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])
+    LiteralPlus(inner, lazy) -> runtime_call("ThompsonConcat", [emit_lookaround_staged_compilation(inner, options), runtime_call("ThompsonRepeat", [emit_lookaround_staged_compilation(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])])
+    LiteralOptional(inner, lazy) -> runtime_call("ThompsonAlternate", [emit_lookaround_staged_compilation(inner, options), runtime_call("ThompsonEmpty", []), bool_literal(lazy != has_modifier(options, UngreedyModifier))])
+    LiteralBoundedExact(inner, count) -> emit_lookaround_bounded_exact(inner, count, options)
+    LiteralBoundedAtLeast(inner, count, lazy) -> emit_lookaround_bounded_at_least(inner, count, lazy != has_modifier(options, UngreedyModifier), options)
+    LiteralBoundedBetween(inner, minimum, maximum, lazy) -> emit_lookaround_bounded_between(inner, minimum, maximum, lazy != has_modifier(options, UngreedyModifier), options)
+    LiteralCapture(inner) -> runtime_call("ThompsonGroup", [emit_lookaround_staged_compilation(inner, options)])
+    LiteralNamedCapture(_, inner) -> runtime_call("ThompsonGroup", [emit_lookaround_staged_compilation(inner, options)])
+    LiteralCaptureIndexed(_, _, inner) -> runtime_call("ThompsonGroup", [emit_lookaround_staged_compilation(inner, options)])
+    LiteralStart -> runtime_call("ThompsonBoundary", [emit_staged_start_constraint(options)])
+    LiteralEnd -> runtime_call("ThompsonBoundary", [emit_staged_end_constraint(options)])
+    LiteralAbsoluteStart -> runtime_call("ThompsonBoundary", [runtime_call("subject_start_constraint_with_policy", [emit_newline_policy(options)])])
+    LiteralStrictEnd -> runtime_call("ThompsonBoundary", [runtime_call("strict_end_constraint_with_policy", [emit_newline_policy(options)])])
+    LiteralFinalEnd -> runtime_call("ThompsonBoundary", [runtime_call("subject_end_constraint_with_policy", [emit_newline_policy(options)])])
+    LiteralWordBoundary(negated) -> runtime_call("ThompsonBoundary", [emit_staged_word_constraint(negated, options)])
+    LiteralConfigured(_, inner) -> emit_lookaround_staged_compilation(inner, options)
+
+  fn emit_lookaround_staged_compilation_or_empty(pattern: Option(LiteralPattern), options: LiteralRegexOptions) -> Syntax = match pattern
+    None() -> runtime_call("ThompsonEmpty", [])
+    Some(inner) -> emit_lookaround_staged_compilation(inner, options)
+
+  fn emit_lookaround_bounded_exact(inner: LiteralPattern, count: Nat, options: LiteralRegexOptions) -> Syntax = match count
+    Z() -> runtime_call("ThompsonEmpty", [])
+    S(rest) -> runtime_call("ThompsonConcat", [emit_lookaround_staged_compilation(inner, options), emit_lookaround_bounded_exact(inner, rest, options)])
+
+  fn emit_lookaround_bounded_at_least(inner: LiteralPattern, count: Nat, lazy: Bool, options: LiteralRegexOptions) -> Syntax = match count
+    Z() -> runtime_call("ThompsonRepeat", [emit_lookaround_staged_compilation(inner, options), bool_literal(lazy)])
+    S(rest) -> runtime_call("ThompsonConcat", [emit_lookaround_staged_compilation(inner, options), emit_lookaround_bounded_at_least(inner, rest, lazy, options)])
+
+  fn emit_lookaround_bounded_between(inner: LiteralPattern, minimum: Nat, maximum: Nat, lazy: Bool, options: LiteralRegexOptions) -> Syntax = match minimum
+    Z() -> emit_lookaround_bounded_up_to(inner, maximum, lazy, options)
+    S(rest) -> match maximum
+      Z() -> emit_lookaround_bounded_exact(inner, S(rest), options)
+      S(maximum_rest) -> runtime_call("ThompsonConcat", [emit_lookaround_staged_compilation(inner, options), emit_lookaround_bounded_between(inner, rest, maximum_rest, lazy, options)])
+
+  fn emit_lookaround_bounded_up_to(inner: LiteralPattern, maximum: Nat, lazy: Bool, options: LiteralRegexOptions) -> Syntax = match maximum
+    Z() -> runtime_call("ThompsonEmpty", [])
+    S(rest) -> runtime_call("ThompsonConcat", [runtime_call("ThompsonAlternate", [emit_lookaround_staged_compilation(inner, options), runtime_call("ThompsonEmpty", []), bool_literal(lazy)]), emit_lookaround_bounded_up_to(inner, rest, lazy, options)])
 
   fn emit_staged_conversion_conditional(pattern: LiteralPattern) -> Syntax = match pattern
     LiteralEmpty -> runtime_call("unit_identity_conversion", [])
@@ -159,6 +226,8 @@ mod Std.Regex.Syntax.Emitter
     LiteralAlternate(left, right) -> runtime_call("ChoiceConversion", [emit_staged_conversion_conditional(left), emit_staged_conversion_conditional(right)])
     LiteralConditional(_, yes, no) -> runtime_call("ChoiceConversion", [emit_staged_conversion_conditional(yes), emit_staged_conversion_conditional_or_unit(no)])
     LiteralAtomic(inner) -> emit_staged_conversion_conditional(inner)
+    LiteralLookahead(_, _) -> runtime_call("unit_identity_conversion", [])
+    LiteralLookbehind(_, _) -> runtime_call("unit_identity_conversion", [])
     LiteralCapture(_) -> runtime_call("string_identity_conversion", [])
     LiteralNamedCapture(_, _) -> runtime_call("string_identity_conversion", [])
     LiteralCaptureIndexed(_, _, _) -> runtime_call("string_identity_conversion", [])
@@ -224,6 +293,8 @@ mod Std.Regex.Syntax.Emitter
     LiteralAlternate(left, right) -> core_call("ChoiceC", [emit_compilation_shape(left), emit_compilation_shape(right)])
     LiteralConditional(_, yes, no) -> core_call("ChoiceC", [emit_compilation_shape(yes), emit_compilation_shape_or_unit(no)])
     LiteralAtomic(inner) -> emit_compilation_shape(inner)
+    LiteralLookahead(_, _) -> core_call("UnitC", [])
+    LiteralLookbehind(_, _) -> core_call("UnitC", [])
     LiteralBranchReset(arms) -> emit_compilation_shape(literal_branch_reset_alternate(arms))
     LiteralRepeat(inner, _) -> core_call("ListC", [emit_compilation_shape(inner)])
     LiteralPlus(inner, _) -> core_call("PairC", [emit_compilation_shape(inner), core_call("ListC", [emit_compilation_shape(inner)])])
@@ -258,6 +329,8 @@ mod Std.Regex.Syntax.Emitter
     LiteralAlternate(left, right) -> core_call("PatternAlternate", [emit_staged_pattern(left, options), emit_staged_pattern(right, options)])
     LiteralConditional(_, yes, no) -> core_call("PatternAlternate", [emit_staged_pattern(yes, options), emit_staged_pattern_or_empty(no, options)])
     LiteralAtomic(inner) -> emit_staged_pattern(inner, options)
+    LiteralLookahead(_, _) -> core_call("PatternEmpty", [])
+    LiteralLookbehind(_, _) -> core_call("PatternEmpty", [])
     LiteralBranchReset(arms) -> emit_staged_pattern(literal_branch_reset_alternate(arms), options)
     LiteralRepeat(inner, lazy) -> core_call("PatternRepeatMode", [emit_staged_pattern(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])
     LiteralPlus(inner, lazy) -> core_call("PatternConcat", [emit_staged_pattern(inner, options), core_call("PatternRepeatMode", [emit_staged_pattern(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])])
@@ -310,6 +383,8 @@ mod Std.Regex.Syntax.Emitter
     LiteralAlternate(left, right) -> runtime_call("ThompsonAlternate", [emit_staged_compilation(left, options), emit_staged_compilation(right, options), bool_literal(false)])
     LiteralConditional(_, yes, no) -> runtime_call("ThompsonAlternate", [emit_staged_compilation(yes, options), emit_staged_compilation_or_empty(no, options), bool_literal(false)])
     LiteralAtomic(inner) -> emit_staged_compilation(inner, options)
+    LiteralLookahead(_, _) -> runtime_call("ThompsonEmpty", [])
+    LiteralLookbehind(_, _) -> runtime_call("ThompsonEmpty", [])
     LiteralBranchReset(arms) -> emit_staged_compilation(literal_branch_reset_alternate(arms), options)
     LiteralRepeat(inner, lazy) -> runtime_call("ThompsonRepeat", [emit_staged_compilation(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])
     LiteralPlus(inner, lazy) -> runtime_call("ThompsonConcat", [emit_staged_compilation(inner, options), runtime_call("ThompsonRepeat", [emit_staged_compilation(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])])
@@ -347,6 +422,8 @@ mod Std.Regex.Syntax.Emitter
     LiteralAlternate(left, right) -> runtime_call("NamedThompsonAlternate", [emit_named_staged_compilation(left, options), emit_named_staged_compilation(right, options), bool_literal(false)])
     LiteralConditional(reference, yes, no) -> emit_named_conditional(reference, yes, no, options)
     LiteralAtomic(inner) -> emit_named_staged_compilation(inner, options)
+    LiteralLookahead(_, _) -> runtime_call("NamedThompsonEmpty", [])
+    LiteralLookbehind(_, _) -> runtime_call("NamedThompsonEmpty", [])
     LiteralBranchReset(arms) -> emit_named_staged_compilation(literal_branch_reset_alternate(arms), options)
     LiteralRepeat(inner, lazy) -> runtime_call("NamedThompsonRepeat", [emit_named_staged_compilation(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])
     LiteralPlus(inner, lazy) -> runtime_call("NamedThompsonConcat", [emit_named_staged_compilation(inner, options), runtime_call("NamedThompsonRepeat", [emit_named_staged_compilation(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])])
@@ -502,6 +579,8 @@ mod Std.Regex.Syntax.Emitter
     LiteralAlternate(left, right) -> runtime_call("ChoiceConversion", [emit_staged_conversion(left), emit_staged_conversion(right)])
     LiteralConditional(_, yes, no) -> runtime_call("ChoiceConversion", [emit_staged_conversion(yes), emit_staged_conversion_or_unit(no)])
     LiteralAtomic(inner) -> emit_staged_conversion(inner)
+    LiteralLookahead(_, _) -> runtime_call("unit_identity_conversion", [])
+    LiteralLookbehind(_, _) -> runtime_call("unit_identity_conversion", [])
     LiteralBranchReset(arms) -> emit_staged_conversion(literal_branch_reset_alternate(arms))
     LiteralRepeat(inner, _) -> runtime_call("ListConversion", [emit_staged_conversion(inner)])
     LiteralPlus(inner, _) -> runtime_call("PrependConversion", [emit_staged_conversion(inner)])
@@ -555,6 +634,8 @@ mod Std.Regex.Syntax.Emitter
     LiteralAlternate(left, right) -> runtime_call("alternate", [emit_literal(left), emit_literal(right)])
     LiteralConditional(_, yes, no) -> runtime_call("alternate", [emit_literal(yes), emit_literal_or_empty(no)])
     LiteralAtomic(inner) -> runtime_call("atomic", [emit_literal(inner)])
+    LiteralLookahead(_, _) -> runtime_call("empty", [])
+    LiteralLookbehind(_, _) -> runtime_call("empty", [])
     LiteralBranchReset(arms) -> emit_literal(literal_branch_reset_alternate(arms))
     LiteralRepeat(inner, lazy) -> runtime_call("repeated_pattern", [emit_literal(inner), bool_literal(lazy)])
     LiteralPlus(inner, lazy) -> runtime_call("one_or_more_pattern", [emit_literal(inner), bool_literal(lazy)])
@@ -596,6 +677,8 @@ mod Std.Regex.Syntax.Emitter
       LiteralAlternate(left, right) -> runtime_call("alternate", [emit_literal_with_options(left, options), emit_literal_with_options(right, options)])
       LiteralConditional(_, yes, no) -> runtime_call("alternate", [emit_literal_with_options(yes, options), emit_literal_with_options_or_empty(no, options)])
       LiteralAtomic(inner) -> runtime_call("atomic", [emit_literal_with_options(inner, options)])
+      LiteralLookahead(_, _) -> runtime_call("empty", [])
+      LiteralLookbehind(_, _) -> runtime_call("empty", [])
       LiteralBranchReset(arms) -> emit_literal_with_options(literal_branch_reset_alternate(arms), options)
       LiteralRepeat(inner, lazy) -> runtime_call("repeated_pattern", [emit_literal_with_options(inner, options), bool_literal(lazy != ungreedy)])
       LiteralPlus(inner, lazy) -> runtime_call("one_or_more_pattern", [emit_literal_with_options(inner, options), bool_literal(lazy != ungreedy)])
