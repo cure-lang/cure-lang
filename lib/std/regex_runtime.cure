@@ -1554,30 +1554,36 @@ mod Std.Regex.Runtime
   ## context-aware, finite search loop.  Assertions are capture-free in this
   ## phase, so no evidence replay is needed: the result is only the existence
   ## of an accepting child path.
-  fn lookaround_child_accepts(n: Nat, machine: PatternMachine(n), boundary: Boundary, remaining: List(Char), history: List(Char), policy: NewlinePolicy) -> Bool = match boundary
-    Boundary(subject_start, _, _, line_start, _, ascii_word_boundary, unicode_word_boundary, previous_char, _, _) ->
-      lookaround_prefix_machine_accepts(
-        n,
-        machine,
-        InitialPosition(subject_start, line_start, ascii_word_boundary, unicode_word_boundary, previous_char),
-        remaining,
-        no_characters(),
-        history,
-        policy
-      )
+  fn lookaround_child_accepts(depth: Nat, n: Nat, machine: PatternMachine(n), boundary: Boundary, remaining: List(Char), history: List(Char), policy: NewlinePolicy) -> Bool = match depth
+    Z() -> false
+    S(rest_depth) -> match boundary
+      Boundary(subject_start, _, _, line_start, _, ascii_word_boundary, unicode_word_boundary, previous_char, _, _) ->
+        lookaround_prefix_machine_accepts(
+          rest_depth,
+          n,
+          machine,
+          InitialPosition(subject_start, line_start, ascii_word_boundary, unicode_word_boundary, previous_char),
+          remaining,
+          no_characters(),
+          history,
+          policy
+        )
 
-  fn lookbehind_child_accepts(n: Nat, machine: PatternMachine(n), width: Nat, boundary: Boundary, remaining: List(Char), history: List(Char), policy: NewlinePolicy) -> Bool = match boundary
-    Boundary(_, _, _, _, _, _, _, _, _, _) -> match lookbehind_window(history, width)
-      None() -> false
-      Some(window) -> lookaround_machine_accepts(
-        n,
-        machine,
-        lookbehind_initial_position(boundary, history, width, policy),
-        window,
-        remaining,
-        no_characters(),
-        policy
-      )
+  fn lookbehind_child_accepts(depth: Nat, n: Nat, machine: PatternMachine(n), width: Nat, boundary: Boundary, remaining: List(Char), history: List(Char), policy: NewlinePolicy) -> Bool = match depth
+    Z() -> false
+    S(rest_depth) -> match boundary
+      Boundary(_, _, _, _, _, _, _, _, _, _) -> match lookbehind_window(history, width)
+        None() -> false
+        Some(window) -> lookaround_machine_accepts(
+          rest_depth,
+          n,
+          machine,
+          lookbehind_initial_position(boundary, history, width, policy),
+          window,
+          remaining,
+          no_characters(),
+          policy
+        )
 
   fn no_characters() -> List(Char) = []
 
@@ -1614,30 +1620,36 @@ mod Std.Regex.Runtime
       [] -> false
       [_ | tail] -> history_has_width(tail, rest)
 
-  fn lookaround_machine_accepts(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy) -> Bool = match machine
-    MkPatternMachine(starts, _) -> lookaround_search_initial(n, machine, input, after_input, history, policy, lookaround_filter_boundary_states(starts, position_boundary_for_history(position, append_characters(input, after_input), history), append_characters(input, after_input), history, policy))
+  fn lookaround_machine_acceptance_path(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy) -> Option(LookaroundSearchPath(depth, n, machine, input, after_input, history, policy)) = match machine
+    MkPatternMachine(starts, _) -> lookaround_search_path(depth, n, machine, input, after_input, history, policy, lookaround_filter_boundary_states(depth, starts, position_boundary_for_history(position, append_characters(input, after_input), history), append_characters(input, after_input), history, policy))
 
-  fn lookaround_prefix_machine_accepts(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy) -> Bool = match machine
-    MkPatternMachine(starts, _) -> lookaround_prefix_search_initial(n, machine, input, after_input, history, policy, lookaround_filter_boundary_states(starts, position_boundary_for_history(position, append_characters(input, after_input), history), append_characters(input, after_input), history, policy))
+  fn lookaround_machine_accepts(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy) -> Bool = match lookaround_machine_acceptance_path(depth, n, machine, position, input, after_input, history, policy)
+      None() -> false
+      Some(_) -> true
+
+  fn lookaround_prefix_machine_accepts(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy) -> Bool = match machine
+    MkPatternMachine(starts, _) -> match lookaround_prefix_search_path(depth, n, machine, input, after_input, history, policy, lookaround_filter_boundary_states(depth, starts, position_boundary_for_history(position, append_characters(input, after_input), history), append_characters(input, after_input), history, policy))
+      None() -> false
+      Some(_) -> true
 
   ## Assertion operands are validated as capture-free and non-nested before
   ## emission.  Their child machine therefore needs only ordinary boundary
   ## constraints; using this separate filter keeps child evaluation outside
   ## the parent constraint evaluator's recursive totality SCC.
-  fn lookaround_filter_boundary_states({n: Nat}, states: List(MachineState(n)), boundary: Boundary, remaining: List(Char), history: List(Char), policy: NewlinePolicy) -> List(MachineState(n)) = match states
+  fn lookaround_filter_boundary_states(depth: Nat, {n: Nat}, states: List(MachineState(n)), boundary: Boundary, remaining: List(Char), history: List(Char), policy: NewlinePolicy) -> List(MachineState(n)) = match states
     [] -> []
     [Active(state, routine, constraints) | rest] -> pickup
-      lookaround_constraints_hold(constraints, boundary, remaining, history, policy) -> [Active(state, routine, Nil()) | lookaround_filter_boundary_states(rest, boundary, remaining, history, policy)]
-      else -> lookaround_filter_boundary_states(rest, boundary, remaining, history, policy)
+      lookaround_constraints_hold(depth, constraints, boundary, remaining, history, policy) -> [Active(state, routine, Nil()) | lookaround_filter_boundary_states(depth, rest, boundary, remaining, history, policy)]
+      else -> lookaround_filter_boundary_states(depth, rest, boundary, remaining, history, policy)
     [Accepted(routine, constraints) | rest] -> pickup
-      lookaround_constraints_hold(constraints, boundary, remaining, history, policy) -> [Accepted(routine, Nil()) | lookaround_filter_boundary_states(rest, boundary, remaining, history, policy)]
-      else -> lookaround_filter_boundary_states(rest, boundary, remaining, history, policy)
+      lookaround_constraints_hold(depth, constraints, boundary, remaining, history, policy) -> [Accepted(routine, Nil()) | lookaround_filter_boundary_states(depth, rest, boundary, remaining, history, policy)]
+      else -> lookaround_filter_boundary_states(depth, rest, boundary, remaining, history, policy)
 
-  fn lookaround_constraints_hold(constraints: List(BoundaryConstraint), boundary: Boundary, remaining: List(Char), history: List(Char), policy: NewlinePolicy) -> Bool = match constraints
+  fn lookaround_constraints_hold(depth: Nat, constraints: List(BoundaryConstraint), boundary: Boundary, remaining: List(Char), history: List(Char), policy: NewlinePolicy) -> Bool = match constraints
     [] -> true
-    [constraint | rest] -> lookaround_constraint_holds(constraint, boundary, remaining, history, policy) and lookaround_constraints_hold(rest, boundary, remaining, history, policy)
+    [constraint | rest] -> lookaround_constraint_holds(depth, constraint, boundary, remaining, history, policy) and lookaround_constraints_hold(depth, rest, boundary, remaining, history, policy)
 
-  fn lookaround_constraint_holds(constraint: BoundaryConstraint, boundary: Boundary, remaining: List(Char), history: List(Char), policy: NewlinePolicy) -> Bool = match boundary
+  fn lookaround_constraint_holds(depth: Nat, constraint: BoundaryConstraint, boundary: Boundary, remaining: List(Char), history: List(Char), policy: NewlinePolicy) -> Bool = match boundary
     Boundary(subject_start, _subject_end, strict_subject_end, _line_start, _line_end, ascii_boundary, unicode_boundary, previous_char, next_char, after_next_char) -> match constraint
       BoundaryConstraint(require_subject_start, require_subject_end, require_strict_end, require_line_start, require_line_end, check_ascii, expected_ascii, check_unicode, expected_unicode, constraint_policy, _, lookaround_condition) ->
         (not require_subject_start or subject_start) and
@@ -1649,69 +1661,92 @@ mod Std.Regex.Runtime
           (not check_unicode or unicode_boundary == expected_unicode) and
           match lookaround_condition
             None() -> true
-            Some(LookaheadCondition(positive, mk_pair(count, machine))) -> lookaround_polarity_holds(positive, lookaround_child_accepts(count, machine, boundary, remaining, history, policy))
-            Some(LookbehindCondition(positive, width, mk_pair(count, machine))) -> lookaround_polarity_holds(positive, lookbehind_child_accepts(count, machine, width, boundary, remaining, history, policy))
+            Some(LookaheadCondition(positive, mk_pair(count, machine))) -> lookaround_polarity_holds(positive, lookaround_child_accepts(depth, count, machine, boundary, remaining, history, policy))
+            Some(LookbehindCondition(positive, width, mk_pair(count, machine))) -> lookaround_polarity_holds(positive, lookbehind_child_accepts(depth, count, machine, width, boundary, remaining, history, policy))
 
   fn position_boundary_for_history(position: InitialPosition, input: List(Char), history: List(Char)) -> Boundary = match position
     InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word, previous_char) ->
       position_boundary(subject_start, line_start, previous_ascii_word, previous_unicode_word, previous_char, input)
 
-  fn lookaround_search_initial(n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy, starts: List(MachineState(n))) -> Bool = match starts
-    [] -> false
-    [Active(state, _, _) | rest] -> pickup
-      lookaround_accepting_from(n, machine, input, after_input, ThreadActive(state), history, policy) -> true
-      else -> lookaround_search_initial(n, machine, input, after_input, history, policy, rest)
-    [Accepted(_, _) | rest] -> pickup
-      lookaround_accepting_from(n, machine, input, after_input, ThreadAccepted(), history, policy) -> true
-      else -> lookaround_search_initial(n, machine, input, after_input, history, policy, rest)
+  ## Capture-free assertion paths carry only state reachability.  The depth
+  ## index is the same guard used by the evaluator: a top-level assertion gets
+  ## one level, while a nested assertion (which validation rejects) reaches
+  ## zero and cannot manufacture a child path.
+  type LookaroundAcceptingPath(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), policy: NewlinePolicy)
+    LookaroundAcceptedNow : LookaroundAcceptingPath(depth, n, machine, Nil(), after_input, ThreadAccepted(), history, policy)
+    LookaroundAcceptedNextActive : (char: Char) -> (rest: List(Char)) -> (destination: Bounded(n)) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (edge: ListMember(MachineState(n), Active(destination, routine, constraints), lookaround_machine_destinations(depth, n, machine, state, char, rest, after_input, history, policy))) -> (@erased suffix: LookaroundAcceptingPath(depth, n, machine, rest, after_input, ThreadActive(destination), history_push_bounded(history, char), policy)) -> LookaroundAcceptingPath(depth, n, machine, Cons(char, rest), after_input, state, history, policy)
+    LookaroundAcceptedNextAccepted : (char: Char) -> (rest: List(Char)) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (edge: ListMember(MachineState(n), Accepted(routine, constraints), lookaround_machine_destinations(depth, n, machine, state, char, rest, after_input, history, policy))) -> (@erased suffix: LookaroundAcceptingPath(depth, n, machine, rest, after_input, ThreadAccepted(), history_push_bounded(history, char), policy)) -> LookaroundAcceptingPath(depth, n, machine, Cons(char, rest), after_input, state, history, policy)
 
-  fn lookaround_prefix_search_initial(n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy, starts: List(MachineState(n))) -> Bool = match starts
-    [] -> false
-    [Active(state, _, _) | rest] -> pickup
-      lookaround_prefix_accepting_from(n, machine, input, after_input, ThreadActive(state), history, policy) -> true
-      else -> lookaround_prefix_search_initial(n, machine, input, after_input, history, policy, rest)
-    [Accepted(_, _) | rest] -> pickup
-      lookaround_prefix_accepting_from(n, machine, input, after_input, ThreadAccepted(), history, policy) -> true
-      else -> lookaround_prefix_search_initial(n, machine, input, after_input, history, policy, rest)
+  fn lookaround_machine_destinations(depth: Nat, n: Nat, machine: PatternMachine(n), state: ThreadState(n), char: Char, rest: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy) -> List(MachineState(n)) = match machine
+    MkPatternMachine(_, next) -> lookaround_filter_boundary_states(depth, next_for_thread(n, next, state, char), lookaround_transition_boundary(char, rest, after_input, policy), append_characters(rest, after_input), history, policy)
 
-  fn lookaround_accepting_from(n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), policy: NewlinePolicy) -> Bool = match input
+  fn lookaround_accepting_path(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), policy: NewlinePolicy) -> Option(LookaroundAcceptingPath(depth, n, machine, input, after_input, state, history, policy)) = match input
     [] -> match state
-      ThreadAccepted() -> true
-      ThreadActive(_) -> false
-    [char | rest] -> match machine
-      MkPatternMachine(_, next) -> lookaround_accepting_members(n, machine, char, rest, after_input, state, history, policy, lookaround_filter_boundary_states(next_for_thread(n, next, state, char), lookaround_transition_boundary(char, rest, after_input, policy), append_characters(rest, after_input), history, policy))
-
-  ## Lookahead is a prefix assertion: once the child reaches an accepting
-  ## boundary, the rest of the surrounding subject is irrelevant.
-  fn lookaround_prefix_accepting_from(n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), policy: NewlinePolicy) -> Bool = match input
-    [] -> match state
-      ThreadAccepted() -> true
-      ThreadActive(_) -> false
+      ThreadAccepted() -> Some(LookaroundAcceptedNow())
+      ThreadActive(_) -> None()
     [char | rest] -> match state
-      ThreadAccepted() -> true
-      ThreadActive(_) -> match machine
-        MkPatternMachine(_, next) -> lookaround_prefix_accepting_members(n, machine, char, rest, after_input, state, history, policy, lookaround_filter_boundary_states(next_for_thread(n, next, state, char), lookaround_transition_boundary(char, rest, after_input, policy), append_characters(rest, after_input), history, policy))
+      ThreadAccepted() -> None()
+      ThreadActive(_) -> lookaround_accepting_members_path(depth, n, machine, char, rest, after_input, state, history, policy, machine_state_members(lookaround_machine_destinations(depth, n, machine, state, char, rest, after_input, history, policy)))
+
+  fn lookaround_accepting_members_path(depth: Nat, n: Nat, machine: PatternMachine(n), char: Char, rest: List(Char), after_input: List(Char), source: ThreadState(n), history: List(Char), policy: NewlinePolicy, {current: List(MachineState(n))}, members: MachineStateMembers(n, lookaround_machine_destinations(depth, n, machine, source, char, rest, after_input, history, policy), current)) -> Option(LookaroundAcceptingPath(depth, n, machine, Cons(char, rest), after_input, source, history, policy)) = match members
+    MachineStateMembersNil() -> None()
+    MachineStateMembersActive(destination, routine, constraints, edge, remaining) -> match lookaround_accepting_path(depth, n, machine, rest, after_input, ThreadActive(destination), history_push_bounded(history, char), policy)
+      None() -> lookaround_accepting_members_path(depth, n, machine, char, rest, after_input, source, history, policy, remaining)
+      Some(suffix) -> Some(LookaroundAcceptedNextActive(char, rest, destination, routine, constraints, edge, suffix))
+    MachineStateMembersAccepted(routine, constraints, edge, remaining) -> match lookaround_accepting_path(depth, n, machine, rest, after_input, ThreadAccepted(), history_push_bounded(history, char), policy)
+      None() -> lookaround_accepting_members_path(depth, n, machine, char, rest, after_input, source, history, policy, remaining)
+      Some(suffix) -> Some(LookaroundAcceptedNextAccepted(char, rest, routine, constraints, edge, suffix))
+
+  type LookaroundPrefixPath(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), policy: NewlinePolicy)
+    LookaroundPrefixAccepted : LookaroundPrefixPath(depth, n, machine, input, after_input, ThreadAccepted(), history, policy)
+    LookaroundPrefixNextActive : (char: Char) -> (rest: List(Char)) -> (destination: Bounded(n)) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (edge: ListMember(MachineState(n), Active(destination, routine, constraints), lookaround_machine_destinations(depth, n, machine, state, char, rest, after_input, history, policy))) -> (@erased suffix: LookaroundPrefixPath(depth, n, machine, rest, after_input, ThreadActive(destination), history_push_bounded(history, char), policy)) -> LookaroundPrefixPath(depth, n, machine, Cons(char, rest), after_input, state, history, policy)
+    LookaroundPrefixNextAccepted : (char: Char) -> (rest: List(Char)) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (edge: ListMember(MachineState(n), Accepted(routine, constraints), lookaround_machine_destinations(depth, n, machine, state, char, rest, after_input, history, policy))) -> (@erased suffix: LookaroundPrefixPath(depth, n, machine, rest, after_input, ThreadAccepted(), history_push_bounded(history, char), policy)) -> LookaroundPrefixPath(depth, n, machine, Cons(char, rest), after_input, state, history, policy)
+
+  fn lookaround_prefix_path(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), policy: NewlinePolicy) -> Option(LookaroundPrefixPath(depth, n, machine, input, after_input, state, history, policy)) = match state
+    ThreadAccepted() -> Some(LookaroundPrefixAccepted())
+    ThreadActive(_) -> match input
+      [] -> None()
+      [char | rest] -> lookaround_prefix_members_path(depth, n, machine, char, rest, after_input, state, history, policy, machine_state_members(lookaround_machine_destinations(depth, n, machine, state, char, rest, after_input, history, policy)))
+
+  fn lookaround_prefix_members_path(depth: Nat, n: Nat, machine: PatternMachine(n), char: Char, rest: List(Char), after_input: List(Char), source: ThreadState(n), history: List(Char), policy: NewlinePolicy, {current: List(MachineState(n))}, members: MachineStateMembers(n, lookaround_machine_destinations(depth, n, machine, source, char, rest, after_input, history, policy), current)) -> Option(LookaroundPrefixPath(depth, n, machine, Cons(char, rest), after_input, source, history, policy)) = match members
+    MachineStateMembersNil() -> None()
+    MachineStateMembersActive(destination, routine, constraints, edge, remaining) -> match lookaround_prefix_path(depth, n, machine, rest, after_input, ThreadActive(destination), history_push_bounded(history, char), policy)
+      None() -> lookaround_prefix_members_path(depth, n, machine, char, rest, after_input, source, history, policy, remaining)
+      Some(suffix) -> Some(LookaroundPrefixNextActive(char, rest, destination, routine, constraints, edge, suffix))
+    MachineStateMembersAccepted(routine, constraints, edge, remaining) -> match lookaround_prefix_path(depth, n, machine, rest, after_input, ThreadAccepted(), history_push_bounded(history, char), policy)
+      None() -> lookaround_prefix_members_path(depth, n, machine, char, rest, after_input, source, history, policy, remaining)
+      Some(suffix) -> Some(LookaroundPrefixNextAccepted(char, rest, routine, constraints, edge, suffix))
+
+  type LookaroundSearchPath(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy)
+    LookaroundSearchFound : (state: ThreadState(n)) -> (@erased path: LookaroundAcceptingPath(depth, n, machine, input, after_input, state, history, policy)) -> LookaroundSearchPath(depth, n, machine, input, after_input, history, policy)
+
+  fn lookaround_search_path(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy, starts: List(MachineState(n))) -> Option(LookaroundSearchPath(depth, n, machine, input, after_input, history, policy)) = lookaround_search_path_members(depth, n, machine, input, after_input, history, policy, starts, machine_state_members(starts))
+
+  fn lookaround_search_path_members(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy, starts: List(MachineState(n)), {current: List(MachineState(n))}, members: MachineStateMembers(n, starts, current)) -> Option(LookaroundSearchPath(depth, n, machine, input, after_input, history, policy)) = match members
+    MachineStateMembersNil() -> None()
+    MachineStateMembersActive(state, _, _, _, remaining) -> match lookaround_accepting_path(depth, n, machine, input, after_input, ThreadActive(state), history, policy)
+      None() -> lookaround_search_path_members(depth, n, machine, input, after_input, history, policy, starts, remaining)
+      Some(path) -> Some(LookaroundSearchFound(ThreadActive(state), path))
+    MachineStateMembersAccepted(_, _, _, remaining) -> match lookaround_accepting_path(depth, n, machine, input, after_input, ThreadAccepted(), history, policy)
+      None() -> lookaround_search_path_members(depth, n, machine, input, after_input, history, policy, starts, remaining)
+      Some(path) -> Some(LookaroundSearchFound(ThreadAccepted(), path))
+
+  type LookaroundPrefixSearchPath(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy)
+    LookaroundPrefixSearchFound : (state: ThreadState(n)) -> (@erased path: LookaroundPrefixPath(depth, n, machine, input, after_input, state, history, policy)) -> LookaroundPrefixSearchPath(depth, n, machine, input, after_input, history, policy)
+
+  fn lookaround_prefix_search_path(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy, starts: List(MachineState(n))) -> Option(LookaroundPrefixSearchPath(depth, n, machine, input, after_input, history, policy)) = lookaround_prefix_search_path_members(depth, n, machine, input, after_input, history, policy, starts, machine_state_members(starts))
+
+  fn lookaround_prefix_search_path_members(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy, starts: List(MachineState(n)), {current: List(MachineState(n))}, members: MachineStateMembers(n, starts, current)) -> Option(LookaroundPrefixSearchPath(depth, n, machine, input, after_input, history, policy)) = match members
+    MachineStateMembersNil() -> None()
+    MachineStateMembersActive(state, _, _, _, remaining) -> match lookaround_prefix_path(depth, n, machine, input, after_input, ThreadActive(state), history, policy)
+      None() -> lookaround_prefix_search_path_members(depth, n, machine, input, after_input, history, policy, starts, remaining)
+      Some(path) -> Some(LookaroundPrefixSearchFound(ThreadActive(state), path))
+    MachineStateMembersAccepted(_, _, _, remaining) -> match lookaround_prefix_path(depth, n, machine, input, after_input, ThreadAccepted(), history, policy)
+      None() -> lookaround_prefix_search_path_members(depth, n, machine, input, after_input, history, policy, starts, remaining)
+      Some(path) -> Some(LookaroundPrefixSearchFound(ThreadAccepted(), path))
 
   fn lookaround_transition_boundary(char: Char, rest: List(Char), after_input: List(Char), policy: NewlinePolicy) -> Boundary =
     position_boundary(false, newline_char(policy, char), ascii_word(char), option_word(char, true), Some(char), append_characters(rest, after_input))
-
-  fn lookaround_accepting_members(n: Nat, machine: PatternMachine(n), char: Char, rest: List(Char), after_input: List(Char), _source_state: ThreadState(n), history: List(Char), policy: NewlinePolicy, destinations: List(MachineState(n))) -> Bool = match destinations
-    [] -> false
-    [Active(state, _, _) | remaining] -> pickup
-      lookaround_accepting_from(n, machine, rest, after_input, ThreadActive(state), history_push_bounded(history, char), policy) -> true
-      else -> lookaround_accepting_members(n, machine, char, rest, after_input, _source_state, history, policy, remaining)
-    [Accepted(_, _) | remaining] -> pickup
-      lookaround_accepting_from(n, machine, rest, after_input, ThreadAccepted(), history_push_bounded(history, char), policy) -> true
-      else -> lookaround_accepting_members(n, machine, char, rest, after_input, _source_state, history, policy, remaining)
-
-  fn lookaround_prefix_accepting_members(n: Nat, machine: PatternMachine(n), char: Char, rest: List(Char), after_input: List(Char), _source_state: ThreadState(n), history: List(Char), policy: NewlinePolicy, destinations: List(MachineState(n))) -> Bool = match destinations
-    [] -> false
-    [Active(state, _, _) | remaining] -> pickup
-      lookaround_prefix_accepting_from(n, machine, rest, after_input, ThreadActive(state), history_push_bounded(history, char), policy) -> true
-      else -> lookaround_prefix_accepting_members(n, machine, char, rest, after_input, _source_state, history, policy, remaining)
-    [Accepted(_, _) | remaining] -> pickup
-      lookaround_prefix_accepting_from(n, machine, rest, after_input, ThreadAccepted(), history_push_bounded(history, char), policy) -> true
-      else -> lookaround_prefix_accepting_members(n, machine, char, rest, after_input, _source_state, history, policy, remaining)
 
   fn lookaround_first_prefix(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), history: List(Char), policy: NewlinePolicy) -> Option(Tuple(List(Char), List(Char))) =
     lookaround_first_prefix_loop(n, machine, position, [], input, history, policy)
@@ -1719,7 +1754,7 @@ mod Std.Regex.Runtime
   fn lookaround_first_prefix_loop(n: Nat, machine: PatternMachine(n), position: InitialPosition, reversed_prefix: List(Char), remaining_input: List(Char), history: List(Char), policy: NewlinePolicy) -> Option(Tuple(List(Char), List(Char))) =
     let matched_input = evidence_reverse_chars(reversed_prefix)
     pickup
-      lookaround_machine_accepts(n, machine, position, matched_input, remaining_input, history, policy) -> Some(%[matched_input, remaining_input])
+      lookaround_machine_accepts(S(Z()), n, machine, position, matched_input, remaining_input, history, policy) -> Some(%[matched_input, remaining_input])
       else -> match remaining_input
         [] -> None()
         [char | rest] -> lookaround_first_prefix_loop(n, machine, position, [char | reversed_prefix], rest, history, policy)
@@ -1730,7 +1765,7 @@ mod Std.Regex.Runtime
   fn lookaround_last_prefix_loop(n: Nat, machine: PatternMachine(n), position: InitialPosition, reversed_prefix: List(Char), remaining_input: List(Char), previous: Option(Tuple(List(Char), List(Char))), history: List(Char), policy: NewlinePolicy) -> Option(Tuple(List(Char), List(Char))) =
     let matched_input = evidence_reverse_chars(reversed_prefix)
     let current = pickup
-      lookaround_machine_accepts(n, machine, position, matched_input, remaining_input, history, policy) -> Some(%[matched_input, remaining_input])
+      lookaround_machine_accepts(S(Z()), n, machine, position, matched_input, remaining_input, history, policy) -> Some(%[matched_input, remaining_input])
       else -> previous
     match remaining_input
       [] -> current

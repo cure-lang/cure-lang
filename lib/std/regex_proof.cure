@@ -4031,24 +4031,15 @@ mod Std.Regex.Proof
         None() -> None()
         Some(value) -> Some(%[value, remaining])
 
-  ## The assertion evaluator deliberately returns a constructive decision
-  ## before ordinary extraction runs.  This keeps the zero-width machine's
-  ## acceptance branch explicit in the proof layer: an accepted assertion is
-  ## the only branch allowed to extract the checked Pattern value.
-  type LookaroundSearchDecision indices (accepted: Bool)
-    LookaroundSearchRejected : LookaroundSearchDecision(false)
-    LookaroundSearchAccepted : LookaroundSearchDecision(true)
-
-  @reducible
-  fn lookaround_search_decision(accepted: Bool) -> LookaroundSearchDecision(accepted) = pickup
-    accepted -> LookaroundSearchAccepted()
-    else -> LookaroundSearchRejected()
-
+  ## The assertion gate consumes an erased indexed path, not a free Boolean.
+  ## Its constructors name every filtered transition and the exact recursive
+  ## suffix, so ordinary extraction is reachable only after a checked path
+  ## through the depth-bounded assertion machine exists.
   fn parse_lookaround_compilation_full_verified({shape: ShapeCode}, pattern: Pattern(shape), compilation: ThompsonCompilation(shape), policy: NewlinePolicy, input: String) -> Option(Sem(shape)) =
     let characters = Std.String.characters(input)
-    match lookaround_search_decision(lookaround_machine_accepts(thompson_state_count(compilation), thompson_machine(compilation), subject_initial_position(), characters, [], [], policy))
-      LookaroundSearchRejected() -> None()
-      LookaroundSearchAccepted() -> parse_pattern_full_verified(pattern, input)
+    match lookaround_machine_acceptance_path(S(Z()), thompson_state_count(compilation), thompson_machine(compilation), subject_initial_position(), characters, [], [], policy)
+      None() -> None()
+      Some(_) -> parse_pattern_full_verified(pattern, input)
 
   fn parse_lookaround_compilation_prefix_verified_at({shape: ShapeCode}, pattern: Pattern(shape), compilation: ThompsonCompilation(shape), policy: NewlinePolicy, input: List(Char), greedy: Bool, position: InitialPosition, history: List(Char)) -> Option(Tuple(Sem(shape), List(Char))) =
     match lookaround_prefix(thompson_state_count(compilation), thompson_machine(compilation), position, input, greedy, history, policy)
