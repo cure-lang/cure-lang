@@ -262,6 +262,24 @@ the dominant cold cost. The sample is below the earlier 149–177 s cold range,
 but one host-loaded run is insufficient to claim a stable percentage speedup;
 repeat the three-sample protocol before tightening the baseline band.
 
+### 2026-08-18 three-sample staged-machine profile
+
+The repeated protocol
+
+```sh
+MIX_ENV=test CURE_SKIP_DOC_FENCES=1 mix cure.bench.interfaces --samples 3 --warm-iterations 1 --top 0
+```
+
+ran serially over the same 79-source universe. It measured a first cold total
+of **112.984 s**, a `Std.Regex` cold-component median of **81.886 s** across
+the three samples (range **72.009–93.575 s**), and a first no-rebuild warm total
+of **36.429 s** with **11.606 s** spent in module checking. The benchmark command
+reports the first cold/warm totals and the component median; it does not print
+an aggregate total median, so these values are diagnostic evidence rather than
+a machine-independent performance promise. `Std.Regex.Proof` remains the
+dominant cold component and further regex proof work should not be judged from
+the warm path alone.
+
 ## Stabilization warning policy
 
 The stabilization gate means **no unexpected compiler warnings**, rather than

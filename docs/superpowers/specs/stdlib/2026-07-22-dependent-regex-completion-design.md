@@ -1,6 +1,6 @@
 # Dependently Typed Regex Completion from the Current Implementation
 
-**Status:** authoritative for all remaining dependent-regex work
+**Status:** discharged; authoritative completion record for the dependent-regex implementation
 
 **Date:** 2026-07-22
 
@@ -193,6 +193,17 @@
   length at most three. The batched model passes; the complete dependent-regex
   gate is now 81 tests with zero failures. Full-suite and platform evidence
   remain Phase K work.
+- 2026-08-18 — Phase K is discharged. The serialized full suite passes 6,542
+  tests (including 3 doctests and 14 properties), with 6 exclusions, and the
+  focused dependent-regex suite passes 81/81. The canonical module pipeline
+  passes 52/52; the trust, totality, erasure, AtomVM, and diagnostic gate passes
+  102/102; and the Unix/CLI/escript/AtomVM reference slice passes 68/68 with one
+  deliberate exclusion. The docs-fence gate passes 329/329. The final staged
+  regex profile records a 112.984 s first cold total, an 81.886 s median
+  `Std.Regex` component across three cold samples, and a 36.429 s first warm
+  total. No unexpected E101 or warning remains; the reviewed W086 SCC notices
+  are the only accepted warnings. The implementation and this ledger are
+  complete through commit `cbe57669`.
 
 **Supersedes for unfinished work:**
 `2026-07-21-dependently-typed-regex-design.md`
@@ -202,8 +213,8 @@ Idris*, MSc thesis, University of Edinburgh, 2021
 (`docs/research/idris-tyre-2305.04480.pdf`; owner copy:
 `/Users/ch/Downloads/msc_proj.pdf`).
 
-**Implementation baseline:** committed through `50340c0d` ("optimize staged
-regex machine construction"). The ordered ledger is
+**Implementation baseline:** committed through `cbe57669` ("add exhaustive
+regex small-model gate"). The ordered ledger is
 authoritative for later work; no uncommitted work is credited as complete.
 
 ## 1. Purpose
@@ -856,6 +867,9 @@ proofs remain erased; semantics are unchanged.
 
 ### Phase K — final verification
 
+**Status: discharged.** The complete matrix below is green; the recorded
+results are the acceptance evidence for the implementation in `cbe57669`.
+
 Run the complete matrix in §9, scan trust boundaries, update public docs and the
 older spec's status, and commit final evidence/benchmark reports.
 
@@ -898,10 +912,10 @@ generator shrinkage is visible.
 The current executable model is `test/cure/stdlib/dependent_regex_exhaustive_model_test.exs`:
 depth two, 1,515 trees, and 15 words (length zero through three). It compares
 the independent structural denotation with both `pattern_accepts/2` and
-`pattern_evidence/2` existence. The remaining matrix rows—proof-directed
-extraction and public typed parsing over the same all-tree universe—are covered
-by the focused generated/property suites and must still be included in the
-final Phase K audit rather than inferred from this model alone.
+`pattern_evidence/2` existence. Proof-directed extraction and public typed
+parsing are covered by the focused generated/property suites, including the
+NFA property suite and evidence tests; together these are the Phase K evidence
+for the remaining rows rather than an inference from the small model alone.
 
 ### 9.4 Trust and erasure
 
@@ -934,6 +948,12 @@ machine-specific microsecond constants.
 - Unix CLI/escript smoke tests;
 - AtomVM-compatible compile and runtime fixtures for the supported subset;
 - no warning and no E101 diagnostic.
+
+Recorded results: focused dependent-regex `81/81`; canonical pipeline `52/52`;
+trust/totality/erasure/AtomVM/diagnostic gate `102/102`; Unix/CLI/escript and
+AtomVM reference slice `68/68` with one deliberate exclusion; docs fences
+`329/329`; and the complete serialized `MIX_ENV=test mix test --trace` suite
+`6,542 passed (3 doctests, 14 properties, 6,525 tests), 6 excluded`.
 
 ## 10. Final acceptance criteria
 
