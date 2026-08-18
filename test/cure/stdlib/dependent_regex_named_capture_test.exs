@@ -32,6 +32,9 @@ defmodule Cure.Stdlib.DependentRegexNamedCaptureTest do
       fn repeated(input: String) -> Option(NamedMatch(List(String))) =
         search_named(/(?<item>a)+/, input)
 
+      fn branch_reset(input: String) -> Option(NamedMatch(Choice(String, String))) =
+        search_named(/(?|(?<word>a)|(?<word>b))/, input)
+
       fn replay_probe() -> Option(List(NamedCapture)) =
         replay_named_capture_routine(
           [Regular(BeginCaptureSlot(Z())), Observe('a'), Regular(EndCaptureSlot(Z()))],
@@ -91,6 +94,21 @@ defmodule Cure.Stdlib.DependentRegexNamedCaptureTest do
 
     assert {:some, {:NamedMatch, _match, repeated}} = apply(module, :repeated, [{:String, ~c"aaa"}])
     assert repeated == [{:NamedCapture, {:String, ~c"item"}, {:some, {:String, ~c"a"}}}]
+  end
+
+  test "branch reset reuses the corresponding named slot", %{runtime_module: module} do
+    assert {:some, {:NamedMatch, _match, captures}} = apply(module, :branch_reset, [{:String, ~c"b"}])
+    assert captures == [{:NamedCapture, {:String, ~c"word"}, {:some, {:String, ~c"b"}}}]
+  end
+
+  test "branch reset rejects arms with different capture layouts" do
+    source = "mod BadBranchReset\n  use Std.Regex\n  fn run() = /(?|(a)|(b)(c))/\nend\n"
+
+    assert {:error,
+            {:source_context,
+             {:computed_macro_error, _meta,
+              {:author_diagnostics, [{:macro_failure, :BranchResetCaptureLayoutMismatch, _}]}}, _context}} =
+             Program.elaborate(source)
   end
 
   test "malformed and duplicate names are structured macro diagnostics" do

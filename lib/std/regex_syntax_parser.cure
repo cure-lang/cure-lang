@@ -173,6 +173,7 @@ mod Std.Regex.Syntax.Parser
       ['*', 'B', 'S', 'R', '_', 'A', 'N', 'Y', 'C', 'R', 'L', 'F', ')' | _] -> LiteralAtInvalid(:UnsupportedRegexNewlineControl, origin, literal_delimited_width(origin, ')'))
       ['*', 'B', 'S', 'R', '_', 'U', 'N', 'I', 'C', 'O', 'D', 'E', ')' | _] -> LiteralAtInvalid(:UnsupportedRegexNewlineControl, origin, literal_delimited_width(origin, ')'))
       ['?', ':' | rest] -> parse_literal_non_capture_fuel(rest, next_fuel, origin)
+      ['?', '|' | rest] -> parse_literal_branch_reset_fuel(rest, next_fuel, origin, [])
       ['?', 'R' | _] -> LiteralAtInvalid(:UnsupportedRegexRecursion, origin, 3)
       ['?', '0' | _] -> LiteralAtInvalid(:UnsupportedRegexRecursion, origin, 3)
       ['?', '(' | _] -> LiteralAtInvalid(:UnsupportedRegexConditional, origin, 3)
@@ -235,6 +236,26 @@ mod Std.Regex.Syntax.Parser
       LiteralInvalid(reason) -> LiteralInvalid(reason)
       LiteralAtInvalid(reason, suffix, width) -> LiteralAtInvalid(reason, suffix, width)
       LiteralLocatedInvalid(reason, start, width) -> LiteralLocatedInvalid(reason, start, width)
+
+  fn parse_literal_branch_reset_fuel(input: List(Char), fuel: Nat, origin: List(Char), reversed: List(LiteralPattern)) -> LiteralParse = match fuel
+    Z() -> LiteralInvalid(:RegexParseLimit)
+    S(next_fuel) -> match parse_literal_sequence_fuel(input, next_fuel)
+      LiteralInvalid(reason) -> LiteralInvalid(reason)
+      LiteralAtInvalid(reason, suffix, width) -> LiteralAtInvalid(reason, suffix, width)
+      LiteralLocatedInvalid(reason, start, width) -> LiteralLocatedInvalid(reason, start, width)
+      LiteralParsed(arm, rest) -> match rest
+        ['|' | tail] -> parse_literal_branch_reset_fuel(tail, next_fuel, origin, [arm | reversed])
+        [')' | tail] -> LiteralParsed(LiteralBranchReset(reverse_literal_patterns([arm | reversed])), tail)
+        [] -> LiteralAtInvalid(:UnclosedRegexGroup, origin, literal_length(origin))
+        _ -> LiteralAtInvalid(:UnexpectedRegexToken, origin, literal_length(origin))
+
+  fn reverse_literal_patterns(values: List(LiteralPattern)) -> List(LiteralPattern) = match values
+    [] -> []
+    [head | rest] -> append_literal_patterns(reverse_literal_patterns(rest), [head])
+
+  fn append_literal_patterns(left: List(LiteralPattern), right: List(LiteralPattern)) -> List(LiteralPattern) = match left
+    [] -> right
+    [head | rest] -> [head | append_literal_patterns(rest, right)]
 
   fn capture_name_is_valid(name: List(Char)) -> Bool = match name
     [] -> false

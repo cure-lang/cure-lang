@@ -39,6 +39,7 @@ mod Std.Regex.Syntax.Model
     | LiteralLineBreak
     | LiteralSequence(LiteralPattern, LiteralPattern)
     | LiteralAlternate(LiteralPattern, LiteralPattern)
+    | LiteralBranchReset(List(LiteralPattern))
     | LiteralRepeat(LiteralPattern, Bool)
     | LiteralPlus(LiteralPattern, Bool)
     | LiteralOptional(LiteralPattern, Bool)
@@ -241,6 +242,7 @@ mod Std.Regex.Syntax.Model
     LiteralCaptureIndexed(slot, name, inner) -> match walk_literal_captures(inner, S(slot), names)
       LiteralCaptureWalked(numbered, slots, final_next, final_names) -> LiteralCaptureWalked(LiteralCaptureIndexed(slot, name, numbered), [LiteralCaptureSlotInfo(slot, name) | slots], final_next, final_names)
       LiteralCaptureWalkInvalid(reason, invalid_name) -> LiteralCaptureWalkInvalid(reason, invalid_name)
+    LiteralBranchReset(arms) -> walk_literal_branch_reset(arms, next, names)
     LiteralSequence(left, right) -> walk_literal_binary(LiteralSequence, left, right, next, names)
     LiteralAlternate(left, right) -> walk_literal_binary(LiteralAlternate, left, right, next, names)
     LiteralRepeat(inner, lazy) -> walk_literal_unary(fn(value) -> LiteralRepeat(value, lazy), inner, next, names)
@@ -259,6 +261,67 @@ mod Std.Regex.Syntax.Model
     LiteralCaptureWalked(numbered_left, left_slots, middle, middle_names) -> match walk_literal_captures(right, middle, middle_names)
       LiteralCaptureWalkInvalid(reason, name) -> LiteralCaptureWalkInvalid(reason, name)
       LiteralCaptureWalked(numbered_right, right_slots, final_next, final_names) -> LiteralCaptureWalked(wrap(numbered_left, numbered_right), append_literal_capture_slots(left_slots, right_slots), final_next, final_names)
+
+  ## A branch-reset arm starts at the same slot and name scope.  Each arm must
+  ## allocate the same number of compatible slots; the normalized result keeps
+  ## the ordinary alternation language while the first arm's joined layout is
+  ## reused for every arm.
+  fn walk_literal_branch_reset(arms: List(LiteralPattern), next: Nat, names: List(String)) -> LiteralCaptureWalk = match arms
+    [] -> LiteralCaptureWalkInvalid(:BranchResetCaptureLayoutMismatch, "branch reset")
+    [first | rest] -> match walk_literal_captures(first, next, names)
+      LiteralCaptureWalkInvalid(reason, name) -> LiteralCaptureWalkInvalid(reason, name)
+      LiteralCaptureWalked(numbered, slots, final_next, final_names) -> walk_literal_branch_reset_rest(rest, next, names, [numbered], slots, final_next, final_names)
+
+  fn walk_literal_branch_reset_rest(arms: List(LiteralPattern), next: Nat, names: List(String), normalized_reverse: List(LiteralPattern), slots: List(LiteralCaptureSlotInfo), expected_next: Nat, final_names: List(String)) -> LiteralCaptureWalk = match arms
+    [] -> LiteralCaptureWalked(literal_alternate_list(reverse_literal_patterns(normalized_reverse)), slots, expected_next, final_names)
+    [arm | rest] -> match walk_literal_captures(arm, next, names)
+      LiteralCaptureWalkInvalid(reason, name) -> LiteralCaptureWalkInvalid(reason, name)
+      LiteralCaptureWalked(numbered, arm_slots, arm_next, _) -> pickup
+        not same_literal_nat(expected_next, arm_next) -> LiteralCaptureWalkInvalid(:BranchResetCaptureLayoutMismatch, "branch reset")
+        not literal_capture_slots_compatible(slots, arm_slots) -> LiteralCaptureWalkInvalid(:BranchResetCaptureLayoutMismatch, "branch reset")
+        else -> walk_literal_branch_reset_rest(rest, next, names, [numbered | normalized_reverse], slots, expected_next, final_names)
+
+  fn literal_capture_slots_compatible(left: List(LiteralCaptureSlotInfo), right: List(LiteralCaptureSlotInfo)) -> Bool = match left
+    [] -> match right
+      [] -> true
+      _ -> false
+    [LiteralCaptureSlotInfo(left_slot, left_name) | left_rest] -> match right
+      [LiteralCaptureSlotInfo(right_slot, right_name) | right_rest] -> same_literal_nat(left_slot, right_slot) and same_capture_name_option(left_name, right_name) and literal_capture_slots_compatible(left_rest, right_rest)
+      [] -> false
+
+  fn same_capture_name_option(left: Option(String), right: Option(String)) -> Bool = match left
+    None() -> match right
+      None() -> true
+      Some(_) -> false
+    Some(left_name) -> match right
+      Some(right_name) -> capture_names_same(left_name, right_name)
+      None() -> false
+
+  fn same_literal_nat(left: Nat, right: Nat) -> Bool = match left
+    Z() -> match right
+      Z() -> true
+      S(_) -> false
+    S(left_rest) -> match right
+      Z() -> false
+      S(right_rest) -> same_literal_nat(left_rest, right_rest)
+
+  fn reverse_literal_patterns(values: List(LiteralPattern)) -> List(LiteralPattern) = match values
+    [] -> []
+    [head | rest] -> append_literal_patterns(reverse_literal_patterns(rest), [head])
+
+  fn append_literal_patterns(left: List(LiteralPattern), right: List(LiteralPattern)) -> List(LiteralPattern) = match left
+    [] -> right
+    [head | rest] -> [head | append_literal_patterns(rest, right)]
+
+  fn literal_alternate_list(arms: List(LiteralPattern)) -> LiteralPattern = match arms
+    [] -> LiteralEmpty
+    [first | rest] -> literal_alternate_list_tail(first, rest)
+
+  fn literal_branch_reset_alternate(arms: List(LiteralPattern)) -> LiteralPattern = literal_alternate_list(arms)
+
+  fn literal_alternate_list_tail(left: LiteralPattern, rest: List(LiteralPattern)) -> LiteralPattern = match rest
+    [] -> left
+    [right | tail] -> literal_alternate_list_tail(LiteralAlternate(left, right), tail)
 
   fn append_literal_capture_slots(left: List(LiteralCaptureSlotInfo), right: List(LiteralCaptureSlotInfo)) -> List(LiteralCaptureSlotInfo) = match left
     [] -> right
