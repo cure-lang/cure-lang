@@ -1649,6 +1649,11 @@ mod Std.Regex.Runtime
     [] -> true
     [constraint | rest] -> lookaround_constraint_holds(depth, constraint, boundary, remaining, history, policy) and lookaround_constraints_hold(depth, rest, boundary, remaining, history, policy)
 
+  fn lookaround_condition_holds(depth: Nat, condition: Option(LookaroundCondition), boundary: Boundary, remaining: List(Char), history: List(Char), policy: NewlinePolicy) -> Bool = match condition
+    None() -> true
+    Some(LookaheadCondition(positive, mk_pair(count, machine))) -> lookaround_polarity_holds(positive, lookaround_child_accepts(depth, count, machine, boundary, remaining, history, policy))
+    Some(LookbehindCondition(positive, width, mk_pair(count, machine))) -> lookaround_polarity_holds(positive, lookbehind_child_accepts(depth, count, machine, width, boundary, remaining, history, policy))
+
   fn lookaround_constraint_holds(depth: Nat, constraint: BoundaryConstraint, boundary: Boundary, remaining: List(Char), history: List(Char), policy: NewlinePolicy) -> Bool = match boundary
     Boundary(subject_start, _subject_end, strict_subject_end, _line_start, _line_end, ascii_boundary, unicode_boundary, previous_char, next_char, after_next_char) -> match constraint
       BoundaryConstraint(require_subject_start, require_subject_end, require_strict_end, require_line_start, require_line_end, check_ascii, expected_ascii, check_unicode, expected_unicode, constraint_policy, _, lookaround_condition) ->
@@ -1659,10 +1664,7 @@ mod Std.Regex.Runtime
           (not require_line_end or line_end_for(constraint_policy, next_char, after_next_char)) and
           (not check_ascii or ascii_boundary == expected_ascii) and
           (not check_unicode or unicode_boundary == expected_unicode) and
-          match lookaround_condition
-            None() -> true
-            Some(LookaheadCondition(positive, mk_pair(count, machine))) -> lookaround_polarity_holds(positive, lookaround_child_accepts(depth, count, machine, boundary, remaining, history, policy))
-            Some(LookbehindCondition(positive, width, mk_pair(count, machine))) -> lookaround_polarity_holds(positive, lookbehind_child_accepts(depth, count, machine, width, boundary, remaining, history, policy))
+          lookaround_condition_holds(depth, lookaround_condition, boundary, remaining, history, policy)
 
   fn position_boundary_for_history(position: InitialPosition, input: List(Char), history: List(Char)) -> Boundary = match position
     InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word, previous_char) ->
@@ -2556,27 +2558,31 @@ mod Std.Regex.Runtime
       )
     )
 
-  fn line_break_pair_start_test(policy: NewlinePolicy, char: Char) -> Bool =
-    char == '\r' and match policy
+  fn line_break_pair_start_policy(policy: NewlinePolicy) -> Bool = match policy
       LFNewline() -> false
       CRNewline() -> false
       CRLFNewline() -> true
       AnyCRLFNewline() -> true
       AnyUnicodeNewline() -> true
+
+  fn line_break_pair_start_test(policy: NewlinePolicy, char: Char) -> Bool = char == '\r' and line_break_pair_start_policy(policy)
 
   fn line_break_pair_test(policy: NewlinePolicy, expected: Char) -> Char -> Bool =
     fn(char) -> char == expected and (line_break_pair_start_test(policy, char) or line_break_pair_end_test(policy, char))
 
-  fn line_break_pair_end_test(policy: NewlinePolicy, char: Char) -> Bool =
-    char == '\n' and match policy
+  fn line_break_pair_end_policy(policy: NewlinePolicy) -> Bool = match policy
       LFNewline() -> false
       CRNewline() -> false
       CRLFNewline() -> true
       AnyCRLFNewline() -> true
       AnyUnicodeNewline() -> true
 
+  fn line_break_pair_end_test(policy: NewlinePolicy, char: Char) -> Bool = char == '\n' and line_break_pair_end_policy(policy)
+
   fn line_break_scalar_test(policy: NewlinePolicy, expected: Char) -> Char -> Bool =
-    fn(char) -> char == expected and match policy
+    fn(char) -> char == expected and line_break_scalar_policy(policy, char)
+
+  fn line_break_scalar_policy(policy: NewlinePolicy, char: Char) -> Bool = match policy
       LFNewline() -> char == '\n'
       CRNewline() -> char == '\r'
       CRLFNewline() -> false
