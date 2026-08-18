@@ -1684,30 +1684,28 @@ mod Std.Regex.Runtime
   fn string_identity_conversion() -> Conversion(String, String) = IdentityConversion()
   fn unit_identity_conversion() -> Conversion(Unit, Unit) = IdentityConversion()
 
-  fn pair_unit_conversion() -> Conversion(Tuple(Char, Char), Unit) = ApplyConversion(fn(_) -> ())
-
-  fn line_break() -> Regex(Unit) =
+  fn line_break() -> Regex(String) =
     line_break_with_policy(AnyUnicodeNewline())
 
-  fn line_break_with_policy(policy: NewlinePolicy) -> Regex(Unit) = match policy
-    LFNewline() -> map(exactly('\n'), fn(_) -> ())
-    CRNewline() -> map(exactly('\r'), fn(_) -> ())
-    CRLFNewline() -> map(concatenate(exactly('\r'), exactly('\n')), fn(_) -> ())
+  fn line_break_with_policy(policy: NewlinePolicy) -> Regex(String) = match policy
+    LFNewline() -> captured(exactly('\n'))
+    CRNewline() -> captured(exactly('\r'))
+    CRLFNewline() -> captured(concatenate(exactly('\r'), exactly('\n')))
     AnyCRLFNewline() -> or_same(
-      map(concatenate(exactly('\r'), exactly('\n')), fn(_) -> ()),
-      or_same(map(exactly('\n'), fn(_) -> ()), map(exactly('\r'), fn(_) -> ()))
+      captured(concatenate(exactly('\r'), exactly('\n'))),
+      or_same(captured(exactly('\n')), captured(exactly('\r')))
     )
     AnyUnicodeNewline() -> or_same(
-      map(concatenate(exactly('\r'), exactly('\n')), fn(_) -> ()),
+      captured(concatenate(exactly('\r'), exactly('\n'))),
       or_same(
-        map(exactly('\n'), fn(_) -> ()),
+        captured(exactly('\n')),
         or_same(
-          map(exactly('\r'), fn(_) -> ()),
+          captured(exactly('\r')),
           or_same(
-            map(exactly('\v'), fn(_) -> ()),
+            captured(exactly('\v')),
             or_same(
-              map(exactly('\f'), fn(_) -> ()),
-              or_same(map(exactly(0x85), fn(_) -> ()), or_same(map(exactly(0x2028), fn(_) -> ()), map(exactly(0x2029), fn(_) -> ())))
+              captured(exactly('\f')),
+              or_same(captured(exactly(0x85)), or_same(captured(exactly(0x2028)), captured(exactly(0x2029))))
             )
           )
         )
