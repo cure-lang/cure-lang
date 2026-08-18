@@ -185,6 +185,14 @@
   `Std.Regex.Proof` remained the dominant cold component at 62.392 s. Phase J5
   differential reference coverage is retained, so Phase K is now the earliest
   incomplete phase.
+- 2026-08-18 — Phase K's exhaustive small-model requirement now has an executable
+  regression. `dependent_regex_exhaustive_model_test.exs` enumerates all 1,515
+  core trees through depth two over `Empty`, predicates for `a`/`b`, `Concat`,
+  `Alternate`, `Group`, and `Repeat`, and compares acceptance plus evidence
+  existence against an independent structural denotation for all 15 words of
+  length at most three. The batched model passes; the complete dependent-regex
+  gate is now 81 tests with zero failures. Full-suite and platform evidence
+  remain Phase K work.
 
 **Supersedes for unfinished work:**
 `2026-07-21-dependently-typed-regex-design.md`
@@ -886,6 +894,14 @@ Enumerate all core regex trees to a documented depth over `{'a','b'}` and all
 words to a documented length. Compare denotation, accepting-path existence, NFA,
 VM, evidence extraction, and public parse outcome. Report counts so accidental
 generator shrinkage is visible.
+
+The current executable model is `test/cure/stdlib/dependent_regex_exhaustive_model_test.exs`:
+depth two, 1,515 trees, and 15 words (length zero through three). It compares
+the independent structural denotation with both `pattern_accepts/2` and
+`pattern_evidence/2` existence. The remaining matrix rows—proof-directed
+extraction and public typed parsing over the same all-tree universe—are covered
+by the focused generated/property suites and must still be included in the
+final Phase K audit rather than inferred from this model alone.
 
 ### 9.4 Trust and erasure
 
