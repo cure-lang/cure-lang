@@ -1918,7 +1918,7 @@ mod Std.Regex.Proof
     edge
 
   fn advance_initial_position_cons(position: InitialPosition, char: Char, rest: List(Char)) -> Equivalent(InitialPosition, advance_initial_position(advance_initial_position(position, Cons(char, Nil())), rest), advance_initial_position(position, Cons(char, rest))) = match position
-    InitialPosition(_, _, _, _) -> match rest
+    InitialPosition(_, _, _, _, _) -> match rest
       Nil() -> reflexive(position_after_character(char))
       Cons(next_char, tail) -> reflexive(advance_initial_position(position, Cons(next_char, tail)))
 
@@ -4023,10 +4023,10 @@ mod Std.Regex.Proof
 
   fn parse_program_prefix_chars_verified_at({result: Type}, program: RegexProgram(result), input: List(Char), greedy: Bool, subject_start: Bool, line_start: Bool, previous_ascii_word: Bool, previous_unicode_word: Bool) -> Option(Tuple(result, List(Char))) = match program
     BuiltRegex(_shape, pattern, conversion, hint) -> match hint
-      NoCompilationHint() -> match parse_pattern_prefix_verified_at(pattern, input, greedy, InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word))
+      NoCompilationHint() -> match parse_pattern_prefix_verified_at(pattern, input, greedy, InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word, None()))
         None() -> None()
         Some(%[value, rest]) -> Some(%[execute_conversion(conversion, value), rest])
-      StagedCompilationHint(StagedMachineValue(compilation)) -> match parse_compilation_prefix_verified_at(compilation, input, greedy, InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word))
+      StagedCompilationHint(StagedMachineValue(compilation)) -> match parse_compilation_prefix_verified_at(compilation, input, greedy, InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word, None()))
         None() -> None()
         Some(%[value, rest]) -> Some(%[execute_conversion(conversion, value), rest])
 

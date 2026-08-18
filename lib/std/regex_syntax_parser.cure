@@ -4,9 +4,25 @@
 mod Std.Regex.Syntax.Parser
   use Std.Regex.Syntax.Model
   use Std.Regex.Syntax.Class
+  use Std.Char
 
   fn parse_literal(input: List(Char)) -> LiteralParse =
-    parse_literal_complete(parse_literal_alternate_fuel(input, literal_fuel(input)), input)
+    match input
+      ['(', '*', 'L', 'F', ')' | rest] -> parse_literal_with_policy(LiteralLFPolicy, rest)
+      ['(', '*', 'C', 'R', ')' | rest] -> parse_literal_with_policy(LiteralCRPolicy, rest)
+      ['(', '*', 'C', 'R', 'L', 'F', ')' | rest] -> parse_literal_with_policy(LiteralCRLFPolicy, rest)
+      ['(', '*', 'A', 'N', 'Y', 'C', 'R', 'L', 'F', ')' | rest] -> parse_literal_with_policy(LiteralAnyCRLFPolicy, rest)
+      ['(', '*', 'A', 'N', 'Y', ')' | rest] -> parse_literal_with_policy(LiteralAnyUnicodePolicy, rest)
+      ['(', '*', 'B', 'S', 'R', '_', 'A', 'N', 'Y', 'C', 'R', 'L', 'F', ')' | rest] -> parse_literal_with_policy(LiteralAnyCRLFPolicy, rest)
+      ['(', '*', 'B', 'S', 'R', '_', 'U', 'N', 'I', 'C', 'O', 'D', 'E', ')' | rest] -> parse_literal_with_policy(LiteralAnyUnicodePolicy, rest)
+      _ -> parse_literal_complete(parse_literal_alternate_fuel(input, literal_fuel(input)), input)
+
+  fn parse_literal_with_policy(policy: LiteralNewlinePolicy, input: List(Char)) -> LiteralParse =
+    match parse_literal_complete(parse_literal_alternate_fuel(input, literal_fuel(input)), input)
+      LiteralParsed(pattern, rest) -> LiteralParsed(LiteralConfigured(policy, pattern), rest)
+      LiteralInvalid(reason) -> LiteralInvalid(reason)
+      LiteralAtInvalid(reason, suffix, width) -> LiteralAtInvalid(reason, suffix, width)
+      LiteralLocatedInvalid(reason, start, width) -> LiteralLocatedInvalid(reason, start, width)
 
   fn parse_literal_complete(result: LiteralParse, original: List(Char)) -> LiteralParse = match result
     LiteralParsed(pattern, rest) -> match rest
@@ -212,6 +228,7 @@ mod Std.Regex.Syntax.Parser
     ['H' | rest] -> LiteralParsed(LiteralHorizontal(true), rest)
     ['v' | rest] -> LiteralParsed(LiteralVertical(false), rest)
     ['V' | rest] -> LiteralParsed(LiteralVertical(true), rest)
+    ['R' | rest] -> LiteralParsed(LiteralLineBreak(), rest)
     ['A' | rest] -> LiteralParsed(LiteralAbsoluteStart, rest)
     ['z' | rest] -> LiteralParsed(LiteralStrictEnd, rest)
     ['Z' | rest] -> LiteralParsed(LiteralFinalEnd, rest)
@@ -226,6 +243,7 @@ mod Std.Regex.Syntax.Parser
     ['x' | rest] -> match parse_literal_hex_scalar(rest)
       LiteralScalarParsed(scalar, tail) -> LiteralParsed(LiteralExact(scalar), tail)
       LiteralScalarInvalid(reason) -> LiteralAtInvalid(reason, origin, literal_scalar_escape_width(origin))
+    ['N' | rest] -> parse_literal_unicode_name(rest, origin, [])
     ['p' | rest] -> match parse_literal_unicode_property(rest)
       LiteralPropertyParsed(property, tail) -> LiteralParsed(LiteralProperty(property, false), tail)
       LiteralPropertyInvalid(reason) -> LiteralAtInvalid(reason, origin, literal_property_escape_width(origin))
@@ -237,3 +255,17 @@ mod Std.Regex.Syntax.Parser
     [char | rest] -> match literal_decimal_digit(char)
       Some(_) -> LiteralAtInvalid(:UnsupportedRegexNumericEscape, origin, literal_numeric_escape_width(origin))
       None() -> LiteralParsed(LiteralExact(char), rest)
+
+  fn parse_literal_unicode_name(input: List(Char), origin: List(Char), reversed: List(Char)) -> LiteralParse = match input
+    ['{' | rest] -> parse_literal_unicode_name_body(rest, origin, reversed)
+    _ -> LiteralAtInvalid(:MalformedRegexUnicodeName, origin, literal_prefix_width(origin, 3))
+
+  fn parse_literal_unicode_name_body(input: List(Char), origin: List(Char), reversed: List(Char)) -> LiteralParse = match input
+    [] -> LiteralAtInvalid(:UnclosedRegexUnicodeName, origin, literal_delimited_width(origin, '}'))
+    ['}' | rest] -> match reversed
+      [] -> LiteralAtInvalid(:EmptyRegexUnicodeName, origin, literal_delimited_width(origin, '}'))
+      _ -> match Std.Char.from_unicode_name(reverse_chars(reversed))
+        Some(named_char) -> LiteralParsed(LiteralExact(named_char), rest)
+        None() -> LiteralAtInvalid(:UnknownRegexUnicodeName, origin, literal_delimited_width(origin, '}'))
+    ['{' | _] -> LiteralAtInvalid(:MalformedRegexUnicodeName, origin, literal_delimited_width(origin, '}'))
+    [char | rest] -> parse_literal_unicode_name_body(rest, origin, [char | reversed])

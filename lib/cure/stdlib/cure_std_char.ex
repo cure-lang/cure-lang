@@ -15,6 +15,46 @@ defmodule :cure_std_char do
 
   @unicode_data Path.join(Unicode.data_dir(), "unicode_data.txt")
   @external_resource @unicode_data
+  @unicode_name_values @unicode_data
+                       |> File.stream!()
+                       |> Enum.reduce(%{}, fn line, values ->
+                         case String.split(String.trim(line), ";") do
+                           [hex, name | fields] ->
+                             with {code_point, ""} <- Integer.parse(hex, 16),
+                                  true <- code_point >= 0 and code_point <= 0x10FFFF,
+                                  false <- code_point >= 0xD800 and code_point <= 0xDFFF do
+                               names =
+                                 if String.starts_with?(name, "<") do
+                                   case Enum.at(fields, 8) do
+                                     alias when is_binary(alias) and alias != "" -> [alias]
+                                     _ -> []
+                                   end
+                                 else
+                                   [name]
+                                 end
+
+                               Enum.reduce(names, values, fn candidate, acc ->
+                                 normalized =
+                                   candidate
+                                   |> String.trim()
+                                   |> String.split(" (", parts: 2)
+                                   |> hd()
+                                   |> String.upcase()
+                                   |> String.replace("_", " ")
+                                   |> String.replace("-", " ")
+                                   |> String.split()
+                                   |> Enum.join(" ")
+
+                                 Map.put(acc, normalized, code_point)
+                               end)
+                             else
+                               _ -> values
+                             end
+
+                           _ ->
+                             values
+                         end
+                       end)
   @whole_number_values @unicode_data
                        |> File.stream!()
                        |> Enum.reduce(%{}, fn line, values ->
@@ -39,6 +79,28 @@ defmodule :cure_std_char do
   end
 
   def from_code_point(_cp), do: :none
+
+  @doc "Returns the Unicode scalar named by a compile-time character name."
+  def from_unicode_name(chars) when is_list(chars) do
+    case Map.fetch(@unicode_name_values, normalize_unicode_name(List.to_string(chars))) do
+      {:ok, code_point} -> {:some, code_point}
+      :error -> :none
+    end
+  end
+
+  def from_unicode_name(_chars), do: :none
+
+  defp normalize_unicode_name(name) when is_binary(name) do
+    name
+    |> String.trim()
+    |> String.split(" (", parts: 2)
+    |> hd()
+    |> String.upcase()
+    |> String.replace("_", " ")
+    |> String.replace("-", " ")
+    |> String.split()
+    |> Enum.join(" ")
+  end
 
   def unicode_code_point?(cp) when is_integer(cp), do: cp >= 0 and cp <= 0x10FFFF
   def unicode_code_point?(_cp), do: false

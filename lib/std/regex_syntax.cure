@@ -46,6 +46,10 @@ mod Std.Regex.Syntax
     :RegexEscapeOutOfRange -> "This hexadecimal escape is outside the Unicode code-point range."
     :RegexEscapeNotUnicodeScalar -> "This hexadecimal escape names a reserved UTF-16 surrogate, not a Unicode scalar."
     :UnclosedRegexScalarEscape -> "This hexadecimal escape is missing its closing `}`."
+    :EmptyRegexUnicodeName -> "This Unicode character-name escape is empty."
+    :UnknownRegexUnicodeName -> "This Unicode character name is not present in Cure's pinned Unicode table."
+    :MalformedRegexUnicodeName -> "A Unicode character-name escape must use `\\N{name}`."
+    :UnclosedRegexUnicodeName -> "This Unicode character-name escape is missing its closing `}`."
     :EmptyRegexUnicodeProperty -> "This Unicode property name is empty."
     :UnknownRegexUnicodeProperty -> "This Unicode property name is not supported."
     :MalformedRegexUnicodeProperty -> "A Unicode property escape must put its property name inside braces."
@@ -59,7 +63,7 @@ mod Std.Regex.Syntax
     :UnsupportedRegexAtomicGroup -> "Atomic groups are not supported by Cure's ordered finite regex language."
     :UnsupportedRegexNamedCapture -> "Named capture syntax is not supported; captures are returned by their typed position."
     :UnsupportedRegexInlineOptions -> "Regex modifiers cannot be changed inside a Cure regex literal."
-    :UnsupportedRegexNewlineControl -> "Per-literal PCRE newline and backslash-R controls are not supported by Cure's verified regex engine."
+    :UnsupportedRegexNewlineControl -> "This newline control is only valid as the first token of a regex literal."
     :UnclosedRegexGroup -> "This regex group is missing its closing `)`."
     :UnclosedRegexClass -> "This character class is missing its closing `]`."
     :TrailingRegexClassEscape -> "This character class ends with an incomplete escape."
@@ -90,6 +94,10 @@ mod Std.Regex.Syntax
     :RegexEscapeOutOfRange -> "Use a code point between `0` and `10FFFF`."
     :RegexEscapeNotUnicodeScalar -> "Choose a Unicode scalar outside the surrogate interval `D800`-`DFFF`."
     :UnclosedRegexScalarEscape -> "Close the scalar escape with `}`."
+    :EmptyRegexUnicodeName -> "Put a canonical Unicode character name between the braces."
+    :UnknownRegexUnicodeName -> "Use a name from the pinned Unicode character database, for example `LATIN CAPITAL LETTER A`."
+    :MalformedRegexUnicodeName -> "Write the escape as `\\N{LATIN CAPITAL LETTER A}`."
+    :UnclosedRegexUnicodeName -> "Close the Unicode character name with `}`."
     :EmptyRegexUnicodeProperty -> "Name a general category such as `L`, `Lu`, or `Decimal_Number`."
     :UnknownRegexUnicodeProperty -> "Use a supported Unicode general-category name or alias."
     :MalformedRegexUnicodeProperty -> "Write the property as `\\p{L}` or its negated form `\\P{L}`."
@@ -103,7 +111,7 @@ mod Std.Regex.Syntax
     :UnsupportedRegexAtomicGroup -> "Use an ordinary group; Cure already applies deterministic ordered-choice semantics."
     :UnsupportedRegexNamedCapture -> "Use an ordinary capture group and destructure the regex's inferred result type."
     :UnsupportedRegexInlineOptions -> "Put modifiers after the closing `/`, for example `/pattern/im`."
-    :UnsupportedRegexNewlineControl -> "Remove the control; Cure uses one Unicode newline relation consistently for anchors, dot, first-line search, and proofs."
+    :UnsupportedRegexNewlineControl -> "Move the control to the beginning of the literal, before the first regex atom."
     :UnclosedRegexGroup -> "Close the highlighted group with `)`."
     :UnclosedRegexClass -> "Close the highlighted character class with `]`."
     :TrailingRegexClassEscape -> "Add the escaped character or remove the trailing backslash."
@@ -122,17 +130,19 @@ mod Std.Regex.Syntax
   fn expand_literal_strings(pattern_syntax: Syntax, pattern: String, flags: String) -> MacroResult = match parse_literal_flags(Std.String.characters(flags), literal_default_options())
     LiteralFlagsParsed(options) ->
       match prepare_literal(Std.String.characters(pattern), options)
-        LiteralPrepared(prepared, positions, source_length) -> match parse_literal(prepared)
-          LiteralParsed(parsed, rest) -> match rest
-            [] ->
-              expand(
-                call("Std.Regex.Runtime.configured", [
-                  emit_options(options),
-                  call("Std.Regex.Runtime.simplified", [emit_shape(literal_shape(parsed)), emit_staged_literal_with_options(parsed, options)])
-                ])
-              )
-            _ -> reject(Failure(:UnexpectedRegexSuffix, []))
-          LiteralInvalid(reason) -> reject_unlocated_literal(pattern_syntax, reason)
-          LiteralAtInvalid(reason, _, _) -> reject_unlocated_literal(pattern_syntax, reason)
-          LiteralLocatedInvalid(reason, start, width) -> reject_mapped_literal(pattern_syntax, reason, positions, source_length, start, width)
+        LiteralPrepared(prepared, positions, source_length) ->
+          match parse_literal(prepared)
+            LiteralParsed(parsed, rest) -> match rest
+              [] -> match literal_pattern_options(parsed, options)
+                LiteralPatternOptions(effective_pattern, effective_options) ->
+                  expand(
+                    call("Std.Regex.Runtime.configured", [
+                      emit_options(effective_options),
+                      call("Std.Regex.Runtime.simplified", [emit_shape(literal_shape(effective_pattern)), emit_staged_literal_with_options(effective_pattern, effective_options)])
+                    ])
+                  )
+              _ -> reject(Failure(:UnexpectedRegexSuffix, []))
+            LiteralInvalid(reason) -> reject_unlocated_literal(pattern_syntax, reason)
+            LiteralAtInvalid(reason, _, _) -> reject_unlocated_literal(pattern_syntax, reason)
+            LiteralLocatedInvalid(reason, start, width) -> reject_mapped_literal(pattern_syntax, reason, positions, source_length, start, width)
     LiteralFlagsInvalid(reason) -> reject_unlocated_literal(pattern_syntax, reason)

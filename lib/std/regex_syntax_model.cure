@@ -5,7 +5,9 @@
 mod Std.Regex.Syntax.Model
   type LiteralCharacterRange = LiteralCharacterRange(Char, Char)
   type LiteralClassKinds = LiteralClassKinds(List(LiteralClassKind), List(LiteralUnicodePropertyMatch), List(LiteralPosixClassMatch))
-  type LiteralRegexOptions = LiteralRegexOptions(List(LiteralModifier))
+  type LiteralNewlinePolicy = LiteralLFPolicy | LiteralCRPolicy | LiteralCRLFPolicy | LiteralAnyCRLFPolicy | LiteralAnyUnicodePolicy
+  type LiteralRegexOptions = LiteralRegexOptions(List(LiteralModifier), LiteralNewlinePolicy)
+  type LiteralPatternOptions = LiteralPatternOptions(LiteralPattern, LiteralRegexOptions)
   type LiteralPrepared = LiteralPrepared(List(Char), List(Nat), Nat)
   type LiteralSourceMap = LiteralSourceMap(List(Char), List(Nat))
   type LiteralSourceSpan = LiteralSourceSpan(Nat, Nat)
@@ -21,6 +23,7 @@ mod Std.Regex.Syntax.Model
     | LiteralSpace(Bool)
     | LiteralHorizontal(Bool)
     | LiteralVertical(Bool)
+    | LiteralLineBreak
     | LiteralSequence(LiteralPattern, LiteralPattern)
     | LiteralAlternate(LiteralPattern, LiteralPattern)
     | LiteralRepeat(LiteralPattern, Bool)
@@ -36,6 +39,7 @@ mod Std.Regex.Syntax.Model
     | LiteralStrictEnd
     | LiteralFinalEnd
     | LiteralWordBoundary(Bool)
+    | LiteralConfigured(LiteralNewlinePolicy, LiteralPattern)
 
   type LiteralParse =
     | LiteralParsed(LiteralPattern, List(Char))
@@ -165,13 +169,23 @@ mod Std.Regex.Syntax.Model
     _ -> false
 
   fn literal_default_options() -> LiteralRegexOptions =
-    LiteralRegexOptions([])
+    LiteralRegexOptions([], LiteralAnyUnicodePolicy)
 
   fn enable_modifier(modifier: LiteralModifier, options: LiteralRegexOptions) -> LiteralRegexOptions = match options
-    LiteralRegexOptions(values) -> LiteralRegexOptions([modifier | values])
+    LiteralRegexOptions(values, policy) -> LiteralRegexOptions([modifier | values], policy)
 
   fn has_modifier(options: LiteralRegexOptions, wanted: LiteralModifier) -> Bool = match options
-    LiteralRegexOptions(values) -> has_modifier_in(values, wanted)
+    LiteralRegexOptions(values, _) -> has_modifier_in(values, wanted)
+
+  fn literal_newline_policy(options: LiteralRegexOptions) -> LiteralNewlinePolicy = match options
+    LiteralRegexOptions(_, policy) -> policy
+
+  fn set_literal_newline_policy(policy: LiteralNewlinePolicy, options: LiteralRegexOptions) -> LiteralRegexOptions = match options
+    LiteralRegexOptions(values, _) -> LiteralRegexOptions(values, policy)
+
+  fn literal_pattern_options(pattern: LiteralPattern, options: LiteralRegexOptions) -> LiteralPatternOptions = match pattern
+    LiteralConfigured(policy, inner) -> LiteralPatternOptions(inner, set_literal_newline_policy(policy, options))
+    _ -> LiteralPatternOptions(pattern, options)
 
   fn has_modifier_in(values: List(LiteralModifier), wanted: LiteralModifier) -> Bool = match values
     [] -> false

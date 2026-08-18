@@ -311,8 +311,9 @@ mod Std.Regex.Core
     | BeginCapture
     | EndCapture
 
-  type BoundaryConstraint = BoundaryConstraint(Bool, Bool, Bool, Bool, Bool, Bool, Bool, Bool, Bool)
-  type Boundary = Boundary(Bool, Bool, Bool, Bool, Bool, Bool, Bool)
+  type NewlinePolicy = LFNewline | CRNewline | CRLFNewline | AnyCRLFNewline | AnyUnicodeNewline
+  type BoundaryConstraint = BoundaryConstraint(Bool, Bool, Bool, Bool, Bool, Bool, Bool, Bool, Bool, NewlinePolicy)
+  type Boundary = Boundary(Bool, Bool, Bool, Bool, Bool, Bool, Bool, Option(Char), Option(Char), Option(Char))
   type MachineState indices (n: Nat)
     Active : Bounded(n) -> List(EvidenceInstruction) -> List(BoundaryConstraint) -> MachineState(n)
     Accepted : List(EvidenceInstruction) -> List(BoundaryConstraint) -> MachineState(n)
@@ -461,7 +462,7 @@ mod Std.Regex.Core
     EvidenceThread : ThreadState(n) -> List(Evidence) -> List(CaptureFrame) -> EvidenceThread(n)
   type EvidencePrefix = EvidencePrefix(List(Evidence), List(Char))
 
-  type InitialPosition = InitialPosition(Bool, Bool, Bool, Bool)
+  type InitialPosition = InitialPosition(Bool, Bool, Bool, Bool, Option(Char))
 
   @reducible
   fn evidence_reverse_chars(input: List(Char)) -> List(Char) = evidence_reverse_chars_into(input, [])

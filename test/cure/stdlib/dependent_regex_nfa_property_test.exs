@@ -67,7 +67,7 @@ defmodule Cure.Stdlib.DependentRegexNfaPropertyTest do
 
       fn legacy_pattern_evidence({shape: ShapeCode}, pattern: Pattern(shape), input: List(Char)) -> Option(List(Evidence)) = match compile_pattern(pattern)
         mk_pair(_count, MkPatternMachine(starts, next)) ->
-          run_evidence(next, input, distinct_threads(initial_threads(filter_boundary_states(starts, position_boundary(true, true, false, false, input)))))
+          run_evidence(next, input, distinct_threads(initial_threads(filter_boundary_states(starts, position_boundary(true, true, false, false, None(), input)))))
 
       fn current_evidence(kind: Int, input: String) -> Option(List(Evidence)) = pickup
         kind == 0 -> pattern_evidence(empty(), Std.String.characters(input))
@@ -95,7 +95,7 @@ defmodule Cure.Stdlib.DependentRegexNfaPropertyTest do
 
       fn legacy_prefix({shape: ShapeCode}, pattern: Pattern(shape), input: List(Char), greedy: Bool) -> Option(EvidencePrefix) = match compile_pattern(pattern)
         mk_pair(_count, MkPatternMachine(starts, next)) ->
-          let threads = distinct_threads(initial_threads(filter_boundary_states(starts, position_boundary(true, true, false, false, input))))
+          let threads = distinct_threads(initial_threads(filter_boundary_states(starts, position_boundary(true, true, false, false, None(), input))))
           pickup
             greedy -> run_last_prefix_evidence(next, input, threads, None())
             else -> run_first_prefix_evidence(next, input, threads)

@@ -866,36 +866,97 @@ mod Std.Regex.Runtime
     [head | rest] -> append_states(machine_step_one(next, char, head), machine_step(next, char, rest))
 
   fn constraint_holds(constraint: BoundaryConstraint, boundary: Boundary) -> Bool = match boundary
-    Boundary(subject_start, subject_end, strict_subject_end, line_start, line_end, ascii_boundary, unicode_boundary) -> match constraint
-      BoundaryConstraint(require_subject_start, require_subject_end, require_strict_end, require_line_start, require_line_end, check_ascii, expected_ascii, check_unicode, expected_unicode) ->
+    Boundary(subject_start, _subject_end, strict_subject_end, _line_start, _line_end, ascii_boundary, unicode_boundary, previous_char, next_char, after_next_char) -> match constraint
+      BoundaryConstraint(require_subject_start, require_subject_end, require_strict_end, require_line_start, require_line_end, check_ascii, expected_ascii, check_unicode, expected_unicode, policy) ->
         (not require_subject_start or subject_start) and
-          (not require_subject_end or subject_end) and
+          (not require_subject_end or subject_end_for(policy, next_char, after_next_char)) and
           (not require_strict_end or strict_subject_end) and
-          (not require_line_start or line_start) and
-          (not require_line_end or line_end) and
+          (not require_line_start or line_start_for(policy, previous_char, next_char)) and
+          (not require_line_end or line_end_for(policy, next_char, after_next_char)) and
           (not check_ascii or ascii_boundary == expected_ascii) and
           (not check_unicode or unicode_boundary == expected_unicode)
 
+  fn newline_char(policy: NewlinePolicy, char: Char) -> Bool = match policy
+    LFNewline() -> char == '\n'
+    CRNewline() -> char == '\r'
+    CRLFNewline() -> char == '\r'
+    AnyCRLFNewline() -> char == '\r' or char == '\n'
+    AnyUnicodeNewline() -> Std.Char.is_newline(char)
+
+  fn option_is_char(value: Option(Char), expected: Char) -> Bool = match value
+    Some(char) -> char == expected
+    None() -> false
+
+  fn line_start_for(policy: NewlinePolicy, previous_char: Option(Char), next_char: Option(Char)) -> Bool = match previous_char
+    None() -> true
+    Some(previous) -> match policy
+      LFNewline() -> previous == '\n'
+      CRNewline() -> previous == '\r'
+      CRLFNewline() -> previous == '\n'
+      AnyCRLFNewline() -> previous == '\n' or (previous == '\r' and not option_is_char(next_char, '\n'))
+      AnyUnicodeNewline() -> newline_char(policy, previous) and (previous != '\r' or not option_is_char(next_char, '\n'))
+
+  fn line_end_for(policy: NewlinePolicy, next_char: Option(Char), after_next_char: Option(Char)) -> Bool = match next_char
+    None() -> true
+    Some(next) -> match policy
+      LFNewline() -> next == '\n'
+      CRNewline() -> next == '\r'
+      CRLFNewline() -> next == '\r' and option_is_char(after_next_char, '\n')
+      AnyCRLFNewline() -> next == '\n' or (next == '\r' and not option_is_char(after_next_char, '\n'))
+      AnyUnicodeNewline() -> (newline_char(policy, next) and (next != '\r' or not option_is_char(after_next_char, '\n')))
+
+  fn subject_end_for(policy: NewlinePolicy, next_char: Option(Char), after_next_char: Option(Char)) -> Bool = match next_char
+    None() -> true
+    Some(next) -> match after_next_char
+      None() -> terminal_newline(policy, next)
+      Some(after_next) -> next == '\r' and after_next == '\n' and crlf_policy(policy)
+
+  fn terminal_newline(policy: NewlinePolicy, char: Char) -> Bool = match policy
+    CRLFNewline() -> false
+    _ -> newline_char(policy, char)
+
+  fn crlf_policy(policy: NewlinePolicy) -> Bool = match policy
+    CRLFNewline() -> true
+    CRNewline() -> false
+    AnyCRLFNewline() -> true
+    AnyUnicodeNewline() -> true
+    LFNewline() -> false
+
   fn subject_start_constraint() -> BoundaryConstraint =
-    BoundaryConstraint(true, false, false, false, false, false, false, false, false)
+    subject_start_constraint_with_policy(AnyUnicodeNewline())
+
+  fn subject_start_constraint_with_policy(policy: NewlinePolicy) -> BoundaryConstraint =
+    BoundaryConstraint(true, false, false, false, false, false, false, false, false, policy)
 
   fn subject_end_constraint() -> BoundaryConstraint =
-    BoundaryConstraint(false, true, false, false, false, false, false, false, false)
+    subject_end_constraint_with_policy(AnyUnicodeNewline())
+
+  fn subject_end_constraint_with_policy(policy: NewlinePolicy) -> BoundaryConstraint =
+    BoundaryConstraint(false, true, false, false, false, false, false, false, false, policy)
 
   fn strict_end_constraint() -> BoundaryConstraint =
-    BoundaryConstraint(false, false, true, false, false, false, false, false, false)
+    strict_end_constraint_with_policy(AnyUnicodeNewline())
+
+  fn strict_end_constraint_with_policy(policy: NewlinePolicy) -> BoundaryConstraint =
+    BoundaryConstraint(false, false, true, false, false, false, false, false, false, policy)
 
   fn line_start_constraint() -> BoundaryConstraint =
-    BoundaryConstraint(false, false, false, true, false, false, false, false, false)
+    line_start_constraint_with_policy(AnyUnicodeNewline())
+
+  fn line_start_constraint_with_policy(policy: NewlinePolicy) -> BoundaryConstraint =
+    BoundaryConstraint(false, false, false, true, false, false, false, false, false, policy)
 
   fn line_end_constraint() -> BoundaryConstraint =
-    BoundaryConstraint(false, false, false, false, true, false, false, false, false)
+    line_end_constraint_with_policy(AnyUnicodeNewline())
+
+  fn line_end_constraint_with_policy(policy: NewlinePolicy) -> BoundaryConstraint =
+    BoundaryConstraint(false, false, false, false, true, false, false, false, false, policy)
 
   fn ascii_word_constraint(expected: Bool) -> BoundaryConstraint =
-    BoundaryConstraint(false, false, false, false, false, true, expected, false, false)
+    BoundaryConstraint(false, false, false, false, false, true, expected, false, false, AnyUnicodeNewline())
 
   fn unicode_word_constraint(expected: Bool) -> BoundaryConstraint =
-    BoundaryConstraint(false, false, false, false, false, false, false, true, expected)
+    BoundaryConstraint(false, false, false, false, false, false, false, true, expected, AnyUnicodeNewline())
 
   @reducible
   fn constraints_hold(constraints: List(BoundaryConstraint), boundary: Boundary) -> Bool = match constraints
@@ -939,7 +1000,7 @@ mod Std.Regex.Runtime
     [] -> false
     [char | _] -> option_word(char, true)
 
-  fn position_boundary(subject_start: Bool, line_start: Bool, previous_ascii_word: Bool, previous_unicode_word: Bool, input: List(Char)) -> Boundary =
+  fn position_boundary(subject_start: Bool, line_start: Bool, previous_ascii_word: Bool, previous_unicode_word: Bool, previous_char: Option(Char), input: List(Char)) -> Boundary =
     Boundary(
       subject_start,
       position_subject_end(input),
@@ -947,8 +1008,19 @@ mod Std.Regex.Runtime
       line_start,
       position_line_end(input),
       previous_ascii_word != next_ascii_word(input),
-      previous_unicode_word != next_unicode_word(input)
+      previous_unicode_word != next_unicode_word(input),
+      previous_char,
+      option_head(input),
+      option_second(input)
     )
+
+  fn option_head(input: List(Char)) -> Option(Char) = match input
+    [] -> None()
+    [char | _] -> Some(char)
+
+  fn option_second(input: List(Char)) -> Option(Char) = match input
+    [_ | rest] -> option_head(rest)
+    [] -> None()
 
   fn position_strict_subject_end(input: List(Char)) -> Bool = match input
     [] -> true
@@ -957,7 +1029,7 @@ mod Std.Regex.Runtime
   fn machine_accepts_chars({n: Nat}, next: (Bounded(n)) -> Char -> List(MachineState(n)), input: List(Char), current: List(MachineState(n))) -> Bool = match input
     [] -> machine_has_accept(current)
     [char | rest] ->
-      machine_accepts_chars(next, rest, filter_boundary_states(machine_step(next, char, current), position_boundary(false, Std.Char.is_newline(char), ascii_word(char), option_word(char, true), rest)))
+      machine_accepts_chars(next, rest, filter_boundary_states(machine_step(next, char, current), position_boundary(false, Std.Char.is_newline(char), ascii_word(char), option_word(char, true), Some(char), rest)))
 
   fn pattern_accepts({shape: ShapeCode}, pattern: Pattern(shape), input: String) -> Bool =
     match compile_pattern(pattern)
@@ -1130,7 +1202,7 @@ mod Std.Regex.Runtime
     [head | rest] -> append_threads(step_evidence_thread(next, char, boundary, head), step_evidence_threads(next, char, boundary, rest))
 
   fn transition_boundary(char: Char, rest: List(Char)) -> Boundary =
-    position_boundary(false, Std.Char.is_newline(char), ascii_word(char), option_word(char, true), rest)
+    position_boundary(false, Std.Char.is_newline(char), ascii_word(char), option_word(char, true), Some(char), rest)
 
   @reducible
   fn append_characters(left: List(Char), right: List(Char)) -> List(Char) = match left
@@ -1142,7 +1214,7 @@ mod Std.Regex.Runtime
 
   @reducible
   fn position_after_character(char: Char) -> InitialPosition =
-    InitialPosition(False(), Std.Char.is_newline(char), ascii_word(char), option_word(char, True()))
+    InitialPosition(False(), Std.Char.is_newline(char), ascii_word(char), option_word(char, True()), Some(char))
 
   @reducible
   fn advance_initial_position(position: InitialPosition, input: List(Char)) -> InitialPosition = match input
@@ -1150,10 +1222,10 @@ mod Std.Regex.Runtime
     Cons(char, rest) -> advance_initial_position(position_after_character(char), rest)
 
   fn initial_position_boundary(position: InitialPosition, input: List(Char)) -> Boundary = match position
-    InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word) ->
-      position_boundary(subject_start, line_start, previous_ascii_word, previous_unicode_word, input)
+    InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word, previous_char) ->
+      position_boundary(subject_start, line_start, previous_ascii_word, previous_unicode_word, previous_char, input)
 
-  fn subject_initial_position() -> InitialPosition = InitialPosition(true, true, false, false)
+  fn subject_initial_position() -> InitialPosition = InitialPosition(true, true, false, false, None())
 
   @reducible
   fn machine_destinations(n: Nat, machine: PatternMachine(n), state: ThreadState(n), char: Char, boundary: Boundary) -> List(MachineState(n)) = match state
@@ -1384,7 +1456,7 @@ mod Std.Regex.Runtime
   fn run_evidence({n: Nat}, next: (Bounded(n)) -> Char -> List(MachineState(n)), input: List(Char), threads: List(EvidenceThread(n))) -> Option(List(Evidence)) = match input
     [] -> first_accepted_evidence(threads)
     [char | rest] ->
-      let boundary = position_boundary(false, Std.Char.is_newline(char), ascii_word(char), option_word(char, true), rest)
+      let boundary = position_boundary(false, Std.Char.is_newline(char), ascii_word(char), option_word(char, true), Some(char), rest)
       run_evidence(next, rest, distinct_threads(step_evidence_threads(next, char, boundary, threads)))
 
   fn run_first_prefix_evidence({n: Nat}, next: (Bounded(n)) -> Char -> List(MachineState(n)), input: List(Char), threads: List(EvidenceThread(n))) -> Option(EvidencePrefix) = match first_accepted_evidence(threads)
@@ -1392,7 +1464,7 @@ mod Std.Regex.Runtime
     None() -> match input
       [] -> None()
       [char | rest] ->
-        let boundary = position_boundary(false, Std.Char.is_newline(char), ascii_word(char), option_word(char, true), rest)
+        let boundary = position_boundary(false, Std.Char.is_newline(char), ascii_word(char), option_word(char, true), Some(char), rest)
         run_first_prefix_evidence(next, rest, distinct_threads(step_evidence_threads(next, char, boundary, threads)))
 
   fn remember_prefix({n: Nat}, threads: List(EvidenceThread(n)), rest: List(Char), previous: Option(EvidencePrefix)) -> Option(EvidencePrefix) = match first_accepted_evidence(threads)
@@ -1406,7 +1478,7 @@ mod Std.Regex.Runtime
       [char | rest] -> match threads
         [] -> remembered
         _ ->
-          let boundary = position_boundary(false, Std.Char.is_newline(char), ascii_word(char), option_word(char, true), rest)
+          let boundary = position_boundary(false, Std.Char.is_newline(char), ascii_word(char), option_word(char, true), Some(char), rest)
           run_last_prefix_evidence(next, rest, distinct_threads(step_evidence_threads(next, char, boundary, threads)), remembered)
 
   fn pattern_evidence({shape: ShapeCode}, pattern: Pattern(shape), input: List(Char)) -> Option(List(Evidence)) = match compile_pattern(pattern)
@@ -1416,7 +1488,7 @@ mod Std.Regex.Runtime
 
   fn pattern_prefix_evidence_at({shape: ShapeCode}, pattern: Pattern(shape), input: List(Char), greedy: Bool, subject_start: Bool, line_start: Bool, previous_ascii_word: Bool, previous_unicode_word: Bool) -> Option(EvidencePrefix) = match compile_pattern(pattern)
     mk_pair(count, machine) ->
-      let position = InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word)
+      let position = InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word, None())
       let result = pickup
         greedy -> search_last_machine_prefix(count, machine, position, input)
         else -> search_first_machine_prefix(count, machine, position, input)
@@ -1474,10 +1546,10 @@ mod Std.Regex.Runtime
   ## Elixir-compatible literal modifiers, in `i m s x u f U` order. Repeated
   ## letters are idempotent and modifier order is irrelevant. No accepted flag
   ## is metadata-only: each one must affect parsing or machine execution.
-  type RegexOptions = RegexOptions(Bool, Bool, Bool, Bool, Bool, Bool, Bool, Bool)
+  type RegexOptions = RegexOptions(Bool, Bool, Bool, Bool, Bool, Bool, Bool, Bool, NewlinePolicy)
 
   fn default_options() -> RegexOptions =
-    RegexOptions(false, false, false, false, false, false, false, false)
+    RegexOptions(false, false, false, false, false, false, false, false, AnyUnicodeNewline())
 
   ## A staged literal carries its checked machine and the erased equality that
   ## relates that machine to the canonical Thompson construction.  The wrapper
@@ -1611,6 +1683,63 @@ mod Std.Regex.Runtime
   fn sem_identity_conversion(shape: ShapeCode) -> Conversion(Sem(shape), Sem(shape)) = IdentityConversion()
   fn string_identity_conversion() -> Conversion(String, String) = IdentityConversion()
   fn unit_identity_conversion() -> Conversion(Unit, Unit) = IdentityConversion()
+
+  fn pair_unit_conversion() -> Conversion(Tuple(Char, Char), Unit) = ApplyConversion(fn(_) -> ())
+
+  fn line_break() -> Regex(Unit) =
+    line_break_with_policy(AnyUnicodeNewline())
+
+  fn line_break_with_policy(policy: NewlinePolicy) -> Regex(Unit) = match policy
+    LFNewline() -> map(exactly('\n'), fn(_) -> ())
+    CRNewline() -> map(exactly('\r'), fn(_) -> ())
+    CRLFNewline() -> map(concatenate(exactly('\r'), exactly('\n')), fn(_) -> ())
+    AnyCRLFNewline() -> or_same(
+      map(concatenate(exactly('\r'), exactly('\n')), fn(_) -> ()),
+      or_same(map(exactly('\n'), fn(_) -> ()), map(exactly('\r'), fn(_) -> ()))
+    )
+    AnyUnicodeNewline() -> or_same(
+      map(concatenate(exactly('\r'), exactly('\n')), fn(_) -> ()),
+      or_same(
+        map(exactly('\n'), fn(_) -> ()),
+        or_same(
+          map(exactly('\r'), fn(_) -> ()),
+          or_same(
+            map(exactly('\v'), fn(_) -> ()),
+            or_same(
+              map(exactly('\f'), fn(_) -> ()),
+              or_same(map(exactly(0x85), fn(_) -> ()), or_same(map(exactly(0x2028), fn(_) -> ()), map(exactly(0x2029), fn(_) -> ())))
+            )
+          )
+        )
+      )
+    )
+
+  fn line_break_pair_start_test(policy: NewlinePolicy, char: Char) -> Bool =
+    char == '\r' and match policy
+      LFNewline() -> false
+      CRNewline() -> false
+      CRLFNewline() -> true
+      AnyCRLFNewline() -> true
+      AnyUnicodeNewline() -> true
+
+  fn line_break_pair_test(policy: NewlinePolicy, expected: Char) -> Char -> Bool =
+    fn(char) -> char == expected and (line_break_pair_start_test(policy, char) or line_break_pair_end_test(policy, char))
+
+  fn line_break_pair_end_test(policy: NewlinePolicy, char: Char) -> Bool =
+    char == '\n' and match policy
+      LFNewline() -> false
+      CRNewline() -> false
+      CRLFNewline() -> true
+      AnyCRLFNewline() -> true
+      AnyUnicodeNewline() -> true
+
+  fn line_break_scalar_test(policy: NewlinePolicy, expected: Char) -> Char -> Bool =
+    fn(char) -> char == expected and match policy
+      LFNewline() -> char == '\n'
+      CRNewline() -> char == '\r'
+      CRLFNewline() -> false
+      AnyCRLFNewline() -> char == '\r' or char == '\n'
+      AnyUnicodeNewline() -> Std.Char.is_newline(char)
 
   fn compile_regex({result: Type}, regex: Regex(result)) -> CompiledRegex(result) = match regex
     FromPattern(shape, pattern) -> SomeProgram(BuiltRegex(shape, pattern, sem_identity_conversion(shape), NoCompilationHint()))
@@ -1839,6 +1968,14 @@ mod Std.Regex.Runtime
 
   fn dot_test(dotall: Bool) -> Char -> Bool = fn(char) -> dot_predicate(dotall, char)
   fn dot_with_options(dotall: Bool) -> Regex(Char) = predicate(dot_test(dotall))
+
+  fn dot_test_with_policy(dotall: Bool, policy: NewlinePolicy) -> Char -> Bool =
+    fn(char) -> pickup
+      dotall -> true
+      newline_char(policy, char) -> false
+      else -> true
+
+  fn dot_with_policy(dotall: Bool, policy: NewlinePolicy) -> Regex(Char) = predicate(dot_test_with_policy(dotall, policy))
 
   fn contains_char(chars: List(Char), actual: Char) -> Bool = match chars
     [] -> false

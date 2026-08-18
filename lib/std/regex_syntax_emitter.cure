@@ -23,6 +23,7 @@ mod Std.Regex.Syntax.Emitter
     LiteralSpace(_) -> CharC
     LiteralHorizontal(_) -> CharC
     LiteralVertical(_) -> CharC
+    LiteralLineBreak() -> UnitC
     LiteralSequence(left, right) -> PairC(literal_shape(left), literal_shape(right))
     LiteralAlternate(left, right) -> ChoiceC(literal_shape(left), literal_shape(right))
     LiteralRepeat(inner, _) -> ListC(literal_shape(inner))
@@ -38,6 +39,7 @@ mod Std.Regex.Syntax.Emitter
     LiteralStrictEnd -> UnitC
     LiteralFinalEnd -> UnitC
     LiteralWordBoundary(_) -> UnitC
+    LiteralConfigured(_, inner) -> literal_shape(inner)
 
   fn emit_shape(shape: LiteralShapeCode) -> Syntax = match shape
     UnitC -> core_call("UnitC", [])
@@ -52,12 +54,12 @@ mod Std.Regex.Syntax.Emitter
     ListC(inner) -> core_call("ListC", [emit_shape(inner)])
 
   fn emit_staged_start_constraint(options: LiteralRegexOptions) -> Syntax = match has_modifier(options, MultilineModifier)
-    true -> runtime_call("line_start_constraint", [])
-    false -> runtime_call("subject_start_constraint", [])
+    true -> runtime_call("line_start_constraint_with_policy", [emit_newline_policy(options)])
+    false -> runtime_call("subject_start_constraint_with_policy", [emit_newline_policy(options)])
 
   fn emit_staged_end_constraint(options: LiteralRegexOptions) -> Syntax = match has_modifier(options, MultilineModifier)
-    true -> runtime_call("line_end_constraint", [])
-    false -> runtime_call("subject_end_constraint", [])
+    true -> runtime_call("line_end_constraint_with_policy", [emit_newline_policy(options)])
+    false -> runtime_call("subject_end_constraint_with_policy", [emit_newline_policy(options)])
 
   fn emit_staged_word_constraint(negated: Bool, options: LiteralRegexOptions) -> Syntax = match has_modifier(options, UnicodeModifier)
     true -> runtime_call("unicode_word_constraint", [bool_literal(not negated)])
@@ -87,6 +89,7 @@ mod Std.Regex.Syntax.Emitter
     LiteralSpace(_) -> core_call("CharC", [])
     LiteralHorizontal(_) -> core_call("CharC", [])
     LiteralVertical(_) -> core_call("CharC", [])
+    LiteralLineBreak() -> emit_line_break_shape()
     LiteralSequence(left, right) -> core_call("PairC", [emit_compilation_shape(left), emit_compilation_shape(right)])
     LiteralAlternate(left, right) -> core_call("ChoiceC", [emit_compilation_shape(left), emit_compilation_shape(right)])
     LiteralRepeat(inner, _) -> core_call("ListC", [emit_compilation_shape(inner)])
@@ -102,11 +105,12 @@ mod Std.Regex.Syntax.Emitter
     LiteralStrictEnd -> core_call("UnitC", [])
     LiteralFinalEnd -> core_call("UnitC", [])
     LiteralWordBoundary(_) -> core_call("UnitC", [])
+    LiteralConfigured(_, inner) -> emit_compilation_shape(inner)
 
   fn emit_staged_pattern(pattern: LiteralPattern, options: LiteralRegexOptions) -> Syntax = match pattern
     LiteralEmpty -> core_call("PatternEmpty", [])
     LiteralExact(char) -> core_call("PatternPredicate", [runtime_call("option_exact_test", [char_literal(char), bool_literal(has_modifier(options, CaselessModifier)), bool_literal(has_modifier(options, UnicodeModifier))])])
-    LiteralAny -> core_call("PatternPredicate", [runtime_call("dot_test", [bool_literal(has_modifier(options, DotallModifier))])])
+    LiteralAny -> core_call("PatternPredicate", [runtime_call("dot_test_with_policy", [bool_literal(has_modifier(options, DotallModifier)), emit_newline_policy(options)])])
     LiteralClass(chars, ranges, kinds, negated) -> core_call("PatternPredicate", [runtime_call("extended_property_class_test", [emit_chars(chars), emit_ranges(ranges), emit_class_kinds(kinds), emit_unicode_property_matches(literal_class_properties(kinds)), emit_posix_class_matches(literal_class_posix(kinds)), bool_literal(negated), bool_literal(has_modifier(options, CaselessModifier)), bool_literal(has_modifier(options, UnicodeModifier))])])
     LiteralProperty(property, negated) -> core_call("PatternPredicate", [runtime_call("unicode_property_test", [emit_unicode_property(property), bool_literal(negated)])])
     LiteralDigit(negated) -> core_call("PatternPredicate", [runtime_call("digit_options_test", [bool_literal(negated), bool_literal(has_modifier(options, UnicodeModifier))])])
@@ -114,6 +118,7 @@ mod Std.Regex.Syntax.Emitter
     LiteralSpace(negated) -> core_call("PatternPredicate", [runtime_call("space_options_test", [bool_literal(negated), bool_literal(has_modifier(options, UnicodeModifier))])])
     LiteralHorizontal(negated) -> core_call("PatternPredicate", [runtime_call("horizontal_test", [bool_literal(negated)])])
     LiteralVertical(negated) -> core_call("PatternPredicate", [runtime_call("vertical_test", [bool_literal(negated)])])
+    LiteralLineBreak() -> emit_line_break_pattern(options)
     LiteralSequence(left, right) -> core_call("PatternConcat", [emit_staged_pattern(left, options), emit_staged_pattern(right, options)])
     LiteralAlternate(left, right) -> core_call("PatternAlternate", [emit_staged_pattern(left, options), emit_staged_pattern(right, options)])
     LiteralRepeat(inner, lazy) -> core_call("PatternRepeatMode", [emit_staged_pattern(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])
@@ -125,10 +130,11 @@ mod Std.Regex.Syntax.Emitter
     LiteralCapture(inner) -> core_call("PatternGroup", [emit_staged_pattern(inner, options)])
     LiteralStart -> core_call("PatternBoundary", [emit_staged_start_constraint(options)])
     LiteralEnd -> core_call("PatternBoundary", [emit_staged_end_constraint(options)])
-    LiteralAbsoluteStart -> core_call("PatternBoundary", [runtime_call("subject_start_constraint", [])])
-    LiteralStrictEnd -> core_call("PatternBoundary", [runtime_call("strict_end_constraint", [])])
-    LiteralFinalEnd -> core_call("PatternBoundary", [runtime_call("subject_end_constraint", [])])
+    LiteralAbsoluteStart -> core_call("PatternBoundary", [runtime_call("subject_start_constraint_with_policy", [emit_newline_policy(options)])])
+    LiteralStrictEnd -> core_call("PatternBoundary", [runtime_call("strict_end_constraint_with_policy", [emit_newline_policy(options)])])
+    LiteralFinalEnd -> core_call("PatternBoundary", [runtime_call("subject_end_constraint_with_policy", [emit_newline_policy(options)])])
     LiteralWordBoundary(negated) -> core_call("PatternBoundary", [emit_staged_word_constraint(negated, options)])
+    LiteralConfigured(_, inner) -> emit_staged_pattern(inner, options)
 
   fn emit_bounded_exact_pattern(inner: LiteralPattern, count: Nat, options: LiteralRegexOptions) -> Syntax = match count
     Z() -> core_call("PatternEmpty", [])
@@ -151,7 +157,7 @@ mod Std.Regex.Syntax.Emitter
   fn emit_staged_compilation(pattern: LiteralPattern, options: LiteralRegexOptions) -> Syntax = match pattern
     LiteralEmpty -> runtime_call("ThompsonEmpty", [])
     LiteralExact(char) -> runtime_call("ThompsonPredicate", [runtime_call("option_exact_test", [char_literal(char), bool_literal(has_modifier(options, CaselessModifier)), bool_literal(has_modifier(options, UnicodeModifier))])])
-    LiteralAny -> runtime_call("ThompsonPredicate", [runtime_call("dot_test", [bool_literal(has_modifier(options, DotallModifier))])])
+    LiteralAny -> runtime_call("ThompsonPredicate", [runtime_call("dot_test_with_policy", [bool_literal(has_modifier(options, DotallModifier)), emit_newline_policy(options)])])
     LiteralClass(chars, ranges, kinds, negated) -> runtime_call("ThompsonPredicate", [runtime_call("extended_property_class_test", [emit_chars(chars), emit_ranges(ranges), emit_class_kinds(kinds), emit_unicode_property_matches(literal_class_properties(kinds)), emit_posix_class_matches(literal_class_posix(kinds)), bool_literal(negated), bool_literal(has_modifier(options, CaselessModifier)), bool_literal(has_modifier(options, UnicodeModifier))])])
     LiteralProperty(property, negated) -> runtime_call("ThompsonPredicate", [runtime_call("unicode_property_test", [emit_unicode_property(property), bool_literal(negated)])])
     LiteralDigit(negated) -> runtime_call("ThompsonPredicate", [runtime_call("digit_options_test", [bool_literal(negated), bool_literal(has_modifier(options, UnicodeModifier))])])
@@ -159,6 +165,7 @@ mod Std.Regex.Syntax.Emitter
     LiteralSpace(negated) -> runtime_call("ThompsonPredicate", [runtime_call("space_options_test", [bool_literal(negated), bool_literal(has_modifier(options, UnicodeModifier))])])
     LiteralHorizontal(negated) -> runtime_call("ThompsonPredicate", [runtime_call("horizontal_test", [bool_literal(negated)])])
     LiteralVertical(negated) -> runtime_call("ThompsonPredicate", [runtime_call("vertical_test", [bool_literal(negated)])])
+    LiteralLineBreak() -> emit_line_break_compilation(options)
     LiteralSequence(left, right) -> runtime_call("ThompsonConcat", [emit_staged_compilation(left, options), emit_staged_compilation(right, options)])
     LiteralAlternate(left, right) -> runtime_call("ThompsonAlternate", [emit_staged_compilation(left, options), emit_staged_compilation(right, options), bool_literal(false)])
     LiteralRepeat(inner, lazy) -> runtime_call("ThompsonRepeat", [emit_staged_compilation(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])
@@ -170,10 +177,11 @@ mod Std.Regex.Syntax.Emitter
     LiteralCapture(inner) -> runtime_call("ThompsonGroup", [emit_staged_compilation(inner, options)])
     LiteralStart -> runtime_call("ThompsonBoundary", [emit_staged_start_constraint(options)])
     LiteralEnd -> runtime_call("ThompsonBoundary", [emit_staged_end_constraint(options)])
-    LiteralAbsoluteStart -> runtime_call("ThompsonBoundary", [runtime_call("subject_start_constraint", [])])
-    LiteralStrictEnd -> runtime_call("ThompsonBoundary", [runtime_call("strict_end_constraint", [])])
-    LiteralFinalEnd -> runtime_call("ThompsonBoundary", [runtime_call("subject_end_constraint", [])])
+    LiteralAbsoluteStart -> runtime_call("ThompsonBoundary", [runtime_call("subject_start_constraint_with_policy", [emit_newline_policy(options)])])
+    LiteralStrictEnd -> runtime_call("ThompsonBoundary", [runtime_call("strict_end_constraint_with_policy", [emit_newline_policy(options)])])
+    LiteralFinalEnd -> runtime_call("ThompsonBoundary", [runtime_call("subject_end_constraint_with_policy", [emit_newline_policy(options)])])
     LiteralWordBoundary(negated) -> runtime_call("ThompsonBoundary", [emit_staged_word_constraint(negated, options)])
+    LiteralConfigured(_, inner) -> emit_staged_compilation(inner, options)
 
   ## The staged parser consumes a row-backed machine reconstructed from the
   ## checked Thompson tree.  No closure-machine constructor is emitted into
@@ -229,6 +237,7 @@ mod Std.Regex.Syntax.Emitter
     LiteralSpace(_) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
     LiteralHorizontal(_) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
     LiteralVertical(_) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralLineBreak() -> emit_line_break_conversion()
     LiteralSequence(left, right) -> runtime_call("PairConversion", [emit_staged_conversion(left), emit_staged_conversion(right)])
     LiteralAlternate(left, right) -> runtime_call("ChoiceConversion", [emit_staged_conversion(left), emit_staged_conversion(right)])
     LiteralRepeat(inner, _) -> runtime_call("ListConversion", [emit_staged_conversion(inner)])
@@ -244,6 +253,7 @@ mod Std.Regex.Syntax.Emitter
     LiteralStrictEnd -> runtime_call("unit_identity_conversion", [])
     LiteralFinalEnd -> runtime_call("unit_identity_conversion", [])
     LiteralWordBoundary(_) -> runtime_call("unit_identity_conversion", [])
+    LiteralConfigured(_, inner) -> emit_staged_conversion(inner)
 
   fn emit_bounded_exact_conversion(inner: LiteralPattern, count: Nat) -> Syntax = match count
     Z() -> runtime_call("empty_list_conversion_for", [emit_shape(literal_shape(inner))])
@@ -275,6 +285,7 @@ mod Std.Regex.Syntax.Emitter
     LiteralSpace(negated) -> runtime_call("space_class", [bool_literal(negated)])
     LiteralHorizontal(negated) -> runtime_call("horizontal_class", [bool_literal(negated)])
     LiteralVertical(negated) -> runtime_call("vertical_class", [bool_literal(negated)])
+    LiteralLineBreak() -> runtime_call("line_break_with_policy", [emit_newline_policy(literal_default_options())])
     LiteralSequence(left, right) -> runtime_call("concatenate", [emit_literal(left), emit_literal(right)])
     LiteralAlternate(left, right) -> runtime_call("alternate", [emit_literal(left), emit_literal(right)])
     LiteralRepeat(inner, lazy) -> runtime_call("repeated_pattern", [emit_literal(inner), bool_literal(lazy)])
@@ -290,6 +301,7 @@ mod Std.Regex.Syntax.Emitter
     LiteralStrictEnd -> runtime_call("strict_end_anchor", [])
     LiteralFinalEnd -> runtime_call("end_anchor", [])
     LiteralWordBoundary(negated) -> runtime_call("word_boundary", [bool_literal(false), bool_literal(negated)])
+    LiteralConfigured(_, inner) -> emit_literal(inner)
 
   fn emit_literal_with_options(pattern: LiteralPattern, options: LiteralRegexOptions) -> Syntax =
     let caseless = has_modifier(options, CaselessModifier)
@@ -300,7 +312,7 @@ mod Std.Regex.Syntax.Emitter
     match pattern
       LiteralEmpty -> runtime_call("empty", [])
       LiteralExact(char) -> runtime_call("exactly_with_options", [char_literal(char), bool_literal(caseless), bool_literal(unicode)])
-      LiteralAny -> runtime_call("dot_with_options", [bool_literal(dotall)])
+      LiteralAny -> runtime_call("dot_with_policy", [bool_literal(dotall), emit_newline_policy(options)])
       LiteralClass(chars, ranges, kinds, negated) ->
         runtime_call("extended_unicode_property_class", [emit_chars(chars), emit_ranges(ranges), emit_class_kinds(kinds), emit_unicode_property_matches(literal_class_properties(kinds)), emit_posix_class_matches(literal_class_posix(kinds)), bool_literal(negated), bool_literal(caseless), bool_literal(unicode)])
       LiteralProperty(property, negated) -> runtime_call("unicode_property_class", [emit_unicode_property(property), bool_literal(negated)])
@@ -309,6 +321,7 @@ mod Std.Regex.Syntax.Emitter
       LiteralSpace(negated) -> runtime_call("space_class_with_options", [bool_literal(negated), bool_literal(unicode)])
       LiteralHorizontal(negated) -> runtime_call("horizontal_class", [bool_literal(negated)])
       LiteralVertical(negated) -> runtime_call("vertical_class", [bool_literal(negated)])
+      LiteralLineBreak() -> runtime_call("line_break_with_policy", [emit_newline_policy(options)])
       LiteralSequence(left, right) -> runtime_call("concatenate", [emit_literal_with_options(left, options), emit_literal_with_options(right, options)])
       LiteralAlternate(left, right) -> runtime_call("alternate", [emit_literal_with_options(left, options), emit_literal_with_options(right, options)])
       LiteralRepeat(inner, lazy) -> runtime_call("repeated_pattern", [emit_literal_with_options(inner, options), bool_literal(lazy != ungreedy)])
@@ -324,6 +337,7 @@ mod Std.Regex.Syntax.Emitter
       LiteralStrictEnd -> runtime_call("strict_end_anchor", [])
       LiteralFinalEnd -> runtime_call("end_anchor", [])
       LiteralWordBoundary(negated) -> runtime_call("word_boundary", [bool_literal(unicode), bool_literal(negated)])
+      LiteralConfigured(_, inner) -> emit_literal_with_options(inner, options)
 
   fn emit_chars(chars: List(Char)) -> Syntax = match chars
     [] -> list([])
@@ -418,6 +432,114 @@ mod Std.Regex.Syntax.Emitter
     [LiteralPosixClassMatch(posix_class, negated) | rest] ->
       prepend_syntax(runtime_call("PosixClassMatch", [emit_posix_class(posix_class), bool_literal(negated)]), emit_posix_class_matches(rest))
 
+  fn emit_line_break_shape() -> Syntax =
+    core_call("ChoiceC", [
+      core_call("PairC", [core_call("CharC", []), core_call("CharC", [])]),
+      core_call("ChoiceC", [
+        core_call("CharC", []),
+        core_call("ChoiceC", [
+          core_call("CharC", []),
+          core_call("ChoiceC", [
+            core_call("CharC", []),
+            core_call("ChoiceC", [
+              core_call("CharC", []),
+              core_call("ChoiceC", [
+                core_call("CharC", []),
+                core_call("ChoiceC", [core_call("CharC", []), core_call("CharC", [])])
+              ])
+            ])
+          ])
+        ])
+      ])
+    ])
+
+  fn emit_line_break_pattern(options: LiteralRegexOptions) -> Syntax =
+    core_call("PatternAlternate", [
+      core_call("PatternConcat", [emit_line_break_pair_char_pattern('\r', options), emit_line_break_pair_char_pattern('\n', options)]),
+      emit_line_break_scalar_pattern(options)
+    ])
+
+  fn emit_line_break_scalar_pattern(options: LiteralRegexOptions) -> Syntax =
+    core_call("PatternAlternate", [
+      emit_line_break_scalar_char_pattern('\n', options),
+      core_call("PatternAlternate", [
+        emit_line_break_scalar_char_pattern('\r', options),
+        core_call("PatternAlternate", [
+          emit_line_break_scalar_char_pattern('\v', options),
+          core_call("PatternAlternate", [
+            emit_line_break_scalar_char_pattern('\f', options),
+            core_call("PatternAlternate", [
+              emit_line_break_scalar_char_pattern(0x85, options),
+              core_call("PatternAlternate", [emit_line_break_scalar_char_pattern(0x2028, options), emit_line_break_scalar_char_pattern(0x2029, options)])
+            ])
+          ])
+        ])
+      ])
+    ])
+
+  fn emit_line_break_pair_char_pattern(_char: Char, options: LiteralRegexOptions) -> Syntax =
+    core_call("PatternPredicate", [runtime_call("line_break_pair_test", [emit_newline_policy(options), char_literal(_char)])])
+
+  fn emit_line_break_scalar_char_pattern(_char: Char, options: LiteralRegexOptions) -> Syntax =
+    core_call("PatternPredicate", [runtime_call("line_break_scalar_test", [emit_newline_policy(options), char_literal(_char)])])
+
+  fn emit_line_break_compilation(options: LiteralRegexOptions) -> Syntax =
+    runtime_call("ThompsonAlternate", [
+      runtime_call("ThompsonConcat", [emit_line_break_pair_char_compilation('\r', options), emit_line_break_pair_char_compilation('\n', options)]),
+      emit_line_break_scalar_compilation(options),
+      bool_literal(false)
+    ])
+
+  fn emit_line_break_scalar_compilation(options: LiteralRegexOptions) -> Syntax =
+    runtime_call("ThompsonAlternate", [
+      emit_line_break_scalar_char_compilation('\n', options),
+      runtime_call("ThompsonAlternate", [
+        emit_line_break_scalar_char_compilation('\r', options),
+        runtime_call("ThompsonAlternate", [
+          emit_line_break_scalar_char_compilation('\v', options),
+          runtime_call("ThompsonAlternate", [
+            emit_line_break_scalar_char_compilation('\f', options),
+            runtime_call("ThompsonAlternate", [
+              emit_line_break_scalar_char_compilation(0x85, options),
+              runtime_call("ThompsonAlternate", [emit_line_break_scalar_char_compilation(0x2028, options), emit_line_break_scalar_char_compilation(0x2029, options), bool_literal(false)]),
+              bool_literal(false)
+            ]),
+            bool_literal(false)
+          ]),
+          bool_literal(false)
+        ]),
+        bool_literal(false)
+      ]),
+      bool_literal(false)
+    ])
+
+  fn emit_line_break_pair_char_compilation(_char: Char, options: LiteralRegexOptions) -> Syntax =
+    runtime_call("ThompsonPredicate", [runtime_call("line_break_pair_test", [emit_newline_policy(options), char_literal(_char)])])
+
+  fn emit_line_break_scalar_char_compilation(_char: Char, options: LiteralRegexOptions) -> Syntax =
+    runtime_call("ThompsonPredicate", [runtime_call("line_break_scalar_test", [emit_newline_policy(options), char_literal(_char)])])
+
+  fn emit_line_break_conversion() -> Syntax =
+    runtime_call("SameChoiceConversion", [
+      runtime_call("pair_unit_conversion", []),
+      runtime_call("SameChoiceConversion", [
+        runtime_call("discard_char_conversion", []),
+        runtime_call("SameChoiceConversion", [
+          runtime_call("discard_char_conversion", []),
+          runtime_call("SameChoiceConversion", [
+            runtime_call("discard_char_conversion", []),
+            runtime_call("SameChoiceConversion", [
+              runtime_call("discard_char_conversion", []),
+              runtime_call("SameChoiceConversion", [
+                runtime_call("discard_char_conversion", []),
+                runtime_call("SameChoiceConversion", [runtime_call("discard_char_conversion", []), runtime_call("discard_char_conversion", [])])
+              ])
+            ])
+          ])
+        ])
+      ])
+    ])
+
   fn emit_options(options: LiteralRegexOptions) -> Syntax =
     runtime_call("RegexOptions", [
       bool_literal(has_modifier(options, CaselessModifier)),
@@ -427,8 +549,16 @@ mod Std.Regex.Syntax.Emitter
       bool_literal(has_modifier(options, UnicodeModifier)),
       bool_literal(has_modifier(options, FirstlineModifier)),
       bool_literal(has_modifier(options, UngreedyModifier)),
-      bool_literal(has_modifier(options, ExportModifier))
+      bool_literal(has_modifier(options, ExportModifier)),
+      emit_newline_policy(options)
     ])
+
+  fn emit_newline_policy(options: LiteralRegexOptions) -> Syntax = match literal_newline_policy(options)
+    LiteralLFPolicy -> core_call("LFNewline", [])
+    LiteralCRPolicy -> core_call("CRNewline", [])
+    LiteralCRLFPolicy -> core_call("CRLFNewline", [])
+    LiteralAnyCRLFPolicy -> core_call("AnyCRLFNewline", [])
+    LiteralAnyUnicodePolicy -> core_call("AnyUnicodeNewline", [])
 
   fn prepend_syntax(head: Syntax, tail: Syntax) -> Syntax = match tail
     Node(tag, attrs, children) -> pickup

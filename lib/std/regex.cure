@@ -35,16 +35,23 @@ mod Std.Regex
     parse_prefix_with(regex, input, true)
 
   fn options_firstline(options: RegexOptions) -> Bool = match options
-    RegexOptions(_, _, _, _, _, firstline, _, _) -> firstline
+    RegexOptions(_, _, _, _, _, firstline, _, _, _) -> firstline
+
+  fn options_newline_policy(options: RegexOptions) -> NewlinePolicy = match options
+    RegexOptions(_, _, _, _, _, _, _, _, policy) -> policy
 
   fn regex_firstline({result: Type}, regex: Regex(result)) -> Bool = match regex
     ConfiguredRegex(options, _) -> options_firstline(options)
     _ -> false
 
-  fn search({result: Type}, regex: Regex(result), input: String) -> Option(Match(result)) =
-    search_from(regex, Std.String.characters(input), [], true, true, false, false, regex_firstline(regex))
+  fn regex_newline_policy({result: Type}, regex: Regex(result)) -> NewlinePolicy = match regex
+    ConfiguredRegex(options, _) -> options_newline_policy(options)
+    _ -> AnyUnicodeNewline()
 
-  fn search_from({result: Type}, regex: Regex(result), candidate: List(Char), reversed_prefix: List(Char), subject_start: Bool, line_start: Bool, previous_ascii_word: Bool, previous_unicode_word: Bool, firstline_only: Bool) -> Option(Match(result)) =
+  fn search({result: Type}, regex: Regex(result), input: String) -> Option(Match(result)) =
+    search_from(regex, Std.String.characters(input), [], true, true, false, false, regex_firstline(regex), regex_newline_policy(regex))
+
+  fn search_from({result: Type}, regex: Regex(result), candidate: List(Char), reversed_prefix: List(Char), subject_start: Bool, line_start: Bool, previous_ascii_word: Bool, previous_unicode_word: Bool, firstline_only: Bool, policy: NewlinePolicy) -> Option(Match(result)) =
     match pattern_prefix_program_at(regex, candidate, subject_start, line_start, previous_ascii_word, previous_unicode_word)
       Some(found) ->
         let rest = found.2
@@ -53,8 +60,8 @@ mod Std.Regex
       None() -> match candidate
         [] -> None()
         [char | rest] -> pickup
-          firstline_only and Std.Char.is_newline(char) -> None()
-          else -> search_from(regex, rest, [char | reversed_prefix], false, Std.Char.is_newline(char), ascii_word(char), option_word(char, true), firstline_only)
+          firstline_only and newline_char(policy, char) -> None()
+          else -> search_from(regex, rest, [char | reversed_prefix], false, Std.Char.is_newline(char), ascii_word(char), option_word(char, true), firstline_only, policy)
 
   fn pattern_prefix_program_at({result: Type}, regex: Regex(result), input: List(Char), subject_start: Bool, line_start: Bool, previous_ascii_word: Bool, previous_unicode_word: Bool) -> Option(Tuple(result, List(Char))) = match compile_regex(regex)
     NoProgram() -> None()
@@ -77,37 +84,37 @@ mod Std.Regex
     Some(_) -> true
     None() -> false
 
-  fn search_from_position({result: Type}, regex: Regex(result), candidate: List(Char), reversed_prefix: List(Char), position: InitialPosition, firstline_only: Bool) -> Option(Match(result)) = match position
-    InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word) ->
-      search_from(regex, candidate, reversed_prefix, subject_start, line_start, previous_ascii_word, previous_unicode_word, firstline_only)
+  fn search_from_position({result: Type}, regex: Regex(result), candidate: List(Char), reversed_prefix: List(Char), position: InitialPosition, firstline_only: Bool, policy: NewlinePolicy) -> Option(Match(result)) = match position
+    InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word, _previous_char) ->
+      search_from(regex, candidate, reversed_prefix, subject_start, line_start, previous_ascii_word, previous_unicode_word, firstline_only, policy)
 
-  fn characters_contain_newline(input: List(Char)) -> Bool = match input
+  fn characters_contain_newline(input: List(Char), policy: NewlinePolicy) -> Bool = match input
     [] -> false
     [char | rest] -> pickup
-      Std.Char.is_newline(char) -> true
-      else -> characters_contain_newline(rest)
+      newline_char(policy, char) -> true
+      else -> characters_contain_newline(rest, policy)
 
   fn scan({result: Type}, regex: Regex(result), input: String) -> List(Match(result)) =
-    scan_from(regex, Std.String.characters(input), [], subject_initial_position(), regex_firstline(regex), true)
+    scan_from(regex, Std.String.characters(input), [], subject_initial_position(), regex_firstline(regex), true, regex_newline_policy(regex))
 
-  fn scan_from({result: Type}, regex: Regex(result), candidate: List(Char), reversed_prefix: List(Char), position: InitialPosition, firstline_only: Bool, firstline_open: Bool) -> List(Match(result)) = pickup
+  fn scan_from({result: Type}, regex: Regex(result), candidate: List(Char), reversed_prefix: List(Char), position: InitialPosition, firstline_only: Bool, firstline_open: Bool, policy: NewlinePolicy) -> List(Match(result)) = pickup
     firstline_only and not firstline_open -> []
-    else -> match search_from_position(regex, candidate, reversed_prefix, position, firstline_only)
+    else -> match search_from_position(regex, candidate, reversed_prefix, position, firstline_only, policy)
       None() -> []
       Some(found) -> match found
         Match(value, prefix, matched, suffix, start, length) ->
           let prefix_chars = Std.String.characters(prefix)
           let matched_chars = Std.String.characters(matched)
           let consumed = append_characters(prefix_chars, matched_chars)
-          let next_firstline_open = not characters_contain_newline(consumed)
+          let next_firstline_open = not characters_contain_newline(consumed, policy)
           pickup
             Std.Builtin.int_lt(0, length) ->
-              [found | scan_from(regex, Std.String.characters(suffix), evidence_reverse_chars(consumed), advance_initial_position(subject_initial_position(), consumed), firstline_only, next_firstline_open)]
+              [found | scan_from(regex, Std.String.characters(suffix), evidence_reverse_chars(consumed), advance_initial_position(subject_initial_position(), consumed), firstline_only, next_firstline_open, policy)]
             else -> match Std.String.characters(suffix)
               [] -> [found]
               [char | rest] ->
                 let advanced = append_characters(consumed, [char])
-                [found | scan_from(regex, rest, evidence_reverse_chars(advanced), advance_initial_position(subject_initial_position(), advanced), firstline_only, not characters_contain_newline(advanced))]
+                [found | scan_from(regex, rest, evidence_reverse_chars(advanced), advance_initial_position(subject_initial_position(), advanced), firstline_only, not characters_contain_newline(advanced, policy), policy)]
 
   fn character_list_drop(values: List(Char), count: Int) -> List(Char) = pickup
     Std.Builtin.int_lt(0, count) -> match values

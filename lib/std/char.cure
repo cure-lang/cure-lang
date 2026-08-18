@@ -58,6 +58,12 @@ mod Std.Char
   @extern(:cure_std_char, :from_code_point, 1)
   fn from_code_point(value: Int) -> Option(Char)
 
+  ## Compile-time Unicode character-name lookup for syntax macros. The name
+  ## arrives as a List(Char); successful macro expansion emits the resulting
+  ## Char literal, so no name table or parser reaches runtime regex code.
+  @extern(:cure_std_char, :from_unicode_name, 1)
+  fn from_unicode_name(name: List(Char)) -> Option(Char)
+
   ## Construct from a code point the caller has already proved is a Unicode
   ## scalar. Parsers use this only after checking range and surrogate rules.
   @extern(:cure_std_char, :code_point, 1)
