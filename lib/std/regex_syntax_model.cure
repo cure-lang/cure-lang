@@ -3,6 +3,7 @@
 
 @group(:text)
 mod Std.Regex.Syntax.Model
+  use Std.String
   type LiteralCharacterRange = LiteralCharacterRange(Char, Char)
   type LiteralClassKinds = LiteralClassKinds(List(LiteralClassKind), List(LiteralUnicodePropertyMatch), List(LiteralPosixClassMatch))
   type LiteralNewlinePolicy = LiteralLFPolicy | LiteralCRPolicy | LiteralCRLFPolicy | LiteralAnyCRLFPolicy | LiteralAnyUnicodePolicy
@@ -11,6 +12,18 @@ mod Std.Regex.Syntax.Model
   type LiteralPrepared = LiteralPrepared(List(Char), List(Nat), Nat)
   type LiteralSourceMap = LiteralSourceMap(List(Char), List(Nat))
   type LiteralSourceSpan = LiteralSourceSpan(Nat, Nat)
+  ## Capture slots are allocated once, immediately after parsing.  The slot
+  ## number is stable metadata used by the named-capture side channel; it is
+  ## deliberately absent from ShapeCode and therefore cannot perturb the
+  ## existing typed result.
+  type LiteralCaptureSlotInfo = LiteralCaptureSlotInfo(Nat, Option(String))
+  type LiteralCaptureLayout = LiteralCaptureLayout(List(LiteralCaptureSlotInfo))
+  type LiteralCaptureAllocation =
+    | LiteralCaptureAllocated(LiteralPattern, LiteralCaptureLayout)
+    | LiteralCaptureAllocationInvalid(Atom, String)
+  type LiteralCaptureWalk =
+    | LiteralCaptureWalked(LiteralPattern, List(LiteralCaptureSlotInfo), Nat, List(String))
+    | LiteralCaptureWalkInvalid(Atom, String)
 
   type LiteralPattern =
     | LiteralEmpty
@@ -33,6 +46,8 @@ mod Std.Regex.Syntax.Model
     | LiteralBoundedAtLeast(LiteralPattern, Nat, Bool)
     | LiteralBoundedBetween(LiteralPattern, Nat, Nat, Bool)
     | LiteralCapture(LiteralPattern)
+    | LiteralNamedCapture(String, LiteralPattern)
+    | LiteralCaptureIndexed(Nat, Option(String), LiteralPattern)
     | LiteralStart
     | LiteralEnd
     | LiteralAbsoluteStart
@@ -186,6 +201,90 @@ mod Std.Regex.Syntax.Model
   fn literal_pattern_options(pattern: LiteralPattern, options: LiteralRegexOptions) -> LiteralPatternOptions = match pattern
     LiteralConfigured(policy, inner) -> LiteralPatternOptions(inner, set_literal_newline_policy(policy, options))
     _ -> LiteralPatternOptions(pattern, options)
+
+  ## Allocate every ordinary and named group in source order.  Ordinary groups
+  ## receive an unnamed slot as well: later branch-reset and participation
+  ## phases can therefore reuse this layout without changing the parser again.
+  fn allocate_literal_captures(pattern: LiteralPattern) -> LiteralCaptureAllocation = match walk_literal_captures(pattern, Z(), [])
+    LiteralCaptureWalked(numbered, slots, _, _) -> LiteralCaptureAllocated(numbered, LiteralCaptureLayout(slots))
+    LiteralCaptureWalkInvalid(reason, name) -> LiteralCaptureAllocationInvalid(reason, name)
+
+  fn walk_literal_captures(pattern: LiteralPattern, next: Nat, names: List(String)) -> LiteralCaptureWalk = match pattern
+    LiteralEmpty -> LiteralCaptureWalked(LiteralEmpty, [], next, names)
+    LiteralExact(char) -> LiteralCaptureWalked(LiteralExact(char), [], next, names)
+    LiteralAny -> LiteralCaptureWalked(LiteralAny, [], next, names)
+    LiteralClass(chars, ranges, kinds, negated) -> LiteralCaptureWalked(LiteralClass(chars, ranges, kinds, negated), [], next, names)
+    LiteralProperty(property, negated) -> LiteralCaptureWalked(LiteralProperty(property, negated), [], next, names)
+    LiteralDigit(negated) -> LiteralCaptureWalked(LiteralDigit(negated), [], next, names)
+    LiteralWord(negated) -> LiteralCaptureWalked(LiteralWord(negated), [], next, names)
+    LiteralSpace(negated) -> LiteralCaptureWalked(LiteralSpace(negated), [], next, names)
+    LiteralHorizontal(negated) -> LiteralCaptureWalked(LiteralHorizontal(negated), [], next, names)
+    LiteralVertical(negated) -> LiteralCaptureWalked(LiteralVertical(negated), [], next, names)
+    LiteralLineBreak() -> LiteralCaptureWalked(LiteralLineBreak(), [], next, names)
+    LiteralStart -> LiteralCaptureWalked(LiteralStart, [], next, names)
+    LiteralEnd -> LiteralCaptureWalked(LiteralEnd, [], next, names)
+    LiteralAbsoluteStart -> LiteralCaptureWalked(LiteralAbsoluteStart, [], next, names)
+    LiteralStrictEnd -> LiteralCaptureWalked(LiteralStrictEnd, [], next, names)
+    LiteralFinalEnd -> LiteralCaptureWalked(LiteralFinalEnd, [], next, names)
+    LiteralWordBoundary(negated) -> LiteralCaptureWalked(LiteralWordBoundary(negated), [], next, names)
+    LiteralConfigured(policy, inner) -> match walk_literal_captures(inner, next, names)
+      LiteralCaptureWalked(numbered, slots, final_next, final_names) -> LiteralCaptureWalked(LiteralConfigured(policy, numbered), slots, final_next, final_names)
+      LiteralCaptureWalkInvalid(reason, name) -> LiteralCaptureWalkInvalid(reason, name)
+    LiteralCapture(inner) -> match walk_literal_captures(inner, S(next), names)
+      LiteralCaptureWalked(numbered, slots, final_next, final_names) -> LiteralCaptureWalked(LiteralCaptureIndexed(next, None(), numbered), [LiteralCaptureSlotInfo(next, None()) | slots], final_next, final_names)
+      LiteralCaptureWalkInvalid(reason, name) -> LiteralCaptureWalkInvalid(reason, name)
+    LiteralNamedCapture(name, inner) -> pickup
+      capture_name_seen(name, names) -> LiteralCaptureWalkInvalid(:DuplicateRegexCaptureName, name)
+      else -> match walk_literal_captures(inner, S(next), [name | names])
+        LiteralCaptureWalked(numbered, slots, final_next, final_names) -> LiteralCaptureWalked(LiteralCaptureIndexed(next, Some(name), numbered), [LiteralCaptureSlotInfo(next, Some(name)) | slots], final_next, final_names)
+        LiteralCaptureWalkInvalid(reason, invalid_name) -> LiteralCaptureWalkInvalid(reason, invalid_name)
+    LiteralCaptureIndexed(slot, name, inner) -> match walk_literal_captures(inner, S(slot), names)
+      LiteralCaptureWalked(numbered, slots, final_next, final_names) -> LiteralCaptureWalked(LiteralCaptureIndexed(slot, name, numbered), [LiteralCaptureSlotInfo(slot, name) | slots], final_next, final_names)
+      LiteralCaptureWalkInvalid(reason, invalid_name) -> LiteralCaptureWalkInvalid(reason, invalid_name)
+    LiteralSequence(left, right) -> walk_literal_binary(LiteralSequence, left, right, next, names)
+    LiteralAlternate(left, right) -> walk_literal_binary(LiteralAlternate, left, right, next, names)
+    LiteralRepeat(inner, lazy) -> walk_literal_unary(fn(value) -> LiteralRepeat(value, lazy), inner, next, names)
+    LiteralPlus(inner, lazy) -> walk_literal_unary(fn(value) -> LiteralPlus(value, lazy), inner, next, names)
+    LiteralOptional(inner, lazy) -> walk_literal_unary(fn(value) -> LiteralOptional(value, lazy), inner, next, names)
+    LiteralBoundedExact(inner, count) -> walk_literal_unary(fn(value) -> LiteralBoundedExact(value, count), inner, next, names)
+    LiteralBoundedAtLeast(inner, count, lazy) -> walk_literal_unary(fn(value) -> LiteralBoundedAtLeast(value, count, lazy), inner, next, names)
+    LiteralBoundedBetween(inner, minimum, maximum, lazy) -> walk_literal_unary(fn(value) -> LiteralBoundedBetween(value, minimum, maximum, lazy), inner, next, names)
+
+  fn walk_literal_unary(wrap: LiteralPattern -> LiteralPattern, inner: LiteralPattern, next: Nat, names: List(String)) -> LiteralCaptureWalk = match walk_literal_captures(inner, next, names)
+    LiteralCaptureWalked(numbered, slots, final_next, final_names) -> LiteralCaptureWalked(wrap(numbered), slots, final_next, final_names)
+    LiteralCaptureWalkInvalid(reason, name) -> LiteralCaptureWalkInvalid(reason, name)
+
+  fn walk_literal_binary(wrap: (LiteralPattern, LiteralPattern) -> LiteralPattern, left: LiteralPattern, right: LiteralPattern, next: Nat, names: List(String)) -> LiteralCaptureWalk = match walk_literal_captures(left, next, names)
+    LiteralCaptureWalkInvalid(reason, name) -> LiteralCaptureWalkInvalid(reason, name)
+    LiteralCaptureWalked(numbered_left, left_slots, middle, middle_names) -> match walk_literal_captures(right, middle, middle_names)
+      LiteralCaptureWalkInvalid(reason, name) -> LiteralCaptureWalkInvalid(reason, name)
+      LiteralCaptureWalked(numbered_right, right_slots, final_next, final_names) -> LiteralCaptureWalked(wrap(numbered_left, numbered_right), append_literal_capture_slots(left_slots, right_slots), final_next, final_names)
+
+  fn append_literal_capture_slots(left: List(LiteralCaptureSlotInfo), right: List(LiteralCaptureSlotInfo)) -> List(LiteralCaptureSlotInfo) = match left
+    [] -> right
+    [head | rest] -> [head | append_literal_capture_slots(rest, right)]
+
+  fn capture_name_seen(name: String, names: List(String)) -> Bool = match names
+    [] -> false
+    [head | rest] -> capture_names_same(name, head) or capture_name_seen(name, rest)
+
+  fn capture_names_same(left: String, right: String) -> Bool = capture_name_chars_same(Std.String.characters(left), Std.String.characters(right))
+
+  fn capture_name_chars_same(left: List(Char), right: List(Char)) -> Bool = match left
+    [] -> match right
+      [] -> true
+      _ -> false
+    [left_head | left_rest] -> match right
+      [right_head | right_rest] -> left_head == right_head and capture_name_chars_same(left_rest, right_rest)
+      [] -> false
+
+  fn literal_capture_layout_has_names(layout: LiteralCaptureLayout) -> Bool = match layout
+    LiteralCaptureLayout(slots) -> literal_capture_slots_have_names(slots)
+
+  fn literal_capture_slots_have_names(slots: List(LiteralCaptureSlotInfo)) -> Bool = match slots
+    [] -> false
+    [LiteralCaptureSlotInfo(_, Some(_)) | _] -> true
+    [LiteralCaptureSlotInfo(_, None()) | rest] -> literal_capture_slots_have_names(rest)
 
   fn has_modifier_in(values: List(LiteralModifier), wanted: LiteralModifier) -> Bool = match values
     [] -> false

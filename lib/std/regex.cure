@@ -23,6 +23,43 @@ mod Std.Regex
     NoProgram() -> None()
     SomeProgram(program) -> parse_program_full(program, input)
 
+  fn parse_full_named({result: Type}, named: NamedRegex(result), input: String) -> Option(NamedParse(result)) = match named
+    NamedRegex(ordinary, compilation, layout, _, _) -> match parse_full(ordinary, input)
+      None() -> None()
+      Some(value) -> match named_full_capture(compilation, input, layout)
+        None() -> None()
+        Some(captures) -> Some(NamedParse(value, captures))
+
+  fn search_named({result: Type}, named: NamedRegex(result), input: String) -> Option(NamedMatch(result)) = match named
+    NamedRegex(ordinary, compilation, layout, _firstline_only, policy) -> match search(ordinary, input)
+      None() -> None()
+      Some(found) -> match found
+        Match(value, prefix, matched, suffix, _start, _length) ->
+          let position = advance_initial_position_with_policy(subject_initial_position(), Std.String.characters(prefix), policy)
+          let candidate = append_characters(Std.String.characters(matched), Std.String.characters(suffix))
+          match named_prefix_capture_at(compilation, candidate, true, position, layout)
+            None() -> None()
+            Some(NamedPrefixCapture(named_matched, named_remaining, captures)) -> pickup
+              same_characters(named_matched, Std.String.characters(matched)) and same_characters(named_remaining, Std.String.characters(suffix)) -> Some(NamedMatch(found, captures))
+              else -> None()
+
+  fn named_capture(name: String, named: NamedMatch(result)) -> Option(String) = match named
+    NamedMatch(_, captures) -> named_capture_lookup(name, captures)
+
+  fn named_capture_lookup(name: String, captures: List(NamedCapture)) -> Option(String) = match captures
+    [] -> None()
+    [NamedCapture(capture_name, value) | rest] -> pickup
+      same_characters(Std.String.characters(name), Std.String.characters(capture_name)) -> value
+      else -> named_capture_lookup(name, rest)
+
+  fn same_characters(left: List(Char), right: List(Char)) -> Bool = match left
+    [] -> match right
+      [] -> true
+      _ -> false
+    [left_head | left_rest] -> match right
+      [right_head | right_rest] -> left_head == right_head and same_characters(left_rest, right_rest)
+      [] -> false
+
   fn parse_prefix_with({result: Type}, regex: Regex(result), input: String, greedy: Bool) -> Option(Tuple(result, String)) = match compile_regex(regex)
     NoProgram() -> None()
     SomeProgram(program) -> Std.Regex.Proof.parse_program_prefix_verified_at(program, input, greedy, true, true, false, false)

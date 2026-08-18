@@ -9,7 +9,7 @@ defmodule Cure.Stdlib.DependentRegexUnsupportedConstructTest do
       {~S"(a)\1", :UnsupportedRegexNumericEscape, ~S"\1"},
       {~S"\0", :UnsupportedRegexNumericEscape, ~S"\0"},
       {~S"\123", :UnsupportedRegexNumericEscape, ~S"\123"},
-      {~S"(?<name>a)\k<name>", :UnsupportedRegexNamedCapture, "(?<"},
+      {~S"(?<name>a)\k<name>", :UnsupportedRegexBackreference, ~S"\k"},
       {~S"a\g{1}", :UnsupportedRegexBackreference, ~S"\g"},
       {~S"(?R)", :UnsupportedRegexRecursion, "(?R"},
       {~S"(?1)", :UnsupportedRegexRecursion, "(?1"},
@@ -19,9 +19,6 @@ defmodule Cure.Stdlib.DependentRegexUnsupportedConstructTest do
       {~S"(?=a)", :UnsupportedRegexLookahead, "(?="},
       {~S"(?!a)", :UnsupportedRegexLookahead, "(?!"},
       {~S"(?>a)", :UnsupportedRegexAtomicGroup, "(?>"},
-      {~S"(?<name>a)", :UnsupportedRegexNamedCapture, "(?<"},
-      {~S"(?'name'a)", :UnsupportedRegexNamedCapture, "(?\'"},
-      {~S"(?P<name>a)", :UnsupportedRegexNamedCapture, "(?P<"},
       {~S"(?i:a)", :UnsupportedRegexInlineOptions, "(?i"},
       {~S"a*+", :UnsupportedRegexPossessiveQuantifier, "*+"},
       {~S"a{2}+", :UnsupportedRegexPossessiveQuantifier, "{2}+"}

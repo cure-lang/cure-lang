@@ -235,10 +235,13 @@ mod Std.Regex.Runtime
     [Accepted(routine, constraints) | rest] -> [Accepted([instruction | routine], constraints) | prefix_routine(instruction, rest)]
     [Active(state, routine, constraints) | rest] -> [Active(state, [instruction | routine], constraints) | prefix_routine(instruction, rest)]
 
-  fn finish_capture({n: Nat}, states: List(MachineState(n))) -> List(MachineState(n)) = match states
+  fn finish_capture_with({n: Nat}, end_instruction: EvidenceInstruction, states: List(MachineState(n))) -> List(MachineState(n)) = match states
     [] -> []
-    [Accepted(routine, constraints) | rest] -> [Accepted(append_routine(routine, [EndCapture()]), constraints) | finish_capture(rest)]
-    [Active(state, routine, constraints) | rest] -> [Active(state, routine, constraints) | finish_capture(rest)]
+    [Accepted(routine, constraints) | rest] -> [Accepted(append_routine(routine, [end_instruction]), constraints) | finish_capture_with(end_instruction, rest)]
+    [Active(state, routine, constraints) | rest] -> [Active(state, routine, constraints) | finish_capture_with(end_instruction, rest)]
+
+  fn finish_capture({n: Nat}, states: List(MachineState(n))) -> List(MachineState(n)) =
+    finish_capture_with(EndCapture(), states)
 
   @reducible
   fn repeat_accepting({n: Nat}, routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint)) -> List(MachineState(n)) =
@@ -279,11 +282,15 @@ mod Std.Regex.Runtime
   fn empty_machine_next({n: Nat}, _state: Bounded(n), _char: Char) -> List(MachineState(n)) = []
 
   @reducible
-  fn group_machine_next({n: Nat}, next: (Bounded(n)) -> Char -> List(MachineState(n)), state: Bounded(n), char: Char) -> List(MachineState(n)) =
+  fn group_machine_next_with({n: Nat}, next: (Bounded(n)) -> Char -> List(MachineState(n)), end_instruction: EvidenceInstruction, state: Bounded(n), char: Char) -> List(MachineState(n)) =
     match next(state, char)
       [] -> []
-      [Accepted(routine, constraints) | rest] -> [Accepted(append_routine(routine, [EndCapture()]), constraints) | finish_capture(rest)]
-      [Active(active, routine, constraints) | rest] -> [Active(active, routine, constraints) | finish_capture(rest)]
+      [Accepted(routine, constraints) | rest] -> [Accepted(append_routine(routine, [end_instruction]), constraints) | finish_capture_with(end_instruction, rest)]
+      [Active(active, routine, constraints) | rest] -> [Active(active, routine, constraints) | finish_capture_with(end_instruction, rest)]
+
+  @reducible
+  fn group_machine_next({n: Nat}, next: (Bounded(n)) -> Char -> List(MachineState(n)), state: Bounded(n), char: Char) -> List(MachineState(n)) =
+    group_machine_next_with(next, EndCapture(), state, char)
 
   @reducible
   fn concat_machine_next_from_side(left_count: Nat, {right_count: Nat}, left_next: (Bounded(left_count)) -> Char -> List(MachineState(left_count)), right_starts: List(MachineState(right_count)), right_next: (Bounded(right_count)) -> Char -> List(MachineState(right_count)), side: BoundedSum(left_count, right_count), char: Char) -> List(MachineState(plus(left_count, right_count))) =
@@ -373,6 +380,13 @@ mod Std.Regex.Runtime
     MkPatternMachine(
       finish_capture(prefix_routine(BeginCapture(), starts)),
       group_machine_next(next)
+    )
+
+  @reducible
+  fn group_pattern_machine_with_slot(n: Nat, starts: List(MachineState(n)), next: (Bounded(n)) -> Char -> List(MachineState(n)), slot: Nat) -> PatternMachine(n) =
+    MkPatternMachine(
+      finish_capture_with(EndCaptureSlot(slot), prefix_routine(BeginCaptureSlot(slot), starts)),
+      group_machine_next_with(next, EndCaptureSlot(slot))
     )
 
   @reducible
@@ -467,6 +481,80 @@ mod Std.Regex.Runtime
     ThompsonGroup : (inner: ThompsonCompilation(inner_shape)) -> ThompsonCompilation(StringC)
     ThompsonAlternate : (left: ThompsonCompilation(left_shape)) -> (right: ThompsonCompilation(right_shape)) -> (prefer_right: Bool) -> ThompsonCompilation(ChoiceC(left_shape, right_shape))
     ThompsonRepeat : (inner: ThompsonCompilation(inner_shape)) -> (lazy: Bool) -> ThompsonCompilation(ListC(inner_shape))
+
+  ## Named compilation is constructor-for-constructor parallel to the checked
+  ## Thompson tree.  Only group nodes differ: they carry the explicit slot ID
+  ## used by the capture ledger.  Erasing the IDs recovers the ordinary
+  ## compilation, so language proofs can remain independent of names.
+  type NamedThompsonCompilation indices (shape: ShapeCode)
+    NamedThompsonPredicate : (test: (Char -> Bool)) -> NamedThompsonCompilation(CharC)
+    NamedThompsonEmpty : NamedThompsonCompilation(UnitC)
+    NamedThompsonBoundary : (constraint: BoundaryConstraint) -> NamedThompsonCompilation(UnitC)
+    NamedThompsonConcat : (left: NamedThompsonCompilation(left_shape)) -> (right: NamedThompsonCompilation(right_shape)) -> NamedThompsonCompilation(PairC(left_shape, right_shape))
+    NamedThompsonCapture : (inner: NamedThompsonCompilation(inner_shape)) -> NamedThompsonCompilation(StringC)
+    NamedThompsonGroup : (slot: Nat) -> (inner: NamedThompsonCompilation(inner_shape)) -> NamedThompsonCompilation(StringC)
+    NamedThompsonAlternate : (left: NamedThompsonCompilation(left_shape)) -> (right: NamedThompsonCompilation(right_shape)) -> (prefer_right: Bool) -> NamedThompsonCompilation(ChoiceC(left_shape, right_shape))
+    NamedThompsonRepeat : (inner: NamedThompsonCompilation(inner_shape)) -> (lazy: Bool) -> NamedThompsonCompilation(ListC(inner_shape))
+
+  ## Erasure certificate: every named compilation has exactly the ordinary
+  ## Thompson compilation obtained by dropping slot IDs.  This is the bridge
+  ## used by the typed proof path; capture metadata cannot alter language.
+  type NamedCompilationErasure indices (shape: ShapeCode, named: NamedThompsonCompilation(shape), ordinary: ThompsonCompilation(shape))
+    NamedPredicateErasure : NamedCompilationErasure(CharC, NamedThompsonPredicate(test), ThompsonPredicate(test))
+    NamedEmptyErasure : NamedCompilationErasure(UnitC, NamedThompsonEmpty(), ThompsonEmpty())
+    NamedBoundaryErasure : NamedCompilationErasure(UnitC, NamedThompsonBoundary(constraint), ThompsonBoundary(constraint))
+    NamedConcatErasure : {@erased left_shape: ShapeCode} -> {@erased right_shape: ShapeCode} -> {@erased left_named: NamedThompsonCompilation(left_shape)} -> {@erased right_named: NamedThompsonCompilation(right_shape)} -> {@erased left_ordinary: ThompsonCompilation(left_shape)} -> {@erased right_ordinary: ThompsonCompilation(right_shape)} -> (@erased left: NamedCompilationErasure(left_shape, left_named, left_ordinary)) -> (@erased right: NamedCompilationErasure(right_shape, right_named, right_ordinary)) -> NamedCompilationErasure(PairC(left_shape, right_shape), NamedThompsonConcat(left_named, right_named), ThompsonConcat(left_ordinary, right_ordinary))
+    NamedCaptureErasure : {@erased inner_shape: ShapeCode} -> {@erased inner_named: NamedThompsonCompilation(inner_shape)} -> {@erased inner_ordinary: ThompsonCompilation(inner_shape)} -> (@erased inner: NamedCompilationErasure(inner_shape, inner_named, inner_ordinary)) -> NamedCompilationErasure(StringC, NamedThompsonCapture(inner_named), ThompsonGroup(inner_ordinary))
+    NamedGroupErasure : {@erased inner_shape: ShapeCode} -> {@erased inner_named: NamedThompsonCompilation(inner_shape)} -> {@erased inner_ordinary: ThompsonCompilation(inner_shape)} -> (slot: Nat) -> (@erased inner: NamedCompilationErasure(inner_shape, inner_named, inner_ordinary)) -> NamedCompilationErasure(StringC, NamedThompsonGroup(slot, inner_named), ThompsonGroup(inner_ordinary))
+    NamedAlternateErasure : {@erased left_shape: ShapeCode} -> {@erased right_shape: ShapeCode} -> {@erased left_named: NamedThompsonCompilation(left_shape)} -> {@erased right_named: NamedThompsonCompilation(right_shape)} -> {@erased left_ordinary: ThompsonCompilation(left_shape)} -> {@erased right_ordinary: ThompsonCompilation(right_shape)} -> (@erased left: NamedCompilationErasure(left_shape, left_named, left_ordinary)) -> (@erased right: NamedCompilationErasure(right_shape, right_named, right_ordinary)) -> (prefer_right: Bool) -> NamedCompilationErasure(ChoiceC(left_shape, right_shape), NamedThompsonAlternate(left_named, right_named, prefer_right), ThompsonAlternate(left_ordinary, right_ordinary, prefer_right))
+    NamedRepeatErasure : {@erased inner_shape: ShapeCode} -> {@erased inner_named: NamedThompsonCompilation(inner_shape)} -> {@erased inner_ordinary: ThompsonCompilation(inner_shape)} -> (@erased inner: NamedCompilationErasure(inner_shape, inner_named, inner_ordinary)) -> (lazy: Bool) -> NamedCompilationErasure(ListC(inner_shape), NamedThompsonRepeat(inner_named, lazy), ThompsonRepeat(inner_ordinary, lazy))
+
+  fn certify_named_compilation({shape: ShapeCode}, compilation: NamedThompsonCompilation(shape)) -> NamedCompilationErasure(shape, compilation, erase_named_thompson(compilation)) = match compilation
+    NamedThompsonPredicate(_) -> NamedPredicateErasure()
+    NamedThompsonEmpty() -> NamedEmptyErasure()
+    NamedThompsonBoundary(_) -> NamedBoundaryErasure()
+    NamedThompsonConcat(left, right) -> NamedConcatErasure(certify_named_compilation(left), certify_named_compilation(right))
+    NamedThompsonCapture(inner) -> NamedCaptureErasure(certify_named_compilation(inner))
+    NamedThompsonGroup(slot, inner) -> NamedGroupErasure(slot, certify_named_compilation(inner))
+    NamedThompsonAlternate(left, right, prefer_right) -> NamedAlternateErasure(certify_named_compilation(left), certify_named_compilation(right), prefer_right)
+    NamedThompsonRepeat(inner, lazy) -> NamedRepeatErasure(certify_named_compilation(inner), lazy)
+
+  @reducible
+  fn named_thompson_state_count({@erased shape: ShapeCode}, compilation: NamedThompsonCompilation(shape)) -> Nat = match compilation
+    NamedThompsonPredicate(_) -> S(Z())
+    NamedThompsonEmpty() -> Z()
+    NamedThompsonBoundary(_) -> Z()
+    NamedThompsonConcat(left, right) -> plus(named_thompson_state_count(left), named_thompson_state_count(right))
+    NamedThompsonCapture(inner) -> named_thompson_state_count(inner)
+    NamedThompsonGroup(_, inner) -> named_thompson_state_count(inner)
+    NamedThompsonAlternate(left, right, _) -> plus(named_thompson_state_count(left), named_thompson_state_count(right))
+    NamedThompsonRepeat(inner, _) -> named_thompson_state_count(inner)
+
+  @reducible
+  fn erase_named_thompson({@erased shape: ShapeCode}, compilation: NamedThompsonCompilation(shape)) -> ThompsonCompilation(shape) = match compilation
+    NamedThompsonPredicate(test) -> ThompsonPredicate(test)
+    NamedThompsonEmpty() -> ThompsonEmpty()
+    NamedThompsonBoundary(constraint) -> ThompsonBoundary(constraint)
+    NamedThompsonConcat(left, right) -> ThompsonConcat(erase_named_thompson(left), erase_named_thompson(right))
+    NamedThompsonCapture(inner) -> ThompsonGroup(erase_named_thompson(inner))
+    NamedThompsonGroup(_, inner) -> ThompsonGroup(erase_named_thompson(inner))
+    NamedThompsonAlternate(left, right, prefer_right) -> ThompsonAlternate(erase_named_thompson(left), erase_named_thompson(right), prefer_right)
+    NamedThompsonRepeat(inner, lazy) -> ThompsonRepeat(erase_named_thompson(inner), lazy)
+
+  @reducible
+  fn named_thompson_machine({@erased shape: ShapeCode}, compilation: NamedThompsonCompilation(shape)) -> PatternMachine(named_thompson_state_count(compilation)) = match compilation
+    NamedThompsonPredicate(test) -> predicate_pattern_machine(test)
+    NamedThompsonEmpty() -> empty_pattern_machine()
+    NamedThompsonBoundary(constraint) -> boundary_pattern_machine(constraint)
+    NamedThompsonConcat(left, right) -> concat_pattern_machine(named_thompson_state_count(left), named_thompson_machine(left), named_thompson_state_count(right), named_thompson_machine(right))
+    NamedThompsonCapture(inner) ->
+      let inner_machine = named_thompson_machine(inner)
+      group_pattern_machine(named_thompson_state_count(inner), pattern_machine_starts(inner_machine), pattern_machine_next(inner_machine))
+    NamedThompsonGroup(slot, inner) ->
+      let inner_machine = named_thompson_machine(inner)
+      group_pattern_machine_with_slot(named_thompson_state_count(inner), pattern_machine_starts(inner_machine), pattern_machine_next(inner_machine), slot)
+    NamedThompsonAlternate(left, right, prefer_right) -> alternate_pattern_machine(named_thompson_state_count(left), named_thompson_machine(left), named_thompson_state_count(right), named_thompson_machine(right), prefer_right)
+    NamedThompsonRepeat(inner, lazy) -> repeat_pattern_machine(named_thompson_state_count(inner), named_thompson_machine(inner), lazy)
 
   @reducible
   fn thompson_state_count({@erased shape: ShapeCode}, compilation: ThompsonCompilation(shape)) -> Nat = match compilation
@@ -1059,7 +1147,11 @@ mod Std.Regex.Runtime
     BeginList() -> EvidenceExecution([BeginListEvidence() | evidence], captures)
     EndList() -> EvidenceExecution([EndListEvidence() | evidence], captures)
     BeginCapture() -> EvidenceExecution(evidence, [CaptureFrame([], evidence) | captures])
+    BeginCaptureSlot(_) -> EvidenceExecution(evidence, [CaptureFrame([], evidence) | captures])
     EndCapture() -> match captures
+      [] -> EvidenceExecution(evidence, [])
+      [CaptureFrame(chars, saved) | rest] -> EvidenceExecution([StringEvidence(Std.String.from_characters(evidence_reverse_chars(chars))) | saved], rest)
+    EndCaptureSlot(_) -> match captures
       [] -> EvidenceExecution(evidence, [])
       [CaptureFrame(chars, saved) | rest] -> EvidenceExecution([StringEvidence(Std.String.from_characters(evidence_reverse_chars(chars))) | saved], rest)
 
@@ -1163,6 +1255,92 @@ mod Std.Regex.Runtime
     [instruction | rest] -> match execute_extended_evidence_instruction(instruction, evidence, captures)
       EvidenceExecution(next_evidence, next_captures) -> execute_extended_evidence_routine(rest, next_evidence, next_captures)
 
+  ## A named replay is deliberately separate from the evidence VM.  The
+  ## ordinary certificate still proves the typed evidence; this effect-free
+  ## interpreter replays the same certified routine and records only slot
+  ## participation/text.  No host regex engine or second language semantics
+  ## is involved.
+  type NamedCaptureFrame = NamedCaptureFrame(Option(Nat), List(Char))
+  type NamedCaptureLedgerEntry = NamedCaptureLedgerEntry(Nat, Option(String))
+  type NamedCaptureExecution = NamedCaptureExecution(List(NamedCaptureFrame), List(NamedCaptureLedgerEntry))
+
+  @reducible
+  fn record_named_capture_char(frames: List(NamedCaptureFrame), char: Char) -> List(NamedCaptureFrame) = match frames
+    [] -> []
+    [NamedCaptureFrame(slot, chars) | rest] -> [NamedCaptureFrame(slot, [char | chars]) | record_named_capture_char(rest, char)]
+
+  @reducible
+  fn same_capture_slot(left: Nat, right: Nat) -> Bool = match left
+    Z() -> match right
+      Z() -> true
+      S(_) -> false
+    S(left_rest) -> match right
+      Z() -> false
+      S(right_rest) -> same_capture_slot(left_rest, right_rest)
+
+  @reducible
+  fn update_named_capture_ledger(slot: Nat, value: String, entries: List(NamedCaptureLedgerEntry)) -> List(NamedCaptureLedgerEntry) = match entries
+    [] -> []
+    [NamedCaptureLedgerEntry(entry_slot, current_value) | rest] -> pickup
+      same_capture_slot(slot, entry_slot) -> [NamedCaptureLedgerEntry(entry_slot, Some(value)) | rest]
+      else -> [NamedCaptureLedgerEntry(entry_slot, current_value) | update_named_capture_ledger(slot, value, rest)]
+
+  @reducible
+  fn named_capture_value(slot: Nat, entries: List(NamedCaptureLedgerEntry)) -> Option(String) = match entries
+    [] -> None()
+    [NamedCaptureLedgerEntry(entry_slot, value) | rest] -> pickup
+      same_capture_slot(slot, entry_slot) -> value
+      else -> named_capture_value(slot, rest)
+
+  @reducible
+  fn close_named_capture_frame(frames: List(NamedCaptureFrame), entries: List(NamedCaptureLedgerEntry)) -> NamedCaptureExecution = match frames
+    [] -> NamedCaptureExecution([], entries)
+    [NamedCaptureFrame(slot, chars) | rest] -> match slot
+      None() -> NamedCaptureExecution(rest, entries)
+      Some(slot_id) -> NamedCaptureExecution(rest, update_named_capture_ledger(slot_id, Std.String.from_characters(evidence_reverse_chars(chars)), entries))
+
+  @reducible
+  fn execute_named_instruction(instruction: EvidenceInstruction, frames: List(NamedCaptureFrame), entries: List(NamedCaptureLedgerEntry)) -> NamedCaptureExecution = match instruction
+    BeginCapture() -> NamedCaptureExecution([NamedCaptureFrame(None(), []) | frames], entries)
+    BeginCaptureSlot(slot) -> NamedCaptureExecution([NamedCaptureFrame(Some(slot), []) | frames], entries)
+    EndCapture() -> close_named_capture_frame(frames, entries)
+    EndCaptureSlot(_) -> close_named_capture_frame(frames, entries)
+    _ -> NamedCaptureExecution(frames, entries)
+
+  @reducible
+  fn execute_named_extended_instruction(instruction: ExtendedInstruction, frames: List(NamedCaptureFrame), entries: List(NamedCaptureLedgerEntry)) -> NamedCaptureExecution = match instruction
+    Observe(char) -> NamedCaptureExecution(record_named_capture_char(frames, char), entries)
+    Regular(regular) -> execute_named_instruction(regular, frames, entries)
+
+  @reducible
+  fn execute_named_extended_routine(routine: List(ExtendedInstruction), frames: List(NamedCaptureFrame), entries: List(NamedCaptureLedgerEntry)) -> NamedCaptureExecution = match routine
+    [] -> NamedCaptureExecution(frames, entries)
+    [instruction | rest] -> match execute_named_extended_instruction(instruction, frames, entries)
+      NamedCaptureExecution(next_frames, next_entries) -> execute_named_extended_routine(rest, next_frames, next_entries)
+
+  @reducible
+  fn capture_ledger_from_layout(layout: CaptureLayout) -> List(NamedCaptureLedgerEntry) = match layout
+    CaptureLayout(slots) -> capture_ledger_from_slots(slots)
+
+  @reducible
+  fn capture_ledger_from_slots(slots: List(CaptureSlot)) -> List(NamedCaptureLedgerEntry) = match slots
+    [] -> []
+    [CaptureSlot(slot, _) | rest] -> [NamedCaptureLedgerEntry(slot, None()) | capture_ledger_from_slots(rest)]
+
+  @reducible
+  fn named_captures_from_layout(layout: CaptureLayout, entries: List(NamedCaptureLedgerEntry)) -> List(NamedCapture) = match layout
+    CaptureLayout(slots) -> named_captures_from_slots(slots, entries)
+
+  @reducible
+  fn named_captures_from_slots(slots: List(CaptureSlot), entries: List(NamedCaptureLedgerEntry)) -> List(NamedCapture) = match slots
+    [] -> []
+    [CaptureSlot(slot, Some(name)) | rest] -> [NamedCapture(name, named_capture_value(slot, entries)) | named_captures_from_slots(rest, entries)]
+    [CaptureSlot(_, None()) | rest] -> named_captures_from_slots(rest, entries)
+
+  fn replay_named_capture_routine(routine: List(ExtendedInstruction), layout: CaptureLayout) -> Option(List(NamedCapture)) = match execute_named_extended_routine(routine, [], capture_ledger_from_layout(layout))
+    NamedCaptureExecution([], entries) -> Some(named_captures_from_layout(layout, entries))
+    NamedCaptureExecution(_, _) -> None()
+
   type CertifiedPathRoutine indices (routine: List(ExtendedInstruction), input_evidence: List(Evidence), input_captures: List(CaptureFrame), output_evidence: List(Evidence))
     PathRoutineDone : CertifiedPathRoutine(Nil(), evidence, captures, evidence)
     PathRoutineTransition : (char: Char) -> (regular: List(EvidenceInstruction)) -> (suffix_routine: List(ExtendedInstruction)) -> (destination_evidence: List(Evidence)) -> (destination_captures: List(CaptureFrame)) -> (regular_execution : ExtendedEvidenceRoutineExecution(regular_routine(regular), source_evidence, record_capture_char(source_captures, char), destination_evidence, destination_captures)) -> (suffix : CertifiedPathRoutine(suffix_routine, destination_evidence, destination_captures, final_evidence)) -> CertifiedPathRoutine(append_extended_routines(transition_routine(char, regular), suffix_routine), source_evidence, source_captures, final_evidence)
@@ -1220,6 +1398,15 @@ mod Std.Regex.Runtime
   fn advance_initial_position(position: InitialPosition, input: List(Char)) -> InitialPosition = match input
     Nil() -> position
     Cons(char, rest) -> advance_initial_position(position_after_character(char), rest)
+
+  @reducible
+  fn position_after_character_with_policy(char: Char, policy: NewlinePolicy) -> InitialPosition =
+    InitialPosition(False(), newline_char(policy, char), ascii_word(char), option_word(char, True()), Some(char))
+
+  @reducible
+  fn advance_initial_position_with_policy(position: InitialPosition, input: List(Char), policy: NewlinePolicy) -> InitialPosition = match input
+    Nil() -> position
+    Cons(char, rest) -> advance_initial_position_with_policy(position_after_character_with_policy(char, policy), rest, policy)
 
   fn initial_position_boundary(position: InitialPosition, input: List(Char)) -> Boundary = match position
     InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word, previous_char) ->
@@ -1586,6 +1773,15 @@ mod Std.Regex.Runtime
     EndAnchor : Bool -> Regex(Unit)
     StrictEndAnchor : Regex(Unit)
 
+  ## Named capture metadata is additive.  It never enters ShapeCode or the
+  ## ordinary Match tuple, so existing typed regex APIs remain unchanged.
+  type CaptureSlot = CaptureSlot(Nat, Option(String))
+  type CaptureLayout = CaptureLayout(List(CaptureSlot))
+  type NamedCapture = NamedCapture(String, Option(String))
+  type NamedMatch(result: Type) = NamedMatch(Match(result), List(NamedCapture))
+  type NamedParse(result: Type) = NamedParse(result, List(NamedCapture))
+  type NamedRegex(result: Type) = NamedRegex(Regex(result), NamedThompsonCompilation(shape), CaptureLayout, Bool, NewlinePolicy)
+
   type Conversion indices (raw: Type, result: Type)
     IdentityConversion : Conversion(value, value)
     ApplyConversion : (raw -> result) -> Conversion(raw, result)
@@ -1818,6 +2014,30 @@ mod Std.Regex.Runtime
       multiline -> SomeProgram(BuiltRegex(UnitC, PatternBoundary(line_end_constraint()), unit_identity_conversion(), NoCompilationHint()))
       else -> SomeProgram(BuiltRegex(UnitC, PatternBoundary(subject_end_constraint()), unit_identity_conversion(), NoCompilationHint()))
     StrictEndAnchor() -> SomeProgram(BuiltRegex(UnitC, PatternBoundary(strict_end_constraint()), unit_identity_conversion(), NoCompilationHint()))
+
+  fn named_staged({result: Type}, {shape: ShapeCode}, ordinary: Regex(result), compilation: NamedThompsonCompilation(shape), layout: CaptureLayout, firstline_only: Bool, policy: NewlinePolicy) -> NamedRegex(result) =
+    named_staged_checked(ordinary, compilation, layout, firstline_only, policy, certify_named_compilation(compilation))
+
+  fn named_staged_checked({result: Type}, {shape: ShapeCode}, ordinary: Regex(result), compilation: NamedThompsonCompilation(shape), layout: CaptureLayout, firstline_only: Bool, policy: NewlinePolicy, @erased _proof: NamedCompilationErasure(shape, compilation, erase_named_thompson(compilation))) -> NamedRegex(result) =
+    NamedRegex(ordinary, compilation, layout, firstline_only, policy)
+
+  type NamedPrefixCapture = NamedPrefixCapture(List(Char), List(Char), List(NamedCapture))
+
+  fn named_full_capture({shape: ShapeCode}, compilation: NamedThompsonCompilation(shape), input: String, layout: CaptureLayout) -> Option(List(NamedCapture)) =
+    let characters = Std.String.characters(input)
+    match search_machine_acceptance(named_thompson_state_count(compilation), named_thompson_machine(compilation), subject_initial_position(), characters, [])
+      MachineNoAcceptingPath() -> None()
+      MachineAcceptingPath(_, routine, _) -> replay_named_capture_routine(routine, layout)
+
+  fn named_prefix_capture_at({shape: ShapeCode}, compilation: NamedThompsonCompilation(shape), input: List(Char), greedy: Bool, position: InitialPosition, layout: CaptureLayout) -> Option(NamedPrefixCapture) =
+    let result = pickup
+      greedy -> search_last_machine_prefix(named_thompson_state_count(compilation), named_thompson_machine(compilation), position, input)
+      else -> search_first_machine_prefix(named_thompson_state_count(compilation), named_thompson_machine(compilation), position, input)
+    match result
+      NoCertifiedPrefix() -> None()
+      CertifiedPrefixPath(matched, remaining, _, routine, _) -> match replay_named_capture_routine(routine, layout)
+        None() -> None()
+        Some(captures) -> Some(NamedPrefixCapture(matched, remaining, captures))
 
   fn empty() -> Regex(Unit) = FromPattern(UnitC, PatternEmpty())
 

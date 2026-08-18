@@ -62,6 +62,10 @@ mod Std.Regex.Syntax
     :UnsupportedRegexLookahead -> "Lookahead assertions are not supported by Cure's finite regex language."
     :UnsupportedRegexAtomicGroup -> "Atomic groups are not supported by Cure's ordered finite regex language."
     :UnsupportedRegexNamedCapture -> "Named capture syntax is not supported; captures are returned by their typed position."
+    :EmptyRegexCaptureName -> "This named capture has an empty name."
+    :MalformedRegexCaptureName -> "A named capture name must start with a letter or `_` and contain only letters, digits, or `_`."
+    :UnclosedRegexCaptureName -> "This named capture is missing the closing name delimiter."
+    :DuplicateRegexCaptureName -> "This named capture name is already used by an earlier capture in the regex."
     :UnsupportedRegexInlineOptions -> "Regex modifiers cannot be changed inside a Cure regex literal."
     :UnsupportedRegexNewlineControl -> "This newline control is only valid as the first token of a regex literal."
     :UnclosedRegexGroup -> "This regex group is missing its closing `)`."
@@ -110,6 +114,10 @@ mod Std.Regex.Syntax
     :UnsupportedRegexLookahead -> "Match the required suffix explicitly and retain only the desired typed capture."
     :UnsupportedRegexAtomicGroup -> "Use an ordinary group; Cure already applies deterministic ordered-choice semantics."
     :UnsupportedRegexNamedCapture -> "Use an ordinary capture group and destructure the regex's inferred result type."
+    :EmptyRegexCaptureName -> "Put a non-empty identifier between the capture delimiters."
+    :MalformedRegexCaptureName -> "Use a name such as `word` or `capture_1`."
+    :UnclosedRegexCaptureName -> "Close the capture name with `>` or `'` before writing its body."
+    :DuplicateRegexCaptureName -> "Rename one of the captures so every name identifies exactly one slot."
     :UnsupportedRegexInlineOptions -> "Put modifiers after the closing `/`, for example `/pattern/im`."
     :UnsupportedRegexNewlineControl -> "Move the control to the beginning of the literal, before the first regex atom."
     :UnclosedRegexGroup -> "Close the highlighted group with `)`."
@@ -133,14 +141,29 @@ mod Std.Regex.Syntax
         LiteralPrepared(prepared, positions, source_length) ->
           match parse_literal(prepared)
             LiteralParsed(parsed, rest) -> match rest
-              [] -> match literal_pattern_options(parsed, options)
-                LiteralPatternOptions(effective_pattern, effective_options) ->
-                  expand(
-                    call("Std.Regex.Runtime.configured", [
-                      emit_options(effective_options),
-                      call("Std.Regex.Runtime.simplified", [emit_shape(literal_shape(effective_pattern)), emit_staged_literal_with_options(effective_pattern, effective_options)])
-                    ])
-                  )
+              [] -> match allocate_literal_captures(parsed)
+                LiteralCaptureAllocationInvalid(reason, name) -> reject_unlocated_literal(pattern_syntax, reason)
+                LiteralCaptureAllocated(numbered, layout) -> match literal_pattern_options(numbered, options)
+                  LiteralPatternOptions(effective_pattern, effective_options) ->
+                    pickup
+                      literal_capture_layout_has_names(layout) -> expand(
+                        call("Std.Regex.Runtime.named_staged", [
+                          call("Std.Regex.Runtime.configured", [
+                            emit_options(effective_options),
+                            call("Std.Regex.Runtime.simplified", [emit_shape(literal_shape(effective_pattern)), emit_staged_literal_with_options(effective_pattern, effective_options)])
+                          ]),
+                          emit_named_staged_compilation(effective_pattern, effective_options),
+                          emit_capture_layout(layout),
+                          bool_literal(has_modifier(effective_options, FirstlineModifier)),
+                          emit_newline_policy(effective_options)
+                        ])
+                      )
+                      else -> expand(
+                        call("Std.Regex.Runtime.configured", [
+                          emit_options(effective_options),
+                          call("Std.Regex.Runtime.simplified", [emit_shape(literal_shape(effective_pattern)), emit_staged_literal_with_options(effective_pattern, effective_options)])
+                        ])
+                      )
               _ -> reject(Failure(:UnexpectedRegexSuffix, []))
             LiteralInvalid(reason) -> reject_unlocated_literal(pattern_syntax, reason)
             LiteralAtInvalid(reason, _, _) -> reject_unlocated_literal(pattern_syntax, reason)

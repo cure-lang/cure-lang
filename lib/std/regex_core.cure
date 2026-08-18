@@ -310,6 +310,8 @@ mod Std.Regex.Core
     | EndList
     | BeginCapture
     | EndCapture
+    | BeginCaptureSlot(Nat)
+    | EndCaptureSlot(Nat)
 
   type NewlinePolicy = LFNewline | CRNewline | CRLFNewline | AnyCRLFNewline | AnyUnicodeNewline
   type BoundaryConstraint = BoundaryConstraint(Bool, Bool, Bool, Bool, Bool, Bool, Bool, Bool, Bool, NewlinePolicy)

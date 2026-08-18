@@ -178,12 +178,12 @@ mod Std.Regex.Syntax.Parser
       ['?', '(' | _] -> LiteralAtInvalid(:UnsupportedRegexConditional, origin, 3)
       ['?', '<', '=' | _] -> LiteralAtInvalid(:UnsupportedRegexLookbehind, origin, 4)
       ['?', '<', '!' | _] -> LiteralAtInvalid(:UnsupportedRegexLookbehind, origin, 4)
+      ['?', '<', first | rest] -> parse_literal_named_capture_angle(first, rest, next_fuel, origin, [])
       ['?', '=' | _] -> LiteralAtInvalid(:UnsupportedRegexLookahead, origin, 3)
       ['?', '!' | _] -> LiteralAtInvalid(:UnsupportedRegexLookahead, origin, 3)
       ['?', '>' | _] -> LiteralAtInvalid(:UnsupportedRegexAtomicGroup, origin, 3)
-      ['?', '<' | _] -> LiteralAtInvalid(:UnsupportedRegexNamedCapture, origin, 3)
-      ['?', '\'' | _] -> LiteralAtInvalid(:UnsupportedRegexNamedCapture, origin, 3)
-      ['?', 'P', '<' | _] -> LiteralAtInvalid(:UnsupportedRegexNamedCapture, origin, 4)
+      ['?', '\'' | rest] -> parse_literal_named_capture_quote(rest, next_fuel, origin, [])
+      ['?', 'P', '<' | rest] -> parse_literal_named_capture_angle_tail(rest, next_fuel, origin, [])
       ['?', 'i' | _] -> LiteralAtInvalid(:UnsupportedRegexInlineOptions, origin, 3)
       ['?', 'm' | _] -> LiteralAtInvalid(:UnsupportedRegexInlineOptions, origin, 3)
       ['?', 's' | _] -> LiteralAtInvalid(:UnsupportedRegexInlineOptions, origin, 3)
@@ -197,6 +197,58 @@ mod Std.Regex.Syntax.Parser
         Some(_) -> LiteralAtInvalid(:UnsupportedRegexRecursion, origin, 3)
         None() -> parse_literal_capture_fuel(input, next_fuel, origin)
       _ -> parse_literal_capture_fuel(input, next_fuel, origin)
+
+  fn parse_literal_named_capture_angle(first: Char, input: List(Char), fuel: Nat, origin: List(Char), reversed: List(Char)) -> LiteralParse =
+    parse_literal_named_capture_angle_tail([first | input], fuel, origin, reversed)
+
+  fn parse_literal_named_capture_angle_tail(input: List(Char), fuel: Nat, origin: List(Char), reversed: List(Char)) -> LiteralParse = match fuel
+    Z() -> LiteralInvalid(:RegexParseLimit)
+    S(next_fuel) -> match input
+      [] -> LiteralAtInvalid(:UnclosedRegexCaptureName, origin, literal_delimited_width(origin, '>'))
+      ['>' | rest] -> match reversed
+        [] -> LiteralAtInvalid(:EmptyRegexCaptureName, origin, literal_delimited_width(origin, '>'))
+        _ -> match capture_name_is_valid(reverse_chars(reversed))
+          true -> parse_literal_named_capture_body(rest, next_fuel, origin, Std.String.from_characters(reverse_chars(reversed)))
+          false -> LiteralAtInvalid(:MalformedRegexCaptureName, origin, literal_delimited_width(origin, '>'))
+      [char | rest] -> pickup
+        char == '>' or char == ')' -> LiteralAtInvalid(:MalformedRegexCaptureName, origin, literal_delimited_width(origin, '>'))
+        else -> parse_literal_named_capture_angle_tail(rest, next_fuel, origin, [char | reversed])
+
+  fn parse_literal_named_capture_quote(input: List(Char), fuel: Nat, origin: List(Char), reversed: List(Char)) -> LiteralParse = match fuel
+    Z() -> LiteralInvalid(:RegexParseLimit)
+    S(next_fuel) -> match input
+      [] -> LiteralAtInvalid(:UnclosedRegexCaptureName, origin, literal_delimited_width(origin, '\''))
+      ['\'' | rest] -> match reversed
+        [] -> LiteralAtInvalid(:EmptyRegexCaptureName, origin, literal_delimited_width(origin, '\''))
+        _ -> match capture_name_is_valid(reverse_chars(reversed))
+          true -> parse_literal_named_capture_body(rest, next_fuel, origin, Std.String.from_characters(reverse_chars(reversed)))
+          false -> LiteralAtInvalid(:MalformedRegexCaptureName, origin, literal_delimited_width(origin, '\''))
+      [char | rest] -> pickup
+        char == ')' or char == '>' -> LiteralAtInvalid(:MalformedRegexCaptureName, origin, literal_delimited_width(origin, '\''))
+        else -> parse_literal_named_capture_quote(rest, next_fuel, origin, [char | reversed])
+
+  fn parse_literal_named_capture_body(input: List(Char), fuel: Nat, origin: List(Char), name: String) -> LiteralParse = match fuel
+    Z() -> LiteralInvalid(:RegexParseLimit)
+    S(next_fuel) -> match parse_literal_alternate_fuel(input, next_fuel)
+      LiteralParsed(pattern, [')' | rest]) -> LiteralParsed(LiteralNamedCapture(name, pattern), rest)
+      LiteralParsed(_, _) -> LiteralAtInvalid(:UnclosedRegexGroup, origin, literal_length(origin))
+      LiteralInvalid(reason) -> LiteralInvalid(reason)
+      LiteralAtInvalid(reason, suffix, width) -> LiteralAtInvalid(reason, suffix, width)
+      LiteralLocatedInvalid(reason, start, width) -> LiteralLocatedInvalid(reason, start, width)
+
+  fn capture_name_is_valid(name: List(Char)) -> Bool = match name
+    [] -> false
+    [first | rest] -> capture_name_start(first) and capture_name_tail_is_valid(rest)
+
+  fn capture_name_tail_is_valid(name: List(Char)) -> Bool = match name
+    [] -> true
+    [head | rest] -> capture_name_continue(head) and capture_name_tail_is_valid(rest)
+
+  fn capture_name_start(char: Char) -> Bool =
+    Std.Char.between(char, 'A', 'Z') or Std.Char.between(char, 'a', 'z') or char == '_'
+
+  fn capture_name_continue(char: Char) -> Bool =
+    capture_name_start(char) or Std.Char.between(char, '0', '9')
 
   fn parse_literal_capture_fuel(input: List(Char), fuel: Nat, origin: List(Char)) -> LiteralParse = match fuel
     Z() -> LiteralInvalid(:RegexParseLimit)
