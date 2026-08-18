@@ -77,9 +77,9 @@ mod Std.Regex.Syntax.Parser
   fn parse_literal_repetition_fuel(input: List(Char), fuel: Nat) -> LiteralParse = match fuel
     Z() -> LiteralInvalid(:RegexParseLimit)
     S(next_fuel) -> match parse_literal_atom_fuel(input, next_fuel)
-      LiteralParsed(_, ['*', '+' | rest]) -> LiteralAtInvalid(:UnsupportedRegexPossessiveQuantifier, ['*', '+' | rest], 2)
-      LiteralParsed(_, ['+', '+' | rest]) -> LiteralAtInvalid(:UnsupportedRegexPossessiveQuantifier, ['+', '+' | rest], 2)
-      LiteralParsed(_, ['?', '+' | rest]) -> LiteralAtInvalid(:UnsupportedRegexPossessiveQuantifier, ['?', '+' | rest], 2)
+      LiteralParsed(atom, ['*', '+' | rest]) -> LiteralParsed(LiteralAtomic(LiteralRepeat(atom, false)), rest)
+      LiteralParsed(atom, ['+', '+' | rest]) -> LiteralParsed(LiteralAtomic(LiteralPlus(atom, false)), rest)
+      LiteralParsed(atom, ['?', '+' | rest]) -> LiteralParsed(LiteralAtomic(LiteralOptional(atom, false)), rest)
       LiteralParsed(atom, ['*', '?' | rest]) -> LiteralParsed(LiteralRepeat(atom, true), rest)
       LiteralParsed(atom, ['+', '?' | rest]) -> LiteralParsed(LiteralPlus(atom, true), rest)
       LiteralParsed(atom, ['?', '?' | rest]) -> LiteralParsed(LiteralOptional(atom, true), rest)
@@ -101,20 +101,17 @@ mod Std.Regex.Syntax.Parser
   fn literal_bounded_failure(reason: Atom, origin: List(Char)) -> LiteralParse =
     LiteralAtInvalid(reason, origin, literal_delimited_width(origin, '}'))
 
-  fn literal_bounded_possessive_failure(origin: List(Char)) -> LiteralParse =
-    LiteralAtInvalid(:UnsupportedRegexPossessiveQuantifier, origin, S(literal_delimited_width(origin, '}')))
-
   fn finish_literal_exact_bounded(atom: LiteralPattern, count: Nat, rest: List(Char), origin: List(Char)) -> LiteralParse = pickup
     bounded_count_allowed(count) -> match rest
       ['?' | tail] -> LiteralParsed(LiteralBoundedExact(atom, count), tail)
-      ['+' | _] -> literal_bounded_possessive_failure(origin)
+      ['+' | tail] -> LiteralParsed(LiteralAtomic(LiteralBoundedExact(atom, count)), tail)
       _ -> LiteralParsed(LiteralBoundedExact(atom, count), rest)
     else -> literal_bounded_failure(:RegexQuantifierTooLarge, origin)
 
   fn finish_literal_at_least_bounded(atom: LiteralPattern, count: Nat, rest: List(Char), origin: List(Char)) -> LiteralParse = pickup
     bounded_count_allowed(count) -> match rest
       ['?' | tail] -> LiteralParsed(LiteralBoundedAtLeast(atom, count, true), tail)
-      ['+' | _] -> literal_bounded_possessive_failure(origin)
+      ['+' | tail] -> LiteralParsed(LiteralAtomic(LiteralBoundedAtLeast(atom, count, false)), tail)
       _ -> LiteralParsed(LiteralBoundedAtLeast(atom, count, false), rest)
     else -> literal_bounded_failure(:RegexQuantifierTooLarge, origin)
 
@@ -123,7 +120,7 @@ mod Std.Regex.Syntax.Parser
     literal_nat_less(maximum, minimum) -> literal_bounded_failure(:RegexQuantifierRangeReversed, origin)
     else -> match rest
       ['?' | tail] -> LiteralParsed(LiteralBoundedBetween(atom, minimum, maximum, true), tail)
-      ['+' | _] -> literal_bounded_possessive_failure(origin)
+      ['+' | tail] -> LiteralParsed(LiteralAtomic(LiteralBoundedBetween(atom, minimum, maximum, false)), tail)
       _ -> LiteralParsed(LiteralBoundedBetween(atom, minimum, maximum, false), rest)
 
   fn parse_literal_bounded_maximum(atom: LiteralPattern, minimum: Nat, input: List(Char), origin: List(Char)) -> LiteralParse = match parse_literal_count(input, Z(), false)
@@ -182,7 +179,7 @@ mod Std.Regex.Syntax.Parser
       ['?', '<', first | rest] -> parse_literal_named_capture_angle(first, rest, next_fuel, origin, [])
       ['?', '=' | _] -> LiteralAtInvalid(:UnsupportedRegexLookahead, origin, 3)
       ['?', '!' | _] -> LiteralAtInvalid(:UnsupportedRegexLookahead, origin, 3)
-      ['?', '>' | _] -> LiteralAtInvalid(:UnsupportedRegexAtomicGroup, origin, 3)
+      ['?', '>' | rest] -> parse_literal_atomic_fuel(rest, next_fuel, origin)
       ['?', '\'' | rest] -> parse_literal_named_capture_quote(rest, next_fuel, origin, [])
       ['?', 'P', '<' | rest] -> parse_literal_named_capture_angle_tail(rest, next_fuel, origin, [])
       ['?', 'i' | _] -> LiteralAtInvalid(:UnsupportedRegexInlineOptions, origin, 3)
@@ -346,6 +343,15 @@ mod Std.Regex.Syntax.Parser
     Z() -> LiteralInvalid(:RegexParseLimit)
     S(next_fuel) -> match parse_literal_alternate_fuel(input, next_fuel)
       LiteralParsed(pattern, [')' | rest]) -> LiteralParsed(pattern, rest)
+      LiteralParsed(_, _) -> LiteralAtInvalid(:UnclosedRegexGroup, origin, literal_length(origin))
+      LiteralInvalid(reason) -> LiteralInvalid(reason)
+      LiteralAtInvalid(reason, suffix, width) -> LiteralAtInvalid(reason, suffix, width)
+      LiteralLocatedInvalid(reason, start, width) -> LiteralLocatedInvalid(reason, start, width)
+
+  fn parse_literal_atomic_fuel(input: List(Char), fuel: Nat, origin: List(Char)) -> LiteralParse = match fuel
+    Z() -> LiteralInvalid(:RegexParseLimit)
+    S(next_fuel) -> match parse_literal_alternate_fuel(input, next_fuel)
+      LiteralParsed(pattern, [')' | rest]) -> LiteralParsed(LiteralAtomic(pattern), rest)
       LiteralParsed(_, _) -> LiteralAtInvalid(:UnclosedRegexGroup, origin, literal_length(origin))
       LiteralInvalid(reason) -> LiteralInvalid(reason)
       LiteralAtInvalid(reason, suffix, width) -> LiteralAtInvalid(reason, suffix, width)

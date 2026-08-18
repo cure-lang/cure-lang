@@ -292,6 +292,29 @@ mod Std.Regex.Runtime
   fn group_machine_next({n: Nat}, next: (Bounded(n)) -> Char -> List(MachineState(n)), state: Bounded(n), char: Char) -> List(MachineState(n)) =
     group_machine_next_with(next, EndCapture(), state, char)
 
+  ## Atomic scopes preserve every ordinary machine state, but mark entry and
+  ## every accepting exit in the routine stream.  The ordered search consumes
+  ## these markers to discard lower-priority siblings after the first exit;
+  ## transition construction itself remains the same finite Thompson machine.
+  @reducible
+  fn atomic_start_states({n: Nat}, states: List(MachineState(n))) -> List(MachineState(n)) = match states
+    [] -> []
+    [Active(state, routine, constraints) | rest] -> [Active(state, [BeginAtomic() | routine], constraints) | atomic_start_states(rest)]
+    [Accepted(routine, constraints) | rest] -> [Accepted(append_routine([BeginAtomic()], append_routine(routine, [EndAtomic()])), constraints) | atomic_start_states(rest)]
+
+  @reducible
+  fn atomic_destination_states({n: Nat}, states: List(MachineState(n))) -> List(MachineState(n)) = match states
+    [] -> []
+    [Active(state, routine, constraints) | rest] -> [Active(state, routine, constraints) | atomic_destination_states(rest)]
+    [Accepted(routine, constraints) | rest] -> [Accepted(append_routine(routine, [EndAtomic()]), constraints) | atomic_destination_states(rest)]
+
+  @reducible
+  fn atomic_pattern_machine({n: Nat}, machine: PatternMachine(n)) -> PatternMachine(n) = match machine
+    MkPatternMachine(starts, next) -> MkPatternMachine(
+      atomic_start_states(starts),
+      fn(state) -> fn(char) -> atomic_destination_states(next(state, char))
+    )
+
   @reducible
   fn concat_machine_next_from_side(left_count: Nat, {right_count: Nat}, left_next: (Bounded(left_count)) -> Char -> List(MachineState(left_count)), right_starts: List(MachineState(right_count)), right_next: (Bounded(right_count)) -> Char -> List(MachineState(right_count)), side: BoundedSum(left_count, right_count), char: Char) -> List(MachineState(plus(left_count, right_count))) =
     match side
@@ -952,6 +975,30 @@ mod Std.Regex.Runtime
     PatternRepeat(inner) -> ThompsonRepeat(certify_thompson(inner), false)
     PatternRepeatMode(inner, lazy) -> ThompsonRepeat(certify_thompson(inner), lazy)
 
+  fn atomic_plan_compilation({@erased shape: ShapeCode}, plan: AtomicRuntimePattern(shape)) -> ThompsonCompilation(shape) = match plan
+    AtomicRuntimeLeaf(pattern) -> certify_thompson(pattern)
+    AtomicRuntimeConcat(left, right) -> ThompsonConcat(atomic_plan_compilation(left), atomic_plan_compilation(right))
+    AtomicRuntimeGroup(inner) -> ThompsonGroup(atomic_plan_compilation(inner))
+    AtomicRuntimeAlternate(left, right, prefer_right) -> ThompsonAlternate(atomic_plan_compilation(left), atomic_plan_compilation(right), prefer_right)
+    AtomicRuntimeScope(inner) -> atomic_plan_compilation(inner)
+    AtomicRuntimeRepeat(inner, lazy) -> ThompsonRepeat(atomic_plan_compilation(inner), lazy)
+
+  fn atomic_plan_pattern({@erased shape: ShapeCode}, plan: AtomicRuntimePattern(shape)) -> Pattern(shape) = match plan
+    AtomicRuntimeLeaf(pattern) -> pattern
+    AtomicRuntimeConcat(left, right) -> PatternConcat(atomic_plan_pattern(left), atomic_plan_pattern(right))
+    AtomicRuntimeGroup(inner) -> PatternGroup(atomic_plan_pattern(inner))
+    AtomicRuntimeAlternate(left, right, prefer_right) -> PatternAlternateMode(atomic_plan_pattern(left), atomic_plan_pattern(right), prefer_right)
+    AtomicRuntimeScope(inner) -> atomic_plan_pattern(inner)
+    AtomicRuntimeRepeat(inner, lazy) -> PatternRepeatMode(atomic_plan_pattern(inner), lazy)
+
+  fn atomic_runtime_machine_from_plan({@erased shape: ShapeCode}, plan: AtomicRuntimePattern(shape)) -> PatternMachine(thompson_state_count(atomic_plan_compilation(plan))) = match plan
+    AtomicRuntimeLeaf(pattern) -> thompson_machine(certify_thompson(pattern))
+    AtomicRuntimeConcat(left, right) -> concat_pattern_machine(thompson_state_count(atomic_plan_compilation(left)), atomic_runtime_machine_from_plan(left), thompson_state_count(atomic_plan_compilation(right)), atomic_runtime_machine_from_plan(right))
+    AtomicRuntimeGroup(inner) -> group_pattern_machine(thompson_state_count(atomic_plan_compilation(inner)), pattern_machine_starts(atomic_runtime_machine_from_plan(inner)), pattern_machine_next(atomic_runtime_machine_from_plan(inner)))
+    AtomicRuntimeAlternate(left, right, prefer_right) -> alternate_pattern_machine(thompson_state_count(atomic_plan_compilation(left)), atomic_runtime_machine_from_plan(left), thompson_state_count(atomic_plan_compilation(right)), atomic_runtime_machine_from_plan(right), prefer_right)
+    AtomicRuntimeScope(inner) -> atomic_pattern_machine(atomic_runtime_machine_from_plan(inner))
+    AtomicRuntimeRepeat(inner, lazy) -> repeat_pattern_machine(thompson_state_count(atomic_plan_compilation(inner)), atomic_runtime_machine_from_plan(inner), lazy)
+
   @reducible
   fn thompson_compiled({shape: ShapeCode}, compilation: ThompsonCompilation(shape)) -> Sigma(n: Nat, PatternMachine(n)) =
     %[thompson_state_count(compilation), thompson_machine(compilation)]
@@ -1214,6 +1261,8 @@ mod Std.Regex.Runtime
     EndCaptureSlot(_) -> match captures
       [] -> EvidenceExecution(evidence, [])
       [CaptureFrame(chars, saved) | rest] -> EvidenceExecution([StringEvidence(Std.String.from_characters(evidence_reverse_chars(chars))) | saved], rest)
+    BeginAtomic() -> EvidenceExecution(evidence, captures)
+    EndAtomic() -> EvidenceExecution(evidence, captures)
 
   @reducible
   fn execute_routine(routine: List(EvidenceInstruction), evidence: List(Evidence), captures: List(CaptureFrame)) -> EvidenceExecution = match routine
@@ -1563,6 +1612,185 @@ mod Std.Regex.Runtime
     AcceptingNextActive : (destination: Bounded(n)) -> (regular: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (destination_evidence: List(Evidence)) -> (destination_captures: List(CaptureFrame)) -> (suffix_routine: List(ExtendedInstruction)) -> (edge : ListMember(MachineState(n), Active(destination, regular, constraints), machine_destinations(n, machine, state, char, transition_boundary_before(char, rest, after_input)))) -> (execution : RoutineExecution(regular, current_evidence, record_capture_char(captures, char), destination_evidence, destination_captures)) -> (suffix : AcceptingFrom(n, machine, rest, after_input, ThreadActive(destination), destination_evidence, destination_captures, final_evidence, suffix_routine)) -> AcceptingFrom(n, machine, Cons(char, rest), after_input, state, current_evidence, captures, final_evidence, append_extended_routines(transition_routine(char, regular), suffix_routine))
     AcceptingNextAccepted : (regular: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (destination_evidence: List(Evidence)) -> (destination_captures: List(CaptureFrame)) -> (suffix_routine: List(ExtendedInstruction)) -> (edge : ListMember(MachineState(n), Accepted(regular, constraints), machine_destinations(n, machine, state, char, transition_boundary_before(char, rest, after_input)))) -> (execution : RoutineExecution(regular, current_evidence, record_capture_char(captures, char), destination_evidence, destination_captures)) -> (suffix : AcceptingFrom(n, machine, rest, after_input, ThreadAccepted(), destination_evidence, destination_captures, final_evidence, suffix_routine)) -> AcceptingFrom(n, machine, Cons(char, rest), after_input, state, current_evidence, captures, final_evidence, append_extended_routines(transition_routine(char, regular), suffix_routine))
 
+  ## Atomic commitment is runtime control state, not part of the ordinary
+  ## proof-carrying search result. A commit failure stops siblings at the
+  ## scope that closed, while an outer scope may still propagate it.
+  type AtomicScopeEffect = AtomicScopeEffect(Nat, Option(Nat))
+  type AtomicSearchResult = AtomicSearchNo | AtomicSearchCommit(Nat) | AtomicSearchYes
+
+  ## The runtime search never compares scope depths with an unchecked Boolean.
+  ## This finite decision relation carries the proof that a commit is either
+  ## at-or-inside the current scope (so siblings are blocked) or strictly
+  ## deeper than it (so the commit belongs to an inner scope and outer
+  ## siblings remain eligible).  The evidence fields are erased after the
+  ## branch has been selected.
+  type AtomicDepthAtLeast indices (left: Nat, right: Nat)
+    AtomicDepthAtLeastZero : AtomicDepthAtLeast(Z(), Z())
+    AtomicDepthAtLeastFromZero : AtomicDepthAtLeast(S(left), Z())
+    AtomicDepthAtLeastStep : (@erased prior: AtomicDepthAtLeast(left, right)) -> AtomicDepthAtLeast(S(left), S(right))
+
+  type AtomicDepthBelow indices (left: Nat, right: Nat)
+    AtomicDepthBelowZero : AtomicDepthBelow(Z(), S(right))
+    AtomicDepthBelowStep : (@erased prior: AtomicDepthBelow(left, right)) -> AtomicDepthBelow(S(left), S(right))
+
+  type AtomicDepthComparison indices (left: Nat, right: Nat)
+    AtomicDepthStops : (@erased proof: AtomicDepthAtLeast(left, right)) -> AtomicDepthComparison(left, right)
+    AtomicDepthPasses : (@erased proof: AtomicDepthBelow(left, right)) -> AtomicDepthComparison(left, right)
+
+  ## A named commitment decision keeps the control invariant visible at every
+  ## search boundary: a commit at the current scope or an enclosing scope
+  ## blocks the remaining siblings, while a commit strictly inside the current
+  ## scope escapes to the caller so an outer alternative may still run.
+  type AtomicCommitDisposition indices (current: Nat, commit: Nat)
+    AtomicCommitBlocks : (@erased proof: AtomicDepthAtLeast(current, commit)) -> AtomicCommitDisposition(current, commit)
+    AtomicCommitEscapes : (@erased proof: AtomicDepthBelow(current, commit)) -> AtomicCommitDisposition(current, commit)
+
+  @reducible
+  fn atomic_depth_comparison(left: Nat, right: Nat) -> AtomicDepthComparison(left, right) = match left
+    Z() -> match right
+      Z() -> AtomicDepthStops(AtomicDepthAtLeastZero())
+      S(rest) -> AtomicDepthPasses(AtomicDepthBelowZero())
+    S(left_rest) -> match right
+      Z() -> AtomicDepthStops(AtomicDepthAtLeastFromZero())
+      S(right_rest) -> match atomic_depth_comparison(left_rest, right_rest)
+        AtomicDepthStops(prior) -> AtomicDepthStops(AtomicDepthAtLeastStep(prior))
+        AtomicDepthPasses(prior) -> AtomicDepthPasses(AtomicDepthBelowStep(prior))
+
+  @reducible
+  fn atomic_commit_disposition(current: Nat, commit: Nat) -> AtomicCommitDisposition(current, commit) = match atomic_depth_comparison(current, commit)
+    AtomicDepthStops(proof) -> AtomicCommitBlocks(proof)
+    AtomicDepthPasses(proof) -> AtomicCommitEscapes(proof)
+
+  @reducible
+  fn atomic_scope_effect(routine: List(EvidenceInstruction), depth: Nat) -> AtomicScopeEffect = match routine
+    [] -> AtomicScopeEffect(depth, None())
+    [BeginAtomic() | rest] -> match atomic_scope_effect(rest, S(depth))
+      AtomicScopeEffect(next_depth, closed) -> AtomicScopeEffect(next_depth, closed)
+    [EndAtomic() | rest] -> match depth
+      Z() -> atomic_scope_effect(rest, depth)
+      S(previous) -> match atomic_scope_effect(rest, previous)
+        AtomicScopeEffect(next_depth, closed) -> match closed
+          None() -> AtomicScopeEffect(next_depth, Some(S(previous)))
+          Some(existing) -> AtomicScopeEffect(next_depth, Some(existing))
+    [_ | rest] -> atomic_scope_effect(rest, depth)
+
+  @reducible
+  fn atomic_depth_max(left: Nat, right: Nat) -> Nat = match left
+    Z() -> right
+    S(left_rest) -> match right
+      Z() -> S(left_rest)
+      S(right_rest) -> S(atomic_depth_max(left_rest, right_rest))
+
+  @reducible
+  fn atomic_scope_max_depth(routine: List(EvidenceInstruction), depth: Nat) -> Nat =
+    atomic_scope_max_depth_with(routine, depth, depth)
+
+  @reducible
+  fn atomic_scope_max_depth_with(routine: List(EvidenceInstruction), depth: Nat, maximum: Nat) -> Nat = match routine
+    [] -> maximum
+    [BeginAtomic() | rest] -> atomic_scope_max_depth_with(rest, S(depth), atomic_depth_max(maximum, S(depth)))
+    [EndAtomic() | rest] -> match depth
+      Z() -> atomic_scope_max_depth_with(rest, depth, maximum)
+      S(previous) -> atomic_scope_max_depth_with(rest, previous, maximum)
+    [_ | rest] -> atomic_scope_max_depth_with(rest, depth, maximum)
+
+  fn atomic_runtime_accepting_from(n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), state: ThreadState(n), evidence: List(Evidence), captures: List(CaptureFrame), depth: Nat) -> AtomicSearchResult = match input
+    [] -> match state
+      ThreadAccepted() -> AtomicSearchYes()
+      ThreadActive(_) -> AtomicSearchNo()
+    [char | rest] -> match machine
+      MkPatternMachine(_, next) -> atomic_runtime_accepting_members(n, machine, char, rest, after_input, state, evidence, captures, depth, filter_boundary_states(next_for_thread(n, next, state, char), transition_boundary_before(char, rest, after_input)))
+
+  @reducible
+  fn next_for_thread(n: Nat, next: (Bounded(n)) -> Char -> List(MachineState(n)), state: ThreadState(n), char: Char) -> List(MachineState(n)) = match state
+    ThreadAccepted() -> []
+    ThreadActive(active) -> next(active, char)
+
+  fn atomic_runtime_accepting_members(n: Nat, machine: PatternMachine(n), char: Char, rest: List(Char), after_input: List(Char), source_state: ThreadState(n), source_evidence: List(Evidence), source_captures: List(CaptureFrame), depth: Nat, destinations: List(MachineState(n))) -> AtomicSearchResult = match destinations
+    [] -> AtomicSearchNo()
+    [Active(state, routine, _) | remaining] -> match execute_routine(routine, source_evidence, record_capture_char(source_captures, char))
+      EvidenceExecution(next_evidence, next_captures) -> match atomic_scope_effect(routine, depth)
+        AtomicScopeEffect(next_depth, closed_depth) -> match atomic_runtime_accepting_from(n, machine, rest, after_input, ThreadActive(state), next_evidence, next_captures, next_depth)
+          AtomicSearchYes() -> AtomicSearchYes()
+          AtomicSearchCommit(commit_depth) -> match atomic_commit_disposition(depth, commit_depth)
+            AtomicCommitEscapes(_) -> atomic_runtime_accepting_members(n, machine, char, rest, after_input, source_state, source_evidence, source_captures, depth, remaining)
+            AtomicCommitBlocks(_) -> AtomicSearchCommit(commit_depth)
+          AtomicSearchNo() -> match closed_depth
+            None() -> atomic_runtime_accepting_members(n, machine, char, rest, after_input, source_state, source_evidence, source_captures, depth, remaining)
+            Some(commit_depth) -> match atomic_commit_disposition(depth, commit_depth)
+              AtomicCommitEscapes(_) -> atomic_runtime_accepting_members(n, machine, char, rest, after_input, source_state, source_evidence, source_captures, depth, remaining)
+              AtomicCommitBlocks(_) -> AtomicSearchCommit(commit_depth)
+    [Accepted(routine, _) | remaining] -> match execute_routine(routine, source_evidence, record_capture_char(source_captures, char))
+      EvidenceExecution(next_evidence, next_captures) -> match atomic_scope_effect(routine, depth)
+        AtomicScopeEffect(next_depth, closed_depth) -> match atomic_runtime_accepting_from(n, machine, rest, after_input, ThreadAccepted(), next_evidence, next_captures, next_depth)
+          AtomicSearchYes() -> AtomicSearchYes()
+          AtomicSearchCommit(commit_depth) -> match atomic_commit_disposition(depth, commit_depth)
+            AtomicCommitEscapes(_) -> atomic_runtime_accepting_members(n, machine, char, rest, after_input, source_state, source_evidence, source_captures, depth, remaining)
+            AtomicCommitBlocks(_) -> AtomicSearchCommit(commit_depth)
+          AtomicSearchNo() -> match closed_depth
+            None() -> atomic_runtime_accepting_members(n, machine, char, rest, after_input, source_state, source_evidence, source_captures, depth, remaining)
+            Some(commit_depth) -> match atomic_commit_disposition(depth, commit_depth)
+              AtomicCommitEscapes(_) -> atomic_runtime_accepting_members(n, machine, char, rest, after_input, source_state, source_evidence, source_captures, depth, remaining)
+              AtomicCommitBlocks(_) -> AtomicSearchCommit(commit_depth)
+
+  fn atomic_runtime_initial_members(n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), starts: List(MachineState(n))) -> AtomicSearchResult =
+    atomic_runtime_initial_members_with_commit(n, machine, input, after_input, None(), starts)
+
+  fn atomic_runtime_initial_members_with_commit(n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), blocked_depth: Option(Nat), starts: List(MachineState(n))) -> AtomicSearchResult = match starts
+    [] -> AtomicSearchNo()
+    [head | remaining] -> match blocked_depth
+      Some(commit_depth) -> match atomic_commit_disposition(atomic_scope_max_depth(machine_state_routine(n, head), Z()), commit_depth)
+        AtomicCommitBlocks(_) -> atomic_runtime_initial_members_with_commit(n, machine, input, after_input, blocked_depth, remaining)
+        AtomicCommitEscapes(_) -> atomic_runtime_initial_member(n, machine, input, after_input, blocked_depth, head, remaining)
+      None() -> atomic_runtime_initial_member(n, machine, input, after_input, blocked_depth, head, remaining)
+
+  fn atomic_runtime_initial_member(n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), blocked_depth: Option(Nat), head: MachineState(n), remaining: List(MachineState(n))) -> AtomicSearchResult = match head
+    Active(state, routine, _) -> match execute_routine(routine, [], [])
+      EvidenceExecution(evidence, captures) -> match atomic_scope_effect(routine, Z())
+        AtomicScopeEffect(next_depth, _) -> match atomic_runtime_accepting_from(n, machine, input, after_input, ThreadActive(state), evidence, captures, next_depth)
+          AtomicSearchYes() -> AtomicSearchYes()
+          AtomicSearchCommit(commit_depth) -> atomic_runtime_initial_members_with_commit(n, machine, input, after_input, Some(commit_depth), remaining)
+          AtomicSearchNo() -> atomic_runtime_initial_members_with_commit(n, machine, input, after_input, blocked_depth, remaining)
+    Accepted(routine, _) -> match execute_routine(routine, [], [])
+      EvidenceExecution(evidence, captures) -> match atomic_scope_effect(routine, Z())
+        AtomicScopeEffect(next_depth, _) -> match atomic_runtime_accepting_from(n, machine, input, after_input, ThreadAccepted(), evidence, captures, next_depth)
+          AtomicSearchYes() -> AtomicSearchYes()
+          AtomicSearchCommit(commit_depth) -> atomic_runtime_initial_members_with_commit(n, machine, input, after_input, Some(commit_depth), remaining)
+          AtomicSearchNo() -> atomic_runtime_initial_members_with_commit(n, machine, input, after_input, blocked_depth, remaining)
+
+  fn atomic_runtime_accepts(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char)) -> Bool = match machine
+    MkPatternMachine(starts, _) -> match atomic_runtime_initial_members(n, machine, input, after_input, filter_boundary_states(starts, initial_position_boundary(position, append_characters(input, after_input))))
+      AtomicSearchYes() -> true
+      AtomicSearchNo() -> false
+      AtomicSearchCommit(_) -> false
+
+  fn atomic_runtime_first_prefix(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char)) -> Option(Tuple(List(Char), List(Char))) =
+    atomic_runtime_first_prefix_loop(n, machine, position, [], input)
+
+  fn atomic_runtime_first_prefix_loop(n: Nat, machine: PatternMachine(n), position: InitialPosition, reversed_prefix: List(Char), remaining_input: List(Char)) -> Option(Tuple(List(Char), List(Char))) =
+    let matched_input = evidence_reverse_chars(reversed_prefix)
+    pickup
+      atomic_runtime_accepts(n, machine, position, matched_input, remaining_input) -> Some(%[matched_input, remaining_input])
+      else -> match remaining_input
+        [] -> None()
+        [char | rest] -> atomic_runtime_first_prefix_loop(n, machine, position, [char | reversed_prefix], rest)
+
+  fn atomic_runtime_last_prefix(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char)) -> Option(Tuple(List(Char), List(Char))) =
+    atomic_runtime_last_prefix_loop(n, machine, position, [], input, None())
+
+  fn atomic_runtime_last_prefix_loop(n: Nat, machine: PatternMachine(n), position: InitialPosition, reversed_prefix: List(Char), remaining_input: List(Char), previous: Option(Tuple(List(Char), List(Char)))) -> Option(Tuple(List(Char), List(Char))) =
+    let matched_input = evidence_reverse_chars(reversed_prefix)
+    let current = pickup
+      atomic_runtime_accepts(n, machine, position, matched_input, remaining_input) -> Some(%[matched_input, remaining_input])
+      else -> previous
+    match remaining_input
+      [] -> current
+      [char | rest] -> atomic_runtime_last_prefix_loop(n, machine, position, [char | reversed_prefix], rest, current)
+
+  fn atomic_runtime_prefix(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), greedy: Bool) -> Option(Tuple(List(Char), List(Char))) = pickup
+    greedy -> atomic_runtime_last_prefix(n, machine, position, input)
+    else -> atomic_runtime_first_prefix(n, machine, position, input)
+
   type AcceptingSearch(n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), current_evidence: List(Evidence), captures: List(CaptureFrame))
     NoAcceptingPath : AcceptingSearch(n, machine, input, after_input, state, current_evidence, captures)
     AcceptingPath : (final_evidence: List(Evidence)) -> (extended_routine: List(ExtendedInstruction)) -> (routine_certificate : CertifiedPathRoutine(extended_routine, current_evidence, captures, final_evidence)) -> (@erased path : AcceptingFrom(n, machine, input, after_input, state, current_evidence, captures, final_evidence, extended_routine)) -> AcceptingSearch(n, machine, input, after_input, state, current_evidence, captures)
@@ -1894,6 +2122,18 @@ mod Std.Regex.Runtime
   ## refine without introducing an existential dependent constructor.
   type StagedMachine indices (shape: ShapeCode)
     StagedMachineValue : (compilation: ThompsonCompilation(shape)) -> StagedMachine(shape)
+    StagedAtomicPatternValue : (plan: AtomicRuntimePattern(shape)) -> StagedMachine(shape)
+
+  ## Runtime-only atomic plan. Ordinary Pattern values and their Thompson
+  ## proofs stay unchanged; this parallel tree carries only the commitment
+  ## scopes needed by the ordered runtime search.
+  type AtomicRuntimePattern indices (shape: ShapeCode)
+    AtomicRuntimeLeaf : (pattern: Pattern(shape)) -> AtomicRuntimePattern(shape)
+    AtomicRuntimeConcat : (left: AtomicRuntimePattern(left_shape)) -> (right: AtomicRuntimePattern(right_shape)) -> AtomicRuntimePattern(PairC(left_shape, right_shape))
+    AtomicRuntimeGroup : (inner: AtomicRuntimePattern(inner_shape)) -> AtomicRuntimePattern(StringC)
+    AtomicRuntimeAlternate : (left: AtomicRuntimePattern(left_shape)) -> (right: AtomicRuntimePattern(right_shape)) -> (prefer_right: Bool) -> AtomicRuntimePattern(ChoiceC(left_shape, right_shape))
+    AtomicRuntimeScope : (inner: AtomicRuntimePattern(inner_shape)) -> AtomicRuntimePattern(inner_shape)
+    AtomicRuntimeRepeat : (inner: AtomicRuntimePattern(inner_shape)) -> (lazy: Bool) -> AtomicRuntimePattern(ListC(inner_shape))
 
   type Regex indices (result: Type)
     FromPattern : (shape: ShapeCode) -> Pattern(shape) -> Regex(Sem(shape))

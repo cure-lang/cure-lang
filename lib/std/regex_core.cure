@@ -300,6 +300,9 @@ mod Std.Regex.Core
   ## shifting the right machine by the left machine's count. `Accepted` is an
   ## accepting edge (the paper's `Nothing`), not an allocated state. The runtime
   ## transition relation is ordered and epsilon-free.
+  ## Atomic markers are semantic no-ops in the evidence VM. The ordered search
+  ## consumes them as lexical commit boundaries; keeping them in the same
+  ## routine stream makes replay and proof paths share one trace.
   type EvidenceInstruction =
     | EmitChar(Char)
     | EmitUnit
@@ -312,6 +315,8 @@ mod Std.Regex.Core
     | EndCapture
     | BeginCaptureSlot(Nat)
     | EndCaptureSlot(Nat)
+    | BeginAtomic
+    | EndAtomic
 
   type NewlinePolicy = LFNewline | CRNewline | CRLFNewline | AnyCRLFNewline | AnyUnicodeNewline
   type CaptureCondition = CaptureParticipated(Nat) | CaptureAbsent(Nat)

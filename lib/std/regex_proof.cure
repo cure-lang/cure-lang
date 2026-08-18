@@ -4002,15 +4002,31 @@ mod Std.Regex.Proof
       StagedCompilationHint(StagedMachineValue(compilation)) -> match parse_compilation_full_verified(compilation, input)
         None() -> None()
         Some(value) -> Some(execute_conversion(conversion, value))
+      StagedCompilationHint(StagedAtomicPatternValue(plan)) -> match parse_atomic_plan_full_verified(plan, input)
+        None() -> None()
+        Some(value) -> Some(execute_conversion(conversion, value))
 
   fn parse_compilation_full_verified({shape: ShapeCode}, compilation: ThompsonCompilation(shape), input: String) -> Option(Sem(shape)) =
     let proof = proof_for_compilation(compilation)
     let characters = Std.String.characters(input)
-    let machine = staged_machine_from_compilation(compilation)
-    let search = transport_staged_search(compilation, subject_initial_position(), characters, empty_characters(), search_machine_acceptance(thompson_state_count(compilation), machine, subject_initial_position(), characters, empty_characters()))
-    match search
+    match search_machine_acceptance(thompson_state_count(compilation), thompson_machine(compilation), subject_initial_position(), characters, empty_characters())
       MachineNoAcceptingPath() -> None()
       MachineAcceptingPath(evidence, _, acceptance) -> Some(extract_encoding(evidence, thompson_machine_acceptance_encodes(compilation, proof, characters, empty_characters(), subject_initial_position(), acceptance)))
+
+  fn parse_atomic_plan_full_verified({shape: ShapeCode}, plan: AtomicRuntimePattern(shape), input: String) -> Option(Sem(shape)) =
+    let machine = atomic_runtime_machine_from_plan(plan)
+    let characters = Std.String.characters(input)
+    pickup
+      atomic_runtime_accepts(thompson_state_count(atomic_plan_compilation(plan)), machine, subject_initial_position(), characters, empty_characters()) -> parse_pattern_full_verified(atomic_plan_pattern(plan), input)
+      else -> None()
+
+  fn parse_atomic_plan_prefix_verified_at({shape: ShapeCode}, plan: AtomicRuntimePattern(shape), input: List(Char), greedy: Bool, position: InitialPosition) -> Option(Tuple(Sem(shape), List(Char))) =
+    let machine = atomic_runtime_machine_from_plan(plan)
+    match atomic_runtime_prefix(thompson_state_count(atomic_plan_compilation(plan)), machine, position, input, greedy)
+      None() -> None()
+      Some(%[matched, remaining]) -> match parse_pattern_full_verified(atomic_plan_pattern(plan), Std.String.from_characters(matched))
+        None() -> None()
+        Some(value) -> Some(%[value, remaining])
 
   fn parse_pattern_prefix_verified_at({shape: ShapeCode}, pattern: Pattern(shape), input: List(Char), greedy: Bool, position: InitialPosition) -> Option(Tuple(Sem(shape), List(Char))) = match certify_thompson_evidence(pattern)
     CertifiedThompson(compilation, proof) ->
@@ -4027,6 +4043,9 @@ mod Std.Regex.Proof
         None() -> None()
         Some(%[value, rest]) -> Some(%[execute_conversion(conversion, value), rest])
       StagedCompilationHint(StagedMachineValue(compilation)) -> match parse_compilation_prefix_verified_at(compilation, input, greedy, InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word, None()))
+        None() -> None()
+        Some(%[value, rest]) -> Some(%[execute_conversion(conversion, value), rest])
+      StagedCompilationHint(StagedAtomicPatternValue(plan)) -> match parse_atomic_plan_prefix_verified_at(plan, input, greedy, InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word, None()))
         None() -> None()
         Some(%[value, rest]) -> Some(%[execute_conversion(conversion, value), rest])
 

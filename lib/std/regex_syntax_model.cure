@@ -36,6 +36,9 @@ mod Std.Regex.Syntax.Model
     LiteralCaptureLayoutsCompatible : LiteralCaptureLayoutDecision(left, right)
     LiteralCaptureLayoutsIncompatible : LiteralCaptureLayoutDecision(left, right)
 
+  ## A lexical atomic scope. The inner pattern keeps its ordinary typed
+  ## result shape; commitment is carried by the compiled machine rather than
+  ## by a second untyped matcher.
   type LiteralPattern =
     | LiteralEmpty
     | LiteralExact(Char)
@@ -52,6 +55,7 @@ mod Std.Regex.Syntax.Model
     | LiteralAlternate(LiteralPattern, LiteralPattern)
     | LiteralBranchReset(List(LiteralPattern))
     | LiteralConditional(LiteralCaptureReference, LiteralPattern, Option(LiteralPattern))
+    | LiteralAtomic(LiteralPattern)
     | LiteralRepeat(LiteralPattern, Bool)
     | LiteralPlus(LiteralPattern, Bool)
     | LiteralOptional(LiteralPattern, Bool)
@@ -271,6 +275,7 @@ mod Std.Regex.Syntax.Model
             else -> match literal_capture_layout_decision(yes_slots, no_slots)
               LiteralCaptureLayoutsIncompatible() -> LiteralCaptureWalkInvalid(:ConditionalCaptureLayoutMismatch, "conditional")
               LiteralCaptureLayoutsCompatible() -> LiteralCaptureWalked(LiteralConditional(reference, numbered_yes, Some(numbered_no)), yes_slots, yes_next, yes_names)
+    LiteralAtomic(inner) -> walk_literal_unary(fn(value) -> LiteralAtomic(value), inner, next, names)
     LiteralSequence(left, right) -> walk_literal_binary(LiteralSequence, left, right, next, names)
     LiteralAlternate(left, right) -> walk_literal_binary(LiteralAlternate, left, right, next, names)
     LiteralRepeat(inner, lazy) -> walk_literal_unary(fn(value) -> LiteralRepeat(value, lazy), inner, next, names)
@@ -374,6 +379,7 @@ mod Std.Regex.Syntax.Model
             LiteralReferencesInvalid(reason, name) -> LiteralReferencesInvalid(reason, name)
             LiteralReferencesResolved(resolved_no) -> LiteralReferencesResolved(LiteralConditional(resolved_reference, resolved_yes, Some(resolved_no)))
       LiteralReferenceInvalid(reason, name) -> LiteralReferencesInvalid(reason, name)
+    LiteralAtomic(inner) -> resolve_literal_reference_unary(fn(value) -> LiteralAtomic(value), inner, layout, _next)
     LiteralSequence(left, right) -> match resolve_literal_capture_references(left, layout, _next)
       LiteralReferencesInvalid(reason, name) -> LiteralReferencesInvalid(reason, name)
       LiteralReferencesResolved(resolved_left) -> match resolve_literal_capture_references(right, layout, _next)
@@ -457,6 +463,7 @@ mod Std.Regex.Syntax.Model
 
   fn literal_pattern_has_conditionals(pattern: LiteralPattern) -> Bool = match pattern
     LiteralConditional(_, yes, no) -> literal_pattern_has_conditionals(yes) or literal_pattern_option_has_conditionals(no)
+    LiteralAtomic(inner) -> literal_pattern_has_conditionals(inner)
     LiteralSequence(left, right) -> literal_pattern_has_conditionals(left) or literal_pattern_has_conditionals(right)
     LiteralAlternate(left, right) -> literal_pattern_has_conditionals(left) or literal_pattern_has_conditionals(right)
     LiteralBranchReset(arms) -> literal_pattern_list_has_conditionals(arms)
@@ -471,6 +478,32 @@ mod Std.Regex.Syntax.Model
     LiteralBoundedBetween(inner, _, _, _) -> literal_pattern_has_conditionals(inner)
     LiteralConfigured(_, inner) -> literal_pattern_has_conditionals(inner)
     _ -> false
+
+  fn literal_pattern_has_atomic(pattern: LiteralPattern) -> Bool = match pattern
+    LiteralAtomic(_) -> true
+    LiteralSequence(left, right) -> literal_pattern_has_atomic(left) or literal_pattern_has_atomic(right)
+    LiteralAlternate(left, right) -> literal_pattern_has_atomic(left) or literal_pattern_has_atomic(right)
+    LiteralBranchReset(arms) -> literal_pattern_list_has_atomic(arms)
+    LiteralConditional(_, yes, no) -> literal_pattern_has_atomic(yes) or literal_pattern_option_has_atomic(no)
+    LiteralCapture(inner) -> literal_pattern_has_atomic(inner)
+    LiteralNamedCapture(_, inner) -> literal_pattern_has_atomic(inner)
+    LiteralCaptureIndexed(_, _, inner) -> literal_pattern_has_atomic(inner)
+    LiteralRepeat(inner, _) -> literal_pattern_has_atomic(inner)
+    LiteralPlus(inner, _) -> literal_pattern_has_atomic(inner)
+    LiteralOptional(inner, _) -> literal_pattern_has_atomic(inner)
+    LiteralBoundedExact(inner, _) -> literal_pattern_has_atomic(inner)
+    LiteralBoundedAtLeast(inner, _, _) -> literal_pattern_has_atomic(inner)
+    LiteralBoundedBetween(inner, _, _, _) -> literal_pattern_has_atomic(inner)
+    LiteralConfigured(_, inner) -> literal_pattern_has_atomic(inner)
+    _ -> false
+
+  fn literal_pattern_list_has_atomic(patterns: List(LiteralPattern)) -> Bool = match patterns
+    [] -> false
+    [head | rest] -> literal_pattern_has_atomic(head) or literal_pattern_list_has_atomic(rest)
+
+  fn literal_pattern_option_has_atomic(pattern: Option(LiteralPattern)) -> Bool = match pattern
+    None() -> false
+    Some(inner) -> literal_pattern_has_atomic(inner)
 
   fn literal_pattern_option_has_conditionals(pattern: Option(LiteralPattern)) -> Bool = match pattern
     None() -> false

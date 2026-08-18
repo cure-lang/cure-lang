@@ -13,15 +13,12 @@ defmodule Cure.Stdlib.DependentRegexUnsupportedConstructTest do
       {~S"a\g{1}", :UnsupportedRegexBackreference, ~S"\g"},
       {~S"(?R)", :UnsupportedRegexRecursion, "(?R"},
       {~S"(?1)", :UnsupportedRegexRecursion, "(?1"},
-      {~S"(?(1)a|b)", :UnsupportedRegexConditional, "(?("},
       {~S"(?<=a)", :UnsupportedRegexLookbehind, "(?<="},
       {~S"(?<!a)", :UnsupportedRegexLookbehind, "(?<!"},
       {~S"(?=a)", :UnsupportedRegexLookahead, "(?="},
       {~S"(?!a)", :UnsupportedRegexLookahead, "(?!"},
-      {~S"(?>a)", :UnsupportedRegexAtomicGroup, "(?>"},
       {~S"(?i:a)", :UnsupportedRegexInlineOptions, "(?i"},
-      {~S"a*+", :UnsupportedRegexPossessiveQuantifier, "*+"},
-      {~S"a{2}+", :UnsupportedRegexPossessiveQuantifier, "{2}+"}
+      {~S"a{2,1}", :RegexQuantifierRangeReversed, "{2,1}"}
     ]
 
     Enum.each(cases, fn {pattern, expected, expected_span} ->
