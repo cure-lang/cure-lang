@@ -235,7 +235,7 @@ mod Std.Regex.Syntax.Model
     LiteralCaptureWalkInvalid(reason, name) -> LiteralCaptureAllocationInvalid(reason, name)
 
   ## Lookaround is deliberately checked before emission. Assertions remain
-  ## capture-free and atomicity-free in this phase, but nested assertions are
+  ## capture-free in this phase, while nested assertions and atomic scopes are
   ## admitted up to a finite structural depth. The same bound is consumed by
   ## the runtime child evaluator, so an accepted syntax tree can never ask the
   ## evaluator to recurse beyond its certified fuel.
@@ -281,7 +281,6 @@ mod Std.Regex.Syntax.Model
 
   fn validate_literal_lookaround_operand(pattern: LiteralPattern, depth: Nat) -> LiteralLookaroundValidation = pickup
     literal_pattern_has_capture(pattern) -> LiteralLookaroundInvalid(:AssertionCapturesUnsupported, "assertion")
-    literal_pattern_has_atomic(pattern) -> LiteralLookaroundInvalid(:AssertionAtomicityUnsupported, "assertion")
     literal_pattern_has_conditionals(pattern) -> LiteralLookaroundInvalid(:NestedAssertionUnsupported, "assertion")
     else -> validate_literal_lookarounds_at(pattern, depth)
 

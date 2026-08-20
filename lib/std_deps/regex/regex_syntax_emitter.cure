@@ -162,62 +162,62 @@ mod Std.Regex.Syntax.Emitter
     LiteralAssertionNegative -> bool_literal(false)
 
   fn emit_lookaround_staged_compilation(pattern: LiteralPattern, options: LiteralRegexOptions) -> Syntax = match pattern
-    LiteralEmpty -> runtime_call("ThompsonEmpty", [])
-    LiteralExact(char) -> runtime_call("ThompsonPredicate", [runtime_call("option_exact_test", [char_literal(char), bool_literal(has_modifier(options, CaselessModifier)), bool_literal(has_modifier(options, UnicodeModifier))])])
-    LiteralAny -> runtime_call("ThompsonPredicate", [runtime_call("dot_test_with_policy", [bool_literal(has_modifier(options, DotallModifier)), emit_newline_policy(options)])])
-    LiteralClass(chars, ranges, kinds, negated) -> runtime_call("ThompsonPredicate", [runtime_call("extended_property_class_test", [emit_chars(chars), emit_ranges(ranges), emit_class_kinds(kinds), emit_unicode_property_matches(literal_class_properties(kinds)), emit_posix_class_matches(literal_class_posix(kinds)), bool_literal(negated), bool_literal(has_modifier(options, CaselessModifier)), bool_literal(has_modifier(options, UnicodeModifier))])])
-    LiteralProperty(property, negated) -> runtime_call("ThompsonPredicate", [runtime_call("unicode_property_test", [emit_unicode_property(property), bool_literal(negated)])])
-    LiteralDigit(negated) -> runtime_call("ThompsonPredicate", [runtime_call("digit_options_test", [bool_literal(negated), bool_literal(has_modifier(options, UnicodeModifier))])])
-    LiteralWord(negated) -> runtime_call("ThompsonPredicate", [runtime_call("word_options_test", [bool_literal(negated), bool_literal(has_modifier(options, UnicodeModifier))])])
-    LiteralSpace(negated) -> runtime_call("ThompsonPredicate", [runtime_call("space_options_test", [bool_literal(negated), bool_literal(has_modifier(options, UnicodeModifier))])])
-    LiteralHorizontal(negated) -> runtime_call("ThompsonPredicate", [runtime_call("horizontal_test", [bool_literal(negated)])])
-    LiteralVertical(negated) -> runtime_call("ThompsonPredicate", [runtime_call("vertical_test", [bool_literal(negated)])])
-    LiteralLineBreak() -> runtime_call("ThompsonGroup", [emit_line_break_compilation(options)])
-    LiteralSequence(left, right) -> runtime_call("ThompsonConcat", [emit_lookaround_staged_compilation(left, options), emit_lookaround_staged_compilation(right, options)])
-    LiteralAlternate(left, right) -> runtime_call("ThompsonAlternate", [emit_lookaround_staged_compilation(left, options), emit_lookaround_staged_compilation(right, options), bool_literal(false)])
-    LiteralConditional(_, yes, no) -> runtime_call("ThompsonAlternate", [emit_lookaround_staged_compilation(yes, options), emit_lookaround_staged_compilation_or_empty(no, options), bool_literal(false)])
-    LiteralAtomic(inner) -> emit_lookaround_staged_compilation(inner, options)
-    LiteralLookahead(polarity, inner) -> runtime_call("ThompsonBoundary", [runtime_call("lookahead_constraint", [emit_lookaround_staged_compilation(inner, options), emit_lookaround_polarity(polarity), emit_newline_policy(options)])])
-    LiteralLookbehind(polarity, inner) -> runtime_call("ThompsonBoundary", [runtime_call("lookbehind_constraint", [emit_lookaround_staged_compilation(inner, options), emit_lookaround_polarity(polarity), emit_nat(literal_pattern_exact_width_value(inner)), emit_newline_policy(options)])])
+    LiteralEmpty -> runtime_call("LookaroundEmpty", [])
+    LiteralExact(char) -> runtime_call("LookaroundPredicate", [runtime_call("option_exact_test", [char_literal(char), bool_literal(has_modifier(options, CaselessModifier)), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralAny -> runtime_call("LookaroundPredicate", [runtime_call("dot_test_with_policy", [bool_literal(has_modifier(options, DotallModifier)), emit_newline_policy(options)])])
+    LiteralClass(chars, ranges, kinds, negated) -> runtime_call("LookaroundPredicate", [runtime_call("extended_property_class_test", [emit_chars(chars), emit_ranges(ranges), emit_class_kinds(kinds), emit_unicode_property_matches(literal_class_properties(kinds)), emit_posix_class_matches(literal_class_posix(kinds)), bool_literal(negated), bool_literal(has_modifier(options, CaselessModifier)), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralProperty(property, negated) -> runtime_call("LookaroundPredicate", [runtime_call("unicode_property_test", [emit_unicode_property(property), bool_literal(negated)])])
+    LiteralDigit(negated) -> runtime_call("LookaroundPredicate", [runtime_call("digit_options_test", [bool_literal(negated), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralWord(negated) -> runtime_call("LookaroundPredicate", [runtime_call("word_options_test", [bool_literal(negated), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralSpace(negated) -> runtime_call("LookaroundPredicate", [runtime_call("space_options_test", [bool_literal(negated), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralHorizontal(negated) -> runtime_call("LookaroundPredicate", [runtime_call("horizontal_test", [bool_literal(negated)])])
+    LiteralVertical(negated) -> runtime_call("LookaroundPredicate", [runtime_call("vertical_test", [bool_literal(negated)])])
+    LiteralLineBreak() -> emit_lookaround_line_break_compilation(options)
+    LiteralSequence(left, right) -> runtime_call("LookaroundConcat", [emit_lookaround_staged_compilation(left, options), emit_lookaround_staged_compilation(right, options)])
+    LiteralAlternate(left, right) -> runtime_call("LookaroundAlternate", [emit_lookaround_staged_compilation(left, options), emit_lookaround_staged_compilation(right, options), bool_literal(false)])
+    LiteralConditional(_, yes, no) -> runtime_call("LookaroundAlternate", [emit_lookaround_staged_compilation(yes, options), emit_lookaround_staged_compilation_or_empty(no, options), bool_literal(false)])
+    LiteralAtomic(inner) -> runtime_call("LookaroundAtomic", [emit_lookaround_staged_compilation(inner, options)])
+    LiteralLookahead(polarity, inner) -> runtime_call("LookaroundBoundary", [runtime_call("lookahead_constraint", [emit_lookaround_staged_compilation(inner, options), emit_lookaround_polarity(polarity), emit_newline_policy(options)])])
+    LiteralLookbehind(polarity, inner) -> runtime_call("LookaroundBoundary", [runtime_call("lookbehind_constraint", [emit_lookaround_staged_compilation(inner, options), emit_lookaround_polarity(polarity), emit_nat(literal_pattern_exact_width_value(inner)), emit_newline_policy(options)])])
     LiteralBranchReset(arms) -> emit_lookaround_staged_compilation(literal_branch_reset_alternate(arms), options)
-    LiteralRepeat(inner, lazy) -> runtime_call("ThompsonRepeat", [emit_lookaround_staged_compilation(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])
-    LiteralPlus(inner, lazy) -> runtime_call("ThompsonConcat", [emit_lookaround_staged_compilation(inner, options), runtime_call("ThompsonRepeat", [emit_lookaround_staged_compilation(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])])
-    LiteralOptional(inner, lazy) -> runtime_call("ThompsonAlternate", [emit_lookaround_staged_compilation(inner, options), runtime_call("ThompsonEmpty", []), bool_literal(lazy != has_modifier(options, UngreedyModifier))])
+    LiteralRepeat(inner, lazy) -> runtime_call("LookaroundRepeat", [emit_lookaround_staged_compilation(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])
+    LiteralPlus(inner, lazy) -> runtime_call("LookaroundConcat", [emit_lookaround_staged_compilation(inner, options), runtime_call("LookaroundRepeat", [emit_lookaround_staged_compilation(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])])
+    LiteralOptional(inner, lazy) -> runtime_call("LookaroundAlternate", [emit_lookaround_staged_compilation(inner, options), runtime_call("LookaroundEmpty", []), bool_literal(lazy != has_modifier(options, UngreedyModifier))])
     LiteralBoundedExact(inner, count) -> emit_lookaround_bounded_exact(inner, count, options)
     LiteralBoundedAtLeast(inner, count, lazy) -> emit_lookaround_bounded_at_least(inner, count, lazy != has_modifier(options, UngreedyModifier), options)
     LiteralBoundedBetween(inner, minimum, maximum, lazy) -> emit_lookaround_bounded_between(inner, minimum, maximum, lazy != has_modifier(options, UngreedyModifier), options)
-    LiteralCapture(inner) -> runtime_call("ThompsonGroup", [emit_lookaround_staged_compilation(inner, options)])
-    LiteralNamedCapture(_, inner) -> runtime_call("ThompsonGroup", [emit_lookaround_staged_compilation(inner, options)])
-    LiteralCaptureIndexed(_, _, inner) -> runtime_call("ThompsonGroup", [emit_lookaround_staged_compilation(inner, options)])
-    LiteralStart -> runtime_call("ThompsonBoundary", [emit_staged_start_constraint(options)])
-    LiteralEnd -> runtime_call("ThompsonBoundary", [emit_staged_end_constraint(options)])
-    LiteralAbsoluteStart -> runtime_call("ThompsonBoundary", [runtime_call("subject_start_constraint_with_policy", [emit_newline_policy(options)])])
-    LiteralStrictEnd -> runtime_call("ThompsonBoundary", [runtime_call("strict_end_constraint_with_policy", [emit_newline_policy(options)])])
-    LiteralFinalEnd -> runtime_call("ThompsonBoundary", [runtime_call("subject_end_constraint_with_policy", [emit_newline_policy(options)])])
-    LiteralWordBoundary(negated) -> runtime_call("ThompsonBoundary", [emit_staged_word_constraint(negated, options)])
+    LiteralCapture(inner) -> runtime_call("LookaroundGroup", [emit_lookaround_staged_compilation(inner, options)])
+    LiteralNamedCapture(_, inner) -> runtime_call("LookaroundGroup", [emit_lookaround_staged_compilation(inner, options)])
+    LiteralCaptureIndexed(_, _, inner) -> runtime_call("LookaroundGroup", [emit_lookaround_staged_compilation(inner, options)])
+    LiteralStart -> runtime_call("LookaroundBoundary", [emit_staged_start_constraint(options)])
+    LiteralEnd -> runtime_call("LookaroundBoundary", [emit_staged_end_constraint(options)])
+    LiteralAbsoluteStart -> runtime_call("LookaroundBoundary", [runtime_call("subject_start_constraint_with_policy", [emit_newline_policy(options)])])
+    LiteralStrictEnd -> runtime_call("LookaroundBoundary", [runtime_call("strict_end_constraint_with_policy", [emit_newline_policy(options)])])
+    LiteralFinalEnd -> runtime_call("LookaroundBoundary", [runtime_call("subject_end_constraint_with_policy", [emit_newline_policy(options)])])
+    LiteralWordBoundary(negated) -> runtime_call("LookaroundBoundary", [emit_staged_word_constraint(negated, options)])
     LiteralConfigured(_, inner) -> emit_lookaround_staged_compilation(inner, options)
 
   fn emit_lookaround_staged_compilation_or_empty(pattern: Option(LiteralPattern), options: LiteralRegexOptions) -> Syntax = match pattern
-    None() -> runtime_call("ThompsonEmpty", [])
+    None() -> runtime_call("LookaroundEmpty", [])
     Some(inner) -> emit_lookaround_staged_compilation(inner, options)
 
   fn emit_lookaround_bounded_exact(inner: LiteralPattern, count: Nat, options: LiteralRegexOptions) -> Syntax = match count
-    Z() -> runtime_call("ThompsonEmpty", [])
-    S(rest) -> runtime_call("ThompsonConcat", [emit_lookaround_staged_compilation(inner, options), emit_lookaround_bounded_exact(inner, rest, options)])
+    Z() -> runtime_call("LookaroundEmpty", [])
+    S(rest) -> runtime_call("LookaroundConcat", [emit_lookaround_staged_compilation(inner, options), emit_lookaround_bounded_exact(inner, rest, options)])
 
   fn emit_lookaround_bounded_at_least(inner: LiteralPattern, count: Nat, lazy: Bool, options: LiteralRegexOptions) -> Syntax = match count
-    Z() -> runtime_call("ThompsonRepeat", [emit_lookaround_staged_compilation(inner, options), bool_literal(lazy)])
-    S(rest) -> runtime_call("ThompsonConcat", [emit_lookaround_staged_compilation(inner, options), emit_lookaround_bounded_at_least(inner, rest, lazy, options)])
+    Z() -> runtime_call("LookaroundRepeat", [emit_lookaround_staged_compilation(inner, options), bool_literal(lazy)])
+    S(rest) -> runtime_call("LookaroundConcat", [emit_lookaround_staged_compilation(inner, options), emit_lookaround_bounded_at_least(inner, rest, lazy, options)])
 
   fn emit_lookaround_bounded_between(inner: LiteralPattern, minimum: Nat, maximum: Nat, lazy: Bool, options: LiteralRegexOptions) -> Syntax = match minimum
     Z() -> emit_lookaround_bounded_up_to(inner, maximum, lazy, options)
     S(rest) -> match maximum
       Z() -> emit_lookaround_bounded_exact(inner, S(rest), options)
-      S(maximum_rest) -> runtime_call("ThompsonConcat", [emit_lookaround_staged_compilation(inner, options), emit_lookaround_bounded_between(inner, rest, maximum_rest, lazy, options)])
+      S(maximum_rest) -> runtime_call("LookaroundConcat", [emit_lookaround_staged_compilation(inner, options), emit_lookaround_bounded_between(inner, rest, maximum_rest, lazy, options)])
 
   fn emit_lookaround_bounded_up_to(inner: LiteralPattern, maximum: Nat, lazy: Bool, options: LiteralRegexOptions) -> Syntax = match maximum
-    Z() -> runtime_call("ThompsonEmpty", [])
-    S(rest) -> runtime_call("ThompsonConcat", [runtime_call("ThompsonAlternate", [emit_lookaround_staged_compilation(inner, options), runtime_call("ThompsonEmpty", []), bool_literal(lazy)]), emit_lookaround_bounded_up_to(inner, rest, lazy, options)])
+    Z() -> runtime_call("LookaroundEmpty", [])
+    S(rest) -> runtime_call("LookaroundConcat", [runtime_call("LookaroundAlternate", [emit_lookaround_staged_compilation(inner, options), runtime_call("LookaroundEmpty", []), bool_literal(lazy)]), emit_lookaround_bounded_up_to(inner, rest, lazy, options)])
 
   fn emit_staged_conversion_conditional(pattern: LiteralPattern) -> Syntax = match pattern
     LiteralEmpty -> runtime_call("unit_identity_conversion", [])
@@ -855,6 +855,19 @@ mod Std.Regex.Syntax.Emitter
 
   fn emit_line_break_scalar_char_compilation(_char: Char, options: LiteralRegexOptions) -> Syntax =
     runtime_call("ThompsonPredicate", [runtime_call("line_break_scalar_test", [emit_newline_policy(options), char_literal(_char)])])
+
+  fn emit_lookaround_line_break_compilation(options: LiteralRegexOptions) -> Syntax = match literal_newline_policy(options)
+    LiteralLFPolicy -> emit_lookaround_char_compilation('\n')
+    LiteralCRPolicy -> emit_lookaround_char_compilation('\r')
+    LiteralCRLFPolicy -> emit_lookaround_concat_compilation(emit_lookaround_char_compilation('\r'), emit_lookaround_char_compilation('\n'))
+    LiteralAnyCRLFPolicy -> emit_lookaround_alt_compilation(emit_lookaround_line_break_compilation(LiteralRegexOptions([], LiteralCRLFPolicy)), emit_lookaround_alt_compilation(emit_lookaround_char_compilation('\n'), emit_lookaround_char_compilation('\r')))
+    LiteralAnyUnicodePolicy -> emit_lookaround_alt_compilation(emit_lookaround_line_break_compilation(LiteralRegexOptions([], LiteralAnyCRLFPolicy)), emit_lookaround_alt_compilation(emit_lookaround_char_compilation('\v'), emit_lookaround_alt_compilation(emit_lookaround_char_compilation('\f'), emit_lookaround_alt_compilation(emit_lookaround_char_compilation(0x85), emit_lookaround_alt_compilation(emit_lookaround_char_compilation(0x2028), emit_lookaround_char_compilation(0x2029))))))
+
+  fn emit_lookaround_char_compilation(char: Char) -> Syntax = runtime_call("LookaroundPredicate", [runtime_call("option_exact_test", [char_literal(char), bool_literal(false), bool_literal(false)])])
+
+  fn emit_lookaround_concat_compilation(left: Syntax, right: Syntax) -> Syntax = runtime_call("LookaroundConcat", [left, right])
+
+  fn emit_lookaround_alt_compilation(left: Syntax, right: Syntax) -> Syntax = runtime_call("LookaroundAlternate", [left, right, bool_literal(false)])
 
   fn emit_options(options: LiteralRegexOptions) -> Syntax =
     runtime_call("RegexOptions", [

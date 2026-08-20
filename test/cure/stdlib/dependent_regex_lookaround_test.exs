@@ -49,6 +49,8 @@ defmodule Cure.Stdlib.DependentRegexLookaroundTest do
       fn nested_positive_search(input: String) -> Bool = matches(/(?=a(?=b))a/, input)
       fn nested_negative_search(input: String) -> Bool = matches(/(?!a(?=b))a/, input)
       fn nested_lookbehind_search(input: String) -> Bool = matches(/(?<=a(?=b))b/, input)
+      fn atomic_inside_lookahead() -> Bool = matches(/(?=(?>a|ab)c)abc/, "abc")
+      fn assertion_inside_atomic() -> Bool = matches(/(?>a(?=b)|ab)c/, "abc")
       fn lookbehind_search(input: String) -> Bool = matches(/(?<=ab)c/, input)
       fn negative_lookbehind_search(input: String) -> Bool = matches(/(?<!ab)c/, input)
       fn positive_full(input: String) -> Bool = match parse_full(/a(?=b)b/, input)
@@ -68,6 +70,11 @@ defmodule Cure.Stdlib.DependentRegexLookaroundTest do
     refute apply(module, :negative_lookahead_failure, [])
     assert apply(module, :positive_lookahead_prefix, [])
     assert apply(module, :nested_negative_lookahead, [])
+  end
+
+  test "atomic scopes and assertions preserve ordered commitment", %{runtime_module: module} do
+    refute apply(module, :atomic_inside_lookahead, [])
+    refute apply(module, :assertion_inside_atomic, [])
   end
 
   test "lookbehind checks the bounded subject history", %{runtime_module: module} do
@@ -102,8 +109,6 @@ defmodule Cure.Stdlib.DependentRegexLookaroundTest do
       {"(?<=a*)b", :VariableLengthLookbehind},
       {"(?<=(a))b", :AssertionCapturesUnsupported},
       {"(?=(?=(?=(?=(?=a)))))a", :NestedAssertionDepthExceeded},
-      {"(?=(?>a))a", :AssertionAtomicityUnsupported},
-      {"(?=a)(?>a|ab)c", :LookaroundAtomicityUnsupported},
       {"(?<=aaaaaaaaa)b", :LookbehindTooWide}
     ]
 

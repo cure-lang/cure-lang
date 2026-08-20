@@ -518,6 +518,22 @@ mod Std.Regex.Runtime
     ThompsonAlternate : (left: ThompsonCompilation(left_shape)) -> (right: ThompsonCompilation(right_shape)) -> (prefer_right: Bool) -> ThompsonCompilation(ChoiceC(left_shape, right_shape))
     ThompsonRepeat : (inner: ThompsonCompilation(inner_shape)) -> (lazy: Bool) -> ThompsonCompilation(ListC(inner_shape))
 
+  ## Lookaround compilation is a runtime-only parallel IR. It preserves the
+  ## same finite Thompson constructors as the ordinary proof IR, but adds an
+  ## explicit atomic scope so assertion operands cannot silently erase
+  ## ordered commitment when they cross an assertion boundary. The ordinary
+  ## typed proof remains over ThompsonCompilation; this tree is consumed only
+  ## by the checked finite assertion evaluator.
+  type LookaroundCompilation indices (shape: ShapeCode)
+    LookaroundPredicate : (test: (Char -> Bool)) -> LookaroundCompilation(CharC)
+    LookaroundEmpty : LookaroundCompilation(UnitC)
+    LookaroundBoundary : (constraint: BoundaryConstraint) -> LookaroundCompilation(UnitC)
+    LookaroundConcat : (left: LookaroundCompilation(left_shape)) -> (right: LookaroundCompilation(right_shape)) -> LookaroundCompilation(PairC(left_shape, right_shape))
+    LookaroundGroup : (inner: LookaroundCompilation(inner_shape)) -> LookaroundCompilation(StringC)
+    LookaroundAlternate : (left: LookaroundCompilation(left_shape)) -> (right: LookaroundCompilation(right_shape)) -> (prefer_right: Bool) -> LookaroundCompilation(ChoiceC(left_shape, right_shape))
+    LookaroundRepeat : (inner: LookaroundCompilation(inner_shape)) -> (lazy: Bool) -> LookaroundCompilation(ListC(inner_shape))
+    LookaroundAtomic : (inner: LookaroundCompilation(inner_shape)) -> LookaroundCompilation(inner_shape)
+
   ## Named compilation is constructor-for-constructor parallel to the checked
   ## Thompson tree.  Only group nodes differ: they carry the explicit slot ID
   ## used by the capture ledger.  Erasing the IDs recovers the ordinary
@@ -714,6 +730,37 @@ mod Std.Regex.Runtime
     ThompsonGroup(inner) -> group_pattern_machine(thompson_state_count(inner), pattern_machine_starts(thompson_machine(inner)), pattern_machine_next(thompson_machine(inner)))
     ThompsonAlternate(left, right, prefer_right) -> alternate_pattern_machine(thompson_state_count(left), thompson_machine(left), thompson_state_count(right), thompson_machine(right), prefer_right)
     ThompsonRepeat(inner, lazy) -> repeat_pattern_machine(thompson_state_count(inner), thompson_machine(inner), lazy)
+
+  @reducible
+  fn lookaround_state_count({@erased shape: ShapeCode}, compilation: LookaroundCompilation(shape)) -> Nat = match compilation
+    LookaroundPredicate(_) -> S(Z())
+    LookaroundEmpty() -> Z()
+    LookaroundBoundary(_) -> Z()
+    LookaroundConcat(left, right) -> plus(lookaround_state_count(left), lookaround_state_count(right))
+    LookaroundGroup(inner) -> lookaround_state_count(inner)
+    LookaroundAlternate(left, right, _) -> plus(lookaround_state_count(left), lookaround_state_count(right))
+    LookaroundRepeat(inner, _) -> lookaround_state_count(inner)
+    LookaroundAtomic(inner) -> lookaround_state_count(inner)
+
+  ## Build the finite child machine once. Atomic scopes are represented by
+  ## the same BeginAtomic/EndAtomic routine markers used by the ordinary
+  ## runtime plan, so nested assertion evaluation can apply one commitment
+  ## invariant rather than maintaining a second backtracking mechanism.
+  @reducible
+  fn lookaround_machine({@erased shape: ShapeCode}, compilation: LookaroundCompilation(shape)) -> PatternMachine(lookaround_state_count(compilation)) = match compilation
+    LookaroundPredicate(test) -> predicate_pattern_machine(test)
+    LookaroundEmpty() -> empty_pattern_machine()
+    LookaroundBoundary(constraint) -> boundary_pattern_machine(constraint)
+    LookaroundConcat(left, right) -> concat_pattern_machine(lookaround_state_count(left), lookaround_machine(left), lookaround_state_count(right), lookaround_machine(right))
+    LookaroundGroup(inner) ->
+      let inner_machine = lookaround_machine(inner)
+      group_pattern_machine(lookaround_state_count(inner), pattern_machine_starts(inner_machine), pattern_machine_next(inner_machine))
+    LookaroundAlternate(left, right, prefer_right) -> alternate_pattern_machine(lookaround_state_count(left), lookaround_machine(left), lookaround_state_count(right), lookaround_machine(right), prefer_right)
+    LookaroundRepeat(inner, lazy) -> repeat_pattern_machine(lookaround_state_count(inner), lookaround_machine(inner), lazy)
+    LookaroundAtomic(inner) -> atomic_pattern_machine(lookaround_machine(inner))
+
+  @reducible
+  fn lookaround_compiled({@erased shape: ShapeCode}, compilation: LookaroundCompilation(shape)) -> Sigma(n: Nat, PatternMachine(n)) = %[lookaround_state_count(compilation), lookaround_machine(compilation)]
 
   @reducible
   fn staged_predicate_next(test: Char -> Bool, state: Bounded(S(Z())), char: Char) -> List(MachineState(S(Z()))) =
@@ -1157,11 +1204,11 @@ mod Std.Regex.Runtime
   ## machine is closed over once here; each boundary check only supplies the
   ## current finite subject context, so no source parser or machine rebuild is
   ## performed during matching.
-  fn lookahead_constraint({shape: ShapeCode}, compilation: ThompsonCompilation(shape), positive: Bool, policy: NewlinePolicy) -> BoundaryConstraint =
-    BoundaryConstraint(false, false, false, false, false, false, false, false, false, policy, None(), Some(LookaheadCondition(positive, thompson_compiled(compilation))))
+  fn lookahead_constraint({shape: ShapeCode}, compilation: LookaroundCompilation(shape), positive: Bool, policy: NewlinePolicy) -> BoundaryConstraint =
+    BoundaryConstraint(false, false, false, false, false, false, false, false, false, policy, None(), Some(LookaheadCondition(positive, lookaround_compiled(compilation))))
 
-  fn lookbehind_constraint({shape: ShapeCode}, compilation: ThompsonCompilation(shape), positive: Bool, width: Nat, policy: NewlinePolicy) -> BoundaryConstraint =
-    BoundaryConstraint(false, false, false, false, false, false, false, false, false, policy, None(), Some(LookbehindCondition(positive, width, thompson_compiled(compilation))))
+  fn lookbehind_constraint({shape: ShapeCode}, compilation: LookaroundCompilation(shape), positive: Bool, width: Nat, policy: NewlinePolicy) -> BoundaryConstraint =
+    BoundaryConstraint(false, false, false, false, false, false, false, false, false, policy, None(), Some(LookbehindCondition(positive, width, lookaround_compiled(compilation))))
 
   @reducible
   fn constraints_hold(constraints: List(BoundaryConstraint), boundary: Boundary) -> Bool = match constraints
@@ -1624,12 +1671,12 @@ mod Std.Regex.Runtime
       [] -> false
       [_ | tail] -> history_has_width(tail, rest)
 
-  fn lookaround_machine_acceptance_path(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy) -> Option(LookaroundSearchPath(depth, n, machine, input, after_input, history, policy)) = match machine
-    MkPatternMachine(starts, _) -> lookaround_search_path(depth, n, machine, input, after_input, history, policy, lookaround_filter_boundary_states(depth, starts, position_boundary_for_history(position, append_characters(input, after_input), history), append_characters(input, after_input), history, policy))
+  fn lookaround_machine_acceptance_path(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy) -> Option(LookaroundSearchPath(depth, n, machine, input, after_input, history, policy)) = pickup
+    atomic_lookaround_accepts(depth, n, machine, position, input, after_input, history, policy) -> match machine
+      MkPatternMachine(starts, _) -> lookaround_search_path(depth, n, machine, input, after_input, history, policy, lookaround_filter_boundary_states(depth, starts, position_boundary_for_history(position, append_characters(input, after_input), history), append_characters(input, after_input), history, policy))
+    else -> None()
 
-  fn lookaround_machine_accepts(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy) -> Bool = match lookaround_machine_acceptance_path(depth, n, machine, position, input, after_input, history, policy)
-      None() -> false
-      Some(_) -> true
+  fn lookaround_machine_accepts(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy) -> Bool = atomic_lookaround_accepts(depth, n, machine, position, input, after_input, history, policy)
 
   fn lookaround_prefix_machine_accepts(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy) -> Bool = match machine
     MkPatternMachine(starts, _) -> match lookaround_prefix_search_path(depth, n, machine, input, after_input, history, policy, lookaround_filter_boundary_states(depth, starts, position_boundary_for_history(position, append_characters(input, after_input), history), append_characters(input, after_input), history, policy))
@@ -1779,14 +1826,13 @@ mod Std.Regex.Runtime
       None() -> lookaround_prefix_search_path_members(depth, n, machine, input, after_input, history, policy, starts, remaining)
       Some(path) -> Some(LookaroundPrefixSearchFound(ThreadAccepted(), path))
 
-  fn lookaround_prefix_search_decision(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy) -> LookaheadDecision = match machine
-    MkPatternMachine(starts, _) -> match lookaround_prefix_search_path(depth, n, machine, input, after_input, history, policy, lookaround_filter_boundary_states(depth, starts, position_boundary_for_history(position, append_characters(input, after_input), history), append_characters(input, after_input), history, policy))
-      None() -> LookaheadRefuted(LookaheadSearchExhausted())
-      Some(_) -> LookaheadSatisfied()
+  fn lookaround_prefix_search_decision(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy) -> LookaheadDecision = pickup
+    atomic_lookaround_prefix_accepts(depth, n, machine, position, input, after_input, history, policy) -> LookaheadSatisfied()
+    else -> LookaheadRefuted(LookaheadSearchExhausted())
 
-  fn lookaround_search_decision(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy) -> LookbehindDecision = match lookaround_machine_acceptance_path(depth, n, machine, position, input, after_input, history, policy)
-    None() -> LookbehindRefuted(LookbehindSearchExhausted())
-    Some(_) -> LookbehindSatisfied()
+  fn lookaround_search_decision(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy) -> LookbehindDecision = pickup
+    atomic_lookaround_accepts(depth, n, machine, position, input, after_input, history, policy) -> LookbehindSatisfied()
+    else -> LookbehindRefuted(LookbehindSearchExhausted())
 
   fn lookaround_transition_boundary(char: Char, rest: List(Char), after_input: List(Char), policy: NewlinePolicy) -> Boundary =
     position_boundary(false, newline_char(policy, char), ascii_word(char), option_word(char, true), Some(char), append_characters(rest, after_input))
@@ -2058,6 +2104,83 @@ mod Std.Regex.Runtime
       AtomicSearchYes() -> true
       AtomicSearchNo() -> false
       AtomicSearchCommit(_) -> false
+
+  ## Atomic assertion search is the same finite ordered search as the ordinary
+  ## assertion path, but every destination is first passed through the
+  ## depth-aware lookaround constraint filter. This is what makes an assertion
+  ## inside an atomic scope observable without introducing a host backtracking
+  ## stack or rebuilding a child machine per attempt.
+  fn atomic_lookaround_accepting_from(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), policy: NewlinePolicy, scope_depth: Nat) -> AtomicSearchResult = match input
+    [] -> match state
+      ThreadAccepted() -> AtomicSearchYes()
+      ThreadActive(_) -> AtomicSearchNo()
+    [char | rest] -> atomic_lookaround_accepting_members(depth, n, machine, char, rest, after_input, state, history, policy, scope_depth, lookaround_machine_destinations(depth, n, machine, state, char, rest, after_input, history, policy))
+
+  fn atomic_lookaround_accepting_members(depth: Nat, n: Nat, machine: PatternMachine(n), char: Char, rest: List(Char), after_input: List(Char), source_state: ThreadState(n), history: List(Char), policy: NewlinePolicy, scope_depth: Nat, destinations: List(MachineState(n))) -> AtomicSearchResult = match destinations
+    [] -> AtomicSearchNo()
+    [Active(state, routine, _) | remaining] -> match execute_routine(routine, [], [])
+      EvidenceExecution(_, _) -> match atomic_scope_effect(routine, scope_depth)
+        AtomicScopeEffect(next_depth, closed_depth) -> match atomic_lookaround_accepting_from(depth, n, machine, rest, after_input, ThreadActive(state), history_push_bounded(history, char), policy, next_depth)
+          AtomicSearchYes() -> AtomicSearchYes()
+          AtomicSearchCommit(commit_depth) -> match atomic_commit_disposition(scope_depth, commit_depth)
+            AtomicCommitEscapes(_) -> atomic_lookaround_accepting_members(depth, n, machine, char, rest, after_input, source_state, history, policy, scope_depth, remaining)
+            AtomicCommitBlocks(_) -> AtomicSearchCommit(commit_depth)
+          AtomicSearchNo() -> match closed_depth
+            None() -> atomic_lookaround_accepting_members(depth, n, machine, char, rest, after_input, source_state, history, policy, scope_depth, remaining)
+            Some(commit_depth) -> match atomic_commit_disposition(scope_depth, commit_depth)
+              AtomicCommitEscapes(_) -> atomic_lookaround_accepting_members(depth, n, machine, char, rest, after_input, source_state, history, policy, scope_depth, remaining)
+              AtomicCommitBlocks(_) -> AtomicSearchCommit(commit_depth)
+    [Accepted(routine, _) | remaining] -> match execute_routine(routine, [], [])
+      EvidenceExecution(_, _) -> match atomic_scope_effect(routine, scope_depth)
+        AtomicScopeEffect(next_depth, closed_depth) -> match atomic_lookaround_accepting_from(depth, n, machine, rest, after_input, ThreadAccepted(), history_push_bounded(history, char), policy, next_depth)
+          AtomicSearchYes() -> AtomicSearchYes()
+          AtomicSearchCommit(commit_depth) -> match atomic_commit_disposition(scope_depth, commit_depth)
+            AtomicCommitEscapes(_) -> atomic_lookaround_accepting_members(depth, n, machine, char, rest, after_input, source_state, history, policy, scope_depth, remaining)
+            AtomicCommitBlocks(_) -> AtomicSearchCommit(commit_depth)
+          AtomicSearchNo() -> match closed_depth
+            None() -> atomic_lookaround_accepting_members(depth, n, machine, char, rest, after_input, source_state, history, policy, scope_depth, remaining)
+            Some(commit_depth) -> match atomic_commit_disposition(scope_depth, commit_depth)
+              AtomicCommitEscapes(_) -> atomic_lookaround_accepting_members(depth, n, machine, char, rest, after_input, source_state, history, policy, scope_depth, remaining)
+              AtomicCommitBlocks(_) -> AtomicSearchCommit(commit_depth)
+
+  fn atomic_lookaround_initial_members(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy, blocked_depth: Option(Nat), starts: List(MachineState(n))) -> AtomicSearchResult = match starts
+    [] -> AtomicSearchNo()
+    [head | remaining] -> match blocked_depth
+      Some(commit_depth) -> match atomic_commit_disposition(atomic_scope_max_depth(machine_state_routine(n, head), Z()), commit_depth)
+        AtomicCommitBlocks(_) -> atomic_lookaround_initial_members(depth, n, machine, input, after_input, history, policy, blocked_depth, remaining)
+        AtomicCommitEscapes(_) -> atomic_lookaround_initial_member(depth, n, machine, input, after_input, history, policy, blocked_depth, head, remaining)
+      None() -> atomic_lookaround_initial_member(depth, n, machine, input, after_input, history, policy, blocked_depth, head, remaining)
+
+  fn atomic_lookaround_initial_member(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy, blocked_depth: Option(Nat), head: MachineState(n), remaining: List(MachineState(n))) -> AtomicSearchResult = match head
+    Active(state, routine, _) -> match execute_routine(routine, [], [])
+      EvidenceExecution(_, _) -> match atomic_scope_effect(routine, Z())
+        AtomicScopeEffect(next_depth, _) -> match atomic_lookaround_accepting_from(depth, n, machine, input, after_input, ThreadActive(state), history, policy, next_depth)
+          AtomicSearchYes() -> AtomicSearchYes()
+          AtomicSearchCommit(commit_depth) -> atomic_lookaround_initial_members(depth, n, machine, input, after_input, history, policy, Some(commit_depth), remaining)
+          AtomicSearchNo() -> atomic_lookaround_initial_members(depth, n, machine, input, after_input, history, policy, blocked_depth, remaining)
+    Accepted(routine, _) -> match execute_routine(routine, [], [])
+      EvidenceExecution(_, _) -> match atomic_scope_effect(routine, Z())
+        AtomicScopeEffect(next_depth, _) -> match atomic_lookaround_accepting_from(depth, n, machine, input, after_input, ThreadAccepted(), history, policy, next_depth)
+          AtomicSearchYes() -> AtomicSearchYes()
+          AtomicSearchCommit(commit_depth) -> atomic_lookaround_initial_members(depth, n, machine, input, after_input, history, policy, Some(commit_depth), remaining)
+          AtomicSearchNo() -> atomic_lookaround_initial_members(depth, n, machine, input, after_input, history, policy, blocked_depth, remaining)
+
+  fn atomic_lookaround_accepts(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy) -> Bool = match machine
+    MkPatternMachine(starts, _) -> match atomic_lookaround_initial_members(depth, n, machine, input, after_input, history, policy, None(), lookaround_filter_boundary_states(depth, starts, position_boundary_for_history(position, append_characters(input, after_input), history), append_characters(input, after_input), history, policy))
+      AtomicSearchYes() -> true
+      AtomicSearchNo() -> false
+      AtomicSearchCommit(_) -> false
+
+  fn atomic_lookaround_prefix_accepts(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy) -> Bool =
+    atomic_lookaround_prefix_loop(depth, n, machine, position, [], input, after_input, history, policy)
+
+  fn atomic_lookaround_prefix_loop(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, reversed_prefix: List(Char), remaining_input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy) -> Bool =
+    let matched_input = evidence_reverse_chars(reversed_prefix)
+    pickup
+      atomic_lookaround_accepts(depth, n, machine, position, matched_input, append_characters(remaining_input, after_input), history, policy) -> true
+      else -> match remaining_input
+        [] -> false
+        [char | rest] -> atomic_lookaround_prefix_loop(depth, n, machine, position, [char | reversed_prefix], rest, after_input, history, policy)
 
   fn atomic_runtime_first_prefix(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char)) -> Option(Tuple(List(Char), List(Char))) =
     atomic_runtime_first_prefix_loop(n, machine, position, [], input)
@@ -2418,7 +2541,7 @@ mod Std.Regex.Runtime
   type StagedMachine indices (shape: ShapeCode)
     StagedMachineValue : (compilation: ThompsonCompilation(shape)) -> StagedMachine(shape)
     StagedAtomicPatternValue : (plan: AtomicRuntimePattern(shape)) -> StagedMachine(shape)
-    StagedLookaroundValue : (pattern: Pattern(shape)) -> (compilation: ThompsonCompilation(shape)) -> (policy: NewlinePolicy) -> StagedMachine(shape)
+    StagedLookaroundValue : (pattern: Pattern(shape)) -> (compilation: LookaroundCompilation(shape)) -> (policy: NewlinePolicy) -> StagedMachine(shape)
 
   ## Runtime-only atomic plan. Ordinary Pattern values and their Thompson
   ## proofs stay unchanged; this parallel tree carries only the commitment
