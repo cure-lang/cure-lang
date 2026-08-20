@@ -77,6 +77,16 @@ defmodule Cure.Stdlib.DependentRegexNamedCaptureTest do
           None() -> None()
           Some(found) -> named_capture("flag", found)
 
+      fn ordered_assertion_capture(input: String) -> Option(String) =
+        match search_named(/(?=(?<flag>a|ab))ab/, input)
+          None() -> None()
+          Some(found) -> named_capture("flag", found)
+
+      fn lazy_assertion_capture(input: String) -> Option(String) =
+        match search_named(/(?=(?<flag>a+?))a+/, input)
+          None() -> None()
+          Some(found) -> named_capture("flag", found)
+
       fn replay_probe() -> Option(List(NamedCapture)) =
         replay_named_capture_routine(
           [Regular(BeginCaptureSlot(Z())), Observe('a'), Regular(EndCaptureSlot(Z()))],
@@ -125,6 +135,16 @@ defmodule Cure.Stdlib.DependentRegexNamedCaptureTest do
              {:some, {:String, ~c"a"}}
 
     assert apply(module, :nested_assertion_conditional, [{:String, ~c"b"}]) == :none
+  end
+
+  test "assertion capture replay preserves ordered alternation", %{runtime_module: module} do
+    assert apply(module, :ordered_assertion_capture, [{:String, ~c"ab"}]) ==
+             {:some, {:String, ~c"a"}}
+  end
+
+  test "assertion capture replay preserves lazy repetition", %{runtime_module: module} do
+    assert apply(module, :lazy_assertion_capture, [{:String, ~c"aaa"}]) ==
+             {:some, {:String, ~c"a"}}
   end
 
   test "flat named capture returns its text", %{runtime_module: module} do

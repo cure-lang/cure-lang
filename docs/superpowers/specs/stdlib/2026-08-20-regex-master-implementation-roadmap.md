@@ -24,7 +24,13 @@ capture/backtracking slice now also threads selected assertion markers through
 later boundary constraints (including capture-participation conditionals),
 preserves the same context in named replay, and covers present/absent optional
 assertion captures plus failed-alternative backtracking. Branch backtracking
-and nested assertion capture publication are regression-tested.
+and nested assertion capture publication are regression-tested. Capture-aware
+prefix replay now uses the same ordered finite-machine DFS as assertion
+acceptance: it returns the first path that reaches acceptance, carrying the
+consumed and unconsumed character lists directly. This preserves lazy
+repetition and ordered alternation instead of retrying every endpoint with a
+separate greedy scan. The focused named-capture suite and the 138-test Regex
+behavior slice pass with this evaluator.
 The Phase 2 exit gate is therefore still not discharged.
 
 **Applies to:** the Cure-native typed regex engine, its erased portable runtime,
@@ -275,7 +281,9 @@ search-bound semantics have a canonical implementation. Assertion-created
 capture markers are now threaded through the shared constraint fold and the
 capture-aware replay fold, so a later conditional sees the same participation
 decision in ordinary and named execution; optional assertion captures cover both
-participating and absent branches. Full assertion path/refutation certificates
+participating and absent branches. Capture-aware prefix replay follows machine
+order for lazy and ordered branches, with regressions for ordered alternation
+and lazy repetition. Full assertion path/refutation certificates
 and complete capture interaction coverage remain open; the phase exit gate is
 therefore not yet discharged.
 
