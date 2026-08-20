@@ -1771,13 +1771,13 @@ mod Std.Regex.Runtime
         True() -> None()
         False() -> Some([])
       S(child_depth) -> match boundary
-        Boundary(subject_start, _, _, line_start, _, ascii_boundary, unicode_boundary, previous_char, _, _) -> match atomic_lookaround_routine_accepts(child_depth, count, machine, InitialPosition(subject_start, line_start, ascii_boundary, unicode_boundary, previous_char), remaining, [], history, capture_context, policy)
-          Some(routine) -> match positive
-            True() -> Some(routine)
-            False() -> None()
+        Boundary(subject_start, _, _, line_start, _, ascii_boundary, unicode_boundary, previous_char, _, _) -> match atomic_lookaround_routine_prefix(child_depth, count, machine, InitialPosition(subject_start, line_start, ascii_boundary, unicode_boundary, previous_char), remaining, false, history, capture_context, policy)
           None() -> match positive
             True() -> None()
             False() -> Some([])
+          Some(%[_, _, routine]) -> match positive
+            True() -> Some(routine)
+            False() -> None()
     Some(LookbehindCondition(positive, width, mk_pair(count, machine))) -> match depth
       Z() -> match positive
         True() -> None()
@@ -2408,10 +2408,10 @@ mod Std.Regex.Runtime
       [] -> current
       [char | rest] -> atomic_lookaround_routine_last_prefix_loop(depth, n, machine, position, [char | reversed_prefix], rest, current, history, capture_context, policy)
 
-  fn atomic_lookaround_routine_prefix(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), greedy: Bool, history: List(Char), policy: NewlinePolicy) -> Option(Tuple(List(Char), List(Char), List(ExtendedInstruction))) =
+  fn atomic_lookaround_routine_prefix(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), greedy: Bool, history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Option(Tuple(List(Char), List(Char), List(ExtendedInstruction))) =
     pickup
-      greedy -> atomic_lookaround_routine_last_prefix_loop(depth, n, machine, position, [], input, None(), history, [], policy)
-      else -> atomic_lookaround_routine_prefix_loop(depth, n, machine, position, [], input, [], history, [], policy)
+      greedy -> atomic_lookaround_routine_last_prefix_loop(depth, n, machine, position, [], input, None(), history, capture_context, policy)
+      else -> atomic_lookaround_routine_prefix_loop(depth, n, machine, position, [], input, [], history, capture_context, policy)
 
   fn atomic_lookaround_accepts(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Bool = match machine
     MkPatternMachine(starts, _) -> match atomic_lookaround_initial_members(depth, n, machine, input, after_input, history, capture_context, policy, None(), lookaround_filter_boundary_states(depth, starts, position_boundary_for_history(position, append_characters(input, after_input), history), append_characters(input, after_input), history, capture_context, policy))
@@ -3117,7 +3117,7 @@ mod Std.Regex.Runtime
 
   fn named_lookaround_prefix_capture_at({shape: ShapeCode}, compilation: LookaroundCompilation(shape), input: List(Char), greedy: Bool, position: InitialPosition, history: List(Char), layout: CaptureLayout, policy: NewlinePolicy) -> Option(NamedPrefixCapture) =
     match lookaround_compiled(compilation)
-      mk_pair(count, machine) -> match atomic_lookaround_routine_prefix(regex_assertion_depth_limit(), count, machine, position, input, greedy, history, policy)
+      mk_pair(count, machine) -> match atomic_lookaround_routine_prefix(regex_assertion_depth_limit(), count, machine, position, input, greedy, history, [], policy)
         None() -> None()
         Some(%[matched, remaining, routine]) -> match replay_named_capture_routine(routine, layout)
           None() -> None()
