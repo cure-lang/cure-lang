@@ -48,6 +48,21 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
       )
         LookbehindRefuted(LookbehindSearchExhausted(['b'], [], [], AnyUnicodeNewline(), _)) -> true
         _ -> false
+
+      fn nested_decision_evidence() -> Bool =
+        let inner_machine = predicate_pattern_machine(fn(char) -> char == 'a')
+        let constraint = BoundaryConstraint(false, false, false, false, false, false, false, false, false, AnyUnicodeNewline(), None(), Some(LookaheadCondition(true, %[1, inner_machine])))
+        match lookaround_constraint_nested_decisions(
+          2,
+          constraint,
+          position_boundary_for_history(subject_initial_position(), ['a'], []),
+          ['a'],
+          [],
+          [],
+          AnyUnicodeNewline()
+        )
+          [LookaheadNestedDecision(true, _)] -> true
+          _ -> false
     end
     '''
 
@@ -59,5 +74,6 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert apply(module, :positive_decision, [])
     assert apply(module, :negative_decision, [])
     assert apply(module, :negative_certificate_context, [])
+    assert apply(module, :nested_decision_evidence, [])
   end
 end

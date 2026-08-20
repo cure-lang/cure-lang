@@ -4,6 +4,7 @@ mod Std.Regex.Runtime
   use Std.Regex.Core
   use Std.Char
   use Std.Option
+  use Std.List
   use Std.String
   use Std.Syntax
   use Std.Bounded
@@ -1741,9 +1742,10 @@ mod Std.Regex.Runtime
     InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word, previous_char) ->
       position_boundary(subject_start, line_start, previous_ascii_word, previous_unicode_word, previous_char, input)
 
-  ## Capture-free assertion paths carry only state reachability. The depth
-  ## index is the same guard used by the evaluator: each nested assertion
-  ## consumes one level and zero fuel cannot manufacture a child path.
+  ## Capture-free assertion paths carry state reachability plus an erased list
+  ## of the nested decisions used by each accepted transition. The depth index
+  ## is the same guard used by the evaluator: each nested assertion consumes
+  ## one level and zero fuel cannot manufacture a child path.
   ## Exhaustion is a checked summary of a finite candidate traversal.  The
   ## `whole` list is retained in the index of `MachineStateMembers`; the only
   ## constructor is reachable after the traversal has structurally reached its
@@ -1753,8 +1755,8 @@ mod Std.Regex.Runtime
 
   type LookaroundAcceptingPath(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), policy: NewlinePolicy)
     LookaroundAcceptedNow : LookaroundAcceptingPath(depth, n, machine, Nil(), after_input, ThreadAccepted(), history, policy)
-    LookaroundAcceptedNextActive : (char: Char) -> (rest: List(Char)) -> (destination: Bounded(n)) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (capture_context: List(EvidenceInstruction)) -> (edge: ListMember(MachineState(n), Active(destination, routine, constraints), lookaround_machine_destinations(depth, n, machine, state, char, rest, after_input, history, capture_context, policy))) -> (@erased suffix: LookaroundAcceptingPath(depth, n, machine, rest, after_input, ThreadActive(destination), history_push_bounded(history, char), policy)) -> LookaroundAcceptingPath(depth, n, machine, Cons(char, rest), after_input, state, history, policy)
-    LookaroundAcceptedNextAccepted : (char: Char) -> (rest: List(Char)) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (capture_context: List(EvidenceInstruction)) -> (edge: ListMember(MachineState(n), Accepted(routine, constraints), lookaround_machine_destinations(depth, n, machine, state, char, rest, after_input, history, capture_context, policy))) -> (@erased suffix: LookaroundAcceptingPath(depth, n, machine, rest, after_input, ThreadAccepted(), history_push_bounded(history, char), policy)) -> LookaroundAcceptingPath(depth, n, machine, Cons(char, rest), after_input, state, history, policy)
+    LookaroundAcceptedNextActive : (char: Char) -> (rest: List(Char)) -> (destination: Bounded(n)) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (capture_context: List(EvidenceInstruction)) -> (@erased nested_decisions: List(LookaroundNestedDecision)) -> (edge: ListMember(MachineState(n), Active(destination, routine, constraints), lookaround_machine_destinations(depth, n, machine, state, char, rest, after_input, history, capture_context, policy))) -> (@erased suffix: LookaroundAcceptingPath(depth, n, machine, rest, after_input, ThreadActive(destination), history_push_bounded(history, char), policy)) -> LookaroundAcceptingPath(depth, n, machine, Cons(char, rest), after_input, state, history, policy)
+    LookaroundAcceptedNextAccepted : (char: Char) -> (rest: List(Char)) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (capture_context: List(EvidenceInstruction)) -> (@erased nested_decisions: List(LookaroundNestedDecision)) -> (edge: ListMember(MachineState(n), Accepted(routine, constraints), lookaround_machine_destinations(depth, n, machine, state, char, rest, after_input, history, capture_context, policy))) -> (@erased suffix: LookaroundAcceptingPath(depth, n, machine, rest, after_input, ThreadAccepted(), history_push_bounded(history, char), policy)) -> LookaroundAcceptingPath(depth, n, machine, Cons(char, rest), after_input, state, history, policy)
 
   fn lookaround_machine_destinations(depth: Nat, n: Nat, machine: PatternMachine(n), state: ThreadState(n), char: Char, rest: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> List(MachineState(n)) = match machine
     MkPatternMachine(_, next) -> lookaround_filter_boundary_states(depth, next_for_thread(n, next, state, char), lookaround_transition_boundary(char, rest, after_input, policy), append_characters(rest, after_input), history, capture_context, policy)
@@ -1771,15 +1773,15 @@ mod Std.Regex.Runtime
     MachineStateMembersNil() -> LookaroundAcceptingPathRejected(LookaroundExhausted(lookaround_machine_destinations(depth, n, machine, source, char, rest, after_input, history, capture_context, policy), MachineStateMembersNil(), ()))
     MachineStateMembersActive(destination, routine, constraints, edge, remaining) -> match lookaround_accepting_path(depth, n, machine, rest, after_input, ThreadActive(destination), history_push_bounded(history, char), capture_context, policy)
       LookaroundAcceptingPathRejected(_) -> lookaround_accepting_members_path(depth, n, machine, char, rest, after_input, source, history, capture_context, policy, remaining)
-      LookaroundAcceptingPathFound(suffix) -> LookaroundAcceptingPathFound(LookaroundAcceptedNextActive(char, rest, destination, routine, constraints, capture_context, edge, suffix))
+      LookaroundAcceptingPathFound(suffix) -> LookaroundAcceptingPathFound(LookaroundAcceptedNextActive(char, rest, destination, routine, constraints, capture_context, lookaround_nested_decisions(depth, constraints, lookaround_transition_boundary(char, rest, after_input, policy), append_characters(rest, after_input), history, capture_context, policy), edge, suffix))
     MachineStateMembersAccepted(routine, constraints, edge, remaining) -> match lookaround_accepting_path(depth, n, machine, rest, after_input, ThreadAccepted(), history_push_bounded(history, char), capture_context, policy)
       LookaroundAcceptingPathRejected(_) -> lookaround_accepting_members_path(depth, n, machine, char, rest, after_input, source, history, capture_context, policy, remaining)
-      LookaroundAcceptingPathFound(suffix) -> LookaroundAcceptingPathFound(LookaroundAcceptedNextAccepted(char, rest, routine, constraints, capture_context, edge, suffix))
+      LookaroundAcceptingPathFound(suffix) -> LookaroundAcceptingPathFound(LookaroundAcceptedNextAccepted(char, rest, routine, constraints, capture_context, lookaround_nested_decisions(depth, constraints, lookaround_transition_boundary(char, rest, after_input, policy), append_characters(rest, after_input), history, capture_context, policy), edge, suffix))
 
   type LookaroundPrefixPath(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), policy: NewlinePolicy)
     LookaroundPrefixAccepted : LookaroundPrefixPath(depth, n, machine, input, after_input, ThreadAccepted(), history, policy)
-    LookaroundPrefixNextActive : (char: Char) -> (rest: List(Char)) -> (destination: Bounded(n)) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (capture_context: List(EvidenceInstruction)) -> (edge: ListMember(MachineState(n), Active(destination, routine, constraints), lookaround_machine_destinations(depth, n, machine, state, char, rest, after_input, history, capture_context, policy))) -> (@erased suffix: LookaroundPrefixPath(depth, n, machine, rest, after_input, ThreadActive(destination), history_push_bounded(history, char), policy)) -> LookaroundPrefixPath(depth, n, machine, Cons(char, rest), after_input, state, history, policy)
-    LookaroundPrefixNextAccepted : (char: Char) -> (rest: List(Char)) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (capture_context: List(EvidenceInstruction)) -> (edge: ListMember(MachineState(n), Accepted(routine, constraints), lookaround_machine_destinations(depth, n, machine, state, char, rest, after_input, history, capture_context, policy))) -> (@erased suffix: LookaroundPrefixPath(depth, n, machine, rest, after_input, ThreadAccepted(), history_push_bounded(history, char), policy)) -> LookaroundPrefixPath(depth, n, machine, Cons(char, rest), after_input, state, history, policy)
+    LookaroundPrefixNextActive : (char: Char) -> (rest: List(Char)) -> (destination: Bounded(n)) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (capture_context: List(EvidenceInstruction)) -> (@erased nested_decisions: List(LookaroundNestedDecision)) -> (edge: ListMember(MachineState(n), Active(destination, routine, constraints), lookaround_machine_destinations(depth, n, machine, state, char, rest, after_input, history, capture_context, policy))) -> (@erased suffix: LookaroundPrefixPath(depth, n, machine, rest, after_input, ThreadActive(destination), history_push_bounded(history, char), policy)) -> LookaroundPrefixPath(depth, n, machine, Cons(char, rest), after_input, state, history, policy)
+    LookaroundPrefixNextAccepted : (char: Char) -> (rest: List(Char)) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (capture_context: List(EvidenceInstruction)) -> (@erased nested_decisions: List(LookaroundNestedDecision)) -> (edge: ListMember(MachineState(n), Accepted(routine, constraints), lookaround_machine_destinations(depth, n, machine, state, char, rest, after_input, history, capture_context, policy))) -> (@erased suffix: LookaroundPrefixPath(depth, n, machine, rest, after_input, ThreadAccepted(), history_push_bounded(history, char), policy)) -> LookaroundPrefixPath(depth, n, machine, Cons(char, rest), after_input, state, history, policy)
 
   fn lookaround_prefix_path(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> LookaroundPrefixPathResult(depth, n, machine, input, after_input, state, history, policy) = match state
     ThreadAccepted() -> LookaroundPrefixPathFound(LookaroundPrefixAccepted())
@@ -1791,10 +1793,10 @@ mod Std.Regex.Runtime
     MachineStateMembersNil() -> LookaroundPrefixPathRejected(LookaroundExhausted(lookaround_machine_destinations(depth, n, machine, source, char, rest, after_input, history, capture_context, policy), MachineStateMembersNil(), ()))
     MachineStateMembersActive(destination, routine, constraints, edge, remaining) -> match lookaround_prefix_path(depth, n, machine, rest, after_input, ThreadActive(destination), history_push_bounded(history, char), capture_context, policy)
       LookaroundPrefixPathRejected(_) -> lookaround_prefix_members_path(depth, n, machine, char, rest, after_input, source, history, capture_context, policy, remaining)
-      LookaroundPrefixPathFound(suffix) -> LookaroundPrefixPathFound(LookaroundPrefixNextActive(char, rest, destination, routine, constraints, capture_context, edge, suffix))
+      LookaroundPrefixPathFound(suffix) -> LookaroundPrefixPathFound(LookaroundPrefixNextActive(char, rest, destination, routine, constraints, capture_context, lookaround_nested_decisions(depth, constraints, lookaround_transition_boundary(char, rest, after_input, policy), append_characters(rest, after_input), history, capture_context, policy), edge, suffix))
     MachineStateMembersAccepted(routine, constraints, edge, remaining) -> match lookaround_prefix_path(depth, n, machine, rest, after_input, ThreadAccepted(), history_push_bounded(history, char), capture_context, policy)
       LookaroundPrefixPathRejected(_) -> lookaround_prefix_members_path(depth, n, machine, char, rest, after_input, source, history, capture_context, policy, remaining)
-      LookaroundPrefixPathFound(suffix) -> LookaroundPrefixPathFound(LookaroundPrefixNextAccepted(char, rest, routine, constraints, capture_context, edge, suffix))
+      LookaroundPrefixPathFound(suffix) -> LookaroundPrefixPathFound(LookaroundPrefixNextAccepted(char, rest, routine, constraints, capture_context, lookaround_nested_decisions(depth, constraints, lookaround_transition_boundary(char, rest, after_input, policy), append_characters(rest, after_input), history, capture_context, policy), edge, suffix))
 
   type LookaroundSearchPath(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy)
     LookaroundSearchFound : (state: ThreadState(n)) -> (@erased path: LookaroundAcceptingPath(depth, n, machine, input, after_input, state, history, policy)) -> LookaroundSearchPath(depth, n, machine, input, after_input, history, policy)
@@ -1854,6 +1856,25 @@ mod Std.Regex.Runtime
   type LookbehindDecision(n: Nat, machine: PatternMachine(n)) indices ()
     LookbehindSatisfied : (witness: LookbehindWitness(n, machine)) -> LookbehindDecision(n, machine)
     LookbehindRefuted : (certificate: LookbehindRefutation(n, machine)) -> LookbehindDecision(n, machine)
+
+  ## Nested assertion decisions are existentially packaged because each child
+  ## machine has its own state-count index.  They are proof metadata attached
+  ## to a parent path; the path constructors erase the list after checking.
+  typealias LookaheadDecisionEvidence = Sigma(n: Nat, Sigma(machine: PatternMachine(n), LookaheadDecision(n, machine)))
+  typealias LookbehindDecisionEvidence = Sigma(n: Nat, Sigma(machine: PatternMachine(n), LookbehindDecision(n, machine)))
+  type LookaroundNestedDecision =
+    | LookaheadNestedDecision(Bool, LookaheadDecisionEvidence)
+    | LookbehindNestedDecision(Bool, LookbehindDecisionEvidence)
+
+  fn lookaround_constraint_nested_decisions(depth: Nat, constraint: BoundaryConstraint, boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> List(LookaroundNestedDecision) = match constraint
+    BoundaryConstraint(_, _, _, _, _, _, _, _, _, _, _, condition) -> match condition
+      None() -> []
+      Some(LookaheadCondition(positive, mk_pair(count, machine))) -> [LookaheadNestedDecision(positive, %[count, machine, lookaround_child_lookahead(depth, count, machine, boundary, remaining, history, capture_context, policy)])]
+      Some(LookbehindCondition(positive, width, mk_pair(count, machine))) -> [LookbehindNestedDecision(positive, %[count, machine, lookaround_child_lookbehind(depth, count, machine, width, boundary, remaining, history, capture_context, policy)])]
+
+  fn lookaround_nested_decisions(depth: Nat, constraints: List(BoundaryConstraint), boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> List(LookaroundNestedDecision) = match constraints
+    [] -> []
+    [constraint | rest] -> append(lookaround_constraint_nested_decisions(depth, constraint, boundary, remaining, history, capture_context, policy), lookaround_nested_decisions(depth, rest, boundary, remaining, history, capture_context, policy))
 
   fn lookaround_prefix_search_path(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, starts: List(MachineState(n))) -> LookaroundPrefixSearchResult(depth, n, machine, input, after_input, history, policy) = lookaround_prefix_search_path_members(depth, n, machine, input, after_input, history, capture_context, policy, starts, machine_state_members(starts))
 
