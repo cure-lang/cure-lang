@@ -250,10 +250,15 @@ interactions, and parent-capture assertion conditionals are committed
 (`9f8af26f` plus the current assertion-conditional slice). Atomic/possessive
 scopes inside assertions, assertions inside atomic scopes, and conditional
 branches that inspect an already-participating outer capture now use the finite
-`LookaroundCompilation` IR and the same commitment relation. Full assertion
-path/refutation certificates, captures created inside assertions, and scoped
-inline options remain open; the phase exit gate is therefore not yet
-discharged.
+`LookaroundCompilation` IR and the same commitment relation. The first scoped
+inline-option slice is now implemented: `(?i:...)`, `(?m:...)`, `(?s:...)`,
+`(?u:...)`, `(?U:...)`, and their `-` removals are represented as lexical AST
+nodes and propagated through ordinary, lookaround, atomic, and named
+compilations. The source-sensitive `x` mode and execution-level `f`/`E` flags
+remain deliberately rejected inside a scope until their source-map and
+search-bound semantics have a canonical implementation. Full assertion
+path/refutation certificates and captures created inside assertions remain
+open; the phase exit gate is therefore not yet discharged.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in

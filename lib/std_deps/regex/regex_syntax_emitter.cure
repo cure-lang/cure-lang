@@ -47,6 +47,7 @@ mod Std.Regex.Syntax.Emitter
     LiteralFinalEnd -> UnitC
     LiteralWordBoundary(_) -> UnitC
     LiteralConfigured(_, inner) -> literal_shape(inner)
+    LiteralScopedOptions(_, _, inner) -> literal_shape(inner)
 
   fn emit_shape(shape: LiteralShapeCode) -> Syntax = match shape
     UnitC -> core_call("UnitC", [])
@@ -110,7 +111,8 @@ mod Std.Regex.Syntax.Emitter
     LiteralStrictEnd -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
     LiteralFinalEnd -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
     LiteralWordBoundary(_) -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
-    LiteralConfigured(policy, inner) -> emit_atomic_runtime_pattern(inner, options)
+    LiteralConfigured(_, inner) -> emit_atomic_runtime_pattern(inner, options)
+    LiteralScopedOptions(enabled, disabled, inner) -> emit_atomic_runtime_pattern(inner, apply_literal_scoped_options(enabled, disabled, options))
 
   fn emit_atomic_runtime_pattern_or_empty(pattern: Option(LiteralPattern), options: LiteralRegexOptions) -> Syntax = match pattern
     None() -> runtime_call("AtomicRuntimeLeaf", [core_call("PatternEmpty", [])])
@@ -196,6 +198,7 @@ mod Std.Regex.Syntax.Emitter
     LiteralFinalEnd -> runtime_call("LookaroundBoundary", [runtime_call("subject_end_constraint_with_policy", [emit_newline_policy(options)])])
     LiteralWordBoundary(negated) -> runtime_call("LookaroundBoundary", [emit_staged_word_constraint(negated, options)])
     LiteralConfigured(_, inner) -> emit_lookaround_staged_compilation(inner, options)
+    LiteralScopedOptions(enabled, disabled, inner) -> emit_lookaround_staged_compilation(inner, apply_literal_scoped_options(enabled, disabled, options))
 
   fn emit_lookaround_staged_compilation_or_empty(pattern: Option(LiteralPattern), options: LiteralRegexOptions) -> Syntax = match pattern
     None() -> runtime_call("LookaroundEmpty", [])
@@ -257,6 +260,7 @@ mod Std.Regex.Syntax.Emitter
     LiteralFinalEnd -> runtime_call("unit_identity_conversion", [])
     LiteralWordBoundary(_) -> runtime_call("unit_identity_conversion", [])
     LiteralConfigured(_, inner) -> emit_staged_conversion_conditional(inner)
+    LiteralScopedOptions(_, _, inner) -> emit_staged_conversion_conditional(inner)
     LiteralBranchReset(arms) -> emit_staged_conversion_conditional(literal_branch_reset_alternate(arms))
 
   fn emit_staged_conversion_conditional_or_unit(pattern: Option(LiteralPattern)) -> Syntax = match pattern
@@ -316,6 +320,7 @@ mod Std.Regex.Syntax.Emitter
     LiteralFinalEnd -> core_call("UnitC", [])
     LiteralWordBoundary(_) -> core_call("UnitC", [])
     LiteralConfigured(_, inner) -> emit_compilation_shape(inner)
+    LiteralScopedOptions(_, _, inner) -> emit_compilation_shape(inner)
 
   fn emit_staged_pattern(pattern: LiteralPattern, options: LiteralRegexOptions) -> Syntax = match pattern
     LiteralEmpty -> core_call("PatternEmpty", [])
@@ -352,6 +357,7 @@ mod Std.Regex.Syntax.Emitter
     LiteralFinalEnd -> core_call("PatternBoundary", [runtime_call("subject_end_constraint_with_policy", [emit_newline_policy(options)])])
     LiteralWordBoundary(negated) -> core_call("PatternBoundary", [emit_staged_word_constraint(negated, options)])
     LiteralConfigured(_, inner) -> emit_staged_pattern(inner, options)
+    LiteralScopedOptions(enabled, disabled, inner) -> emit_staged_pattern(inner, apply_literal_scoped_options(enabled, disabled, options))
 
   fn emit_bounded_exact_pattern(inner: LiteralPattern, count: Nat, options: LiteralRegexOptions) -> Syntax = match count
     Z() -> core_call("PatternEmpty", [])
@@ -406,6 +412,7 @@ mod Std.Regex.Syntax.Emitter
     LiteralFinalEnd -> runtime_call("ThompsonBoundary", [runtime_call("subject_end_constraint_with_policy", [emit_newline_policy(options)])])
     LiteralWordBoundary(negated) -> runtime_call("ThompsonBoundary", [emit_staged_word_constraint(negated, options)])
     LiteralConfigured(_, inner) -> emit_staged_compilation(inner, options)
+    LiteralScopedOptions(enabled, disabled, inner) -> emit_staged_compilation(inner, apply_literal_scoped_options(enabled, disabled, options))
 
   ## Named literals publish a parallel Thompson tree.  Its ordinary branches
   ## are identical to the staged tree above; only indexed capture groups carry
@@ -445,6 +452,7 @@ mod Std.Regex.Syntax.Emitter
     LiteralFinalEnd -> runtime_call("NamedThompsonBoundary", [runtime_call("subject_end_constraint_with_policy", [emit_newline_policy(options)])])
     LiteralWordBoundary(negated) -> runtime_call("NamedThompsonBoundary", [emit_staged_word_constraint(negated, options)])
     LiteralConfigured(_, inner) -> emit_named_staged_compilation(inner, options)
+    LiteralScopedOptions(enabled, disabled, inner) -> emit_named_staged_compilation(inner, apply_literal_scoped_options(enabled, disabled, options))
 
   fn emit_named_bounded_exact_compilation(inner: LiteralPattern, count: Nat, options: LiteralRegexOptions) -> Syntax = match count
     Z() -> runtime_call("NamedThompsonEmpty", [])
@@ -602,6 +610,7 @@ mod Std.Regex.Syntax.Emitter
     LiteralFinalEnd -> runtime_call("unit_identity_conversion", [])
     LiteralWordBoundary(_) -> runtime_call("unit_identity_conversion", [])
     LiteralConfigured(_, inner) -> emit_staged_conversion(inner)
+    LiteralScopedOptions(_, _, inner) -> emit_staged_conversion(inner)
 
   fn emit_bounded_exact_conversion(inner: LiteralPattern, count: Nat) -> Syntax = match count
     Z() -> runtime_call("empty_list_conversion_for", [emit_shape(literal_shape(inner))])
@@ -657,6 +666,7 @@ mod Std.Regex.Syntax.Emitter
     LiteralFinalEnd -> runtime_call("end_anchor", [])
     LiteralWordBoundary(negated) -> runtime_call("word_boundary", [bool_literal(false), bool_literal(negated)])
     LiteralConfigured(_, inner) -> emit_literal(inner)
+    LiteralScopedOptions(_, _, inner) -> emit_literal(inner)
 
   fn emit_literal_with_options(pattern: LiteralPattern, options: LiteralRegexOptions) -> Syntax =
     let caseless = has_modifier(options, CaselessModifier)
@@ -700,6 +710,7 @@ mod Std.Regex.Syntax.Emitter
       LiteralFinalEnd -> runtime_call("end_anchor", [])
       LiteralWordBoundary(negated) -> runtime_call("word_boundary", [bool_literal(unicode), bool_literal(negated)])
       LiteralConfigured(_, inner) -> emit_literal_with_options(inner, options)
+      LiteralScopedOptions(enabled, disabled, inner) -> emit_literal_with_options(inner, apply_literal_scoped_options(enabled, disabled, options))
 
   fn emit_chars(chars: List(Char)) -> Syntax = match chars
     [] -> list([])

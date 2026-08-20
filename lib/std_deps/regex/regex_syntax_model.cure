@@ -78,6 +78,7 @@ mod Std.Regex.Syntax.Model
     | LiteralFinalEnd
     | LiteralWordBoundary(Bool)
     | LiteralConfigured(LiteralNewlinePolicy, LiteralPattern)
+    | LiteralScopedOptions(List(LiteralModifier), List(LiteralModifier), LiteralPattern)
 
   type LiteralParse =
     | LiteralParsed(LiteralPattern, List(Char))
@@ -212,6 +213,26 @@ mod Std.Regex.Syntax.Model
   fn enable_modifier(modifier: LiteralModifier, options: LiteralRegexOptions) -> LiteralRegexOptions = match options
     LiteralRegexOptions(values, policy) -> LiteralRegexOptions([modifier | values], policy)
 
+  fn disable_modifier(modifier: LiteralModifier, options: LiteralRegexOptions) -> LiteralRegexOptions = match options
+    LiteralRegexOptions(values, policy) -> LiteralRegexOptions(remove_modifier(values, modifier), policy)
+
+  fn remove_modifier(values: List(LiteralModifier), wanted: LiteralModifier) -> List(LiteralModifier) = match values
+    [] -> []
+    [head | rest] -> pickup
+      same_modifier(head, wanted) -> remove_modifier(rest, wanted)
+      else -> [head | remove_modifier(rest, wanted)]
+
+  fn apply_literal_scoped_options(enabled: List(LiteralModifier), disabled: List(LiteralModifier), options: LiteralRegexOptions) -> LiteralRegexOptions =
+    apply_literal_scoped_enabled(enabled, apply_literal_scoped_disabled(disabled, options))
+
+  fn apply_literal_scoped_disabled(disabled: List(LiteralModifier), options: LiteralRegexOptions) -> LiteralRegexOptions = match disabled
+    [] -> options
+    [head | rest] -> apply_literal_scoped_disabled(rest, disable_modifier(head, options))
+
+  fn apply_literal_scoped_enabled(enabled: List(LiteralModifier), options: LiteralRegexOptions) -> LiteralRegexOptions = match enabled
+    [] -> options
+    [head | rest] -> apply_literal_scoped_enabled(rest, enable_modifier(head, options))
+
   fn has_modifier(options: LiteralRegexOptions, wanted: LiteralModifier) -> Bool = match options
     LiteralRegexOptions(values, _) -> has_modifier_in(values, wanted)
 
@@ -277,6 +298,7 @@ mod Std.Regex.Syntax.Model
     LiteralNamedCapture(_, inner) -> validate_literal_lookarounds_at(inner, depth)
     LiteralCaptureIndexed(_, _, inner) -> validate_literal_lookarounds_at(inner, depth)
     LiteralConfigured(_, inner) -> validate_literal_lookarounds_at(inner, depth)
+    LiteralScopedOptions(_, _, inner) -> validate_literal_lookarounds_at(inner, depth)
     _ -> LiteralLookaroundValid()
 
   fn validate_literal_lookaround_operand(pattern: LiteralPattern, depth: Nat) -> LiteralLookaroundValidation = pickup
@@ -318,6 +340,7 @@ mod Std.Regex.Syntax.Model
     LiteralBoundedAtLeast(inner, _, _) -> literal_pattern_has_capture(inner)
     LiteralBoundedBetween(inner, _, _, _) -> literal_pattern_has_capture(inner)
     LiteralConfigured(_, inner) -> literal_pattern_has_capture(inner)
+    LiteralScopedOptions(_, _, inner) -> literal_pattern_has_capture(inner)
     _ -> false
 
   fn literal_pattern_list_has_capture(patterns: List(LiteralPattern)) -> Bool = match patterns
@@ -346,6 +369,7 @@ mod Std.Regex.Syntax.Model
     LiteralNamedCapture(_, inner) -> literal_pattern_has_lookaround(inner)
     LiteralCaptureIndexed(_, _, inner) -> literal_pattern_has_lookaround(inner)
     LiteralConfigured(_, inner) -> literal_pattern_has_lookaround(inner)
+    LiteralScopedOptions(_, _, inner) -> literal_pattern_has_lookaround(inner)
     _ -> false
 
   fn literal_pattern_list_has_lookaround(patterns: List(LiteralPattern)) -> Bool = match patterns
@@ -405,6 +429,7 @@ mod Std.Regex.Syntax.Model
     LiteralNamedCapture(_inner_name, inner) -> literal_pattern_exact_width(inner)
     LiteralCaptureIndexed(_, _, inner) -> literal_pattern_exact_width(inner)
     LiteralConfigured(_, inner) -> literal_pattern_exact_width(inner)
+    LiteralScopedOptions(_, _, inner) -> literal_pattern_exact_width(inner)
 
   fn literal_pattern_exact_width_value(pattern: LiteralPattern) -> Nat = match literal_pattern_exact_width(pattern)
     Some(width) -> width
@@ -455,6 +480,9 @@ mod Std.Regex.Syntax.Model
     LiteralWordBoundary(negated) -> LiteralCaptureWalked(LiteralWordBoundary(negated), [], next, names)
     LiteralConfigured(policy, inner) -> match walk_literal_captures(inner, next, names)
       LiteralCaptureWalked(numbered, slots, final_next, final_names) -> LiteralCaptureWalked(LiteralConfigured(policy, numbered), slots, final_next, final_names)
+      LiteralCaptureWalkInvalid(reason, name) -> LiteralCaptureWalkInvalid(reason, name)
+    LiteralScopedOptions(enabled, disabled, inner) -> match walk_literal_captures(inner, next, names)
+      LiteralCaptureWalked(numbered, slots, final_next, final_names) -> LiteralCaptureWalked(LiteralScopedOptions(enabled, disabled, numbered), slots, final_next, final_names)
       LiteralCaptureWalkInvalid(reason, name) -> LiteralCaptureWalkInvalid(reason, name)
     LiteralCapture(inner) -> match walk_literal_captures(inner, S(next), names)
       LiteralCaptureWalked(numbered, slots, final_next, final_names) -> LiteralCaptureWalked(LiteralCaptureIndexed(next, None(), numbered), [LiteralCaptureSlotInfo(next, None()) | slots], final_next, final_names)
@@ -619,6 +647,7 @@ mod Std.Regex.Syntax.Model
     LiteralBoundedAtLeast(inner, count, lazy) -> resolve_literal_reference_unary(fn(value) -> LiteralBoundedAtLeast(value, count, lazy), inner, layout, _next)
     LiteralBoundedBetween(inner, minimum, maximum, lazy) -> resolve_literal_reference_unary(fn(value) -> LiteralBoundedBetween(value, minimum, maximum, lazy), inner, layout, _next)
     LiteralConfigured(policy, inner) -> resolve_literal_reference_unary(fn(value) -> LiteralConfigured(policy, value), inner, layout, _next)
+    LiteralScopedOptions(enabled, disabled, inner) -> resolve_literal_reference_unary(fn(value) -> LiteralScopedOptions(enabled, disabled, value), inner, layout, _next)
     _ -> LiteralReferencesResolved(pattern)
 
   fn resolve_literal_capture_reference(reference: LiteralCaptureReference, layout: LiteralCaptureLayout) -> LiteralReferenceLookup = match reference
@@ -691,6 +720,7 @@ mod Std.Regex.Syntax.Model
     LiteralBoundedAtLeast(inner, _, _) -> literal_pattern_has_conditionals(inner)
     LiteralBoundedBetween(inner, _, _, _) -> literal_pattern_has_conditionals(inner)
     LiteralConfigured(_, inner) -> literal_pattern_has_conditionals(inner)
+    LiteralScopedOptions(_, _, inner) -> literal_pattern_has_conditionals(inner)
     _ -> false
 
   fn literal_pattern_has_atomic(pattern: LiteralPattern) -> Bool = match pattern
@@ -711,6 +741,7 @@ mod Std.Regex.Syntax.Model
     LiteralBoundedAtLeast(inner, _, _) -> literal_pattern_has_atomic(inner)
     LiteralBoundedBetween(inner, _, _, _) -> literal_pattern_has_atomic(inner)
     LiteralConfigured(_, inner) -> literal_pattern_has_atomic(inner)
+    LiteralScopedOptions(_, _, inner) -> literal_pattern_has_atomic(inner)
     _ -> false
 
   fn literal_pattern_list_has_atomic(patterns: List(LiteralPattern)) -> Bool = match patterns

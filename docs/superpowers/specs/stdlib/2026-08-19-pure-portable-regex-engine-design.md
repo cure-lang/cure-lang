@@ -25,8 +25,11 @@ lookaround in both directions, and assertion conditionals can inspect the
 participation of an already-completed outer capture. These use a separate
 `LookaroundCompilation` IR, slot-aware capture markers, and the finite
 commitment search. The remaining Phase 2 obligations are full assertion
-path/refutation certificates, captures created inside assertions, and scoped
-inline options; they must not be marked complete from the current runtime
+path/refutation certificates and captures created inside assertions. A first
+lexical scoped-option slice (`i`, `m`, `s`, `u`, `U`, including removals) now
+has syntax and emitter coverage; source-sensitive `x` and execution-level
+`f`/`E` scopes remain explicitly rejected until their semantics are modelled.
+The remaining obligations must not be marked complete from the current runtime
 decision façade alone.
 
 This specification deliberately extends the finite-PCRE design rather than
@@ -734,7 +737,7 @@ The Cure status columns distinguish implementation from design:
 | First-line | `/foo/f` | yes | yes | yes | Current first-line search bound |
 | Ungreedy | `/foo/U` | yes | yes | yes | Current lazy-default behavior |
 | Export flag | `/foo/E` | yes | yes | accepted marker | Not OTP cross-node export |
-| Scoped inline options | `(?im-sx:foo)` | yes | yes | no | Planned lexical option environment |
+| Scoped inline options | `(?im-sx:foo)` | yes | yes | partial | `i/m/s/u/U` plus removals; source-sensitive `x` and execution-level `f/E` remain rejected |
 | Newline control | `(*CRLF)`, `(*ANY)` | yes | yes | yes | Current finite newline policy |
 | `\R` policy | `(*BSR_ANYCRLF)` | yes | yes | yes | Current finite newline policy |
 | Anchored execution | `anchored` | yes | yes | equivalent APIs | `parse_full`/`parse_prefix_at` |

@@ -182,19 +182,46 @@ mod Std.Regex.Syntax.Parser
       ['?', '>' | rest] -> parse_literal_atomic_fuel(rest, next_fuel, origin)
       ['?', '\'' | rest] -> parse_literal_named_capture_quote(rest, next_fuel, origin, [])
       ['?', 'P', '<' | rest] -> parse_literal_named_capture_angle_tail(rest, next_fuel, origin, [])
-      ['?', 'i' | _] -> LiteralAtInvalid(:UnsupportedRegexInlineOptions, origin, 3)
-      ['?', 'm' | _] -> LiteralAtInvalid(:UnsupportedRegexInlineOptions, origin, 3)
-      ['?', 's' | _] -> LiteralAtInvalid(:UnsupportedRegexInlineOptions, origin, 3)
+      ['?', 'i' | rest] -> parse_literal_inline_options(rest, next_fuel, origin, [CaselessModifier], [], false)
+      ['?', 'm' | rest] -> parse_literal_inline_options(rest, next_fuel, origin, [MultilineModifier], [], false)
+      ['?', 's' | rest] -> parse_literal_inline_options(rest, next_fuel, origin, [DotallModifier], [], false)
       ['?', 'x' | _] -> LiteralAtInvalid(:UnsupportedRegexInlineOptions, origin, 3)
-      ['?', 'u' | _] -> LiteralAtInvalid(:UnsupportedRegexInlineOptions, origin, 3)
+      ['?', 'u' | rest] -> parse_literal_inline_options(rest, next_fuel, origin, [UnicodeModifier], [], false)
       ['?', 'f' | _] -> LiteralAtInvalid(:UnsupportedRegexInlineOptions, origin, 3)
-      ['?', 'U' | _] -> LiteralAtInvalid(:UnsupportedRegexInlineOptions, origin, 3)
+      ['?', 'U' | rest] -> parse_literal_inline_options(rest, next_fuel, origin, [UngreedyModifier], [], false)
       ['?', 'E' | _] -> LiteralAtInvalid(:UnsupportedRegexInlineOptions, origin, 3)
-      ['?', '-' | _] -> LiteralAtInvalid(:UnsupportedRegexInlineOptions, origin, 3)
+      ['?', '-' | rest] -> parse_literal_inline_options(rest, next_fuel, origin, [], [], true)
       ['?', char | _] -> match literal_decimal_digit(char)
         Some(_) -> LiteralAtInvalid(:UnsupportedRegexRecursion, origin, 3)
         None() -> parse_literal_capture_fuel(input, next_fuel, origin)
       _ -> parse_literal_capture_fuel(input, next_fuel, origin)
+
+  fn parse_literal_inline_options(input: List(Char), fuel: Nat, origin: List(Char), enabled: List(LiteralModifier), disabled: List(LiteralModifier), removing: Bool) -> LiteralParse = match fuel
+    Z() -> LiteralInvalid(:RegexParseLimit)
+    S(next_fuel) -> match input
+      [':' | body] -> match parse_literal_alternate_fuel(body, next_fuel)
+        LiteralParsed(pattern, [')' | tail]) -> LiteralParsed(LiteralScopedOptions(enabled, disabled, pattern), tail)
+        LiteralParsed(_, _) -> LiteralAtInvalid(:UnclosedRegexGroup, origin, literal_length(origin))
+        LiteralInvalid(reason) -> LiteralInvalid(reason)
+        LiteralAtInvalid(reason, suffix, width) -> LiteralAtInvalid(reason, suffix, width)
+        LiteralLocatedInvalid(reason, start, width) -> LiteralLocatedInvalid(reason, start, width)
+      ['-' | rest] -> pickup
+        removing -> LiteralAtInvalid(:UnsupportedRegexInlineOptions, origin, literal_delimited_width(origin, ')'))
+        else -> parse_literal_inline_options(rest, next_fuel, origin, enabled, disabled, true)
+      [char | rest] -> match literal_inline_modifier(char)
+        None() -> LiteralAtInvalid(:UnsupportedRegexInlineOptions, origin, literal_delimited_width(origin, ')'))
+        Some(modifier) -> pickup
+          removing -> parse_literal_inline_options(rest, next_fuel, origin, enabled, [modifier | disabled], true)
+          else -> parse_literal_inline_options(rest, next_fuel, origin, [modifier | enabled], disabled, false)
+      [] -> LiteralAtInvalid(:UnclosedRegexGroup, origin, literal_length(origin))
+
+  fn literal_inline_modifier(char: Char) -> Option(LiteralModifier) = match char
+    'i' -> Some(CaselessModifier)
+    'm' -> Some(MultilineModifier)
+    's' -> Some(DotallModifier)
+    'u' -> Some(UnicodeModifier)
+    'U' -> Some(UngreedyModifier)
+    _ -> None()
 
   fn parse_literal_named_capture_angle(first: Char, input: List(Char), fuel: Nat, origin: List(Char), reversed: List(Char)) -> LiteralParse =
     parse_literal_named_capture_angle_tail([first | input], fuel, origin, reversed)
