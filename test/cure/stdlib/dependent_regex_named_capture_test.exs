@@ -67,6 +67,16 @@ defmodule Cure.Stdlib.DependentRegexNamedCaptureTest do
       fn assertion_conditional_matches(input: String) -> Bool =
         matches(/(?=(a)?)(?(1)a|b)/, input)
 
+      fn lookbehind_assertion_conditional(input: String) -> Option(String) =
+        match search_named(/(?<=(?<flag>a)|b)(?(flag)c|d)/, input)
+          None() -> None()
+          Some(found) -> named_capture("flag", found)
+
+      fn nested_assertion_conditional(input: String) -> Option(String) =
+        match search_named(/(?=(?=(?<flag>a))a)(?(flag)a|b)/, input)
+          None() -> None()
+          Some(found) -> named_capture("flag", found)
+
       fn replay_probe() -> Option(List(NamedCapture)) =
         replay_named_capture_routine(
           [Regular(BeginCaptureSlot(Z())), Observe('a'), Regular(EndCaptureSlot(Z()))],
@@ -99,6 +109,22 @@ defmodule Cure.Stdlib.DependentRegexNamedCaptureTest do
 
     assert apply(module, :assertion_conditional_matches, [{:String, ~c"b"}])
     assert apply(module, :assertion_conditional, [{:String, ~c"b"}]) == :none
+  end
+
+  test "captures created by a lookbehind participate in a later conditional", %{runtime_module: module} do
+    assert apply(module, :lookbehind_assertion_conditional, [{:String, ~c"ac"}]) ==
+             {:some, {:String, ~c"a"}}
+
+    assert apply(module, :lookbehind_assertion_conditional, [{:String, ~c"bd"}]) == :none
+    assert apply(module, :lookbehind_assertion_conditional, [{:String, ~c"ad"}]) == :none
+    assert apply(module, :lookbehind_assertion_conditional, [{:String, ~c"bc"}]) == :none
+  end
+
+  test "nested assertion captures participate in a later conditional", %{runtime_module: module} do
+    assert apply(module, :nested_assertion_conditional, [{:String, ~c"a"}]) ==
+             {:some, {:String, ~c"a"}}
+
+    assert apply(module, :nested_assertion_conditional, [{:String, ~c"b"}]) == :none
   end
 
   test "flat named capture returns its text", %{runtime_module: module} do
