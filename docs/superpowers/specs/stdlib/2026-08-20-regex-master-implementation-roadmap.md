@@ -19,9 +19,9 @@ child path, while the existing atomic commitment evaluator remains the
 acceptance authority. The assertion-capture sidecar is now landed as well:
 positive lookaround branches carry their selected `ExtendedInstruction` routine
 into named replay, while negative-assertion frames are discarded. Complete
-refutation certificates, nested decision composition, and full interaction
-coverage for assertion-local captures remain open; the Phase 2 exit gate is
-therefore still not discharged.
+refutation certificates and several capture interactions remain open; branch
+backtracking and nested assertion capture publication are now regression-tested.
+The Phase 2 exit gate is therefore still not discharged.
 
 **Applies to:** the Cure-native typed regex engine, its erased portable runtime,
 finite PCRE-family extensions, proof-carrying normalization, runtime pattern
@@ -268,8 +268,8 @@ nodes and propagated through ordinary, lookaround, atomic, and named
 compilations. The source-sensitive `x` mode and execution-level `f`/`E` flags
 remain deliberately rejected inside a scope until their source-map and
 search-bound semantics have a canonical implementation. Full assertion
-path/refutation certificates and complete capture/backtracking interaction
-coverage remain open; the phase exit gate is therefore not yet discharged.
+path/refutation certificates and complete capture interaction coverage remain
+open; the phase exit gate is therefore not yet discharged.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in

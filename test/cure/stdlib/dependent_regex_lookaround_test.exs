@@ -161,6 +161,23 @@ defmodule Cure.Stdlib.DependentRegexLookaroundTest do
     assert apply(module, :negative, [{:String, ~c"a"}]) == :none
   end
 
+  test "assertion capture backtracking discards failed alternatives" do
+    source = """
+    mod AssertionCaptureBacktracking
+      use Std.Regex
+
+      fn run(input: String) -> Option(String) =
+        match search_named(/(?=(?<ahead>a|b))b/, input)
+          None() -> None()
+          Some(found) -> named_capture("ahead", found)
+    end
+    """
+
+    assert {:ok, module} = Cure.Compiler.compile_and_load(source, emit_events: false)
+    assert apply(module, :run, [{:String, ~c"b"}]) == {:some, {:String, ~c"b"}}
+    assert apply(module, :run, [{:String, ~c"a"}]) == :none
+  end
+
   defp chars_gen(0), do: Gen.return([])
 
   defp chars_gen(size) do
