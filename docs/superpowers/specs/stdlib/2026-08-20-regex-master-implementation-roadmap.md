@@ -35,6 +35,11 @@ Assertion decisions now consume the certified path search directly; the former
 preliminary Boolean scan and reconstructed exhaustion witness are gone, so a
 search refutation carries the exhaustion value produced by the same traversal
 that attempted every start and destination.
+An independent finite oracle now exhaustively compares the admitted positive,
+negative, nested lookahead, exact lookbehind, and negative lookbehind behavior
+over the `abc` alphabet through length four; the randomized oracle remains as
+the broader subject-length check. This validates the observable decision
+boundary, while the dependent refutation-tree soundness theorem is still open.
 The Phase 2 exit gate is therefore still not discharged.
 
 **Applies to:** the Cure-native typed regex engine, its erased portable runtime,
@@ -289,9 +294,11 @@ participating and absent branches. Capture-aware prefix replay follows machine
 order for lazy and ordered branches, with regressions for ordered alternation
 and lazy repetition. Refutation values now retain dependent child and sibling
 failure trees through both exact and prefix path folds, while depth/history
-guard failures remain explicit resource certificates. The formal
-soundness/completeness audit and exhaustive small-model comparison remain open;
-the phase exit gate is therefore not yet discharged.
+guard failures remain explicit resource certificates. An exhaustive
+bounded-subject oracle covers the admitted nested lookaround decision slice;
+the formal soundness/completeness audit and exhaustive comparison of every
+admitted machine shape remain open, so the phase exit gate is not yet
+discharged.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in

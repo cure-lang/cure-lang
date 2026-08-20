@@ -127,10 +127,10 @@ defmodule Cure.Stdlib.DependentRegexLookaroundTest do
 
       assert {:error,
               {:source_context,
-               {:computed_macro_error, _meta,
-                {:author_diagnostics, [{:macro_failure, ^expected, _arguments}]}}, _context} = _reason} =
+               {:computed_macro_error, _meta, {:author_diagnostics, [{:macro_failure, ^expected, _arguments}]}},
+               _context} = _reason} =
                Cure.Elab.Program.elaborate(source),
-               "expected #{inspect(pattern)} to reject as #{inspect(expected)}"
+             "expected #{inspect(pattern)} to reject as #{inspect(expected)}"
     end)
   end
 
@@ -149,6 +149,7 @@ defmodule Cure.Stdlib.DependentRegexLookaroundTest do
     """
 
     assert {:ok, module} = Cure.Compiler.compile_and_load(source, emit_events: false)
+
     assert {:some, {:NamedParse, {:unit, :unit}, captures}} =
              apply(module, :run, [{:String, ~c"a"}])
 
@@ -242,5 +243,51 @@ defmodule Cure.Stdlib.DependentRegexLookaroundTest do
                  apply(module, :negative_lookbehind_search, [subject]) == negative_lookbehind_reference(input) and
                  apply(module, :positive_full, [subject]) == (input == ~c"ab")
              end)
+  end
+
+  test "admitted nested lookarounds agree exhaustively on the bounded model", %{runtime_module: module} do
+    for input <- small_words(4) do
+      subject = {:String, input}
+
+      assert apply(module, :positive_search, [subject]) == positive_reference(input),
+             "positive lookahead mismatch for #{inspect(input)}"
+
+      assert apply(module, :negative_search, [subject]) == negative_reference(input),
+             "negative lookahead mismatch for #{inspect(input)}"
+
+      assert apply(module, :nested_positive_search, [subject]) == nested_positive_reference(input),
+             "nested positive lookahead mismatch for #{inspect(input)}"
+
+      assert apply(module, :nested_negative_search, [subject]) == nested_negative_reference(input),
+             "nested negative lookahead mismatch for #{inspect(input)}"
+
+      assert apply(module, :nested_lookbehind_search, [subject]) ==
+               nested_lookbehind_reference(input),
+             "nested lookbehind mismatch for #{inspect(input)}"
+
+      assert apply(module, :lookbehind_search, [subject]) == lookbehind_reference(input),
+             "lookbehind mismatch for #{inspect(input)}"
+
+      assert apply(module, :negative_lookbehind_search, [subject]) ==
+               negative_lookbehind_reference(input),
+             "negative lookbehind mismatch for #{inspect(input)}"
+
+      assert apply(module, :positive_full, [subject]) == (input == ~c"ab"),
+             "full assertion parse mismatch for #{inspect(input)}"
+    end
+
+    assert length(small_words(4)) == 121
+  end
+
+  defp small_words(max_length) do
+    for length <- 0..max_length,
+        word <- words_of_length(length),
+        do: word
+  end
+
+  defp words_of_length(0), do: [[]]
+
+  defp words_of_length(length) do
+    for prefix <- words_of_length(length - 1), char <- ~c"abc", do: prefix ++ [char]
   end
 end
