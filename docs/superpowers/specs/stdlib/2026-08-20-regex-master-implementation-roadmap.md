@@ -8,10 +8,17 @@
  carries package identity and explicit module exports through dependency
  artifacts, preserves cross-package interface-edge ownership, and rejects
  non-exported bundled modules before body elaboration. The Regex sources live
- under `lib/std_deps/regex`; the stdlib bootstrap performs foundational,
- package, and merged-publication stages. The portable BEAM-import closure audit,
- generic-unix AtomVM gate, Unicode dependency pin, and cold/warm baseline are
- recorded in `2026-08-20-regex-performance-baseline.md`.
+under `lib/std_deps/regex`; the stdlib bootstrap performs foundational,
+package, and merged-publication stages. The portable BEAM-import closure audit,
+generic-unix AtomVM gate, Unicode dependency pin, and cold/warm baseline are
+recorded in `2026-08-20-regex-performance-baseline.md`.
+
+The first Phase 2 evidence slice is also landed: successful lookahead and
+lookbehind decisions carry an existential package containing the indexed finite
+child path, while the existing atomic commitment evaluator remains the
+acceptance authority. Complete refutation certificates, nested decision
+composition, and assertion-local captures remain open; the Phase 2 exit gate
+is therefore still not discharged.
 
 **Applies to:** the Cure-native typed regex engine, its erased portable runtime,
 finite PCRE-family extensions, proof-carrying normalization, runtime pattern

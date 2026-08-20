@@ -29,8 +29,11 @@ path/refutation certificates and captures created inside assertions. A first
 lexical scoped-option slice (`i`, `m`, `s`, `u`, `U`, including removals) now
 has syntax and emitter coverage; source-sensitive `x` and execution-level
 `f`/`E` scopes remain explicitly rejected until their semantics are modelled.
-The remaining obligations must not be marked complete from the current runtime
-decision façade alone.
+The positive `Satisfied` branch now carries an existential witness containing
+the indexed finite child path; refuted branches still need complete finite
+exploration certificates, and nested path composition plus assertion-local
+captures remain open. The remaining obligations must not be marked complete
+from the current runtime decision façade alone.
 
 This specification deliberately extends the finite-PCRE design rather than
 replacing it. The finite-PCRE specification remains authoritative for the
