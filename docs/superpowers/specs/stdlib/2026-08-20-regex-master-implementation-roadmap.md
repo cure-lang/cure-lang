@@ -4,13 +4,14 @@
 
 **Date:** 2026-08-20
 
-**Implementation checkpoint:** the canonical pipeline now carries package
-identity and explicit module exports through dependency artifacts, preserves
-cross-package interface-edge ownership, and rejects non-exported bundled
-modules before body elaboration. The existing Regex sources now live under
-`lib/std_deps/regex`, and the stdlib bootstrap performs the foundational,
-package, and merged-publication stages. The remaining Phase 1 work is the
-portable-closure, AtomVM, and cold/warm-baseline audit.
+**Implementation checkpoint:** Phase 1 is discharged. The canonical pipeline
+ carries package identity and explicit module exports through dependency
+ artifacts, preserves cross-package interface-edge ownership, and rejects
+ non-exported bundled modules before body elaboration. The Regex sources live
+ under `lib/std_deps/regex`; the stdlib bootstrap performs foundational,
+ package, and merged-publication stages. The portable BEAM-import closure audit,
+ generic-unix AtomVM gate, Unicode dependency pin, and cold/warm baseline are
+ recorded in `2026-08-20-regex-performance-baseline.md`.
 
 **Applies to:** the Cure-native typed regex engine, its erased portable runtime,
 finite PCRE-family extensions, proof-carrying normalization, runtime pattern
@@ -212,10 +213,10 @@ Do not reopen completed proofs solely to restyle them.
 
 ### Phase 1 — Establish the embedded package and portable-production guardrails
 
-**Status:** package identity, physical source move, three-stage build, merged
-verified artifact, source lookup, compiled-macro home lookup, and export-surface
-regressions are complete. Continue with the remaining portability, AtomVM, and
-performance-baseline bullets before opening Phase 2.
+**Status:** complete. Package identity, physical source move, three-stage build,
+merged verified artifact, source lookup, compiled-macro home lookup,
+export-surface regressions, portable BEAM-import audit, AtomVM execution gate,
+Unicode dependency pin, and cold/warm performance baseline are complete.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, especially
 Sections 2–5 and Phase 0.
