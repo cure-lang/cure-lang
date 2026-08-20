@@ -3,6 +3,7 @@
 
 @group(:text)
 mod Std.Regex.Syntax.Model
+  use Std.Regex.Core
   use Std.String
   type LiteralCharacterRange = LiteralCharacterRange(Char, Char)
   type LiteralClassKinds = LiteralClassKinds(List(LiteralClassKind), List(LiteralUnicodePropertyMatch), List(LiteralPosixClassMatch))
@@ -297,7 +298,7 @@ mod Std.Regex.Syntax.Model
   ## This bound is shared with the runtime assertion evaluator. It is large
   ## enough for useful composition while keeping staged proof terms finite and
   ## predictable under hostile literals.
-  fn literal_lookaround_limit() -> Nat = S(S(S(S(Z()))))
+  fn literal_lookaround_limit() -> Nat = regex_assertion_depth_limit()
 
   fn literal_lookbehind_limit() -> Nat = S(S(S(S(S(S(S(S(Z()))))))))
 
