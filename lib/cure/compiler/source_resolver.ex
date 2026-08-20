@@ -41,19 +41,19 @@ defmodule Cure.Compiler.SourceResolver do
   end
 
   defp stdlib_path("Std." <> _ = name) do
-    case Paths.source_dir() do
-      nil ->
+    dirs = Paths.all_source_dirs()
+
+    case dirs do
+      [] ->
         :not_found
 
-      dir ->
+      dirs ->
         segments = name |> String.split(".") |> tl()
+        stems = [Enum.map_join(segments, "_", &Macro.underscore/1), String.downcase(Enum.join(segments, "_"))]
 
-        [
-          Enum.map_join(segments, "_", &Macro.underscore/1),
-          String.downcase(Enum.join(segments, "_"))
-        ]
+        dirs
+        |> Enum.flat_map(fn dir -> Enum.map(stems, &Path.join(dir, &1 <> ".cure")) end)
         |> Enum.uniq()
-        |> Enum.map(&Path.join(dir, &1 <> ".cure"))
         |> Enum.find(&File.exists?/1)
         |> case do
           nil -> :not_found

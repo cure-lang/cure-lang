@@ -19,7 +19,7 @@ defmodule Cure.Compiler.TruncatedInputDiagnosticTest do
   defp harvest(source), do: FixityScan.harvest_source(source, "nofile", FixityTable.new())
 
   test "every stdlib source can be harvested" do
-    for path <- Path.wildcard("lib/std/**/*.cure") do
+    for path <- Path.wildcard("lib/std/**/*.cure") ++ Path.wildcard("lib/std_deps/regex/*.cure") do
       assert harvest(File.read!(path)), "harvest returned nothing for #{path}"
     end
   end

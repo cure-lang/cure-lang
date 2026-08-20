@@ -65,6 +65,8 @@ defmodule Cure.Stdlib.Preload do
   @default_examples_ebin "_build/cure/ex_ebin"
 
   @stdlib_source_dir Path.expand("../../../lib/std", __DIR__)
+  @regex_source_dir Path.expand("../../std_deps/regex", __DIR__)
+  @stdlib_source_dirs [@stdlib_source_dir, @regex_source_dir]
 
   @known_groups [
     :core,
@@ -79,19 +81,22 @@ defmodule Cure.Stdlib.Preload do
   ]
 
   # ---------------------------------------------------------------------------
-  # Compile-time scan of lib/std/*.cure
+  # Compile-time scan of the foundational stdlib and embedded Regex package.
   # ---------------------------------------------------------------------------
 
-  @stdlib_sources (case File.ls(@stdlib_source_dir) do
-                     {:ok, entries} ->
-                       entries
-                       |> Enum.filter(&String.ends_with?(&1, ".cure"))
-                       |> Enum.map(&Path.join(@stdlib_source_dir, &1))
-                       |> Enum.sort()
+  @stdlib_sources @stdlib_source_dirs
+                  |> Enum.flat_map(fn source_dir ->
+                    case File.ls(source_dir) do
+                      {:ok, entries} ->
+                        entries
+                        |> Enum.filter(&String.ends_with?(&1, ".cure"))
+                        |> Enum.map(&Path.join(source_dir, &1))
 
-                     {:error, _} ->
-                       []
-                   end)
+                      {:error, _} ->
+                        []
+                    end
+                  end)
+                  |> Enum.sort()
 
   for src <- @stdlib_sources do
     @external_resource src
@@ -129,7 +134,8 @@ defmodule Cure.Stdlib.Preload do
   {order_map, closure_map} =
     (fn ->
        # No `known_modules:` needed here: the compile set IS the full
-       # stdlib (`@stdlib_sources` already lists every `lib/std/*.cure`
+       # stdlib (`@stdlib_sources` already lists every foundational and
+       # embedded-package source
        # file), so `DepGraph.scan/2`'s own AST-derived `modules` map
        # already covers every stdlib module name -- there is nothing
        # out-of-set left for `known_modules` to add. (Contrast a scan
@@ -526,23 +532,12 @@ defmodule Cure.Stdlib.Preload do
            Keyword.get(opts, :stdlib_source_dir) || Paths.source_dir(),
          files when files != [] <- Path.wildcard(Path.join(source_dir, "*.cure")),
          output_dir <- repair_output_dir(candidate_dirs, opts),
-         {:ok, summary} <-
-           Artifacts.sweep(
-             module_pipeline: :canonical,
-             source_paths: files,
-             source_roots: [source_dir],
-             output_dir: output_dir,
-             kind: :stdlib,
-             repair: true
-           ),
-         [] <- summary.errors,
-         {:ok, artifact_set} <- Artifacts.open_verified_set(output_dir) do
+         {:ok, summary} <- Cure.Stdlib.Packages.compile(files, output_dir),
+         {:ok, artifact_set} <- Artifacts.open_verified_set(summary.artifact_root) do
       {:ok, artifact_set}
     else
       nil -> {:error, {:stdlib_sources_unavailable, verification_error}}
       [] -> {:error, {:stdlib_sources_empty, verification_error}}
-      {:ok, %{errors: errors}} -> {:error, {:stdlib_repair_failed, errors}}
-      errors when is_list(errors) -> {:error, {:stdlib_repair_failed, errors}}
       {:error, reason} -> {:error, {:stdlib_repair_failed, reason}}
     end
   end

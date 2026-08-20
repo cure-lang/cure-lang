@@ -24,12 +24,9 @@ ExUnit.configure(exclude: [examples: true])
          IO.puts("test_helper: sweeping Cure stdlib artifacts")
 
          {:ok, result} =
-           Cure.Compiler.Artifacts.sweep(
-             module_pipeline: :canonical,
-             kind: :stdlib,
-             source_roots: ["lib/std"],
-             output_dir: output_dir,
-             repair: true,
+           Cure.Stdlib.Packages.compile(
+             Path.wildcard("lib/std/*.cure"),
+             output_dir,
              compile_opts: [emit_events: false]
            )
 

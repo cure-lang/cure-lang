@@ -1,8 +1,8 @@
 defmodule Cure.Stdlib.DependentRegexBoundedStateTest do
   use ExUnit.Case, async: true
 
-  @regex_source File.read!(Path.expand("../../../lib/std/regex_core.cure", __DIR__))
-  @facade_source File.read!(Path.expand("../../../lib/std/regex.cure", __DIR__))
+  @regex_source File.read!(Path.expand("../../../lib/std_deps/regex/regex_core.cure", __DIR__))
+  @facade_source File.read!(Path.expand("../../../lib/std_deps/regex/regex.cure", __DIR__))
 
   test "the machine state and transition relation are indexed by their finite bound" do
     assert @regex_source =~ "type MachineState indices (n: Nat)"

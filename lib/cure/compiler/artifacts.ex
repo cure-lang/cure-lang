@@ -111,6 +111,17 @@ defmodule Cure.Compiler.Artifacts do
           }
         })
 
+      manifest =
+        if Keyword.has_key?(opts, :package_exports) do
+          exports = normalize_package_exports(Keyword.get(opts, :package_exports))
+
+          manifest
+          |> put_in([:context, :package_exports], exports)
+          |> put_in([:context, :package_exports_hash], digest(exports))
+        else
+          manifest
+        end
+
       :ok = BuildManifest.save(manifest, destination)
 
       with {:ok, copied} <- open_verified_set(destination, verification: :full),
@@ -696,9 +707,18 @@ defmodule Cure.Compiler.Artifacts do
 
     sets
     |> Enum.flat_map(fn set ->
-      for entry <- Map.values(set.modules),
-          artifact <- Map.fetch!(entry, :artifacts),
-          do: {set.artifact_root, artifact.path}
+      beams =
+        for entry <- Map.values(set.modules),
+            artifact <- Map.fetch!(entry, :artifacts),
+            do: {set.artifact_root, artifact.path}
+
+      interfaces =
+        set.artifact_root
+        |> Path.join("*.cureinterface")
+        |> Path.wildcard()
+        |> Enum.map(&{set.artifact_root, Path.basename(&1)})
+
+      beams ++ interfaces
     end)
     |> Enum.reduce_while(:ok, fn {root, path}, :ok ->
       source = Path.join(root, path)
@@ -714,6 +734,16 @@ defmodule Cure.Compiler.Artifacts do
       end
     end)
   end
+
+  defp normalize_package_exports(exports) when is_map(exports) do
+    exports
+    |> Enum.map(fn {package, modules} ->
+      {to_string(package), modules |> List.wrap() |> Enum.map(&to_string/1) |> Enum.uniq() |> Enum.sort()}
+    end)
+    |> Map.new()
+  end
+
+  defp normalize_package_exports(_exports), do: %{}
 
   defp discovery_glob(kind, root) do
     if Path.basename(Path.dirname(Path.expand(root))) == ".cure_generations",

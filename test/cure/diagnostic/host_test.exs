@@ -1002,7 +1002,7 @@ defmodule Cure.Diagnostic.HostTest do
          core_term: {:global, :offending_state}
        }}
 
-    {diagnostic, _registry} = Host.to_diagnostic(reason, "lib/std/regex.cure")
+    {diagnostic, _registry} = Host.to_diagnostic(reason, "lib/std_deps/regex/regex.cure")
     rendered = Cure.Diagnostic.Renderer.plain(diagnostic, nil, width: 100)
 
     assert diagnostic.code == "E101"

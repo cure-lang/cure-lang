@@ -13,7 +13,10 @@ defmodule Cure.Stdlib.RegexSourceTest do
              File.read!(file) =~ ":re."
            end)
 
-    regex_sources = Path.wildcard("lib/std/regex*.cure")
+    regex_sources = Path.wildcard("lib/std_deps/regex/regex*.cure")
+
+    refute File.exists?("lib/std/regex.cure")
+    assert regex_sources != []
 
     refute Enum.any?(regex_sources, fn file ->
              source = File.read!(file)
@@ -26,7 +29,7 @@ defmodule Cure.Stdlib.RegexSourceTest do
   end
 
   test "thread deduplication uses intrinsic state slots rather than winner-list rescans" do
-    source = File.read!("lib/std/regex_runtime.cure")
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     assert source =~ "type ActiveWinnerSlots"
     assert source =~ "fn active_winner_seen"
@@ -53,15 +56,15 @@ defmodule Cure.Stdlib.RegexSourceTest do
             ]} = ast
 
     assert use_meta[:keyword] == "regex"
-    assert use_meta[:home_source] =~ "lib/std/regex_syntax.cure"
+    assert use_meta[:home_source] =~ "lib/std_deps/regex/regex_syntax.cure"
     assert pattern_meta[:subtype] == :string
     assert flags_meta[:subtype] == :string
   end
 
   test "literal expansion carries checked Thompson IR into the verified parser" do
-    runtime = File.read!("lib/std/regex_runtime.cure")
-    proof = File.read!("lib/std/regex_proof.cure")
-    emitter = File.read!("lib/std/regex_syntax_emitter.cure")
+    runtime = File.read!("lib/std_deps/regex/regex_runtime.cure")
+    proof = File.read!("lib/std_deps/regex/regex_proof.cure")
+    emitter = File.read!("lib/std_deps/regex/regex_syntax_emitter.cure")
 
     assert runtime =~ "StagedRegex"
     assert runtime =~ "StagedCompilationHint"
@@ -85,10 +88,12 @@ defmodule Cure.Stdlib.RegexSourceTest do
     """
 
     assert {:ok, env} = Program.elaborate(source)
+
     assert {:ok, forms} =
              Cure.Elab.Emit.compile_forms(env, :"Cure.RegexStagedArtifact", [
                :"RegexStagedArtifact#literal"
              ])
+
     assert {:ok, :"Cure.RegexStagedArtifact", beam, _warnings} = Cure.Compiler.BeamWriter.compile_forms(forms)
 
     {:beam_file, :"Cure.RegexStagedArtifact", _exports, _attrs, _info, functions} = :beam_disasm.file(beam)
@@ -99,7 +104,7 @@ defmodule Cure.Stdlib.RegexSourceTest do
   end
 
   test "literal expansion publishes transition rows instead of rebuilding closure machines" do
-    emitter = File.read!("lib/std/regex_syntax_emitter.cure")
+    emitter = File.read!("lib/std_deps/regex/regex_syntax_emitter.cure")
 
     assert emitter =~ "emit_staged_rows"
     refute emitter =~ "emit_staged_machine"
@@ -109,7 +114,7 @@ defmodule Cure.Stdlib.RegexSourceTest do
   end
 
   test "staged row construction builds each Thompson child once" do
-    runtime = File.read!("lib/std/regex_runtime.cure")
+    runtime = File.read!("lib/std_deps/regex/regex_runtime.cure")
     [_prefix, active] = String.split(runtime, "fn staged_machine_seed_from_compilation", parts: 2)
     [builder, _rest] = String.split(active, "fn direct_staged_rows_values_from_compilation", parts: 2)
 

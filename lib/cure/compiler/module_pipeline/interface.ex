@@ -359,6 +359,7 @@ defmodule Cure.Compiler.ModulePipeline.Interface do
   defp interface_edge(dependency) do
     %{
       kind: dependency.kind,
+      package: elem(dependency.target, 0),
       target: elem(dependency.target, 1),
       line: dependency.span.line
     }

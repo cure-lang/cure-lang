@@ -36,18 +36,20 @@ defmodule Mix.Tasks.Cure.CompileStdlib do
 
     stdlib_dir = Path.join(["lib", "std"])
     cure_files = Path.wildcard(Path.join(stdlib_dir, "*.cure"))
+    regex_files = Cure.Stdlib.Packages.regex_sources()
+    all_files = cure_files ++ regex_files
 
     cond do
       not compiler_available?() ->
         Mix.shell().info("Cure.Compiler not yet available, skipping stdlib compilation")
         :ok
 
-      cure_files == [] ->
+      all_files == [] ->
         Mix.shell().info("No .cure files found in #{stdlib_dir}")
         :ok
 
       true ->
-        Mix.shell().info("Compiling Cure standard library (#{length(cure_files)} modules)")
+        Mix.shell().info("Compiling Cure standard library (#{length(all_files)} modules)")
 
         seed_isolated_test_output(output_dir, opts)
         File.mkdir_p!(output_dir)
@@ -65,7 +67,7 @@ defmodule Mix.Tasks.Cure.CompileStdlib do
           else
             current = count + 1
             Process.put(progress_key, %{count: current, seen: MapSet.put(seen, module)})
-            Mix.shell().info("  [#{current}/#{length(cure_files)}] #{module}")
+            Mix.shell().info("  [#{current}/#{length(all_files)}] #{module}")
           end
         end
 
@@ -79,12 +81,7 @@ defmodule Mix.Tasks.Cure.CompileStdlib do
         {result, diagnostic_batches} =
           try do
             result =
-              Cure.Compiler.Artifacts.sweep(
-                module_pipeline: :canonical,
-                source_roots: [stdlib_dir],
-                output_dir: output_dir,
-                kind: :stdlib,
-                repair: true,
+              Cure.Stdlib.Packages.compile(cure_files, output_dir,
                 progress: progress,
                 migration_diagnostic_sink: collect_diagnostics,
                 compile_opts: [emit_events: false]
@@ -119,7 +116,7 @@ defmodule Mix.Tasks.Cure.CompileStdlib do
             Mix.shell().info("  Output: #{output_dir}")
 
           {:error, reason} ->
-            render_sweep_error(reason, cure_files, stdlib_dir)
+            render_sweep_error(reason, all_files, stdlib_dir)
             exit({:shutdown, 1})
         end
     end

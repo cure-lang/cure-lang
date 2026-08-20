@@ -58,16 +58,17 @@ defmodule Cure.Compiler.ModulePipeline do
   end
 
   defp check_request(request, paths) do
-    with {:ok, external_interfaces} <-
+    with {:ok, loaded_external_interfaces} <-
            timed(request, :interface_load, %{roots: request.interface_roots}, fn ->
              Interface.load_roots(request.interface_roots)
            end),
-         {:ok, external_envs} <- interface_environments(external_interfaces),
-         manifest_options = manifest_options(request, external_interfaces),
+         manifest_options = manifest_options(request, loaded_external_interfaces),
          {:ok, manifest} <-
            timed(request, :manifest, %{source_count: length(paths)}, fn ->
              ModuleManifest.build(paths, manifest_options)
            end),
+         external_interfaces = restrict_external_interfaces(request, loaded_external_interfaces),
+         {:ok, external_envs} <- interface_environments(external_interfaces),
          {:ok, expansion} <-
            timed(request, :expansion, %{source_count: length(paths)}, fn ->
              Expansion.run(manifest, manifest_options)
@@ -642,6 +643,7 @@ defmodule Cure.Compiler.ModulePipeline do
     [
       module_pipeline: :canonical,
       package: request.package,
+      package_exports: request.package_exports,
       source_roots: [root],
       interface_roots: request.interface_roots,
       entry_point: request.entry_point,
@@ -701,15 +703,50 @@ defmodule Cure.Compiler.ModulePipeline do
       package: request.package || "root",
       source_roots: request.source_roots,
       edition: request.edition || Cure.Edition.current(),
-      known_modules: Map.keys(external_interfaces) ++ Builtins.provided_modules(),
+      known_modules: external_module_identities(external_interfaces) ++ Builtins.provided_modules(),
+      package_exports: request.package_exports,
       prelude_modules:
         external_interfaces
         |> Enum.filter(fn {_module, interface} ->
           Map.get(interface.source_metadata, :prelude_provider?, false)
         end)
-        |> Enum.map(&elem(&1, 0))
+        |> Enum.map(&external_module_identity(&1, request.package || "root"))
         |> Enum.sort()
     ]
+  end
+
+  # Package export metadata is the only authority that decides which modules a
+  # consumer may see from an interface root. Private implementation modules may
+  # still be present in the verified artifact set for internal calls. The
+  # manifest validates the export boundary first; only then are private
+  # interfaces removed from the consumer environment, so no source or BEAM
+  # fallback can make them visible.
+  defp restrict_external_interfaces(%Request{package_exports: exports}, interfaces)
+       when is_map(exports) and map_size(exports) == 0,
+       do: interfaces
+
+  defp restrict_external_interfaces(%Request{package_exports: exports}, interfaces)
+       when is_map(exports) do
+    Map.filter(interfaces, fn {module_name, interface} ->
+      package = Map.get(interface.source_metadata, :package, "root")
+
+      case Map.fetch(exports, package) do
+        :error -> true
+        {:ok, allowed} -> module_name in List.wrap(allowed)
+      end
+    end)
+  end
+
+  defp restrict_external_interfaces(_request, interfaces), do: interfaces
+
+  defp external_module_identities(interfaces) do
+    interfaces
+    |> Enum.map(&external_module_identity(&1, "root"))
+    |> Enum.uniq()
+  end
+
+  defp external_module_identity({module_name, interface}, fallback_package) do
+    {Map.get(interface.source_metadata, :package, fallback_package), module_name}
   end
 
   defp check_modules(request, manifest, skeletons, asts, sources, external_interfaces, external_envs, components) do
@@ -717,8 +754,8 @@ defmodule Cure.Compiler.ModulePipeline do
     reusable_products = reusable_product_identities(request, manifest, cached)
 
     initial =
-      {:ok, external_interface_table(manifest, external_interfaces), external_env_table(manifest, external_envs), %{},
-       [], []}
+      {:ok, external_interface_table(manifest, external_interfaces),
+       external_env_table(manifest, external_envs, external_interfaces), %{}, [], []}
 
     result =
       Enum.reduce_while(components, initial, fn component, {:ok, interfaces, envs, bodies, diagnostics, rebuilt} ->
@@ -1169,10 +1206,29 @@ defmodule Cure.Compiler.ModulePipeline do
   end
 
   defp external_interface_table(manifest, interfaces),
-    do: Map.new(interfaces, fn {module_name, interface} -> {{manifest.package, module_name}, interface} end)
+    do: Map.new(interfaces, &external_identity(manifest, &1))
 
-  defp external_env_table(manifest, envs),
-    do: Map.new(envs, fn {module_name, env} -> {{manifest.package, module_name}, env} end)
+  defp external_env_table(manifest, envs, interfaces),
+    do:
+      Map.new(envs, fn {module_name, env} ->
+        package =
+          case Map.get(interfaces, module_name) do
+            %{source_metadata: metadata} when is_map(metadata) -> Map.get(metadata, :package)
+            _ -> nil
+          end
+
+        {{package || manifest.package, module_name}, env}
+      end)
+
+  defp external_identity(manifest, {module_name, value}) do
+    package =
+      case value do
+        %{source_metadata: metadata} when is_map(metadata) -> Map.get(metadata, :package)
+        _ -> nil
+      end
+
+    {{package || manifest.package, module_name}, value}
+  end
 
   defp module_visibility(manifest, identity, skeletons) do
     dependencies = ModuleManifest.dependencies(manifest, identity)
@@ -1335,7 +1391,9 @@ defmodule Cure.Compiler.ModulePipeline do
           provided = MapSet.new(Builtins.provided_modules())
 
           interface.direct_edges
-          |> Enum.map(&{manifest.package, &1.target})
+          |> Enum.map(
+            &{Map.get(&1, :package, Map.get(interface.source_metadata, :package, manifest.package)), &1.target}
+          )
           |> Enum.uniq()
           |> Enum.reject(&MapSet.member?(provided, elem(&1, 1)))
 

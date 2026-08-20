@@ -25,11 +25,11 @@ defmodule Cure.Compiler.RegexModuleSplitTest do
   test "the Regex layers have one-way manifest ownership" do
     paths =
       [
-        "lib/std/regex_core.cure",
-        "lib/std/regex_runtime.cure",
-        "lib/std/regex_proof.cure",
-        "lib/std/regex.cure",
-        "lib/std/regex_language.cure"
+        "lib/std_deps/regex/regex_core.cure",
+        "lib/std_deps/regex/regex_runtime.cure",
+        "lib/std_deps/regex/regex_proof.cure",
+        "lib/std_deps/regex/regex.cure",
+        "lib/std_deps/regex/regex_language.cure"
       ]
       |> Enum.map(&Path.expand/1)
 

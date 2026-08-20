@@ -131,7 +131,7 @@ defmodule Cure.Compiler.ModuleInterface do
 
   defp semantic_edges(edges) do
     edges
-    |> Enum.map(&Map.take(&1, [:kind, :target]))
+    |> Enum.map(&Map.take(&1, [:kind, :package, :target]))
     |> Enum.uniq()
     |> Enum.sort_by(&{&1.target, &1.kind})
   end

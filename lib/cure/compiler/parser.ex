@@ -358,7 +358,10 @@ defmodule Cure.Compiler.Parser do
           {rules, %{}}
 
         _ ->
-          stdlib_macro_paths = Path.wildcard(Path.expand("../../std/*.cure", __DIR__))
+          stdlib_macro_paths =
+            (Path.wildcard(Path.expand("../../std/*.cure", __DIR__)) ++
+               Path.wildcard(Path.expand("../../std_deps/regex/*.cure", __DIR__)))
+            |> Enum.sort()
 
           # First harvest every standard-library macro without any builtin
           # rules. A second parse uses that complete grammar set so one

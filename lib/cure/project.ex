@@ -56,7 +56,8 @@ defmodule Cure.Project do
     application: nil,
     release: nil,
     doc: nil,
-    publish: nil
+    publish: nil,
+    exports: %{modules: []}
   ]
 
   @type dep :: %{name: String.t(), path: String.t()} | %{name: String.t(), git: String.t(), tag: String.t()}
@@ -375,8 +376,12 @@ defmodule Cure.Project do
   # dep edition must brick the build, not silently emit no beams and surface later
   # as opaque missing-module errors.
   defp compile_dep_files(cure_files, name, dep_ebin, base) do
+    package_exports = dependency_exports(cure_files, name, base)
+
     case Cure.Compiler.Artifacts.sweep(
            module_pipeline: :canonical,
+           package: name,
+           package_exports: package_exports,
            source_paths: cure_files,
            source_roots: [Path.join(base, "lib")],
            output_dir: dep_ebin,
@@ -398,6 +403,20 @@ defmodule Cure.Project do
 
       {:error, reason} ->
         {:error, {:dependency_compile_graph_error, name, reason}}
+    end
+  end
+
+  defp dependency_exports([], _name, _base), do: %{}
+
+  defp dependency_exports(cure_files, name, base) do
+    project_dir = dep_project_dir(List.first(cure_files), base)
+
+    case load(project_dir) do
+      {:ok, %{exports: %{modules: modules}}} when is_list(modules) ->
+        %{name => Enum.sort(Enum.uniq(modules))}
+
+      _ ->
+        %{}
     end
   end
 
@@ -1027,6 +1046,7 @@ defmodule Cure.Project do
            verify_stdlib: true,
            package_artifact_sets: dependency_sets,
            package_artifact_digests: Map.new(dependency_sets, fn {name, set} -> {name, set.artifact_digest} end),
+           package_exports: dependency_exports(dependency_sets),
            compile_opts: opts
          ) do
       {:ok, result} ->
@@ -1067,7 +1087,13 @@ defmodule Cure.Project do
           case Cure.Compiler.Artifacts.open_verified_set(root) do
             {:ok, set} ->
               key = if Map.has_key?(accumulated, name), do: "#{name}@#{root}", else: name
-              dependency_set = %{root: root, artifact_digest: set.artifact_digest}
+
+              dependency_set = %{
+                root: root,
+                artifact_digest: set.artifact_digest,
+                exports: Map.get(set.context, :package_exports, %{})
+              }
+
               {:cont, {:ok, Map.put(accumulated, key, dependency_set)}}
 
             {:error, reason} ->
@@ -1079,6 +1105,13 @@ defmodule Cure.Project do
           {:error, _reason} = error -> {:halt, error}
         end
       end
+    end)
+  end
+
+  defp dependency_exports(sets) when is_map(sets) do
+    Enum.reduce(sets, %{}, fn {name, set}, exports ->
+      Map.merge(exports, Map.get(set, :exports, %{}))
+      |> Map.put_new(name, [])
     end)
   end
 
@@ -1134,7 +1167,8 @@ defmodule Cure.Project do
       release: %{},
       doc: %{},
       doc_groups: %{},
-      publish: %{}
+      publish: %{},
+      exports: %{}
     }
 
     parsed = parse_lines(lines, nil, acc)
@@ -1143,6 +1177,7 @@ defmodule Cure.Project do
     release_map = normalize_release(parsed.release)
     doc_map = normalize_doc(parsed.doc, parsed.doc_groups)
     publish_map = normalize_publish(parsed.publish)
+    exports_map = normalize_exports(parsed.exports)
 
     source_paths =
       case Map.get(parsed.project, "source_paths") do
@@ -1160,7 +1195,8 @@ defmodule Cure.Project do
       application: application_map,
       release: release_map,
       doc: doc_map,
-      publish: publish_map
+      publish: publish_map,
+      exports: exports_map
     }
   end
 
@@ -1289,6 +1325,19 @@ defmodule Cure.Project do
     case parse_kv(line) do
       {"", _} -> acc
       {key, val} -> %{acc | publish: Map.put(acc.publish, key, parse_scalar(val))}
+    end
+  end
+
+  defp apply_kv({:table, "exports"}, line, acc) do
+    case parse_kv(line) do
+      {"", _} ->
+        acc
+
+      {"modules", val} ->
+        %{acc | exports: Map.put(acc.exports, "modules", parse_scalar(val))}
+
+      _ ->
+        acc
     end
   end
 
@@ -1455,6 +1504,12 @@ defmodule Cure.Project do
     %{
       include_proofs: Map.get(map, "include_proofs", true)
     }
+  end
+
+  defp normalize_exports(map) when map == %{} or map == nil, do: %{modules: []}
+
+  defp normalize_exports(map) do
+    %{modules: list_of_strings(Map.get(map, "modules", []))}
   end
 
   defp list_of_strings(list) when is_list(list), do: Enum.map(list, &to_string/1)

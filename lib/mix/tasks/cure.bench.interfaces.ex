@@ -3,7 +3,7 @@ defmodule Mix.Tasks.Cure.Bench.Interfaces do
   Measure cold and cached runs through the canonical module pipeline.
 
       mix cure.bench.interfaces
-      mix cure.bench.interfaces lib/std/regex.cure --warm-iterations 5
+      mix cure.bench.interfaces lib/std_deps/regex/regex.cure --warm-iterations 5
       mix cure.bench.interfaces --samples 3 --format json
       mix cure.bench.interfaces --top 30
   """
@@ -28,7 +28,10 @@ defmodule Mix.Tasks.Cure.Bench.Interfaces do
 
     if invalid != [], do: Mix.raise("invalid arguments: #{inspect(invalid)}")
 
-    paths = if paths == [], do: Path.wildcard("lib/std/**/*.cure"), else: paths
+    paths =
+      if paths == [],
+        do: Path.wildcard("lib/std/**/*.cure") ++ Path.wildcard("lib/std_deps/regex/*.cure"),
+        else: paths
     iterations = Keyword.get(opts, :warm_iterations, 3)
     top = Keyword.get(opts, :top, 20)
 

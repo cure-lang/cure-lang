@@ -52,6 +52,12 @@ defmodule Cure.Compiler.ModuleManifest do
     with :ok <- validate_package(package),
          {:ok, entries} <- scan_entries(paths, package),
          :ok <- reject_duplicates(entries),
+         entries =
+           resolve_external_targets(
+             entries,
+             package,
+             Keyword.get(opts, :known_modules, [])
+           ),
          manifest = assemble(package, entries, Keyword.get(opts, :prelude_modules, [])),
          :ok <- validate_dependencies(manifest, opts) do
       {:ok, manifest}
@@ -239,6 +245,52 @@ defmodule Cure.Compiler.ModuleManifest do
     end)
   end
 
+  # A source reference is initially package-relative because the header scan
+  # does not elaborate bodies and therefore has no environment to consult. Once
+  # all local headers are known, resolve a non-local module against the checked
+  # package identities supplied by the interface loader. Local definitions win
+  # over an identically named dependency; an ambiguous dependency name is left
+  # package-relative so validation can report the unresolved edge instead of
+  # silently choosing one provider.
+  defp resolve_external_targets(entries, package, known_modules) do
+    local = MapSet.new(entries, & &1.identity)
+
+    external_by_module =
+      known_modules
+      |> Enum.flat_map(fn
+        {dep_package, module_name} = identity
+        when is_binary(dep_package) and is_binary(module_name) and dep_package != package ->
+          [{module_name, identity}]
+
+        _ ->
+          []
+      end)
+      |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+      |> Map.new(fn {module_name, [identity]} -> {module_name, identity} end)
+
+    Enum.map(entries, fn entry ->
+      dependencies =
+        Enum.map(entry.dependencies, fn dependency ->
+          case dependency.target do
+            {^package, module_name} = local_target ->
+              if MapSet.member?(local, local_target) do
+                %{dependency | target: local_target}
+              else
+                case Map.fetch(external_by_module, module_name) do
+                  {:ok, identity} -> %{dependency | target: identity}
+                  :error -> dependency
+                end
+              end
+
+            _ ->
+              dependency
+          end
+        end)
+
+      %{entry | dependencies: normalize_dependencies(dependencies)}
+    end)
+  end
+
   defp assemble(package, entries, external_prelude_modules) do
     entries = Map.new(entries, &{&1.identity, &1})
 
@@ -370,6 +422,40 @@ defmodule Cure.Compiler.ModuleManifest do
       |> MapSet.new()
       |> MapSet.union(MapSet.new(Map.keys(manifest.entries)))
 
+    private =
+      manifest.entries
+      |> Map.keys()
+      |> Enum.sort()
+      |> Enum.find_value(fn identity ->
+        manifest
+        |> dependencies(identity)
+        |> Enum.find_value(fn dependency ->
+          case dependency.target do
+            {package, module_name} when package != manifest.package ->
+              case Keyword.get(opts, :package_exports, %{}) |> Map.fetch(package) do
+                {:ok, allowed} ->
+                  if module_name in List.wrap(allowed) do
+                    nil
+                  else
+                    {:package_module_not_exported,
+                     %{
+                       requester: dependency.source,
+                       target: dependency.target,
+                       kind: dependency.kind,
+                       span: dependency.span
+                     }}
+                  end
+
+                _ ->
+                  nil
+              end
+
+            _ ->
+              nil
+          end
+        end)
+      end)
+
     missing =
       manifest.entries
       |> Map.keys()
@@ -380,17 +466,22 @@ defmodule Cure.Compiler.ModuleManifest do
         |> Enum.find(&(not MapSet.member?(known, &1.target)))
       end)
 
-    if missing do
-      {:error,
-       {:missing_module,
-        %{
-          requester: missing.source,
-          target: missing.target,
-          kind: missing.kind,
-          span: missing.span
-        }}}
-    else
-      :ok
+    cond do
+      private ->
+        {:error, private}
+
+      missing ->
+        {:error,
+         {:missing_module,
+          %{
+            requester: missing.source,
+            target: missing.target,
+            kind: missing.kind,
+            span: missing.span
+          }}}
+
+      true ->
+        :ok
     end
   end
 end

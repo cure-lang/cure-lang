@@ -246,7 +246,7 @@ fn expand_literal(input: Syntax) -> MacroResult = match children(input)
   _ -> reject(Failure(:InvalidRegexLiteralInput, []))
 ```
 
-(from `lib/std/regex_syntax.cure`)
+(from `lib/std_deps/regex/regex_syntax.cure`)
 
 An expander returns `MacroResult`:
 
@@ -621,7 +621,7 @@ Each of these was reproduced against the current tree.
 | File | Shows |
 |---|---|
 | `lib/std/optic.cure:439` | the minimal shape — two bare-name rules with pins |
-| `lib/std/regex_syntax.cure` | a `literal … computed by` expander end to end |
+| `lib/std_deps/regex/regex_syntax.cure` | a `literal … computed by` expander end to end |
 | `lib/std/otp.cure` | a large `contextual` keyword vocabulary |
 | `lib/std/app.cure` | the smallest `syntax family` + `expands with` |
 | `lib/std/supervisor.cure` | a family with nested families and validation |

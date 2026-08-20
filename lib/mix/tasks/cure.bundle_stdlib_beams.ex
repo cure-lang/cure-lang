@@ -1,6 +1,7 @@
 defmodule Mix.Tasks.Cure.BundleStdlibBeams do
   @moduledoc """
-  Compile `lib/std/*.cure` into `priv/ebin/Cure.Std.*.beam`.
+  Compile the foundational stdlib and embedded Regex package into
+  `priv/ebin/Cure.Std.*.beam`.
 
   Companion to `Mix.Tasks.Cure.BundleStdlib`, which stages stdlib
   *sources* into `priv/std/`. Host applications that embed Cure (most
@@ -109,12 +110,7 @@ defmodule Mix.Tasks.Cure.BundleStdlibBeams do
       true ->
         File.mkdir_p!(dest_dir)
 
-        case Cure.Compiler.Artifacts.sweep(
-               module_pipeline: :canonical,
-               source_roots: [source_dir],
-               output_dir: dest_dir,
-               kind: :stdlib,
-               repair: true,
+        case Cure.Stdlib.Packages.compile(source_dir |> Path.join("*.cure") |> Path.wildcard(), dest_dir,
                compile_opts: [emit_events: false]
              ) do
           {:ok, result} ->

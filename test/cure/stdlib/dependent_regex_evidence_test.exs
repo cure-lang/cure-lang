@@ -119,7 +119,7 @@ defmodule Cure.Stdlib.DependentRegexEvidenceTest do
   end
 
   test "successful public parsing paths do not route through the fallible decoder" do
-    source = File.read!("lib/std/regex.cure")
+    source = File.read!("lib/std_deps/regex/regex.cure")
 
     [pattern_full_body] =
       Regex.run(

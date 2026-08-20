@@ -3214,7 +3214,7 @@ defmodule Cure.Elab.Program do
   defp stdlib_source_path?(path) do
     expanded = Path.expand(path)
 
-    Paths.source_dirs()
+    Paths.all_source_dirs()
     |> Enum.map(&Path.expand/1)
     |> Enum.any?(&(expanded == &1 or String.starts_with?(expanded, &1 <> "/")))
   end
@@ -4272,15 +4272,17 @@ defmodule Cure.Elab.Program do
   defp import_source_path(source) do
     case String.split(source, ".") do
       ["Std" | segments] when segments != [] ->
-        case Paths.source_dir() do
-          nil ->
+        dirs = Paths.all_source_dirs()
+
+        case dirs do
+          [] ->
             case user_source_path(source) do
               {:ok, path} -> {:ok_user, source, path}
               {:duplicate, paths} -> {:error, {:duplicate_module_identity, source, paths}}
               :not_found -> {:error, {:missing_stdlib_source_dir, source}}
             end
 
-          dir ->
+          dirs ->
             # The file convention snake_cases each module-name segment
             # (`Std.Json.Decoder` -> `json_decoder.cure`), so a compound CamelCase
             # segment gets its underscores. The old all-downcase join
@@ -4294,7 +4296,7 @@ defmodule Cure.Elab.Program do
                 String.downcase(Enum.join(segments, "_"))
               ]
               |> Enum.uniq()
-              |> Enum.map(&Path.join(dir, &1 <> ".cure"))
+              |> Enum.flat_map(fn stem -> Enum.map(dirs, &Path.join(&1, stem <> ".cure")) end)
 
             case Enum.find(candidates, &File.exists?/1) do
               nil ->

@@ -73,6 +73,7 @@ defmodule Cure.Compiler.Artifacts.Sweep do
         event_sink: Keyword.get(opts, :progress)
       ]
       |> maybe_request_option(opts, :macro_execution)
+      |> maybe_request_option(opts, :package_exports)
       |> maybe_request_option(opts, :prelude_set)
       |> maybe_request_option(opts, :compiler_providers)
       |> maybe_request_option(opts, :edition)
@@ -304,6 +305,9 @@ defmodule Cure.Compiler.Artifacts.Sweep do
   defp canonical_context(opts, source_roots) do
     %{
       compiler_hash: BuildManifest.toolchain_fingerprint(),
+      package: Keyword.get(opts, :package, "root"),
+      package_exports: normalize_package_exports(Keyword.get(opts, :package_exports, %{})),
+      package_exports_hash: digest(Keyword.get(opts, :package_exports, %{})),
       language_edition: Cure.Edition.current(),
       otp_release: to_string(:erlang.system_info(:otp_release)),
       elixir_version: System.version(),
@@ -319,6 +323,15 @@ defmodule Cure.Compiler.Artifacts.Sweep do
       packages: Keyword.get(opts, :package_artifact_digests, %{})
     }
   end
+
+  defp normalize_package_exports(exports) when is_map(exports) do
+    exports
+    |> Enum.map(fn {package, modules} -> {to_string(package), Enum.sort(Enum.uniq(List.wrap(modules)))} end)
+    |> Enum.sort()
+    |> Map.new()
+  end
+
+  defp normalize_package_exports(_exports), do: %{}
 
   defp remove_previous_generation(stage) do
     stage

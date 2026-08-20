@@ -114,16 +114,12 @@ vocabulary or matching logic.
 The intended source layout is:
 
 ```text
-lib/std/regex.cure                 public Regex API and literal-facing exports
-lib/std/regex/shape.cure           ShapeCode, interpretation, simplification
-lib/std/regex/syntax.cure          compile-time literal grammar and diagnostics
-lib/std/regex/core.cure            indexed Pattern
-lib/std/regex/typed.cure           Regex and typed combinators
-lib/std/regex/nfa.cure             finite ordered NFA
-lib/std/regex/thompson.cure        Pattern-to-NFA construction
-lib/std/regex/evidence.cure        evidence language and typed extraction
-lib/std/regex/vm.cure              ordered thread VM
-lib/std/regex/proof.cure           soundness/completeness obligations
+lib/std_deps/regex/regex.cure                 public Regex API and literal-facing exports
+lib/std_deps/regex/regex_core.cure            ShapeCode, indexed Pattern, and simplification
+lib/std_deps/regex/regex_syntax.cure          compile-time literal grammar and diagnostics
+lib/std_deps/regex/regex_runtime.cure         Regex, finite machine, and ordered thread VM
+lib/std_deps/regex/regex_proof.cure           soundness/completeness obligations
+lib/std_deps/regex/regex_language.cure        constructive language semantics
 ```
 
 The exact split may change to avoid import cycles, but these boundaries are

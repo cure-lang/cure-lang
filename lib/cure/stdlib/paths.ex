@@ -64,8 +64,10 @@ defmodule Cure.Stdlib.Paths do
   """
 
   @legacy_cwd_source Path.join(["lib", "std"])
+  @legacy_cwd_regex_source Path.join(["lib", "std_deps", "regex"])
   @legacy_cwd_beam Path.join(["_build", "cure", "ebin"])
   @checkout_source Path.expand("../../std", __DIR__)
+  @checkout_regex_source Path.expand("../../std_deps/regex", __DIR__)
   @checkout_beam Path.expand("../../../_build/cure/ebin", __DIR__)
 
   @cure_home_env_var "CURE_HOME"
@@ -80,6 +82,22 @@ defmodule Cure.Stdlib.Paths do
   @spec source_dirs() :: [String.t()]
   def source_dirs do
     source_candidates()
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+    |> Enum.filter(&File.dir?/1)
+  end
+
+  @doc "Return foundational and embedded package source directories."
+  @spec all_source_dirs() :: [String.t()]
+  def all_source_dirs, do: Enum.uniq(source_dirs() ++ embedded_source_dirs())
+
+  @doc "Return source directories for embedded stdlib packages."
+  @spec embedded_source_dirs() :: [String.t()]
+  def embedded_source_dirs do
+    ([@checkout_regex_source, bundled_regex_source_dir()] ++
+       cure_home_regex_source_dirs() ++
+       launcher_home_regex_source_dirs() ++
+       [@legacy_cwd_regex_source])
     |> Enum.reject(&is_nil/1)
     |> Enum.uniq()
     |> Enum.filter(&File.dir?/1)
@@ -213,6 +231,15 @@ defmodule Cure.Stdlib.Paths do
     case :code.priv_dir(:cure) do
       {:error, _} -> nil
       priv -> Path.join(to_string(priv), "std")
+    end
+  end
+
+  @doc false
+  @spec bundled_regex_source_dir() :: String.t() | nil
+  def bundled_regex_source_dir do
+    case :code.priv_dir(:cure) do
+      {:error, _} -> nil
+      priv -> Path.join([to_string(priv), "std_deps", "regex"])
     end
   end
 
@@ -352,6 +379,15 @@ defmodule Cure.Stdlib.Paths do
   end
 
   @doc false
+  @spec cure_home_regex_source_dirs() :: [String.t()]
+  def cure_home_regex_source_dirs do
+    case cure_home() do
+      nil -> []
+      home -> [Path.join([home, "priv", "std_deps", "regex"]), Path.join([home, "lib", "std_deps", "regex"])]
+    end
+  end
+
+  @doc false
   @spec launcher_home_beam_dirs(charlist() | String.t()) :: [String.t()]
   def launcher_home_beam_dirs(script_name \\ :escript.script_name()) do
     case launcher_home(script_name) do
@@ -366,6 +402,15 @@ defmodule Cure.Stdlib.Paths do
     case launcher_home(script_name) do
       nil -> []
       home -> [Path.join([home, "priv", "std"]), Path.join([home, "lib", "std"])]
+    end
+  end
+
+  @doc false
+  @spec launcher_home_regex_source_dirs(charlist() | String.t()) :: [String.t()]
+  def launcher_home_regex_source_dirs(script_name \\ :escript.script_name()) do
+    case launcher_home(script_name) do
+      nil -> []
+      home -> [Path.join([home, "priv", "std_deps", "regex"]), Path.join([home, "lib", "std_deps", "regex"])]
     end
   end
 

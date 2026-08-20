@@ -226,6 +226,7 @@ defmodule Cure.Compiler do
         :kind,
         :package,
         :package_dependencies,
+        :package_exports,
         :source_roots,
         :interface_roots,
         :artifact_roots,

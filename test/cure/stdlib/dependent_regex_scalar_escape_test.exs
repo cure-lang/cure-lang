@@ -44,8 +44,8 @@ defmodule Cure.Stdlib.DependentRegexScalarEscapeTest do
 
       assert {:error,
               {:source_context,
-               {:computed_macro_error, _meta,
-                {:author_diagnostics, [{:macro_failure, ^expected, _arguments}]}}, _context} = reason} =
+               {:computed_macro_error, _meta, {:author_diagnostics, [{:macro_failure, ^expected, _arguments}]}},
+               _context} = reason} =
                Program.elaborate(source)
 
       {diagnostic, _registry} = Errors.to_diagnostic(reason, "nofile", source)
@@ -57,7 +57,7 @@ defmodule Cure.Stdlib.DependentRegexScalarEscapeTest do
   end
 
   test "regex syntax delegates Unicode scalar boundaries to Std.Char" do
-    source = File.read!("lib/std/regex_syntax_model.cure")
+    source = File.read!("lib/std_deps/regex/regex_syntax_model.cure")
 
     refute source =~ "1114111"
     refute source =~ "55296"

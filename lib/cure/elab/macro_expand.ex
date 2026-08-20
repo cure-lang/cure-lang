@@ -476,8 +476,12 @@ defmodule Cure.Elab.MacroExpand do
   defp execute_compiled_stdlib_macro(_meta, _elab_ast, _input_ast, _fresh_counter), do: :unavailable
 
   defp stdlib_macro_home?(home) do
+    expanded = Path.expand(home)
     stdlib = Path.expand("../../std", __DIR__)
-    String.starts_with?(Path.expand(home), stdlib <> "/")
+    regex = Path.expand("../../std_deps/regex", __DIR__)
+
+    String.starts_with?(expanded, stdlib <> "/") or
+      String.starts_with?(expanded, regex <> "/")
   end
 
   defp declared_runtime_module(home) do

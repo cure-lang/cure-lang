@@ -591,7 +591,9 @@ defmodule Cure.Compiler.CanonicalModulePipelineFullRedTest do
     # Checking every stdlib module from cold is minutes of real work, not a hang.
     @tag timeout: :timer.minutes(10)
     test "the real stdlib universe never elaborates unrelated provider bodies to construct ambient scope" do
-      paths = Path.wildcard("lib/std/**/*.cure")
+      paths =
+        (Path.wildcard("lib/std/**/*.cure") ++ Path.wildcard("lib/std_deps/regex/*.cure"))
+        |> Enum.sort()
 
       assert {:ok, checked} =
                pipeline(:check, [paths, [module_pipeline: :canonical, package: "stdlib", kind: :stdlib]])
@@ -603,7 +605,10 @@ defmodule Cure.Compiler.CanonicalModulePipelineFullRedTest do
     # Checking every stdlib module from cold is minutes of real work, not a hang.
     @tag timeout: :timer.minutes(10)
     test "nominal String and reversed regex filenames compile without ordering-only uses" do
-      paths = Path.wildcard("lib/std/**/*.cure") |> Enum.reverse()
+      paths =
+        (Path.wildcard("lib/std/**/*.cure") ++ Path.wildcard("lib/std_deps/regex/*.cure"))
+        |> Enum.sort()
+        |> Enum.reverse()
 
       assert {:ok, checked} =
                pipeline(:check, [paths, [module_pipeline: :canonical, package: "stdlib", kind: :stdlib]])

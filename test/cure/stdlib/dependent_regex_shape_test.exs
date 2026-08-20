@@ -3,7 +3,7 @@ defmodule Cure.Stdlib.DependentRegexShapeTest do
 
   alias Cure.Elab.Program
 
-  @shape_source File.read!(Path.expand("../../../lib/std/regex.cure", __DIR__))
+  @shape_source File.read!(Path.expand("../../../lib/std_deps/regex/regex.cure", __DIR__))
 
   test "ShapeCode and Sem elaborate as a genuine large elimination" do
     assert {:ok, _env} = Program.elaborate(@shape_source)

@@ -767,6 +767,7 @@ defmodule Cure.CLI do
 
       case Cure.Compiler.compile_files(cure_files,
              module_pipeline: :canonical,
+             package: "stdlib",
              output_dir: output_dir,
              kind: :stdlib,
              emit_events: false,

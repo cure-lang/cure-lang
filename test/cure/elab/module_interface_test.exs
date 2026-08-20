@@ -32,7 +32,7 @@ defmodule Cure.Elab.ModuleInterfaceTest do
 
   test "dependency interface identities are canonical and complete" do
     assert {:ok, %ModuleInterface{} = iface} =
-             Program.module_interface("Std.Regex", "lib/std/regex.cure")
+             Program.module_interface("Std.Regex", "lib/std_deps/regex/regex.cure")
 
     assert iface.dependency_interface_hashes != %{}
 
