@@ -31,6 +31,10 @@ consumed and unconsumed character lists directly. This preserves lazy
 repetition and ordered alternation instead of retrying every endpoint with a
 separate greedy scan. The focused named-capture suite and the 138-test Regex
 behavior slice pass with this evaluator.
+Assertion decisions now consume the certified path search directly; the former
+preliminary Boolean scan and reconstructed exhaustion witness are gone, so a
+search refutation carries the exhaustion value produced by the same traversal
+that attempted every start and destination.
 The Phase 2 exit gate is therefore still not discharged.
 
 **Applies to:** the Cure-native typed regex engine, its erased portable runtime,
@@ -284,7 +288,7 @@ decision in ordinary and named execution; optional assertion captures cover both
 participating and absent branches. Capture-aware prefix replay follows machine
 order for lazy and ordered branches, with regressions for ordered alternation
 and lazy repetition. Full assertion path/refutation certificates
-and complete capture interaction coverage remain open; the phase exit gate is
+and complete nested failure-tree evidence remain open; the phase exit gate is
 therefore not yet discharged.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and

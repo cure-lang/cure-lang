@@ -1682,11 +1682,10 @@ mod Std.Regex.Runtime
       [] -> false
       [_ | tail] -> history_has_width(tail, rest)
 
-  fn lookaround_machine_acceptance_path(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> LookaroundSearchResult(depth, n, machine, input, after_input, history, policy) = pickup
-    atomic_lookaround_accepts(depth, n, machine, position, input, after_input, history, capture_context, policy) -> match machine
-      MkPatternMachine(starts, _) -> lookaround_search_path(depth, n, machine, input, after_input, history, capture_context, policy, lookaround_filter_boundary_states(depth, starts, position_boundary_for_history(position, append_characters(input, after_input), history), append_characters(input, after_input), history, capture_context, policy))
-    else -> match machine
-      MkPatternMachine(starts, _) -> LookaroundSearchResultRejected(lookaround_exhaustion_from_list(lookaround_filter_boundary_states(depth, starts, position_boundary_for_history(position, append_characters(input, after_input), history), append_characters(input, after_input), history, capture_context, policy)))
+  fn lookaround_machine_acceptance_path(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> LookaroundSearchResult(depth, n, machine, input, after_input, history, policy) = match machine
+    MkPatternMachine(starts, _) ->
+      let filtered_starts = lookaround_filter_boundary_states(depth, starts, position_boundary_for_history(position, append_characters(input, after_input), history), append_characters(input, after_input), history, capture_context, policy)
+      lookaround_search_path(depth, n, machine, input, after_input, history, capture_context, policy, filtered_starts)
 
   fn lookaround_machine_accepts(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Bool = atomic_lookaround_accepts(depth, n, machine, position, input, after_input, history, capture_context, policy)
 
@@ -1986,13 +1985,12 @@ mod Std.Regex.Runtime
 
   fn lookbehind_witness(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy, path: LookaroundSearchPath(depth, n, machine, input, after_input, history, policy)) -> LookbehindWitness(n, machine) = %[depth, input, after_input, history, policy, path]
 
-  fn lookaround_prefix_search_decision(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> LookaheadDecision(n, machine) = pickup
-    atomic_lookaround_prefix_accepts(depth, n, machine, position, input, after_input, history, capture_context, policy) -> match machine
-      MkPatternMachine(starts, _) -> match lookaround_prefix_search_path(depth, n, machine, input, after_input, history, capture_context, policy, lookaround_filter_boundary_states(depth, starts, position_boundary_for_history(position, append_characters(input, after_input), history), append_characters(input, after_input), history, capture_context, policy))
-        LookaroundPrefixSearchResultRejected(_) -> LookaheadRefuted(LookaheadSearchExhausted(input, after_input, history, policy, lookaround_exhaustion_from_list(lookaround_filter_boundary_states(depth, starts, position_boundary_for_history(position, append_characters(input, after_input), history), append_characters(input, after_input), history, capture_context, policy))))
+  fn lookaround_prefix_search_decision(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> LookaheadDecision(n, machine) = match machine
+    MkPatternMachine(starts, _) ->
+      let filtered_starts = lookaround_filter_boundary_states(depth, starts, position_boundary_for_history(position, append_characters(input, after_input), history), append_characters(input, after_input), history, capture_context, policy)
+      match lookaround_prefix_search_path(depth, n, machine, input, after_input, history, capture_context, policy, filtered_starts)
+        LookaroundPrefixSearchResultRejected(exhaustion) -> LookaheadRefuted(LookaheadSearchExhausted(input, after_input, history, policy, exhaustion))
         LookaroundPrefixSearchResultFound(path) -> LookaheadSatisfied(lookahead_witness(depth, n, machine, input, after_input, history, policy, path))
-    else -> match machine
-      MkPatternMachine(starts, _) -> LookaheadRefuted(LookaheadSearchExhausted(input, after_input, history, policy, lookaround_exhaustion_from_list(lookaround_filter_boundary_states(depth, starts, position_boundary_for_history(position, append_characters(input, after_input), history), append_characters(input, after_input), history, capture_context, policy))))
 
   fn lookaround_search_decision(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> LookbehindDecision(n, machine) = match lookaround_machine_acceptance_path(depth, n, machine, position, input, after_input, history, capture_context, policy)
     LookaroundSearchResultRejected(exhaustion) -> LookbehindRefuted(LookbehindSearchExhausted(input, after_input, history, policy, exhaustion))
@@ -2448,17 +2446,6 @@ mod Std.Regex.Runtime
       AtomicSearchYes() -> true
       AtomicSearchNo() -> false
       AtomicSearchCommit(_) -> false
-
-  fn atomic_lookaround_prefix_accepts(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Bool =
-    atomic_lookaround_prefix_loop(depth, n, machine, position, [], input, after_input, history, capture_context, policy)
-
-  fn atomic_lookaround_prefix_loop(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, reversed_prefix: List(Char), remaining_input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Bool =
-    let matched_input = evidence_reverse_chars(reversed_prefix)
-    pickup
-      atomic_lookaround_accepts(depth, n, machine, position, matched_input, append_characters(remaining_input, after_input), history, capture_context, policy) -> true
-      else -> match remaining_input
-        [] -> false
-        [char | rest] -> atomic_lookaround_prefix_loop(depth, n, machine, position, [char | reversed_prefix], rest, after_input, history, capture_context, policy)
 
   fn atomic_runtime_first_prefix(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char)) -> Option(Tuple(List(Char), List(Char))) =
     atomic_runtime_first_prefix_loop(n, machine, position, [], input)
