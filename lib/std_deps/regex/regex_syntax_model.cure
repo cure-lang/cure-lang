@@ -281,7 +281,6 @@ mod Std.Regex.Syntax.Model
 
   fn validate_literal_lookaround_operand(pattern: LiteralPattern, depth: Nat) -> LiteralLookaroundValidation = pickup
     literal_pattern_has_capture(pattern) -> LiteralLookaroundInvalid(:AssertionCapturesUnsupported, "assertion")
-    literal_pattern_has_conditionals(pattern) -> LiteralLookaroundInvalid(:NestedAssertionUnsupported, "assertion")
     else -> validate_literal_lookarounds_at(pattern, depth)
 
   fn validate_literal_lookaround_list(patterns: List(LiteralPattern), depth: Nat) -> LiteralLookaroundValidation = match patterns
@@ -308,7 +307,7 @@ mod Std.Regex.Syntax.Model
     LiteralSequence(left, right) -> literal_pattern_has_capture(left) or literal_pattern_has_capture(right)
     LiteralAlternate(left, right) -> literal_pattern_has_capture(left) or literal_pattern_has_capture(right)
     LiteralBranchReset(arms) -> literal_pattern_list_has_capture(arms)
-    LiteralConditional(_, _, _) -> true
+    LiteralConditional(_, yes, no) -> literal_pattern_has_capture(yes) or literal_pattern_option_has_capture(no)
     LiteralAtomic(inner) -> literal_pattern_has_capture(inner)
     LiteralLookahead(_, inner) -> literal_pattern_has_capture(inner)
     LiteralLookbehind(_, inner) -> literal_pattern_has_capture(inner)
@@ -324,6 +323,10 @@ mod Std.Regex.Syntax.Model
   fn literal_pattern_list_has_capture(patterns: List(LiteralPattern)) -> Bool = match patterns
     [] -> false
     [head | rest] -> literal_pattern_has_capture(head) or literal_pattern_list_has_capture(rest)
+
+  fn literal_pattern_option_has_capture(pattern: Option(LiteralPattern)) -> Bool = match pattern
+    None() -> false
+    Some(inner) -> literal_pattern_has_capture(inner)
 
   fn literal_pattern_has_lookaround(pattern: LiteralPattern) -> Bool = match pattern
     LiteralLookahead(_, _) -> true

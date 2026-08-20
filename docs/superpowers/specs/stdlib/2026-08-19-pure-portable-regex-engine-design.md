@@ -20,12 +20,14 @@ namespace.
 
 **Implementation ledger (2026-08-20):** The embedded `cure_regex` package,
 portable closure/AtomVM gates, and cold/warm baseline are committed. Nested
-capture-free assertions are depth-bounded, and atomic scopes now compose with
-lookaround in both directions through a separate `LookaroundCompilation` IR
-and the finite commitment search. The remaining Phase 2 obligations are full
-assertion path/refutation certificates, capture-aware assertion conditionals,
-and scoped inline options; they must not be marked complete from the current
-runtime decision façade alone.
+capture-free assertions are depth-bounded, atomic scopes compose with
+lookaround in both directions, and assertion conditionals can inspect the
+participation of an already-completed outer capture. These use a separate
+`LookaroundCompilation` IR, slot-aware capture markers, and the finite
+commitment search. The remaining Phase 2 obligations are full assertion
+path/refutation certificates, captures created inside assertions, and scoped
+inline options; they must not be marked complete from the current runtime
+decision façade alone.
 
 This specification deliberately extends the finite-PCRE design rather than
 replacing it. The finite-PCRE specification remains authoritative for the

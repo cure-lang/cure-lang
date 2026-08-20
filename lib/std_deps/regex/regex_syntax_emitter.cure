@@ -175,7 +175,7 @@ mod Std.Regex.Syntax.Emitter
     LiteralLineBreak() -> emit_lookaround_line_break_compilation(options)
     LiteralSequence(left, right) -> runtime_call("LookaroundConcat", [emit_lookaround_staged_compilation(left, options), emit_lookaround_staged_compilation(right, options)])
     LiteralAlternate(left, right) -> runtime_call("LookaroundAlternate", [emit_lookaround_staged_compilation(left, options), emit_lookaround_staged_compilation(right, options), bool_literal(false)])
-    LiteralConditional(_, yes, no) -> runtime_call("LookaroundAlternate", [emit_lookaround_staged_compilation(yes, options), emit_lookaround_staged_compilation_or_empty(no, options), bool_literal(false)])
+    LiteralConditional(reference, yes, no) -> emit_lookaround_conditional(reference, yes, no, options)
     LiteralAtomic(inner) -> runtime_call("LookaroundAtomic", [emit_lookaround_staged_compilation(inner, options)])
     LiteralLookahead(polarity, inner) -> runtime_call("LookaroundBoundary", [runtime_call("lookahead_constraint", [emit_lookaround_staged_compilation(inner, options), emit_lookaround_polarity(polarity), emit_newline_policy(options)])])
     LiteralLookbehind(polarity, inner) -> runtime_call("LookaroundBoundary", [runtime_call("lookbehind_constraint", [emit_lookaround_staged_compilation(inner, options), emit_lookaround_polarity(polarity), emit_nat(literal_pattern_exact_width_value(inner)), emit_newline_policy(options)])])
@@ -188,7 +188,7 @@ mod Std.Regex.Syntax.Emitter
     LiteralBoundedBetween(inner, minimum, maximum, lazy) -> emit_lookaround_bounded_between(inner, minimum, maximum, lazy != has_modifier(options, UngreedyModifier), options)
     LiteralCapture(inner) -> runtime_call("LookaroundGroup", [emit_lookaround_staged_compilation(inner, options)])
     LiteralNamedCapture(_, inner) -> runtime_call("LookaroundGroup", [emit_lookaround_staged_compilation(inner, options)])
-    LiteralCaptureIndexed(_, _, inner) -> runtime_call("LookaroundGroup", [emit_lookaround_staged_compilation(inner, options)])
+    LiteralCaptureIndexed(slot, _, inner) -> runtime_call("LookaroundGroupSlot", [emit_nat(slot), emit_lookaround_staged_compilation(inner, options)])
     LiteralStart -> runtime_call("LookaroundBoundary", [emit_staged_start_constraint(options)])
     LiteralEnd -> runtime_call("LookaroundBoundary", [emit_staged_end_constraint(options)])
     LiteralAbsoluteStart -> runtime_call("LookaroundBoundary", [runtime_call("subject_start_constraint_with_policy", [emit_newline_policy(options)])])
@@ -200,6 +200,10 @@ mod Std.Regex.Syntax.Emitter
   fn emit_lookaround_staged_compilation_or_empty(pattern: Option(LiteralPattern), options: LiteralRegexOptions) -> Syntax = match pattern
     None() -> runtime_call("LookaroundEmpty", [])
     Some(inner) -> emit_lookaround_staged_compilation(inner, options)
+
+  fn emit_lookaround_conditional(reference: LiteralCaptureReference, yes: LiteralPattern, no: Option(LiteralPattern), options: LiteralRegexOptions) -> Syntax = match reference
+    LiteralCaptureSlotReference(slot) -> runtime_call("LookaroundAlternate", [runtime_call("LookaroundGuard", [emit_nat(slot), bool_literal(true), emit_lookaround_staged_compilation(yes, options)]), runtime_call("LookaroundGuard", [emit_nat(slot), bool_literal(false), emit_lookaround_staged_compilation_or_empty(no, options)]), bool_literal(false)])
+    LiteralCaptureNameReference(_) -> runtime_call("LookaroundAlternate", [emit_lookaround_staged_compilation(yes, options), emit_lookaround_staged_compilation_or_empty(no, options), bool_literal(false)])
 
   fn emit_lookaround_bounded_exact(inner: LiteralPattern, count: Nat, options: LiteralRegexOptions) -> Syntax = match count
     Z() -> runtime_call("LookaroundEmpty", [])

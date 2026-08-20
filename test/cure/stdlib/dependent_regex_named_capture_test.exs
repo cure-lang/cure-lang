@@ -56,6 +56,9 @@ defmodule Cure.Stdlib.DependentRegexNamedCaptureTest do
       fn conditional_failed_capture(input: String) -> Option(NamedParse(Tuple(Choice(Tuple(String, Unit), Unit), Choice(Unit, Unit)))) =
         parse_full_named(/(?:(?<flag>a)x|a)(?(flag)b|c)/, input)
 
+      fn conditional_lookahead(input: String) -> Option(NamedParse(Tuple(Tuple(Option(String), Unit), Char))) =
+        parse_full_named(/(?<flag>a)?(?=(?(flag)b|c))./, input)
+
       fn replay_probe() -> Option(List(NamedCapture)) =
         replay_named_capture_routine(
           [Regular(BeginCaptureSlot(Z())), Observe('a'), Regular(EndCaptureSlot(Z()))],
@@ -172,6 +175,16 @@ defmodule Cure.Stdlib.DependentRegexNamedCaptureTest do
 
     assert {:some, {:NamedParse, _value, captures}} = apply(module, :conditional_failed_capture, [{:String, ~c"axb"}])
     assert captures == [{:NamedCapture, {:String, ~c"flag"}, {:some, {:String, ~c"a"}}}]
+  end
+
+  test "assertion conditionals read the parent capture participation", %{runtime_module: module} do
+    assert {:some, {:NamedParse, _value, captures}} = apply(module, :conditional_lookahead, [{:String, ~c"ab"}])
+    assert captures == [{:NamedCapture, {:String, ~c"flag"}, {:some, {:String, ~c"a"}}}]
+
+    assert {:some, {:NamedParse, _value, captures}} = apply(module, :conditional_lookahead, [{:String, ~c"c"}])
+    assert captures == [{:NamedCapture, {:String, ~c"flag"}, :none}]
+
+    assert apply(module, :conditional_lookahead, [{:String, ~c"ac"}]) == :none
   end
 
   test "unknown conditional capture references are diagnosed" do
