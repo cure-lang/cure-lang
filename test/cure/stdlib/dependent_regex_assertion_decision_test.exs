@@ -46,7 +46,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
         [],
         AnyUnicodeNewline()
       )
-        LookbehindRefuted(LookbehindSearchExhausted(['b'], [], [], AnyUnicodeNewline(), _)) -> true
+        LookbehindRefuted(LookbehindSearchExhausted(_, ['b'], [], [], AnyUnicodeNewline(), _)) -> true
         _ -> false
 
       fn nested_decision_evidence() -> Bool =
@@ -63,6 +63,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
         )
           [LookaheadNestedDecision(true, _)] -> true
           _ -> false
+
     end
     '''
 

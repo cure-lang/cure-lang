@@ -18,9 +18,9 @@ lookbehind decisions carry an existential package containing the indexed finite
 child path, while the existing atomic commitment evaluator remains the
 acceptance authority. The assertion-capture sidecar is now landed as well:
 positive lookaround branches carry their selected `ExtendedInstruction` routine
-into named replay, while negative-assertion frames are discarded. Complete
-refutation certificates and several capture interactions remain open. The
-capture/backtracking slice now also threads selected assertion markers through
+into named replay, while negative-assertion frames are discarded. Formal
+refutation completeness proofs and several capture interactions remain open.
+The capture/backtracking slice now also threads selected assertion markers through
 later boundary constraints (including capture-participation conditionals),
 preserves the same context in named replay, and covers present/absent optional
 assertion captures plus failed-alternative backtracking. Branch backtracking
@@ -287,9 +287,11 @@ capture-aware replay fold, so a later conditional sees the same participation
 decision in ordinary and named execution; optional assertion captures cover both
 participating and absent branches. Capture-aware prefix replay follows machine
 order for lazy and ordered branches, with regressions for ordered alternation
-and lazy repetition. Full assertion path/refutation certificates
-and complete nested failure-tree evidence remain open; the phase exit gate is
-therefore not yet discharged.
+and lazy repetition. Refutation values now retain dependent child and sibling
+failure trees through both exact and prefix path folds, while depth/history
+guard failures remain explicit resource certificates. The formal
+soundness/completeness audit and exhaustive small-model comparison remain open;
+the phase exit gate is therefore not yet discharged.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
