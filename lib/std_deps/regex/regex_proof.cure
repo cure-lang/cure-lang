@@ -4038,8 +4038,8 @@ mod Std.Regex.Proof
   fn parse_lookaround_compilation_full_verified({shape: ShapeCode}, pattern: Pattern(shape), compilation: LookaroundCompilation(shape), policy: NewlinePolicy, input: String) -> Option(Sem(shape)) =
     let characters = Std.String.characters(input)
     match lookaround_machine_acceptance_path(regex_assertion_depth_limit(), lookaround_state_count(compilation), lookaround_machine(compilation), subject_initial_position(), characters, [], [], [], policy)
-      None() -> None()
-      Some(_) -> parse_pattern_full_verified(pattern, input)
+      LookaroundSearchResultRejected(_) -> None()
+      LookaroundSearchResultFound(_) -> parse_pattern_full_verified(pattern, input)
 
   fn parse_lookaround_compilation_prefix_verified_at({shape: ShapeCode}, pattern: Pattern(shape), compilation: LookaroundCompilation(shape), policy: NewlinePolicy, input: List(Char), greedy: Bool, position: InitialPosition, history: List(Char)) -> Option(Tuple(Sem(shape), List(Char))) =
     match lookaround_prefix(lookaround_state_count(compilation), lookaround_machine(compilation), position, input, greedy, history, policy)

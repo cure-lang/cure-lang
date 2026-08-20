@@ -46,7 +46,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
         [],
         AnyUnicodeNewline()
       )
-        LookbehindRefuted(LookbehindSearchExhausted(['b'], [], [], AnyUnicodeNewline())) -> true
+        LookbehindRefuted(LookbehindSearchExhausted(['b'], [], [], AnyUnicodeNewline(), _)) -> true
         _ -> false
     end
     '''
