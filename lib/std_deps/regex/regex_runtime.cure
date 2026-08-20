@@ -1934,7 +1934,8 @@ mod Std.Regex.Runtime
       LookaroundPrefixPathFound(suffix) -> LookaroundPrefixPathFound(LookaroundPrefixNextAccepted(char, rest, routine, constraints, capture_context, lookaround_nested_decisions(depth, constraints, lookaround_transition_boundary(char, rest, after_input, policy), append_characters(rest, after_input), history, capture_context, policy), edge, suffix))
 
   type LookaroundSearchPath(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy)
-    LookaroundSearchFound : (state: ThreadState(n)) -> (@erased path: LookaroundAcceptingPath(depth, n, machine, input, after_input, state, history, policy)) -> LookaroundSearchPath(depth, n, machine, input, after_input, history, policy)
+    LookaroundSearchFoundActive : (state: Bounded(n)) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (@erased member: ListMember(MachineState(n), Active(state, routine, constraints), starts)) -> (@erased path: LookaroundAcceptingPath(depth, n, machine, input, after_input, ThreadActive(state), history, policy)) -> LookaroundSearchPath(depth, n, machine, input, after_input, history, policy)
+    LookaroundSearchFoundAccepted : (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (@erased member: ListMember(MachineState(n), Accepted(routine, constraints), starts)) -> (@erased path: LookaroundAcceptingPath(depth, n, machine, input, after_input, ThreadAccepted(), history, policy)) -> LookaroundSearchPath(depth, n, machine, input, after_input, history, policy)
 
   fn lookaround_search_path(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, starts: List(MachineState(n))) -> LookaroundSearchResult(depth, n, machine, input, after_input, history, policy, capture_context) = lookaround_search_path_members(depth, n, machine, input, after_input, history, capture_context, policy, starts, machine_state_members(starts))
 
@@ -1944,15 +1945,16 @@ mod Std.Regex.Runtime
       LookaroundAcceptingPathRejected(child_failure) -> match lookaround_search_path_members(depth, n, machine, input, after_input, history, capture_context, policy, starts, remaining)
         LookaroundSearchResultRejected(tail_failure) -> LookaroundSearchResultRejected(lookaround_search_active_rejected(depth, n, machine, input, after_input, history, capture_context, policy, starts, state, routine, constraints, member, child_failure, tail_failure))
         LookaroundSearchResultFound(path) -> LookaroundSearchResultFound(path)
-      LookaroundAcceptingPathFound(path) -> LookaroundSearchResultFound(LookaroundSearchFound(ThreadActive(state), path))
+      LookaroundAcceptingPathFound(path) -> LookaroundSearchResultFound(LookaroundSearchFoundActive(state, routine, constraints, member, path))
     MachineStateMembersAccepted(routine, constraints, member, remaining) -> match lookaround_accepting_path(depth, n, machine, input, after_input, ThreadAccepted(), history, append_routine(capture_context, routine), policy)
       LookaroundAcceptingPathRejected(child_failure) -> match lookaround_search_path_members(depth, n, machine, input, after_input, history, capture_context, policy, starts, remaining)
         LookaroundSearchResultRejected(tail_failure) -> LookaroundSearchResultRejected(lookaround_search_accepted_rejected(depth, n, machine, input, after_input, history, capture_context, policy, starts, routine, constraints, member, child_failure, tail_failure))
         LookaroundSearchResultFound(path) -> LookaroundSearchResultFound(path)
-      LookaroundAcceptingPathFound(path) -> LookaroundSearchResultFound(LookaroundSearchFound(ThreadAccepted(), path))
+      LookaroundAcceptingPathFound(path) -> LookaroundSearchResultFound(LookaroundSearchFoundAccepted(routine, constraints, member, path))
 
   type LookaroundPrefixSearchPath(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy)
-    LookaroundPrefixSearchFound : (state: ThreadState(n)) -> (@erased path: LookaroundPrefixPath(depth, n, machine, input, after_input, state, history, policy)) -> LookaroundPrefixSearchPath(depth, n, machine, input, after_input, history, policy)
+    LookaroundPrefixSearchFoundActive : (state: Bounded(n)) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (@erased member: ListMember(MachineState(n), Active(state, routine, constraints), starts)) -> (@erased path: LookaroundPrefixPath(depth, n, machine, input, after_input, ThreadActive(state), history, policy)) -> LookaroundPrefixSearchPath(depth, n, machine, input, after_input, history, policy)
+    LookaroundPrefixSearchFoundAccepted : (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (@erased member: ListMember(MachineState(n), Accepted(routine, constraints), starts)) -> (@erased path: LookaroundPrefixPath(depth, n, machine, input, after_input, ThreadAccepted(), history, policy)) -> LookaroundPrefixSearchPath(depth, n, machine, input, after_input, history, policy)
 
   type LookaroundAcceptingPathResult(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), policy: NewlinePolicy, capture_context: List(EvidenceInstruction))
     LookaroundAcceptingPathRejected : (failure: LookaroundPathFailure(depth, n, machine, input, after_input, state, history, capture_context, policy, destinations)) -> LookaroundAcceptingPathResult(depth, n, machine, input, after_input, state, history, policy, capture_context)
@@ -2024,12 +2026,12 @@ mod Std.Regex.Runtime
       LookaroundPrefixPathRejected(child_failure) -> match lookaround_prefix_search_path_members(depth, n, machine, input, after_input, history, capture_context, policy, starts, remaining)
         LookaroundPrefixSearchResultRejected(tail_failure) -> LookaroundPrefixSearchResultRejected(lookaround_search_active_rejected(depth, n, machine, input, after_input, history, capture_context, policy, starts, state, routine, constraints, member, child_failure, tail_failure))
         LookaroundPrefixSearchResultFound(path) -> LookaroundPrefixSearchResultFound(path)
-      LookaroundPrefixPathFound(path) -> LookaroundPrefixSearchResultFound(LookaroundPrefixSearchFound(ThreadActive(state), path))
+      LookaroundPrefixPathFound(path) -> LookaroundPrefixSearchResultFound(LookaroundPrefixSearchFoundActive(state, routine, constraints, member, path))
     MachineStateMembersAccepted(routine, constraints, member, remaining) -> match lookaround_prefix_path(depth, n, machine, input, after_input, ThreadAccepted(), history, append_routine(capture_context, routine), policy)
       LookaroundPrefixPathRejected(child_failure) -> match lookaround_prefix_search_path_members(depth, n, machine, input, after_input, history, capture_context, policy, starts, remaining)
         LookaroundPrefixSearchResultRejected(tail_failure) -> LookaroundPrefixSearchResultRejected(lookaround_search_accepted_rejected(depth, n, machine, input, after_input, history, capture_context, policy, starts, routine, constraints, member, child_failure, tail_failure))
         LookaroundPrefixSearchResultFound(path) -> LookaroundPrefixSearchResultFound(path)
-      LookaroundPrefixPathFound(path) -> LookaroundPrefixSearchResultFound(LookaroundPrefixSearchFound(ThreadAccepted(), path))
+      LookaroundPrefixPathFound(path) -> LookaroundPrefixSearchResultFound(LookaroundPrefixSearchFoundAccepted(routine, constraints, member, path))
 
   fn lookahead_witness(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy, path: LookaroundPrefixSearchPath(depth, n, machine, input, after_input, history, policy)) -> LookaheadWitness(n, machine) = %[depth, input, after_input, history, policy, path]
 

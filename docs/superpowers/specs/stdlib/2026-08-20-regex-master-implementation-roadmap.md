@@ -40,6 +40,9 @@ negative, nested lookahead, exact lookbehind, and negative lookbehind behavior
 over the `abc` alphabet through length four; the randomized oracle remains as
 the broader subject-length check. This validates the observable decision
 boundary, while the dependent refutation-tree soundness theorem is still open.
+Successful exact and prefix search witnesses now also retain an erased
+membership proof for the selected filtered start state, so a witness cannot
+silently name a thread that was not present in the machine's start list.
 The Phase 2 exit gate is therefore still not discharged.
 
 **Applies to:** the Cure-native typed regex engine, its erased portable runtime,
