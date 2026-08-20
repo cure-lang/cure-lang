@@ -1632,10 +1632,10 @@ mod Std.Regex.Runtime
       None() -> false
       Some(_) -> true
 
-  ## Assertion operands are validated as capture-free and non-nested before
-  ## emission.  Their child machine therefore needs only ordinary boundary
-  ## constraints; using this separate filter keeps child evaluation outside
-  ## the parent constraint evaluator's recursive totality SCC.
+  ## Assertion operands are validated as capture-free and depth-bounded before
+  ## emission. Their child machine can therefore recurse only through the
+  ## explicit finite fuel; using this separate filter keeps child evaluation
+  ## outside the parent constraint evaluator's ordinary totality SCC.
   fn lookaround_filter_boundary_states(depth: Nat, {n: Nat}, states: List(MachineState(n)), boundary: Boundary, remaining: List(Char), history: List(Char), policy: NewlinePolicy) -> List(MachineState(n)) = match states
     [] -> []
     [Active(state, routine, constraints) | rest] -> pickup
@@ -1670,10 +1670,9 @@ mod Std.Regex.Runtime
     InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word, previous_char) ->
       position_boundary(subject_start, line_start, previous_ascii_word, previous_unicode_word, previous_char, input)
 
-  ## Capture-free assertion paths carry only state reachability.  The depth
-  ## index is the same guard used by the evaluator: a top-level assertion gets
-  ## one level, while a nested assertion (which validation rejects) reaches
-  ## zero and cannot manufacture a child path.
+  ## Capture-free assertion paths carry only state reachability. The depth
+  ## index is the same guard used by the evaluator: each nested assertion
+  ## consumes one level and zero fuel cannot manufacture a child path.
   type LookaroundAcceptingPath(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), policy: NewlinePolicy)
     LookaroundAcceptedNow : LookaroundAcceptingPath(depth, n, machine, Nil(), after_input, ThreadAccepted(), history, policy)
     LookaroundAcceptedNextActive : (char: Char) -> (rest: List(Char)) -> (destination: Bounded(n)) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (edge: ListMember(MachineState(n), Active(destination, routine, constraints), lookaround_machine_destinations(depth, n, machine, state, char, rest, after_input, history, policy))) -> (@erased suffix: LookaroundAcceptingPath(depth, n, machine, rest, after_input, ThreadActive(destination), history_push_bounded(history, char), policy)) -> LookaroundAcceptingPath(depth, n, machine, Cons(char, rest), after_input, state, history, policy)
@@ -1756,7 +1755,7 @@ mod Std.Regex.Runtime
   fn lookaround_first_prefix_loop(n: Nat, machine: PatternMachine(n), position: InitialPosition, reversed_prefix: List(Char), remaining_input: List(Char), history: List(Char), policy: NewlinePolicy) -> Option(Tuple(List(Char), List(Char))) =
     let matched_input = evidence_reverse_chars(reversed_prefix)
     pickup
-      lookaround_machine_accepts(S(Z()), n, machine, position, matched_input, remaining_input, history, policy) -> Some(%[matched_input, remaining_input])
+      lookaround_machine_accepts(lookaround_depth_limit(), n, machine, position, matched_input, remaining_input, history, policy) -> Some(%[matched_input, remaining_input])
       else -> match remaining_input
         [] -> None()
         [char | rest] -> lookaround_first_prefix_loop(n, machine, position, [char | reversed_prefix], rest, history, policy)
@@ -1767,7 +1766,7 @@ mod Std.Regex.Runtime
   fn lookaround_last_prefix_loop(n: Nat, machine: PatternMachine(n), position: InitialPosition, reversed_prefix: List(Char), remaining_input: List(Char), previous: Option(Tuple(List(Char), List(Char))), history: List(Char), policy: NewlinePolicy) -> Option(Tuple(List(Char), List(Char))) =
     let matched_input = evidence_reverse_chars(reversed_prefix)
     let current = pickup
-      lookaround_machine_accepts(S(Z()), n, machine, position, matched_input, remaining_input, history, policy) -> Some(%[matched_input, remaining_input])
+      lookaround_machine_accepts(lookaround_depth_limit(), n, machine, position, matched_input, remaining_input, history, policy) -> Some(%[matched_input, remaining_input])
       else -> previous
     match remaining_input
       [] -> current
@@ -1776,6 +1775,11 @@ mod Std.Regex.Runtime
   fn lookaround_prefix(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), greedy: Bool, history: List(Char), policy: NewlinePolicy) -> Option(Tuple(List(Char), List(Char))) = pickup
     greedy -> lookaround_last_prefix(n, machine, position, input, history, policy)
     else -> lookaround_first_prefix(n, machine, position, input, history, policy)
+
+  ## The syntax validator admits this same finite assertion depth. Keeping the
+  ## evaluator's fuel explicit makes every nested child call structurally
+  ## decreasing while leaving the public regex shape unchanged.
+  fn lookaround_depth_limit() -> Nat = S(S(S(S(Z()))))
 
   @reducible
   fn machine_destinations(n: Nat, machine: PatternMachine(n), state: ThreadState(n), char: Char, boundary: Boundary) -> List(MachineState(n)) = match state

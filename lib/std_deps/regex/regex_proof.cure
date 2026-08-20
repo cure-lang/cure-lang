@@ -4037,7 +4037,7 @@ mod Std.Regex.Proof
   ## through the depth-bounded assertion machine exists.
   fn parse_lookaround_compilation_full_verified({shape: ShapeCode}, pattern: Pattern(shape), compilation: ThompsonCompilation(shape), policy: NewlinePolicy, input: String) -> Option(Sem(shape)) =
     let characters = Std.String.characters(input)
-    match lookaround_machine_acceptance_path(S(Z()), thompson_state_count(compilation), thompson_machine(compilation), subject_initial_position(), characters, [], [], policy)
+    match lookaround_machine_acceptance_path(lookaround_depth_limit(), thompson_state_count(compilation), thompson_machine(compilation), subject_initial_position(), characters, [], [], policy)
       None() -> None()
       Some(_) -> parse_pattern_full_verified(pattern, input)
 

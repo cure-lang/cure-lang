@@ -16,6 +16,9 @@ defmodule Cure.Stdlib.DependentRegexLookaroundTest do
       fn negative_lookahead() -> Bool = matches(/a(?!c)b/, "ab")
       fn negative_lookahead_failure() -> Bool = matches(/a(?!b)b/, "ab")
       fn positive_lookahead_prefix() -> Bool = matches(/(?=ab)a/, "abc")
+      fn nested_negative_lookahead() -> Bool = matches(/(?!(?=b)b)a/, "a")
+      fn nested_positive_lookbehind() -> Bool = matches(/(?<=a(?=b))b/, "ab")
+      fn nested_negative_lookbehind() -> Bool = matches(/(?<!a(?!b))c/, "abc")
       fn one_scalar_lookbehind() -> Bool = matches(/(?<=a)b/, "ab")
       fn one_scalar_lookbehind_failure() -> Bool = matches(/(?<=c)b/, "ab")
       fn negative_lookbehind() -> Bool = matches(/(?<!c)b/, "ab")
@@ -61,6 +64,7 @@ defmodule Cure.Stdlib.DependentRegexLookaroundTest do
     assert apply(module, :negative_lookahead, [])
     refute apply(module, :negative_lookahead_failure, [])
     assert apply(module, :positive_lookahead_prefix, [])
+    assert apply(module, :nested_negative_lookahead, [])
   end
 
   test "lookbehind checks the bounded subject history", %{runtime_module: module} do
@@ -69,6 +73,8 @@ defmodule Cure.Stdlib.DependentRegexLookaroundTest do
     assert apply(module, :negative_lookbehind, [])
     refute apply(module, :negative_lookbehind_failure, [])
     assert apply(module, :multi_scalar_lookbehind, [])
+    assert apply(module, :nested_positive_lookbehind, [])
+    assert apply(module, :nested_negative_lookbehind, [])
     assert apply(module, :unicode_lookahead, [])
     assert apply(module, :crlf_lookbehind, [])
     assert apply(module, :cursor_search_lookbehind, [])
@@ -92,7 +98,7 @@ defmodule Cure.Stdlib.DependentRegexLookaroundTest do
     cases = [
       {"(?<=a*)b", :VariableLengthLookbehind},
       {"(?<=(a))b", :AssertionCapturesUnsupported},
-      {"(?=(?=a))a", :NestedAssertionUnsupported},
+      {"(?=(?=(?=(?=(?=a)))))a", :NestedAssertionDepthExceeded},
       {"(?=(?>a))a", :AssertionAtomicityUnsupported},
       {"(?=a)(?>a|ab)c", :LookaroundAtomicityUnsupported},
       {"(?<=aaaaaaaaa)b", :LookbehindTooWide}
