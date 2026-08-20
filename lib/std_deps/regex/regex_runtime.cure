@@ -1554,36 +1554,40 @@ mod Std.Regex.Runtime
   ## context-aware, finite search loop.  Assertions are capture-free in this
   ## phase, so no evidence replay is needed: the result is only the existence
   ## of an accepting child path.
-  fn lookaround_child_accepts(depth: Nat, n: Nat, machine: PatternMachine(n), boundary: Boundary, remaining: List(Char), history: List(Char), policy: NewlinePolicy) -> Bool = match depth
-    Z() -> false
+  fn lookaround_child_lookahead(depth: Nat, n: Nat, machine: PatternMachine(n), boundary: Boundary, remaining: List(Char), history: List(Char), policy: NewlinePolicy) -> LookaheadDecision = match depth
+    Z() -> LookaheadRefuted(LookaheadDepthExhausted())
     S(rest_depth) -> match boundary
       Boundary(subject_start, _, _, line_start, _, ascii_word_boundary, unicode_word_boundary, previous_char, _, _) ->
-        lookaround_prefix_machine_accepts(
+        match lookaround_prefix_search_decision(
           rest_depth,
           n,
           machine,
           InitialPosition(subject_start, line_start, ascii_word_boundary, unicode_word_boundary, previous_char),
           remaining,
-          no_characters(),
+          [],
           history,
           policy
         )
+          LookaheadSatisfied() -> LookaheadSatisfied()
+          LookaheadRefuted(certificate) -> LookaheadRefuted(certificate)
 
-  fn lookbehind_child_accepts(depth: Nat, n: Nat, machine: PatternMachine(n), width: Nat, boundary: Boundary, remaining: List(Char), history: List(Char), policy: NewlinePolicy) -> Bool = match depth
-    Z() -> false
+  fn lookaround_child_lookbehind(depth: Nat, n: Nat, machine: PatternMachine(n), width: Nat, boundary: Boundary, remaining: List(Char), history: List(Char), policy: NewlinePolicy) -> LookbehindDecision = match depth
+    Z() -> LookbehindRefuted(LookbehindDepthExhausted())
     S(rest_depth) -> match boundary
       Boundary(_, _, _, _, _, _, _, _, _, _) -> match lookbehind_window(history, width)
-        None() -> false
-        Some(window) -> lookaround_machine_accepts(
+        None() -> LookbehindRefuted(LookbehindHistoryUnavailable())
+        Some(window) -> match lookaround_search_decision(
           rest_depth,
           n,
           machine,
           lookbehind_initial_position(boundary, history, width, policy),
           window,
           remaining,
-          no_characters(),
+          [],
           policy
         )
+          LookbehindSatisfied() -> LookbehindSatisfied()
+          LookbehindRefuted(certificate) -> LookbehindRefuted(certificate)
 
   fn no_characters() -> List(Char) = []
 
@@ -1651,8 +1655,16 @@ mod Std.Regex.Runtime
 
   fn lookaround_condition_holds(depth: Nat, condition: Option(LookaroundCondition), boundary: Boundary, remaining: List(Char), history: List(Char), policy: NewlinePolicy) -> Bool = match condition
     None() -> true
-    Some(LookaheadCondition(positive, mk_pair(count, machine))) -> lookaround_polarity_holds(positive, lookaround_child_accepts(depth, count, machine, boundary, remaining, history, policy))
-    Some(LookbehindCondition(positive, width, mk_pair(count, machine))) -> lookaround_polarity_holds(positive, lookbehind_child_accepts(depth, count, machine, width, boundary, remaining, history, policy))
+    Some(LookaheadCondition(positive, mk_pair(count, machine))) -> lookahead_decision_holds(positive, lookaround_child_lookahead(depth, count, machine, boundary, remaining, history, policy))
+    Some(LookbehindCondition(positive, width, mk_pair(count, machine))) -> lookbehind_decision_holds(positive, lookaround_child_lookbehind(depth, count, machine, width, boundary, remaining, history, policy))
+
+  fn lookahead_decision_holds(positive: Bool, decision: LookaheadDecision) -> Bool = match decision
+    LookaheadSatisfied() -> positive
+    LookaheadRefuted(_) -> not positive
+
+  fn lookbehind_decision_holds(positive: Bool, decision: LookbehindDecision) -> Bool = match decision
+    LookbehindSatisfied() -> positive
+    LookbehindRefuted(_) -> not positive
 
   fn lookaround_constraint_holds(depth: Nat, constraint: BoundaryConstraint, boundary: Boundary, remaining: List(Char), history: List(Char), policy: NewlinePolicy) -> Bool = match boundary
     Boundary(subject_start, _subject_end, strict_subject_end, _line_start, _line_end, ascii_boundary, unicode_boundary, previous_char, next_char, after_next_char) -> match constraint
@@ -1735,6 +1747,27 @@ mod Std.Regex.Runtime
   type LookaroundPrefixSearchPath(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy)
     LookaroundPrefixSearchFound : (state: ThreadState(n)) -> (@erased path: LookaroundPrefixPath(depth, n, machine, input, after_input, state, history, policy)) -> LookaroundPrefixSearchPath(depth, n, machine, input, after_input, history, policy)
 
+  ## A decision is the only value consumed by an assertion constraint. The
+  ## refuted branch is produced by exhausting the finite search procedure (or
+  ## by an explicit resource/history boundary), rather than by handing a
+  ## Boolean negation to the proof layer.
+  type LookaheadRefutation =
+    | LookaheadSearchExhausted
+    | LookaheadDepthExhausted
+
+  type LookaheadDecision =
+    | LookaheadSatisfied
+    | LookaheadRefuted(LookaheadRefutation)
+
+  type LookbehindRefutation =
+    | LookbehindSearchExhausted
+    | LookbehindDepthExhausted
+    | LookbehindHistoryUnavailable
+
+  type LookbehindDecision =
+    | LookbehindSatisfied
+    | LookbehindRefuted(LookbehindRefutation)
+
   fn lookaround_prefix_search_path(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy, starts: List(MachineState(n))) -> Option(LookaroundPrefixSearchPath(depth, n, machine, input, after_input, history, policy)) = lookaround_prefix_search_path_members(depth, n, machine, input, after_input, history, policy, starts, machine_state_members(starts))
 
   fn lookaround_prefix_search_path_members(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy, starts: List(MachineState(n)), {current: List(MachineState(n))}, members: MachineStateMembers(n, starts, current)) -> Option(LookaroundPrefixSearchPath(depth, n, machine, input, after_input, history, policy)) = match members
@@ -1745,6 +1778,15 @@ mod Std.Regex.Runtime
     MachineStateMembersAccepted(_, _, _, remaining) -> match lookaround_prefix_path(depth, n, machine, input, after_input, ThreadAccepted(), history, policy)
       None() -> lookaround_prefix_search_path_members(depth, n, machine, input, after_input, history, policy, starts, remaining)
       Some(path) -> Some(LookaroundPrefixSearchFound(ThreadAccepted(), path))
+
+  fn lookaround_prefix_search_decision(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy) -> LookaheadDecision = match machine
+    MkPatternMachine(starts, _) -> match lookaround_prefix_search_path(depth, n, machine, input, after_input, history, policy, lookaround_filter_boundary_states(depth, starts, position_boundary_for_history(position, append_characters(input, after_input), history), append_characters(input, after_input), history, policy))
+      None() -> LookaheadRefuted(LookaheadSearchExhausted())
+      Some(_) -> LookaheadSatisfied()
+
+  fn lookaround_search_decision(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy) -> LookbehindDecision = match lookaround_machine_acceptance_path(depth, n, machine, position, input, after_input, history, policy)
+    None() -> LookbehindRefuted(LookbehindSearchExhausted())
+    Some(_) -> LookbehindSatisfied()
 
   fn lookaround_transition_boundary(char: Char, rest: List(Char), after_input: List(Char), policy: NewlinePolicy) -> Boundary =
     position_boundary(false, newline_char(policy, char), ascii_word(char), option_word(char, true), Some(char), append_characters(rest, after_input))
