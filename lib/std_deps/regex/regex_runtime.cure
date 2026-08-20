@@ -1610,7 +1610,7 @@ mod Std.Regex.Runtime
   ## phase, so no evidence replay is needed: the result is only the existence
   ## of an accepting child path.
   fn lookaround_child_lookahead(depth: Nat, n: Nat, machine: PatternMachine(n), boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> LookaheadDecision(n, machine) = match depth
-    Z() -> LookaheadRefuted(LookaheadDepthExhausted())
+    Z() -> LookaheadRefuted(LookaheadDepthExhausted(depth, remaining, history, policy))
     S(rest_depth) -> match boundary
       Boundary(subject_start, _, _, line_start, _, ascii_word_boundary, unicode_word_boundary, previous_char, _, _) ->
         match lookaround_prefix_search_decision(
@@ -1628,10 +1628,10 @@ mod Std.Regex.Runtime
           LookaheadRefuted(certificate) -> LookaheadRefuted(certificate)
 
   fn lookaround_child_lookbehind(depth: Nat, n: Nat, machine: PatternMachine(n), width: Nat, boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> LookbehindDecision(n, machine) = match depth
-    Z() -> LookbehindRefuted(LookbehindDepthExhausted())
+    Z() -> LookbehindRefuted(LookbehindDepthExhausted(depth, [], history, policy))
     S(rest_depth) -> match boundary
       Boundary(_, _, _, _, _, _, _, _, _, _) -> match lookbehind_window(history, width)
-        None() -> LookbehindRefuted(LookbehindHistoryUnavailable())
+        None() -> LookbehindRefuted(LookbehindHistoryUnavailable(width, history, policy))
         Some(window) -> match lookaround_search_decision(
           rest_depth,
           n,
@@ -1810,26 +1810,26 @@ mod Std.Regex.Runtime
   ## child path. Refuted branches still record the finite-search outcome (or
   ## an explicit resource/history boundary); their complete exploration
   ## certificate is the next assertion-proof slice.
-  type LookaheadRefutation =
-    | LookaheadSearchExhausted
-    | LookaheadDepthExhausted
+  type LookaheadRefutation(n: Nat, machine: PatternMachine(n)) indices ()
+    LookaheadSearchExhausted : (input: List(Char)) -> (after_input: List(Char)) -> (history: List(Char)) -> (policy: NewlinePolicy) -> LookaheadRefutation(n, machine)
+    LookaheadDepthExhausted : (depth: Nat) -> (input: List(Char)) -> (history: List(Char)) -> (policy: NewlinePolicy) -> LookaheadRefutation(n, machine)
 
   typealias LookaheadWitness(n: Nat, machine: PatternMachine(n)) = Sigma(depth: Nat, Sigma(input: List(Char), Sigma(after_input: List(Char), Sigma(history: List(Char), Sigma(policy: NewlinePolicy, LookaroundPrefixSearchPath(depth, n, machine, input, after_input, history, policy))))))
 
   type LookaheadDecision(n: Nat, machine: PatternMachine(n)) indices ()
     LookaheadSatisfied : (witness: LookaheadWitness(n, machine)) -> LookaheadDecision(n, machine)
-    LookaheadRefuted : (certificate: LookaheadRefutation) -> LookaheadDecision(n, machine)
+    LookaheadRefuted : (certificate: LookaheadRefutation(n, machine)) -> LookaheadDecision(n, machine)
 
-  type LookbehindRefutation =
-    | LookbehindSearchExhausted
-    | LookbehindDepthExhausted
-    | LookbehindHistoryUnavailable
+  type LookbehindRefutation(n: Nat, machine: PatternMachine(n)) indices ()
+    LookbehindSearchExhausted : (input: List(Char)) -> (after_input: List(Char)) -> (history: List(Char)) -> (policy: NewlinePolicy) -> LookbehindRefutation(n, machine)
+    LookbehindDepthExhausted : (depth: Nat) -> (input: List(Char)) -> (history: List(Char)) -> (policy: NewlinePolicy) -> LookbehindRefutation(n, machine)
+    LookbehindHistoryUnavailable : (width: Nat) -> (history: List(Char)) -> (policy: NewlinePolicy) -> LookbehindRefutation(n, machine)
 
   typealias LookbehindWitness(n: Nat, machine: PatternMachine(n)) = Sigma(depth: Nat, Sigma(input: List(Char), Sigma(after_input: List(Char), Sigma(history: List(Char), Sigma(policy: NewlinePolicy, LookaroundSearchPath(depth, n, machine, input, after_input, history, policy))))))
 
   type LookbehindDecision(n: Nat, machine: PatternMachine(n)) indices ()
     LookbehindSatisfied : (witness: LookbehindWitness(n, machine)) -> LookbehindDecision(n, machine)
-    LookbehindRefuted : (certificate: LookbehindRefutation) -> LookbehindDecision(n, machine)
+    LookbehindRefuted : (certificate: LookbehindRefutation(n, machine)) -> LookbehindDecision(n, machine)
 
   fn lookaround_prefix_search_path(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, starts: List(MachineState(n))) -> Option(LookaroundPrefixSearchPath(depth, n, machine, input, after_input, history, policy)) = lookaround_prefix_search_path_members(depth, n, machine, input, after_input, history, capture_context, policy, starts, machine_state_members(starts))
 
@@ -1849,15 +1849,15 @@ mod Std.Regex.Runtime
   fn lookaround_prefix_search_decision(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> LookaheadDecision(n, machine) = pickup
     atomic_lookaround_prefix_accepts(depth, n, machine, position, input, after_input, history, capture_context, policy) -> match machine
       MkPatternMachine(starts, _) -> match lookaround_prefix_search_path(depth, n, machine, input, after_input, history, capture_context, policy, lookaround_filter_boundary_states(depth, starts, position_boundary_for_history(position, append_characters(input, after_input), history), append_characters(input, after_input), history, capture_context, policy))
-        None() -> LookaheadRefuted(LookaheadSearchExhausted())
+        None() -> LookaheadRefuted(LookaheadSearchExhausted(input, after_input, history, policy))
         Some(path) -> LookaheadSatisfied(lookahead_witness(depth, n, machine, input, after_input, history, policy, path))
-    else -> LookaheadRefuted(LookaheadSearchExhausted())
+    else -> LookaheadRefuted(LookaheadSearchExhausted(input, after_input, history, policy))
 
   fn lookaround_search_decision(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> LookbehindDecision(n, machine) = pickup
     atomic_lookaround_accepts(depth, n, machine, position, input, after_input, history, capture_context, policy) -> match lookaround_machine_acceptance_path(depth, n, machine, position, input, after_input, history, capture_context, policy)
-      None() -> LookbehindRefuted(LookbehindSearchExhausted())
+      None() -> LookbehindRefuted(LookbehindSearchExhausted(input, after_input, history, policy))
       Some(path) -> LookbehindSatisfied(lookbehind_witness(depth, n, machine, input, after_input, history, policy, path))
-    else -> LookbehindRefuted(LookbehindSearchExhausted())
+    else -> LookbehindRefuted(LookbehindSearchExhausted(input, after_input, history, policy))
 
   fn lookaround_transition_boundary(char: Char, rest: List(Char), after_input: List(Char), policy: NewlinePolicy) -> Boundary =
     position_boundary(false, newline_char(policy, char), ascii_word(char), option_word(char, true), Some(char), append_characters(rest, after_input))

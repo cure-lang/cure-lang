@@ -34,6 +34,20 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
       )
         LookbehindSatisfied(_) -> false
         LookbehindRefuted(_) -> true
+
+      fn negative_certificate_context() -> Bool = match lookaround_search_decision(
+        2,
+        1,
+        predicate_pattern_machine(fn(char) -> char == 'a'),
+        subject_initial_position(),
+        ['b'],
+        [],
+        [],
+        [],
+        AnyUnicodeNewline()
+      )
+        LookbehindRefuted(LookbehindSearchExhausted(['b'], [], [], AnyUnicodeNewline())) -> true
+        _ -> false
     end
     '''
 
@@ -44,5 +58,6 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
   test "successful assertion decisions carry finite path evidence", %{runtime_module: module} do
     assert apply(module, :positive_decision, [])
     assert apply(module, :negative_decision, [])
+    assert apply(module, :negative_certificate_context, [])
   end
 end
