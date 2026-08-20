@@ -255,10 +255,11 @@ mod Std.Regex.Syntax.Model
       LiteralReferencesInvalid(reason, name) -> LiteralCaptureAllocationInvalid(reason, name)
     LiteralCaptureWalkInvalid(reason, name) -> LiteralCaptureAllocationInvalid(reason, name)
 
-  ## Lookaround is deliberately checked before emission. Assertions remain
-  ## capture-free in this phase, while nested assertions and atomic scopes are
-  ## admitted up to a finite structural depth. The same bound is consumed by
-  ## the runtime child evaluator, so an accepted syntax tree can never ask the
+  ## Lookaround is deliberately checked before emission. Nested assertions and
+  ## atomic scopes are admitted up to a finite structural depth. Capture slots
+  ## are preserved by the runtime sidecar while typed literals erase that
+  ## metadata from their result shape. The same bound is consumed by the
+  ## runtime child evaluator, so an accepted syntax tree can never ask the
   ## evaluator to recurse beyond its certified fuel.
   fn validate_literal_lookarounds(pattern: LiteralPattern) -> LiteralLookaroundValidation = validate_literal_lookarounds_at(pattern, literal_lookaround_limit())
 
@@ -301,9 +302,11 @@ mod Std.Regex.Syntax.Model
     LiteralScopedOptions(_, _, inner) -> validate_literal_lookarounds_at(inner, depth)
     _ -> LiteralLookaroundValid()
 
-  fn validate_literal_lookaround_operand(pattern: LiteralPattern, depth: Nat) -> LiteralLookaroundValidation = pickup
-    literal_pattern_has_capture(pattern) -> LiteralLookaroundInvalid(:AssertionCapturesUnsupported, "assertion")
-    else -> validate_literal_lookarounds_at(pattern, depth)
+  ## Capture slots are carried by the lookaround compilation sidecar and
+  ## replayed only after a checked child path wins.  They therefore no longer
+  ## need to be rejected at syntax admission; the ordinary typed shape still
+  ## remains capture-independent.
+  fn validate_literal_lookaround_operand(pattern: LiteralPattern, depth: Nat) -> LiteralLookaroundValidation = validate_literal_lookarounds_at(pattern, depth)
 
   fn validate_literal_lookaround_list(patterns: List(LiteralPattern), depth: Nat) -> LiteralLookaroundValidation = match patterns
     [] -> LiteralLookaroundValid()

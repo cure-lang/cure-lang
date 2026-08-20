@@ -16,9 +16,12 @@ recorded in `2026-08-20-regex-performance-baseline.md`.
 The first Phase 2 evidence slice is also landed: successful lookahead and
 lookbehind decisions carry an existential package containing the indexed finite
 child path, while the existing atomic commitment evaluator remains the
-acceptance authority. Complete refutation certificates, nested decision
-composition, and assertion-local captures remain open; the Phase 2 exit gate
-is therefore still not discharged.
+acceptance authority. The assertion-capture sidecar is now landed as well:
+positive lookaround branches carry their selected `ExtendedInstruction` routine
+into named replay, while negative-assertion frames are discarded. Complete
+refutation certificates, nested decision composition, and full interaction
+coverage for assertion-local captures remain open; the Phase 2 exit gate is
+therefore still not discharged.
 
 **Applies to:** the Cure-native typed regex engine, its erased portable runtime,
 finite PCRE-family extensions, proof-carrying normalization, runtime pattern
@@ -253,7 +256,8 @@ migrated engine passes its existing behavior gates on both supported runtimes.
 ### Phase 2 — Complete generalized assertions
 
 **Current checkpoint:** The depth-bounded nested assertion foundation, atomicity
-interactions, and parent-capture assertion conditionals are committed
+interactions, parent-capture assertion conditionals, and the first
+assertion-local capture sidecar are committed
 (`9f8af26f` plus the current assertion-conditional slice). Atomic/possessive
 scopes inside assertions, assertions inside atomic scopes, and conditional
 branches that inspect an already-participating outer capture now use the finite
@@ -264,8 +268,8 @@ nodes and propagated through ordinary, lookaround, atomic, and named
 compilations. The source-sensitive `x` mode and execution-level `f`/`E` flags
 remain deliberately rejected inside a scope until their source-map and
 search-bound semantics have a canonical implementation. Full assertion
-path/refutation certificates and captures created inside assertions remain
-open; the phase exit gate is therefore not yet discharged.
+path/refutation certificates and complete capture/backtracking interaction
+coverage remain open; the phase exit gate is therefore not yet discharged.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in

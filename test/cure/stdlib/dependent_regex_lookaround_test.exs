@@ -118,7 +118,6 @@ defmodule Cure.Stdlib.DependentRegexLookaroundTest do
   test "lookaround validation keeps structured diagnostics" do
     cases = [
       {"(?<=a*)b", :VariableLengthLookbehind},
-      {"(?<=(a))b", :AssertionCapturesUnsupported},
       {"(?=(?=(?=(?=(?=a)))))a", :NestedAssertionDepthExceeded},
       {"(?<=aaaaaaaaa)b", :LookbehindTooWide}
     ]
@@ -131,8 +130,35 @@ defmodule Cure.Stdlib.DependentRegexLookaroundTest do
                {:computed_macro_error, _meta,
                 {:author_diagnostics, [{:macro_failure, ^expected, _arguments}]}}, _context} = _reason} =
                Cure.Elab.Program.elaborate(source),
-             "expected #{inspect(pattern)} to reject as #{inspect(expected)}"
+               "expected #{inspect(pattern)} to reject as #{inspect(expected)}"
     end)
+  end
+
+  test "positive lookahead captures are published in the surrounding named frame" do
+    source = """
+    mod AssertionCapturePublication
+      use Std.Regex
+
+      fn run(input: String) -> Option(NamedParse(Tuple(Unit, Unit))) =
+        parse_full_named(/(?=(?<ahead>a))a/, input)
+
+      fn negative(input: String) -> Option(NamedParse(Tuple(Unit, Unit))) =
+        parse_full_named(/(?!(?<blocked>a))b/, input)
+
+    end
+    """
+
+    assert {:ok, module} = Cure.Compiler.compile_and_load(source, emit_events: false)
+    assert {:some, {:NamedParse, {:unit, :unit}, captures}} =
+             apply(module, :run, [{:String, ~c"a"}])
+
+    assert captures == [{:NamedCapture, {:String, ~c"ahead"}, {:some, {:String, ~c"a"}}}]
+
+    assert {:some, {:NamedParse, {:unit, :unit}, negative_captures}} =
+             apply(module, :negative, [{:String, ~c"b"}])
+
+    assert negative_captures == [{:NamedCapture, {:String, ~c"blocked"}, :none}]
+    assert apply(module, :negative, [{:String, ~c"a"}]) == :none
   end
 
   defp chars_gen(0), do: Gen.return([])

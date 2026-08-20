@@ -163,6 +163,7 @@ mod Std.Regex.Syntax
                               emit_staged_literal_with_options_conditional(effective_pattern, effective_options)
                             ]),
                             emit_named_staged_compilation(effective_pattern, effective_options),
+                            emit_lookaround_staged_compilation(effective_pattern, effective_options),
                             emit_capture_layout(layout),
                             bool_literal(has_modifier(effective_options, FirstlineModifier)),
                             emit_newline_policy(effective_options)
@@ -175,6 +176,7 @@ mod Std.Regex.Syntax
                               emit_staged_literal_with_options(effective_pattern, effective_options)
                             ]),
                             emit_named_staged_compilation(effective_pattern, effective_options),
+                            emit_lookaround_staged_compilation(effective_pattern, effective_options),
                             emit_capture_layout(layout),
                             bool_literal(has_modifier(effective_options, FirstlineModifier)),
                             emit_newline_policy(effective_options)
