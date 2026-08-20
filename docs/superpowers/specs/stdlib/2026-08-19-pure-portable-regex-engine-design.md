@@ -1,6 +1,7 @@
 # Pure, Portable, Proof-Backed Regex Engine
 
-**Status:** proposed follow-on design
+**Status:** implementation in progress; Phase 0/1 guardrails and the first
+Phase 2 interaction slice are discharged
 
 **Date:** 2026-08-19
 
@@ -16,6 +17,15 @@ regex parser on both BEAM and AtomVM. The erased production engine is a
 separately identified Cure package, provisionally named `cure_regex`, embedded
 and bundled by the stdlib release rather than merged into its public module
 namespace.
+
+**Implementation ledger (2026-08-20):** The embedded `cure_regex` package,
+portable closure/AtomVM gates, and cold/warm baseline are committed. Nested
+capture-free assertions are depth-bounded, and atomic scopes now compose with
+lookaround in both directions through a separate `LookaroundCompilation` IR
+and the finite commitment search. The remaining Phase 2 obligations are full
+assertion path/refutation certificates, capture-aware assertion conditionals,
+and scoped inline options; they must not be marked complete from the current
+runtime decision façade alone.
 
 This specification deliberately extends the finite-PCRE design rather than
 replacing it. The finite-PCRE specification remains authoritative for the

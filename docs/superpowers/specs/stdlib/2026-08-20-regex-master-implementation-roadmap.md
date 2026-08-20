@@ -245,6 +245,14 @@ migrated engine passes its existing behavior gates on both supported runtimes.
 
 ### Phase 2 — Complete generalized assertions
 
+**Current checkpoint:** The depth-bounded nested assertion foundation and the
+first atomicity interaction slice are committed (`9f8af26f`). The slice admits
+atomic/possessive scopes inside assertions and assertions inside atomic scopes
+through a dedicated finite `LookaroundCompilation` IR and the existing
+commitment relation. Full assertion path/refutation certificates, captures
+inside assertions, capture-aware assertion conditionals, and scoped inline
+options remain open; the phase exit gate is therefore not yet discharged.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
