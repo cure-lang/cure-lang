@@ -46,6 +46,8 @@ defmodule Cure.Stdlib.DependentRegexLookaroundTest do
         None() -> false
       fn positive_search(input: String) -> Bool = matches(/(?=ab)a/, input)
       fn negative_search(input: String) -> Bool = matches(/(?!ab)a/, input)
+      fn nested_positive_search(input: String) -> Bool = matches(/(?=a(?=b))a/, input)
+      fn nested_negative_search(input: String) -> Bool = matches(/(?!a(?=b))a/, input)
       fn lookbehind_search(input: String) -> Bool = matches(/(?<=ab)c/, input)
       fn negative_lookbehind_search(input: String) -> Bool = matches(/(?<!ab)c/, input)
       fn positive_full(input: String) -> Bool = match parse_full(/a(?=b)b/, input)
@@ -152,6 +154,14 @@ defmodule Cure.Stdlib.DependentRegexLookaroundTest do
     end)
   end
 
+  defp nested_positive_reference(input), do: Enum.any?(0..length(input), &contains_at?(input, ~c"ab", &1))
+
+  defp nested_negative_reference(input) do
+    input
+    |> Enum.with_index()
+    |> Enum.any?(fn {char, index} -> char == ?a and not contains_at?(input, ~c"ab", index) end)
+  end
+
   test "lookaround search and full parsing agree with an independent finite reference", %{runtime_module: module} do
     assert :ok =
              Property.check_all(lookaround_case_gen(), @runs, fn input ->
@@ -159,6 +169,8 @@ defmodule Cure.Stdlib.DependentRegexLookaroundTest do
 
                apply(module, :positive_search, [subject]) == positive_reference(input) and
                  apply(module, :negative_search, [subject]) == negative_reference(input) and
+                 apply(module, :nested_positive_search, [subject]) == nested_positive_reference(input) and
+                 apply(module, :nested_negative_search, [subject]) == nested_negative_reference(input) and
                  apply(module, :lookbehind_search, [subject]) == lookbehind_reference(input) and
                  apply(module, :negative_lookbehind_search, [subject]) == negative_lookbehind_reference(input) and
                  apply(module, :positive_full, [subject]) == (input == ~c"ab")
