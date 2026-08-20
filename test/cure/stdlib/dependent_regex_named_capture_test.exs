@@ -59,6 +59,14 @@ defmodule Cure.Stdlib.DependentRegexNamedCaptureTest do
       fn conditional_lookahead(input: String) -> Option(NamedParse(Tuple(Tuple(Option(String), Unit), Char))) =
         parse_full_named(/(?<flag>a)?(?=(?(flag)b|c))./, input)
 
+      fn assertion_conditional(input: String) -> Option(String) =
+        match search_named(/(?=(?<flag>a)?)(?(flag)a|b)/, input)
+          None() -> None()
+          Some(found) -> named_capture("flag", found)
+
+      fn assertion_conditional_matches(input: String) -> Bool =
+        matches(/(?=(a)?)(?(1)a|b)/, input)
+
       fn replay_probe() -> Option(List(NamedCapture)) =
         replay_named_capture_routine(
           [Regular(BeginCaptureSlot(Z())), Observe('a'), Regular(EndCaptureSlot(Z()))],
@@ -81,6 +89,16 @@ defmodule Cure.Stdlib.DependentRegexNamedCaptureTest do
   test "the named replay records observed characters", %{runtime_module: module} do
     assert apply(module, :replay_probe, []) ==
              {:some, [{:NamedCapture, {:String, ~c"probe"}, {:some, {:String, ~c"a"}}}]}
+  end
+
+  test "captures created by a positive assertion participate in a later conditional", %{runtime_module: module} do
+    assert apply(module, :assertion_conditional_matches, [{:String, ~c"a"}])
+
+    assert apply(module, :assertion_conditional, [{:String, ~c"a"}]) ==
+             {:some, {:String, ~c"a"}}
+
+    assert apply(module, :assertion_conditional_matches, [{:String, ~c"b"}])
+    assert apply(module, :assertion_conditional, [{:String, ~c"b"}]) == :none
   end
 
   test "flat named capture returns its text", %{runtime_module: module} do

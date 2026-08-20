@@ -19,8 +19,12 @@ child path, while the existing atomic commitment evaluator remains the
 acceptance authority. The assertion-capture sidecar is now landed as well:
 positive lookaround branches carry their selected `ExtendedInstruction` routine
 into named replay, while negative-assertion frames are discarded. Complete
-refutation certificates and several capture interactions remain open; branch
-backtracking and nested assertion capture publication are now regression-tested.
+refutation certificates and several capture interactions remain open. The
+capture/backtracking slice now also threads selected assertion markers through
+later boundary constraints (including capture-participation conditionals),
+preserves the same context in named replay, and covers present/absent optional
+assertion captures plus failed-alternative backtracking. Branch backtracking
+and nested assertion capture publication are regression-tested.
 The Phase 2 exit gate is therefore still not discharged.
 
 **Applies to:** the Cure-native typed regex engine, its erased portable runtime,
@@ -267,9 +271,13 @@ inline-option slice is now implemented: `(?i:...)`, `(?m:...)`, `(?s:...)`,
 nodes and propagated through ordinary, lookaround, atomic, and named
 compilations. The source-sensitive `x` mode and execution-level `f`/`E` flags
 remain deliberately rejected inside a scope until their source-map and
-search-bound semantics have a canonical implementation. Full assertion
-path/refutation certificates and complete capture interaction coverage remain
-open; the phase exit gate is therefore not yet discharged.
+search-bound semantics have a canonical implementation. Assertion-created
+capture markers are now threaded through the shared constraint fold and the
+capture-aware replay fold, so a later conditional sees the same participation
+decision in ordinary and named execution; optional assertion captures cover both
+participating and absent branches. Full assertion path/refutation certificates
+and complete capture interaction coverage remain open; the phase exit gate is
+therefore not yet discharged.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
