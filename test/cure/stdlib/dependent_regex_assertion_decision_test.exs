@@ -104,4 +104,23 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/LookaroundPrefixNextActive\s*:.*?\)\s*->\s*LookaroundPrefixPath\([^\n]*ThreadActive\(source\)/s, source)
     assert Regex.match?(~r/LookaroundPrefixNextAccepted\s*:.*?\)\s*->\s*LookaroundPrefixPath\([^\n]*ThreadActive\(source\)/s, source)
   end
+
+  test "empty search refutations exclude accepting paths" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert Regex.match?(
+             ~r/fn lookaround_search_path_excludes_empty_starts\b.*?LookaroundSearchFoundActive/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/fn lookaround_search_path_excludes_empty_starts\b.*?LookaroundSearchFoundAccepted/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/fn lookaround_search_failure_excludes_empty_starts\b.*?LookaroundSearchExhausted/s,
+             source
+           )
+  end
 end
