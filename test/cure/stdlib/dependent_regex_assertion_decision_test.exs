@@ -232,4 +232,20 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert accepting =~ "MachineStateCursor(n, destinations, destinations)"
     assert prefix =~ "MachineStateCursor(n, destinations, destinations)"
   end
+
+  test "cursor suffixes compose for recursive refutation" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "type MachineStateCursorSuffix"
+    assert source =~ "fn machine_state_cursor_suffix"
+  end
+
+  test "destination failures retain complete child traversals" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+    active = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    LookaroundPathDestinationActiveRejected :"))
+    accepted = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    LookaroundPathDestinationAcceptedRejected :"))
+
+    assert active =~ "child_destinations, child_destinations"
+    assert accepted =~ "child_destinations, child_destinations"
+  end
 end

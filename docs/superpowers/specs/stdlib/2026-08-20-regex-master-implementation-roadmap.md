@@ -96,7 +96,12 @@ destination list, not an arbitrary intermediate suffix. Intermediate suffixes
 remain internal member-traversal results. Consequently a child failure embedded
 in a destination-rejection node is known to begin at its own `Here` cursor,
 while a tail failure retains the dropped-head cursor needed for the eventual
-induction.
+induction. The child fields now make that complete traversal explicit in their
+indices (`child_destinations, child_destinations`) rather than retaining an
+arbitrary child suffix. `MachineStateCursorSuffix` and its projection from a
+`MachineStateCursor` record the remaining structural relation between a parent
+failure cursor and an accepting-path cursor; this is the induction relation for
+the next theorem slice, not yet the theorem itself.
 The Phase 2 exit gate is therefore still not discharged.
 
 **Applies to:** the Cure-native typed regex engine, its erased portable runtime,
