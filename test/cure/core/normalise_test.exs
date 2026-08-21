@@ -41,6 +41,21 @@ defmodule Cure.Core.NormaliseTest do
     assert {:type, 0} == Normalise.nf(Context.empty(env), term)
   end
 
+  test "certified identity globals terminate on open arguments" do
+    env =
+      base()
+      |> Env.add_def(:id, id_type(), id_body())
+      |> Env.certify(:id)
+
+    ctx = Context.extend(Context.empty(env), {:vdata, :Dec, []})
+    term = {:app, {:global, :id}, {:var, 0}}
+
+    # The identity unfolds to the existing neutral variable.  Normalization
+    # must return that value once, rather than treating the unchanged neutral
+    # as fresh progress and re-entering the delta loop forever.
+    assert {:var, 0} == Normalise.nf(ctx, term)
+  end
+
   test "speculative over-application of a certified global stays folded" do
     env =
       base()
@@ -80,13 +95,13 @@ defmodule Cure.Core.NormaliseTest do
     assert {:case, {:var, 0}, _motive, ^branches} = Normalise.nf(ctx, term)
   end
 
-  test "fuel exhaustion is deterministic for cyclic certified delta" do
+  test "cyclic certified delta stays folded when unfolding makes no progress" do
     env =
       base()
       |> Env.add_def(:f, @dec, {:global, :f})
       |> Env.certify(:f)
 
-    assert :fuel_exhausted == Normalise.whnf(Context.empty(env), {:global, :f}, fuel: 5)
+    assert {:global, :f} == Normalise.whnf(Context.empty(env), {:global, :f}, fuel: 5)
   end
 
   defp step_env do

@@ -9,6 +9,10 @@ defmodule Cure.Compiler.BuildManifest do
   * `artifact_digest` seals the complete emitted artifact set.
 
   An invalid artifact digest is never accepted as a fresh build.
+
+  The toolchain fingerprint intentionally covers the trusted normalizer as
+  well as the elaborator, so a change to open-term reduction cannot reuse a
+  stale canonical stdlib generation.
   """
 
   @manifest_version 3

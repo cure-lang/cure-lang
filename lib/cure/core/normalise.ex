@@ -283,6 +283,18 @@ defmodule Cure.Core.Normalise do
                    %{body: body} <- definition,
                    true <- Cure.Core.Term.closed?(body) do
                 case eval_certified_application(body, args) do
+                  # A certified identity (or any definition whose open
+                  # application evaluates back to the exact same neutral)
+                  # made the old loop re-enter `whnf_value/3` forever:
+                  # `f x` unfolded to `x`, `reduce_unfolded/3` reported
+                  # progress, and the neutral was forced again indefinitely.
+                  # Open terms are already in weak-head normal form here; an
+                  # unchanged neutral is therefore *stuck*, not progress.
+                  # This is especially important for indexed branch
+                  # refinement, which normalizes computed family indices.
+                  {:ok, {:vneutral, ^neutral}} ->
+                    :stuck
+
                   {:ok, value} ->
                     if opts[:stuck_cases] == :expose,
                       do: {:ok, value},

@@ -284,4 +284,43 @@ defmodule Cure.Elab.SiblingContextRefinementTest do
     assert {:ok, prepared} = Program.canonical_register_interface(ast, Env.empty())
     assert {:ok, _env} = Program.canonical_check_bodies(prepared)
   end
+
+  test "dependent Sigma packaging does not loop while refining an indexed member" do
+    source = """
+    mod MembersSigmaPackaging
+      type Members indices (whole: List(Nat), rest: List(Nat))
+        MembersNil : Members(whole, Nil())
+        MembersCons : (head: Nat) -> Members(whole, tail) -> Members(whole, Cons(head, tail))
+
+      type Result indices (whole: List(Nat))
+        ResultRejected : Members(whole, rest) -> (@erased witness: Members(whole, rest)) -> Result(whole)
+
+      fn package(whole: List(Nat), {rest: List(Nat)}, members: Members(whole, rest)) -> Sigma(result: List(Nat), Result(result)) = match members
+        MembersNil() -> %[whole, ResultRejected(members, members)]
+        MembersCons(head, tail) -> %[whole, ResultRejected(members, members)]
+    end
+    """
+
+    assert {:ok, tokens} = Lexer.tokenize(source)
+    assert {:ok, ast} = Parser.parse(tokens)
+
+    task =
+      Task.async(fn ->
+        with {:ok, prepared} <- Program.canonical_register_interface(ast, Env.empty()) do
+          Program.canonical_check_bodies(prepared)
+        end
+      end)
+
+    case Task.yield(task, 30_000) do
+      {:ok, {:ok, _env}} ->
+        :ok
+
+      {:ok, result} ->
+        flunk("expected the probe to elaborate, got #{inspect(result)}")
+
+      nil ->
+        Task.shutdown(task, :brutal_kill)
+        flunk("indexed-member Sigma elaboration did not terminate")
+    end
+  end
 end

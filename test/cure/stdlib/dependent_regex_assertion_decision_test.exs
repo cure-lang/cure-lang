@@ -77,4 +77,21 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert apply(module, :negative_certificate_context, [])
     assert apply(module, :nested_decision_evidence, [])
   end
+
+  test "refutation branches retain a typed traversal-spine witness" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert Regex.match?(
+             ~r/LookaroundPathDestinationActiveRejected\s*:.*?MachineStateMembers/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/LookaroundPathDestinationAcceptedRejected\s*:.*?MachineStateMembers/s,
+             source
+           )
+
+    assert Regex.match?(~r/LookaroundSearchActiveRejected\s*:.*?MachineStateMembers/s, source)
+    assert Regex.match?(~r/LookaroundSearchAcceptedRejected\s*:.*?MachineStateMembers/s, source)
+  end
 end

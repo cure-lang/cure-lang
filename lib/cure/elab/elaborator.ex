@@ -13532,7 +13532,19 @@ defmodule Cure.Elab.Elaborator do
          env,
          ctx
        ) do
-    expected = Subst.instantiate(type_term, chosen)
+    # Resolve solved metavariables before instantiating the telescope.  A solved
+    # metavariable can contain free de Bruijn variables from the caller's
+    # context; `Subst.instantiate/2` must see that concrete term so it can shift
+    # it when crossing the remaining binders.  Instantiating first and zonking
+    # afterwards leaves those variables one frame too shallow, which only shows
+    # up when a dependent argument repeats a computed indexed family (for
+    # example the typed traversal-spine witness in the lookaround refutation
+    # constructors).  The bidirectional application path already follows this
+    # order; the global-call path must use the same canonical rule.
+    expected =
+      chosen
+      |> Enum.map(&Unify.zonk(&1, mctx))
+      |> then(&Subst.instantiate(type_term, &1))
 
     case unify_in_context(expected, arg_type_term, mctx, env, ctx) do
       {:ok, mctx} ->
