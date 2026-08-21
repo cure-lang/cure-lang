@@ -160,4 +160,13 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/LookaroundAcceptedNextActive\s*:.*?cursor: MachineStateCursor/s, source)
     assert Regex.match?(~r/LookaroundPrefixNextActive\s*:.*?cursor: MachineStateCursor/s, source)
   end
+
+  test "path failures expose the generic accepting-path refutation theorem" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert Regex.match?(
+             ~r/fn lookaround_path_failure_excludes_accepting_path\b.*?LookaroundPathFailure.*?LookaroundAcceptingPath/s,
+             source
+           )
+  end
 end
