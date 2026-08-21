@@ -78,6 +78,12 @@ tail's narrower index. This removes the last untyped hand-off at the
 accepting-path result boundary, but it is still only the construction-site
 invariant: the generic theorem must consume these cursors recursively and
 prove that every reported rejection excludes an accepting path.
+Consuming path constructors now add an erased `Equivalent` witness tying their
+candidate parameter to the exact `Cons(head, tail)` suffix represented by the
+cursor and traversal spine. The runtime edge remains ordinary data, but it is
+typed against that same candidate list; a path cannot be instantiated for a
+fabricated candidate list without an impossible equality proof. The recursive
+child/tail refutation theorem is still open.
 The Phase 2 exit gate is therefore still not discharged.
 
 **Applies to:** the Cure-native typed regex engine, its erased portable runtime,

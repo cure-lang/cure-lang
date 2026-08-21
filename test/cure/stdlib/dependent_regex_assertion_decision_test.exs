@@ -190,6 +190,23 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(
              ~r/LookaroundPrefixPathRejected\s*:.*?MachineStateCursor/s,
              source
-           )
+    )
+  end
+
+  test "accepted path edges are forced to the cursor head" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+    active = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    LookaroundAcceptedNextActive :"))
+    accepted = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    LookaroundAcceptedNextAccepted :"))
+    prefix = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    LookaroundPrefixNextActive :"))
+    prefix_accepted = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    LookaroundPrefixNextAccepted :"))
+
+    assert active =~ "members: MachineStateMembers"
+    assert active =~ "candidate_equivalent: Equivalent(List(MachineState(n)), candidates, Cons(Active("
+    assert active =~ "edge: ListMember(MachineState(n), Active("
+    assert accepted =~ "candidate_equivalent: Equivalent(List(MachineState(n)), candidates, Cons(Accepted("
+    assert prefix =~ "members: MachineStateMembers"
+    assert prefix =~ "candidate_equivalent: Equivalent(List(MachineState(n)), candidates, Cons(Active("
+    assert prefix =~ "edge: ListMember(MachineState(n), Active("
+    assert prefix_accepted =~ "candidate_equivalent: Equivalent(List(MachineState(n)), candidates, Cons(Accepted("
   end
 end
