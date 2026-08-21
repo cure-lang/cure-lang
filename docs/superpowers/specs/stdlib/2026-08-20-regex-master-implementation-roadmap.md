@@ -99,9 +99,11 @@ while a tail failure retains the dropped-head cursor needed for the eventual
 induction. The child fields now make that complete traversal explicit in their
 indices (`child_destinations, child_destinations`) rather than retaining an
 arbitrary child suffix. `MachineStateCursorSuffix` and its projection from a
-`MachineStateCursor` record the remaining structural relation between a parent
-failure cursor and an accepting-path cursor; this is the induction relation for
-the next theorem slice, not yet the theorem itself.
+member traversal record the remaining structural relation between a parent
+failure cursor and an accepting-path cursor; it only admits equality or
+dropping a parent head, so a path prefix cannot be smuggled into the theorem.
+This is the induction relation for the next theorem slice, not yet the theorem
+itself.
 The Phase 2 exit gate is therefore still not discharged.
 
 **Applies to:** the Cure-native typed regex engine, its erased portable runtime,

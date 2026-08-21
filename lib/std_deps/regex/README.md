@@ -107,11 +107,11 @@ mod ApiExamples
   fn full(input: String) -> Option(Tuple(String, String)) = parse_full(/(a)(b)/, input)
   fn prefix(input: String) -> Option(Tuple(Nat, String)) = parse_prefix(/a+/, input)
   fn found(input: String) -> Option(Match(Unit)) = search(/ab/, input)
-  fn named(input: String) -> Option(NamedMatch(Unit)) = search_named(/(?<word>ab)/, input)
+  fn named(input: String) -> Option(NamedMatch(String)) = search_named(/(?<word>ab)/, input)
   fn scanned(input: String) -> List(Match(Nat)) = scan(/,+/, input)
   fn split(input: String) -> List(String) = split_default(/,+/, input)
   fn replaced(input: String) -> String = replace_literal(/\d+/u, input, "X")
-  fn matches(input: String) -> Bool = matches(/^abc$/m, input)
+  fn matches_input(input: String) -> Bool = matches(/^abc$/m, input)
 end
 ```
 

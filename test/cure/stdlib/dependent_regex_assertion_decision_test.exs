@@ -237,7 +237,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     assert source =~ "type MachineStateCursorSuffix"
-    assert source =~ "fn machine_state_cursor_suffix"
+    assert source =~ "MachineStateCursorSuffixDrop"
   end
 
   test "destination failures retain complete child traversals" do
@@ -247,5 +247,12 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     assert active =~ "child_destinations, child_destinations"
     assert accepted =~ "child_destinations, child_destinations"
+  end
+
+  test "accepting paths carry recursive suffix relations" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "child_cursor_suffix: MachineStateCursorSuffix"
+    assert source =~ "cursor_suffix: MachineStateCursorSuffix(n, current, candidates)"
   end
 end
