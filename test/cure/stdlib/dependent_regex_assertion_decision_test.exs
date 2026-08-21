@@ -132,4 +132,13 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
              source
            )
   end
+
+  test "path refutations retain canonical destination equations" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert Regex.match?(~r/LookaroundPathExhausted\s*:.*?destinations_equivalent/s, source)
+    assert Regex.match?(~r/LookaroundPathStepExhausted\s*:.*?lookaround_machine_destinations/s, source)
+    assert Regex.match?(~r/LookaroundPathDestinationActiveRejected\s*:.*?destinations_equivalent/s, source)
+    assert Regex.match?(~r/LookaroundPathDestinationAcceptedRejected\s*:.*?destinations_equivalent/s, source)
+  end
 end

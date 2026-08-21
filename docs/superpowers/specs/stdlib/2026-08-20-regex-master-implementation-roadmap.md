@@ -43,6 +43,15 @@ boundary, while the dependent refutation-tree soundness theorem is still open.
 Successful exact and prefix search witnesses now also retain an erased
 membership proof for the selected filtered start state, so a witness cannot
 silently name a thread that was not present in the machine's start list.
+Path refutations now also retain erased equations tying their destination list
+to the exact machine transition that produced it. Empty-input exhaustion and
+one-step exhaustion use separate indexed constructors, avoiding an opaque
+recursive normalization shortcut; active and accepted destination rejection
+branches carry the same equation alongside their child and tail failures. This
+is a construction-site invariant for the eventual refutation theorem, not the
+theorem itself: the current cursor witness still permits a terminal
+`MachineStateMembersNil` over a non-empty original list, so generic path
+soundness/completeness and the exhaustive admitted-shape proof remain open.
 The Phase 2 exit gate is therefore still not discharged.
 
 **Applies to:** the Cure-native typed regex engine, its erased portable runtime,
