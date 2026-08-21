@@ -52,6 +52,15 @@ is a construction-site invariant for the eventual refutation theorem, not the
 theorem itself: the current cursor witness still permits a terminal
 `MachineStateMembersNil` over a non-empty original list, so generic path
 soundness/completeness and the exhaustive admitted-shape proof remain open.
+Accepting and prefix path witnesses now carry the candidate cursor explicitly,
+and every consuming path constructor carries an erased `MachineStateMembers`
+witness tying that cursor to the canonical filtered transition list. Its edge
+proof is reconstructed at the cursor rather than borrowed from the original
+list, so a path cannot silently switch from the list being traversed to the
+machine's full destination list. This supplies the data needed for the generic
+refutation theorem; the theorem must still recurse through child and tail
+failures and transport the cursor witness across their stored destination
+equations.
 The Phase 2 exit gate is therefore still not discharged.
 
 **Applies to:** the Cure-native typed regex engine, its erased portable runtime,
