@@ -10,6 +10,7 @@ mod Std.Regex.Runtime
   use Std.Bounded
   use Std.Equivalent
   use Std.Sigma
+  use Std.Decision
 
   @reducible
   fn build_transition_rows(remaining: Nat, {total: Nat}, inject: (Bounded(remaining)) -> Bounded(total), next: (Bounded(total)) -> Char -> List(MachineState(total))) -> TransitionRowsFrom(remaining, total) = match remaining
@@ -2049,6 +2050,22 @@ mod Std.Regex.Runtime
     LookaroundSearchExhausted(_) -> lookaround_search_path_excludes_empty_starts(depth, n, machine, input, after_input, history, policy, path)
     LookaroundSearchActiveRejected(_, _, _, member, _, _, _) -> lookaround_impossible_list_member(member)
     LookaroundSearchAcceptedRejected(_, _, member, _, _, _) -> lookaround_impossible_list_member(member)
+
+  ## A terminal path failure with an exhausted candidate suffix excludes an
+  ## accepting path over that same empty suffix. This is the base case for the
+  ## eventual recursive refutation theorem: the active and accepted step
+  ## constructors both carry a membership proof, while the accepted terminal
+  ## constructor can only consume empty input.
+  fn lookaround_path_failure_excludes_accepting_path(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, destinations: List(MachineState(n)), failure: LookaroundPathFailure(depth, n, machine, input, after_input, state, history, capture_context, policy, destinations, Nil()), path: LookaroundAcceptingPath(depth, n, machine, Nil(), input, after_input, state, history, policy)) -> Empty = match failure
+    LookaroundPathExhausted(source, _, _) -> impossible_lookaround_empty_active_path(depth, n, machine, after_input, source, history, policy, path)
+    LookaroundPathStepExhausted(_, _, _, _, _) -> match path
+      LookaroundAcceptedNow() -> impossible
+      LookaroundAcceptedNextActive(_, _, _, _, _, _, _, _, _, _, edge, _) -> lookaround_impossible_list_member(edge)
+      LookaroundAcceptedNextAccepted(_, _, _, _, _, _, _, _, _, edge, _) -> lookaround_impossible_list_member(edge)
+    LookaroundPathAcceptedWithInput() -> match path
+      LookaroundAcceptedNow() -> impossible
+      LookaroundAcceptedNextActive(_, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+      LookaroundAcceptedNextAccepted(_, _, _, _, _, _, _, _, _, _, _) -> impossible
 
   ## A decision is the only value consumed by an assertion constraint. A
   ## satisfied branch now carries an existential package containing the finite
