@@ -141,4 +141,18 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/LookaroundPathDestinationActiveRejected\s*:.*?destinations_equivalent/s, source)
     assert Regex.match?(~r/LookaroundPathDestinationAcceptedRejected\s*:.*?destinations_equivalent/s, source)
   end
+
+  test "accepting paths are indexed by the candidate cursor" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert Regex.match?(
+             ~r/type LookaroundAcceptingPath\(depth: Nat, n: Nat, machine: PatternMachine\(n\), candidates: List\(MachineState\(n\)\)\)/,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/LookaroundAcceptedNextActive\s*:.*?edge: ListMember\(MachineState\(n\), Active\([^\n]*candidates\)/s,
+             source
+           )
+  end
 end
