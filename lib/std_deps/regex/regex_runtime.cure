@@ -1867,6 +1867,15 @@ mod Std.Regex.Runtime
     LookaroundAcceptedNextActive : (source: Bounded(n)) -> (char: Char) -> (rest: List(Char)) -> (destination: Bounded(n)) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (capture_context: List(EvidenceInstruction)) -> (@erased nested_decisions: List(LookaroundNestedDecision)) -> (edge: ListMember(MachineState(n), Active(destination, routine, constraints), lookaround_machine_destinations(depth, n, machine, ThreadActive(source), char, rest, after_input, history, capture_context, policy))) -> (@erased suffix: LookaroundAcceptingPath(depth, n, machine, rest, after_input, ThreadActive(destination), history_push_bounded(history, char), policy)) -> LookaroundAcceptingPath(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, policy)
     LookaroundAcceptedNextAccepted : (source: Bounded(n)) -> (char: Char) -> (rest: List(Char)) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (capture_context: List(EvidenceInstruction)) -> (@erased nested_decisions: List(LookaroundNestedDecision)) -> (edge: ListMember(MachineState(n), Accepted(routine, constraints), lookaround_machine_destinations(depth, n, machine, ThreadActive(source), char, rest, after_input, history, capture_context, policy))) -> (@erased suffix: LookaroundAcceptingPath(depth, n, machine, rest, after_input, ThreadAccepted(), history_push_bounded(history, char), policy)) -> LookaroundAcceptingPath(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, policy)
 
+  ## An active thread cannot have an accepting path over an empty input.
+  ## Keeping this contradiction at the typed path boundary prevents a later
+  ## refutation proof from accidentally treating an unconsumed active state as
+  ## terminally accepted.
+  fn impossible_lookaround_empty_active_path(depth: Nat, n: Nat, machine: PatternMachine(n), after_input: List(Char), source: Bounded(n), history: List(Char), policy: NewlinePolicy, {result: Type}, path: LookaroundAcceptingPath(depth, n, machine, Nil(), after_input, ThreadActive(source), history, policy)) -> result = match path
+    LookaroundAcceptedNow() -> impossible
+    LookaroundAcceptedNextActive(_, _, _, _, _, _, _, _, _, _) -> impossible
+    LookaroundAcceptedNextAccepted(_, _, _, _, _, _, _, _, _) -> impossible
+
   fn lookaround_machine_destinations(depth: Nat, n: Nat, machine: PatternMachine(n), state: ThreadState(n), char: Char, rest: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> List(MachineState(n)) = match machine
     MkPatternMachine(_, next) -> lookaround_filter_boundary_states(depth, next_for_thread(n, next, state, char), lookaround_transition_boundary(char, rest, after_input, policy), append_characters(rest, after_input), history, capture_context, policy)
 

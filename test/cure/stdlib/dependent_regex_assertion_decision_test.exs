@@ -123,4 +123,13 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
              source
            )
   end
+
+  test "active paths cannot terminate without consuming a character" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert Regex.match?(
+             ~r/fn impossible_lookaround_empty_active_path\b.*?LookaroundAcceptedNextActive.*?impossible/s,
+             source
+           )
+  end
 end
