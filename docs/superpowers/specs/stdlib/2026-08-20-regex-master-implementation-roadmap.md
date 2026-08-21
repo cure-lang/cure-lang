@@ -63,6 +63,12 @@ the recursive tail calls. This supplies the data needed for the generic
 refutation theorem; the theorem must still recurse through child and tail
 failures and transport the cursor witness across their stored destination
 equations.
+The terminal member-spine transport helper is now also present: when an
+exhaustion constructor carries an equation identifying its original
+destination list with the canonical empty list, the helper normalizes the
+`MachineStateMembersNil` witness to that empty index before a refutation proof
+consumes it. This closes the previously implicit empty-index transport case;
+the recursive child/tail refutation theorem remains open.
 The Phase 2 exit gate is therefore still not discharged.
 
 **Applies to:** the Cure-native typed regex engine, its erased portable runtime,

@@ -2235,6 +2235,19 @@ mod Std.Regex.Runtime
     MachineStateMembersActive : (state: Bounded(n)) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (member : ListMember(MachineState(n), Active(state, routine, constraints), whole)) -> (remaining: MachineStateMembers(n, whole, values)) -> MachineStateMembers(n, whole, Cons(Active(state, routine, constraints), values))
     MachineStateMembersAccepted : (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (member : ListMember(MachineState(n), Accepted(routine, constraints), whole)) -> (remaining: MachineStateMembers(n, whole, values)) -> MachineStateMembers(n, whole, Cons(Accepted(routine, constraints), values))
 
+  ## Normalize the terminal member spine at the same construction site as its
+  ## destination equation.  `MachineStateMembersNil` deliberately permits an
+  ## arbitrary original list because it is a traversal suffix witness; this
+  ## helper uses the checked equation to transport that suffix to the canonical
+  ## empty list before a refutation proof consumes it.
+  fn lookaround_empty_members_normalized(
+    {n: Nat},
+    {whole: List(MachineState(n))},
+    members: MachineStateMembers(n, whole, Nil()),
+    equivalence: Equivalent(List(MachineState(n)), whole, empty_machine_states(n))
+  ) -> MachineStateMembers(n, empty_machine_states(n), Nil()) = match equivalence
+    reflexive() -> members
+
   fn machine_state_members_active_current_edge({n: Nat}, state: Bounded(n), routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), {whole: List(MachineState(n))}, {values: List(MachineState(n))}, members: MachineStateMembers(n, whole, Cons(Active(state, routine, constraints), values))) -> ListMember(MachineState(n), Active(state, routine, constraints), Cons(Active(state, routine, constraints), values)) = match members
     MachineStateMembersActive(_, _, _, _, _) -> ListMemberHere()
 

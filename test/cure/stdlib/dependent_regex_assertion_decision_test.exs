@@ -169,4 +169,13 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
              source
            )
   end
+
+  test "empty member spines normalize through their canonical destination equation" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert Regex.match?(
+             ~r/fn lookaround_empty_members_normalized\b.*?equivalence: Equivalent.*?MachineStateMembers\(n, empty_machine_states\(n\), Nil\(\)/s,
+             source
+           )
+  end
 end
