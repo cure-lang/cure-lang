@@ -69,6 +69,15 @@ destination list with the canonical empty list, the helper normalizes the
 `MachineStateMembersNil` witness to that empty index before a refutation proof
 consumes it. This closes the previously implicit empty-index transport case;
 the recursive child/tail refutation theorem remains open.
+Rejected accepting and prefix-path results now carry the erased
+`MachineStateCursor` that corresponds to their failure's destination suffix.
+The internal member traversals carry the same cursor at every recursive call;
+when a child fails, the tail is searched with `MachineStateCursorDrop`, and a
+tail failure is rewrapped with the parent cursor rather than leaking the
+tail's narrower index. This removes the last untyped hand-off at the
+accepting-path result boundary, but it is still only the construction-site
+invariant: the generic theorem must consume these cursors recursively and
+prove that every reported rejection excludes an accepting path.
 The Phase 2 exit gate is therefore still not discharged.
 
 **Applies to:** the Cure-native typed regex engine, its erased portable runtime,

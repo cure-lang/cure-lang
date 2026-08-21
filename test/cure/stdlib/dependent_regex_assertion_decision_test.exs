@@ -178,4 +178,18 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
              source
            )
   end
+
+  test "rejected path results preserve their traversal cursor" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert Regex.match?(
+             ~r/LookaroundAcceptingPathRejected\s*:.*?MachineStateCursor/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/LookaroundPrefixPathRejected\s*:.*?MachineStateCursor/s,
+             source
+           )
+  end
 end
