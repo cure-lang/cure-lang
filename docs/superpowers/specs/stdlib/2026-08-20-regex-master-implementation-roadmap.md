@@ -57,7 +57,9 @@ and every consuming path constructor carries an erased `MachineStateMembers`
 witness tying that cursor to the canonical filtered transition list. Its edge
 proof is reconstructed at the cursor rather than borrowed from the original
 list, so a path cannot silently switch from the list being traversed to the
-machine's full destination list. This supplies the data needed for the generic
+machine's full destination list. A separate `MachineStateCursor` now proves
+that each candidate list is a genuine suffix of that canonical list, including
+the recursive tail calls. This supplies the data needed for the generic
 refutation theorem; the theorem must still recurse through child and tail
 failures and transport the cursor witness across their stored destination
 equations.

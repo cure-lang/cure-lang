@@ -157,5 +157,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     assert Regex.match?(~r/LookaroundAcceptedNextActive\s*:.*?members: MachineStateMembers/s, source)
     assert Regex.match?(~r/LookaroundPrefixNextActive\s*:.*?members: MachineStateMembers/s, source)
+    assert Regex.match?(~r/LookaroundAcceptedNextActive\s*:.*?cursor: MachineStateCursor/s, source)
+    assert Regex.match?(~r/LookaroundPrefixNextActive\s*:.*?cursor: MachineStateCursor/s, source)
   end
 end
