@@ -84,6 +84,12 @@ cursor and traversal spine. The runtime edge remains ordinary data, but it is
 typed against that same candidate list; a path cannot be instantiated for a
 fabricated candidate list without an impossible equality proof. The recursive
 child/tail refutation theorem is still open.
+The failure-tree constructors now carry the corresponding erased cursor too:
+terminal exhaustion records the empty suffix, and each active/accepted
+destination rejection records the parent `Cons(head, tail)` suffix alongside
+its child and tail failures. The tree therefore contains all of the indexed
+transport data needed by the recursive theorem; no cursor needs to be rebuilt
+from an unindexed list while consuming a certificate.
 The Phase 2 exit gate is therefore still not discharged.
 
 **Applies to:** the Cure-native typed regex engine, its erased portable runtime,

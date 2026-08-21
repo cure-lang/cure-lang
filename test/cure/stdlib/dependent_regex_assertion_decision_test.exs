@@ -209,4 +209,18 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert prefix =~ "edge: ListMember(MachineState(n), Active("
     assert prefix_accepted =~ "candidate_equivalent: Equivalent(List(MachineState(n)), candidates, Cons(Accepted("
   end
+
+  test "every path failure carries its current cursor" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    for constructor <- [
+          "LookaroundPathExhausted",
+          "LookaroundPathStepExhausted",
+          "LookaroundPathDestinationActiveRejected",
+          "LookaroundPathDestinationAcceptedRejected"
+        ] do
+      line = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    #{constructor} :"))
+      assert line =~ "MachineStateCursor"
+    end
+  end
 end
