@@ -90,6 +90,13 @@ destination rejection records the parent `Cons(head, tail)` suffix alongside
 its child and tail failures. The tree therefore contains all of the indexed
 transport data needed by the recursive theorem; no cursor needs to be rebuilt
 from an unindexed list while consuming a certificate.
+The public accepting/prefix rejection wrappers now expose only the complete
+root traversal: both their failure and cursor are indexed by the full
+destination list, not an arbitrary intermediate suffix. Intermediate suffixes
+remain internal member-traversal results. Consequently a child failure embedded
+in a destination-rejection node is known to begin at its own `Here` cursor,
+while a tail failure retains the dropped-head cursor needed for the eventual
+induction.
 The Phase 2 exit gate is therefore still not discharged.
 
 **Applies to:** the Cure-native typed regex engine, its erased portable runtime,

@@ -223,4 +223,13 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
       assert line =~ "MachineStateCursor"
     end
   end
+
+  test "public path rejection is a complete destination traversal" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+    accepting = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    LookaroundAcceptingPathRejected :"))
+    prefix = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    LookaroundPrefixPathRejected :"))
+
+    assert accepting =~ "MachineStateCursor(n, destinations, destinations)"
+    assert prefix =~ "MachineStateCursor(n, destinations, destinations)"
+  end
 end
