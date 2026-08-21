@@ -39,8 +39,8 @@ mod Example
   use Std.Regex
 
   fn exact(input: String) -> Option(Unit) = parse_full(/abc/, input)
-  fn word(input: String) -> Option(String) = parse_full(/(?<word>\w+)/u, input)
-  fn all(input: String) -> List(Match(Unit)) = scan(/ab+/, input)
+  fn word(input: String) -> Option(String) = parse_full(/(\w+)/u, input)
+  fn all(input: String) -> List(Match(Nat)) = scan(/ab+/, input)
 end
 ```
 
@@ -101,14 +101,18 @@ or export-level controls rather than lexical pattern semantics.
 replacement, named-capture lookup, and boolean matching:
 
 ```cure
-parse_full(/(a)(b)/, input)              # Option(Tuple(String, String))
-parse_prefix(/a+/, input)                # Option(Tuple(List(Char), String))
-search(/ab/, input)                      # Option(Match(Unit))
-search_named(/(?<word>ab)/, input)       # Option(NamedMatch(Unit))
-scan(/,+/, input)                        # List(Match(Unit))
-split_default(/,+/, input)               # List(String)
-replace_literal(/\d+/u, input, "X")      # String
-matches(/^abc$/m, input)                 # Bool
+mod ApiExamples
+  use Std.Regex
+
+  fn full(input: String) -> Option(Tuple(String, String)) = parse_full(/(a)(b)/, input)
+  fn prefix(input: String) -> Option(Tuple(Nat, String)) = parse_prefix(/a+/, input)
+  fn found(input: String) -> Option(Match(Unit)) = search(/ab/, input)
+  fn named(input: String) -> Option(NamedMatch(Unit)) = search_named(/(?<word>ab)/, input)
+  fn scanned(input: String) -> List(Match(Nat)) = scan(/,+/, input)
+  fn split(input: String) -> List(String) = split_default(/,+/, input)
+  fn replaced(input: String) -> String = replace_literal(/\d+/u, input, "X")
+  fn matches(input: String) -> Bool = matches(/^abc$/m, input)
+end
 ```
 
 `Match` records the typed value, prefix, matched text, suffix, scalar start
