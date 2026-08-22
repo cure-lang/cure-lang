@@ -182,15 +182,21 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
   test "rejected path results preserve their traversal cursor" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
-    assert Regex.match?(
-             ~r/LookaroundAcceptingPathRejected\s*:.*?MachineStateCursor/s,
-             source
-           )
+    for constructor <- [
+          "LookaroundAcceptingPathRejectedEmpty",
+          "LookaroundAcceptingPathRejectedStep",
+          "LookaroundAcceptingPathRejectedAcceptedStep"
+        ] do
+      assert Regex.match?(~r/#{constructor}\s*:.*?MachineStateCursor/s, source)
+    end
 
-    assert Regex.match?(
-             ~r/LookaroundPrefixPathRejected\s*:.*?MachineStateCursor/s,
-             source
-    )
+    for constructor <- [
+          "LookaroundPrefixPathRejectedEmpty",
+          "LookaroundPrefixPathRejectedStep",
+          "LookaroundPrefixPathRejectedAcceptedStep"
+        ] do
+      assert Regex.match?(~r/#{constructor}\s*:.*?MachineStateCursor/s, source)
+    end
   end
 
   test "accepted path edges are forced to the cursor head" do
@@ -226,11 +232,11 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
   test "public path rejection is a complete destination traversal" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
-    accepting = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    LookaroundAcceptingPathRejected :"))
-    prefix = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    LookaroundPrefixPathRejected :"))
+    accepting = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    LookaroundAcceptingPathRejectedStep :"))
+    prefix = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    LookaroundPrefixPathRejectedStep :"))
 
-    assert accepting =~ "MachineStateCursor(n, destinations, destinations)"
-    assert prefix =~ "MachineStateCursor(n, destinations, destinations)"
+    assert accepting =~ "MachineStateCursor(n, lookaround_machine_destinations"
+    assert prefix =~ "MachineStateCursor(n, lookaround_machine_destinations"
   end
 
   test "cursor suffixes compose for recursive refutation" do

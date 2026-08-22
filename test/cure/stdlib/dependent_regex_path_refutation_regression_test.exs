@@ -71,4 +71,101 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert context.checking == :probe
     assert context.expression_category == :pattern_match
   end
+
+  test "accepting-path rejection exposes its canonical transition destination" do
+    source = ~S'''
+    mod RegexPathCanonicalRejectionRegression
+      use Std.Core
+      use Std.Regex.Core
+      use Std.Regex.Runtime
+
+      fn consume(
+        depth: Nat,
+        n: Nat,
+        machine: PatternMachine(n),
+        char: Char,
+        rest: List(Char),
+        after_input: List(Char),
+        source: Bounded(n),
+        history: List(Char),
+        capture_context: List(EvidenceInstruction),
+        policy: NewlinePolicy,
+        failure: LookaroundPathFailure(
+          depth,
+          n,
+          machine,
+          Cons(char, rest),
+          after_input,
+          ThreadActive(source),
+          history,
+          capture_context,
+          policy,
+          lookaround_machine_destinations(
+            depth,
+            n,
+            machine,
+            ThreadActive(source),
+            char,
+            rest,
+            after_input,
+            history,
+            capture_context,
+            policy
+          ),
+          lookaround_machine_destinations(
+            depth,
+            n,
+            machine,
+            ThreadActive(source),
+            char,
+            rest,
+            after_input,
+            history,
+            capture_context,
+            policy
+          )
+        )
+      ) -> Unit = ()
+
+      fn probe(
+        depth: Nat,
+        n: Nat,
+        machine: PatternMachine(n),
+        char: Char,
+        rest: List(Char),
+        after_input: List(Char),
+        source: Bounded(n),
+        history: List(Char),
+        capture_context: List(EvidenceInstruction),
+        policy: NewlinePolicy
+      ) -> Unit = match lookaround_accepting_path(
+        depth,
+        n,
+        machine,
+        Cons(char, rest),
+        after_input,
+        ThreadActive(source),
+        history,
+        capture_context,
+        policy
+      )
+        LookaroundAcceptingPathRejectedStep(_, _, _, _, failure) -> consume(
+          depth,
+          n,
+          machine,
+          char,
+          rest,
+          after_input,
+          source,
+          history,
+          capture_context,
+          policy,
+          failure
+        )
+        LookaroundAcceptingPathFound(_, _, _) -> ()
+    end
+    '''
+
+    assert {:ok, _module} = Cure.Compiler.compile_and_load(source, emit_events: false)
+  end
 end
