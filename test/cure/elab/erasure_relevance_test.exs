@@ -246,6 +246,21 @@ defmodule Cure.Elab.ErasureRelevanceTest do
       src = @seam_pre <> "  fn f(v: NV(S(Z))) -> NV(S(Z)) =\n    match v\n      vs(s) -> vs(s)\nend\n"
       assert {:ok, _} = Program.elaborate(src)
     end
+
+    test "an explicit erased field after runtime fields receives a synthetic branch slot" do
+      src = """
+      mod ExplicitErasedBranchSlot
+        type Nat = Z | S(Nat)
+        type Outcome indices ()
+          Resource : (depth: Nat) -> (@erased proof: Nat) -> Outcome
+
+        fn preserve(outcome: Outcome) -> Outcome = match outcome
+          Resource(_, _) -> outcome
+      end
+      """
+
+      assert {:ok, _} = Program.elaborate(src)
+    end
   end
 
   describe "seam: erased params give consistent emitted head/call-site arities" do

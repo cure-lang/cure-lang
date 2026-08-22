@@ -13274,6 +13274,12 @@ defmodule Cure.Elab.Elaborator do
       Enum.zip([telescope, quantities, plicities])
       |> Enum.with_index()
       |> Enum.map_reduce(pattern_vars, fn
+        {{{_tele_name, _type}, :erased, :explicit}, _i}, [v | rest] ->
+          {v, rest}
+
+        {{{tele_name, _type}, :erased, :explicit}, i}, [] ->
+          {"$erased_#{tele_name}_#{i}", []}
+
         {{{_tele_name, _type}, _q, :explicit}, _i}, [v | rest] -> {v, rest}
         {{{tele_name, _type}, :erased, :implicit}, i}, vars -> {"$erased_#{tele_name}_#{i}", vars}
         {{{tele_name, _type}, _q, :implicit}, i}, vars -> {"$implicit_#{tele_name}_#{i}", vars}
