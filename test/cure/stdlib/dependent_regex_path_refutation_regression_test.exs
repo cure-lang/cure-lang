@@ -254,7 +254,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
           failure
         )
         LookaroundAcceptingPathFoundActive(_, _, _, _, _, _, _) -> ()
-        LookaroundAcceptingPathFoundAccepted(_, _) -> ()
+        LookaroundAcceptingPathFoundAccepted(_, _, _) -> ()
     end
     '''
 

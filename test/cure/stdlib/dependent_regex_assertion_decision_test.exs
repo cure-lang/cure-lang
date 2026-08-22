@@ -91,7 +91,8 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
              source
            )
 
-    assert Regex.match?(~r/LookaroundSearchActiveRejected\s*:.*?MachineStateMembers/s, source)
+    assert Regex.match?(~r/LookaroundSearchActiveRejectedEmpty\s*:.*?MachineStateMembers/s, source)
+    assert Regex.match?(~r/LookaroundSearchActiveRejectedStep\s*:.*?MachineStateMembers/s, source)
     assert Regex.match?(~r/LookaroundSearchAcceptedRejected\s*:.*?MachineStateMembers/s, source)
     assert Regex.match?(~r/LookaroundPathExhausted\s*:.*?ThreadActive\(source\)/s, source)
   end
@@ -120,6 +121,35 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     assert Regex.match?(
              ~r/fn lookaround_search_failure_excludes_empty_starts\b.*?LookaroundSearchExhausted/s,
+             source
+           )
+  end
+
+  test "search refutations retain the exact unexamined start suffix" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert Regex.match?(
+             ~r/type LookaroundSearchFailure\([^\n]*starts: List\(MachineState\(n\)\), current: List\(MachineState\(n\)\)\)/,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/LookaroundSearchActiveRejectedEmpty\s*:.*?LookaroundSearchFailure\([^\n]*remaining_starts\).*?LookaroundSearchFailure\([^\n]*Cons\(Active/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/LookaroundSearchActiveRejectedStep\s*:.*?LookaroundSearchFailure\([^\n]*remaining_starts\).*?LookaroundSearchFailure\([^\n]*Cons\(Active/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/LookaroundSearchAcceptedRejected\s*:.*?LookaroundSearchFailure\([^\n]*remaining_starts\).*?LookaroundSearchFailure\([^\n]*Cons\(Accepted/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/fn lookaround_search_failure_excludes_path\b.*?LookaroundSearchFailure.*?LookaroundSearchPath.*?-> Empty/s,
              source
            )
   end

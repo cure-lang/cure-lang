@@ -19,7 +19,8 @@ child path, while the existing atomic commitment evaluator remains the
 acceptance authority. The assertion-capture sidecar is now landed as well:
 positive lookaround branches carry their selected `ExtendedInstruction` routine
 into named replay, while negative-assertion frames are discarded. Formal
-refutation completeness proofs and several capture interactions remain open.
+refutation completeness proofs and several capture interactions remain open;
+exact path- and complete start-search refutation soundness are now discharged.
 The capture/backtracking slice now also threads selected assertion markers through
 later boundary constraints (including capture-participation conditionals),
 preserves the same context in named replay, and covers present/absent optional
@@ -39,7 +40,9 @@ An independent finite oracle now exhaustively compares the admitted positive,
 negative, nested lookahead, exact lookbehind, and negative lookbehind behavior
 over the `abc` alphabet through length four; the randomized oracle remains as
 the broader subject-length check. This validates the observable decision
-boundary, while the dependent refutation-tree soundness theorem is still open.
+boundary. The dependent refutation-tree theorems now independently prove that
+the exact evaluator cannot return both a rejection and an accepting path for
+the same indexed search.
 Successful exact and prefix search witnesses now also retain an erased
 membership proof for the selected filtered start state, so a witness cannot
 silently name a thread that was not present in the machine's start list.
@@ -47,11 +50,10 @@ Path refutations now also retain erased equations tying their destination list
 to the exact machine transition that produced it. Empty-input exhaustion and
 one-step exhaustion use separate indexed constructors, avoiding an opaque
 recursive normalization shortcut; active and accepted destination rejection
-branches carry the same equation alongside their child and tail failures. This
-is a construction-site invariant for the eventual refutation theorem, not the
-theorem itself: the current cursor witness still permits a terminal
-`MachineStateMembersNil` over a non-empty original list, so generic path
-soundness/completeness and the exhaustive admitted-shape proof remain open.
+branches carry the same equation alongside their child and tail failures.
+These construction-site invariants are now consumed by the exact path and
+start-search refutation theorems. Completeness and the exhaustive
+admitted-shape proof remain open.
 Accepting and prefix path witnesses now carry the candidate cursor explicitly,
 and every consuming path constructor carries an erased `MachineStateMembers`
 witness tying that cursor to the canonical filtered transition list. Its edge
@@ -59,31 +61,30 @@ proof is reconstructed at the cursor rather than borrowed from the original
 list, so a path cannot silently switch from the list being traversed to the
 machine's full destination list. A separate `MachineStateCursor` now proves
 that each candidate list is a genuine suffix of that canonical list, including
-the recursive tail calls. This supplies the data needed for the generic
-refutation theorem; the theorem must still recurse through child and tail
-failures and transport the cursor witness across their stored destination
-equations.
+the recursive tail calls. This supplies the data consumed by the generic
+refutation theorem, which now recurses through child and tail failures and
+transports the cursor witness across their stored destination equations.
 The terminal member-spine transport helper is now also present: when an
 exhaustion constructor carries an equation identifying its original
 destination list with the canonical empty list, the helper normalizes the
 `MachineStateMembersNil` witness to that empty index before a refutation proof
-consumes it. This closes the previously implicit empty-index transport case;
-the recursive child/tail refutation theorem remains open.
+consumes it. This closes the previously implicit empty-index transport case,
+which the recursive child/tail refutation theorem now consumes.
 Rejected accepting and prefix-path results now carry the erased
 `MachineStateCursor` that corresponds to their failure's destination suffix.
 The internal member traversals carry the same cursor at every recursive call;
 when a child fails, the tail is searched with `MachineStateCursorDrop`, and a
 tail failure is rewrapped with the parent cursor rather than leaking the
 tail's narrower index. This removes the last untyped hand-off at the
-accepting-path result boundary, but it is still only the construction-site
-invariant: the generic theorem must consume these cursors recursively and
-prove that every reported rejection excludes an accepting path.
+accepting-path result boundary. The generic theorem now consumes these cursors
+recursively and proves that every reported rejection excludes an accepting
+path.
 Consuming path constructors now add an erased `Equivalent` witness tying their
 candidate parameter to the exact `Cons(head, tail)` suffix represented by the
 cursor and traversal spine. The runtime edge remains ordinary data, but it is
 typed against that same candidate list; a path cannot be instantiated for a
 fabricated candidate list without an impossible equality proof. The recursive
-child/tail refutation theorem is still open.
+child/tail refutation theorem now consumes this equality.
 The failure-tree constructors now carry the corresponding erased cursor too:
 terminal exhaustion records the empty suffix, and each active/accepted
 destination rejection records the parent `Cons(head, tail)` suffix alongside
@@ -112,9 +113,17 @@ input spine before eliminating the failure tree, then consumes the cursor
 suffix relation to recurse into either the rejected child or the rejected
 tail. Both active-destination forms and accepted destinations are covered, and
 the focused regression suite checks that unrelated child destinations remain
-uninhabitable. The remaining formal work is to lift this path theorem through
-the complete start-list search tree, prove the converse/completeness direction,
-and finish the admitted-shape audit.
+uninhabitable. The complete start-list lift is now discharged as well. Search
+failures are indexed by both the whole start list and the exact unexamined
+suffix. Empty, active-empty, active-consuming, and accepted-consuming
+rejections consume exactly that suffix; recursive tails are indexed by the
+dropped-head suffix and public rejection results expose only `starts, starts`.
+Successful search paths retain their input equation, selected-start
+membership, child destination cursor, and child accepting path until
+`lookaround_search_failure_excludes_path` consumes them. `Here` invokes the
+exact path theorem and `There` invokes the indexed tail certificate. The
+remaining formal work is the converse/completeness direction and the
+admitted-shape audit.
 The Phase 2 exit gate is therefore still not discharged.
 
 **Applies to:** the Cure-native typed regex engine, its erased portable runtime,
@@ -372,10 +381,11 @@ failure trees through both exact and prefix path folds, while depth/history
 guard failures remain explicit resource certificates. An exhaustive
 bounded-subject oracle covers the admitted nested lookaround decision slice;
 the exact-path refutation soundness theorem is now implemented, including
-capture-context identity and recursive child/tail exclusion. Search-tree
-soundness, the completeness direction, and exhaustive comparison of every
-admitted machine shape remain open, so the phase exit gate is not yet
-discharged.
+capture-context identity and recursive child/tail exclusion. Complete
+start-list search soundness is also implemented with a whole/current suffix
+index and a constructive membership-spine proof. The completeness direction
+and exhaustive comparison of every admitted machine shape remain open, so the
+phase exit gate is not yet discharged.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
