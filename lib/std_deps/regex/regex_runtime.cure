@@ -1612,7 +1612,7 @@ mod Std.Regex.Runtime
   ## existence of an accepting child path; the named sidecar below replays the
   ## selected child routine when assertion-local captures are requested.
   fn lookaround_child_lookahead(depth: Nat, n: Nat, machine: PatternMachine(n), boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> LookaheadDecision(n, machine) = match depth
-    Z() -> LookaheadRefuted(LookaheadDepthExhausted(depth, remaining, history, policy, LookaroundExhausted([], MachineStateMembersNil(), ())))
+    Z() -> LookaheadResourceExhausted(depth, remaining, history, policy, LookaroundExhausted([], MachineStateMembersNil(), ()))
     S(rest_depth) -> match boundary
       Boundary(subject_start, _, _, line_start, _, ascii_word_boundary, unicode_word_boundary, previous_char, _, _) ->
         match lookaround_prefix_search_decision(
@@ -1628,9 +1628,10 @@ mod Std.Regex.Runtime
         )
           LookaheadSatisfied(path) -> LookaheadSatisfied(path)
           LookaheadRefuted(certificate) -> LookaheadRefuted(certificate)
+          LookaheadResourceExhausted(child_depth, input, child_history, child_policy, exhaustion) -> LookaheadResourceExhausted(child_depth, input, child_history, child_policy, exhaustion)
 
   fn lookaround_child_lookbehind(depth: Nat, n: Nat, machine: PatternMachine(n), width: Nat, boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> LookbehindDecision(n, machine) = match depth
-    Z() -> LookbehindRefuted(LookbehindDepthExhausted(depth, [], history, policy, LookaroundExhausted([], MachineStateMembersNil(), ())))
+    Z() -> LookbehindResourceExhausted(depth, [], history, policy, LookaroundExhausted([], MachineStateMembersNil(), ()))
     S(rest_depth) -> match boundary
       Boundary(_, _, _, _, _, _, _, _, _, _) -> match lookbehind_window(history, width)
         None() -> LookbehindRefuted(LookbehindHistoryUnavailable(width, history, policy, LookaroundExhausted([], MachineStateMembersNil(), ())))
@@ -1647,6 +1648,7 @@ mod Std.Regex.Runtime
         )
           LookbehindSatisfied(path) -> LookbehindSatisfied(path)
           LookbehindRefuted(certificate) -> LookbehindRefuted(certificate)
+          LookbehindResourceExhausted(child_depth, input, child_history, child_policy, exhaustion) -> LookbehindResourceExhausted(child_depth, input, child_history, child_policy, exhaustion)
 
   fn no_characters() -> List(Char) = []
 
@@ -1768,10 +1770,12 @@ mod Std.Regex.Runtime
   fn lookahead_decision_holds(n: Nat, machine: PatternMachine(n), positive: Bool, decision: LookaheadDecision(n, machine)) -> Bool = match decision
     LookaheadSatisfied(_) -> positive
     LookaheadRefuted(_) -> not positive
+    LookaheadResourceExhausted(_, _, _, _, _) -> false
 
   fn lookbehind_decision_holds(n: Nat, machine: PatternMachine(n), positive: Bool, decision: LookbehindDecision(n, machine)) -> Bool = match decision
     LookbehindSatisfied(_) -> positive
     LookbehindRefuted(_) -> not positive
+    LookbehindResourceExhausted(_, _, _, _, _) -> false
 
   ## Capture-aware boundary evaluation returns the selected child routine for a
   ## positive assertion.  A negative assertion succeeds with an empty routine:
@@ -2441,7 +2445,6 @@ mod Std.Regex.Runtime
   ## its soundness and completeness against the machine semantics.
   type LookaheadRefutation(n: Nat, machine: PatternMachine(n)) indices ()
     LookaheadSearchExhausted : {@erased starts: List(MachineState(n))} -> (@erased depth: Nat) -> (input: List(Char)) -> (after_input: List(Char)) -> (history: List(Char)) -> (policy: NewlinePolicy) -> (@erased failure: LookaroundSearchFailure(depth, n, machine, input, after_input, history, capture_context, policy, starts, starts)) -> LookaheadRefutation(n, machine)
-    LookaheadDepthExhausted : (depth: Nat) -> (input: List(Char)) -> (history: List(Char)) -> (policy: NewlinePolicy) -> (@erased exhaustion: LookaroundExhaustion(n)) -> LookaheadRefutation(n, machine)
 
   type LookaheadWitness(n: Nat, machine: PatternMachine(n)) indices ()
     LookaheadWitnessPacked : {@erased starts: List(MachineState(n))} -> {@erased depth: Nat} -> {@erased input: List(Char)} -> {@erased after_input: List(Char)} -> {@erased history: List(Char)} -> {@erased policy: NewlinePolicy} -> (@erased path: LookaroundPrefixSearchPath(depth, n, machine, starts, input, after_input, history, policy)) -> LookaheadWitness(n, machine)
@@ -2449,10 +2452,10 @@ mod Std.Regex.Runtime
   type LookaheadDecision(n: Nat, machine: PatternMachine(n)) indices ()
     LookaheadSatisfied : (witness: LookaheadWitness(n, machine)) -> LookaheadDecision(n, machine)
     LookaheadRefuted : (certificate: LookaheadRefutation(n, machine)) -> LookaheadDecision(n, machine)
+    LookaheadResourceExhausted : (depth: Nat) -> (input: List(Char)) -> (history: List(Char)) -> (policy: NewlinePolicy) -> (@erased exhaustion: LookaroundExhaustion(n)) -> LookaheadDecision(n, machine)
 
   type LookbehindRefutation(n: Nat, machine: PatternMachine(n)) indices ()
     LookbehindSearchExhausted : {@erased starts: List(MachineState(n))} -> (@erased depth: Nat) -> (input: List(Char)) -> (after_input: List(Char)) -> (history: List(Char)) -> (policy: NewlinePolicy) -> (@erased failure: LookaroundSearchFailure(depth, n, machine, input, after_input, history, capture_context, policy, starts, starts)) -> LookbehindRefutation(n, machine)
-    LookbehindDepthExhausted : (depth: Nat) -> (input: List(Char)) -> (history: List(Char)) -> (policy: NewlinePolicy) -> (@erased exhaustion: LookaroundExhaustion(n)) -> LookbehindRefutation(n, machine)
     LookbehindHistoryUnavailable : (width: Nat) -> (history: List(Char)) -> (policy: NewlinePolicy) -> (@erased exhaustion: LookaroundExhaustion(n)) -> LookbehindRefutation(n, machine)
 
   type LookbehindWitness(n: Nat, machine: PatternMachine(n)) indices ()
@@ -2461,6 +2464,7 @@ mod Std.Regex.Runtime
   type LookbehindDecision(n: Nat, machine: PatternMachine(n)) indices ()
     LookbehindSatisfied : (witness: LookbehindWitness(n, machine)) -> LookbehindDecision(n, machine)
     LookbehindRefuted : (certificate: LookbehindRefutation(n, machine)) -> LookbehindDecision(n, machine)
+    LookbehindResourceExhausted : (depth: Nat) -> (input: List(Char)) -> (history: List(Char)) -> (policy: NewlinePolicy) -> (@erased exhaustion: LookaroundExhaustion(n)) -> LookbehindDecision(n, machine)
 
   ## Nested assertion decisions are existentially packaged because each child
   ## machine has its own state-count index.  They are proof metadata attached

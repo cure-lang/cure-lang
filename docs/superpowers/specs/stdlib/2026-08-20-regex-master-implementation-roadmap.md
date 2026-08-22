@@ -124,6 +124,13 @@ membership, child destination cursor, and child accepting path until
 exact path theorem and `There` invokes the indexed tail certificate. The
 remaining formal work is the converse/completeness direction and the
 admitted-shape audit.
+Depth exhaustion is no longer a refutation constructor. The proof-facing
+lookahead and lookbehind decisions carry distinct `ResourceExhausted`
+constructors, and neither positive nor negative assertion polarity treats
+that outcome as satisfied. Authored literals remain rejected earlier with
+`NestedAssertionDepthExceeded`, using the same canonical depth bound; the
+runtime distinction prevents a manually constructed or proof-facing call from
+manufacturing `NoMatch` merely by supplying insufficient depth.
 The Phase 2 exit gate is therefore still not discharged.
 
 **Applies to:** the Cure-native typed regex engine, its erased portable runtime,

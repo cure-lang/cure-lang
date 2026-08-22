@@ -20,6 +20,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
       )
         LookbehindSatisfied(_) -> true
         LookbehindRefuted(_) -> false
+        LookbehindResourceExhausted(_, _, _, _, _) -> false
 
       fn negative_decision() -> Bool = match lookaround_search_decision(
         2,
@@ -34,6 +35,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
       )
         LookbehindSatisfied(_) -> false
         LookbehindRefuted(_) -> true
+        LookbehindResourceExhausted(_, _, _, _, _) -> false
 
       fn negative_certificate_context() -> Bool = match lookaround_search_decision(
         2,
@@ -64,6 +66,19 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
           [LookaheadNestedDecision(true, _)] -> true
           _ -> false
 
+      fn depth_exhaustion_is_resource() -> Bool = match lookaround_child_lookahead(
+        0,
+        1,
+        predicate_pattern_machine(fn(char) -> char == 'a'),
+        position_boundary_for_history(subject_initial_position(), ['a'], []),
+        ['a'],
+        [],
+        [],
+        AnyUnicodeNewline()
+      )
+        LookaheadResourceExhausted(_, _, _, _, _) -> true
+        _ -> false
+
     end
     '''
 
@@ -76,6 +91,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert apply(module, :negative_decision, [])
     assert apply(module, :negative_certificate_context, [])
     assert apply(module, :nested_decision_evidence, [])
+    assert apply(module, :depth_exhaustion_is_resource, [])
   end
 
   test "refutation branches retain a typed traversal-spine witness" do
@@ -152,6 +168,17 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
              ~r/fn lookaround_search_failure_excludes_path\b.*?LookaroundSearchFailure.*?LookaroundSearchPath.*?-> Empty/s,
              source
            )
+  end
+
+  test "assertion depth exhaustion is not a semantic refutation" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    refute Regex.match?(~r/type LookaheadRefutation.*?LookaheadDepthExhausted/s, source)
+    refute Regex.match?(~r/type LookbehindRefutation.*?LookbehindDepthExhausted/s, source)
+    assert Regex.match?(~r/LookaheadResourceExhausted\s*:/, source)
+    assert Regex.match?(~r/LookbehindResourceExhausted\s*:/, source)
+    assert Regex.match?(~r/lookahead_decision_holds\b.*?LookaheadResourceExhausted\([^\n]*-> false/s, source)
+    assert Regex.match?(~r/lookbehind_decision_holds\b.*?LookbehindResourceExhausted\([^\n]*-> false/s, source)
   end
 
   test "active paths cannot terminate without consuming a character" do
