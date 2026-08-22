@@ -1614,12 +1614,12 @@ mod Std.Regex.Runtime
   fn lookaround_child_lookahead(depth: Nat, n: Nat, machine: PatternMachine(n), boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> LookaheadDecision(n, machine) = match depth
     Z() -> LookaheadResourceExhausted(depth, remaining, history, policy, LookaroundExhausted([], MachineStateMembersNil(), ()))
     S(rest_depth) -> match boundary
-      Boundary(subject_start, _, _, line_start, _, ascii_word_boundary, unicode_word_boundary, previous_char, _, _) ->
+      Boundary(_, _, _, _, _, _, _, _, _, _) ->
         match lookaround_prefix_search_decision(
           rest_depth,
           n,
           machine,
-          InitialPosition(subject_start, line_start, ascii_word_boundary, unicode_word_boundary, previous_char),
+          lookahead_initial_position(boundary),
           remaining,
           [],
           history,
@@ -1651,6 +1651,13 @@ mod Std.Regex.Runtime
           LookbehindResourceExhausted(child_depth, input, child_history, child_policy, exhaustion) -> LookbehindResourceExhausted(child_depth, input, child_history, child_policy, exhaustion)
 
   fn no_characters() -> List(Char) = []
+
+  ## `Boundary` stores whether the current cursor crosses a word boundary;
+  ## `InitialPosition` stores whether the previous scalar itself was a word
+  ## character.  They are different facts.  Reconstruct the latter from the
+  ## previous scalar at this one boundary-to-child conversion site.
+  fn lookahead_initial_position(boundary: Boundary) -> InitialPosition = match boundary
+    Boundary(subject_start, _, _, line_start, _, _, _, previous_char, _, _) -> InitialPosition(subject_start, line_start, option_ascii_word(previous_char), option_unicode_word(previous_char), previous_char)
 
   fn lookbehind_window(history: List(Char), width: Nat) -> Option(List(Char)) = match history_has_width(history, width)
     false -> None()
@@ -1735,7 +1742,7 @@ mod Std.Regex.Runtime
       Some(LookaheadCondition(positive, mk_pair(count, machine))) -> match positive
         False() -> Some([])
         True() -> match boundary
-          Boundary(subject_start, _, _, line_start, _, ascii_boundary, unicode_boundary, previous_char, _, _) -> match atomic_lookaround_routine_prefix(depth, count, machine, InitialPosition(subject_start, line_start, ascii_boundary, unicode_boundary, previous_char), remaining, true, history, capture_context, policy)
+          Boundary(_, _, _, _, _, _, _, _, _, _) -> match atomic_lookaround_routine_prefix(depth, count, machine, lookahead_initial_position(boundary), remaining, true, history, capture_context, policy)
             None() -> None()
             Some(%[_, _, routine]) -> Some(capture_slot_markers_from_extended(routine))
       Some(LookbehindCondition(positive, width, mk_pair(count, machine))) -> match positive
@@ -1811,7 +1818,7 @@ mod Std.Regex.Runtime
         True() -> None()
         False() -> Some([])
       S(child_depth) -> match boundary
-        Boundary(subject_start, _, _, line_start, _, ascii_boundary, unicode_boundary, previous_char, _, _) -> match atomic_lookaround_routine_prefix(child_depth, count, machine, InitialPosition(subject_start, line_start, ascii_boundary, unicode_boundary, previous_char), remaining, true, history, capture_context, policy)
+        Boundary(_, _, _, _, _, _, _, _, _, _) -> match atomic_lookaround_routine_prefix(child_depth, count, machine, lookahead_initial_position(boundary), remaining, true, history, capture_context, policy)
           None() -> match positive
             True() -> None()
             False() -> Some([])

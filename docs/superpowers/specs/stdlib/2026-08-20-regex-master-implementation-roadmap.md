@@ -40,8 +40,13 @@ that attempted every start and destination.
 An independent finite oracle now exhaustively compares the admitted positive,
 negative, nested lookahead, exact lookbehind, and negative lookbehind behavior
 over the `abc` alphabet through length four; the randomized oracle remains as
-the broader subject-length check. This validates the observable decision
-boundary. The dependent refutation-tree theorems now independently prove that
+the broader subject-length check. A second explicit 17-shape manifest covers
+lookahead/lookbehind polarity, mixed nesting, alternation, greedy/lazy/
+possessive repetition, atomic interactions, anchors, word boundaries, scoped
+options, capture conditionals, and exact parsing over all `abcA` subjects
+through length three. The manifest gate fails if a declared admitted shape has
+no independent oracle case. This validates the observable decision boundary.
+The dependent refutation-tree theorems now independently prove that
 the exact evaluator cannot return both a rejection and an accepting path for
 the same indexed search.
 Successful exact and prefix search witnesses now also retain an erased
@@ -138,9 +143,13 @@ canonical filtered start list as a type parameter instead of hiding it in each
 constructor. Given any valid path, the corresponding completeness theorem
 eliminates a computed rejection; given any complete failure tree, its dual
 eliminates a computed success. Both theorem pairs require erased equality tying
-the explicit result argument to the actual evaluator call. The remaining Phase
-2 proof work is the admitted-shape audit plus extraction, erasure, and resource
-obligations not already covered by the decision families.
+the explicit result argument to the actual evaluator call. The admitted-shape
+audit also exposed and fixed a boundary-state conversion bug: child lookahead
+was passing “the cursor crosses a word boundary” where `InitialPosition`
+requires “the previous scalar is a word character.” All lookahead evaluators
+now use the single `lookahead_initial_position` conversion. The remaining Phase
+2 proof work is extraction, erasure, and resource obligations not already
+covered by the decision families.
 Depth exhaustion is no longer a refutation constructor. The proof-facing
 lookahead and lookbehind decisions carry distinct `ResourceExhausted`
 constructors, and neither positive nor negative assertion polarity treats
@@ -414,8 +423,9 @@ child-destination, cursor, and selected-start membership evidence until the
 proof consumes them. Constructive exact and prefix evaluator completeness is
 also discharged: the shared start-list identity is an explicit result
 parameter, and path/refutation theorems force the actual computed result into
-the corresponding constructor. Exhaustive comparison of every admitted
-machine shape and the remaining extraction/erasure/resource audit remain open,
+the corresponding constructor. The exhaustive admitted-interaction manifest
+now covers all 17 declared Phase 2 machine-shape classes against an independent
+finite oracle. The remaining extraction/erasure/resource audit remains open,
 so the phase exit gate is not yet discharged.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and

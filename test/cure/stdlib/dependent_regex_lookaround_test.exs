@@ -6,6 +6,46 @@ defmodule Cure.Stdlib.DependentRegexLookaroundTest do
 
   @runs [max_runs: 200, max_run_time: :infinity]
 
+  @admitted_assertion_shapes [
+    :positive_lookahead,
+    :negative_lookahead,
+    :positive_lookbehind,
+    :negative_lookbehind,
+    :nested_assertion,
+    :mixed_direction_nesting,
+    :alternation,
+    :greedy_repetition,
+    :lazy_repetition,
+    :possessive_repetition,
+    :atomic_in_assertion,
+    :assertion_in_atomic,
+    :subject_anchor,
+    :word_boundary,
+    :scoped_options,
+    :capture_conditional,
+    :exact_full_match
+  ]
+
+  @admitted_shape_cases [
+    {:positive_search, :positive_reference, [:positive_lookahead]},
+    {:negative_search, :negative_reference, [:negative_lookahead]},
+    {:lookbehind_search, :lookbehind_reference, [:positive_lookbehind]},
+    {:negative_lookbehind_search, :negative_lookbehind_reference, [:negative_lookbehind]},
+    {:nested_positive_search, :nested_positive_reference, [:nested_assertion]},
+    {:nested_lookbehind_search, :nested_lookbehind_reference, [:mixed_direction_nesting]},
+    {:alternate_assertion_search, :alternate_assertion_reference, [:alternation]},
+    {:greedy_assertion_search, :contains_b_reference, [:greedy_repetition]},
+    {:lazy_assertion_search, :contains_b_reference, [:lazy_repetition]},
+    {:possessive_assertion_search, :contains_b_reference, [:possessive_repetition]},
+    {:atomic_assertion_search, :always_false_reference, [:atomic_in_assertion]},
+    {:assertion_atomic_search, :always_false_reference, [:assertion_in_atomic]},
+    {:anchored_assertion_search, :starts_with_ab_reference, [:subject_anchor]},
+    {:boundary_assertion_search, :starts_with_a_reference, [:word_boundary]},
+    {:scoped_assertion_search, :contains_upper_a_reference, [:scoped_options]},
+    {:conditional_assertion_search, :contains_lower_a_or_b_reference, [:capture_conditional]},
+    {:positive_full, :positive_full_reference, [:exact_full_match]}
+  ]
+
   setup_all do
     source = """
     mod RegexLookaround
@@ -60,6 +100,16 @@ defmodule Cure.Stdlib.DependentRegexLookaroundTest do
       fn positive_full(input: String) -> Bool = match parse_full(/a(?=b)b/, input)
         Some(_) -> true
         None() -> false
+      fn alternate_assertion_search(input: String) -> Bool = matches(/(?=(a|b)c)[ab]c/, input)
+      fn greedy_assertion_search(input: String) -> Bool = matches(/(?=a*b)a*b/, input)
+      fn lazy_assertion_search(input: String) -> Bool = matches(/(?=a*?b)a*?b/, input)
+      fn possessive_assertion_search(input: String) -> Bool = matches(/(?=a*+b)a*b/, input)
+      fn atomic_assertion_search(input: String) -> Bool = matches(/(?=(?>a|ab)c)abc/, input)
+      fn assertion_atomic_search(input: String) -> Bool = matches(/(?>a(?=b)|ab)c/, input)
+      fn anchored_assertion_search(input: String) -> Bool = matches(/(?=^ab)ab/, input)
+      fn boundary_assertion_search(input: String) -> Bool = matches(/(?=\\ba)a/, input)
+      fn scoped_assertion_search(input: String) -> Bool = matches(/(?=(?i:a))A/, input)
+      fn conditional_assertion_search(input: String) -> Bool = matches(/(?=(a)?)(?(1)a|b)/, input)
     end
     """
 
@@ -229,6 +279,20 @@ defmodule Cure.Stdlib.DependentRegexLookaroundTest do
     |> Enum.any?(fn {char, index} -> char == ?b and index > 0 and contains_at?(input, ~c"ab", index - 1) end)
   end
 
+  defp alternate_assertion_reference(input) do
+    Enum.any?(0..length(input), fn index ->
+      contains_at?(input, ~c"ac", index) or contains_at?(input, ~c"bc", index)
+    end)
+  end
+
+  defp contains_b_reference(input), do: ?b in input
+  defp always_false_reference(_input), do: false
+  defp starts_with_ab_reference(input), do: Enum.take(input, 2) == ~c"ab"
+  defp starts_with_a_reference(input), do: List.first(input) == ?a
+  defp contains_upper_a_reference(input), do: ?A in input
+  defp contains_lower_a_or_b_reference(input), do: Enum.any?(input, &(&1 in ~c"ab"))
+  defp positive_full_reference(input), do: input == ~c"ab"
+
   test "lookaround search and full parsing agree with an independent finite reference", %{runtime_module: module} do
     assert :ok =
              Property.check_all(lookaround_case_gen(), @runs, fn input ->
@@ -279,6 +343,28 @@ defmodule Cure.Stdlib.DependentRegexLookaroundTest do
     assert length(small_words(4)) == 121
   end
 
+  test "every admitted assertion machine shape has an exhaustive independent oracle", %{
+    runtime_module: module
+  } do
+    covered_shapes =
+      @admitted_shape_cases
+      |> Enum.flat_map(fn {_runtime, _reference, shapes} -> shapes end)
+      |> Enum.uniq()
+      |> Enum.sort()
+
+    assert covered_shapes == Enum.sort(@admitted_assertion_shapes)
+
+    for {runtime, reference, shapes} <- @admitted_shape_cases,
+        input <- admitted_words(3) do
+      subject = {:String, input}
+
+      assert apply(module, runtime, [subject]) == reference_result(reference, input),
+             "#{inspect(shapes)} case #{runtime} disagreed for #{inspect(input)}"
+    end
+
+    assert length(admitted_words(3)) == 85
+  end
+
   defp small_words(max_length) do
     for length <- 0..max_length,
         word <- words_of_length(length),
@@ -290,4 +376,34 @@ defmodule Cure.Stdlib.DependentRegexLookaroundTest do
   defp words_of_length(length) do
     for prefix <- words_of_length(length - 1), char <- ~c"abc", do: prefix ++ [char]
   end
+
+  defp admitted_words(max_length) do
+    for length <- 0..max_length,
+        word <- admitted_words_of_length(length),
+        do: word
+  end
+
+  defp admitted_words_of_length(0), do: [[]]
+
+  defp admitted_words_of_length(length) do
+    for prefix <- admitted_words_of_length(length - 1), char <- ~c"abcA", do: prefix ++ [char]
+  end
+
+  defp reference_result(:positive_reference, input), do: positive_reference(input)
+  defp reference_result(:negative_reference, input), do: negative_reference(input)
+  defp reference_result(:lookbehind_reference, input), do: lookbehind_reference(input)
+  defp reference_result(:negative_lookbehind_reference, input), do: negative_lookbehind_reference(input)
+  defp reference_result(:nested_positive_reference, input), do: nested_positive_reference(input)
+  defp reference_result(:nested_lookbehind_reference, input), do: nested_lookbehind_reference(input)
+  defp reference_result(:alternate_assertion_reference, input), do: alternate_assertion_reference(input)
+  defp reference_result(:contains_b_reference, input), do: contains_b_reference(input)
+  defp reference_result(:always_false_reference, input), do: always_false_reference(input)
+  defp reference_result(:starts_with_ab_reference, input), do: starts_with_ab_reference(input)
+  defp reference_result(:starts_with_a_reference, input), do: starts_with_a_reference(input)
+  defp reference_result(:contains_upper_a_reference, input), do: contains_upper_a_reference(input)
+
+  defp reference_result(:contains_lower_a_or_b_reference, input),
+    do: contains_lower_a_or_b_reference(input)
+
+  defp reference_result(:positive_full_reference, input), do: positive_full_reference(input)
 end
