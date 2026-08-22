@@ -18,10 +18,10 @@ lookbehind decisions carry an existential package containing the indexed finite
 child path, while the existing atomic commitment evaluator remains the
 acceptance authority. The assertion-capture sidecar is now landed as well:
 positive lookaround branches carry their selected `ExtendedInstruction` routine
-into named replay, while negative-assertion frames are discarded. Formal
-refutation completeness proofs and several capture interactions remain open;
-exact and prefix path refutation soundness, plus their complete start-search
-lifts, are now discharged.
+into named replay, while negative-assertion frames are discarded. Several
+capture interactions remain open; exact and prefix path refutation soundness,
+their complete start-search lifts, and constructive evaluator completeness are
+now discharged.
 The capture/backtracking slice now also threads selected assertion markers through
 later boundary constraints (including capture-participation conditionals),
 preserves the same context in named replay, and covers present/absent optional
@@ -53,8 +53,9 @@ one-step exhaustion use separate indexed constructors, avoiding an opaque
 recursive normalization shortcut; active and accepted destination rejection
 branches carry the same equation alongside their child and tail failures.
 These construction-site invariants are now consumed by both the exact and
-prefix path/start-search refutation theorems. Completeness and the exhaustive
-admitted-shape proof remain open.
+prefix path/start-search refutation theorems. The converse evaluator
+completeness theorems are discharged; the exhaustive admitted-shape proof
+remains open.
 Accepting and prefix path witnesses now carry the candidate cursor explicitly,
 and every consuming path constructor carries an erased `MachineStateMembers`
 witness tying that cursor to the canonical filtered transition list. Its edge
@@ -132,8 +133,14 @@ equation, cursor suffix, and child path. Prefix search paths retain the selected
 start membership and canonical child cursor until
 `lookaround_prefix_search_failure_excludes_path` consumes them. Its `Here`
 branch invokes the prefix child theorem and its `There` branch invokes the
-indexed tail certificate. The remaining formal work is the
-converse/completeness direction and the admitted-shape audit.
+indexed tail certificate. Exact and prefix search results now retain the
+canonical filtered start list as a type parameter instead of hiding it in each
+constructor. Given any valid path, the corresponding completeness theorem
+eliminates a computed rejection; given any complete failure tree, its dual
+eliminates a computed success. Both theorem pairs require erased equality tying
+the explicit result argument to the actual evaluator call. The remaining Phase
+2 proof work is the admitted-shape audit plus extraction, erasure, and resource
+obligations not already covered by the decision families.
 Depth exhaustion is no longer a refutation constructor. The proof-facing
 lookahead and lookbehind decisions carry distinct `ResourceExhausted`
 constructors, and neither positive nor negative assertion polarity treats
@@ -404,9 +411,12 @@ index and a constructive membership-spine proof. Prefix/lookahead rejection now
 has a separate active-only failure family and matching path/start-search
 soundness theorems; its witnesses retain capture-context, child-input,
 child-destination, cursor, and selected-start membership evidence until the
-proof consumes them. The completeness direction and exhaustive comparison of
-every admitted machine shape remain open, so the phase exit gate is not yet
-discharged.
+proof consumes them. Constructive exact and prefix evaluator completeness is
+also discharged: the shared start-list identity is an explicit result
+parameter, and path/refutation theorems force the actual computed result into
+the corresponding constructor. Exhaustive comparison of every admitted
+machine shape and the remaining extraction/erasure/resource audit remain open,
+so the phase exit gate is not yet discharged.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in

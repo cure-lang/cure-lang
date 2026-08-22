@@ -151,11 +151,14 @@ around assertion boundaries.  Capture participation created by a successful
 assertion can be observed by a later conditional and is replayed for named
 captures.
 
-The executable behavior and many local correspondence lemmas are present.
-The generalized assertion refutation soundness/completeness audit, exhaustive
-comparison of every admitted machine shape, and the final Phase 2 exit gate are
-still open.  This is why the implementation is useful today but must not yet
-be described as fully proved.
+The executable behavior, exact/prefix refutation soundness, and constructive
+search-result completeness are present.  Search results retain their canonical
+filtered start list, so a valid path forces the actual evaluator result to be
+`Found` and a complete failure tree forces it to be `Rejected`.  Exhaustive
+comparison of every admitted machine shape, the remaining
+extraction/erasure/resource audit, and the final Phase 2 exit gate are still
+open.  This is why the implementation is useful today but must not yet be
+described as fully proved.
 
 ## Explicit current limits
 

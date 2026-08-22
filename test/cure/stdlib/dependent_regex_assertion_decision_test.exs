@@ -233,6 +233,42 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
            )
   end
 
+  test "exact and prefix search results are constructively complete" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    for theorem <- [
+          "lookaround_search_path_completeness",
+          "lookaround_search_refutation_completeness",
+          "lookaround_prefix_search_path_completeness",
+          "lookaround_prefix_search_refutation_completeness"
+        ] do
+      assert Regex.match?(~r/fn #{theorem}\b/, source),
+             "expected the constructive completeness theorem #{theorem}"
+    end
+
+    assert Regex.match?(
+             ~r/type LookaroundSearchPathCompleteness\b.*?starts: List\(MachineState\(n\)\).*?indices \(result: LookaroundSearchResult\(depth, n, machine, starts,/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/type LookaroundSearchRefutationCompleteness\b.*?starts: List\(MachineState\(n\)\).*?indices \(result: LookaroundSearchResult\(depth, n, machine, starts,/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/type LookaroundPrefixSearchPathCompleteness\b.*?starts: List\(MachineState\(n\)\).*?indices \(result: LookaroundPrefixSearchResult\(depth, n, machine, starts,/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/type LookaroundPrefixSearchRefutationCompleteness\b.*?starts: List\(MachineState\(n\)\).*?indices \(result: LookaroundPrefixSearchResult\(depth, n, machine, starts,/s,
+             source
+           )
+
+    assert length(Regex.scan(~r/@erased computed: Equivalent\(Lookaround(?:Prefix)?SearchResult/, source)) >= 4
+  end
+
   test "active paths cannot terminate without consuming a character" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
