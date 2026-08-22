@@ -1712,10 +1712,10 @@ mod Std.Regex.Runtime
   fn lookaround_filter_boundary_states(depth: Nat, {n: Nat}, states: List(MachineState(n)), boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> List(MachineState(n)) = match states
     [] -> []
     [Active(state, routine, constraints) | rest] -> match lookaround_constraints_capture_context(depth, constraints, boundary, remaining, history, append_routine(capture_context, routine), policy)
-      Some(assertion_markers) -> [Active(state, append_routine(routine, assertion_markers), Nil()) | lookaround_filter_boundary_states(depth, rest, boundary, remaining, history, capture_context, policy)]
+      Some(assertion_markers) -> [Active(state, append_routine(routine, assertion_markers), constraints) | lookaround_filter_boundary_states(depth, rest, boundary, remaining, history, capture_context, policy)]
       None() -> lookaround_filter_boundary_states(depth, rest, boundary, remaining, history, capture_context, policy)
     [Accepted(routine, constraints) | rest] -> match lookaround_constraints_capture_context(depth, constraints, boundary, remaining, history, append_routine(capture_context, routine), policy)
-      Some(assertion_markers) -> [Accepted(append_routine(routine, assertion_markers), Nil()) | lookaround_filter_boundary_states(depth, rest, boundary, remaining, history, capture_context, policy)]
+      Some(assertion_markers) -> [Accepted(append_routine(routine, assertion_markers), constraints) | lookaround_filter_boundary_states(depth, rest, boundary, remaining, history, capture_context, policy)]
       None() -> lookaround_filter_boundary_states(depth, rest, boundary, remaining, history, capture_context, policy)
 
   fn lookaround_condition_holds(depth: Nat, condition: Option(LookaroundCondition), boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Bool = match condition

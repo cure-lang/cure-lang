@@ -246,6 +246,21 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/lookbehind_decision_holds\b.*?LookbehindResourceExhausted\([^\n]*-> false/s, source)
   end
 
+  test "admitted lookaround states retain the constraints that produced nested evidence" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    filter =
+      source
+      |> String.split("fn lookaround_filter_boundary_states", parts: 2)
+      |> List.last()
+      |> String.split("fn lookaround_condition_holds", parts: 2)
+      |> List.first()
+
+    assert filter =~ "Active(state, append_routine(routine, assertion_markers), constraints)"
+    assert filter =~ "Accepted(append_routine(routine, assertion_markers), constraints)"
+    refute filter =~ "append_routine(routine, assertion_markers), Nil()"
+  end
+
   test "prefix rejection has no exact-only accepted-with-input case" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 

@@ -155,6 +155,13 @@ erased parameters. The remaining Phase 2 proof work is the full
 path-to-named-replay extraction correspondence. The `ExtendedInstruction`
 routine selected by named replay must be derived from, or proved identical to,
 the certified path selected by the decision evaluator.
+The first extraction prerequisite is landed: admitted filtered states retain
+their original boundary constraints instead of replacing them with `Nil()`.
+Their routine still carries the assertion-participation markers used by later
+conditions, while path constructors can now reconstruct the actual nested
+decision evidence from the preserved constraints. Atomic Boolean consumers
+already ignore this metadata, so the change does not re-evaluate an admitted
+constraint or alter commitment behavior.
 Depth exhaustion is no longer a refutation constructor. The proof-facing
 lookahead and lookbehind decisions carry distinct `ResourceExhausted`
 constructors, and neither positive nor negative assertion polarity treats
