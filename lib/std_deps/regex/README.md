@@ -157,9 +157,12 @@ filtered start list, so a valid path forces the actual evaluator result to be
 `Found` and a complete failure tree forces it to be `Rejected`.  The Phase 2
 admitted-shape manifest exhaustively checks 17 assertion interaction classes
 over the documented finite `abcA` subject model, in addition to the deeper
-`abc` oracle and randomized checks.  The remaining extraction/erasure/resource
-audit and final Phase 2 exit gate are still open.  This is why the
-implementation is useful today but must not yet be described as fully proved.
+`abc` oracle and randomized checks.  Resource exhaustion cannot masquerade as
+refutation, and emitted-runtime tests erase assertion paths and refutation
+trees.  The remaining Phase 2 obligation is a checked correspondence between
+the certified decision path and the full named-capture replay routine.  Until
+that and the phase gate are complete, the implementation must not be described
+as fully proved.
 
 ## Explicit current limits
 

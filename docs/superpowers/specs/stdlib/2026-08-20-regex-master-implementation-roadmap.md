@@ -147,9 +147,14 @@ the explicit result argument to the actual evaluator call. The admitted-shape
 audit also exposed and fixed a boundary-state conversion bug: child lookahead
 was passing “the cursor crosses a word boundary” where `InitialPosition`
 requires “the previous scalar is a word character.” All lookahead evaluators
-now use the single `lookahead_initial_position` conversion. The remaining Phase
-2 proof work is extraction, erasure, and resource obligations not already
-covered by the decision families.
+now use the single `lookahead_initial_position` conversion. Resource and
+erasure obligations now have executable gates: depth exhaustion is a third
+decision outcome that satisfies neither polarity, and emitted functions accept
+successful lookahead witnesses and complete refutation trees only through
+erased parameters. The remaining Phase 2 proof work is the full
+path-to-named-replay extraction correspondence. The `ExtendedInstruction`
+routine selected by named replay must be derived from, or proved identical to,
+the certified path selected by the decision evaluator.
 Depth exhaustion is no longer a refutation constructor. The proof-facing
 lookahead and lookbehind decisions carry distinct `ResourceExhausted`
 constructors, and neither positive nor negative assertion polarity treats
@@ -425,8 +430,10 @@ also discharged: the shared start-list identity is an explicit result
 parameter, and path/refutation theorems force the actual computed result into
 the corresponding constructor. The exhaustive admitted-interaction manifest
 now covers all 17 declared Phase 2 machine-shape classes against an independent
-finite oracle. The remaining extraction/erasure/resource audit remains open,
-so the phase exit gate is not yet discharged.
+finite oracle. Resource-exhaustion polarity and assertion-proof erasure are
+also covered by emitted-runtime regressions. The full path-to-named-replay
+extraction correspondence remains open, so the phase exit gate is not yet
+discharged.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in

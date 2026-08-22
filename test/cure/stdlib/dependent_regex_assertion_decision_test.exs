@@ -7,6 +7,49 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
       use Std.Regex.Core
       use Std.Regex.Runtime
 
+      fn assertion_accepts_a(char: Char) -> Bool = char == 'a'
+
+      fn assertion_machine() -> PatternMachine(1) =
+        predicate_pattern_machine(assertion_accepts_a)
+
+      fn erase_lookahead_witness(
+        @erased _witness: LookaheadWitness(1, assertion_machine())
+      ) -> Unit = ()
+
+      fn erase_lookahead_refutation(
+        @erased _refutation: LookaheadRefutation(1, assertion_machine())
+      ) -> Unit = ()
+
+      fn lookahead_witness_erased() -> Unit = match lookaround_prefix_search_decision(
+        2,
+        1,
+        assertion_machine(),
+        subject_initial_position(),
+        ['a'],
+        [],
+        [],
+        [],
+        AnyUnicodeNewline()
+      )
+        LookaheadSatisfied(witness) -> erase_lookahead_witness(witness)
+        LookaheadRefuted(_) -> ()
+        LookaheadResourceExhausted(_, _, _, _, _) -> ()
+
+      fn lookahead_refutation_erased() -> Unit = match lookaround_prefix_search_decision(
+        2,
+        1,
+        assertion_machine(),
+        subject_initial_position(),
+        ['b'],
+        [],
+        [],
+        [],
+        AnyUnicodeNewline()
+      )
+        LookaheadSatisfied(_) -> ()
+        LookaheadRefuted(refutation) -> erase_lookahead_refutation(refutation)
+        LookaheadResourceExhausted(_, _, _, _, _) -> ()
+
       fn positive_decision() -> Bool = match lookaround_search_decision(
         2,
         1,
@@ -92,6 +135,13 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert apply(module, :negative_certificate_context, [])
     assert apply(module, :nested_decision_evidence, [])
     assert apply(module, :depth_exhaustion_is_resource, [])
+  end
+
+  test "assertion paths and refutation trees erase before emitted runtime", %{
+    runtime_module: module
+  } do
+    assert apply(module, :lookahead_witness_erased, []) == :unit
+    assert apply(module, :lookahead_refutation_erased, []) == :unit
   end
 
   test "refutation branches retain a typed traversal-spine witness" do
