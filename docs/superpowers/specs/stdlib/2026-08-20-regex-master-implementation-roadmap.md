@@ -20,7 +20,8 @@ acceptance authority. The assertion-capture sidecar is now landed as well:
 positive lookaround branches carry their selected `ExtendedInstruction` routine
 into named replay, while negative-assertion frames are discarded. Formal
 refutation completeness proofs and several capture interactions remain open;
-exact path- and complete start-search refutation soundness are now discharged.
+exact and prefix path refutation soundness, plus their complete start-search
+lifts, are now discharged.
 The capture/backtracking slice now also threads selected assertion markers through
 later boundary constraints (including capture-participation conditionals),
 preserves the same context in named replay, and covers present/absent optional
@@ -51,8 +52,8 @@ to the exact machine transition that produced it. Empty-input exhaustion and
 one-step exhaustion use separate indexed constructors, avoiding an opaque
 recursive normalization shortcut; active and accepted destination rejection
 branches carry the same equation alongside their child and tail failures.
-These construction-site invariants are now consumed by the exact path and
-start-search refutation theorems. Completeness and the exhaustive
+These construction-site invariants are now consumed by both the exact and
+prefix path/start-search refutation theorems. Completeness and the exhaustive
 admitted-shape proof remain open.
 Accepting and prefix path witnesses now carry the candidate cursor explicitly,
 and every consuming path constructor carries an erased `MachineStateMembers`
@@ -122,8 +123,17 @@ Successful search paths retain their input equation, selected-start
 membership, child destination cursor, and child accepting path until
 `lookaround_search_failure_excludes_path` consumes them. `Here` invokes the
 exact path theorem and `There` invokes the indexed tail certificate. The
-remaining formal work is the converse/completeness direction and the
-admitted-shape audit.
+prefix/lookahead traversal now has its own smaller failure family: accepted
+threads succeed immediately, so exact-only `AcceptedWithInput` and
+accepted-destination rejection cases cannot be manufactured. Prefix paths are
+indexed by the capture context that computed their transitions; every active
+continuation retains its child-input equation, canonical child-destination
+equation, cursor suffix, and child path. Prefix search paths retain the selected
+start membership and canonical child cursor until
+`lookaround_prefix_search_failure_excludes_path` consumes them. Its `Here`
+branch invokes the prefix child theorem and its `There` branch invokes the
+indexed tail certificate. The remaining formal work is the
+converse/completeness direction and the admitted-shape audit.
 Depth exhaustion is no longer a refutation constructor. The proof-facing
 lookahead and lookbehind decisions carry distinct `ResourceExhausted`
 constructors, and neither positive nor negative assertion polarity treats
@@ -390,9 +400,13 @@ bounded-subject oracle covers the admitted nested lookaround decision slice;
 the exact-path refutation soundness theorem is now implemented, including
 capture-context identity and recursive child/tail exclusion. Complete
 start-list search soundness is also implemented with a whole/current suffix
-index and a constructive membership-spine proof. The completeness direction
-and exhaustive comparison of every admitted machine shape remain open, so the
-phase exit gate is not yet discharged.
+index and a constructive membership-spine proof. Prefix/lookahead rejection now
+has a separate active-only failure family and matching path/start-search
+soundness theorems; its witnesses retain capture-context, child-input,
+child-destination, cursor, and selected-start membership evidence until the
+proof consumes them. The completeness direction and exhaustive comparison of
+every admitted machine shape remain open, so the phase exit gate is not yet
+discharged.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in

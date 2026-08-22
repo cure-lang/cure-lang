@@ -116,10 +116,25 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
   test "accepted consuming paths are indexed by an active source thread" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
-    assert Regex.match?(~r/LookaroundAcceptedNextActive\s*:.*?\)\s*->\s*LookaroundAcceptingPath\([^\n]*ThreadActive\(source\)/s, source)
-    assert Regex.match?(~r/LookaroundAcceptedNextAccepted\s*:.*?\)\s*->\s*LookaroundAcceptingPath\([^\n]*ThreadActive\(source\)/s, source)
-    assert Regex.match?(~r/LookaroundPrefixNextActive\s*:.*?\)\s*->\s*LookaroundPrefixPath\([^\n]*ThreadActive\(source\)/s, source)
-    assert Regex.match?(~r/LookaroundPrefixNextAccepted\s*:.*?\)\s*->\s*LookaroundPrefixPath\([^\n]*ThreadActive\(source\)/s, source)
+    assert Regex.match?(
+             ~r/LookaroundAcceptedNextActive\s*:.*?\)\s*->\s*LookaroundAcceptingPath\([^\n]*ThreadActive\(source\)/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/LookaroundAcceptedNextAccepted\s*:.*?\)\s*->\s*LookaroundAcceptingPath\([^\n]*ThreadActive\(source\)/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/LookaroundPrefixNextActive\s*:.*?\)\s*->\s*LookaroundPrefixPath\([^\n]*ThreadActive\(source\)/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/LookaroundPrefixNextAccepted\s*:.*?\)\s*->\s*LookaroundPrefixPath\([^\n]*ThreadActive\(source\)/s,
+             source
+           )
   end
 
   test "empty search refutations exclude accepting paths" do
@@ -179,6 +194,43 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/LookbehindResourceExhausted\s*:/, source)
     assert Regex.match?(~r/lookahead_decision_holds\b.*?LookaheadResourceExhausted\([^\n]*-> false/s, source)
     assert Regex.match?(~r/lookbehind_decision_holds\b.*?LookbehindResourceExhausted\([^\n]*-> false/s, source)
+  end
+
+  test "prefix rejection has no exact-only accepted-with-input case" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert Regex.match?(~r/type LookaroundPrefixPathFailure\b/, source)
+    assert Regex.match?(~r/type LookaroundPrefixSearchFailure\b/, source)
+
+    prefix_failure =
+      source
+      |> String.split("type LookaroundPrefixPathFailure", parts: 2)
+      |> List.last()
+      |> String.split("type LookaroundExhaustion", parts: 2)
+      |> List.first()
+
+    refute prefix_failure =~ "AcceptedWithInput"
+    refute prefix_failure =~ "AcceptedRejected"
+
+    assert Regex.match?(
+             ~r/type LookaroundPrefixPath\([^\n]*capture_context: List\(EvidenceInstruction\)/,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/LookaroundPrefixNextActive\s*:.*?child_destinations_equivalent: Equivalent/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/fn lookaround_prefix_failure_excludes_suffix\b.*?LookaroundPrefixPathFailure.*?LookaroundPrefixPath.*?-> Empty/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/fn lookaround_prefix_search_failure_excludes_path\b.*?LookaroundPrefixSearchFailure.*?LookaroundPrefixSearchPath.*?-> Empty/s,
+             source
+           )
   end
 
   test "active paths cannot terminate without consuming a character" do
@@ -254,8 +306,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     for constructor <- [
           "LookaroundPrefixPathRejectedEmpty",
-          "LookaroundPrefixPathRejectedStep",
-          "LookaroundPrefixPathRejectedAcceptedStep"
+          "LookaroundPrefixPathRejectedStep"
         ] do
       assert Regex.match?(~r/#{constructor}\s*:.*?MachineStateCursor/s, source)
     end
@@ -266,7 +317,9 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     active = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    LookaroundAcceptedNextActive :"))
     accepted = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    LookaroundAcceptedNextAccepted :"))
     prefix = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    LookaroundPrefixNextActive :"))
-    prefix_accepted = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    LookaroundPrefixNextAccepted :"))
+
+    prefix_accepted =
+      Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    LookaroundPrefixNextAccepted :"))
 
     assert active =~ "members: MachineStateMembers"
     assert active =~ "candidate_equivalent: Equivalent(List(MachineState(n)), candidates, Cons(Active("
@@ -294,7 +347,10 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
   test "public path rejection is a complete destination traversal" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
-    accepting = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    LookaroundAcceptingPathRejectedStep :"))
+
+    accepting =
+      Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    LookaroundAcceptingPathRejectedStep :"))
+
     prefix = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    LookaroundPrefixPathRejectedStep :"))
 
     assert accepting =~ "MachineStateCursor(n, lookaround_machine_destinations"
@@ -310,8 +366,12 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
   test "destination failures retain complete child traversals" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
-    active = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    LookaroundPathDestinationActiveRejected :"))
-    accepted = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    LookaroundPathDestinationAcceptedRejected :"))
+
+    active =
+      Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    LookaroundPathDestinationActiveRejected :"))
+
+    accepted =
+      Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    LookaroundPathDestinationAcceptedRejected :"))
 
     assert length(Regex.scan(~r/lookaround_machine_destinations/, active)) >= 3
     assert length(Regex.scan(~r/empty_machine_states/, accepted)) >= 2
