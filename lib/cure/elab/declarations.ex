@@ -1844,8 +1844,31 @@ defmodule Cure.Elab.Declarations do
          working_env = Inductive.declare(env, Inductive.family(name, param_tele, index_tele, 0), []),
          {:ok, ctors} <- elaborate_gadt_ctors(ctor_sigs, name, param_tele, index_tele, working_env) do
       declare_indexed_at_min_level(env, name, param_tele, index_tele, ctors, 0)
+      |> attach_checked_constructor_context(ctor_sigs, name)
     end
   end
+
+  defp attach_checked_constructor_context(
+         {:error, {:constructor_check_failed, constructor, reason}},
+         ctor_sigs,
+         family
+       ) do
+    case Enum.find(ctor_sigs, fn
+           {:gadt_ctor, meta, _chain} ->
+             meta |> Keyword.fetch!(:name) |> String.to_atom() == constructor
+
+           _ ->
+             false
+         end) do
+      {:gadt_ctor, meta, _chain} ->
+        {:error, {:source_context, reason, gadt_constructor_context(meta, family)}}
+
+      nil ->
+        {:error, reason}
+    end
+  end
+
+  defp attach_checked_constructor_context(result, _ctor_sigs, _family), do: result
 
   # -- function elaboration ---------------------------------------------------
 
@@ -2607,11 +2630,52 @@ defmodule Cure.Elab.Declarations do
 
   defp elaborate_gadt_ctors(sigs, fam, param_tele, index_tele, env) do
     Enum.reduce_while(sigs, {:ok, []}, fn sig, {:ok, acc} ->
-      case elaborate_gadt_ctor(sig, fam, param_tele, index_tele, env) do
+      case elaborate_gadt_ctor(sig, fam, param_tele, index_tele, env)
+           |> attach_gadt_constructor_context(sig, fam) do
         {:ok, ctor} -> {:cont, {:ok, acc ++ [ctor]}}
         {:error, _} = err -> {:halt, err}
       end
     end)
+  end
+
+  # Constructor signatures are elaborated one at a time, but the old fold
+  # returned a raw conversion/type error and discarded which signature was
+  # active.  Canonical interface registration then had only the module name to
+  # report, producing source-less E093 messages for large indexed families.
+  # Attach the constructor at this single per-signature boundary.  Preserve any
+  # more precise inner context (for example a result-index expression span) and
+  # supply only the declaration-level fields it did not already record.
+  defp attach_gadt_constructor_context(result, _sig, _fam) when elem(result, 0) == :ok, do: result
+
+  defp attach_gadt_constructor_context(
+         {:error, {:source_context, reason, context}},
+         {:gadt_ctor, meta, _chain},
+         fam
+       )
+       when is_list(meta) and is_map(context) do
+    {:error, {:source_context, reason, Map.merge(gadt_constructor_context(meta, fam), context)}}
+  end
+
+  defp attach_gadt_constructor_context({:error, reason}, {:gadt_ctor, meta, _chain}, fam)
+       when is_list(meta) do
+    {:error, {:source_context, reason, gadt_constructor_context(meta, fam)}}
+  end
+
+  defp attach_gadt_constructor_context(result, _sig, _fam), do: result
+
+  defp gadt_constructor_context(meta, fam) do
+    info = Cure.MetaAST.Metadata.source_info(meta)
+
+    %{
+      span: info && info.whole,
+      declaration_span: info && info.whole,
+      constructor_span: info && info.whole,
+      constructor_name_span: info && info.name,
+      constructor: meta |> Keyword.fetch!(:name) |> String.to_atom(),
+      family: fam,
+      expectation_origin: :constructor_declaration,
+      expression_category: :constructor_signature
+    }
   end
 
   defp elaborate_gadt_ctor({:gadt_ctor, cmeta, [{:arrow_chain, _chain_meta, atoms}]}, fam, param_tele, index_tele, env) do
@@ -4668,7 +4732,7 @@ defmodule Cure.Elab.Declarations do
     family2 = Inductive.get_family(env2, name)
 
     with :ok <- Kernel.check_family(env2, family2),
-         :ok <- check_all_ctors(env2, family2, ctors),
+         :ok <- check_all_ctors(env2, family2, ctors, :tag_constructor),
          :ok <- Inductive.positive?(env2, family2) do
       {:ok, env2}
     else
@@ -4729,7 +4793,17 @@ defmodule Cure.Elab.Declarations do
     Enum.reduce_while(ctors, :ok, fn ctor, :ok ->
       case Kernel.check_ctor(env, family, ctor) do
         :ok -> {:cont, :ok}
-        err -> {:halt, err}
+        error -> {:halt, error}
+      end
+    end)
+  end
+
+  defp check_all_ctors(env, family, ctors, :tag_constructor) do
+    Enum.reduce_while(ctors, :ok, fn ctor, :ok ->
+      case Kernel.check_ctor(env, family, ctor) do
+        :ok -> {:cont, :ok}
+        {:error, :universe_level} = error -> {:halt, error}
+        {:error, reason} -> {:halt, {:error, {:constructor_check_failed, ctor.name, reason}}}
       end
     end)
   end

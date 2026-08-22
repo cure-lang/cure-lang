@@ -89,6 +89,31 @@ defmodule Cure.Compiler.CheckedConstructorResultDiagnosticTest do
     assert {:ok, _env} = Program.elaborate(repaired, file: "ctor_repair.cure")
   end
 
+  test "a constructor declaration type error retains the failing constructor site" do
+    source = """
+    mod ConstructorDeclarationMismatch
+      type Bound indices (n: Nat)
+        First : Bound(S(m))
+      type ThreadState indices (n: Nat)
+        Active : Bound(n) -> ThreadState(n)
+      type Equivalent(a: Type) indices (left: a, right: a)
+        reflexive : (value: a) -> Equivalent(a, value, value)
+      type Failure(n: Nat) indices (source: Bound(n))
+        Failed : (source: Bound(n)) -> Equivalent(ThreadState(n), Active(source), source) -> Failure(n, source)
+    end
+    """
+
+    assert {:error,
+            {:source_context, {:conversion_failure, _found, _expected},
+             %{
+               constructor: :Failed,
+               family: :Failure,
+               expression_category: :constructor_signature,
+               span: %Cure.Diagnostic.Span{start_line: 9},
+               constructor_name_span: %Cure.Diagnostic.Span{start_line: 9}
+             }}} = Program.elaborate(source, file: "constructor_declaration_mismatch.cure")
+  end
+
   defp diagnostic(source, file) do
     assert {:error, error} = Program.elaborate(source, file: file)
     {diagnostic, registry} = Errors.to_diagnostic(error, file, source)
