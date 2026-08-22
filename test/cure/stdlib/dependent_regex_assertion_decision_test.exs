@@ -146,7 +146,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     assert Regex.match?(
-             ~r/type LookaroundAcceptingPath\(depth: Nat, n: Nat, machine: PatternMachine\(n\), candidates: List\(MachineState\(n\)\)\)/,
+             ~r/type LookaroundAcceptingPath\(depth: Nat, n: Nat, machine: PatternMachine\(n\), capture_context: List\(EvidenceInstruction\), candidates: List\(MachineState\(n\)\)\)/,
              source
            )
 
@@ -166,6 +166,11 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     assert Regex.match?(
              ~r/fn lookaround_path_failure_excludes_accepting_path\b.*?LookaroundPathFailure.*?LookaroundAcceptingPath/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/fn lookaround_path_failure_excludes_accepting_suffix\b.*?LookaroundPathFailure.*?MachineStateCursorSuffix/s,
              source
            )
   end
@@ -251,8 +256,8 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     active = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    LookaroundPathDestinationActiveRejected :"))
     accepted = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    LookaroundPathDestinationAcceptedRejected :"))
 
-    assert active =~ "child_destinations, child_destinations"
-    assert accepted =~ "child_destinations, child_destinations"
+    assert length(Regex.scan(~r/lookaround_machine_destinations/, active)) >= 3
+    assert length(Regex.scan(~r/empty_machine_states/, accepted)) >= 2
   end
 
   test "accepting paths carry recursive suffix relations" do

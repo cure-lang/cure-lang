@@ -22,7 +22,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
         failure: LookaroundPathFailure(depth, n, machine, input, after_input, state, history, capture_context, policy, failure_destinations, failure_destinations),
         {@erased candidates: List(MachineState(n))},
         suffix: MachineStateCursorSuffix(n, failure_destinations, candidates),
-        path: LookaroundAcceptingPath(depth, n, machine, candidates, input, after_input, state, history, policy)
+        path: LookaroundAcceptingPath(depth, n, machine, capture_context, candidates, input, after_input, state, history, policy)
       ) -> Unit = ()
 
       fn probe(
@@ -38,14 +38,14 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
         destinations: List(MachineState(n)),
         failure: LookaroundPathFailure(depth, n, machine, input, after_input, state, history, capture_context, policy, destinations, destinations),
         candidates: List(MachineState(n)),
-        path: LookaroundAcceptingPath(depth, n, machine, candidates, input, after_input, state, history, policy)
+        path: LookaroundAcceptingPath(depth, n, machine, capture_context, candidates, input, after_input, state, history, policy)
       ) -> Unit = match failure
-        LookaroundPathDestinationActiveRejected(char, rest, destination, routine, constraints, _, _, _, _, child_failure, _, _) -> match path
-          LookaroundAcceptedNextActive(_, _, _, _, _, _, _, _, _, _, _, _, child_destinations, child_suffix, child_path) -> recurse(
+        LookaroundPathDestinationActiveRejected(_, char, child_char, child_rest, destination, routine, _, _, _, _, _, child_failure, _, _) -> match path
+          LookaroundAcceptedNextActive(_, _, _, _, _, _, _, _, _, _, _, _, _, _, child_destinations, _, child_suffix, child_path) -> recurse(
             depth,
             n,
             machine,
-            rest,
+            Cons(child_char, child_rest),
             after_input,
             ThreadActive(destination),
             history_push_bounded(history, char),
@@ -57,11 +57,12 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
             child_path
           )
           LookaroundAcceptedNow() -> ()
-          LookaroundAcceptedNextAccepted(_, _, _, _, _, _, _, _, _, _, _, _, _, _) -> ()
-        LookaroundPathExhausted(_, _, _, _) -> ()
-        LookaroundPathStepExhausted(_, _, _, _, _, _) -> ()
-        LookaroundPathAcceptedWithInput(_) -> ()
-        LookaroundPathDestinationAcceptedRejected(_, _, _, _, _, _, _, _, _, _, _) -> ()
+          LookaroundAcceptedNextAccepted(_, _, _, _, _, _, _, _, _, _, _, _) -> ()
+        LookaroundPathExhausted(_, _, _, _, _, _) -> ()
+        LookaroundPathStepExhausted(_, _, _, _, _, _, _, _) -> ()
+        LookaroundPathAcceptedWithInput(_, _, _) -> ()
+        LookaroundPathDestinationActiveRejectedEmpty(_, _, _, _, _, _, _, _, _, _, _, _) -> ()
+        LookaroundPathDestinationAcceptedRejected(_, _, _, _, _, _, _, _, _, _, _, _) -> ()
     end
     '''
 
@@ -70,6 +71,96 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
 
     assert context.checking == :probe
     assert context.expression_category == :pattern_match
+  end
+
+  test "destination rejection equations are indexed by the failure state" do
+    source = ~S'''
+    mod RegexPathFailureStateEquationRegression
+      use Std.Core
+      use Std.Regex.Core
+      use Std.Regex.Runtime
+
+      fn consume_equation(
+        depth: Nat,
+        n: Nat,
+        machine: PatternMachine(n),
+        char: Char,
+        rest: List(Char),
+        after_input: List(Char),
+        source: Bounded(n),
+        history: List(Char),
+        capture_context: List(EvidenceInstruction),
+        policy: NewlinePolicy,
+        destinations: List(MachineState(n)),
+        @erased equation: Equivalent(
+          List(MachineState(n)),
+          destinations,
+          lookaround_machine_destinations(
+            depth,
+            n,
+            machine,
+            ThreadActive(source),
+            char,
+            rest,
+            after_input,
+            history,
+            capture_context,
+            policy
+          )
+        )
+      ) -> Unit = ()
+
+      fn probe(
+        depth: Nat,
+        n: Nat,
+        machine: PatternMachine(n),
+        char: Char,
+        rest: List(Char),
+        after_input: List(Char),
+        source: Bounded(n),
+        history: List(Char),
+        capture_context: List(EvidenceInstruction),
+        policy: NewlinePolicy,
+        destinations: List(MachineState(n)),
+        remaining: List(MachineState(n)),
+        failure: LookaroundPathFailure(
+          depth,
+          n,
+          machine,
+          Cons(char, rest),
+          after_input,
+          ThreadActive(source),
+          history,
+          capture_context,
+          policy,
+          destinations,
+          remaining
+        )
+      ) -> Unit = match failure
+        LookaroundPathExhausted(_, _, _, _, _, _) -> ()
+        LookaroundPathStepExhausted(_, _, _, _, _, _, _, _) -> ()
+        LookaroundPathAcceptedWithInput(_, _, _) -> ()
+        LookaroundPathDestinationActiveRejectedEmpty(_, _, _, _, _, _, _, _, _, _, _, _) -> ()
+        LookaroundPathDestinationActiveRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _) -> ()
+        LookaroundPathDestinationAcceptedRejected(_, branch_char, branch_rest, _, _, _, _, _, _, _, _, equation) ->
+          consume_equation(
+            depth,
+            n,
+            machine,
+            branch_char,
+            branch_rest,
+            after_input,
+            source,
+            history,
+            capture_context,
+            policy,
+            destinations,
+            equation
+          )
+    end
+    '''
+
+    assert {:ok, _module} = Cure.Compiler.compile_and_load(source, emit_events: false)
   end
 
   test "accepting-path rejection exposes its canonical transition destination" do
@@ -162,7 +253,8 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
           policy,
           failure
         )
-        LookaroundAcceptingPathFound(_, _, _) -> ()
+        LookaroundAcceptingPathFoundActive(_, _, _, _, _, _, _) -> ()
+        LookaroundAcceptingPathFoundAccepted(_, _) -> ()
     end
     '''
 

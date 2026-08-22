@@ -102,8 +102,19 @@ arbitrary child suffix. `MachineStateCursorSuffix` and its projection from a
 member traversal record the remaining structural relation between a parent
 failure cursor and an accepting-path cursor; it only admits equality or
 dropping a parent head, so a path prefix cannot be smuggled into the theorem.
-This is the induction relation for the next theorem slice, not yet the theorem
-itself.
+This is the induction relation consumed by the path-level theorem below.
+The generic exact-acceptance path theorem is now discharged. Accepting paths
+are indexed by the capture context that computed their transitions, active
+continuations carry an erased equation tying the child input to the parent's
+remaining input, and destination-rejection equations are indexed by the
+failure state's actual thread identity. The proof performs induction on the
+input spine before eliminating the failure tree, then consumes the cursor
+suffix relation to recurse into either the rejected child or the rejected
+tail. Both active-destination forms and accepted destinations are covered, and
+the focused regression suite checks that unrelated child destinations remain
+uninhabitable. The remaining formal work is to lift this path theorem through
+the complete start-list search tree, prove the converse/completeness direction,
+and finish the admitted-shape audit.
 The Phase 2 exit gate is therefore still not discharged.
 
 **Applies to:** the Cure-native typed regex engine, its erased portable runtime,
@@ -360,7 +371,9 @@ and lazy repetition. Refutation values now retain dependent child and sibling
 failure trees through both exact and prefix path folds, while depth/history
 guard failures remain explicit resource certificates. An exhaustive
 bounded-subject oracle covers the admitted nested lookaround decision slice;
-the formal soundness/completeness audit and exhaustive comparison of every
+the exact-path refutation soundness theorem is now implemented, including
+capture-context identity and recursive child/tail exclusion. Search-tree
+soundness, the completeness direction, and exhaustive comparison of every
 admitted machine shape remain open, so the phase exit gate is not yet
 discharged.
 
