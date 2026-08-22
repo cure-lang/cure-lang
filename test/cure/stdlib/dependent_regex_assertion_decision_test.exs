@@ -202,11 +202,11 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     assert active =~ "members: MachineStateMembers"
     assert active =~ "candidate_equivalent: Equivalent(List(MachineState(n)), candidates, Cons(Active("
-    assert active =~ "edge: ListMember(MachineState(n), Active("
+    assert active =~ ~r/edge: ListMember\(MachineState\(n\), Active\(.*?\), Cons\(Active\(/
     assert accepted =~ "candidate_equivalent: Equivalent(List(MachineState(n)), candidates, Cons(Accepted("
     assert prefix =~ "members: MachineStateMembers"
     assert prefix =~ "candidate_equivalent: Equivalent(List(MachineState(n)), candidates, Cons(Active("
-    assert prefix =~ "edge: ListMember(MachineState(n), Active("
+    assert prefix =~ ~r/edge: ListMember\(MachineState\(n\), Active\(.*?\), Cons\(Active\(/
     assert prefix_accepted =~ "candidate_equivalent: Equivalent(List(MachineState(n)), candidates, Cons(Accepted("
   end
 
