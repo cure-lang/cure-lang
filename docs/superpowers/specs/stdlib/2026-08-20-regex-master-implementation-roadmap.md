@@ -552,7 +552,8 @@ for casing, alphabetic, whitespace, hexadecimal, math, currency, generic
 boolean properties, script membership, and `Bidi_Class`/`bc` short and long
 values. General-category names (including `General_Category=...`/`gc=...` and
 derived names such as `Assigned`), Script (including `Script=...`/`sc=...`),
-Bidi (`Bidi_Class`/`bc`, `Bidi_Mirrored`, and `Bidi_Paired_Bracket_Type`/`bpt`), and generic property names are
+Bidi (`Bidi_Class`/`bc`, `Bidi_Control`, `Bidi_Mirrored`, Boolean
+`Bidi_Paired_Bracket`, and `Bidi_Paired_Bracket_Type`/`bpt`), and generic property names are
 validated at macro time and emitted as atoms. Script_Extensions uses the
 vendored Unicode 17.0.0 UCD file and defaults to the primary Script value for
 code points omitted by that file. Bare `\\N` (including inside a class) now
@@ -562,8 +563,8 @@ validator. The
 paired-bracket type table is pinned to Unicode 17.0.0 `BidiBrackets.txt`.
 The parser now rejects `\\X` with the stable structured diagnostic
 `:UnsupportedRegexGrapheme`; it must not silently reinterpret the escape as a
-literal `X`. Remaining Phase 3 work is Bidi mapping properties beyond these
-implemented fields (including the generic `Bidi_Control` binary property), grapheme clusters,
+literal `X`. Remaining Phase 3 work is the non-Boolean Bidi paired-bracket
+mapping value, grapheme clusters,
 duplicate-name and capture-layout policy, other finite control normalizations,
 and the remaining control families below. `(*FAIL)` and terminal `(*ACCEPT)`
 are already implemented as finite normalizations.

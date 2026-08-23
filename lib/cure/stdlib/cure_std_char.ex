@@ -177,6 +177,14 @@ defmodule :cure_std_char do
                                                end
                                              end)
 
+  # `Bidi_Paired_Bracket` is the Boolean membership projection of the
+  # paired-bracket mapping.  Keep the mapping value (`open`/`close`) separate:
+  # the regex property asks whether a code point participates in a pair, while
+  # `unicode_bidi_paired_bracket_type?/2` answers which side of that pair it is.
+  @bidi_paired_bracket_values @bidi_paired_bracket_type_values
+                              |> Map.keys()
+                              |> Map.new(&{&1, true})
+
   @bidi_paired_bracket_type_name_values %{
     "o" => :open,
     "open" => :open,
@@ -354,6 +362,9 @@ defmodule :cure_std_char do
     case property do
       :bidi_mirrored ->
         Map.has_key?(@bidi_mirrored_values, cp)
+
+      :bidi_paired_bracket ->
+        Map.has_key?(@bidi_paired_bracket_values, cp)
 
       _ ->
         case Unicode.Property.get(property) do
@@ -535,7 +546,12 @@ defmodule :cure_std_char do
       end)
       |> Map.new()
 
-    special = %{"bidimirrored" => :bidi_mirrored, "bidim" => :bidi_mirrored}
+    special = %{
+      "bidimirrored" => :bidi_mirrored,
+      "bidim" => :bidi_mirrored,
+      "bidipairedbracket" => :bidi_paired_bracket,
+      "bpb" => :bidi_paired_bracket
+    }
 
     case Map.fetch(Map.merge(Map.merge(known, aliases), special), normalized) do
       {:ok, property} -> {:some, property}

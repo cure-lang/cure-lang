@@ -40,6 +40,8 @@ defmodule Cure.Stdlib.DependentRegexUnicodePropertyTest do
       fn hebrew_bidi_long(input: String) -> Option(Char) = parse_full(/\p{bc=Right_To_Left}/u, input)
       fn bidi_mirrored(input: String) -> Option(Char) = parse_full(/\p{Bidi_Mirrored}/u, input)
       fn bidi_control(input: String) -> Option(Char) = parse_full(/\p{Bidi_Control}/u, input)
+      fn bidi_paired_bracket(input: String) -> Option(Char) = parse_full(/\p{Bidi_Paired_Bracket}/u, input)
+      fn bidi_paired_bracket_alias(input: String) -> Option(Char) = parse_full(/\p{bpb}/u, input)
       fn bidi_pair_open(input: String) -> Option(Char) = parse_full(/\p{Bidi_Paired_Bracket_Type=Open}/u, input)
       fn bidi_pair_close(input: String) -> Option(Char) = parse_full(/\p{bpt=c}/u, input)
       fn non_newline(input: String) -> Option(Char) = parse_full(/\N/u, input)
@@ -121,6 +123,10 @@ defmodule Cure.Stdlib.DependentRegexUnicodePropertyTest do
     assert apply(module, :bidi_mirrored, [{:String, ~c"A"}]) == :none
     assert apply(module, :bidi_control, [{:String, [0x61C]}]) == {:some, 0x61C}
     assert apply(module, :bidi_control, [{:String, ~c"A"}]) == :none
+    assert apply(module, :bidi_paired_bracket, [{:String, ~c"("}]) == {:some, ?(}
+    assert apply(module, :bidi_paired_bracket, [{:String, ~c"A"}]) == :none
+    assert apply(module, :bidi_paired_bracket_alias, [{:String, ~c")"}]) == {:some, ?)}
+    assert apply(module, :bidi_paired_bracket_alias, [{:String, ~c"A"}]) == :none
     assert apply(module, :bidi_pair_open, [{:String, ~c"("}]) == {:some, ?(}
     assert apply(module, :bidi_pair_open, [{:String, ~c")"}]) == :none
     assert apply(module, :bidi_pair_close, [{:String, ~c")"}]) == {:some, ?)}
