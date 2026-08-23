@@ -234,6 +234,15 @@ candidate rejected at the first character against the impossible exhausted
 active child trace. The general child/tail induction still needs an explicit
 alignment between each refutation cursor and the selected child suffix; this
 base lemma must not be mistaken for the Phase 2 exit theorem.
+`AtomicPathRefutation` now retains both the canonical admitted-state spine and
+the refutation's current suffix, including the child and tail spines in every
+destination-rejection node. `AtomicPathSearchNo` transports that whole/current
+pair without exposing it at runtime. The ordered suffix relation now has an
+explicit composition law, so a future child theorem can combine a refutation
+cursor with a selected-trace suffix rather than treating them as interchangeable.
+This is construction-site strengthening only: partial cursor failures are still
+not interchangeable with root failures, and the complete child/tail alignment
+relation remains open.
 The first extraction prerequisite is landed: admitted filtered states retain
 their original boundary constraints instead of replacing them with `Nil()`.
 Their routine still carries the assertion-participation markers used by later

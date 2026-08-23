@@ -1741,6 +1741,22 @@ mod Std.Regex.Runtime
     LookaroundAdmittedStateCursorSuffixHere : (@erased equality: Equivalent(List(LookaroundAdmittedState(n)), outer, inner)) -> LookaroundAdmittedStateCursorSuffix(n, outer, inner)
     LookaroundAdmittedStateCursorSuffixDrop : (@erased head: LookaroundAdmittedState(n)) -> (suffix: LookaroundAdmittedStateCursorSuffix(n, outer, inner)) -> LookaroundAdmittedStateCursorSuffix(n, Cons(head, outer), inner)
 
+  ## Ordered candidate suffixes compose when a refutation has already skipped
+  ## one prefix and the selected trace skips another.  Keeping this operation
+  ## explicit prevents the atomic child theorem from treating two unrelated
+  ## suffix proofs as if they shared a spine.
+  fn lookaround_admitted_cursor_suffix_compose(
+    {n: Nat},
+    {outer: List(LookaroundAdmittedState(n))},
+    {middle: List(LookaroundAdmittedState(n))},
+    {inner: List(LookaroundAdmittedState(n))},
+    prefix: LookaroundAdmittedStateCursorSuffix(n, outer, middle),
+    suffix: LookaroundAdmittedStateCursorSuffix(n, middle, inner)
+  ) -> LookaroundAdmittedStateCursorSuffix(n, outer, inner) = match prefix
+    LookaroundAdmittedStateCursorSuffixHere(equality) -> match equality
+      reflexive() -> suffix
+    LookaroundAdmittedStateCursorSuffixDrop(head, prior) -> LookaroundAdmittedStateCursorSuffixDrop(head, lookaround_admitted_cursor_suffix_compose(prior, suffix))
+
   ## This witness mirrors the cursor's own arbitrary-whole traversal.  It is
   ## distinct from `LookaroundAdmittedStateCursorSuffix`: the latter relates
   ## two list spines whose outer list starts at the dropped head, while this
