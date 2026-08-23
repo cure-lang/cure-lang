@@ -150,6 +150,7 @@ mod Std.Regex.Syntax.Parser
       ['.' | rest] -> LiteralParsed(LiteralAny, rest)
       ['^' | rest] -> LiteralParsed(LiteralStart, rest)
       ['$' | rest] -> LiteralParsed(LiteralEnd, rest)
+      ['(', '*', 'F', 'A', 'I', 'L', ')' | rest] -> LiteralParsed(LiteralLookahead(LiteralAssertionNegative, LiteralEmpty), rest)
       ['(' | rest] -> parse_literal_group_fuel(rest, next_fuel, ['(' | rest])
       ['[' | rest] -> parse_literal_class(rest, ['[' | rest])
       ['\\' | rest] -> parse_literal_escape(rest, ['\\' | rest])

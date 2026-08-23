@@ -551,8 +551,8 @@ alphabetic, whitespace, hexadecimal, math, currency, and script membership.
 Remaining Phase 3 work is the generated full binary/script/script-extension/
 Bidi property surface,
 grapheme clusters,
-duplicate-name and capture-layout policy, and the finite control families
-below.
+duplicate-name and capture-layout policy, the finite `(*FAIL)` control
+normalization, and the remaining control families below.
 
 **Read:**
 

@@ -34,4 +34,20 @@ defmodule Cure.Stdlib.DependentRegexUnsupportedConstructTest do
       refute Cure.Diagnostic.message(diagnostic) =~ "`#{expected}`"
     end)
   end
+
+  test "FAIL is a finite refutation control rather than a host-engine escape" do
+    source = ~S'''
+    mod RegexFailControl
+      use Std.Regex
+
+      fn failed(input: String) -> Bool = matches(/a(*FAIL)/, input)
+      fn alternated(input: String) -> Bool = matches(/a(*FAIL)|b/, input)
+    end
+    '''
+
+    assert {:ok, runtime_module} = Cure.Compiler.compile_and_load(source, emit_events: false)
+    assert apply(runtime_module, :failed, [{:String, ~c"a"}]) == false
+    assert apply(runtime_module, :alternated, [{:String, ~c"a"}]) == false
+    assert apply(runtime_module, :alternated, [{:String, ~c"b"}]) == true
+  end
 end
