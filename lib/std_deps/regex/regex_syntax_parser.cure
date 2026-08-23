@@ -448,6 +448,7 @@ mod Std.Regex.Syntax.Parser
     ['P' | rest] -> match parse_literal_unicode_property(rest)
       LiteralPropertyParsed(property, tail) -> LiteralParsed(LiteralProperty(property, true), tail)
       LiteralPropertyInvalid(reason) -> LiteralAtInvalid(reason, origin, literal_property_escape_width(origin))
+    ['X' | _] -> LiteralAtInvalid(:UnsupportedRegexGrapheme, origin, 2)
     ['g' | _] -> LiteralAtInvalid(:UnsupportedRegexBackreference, origin, 2)
     ['k' | _] -> LiteralAtInvalid(:UnsupportedRegexBackreference, origin, 2)
     [char | rest] -> match literal_decimal_digit(char)
