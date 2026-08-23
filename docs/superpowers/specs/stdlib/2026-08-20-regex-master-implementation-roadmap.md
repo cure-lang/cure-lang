@@ -41,7 +41,11 @@ head membership, an erased suffix cursor through the machine's exact raw start
 list, and an equality tying that whole list to `pattern_machine_starts(machine)`.
 The next slice must add input/rest, history, capture-context, policy,
 scope-depth, and routine indices before this trace can replace the legacy
-dependent path. Constraint evaluation now has one construction authority:
+dependent path. The trace is now additionally indexed by its runtime matched
+prefix, remaining input, and selected extended routine; the
+`LookaroundRoutineSearchYes` payload and both witness packages must carry that
+exact indexed trace rather than arbitrary erased evidence. Constraint
+evaluation now has one construction authority:
 `LookaroundConstraintAdmission` produces the selected extended routine,
 published capture-slot markers, and nested decision evidence from the same
 child decision. Boundary filtering, replay, path evidence, and atomic traversal
@@ -484,10 +488,11 @@ assertion-decision, exhaustive-model, and named-capture gate passes 50 tests.
 The canonical constraint-admission fold now supplies the selected routine,
 capture markers, and nested decision evidence needed by the indexed trace from
 one child evaluation.
-The remaining obligation is to add the input/rest, history, capture-context,
-policy, scope-depth, and routine indices consumed by the existing path theorems,
-then remove the successful decision's legacy second traversal; the phase exit
-gate is not yet discharged.
+The selected routine and result split are now trace indices. The remaining
+obligation is to add the originating input/rest, history, capture-context,
+policy, and scope-depth indices consumed by the existing path theorems, then
+remove the successful decision's legacy second traversal; the phase exit gate
+is not yet discharged.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in

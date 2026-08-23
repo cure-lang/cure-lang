@@ -442,21 +442,23 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
   test "atomic success constructs and retains the selected machine trace" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
-    assert source =~ "type AtomicSelectedTrace(n: Nat, machine: PatternMachine(n))"
+    assert source =~
+             "type AtomicSelectedTrace(n: Nat, machine: PatternMachine(n)) indices (matched: List(Char), remaining_input: List(Char), selected_routine: List(ExtendedInstruction))"
+
     assert source =~ "type LookaroundRoutineSearchResult(n: Nat, machine: PatternMachine(n))"
 
     assert Regex.match?(
-             ~r/LookaroundRoutineSearchYes\s*\(.*@erased trace: AtomicSelectedTrace\(n, machine\)/s,
+             ~r/LookaroundRoutineSearchYes\s*:\s*\(matched: List\(Char\)\).*remaining: List\(Char\).*routine: List\(ExtendedInstruction\).*@erased trace: AtomicSelectedTrace\(n, machine, matched, remaining, routine\)/s,
              source
            )
 
     assert Regex.match?(
-             ~r/LookaheadWitnessPacked\s*:.*@erased selected_trace: AtomicSelectedTrace\(n, machine\)/s,
+             ~r/LookaheadWitnessPacked\s*:.*matched: List\(Char\).*remaining: List\(Char\).*routine: List\(ExtendedInstruction\).*@erased selected_trace: AtomicSelectedTrace\(n, machine, matched, remaining, routine\)/s,
              source
            )
 
     assert Regex.match?(
-             ~r/LookbehindWitnessPacked\s*:.*@erased selected_trace: AtomicSelectedTrace\(n, machine\)/s,
+             ~r/LookbehindWitnessPacked\s*:.*routine: List\(ExtendedInstruction\).*@erased selected_trace: AtomicSelectedTrace\(n, machine, matched, remaining_input, routine\)/s,
              source
            )
 
