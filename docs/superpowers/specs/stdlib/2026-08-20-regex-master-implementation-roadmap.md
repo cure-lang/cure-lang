@@ -226,6 +226,14 @@ success retains every skipped candidate in the original ordered destination
 spine. This is construction-site transport only; the recursive theorem that
 consumes the selected suffix and proves complete atomic trace/refutation
 correspondence remains open.
+`AtomicSelectedPathTrace` now indexes its current admitted-candidate suffix, and
+active/accepted transition nodes retain the child search's selected
+whole/current pair and `LookaroundAdmittedStateCursorSuffix`. The concrete base
+slice `atomic_path_destination_rejection_excludes_trace` discharges an active
+candidate rejected at the first character against the impossible exhausted
+active child trace. The general child/tail induction still needs an explicit
+alignment between each refutation cursor and the selected child suffix; this
+base lemma must not be mistaken for the Phase 2 exit theorem.
 The first extraction prerequisite is landed: admitted filtered states retain
 their original boundary constraints instead of replacing them with `Nil()`.
 Their routine still carries the assertion-participation markers used by later
