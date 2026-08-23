@@ -204,7 +204,10 @@ The first indexed contradiction lemma,
 empty-input base case; destination and start-list induction remain.
 The admitted-state `LookaroundAdmittedStateCursorSuffix` relation is explicit,
 permitting that induction to drop only ordered heads rather than inventing a
-candidate prefix.
+candidate prefix. The exact-accepted-with-input refutation is indexed by an
+explicit non-empty input spine, and `atomic_path_failure_excludes_trace`
+discharges the exhaustion-indexed wrapper without relaxing the selected-trace
+indices.
 The first extraction prerequisite is landed: admitted filtered states retain
 their original boundary constraints instead of replacing them with `Nil()`.
 Their routine still carries the assertion-participation markers used by later

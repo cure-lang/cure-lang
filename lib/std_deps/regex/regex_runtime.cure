@@ -2770,7 +2770,7 @@ mod Std.Regex.Runtime
   ## failure, so the start-list wrapper can carry one complete root tree.
   type AtomicPathRefutation(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char))
     AtomicPathInputExhausted : AtomicPathRefutation(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix)
-    AtomicPathExactAcceptedWithInput : AtomicPathRefutation(depth, n, machine, input, after_input, ThreadAccepted(), history, capture_context, policy, scope_depth, False(), reversed_prefix)
+    AtomicPathExactAcceptedWithInput : (@erased char: Char) -> (@erased rest: List(Char)) -> AtomicPathRefutation(depth, n, machine, Cons(char, rest), after_input, ThreadAccepted(), history, capture_context, policy, scope_depth, False(), reversed_prefix)
     AtomicPathDestinationsExhausted : (@erased char: Char) -> (@erased rest: List(Char)) -> {@erased whole: List(LookaroundAdmittedState(n))} -> (@erased cursor: LookaroundAdmittedStateCursor(n, whole, Nil())) -> (@erased canonical: Equivalent(List(LookaroundAdmittedState(n)), whole, lookaround_machine_admitted_destinations(depth, n, machine, state, char, rest, after_input, history, capture_context, policy))) -> AtomicPathRefutation(depth, n, machine, Cons(char, rest), after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix)
     AtomicPathDestinationRejected : (@erased char: Char) -> (@erased rest: List(Char)) -> (@erased candidate: LookaroundAdmittedState(n)) -> (@erased candidate_state: ThreadState(n)) -> (@erased child_capture_context: List(EvidenceInstruction)) -> (@erased child_scope_depth: Nat) -> {@erased whole: List(LookaroundAdmittedState(n))} -> {@erased remaining: List(LookaroundAdmittedState(n))} -> (@erased cursor: LookaroundAdmittedStateCursor(n, whole, Cons(candidate, remaining))) -> (@erased edge: ListMember(LookaroundAdmittedState(n), candidate, Cons(candidate, remaining))) -> (@erased canonical: Equivalent(List(LookaroundAdmittedState(n)), whole, lookaround_machine_admitted_destinations(depth, n, machine, state, char, rest, after_input, history, capture_context, policy))) -> (@erased child_failure: AtomicPathRefutation(depth, n, machine, rest, after_input, candidate_state, history_push_bounded(history, char), child_capture_context, policy, child_scope_depth, prefix_mode, Cons(char, reversed_prefix))) -> (@erased tail_failure: AtomicPathRefutation(depth, n, machine, Cons(char, rest), after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix)) -> AtomicPathRefutation(depth, n, machine, Cons(char, rest), after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix)
 
@@ -3305,7 +3305,7 @@ mod Std.Regex.Runtime
       True() -> AtomicPathSearchYes(evidence_reverse_chars(reversed_prefix), input, [], AtomicSelectedPrefixDone())
       False() -> match input
         [] -> AtomicPathSearchYes(evidence_reverse_chars(reversed_prefix), [], [], AtomicSelectedExactDone())
-        _ -> AtomicPathSearchNo(AtomicPathExactAcceptedWithInput())
+        [char | rest] -> AtomicPathSearchNo(AtomicPathExactAcceptedWithInput(char, rest))
     ThreadActive(_) -> match input
       [] -> AtomicPathSearchNo(AtomicPathInputExhausted())
       [char | rest] -> atomic_lookaround_routine_members(depth, n, machine, char, rest, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix)
@@ -3392,6 +3392,13 @@ mod Std.Regex.Runtime
     AtomicSelectedExactDone() -> impossible
     AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _) -> impossible
     AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _) -> impossible
+
+  ## The first refutation-tree eliminator is indexed at the same exhausted
+  ## input as the selected trace.  The other failure constructors all carry a
+  ## non-empty input or an accepted thread, so dependent matching reduces this
+  ## wrapper to the empty-input lemma above without a runtime case split.
+  fn atomic_path_failure_excludes_trace({result: Type}, {depth: Nat}, {n: Nat}, machine: PatternMachine(n), after_input: List(Char), state: Bounded(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), {matched: List(Char)}, {remaining_input: List(Char)}, {routine: List(ExtendedInstruction)}, @erased failure: AtomicPathRefutation(depth, n, machine, Nil(), after_input, ThreadActive(state), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix), @erased path: AtomicSelectedPathTrace(depth, n, machine, Nil(), after_input, ThreadActive(state), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, matched, remaining_input, routine)) -> result = match failure
+    AtomicPathInputExhausted() -> atomic_path_input_exhaustion_excludes_trace(machine, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, path)
 
   fn atomic_lookaround_routine_accepts(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Option(List(ExtendedInstruction)) = match machine
     MkPatternMachine(_, _) -> match atomic_lookaround_routine_initial(depth, n, machine, input, after_input, position, history, capture_context, policy, false, [])

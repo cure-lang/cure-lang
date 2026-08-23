@@ -181,7 +181,9 @@ still open.  The first indexed contradiction lemma,
 trace at an exhausted input; destination and start-list induction remain.  The
 admitted-state `LookaroundAdmittedStateCursorSuffix` relation is now explicit,
 so that induction can only drop ordered heads and cannot fabricate a candidate
-prefix.
+prefix.  The exact-accepted-with-input refutation is also indexed by an
+explicit non-empty input spine, and `atomic_path_failure_excludes_trace`
+discharges the exhausted-input wrapper without weakening that index.
 
 The executable behavior, exact/prefix refutation soundness, and constructive
 search-result completeness are present.  Search results retain their canonical
