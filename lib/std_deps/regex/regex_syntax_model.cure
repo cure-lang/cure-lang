@@ -110,6 +110,7 @@ mod Std.Regex.Syntax.Model
 
   type LiteralUnicodeProperty =
     | PropertyAny
+    | PropertyAscii
     | PropertyLetter | PropertyLowercaseLetter | PropertyUppercaseLetter | PropertyTitlecaseLetter | PropertyModifierLetter | PropertyOtherLetter
     | PropertyMark | PropertySpacingMark | PropertyEnclosingMark | PropertyNonspacingMark
     | PropertyNumber | PropertyDecimalNumber | PropertyLetterNumber | PropertyOtherNumber
@@ -958,6 +959,7 @@ mod Std.Regex.Syntax.Model
 
   fn literal_unicode_property_named(name: List(Char)) -> Option(LiteralUnicodeProperty) = match name
     ['A','n','y'] -> Some(PropertyAny)
+    ['A','S','C','I','I'] -> Some(PropertyAscii)
     ['L'] -> Some(PropertyLetter)
     ['L','e','t','t','e','r'] -> Some(PropertyLetter)
     ['L','l'] -> Some(PropertyLowercaseLetter)

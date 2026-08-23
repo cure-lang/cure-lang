@@ -741,6 +741,7 @@ mod Std.Regex.Syntax.Emitter
 
   fn emit_unicode_property(property: LiteralUnicodeProperty) -> Syntax = match property
     PropertyAny -> runtime_call("PropertyAny", [])
+    PropertyAscii -> runtime_call("PropertyAscii", [])
     PropertyLetter -> runtime_call("PropertyLetter", [])
     PropertyLowercaseLetter -> runtime_call("PropertyLowercaseLetter", [])
     PropertyUppercaseLetter -> runtime_call("PropertyUppercaseLetter", [])

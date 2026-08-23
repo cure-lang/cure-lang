@@ -13,6 +13,8 @@ defmodule Cure.Stdlib.DependentRegexUnicodePropertyTest do
       fn long_letter(input: String) -> Option(Char) = parse_full(/\p{Letter}/u, input)
       fn uppercase(input: String) -> Option(Char) = parse_full(/\p{Lu}/u, input)
       fn decimal(input: String) -> Option(Char) = parse_full(/\p{Decimal_Number}/u, input)
+      fn ascii(input: String) -> Option(Char) = parse_full(/\p{ASCII}/u, input)
+      fn not_ascii(input: String) -> Option(Char) = parse_full(/\P{ASCII}/u, input)
       fn not_number(input: String) -> Option(Char) = parse_full(/\P{N}/u, input)
       fn class_union(input: String) -> Option(Char) = parse_full(/[\p{L}\p{N}_]/u, input)
       fn class_negated_property(input: String) -> Option(Char) = parse_full(/[\P{L}]/u, input)
@@ -29,6 +31,10 @@ defmodule Cure.Stdlib.DependentRegexUnicodePropertyTest do
     assert apply(module, :uppercase, [{:String, ~c"É"}]) == {:some, ?É}
     assert apply(module, :uppercase, [{:String, ~c"é"}]) == :none
     assert apply(module, :decimal, [{:String, ~c"١"}]) == {:some, ?١}
+    assert apply(module, :ascii, [{:String, ~c"A"}]) == {:some, ?A}
+    assert apply(module, :ascii, [{:String, [0x80]}]) == :none
+    assert apply(module, :not_ascii, [{:String, [0x80]}]) == {:some, 0x80}
+    assert apply(module, :not_ascii, [{:String, ~c"A"}]) == :none
     assert apply(module, :not_number, [{:String, ~c"λ"}]) == {:some, ?λ}
     assert apply(module, :not_number, [{:String, ~c"١"}]) == :none
   end

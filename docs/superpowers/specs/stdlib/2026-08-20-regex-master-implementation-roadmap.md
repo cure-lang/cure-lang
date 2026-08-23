@@ -535,13 +535,16 @@ diagnostics rather than partial execution.
 
 ### Phase 3 — Complete finite PCRE-family syntax and controls
 
-**Current checkpoint:** `\\Q...\\E` quoted literals are implemented as a
-compile-time normalization to the existing exact-character sequence tree. The
+**Current checkpoint:** `\\Q...\\E` quoted literals and the first Unicode
+binary property (`\\p{ASCII}`/`\\P{ASCII}`) are implemented. Quoted literals
+normalize at compile time to the existing exact-character sequence tree: the
 first terminator closes the quote; an absent terminator quotes to the end, and
 `\\\\E` after a closed region remains the ordinary literal backslash-E form.
-The focused quoted-literal regression passes 3 tests. Remaining Phase 3 work
-is the broader Unicode property surface, grapheme clusters, duplicate-name and
-capture-layout policy, and the finite control families below.
+The focused quoted-literal regression passes 3 tests, and the Unicode-property
+regression covers positive and negated ASCII matching. Remaining Phase 3 work
+is the broader binary/script/Bidi property surface, grapheme clusters,
+duplicate-name and capture-layout policy, and the finite control families
+below.
 
 **Read:**
 
