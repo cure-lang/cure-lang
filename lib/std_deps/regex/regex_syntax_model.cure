@@ -962,12 +962,15 @@ mod Std.Regex.Syntax.Model
     [char | rest] -> parse_literal_unicode_name_body(rest, origin, [char | reversed])
 
   fn literal_fixed_hex_escape(input: List(Char)) -> LiteralScalarParse = match input
-    [first, second | rest] -> match Std.Char.hex_digit_value(first)
-      None() -> LiteralScalarInvalid(:InvalidRegexHexEscape)
-      Some(first_value) -> match Std.Char.hex_digit_value(second)
+    _ -> literal_fixed_hex_escape_width(input, 2, 0)
+
+  fn literal_fixed_hex_escape_width(input: List(Char), remaining: Nat, value: Int) -> LiteralScalarParse = match remaining
+    Z() -> literal_unicode_scalar(value, input)
+    S(next_remaining) -> match input
+      [] -> LiteralScalarInvalid(:IncompleteRegexHexEscape)
+      [char | rest] -> match Std.Char.hex_digit_value(char)
         None() -> LiteralScalarInvalid(:InvalidRegexHexEscape)
-        Some(second_value) -> literal_unicode_scalar(first_value * 16 + second_value, rest)
-    _ -> LiteralScalarInvalid(:IncompleteRegexHexEscape)
+        Some(digit) -> literal_fixed_hex_escape_width(rest, next_remaining, value * 16 + digit)
 
   fn literal_braced_hex_escape(input: List(Char), value: Int, digits: Nat) -> LiteralScalarParse = match input
     [] -> LiteralScalarInvalid(:UnclosedRegexScalarEscape)

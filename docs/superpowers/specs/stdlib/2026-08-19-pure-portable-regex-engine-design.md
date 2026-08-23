@@ -636,7 +636,7 @@ The Cure status columns distinguish implementation from design:
 | Unicode character name | `\N{LATIN CAPITAL LETTER A}` | yes | yes | yes | Pinned compile-time table |
 | Octal escapes | `\123` | yes | yes | no | Possible explicit finite rewrite; not canonical now |
 | Numeric ambiguity | `\1`, `\123` | yes | yes | no | Rejected as ambiguous backreference/octal syntax |
-| `\u`/`\U` escapes | `\u0041` | variant-dependent | docs say no | no | Use `\x{...}` |
+| `\u`/`\U` escapes | `\u0041` | variant-dependent | docs say no | yes | Fixed-width compile-time scalar validation (`\uHHHH` / `\UHHHHHHHH`) |
 | Quoted literal region | `\Q[a-z]+\E` | yes | yes | no | Planned literal-sequence normalization |
 | Dot | `.` | yes | yes | yes | Existing scalar predicate |
 | Dotall | `/./s` | yes | yes | yes | Current `s` modifier |

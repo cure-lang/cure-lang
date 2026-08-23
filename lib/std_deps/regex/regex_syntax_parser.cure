@@ -433,6 +433,12 @@ mod Std.Regex.Syntax.Parser
     ['x' | rest] -> match parse_literal_hex_scalar(rest)
       LiteralScalarParsed(scalar, tail) -> LiteralParsed(LiteralExact(scalar), tail)
       LiteralScalarInvalid(reason) -> LiteralAtInvalid(reason, origin, literal_scalar_escape_width(origin))
+    ['u' | rest] -> match literal_fixed_hex_escape_width(rest, 4, 0)
+      LiteralScalarParsed(scalar, tail) -> LiteralParsed(LiteralExact(scalar), tail)
+      LiteralScalarInvalid(reason) -> LiteralAtInvalid(reason, origin, literal_prefix_width(origin, 6))
+    ['U' | rest] -> match literal_fixed_hex_escape_width(rest, 8, 0)
+      LiteralScalarParsed(scalar, tail) -> LiteralParsed(LiteralExact(scalar), tail)
+      LiteralScalarInvalid(reason) -> LiteralAtInvalid(reason, origin, literal_prefix_width(origin, 10))
     ['N' | rest] -> match rest
       ['{' | _] -> parse_literal_unicode_name(rest, origin, [])
       _ -> LiteralParsed(LiteralProperty(PropertyNonNewline, false), rest)

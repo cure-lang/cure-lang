@@ -43,6 +43,9 @@ defmodule Cure.Stdlib.DependentRegexUnicodePropertyTest do
       fn bidi_pair_close(input: String) -> Option(Char) = parse_full(/\p{bpt=c}/u, input)
       fn non_newline(input: String) -> Option(Char) = parse_full(/\N/u, input)
       fn class_non_newline(input: String) -> Option(Char) = parse_full(/[\N]/u, input)
+      fn unicode_escape(input: String) -> Option(Unit) = parse_full(/\u0041/u, input)
+      fn unicode_long_escape(input: String) -> Option(Unit) = parse_full(/\U0001F642/u, input)
+      fn class_unicode_escape(input: String) -> Option(Char) = parse_full(/[\u0041]/u, input)
       fn emoji_binary(input: String) -> Option(Char) = parse_full(/\p{Emoji}/u, input)
       fn not_emoji_binary(input: String) -> Option(Char) = parse_full(/\P{Emoji}/u, input)
       fn pictographic_binary(input: String) -> Option(Char) = parse_full(/\p{Extended_Pictographic}/u, input)
@@ -123,6 +126,12 @@ defmodule Cure.Stdlib.DependentRegexUnicodePropertyTest do
     assert apply(module, :non_newline, [{:String, ~c"\n"}]) == :none
     assert apply(module, :class_non_newline, [{:String, ~c"A"}]) == {:some, ?A}
     assert apply(module, :class_non_newline, [{:String, ~c"\n"}]) == :none
+    assert apply(module, :unicode_escape, [{:String, ~c"A"}]) == {:some, :unit}
+    assert apply(module, :unicode_escape, [{:String, ~c"B"}]) == :none
+    assert apply(module, :unicode_long_escape, [{:String, ~c"🙂"}]) == {:some, :unit}
+    assert apply(module, :unicode_long_escape, [{:String, ~c"A"}]) == :none
+    assert apply(module, :class_unicode_escape, [{:String, ~c"A"}]) == {:some, ?A}
+    assert apply(module, :class_unicode_escape, [{:String, ~c"B"}]) == :none
     assert apply(module, :emoji_binary, [{:String, ~c"🙂"}]) == {:some, 0x1F642}
     assert apply(module, :emoji_binary, [{:String, ~c"A"}]) == :none
     assert apply(module, :not_emoji_binary, [{:String, ~c"A"}]) == {:some, ?A}

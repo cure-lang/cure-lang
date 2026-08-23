@@ -557,6 +557,8 @@ validated at macro time and emitted as atoms. Script_Extensions uses the
 vendored Unicode 17.0.0 UCD file and defaults to the primary Script value for
 code points omitted by that file. Bare `\\N` (including inside a class) now
 lowers to the finite complement of Cure's Unicode newline predicate. The
+fixed-width `\\uHHHH` and `\\UHHHHHHHH` escapes now share the existing scalar
+validator. The
 paired-bracket type table is pinned to Unicode 17.0.0 `BidiBrackets.txt`.
 Remaining Phase 3 work is Bidi mapping properties beyond these implemented fields,
 grapheme clusters,
