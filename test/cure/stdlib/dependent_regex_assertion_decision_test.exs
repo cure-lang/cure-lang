@@ -195,6 +195,42 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
         LookaheadResourceExhausted(_, _, _, _, _) -> true
         _ -> false
 
+      fn atomic_prefix_shortest() -> Option(Tuple(List(Char), List(Char), List(ExtendedInstruction))) =
+        let compilation = LookaroundRepeat(
+          LookaroundPredicate(fn(char) -> char == 'a'),
+          false
+        )
+        let machine = lookaround_machine(compilation)
+        atomic_lookaround_routine_prefix(
+          regex_assertion_depth_limit(),
+          lookaround_state_count(compilation),
+          machine,
+          subject_initial_position(),
+          ['a', 'a'],
+          false,
+          [],
+          [],
+          AnyUnicodeNewline()
+        )
+
+      fn atomic_prefix_longest() -> Option(Tuple(List(Char), List(Char), List(ExtendedInstruction))) =
+        let compilation = LookaroundRepeat(
+          LookaroundPredicate(fn(char) -> char == 'a'),
+          false
+        )
+        let machine = lookaround_machine(compilation)
+        atomic_lookaround_routine_prefix(
+          regex_assertion_depth_limit(),
+          lookaround_state_count(compilation),
+          machine,
+          subject_initial_position(),
+          ['a', 'a'],
+          true,
+          [],
+          [],
+          AnyUnicodeNewline()
+        )
+
     end
     '''
 
@@ -208,6 +244,23 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert apply(module, :negative_certificate_context, [])
     assert apply(module, :nested_decision_evidence, [])
     assert apply(module, :depth_exhaustion_is_resource, [])
+  end
+
+  test "atomic prefix selection honors shortest and longest modes", %{runtime_module: module} do
+    assert {:some, {[], ~c"aa", _shortest_routine}} =
+             apply(module, :atomic_prefix_shortest, [])
+
+    assert {:some, {~c"aa", [], _longest_routine}} =
+             apply(module, :atomic_prefix_longest, [])
+  end
+
+  test "atomic prefix endpoint policy is implemented by the atomic authority" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+    [body] = Regex.run(~r/fn atomic_lookaround_routine_prefix\b.*?\n\n  fn atomic_lookaround_routine_first_prefix/s, source)
+
+    assert body =~ "atomic_lookaround_routine_first_prefix"
+    assert body =~ "atomic_lookaround_routine_last_prefix"
+    refute body =~ "_greedy"
   end
 
   test "certified assertion decisions enforce atomic commitment", %{runtime_module: module} do

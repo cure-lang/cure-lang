@@ -3354,11 +3354,39 @@ mod Std.Regex.Runtime
       LookaroundRoutineSearchNo() -> None()
       LookaroundRoutineSearchCommit(_) -> None()
 
-  fn atomic_lookaround_routine_prefix(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), _greedy: Bool, history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Option(Tuple(List(Char), List(Char), List(ExtendedInstruction))) = match machine
-    MkPatternMachine(_, _) -> match atomic_lookaround_routine_initial(depth, n, machine, input, [], position, history, capture_context, policy, true, [])
-      LookaroundRoutineSearchYes(matched, remaining_input, routine, _) -> Some(%[matched, remaining_input, routine])
-      LookaroundRoutineSearchNo() -> None()
-      LookaroundRoutineSearchCommit(_) -> None()
+  ## Prefix selection is an outer endpoint policy.  The atomic machine still
+  ## chooses the first path for each exact candidate, but shortest/longest
+  ## selection must range over all candidate endpoints just like the ordinary
+  ## lookaround prefix API.  Calling the exact atomic authority for each
+  ## candidate keeps commitment semantics identical at every endpoint and
+  ## returns the routine belonging to the selected candidate.
+  fn atomic_lookaround_routine_prefix(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), greedy: Bool, history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Option(Tuple(List(Char), List(Char), List(ExtendedInstruction))) = match machine
+    MkPatternMachine(_, _) -> pickup
+      greedy -> atomic_lookaround_routine_last_prefix(depth, n, machine, position, [], input, None(), history, capture_context, policy)
+      else -> atomic_lookaround_routine_first_prefix(depth, n, machine, position, [], input, history, capture_context, policy)
+
+  fn atomic_lookaround_routine_first_prefix(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, reversed_prefix: List(Char), remaining_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Option(Tuple(List(Char), List(Char), List(ExtendedInstruction))) =
+    let matched_input = evidence_reverse_chars(reversed_prefix)
+    match atomic_lookaround_routine_exact(depth, n, machine, position, matched_input, remaining_input, history, capture_context, policy)
+      Some(result) -> Some(result)
+      None() -> match remaining_input
+        [] -> None()
+        [char | rest] -> atomic_lookaround_routine_first_prefix(depth, n, machine, position, [char | reversed_prefix], rest, history, capture_context, policy)
+
+  fn atomic_lookaround_routine_last_prefix(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, reversed_prefix: List(Char), remaining_input: List(Char), previous: Option(Tuple(List(Char), List(Char), List(ExtendedInstruction))), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Option(Tuple(List(Char), List(Char), List(ExtendedInstruction))) =
+    let matched_input = evidence_reverse_chars(reversed_prefix)
+    let current = match atomic_lookaround_routine_exact(depth, n, machine, position, matched_input, remaining_input, history, capture_context, policy)
+      Some(result) -> Some(result)
+      None() -> previous
+    match remaining_input
+      [] -> current
+      [char | rest] -> atomic_lookaround_routine_last_prefix(depth, n, machine, position, [char | reversed_prefix], rest, current, history, capture_context, policy)
+
+  fn atomic_lookaround_routine_exact(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Option(Tuple(List(Char), List(Char), List(ExtendedInstruction))) = match atomic_lookaround_routine_initial(depth, n, machine, input, after_input, position, history, capture_context, policy, false, [])
+    LookaroundRoutineSearchYes(matched, [], routine, _) -> Some(%[matched, after_input, routine])
+    LookaroundRoutineSearchYes(_, _, _, _) -> None()
+    LookaroundRoutineSearchNo() -> None()
+    LookaroundRoutineSearchCommit(_) -> None()
 
   fn atomic_lookaround_accepts(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Bool = match machine
     MkPatternMachine(starts, _) -> match atomic_lookaround_initial_members(depth, n, machine, input, after_input, history, capture_context, policy, None(), lookaround_filter_boundary_states(depth, starts, position_boundary_for_history(position, append_characters(input, after_input), history), append_characters(input, after_input), history, capture_context, policy))
