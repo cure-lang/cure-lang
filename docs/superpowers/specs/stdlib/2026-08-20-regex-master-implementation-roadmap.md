@@ -262,6 +262,17 @@ The active root wrapper now has its first consumer theorem:
 `atomic_path_root_active_failure_excludes_trace` eliminates the root wrapper
 directly to the exhausted-input contradiction, rather than routing it through
 the suffix-local result constructor.
+Selected transition traces now carry their active source state explicitly in
+both transition constructors. This is the canonical construction-site
+invariant: an `AtomicSelectedPathTrace` rooted at `ThreadAccepted` cannot
+contain a transition at all. The exact-root consumer theorem,
+`atomic_path_root_exact_failure_excludes_trace`, therefore eliminates the
+unconsumed-input refutation without unfolding the higher-order machine
+destination function. The terminal `AtomicSelectedPrefixDone` and
+`AtomicSelectedExactDone` constructors are excluded by their non-empty input
+index, while both transition constructors are excluded by their active-source
+index. This closes the exact counterpart of the active root theorem without a
+runtime workaround or an opaque destination lemma.
 The first extraction prerequisite is landed: admitted filtered states retain
 their original boundary constraints instead of replacing them with `Nil()`.
 Their routine still carries the assertion-participation markers used by later

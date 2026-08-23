@@ -561,6 +561,8 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     assert source =~ "AtomicSelectedTransitionActive"
     assert source =~ "AtomicSelectedTransitionAccepted"
+    assert source =~ "AtomicSelectedTransitionActive : (@erased source: Bounded(n))"
+    assert source =~ "AtomicSelectedTransitionAccepted : (@erased source: Bounded(n))"
     assert source =~ "child_selection_suffix"
     assert source =~ "AtomicSelectedStartActive"
     assert source =~ "AtomicSelectedStartAccepted"
@@ -626,6 +628,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert source =~ "lookaround_admitted_cursor_to_suffix"
     assert source =~ "atomic_path_input_exhaustion_excludes_trace"
     assert source =~ "atomic_path_root_active_failure_excludes_trace"
+    assert source =~ "atomic_path_root_exact_failure_excludes_trace"
     assert source =~ "atomic_path_failure_excludes_trace"
     assert source =~ "atomic_path_destinations_exhausted_excludes_trace"
     assert source =~ "atomic_path_destination_rejection_excludes_trace"
