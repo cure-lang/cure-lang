@@ -3540,6 +3540,18 @@ mod Std.Regex.Runtime
       AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
       AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _) -> impossible
 
+  ## An exact child cannot have an accepting selected trace when input remains.
+  ## After the refutation constructors are state-indexed, the accepted-source
+  ## branch has only `AtomicPathExactAcceptedWithInput`; all selected terminal
+  ## and transition constructors are excluded by their input, polarity, or
+  ## active-source indices.
+  fn atomic_path_exact_failure_excludes_trace({result: Type}, {depth: Nat}, {n: Nat}, machine: PatternMachine(n), char: Char, rest: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, reversed_prefix: List(Char), {candidate_current: List(LookaroundAdmittedState(n))}, {matched: List(Char)}, {remaining_input: List(Char)}, {routine: List(ExtendedInstruction)}, @erased failure: AtomicPathRefutation(depth, n, machine, Cons(char, rest), after_input, ThreadAccepted(), history, capture_context, policy, scope_depth, False(), reversed_prefix, Nil(), Nil()), @erased path: AtomicSelectedPathTrace(depth, n, machine, Cons(char, rest), after_input, ThreadAccepted(), history, capture_context, policy, scope_depth, False(), reversed_prefix, candidate_current, matched, remaining_input, routine)) -> result = match failure
+    AtomicPathExactAcceptedWithInput(_, _, _) -> match path
+      AtomicSelectedPrefixDone() -> impossible
+      AtomicSelectedExactDone() -> impossible
+      AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+      AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+
   ## Destination exhaustion has an independent cursor base case.  Once the
   ## failure cursor is indexed at `Nil()`, a selected transition would require
   ## a suffix beginning at a non-empty admitted candidate list; the suffix

@@ -291,6 +291,13 @@ canonical active destination equation. Its child state remains independent,
 so accepted candidates can still carry an exact child refutation while the
 parent traversal is statically known to be active; this is the shape needed
 for the next child/tail induction.
+The accepted-child base now has its own eliminator,
+`atomic_path_exact_failure_excludes_trace`: with non-empty input and exact
+polarity, `AtomicPathExactAcceptedWithInput` is the only remaining refutation
+constructor, while every selected terminal or transition form is indexed
+away. The recursive active-child theorem can therefore branch on the admitted
+candidate constructor without inspecting an erased accepted failure at
+runtime.
 The first extraction prerequisite is landed: admitted filtered states retain
 their original boundary constraints instead of replacing them with `Nil()`.
 Their routine still carries the assertion-participation markers used by later
