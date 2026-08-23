@@ -187,6 +187,10 @@ discharges the exhausted-input wrapper without weakening that index.
 The destination-exhaustion cursor base is separately discharged by
 `atomic_path_destinations_exhausted_excludes_trace`: an empty admitted suffix
 cannot be related to a non-empty selected candidate spine.
+`lookaround_admitted_cursor_suffix_from_member` now constructs the converse
+ordered suffix package from an intrinsic membership witness, so recursive
+rejection can carry the exact remaining candidate spine rather than infer it
+from a bare list value.
 
 The executable behavior, exact/prefix refutation soundness, and constructive
 search-result completeness are present.  Search results retain their canonical

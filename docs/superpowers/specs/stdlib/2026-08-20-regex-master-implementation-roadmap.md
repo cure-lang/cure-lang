@@ -209,7 +209,9 @@ explicit non-empty input spine, and `atomic_path_failure_excludes_trace`
 discharges the exhaustion-indexed wrapper without relaxing the selected-trace
 indices. The destination-exhaustion cursor base is separately discharged by
 `atomic_path_destinations_exhausted_excludes_trace`; recursive destination
-rejection and start-list induction remain.
+rejection and start-list induction remain. The membership-to-cursor bridge
+`lookaround_admitted_cursor_suffix_from_member` now packages the exact suffix
+and its ordered `Here`/`Drop` proof for that induction.
 The first extraction prerequisite is landed: admitted filtered states retain
 their original boundary constraints instead of replacing them with `Nil()`.
 Their routine still carries the assertion-participation markers used by later

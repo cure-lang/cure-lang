@@ -610,6 +610,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert source =~ "AtomicStartCandidateRejected"
     assert source =~ "type LookaroundAdmittedStateCursorSuffix"
     assert source =~ "LookaroundAdmittedStateCursorSuffixDrop"
+    assert source =~ "lookaround_admitted_cursor_suffix_from_member"
     assert source =~ "atomic_path_input_exhaustion_excludes_trace"
     assert source =~ "atomic_path_failure_excludes_trace"
     assert source =~ "atomic_path_destinations_exhausted_excludes_trace"
