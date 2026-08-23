@@ -75,6 +75,7 @@ The current parser admits the following forms.
 | Generic classes | `\d`, `\D`, `\w`, `\W`, `\s`, `\S`, `\h`, `\H`, `\v`, `\V` | Implemented with ASCII/Unicode option semantics |
 | Unicode | `\xHH`, `\x{...}`, `\N{name}`, `\p{...}`, `\P{...}` and pinned general-category aliases | Implemented |
 | Controls | `\a`, `\e`, `\f`, `\n`, `\r`, `\t` and ordinary escaped characters | Implemented |
+| Quoted literals | `\Q...\E`, including an unterminated quote through end-of-pattern | Implemented by literal-sequence normalization; `\\E` after the terminator denotes a literal backslash-E |
 | Scoped options | `(?i:...)`, `(?m:...)`, `(?s:...)`, `(?u:...)`, `(?U:...)`, with `-` removals | Implemented |
 
 The parser recognizes the literal modifier string `i m s x u f U E` (in any
@@ -216,7 +217,7 @@ The planned families are:
 - richer newline/BSR policies and Unicode names/properties;
 - Unicode binary properties, scripts, script extensions, bidi properties, and
   a generated finite grapheme-break (`\\X`) machine;
-- quoted literals (`\\Q...\\E`) and additional explicitly finite escapes;
+- additional explicitly finite escapes;
 - duplicate-name policy and any remaining capture-layout compatibility;
 - assertion conditionals and the admitted assertion/atomic combinations;
 - finite controls such as `(*MARK)`, `(*FAIL)`, and `(*ACCEPT)`;

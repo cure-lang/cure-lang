@@ -535,6 +535,14 @@ diagnostics rather than partial execution.
 
 ### Phase 3 — Complete finite PCRE-family syntax and controls
 
+**Current checkpoint:** `\\Q...\\E` quoted literals are implemented as a
+compile-time normalization to the existing exact-character sequence tree. The
+first terminator closes the quote; an absent terminator quotes to the end, and
+`\\\\E` after a closed region remains the ordinary literal backslash-E form.
+The focused quoted-literal regression passes 3 tests. Remaining Phase 3 work
+is the broader Unicode property surface, grapheme clusters, duplicate-name and
+capture-layout policy, and the finite control families below.
+
 **Read:**
 
 - `2026-08-18-finite-pcre-extension-design.md`, Phases A–E

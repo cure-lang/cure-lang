@@ -413,6 +413,7 @@ mod Std.Regex.Syntax.Parser
     ['Z' | rest] -> LiteralParsed(LiteralFinalEnd, rest)
     ['b' | rest] -> LiteralParsed(LiteralWordBoundary(false), rest)
     ['B' | rest] -> LiteralParsed(LiteralWordBoundary(true), rest)
+    ['Q' | rest] -> parse_literal_quoted(rest, [])
     ['a' | rest] -> LiteralParsed(LiteralExact('\a'), rest)
     ['e' | rest] -> LiteralParsed(LiteralExact('\e'), rest)
     ['f' | rest] -> LiteralParsed(LiteralExact('\f'), rest)
@@ -434,6 +435,24 @@ mod Std.Regex.Syntax.Parser
     [char | rest] -> match literal_decimal_digit(char)
       Some(_) -> LiteralAtInvalid(:UnsupportedRegexNumericEscape, origin, literal_numeric_escape_width(origin))
       None() -> LiteralParsed(LiteralExact(char), rest)
+
+  ## `\Q...\E` is syntax normalization, not a runtime operator.  The first
+  ## unescaped `\E` closes the region; if it is absent, PCRE-compatible
+  ## behavior quotes through the end of the literal.  A literal backslash-E
+  ## is written after closing the region as `\\E` (the ordinary escape parser
+  ## handles that sequence on the surrounding side).
+  fn parse_literal_quoted(input: List(Char), reversed: List(Char)) -> LiteralParse = match input
+    [] -> LiteralParsed(literal_quoted_pattern(reverse_chars(reversed)), [])
+    ['\\', 'E' | rest] -> LiteralParsed(literal_quoted_pattern(reverse_chars(reversed)), rest)
+    [char | rest] -> parse_literal_quoted(rest, [char | reversed])
+
+  fn literal_quoted_pattern(chars: List(Char)) -> LiteralPattern = match chars
+    [] -> LiteralEmpty
+    [head | rest] -> literal_quoted_cons(head, rest)
+
+  fn literal_quoted_cons(head: Char, rest: List(Char)) -> LiteralPattern = match rest
+    [] -> LiteralExact(head)
+    _ -> LiteralSequence(LiteralExact(head), literal_quoted_pattern(rest))
 
   fn parse_literal_unicode_name(input: List(Char), origin: List(Char), reversed: List(Char)) -> LiteralParse = match input
     ['{' | rest] -> parse_literal_unicode_name_body(rest, origin, reversed)
