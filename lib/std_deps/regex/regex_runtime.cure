@@ -3677,6 +3677,7 @@ mod Std.Regex.Runtime
   type UnicodeProperty =
     | PropertyAny
     | PropertyAscii
+    | PropertyCased | PropertyLowercase | PropertyUppercase
     | PropertyLetter | PropertyLowercaseLetter | PropertyUppercaseLetter | PropertyTitlecaseLetter | PropertyModifierLetter | PropertyOtherLetter
     | PropertyMark | PropertySpacingMark | PropertyEnclosingMark | PropertyNonspacingMark
     | PropertyNumber | PropertyDecimalNumber | PropertyLetterNumber | PropertyOtherNumber
@@ -4309,6 +4310,9 @@ mod Std.Regex.Runtime
     match property
       PropertyAny -> true
       PropertyAscii -> Std.Char.is_ascii(actual)
+      PropertyCased -> Std.Char.is_cased(actual)
+      PropertyLowercase -> Std.Char.is_lowercase(actual)
+      PropertyUppercase -> Std.Char.is_uppercase(actual)
       PropertyLetter -> unicode_category_in(category, [:Lu, :Ll, :Lt, :Lm, :Lo])
       PropertyLowercaseLetter -> category == :Ll
       PropertyUppercaseLetter -> category == :Lu
