@@ -561,6 +561,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     assert source =~ "AtomicSelectedTransitionActive"
     assert source =~ "AtomicSelectedTransitionAccepted"
+    assert source =~ "child_selection_suffix"
     assert source =~ "AtomicSelectedStartActive"
     assert source =~ "AtomicSelectedStartAccepted"
     assert source =~ "type LookaroundAdmittedStateCursor"
