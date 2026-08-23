@@ -563,8 +563,9 @@ validator. The
 paired-bracket type table is pinned to Unicode 17.0.0 `BidiBrackets.txt`.
 The parser now rejects `\\X` with the stable structured diagnostic
 `:UnsupportedRegexGrapheme`; it must not silently reinterpret the escape as a
-literal `X`. Remaining Phase 3 work is the non-Boolean Bidi paired-bracket
-mapping value, grapheme clusters,
+literal `X`. The `Std.Char.unicode_bidi_paired_bracket` API now exposes the
+pinned paired scalar while the regex property remains Boolean membership.
+Remaining Phase 3 work is grapheme clusters,
 duplicate-name and capture-layout policy, other finite control normalizations,
 and the remaining control families below. `(*FAIL)` and terminal `(*ACCEPT)`
 are already implemented as finite normalizations.

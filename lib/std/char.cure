@@ -171,6 +171,13 @@ mod Std.Char
   @extern(:cure_std_char, :unicode_bidi_paired_bracket_type?, 2)
   fn unicode_bidi_paired_bracket_type?(c: Char, bpt: Atom) -> Bool
 
+  ## The pinned Unicode `Bidi_Paired_Bracket` mapping. A paired scalar is
+  ## returned only for code points present in `BidiBrackets.txt`; ordinary
+  ## characters return `None`. This is separate from the Boolean regex
+  ## membership predicate and from the open/close type query above.
+  @extern(:cure_std_char, :unicode_bidi_paired_bracket, 1)
+  fn unicode_bidi_paired_bracket(c: Char) -> Option(Char)
+
   @extern(:cure_std_char, :unicode_bidi_paired_bracket_type_name, 1)
   fn unicode_bidi_paired_bracket_type_name(chars: List(Char)) -> Option(Atom)
 

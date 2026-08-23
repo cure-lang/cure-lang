@@ -185,6 +185,29 @@ defmodule :cure_std_char do
                               |> Map.keys()
                               |> Map.new(&{&1, true})
 
+  @bidi_paired_bracket_pair_values @bidi_brackets_data
+                                   |> File.stream!()
+                                   |> Enum.reduce(%{}, fn line, values ->
+                                     line = String.trim(line)
+
+                                     if line == "" or String.starts_with?(line, "#") do
+                                       values
+                                     else
+                                       case String.split(line, ";") do
+                                         [hex, paired | _] ->
+                                           with {code_point, ""} <- Integer.parse(String.trim(hex), 16),
+                                                {paired_code_point, ""} <- Integer.parse(String.trim(paired), 16) do
+                                             Map.put(values, code_point, paired_code_point)
+                                           else
+                                             _ -> values
+                                           end
+
+                                         _ ->
+                                           values
+                                       end
+                                     end
+                                   end)
+
   @bidi_paired_bracket_type_name_values %{
     "o" => :open,
     "open" => :open,
@@ -340,6 +363,15 @@ defmodule :cure_std_char do
 
   def unicode_bidi_paired_bracket_type?(cp, bpt) when is_integer(cp) and is_atom(bpt),
     do: Map.get(@bidi_paired_bracket_type_values, cp, :none) == bpt
+
+  def unicode_bidi_paired_bracket(cp) when is_integer(cp) do
+    case Map.fetch(@bidi_paired_bracket_pair_values, cp) do
+      {:ok, paired_code_point} -> {:some, paired_code_point}
+      :error -> :none
+    end
+  end
+
+  def unicode_bidi_paired_bracket(_cp), do: :none
 
   def unicode_script_extensions?(cp, script) when is_integer(cp) and is_atom(script) do
     case Map.fetch(@script_extension_values, cp) do
