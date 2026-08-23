@@ -168,6 +168,12 @@ mod Std.Char
   @extern(:cure_std_char, :unicode_bidi_class, 1)
   fn unicode_bidi_class(c: Char) -> Atom
 
+  @extern(:cure_std_char, :unicode_bidi_paired_bracket_type?, 2)
+  fn unicode_bidi_paired_bracket_type?(c: Char, bpt: Atom) -> Bool
+
+  @extern(:cure_std_char, :unicode_bidi_paired_bracket_type_name, 1)
+  fn unicode_bidi_paired_bracket_type_name(chars: List(Char)) -> Option(Atom)
+
   @extern(:cure_std_char, :unicode_bidi_class_name, 1)
   fn unicode_bidi_class_name(name: List(Char)) -> Option(Atom)
 

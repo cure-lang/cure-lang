@@ -17,6 +17,8 @@ defmodule :cure_std_char do
   @external_resource @unicode_data
   @script_extensions_data Path.expand("../../std_deps/regex/data/ScriptExtensions-17.0.0.txt", __DIR__)
   @external_resource @script_extensions_data
+  @bidi_brackets_data Path.expand("../../std_deps/regex/data/BidiBrackets-17.0.0.txt", __DIR__)
+  @external_resource @bidi_brackets_data
   @unicode_name_values @unicode_data
                        |> File.stream!()
                        |> Enum.reduce(%{}, fn line, values ->
@@ -149,6 +151,40 @@ defmodule :cure_std_char do
                             _ -> values
                           end
                         end)
+
+  @bidi_paired_bracket_type_values @bidi_brackets_data
+                                             |> File.stream!()
+                                             |> Enum.reduce(%{}, fn line, values ->
+                                               line = String.trim(line)
+
+                                               if line == "" or String.starts_with?(line, "#") do
+                                                 values
+                                               else
+                                                 case String.split(line, ";") do
+                                                   [hex, _paired, type | _] ->
+                                                     bpt_value = type |> String.split("#", parts: 2) |> hd() |> String.trim()
+
+                                                     with {code_point, ""} <- Integer.parse(String.trim(hex), 16),
+                                                          bpt when bpt in ["o", "c"] <- bpt_value do
+                                                       Map.put(values, code_point, if(bpt == "o", do: :open, else: :close))
+                                                     else
+                                                       _ -> values
+                                                     end
+
+                                                   _ ->
+                                                     values
+                                                 end
+                                               end
+                                             end)
+
+  @bidi_paired_bracket_type_name_values %{
+    "o" => :open,
+    "open" => :open,
+    "c" => :close,
+    "close" => :close,
+    "n" => :none,
+    "none" => :none
+  }
 
   @script_extension_values @script_extensions_data
                            |> File.stream!()
@@ -294,6 +330,9 @@ defmodule :cure_std_char do
 
   def unicode_bidi_class(cp) when is_integer(cp), do: Map.get(@bidi_class_values, cp, :unknown)
 
+  def unicode_bidi_paired_bracket_type?(cp, bpt) when is_integer(cp) and is_atom(bpt),
+    do: Map.get(@bidi_paired_bracket_type_values, cp, :none) == bpt
+
   def unicode_script_extensions?(cp, script) when is_integer(cp) and is_atom(script) do
     case Map.fetch(@script_extension_values, cp) do
       {:ok, scripts} -> script in scripts
@@ -417,6 +456,30 @@ defmodule :cure_std_char do
 
     case Map.fetch(@bidi_class_name_values, normalize_bidi_name(value)) do
       {:ok, bidi_class} -> {:some, bidi_class}
+      :error -> :none
+    end
+  end
+
+  def unicode_bidi_paired_bracket_type_name(chars) when is_list(chars) do
+    name = List.to_string(chars)
+
+    value =
+      case String.split(name, "=", parts: 2) do
+        [property, value] ->
+          if normalize_bidi_name(property) in ["bidipairedbrackettype", "bpt"], do: value, else: ""
+
+        [_] ->
+          case String.split(name, ":", parts: 2) do
+            [property, value] ->
+              if normalize_bidi_name(property) in ["bidipairedbrackettype", "bpt"], do: value, else: ""
+
+            [_] ->
+              ""
+          end
+      end
+
+    case Map.fetch(@bidi_paired_bracket_type_name_values, normalize_bidi_name(value)) do
+      {:ok, bpt} -> {:some, bpt}
       :error -> :none
     end
   end

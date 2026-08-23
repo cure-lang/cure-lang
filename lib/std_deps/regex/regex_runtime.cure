@@ -3683,6 +3683,7 @@ mod Std.Regex.Runtime
     | PropertyScript(Atom)
     | PropertyScriptExtensions(Atom)
     | PropertyBidiClass(Atom)
+    | PropertyBidiPairedBracketType(Atom)
     | PropertyCategory(Atom)
     | PropertyBinary(Atom)
     | PropertyLetter | PropertyLowercaseLetter | PropertyUppercaseLetter | PropertyTitlecaseLetter | PropertyModifierLetter | PropertyOtherLetter
@@ -4329,6 +4330,7 @@ mod Std.Regex.Runtime
       PropertyScript(script) -> Std.Char.unicode_script(actual) == script
       PropertyScriptExtensions(script) -> Std.Char.unicode_script_extensions?(actual, script)
       PropertyBidiClass(bidi_class) -> Std.Char.unicode_bidi_class(actual) == bidi_class
+      PropertyBidiPairedBracketType(bpt) -> Std.Char.unicode_bidi_paired_bracket_type?(actual, bpt)
       PropertyCategory(category) -> Std.Char.unicode_general_category?(actual, category)
       PropertyBinary(property) -> Std.Char.unicode_binary_property?(actual, property)
       PropertyLetter -> unicode_category_in(category, [:Lu, :Ll, :Lt, :Lm, :Lo])

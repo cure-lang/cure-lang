@@ -659,7 +659,7 @@ The Cure status columns distinguish implementation from design:
 | Unicode binary properties | `\p{Emoji}` | yes | yes | yes | Pinned boolean-property table, compile-time alias validation, and erased runtime range predicate |
 | Unicode scripts | `\p{Greek}`, `\p{Script=Greek}`, `\p{sc=Grek}` | yes | yes | yes | Pinned Script table and aliases; `scx` remains separate |
 | Script extensions | `\p{scx=Hira}`, `\p{Script_Extensions=Hiragana}` | yes | yes | yes | Pinned Unicode 17.0.0 ScriptExtensions table with primary-Script fallback |
-| Bidi properties | `\p{Bidi_Class=AL}`, `\p{Bidi_Mirrored}` | yes | yes | yes | Pinned Bidi_Class aliases and UnicodeData Bidi_Mirrored field; other Bidi properties remain planned |
+| Bidi properties | `\p{Bidi_Class=AL}`, `\p{Bidi_Mirrored}`, `\p{bpt=o}` | yes | yes | yes | Pinned Bidi_Class aliases, UnicodeData Bidi_Mirrored field, and Unicode 17.0.0 BidiBrackets Bidi_Paired_Bracket_Type table; other Bidi mapping properties remain planned |
 | Grapheme clusters | `\X` | yes | yes | no | Planned finite UAX #29 machine |
 | Raw byte matching | `\C` | yes | yes | no | No scalar equivalent; separate byte API only |
 | Script-run matching | `(*script_run:\p{Greek}+)` | yes | yes | no | Candidate finite property-state machine |
