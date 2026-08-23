@@ -385,6 +385,37 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     refute capture_routine =~ "atomic_lookaround_routine_accepts"
   end
 
+  test "atomic assertion refutations cannot carry a successful search result" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    lookahead_refutation =
+      source
+      |> String.split("type LookaheadRefutation", parts: 2)
+      |> List.last()
+      |> String.split("type LookaheadWitness", parts: 2)
+      |> List.first()
+
+    lookbehind_refutation =
+      source
+      |> String.split("type LookbehindRefutation", parts: 2)
+      |> List.last()
+      |> String.split("type LookbehindWitness", parts: 2)
+      |> List.first()
+
+    reason =
+      source
+      |> String.split("type LookaroundRoutineRejectionReason", parts: 2)
+      |> List.last()
+      |> String.split("type AtomicDepthAtLeast", parts: 2)
+      |> List.first()
+
+    refute lookahead_refutation =~ "result: LookaroundRoutineSearchResult"
+    refute lookbehind_refutation =~ "result: LookaroundRoutineSearchResult"
+    assert reason =~ "LookaroundRoutineRejected"
+    assert reason =~ "LookaroundRoutineCommitted(Nat)"
+    refute reason =~ "LookaroundRoutineSearchYes"
+  end
+
   test "prefix rejection has no exact-only accepted-with-input case" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 

@@ -2756,7 +2756,7 @@ mod Std.Regex.Runtime
   ## its soundness and completeness against the machine semantics.
   type LookaheadRefutation(n: Nat, machine: PatternMachine(n)) indices ()
     LookaheadSearchExhausted : {@erased starts: List(MachineState(n))} -> (@erased depth: Nat) -> (input: List(Char)) -> (after_input: List(Char)) -> (history: List(Char)) -> (policy: NewlinePolicy) -> (@erased failure: LookaroundPrefixSearchFailure(depth, n, machine, input, after_input, history, capture_context, policy, starts, starts)) -> LookaheadRefutation(n, machine)
-    LookaheadAtomicSearchRejected : (@erased depth: Nat) -> (position: InitialPosition) -> (input: List(Char)) -> (history: List(Char)) -> (@erased capture_context: List(EvidenceInstruction)) -> (policy: NewlinePolicy) -> (result: LookaroundRoutineSearchResult) -> (reason: LookaroundRoutineRejectionReason) -> LookaheadRefutation(n, machine)
+    LookaheadAtomicSearchRejected : (@erased depth: Nat) -> (position: InitialPosition) -> (input: List(Char)) -> (history: List(Char)) -> (@erased capture_context: List(EvidenceInstruction)) -> (policy: NewlinePolicy) -> (reason: LookaroundRoutineRejectionReason) -> LookaheadRefutation(n, machine)
 
   type LookaheadWitness(n: Nat, machine: PatternMachine(n)) indices ()
     LookaheadWitnessPacked : (matched: List(Char)) -> (remaining: List(Char)) -> (routine: List(ExtendedInstruction)) -> {@erased starts: List(MachineState(n))} -> {@erased depth: Nat} -> {@erased input: List(Char)} -> {@erased after_input: List(Char)} -> {@erased history: List(Char)} -> {@erased capture_context: List(EvidenceInstruction)} -> {@erased policy: NewlinePolicy} -> (@erased path: LookaroundPrefixSearchPath(depth, n, machine, capture_context, starts, input, after_input, history, policy)) -> LookaheadWitness(n, machine)
@@ -2769,7 +2769,7 @@ mod Std.Regex.Runtime
   type LookbehindRefutation(n: Nat, machine: PatternMachine(n)) indices ()
     LookbehindSearchExhausted : {@erased starts: List(MachineState(n))} -> (@erased depth: Nat) -> (input: List(Char)) -> (after_input: List(Char)) -> (history: List(Char)) -> (policy: NewlinePolicy) -> (@erased failure: LookaroundSearchFailure(depth, n, machine, input, after_input, history, capture_context, policy, starts, starts)) -> LookbehindRefutation(n, machine)
     LookbehindHistoryUnavailable : (width: Nat) -> (history: List(Char)) -> (policy: NewlinePolicy) -> (@erased exhaustion: LookaroundExhaustion(n)) -> LookbehindRefutation(n, machine)
-    LookbehindAtomicSearchRejected : (@erased depth: Nat) -> (position: InitialPosition) -> (input: List(Char)) -> (after_input: List(Char)) -> (history: List(Char)) -> (@erased capture_context: List(EvidenceInstruction)) -> (policy: NewlinePolicy) -> (result: LookaroundRoutineSearchResult) -> (reason: LookaroundRoutineRejectionReason) -> LookbehindRefutation(n, machine)
+    LookbehindAtomicSearchRejected : (@erased depth: Nat) -> (position: InitialPosition) -> (input: List(Char)) -> (after_input: List(Char)) -> (history: List(Char)) -> (@erased capture_context: List(EvidenceInstruction)) -> (policy: NewlinePolicy) -> (reason: LookaroundRoutineRejectionReason) -> LookbehindRefutation(n, machine)
 
   type LookbehindWitness(n: Nat, machine: PatternMachine(n)) indices ()
     LookbehindWitnessPacked : (routine: List(ExtendedInstruction)) -> {@erased starts: List(MachineState(n))} -> {@erased depth: Nat} -> {@erased input: List(Char)} -> {@erased after_input: List(Char)} -> {@erased history: List(Char)} -> {@erased capture_context: List(EvidenceInstruction)} -> {@erased policy: NewlinePolicy} -> (@erased path: LookaroundSearchPath(depth, n, machine, capture_context, starts, input, after_input, history, policy)) -> LookbehindWitness(n, machine)
@@ -2844,8 +2844,8 @@ mod Std.Regex.Runtime
     path: LookaroundPrefixSearchPath(depth, n, machine, capture_context, filtered_starts, input, after_input, history, policy)
   ) -> LookaheadDecision(n, machine) = match result
     LookaroundRoutineSearchYes(matched, remaining, routine) -> LookaheadSatisfied(lookahead_witness(depth, n, machine, input, after_input, history, capture_context, policy, matched, remaining, routine, path))
-    LookaroundRoutineSearchNo() -> LookaheadRefuted(LookaheadAtomicSearchRejected(depth, position, input, history, capture_context, policy, result, LookaroundRoutineRejected()))
-    LookaroundRoutineSearchCommit(commit_depth) -> LookaheadRefuted(LookaheadAtomicSearchRejected(depth, position, input, history, capture_context, policy, result, LookaroundRoutineCommitted(commit_depth)))
+    LookaroundRoutineSearchNo() -> LookaheadRefuted(LookaheadAtomicSearchRejected(depth, position, input, history, capture_context, policy, LookaroundRoutineRejected()))
+    LookaroundRoutineSearchCommit(commit_depth) -> LookaheadRefuted(LookaheadAtomicSearchRejected(depth, position, input, history, capture_context, policy, LookaroundRoutineCommitted(commit_depth)))
 
   fn lookaround_prefix_search_decision(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> LookaheadDecision(n, machine) = match machine
     MkPatternMachine(starts, _) ->
@@ -2871,8 +2871,8 @@ mod Std.Regex.Runtime
     path: LookaroundSearchPath(depth, n, machine, capture_context, filtered_starts, input, after_input, history, policy)
   ) -> LookbehindDecision(n, machine) = match result
     LookaroundRoutineSearchYes(_, _, routine) -> LookbehindSatisfied(lookbehind_witness(depth, n, machine, input, after_input, history, capture_context, policy, routine, path))
-    LookaroundRoutineSearchNo() -> LookbehindRefuted(LookbehindAtomicSearchRejected(depth, position, input, after_input, history, capture_context, policy, result, LookaroundRoutineRejected()))
-    LookaroundRoutineSearchCommit(commit_depth) -> LookbehindRefuted(LookbehindAtomicSearchRejected(depth, position, input, after_input, history, capture_context, policy, result, LookaroundRoutineCommitted(commit_depth)))
+    LookaroundRoutineSearchNo() -> LookbehindRefuted(LookbehindAtomicSearchRejected(depth, position, input, after_input, history, capture_context, policy, LookaroundRoutineRejected()))
+    LookaroundRoutineSearchCommit(commit_depth) -> LookbehindRefuted(LookbehindAtomicSearchRejected(depth, position, input, after_input, history, capture_context, policy, LookaroundRoutineCommitted(commit_depth)))
 
   fn lookaround_search_decision(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> LookbehindDecision(n, machine) = match machine
     MkPatternMachine(starts, _) -> match lookaround_machine_acceptance_path(depth, n, machine, position, input, after_input, history, capture_context, policy)
