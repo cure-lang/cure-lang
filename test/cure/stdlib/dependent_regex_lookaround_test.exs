@@ -187,6 +187,37 @@ defmodule Cure.Stdlib.DependentRegexLookaroundTest do
     end)
   end
 
+  test "finite assertion conditionals choose the branch from a lookahead" do
+    source = """
+    mod AssertionConditional
+      use Std.Regex
+      fn run(input: String) -> Bool = matches(/(?(?=a)a|b)/, input)
+    end
+    """
+
+    assert {:ok, module} = Cure.Compiler.compile_and_load(source, emit_events: false)
+    assert apply(module, :run, [{:String, ~c"a"}])
+    assert apply(module, :run, [{:String, ~c"b"}])
+    refute apply(module, :run, [{:String, ~c"c"}])
+  end
+
+  test "finite assertion conditionals preserve negative polarity and lookbehind" do
+    source = """
+    mod AssertionConditionalPolarity
+      use Std.Regex
+      fn negative(input: String) -> Bool = matches(/(?(?!a)b|a)/, input)
+      fn behind(input: String) -> Bool = matches(/a(?(?<=a)b|c)/, input)
+    end
+    """
+
+    assert {:ok, module} = Cure.Compiler.compile_and_load(source, emit_events: false)
+    assert apply(module, :negative, [{:String, ~c"a"}])
+    assert apply(module, :negative, [{:String, ~c"b"}])
+    refute apply(module, :negative, [{:String, ~c"c"}])
+    assert apply(module, :behind, [{:String, ~c"ab"}])
+    refute apply(module, :behind, [{:String, ~c"ac"}])
+  end
+
   test "positive lookahead captures are published in the surrounding named frame" do
     source = """
     mod AssertionCapturePublication

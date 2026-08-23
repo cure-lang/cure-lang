@@ -441,8 +441,8 @@ migrated engine passes its existing behavior gates on both supported runtimes.
 ### Phase 2 — Complete generalized assertions
 
 **Current checkpoint:** The depth-bounded nested assertion foundation, atomicity
-interactions, parent-capture assertion conditionals, and the first
-assertion-local capture sidecar are committed
+interactions, parent-capture assertion conditionals, finite assertion
+conditionals, and the first assertion-local capture sidecar are committed
 (`9f8af26f` plus the current assertion-conditional slice). Atomic/possessive
 scopes inside assertions, assertions inside atomic scopes, and conditional
 branches that inspect an already-participating outer capture now use the finite
@@ -452,7 +452,12 @@ inline-option slice is now implemented: `(?i:...)`, `(?m:...)`, `(?s:...)`,
 nodes and propagated through ordinary, lookaround, atomic, and named
 compilations. The source-sensitive `x` mode and execution-level `f`/`E` flags
 remain deliberately rejected inside a scope until their source-map and
-search-bound semantics have a canonical implementation. Assertion-created
+search-bound semantics have a canonical implementation. Finite assertion
+conditionals over positive/negative lookahead and fixed-width lookbehind now
+use `LookaroundBoundaryGuard` and the same bounded-history update as ordinary
+lookbehind; focused regressions cover both polarities. This slice does not
+discharge the remaining selected-trace correspondence for assertion-created
+captures or generalized assertion/atomic combinations. Assertion-created
 capture markers are now threaded through the shared constraint fold and the
 capture-aware replay fold, so a later conditional sees the same participation
 decision in ordinary and named execution; optional assertion captures cover both

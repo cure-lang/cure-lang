@@ -530,6 +530,7 @@ mod Std.Regex.Runtime
     LookaroundPredicate : (test: (Char -> Bool)) -> LookaroundCompilation(CharC)
     LookaroundEmpty : LookaroundCompilation(UnitC)
     LookaroundBoundary : (constraint: BoundaryConstraint) -> LookaroundCompilation(UnitC)
+    LookaroundBoundaryGuard : (constraint: BoundaryConstraint) -> (inner: LookaroundCompilation(inner_shape)) -> LookaroundCompilation(inner_shape)
     LookaroundConcat : (left: LookaroundCompilation(left_shape)) -> (right: LookaroundCompilation(right_shape)) -> LookaroundCompilation(PairC(left_shape, right_shape))
     LookaroundGroup : (inner: LookaroundCompilation(inner_shape)) -> LookaroundCompilation(StringC)
     LookaroundGroupSlot : (slot: Nat) -> (inner: LookaroundCompilation(inner_shape)) -> LookaroundCompilation(StringC)
@@ -740,6 +741,7 @@ mod Std.Regex.Runtime
     LookaroundPredicate(_) -> S(Z())
     LookaroundEmpty() -> Z()
     LookaroundBoundary(_) -> Z()
+    LookaroundBoundaryGuard(_, inner) -> lookaround_state_count(inner)
     LookaroundConcat(left, right) -> plus(lookaround_state_count(left), lookaround_state_count(right))
     LookaroundGroup(inner) -> lookaround_state_count(inner)
     LookaroundGroupSlot(_, inner) -> lookaround_state_count(inner)
@@ -757,6 +759,7 @@ mod Std.Regex.Runtime
     LookaroundPredicate(test) -> predicate_pattern_machine(test)
     LookaroundEmpty() -> empty_pattern_machine()
     LookaroundBoundary(constraint) -> boundary_pattern_machine(constraint)
+    LookaroundBoundaryGuard(constraint, inner) -> guard_pattern_machine(constraint, lookaround_machine(inner))
     LookaroundConcat(left, right) -> concat_pattern_machine(lookaround_state_count(left), lookaround_machine(left), lookaround_state_count(right), lookaround_machine(right))
     LookaroundGroup(inner) ->
       let inner_machine = lookaround_machine(inner)
@@ -1912,10 +1915,10 @@ mod Std.Regex.Runtime
     LookaroundAcceptedNextAccepted(_, _, _, _, _, _, _, _, _, _, _, _) -> impossible
 
   fn lookaround_machine_destinations(depth: Nat, n: Nat, machine: PatternMachine(n), state: ThreadState(n), char: Char, rest: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> List(MachineState(n)) = match machine
-    MkPatternMachine(_, next) -> lookaround_filter_boundary_states(depth, next_for_thread(n, next, state, char), lookaround_transition_boundary(char, rest, after_input, policy), append_characters(rest, after_input), history, capture_context, policy)
+    MkPatternMachine(_, next) -> lookaround_filter_boundary_states(depth, next_for_thread(n, next, state, char), lookaround_transition_boundary(char, rest, after_input, policy), append_characters(rest, after_input), history_push_bounded(history, char), capture_context, policy)
 
   fn lookaround_machine_admitted_destinations(depth: Nat, n: Nat, machine: PatternMachine(n), state: ThreadState(n), char: Char, rest: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> List(LookaroundAdmittedState(n)) = match machine
-    MkPatternMachine(_, next) -> lookaround_admit_boundary_states(depth, next_for_thread(n, next, state, char), lookaround_transition_boundary(char, rest, after_input, policy), append_characters(rest, after_input), history, capture_context, policy)
+    MkPatternMachine(_, next) -> lookaround_admit_boundary_states(depth, next_for_thread(n, next, state, char), lookaround_transition_boundary(char, rest, after_input, policy), append_characters(rest, after_input), history_push_bounded(history, char), capture_context, policy)
 
   ## Every accepting-path rejection is rooted at the one destination list that
   ## the path would have traversed for its current thread and input.  Keeping

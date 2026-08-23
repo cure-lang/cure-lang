@@ -73,7 +73,7 @@ The current parser admits the following forms.
 | Ordering | lazy `*?`, `+?`, `??`, `{m,n}?`; possessive `*+`, `++`, `?+`, `{m,n}+` | Implemented |
 | Atomicity | `(?>...)` and nested atomic scopes | Implemented |
 | Assertions | `(?=...)`, `(?!...)`, `(?<=...)`, `(?<!...)` | Implemented for finite admitted operands; generalized proof gate remains open |
-| Conditionals | `(?(1)yes\|no)`, `(?(name)yes\|no)`, `(?(<name>)yes\|no)` | Implemented for capture participation; assertion-conditionals are being generalized |
+| Conditionals | `(?(1)yes\|no)`, `(?(name)yes\|no)`, `(?(<name>)yes\|no)`, `(?(?=assertion)yes\|no)`, `(?(?!assertion)yes\|no)`, `(?(?<=assertion)yes\|no)`, `(?(?<!assertion)yes\|no)` | Capture-participation conditionals are implemented; finite assertion-conditionals use the lookaround IR; generalized proof/replay coverage remains open |
 | Anchors | `^`, `$`, `\A`, `\z`, `\Z`, word boundaries `\b`/`\B` | Implemented |
 | Line breaks | `\R`; leading `(*LF)`, `(*CR)`, `(*CRLF)`, `(*ANYCRLF)`, `(*ANY)`, `(*BSR_ANYCRLF)`, `(*BSR_UNICODE)` | Implemented |
 | Classes | ranges, negation, unions, escaped members, POSIX classes | Implemented |
@@ -158,6 +158,15 @@ around assertion boundaries.  Capture participation created by a successful
 assertion can be observed by a later conditional and is replayed for named
 captures.
 
+Finite assertion-conditionals are lowered to a `LookaroundBoundaryGuard` around
+each branch.  The guard checks the assertion at the current zero-width
+position, while the selected branch retains its ordinary result shape.  The
+lookbehind guard uses the same bounded history window as ordinary lookbehind;
+the runtime destination fold extends that history at the consuming edge so a
+condition sees the scalar immediately before the branch.  This is an
+implementation slice, not yet the full assertion/capture selected-trace
+correspondence required by the Phase 2 exit gate.
+
 The executable behavior, exact/prefix refutation soundness, and constructive
 search-result completeness are present.  Search results retain their canonical
 filtered start list, so a valid path forces the actual evaluator result to be
@@ -227,7 +236,8 @@ The planned families are:
   a generated finite grapheme-break (`\\X`) machine;
 - additional explicitly finite escapes;
 - duplicate-name policy and any remaining capture-layout compatibility;
-- assertion conditionals and the admitted assertion/atomic combinations;
+- generalized assertion conditionals (beyond the finite lookahead/lookbehind
+  forms above) and the admitted assertion/atomic combinations;
 - finite controls such as `(*MARK)`; `(*FAIL)` and terminal `(*ACCEPT)` are
   implemented as finite normalizations;
 - only after their algebra is proved, candidates such as `(*THEN)`, `(*PRUNE)`,

@@ -204,9 +204,42 @@ mod Std.Regex.Syntax.Emitter
     None() -> runtime_call("LookaroundEmpty", [])
     Some(inner) -> emit_lookaround_staged_compilation(inner, options)
 
-  fn emit_lookaround_conditional(reference: LiteralCaptureReference, yes: LiteralPattern, no: Option(LiteralPattern), options: LiteralRegexOptions) -> Syntax = match reference
-    LiteralCaptureSlotReference(slot) -> runtime_call("LookaroundAlternate", [runtime_call("LookaroundGuard", [emit_nat(slot), bool_literal(true), emit_lookaround_staged_compilation(yes, options)]), runtime_call("LookaroundGuard", [emit_nat(slot), bool_literal(false), emit_lookaround_staged_compilation_or_empty(no, options)]), bool_literal(false)])
-    LiteralCaptureNameReference(_) -> runtime_call("LookaroundAlternate", [emit_lookaround_staged_compilation(yes, options), emit_lookaround_staged_compilation_or_empty(no, options), bool_literal(false)])
+  fn emit_lookaround_conditional(reference: LiteralConditionalReference, yes: LiteralPattern, no: Option(LiteralPattern), options: LiteralRegexOptions) -> Syntax = match reference
+    LiteralAssertionCondition(assertion) -> emit_lookaround_assertion_conditional(assertion, yes, no, options)
+    LiteralConditionalSlotReference(slot) -> runtime_call("LookaroundAlternate", [runtime_call("LookaroundGuard", [emit_nat(slot), bool_literal(true), emit_lookaround_staged_compilation(yes, options)]), runtime_call("LookaroundGuard", [emit_nat(slot), bool_literal(false), emit_lookaround_staged_compilation_or_empty(no, options)]), bool_literal(false)])
+    LiteralConditionalNameReference(_) -> runtime_call("LookaroundAlternate", [emit_lookaround_staged_compilation(yes, options), emit_lookaround_staged_compilation_or_empty(no, options), bool_literal(false)])
+
+  fn emit_lookaround_assertion_conditional(assertion: LiteralPattern, yes: LiteralPattern, no: Option(LiteralPattern), options: LiteralRegexOptions) -> Syntax =
+    runtime_call("LookaroundAlternate", [
+      emit_assertion_guarded_lookaround(assertion, yes, true, options),
+      emit_assertion_guarded_lookaround(assertion, literal_option_or_empty(no), false, options),
+      bool_literal(false)
+    ])
+
+  fn emit_assertion_guarded_lookaround(assertion: LiteralPattern, branch: LiteralPattern, positive: Bool, options: LiteralRegexOptions) -> Syntax =
+    runtime_call("LookaroundBoundaryGuard", [emit_assertion_constraint(assertion, positive, options), emit_lookaround_staged_compilation(branch, options)])
+
+  fn emit_assertion_constraint(assertion: LiteralPattern, positive: Bool, options: LiteralRegexOptions) -> Syntax = match assertion
+    LiteralLookahead(polarity, inner) -> runtime_call("lookahead_constraint", [emit_lookaround_staged_compilation(inner, options), emit_assertion_polarity(polarity, positive), emit_newline_policy(options)])
+    LiteralLookbehind(polarity, inner) -> runtime_call("lookbehind_constraint", [emit_lookaround_staged_compilation(inner, options), emit_assertion_polarity(polarity, positive), emit_nat(literal_pattern_exact_width_value(inner)), emit_newline_policy(options)])
+    _ -> runtime_call("lookahead_constraint", [emit_lookaround_staged_compilation(assertion, options), bool_literal(positive), emit_newline_policy(options)])
+
+  fn emit_assertion_polarity(polarity: LiteralAssertionPolarity, positive: Bool) -> Syntax = match polarity
+    LiteralAssertionPositive -> bool_literal(positive)
+    LiteralAssertionNegative -> bool_literal(not positive)
+
+  fn literal_option_or_empty(pattern: Option(LiteralPattern)) -> LiteralPattern = match pattern
+    None() -> LiteralEmpty
+    Some(inner) -> inner
+
+  fn invert_literal_assertion(assertion: LiteralPattern) -> LiteralPattern = match assertion
+    LiteralLookahead(polarity, inner) -> match polarity
+      LiteralAssertionPositive -> LiteralLookahead(LiteralAssertionNegative, inner)
+      LiteralAssertionNegative -> LiteralLookahead(LiteralAssertionPositive, inner)
+    LiteralLookbehind(polarity, inner) -> match polarity
+      LiteralAssertionPositive -> LiteralLookbehind(LiteralAssertionNegative, inner)
+      LiteralAssertionNegative -> LiteralLookbehind(LiteralAssertionPositive, inner)
+    _ -> assertion
 
   fn emit_lookaround_bounded_exact(inner: LiteralPattern, count: Nat, options: LiteralRegexOptions) -> Syntax = match count
     Z() -> runtime_call("LookaroundEmpty", [])
@@ -516,9 +549,10 @@ mod Std.Regex.Syntax.Emitter
     None() -> runtime_call("NamedThompsonEmpty", [])
     Some(inner) -> emit_named_staged_compilation(inner, options)
 
-  fn emit_named_conditional(reference: LiteralCaptureReference, yes: LiteralPattern, no: Option(LiteralPattern), options: LiteralRegexOptions) -> Syntax = match reference
-    LiteralCaptureSlotReference(slot) -> runtime_call("NamedThompsonAlternate", [runtime_call("NamedThompsonGuard", [emit_nat(slot), bool_literal(true), emit_named_staged_compilation(yes, options)]), runtime_call("NamedThompsonGuard", [emit_nat(slot), bool_literal(false), emit_named_staged_compilation_or_empty(no, options)]), bool_literal(false)])
-    LiteralCaptureNameReference(_) -> runtime_call("NamedThompsonAlternate", [emit_named_staged_compilation(yes, options), emit_named_staged_compilation_or_empty(no, options), bool_literal(false)])
+  fn emit_named_conditional(reference: LiteralConditionalReference, yes: LiteralPattern, no: Option(LiteralPattern), options: LiteralRegexOptions) -> Syntax = match reference
+    LiteralAssertionCondition(_) -> runtime_call("NamedThompsonAlternate", [emit_named_staged_compilation(yes, options), emit_named_staged_compilation_or_empty(no, options), bool_literal(false)])
+    LiteralConditionalSlotReference(slot) -> runtime_call("NamedThompsonAlternate", [runtime_call("NamedThompsonGuard", [emit_nat(slot), bool_literal(true), emit_named_staged_compilation(yes, options)]), runtime_call("NamedThompsonGuard", [emit_nat(slot), bool_literal(false), emit_named_staged_compilation_or_empty(no, options)]), bool_literal(false)])
+    LiteralConditionalNameReference(_) -> runtime_call("NamedThompsonAlternate", [emit_named_staged_compilation(yes, options), emit_named_staged_compilation_or_empty(no, options), bool_literal(false)])
 
   fn emit_staged_conversion_or_unit(pattern: Option(LiteralPattern)) -> Syntax = match pattern
     None() -> runtime_call("unit_identity_conversion", [])
