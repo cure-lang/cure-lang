@@ -3515,6 +3515,13 @@ mod Std.Regex.Runtime
     AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, suffix) -> atomic_path_input_exhaustion_excludes_trace(machine, after_input, destination, history_push_bounded(history, char), append_routine(append_routine(capture_context, routine), assertion_markers), policy, atomic_scope_depth_after(routine, scope_depth), prefix_mode, [char | reversed_prefix], suffix)
     AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, suffix) -> impossible
 
+  ## An accepted destination cannot be rejected at exhausted child input. The
+  ## child refutation is indexed at `ThreadAccepted()` and `Nil()` input, while
+  ## `AtomicPathInputExhausted` is active-only; no child refutation exists, so
+  ## this branch is discharged before selected-trace inspection.
+  fn atomic_path_accepted_destination_rejection_excludes_trace({result: Type}, {depth: Nat}, {n: Nat}, machine: PatternMachine(n), char: Char, after_input: List(Char), source_state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, reversed_prefix: List(Char), routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), assertion_routine: List(ExtendedInstruction), assertion_markers: List(EvidenceInstruction), nested_decisions: List(LookaroundNestedDecision), {remaining: List(LookaroundAdmittedState(n))}, @erased child_failure: AtomicPathRefutation(depth, n, machine, Nil(), after_input, ThreadAccepted(), history_push_bounded(history, char), append_routine(capture_context, routine), policy, atomic_scope_depth_after(routine, scope_depth), False(), Cons(char, reversed_prefix), Nil(), Nil()), {matched: List(Char)}, {remaining_input: List(Char)}, {selected_routine: List(ExtendedInstruction)}, @erased _path: AtomicSelectedPathTrace(depth, n, machine, Cons(char, Nil()), after_input, source_state, history, capture_context, policy, scope_depth, False(), reversed_prefix, Cons(LookaroundAdmittedAccepted(routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining), matched, remaining_input, selected_routine)) -> result = match child_failure
+    AtomicPathInputExhausted(_) -> impossible
+
   ## The first refutation-tree eliminator is indexed at the same exhausted
   ## input as the selected trace.  The other failure constructors all carry a
   ## non-empty input or an accepted thread, so dependent matching reduces this

@@ -298,6 +298,11 @@ constructor, while every selected terminal or transition form is indexed
 away. The recursive active-child theorem can therefore branch on the admitted
 candidate constructor without inspecting an erased accepted failure at
 runtime.
+The corresponding zero-input accepted-destination rejection is now discharged
+by `atomic_path_accepted_destination_rejection_excludes_trace`. Its child
+refutation would have to be `ThreadAccepted()` at `Nil()` input, but the only
+empty-input constructor is active-only; the contradiction is consumed before
+any selected trace is inspected.
 `AtomicPathInputExhausted` is likewise indexed at `Nil()` input, not merely
 annotated by an erased empty witness. This prevents an exhaustion leaf from
 being fabricated at a non-empty input and makes the input split of the next
