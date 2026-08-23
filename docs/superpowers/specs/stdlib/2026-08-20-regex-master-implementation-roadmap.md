@@ -280,6 +280,12 @@ eliminates every selected-trace constructor directly, so the proof does not
 inspect the erased refutation at runtime. This discharges the empty admitted
 destination base case; recursive rejected-child/tail alignment and start-list
 induction remain open.
+The two exhaustion constructors are now indexed at `ThreadActive(source)`
+at their definition site rather than accepting an arbitrary thread state.
+Their only construction sites already run in the active branch, so this
+removes the possibility of manufacturing an exhausted refutation for an
+accepted thread and gives the recursive rejection proof a canonical state
+discriminator.
 The first extraction prerequisite is landed: admitted filtered states retain
 their original boundary constraints instead of replacing them with `Nil()`.
 Their routine still carries the assertion-participation markers used by later
