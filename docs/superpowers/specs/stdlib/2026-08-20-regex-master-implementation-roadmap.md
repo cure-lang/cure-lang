@@ -273,6 +273,13 @@ destination function. The terminal `AtomicSelectedPrefixDone` and
 index, while both transition constructors are excluded by their active-source
 index. This closes the exact counterpart of the active root theorem without a
 runtime workaround or an opaque destination lemma.
+The destination-exhaustion leaf now has its active-state consumer as well:
+`atomic_path_active_destinations_exhausted_excludes_trace` is indexed by a
+non-empty input, an active source, and an empty candidate-current spine. It
+eliminates every selected-trace constructor directly, so the proof does not
+inspect the erased refutation at runtime. This discharges the empty admitted
+destination base case; recursive rejected-child/tail alignment and start-list
+induction remain open.
 The first extraction prerequisite is landed: admitted filtered states retain
 their original boundary constraints instead of replacing them with `Nil()`.
 Their routine still carries the assertion-participation markers used by later

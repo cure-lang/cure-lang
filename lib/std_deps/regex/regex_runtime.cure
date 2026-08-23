@@ -3550,6 +3550,17 @@ mod Std.Regex.Runtime
       reflexive() -> impossible
     LookaroundAdmittedStateCursorSuffixDrop(_, _) -> impossible
 
+  ## An active source cannot produce a selected transition after its admitted
+  ## destination cursor is exhausted. The non-empty input index excludes both
+  ## terminal constructors, while the empty candidate-current index excludes
+  ## both transition constructors. This consumes the destination-exhaustion
+  ## leaf at the construction site's active-state boundary.
+  fn atomic_path_active_destinations_exhausted_excludes_trace({result: Type}, {depth: Nat}, {n: Nat}, machine: PatternMachine(n), char: Char, rest: List(Char), after_input: List(Char), source: Bounded(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), {whole: List(LookaroundAdmittedState(n))}, {matched: List(Char)}, {remaining_input: List(Char)}, {routine: List(ExtendedInstruction)}, @erased _failure: AtomicPathRefutation(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Nil()), @erased path: AtomicSelectedPathTrace(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, Nil(), matched, remaining_input, routine)) -> result = match path
+    AtomicSelectedPrefixDone() -> impossible
+    AtomicSelectedExactDone() -> impossible
+    AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+    AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+
 
   fn atomic_lookaround_routine_accepts(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Option(List(ExtendedInstruction)) = match machine
     MkPatternMachine(_, _) -> match atomic_lookaround_routine_initial(depth, n, machine, input, after_input, position, history, capture_context, policy, false, [])

@@ -631,6 +631,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert source =~ "atomic_path_root_exact_failure_excludes_trace"
     assert source =~ "atomic_path_failure_excludes_trace"
     assert source =~ "atomic_path_destinations_exhausted_excludes_trace"
+    assert source =~ "atomic_path_active_destinations_exhausted_excludes_trace"
     assert source =~ "atomic_path_destination_rejection_excludes_trace"
 
     destination_rejection =
