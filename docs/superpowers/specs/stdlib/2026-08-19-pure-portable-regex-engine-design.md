@@ -637,7 +637,7 @@ The Cure status columns distinguish implementation from design:
 | Octal escapes | `\123` | yes | yes | no | Possible explicit finite rewrite; not canonical now |
 | Numeric ambiguity | `\1`, `\123` | yes | yes | no | Rejected as ambiguous backreference/octal syntax |
 | `\u`/`\U` escapes | `\u0041` | variant-dependent | docs say no | yes | Fixed-width compile-time scalar validation (`\uHHHH` / `\UHHHHHHHH`) |
-| Quoted literal region | `\Q[a-z]+\E` | yes | yes | no | Planned literal-sequence normalization |
+| Quoted literal region | `\Q[a-z]+\E` | yes | yes | yes | Compile-time literal-sequence normalization |
 | Dot | `.` | yes | yes | yes | Existing scalar predicate |
 | Dotall | `/./s` | yes | yes | yes | Current `s` modifier |
 | Character ranges | `[a-z]` | yes | yes | yes | Finite scalar predicate |
@@ -750,8 +750,8 @@ The Cure status columns distinguish implementation from design:
 | Match limit | `{match_limit, N}` | yes | via `:re` | no | Compile-time admissibility, not false |
 | Recursion limit | `{match_limit_recursion, N}` | yes | via `:re` | no | No fuel-based semantic fallback |
 | `(*MARK:name)` | `a(*MARK:A)b` | engine yes | engine yes | no | Planned typed mark result |
-| `(*FAIL)` | `a(*FAIL)` | yes | yes | no | Planned finite failure transition |
-| `(*ACCEPT)` | `a(*ACCEPT)` | yes | yes | no | Planned finite success transition |
+| `(*FAIL)` | `a(*FAIL)` | yes | yes | yes | Finite negative-empty transition |
+| `(*ACCEPT)` | `a(*ACCEPT)` | yes | yes | yes | Terminal empty continuation |
 | `(*THEN)` | `A(*THEN)B|C` | yes | yes | no | Candidate alternative-control algebra |
 | `(*PRUNE)` | `A(*PRUNE)B` | yes | yes | no | Candidate finite search control |
 | `(*SKIP)` | `A(*SKIP)B` | yes | yes | no | Candidate search-cursor control |
