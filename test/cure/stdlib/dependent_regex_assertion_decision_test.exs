@@ -410,6 +410,20 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
       |> String.split("type LookbehindDecision", parts: 2)
       |> List.first()
 
+    witness_replay =
+      source
+      |> String.split("fn lookahead_witness_routine", parts: 2)
+      |> List.last()
+      |> String.split("fn lookbehind_witness", parts: 2)
+      |> List.first()
+
+    lookbehind_replay =
+      source
+      |> String.split("fn lookbehind_witness_routine", parts: 2)
+      |> List.last()
+      |> String.split("fn lookaround_prefix_filtered_starts", parts: 2)
+      |> List.first()
+
     admission =
       source
       |> String.split("fn lookaround_condition_admission", parts: 2)
@@ -427,8 +441,8 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     refute admission =~ "atomic_lookaround_routine_prefix"
     refute admission =~ "atomic_lookaround_routine_accepts"
 
-    assert witness =~ "selected_trace_routine"
-    assert lookbehind_witness =~ "selected_trace_routine"
+    assert witness_replay =~ "selected_trace_routine"
+    assert lookbehind_replay =~ "selected_trace_routine"
   end
 
   test "atomic assertion refutations cannot carry a successful search result" do
