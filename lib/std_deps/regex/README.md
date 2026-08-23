@@ -74,7 +74,7 @@ The current parser admits the following forms.
 | Classes | ranges, negation, unions, escaped members, POSIX classes | Implemented |
 | Generic classes | `\d`, `\D`, `\w`, `\W`, `\s`, `\S`, `\h`, `\H`, `\v`, `\V` | Implemented with ASCII/Unicode option semantics |
 | Unicode | `\xHH`, `\x{...}`, `\N{name}`, `\p{...}`, `\P{...}`, pinned general-category aliases, scalar `ASCII`, `Cased`, `Lowercase`, `Uppercase`, `Alphabetic`, `White_Space`, `Hex_Digit`, `Math`, and `Currency_Symbol` binary properties, and `Latin`/`Greek`/`Cyrillic` scripts | Implemented; broader generated script/script-extension/Bidi tables remain planned |
-| Controls | `\a`, `\e`, `\f`, `\n`, `\r`, `\t`, ordinary escaped characters, and `(*FAIL)` | Implemented; `(*FAIL)` normalizes to a finite negative-empty assertion |
+| Controls | `\a`, `\e`, `\f`, `\n`, `\r`, `\t`, ordinary escaped characters, `(*FAIL)`, and terminal `(*ACCEPT)` | Implemented; failure is a finite negative-empty assertion and terminal accept is an empty branch continuation |
 | Quoted literals | `\Q...\E`, including an unterminated quote through end-of-pattern | Implemented by literal-sequence normalization; `\\E` after the terminator denotes a literal backslash-E |
 | Scoped options | `(?i:...)`, `(?m:...)`, `(?s:...)`, `(?u:...)`, `(?U:...)`, with `-` removals | Implemented |
 
@@ -177,7 +177,7 @@ outside the admitted execution subset:
 - unbounded or variable-length lookbehind and lookbehind wider than the finite
   history limit;
 - unsupported inline scoped `x`, `f`, and `E` controls;
-- arbitrary PCRE control verbs other than `(*FAIL)`, callouts, embedded code, host callbacks, raw
+- arbitrary PCRE control verbs other than finite `(*FAIL)`/terminal `(*ACCEPT)`, callouts, embedded code, host callbacks, raw
   byte `\C`, runtime pattern hooks, and host JIT/NIF escape hatches;
 - any syntax or expansion that exceeds parser, repetition, capture, assertion,
   Unicode-table, or machine resource limits.
@@ -220,8 +220,8 @@ The planned families are:
 - additional explicitly finite escapes;
 - duplicate-name policy and any remaining capture-layout compatibility;
 - assertion conditionals and the admitted assertion/atomic combinations;
-- finite controls such as `(*MARK)` and `(*ACCEPT)`; `(*FAIL)` is implemented
-  as a finite negative-empty assertion;
+- finite controls such as `(*MARK)`; `(*FAIL)` and terminal `(*ACCEPT)` are
+  implemented as finite normalizations;
 - only after their algebra is proved, candidates such as `(*THEN)`, `(*PRUNE)`,
   `(*SKIP)`, and `(*COMMIT)`.
 
@@ -244,8 +244,8 @@ The planned finite translations are:
 - nested assertions to the shared finite assertion program;
 - acyclic subroutine calls to compile-time inlining;
 - statically bounded recursion to finite unrolling;
-- finite `(*ACCEPT)` control transitions; `(*FAIL)` already has a direct
-  normalization and regression.
+- richer `(*ACCEPT)` control transitions; terminal `(*ACCEPT)` and `(*FAIL)`
+  already have direct normalizations and regressions.
 
 If finiteness, termination, capture-layout compatibility, ordered observability,
 or resource bounds cannot be proved, the source remains rejected.  There is no

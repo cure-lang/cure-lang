@@ -151,6 +151,9 @@ mod Std.Regex.Syntax.Parser
       ['^' | rest] -> LiteralParsed(LiteralStart, rest)
       ['$' | rest] -> LiteralParsed(LiteralEnd, rest)
       ['(', '*', 'F', 'A', 'I', 'L', ')' | rest] -> LiteralParsed(LiteralLookahead(LiteralAssertionNegative, LiteralEmpty), rest)
+      ['(', '*', 'A', 'C', 'C', 'E', 'P', 'T', ')' | rest] -> pickup
+        literal_accept_continuation_allowed(rest) -> LiteralParsed(LiteralEmpty, rest)
+        else -> LiteralAtInvalid(:UnsupportedRegexAcceptContinuation, input, literal_delimited_width(input, ')'))
       ['(' | rest] -> parse_literal_group_fuel(rest, next_fuel, ['(' | rest])
       ['[' | rest] -> parse_literal_class(rest, ['[' | rest])
       ['\\' | rest] -> parse_literal_escape(rest, ['\\' | rest])
@@ -159,6 +162,12 @@ mod Std.Regex.Syntax.Parser
       ['?' | rest] -> LiteralAtInvalid(:QuantifierWithoutAtom, ['?' | rest], 1)
       ['{' | rest] -> LiteralAtInvalid(:QuantifierWithoutAtom, ['{' | rest], literal_delimited_width(['{' | rest], '}'))
       [char | rest] -> LiteralParsed(LiteralExact(char), rest)
+
+  fn literal_accept_continuation_allowed(input: List(Char)) -> Bool = match input
+    [] -> true
+    [')' | _] -> true
+    ['|' | _] -> true
+    _ -> false
 
   fn parse_literal_group_fuel(input: List(Char), fuel: Nat, origin: List(Char)) -> LiteralParse = match fuel
     Z() -> LiteralInvalid(:RegexParseLimit)

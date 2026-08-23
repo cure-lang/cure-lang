@@ -50,4 +50,34 @@ defmodule Cure.Stdlib.DependentRegexUnsupportedConstructTest do
     assert apply(runtime_module, :alternated, [{:String, ~c"a"}]) == false
     assert apply(runtime_module, :alternated, [{:String, ~c"b"}]) == true
   end
+
+  test "terminal ACCEPT is finite, while a continuing branch is diagnosed" do
+    source = ~S'''
+    mod RegexAcceptControl
+      use Std.Regex
+
+      fn accepted(input: String) -> Bool = matches(/a(*ACCEPT)/, input)
+      fn alternated(input: String) -> Bool = matches(/a(*ACCEPT)|b/, input)
+    end
+    '''
+
+    assert {:ok, runtime_module} = Cure.Compiler.compile_and_load(source, emit_events: false)
+    assert apply(runtime_module, :accepted, [{:String, ~c"a"}]) == true
+    assert apply(runtime_module, :accepted, [{:String, ~c"b"}]) == false
+    assert apply(runtime_module, :alternated, [{:String, ~c"a"}]) == true
+    assert apply(runtime_module, :alternated, [{:String, ~c"b"}]) == true
+
+    source_with_continuation = ~S'''
+    mod BadAcceptContinuation
+      use Std.Regex
+      fn run() = /a(*ACCEPT)b/
+    end
+    '''
+
+    assert {:error,
+            {:source_context,
+             {:computed_macro_error, _meta,
+              {:author_diagnostics, [{:macro_failure, :UnsupportedRegexAcceptContinuation, _}]}}, _context}} =
+             Cure.Elab.Program.elaborate(source_with_continuation)
+  end
 end
