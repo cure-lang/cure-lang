@@ -15,6 +15,8 @@ defmodule :cure_std_char do
 
   @unicode_data Path.join(Unicode.data_dir(), "unicode_data.txt")
   @external_resource @unicode_data
+  @script_extensions_data Path.expand("../../std_deps/regex/data/ScriptExtensions-17.0.0.txt", __DIR__)
+  @external_resource @script_extensions_data
   @unicode_name_values @unicode_data
                        |> File.stream!()
                        |> Enum.reduce(%{}, fn line, values ->
@@ -148,6 +150,78 @@ defmodule :cure_std_char do
                           end
                         end)
 
+  @script_extension_values @script_extensions_data
+                           |> File.stream!()
+                           |> Enum.reduce(%{}, fn line, values ->
+                             line = String.trim(line)
+
+                             if line == "" or String.starts_with?(line, "#") do
+                               values
+                             else
+                               case String.split(line, ";") do
+                                 [range, scripts | _] ->
+                                   script_aliases =
+                                     Unicode.Script.aliases()
+                                     |> Enum.map(fn {name, script} ->
+                                       normalized =
+                                         name
+                                         |> String.downcase()
+                                         |> String.replace("_", "")
+                                         |> String.replace("-", "")
+                                         |> String.replace(" ", "")
+
+                                       {normalized, script}
+                                     end)
+                                     |> Map.new()
+
+                                   script_names =
+                                     scripts
+                                     |> String.trim()
+                                     |> String.split()
+                                     |> Enum.flat_map(fn name ->
+                                       normalized =
+                                         name
+                                         |> String.downcase()
+                                         |> String.replace("_", "")
+                                         |> String.replace("-", "")
+                                         |> String.replace(" ", "")
+
+                                       case Map.fetch(script_aliases, normalized) do
+                                         {:ok, script} -> [script]
+                                         :error -> []
+                                       end
+                                     end)
+
+                                   codepoints =
+                                     case String.split(String.trim(range), "..") do
+                                       [first, last] ->
+                                         with {first_value, ""} <- Integer.parse(first, 16),
+                                              {last_value, ""} <- Integer.parse(last, 16) do
+                                           first_value..last_value
+                                         else
+                                           _ -> []
+                                         end
+
+                                       [single] ->
+                                         case Integer.parse(single, 16) do
+                                           {value, ""} -> value..value
+                                           _ -> []
+                                         end
+
+                                       _ ->
+                                         []
+                                     end
+
+                                   Enum.reduce(codepoints, values, fn code_point, acc ->
+                                     Map.put(acc, code_point, script_names)
+                                   end)
+
+                                 _ ->
+                                   values
+                               end
+                             end
+                           end)
+
   @doc "Code point of a Char. Char erases to its integer code point, so this is `id`."
   def code_point(cp) when is_integer(cp), do: cp
 
@@ -220,6 +294,13 @@ defmodule :cure_std_char do
 
   def unicode_bidi_class(cp) when is_integer(cp), do: Map.get(@bidi_class_values, cp, :unknown)
 
+  def unicode_script_extensions?(cp, script) when is_integer(cp) and is_atom(script) do
+    case Map.fetch(@script_extension_values, cp) do
+      {:ok, scripts} -> script in scripts
+      :error -> Unicode.script(cp) == script
+    end
+  end
+
   def unicode_general_category?(cp, category) when is_integer(cp) and is_atom(category) do
     case Unicode.GeneralCategory.get(category) do
       ranges when is_list(ranges) ->
@@ -261,6 +342,41 @@ defmodule :cure_std_char do
 
             [_] ->
               name
+          end
+      end
+
+    normalized = normalize_script_name(value)
+
+    known =
+      Unicode.Script.known_scripts()
+      |> Map.new(fn script -> {normalize_script_name(Atom.to_string(script)), script} end)
+
+    aliases =
+      Unicode.Script.aliases()
+      |> Enum.map(fn {alias_name, script} -> {normalize_script_name(alias_name), script} end)
+      |> Map.new()
+
+    case Map.fetch(Map.merge(known, aliases), normalized) do
+      {:ok, script} -> {:some, script}
+      :error -> :none
+    end
+  end
+
+  def unicode_script_extensions_name(chars) when is_list(chars) do
+    name = List.to_string(chars)
+
+    value =
+      case String.split(name, "=", parts: 2) do
+        [property, value] ->
+          if normalize_script_name(property) in ["scriptextensions", "scx"], do: value, else: ""
+
+        [_] ->
+          case String.split(name, ":", parts: 2) do
+            [property, value] ->
+              if normalize_script_name(property) in ["scriptextensions", "scx"], do: value, else: ""
+
+            [_] ->
+              ""
           end
       end
 

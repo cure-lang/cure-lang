@@ -32,6 +32,8 @@ defmodule Cure.Stdlib.DependentRegexUnicodePropertyTest do
       fn category_short(input: String) -> Option(Char) = parse_full(/\p{gc=Nd}/u, input)
       fn assigned_category(input: String) -> Option(Char) = parse_full(/\p{Assigned}/u, input)
       fn hiragana_script(input: String) -> Option(Char) = parse_full(/\p{Hiragana}/u, input)
+      fn hiragana_script_extension(input: String) -> Option(Char) = parse_full(/\p{scx=Hira}/u, input)
+      fn hiragana_script_extension_long(input: String) -> Option(Char) = parse_full(/\p{Script_Extensions=Hiragana}/u, input)
       fn arabic_bidi(input: String) -> Option(Char) = parse_full(/\p{Bidi_Class=AL}/u, input)
       fn arabic_bidi_long(input: String) -> Option(Char) = parse_full(/\p{Bidi_Class=Arabic_Letter}/u, input)
       fn hebrew_bidi(input: String) -> Option(Char) = parse_full(/\p{bc=R}/u, input)
@@ -95,6 +97,10 @@ defmodule Cure.Stdlib.DependentRegexUnicodePropertyTest do
     assert apply(module, :assigned_category, [{:String, [0x378]}]) == :none
     assert apply(module, :hiragana_script, [{:String, ~c"あ"}]) == {:some, ?あ}
     assert apply(module, :hiragana_script, [{:String, ~c"A"}]) == :none
+    assert apply(module, :hiragana_script_extension, [{:String, ~c"ー"}]) == {:some, 0x30FC}
+    assert apply(module, :hiragana_script_extension, [{:String, ~c"A"}]) == :none
+    assert apply(module, :hiragana_script_extension_long, [{:String, ~c"ー"}]) == {:some, 0x30FC}
+    assert apply(module, :hiragana_script_extension_long, [{:String, ~c"A"}]) == :none
     assert apply(module, :arabic_bidi, [{:String, ~c"ع"}]) == {:some, ?ع}
     assert apply(module, :arabic_bidi, [{:String, ~c"A"}]) == :none
     assert apply(module, :arabic_bidi_long, [{:String, ~c"ع"}]) == {:some, ?ع}

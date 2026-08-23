@@ -751,6 +751,7 @@ mod Std.Regex.Syntax.Emitter
     PropertyMath -> runtime_call("PropertyMath", [])
     PropertyCurrencyBinary -> runtime_call("PropertyCurrencyBinary", [])
     PropertyScript(script) -> runtime_call("PropertyScript", [atom_literal(script)])
+    PropertyScriptExtensions(script) -> runtime_call("PropertyScriptExtensions", [atom_literal(script)])
     PropertyBidiClass(bidi_class) -> runtime_call("PropertyBidiClass", [atom_literal(bidi_class)])
     PropertyCategory(category) -> runtime_call("PropertyCategory", [atom_literal(category)])
     PropertyBinary(property) -> runtime_call("PropertyBinary", [atom_literal(property)])

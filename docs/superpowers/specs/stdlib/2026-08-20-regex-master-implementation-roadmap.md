@@ -553,9 +553,10 @@ boolean properties, script membership, and `Bidi_Class`/`bc` short and long
 values. General-category names (including `General_Category=...`/`gc=...` and
 derived names such as `Assigned`), Script (including `Script=...`/`sc=...`),
 Bidi (`Bidi_Class`/`bc` and `Bidi_Mirrored`), and generic property names are
-validated at macro time and emitted as atoms. Remaining Phase 3 work is the
-generated full script-extension surface and Bidi properties beyond these
-implemented fields,
+validated at macro time and emitted as atoms. Script_Extensions uses the
+vendored Unicode 17.0.0 UCD file and defaults to the primary Script value for
+code points omitted by that file. Remaining Phase 3 work is Bidi properties
+beyond these implemented fields,
 grapheme clusters,
 duplicate-name and capture-layout policy, other finite control normalizations,
 and the remaining control families below. `(*FAIL)` and terminal `(*ACCEPT)`

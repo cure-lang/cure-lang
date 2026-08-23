@@ -11,6 +11,11 @@ The public compile-time façade is `Std.Regex`.  The package manifest currently
 exports only `Std.Regex`; the parser, machine, proof, and implementation modules
 are package-internal.
 
+Unicode Script_Extensions data is pinned in
+[`data/ScriptExtensions-17.0.0.txt`](data/ScriptExtensions-17.0.0.txt). Its UCD
+version is part of the package's compile-time input; code points omitted by the
+file use their primary Script value, as specified by UAX #24.
+
 ## Status vocabulary
 
 This document deliberately separates four claims:
@@ -73,7 +78,7 @@ The current parser admits the following forms.
 | Line breaks | `\R`; leading `(*LF)`, `(*CR)`, `(*CRLF)`, `(*ANYCRLF)`, `(*ANY)`, `(*BSR_ANYCRLF)`, `(*BSR_UNICODE)` | Implemented |
 | Classes | ranges, negation, unions, escaped members, POSIX classes | Implemented |
 | Generic classes | `\d`, `\D`, `\w`, `\W`, `\s`, `\S`, `\h`, `\H`, `\v`, `\V` | Implemented with ASCII/Unicode option semantics |
-| Unicode | `\xHH`, `\x{...}`, `\N{name}`, `\p{...}`, `\P{...}`, pinned general-category aliases including `General_Category=...`/`gc=...` and derived names such as `Assigned`, all boolean properties in the pinned Unicode property table (including `Emoji`, `Extended_Pictographic`, and `ID_Start`), scalar `ASCII`, `Cased`, `Lowercase`, `Uppercase`, `Alphabetic`, `White_Space`, `Hex_Digit`, `Math`, and `Currency_Symbol` binary properties, all names in the pinned Unicode Script table including `Script=...`/`sc=...`, `Bidi_Class`/`bc` short and long values, and `Bidi_Mirrored` | Implemented; script extensions and other Bidi-value properties remain planned |
+| Unicode | `\xHH`, `\x{...}`, `\N{name}`, `\p{...}`, `\P{...}`, pinned general-category aliases including `General_Category=...`/`gc=...` and derived names such as `Assigned`, all boolean properties in the pinned Unicode property table (including `Emoji`, `Extended_Pictographic`, and `ID_Start`), scalar `ASCII`, `Cased`, `Lowercase`, `Uppercase`, `Alphabetic`, `White_Space`, `Hex_Digit`, `Math`, and `Currency_Symbol` binary properties, all names in the pinned Unicode Script table including `Script=...`/`sc=...`, Script_Extensions including `Script_Extensions=...`/`scx=...`, `Bidi_Class`/`bc` short and long values, and `Bidi_Mirrored` | Implemented; other non-finite Bidi-value properties remain planned |
 | Controls | `\a`, `\e`, `\f`, `\n`, `\r`, `\t`, ordinary escaped characters, `(*FAIL)`, and terminal `(*ACCEPT)` | Implemented; failure is a finite negative-empty assertion and terminal accept is an empty branch continuation |
 | Quoted literals | `\Q...\E`, including an unterminated quote through end-of-pattern | Implemented by literal-sequence normalization; `\\E` after the terminator denotes a literal backslash-E |
 | Scoped options | `(?i:...)`, `(?m:...)`, `(?s:...)`, `(?u:...)`, `(?U:...)`, with `-` removals | Implemented |
@@ -328,6 +333,7 @@ The implementation is split as follows:
 | [`regex_runtime.cure`](../../lib/std_deps/regex/regex_runtime.cure) | Thompson machine, ordered search, captures, assertions, public runtime values |
 | [`regex_proof.cure`](../../lib/std_deps/regex/regex_proof.cure) | Compilation, acceptance, extraction, soundness/completeness adapters |
 | [`regex_language.cure`](../../lib/std_deps/regex/regex_language.cure) | Constructive pattern denotation and language semantics |
+| [`data/ScriptExtensions-17.0.0.txt`](data/ScriptExtensions-17.0.0.txt) | Pinned Unicode 17.0.0 Script_Extensions ranges |
 
 The governing sequence and gates are in the
 [Regex master implementation roadmap](../../docs/superpowers/specs/stdlib/2026-08-20-regex-master-implementation-roadmap.md).

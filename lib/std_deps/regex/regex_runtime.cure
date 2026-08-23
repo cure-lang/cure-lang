@@ -3680,6 +3680,7 @@ mod Std.Regex.Runtime
     | PropertyCased | PropertyLowercase | PropertyUppercase
     | PropertyAlphabetic | PropertyWhiteSpace | PropertyHexDigit | PropertyMath | PropertyCurrencyBinary
     | PropertyScript(Atom)
+    | PropertyScriptExtensions(Atom)
     | PropertyBidiClass(Atom)
     | PropertyCategory(Atom)
     | PropertyBinary(Atom)
@@ -4324,6 +4325,7 @@ mod Std.Regex.Runtime
       PropertyMath -> Std.Char.is_math_symbol(actual)
       PropertyCurrencyBinary -> Std.Char.is_currency_symbol(actual)
       PropertyScript(script) -> Std.Char.unicode_script(actual) == script
+      PropertyScriptExtensions(script) -> Std.Char.unicode_script_extensions?(actual, script)
       PropertyBidiClass(bidi_class) -> Std.Char.unicode_bidi_class(actual) == bidi_class
       PropertyCategory(category) -> Std.Char.unicode_general_category?(actual, category)
       PropertyBinary(property) -> Std.Char.unicode_binary_property?(actual, property)
