@@ -148,6 +148,10 @@ defmodule Cure.Stdlib.DependentRegexUnicodePropertyTest do
 
       assert binary_part(source, span.start_byte, span.end_byte - span.start_byte) == expected_span
       refute Cure.Diagnostic.message(diagnostic) =~ "`#{expected}`"
+
+      if expected == :UnknownRegexUnicodeProperty do
+        assert Cure.Diagnostic.message(diagnostic) =~ "pinned"
+      end
     end)
   end
 end
