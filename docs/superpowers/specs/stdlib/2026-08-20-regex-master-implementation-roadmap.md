@@ -191,7 +191,12 @@ and the erased plain path are still computed separately. The atomic traversal
 must construct the indexed path or an atomic-aware refutation directly,
 including commitment evidence for every skipped sibling, so acceptance,
 rejection, matched/rest splits, and replay routine all have one construction
-authority.
+authority. The first rejection slice is now landed: `AtomicPathRefutation`
+retains indexed input/state exhaustion and child-plus-tail destination failures,
+and `AtomicStartRefutation` carries that tree through the ordered start list
+into ordinary lookahead/lookbehind refutations. Commitment remains a separate
+control outcome, and the generic refutation theorem plus the full selected-trace
+correspondence remain open.
 The first extraction prerequisite is landed: admitted filtered states retain
 their original boundary constraints instead of replacing them with `Nil()`.
 Their routine still carries the assertion-participation markers used by later

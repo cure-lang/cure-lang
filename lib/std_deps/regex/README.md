@@ -167,6 +167,15 @@ condition sees the scalar immediately before the branch.  This is an
 implementation slice, not yet the full assertion/capture selected-trace
 correspondence required by the Phase 2 exit gate.
 
+Atomic assertion rejection now carries an erased `AtomicPathRefutation` through
+the child path and the remaining ordered siblings, then wraps those failures in
+an `AtomicStartRefutation` at the start-list boundary.  The public lookahead and
+lookbehind refutation constructors retain that root certificate when the
+failure is an ordinary rejection; commitment exits remain a distinct control
+outcome.  The refutation tree is now construction-site data, but its generic
+machine-denotation theorem and full atomic selected-trace correspondence are
+still open.
+
 The executable behavior, exact/prefix refutation soundness, and constructive
 search-result completeness are present.  Search results retain their canonical
 filtered start list, so a valid path forces the actual evaluator result to be

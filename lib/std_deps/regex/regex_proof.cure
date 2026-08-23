@@ -4040,7 +4040,7 @@ mod Std.Regex.Proof
     match atomic_lookaround_routine_initial(regex_assertion_depth_limit(), lookaround_state_count(compilation), lookaround_machine(compilation), characters, [], subject_initial_position(), [], [], policy, false, [])
       LookaroundRoutineSearchYes(_, [], _, _) -> parse_pattern_full_verified(pattern, input)
       LookaroundRoutineSearchYes(_, _, _, _) -> None()
-      LookaroundRoutineSearchNo() -> None()
+      LookaroundRoutineSearchNo(_) -> None()
       LookaroundRoutineSearchCommit(_) -> None()
 
   fn parse_lookaround_compilation_prefix_verified_at({shape: ShapeCode}, pattern: Pattern(shape), compilation: LookaroundCompilation(shape), policy: NewlinePolicy, input: List(Char), greedy: Bool, position: InitialPosition, history: List(Char)) -> Option(Tuple(Sem(shape), List(Char))) =

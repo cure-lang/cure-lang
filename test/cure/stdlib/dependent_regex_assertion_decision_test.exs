@@ -164,7 +164,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
         [],
         AnyUnicodeNewline()
       )
-        LookbehindRefuted(LookbehindAtomicSearchRejected(_, _, ['b'], [], [], _, AnyUnicodeNewline(), LookaroundRoutineRejected())) -> true
+        LookbehindRefuted(LookbehindAtomicSearchRejected(_, _, ['b'], [], [], _, AnyUnicodeNewline(), _, LookaroundRoutineRejected())) -> true
         _ -> false
 
       fn nested_decision_evidence() -> Bool =
@@ -586,6 +586,28 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
              ~r/AtomicSelectedStartAccepted\s*:[^\n]*LookaroundAdmittedStateCursor[^\n]*ListMember[^\n]*Equivalent[^\n]*lookaround_admitted_starts/,
              source
            )
+  end
+
+  test "atomic no-path results retain an indexed refutation tree" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~
+             "type AtomicPathRefutation(depth: Nat, n: Nat, machine: PatternMachine(n))"
+
+    result =
+      source
+      |> String.split("type AtomicPathSearchResult", parts: 2)
+      |> List.last()
+      |> String.split("type LookaroundRoutineSearchResult", parts: 2)
+      |> List.first()
+
+    assert result =~ "AtomicPathSearchNo"
+    assert result =~ "failure: AtomicPathRefutation"
+    assert source =~ "AtomicPathInputExhausted"
+    assert source =~ "AtomicPathDestinationRejected"
+    assert source =~ "AtomicStartCandidateRejected"
+    assert Regex.match?(~r/LookaroundRoutineSearchNo\s*:\s*\(@erased failure: AtomicStartRefutation/, source)
+    assert source =~ "Option(AtomicStartRefutation"
   end
 
   test "constraint admission has one construction authority" do
