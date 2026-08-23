@@ -82,6 +82,7 @@ The current parser admits the following forms.
 | Controls | `\a`, `\e`, `\f`, `\n`, `\r`, `\t`, `\N`, ordinary escaped characters, `(*FAIL)`, and terminal `(*ACCEPT)` | Implemented; `\N` is the finite complement of Cure's Unicode newline set, failure is a finite negative-empty assertion, and terminal accept is an empty branch continuation |
 | Quoted literals | `\Q...\E`, including an unterminated quote through end-of-pattern | Implemented by literal-sequence normalization; `\\E` after the terminator denotes a literal backslash-E |
 | Scoped options | `(?i:...)`, `(?m:...)`, `(?s:...)`, `(?u:...)`, `(?U:...)`, with `-` removals | Implemented |
+| Grapheme atom | `\X` | Planned; rejected with `:UnsupportedRegexGrapheme` until the typed UAX #29 machine and proof slice land |
 
 The parser recognizes the literal modifier string `i m s x u f U E` (in any
 order, with repeated modifiers idempotent):
@@ -182,6 +183,8 @@ outside the admitted execution subset:
 - unbounded or variable-length lookbehind and lookbehind wider than the finite
   history limit;
 - unsupported inline scoped `x`, `f`, and `E` controls;
+- extended grapheme clusters (`\X`) until the finite UAX #29 machine has its
+  typed variable-width evidence and proof slice;
 - arbitrary PCRE control verbs other than finite `(*FAIL)`/terminal `(*ACCEPT)`, callouts, embedded code, host callbacks, raw
   byte `\C`, runtime pattern hooks, and host JIT/NIF escape hatches;
 - any syntax or expansion that exceeds parser, repetition, capture, assertion,
