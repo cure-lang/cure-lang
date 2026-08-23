@@ -452,17 +452,41 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
   test "atomic success constructs and retains the selected machine trace" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
-    assert source =~ "type AtomicSelectedTrace(n: Nat)"
-    assert source =~ "type LookaroundRoutineSearchResult(n: Nat)"
-    assert Regex.match?(~r/LookaroundRoutineSearchYes\s*\(.*@erased trace: AtomicSelectedTrace\(n\)/s, source)
-    assert Regex.match?(~r/LookaheadWitnessPacked\s*:.*@erased selected_trace: AtomicSelectedTrace\(n\)/s, source)
-    assert Regex.match?(~r/LookbehindWitnessPacked\s*:.*@erased selected_trace: AtomicSelectedTrace\(n\)/s, source)
+    assert source =~ "type AtomicSelectedTrace(n: Nat, machine: PatternMachine(n))"
+    assert source =~ "type LookaroundRoutineSearchResult(n: Nat, machine: PatternMachine(n))"
+
+    assert Regex.match?(
+             ~r/LookaroundRoutineSearchYes\s*\(.*@erased trace: AtomicSelectedTrace\(n, machine\)/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/LookaheadWitnessPacked\s*:.*@erased selected_trace: AtomicSelectedTrace\(n, machine\)/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/LookbehindWitnessPacked\s*:.*@erased selected_trace: AtomicSelectedTrace\(n, machine\)/s,
+             source
+           )
+
     assert source =~ "AtomicSelectedTransitionActive"
     assert source =~ "AtomicSelectedTransitionAccepted"
     assert source =~ "AtomicSelectedStartActive"
     assert source =~ "AtomicSelectedStartAccepted"
     assert Regex.match?(~r/AtomicSelectedTransitionActive\s*:[^\n]*MachineStateCursor[^\n]*ListMember/, source)
     assert Regex.match?(~r/AtomicSelectedTransitionAccepted\s*:[^\n]*MachineStateCursor[^\n]*ListMember/, source)
+
+    assert Regex.match?(
+             ~r/AtomicSelectedTransitionActive\s*:[^\n]*Equivalent[^\n]*lookaround_machine_raw_destinations/,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/AtomicSelectedTransitionAccepted\s*:[^\n]*Equivalent[^\n]*lookaround_machine_raw_destinations/,
+             source
+           )
+
     assert Regex.match?(~r/AtomicSelectedStartActive\s*:[^\n]*ListMember/, source)
     assert Regex.match?(~r/AtomicSelectedStartAccepted\s*:[^\n]*ListMember/, source)
   end
