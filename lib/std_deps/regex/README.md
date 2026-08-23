@@ -172,7 +172,9 @@ the child path and the remaining ordered siblings, then wraps those failures in
 an `AtomicStartRefutation` at the start-list boundary.  The public lookahead and
 lookbehind refutation constructors retain that root certificate when the
 failure is an ordinary rejection; commitment exits remain a distinct control
-outcome.  The refutation tree is now construction-site data, but its generic
+outcome.  Destination rejection nodes also retain the admitted-state cursor,
+head membership, and canonical transition-list equation used by successful
+traces.  The refutation tree is now construction-site data, but its generic
 machine-denotation theorem and full atomic selected-trace correspondence are
 still open.
 

@@ -196,7 +196,9 @@ retains indexed input/state exhaustion and child-plus-tail destination failures,
 and `AtomicStartRefutation` carries that tree through the ordered start list
 into ordinary lookahead/lookbehind refutations. Commitment remains a separate
 control outcome, and the generic refutation theorem plus the full selected-trace
-correspondence remain open.
+correspondence remain open. Destination rejection nodes now carry the admitted
+state cursor, head-membership proof, and canonical transition-list equation
+needed for that theorem.
 The first extraction prerequisite is landed: admitted filtered states retain
 their original boundary constraints instead of replacing them with `Nil()`.
 Their routine still carries the assertion-participation markers used by later
