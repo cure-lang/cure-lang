@@ -138,6 +138,7 @@ defmodule :cure_std_char do
 
   def number?(cp), do: Unicode.category(cp) in [:Nd, :Nl, :No]
   def unicode_category(cp) when is_integer(cp), do: Unicode.category(cp)
+  def unicode_script(cp) when is_integer(cp), do: Unicode.script(cp)
   def whole_number?(cp), do: Map.has_key?(@whole_number_values, cp)
 
   def whole_number_value(cp) when is_integer(cp) do

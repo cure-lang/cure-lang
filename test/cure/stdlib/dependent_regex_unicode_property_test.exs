@@ -23,6 +23,9 @@ defmodule Cure.Stdlib.DependentRegexUnicodePropertyTest do
       fn hex_digit(input: String) -> Option(Char) = parse_full(/\p{Hex_Digit}/u, input)
       fn math(input: String) -> Option(Char) = parse_full(/\p{Math}/u, input)
       fn currency(input: String) -> Option(Char) = parse_full(/\p{Currency_Symbol}/u, input)
+      fn latin_script(input: String) -> Option(Char) = parse_full(/\p{Latin}/u, input)
+      fn greek_script(input: String) -> Option(Char) = parse_full(/\p{Greek}/u, input)
+      fn cyrillic_script(input: String) -> Option(Char) = parse_full(/\p{Cyrillic}/u, input)
       fn not_number(input: String) -> Option(Char) = parse_full(/\P{N}/u, input)
       fn class_union(input: String) -> Option(Char) = parse_full(/[\p{L}\p{N}_]/u, input)
       fn class_negated_property(input: String) -> Option(Char) = parse_full(/[\P{L}]/u, input)
@@ -59,6 +62,12 @@ defmodule Cure.Stdlib.DependentRegexUnicodePropertyTest do
     assert apply(module, :math, [{:String, ~c"A"}]) == :none
     assert apply(module, :currency, [{:String, ~c"$"}]) == {:some, ?$}
     assert apply(module, :currency, [{:String, ~c"A"}]) == :none
+    assert apply(module, :latin_script, [{:String, ~c"A"}]) == {:some, ?A}
+    assert apply(module, :latin_script, [{:String, ~c"λ"}]) == :none
+    assert apply(module, :greek_script, [{:String, ~c"λ"}]) == {:some, ?λ}
+    assert apply(module, :greek_script, [{:String, ~c"Ж"}]) == :none
+    assert apply(module, :cyrillic_script, [{:String, ~c"Ж"}]) == {:some, ?Ж}
+    assert apply(module, :cyrillic_script, [{:String, ~c"A"}]) == :none
     assert apply(module, :not_number, [{:String, ~c"λ"}]) == {:some, ?λ}
     assert apply(module, :not_number, [{:String, ~c"١"}]) == :none
   end

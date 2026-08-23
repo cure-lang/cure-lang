@@ -3679,6 +3679,7 @@ mod Std.Regex.Runtime
     | PropertyAscii
     | PropertyCased | PropertyLowercase | PropertyUppercase
     | PropertyAlphabetic | PropertyWhiteSpace | PropertyHexDigit | PropertyMath | PropertyCurrencyBinary
+    | PropertyScriptLatin | PropertyScriptGreek | PropertyScriptCyrillic
     | PropertyLetter | PropertyLowercaseLetter | PropertyUppercaseLetter | PropertyTitlecaseLetter | PropertyModifierLetter | PropertyOtherLetter
     | PropertyMark | PropertySpacingMark | PropertyEnclosingMark | PropertyNonspacingMark
     | PropertyNumber | PropertyDecimalNumber | PropertyLetterNumber | PropertyOtherNumber
@@ -4319,6 +4320,9 @@ mod Std.Regex.Runtime
       PropertyHexDigit -> Std.Char.is_hex_digit(actual)
       PropertyMath -> Std.Char.is_math_symbol(actual)
       PropertyCurrencyBinary -> Std.Char.is_currency_symbol(actual)
+      PropertyScriptLatin -> Std.Char.unicode_script(actual) == :latin
+      PropertyScriptGreek -> Std.Char.unicode_script(actual) == :greek
+      PropertyScriptCyrillic -> Std.Char.unicode_script(actual) == :cyrillic
       PropertyLetter -> unicode_category_in(category, [:Lu, :Ll, :Lt, :Lm, :Lo])
       PropertyLowercaseLetter -> category == :Ll
       PropertyUppercaseLetter -> category == :Lu

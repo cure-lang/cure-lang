@@ -156,6 +156,12 @@ mod Std.Char
   @extern(:cure_std_char, :unicode_category, 1)
   fn unicode_category(c: Char) -> Atom
 
+  ## The pinned Unicode Script value (`:latin`, `:greek`, `:cyrillic`, …).
+  ## Regex script properties consume this finite classification rather than
+  ## calling a host regex engine.
+  @extern(:cure_std_char, :unicode_script, 1)
+  fn unicode_script(c: Char) -> Atom
+
   @extern(:cure_std_char, :whole_number?, 1)
   fn is_whole_number(c: Char) -> Bool
 

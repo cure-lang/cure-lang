@@ -147,8 +147,16 @@ defmodule Cure.Compiler.Artifacts.Sweep do
         _invalid -> []
       end)
 
+    # A dependency package is compiled against the explicit foundation roots
+    # supplied by its package driver. Adding every ambient/legacy stdlib
+    # directory as well would load a second provider for a module whose
+    # foundation interface just changed (for example Std.Char), turning a
+    # normal source edit into a duplicate-provider artifact failure. Ordinary
+    # project builds retain ambient discovery because they may not have an
+    # explicit foundation root.
     stdlib_roots =
-      if Keyword.get(opts, :kind, :project) == :stdlib do
+      if Keyword.get(opts, :kind, :project) == :stdlib or
+           (Keyword.get(opts, :kind, :project) == :dependency and explicit != []) do
         []
       else
         case Artifacts.open_verified_set(

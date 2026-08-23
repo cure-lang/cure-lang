@@ -538,16 +538,18 @@ diagnostics rather than partial execution.
 **Current checkpoint:** `\\Q...\\E` quoted literals and the first Unicode
 binary properties (`\\p{ASCII}`, `\\p{Cased}`, `\\p{Lowercase}`,
 `\\p{Uppercase}`, `\\p{Alphabetic}`, `\\p{White_Space}`,
-`\\p{Hex_Digit}`, `\\p{Math}`, and `\\p{Currency_Symbol}`, with their
-negated forms) are implemented. Quoted literals
+`\\p{Hex_Digit}`, `\\p{Math}`, and `\\p{Currency_Symbol}`, plus the first
+three explicit script predicates (`\\p{Latin}`, `\\p{Greek}`, and
+`\\p{Cyrillic}`), with their negated forms) are implemented. Quoted literals
 normalize at compile time to the existing exact-character sequence tree: the
 first terminator closes the quote; an absent terminator quotes to the end, and
 `\\\\E` after a closed region remains the ordinary literal backslash-E form.
 The focused quoted-literal regression passes 3 tests, and the Unicode-property
 regression covers positive and negated ASCII matching; the same property
 surface now uses the pinned `Std.Char` Unicode predicates for casing,
-alphabetic, whitespace, hexadecimal, math, and currency membership.
-Remaining Phase 3 work is the broader binary/script/Bidi property surface,
+alphabetic, whitespace, hexadecimal, math, currency, and script membership.
+Remaining Phase 3 work is the generated full binary/script/script-extension/
+Bidi property surface,
 grapheme clusters,
 duplicate-name and capture-layout policy, and the finite control families
 below.

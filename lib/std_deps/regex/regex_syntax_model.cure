@@ -113,6 +113,7 @@ mod Std.Regex.Syntax.Model
     | PropertyAscii
     | PropertyCased | PropertyLowercase | PropertyUppercase
     | PropertyAlphabetic | PropertyWhiteSpace | PropertyHexDigit | PropertyMath | PropertyCurrencyBinary
+    | PropertyScriptLatin | PropertyScriptGreek | PropertyScriptCyrillic
     | PropertyLetter | PropertyLowercaseLetter | PropertyUppercaseLetter | PropertyTitlecaseLetter | PropertyModifierLetter | PropertyOtherLetter
     | PropertyMark | PropertySpacingMark | PropertyEnclosingMark | PropertyNonspacingMark
     | PropertyNumber | PropertyDecimalNumber | PropertyLetterNumber | PropertyOtherNumber
@@ -970,6 +971,9 @@ mod Std.Regex.Syntax.Model
     ['H','e','x','_','D','i','g','i','t'] -> Some(PropertyHexDigit)
     ['M','a','t','h'] -> Some(PropertyMath)
     ['C','u','r','r','e','n','c','y','_','S','y','m','b','o','l'] -> Some(PropertyCurrencyBinary)
+    ['L','a','t','i','n'] -> Some(PropertyScriptLatin)
+    ['G','r','e','e','k'] -> Some(PropertyScriptGreek)
+    ['C','y','r','i','l','l','i','c'] -> Some(PropertyScriptCyrillic)
     ['L'] -> Some(PropertyLetter)
     ['L','e','t','t','e','r'] -> Some(PropertyLetter)
     ['L','l'] -> Some(PropertyLowercaseLetter)
