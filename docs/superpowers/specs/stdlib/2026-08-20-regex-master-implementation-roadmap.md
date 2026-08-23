@@ -249,6 +249,14 @@ preserves the distinction between “the evaluator is currently at this suffix�
 and “the selected path is a suffix of this candidate list”; the eventual
 alignment eliminator must consume both witnesses rather than converting one
 proposition into the other.
+Terminal active-path failures are now distinguished as complete root failures:
+`AtomicPathRootRefutation` indexes the failure with `whole = current`, and
+`AtomicPathSearchRootNo` is used for the statically complete empty-candidate
+terminal cases (active input exhaustion and exact acceptance with input).
+Suffix-local failures remain `AtomicPathSearchNo`; they cannot be passed to a
+root theorem without first supplying the missing child/tail alignment. The
+remaining atomic work is to lift this root distinction through destination
+exhaustion, rejected-child/tail induction, and escaped-commit bookkeeping.
 The first extraction prerequisite is landed: admitted filtered states retain
 their original boundary constraints instead of replacing them with `Nil()`.
 Their routine still carries the assertion-participation markers used by later
