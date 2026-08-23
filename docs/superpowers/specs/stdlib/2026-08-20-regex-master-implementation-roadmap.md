@@ -548,13 +548,14 @@ first terminator closes the quote; an absent terminator quotes to the end, and
 The focused quoted-literal regression passes 3 tests, and the Unicode-property
 regression covers positive and negated ASCII matching; the same property
 surface now uses the pinned `Std.Char` Unicode predicates for casing,
-alphabetic, whitespace, hexadecimal, math, currency, and script membership;
-script names are validated at macro time and emitted as atoms. Remaining
-Phase 3 work is the generated full binary/script-extension/Bidi property
-surface,
+alphabetic, whitespace, hexadecimal, math, currency, script membership, and
+`Bidi_Class`/`bc` short and long values. Script and Bidi names are validated at
+macro time and emitted as atoms. Remaining Phase 3 work is the generated full
+binary/script-extension surface and Bidi properties beyond `Bidi_Class`,
 grapheme clusters,
-duplicate-name and capture-layout policy, finite `(*FAIL)` and terminal
-`(*ACCEPT)` normalizations, and the remaining control families below.
+duplicate-name and capture-layout policy, other finite control normalizations,
+and the remaining control families below. `(*FAIL)` and terminal `(*ACCEPT)`
+are already implemented as finite normalizations.
 
 **Read:**
 

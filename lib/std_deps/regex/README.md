@@ -73,7 +73,7 @@ The current parser admits the following forms.
 | Line breaks | `\R`; leading `(*LF)`, `(*CR)`, `(*CRLF)`, `(*ANYCRLF)`, `(*ANY)`, `(*BSR_ANYCRLF)`, `(*BSR_UNICODE)` | Implemented |
 | Classes | ranges, negation, unions, escaped members, POSIX classes | Implemented |
 | Generic classes | `\d`, `\D`, `\w`, `\W`, `\s`, `\S`, `\h`, `\H`, `\v`, `\V` | Implemented with ASCII/Unicode option semantics |
-| Unicode | `\xHH`, `\x{...}`, `\N{name}`, `\p{...}`, `\P{...}`, pinned general-category aliases, scalar `ASCII`, `Cased`, `Lowercase`, `Uppercase`, `Alphabetic`, `White_Space`, `Hex_Digit`, `Math`, and `Currency_Symbol` binary properties, and all names in the pinned Unicode Script table | Implemented; script extensions and Bidi-value properties remain planned |
+| Unicode | `\xHH`, `\x{...}`, `\N{name}`, `\p{...}`, `\P{...}`, pinned general-category aliases, scalar `ASCII`, `Cased`, `Lowercase`, `Uppercase`, `Alphabetic`, `White_Space`, `Hex_Digit`, `Math`, and `Currency_Symbol` binary properties, all names in the pinned Unicode Script table, and `Bidi_Class`/`bc` short and long values | Implemented; script extensions and other Bidi-value properties remain planned |
 | Controls | `\a`, `\e`, `\f`, `\n`, `\r`, `\t`, ordinary escaped characters, `(*FAIL)`, and terminal `(*ACCEPT)` | Implemented; failure is a finite negative-empty assertion and terminal accept is an empty branch continuation |
 | Quoted literals | `\Q...\E`, including an unterminated quote through end-of-pattern | Implemented by literal-sequence normalization; `\\E` after the terminator denotes a literal backslash-E |
 | Scoped options | `(?i:...)`, `(?m:...)`, `(?s:...)`, `(?u:...)`, `(?U:...)`, with `-` removals | Implemented |

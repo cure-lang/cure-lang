@@ -69,6 +69,69 @@ defmodule :cure_std_char do
                            _ -> values
                          end
                        end)
+  @bidi_class_values @unicode_data
+                     |> File.stream!()
+                     |> Enum.reduce(%{}, fn line, values ->
+                       fields = String.split(String.trim(line), ";")
+
+                       with hex when is_binary(hex) <- Enum.at(fields, 0),
+                            bidi when is_binary(bidi) <- Enum.at(fields, 4),
+                            true <- String.trim(bidi) != "",
+                            {code_point, ""} <- Integer.parse(String.trim(hex), 16) do
+                         Map.put(values, code_point, String.to_atom(String.trim(bidi)))
+                       else
+                         _ -> values
+                       end
+                     end)
+
+  @bidi_class_name_values %{
+    "l" => :L,
+    "lefttoright" => :L,
+    "r" => :R,
+    "righttoleft" => :R,
+    "al" => :AL,
+    "arabicletter" => :AL,
+    "en" => :EN,
+    "europeannumber" => :EN,
+    "es" => :ES,
+    "europeanseparator" => :ES,
+    "et" => :ET,
+    "europeanterminator" => :ET,
+    "an" => :AN,
+    "arabicnumber" => :AN,
+    "cs" => :CS,
+    "commonseparator" => :CS,
+    "b" => :B,
+    "paragraphseparator" => :B,
+    "s" => :S,
+    "segmentseparator" => :S,
+    "ws" => :WS,
+    "whitespace" => :WS,
+    "on" => :ON,
+    "otherneutral" => :ON,
+    "lre" => :LRE,
+    "lefttorightembedding" => :LRE,
+    "lro" => :LRO,
+    "lefttorightoverride" => :LRO,
+    "rle" => :RLE,
+    "righttoleftembedding" => :RLE,
+    "rlo" => :RLO,
+    "righttoleftoverride" => :RLO,
+    "pdf" => :PDF,
+    "popdirectionalformat" => :PDF,
+    "lri" => :LRI,
+    "lefttorightisolate" => :LRI,
+    "rli" => :RLI,
+    "righttoleftisolate" => :RLI,
+    "fsi" => :FSI,
+    "firststrongisolate" => :FSI,
+    "pdi" => :PDI,
+    "popdirectionalisolate" => :PDI,
+    "bn" => :BN,
+    "boundaryneutral" => :BN,
+    "nsm" => :NSM,
+    "nonspacingmark" => :NSM
+  }
 
   @doc "Code point of a Char. Char erases to its integer code point, so this is `id`."
   def code_point(cp) when is_integer(cp), do: cp
@@ -140,6 +203,8 @@ defmodule :cure_std_char do
   def unicode_category(cp) when is_integer(cp), do: Unicode.category(cp)
   def unicode_script(cp) when is_integer(cp), do: Unicode.script(cp)
 
+  def unicode_bidi_class(cp) when is_integer(cp), do: Map.get(@bidi_class_values, cp, :unknown)
+
   def unicode_script_name(chars) when is_list(chars) do
     normalized = normalize_script_name(List.to_string(chars))
 
@@ -158,7 +223,39 @@ defmodule :cure_std_char do
     end
   end
 
+  def unicode_bidi_class_name(chars) when is_list(chars) do
+    name = List.to_string(chars)
+
+    value =
+      case String.split(name, "=", parts: 2) do
+        [property, value] ->
+          if normalize_bidi_name(property) in ["bidiclass", "bc"], do: value, else: ""
+
+        [_] ->
+          case String.split(name, ":", parts: 2) do
+            [property, value] ->
+              if normalize_bidi_name(property) in ["bidiclass", "bc"], do: value, else: ""
+
+            [_] ->
+              name
+          end
+      end
+
+    case Map.fetch(@bidi_class_name_values, normalize_bidi_name(value)) do
+      {:ok, bidi_class} -> {:some, bidi_class}
+      :error -> :none
+    end
+  end
+
   defp normalize_script_name(name) do
+    name
+    |> String.downcase()
+    |> String.replace("_", "")
+    |> String.replace("-", "")
+    |> String.replace(" ", "")
+  end
+
+  defp normalize_bidi_name(name) do
     name
     |> String.downcase()
     |> String.replace("_", "")

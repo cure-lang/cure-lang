@@ -162,6 +162,15 @@ mod Std.Char
   @extern(:cure_std_char, :unicode_script, 1)
   fn unicode_script(c: Char) -> Atom
 
+  ## Resolve a Unicode Bidi_Class value from regex syntax against the pinned
+  ## Unicode table. The accepted input includes canonical short/long values
+  ## and qualified forms such as `Bidi_Class=AL` and `bc=R`.
+  @extern(:cure_std_char, :unicode_bidi_class, 1)
+  fn unicode_bidi_class(c: Char) -> Atom
+
+  @extern(:cure_std_char, :unicode_bidi_class_name, 1)
+  fn unicode_bidi_class_name(name: List(Char)) -> Option(Atom)
+
   ## Resolve a Unicode Script name from regex syntax against the pinned table.
   ## This is compile-time validation; emitted regexes carry the resulting atom
   ## and compare it with `unicode_script/1` at runtime.
