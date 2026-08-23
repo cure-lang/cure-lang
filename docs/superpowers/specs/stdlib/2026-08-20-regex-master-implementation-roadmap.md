@@ -563,7 +563,7 @@ paired-bracket type table is pinned to Unicode 17.0.0 `BidiBrackets.txt`.
 The parser now rejects `\\X` with the stable structured diagnostic
 `:UnsupportedRegexGrapheme`; it must not silently reinterpret the escape as a
 literal `X`. Remaining Phase 3 work is Bidi mapping properties beyond these
-implemented fields, grapheme clusters,
+implemented fields (including the generic `Bidi_Control` binary property), grapheme clusters,
 duplicate-name and capture-layout policy, other finite control normalizations,
 and the remaining control families below. `(*FAIL)` and terminal `(*ACCEPT)`
 are already implemented as finite normalizations.
