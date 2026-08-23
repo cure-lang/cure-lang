@@ -197,21 +197,10 @@ defmodule Antigen.Assays.ElabSoundnessTest do
     # neutral, so Conv falls to the general path, which `Normalise.whnf_value`s
     # BOTH sides — forcing the `{:nglobal, :loop}` neutral to δ-unfold.
     #
-    # Verified by hand-tracing `Normalise.unfold_certified_head`: unfolding a
-    # BARE self-reference (`Eval.eval({:global, :loop}, []) == {:vneutral,
-    # {:nglobal, :loop}}}` — i.e. δ reproduces the IDENTICAL neutral each step,
-    # no spine growth) makes every iteration O(1) (`spend_fuel` decrements once,
-    # `spine` traverses a constant-depth term), so total work across the fuel
-    # budget is O(fuel), not O(fuel²) — this is why the body is a bare global
-    # reference and not a self-application: `{:app, {:global, :loop}, {:ctor,
-    # :Z, []}}` would (a) make `loop`'s OWN check_one infer fail structurally
-    # with `:not_a_function` BEFORE any δ (its declared type `@nat` isn't a Π,
-    # so applying it is ill-typed — this never reaches δ/fuel at all, the
-    # original bug in this test), and (b) even redirected through `probe`,
-    # would re-grow the neutral's `:napp` spine by one layer per δ-step, making
-    # `spine/2`'s per-step traversal O(step), i.e. O(fuel²) total — likely
-    # multiple minutes at fuel = 500_000, blowing the 30s `Task.await` budget.
-    test "non-normalizing emitted def reports :fuel_exhausted, does not hang" do
+    # The normalizer detects that δ reproduces the identical neutral and
+    # freezes it immediately. The probe is therefore rejected as a structured
+    # conversion failure without waiting for a fuel timeout.
+    test "non-normalizing emitted def is rejected without hanging" do
       env =
         seeded()
         |> Env.add_def(:loop, @nat, {:global, :loop})
@@ -223,7 +212,8 @@ defmodule Antigen.Assays.ElabSoundnessTest do
         )
 
       task = Task.async(fn -> Elab.run(prog("ignored"), kernel_with_env(env)) end)
-      assert {:violation, {:fuel_exhausted, :probe}} = Task.await(task, 30_000)
+      assert {:violation, {:core_ill_typed, :probe, {:conversion_failure, _, _}}} =
+               Task.await(task, 30_000)
     end
   end
 

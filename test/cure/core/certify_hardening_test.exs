@@ -10,11 +10,11 @@ defmodule Cure.Core.CertifyHardeningTest do
       unfold site stays stuck when handed a body that is not closed (robust even
       against a raw-struct forgery of the marker).
 
-  (2) A forged cert on a NON-TOTAL (but closed) def makes δ-unfolding loop. This
-      never mis-answers (soundness is intact), and the fuel-bounded conversion
-      path (`conv_within?`) already confines it — pinned here as a regression
-      characterization; the unbounded `conv?/5` fast-path trusts certs, which only
-      the kernel-validated path (`validate_certificate`) can legitimately produce.
+  (2) A forged cert on a NON-TOTAL (but closed) def must not make δ-unfolding
+      loop. The normalizer detects an unchanged neutral after one unfold and
+      freezes it, so the fuel-bounded conversion path returns a decisive false
+      result. The unbounded `conv?/5` fast-path trusts certs, which only the
+      kernel-validated path (`validate_certificate`) can legitimately produce.
   """
   use ExUnit.Case, async: true
 
@@ -63,14 +63,14 @@ defmodule Cure.Core.CertifyHardeningTest do
     end
   end
 
-  describe "exposure (2): forged non-total cert stays fuel-bounded (characterization)" do
-    test "conv_within? on a forged non-total closed cert exhausts fuel instead of diverging" do
+  describe "exposure (2): forged non-total cert stays bounded" do
+    test "conv_within? freezes an unchanged neutral instead of diverging" do
       # `loop : Nat = loop` — closed (so the closed-body guard does not apply) but
       # non-total. A forged cert makes δ want to unfold it forever; the fuel-
-      # bounded conversion path must return :fuel_exhausted within budget.
+      # bounded conversion path must decide false within the budget.
       env = nat_env() |> Env.add_def(:loop, @nat, {:global, :loop}) |> forge_cert(:loop)
 
-      assert :fuel_exhausted = Conv.conv_within?({:global, :loop}, @z, env, 0, env, 50)
+      assert {:ok, false} = Conv.conv_within?({:global, :loop}, @z, env, 0, env, 50)
     end
   end
 end

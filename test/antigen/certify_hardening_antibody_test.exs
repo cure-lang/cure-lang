@@ -63,7 +63,11 @@ defmodule Antigen.CertifyHardeningAntibodyTest do
 
   test "termination guard: a forged NON-TERMINATING closed cert stays fuel-bounded" do
     env = nat_env() |> Env.add_def(:loop, @nat, {:global, :loop}) |> forge(:loop)
-    assert :fuel_exhausted = Conv.conv_within?({:global, :loop}, @z, [], 0, env, 200)
+
+    # The normalizer recognizes an unfold that reproduces the exact neutral
+    # head and freezes it immediately. It therefore returns a decisive false
+    # result instead of spending the whole budget rediscovering the same loop.
+    assert {:ok, false} = Conv.conv_within?({:global, :loop}, @z, [], 0, env, 200)
   end
 
   test "control: a legitimately certified CLOSED total body still δ-unfolds" do

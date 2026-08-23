@@ -110,9 +110,7 @@ defmodule Mix.Tasks.Cure.BundleStdlibBeams do
       true ->
         File.mkdir_p!(dest_dir)
 
-        case Cure.Stdlib.Packages.compile(source_dir |> Path.join("*.cure") |> Path.wildcard(), dest_dir,
-               compile_opts: [emit_events: false]
-             ) do
+        case compile_sources(source_dir, dest_dir) do
           {:ok, result} ->
             {:ok,
              %{
@@ -137,6 +135,33 @@ defmodule Mix.Tasks.Cure.BundleStdlibBeams do
 
             {:error, reason}
         end
+    end
+  end
+
+  # The normal stdlib bundle includes the separately packaged Regex sources.
+  # `bundle/2` is also a deliberately small public test seam, though, and its
+  # callers pass arbitrary fixture directories. Those directories are not a
+  # declaration that the fixture depends on every embedded package; compiling
+  # the repository's Regex package against them makes otherwise self-contained
+  # fixtures fail with a missing `Std.Bounded` interface. Keep package
+  # composition at the real stdlib boundary and retain isolated sweep
+  # semantics for custom source roots.
+  defp compile_sources(source_dir, dest_dir) do
+    if Path.expand(source_dir) == Path.expand(@source_dir) do
+      Cure.Stdlib.Packages.compile(
+        source_dir |> Path.join("*.cure") |> Path.wildcard(),
+        dest_dir,
+        compile_opts: [emit_events: false]
+      )
+    else
+      Cure.Compiler.Artifacts.sweep(
+        module_pipeline: :canonical,
+        source_roots: [source_dir],
+        output_dir: dest_dir,
+        kind: :stdlib,
+        repair: true,
+        compile_opts: [emit_events: false]
+      )
     end
   end
 

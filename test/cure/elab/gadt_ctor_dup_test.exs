@@ -20,7 +20,7 @@ defmodule Cure.Elab.GadtCtorDupTest do
     src =
       "mod GC\n  type Nat = Z | S(Nat)\n  type Box indices (n: Nat)\n    mk : (x: Nat) -> (x: Nat) -> Box(Z)\nend\n"
 
-    assert {:error, {:duplicate_parameter, :x}} = elaborate(src)
+    assert {:error, {:source_context, {:duplicate_parameter, :x}, _}} = elaborate(src)
   end
 
   test "distinct named params in a GADT constructor still elaborate" do
