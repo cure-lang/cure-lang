@@ -199,6 +199,9 @@ control outcome, and the generic refutation theorem plus the full selected-trace
 correspondence remain open. Destination rejection nodes now carry the admitted
 state cursor, head-membership proof, and canonical transition-list equation
 needed for that theorem.
+The first indexed contradiction lemma,
+`atomic_path_input_exhaustion_excludes_trace`, now discharges the active-state
+empty-input base case; destination and start-list induction remain.
 The first extraction prerequisite is landed: admitted filtered states retain
 their original boundary constraints instead of replacing them with `Nil()`.
 Their routine still carries the assertion-participation markers used by later

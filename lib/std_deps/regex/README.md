@@ -176,7 +176,9 @@ outcome.  Destination rejection nodes also retain the admitted-state cursor,
 head membership, and canonical transition-list equation used by successful
 traces.  The refutation tree is now construction-site data, but its generic
 machine-denotation theorem and full atomic selected-trace correspondence are
-still open.
+still open.  The first indexed contradiction lemma,
+`atomic_path_input_exhaustion_excludes_trace`, rules out an active selected
+trace at an exhausted input; destination and start-list induction remain.
 
 The executable behavior, exact/prefix refutation soundness, and constructive
 search-result completeness are present.  Search results retain their canonical
