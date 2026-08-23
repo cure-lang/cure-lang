@@ -328,16 +328,16 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
   test "admitted lookaround states retain the constraints that produced nested evidence" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
-    filter =
+    projection =
       source
-      |> String.split("fn lookaround_filter_boundary_states", parts: 2)
+      |> String.split("fn lookaround_admitted_machine_state", parts: 2)
       |> List.last()
-      |> String.split("fn capture_slot_markers_from_extended", parts: 2)
+      |> String.split("fn lookaround_admitted_machine_states", parts: 2)
       |> List.first()
 
-    assert filter =~ "Active(state, append_routine(routine, assertion_markers), constraints)"
-    assert filter =~ "Accepted(append_routine(routine, assertion_markers), constraints)"
-    refute filter =~ "append_routine(routine, assertion_markers), Nil()"
+    assert projection =~ "Active(state, append_routine(routine, assertion_markers), constraints)"
+    assert projection =~ "Accepted(append_routine(routine, assertion_markers), constraints)"
+    refute projection =~ "append_routine(routine, assertion_markers), Nil()"
   end
 
   test "lookahead capture replay consumes the routine retained by its witness" do
@@ -406,7 +406,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     refute reason =~ "LookaroundRoutineSearchYes"
   end
 
-  test "atomic rejection does not run the speculative indexed path search" do
+  test "atomic decisions never rerun the legacy indexed path search" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     prefix =
@@ -423,20 +423,8 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
       |> String.split("fn lookaround_search_decision", parts: 2)
       |> List.first()
 
-    assert Regex.match?(~r/match result\s+LookaroundRoutineSearchYes.*lookaround_prefix_search_path/s, prefix)
-    assert Regex.match?(~r/match result\s+LookaroundRoutineSearchYes.*lookaround_machine_acceptance_path/s, exact)
-
-    [prefix_rejection | _] = String.split(prefix, "LookaroundRoutineSearchNo", parts: 2)
-    [exact_rejection | _] = String.split(exact, "LookaroundRoutineSearchNo", parts: 2)
-
-    assert prefix_rejection =~ "lookaround_prefix_search_path"
-    assert exact_rejection =~ "lookaround_machine_acceptance_path"
-
-    prefix_after_success = prefix |> String.split("LookaroundRoutineSearchNo", parts: 2) |> List.last()
-    exact_after_success = exact |> String.split("LookaroundRoutineSearchNo", parts: 2) |> List.last()
-
-    refute prefix_after_success =~ "lookaround_prefix_search_path"
-    refute exact_after_success =~ "lookaround_machine_acceptance_path"
+    refute prefix =~ "lookaround_prefix_search_path"
+    refute exact =~ "lookaround_machine_acceptance_path"
   end
 
   test "atomic success constructs and retains the selected machine trace" do
@@ -479,6 +467,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert lookahead_declaration =~ "routine: List(ExtendedInstruction)"
     assert lookahead_declaration =~ "AtomicSelectedTrace(depth, n, machine"
     assert lookahead_declaration =~ "matched, remaining, routine)"
+    refute lookahead_declaration =~ "LookaroundPrefixSearchPath"
 
     lookbehind_declaration =
       source
@@ -490,31 +479,33 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert lookbehind_declaration =~ "routine: List(ExtendedInstruction)"
     assert lookbehind_declaration =~ "AtomicSelectedTrace(depth, n, machine"
     assert lookbehind_declaration =~ "matched, remaining_input, routine)"
+    refute lookbehind_declaration =~ "LookaroundSearchPath"
 
     assert source =~ "AtomicSelectedTransitionActive"
     assert source =~ "AtomicSelectedTransitionAccepted"
     assert source =~ "AtomicSelectedStartActive"
     assert source =~ "AtomicSelectedStartAccepted"
-    assert Regex.match?(~r/AtomicSelectedTransitionActive\s*:[^\n]*MachineStateCursor[^\n]*ListMember/, source)
-    assert Regex.match?(~r/AtomicSelectedTransitionAccepted\s*:[^\n]*MachineStateCursor[^\n]*ListMember/, source)
+    assert source =~ "type LookaroundAdmittedStateCursor"
+    assert Regex.match?(~r/AtomicSelectedTransitionActive\s*:[^\n]*LookaroundAdmittedStateCursor[^\n]*ListMember/, source)
+    assert Regex.match?(~r/AtomicSelectedTransitionAccepted\s*:[^\n]*LookaroundAdmittedStateCursor[^\n]*ListMember/, source)
 
     assert Regex.match?(
-             ~r/AtomicSelectedTransitionActive\s*:[^\n]*Equivalent[^\n]*lookaround_machine_raw_destinations/,
+             ~r/AtomicSelectedTransitionActive\s*:[^\n]*Equivalent[^\n]*lookaround_machine_admitted_destinations/,
              source
            )
 
     assert Regex.match?(
-             ~r/AtomicSelectedTransitionAccepted\s*:[^\n]*Equivalent[^\n]*lookaround_machine_raw_destinations/,
+             ~r/AtomicSelectedTransitionAccepted\s*:[^\n]*Equivalent[^\n]*lookaround_machine_admitted_destinations/,
              source
            )
 
     assert Regex.match?(
-             ~r/AtomicSelectedStartActive\s*:[^\n]*MachineStateCursor[^\n]*ListMember[^\n]*Equivalent[^\n]*pattern_machine_starts/,
+             ~r/AtomicSelectedStartActive\s*:[^\n]*LookaroundAdmittedStateCursor[^\n]*ListMember[^\n]*Equivalent[^\n]*lookaround_admitted_starts/,
              source
            )
 
     assert Regex.match?(
-             ~r/AtomicSelectedStartAccepted\s*:[^\n]*MachineStateCursor[^\n]*ListMember[^\n]*Equivalent[^\n]*pattern_machine_starts/,
+             ~r/AtomicSelectedStartAccepted\s*:[^\n]*LookaroundAdmittedStateCursor[^\n]*ListMember[^\n]*Equivalent[^\n]*lookaround_admitted_starts/,
              source
            )
   end
@@ -528,9 +519,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     for consumer <- [
           "lookaround_constraints_capture_context",
           "lookaround_constraints_routine",
-          "lookaround_nested_decisions",
-          "atomic_lookaround_routine_members_from",
-          "atomic_lookaround_routine_initial_members"
+          "lookaround_nested_decisions"
         ] do
       body =
         source
@@ -541,6 +530,21 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
       assert body =~ "lookaround_constraints_admission",
              "#{consumer} must project the canonical constraint admission"
+    end
+
+    for consumer <- [
+          "atomic_lookaround_routine_members_from",
+          "atomic_lookaround_routine_initial_members"
+        ] do
+      body =
+        source
+        |> String.split("fn #{consumer}", parts: 2)
+        |> List.last()
+        |> String.split("\n  fn ", parts: 2)
+        |> List.first()
+
+      assert body =~ "LookaroundAdmittedState"
+      refute body =~ "lookaround_constraints_admission"
     end
 
     for obsolete <- [

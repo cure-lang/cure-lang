@@ -498,25 +498,21 @@ raw-versus-filtered candidate mismatch now has one construction authority:
 boundary admission materializes a typed `LookaroundAdmittedState` sidecar, and
 the ordinary filtered machine-state list is only a projection of that list.
 This prevents proof paths and runtime filtering from independently rebuilding
-different admitted candidates. Atomic selection must next traverse this
-sidecar directly so its cursor and membership evidence refer to the same
-filtered list consumed by `LookaroundAcceptingPath`. Do not attempt to recover
-that correspondence afterward with
-`Equivalent(lookaround_admitted_machine_states(admitted),
-lookaround_machine_destinations(...))`: destination filtering, nested
-assertion admission, and atomic selection occupy the same recursive totality
-SCC, so the destination call is intentionally opaque while that SCC is being
-checked and reflexivity cannot unfold it. Instead, replace the loose sidecar
-list with one indexed admission result constructed by the admission fold. That
-result must carry the filtered `MachineState` list and its per-state assertion
-routine, capture markers, and nested decisions together. Atomic selection and
-the accepting/refutation consumers must eliminate the same result; neither may
-recompute admission or prove equality between two calls after the fact. The
-remaining
-proof obligation is to translate this atomic selected trace into the existing
-exact/prefix path families (or replace those families at their consumers), then
-remove the successful decision's legacy second traversal; the phase exit gate
-is not yet discharged.
+different admitted candidates. Atomic start and transition selection now
+traverse that sidecar directly. Their erased cursors, selected-head membership,
+and canonical equations are indexed by `lookaround_admitted_starts` and
+`lookaround_machine_admitted_destinations`, so admission metadata and the
+chosen path cannot diverge. Successful lookahead and lookbehind witnesses now
+consume this selected trace as their proof object; the legacy exact/prefix path
+searches have been removed from successful decision branches. This avoids the
+invalid alternative of proving two calls equal after the fact: destination
+filtering, nested assertion admission, and atomic selection occupy the same
+recursive totality SCC, so such calls are intentionally opaque while the SCC is
+checked. The serialized assertion-decision, exhaustive-model, and named-capture
+gate now passes 51 tests in 267.9 seconds on a warm interface build. The first
+cold rebuild after changing these indices took roughly twelve minutes and must
+remain a performance follow-up, but the admitted Phase 2 proof/extraction exit
+gate itself is discharged.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
