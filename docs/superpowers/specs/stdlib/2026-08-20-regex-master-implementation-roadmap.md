@@ -202,6 +202,9 @@ needed for that theorem.
 The first indexed contradiction lemma,
 `atomic_path_input_exhaustion_excludes_trace`, now discharges the active-state
 empty-input base case; destination and start-list induction remain.
+The admitted-state `LookaroundAdmittedStateCursorSuffix` relation is explicit,
+permitting that induction to drop only ordered heads rather than inventing a
+candidate prefix.
 The first extraction prerequisite is landed: admitted filtered states retain
 their original boundary constraints instead of replacing them with `Nil()`.
 Their routine still carries the assertion-participation markers used by later

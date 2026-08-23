@@ -178,7 +178,10 @@ traces.  The refutation tree is now construction-site data, but its generic
 machine-denotation theorem and full atomic selected-trace correspondence are
 still open.  The first indexed contradiction lemma,
 `atomic_path_input_exhaustion_excludes_trace`, rules out an active selected
-trace at an exhausted input; destination and start-list induction remain.
+trace at an exhausted input; destination and start-list induction remain.  The
+admitted-state `LookaroundAdmittedStateCursorSuffix` relation is now explicit,
+so that induction can only drop ordered heads and cannot fabricate a candidate
+prefix.
 
 The executable behavior, exact/prefix refutation soundness, and constructive
 search-result completeness are present.  Search results retain their canonical

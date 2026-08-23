@@ -1723,6 +1723,14 @@ mod Std.Regex.Runtime
     LookaroundAdmittedStateCursorHere : LookaroundAdmittedStateCursor(n, values, values)
     LookaroundAdmittedStateCursorDrop : (@erased head: LookaroundAdmittedState(n)) -> (@erased cursor: LookaroundAdmittedStateCursor(n, whole, Cons(head, values))) -> LookaroundAdmittedStateCursor(n, whole, values)
 
+  ## A selected candidate list is either the current admitted suffix or a
+  ## suffix reached by dropping ordered heads.  This is the lookaround-side
+  ## counterpart of `MachineStateCursorSuffix`; it is the relation consumed by
+  ## the atomic refutation induction when a path skips a rejected candidate.
+  type LookaroundAdmittedStateCursorSuffix(n: Nat) indices (outer: List(LookaroundAdmittedState(n)), inner: List(LookaroundAdmittedState(n)))
+    LookaroundAdmittedStateCursorSuffixHere : (@erased equality: Equivalent(List(LookaroundAdmittedState(n)), outer, inner)) -> LookaroundAdmittedStateCursorSuffix(n, outer, inner)
+    LookaroundAdmittedStateCursorSuffixDrop : (head: LookaroundAdmittedState(n)) -> (suffix: LookaroundAdmittedStateCursorSuffix(n, outer, inner)) -> LookaroundAdmittedStateCursorSuffix(n, Cons(head, outer), inner)
+
   fn lookaround_admitted_machine_state({n: Nat}, admitted: LookaroundAdmittedState(n)) -> MachineState(n) = match admitted
     LookaroundAdmittedActive(state, routine, constraints, _, assertion_markers, _) -> Active(state, append_routine(routine, assertion_markers), constraints)
     LookaroundAdmittedAccepted(routine, constraints, _, assertion_markers, _) -> Accepted(append_routine(routine, assertion_markers), constraints)
