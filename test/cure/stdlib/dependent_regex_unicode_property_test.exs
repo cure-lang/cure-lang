@@ -18,6 +18,11 @@ defmodule Cure.Stdlib.DependentRegexUnicodePropertyTest do
       fn cased(input: String) -> Option(Char) = parse_full(/\p{Cased}/u, input)
       fn lowercase_binary(input: String) -> Option(Char) = parse_full(/\p{Lowercase}/u, input)
       fn uppercase_binary(input: String) -> Option(Char) = parse_full(/\p{Uppercase}/u, input)
+      fn alphabetic(input: String) -> Option(Char) = parse_full(/\p{Alphabetic}/u, input)
+      fn white_space(input: String) -> Option(Char) = parse_full(/\p{White_Space}/u, input)
+      fn hex_digit(input: String) -> Option(Char) = parse_full(/\p{Hex_Digit}/u, input)
+      fn math(input: String) -> Option(Char) = parse_full(/\p{Math}/u, input)
+      fn currency(input: String) -> Option(Char) = parse_full(/\p{Currency_Symbol}/u, input)
       fn not_number(input: String) -> Option(Char) = parse_full(/\P{N}/u, input)
       fn class_union(input: String) -> Option(Char) = parse_full(/[\p{L}\p{N}_]/u, input)
       fn class_negated_property(input: String) -> Option(Char) = parse_full(/[\P{L}]/u, input)
@@ -44,6 +49,16 @@ defmodule Cure.Stdlib.DependentRegexUnicodePropertyTest do
     assert apply(module, :lowercase_binary, [{:String, ~c"É"}]) == :none
     assert apply(module, :uppercase_binary, [{:String, ~c"É"}]) == {:some, ?É}
     assert apply(module, :uppercase_binary, [{:String, ~c"é"}]) == :none
+    assert apply(module, :alphabetic, [{:String, ~c"λ"}]) == {:some, ?λ}
+    assert apply(module, :alphabetic, [{:String, ~c"1"}]) == :none
+    assert apply(module, :white_space, [{:String, [0x2028]}]) == {:some, 0x2028}
+    assert apply(module, :white_space, [{:String, ~c"A"}]) == :none
+    assert apply(module, :hex_digit, [{:String, ~c"Ｆ"}]) == {:some, 0xFF26}
+    assert apply(module, :hex_digit, [{:String, ~c"G"}]) == :none
+    assert apply(module, :math, [{:String, ~c"+"}]) == {:some, ?+}
+    assert apply(module, :math, [{:String, ~c"A"}]) == :none
+    assert apply(module, :currency, [{:String, ~c"$"}]) == {:some, ?$}
+    assert apply(module, :currency, [{:String, ~c"A"}]) == :none
     assert apply(module, :not_number, [{:String, ~c"λ"}]) == {:some, ?λ}
     assert apply(module, :not_number, [{:String, ~c"١"}]) == :none
   end
