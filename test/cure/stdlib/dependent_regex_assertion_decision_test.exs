@@ -449,6 +449,20 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     refute exact_after_success =~ "lookaround_machine_acceptance_path"
   end
 
+  test "atomic success constructs and retains the selected machine trace" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "type AtomicSelectedTrace(n: Nat)"
+    assert source =~ "type LookaroundRoutineSearchResult(n: Nat)"
+    assert Regex.match?(~r/LookaroundRoutineSearchYes\s*\(.*@erased trace: AtomicSelectedTrace\(n\)/s, source)
+    assert Regex.match?(~r/LookaheadWitnessPacked\s*:.*@erased selected_trace: AtomicSelectedTrace\(n\)/s, source)
+    assert Regex.match?(~r/LookbehindWitnessPacked\s*:.*@erased selected_trace: AtomicSelectedTrace\(n\)/s, source)
+    assert source =~ "AtomicSelectedTransitionActive"
+    assert source =~ "AtomicSelectedTransitionAccepted"
+    assert source =~ "AtomicSelectedStartActive"
+    assert source =~ "AtomicSelectedStartAccepted"
+  end
+
   test "prefix rejection has no exact-only accepted-with-input case" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
