@@ -3400,6 +3400,16 @@ mod Std.Regex.Runtime
   fn atomic_path_failure_excludes_trace({result: Type}, {depth: Nat}, {n: Nat}, machine: PatternMachine(n), after_input: List(Char), state: Bounded(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), {matched: List(Char)}, {remaining_input: List(Char)}, {routine: List(ExtendedInstruction)}, @erased failure: AtomicPathRefutation(depth, n, machine, Nil(), after_input, ThreadActive(state), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix), @erased path: AtomicSelectedPathTrace(depth, n, machine, Nil(), after_input, ThreadActive(state), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, matched, remaining_input, routine)) -> result = match failure
     AtomicPathInputExhausted() -> atomic_path_input_exhaustion_excludes_trace(machine, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, path)
 
+  ## Destination exhaustion has an independent cursor base case.  Once the
+  ## failure cursor is indexed at `Nil()`, a selected transition would require
+  ## a suffix beginning at a non-empty admitted candidate list; the suffix
+  ## relation eliminates both that fabricated `Here` equality and any `Drop`
+  ## spine whose outer list is already empty.
+  fn atomic_path_destinations_exhausted_excludes_trace({n: Nat}, {candidate: LookaroundAdmittedState(n)}, {remaining: List(LookaroundAdmittedState(n))}, @erased suffix: LookaroundAdmittedStateCursorSuffix(n, Nil(), Cons(candidate, remaining))) -> Empty = match suffix
+    LookaroundAdmittedStateCursorSuffixHere(equality) -> match equality
+      reflexive() -> impossible
+    LookaroundAdmittedStateCursorSuffixDrop(_, _) -> impossible
+
   fn atomic_lookaround_routine_accepts(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Option(List(ExtendedInstruction)) = match machine
     MkPatternMachine(_, _) -> match atomic_lookaround_routine_initial(depth, n, machine, input, after_input, position, history, capture_context, policy, false, [])
       LookaroundRoutineSearchYes(_, _, routine, _) -> Some(routine)

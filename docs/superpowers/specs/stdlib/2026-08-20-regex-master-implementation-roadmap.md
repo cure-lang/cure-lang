@@ -207,7 +207,9 @@ permitting that induction to drop only ordered heads rather than inventing a
 candidate prefix. The exact-accepted-with-input refutation is indexed by an
 explicit non-empty input spine, and `atomic_path_failure_excludes_trace`
 discharges the exhaustion-indexed wrapper without relaxing the selected-trace
-indices.
+indices. The destination-exhaustion cursor base is separately discharged by
+`atomic_path_destinations_exhausted_excludes_trace`; recursive destination
+rejection and start-list induction remain.
 The first extraction prerequisite is landed: admitted filtered states retain
 their original boundary constraints instead of replacing them with `Nil()`.
 Their routine still carries the assertion-participation markers used by later

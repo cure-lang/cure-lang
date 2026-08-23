@@ -184,6 +184,9 @@ so that induction can only drop ordered heads and cannot fabricate a candidate
 prefix.  The exact-accepted-with-input refutation is also indexed by an
 explicit non-empty input spine, and `atomic_path_failure_excludes_trace`
 discharges the exhausted-input wrapper without weakening that index.
+The destination-exhaustion cursor base is separately discharged by
+`atomic_path_destinations_exhausted_excludes_trace`: an empty admitted suffix
+cannot be related to a non-empty selected candidate spine.
 
 The executable behavior, exact/prefix refutation soundness, and constructive
 search-result completeness are present.  Search results retain their canonical
