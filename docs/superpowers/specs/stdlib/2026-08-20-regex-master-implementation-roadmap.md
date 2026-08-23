@@ -546,12 +546,13 @@ normalize at compile time to the existing exact-character sequence tree: the
 first terminator closes the quote; an absent terminator quotes to the end, and
 `\\\\E` after a closed region remains the ordinary literal backslash-E form.
 The focused quoted-literal regression passes 3 tests, and the Unicode-property
-regression covers positive and negated ASCII matching; the same property
-surface now uses the pinned `Std.Char` Unicode predicates for casing,
-alphabetic, whitespace, hexadecimal, math, currency, script membership, and
-`Bidi_Class`/`bc` short and long values. Script and Bidi names are validated at
-macro time and emitted as atoms. Remaining Phase 3 work is the generated full
-binary/script-extension surface and Bidi properties beyond `Bidi_Class`,
+regression covers positive and negated ASCII and generic boolean properties;
+the same property surface now uses the pinned `Std.Char` Unicode predicates
+for casing, alphabetic, whitespace, hexadecimal, math, currency, generic
+boolean properties, script membership, and `Bidi_Class`/`bc` short and long
+values. Script, Bidi, and generic property names are validated at macro time
+and emitted as atoms. Remaining Phase 3 work is the generated full
+script-extension surface and Bidi properties beyond `Bidi_Class`,
 grapheme clusters,
 duplicate-name and capture-layout policy, other finite control normalizations,
 and the remaining control families below. `(*FAIL)` and terminal `(*ACCEPT)`

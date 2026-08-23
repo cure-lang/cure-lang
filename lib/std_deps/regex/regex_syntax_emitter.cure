@@ -752,6 +752,7 @@ mod Std.Regex.Syntax.Emitter
     PropertyCurrencyBinary -> runtime_call("PropertyCurrencyBinary", [])
     PropertyScript(script) -> runtime_call("PropertyScript", [atom_literal(script)])
     PropertyBidiClass(bidi_class) -> runtime_call("PropertyBidiClass", [atom_literal(bidi_class)])
+    PropertyBinary(property) -> runtime_call("PropertyBinary", [atom_literal(property)])
     PropertyLetter -> runtime_call("PropertyLetter", [])
     PropertyLowercaseLetter -> runtime_call("PropertyLowercaseLetter", [])
     PropertyUppercaseLetter -> runtime_call("PropertyUppercaseLetter", [])

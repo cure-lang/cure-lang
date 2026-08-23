@@ -205,6 +205,16 @@ defmodule :cure_std_char do
 
   def unicode_bidi_class(cp) when is_integer(cp), do: Map.get(@bidi_class_values, cp, :unknown)
 
+  def unicode_binary_property?(cp, property) when is_integer(cp) and is_atom(property) do
+    case Unicode.Property.get(property) do
+      ranges when is_list(ranges) ->
+        Enum.any?(ranges, fn {first, last} -> cp >= first and cp <= last end)
+
+      _ ->
+        false
+    end
+  end
+
   def unicode_script_name(chars) when is_list(chars) do
     normalized = normalize_script_name(List.to_string(chars))
 
@@ -247,6 +257,28 @@ defmodule :cure_std_char do
     end
   end
 
+  def unicode_binary_property_name(chars) when is_list(chars) do
+    normalized = normalize_binary_property_name(List.to_string(chars))
+
+    known =
+      Unicode.Property.known_properties()
+      |> Map.new(fn property ->
+        {normalize_binary_property_name(Atom.to_string(property)), property}
+      end)
+
+    aliases =
+      Unicode.Property.aliases()
+      |> Enum.map(fn {name, property} ->
+        {normalize_binary_property_name(name), property}
+      end)
+      |> Map.new()
+
+    case Map.fetch(Map.merge(known, aliases), normalized) do
+      {:ok, property} -> {:some, property}
+      :error -> :none
+    end
+  end
+
   defp normalize_script_name(name) do
     name
     |> String.downcase()
@@ -256,6 +288,14 @@ defmodule :cure_std_char do
   end
 
   defp normalize_bidi_name(name) do
+    name
+    |> String.downcase()
+    |> String.replace("_", "")
+    |> String.replace("-", "")
+    |> String.replace(" ", "")
+  end
+
+  defp normalize_binary_property_name(name) do
     name
     |> String.downcase()
     |> String.replace("_", "")

@@ -171,6 +171,14 @@ mod Std.Char
   @extern(:cure_std_char, :unicode_bidi_class_name, 1)
   fn unicode_bidi_class_name(name: List(Char)) -> Option(Atom)
 
+  ## Resolve a Unicode boolean property name against the pinned property
+  ## table. The emitted atom is checked by `unicode_binary_property?/2`.
+  @extern(:cure_std_char, :unicode_binary_property?, 2)
+  fn unicode_binary_property?(c: Char, property: Atom) -> Bool
+
+  @extern(:cure_std_char, :unicode_binary_property_name, 1)
+  fn unicode_binary_property_name(name: List(Char)) -> Option(Atom)
+
   ## Resolve a Unicode Script name from regex syntax against the pinned table.
   ## This is compile-time validation; emitted regexes carry the resulting atom
   ## and compare it with `unicode_script/1` at runtime.
