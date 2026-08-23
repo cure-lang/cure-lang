@@ -427,6 +427,14 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     refute exact =~ "lookaround_machine_acceptance_path"
   end
 
+  test "the staged proof path uses the selected atomic trace authority" do
+    source = File.read!("lib/std_deps/regex/regex_proof.cure")
+
+    refute source =~ "lookaround_machine_acceptance_path"
+    refute source =~ "lookaround_prefix("
+    assert source =~ "atomic_lookaround_routine_initial"
+  end
+
   test "atomic success constructs and retains the selected machine trace" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 

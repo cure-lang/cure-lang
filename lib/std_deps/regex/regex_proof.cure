@@ -4037,14 +4037,16 @@ mod Std.Regex.Proof
   ## through the depth-bounded assertion machine exists.
   fn parse_lookaround_compilation_full_verified({shape: ShapeCode}, pattern: Pattern(shape), compilation: LookaroundCompilation(shape), policy: NewlinePolicy, input: String) -> Option(Sem(shape)) =
     let characters = Std.String.characters(input)
-    match lookaround_machine_acceptance_path(regex_assertion_depth_limit(), lookaround_state_count(compilation), lookaround_machine(compilation), subject_initial_position(), characters, [], [], [], policy)
-      LookaroundSearchResultRejected(_) -> None()
-      LookaroundSearchResultFound(_) -> parse_pattern_full_verified(pattern, input)
+    match atomic_lookaround_routine_initial(regex_assertion_depth_limit(), lookaround_state_count(compilation), lookaround_machine(compilation), characters, [], subject_initial_position(), [], [], policy, false, [])
+      LookaroundRoutineSearchYes(_, [], _, _) -> parse_pattern_full_verified(pattern, input)
+      LookaroundRoutineSearchYes(_, _, _, _) -> None()
+      LookaroundRoutineSearchNo() -> None()
+      LookaroundRoutineSearchCommit(_) -> None()
 
   fn parse_lookaround_compilation_prefix_verified_at({shape: ShapeCode}, pattern: Pattern(shape), compilation: LookaroundCompilation(shape), policy: NewlinePolicy, input: List(Char), greedy: Bool, position: InitialPosition, history: List(Char)) -> Option(Tuple(Sem(shape), List(Char))) =
-    match lookaround_prefix(lookaround_state_count(compilation), lookaround_machine(compilation), position, input, greedy, history, policy)
+    match atomic_lookaround_routine_prefix(regex_assertion_depth_limit(), lookaround_state_count(compilation), lookaround_machine(compilation), position, input, greedy, history, [], policy)
       None() -> None()
-      Some(%[matched, remaining]) -> match parse_pattern_full_verified(pattern, Std.String.from_characters(matched))
+      Some(%[matched, remaining, _routine]) -> match parse_pattern_full_verified(pattern, Std.String.from_characters(matched))
         None() -> None()
         Some(value) -> Some(%[value, remaining])
 
