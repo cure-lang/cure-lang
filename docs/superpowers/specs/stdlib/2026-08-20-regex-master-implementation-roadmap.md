@@ -28,21 +28,22 @@ decision; atomic rejection and commitment now return immediately without
 running the speculative plain DFS. Replacing the successful pair with one
 atomic-aware indexed selected-trace/refutation fold remains the next extraction
 obligation. The first one-pass construction slice is landed: every successful
-atomic start and transition now prepends an erased
-`AtomicSelectedTrace(n, machine)` node
-containing the chosen bounded state, source thread, character, regular routine,
-preserved constraints, and nested-assertion routine. Successful lookahead and
-lookbehind witnesses retain that trace. Selected transitions now also retain an
+atomic start and transition now prepends erased, separately indexed search and
+path trace nodes containing the chosen bounded state, source thread, character,
+regular routine, preserved constraints, and nested-assertion routine.
+Successful lookahead and lookbehind witnesses retain that trace. Selected
+transitions now also retain an
 erased `MachineStateCursor` from the exact ordered destination list to the
 chosen suffix plus a `ListMember` edge at its head and an erased equality tying
 the whole candidate list to `lookaround_machine_raw_destinations` for the exact
 machine, source thread, and character. Selected starts retain the corresponding
 head membership, an erased suffix cursor through the machine's exact raw start
 list, and an equality tying that whole list to `pattern_machine_starts(machine)`.
-The next slice must add input/rest, history, capture-context, policy,
-scope-depth, and routine indices before this trace can replace the legacy
-dependent path. The trace is now additionally indexed by its runtime matched
-prefix, remaining input, and selected extended routine; the
+The path trace is indexed by its originating input/rest, exact thread, history,
+capture context, newline policy, atomic scope depth, prefix/exact mode,
+consumed-prefix accumulator, runtime matched prefix, remaining input, and
+selected extended routine. The initial trace adds the exact initial position
+and canonical start selection; the
 `LookaroundRoutineSearchYes` payload and both witness packages must carry that
 exact indexed trace rather than arbitrary erased evidence. Constraint
 evaluation now has one construction authority:
@@ -488,9 +489,13 @@ assertion-decision, exhaustive-model, and named-capture gate passes 50 tests.
 The canonical constraint-admission fold now supplies the selected routine,
 capture markers, and nested decision evidence needed by the indexed trace from
 one child evaluation.
-The selected routine and result split are now trace indices. The remaining
-obligation is to add the originating input/rest, history, capture-context,
-policy, and scope-depth indices consumed by the existing path theorems, then
+The selected routine, result split, originating input/rest, thread, history,
+capture context, policy, scope depth, mode, and consumed prefix are now trace
+indices. Each transition also retains the exact canonical admission's capture
+markers and nested decisions. The clean serialized 50-test gate passed in 386
+seconds; that increase needs follow-up elaboration profiling. The remaining
+proof obligation is to translate this atomic selected trace into the existing
+exact/prefix path families (or replace those families at their consumers), then
 remove the successful decision's legacy second traversal; the phase exit gate
 is not yet discharged.
 

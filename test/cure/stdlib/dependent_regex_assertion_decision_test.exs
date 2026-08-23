@@ -443,24 +443,53 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     assert source =~
-             "type AtomicSelectedTrace(n: Nat, machine: PatternMachine(n)) indices (matched: List(Char), remaining_input: List(Char), selected_routine: List(ExtendedInstruction))"
+             "type AtomicSelectedPathTrace(depth: Nat, n: Nat, machine: PatternMachine(n))"
 
-    assert source =~ "type LookaroundRoutineSearchResult(n: Nat, machine: PatternMachine(n))"
+    assert source =~
+             "type AtomicSelectedTrace(depth: Nat, n: Nat, machine: PatternMachine(n))"
 
-    assert Regex.match?(
-             ~r/LookaroundRoutineSearchYes\s*:\s*\(matched: List\(Char\)\).*remaining: List\(Char\).*routine: List\(ExtendedInstruction\).*@erased trace: AtomicSelectedTrace\(n, machine, matched, remaining, routine\)/s,
-             source
-           )
+    assert source =~
+             "type AtomicPathSearchResult(depth: Nat, n: Nat, machine: PatternMachine(n))"
 
-    assert Regex.match?(
-             ~r/LookaheadWitnessPacked\s*:.*matched: List\(Char\).*remaining: List\(Char\).*routine: List\(ExtendedInstruction\).*@erased selected_trace: AtomicSelectedTrace\(n, machine, matched, remaining, routine\)/s,
-             source
-           )
+    assert source =~
+             "type LookaroundRoutineSearchResult(depth: Nat, n: Nat, machine: PatternMachine(n))"
 
-    assert Regex.match?(
-             ~r/LookbehindWitnessPacked\s*:.*routine: List\(ExtendedInstruction\).*@erased selected_trace: AtomicSelectedTrace\(n, machine, matched, remaining_input, routine\)/s,
-             source
-           )
+    result_declaration =
+      source
+      |> String.split("LookaroundRoutineSearchYes :", parts: 2)
+      |> List.last()
+      |> String.split("\n", parts: 2)
+      |> List.first()
+
+    assert result_declaration =~ "matched: List(Char)"
+    assert result_declaration =~ "remaining: List(Char)"
+    assert result_declaration =~ "routine: List(ExtendedInstruction)"
+    assert result_declaration =~ "AtomicSelectedTrace(depth, n, machine"
+    assert result_declaration =~ "matched, remaining, routine)"
+
+    lookahead_declaration =
+      source
+      |> String.split("LookaheadWitnessPacked :", parts: 2)
+      |> List.last()
+      |> String.split("\n", parts: 2)
+      |> List.first()
+
+    assert lookahead_declaration =~ "matched: List(Char)"
+    assert lookahead_declaration =~ "remaining: List(Char)"
+    assert lookahead_declaration =~ "routine: List(ExtendedInstruction)"
+    assert lookahead_declaration =~ "AtomicSelectedTrace(depth, n, machine"
+    assert lookahead_declaration =~ "matched, remaining, routine)"
+
+    lookbehind_declaration =
+      source
+      |> String.split("LookbehindWitnessPacked :", parts: 2)
+      |> List.last()
+      |> String.split("\n", parts: 2)
+      |> List.first()
+
+    assert lookbehind_declaration =~ "routine: List(ExtendedInstruction)"
+    assert lookbehind_declaration =~ "AtomicSelectedTrace(depth, n, machine"
+    assert lookbehind_declaration =~ "matched, remaining_input, routine)"
 
     assert source =~ "AtomicSelectedTransitionActive"
     assert source =~ "AtomicSelectedTransitionAccepted"
