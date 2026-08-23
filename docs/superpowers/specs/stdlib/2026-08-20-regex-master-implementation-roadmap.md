@@ -243,6 +243,12 @@ cursor with a selected-trace suffix rather than treating them as interchangeable
 This is construction-site strengthening only: partial cursor failures are still
 not interchangeable with root failures, and the complete child/tail alignment
 relation remains open.
+Every atomic no-result now also transports the erased
+`LookaroundAdmittedStateCursorWitness` built alongside the runtime cursor. This
+preserves the distinction between “the evaluator is currently at this suffix”
+and “the selected path is a suffix of this candidate list”; the eventual
+alignment eliminator must consume both witnesses rather than converting one
+proposition into the other.
 The first extraction prerequisite is landed: admitted filtered states retain
 their original boundary constraints instead of replacing them with `Nil()`.
 Their routine still carries the assertion-participation markers used by later
