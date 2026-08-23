@@ -251,8 +251,9 @@ alignment eliminator must consume both witnesses rather than converting one
 proposition into the other.
 Terminal active-path failures are now distinguished as complete root failures:
 `AtomicPathRootRefutation` indexes the failure with `whole = current`, and
-`AtomicPathSearchRootNo` is used for the statically complete empty-candidate
-terminal cases (active input exhaustion and exact acceptance with input).
+`AtomicPathSearchRootActiveNo` / `AtomicPathSearchRootExactNo` are used for the
+statically complete empty-candidate terminal cases (active input exhaustion
+and exact acceptance with input).
 Suffix-local failures remain `AtomicPathSearchNo`; they cannot be passed to a
 root theorem without first supplying the missing child/tail alignment. The
 remaining atomic work is to lift this root distinction through destination
