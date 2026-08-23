@@ -1729,7 +1729,20 @@ mod Std.Regex.Runtime
   ## the atomic refutation induction when a path skips a rejected candidate.
   type LookaroundAdmittedStateCursorSuffix(n: Nat) indices (outer: List(LookaroundAdmittedState(n)), inner: List(LookaroundAdmittedState(n)))
     LookaroundAdmittedStateCursorSuffixHere : (@erased equality: Equivalent(List(LookaroundAdmittedState(n)), outer, inner)) -> LookaroundAdmittedStateCursorSuffix(n, outer, inner)
-    LookaroundAdmittedStateCursorSuffixDrop : (head: LookaroundAdmittedState(n)) -> (suffix: LookaroundAdmittedStateCursorSuffix(n, outer, inner)) -> LookaroundAdmittedStateCursorSuffix(n, Cons(head, outer), inner)
+    LookaroundAdmittedStateCursorSuffixDrop : (@erased head: LookaroundAdmittedState(n)) -> (suffix: LookaroundAdmittedStateCursorSuffix(n, outer, inner)) -> LookaroundAdmittedStateCursorSuffix(n, Cons(head, outer), inner)
+
+  ## This witness mirrors the cursor's own arbitrary-whole traversal.  It is
+  ## distinct from `LookaroundAdmittedStateCursorSuffix`: the latter relates
+  ## two list spines whose outer list starts at the dropped head, while this
+  ## witness records a cursor that may already have skipped a prefix of its
+  ## original whole list.
+  type LookaroundAdmittedStateCursorWitness(n: Nat) indices (whole: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)))
+    LookaroundAdmittedStateCursorWitnessHere : LookaroundAdmittedStateCursorWitness(n, values, values)
+    LookaroundAdmittedStateCursorWitnessDrop : (@erased head: LookaroundAdmittedState(n)) -> (@erased witness: LookaroundAdmittedStateCursorWitness(n, whole, Cons(head, values))) -> LookaroundAdmittedStateCursorWitness(n, whole, values)
+
+  fn lookaround_admitted_cursor_to_suffix({n: Nat}, {whole: List(LookaroundAdmittedState(n))}, {current: List(LookaroundAdmittedState(n))}, cursor: LookaroundAdmittedStateCursor(n, whole, current)) -> LookaroundAdmittedStateCursorWitness(n, whole, current) = match cursor
+    LookaroundAdmittedStateCursorHere() -> LookaroundAdmittedStateCursorWitnessHere()
+    LookaroundAdmittedStateCursorDrop(head, cursor) -> LookaroundAdmittedStateCursorWitnessDrop(head, lookaround_admitted_cursor_to_suffix(cursor))
 
   fn lookaround_admitted_machine_state({n: Nat}, admitted: LookaroundAdmittedState(n)) -> MachineState(n) = match admitted
     LookaroundAdmittedActive(state, routine, constraints, _, assertion_markers, _) -> Active(state, append_routine(routine, assertion_markers), constraints)

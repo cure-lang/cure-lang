@@ -213,7 +213,10 @@ rejection and start-list induction remain. The membership-to-cursor bridge
 `lookaround_admitted_cursor_suffix_from_member` now packages the exact suffix
 and its ordered `Here`/`Drop` proof for that induction. The package is
 existential and erased at the matcher boundary, so no runtime candidate list or
-membership witness is introduced.
+membership witness is introduced. A separate
+`LookaroundAdmittedStateCursorWitness` mirrors the runtime cursor when its
+whole list already contains a skipped prefix, keeping that proposition
+distinct from the relative traversal suffix.
 The first extraction prerequisite is landed: admitted filtered states retain
 their original boundary constraints instead of replacing them with `Nil()`.
 Their routine still carries the assertion-participation markers used by later

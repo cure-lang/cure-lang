@@ -192,7 +192,9 @@ ordered suffix package from an intrinsic membership witness, so recursive
 rejection can carry the exact remaining candidate spine rather than infer it
 from a bare list value. The package is existential and erased at the matcher
 boundary; its `Here`/`Drop` constructors are the only way to introduce the
-ordered suffix relation.
+ordered suffix relation. A separate `LookaroundAdmittedStateCursorWitness`
+mirrors the runtime cursor when its whole list already contains a skipped
+prefix; this prevents conflating the two different suffix propositions.
 
 The executable behavior, exact/prefix refutation soundness, and constructive
 search-result completeness are present.  Search results retain their canonical
