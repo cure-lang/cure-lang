@@ -461,6 +461,10 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert source =~ "AtomicSelectedTransitionAccepted"
     assert source =~ "AtomicSelectedStartActive"
     assert source =~ "AtomicSelectedStartAccepted"
+    assert Regex.match?(~r/AtomicSelectedTransitionActive\s*:[^\n]*MachineStateCursor[^\n]*ListMember/, source)
+    assert Regex.match?(~r/AtomicSelectedTransitionAccepted\s*:[^\n]*MachineStateCursor[^\n]*ListMember/, source)
+    assert Regex.match?(~r/AtomicSelectedStartActive\s*:[^\n]*ListMember/, source)
+    assert Regex.match?(~r/AtomicSelectedStartAccepted\s*:[^\n]*ListMember/, source)
   end
 
   test "prefix rejection has no exact-only accepted-with-input case" do

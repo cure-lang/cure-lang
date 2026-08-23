@@ -31,10 +31,13 @@ obligation. The first one-pass construction slice is landed: every successful
 atomic start and transition now prepends an erased `AtomicSelectedTrace(n)` node
 containing the chosen bounded state, source thread, character, regular routine,
 preserved constraints, and nested-assertion routine. Successful lookahead and
-lookbehind witnesses retain that trace. It is currently indexed by state count;
-the next slice must add canonical start/destination membership, input/rest,
-scope-depth, and routine equations before it can replace the legacy dependent
-path. Several
+lookbehind witnesses retain that trace. Selected transitions now also retain an
+erased `MachineStateCursor` from the exact ordered destination list to the
+chosen suffix plus a `ListMember` edge at its head; selected starts retain the
+corresponding head membership. It is currently indexed by state count; the next
+slice must tie the destination list definitionally to the machine transition,
+add the full-start cursor, input/rest, scope-depth, and routine equations before
+it can replace the legacy dependent path. Several
 capture interactions remain open; exact and prefix path refutation soundness,
 their complete start-search lifts, and constructive evaluator completeness are
 now discharged.
@@ -464,10 +467,12 @@ shape is part of the exhaustive oracle. Successful lookahead and lookbehind
 witnesses retain the exact atomic routine used by both capture-marker extraction
 and named replay, so those consumers no longer rerun the child search. The
 atomic traversal now also constructs an erased state-count-indexed selected
-trace. The remaining obligation is to strengthen that trace with the canonical
-membership and equality indices consumed by the existing path theorems, then
-remove the successful decision's legacy second traversal; the phase exit gate
-is not yet discharged.
+trace. Transition nodes carry their ordered candidate cursor and selected-head
+membership, while start nodes carry selected-head membership. The remaining
+obligation is to strengthen that trace with the canonical transition/start
+equations and input/routine indices consumed by the existing path theorems,
+then remove the successful decision's legacy second traversal; the phase exit
+gate is not yet discharged.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
