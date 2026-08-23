@@ -10,6 +10,8 @@ defmodule Cure.Stdlib.DependentRegexScalarEscapeTest do
       use Std.Regex
 
       fn fixed(input: String) -> Option(Unit) = parse_full(/\x41/, input)
+      fn unicode_bmp(input: String) -> Option(Unit) = parse_full(/\u0041/, input)
+      fn unicode_astral(input: String) -> Option(Unit) = parse_full(/\U0001F642/, input)
       fn braced_bmp(input: String) -> Option(Unit) = parse_full(/\x{00E9}/, input)
       fn braced_astral(input: String) -> Option(Unit) = parse_full(/\x{1F642}/, input)
       fn fixed_class(input: String) -> Option(Char) = parse_full(/[\x41-\x43]/, input)
@@ -22,6 +24,8 @@ defmodule Cure.Stdlib.DependentRegexScalarEscapeTest do
 
   test "fixed and braced hexadecimal escapes emit checked Unicode scalars", %{runtime_module: module} do
     assert apply(module, :fixed, [{:String, ~c"A"}]) == {:some, :unit}
+    assert apply(module, :unicode_bmp, [{:String, ~c"A"}]) == {:some, :unit}
+    assert apply(module, :unicode_astral, [{:String, [0x1F642]}]) == {:some, :unit}
     assert apply(module, :braced_bmp, [{:String, ~c"é"}]) == {:some, :unit}
     assert apply(module, :braced_astral, [{:String, [0x1F642]}]) == {:some, :unit}
     assert apply(module, :fixed_class, [{:String, ~c"B"}]) == {:some, ?B}
@@ -36,7 +40,13 @@ defmodule Cure.Stdlib.DependentRegexScalarEscapeTest do
       {~S"\x{110000}", :RegexEscapeOutOfRange, ~S"\x{110000}"},
       {~S"\x{D800}", :RegexEscapeNotUnicodeScalar, ~S"\x{D800}"},
       {~S"\x{41", :UnclosedRegexScalarEscape, ~S"\x{41"},
-      {~S"[\xGG]", :InvalidRegexHexEscape, ~S"\xGG"}
+      {~S"[\xGG]", :InvalidRegexHexEscape, ~S"\xGG"},
+      {~S"\u", :IncompleteRegexHexEscape, ~S"\u"},
+      {~S"\u041", :IncompleteRegexHexEscape, ~S"\u041"},
+      {~S"\u00GG", :InvalidRegexHexEscape, ~S"\u00GG"},
+      {~S"\uD800", :RegexEscapeNotUnicodeScalar, ~S"\uD800"},
+      {~S"\U00110000", :RegexEscapeOutOfRange, ~S"\U00110000"},
+      {~S"[\U00GG0000]", :InvalidRegexHexEscape, ~S"\U00GG0000"}
     ]
 
     Enum.each(cases, fn {pattern, expected, expected_span} ->
