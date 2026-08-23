@@ -18,6 +18,7 @@ defmodule Cure.Stdlib.DependentRegexLookaroundTest do
     :lazy_repetition,
     :possessive_repetition,
     :atomic_in_assertion,
+    :negative_atomic_in_assertion,
     :assertion_in_atomic,
     :subject_anchor,
     :word_boundary,
@@ -38,6 +39,7 @@ defmodule Cure.Stdlib.DependentRegexLookaroundTest do
     {:lazy_assertion_search, :contains_b_reference, [:lazy_repetition]},
     {:possessive_assertion_search, :contains_b_reference, [:possessive_repetition]},
     {:atomic_assertion_search, :always_false_reference, [:atomic_in_assertion]},
+    {:negative_atomic_assertion_search, :contains_abc_reference, [:negative_atomic_in_assertion]},
     {:assertion_atomic_search, :always_false_reference, [:assertion_in_atomic]},
     {:anchored_assertion_search, :starts_with_ab_reference, [:subject_anchor]},
     {:boundary_assertion_search, :starts_with_a_reference, [:word_boundary]},
@@ -105,6 +107,7 @@ defmodule Cure.Stdlib.DependentRegexLookaroundTest do
       fn lazy_assertion_search(input: String) -> Bool = matches(/(?=a*?b)a*?b/, input)
       fn possessive_assertion_search(input: String) -> Bool = matches(/(?=a*+b)a*b/, input)
       fn atomic_assertion_search(input: String) -> Bool = matches(/(?=(?>a|ab)c)abc/, input)
+      fn negative_atomic_assertion_search(input: String) -> Bool = matches(/(?!(?>a|ab)c)abc/, input)
       fn assertion_atomic_search(input: String) -> Bool = matches(/(?>a(?=b)|ab)c/, input)
       fn anchored_assertion_search(input: String) -> Bool = matches(/(?=^ab)ab/, input)
       fn boundary_assertion_search(input: String) -> Bool = matches(/(?=\\ba)a/, input)
@@ -290,6 +293,7 @@ defmodule Cure.Stdlib.DependentRegexLookaroundTest do
   defp starts_with_ab_reference(input), do: Enum.take(input, 2) == ~c"ab"
   defp starts_with_a_reference(input), do: List.first(input) == ?a
   defp contains_upper_a_reference(input), do: ?A in input
+  defp contains_abc_reference(input), do: Enum.any?(0..length(input), &contains_at?(input, ~c"abc", &1))
   defp contains_lower_a_or_b_reference(input), do: Enum.any?(input, &(&1 in ~c"ab"))
   defp positive_full_reference(input), do: input == ~c"ab"
 
@@ -401,6 +405,7 @@ defmodule Cure.Stdlib.DependentRegexLookaroundTest do
   defp reference_result(:starts_with_ab_reference, input), do: starts_with_ab_reference(input)
   defp reference_result(:starts_with_a_reference, input), do: starts_with_a_reference(input)
   defp reference_result(:contains_upper_a_reference, input), do: contains_upper_a_reference(input)
+  defp reference_result(:contains_abc_reference, input), do: contains_abc_reference(input)
 
   defp reference_result(:contains_lower_a_or_b_reference, input),
     do: contains_lower_a_or_b_reference(input)

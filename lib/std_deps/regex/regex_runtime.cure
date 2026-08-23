@@ -2772,6 +2772,7 @@ mod Std.Regex.Runtime
   ## its soundness and completeness against the machine semantics.
   type LookaheadRefutation(n: Nat, machine: PatternMachine(n)) indices ()
     LookaheadSearchExhausted : {@erased starts: List(MachineState(n))} -> (@erased depth: Nat) -> (input: List(Char)) -> (after_input: List(Char)) -> (history: List(Char)) -> (policy: NewlinePolicy) -> (@erased failure: LookaroundPrefixSearchFailure(depth, n, machine, input, after_input, history, capture_context, policy, starts, starts)) -> LookaheadRefutation(n, machine)
+    LookaheadAtomicSearchRejected : (@erased depth: Nat) -> (position: InitialPosition) -> (input: List(Char)) -> (history: List(Char)) -> (@erased capture_context: List(EvidenceInstruction)) -> (policy: NewlinePolicy) -> (result: LookaroundRoutineSearchResult) -> (reason: LookaroundRoutineRejectionReason) -> LookaheadRefutation(n, machine)
 
   type LookaheadWitness(n: Nat, machine: PatternMachine(n)) indices ()
     LookaheadWitnessPacked : {@erased starts: List(MachineState(n))} -> {@erased depth: Nat} -> {@erased input: List(Char)} -> {@erased after_input: List(Char)} -> {@erased history: List(Char)} -> {@erased capture_context: List(EvidenceInstruction)} -> {@erased policy: NewlinePolicy} -> (@erased path: LookaroundPrefixSearchPath(depth, n, machine, capture_context, starts, input, after_input, history, policy)) -> LookaheadWitness(n, machine)
@@ -2837,11 +2838,32 @@ mod Std.Regex.Runtime
   fn lookaround_prefix_filtered_starts(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> List(MachineState(n)) = match machine
     MkPatternMachine(starts, _) -> lookaround_filter_boundary_states(depth, starts, position_boundary_for_history(position, append_characters(input, after_input), history), append_characters(input, after_input), history, capture_context, policy)
 
-  fn lookaround_prefix_search_decision(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> LookaheadDecision(n, machine) =
-    let filtered_starts = lookaround_prefix_filtered_starts(depth, n, machine, position, input, after_input, history, capture_context, policy)
-    match lookaround_prefix_search_path(depth, n, machine, input, after_input, history, capture_context, policy, filtered_starts)
-      LookaroundPrefixSearchResultRejected(exhaustion) -> LookaheadRefuted(LookaheadSearchExhausted(depth, input, after_input, history, policy, exhaustion))
-      LookaroundPrefixSearchResultFound(path) -> LookaheadSatisfied(lookahead_witness(depth, n, machine, input, after_input, history, capture_context, policy, path))
+  fn lookahead_atomic_path_decision(
+    depth: Nat,
+    n: Nat,
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    filtered_starts: List(MachineState(n)),
+    result: LookaroundRoutineSearchResult,
+    path: LookaroundPrefixSearchPath(depth, n, machine, capture_context, filtered_starts, input, after_input, history, policy)
+  ) -> LookaheadDecision(n, machine) = match result
+    LookaroundRoutineSearchYes(_, _, _) -> LookaheadSatisfied(lookahead_witness(depth, n, machine, input, after_input, history, capture_context, policy, path))
+    LookaroundRoutineSearchNo() -> LookaheadRefuted(LookaheadAtomicSearchRejected(depth, position, input, history, capture_context, policy, result, LookaroundRoutineRejected()))
+    LookaroundRoutineSearchCommit(commit_depth) -> LookaheadRefuted(LookaheadAtomicSearchRejected(depth, position, input, history, capture_context, policy, result, LookaroundRoutineCommitted(commit_depth)))
+
+  fn lookaround_prefix_search_decision(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> LookaheadDecision(n, machine) = match machine
+    MkPatternMachine(starts, _) ->
+      let filtered_starts = lookaround_prefix_filtered_starts(depth, n, machine, position, input, after_input, history, capture_context, policy)
+      match lookaround_prefix_search_path(depth, n, machine, input, after_input, history, capture_context, policy, filtered_starts)
+        LookaroundPrefixSearchResultRejected(exhaustion) -> LookaheadRefuted(LookaheadSearchExhausted(depth, input, after_input, history, policy, exhaustion))
+        LookaroundPrefixSearchResultFound(path) ->
+          let atomic_result = atomic_lookaround_routine_initial_members(depth, n, machine, input, [], position, history, capture_context, policy, None(), starts, true, [])
+          lookahead_atomic_path_decision(depth, n, machine, position, input, after_input, history, capture_context, policy, filtered_starts, atomic_result, path)
 
   fn lookaround_search_decision(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> LookbehindDecision(n, machine) = match lookaround_machine_acceptance_path(depth, n, machine, position, input, after_input, history, capture_context, policy)
     LookaroundSearchResultRejected(exhaustion) -> LookbehindRefuted(LookbehindSearchExhausted(depth, input, after_input, history, policy, exhaustion))
@@ -3008,6 +3030,8 @@ mod Std.Regex.Runtime
   ## matcher continues to consume the checked assertion path and never derives
   ## a result from this replay value.
   type LookaroundRoutineSearchResult = LookaroundRoutineSearchNo | LookaroundRoutineSearchCommit(Nat) | LookaroundRoutineSearchYes(List(Char), List(Char), List(ExtendedInstruction))
+
+  type LookaroundRoutineRejectionReason = LookaroundRoutineRejected | LookaroundRoutineCommitted(Nat)
 
   ## The runtime search never compares scope depths with an unchecked Boolean.
   ## This finite decision relation carries the proof that a commit is either

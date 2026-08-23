@@ -12,6 +12,64 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
       fn assertion_machine() -> PatternMachine(1) =
         predicate_pattern_machine(assertion_accepts_a)
 
+      fn atomic_state_one() -> Bounded(3) = 1
+
+      fn atomic_state_two() -> Bounded(3) = 2
+
+      fn atomic_a_destinations() -> List(MachineState(3)) = Cons(
+        Active(atomic_state_one(), [EndAtomic()], []),
+        Cons(Active(atomic_state_two(), [EndAtomic()], []), [])
+      )
+
+      fn atomic_accepting_destination() -> List(MachineState(3)) =
+        [Accepted([], [])]
+
+      fn atomic_state_one_destination() -> List(MachineState(3)) =
+        [Active(atomic_state_one(), [], [])]
+
+      fn atomic_trace_next(state: Bounded(3), char: Char) -> List(MachineState(3)) = match state
+        First() -> pickup
+          char == 'a' -> atomic_a_destinations()
+          else -> []
+        Next(First()) -> pickup
+          char == 'c' -> atomic_accepting_destination()
+          else -> []
+        Next(Next(First())) -> pickup
+          char == 'b' -> atomic_state_one_destination()
+          else -> []
+        _ -> []
+
+      fn atomic_trace_machine() -> PatternMachine(3) =
+        MkPatternMachine([Active(0, [BeginAtomic()], [])], atomic_trace_next)
+
+      fn certified_atomic_trace_rejects() -> Bool = match lookaround_prefix_search_decision(
+        2,
+        3,
+        atomic_trace_machine(),
+        subject_initial_position(),
+        ['a', 'b', 'c'],
+        [],
+        [],
+        [],
+        AnyUnicodeNewline()
+      )
+        LookaheadSatisfied(_) -> false
+        LookaheadRefuted(_) -> true
+        LookaheadResourceExhausted(_, _, _, _, _) -> false
+
+      fn atomic_trace_authority_rejects() -> Bool =
+        not atomic_lookaround_accepts(
+          2,
+          3,
+          atomic_trace_machine(),
+          subject_initial_position(),
+          ['a', 'b', 'c'],
+          [],
+          [],
+          [],
+          AnyUnicodeNewline()
+        )
+
       fn erase_lookahead_witness(
         @erased _witness: LookaheadWitness(1, assertion_machine())
       ) -> Unit = ()
@@ -135,6 +193,11 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert apply(module, :negative_certificate_context, [])
     assert apply(module, :nested_decision_evidence, [])
     assert apply(module, :depth_exhaustion_is_resource, [])
+  end
+
+  test "certified assertion decisions enforce atomic commitment", %{runtime_module: module} do
+    assert apply(module, :atomic_trace_authority_rejects, [])
+    assert apply(module, :certified_atomic_trace_rejects, [])
   end
 
   test "assertion paths and refutation trees erase before emitted runtime", %{
