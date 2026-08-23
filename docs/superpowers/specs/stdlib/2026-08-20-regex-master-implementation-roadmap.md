@@ -303,6 +303,15 @@ by `atomic_path_accepted_destination_rejection_excludes_trace`. Its child
 refutation would have to be `ThreadAccepted()` at `Nil()` input, but the only
 empty-input constructor is active-only; the contradiction is consumed before
 any selected trace is inspected.
+The recursive destination-list evaluator now has an internal
+`AtomicPathMembersResult` indexed by its whole and current admitted-state
+spines. Ordinary tail rejection therefore carries the exact `remaining`
+suffix needed by the child/tail induction instead of an unconstrained public
+search result. An inner commitment that escapes the candidate is retained as
+an explicit erased escaped-no branch while the public matcher result remains
+unchanged. The focused assertion gate passes 33 tests; the selected-trace
+theorem still has to consume this indexed result and account for escaped
+commitment separately.
 `AtomicPathInputExhausted` is likewise indexed at `Nil()` input, not merely
 annotated by an erased empty witness. This prevents an exhaustion leaf from
 being fabricated at a non-empty input and makes the input split of the next

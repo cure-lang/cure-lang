@@ -597,6 +597,11 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert source =~
              "type AtomicPathRefutation(depth: Nat, n: Nat, machine: PatternMachine(n))"
 
+    assert source =~
+             "type AtomicPathMembersResult(depth: Nat, n: Nat, machine: PatternMachine(n))"
+
+    assert source =~ "AtomicPathMembersNo"
+
     result =
       source
       |> String.split("type AtomicPathSearchResult", parts: 2)
