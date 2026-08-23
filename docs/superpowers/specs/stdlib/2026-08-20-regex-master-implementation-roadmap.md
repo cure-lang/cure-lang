@@ -23,7 +23,9 @@ backtrack past a closed atomic branch. Successful witnesses retain the selected
 retains its matched prefix and remainder. Capture-marker extraction and named
 replay consume the retained routine instead of running the child machine a
 second time, while negative-assertion frames are discarded. The plain path and
-atomic selected routine are still produced by two traversals; replacing them with one
+atomic selected routine are still produced by two traversals after a successful
+decision; atomic rejection and commitment now return immediately without
+running the speculative plain DFS. Replacing the successful pair with one
 atomic-aware indexed selected-trace/refutation fold remains the next extraction
 obligation. Several
 capture interactions remain open; exact and prefix path refutation soundness,

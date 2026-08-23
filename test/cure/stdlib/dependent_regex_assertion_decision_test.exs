@@ -164,7 +164,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
         [],
         AnyUnicodeNewline()
       )
-        LookbehindRefuted(LookbehindSearchExhausted(_, ['b'], [], [], AnyUnicodeNewline(), _)) -> true
+        LookbehindRefuted(LookbehindAtomicSearchRejected(_, _, ['b'], [], [], _, AnyUnicodeNewline(), LookaroundRoutineRejected())) -> true
         _ -> false
 
       fn nested_decision_evidence() -> Bool =
@@ -414,6 +414,39 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert reason =~ "LookaroundRoutineRejected"
     assert reason =~ "LookaroundRoutineCommitted(Nat)"
     refute reason =~ "LookaroundRoutineSearchYes"
+  end
+
+  test "atomic rejection does not run the speculative indexed path search" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    prefix =
+      source
+      |> String.split("fn lookahead_atomic_path_decision", parts: 2)
+      |> List.last()
+      |> String.split("fn lookaround_prefix_search_decision", parts: 2)
+      |> List.first()
+
+    exact =
+      source
+      |> String.split("fn lookbehind_atomic_path_decision", parts: 2)
+      |> List.last()
+      |> String.split("fn lookaround_search_decision", parts: 2)
+      |> List.first()
+
+    assert Regex.match?(~r/match result\s+LookaroundRoutineSearchYes.*lookaround_prefix_search_path/s, prefix)
+    assert Regex.match?(~r/match result\s+LookaroundRoutineSearchYes.*lookaround_machine_acceptance_path/s, exact)
+
+    [prefix_rejection | _] = String.split(prefix, "LookaroundRoutineSearchNo", parts: 2)
+    [exact_rejection | _] = String.split(exact, "LookaroundRoutineSearchNo", parts: 2)
+
+    assert prefix_rejection =~ "lookaround_prefix_search_path"
+    assert exact_rejection =~ "lookaround_machine_acceptance_path"
+
+    prefix_after_success = prefix |> String.split("LookaroundRoutineSearchNo", parts: 2) |> List.last()
+    exact_after_success = exact |> String.split("LookaroundRoutineSearchNo", parts: 2) |> List.last()
+
+    refute prefix_after_success =~ "lookaround_prefix_search_path"
+    refute exact_after_success =~ "lookaround_machine_acceptance_path"
   end
 
   test "prefix rejection has no exact-only accepted-with-input case" do
