@@ -286,6 +286,11 @@ Their only construction sites already run in the active branch, so this
 removes the possibility of manufacturing an exhausted refutation for an
 accepted thread and gives the recursive rejection proof a canonical state
 discriminator.
+`AtomicPathDestinationRejected` now carries the same active-source index and
+canonical active destination equation. Its child state remains independent,
+so accepted candidates can still carry an exact child refutation while the
+parent traversal is statically known to be active; this is the shape needed
+for the next child/tail induction.
 The first extraction prerequisite is landed: admitted filtered states retain
 their original boundary constraints instead of replacing them with `Nil()`.
 Their routine still carries the assertion-participation markers used by later
