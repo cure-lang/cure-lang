@@ -16,13 +16,14 @@ recorded in `2026-08-20-regex-performance-baseline.md`.
 The first Phase 2 evidence slice is also landed: successful lookahead and
 lookbehind decisions carry an existential package containing the indexed finite
 child path. Lookahead admission now also requires the atomic prefix traversal
-to succeed, closing the former gap where its certified plain DFS could
-backtrack past a closed atomic branch. The successful lookahead witness retains
-the matched prefix, remainder, and selected `ExtendedInstruction` routine from
-that same atomic decision. Capture-marker extraction and named replay consume
-the retained routine instead of running the child machine a second time, while
-negative-assertion frames are discarded. The plain path and atomic selected
-routine are still produced by two traversals; replacing them with one
+to succeed, and exact/lookbehind admission requires the corresponding atomic
+exact traversal, closing the former gap where either certified plain DFS could
+backtrack past a closed atomic branch. Successful witnesses retain the selected
+`ExtendedInstruction` routine from that atomic decision; lookahead additionally
+retains its matched prefix and remainder. Capture-marker extraction and named
+replay consume the retained routine instead of running the child machine a
+second time, while negative-assertion frames are discarded. The plain path and
+atomic selected routine are still produced by two traversals; replacing them with one
 atomic-aware indexed selected-trace/refutation fold remains the next extraction
 obligation. Several
 capture interactions remain open; exact and prefix path refutation soundness,
@@ -448,13 +449,13 @@ parameter, and path/refutation theorems force the actual computed result into
 the corresponding constructor. The exhaustive admitted-interaction manifest
 now covers all 18 declared Phase 2 machine-shape classes against an independent
 finite oracle. Resource-exhaustion polarity and assertion-proof erasure are
-also covered by emitted-runtime regressions. Atomic lookahead commitment has a
-direct hand-built-machine regression and the negative-atomic assertion shape is
-part of the exhaustive oracle. Successful lookahead witnesses retain the exact
-atomic prefix routine used by both capture-marker extraction and named replay,
-so those consumers no longer rerun the child search. The remaining obligation
-is to make that atomic traversal construct the indexed path/refutation itself;
-the phase exit gate is not yet discharged.
+also covered by emitted-runtime regressions. Atomic prefix and exact commitment
+have a direct hand-built-machine regression and the negative-atomic assertion
+shape is part of the exhaustive oracle. Successful lookahead and lookbehind
+witnesses retain the exact atomic routine used by both capture-marker extraction
+and named replay, so those consumers no longer rerun the child search. The
+remaining obligation is to make that atomic traversal construct the indexed
+path/refutation itself; the phase exit gate is not yet discharged.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in

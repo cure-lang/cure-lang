@@ -1742,12 +1742,8 @@ mod Std.Regex.Runtime
         False() -> Some([])
       LookaheadResourceExhausted(_, _, _, _, _) -> None()
     Some(LookbehindCondition(positive, width, mk_pair(count, machine))) -> match lookaround_child_lookbehind(depth, count, machine, width, boundary, remaining, history, capture_context, policy)
-      LookbehindSatisfied(_) -> match positive
-        True() -> match lookbehind_window(history, width)
-          None() -> None()
-          Some(window) -> match atomic_lookaround_routine_accepts(depth, count, machine, lookbehind_initial_position(boundary, history, width, policy), window, remaining, [], capture_context, policy)
-            None() -> None()
-            Some(routine) -> Some(capture_slot_markers_from_extended(routine))
+      LookbehindSatisfied(witness) -> match positive
+        True() -> Some(capture_slot_markers_from_extended(lookbehind_witness_routine(count, machine, witness)))
         False() -> None()
       LookbehindRefuted(_) -> match positive
         True() -> None()
@@ -1820,21 +1816,14 @@ mod Std.Regex.Runtime
         True() -> None()
         False() -> Some([])
       LookaheadResourceExhausted(_, _, _, _, _) -> None()
-    Some(LookbehindCondition(positive, width, mk_pair(count, machine))) -> match depth
-      Z() -> match positive
+    Some(LookbehindCondition(positive, width, mk_pair(count, machine))) -> match lookaround_child_lookbehind(depth, count, machine, width, boundary, remaining, history, capture_context, policy)
+      LookbehindSatisfied(witness) -> match positive
+        True() -> Some(lookbehind_witness_routine(count, machine, witness))
+        False() -> None()
+      LookbehindRefuted(_) -> match positive
         True() -> None()
         False() -> Some([])
-      S(child_depth) -> match lookbehind_window(history, width)
-        None() -> match positive
-          True() -> None()
-          False() -> Some([])
-        Some(window) -> match atomic_lookaround_routine_accepts(child_depth, count, machine, lookbehind_initial_position(boundary, history, width, policy), window, remaining, [], capture_context, policy)
-          Some(routine) -> match positive
-            True() -> Some(routine)
-            False() -> None()
-          None() -> match positive
-            True() -> None()
-            False() -> Some([])
+      LookbehindResourceExhausted(_, _, _, _, _) -> None()
 
   fn position_boundary_for_history(position: InitialPosition, input: List(Char), history: List(Char)) -> Boundary = match position
     InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word, previous_char) ->
@@ -2780,9 +2769,10 @@ mod Std.Regex.Runtime
   type LookbehindRefutation(n: Nat, machine: PatternMachine(n)) indices ()
     LookbehindSearchExhausted : {@erased starts: List(MachineState(n))} -> (@erased depth: Nat) -> (input: List(Char)) -> (after_input: List(Char)) -> (history: List(Char)) -> (policy: NewlinePolicy) -> (@erased failure: LookaroundSearchFailure(depth, n, machine, input, after_input, history, capture_context, policy, starts, starts)) -> LookbehindRefutation(n, machine)
     LookbehindHistoryUnavailable : (width: Nat) -> (history: List(Char)) -> (policy: NewlinePolicy) -> (@erased exhaustion: LookaroundExhaustion(n)) -> LookbehindRefutation(n, machine)
+    LookbehindAtomicSearchRejected : (@erased depth: Nat) -> (position: InitialPosition) -> (input: List(Char)) -> (after_input: List(Char)) -> (history: List(Char)) -> (@erased capture_context: List(EvidenceInstruction)) -> (policy: NewlinePolicy) -> (result: LookaroundRoutineSearchResult) -> (reason: LookaroundRoutineRejectionReason) -> LookbehindRefutation(n, machine)
 
   type LookbehindWitness(n: Nat, machine: PatternMachine(n)) indices ()
-    LookbehindWitnessPacked : {@erased starts: List(MachineState(n))} -> {@erased depth: Nat} -> {@erased input: List(Char)} -> {@erased after_input: List(Char)} -> {@erased history: List(Char)} -> {@erased capture_context: List(EvidenceInstruction)} -> {@erased policy: NewlinePolicy} -> (@erased path: LookaroundSearchPath(depth, n, machine, capture_context, starts, input, after_input, history, policy)) -> LookbehindWitness(n, machine)
+    LookbehindWitnessPacked : (routine: List(ExtendedInstruction)) -> {@erased starts: List(MachineState(n))} -> {@erased depth: Nat} -> {@erased input: List(Char)} -> {@erased after_input: List(Char)} -> {@erased history: List(Char)} -> {@erased capture_context: List(EvidenceInstruction)} -> {@erased policy: NewlinePolicy} -> (@erased path: LookaroundSearchPath(depth, n, machine, capture_context, starts, input, after_input, history, policy)) -> LookbehindWitness(n, machine)
 
   type LookbehindDecision(n: Nat, machine: PatternMachine(n)) indices ()
     LookbehindSatisfied : (witness: LookbehindWitness(n, machine)) -> LookbehindDecision(n, machine)
@@ -2831,7 +2821,10 @@ mod Std.Regex.Runtime
   fn lookahead_witness_routine(n: Nat, machine: PatternMachine(n), witness: LookaheadWitness(n, machine)) -> List(ExtendedInstruction) = match witness
     LookaheadWitnessPacked(_, _, routine, _) -> routine
 
-  fn lookbehind_witness(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, {@erased starts: List(MachineState(n))}, path: LookaroundSearchPath(depth, n, machine, capture_context, starts, input, after_input, history, policy)) -> LookbehindWitness(n, machine) = LookbehindWitnessPacked(path)
+  fn lookbehind_witness(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, routine: List(ExtendedInstruction), {@erased starts: List(MachineState(n))}, path: LookaroundSearchPath(depth, n, machine, capture_context, starts, input, after_input, history, policy)) -> LookbehindWitness(n, machine) = LookbehindWitnessPacked(routine, path)
+
+  fn lookbehind_witness_routine(n: Nat, machine: PatternMachine(n), witness: LookbehindWitness(n, machine)) -> List(ExtendedInstruction) = match witness
+    LookbehindWitnessPacked(routine, _) -> routine
 
   fn lookaround_prefix_filtered_starts(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> List(MachineState(n)) = match machine
     MkPatternMachine(starts, _) -> lookaround_filter_boundary_states(depth, starts, position_boundary_for_history(position, append_characters(input, after_input), history), append_characters(input, after_input), history, capture_context, policy)
@@ -2863,9 +2856,30 @@ mod Std.Regex.Runtime
           let atomic_result = atomic_lookaround_routine_initial_members(depth, n, machine, input, [], position, history, capture_context, policy, None(), starts, true, [])
           lookahead_atomic_path_decision(depth, n, machine, position, input, after_input, history, capture_context, policy, filtered_starts, atomic_result, path)
 
-  fn lookaround_search_decision(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> LookbehindDecision(n, machine) = match lookaround_machine_acceptance_path(depth, n, machine, position, input, after_input, history, capture_context, policy)
-    LookaroundSearchResultRejected(exhaustion) -> LookbehindRefuted(LookbehindSearchExhausted(depth, input, after_input, history, policy, exhaustion))
-    LookaroundSearchResultFound(path) -> LookbehindSatisfied(lookbehind_witness(depth, n, machine, input, after_input, history, capture_context, policy, path))
+  fn lookbehind_atomic_path_decision(
+    depth: Nat,
+    n: Nat,
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    result: LookaroundRoutineSearchResult,
+    {@erased filtered_starts: List(MachineState(n))},
+    path: LookaroundSearchPath(depth, n, machine, capture_context, filtered_starts, input, after_input, history, policy)
+  ) -> LookbehindDecision(n, machine) = match result
+    LookaroundRoutineSearchYes(_, _, routine) -> LookbehindSatisfied(lookbehind_witness(depth, n, machine, input, after_input, history, capture_context, policy, routine, path))
+    LookaroundRoutineSearchNo() -> LookbehindRefuted(LookbehindAtomicSearchRejected(depth, position, input, after_input, history, capture_context, policy, result, LookaroundRoutineRejected()))
+    LookaroundRoutineSearchCommit(commit_depth) -> LookbehindRefuted(LookbehindAtomicSearchRejected(depth, position, input, after_input, history, capture_context, policy, result, LookaroundRoutineCommitted(commit_depth)))
+
+  fn lookaround_search_decision(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> LookbehindDecision(n, machine) = match machine
+    MkPatternMachine(starts, _) -> match lookaround_machine_acceptance_path(depth, n, machine, position, input, after_input, history, capture_context, policy)
+      LookaroundSearchResultRejected(exhaustion) -> LookbehindRefuted(LookbehindSearchExhausted(depth, input, after_input, history, policy, exhaustion))
+      LookaroundSearchResultFound(path) ->
+        let atomic_result = atomic_lookaround_routine_initial_members(depth, n, machine, input, after_input, position, history, capture_context, policy, None(), starts, false, [])
+        lookbehind_atomic_path_decision(depth, n, machine, position, input, after_input, history, capture_context, policy, atomic_result, path)
 
   fn lookaround_transition_boundary(char: Char, rest: List(Char), after_input: List(Char), policy: NewlinePolicy) -> Boundary =
     position_boundary(false, newline_char(policy, char), ascii_word(char), option_word(char, true), Some(char), append_characters(rest, after_input))

@@ -70,6 +70,21 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
           AnyUnicodeNewline()
         )
 
+      fn certified_atomic_exact_trace_rejects() -> Bool = match lookaround_search_decision(
+        2,
+        3,
+        atomic_trace_machine(),
+        subject_initial_position(),
+        ['a', 'b', 'c'],
+        [],
+        [],
+        [],
+        AnyUnicodeNewline()
+      )
+        LookbehindSatisfied(_) -> false
+        LookbehindRefuted(_) -> true
+        LookbehindResourceExhausted(_, _, _, _, _) -> false
+
       fn erase_lookahead_witness(
         @erased _witness: LookaheadWitness(1, assertion_machine())
       ) -> Unit = ()
@@ -198,6 +213,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
   test "certified assertion decisions enforce atomic commitment", %{runtime_module: module} do
     assert apply(module, :atomic_trace_authority_rejects, [])
     assert apply(module, :certified_atomic_trace_rejects, [])
+    assert apply(module, :certified_atomic_exact_trace_rejects, [])
   end
 
   test "assertion paths and refutation trees erase before emitted runtime", %{
@@ -334,6 +350,13 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
       |> String.split("type LookaheadDecision", parts: 2)
       |> List.first()
 
+    lookbehind_witness =
+      source
+      |> String.split("type LookbehindWitness", parts: 2)
+      |> List.last()
+      |> String.split("type LookbehindDecision", parts: 2)
+      |> List.first()
+
     capture_context =
       source
       |> String.split("fn lookaround_condition_capture_context", parts: 2)
@@ -351,10 +374,15 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert witness =~ "matched: List(Char)"
     assert witness =~ "remaining: List(Char)"
     assert witness =~ "routine: List(ExtendedInstruction)"
+    assert lookbehind_witness =~ "routine: List(ExtendedInstruction)"
     assert capture_context =~ "lookahead_witness_routine"
+    assert capture_context =~ "lookbehind_witness_routine"
     assert capture_routine =~ "lookahead_witness_routine"
+    assert capture_routine =~ "lookbehind_witness_routine"
     refute capture_context =~ "atomic_lookaround_routine_prefix"
+    refute capture_context =~ "atomic_lookaround_routine_accepts"
     refute capture_routine =~ "atomic_lookaround_routine_prefix"
+    refute capture_routine =~ "atomic_lookaround_routine_accepts"
   end
 
   test "prefix rejection has no exact-only accepted-with-input case" do
