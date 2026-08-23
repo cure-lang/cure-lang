@@ -109,6 +109,7 @@ mod Std.Regex.Syntax.Model
     | NotVerticalKind
 
   type LiteralUnicodeProperty =
+    | PropertyNonNewline
     | PropertyAny
     | PropertyAscii
     | PropertyCased | PropertyLowercase | PropertyUppercase
@@ -940,6 +941,24 @@ mod Std.Regex.Syntax.Model
     Std.Char.is_utf16_surrogate_code_point(value) -> LiteralScalarInvalid(:RegexEscapeNotUnicodeScalar)
     not Std.Char.is_unicode_scalar_code_point(value) -> LiteralScalarInvalid(:RegexEscapeOutOfRange)
     else -> LiteralScalarParsed(Std.Char.from_valid_code_point(value), rest)
+
+  ## Shared `\\N{name}` parser used by both ordinary escapes and character
+  ## classes. Keeping it in the syntax model avoids a parser/class dependency
+  ## cycle and makes the bare `\\N` non-newline property available in both
+  ## contexts without duplicating name-table logic.
+  fn parse_literal_unicode_name(input: List(Char), origin: List(Char), reversed: List(Char)) -> LiteralParse = match input
+    ['{' | rest] -> parse_literal_unicode_name_body(rest, origin, reversed)
+    _ -> LiteralAtInvalid(:MalformedRegexUnicodeName, origin, literal_prefix_width(origin, 3))
+
+  fn parse_literal_unicode_name_body(input: List(Char), origin: List(Char), reversed: List(Char)) -> LiteralParse = match input
+    [] -> LiteralAtInvalid(:UnclosedRegexUnicodeName, origin, literal_delimited_width(origin, '}'))
+    ['}' | rest] -> match reversed
+      [] -> LiteralAtInvalid(:EmptyRegexUnicodeName, origin, literal_delimited_width(origin, '}'))
+      _ -> match Std.Char.from_unicode_name(reverse_chars(reversed))
+        Some(named_char) -> LiteralParsed(LiteralExact(named_char), rest)
+        None() -> LiteralAtInvalid(:UnknownRegexUnicodeName, origin, literal_delimited_width(origin, '}'))
+    ['{' | _] -> LiteralAtInvalid(:MalformedRegexUnicodeName, origin, literal_delimited_width(origin, '}'))
+    [char | rest] -> parse_literal_unicode_name_body(rest, origin, [char | reversed])
 
   fn literal_fixed_hex_escape(input: List(Char)) -> LiteralScalarParse = match input
     [first, second | rest] -> match Std.Char.hex_digit_value(first)

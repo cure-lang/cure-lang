@@ -740,6 +740,7 @@ mod Std.Regex.Syntax.Emitter
     ])
 
   fn emit_unicode_property(property: LiteralUnicodeProperty) -> Syntax = match property
+    PropertyNonNewline -> runtime_call("PropertyNonNewline", [])
     PropertyAny -> runtime_call("PropertyAny", [])
     PropertyAscii -> runtime_call("PropertyAscii", [])
     PropertyCased -> runtime_call("PropertyCased", [])

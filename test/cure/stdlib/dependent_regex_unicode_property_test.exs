@@ -39,6 +39,8 @@ defmodule Cure.Stdlib.DependentRegexUnicodePropertyTest do
       fn hebrew_bidi(input: String) -> Option(Char) = parse_full(/\p{bc=R}/u, input)
       fn hebrew_bidi_long(input: String) -> Option(Char) = parse_full(/\p{bc=Right_To_Left}/u, input)
       fn bidi_mirrored(input: String) -> Option(Char) = parse_full(/\p{Bidi_Mirrored}/u, input)
+      fn non_newline(input: String) -> Option(Char) = parse_full(/\N/u, input)
+      fn class_non_newline(input: String) -> Option(Char) = parse_full(/[\N]/u, input)
       fn emoji_binary(input: String) -> Option(Char) = parse_full(/\p{Emoji}/u, input)
       fn not_emoji_binary(input: String) -> Option(Char) = parse_full(/\P{Emoji}/u, input)
       fn pictographic_binary(input: String) -> Option(Char) = parse_full(/\p{Extended_Pictographic}/u, input)
@@ -111,6 +113,10 @@ defmodule Cure.Stdlib.DependentRegexUnicodePropertyTest do
     assert apply(module, :hebrew_bidi_long, [{:String, ~c"A"}]) == :none
     assert apply(module, :bidi_mirrored, [{:String, ~c"("}]) == {:some, ?(}
     assert apply(module, :bidi_mirrored, [{:String, ~c"A"}]) == :none
+    assert apply(module, :non_newline, [{:String, ~c"A"}]) == {:some, ?A}
+    assert apply(module, :non_newline, [{:String, ~c"\n"}]) == :none
+    assert apply(module, :class_non_newline, [{:String, ~c"A"}]) == {:some, ?A}
+    assert apply(module, :class_non_newline, [{:String, ~c"\n"}]) == :none
     assert apply(module, :emoji_binary, [{:String, ~c"🙂"}]) == {:some, 0x1F642}
     assert apply(module, :emoji_binary, [{:String, ~c"A"}]) == :none
     assert apply(module, :not_emoji_binary, [{:String, ~c"A"}]) == {:some, ?A}

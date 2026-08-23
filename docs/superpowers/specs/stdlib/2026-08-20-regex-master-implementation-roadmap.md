@@ -555,8 +555,9 @@ derived names such as `Assigned`), Script (including `Script=...`/`sc=...`),
 Bidi (`Bidi_Class`/`bc` and `Bidi_Mirrored`), and generic property names are
 validated at macro time and emitted as atoms. Script_Extensions uses the
 vendored Unicode 17.0.0 UCD file and defaults to the primary Script value for
-code points omitted by that file. Remaining Phase 3 work is Bidi properties
-beyond these implemented fields,
+code points omitted by that file. Bare `\\N` (including inside a class) now
+lowers to the finite complement of Cure's Unicode newline predicate. Remaining
+Phase 3 work is Bidi properties beyond these implemented fields,
 grapheme clusters,
 duplicate-name and capture-layout policy, other finite control normalizations,
 and the remaining control families below. `(*FAIL)` and terminal `(*ACCEPT)`

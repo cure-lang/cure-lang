@@ -3675,6 +3675,7 @@ mod Std.Regex.Runtime
   type ClassKind = DigitKind | NotDigitKind | WordKind | NotWordKind | SpaceKind | NotSpaceKind | HorizontalKind | NotHorizontalKind | VerticalKind | NotVerticalKind
 
   type UnicodeProperty =
+    | PropertyNonNewline
     | PropertyAny
     | PropertyAscii
     | PropertyCased | PropertyLowercase | PropertyUppercase
@@ -4314,6 +4315,7 @@ mod Std.Regex.Runtime
   fn unicode_property_matches(property: UnicodeProperty, actual: Char) -> Bool =
     let category = Std.Char.unicode_category(actual)
     match property
+      PropertyNonNewline -> not Std.Char.is_newline(actual)
       PropertyAny -> true
       PropertyAscii -> Std.Char.is_ascii(actual)
       PropertyCased -> Std.Char.is_cased(actual)

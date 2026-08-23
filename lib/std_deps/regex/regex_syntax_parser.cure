@@ -433,7 +433,9 @@ mod Std.Regex.Syntax.Parser
     ['x' | rest] -> match parse_literal_hex_scalar(rest)
       LiteralScalarParsed(scalar, tail) -> LiteralParsed(LiteralExact(scalar), tail)
       LiteralScalarInvalid(reason) -> LiteralAtInvalid(reason, origin, literal_scalar_escape_width(origin))
-    ['N' | rest] -> parse_literal_unicode_name(rest, origin, [])
+    ['N' | rest] -> match rest
+      ['{' | _] -> parse_literal_unicode_name(rest, origin, [])
+      _ -> LiteralParsed(LiteralProperty(PropertyNonNewline, false), rest)
     ['p' | rest] -> match parse_literal_unicode_property(rest)
       LiteralPropertyParsed(property, tail) -> LiteralParsed(LiteralProperty(property, false), tail)
       LiteralPropertyInvalid(reason) -> LiteralAtInvalid(reason, origin, literal_property_escape_width(origin))
@@ -463,17 +465,3 @@ mod Std.Regex.Syntax.Parser
   fn literal_quoted_cons(head: Char, rest: List(Char)) -> LiteralPattern = match rest
     [] -> LiteralExact(head)
     _ -> LiteralSequence(LiteralExact(head), literal_quoted_pattern(rest))
-
-  fn parse_literal_unicode_name(input: List(Char), origin: List(Char), reversed: List(Char)) -> LiteralParse = match input
-    ['{' | rest] -> parse_literal_unicode_name_body(rest, origin, reversed)
-    _ -> LiteralAtInvalid(:MalformedRegexUnicodeName, origin, literal_prefix_width(origin, 3))
-
-  fn parse_literal_unicode_name_body(input: List(Char), origin: List(Char), reversed: List(Char)) -> LiteralParse = match input
-    [] -> LiteralAtInvalid(:UnclosedRegexUnicodeName, origin, literal_delimited_width(origin, '}'))
-    ['}' | rest] -> match reversed
-      [] -> LiteralAtInvalid(:EmptyRegexUnicodeName, origin, literal_delimited_width(origin, '}'))
-      _ -> match Std.Char.from_unicode_name(reverse_chars(reversed))
-        Some(named_char) -> LiteralParsed(LiteralExact(named_char), rest)
-        None() -> LiteralAtInvalid(:UnknownRegexUnicodeName, origin, literal_delimited_width(origin, '}'))
-    ['{' | _] -> LiteralAtInvalid(:MalformedRegexUnicodeName, origin, literal_delimited_width(origin, '}'))
-    [char | rest] -> parse_literal_unicode_name_body(rest, origin, [char | reversed])
