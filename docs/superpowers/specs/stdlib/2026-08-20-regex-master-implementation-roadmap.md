@@ -258,6 +258,10 @@ Suffix-local failures remain `AtomicPathSearchNo`; they cannot be passed to a
 root theorem without first supplying the missing child/tail alignment. The
 remaining atomic work is to lift this root distinction through destination
 exhaustion, rejected-child/tail induction, and escaped-commit bookkeeping.
+The active root wrapper now has its first consumer theorem:
+`atomic_path_root_active_failure_excludes_trace` eliminates the root wrapper
+directly to the exhausted-input contradiction, rather than routing it through
+the suffix-local result constructor.
 The first extraction prerequisite is landed: admitted filtered states retain
 their original boundary constraints instead of replacing them with `Nil()`.
 Their routine still carries the assertion-participation markers used by later

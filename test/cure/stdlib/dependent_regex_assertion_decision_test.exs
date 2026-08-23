@@ -625,6 +625,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert source =~ "lookaround_admitted_cursor_suffix_from_member"
     assert source =~ "lookaround_admitted_cursor_to_suffix"
     assert source =~ "atomic_path_input_exhaustion_excludes_trace"
+    assert source =~ "atomic_path_root_active_failure_excludes_trace"
     assert source =~ "atomic_path_failure_excludes_trace"
     assert source =~ "atomic_path_destinations_exhausted_excludes_trace"
     assert source =~ "atomic_path_destination_rejection_excludes_trace"

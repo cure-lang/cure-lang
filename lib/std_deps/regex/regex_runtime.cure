@@ -3520,6 +3520,13 @@ mod Std.Regex.Runtime
   fn atomic_path_failure_excludes_trace({result: Type}, {depth: Nat}, {n: Nat}, machine: PatternMachine(n), after_input: List(Char), state: Bounded(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), {matched: List(Char)}, {remaining_input: List(Char)}, {routine: List(ExtendedInstruction)}, {whole: List(LookaroundAdmittedState(n))}, current: List(LookaroundAdmittedState(n)), @erased failure: AtomicPathRefutation(depth, n, machine, Nil(), after_input, ThreadActive(state), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current), @erased path: AtomicSelectedPathTrace(depth, n, machine, Nil(), after_input, ThreadActive(state), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, Nil(), matched, remaining_input, routine)) -> result = match failure
     AtomicPathInputExhausted(_) -> atomic_path_input_exhaustion_excludes_trace(machine, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, path)
 
+  ## The active root wrapper has no suffix-local alternative: its empty-input
+  ## index eliminates every refutation constructor except
+  ## `AtomicPathInputExhausted`. This is the first theorem consumer that uses
+  ## the root/partial split directly.
+  fn atomic_path_root_active_failure_excludes_trace({result: Type}, {depth: Nat}, {n: Nat}, machine: PatternMachine(n), after_input: List(Char), state: Bounded(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), {candidate_current: List(LookaroundAdmittedState(n))}, {matched: List(Char)}, {remaining_input: List(Char)}, {routine: List(ExtendedInstruction)}, @erased failure: AtomicPathRootRefutation(depth, n, machine, Nil(), after_input, ThreadActive(state), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, Nil()), @erased path: AtomicSelectedPathTrace(depth, n, machine, Nil(), after_input, ThreadActive(state), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, candidate_current, matched, remaining_input, routine)) -> result = match failure
+    AtomicPathRootRefutation(AtomicPathInputExhausted(_)) -> atomic_path_input_exhaustion_excludes_trace(machine, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, path)
+
   ## Destination exhaustion has an independent cursor base case.  Once the
   ## failure cursor is indexed at `Nil()`, a selected transition would require
   ## a suffix beginning at a non-empty admitted candidate list; the suffix
