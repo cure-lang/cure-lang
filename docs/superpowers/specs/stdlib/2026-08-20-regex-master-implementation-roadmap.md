@@ -493,7 +493,14 @@ The selected routine, result split, originating input/rest, thread, history,
 capture context, policy, scope depth, mode, and consumed prefix are now trace
 indices. Each transition also retains the exact canonical admission's capture
 markers and nested decisions. The clean serialized 50-test gate passed in 386
-seconds; that increase needs follow-up elaboration profiling. The remaining
+seconds; that increase needs follow-up elaboration profiling. The
+raw-versus-filtered candidate mismatch now has one construction authority:
+boundary admission materializes a typed `LookaroundAdmittedState` sidecar, and
+the ordinary filtered machine-state list is only a projection of that list.
+This prevents proof paths and runtime filtering from independently rebuilding
+different admitted candidates. Atomic selection must next traverse this
+sidecar directly so its cursor and membership evidence refer to the same
+filtered list consumed by `LookaroundAcceptingPath`. The remaining
 proof obligation is to translate this atomic selected trace into the existing
 exact/prefix path families (or replace those families at their consumers), then
 remove the successful decision's legacy second traversal; the phase exit gate

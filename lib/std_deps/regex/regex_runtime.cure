@@ -1712,14 +1712,29 @@ mod Std.Regex.Runtime
   type LookaroundConstraintAdmission =
     | LookaroundConstraintAdmitted(List(ExtendedInstruction), List(EvidenceInstruction), List(LookaroundNestedDecision))
 
-  fn lookaround_filter_boundary_states(depth: Nat, {n: Nat}, states: List(MachineState(n)), boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> List(MachineState(n)) = match states
+  type LookaroundAdmittedState(n: Nat) indices ()
+    LookaroundAdmittedActive : Bounded(n) -> List(EvidenceInstruction) -> List(BoundaryConstraint) -> List(ExtendedInstruction) -> List(EvidenceInstruction) -> List(LookaroundNestedDecision) -> LookaroundAdmittedState(n)
+    LookaroundAdmittedAccepted : List(EvidenceInstruction) -> List(BoundaryConstraint) -> List(ExtendedInstruction) -> List(EvidenceInstruction) -> List(LookaroundNestedDecision) -> LookaroundAdmittedState(n)
+
+  fn lookaround_admitted_machine_state({n: Nat}, admitted: LookaroundAdmittedState(n)) -> MachineState(n) = match admitted
+    LookaroundAdmittedActive(state, routine, constraints, _, assertion_markers, _) -> Active(state, append_routine(routine, assertion_markers), constraints)
+    LookaroundAdmittedAccepted(routine, constraints, _, assertion_markers, _) -> Accepted(append_routine(routine, assertion_markers), constraints)
+
+  fn lookaround_admitted_machine_states({n: Nat}, admitted: List(LookaroundAdmittedState(n))) -> List(MachineState(n)) = match admitted
+    [] -> []
+    [head | rest] -> [lookaround_admitted_machine_state(head) | lookaround_admitted_machine_states(rest)]
+
+  fn lookaround_admit_boundary_states(depth: Nat, {n: Nat}, states: List(MachineState(n)), boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> List(LookaroundAdmittedState(n)) = match states
     [] -> []
     [Active(state, routine, constraints) | rest] -> match lookaround_constraints_admission(depth, constraints, boundary, remaining, history, append_routine(capture_context, routine), policy)
-      Some(LookaroundConstraintAdmitted(_, assertion_markers, _)) -> [Active(state, append_routine(routine, assertion_markers), constraints) | lookaround_filter_boundary_states(depth, rest, boundary, remaining, history, capture_context, policy)]
-      None() -> lookaround_filter_boundary_states(depth, rest, boundary, remaining, history, capture_context, policy)
+      Some(LookaroundConstraintAdmitted(assertion_routine, assertion_markers, nested_decisions)) -> [LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions) | lookaround_admit_boundary_states(depth, rest, boundary, remaining, history, capture_context, policy)]
+      None() -> lookaround_admit_boundary_states(depth, rest, boundary, remaining, history, capture_context, policy)
     [Accepted(routine, constraints) | rest] -> match lookaround_constraints_admission(depth, constraints, boundary, remaining, history, append_routine(capture_context, routine), policy)
-      Some(LookaroundConstraintAdmitted(_, assertion_markers, _)) -> [Accepted(append_routine(routine, assertion_markers), constraints) | lookaround_filter_boundary_states(depth, rest, boundary, remaining, history, capture_context, policy)]
-      None() -> lookaround_filter_boundary_states(depth, rest, boundary, remaining, history, capture_context, policy)
+      Some(LookaroundConstraintAdmitted(assertion_routine, assertion_markers, nested_decisions)) -> [LookaroundAdmittedAccepted(routine, constraints, assertion_routine, assertion_markers, nested_decisions) | lookaround_admit_boundary_states(depth, rest, boundary, remaining, history, capture_context, policy)]
+      None() -> lookaround_admit_boundary_states(depth, rest, boundary, remaining, history, capture_context, policy)
+
+  fn lookaround_filter_boundary_states(depth: Nat, {n: Nat}, states: List(MachineState(n)), boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> List(MachineState(n)) =
+    lookaround_admitted_machine_states(lookaround_admit_boundary_states(depth, states, boundary, remaining, history, capture_context, policy))
 
   ## Extract only capture-slot markers from a selected assertion routine. The
   ## child emits its own characters and evidence, but those must not be merged

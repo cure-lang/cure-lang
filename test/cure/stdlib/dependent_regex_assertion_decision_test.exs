@@ -526,7 +526,6 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert source =~ "LookaroundConstraintAdmitted"
 
     for consumer <- [
-          "lookaround_filter_boundary_states",
           "lookaround_constraints_capture_context",
           "lookaround_constraints_routine",
           "lookaround_nested_decisions",
@@ -553,6 +552,26 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
         ] do
       refute source =~ "fn #{obsolete}", "#{obsolete} duplicates constraint evaluation"
     end
+  end
+
+  test "filtered candidates project one canonical admitted-state list" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "type LookaroundAdmittedState(n: Nat)"
+    assert source =~ "fn lookaround_admitted_machine_state"
+    assert source =~ "fn lookaround_admitted_machine_states"
+    assert source =~ "fn lookaround_admit_boundary_states"
+
+    filter =
+      source
+      |> String.split("fn lookaround_filter_boundary_states", parts: 2)
+      |> List.last()
+      |> String.split("\n  fn ", parts: 2)
+      |> List.first()
+
+    assert filter =~ "lookaround_admitted_machine_states"
+    assert filter =~ "lookaround_admit_boundary_states"
+    refute filter =~ "lookaround_constraints_admission"
   end
 
   test "prefix rejection has no exact-only accepted-with-input case" do
