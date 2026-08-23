@@ -500,7 +500,19 @@ the ordinary filtered machine-state list is only a projection of that list.
 This prevents proof paths and runtime filtering from independently rebuilding
 different admitted candidates. Atomic selection must next traverse this
 sidecar directly so its cursor and membership evidence refer to the same
-filtered list consumed by `LookaroundAcceptingPath`. The remaining
+filtered list consumed by `LookaroundAcceptingPath`. Do not attempt to recover
+that correspondence afterward with
+`Equivalent(lookaround_admitted_machine_states(admitted),
+lookaround_machine_destinations(...))`: destination filtering, nested
+assertion admission, and atomic selection occupy the same recursive totality
+SCC, so the destination call is intentionally opaque while that SCC is being
+checked and reflexivity cannot unfold it. Instead, replace the loose sidecar
+list with one indexed admission result constructed by the admission fold. That
+result must carry the filtered `MachineState` list and its per-state assertion
+routine, capture markers, and nested decisions together. Atomic selection and
+the accepting/refutation consumers must eliminate the same result; neither may
+recompute admission or prove equality between two calls after the fact. The
+remaining
 proof obligation is to translate this atomic selected trace into the existing
 exact/prefix path families (or replace those families at their consumers), then
 remove the successful decision's legacy second traversal; the phase exit gate
