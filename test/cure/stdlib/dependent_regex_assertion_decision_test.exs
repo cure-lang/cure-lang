@@ -603,6 +603,8 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     assert result =~ "AtomicPathSearchNo"
     assert result =~ "failure: AtomicPathRefutation"
+    assert result =~ "selection_suffix: LookaroundAdmittedStateCursorSuffix"
+    assert source =~ "atomic_lookaround_routine_add_skipped_candidate"
     assert source =~ "AtomicPathInputExhausted"
     assert source =~ "AtomicPathDestinationRejected"
     assert Regex.match?(~r/AtomicPathExactAcceptedWithInput\s*:[^\n]*Cons\(char, rest\)/, source)

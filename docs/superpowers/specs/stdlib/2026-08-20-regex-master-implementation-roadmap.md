@@ -216,7 +216,16 @@ existential and erased at the matcher boundary, so no runtime candidate list or
 membership witness is introduced. A separate
 `LookaroundAdmittedStateCursorWitness` mirrors the runtime cursor when its
 whole list already contains a skipped prefix, keeping that proposition
-distinct from the relative traversal suffix.
+distinct from the relative traversal suffix. `AtomicPathSearchYes` now carries
+an erased selected whole/current admitted-state list pair and its ordered
+`LookaroundAdmittedStateCursorSuffix`. Terminal success uses explicit empty
+list witnesses, selected candidates establish the `Here` case, and skipped
+candidates extend the relation with `Drop`. Inner commitment escapes now pass
+through `atomic_lookaround_routine_add_skipped_candidate`, so a later sibling
+success retains every skipped candidate in the original ordered destination
+spine. This is construction-site transport only; the recursive theorem that
+consumes the selected suffix and proves complete atomic trace/refutation
+correspondence remains open.
 The first extraction prerequisite is landed: admitted filtered states retain
 their original boundary constraints instead of replacing them with `Nil()`.
 Their routine still carries the assertion-participation markers used by later

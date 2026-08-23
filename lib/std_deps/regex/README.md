@@ -195,6 +195,14 @@ boundary; its `Here`/`Drop` constructors are the only way to introduce the
 ordered suffix relation. A separate `LookaroundAdmittedStateCursorWitness`
 mirrors the runtime cursor when its whole list already contains a skipped
 prefix; this prevents conflating the two different suffix propositions.
+`AtomicPathSearchYes` now carries the selected whole/current admitted-state
+lists and an erased `LookaroundAdmittedStateCursorSuffix`; selected candidates
+construct the `Here` case, while skipped candidates (including inner
+commitment escapes) prepend an erased `Drop` witness through
+`atomic_lookaround_routine_add_skipped_candidate`. The runtime still emits
+only the matched text, remainder, and routine; these ordered candidate
+witnesses are proof metadata for the remaining atomic trace/refutation
+correspondence.
 
 The executable behavior, exact/prefix refutation soundness, and constructive
 search-result completeness are present.  Search results retain their canonical
