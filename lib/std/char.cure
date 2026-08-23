@@ -171,6 +171,12 @@ mod Std.Char
   @extern(:cure_std_char, :unicode_bidi_class_name, 1)
   fn unicode_bidi_class_name(name: List(Char)) -> Option(Atom)
 
+  @extern(:cure_std_char, :unicode_general_category?, 2)
+  fn unicode_general_category?(c: Char, category: Atom) -> Bool
+
+  @extern(:cure_std_char, :unicode_general_category_name, 1)
+  fn unicode_general_category_name(name: List(Char)) -> Option(Atom)
+
   ## Resolve a Unicode boolean property name against the pinned property
   ## table. The emitted atom is checked by `unicode_binary_property?/2`.
   @extern(:cure_std_char, :unicode_binary_property?, 2)

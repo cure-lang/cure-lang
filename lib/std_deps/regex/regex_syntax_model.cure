@@ -115,6 +115,7 @@ mod Std.Regex.Syntax.Model
     | PropertyAlphabetic | PropertyWhiteSpace | PropertyHexDigit | PropertyMath | PropertyCurrencyBinary
     | PropertyScript(Atom)
     | PropertyBidiClass(Atom)
+    | PropertyCategory(Atom)
     | PropertyBinary(Atom)
     | PropertyLetter | PropertyLowercaseLetter | PropertyUppercaseLetter | PropertyTitlecaseLetter | PropertyModifierLetter | PropertyOtherLetter
     | PropertyMark | PropertySpacingMark | PropertyEnclosingMark | PropertyNonspacingMark
@@ -1025,11 +1026,13 @@ mod Std.Regex.Syntax.Model
     ['C','s'] -> Some(PropertySurrogate)
     _ -> match Std.Char.unicode_bidi_class_name(name)
       Some(bidi_class) -> Some(PropertyBidiClass(bidi_class))
-      None() -> match Std.Char.unicode_binary_property_name(name)
-        Some(property) -> Some(PropertyBinary(property))
-        None() -> match Std.Char.unicode_script_name(name)
-          Some(script) -> Some(PropertyScript(script))
-          None() -> None()
+      None() -> match Std.Char.unicode_general_category_name(name)
+        Some(category) -> Some(PropertyCategory(category))
+        None() -> match Std.Char.unicode_binary_property_name(name)
+          Some(property) -> Some(PropertyBinary(property))
+          None() -> match Std.Char.unicode_script_name(name)
+            Some(script) -> Some(PropertyScript(script))
+            None() -> None()
 
   fn parse_literal_unicode_property_name(input: List(Char), reversed: List(Char)) -> LiteralPropertyParse = match input
     [] -> LiteralPropertyInvalid(:UnclosedRegexUnicodeProperty)

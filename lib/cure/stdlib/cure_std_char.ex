@@ -205,6 +205,16 @@ defmodule :cure_std_char do
 
   def unicode_bidi_class(cp) when is_integer(cp), do: Map.get(@bidi_class_values, cp, :unknown)
 
+  def unicode_general_category?(cp, category) when is_integer(cp) and is_atom(category) do
+    case Unicode.GeneralCategory.get(category) do
+      ranges when is_list(ranges) ->
+        Enum.any?(ranges, fn {first, last} -> cp >= first and cp <= last end)
+
+      _ ->
+        false
+    end
+  end
+
   def unicode_binary_property?(cp, property) when is_integer(cp) and is_atom(property) do
     case Unicode.Property.get(property) do
       ranges when is_list(ranges) ->
@@ -274,6 +284,41 @@ defmodule :cure_std_char do
     end
   end
 
+  def unicode_general_category_name(chars) when is_list(chars) do
+    name = List.to_string(chars)
+
+    value =
+      case String.split(name, "=", parts: 2) do
+        [property, value] ->
+          if normalize_category_name(property) in ["generalcategory", "gc"], do: value, else: ""
+
+        [_] ->
+          case String.split(name, ":", parts: 2) do
+            [property, value] ->
+              if normalize_category_name(property) in ["generalcategory", "gc"], do: value, else: ""
+
+            [_] ->
+              name
+          end
+      end
+
+    normalized = normalize_category_name(value)
+
+    known =
+      Unicode.GeneralCategory.known_categories()
+      |> Map.new(fn category -> {normalize_category_name(Atom.to_string(category)), category} end)
+
+    aliases =
+      Unicode.GeneralCategory.aliases()
+      |> Enum.map(fn {name, category} -> {normalize_category_name(name), category} end)
+      |> Map.new()
+
+    case Map.fetch(Map.merge(known, aliases), normalized) do
+      {:ok, category} -> {:some, category}
+      :error -> :none
+    end
+  end
+
   def unicode_binary_property_name(chars) when is_list(chars) do
     normalized = normalize_binary_property_name(List.to_string(chars))
 
@@ -305,6 +350,14 @@ defmodule :cure_std_char do
   end
 
   defp normalize_bidi_name(name) do
+    name
+    |> String.downcase()
+    |> String.replace("_", "")
+    |> String.replace("-", "")
+    |> String.replace(" ", "")
+  end
+
+  defp normalize_category_name(name) do
     name
     |> String.downcase()
     |> String.replace("_", "")

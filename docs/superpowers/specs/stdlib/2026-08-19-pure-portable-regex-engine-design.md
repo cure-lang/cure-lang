@@ -654,7 +654,7 @@ The Cure status columns distinguish implementation from design:
 | Vertical whitespace | `\v`, `\V` | yes | yes | yes | `Std.Char` predicates |
 | Unicode newline | `\R` | yes | yes | yes | Finite newline policy |
 | Non-newline class | `\N` | yes | yes | no | Candidate complement of newline |
-| General Unicode categories | `\p{L}`, `\p{Nd}` | yes | yes | yes | Pinned finite property table |
+| General Unicode categories | `\p{L}`, `\p{Nd}`, `\p{General_Category=Letter}`, `\p{gc=Nd}` | yes | yes | yes | Pinned finite GeneralCategory table and aliases |
 | Negated categories | `\P{L}` | yes | yes | yes | Pinned complement table |
 | Unicode binary properties | `\p{Emoji}` | yes | yes | yes | Pinned boolean-property table, compile-time alias validation, and erased runtime range predicate |
 | Unicode scripts | `\p{Greek}`, `\p{Script=Greek}`, `\p{sc=Grek}` | yes | yes | yes | Pinned Script table and aliases; `scx` remains separate |
