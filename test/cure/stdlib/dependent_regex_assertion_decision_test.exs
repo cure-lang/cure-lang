@@ -637,6 +637,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     input_exhausted = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    AtomicPathInputExhausted :"))
     destinations_exhausted = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    AtomicPathDestinationsExhausted :"))
     assert input_exhausted =~ "ThreadActive(source)"
+    assert input_exhausted =~ "machine, Nil(), after_input, ThreadActive(source)"
     assert destinations_exhausted =~ "ThreadActive(source)"
     destination_rejected = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    AtomicPathDestinationRejected :"))
     assert destination_rejected =~ "ThreadActive(source)"

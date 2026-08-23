@@ -298,6 +298,10 @@ constructor, while every selected terminal or transition form is indexed
 away. The recursive active-child theorem can therefore branch on the admitted
 candidate constructor without inspecting an erased accepted failure at
 runtime.
+`AtomicPathInputExhausted` is likewise indexed at `Nil()` input, not merely
+annotated by an erased empty witness. This prevents an exhaustion leaf from
+being fabricated at a non-empty input and makes the input split of the next
+refutation eliminator canonical.
 The first extraction prerequisite is landed: admitted filtered states retain
 their original boundary constraints instead of replacing them with `Nil()`.
 Their routine still carries the assertion-participation markers used by later
