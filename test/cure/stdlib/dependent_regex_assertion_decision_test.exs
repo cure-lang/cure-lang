@@ -426,6 +426,9 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert admission =~ "capture_slot_markers_from_extended"
     refute admission =~ "atomic_lookaround_routine_prefix"
     refute admission =~ "atomic_lookaround_routine_accepts"
+
+    assert witness =~ "selected_trace_routine"
+    assert lookbehind_witness =~ "selected_trace_routine"
   end
 
   test "atomic assertion refutations cannot carry a successful search result" do

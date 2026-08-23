@@ -2819,12 +2819,18 @@ mod Std.Regex.Runtime
   fn lookahead_witness(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, matched: List(Char), remaining: List(Char), routine: List(ExtendedInstruction), @erased selected_trace: AtomicSelectedTrace(depth, n, machine, position, input, Nil(), history, capture_context, policy, True(), Nil(), matched, remaining, routine)) -> LookaheadWitness(n, machine) = LookaheadWitnessPacked(matched, remaining, routine, selected_trace)
 
   fn lookahead_witness_routine(n: Nat, machine: PatternMachine(n), witness: LookaheadWitness(n, machine)) -> List(ExtendedInstruction) = match witness
-    LookaheadWitnessPacked(_, _, routine, _) -> routine
+    LookaheadWitnessPacked(matched, remaining, routine, selected_trace) -> selected_trace_routine(routine, selected_trace)
 
   fn lookbehind_witness(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, routine: List(ExtendedInstruction), {@erased matched: List(Char)}, {@erased remaining_input: List(Char)}, @erased selected_trace: AtomicSelectedTrace(depth, n, machine, position, input, after_input, history, capture_context, policy, False(), Nil(), matched, remaining_input, routine)) -> LookbehindWitness(n, machine) = LookbehindWitnessPacked(routine, selected_trace)
 
   fn lookbehind_witness_routine(n: Nat, machine: PatternMachine(n), witness: LookbehindWitness(n, machine)) -> List(ExtendedInstruction) = match witness
-    LookbehindWitnessPacked(routine, _) -> routine
+    LookbehindWitnessPacked(routine, selected_trace) -> selected_trace_routine(routine, selected_trace)
+
+  ## The selected-trace index names the exact routine that the atomic
+  ## evaluator admitted.  Replay consumers project through this helper rather
+  ## than independently choosing a routine, so the capture sidecar and the
+  ## checked assertion witness share one construction authority.
+  fn selected_trace_routine({depth: Nat}, {n: Nat}, {machine: PatternMachine(n)}, {position: InitialPosition}, {input: List(Char)}, {after_input: List(Char)}, {history: List(Char)}, {capture_context: List(EvidenceInstruction)}, {policy: NewlinePolicy}, {prefix_mode: Bool}, {reversed_prefix: List(Char)}, {matched: List(Char)}, {remaining: List(Char)}, routine: List(ExtendedInstruction), @erased _trace: AtomicSelectedTrace(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, matched, remaining, routine)) -> List(ExtendedInstruction) = routine
 
   fn lookaround_prefix_filtered_starts(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> List(MachineState(n)) = match machine
     MkPatternMachine(starts, _) -> lookaround_filter_boundary_states(depth, starts, position_boundary_for_history(position, append_characters(input, after_input), history), append_characters(input, after_input), history, capture_context, policy)
