@@ -139,6 +139,33 @@ defmodule :cure_std_char do
   def number?(cp), do: Unicode.category(cp) in [:Nd, :Nl, :No]
   def unicode_category(cp) when is_integer(cp), do: Unicode.category(cp)
   def unicode_script(cp) when is_integer(cp), do: Unicode.script(cp)
+
+  def unicode_script_name(chars) when is_list(chars) do
+    normalized = normalize_script_name(List.to_string(chars))
+
+    known =
+      Unicode.Script.known_scripts()
+      |> Map.new(fn script -> {normalize_script_name(Atom.to_string(script)), script} end)
+
+    aliases =
+      Unicode.Script.aliases()
+      |> Enum.map(fn {alias_name, script} -> {normalize_script_name(alias_name), script} end)
+      |> Map.new()
+
+    case Map.fetch(Map.merge(known, aliases), normalized) do
+      {:ok, script} -> {:some, script}
+      :error -> :none
+    end
+  end
+
+  defp normalize_script_name(name) do
+    name
+    |> String.downcase()
+    |> String.replace("_", "")
+    |> String.replace("-", "")
+    |> String.replace(" ", "")
+  end
+
   def whole_number?(cp), do: Map.has_key?(@whole_number_values, cp)
 
   def whole_number_value(cp) when is_integer(cp) do

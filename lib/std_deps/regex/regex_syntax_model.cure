@@ -113,7 +113,7 @@ mod Std.Regex.Syntax.Model
     | PropertyAscii
     | PropertyCased | PropertyLowercase | PropertyUppercase
     | PropertyAlphabetic | PropertyWhiteSpace | PropertyHexDigit | PropertyMath | PropertyCurrencyBinary
-    | PropertyScriptLatin | PropertyScriptGreek | PropertyScriptCyrillic
+    | PropertyScript(Atom)
     | PropertyLetter | PropertyLowercaseLetter | PropertyUppercaseLetter | PropertyTitlecaseLetter | PropertyModifierLetter | PropertyOtherLetter
     | PropertyMark | PropertySpacingMark | PropertyEnclosingMark | PropertyNonspacingMark
     | PropertyNumber | PropertyDecimalNumber | PropertyLetterNumber | PropertyOtherNumber
@@ -971,9 +971,9 @@ mod Std.Regex.Syntax.Model
     ['H','e','x','_','D','i','g','i','t'] -> Some(PropertyHexDigit)
     ['M','a','t','h'] -> Some(PropertyMath)
     ['C','u','r','r','e','n','c','y','_','S','y','m','b','o','l'] -> Some(PropertyCurrencyBinary)
-    ['L','a','t','i','n'] -> Some(PropertyScriptLatin)
-    ['G','r','e','e','k'] -> Some(PropertyScriptGreek)
-    ['C','y','r','i','l','l','i','c'] -> Some(PropertyScriptCyrillic)
+    ['L','a','t','i','n'] -> Some(PropertyScript(:latin))
+    ['G','r','e','e','k'] -> Some(PropertyScript(:greek))
+    ['C','y','r','i','l','l','i','c'] -> Some(PropertyScript(:cyrillic))
     ['L'] -> Some(PropertyLetter)
     ['L','e','t','t','e','r'] -> Some(PropertyLetter)
     ['L','l'] -> Some(PropertyLowercaseLetter)
@@ -1021,7 +1021,9 @@ mod Std.Regex.Syntax.Model
     ['C','n'] -> Some(PropertyUnassigned)
     ['C','o'] -> Some(PropertyPrivateUse)
     ['C','s'] -> Some(PropertySurrogate)
-    _ -> None()
+    _ -> match Std.Char.unicode_script_name(name)
+      Some(script) -> Some(PropertyScript(script))
+      None() -> None()
 
   fn parse_literal_unicode_property_name(input: List(Char), reversed: List(Char)) -> LiteralPropertyParse = match input
     [] -> LiteralPropertyInvalid(:UnclosedRegexUnicodeProperty)
