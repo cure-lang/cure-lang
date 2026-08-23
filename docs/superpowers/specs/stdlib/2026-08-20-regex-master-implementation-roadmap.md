@@ -37,9 +37,11 @@ erased `MachineStateCursor` from the exact ordered destination list to the
 chosen suffix plus a `ListMember` edge at its head and an erased equality tying
 the whole candidate list to `lookaround_machine_raw_destinations` for the exact
 machine, source thread, and character. Selected starts retain the corresponding
-head membership. The next slice must add the canonical full-start cursor and
-equation plus input/rest, scope-depth, and routine indices before this trace can
-replace the legacy dependent path. Several
+head membership, an erased suffix cursor through the machine's exact raw start
+list, and an equality tying that whole list to `pattern_machine_starts(machine)`.
+The next slice must add input/rest, history, capture-context, policy,
+scope-depth, and routine indices before this trace can replace the legacy
+dependent path. Several
 capture interactions remain open; exact and prefix path refutation soundness,
 their complete start-search lifts, and constructive evaluator completeness are
 now discharged.
@@ -471,12 +473,13 @@ and named replay, so those consumers no longer rerun the child search. The
 atomic traversal now also constructs an erased exact-machine-indexed selected
 trace. Transition nodes carry their ordered candidate cursor, selected-head
 membership, and a canonical equation identifying the whole list with the exact
-machine transition. Start nodes carry selected-head membership. The focused
+machine transition. Start nodes carry their canonical whole-list equation,
+ordered suffix cursor, and selected-head membership. The focused
 assertion-decision, exhaustive-model, and named-capture gate passes 49 tests.
-The remaining obligation is to add the canonical full-start cursor and equation
-plus the input/rest, scope-depth, and routine indices consumed by the existing
-path theorems, then remove the successful decision's legacy second traversal;
-the phase exit gate is not yet discharged.
+The remaining obligation is to add the input/rest, history, capture-context,
+policy, scope-depth, and routine indices consumed by the existing path theorems,
+then remove the successful decision's legacy second traversal; the phase exit
+gate is not yet discharged.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
