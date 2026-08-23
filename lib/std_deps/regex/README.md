@@ -190,7 +190,9 @@ cannot be related to a non-empty selected candidate spine.
 `lookaround_admitted_cursor_suffix_from_member` now constructs the converse
 ordered suffix package from an intrinsic membership witness, so recursive
 rejection can carry the exact remaining candidate spine rather than infer it
-from a bare list value.
+from a bare list value. The package is existential and erased at the matcher
+boundary; its `Here`/`Drop` constructors are the only way to introduce the
+ordered suffix relation.
 
 The executable behavior, exact/prefix refutation soundness, and constructive
 search-result completeness are present.  Search results retain their canonical

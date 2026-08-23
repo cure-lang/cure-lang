@@ -211,7 +211,9 @@ indices. The destination-exhaustion cursor base is separately discharged by
 `atomic_path_destinations_exhausted_excludes_trace`; recursive destination
 rejection and start-list induction remain. The membership-to-cursor bridge
 `lookaround_admitted_cursor_suffix_from_member` now packages the exact suffix
-and its ordered `Here`/`Drop` proof for that induction.
+and its ordered `Here`/`Drop` proof for that induction. The package is
+existential and erased at the matcher boundary, so no runtime candidate list or
+membership witness is introduced.
 The first extraction prerequisite is landed: admitted filtered states retain
 their original boundary constraints instead of replacing them with `Nil()`.
 Their routine still carries the assertion-participation markers used by later
