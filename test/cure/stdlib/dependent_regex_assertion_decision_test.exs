@@ -617,6 +617,17 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert source =~ "atomic_path_input_exhaustion_excludes_trace"
     assert source =~ "atomic_path_failure_excludes_trace"
     assert source =~ "atomic_path_destinations_exhausted_excludes_trace"
+    assert source =~ "atomic_path_destination_rejection_excludes_trace"
+
+    destination_rejection =
+      source
+      |> String.split("fn atomic_path_destination_rejection_excludes_trace", parts: 2)
+      |> List.last()
+      |> String.split("\n  fn ", parts: 2)
+      |> List.first()
+
+    assert destination_rejection =~ "AtomicSelectedTransitionActive"
+    assert destination_rejection =~ "atomic_path_input_exhaustion_excludes_trace"
     assert Regex.match?(~r/LookaroundRoutineSearchNo\s*:\s*\(@erased failure: AtomicStartRefutation/, source)
     assert source =~ "Option(AtomicStartRefutation"
   end
