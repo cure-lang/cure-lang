@@ -1608,9 +1608,9 @@ mod Std.Regex.Runtime
   fn subject_initial_position() -> InitialPosition = InitialPosition(true, true, false, false, None())
 
   ## Lookaround child evaluation reuses the checked Thompson machine and has a
-  ## context-aware, finite search loop. The Boolean path records only the
-  ## existence of an accepting child path; the named sidecar below replays the
-  ## selected child routine when assertion-local captures are requested.
+  ## context-aware, finite search loop. A satisfied lookahead retains both the
+  ## erased finite path and the selected atomic routine, so assertion-local
+  ## captures consume the same decision instead of traversing the child twice.
   fn lookaround_child_lookahead(depth: Nat, n: Nat, machine: PatternMachine(n), boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> LookaheadDecision(n, machine) = match depth
     Z() -> LookaheadResourceExhausted(depth, remaining, history, policy, LookaroundExhausted([], MachineStateMembersNil(), ()))
     S(rest_depth) -> match boundary
@@ -1718,11 +1718,6 @@ mod Std.Regex.Runtime
       Some(assertion_markers) -> [Accepted(append_routine(routine, assertion_markers), constraints) | lookaround_filter_boundary_states(depth, rest, boundary, remaining, history, capture_context, policy)]
       None() -> lookaround_filter_boundary_states(depth, rest, boundary, remaining, history, capture_context, policy)
 
-  fn lookaround_condition_holds(depth: Nat, condition: Option(LookaroundCondition), boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Bool = match condition
-    None() -> true
-    Some(LookaheadCondition(positive, mk_pair(count, machine))) -> lookahead_decision_holds(count, machine, positive, lookaround_child_lookahead(depth, count, machine, boundary, remaining, history, capture_context, policy))
-    Some(LookbehindCondition(positive, width, mk_pair(count, machine))) -> lookbehind_decision_holds(count, machine, positive, lookaround_child_lookbehind(depth, count, machine, width, boundary, remaining, history, capture_context, policy))
-
   ## Extract only capture-slot markers from a selected assertion routine. The
   ## child emits its own characters and evidence, but those must not be merged
   ## into the surrounding typed result; only participation markers cross the
@@ -1734,25 +1729,30 @@ mod Std.Regex.Runtime
     [_ | rest] -> capture_slot_markers_from_extended(rest)
 
   ## A successful positive assertion can publish capture participation to the
-  ## parent's ordinary finite machine. The Boolean decision remains the
-  ## admission check; the capture-aware routine supplies only slot markers.
-  fn lookaround_condition_capture_context(depth: Nat, condition: Option(LookaroundCondition), boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Option(List(EvidenceInstruction)) = pickup
-    lookaround_condition_holds(depth, condition, boundary, remaining, history, capture_context, policy) -> match condition
-      None() -> Some([])
-      Some(LookaheadCondition(positive, mk_pair(count, machine))) -> match positive
+  ## parent's ordinary finite machine. Lookahead markers come from the routine
+  ## retained by the admitting witness; only slot markers cross the boundary.
+  fn lookaround_condition_capture_context(depth: Nat, condition: Option(LookaroundCondition), boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Option(List(EvidenceInstruction)) = match condition
+    None() -> Some([])
+    Some(LookaheadCondition(positive, mk_pair(count, machine))) -> match lookaround_child_lookahead(depth, count, machine, boundary, remaining, history, capture_context, policy)
+      LookaheadSatisfied(witness) -> match positive
+        True() -> Some(capture_slot_markers_from_extended(lookahead_witness_routine(count, machine, witness)))
+        False() -> None()
+      LookaheadRefuted(_) -> match positive
+        True() -> None()
         False() -> Some([])
-        True() -> match boundary
-          Boundary(_, _, _, _, _, _, _, _, _, _) -> match atomic_lookaround_routine_prefix(depth, count, machine, lookahead_initial_position(boundary), remaining, true, history, capture_context, policy)
-            None() -> None()
-            Some(%[_, _, routine]) -> Some(capture_slot_markers_from_extended(routine))
-      Some(LookbehindCondition(positive, width, mk_pair(count, machine))) -> match positive
-        False() -> Some([])
+      LookaheadResourceExhausted(_, _, _, _, _) -> None()
+    Some(LookbehindCondition(positive, width, mk_pair(count, machine))) -> match lookaround_child_lookbehind(depth, count, machine, width, boundary, remaining, history, capture_context, policy)
+      LookbehindSatisfied(_) -> match positive
         True() -> match lookbehind_window(history, width)
           None() -> None()
           Some(window) -> match atomic_lookaround_routine_accepts(depth, count, machine, lookbehind_initial_position(boundary, history, width, policy), window, remaining, [], capture_context, policy)
             None() -> None()
             Some(routine) -> Some(capture_slot_markers_from_extended(routine))
-    else -> None()
+        False() -> None()
+      LookbehindRefuted(_) -> match positive
+        True() -> None()
+        False() -> Some([])
+      LookbehindResourceExhausted(_, _, _, _, _) -> None()
 
   fn lookaround_constraint_capture_context(depth: Nat, constraint: BoundaryConstraint, boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Option(List(EvidenceInstruction)) = match boundary
     Boundary(subject_start, _subject_end, strict_subject_end, _line_start, _line_end, ascii_boundary, unicode_boundary, previous_char, next_char, after_next_char) -> match constraint
@@ -1786,10 +1786,9 @@ mod Std.Regex.Runtime
     LookbehindResourceExhausted(_, _, _, _, _) -> false
 
   ## Capture-aware boundary evaluation returns the selected child routine for a
-  ## positive assertion.  A negative assertion succeeds with an empty routine:
-  ## its private capture frame is intentionally discarded.  The Boolean path
-  ## above remains the acceptance authority; this side channel only preserves
-  ## the witness needed by named replay.
+  ## positive assertion. A negative assertion succeeds with an empty routine:
+  ## its private capture frame is intentionally discarded. Lookahead consumes
+  ## the routine retained by the same proof-carrying decision.
   fn lookaround_constraints_routine(depth: Nat, constraints: List(BoundaryConstraint), boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Option(List(ExtendedInstruction)) = match constraints
     [] -> Some([])
     [constraint | rest] -> match lookaround_constraint_routine(depth, constraint, boundary, remaining, history, capture_context, policy)
@@ -1813,18 +1812,14 @@ mod Std.Regex.Runtime
 
   fn lookaround_condition_routine(depth: Nat, condition: Option(LookaroundCondition), boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Option(List(ExtendedInstruction)) = match condition
     None() -> Some([])
-    Some(LookaheadCondition(positive, mk_pair(count, machine))) -> match depth
-      Z() -> match positive
+    Some(LookaheadCondition(positive, mk_pair(count, machine))) -> match lookaround_child_lookahead(depth, count, machine, boundary, remaining, history, capture_context, policy)
+      LookaheadSatisfied(witness) -> match positive
+        True() -> Some(lookahead_witness_routine(count, machine, witness))
+        False() -> None()
+      LookaheadRefuted(_) -> match positive
         True() -> None()
         False() -> Some([])
-      S(child_depth) -> match boundary
-        Boundary(_, _, _, _, _, _, _, _, _, _) -> match atomic_lookaround_routine_prefix(child_depth, count, machine, lookahead_initial_position(boundary), remaining, true, history, capture_context, policy)
-          None() -> match positive
-            True() -> None()
-            False() -> Some([])
-          Some(%[_, _, routine]) -> match positive
-            True() -> Some(routine)
-            False() -> None()
+      LookaheadResourceExhausted(_, _, _, _, _) -> None()
     Some(LookbehindCondition(positive, width, mk_pair(count, machine))) -> match depth
       Z() -> match positive
         True() -> None()
@@ -2775,7 +2770,7 @@ mod Std.Regex.Runtime
     LookaheadAtomicSearchRejected : (@erased depth: Nat) -> (position: InitialPosition) -> (input: List(Char)) -> (history: List(Char)) -> (@erased capture_context: List(EvidenceInstruction)) -> (policy: NewlinePolicy) -> (result: LookaroundRoutineSearchResult) -> (reason: LookaroundRoutineRejectionReason) -> LookaheadRefutation(n, machine)
 
   type LookaheadWitness(n: Nat, machine: PatternMachine(n)) indices ()
-    LookaheadWitnessPacked : {@erased starts: List(MachineState(n))} -> {@erased depth: Nat} -> {@erased input: List(Char)} -> {@erased after_input: List(Char)} -> {@erased history: List(Char)} -> {@erased capture_context: List(EvidenceInstruction)} -> {@erased policy: NewlinePolicy} -> (@erased path: LookaroundPrefixSearchPath(depth, n, machine, capture_context, starts, input, after_input, history, policy)) -> LookaheadWitness(n, machine)
+    LookaheadWitnessPacked : (matched: List(Char)) -> (remaining: List(Char)) -> (routine: List(ExtendedInstruction)) -> {@erased starts: List(MachineState(n))} -> {@erased depth: Nat} -> {@erased input: List(Char)} -> {@erased after_input: List(Char)} -> {@erased history: List(Char)} -> {@erased capture_context: List(EvidenceInstruction)} -> {@erased policy: NewlinePolicy} -> (@erased path: LookaroundPrefixSearchPath(depth, n, machine, capture_context, starts, input, after_input, history, policy)) -> LookaheadWitness(n, machine)
 
   type LookaheadDecision(n: Nat, machine: PatternMachine(n)) indices ()
     LookaheadSatisfied : (witness: LookaheadWitness(n, machine)) -> LookaheadDecision(n, machine)
@@ -2831,7 +2826,10 @@ mod Std.Regex.Runtime
     MachineStateMembersAccepted(routine, constraints, member, remaining) -> match lookaround_prefix_path(depth, n, machine, input, after_input, ThreadAccepted(), history, append_routine(capture_context, routine), policy)
       LookaroundPrefixPathFoundAccepted(path) -> LookaroundPrefixSearchMembersFound(LookaroundPrefixSearchFoundAccepted(routine, constraints, member, path))
 
-  fn lookahead_witness(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, {@erased starts: List(MachineState(n))}, path: LookaroundPrefixSearchPath(depth, n, machine, capture_context, starts, input, after_input, history, policy)) -> LookaheadWitness(n, machine) = LookaheadWitnessPacked(path)
+  fn lookahead_witness(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, matched: List(Char), remaining: List(Char), routine: List(ExtendedInstruction), {@erased starts: List(MachineState(n))}, path: LookaroundPrefixSearchPath(depth, n, machine, capture_context, starts, input, after_input, history, policy)) -> LookaheadWitness(n, machine) = LookaheadWitnessPacked(matched, remaining, routine, path)
+
+  fn lookahead_witness_routine(n: Nat, machine: PatternMachine(n), witness: LookaheadWitness(n, machine)) -> List(ExtendedInstruction) = match witness
+    LookaheadWitnessPacked(_, _, routine, _) -> routine
 
   fn lookbehind_witness(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, {@erased starts: List(MachineState(n))}, path: LookaroundSearchPath(depth, n, machine, capture_context, starts, input, after_input, history, policy)) -> LookbehindWitness(n, machine) = LookbehindWitnessPacked(path)
 
@@ -2852,7 +2850,7 @@ mod Std.Regex.Runtime
     result: LookaroundRoutineSearchResult,
     path: LookaroundPrefixSearchPath(depth, n, machine, capture_context, filtered_starts, input, after_input, history, policy)
   ) -> LookaheadDecision(n, machine) = match result
-    LookaroundRoutineSearchYes(_, _, _) -> LookaheadSatisfied(lookahead_witness(depth, n, machine, input, after_input, history, capture_context, policy, path))
+    LookaroundRoutineSearchYes(matched, remaining, routine) -> LookaheadSatisfied(lookahead_witness(depth, n, machine, input, after_input, history, capture_context, policy, matched, remaining, routine, path))
     LookaroundRoutineSearchNo() -> LookaheadRefuted(LookaheadAtomicSearchRejected(depth, position, input, history, capture_context, policy, result, LookaroundRoutineRejected()))
     LookaroundRoutineSearchCommit(commit_depth) -> LookaheadRefuted(LookaheadAtomicSearchRejected(depth, position, input, history, capture_context, policy, result, LookaroundRoutineCommitted(commit_depth)))
 

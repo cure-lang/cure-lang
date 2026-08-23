@@ -15,10 +15,16 @@ recorded in `2026-08-20-regex-performance-baseline.md`.
 
 The first Phase 2 evidence slice is also landed: successful lookahead and
 lookbehind decisions carry an existential package containing the indexed finite
-child path, while the existing atomic commitment evaluator remains the
-acceptance authority. The assertion-capture sidecar is now landed as well:
-positive lookaround branches carry their selected `ExtendedInstruction` routine
-into named replay, while negative-assertion frames are discarded. Several
+child path. Lookahead admission now also requires the atomic prefix traversal
+to succeed, closing the former gap where its certified plain DFS could
+backtrack past a closed atomic branch. The successful lookahead witness retains
+the matched prefix, remainder, and selected `ExtendedInstruction` routine from
+that same atomic decision. Capture-marker extraction and named replay consume
+the retained routine instead of running the child machine a second time, while
+negative-assertion frames are discarded. The plain path and atomic selected
+routine are still produced by two traversals; replacing them with one
+atomic-aware indexed selected-trace/refutation fold remains the next extraction
+obligation. Several
 capture interactions remain open; exact and prefix path refutation soundness,
 their complete start-search lifts, and constructive evaluator completeness are
 now discharged.
@@ -40,7 +46,7 @@ that attempted every start and destination.
 An independent finite oracle now exhaustively compares the admitted positive,
 negative, nested lookahead, exact lookbehind, and negative lookbehind behavior
 over the `abc` alphabet through length four; the randomized oracle remains as
-the broader subject-length check. A second explicit 17-shape manifest covers
+the broader subject-length check. A second explicit 18-shape manifest covers
 lookahead/lookbehind polarity, mixed nesting, alternation, greedy/lazy/
 possessive repetition, atomic interactions, anchors, word boundaries, scoped
 options, capture conditionals, and exact parsing over all `abcA` subjects
@@ -151,10 +157,14 @@ now use the single `lookahead_initial_position` conversion. Resource and
 erasure obligations now have executable gates: depth exhaustion is a third
 decision outcome that satisfies neither polarity, and emitted functions accept
 successful lookahead witnesses and complete refutation trees only through
-erased parameters. The remaining Phase 2 proof work is the full
-path-to-named-replay extraction correspondence. The `ExtendedInstruction`
-routine selected by named replay must be derived from, or proved identical to,
-the certified path selected by the decision evaluator.
+erased parameters. The remaining Phase 2 proof work is the full atomic
+selected-trace correspondence. The `ExtendedInstruction` routine consumed by
+named replay now comes from the admitting atomic prefix result, but that result
+and the erased plain path are still computed separately. The atomic traversal
+must construct the indexed path or an atomic-aware refutation directly,
+including commitment evidence for every skipped sibling, so acceptance,
+rejection, matched/rest splits, and replay routine all have one construction
+authority.
 The first extraction prerequisite is landed: admitted filtered states retain
 their original boundary constraints instead of replacing them with `Nil()`.
 Their routine still carries the assertion-participation markers used by later
@@ -436,11 +446,15 @@ proof consumes them. Constructive exact and prefix evaluator completeness is
 also discharged: the shared start-list identity is an explicit result
 parameter, and path/refutation theorems force the actual computed result into
 the corresponding constructor. The exhaustive admitted-interaction manifest
-now covers all 17 declared Phase 2 machine-shape classes against an independent
+now covers all 18 declared Phase 2 machine-shape classes against an independent
 finite oracle. Resource-exhaustion polarity and assertion-proof erasure are
-also covered by emitted-runtime regressions. The full path-to-named-replay
-extraction correspondence remains open, so the phase exit gate is not yet
-discharged.
+also covered by emitted-runtime regressions. Atomic lookahead commitment has a
+direct hand-built-machine regression and the negative-atomic assertion shape is
+part of the exhaustive oracle. Successful lookahead witnesses retain the exact
+atomic prefix routine used by both capture-marker extraction and named replay,
+so those consumers no longer rerun the child search. The remaining obligation
+is to make that atomic traversal construct the indexed path/refutation itself;
+the phase exit gate is not yet discharged.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in

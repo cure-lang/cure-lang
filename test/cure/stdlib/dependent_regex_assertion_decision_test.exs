@@ -316,12 +316,45 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
       source
       |> String.split("fn lookaround_filter_boundary_states", parts: 2)
       |> List.last()
-      |> String.split("fn lookaround_condition_holds", parts: 2)
+      |> String.split("fn capture_slot_markers_from_extended", parts: 2)
       |> List.first()
 
     assert filter =~ "Active(state, append_routine(routine, assertion_markers), constraints)"
     assert filter =~ "Accepted(append_routine(routine, assertion_markers), constraints)"
     refute filter =~ "append_routine(routine, assertion_markers), Nil()"
+  end
+
+  test "lookahead capture replay consumes the routine retained by its witness" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    witness =
+      source
+      |> String.split("type LookaheadWitness", parts: 2)
+      |> List.last()
+      |> String.split("type LookaheadDecision", parts: 2)
+      |> List.first()
+
+    capture_context =
+      source
+      |> String.split("fn lookaround_condition_capture_context", parts: 2)
+      |> List.last()
+      |> String.split("fn lookaround_constraint_capture_context", parts: 2)
+      |> List.first()
+
+    capture_routine =
+      source
+      |> String.split("fn lookaround_condition_routine", parts: 2)
+      |> List.last()
+      |> String.split("fn position_boundary_for_history", parts: 2)
+      |> List.first()
+
+    assert witness =~ "matched: List(Char)"
+    assert witness =~ "remaining: List(Char)"
+    assert witness =~ "routine: List(ExtendedInstruction)"
+    assert capture_context =~ "lookahead_witness_routine"
+    assert capture_routine =~ "lookahead_witness_routine"
+    refute capture_context =~ "atomic_lookaround_routine_prefix"
+    refute capture_routine =~ "atomic_lookaround_routine_prefix"
   end
 
   test "prefix rejection has no exact-only accepted-with-input case" do
