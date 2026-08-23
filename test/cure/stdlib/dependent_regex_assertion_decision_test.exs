@@ -170,16 +170,16 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
       fn nested_decision_evidence() -> Bool =
         let inner_machine = predicate_pattern_machine(fn(char) -> char == 'a')
         let constraint = BoundaryConstraint(false, false, false, false, false, false, false, false, false, AnyUnicodeNewline(), None(), Some(LookaheadCondition(true, %[1, inner_machine])))
-        match lookaround_constraint_nested_decisions(
+        match lookaround_constraints_admission(
           2,
-          constraint,
+          [constraint],
           position_boundary_for_history(subject_initial_position(), ['a'], []),
           ['a'],
           [],
           [],
           AnyUnicodeNewline()
         )
-          [LookaheadNestedDecision(true, _)] -> true
+          Some(LookaroundConstraintAdmitted(_, _, [LookaheadNestedDecision(true, _)])) -> true
           _ -> false
 
       fn depth_exhaustion_is_resource() -> Bool = match lookaround_child_lookahead(
@@ -357,32 +357,22 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
       |> String.split("type LookbehindDecision", parts: 2)
       |> List.first()
 
-    capture_context =
+    admission =
       source
-      |> String.split("fn lookaround_condition_capture_context", parts: 2)
+      |> String.split("fn lookaround_condition_admission", parts: 2)
       |> List.last()
-      |> String.split("fn lookaround_constraint_capture_context", parts: 2)
-      |> List.first()
-
-    capture_routine =
-      source
-      |> String.split("fn lookaround_condition_routine", parts: 2)
-      |> List.last()
-      |> String.split("fn position_boundary_for_history", parts: 2)
+      |> String.split("fn lookaround_constraint_admission", parts: 2)
       |> List.first()
 
     assert witness =~ "matched: List(Char)"
     assert witness =~ "remaining: List(Char)"
     assert witness =~ "routine: List(ExtendedInstruction)"
     assert lookbehind_witness =~ "routine: List(ExtendedInstruction)"
-    assert capture_context =~ "lookahead_witness_routine"
-    assert capture_context =~ "lookbehind_witness_routine"
-    assert capture_routine =~ "lookahead_witness_routine"
-    assert capture_routine =~ "lookbehind_witness_routine"
-    refute capture_context =~ "atomic_lookaround_routine_prefix"
-    refute capture_context =~ "atomic_lookaround_routine_accepts"
-    refute capture_routine =~ "atomic_lookaround_routine_prefix"
-    refute capture_routine =~ "atomic_lookaround_routine_accepts"
+    assert admission =~ "lookahead_witness_routine"
+    assert admission =~ "lookbehind_witness_routine"
+    assert admission =~ "capture_slot_markers_from_extended"
+    refute admission =~ "atomic_lookaround_routine_prefix"
+    refute admission =~ "atomic_lookaround_routine_accepts"
   end
 
   test "atomic assertion refutations cannot carry a successful search result" do
@@ -496,6 +486,42 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
              ~r/AtomicSelectedStartAccepted\s*:[^\n]*MachineStateCursor[^\n]*ListMember[^\n]*Equivalent[^\n]*pattern_machine_starts/,
              source
            )
+  end
+
+  test "constraint admission has one construction authority" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "type LookaroundConstraintAdmission"
+    assert source =~ "LookaroundConstraintAdmitted"
+
+    for consumer <- [
+          "lookaround_filter_boundary_states",
+          "lookaround_constraints_capture_context",
+          "lookaround_constraints_routine",
+          "lookaround_nested_decisions",
+          "atomic_lookaround_routine_members_from",
+          "atomic_lookaround_routine_initial_members"
+        ] do
+      body =
+        source
+        |> String.split("fn #{consumer}", parts: 2)
+        |> List.last()
+        |> String.split("\n  fn ", parts: 2)
+        |> List.first()
+
+      assert body =~ "lookaround_constraints_admission",
+             "#{consumer} must project the canonical constraint admission"
+    end
+
+    for obsolete <- [
+          "lookaround_condition_capture_context",
+          "lookaround_constraint_capture_context",
+          "lookaround_constraint_routine",
+          "lookaround_condition_routine",
+          "lookaround_constraint_nested_decisions"
+        ] do
+      refute source =~ "fn #{obsolete}", "#{obsolete} duplicates constraint evaluation"
+    end
   end
 
   test "prefix rejection has no exact-only accepted-with-input case" do

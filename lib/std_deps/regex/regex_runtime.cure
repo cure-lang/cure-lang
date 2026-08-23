@@ -1709,13 +1709,16 @@ mod Std.Regex.Runtime
   ## child machine can therefore recurse only through the explicit finite fuel;
   ## using this separate filter keeps Boolean child evaluation outside the
   ## parent constraint evaluator's ordinary totality SCC.
+  type LookaroundConstraintAdmission =
+    | LookaroundConstraintAdmitted(List(ExtendedInstruction), List(EvidenceInstruction), List(LookaroundNestedDecision))
+
   fn lookaround_filter_boundary_states(depth: Nat, {n: Nat}, states: List(MachineState(n)), boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> List(MachineState(n)) = match states
     [] -> []
-    [Active(state, routine, constraints) | rest] -> match lookaround_constraints_capture_context(depth, constraints, boundary, remaining, history, append_routine(capture_context, routine), policy)
-      Some(assertion_markers) -> [Active(state, append_routine(routine, assertion_markers), constraints) | lookaround_filter_boundary_states(depth, rest, boundary, remaining, history, capture_context, policy)]
+    [Active(state, routine, constraints) | rest] -> match lookaround_constraints_admission(depth, constraints, boundary, remaining, history, append_routine(capture_context, routine), policy)
+      Some(LookaroundConstraintAdmitted(_, assertion_markers, _)) -> [Active(state, append_routine(routine, assertion_markers), constraints) | lookaround_filter_boundary_states(depth, rest, boundary, remaining, history, capture_context, policy)]
       None() -> lookaround_filter_boundary_states(depth, rest, boundary, remaining, history, capture_context, policy)
-    [Accepted(routine, constraints) | rest] -> match lookaround_constraints_capture_context(depth, constraints, boundary, remaining, history, append_routine(capture_context, routine), policy)
-      Some(assertion_markers) -> [Accepted(append_routine(routine, assertion_markers), constraints) | lookaround_filter_boundary_states(depth, rest, boundary, remaining, history, capture_context, policy)]
+    [Accepted(routine, constraints) | rest] -> match lookaround_constraints_admission(depth, constraints, boundary, remaining, history, append_routine(capture_context, routine), policy)
+      Some(LookaroundConstraintAdmitted(_, assertion_markers, _)) -> [Accepted(append_routine(routine, assertion_markers), constraints) | lookaround_filter_boundary_states(depth, rest, boundary, remaining, history, capture_context, policy)]
       None() -> lookaround_filter_boundary_states(depth, rest, boundary, remaining, history, capture_context, policy)
 
   ## Extract only capture-slot markers from a selected assertion routine. The
@@ -1728,29 +1731,36 @@ mod Std.Regex.Runtime
     [Regular(EndCaptureSlot(slot)) | rest] -> [EndCaptureSlot(slot) | capture_slot_markers_from_extended(rest)]
     [_ | rest] -> capture_slot_markers_from_extended(rest)
 
-  ## A successful positive assertion can publish capture participation to the
-  ## parent's ordinary finite machine. Lookahead markers come from the routine
-  ## retained by the admitting witness; only slot markers cross the boundary.
-  fn lookaround_condition_capture_context(depth: Nat, condition: Option(LookaroundCondition), boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Option(List(EvidenceInstruction)) = match condition
-    None() -> Some([])
-    Some(LookaheadCondition(positive, mk_pair(count, machine))) -> match lookaround_child_lookahead(depth, count, machine, boundary, remaining, history, capture_context, policy)
-      LookaheadSatisfied(witness) -> match positive
-        True() -> Some(capture_slot_markers_from_extended(lookahead_witness_routine(count, machine, witness)))
-        False() -> None()
-      LookaheadRefuted(_) -> match positive
-        True() -> None()
-        False() -> Some([])
-      LookaheadResourceExhausted(_, _, _, _, _) -> None()
-    Some(LookbehindCondition(positive, width, mk_pair(count, machine))) -> match lookaround_child_lookbehind(depth, count, machine, width, boundary, remaining, history, capture_context, policy)
-      LookbehindSatisfied(witness) -> match positive
-        True() -> Some(capture_slot_markers_from_extended(lookbehind_witness_routine(count, machine, witness)))
-        False() -> None()
-      LookbehindRefuted(_) -> match positive
-        True() -> None()
-        False() -> Some([])
-      LookbehindResourceExhausted(_, _, _, _, _) -> None()
+  fn lookaround_condition_admission(depth: Nat, condition: Option(LookaroundCondition), boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Option(LookaroundConstraintAdmission) = match condition
+    None() -> Some(LookaroundConstraintAdmitted([], [], []))
+    Some(LookaheadCondition(positive, mk_pair(count, machine))) ->
+      let decision = lookaround_child_lookahead(depth, count, machine, boundary, remaining, history, capture_context, policy)
+      let nested = [LookaheadNestedDecision(positive, %[count, machine, decision])]
+      match decision
+        LookaheadSatisfied(witness) -> match positive
+          True() ->
+            let routine = lookahead_witness_routine(count, machine, witness)
+            Some(LookaroundConstraintAdmitted(routine, capture_slot_markers_from_extended(routine), nested))
+          False() -> None()
+        LookaheadRefuted(_) -> match positive
+          True() -> None()
+          False() -> Some(LookaroundConstraintAdmitted([], [], nested))
+        LookaheadResourceExhausted(_, _, _, _, _) -> None()
+    Some(LookbehindCondition(positive, width, mk_pair(count, machine))) ->
+      let decision = lookaround_child_lookbehind(depth, count, machine, width, boundary, remaining, history, capture_context, policy)
+      let nested = [LookbehindNestedDecision(positive, %[count, machine, decision])]
+      match decision
+        LookbehindSatisfied(witness) -> match positive
+          True() ->
+            let routine = lookbehind_witness_routine(count, machine, witness)
+            Some(LookaroundConstraintAdmitted(routine, capture_slot_markers_from_extended(routine), nested))
+          False() -> None()
+        LookbehindRefuted(_) -> match positive
+          True() -> None()
+          False() -> Some(LookaroundConstraintAdmitted([], [], nested))
+        LookbehindResourceExhausted(_, _, _, _, _) -> None()
 
-  fn lookaround_constraint_capture_context(depth: Nat, constraint: BoundaryConstraint, boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Option(List(EvidenceInstruction)) = match boundary
+  fn lookaround_constraint_admission(depth: Nat, constraint: BoundaryConstraint, boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Option(LookaroundConstraintAdmission) = match boundary
     Boundary(subject_start, _subject_end, strict_subject_end, _line_start, _line_end, ascii_boundary, unicode_boundary, previous_char, next_char, after_next_char) -> match constraint
       BoundaryConstraint(require_subject_start, require_subject_end, require_strict_end, require_line_start, require_line_end, check_ascii, expected_ascii, check_unicode, expected_unicode, constraint_policy, capture_condition, lookaround_condition) -> pickup
         (not require_subject_start or subject_start) and
@@ -1760,16 +1770,23 @@ mod Std.Regex.Runtime
           (not require_line_end or line_end_for(constraint_policy, next_char, after_next_char)) and
           (not check_ascii or ascii_boundary == expected_ascii) and
           (not check_unicode or unicode_boundary == expected_unicode) and
-          capture_condition_holds(capture_condition, capture_context) -> lookaround_condition_capture_context(depth, lookaround_condition, boundary, remaining, history, capture_context, policy)
+          capture_condition_holds(capture_condition, capture_context) -> lookaround_condition_admission(depth, lookaround_condition, boundary, remaining, history, capture_context, policy)
         else -> None()
 
-  fn lookaround_constraints_capture_context(depth: Nat, constraints: List(BoundaryConstraint), boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Option(List(EvidenceInstruction)) = match constraints
-    [] -> Some([])
-    [constraint | rest] -> match lookaround_constraint_capture_context(depth, constraint, boundary, remaining, history, capture_context, policy)
+  fn lookaround_constraints_admission(depth: Nat, constraints: List(BoundaryConstraint), boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Option(LookaroundConstraintAdmission) = match constraints
+    [] -> Some(LookaroundConstraintAdmitted([], [], []))
+    [constraint | rest] -> match lookaround_constraint_admission(depth, constraint, boundary, remaining, history, capture_context, policy)
       None() -> None()
-      Some(head) -> match lookaround_constraints_capture_context(depth, rest, boundary, remaining, history, append_routine(capture_context, head), policy)
+      Some(LookaroundConstraintAdmitted(head_routine, head_markers, head_decisions)) -> match lookaround_constraints_admission(depth, rest, boundary, remaining, history, append_routine(capture_context, head_markers), policy)
         None() -> None()
-        Some(tail) -> Some(append_routine(head, tail))
+        Some(LookaroundConstraintAdmitted(tail_routine, tail_markers, tail_decisions)) -> Some(LookaroundConstraintAdmitted(append_extended_routines(head_routine, tail_routine), append_routine(head_markers, tail_markers), append(head_decisions, tail_decisions)))
+
+  ## A successful positive assertion can publish capture participation to the
+  ## parent's ordinary finite machine. Lookahead markers come from the routine
+  ## retained by the admitting witness; only slot markers cross the boundary.
+  fn lookaround_constraints_capture_context(depth: Nat, constraints: List(BoundaryConstraint), boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Option(List(EvidenceInstruction)) = match lookaround_constraints_admission(depth, constraints, boundary, remaining, history, capture_context, policy)
+    None() -> None()
+    Some(LookaroundConstraintAdmitted(_, markers, _)) -> Some(markers)
 
   fn lookahead_decision_holds(n: Nat, machine: PatternMachine(n), positive: Bool, decision: LookaheadDecision(n, machine)) -> Bool = match decision
     LookaheadSatisfied(_) -> positive
@@ -1785,45 +1802,9 @@ mod Std.Regex.Runtime
   ## positive assertion. A negative assertion succeeds with an empty routine:
   ## its private capture frame is intentionally discarded. Lookahead consumes
   ## the routine retained by the same proof-carrying decision.
-  fn lookaround_constraints_routine(depth: Nat, constraints: List(BoundaryConstraint), boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Option(List(ExtendedInstruction)) = match constraints
-    [] -> Some([])
-    [constraint | rest] -> match lookaround_constraint_routine(depth, constraint, boundary, remaining, history, capture_context, policy)
-      None() -> None()
-      Some(head) -> match lookaround_constraints_routine(depth, rest, boundary, remaining, history, append_routine(capture_context, extended_regular_instructions(head)), policy)
-        None() -> None()
-        Some(tail) -> Some(append_extended_routines(head, tail))
-
-  fn lookaround_constraint_routine(depth: Nat, constraint: BoundaryConstraint, boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Option(List(ExtendedInstruction)) = match boundary
-    Boundary(subject_start, _subject_end, strict_subject_end, _line_start, _line_end, ascii_boundary, unicode_boundary, previous_char, next_char, after_next_char) -> match constraint
-      BoundaryConstraint(require_subject_start, require_subject_end, require_strict_end, require_line_start, require_line_end, check_ascii, expected_ascii, check_unicode, expected_unicode, constraint_policy, capture_condition, lookaround_condition) -> pickup
-        (not require_subject_start or subject_start) and
-          (not require_subject_end or subject_end_for(constraint_policy, next_char, after_next_char)) and
-          (not require_strict_end or strict_subject_end) and
-          (not require_line_start or line_start_for(constraint_policy, previous_char, next_char)) and
-          (not require_line_end or line_end_for(constraint_policy, next_char, after_next_char)) and
-          (not check_ascii or ascii_boundary == expected_ascii) and
-          (not check_unicode or unicode_boundary == expected_unicode) and
-          capture_condition_holds(capture_condition, capture_context) -> lookaround_condition_routine(depth, lookaround_condition, boundary, remaining, history, capture_context, policy)
-        else -> None()
-
-  fn lookaround_condition_routine(depth: Nat, condition: Option(LookaroundCondition), boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Option(List(ExtendedInstruction)) = match condition
-    None() -> Some([])
-    Some(LookaheadCondition(positive, mk_pair(count, machine))) -> match lookaround_child_lookahead(depth, count, machine, boundary, remaining, history, capture_context, policy)
-      LookaheadSatisfied(witness) -> match positive
-        True() -> Some(lookahead_witness_routine(count, machine, witness))
-        False() -> None()
-      LookaheadRefuted(_) -> match positive
-        True() -> None()
-        False() -> Some([])
-      LookaheadResourceExhausted(_, _, _, _, _) -> None()
-    Some(LookbehindCondition(positive, width, mk_pair(count, machine))) -> match lookaround_child_lookbehind(depth, count, machine, width, boundary, remaining, history, capture_context, policy)
-      LookbehindSatisfied(witness) -> match positive
-        True() -> Some(lookbehind_witness_routine(count, machine, witness))
-        False() -> None()
-      LookbehindRefuted(_) -> match positive
-        True() -> None()
-        False() -> Some([])
-      LookbehindResourceExhausted(_, _, _, _, _) -> None()
+  fn lookaround_constraints_routine(depth: Nat, constraints: List(BoundaryConstraint), boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Option(List(ExtendedInstruction)) = match lookaround_constraints_admission(depth, constraints, boundary, remaining, history, capture_context, policy)
+    None() -> None()
+    Some(LookaroundConstraintAdmitted(routine, _, _)) -> Some(routine)
 
   fn position_boundary_for_history(position: InitialPosition, input: List(Char), history: List(Char)) -> Boundary = match position
     InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word, previous_char) ->
@@ -2788,15 +2769,9 @@ mod Std.Regex.Runtime
     | LookaheadNestedDecision(Bool, LookaheadDecisionEvidence)
     | LookbehindNestedDecision(Bool, LookbehindDecisionEvidence)
 
-  fn lookaround_constraint_nested_decisions(depth: Nat, constraint: BoundaryConstraint, boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> List(LookaroundNestedDecision) = match constraint
-    BoundaryConstraint(_, _, _, _, _, _, _, _, _, _, _, condition) -> match condition
-      None() -> []
-      Some(LookaheadCondition(positive, mk_pair(count, machine))) -> [LookaheadNestedDecision(positive, %[count, machine, lookaround_child_lookahead(depth, count, machine, boundary, remaining, history, capture_context, policy)])]
-      Some(LookbehindCondition(positive, width, mk_pair(count, machine))) -> [LookbehindNestedDecision(positive, %[count, machine, lookaround_child_lookbehind(depth, count, machine, width, boundary, remaining, history, capture_context, policy)])]
-
-  fn lookaround_nested_decisions(depth: Nat, constraints: List(BoundaryConstraint), boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> List(LookaroundNestedDecision) = match constraints
-    [] -> []
-    [constraint | rest] -> append(lookaround_constraint_nested_decisions(depth, constraint, boundary, remaining, history, capture_context, policy), lookaround_nested_decisions(depth, rest, boundary, remaining, history, capture_context, policy))
+  fn lookaround_nested_decisions(depth: Nat, constraints: List(BoundaryConstraint), boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> List(LookaroundNestedDecision) = match lookaround_constraints_admission(depth, constraints, boundary, remaining, history, capture_context, policy)
+    None() -> []
+    Some(LookaroundConstraintAdmitted(_, _, decisions)) -> decisions
 
   fn lookaround_prefix_search_path(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, starts: List(MachineState(n))) -> LookaroundPrefixSearchResult(depth, n, machine, starts, input, after_input, history, policy, capture_context) = match lookaround_prefix_search_path_members(depth, n, machine, input, after_input, history, capture_context, policy, starts, machine_state_members(starts), MachineStateCursorHere())
     LookaroundPrefixSearchMembersRejected(failure) -> LookaroundPrefixSearchResultRejected(failure)
@@ -3287,9 +3262,9 @@ mod Std.Regex.Runtime
 
   fn atomic_lookaround_routine_members_from(depth: Nat, n: Nat, machine: PatternMachine(n), char: Char, rest: List(Char), after_input: List(Char), source_state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(MachineState(n)), current: List(MachineState(n)), @erased cursor: MachineStateCursor(n, whole, current), @erased canonical: Equivalent(List(MachineState(n)), whole, lookaround_machine_raw_destinations(n, machine, source_state, char))) -> LookaroundRoutineSearchResult(n, machine) = match current
     [] -> LookaroundRoutineSearchNo()
-    [Active(state, routine, constraints) | remaining] -> match lookaround_constraints_routine(depth, constraints, lookaround_transition_boundary(char, rest, after_input, policy), append_characters(rest, after_input), history, append_routine(capture_context, routine), policy)
+    [Active(state, routine, constraints) | remaining] -> match lookaround_constraints_admission(depth, constraints, lookaround_transition_boundary(char, rest, after_input, policy), append_characters(rest, after_input), history, append_routine(capture_context, routine), policy)
       None() -> atomic_lookaround_routine_members_from(depth, n, machine, char, rest, after_input, source_state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, remaining, MachineStateCursorDrop(Active(state, routine, constraints), cursor), canonical)
-      Some(assertion_routine) ->
+      Some(LookaroundConstraintAdmitted(assertion_routine, _, _)) ->
         let next_capture_context = append_routine(append_routine(capture_context, routine), extended_regular_instructions(assertion_routine))
         match atomic_lookaround_routine_accepting_from(depth, n, machine, rest, after_input, ThreadActive(state), history_push_bounded(history, char), next_capture_context, policy, atomic_scope_depth_after(routine, scope_depth), prefix_mode, reversed_prefix)
           LookaroundRoutineSearchYes(matched, remaining_input, suffix, trace) -> LookaroundRoutineSearchYes(matched, remaining_input, append_extended_routines(transition_routine(char, routine), append_extended_routines(assertion_routine, suffix)), AtomicSelectedTransitionActive(source_state, char, state, routine, constraints, cursor, member_here(Active(state, routine, constraints), remaining), canonical, assertion_routine, trace))
@@ -3302,9 +3277,9 @@ mod Std.Regex.Runtime
               Some(commit_depth) -> match atomic_commit_disposition(scope_depth, commit_depth)
                 AtomicCommitEscapes(_) -> atomic_lookaround_routine_members_from(depth, n, machine, char, rest, after_input, source_state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, remaining, MachineStateCursorDrop(Active(state, routine, constraints), cursor), canonical)
                 AtomicCommitBlocks(_) -> LookaroundRoutineSearchCommit(commit_depth)
-    [Accepted(routine, constraints) | remaining] -> match lookaround_constraints_routine(depth, constraints, lookaround_transition_boundary(char, rest, after_input, policy), append_characters(rest, after_input), history, append_routine(capture_context, routine), policy)
+    [Accepted(routine, constraints) | remaining] -> match lookaround_constraints_admission(depth, constraints, lookaround_transition_boundary(char, rest, after_input, policy), append_characters(rest, after_input), history, append_routine(capture_context, routine), policy)
       None() -> atomic_lookaround_routine_members_from(depth, n, machine, char, rest, after_input, source_state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, remaining, MachineStateCursorDrop(Accepted(routine, constraints), cursor), canonical)
-      Some(assertion_routine) ->
+      Some(LookaroundConstraintAdmitted(assertion_routine, _, _)) ->
         let next_capture_context = append_routine(append_routine(capture_context, routine), extended_regular_instructions(assertion_routine))
         match atomic_lookaround_routine_accepting_from(depth, n, machine, rest, after_input, ThreadAccepted(), history_push_bounded(history, char), next_capture_context, policy, atomic_scope_depth_after(routine, scope_depth), prefix_mode, reversed_prefix)
           LookaroundRoutineSearchYes(matched, remaining_input, suffix, trace) -> LookaroundRoutineSearchYes(matched, remaining_input, append_extended_routines(transition_routine(char, routine), append_extended_routines(assertion_routine, suffix)), AtomicSelectedTransitionAccepted(source_state, char, routine, constraints, cursor, member_here(Accepted(routine, constraints), remaining), canonical, assertion_routine, trace))
@@ -3322,9 +3297,9 @@ mod Std.Regex.Runtime
     [] -> LookaroundRoutineSearchNo()
     [Active(state, routine, constraints) | remaining] -> pickup
       atomic_lookaround_start_blocked(n, Active(state, routine, constraints), blocked_depth) -> atomic_lookaround_routine_initial_members(depth, n, machine, input, after_input, position, history, capture_context, policy, blocked_depth, whole, remaining, MachineStateCursorDrop(Active(state, routine, constraints), cursor), canonical, prefix_mode, reversed_prefix)
-      else -> match lookaround_constraints_routine(depth, constraints, position_boundary_for_history(position, append_characters(input, after_input), history), append_characters(input, after_input), history, append_routine(capture_context, routine), policy)
+      else -> match lookaround_constraints_admission(depth, constraints, position_boundary_for_history(position, append_characters(input, after_input), history), append_characters(input, after_input), history, append_routine(capture_context, routine), policy)
         None() -> atomic_lookaround_routine_initial_members(depth, n, machine, input, after_input, position, history, capture_context, policy, blocked_depth, whole, remaining, MachineStateCursorDrop(Active(state, routine, constraints), cursor), canonical, prefix_mode, reversed_prefix)
-        Some(assertion_routine) ->
+        Some(LookaroundConstraintAdmitted(assertion_routine, _, _)) ->
           let next_capture_context = append_routine(append_routine(capture_context, routine), extended_regular_instructions(assertion_routine))
           match atomic_lookaround_routine_accepting_from(depth, n, machine, input, after_input, ThreadActive(state), history, next_capture_context, policy, atomic_scope_depth_after(routine, Z()), prefix_mode, reversed_prefix)
             LookaroundRoutineSearchYes(matched, remaining_input, suffix, trace) -> LookaroundRoutineSearchYes(matched, remaining_input, append_extended_routines(regular_routine(routine), append_extended_routines(assertion_routine, suffix)), AtomicSelectedStartActive(state, routine, constraints, cursor, member_here(Active(state, routine, constraints), remaining), canonical, assertion_routine, trace))
@@ -3332,9 +3307,9 @@ mod Std.Regex.Runtime
             LookaroundRoutineSearchNo() -> atomic_lookaround_routine_initial_members(depth, n, machine, input, after_input, position, history, capture_context, policy, blocked_depth, whole, remaining, MachineStateCursorDrop(Active(state, routine, constraints), cursor), canonical, prefix_mode, reversed_prefix)
     [Accepted(routine, constraints) | remaining] -> pickup
       atomic_lookaround_start_blocked(n, Accepted(routine, constraints), blocked_depth) -> atomic_lookaround_routine_initial_members(depth, n, machine, input, after_input, position, history, capture_context, policy, blocked_depth, whole, remaining, MachineStateCursorDrop(Accepted(routine, constraints), cursor), canonical, prefix_mode, reversed_prefix)
-      else -> match lookaround_constraints_routine(depth, constraints, position_boundary_for_history(position, append_characters(input, after_input), history), append_characters(input, after_input), history, append_routine(capture_context, routine), policy)
+      else -> match lookaround_constraints_admission(depth, constraints, position_boundary_for_history(position, append_characters(input, after_input), history), append_characters(input, after_input), history, append_routine(capture_context, routine), policy)
         None() -> atomic_lookaround_routine_initial_members(depth, n, machine, input, after_input, position, history, capture_context, policy, blocked_depth, whole, remaining, MachineStateCursorDrop(Accepted(routine, constraints), cursor), canonical, prefix_mode, reversed_prefix)
-        Some(assertion_routine) ->
+        Some(LookaroundConstraintAdmitted(assertion_routine, _, _)) ->
           let next_capture_context = append_routine(append_routine(capture_context, routine), extended_regular_instructions(assertion_routine))
           match atomic_lookaround_routine_accepting_from(depth, n, machine, input, after_input, ThreadAccepted(), history, next_capture_context, policy, atomic_scope_depth_after(routine, Z()), prefix_mode, reversed_prefix)
             LookaroundRoutineSearchYes(matched, remaining_input, suffix, trace) -> LookaroundRoutineSearchYes(matched, remaining_input, append_extended_routines(regular_routine(routine), append_extended_routines(assertion_routine, suffix)), AtomicSelectedStartAccepted(routine, constraints, cursor, member_here(Accepted(routine, constraints), remaining), canonical, assertion_routine, trace))

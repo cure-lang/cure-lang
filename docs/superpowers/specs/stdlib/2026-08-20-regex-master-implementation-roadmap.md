@@ -41,7 +41,12 @@ head membership, an erased suffix cursor through the machine's exact raw start
 list, and an equality tying that whole list to `pattern_machine_starts(machine)`.
 The next slice must add input/rest, history, capture-context, policy,
 scope-depth, and routine indices before this trace can replace the legacy
-dependent path. Several
+dependent path. Constraint evaluation now has one construction authority:
+`LookaroundConstraintAdmission` produces the selected extended routine,
+published capture-slot markers, and nested decision evidence from the same
+child decision. Boundary filtering, replay, path evidence, and atomic traversal
+project that shared result instead of recursively evaluating three correlated
+views. Several
 capture interactions remain open; exact and prefix path refutation soundness,
 their complete start-search lifts, and constructive evaluator completeness are
 now discharged.
@@ -475,7 +480,10 @@ trace. Transition nodes carry their ordered candidate cursor, selected-head
 membership, and a canonical equation identifying the whole list with the exact
 machine transition. Start nodes carry their canonical whole-list equation,
 ordered suffix cursor, and selected-head membership. The focused
-assertion-decision, exhaustive-model, and named-capture gate passes 49 tests.
+assertion-decision, exhaustive-model, and named-capture gate passes 50 tests.
+The canonical constraint-admission fold now supplies the selected routine,
+capture markers, and nested decision evidence needed by the indexed trace from
+one child evaluation.
 The remaining obligation is to add the input/rest, history, capture-context,
 policy, scope-depth, and routine indices consumed by the existing path theorems,
 then remove the successful decision's legacy second traversal; the phase exit
