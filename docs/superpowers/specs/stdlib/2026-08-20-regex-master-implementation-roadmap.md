@@ -552,9 +552,10 @@ for casing, alphabetic, whitespace, hexadecimal, math, currency, generic
 boolean properties, script membership, and `Bidi_Class`/`bc` short and long
 values. General-category names (including `General_Category=...`/`gc=...` and
 derived names such as `Assigned`), Script (including `Script=...`/`sc=...`),
-Bidi, and generic property names are validated at macro time and emitted as
-atoms. Remaining Phase 3 work is the generated full
-script-extension surface and Bidi properties beyond `Bidi_Class`,
+Bidi (`Bidi_Class`/`bc` and `Bidi_Mirrored`), and generic property names are
+validated at macro time and emitted as atoms. Remaining Phase 3 work is the
+generated full script-extension surface and Bidi properties beyond these
+implemented fields,
 grapheme clusters,
 duplicate-name and capture-layout policy, other finite control normalizations,
 and the remaining control families below. `(*FAIL)` and terminal `(*ACCEPT)`

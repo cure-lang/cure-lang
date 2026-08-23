@@ -133,6 +133,21 @@ defmodule :cure_std_char do
     "nonspacingmark" => :NSM
   }
 
+  @bidi_mirrored_values @unicode_data
+                        |> File.stream!()
+                        |> Enum.reduce(%{}, fn line, values ->
+                          fields = String.split(String.trim(line), ";")
+
+                          with hex when is_binary(hex) <- Enum.at(fields, 0),
+                               mirrored when is_binary(mirrored) <- Enum.at(fields, 9),
+                               true <- String.trim(mirrored) == "Y",
+                               {code_point, ""} <- Integer.parse(String.trim(hex), 16) do
+                            Map.put(values, code_point, true)
+                          else
+                            _ -> values
+                          end
+                        end)
+
   @doc "Code point of a Char. Char erases to its integer code point, so this is `id`."
   def code_point(cp) when is_integer(cp), do: cp
 
@@ -216,12 +231,18 @@ defmodule :cure_std_char do
   end
 
   def unicode_binary_property?(cp, property) when is_integer(cp) and is_atom(property) do
-    case Unicode.Property.get(property) do
-      ranges when is_list(ranges) ->
-        Enum.any?(ranges, fn {first, last} -> cp >= first and cp <= last end)
+    case property do
+      :bidi_mirrored ->
+        Map.has_key?(@bidi_mirrored_values, cp)
 
       _ ->
-        false
+        case Unicode.Property.get(property) do
+          ranges when is_list(ranges) ->
+            Enum.any?(ranges, fn {first, last} -> cp >= first and cp <= last end)
+
+          _ ->
+            false
+        end
     end
   end
 
@@ -335,7 +356,9 @@ defmodule :cure_std_char do
       end)
       |> Map.new()
 
-    case Map.fetch(Map.merge(known, aliases), normalized) do
+    special = %{"bidimirrored" => :bidi_mirrored, "bidim" => :bidi_mirrored}
+
+    case Map.fetch(Map.merge(Map.merge(known, aliases), special), normalized) do
       {:ok, property} -> {:some, property}
       :error -> :none
     end
