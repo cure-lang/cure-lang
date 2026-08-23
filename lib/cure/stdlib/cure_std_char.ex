@@ -216,7 +216,24 @@ defmodule :cure_std_char do
   end
 
   def unicode_script_name(chars) when is_list(chars) do
-    normalized = normalize_script_name(List.to_string(chars))
+    name = List.to_string(chars)
+
+    value =
+      case String.split(name, "=", parts: 2) do
+        [property, value] ->
+          if normalize_script_name(property) in ["script", "sc"], do: value, else: ""
+
+        [_] ->
+          case String.split(name, ":", parts: 2) do
+            [property, value] ->
+              if normalize_script_name(property) in ["script", "sc"], do: value, else: ""
+
+            [_] ->
+              name
+          end
+      end
+
+    normalized = normalize_script_name(value)
 
     known =
       Unicode.Script.known_scripts()

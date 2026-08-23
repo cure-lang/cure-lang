@@ -657,7 +657,7 @@ The Cure status columns distinguish implementation from design:
 | General Unicode categories | `\p{L}`, `\p{Nd}` | yes | yes | yes | Pinned finite property table |
 | Negated categories | `\P{L}` | yes | yes | yes | Pinned complement table |
 | Unicode binary properties | `\p{Emoji}` | yes | yes | yes | Pinned boolean-property table, compile-time alias validation, and erased runtime range predicate |
-| Unicode scripts | `\p{Greek}` | yes | yes | yes | Pinned Script table and aliases; `scx` remains separate |
+| Unicode scripts | `\p{Greek}`, `\p{Script=Greek}`, `\p{sc=Grek}` | yes | yes | yes | Pinned Script table and aliases; `scx` remains separate |
 | Script extensions | `\p{scx=Hira}` | yes | yes | no | Planned generated predicates |
 | Bidi properties | `\p{Bidi_Class=AL}` | yes | yes | yes | Pinned Bidi_Class short/long aliases; other Bidi properties remain planned |
 | Grapheme clusters | `\X` | yes | yes | no | Planned finite UAX #29 machine |

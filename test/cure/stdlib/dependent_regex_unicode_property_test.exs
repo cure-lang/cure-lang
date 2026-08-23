@@ -25,6 +25,8 @@ defmodule Cure.Stdlib.DependentRegexUnicodePropertyTest do
       fn currency(input: String) -> Option(Char) = parse_full(/\p{Currency_Symbol}/u, input)
       fn latin_script(input: String) -> Option(Char) = parse_full(/\p{Latin}/u, input)
       fn greek_script(input: String) -> Option(Char) = parse_full(/\p{Greek}/u, input)
+      fn greek_script_qualified(input: String) -> Option(Char) = parse_full(/\p{Script=Greek}/u, input)
+      fn greek_script_short(input: String) -> Option(Char) = parse_full(/\p{sc=Grek}/u, input)
       fn cyrillic_script(input: String) -> Option(Char) = parse_full(/\p{Cyrillic}/u, input)
       fn hiragana_script(input: String) -> Option(Char) = parse_full(/\p{Hiragana}/u, input)
       fn arabic_bidi(input: String) -> Option(Char) = parse_full(/\p{Bidi_Class=AL}/u, input)
@@ -75,6 +77,10 @@ defmodule Cure.Stdlib.DependentRegexUnicodePropertyTest do
     assert apply(module, :latin_script, [{:String, ~c"λ"}]) == :none
     assert apply(module, :greek_script, [{:String, ~c"λ"}]) == {:some, ?λ}
     assert apply(module, :greek_script, [{:String, ~c"Ж"}]) == :none
+    assert apply(module, :greek_script_qualified, [{:String, ~c"λ"}]) == {:some, ?λ}
+    assert apply(module, :greek_script_qualified, [{:String, ~c"A"}]) == :none
+    assert apply(module, :greek_script_short, [{:String, ~c"λ"}]) == {:some, ?λ}
+    assert apply(module, :greek_script_short, [{:String, ~c"A"}]) == :none
     assert apply(module, :cyrillic_script, [{:String, ~c"Ж"}]) == {:some, ?Ж}
     assert apply(module, :cyrillic_script, [{:String, ~c"A"}]) == :none
     assert apply(module, :hiragana_script, [{:String, ~c"あ"}]) == {:some, ?あ}

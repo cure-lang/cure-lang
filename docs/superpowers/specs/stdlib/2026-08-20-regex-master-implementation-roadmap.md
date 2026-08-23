@@ -550,8 +550,8 @@ regression covers positive and negated ASCII and generic boolean properties;
 the same property surface now uses the pinned `Std.Char` Unicode predicates
 for casing, alphabetic, whitespace, hexadecimal, math, currency, generic
 boolean properties, script membership, and `Bidi_Class`/`bc` short and long
-values. Script, Bidi, and generic property names are validated at macro time
-and emitted as atoms. Remaining Phase 3 work is the generated full
+values. Script (including `Script=...`/`sc=...`), Bidi, and generic property
+names are validated at macro time and emitted as atoms. Remaining Phase 3 work is the generated full
 script-extension surface and Bidi properties beyond `Bidi_Class`,
 grapheme clusters,
 duplicate-name and capture-layout policy, other finite control normalizations,
