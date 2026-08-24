@@ -3752,6 +3752,84 @@ mod Std.Regex.Runtime
   ) -> Empty = match failure
     AtomicStartExhausted(_, _) -> lookaround_impossible_list_member(membership)
 
+  ## An active start candidate rejected by its child cannot also be the head of
+  ## a selected trace.  The rejection constructor publishes the child's exact
+  ## suffix and refutation; this consumer passes both to the indexed child
+  ## theorem instead of rebuilding either witness from an unindexed list.
+  fn atomic_start_candidate_rejection_excludes_trace(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    state: Bounded(n),
+    routine: List(EvidenceInstruction),
+    constraints: List(BoundaryConstraint),
+    assertion_routine: List(ExtendedInstruction),
+    assertion_markers: List(EvidenceInstruction),
+    nested_decisions: List(LookaroundNestedDecision),
+    {child_whole: List(LookaroundAdmittedState(n))},
+    {child_current: List(LookaroundAdmittedState(n))},
+    @erased child_failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Nil(),
+      after_input,
+      ThreadActive(state),
+      history,
+      append_routine(append_routine(capture_context, routine), assertion_markers),
+      policy,
+      atomic_scope_depth_after(routine, Z()),
+      prefix_mode,
+      reversed_prefix,
+      child_whole,
+      child_current
+    ),
+    @erased child_suffix: LookaroundAdmittedStateCursorSuffix(n, child_whole, child_current),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      Nil(),
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions),
+      matched,
+      remaining_input,
+      selected_routine
+    )
+  ) -> result = match path
+    AtomicSelectedStartActive(_, _, _, _, _, _, _, _, _, _, _, _, _, suffix) ->
+      atomic_path_child_input_exhaustion_excludes_trace(
+        machine,
+        after_input,
+        state,
+        history,
+        append_routine(append_routine(capture_context, routine), assertion_markers),
+        policy,
+        atomic_scope_depth_after(routine, Z()),
+        prefix_mode,
+        reversed_prefix,
+        child_failure,
+        child_suffix,
+        suffix
+      )
+
   ## The child-specific wrapper retains the refutation's own suffix witness
   ## while reducing the exhausted-input branch to the generic contradiction.
   ## This is the first theorem boundary where the stored refutation suffix is
