@@ -3830,6 +3830,86 @@ mod Std.Regex.Runtime
         suffix
       )
 
+  ## A rejected head with no remaining siblings exposes an empty tail.  The
+  ## published tail cursor must be consumed before delegating to the existing
+  ## empty-start contradiction; a fabricated `Drop` suffix cannot cross this
+  ## boundary.
+  @reducible
+  fn atomic_start_tail_suffix_is_empty(
+    {n: Nat},
+    {whole: List(LookaroundAdmittedState(n))},
+    @erased _suffix: LookaroundAdmittedStateCursorSuffix(n, whole, Nil())
+  ) -> Unit = ()
+
+  fn atomic_start_tail_exhaustion_excludes_trace(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {whole: List(LookaroundAdmittedState(n))},
+    @erased _tail_suffix: LookaroundAdmittedStateCursorSuffix(n, whole, Nil()),
+    {item: LookaroundAdmittedState(n)},
+    @erased membership: ListMember(LookaroundAdmittedState(n), item, Nil()),
+    @erased tail_failure: AtomicStartMembersRefutation(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Nil()
+    ),
+    {selected_start: LookaroundAdmittedState(n)},
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      selected_start,
+      matched,
+      remaining_input,
+      routine
+    )
+  ) -> Empty =
+    let _ = atomic_start_tail_suffix_is_empty(_tail_suffix)
+    atomic_start_failure_excludes_trace(
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      membership,
+      tail_failure,
+      path
+    )
+
   ## The child-specific wrapper retains the refutation's own suffix witness
   ## while reducing the exhausted-input branch to the generic contradiction.
   ## This is the first theorem boundary where the stored refutation suffix is

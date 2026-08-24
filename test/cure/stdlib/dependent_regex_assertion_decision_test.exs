@@ -519,6 +519,15 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/atomic_start_candidate_rejection_excludes_trace.*?child_suffix/s, source)
   end
 
+  test "rejected start tails consume their empty cursor before refuting" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "fn atomic_start_tail_exhaustion_excludes_trace"
+    assert Regex.match?(~r/atomic_start_tail_exhaustion_excludes_trace.*?tail_suffix/s, source)
+    assert Regex.match?(~r/atomic_start_tail_exhaustion_excludes_trace.*?AtomicStartMembersRefutation/s, source)
+    assert Regex.match?(~r/atomic_start_tail_exhaustion_excludes_trace.*?atomic_start_failure_excludes_trace/s, source)
+  end
+
   test "certified assertion decisions enforce atomic commitment", %{runtime_module: module} do
     assert apply(module, :atomic_trace_authority_rejects, [])
     assert apply(module, :certified_atomic_trace_rejects, [])
