@@ -333,6 +333,19 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/atomic_path_destination_rejection_excludes_aligned_child\b[^=]*child_failure_suffix/s, source)
   end
 
+  test "atomic recursive refutation consumes the source-cursor suffix" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    recursive =
+      source
+      |> String.split("fn atomic_path_destination_rejection_excludes_recursive_trace", parts: 2)
+      |> List.last()
+      |> String.split("\n  fn ", parts: 2)
+      |> List.first()
+
+    assert recursive =~ "selection_from_current"
+  end
+
   test "atomic selected child paths retain their origin spine equivalence" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
@@ -342,6 +355,34 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
              ~r/AtomicSelectedTransitionActive\s*:.*?child_selected_whole_equivalence/s,
              source
            )
+  end
+
+  test "atomic selected members retain their one-way source-cursor suffix" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [members_yes] =
+      Enum.filter(String.split(source, "\n"), &String.contains?(&1, "AtomicPathMembersYes :"))
+
+    assert members_yes =~ "selection_from_current"
+    assert Regex.match?(~r/AtomicPathMembersYes\([^\n]*selection_from_current/s, source)
+
+    body =
+      source
+      |> String.split("fn atomic_lookaround_routine_add_skipped_candidate", parts: 2)
+      |> List.last()
+      |> String.split("\n  fn ", parts: 2)
+      |> List.first()
+
+    assert body =~ "selection_from_current"
+
+    members_body =
+      source
+      |> String.split("fn atomic_lookaround_routine_members_from", parts: 2)
+      |> List.last()
+      |> String.split("\n  fn ", parts: 2)
+      |> List.first()
+
+    assert members_body =~ "AtomicPathMembersYes"
   end
 
   test "atomic no-results publish their canonical child spine" do
