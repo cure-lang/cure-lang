@@ -243,6 +243,15 @@ cursor with a selected-trace suffix rather than treating them as interchangeable
 This is construction-site strengthening only: partial cursor failures are still
 not interchangeable with root failures, and the complete child/tail alignment
 relation remains open.
+The refutation constructors now also carry an erased
+`LookaroundAdmittedStateCursorSuffix` value, and the internal member traversal
+threads it from the root through every tail drop. Tail suffixes are built by
+composing the parent-to-head relation with the canonical head-to-tail drop;
+they are never reconstructed from the unindexed cursor after the fact. The
+stored suffix is now available at the child theorem boundary. The existing
+exhausted-child eliminator still consumes only its specialized empty-input
+index; the next slice must pass the stored refutation suffix and selected
+suffix through `LookaroundAdmittedStateCursorAlignment` for recursive children.
 An explicit `LookaroundAdmittedStateCursorAlignment` relation now compares two
 candidate suffixes from one common ordered spine in either direction. Its
 construction eliminates each surface equality before refining the dependent

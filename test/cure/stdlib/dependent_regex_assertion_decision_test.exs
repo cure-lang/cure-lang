@@ -284,8 +284,18 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     assert Regex.match?(
              ~r/fn lookaround_admitted_cursor_suffix_alignment\b.*?LookaroundAdmittedStateCursorAlignment/s,
-             source
+           source
            )
+  end
+
+  test "atomic refutations retain their ordered candidate suffix" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [input_exhausted] = Enum.filter(String.split(source, "\n"), &String.contains?(&1, "AtomicPathInputExhausted :"))
+    [destination_rejected] = Enum.filter(String.split(source, "\n"), &String.contains?(&1, "AtomicPathDestinationRejected :"))
+
+    assert input_exhausted =~ "LookaroundAdmittedStateCursorSuffix"
+    assert destination_rejected =~ "LookaroundAdmittedStateCursorSuffix"
   end
 
   test "certified assertion decisions enforce atomic commitment", %{runtime_module: module} do
