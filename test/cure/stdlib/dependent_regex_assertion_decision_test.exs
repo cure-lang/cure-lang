@@ -403,6 +403,18 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert destination_rejected =~ "tail_origin_equivalence"
   end
 
+  test "atomic start refutations retain child and tail cursor evidence" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [start_rejected] =
+      Enum.filter(String.split(source, "\n"), &String.contains?(&1, "AtomicStartCandidateRejected :"))
+
+    assert start_rejected =~ "child_origin_equivalence"
+    assert start_rejected =~ "child_suffix"
+    assert start_rejected =~ "tail_suffix"
+    assert Regex.match?(~r/AtomicSelectedStartActive\s*:.*?selection_from_origin/s, source)
+  end
+
   test "certified assertion decisions enforce atomic commitment", %{runtime_module: module} do
     assert apply(module, :atomic_trace_authority_rejects, [])
     assert apply(module, :certified_atomic_trace_rejects, [])
