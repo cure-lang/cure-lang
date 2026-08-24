@@ -763,6 +763,15 @@ The parser now rejects `\\X` with the stable structured diagnostic
 `:UnsupportedRegexGrapheme`; it must not silently reinterpret the escape as a
 literal `X`. The `Std.Char.unicode_bidi_paired_bracket` API now exposes the
 pinned paired scalar while the regex property remains Boolean membership.
+Finite PCRE start controls `(*UTF)`, `(*UTF8)`, and `(*NO_JIT)` now normalize
+away at the syntax boundary: Cure's subjects are already Unicode-scalar lists,
+and the matcher has no host JIT mode whose selection could affect semantics.
+`(*UCP)` normalizes to the existing scoped Unicode modifier, so generic
+word/digit/space predicates use the same typed and erased implementation as
+the `u` option. `(*UTF16)` and `(*UTF32)` are rejected with the structured
+`:UnsupportedRegexEncodingControl` diagnostic because Cure does not model
+UTF code-unit subjects. These controls have focused runtime and exact-span
+diagnostic regressions.
 Remaining Phase 3 work is grapheme clusters,
 duplicate-name and capture-layout policy, other finite control normalizations,
 and the remaining control families below. `(*FAIL)` and terminal `(*ACCEPT)`

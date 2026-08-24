@@ -14,6 +14,8 @@ defmodule Cure.Stdlib.DependentRegexUnsupportedConstructTest do
       {~S"(?R)", :UnsupportedRegexRecursion, "(?R"},
       {~S"(?1)", :UnsupportedRegexRecursion, "(?1"},
       {~S"(?x:a)", :UnsupportedRegexInlineOptions, "(?x"},
+      {"(*UTF16)a", :UnsupportedRegexEncodingControl, "(*UTF16)"},
+      {"(*UTF32)a", :UnsupportedRegexEncodingControl, "(*UTF32)"},
       {~S"a{2,1}", :RegexQuantifierRangeReversed, "{2,1}"}
     ]
 

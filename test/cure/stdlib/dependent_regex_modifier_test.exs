@@ -39,6 +39,11 @@ defmodule Cure.Stdlib.DependentRegexModifierTest do
       fn duplicate_flags() -> Option(Unit) = parse_full(/abc/ii, "ABC")
       fn combined_export() -> Option(Unit) = parse_full(/abc/Eiu, "ABC")
 
+      fn ucp_word_unicode_letter() -> Option(Char) = parse_full(/(*UCP)\\w/, "é")
+      fn utf_control_exact() -> Option(Unit) = parse_full(/(*UTF)abc/, "abc")
+      fn utf8_control_exact() -> Option(Unit) = parse_full(/(*UTF8)abc/, "abc")
+      fn no_jit_control_exact() -> Option(Unit) = parse_full(/(*NO_JIT)abc/, "abc")
+
       fn alert_escape(input: String) -> Option(Unit) = parse_full(/\\a/, input)
       fn escape_escape(input: String) -> Option(Unit) = parse_full(/\\e/, input)
       fn form_feed_escape(input: String) -> Option(Unit) = parse_full(/\\f/, input)
@@ -109,6 +114,13 @@ defmodule Cure.Stdlib.DependentRegexModifierTest do
     assert apply(module, :ascii_space_nbsp, []) == :none
     assert apply(module, :unicode_space_nbsp, []) == {:some, 0xA0}
     assert apply(module, :unicode_caseless, []) == {:some, :unit}
+  end
+
+  test "finite PCRE start controls normalize to Cure's scalar model", %{runtime_module: module} do
+    assert apply(module, :ucp_word_unicode_letter, []) == {:some, ?é}
+    assert apply(module, :utf_control_exact, []) == {:some, :unit}
+    assert apply(module, :utf8_control_exact, []) == {:some, :unit}
+    assert apply(module, :no_jit_control_exact, []) == {:some, :unit}
   end
 
   test "x removes unescaped pattern whitespace before parsing", %{runtime_module: module} do

@@ -15,11 +15,24 @@ mod Std.Regex.Syntax.Parser
       ['(', '*', 'A', 'N', 'Y', ')' | rest] -> parse_literal_with_policy(LiteralAnyUnicodePolicy, rest)
       ['(', '*', 'B', 'S', 'R', '_', 'A', 'N', 'Y', 'C', 'R', 'L', 'F', ')' | rest] -> parse_literal_with_policy(LiteralAnyCRLFPolicy, rest)
       ['(', '*', 'B', 'S', 'R', '_', 'U', 'N', 'I', 'C', 'O', 'D', 'E', ')' | rest] -> parse_literal_with_policy(LiteralAnyUnicodePolicy, rest)
+      ['(', '*', 'U', 'T', 'F', ')' | rest] -> parse_literal(rest)
+      ['(', '*', 'U', 'T', 'F', '8', ')' | rest] -> parse_literal(rest)
+      ['(', '*', 'N', 'O', '_', 'J', 'I', 'T', ')' | rest] -> parse_literal(rest)
+      ['(', '*', 'U', 'C', 'P', ')' | rest] -> parse_literal_with_modifier(UnicodeModifier, rest)
+      ['(', '*', 'U', 'T', 'F', '1', '6', ')' | rest] -> LiteralLocatedInvalid(:UnsupportedRegexEncodingControl, Z(), literal_prefix_width(input, 8))
+      ['(', '*', 'U', 'T', 'F', '3', '2', ')' | rest] -> LiteralLocatedInvalid(:UnsupportedRegexEncodingControl, Z(), literal_prefix_width(input, 8))
       _ -> parse_literal_complete(parse_literal_alternate_fuel(input, literal_fuel(input)), input)
 
   fn parse_literal_with_policy(policy: LiteralNewlinePolicy, input: List(Char)) -> LiteralParse =
     match parse_literal_complete(parse_literal_alternate_fuel(input, literal_fuel(input)), input)
       LiteralParsed(pattern, rest) -> LiteralParsed(LiteralConfigured(policy, pattern), rest)
+      LiteralInvalid(reason) -> LiteralInvalid(reason)
+      LiteralAtInvalid(reason, suffix, width) -> LiteralAtInvalid(reason, suffix, width)
+      LiteralLocatedInvalid(reason, start, width) -> LiteralLocatedInvalid(reason, start, width)
+
+  fn parse_literal_with_modifier(modifier: LiteralModifier, input: List(Char)) -> LiteralParse =
+    match parse_literal_complete(parse_literal_alternate_fuel(input, literal_fuel(input)), input)
+      LiteralParsed(pattern, rest) -> LiteralParsed(LiteralScopedOptions([modifier], [], pattern), rest)
       LiteralInvalid(reason) -> LiteralInvalid(reason)
       LiteralAtInvalid(reason, suffix, width) -> LiteralAtInvalid(reason, suffix, width)
       LiteralLocatedInvalid(reason, start, width) -> LiteralLocatedInvalid(reason, start, width)

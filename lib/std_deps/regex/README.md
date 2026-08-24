@@ -79,7 +79,7 @@ The current parser admits the following forms.
 | Classes | ranges, negation, unions, escaped members, POSIX classes | Implemented |
 | Generic classes | `\d`, `\D`, `\w`, `\W`, `\s`, `\S`, `\h`, `\H`, `\v`, `\V` | Implemented with ASCII/Unicode option semantics |
 | Unicode | `\xHH`, `\x{...}`, `\uHHHH`, `\UHHHHHHHH`, `\N`, `\N{name}`, `\p{...}`, `\P{...}`, pinned general-category aliases including `General_Category=...`/`gc=...` and derived names such as `Assigned`, all boolean properties in the pinned Unicode property table (including `Emoji`, `Extended_Pictographic`, and `ID_Start`), scalar `ASCII`, `Cased`, `Lowercase`, `Uppercase`, `Alphabetic`, `White_Space`, `Hex_Digit`, `Math`, and `Currency_Symbol` binary properties, all names in the pinned Unicode Script table including `Script=...`/`sc=...`, Script_Extensions including `Script_Extensions=...`/`scx=...`, `Bidi_Class`/`bc` short and long values, `Bidi_Control`, `Bidi_Mirrored`, Boolean `Bidi_Paired_Bracket`, and `Bidi_Paired_Bracket_Type`/`bpt` | Implemented; `Std.Char.unicode_bidi_paired_bracket` exposes the pinned mapping value |
-| Controls | `\a`, `\e`, `\f`, `\n`, `\r`, `\t`, `\N`, ordinary escaped characters, `(*FAIL)`, and terminal `(*ACCEPT)` | Implemented; `\N` is the finite complement of Cure's Unicode newline set, failure is a finite negative-empty assertion, and terminal accept is an empty branch continuation |
+| Controls | `\a`, `\e`, `\f`, `\n`, `\r`, `\t`, `\N`, ordinary escaped characters, `(*UTF)`, `(*UTF8)`, `(*UCP)`, `(*NO_JIT)`, `(*FAIL)`, and terminal `(*ACCEPT)` | Implemented; UTF/UTF8 and NO_JIT normalize away because Cure subjects are Unicode-scalar sequences and matching is not host-JIT dependent; UCP normalizes to the existing Unicode modifier; `\N` is the finite complement of Cure's Unicode newline set, failure is a finite negative-empty assertion, and terminal accept is an empty branch continuation. `(*UTF16)` and `(*UTF32)` are rejected with `:UnsupportedRegexEncodingControl` because Cure does not expose UTF code-unit subjects |
 | Quoted literals | `\Q...\E`, including an unterminated quote through end-of-pattern | Implemented by literal-sequence normalization; `\\E` after the terminator denotes a literal backslash-E |
 | Scoped options | `(?i:...)`, `(?m:...)`, `(?s:...)`, `(?u:...)`, `(?U:...)`, with `-` removals | Implemented |
 | Grapheme atom | `\X` | Planned; rejected with `:UnsupportedRegexGrapheme` until the typed UAX #29 machine and proof slice land |
@@ -280,6 +280,9 @@ The planned families are:
 - Unicode binary properties, scripts, script extensions, bidi properties, and
   a generated finite grapheme-break (`\\X`) machine;
 - additional explicitly finite escapes;
+- remaining finite start/control normalizations, with `(*UTF)`, `(*UTF8)`,
+  `(*UCP)`, and `(*NO_JIT)` now discharged and `(*UTF16)`/`(*UTF32)` explicitly
+  rejected;
 - duplicate-name policy and any remaining capture-layout compatibility;
 - generalized assertion conditionals (beyond the finite lookahead/lookbehind
   forms above) and the admitted assertion/atomic combinations;
