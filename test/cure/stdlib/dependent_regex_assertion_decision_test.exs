@@ -538,6 +538,17 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/type AtomicStartMembersRefutation.*?kind: AtomicStartFailureKind/s, source)
   end
 
+  test "atomic path refutations carry a constructor kind index" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "type AtomicPathFailureKind"
+    assert source =~ "AtomicPathFailureInputExhausted"
+    assert source =~ "AtomicPathFailureExactAccepted"
+    assert source =~ "AtomicPathFailureDestinationsExhausted"
+    assert source =~ "AtomicPathFailureDestinationRejected"
+    assert Regex.match?(~r/type AtomicPathRefutation.*?kind: AtomicPathFailureKind/s, source)
+  end
+
   test "certified assertion decisions enforce atomic commitment", %{runtime_module: module} do
     assert apply(module, :atomic_trace_authority_rejects, [])
     assert apply(module, :certified_atomic_trace_rejects, [])

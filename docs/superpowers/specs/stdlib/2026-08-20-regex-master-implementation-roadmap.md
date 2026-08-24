@@ -719,8 +719,18 @@ checked. The serialized assertion-decision, exhaustive-model, and named-capture
 gate now passes 51 tests in 267.9 seconds on a warm interface build. The first
 cold rebuild after changing these indices took roughly twelve minutes and must
 remain a performance follow-up. That gate discharges the admitted
-proof/extraction sub-slice, but the full Phase 2 exit remains open while the
-later atomic selected-trace/refutation correspondence is completed.
+ proof/extraction sub-slice, but the full Phase 2 exit remains open while the
+ later atomic selected-trace/refutation correspondence is completed.
+
+The atomic path refutation slice now indexes `AtomicPathRefutation` by an
+erased `AtomicPathFailureKind`, distinguishing input exhaustion, exact
+acceptance with trailing input, destination exhaustion, and recursive
+destination rejection. Child and tail refutations carry their own kinds, while
+root and search-result wrappers preserve the same index. This keeps the
+constructor-specific impossible branches in the proof rather than recovering
+the failure reason from runtime data; the kind is proof metadata and adds no
+runtime control field. The focused dependent-assertion file passes 62 tests,
+and the canonical pipeline gate passes 52 checks (50 tests and 2 properties).
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
