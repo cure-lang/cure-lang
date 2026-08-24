@@ -708,8 +708,9 @@ recursive totality SCC, so such calls are intentionally opaque while the SCC is
 checked. The serialized assertion-decision, exhaustive-model, and named-capture
 gate now passes 51 tests in 267.9 seconds on a warm interface build. The first
 cold rebuild after changing these indices took roughly twelve minutes and must
-remain a performance follow-up, but the admitted Phase 2 proof/extraction exit
-gate itself is discharged.
+remain a performance follow-up. That gate discharges the admitted
+proof/extraction sub-slice, but the full Phase 2 exit remains open while the
+later atomic selected-trace/refutation correspondence is completed.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
