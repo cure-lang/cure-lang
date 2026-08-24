@@ -333,6 +333,17 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/atomic_path_destination_rejection_excludes_aligned_child\b[^=]*child_failure_suffix/s, source)
   end
 
+  test "atomic selected child paths retain their origin spine equivalence" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "transport_lookaround_admitted_cursor_suffix_outer"
+    assert source =~ "atomic_child_cursor_alignment"
+    assert Regex.match?(
+             ~r/AtomicSelectedTransitionActive\s*:.*?child_selected_whole_equivalence/s,
+             source
+           )
+  end
+
   test "certified assertion decisions enforce atomic commitment", %{runtime_module: module} do
     assert apply(module, :atomic_trace_authority_rejects, [])
     assert apply(module, :certified_atomic_trace_rejects, [])

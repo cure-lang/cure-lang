@@ -262,6 +262,14 @@ selected child suffix, and the selected child trace into the aligned-child
 eliminator. The eliminator consumes the stored refutation suffix before
 delegating to the active-input contradiction; equality between independently
 existential child cursors remains a later recursive slice.
+Selected transition constructors now retain the erased equivalence between
+the child refutation's origin spine and the selected child's origin spine.
+`transport_lookaround_admitted_cursor_suffix_outer` and
+`atomic_child_cursor_alignment` turn that common-origin equation plus the two
+ordered suffixes into an explicit cursor-alignment relation. The relation is
+construction-site proof data only; no child list or equality witness survives
+in the emitted matcher. The recursive rejected-child consumer still needs to
+invoke this bridge for non-terminal child failures.
 The first child-specific consumer,
 `atomic_path_child_input_exhaustion_excludes_trace`, now matches the stored
 refutation suffix before delegating to the active-input contradiction. This
@@ -346,9 +354,10 @@ stored child refutation suffix at the active exhausted-input base and receives
 the selected child suffix and child trace from the construction site. It then
 passes the child trace's indexed empty-input contradiction to
 `atomic_path_input_exhaustion_excludes_trace`; no erased witness is inspected
-at runtime. The selected suffix is retained in the theorem's erased type but
-is not yet equated with the independently existential refutation cursor. A
-first sibling-tail leaf is now also consumed at the construction site, but
+at runtime. The selected transition now also retains the common-origin
+equivalence needed to align that suffix with a refutation suffix; the generic
+`atomic_child_cursor_alignment` bridge is ready for the recursive consumer.
+A first sibling-tail leaf is now also consumed at the construction site, but
 recursive rejected-child alignment, non-empty sibling-tail induction, and
 escaped-commit bookkeeping remain open.
 The recursive destination-list evaluator now has an internal
