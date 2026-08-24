@@ -444,6 +444,16 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert start_rejected =~ "LookaroundAdmittedStateCursorSuffix(n, whole, Cons(candidate, remaining))"
   end
 
+  test "atomic start recursion has an indexed internal result and root wrapper" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "type AtomicStartMembersRefutation(depth: Nat, n: Nat, machine: PatternMachine(n))"
+    assert source =~ "type AtomicStartMembersResult(depth: Nat, n: Nat, machine: PatternMachine(n))"
+    assert source =~ "AtomicStartRefutationRoot"
+    assert source =~ "AtomicStartCandidateBlocked"
+    assert source =~ "atomic_start_members_add_skipped_candidate"
+  end
+
   test "selected atomic starts retain their source-start suffix" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
