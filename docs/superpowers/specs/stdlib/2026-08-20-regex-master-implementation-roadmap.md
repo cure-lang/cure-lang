@@ -270,6 +270,12 @@ ordered suffixes into an explicit cursor-alignment relation. The relation is
 construction-site proof data only; no child list or equality witness survives
 in the emitted matcher. The recursive rejected-child consumer still needs to
 invoke this bridge for non-terminal child failures.
+Atomic no-results now publish an explicit erased origin list and
+`origin_equivalence` on both suffix-local and root no constructors. The
+members evaluator supplies the canonical admitted-destination spine at the
+construction site, and escaped no-results carry that same origin proof through
+tail reintroduction. This removes the previous implicit-origin gap; consumers
+still need to thread the published proof through the outer failure wrapper.
 The first child-specific consumer,
 `atomic_path_child_input_exhaustion_excludes_trace`, now matches the stored
 refutation suffix before delegating to the active-input contradiction. This
