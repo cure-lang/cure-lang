@@ -472,6 +472,17 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     end
   end
 
+  test "successful atomic starts retain selected-state membership evidence" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [start_yes] =
+      Enum.filter(String.split(source, "\n"), &String.contains?(&1, "AtomicStartMembersYes :"))
+
+    assert start_yes =~ "selected_start"
+    assert start_yes =~ "selected_member"
+    assert start_yes =~ "AtomicSelectedTrace"
+  end
+
   test "certified assertion decisions enforce atomic commitment", %{runtime_module: module} do
     assert apply(module, :atomic_trace_authority_rejects, [])
     assert apply(module, :certified_atomic_trace_rejects, [])
