@@ -3738,6 +3738,16 @@ mod Std.Regex.Runtime
       AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
       AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _) -> impossible
 
+  ## Exact child failures receive the same suffix-indexed treatment as active
+  ## input exhaustion. The stored constructor suffix is checked before the
+  ## generic exact-input contradiction is reused.
+  fn atomic_path_child_exact_failure_excludes_trace({result: Type}, {depth: Nat}, {n: Nat}, machine: PatternMachine(n), @erased char: Char, @erased rest: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, reversed_prefix: List(Char), {whole: List(LookaroundAdmittedState(n))}, {current: List(LookaroundAdmittedState(n))}, @erased failure: AtomicPathRefutation(depth, n, machine, Cons(char, rest), after_input, ThreadAccepted(), history, capture_context, policy, scope_depth, False(), reversed_prefix, whole, current), @erased failure_suffix: LookaroundAdmittedStateCursorSuffix(n, whole, current), {path_current: List(LookaroundAdmittedState(n))}, {matched: List(Char)}, {remaining_input: List(Char)}, {routine: List(ExtendedInstruction)}, @erased path: AtomicSelectedPathTrace(depth, n, machine, Cons(char, rest), after_input, ThreadAccepted(), history, capture_context, policy, scope_depth, False(), reversed_prefix, path_current, matched, remaining_input, routine)) -> result = match failure
+    AtomicPathExactAcceptedWithInput(_, _, _, stored_suffix) -> match failure_suffix
+      LookaroundAdmittedStateCursorSuffixHere(_) -> match stored_suffix
+        LookaroundAdmittedStateCursorSuffixHere(_) -> atomic_path_exact_failure_excludes_trace(machine, char, rest, after_input, history, capture_context, policy, scope_depth, reversed_prefix, failure, path)
+        LookaroundAdmittedStateCursorSuffixDrop(_, _) -> impossible
+      LookaroundAdmittedStateCursorSuffixDrop(_, _) -> impossible
+
   ## Destination exhaustion has an independent cursor base case.  Once the
   ## failure cursor is indexed at `Nil()`, a selected transition would require
   ## a suffix beginning at a non-empty admitted candidate list; the suffix

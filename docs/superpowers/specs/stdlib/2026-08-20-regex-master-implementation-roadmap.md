@@ -257,6 +257,12 @@ The first child-specific consumer,
 refutation suffix before delegating to the active-input contradiction. This
 keeps the child boundary indexed even in the base case; recursive child and
 sibling-tail alignment remain open.
+The exact-acceptance counterpart,
+`atomic_path_child_exact_failure_excludes_trace`, performs the same stored
+suffix check before discharging an accepted child with unconsumed input. Both
+terminal child refutation shapes now have construction-site consumers; only
+destination exhaustion and rejected-child/tail recursion remain in this
+induction family.
 An explicit `LookaroundAdmittedStateCursorAlignment` relation now compares two
 candidate suffixes from one common ordered spine in either direction. Its
 construction eliminates each surface equality before refining the dependent
