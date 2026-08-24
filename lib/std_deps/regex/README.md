@@ -195,6 +195,11 @@ boundary; its `Here`/`Drop` constructors are the only way to introduce the
 ordered suffix relation. A separate `LookaroundAdmittedStateCursorWitness`
 mirrors the runtime cursor when its whole list already contains a skipped
 prefix; this prevents conflating the two different suffix propositions.
+The first non-empty destination-exhaustion branch now consumes that suffix
+relation through `atomic_path_failure_excludes_aligned_trace`, and an exact
+accepted child with remaining input is discharged by
+`atomic_path_accepted_destination_rejection_excludes_aligned_trace`. These are
+indexed induction slices, not the complete child/tail correspondence.
 `AtomicPathSearchYes` now carries the selected whole/current admitted-state
 lists and an erased `LookaroundAdmittedStateCursorSuffix`; selected candidates
 construct the `Here` case, while skipped candidates (including inner
