@@ -415,6 +415,16 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/AtomicSelectedStartActive\s*:.*?selection_from_origin/s, source)
   end
 
+  test "atomic start exhaustion retains its canonical start equation" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [start_exhausted] =
+      Enum.filter(String.split(source, "\n"), &String.contains?(&1, "AtomicStartExhausted :"))
+
+    assert start_exhausted =~ "LookaroundAdmittedStateCursorSuffix(n, whole, Nil())"
+    assert start_exhausted =~ "lookaround_admitted_starts"
+  end
+
   test "certified assertion decisions enforce atomic commitment", %{runtime_module: module} do
     assert apply(module, :atomic_trace_authority_rejects, [])
     assert apply(module, :certified_atomic_trace_rejects, [])
