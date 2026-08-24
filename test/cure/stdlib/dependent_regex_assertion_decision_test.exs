@@ -352,6 +352,16 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert search_no =~ "origin_equivalence"
   end
 
+  test "atomic rejected destinations retain child and tail origins" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [destination_rejected] =
+      Enum.filter(String.split(source, "\n"), &String.contains?(&1, "AtomicPathDestinationRejected :"))
+
+    assert destination_rejected =~ "child_origin_equivalence"
+    assert destination_rejected =~ "tail_origin_equivalence"
+  end
+
   test "certified assertion decisions enforce atomic commitment", %{runtime_module: module} do
     assert apply(module, :atomic_trace_authority_rejects, [])
     assert apply(module, :certified_atomic_trace_rejects, [])

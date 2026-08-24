@@ -276,6 +276,11 @@ members evaluator supplies the canonical admitted-destination spine at the
 construction site, and escaped no-results carry that same origin proof through
 tail reintroduction. This removes the previous implicit-origin gap; consumers
 still need to thread the published proof through the outer failure wrapper.
+Atomic destination-rejection nodes now retain the child origin/equivalence and
+the sibling-tail origin/equivalence supplied by those no-results. The outer
+failure wrapper therefore preserves both canonical spines instead of dropping
+them when it builds the recursive refutation tree; the theorem consumer still
+needs to invoke the alignment bridge for a non-terminal rejected child.
 The first child-specific consumer,
 `atomic_path_child_input_exhaustion_excludes_trace`, now matches the stored
 refutation suffix before delegating to the active-input contradiction. This
