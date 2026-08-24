@@ -252,6 +252,11 @@ stored suffix is now available at the child theorem boundary. The existing
 exhausted-child eliminator still consumes only its specialized empty-input
 index; the next slice must pass the stored refutation suffix and selected
 suffix through `LookaroundAdmittedStateCursorAlignment` for recursive children.
+The first child-specific consumer,
+`atomic_path_child_input_exhaustion_excludes_trace`, now matches the stored
+refutation suffix before delegating to the active-input contradiction. This
+keeps the child boundary indexed even in the base case; recursive child and
+sibling-tail alignment remain open.
 An explicit `LookaroundAdmittedStateCursorAlignment` relation now compares two
 candidate suffixes from one common ordered spine in either direction. Its
 construction eliminates each surface equality before refining the dependent

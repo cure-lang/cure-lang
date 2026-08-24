@@ -3629,6 +3629,17 @@ mod Std.Regex.Runtime
     AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, suffix) -> impossible
     AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, suffix) -> impossible
 
+  ## The child-specific wrapper retains the refutation's own suffix witness
+  ## while reducing the exhausted-input branch to the generic contradiction.
+  ## This is the first theorem boundary where the stored refutation suffix is
+  ## consumed rather than merely transported.
+  fn atomic_path_child_input_exhaustion_excludes_trace({result: Type}, {depth: Nat}, {n: Nat}, machine: PatternMachine(n), after_input: List(Char), state: Bounded(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), {whole: List(LookaroundAdmittedState(n))}, {current: List(LookaroundAdmittedState(n))}, @erased failure: AtomicPathRefutation(depth, n, machine, Nil(), after_input, ThreadActive(state), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current), @erased failure_suffix: LookaroundAdmittedStateCursorSuffix(n, whole, current), {path_current: List(LookaroundAdmittedState(n))}, {matched: List(Char)}, {remaining_input: List(Char)}, {routine: List(ExtendedInstruction)}, @erased path: AtomicSelectedPathTrace(depth, n, machine, Nil(), after_input, ThreadActive(state), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, path_current, matched, remaining_input, routine)) -> result = match failure
+    AtomicPathInputExhausted(_, stored_suffix) -> match failure_suffix
+      LookaroundAdmittedStateCursorSuffixHere(_) -> match stored_suffix
+        LookaroundAdmittedStateCursorSuffixHere(_) -> atomic_path_input_exhaustion_excludes_trace(machine, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, path)
+        LookaroundAdmittedStateCursorSuffixDrop(_, _) -> impossible
+      LookaroundAdmittedStateCursorSuffixDrop(_, _) -> impossible
+
   ## Base case for destination rejection: when an active candidate is rejected
   ## at the first character, its child refutation is indexed at exhausted
   ## input, while a selected trace at that same candidate must expose an active

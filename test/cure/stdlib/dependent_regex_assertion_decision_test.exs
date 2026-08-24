@@ -298,6 +298,12 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert destination_rejected =~ "LookaroundAdmittedStateCursorSuffix"
   end
 
+  test "atomic child exhaustion has a suffix-indexed eliminator" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert Regex.match?(~r/fn atomic_path_child_input_exhaustion_excludes_trace\b.*?failure_suffix/s, source)
+  end
+
   test "certified assertion decisions enforce atomic commitment", %{runtime_module: module} do
     assert apply(module, :atomic_trace_authority_rejects, [])
     assert apply(module, :certified_atomic_trace_rejects, [])
