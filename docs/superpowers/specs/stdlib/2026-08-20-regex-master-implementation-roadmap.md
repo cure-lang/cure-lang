@@ -202,6 +202,16 @@ needed for that theorem.
 The first indexed contradiction lemma,
 `atomic_path_input_exhaustion_excludes_trace`, now discharges the active-state
 empty-input base case; destination and start-list induction remain.
+The start-list proof now records `AtomicStartFailureKind` in the refutation
+index, distinguishing exhaustion, candidate rejection, and commitment-blocked
+nodes without adding a runtime field to the erased `AtomicStartMembersNo`
+payload. Skipped starts carry indexed origin evidence, and successful starts
+carry the corresponding allowed-selection certificate. Construction-site
+consumers now discharge an active rejected head's exhausted child and an
+empty rejected tail. The remaining non-empty tail induction must specialize
+at the construction site: a generic eliminator may not inspect an erased
+refutation sum, and making its kind tag relevant would duplicate evaluator
+control metadata rather than preserve proof erasure.
 The admitted-state `LookaroundAdmittedStateCursorSuffix` relation is explicit,
 permitting that induction to drop only ordered heads rather than inventing a
 candidate prefix. The exact-accepted-with-input refutation is indexed by an
