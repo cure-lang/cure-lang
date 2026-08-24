@@ -310,6 +310,22 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/fn atomic_path_child_exact_failure_excludes_trace\b.*?failure_suffix/s, source)
   end
 
+  test "atomic no-results publish the refutation suffix to their parent" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [search_no] = Enum.filter(String.split(source, "\n"), &String.contains?(&1, "AtomicPathSearchNo :"))
+    [members_no] = Enum.filter(String.split(source, "\n"), &String.contains?(&1, "AtomicPathMembersNo :"))
+
+    assert search_no =~ "LookaroundAdmittedStateCursorSuffix"
+    assert members_no =~ "LookaroundAdmittedStateCursorSuffix"
+  end
+
+  test "atomic refutation has a recursive child and tail eliminator" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "atomic_path_destination_rejection_excludes_recursive_trace"
+  end
+
   test "certified assertion decisions enforce atomic commitment", %{runtime_module: module} do
     assert apply(module, :atomic_trace_authority_rejects, [])
     assert apply(module, :certified_atomic_trace_rejects, [])

@@ -248,7 +248,14 @@ The refutation constructors now also carry an erased
 threads it from the root through every tail drop. Tail suffixes are built by
 composing the parent-to-head relation with the canonical head-to-tail drop;
 they are never reconstructed from the unindexed cursor after the fact. The
-stored suffix is now available at the child theorem boundary. The existing
+stored suffix is now available at the child theorem boundary. `AtomicPathSearchNo`,
+`AtomicPathMembersNo`, and escaped no-results publish that suffix alongside
+their refutation, and `AtomicPathDestinationRejected` records both the failed
+child suffix and the sibling-tail suffix at the construction site. The first
+tail-aligned consumer,
+`atomic_path_destination_rejection_excludes_recursive_trace`, uses the
+tail-local selected suffix to discharge a rejected candidate whose sibling
+tail reaches destination exhaustion. The existing
 exhausted-child eliminator still consumes only its specialized empty-input
 index; the next slice must pass the stored refutation suffix and selected
 suffix through `LookaroundAdmittedStateCursorAlignment` for recursive children.
@@ -335,8 +342,9 @@ The first child-alignment eliminator,
 selected child suffix relation at the active exhausted-input base. The
 relation is forced to the empty cursor before the selected transition suffix
 is passed to `atomic_path_input_exhaustion_excludes_trace`; the proof does not
-inspect erased runtime data. Recursive rejected-child alignment, sibling-tail
-alignment, and escaped-commit bookkeeping remain open.
+inspect erased runtime data. A first sibling-tail leaf is now also consumed at
+the construction site, but recursive rejected-child alignment, non-empty
+sibling-tail induction, and escaped-commit bookkeeping remain open.
 The recursive destination-list evaluator now has an internal
 `AtomicPathMembersResult` indexed by its whole and current admitted-state
 spines. Ordinary tail rejection therefore carries the exact `remaining`
