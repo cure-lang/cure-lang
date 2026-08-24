@@ -3691,6 +3691,35 @@ mod Std.Regex.Runtime
     AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, suffix) -> impossible
     AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _, _, _, suffix) -> impossible
 
+  ## A start-list refutation at the empty suffix cannot coexist with any
+  ## selected atomic trace.  The membership witness is the same construction
+  ## authority used by the ordinary lookaround refutation theorem: once the
+  ## current start suffix is `Nil()`, the selected start has no possible edge.
+  ## This is the start-list base case; candidate and blocked-sibling induction
+  ## consumes the corresponding `Here`/`There` witnesses below.
+  fn atomic_start_failure_excludes_trace(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {whole: List(LookaroundAdmittedState(n))},
+    {item: LookaroundAdmittedState(n)},
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {routine: List(ExtendedInstruction)},
+    @erased membership: ListMember(LookaroundAdmittedState(n), item, Nil()),
+    @erased failure: AtomicStartMembersRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, Nil()),
+    @erased _path: AtomicSelectedTrace(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, matched, remaining_input, routine)
+  ) -> Empty = match failure
+    AtomicStartExhausted(_, _) -> lookaround_impossible_list_member(membership)
+
   ## The child-specific wrapper retains the refutation's own suffix witness
   ## while reducing the exhausted-input branch to the generic contradiction.
   ## This is the first theorem boundary where the stored refutation suffix is

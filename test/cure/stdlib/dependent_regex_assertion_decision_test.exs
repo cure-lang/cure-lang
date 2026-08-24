@@ -454,6 +454,15 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert source =~ "atomic_start_members_add_skipped_candidate"
   end
 
+  test "atomic start refutations expose a selected-trace exclusion theorem" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert Regex.match?(
+             ~r/fn atomic_start_failure_excludes_trace\b.*?AtomicStartMembersRefutation.*?AtomicSelectedTrace.*?-> Empty/s,
+             source
+           )
+  end
+
   test "selected atomic starts retain their source-start suffix" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
