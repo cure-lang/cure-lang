@@ -320,6 +320,15 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert members_no =~ "LookaroundAdmittedStateCursorSuffix"
   end
 
+  test "atomic escaped no-results retain skipped commitment candidates" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [search_no] =
+      Enum.filter(String.split(source, "\n"), &String.contains?(&1, "AtomicPathSearchNo :"))
+
+    assert search_no =~ "skipped: List(LookaroundAdmittedState(n))"
+  end
+
   test "atomic refutation has a recursive child and tail eliminator" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
