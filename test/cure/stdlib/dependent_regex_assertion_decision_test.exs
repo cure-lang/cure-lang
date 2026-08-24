@@ -613,6 +613,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert result =~ "failure: AtomicPathRefutation"
     assert result =~ "selection_suffix: LookaroundAdmittedStateCursorSuffix"
     assert result =~ "selected_whole_equivalence: Equivalent"
+    assert result =~ "selected_origin_equivalence: Equivalent"
     assert source =~ "atomic_lookaround_routine_add_skipped_candidate"
     assert source =~ "AtomicPathInputExhausted"
     assert source =~ "AtomicPathDestinationRejected"
