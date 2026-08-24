@@ -272,6 +272,22 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
            )
   end
 
+  test "atomic candidate suffixes have an ordered alignment witness" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert Regex.match?(
+             ~r/type LookaroundAdmittedStateCursorAlignment\b.*?LookaroundAdmittedCursorLeftToRight/s,
+             source
+           )
+
+    assert Regex.match?(~r/LookaroundAdmittedCursorRightToLeft/, source)
+
+    assert Regex.match?(
+             ~r/fn lookaround_admitted_cursor_suffix_alignment\b.*?LookaroundAdmittedStateCursorAlignment/s,
+             source
+           )
+  end
+
   test "certified assertion decisions enforce atomic commitment", %{runtime_module: module} do
     assert apply(module, :atomic_trace_authority_rejects, [])
     assert apply(module, :certified_atomic_trace_rejects, [])

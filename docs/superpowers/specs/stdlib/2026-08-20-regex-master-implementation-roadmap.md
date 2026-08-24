@@ -243,6 +243,13 @@ cursor with a selected-trace suffix rather than treating them as interchangeable
 This is construction-site strengthening only: partial cursor failures are still
 not interchangeable with root failures, and the complete child/tail alignment
 relation remains open.
+An explicit `LookaroundAdmittedStateCursorAlignment` relation now compares two
+candidate suffixes from one common ordered spine in either direction. Its
+construction eliminates each surface equality before refining the dependent
+branch, so the relation is accepted by the kernel without an E093-shaped
+nested-constructor workaround. This is still groundwork: refutation nodes do
+not yet retain a suffix proof for every failed child, so the full recursive
+child/tail theorem must consume this relation at the next construction site.
 Every atomic no-result now also transports the erased
 `LookaroundAdmittedStateCursorWitness` built alongside the runtime cursor. This
 preserves the distinction between “the evaluator is currently at this suffix”

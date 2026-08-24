@@ -1750,6 +1750,28 @@ mod Std.Regex.Runtime
     LookaroundAdmittedStateCursorSuffixHere : (@erased equality: Equivalent(List(LookaroundAdmittedState(n)), outer, inner)) -> LookaroundAdmittedStateCursorSuffix(n, outer, inner)
     LookaroundAdmittedStateCursorSuffixDrop : (@erased head: LookaroundAdmittedState(n)) -> (suffix: LookaroundAdmittedStateCursorSuffix(n, outer, inner)) -> LookaroundAdmittedStateCursorSuffix(n, Cons(head, outer), inner)
 
+  type LookaroundAdmittedStateCursorAlignment(n: Nat) indices (left: List(LookaroundAdmittedState(n)), right: List(LookaroundAdmittedState(n)))
+    LookaroundAdmittedCursorLeftToRight : (@erased suffix: LookaroundAdmittedStateCursorSuffix(n, left, right)) -> LookaroundAdmittedStateCursorAlignment(n, left, right)
+    LookaroundAdmittedCursorRightToLeft : (@erased suffix: LookaroundAdmittedStateCursorSuffix(n, right, left)) -> LookaroundAdmittedStateCursorAlignment(n, left, right)
+
+  fn lookaround_admitted_cursor_suffix_alignment(
+    {n: Nat},
+    {outer: List(LookaroundAdmittedState(n))},
+    {left: List(LookaroundAdmittedState(n))},
+    {right: List(LookaroundAdmittedState(n))},
+    left_suffix: LookaroundAdmittedStateCursorSuffix(n, outer, left),
+    right_suffix: LookaroundAdmittedStateCursorSuffix(n, outer, right)
+  ) -> LookaroundAdmittedStateCursorAlignment(n, left, right) = match left_suffix
+    LookaroundAdmittedStateCursorSuffixHere(left_equality) -> match left_equality
+      reflexive() -> match right_suffix
+        LookaroundAdmittedStateCursorSuffixHere(right_equality) -> match right_equality
+          reflexive() -> LookaroundAdmittedCursorLeftToRight(LookaroundAdmittedStateCursorSuffixHere(reflexive(left)))
+        LookaroundAdmittedStateCursorSuffixDrop(_, _) -> LookaroundAdmittedCursorLeftToRight(right_suffix)
+    LookaroundAdmittedStateCursorSuffixDrop(_, left_prior) -> match right_suffix
+      LookaroundAdmittedStateCursorSuffixHere(right_equality) -> match right_equality
+        reflexive() -> LookaroundAdmittedCursorRightToLeft(left_suffix)
+      LookaroundAdmittedStateCursorSuffixDrop(_, right_prior) -> lookaround_admitted_cursor_suffix_alignment(left_prior, right_prior)
+
   ## Ordered candidate suffixes compose when a refutation has already skipped
   ## one prefix and the selected trace skips another.  Keeping this operation
   ## explicit prevents the atomic child theorem from treating two unrelated
