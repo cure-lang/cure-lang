@@ -483,6 +483,16 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert start_yes =~ "AtomicSelectedTrace"
   end
 
+  test "blocked atomic starts retain typed skip evidence" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "type AtomicStartSkipEvidence"
+    assert source =~ "AtomicStartSkipByCommit"
+    assert source =~ "AtomicStartSkipByScope"
+    assert Regex.match?(~r/AtomicStartCandidateBlocked\s*:.*?AtomicStartSkipEvidence/s, source)
+    assert source =~ "type AtomicStartSelection"
+  end
+
   test "certified assertion decisions enforce atomic commitment", %{runtime_module: module} do
     assert apply(module, :atomic_trace_authority_rejects, [])
     assert apply(module, :certified_atomic_trace_rejects, [])
