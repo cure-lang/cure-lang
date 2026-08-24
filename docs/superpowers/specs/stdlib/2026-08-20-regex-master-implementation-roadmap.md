@@ -303,6 +303,13 @@ by `atomic_path_accepted_destination_rejection_excludes_trace`. Its child
 refutation would have to be `ThreadAccepted()` at `Nil()` input, but the only
 empty-input constructor is active-only; the contradiction is consumed before
 any selected trace is inspected.
+The first child-alignment eliminator,
+`atomic_path_destination_rejection_excludes_aligned_child`, now consumes the
+selected child suffix relation at the active exhausted-input base. The
+relation is forced to the empty cursor before the selected transition suffix
+is passed to `atomic_path_input_exhaustion_excludes_trace`; the proof does not
+inspect erased runtime data. Recursive rejected-child alignment, sibling-tail
+alignment, and escaped-commit bookkeeping remain open.
 The recursive destination-list evaluator now has an internal
 `AtomicPathMembersResult` indexed by its whole and current admitted-state
 spines. Ordinary tail rejection therefore carries the exact `remaining`

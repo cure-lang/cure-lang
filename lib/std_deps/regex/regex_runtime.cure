@@ -3605,6 +3605,18 @@ mod Std.Regex.Runtime
     AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, suffix) -> atomic_path_input_exhaustion_excludes_trace(machine, after_input, destination, history_push_bounded(history, char), append_routine(append_routine(capture_context, routine), assertion_markers), policy, atomic_scope_depth_after(routine, scope_depth), prefix_mode, [char | reversed_prefix], suffix)
     AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, suffix) -> impossible
 
+  ## When the rejected child is itself exhausted, the selected child suffix is
+  ## forced to start at the same empty cursor. This is the first explicit
+  ## child-alignment eliminator; recursive child and sibling-tail alignment
+  ## remain separate proof slices.
+  fn atomic_path_destination_rejection_excludes_aligned_child({result: Type}, {depth: Nat}, {n: Nat}, machine: PatternMachine(n), char: Char, after_input: List(Char), source_state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), destination: Bounded(n), routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), assertion_routine: List(ExtendedInstruction), assertion_markers: List(EvidenceInstruction), nested_decisions: List(LookaroundNestedDecision), {remaining: List(LookaroundAdmittedState(n))}, {child_current: List(LookaroundAdmittedState(n))}, @erased child_failure: AtomicPathRefutation(depth, n, machine, Nil(), after_input, ThreadActive(destination), history_push_bounded(history, char), append_routine(capture_context, routine), policy, atomic_scope_depth_after(routine, scope_depth), prefix_mode, Cons(char, reversed_prefix), Nil(), child_current), @erased child_selection_suffix: LookaroundAdmittedStateCursorSuffix(n, empty_lookaround_admitted_states(n), child_current), {matched: List(Char)}, {remaining_input: List(Char)}, {selected_routine: List(ExtendedInstruction)}, @erased path: AtomicSelectedPathTrace(depth, n, machine, Cons(char, Nil()), after_input, source_state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, Cons(LookaroundAdmittedActive(destination, routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining), matched, remaining_input, selected_routine)) -> result = match child_failure
+    AtomicPathInputExhausted(_) -> match child_selection_suffix
+      LookaroundAdmittedStateCursorSuffixHere(equality) -> match equality
+        reflexive() -> match path
+          AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, suffix) -> atomic_path_input_exhaustion_excludes_trace(machine, after_input, destination, history_push_bounded(history, char), append_routine(append_routine(capture_context, routine), assertion_markers), policy, atomic_scope_depth_after(routine, scope_depth), prefix_mode, [char | reversed_prefix], suffix)
+          AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, suffix) -> impossible
+      LookaroundAdmittedStateCursorSuffixDrop(_, _) -> impossible
+
   ## An accepted destination cannot be rejected at exhausted child input. The
   ## child refutation is indexed at `ThreadAccepted()` and `Nil()` input, while
   ## `AtomicPathInputExhausted` is active-only; no child refutation exists, so
