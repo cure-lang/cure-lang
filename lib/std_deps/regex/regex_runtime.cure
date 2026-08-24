@@ -3639,6 +3639,18 @@ mod Std.Regex.Runtime
         reflexive() -> atomic_path_active_destinations_exhausted_excludes_trace(machine, char, rest, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, matched, remaining_input, routine, failure, path)
       LookaroundAdmittedStateCursorSuffixDrop(_, _) -> impossible
 
+  ## A rejected candidate may leave a sibling tail whose search reaches the
+  ## destination-exhaustion leaf.  When the selected trace is already aligned
+  ## to that tail's empty cursor, the existing exhaustion contradiction can be
+  ## consumed directly through the parent rejection node.  This is the first
+  ## tail-induction slice; rejected-child alignment remains a separate branch.
+  fn atomic_path_tail_destinations_exhausted_excludes_aligned_trace({result: Type}, {depth: Nat}, {n: Nat}, machine: PatternMachine(n), char: Char, rest: List(Char), after_input: List(Char), state: Bounded(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), candidate: LookaroundAdmittedState(n), @erased failure: AtomicPathRefutation(depth, n, machine, Cons(char, rest), after_input, ThreadActive(state), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, Nil())), {candidate_current: List(LookaroundAdmittedState(n))}, matched: List(Char), remaining_input: List(Char), routine: List(ExtendedInstruction), @erased tail_suffix: LookaroundAdmittedStateCursorSuffix(n, Nil(), candidate_current), @erased path: AtomicSelectedPathTrace(depth, n, machine, Cons(char, rest), after_input, ThreadActive(state), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, candidate_current, matched, remaining_input, routine)) -> result = match failure
+    AtomicPathInputExhausted(_) -> impossible
+    AtomicPathExactAcceptedWithInput(_, _, _) -> impossible
+    AtomicPathDestinationsExhausted(_, _, _, _, _) -> impossible
+    AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, tail_failure) -> match tail_failure
+      AtomicPathDestinationsExhausted(_, _, _, _, _) -> atomic_path_failure_excludes_aligned_trace(machine, char, rest, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, tail_failure, matched, remaining_input, routine, tail_suffix, path)
+
   ## The active root wrapper has no suffix-local alternative: its empty-input
   ## index eliminates every refutation constructor except
   ## `AtomicPathInputExhausted`. This is the first theorem consumer that uses
