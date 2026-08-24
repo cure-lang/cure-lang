@@ -627,6 +627,10 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/AtomicPathExactAcceptedWithInput\s*:[^\n]*Cons\(char, rest\)/, source)
     assert Regex.match?(~r/AtomicPathDestinationRejected\s*:[^\n]*LookaroundAdmittedStateCursor[^\n]*ListMember[^\n]*Equivalent[^\n]*lookaround_machine_admitted_destinations/, source)
     assert source =~ "AtomicStartCandidateRejected"
+    start_rejection = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    AtomicStartCandidateRejected :"))
+    assert start_rejection =~ "LookaroundAdmittedState(n)"
+    assert start_rejection =~ "LookaroundAdmittedStateCursor"
+    assert start_rejection =~ "ListMember"
     assert source =~ "type LookaroundAdmittedStateCursorSuffix"
     assert source =~ "LookaroundAdmittedStateCursorSuffixDrop"
     assert source =~ "LookaroundAdmittedStateCursorWitness"
