@@ -257,8 +257,11 @@ tail-aligned consumer,
 tail-local selected suffix to discharge a rejected candidate whose sibling
 tail reaches destination exhaustion. The existing
 exhausted-child eliminator still consumes only its specialized empty-input
-index; the next slice must pass the stored refutation suffix and selected
-suffix through `LookaroundAdmittedStateCursorAlignment` for recursive children.
+index; the new construction-site wrapper passes the stored child suffix, the
+selected child suffix, and the selected child trace into the aligned-child
+eliminator. The eliminator consumes the stored refutation suffix before
+delegating to the active-input contradiction; equality between independently
+existential child cursors remains a later recursive slice.
 The first child-specific consumer,
 `atomic_path_child_input_exhaustion_excludes_trace`, now matches the stored
 refutation suffix before delegating to the active-input contradiction. This
@@ -339,12 +342,15 @@ empty-input constructor is active-only; the contradiction is consumed before
 any selected trace is inspected.
 The first child-alignment eliminator,
 `atomic_path_destination_rejection_excludes_aligned_child`, now consumes the
-selected child suffix relation at the active exhausted-input base. The
-relation is forced to the empty cursor before the selected transition suffix
-is passed to `atomic_path_input_exhaustion_excludes_trace`; the proof does not
-inspect erased runtime data. A first sibling-tail leaf is now also consumed at
-the construction site, but recursive rejected-child alignment, non-empty
-sibling-tail induction, and escaped-commit bookkeeping remain open.
+stored child refutation suffix at the active exhausted-input base and receives
+the selected child suffix and child trace from the construction site. It then
+passes the child trace's indexed empty-input contradiction to
+`atomic_path_input_exhaustion_excludes_trace`; no erased witness is inspected
+at runtime. The selected suffix is retained in the theorem's erased type but
+is not yet equated with the independently existential refutation cursor. A
+first sibling-tail leaf is now also consumed at the construction site, but
+recursive rejected-child alignment, non-empty sibling-tail induction, and
+escaped-commit bookkeeping remain open.
 The recursive destination-list evaluator now has an internal
 `AtomicPathMembersResult` indexed by its whole and current admitted-state
 spines. Ordinary tail rejection therefore carries the exact `remaining`

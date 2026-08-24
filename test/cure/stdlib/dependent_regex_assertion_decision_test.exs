@@ -326,6 +326,13 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert source =~ "atomic_path_destination_rejection_excludes_recursive_trace"
   end
 
+  test "atomic rejected-child leaf consumes the published child suffix" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "atomic_path_destination_rejection_excludes_stored_aligned_child"
+    assert Regex.match?(~r/atomic_path_destination_rejection_excludes_aligned_child\b[^=]*child_failure_suffix/s, source)
+  end
+
   test "certified assertion decisions enforce atomic commitment", %{runtime_module: module} do
     assert apply(module, :atomic_trace_authority_rejects, [])
     assert apply(module, :certified_atomic_trace_rejects, [])
