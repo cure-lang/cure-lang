@@ -624,6 +624,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert source =~ "AtomicPathSearchRootExactNo"
     assert source =~ "AtomicPathSearchRootNo"
     assert source =~ "atomic_path_members_root_to_search"
+    assert source =~ "atomic_path_failure_excludes_aligned_trace"
     assert source =~ "atomic_path_root_exact_accepted_with_input_evidence"
     assert source =~ "atomic_path_root_input_exhausted_evidence"
     assert Regex.match?(~r/AtomicPathExactAcceptedWithInput\s*:[^\n]*Cons\(char, rest\)/, source)
