@@ -566,6 +566,8 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert source =~ "child_selection_suffix"
     assert source =~ "AtomicSelectedStartActive"
     assert source =~ "AtomicSelectedStartAccepted"
+    assert Regex.match?(~r/AtomicSelectedStartActive\s*:[^\n]*selected_origin_equivalence/, source)
+    assert Regex.match?(~r/AtomicSelectedStartAccepted\s*:[^\n]*selected_origin_equivalence/, source)
     assert source =~ "type LookaroundAdmittedStateCursor"
     assert Regex.match?(~r/AtomicSelectedTransitionActive\s*:[^\n]*LookaroundAdmittedStateCursor[^\n]*ListMember/, source)
     assert Regex.match?(~r/AtomicSelectedTransitionAccepted\s*:[^\n]*LookaroundAdmittedStateCursor[^\n]*ListMember/, source)
