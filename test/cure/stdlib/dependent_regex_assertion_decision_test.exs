@@ -1064,4 +1064,23 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert source =~ "child_cursor_suffix: MachineStateCursorSuffix"
     assert source =~ "cursor_suffix: MachineStateCursorSuffix(n, current, candidates)"
   end
+
+  test "atomic scope proofs use indexed construction helpers" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "fn atomic_lookaround_state_scope_active"
+    assert source =~ "fn atomic_lookaround_state_scope_accepted"
+
+    members =
+      source
+      |> String.split("fn atomic_lookaround_routine_members_from", parts: 2)
+      |> List.last()
+      |> String.split("\n  fn ", parts: 2)
+      |> List.first()
+
+    assert members =~ "atomic_lookaround_state_scope_active"
+    assert members =~ "atomic_lookaround_state_scope_accepted"
+    refute members =~ "LookaroundAdmittedStateScopeActive("
+    refute members =~ "LookaroundAdmittedStateScopeAccepted("
+  end
 end
