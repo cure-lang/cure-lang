@@ -199,7 +199,10 @@ The first non-empty destination-exhaustion branch now consumes that suffix
 relation through `atomic_path_failure_excludes_aligned_trace`, and an exact
 accepted child with remaining input is discharged by
 `atomic_path_accepted_destination_rejection_excludes_aligned_trace`. These are
-indexed induction slices, not the complete child/tail correspondence.
+indexed induction slices, not the complete child/tail correspondence. A
+one-candidate tail whose sibling list is empty is now consumed by
+`atomic_path_tail_destinations_exhausted_excludes_aligned_trace`; start-list
+alignment and escaped-commit transport remain open.
 `AtomicPathSearchYes` now carries the selected whole/current admitted-state
 lists and an erased `LookaroundAdmittedStateCursorSuffix`; selected candidates
 construct the `Here` case, while skipped candidates (including inner
