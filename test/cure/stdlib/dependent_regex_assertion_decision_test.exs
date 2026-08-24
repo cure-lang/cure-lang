@@ -434,6 +434,16 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert start_exhausted =~ "lookaround_admitted_starts"
   end
 
+  test "rejected atomic starts retain their candidate suffix" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [start_rejected] =
+      Enum.filter(String.split(source, "\n"), &String.contains?(&1, "AtomicStartCandidateRejected :"))
+
+    assert start_rejected =~ "candidate_suffix"
+    assert start_rejected =~ "LookaroundAdmittedStateCursorSuffix(n, whole, Cons(candidate, remaining))"
+  end
+
   test "selected atomic starts retain their source-start suffix" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
