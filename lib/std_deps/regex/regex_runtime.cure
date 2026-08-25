@@ -3303,6 +3303,16 @@ mod Std.Regex.Runtime
   type AtomicStartTailEvidence(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), remaining: List(LookaroundAdmittedState(n)))
     AtomicStartTailEvidencePacked : {@erased kind: AtomicStartFailureKind} -> (@erased evidence: AtomicStartNoEvidence(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining, kind)) -> AtomicStartTailEvidence(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining)
 
+  type AtomicStartTailPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), remaining: List(LookaroundAdmittedState(n)))
+    AtomicStartTailPackagePacked : {@erased kind: AtomicStartFailureKind} -> (@erased failure: AtomicStartMembersRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining, kind)) -> (@erased evidence: AtomicStartNoEvidence(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining, kind)) -> AtomicStartTailPackage(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining)
+
+  ## An active-headed rejected result retains its indexed recursive sibling
+  ## tail. The child refutation remains supplied at the branch-specific
+  ## eliminator, while this package keeps the tail witness available without
+  ## reconstructing its existential failure kind.
+  type AtomicStartActiveRejectedEvidence(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char), state: Bounded(n), routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), assertion_routine: List(ExtendedInstruction), assertion_markers: List(EvidenceInstruction), nested_decisions: List(LookaroundNestedDecision), whole: List(LookaroundAdmittedState(n)), remaining: List(LookaroundAdmittedState(n)))
+    AtomicStartActiveRejectedEvidencePacked : (@erased tail: AtomicStartTailEvidence(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining)) -> AtomicStartActiveRejectedEvidence(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, state, routine, constraints, assertion_routine, assertion_markers, nested_decisions, whole, remaining)
+
   fn atomic_start_rejected_tail_evidence(
     {depth: Nat},
     {n: Nat},
@@ -3350,6 +3360,115 @@ mod Std.Regex.Runtime
     remaining
   ) = match evidence
     AtomicStartNoRejectedEvidence(_, _, _, _, _, _, _, _, _, _, _, _, _, tail_evidence) -> AtomicStartTailEvidencePacked(tail_evidence)
+
+  fn atomic_start_active_rejected_evidence(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {state: Bounded(n)},
+    routine: List(EvidenceInstruction),
+    constraints: List(BoundaryConstraint),
+    assertion_routine: List(ExtendedInstruction),
+    assertion_markers: List(EvidenceInstruction),
+    nested_decisions: List(LookaroundNestedDecision),
+    {whole: List(LookaroundAdmittedState(n))},
+    {remaining: List(LookaroundAdmittedState(n))},
+    @erased evidence: AtomicStartNoEvidence(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining),
+      AtomicStartFailureRejected()
+    )
+  ) -> AtomicStartActiveRejectedEvidence(
+    depth,
+    n,
+    machine,
+    position,
+    input,
+    after_input,
+    history,
+    capture_context,
+    policy,
+    prefix_mode,
+    reversed_prefix,
+    state,
+    routine,
+    constraints,
+    assertion_routine,
+    assertion_markers,
+    nested_decisions,
+    whole,
+    remaining
+  ) = match evidence
+    AtomicStartNoRejectedEvidence(_, _, _, _, _, _, _, _, _, _, _, _, _, tail_evidence) ->
+      AtomicStartActiveRejectedEvidencePacked(AtomicStartTailEvidencePacked(tail_evidence))
+
+  fn atomic_start_rejected_tail_package(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {whole: List(LookaroundAdmittedState(n))},
+    {candidate: LookaroundAdmittedState(n)},
+    {remaining: List(LookaroundAdmittedState(n))},
+    @erased evidence: AtomicStartNoEvidence(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(candidate, remaining),
+      AtomicStartFailureRejected()
+    )
+  ) -> AtomicStartTailPackage(
+    depth,
+    n,
+    machine,
+    position,
+    input,
+    after_input,
+    history,
+    capture_context,
+    policy,
+    prefix_mode,
+    reversed_prefix,
+    whole,
+    remaining
+  ) = match evidence
+    AtomicStartNoRejectedEvidence(_, _, _, _, _, _, _, _, _, _, _, _, tail_failure, tail_evidence) ->
+      AtomicStartTailPackagePacked(tail_failure, tail_evidence)
 
   type AtomicPathSearchResult(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char))
     AtomicPathSearchRootActiveNo : (@erased source: Bounded(n)) -> (@erased failure: AtomicPathRootRefutation(depth, n, machine, input, after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, Nil())) -> AtomicPathSearchResult(depth, n, machine, input, after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix)

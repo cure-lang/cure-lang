@@ -846,6 +846,16 @@ dependent-assertion file now passes 76 tests. The next proof must still connect
 `ListMember` selection to this accessor and establish correspondence for an
 arbitrary later sibling; complete start-list correspondence remains open.
 
+The recursive rejected-tail accessor now also has an `AtomicStartTailPackage`
+form that retains the raw tail refutation together with its typed no-result
+witness. An active-headed specialization packages that tail under the active
+state indices, so the next membership induction can descend without guessing
+the existential tail failure kind. The child refutation for the selected head
+is intentionally still consumed by the branch-specific eliminator; exposing
+that existential child scope and cursor as one more package is a separate
+kernel-checked step. The focused dependent-assertion file remains at 78 tests
+once the new source regression is included.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
