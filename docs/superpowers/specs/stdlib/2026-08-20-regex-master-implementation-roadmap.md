@@ -408,6 +408,16 @@ that outcome as satisfied. Authored literals remain rejected earlier with
 `NestedAssertionDepthExceeded`, using the same canonical depth bound; the
 runtime distinction prevents a manually constructed or proof-facing call from
 manufacturing `NoMatch` merely by supplying insufficient depth.
+The active-child alignment boundary now has an explicit erased indexed witness,
+`AtomicPathActiveChildAlignment`. Its `Here`, `There`, and `Reverse`
+constructors are produced from the canonical cursor-alignment and selected-suffix
+location relations, so a later contradiction consumer can distinguish a
+head-selected child from a sibling-tail child without inspecting proof data at
+runtime. The focused dependent-assertion suite passes 97 tests and the full
+canonical pipeline passes 52 checks (50 tests and 2 properties) with W086
+accepted. This is alignment infrastructure only: the construction-site
+active-child contradiction, arbitrary sibling-tail induction, and start-list
+correspondence remain open.
 The Phase 2 exit gate is therefore still not discharged.
 
 **Applies to:** the Cure-native typed regex engine, its erased portable runtime,

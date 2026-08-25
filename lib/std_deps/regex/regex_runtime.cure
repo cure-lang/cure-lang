@@ -1792,6 +1792,16 @@ mod Std.Regex.Runtime
     LookaroundAdmittedCursorLeftToRight : (@erased suffix: LookaroundAdmittedStateCursorSuffix(n, left, right)) -> LookaroundAdmittedStateCursorAlignment(n, left, right)
     LookaroundAdmittedCursorRightToLeft : (@erased suffix: LookaroundAdmittedStateCursorSuffix(n, right, left)) -> LookaroundAdmittedStateCursorAlignment(n, left, right)
 
+  ## The active-child induction needs one more distinction than ordinary cursor
+  ## alignment: a selected suffix may still be at the rejected head, may have
+  ## dropped into its sibling tail, or may precede the failed suffix.  Keep all
+  ## three cases in an erased indexed witness so the construction site can
+  ## dispatch without inspecting proof data at runtime.
+  type AtomicPathActiveChildAlignment(n: Nat) indices (candidate: LookaroundAdmittedState(n), remaining: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)))
+    AtomicPathActiveChildAlignmentHere : (@erased candidate: LookaroundAdmittedState(n)) -> (@erased remaining: List(LookaroundAdmittedState(n))) -> AtomicPathActiveChildAlignment(n, candidate, remaining, Cons(candidate, remaining))
+    AtomicPathActiveChildAlignmentThere : (@erased candidate: LookaroundAdmittedState(n)) -> (@erased suffix: LookaroundAdmittedStateCursorSuffix(n, remaining, current)) -> AtomicPathActiveChildAlignment(n, candidate, remaining, current)
+    AtomicPathActiveChildAlignmentReverse : (@erased marker: Unit) -> AtomicPathActiveChildAlignment(n, candidate, remaining, current)
+
   ## A child search and its selected trace may publish extensionally equal
   ## origin lists through different existential binders. Transporting the
   ## selected suffix across that equality gives both cursors one common outer
@@ -1824,6 +1834,50 @@ mod Std.Regex.Runtime
       failure_suffix,
       transport_lookaround_admitted_cursor_suffix_outer(selected_whole_equivalence, selected_suffix)
     )
+
+  fn atomic_path_active_child_alignment(
+    {n: Nat},
+    {failure_whole: List(LookaroundAdmittedState(n))},
+    {failure_current: List(LookaroundAdmittedState(n))},
+    {failure_head: LookaroundAdmittedState(n)},
+    {failure_tail: List(LookaroundAdmittedState(n))},
+    failure_suffix: LookaroundAdmittedStateCursorSuffix(n, failure_whole, failure_current),
+    failure_nonempty_equivalence: Equivalent(
+      List(LookaroundAdmittedState(n)),
+      failure_whole,
+      Cons(failure_head, failure_tail)
+    ),
+    {selected_whole: List(LookaroundAdmittedState(n))},
+    {selected_current: List(LookaroundAdmittedState(n))},
+    selected_whole_equivalence: Equivalent(
+      List(LookaroundAdmittedState(n)),
+      failure_whole,
+      selected_whole
+    ),
+    selected_suffix: LookaroundAdmittedStateCursorSuffix(n, selected_whole, selected_current)
+  ) -> AtomicPathActiveChildAlignment(n, failure_head, failure_tail, selected_current) =
+    let anchored_equivalence: Equivalent(
+      List(LookaroundAdmittedState(n)),
+      Cons(failure_head, failure_tail),
+      selected_whole
+    ) = trans(
+      sym(failure_nonempty_equivalence),
+      selected_whole_equivalence
+    )
+    match atomic_child_cursor_alignment(
+      failure_suffix,
+      selected_whole_equivalence,
+      selected_suffix
+    )
+      LookaroundAdmittedCursorLeftToRight(_) -> match atomic_path_selected_child_suffix_location(
+        transport_lookaround_admitted_cursor_suffix_outer(
+          anchored_equivalence,
+          selected_suffix
+        )
+      )
+        AtomicPathSelectedChildHere(candidate_value, remaining_value) -> AtomicPathActiveChildAlignmentHere(candidate_value, remaining_value)
+        AtomicPathSelectedChildThere(candidate_value, suffix_value) -> AtomicPathActiveChildAlignmentThere(candidate_value, suffix_value)
+      LookaroundAdmittedCursorRightToLeft(_) -> AtomicPathActiveChildAlignmentReverse(())
 
   fn lookaround_admitted_cursor_suffix_alignment(
     {n: Nat},

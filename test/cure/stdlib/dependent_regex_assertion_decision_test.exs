@@ -872,6 +872,26 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
            )
   end
 
+  test "atomic active-child alignment exposes head, tail, and reverse cases" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "type AtomicPathActiveChildAlignment"
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_path_active_child_alignment",
+        parts: 2
+      )
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+
+    assert body =~ "atomic_child_cursor_alignment"
+    assert body =~ "AtomicPathSelectedChildHere"
+    assert body =~ "AtomicPathSelectedChildThere"
+    assert body =~ "AtomicPathActiveChildAlignmentReverse"
+
+    assert source =~ "atomic_path_active_child_rejection_excludes_aligned_trace"
+  end
+
   test "atomic selected child suffix exposes head or tail location" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
