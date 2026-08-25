@@ -892,6 +892,21 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert source =~ "atomic_path_active_child_rejection_excludes_aligned_trace"
   end
 
+  test "atomic selected traces use the canonical child capture context" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [_prefix, active_transition] = String.split(source, "AtomicSelectedTransitionActive :", parts: 2)
+    [active_transition | _] = String.split(active_transition, "AtomicSelectedTransitionAccepted :", parts: 2)
+
+    assert active_transition =~ "lookaround_admitted_active_capture_context"
+
+    [_prefix, active_start] = String.split(source, "AtomicSelectedStartActive :", parts: 2)
+    [active_start | _] = String.split(active_start, "AtomicSelectedStartAccepted :", parts: 2)
+
+    assert active_start =~ "lookaround_admitted_active_capture_context"
+    assert source =~ "lookaround_admitted_accepted_capture_context(capture_context, routine, assertion_markers)"
+  end
+
   test "atomic selected child suffix exposes head or tail location" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 

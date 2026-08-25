@@ -418,6 +418,15 @@ canonical pipeline passes 52 checks (50 tests and 2 properties) with W086
 accepted. This is alignment infrastructure only: the construction-site
 active-child contradiction, arbitrary sibling-tail induction, and start-list
 correspondence remain open.
+The selected-trace constructors now derive active and accepted child capture
+contexts through the same reducible construction helpers used by refutation
+trees. This removes the duplicated spelling of child context at the trace
+boundary and keeps the change proof-only; the emitted runtime is unchanged. A
+regression covers both transition and start traces, and the focused
+dependent-assertion suite passes 98 tests. Combining the erased child failure
+and selected trace into one dependent package remains deliberately open: the
+current kernel rejects that direct construction with E093 at the two-erased-
+witness boundary, so no wrapper or runtime tag was added.
 The Phase 2 exit gate is therefore still not discharged.
 
 **Applies to:** the Cure-native typed regex engine, its erased portable runtime,
