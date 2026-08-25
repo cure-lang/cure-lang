@@ -738,6 +738,15 @@ full canonical gate still passes 52 checks with W086 accepted. This is only
 the accepted-child slice: arbitrary sibling-tail `Drop` induction and the
 remaining active-child/refutation combinations are still open and must not be
 treated as discharged by this alias.
+The next construction-site slice,
+`atomic_path_tail_destinations_exhausted_excludes_selected_suffix`, consumes a
+non-empty selected suffix after a rejected head when the stored sibling-tail
+refutation is destination exhaustion. Its tail current spine is fixed to
+`Nil()` by the refutation index, so the cursor contradiction is discharged
+directly by `atomic_path_destinations_exhausted_excludes_trace`; no erased list
+is inspected at runtime. The focused dependent-assertion file now passes 64
+tests. General recursive rejected-child and multi-head sibling-tail induction
+remain open.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
