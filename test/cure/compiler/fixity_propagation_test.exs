@@ -82,7 +82,6 @@ defmodule Cure.Compiler.FixityPropagationTest do
     {:ok, graph} =
       Cure.Compiler.DepGraph.scan([Path.join(dir, "p.cure"), Path.join(dir, "m.cure")])
 
-    {:ok, ordered, []} = Cure.Compiler.DepGraph.order(graph)
     providers = Cure.Compiler.prelude_provider_names(graph)
     assert "P" in providers
 
@@ -91,10 +90,12 @@ defmodule Cure.Compiler.FixityPropagationTest do
 
     # The real driver boundary must do more than parse: P is an implicit source
     # import, so M elaborates the operator meaning regardless of sibling order.
+    # `compile_files` computes its own canonical dependency order, so the
+    # input list order below is deliberately not pre-sorted.
     out = Path.join(dir, "ebin")
 
     assert {:ok, %{errors: []}} =
-             Cure.Compiler.compile_files(ordered,
+             Cure.Compiler.compile_files([Path.join(dir, "p.cure"), Path.join(dir, "m.cure")],
                output_dir: out,
                emit_events: false,
                source_roots: [dir],

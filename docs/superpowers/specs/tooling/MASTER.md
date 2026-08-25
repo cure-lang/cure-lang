@@ -567,3 +567,10 @@ illustrative; evaluation doctests are the separate existing `cure>`/`=>` Doctest
 - `2026-07-18-incremental-compilation-design.md` — interface-level incremental compile driver:
   source/interface/toolchain fingerprints, manifest, closure-edge dirty propagation, scoped deletions, correctness
   invariants.
+- `2026-07-22-compiler-identity-and-regex-stabilization-plan.md` — canonical module/declaration identity from
+  resolution through emission (one `CompilationWorld` shared by resolution, elaboration, normalization, conversion,
+  totality, reachability, and emission); the dependent-language stabilization sequence (local functions, matches,
+  literals, `Char`/`String`, `Bounded`) gating the bounded-regex fixture's resumption.
+- `2026-07-30-unified-artifact-integrity-sweep.md` — content-addressed artifact sweep shared by compilation, preload,
+  testing, bundling, and release; replaces BEAM-existence freshness with per-BEAM hashing, provenance, and atomic
+  generation publication; extends and partially supersedes the incremental-compilation design above.

@@ -16,7 +16,7 @@ self-contained project.
 - **`Cure.Protocol`** verifies a session-typed `Atelier.Gallery`
   protocol between `Painter` and `Curator` roles; the test suite
   asserts the happy path passes `Cure.Protocol.verify/1` and a
-  deliberately broken variant surfaces `E056`.
+  deliberately broken variant surfaces `PROTO001`.
 - **`Cure.Temporal`** specifies liveness properties over an
   `Exhibit` FSM (`always eventually Open`, `never (Open and Closed)`)
   and exercises both passing and failing variants.

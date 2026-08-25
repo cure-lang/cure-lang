@@ -5,12 +5,12 @@ defmodule Cure.Protocol.Verifier do
   Checks:
 
     1. Every role appears as either a sender or a receiver in the
-       body. Dead roles (declared but unused) raise `E056`.
+       body. Dead roles (declared but unused) raise `PROTO001`.
     2. Every message step names roles that belong to the declared
        role set.
     3. The projected per-role FSM is reachable (every projected state
        is reachable from the projected initial state). Unreachable
-       states raise `E056`.
+       states raise `PROTO001`.
     4. A role's projected FSM has no self-deadlocks: every non-`END`
        state has an outgoing transition.
 
@@ -24,12 +24,21 @@ defmodule Cure.Protocol.Verifier do
 
   ## Error shape
 
-  Errors are tagged tuples compatible with `Cure.Compiler.Errors`:
+  Errors are tagged tuples shaped like `Cure.Compiler.Errors` tuples,
+  but they are NOT routed through `Cure.Compiler.Errors` or
+  `Cure.Diagnostic.Registry`: the protocol DSL is a standalone
+  Elixir-side verification API (see `docs/PROTOCOL.md`), not a stage
+  of the `.cure` compiler pipeline, so it does not share the
+  registry's stable `E`/`W`/`I`/`H` catalog namespace.
 
       {:protocol_violation, message, meta_keyword_list}
 
   `meta` includes `:protocol_name`, `:role` (when applicable), and
-  an `:code` of `"E056"`.
+  an `:code` of `"PROTO001"`. (Earlier releases hardcoded `"E056"`
+  here, which collided with the unrelated, fully-catalogued
+  `E056 @extern Declaration Missing a Typed Head` compiler
+  diagnostic -- see `Cure.Diagnostic.Registry`'s `E056` entry. The
+  `PROTO` prefix avoids ever colliding with that catalog again.)
   """
 
   alias Cure.Protocol.Script
@@ -171,6 +180,6 @@ defmodule Cure.Protocol.Verifier do
   end
 
   defp protocol_error(name, role, message) do
-    {:protocol_violation, message, [code: "E056", protocol_name: name, role: role]}
+    {:protocol_violation, message, [code: "PROTO001", protocol_name: name, role: role]}
   end
 end

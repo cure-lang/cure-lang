@@ -47,9 +47,11 @@ defmodule Cure.Elab.CanonicalModuleLoaderTest do
   # complete peer interfaces exist. The stdlib depends on exactly this:
   # `Std.Char` and `Std.String` are mutually recursive by design.
   #
-  # Cycles are still reported, once, from the one place that can see the whole
-  # file set: `Cure.Compiler.DepGraph`. Every driver (`mix cure.compile`,
-  # `Cure.CLI`, `Cure.Project`) renders its walks as the W086 warning.
+  # Cycles are still reported, once, from the canonical manifest built by
+  # `Cure.Compiler.Artifacts.Sweep`. Every driver (`mix cure.compile`,
+  # `Cure.CLI`, `Cure.Project`) renders its closed-hop walks as the W086
+  # warning -- see `canonical_artifact_sweep_test.exs` for that contract's
+  # coverage.
   test "an import cycle elaborates through canonical interfaces", %{root: root} do
     a =
       write_module(
@@ -77,14 +79,15 @@ defmodule Cure.Elab.CanonicalModuleLoaderTest do
     assert %{body: {:global, :"Loader.B#from_b"}} = Map.fetch!(env.defs, :"Loader.A#a_uses_b")
     assert %{body: {:global, :"Loader.A#from_a"}} = Map.fetch!(env.defs, :"Loader.B#b_uses_a")
 
-    # And the cycle is still surfaced, with every hop located so W086 can print
-    # the file and line each `use` sits on.
-    assert {:ok, _ordered, [walk]} =
-             [a, b] |> Cure.Compiler.DepGraph.scan() |> then(fn {:ok, graph} -> Cure.Compiler.DepGraph.order(graph) end)
-
-    assert Enum.map(walk, & &1.module) == ["Loader.A", "Loader.B", "Loader.A"]
-    assert Enum.map(walk, & &1.path) == [a, b, a]
-    assert Enum.all?(walk, &is_integer(&1.line))
+    # The cycle is still detected at the DepGraph level: `use` deps stay
+    # symmetric (no ordering constraint can be extracted from either side).
+    # The closed-walk hop diagnostic with file/line info that W086 renders
+    # is a separate contract owned by `Cure.Compiler.Artifacts.Sweep` -- see
+    # `canonical_artifact_sweep_test.exs`.
+    {:ok, graph} = Cure.Compiler.DepGraph.scan([a, b])
+    deps = Cure.Compiler.DepGraph.order_deps_map(graph)
+    assert deps == %{"Loader.A" => ["Loader.B"], "Loader.B" => ["Loader.A"]}
+    assert Cure.Compiler.DepGraph.components(deps, Map.keys(deps)) == [["Loader.A", "Loader.B"]]
   end
 
   test "two source files cannot declare one canonical identity", %{root: root} do

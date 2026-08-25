@@ -63,7 +63,6 @@ defmodule Cure.Compiler.CanonicalModulePipelineGateTest do
     paths = Path.wildcard("lib/std/**/*.cure")
 
     assert {:ok, graph} = Cure.Compiler.DepGraph.scan(paths)
-    assert {:ok, _ordered, []} = Cure.Compiler.DepGraph.order(graph)
 
     cyclic_components =
       graph

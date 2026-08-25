@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `Cure.Protocol.Verifier` hardcoded `E056` for protocol-violation
+  diagnostics, colliding with the unrelated, fully-catalogued
+  `E056 @extern Declaration Missing a Typed Head` compiler diagnostic
+  in `Cure.Diagnostic.Registry`. The protocol DSL runs outside the
+  `.cure` compiler pipeline and was never actually registered in the
+  registry, so it now uses its own `PROTO001` code instead of
+  borrowing from the `E`-catalog namespace.
+
 ### Changed -- one dependent compiler pipeline
 
 - The classic checker and code generator have been removed. Parsing now feeds

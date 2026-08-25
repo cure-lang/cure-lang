@@ -17,13 +17,22 @@ defmodule Cure.Compiler.DepGraph do
       and drive preload closure, never compile order: qualified calls
       lower syntactically and are order-free.
 
-  Ordering is deterministic: Kahn's algorithm, alphabetical (path)
-  tie-break. Cycles among `use` declarations are NOT an error (spec §3.1
-  as amended 2026-07-08): a strongly-connected component compiles as a
-  group in alphabetical path order — Cure's compile-set model matches
-  Rust's crate-internal modules, where cycles are legal — and each
-  multi-member SCC is reported as a closed cycle walk so callers can
-  emit the W086 warning. Duplicate module names remain a hard error.
+  Ordering is deterministic: Kahn's algorithm, alphabetical tie-break.
+  Cycles among `use` declarations are NOT an error (spec §3.1 as
+  amended 2026-07-08): a strongly-connected component compiles as a
+  group in alphabetical order — Cure's compile-set model matches
+  Rust's crate-internal modules, where cycles are legal. Duplicate
+  module names remain a hard error.
+
+  `order_deps_map/1` + `toposort/2,3` (module-name-keyed ordering) and
+  `closure_deps_map/1` + `components/3` (SCC-tolerant grouping) are the
+  APIs the canonical pipeline actually consumes (`Cure.Stdlib.Preload`,
+  `Cure.Compiler.ModulePipeline`, `Cure.Compiler.ModuleIndex`). The
+  closed-walk cycle diagnostic with per-hop file/line info (the W086
+  `{:import_cycle, hops}` payload) is produced independently by
+  `Cure.Compiler.Artifacts.Sweep` from the canonical manifest, not by
+  this module — see `canonical_artifact_sweep_test.exs` for that
+  contract's coverage.
   """
 
   defstruct nodes: %{}, modules: %{}, module_index: nil
@@ -153,34 +162,6 @@ defmodule Cure.Compiler.DepGraph do
         prelude_provider?: Map.get(node, :prelude_provider?, false)
       }
     end
-  end
-
-  @type cycle_hop :: %{module: String.t(), path: Path.t(), line: pos_integer()}
-
-  @spec order(t()) :: {:ok, [Path.t()], [[cycle_hop()]]}
-  def order(%__MODULE__{nodes: nodes, modules: modules}) do
-    {blank, real} = Enum.split_with(nodes, fn {_p, n} -> n.blank? end)
-    blank_paths = blank |> Enum.map(&elem(&1, 0)) |> Enum.sort()
-    # Computed once, not per-dependency-per-node: `real` doesn't change
-    # while building `edges`, so re-deriving this map inside the inner
-    # filter (once per candidate dep) is pure waste, not a correctness
-    # concern (the value is identical every time).
-    real_map = Map.new(real)
-
-    edges =
-      Map.new(real, fn {path, node} ->
-        deps =
-          node.order_deps
-          |> Enum.map(&modules[&1.target])
-          |> Enum.filter(&(&1 != nil and &1 != path and Map.has_key?(real_map, &1)))
-          |> Enum.uniq()
-
-        {path, deps}
-      end)
-
-    {ordered, stuck_groups} = kahn(edges)
-    cycles = Enum.map(stuck_groups, &cycle_info(&1, real_map, modules))
-    {:ok, ordered ++ blank_paths, cycles}
   end
 
   @doc "In-set `use` deps by module name (values sorted). Baking input for Preload."
@@ -493,11 +474,10 @@ defmodule Cure.Compiler.DepGraph do
   # (stdlib ~39) -- this is not a hot path, and the
   # simplicity keeps the alphabetical tie-break obviously correct.
   #
-  # Returns {ordered_paths, stuck_groups}: when no node is ready (cycle
+  # Returns {ordered_keys, stuck_groups}: when no node is ready (cycle
   # deadlock), the source SCC of the remaining subgraph is emitted as a
   # group (alphabetical within it) and its internal edge map is collected
-  # so order/1 can report the closed cycle walk. Never errors.
-  defp kahn(edges), do: kahn(edges, MapSet.new())
+  # as a stuck-group entry. Never errors.
   defp kahn(edges, priority), do: do_kahn(edges, [], [], priority)
 
   defp do_kahn(edges, acc, sccs, _priority) when map_size(edges) == 0,
@@ -641,41 +621,6 @@ defmodule Cure.Compiler.DepGraph do
       {st, [Enum.sort(members) | sccs]}
     else
       {st, sccs}
-    end
-  end
-
-  defp cycle_info(scc_edges, nodes, modules) do
-    path_to_module = for {m, p} <- modules, into: %{}, do: {p, m}
-    start = scc_edges |> Map.keys() |> Enum.sort() |> hd()
-    hops = trace_cycle(start, scc_edges, [])
-
-    Enum.map(hops, fn path ->
-      node = nodes[path]
-      module = path_to_module[path] || "?"
-
-      line =
-        case Enum.find(node.order_deps, fn d -> modules[d.target] in hops end) do
-          %{line: l} -> l
-          _ -> node.line || 1
-        end
-
-      %{module: module, path: path, line: line}
-    end)
-  end
-
-  # Do NOT `Enum.uniq/1` the final result: the whole point is to return a
-  # CLOSED walk (first hop == last hop, e.g. `[A, B, A]`), matching the
-  # spec's `A -> B -> A` format and the Task 3 formatter fixture. `uniq`
-  # would strip that closing repeat and silently turn a cycle report into
-  # an open chain that no longer shows it loops.
-  defp trace_cycle(path, edges, seen) do
-    if path in seen do
-      Enum.reverse([path | Enum.take_while(seen, &(&1 != path))] ++ [path])
-    else
-      case edges[path] do
-        [next | _] -> trace_cycle(next, edges, [path | seen])
-        _ -> Enum.reverse([path | seen])
-      end
     end
   end
 end

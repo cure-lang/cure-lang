@@ -73,7 +73,7 @@ defmodule CureAtelierTest do
     end
   end
 
-  describe "Cure.Protocol session types (E056 matrix)" do
+  describe "Cure.Protocol session types (PROTO001 matrix)" do
     @gallery """
     protocol Atelier.Gallery with Painter, Curator
       Painter -> Curator: SubmitPiece(String)
@@ -85,7 +85,7 @@ defmodule CureAtelierTest do
       assert {:ok, _script} = Protocol.parse_and_verify(@gallery)
     end
 
-    test "dead role surfaces E056" do
+    test "dead role surfaces PROTO001" do
       dead = """
       protocol Atelier.Gallery with Painter, Curator, Spectator
         Painter -> Curator: SubmitPiece
@@ -97,7 +97,7 @@ defmodule CureAtelierTest do
 
       assert Enum.any?(errors, fn
                {:protocol_violation, msg, meta} ->
-                 Keyword.get(meta, :code) == "E056" and msg =~ "Spectator"
+                 Keyword.get(meta, :code) == "PROTO001" and msg =~ "Spectator"
 
                _ ->
                  false
