@@ -909,6 +909,16 @@ non-empty-sibling `There` consumer and its active/accepted/rejected/blocked
 tail cases remain open. The focused dependent-assertion file now passes 84
 tests.
 
+The first concrete recursive `There` consumer is now present as
+`atomic_start_rejected_member_there_exhausted_tail_excludes_trace`. It splits
+the parent `ListMember` spine, leaves the head obligation to its caller, and
+forwards the inherited tail membership to
+`atomic_start_rejected_tail_package_exhausted_excludes_trace`. The tail is
+definitionally `Nil()`, so this discharges the exhausted-tail base without
+runtime inspection or fabricated membership. Non-empty recursive tails and
+their active, accepted, rejected, and blocked cases remain open. The focused
+dependent-assertion file now passes 85 tests.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
