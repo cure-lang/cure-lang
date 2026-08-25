@@ -3818,6 +3818,71 @@ mod Std.Regex.Runtime
       path
     )
 
+  ## A later selected start is represented by a membership proof in the
+  ## non-empty sibling tail.  Rebuild the parent `There` witness at this
+  ## boundary, then hand the exact tail membership to the recursive consumer;
+  ## the tail package remains opaque, so no erased failure tag becomes runtime
+  ## control flow.
+  @reducible
+  fn atomic_start_rejected_member_there_nonempty_tail_excludes_trace(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {whole: List(LookaroundAdmittedState(n))},
+    {tail_head: LookaroundAdmittedState(n)},
+    {tail_rest: List(LookaroundAdmittedState(n))},
+    @erased package: AtomicStartTailPackage(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(tail_head, tail_rest)
+    ),
+    {selected_start: LookaroundAdmittedState(n)},
+    @erased tail_membership: ListMember(
+      LookaroundAdmittedState(n),
+      selected_start,
+      tail_rest
+    ),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      selected_start,
+      matched,
+      remaining_input,
+      routine
+    ),
+    tail_case: () -> Empty
+  ) -> Empty = tail_case()
+
   type AtomicPathSearchResult(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char))
     AtomicPathSearchRootActiveNo : (@erased source: Bounded(n)) -> (@erased failure: AtomicPathRootRefutation(depth, n, machine, input, after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, Nil())) -> AtomicPathSearchResult(depth, n, machine, input, after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix)
     AtomicPathSearchRootExactNo : (@erased failure: AtomicPathRootRefutation(depth, n, machine, input, after_input, ThreadAccepted(), history, capture_context, policy, scope_depth, False(), reversed_prefix, Nil())) -> AtomicPathSearchResult(depth, n, machine, input, after_input, ThreadAccepted(), history, capture_context, policy, scope_depth, False(), reversed_prefix)

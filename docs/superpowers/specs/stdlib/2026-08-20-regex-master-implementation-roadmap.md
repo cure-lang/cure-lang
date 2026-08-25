@@ -919,6 +919,18 @@ runtime inspection or fabricated membership. Non-empty recursive tails and
 their active, accepted, rejected, and blocked cases remain open. The focused
 dependent-assertion file now passes 85 tests.
 
+The non-empty `There` boundary now also has a construction-site continuation
+form: `atomic_start_rejected_member_there_nonempty_tail_excludes_trace` carries
+the typed `AtomicStartTailPackage`, the selected membership in its non-empty
+tail, and the selected trace in its indices, then invokes a zero-argument
+continuation that closes over those erased proofs. Cure rejects passing an
+erased package, membership, or trace as ordinary callback arguments (E104), so
+the continuation is deliberately closure-based and introduces no runtime proof
+branch. This is transport infrastructure for the recursive tail theorem, not
+the contradiction itself; active, accepted, rejected, and blocked non-empty
+tail consumers remain open. The focused dependent-assertion file now passes 86
+tests.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
