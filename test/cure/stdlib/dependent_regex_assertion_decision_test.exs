@@ -549,6 +549,18 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/type AtomicPathRefutation.*?kind: AtomicPathFailureKind/s, source)
   end
 
+  test "atomic path refutations consume accepted selected suffixes" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert Regex.match?(
+             ~r/fn atomic_path_failure_excludes_selected_suffix\b.*?AtomicPathRefutation.*?AtomicSelectedPathTrace.*?-> Empty/s,
+             source
+           )
+
+    assert source =~ "AtomicPathDestinationRejected"
+    assert source =~ "LookaroundAdmittedStateCursorSuffixDrop"
+  end
+
   test "certified assertion decisions enforce atomic commitment", %{runtime_module: module} do
     assert apply(module, :atomic_trace_authority_rejects, [])
     assert apply(module, :certified_atomic_trace_rejects, [])
@@ -937,7 +949,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert source =~ "atomic_path_exact_failure_excludes_trace"
     assert source =~ "atomic_path_destination_rejection_excludes_trace"
     assert source =~ "atomic_path_accepted_destination_rejection_excludes_trace"
-    assert source =~ "atomic_path_accepted_destination_rejection_excludes_aligned_trace"
+    assert source =~ "atomic_path_failure_excludes_selected_suffix"
     assert source =~ "atomic_path_tail_destinations_exhausted_excludes_aligned_trace"
     input_exhausted = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    AtomicPathInputExhausted :"))
     destinations_exhausted = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    AtomicPathDestinationsExhausted :"))

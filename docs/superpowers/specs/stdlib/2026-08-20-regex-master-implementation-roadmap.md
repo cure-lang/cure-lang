@@ -729,8 +729,15 @@ destination rejection. Child and tail refutations carry their own kinds, while
 root and search-result wrappers preserve the same index. This keeps the
 constructor-specific impossible branches in the proof rather than recovering
 the failure reason from runtime data; the kind is proof metadata and adds no
-runtime control field. The focused dependent-assertion file passes 62 tests,
+runtime control field. The focused dependent-assertion file passes 63 tests,
 and the canonical pipeline gate passes 52 checks (50 tests and 2 properties).
+The accepted-destination child suffix now has a named canonical eliminator,
+`atomic_path_failure_excludes_selected_suffix`, which delegates at the
+construction site to the indexed exact-child contradiction. The serialized
+full canonical gate still passes 52 checks with W086 accepted. This is only
+the accepted-child slice: arbitrary sibling-tail `Drop` induction and the
+remaining active-child/refutation combinations are still open and must not be
+treated as discharged by this alias.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
