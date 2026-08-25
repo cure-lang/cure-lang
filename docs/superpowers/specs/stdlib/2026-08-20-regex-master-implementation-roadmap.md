@@ -758,6 +758,16 @@ focused dependent-assertion file passes 65 tests, and the full canonical gate
 passes 52 checks (50 tests and 2 properties) with W086 accepted. This still
 covers only the accepted-child tail branch; active-child rejection,
 multi-head `Drop` recursion, and start-list induction remain open.
+The active-child base slice is now present in
+`atomic_path_tail_active_child_exhaustion_excludes_selected_suffix`: a sibling
+tail rejection whose active candidate's child reaches input exhaustion is
+consumed through `atomic_path_destination_rejection_excludes_aligned_child`.
+The selected parent transition is matched before the erased scope alignment,
+and the child cursor suffix remains erased. The focused dependent-assertion
+file passes 66 tests, and the full canonical gate passes 52 checks (50 tests
+and 2 properties) with W086 accepted. Active-child destination exhaustion and
+recursive child rejection, multi-head `Drop` induction, and start-list
+induction are still open.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in

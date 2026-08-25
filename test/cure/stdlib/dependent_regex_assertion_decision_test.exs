@@ -579,6 +579,15 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
            )
   end
 
+  test "atomic path tail rejection consumes exhausted active children" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert Regex.match?(
+             ~r/fn atomic_path_tail_active_child_exhaustion_excludes_selected_suffix\b.*?AtomicPathDestinationRejected.*?AtomicPathInputExhausted.*?AtomicSelectedTransitionActive/s,
+             source
+           )
+  end
+
   test "certified assertion decisions enforce atomic commitment", %{runtime_module: module} do
     assert apply(module, :atomic_trace_authority_rejects, [])
     assert apply(module, :certified_atomic_trace_rejects, [])
