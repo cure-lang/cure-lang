@@ -3256,6 +3256,104 @@ mod Std.Regex.Runtime
     AtomicStartMemberHere(_) -> head_case
     AtomicStartMemberThere(_, _) -> tail_case(())
 
+  ## Construction-site head consumer for the first active rejected start. The
+  ## child input is empty, so the indexed active-child refutation can be sent
+  ## directly to the existing path contradiction. A later duplicate/member
+  ## is deliberately delegated to the zero-data tail continuation; this helper
+  ## therefore proves the `Here` branch without pretending that membership is
+  ## unique in the presence of duplicate start states.
+  fn atomic_start_rejected_member_here_excludes_trace(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    state: Bounded(n),
+    routine: List(EvidenceInstruction),
+    constraints: List(BoundaryConstraint),
+    assertion_routine: List(ExtendedInstruction),
+    assertion_markers: List(EvidenceInstruction),
+    nested_decisions: List(LookaroundNestedDecision),
+    {whole: List(LookaroundAdmittedState(n))},
+    rest: List(LookaroundAdmittedState(n)),
+    selected_start: LookaroundAdmittedState(n),
+    @erased failure: AtomicStartMembersRefutation(
+      depth,
+      n,
+      machine,
+      position,
+      Nil(),
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), rest),
+      AtomicStartFailureRejected()
+    ),
+    membership: ListMember(
+      LookaroundAdmittedState(n),
+      selected_start,
+      Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), rest)
+    ),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      Nil(),
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      selected_start,
+      matched,
+      remaining_input,
+      selected_routine
+    ),
+    tail_case: (Unit) -> Empty
+  ) -> Empty = match atomic_start_member_location(
+    selected_start,
+    LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions),
+    rest,
+    membership
+  )
+    AtomicStartMemberHere(_) -> match failure
+      AtomicStartCandidateRejected(_, _, _, _, _, _, _, _, _, _, _, _, _) ->
+        let contradiction: Empty = atomic_start_candidate_rejection_excludes_trace(
+          machine,
+          position,
+          after_input,
+          history,
+          capture_context,
+          policy,
+          prefix_mode,
+          reversed_prefix,
+          state,
+          routine,
+          constraints,
+          assertion_routine,
+          assertion_markers,
+          nested_decisions,
+          AtomicPathInputExhausted(LookaroundAdmittedStateCursorWitnessHere(), empty_lookaround_admitted_cursor_suffix(n)),
+          empty_lookaround_admitted_cursor_suffix(n),
+          path
+        )
+        contradiction
+    AtomicStartMemberThere(_, _) -> tail_case(())
+
   ## Turn intrinsic list membership into the ordered cursor suffix consumed by
   ## the atomic refutation induction.  Membership alone does not expose the
   ## suffix list; this Sigma packages that suffix together with the proof that

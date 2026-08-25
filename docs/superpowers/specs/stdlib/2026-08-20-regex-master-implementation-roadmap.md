@@ -886,6 +886,17 @@ the new package boundary without claiming the non-exhausted rejected or
 blocked branches. The focused file now passes 82 tests; head contradiction and
 later-sibling recursive descent remain open.
 
+The first construction-site `Here` consumer is now present in
+`atomic_start_rejected_member_here_excludes_trace`. It splits the typed member
+location before touching the rejected parent; at a selected active head with
+empty child input, the parent `AtomicStartCandidateRejected` index admits only
+the `AtomicPathInputExhausted` child constructor, so the canonical active-child
+contradiction can be applied without recovering an existential child failure
+tag or inspecting proof data at runtime. Duplicate/next-member locations are
+delegated through the zero-data tail continuation. This is only the active empty
+child `Here` base, not arbitrary head failure kinds or recursive `There`
+descent. The focused dependent-assertion file now passes 83 tests.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
