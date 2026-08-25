@@ -4088,6 +4088,7 @@ mod Std.Regex.Runtime
     accepted_assertion_markers: List(EvidenceInstruction),
     accepted_nested_decisions: List(LookaroundNestedDecision),
     {whole: List(LookaroundAdmittedState(n))},
+    {remaining: List(LookaroundAdmittedState(n))},
     {child_whole: List(LookaroundAdmittedState(n))},
     {child_current: List(LookaroundAdmittedState(n))},
     @erased child_failure: AtomicPathRefutation(
@@ -4121,7 +4122,7 @@ mod Std.Regex.Runtime
       False(),
       reversed_prefix,
       whole,
-      Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), Nil()),
+      Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining),
       AtomicStartFailureRejected()
     ),
     {matched: List(Char)},

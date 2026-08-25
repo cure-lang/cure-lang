@@ -809,8 +809,8 @@ The focused dependent-assertion file now passes 69 tests. Internal
 `AtomicStartMembersNo` results now also carry a typed erased
 `AtomicStartNoEvidence` witness. Its exhausted, rejected, and blocked
 constructors are built at the result construction sites, and the recursive
-tail witness is preserved for subsequent induction. The singleton accepted
-tail consumer `atomic_start_tail_accepted_candidate_rejection_excludes_trace`
+tail witness is preserved for subsequent induction. The accepted-tail consumer
+`atomic_start_tail_accepted_candidate_rejection_excludes_trace`
 matches that witness before forwarding the separately indexed exact child
 certificate to the accepted-start eliminator; this removes the E093-prone
 direct match on the raw dependent tail refutation. The focused file now passes
@@ -823,9 +823,8 @@ The active-child recursive start base is now present in
 typed rejected-tail witness at a non-empty current suffix whose head is an
 active candidate, then forwards the independently indexed input-exhaustion
 child certificate to `atomic_start_candidate_rejection_excludes_trace`.
-The focused dependent-assertion file now passes 72 tests. Accepted-child
-recursive tails, blocked-tail induction, and complete start-list correspondence
-remain open.
+The focused dependent-assertion file now passes 73 tests. Blocked-tail
+induction and complete start-list correspondence remain open.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in

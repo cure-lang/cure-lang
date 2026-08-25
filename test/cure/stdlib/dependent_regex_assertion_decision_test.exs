@@ -630,13 +630,23 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
            )
   end
 
-  test "accepted singleton tails consume typed no-result evidence" do
+  test "accepted rejected tails consume typed no-result evidence" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     assert source =~ "fn atomic_start_tail_accepted_candidate_rejection_excludes_trace"
     assert Regex.match?(~r/atomic_start_tail_accepted_candidate_rejection_excludes_trace.*?AtomicStartNoEvidence/s, source)
     assert Regex.match?(~r/atomic_start_tail_accepted_candidate_rejection_excludes_trace.*?AtomicStartNoRejectedEvidence/s, source)
     assert Regex.match?(~r/atomic_start_tail_accepted_candidate_rejection_excludes_trace.*?atomic_start_accepted_candidate_rejection_excludes_trace/s, source)
+  end
+
+  test "accepted rejected tails retain recursive siblings" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [_prefix, body] = String.split(source, "fn atomic_start_tail_accepted_candidate_rejection_excludes_trace", parts: 2)
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+
+    assert body =~ "Cons(LookaroundAdmittedAccepted(accepted_routine"
+    assert body =~ "remaining)"
   end
 
   test "active rejected tails consume typed no-result evidence" do
