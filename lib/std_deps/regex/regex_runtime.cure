@@ -3973,6 +3973,87 @@ mod Std.Regex.Runtime
         suffix
       )
 
+  ## An accepted start candidate cannot be selected when its child search
+  ## rejects an exact match that leaves input behind.  The child failure's
+  ## cursor suffix is consumed by the existing exact-child eliminator; this
+  ## keeps start-list rejection on the same construction-site proof path as
+  ## destination rejection.
+  fn atomic_start_accepted_candidate_rejection_excludes_trace(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    child_char: Char,
+    child_rest: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    reversed_prefix: List(Char),
+    accepted_routine: List(EvidenceInstruction),
+    accepted_constraints: List(BoundaryConstraint),
+    accepted_assertion_routine: List(ExtendedInstruction),
+    accepted_assertion_markers: List(EvidenceInstruction),
+    accepted_nested_decisions: List(LookaroundNestedDecision),
+    {child_whole: List(LookaroundAdmittedState(n))},
+    {child_current: List(LookaroundAdmittedState(n))},
+    @erased child_failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(child_char, child_rest),
+      after_input,
+      ThreadAccepted(),
+      history,
+      append_routine(append_routine(capture_context, accepted_routine), accepted_assertion_markers),
+      policy,
+      atomic_scope_depth_after(accepted_routine, Z()),
+      False(),
+      reversed_prefix,
+      child_whole,
+      child_current,
+      AtomicPathFailureExactAccepted()
+    ),
+    @erased child_suffix: LookaroundAdmittedStateCursorSuffix(n, child_whole, child_current),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      Cons(child_char, child_rest),
+      after_input,
+      history,
+      capture_context,
+      policy,
+      False(),
+      reversed_prefix,
+      LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions),
+      matched,
+      remaining_input,
+      selected_routine
+    )
+  ) -> result = match path
+    AtomicSelectedStartAccepted(_, _, _, _, _, _, _, _, _, _, _, _, suffix) ->
+      atomic_path_child_exact_failure_excludes_trace(
+        machine,
+        child_char,
+        child_rest,
+        after_input,
+        history,
+        append_routine(append_routine(capture_context, accepted_routine), accepted_assertion_markers),
+        policy,
+        atomic_scope_depth_after(accepted_routine, Z()),
+        reversed_prefix,
+        AtomicPathFailureExactAccepted(),
+        child_failure,
+        child_suffix,
+        suffix
+      )
+
   ## A rejected head with no remaining siblings exposes an empty tail.  The
   ## published tail cursor must be consumed before delegating to the existing
   ## empty-start contradiction; a fabricated `Drop` suffix cannot cross this

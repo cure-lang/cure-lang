@@ -799,6 +799,16 @@ passes 68 tests. This discharges only the blocked-head start base; rejected
 child starts, blocked-tail induction, and complete start-list correspondence
 remain open.
 
+The accepted-start exact-child base is now present in
+`atomic_start_accepted_candidate_rejection_excludes_trace`. For an accepted
+candidate whose child refutation is `AtomicPathFailureExactAccepted`, it
+consumes the published child cursor suffix and delegates to
+`atomic_path_child_exact_failure_excludes_trace`; the selected-start branch is
+constructor-indexed, so the erased state sum is never inspected at runtime.
+The focused dependent-assertion file now passes 69 tests. Recursive rejected
+starts, active-child/start combinations, blocked-tail induction, and the
+complete start-list correspondence remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
