@@ -805,9 +805,18 @@ candidate whose child refutation is `AtomicPathFailureExactAccepted`, it
 consumes the published child cursor suffix and delegates to
 `atomic_path_child_exact_failure_excludes_trace`; the selected-start branch is
 constructor-indexed, so the erased state sum is never inspected at runtime.
-The focused dependent-assertion file now passes 69 tests. Recursive rejected
-starts, active-child/start combinations, blocked-tail induction, and the
-complete start-list correspondence remain open.
+The focused dependent-assertion file now passes 69 tests. Internal
+`AtomicStartMembersNo` results now also carry a typed erased
+`AtomicStartNoEvidence` witness. Its exhausted, rejected, and blocked
+constructors are built at the result construction sites, and the recursive
+tail witness is preserved for subsequent induction. The singleton accepted
+tail consumer `atomic_start_tail_accepted_candidate_rejection_excludes_trace`
+matches that witness before forwarding the separately indexed exact child
+certificate to the accepted-start eliminator; this removes the E093-prone
+direct match on the raw dependent tail refutation. The focused file now passes
+71 tests. Recursive
+rejected starts, active-child/start combinations, blocked-tail induction, and
+the complete start-list correspondence remain open.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in

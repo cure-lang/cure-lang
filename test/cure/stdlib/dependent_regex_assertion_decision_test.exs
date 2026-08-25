@@ -454,6 +454,16 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert source =~ "atomic_start_members_add_skipped_candidate"
   end
 
+  test "atomic no-result branches carry typed erased evidence" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "type AtomicStartNoEvidence"
+    assert source =~ "AtomicStartNoExhaustedEvidence"
+    assert source =~ "AtomicStartNoRejectedEvidence"
+    assert source =~ "AtomicStartNoBlockedEvidence"
+    assert Regex.match?(~r/AtomicStartMembersNo\s*:.*?AtomicStartNoEvidence/s, source)
+  end
+
   test "atomic start refutations expose a selected-trace exclusion theorem" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
@@ -618,6 +628,15 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
              ~r/fn atomic_start_accepted_candidate_rejection_excludes_trace\b.*?AtomicPathFailureExactAccepted.*?AtomicSelectedStartAccepted.*?atomic_path_child_exact_failure_excludes_trace/s,
              source
            )
+  end
+
+  test "accepted singleton tails consume typed no-result evidence" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "fn atomic_start_tail_accepted_candidate_rejection_excludes_trace"
+    assert Regex.match?(~r/atomic_start_tail_accepted_candidate_rejection_excludes_trace.*?AtomicStartNoEvidence/s, source)
+    assert Regex.match?(~r/atomic_start_tail_accepted_candidate_rejection_excludes_trace.*?AtomicStartNoRejectedEvidence/s, source)
+    assert Regex.match?(~r/atomic_start_tail_accepted_candidate_rejection_excludes_trace.*?atomic_start_accepted_candidate_rejection_excludes_trace/s, source)
   end
 
   test "certified assertion decisions enforce atomic commitment", %{runtime_module: module} do
