@@ -566,6 +566,15 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     assert Regex.match?(
              ~r/fn atomic_path_tail_destinations_exhausted_excludes_selected_suffix\b.*?AtomicPathDestinationRejected.*?AtomicPathDestinationsExhausted.*?AtomicSelectedPathTrace/s,
+           source
+           )
+  end
+
+  test "atomic path tail rejection forwards accepted-child suffixes" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert Regex.match?(
+             ~r/fn atomic_path_tail_rejection_excludes_selected_suffix\b.*?AtomicPathDestinationRejected.*?AtomicPathFailureExactAccepted.*?AtomicSelectedPathTrace/s,
              source
            )
   end

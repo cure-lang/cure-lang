@@ -747,6 +747,17 @@ directly by `atomic_path_destinations_exhausted_excludes_trace`; no erased list
 is inspected at runtime. The focused dependent-assertion file now passes 64
 tests. General recursive rejected-child and multi-head sibling-tail induction
 remain open.
+The next recursive tail slice is now present in
+`atomic_path_tail_rejection_excludes_selected_suffix`: when a sibling tail
+rejects an accepted candidate, the construction-site consumer matches the
+selected transition before the erased scope witness, refines the accepted
+child scope, and forwards an `AtomicPathFailureExactAccepted` child to the
+canonical exact-child eliminator. The exact-child theorem's trace metadata is
+explicitly erased, so this transport cannot add runtime proof arguments. The
+focused dependent-assertion file passes 65 tests, and the full canonical gate
+passes 52 checks (50 tests and 2 properties) with W086 accepted. This still
+covers only the accepted-child tail branch; active-child rejection,
+multi-head `Drop` recursion, and start-list induction remain open.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
