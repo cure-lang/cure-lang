@@ -875,6 +875,17 @@ call an erased `Empty` continuation was rejected by the kernel's
 runtime-erasure check and was removed. The focused file now passes 81 tests;
 the actual recursive contradiction remains open.
 
+The first package-to-proof consumer is now present in
+`atomic_start_rejected_tail_package_exhausted_excludes_trace`. It unpacks an
+`AtomicStartTailPackage` whose remaining start suffix is definitionally empty,
+matches its `AtomicStartExhausted` refutation, and forwards the exact tail
+membership, failure, and selected trace to `atomic_start_failure_excludes_trace`.
+`lookaround_absurd` lifts the resulting `Empty` contradiction into the
+polymorphic consumer result. This establishes the exhausted-tail base through
+the new package boundary without claiming the non-exhausted rejected or
+blocked branches. The focused file now passes 82 tests; head contradiction and
+later-sibling recursive descent remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
