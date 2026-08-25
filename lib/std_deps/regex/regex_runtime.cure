@@ -4391,6 +4391,13 @@ mod Std.Regex.Runtime
     AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
     AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
 
+  ## The active-child destination-exhaustion leaf is the next base case for
+  ## recursive rejected-child induction.  Its selected child trace is already
+  ## aligned at the empty admitted-state cursor, so the generic active leaf
+  ## contradiction can consume it directly.  Parent destination-rejection
+  ## transport supplies this child proof; no runtime witness is introduced.
+  fn atomic_path_active_child_destinations_exhausted_excludes_trace({result: Type}, {depth: Nat}, {n: Nat}, machine: PatternMachine(n), char: Char, rest: List(Char), after_input: List(Char), source: Bounded(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), matched: List(Char), remaining_input: List(Char), routine: List(ExtendedInstruction), @erased failure: AtomicPathRefutation(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Nil(), AtomicPathFailureDestinationsExhausted()), @erased path: AtomicSelectedPathTrace(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, Nil(), matched, remaining_input, routine)) -> result = atomic_path_active_destinations_exhausted_excludes_trace(machine, char, rest, after_input, source, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, matched, remaining_input, routine, failure, path)
+
 
   fn atomic_lookaround_routine_accepts(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Option(List(ExtendedInstruction)) = match machine
     MkPatternMachine(_, _) -> match atomic_lookaround_routine_initial(depth, n, machine, input, after_input, position, history, capture_context, policy, false, [])

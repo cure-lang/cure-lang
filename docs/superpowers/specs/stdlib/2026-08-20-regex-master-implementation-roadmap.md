@@ -768,6 +768,13 @@ file passes 66 tests, and the full canonical gate passes 52 checks (50 tests
 and 2 properties) with W086 accepted. Active-child destination exhaustion and
 recursive child rejection, multi-head `Drop` induction, and start-list
 induction are still open.
+The aligned active-child destination-exhaustion base is now named
+`atomic_path_active_child_destinations_exhausted_excludes_trace`; it delegates
+to the existing active empty-cursor contradiction while retaining the child
+failure and selected trace as erased indices. The focused dependent-assertion
+file remains at 66 passing tests and the canonical gate remains 52 passing
+checks. This is only the empty-child-cursor leaf; non-empty selected child
+suffixes still require the recursive cursor-alignment induction.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
