@@ -830,6 +830,15 @@ proof-only direction boundary; the next step is to consume this location in a
 fully erased child/tail eliminator. The focused dependent-assertion file now
 passes 95 tests.
 
+The proof-only consumer is now explicit as
+`atomic_path_selected_child_suffix_location_elim`. It accepts a relevant
+non-empty selected suffix, reduces the indexed location split at the
+construction site, and invokes only zero-argument continuations; no erased
+suffix or location is passed to runtime code. This is the safe interface the
+future child/tail contradiction can call once its surrounding refutation
+constructor exposes a relevant suffix. The focused dependent-assertion file
+remains at 95 tests.
+
 The next bounded tail case is now named
 `atomic_path_tail_drop_rejection_excludes_selected_suffix`. It retains the
 parent-to-selected cursor as an erased `Drop` index for the exact two-state

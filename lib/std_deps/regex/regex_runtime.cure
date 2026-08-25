@@ -1770,6 +1770,23 @@ mod Std.Regex.Runtime
       reflexive() -> AtomicPathSelectedChildHere(head, rest)
     LookaroundAdmittedStateCursorSuffixDrop(_, prior) -> AtomicPathSelectedChildThere(head, prior)
 
+  ## Consume the selected-child location without making the erased location
+  ## witness a runtime callback argument.  The suffix itself is relevant at
+  ## this construction site, so only its indexed `Here`/`There` shape drives
+  ## the proof-only continuations.
+  @reducible
+  fn atomic_path_selected_child_suffix_location_elim(
+    {n: Nat},
+    {head: LookaroundAdmittedState(n)},
+    {rest: List(LookaroundAdmittedState(n))},
+    {current: List(LookaroundAdmittedState(n))},
+    suffix: LookaroundAdmittedStateCursorSuffix(n, Cons(head, rest), current),
+    here_case: () -> Empty,
+    there_case: () -> Empty
+  ) -> Empty = match atomic_path_selected_child_suffix_location(suffix)
+    AtomicPathSelectedChildHere(_, _) -> here_case()
+    AtomicPathSelectedChildThere(_, _) -> there_case()
+
   type LookaroundAdmittedStateCursorAlignment(n: Nat) indices (left: List(LookaroundAdmittedState(n)), right: List(LookaroundAdmittedState(n)))
     LookaroundAdmittedCursorLeftToRight : (@erased suffix: LookaroundAdmittedStateCursorSuffix(n, left, right)) -> LookaroundAdmittedStateCursorAlignment(n, left, right)
     LookaroundAdmittedCursorRightToLeft : (@erased suffix: LookaroundAdmittedStateCursorSuffix(n, right, left)) -> LookaroundAdmittedStateCursorAlignment(n, left, right)

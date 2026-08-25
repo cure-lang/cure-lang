@@ -854,6 +854,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     assert source =~ "fn atomic_path_selected_child_suffix_location"
+    assert source =~ "fn atomic_path_selected_child_suffix_location_elim"
 
     [_prefix, body] = String.split(source, "fn atomic_path_selected_child_suffix_location", parts: 2)
     [body | _] = String.split(body, "\n  ##", parts: 2)
