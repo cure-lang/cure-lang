@@ -151,6 +151,44 @@ defmodule Cure.MetaAST.Conformance do
     end)
   end
 
+  @doc """
+  Canonicalizes a surface MetaAST tree so that subterms in meta slots are lifted
+  into child wrapper nodes, returning a strictly conformant tree for external AST consumers.
+  """
+  @spec to_conformant(term()) :: term()
+  def to_conformant({tag, meta, children}) when is_atom(tag) and is_list(meta) do
+    {lifted_meta_children, clean_meta} = extract_meta_subterms(meta)
+
+    normalized_children =
+      cond do
+        is_list(children) -> Enum.map(children, &to_conformant/1)
+        canonical_node?(children) -> [to_conformant(children)]
+        true -> children
+      end
+
+    {tag, clean_meta, lifted_meta_children ++ normalized_children}
+  end
+
+  def to_conformant(list) when is_list(list), do: Enum.map(list, &to_conformant/1)
+
+  def to_conformant(tuple) when is_tuple(tuple) do
+    tuple |> Tuple.to_list() |> Enum.map(&to_conformant/1) |> List.to_tuple()
+  end
+
+  def to_conformant(other), do: other
+
+  defp extract_meta_subterms(meta) when is_list(meta) do
+    Enum.reduce(meta, {[], []}, fn {key, val}, {children_acc, meta_acc} ->
+      if hides_node?(val) do
+        wrapper_tag = String.to_atom("#{key}_wrapper")
+        wrapper_node = {wrapper_tag, [], [to_conformant(val)]}
+        {children_acc ++ [wrapper_node], meta_acc}
+      else
+        {children_acc, meta_acc ++ [{key, val}]}
+      end
+    end)
+  end
+
   defp path_string(path), do: Enum.map_join(path, ".", &Atom.to_string/1)
 
   # ── analysis ──────────────────────────────────────────────────────────────

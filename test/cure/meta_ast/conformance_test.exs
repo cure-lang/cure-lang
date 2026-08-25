@@ -217,4 +217,16 @@ defmodule Cure.MetaAST.ConformanceTest do
       assert Conformance.meta_nonnodes(ast) == []
     end
   end
+
+  describe "boundary canonicalization to_conformant/1" do
+    test "lifts meta-borne subterms into child wrapper nodes" do
+      param_type = {:variable, [scope: :local], "Nat"}
+      param = {:param, [type: param_type], ["x"]}
+
+      conformant = Conformance.to_conformant(param)
+
+      assert {:param, [], [{:type_wrapper, [], [{:variable, [scope: :local], "Nat"}]}, "x"]} =
+               conformant
+    end
+  end
 end
