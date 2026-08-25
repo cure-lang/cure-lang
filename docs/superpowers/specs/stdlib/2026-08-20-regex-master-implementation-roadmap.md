@@ -826,14 +826,16 @@ child certificate to `atomic_start_candidate_rejection_excludes_trace`.
 The focused dependent-assertion file now passes 73 tests. Blocked-tail
 induction and complete start-list correspondence remain open.
 
-The singleton blocked-tail bases are now present in
+The blocked-tail bases are now present in
 `atomic_start_tail_blocked_active_candidate_excludes_trace` and
 `atomic_start_tail_blocked_accepted_candidate_excludes_trace`. Each matches
 the typed `AtomicStartNoBlockedEvidence` branch and consumes the same indexed
 skip/allow contradiction as the head case, without reconstructing a raw
-dependent tail failure. The focused dependent-assertion file now passes 74
-tests. Arbitrary blocked sibling tails and complete start-list correspondence
-remain open.
+dependent tail failure. Their current suffix is now arbitrary rather than
+singleton, so the commitment contradiction is available at every blocked
+head in the recursive start list. The focused dependent-assertion file now
+passes 75 tests. Selecting a later unblocked sibling still requires recursive
+tail correspondence, and complete start-list correspondence remains open.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
