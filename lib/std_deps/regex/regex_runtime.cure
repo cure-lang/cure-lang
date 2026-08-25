@@ -4269,6 +4269,136 @@ mod Std.Regex.Runtime
         path
       )
 
+  ## A blocked active start with no remaining sibling is eliminated through
+  ## the typed blocked-tail witness.  The stored parent failure is passed to
+  ## the existing commitment contradiction, preserving the skip/allow index.
+  fn atomic_start_tail_blocked_active_candidate_excludes_trace(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    state: Bounded(n),
+    routine: List(EvidenceInstruction),
+    constraints: List(BoundaryConstraint),
+    assertion_routine: List(ExtendedInstruction),
+    assertion_markers: List(EvidenceInstruction),
+    nested_decisions: List(LookaroundNestedDecision),
+    {whole: List(LookaroundAdmittedState(n))},
+    {blocked_depth: Option(Nat)},
+    {@erased kind: AtomicStartSkipKind},
+    @erased skip: AtomicStartSkipEvidence(blocked_depth, kind),
+    @erased allowed: AtomicStartAllowed(blocked_depth, kind),
+    @erased evidence: AtomicStartNoEvidence(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), Nil()),
+      AtomicStartFailureBlocked()
+    ),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    @erased _path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions),
+      matched,
+      remaining_input,
+      selected_routine
+    )
+  ) -> result = match evidence
+    AtomicStartNoBlockedEvidence(_, _, _, _, _) -> atomic_start_skip_excludes_allowed(skip, allowed)
+
+  ## The accepted blocked-tail base is identical at the proof boundary, with
+  ## the selected-start index choosing the accepted constructor explicitly.
+  fn atomic_start_tail_blocked_accepted_candidate_excludes_trace(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    accepted_routine: List(EvidenceInstruction),
+    accepted_constraints: List(BoundaryConstraint),
+    accepted_assertion_routine: List(ExtendedInstruction),
+    accepted_assertion_markers: List(EvidenceInstruction),
+    accepted_nested_decisions: List(LookaroundNestedDecision),
+    {whole: List(LookaroundAdmittedState(n))},
+    {blocked_depth: Option(Nat)},
+    {@erased kind: AtomicStartSkipKind},
+    @erased skip: AtomicStartSkipEvidence(blocked_depth, kind),
+    @erased allowed: AtomicStartAllowed(blocked_depth, kind),
+    @erased evidence: AtomicStartNoEvidence(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), Nil()),
+      AtomicStartFailureBlocked()
+    ),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    @erased _path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions),
+      matched,
+      remaining_input,
+      selected_routine
+    )
+  ) -> result = match evidence
+    AtomicStartNoBlockedEvidence(_, _, _, _, _) -> atomic_start_skip_excludes_allowed(skip, allowed)
+
   ## A rejected head with no remaining siblings exposes an empty tail.  The
   ## published tail cursor must be consumed before delegating to the existing
   ## empty-start contradiction; a fabricated `Drop` suffix cannot cross this
