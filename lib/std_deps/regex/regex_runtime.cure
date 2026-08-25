@@ -3251,10 +3251,10 @@ mod Std.Regex.Runtime
     ),
     membership: ListMember(LookaroundAdmittedState(n), selected_start, Cons(head, rest)),
     head_case: result,
-    tail_case: result
+    tail_case: (Unit) -> result
   ) -> result = match atomic_start_member_location(selected_start, head, rest, membership)
     AtomicStartMemberHere(_) -> head_case
-    AtomicStartMemberThere(_, _) -> tail_case
+    AtomicStartMemberThere(_, _) -> tail_case(())
 
   ## Turn intrinsic list membership into the ordered cursor suffix consumed by
   ## the atomic refutation induction.  Membership alone does not expose the

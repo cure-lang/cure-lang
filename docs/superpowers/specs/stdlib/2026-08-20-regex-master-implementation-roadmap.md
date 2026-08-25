@@ -867,11 +867,13 @@ step.
 The generic `atomic_start_rejected_member_induction` eliminator now carries a
 rejected parent failure and its matching `AtomicStartNoEvidence` witness at
 `Cons(head, rest)`, then selects supplied head and tail cases through the
-typed membership location. This is an induction boundary only: it does not
-invent a tail proof or erase the branch-specific child certificate. A first
-attempt to make the active branch call an erased `Empty` continuation was
-rejected by the kernel's runtime-erasure check and was removed. The focused
-file now passes 80 tests; the actual recursive contradiction remains open.
+typed membership location. Its tail case is a zero-data continuation, so the
+`ListMemberThere` proof is never passed as a runtime argument. This is an
+induction boundary only: it does not invent a tail proof or erase the
+branch-specific child certificate. A first attempt to make the active branch
+call an erased `Empty` continuation was rejected by the kernel's
+runtime-erasure check and was removed. The focused file now passes 81 tests;
+the actual recursive contradiction remains open.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
