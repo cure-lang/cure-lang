@@ -3704,14 +3704,152 @@ mod Std.Regex.Runtime
   ## blocked outer commits, and escaped outer commits therefore cannot be
   ## mistaken for one another when a refutation is consumed.
   fn atomic_start_skip_excludes_allowed(
+    {result: Type},
     {blocked_depth: Option(Nat)},
     {kind: AtomicStartSkipKind},
     @erased skip: AtomicStartSkipEvidence(blocked_depth, kind),
     @erased allowed: AtomicStartAllowed(blocked_depth, kind)
-  ) -> Empty = match skip
+  ) -> result = match skip
     AtomicStartSkipByCommit(_) -> match allowed
     AtomicStartSkipByScope(proof) -> match allowed
       AtomicStartAllowedEscape(_) -> impossible
+
+  ## A blocked start candidate cannot also be the selected start.  The
+  ## refutation and selected trace are both consumed at this construction
+  ## boundary: the blocked candidate publishes the exact skip token, while a
+  ## selected start publishes the matching `AtomicStartAllowed` evidence.
+  ## Their indexed commitment decisions are disjoint, so no runtime flag or
+  ## second search is needed.
+  fn atomic_start_blocked_active_candidate_excludes_trace(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {whole: List(LookaroundAdmittedState(n))},
+    {remaining: List(LookaroundAdmittedState(n))},
+    state: Bounded(n),
+    routine: List(EvidenceInstruction),
+    constraints: List(BoundaryConstraint),
+    assertion_routine: List(ExtendedInstruction),
+    assertion_markers: List(EvidenceInstruction),
+    nested_decisions: List(LookaroundNestedDecision),
+    {blocked_depth: Option(Nat)},
+    {@erased kind: AtomicStartSkipKind},
+    @erased skip: AtomicStartSkipEvidence(blocked_depth, kind),
+    @erased _failure: AtomicStartMembersRefutation(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining),
+      AtomicStartFailureBlocked()
+    ),
+    @erased allowed: AtomicStartAllowed(blocked_depth, kind),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions),
+      matched,
+      remaining_input,
+      selected_routine
+    )
+  ) -> result = match path
+    AtomicSelectedStartActive(_, _, _, _, _, _, _, _, _, _, _, _, _, suffix) -> atomic_start_skip_excludes_allowed(skip, allowed)
+
+  ## The same blocked-start contradiction applies to an accepted machine
+  ## candidate.  Keeping this branch separate from the active constructor
+  ## lets the selected-start index eliminate the other constructor without a
+  ## runtime inspection of an erased state tag.
+  fn atomic_start_blocked_accepted_candidate_excludes_trace(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {whole: List(LookaroundAdmittedState(n))},
+    {remaining: List(LookaroundAdmittedState(n))},
+    accepted_routine: List(EvidenceInstruction),
+    accepted_constraints: List(BoundaryConstraint),
+    accepted_assertion_routine: List(ExtendedInstruction),
+    accepted_assertion_markers: List(EvidenceInstruction),
+    accepted_nested_decisions: List(LookaroundNestedDecision),
+    {blocked_depth: Option(Nat)},
+    {@erased kind: AtomicStartSkipKind},
+    @erased skip: AtomicStartSkipEvidence(blocked_depth, kind),
+    @erased _failure: AtomicStartMembersRefutation(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining),
+      AtomicStartFailureBlocked()
+    ),
+    @erased allowed: AtomicStartAllowed(blocked_depth, kind),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions),
+      matched,
+      remaining_input,
+      selected_routine
+    )
+  ) -> result = match path
+    AtomicSelectedStartAccepted(_, _, _, _, _, _, _, _, _, _, _, _, suffix) -> atomic_start_skip_excludes_allowed(skip, allowed)
 
   fn atomic_scope_depth_after(routine: List(EvidenceInstruction), depth: Nat) -> Nat = match atomic_scope_effect(routine, depth)
     AtomicScopeEffect(next_depth, _) -> next_depth

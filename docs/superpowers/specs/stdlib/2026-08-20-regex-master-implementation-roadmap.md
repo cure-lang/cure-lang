@@ -783,8 +783,21 @@ parent/singleton-selected base and reuses the accepted-child rejection
 eliminator without inspecting proof data at runtime. The focused
 dependent-assertion file passes 67 tests, and the full canonical gate passes
 52 checks (50 tests and 2 properties) with W086 accepted. This is not yet the
-arbitrary non-empty-tail induction: recursive child rejection, multi-head
-`Drop` transport, and start-list induction remain open.
+arbitrary non-empty-tail induction: recursive child rejection and multi-head
+`Drop` transport remain open.
+
+The first start-list commitment base is now present in the constructor-specific
+eliminators `atomic_start_blocked_active_candidate_excludes_trace` and
+`atomic_start_blocked_accepted_candidate_excludes_trace`. They consume the
+`AtomicStartFailureBlocked` index together with the matching
+`AtomicStartSkipEvidence`/`AtomicStartAllowed` pair, so a candidate suppressed
+by an enclosing or candidate atomic commit cannot also be the selected start.
+The active and accepted state constructors are separate deliberately: matching
+an erased `LookaroundAdmittedState` sum would violate E104, while the indexed
+constructor match erases cleanly. The focused dependent-assertion file now
+passes 68 tests. This discharges only the blocked-head start base; rejected
+child starts, blocked-tail induction, and complete start-list correspondence
+remain open.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
