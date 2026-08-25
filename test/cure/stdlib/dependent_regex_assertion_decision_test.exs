@@ -848,6 +848,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     [body | _] = String.split(body, "\n  ##", parts: 2)
     assert Regex.match?(~r/atomic_child_cursor_alignment.*?LookaroundAdmittedCursorLeftToRight.*?left_case/s, body)
     assert Regex.match?(~r/LookaroundAdmittedCursorRightToLeft.*?right_case/s, body)
+    assert body =~ "atomic_path_selected_child_suffix_location_elim"
   end
 
   test "atomic selected child suffix exposes head or tail location" do

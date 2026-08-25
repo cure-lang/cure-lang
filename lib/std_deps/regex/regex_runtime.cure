@@ -1776,14 +1776,15 @@ mod Std.Regex.Runtime
   ## the proof-only continuations.
   @reducible
   fn atomic_path_selected_child_suffix_location_elim(
+    {result: Type},
     {n: Nat},
     {head: LookaroundAdmittedState(n)},
     {rest: List(LookaroundAdmittedState(n))},
     {current: List(LookaroundAdmittedState(n))},
     suffix: LookaroundAdmittedStateCursorSuffix(n, Cons(head, rest), current),
-    here_case: () -> Empty,
-    there_case: () -> Empty
-  ) -> Empty = match atomic_path_selected_child_suffix_location(suffix)
+    here_case: () -> result,
+    there_case: () -> result
+  ) -> result = match atomic_path_selected_child_suffix_location(suffix)
     AtomicPathSelectedChildHere(_, _) -> here_case()
     AtomicPathSelectedChildThere(_, _) -> there_case()
 
@@ -6074,6 +6075,8 @@ mod Std.Regex.Runtime
     prefix_mode: Bool,
     reversed_prefix: List(Char),
     {failure_whole: List(LookaroundAdmittedState(n))},
+    failure_head: LookaroundAdmittedState(n),
+    {failure_tail: List(LookaroundAdmittedState(n))},
     {failure_current: List(LookaroundAdmittedState(n))},
     @erased failure: AtomicPathRefutation(
       depth,
@@ -6100,6 +6103,11 @@ mod Std.Regex.Runtime
       failure_whole,
       selected_whole
     ),
+    failure_nonempty_equivalence: Equivalent(
+      List(LookaroundAdmittedState(n)),
+      failure_whole,
+      Cons(failure_head, failure_tail)
+    ),
     selected_suffix: LookaroundAdmittedStateCursorSuffix(n, selected_whole, selected_current),
     matched: List(Char),
     remaining_input: List(Char),
@@ -6123,14 +6131,31 @@ mod Std.Regex.Runtime
       routine
     ),
     left_case: () -> result,
+    left_tail_case: () -> result,
     right_case: () -> result
-  ) -> result = match atomic_child_cursor_alignment(
-    failure_suffix,
-    selected_whole_equivalence,
-    selected_suffix
-  )
-    LookaroundAdmittedCursorLeftToRight(_) -> left_case()
-    LookaroundAdmittedCursorRightToLeft(_) -> right_case()
+  ) -> result =
+    let anchored_equivalence: Equivalent(
+      List(LookaroundAdmittedState(n)),
+      Cons(failure_head, failure_tail),
+      selected_whole
+    ) = trans(
+      sym(failure_nonempty_equivalence),
+      selected_whole_equivalence
+    )
+    match atomic_child_cursor_alignment(
+      failure_suffix,
+      selected_whole_equivalence,
+      selected_suffix
+    )
+      LookaroundAdmittedCursorLeftToRight(_) -> atomic_path_selected_child_suffix_location_elim(
+        transport_lookaround_admitted_cursor_suffix_outer(
+          anchored_equivalence,
+          selected_suffix
+        ),
+        left_case,
+        left_tail_case
+      )
+      LookaroundAdmittedCursorRightToLeft(_) -> right_case()
 
   ## The first refutation-tree eliminator is indexed at the same exhausted
   ## input as the selected trace.  The other failure constructors all carry a

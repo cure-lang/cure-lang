@@ -839,6 +839,18 @@ future child/tail contradiction can call once its surrounding refutation
 constructor exposes a relevant suffix. The focused dependent-assertion file
 remains at 95 tests.
 
+The active-child rejection bridge now exposes that relevant suffix at the
+construction boundary. It carries an explicit head/tail decomposition of the
+generic failure spine together with an `Equivalent` proof to that `Cons` form,
+transports the selected whole/suffix equivalence across the decomposition, and
+invokes `atomic_path_selected_child_suffix_location_elim` in the
+left-to-right alignment branch. The right-to-left branch remains a separate
+proof-only continuation. This is the first actual consumer of the
+`Here`/`There` location split, not merely another transport alias; the
+recursive child contradiction, arbitrary sibling-tail descent, and start-list
+correspondence are still open. The focused dependent-assertion file passes 95
+tests.
+
 The next bounded tail case is now named
 `atomic_path_tail_drop_rejection_excludes_selected_suffix`. It retains the
 parent-to-selected cursor as an erased `Drop` index for the exact two-state
