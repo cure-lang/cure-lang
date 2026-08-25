@@ -3883,6 +3883,115 @@ mod Std.Regex.Runtime
     tail_case: () -> Empty
   ) -> Empty = tail_case()
 
+  ## Construction-site consumer for an active candidate at the head of a
+  ## non-empty rejected tail.  The tail's input is empty, so its child failure
+  ## is the indexed input-exhaustion certificate already consumed by the
+  ## active-start eliminator.  The selected membership is retained here to
+  ## tie this branch to the later-sibling `There` boundary.
+  fn atomic_start_rejected_member_there_active_tail_head_excludes_trace(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    state: Bounded(n),
+    routine: List(EvidenceInstruction),
+    constraints: List(BoundaryConstraint),
+    assertion_routine: List(ExtendedInstruction),
+    assertion_markers: List(EvidenceInstruction),
+    nested_decisions: List(LookaroundNestedDecision),
+    {whole: List(LookaroundAdmittedState(n))},
+    {remaining: List(LookaroundAdmittedState(n))},
+    @erased membership: ListMember(
+      LookaroundAdmittedState(n),
+      LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions),
+      Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining)
+    ),
+    {child_whole: List(LookaroundAdmittedState(n))},
+    {child_current: List(LookaroundAdmittedState(n))},
+    @erased child_failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Nil(),
+      after_input,
+      ThreadActive(state),
+      history,
+      append_routine(append_routine(capture_context, routine), assertion_markers),
+      policy,
+      atomic_scope_depth_after(routine, Z()),
+      prefix_mode,
+      reversed_prefix,
+      child_whole,
+      child_current,
+      AtomicPathFailureInputExhausted()
+    ),
+    @erased child_suffix: LookaroundAdmittedStateCursorSuffix(n, child_whole, child_current),
+    @erased evidence: AtomicStartNoEvidence(
+      depth,
+      n,
+      machine,
+      position,
+      Nil(),
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining),
+      AtomicStartFailureRejected()
+    ),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      Nil(),
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions),
+      matched,
+      remaining_input,
+      selected_routine
+    )
+  ) -> result = match evidence
+    AtomicStartNoRejectedEvidence(_, _, _, _, _, _, _, _, _, _, _, _, _, _) ->
+      atomic_start_tail_active_candidate_rejection_excludes_trace(
+        machine,
+        position,
+        after_input,
+        history,
+        capture_context,
+        policy,
+        prefix_mode,
+        reversed_prefix,
+        state,
+        routine,
+        constraints,
+        assertion_routine,
+        assertion_markers,
+        nested_decisions,
+        child_failure,
+        child_suffix,
+        evidence,
+        path
+      )
+
   type AtomicPathSearchResult(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char))
     AtomicPathSearchRootActiveNo : (@erased source: Bounded(n)) -> (@erased failure: AtomicPathRootRefutation(depth, n, machine, input, after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, Nil())) -> AtomicPathSearchResult(depth, n, machine, input, after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix)
     AtomicPathSearchRootExactNo : (@erased failure: AtomicPathRootRefutation(depth, n, machine, input, after_input, ThreadAccepted(), history, capture_context, policy, scope_depth, False(), reversed_prefix, Nil())) -> AtomicPathSearchResult(depth, n, machine, input, after_input, ThreadAccepted(), history, capture_context, policy, scope_depth, False(), reversed_prefix)

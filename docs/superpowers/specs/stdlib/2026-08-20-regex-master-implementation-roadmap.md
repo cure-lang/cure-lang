@@ -931,6 +931,18 @@ the contradiction itself; active, accepted, rejected, and blocked non-empty
 tail consumers remain open. The focused dependent-assertion file now passes 86
 tests.
 
+The first concrete non-empty-tail head consumer is now present as
+`atomic_start_rejected_member_there_active_tail_head_excludes_trace`. It
+specializes the later-sibling `There` branch to an active head with an empty
+child input, matches the typed `AtomicStartNoRejectedEvidence` witness, and
+forwards the indexed child exhaustion certificate and selected trace to the
+existing active-tail eliminator. Its proof-only package, membership, and trace
+remain in erased indices; the call passes only the explicit erased witnesses
+required by the construction-site helper, omitting the implicit result fields.
+This is the active-head base for non-empty-tail descent, not the full recursive
+correspondence: accepted, rejected, blocked, and arbitrary-tail cases remain
+open. The focused dependent-assertion file now passes 87 tests.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
