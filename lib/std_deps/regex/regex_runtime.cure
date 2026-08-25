@@ -3195,6 +3195,67 @@ mod Std.Regex.Runtime
     ListMemberHere() -> AtomicStartMemberHere(rest)
     ListMemberThere(prior) -> AtomicStartMemberThere(head, prior)
 
+  ## Generic construction-site eliminator for a rejected start suffix. The
+  ## failure and no-result witness are indexed by the same `Cons(head, rest)`
+  ## spine; only the membership witness decides whether the supplied proof is
+  ## the head case or the recursively prepared tail case.
+  @reducible
+  fn atomic_start_rejected_member_induction(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {whole: List(LookaroundAdmittedState(n))},
+    head: LookaroundAdmittedState(n),
+    rest: List(LookaroundAdmittedState(n)),
+    selected_start: LookaroundAdmittedState(n),
+    @erased _failure: AtomicStartMembersRefutation(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(head, rest),
+      AtomicStartFailureRejected()
+    ),
+    @erased _evidence: AtomicStartNoEvidence(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(head, rest),
+      AtomicStartFailureRejected()
+    ),
+    membership: ListMember(LookaroundAdmittedState(n), selected_start, Cons(head, rest)),
+    head_case: result,
+    tail_case: result
+  ) -> result = match atomic_start_member_location(selected_start, head, rest, membership)
+    AtomicStartMemberHere(_) -> head_case
+    AtomicStartMemberThere(_, _) -> tail_case
+
   ## Turn intrinsic list membership into the ordered cursor suffix consumed by
   ## the atomic refutation induction.  Membership alone does not expose the
   ## suffix list; this Sigma packages that suffix together with the proof that
