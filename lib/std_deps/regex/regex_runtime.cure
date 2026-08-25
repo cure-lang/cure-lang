@@ -5948,7 +5948,8 @@ mod Std.Regex.Runtime
     {n: Nat},
     machine: PatternMachine(n),
     char: Char,
-    rest: List(Char),
+    child_char: Char,
+    child_rest: List(Char),
     after_input: List(Char),
     source: Bounded(n),
     history: List(Char),
@@ -5970,7 +5971,7 @@ mod Std.Regex.Runtime
       depth,
       n,
       machine,
-      Cons(char, rest),
+      Cons(char, Cons(child_char, child_rest)),
       after_input,
       ThreadActive(source),
       history,
@@ -5987,7 +5988,7 @@ mod Std.Regex.Runtime
       depth,
       n,
       machine,
-      Cons(char, rest),
+      Cons(char, Cons(child_char, child_rest)),
       after_input,
       ThreadActive(source),
       history,
@@ -6006,7 +6007,7 @@ mod Std.Regex.Runtime
       depth,
       n,
       machine,
-      rest,
+      Cons(child_char, child_rest),
       after_input,
       ThreadActive(active_state),
       history_push_bounded(history, char),
@@ -6020,6 +6021,25 @@ mod Std.Regex.Runtime
       AtomicPathFailureDestinationRejected()
     ),
     @erased child_suffix: LookaroundAdmittedStateCursorSuffix(n, child_whole, child_current),
+    child_failure_suffix: LookaroundAdmittedStateCursorSuffix(n, child_whole, child_current),
+    child_failure_head: LookaroundAdmittedState(n),
+    child_failure_tail: List(LookaroundAdmittedState(n)),
+    child_failure_nonempty_equivalence: Equivalent(
+      List(LookaroundAdmittedState(n)),
+      child_whole,
+      Cons(child_failure_head, child_failure_tail)
+    ),
+    child_selected_whole: List(LookaroundAdmittedState(n)),
+    child_selected_whole_equivalence: Equivalent(
+      List(LookaroundAdmittedState(n)),
+      child_whole,
+      child_selected_whole
+    ),
+    child_selected_suffix: LookaroundAdmittedStateCursorSuffix(
+      n,
+      child_selected_whole,
+      child_current
+    ),
     {@erased selected_remaining: List(LookaroundAdmittedState(n))},
     @erased _tail_selected_suffix: LookaroundAdmittedStateCursorSuffix(
       n,
@@ -6033,7 +6053,7 @@ mod Std.Regex.Runtime
       depth,
       n,
       machine,
-      Cons(char, rest),
+      Cons(char, Cons(child_char, child_rest)),
       after_input,
       ThreadActive(source),
       history,
@@ -6047,11 +6067,36 @@ mod Std.Regex.Runtime
       remaining_input,
       selected_routine
     ),
-    child_case: () -> Empty
+    child_left_case: () -> Empty,
+    child_left_tail_case: () -> Empty,
+    child_right_case: () -> Empty
   ) -> Empty = match tail_failure
     AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, child_failure, _, child_scope_alignment, _, _, _, _) -> match path
       AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _, child_selection_suffix, child_selection_from_origin, child_trace) -> match child_scope_alignment
-        LookaroundAdmittedStateScopeActive(_, _, _, _, _, _) -> child_case()
+        LookaroundAdmittedStateScopeActive(_, _, _, _, _, _) -> atomic_path_active_child_rejection_excludes_aligned_trace(
+          machine,
+          child_char,
+          child_rest,
+          after_input,
+          active_state,
+          history_push_bounded(history, char),
+          append_routine(append_routine(capture_context, active_routine), active_assertion_markers),
+          policy,
+          atomic_scope_depth_after(active_routine, scope_depth),
+          prefix_mode,
+          Cons(char, reversed_prefix),
+          child_whole,
+          child_failure_head,
+          child_current,
+          child_failure_suffix,
+          child_selected_whole,
+          child_selected_whole_equivalence,
+          child_failure_nonempty_equivalence,
+          child_selected_suffix,
+          child_left_case,
+          child_left_tail_case,
+          child_right_case
+        )
 
   ## Align a recursively rejected active child with the selected child trace.
   ## The child failure kind is fixed before this helper is called, while the
@@ -6060,8 +6105,6 @@ mod Std.Regex.Runtime
   ## left-to-right branch can descend through the rejected sibling tail, and
   ## the right-to-left branch remains the separate reverse induction case.
   fn atomic_path_active_child_rejection_excludes_aligned_trace(
-    {result: Type},
-    {depth: Nat},
     {n: Nat},
     machine: PatternMachine(n),
     child_char: Char,
@@ -6074,30 +6117,13 @@ mod Std.Regex.Runtime
     child_scope_depth: Nat,
     prefix_mode: Bool,
     reversed_prefix: List(Char),
-    {failure_whole: List(LookaroundAdmittedState(n))},
+    @erased failure_whole: List(LookaroundAdmittedState(n)),
     failure_head: LookaroundAdmittedState(n),
     {failure_tail: List(LookaroundAdmittedState(n))},
-    {failure_current: List(LookaroundAdmittedState(n))},
-    @erased failure: AtomicPathRefutation(
-      depth,
-      n,
-      machine,
-      Cons(child_char, child_rest),
-      after_input,
-      ThreadActive(destination),
-      history,
-      capture_context,
-      policy,
-      child_scope_depth,
-      prefix_mode,
-      reversed_prefix,
-      failure_whole,
-      failure_current,
-      AtomicPathFailureDestinationRejected()
-    ),
+    @erased failure_current: List(LookaroundAdmittedState(n)),
     failure_suffix: LookaroundAdmittedStateCursorSuffix(n, failure_whole, failure_current),
     selected_whole: List(LookaroundAdmittedState(n)),
-    selected_current: List(LookaroundAdmittedState(n)),
+    {selected_current: List(LookaroundAdmittedState(n))},
     selected_whole_equivalence: Equivalent(
       List(LookaroundAdmittedState(n)),
       failure_whole,
@@ -6109,31 +6135,10 @@ mod Std.Regex.Runtime
       Cons(failure_head, failure_tail)
     ),
     selected_suffix: LookaroundAdmittedStateCursorSuffix(n, selected_whole, selected_current),
-    matched: List(Char),
-    remaining_input: List(Char),
-    routine: List(ExtendedInstruction),
-    @erased path: AtomicSelectedPathTrace(
-      depth,
-      n,
-      machine,
-      Cons(child_char, child_rest),
-      after_input,
-      ThreadActive(destination),
-      history,
-      capture_context,
-      policy,
-      child_scope_depth,
-      prefix_mode,
-      reversed_prefix,
-      selected_current,
-      matched,
-      remaining_input,
-      routine
-    ),
-    left_case: () -> result,
-    left_tail_case: () -> result,
-    right_case: () -> result
-  ) -> result =
+    left_case: () -> Empty,
+    left_tail_case: () -> Empty,
+    right_case: () -> Empty
+  ) -> Empty =
     let anchored_equivalence: Equivalent(
       List(LookaroundAdmittedState(n)),
       Cons(failure_head, failure_tail),

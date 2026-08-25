@@ -851,6 +851,20 @@ recursive child contradiction, arbitrary sibling-tail descent, and start-list
 correspondence are still open. The focused dependent-assertion file passes 95
 tests.
 
+The recursive active-child tail boundary now invokes that bridge directly.
+Its construction-site parameters publish the child input as a non-empty
+`Cons`, retain the child failure cursor and selected-origin equivalence as
+relevant suffix witnesses, and carry the non-empty failure-spine equation
+explicitly while keeping the refutation and path payloads erased. The bridge
+consumes only those typed cursor/equivalence premises and returns proof-only
+continuations; no child failure tag, path witness, or list cursor is promoted
+into runtime data. Cure's hidden-index checker required the unused depth index
+to be removed and the cursor origins to be explicit-but-erased at this call
+site. The focused dependent-assertion file passes 96 tests. This remains a
+recursive correspondence boundary: the left-tail continuation, reverse
+alignment, arbitrary sibling-tail induction, and start-list proof are not yet
+discharged.
+
 The next bounded tail case is now named
 `atomic_path_tail_drop_rejection_excludes_selected_suffix`. It retains the
 parent-to-selected cursor as an erased `Drop` index for the exact two-state

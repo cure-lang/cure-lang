@@ -836,7 +836,10 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     [_prefix, body] = String.split(source, "fn atomic_path_tail_active_child_rejection_excludes_selected_suffix", parts: 2)
     [body | _] = String.split(body, "\n  ##", parts: 2)
     assert Regex.match?(~r/child_failure:\s+AtomicPathRefutation.*?AtomicPathFailureDestinationRejected/s, body)
-    assert Regex.match?(~r/AtomicSelectedTransitionActive.*?child_case/s, body)
+    assert Regex.match?(
+             ~r/AtomicSelectedTransitionActive.*?atomic_path_active_child_rejection_excludes_aligned_trace/s,
+             body
+           )
   end
 
   test "atomic child rejection alignment exposes both cursor directions" do
@@ -849,6 +852,24 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/atomic_child_cursor_alignment.*?LookaroundAdmittedCursorLeftToRight.*?left_case/s, body)
     assert Regex.match?(~r/LookaroundAdmittedCursorRightToLeft.*?right_case/s, body)
     assert body =~ "atomic_path_selected_child_suffix_location_elim"
+  end
+
+  test "atomic active child rejection consumes the aligned child bridge" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "fn atomic_path_tail_active_child_rejection_excludes_selected_suffix"
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_path_tail_active_child_rejection_excludes_selected_suffix",
+        parts: 2
+      )
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+
+    assert Regex.match?(
+             ~r/child_failure.*?child_failure_suffix.*?atomic_path_active_child_rejection_excludes_aligned_trace/s,
+             body
+           )
   end
 
   test "atomic selected child suffix exposes head or tail location" do
