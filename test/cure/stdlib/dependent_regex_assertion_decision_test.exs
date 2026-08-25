@@ -585,6 +585,21 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
            )
   end
 
+  test "atomic path rejected tails publish a typed recursive package" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "type AtomicPathTailPackage"
+    assert source =~ "typealias AtomicPathRejectedTailAt"
+    assert Regex.match?(
+             ~r/fn atomic_path_destination_rejected_tail_package\b.*?AtomicPathDestinationRejected.*?AtomicPathTailPackagePacked/s,
+             source
+           )
+    assert Regex.match?(
+             ~r/fn atomic_path_tail_package_destinations_exhausted_excludes_trace\b.*?AtomicPathTailPackagePacked.*?AtomicPathDestinationsExhausted/s,
+             source
+           )
+  end
+
   test "atomic path tail rejection forwards accepted-child suffixes" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 

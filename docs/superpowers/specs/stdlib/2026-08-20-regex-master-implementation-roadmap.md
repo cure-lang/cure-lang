@@ -884,6 +884,19 @@ recursive correspondence boundary: the left-tail continuation, reverse
 alignment, arbitrary sibling-tail induction, and start-list proof are not yet
 discharged.
 
+The rejected destination now also publishes an
+`AtomicPathTailPackage` at the construction site. Its
+`AtomicPathRejectedTailAt` alias preserves the sibling-tail input, state,
+context, and spine indices while keeping the existential tail failure kind
+erased. The first consumer,
+`atomic_path_tail_package_destinations_exhausted_excludes_trace`, unwraps that
+package only in a proof-only match and reuses the canonical
+destination-exhaustion contradiction. The parent consumer obtains the package
+through `atomic_path_destination_rejected_tail_package` rather than recovering
+the tail failure inline. This is a typed package boundary, not completion of
+the recursive rejected-child or multi-head sibling induction; those branches
+remain open. The focused dependent-assertion gate passes 99 tests.
+
 The next bounded tail case is now named
 `atomic_path_tail_drop_rejection_excludes_selected_suffix`. It retains the
 parent-to-selected cursor as an erased `Drop` index for the exact two-state
