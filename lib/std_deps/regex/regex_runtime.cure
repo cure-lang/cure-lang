@@ -3198,7 +3198,9 @@ mod Std.Regex.Runtime
   ## Generic construction-site eliminator for a rejected start suffix. The
   ## failure and no-result witness are indexed by the same `Cons(head, rest)`
   ## spine; only the membership witness decides whether the supplied proof is
-  ## the head case or the recursively prepared tail case.
+  ## the head case or the recursively prepared tail case.  The `There` branch
+  ## receives the typed tail package extracted from the rejected constructor;
+  ## it does not recover or classify the existential tail failure kind.
   @reducible
   fn atomic_start_rejected_member_induction(
     {result: Type},
@@ -3251,17 +3253,19 @@ mod Std.Regex.Runtime
     ),
     membership: ListMember(LookaroundAdmittedState(n), selected_start, Cons(head, rest)),
     head_case: result,
-    tail_case: (Unit) -> result
+    tail_case: (AtomicStartRejectedTailAt(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, rest)) -> result
   ) -> result = match atomic_start_member_location(selected_start, head, rest, membership)
     AtomicStartMemberHere(_) -> head_case
-    AtomicStartMemberThere(_, _) -> tail_case(())
+    AtomicStartMemberThere(_, _) -> match _evidence
+      AtomicStartNoRejectedEvidence(_, _, _, _, _, _, _, _, _, _, _, _, tail_failure, tail_evidence) ->
+        tail_case(AtomicStartTailPackagePacked(tail_failure, tail_evidence))
 
   ## Construction-site head consumer for the first active rejected start. The
   ## child input is empty, so the indexed active-child refutation can be sent
-  ## directly to the existing path contradiction. A later duplicate/member
-  ## is deliberately delegated to the zero-data tail continuation; this helper
-  ## therefore proves the `Here` branch without pretending that membership is
-  ## unique in the presence of duplicate start states.
+  ## directly to the existing path contradiction. A later duplicate/member is
+  ## delegated to the typed tail continuation; this helper therefore proves
+  ## the `Here` branch without pretending that membership is unique in the
+  ## presence of duplicate start states.
   fn atomic_start_rejected_member_here_excludes_trace(
     {depth: Nat},
     {n: Nat},
@@ -3283,6 +3287,22 @@ mod Std.Regex.Runtime
     rest: List(LookaroundAdmittedState(n)),
     selected_start: LookaroundAdmittedState(n),
     @erased failure: AtomicStartMembersRefutation(
+      depth,
+      n,
+      machine,
+      position,
+      Nil(),
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), rest),
+      AtomicStartFailureRejected()
+    ),
+    @erased evidence: AtomicStartNoEvidence(
       depth,
       n,
       machine,
@@ -3323,36 +3343,38 @@ mod Std.Regex.Runtime
       remaining_input,
       selected_routine
     ),
-    tail_case: (Unit) -> Empty
-  ) -> Empty = match atomic_start_member_location(
-    selected_start,
-    LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions),
-    rest,
-    membership
-  )
-    AtomicStartMemberHere(_) -> match failure
-      AtomicStartCandidateRejected(_, _, _, _, _, _, _, _, _, _, _, _, _) ->
-        let contradiction: Empty = atomic_start_candidate_rejection_excludes_trace(
-          machine,
-          position,
-          after_input,
-          history,
-          capture_context,
-          policy,
-          prefix_mode,
-          reversed_prefix,
-          state,
-          routine,
-          constraints,
-          assertion_routine,
-          assertion_markers,
-          nested_decisions,
-          AtomicPathInputExhausted(LookaroundAdmittedStateCursorWitnessHere(), empty_lookaround_admitted_cursor_suffix(n)),
-          empty_lookaround_admitted_cursor_suffix(n),
-          path
-        )
-        contradiction
-    AtomicStartMemberThere(_, _) -> tail_case(())
+    tail_case: (AtomicStartRejectedTailAt(depth, n, machine, position, Nil(), after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, rest)) -> Empty
+  ) -> Empty =
+    match atomic_start_member_location(
+      selected_start,
+      LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions),
+      rest,
+      membership
+    )
+      AtomicStartMemberHere(_) -> match failure
+        AtomicStartCandidateRejected(_, _, _, _, _, _, _, _, _, _, _, _, _) ->
+          atomic_start_candidate_rejection_excludes_trace(
+            machine,
+            position,
+            after_input,
+            history,
+            capture_context,
+            policy,
+            prefix_mode,
+            reversed_prefix,
+            state,
+            routine,
+            constraints,
+            assertion_routine,
+            assertion_markers,
+            nested_decisions,
+            AtomicPathInputExhausted(LookaroundAdmittedStateCursorWitnessHere(), empty_lookaround_admitted_cursor_suffix(n)),
+            empty_lookaround_admitted_cursor_suffix(n),
+            path
+          )
+      AtomicStartMemberThere(_, _) -> match evidence
+        AtomicStartNoRejectedEvidence(_, _, _, _, _, _, _, _, _, _, _, _, tail_failure, tail_evidence) ->
+          tail_case(AtomicStartTailPackagePacked(tail_failure, tail_evidence))
 
   ## Turn intrinsic list membership into the ordered cursor suffix consumed by
   ## the atomic refutation induction.  Membership alone does not expose the
@@ -3482,6 +3504,8 @@ mod Std.Regex.Runtime
 
   type AtomicStartTailPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), remaining: List(LookaroundAdmittedState(n)))
     AtomicStartTailPackagePacked : {@erased kind: AtomicStartFailureKind} -> (@erased failure: AtomicStartMembersRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining, kind)) -> (@erased evidence: AtomicStartNoEvidence(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining, kind)) -> AtomicStartTailPackage(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining)
+
+  typealias AtomicStartRejectedTailAt(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), remaining: List(LookaroundAdmittedState(n))) = AtomicStartTailPackage(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining)
 
   ## An active-headed rejected result retains its indexed recursive sibling
   ## tail. The child refutation remains supplied at the branch-specific

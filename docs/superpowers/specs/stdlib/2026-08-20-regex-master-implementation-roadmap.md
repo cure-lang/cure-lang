@@ -893,9 +893,21 @@ empty child input, the parent `AtomicStartCandidateRejected` index admits only
 the `AtomicPathInputExhausted` child constructor, so the canonical active-child
 contradiction can be applied without recovering an existential child failure
 tag or inspecting proof data at runtime. Duplicate/next-member locations are
-delegated through the zero-data tail continuation. This is only the active empty
+delegated through a typed tail-package continuation. This is only the active empty
 child `Here` base, not arbitrary head failure kinds or recursive `There`
 descent. The focused dependent-assertion file now passes 83 tests.
+
+The start-membership induction boundary now carries an
+`AtomicStartRejectedTailAt(...)` package to its `There` continuation. The
+package is extracted from the single rejected-result constructor, preserving
+the recursive tail refutation and no-result witness without classifying the
+existential tail failure kind. The active empty-child consumer now accepts and
+forwards that typed package as well, so a later sibling can be handled at its
+own construction site rather than discarded as a unit-valued branch. This is
+transport infrastructure, not the recursive contradiction itself: the
+non-empty-sibling `There` consumer and its active/accepted/rejected/blocked
+tail cases remain open. The focused dependent-assertion file now passes 84
+tests.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in

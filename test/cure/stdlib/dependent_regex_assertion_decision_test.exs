@@ -731,6 +731,14 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     assert source =~ "fn atomic_start_rejected_member_here_excludes_trace"
     assert Regex.match?(~r/atomic_start_rejected_member_here_excludes_trace.*?AtomicStartMemberHere.*?AtomicStartCandidateRejected.*?AtomicPathInputExhausted/s, source)
+    assert Regex.match?(~r/atomic_start_rejected_member_here_excludes_trace.*?AtomicStartNoEvidence.*?tail_case: \(AtomicStartRejectedTailAt/s, source)
+  end
+
+  test "rejected member induction exposes the typed recursive tail package" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "AtomicStartTailPackage"
+    assert Regex.match?(~r/atomic_start_rejected_member_induction\(.*?tail_case: \(AtomicStartRejectedTailAt/s, source)
   end
 
   test "rejected tail package consumes the exhausted-tail base" do
