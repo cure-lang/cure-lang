@@ -856,6 +856,14 @@ that existential child scope and cursor as one more package is a separate
 kernel-checked step. The focused dependent-assertion file remains at 78 tests
 once the new source regression is included.
 
+`AtomicStartMemberLocation` now makes the induction split explicit: matching
+`ListMemberHere` produces a head witness, while `ListMemberThere` preserves
+the tail membership witness. The helper is construction-site indexed rather
+than a Boolean membership test, so the eventual refutation proof can recurse
+on the exact sibling suffix. The focused file now passes 79 tests; the actual
+`Here` contradiction and `There` recursive descent are still the next proof
+step.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

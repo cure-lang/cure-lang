@@ -704,6 +704,14 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/AtomicStartTailPackage.*?AtomicStartMembersRefutation.*?AtomicStartNoEvidence/s, source)
   end
 
+  test "start membership has an explicit head-or-tail witness" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "type AtomicStartMemberLocation"
+    assert source =~ "fn atomic_start_member_location"
+    assert Regex.match?(~r/atomic_start_member_location.*?ListMemberHere.*?ListMemberThere/s, source)
+  end
+
   test "certified assertion decisions enforce atomic commitment", %{runtime_module: module} do
     assert apply(module, :atomic_trace_authority_rejects, [])
     assert apply(module, :certified_atomic_trace_rejects, [])

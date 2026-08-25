@@ -3177,6 +3177,24 @@ mod Std.Regex.Runtime
     ListMemberHere : ListMember(a, value, Cons(value, rest))
     ListMemberThere : (prior : ListMember(a, value, rest)) -> ListMember(a, value, Cons(other, rest))
 
+  ## Make the two cases of a selected start explicit before the refutation
+  ## induction: either the selected member is the rejected head, or its
+  ## membership witness already points into the recursive sibling tail.
+  type AtomicStartMemberLocation(a: Type) indices (value: a, head: a, rest: List(a))
+    AtomicStartMemberHere : (@erased rest: List(a)) -> AtomicStartMemberLocation(a, value, value, rest)
+    AtomicStartMemberThere : (@erased head: a) -> (@erased prior: ListMember(a, value, rest)) -> AtomicStartMemberLocation(a, value, head, rest)
+
+  @reducible
+  fn atomic_start_member_location(
+    {a: Type},
+    value: a,
+    head: a,
+    rest: List(a),
+    membership: ListMember(a, value, Cons(head, rest))
+  ) -> AtomicStartMemberLocation(a, value, head, rest) = match membership
+    ListMemberHere() -> AtomicStartMemberHere(rest)
+    ListMemberThere(prior) -> AtomicStartMemberThere(head, prior)
+
   ## Turn intrinsic list membership into the ordered cursor suffix consumed by
   ## the atomic refutation induction.  Membership alone does not expose the
   ## suffix list; this Sigma packages that suffix together with the proof that
