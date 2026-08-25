@@ -1750,6 +1750,26 @@ mod Std.Regex.Runtime
     LookaroundAdmittedStateCursorSuffixHere : (@erased equality: Equivalent(List(LookaroundAdmittedState(n)), outer, inner)) -> LookaroundAdmittedStateCursorSuffix(n, outer, inner)
     LookaroundAdmittedStateCursorSuffixDrop : (@erased head: LookaroundAdmittedState(n)) -> (suffix: LookaroundAdmittedStateCursorSuffix(n, outer, inner)) -> LookaroundAdmittedStateCursorSuffix(n, Cons(head, outer), inner)
 
+  ## A selected child suffix is either still at the rejected head or has
+  ## dropped into its sibling tail.  Keeping that split indexed lets the
+  ## recursive proof choose the child contradiction without inspecting an
+  ## erased list at runtime.
+  type AtomicPathSelectedChildLocation(n: Nat) indices (head: LookaroundAdmittedState(n), rest: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)))
+    AtomicPathSelectedChildHere : (@erased head: LookaroundAdmittedState(n)) -> (@erased rest: List(LookaroundAdmittedState(n))) -> AtomicPathSelectedChildLocation(n, head, rest, Cons(head, rest))
+    AtomicPathSelectedChildThere : (@erased head: LookaroundAdmittedState(n)) -> (@erased suffix: LookaroundAdmittedStateCursorSuffix(n, rest, current)) -> AtomicPathSelectedChildLocation(n, head, rest, current)
+
+  @reducible
+  fn atomic_path_selected_child_suffix_location(
+    {n: Nat},
+    {head: LookaroundAdmittedState(n)},
+    {rest: List(LookaroundAdmittedState(n))},
+    {current: List(LookaroundAdmittedState(n))},
+    suffix: LookaroundAdmittedStateCursorSuffix(n, Cons(head, rest), current)
+  ) -> AtomicPathSelectedChildLocation(n, head, rest, current) = match suffix
+    LookaroundAdmittedStateCursorSuffixHere(equality) -> match equality
+      reflexive() -> AtomicPathSelectedChildHere(head, rest)
+    LookaroundAdmittedStateCursorSuffixDrop(_, prior) -> AtomicPathSelectedChildThere(head, prior)
+
   type LookaroundAdmittedStateCursorAlignment(n: Nat) indices (left: List(LookaroundAdmittedState(n)), right: List(LookaroundAdmittedState(n)))
     LookaroundAdmittedCursorLeftToRight : (@erased suffix: LookaroundAdmittedStateCursorSuffix(n, left, right)) -> LookaroundAdmittedStateCursorAlignment(n, left, right)
     LookaroundAdmittedCursorRightToLeft : (@erased suffix: LookaroundAdmittedStateCursorSuffix(n, right, left)) -> LookaroundAdmittedStateCursorAlignment(n, left, right)

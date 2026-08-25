@@ -819,6 +819,17 @@ construction site; it is the alignment eliminator for the next recursive
 child/tail proof, not that proof's completion. The focused
 dependent-assertion file now passes 94 tests.
 
+The selected child suffix now has its own indexed location split,
+`AtomicPathSelectedChildLocation`, produced by the reducible helper
+`atomic_path_selected_child_suffix_location`. Its `Here` branch consumes the
+suffix equality to expose the selected head, while `There` preserves the
+exact sibling-tail suffix. The split is deliberately proof-only: an attempted
+runtime continuation over the erased alignment witness was rejected by E104
+and was not retained. The existing aligned bridge therefore remains the
+proof-only direction boundary; the next step is to consume this location in a
+fully erased child/tail eliminator. The focused dependent-assertion file now
+passes 95 tests.
+
 The next bounded tail case is now named
 `atomic_path_tail_drop_rejection_excludes_selected_suffix`. It retains the
 parent-to-selected cursor as an erased `Drop` index for the exact two-state
