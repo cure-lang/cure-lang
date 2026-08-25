@@ -170,8 +170,8 @@ defmodule Cure.Elab.MacroTypedRecordTest do
 
     assert {:error,
             {:source_context,
-             {:computed_macro_error, _meta, {:author_diagnostics, [{:macro_failure, :missing_state, []}]}},
-             _ctx} = reason} =
+             {:computed_macro_error, _meta, {:author_diagnostics, [{:macro_failure, :missing_state, []}]}}, _ctx} =
+              reason} =
              Program.elaborate(source)
 
     {diagnostic, registry} = Errors.to_diagnostic(reason, "author_diagnostic.cure", source)

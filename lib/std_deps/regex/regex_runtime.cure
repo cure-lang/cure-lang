@@ -3379,11 +3379,9 @@ mod Std.Regex.Runtime
         Std.Char.same(left_char, right_char) -> same_chars(left_rest, right_rest)
         else -> false
 
-  fn lowercased_characters(value: Char) -> List(Char) =
-    Std.String.characters(Std.Char.lowercased(value))
-
   fn caseless_same(expected: Char, actual: Char, unicode: Bool) -> Bool = pickup
-    unicode -> same_chars(lowercased_characters(expected), lowercased_characters(actual))
+    unicode ->
+      same_chars(Std.Char.lowercased_characters(expected), Std.Char.lowercased_characters(actual))
     else -> Std.Char.same(Std.Char.ascii_lowercased(expected), Std.Char.ascii_lowercased(actual))
 
   fn option_exact_predicate(expected: Char, caseless: Bool, unicode: Bool, actual: Char) -> Bool = pickup
@@ -3445,7 +3443,7 @@ mod Std.Regex.Runtime
 
   fn folded_range_match(first: Char, last: Char, actual: Char, unicode: Bool) -> Bool = pickup
     Std.Char.between(actual, first, last) -> true
-    unicode -> match Std.String.characters(Std.Char.lowercased(actual))
+    unicode -> match Std.Char.lowercased_characters(actual)
       [folded] -> Std.Char.between(folded, first, last)
       _ -> false
     else -> Std.Char.between(Std.Char.ascii_lowercased(actual), Std.Char.ascii_lowercased(first), Std.Char.ascii_lowercased(last))

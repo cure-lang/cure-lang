@@ -78,8 +78,7 @@ defmodule Cure.Elab.InterfaceMethodConflictDiagnosticTest do
       "mod Conflict.Right\n  interface Right(a)\n    fn size(value: a) -> Bool\n"
     )
 
-    assert {:error,
-            {:source_context, {:ambiguous_method, :size, [:Left, :Right]}, context} = error} =
+    assert {:error, {:source_context, {:ambiguous_method, :size, [:Left, :Right]}, context} = error} =
              Program.elaborate("""
              mod Conflict.Consumer
                use Conflict.Left

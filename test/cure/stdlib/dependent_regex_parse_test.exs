@@ -81,18 +81,13 @@ defmodule Cure.Stdlib.DependentRegexParseTest do
   test "search is leftmost, longest, typed, and reports all input partitions", %{runtime_module: module} do
     assert apply(module, :searched, []) ==
              {:some,
-              {:Match, cure_string(~c"aaa"), cure_string(~c"xx"), cure_string(~c"aaa"),
-               cure_string(~c"y"), 2, 3}}
+              {:Match, cure_string(~c"aaa"), cure_string(~c"xx"), cure_string(~c"aaa"), cure_string(~c"y"), 2, 3}}
 
     assert apply(module, :searched_leftmost_longest, []) ==
-             {:some,
-              {:Match, cure_string(~c"aa"), cure_string(~c"x"), cure_string(~c"aa"),
-               cure_string(~c"y"), 1, 2}}
+             {:some, {:Match, cure_string(~c"aa"), cure_string(~c"x"), cure_string(~c"aa"), cure_string(~c"y"), 1, 2}}
 
     assert apply(module, :searched_unicode_positions, []) ==
-             {:some,
-              {:Match, cure_string(~c"éé"), cure_string(~c"λ"), cure_string(~c"éé"),
-               cure_string(~c"x"), 1, 2}}
+             {:some, {:Match, cure_string(~c"éé"), cure_string(~c"λ"), cure_string(~c"éé"), cure_string(~c"x"), 1, 2}}
 
     assert apply(module, :search_matches, [])
     refute apply(module, :search_misses, [])
@@ -105,8 +100,9 @@ defmodule Cure.Stdlib.DependentRegexParseTest do
   test "staged literals and unstaged Pattern proofs agree on exhaustive small subjects", %{runtime_module: module} do
     subjects =
       for size <- 0..4,
-          word <- List.duplicate(~c"abc", size)
-                   |> List.foldl([[]], fn alphabet, words -> for c <- alphabet, w <- words, do: [c | w] end),
+          word <-
+            List.duplicate(~c"abc", size)
+            |> List.foldl([[]], fn alphabet, words -> for c <- alphabet, w <- words, do: [c | w] end),
           do: Enum.reverse(word)
 
     for subject <- subjects do

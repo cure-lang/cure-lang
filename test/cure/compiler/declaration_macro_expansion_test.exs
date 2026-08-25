@@ -569,8 +569,8 @@ defmodule Cure.Compiler.DeclarationMacroExpansionTest do
     # definition it was checking; the obligation payload is unchanged.
     assert {:error,
             {:codegen_error,
-             {:source_context,
-              {:macro_capture_obligation_failed, "gated", "BeamEncode", "value", {:no_instance, _, _}}, _ctx}}} =
+             {:source_context, {:macro_capture_obligation_failed, "gated", "BeamEncode", "value", {:no_instance, _, _}},
+              _ctx}}} =
              Cure.Compiler.compile_and_load(source, emit_events: false)
   end
 

@@ -59,11 +59,11 @@ defmodule Cure.Compiler.CanonicalModulePipelineGateTest do
              request(:new, [[entry_point: :compiler_file, mystery: true]])
   end
 
-  test "the stabilization gate permits exactly the reviewed stdlib use SCC" do
+  test "the stabilization gate permits no stdlib use cycle" do
     paths = Path.wildcard("lib/std/**/*.cure")
 
     assert {:ok, graph} = Cure.Compiler.DepGraph.scan(paths)
-    assert {:ok, _ordered, [_one_w086]} = Cure.Compiler.DepGraph.order(graph)
+    assert {:ok, _ordered, []} = Cure.Compiler.DepGraph.order(graph)
 
     cyclic_components =
       graph
@@ -73,8 +73,12 @@ defmodule Cure.Compiler.CanonicalModulePipelineGateTest do
       end)
       |> Enum.reject(&match?([_single], &1))
 
-    # This is one semantic text/literal component, not a blanket cycle
-    # exemption. A new cycle or a membership change requires explicit review.
-    assert cyclic_components == [["Std.Char", "Std.Literal", "Std.String"]]
+    # The text/literal layer was the one reviewed component here
+    # (`Std.Char` imported `Std.Literal` for its character-literal instance and
+    # `Std.String` for case conversion, while both import `Std.Char` back).
+    # Those two obligations now live with the modules that own them, so the
+    # stdlib `use` graph is acyclic and a new cycle fails this gate instead of
+    # being waved through as already reviewed.
+    assert cyclic_components == []
   end
 end

@@ -99,10 +99,25 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
   test "accepted consuming paths are indexed by an active source thread" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
-    assert Regex.match?(~r/LookaroundAcceptedNextActive\s*:.*?\)\s*->\s*LookaroundAcceptingPath\([^\n]*ThreadActive\(source\)/s, source)
-    assert Regex.match?(~r/LookaroundAcceptedNextAccepted\s*:.*?\)\s*->\s*LookaroundAcceptingPath\([^\n]*ThreadActive\(source\)/s, source)
-    assert Regex.match?(~r/LookaroundPrefixNextActive\s*:.*?\)\s*->\s*LookaroundPrefixPath\([^\n]*ThreadActive\(source\)/s, source)
-    assert Regex.match?(~r/LookaroundPrefixNextAccepted\s*:.*?\)\s*->\s*LookaroundPrefixPath\([^\n]*ThreadActive\(source\)/s, source)
+    assert Regex.match?(
+             ~r/LookaroundAcceptedNextActive\s*:.*?\)\s*->\s*LookaroundAcceptingPath\([^\n]*ThreadActive\(source\)/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/LookaroundAcceptedNextAccepted\s*:.*?\)\s*->\s*LookaroundAcceptingPath\([^\n]*ThreadActive\(source\)/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/LookaroundPrefixNextActive\s*:.*?\)\s*->\s*LookaroundPrefixPath\([^\n]*ThreadActive\(source\)/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/LookaroundPrefixNextAccepted\s*:.*?\)\s*->\s*LookaroundPrefixPath\([^\n]*ThreadActive\(source\)/s,
+             source
+           )
   end
 
   test "empty search refutations exclude accepting paths" do

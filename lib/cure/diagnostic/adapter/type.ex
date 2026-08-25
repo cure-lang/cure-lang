@@ -3951,8 +3951,7 @@ defmodule Cure.Diagnostic.Adapter.Type do
       provenance: Keyword.get(opts, :provenance, []),
       suggestions: [
         %Suggestion{
-          message:
-            "Write a `#{expected_surface}` value here, or implement `#{interface}` for `#{expected_surface}`",
+          message: "Write a `#{expected_surface}` value here, or implement `#{interface}` for `#{expected_surface}`",
           applicability: :manual
         }
       ],

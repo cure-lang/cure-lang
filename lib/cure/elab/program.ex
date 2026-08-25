@@ -1465,10 +1465,11 @@ defmodule Cure.Elab.Program do
     # instance that reached this provider's env transitively is owned by neither
     # the provider nor anything its owned bodies call — `Std.Equatable`'s env
     # carries `ExpressibleByCharacterLiteral for Char`, whose method is owned by
-    # `Std.Char` and reached from no kept body. Seeding only `owned_def_keys` drops
-    # it and leaves the ref dangling: the slice still ANSWERS instance resolution
-    # with a global that is no longer a def, so a module writing `c == '|'` fails
-    # far away with `{:unknown_global, :"Std.Char#__impl_…_from_character_literal"}`,
+    # `Std.Literal` and reached from no kept body. Seeding only `owned_def_keys`
+    # drops it and leaves the ref dangling: the slice still ANSWERS instance
+    # resolution with a global that is no longer a def, so a module writing
+    # `c == '|'` fails far away with
+    # `{:unknown_global, :"Std.Literal#__impl_…_from_character_literal"}`,
     # or — at a literal initializer — with an unsolved `{:hole, "__pending__"}` head.
     keep_keys = reachable_global_closure(env.defs, owned_def_keys ++ coherence_method_globals(env))
     kept_defs = Map.take(env.defs, keep_keys)
@@ -1497,9 +1498,27 @@ defmodule Cure.Elab.Program do
     kept_equations = Map.take(env.equations, def_names)
     equation_defs = kept_equations |> Map.values() |> List.flatten() |> Enum.map(& &1.theorem)
 
+    # An item-level `@prelude` names a TYPE, and a type ambient without its
+    # conformances is not usable: `"hi"` is checked by normalising
+    # `from_string_literal(StringLiteral(…))`, and `a <> b` dispatches
+    # `Std.Semigroup.combine` — both live in instances declared for
+    # `Std.String#String`, not in the `String` declaration itself. Those
+    # instances used to arrive here only by accident, through a whole-module
+    # provider that transitively imported `Std.String` (`Std.Literal` reached
+    # it via `Std.Char`), so removing that import silently un-ambiented every
+    # string literal in a module with no `use`. The conformances of a preluded
+    # head travel WITH it instead: exactly the instances for the kept families,
+    # the interfaces they implement, and the transitive closure of globals
+    # their method bodies name (`concat`, `characters`, …). The rest of the
+    # provider's function surface stays out, which is the point of an
+    # item-granular marker, and the slice still confers no bare visibility.
+    coherence = restrict_coherence_to_heads(env.coherence, fam_names)
+    conformance_defs = reachable_global_closure(env.defs, coherence_method_globals(%Env{env | coherence: coherence}))
+    kept_interfaces = Map.take(env.interfaces, coherence_interfaces(coherence))
+
     %Env{
       Env.empty()
-      | defs: Map.take(env.defs, def_names ++ equation_defs ++ Map.keys(kept_ctors)),
+      | defs: Map.take(env.defs, def_names ++ equation_defs ++ Map.keys(kept_ctors) ++ conformance_defs),
         families: Map.take(env.families, fam_names),
         ctors: Map.take(env.ctors, Map.keys(kept_ctors)),
         ctor_to_family: kept_ctors,
@@ -1508,8 +1527,49 @@ defmodule Cure.Elab.Program do
         equations: kept_equations,
         certified: env.certified,
         totality_certified: env.totality_certified,
+        coherence: coherence,
         module_owner: env.module_owner
     }
+    |> Env.with_interfaces(kept_interfaces)
+  end
+
+  # The instances registered for one of `heads`, anonymous and named alike. A
+  # registry with no surviving entry is dropped entirely rather than kept as an
+  # empty struct, so a slice that prelude-marks a plain type still merges as it
+  # did before.
+  defp restrict_coherence_to_heads(nil, _heads), do: nil
+
+  defp restrict_coherence_to_heads(%Coherence{} = coherence, heads) do
+    kept = MapSet.new(heads)
+    keep? = fn ref -> MapSet.member?(kept, Map.get(ref, :head)) end
+
+    anon = Map.filter(coherence.anon, fn {_key, ref} -> keep?.(ref) end)
+    named = Map.filter(coherence.named, fn {_name, ref} -> keep?.(ref) end)
+
+    if anon == %{} and named == %{} do
+      nil
+    else
+      %Coherence{
+        anon: anon,
+        named: named,
+        anon_origins: Map.take(coherence.anon_origins, Map.keys(anon)),
+        named_origins: Map.take(coherence.named_origins, Map.keys(named))
+      }
+    end
+  end
+
+  # The interfaces named by a coherence registry. Method dispatch reads the
+  # interface table (`Interface.for_method/2`), so an instance kept without its
+  # interface answers nothing.
+  defp coherence_interfaces(nil), do: []
+
+  defp coherence_interfaces(%Coherence{} = coherence) do
+    for table <- [coherence.anon, coherence.named],
+        {_key, ref} <- table,
+        iface = Map.get(ref, :iface),
+        not is_nil(iface),
+        uniq: true,
+        do: iface
   end
 
   # Every method global named by an instance in `env`'s coherence that is a def in
@@ -3673,7 +3733,8 @@ defmodule Cure.Elab.Program do
 
   # Prelude providers and everything they explicitly import are the bootstrap
   # closure. Injecting a provider back into one of its own dependencies would
-  # manufacture a cycle (for example Std.String -> Std.Char -> Std.String).
+  # manufacture a cycle (Std.String imports Std.Char, so handing Std.String's
+  # ambient slice to Std.Char would close one).
   # Derive the closure from markers and source imports so adding a new provider
   # never requires editing a compiler-owned name list.
   defp prelude_bootstrap?(module_name),
@@ -4424,7 +4485,7 @@ defmodule Cure.Elab.Program do
   # yet", so it is strictly LESS information than an elaborated body for the same
   # key and must never displace one. A module's published env can carry that
   # placeholder for a def it does not own (`Std.String` holds a pending record for
-  # `Std.Char`'s `ExpressibleByCharacterLiteral` method), and letting it win
+  # `Std.Literal`'s `ExpressibleByCharacterLiteral` method), and letting it win
   # deleted a body the ambient prelude had already supplied. Nothing observes that
   # at merge time; it surfaces at the next site that must REDUCE the body, as a
   # literal initializer that will not normalise.

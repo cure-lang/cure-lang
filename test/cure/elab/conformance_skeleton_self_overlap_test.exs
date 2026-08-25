@@ -42,7 +42,7 @@ defmodule Cure.Elab.ConformanceSkeletonSelfOverlapTest do
     %{
       iface: :Equatable,
       head: @head,
-      methods: %{:"==" => :"Std.Char#__impl_Equatable_Std.Char#Char_=="},
+      methods: %{:== => :"Std.Char#__impl_Equatable_Std.Char#Char_=="},
       as: nil
     }
   end
@@ -53,7 +53,7 @@ defmodule Cure.Elab.ConformanceSkeletonSelfOverlapTest do
     %{
       iface: :Equatable,
       head: @head,
-      methods: %{:"==" => :"Other.Module#__impl_Equatable_Std.Char#Char_=="},
+      methods: %{:== => :"Other.Module#__impl_Equatable_Std.Char#Char_=="},
       as: nil
     }
   end

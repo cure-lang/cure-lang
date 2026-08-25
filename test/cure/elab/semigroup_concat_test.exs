@@ -91,8 +91,8 @@ defmodule Cure.Elab.SemigroupConcatTest do
 
     reason =
       {:source_context,
-       {:operator_provider_not_in_scope,
-        %{operator: :<>, method: :combine, provider: "Std.Semigroup"}}, %{span: span, checking: :go}}
+       {:operator_provider_not_in_scope, %{operator: :<>, method: :combine, provider: "Std.Semigroup"}},
+       %{span: span, checking: :go}}
 
     {diagnostic, registry} =
       Cure.Compiler.Errors.to_diagnostic(reason, "missing_semigroup.cure", src)

@@ -51,8 +51,21 @@ defmodule Cure.Elab.CanonicalModuleLoaderTest do
   # file set: `Cure.Compiler.DepGraph`. Every driver (`mix cure.compile`,
   # `Cure.CLI`, `Cure.Project`) renders its walks as the W086 warning.
   test "an import cycle elaborates through canonical interfaces", %{root: root} do
-    a = write_module(root, "a.cure", "Loader.A", "use Loader.B\n  fn from_a() -> Int = 1\n  fn a_uses_b() -> Int = from_b()")
-    b = write_module(root, "b.cure", "Loader.B", "use Loader.A\n  fn from_b() -> Int = 2\n  fn b_uses_a() -> Int = from_a()")
+    a =
+      write_module(
+        root,
+        "a.cure",
+        "Loader.A",
+        "use Loader.B\n  fn from_a() -> Int = 1\n  fn a_uses_b() -> Int = from_b()"
+      )
+
+    b =
+      write_module(
+        root,
+        "b.cure",
+        "Loader.B",
+        "use Loader.A\n  fn from_b() -> Int = 2\n  fn b_uses_a() -> Int = from_a()"
+      )
 
     assert {:ok, env} =
              Program.elaborate("mod Loader.Main\n  use Loader.A\n  fn result() -> Int = a_uses_b()\nend\n")

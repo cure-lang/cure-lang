@@ -8,13 +8,13 @@ defmodule Cure.Elab.PreludeSliceCoherenceClosureTest do
   instances are cumulative rather than owned — while restricting the def surface
   to what the provider OWNS plus the globals those owned bodies reach. Coherence
   entries were not part of that seed, so an instance that arrived in the
-  provider's env transitively (`Std.Char`'s `ExpressibleByCharacterLiteral`,
+  provider's env transitively (`Std.Literal`'s `ExpressibleByCharacterLiteral`,
   `Std.String`'s `Semigroup`, …) survived as a ref whose mangled method global
   had been dropped.
 
   Nothing reports a dangling ref at slice time. It surfaces much later and much
   further away, as `{:unknown_global,
-  :"Std.Char#__impl_ExpressibleByCharacterLiteral_Std.Char#Char_from_character_literal"}`
+  :"Std.Literal#__impl_ExpressibleByCharacterLiteral_Std.Char#Char_from_character_literal"}`
   in a module that merely wrote `c == '|'` — or, when the site is a literal
   initializer, as `literal_initializer_not_compile_time_value` with an unsolved
   `{:hole, "__pending__"}` in the head. Five stdlib modules failed the first way

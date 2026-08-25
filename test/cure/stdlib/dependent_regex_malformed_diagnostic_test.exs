@@ -17,8 +17,8 @@ defmodule Cure.Stdlib.DependentRegexMalformedDiagnosticTest do
 
       assert {:error,
               {:source_context,
-               {:computed_macro_error, _meta,
-                {:author_diagnostics, [{:macro_failure, ^expected, _arguments}]}}, _context} = reason} =
+               {:computed_macro_error, _meta, {:author_diagnostics, [{:macro_failure, ^expected, _arguments}]}},
+               _context} = reason} =
                Program.elaborate(source),
              "expected #{inspect(pattern)} to reject as #{inspect(expected)}"
 
@@ -42,8 +42,8 @@ defmodule Cure.Stdlib.DependentRegexMalformedDiagnosticTest do
 
       assert {:error,
               {:source_context,
-               {:computed_macro_error, _meta,
-                {:author_diagnostics, [{:macro_failure, ^expected, _arguments}]}}, _context} = reason} =
+               {:computed_macro_error, _meta, {:author_diagnostics, [{:macro_failure, ^expected, _arguments}]}},
+               _context} = reason} =
                Program.elaborate(source)
 
       {diagnostic, _registry} = Errors.to_diagnostic(reason, "nofile", source)

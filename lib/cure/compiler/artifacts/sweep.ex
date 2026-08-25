@@ -401,6 +401,7 @@ defmodule Cure.Compiler.Artifacts.Sweep do
     checked.components
     |> Enum.filter(&(length(&1) > 1))
     |> Enum.map(&canonical_cycle_hops(&1, checked.manifest))
+    |> Enum.reject(&is_nil/1)
   end
 
   defp canonical_cycle_hops(component, manifest) do
@@ -412,6 +413,7 @@ defmodule Cure.Compiler.Artifacts.Sweep do
         targets =
           manifest.dependencies
           |> Map.get(identity, [])
+          |> Enum.filter(&(&1.kind == :use_import))
           |> Enum.map(& &1.target)
           |> Enum.filter(&MapSet.member?(members, &1))
           |> Enum.uniq()
@@ -420,23 +422,28 @@ defmodule Cure.Compiler.Artifacts.Sweep do
         {identity, targets}
       end)
 
-    path = find_cycle_path(start, start, adjacency, MapSet.new([start])) || [start, start]
+    case find_cycle_path(start, start, adjacency, MapSet.new([start])) do
+      nil ->
+        nil
 
-    path
-    |> Enum.with_index()
-    |> Enum.map(fn {identity, index} ->
-      entry = Map.fetch!(manifest.entries, identity)
-      next = Enum.at(path, index + 1) || Enum.at(path, 1)
+      path ->
+        path
+        |> Enum.with_index()
+        |> Enum.map(fn {identity, index} ->
+          entry = Map.fetch!(manifest.entries, identity)
+          next = Enum.at(path, index + 1) || Enum.at(path, 1)
 
-      line =
-        manifest.dependencies
-        |> Map.get(identity, [])
-        |> Enum.find_value(entry_line(entry), fn dependency ->
-          if dependency.target == next, do: get_in(dependency, [:span, :line]) || entry_line(entry)
+          line =
+            manifest.dependencies
+            |> Map.get(identity, [])
+            |> Enum.filter(&(&1.kind == :use_import))
+            |> Enum.find_value(entry_line(entry), fn dependency ->
+              if dependency.target == next, do: get_in(dependency, [:span, :line]) || entry_line(entry)
+            end)
+
+          %{module: entry.module_name, path: entry.source_path, line: line}
         end)
-
-      %{module: entry.module_name, path: entry.source_path, line: line}
-    end)
+    end
   end
 
   defp find_cycle_path(current, start, adjacency, visited) do

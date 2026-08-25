@@ -128,6 +128,17 @@ mod Std.String
   fn lowercased(s: String) -> String = downcase(s)
   fn uppercased(s: String) -> String = upcase(s)
 
+  ## Case conversion of a single character. One scalar may map to several
+  ## (uppercasing `'ß'` yields `"SS"`), so the result is a `String` and not a
+  ## `Char`. `Std.Char` supplies the Unicode mapping as a `List(Char)`; the
+  ## nominal `String` is assembled here because `Std.Char` sits below this
+  ## module and cannot name the type.
+  fn lowercased_character(c: Char) -> String =
+    from_characters(Std.Char.lowercased_characters(c))
+
+  fn uppercased_character(c: Char) -> String =
+    from_characters(Std.Char.uppercased_characters(c))
+
   # -- Inspection -------------------------------------------------------------
 
   fn has_prefix(s: String, prefix: String) -> Bool = has_prefix_chars(as_charlist(s), as_charlist(prefix))
