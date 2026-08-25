@@ -631,10 +631,10 @@ Each of these was reproduced against the current tree.
 
 | File | Owns |
 |---|---|
-| `lib/cure/compiler/parser.ex:11117` | `parse_macro_def` — the container |
-| `lib/cure/compiler/parser.ex:11512` | the member dispatch table of §2 |
-| `lib/cure/compiler/parser.ex:11609` | `syntax family` |
-| `lib/cure/compiler/parser.ex:12560` | rule segments, holes, `...`, `( … )?` |
+| `lib/cure/compiler/parser.ex:11471` | `parse_macro_def` — the container |
+| `lib/cure/compiler/parser.ex:11866` | the member dispatch table of §2 |
+| `lib/cure/compiler/parser.ex:11963` | `syntax family` |
+| `lib/cure/compiler/parser.ex:12920` | rule segments, holes, `...`, `( … )?` |
 | `lib/cure/compiler/macro_family.ex` | family validation and derived record types |
 | `lib/cure/compiler/macro_validate.ex` | the self-proving obligations of §9 |
 | `lib/cure/compiler/macro_syntax.ex` | reflection: parser AST ⟷ `Std.Syntax` |

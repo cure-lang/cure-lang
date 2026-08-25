@@ -38,7 +38,7 @@ against in tests. Sections:
 - Application loaded / started state.
 - Count of loaded `Cure.Std.*` modules.
 - Pipeline event-bus size.
-- Protocol registry size.
+- Type system label (`"dependent Core"`).
 - UTC snapshot timestamp.
 
 ### BEAM / OTP
@@ -78,8 +78,11 @@ When the root has no `Cure.toml` the section reads
 error.
 
 ### Runtime
-- Condensed `Cure.Observe.Top` snapshot: supervisor / actor / FSM
-  counts plus the top five supervisors.
+- Always reports unavailable. The `Cure.Observe.Top` supervisor/actor/FSM
+  snapshot this section used to render depended on the classic-pipeline
+  container runtimes, which were removed; the section is kept as a
+  placeholder (`(Cure runtime not available in this context)`) pending a
+  dependent-pipeline replacement.
 
 ### Doctor
 - Severity counters from `Cure.Doctor.run/1` (info / warning /

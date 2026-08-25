@@ -1,9 +1,16 @@
 # cure bless
 
-`cure bless` is a Socratic type-error assistant that landed in
+> **Removed.** `cure bless` depended on `Cure.Types.Checker`, the classic
+> type checker retired when the compiler moved to the dependent-only
+> pipeline (see the Unreleased section of `CHANGELOG.md`). `Cure.Bless`,
+> `Cure.Bless.Advisor`, the `mix cure.bless` task, and the REPL `:bless`
+> command no longer exist in the tree. This page is kept to record the
+> pre-removal design in case a dependent-pipeline equivalent is built later.
+
+`cure bless` was a Socratic type-error assistant that landed in
 **v0.28.0**. For each type or refinement error in a `.cure` file it
-displays the diagnostic, explains what went wrong in one sentence,
-proposes the best available fix, and prompts the user for permission
+displayed the diagnostic, explained what went wrong in one sentence,
+proposed the best available fix, and prompted the user for permission
 before touching anything on disk.
 
 ## CLI

@@ -52,7 +52,7 @@ Start phases are therefore a manifest-level feature. `[application].start_phases
 `Cure.Project.compile_project/2` scans every `.cure` file under `lib/` and fails if more than one `app` container is declared:
 
 ```
-error: duplicate application (E051)
+error: duplicate application
  --> Cure.toml
   | more than one `app` container in the project:
   | lib/foo_app.cure -> app Foo

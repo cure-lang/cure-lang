@@ -64,8 +64,8 @@ Metastatic's cross-language analysis tools.
   `cure release` subcommand (also `mix cure.release`) packages the
   compiler output as a bootable BEAM release under
   `_build/cure/rel/<name>/`. `Std.App` exposes `ensure_all_started`,
-  `start`, `stop`, `get_env`, `put_env`, `which_applications`,
-  `loaded_applications`, and `start_phase` from Cure source
+  `stop`, `env`, `env_int`, `env_atom`, `env_bool`, and `env_string`
+  from Cure source
 - **Melquiades Operator** (v0.25.0) -- `pid <-| message` (Unicode alias
   `pid ✉ message`) is library-defined sugar for `Std.Otp.tell`; it checks the
   message against the indexed process handle and returns `Effect(Unit)`
@@ -183,8 +183,6 @@ module.my_function(args)
   into the output directory; threads metadata from the container
   and `[application]` (`vsn`, `applications`, `included_applications`,
   `registered`, `env`, `start_phases`)
-- `Cure.App.Builtins` -- FFI bridge wiring `Std.App` to
-  `:application` with plain-atom return shapes
 - `Cure.Release` -- builds a bootable BEAM release under
   `_build/cure/rel/<name>/`: `.rel`/`start.boot`/`start.script`
   assembly via `:systools`, `sys.config` / `vm.args` copying, and
@@ -208,14 +206,19 @@ Compile it with `mix cure.compile_stdlib`.
 - **`Std.Core`** -- identity, composition, application, and other foundational
   combinators. `Option` and `Result` now live in their canonical
   `Std.Option` and `Std.Result` modules
-- **`Std.List`** (25 functions) -- length, head, tail, last, cons, append,
-  concat, reverse, map, filter, foldl, foldr, flat_map, zip_with, nth, take,
-  drop, contains, find, any, all, sum, product, count
+- **`Std.List`** (29 functions) -- length, is_empty, head, tail, last, cons,
+  append, concat, reverse, map, filter, foldl, foldr, flat_map, zip_with, nth,
+  at, set_at, take, drop, contains, find, any, all, uncons, split_first, sum,
+  product, count
 - **`Std.Math`** (18 functions) -- abs, sqrt, pow, log, log2, log10, ceil,
   floor, round, pi, max, min, clamp, sign, negate, is_even, is_odd, safe_div
-- **`Std.String`** (17 functions) -- length, is_empty, concat, downcase, upcase,
-  trim, from_int, from_float, from_atom, to_int, to_float, to_atom, split,
-  repeat, reverse
+- **`Std.String`** (34 functions) -- characters, from_characters, length,
+  is_empty, concat, downcase, upcase, lowercased, uppercased,
+  lowercased_character, uppercased_character, has_prefix, has_suffix,
+  contains, first, last, prefix, suffix, drop_first, drop_last, trim,
+  trim_leading, trim_trailing, split, split_on, from_int, from_float,
+  from_atom, to_int, to_float, to_existing_atom, unsafe_to_atom, repeat,
+  reverse (`to_atom` was split into `to_existing_atom` and `unsafe_to_atom`)
 - **`Std.Tuple`** -- canonical flat tuple types and projections:
   `first`, `second`, `swap`, and n-ary accessors such as `third`
 - **`Std.Optic`** -- statically typed lenses, affine traversals, and
@@ -228,25 +231,25 @@ Compile it with `mix cure.compile_stdlib`.
   kernel-checked `reflexive`, `sym`, `trans`, and `cong` proofs
 - **`Std.Io`** (8 functions) -- put_chars, println, print, int_to_string,
   float_to_string, atom_to_string, print_int, print_float
-- **`Std.System`** (10 functions) -- monotonic_time, system_time, timestamp_ms,
-  timestamp_us, self, node, system_info, otp_version, cpu_count, exit
-- **`Std.Actor`** (8 functions, v0.25.0) -- spawn, spawn_with_payload,
-  spawn_named, stop, send, get_state, is_alive, lookup. Cure-facing
-  surface for compiled actor modules; backed by `Cure.Actor.Builtins`
-  and `Cure.Actor.Runtime`
-- **`Std.Process`** (9 functions, v0.25.0) -- link, unlink, monitor,
-  demonitor, trap_exit, exit, self, is_alive. Raw BEAM process
-  primitives; backed by `:erlang` BIFs with thin wrappers in
-  `Cure.Process.Builtins`
-- **`Std.Supervisor`** (7 functions, v0.25.0) -- start, start_with, stop,
-  which_children, count_children, lookup, list. Convenience API over
-  compiled supervisor trees; backed by `Cure.Sup.Builtins` and
-  `Cure.Sup.Runtime`
-- **`Std.App`** (9 functions, v0.26.0) -- ensure_all_started, start,
-  stop, get_env, get_env with default, put_env, which_applications,
-  loaded_applications, start_phase. Cure-facing surface for the
-  generated `Cure.App.<Name>` application module; backed by
-  `Cure.App.Builtins` (thin wrappers over `:application`)
+- **`Std.System`** (8 functions) -- monotonic_time, system_time, timestamp_ms,
+  timestamp_us, node, otp_version, cpu_count, exit
+- **`Std.Actor`** (v0.25.0; rebuilt as a source macro in 0.34) --
+  defines the `actor` and `behavior` macros, which expand a
+  declarative state/message/query spec into a checked `GenServer`
+  lifted module. The generated actor module itself, not `Std.Actor`,
+  exposes `start`, `start_link`, `send`, `request`, and `stop`
+- **`Std.Process`** (6 functions) -- self, monitor, demonitor, link,
+  unlink, is_alive. A compatibility facade over `Std.Otp`'s indexed
+  process handles and effects; new code should call `Std.Otp` directly
+- **`Std.Supervisor`** (v0.25.0; rebuilt as a source macro in 0.34) --
+  defines the `sup` macro plus the restart/shutdown/strategy
+  vocabulary (`permanent`, `transient`, `temporary`, `brutal_shutdown`,
+  `shutdown_after`, `one_for_one`, `one_for_all`, `rest_for_one`, ...)
+  and child-spec builders it expands into
+- **`Std.App`** (7 functions) -- ensure_all_started, stop, env,
+  env_int, env_atom, env_bool, env_string. Effect-typed wrappers over
+  `:application`, alongside the `app` macro described on the
+  [Applications](/applications) page
 
 ## Examples
 

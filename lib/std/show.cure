@@ -22,8 +22,8 @@ mod Std.Show
 
   ## Group tag consumed by `Cure.Stdlib.Preload`.
 
-  ## `String` is `List(Char)`; its module supplies the type alias the
-  ## signatures below name. `<>` in the instance bodies desugars to
+  ## `String` is nominal, not a `List(Char)` alias; its module supplies the
+  ## type the signatures below name. `<>` in the instance bodies desugars to
   ## `Std.Semigroup.combine`, so that interface must be in scope too.
   use Std.String
   use Std.Semigroup

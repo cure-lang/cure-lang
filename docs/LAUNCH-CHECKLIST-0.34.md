@@ -92,9 +92,11 @@ before the tag, because it cannot land after one without a 0.35.
       and confirm the "Breaking changes" list in `ROADMAP-0.34.md` is fully
       mirrored there.
 
-- [ ] Decide the fate of the root-level `AUTOPILOT-*.md` reports (10 files).
-      They read as internal working notes; either fold their conclusions into
-      the changelog/roadmap or move them out of the repo root before the tag.
+- [ ] ~~Decide the fate of the root-level `AUTOPILOT-*.md` reports (10 files).~~
+      No longer applicable: `ls AUTOPILOT-*.md` at the repo root now returns no
+      matches, so those files have already been removed (or their conclusions
+      folded elsewhere). Confirm nothing they recorded still needs to land in
+      the changelog/roadmap before closing this item.
 
 ---
 

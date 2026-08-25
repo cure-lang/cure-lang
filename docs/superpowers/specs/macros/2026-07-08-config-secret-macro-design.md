@@ -9,7 +9,7 @@ consumed by
 (§6, IFC × transport) and the fleet spec (§11.8). Built as a `macro` (§5):
 `config` is Tier-1 declarative data, `secret` is Tier-2 sugar over the
 Final-Core Security grade axis
-([`2026-07-07-final-core-grammar-design.md`](../2026-07-07-final-core-grammar-design.md)
+([`2026-07-07-final-core-grammar-design.md`](../kernel/2026-07-07-final-core-grammar-design.md)
 §B.3). Zero compiler special-casing; zero TCB delta.
 
 ---

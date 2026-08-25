@@ -44,43 +44,40 @@ The erased runtime representation is the constructor shape `:empty` and
 
 ### `Std.Equal`
 
-Source: `lib/std/equal.cure`
+Source: `lib/std/equal.cure` -- this module has since been removed entirely
+(folded into `Std.Equatable`; see `lib/cure/migrate/rules/removed_module.ex`).
+The description below records what it looked like before removal.
 
 `Std.Equal` used to document `Eq(T, a, b)` proofs, erased equality values, and
-rewrite behavior. The exported functions return plain `Atom`:
+rewrite behavior. The exported functions returned plain `Atom`:
 
 - `refl(_x: T) -> Atom`
 - `sym(_eq: Atom) -> Atom`
 - `trans(_p: Atom, _q: Atom) -> Atom`
 - `cong(_f: T -> U, _eq: Atom) -> Atom`
 
-The stdlib comments now mark this as a legacy equality-token API. The runtime
-value is always `:cure_refl`, and there is no per-call kernel proof validation
-in this module.
+The stdlib comments marked this as a legacy equality-token API. The runtime
+value was always `:cure_refl`, and there was no per-call kernel proof
+validation in this module.
 
-### `Std.Proof`
+### `Std.Proof` (resolved)
 
 Source: `lib/std/proof.cure`
 
-`Std.Proof` contains law-shaped definitions returning `Eq(...)`-looking types.
-The legacy checker only enforces a proof-shaped return type for proof
-containers. It does not validate the stated proposition in the trusted kernel.
+`Std.Proof` used to contain law-shaped definitions returning `Eq(...)`-looking
+types, checked only by the legacy checker's proof-shaped-return-type rule
+rather than validated in the trusted kernel (examples formerly included
+`plus_zero(_n: Int) -> Eq(Int, n, n)`, `zero_plus`, and a "commutativity" law
+`plus_comm(_a: Int, _b: Int) -> Eq(Int, a, a)` that was weaker than its name
+suggested).
 
-The legacy type representation also accepts any atom as an inhabitant of
-`Eq(...)` so proof functions can return `:cure_refl` directly. That makes these
-functions proof-shaped, but not proof-checked in the sense required by a
-trusted dependent kernel.
-
-Examples:
-
-- `plus_zero(_n: Int) -> Eq(Int, n, n)`
-- `zero_plus(_n: Int) -> Eq(Int, n, n)`
-- `plus_comm(_a: Int, _b: Int) -> Eq(Int, a, a)`
-- `append_nil(_xs: List(T)) -> Eq(List(T), xs, xs)`
-- `map_id(_xs: List(T)) -> Eq(List(T), xs, xs)`
-
-Several of these types are also weaker than their comments suggest: for
-example, `plus_comm` is documented as commutativity but states `Eq(Int, a, a)`.
+The module has since been rewritten. Every function --
+`plus_zero_right(n) -> Equivalent(Nat, plus(n, Z), n)`,
+`plus_succ_right(m, n) -> Equivalent(Nat, plus(m, S(n)), S(plus(m, n)))`, and
+`plus_comm(m, n) -> Equivalent(Nat, plus(m, n), plus(n, m))` -- is typed with
+`Std.Equivalent.Equivalent` and proved by induction over `Std.Nat`, closing
+each case with `reflexive`/`rewrite`. These are proof-checked by the trusted
+dependent kernel, not merely proof-shaped.
 
 ### `Std.CRDT`
 
@@ -93,15 +90,20 @@ laws, but no trusted Core proof obligations are emitted yet.
 
 ## Borderline: Real Refinements, Not Kernel Dependent Types
 
-### Refinement types (removed)
+### Refinement types (`Std.Refine`)
 
-Formerly `lib/std/refine.cure`.
+Source: `lib/std/refine.cure`
 
-The refinement-type aliases (`NonZero`, `Positive`, `Percentage`,
-`Probability`, ...) and the legacy SMT-backed refinement checker have been
-removed, pending SMTCoq-style proof reconstruction. They were never
-trusted-kernel dependent types; this entry is kept only to record that the
-feature and its stdlib module are gone.
+The refinement-type aliases (`NonZero`, `Positive`, `Negative`,
+`NonNegative`, `NonPositive`, `Percentage`, `PositiveFloat`, `Probability`,
+...) are back, no longer SMT-backed. `{x: T | condition}` is now an ordinary
+kernel-checked dependent pair (`Sigma`-backed): `refine/4` pairs a value with
+compiler-checked evidence of the predicate, and `refined_value/3` /
+`refinement_proof/3` project the value and its evidence back out. There is no
+solver involved and no separate SMT-backed refinement-subtype checker, so this
+is a trusted-kernel dependent type after all; this entry is kept only to
+record that the earlier removal described in prior revisions of this document
+was later reversed.
 
 ## Routing Implication
 

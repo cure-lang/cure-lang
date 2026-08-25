@@ -16,20 +16,29 @@ defmodule Cure.Migrate.Rules.ProtoToInterface do
 
   The plan assigned `:machine`, which would let `cure build` normalize the
   rewrite in-memory (`Cure.Migrate.commit/4` folds `:machine` rewrites under
-  `:safe_only`, the mode `Cure.Compiler` uses at `lib/cure/compiler.ex:264`).
-  That is NOT safe today: `proto`/`impl` (`:protocol`/`:trait` containers) are
-  compiled by the classic pipeline, whereas `interface`/`implementation` are
-  handled *only* by the dependent elaborator (`Cure.Elab.Interface` /
-  `Cure.Elab.Implementation`). Normalizing the rewrite in-build reroutes the
-  stdlib's own `Ord`/`Show` to a pipeline that cannot yet compile them (Ord is
-  blocked on `<`, Show on `<>`), turning `cure.compile_stdlib` red (`compare/2`
-  / `show/1` undefined) and breaking every build. `:review` leaves the source
-  untouched under `:safe_only` (classic pipeline, green) while still emitting
-  the deprecation warning; `cure migrate` (which runs `apply: :all`) applies
-  the rewrite as designed. Promote to `:machine` once the dependent pipeline
-  compiles the stdlib's typeclasses. This satisfies the plan's own tier
-  definition (`:machine` = "certified semantics-preserving"; the rewrite is
-  not, in-build) rather than its literal tag.
+  `:safe_only`, the mode `Cure.Compiler` uses in `migrate_warn/5`,
+  `lib/cure/compiler.ex`). At the time this rule was written, `proto`/`impl`
+  (`:protocol`/`:trait` containers) were compiled by the classic pipeline,
+  whereas `interface`/`implementation` were handled only by the dependent
+  elaborator (`Cure.Elab.Interface` / `Cure.Elab.Implementation`); normalizing
+  the rewrite in-build would have rerouted the stdlib's own `Ord`/`Show` to a
+  pipeline that could not yet compile them, turning `cure.compile_stdlib` red
+  and breaking every build. The classic checker and code generator have since
+  been removed entirely (see CHANGELOG.md's "[Unreleased] one dependent
+  compiler pipeline" entry), and the stdlib has migrated off `proto`/`impl`
+  (`Std.Comparable` replaces `Std.Ord`; `Std.Equatable` backs `==`/`!=`), so
+  that specific build-breakage risk no longer applies. `:review` remains the
+  conservative choice for a different reason now: `Cure.Elab.Declarations`,
+  the dependent pipeline's sole elaborator for container declarations, has no
+  clause for `:protocol`/`:trait` container types, so there is currently no
+  pipeline that compiles a `proto`/`impl` declaration left un-rewritten under
+  `:safe_only`. `cure migrate` (which runs `apply: :all`) still applies the
+  rewrite as designed. Promoting to `:machine` should be paired with either
+  adding dependent-pipeline support for the legacy containers or accepting
+  that `:safe_only` leaves such a file uncompilable until `cure migrate` is
+  run. This satisfies the plan's own tier definition (`:machine` = "certified
+  semantics-preserving"; the rewrite is not, in-build) rather than its
+  literal tag.
   """
   alias Cure.Compiler.Trivia
   alias Cure.Migrate.Rule

@@ -98,8 +98,6 @@ You can also start directly in vi mode via `CURE_REPL_MODE=vi cure repl`.
 - `:printdef name`               - print an authored session definition
 - `:ast expr`                    - dump the parsed AST
 - `:fmt expr`                    - pretty-print `expr`
-- `:bless path` (v0.28.0)        - run the interactive type-error fix
-  assistant on a `.cure` file; see `docs/BLESS.md`
 
 ### Modules and files
 
@@ -120,7 +118,13 @@ as continuation cues. Use `;;` to submit after the final indented line.
 ### Session
 
 - `:reset`                       - forget all bindings, fresh session
+- `:let name = expr`             - pin `expr` as a zero-arg session fn
+  `name/0` so it survives across prompts (call as `name()`)
 - `:save path`                   - write the session transcript to `path`
+- `:snap save [path]`            - freeze the session to a `.cure-snap`
+  file (default: `cure.snap`); see `docs/SNAP.md`
+- `:snap load <path>`            - restore a session from a `.cure-snap` file
+- `:snap list [dir]`             - list `.cure-snap` files in `dir` (default: `.`)
 - `:edit`                        - open `$EDITOR` on the current buffer
 - `:history [n]`                 - print the last `n` (default 20) entries
 - `:search term`                 - non-interactive history grep

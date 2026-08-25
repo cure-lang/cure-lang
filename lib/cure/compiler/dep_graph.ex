@@ -8,8 +8,10 @@ defmodule Cure.Compiler.DepGraph do
   auto-import-order design spec, §3.1):
 
     * **order-edges** — `use` declarations targeting modules declared
-      inside the compile set. These gate compile order: classic codegen
-      resolves `use`-imported unqualified calls by probing loaded beams.
+      inside the compile set. These gate compile order for any consumer that
+      resolves `use`-imported unqualified calls against already-loaded beams
+      (the now-removed classic codegen relied on this; `Cure.Stdlib.Preload`
+      still uses this edge set to sequence stdlib BEAM loading).
     * **closure-edges** — the superset (`use` + qualified-call targets +
       `@prelude` providers). These describe what must be *loadable at runtime*
       and drive preload closure, never compile order: qualified calls

@@ -71,10 +71,13 @@ over the full reachable set regardless of bound.
 
 ## Error codes
 
-- `E059 Temporal Property Violated` -- a concrete counterexample
-  trace is included in the diagnostic.
-- `E062 Temporal Target Unknown` -- formula references a state
-  that doesn't appear in the model.
+`Cure.Temporal.Checker` does not raise catalog diagnostics (the `E059`
+and `E062` codes planned in the v0.27.0 changelog were never wired into
+the diagnostic registry). `check/3` instead returns plain result tuples:
+`{:violation, trace}` with a concrete counterexample trace, `{:error,
+{:unknown_atoms, unknown}}` when a formula references a state absent from
+the model, and `{:error, :bound_exceeded}` when a liveness or `until`
+search exceeds its bound.
 
 ## Integration
 

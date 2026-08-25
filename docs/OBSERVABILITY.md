@@ -1,8 +1,9 @@
 # Observability
 
-v0.27.0 introduces three complementary observability surfaces for
+v0.27.0 introduced three complementary observability surfaces for
 running Cure applications: the `Cure.OTel` span bridge, the
-`cure top` snapshot tool, and the `cure trace` typed tracer.
+`cure top` snapshot tool, and the `cure trace` typed tracer. `cure top`
+has since been removed (see below); `Cure.OTel` and `cure trace` remain.
 
 ## Cure.OTel
 
@@ -20,9 +21,9 @@ Cure.OTel.start(
 
 When started, the bridge subscribes to every stage of the pipeline
 event registry (`:lexer`, `:parser`, `:type_checker`, `:codegen`,
-`:fsm_verifier`, `:sup_verifier`, `:app_verifier`, `:registry`) and
-re-emits each event as a span. Macro expansion and lifted-module emission are
-reported through the generic parser, elaborator, and writer stages.
+`:registry`) and re-emits each event as a span. Macro expansion and
+lifted-module emission are reported through the generic parser, elaborator,
+and writer stages.
 
 Library code can also open manual spans through `Cure.OTel.span/3`:
 
@@ -42,9 +43,17 @@ there. Otherwise, the bundled `Cure.OTel.MemoryExporter` captures
 every span in a public ETS table (`:cure_otel_spans`) usable from
 tests and from the REPL via `:all/0`, `:flush/0`, `:count/0`.
 
-## cure top
+## cure top (removed)
 
-`cure top` prints a point-in-time snapshot of every running
+`cure top`, `mix cure.top`, and `Cure.Observe.Top` no longer exist. The
+snapshot depended on the classic-pipeline's supervisor/actor/FSM container
+runtimes, which were removed when the compiler moved to the dependent-only
+pipeline (see the Unreleased section of `CHANGELOG.md`); `Cure.John`'s
+Runtime section, which used to embed the same snapshot, now always reports
+it unavailable (see `docs/JOHN.md`). The section below documents the
+pre-removal design for reference.
+
+`cure top` used to print a point-in-time snapshot of every running
 supervisor and lifted process module:
 
 ```sh
@@ -62,10 +71,6 @@ Processes (2)
   - painter_1 (Atelier.Painter)  mbox=0  mem=9184  reds=301
   - exhibit_1 (Atelier.Exhibit)  state=Closed  events=0  uptime_ms=42
 ```
-
-Pair with `watch`, `entr`, or `keep` for a refresh-every-N-seconds
-experience. The snapshot API (`Cure.Observe.Top.snapshot/0` and
-`render/2`) is also consumable from code or from a Livebook.
 
 ## cure trace
 
@@ -85,9 +90,11 @@ call #PID<0.212.0> Cure.Std.List.map/2([1, 2, 3] : List(Int), #Function<...>)  [
 return #PID<0.212.0> Cure.Std.List.map/2 -> [2, 4, 6] : List(Int)
 ```
 
-Signatures are stored in `Cure.Observe.Trace.Registry`, an ETS
-table the type checker can populate during a project compile. Calls
-whose signature is absent fall back to plain `inspect/2`.
+Signatures are stored in `Cure.Observe.Trace.Registry`, an ETS table
+intended to be populated by the type checker during a project compile.
+Nothing currently calls `register_signature/4` (the classic checker's hook
+for this was removed with the rest of that checker), so in practice every
+call currently falls back to plain `inspect/2`.
 
 ## See also
 

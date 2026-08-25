@@ -113,9 +113,9 @@ fn pinned(value: Int) -> Atom =
     _ -> :miss
 ```
 
-If `target` is not in scope at the pin position, the type checker
-emits `E024` (unbound pin variable) and the compiler degrades to a
-plain binding.
+If `target` is not in scope at the pin position, the compiler reports
+an unresolved-name error at the pin site rather than binding a fresh
+variable there.
 
 ## Lists
 
@@ -334,26 +334,20 @@ fn temperature_kind(temperature: Int) -> Atom =
 
 ## Exhaustiveness
 
-The type checker runs two passes after every pattern-bearing
-construct:
-
-1. A **flat** classifier that recognises `:wildcard`, `:empty_list`,
-   `:cons`, `{:literal, subtype, value}`, `{:constructor, name, n}`,
-   `{:tuple, n}`, `{:map, n}`, and `{:record, name, fields}` at the
-   top level of each arm. Missing shapes are reported as `E004`.
-2. A **Maranget-style** nested pass that descends into tuple
-   scrutinees whose element types are enumerable (`Bool`,
-   `Result(T, E)`, `Option(T)`). Missing witnesses are rendered as
-   source-shape strings and reported as `E025`.
+The elaborator checks pattern coverage against the scrutinee's declared
+constructors (refined by any indices in scope). A pattern match that
+omits a reachable constructor, repeats one, or marks a reachable
+constructor `impossible` is a compile **error**, not a warning -- the
+program does not build until the gap is closed:
 
 ```text
-Warning: match expression has nested non-exhaustive cases (E025)
-  missing: %[Error(_), _]
+error: Pattern match is missing a case (E118)
+  missing: Error(_)
 ```
 
-Both passes emit `:type_warning` events via the pipeline. They do not
-block compilation: you can still build the program, but the warnings
-remain until the gap is closed.
+Structural problems -- a name bound twice in one pattern, more than one
+catch-all, or an open binary/map match with no fallback branch -- are
+reported separately as a pattern-structure error.
 
 For infinite types (`Int`, `Float`, `String`), a trailing wildcard `_`
 is required for exhaustiveness; you cannot enumerate all integers.
@@ -363,12 +357,19 @@ is required for exhaustiveness; you cannot enumerate all integers.
 The pattern engine contributes the following dedicated error codes,
 each available via `cure explain Edd` or `cure why Edd`:
 
-- **E004** - non-exhaustive patterns (flat classifier).
 - **E021** - unknown record field in a record pattern.
 - **E022** - record-pattern field type mismatch.
-- **E023** - non-literal, non-identifier map-pattern key.
-- **E024** - unbound pin variable.
-- **E025** - non-exhaustive nested match (Maranget walker).
+- **E118** - Pattern Coverage: a reachable constructor is missing,
+  repeated, or wrongly marked `impossible`.
+- **E119** - Pattern Structure: a name is bound more than once, a
+  catch-all is duplicated or impossible, a branch is unreachable after
+  a catch-all, or a binary/map match has no fallback.
+
+Earlier releases reported non-exhaustive and malformed patterns under
+dedicated codes `E004`, `E023`, `E024`, and `E025`. Those codes are
+still documented by `cure explain` for historical continuity, but the
+current compiler no longer produces them -- the coverage and structure
+checks above have taken over that role.
 
 ## Dependent branch refinement
 

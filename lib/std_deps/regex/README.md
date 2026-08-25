@@ -39,8 +39,8 @@ mod Example
   use Std.Regex
 
   fn exact(input: String) -> Option(Unit) = parse_full(/abc/, input)
-  fn word(input: String) -> Option(String) = parse_full(/(?<word>\w+)/u, input)
-  fn all(input: String) -> List(Match(Unit)) = scan(/ab+/, input)
+  fn word(input: String) -> Option(String) = parse_full(/(\w+)/u, input)
+  fn all(input: String) -> List(Match(Nat)) = scan(/ab+/, input)
 end
 ```
 
@@ -100,7 +100,7 @@ or export-level controls rather than lexical pattern semantics.
 `Std.Regex` exposes full parsing, prefix parsing, search, scanning, splitting,
 replacement, named-capture lookup, and boolean matching:
 
-```cure
+```text
 parse_full(/(a)(b)/, input)              # Option(Tuple(String, String))
 parse_prefix(/a+/, input)                # Option(Tuple(List(Char), String))
 search(/ab/, input)                      # Option(Match(Unit))
@@ -305,6 +305,7 @@ The implementation is split as follows:
 | File | Role |
 | --- | --- |
 | [`regex.cure`](../../lib/std_deps/regex/regex.cure) | Public `Std.Regex` façade and collection/search APIs |
+| [`regex_syntax.cure`](../../lib/std_deps/regex/regex_syntax.cure) | Regex literal macro entry point: expansion, failure diagnostics, and hints |
 | [`regex_syntax_model.cure`](../../lib/std_deps/regex/regex_syntax_model.cure) | Compile-time syntax tree, options, capture layout, limits, diagnostics |
 | [`regex_syntax_parser.cure`](../../lib/std_deps/regex/regex_syntax_parser.cure) | Fuel-bounded literal grammar |
 | [`regex_syntax_class.cure`](../../lib/std_deps/regex/regex_syntax_class.cure) | Classes, ranges, POSIX forms, Unicode property syntax |

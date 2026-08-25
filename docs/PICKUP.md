@@ -119,7 +119,7 @@ A block satisfying neither is rejected with `E-PICKUP-NO-ELSE`. The formatter no
 
 ### 5.3 Reachability (Informal)
 
-A guard `g_k` is *unreachable* if the compiler can prove that for every program state in which the `pickup` is evaluated, at least one of `g_1, ..., g_{k-1}` evaluates to `true`. The compiler SHOULD warn (`W-PICKUP-UNREACHABLE`) but MUST NOT reject. A provably unreachable terminator triggers `W-PICKUP-DEAD-ELSE` and is retained syntactically.
+A guard `g_k` is *unreachable* if the compiler can prove that for every program state in which the `pickup` is evaluated, at least one of `g_1, ..., g_{k-1}` evaluates to `true`. The compiler SHOULD warn (`W-PICKUP-UNREACHABLE`) but MUST NOT reject. A provably unreachable terminator triggers `W-PICKUP-DEAD-ELSE` and is retained syntactically. (Neither warning is currently emitted by the compiler; the corresponding registry codes `W081`/`W082` are retired with "no first-party producer remains".)
 
 ### 5.4 Scoping
 
@@ -684,21 +684,20 @@ A conforming language server MUST:
 
 ## 19. Errors and Diagnostics
 
-The compiler MUST produce diagnostics with the following stable identifiers; implementations MAY refine wording but MUST preserve codes.
+The compiler MUST produce diagnostics with the following stable identifiers; implementations MAY refine wording but MUST preserve codes. Numeric codes match the current Cure compiler diagnostic registry (`lib/cure/diagnostic/registry.ex`).
 
-- `E-PICKUP-NO-ELSE` — `pickup` lacks a valid terminator (§ 5.2). Severity: error.
-- `E-PICKUP-ELSE-NOT-LAST` — clause(s) follow the `else` clause. Severity: error.
-- `E-PICKUP-MULTIPLE-ELSE` — more than one `else` clause. Severity: error.
-- `E-PICKUP-GUARD-TYPE` — guard not of type `Bool`. Severity: error.
-- `E-PICKUP-BRANCH-MISMATCH` — branch right-hand sides have no common upper bound. Severity: error.
+- `E076` / `E-PICKUP-NO-ELSE` — `pickup` lacks a valid terminator (§ 5.2). Severity: error.
+- `E077` / `E-PICKUP-ELSE-NOT-LAST` — clause(s) follow the `else` clause. Severity: error.
+- `E078` / `E-PICKUP-MULTIPLE-ELSE` — more than one `else` clause. Severity: error.
+- `E093` / `E-PICKUP-GUARD-TYPE` — guard not of type `Bool` (the general type-mismatch diagnostic; there is no dedicated pickup-guard code). Severity: error.
+- `E093` / `E-PICKUP-BRANCH-MISMATCH` — branch right-hand sides have no common upper bound (also the general type-mismatch diagnostic). Severity: error.
 - `E-IF-REMOVED` — legacy `if` keyword encountered (§ 17.4). Severity: error, with fix-it.
-- `W-PICKUP-UNREACHABLE` — guard provably unreachable. Severity: warning.
-- `W-PICKUP-DEAD-ELSE` — terminator provably unreachable. Severity: warning.
-- `W-PICKUP-EFFECTFUL-GUARD` — guard observed to have side effects. Severity: warning.
 - `H-PICKUP-PREFER-ELSE` — `true ->` rewritten to `else ->`. Severity: hint.
 - `H-PICKUP-DEGENERATE` — single-arm `pickup` reduced to its right-hand side. Severity: hint.
 - `H-PICKUP-LINE-TOO-LONG` — clause cannot fit within `max_line_width` even when wrapped. Severity: hint.
 - `H-PICKUP-COMMENT-RELOCATED` — internal stray comment relocated by the formatter. Severity: hint.
+
+`W-PICKUP-UNREACHABLE`, `W-PICKUP-DEAD-ELSE`, and `W-PICKUP-EFFECTFUL-GUARD` are specified in § 5.3 and § 5.7 but are not currently emitted by the compiler (the registry's `W081`/`W082` codes are retired with "no first-party producer remains"; there is no registered code for an effectful-guard lint).
 
 ## 20. Non-Goals
 

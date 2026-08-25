@@ -188,20 +188,6 @@ cure repl
 See the dedicated [REPL reference page](/repl) for the complete
 key-bindings table and meta-command list.
 
-**`cure bless <file>`** (v0.28.0) -- Socratic type-error assistant.
-For each type or refinement error in a `.cure` file, displays the
-diagnostic, explains what went wrong, proposes a concrete fix, and
-prompts `[y]es / [n]o / [s]kip`. On `y`, applies the fix in-place
-and re-runs the checker to confirm resolution.
-
-```bash
-cure bless lib/my_module.cure
-cure bless lib/my_module.cure --batch   # print suggestions; no prompts
-```
-
-See [`docs/BLESS.md`](https://github.com/cure-lang/cure-lang/blob/main/docs/BLESS.md)
-for the full reference.
-
 **`cure replay <path.journal>`** (v0.28.0) -- Replay a recorded FSM
 trace from a `.journal` file produced by a `@record`-annotated FSM
 container.

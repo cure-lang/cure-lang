@@ -157,19 +157,14 @@ will not catch.
 
 ## Effects
 
-Calls through `@extern` carry an inferred effect, derived from the target
-module, so effect tracking still works across the FFI boundary:
-
-| Effect | Target modules |
-|--------|----------------|
-| `:io` | `:io`, `:file`, `:io_lib` |
-| `:state` | `:gen_server`, `:gen_statem`, `:ets`, `:persistent_term`, `:erlang` |
-| `:spawn` | `:proc_lib` |
-| `:extern` | any other module (the catch-all) |
-
-These feed Cure's effect inference the same way a native function's body would,
-so an effect annotation on a caller is checked against the effects its `@extern`
-calls introduce.
+An earlier version of the compiler inferred a per-`@extern` effect kind
+(`:io`, `:state`, `:spawn`, `:extern`, ...) from the target module, as part of
+the classic type checker's effect-tracking pass (`Cure.Types.Effects`, added in
+v0.15.0). That pass was removed along with the rest of the classic checker and
+code generator; the current dependent pipeline does not classify `@extern`
+calls by target module or effect kind. The REPL's `:effects expr` command
+reports only a coarse pure-vs-effectful verdict based on whether `expr`'s
+inferred type is the kernel's `Effect(T)` type former.
 
 ## Examples
 

@@ -112,11 +112,10 @@ Every meta-command is prefixed with `:`. Typing `:` and pressing
 
 - `:t expr` (also `:type expr`) -- infer the type of `expr`
 - `:effects expr` -- infer the effect set
+- `:total name` -- report whether a session function is totality-certified
 - `:holes` -- list holes from the last evaluation
 - `:ast expr` -- dump the parsed AST
 - `:fmt expr` -- pretty-print `expr`
-- `:bless path` (v0.28.0) -- run the Socratic fix assistant on a
-  `.cure` file; walks through each type error interactively
 
 ### Modules and files
 
@@ -126,10 +125,17 @@ Every meta-command is prefixed with `:`. Typing `:` and pressing
   suggests the closest stdlib module name when `Mod` is unknown)
 - `:env` -- list all imports
 - `:doc name` -- show the docstring of `name`
+- `:browse Mod` -- browse a module's public API
+- `:apropos term` -- search module, function, type, and protocol names
 
 ### Session
 
 - `:reset` -- forget all bindings, fresh session
+- `:defs` -- list top-level definitions (`fn`, `type`, `rec`, ...)
+  entered this session
+- `:printdef name` -- print a definition entered in this session
+- `:let name = expr` -- pin `expr` as a zero-arg session function
+  `name/0` so it survives across prompts (call as `name()`)
 - `:save path` -- write the session transcript to `path`
 - `:snap save [path]` (v0.32.0) -- freeze the entire REPL session
   to a `.cure-snap` file (default: `cure.snap` in the current

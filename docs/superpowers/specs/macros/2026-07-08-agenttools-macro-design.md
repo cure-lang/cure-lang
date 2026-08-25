@@ -8,7 +8,7 @@
 (`bot` = conversations with humans; `agenttools` = loops with models). Built
 as a `macro` (parent §5), a specialization of `reducer` (parent §5.5),
 consuming the effect discipline
-([`../2026-07-07-sound-effect-discipline-design.md`](../2026-07-07-sound-effect-discipline-design.md))
+([`../effects/2026-07-07-sound-effect-discipline-design.md`](../effects/2026-07-07-sound-effect-discipline-design.md))
 and [`2026-07-08-config-secret-macro-design.md`](2026-07-08-config-secret-macro-design.md)'s
 `secret` semantics. Host-side, full BEAM. Zero TCB delta.
 

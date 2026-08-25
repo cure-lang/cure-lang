@@ -5,11 +5,12 @@
 }
 ---
 
-`fsm` is an auto-preluded transparent macro from `Std.Fsm`. It expands to an
-ordinary lifted module whose behaviour and callbacks use the checked BEAM
-algebra — there is no privileged FSM object class in the compiler, and the
-dependent pipeline checks the expanded declarations like any other code. The
-generated module is a `gen_statem`.
+`fsm` is a transparent macro from `Std.Fsm`; it is not ambient, so a unit
+that declares one must `use Std.Fsm`. It expands to an ordinary lifted
+module whose behaviour and callbacks use the checked BEAM algebra — there is
+no privileged FSM object class in the compiler, and the dependent pipeline
+checks the expanded declarations like any other code. The generated module
+is a `gen_statem`.
 
 There are two surfaces, and they are different macros:
 

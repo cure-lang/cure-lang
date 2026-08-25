@@ -2,7 +2,7 @@
 
 **Status:** design specification; deferred until after the direct-style algebraic-effects work.
 
-**Dependency:** [Cure Direct-Style Computation System](../2026-07-20-algebraic-effects.md).
+**Dependency:** [Cure Direct-Style Computation System](../effects/README.md).
 
 ## 1. Purpose
 

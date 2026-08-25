@@ -167,9 +167,12 @@ fn request_kind(method: Atom) -> Atom =
 
 ## Migrating from `if` / `elif` / `else`
 
-The `if`/`elif` chain has been removed. The `cure rewrite if-to-pickup`
-tool migrates surviving code mechanically, preserving comments and
-running the formatter on every modified file:
+`if` / `elif` / `then` / `else` are deprecated in favour of `pickup`,
+but the parser still accepts them: each `if` still lowers to the same
+conditional it always has, and parsing one emits a deprecation event
+so editors and the LSP can surface a migration hint. `cure migrate`
+rewrites the whole rule registry, including `if`/`elif` to `pickup`,
+refuses to touch a dirty working tree, and reprints canonically:
 
 ```cure
 fn grade(score: Int) -> String =
@@ -180,8 +183,16 @@ fn grade(score: Int) -> String =
     else -> "F"
 ```
 
-Post-migration, the parser rejects `if` with `E-IF-REMOVED` and a
-fix-it pointing at the rewriter.
+```bash
+cure migrate --check src
+cure migrate src
+```
+
+`mix cure.rewrite` is an older, narrower task that applies only this
+one rule without the git-cleanliness guard; it is retained for
+backward compatibility and now delegates to the same migration engine.
+Neither tool currently turns a lingering `if` into a hard compile
+error.
 
 ## Formatter conventions
 
@@ -198,45 +209,39 @@ fn parity(x: Int) -> Atom =
 
 Other formatter rules:
 
-- A trailing `true ->` is rewritten to `else ->` with hint
-  `H-PICKUP-PREFER-ELSE`.
+- A trailing `true ->` is rewritten to `else ->`.
 - A degenerate `pickup` whose only clause is the terminator collapses
-  to its right-hand side (`H-PICKUP-DEGENERATE`).
+  to its right-hand side.
 - Multi-line right-hand sides switch every clause in the block to
   the wrapped form (`->` at the end of the guard line, body indented
   one step deeper). Mixing aligned and wrapped forms is forbidden.
 - Comments are preserved verbatim. Block-leading and clause-leading
   comments stay attached to their construct under refactoring.
-  Internal stray comments may be relocated by the formatter with
-  `H-PICKUP-COMMENT-RELOCATED`.
+  Internal stray comments may be relocated by the formatter (see the
+  Diagnostics section below for the status of the hint codes these
+  rewrites were once catalogued under).
 - The formatter is idempotent
   (`format(format(s, c), c) = format(s, c)`) and round-trip-safe
   (formatted source re-parses byte-identically).
 
 ## Diagnostics
 
-The full diagnostic catalogue:
+The three structural checks below are live, numbered codes (run
+`cure explain <code>` for the full text); the old `E-PICKUP-*` spelling
+from earlier drafts of this page survives only as a descriptive alias
+in that explanation text, not as an argument `cure explain` accepts:
 
-- **E-PICKUP-NO-ELSE** -- `pickup` lacks a valid terminator.
-- **E-PICKUP-ELSE-NOT-LAST** -- clauses follow the `else` clause.
-- **E-PICKUP-MULTIPLE-ELSE** -- more than one `else` clause.
-- **E-PICKUP-GUARD-TYPE** -- guard not of type `Bool`.
-- **E-PICKUP-BRANCH-MISMATCH** -- branch right-hand sides have no
-  common upper bound.
-- **E-IF-REMOVED** -- legacy `if` keyword encountered; emitted with
-  a fix-it pointing at `cure rewrite if-to-pickup`.
-- **W-PICKUP-UNREACHABLE** -- guard provably unreachable.
-- **W-PICKUP-DEAD-ELSE** -- terminator provably unreachable.
-- **W-PICKUP-EFFECTFUL-GUARD** -- guard observed to have side
-  effects.
-- **H-PICKUP-PREFER-ELSE** -- trailing `true ->` rewritten to
-  `else ->`.
-- **H-PICKUP-DEGENERATE** -- single-arm `pickup` collapsed to its
-  right-hand side.
-- **H-PICKUP-LINE-TOO-LONG** -- clause cannot fit within
-  `max_line_width` even when wrapped.
-- **H-PICKUP-COMMENT-RELOCATED** -- internal stray comment relocated
-  by the formatter.
+- **E076** -- `pickup` lacks a valid terminator (`E-PICKUP-NO-ELSE`).
+- **E077** -- clauses follow the `else` clause (`E-PICKUP-ELSE-NOT-LAST`).
+- **E078** -- more than one `else` clause (`E-PICKUP-MULTIPLE-ELSE`).
+
+A guard that is not `Bool`, or branches with no common upper bound, are
+reported through the general type-mismatch diagnostic (`E093`) rather
+than a `pickup`-specific code. The reachability warnings and formatter
+hints once catalogued here as `W-PICKUP-UNREACHABLE`, `W-PICKUP-DEAD-ELSE`,
+`H-PICKUP-PREFER-ELSE`, and `H-PICKUP-DEGENERATE` are not currently
+emitted by the compiler, even though the formatter still performs the
+rewrites they described.
 
 ## Idioms
 

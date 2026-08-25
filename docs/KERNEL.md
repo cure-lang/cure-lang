@@ -1,7 +1,7 @@
 # The Dependent Kernel
 
 The kernel is Cure's trusted dependent-type checker: a small core
-(`lib/cure/core/`, ~4,200 lines) that re-checks everything the elaborator
+(`lib/cure/core/`, ~9,200 lines) that re-checks everything the elaborator
 produces and trusts nothing it says. This guide explains what the kernel
 does today and why each piece exists. For the surface-language view of the
 same machinery see [DEPENDENT_TYPES.md](DEPENDENT_TYPES.md) and
@@ -391,8 +391,11 @@ seeded into every environment through the **builtin-inductive registry**
 eliminates it with the same `{:case, ...}` machinery as any user
 datatype, and it erases to native BEAM booleans at emit time (the same
 treatment is planned for `Nat` → native `Int`). Definitions and constructor
-arguments also carry **erasure quantities** (`{0, ω}`): a `0`-quantity
-binder exists only for checking and leaves no runtime footprint.
+arguments also carry **usage grades** from `Cure.Core.Grade`'s four-element
+carrier `{:erased, :linear, :affine, :unrestricted}` (`{0, 1, ≤ 1, ω}`): an
+`:erased`-graded binder exists only for checking and leaves no runtime
+footprint, while `:linear`/`:affine` additionally constrain how many times a
+bound value may be used.
 
 ## Bidirectional Checking
 

@@ -9,9 +9,8 @@ re-running the full SMT solver from scratch.
 
 During `cure publish`, the compiler is re-invoked in `proof_collect`
 mode. Each proof obligation discharged during type-checking -- equality
-witnesses, refinement predicates, SMT-backed constraints, and totality
-arguments -- is serialized as a certificate and written into a compact
-binary file:
+witnesses, SMT-backed constraints, and totality arguments -- is
+serialized as a certificate and written into a compact binary file:
 
     my_pkg-0.1.0/
       Cure.toml
@@ -24,7 +23,7 @@ gzip-compressed Erlang term:
     "CUREPROOF\0" <> <<0x01>> <> gzip(term_to_binary([cert, ...]))
 
 Each certificate is a map `%{module, kind, statement, witness}` where
-`kind` is one of `:equality`, `:refinement`, `:smt`, or `:totality`.
+`kind` is one of `:equality`, `:smt`, or `:totality`.
 
 ## Opt-out
 
@@ -94,6 +93,5 @@ config :cure, strict_proofs: true
 | Kind | Verified by |
 |------|-------------|
 | `:equality` | Structural equality of witness against `:cure_refl` |
-| `:refinement` | Lightweight bounds arithmetic without Z3 |
 | `:smt` | Z3 query replay (stub in v0.32.0; degrades to `:ok` when solver absent) |
 | `:totality` | SCC structural-decrease argument |

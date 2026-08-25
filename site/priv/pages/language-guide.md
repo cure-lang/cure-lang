@@ -715,10 +715,14 @@ Any expression can appear inside `#{}`.
 
 ## Invariants and dependent types
 
-The classic `{x: t | predicate}` refinement former is retired from the trusted
-pipeline. Express structural invariants with indexed families and explicit
-proof arguments. Guards still narrow branches and drive coverage diagnostics;
-Z3 analysis is linting outside the trusted kernel, not proof evidence.
+The `{x: t | predicate}` refinement former elaborates to a dependent pair
+(`Sigma(t, predicate)`) that the kernel checks like any other type. A value
+whose obligation reduces to a closed, true proposition is accepted with no
+explicit proof term; an obligation that depends on a bound parameter is
+discharged by proof search over in-scope hypotheses and `@lemma`-tagged
+theorems. Guards still narrow branches and drive coverage diagnostics; the
+separate Z3-backed `GuardLint` checks guard coverage and shadowing as a lint
+outside the trusted kernel and plays no part in refinement discharge.
 
 See the [Type System](/pages/type-system) page for indexed families,
 quantitative binders, and kernel-checked equality.
@@ -760,10 +764,9 @@ decorator placement, and renamed modules to the current surface.
 
 ## FSMs (Finite State Machines)
 
-`fsm` is an auto-preluded macro from `Std.Fsm`. A transition table derives its
-state and event types from the rows themselves; states and events are
-capitalised constructors, and the machine's name is written with its full
-`Cure.` prefix.
+`fsm` is a macro from `Std.Fsm`, brought into scope with `use Std.Fsm`. A
+transition table derives its state and event types from the rows themselves;
+states and events are capitalised constructors.
 
 ```cure
 use Std.Fsm

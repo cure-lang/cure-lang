@@ -283,17 +283,24 @@ the warm path alone.
 ## Stabilization warning policy
 
 The stabilization gate means **no unexpected compiler warnings**, rather than
-an unconditional zero-warning count. Exactly one reviewed `use` SCC is allowed,
-with membership equal to `{Std.Regex, Std.Regex.Proof}`, reported once as W086.
-Any additional warning, additional SCC, or change to that membership fails the
-gate and requires review.
+an unconditional zero-warning count. The `lib/std` module graph, including the
+regex package, is fully acyclic: no `use` SCC is currently allowed or expected,
+and any reported `use` cycle (W086) fails the gate and requires review.
 
-The text/literal component `{Std.Char, Std.Literal, Std.String}` was the second
+The text/literal component `{Std.Char, Std.Literal, Std.String}` was once a
 reviewed SCC until the layer was made acyclic: the character-literal instance
 moved to `Std.Literal`, which owns the interface, and the `String`-shaped case
 conversions moved to `Std.String`, which owns the type, leaving
-`Std.Char <- Std.Literal <- Std.String`. `lib/std` therefore has no `use` cycle
-outside the regex proof layer.
+`Std.Char <- Std.Literal <- Std.String`.
+
+The regex package (`Std.Regex.Core`, `Std.Regex.Runtime`, `Std.Regex.Proof`,
+`Std.Regex`, `Std.Regex.Language`) looks superficially cyclic because the
+`Std.Regex` façade makes qualified calls into `Std.Regex.Proof`, but the
+dependency is strictly one-way (`Core <- Runtime <- Proof <- Regex`, with
+`Language` depending on `Core`, `Runtime`, and `Proof`); `Std.Regex.Proof`
+and `Std.Regex.Core` never depend back on `Std.Regex`. This one-way ownership
+is pinned by `test/cure/compiler/regex_module_split_test.exs`. `lib/std`
+therefore has no `use` cycle anywhere.
 
 The gate compares complete SCC membership rather than the rendered closed walk,
 since a traversal may print any loop of a multi-member component. The
