@@ -588,6 +588,15 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
            )
   end
 
+  test "atomic path tail Drop carries the accepted-child rejection index" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert Regex.match?(
+             ~r/fn atomic_path_tail_drop_rejection_excludes_selected_suffix\b.*?selection_from_parent: LookaroundAdmittedStateCursorSuffix.*?atomic_path_failure_excludes_selected_suffix/s,
+             source
+           )
+  end
+
   test "certified assertion decisions enforce atomic commitment", %{runtime_module: module} do
     assert apply(module, :atomic_trace_authority_rejects, [])
     assert apply(module, :certified_atomic_trace_rejects, [])

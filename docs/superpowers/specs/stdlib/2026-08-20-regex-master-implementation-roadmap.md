@@ -776,6 +776,16 @@ file remains at 66 passing tests and the canonical gate remains 52 passing
 checks. This is only the empty-child-cursor leaf; non-empty selected child
 suffixes still require the recursive cursor-alignment induction.
 
+The next bounded tail case is now named
+`atomic_path_tail_drop_rejection_excludes_selected_suffix`. It retains the
+parent-to-selected cursor as an erased `Drop` index for the exact two-state
+parent/singleton-selected base and reuses the accepted-child rejection
+eliminator without inspecting proof data at runtime. The focused
+dependent-assertion file passes 67 tests, and the full canonical gate passes
+52 checks (50 tests and 2 properties) with W086 accepted. This is not yet the
+arbitrary non-empty-tail induction: recursive child rejection, multi-head
+`Drop` transport, and start-list induction remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

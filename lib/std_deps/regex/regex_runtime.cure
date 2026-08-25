@@ -4173,6 +4173,117 @@ mod Std.Regex.Runtime
             path
           )
 
+  ## Base case for a selected trace at the accepted sibling after one rejected
+  ## head. The parent-to-selected cursor is retained as an erased `Drop`
+  ## index; the fixed two-state parent and singleton selected list make the
+  ## reflexive branch impossible, so no runtime suffix inspection is needed.
+  ## The accepted-child eliminator is then reused at the exact sibling where
+  ## the selected trace begins. General non-empty tails remain recursive work.
+  fn atomic_path_tail_drop_rejection_excludes_selected_suffix(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    char: Char,
+    rest: List(Char),
+    after_input: List(Char),
+    source: Bounded(n),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    scope_depth: Nat,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    whole: List(LookaroundAdmittedState(n)),
+    {@erased rejected_head: LookaroundAdmittedState(n)},
+    tail_routine: List(EvidenceInstruction),
+    tail_constraints: List(BoundaryConstraint),
+    tail_assertion_routine: List(ExtendedInstruction),
+    tail_assertion_markers: List(EvidenceInstruction),
+    tail_nested_decisions: List(LookaroundNestedDecision),
+    @erased failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(rejected_head, Cons(LookaroundAdmittedAccepted(tail_routine, tail_constraints, tail_assertion_routine, tail_assertion_markers, tail_nested_decisions), Nil())),
+      AtomicPathFailureDestinationRejected()
+    ),
+    @erased tail_failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(LookaroundAdmittedAccepted(tail_routine, tail_constraints, tail_assertion_routine, tail_assertion_markers, tail_nested_decisions), Nil()),
+      AtomicPathFailureDestinationRejected()
+    ),
+    @erased selection_from_parent: LookaroundAdmittedStateCursorSuffix(
+      n,
+      Cons(rejected_head, Cons(LookaroundAdmittedAccepted(tail_routine, tail_constraints, tail_assertion_routine, tail_assertion_markers, tail_nested_decisions), Nil())),
+      Cons(LookaroundAdmittedAccepted(tail_routine, tail_constraints, tail_assertion_routine, tail_assertion_markers, tail_nested_decisions), Nil())
+    ),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedPathTrace(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      Cons(LookaroundAdmittedAccepted(tail_routine, tail_constraints, tail_assertion_routine, tail_assertion_markers, tail_nested_decisions), Nil()),
+      matched,
+      remaining_input,
+      selected_routine
+    )
+  ) -> Empty = match tail_failure
+    AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, child_failure, _, child_scope_alignment, _, _, _, _) -> match path
+      AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _, _, _, suffix) -> match child_scope_alignment
+        LookaroundAdmittedStateScopeAccepted(_, _, _, _, _) -> match child_failure
+          AtomicPathExactAcceptedWithInput(_, _, _, _) -> atomic_path_failure_excludes_selected_suffix(
+            machine,
+            char,
+            rest,
+            after_input,
+            ThreadActive(source),
+            history,
+            capture_context,
+            policy,
+            scope_depth,
+            reversed_prefix,
+            tail_routine,
+            tail_constraints,
+            tail_assertion_routine,
+            tail_assertion_markers,
+            tail_nested_decisions,
+            child_failure,
+            path
+          )
+
   ## A sibling tail may reject an active candidate after that candidate's child
   ## runs out of input.  At this construction site the selected parent trace
   ## exposes an active transition, so the existing aligned-child eliminator
