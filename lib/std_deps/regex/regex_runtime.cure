@@ -4169,6 +4169,73 @@ mod Std.Regex.Runtime
   ) -> result = match evidence
     AtomicStartNoBlockedEvidence(_, _, _, _, _) -> atomic_start_skip_excludes_allowed(skip, allowed)
 
+  ## The blocked accepted-head branch has the same indexed commitment
+  ## contradiction.  Its admitted-state constructor is fixed to Accepted in
+  ## the evidence and selected-trace indices, so no runtime state tag is
+  ## inspected while consuming the non-empty-tail `There` case.
+  fn atomic_start_rejected_member_there_blocked_accepted_tail_head_excludes_trace(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    accepted_routine: List(EvidenceInstruction),
+    accepted_constraints: List(BoundaryConstraint),
+    accepted_assertion_routine: List(ExtendedInstruction),
+    accepted_assertion_markers: List(EvidenceInstruction),
+    accepted_nested_decisions: List(LookaroundNestedDecision),
+    {whole: List(LookaroundAdmittedState(n))},
+    {remaining: List(LookaroundAdmittedState(n))},
+    {blocked_depth: Option(Nat)},
+    {@erased kind: AtomicStartSkipKind},
+    @erased skip: AtomicStartSkipEvidence(blocked_depth, kind),
+    @erased allowed: AtomicStartAllowed(blocked_depth, kind),
+    @erased evidence: AtomicStartNoEvidence(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining),
+      AtomicStartFailureBlocked()
+    ),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    @erased _path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions),
+      matched,
+      remaining_input,
+      selected_routine
+    )
+  ) -> result = match evidence
+    AtomicStartNoBlockedEvidence(_, _, _, _, _) -> atomic_start_skip_excludes_allowed(skip, allowed)
+
   type AtomicPathSearchResult(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char))
     AtomicPathSearchRootActiveNo : (@erased source: Bounded(n)) -> (@erased failure: AtomicPathRootRefutation(depth, n, machine, input, after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, Nil())) -> AtomicPathSearchResult(depth, n, machine, input, after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix)
     AtomicPathSearchRootExactNo : (@erased failure: AtomicPathRootRefutation(depth, n, machine, input, after_input, ThreadAccepted(), history, capture_context, policy, scope_depth, False(), reversed_prefix, Nil())) -> AtomicPathSearchResult(depth, n, machine, input, after_input, ThreadAccepted(), history, capture_context, policy, scope_depth, False(), reversed_prefix)

@@ -967,6 +967,15 @@ the blocked-head base only: accepted-blocked heads, rejected-child heads,
 arbitrary later siblings, and complete start-list correspondence remain open.
 The focused dependent-assertion file now passes 89 tests.
 
+The blocked-accepted-head counterpart is now present as
+`atomic_start_rejected_member_there_blocked_accepted_tail_head_excludes_trace`.
+It fixes the admitted head to `LookaroundAdmittedAccepted` in both the typed
+no-result witness and the erased selected trace, then consumes the same
+construction-site skip/allow contradiction without inspecting a runtime state
+tag. This is the second blocked-head base only: rejected-child heads,
+arbitrary later siblings, and complete start-list correspondence remain open.
+The focused dependent-assertion file now passes 90 tests.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
