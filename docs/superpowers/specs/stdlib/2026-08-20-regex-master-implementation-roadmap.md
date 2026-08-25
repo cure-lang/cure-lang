@@ -809,6 +809,16 @@ This is still transport infrastructure—the continuation must consume the
 child rejection correspondence. The focused dependent-assertion file now
 passes 93 tests.
 
+The child-side cursor bridge is now named
+`atomic_path_active_child_rejection_excludes_aligned_trace`. It consumes the
+child failure suffix, the selected-origin equivalence, and the selected child
+suffix through `atomic_child_cursor_alignment`, then exposes explicit
+left-to-right and right-to-left continuations. This keeps the existential
+child failure erased while making the cursor direction available at the
+construction site; it is the alignment eliminator for the next recursive
+child/tail proof, not that proof's completion. The focused
+dependent-assertion file now passes 94 tests.
+
 The next bounded tail case is now named
 `atomic_path_tail_drop_rejection_excludes_selected_suffix`. It retains the
 parent-to-selected cursor as an erased `Drop` index for the exact two-state

@@ -839,6 +839,17 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/AtomicSelectedTransitionActive.*?child_case/s, body)
   end
 
+  test "atomic child rejection alignment exposes both cursor directions" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "fn atomic_path_active_child_rejection_excludes_aligned_trace"
+
+    [_prefix, body] = String.split(source, "fn atomic_path_active_child_rejection_excludes_aligned_trace", parts: 2)
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert Regex.match?(~r/atomic_child_cursor_alignment.*?LookaroundAdmittedCursorLeftToRight.*?left_case/s, body)
+    assert Regex.match?(~r/LookaroundAdmittedCursorRightToLeft.*?right_case/s, body)
+  end
+
   test "certified assertion decisions enforce atomic commitment", %{runtime_module: module} do
     assert apply(module, :atomic_trace_authority_rejects, [])
     assert apply(module, :certified_atomic_trace_rejects, [])

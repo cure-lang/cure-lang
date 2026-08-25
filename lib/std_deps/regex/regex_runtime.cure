@@ -6015,6 +6015,86 @@ mod Std.Regex.Runtime
       AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _, child_selection_suffix, child_selection_from_origin, child_trace) -> match child_scope_alignment
         LookaroundAdmittedStateScopeActive(_, _, _, _, _, _) -> child_case()
 
+  ## Align a recursively rejected active child with the selected child trace.
+  ## The child failure kind is fixed before this helper is called, while the
+  ## two cursor suffixes remain relevant construction-site witnesses for the
+  ## alignment eliminator.  Both directions are explicit continuations: the
+  ## left-to-right branch can descend through the rejected sibling tail, and
+  ## the right-to-left branch remains the separate reverse induction case.
+  fn atomic_path_active_child_rejection_excludes_aligned_trace(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    child_char: Char,
+    child_rest: List(Char),
+    after_input: List(Char),
+    destination: Bounded(n),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    child_scope_depth: Nat,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {failure_whole: List(LookaroundAdmittedState(n))},
+    {failure_current: List(LookaroundAdmittedState(n))},
+    @erased failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(child_char, child_rest),
+      after_input,
+      ThreadActive(destination),
+      history,
+      capture_context,
+      policy,
+      child_scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      failure_whole,
+      failure_current,
+      AtomicPathFailureDestinationRejected()
+    ),
+    failure_suffix: LookaroundAdmittedStateCursorSuffix(n, failure_whole, failure_current),
+    selected_whole: List(LookaroundAdmittedState(n)),
+    selected_current: List(LookaroundAdmittedState(n)),
+    selected_whole_equivalence: Equivalent(
+      List(LookaroundAdmittedState(n)),
+      failure_whole,
+      selected_whole
+    ),
+    selected_suffix: LookaroundAdmittedStateCursorSuffix(n, selected_whole, selected_current),
+    matched: List(Char),
+    remaining_input: List(Char),
+    routine: List(ExtendedInstruction),
+    @erased path: AtomicSelectedPathTrace(
+      depth,
+      n,
+      machine,
+      Cons(child_char, child_rest),
+      after_input,
+      ThreadActive(destination),
+      history,
+      capture_context,
+      policy,
+      child_scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      selected_current,
+      matched,
+      remaining_input,
+      routine
+    ),
+    left_case: () -> result,
+    right_case: () -> result
+  ) -> result = match atomic_child_cursor_alignment(
+    failure_suffix,
+    selected_whole_equivalence,
+    selected_suffix
+  )
+    LookaroundAdmittedCursorLeftToRight(_) -> left_case()
+    LookaroundAdmittedCursorRightToLeft(_) -> right_case()
+
   ## The first refutation-tree eliminator is indexed at the same exhausted
   ## input as the selected trace.  The other failure constructors all carry a
   ## non-empty input or an accepted thread, so dependent matching reduces this
