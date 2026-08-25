@@ -776,6 +776,17 @@ file remains at 66 passing tests and the canonical gate remains 52 passing
 checks. This is only the empty-child-cursor leaf; non-empty selected child
 suffixes still require the recursive cursor-alignment induction.
 
+The next alignment boundary is now named
+`atomic_path_active_child_destinations_exhausted_excludes_aligned_trace`.
+It transports the selected child cursor across the published common-origin
+equivalence, consumes `atomic_child_cursor_alignment`, and routes the
+left-to-right case through `atomic_path_failure_excludes_aligned_trace`.
+Right-to-left alignment remains an explicit proof-only continuation rather
+than being incorrectly classified as impossible. This is a construction-site
+boundary, not the Phase 2 exit theorem: the continuation and the non-terminal
+rejected-child, sibling-tail, and start-list cases remain open. The focused
+dependent-assertion file now passes 91 tests.
+
 The next bounded tail case is now named
 `atomic_path_tail_drop_rejection_excludes_selected_suffix`. It retains the
 parent-to-selected cursor as an erased `Drop` index for the exact two-state

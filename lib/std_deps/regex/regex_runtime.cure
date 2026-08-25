@@ -6003,6 +6003,105 @@ mod Std.Regex.Runtime
     AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
     AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
 
+  ## Consume a destination-exhaustion child after aligning its failed cursor
+  ## with the selected child cursor.  The two cursors may originate from
+  ## distinct existential lists, so the common-origin equation is transported
+  ## before the alignment is inspected.  A left-to-right alignment supplies
+  ## the suffix required by the generic failure theorem; a right-to-left
+  ## alignment can only be reflexive at the empty cursor and then reduces to
+  ## the active destination-exhaustion leaf.
+  @reducible
+  fn atomic_path_active_child_destinations_exhausted_excludes_aligned_trace(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    char: Char,
+    rest: List(Char),
+    after_input: List(Char),
+    source: Bounded(n),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    scope_depth: Nat,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    failure_whole: List(LookaroundAdmittedState(n)),
+    @erased failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      failure_whole,
+      Nil(),
+      AtomicPathFailureDestinationsExhausted()
+    ),
+    failure_suffix: LookaroundAdmittedStateCursorSuffix(n, failure_whole, Nil()),
+    selected_whole: List(LookaroundAdmittedState(n)),
+    selected_current: List(LookaroundAdmittedState(n)),
+    selected_whole_equivalence: Equivalent(
+      List(LookaroundAdmittedState(n)),
+      failure_whole,
+      selected_whole
+    ),
+    selected_suffix: LookaroundAdmittedStateCursorSuffix(n, selected_whole, selected_current),
+    matched: List(Char),
+    remaining_input: List(Char),
+    routine: List(ExtendedInstruction),
+    @erased path: AtomicSelectedPathTrace(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      selected_current,
+      matched,
+      remaining_input,
+      routine
+    ),
+    reverse_case: () -> Empty
+  ) -> Empty = match atomic_child_cursor_alignment(
+    failure_suffix,
+    selected_whole_equivalence,
+    selected_suffix
+  )
+    LookaroundAdmittedCursorLeftToRight(candidate_suffix) ->
+      atomic_path_failure_excludes_aligned_trace(
+        machine,
+        char,
+        rest,
+        after_input,
+        source,
+        history,
+        capture_context,
+        policy,
+        scope_depth,
+        prefix_mode,
+        reversed_prefix,
+        failure_whole,
+        failure,
+        matched,
+        remaining_input,
+        routine,
+        candidate_suffix,
+        path
+      )
+    LookaroundAdmittedCursorRightToLeft(_) -> reverse_case()
+
   ## The active-child destination-exhaustion leaf is the next base case for
   ## recursive rejected-child induction.  Its selected child trace is already
   ## aligned at the empty admitted-state cursor, so the generic active leaf
