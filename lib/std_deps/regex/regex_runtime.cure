@@ -3300,6 +3300,57 @@ mod Std.Regex.Runtime
     AtomicStartMembersCommit : (commit_depth: Nat) -> AtomicStartMembersResult(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, current)
     AtomicStartMembersYes : (matched: List(Char)) -> (remaining: List(Char)) -> (routine: List(ExtendedInstruction)) -> (@erased start_selection_suffix: LookaroundAdmittedStateCursorSuffix(n, whole, current)) -> {@erased selected_start: LookaroundAdmittedState(n)} -> (@erased selected_member: ListMember(LookaroundAdmittedState(n), selected_start, current)) -> {@erased blocked_depth: Option(Nat)} -> {@erased kind: AtomicStartSkipKind} -> (@erased allowed: AtomicStartAllowed(blocked_depth, kind)) -> (@erased trace: AtomicSelectedTrace(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, selected_start, matched, remaining, routine)) -> AtomicStartMembersResult(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, current)
 
+  type AtomicStartTailEvidence(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), remaining: List(LookaroundAdmittedState(n)))
+    AtomicStartTailEvidencePacked : {@erased kind: AtomicStartFailureKind} -> (@erased evidence: AtomicStartNoEvidence(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining, kind)) -> AtomicStartTailEvidence(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining)
+
+  fn atomic_start_rejected_tail_evidence(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {whole: List(LookaroundAdmittedState(n))},
+    {candidate: LookaroundAdmittedState(n)},
+    {remaining: List(LookaroundAdmittedState(n))},
+    @erased evidence: AtomicStartNoEvidence(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(candidate, remaining),
+      AtomicStartFailureRejected()
+    )
+  ) -> AtomicStartTailEvidence(
+    depth,
+    n,
+    machine,
+    position,
+    input,
+    after_input,
+    history,
+    capture_context,
+    policy,
+    prefix_mode,
+    reversed_prefix,
+    whole,
+    remaining
+  ) = match evidence
+    AtomicStartNoRejectedEvidence(_, _, _, _, _, _, _, _, _, _, _, _, _, tail_evidence) -> AtomicStartTailEvidencePacked(tail_evidence)
+
   type AtomicPathSearchResult(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char))
     AtomicPathSearchRootActiveNo : (@erased source: Bounded(n)) -> (@erased failure: AtomicPathRootRefutation(depth, n, machine, input, after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, Nil())) -> AtomicPathSearchResult(depth, n, machine, input, after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix)
     AtomicPathSearchRootExactNo : (@erased failure: AtomicPathRootRefutation(depth, n, machine, input, after_input, ThreadAccepted(), history, capture_context, policy, scope_depth, False(), reversed_prefix, Nil())) -> AtomicPathSearchResult(depth, n, machine, input, after_input, ThreadAccepted(), history, capture_context, policy, scope_depth, False(), reversed_prefix)

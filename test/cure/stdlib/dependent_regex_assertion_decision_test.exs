@@ -682,6 +682,13 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     end
   end
 
+  test "rejected start evidence exposes its typed recursive tail" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "fn atomic_start_rejected_tail_evidence"
+    assert Regex.match?(~r/atomic_start_rejected_tail_evidence.*?AtomicStartNoEvidence.*?AtomicStartNoRejectedEvidence/s, source)
+  end
+
   test "certified assertion decisions enforce atomic commitment", %{runtime_module: module} do
     assert apply(module, :atomic_trace_authority_rejects, [])
     assert apply(module, :certified_atomic_trace_rejects, [])

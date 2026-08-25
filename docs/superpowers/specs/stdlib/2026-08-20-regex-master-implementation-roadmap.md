@@ -837,6 +837,15 @@ head in the recursive start list. The focused dependent-assertion file now
 passes 75 tests. Selecting a later unblocked sibling still requires recursive
 tail correspondence, and complete start-list correspondence remains open.
 
+A typed accessor, `atomic_start_rejected_tail_evidence`, now packages the
+existential failure kind carried by a rejected recursive tail in
+`AtomicStartTailEvidence`. This gives subsequent membership-based consumers a
+well-typed way to descend through the tail without matching the raw dependent
+`AtomicStartMembersRefutation` or guessing its failure index. The focused
+dependent-assertion file now passes 76 tests. The next proof must still connect
+`ListMember` selection to this accessor and establish correspondence for an
+arbitrary later sibling; complete start-list correspondence remains open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
