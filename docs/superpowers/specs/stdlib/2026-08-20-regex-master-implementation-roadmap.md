@@ -818,6 +818,15 @@ direct match on the raw dependent tail refutation. The focused file now passes
 rejected starts, active-child/start combinations, blocked-tail induction, and
 the complete start-list correspondence remain open.
 
+The active-child recursive start base is now present in
+`atomic_start_tail_active_candidate_rejection_excludes_trace`. It consumes the
+typed rejected-tail witness at a non-empty current suffix whose head is an
+active candidate, then forwards the independently indexed input-exhaustion
+child certificate to `atomic_start_candidate_rejection_excludes_trace`.
+The focused dependent-assertion file now passes 72 tests. Accepted-child
+recursive tails, blocked-tail induction, and complete start-list correspondence
+remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
