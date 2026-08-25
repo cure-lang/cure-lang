@@ -943,6 +943,20 @@ This is the active-head base for non-empty-tail descent, not the full recursive
 correspondence: accepted, rejected, blocked, and arbitrary-tail cases remain
 open. The focused dependent-assertion file now passes 87 tests.
 
+The accepted-head counterpart is now present as
+`atomic_start_rejected_member_there_accepted_tail_head_excludes_trace`. It
+specializes the non-empty `There` branch to an accepted head with exact child
+input, matches the typed `AtomicStartNoRejectedEvidence` witness, and delegates
+to `atomic_start_tail_accepted_candidate_rejection_excludes_trace`, consuming
+the indexed exact-child refutation and suffix before forwarding the accepted
+start contradiction. The selected trace retains `policy` in its index, and
+`atomic_path_child_exact_failure_excludes_trace` now fixes its child-failure
+index to `AtomicPathFailureExactAccepted()` instead of accepting an unnecessary
+explicit failure-kind witness. This is the accepted-head base, not full
+recursive start-list correspondence: rejected and blocked non-empty-tail cases,
+arbitrary later siblings, and complete correspondence remain open. The focused
+dependent-assertion file now passes 88 tests.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

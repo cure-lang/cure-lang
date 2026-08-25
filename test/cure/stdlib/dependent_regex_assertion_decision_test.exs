@@ -308,6 +308,11 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     assert Regex.match?(~r/fn atomic_path_child_exact_failure_excludes_trace\b.*?failure_suffix/s, source)
+
+    [_prefix, body] = String.split(source, "fn atomic_path_child_exact_failure_excludes_trace", parts: 2)
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert body =~ "AtomicPathFailureExactAccepted()"
+    refute body =~ "@erased kind: AtomicPathFailureKind"
   end
 
   test "atomic no-results publish the refutation suffix to their parent" do
@@ -767,6 +772,17 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     assert source =~ "fn atomic_start_rejected_member_there_active_tail_head_excludes_trace"
     assert Regex.match?(~r/atomic_start_rejected_member_there_active_tail_head_excludes_trace.*?AtomicStartNoRejectedEvidence.*?atomic_start_tail_active_candidate_rejection_excludes_trace/s, source)
+  end
+
+  test "non-empty rejected tails consume an accepted head" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "fn atomic_start_rejected_member_there_accepted_tail_head_excludes_trace"
+
+    [_prefix, body] = String.split(source, "fn atomic_start_rejected_member_there_accepted_tail_head_excludes_trace", parts: 2)
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert Regex.match?(~r/AtomicStartNoRejectedEvidence.*?atomic_start_tail_accepted_candidate_rejection_excludes_trace/s, body)
+    assert Regex.match?(~r/capture_context,\s+policy,\s+False\(\)/s, body)
   end
 
   test "certified assertion decisions enforce atomic commitment", %{runtime_module: module} do

@@ -3992,6 +3992,114 @@ mod Std.Regex.Runtime
         path
       )
 
+  ## The accepted-head counterpart carries the exact child character/rest and
+  ## forwards the indexed exact-accepted child refutation.  The accepted
+  ## candidate is only valid in exact mode, so the parent and selected-trace
+  ## indices fix `prefix_mode` to `False()` instead of recovering it at runtime.
+  fn atomic_start_rejected_member_there_accepted_tail_head_excludes_trace(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    child_char: Char,
+    child_rest: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    reversed_prefix: List(Char),
+    accepted_routine: List(EvidenceInstruction),
+    accepted_constraints: List(BoundaryConstraint),
+    accepted_assertion_routine: List(ExtendedInstruction),
+    accepted_assertion_markers: List(EvidenceInstruction),
+    accepted_nested_decisions: List(LookaroundNestedDecision),
+    {whole: List(LookaroundAdmittedState(n))},
+    {remaining: List(LookaroundAdmittedState(n))},
+    @erased membership: ListMember(
+      LookaroundAdmittedState(n),
+      LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions),
+      Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining)
+    ),
+    {child_whole: List(LookaroundAdmittedState(n))},
+    {child_current: List(LookaroundAdmittedState(n))},
+    @erased child_failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(child_char, child_rest),
+      after_input,
+      ThreadAccepted(),
+      history,
+      append_routine(append_routine(capture_context, accepted_routine), accepted_assertion_markers),
+      policy,
+      atomic_scope_depth_after(accepted_routine, Z()),
+      False(),
+      reversed_prefix,
+      child_whole,
+      child_current,
+      AtomicPathFailureExactAccepted()
+    ),
+    @erased child_suffix: LookaroundAdmittedStateCursorSuffix(n, child_whole, child_current),
+    @erased evidence: AtomicStartNoEvidence(
+      depth,
+      n,
+      machine,
+      position,
+      Cons(child_char, child_rest),
+      after_input,
+      history,
+      capture_context,
+      policy,
+      False(),
+      reversed_prefix,
+      whole,
+      Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining),
+      AtomicStartFailureRejected()
+    ),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      Cons(child_char, child_rest),
+      after_input,
+      history,
+      capture_context,
+      policy,
+      False(),
+      reversed_prefix,
+      LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions),
+      matched,
+      remaining_input,
+      selected_routine
+    )
+  ) -> result = match evidence
+    AtomicStartNoRejectedEvidence(_, _, _, _, _, _, _, _, _, _, _, _, _, _) ->
+      atomic_start_tail_accepted_candidate_rejection_excludes_trace(
+        machine,
+        position,
+        child_char,
+        child_rest,
+        after_input,
+        history,
+        capture_context,
+        policy,
+        reversed_prefix,
+        accepted_routine,
+        accepted_constraints,
+        accepted_assertion_routine,
+        accepted_assertion_markers,
+        accepted_nested_decisions,
+        child_failure,
+        child_suffix,
+        evidence,
+        path
+      )
+
   type AtomicPathSearchResult(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char))
     AtomicPathSearchRootActiveNo : (@erased source: Bounded(n)) -> (@erased failure: AtomicPathRootRefutation(depth, n, machine, input, after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, Nil())) -> AtomicPathSearchResult(depth, n, machine, input, after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix)
     AtomicPathSearchRootExactNo : (@erased failure: AtomicPathRootRefutation(depth, n, machine, input, after_input, ThreadAccepted(), history, capture_context, policy, scope_depth, False(), reversed_prefix, Nil())) -> AtomicPathSearchResult(depth, n, machine, input, after_input, ThreadAccepted(), history, capture_context, policy, scope_depth, False(), reversed_prefix)
@@ -4750,7 +4858,6 @@ mod Std.Regex.Runtime
         policy,
         atomic_scope_depth_after(accepted_routine, Z()),
         reversed_prefix,
-        AtomicPathFailureExactAccepted(),
         child_failure,
         child_suffix,
         suffix
@@ -5732,7 +5839,7 @@ mod Std.Regex.Runtime
   ## Exact child failures receive the same suffix-indexed treatment as active
   ## input exhaustion. The stored constructor suffix is checked before the
   ## generic exact-input contradiction is reused.
-  fn atomic_path_child_exact_failure_excludes_trace({result: Type}, {depth: Nat}, {n: Nat}, machine: PatternMachine(n), @erased char: Char, @erased rest: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, reversed_prefix: List(Char), {whole: List(LookaroundAdmittedState(n))}, {current: List(LookaroundAdmittedState(n))}, @erased kind: AtomicPathFailureKind, @erased failure: AtomicPathRefutation(depth, n, machine, Cons(char, rest), after_input, ThreadAccepted(), history, capture_context, policy, scope_depth, False(), reversed_prefix, whole, current, kind), @erased failure_suffix: LookaroundAdmittedStateCursorSuffix(n, whole, current), {path_current: List(LookaroundAdmittedState(n))}, {matched: List(Char)}, {remaining_input: List(Char)}, {routine: List(ExtendedInstruction)}, @erased path: AtomicSelectedPathTrace(depth, n, machine, Cons(char, rest), after_input, ThreadAccepted(), history, capture_context, policy, scope_depth, False(), reversed_prefix, path_current, matched, remaining_input, routine)) -> result = match failure
+  fn atomic_path_child_exact_failure_excludes_trace({result: Type}, {depth: Nat}, {n: Nat}, machine: PatternMachine(n), @erased char: Char, @erased rest: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, reversed_prefix: List(Char), {whole: List(LookaroundAdmittedState(n))}, {current: List(LookaroundAdmittedState(n))}, @erased failure: AtomicPathRefutation(depth, n, machine, Cons(char, rest), after_input, ThreadAccepted(), history, capture_context, policy, scope_depth, False(), reversed_prefix, whole, current, AtomicPathFailureExactAccepted()), @erased failure_suffix: LookaroundAdmittedStateCursorSuffix(n, whole, current), {path_current: List(LookaroundAdmittedState(n))}, {matched: List(Char)}, {remaining_input: List(Char)}, {routine: List(ExtendedInstruction)}, @erased path: AtomicSelectedPathTrace(depth, n, machine, Cons(char, rest), after_input, ThreadAccepted(), history, capture_context, policy, scope_depth, False(), reversed_prefix, path_current, matched, remaining_input, routine)) -> result = match failure
     AtomicPathExactAcceptedWithInput(_, _, _, stored_suffix) -> match failure_suffix
       LookaroundAdmittedStateCursorSuffixHere(_) -> match stored_suffix
         LookaroundAdmittedStateCursorSuffixHere(_) -> atomic_path_exact_failure_excludes_trace(machine, char, rest, after_input, history, capture_context, policy, scope_depth, reversed_prefix, failure, path)
