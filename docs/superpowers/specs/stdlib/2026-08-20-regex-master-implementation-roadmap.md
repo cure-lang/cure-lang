@@ -957,6 +957,16 @@ recursive start-list correspondence: rejected and blocked non-empty-tail cases,
 arbitrary later siblings, and complete correspondence remain open. The focused
 dependent-assertion file now passes 88 tests.
 
+The blocked-active-head counterpart is now present as
+`atomic_start_rejected_member_there_blocked_active_tail_head_excludes_trace`.
+It consumes the typed `AtomicStartNoBlockedEvidence` witness for a blocked
+active head in a non-empty rejected tail and applies the canonical indexed
+skip/allow contradiction. The selected `AtomicSelectedTrace` remains an erased
+index, so no runtime state inspection or second search is introduced. This is
+the blocked-head base only: accepted-blocked heads, rejected-child heads,
+arbitrary later siblings, and complete start-list correspondence remain open.
+The focused dependent-assertion file now passes 89 tests.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
