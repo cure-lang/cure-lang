@@ -787,6 +787,17 @@ boundary, not the Phase 2 exit theorem: the continuation and the non-terminal
 rejected-child, sibling-tail, and start-list cases remain open. The focused
 dependent-assertion file now passes 91 tests.
 
+The sibling-tail induction now has a branch-specific construction boundary,
+`atomic_path_destination_rejection_excludes_recursive_tail_rejected`. Its
+parent refutation remains indexed by the full `remaining` suffix, while the
+rejected-tail case is handed to a proof-only continuation. Cure rejects
+inspecting the existential tail failure kind after erasure, so this branch is
+separated by its indexed constructor rather than by a runtime tag. This is
+transport infrastructure for the recursive tail theorem, not the
+contradiction itself; the continuation must still consume the tail's child
+failure and selected trace. The focused dependent-assertion file now passes
+92 tests.
+
 The next bounded tail case is now named
 `atomic_path_tail_drop_rejection_excludes_selected_suffix`. It retains the
 parent-to-selected cursor as an erased `Drop` index for the exact two-state
