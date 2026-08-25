@@ -798,6 +798,17 @@ contradiction itself; the continuation must still consume the tail's child
 failure and selected trace. The focused dependent-assertion file now passes
 92 tests.
 
+The first child/tail crossing boundary is now named
+`atomic_path_tail_active_child_rejection_excludes_selected_suffix`. It fixes
+the selected tail head as an active state, retains the child failure and
+cursor suffix at the child indices, and exposes the active child transition
+trace before handing the recursive contradiction to a proof-only
+continuation. The parent and child rejection kinds are separated by their
+indexed construction sites; no erased child kind is inspected at runtime.
+This is still transport infrastructure—the continuation must consume the
+child rejection correspondence. The focused dependent-assertion file now
+passes 93 tests.
+
 The next bounded tail case is now named
 `atomic_path_tail_drop_rejection_excludes_selected_suffix`. It retains the
 parent-to-selected cursor as an erased `Drop` index for the exact two-state
