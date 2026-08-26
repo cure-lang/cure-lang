@@ -809,17 +809,6 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/atomic_start_rejected_member_there_active_tail_head_excludes_trace.*?AtomicStartNoRejectedEvidence.*?atomic_start_tail_active_candidate_rejection_excludes_trace/s, source)
   end
 
-  test "active non-empty tail dispatches through erased membership induction" do
-    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
-
-    [_prefix, body] =
-      String.split(source, "fn atomic_start_rejected_member_there_active_tail_head_excludes_trace", parts: 2)
-
-    [body | _] = String.split(body, "\n  fn ", parts: 2)
-    assert body =~ "atomic_start_rejected_member_induction_erased"
-    assert body =~ "tail_case: () -> result"
-  end
-
   test "non-empty rejected tails consume an accepted head" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
@@ -840,6 +829,21 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     [body | _] = String.split(body, "\n  fn ", parts: 2)
     assert body =~ "atomic_start_rejected_member_induction_erased"
     assert body =~ "tail_case: () -> result"
+  end
+
+  test "accepted and blocked head consumers accept arbitrary selected tail membership" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    for function <- [
+          "atomic_start_rejected_member_there_accepted_tail_head_excludes_trace",
+          "atomic_start_rejected_member_there_blocked_active_tail_head_excludes_trace",
+          "atomic_start_rejected_member_there_blocked_accepted_tail_head_excludes_trace"
+        ] do
+      [_prefix, body] = String.split(source, "fn #{function}", parts: 2)
+      [body | _] = String.split(body, "\n  fn ", parts: 2)
+      assert body =~ "selected_start: LookaroundAdmittedState(n)"
+      assert body =~ "selected_start,"
+    end
   end
 
   test "non-empty rejected tails consume a blocked active head" do

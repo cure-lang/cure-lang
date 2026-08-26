@@ -1112,6 +1112,15 @@ head shapes at the induction boundary, but it still does not recurse through
 the later sibling tail or prove the complete start-list correspondence. The
 focused dependent-assertion file now passes 105 tests.
 
+The accepted and blocked non-empty-tail head consumers now take an independent
+erased `selected_start` index instead of hard-coding the candidate as the
+selected value. Their relevant `ListMember` argument can therefore represent
+either `Here` or an arbitrary later `There` sibling; the existing erased
+induction bridge handles the split without introducing a runtime membership
+branch. The active-head consumer remains specialized to its construction-site
+`Here` case; the non-empty recursive dispatcher that links an arbitrary
+selected path to that head case is still open.
+
 The accepted-head counterpart is now present as
 `atomic_start_rejected_member_there_accepted_tail_head_excludes_trace`. It
 specializes the non-empty `There` branch to an accepted head with exact child

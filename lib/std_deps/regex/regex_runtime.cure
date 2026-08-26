@@ -4070,7 +4070,7 @@ mod Std.Regex.Runtime
     prefix_mode: Bool,
     reversed_prefix: List(Char),
     {whole: List(LookaroundAdmittedState(n))},
-    {tail_head: LookaroundAdmittedState(n)},
+    tail_head: LookaroundAdmittedState(n),
     {tail_rest: List(LookaroundAdmittedState(n))},
     @erased package: AtomicStartTailPackage(
       depth,
@@ -4087,8 +4087,8 @@ mod Std.Regex.Runtime
       whole,
       Cons(tail_head, tail_rest)
     ),
-    {selected_start: LookaroundAdmittedState(n)},
-    @erased tail_membership: ListMember(
+    {@erased selected_start: LookaroundAdmittedState(n)},
+    tail_membership: ListMember(
       LookaroundAdmittedState(n),
       selected_start,
       tail_rest
@@ -4281,9 +4281,10 @@ mod Std.Regex.Runtime
     accepted_nested_decisions: List(LookaroundNestedDecision),
     {whole: List(LookaroundAdmittedState(n))},
     {remaining: List(LookaroundAdmittedState(n))},
+    {@erased selected_start: LookaroundAdmittedState(n)},
     membership: ListMember(
       LookaroundAdmittedState(n),
-      LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions),
+      selected_start,
       Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining)
     ),
     @erased failure: AtomicStartMembersRefutation(
@@ -4424,9 +4425,10 @@ mod Std.Regex.Runtime
     nested_decisions: List(LookaroundNestedDecision),
     {whole: List(LookaroundAdmittedState(n))},
     {remaining: List(LookaroundAdmittedState(n))},
+    {@erased selected_start: LookaroundAdmittedState(n)},
     membership: ListMember(
       LookaroundAdmittedState(n),
-      LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions),
+      selected_start,
       Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining)
     ),
     @erased failure: AtomicStartMembersRefutation(
@@ -4529,9 +4531,10 @@ mod Std.Regex.Runtime
     accepted_nested_decisions: List(LookaroundNestedDecision),
     {whole: List(LookaroundAdmittedState(n))},
     {remaining: List(LookaroundAdmittedState(n))},
+    {@erased selected_start: LookaroundAdmittedState(n)},
     membership: ListMember(
       LookaroundAdmittedState(n),
-      LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions),
+      selected_start,
       Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining)
     ),
     @erased failure: AtomicStartMembersRefutation(
