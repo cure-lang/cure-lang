@@ -933,6 +933,18 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
            )
   end
 
+  test "active recursive tails dispatch through a typed root child package" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "type AtomicStartActiveRootTailPackage"
+    assert source =~ "fn atomic_start_active_root_tail_package"
+    assert source =~ "fn atomic_start_rejected_member_there_nonempty_tail_active_excludes_trace"
+    assert Regex.match?(
+             ~r/atomic_start_rejected_member_there_nonempty_tail_active_excludes_trace.*?AtomicStartActiveRootTailPackage.*?atomic_start_active_root_failure_empty/s,
+             source
+           )
+  end
+
   test "non-empty rejected tails consume an accepted head" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 

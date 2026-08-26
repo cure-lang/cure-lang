@@ -1273,6 +1273,21 @@ Phase 2 work is the active/rejected non-blocked recursive dispatch, integration
 of these construction-site branches with the complete start-search fold, and
 the final selected-trace/refutation correspondence.
 
+The active root-tail construction boundary is now named
+`AtomicStartActiveRootTailPackage`. It wraps the existing root-child package
+instead of reopening the broad `AtomicPathRefutation` GADT at a new constructor
+site (the latter formulation was rejected by E093 because input exhaustion
+fixes the child cursor to the empty root). The reducible consumer
+`atomic_start_active_root_failure_empty` matches that wrapper and forwards the
+proof-only recursive continuation; the non-empty-tail bridge
+`atomic_start_rejected_member_there_nonempty_tail_active_excludes_trace` gives
+the construction site an explicit active/non-blocked name without promoting
+the erased package or selected trace into runtime data. This is transport
+scaffolding, not the completed active/rejected start-fold or the final
+selected-trace/refutation theorem. The focused dependent-assertion suite now
+observes 118/118; `./cure check` passes; and the full canonical pipeline remains
+52/52 with only W086.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
