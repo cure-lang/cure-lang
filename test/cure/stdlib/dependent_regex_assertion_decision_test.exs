@@ -921,6 +921,18 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/atomic_start_blocked_tail_package.*?atomic_start_rejected_tail_dispatch_blocked/s, body)
   end
 
+  test "accepted recursive tails dispatch their exact child certificate" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "type AtomicStartAcceptedRejectedTailPackage"
+    assert source =~ "fn atomic_start_accepted_rejected_tail_package"
+    assert source =~ "fn atomic_start_rejected_member_there_nonempty_tail_accepted_excludes_trace"
+    assert Regex.match?(
+             ~r/atomic_start_rejected_member_there_nonempty_tail_accepted_excludes_trace.*?AtomicStartAcceptedRejectedTailPackage.*?atomic_start_rejected_member_there_accepted_tail_head_excludes_trace/s,
+             source
+           )
+  end
+
   test "non-empty rejected tails consume an accepted head" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 

@@ -1256,6 +1256,23 @@ non-blocked failure kinds remain intentionally outside this slice. The new
 focused regressions observe 116/116, `./cure check` passes, and the canonical
 pipeline remains 52/52 with only W086.
 
+The accepted recursive tail now has the corresponding typed package boundary.
+`AtomicStartAcceptedRejectedTailPackage` keeps the parent rejected-start
+certificate, the exact accepted-child `AtomicPathRefutation`, its cursor suffix,
+and the typed no-result witness together at the accepted-head indices. The
+construction-site bridge
+`atomic_start_rejected_member_there_nonempty_tail_accepted_excludes_trace`
+unpacks that package only through its erased indices and delegates to
+`atomic_start_rejected_member_there_accepted_tail_head_excludes_trace`, which
+preserves the recursive tail continuation rather than proving only the head.
+The bridge binds the child cursor spines as erased implicits, avoiding the
+E011 hidden-index inference failure encountered by the first formulation. The
+focused dependent-assertion suite now observes 117/117, `./cure check` passes,
+and the full canonical pipeline remains 52/52 with only W086. The remaining
+Phase 2 work is the active/rejected non-blocked recursive dispatch, integration
+of these construction-site branches with the complete start-search fold, and
+the final selected-trace/refutation correspondence.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
