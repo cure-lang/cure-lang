@@ -1154,6 +1154,18 @@ tag. This is the second blocked-head base only: rejected-child heads,
 arbitrary later siblings, and complete start-list correspondence remain open.
 The focused dependent-assertion file now passes 90 tests.
 
+The successful search boundary now preserves the missing correspondence
+explicitly. `AtomicSelectedStartWitness` packages the selected
+`ListMember(LookaroundAdmittedState(...), selected_start, current)` together
+with the `AtomicSelectedTrace`; `atomic_start_members_root_to_search` constructs
+that package directly from `AtomicStartMembersYes`, and
+`LookaroundRoutineSearchYes`, `LookaheadWitness`, and `LookbehindWitness` carry
+it forward. The package is entirely erased, so runtime matching still sees
+only the matched input, remainder, and replay routine. This removes the old
+construction-site loss of membership evidence, but it does not yet implement
+the recursive non-empty-tail dispatcher or its active-head generalization.
+The focused dependent-assertion file now passes 106 tests.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

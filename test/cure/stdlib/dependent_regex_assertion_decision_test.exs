@@ -498,6 +498,15 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert start_yes =~ "AtomicSelectedTrace"
   end
 
+  test "successful atomic search results link membership to the selected trace" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "type AtomicSelectedStartWitness"
+    assert Regex.match?(~r/AtomicSelectedStartWitnessPacked\s*:.*?ListMember/s, source)
+    assert Regex.match?(~r/AtomicSelectedStartWitnessPacked\s*:.*?AtomicSelectedTrace/s, source)
+    assert Regex.match?(~r/LookaroundRoutineSearchYes\s*:.*?AtomicSelectedStartWitness/s, source)
+  end
+
   test "blocked atomic starts retain typed skip evidence" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
@@ -1269,7 +1278,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert result_declaration =~ "matched: List(Char)"
     assert result_declaration =~ "remaining: List(Char)"
     assert result_declaration =~ "routine: List(ExtendedInstruction)"
-    assert result_declaration =~ "AtomicSelectedTrace(depth, n, machine"
+    assert result_declaration =~ "AtomicSelectedStartWitness(depth, n, machine"
     assert result_declaration =~ "matched, remaining, routine)"
 
     lookahead_declaration =
@@ -1282,7 +1291,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert lookahead_declaration =~ "matched: List(Char)"
     assert lookahead_declaration =~ "remaining: List(Char)"
     assert lookahead_declaration =~ "routine: List(ExtendedInstruction)"
-    assert lookahead_declaration =~ "AtomicSelectedTrace(depth, n, machine"
+    assert lookahead_declaration =~ "AtomicSelectedStartWitness(depth, n, machine"
     assert lookahead_declaration =~ "matched, remaining, routine)"
     refute lookahead_declaration =~ "LookaroundPrefixSearchPath"
 
@@ -1294,7 +1303,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
       |> List.first()
 
     assert lookbehind_declaration =~ "routine: List(ExtendedInstruction)"
-    assert lookbehind_declaration =~ "AtomicSelectedTrace(depth, n, machine"
+    assert lookbehind_declaration =~ "AtomicSelectedStartWitness(depth, n, machine"
     assert lookbehind_declaration =~ "matched, remaining_input, routine)"
     refute lookbehind_declaration =~ "LookaroundSearchPath"
 
