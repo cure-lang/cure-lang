@@ -1183,6 +1183,14 @@ and blocked head consumers use the same construction-site pattern; the
 general recursive tail dispatcher remains open. The focused
 dependent-assertion file now passes 108 tests.
 
+`atomic_selected_start_witness_tail` now transports a relevant selected
+membership and its erased trace across one sibling boundary. Its result is
+indexed at `current = tail_rest`, while retaining the original `whole` list,
+so recursive consumers can no longer fabricate a parent-spine witness for a
+tail refutation. This is a reusable transport boundary; it does not classify
+the existential tail failure kind or discharge the recursive contradiction.
+The focused dependent-assertion file now passes 109 tests.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

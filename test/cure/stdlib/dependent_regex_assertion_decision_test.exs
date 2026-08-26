@@ -836,6 +836,14 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/atomic_start_rejected_member_there_active_tail_head_excludes_trace.*?AtomicStartNoRejectedEvidence.*?atomic_start_tail_active_candidate_rejection_excludes_trace/s, source)
   end
 
+  test "non-empty selected membership has an erased tail-witness transport" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "fn atomic_selected_start_witness_tail"
+    assert Regex.match?(~r/atomic_selected_start_witness_tail.*?ListMember/s, source)
+    assert Regex.match?(~r/atomic_selected_start_witness_tail.*?AtomicSelectedStartWitnessPacked/s, source)
+  end
+
   test "non-empty rejected tails consume an accepted head" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 

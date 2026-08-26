@@ -3108,6 +3108,68 @@ mod Std.Regex.Runtime
   type AtomicSelectedStartWitness(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)), selected_start: LookaroundAdmittedState(n), matched: List(Char), remaining_input: List(Char), selected_routine: List(ExtendedInstruction))
     AtomicSelectedStartWitnessPacked : (@erased whole: List(LookaroundAdmittedState(n))) -> (@erased current: List(LookaroundAdmittedState(n))) -> (@erased selected_member: ListMember(LookaroundAdmittedState(n), selected_start, current)) -> (@erased selected_trace: AtomicSelectedTrace(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, selected_start, matched, remaining_input, selected_routine)) -> AtomicSelectedStartWitness(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, current, selected_start, matched, remaining_input, selected_routine)
 
+  ## Transport a selected trace across one rejected sibling boundary.  The
+  ## tail membership is relevant at this construction site; the resulting
+  ## package is erased and records that its current spine is exactly the
+  ## recursive tail rather than the parent `Cons(head, tail)` list.
+  @reducible
+  fn atomic_selected_start_witness_tail(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {whole: List(LookaroundAdmittedState(n))},
+    {@erased head: LookaroundAdmittedState(n)},
+    {tail_rest: List(LookaroundAdmittedState(n))},
+    {@erased selected_start: LookaroundAdmittedState(n)},
+    tail_membership: ListMember(LookaroundAdmittedState(n), selected_start, tail_rest),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      selected_start,
+      matched,
+      remaining_input,
+      routine
+    )
+  ) -> AtomicSelectedStartWitness(
+    depth,
+    n,
+    machine,
+    position,
+    input,
+    after_input,
+    history,
+    capture_context,
+    policy,
+    prefix_mode,
+    reversed_prefix,
+    whole,
+    tail_rest,
+    selected_start,
+    matched,
+    remaining_input,
+    routine
+  ) = AtomicSelectedStartWitnessPacked(whole, tail_rest, tail_membership, path)
+
   type LookaheadWitness(n: Nat, machine: PatternMachine(n)) indices ()
     LookaheadWitnessPacked : (matched: List(Char)) -> (remaining: List(Char)) -> (routine: List(ExtendedInstruction)) -> {@erased position: InitialPosition} -> {@erased depth: Nat} -> {@erased input: List(Char)} -> {@erased history: List(Char)} -> {@erased capture_context: List(EvidenceInstruction)} -> {@erased policy: NewlinePolicy} -> (@erased selected_witness: AtomicSelectedStartWitness(depth, n, machine, position, input, Nil(), history, capture_context, policy, True(), Nil(), whole, current, selected_start, matched, remaining, routine)) -> LookaheadWitness(n, machine)
 
