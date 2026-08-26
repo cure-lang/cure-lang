@@ -826,7 +826,20 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     assert source =~ "fn atomic_start_rejected_member_there_nonempty_tail_excludes_trace"
-    assert Regex.match?(~r/atomic_start_rejected_member_there_nonempty_tail_excludes_trace.*?AtomicStartTailPackage.*?tail_case/s, source)
+    assert Regex.match?(~r/atomic_start_rejected_member_there_nonempty_tail_excludes_trace.*?AtomicStartMembersRefutation.*?AtomicStartNoEvidence.*?tail_case/s, source)
+  end
+
+  test "non-empty rejected start tails consume the indexed induction boundary" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_start_rejected_member_there_nonempty_tail_excludes_trace",
+        parts: 2
+      )
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert body =~ "member_there"
+    assert body =~ "atomic_start_rejected_member_induction_erased"
   end
 
   test "non-empty rejected tails consume an active head" do

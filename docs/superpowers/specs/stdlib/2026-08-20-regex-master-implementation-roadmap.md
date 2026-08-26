@@ -1342,6 +1342,17 @@ proof obligations. The focused dependent-assertion suite is 122/122,
 `./cure check` is green, and `./scripts/check-canonical-module-pipeline --full`
 is 52/52 with only the accepted W086 cycle warning.
 
+The non-empty rejected-start `There` boundary now consumes refined rejected
+failure and no-result witnesses directly.  It rebuilds the parent membership
+with `member_there` and delegates to
+`atomic_start_rejected_member_induction_erased`; the existential tail package
+is therefore never inspected as runtime control flow.  This is the canonical
+erasure-safe shape for the remaining recursive start-list correspondence, and
+the source regression pins both the `There` transport and the induction
+handoff.  The focused dependent-assertion suite is 123/123, `./cure check` is
+green, and the canonical pipeline remains 52/52 with only the accepted W086
+cycle warning.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
