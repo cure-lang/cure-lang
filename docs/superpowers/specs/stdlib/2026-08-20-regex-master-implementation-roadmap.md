@@ -1191,6 +1191,16 @@ tail refutation. This is a reusable transport boundary; it does not classify
 the existential tail failure kind or discharge the recursive contradiction.
 The focused dependent-assertion file now passes 109 tests.
 
+The selected-start witness now also retains the erased `AtomicStartAllowed`
+proof together with its `blocked_depth` and `AtomicStartSkipKind` indices.
+`atomic_start_members_root_to_search` publishes that proof instead of
+discarding it, and the lookahead/lookbehind wrappers preserve the existential
+indices while keeping all of the evidence erased. This establishes the
+selection-side invariant needed by the eventual blocked-tail dispatcher; it
+does not yet relate that proof to an existential skip witness recovered from a
+rejected tail. The focused dependent-assertion file passes 112 tests, and the
+canonical stdlib pipeline passes with only the accepted W086 cycle warning.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
