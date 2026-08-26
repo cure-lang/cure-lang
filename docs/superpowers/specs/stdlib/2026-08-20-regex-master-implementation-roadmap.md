@@ -429,6 +429,18 @@ current kernel rejects that direct construction with E093 at the two-erased-
 witness boundary, so no wrapper or runtime tag was added.
 The Phase 2 exit gate is therefore still not discharged.
 
+The root start-refutation boundary has since been strengthened: the public
+`AtomicStartRefutationRoot` now retains the parallel `AtomicStartNoEvidence`
+certificate alongside the complete failure tree.  This preserves the
+construction-site data required to dispatch arbitrary recursive start-list
+failure kinds without reconstructing an erased tail witness.  The first
+exhaustion consumer, `atomic_start_root_exhaustion_excludes_trace`, consumes
+the indexed failure/evidence pair and reduces the empty-root case to the
+existing membership contradiction.  This is a base-case slice only; the
+non-empty rejected/blocked start-fold and complete atomic selected-trace
+correspondence remain open.  `./cure check` and the focused dependent-
+assertion suite (121 tests) pass.
+
 **Applies to:** the Cure-native typed regex engine, its erased portable runtime,
 finite PCRE-family extensions, proof-carrying normalization, runtime pattern
 compilation, BEAM interoperability, and AtomVM packaging.

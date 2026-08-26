@@ -3116,7 +3116,7 @@ mod Std.Regex.Runtime
   ## recursion retains the exact whole/current start-list suffix; only the
   ## root wrapper is exposed at the lookaround decision boundary.
   type AtomicStartRefutation(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char))
-    AtomicStartRefutationRoot : {@erased whole: List(LookaroundAdmittedState(n))} -> {@erased kind: AtomicStartFailureKind} -> (@erased failure: AtomicStartMembersRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, whole, kind)) -> AtomicStartRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix)
+    AtomicStartRefutationRoot : {@erased whole: List(LookaroundAdmittedState(n))} -> {@erased kind: AtomicStartFailureKind} -> (@erased failure: AtomicStartMembersRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, whole, kind)) -> (@erased evidence: AtomicStartNoEvidence(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, whole, kind)) -> AtomicStartRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix)
 
   ## A decision is the only value consumed by an assertion constraint. A
   ## satisfied branch now carries an existential package containing the finite
@@ -6302,8 +6302,8 @@ mod Std.Regex.Runtime
             AtomicScopeEffect(_, closed_depth) -> atomic_lookaround_routine_after_failure(depth, n, machine, char, rest, after_input, source, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, remaining, LookaroundAdmittedAccepted(routine, constraints, assertion_routine, assertion_markers, nested_decisions), next_capture_context, atomic_scope_depth_after(routine, scope_depth), atomic_lookaround_state_scope_accepted(scope_depth, routine, constraints, assertion_routine, assertion_markers, nested_decisions), closed_depth, child_whole, child_current, child_origin, child_origin_equivalence, child_witness, child_suffix, cursor, witness, suffix, canonical, child_kind, child_failure)
 
   fn atomic_start_members_root_to_search(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char), {whole: List(LookaroundAdmittedState(n))}, result: AtomicStartMembersResult(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, whole)) -> LookaroundRoutineSearchResult(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix) = match result
-    AtomicStartMembersNo(_, failure, _) -> LookaroundRoutineSearchNo(AtomicStartRefutationRoot(failure))
-    AtomicStartMembersActiveRootNo(_, _, failure, _, _, _, _, _, _, _, _, _, _, _, _) -> LookaroundRoutineSearchNo(AtomicStartRefutationRoot(failure))
+    AtomicStartMembersNo(_, failure, evidence) -> LookaroundRoutineSearchNo(AtomicStartRefutationRoot(failure, evidence))
+    AtomicStartMembersActiveRootNo(_, _, failure, evidence, _, _, _, _, _, _, _, _, _, _, _) -> LookaroundRoutineSearchNo(AtomicStartRefutationRoot(failure, evidence))
     AtomicStartMembersCommit(commit_depth) -> LookaroundRoutineSearchCommit(commit_depth)
     AtomicStartMembersYes(matched, remaining, routine, _, selected_member, allowed, scope, trace) -> LookaroundRoutineSearchYes(matched, remaining, routine, AtomicSelectedStartWitnessPacked(whole, whole, allowed, scope, selected_member, trace))
 
@@ -6844,6 +6844,48 @@ mod Std.Regex.Runtime
     @erased _path: AtomicSelectedTrace(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, selected_start, matched, remaining_input, routine)
   ) -> Empty = match failure
     AtomicStartExhausted(_, _) -> lookaround_impossible_list_member(membership)
+
+  ## The root exhaustion consumer keeps the public wrapper and its parallel
+  ## no-result evidence together at the first complete start-list boundary.
+  ## Matching both packages refines the root list to `Nil()`; the selected
+  ## membership is then impossible, so no recursive failure tag or runtime
+  ## proof payload needs to be inspected.
+  @reducible
+  fn atomic_start_root_exhaustion_excludes_trace(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    @erased failure: AtomicStartMembersRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, Nil(), Nil(), AtomicStartFailureExhausted()),
+    @erased evidence: AtomicStartNoEvidence(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, Nil(), Nil(), AtomicStartFailureExhausted()),
+    {item: LookaroundAdmittedState(n)},
+    @erased membership: ListMember(LookaroundAdmittedState(n), item, Nil()),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedTrace(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, item, matched, remaining_input, routine)
+  ) -> Empty = match failure
+    AtomicStartExhausted(_, _) -> atomic_start_failure_excludes_trace(
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      membership,
+      failure,
+      path
+    )
 
   ## An active start candidate rejected by its child cannot also be the head of
   ## a selected trace.  The rejection constructor publishes the child's exact

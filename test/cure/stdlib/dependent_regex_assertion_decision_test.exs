@@ -970,6 +970,17 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/fn atomic_start_initial_tail_no.*?atomic_start_active_root_no_empty/s, source)
   end
 
+  test "root start refutations retain evidence at exhaustion" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert Regex.match?(
+             ~r/type AtomicStartRefutation\(.*?AtomicStartRefutationRoot.*?evidence: AtomicStartNoEvidence/s,
+             source
+           )
+
+    assert source =~ "fn atomic_start_root_exhaustion_excludes_trace"
+  end
+
   test "non-empty rejected tails consume an accepted head" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
