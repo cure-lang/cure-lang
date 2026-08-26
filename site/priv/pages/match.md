@@ -1,7 +1,9 @@
 %{
   title: "Pattern Matching",
   description: "Every pattern shape Cure supports: literals, variables, lists, tuples, maps, records, ADTs, bitstrings, pins, repeated variables, guards, nested destructuring, exhaustiveness, and flow-typing.",
-  order: 11
+  category: :learn,
+  category_title: "Learn Cure",
+  order: 4
 }
 ---
 > **Normative source (v0.33.0).** The `match` construct is specified at

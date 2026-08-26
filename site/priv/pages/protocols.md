@@ -1,6 +1,8 @@
 %{
-  title: "Interfaces",
+  title: "Interfaces & Protocols",
   description: "Ad-hoc polymorphism with interfaces, implementations, and explicit constraints.",
+  category: :learn,
+  category_title: "Learn Cure",
   order: 7
 }
 ---

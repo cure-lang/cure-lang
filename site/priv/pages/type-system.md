@@ -1,7 +1,9 @@
 %{
   title: "Type System",
   description: "The dependent kernel: indexed families, conversion, quantitative binders, patterns, and interfaces.",
-  order: 3
+  category: :learn,
+  category_title: "Learn Cure",
+  order: 6
 }
 ---
 

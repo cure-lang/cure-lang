@@ -1,7 +1,9 @@
 %{
   title: "Finite State Machines",
   description: "The `fsm` macro: transition tables with typed states, events, guards and updates, verified at compile time and lowered onto OTP gen_statem.",
-  order: 4
+  category: :concurrency,
+  category_title: "OTP & Concurrency",
+  order: 2
 }
 ---
 

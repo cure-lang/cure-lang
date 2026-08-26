@@ -1,7 +1,9 @@
 %{
   title: "Playground",
   description: "Browser-based checking and evaluation through Cure's dependent compiler.",
-  order: 13
+  category: :tooling,
+  category_title: "Tooling & Ecosystem",
+  order: 3
 }
 ---
 

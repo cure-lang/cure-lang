@@ -1,7 +1,9 @@
 %{
-  title: "REPL",
+  title: "REPL Reference",
   description: "The interactive Cure REPL: raw-mode line editor, live syntax highlighting, persistent history, incremental reverse search, Tab completion, and meta-commands.",
-  order: 12
+  category: :tooling,
+  category_title: "Tooling & Ecosystem",
+  order: 2
 }
 ---
 `cure repl` drops you into a readline-grade read-eval-print loop

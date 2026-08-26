@@ -1,7 +1,9 @@
 %{
-  title: "Actors",
+  title: "Actors & Supervision",
   description: "Typed supervision trees with first-class actor and sup containers, the Melquiades send operator (<-|), links, monitors, and exit signals.",
-  order: 5
+  category: :concurrency,
+  category_title: "OTP & Concurrency",
+  order: 1
 }
 ---
 

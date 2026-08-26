@@ -1,6 +1,8 @@
 %{
   title: "Getting Started",
   description: "Install Cure and run your first typed BEAM program.",
+  category: :learn,
+  category_title: "Learn Cure",
   order: 1
 }
 ---

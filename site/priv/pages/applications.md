@@ -1,7 +1,9 @@
 %{
-  title: "Applications",
+  title: "Applications & Releases",
   description: "First-class OTP applications and BEAM releases. The app container compiles a supervision tree into an Application callback module; cure release packages it as a bootable release.",
-  order: 6
+  category: :concurrency,
+  category_title: "OTP & Concurrency",
+  order: 3
 }
 ---
 
@@ -51,7 +53,7 @@ Start phases are therefore a manifest-level feature. `[application].start_phases
 
 `Cure.Project.compile_project/2` scans every `.cure` file under `lib/` and fails if more than one `app` container is declared:
 
-```
+```cure
 error: duplicate application
  --> Cure.toml
   | more than one `app` container in the project:
@@ -109,7 +111,7 @@ Notable rules:
 
 Once the project compiles cleanly, `cure release` (or `mix cure.release`) produces a self-contained BEAM release under `_build/cure/rel/<name>/`:
 
-```
+```cure
 _build/cure/rel/my_app/
   lib/<app>-<vsn>/ebin/*.{beam,app}   # every included app
   releases/<vsn>/<name>.rel

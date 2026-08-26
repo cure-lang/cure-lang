@@ -1,7 +1,9 @@
 %{
   title: "Language Guide",
   description: "Complete syntax reference for the Cure programming language.",
-  order: 2
+  category: :learn,
+  category_title: "Learn Cure",
+  order: 3
 }
 ---
 Cure is an indentation-structured, expression-oriented language that compiles to BEAM bytecode. Blocks are delimited by indentation level -- no `do`/`end`, no braces. The last expression in a block is its value.

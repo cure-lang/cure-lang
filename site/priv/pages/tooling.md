@@ -1,7 +1,9 @@
 %{
-  title: "Tooling",
+  title: "Developer Tooling",
   description: "CLI, Language Server, MCP server, optimizer, profiler, and pipeline events.",
-  order: 9
+  category: :tooling,
+  category_title: "Tooling & Ecosystem",
+  order: 1
 }
 ---
 
@@ -910,7 +912,7 @@ match -- but the compiler surfaces the gap as a warning.
 
 Errors include source location with caret display:
 
-```
+```cure
 error: type mismatch in function 'bad'
  --> hello.cure:3
   | declared return type Int but body has type String
@@ -1006,7 +1008,7 @@ IO.puts(Cure.Profiler.format_report(report))
 
 ### Formatted output
 
-```
+```cure
 Cure Compilation Profile
 ========================
 File:         hello.cure

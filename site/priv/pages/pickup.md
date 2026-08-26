@@ -1,7 +1,9 @@
 %{
   title: "Conditional Dispatch (pickup)",
   description: "The total, ordered, short-circuiting predicate-dispatch construct that replaces if/elif/else. Mandatory else terminator, strict Bool typing, source-order evaluation, refinement narrowing, formatter alignment, and a complete migration story.",
-  order: 12
+  category: :learn,
+  category_title: "Learn Cure",
+  order: 5
 }
 ---
 > **Normative source (v0.33.0).** The `pickup` construct is specified

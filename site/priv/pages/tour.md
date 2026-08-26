@@ -1,6 +1,8 @@
 %{
   title: "Language Tour",
   description: "A short tour of Cure's syntax, types, and BEAM foundations.",
+  category: :learn,
+  category_title: "Learn Cure",
   order: 2
 }
 ---

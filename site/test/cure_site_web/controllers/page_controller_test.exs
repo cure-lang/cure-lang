@@ -14,13 +14,11 @@ defmodule CureSiteWeb.PageControllerTest do
     version = CureSite.cure_version()
     assert body =~ "v" <> version
 
-    # Top-level nav entries after the Types/Dependent merge.
-    assert body =~ ~r{>\s*Types\s*<}
-    assert body =~ ~r{>\s*Match\s*<}
-
-    # The separate "Dependent" nav entry and its "new" badge were folded
-    # into the Types page -- neither should appear as a standalone link.
-    refute body =~ ~r{<a[^>]*>\s*Dependent}
-    refute body =~ ~s(badge-accent">new</span>)
+    # Top-level nav entries after the site rework.
+    assert body =~ ~r{>\s*Learn\s*<}
+    assert body =~ ~r{>\s*Concurrency\s*<}
+    assert body =~ ~r{>\s*Stdlib\s*<}
+    assert body =~ ~r{>\s*Tooling\s*<}
+    assert body =~ ~r{>\s*Blog\s*<}
   end
 end
