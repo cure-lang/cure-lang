@@ -1212,6 +1212,22 @@ boundary for the eventual blocked-tail dispatcher, not yet that dispatcher's
 integration with existential start evidence. The focused dependent-assertion
 file passes 113 tests.
 
+The next transport slice is now landed. `AtomicStartScopeEvidence` records the
+erased admitted candidate together with the canonical skip/allow token;
+blocked records are carried by `AtomicStartNoBlockedEvidence`, and allowed
+records are carried through `AtomicStartMembersYes`,
+`AtomicSelectedStartWitnessPacked`, and the rejected-sibling tail transport.
+The full admitted state is intentionally not placed in the family indices:
+that formulation made the elaborator normalize the large candidate term at
+every downstream refutation site and expanded the single-file check from the
+42-second baseline to several minutes. The construction-site record retains
+the exact candidate and the authoritative indexed skip/allow evidence while
+keeping those expensive terms erased. `./cure check` passes; the focused
+assertion suite observes 113/113; and the full canonical pipeline passes 52/52
+with only the accepted W086 cycle warning. The remaining Phase 2 work is the
+blocked-tail dispatcher theorem that consumes these records and proves the
+selected-trace/refutation correspondence.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

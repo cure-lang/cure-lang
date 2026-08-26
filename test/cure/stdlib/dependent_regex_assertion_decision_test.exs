@@ -875,6 +875,9 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert source =~ "type AtomicStartScopeSelection"
     assert Regex.match?(~r/AtomicStartScopeSelection.*?AtomicDepthAtLeast.*?AtomicDepthBelow/s, source)
     assert source =~ "fn atomic_start_scope_selection_excludes"
+    assert Regex.match?(~r/AtomicStartNoBlockedEvidence.*?AtomicStartScopeEvidence/s, source)
+    assert Regex.match?(~r/AtomicStartMembersYes.*?AtomicStartScopeEvidence/s, source)
+    assert Regex.match?(~r/AtomicSelectedStartWitnessPacked.*?AtomicStartScopeEvidence/s, source)
   end
 
   test "non-empty rejected tails consume an accepted head" do
