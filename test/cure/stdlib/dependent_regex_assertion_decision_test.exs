@@ -508,6 +508,14 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/LookaroundRoutineSearchYes\s*:.*?AtomicSelectedStartWitness/s, source)
   end
 
+  test "the selected witness has a proof-only membership induction boundary" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "fn atomic_selected_start_witness_induction_erased"
+    assert Regex.match?(~r/atomic_selected_start_witness_induction_erased.*?AtomicSelectedStartWitness/s, source)
+    assert Regex.match?(~r/atomic_selected_start_witness_induction_erased.*?atomic_start_rejected_member_induction_erased/s, source)
+  end
+
   test "blocked atomic starts retain typed skip evidence" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 

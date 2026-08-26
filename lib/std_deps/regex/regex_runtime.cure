@@ -3438,6 +3438,102 @@ mod Std.Regex.Runtime
     ListMemberThere(_) -> match _evidence
       AtomicStartNoRejectedEvidence(_, _, _, _, _, _, _, _, _, _, _, _, _, _) -> tail_case()
 
+  ## Construction-site wrapper for a successful atomic witness.  The
+  ## membership argument remains relevant here so the Here/There split can
+  ## drive proof-only continuations; the linked witness is erased and fixes
+  ## the same whole/current spine and selected trace at the type level.
+  @reducible
+  fn atomic_selected_start_witness_induction_erased(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {whole: List(LookaroundAdmittedState(n))},
+    {@erased head: LookaroundAdmittedState(n)},
+    {@erased rest: List(LookaroundAdmittedState(n))},
+    {@erased selected_start: LookaroundAdmittedState(n)},
+    @erased failure: AtomicStartMembersRefutation(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(head, rest),
+      AtomicStartFailureRejected()
+    ),
+    @erased evidence: AtomicStartNoEvidence(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(head, rest),
+      AtomicStartFailureRejected()
+    ),
+    membership: ListMember(LookaroundAdmittedState(n), selected_start, Cons(head, rest)),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {routine: List(ExtendedInstruction)},
+    @erased witness: AtomicSelectedStartWitness(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(head, rest),
+      selected_start,
+      matched,
+      remaining_input,
+      routine
+    ),
+    head_case: result,
+    tail_case: () -> result
+  ) -> result = atomic_start_rejected_member_induction_erased(
+    machine,
+    position,
+    input,
+    after_input,
+    history,
+    capture_context,
+    policy,
+    prefix_mode,
+    reversed_prefix,
+    failure,
+    evidence,
+    membership,
+    head_case,
+    tail_case
+  )
+
   ## Blocked counterpart of the proof-only induction boundary.  A blocked
   ## candidate carries a skip/allow commitment rather than a rejected-child
   ## tail package, so its evidence index has its own constructor.  The
