@@ -502,6 +502,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     assert source =~ "type AtomicSelectedStartWitness"
+    assert Regex.match?(~r/AtomicSelectedStartWitness\([^\n]+whole: List\(LookaroundAdmittedState\(n\)\), current: List\(LookaroundAdmittedState\(n\)\)/, source)
     assert Regex.match?(~r/AtomicSelectedStartWitnessPacked\s*:.*?ListMember/s, source)
     assert Regex.match?(~r/AtomicSelectedStartWitnessPacked\s*:.*?AtomicSelectedTrace/s, source)
     assert Regex.match?(~r/LookaroundRoutineSearchYes\s*:.*?AtomicSelectedStartWitness/s, source)

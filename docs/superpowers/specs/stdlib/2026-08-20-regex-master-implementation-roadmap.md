@@ -1166,6 +1166,14 @@ construction-site loss of membership evidence, but it does not yet implement
 the recursive non-empty-tail dispatcher or its active-head generalization.
 The focused dependent-assertion file now passes 106 tests.
 
+The selected witness package now indexes both the complete start list and the
+current suffix. Its constructor receives those two erased lists explicitly,
+so tail transport cannot accidentally reattach a membership proof to an
+unrelated spine. The public search and lookahead/lookbehind witness
+constructors continue to erase the package and retain only runtime match
+data; the recursive membership eliminator is still the next construction-site
+step. The focused dependent-assertion file remains at 106 tests.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
