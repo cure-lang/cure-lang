@@ -1174,13 +1174,12 @@ constructors continue to erase the package and retain only runtime match
 data; the recursive membership eliminator is still the next construction-site
 step. The focused dependent-assertion file remains at 106 tests.
 
-The active non-empty-tail head consumer now uses
-`AtomicSelectedStartWitnessPacked` and
-`atomic_selected_start_witness_induction_erased` at its construction site.
-This is the first consumer that ties a concrete selected trace to the
-relevant `Here`/`There` membership split while keeping the trace package
-erased. The accepted and blocked head consumers still use their specialized
-induction bridges because their current path indices are head-specific; the
+The active non-empty-tail head consumer now accepts an independent erased
+`selected_start` index and dispatches arbitrary relevant membership through
+`atomic_start_rejected_member_induction_erased`. Its path remains specialized
+to an active head, so the `Here` branch can consume the active-child
+contradiction while the `There` branch remains a continuation. The accepted
+and blocked head consumers use the same construction-site pattern; the
 general recursive tail dispatcher remains open. The focused
 dependent-assertion file now passes 108 tests.
 

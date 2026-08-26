@@ -4244,9 +4244,10 @@ mod Std.Regex.Runtime
     nested_decisions: List(LookaroundNestedDecision),
     {whole: List(LookaroundAdmittedState(n))},
     {remaining: List(LookaroundAdmittedState(n))},
+    {@erased selected_start: LookaroundAdmittedState(n)},
     membership: ListMember(
       LookaroundAdmittedState(n),
-      LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions),
+      selected_start,
       Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining)
     ),
     {child_whole: List(LookaroundAdmittedState(n))},
@@ -4343,13 +4344,7 @@ mod Std.Regex.Runtime
       evidence,
       path
     )
-    let selected_witness = AtomicSelectedStartWitnessPacked(
-      whole,
-      Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining),
-      membership,
-      path
-    )
-    atomic_selected_start_witness_induction_erased(
+    atomic_start_rejected_member_induction_erased(
       machine,
       position,
       empty_input,
@@ -4362,7 +4357,6 @@ mod Std.Regex.Runtime
       failure,
       evidence,
       membership,
-      selected_witness,
       head_case,
       tail_case
     )
