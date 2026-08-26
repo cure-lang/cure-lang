@@ -552,6 +552,15 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/atomic_start_candidate_rejection_excludes_trace.*?child_suffix/s, source)
   end
 
+  test "active non-empty tails consume the linked selected witness boundary" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [_prefix, body] = String.split(source, "fn atomic_start_rejected_member_there_active_tail_head_excludes_trace", parts: 2)
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert body =~ "AtomicSelectedStartWitnessPacked"
+    assert body =~ "atomic_selected_start_witness_induction_erased"
+  end
+
   test "rejected start tails consume their empty cursor before refuting" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 

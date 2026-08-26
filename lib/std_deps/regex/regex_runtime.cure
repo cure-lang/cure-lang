@@ -4343,7 +4343,13 @@ mod Std.Regex.Runtime
       evidence,
       path
     )
-    atomic_start_rejected_member_induction_erased(
+    let selected_witness = AtomicSelectedStartWitnessPacked(
+      whole,
+      Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining),
+      membership,
+      path
+    )
+    atomic_selected_start_witness_induction_erased(
       machine,
       position,
       empty_input,
@@ -4356,6 +4362,7 @@ mod Std.Regex.Runtime
       failure,
       evidence,
       membership,
+      selected_witness,
       head_case,
       tail_case
     )

@@ -1174,6 +1174,16 @@ constructors continue to erase the package and retain only runtime match
 data; the recursive membership eliminator is still the next construction-site
 step. The focused dependent-assertion file remains at 106 tests.
 
+The active non-empty-tail head consumer now uses
+`AtomicSelectedStartWitnessPacked` and
+`atomic_selected_start_witness_induction_erased` at its construction site.
+This is the first consumer that ties a concrete selected trace to the
+relevant `Here`/`There` membership split while keeping the trace package
+erased. The accepted and blocked head consumers still use their specialized
+induction bridges because their current path indices are head-specific; the
+general recursive tail dispatcher remains open. The focused
+dependent-assertion file now passes 108 tests.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
