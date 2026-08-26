@@ -723,8 +723,8 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert source =~ "fn atomic_start_tail_blocked_accepted_candidate_excludes_trace"
     assert Regex.match?(~r/atomic_start_tail_blocked_active_candidate_excludes_trace.*?AtomicStartNoBlockedEvidence/s, source)
     assert Regex.match?(~r/atomic_start_tail_blocked_accepted_candidate_excludes_trace.*?AtomicStartNoBlockedEvidence/s, source)
-    assert Regex.match?(~r/atomic_start_tail_blocked_active_candidate_excludes_trace.*?atomic_start_skip_excludes_allowed/s, source)
-    assert Regex.match?(~r/atomic_start_tail_blocked_accepted_candidate_excludes_trace.*?atomic_start_skip_excludes_allowed/s, source)
+    assert Regex.match?(~r/atomic_start_tail_blocked_active_candidate_excludes_trace.*?atomic_start_scope_record_excludes_allowed/s, source)
+    assert Regex.match?(~r/atomic_start_tail_blocked_accepted_candidate_excludes_trace.*?atomic_start_scope_record_excludes_allowed/s, source)
   end
 
   test "blocked rejected tails retain recursive siblings" do
@@ -878,6 +878,22 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/AtomicStartNoBlockedEvidence.*?AtomicStartScopeEvidence/s, source)
     assert Regex.match?(~r/AtomicStartMembersYes.*?AtomicStartScopeEvidence/s, source)
     assert Regex.match?(~r/AtomicSelectedStartWitnessPacked.*?AtomicStartScopeEvidence/s, source)
+  end
+
+  test "blocked-tail dispatch consumes the recorded scope evidence" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "fn atomic_start_scope_record_excludes_allowed"
+    assert Regex.match?(~r/atomic_start_scope_record_excludes_allowed.*?AtomicStartScopeEvidenceRecorded.*?atomic_start_skip_excludes_allowed/s, source)
+
+    for name <- [
+          "atomic_start_tail_blocked_active_candidate_excludes_trace",
+          "atomic_start_tail_blocked_accepted_candidate_excludes_trace"
+        ] do
+      [_prefix, body] = String.split(source, "fn #{name}", parts: 2)
+      [body | _] = String.split(body, "\n  ##", parts: 2)
+      assert Regex.match?(~r/AtomicStartNoBlockedEvidence.*?scope.*?atomic_start_scope_record_excludes_allowed/s, body)
+    end
   end
 
   test "non-empty rejected tails consume an accepted head" do

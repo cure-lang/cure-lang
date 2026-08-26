@@ -5345,6 +5345,21 @@ mod Std.Regex.Runtime
     AtomicStartSkipByScope(proof) -> match allowed
       AtomicStartAllowedEscape(_) -> impossible
 
+  ## The blocked-tail dispatcher consumes the construction-site scope record
+  ## before applying the ordinary skip/allow contradiction. This keeps the
+  ## exact admitted candidate and its canonical skip token together at the
+  ## boundary where a rejected tail is compared with a selected trace.
+  fn atomic_start_scope_record_excludes_allowed(
+    {result: Type},
+    {n: Nat},
+    {blocked_depth: Option(Nat)},
+    {kind: AtomicStartSkipKind},
+    @erased scope: AtomicStartScopeEvidence(n, AtomicStartScopeEvidenceBlockedRole()),
+    @erased skip: AtomicStartSkipEvidence(blocked_depth, kind),
+    @erased allowed: AtomicStartAllowed(blocked_depth, kind)
+  ) -> result = match scope
+    AtomicStartScopeEvidenceRecorded(_, _) -> atomic_start_skip_excludes_allowed(skip, allowed)
+
   ## A blocked start candidate cannot also be the selected start.  The
   ## refutation and selected trace are both consumed at this construction
   ## boundary: the blocked candidate publishes the exact skip token, while a
@@ -5954,7 +5969,7 @@ mod Std.Regex.Runtime
       selected_routine
     )
   ) -> result = match evidence
-    AtomicStartNoBlockedEvidence(_, _, _, _, _, _) -> atomic_start_skip_excludes_allowed(skip, allowed)
+    AtomicStartNoBlockedEvidence(_, _, _, scope, _, _) -> atomic_start_scope_record_excludes_allowed(scope, skip, allowed)
 
   ## The accepted blocked-tail base is identical at the proof boundary, with
   ## the selected-start index choosing the accepted constructor explicitly.
@@ -6019,7 +6034,7 @@ mod Std.Regex.Runtime
       selected_routine
     )
   ) -> result = match evidence
-    AtomicStartNoBlockedEvidence(_, _, _, _, _, _) -> atomic_start_skip_excludes_allowed(skip, allowed)
+    AtomicStartNoBlockedEvidence(_, _, _, scope, _, _) -> atomic_start_scope_record_excludes_allowed(scope, skip, allowed)
 
   ## A rejected head with no remaining siblings exposes an empty tail.  The
   ## published tail cursor must be consumed before delegating to the existing

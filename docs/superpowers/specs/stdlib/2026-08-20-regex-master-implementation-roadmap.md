@@ -1224,9 +1224,22 @@ every downstream refutation site and expanded the single-file check from the
 the exact candidate and the authoritative indexed skip/allow evidence while
 keeping those expensive terms erased. `./cure check` passes; the focused
 assertion suite observes 113/113; and the full canonical pipeline passes 52/52
-with only the accepted W086 cycle warning. The remaining Phase 2 work is the
-blocked-tail dispatcher theorem that consumes these records and proves the
-selected-trace/refutation correspondence.
+with only the accepted W086 cycle warning.
+
+The blocked-tail dispatcher boundary is now wired. Both blocked-tail theorem
+bodies consume their `AtomicStartScopeEvidence` record through the canonical
+`atomic_start_scope_record_excludes_allowed` helper before delegating to the
+authoritative indexed skip/allow contradiction. The helper pattern-matches the
+recorded scope constructor, so a blocked tail cannot silently bypass the
+construction-site scope evidence; the separately threaded `AtomicStartSkipEvidence`
+and `AtomicStartAllowed` values remain the indexed authority because the
+role-only scope family deliberately avoids re-normalizing the full candidate.
+The red source regression covers both blocked-tail branches. The focused
+dependent-assertion suite now observes 114/114, `./cure check` passes, and the
+full canonical pipeline remains 52/52 with only W086. The remaining Phase 2
+work is the general recursive tail dispatcher and the final selected-trace /
+refutation correspondence; this slice closes the blocked-tail construction
+boundary without claiming those later proofs are complete.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
