@@ -896,6 +896,31 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     end
   end
 
+  test "recursive blocked tails dispatch from the typed tail package" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "fn atomic_start_rejected_tail_dispatch_blocked"
+    assert Regex.match?(
+             ~r/atomic_start_rejected_tail_dispatch_blocked.*?AtomicStartBlockedTailPackagePacked.*?atomic_start_blocked_member_induction_erased/s,
+             source
+           )
+    assert Regex.match?(
+             ~r/atomic_start_rejected_tail_dispatch_blocked.*?AtomicStartBlockedTailPackagePacked.*?tail_case/s,
+             source
+           )
+  end
+
+  test "non-empty blocked-tail construction uses the typed dispatcher" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_start_rejected_member_there_nonempty_tail_blocked_excludes_trace", parts: 2)
+
+    [body | _] = String.split(body, "\n  @reducible\n  fn atomic_start_rejected_tail_dispatch_blocked", parts: 2)
+    assert Regex.match?(~r/AtomicStartTailPackage.*?atomic_start_blocked_tail_package/s, body)
+    assert Regex.match?(~r/atomic_start_blocked_tail_package.*?atomic_start_rejected_tail_dispatch_blocked/s, body)
+  end
+
   test "non-empty rejected tails consume an accepted head" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 

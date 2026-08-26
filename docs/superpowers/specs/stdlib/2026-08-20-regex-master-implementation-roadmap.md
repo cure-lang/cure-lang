@@ -1241,6 +1241,21 @@ work is the general recursive tail dispatcher and the final selected-trace /
 refutation correspondence; this slice closes the blocked-tail construction
 boundary without claiming those later proofs are complete.
 
+The blocked recursive tail now has a typed package boundary of its own.
+`AtomicStartBlockedTailPackage` pairs the blocked parent refutation, the
+canonical skip/allow indices, the scope record, and the blocked no-result
+witness. `atomic_start_blocked_tail_package` constructs that package only at
+the blocked evidence boundary, and
+`atomic_start_rejected_member_there_nonempty_tail_blocked_excludes_trace`
+feeds it to the proof-only `atomic_start_rejected_tail_dispatch_blocked`
+consumer. That consumer runs the generic blocked membership induction, so the
+active and accepted admitted-state constructors share the same construction
+authority without a runtime state-tag match. The selected-later branch is
+still an erased continuation for the next tail package; rejected-child and
+non-blocked failure kinds remain intentionally outside this slice. The new
+focused regressions observe 116/116, `./cure check` passes, and the canonical
+pipeline remains 52/52 with only W086.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

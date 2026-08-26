@@ -4838,6 +4838,313 @@ mod Std.Regex.Runtime
       tail_case
     )
 
+  ## A blocked-tail package restores the skip/allow indices after the ordinary
+  ## tail package has hidden its existential failure kind.  It is constructed
+  ## only from the blocked no-result constructor, so the later dispatcher can
+  ## consume one canonical `AtomicStartSkipEvidence`/`AtomicStartAllowed` pair
+  ## without guessing which candidate branch produced it.
+  type AtomicStartBlockedTailPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)))
+    AtomicStartBlockedTailPackagePacked : (@erased failure: AtomicStartMembersRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, current, AtomicStartFailureBlocked())) -> {@erased blocked_depth: Option(Nat)} -> {@erased kind: AtomicStartSkipKind} -> (@erased skip: AtomicStartSkipEvidence(blocked_depth, kind)) -> (@erased allowed: AtomicStartAllowed(blocked_depth, kind)) -> (@erased scope: AtomicStartScopeEvidence(n, AtomicStartScopeEvidenceBlockedRole())) -> (@erased evidence: AtomicStartNoEvidence(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, current, AtomicStartFailureBlocked())) -> AtomicStartBlockedTailPackage(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, current)
+
+  fn atomic_start_blocked_tail_package(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {whole: List(LookaroundAdmittedState(n))},
+    {current: List(LookaroundAdmittedState(n))},
+    @erased package: AtomicStartTailPackage(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      current
+    ),
+    {blocked_depth: Option(Nat)},
+    {@erased kind: AtomicStartSkipKind},
+    @erased skip: AtomicStartSkipEvidence(blocked_depth, kind),
+    @erased allowed: AtomicStartAllowed(blocked_depth, kind),
+    @erased failure: AtomicStartMembersRefutation(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      current,
+      AtomicStartFailureBlocked()
+    ),
+    @erased evidence: AtomicStartNoEvidence(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      current,
+      AtomicStartFailureBlocked()
+    )
+  ) -> AtomicStartBlockedTailPackage(
+    depth,
+    n,
+    machine,
+    position,
+    input,
+    after_input,
+    history,
+    capture_context,
+    policy,
+    prefix_mode,
+    reversed_prefix,
+    whole,
+    current
+  ) = match package
+    AtomicStartTailPackagePacked(_, _) -> match evidence
+      AtomicStartNoBlockedEvidence(_, _, _, scope, _, _) -> AtomicStartBlockedTailPackagePacked(failure, skip, allowed, scope, evidence)
+
+  ## One-step dispatcher for a blocked recursive tail. The ordinary tail
+  ## package is consumed only through the typed blocked package above; this
+  ## boundary feeds both admitted-state constructors through the generic
+  ## blocked membership induction. A later selected sibling remains a
+  ## zero-data continuation, so callers can close over its next package
+  ## without promoting proof data to runtime control flow.
+  fn atomic_start_rejected_member_there_nonempty_tail_blocked_excludes_trace(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {whole: List(LookaroundAdmittedState(n))},
+    head: LookaroundAdmittedState(n),
+    {rest: List(LookaroundAdmittedState(n))},
+    @erased package: AtomicStartTailPackage(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(head, rest)
+    ),
+    @erased failure: AtomicStartMembersRefutation(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(head, rest),
+      AtomicStartFailureBlocked()
+    ),
+    @erased evidence: AtomicStartNoEvidence(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(head, rest),
+      AtomicStartFailureBlocked()
+    ),
+    {blocked_depth: Option(Nat)},
+    {@erased kind: AtomicStartSkipKind},
+    @erased skip: AtomicStartSkipEvidence(blocked_depth, kind),
+    @erased allowed: AtomicStartAllowed(blocked_depth, kind),
+    {@erased selected_start: LookaroundAdmittedState(n)},
+    membership: ListMember(LookaroundAdmittedState(n), selected_start, Cons(head, rest)),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      selected_start,
+      matched,
+      remaining_input,
+      selected_routine
+    ),
+    tail_case: () -> Empty
+  ) -> Empty = let blocked_package: AtomicStartBlockedTailPackage(
+    depth,
+    n,
+    machine,
+    position,
+    input,
+    after_input,
+    history,
+    capture_context,
+    policy,
+    prefix_mode,
+    reversed_prefix,
+    whole,
+    Cons(head, rest)
+  ) = atomic_start_blocked_tail_package(
+    machine,
+    position,
+    input,
+    after_input,
+    history,
+    capture_context,
+    policy,
+    prefix_mode,
+    reversed_prefix,
+    package,
+    skip,
+    allowed,
+    failure,
+    evidence
+  )
+    atomic_start_rejected_tail_dispatch_blocked(
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      head,
+      blocked_package,
+      membership,
+      path,
+      tail_case
+    )
+
+  @reducible
+  fn atomic_start_rejected_tail_dispatch_blocked(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {whole: List(LookaroundAdmittedState(n))},
+    head: LookaroundAdmittedState(n),
+    {rest: List(LookaroundAdmittedState(n))},
+    @erased package: AtomicStartBlockedTailPackage(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(head, rest)
+    ),
+    {@erased selected_start: LookaroundAdmittedState(n)},
+    membership: ListMember(LookaroundAdmittedState(n), selected_start, Cons(head, rest)),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      selected_start,
+      matched,
+      remaining_input,
+      selected_routine
+    ),
+    tail_case: () -> Empty
+  ) -> Empty = match package
+    AtomicStartBlockedTailPackagePacked(failure, skip, allowed, scope, evidence) ->
+      let head_case: Empty = atomic_start_scope_record_excludes_allowed(scope, skip, allowed)
+      atomic_start_blocked_member_induction_erased(
+        machine,
+        position,
+        input,
+        after_input,
+        history,
+        capture_context,
+        policy,
+        prefix_mode,
+        reversed_prefix,
+        failure,
+        evidence,
+        membership,
+        head_case,
+        tail_case
+      )
+
   type AtomicPathSearchResult(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char))
     AtomicPathSearchRootActiveNo : (@erased source: Bounded(n)) -> (@erased failure: AtomicPathRootRefutation(depth, n, machine, input, after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, Nil())) -> AtomicPathSearchResult(depth, n, machine, input, after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix)
     AtomicPathSearchRootExactNo : (@erased failure: AtomicPathRootRefutation(depth, n, machine, input, after_input, ThreadAccepted(), history, capture_context, policy, scope_depth, False(), reversed_prefix, Nil())) -> AtomicPathSearchResult(depth, n, machine, input, after_input, ThreadAccepted(), history, capture_context, policy, scope_depth, False(), reversed_prefix)
