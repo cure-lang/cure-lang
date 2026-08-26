@@ -907,6 +907,15 @@ dependent-assertion file passes 67 tests, and the full canonical gate passes
 arbitrary non-empty-tail induction: recursive child rejection and multi-head
 `Drop` transport remain open.
 
+The accepted-head `Drop` transport is now generalized to an arbitrary sibling
+tail. `atomic_path_tail_drop_rejection_excludes_selected_suffix` carries an
+erased `tail_remaining` list through the parent refutation, tail refutation,
+cursor suffix, and selected path indices, so the accepted-child contradiction
+does not depend on a singleton tail. This is still the head case of the
+induction: selected-later `There` descent, recursive rejected-child
+correspondence, and complete start-list induction remain open. The focused
+dependent-assertion file passes 100 tests.
+
 The first start-list commitment base is now present in the constructor-specific
 eliminators `atomic_start_blocked_active_candidate_excludes_trace` and
 `atomic_start_blocked_accepted_candidate_excludes_trace`. They consume the

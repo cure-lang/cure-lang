@@ -5864,6 +5864,7 @@ mod Std.Regex.Runtime
     tail_assertion_routine: List(ExtendedInstruction),
     tail_assertion_markers: List(EvidenceInstruction),
     tail_nested_decisions: List(LookaroundNestedDecision),
+    {@erased tail_remaining: List(LookaroundAdmittedState(n))},
     @erased failure: AtomicPathRefutation(
       depth,
       n,
@@ -5878,7 +5879,7 @@ mod Std.Regex.Runtime
       prefix_mode,
       reversed_prefix,
       whole,
-      Cons(rejected_head, Cons(LookaroundAdmittedAccepted(tail_routine, tail_constraints, tail_assertion_routine, tail_assertion_markers, tail_nested_decisions), Nil())),
+      Cons(rejected_head, Cons(LookaroundAdmittedAccepted(tail_routine, tail_constraints, tail_assertion_routine, tail_assertion_markers, tail_nested_decisions), tail_remaining)),
       AtomicPathFailureDestinationRejected()
     ),
     @erased tail_failure: AtomicPathRefutation(
@@ -5895,13 +5896,13 @@ mod Std.Regex.Runtime
       prefix_mode,
       reversed_prefix,
       whole,
-      Cons(LookaroundAdmittedAccepted(tail_routine, tail_constraints, tail_assertion_routine, tail_assertion_markers, tail_nested_decisions), Nil()),
+      Cons(LookaroundAdmittedAccepted(tail_routine, tail_constraints, tail_assertion_routine, tail_assertion_markers, tail_nested_decisions), tail_remaining),
       AtomicPathFailureDestinationRejected()
     ),
     @erased selection_from_parent: LookaroundAdmittedStateCursorSuffix(
       n,
-      Cons(rejected_head, Cons(LookaroundAdmittedAccepted(tail_routine, tail_constraints, tail_assertion_routine, tail_assertion_markers, tail_nested_decisions), Nil())),
-      Cons(LookaroundAdmittedAccepted(tail_routine, tail_constraints, tail_assertion_routine, tail_assertion_markers, tail_nested_decisions), Nil())
+      Cons(rejected_head, Cons(LookaroundAdmittedAccepted(tail_routine, tail_constraints, tail_assertion_routine, tail_assertion_markers, tail_nested_decisions), tail_remaining)),
+      Cons(LookaroundAdmittedAccepted(tail_routine, tail_constraints, tail_assertion_routine, tail_assertion_markers, tail_nested_decisions), tail_remaining)
     ),
     {matched: List(Char)},
     {remaining_input: List(Char)},
@@ -5919,7 +5920,7 @@ mod Std.Regex.Runtime
       scope_depth,
       prefix_mode,
       reversed_prefix,
-      Cons(LookaroundAdmittedAccepted(tail_routine, tail_constraints, tail_assertion_routine, tail_assertion_markers, tail_nested_decisions), Nil()),
+      Cons(LookaroundAdmittedAccepted(tail_routine, tail_constraints, tail_assertion_routine, tail_assertion_markers, tail_nested_decisions), tail_remaining),
       matched,
       remaining_input,
       selected_routine

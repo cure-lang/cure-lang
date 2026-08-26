@@ -627,6 +627,17 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
            )
   end
 
+  test "atomic path tail Drop transports arbitrary accepted sibling tails" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_path_tail_drop_rejection_excludes_selected_suffix", parts: 2)
+
+    [body | _] = String.split(body, "\n  fn ", parts: 2)
+    assert body =~ "tail_remaining: List(LookaroundAdmittedState(n))"
+    assert Regex.match?(~r/Cons\(.*tail_remaining\).*?selection_from_parent/s, body)
+  end
+
   test "atomic start skips exclude selected traces at the construction site" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
