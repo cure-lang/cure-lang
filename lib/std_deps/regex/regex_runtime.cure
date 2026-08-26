@@ -3781,7 +3781,7 @@ mod Std.Regex.Runtime
       remaining_input,
       selected_routine
     ),
-    tail_case: (AtomicStartRejectedTailAt(depth, n, machine, position, Nil(), after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, rest)) -> Empty
+    tail_case: (AtomicStartActiveRootTailProofPackage(depth, n, machine, position, capture_context, append_routine(append_routine(capture_context, routine), assertion_markers), after_input, history, policy, prefix_mode, reversed_prefix, ThreadActive(state), routine, constraints, assertion_routine, assertion_markers, nested_decisions, whole, rest, atomic_scope_depth_after(routine, Z()))) -> Empty
   ) -> Empty =
     match atomic_start_member_location(
       selected_start,
@@ -3810,9 +3810,14 @@ mod Std.Regex.Runtime
             empty_lookaround_admitted_cursor_suffix(n),
             path
           )
-      AtomicStartMemberThere(_, _) -> match evidence
-        AtomicStartNoRejectedEvidence(_, _, _, _, _, _, _, _, _, _, _, _, _, tail_failure, tail_evidence) ->
-          tail_case(AtomicStartTailPackagePacked(tail_failure, tail_evidence))
+      AtomicStartMemberThere(_, _) -> match failure
+        AtomicStartCandidateRejected(_, _, _, _, _, _, _, _, _, _, child_failure, _, _) -> match child_failure
+          AtomicPathInputExhausted(child_witness, child_suffix) -> match evidence
+            AtomicStartNoRejectedEvidence(_, _, _, _, _, _, _, _, _, _, _, _, _, tail_failure, tail_evidence) ->
+              tail_case(AtomicStartActiveRootTailProofPackagePacked(
+                AtomicStartTailPackagePacked(tail_failure, tail_evidence),
+                AtomicPathInputExhausted(child_witness, child_suffix)
+              ))
 
   ## Turn intrinsic list membership into the ordered cursor suffix consumed by
   ## the atomic refutation induction.  Membership alone does not expose the
@@ -3976,6 +3981,15 @@ mod Std.Regex.Runtime
   ## the wrapped package already fixes the child cursor to the empty root.
   type AtomicStartActiveRootTailPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (position: InitialPosition, after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char), thread_state: ThreadState(n), routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), assertion_routine: List(ExtendedInstruction), assertion_markers: List(EvidenceInstruction), nested_decisions: List(LookaroundNestedDecision), whole: List(LookaroundAdmittedState(n)), remaining: List(LookaroundAdmittedState(n)), child_scope_depth: Nat)
     AtomicStartActiveRootTailPackagePacked : (@erased root: AtomicStartActiveRejectedTailPackage(depth, n, machine, position, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, thread_state, routine, constraints, assertion_routine, assertion_markers, nested_decisions, whole, remaining, child_scope_depth)) -> AtomicStartActiveRootTailPackage(depth, n, machine, position, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, thread_state, routine, constraints, assertion_routine, assertion_markers, nested_decisions, whole, remaining, child_scope_depth)
+
+  ## The construction-site proof package keeps the parent and child capture
+  ## contexts separate.  The parent context is used by the rejected start
+  ## evidence and tail package; the child context is the exact context after
+  ## the active candidate's regular routine and assertion markers.  Keeping
+  ## both in the indices prevents a later proof consumer from silently
+  ## substituting one VM context for the other.
+  type AtomicStartActiveRootTailProofPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (position: InitialPosition, parent_capture_context: List(EvidenceInstruction), child_capture_context: List(EvidenceInstruction), after_input: List(Char), history: List(Char), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char), thread_state: ThreadState(n), routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), assertion_routine: List(ExtendedInstruction), assertion_markers: List(EvidenceInstruction), nested_decisions: List(LookaroundNestedDecision), whole: List(LookaroundAdmittedState(n)), remaining: List(LookaroundAdmittedState(n)), child_scope_depth: Nat)
+    AtomicStartActiveRootTailProofPackagePacked : (@erased tail: AtomicStartTailPackage(depth, n, machine, position, Nil(), after_input, history, parent_capture_context, policy, prefix_mode, reversed_prefix, whole, remaining)) -> (@erased child_failure: AtomicPathRefutation(depth, n, machine, Nil(), after_input, thread_state, history, child_capture_context, policy, child_scope_depth, prefix_mode, reversed_prefix, Nil(), Nil(), AtomicPathFailureInputExhausted())) -> AtomicStartActiveRootTailProofPackage(depth, n, machine, position, parent_capture_context, child_capture_context, after_input, history, policy, prefix_mode, reversed_prefix, thread_state, routine, constraints, assertion_routine, assertion_markers, nested_decisions, whole, remaining, child_scope_depth)
 
 
   fn atomic_start_rejected_tail_evidence(
@@ -4680,7 +4694,6 @@ mod Std.Regex.Runtime
     nested_decisions: List(LookaroundNestedDecision),
     {whole: List(LookaroundAdmittedState(n))},
     {remaining: List(LookaroundAdmittedState(n))},
-    {child_scope_depth: Nat},
     {@erased selected_start: LookaroundAdmittedState(n)},
     membership: ListMember(
       LookaroundAdmittedState(n),
@@ -4739,14 +4752,15 @@ mod Std.Regex.Runtime
       remaining_input,
       selected_routine
     ),
-    @erased package: AtomicStartActiveRootTailPackage(
+    @erased package: AtomicStartActiveRootTailProofPackage(
       depth,
       n,
       machine,
       position,
+      capture_context,
+      append_routine(append_routine(capture_context, routine), assertion_markers),
       after_input,
       history,
-      capture_context,
       policy,
       prefix_mode,
       reversed_prefix,
@@ -4758,66 +4772,51 @@ mod Std.Regex.Runtime
       nested_decisions,
       whole,
       remaining,
-      child_scope_depth
+      atomic_scope_depth_after(routine, Z())
     ),
-    @erased child_failure: AtomicPathRefutation(
-      depth,
-      n,
-      machine,
-      Nil(),
-      after_input,
-      ThreadActive(state),
-      history,
-      append_routine(append_routine(capture_context, routine), assertion_markers),
-      policy,
-      atomic_scope_depth_after(routine, Z()),
-      prefix_mode,
-      reversed_prefix,
-      Nil(),
-      Nil(),
-      AtomicPathFailureInputExhausted()
-    ),
-    @erased child_suffix: LookaroundAdmittedStateCursorSuffix(n, Nil(), Nil()),
     tail_case: () -> result
-  ) -> result = let head_case: result = atomic_start_rejected_member_there_active_tail_head_excludes_trace(
+  ) -> result = let head_case: result = match package
+      AtomicStartActiveRootTailProofPackagePacked(
+        _,
+        child_failure
+      ) -> atomic_start_rejected_member_there_active_tail_head_excludes_trace(
+        machine,
+        position,
+        after_input,
+        history,
+        capture_context,
+        policy,
+        prefix_mode,
+        reversed_prefix,
+        state,
+        routine,
+        constraints,
+        assertion_routine,
+        assertion_markers,
+        nested_decisions,
+        membership,
+        child_failure,
+        empty_lookaround_admitted_cursor_suffix(n),
+        failure,
+        evidence,
+        path,
+        tail_case
+      )
+    atomic_start_rejected_member_induction_erased(
       machine,
       position,
+      Nil(),
       after_input,
       history,
       capture_context,
       policy,
       prefix_mode,
       reversed_prefix,
-      state,
-      routine,
-      constraints,
-      assertion_routine,
-      assertion_markers,
-      nested_decisions,
-      membership,
-      child_failure,
-      child_suffix,
       failure,
       evidence,
-      path,
+      membership,
+      head_case,
       tail_case
-    )
-    atomic_start_active_root_failure_empty_with_case(
-      machine,
-      position,
-      after_input,
-      history,
-      capture_context,
-      policy,
-      prefix_mode,
-      reversed_prefix,
-      routine,
-      constraints,
-      assertion_routine,
-      assertion_markers,
-      nested_decisions,
-      package,
-      head_case
     )
 
   ## The accepted-head counterpart carries the exact child character/rest and

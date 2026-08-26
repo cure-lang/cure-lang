@@ -1302,6 +1302,22 @@ rejected fold and final selected-trace/refutation correspondence remain open.
 The focused dependent-assertion suite remains 118/118, `./cure check` passes,
 and the canonical pipeline remains 52/52 with only W086.
 
+The active root-tail proof package now keeps the parent and child capture
+contexts distinct and carries the already-indexed child exhaustion refutation
+directly. Its root/empty-input invariant is enforced by the
+`AtomicPathRefutation` indices, avoiding a second root wrapper at the
+construction site; the attempted `Bounded` family index remains rejected by
+E093 and is not used. `atomic_start_rejected_member_here_excludes_trace`
+publishes this package, and
+`atomic_start_rejected_member_there_nonempty_tail_active_excludes_trace`
+consumes it before invoking the indexed active-head eliminator. The source
+regressions and canonical stdlib compilation now pass 119/119 focused tests,
+with `./cure check` green and the canonical pipeline still 52/52 with only
+the accepted W086 cycle warning. The package is still a construction-site
+bridge: wiring it into `atomic_lookaround_routine_initial_tail_after_failure`
+and completing the general active/rejected start-fold and final
+selected-trace/refutation correspondence remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

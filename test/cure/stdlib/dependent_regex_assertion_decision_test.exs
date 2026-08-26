@@ -789,7 +789,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     assert source =~ "fn atomic_start_rejected_member_here_excludes_trace"
     assert Regex.match?(~r/atomic_start_rejected_member_here_excludes_trace.*?AtomicStartMemberHere.*?AtomicStartCandidateRejected.*?AtomicPathInputExhausted/s, source)
-    assert Regex.match?(~r/atomic_start_rejected_member_here_excludes_trace.*?AtomicStartNoEvidence.*?tail_case: \(AtomicStartRejectedTailAt/s, source)
+    assert Regex.match?(~r/atomic_start_rejected_member_here_excludes_trace.*?AtomicStartNoEvidence.*?tail_case: \(AtomicStartActiveRootTailProofPackage/s, source)
   end
 
   test "rejected member induction exposes the typed recursive tail package" do
@@ -936,16 +936,27 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
   test "active recursive tails dispatch through a typed root child package" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
-    assert source =~ "type AtomicStartActiveRootTailPackage"
+    assert source =~ "type AtomicStartActiveRootTailProofPackage"
     assert source =~ "fn atomic_start_active_root_tail_package"
     assert source =~ "fn atomic_start_rejected_member_there_nonempty_tail_active_excludes_trace"
     assert Regex.match?(
-             ~r/atomic_start_rejected_member_there_nonempty_tail_active_excludes_trace.*?AtomicStartActiveRootTailPackage.*?atomic_start_active_root_failure_empty/s,
+             ~r/atomic_start_rejected_member_there_nonempty_tail_active_excludes_trace.*?AtomicStartActiveRootTailProofPackage.*?atomic_start_rejected_member_there_active_tail_head_excludes_trace/s,
              source
            )
 
     assert Regex.match?(
              ~r/atomic_start_rejected_member_there_nonempty_tail_active_excludes_trace.*?atomic_start_rejected_member_there_active_tail_head_excludes_trace/s,
+             source
+           )
+  end
+
+  test "active Here boundary publishes a proof package with child context" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "type AtomicStartActiveRootTailProofPackage"
+
+    assert Regex.match?(
+             ~r/atomic_start_rejected_member_here_excludes_trace.*?AtomicStartActiveRootTailProofPackagePacked/s,
              source
            )
   end
