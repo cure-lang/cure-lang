@@ -4607,12 +4607,8 @@ mod Std.Regex.Runtime
   ) -> result = match package
     AtomicStartActiveRootTailPackagePacked(AtomicStartActiveRejectedTailPackagePacked(_, _, _, _)) -> tail_case()
 
-  ## A later selected start is carried through an active head of a non-empty
-  ## rejected tail.  Parent selection/refutation witnesses remain in the
-  ## caller's erased closure; this bridge only consumes the typed root package
-  ## and forwards the recursive continuation.
   @reducible
-  fn atomic_start_rejected_member_there_nonempty_tail_active_excludes_trace(
+  fn atomic_start_active_root_failure_empty_with_case(
     {result: Type},
     {depth: Nat},
     {n: Nat},
@@ -4654,24 +4650,175 @@ mod Std.Regex.Runtime
       remaining,
       child_scope_depth
     ),
+    head_case: result
+  ) -> result = match package
+    AtomicStartActiveRootTailPackagePacked(AtomicStartActiveRejectedTailPackagePacked(_, _, _, _)) -> head_case
+
+  ## A later selected start is carried through an active head of a non-empty
+  ## rejected tail.  The parent rejection/evidence and the explicit empty-child
+  ## certificate stay erased at this construction site; the root package is
+  ## checked through its proof-only gate before the indexed active-head
+  ## eliminator is invoked.
+  @reducible
+  fn atomic_start_rejected_member_there_nonempty_tail_active_excludes_trace(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    state: Bounded(n),
+    routine: List(EvidenceInstruction),
+    constraints: List(BoundaryConstraint),
+    assertion_routine: List(ExtendedInstruction),
+    assertion_markers: List(EvidenceInstruction),
+    nested_decisions: List(LookaroundNestedDecision),
+    {whole: List(LookaroundAdmittedState(n))},
+    {remaining: List(LookaroundAdmittedState(n))},
+    {child_scope_depth: Nat},
+    {@erased selected_start: LookaroundAdmittedState(n)},
+    membership: ListMember(
+      LookaroundAdmittedState(n),
+      selected_start,
+      Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining)
+    ),
+    @erased failure: AtomicStartMembersRefutation(
+      depth,
+      n,
+      machine,
+      position,
+      Nil(),
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining),
+      AtomicStartFailureRejected()
+    ),
+    @erased evidence: AtomicStartNoEvidence(
+      depth,
+      n,
+      machine,
+      position,
+      Nil(),
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining),
+      AtomicStartFailureRejected()
+    ),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      Nil(),
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions),
+      matched,
+      remaining_input,
+      selected_routine
+    ),
+    @erased package: AtomicStartActiveRootTailPackage(
+      depth,
+      n,
+      machine,
+      position,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      ThreadActive(state),
+      routine,
+      constraints,
+      assertion_routine,
+      assertion_markers,
+      nested_decisions,
+      whole,
+      remaining,
+      child_scope_depth
+    ),
+    @erased child_failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Nil(),
+      after_input,
+      ThreadActive(state),
+      history,
+      append_routine(append_routine(capture_context, routine), assertion_markers),
+      policy,
+      atomic_scope_depth_after(routine, Z()),
+      prefix_mode,
+      reversed_prefix,
+      Nil(),
+      Nil(),
+      AtomicPathFailureInputExhausted()
+    ),
+    @erased child_suffix: LookaroundAdmittedStateCursorSuffix(n, Nil(), Nil()),
     tail_case: () -> result
-  ) -> result = atomic_start_active_root_failure_empty(
-    machine,
-    position,
-    after_input,
-    history,
-    capture_context,
-    policy,
-    prefix_mode,
-    reversed_prefix,
-    routine,
-    constraints,
-    assertion_routine,
-    assertion_markers,
-    nested_decisions,
-    package,
-    tail_case
-  )
+  ) -> result = let head_case: result = atomic_start_rejected_member_there_active_tail_head_excludes_trace(
+      machine,
+      position,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      state,
+      routine,
+      constraints,
+      assertion_routine,
+      assertion_markers,
+      nested_decisions,
+      membership,
+      child_failure,
+      child_suffix,
+      failure,
+      evidence,
+      path,
+      tail_case
+    )
+    atomic_start_active_root_failure_empty_with_case(
+      machine,
+      position,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      routine,
+      constraints,
+      assertion_routine,
+      assertion_markers,
+      nested_decisions,
+      package,
+      head_case
+    )
 
   ## The accepted-head counterpart carries the exact child character/rest and
   ## forwards the indexed exact-accepted child refutation.  The accepted

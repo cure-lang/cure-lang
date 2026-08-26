@@ -1288,6 +1288,20 @@ selected-trace/refutation theorem. The focused dependent-assertion suite now
 observes 118/118; `./cure check` passes; and the full canonical pipeline remains
 52/52 with only W086.
 
+The active non-empty-tail bridge now invokes the existing indexed active-head
+eliminator. It carries the parent rejected-start failure/evidence and the
+empty-child `AtomicPathRefutation` as erased construction-site arguments, then
+checks the root-tail package through a proof-only `with_case` gate before
+returning the head contradiction or recursive continuation. A direct attempt
+to change the package family index from `ThreadState` to `Bounded` was rejected
+by E093 at the GADT constructor, so the state relation remains explicit at
+the consumer rather than being smuggled through a weaker package index. This
+closes the active-head consumer boundary but does not yet wire it into
+`atomic_lookaround_routine_initial_tail_after_failure`; the complete active /
+rejected fold and final selected-trace/refutation correspondence remain open.
+The focused dependent-assertion suite remains 118/118, `./cure check` passes,
+and the canonical pipeline remains 52/52 with only W086.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
