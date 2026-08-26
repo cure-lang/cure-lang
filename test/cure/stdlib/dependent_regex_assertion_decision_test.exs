@@ -860,6 +860,15 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/LookaroundAdmittedStateScope\(n, Z\(\), candidate, child_scope_depth\)/s, source)
   end
 
+  test "selected start witnesses retain their allowed selection proof" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [_prefix, body] = String.split(source, "type AtomicSelectedStartWitness", parts: 2)
+    [body | _] = String.split(body, "\n  type ", parts: 2)
+    assert body =~ "AtomicStartAllowed"
+    assert Regex.match?(~r/AtomicSelectedStartWitnessPacked.*?allowed/s, body)
+  end
+
   test "non-empty rejected tails consume an accepted head" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
