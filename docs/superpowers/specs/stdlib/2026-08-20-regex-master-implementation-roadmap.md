@@ -1084,6 +1084,16 @@ This is the active-head base for non-empty-tail descent, not the full recursive
 correspondence: accepted, rejected, blocked, and arbitrary-tail cases remain
 open. The focused dependent-assertion file now passes 87 tests.
 
+The active-head consumer is now connected to the erased induction bridge. It
+supplies the exact parent refutation and no-result witness as proof indices,
+dispatches `ListMemberHere`/`ListMemberThere` through
+`atomic_start_rejected_member_induction_erased`, and leaves later duplicate
+members to a zero-argument continuation. The active-child contradiction is
+therefore applied only to the selected head branch; a later equal active state
+is no longer silently treated as the head. This is still one head case, not
+recursive tail completion. The focused dependent-assertion file now passes 102
+tests.
+
 The accepted-head counterpart is now present as
 `atomic_start_rejected_member_there_accepted_tail_head_excludes_trace`. It
 specializes the non-empty `There` branch to an accepted head with exact child

@@ -778,7 +778,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     [_prefix, body] = String.split(source, "fn atomic_start_rejected_member_induction_erased", parts: 2)
     [body | _] = String.split(body, "\n  fn ", parts: 2)
     assert body =~ "tail_case: () -> result"
-    assert Regex.match?(~r/AtomicStartMemberThere.*?AtomicStartNoRejectedEvidence.*?tail_case\(\)/s, body)
+    assert Regex.match?(~r/ListMemberThere.*?AtomicStartNoRejectedEvidence.*?tail_case\(\)/s, body)
   end
 
   test "rejected tail package consumes the exhausted-tail base" do
@@ -807,6 +807,17 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     assert source =~ "fn atomic_start_rejected_member_there_active_tail_head_excludes_trace"
     assert Regex.match?(~r/atomic_start_rejected_member_there_active_tail_head_excludes_trace.*?AtomicStartNoRejectedEvidence.*?atomic_start_tail_active_candidate_rejection_excludes_trace/s, source)
+  end
+
+  test "active non-empty tail dispatches through erased membership induction" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_start_rejected_member_there_active_tail_head_excludes_trace", parts: 2)
+
+    [body | _] = String.split(body, "\n  fn ", parts: 2)
+    assert body =~ "atomic_start_rejected_member_induction_erased"
+    assert body =~ "tail_case: () -> result"
   end
 
   test "non-empty rejected tails consume an accepted head" do

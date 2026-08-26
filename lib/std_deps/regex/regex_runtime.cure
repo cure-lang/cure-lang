@@ -3388,9 +3388,9 @@ mod Std.Regex.Runtime
     prefix_mode: Bool,
     reversed_prefix: List(Char),
     {whole: List(LookaroundAdmittedState(n))},
-    head: LookaroundAdmittedState(n),
-    rest: List(LookaroundAdmittedState(n)),
-    selected_start: LookaroundAdmittedState(n),
+    {@erased head: LookaroundAdmittedState(n)},
+    {@erased rest: List(LookaroundAdmittedState(n))},
+    {@erased selected_start: LookaroundAdmittedState(n)},
     @erased _failure: AtomicStartMembersRefutation(
       depth,
       n,
@@ -3426,9 +3426,9 @@ mod Std.Regex.Runtime
     membership: ListMember(LookaroundAdmittedState(n), selected_start, Cons(head, rest)),
     head_case: result,
     tail_case: () -> result
-  ) -> result = match atomic_start_member_location(selected_start, head, rest, membership)
-    AtomicStartMemberHere(_) -> head_case
-    AtomicStartMemberThere(_, _) -> match _evidence
+  ) -> result = match membership
+    ListMemberHere() -> head_case
+    ListMemberThere(_) -> match _evidence
       AtomicStartNoRejectedEvidence(_, _, _, _, _, _, _, _, _, _, _, _, _, _) -> tail_case()
 
   ## Construction-site head consumer for the first active rejected start. The
@@ -4079,7 +4079,7 @@ mod Std.Regex.Runtime
     nested_decisions: List(LookaroundNestedDecision),
     {whole: List(LookaroundAdmittedState(n))},
     {remaining: List(LookaroundAdmittedState(n))},
-    @erased membership: ListMember(
+    membership: ListMember(
       LookaroundAdmittedState(n),
       LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions),
       Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining)
@@ -4104,6 +4104,22 @@ mod Std.Regex.Runtime
       AtomicPathFailureInputExhausted()
     ),
     @erased child_suffix: LookaroundAdmittedStateCursorSuffix(n, child_whole, child_current),
+    @erased failure: AtomicStartMembersRefutation(
+      depth,
+      n,
+      machine,
+      position,
+      Nil(),
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining),
+      AtomicStartFailureRejected()
+    ),
     @erased evidence: AtomicStartNoEvidence(
       depth,
       n,
@@ -4139,29 +4155,45 @@ mod Std.Regex.Runtime
       matched,
       remaining_input,
       selected_routine
+    ),
+    tail_case: () -> result
+  ) -> result = let empty_input: List(Char) = []
+    let head_case: result = atomic_start_tail_active_candidate_rejection_excludes_trace(
+      machine,
+      position,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      state,
+      routine,
+      constraints,
+      assertion_routine,
+      assertion_markers,
+      nested_decisions,
+      child_failure,
+      child_suffix,
+      evidence,
+      path
     )
-  ) -> result = match evidence
-    AtomicStartNoRejectedEvidence(_, _, _, _, _, _, _, _, _, _, _, _, _, _) ->
-      atomic_start_tail_active_candidate_rejection_excludes_trace(
-        machine,
-        position,
-        after_input,
-        history,
-        capture_context,
-        policy,
-        prefix_mode,
-        reversed_prefix,
-        state,
-        routine,
-        constraints,
-        assertion_routine,
-        assertion_markers,
-        nested_decisions,
-        child_failure,
-        child_suffix,
-        evidence,
-        path
-      )
+    atomic_start_rejected_member_induction_erased(
+      machine,
+      position,
+      empty_input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      failure,
+      evidence,
+      membership,
+      head_case,
+      tail_case
+    )
 
   ## The accepted-head counterpart carries the exact child character/rest and
   ## forwards the indexed exact-accepted child refutation.  The accepted
