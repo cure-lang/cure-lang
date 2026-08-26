@@ -46,13 +46,13 @@ defmodule CureAtelierTest do
 
   describe "Std.Time timestamps" do
     test "parse -> format round-trips a UTC instant" do
-      {:ok, inst} = :cure_std_time.parse_iso8601("2026-05-01T09:00:00Z")
-      assert :cure_std_time.format_iso8601(inst) == "2026-05-01T09:00:00Z"
+      {:ok, inst} = :cure_std_time.parse_iso8601({:String, ~c"2026-05-01T09:00:00Z"})
+      assert :cure_std_time.format_iso8601(inst) == {:String, ~c"2026-05-01T09:00:00Z"}
     end
 
     test "diff/add arithmetic matches intuition" do
-      {:ok, a} = :cure_std_time.parse_iso8601("2026-05-01T09:00:00Z")
-      {:ok, b} = :cure_std_time.parse_iso8601("2026-05-01T09:05:00Z")
+      {:ok, a} = :cure_std_time.parse_iso8601({:String, ~c"2026-05-01T09:00:00Z"})
+      {:ok, b} = :cure_std_time.parse_iso8601({:String, ~c"2026-05-01T09:05:00Z"})
       d = :cure_std_time.diff(b, a)
       assert {:Duration, 300_000_000} = d
 
@@ -63,13 +63,13 @@ defmodule CureAtelierTest do
 
   describe "Std.Regex title validation" do
     test "the Curator runs its compile-time typed title pattern" do
-      assert :"Cure.Main.Curator".valid_title(~c"Starry Night (1889)")
-      refute :"Cure.Main.Curator".valid_title(~c"starry night (1889)")
+      assert :"Cure.Main.Curator".valid_title({:String, ~c"Starry Night (1889)"})
+      refute :"Cure.Main.Curator".valid_title({:String, ~c"starry night (1889)"})
     end
 
     test "the title pattern requires a four-digit parenthesized year" do
-      refute :"Cure.Main.Curator".valid_title(~c"Starry Night (89)")
-      refute :"Cure.Main.Curator".valid_title(~c"Starry Night 1889")
+      refute :"Cure.Main.Curator".valid_title({:String, ~c"Starry Night (89)"})
+      refute :"Cure.Main.Curator".valid_title({:String, ~c"Starry Night 1889"})
     end
   end
 

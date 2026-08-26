@@ -69,6 +69,9 @@ defmodule CureSiteWeb.Layouts do
           <a href={~p"/blog"} class={nav_class(@current_path, :blog)}>
             Blog
           </a>
+          <a href={~p"/about"} class={nav_class(@current_path, :about)}>
+            About
+          </a>
           <.theme_toggle />
         </div>
 
@@ -91,7 +94,10 @@ defmodule CureSiteWeb.Layouts do
             Learn Cure
           </div>
           <div class="pl-2 space-y-1">
-            <a href={~p"/getting-started"} class={mobile_nav_class(@current_path, ~p"/getting-started")}>
+            <a
+              href={~p"/getting-started"}
+              class={mobile_nav_class(@current_path, ~p"/getting-started")}
+            >
               Getting Started
             </a>
             <a href={~p"/tour"} class={mobile_nav_class(@current_path, ~p"/tour")}>
@@ -123,7 +129,10 @@ defmodule CureSiteWeb.Layouts do
             <a href={~p"/actors"} class={mobile_nav_class(@current_path, ~p"/actors")}>
               Actors & Supervision
             </a>
-            <a href={~p"/finite-state-machines"} class={mobile_nav_class(@current_path, ~p"/finite-state-machines")}>
+            <a
+              href={~p"/finite-state-machines"}
+              class={mobile_nav_class(@current_path, ~p"/finite-state-machines")}
+            >
               Finite State Machines
             </a>
             <a href={~p"/applications"} class={mobile_nav_class(@current_path, ~p"/applications")}>
@@ -151,6 +160,17 @@ defmodule CureSiteWeb.Layouts do
             </a>
             <a href={~p"/blog"} class={mobile_nav_class(@current_path, ~p"/blog")}>
               Blog
+            </a>
+          </div>
+        </div>
+
+        <div>
+          <div class="text-xs font-semibold uppercase tracking-wider text-base-content/50 mb-1">
+            About
+          </div>
+          <div class="pl-2 space-y-1">
+            <a href={~p"/about"} class={mobile_nav_class(@current_path, ~p"/about")}>
+              Technical Overview
             </a>
           </div>
         </div>
@@ -282,6 +302,10 @@ defmodule CureSiteWeb.Layouts do
 
   defp active_category?(current, :blog) do
     String.starts_with?(current, "/blog")
+  end
+
+  defp active_category?(current, :about) do
+    current == "/about"
   end
 
   defp active_category?(_current, _target), do: false

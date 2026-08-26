@@ -159,6 +159,43 @@ defmodule Cure.Compiler do
   end
 
   @doc """
+  Type-check a Cure source string without emitting anything.
+
+  Runs the front end and the dependent elaborator -- lex, parse, declaration-use
+  expansion, lifted-module validation, elaboration and totality certification --
+  and stops there. No Core is erased, no BEAM is emitted, nothing is written to
+  disk or loaded into the VM.
+
+  The `:source_roots` option is scoped for the duration of the check, so a `use`
+  of a sibling project module resolves from source exactly as it does in a real
+  compile. Without it, checking `lib/main.cure` in isolation would report every
+  reference to `lib/calc.cure` as an unknown value.
+
+  ## Options
+
+  - `:file` -- filename for error messages and edition resolution
+    (default: `"nofile"`)
+  - `:source_roots` -- directories containing sibling `.cure` modules that may
+    be imported with `use` (default: the source file's directory)
+
+  Returns `{:ok, env}` with the checked environment, or `{:error, reason}`.
+  """
+  @spec check_source(String.t(), keyword()) :: {:ok, Cure.Elab.Env.t()} | {:error, term()}
+  def check_source(source, opts \\ []) when is_binary(source) do
+    file = Keyword.get(opts, :file, "nofile")
+
+    with_source_roots(file, opts, fn ->
+      with {:ok, edition} <- resolve_edition(source, opts),
+           {:ok, tokens} <- lex(source, file, false, edition),
+           {:ok, ast} <- parse(tokens, file, false, edition, []),
+           {:ok, ast} <- Cure.Elab.Program.expand_declaration_uses(ast),
+           :ok <- validate_lifted_modules(ast) do
+        Cure.Elab.Program.check_ast(ast)
+      end
+    end)
+  end
+
+  @doc """
   Module names of every `@prelude`-marked module in a scanned dependency graph.
   A driver passes this list as the `:prelude_providers` compile option so a user
   `@prelude` module's operators reach every sibling in the same run.

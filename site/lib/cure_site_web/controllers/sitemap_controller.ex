@@ -7,7 +7,8 @@ defmodule CureSiteWeb.SitemapController do
 
     * the home page, the blog index, the stdlib index, the
       `playground`/`repl` LiveViews;
-    * every entry in `priv/pages/*.md` (served at `/:id` by
+    * every entry in `priv/pages/*.md` plus the repository-sourced
+      `/about` page (all served at `/:id` by
       `PageController.show/2`);
     * every blog post in `priv/posts/**/*.md` (served at `/blog/:id`
       by `BlogController.show/2`), with its publication date as

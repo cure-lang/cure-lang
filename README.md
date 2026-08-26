@@ -255,6 +255,10 @@ Compile it with `mix cure.compile_stdlib`.
 
 See the `examples/` directory for sample Cure programs:
 
+- `cure_calc/` -- the getting-started project: a pure-Cure four-function
+  calculator (recursive `Expr` ADT, total `Result`-returning evaluator,
+  `Std.Test` suite) built, run, and tested with the `cure` CLI alone. Walked
+  through step by step in [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md)
 - `hello.cure` -- minimal module with a greeting function
 - `math.cure` -- arithmetic, multi-clause factorial, conditionals
 - `traffic_light.cure` -- FSM definition with wildcard transitions
@@ -314,6 +318,11 @@ cure check examples/protocols.cure
 
 ## Documentation
 
+- [Getting Started](docs/GETTING_STARTED.md) -- from an empty directory to a
+  compiled, running, tested project: toolchain install, stdlib resolution,
+  `Cure.toml`, and the `check` / `compile` / `run` / `test` loop, using
+  `examples/cure_calc` as the worked example
+- [Tutorial](docs/TUTORIAL.md) -- fourteen short chapters across the language
 - [Language Specification](docs/LANGUAGE_SPEC.md) -- syntax, keywords, operators, all constructs
 - [Macros](docs/MACROS.md) -- `macro` containers, syntax rules and holes, `becomes` / `computed by` / `syntax family`, `Std.Syntax`, and self-proving `example` / `explain` (v0.34.0)
 - [Type System](docs/TYPE_SYSTEM.md) -- dependent bidirectional checking,

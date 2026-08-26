@@ -1,5 +1,6 @@
 defmodule CureSite.Pages do
   alias CureSite.Pages.Page
+  alias CureSite.Pages.TechnicalOverview
 
   use NimblePublisher,
     build: Page,
@@ -8,7 +9,12 @@ defmodule CureSite.Pages do
     highlighters: [:makeup_cure, :makeup_elixir, :makeup_erlang],
     html_converter: CureSite.MarkdownConverter
 
-  @pages Enum.sort_by(@pages, & &1.order)
+  # `/about` has no markdown file under `priv/pages`: it is the
+  # repository's `docs/TECHNICAL_OVERVIEW.md`, rendered at compile time
+  # by `CureSite.Pages.TechnicalOverview`. Merging it into `@pages`
+  # here means the docs sidebar, prev/next navigation, `/sitemap.xml`
+  # and `llms.txt` treat it exactly like an authored page.
+  @pages Enum.sort_by([TechnicalOverview.page() | @pages], & &1.order)
 
   def all_pages, do: @pages
 
@@ -18,8 +24,10 @@ defmodule CureSite.Pages do
 
   def categories do
     [
+      {:about, "About", "What Cure is, how its compiler works, and why it is designed this way"},
       {:learn, "Learn Cure", "Language basics, syntax, patterns, and type system"},
-      {:concurrency, "OTP & Concurrency", "Actors, state machines, supervision, and applications"},
+      {:concurrency, "OTP & Concurrency",
+       "Actors, state machines, supervision, and applications"},
       {:tooling, "Tooling & Ecosystem", "CLI, LSP, compiler events, profiler, and REPL"},
       {:roadmap, "Roadmap", "Language evolution and upcoming features"}
     ]

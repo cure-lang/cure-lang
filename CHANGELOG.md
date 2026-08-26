@@ -6,7 +6,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `docs/GETTING_STARTED.md`: an end-to-end guide from an empty directory to a
+  compiled, running, tested project -- toolchain build, stdlib resolution order,
+  `Cure.toml` reference, the `check` / `compile` / `run` / `test` loop, the
+  content-addressed artifact layout, formatting, docs, the REPL, dependencies,
+  and a troubleshooting table keyed by diagnostic code.
+- `examples/cure_calc/`: the worked example behind that guide. A pure Cure
+  project (no `mix.exs`) holding a four-function calculator: a recursive `Expr`
+  ADT, a total `Result`-returning evaluator, a renderer, an `@extern` float
+  formatter, and eight `Std.Test` assertions.
+- `Cure.Compiler.check_source/2`: type-check a source string with scoped
+  `:source_roots` and no emission. `cure check` now routes through it.
+- `Cure.Project.source_roots/1`: the project's own `.cure` source roots
+  (`[project] source_paths`), for tooling that compiles or checks files living
+  outside them.
+
 ### Fixed
+
+- `cure run` did not load the current project's own `lib/` before executing the
+  file it was given, so any multi-module project died with `:undef` on its first
+  cross-module call even though the file compiled. It now bootstraps the project
+  the way `cure test` already did.
+- `cure check` resolved no project modules: checking a file that imported a
+  sibling reported the sibling's every function as `UNKNOWN VALUE [E091]`.
+  Checking a `test/` module failed for the same reason, as did `cure test`
+  itself, which never passed the project's source roots to the test compile.
+- `cure new` scaffolds did not survive their own printed "next steps". The `lib`
+  template's `lib/main.cure` had no `main/0` (so `cure run lib/main.cure` only
+  reported its absence), its test declared `-> Atom` for an assertion returning
+  `Unit` (so `cure test` failed to compile), and the generated `Cure.toml`
+  declared no `edition` (so every command warned about it). The `fsm` template
+  additionally declared the same module name as `lib/main.cure` -- a duplicate
+  module identity -- and used a retired FSM event syntax.
 
 - `Cure.Protocol.Verifier` hardcoded `E056` for protocol-violation
   diagnostics, colliding with the unrelated, fully-catalogued

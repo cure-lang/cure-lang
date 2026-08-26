@@ -1,0 +1,45 @@
+mod Calc.Test
+  ## Tests for `Calc`, run by `cure test`.
+  ##
+  ## `cure test` compiles and loads the project's `lib/`, then calls every
+  ## exported zero-arity function whose name starts with `test`. A test
+  ## passes when it returns; it fails when an assertion raises.
+
+  use Std.Test
+  use Std.Result
+  use Calc
+
+  fn test_addition() -> Unit =
+    Std.Test.assert_eq(Calc.eval_or(Calc.add(Calc.lit(1.0), Calc.lit(2.0)), 0.0), 3.0)
+
+  fn test_precedence_is_explicit_in_the_tree() -> Unit =
+    let e = Calc.add(Calc.lit(2.0), Calc.mul(Calc.lit(3.0), Calc.lit(4.0)))
+    Std.Test.assert_eq(Calc.eval_or(e, 0.0), 14.0)
+
+  fn test_subtraction_and_negation() -> Unit =
+    let e = Calc.neg(Calc.sub(Calc.lit(10.0), Calc.lit(4.0)))
+    Std.Test.assert_eq(Calc.eval_or(e, 0.0), -6.0)
+
+  fn test_division() -> Unit =
+    let e = Calc.ratio(Calc.add(Calc.lit(7.0), Calc.lit(8.0)), Calc.lit(2.0))
+    Std.Test.assert_eq(Calc.eval_or(e, 0.0), 7.5)
+
+  fn test_division_by_zero_is_a_value() -> Unit =
+    let e = Calc.ratio(Calc.lit(1.0), Calc.lit(0.0))
+    Std.Test.assert(Std.Result.is_error(Calc.eval(e)))
+
+  fn test_errors_short_circuit() -> Unit =
+    let bad = Calc.ratio(Calc.lit(1.0), Calc.lit(0.0))
+    let e = Calc.add(bad, Calc.lit(1.0))
+    Std.Test.assert_eq(
+      Std.Result.unwrap_error(Calc.eval(e), "no error"),
+      "division by zero"
+    )
+
+  fn test_rendering() -> Unit =
+    let e = Calc.mul(Calc.lit(2.0), Calc.lit(3.0))
+    Std.Test.assert_eq(Calc.render(e), "(2.0000 * 3.0000)")
+
+  fn test_explain_reports_failures() -> Unit =
+    let e = Calc.ratio(Calc.lit(1.0), Calc.lit(0.0))
+    Std.Test.assert_eq(Calc.explain(e), "(1.0000 / 0.0000) ! division by zero")

@@ -20,5 +20,25 @@ defmodule CureSiteWeb.PageControllerTest do
     assert body =~ ~r{>\s*Stdlib\s*<}
     assert body =~ ~r{>\s*Tooling\s*<}
     assert body =~ ~r{>\s*Blog\s*<}
+    assert body =~ ~r{>\s*About\s*<}
+
+    # The About entry points at the page rendered from
+    # `docs/TECHNICAL_OVERVIEW.md`.
+    assert body =~ ~s(href="/about")
+  end
+
+  test "GET /about renders the repository technical overview", %{conn: conn} do
+    conn = get(conn, ~p"/about")
+    body = html_response(conn, 200)
+
+    assert body =~ "Technical Overview"
+    assert body =~ "Design Philosophy"
+    assert body =~ "The Compiler Pipeline"
+
+    # The nav entry is highlighted as the active one.
+    assert body =~ ~r{<a href="/about" class="[^"]*btn-active[^"]*">\s*About\s*</a>}
+
+    # `AboutPage` is the Schema.org type inferred for this page.
+    assert body =~ ~s("@type":"AboutPage")
   end
 end

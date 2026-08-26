@@ -1,6 +1,14 @@
 defmodule CureSite.Pages.Page do
   @enforce_keys [:id, :title, :body, :description, :order]
-  defstruct [:id, :title, :body, :description, :order, category: :learn, category_title: "Learn Cure"]
+  defstruct [
+    :id,
+    :title,
+    :body,
+    :description,
+    :order,
+    category: :learn,
+    category_title: "Learn Cure"
+  ]
 
   def build(filename, attrs, body) do
     id = filename |> Path.rootname() |> Path.split() |> List.last()

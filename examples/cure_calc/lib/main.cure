@@ -1,0 +1,36 @@
+mod Calc.Demo
+  ## Entry point for `cure run lib/main.cure`.
+  ##
+  ## `cure run` compiles the project's `lib/`, loads it, then calls
+  ## `main/0` of the file it was given. A `main/0` returning `:ok` prints
+  ## nothing extra; any other value is inspected by the runner.
+
+  use Std.Io
+  use Calc
+
+  ## Print a short transcript: three expressions that evaluate and one that
+  ## cannot. Returns `:ok`.
+  fn main() -> Atom =
+    let _: Unit = Std.Io.println("cure_calc -- a four-function calculator in Cure")
+    let _: Unit = Std.Io.println("")
+    let _: Unit = Std.Io.println(Calc.explain(sum_and_product()))
+    let _: Unit = Std.Io.println(Calc.explain(average()))
+    let _: Unit = Std.Io.println(Calc.explain(negated()))
+    let _: Unit = Std.Io.println(Calc.explain(broken()))
+    :ok
+
+  ## `2 + 3 * 4`, built through the smart constructors in `Calc`.
+  local fn sum_and_product() -> Expr =
+    Calc.add(Calc.lit(2.0), Calc.mul(Calc.lit(3.0), Calc.lit(4.0)))
+
+  ## `(7 + 8) / 2`.
+  local fn average() -> Expr =
+    Calc.ratio(Calc.add(Calc.lit(7.0), Calc.lit(8.0)), Calc.lit(2.0))
+
+  ## `-(10 - 4)`.
+  local fn negated() -> Expr =
+    Calc.neg(Calc.sub(Calc.lit(10.0), Calc.lit(4.0)))
+
+  ## `1 / 0` -- evaluation fails with a value, not an exception.
+  local fn broken() -> Expr =
+    Calc.ratio(Calc.lit(1.0), Calc.lit(0.0))

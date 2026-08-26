@@ -7,6 +7,27 @@ defmodule Cure.Stdlib.Packages do
 
   @regex_source_dir Path.expand("../../std_deps/regex", __DIR__)
 
+  # Persistent (not random-per-call) staging root for the two intermediate
+  # sweeps the embedded-package path in `compile/3` needs: the foundational
+  # `Std.*` sources and the embedded Regex package. Both are swept through
+  # `Cure.Compiler.Artifacts.Sweep`, which decides what to rebuild by
+  # diffing the incoming sources against whatever verified generation is
+  # already published at its `:output_dir` (see
+  # `Cure.Compiler.Artifacts.Sweep.canonical_prior_generation/3`). A
+  # directory that is recreated under a fresh, randomly-named path on every
+  # call is always empty, so that diff always finds nothing to reuse and
+  # every stdlib module looks changed on every single compile, whether or
+  # not any source actually was. Rooting these two sweeps at a stable path
+  # instead means unrelated compiles (`mix compile`, `mix test`, the
+  # runtime `Cure.Stdlib.Preload` repair path, ...) land on -- and can
+  # reuse -- the same generation. `Cure.Compiler.Artifacts.Lock` protects
+  # each sweep's `:output_dir` with a real OS-level (flock/lockf) lock, so
+  # sharing this path across concurrent OS processes (e.g. parallel `mix
+  # test` runs) is safe. It lives beside, not inside, whichever real
+  # `output_dir` the caller passed in, so a plain listing of a published
+  # ebin directory (or a Hex-packaged `priv/ebin`) never sees it.
+  @embedded_stage_root Path.join(["_build", "cure", ".cure_stdlib_stage"])
+
   @doc "Return the embedded Regex package source directory."
   @spec regex_source_dir() :: Path.t()
   def regex_source_dir, do: @regex_source_dir
@@ -26,13 +47,16 @@ defmodule Cure.Stdlib.Packages do
   `:embedded_packages` (default `true`) selects whether the embedded package
   stage runs at all. It is a real stage, not a detail: it sweeps every module
   under `lib/std_deps/regex` (proof-heavy dependent code) and merges the result
-  with the foundation, which costs about two minutes cold and a dozen seconds
-  even when nothing changed. A caller sweeping a source set that is NOT the
-  standard library — a fixture directory, a single module under test — gets no
-  value from that stage while paying its whole cost, and its reused/rebuilt
-  counts then describe the embedded package instead of the caller's own
-  sources. Such callers pass `embedded_packages: false` and get the plain
-  foundation sweep.
+  with the foundation, which costs about two minutes cold. The
+  `@embedded_stage_root` cache both sweeps publish into means a later call
+  whose sources have not changed re-verifies the existing generation instead
+  of recompiling it -- see `@embedded_stage_root` for why that distinction
+  depends on where these two sweeps publish, not just on this stage existing.
+  A caller sweeping a source set that is NOT the standard library — a fixture
+  directory, a single module under test — gets no value from that stage while
+  paying its full cold cost, and its reused/rebuilt counts then describe the
+  embedded package instead of the caller's own sources. Such callers pass
+  `embedded_packages: false` and get the plain foundation sweep.
   """
   @spec compile([Path.t()], Path.t(), keyword()) ::
           {:ok, Result.t()} | {:error, term()}
@@ -56,11 +80,20 @@ defmodule Cure.Stdlib.Packages do
         )
       )
     else
-      tmp_dir = Path.join(System.tmp_dir!(), "cure_stdlib_stage_#{System.unique_integer([:positive])}")
-      stage_root = Path.join(tmp_dir, "regex")
-      foundation_root = Path.join(stage_root, "foundation")
-      regex_root = Path.join(stage_root, "package")
-      merged_root = Path.join(stage_root, "merged")
+      foundation_root = Path.join(@embedded_stage_root, "foundation")
+      regex_root = Path.join(@embedded_stage_root, "package")
+
+      # Unlike the two sweeps above, the merge step only copies
+      # already-compiled, already-verified beams (see
+      # `Artifacts.merge_verified_flat/3`) -- it performs no compilation --
+      # so it has nothing to gain from persistent caching. Keeping it in a
+      # fresh temp directory per call avoids adding a new concurrency
+      # hazard: `merge_verified_flat/3` writes to `merged_root` directly,
+      # without the OS-level lock that protects `foundation_root` and
+      # `regex_root` (via `Artifacts.Sweep`) and `output_dir` (via
+      # `Writer.copy_verified/2`).
+      tmp_dir = Path.join(System.tmp_dir!(), "cure_stdlib_merge_#{System.unique_integer([:positive])}")
+      merged_root = Path.join(tmp_dir, "merged")
       foundation_source_root = Path.dirname(List.first(foundational_sources) || "lib/std")
 
       foundation_opts =
