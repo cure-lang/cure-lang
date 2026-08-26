@@ -3431,6 +3431,68 @@ mod Std.Regex.Runtime
     ListMemberThere(_) -> match _evidence
       AtomicStartNoRejectedEvidence(_, _, _, _, _, _, _, _, _, _, _, _, _, _) -> tail_case()
 
+  ## Blocked counterpart of the proof-only induction boundary.  A blocked
+  ## candidate carries a skip/allow commitment rather than a rejected-child
+  ## tail package, so its evidence index has its own constructor.  The
+  ## continuation remains zero-argument for the same erased-witness reason.
+  @reducible
+  fn atomic_start_blocked_member_induction_erased(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {whole: List(LookaroundAdmittedState(n))},
+    {@erased head: LookaroundAdmittedState(n)},
+    {@erased rest: List(LookaroundAdmittedState(n))},
+    {@erased selected_start: LookaroundAdmittedState(n)},
+    @erased _failure: AtomicStartMembersRefutation(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(head, rest),
+      AtomicStartFailureBlocked()
+    ),
+    @erased _evidence: AtomicStartNoEvidence(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(head, rest),
+      AtomicStartFailureBlocked()
+    ),
+    membership: ListMember(LookaroundAdmittedState(n), selected_start, Cons(head, rest)),
+    head_case: result,
+    tail_case: () -> result
+  ) -> result = match membership
+    ListMemberHere() -> head_case
+    ListMemberThere(_) -> match _evidence
+      AtomicStartNoBlockedEvidence(_, _, _, _, _) -> tail_case()
+
   ## Construction-site head consumer for the first active rejected start. The
   ## child input is empty, so the indexed active-child refutation can be sent
   ## directly to the existing path contradiction. A later duplicate/member is
@@ -4362,6 +4424,27 @@ mod Std.Regex.Runtime
     nested_decisions: List(LookaroundNestedDecision),
     {whole: List(LookaroundAdmittedState(n))},
     {remaining: List(LookaroundAdmittedState(n))},
+    membership: ListMember(
+      LookaroundAdmittedState(n),
+      LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions),
+      Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining)
+    ),
+    @erased failure: AtomicStartMembersRefutation(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining),
+      AtomicStartFailureBlocked()
+    ),
     {blocked_depth: Option(Nat)},
     {@erased kind: AtomicStartSkipKind},
     @erased skip: AtomicStartSkipEvidence(blocked_depth, kind),
@@ -4401,9 +4484,26 @@ mod Std.Regex.Runtime
       matched,
       remaining_input,
       selected_routine
+    ),
+    tail_case: () -> result
+  ) -> result = let head_case: result = match evidence
+      AtomicStartNoBlockedEvidence(_, _, _, _, _) -> atomic_start_skip_excludes_allowed(skip, allowed)
+    atomic_start_blocked_member_induction_erased(
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      failure,
+      evidence,
+      membership,
+      head_case,
+      tail_case
     )
-  ) -> result = match evidence
-    AtomicStartNoBlockedEvidence(_, _, _, _, _) -> atomic_start_skip_excludes_allowed(skip, allowed)
 
   ## The blocked accepted-head branch has the same indexed commitment
   ## contradiction.  Its admitted-state constructor is fixed to Accepted in
@@ -4429,6 +4529,27 @@ mod Std.Regex.Runtime
     accepted_nested_decisions: List(LookaroundNestedDecision),
     {whole: List(LookaroundAdmittedState(n))},
     {remaining: List(LookaroundAdmittedState(n))},
+    membership: ListMember(
+      LookaroundAdmittedState(n),
+      LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions),
+      Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining)
+    ),
+    @erased failure: AtomicStartMembersRefutation(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining),
+      AtomicStartFailureBlocked()
+    ),
     {blocked_depth: Option(Nat)},
     {@erased kind: AtomicStartSkipKind},
     @erased skip: AtomicStartSkipEvidence(blocked_depth, kind),
@@ -4468,9 +4589,26 @@ mod Std.Regex.Runtime
       matched,
       remaining_input,
       selected_routine
+    ),
+    tail_case: () -> result
+  ) -> result = let head_case: result = match evidence
+      AtomicStartNoBlockedEvidence(_, _, _, _, _) -> atomic_start_skip_excludes_allowed(skip, allowed)
+    atomic_start_blocked_member_induction_erased(
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      failure,
+      evidence,
+      membership,
+      head_case,
+      tail_case
     )
-  ) -> result = match evidence
-    AtomicStartNoBlockedEvidence(_, _, _, _, _) -> atomic_start_skip_excludes_allowed(skip, allowed)
 
   type AtomicPathSearchResult(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char))
     AtomicPathSearchRootActiveNo : (@erased source: Bounded(n)) -> (@erased failure: AtomicPathRootRefutation(depth, n, machine, input, after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, Nil())) -> AtomicPathSearchResult(depth, n, machine, input, after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix)

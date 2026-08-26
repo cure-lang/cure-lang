@@ -1103,6 +1103,15 @@ to the selected head branch; later duplicate members remain the zero-argument
 tail continuation. This is still a head integration, not recursive tail
 completion. The focused dependent-assertion file now passes 103 tests.
 
+The blocked active and blocked accepted head consumers now use the specialized
+`atomic_start_blocked_member_induction_erased` bridge. It fixes the parent
+refutation and no-result witness to `AtomicStartFailureBlocked()`, preserves
+the typed skip/allow commitment, and dispatches both membership branches
+without runtime state inspection. This closes all four known non-empty-tail
+head shapes at the induction boundary, but it still does not recurse through
+the later sibling tail or prove the complete start-list correspondence. The
+focused dependent-assertion file now passes 105 tests.
+
 The accepted-head counterpart is now present as
 `atomic_start_rejected_member_there_accepted_tail_head_excludes_trace`. It
 specializes the non-empty `There` branch to an accepted head with exact child

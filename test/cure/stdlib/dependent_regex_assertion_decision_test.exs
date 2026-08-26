@@ -853,6 +853,17 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/AtomicStartNoBlockedEvidence.*?atomic_start_skip_excludes_allowed/s, body)
   end
 
+  test "blocked active non-empty tail dispatches through blocked induction" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_start_rejected_member_there_blocked_active_tail_head_excludes_trace", parts: 2)
+
+    [body | _] = String.split(body, "\n  fn ", parts: 2)
+    assert body =~ "atomic_start_blocked_member_induction_erased"
+    assert body =~ "tail_case: () -> result"
+  end
+
   test "non-empty rejected tails consume a blocked accepted head" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
@@ -862,6 +873,17 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     [body | _] = String.split(body, "\n  ##", parts: 2)
     assert body =~ "AtomicSelectedTrace("
     assert Regex.match?(~r/AtomicStartNoBlockedEvidence.*?atomic_start_skip_excludes_allowed/s, body)
+  end
+
+  test "blocked accepted non-empty tail dispatches through blocked induction" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_start_rejected_member_there_blocked_accepted_tail_head_excludes_trace", parts: 2)
+
+    [body | _] = String.split(body, "\n  fn ", parts: 2)
+    assert body =~ "atomic_start_blocked_member_induction_erased"
+    assert body =~ "tail_case: () -> result"
   end
 
   test "atomic child destination exhaustion consumes cursor alignment" do
