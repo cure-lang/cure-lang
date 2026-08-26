@@ -1061,6 +1061,17 @@ the contradiction itself; active, accepted, rejected, and blocked non-empty
 tail consumers remain open. The focused dependent-assertion file now passes 86
 tests.
 
+The safe proof-only continuation shape is now named
+`atomic_start_rejected_member_induction_erased`. It mirrors the package-carrying
+membership split but invokes a zero-argument `tail_case`; callers can close over
+the erased tail package and membership without passing those witnesses through
+a runtime callback. A temporary experiment that made the callback itself
+erased was rejected by E104 and removed; the committed helper keeps the
+continuation relevant while keeping its captured proof data in erased indices.
+This is the canonical bridge for the next non-empty `There` consumer, not the
+recursive contradiction itself. The focused dependent-assertion file now passes
+101 tests.
+
 The first concrete non-empty-tail head consumer is now present as
 `atomic_start_rejected_member_there_active_tail_head_excludes_trace`. It
 specializes the later-sibling `There` branch to an active head with an empty

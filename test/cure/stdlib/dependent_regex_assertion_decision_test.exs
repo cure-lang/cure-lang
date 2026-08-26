@@ -772,6 +772,15 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/atomic_start_rejected_member_induction\(.*?tail_case: \(AtomicStartRejectedTailAt/s, source)
   end
 
+  test "rejected member induction has an erased zero-data continuation" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [_prefix, body] = String.split(source, "fn atomic_start_rejected_member_induction_erased", parts: 2)
+    [body | _] = String.split(body, "\n  fn ", parts: 2)
+    assert body =~ "tail_case: () -> result"
+    assert Regex.match?(~r/AtomicStartMemberThere.*?AtomicStartNoRejectedEvidence.*?tail_case\(\)/s, body)
+  end
+
   test "rejected tail package consumes the exhausted-tail base" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
