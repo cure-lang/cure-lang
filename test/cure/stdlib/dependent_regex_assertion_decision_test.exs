@@ -1084,6 +1084,24 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/AtomicPathDestinationRejected.*?tail_case/s, body)
   end
 
+  test "atomic destination rejection dispatches selected head versus sibling tail" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "fn atomic_path_destination_rejection_selected_suffix_dispatch"
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_path_destination_rejection_selected_suffix_dispatch",
+        parts: 2
+      )
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+
+    assert Regex.match?(
+             ~r/atomic_path_selected_child_suffix_location_elim.*?head_case.*?tail_case/s,
+             body
+           )
+  end
+
   test "atomic active tail carries recursive child rejection" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 

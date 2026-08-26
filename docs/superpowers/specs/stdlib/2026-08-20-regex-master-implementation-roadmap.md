@@ -1330,6 +1330,18 @@ bridge: wiring it into `atomic_lookaround_routine_initial_tail_after_failure`
 and completing the general active/rejected start-fold and final
 selected-trace/refutation correspondence remain open.
 
+The atomic destination-rejection fold now has an explicit selected-suffix
+dispatcher, `atomic_path_destination_rejection_selected_suffix_dispatch`.
+It consumes the relevant cursor relation only through the reducible
+`atomic_path_selected_child_suffix_location_elim`: a selected `Here` remains
+with the caller's child contradiction, while a selected `Drop` is handed to
+the caller's typed recursive-tail continuation. This closes the construction
+site's head-versus-sibling distinction without claiming the child contradiction
+or recursive tail theorem itself; those continuations are still the remaining
+proof obligations. The focused dependent-assertion suite is 122/122,
+`./cure check` is green, and `./scripts/check-canonical-module-pipeline --full`
+is 52/52 with only the accepted W086 cycle warning.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

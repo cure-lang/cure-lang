@@ -8348,6 +8348,82 @@ mod Std.Regex.Runtime
   ) -> result = match failure
     AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> tail_case()
 
+  ## Split a rejected destination's selected suffix at the construction site.
+  ## A `Here` suffix is the rejected candidate itself and must be discharged by
+  ## the child theorem supplied by the caller.  A `Drop` suffix is a later
+  ## sibling; its tail cursor is forwarded to the recursive tail dispatcher so
+  ## the parent cannot accidentally treat a sibling trace as a head trace.
+  @reducible
+  fn atomic_path_destination_rejection_selected_suffix_dispatch(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    char: Char,
+    rest: List(Char),
+    after_input: List(Char),
+    state: Bounded(n),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    scope_depth: Nat,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    whole: List(LookaroundAdmittedState(n)),
+    candidate: LookaroundAdmittedState(n),
+    {remaining: List(LookaroundAdmittedState(n))},
+    @erased failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(state),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(candidate, remaining),
+      AtomicPathFailureDestinationRejected()
+    ),
+    {candidate_current: List(LookaroundAdmittedState(n))},
+    matched: List(Char),
+    remaining_input: List(Char),
+    routine: List(ExtendedInstruction),
+    selection_from_current: LookaroundAdmittedStateCursorSuffix(
+      n,
+      Cons(candidate, remaining),
+      candidate_current
+    ),
+    @erased path: AtomicSelectedPathTrace(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(state),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      candidate_current,
+      matched,
+      remaining_input,
+      routine
+    ),
+    head_case: () -> result,
+    tail_case: () -> result
+  ) -> result = atomic_path_selected_child_suffix_location_elim(
+    selection_from_current,
+    head_case,
+    tail_case
+  )
+
   ## A rejected candidate may leave a sibling tail whose search reaches the
   ## destination-exhaustion leaf.  When the selected trace is already aligned
   ## to that tail's empty cursor, the existing exhaustion contradiction can be
