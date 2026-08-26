@@ -961,6 +961,15 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
            )
   end
 
+  test "initial active tail construction publishes the root proof package" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "AtomicStartActiveRootTailProofPackageAt"
+
+    assert Regex.match?(~r/atomic_lookaround_routine_initial_tail_after_failure.*?atomic_start_initial_tail_no/s, source)
+    assert Regex.match?(~r/fn atomic_start_initial_tail_no.*?atomic_start_active_root_no_empty/s, source)
+  end
+
   test "non-empty rejected tails consume an accepted head" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
