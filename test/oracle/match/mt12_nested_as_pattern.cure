@@ -1,0 +1,8 @@
+mod Mt12
+  type Nat = Z | S(Nat)
+  type Lst = Nil | Cons(Nat, Lst)
+  fn f(xs: Lst) -> Lst = match xs
+    Cons(h, t@Cons(y, r)) -> t
+    Cons(h, r) -> r
+    Nil() -> Nil()
+end

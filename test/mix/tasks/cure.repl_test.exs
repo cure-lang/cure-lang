@@ -64,6 +64,7 @@ defmodule Mix.Tasks.Cure.ReplTest do
       try do
         assert [] = Task.build_opts(theme: "neon")
         assert_received {:mix_shell, :error, [msg]}
+        assert msg =~ "INVALID CONFIGURATION [W002]"
         assert msg =~ "unknown --theme"
       after
         Mix.shell(Mix.Shell.IO)
@@ -76,6 +77,7 @@ defmodule Mix.Tasks.Cure.ReplTest do
       try do
         assert [] = Task.build_opts(mode: "nano")
         assert_received {:mix_shell, :error, [msg]}
+        assert msg =~ "INVALID CONFIGURATION [W002]"
         assert msg =~ "unknown --mode"
       after
         Mix.shell(Mix.Shell.IO)
@@ -104,6 +106,31 @@ defmodule Mix.Tasks.Cure.ReplTest do
       after
         Application.delete_env(:cure, :repl_start_mfa)
       end
+    end
+
+    test "rejects unknown switches through the shared usage diagnostic" do
+      Mix.Task.reenable("cure.repl")
+
+      stderr =
+        capture_io(:stderr, fn ->
+          assert catch_exit(Task.run(["--unknown"])) == {:shutdown, 1}
+        end)
+
+      assert stderr =~ "INVALID COMMAND USAGE [E099]"
+      assert stderr =~ "Invalid arguments for mix cure.repl"
+      refute stderr =~ "** (FunctionClauseError)"
+    end
+
+    test "rejects positional arguments through the shared usage diagnostic" do
+      Mix.Task.reenable("cure.repl")
+
+      stderr =
+        capture_io(:stderr, fn ->
+          assert catch_exit(Task.run(["unexpected"])) == {:shutdown, 1}
+        end)
+
+      assert stderr =~ "INVALID COMMAND USAGE [E099]"
+      assert stderr =~ "unexpected"
     end
   end
 

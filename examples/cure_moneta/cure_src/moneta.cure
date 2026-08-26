@@ -1,8 +1,12 @@
 mod Moneta
+  use Std.String
+  use Std.Semigroup
+  use Std.Result
+
   ## Money, accounts, and ledger operations written in Cure.
   #
-  # Demonstrates: multi-line ADT, refinement types (PositiveAmount, Rate),
-  # records with fractional_units field, Show and Eq protocols, pattern
+  # Demonstrates: multi-line ADT, domain aliases (PositiveAmount, Rate),
+  # records with fractional_units field, plain Show and Eq functions, pattern
   # exhaustiveness on Currency, Result-chaining, @extern FFI for float
   # arithmetic, and recursive list operations over a ledger.
   #
@@ -25,33 +29,30 @@ mod Moneta
   @extern(:erlang, :round, 1)
   local fn float_round(f: Float) -> Int
 
-  @extern(:erlang, :integer_to_binary, 1)
+  @extern(:erlang, :integer_to_list, 1)
   local fn int_to_string(n: Int) -> String
 
   @extern(:erlang, :abs, 1)
   local fn abs_int(n: Int) -> Int
 
-  @extern(:erlang, :byte_size, 1)
+  @extern(:erlang, :length, 1)
   local fn str_length(s: String) -> Int
 
-  @extern(:binary, :copy, 2)
-  local fn str_repeat(s: String, n: Int) -> String
-
   # ---------------------------------------------------------------------------
-  # Refinement types
+  # Domain aliases (documented invariants unchecked pending SMTCoq)
   # ---------------------------------------------------------------------------
 
-  ## A positive integer amount. Used to type-check deposits and scale factors,
-  ## ensuring the caller never accidentally passes zero or negative values.
-  ## Z3 proves: PositiveAmount <: NonNegAmount (forall a. a > 0 => a >= 0).
-  type PositiveAmount = {a: Int | a > 0}
+  ## A positive integer amount (invariant: a > 0). Names deposits and scale
+  ## factors; the invariant is unchecked for now.
+  typealias PositiveAmount = Int
 
-  ## A non-negative integer amount. Valid for balances after subtraction.
-  type NonNegAmount = {a: Int | a >= 0}
+  ## A non-negative integer amount (invariant: a >= 0). Valid for balances
+  ## after subtraction.
+  typealias NonNegAmount = Int
 
-  ## A positive float exchange rate (target minor units per source minor unit).
-  ## Z3 proves: Rate is satisfiable (r = 1.0 satisfies r > 0.0).
-  type Rate = {r: Float | r > 0.0}
+  ## A positive float exchange rate (invariant: r > 0.0), target minor units
+  ## per source minor unit.
+  typealias Rate = Float
 
   # ---------------------------------------------------------------------------
   # ADT -- Currency
@@ -94,31 +95,26 @@ mod Moneta
     accounts: List(Account)
 
   # ---------------------------------------------------------------------------
-  # Show protocol
+  # Money rendering
   # ---------------------------------------------------------------------------
 
-  proto Show(T)
-    fn show(x: T) -> String
+  fn show_money(m: Money) -> String =
+    let sign =
+      pickup
+        m.amount < 0 -> "-"
+        else         -> ""
+    let abs_amt = abs_int(m.amount)
+    let major = abs_amt / m.fractional_units
+    let minor = abs_amt % m.fractional_units
+    let cstr = show_currency(m.currency)
+    sign <> format_amount(cstr, major, minor, m.fractional_units)
 
   ## Renders as "EUR 12.50", "JPY 1250", "OMR 1.250".
   ## Handles negative amounts by prefixing a minus sign.
   ##
-  ## `Show` is implemented for `Money` (a record type); protocol dispatch is
-  ## guard-based and routes on the `__struct__` field of the BEAM map.
-  ## `Currency` is an ADT (Erlang tagged tuple), which needs a separate plain
-  ## function -- `show_currency` -- because ADT tuples are not maps and the
-  ## record-based guard never matches them.
-  impl Show for Money
-    fn show(m: Money) -> String =
-      let sign =
-        pickup
-          m.amount < 0 -> "-"
-          else         -> ""
-      let abs_amt = abs_int(m.amount)
-      let major = abs_amt / m.fractional_units
-      let minor = abs_amt % m.fractional_units
-      let cstr = show_currency(m.currency)
-      sign <> format_amount(cstr, major, minor, m.fractional_units)
+  ## `Money` is a record type. `Currency` is an ADT, so `show_currency` remains
+  ## a separate plain function over its constructor values.
+  fn show(m: Money) -> String = show_money(m)
 
   ## Render a Currency ADT value to its three-letter ISO code.
   ## Plain function (not protocol dispatch) because Currency compiles to
@@ -146,7 +142,7 @@ mod Moneta
     let needed = minor_digits(fractional_units)
     let s = int_to_string(minor)
     let pad = needed - str_length(s)
-    str_repeat("0", pad) <> s
+    Std.String.repeat("0", pad) <> s
 
   # Decimal places for a given fractional_units count.
   # Chained `pickup` clauses pick up the first matching guard in source order.
@@ -159,19 +155,21 @@ mod Moneta
       else      -> 4
 
   # ---------------------------------------------------------------------------
-  # Eq protocol
+  # Money equality
   # ---------------------------------------------------------------------------
 
-  proto Eq(T)
-    fn eq(a: T, b: T) -> Bool
+  fn eq_money(a: Money, b: Money) -> Bool =
+    let ac = a.currency
+    let bc = b.currency
+    let aa = a.amount
+    let ba = b.amount
+    ac == bc and aa == ba
 
   ## Money equality: same currency and same minor-unit amount.
-  ## `Eq` is implemented for `Money` (a record); the `Currency` field is
-  ## compared with Erlang `==` (structural equality on tagged tuples) rather
-  ## than protocol dispatch, since Currency is an ADT not a record.
+  ## The `Currency` field is compared structurally because it is an ADT rather
+  ## than a record.
   ## fractional_units is excluded: EUR 1.00 (100 cents) == EUR 1.00 (10 dimes).
-  impl Eq for Money
-    fn eq(a: Money, b: Money) -> Bool = a.currency == b.currency and a.amount == b.amount
+  fn eq(a: Money, b: Money) -> Bool = eq_money(a, b)
 
   # ---------------------------------------------------------------------------
   # Constructors
@@ -203,38 +201,63 @@ mod Moneta
   # Money arithmetic
   # ---------------------------------------------------------------------------
 
+  fn add_amount(a: Int, b: Int) -> Int = a + b
+  fn subtract_amount(a: Int, b: Int) -> Int = a - b
+  fn scale_amount(amount: Int, factor: Int) -> Int = amount * factor
+  fn money_ok(value: Money) -> Result(Money, String) = assert_type Ok(value) : Result(Money, String)
+  fn money_error(message: String) -> Result(Money, String) = assert_type Error(message) : Result(Money, String)
+  fn account_ok(value: Account) -> Result(Account, String) = assert_type Ok(value) : Result(Account, String)
+  fn account_error(message: String) -> Result(Account, String) = assert_type Error(message) : Result(Account, String)
+  fn ledger_ok(value: Ledger) -> Result(Ledger, String) = assert_type Ok(value) : Result(Ledger, String)
+  fn ledger_error(message: String) -> Result(Ledger, String) = assert_type Error(message) : Result(Ledger, String)
+
   ## Add two Money values. Fails if they have different currencies.
   fn add(a: Money, b: Money) -> Result(Money, String) =
+    let ac = a.currency
+    let bc = b.currency
+    let aa = a.amount
+    let ba = b.amount
+    let af = a.fractional_units
     pickup
-      a.currency == b.currency ->
-        Ok(Money{a | amount: a.amount + b.amount})
+      ac == bc ->
+        money_ok(Money{amount: add_amount(aa, ba), currency: ac, fractional_units: af})
       else ->
-        Error("currency mismatch: cannot add " <> show_currency(a.currency) <> " and " <> show_currency(b.currency))
+        money_error("currency mismatch: cannot add " <> show_currency(ac) <> " and " <> show_currency(bc))
 
   ## Subtract `b` from `a`. Fails if currencies differ or result would be negative.
   fn subtract(a: Money, b: Money) -> Result(Money, String) =
+    let ac = a.currency
+    let bc = b.currency
+    let af = a.fractional_units
     pickup
-      a.currency == b.currency ->
+      ac == bc ->
         subtract_same_currency(a, b)
       else ->
-        Error("currency mismatch: cannot subtract " <> show_currency(b.currency) <> " from " <> show_currency(a.currency))
+        money_error("currency mismatch: cannot subtract " <> show_currency(bc) <> " from " <> show_currency(ac))
 
   local fn subtract_same_currency(a: Money, b: Money) -> Result(Money, String) =
+    let ac = a.currency
+    let af = a.fractional_units
+    let aa = a.amount
+    let ba = b.amount
     pickup
-      a.amount >= b.amount ->
-        Ok(Money{a | amount: a.amount - b.amount})
+      aa >= ba ->
+        money_ok(Money{amount: subtract_amount(aa, ba), currency: ac, fractional_units: af})
       else ->
-        Error("insufficient funds: balance " <> show(a) <> " < " <> show(b))
+        money_error("insufficient funds: balance " <> show(a) <> " < " <> show(b))
 
   ## Scale Money by a positive integer factor (e.g. unit price * quantity).
-  ## The refinement type {n: Int | n > 0} is checked at compile time by Z3.
-  fn scale(m: Money, factor: {n: Int | n > 0}) -> Money =
-    Money{m | amount: m.amount * factor}
+  ## `factor` is a plain Int; its positivity invariant is unchecked pending SMTCoq.
+  fn scale(m: Money, factor: Int) -> Money =
+    let amount = m.amount
+    let currency = m.currency
+    let fractional_units = m.fractional_units
+    Money{amount: scale_amount(amount, factor), currency: currency, fractional_units: fractional_units}
 
   ## Convert Money to another currency using a spot rate.
   ##
-  ## `rate` is the number of target minor units per source minor unit,
-  ## validated as positive by the Rate refinement type.
+  ## `rate` is the number of target minor units per source minor unit;
+  ## the Rate alias documents the intended positive-value invariant.
   ##
   ## Example: convert EUR 100.00 (amount=10000, frac=100) to USD at rate=1.08
   ##   => USD amount = round(10000 * 1.08) = 10800 cents = USD 108.00
@@ -252,16 +275,16 @@ mod Moneta
   ## Return the balance of account `id`, or an error if no such account exists.
   fn balance(ledger: Ledger, id: Int) -> Result(Money, String) =
     match find_account(ledger.accounts, id)
-      Ok(account) -> Ok(account.balance)
-      Error(e) -> Error(e)
+      Ok(account) -> money_ok(account.balance)
+      Error(e) -> money_error(e)
 
   # Linear search for an account by id.
   local fn find_account(accounts: List(Account), id: Int) -> Result(Account, String) =
     match accounts
-      [] -> Error("account not found: " <> int_to_string(id))
+      [] -> account_error("account not found: " <> int_to_string(id))
       [a | rest] ->
         pickup
-          a.id == id -> Ok(a)
+          a.id == id -> account_ok(a)
           else       -> find_account(rest, id)
 
   # Return a new Ledger with the given account replaced.
@@ -285,30 +308,30 @@ mod Moneta
   ## Fails if the account is not found or the currencies do not match.
   fn deposit(ledger: Ledger, id: Int, amount: Money) -> Result(Ledger, String) =
     match find_account(ledger.accounts, id)
-      Error(e) -> Error(e)
+      Error(e) -> ledger_error(e)
       Ok(account) -> deposit_to_account(ledger, account, amount)
 
   local fn deposit_to_account(ledger: Ledger, account: Account, amount: Money) -> Result(Ledger, String) =
     match add(account.balance, amount)
-      Error(e) -> Error(e)
-      Ok(new_balance) -> Ok(update_account(ledger, Account{account | balance: new_balance}))
+      Error(e) -> ledger_error(e)
+      Ok(new_balance) -> ledger_ok(update_account(ledger, Account{account | balance: new_balance}))
 
   ## Withdraw `amount` from account `id`.
   ## Fails if the account is not found, currencies differ, or funds are insufficient.
   fn withdraw(ledger: Ledger, id: Int, amount: Money) -> Result(Ledger, String) =
     match find_account(ledger.accounts, id)
-      Error(e) -> Error(e)
+      Error(e) -> ledger_error(e)
       Ok(account) -> withdraw_from_account(ledger, account, amount)
 
   local fn withdraw_from_account(ledger: Ledger, account: Account, amount: Money) -> Result(Ledger, String) =
     match subtract(account.balance, amount)
-      Error(e) -> Error(e)
-      Ok(new_balance) -> Ok(update_account(ledger, Account{account | balance: new_balance}))
+      Error(e) -> ledger_error(e)
+      Ok(new_balance) -> ledger_ok(update_account(ledger, Account{account | balance: new_balance}))
 
   ## Transfer `amount` from account `from_id` to account `to_id`.
   ## The withdrawal and deposit must both succeed; the ledger is never
   ## partially updated (withdraw fails -> deposit never runs).
   fn transfer(ledger: Ledger, from_id: Int, to_id: Int, amount: Money) -> Result(Ledger, String) =
     match withdraw(ledger, from_id, amount)
-      Error(e) -> Error(e)
+      Error(e) -> ledger_error(e)
       Ok(after_withdraw) -> deposit(after_withdraw, to_id, amount)

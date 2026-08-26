@@ -1,29 +1,12 @@
-## Logger actor for the Cure forge supervision tree.
-##
-## Buffers log lines in a list. `%[:log, line]` prepends the line,
-## so the buffer is newest-first; `:drain` notifies the caller with
-## the buffer as-is and resets it to `[]`. The Elixir facade
-## reverses the list on its side so callers see oldest-first order
-## and caps the result at `max_log_lines` from `[application.env]`.
-##
-## Messages understood:
-##   * `%[:log, line]` -- prepend `line` to the buffer.
-##   * `:drain`        -- notify the caller with the current buffer
-##                        and reset it to `[]`.
-##   * `:clear`        -- reset the buffer to `[]`.
-##   * `:get`          -- notify with the current buffer (read-only).
+## Transparent logger actor with a typed atom-list state.
 
-actor Logger with []
-  on_start
-    (state) -> state
-  on_message
-    (%[:log, line], buffer) ->
-      [line | buffer]
-    (:drain, buffer) ->
-      notify(%[:lines, buffer])
-      []
-    (:clear, _buffer) ->
-      []
-    (:get, buffer) ->
-      notify(%[:lines, buffer])
-      buffer
+use Std.Actor
+
+actor Logger
+  state List(Atom)
+  initial assert_type [:empty] : List(Atom)
+  messages Atom
+  handle_cast
+    pickup
+      message == :clear -> %[:noreply, assert_type [] : List(Atom)]
+      else -> %[:noreply, [message | state]]

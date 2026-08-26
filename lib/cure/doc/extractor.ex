@@ -7,7 +7,7 @@ defmodule Cure.Doc.Extractor do
   function signatures with docs, protocol definitions, and type definitions.
   """
 
-  alias Cure.Types.Type
+  alias Cure.Compiler.Printer
 
   @doc """
   Extract documentation from a module AST.
@@ -89,20 +89,20 @@ defmodule Cure.Doc.Extractor do
     param_list =
       Enum.map(params, fn {:param, pmeta, pname} ->
         type_ast = Keyword.get(pmeta, :type)
-        type_str = if type_ast, do: Type.display(Type.resolve(type_ast)), else: "Any"
+        type_str = if type_ast, do: render_type(type_ast), else: "Any"
         {pname, type_str}
       end)
 
     ret_str =
       if return_type_ast do
-        Type.display(Type.resolve(return_type_ast))
+        render_type(return_type_ast)
       else
         nil
       end
 
     effect_list =
       if effects do
-        Enum.map(effects, &Type.display_effect/1)
+        Enum.map(effects, &render_effect/1)
       else
         []
       end
@@ -163,8 +163,7 @@ defmodule Cure.Doc.Extractor do
         [
           %{
             name: Keyword.get(meta, :name, "Unknown"),
-            doc: Keyword.get(meta, :doc),
-            refinement: Keyword.get(meta, :refinement, false)
+            doc: Keyword.get(meta, :doc)
           }
         ]
 
@@ -182,8 +181,7 @@ defmodule Cure.Doc.Extractor do
               %{
                 name: Keyword.get(meta, :name, "Unknown"),
                 doc: Keyword.get(meta, :doc),
-                variants: variant_names,
-                refinement: false
+                variants: variant_names
               }
             ]
 
@@ -195,4 +193,17 @@ defmodule Cure.Doc.Extractor do
         []
     end)
   end
+
+  # Render a parser type-annotation AST to its surface string. The classic
+  # `Cure.Types.Type.display/1` was removed with the classic pathway (#18); the
+  # shared frontend printer renders the same type nodes (`{:variable, _, "Int"}`,
+  # `{:function_call, [name: "List"], [...]}`) verbatim.
+  defp render_type(type_ast), do: Printer.quoted_to_string(type_ast)
+
+  # Effects are bare atoms on the `:effects` meta key (e.g. `:io`). Present them
+  # in the capitalised surface spelling used in `! Io` signatures.
+  defp render_effect(effect) when is_atom(effect),
+    do: effect |> Atom.to_string() |> Macro.camelize()
+
+  defp render_effect(effect), do: Printer.quoted_to_string(effect)
 end

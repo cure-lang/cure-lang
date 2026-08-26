@@ -2,14 +2,14 @@ proof ProofLaws
   ## Equality laws as programs (v0.19.0).
   ##
   ## A `proof` container is compiled to an ordinary BEAM module, but
-  ## its bindings must elaborate to `Eq(...)` or a refinement proof.
-  ## Everything here returns the `:cure_refl` atom at runtime.
+  ## its bindings must elaborate to `Equivalent(...)`. The proof witness
+  ## is the inductive `reflexive`.
 
   ## `n + 0` equals `n`.
-  fn plus_zero(_n: Int) -> Eq(Int, n, n) = :cure_refl
+  fn plus_zero(n: Int) -> Equivalent(Int, n, n) = reflexive(n)
 
   ## Appending the empty list is the identity.
-  fn append_nil(_xs: List(T)) -> Eq(List(T), xs, xs) = :cure_refl
+  fn append_nil(xs: List(t)) -> Equivalent(List(t), xs, xs) = reflexive(xs)
 
   ## Map with the identity is the identity.
-  fn map_id(_xs: List(T)) -> Eq(List(T), xs, xs) = :cure_refl
+  fn map_id(xs: List(t)) -> Equivalent(List(t), xs, xs) = reflexive(xs)

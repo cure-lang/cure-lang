@@ -25,7 +25,7 @@ Cure language support for Visual Studio Code, aligned with Cure
 - FSM transition literals: `State --event--> State`, with `event?`
   / `event!` soft / hard suffixes.
 - Decorators / attributes: `@record`, `@derive`, `@deprecated`, ...
-- Typed holes: `?name` and anonymous `??`.
+- Typed holes: `?name` and anonymous `?_`.
 - Comments: line (`#`), single-line doc (`##`), fenced doc
   (`### ... ###`) with `@tag` highlighting.
 - Strings with `\uXXXX` escapes and `#{...}` interpolation.

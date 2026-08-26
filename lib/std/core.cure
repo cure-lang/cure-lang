@@ -1,42 +1,48 @@
-mod Std.Core
-  ## Identity, composition, booleans, comparison, and the `Result` /
-  ## `Option` sum types.
-  ##
-  ## These are the most commonly used combinators in Cure programs.
-  ## `Result(T, E)` and `Option(T)` lower to `{:ok, v}` / `{:error, e}`
-  ## and `{:some, v}` / `{:none}` respectively so they round-trip with
-  ## Elixir and Erlang without wrappers.
-  ##
-  ## ## Examples
-  ##
-  ## ```cure
-  ## use Std.Core
-  ##
-  ## let inc    = fn(x: Int) -> Int = x + 1
-  ## let double = fn(x: Int) -> Int = x * 2
-  ## let pipeline = compose(double, inc)
-  ## pipeline(3)                       # => 8
-  ## ```
-  ##
-  ## ```cure
-  ## use Std.Core
-  ##
-  ## ok(42)
-  ##   |> map_ok(fn(x) -> x * 2)
-  ##   |> and_then(fn(x) ->
-  ##        pickup
-  ##          x > 0 -> ok(x)
-  ##          else  -> error(:neg))
-  ##   |> unwrap_ok(0)                 # => 84
-  ## ```
+## Identity, composition, booleans, comparison, and the `Result` /
+## `Option` sum types.
+##
+## These are the most commonly used combinators in Cure programs.
+## `Result(T, E)` and `Option(T)` lower to `{:ok, v}` / `{:error, e}`
+## and `{:some, v}` / `{:none}` respectively so they round-trip with
+## Elixir and Erlang without wrappers.
+##
+## ## Examples
+##
+## ```cure
+## use Std.Core
+##
+## let inc    = fn(x: Int) -> Int = x + 1
+## let double = fn(x: Int) -> Int = x * 2
+## let pipeline = compose(double, inc)
+## pipeline(3)                       # => 8
+## ```
+##
+## ```cure
+## use Std.Core
+##
+## let positive = fn(x: Int) -> Result(Int, Atom) =
+##   pickup
+##     x > 0 -> ok(x)
+##     else  -> error(:neg)
+##
+## ok(42)
+##   |> map_ok(fn(x) -> x * 2)
+##   |> and_then(positive)
+##   |> unwrap_ok(0)                 # => 84
+## ```
 
-  ## Group tag consumed by `Cure.Stdlib.Preload`.
-  fn __group__() -> Atom = :core
+# Group tag consumed by `Cure.Stdlib.Preload`.
+
+@group(:core)
+@prelude
+mod Std.Core
+  use Std.Result
+  use Std.Option
 
   # -- Combinators ------------------------------------------------------------
 
   ## Identity function: returns its argument unchanged.
-  fn identity(x: T) -> T = x
+  fn identity(x: t) -> t = x
 
   ## Right-to-left function composition.
   ## `compose(f, g)(x)` is `f(g(x))`.
@@ -44,23 +50,25 @@ mod Std.Core
   ## ## Examples
   ##
   ## ```cure
+  ## use Std.Core
+  ##
   ## let add1 = fn(x: Int) -> Int = x + 1
   ## let neg  = fn(x: Int) -> Int = 0 - x
   ## compose(neg, add1)(3)             # => -4
   ## ```
-  fn compose(f: B -> C, g: A -> B) -> (A -> C) =
+  fn compose(f: b -> c, g: a -> b) -> (a -> c) =
     fn(x) -> f(g(x))
 
   ## Apply a function to a value, reads left-to-right; flip of `apply/2`.
   ## Useful to express `|>`-style pipelines as plain calls.
-  fn pipe(x: T, f: T -> U) -> U = f(x)
+  fn pipe(x: t, f: t -> u) -> u = f(x)
 
   ## Apply a function to a value. `apply(f, x)` is the same as `f(x)`,
   ## but passing `apply` itself as a value is sometimes useful.
-  fn apply(f: T -> U, x: T) -> U = f(x)
+  fn apply(f: t -> u, x: t) -> u = f(x)
 
   ## Return a function that ignores its argument and always returns `x`.
-  fn const(x: T) -> (U -> T) =
+  fn const(x: t) -> (u -> t) =
     fn(_y) -> x
 
   # -- Boolean operations -----------------------------------------------------
@@ -89,75 +97,36 @@ mod Std.Core
       x    -> bool_not(y)
       else -> y
 
-  # -- Comparison operations --------------------------------------------------
-
-  ## Structural equality (`x == y`).
-  fn eq(x: T, y: T) -> Bool = x == y
-
-  ## Structural inequality (`x != y`).
-  fn ne(x: T, y: T) -> Bool = x != y
-
-  ## Strict less-than (`x < y`).
-  fn lt(x: T, y: T) -> Bool = x < y
-
-  ## Less-than-or-equal (`x <= y`).
-  fn le(x: T, y: T) -> Bool = x <= y
-
-  ## Strict greater-than (`x > y`).
-  fn gt(x: T, y: T) -> Bool = x > y
-
-  ## Greater-than-or-equal (`x >= y`).
-  fn ge(x: T, y: T) -> Bool = x >= y
-
-  ## Pointwise minimum using the primitive `<=` ordering.
-  fn min(x: T, y: T) -> T =
-    pickup
-      x <= y -> x
-      else   -> y
-
-  ## Pointwise maximum using the primitive `>=` ordering.
-  fn max(x: T, y: T) -> T =
-    pickup
-      x >= y -> x
-      else   -> y
-
-  ## Clamp `value` into the inclusive range `[lo, hi]`.
-  fn clamp(value: T, lo: T, hi: T) -> T =
-    pickup
-      value < lo -> lo
-      value > hi -> hi
-      else       -> value
-
   # -- Result type operations -------------------------------------------------
   # Result is represented as Ok(value) -> {:ok, value}
   #                          Error(reason) -> {:error, reason}
 
   ## Build an `Ok(value)` Result.
-  fn ok(value: T) -> Result(T, E) = Ok(value)
+  fn ok(value: t) -> Result(t, e) = Ok(value)
 
   ## Build an `Error(reason)` Result.
-  fn error(reason: E) -> Result(T, E) = Error(reason)
+  fn error(reason: e) -> Result(t, e) = Error(reason)
 
   ## `true` when the result is in the `Ok` arm.
-  fn is_ok(result: Result(T, E)) -> Bool =
+  fn is_ok(result: Result(t, e)) -> Bool =
     match result
       Ok(_) -> true
       Error(_) -> false
 
   ## `true` when the result is in the `Error` arm.
-  fn is_error(result: Result(T, E)) -> Bool =
+  fn is_error(result: Result(t, e)) -> Bool =
     match result
       Ok(_) -> false
       Error(_) -> true
 
   ## Extract the value from an `Ok`, falling back to `default` on `Error`.
-  fn unwrap_ok(result: Result(T, E), default: T) -> T =
+  fn unwrap_ok(result: Result(t, e), default: t) -> t =
     match result
       Ok(v) -> v
       Error(_) -> default
 
   ## Extract the reason from an `Error`, falling back to `default` on `Ok`.
-  fn unwrap_error(result: Result(T, E), default: E) -> E =
+  fn unwrap_error(result: Result(t, e), default: e) -> e =
     match result
       Ok(_) -> default
       Error(e) -> e
@@ -167,16 +136,18 @@ mod Std.Core
   ## ## Examples
   ##
   ## ```cure
+  ## use Std.Core
+  ##
   ## map_ok(ok(3),     fn(x) -> x * x) # => Ok(9)
   ## map_ok(error(:x), fn(x) -> x * x) # => Error(:x)
   ## ```
-  fn map_ok(result: Result(T, E), f: T -> U) -> Result(U, E) =
+  fn map_ok(result: Result(t, e), f: t -> u) -> Result(u, e) =
     match result
       Ok(v) -> Ok(f(v))
       Error(e) -> Error(e)
 
   ## Map over the `Error` arm; passes `Ok` through unchanged.
-  fn map_error(result: Result(T, E), f: E -> F) -> Result(T, F) =
+  fn map_error(result: Result(t, e), f: e -> b) -> Result(t, b) =
     match result
       Ok(v) -> Ok(v)
       Error(e) -> Error(f(e))
@@ -187,18 +158,20 @@ mod Std.Core
   ## ## Examples
   ##
   ## ```cure
+  ## use Std.Core
+  ##
   ## let parse_int = fn(s: String) -> Result(Int, Atom) = ok(Std.String.to_int(s))
   ## and_then(ok("42"), parse_int)     # => Ok(42)
   ## and_then(error(:x), parse_int)    # => Error(:x)
   ## ```
-  fn and_then(result: Result(T, E), f: T -> Result(U, E)) -> Result(U, E) =
+  fn and_then(result: Result(t, e), f: t -> Result(u, e)) -> Result(u, e) =
     match result
       Ok(v) -> f(v)
       Error(e) -> Error(e)
 
   ## Recover from an `Error` by calling `f` on the reason; `Ok` is
   ## passed through.
-  fn or_else(result: Result(T, E), f: E -> Result(T, F)) -> Result(T, F) =
+  fn or_else(result: Result(t, e), f: e -> Result(t, b)) -> Result(t, b) =
     match result
       Ok(v) -> Ok(v)
       Error(e) -> f(e)
@@ -208,25 +181,25 @@ mod Std.Core
   #                          None()      -> {:none}
 
   ## Build a `Some(value)` Option.
-  fn some(value: T) -> Option(T) = Some(value)
+  fn some(value: t) -> Option(t) = Some(value)
 
   ## The empty Option.
-  fn none() -> Option(T) = None()
+  fn none() -> Option(t) = None()
 
   ## `true` when the option holds a value.
-  fn is_some(opt: Option(T)) -> Bool =
+  fn is_some(opt: Option(t)) -> Bool =
     match opt
       Some(_) -> true
       None() -> false
 
   ## `true` when the option is empty.
-  fn is_none(opt: Option(T)) -> Bool =
+  fn is_none(opt: Option(t)) -> Bool =
     match opt
       Some(_) -> false
       None() -> true
 
   ## Extract the value from a `Some`, falling back to `default` on `None`.
-  fn unwrap(opt: Option(T), default: T) -> T =
+  fn unwrap(opt: Option(t), default: t) -> t =
     match opt
       Some(v) -> v
       None() -> default
@@ -236,22 +209,24 @@ mod Std.Core
   ## ## Examples
   ##
   ## ```cure
+  ## use Std.Core
+  ##
   ## map_option(some(3), fn(x) -> x * 2)  # => Some(6)
   ## map_option(none(),  fn(x) -> x * 2)  # => None()
   ## ```
-  fn map_option(opt: Option(T), f: T -> U) -> Option(U) =
+  fn map_option(opt: Option(t), f: t -> u) -> Option(u) =
     match opt
       Some(v) -> Some(f(v))
       None() -> None()
 
   ## Monadic bind on `Option`; short-circuits on `None`.
-  fn flat_map_option(opt: Option(T), f: T -> Option(U)) -> Option(U) =
+  fn flat_map_option(opt: Option(t), f: t -> Option(u)) -> Option(u) =
     match opt
       Some(v) -> f(v)
       None() -> None()
 
   ## Unwrap-or-default; an alias used by `Std.Match`.
-  fn option_or(opt: Option(T), default: T) -> T =
+  fn option_or(opt: Option(t), default: t) -> t =
     match opt
       Some(v) -> v
       None() -> default

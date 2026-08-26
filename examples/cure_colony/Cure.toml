@@ -1,6 +1,7 @@
 [project]
 name          = "cure_colony"
 version       = "0.1.0"
+edition       = "2026"
 source_paths  = ["cure_src"]
 
 [dependencies]

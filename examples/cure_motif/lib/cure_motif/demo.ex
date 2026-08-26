@@ -7,7 +7,7 @@ defmodule CureMotif.Demo do
     1. Builds a 16-step example pattern on top of the `:"Cure.Motif"`
        BEAM module (compiled from `cure_src/motif.cure`).
     2. Renders that pattern into a flat Cure event stream.
-    3. Loads the stream into the running `:"Cure.Actor.Sequencer"`.
+    3. Loads the stream into the running `:"Cure.Main.Sequencer"`.
     4. Drives 16 `:tick` messages through the sequencer and captures
        every event it emits via `CureMotif.MidiOut`.
     5. Returns a map with the pattern, the event log, and the ASCII
@@ -97,7 +97,7 @@ defmodule CureMotif.Demo do
     after
       # Let any lingering notifications flush before we stop.
       _ = :sys.get_state(pid)
-      Cure.Actor.Runtime.stop_actor(pid)
+      GenServer.stop(pid)
     end
   end
 end

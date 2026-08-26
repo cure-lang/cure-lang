@@ -1,0 +1,8 @@
+mod Rc02
+  type Nat = Z | S(Nat)
+  rec Point
+    x: Nat
+    y: Nat
+  fn getx(p: Point) -> Nat = p.x
+  fn g() -> Nat = getx(Point{x: S(Z()), y: Z()})
+end

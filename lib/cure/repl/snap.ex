@@ -12,7 +12,8 @@ defmodule Cure.REPL.Snap do
   The `snap_map` contains:
 
     * `session_entries` -- the full `Cure.REPL.Session` entry list (all
-      named declarations: `fn`, `type`, `rec`, `proto`, `impl`, `proof`).
+      named declarations: `fn`, `type`, `rec`, `interface`, `implementation`,
+      `proof`).
     * `history_entries` -- up to 500 most-recent history lines.
     * `uses`            -- the `use` import list (module name strings).
     * `defs`            -- compiled definition keyword list from the session.
@@ -90,7 +91,10 @@ defmodule Cure.REPL.Snap do
       Enum.filter(loaded_paths, fn p -> not File.exists?(p) end)
 
     Enum.each(missing, fn p ->
-      IO.puts(:stderr, "warning (E070): snap loaded path no longer exists: #{p}")
+      Cure.Diagnostic.Host.emit_diagnostic(
+        Cure.Diagnostic.Operational.snap_missing(p),
+        output_device: :stderr
+      )
     end)
 
     present_paths = Enum.reject(loaded_paths, &(&1 in missing))

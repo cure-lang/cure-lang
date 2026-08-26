@@ -5,10 +5,10 @@
 }
 ---
 
-Cure ships with a CLI, an LSP server, an MCP server for AI integration, a
-five-pass optimizer, a structured error catalog, a compilation profiler, and
-a PubSub event system that lets external tools observe every stage of the
-compilation pipeline.
+Cure ships with a CLI, LSP and MCP servers, structured diagnostics, a
+compilation profiler, and a PubSub event system that lets external tools
+observe every compilation stage. All compiler-facing tools now use the same
+dependent front end and canonical module loader.
 
 ## CLI
 
@@ -25,23 +25,22 @@ cure <command> [options] [arguments]
 ```bash
 cure compile hello.cure
 cure compile src/               # compiles all .cure files recursively
-cure compile hello.cure --output-dir _build/cure/ebin --optimize --verbose
+cure compile hello.cure --output-dir _build/cure/project/ebin --verbose
 ```
 
 Options:
 
-- `--output-dir DIR` (`-o`) -- output directory (default: `_build/cure/ebin`)
-- `--no-type-check` -- skip type checking
-- `--optimize` -- enable optimization passes
+- `--output-dir DIR` (`-o`) -- artifact-set root (default: `_build/cure/project/ebin`)
 - `--verbose` (`-v`) -- show detailed compilation output
 
+Compilation cannot bypass the dependent checker or trusted Core validation.
+
 **`cure run <file>`** -- Compile and execute a `.cure` file. Calls `main/0` if
-it exists. Type checking is off by default for `run` (use `--type-check` to
-enable).
+it exists. It uses the same checked dependent pipeline as `compile`.
 
 ```bash
 cure run examples/hello.cure
-cure run examples/recursion.cure --optimize
+cure run examples/recursion.cure
 ```
 
 **`cure check <file>`** -- Type-check without compiling. Runs lexer, parser,
@@ -117,7 +116,7 @@ The `[doc]` table in `Cure.toml` drives the rest of the layout
 rendering.
 
 The full reference lives at
-[`docs/DOC.md`](https://github.com/am-kantox/cure-lang/blob/main/docs/DOC.md).
+[`docs/DOC.md`](https://github.com/cure-lang/cure-lang/blob/main/docs/DOC.md).
 
 ### `/stdlib` on the Cure website (v0.29.0)
 
@@ -189,20 +188,6 @@ cure repl
 See the dedicated [REPL reference page](/repl) for the complete
 key-bindings table and meta-command list.
 
-**`cure bless <file>`** (v0.28.0) -- Socratic type-error assistant.
-For each type or refinement error in a `.cure` file, displays the
-diagnostic, explains what went wrong, proposes a concrete fix, and
-prompts `[y]es / [n]o / [s]kip`. On `y`, applies the fix in-place
-and re-runs the checker to confirm resolution.
-
-```bash
-cure bless lib/my_module.cure
-cure bless lib/my_module.cure --batch   # print suggestions; no prompts
-```
-
-See [`docs/BLESS.md`](https://github.com/am-kantox/cure-lang/blob/main/docs/BLESS.md)
-for the full reference.
-
 **`cure replay <path.journal>`** (v0.28.0) -- Replay a recorded FSM
 trace from a `.journal` file produced by a `@record`-annotated FSM
 container.
@@ -213,7 +198,7 @@ cure replay .cure-trace/abc123.journal --module MyFsm  # live replay
 cure replay .cure-trace/abc123.journal --module MyFsm --step  # step mode
 ```
 
-See [`docs/REPLAY.md`](https://github.com/am-kantox/cure-lang/blob/main/docs/REPLAY.md)
+See [`docs/REPLAY.md`](https://github.com/cure-lang/cure-lang/blob/main/docs/REPLAY.md)
 for `@record` annotation details and the full API.
 
 **`cure explain <code>`** -- Look up a structured error explanation.
@@ -224,6 +209,69 @@ cure explain E010
 ```
 
 **`cure help`** -- Show usage information.
+
+## v0.34.0 additions
+
+### Migration and editions
+
+`cure migrate` ports source between editions. It understands the current
+keyword and module changes, including `proto` / `impl` to `interface` /
+`implementation`, legacy conditionals to `pickup`, uppercase type variables,
+module renames, and decorator placement.
+
+```bash
+cure migrate --check examples
+cure migrate --print lib/old.cure
+cure migrate --strict lib/
+```
+
+Migration runs rules to a fixpoint, reparses the result, supports atomic batch
+updates, and refuses unsafe mutation of a dirty worktree. `@edition` and
+`Cure.toml [project].edition` pin the grammar a project expects.
+
+### Trust audit
+
+```bash
+cure audit trust My.Module
+cure audit trust My.Module --format json --strict
+```
+
+The report follows canonical definition reachability and lists the
+`postulate`, bodyless `@extern`, and `believe_me` roots on which the selected
+module actually depends.
+
+### Canonical multi-file builds
+
+CLI, project, and incremental Mix compilation now share:
+
+- dependency-graph ordering rather than filesystem order;
+- duplicate-module, unresolved-import, and cycle diagnostics;
+- immutable module interfaces and canonical owner-qualified definitions;
+- deterministic implementation-provider loading;
+- user `@prelude` discovery and transitive operator-fixity propagation;
+- dependency-aware incremental invalidation.
+
+### Structured diagnostics
+
+Compiler failures are adapted at their owning subsystem into a common
+diagnostic shape. Terminal, JSON, LSP, migration, and audit output share stable
+codes, primary and related source ranges, canonical definition identities,
+provenance, and machine-safe fixes.
+
+Repository maintainers can audit registry coverage with:
+
+```bash
+mix cure.diagnostics --color=always --width=80 --coverage
+mix cure.diagnostics.audit
+```
+
+### Authoritative example checks
+
+`mix cure.check.examples` discovers every root `.cure` example, compiles it,
+and runs every recorded `main/0` expectation. A manifest distinguishes
+language, library, migration, and optimizer-only status, fails on silently
+omitted files, and treats a passing skipped fixture as stale. The current
+corpus has 40 passing examples, no skips, and no failures.
 
 ## v0.33.0 additions
 
@@ -238,14 +286,14 @@ normative-requirement index, reference implementation sketch, worked
 examples, style guide, anti-patterns, reserved future syntax,
 soundness proof sketch, bibliography, open questions, colophon).
 
-- [`docs/MATCH.md`](https://github.com/am-kantox/cure-lang/blob/main/docs/MATCH.md)
+- [`docs/MATCH.md`](https://github.com/cure-lang/cure-lang/blob/main/docs/MATCH.md)
   -- *The `match` Construct, Language Specification, Version 1.0.0*.
   Implementer-facing sections cover the EBNF grammar, the full
   pattern sub-grammar, T-Match typing, Maranget-style exhaustiveness,
   reachability, refinement narrowing, big-step / small-step
   operational semantics, the soundness proof sketch, and the
   diagnostic catalogue (`E004`, `E021`-`E025`, `E031`-`E034`).
-- [`docs/PICKUP.md`](https://github.com/am-kantox/cure-lang/blob/main/docs/PICKUP.md)
+- [`docs/PICKUP.md`](https://github.com/cure-lang/cure-lang/blob/main/docs/PICKUP.md)
   -- *The `pickup` Construct, Language Specification, Version 1.0.0*.
   Mirrors `MATCH.md` for predicate dispatch: T-Pickup-Else /
   T-Pickup-Cons, totality enforced by the mandatory terminator,
@@ -292,7 +340,7 @@ models, totality SCCs) unless `[publish] include_proofs = false` is
 set in `Cure.toml`. Three new error codes: **E065 Proof File
 Missing**, **E066 Proof Verification Failed**, **E067 Proof Schema
 Incompatible**. Full reference:
-[`docs/PROOF_CARRYING.md`](https://github.com/am-kantox/cure-lang/blob/main/docs/PROOF_CARRYING.md).
+[`docs/PROOF_CARRYING.md`](https://github.com/cure-lang/cure-lang/blob/main/docs/PROOF_CARRYING.md).
 
 ### `cure export-types` -- cross-language ADT export
 
@@ -313,7 +361,7 @@ Field names are converted `camelCase->snake_case`; field numbers by
 declaration order. Refinements and dependent types emit `bytes` with
 a comment and raise **E068 Export Type Unmappable** (warning, not
 hard error). Full reference:
-[`docs/EXPORT_TYPES.md`](https://github.com/am-kantox/cure-lang/blob/main/docs/EXPORT_TYPES.md).
+[`docs/EXPORT_TYPES.md`](https://github.com/cure-lang/cure-lang/blob/main/docs/EXPORT_TYPES.md).
 
 ### `cure snap` -- REPL session snapshots
 
@@ -333,12 +381,12 @@ mix cure.snap list .
 ```
 
 A snap captures: all named declarations (`fn`, `type`, `rec`,
-`proto`, `impl`, `proof`), up to 500 history entries, `use` imports,
+`interface`, `implementation`, `proof`), up to 500 history entries, `use` imports,
 open typed holes, stdlib mode, theme, and editing mode. Loading
 *merges* rather than replaces: last-writer-wins for defs, union for
 uses, prepend for history. Two new error codes: **E069 Snap Schema
 Incompatible**, **E070 Snap Module Missing**. Full reference:
-[`docs/SNAP.md`](https://github.com/am-kantox/cure-lang/blob/main/docs/SNAP.md).
+[`docs/SNAP.md`](https://github.com/cure-lang/cure-lang/blob/main/docs/SNAP.md).
 
 ### `cure story` -- narrative architecture generator
 
@@ -364,7 +412,7 @@ mix cure.story --out /tmp/STORY.md && diff STORY.md /tmp/STORY.md
 ```
 
 Full reference:
-[`docs/STORY.md`](https://github.com/am-kantox/cure-lang/blob/main/docs/STORY.md).
+[`docs/STORY.md`](https://github.com/cure-lang/cure-lang/blob/main/docs/STORY.md).
 
 ---
 
@@ -401,7 +449,7 @@ Renders through `Marcli.render/2` when its MDEx NIF can load, and
 falls back to `Cure.REPL.Markdown.render/2` inside the escript.
 
 Named in tribute to **John Carbajal**. See
-[`docs/JOHN.md`](https://github.com/am-kantox/cure-lang/blob/main/docs/JOHN.md)
+[`docs/JOHN.md`](https://github.com/cure-lang/cure-lang/blob/main/docs/JOHN.md)
 for the full reference.
 
 ---
@@ -501,7 +549,7 @@ and `ensure_trailing_newline`. Silently no-ops on already-clean files.
 ### Coverage
 
 **`cure test --cover`** -- Instrument every compiled module under
-`_build/cure/ebin/` via OTP's `:cover`, run the self-hosted test suite,
+`_build/cure/project/ebin/` via OTP's `:cover`, run the self-hosted test suite,
 and emit an HTML report under `_build/cure/cover/index.html` plus a
 text summary.
 
@@ -609,6 +657,11 @@ returns its capabilities. Tools are listed via `tools/list` and invoked via
 
 ## Optimizer
 
+> **Deferred in 0.34:** the sections below document the v0.31 classic-AST
+> optimizer. That input pipeline was removed with the classic compiler.
+> A future optimizer must consume validated dependent Core; current
+> compile/run commands do not advertise these passes.
+
 The optimizer runs 5 transformation passes on the MetaAST between type
 checking and code generation. Enable it with `--optimize` on the CLI or
 `optimize: true` in compiler options.
@@ -637,7 +690,7 @@ Evaluates constant expressions at compile time. Covers arithmetic (`+`, `-`,
 (`<>`), and comparisons (`==`, `!=`, `<`, `>`, `<=`, `>=`).
 
 Before:
-```cure
+```text
 fn answer() -> Int = 6 * 7
 fn greeting() -> String = "hello" <> " " <> "world"
 ```
@@ -694,25 +747,25 @@ Individual passes can be run in isolation:
 Cure uses structured error codes. Each code has a detailed explanation
 accessible via `cure explain <code>`.
 
-**E001: Type Mismatch** -- A function's body type does not match its declared
+**E093: Type Mismatch** -- A function's body type does not match its declared
 return type, or an argument type does not match the parameter type.
 
-```cure
+```cure E093
 fn add(a: Int, b: Int) -> String = a + b
-# error E001: declared return type String but body has type Int
+# error E093: declared return type String but body has type Int
 ```
 
-**E002: Unbound Variable** -- A variable is referenced that has not been defined.
+**E091: Unknown Value** -- A value is referenced that has not been defined.
 
-```cure
+```cure E091
 fn foo() -> Int = x + 1
-# error E002: undefined variable 'x'
+# error E091: unknown value 'x'
 ```
 
 **E003: Arity Mismatch** -- A function is called with the wrong number of
 arguments.
 
-```cure
+```cure E003
 fn add(a: Int, b: Int) -> Int = a + b
 fn main() -> Int = add(1)
 # error E003: expects 2 arguments, got 1
@@ -721,7 +774,7 @@ fn main() -> Int = add(1)
 **E004: Non-Exhaustive Match** -- A match expression does not cover all
 possible patterns.
 
-```cure
+```text
 match x
   true -> "yes"
 # warning E004: missing pattern for 'false'
@@ -764,7 +817,7 @@ sigma value against shapes that disagree with its declared components.
 **E013: Totality Failure** -- an `@total true`-annotated function is not provably
 total.
 
-**E014: Unfilled Hole** -- a `?name` or `??` placeholder remained unfilled.
+**E014: Unfilled Hole** -- a `?name` or `?_` placeholder remained unfilled.
 Informational unless `cure check --strict` is active.
 
 **E015: Refinement Counterexample** -- a value flowing into a refinement-typed
@@ -773,8 +826,10 @@ parameter might violate the predicate; the Z3 model gives a witness.
 **E016: Dependent Type Mismatch** -- a dependent return type does not match
 the expected type at the use site after substitution and reduction.
 
-**E017: Equality Proof Mismatch** -- `refl(x)` was used to inhabit
-`Eq(T, a, b)` where `a` and `b` are not definitionally equal to `x`.
+**E017: Equality Proof Mismatch** -- historical code for the retired
+primitive `Eq` / `refl` surface. Current identity proofs use
+`Equivalent(T, a, b)` and `reflexive`; conversion or constructor mismatch
+diagnostics retain the authored proof span.
 
 **E018: Path-sensitive Refinement Conflict** -- a path-sensitive refinement
 extracted from a guard contradicts a previously declared refinement.
@@ -814,7 +869,7 @@ parse error; E063 diagnostics disappear automatically.
 ### v0.19.0 codes
 
 **E026: Proof Shape Mismatch**
-not elaborate to an `Eq(...)` or refinement proof.
+does not elaborate to the declared proposition.
 
 **E027: `assert_type` Assertion Failed** -- the expression in
 `assert_type expr : T` does not match `T`.

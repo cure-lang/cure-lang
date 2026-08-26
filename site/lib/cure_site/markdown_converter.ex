@@ -150,12 +150,16 @@ defmodule CureSite.MarkdownConverter do
               formatter_options: [highlight_tag: "span"]
             )
 
-          ~s(<pre><code class="makeup #{lang}">#{highlighted}</code></pre>)
+          wrap_code_block(lang, ~s(<code class="makeup #{lang}">#{highlighted}</code>))
 
         :error ->
-          ~s(<pre><code class="#{lang}">#{escaped_body}</code></pre>)
+          wrap_code_block(lang, ~s(<code class="#{lang}">#{escaped_body}</code>))
       end
     end)
+  end
+
+  defp wrap_code_block(lang, code) do
+    ~s(<div class="cure-code-window"><div class="cure-code-window-bar"><span class="cure-code-window-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="cure-code-window-label">#{lang}</span></div><pre>#{code}</pre></div>)
   end
 
   @entities [

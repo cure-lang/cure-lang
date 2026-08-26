@@ -1,0 +1,65 @@
+@group(:core)
+mod Std.Decision
+  ## Decidable propositions -- a definitive yes-or-no answer that carries its
+  ## own evidence.
+  ##
+  ## An ordinary `Bool` tells you yes or no but the type checker can't trust it.
+  ## A `Decision(P)` is stronger: `Yes` carries an actual proof of `P`, and `No`
+  ## carries a disproof -- a function that would turn any (impossible) proof of
+  ## `P` into a value of the empty type. So a `Decision(P)` genuinely settles
+  ## whether `P` holds, checked by the dependent kernel.
+  ##
+  ## ## Examples
+  ##
+  ## ```cure
+  ## use Std.Decision
+  ##
+  ## equivalent?(true, true)                  # => Yes(...)   proof they are equal
+  ## equivalent?(true, false)                 # => No(...)    disproof
+  ## ```
+
+  ## Group tag consumed by `Cure.Stdlib.Preload`.
+  ## The empty type: it has no constructors, so it has no values. That is exactly
+  ## what makes it useful -- a function `P -> Empty` can only be written when `P`
+  ## itself is uninhabitable, so such a function is a proof that `P` is false.
+  ## (This is the `Not(P)` of dependent type theory, written inline as
+  ## `P -> Empty` because Cure has no transparent function-type aliases yet.)
+  type Empty = |
+
+  ## `Decision(a)` -- either `Yes` with a proof of `a`, or `No` with a disproof
+  ## (`a -> Empty`, a proof that `a` is false).
+  type Decision(a) =
+    | Yes(a)
+    | No(a -> Empty)
+
+  ## Disproof that `true` equals `false`: the two are distinct constructors, so
+  ## matching the sole `reflexive` witness forces them to coincide, which the
+  ## kernel rejects as `impossible` -- discharging the branch.
+  fn true_ne_false(p: Equivalent(Bool, True(), False())) -> Empty = match p
+    reflexive() -> impossible
+
+  ## Disproof that `false` equals `true`.
+  fn false_ne_true(p: Equivalent(Bool, False(), True())) -> Empty = match p
+    reflexive() -> impossible
+
+  ## Decide whether two `Bool`s are equal, returning a proof either way.
+  fn equivalent?(a: Bool, b: Bool) -> Decision(Equivalent(Bool, a, b)) =
+    match a
+      True() ->
+        match b
+          True() -> Yes(reflexive(True()))
+          False() -> No(true_ne_false)
+      False() ->
+        match b
+          True() -> No(false_ne_true)
+          False() -> Yes(reflexive(False()))
+
+  ## `true` when the decision came out `Yes`.
+  fn is_yes(d: Decision(p)) -> Bool = match d
+    Yes(_) -> true
+    No(_) -> false
+
+  ## `true` when the decision came out `No`.
+  fn is_no(d: Decision(p)) -> Bool = match d
+    Yes(_) -> false
+    No(_) -> true

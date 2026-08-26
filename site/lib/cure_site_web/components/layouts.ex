@@ -9,7 +9,7 @@ defmodule CureSiteWeb.Layouts do
   # The default root.html.heex file contains the HTML
   # skeleton of your application, namely HTML headers
   # and other static content.
-  embed_templates "layouts/*"
+  embed_templates("layouts/*")
 
   @doc """
   Renders your app layout.
@@ -25,17 +25,19 @@ defmodule CureSiteWeb.Layouts do
       </Layouts.app>
 
   """
-  attr :flash, :map, required: true, doc: "the map of flash messages"
+  attr(:flash, :map, required: true, doc: "the map of flash messages")
 
-  attr :current_scope, :map,
+  attr(:current_scope, :map,
     default: nil,
     doc: "the current [scope](https://hexdocs.pm/phoenix/scopes.html)"
+  )
 
-  attr :current_path, :string,
+  attr(:current_path, :string,
     default: "",
     doc: "the current request path, used to highlight the active navbar entry"
+  )
 
-  slot :inner_block, required: true
+  slot(:inner_block, required: true)
 
   def app(assigns) do
     assigns = assign(assigns, :cure_version, CureSite.cure_version())
@@ -62,7 +64,7 @@ defmodule CureSiteWeb.Layouts do
           <a
             href={~p"/type-system"}
             class={nav_class(@current_path, ~p"/type-system")}
-            title="Bidirectional checking, refinement types, dependent types (Sigma, Pi, equality), implicit arguments, holes, totality"
+            title="Dependent checking, indexed families, Sigma and Pi types, equality proofs, implicit arguments, holes, and totality"
           >
             Types
           </a>
@@ -75,14 +77,14 @@ defmodule CureSiteWeb.Layouts do
           <a
             href={~p"/actors"}
             class={nav_class(@current_path, ~p"/actors")}
-            title="Typed supervision trees, the Melquiades Operator, actor and sup containers (v0.25.0)"
+            title="Typed supervision trees, the Melquiades Operator, actor and sup containers"
           >
             Actors
           </a>
           <a
             href={~p"/applications"}
             class={nav_class(@current_path, ~p"/applications")}
-            title="First-class OTP applications and BEAM releases, the app container, cure release (v0.26.0)"
+            title="First-class OTP applications and BEAM releases, the app container, cure release"
           >
             Apps
           </a>
@@ -155,7 +157,7 @@ defmodule CureSiteWeb.Layouts do
       <div class="mx-auto max-w-5xl px-4 py-8 sm:px-6">
         <div class="flex flex-col items-center justify-between gap-4 sm:flex-row">
           <div class="flex items-center gap-4 text-sm text-base-content/60">
-            <a href="https://github.com/am-kantox/cure-lang" class="hover:text-base-content">
+            <a href="https://github.com/cure-lang/cure-lang" class="hover:text-base-content">
               GitHub
             </a>
             <a href={~p"/getting-started"} class="hover:text-base-content">Getting Started</a>
@@ -177,8 +179,8 @@ defmodule CureSiteWeb.Layouts do
 
       <.flash_group flash={@flash} />
   """
-  attr :flash, :map, required: true, doc: "the map of flash messages"
-  attr :id, :string, default: "flash-group", doc: "the optional id of flash container"
+  attr(:flash, :map, required: true, doc: "the map of flash messages")
+  attr(:id, :string, default: "flash-group", doc: "the optional id of flash container")
 
   def flash_group(assigns) do
     ~H"""

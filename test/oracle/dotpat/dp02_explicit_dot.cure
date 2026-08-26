@@ -1,0 +1,10 @@
+mod Dp02
+  type Nat = Z | S(Nat)
+  type MyEq(a: Type) indices (x: a, y: a)
+    mrefl : MyEq(a, w, w)
+  # Explicit dot: `{w = .a}` writes the forced index `w`, asserting it is the
+  # value (`a`) that index unification determined. Checked via Conv.conv?
+  # (shared with the named-implicit path); wrong dot -> forced_pattern_mismatch.
+  fn congS({a: Nat}, {b: Nat}, p: MyEq(Nat, a, b)) -> MyEq(Nat, S(a), S(b)) = match p
+    mrefl({w = .a}) -> mrefl()
+end

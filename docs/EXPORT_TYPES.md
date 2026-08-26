@@ -94,14 +94,14 @@ because proto3 does not support anonymous wrapper types at the field
 level. The exporter emits a `bytes` field with a comment and raises E068.
 Wrap the result in a named `rec` to export it cleanly:
 
-```cure
+```text
 rec ApiResponse
-  payload: Result(User, Error)   ## E068 on this field
+  payload: Result(User, Error)   # E068 on this field
 
 # Instead:
 type UserResult = Ok(User) | Err(Error)
 rec ApiResponse
-  payload: UserResult             ## exports as oneof
+  payload: UserResult             # exports as oneof
 ```
 
 ## Refinement and dependent types (E068)
@@ -118,7 +118,7 @@ for that field.
 
 To suppress E068 for a field, annotate it with `@export_as`:
 
-```cure
+```text
 rec Account
   @export_as "int64"
   balance: Positive Int

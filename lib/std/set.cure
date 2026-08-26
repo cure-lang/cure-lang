@@ -1,8 +1,10 @@
+@group(:collections)
 mod Std.Set
   ## Sets represented as maps with `true` values.
   ##
   ## Every function delegates to `Std.Map` / `Std.List`, keeping the
   ## implementation trivial and the representation directly inspectable.
+  ## A set of `t` is a `Map(t, Bool)` — the value is always `true`.
   ##
   ## ## Examples
   ##
@@ -24,48 +26,72 @@ mod Std.Set
   ## ```
 
   ## Group tag consumed by `Cure.Stdlib.Preload`.
-  fn __group__() -> Atom = :collections
+
+  ## The representation type and the list reducer this module delegates to.
+  ## Both are needed in scope for the dependent pipeline (the `Map` type alias
+  ## and the qualified calls below).
+  use Std.Map
+  use Std.List
 
   ## New empty set.
-  fn new() -> Map = Std.Map.new()
+  fn new() -> Map(t, Bool) = Std.Map.new()
 
   ## Insert `elem` into `set`.
-  fn add(elem: T, set: Map) -> Map = Std.Map.put(elem, true, set)
+  fn add(elem: t, set: Map(t, Bool)) -> Map(t, Bool) = Std.Map.put(elem, true, set)
 
   ## Remove `elem` from `set`; no-op if absent.
-  fn remove(elem: T, set: Map) -> Map = Std.Map.remove(elem, set)
+  fn remove(elem: t, set: Map(t, Bool)) -> Map(t, Bool) = Std.Map.remove(elem, set)
 
   ## `true` when `elem` is a member of `set`.
-  fn member(elem: T, set: Map) -> Bool = Std.Map.has_key(elem, set)
+  fn member(elem: t, set: Map(t, Bool)) -> Bool = Std.Map.has_key(elem, set)
 
   ## Number of elements in `set`.
-  fn size(set: Map) -> Int = Std.Map.size(set)
+  fn size(set: Map(t, Bool)) -> Int = Std.Map.size(set)
 
   ## `true` when the set has no elements.
-  fn is_empty(set: Map) -> Bool = Std.Map.is_empty(set)
+  fn is_empty(set: Map(t, Bool)) -> Bool = Std.Map.is_empty(set)
 
   ## List of elements in the set (order is `:maps.keys/1`-defined).
-  fn to_list(set: Map) -> List(T) = Std.Map.keys(set)
+  fn to_list(set: Map(t, Bool)) -> List(t) = Std.Map.keys(set)
 
   ## Build a set from a list of elements; duplicates collapse.
-  fn from_list(list: List(T)) -> Map =
-    Std.List.foldl(list, new(), fn(elem) -> fn(acc) -> add(elem, acc))
+  ##
+  ## Structural recursion rather than a fold: each `match` branch is checked
+  ## against the declared `Map(t, Bool)` return type, so `[] -> new()` has its
+  ## metavariables pinned by that type. Seeding `new()` through a `foldl`
+  ## accumulator instead leaves the polymorphic seed's metavariables unsolved
+  ## on the dependent pipeline (see
+  ## `test/cure/elab/fold_accumulator_poly_seed_reach_test.exs`).
+  fn from_list(list: List(t)) -> Map(t, Bool) =
+    match list
+      [] -> new()
+      [elem | rest] -> add(elem, from_list(rest))
 
   ## Set union.
-  fn union(a: Map, b: Map) -> Map = Std.Map.merge(a, b)
+  fn union(a: Map(t, Bool), b: Map(t, Bool)) -> Map(t, Bool) = Std.Map.merge(a, b)
+
+  ## Accumulate the elements of `elems` that ARE members of `b` onto `acc`.
+  local fn intersect_go(elems: List(t), b: Map(t, Bool), acc: Map(t, Bool)) -> Map(t, Bool) =
+    match elems
+      [] -> acc
+      [elem | rest] ->
+        pickup
+          member(elem, b) -> intersect_go(rest, b, add(elem, acc))
+          else            -> intersect_go(rest, b, acc)
 
   ## Set intersection.
-  fn intersection(a: Map, b: Map) -> Map =
-    let keep = fn(elem) -> fn(acc) ->
-      pickup
-        member(elem, b) -> add(elem, acc)
-        else            -> acc
-    Std.List.foldl(to_list(a), new(), keep)
+  fn intersection(a: Map(t, Bool), b: Map(t, Bool)) -> Map(t, Bool) =
+    intersect_go(to_list(a), b, new())
+
+  ## Accumulate the elements of `elems` that are NOT members of `b` onto `acc`.
+  local fn diff_go(elems: List(t), b: Map(t, Bool), acc: Map(t, Bool)) -> Map(t, Bool) =
+    match elems
+      [] -> acc
+      [elem | rest] ->
+        pickup
+          member(elem, b) -> diff_go(rest, b, acc)
+          else            -> diff_go(rest, b, add(elem, acc))
 
   ## Set difference `a \ b`.
-  fn difference(a: Map, b: Map) -> Map =
-    let drop = fn(elem) -> fn(acc) ->
-      pickup
-        member(elem, b) -> acc
-        else            -> add(elem, acc)
-    Std.List.foldl(to_list(a), new(), drop)
+  fn difference(a: Map(t, Bool), b: Map(t, Bool)) -> Map(t, Bool) =
+    diff_go(to_list(a), b, new())

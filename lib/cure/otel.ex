@@ -23,14 +23,14 @@ defmodule Cure.OTel do
   Span names follow `cure.<stage>.<event_type>` for pipeline events
   (`cure.type_checker.function_checked`, `cure.registry.fetch_ok`, ...)
   and `cure.<domain>.<op>` for manually-opened spans
-  (`cure.actor.send`, `cure.fsm.transition`, `cure.smt.query`).
+  (`cure.process.send`, `cure.state.transition`, `cure.smt.query`).
 
   ## Span envelope
 
   Every emitted span is a map:
 
       %{
-        name: "cure.actor.send",
+        name: "cure.process.send",
         trace_id: binary,
         span_id: binary,
         parent_span_id: binary | nil,
@@ -55,7 +55,7 @@ defmodule Cure.OTel do
 
   alias Cure.Pipeline.Events
 
-  @stages [:lexer, :parser, :type_checker, :codegen, :fsm_verifier, :sup_verifier, :app_verifier, :registry]
+  @stages [:lexer, :parser, :type_checker, :codegen, :registry]
 
   @ctx_key {__MODULE__, :ctx}
 

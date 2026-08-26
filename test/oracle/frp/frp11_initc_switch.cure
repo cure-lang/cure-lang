@@ -1,0 +1,30 @@
+mod Frp11
+  type Init = IIni | IUni
+  type Sig = SigC(Init) | SigE
+  type Dec = DDec | DCau
+  fn djoin(a: Dec, b: Dec) -> Dec = match a
+    DDec() -> match b
+      DDec() -> DDec()
+      DCau() -> DCau()
+    DCau() -> DCau()
+  type SList = SNil | SCons(Sig, SList)
+  fn initcAux(s: Sig) -> Sig = match s
+    SigC(i) -> SigC(IIni)
+    SigE() -> SigE()
+  fn initc(xs: SList) -> SList = match xs
+    SNil() -> SNil()
+    SCons(x, r) -> SCons(initcAux(x), initc(r))
+  type SF indices (i: SList, o: SList, dec: Dec)
+    prim : SF(av, bv, DCau)
+    dpre : SF(av, bv, DDec)
+    switch : SF(av, SCons(SigE, bv), d1) -> SF(av, bv, d2) -> SF(av, initc(bv), djoin(d1, d2))
+  # UNINITIALISED SIGNALS (paper §5). Continuous signals carry an initialisation
+  # flag (Init); a `switch` forces every residual output to be INITIALISED
+  # (`initc bv`), so an uninitialised signal cannot escape the switch's local
+  # time0. Here the residual outputs are honestly initialised through `initc`, so
+  # the computed output index `initc(bv)` matches on both sides. accept/accept.
+  fn switchInit({av: SList}, {bv: SList},
+                initial: SF(av, SCons(SigE, bv), DDec),
+                residual: SF(av, bv, DDec)) -> SF(av, initc(bv), DDec) =
+    switch(initial, residual)
+end

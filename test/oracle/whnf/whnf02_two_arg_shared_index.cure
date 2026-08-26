@@ -1,0 +1,11 @@
+mod Whnf02
+  type Nat = Z | S(Nat)
+  fn plus(a: Nat, b: Nat) -> Nat = match a
+    Z() -> b
+    S(k) -> S(plus(k, b))
+  type Vec indices (n: Nat)
+    vz : Vec(Z)
+    vs : Vec(k) -> Vec(S(k))
+  fn twovec({m: Nat}, w: Vec(plus(Z, m)), v: Vec(m), r: Nat) -> Nat = r
+  fn use() -> Nat = twovec(vs(vz()), vs(vz()), Z())
+end

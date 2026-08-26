@@ -1,0 +1,19 @@
+mod Le02
+  # Large elimination whose branch body MENTIONS an ambient function parameter.
+  # `FocusShape(k, a)` matches on the scrutinee `k` but each branch returns a type
+  # built from the OTHER parameter `a` (`Option(a)` / `Pair(a)`). This is the exact
+  # shape Std.Optic's real selector needs — `FocusShape(k, a, s)` returns per-kind
+  # representation types over `a` and `s` (spec 2026-07-11-std-optic-design §4).
+  # le01 proved the scrutinee-only selector reduces; this proves the selector also
+  # works when the motive must keep the remaining parameters in scope. In Idris the
+  # analogue `FocusShape : OpticKind -> Type -> Type` is completely routine.
+  use Std.Option
+  type OpticKind = LensKind | AffineKind | TraversalKind
+  type Pair(a: Type) = MkPair(a, a)
+  fn FocusShape(k: OpticKind, a: Type) -> Type = match k
+    LensKind -> Option(a)
+    AffineKind -> Pair(a)
+    TraversalKind -> Option(a)
+  fn mk_lens(x: a) -> FocusShape(LensKind, a) = Some(x)
+  fn mk_affine(x: a) -> FocusShape(AffineKind, a) = MkPair(x, x)
+end

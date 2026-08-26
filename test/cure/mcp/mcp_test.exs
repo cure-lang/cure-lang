@@ -19,13 +19,15 @@ defmodule Cure.MCP.McpTest do
       resp = Server.handle_request(%{"method" => "tools/list", "id" => 2, "params" => %{}})
       tools = resp["result"]["tools"]
       assert is_list(tools)
-      assert length(tools) >= 7
+      # `analyze_fsm` was removed with the fsm container compiler (#18), so the
+      # tool surface is one smaller.
+      assert length(tools) >= 6
 
       names = Enum.map(tools, & &1["name"])
       assert "compile_cure" in names
       assert "parse_cure" in names
       assert "type_check_cure" in names
-      assert "analyze_fsm" in names
+      refute "analyze_fsm" in names
       assert "validate_syntax" in names
       assert "get_syntax_help" in names
       assert "get_stdlib_docs" in names
@@ -34,6 +36,14 @@ defmodule Cure.MCP.McpTest do
     test "unknown method returns error" do
       resp = Server.handle_request(%{"method" => "unknown/thing", "id" => 3, "params" => %{}})
       assert resp["result"]["error"]
+    end
+
+    test "invalid tool arguments return a machine-readable usage diagnostic" do
+      result = call_tool_result("compile_cure", %{})
+
+      assert result["isError"]
+      assert result["structuredContent"]["diagnostic"]["code"] == "E099"
+      assert call_tool("compile_cure", %{}) =~ "Invalid arguments for MCP tool 'compile_cure'"
     end
   end
 
@@ -52,8 +62,18 @@ defmodule Cure.MCP.McpTest do
     end
 
     test "reports error for invalid source" do
-      resp = call_tool("compile_cure", %{"source" => "not valid cure at all ???"})
-      assert resp =~ "error" or resp =~ "Error"
+      # Use source that genuinely fails to parse. (The old "not valid cure at
+      # all ???" fixture happened to lex into a degenerate empty module the
+      # lenient front-end accepts now that the classic checker is gone.)
+      result = call_tool_result("compile_cure", %{"source" => "mod Bad\n  fn run(] -> Int = 1\nend\n"})
+      resp = result["content"] |> hd() |> Map.fetch!("text")
+
+      assert result["isError"]
+      assert result["structuredContent"]["diagnostic"]["code"] =~ ~r/^E09\d$/
+      assert resp =~ "fn run(] -> Int = 1"
+      assert resp =~ "^"
+      refute resp =~ "Compilation error:"
+      refute resp =~ "{:unexpected"
     end
   end
 
@@ -80,23 +100,8 @@ defmodule Cure.MCP.McpTest do
     end
   end
 
-  # ============================================================================
-  # Tool: analyze_fsm
-  # ============================================================================
-
-  describe "analyze_fsm tool" do
-    test "analyzes FSM definition" do
-      source = "fsm Light\n  Red --timer--> Green\n  Green --timer--> Red\n"
-      resp = call_tool("analyze_fsm", %{"source" => source})
-      assert resp =~ "FSM"
-      assert resp =~ "Light"
-    end
-
-    test "reports when no FSM found" do
-      resp = call_tool("analyze_fsm", %{"source" => "mod NotFsm\n  fn x() -> Int = 1\n"})
-      assert resp =~ "No FSM"
-    end
-  end
+  # The `analyze_fsm` tool was removed with the fsm container compiler (#18);
+  # its describe block is gone.
 
   # ============================================================================
   # Tool: validate_syntax
@@ -109,8 +114,14 @@ defmodule Cure.MCP.McpTest do
     end
 
     test "invalid syntax" do
-      resp = call_tool("validate_syntax", %{"source" => "???!!!"})
-      assert resp =~ "error" or resp =~ "Error"
+      result = call_tool_result("validate_syntax", %{"source" => "mod V\n  fn a(] -> Int = 1\nend\n"})
+      resp = result["content"] |> hd() |> Map.fetch!("text")
+
+      assert result["isError"]
+      assert result["structuredContent"]["diagnostic"]["code"] =~ ~r/^E09\d$/
+      assert resp =~ "fn a(] -> Int = 1"
+      assert resp =~ "^"
+      refute resp =~ "Syntax error:"
     end
   end
 
@@ -135,9 +146,11 @@ defmodule Cure.MCP.McpTest do
       assert resp =~ "fsm"
     end
 
-    test "returns help for protocols" do
-      resp = call_tool("get_syntax_help", %{"topic" => "protocols"})
-      assert resp =~ "proto"
+    test "returns help for interfaces using canonical syntax" do
+      resp = call_tool("get_syntax_help", %{"topic" => "interfaces"})
+      assert resp =~ "interface Show(t)"
+      assert resp =~ "implementation Show for Int"
+      refute resp =~ "proto Show"
     end
 
     test "unknown topic lists available topics" do
@@ -174,13 +187,19 @@ defmodule Cure.MCP.McpTest do
   # ============================================================================
 
   defp call_tool(name, args) do
-    resp =
+    resp = call_tool_result(name, args)
+
+    resp["content"] |> hd() |> Map.get("text")
+  end
+
+  defp call_tool_result(name, args) do
+    response =
       Server.handle_request(%{
         "method" => "tools/call",
         "id" => System.unique_integer([:positive]),
         "params" => %{"name" => name, "arguments" => args}
       })
 
-    resp["result"]["content"] |> hd() |> Map.get("text")
+    response["result"]
   end
 end

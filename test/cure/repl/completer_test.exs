@@ -29,6 +29,13 @@ defmodule Cure.REPL.CompleterTest do
     test "partial Cure keyword completes uniquely" do
       assert {:unique, "match"} = Completer.complete("matc", 4)
     end
+
+    test "offers canonical declaration and conditional spellings" do
+      assert {:unique, "interface"} = Completer.complete("interf", 6)
+      assert {:unique, "implementation"} = Completer.complete("implementa", 10)
+      assert {:unique, "pickup"} = Completer.complete("pick", 4)
+      assert :none = Completer.complete("proto", 5)
+    end
   end
 
   describe ":load path completion" do

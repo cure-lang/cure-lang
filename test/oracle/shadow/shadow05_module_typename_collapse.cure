@@ -1,0 +1,5 @@
+mod Collapse
+  use Std.Nat
+  type Nat = Zero | Suc(Nat)
+  fn imported_zero() -> Std.Nat = Std.Nat.Z()
+end

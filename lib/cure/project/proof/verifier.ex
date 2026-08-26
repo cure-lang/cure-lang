@@ -7,9 +7,6 @@ defmodule Cure.Project.Proof.Verifier do
     * `:equality`   -- verified by structural term equality of the
       witness against `:cure_refl`. Definitional equality proofs are
       self-evident once the terms are in normal form.
-    * `:refinement` -- verified by re-running the lightweight Z3-free
-      SMT layer (bounds arithmetic only) against the serialized
-      predicate and bounds map.
     * `:smt`        -- verified by replaying the serialized Z3 query
       through the local SMT bridge. Falls back to `:unverified` when no
       solver is available, emitting a warning rather than failing.
@@ -37,10 +34,6 @@ defmodule Cure.Project.Proof.Verifier do
     end
   end
 
-  def verify_one(%{kind: :refinement, statement: statement, witness: witness}) do
-    verify_refinement(statement, witness)
-  end
-
   def verify_one(%{kind: :smt, statement: statement, witness: witness}) do
     verify_smt(statement, witness)
   end
@@ -58,25 +51,6 @@ defmodule Cure.Project.Proof.Verifier do
   defp equality_witness?(:cure_refl), do: true
   defp equality_witness?({:refl, _}), do: true
   defp equality_witness?(_), do: false
-
-  # -- Refinement ----------------------------------------------------------------
-
-  defp verify_refinement(%{predicate: pred, bounds: bounds}, _witness)
-       when is_binary(pred) and is_map(bounds) do
-    # Lightweight check: every bound in the witness must be a numeric
-    # range that the predicate string does not contradict. This covers
-    # `>= 0`, `!= 0`, `in 1..100` style predicates without Z3.
-    if bounds_consistent?(bounds) do
-      :ok
-    else
-      {:error, {:inconsistent_bounds, bounds}}
-    end
-  end
-
-  defp verify_refinement(_statement, _witness), do: :ok
-
-  defp bounds_consistent?(%{lo: lo, hi: hi}) when is_number(lo) and is_number(hi), do: lo <= hi
-  defp bounds_consistent?(_), do: true
 
   # -- SMT -----------------------------------------------------------------------
 

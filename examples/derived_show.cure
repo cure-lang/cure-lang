@@ -1,11 +1,15 @@
 mod DerivedShow
-  ## @derive(Show, Eq, Ord) on records (v0.19.0).
+  use Std.Show
+  use Std.Equatable
+  use Std.Comparable
+
+  ## @derive(Show, Equatable, Ord) on records (v0.19.0).
   ##
   ## The decorator synthesises a `show/1`, `eq/2`, and `compare/2`
   ## function per record, exported as regular module functions and
   ## plugged into the protocol registry.
 
-  @derive(Show, Eq, Ord)
+  @derive(Show, Equatable, Ord)
   rec Point
     x: Int
     y: Int
@@ -15,7 +19,8 @@ mod DerivedShow
   fn main() -> Int =
     let p = Point{x: 1, y: 2}
     let q = Point{x: 1, y: 2}
-    # `eq` is the synthesised Eq method.
+    let r = Point{x: 2, y: 0}
+    # All calls resolve through the synthesised implementations.
     pickup
-      eq(p, q) -> 1
-      else     -> 0
+      p == q and p < r and show(p) == "Point{x: 1, y: 2}" -> 1
+      else                                                 -> 0

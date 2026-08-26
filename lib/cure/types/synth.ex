@@ -26,12 +26,10 @@ defmodule Cure.Types.Synth do
   follow-up work; the catalogue is kept small intentionally so the
   search stays fast on small budgets.
 
-  Pipeline events: `:synthesis, :candidate` per emitted candidate;
-  `:synthesis, :budget_exhausted` when the depth budget runs out
-  without exhausting the search space.
-
-  Error codes: `E061 Synthesis Budget Exhausted` is emitted as a
-  warning when the budget is exhausted.
+  Pipeline events: `:synthesis, :candidate` per emitted candidate and
+  `:synthesis, :no_candidates` when the bounded catalogue search has no usable
+  result. This is observational telemetry, not a compiler diagnostic: returning
+  no hole suggestions is a valid synthesis result rather than an error.
   """
 
   alias Cure.Pipeline.Events
@@ -78,11 +76,11 @@ defmodule Cure.Types.Synth do
       Events.emit(:synthesis, :candidate, c, Events.meta(file, line))
     end)
 
-    if candidates == [] do
+    if filtered == [] do
       Events.emit(
         :synthesis,
-        :budget_exhausted,
-        %{code: "E061", goal: goal, depth: depth},
+        :no_candidates,
+        %{goal: goal, depth: depth},
         Events.meta(file, line)
       )
     end

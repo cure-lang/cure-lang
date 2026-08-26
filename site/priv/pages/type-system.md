@@ -1,628 +1,234 @@
 %{
   title: "Type System",
-  description: "Bidirectional checking, refinement types, dependent types (Sigma, Pi, equality), implicit arguments, holes, totality.",
+  description: "The dependent kernel: indexed families, conversion, quantitative binders, patterns, and interfaces.",
   order: 3
 }
 ---
-Cure has a bidirectional type system with refinement types verified at compile time by the Z3 SMT solver and a compact **dependent-type** core: Sigma and Pi types, propositional equality, implicit arguments, holes, and totality classification. Types are checked statically -- no runtime type tags, no casts.
 
-See the dedicated [Dependent types](#dependent-types) section for the language-level proof features landed in {{cure_vversion}}.
+Cure has one bidirectional dependent type checker. The classic checker and
+code-generation path have been removed: every program elaborates to dependent
+Core, is validated by the small trusted kernel, has compile-time evidence
+erased, and is then emitted as BEAM code.
 
-## Bidirectional type checking
+## Bidirectional elaboration
 
-The type checker operates in two modes:
+The elaborator alternates between two modes:
 
-- **Infer mode**: determines the type of an expression from its structure. Literals, variables, operators, and function calls are inferred.
-- **Check mode**: verifies that an expression has an expected type. Function bodies are checked against their declared return type. Arguments are checked against parameter types.
+- **Infer** synthesizes a Core term and its type.
+- **Check** elaborates a term against an expected type.
 
-Modules are checked in two passes:
+Expected types flow into lambdas, constructors, blocks, holes, and local
+bindings. Implicit constraints may be postponed until later arguments reveal
+enough information, so argument order does not decide whether a well-typed call
+can be inferred.
 
-1. **Signature collection**: scan all function definitions, collecting their names, parameter types, and return types. This allows mutual recursion -- functions can reference each other regardless of definition order.
-2. **Body checking**: check each function body against its declared return type using check mode.
+Declarations receive canonical owner-qualified identities. Lexical imports and
+qualified module availability are tracked separately, repeated interface loads
+are idempotent, and imports do not leak transitive bare names.
 
-```cure
-mod Example
-  # Pass 1 registers: add : (Int, Int) -> Int, double : Int -> Int
-  # Pass 2 checks each body
+## Universes and dependent functions
 
-  fn add(a: Int, b: Int) -> Int = a + b
-
-  fn double(x: Int) -> Int = add(x, x)
-```
-
-## Primitive types
-
-- `Int` -- arbitrary-precision integers (BEAM big integers)
-- `Float` -- IEEE 754 double-precision floating point
-- `String` -- UTF-8 binary strings
-- `Bool` -- `true` or `false`
-- `Atom` -- Erlang atoms (`:ok`, `:error`, `:my_atom`)
-- `Pid` -- Erlang process identifier
-- `Char` -- single Unicode character
-- `Unit` -- the type of `nil`, meaning "no meaningful value"
-
-```cure
-fn example() -> Int = 42
-fn pi() -> Float = 3.14
-fn name() -> String = "Alice"
-fn flag() -> Bool = true
-fn status() -> Atom = :ok
-fn nothing() -> Unit = nil
-```
-
-## Composite types
-
-- `List(T)` -- linked list, parameterized by element type
-- `Map(K, V)` -- hash map
-- `%[A, B]` -- tuple (fixed-size, heterogeneous)
-- `A -> B` -- function type (from A to B)
-
-```cure
-fn numbers() -> List(Int) = [1, 2, 3]
-fn lookup() -> Map(String, Int) = %{name: 42}
-fn pair() -> %[Int, String] = %[1, "hello"]
-fn adder() -> Int -> Int = fn(x) -> x + 1
-```
-
-Function types with multiple parameters are curried:
-
-```cure
-# Type of a two-argument function
-fn make_adder() -> Int -> Int -> Int = fn(a) -> fn(b) -> a + b
-```
-
-## Algebraic data types
-
-Sum types are defined with `type` and used as first-class values:
-
-```cure
-type Option(T) = Some(T) | None
-type Result(T, E) = Ok(T) | Error(E)
-type Color = Red | Green | Blue
-```
-
-Constructors are typed as functions:
-
-- `Some : T -> Option(T)`
-- `None : Option(T)` (nullary)
-- `Ok : T -> Result(T, E)`
-- `Red : Color` (nullary)
-
-## Subtyping
-
-Cure defines these subtype relationships:
-
-- `Int <: Float` -- numeric widening (integers can be used where floats are expected)
-- `Never <: T` for all T -- the bottom type is a subtype of everything
-- `T <: Any` for all T -- every type is a subtype of the top type
-- `{x: Int | P(x)} <: Int` -- a refinement type is a subtype of its base type (dropping the constraint)
-- `List(A) <: List(B)` if `A <: B` -- lists are covariant
-- `(A -> B) <: (C -> D)` if `C <: A` and `B <: D` -- function types are contravariant in parameters and covariant in return types
-
-Examples of what this means in practice:
-
-```cure
-type Positive = {x: Int | x > 0}
-
-# Positive <: Int, so this is valid:
-fn double(x: Int) -> Int = x * 2
-fn use_positive(p: Positive) -> Int = double(p)
-
-# Int is NOT <: Positive, so this would be a type error:
-# fn bad(x: Int) -> Positive = x  -- error!
-```
-
-## Refinement types
-
-Refinement types constrain a base type with a logical predicate. The predicate is a boolean expression over the bound variable:
-
-```cure
-type NonZero = {x: Int | x != 0}
-type Positive = {x: Int | x > 0}
-type Percentage = {p: Int | p >= 0 and p <= 100}
-type NonNegative = {x: Int | x >= 0}
-type SmallInt = {n: Int | n >= 0 and n <= 255}
-```
-
-Predicates can use comparison operators (`==`, `!=`, `<`, `>`, `<=`, `>=`), boolean connectives (`and`, `or`, `not`), and arithmetic (`+`, `-`, `*`).
-
-### Subtype verification via SMT
-
-Refinement subtyping is verified at compile time by sending logical implications to Z3. To check whether `{x: A | P(x)} <: {x: A | Q(x)}`, the compiler asks Z3 to prove: `forall x. P(x) => Q(x)`.
-
-Verified relationships:
-
-- **Positive <: NonZero** -- because `forall x. x > 0 => x != 0` (Z3 proves `unsat` for the negation)
-- **Percentage <: NonNegative** -- because `forall p. (p >= 0 and p <= 100) => p >= 0`
-- **SmallInt <: NonNegative** -- because `forall n. (n >= 0 and n <= 255) => n >= 0`
-
-Rejected relationships:
-
-- **NonZero is NOT <: Positive** -- Z3 finds the counterexample `x = -1` (satisfies `x != 0` but not `x > 0`)
-- **NonNegative is NOT <: Percentage** -- counterexample: `x = 101`
-
-```cure
-type NonZero = {x: Int | x != 0}
-type Positive = {x: Int | x > 0}
-
-fn needs_nonzero(x: NonZero) -> Int = x * 2
-
-# This is valid: Positive <: NonZero
-fn use_positive(p: Positive) -> Int = needs_nonzero(p)
-
-# This would be a type error: NonZero is NOT <: Positive
-# fn needs_positive(x: Positive) -> Int = x
-# fn bad(n: NonZero) -> Int = needs_positive(n)  -- error!
-```
-
-### Satisfiability checking
-
-The compiler verifies that refinement types are not empty (i.e., at least one value satisfies the constraint). This catches impossible types at definition time:
-
-- `{x: Int | x > 0}` -- satisfiable (e.g., `x = 1`)
-- `{x: Int | x > 0 and x < 0}` -- unsatisfiable: the compiler emits a warning that this type is empty
-
-## Dependent type verification at call sites
-
-Functions with `when` guards register as constrained types. When called with literal or statically-known arguments, the compiler substitutes values into the guard predicate and sends it to Z3.
-
-```cure
-fn safe_divide(a: Int, b: Int) -> Int when b != 0 = a / b
-fn positive_double(x: Int) -> Int when x > 0 = x * 2
-```
-
-At a call site:
-
-```cure
-fn main() -> Int =
-  safe_divide(42, 7)    # OK: Z3 proves 7 != 0
-  safe_divide(42, 0)    # Warning: guard constraint violated (b = 0, but b != 0 required)
-  positive_double(5)    # OK: Z3 proves 5 > 0
-  positive_double(-1)   # Warning: guard constraint violated
-```
-
-When the proof fails, the solver extracts a counterexample model from Z3's `(get-model)` output, showing the specific values that break the constraint:
+Universes are cumulative and predicative. A function's result may mention its
+arguments:
 
 ```text
-Warning: call to 'safe_divide': guard constraint may be violated
-  Constraint: b != 0
-  Counterexample: b = 0
+fn append(
+  {a: Type},
+  {m: Nat},
+  {n: Nat},
+  xs: Vector(a, m),
+  ys: Vector(a, n)
+) -> Vector(a, plus(m, n))
 ```
 
-When arguments are not statically known (e.g., from user input), the compiler reports that it cannot prove the constraint -- it is the programmer's responsibility to validate inputs.
+Brace-delimited parameters are implicit and solved from explicit arguments.
+When graded `0`, they cost nothing at runtime.
 
-## Dependent types
+## Indexed inductive families
 
-Starting with v0.17.0 Cure ships a compact dependent-type core. Types can depend on values, values can carry proofs, and the checker reduces closed type-level expressions without calling out to the SMT solver. The ingredients:
-
-- **Sigma types** `Sigma(name: T1, T2)` -- dependent pairs whose second component's type may mention the first.
-- **Pi types** `fn f(x: A, y: B(x)) -> C(x, y)` -- function types whose return type depends on the arguments.
-- **Propositional equality** `Eq(T, a, b)` with constructor `refl` and eliminator `rewrite`.
-- **Implicit arguments** solved by first-order unification with occurs check.
-- **Holes** `?name` / `??` reporting goal type and local context.
-- **Totality** classification (`:total | :partial | :unknown`) with the optional `@total true` decorator.
-- **Path-sensitive refinement** flowing through `if` and `match` guards.
-
-### Sigma types (dependent pairs)
-
-`Sigma(n: Nat, Vector(T, n))` is "a pair of a natural number and a vector of exactly that length." The second component's type mentions the first by name.
+`indices` separates uniform parameters from constructor-varying indices:
 
 ```cure
-type NonEmpty(T) = Sigma(n: Nat, Vector(T, n + 1))
-
-fn singleton(x: T) -> NonEmpty(T) = (0, [x])
+type Vector(a: Type) indices (n: Nat)
+  empty   : Vector(a, Z)
+  prepend : a -> Vector(a, n) -> Vector(a, S(n))
 ```
 
-`Cure.Types.Sigma` recognises the surface syntax, subtypes componentwise, and round-trips to plain tuples at runtime. Surface syntax `DPair` is accepted as a synonym.
+Constructor checking preserves index equations. Pattern matching solves those
+equations per branch, narrows local bindings, and can prove a branch
+impossible. Forced (`.`) patterns and `impossible` arms expose that reasoning
+on the surface.
 
-### Pi types (dependent functions)
-
-Return types may mention the arguments:
+Empty and single-constructor types are supported:
 
 ```cure
-fn append(xs: Vector(T, m), ys: Vector(T, n)) -> Vector(T, m + n)
+type Void = |
+type Wrapper = Wrap(Int)
 ```
 
-At each call site, the checker substitutes the actual arguments into the return type, normalises through `Cure.Types.Reduce` (a terminating folder for type-level arithmetic, booleans, comparisons, and pair projection), and resolves the result. `Vector(T, 2 + 3)` and `Vector(T, 5)` are the same type -- no SMT round-trip required.
+## Primitive and composite types
 
-Pi parameters have three modes: `:explicit` (the default), `:implicit` (resolved by unification, see below), and `:erased` (compile-time only, dropped at codegen).
+Visible primitive homes include `Std.Int`, `Std.Float`, `Std.Char`,
+`Std.Atom`, and `Std.Binary`. `String` is a nominal type (`Std.String`)
+storing its text as a `List(Char)`, not a transparent alias for it.
 
-### Propositional equality
+Common composite types are:
 
-`Eq(T, a, b)` is the type of proofs that two values of type `T` are equal. It has one constructor and one eliminator:
+- `List(t)` — covariant linked lists;
+- `Map(k, v)` — parameterized maps;
+- `%[a, b, ...]` — flat tuples;
+- `a -> b` and `(a, b) -> c` — function types;
+- nominal records declared with `rec`;
+- `Option(t)` and `Result(t, e)`, imported from `Std.Option` and
+  `Std.Result`.
+
+Use the canonical modules and bare imported names:
 
 ```cure
-# refl builds a proof that x = x
-fn reflexive(x: Int) -> Eq(Int, x, x) = refl(x)
+use Std.Result
 
-# rewrite transports a value through an equality
-fn transport(p: Eq(T, a, b), v: F(a)) -> F(b) = rewrite p in v
+fn parse_flag(x: Bool) -> Result(Int, Atom) =
+  pickup
+    x    -> Ok(1)
+    else -> Error(:disabled)
 ```
 
-Equality proofs are runtime-erased via the `:cure_refl` atom. The stdlib module `Std.Equal` exposes `refl`, `sym`, `trans`, and `cong` for everyday proof combinators.
+`Std.Result.Result` is not the intended spelling.
 
-### Implicit arguments and unification
+## Sigma pairs and tuples
 
-Implicit parameters use brace syntax:
-
-```cure
-fn id({T}, x: T) -> T = x
-fn identity_int() -> Int = id(42)    # {T} solved to Int
-```
-
-At each call site, first-order unification with an occurs check (`Cure.Types.Unify`) solves the implicit arguments from the explicit ones. When unification fails, the compiler emits a `:unification_trace` pipeline event pointing at the offending argument, position, and prior substitution. The LSP renders the trace in hover; the CLI prints it in error output. Implicit parameters are erased at codegen: they cost nothing at runtime.
-
-### Holes and hole-driven development
-
-A hole is a placeholder that asks the type checker to report what type would fit there.
-
-```cure
-fn safe_head(xs: List(T)) -> T = ?body
-```
-
-Compiling reports:
+`Sigma(name: a, b(name))` pairs a value with a second component whose type may
+depend on it. Ordinary tuple values and types use the same `%[...]` shape:
 
 ```text
-?body : T
-in scope:
-  xs : List(T)
+let pair : %[Int, Bool] = %[42, true]
 ```
 
-Anonymous `??` holes are numbered `?_1`, `?_2`, ... in source order. Every hole encountered during checking emits a `:hole_goal` event carrying both the goal type and the local context. The REPL's `:holes` meta-command lists every hole recorded during the last evaluation.
+Legacy `(A, B)` tuple types are accepted for migration and emit
+`E086 / E-TYPE-TUPLE-PAREN`; grouped types and function domains are unchanged.
 
-### Totality
+## Subtyping and `Any`
 
-A function is **total** when it terminates on every input and its pattern matching is exhaustive. `Cure.Types.Totality` classifies every function as `:total`, `:partial`, or `:unknown`, combining coverage (via `Cure.Types.PatternChecker`) with a structural-recursion check. The default is report-only. Decorating with `@total true` upgrades the classification to a hard requirement:
+`Never` is the bottom type and `Any` is the top type. Widening propagates only
+through safe positions:
+
+- `List(Int)` satisfies `List(Any)` because list elements are covariant;
+- function inputs are contravariant and outputs covariant;
+- `Pid(inbox)` is covariant in its message type;
+- invariant and dependent/indexed positions reject widening that would lose
+  evidence or permit an unsafe value.
+
+Diagnostics identify the invariant position that blocks a widening. Erasure
+does not turn `Any` into an escape hatch.
+
+## Quantitative binders
+
+Each binder carries a usage grade in `{0, 1, ω}`:
+
+- `0` — compile-time only and erased;
+- `@linear` — used exactly once;
+- `@affine` — used at most once;
+- `ω` — unrestricted.
+
+The kernel rejects returning, scrutinizing, or reusing an erased value at
+runtime. Initializers are still checked when their binding is unused. Linear
+typed-OTP reply capabilities therefore cannot be duplicated or silently lost.
+
+## Definitional and propositional equality
+
+Definitional equality is automatic: the checker normalizes both terms and
+compares their normal forms.
+
+`Std.Equivalent` supplies propositional equality:
 
 ```cure
-@total true
-fn factorial(n: Nat) -> Nat
-  | 0 -> 1
-  | n -> n * factorial(n - 1)
+@builtin(:eq)
+type Equivalent(a: Type) indices (x: a, y: a)
+  reflexive : Equivalent(a, w, w)
 ```
 
-Direct structural recursion is verified in v0.17.0; mutual recursion is scheduled for v0.19.0.
+Matching a proof against `reflexive` identifies its endpoints.
+`Std.Equivalent` implements `sym`, `trans`, and `cong` as ordinary,
+kernel-checked Cure functions. Proof values are erased.
 
-### Path-sensitive refinement
+Do not confuse this with `Std.Equatable`. `Equatable(t)` computes a runtime
+`Bool` through `==`; `Equivalent(a, x, y)` is evidence that two endpoints are
+identical.
 
-Refinement information now flows along `if` and `match` guards. `Cure.Types.PathRefinement` accumulates the branch condition (and its negation on the `else` side) into the type environment.
+## Structural patterns
 
-```cure
-if x != 0 then 100 / x else 0
-```
+One typed pattern elaborator handles:
 
-Inside the `then` branch, `x` is refined to `{x: Int | x != 0}`, so the division is safe without an explicit refinement annotation. The stdlib module `Std.Refine` ships ready-made refinements for everyday use: `NonZero`, `Positive`, `Negative`, `NonNegative`, `Percentage`, `Probability`, and predicate helpers.
+- integer, negative integer, float, string, atom, boolean, character, and other
+  literal patterns;
+- tuples, nested lists and cons cells;
+- open map patterns and field punning;
+- records and nested records;
+- user ADTs plus `Option` and `Result` constructors;
+- pins, repeated variables, guards, and multi-clause heads.
 
-### Error codes
+Bindings retain their narrowed types, repeated variables generate equality
+constraints, and every nested pattern retains its authored source span.
 
-The dependent-type machinery contributes a dedicated range of error codes `E011`-`E020` (implicit-argument failures, sigma destructuring, totality failures, unfilled holes, refinement counterexamples, dependent-type mismatches, equality-proof mismatches, doctest mismatches).
-
-v0.18.0 adds codes `E021`-`E025` for the pattern engine: unknown record field in a pattern, record-pattern field type mismatch, non-literal map-pattern key, unbound pin variable, and non-exhaustive nested match. Every code has a detailed explanation available via `cure explain Edd` or `cure why Edd`.
-
-## Pattern exhaustiveness
-
-The type checker analyzes `match` expressions for completeness. Missing cases produce compile-time warnings.
-
-### Bool
-
-Requires both `true` and `false`:
-
-```cure
-fn describe(b: Bool) -> String =
-  match b
-    true -> "yes"
-    false -> "no"
-# Exhaustive: Bool has exactly two values
-```
-
-### Result(T, E)
-
-Requires `Ok(...)` and `Error(...)`:
-
-```cure
-fn handle(r: Result(Int, String)) -> Int =
-  match r
-    Ok(v) -> v
-    Error(_) -> -1
-# Exhaustive: covers both constructors
-```
-
-### Option(T)
-
-Requires `Some(...)` and `None()`:
-
-```cure
-fn unwrap(opt: Option(Int)) -> Int =
-  match opt
-    Some(v) -> v
-    None() -> 0
-# Exhaustive
-```
-
-### List(T)
-
-Requires `[]` (empty) and `[_ | _]` (non-empty):
-
-```cure
-fn head_or_zero(xs: List(Int)) -> Int =
-  match xs
-    [h | _] -> h
-    [] -> 0
-# Exhaustive: covers empty and non-empty
-```
-
-### Infinite types
-
-Types with infinite inhabitants (`Int`, `String`, `Float`) require a wildcard `_` to be exhaustive:
-
-```cure
-fn describe(x: Int) -> String
-  | 0 -> "zero"
-  | 1 -> "one"
-  | _ -> "other"
-# The wildcard is required -- you cannot enumerate all integers
-```
-
-Without the wildcard, the compiler warns:
+Pattern-valued `let` uses the same grammar and introduces bindings
+sequentially:
 
 ```text
-Warning: non-exhaustive patterns in function 'describe'
-  Missing: wildcard (_) for infinite type Int
+let Ok(%[head, tail]) = parse(input)
 ```
 
-### Nested patterns
+Exhaustiveness and unreachable-branch diagnostics operate on constructor and
+index information. Z3-backed guard coverage is an untrusted warning layer; the
+kernel never accepts a term because the solver said so.
 
-Exhaustiveness analysis works through nested constructors:
+## Interfaces and implementations
 
 ```cure
-fn nested(x: Option(Result(Int, String))) -> Int =
-  match x
-    Some(Ok(v)) -> v
-    Some(Error(_)) -> -1
-    None() -> 0
-# Exhaustive: all three paths covered
+interface Show(t)
+  fn show(x: t) -> String
+
+implementation Show for Int
+  fn show(x: Int) -> String = Std.String.from_int(x)
+
+fn display(x: t) -> String requires Show(t) = show(x)
 ```
 
-v0.18.0 adds a **Maranget-style** column walker for tuple scrutinees whose
-element types are enumerable (Bool, Result, Option). Missing witnesses are
-rendered as source-shaped strings and reported under code `E025`:
+The compiler checks implementation signatures, superinterfaces, method bodies,
+and coherence. A missing dictionary is a structured error. Implementations are
+loaded before callers regardless of file order and retain their owner,
+namespace, type arguments, and source origin.
 
-```text
-Warning: match expression has nested non-exhaustive cases (E025)
-  missing: %[Error(_), _]
+Generated `@derive` implementations are published in the same declaration and
+module-interface tables as authored ones.
+
+## Totality and conversion
+
+Type checking may unfold only definitions backed by a validated size-change
+termination certificate. Structural recursion, argument permutations, and
+mutual recursion are covered. An uncertified function may still exist, but
+remains opaque during conversion. `@total true` requires certification.
+
+## Holes and proof authoring
+
+`?name` and `?_` create typed holes and report the goal plus local context.
+`have`, `proof chain`, and `because` blocks elaborate to ordinary proof terms;
+they do not add unchecked Core constructs.
+
+`postulate`, bodyless `@extern`, and `believe_me` are explicit trust roots.
+Inspect a module's reachable roots with:
+
+```bash
+cure audit trust My.Module
 ```
 
-The original flat classifier is kept as a fast-path for simple,
-single-level matches.
+## Effects
 
-### Structural refinement narrowing (v0.20.0)
+The kernel recognises `Effect(t)` as a type former for direct-style effectful
+computations; BEAM-facing APIs (OTP, I/O, and so on) return values wrapped in
+it. Erased binders cannot carry runtime effects.
 
-v0.20.0 exposes a dedicated module -- `Cure.Types.PatternRefinement` --
-whose `narrow/2` function takes a pattern AST and a scrutinee type and
-returns `{bindings, narrowed_scrutinee}`. Two kinds of information come
-back:
-
-**Literal-equality witnesses.** A sub-pattern that is a literal means
-the matched value *is* that literal along the arm. Matching `0` against
-`:int` narrows the scrutinee to `{x: Int | x == 0}`; inside a tuple
-pattern with a literal slot, the corresponding element of the narrowed
-scrutinee picks up the refinement while variables in other slots keep
-their original element type.
-
-**Disjoint-tag witnesses.** A constructor pattern (`Ok(v)`,
-`Error(e)`) or a map pattern with a literal `:kind` tag narrows the
-scrutinee to a tagged variant:
-
-```elixir
-narrow({:function_call, [name: "Ok"], [{:variable, [], "v"}]}, :any)
-# => {%{"v" => :any}, {:variant, :ok, []}}
-```
-
-`PatternRefinement` integrates with the existing `Cure.Types.Refinement`
-representation so every narrowed type is something the SMT translator
-already understands. `bind_pattern_vars/3` in the type checker keeps its
-existing precise element typing for tuples / lists / records / maps --
-`PatternRefinement` is exposed as a separate module for callers that want
-the narrowed scrutinee.
-
-### Binary destructuring and exhaustiveness (v0.21.0)
-
-v0.21.0 wires the v0.20.0 segment AST through the type checker. Every
-binary pattern in a `match` arm, multi-clause function head, or `let`
-binding introduces its inner variables with the type implied by the
-segment specifier: `integer`/`size(n)` -> `Int`, `float` -> `Float`,
-`utf8`/`utf16`/`utf32` -> `Char`,
-`binary`/`bytes`/`bitstring`/`bits` -> `Bitstring`.
-
-A dedicated exhaustiveness pass --
-`Cure.Types.PatternChecker.check_binary_exhaustiveness/2` -- runs
-whenever the scrutinee of a `match` is a `Bitstring` (or a Bitstring
-refinement). A top-level wildcard, or the combination of an
-empty-binary arm (`<<>>`) and an open-ended tail arm
-(`<<_, _rest::binary>>`), covers the scrutinee; otherwise the
-compiler prints a concrete witness under code `E031`.
-
-`PatternRefinement.narrow/2` also gets a binary-literal branch that
-walks the segment children and collects the per-segment bindings
-separately from the scrutinee narrowing. v0.21.0 keeps the narrowing
-conservative -- a trailing `rest::binary` binds to plain `Bitstring` --
-but the hook is in place for future releases to emit
-`byte_size(rest) == byte_size(scrutinee) - sum_of_preceding_sizes`
-once the SMT translator gains the arithmetic.
-
-### `let` destructuring exhaustiveness (v0.21.0)
-
-`let` bindings now route through `bind_pattern_vars/3` just like
-match arms, so ADT constructors, tuples, cons patterns, record
-patterns, maps, and binary patterns on the LHS all introduce their
-inner variables with the right narrowed types. A single-arm
-exhaustiveness gate runs through the existing `PatternChecker` and
-emits code `E034` as a warning when the pattern cannot cover the
-RHS type -- the binding still compiles, matching Erlang's `=`
-semantics. Setting `partial: true` on the assignment metadata
-suppresses the warning.
-
-## Guard-based flow typing
-
-When a function has a `when` guard, parameter types are refined within the guarded body. The type checker narrows the type to include the guard constraint:
-
-```cure
-fn process(x: Int) -> Int when x > 0 =
-  # Inside this body, x has type {x: Int | x > 0}
-  x * 2
-```
-
-For multi-clause functions with guards, the type checker uses SMT to verify guard coverage and detect unreachable clauses:
-
-```cure
-fn classify(x: Int) -> String
-  | x when x > 0 -> "positive"
-  | x when x < 0 -> "negative"
-  | _ -> "zero"
-# Guards cover all integers: x > 0, x < 0, and the wildcard for x == 0
-```
-
-If a guard is unreachable (e.g., implied by a previous clause), the compiler warns about dead code.
-
-## Record types
-
-Records introduce named product types. The type checker tracks them with a
-lightweight `{:named, "TypeName"}` representation that preserves the record
-name instead of collapsing it to `Any`.
-
-### How records are type-checked
-
-The checker runs in two passes. In the first pass, every `rec` definition
-registers its field schema in the type environment:
-
-```
-rec Point        ->  "Point" : %{"x" => Int, "y" => Int}
-rec Person       ->  "Person" : %{"name" => String, "age" => Int}
-rec Rectangle    ->  "Rectangle" : %{"origin" => Point, "width" => Int, ...}
-```
-
-In the second pass, this schema is available to type-check every operation:
-
-**Construction** -- `Point{x: 3, y: 4}` produces type `Point`. The checker
-verifies each field value against its declared type.
-
-**Field access** -- `p.x` where `p : Point` produces type `Int` (looked up
-from the schema). Field access on an `Any`-typed value produces `Any`.
-
-**Record update** -- `Point{p | x: new_x}` where `p : Point`:
-- Verifies `new_x` has type `Int` (the declared type of `Point.x`)
-- Returns `Point`
-- Compiles to the BEAM map-update instruction, preserving all unlisted fields including `__struct__`
-
-**Function parameters** -- `fn f(p: Point)` makes `p` available as type
-`Point` inside the body, so `p.x` correctly infers `Int`.
-
-### Subtyping
-
-Named record types participate in subtyping:
-
-```cure
-# Point <: Any (universal rule)
-fn accepts_any(x: Any) -> Any = x
-fn use_point(p: Point) -> Any = accepts_any(p)  # valid
-
-# Point is the same type as Point (reflexivity)
-fn same_point(p: Point) -> Point = p  # valid
-```
-
-Named types are NOT subtypes of each other unless they are the same type.
-There is no structural record subtyping -- a record with fields `{x: Int, y: Int}`
-is not implicitly a subtype of one with fields `{x: Int}` in the current type
-system.
-
-### Examples
-
-```cure
-mod Geometry
-  rec Point
-    x: Int
-    y: Int
-
-  # Construction: typed as Point
-  fn origin() -> Point = Point{x: 0, y: 0}
-
-  # Field access: p.x -> Int, p.y -> Int
-  fn distance_squared(a: Point, b: Point) -> Int =
-    let dx = b.x - a.x
-    let dy = b.y - a.y
-    dx * dx + dy * dy
-
-  # Record update: returns Point
-  fn translate(p: Point, dx: Int, dy: Int) -> Point =
-    Point{p | x: p.x + dx, y: p.y + dy}
-
-  # Wrong field type -> type error at compile time
-  # fn bad(p: Point) -> Point = Point{p | x: "not an int"}  -- error!
-```
-
-## Protocols and type checking
-
-Protocols provide ad-hoc polymorphism. The type checker:
-
-1. Registers protocol method signatures during the first pass (signature collection)
-2. Validates that each `impl` method signature matches the protocol declaration
-3. Checks implementation bodies against the declared types
-
-```cure
-proto Eq(T)
-  fn eq(a: T, b: T) -> Bool
-
-impl Eq for Int
-  fn eq(a: Int, b: Int) -> Bool = a == b
-
-# The type checker verifies:
-# - eq in impl Eq for Int matches the signature fn eq(a: T, b: T) -> Bool
-#   with T = Int
-# - The body (a == b) has type Bool, matching the declared return type
-```
-
-Protocol implementations are registered globally in an ETS table during compilation, enabling cross-module dispatch.
-
-## Effect system
-
-Cure tracks side effects in the type system. Functions can declare their effects after the return type using `!`:
-
-```cure
-fn read_file(path: String) -> String ! Io
-fn risky(x: Int) -> Int ! Exception
-fn complex(x: Int) -> Int ! Io, Exception
-```
-
-### Effect kinds
-
-Five effect kinds form a closed set:
-
-- `Io` -- I/O operations (printing, file access)
-- `State` -- mutable state (send, receive, process dictionary)
-- `Exception` -- exception throwing
-- `Spawn` -- process spawning
-- `Extern` -- unclassified foreign function calls
-
-### Inference
-
-Effect annotations are optional. When omitted, the type checker infers effects from the function body by analyzing:
-
-- Keywords: `send`/`receive` -> State, `throw` -> Exception, `spawn` -> Spawn
-- `@extern` targets: classified by Erlang module (`:io` -> Io, `:gen_server` -> State, etc.)
-- Transitive calls: calling an effectful function inherits its effects
-
-### Effect subtyping
-
-A pure function (no effects) is a subtype of any effectful function with the same signature:
-
-```
-(Int) -> Int  <:  (Int) -> Int ! Io
-```
-
-An effectful function is a subtype of another effectful function only when its effect set is a subset:
-
-```
-(Int) -> Int ! Io  <:  (Int) -> Int ! Io, State
-```
-
-This means pure callbacks can be passed where effectful ones are expected.
+For deeper treatment, read the
+[Dependent Types](https://hexdocs.pm/cure/dependent-types.html),
+[Patterns](https://hexdocs.pm/cure/patterns.html),
+[Proofs](https://hexdocs.pm/cure/proofs.html), and
+[Kernel](https://hexdocs.pm/cure/kernel.html) guides.

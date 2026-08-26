@@ -2,16 +2,14 @@ defmodule Mix.Tasks.CompileCure do
   @moduledoc """
   Compiles `.cure` source files for the Cure forge example.
 
-  The Cure actor, supervisor, and app compilers load their generated
-  modules eagerly via `Code.compile_string/2`; no `.beam` file is
-  written to disk for those containers. The task therefore needs to
-  run before the Elixir compile step (and before each test run) so
-  the `Cure.Actor.*`, `Cure.Sup.*`, and `Cure.App.*` modules are live
-  in the VM when the application supervisor starts.
+  The standard-library `actor`, `sup`, and `app` macros expand to lifted
+  modules and are emitted through the common Cure BEAM writer. The task
+  runs before the Elixir compile step and before each test run so the
+  generated modules are available when the application supervisor starts.
 
   Ordering matters at runtime, not at compile time: the
-  `Cure.Sup.Forge.Root` child specs reference `Cure.Actor.Metrics`,
-  `Cure.Actor.Logger`, `Cure.Actor.Queue`, and `Cure.Actor.Pool` as
+  `Cure.Forge.Root` child specs reference `Cure.Metrics`,
+  `Cure.Logger`, `Cure.Queue`, and `Cure.Pool` as
   atoms, so compile order is irrelevant. Still, we compile actors
   first for clarity, then the supervisor, then the application
   container.
@@ -51,20 +49,28 @@ defmodule Mix.Tasks.CompileCure do
       end
 
       Application.ensure_all_started(:cure)
+      preload_stdlib!()
 
       Enum.each(cure_files, fn path ->
         case Cure.Compiler.compile_file(path,
                output_dir: @output_dir,
                emit_events: false,
-               check_types: false
+               check_types: true
              ) do
           {:ok, module, _warnings} ->
             Mix.shell().info("Compiled #{path} -> #{module}")
 
           {:error, reason} ->
-            Mix.shell().error("Failed to compile #{path}: #{inspect(reason)}")
+            Mix.raise("Failed to compile #{path}: #{inspect(reason)}")
         end
       end)
+    end
+  end
+
+  defp preload_stdlib! do
+    case Cure.Stdlib.Preload.preload(kind: :all) do
+      :ok -> :ok
+      {:error, reason} -> Mix.raise("Failed to load Cure stdlib: #{inspect(reason)}")
     end
   end
 

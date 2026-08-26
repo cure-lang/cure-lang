@@ -1,0 +1,15 @@
+mod Rw04
+  type Nat = Z | S(Nat)
+  fn plus(m: Nat, n: Nat) -> Nat = match m
+    Z() -> n
+    S(k) -> S(plus(k, n))
+  fn plus_zero_right(n: Nat) -> Equivalent(Nat, plus(n, Z), n) = match n
+    Z() -> reflexive(Z)
+    S(k) -> rewrite plus_zero_right(k) in reflexive(S(k))
+  fn plus_succ_right(m: Nat, n: Nat) -> Equivalent(Nat, plus(m, S(n)), S(plus(m, n))) = match m
+    Z() -> reflexive(S(n))
+    S(k) -> rewrite plus_succ_right(k, n) in reflexive(S(S(plus(k, n))))
+  fn plus_comm(m: Nat, n: Nat) -> Equivalent(Nat, plus(m, n), plus(n, m)) = match m
+    Z() -> rewrite plus_zero_right(n) in reflexive(n)
+    S(k) -> rewrite plus_succ_right(n, k) in rewrite plus_comm(k, n) in reflexive(S(plus(n, k)))
+end

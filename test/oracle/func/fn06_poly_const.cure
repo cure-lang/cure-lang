@@ -1,0 +1,5 @@
+mod Fn06
+  type Nat = Zero | Suc(Nat)
+  fn const({a}, {b}, x: a, y: b) -> a = x
+  fn g() -> Nat = const(Suc(Zero()), Zero())
+end

@@ -50,6 +50,21 @@ defmodule Cure.Stdlib.PathsTest do
   end
 
   describe "beam_dirs/0" do
+    test "resolves an immutable artifact container to its published generation" do
+      root = Path.join(System.tmp_dir!(), "cure_stdlib_generation_#{System.unique_integer([:positive])}")
+      generation = String.duplicate("a", 64)
+      published = Path.join([root, ".cure_generations", generation])
+      File.mkdir_p!(published)
+      File.write!(Path.join(root, "current"), generation <> "\n")
+
+      try do
+        Application.put_env(:cure, :stdlib_beam_dir, root)
+        assert hd(Paths.beam_dirs()) == published
+      after
+        File.rm_rf!(root)
+      end
+    end
+
     test "prepends the configured override when it exists" do
       tmp = make_tmp!()
 
@@ -121,6 +136,20 @@ defmodule Cure.Stdlib.PathsTest do
   end
 
   describe "source_dir/0" do
+    test "memoizes directory probing while the candidate configuration is unchanged" do
+      :cprof.start()
+
+      try do
+        assert Paths.source_dir() == Paths.source_dir()
+        :cprof.pause()
+
+        {Paths, _total, entries} = :cprof.analyse(Paths)
+        assert {{Paths, :source_dirs, 0}, 1} in entries
+      after
+        :cprof.stop()
+      end
+    end
+
     test "returns the first element of source_dirs/0" do
       case Paths.source_dirs() do
         [] -> assert Paths.source_dir() == nil
@@ -394,6 +423,25 @@ defmodule Cure.Stdlib.PathsTest do
         File.rm_rf!(lib)
         File.rm_rf!(override)
       end
+    end
+  end
+
+  describe "standalone launcher home" do
+    test "derives stdlib candidates from the escript's own directory" do
+      assert Paths.launcher_home_beam_dirs("/opt/cure/cure") == [
+               "/opt/cure/priv/ebin",
+               "/opt/cure/_build/cure/ebin"
+             ]
+
+      assert Paths.launcher_home_source_dirs("/opt/cure/cure") == [
+               "/opt/cure/priv/std",
+               "/opt/cure/lib/std"
+             ]
+    end
+
+    test "ignores evaluator-style launcher names" do
+      assert Paths.launcher_home_beam_dirs("-e") == []
+      assert Paths.launcher_home_source_dirs("") == []
     end
   end
 

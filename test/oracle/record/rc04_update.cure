@@ -1,0 +1,8 @@
+mod Rc04
+  type Nat = Z | S(Nat)
+  rec Point
+    x: Nat
+    y: Nat
+  fn bump(p: Point) -> Point = Point{p | x: S(Z())}
+  fn g() -> Nat = bump(Point{x: Z(), y: S(S(Z()))}).x
+end

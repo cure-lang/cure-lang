@@ -1,19 +1,9 @@
-## Colony supervisor for the Cure colony example.
-##
-## Supervises two `Worker` instances (`worker_a` and `worker_b`, the
-## latter with a `:transient` restart so normal shutdowns are not
-## restarted) and a single `Echo` instance (`:permanent`, 2 s shutdown).
-##
-## The bare names `Worker` and `Echo` in the children block resolve to
-## the compiled actor modules `Cure.Actor.Worker` and `Cure.Actor.Echo`
-## -- the convention `Cure.Actor.<Name>` for undotted child names --
-## loaded from `worker.cure` and `echo.cure` respectively.
+## Transparent supervisor example. Child-spec algebra is defined in Cure.
+
+use Std.Supervisor
 
 sup Colony
-  strategy  = :one_for_one
-  intensity = 3
-  period    = 5
   children
-    Worker as worker_a
-    Worker as worker_b (restart: :transient)
-    Echo   as echo     (restart: :permanent, shutdown: 2000)
+    worker Worker as worker_a
+    worker Worker as worker_b
+    worker Echo as echo

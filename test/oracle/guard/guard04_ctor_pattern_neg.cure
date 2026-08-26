@@ -1,0 +1,16 @@
+mod Guard04
+  type Nat = Z | S(Nat)
+  type Other = A | B
+  # Adversarial control for guard03: the guarded constructor arm's body is folded
+  # into a `bool_elim` `if` that is still kernel-checked at the match's result
+  # type. Here the guarded body `A()` has type `Other`, not `Nat`, so the fold
+  # must NOT blind-accept — the kernel rejects the mismatched branch. reject/reject.
+  fn isZ(n: Nat) -> Bool = match n
+    Z() -> true
+    S(k) -> false
+  fn classify(n: Nat) -> Nat = match n
+    S(k) when isZ(k) -> A()
+    S(k) -> S(Z())
+    Z() -> S(S(Z()))
+  fn start() -> Nat = classify(S(Z()))
+end

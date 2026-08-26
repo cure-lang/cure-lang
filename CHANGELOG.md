@@ -6,31 +6,129 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Added -- `%[A, B]` tuple-type syntax
+### Fixed
 
-Tuple *types* now use the same `%[...]` sigil as tuple *values*. A
-function that returns a pair can be annotated `-> %[Int, String]`,
-mirroring the value it constructs (`%[a, b]`). This removes the
-long-standing inconsistency where values were written `%[a, b]` but
-their types were written `(A, B)`.
+- `Cure.Protocol.Verifier` hardcoded `E056` for protocol-violation
+  diagnostics, colliding with the unrelated, fully-catalogued
+  `E056 @extern Declaration Missing a Typed Head` compiler diagnostic
+  in `Cure.Diagnostic.Registry`. The protocol DSL runs outside the
+  `.cure` compiler pipeline and was never actually registered in the
+  registry, so it now uses its own `PROTO001` code instead of
+  borrowing from the `E`-catalog namespace.
 
-- **Parser** -- `Cure.Compiler.Parser` accepts `%[A, B]` in any type
-  position and elaborates it to the same `{:tuple, _, elems}` node the
-  parenthesised form produced, so type resolution
-  (`Cure.Types.Type.resolve/1`), display, and codegen are unchanged.
-  `%[A]` is a one-element tuple, `%[]` is the empty tuple, and
-  `%[A, B] -> C` is a unary function over a tuple.
-- **Deprecation** -- the legacy parenthesised tuple type `(A, B)` is
-  still parsed, but every occurrence now emits a `:deprecation`
-  pipeline event carrying the new diagnostic code
-  `E086 / E-TYPE-TUPLE-PAREN`. `cure explain E086` describes the
-  mechanical migration to `%[A, B]`. Grouped types `(A)` and
-  function-type parameter lists `(A, B) -> C` are unaffected.
-- **Backward compatibility** -- sources that spell tuple types
-  `(A, B)` keep compiling and produce identical BEAM output; the only
-  change is the new deprecation hint. The standard library and bundled
-  examples already avoid the parenthesised tuple type, so they compile
-  without the new event.
+### Changed -- one dependent compiler pipeline
+
+- The classic checker and code generator have been removed. Parsing now feeds
+  `Cure.Elab.Program`, dependent Core validation, quantitative erasure, and the
+  BEAM emitter for every program.
+- The kernel now validates cumulative universes, Pi and Sigma types, indexed
+  inductive families, dependent case elimination, strict positivity,
+  definitional equality by normalization, and size-change totality
+  certificates, including mutual recursion.
+- Every Core binder carries a `{0, 1, ω}` usage grade, with affine and linear
+  surface modes. Erased values cannot escape into runtime computation.
+- Primitive `Eq`/`refl`/`rewrite` tokens were retired. `Std.Equivalent`
+  provides the kernel-recognised inductive identity type
+  `Equivalent(a, x, y)` and its `reflexive` constructor.
+- Refinement predicates no longer enter the trusted type theory. SMT/Z3 guard
+  coverage and shadow analysis remain explicitly untrusted diagnostics.
+
+### Added -- dependent language surface
+
+- Indexed families use `indices` to separate uniform parameters from
+  constructor-varying indices. Dependent results may mention arguments, and
+  brace-implicit parameters are inferred and erased when grade `0`.
+- Empty and single-constructor types, bare nullary constructor patterns,
+  forced patterns, impossible arms, `with` abstraction, unions,
+  `typealias`, and visible `primitive` declarations are supported.
+- Structural pattern elaboration is shared by `match`, multi-clause heads, and
+  pattern-valued `let`: literals, tuples, nested list/cons patterns, maps,
+  records, ADT/Option/Result constructors, pins, repeated variables, and guards
+  retain narrowed types and nested source spans.
+- Anonymous functions support single-expression, indented, brace-delimited,
+  and `end`-terminated multi-expression bodies with expected-type propagation.
+- `Any` is a genuine top type in safe covariant positions. For example,
+  `List(Int)` satisfies `List(Any)`; invariant and index-sensitive positions
+  continue to reject unsafe widening.
+- Integer literals default to `Int` but may be interpreted contextually through
+  `ExpressibleByNaturalLiteral` / `ExpressibleByIntegerLiteral`. Total
+  `LiteralResult` conversion lets finite domains reject invalid literals at
+  compile time rather than wrap or trap.
+
+### Changed -- interfaces, implementations, and modules
+
+- `interface` / `implementation` replace `proto` / `impl`; generic functions
+  state obligations with `requires`. `cure migrate` performs the keyword
+  rewrite.
+- `Std.Equatable` backs runtime `==`/`!=`; `Std.Comparable` replaces
+  `Std.Ord` and backs ordering operators. `Std.Equivalent` is proof equality
+  and is deliberately separate from both.
+- Canonical module interfaces publish authored and generated declarations
+  under stable owner-qualified identities. Lexical imports remain separate
+  from qualified availability, repeated loading is idempotent, and transitive
+  bare names do not leak.
+- Module graphs determine declaration/loading order, including implementation
+  providers and user `@prelude` modules, rather than relying on file order.
+- User precedence groups and infix/prefix/postfix declarations propagate
+  through `use` edges and ambient project preludes; conflicts and cycles are
+  diagnosed before authoritative parsing.
+
+### Added -- derivation and macros
+
+- `@derive(Show, Equatable, Ord)` publishes structural record
+  implementations; the `Ord` derive tag targets `Comparable`.
+  `@derive(JSON)` publishes `to_json/1`. Generated declarations use the same
+  canonical tables and provenance as authored functions.
+- Staged `syntax ... becomes`, typed/repeated/hygienic holes, `quote` with
+  splicing, `computed by`, and `Std.Syntax` reflection provide user-defined
+  syntax. OTP actor/FSM/supervisor/application and reactive DSLs are authored
+  through this macro surface.
+
+### Changed -- standard library
+
+- `Option`, `Some`, and `None` have the canonical home `Std.Option`; `Result`,
+  `Ok`, and `Error` have the canonical home `Std.Result`. Import the module
+  with `use` and write the bare type/constructors; no
+  `Std.Result.Result` spelling is required.
+- `String` is the transparent `List(Char)` alias. Primitive `Char`, `Atom`,
+  `Binary`, `Int`, and `Float` have visible standard-library homes.
+- Added or reshaped `Std.Optic`, length-indexed `Std.Vector`,
+  `Std.NonEmpty`, `Std.Decision`, `Std.Sigma`, `Std.Tuple`, the typed
+  `Std.Otp` algebra, proof/reflection modules, and the expanded `Std.Iter`.
+- `Std.Regex` is indexed by its extraction result and compiles to a direct
+  pattern machine with typed evidence decoding. The unindexed tree, recursive
+  suffix matcher, and OTP regex shim are removed.
+- `Std.Access`, `Std.Equal`, and `Std.Ord` are retired in favor of
+  `Std.Optic`, `Std.Equivalent`, and `Std.Comparable`.
+- `Std.Test` assertions and ordinary property runners return `Unit`.
+  Shrinking runners return `Result(Unit, t)`, with a minimized
+  counterexample in `Error`.
+
+### Added -- diagnostics, migration, and build tooling
+
+- Structured diagnostics now retain stable codes, authored/related ranges,
+  canonical definition identities, and machine-safe fixes across terminal,
+  JSON, and LSP consumers.
+- Editions (`@edition` and `[project].edition`) pin grammar and keyword sets.
+  `cure migrate` supports check/print/strict modes, atomic batches,
+  fixpoint/reparse validation, import-order-independent rewrites, and refuses
+  unsafe dirty-tree mutation.
+- `cure audit trust <Module>` reports reachable `postulate`, bodyless
+  `@extern`, and `believe_me` roots.
+- Multi-file and incremental builds share dependency ordering, canonical
+  module loading, user-prelude discovery, and sound cache invalidation.
+- `mix cure.check.examples` compiles every root example and executes every
+  recorded `main/0` expectation. The corpus currently reports 40 passing
+  examples with no skips or failures.
+
+### Added -- canonical `%[A, B]` tuple-type syntax
+
+Tuple types use the same `%[...]` sigil as tuple values. `%[A, B]`, `%[A]`,
+and `%[]` enter the dependent tuple pipeline directly; positions may also carry
+dependent binders such as `%[x: A, B(x)]`. Legacy `(A, B)` remains accepted and
+compiles to the same Core and BEAM representation, while parser tooling emits
+the explainable `E086 / E-TYPE-TUPLE-PAREN` deprecation. Grouped `(A)` and
+function domains `(A, B) -> C` are unchanged.
 
 ### Added -- `Std.Iter` becomes a peer of `Std.List`
 
@@ -39,8 +137,11 @@ previously shipped only `empty`, `from_list`, `range`, `fold`, `take`,
 and `to_list` (v0.19.0). It is now a complete lazy-iterator API,
 designed so a chain like
 
-```cure path=null start=null
-foo |> lazy |> map(...) |> filter(...) |> take(5)
+```cure
+use Std.List
+
+fn pipeline() -> List(Int) =
+  map([1, 2, 3, 4, 5], fn(x) -> x * x)
 ```
 
 reads left to right and only materialises at the terminal consumer.
@@ -527,7 +628,7 @@ a `prefers-color-scheme` theme toggle and a keyboard-focusable
 - **Anchored entries.** Every public function, type, and protocol
   inside a module page gets a stable `#fn-<name>`, `#type-<name>`,
   `#proto-<name>` anchor. Sources URLs link back to
-  `github.com/am-kantox/cure-lang/blob/main/lib/std/<module>.cure`
+  `github.com/cure-lang/cure-lang/blob/main/lib/std/<module>.cure`
   at the right symbol.
 
 ### Added -- Stdlib Examples blocks
@@ -1177,8 +1278,6 @@ raw-mode line editor with live syntax highlighting.
 
 ### Deferred to v0.25.0
 
-- Monomorphisation of polymorphic functions whose call sites all use
-  concrete types.
 - Profile-guided optimisation wiring between `Cure.Profiler` and the
   inliner / pattern-aware SMT encoder.
 - First-class Helix / Zed configurations and a VS Code extension
@@ -2182,9 +2281,8 @@ ported, primarily the type optimizer and 5 LSP modules).
 - Debounced diagnostic publication
 - SMT feedback: refinement type info on hover, inline counterexamples
 
-### Added -- Advanced Optimizer (Phase 4)
+### Added -- Experimental Optimizer (Phase 4)
 - Function inlining (small pure functions, recursion-safe)
-- Monomorphization at concrete call sites
 - Guard simplification (algebraic rules, clause merging, redundancy elimination)
 - Pattern-aware SMT encoding for precise exhaustiveness checking
 - Deep pipe chain optimizer (Result propagation, Ok wrap/unwrap elimination)

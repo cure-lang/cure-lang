@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cure-lang.org/schemas/cure-core-0.1.schema.json",
+  "title": "Cure Canonical Core 0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "module", "definitions"],
+  "properties": {
+    "schema": {"const": "cure-core-0.1"},
+    "module": {"$ref": "#/$defs/identifier"},
+    "imports": {"type": "array", "items": {"$ref": "#/$defs/identifier"}},
+    "data": {"type": "array", "items": {"type": "object"}},
+    "effects": {"type": "array", "items": {"$ref": "#/$defs/effectDecl"}},
+    "definitions": {"type": "array", "items": {"$ref": "#/$defs/definition"}},
+    "concurrency": {"type": "array", "items": {"type": "object"}},
+    "capabilities": {"type": "array", "items": {"$ref": "#/$defs/identifier"}},
+    "metadata": {"type": "object"}
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_./:-]*$"
+    },
+    "origin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "file": {"type": "string"},
+        "start": {"type": "integer", "minimum": 0},
+        "end": {"type": "integer", "minimum": 0}
+      }
+    },
+    "effectLabel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "category", "handling", "control"],
+      "properties": {
+        "name": {"$ref": "#/$defs/identifier"},
+        "category": {
+          "enum": ["primitive", "abstract", "higher-order", "suspend", "concurrency", "foreign"]
+        },
+        "handling": {"enum": ["open", "sealed"]},
+        "control": {"enum": ["ordinary", "suspending"]}
+      }
+    },
+    "row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["labels", "tail"],
+      "properties": {
+        "labels": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/effectLabel"}
+        },
+        "tail": {"type": ["string", "null"]}
+      }
+    },
+    "effectDecl": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "label", "parameters", "result"],
+      "properties": {
+        "name": {"$ref": "#/$defs/identifier"},
+        "label": {"$ref": "#/$defs/effectLabel"},
+        "parameters": {"type": "array", "items": {"$ref": "#/$defs/type"}},
+        "result": {"$ref": "#/$defs/type"},
+        "capability": {"$ref": "#/$defs/identifier"}
+      }
+    },
+    "type": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["kind"], "properties": {"kind": {"const": "unit"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind"], "properties": {"kind": {"const": "bool"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind"], "properties": {"kind": {"const": "int"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "name"], "properties": {"kind": {"const": "named"}, "name": {"$ref": "#/$defs/identifier"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "left", "right"], "properties": {"kind": {"const": "pair"}, "left": {"$ref": "#/$defs/type"}, "right": {"$ref": "#/$defs/type"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "left", "right"], "properties": {"kind": {"const": "sum"}, "left": {"$ref": "#/$defs/type"}, "right": {"$ref": "#/$defs/type"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "params", "result", "effects"], "properties": {"kind": {"const": "function"}, "params": {"type": "array", "items": {"$ref": "#/$defs/type"}}, "result": {"$ref": "#/$defs/type"}, "effects": {"$ref": "#/$defs/row"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "result", "effects", "index"], "properties": {"kind": {"const": "computation"}, "result": {"$ref": "#/$defs/type"}, "effects": {"$ref": "#/$defs/row"}, "index": {"type": ["object", "null"]}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "param", "body"], "properties": {"kind": {"const": "dependent-function"}, "param": {"$ref": "#/$defs/type"}, "body": {"$ref": "#/$defs/type"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "param", "body"], "properties": {"kind": {"const": "dependent-pair"}, "param": {"$ref": "#/$defs/type"}, "body": {"$ref": "#/$defs/type"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "base", "predicate"], "properties": {"kind": {"const": "refinement"}, "base": {"$ref": "#/$defs/type"}, "predicate": {"$ref": "#/$defs/indexTerm"}}}
+      ]
+    },
+    "indexTerm": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["kind", "index"], "properties": {"kind": {"const": "var"}, "index": {"type": "integer", "minimum": 0}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "type", "value"], "properties": {"kind": {"const": "literal"}, "type": {"enum": ["unit", "bool", "int", "atom", "string"]}, "value": {}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "name", "args"], "properties": {"kind": {"const": "constructor"}, "name": {"$ref": "#/$defs/identifier"}, "args": {"type": "array", "items": {"$ref": "#/$defs/indexTerm"}}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "value", "field"], "properties": {"kind": {"const": "projection"}, "value": {"$ref": "#/$defs/indexTerm"}, "field": {"type": "integer", "minimum": 0}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "name", "args"], "properties": {"kind": {"const": "pure-op"}, "name": {"$ref": "#/$defs/identifier"}, "args": {"type": "array", "items": {"$ref": "#/$defs/indexTerm"}}}}
+      ]
+    },
+    "value": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["kind", "index"], "properties": {"kind": {"const": "var"}, "index": {"type": "integer", "minimum": 0}, "origin": {"$ref": "#/$defs/origin"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "type", "value"], "properties": {"kind": {"const": "literal"}, "type": {"enum": ["unit", "bool", "int", "atom", "string"]}, "value": {}, "origin": {"$ref": "#/$defs/origin"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "name", "args"], "properties": {"kind": {"const": "constructor"}, "name": {"$ref": "#/$defs/identifier"}, "args": {"type": "array", "items": {"$ref": "#/$defs/value"}}, "origin": {"$ref": "#/$defs/origin"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "left", "right"], "properties": {"kind": {"const": "pair"}, "left": {"$ref": "#/$defs/value"}, "right": {"$ref": "#/$defs/value"}, "origin": {"$ref": "#/$defs/origin"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "params", "body"], "properties": {"kind": {"const": "lambda"}, "params": {"type": "array", "items": {"$ref": "#/$defs/type"}}, "body": {"$ref": "#/$defs/computation"}, "origin": {"$ref": "#/$defs/origin"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "params", "body"], "properties": {"kind": {"const": "recursive-lambda"}, "params": {"type": "array", "items": {"$ref": "#/$defs/type"}}, "body": {"$ref": "#/$defs/computation"}, "origin": {"$ref": "#/$defs/origin"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "name", "args"], "properties": {"kind": {"const": "pure-op"}, "name": {"$ref": "#/$defs/identifier"}, "args": {"type": "array", "items": {"$ref": "#/$defs/value"}}, "origin": {"$ref": "#/$defs/origin"}}}
+      ]
+    },
+    "pattern": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {"enum": ["wildcard", "literal", "constructor", "pair"]},
+        "name": {"$ref": "#/$defs/identifier"},
+        "fields": {"type": "array", "items": {"$ref": "#/$defs/pattern"}},
+        "index": {"type": "integer", "minimum": 0},
+        "value": {}
+      }
+    },
+    "branch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pattern", "body"],
+      "properties": {
+        "pattern": {"$ref": "#/$defs/pattern"},
+        "body": {"$ref": "#/$defs/computation"},
+        "origin": {"$ref": "#/$defs/origin"}
+      }
+    },
+    "handler": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "operations", "return"],
+      "properties": {
+        "mode": {"enum": ["deep", "shallow", "scoped"]},
+        "operations": {"type": "array", "items": {"type": "object"}},
+        "return": {"$ref": "#/$defs/computation"}
+      }
+    },
+    "computation": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": {"kind": {"const": "return"}, "value": {"$ref": "#/$defs/value"}, "origin": {"$ref": "#/$defs/origin"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "bound", "body"], "properties": {"kind": {"const": "let"}, "bound": {"$ref": "#/$defs/computation"}, "body": {"$ref": "#/$defs/computation"}, "origin": {"$ref": "#/$defs/origin"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "function", "args"], "properties": {"kind": {"const": "apply"}, "function": {"$ref": "#/$defs/value"}, "args": {"type": "array", "items": {"$ref": "#/$defs/value"}}, "origin": {"$ref": "#/$defs/origin"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "scrutinee", "branches"], "properties": {"kind": {"const": "case"}, "scrutinee": {"$ref": "#/$defs/value"}, "branches": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/branch"}}, "origin": {"$ref": "#/$defs/origin"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "operation", "args"], "properties": {"kind": {"const": "perform"}, "operation": {"$ref": "#/$defs/identifier"}, "args": {"type": "array", "items": {"$ref": "#/$defs/value"}}, "origin": {"$ref": "#/$defs/origin"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "operation", "args"], "properties": {"kind": {"const": "suspend"}, "operation": {"$ref": "#/$defs/identifier"}, "args": {"type": "array", "items": {"$ref": "#/$defs/value"}}, "origin": {"$ref": "#/$defs/origin"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "error"], "properties": {"kind": {"const": "raise"}, "error": {"$ref": "#/$defs/value"}, "origin": {"$ref": "#/$defs/origin"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "body", "handler"], "properties": {"kind": {"const": "handle"}, "body": {"$ref": "#/$defs/computation"}, "handler": {"$ref": "#/$defs/handler"}, "origin": {"$ref": "#/$defs/origin"}}}
+      ]
+    },
+    "definition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "parameters", "type", "body"],
+      "properties": {
+        "name": {"$ref": "#/$defs/identifier"},
+        "parameters": {"type": "array", "items": {"$ref": "#/$defs/type"}},
+        "type": {"$ref": "#/$defs/type"},
+        "body": {"$ref": "#/$defs/computation"},
+        "origin": {"$ref": "#/$defs/origin"}
+      }
+    }
+  }
+}

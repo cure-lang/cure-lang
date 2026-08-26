@@ -1,0 +1,85 @@
+@group(:core)
+@prelude
+mod Std.Binary
+  ## The bridge between Cure's two string representations.
+  ##
+  ## A **`List(Char)`** is a cons spine of code points — the value-surface
+  ## representation you pattern-match, `map`, and fold like any other list.
+  ## `String` stores its text this way internally (`characters`/`from_characters`
+  ## in `Std.String`), but `String` itself is nominal, not a `List(Char)` alias.
+  ##
+  ## A **`Binary`** is the BEAM binary. It is what OTP's `:string`, `:binary`,
+  ## and `:erlang` string functions consume and produce (Unicode case folding,
+  ## `integer_to_binary`, `binary:split`, …). Cure keeps it as a primitive type.
+  ##
+  ## `to_binary` / `from_binary` convert between them so a `List(Char)` program
+  ## can reach an OTP binary primitive and come back. Conversion is UTF-8:
+  ## `Char` erases to its code point, so a `List(Char)` erases to a list of
+  ## code-point ints, which `:unicode.characters_to_binary/1` encodes.
+  ##
+  ## ## Examples
+  ##
+  ## ```cure
+  ## use Std.Binary
+  ##
+  ## to_binary(['h', 'i'])                    # => "hi"   (the Binary <<"hi">>)
+  ## from_binary("hi")                        # => ['h', 'i']
+  ## ```
+
+  ## The BEAM binary as a primitive base type — its visible, inspectable home.
+  @builtin(:binary) primitive Binary
+
+  ## Keep Binary independent of Std.Nat in the stdlib dependency graph.
+  @extern(:cure_std_nat, :of_int, 1)
+  fn nat_of_int(i: Int) -> Nat
+
+  ## `Char` lives in its own module (`Std.Char`); import it for the `List(Char)`
+  ## signatures below.
+  use Std.Char
+
+  ## Encode a `List(Char)` as its UTF-8 `Binary`. The list erases to a list of
+  ## code-point ints, which `:unicode.characters_to_binary/1` renders to a
+  ## binary; delegates to that BIF.
+  @extern(:unicode, :characters_to_binary, 1)
+  fn to_binary(cs: List(Char)) -> Binary
+
+  ## Decode a UTF-8 `Binary` back into its `List(Char)` of code points;
+  ## delegates to `:unicode.characters_to_list/1`.
+  @extern(:unicode, :characters_to_list, 1)
+  fn from_binary(b: Binary) -> List(Char)
+
+  ## Byte-granular primitives. These back the byte-syntax surface forms
+  ## `<<b1, b2, …>>` (construction) and `<<b, rest::binary>>` (pattern): the
+  ## elaborator desugars byte segments to `of_bytes` and `byte_at`/`drop_bytes`
+  ## guarded by `byte_size`. Sized/typed bit segments (`x:16`, `x/float`) are a
+  ## separate future extension; these cover the default 8-bit-integer case.
+
+  ## Pack a `List(Int)` of bytes (0–255) into a `Binary`; delegates to
+  ## `:erlang.list_to_binary/1`.
+  @extern(:erlang, :list_to_binary, 1)
+  fn of_bytes(bytes: List(Int)) -> Binary
+
+  ## Number of bytes in `b`; delegates to `:erlang.byte_size/1`.
+  @extern(:erlang, :byte_size, 1)
+  fn byte_size(b: Binary) -> Int
+
+  ## The byte (0–255) at zero-based `index`; delegates to `:binary.at/2`.
+  @extern(:binary, :at, 2)
+  fn byte_at(b: Binary, index: Int) -> Int
+
+  ## The eager byte view used by `for <<b <- binary>>`. It recurses over a Nat
+  ## fuel value so Binary stays below the Std.List auto-prelude dependency edge.
+  fn to_bytes(b: Binary) -> List(Int) =
+    to_bytes_from(b, 0, nat_of_int(byte_size(b)))
+
+  fn to_bytes_from(b: Binary, index: Int, remaining: Nat) -> List(Int) =
+    match remaining
+      Z() -> []
+      S(k) -> [byte_at(b, index) | to_bytes_from(b, index + 1, k)]
+
+  ## The sub-binary `[start, start + len)`; delegates to `:binary.part/3`.
+  @extern(:binary, :part, 3)
+  fn part(b: Binary, start: Int, len: Int) -> Binary
+
+  ## Drop the first `n` bytes of `b`, returning the remaining suffix.
+  fn drop_bytes(b: Binary, n: Int) -> Binary = part(b, n, byte_size(b) - n)

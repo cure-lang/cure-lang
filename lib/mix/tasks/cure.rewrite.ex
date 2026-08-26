@@ -2,6 +2,15 @@ defmodule Mix.Tasks.Cure.Rewrite do
   @shortdoc "Rewrite legacy `if`/`elif` constructs to `pickup`"
 
   @moduledoc """
+  > #### Deprecated {: .warning}
+  >
+  > This single-rule task predates the general migration facility. Prefer
+  > `cure migrate`, which runs the whole rule registry (including this
+  > if/elif→pickup rule), refuses to touch a dirty or untracked tree, and
+  > reprints canonically. `mix cure.rewrite` is retained only as a
+  > focused, git-guard-free way to apply the one pickup rule, and now
+  > delegates to the same `Cure.Migrate` engine.
+
   AST-driven rewriter that migrates the legacy `if`/`elif` construct
   to the v1.0.0 branching primitive `pickup` defined in
   `docs/PICKUP.md`. The rewrite is purely syntactic: every
@@ -54,17 +63,23 @@ defmodule Mix.Tasks.Cure.Rewrite do
 
   use Mix.Task
 
+  alias Cure.Diagnostic.Sink
+
   alias Cure.Compiler.{Lexer, Parser, Printer}
 
   @impl Mix.Task
   def run(args) do
     Application.ensure_all_started(:cure)
 
-    {opts, paths, _} =
+    {opts, paths, invalid} =
       OptionParser.parse(args,
-        switches: [check: :boolean, print: :boolean, write: :boolean],
+        strict: [check: :boolean, print: :boolean, write: :boolean],
         aliases: [c: :check, p: :print, w: :write]
       )
+
+    if invalid != [] do
+      usage_error("Invalid options for mix cure.rewrite: #{inspect(invalid)}")
+    end
 
     files = expand_paths(paths)
 
@@ -117,7 +132,7 @@ defmodule Mix.Tasks.Cure.Rewrite do
         rewrite_one(file, source, opts, stats)
 
       {:error, reason} ->
-        Mix.Shell.IO.error("  cannot read #{file}: #{:file.format_error(reason)}")
+        Mix.shell().error(render_host_diagnostic({:file_read_error, file, reason}, file))
         Map.update!(stats, :errored, &(&1 + 1))
     end
   end
@@ -149,7 +164,8 @@ defmodule Mix.Tasks.Cure.Rewrite do
       end
     else
       {:error, reason} ->
-        Mix.Shell.IO.error("  parse error in #{file}: #{inspect(reason)}")
+        Mix.shell().error(render_host_diagnostic(reason, file, source))
+
         Map.update!(stats, :errored, &(&1 + 1))
     end
   end
@@ -157,6 +173,23 @@ defmodule Mix.Tasks.Cure.Rewrite do
   defp render(ast) do
     rendered = Printer.quoted_to_string(ast)
     if String.ends_with?(rendered, "\n"), do: rendered, else: rendered <> "\n"
+  end
+
+  defp render_host_diagnostic(reason, file, source \\ nil) do
+    {diagnostic, registry} = Cure.Diagnostic.Host.to_diagnostic(reason, file, source)
+
+    Sink.new(format: :plain, color: :auto, width: 80, registry: registry)
+    |> Sink.render(diagnostic)
+  end
+
+  defp usage_error(message) do
+    diagnostic = Cure.Diagnostic.Operational.usage(message)
+
+    Sink.new(format: :plain, color: :auto, width: 80)
+    |> Sink.render(diagnostic)
+    |> Mix.shell().error()
+
+    exit({:shutdown, 1})
   end
 
   defp summary(%{rewritten: r, unchanged: u, errored: e, previewed: p}, opts) do
@@ -175,78 +208,30 @@ defmodule Mix.Tasks.Cure.Rewrite do
 
   # ── AST Rewrite ────────────────────────────────────────────────────────
   #
-  # The rewrite is a depth-first walk over the MetaAST. Children are
-  # rewritten first so that nested conditionals are flattened bottom-up
-  # before their enclosing `:conditional` chain is collapsed into a
-  # single `:pickup` block. The interesting logic lives in
-  # `conditional_to_pickup/3`; everything else is structural.
+  # The if/elif→pickup transform now lives in the shared migration registry
+  # (`Cure.Migrate.Rules.IfElifToPickup`), so this task and `cure migrate`
+  # rewrite through exactly the same, verify-by-reparse-equivalence code
+  # path. `rewrite/1` is a thin adapter that runs that one rule over `ast`.
 
   @doc """
-  Rewrite every `{:conditional, _, _}` subtree of `ast` into a
-  `{:pickup, _, _}` whose final clause is the original `else` branch.
+  Rewrite every migratable `{:conditional, _, _}` subtree of `ast` into a
+  `{:pickup, _, _}` block, by running the shared `IfElifToPickup` migration
+  rule. Conditionals without a real `else` branch, or whose rewrite would not
+  re-parse to the same shape (e.g. a conditional embedded in a call-argument
+  list), are left untouched by that rule so the program stays parseable.
 
-  Conditionals that do not have an `else` branch (their final child
-  is `{:literal, [subtype: :null], nil}`) cannot be migrated without
-  introducing a new defaulting expression and are returned unchanged.
+  Delegates to `Cure.Migrate.run/2`; the warnings it returns are discarded
+  here because this task's own reporting (`--check`/`--print`/summary) is
+  file-oriented, not warning-oriented.
   """
   @spec rewrite(term()) :: term()
-  def rewrite({:conditional, meta, [cond_expr, then_branch, else_branch]}) do
-    cond_expr = rewrite(cond_expr)
-    then_branch = rewrite(then_branch)
-    else_branch = rewrite(else_branch)
+  def rewrite(ast) do
+    {new_ast, _warnings} =
+      Cure.Migrate.run(ast,
+        file: "cure.rewrite",
+        rules: [Cure.Migrate.Rules.IfElifToPickup.rule()]
+      )
 
-    case conditional_to_pickup(cond_expr, then_branch, else_branch) do
-      {:ok, clauses} ->
-        {:pickup, meta, clauses}
-
-      :no_else ->
-        # PICKUP §5.2 mandates a terminator. A bare `if cond then expr`
-        # has no `else`, so we cannot construct a total `pickup` from
-        # it without inventing a default. Leave the conditional as-is
-        # so the user can address it explicitly.
-        {:conditional, meta, [cond_expr, then_branch, else_branch]}
-    end
-  end
-
-  def rewrite({type, meta, children}) when is_list(children) do
-    {type, meta, Enum.map(children, &rewrite/1)}
-  end
-
-  def rewrite(list) when is_list(list), do: Enum.map(list, &rewrite/1)
-
-  def rewrite(tuple) when is_tuple(tuple) do
-    tuple |> Tuple.to_list() |> Enum.map(&rewrite/1) |> List.to_tuple()
-  end
-
-  def rewrite(other), do: other
-
-  # Walk the chain `if c1 then b1 elif c2 then b2 ... else bn` and
-  # build the equivalent pickup clause list. Returns `:no_else` when
-  # the chain bottoms out without a real else branch.
-  @spec conditional_to_pickup(term(), term(), term()) :: {:ok, [term()]} | :no_else
-  defp conditional_to_pickup(cond_expr, then_branch, else_branch) do
-    case do_chain(cond_expr, then_branch, else_branch, []) do
-      {:no_else, _} -> :no_else
-      {:ok, clauses} -> {:ok, clauses}
-    end
-  end
-
-  defp do_chain(cond_expr, then_branch, {:conditional, _meta, [c2, t2, e2]}, acc) do
-    do_chain(c2, t2, e2, [{:pickup_clause, [], [cond_expr, then_branch]} | acc])
-  end
-
-  defp do_chain(_cond_expr, _then_branch, {:literal, [subtype: :null], nil}, acc) do
-    {:no_else, Enum.reverse(acc)}
-  end
-
-  defp do_chain(cond_expr, then_branch, else_branch, acc) do
-    clauses =
-      Enum.reverse([
-        {:pickup_else, [], [else_branch]},
-        {:pickup_clause, [], [cond_expr, then_branch]}
-        | acc
-      ])
-
-    {:ok, clauses}
+    new_ast
   end
 end

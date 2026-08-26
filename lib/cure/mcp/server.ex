@@ -9,7 +9,6 @@ defmodule Cure.MCP.Server do
   - `compile_cure` -- compile Cure source code, return result or errors
   - `parse_cure` -- parse source and return AST summary
   - `type_check_cure` -- type-check source, return errors/warnings
-  - `analyze_fsm` -- analyze an FSM definition (states, transitions, verification)
   - `validate_syntax` -- quick syntax validation (lex + parse only)
   - `get_syntax_help` -- get help on a Cure syntax topic
   - `get_examples` -- list or show example programs
@@ -21,6 +20,7 @@ defmodule Cure.MCP.Server do
   """
 
   alias Cure.Compiler.{Lexer, Parser}
+  alias Cure.Diagnostic.Sink
 
   @tools [
     %{
@@ -52,15 +52,6 @@ defmodule Cure.MCP.Server do
       }
     },
     %{
-      "name" => "analyze_fsm",
-      "description" => "Analyze a Cure FSM definition. Returns states, transitions, and verification results.",
-      "inputSchema" => %{
-        "type" => "object",
-        "properties" => %{"source" => %{"type" => "string", "description" => "Cure FSM source code"}},
-        "required" => ["source"]
-      }
-    },
-    %{
       "name" => "validate_syntax",
       "description" => "Quick syntax validation -- lex and parse only, no type checking.",
       "inputSchema" => %{
@@ -72,7 +63,7 @@ defmodule Cure.MCP.Server do
     %{
       "name" => "get_syntax_help",
       "description" =>
-        "Get help on a Cure syntax topic (functions, types, fsm, protocols, pattern_matching, modules, records).",
+        "Get help on a Cure syntax topic (functions, types, fsm, interfaces, pattern_matching, modules, records).",
       "inputSchema" => %{
         "type" => "object",
         "properties" => %{"topic" => %{"type" => "string", "description" => "Syntax topic name"}},
@@ -89,6 +80,8 @@ defmodule Cure.MCP.Server do
       }
     }
   ]
+
+  @tool_names Enum.map(@tools, & &1["name"])
 
   # -- Public API --------------------------------------------------------------
 
@@ -154,7 +147,7 @@ defmodule Cure.MCP.Server do
     %{
       "protocolVersion" => "2024-11-05",
       "capabilities" => %{"tools" => %{"listChanged" => false}},
-      "serverInfo" => %{"name" => "cure-mcp", "version" => "0.1.0"}
+      "serverInfo" => %{"name" => "cure-mcp", "version" => Cure.version()}
     }
   end
 
@@ -163,13 +156,11 @@ defmodule Cure.MCP.Server do
   end
 
   defp dispatch("tools/call", %{"name" => name, "arguments" => args}) do
-    tool_result = call_tool(name, args)
-    %{"content" => [%{"type" => "text", "text" => tool_result}]}
+    call_tool(name, args)
   end
 
   defp dispatch("tools/call", %{"name" => name}) do
-    tool_result = call_tool(name, %{})
-    %{"content" => [%{"type" => "text", "text" => tool_result}]}
+    call_tool(name, %{})
   end
 
   defp dispatch(_method, _params), do: %{"error" => "unknown method"}
@@ -177,7 +168,7 @@ defmodule Cure.MCP.Server do
   # -- Tool Implementations ----------------------------------------------------
 
   defp call_tool("compile_cure", %{"source" => source}) do
-    case Cure.Compiler.compile_and_load(source, emit_events: false) do
+    case Cure.Compiler.compile_and_load(source, file: "mcp.cure", emit_events: false) do
       {:ok, module} ->
         exports =
           module.module_info(:exports)
@@ -185,70 +176,82 @@ defmodule Cure.MCP.Server do
           |> Enum.map(fn {n, a} -> "#{n}/#{a}" end)
           |> Enum.join(", ")
 
-        "Compiled successfully: #{module}\nExports: #{exports}"
+        text_result("Compiled successfully: #{module}\nExports: #{exports}")
 
       {:error, reason} ->
-        "Compilation error: #{inspect(reason)}"
+        diagnostic_result(reason, source)
     end
   end
 
   defp call_tool("parse_cure", %{"source" => source}) do
-    with {:ok, tokens} <- Lexer.tokenize(source, emit_events: false),
-         {:ok, ast} <- Parser.parse(tokens, emit_events: false) do
-      summarize_ast(ast)
+    with {:ok, tokens} <- Lexer.tokenize(source, file: "mcp.cure", emit_events: false),
+         {:ok, ast} <- Parser.parse(tokens, file: "mcp.cure", emit_events: false) do
+      text_result(summarize_ast(ast))
     else
-      {:error, reason} -> "Parse error: #{inspect(reason)}"
+      {:error, reason} -> diagnostic_result(reason, source)
     end
   end
 
   defp call_tool("type_check_cure", %{"source" => source}) do
-    with {:ok, tokens} <- Lexer.tokenize(source, emit_events: false),
-         {:ok, ast} <- Parser.parse(tokens, emit_events: false) do
-      case Cure.Types.Checker.check_module(ast, emit_events: false) do
-        {:ok, _} -> "Type check passed: no errors."
-        {:error, errors} -> "Type errors:\n" <> format_errors(errors)
+    with {:ok, tokens} <- Lexer.tokenize(source, file: "mcp.cure", emit_events: false),
+         {:ok, ast} <- Parser.parse(tokens, file: "mcp.cure", emit_events: false) do
+      case Cure.Elab.Program.check_ast(ast) do
+        {:ok, _env} -> text_result("Type check passed: no errors.")
+        {:error, errors} -> diagnostic_result(errors, source)
       end
     else
-      {:error, reason} -> "Parse error: #{inspect(reason)}"
-    end
-  end
-
-  defp call_tool("analyze_fsm", %{"source" => source}) do
-    with {:ok, tokens} <- Lexer.tokenize(source, emit_events: false),
-         {:ok, ast} <- Parser.parse(tokens, emit_events: false) do
-      fsm_ast = find_fsm(ast)
-
-      if fsm_ast do
-        case Cure.FSM.Verifier.verify(fsm_ast, emit_events: false) do
-          {:ok, _} -> "FSM verification passed.\n" <> describe_fsm(fsm_ast)
-          {:error, errors} -> "FSM issues:\n" <> format_errors(errors)
-        end
-      else
-        "No FSM definition found in the source."
-      end
-    else
-      {:error, reason} -> "Parse error: #{inspect(reason)}"
+      {:error, reason} -> diagnostic_result(reason, source)
     end
   end
 
   defp call_tool("validate_syntax", %{"source" => source}) do
-    with {:ok, tokens} <- Lexer.tokenize(source, emit_events: false),
-         {:ok, _ast} <- Parser.parse(tokens, emit_events: false) do
-      "Syntax is valid. #{length(tokens)} tokens parsed."
+    with {:ok, tokens} <- Lexer.tokenize(source, file: "mcp.cure", emit_events: false),
+         {:ok, _ast} <- Parser.parse(tokens, file: "mcp.cure", emit_events: false) do
+      text_result("Syntax is valid. #{length(tokens)} tokens parsed.")
     else
-      {:error, reason} -> "Syntax error: #{inspect(reason)}"
+      {:error, reason} -> diagnostic_result(reason, source)
     end
   end
 
   defp call_tool("get_syntax_help", %{"topic" => topic}) do
-    syntax_help(topic)
+    text_result(syntax_help(topic))
   end
 
   defp call_tool("get_stdlib_docs", %{"module" => module}) do
-    stdlib_docs(module)
+    text_result(stdlib_docs(module))
   end
 
-  defp call_tool(name, _args), do: "Unknown tool: #{name}"
+  defp call_tool(name, _args) when name in @tool_names do
+    diagnostic = Cure.Diagnostic.Operational.usage("Invalid arguments for MCP tool '#{name}'")
+    diagnostic_result(diagnostic, nil)
+  end
+
+  defp call_tool(name, _args) do
+    diagnostic = Cure.Diagnostic.Operational.usage("Unknown MCP tool '#{name}'")
+    diagnostic_result(diagnostic, nil)
+  end
+
+  defp text_result(text) when is_binary(text) do
+    %{"content" => [%{"type" => "text", "text" => text}], "isError" => false}
+  end
+
+  defp diagnostic_result(reason, source) do
+    {diagnostic, registry} = Cure.Diagnostic.Host.to_diagnostic(reason, "mcp.cure", source)
+
+    text =
+      Sink.new(format: :plain, color: :never, width: 80, registry: registry)
+      |> Sink.render(diagnostic)
+
+    machine =
+      Sink.new(format: :json, registry: registry)
+      |> Sink.render(diagnostic)
+
+    %{
+      "content" => [%{"type" => "text", "text" => text}],
+      "isError" => true,
+      "structuredContent" => %{"diagnostic" => machine}
+    }
+  end
 
   # -- AST Summary -------------------------------------------------------------
 
@@ -272,86 +275,7 @@ defmodule Cure.MCP.Server do
 
   defp summarize_ast(_), do: "(expression)"
 
-  # -- FSM Helpers -------------------------------------------------------------
-
-  defp find_fsm({:container, meta, _body} = ast) do
-    if Keyword.get(meta, :container_type) == :fsm, do: ast, else: nil
-  end
-
-  defp find_fsm({:block, _, children}) do
-    Enum.find_value(children, &find_fsm/1)
-  end
-
-  defp find_fsm(_), do: nil
-
-  defp describe_fsm({:container, meta, transitions}) do
-    name = Keyword.get(meta, :name, "unnamed")
-
-    # Compilation mode
-    mode =
-      if Keyword.has_key?(meta, :on_transition),
-        do: "callback mode (GenServer with on_transition)",
-        else: "simple mode (gen_statem)"
-
-    # Timer
-    timer_info =
-      case Keyword.get(meta, :timer) do
-        ms when is_integer(ms) -> "\nTimer: #{ms}ms"
-        _ -> ""
-      end
-
-    # Transitions with event suffixes
-    trans =
-      Enum.flat_map(transitions, fn
-        {:function_call, m, _} ->
-          if Keyword.get(m, :name) == "transition" do
-            event = Keyword.get(m, :event, "?")
-            event_kind = Keyword.get(m, :event_kind, :normal)
-
-            suffix =
-              case event_kind do
-                :hard -> "!"
-                :soft -> "?"
-                _ -> ""
-              end
-
-            kind_tag = if event_kind != :normal, do: " (#{event_kind})", else: ""
-            ["  #{Keyword.get(m, :from)} --#{event}#{suffix}--> #{Keyword.get(m, :to)}#{kind_tag}"]
-          else
-            []
-          end
-
-        _ ->
-          []
-      end)
-
-    # Callback blocks
-    callbacks =
-      ~w(on_transition on_enter on_exit on_failure on_timer)a
-      |> Enum.flat_map(fn cb ->
-        case Keyword.get(meta, cb) do
-          clauses when is_list(clauses) and clauses != [] ->
-            ["  #{cb}: #{length(clauses)} clause(s)"]
-
-          _ ->
-            []
-        end
-      end)
-
-    callback_section =
-      if callbacks != [], do: "\nCallbacks:\n#{Enum.join(callbacks, "\n")}", else: ""
-
-    "FSM: #{name}\nMode: #{mode}#{timer_info}\nTransitions:\n#{Enum.join(trans, "\n")}#{callback_section}"
-  end
-
   # -- Error Formatting --------------------------------------------------------
-
-  defp format_errors(errors) when is_list(errors) do
-    Enum.map_join(errors, "\n", fn
-      {type, msg, _opts} -> "  #{type}: #{msg}"
-      other -> "  #{inspect(other)}"
-    end)
-  end
 
   # -- Syntax Help -------------------------------------------------------------
 
@@ -403,54 +327,38 @@ defmodule Cure.MCP.Server do
     """
     === Finite State Machines ===
 
-    ## Simple mode (gen_statem, backward-compatible)
-    fsm TrafficLight
-      Red    --timer-->     Green
-      Green  --timer-->     Yellow
-      Yellow --timer-->     Red
-      *      --emergency--> Red
+    ## Transition-table mode
+    fsm TrafficLight with Int
+      initial Red
+      Red --Timer--> Green
+      Green --Timer--> Yellow
+      Yellow --Timer--> Red
 
-    # * is a wildcard matching any state
-    # Guards: --event when guard-->
-    # Actions: --event do expr-->
+    ## Structured mode
+    fsm Turnstile
+      state Int
+      events
+        Coin -> :keep_state_and_data
 
-    ## Callback mode (GenServer with on_transition)
-    fsm Turnstile with Integer
-      Locked   --coin-->  Unlocked
-      Unlocked --push-->  Locked
-
-      on_transition
-        (:locked, :coin, _payload, data) -> {:ok, :unlocked, data + 1}
-        (:unlocked, :push, _payload, data) -> {:ok, :locked, data}
-        (_, _, _, data) -> {:ok, :__same__, data}
-
-    # on_transition clauses: (state, event, event_payload, state_payload)
-    # Return {:ok, next_state, new_payload} or {:error, reason}
-    # :__same__ keeps the current state
-
-    ## Event suffixes
-    # event!  -- hard/determined: auto-fires when sole outgoing event
-    # event?  -- soft: failed transitions silently swallowed
-
-    ## Lifecycle callbacks (callback mode)
-    # on_enter  -- after entering a state
-    # on_exit   -- before leaving a state
-    # on_failure -- on transition failure (non-soft)
-    # on_timer  -- periodic callback (with @timer annotation)
+    # Transition rows are checked Cure ADT values and dispatch is an ordinary
+    # recursive standard-library function. Callback bodies are reparsed under
+    # the lifted module's GenStatem context.
     """
   end
 
-  defp syntax_help("protocols") do
+  defp syntax_help(topic) when topic in ["interfaces", "protocols"] do
     """
-    === Protocols ===
-    proto Show(T)
-      fn show(x: T) -> String
+    === Interfaces ===
+    interface Show(t)
+      fn show(x: t) -> String
 
-    impl Show for Int
+    implementation Show for Int
       fn show(x: Int) -> String = Std.String.from_int(x)
 
-    impl Show for Bool
-      fn show(x: Bool) -> String = if x then "true" else "false"
+    implementation Show for Bool
+      fn show(x: Bool) -> String = pickup
+        x -> "true"
+        else -> "false"
     """
   end
 
@@ -488,7 +396,7 @@ defmodule Cure.MCP.Server do
   end
 
   defp syntax_help(_topic) do
-    "Available topics: functions, types, fsm, protocols, pattern_matching, modules"
+    "Available topics: functions, types, fsm, interfaces, pattern_matching, modules"
   end
 
   # -- Stdlib Docs -------------------------------------------------------------

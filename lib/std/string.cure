@@ -1,21 +1,25 @@
+@group(:text)
 mod Std.String
-  ## String (UTF-8 binary) operations: length, concat, split, trim,
+  ## Value-surface string operations: length, concat, split, trim,
   ## case conversion, and integer/float/atom parsing.
   ##
-  ## `String` is Erlang's binary type. `length/1` reports the byte
-  ## size; case conversion and trimming go through OTP's Unicode-aware
-  ## `:string` module. Numeric parsers raise on malformed input,
-  ## matching the underlying BIFs.
+  ## `String` is a nominal text type. Its current storage is a Unicode code-point
+  ## list, exposed only through `characters` and `from_characters`; the nominal
+  ## boundary lets `String` and `List(Char)` carry distinct conformances and
+  ## permits a future storage change without changing source-level identity.
+  ##
+  ## BEAM boundaries receive and return code-point lists through small private
+  ## externs. Raw binaries remain the responsibility of `Std.Binary`.
   ##
   ## ## Examples
   ##
   ## ```cure
   ## use Std.String
   ##
-  ## length("hello")                         # => 5
+  ## length("hello")                         # => 5   (code points, not bytes)
   ## concat("foo", "bar")                    # => "foobar"
   ## upcase("cafe")                          # => "CAFE"
-  ## split("a,b,c", ",")                     # => ["a", "b", "c"]
+  ## split("a,b,c", ",")                     # => ["a", "b,c"]  (splits once)
   ## repeat("ab", 3)                         # => "ababab"
   ## ```
   ##
@@ -23,103 +27,299 @@ mod Std.String
   ## use Std.String
   ##
   ## from_int(42)                            # => "42"
-  ## to_int("  -17 " |> trim)                # => -17
+  ## to_int(trim("  -17 "))                  # => -17
   ## ```
 
-  ## Group tag consumed by `Cure.Stdlib.Preload`.
-  fn __group__() -> Atom = :text
+  use Std.Char
+  use Std.Atom
+  use Std.Option
+  use Std.Equatable
+  use Std.Comparable
+  use Std.Semigroup
+  use Std.Literal
+
+  ## Nominal string storage. The constructor remains module-qualified outside
+  ## this module; ordinary code should use literals and the conversion functions.
+  @prelude
+  rec String
+    characters: List(Char)
+
+  @reducible
+  fn from_characters(value: List(Char)) -> String = String{characters: value}
+
+  @reducible
+  fn characters(value: String) -> List(Char) =
+    match value
+      String(chars) -> chars
+
+  # -- Input adapter ----------------------------------------------------------
+
+  local fn as_charlist(s: String) -> List(Char) = characters(s)
+
+  local fn string_lt_chars(a: List(Char), b: List(Char)) -> Bool =
+    match a
+      [] ->
+        match b
+          [] -> false
+          [_ | _] -> true
+      [ha | ta] ->
+        match b
+          [] -> false
+          [hb | tb] ->
+            pickup
+              Std.Builtin.int_lt(Std.Char.code_point(ha), Std.Char.code_point(hb)) -> true
+              Std.Builtin.int_lt(Std.Char.code_point(hb), Std.Char.code_point(ha)) -> false
+              else -> string_lt_chars(ta, tb)
+
+  implementation Equatable for String
+    fn `==`(a: String, b: String) -> Bool =
+      Std.Builtin.struct_eq(List(Char), characters(a), characters(b))
+
+  implementation Comparable for String
+    fn `<`(a: String, b: String) -> Bool = string_lt_chars(characters(a), characters(b))
+
+  implementation Semigroup for String
+    fn combine(x: String, y: String) -> String = concat(x, y)
+
+  implementation ExpressibleByStringLiteral for String
+    fn from_string_literal(literal: StringLiteral) -> LiteralResult(String) =
+      LiteralValue(from_characters(literal.value))
 
   # -- Basic operations -------------------------------------------------------
 
-  ## Byte length of `s`; delegates to `:erlang.byte_size/1`. This is not
-  ## grapheme count: multi-byte code points contribute more than one.
-  @extern(:erlang, :byte_size, 1)
-  fn length(s: String) -> Int
+  ## `:erlang.length/1` on a normalised charlist.
+  @extern(:erlang, :length, 1)
+  local fn list_length(s: List(Char)) -> Int
 
-  ## `true` when `s` is the empty string.
-  fn is_empty(s: String) -> Bool = s == ""
+  ## Number of code points in `s`. Unlike a byte-length, this counts
+  ## characters: a multi-byte code point is one.
+  fn length(s: String) -> Int = list_length(as_charlist(s))
 
-  ## Concatenate two strings; uses the `<>` binary operator.
-  fn concat(a: String, b: String) -> String = a <> b
+  ## `true` when `s` is the empty string. Written with the `int_eq` primitive
+  ## directly (not `==`): `Std.String` is inside the `@prelude` bootstrap closure,
+  ## so it elaborates with no ambient `Equatable` and cannot `use Std.Equatable`
+  ## (that would cycle, since `Std.Equatable` uses `Std.String`).
+  fn is_empty(s: String) -> Bool = Std.Builtin.int_eq(length(s), 0)
+
+  ## `:lists.append/2` on two normalised charlists.
+  @extern(:lists, :append, 2)
+  local fn append_cl(a: List(Char), b: List(Char)) -> List(Char)
+
+  ## Concatenate two strings.
+  fn concat(a: String, b: String) -> String =
+    from_characters(append_cl(as_charlist(a), as_charlist(b)))
 
   # -- Case conversion --------------------------------------------------------
 
   ## Lower-case `s` using Unicode case folding (`:string.lowercase/1`).
+  ## Representation-preserving: a charlist maps to a charlist.
   @extern(:string, :lowercase, 1)
-  fn downcase(s: String) -> String
+  local fn lowercase_cl(s: List(Char)) -> List(Char)
+
+  fn downcase(s: String) -> String = from_characters(lowercase_cl(characters(s)))
 
   ## Upper-case `s` using Unicode case folding (`:string.uppercase/1`).
   @extern(:string, :uppercase, 1)
-  fn upcase(s: String) -> String
+  local fn uppercase_cl(s: List(Char)) -> List(Char)
+
+  fn upcase(s: String) -> String = from_characters(uppercase_cl(characters(s)))
+
+  ## Swift-style spellings retained alongside the original Cure names.
+  fn lowercased(s: String) -> String = downcase(s)
+  fn uppercased(s: String) -> String = upcase(s)
+
+  ## Case conversion of a single character. One scalar may map to several
+  ## (uppercasing `'ß'` yields `"SS"`), so the result is a `String` and not a
+  ## `Char`. `Std.Char` supplies the Unicode mapping as a `List(Char)`; the
+  ## nominal `String` is assembled here because `Std.Char` sits below this
+  ## module and cannot name the type.
+  fn lowercased_character(c: Char) -> String =
+    from_characters(Std.Char.lowercased_characters(c))
+
+  fn uppercased_character(c: Char) -> String =
+    from_characters(Std.Char.uppercased_characters(c))
+
+  # -- Inspection -------------------------------------------------------------
+
+  fn has_prefix(s: String, prefix: String) -> Bool = has_prefix_chars(as_charlist(s), as_charlist(prefix))
+
+  local fn has_prefix_chars(s: List(Char), prefix: List(Char)) -> Bool =
+    match prefix
+      [] -> true
+      [wanted | wanted_rest] ->
+        match s
+          [] -> false
+          [actual | actual_rest] ->
+            match actual == wanted
+              true -> has_prefix_chars(actual_rest, wanted_rest)
+              false -> false
+
+  fn has_suffix(s: String, suffix: String) -> Bool =
+    has_prefix_chars(reverse_cl(as_charlist(s)), reverse_cl(as_charlist(suffix)))
+
+  fn contains(s: String, wanted: Char) -> Bool = contains_char(as_charlist(s), wanted)
+
+  local fn contains_char(s: List(Char), wanted: Char) -> Bool =
+    match s
+      [] -> false
+      [head | rest] ->
+        match head == wanted
+          true -> true
+          false -> contains_char(rest, wanted)
+
+  fn first(s: String) -> Option(Char) =
+    match as_charlist(s)
+      [] -> None()
+      [head | _] -> Some(head)
+
+  fn last(s: String) -> Option(Char) = last_char(as_charlist(s))
+
+  local fn last_char(s: List(Char)) -> Option(Char) =
+    match s
+      [] -> None()
+      [head] -> Some(head)
+      [_ | rest] -> last_char(rest)
+
+  fn prefix(s: String, count: Int) -> String = from_characters(take_chars(as_charlist(s), count))
+
+  local fn take_chars(s: List(Char), count: Int) -> List(Char) =
+    match Std.Builtin.int_lt(0, count)
+      false -> []
+      true ->
+        match s
+          [] -> []
+          [head | rest] -> [head | take_chars(rest, Std.Builtin.int_sub(count, 1))]
+
+  fn drop_first(s: String, count: Int) -> String = from_characters(drop_chars(as_charlist(s), count))
+
+  local fn drop_chars(s: List(Char), count: Int) -> List(Char) =
+    match Std.Builtin.int_lt(0, count)
+      false -> s
+      true ->
+        match s
+          [] -> []
+          [_ | rest] -> drop_chars(rest, Std.Builtin.int_sub(count, 1))
+
+  fn suffix(s: String, count: Int) -> String =
+    from_characters(reverse_cl(take_chars(reverse_cl(as_charlist(s)), count)))
+
+  fn drop_last(s: String, count: Int) -> String =
+    from_characters(reverse_cl(drop_chars(reverse_cl(as_charlist(s)), count)))
 
   # -- Trim -------------------------------------------------------------------
 
-  ## Strip leading and trailing whitespace (`:string.trim/1`).
-  @extern(:string, :trim, 1)
-  fn trim(s: String) -> String
+  ## Private helper: `:string.trim/2` with an explicit direction atom.
+  ## Representation-preserving.
+  @extern(:string, :trim, 2)
+  local fn trim_cl(s: List(Char), direction: Atom) -> List(Char)
+
+  local fn trim_dir(s: String, direction: Atom) -> String =
+    from_characters(trim_cl(characters(s), direction))
+
+  ## Strip leading and trailing whitespace.
+  fn trim(s: String) -> String = trim_dir(s, :both)
 
   ## Strip leading whitespace only.
-  @extern(:string, :trim_leading, 1)
-  fn trim_leading(s: String) -> String
+  fn trim_leading(s: String) -> String = trim_dir(s, :leading)
 
   ## Strip trailing whitespace only.
-  @extern(:string, :trim_trailing, 1)
-  fn trim_trailing(s: String) -> String
+  fn trim_trailing(s: String) -> String = trim_dir(s, :trailing)
 
   # -- Conversion -------------------------------------------------------------
 
   ## Render an `Int` as its canonical decimal string.
-  @extern(:erlang, :integer_to_binary, 1)
-  fn from_int(n: Int) -> String
+  @extern(:erlang, :integer_to_list, 1)
+  local fn int_to_cl(n: Int) -> List(Char)
 
-  ## Render a `Float` as its canonical decimal string.
-  @extern(:erlang, :float_to_binary, 1)
-  fn from_float(f: Float) -> String
+  fn from_int(n: Int) -> String = from_characters(int_to_cl(n))
+
+  ## Render a `Float` as its string form (`:erlang.float_to_list/1`).
+  @extern(:erlang, :float_to_list, 1)
+  local fn float_to_cl(f: Float) -> List(Char)
+
+  fn from_float(f: Float) -> String = from_characters(float_to_cl(f))
 
   ## Render an `Atom` as its name; no `:` prefix is added.
-  @extern(:erlang, :atom_to_binary, 1)
-  fn from_atom(a: Atom) -> String
+  @extern(:erlang, :atom_to_list, 1)
+  local fn atom_to_cl(a: Atom) -> List(Char)
+
+  fn from_atom(a: Atom) -> String = from_characters(atom_to_cl(a))
+
+  ## `:erlang.list_to_integer/1` on a normalised charlist.
+  @extern(:erlang, :list_to_integer, 1)
+  local fn cl_to_int(s: List(Char)) -> Int
 
   ## Parse `s` as a base-10 integer. Raises on bad input.
-  @extern(:erlang, :binary_to_integer, 1)
-  fn to_int(s: String) -> Int
+  fn to_int(s: String) -> Int = cl_to_int(as_charlist(s))
+
+  ## `:erlang.list_to_float/1` on a normalised charlist.
+  @extern(:erlang, :list_to_float, 1)
+  local fn cl_to_float(s: List(Char)) -> Float
 
   ## Parse `s` as a float. Raises on bad input.
-  @extern(:erlang, :binary_to_float, 1)
-  fn to_float(s: String) -> Float
+  fn to_float(s: String) -> Float = cl_to_float(as_charlist(s))
 
-  ## Convert `s` to an atom. Raises on bad encoding; beware atom-table
-  ## exhaustion in long-running nodes if `s` is attacker-controlled.
-  @extern(:erlang, :binary_to_atom, 1)
-  fn to_atom(s: String) -> Atom
+  ## `:erlang.list_to_existing_atom/1` on a normalised charlist. This never
+  ## grows the VM atom table, but raises when the atom is not already interned.
+  @extern(:erlang, :list_to_existing_atom, 1)
+  local fn cl_to_existing_atom(s: List(Char)) -> Atom
 
-  # -- Split / Join -----------------------------------------------------------
+  ## Convert `s` to an atom that already exists in the VM atom table.
+  ## Raises when no such atom exists; importantly, arbitrary input cannot grow
+  ## the permanent atom table.
+  fn to_existing_atom(s: String) -> Atom = cl_to_existing_atom(as_charlist(s))
 
-  ## Split `s` on every occurrence of `sep`. Uses `:binary.split/2`.
-  @extern(:binary, :split, 2)
-  fn split(s: String, sep: String) -> List(String)
+  ## `:erlang.list_to_atom/1` on a normalised charlist. This is the explicit
+  ## raw escape hatch for callers that really intend to intern a new atom.
+  @extern(:erlang, :list_to_atom, 1)
+  local fn cl_to_atom(s: List(Char)) -> Atom
 
-  # -- Repeat -----------------------------------------------------------------
+  ## UNSAFE: intern `s` as a permanent VM atom. Never pass attacker-controlled
+  ## or otherwise unbounded input; atoms are not garbage-collected.
+  fn unsafe_to_atom(s: String) -> Atom = cl_to_atom(as_charlist(s))
 
-  ## Return `s` concatenated with itself `n` times (`:binary.copy/2`).
-  @extern(:binary, :copy, 2)
-  fn repeat(s: String, n: Int) -> String
+  # -- Split / Repeat / Reverse -----------------------------------------------
 
-  # -- Reverse (via charlist) -------------------------------------------------
+  ## Private helper: `:string.split/3` splitting on the first occurrence.
+  ## Representation-preserving.
+  @extern(:string, :split, 3)
+  local fn split_first_cl(s: List(Char), sep: List(Char), where: Atom) -> List(List(Char))
 
-  ## Reverse `s`. Operates on the underlying charlist, so the result is
-  ## byte-reversed rather than grapheme-reversed.
-  fn reverse(s: String) -> String =
-    list_to_binary(lists_reverse(binary_to_list(s)))
+  ## Split `s` on the first occurrence of `sep`.
+  fn split(s: String, sep: String) -> List(String) =
+    strings_from_charlists(split_first_cl(characters(s), characters(sep), :leading))
 
-  ## Private helper: binary -> list of codepoints.
-  @extern(:erlang, :binary_to_list, 1)
-  local fn binary_to_list(s: String) -> List(Int)
+  ## Split on every occurrence of one character, following Swift's default of
+  ## omitting empty subsequences.
+  fn split_on(s: String, separator: Char) -> List(String) =
+    omit_empty(strings_from_charlists(split_all_cl(as_charlist(s), [separator], :all)))
 
-  ## Private helper: reverse a list using `:lists.reverse/1`.
+  @extern(:string, :split, 3)
+  local fn split_all_cl(s: List(Char), sep: List(Char), where: Atom) -> List(List(Char))
+
+  local fn strings_from_charlists(values: List(List(Char))) -> List(String) =
+    match values
+      [] -> []
+      [head | rest] -> [from_characters(head) | strings_from_charlists(rest)]
+
+  local fn omit_empty(parts: List(String)) -> List(String) =
+    match parts
+      [] -> []
+      [head | rest] ->
+        match is_empty(head)
+          true -> omit_empty(rest)
+          false -> [head | omit_empty(rest)]
+
+  ## `:string.copies/2` on a normalised charlist.
+  @extern(:string, :copies, 2)
+  local fn copies_cl(s: List(Char), n: Int) -> List(Char)
+
+  ## Return `s` concatenated with itself `n` times.
+  fn repeat(s: String, n: Int) -> String = from_characters(copies_cl(as_charlist(s), n))
+
+  ## `:lists.reverse/1` on a normalised charlist.
   @extern(:lists, :reverse, 1)
-  local fn lists_reverse(l: List(T)) -> List(T)
+  local fn reverse_cl(s: List(Char)) -> List(Char)
 
-  ## Private helper: list of codepoints -> binary.
-  @extern(:erlang, :list_to_binary, 1)
-  local fn list_to_binary(l: List(Int)) -> String
+  ## Reverse `s` by code point.
+  fn reverse(s: String) -> String = from_characters(reverse_cl(as_charlist(s)))

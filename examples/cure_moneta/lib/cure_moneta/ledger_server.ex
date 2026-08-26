@@ -74,32 +74,57 @@ defmodule CureMoneta.LedgerServer do
 
   @impl true
   def handle_call({:open_account, id, owner, balance}, _from, ledger) do
-    new_ledger = @moneta.open_account(ledger, id, owner, balance)
+    new_ledger = @moneta.open_account(ledger, id, owner, to_cure_money(balance))
     {:reply, :ok, new_ledger}
   end
 
   def handle_call({:deposit, id, amount}, _from, ledger) do
-    case @moneta.deposit(ledger, id, amount) do
+    case @moneta.deposit(ledger, id, to_cure_money(amount)) do
       {:ok, new_ledger} -> {:reply, :ok, new_ledger}
-      {:error, _} = err -> {:reply, err, ledger}
+      {:error, reason} -> {:reply, {:error, List.to_string(reason)}, ledger}
     end
   end
 
   def handle_call({:withdraw, id, amount}, _from, ledger) do
-    case @moneta.withdraw(ledger, id, amount) do
+    case @moneta.withdraw(ledger, id, to_cure_money(amount)) do
       {:ok, new_ledger} -> {:reply, :ok, new_ledger}
-      {:error, _} = err -> {:reply, err, ledger}
+      {:error, reason} -> {:reply, {:error, List.to_string(reason)}, ledger}
     end
   end
 
   def handle_call({:transfer, from_id, to_id, amount}, _from, ledger) do
-    case @moneta.transfer(ledger, from_id, to_id, amount) do
+    case @moneta.transfer(ledger, from_id, to_id, to_cure_money(amount)) do
       {:ok, new_ledger} -> {:reply, :ok, new_ledger}
-      {:error, _} = err -> {:reply, err, ledger}
+      {:error, reason} -> {:reply, {:error, List.to_string(reason)}, ledger}
     end
   end
 
   def handle_call({:balance, id}, _from, ledger) do
-    {:reply, @moneta.balance(ledger, id), ledger}
+    {:reply, map_money_result(@moneta.balance(ledger, id)), ledger}
   end
+
+  defp to_cure_money({:Money, _amount, _currency, _fractional_units} = money), do: money
+
+  defp to_cure_money(%{
+         __struct__: :money,
+         amount: amount,
+         currency: {currency},
+         fractional_units: fractional_units
+       }) do
+    {:Money, amount, currency |> Atom.to_string() |> String.upcase() |> String.to_atom(),
+     fractional_units}
+  end
+
+  defp map_money_result({:ok, {:Money, amount, currency, fractional_units}}) do
+    {:ok,
+     %{
+       __struct__: :money,
+       amount: amount,
+       currency: {currency |> Atom.to_string() |> String.downcase() |> String.to_atom()},
+       fractional_units: fractional_units
+     }}
+  end
+
+  defp map_money_result({:error, reason}), do: {:error, List.to_string(reason)}
+  defp map_money_result(other), do: other
 end

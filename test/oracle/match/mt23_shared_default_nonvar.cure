@@ -1,0 +1,7 @@
+mod Mt23
+  type Color = Red | Green | Blue
+  type Box = Mk(Color)
+  fn f(c: Color) -> Box = match Mk(c)
+    Mk(Red()) -> Mk(Blue())
+    other -> other
+end

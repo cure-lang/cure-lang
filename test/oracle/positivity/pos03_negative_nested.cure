@@ -1,0 +1,5 @@
+mod Pos03
+  type Void = |
+  type Neg(t) = MkNeg(t -> Void)
+  type Bad = MkBad(Neg(Bad))
+end

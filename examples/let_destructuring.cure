@@ -1,4 +1,6 @@
 mod LetDestructuring
+  use Std.Result
+
   ###
   In-place destructuring in `let` bindings (v0.21.0).
 
@@ -15,30 +17,36 @@ mod LetDestructuring
 
   local fn make_point(x: Int, y: Int) -> Point = Point{x: x, y: y}
 
-  ## ADT constructor: binds x from the Ok variant.
+  ## Refutable constructors remain explicit matches: a `Result` can also be
+  ## `Error`, so pretending this binding were irrefutable would undermine
+  ## totality.
   fn first_ok(r: Result(Int, String)) -> Int =
-    let Ok(x) = r
-    x
+    match r
+      Ok(x) -> x
+      Error(_) -> 0
 
   ## Tuple destructure via the `%[...]` syntax.
   fn sum_pair() -> Int =
     let %[a, b] = %[3, 4]
     a + b
 
-  ## Cons destructure binds head and tail.
+  ## A list can be empty, so cons destructuring is likewise an exhaustive match.
   fn head_of() -> Int =
-    let [h | _tail] = [10, 20, 30]
-    h
+    let values: List(Int) = [10, 20, 30]
+    match values
+      [h | _tail] -> h
+      [] -> 0
 
   ## Record punning binds each field to a local of the same name.
   fn move_diagonal(p: Point, delta: Int) -> Point =
     let Point{x, y} = p
     make_point(x + delta, y + delta)
 
-  ## Binary destructure reads the first byte.
-  fn first_byte(buf: Bitstring) -> Int =
-    let <<b, _rest::binary>> = buf
-    b
+  ## Binary destructure reads the first byte and handles the empty case.
+  fn first_byte(buf: Binary) -> Int =
+    match buf
+      <<b, _rest::binary>> -> b
+      _ -> 0
 
   fn main() -> Int =
     let sum = sum_pair()

@@ -1,0 +1,10 @@
+mod Er02
+  type Dec = Dcoupled | Causal
+  type Sig = CSig | ESig
+  type SVDesc = SVNil | SVCons(Sig, SVDesc)
+  fn andd(x: Dec, y: Dec) -> Dec = x
+  type SF indices (as: SVDesc, bs: SVDesc, d: Dec)
+    prim : SF(as, bs, Causal)
+    seq : SF(as, bs, d1) -> SF(bs, cs, d2) -> SF(as, cs, andd(d1, d2))
+  fn forget_dec({as: SVDesc}, {bs: SVDesc}, {d: Dec}, sf: SF(as, bs, d)) -> Sigma(x: Dec, SF(as, bs, x)) = %[d, sf]
+end

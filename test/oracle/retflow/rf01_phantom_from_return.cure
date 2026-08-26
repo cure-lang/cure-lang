@@ -1,0 +1,7 @@
+mod Rf01
+  type Nat = Z | S(Nat)
+  type Bool = T | F
+  type Const(a: Type, b: Type) = MkConst(a)
+  fn mk({a: Type}, {b: Type}, x: a) -> Const(a, b) = MkConst(x)
+  fn use() -> Const(Nat, Bool) = mk(Z())
+end

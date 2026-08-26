@@ -1,0 +1,31 @@
+mod E8Seq01
+  type Sh = Leaf | Node(Sh, Sh)
+  fn twist(s: Sh) -> Sh = match s
+    Leaf()     -> Leaf
+    Node(a, b) -> Node(twist(b), twist(a))
+
+  fn add(m: Nat, n: Nat) -> Nat = match m
+    Z()  -> n
+    S(k) -> S(add(k, n))
+  fn add_assoc(a: Nat, b: Nat, c: Nat) -> Equivalent(Nat, add(add(a, b), c), add(a, add(b, c))) = match a
+    Z()  -> reflexive(add(b, c))
+    S(k) -> rewrite add_assoc(k, b, c) in reflexive(S(add(k, add(b, c))))
+
+  ## GADT: the ENode result index is `Ev(Node(a, b), add(n1, n2))` — pos0 a plain
+  ## constructor spine over the ctor's own vars, pos1 the computed measure. At the
+  ## USE site the scrutinee's pos0 index is `Node(p, twist(q))`: ctor-headed (Node)
+  ## but carrying a computed subterm `twist(q)`.
+  type Ev indices (sh: Sh, n: Nat)
+    ENode : (n1: Nat) -> (n2: Nat) -> Ev(a, n1) -> Ev(b, n2) -> Ev(Node(a, b), add(n1, n2))
+
+  ## `sib` is a SIBLING whose type mentions `Node(p, twist(q))` (the pos0 scrutinee
+  ## index term), so the carried-eq detector's sibling scan fires. Matching `e` by
+  ## ENode unifies `Node(p, twist(q))` against `Node(a, b)` structurally and forces
+  ## `n = add(n1, n2)`; the goal must be refined by that second position for
+  ## `rewrite add_assoc(add(n1,n2), k, j)` to find its LHS. Before the fix the
+  ## ctor-headed pos0 was misclassified non-invertible (a computed subterm `twist(q)`
+  ## under a constructor head), carried-eq fired, and its cod_expected dropped
+  ## `n ↦ add(n1,n2)` → `:rewrite_no_match`.
+  fn ev_assoc(p: Sh, q: Sh, k: Nat, j: Nat, n: Nat, e: Ev(Node(p, twist(q)), n), sib: Ev(Node(p, twist(q)), n)) -> Equivalent(Nat, add(add(n, k), j), add(n, add(k, j))) = match e
+    ENode(n1, n2, ea, eb) -> rewrite add_assoc(add(n1, n2), k, j) in reflexive(add(add(n1, n2), add(k, j)))
+end

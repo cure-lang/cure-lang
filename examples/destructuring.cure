@@ -1,4 +1,8 @@
 mod Destructuring
+  use Std.String
+  use Std.Semigroup
+  use Std.Map
+
   # ---------------------------------------------------------------------------
   # Deep destructuring in `match` -- v0.18.0
   #
@@ -22,7 +26,10 @@ mod Destructuring
   # destructure a 3-tuple whose middle element is a map holding a cons list.
   # ---------------------------------------------------------------------------
 
-  fn first_of_middle_list(t: Tuple, default: Int) -> Int =
+  fn first_of_middle_list(
+    t: Tuple(Any, Map(Atom, List(Int)), Any),
+    default: Int
+  ) -> Int =
     match t
       %[_, %{list: [elem_head | _]}, _] -> elem_head
       _                                  -> default
@@ -33,7 +40,7 @@ mod Destructuring
 
   fn greet(p: Person) -> String =
     match p
-      Person{name, address: Address{city}} ->
+      Person{name, address: Address{city, zip: _}} ->
         "Hello " <> name <> " from " <> city
       _ -> "Hello, stranger"
 
@@ -60,7 +67,7 @@ mod Destructuring
   # Repeated-variable pattern: both slots must hold the same value
   # ---------------------------------------------------------------------------
 
-  fn are_equal(t: Tuple) -> Bool =
+  fn are_equal(t: Tuple(Int, Int)) -> Bool =
     match t
       %[x, x] -> true
       _       -> false

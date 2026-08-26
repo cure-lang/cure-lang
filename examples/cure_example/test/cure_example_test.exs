@@ -3,43 +3,43 @@ defmodule CureExampleTest do
 
   describe "Greeter (cure module)" do
     test "hello/1 greets by name" do
-      assert :greeter.hello("World") == "Hello, World!"
+      assert apply(:"Cure.Greeter", :hello, [~c"World"]) == ~c"Hello, World!"
     end
 
     test "farewell/1 says goodbye" do
-      assert :greeter.farewell("Cure") == "Goodbye, Cure. See you soon!"
+      assert apply(:"Cure.Greeter", :farewell, [~c"Cure"]) == ~c"Goodbye, Cure. See you soon!"
     end
   end
 
   describe "Calculator (cure module)" do
     test "basic arithmetic" do
-      assert :calculator.add(2, 3) == 5
-      assert :calculator.sub(10, 4) == 6
-      assert :calculator.mul(6, 7) == 42
+      assert apply(:"Cure.Calculator", :add, [2, 3]) == 5
+      assert apply(:"Cure.Calculator", :sub, [10, 4]) == 6
+      assert apply(:"Cure.Calculator", :mul, [6, 7]) == 42
     end
 
     test "factorial/1 with pattern matching" do
-      assert :calculator.factorial(0) == 1
-      assert :calculator.factorial(1) == 1
-      assert :calculator.factorial(5) == 120
-      assert :calculator.factorial(10) == 3_628_800
+      assert apply(:"Cure.Calculator", :factorial, [0]) == 1
+      assert apply(:"Cure.Calculator", :factorial, [1]) == 1
+      assert apply(:"Cure.Calculator", :factorial, [5]) == 120
+      assert apply(:"Cure.Calculator", :factorial, [10]) == 3_628_800
     end
 
     test "fibonacci/1 with multi-clause patterns" do
-      assert :calculator.fibonacci(0) == 0
-      assert :calculator.fibonacci(1) == 1
-      assert :calculator.fibonacci(10) == 55
+      assert apply(:"Cure.Calculator", :fibonacci, [0]) == 0
+      assert apply(:"Cure.Calculator", :fibonacci, [1]) == 1
+      assert apply(:"Cure.Calculator", :fibonacci, [10]) == 55
     end
 
     test "classify/1 with guards" do
-      assert :calculator.classify(42) == "positive"
-      assert :calculator.classify(-1) == "negative"
-      assert :calculator.classify(0) == "zero"
+      assert apply(:"Cure.Calculator", :classify, [42]) == ~c"positive"
+      assert apply(:"Cure.Calculator", :classify, [-1]) == ~c"negative"
+      assert apply(:"Cure.Calculator", :classify, [0]) == ~c"zero"
     end
 
     test "safe_divide/2 returns Result tuples" do
-      assert {:ok, 5} = :calculator.safe_divide(10, 2)
-      assert {:error, "division by zero"} = :calculator.safe_divide(10, 0)
+      assert {:ok, 5} = apply(:"Cure.Calculator", :safe_divide, [10, 2])
+      assert {:error, ~c"division by zero"} = apply(:"Cure.Calculator", :safe_divide, [10, 0])
     end
   end
 

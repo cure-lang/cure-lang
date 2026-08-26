@@ -29,13 +29,13 @@ defmodule CureAtelierTest do
     test "painter and curator can add/remove tags without coordination" do
       painter_set =
         :cure_std_crdt.or_empty()
-        |> :cure_std_crdt.or_add(:painter, :abstract)
-        |> :cure_std_crdt.or_add(:painter, :cubism)
+        |> :cure_std_crdt.or_add(:painter, 1, :abstract)
+        |> :cure_std_crdt.or_add(:painter, 2, :cubism)
 
       curator_set =
         :cure_std_crdt.or_empty()
-        |> :cure_std_crdt.or_add(:curator, :abstract)
-        |> :cure_std_crdt.or_add(:curator, :impressionism)
+        |> :cure_std_crdt.or_add(:curator, 1, :abstract)
+        |> :cure_std_crdt.or_add(:curator, 2, :impressionism)
 
       merged = :cure_std_crdt.or_merge(painter_set, curator_set)
 
@@ -54,7 +54,7 @@ defmodule CureAtelierTest do
       {:ok, a} = :cure_std_time.parse_iso8601("2026-05-01T09:00:00Z")
       {:ok, b} = :cure_std_time.parse_iso8601("2026-05-01T09:05:00Z")
       d = :cure_std_time.diff(b, a)
-      assert d.micros == 300_000_000
+      assert {:Duration, 300_000_000} = d
 
       back = :cure_std_time.add(a, d)
       assert back == b
@@ -62,23 +62,18 @@ defmodule CureAtelierTest do
   end
 
   describe "Std.Regex title validation" do
-    test "compile + run capture groups for the title pattern" do
-      {:ok, r} = :cure_std_regex.compile("^([A-Z][\\w ]+)\\s\\((\\d{4})\\)$")
-
-      assert {:some, %{whole: whole, groups: [title, year]}} =
-               :cure_std_regex.run(r, "Starry Night (1889)")
-
-      assert whole == "Starry Night (1889)"
-      assert title == "Starry Night"
-      assert year == "1889"
+    test "the Curator runs its compile-time typed title pattern" do
+      assert :"Cure.Main.Curator".valid_title(~c"Starry Night (1889)")
+      refute :"Cure.Main.Curator".valid_title(~c"starry night (1889)")
     end
 
-    test "malformed regex is flagged at compile time" do
-      assert {:error, {:invalid_pattern, _}} = :cure_std_regex.compile("(")
+    test "the title pattern requires a four-digit parenthesized year" do
+      refute :"Cure.Main.Curator".valid_title(~c"Starry Night (89)")
+      refute :"Cure.Main.Curator".valid_title(~c"Starry Night 1889")
     end
   end
 
-  describe "Cure.Protocol session types (E056 matrix)" do
+  describe "Cure.Protocol session types (PROTO001 matrix)" do
     @gallery """
     protocol Atelier.Gallery with Painter, Curator
       Painter -> Curator: SubmitPiece(String)
@@ -90,7 +85,7 @@ defmodule CureAtelierTest do
       assert {:ok, _script} = Protocol.parse_and_verify(@gallery)
     end
 
-    test "dead role surfaces E056" do
+    test "dead role surfaces PROTO001" do
       dead = """
       protocol Atelier.Gallery with Painter, Curator, Spectator
         Painter -> Curator: SubmitPiece
@@ -102,7 +97,7 @@ defmodule CureAtelierTest do
 
       assert Enum.any?(errors, fn
                {:protocol_violation, msg, meta} ->
-                 Keyword.get(meta, :code) == "E056" and msg =~ "Spectator"
+                 Keyword.get(meta, :code) == "PROTO001" and msg =~ "Spectator"
 
                _ ->
                  false

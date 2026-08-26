@@ -1,43 +1,14 @@
-## Pool actor for the Cure forge supervision tree.
-##
-## A single-threaded worker that accepts tasks and reports their
-## outcome. The payload is a two-slot tuple:
-##
-##   payload = %[done, failed]
-##
-## A tuple is used rather than a map for the same reason as the
-## `Metrics` actor: Cure reserves the `%{base | field: val}` shape
-## for record updates, so rebuilding a two-slot tuple is the simplest
-## thing that type-checks without declaring a record.
-##
-## Messages understood:
-##   * `%[:task, :ok]`           -- successful task: bump `done`,
-##                                  notify the caller with `:ok`.
-##   * `%[:task, %[:fail, why]]` -- failing task: bump `failed`,
-##                                  notify the caller with
-##                                  `%[:fail, why]`.
-##   * `:get`                    -- notify the caller with the full
-##                                  `%[done, failed]` tuple.
-##   * `:reset`                  -- reset the counters.
-##
-## The `%[:task, outcome]` clause bodies both end with `notify(...)`,
-## which reaches the spawning caller (the Elixir facade or the test
-## harness). That is where the facade then forwards an `:observe`
-## message to `Metrics`, closing the loop between the `Pool` and the
-## `Metrics` actors.
+## Transparent pool actor with a typed completed/failed tuple state.
 
-actor Pool with %[0, 0]
-  on_start
-    (state) -> state
-  on_message
-    (%[:task, :ok], %[done, failed]) ->
-      notify(%[:done, :ok])
-      %[done + 1, failed]
-    (%[:task, %[:fail, why]], %[done, failed]) ->
-      notify(%[:done, %[:fail, why]])
-      %[done, failed + 1]
-    (:reset, _state) ->
-      %[0, 0]
-    (:get, state) ->
-      notify(%[:pool, state])
-      state
+use Std.Actor
+
+actor Pool
+  state Tuple(Int, Int)
+  initial %[0, 0]
+  messages Atom
+  handle_cast
+    pickup
+      message == :reset -> %[:noreply, %[0, 0]]
+      message == :ok -> %[:noreply, %[state.1 + 1, state.2]]
+      message == :error -> %[:noreply, %[state.1, state.2 + 1]]
+      else -> %[:noreply, state]

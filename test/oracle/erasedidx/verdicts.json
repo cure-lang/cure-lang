@@ -1,0 +1,1 @@
+{"ei01_vhead_call":{"cure":"accept","idris":"accept","reason":"","relation":"same"},"ei02_vhead_typeparam":{"cure":"accept","idris":"accept","reason":"","relation":"same"},"ei03_ambiguous_neg":{"cure":"reject","idris":"reject","reason":"","relation":"same"}}

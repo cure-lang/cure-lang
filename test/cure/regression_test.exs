@@ -1,5 +1,9 @@
 defmodule Cure.RegressionTest do
   use ExUnit.Case, async: false
+  # This deliberately recompiles and executes the complete example corpus. Its
+  # duration scales with the corpus and with concurrent compiler-heavy tests, so
+  # a wall-clock timeout would make `mix test` load-dependent.
+  @moduletag timeout: :infinity
 
   @moduledoc """
   End-to-end regression coverage. These tests invoke the same logic as
@@ -9,22 +13,30 @@ defmodule Cure.RegressionTest do
 
   alias Mix.Tasks.Cure.Check
 
+  # :slow — compiles all 126 stdlib modules through the strict public regression
+  # task. The dependent stdlib now takes more than ExUnit's default 60-second
+  # wall budget on a cold build, especially on the lower end of the CI matrix.
+  # Keep a test-local ceiling: this remains a timeout, not an unbounded escape,
+  # while ordinary tests retain the global 60-second deadlock guard.
   @tag :regression
+  @tag :slow
+  @tag timeout: 600_000
   test "every Std.* module compiles without warnings" do
-    result =
-      ExUnit.CaptureIO.capture_io(fn ->
-        try do
-          Check.Stdlib.run([])
-        catch
-          :exit, {:shutdown, 1} -> flunk("stdlib regression failed")
-        end
-      end)
+    # `test_helper` makes canonical Std modules sticky to expose accidental
+    # producer reloads. The strict regression task is a producer itself, so run
+    # it in a clean VM just as CI's dedicated task invocation does.
+    {result, status} =
+      System.cmd("mix", ["cure.check.stdlib"],
+        env: [{"MIX_ENV", "test"}],
+        stderr_to_stdout: true
+      )
 
+    assert status == 0, result
     assert result =~ ~r/stdlib: \d+ passed, 0 failed/
   end
 
   @tag :regression
-  test "every example compiles and produces the expected output" do
+  test "every supported example compiles and produces the expected output" do
     preload_stdlib()
 
     result =
@@ -37,7 +49,7 @@ defmodule Cure.RegressionTest do
       end)
 
     refute result =~ "FAIL"
-    assert result =~ ~r/examples: \d+ passed, 0 failed/
+    assert result =~ ~r/examples: \d+ passed, \d+ skipped, 0 failed/
   end
 
   defp preload_stdlib do

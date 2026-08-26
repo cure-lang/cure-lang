@@ -1,0 +1,102 @@
+@group(:core)
+@prelude
+mod Std.Literal
+  ## User-defined contextual integer literals.
+  ##
+  ## A bare numeral still defaults to `Int`. In a checking position the
+  ## elaborator asks these interfaces to construct the expected type. The
+  ## result wrapper keeps conversion total: finite domains such as `Bounded(n)`
+  ## reject an out-of-range literal during compilation rather than trapping or
+  ## silently wrapping at runtime.
+
+  use Std.Int
+  use Std.Char
+
+  type LiteralResult(t: Type) = LiteralValue(t) | InvalidLiteral
+
+  ## Literal descriptors separate authored syntax from its eventual target
+  ## type. Numeric spelling is normalized (digit separators are removed) but
+  ## remains exact; decoded string/character/atom values are carried directly.
+  rec NaturalLiteral
+    spelling: List(Char)
+    value: Nat
+
+  rec IntegerLiteral
+    spelling: List(Char)
+    value: Int
+
+  rec DecimalLiteral
+    spelling: List(Char)
+
+  rec StringLiteral
+    value: List(Char)
+
+  rec CharacterLiteral
+    value: Char
+
+  rec AtomLiteral
+    value: Atom
+
+  interface ExpressibleByNaturalLiteral(t)
+    fn from_natural_literal(literal: NaturalLiteral) -> LiteralResult(t)
+
+  interface ExpressibleByIntegerLiteral(t)
+    fn from_integer_literal(literal: IntegerLiteral) -> LiteralResult(t)
+
+  interface ExpressibleByDecimalLiteral(t)
+    fn from_decimal_literal(literal: DecimalLiteral) -> LiteralResult(t)
+
+  interface ExpressibleByStringLiteral(t)
+    fn from_string_literal(literal: StringLiteral) -> LiteralResult(t)
+
+  interface ExpressibleByCharacterLiteral(t)
+    fn from_character_literal(literal: CharacterLiteral) -> LiteralResult(t)
+
+  interface ExpressibleByAtomLiteral(t)
+    fn from_atom_literal(literal: AtomLiteral) -> LiteralResult(t)
+
+  implementation ExpressibleByNaturalLiteral for Nat
+    fn from_natural_literal(literal: NaturalLiteral) -> LiteralResult(Nat) = LiteralValue(literal.value)
+
+  implementation ExpressibleByIntegerLiteral for Int
+    fn from_integer_literal(literal: IntegerLiteral) -> LiteralResult(Int) = LiteralValue(literal.value)
+
+  implementation ExpressibleByAtomLiteral for Atom
+    fn from_atom_literal(literal: AtomLiteral) -> LiteralResult(Atom) = LiteralValue(literal.value)
+
+  ## `Char` declares no `ExpressibleByNaturalLiteral` instance, and cannot have a
+  ## working one. Every route from `Int` to `Char` is an `@extern` postulate with
+  ## no body, so an initializer written in terms of one never reduces to a
+  ## compile-time value — `fn c() -> Char = 12` failed rather than producing a
+  ## character. A numeral checked against `Char` is admitted by the kernel's
+  ## compact-literal rule instead, which re-derives the Unicode scalar ceiling
+  ## itself; that rule is the type's only introduction form, as it is for `Char`
+  ## in Idris and Lean.
+  ##
+  ## The instance lives here rather than in `Std.Char` for the same reason the
+  ## `Nat`, `Int`, and `Atom` instances above do: this module owns the interface
+  ## and already describes a character literal in `CharacterLiteral`, whereas
+  ## `Std.Char` is the floor below it and must not import upward.
+  implementation ExpressibleByCharacterLiteral for Char
+    fn from_character_literal(literal: CharacterLiteral) -> LiteralResult(Char) = LiteralValue(literal.value)
+
+  ## Primitive Float conversions are explicitly lossy: choosing Float is the
+  ## user's request to round an exact literal to IEEE-754. Decimal and custom
+  ## targets never pass through these helpers.
+  @extern(:erlang, :float, 1)
+  local fn literal_int_to_float(value: Int) -> Float
+
+  @extern(:erlang, :list_to_float, 1)
+  local fn literal_decimal_to_float(spelling: List(Char)) -> Float
+
+  implementation ExpressibleByNaturalLiteral for Float
+    fn from_natural_literal(literal: NaturalLiteral) -> LiteralResult(Float) =
+      LiteralValue(literal_int_to_float(FromNat(literal.value)))
+
+  implementation ExpressibleByIntegerLiteral for Float
+    fn from_integer_literal(literal: IntegerLiteral) -> LiteralResult(Float) =
+      LiteralValue(literal_int_to_float(literal.value))
+
+  implementation ExpressibleByDecimalLiteral for Float
+    fn from_decimal_literal(literal: DecimalLiteral) -> LiteralResult(Float) =
+      LiteralValue(literal_decimal_to_float(literal.spelling))

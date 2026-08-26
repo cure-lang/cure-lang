@@ -26,6 +26,7 @@ defmodule CureSiteWeb.Yeesh.CallableRunner do
   """
 
   alias Yeesh.IOServer
+  alias Cure.Diagnostic.{Host, Operational}
 
   @typedoc "Result tuple compatible with the Yeesh executor's `:mix_task` mode."
   @type run_result ::
@@ -52,7 +53,7 @@ defmodule CureSiteWeb.Yeesh.CallableRunner do
       do_run(io_server, fun, opts)
     end
   rescue
-    e -> {:error, Exception.message(e)}
+    e -> {:error, render_exception(e, __STACKTRACE__)}
   end
 
   defp do_run(io_server, fun, opts) do
@@ -63,7 +64,7 @@ defmodule CureSiteWeb.Yeesh.CallableRunner do
         try do
           fun.()
         rescue
-          e -> IO.puts("error: " <> Exception.message(e))
+          e -> IO.puts(render_exception(e, __STACKTRACE__))
         end
       end)
 
@@ -92,5 +93,10 @@ defmodule CureSiteWeb.Yeesh.CallableRunner do
     end
 
     :ok
+  end
+
+  defp render_exception(exception, stacktrace) do
+    diagnostic = Operational.internal_exception(exception, stacktrace, context: "site callable")
+    Host.render_diagnostic(diagnostic, color: :never)
   end
 end

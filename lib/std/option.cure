@@ -1,78 +1,76 @@
+@group(:option)
 mod Std.Option
   ## Standalone `Option(T)` helpers.
   ##
   ## Parallel to the Option half of `Std.Core`, kept separate so that
   ## callers can `use Std.Option` without pulling in the rest of the
-  ## core combinators. `Option(T)` lowers to `{:some, v}` / `{:none}`
-  ## on the BEAM.
+  ## core combinators. `Some(v)` lowers to `{:Some, v}` and the nullary
+  ## `None()` to the bare atom `:None` on the BEAM.
   ##
   ## ## Examples
   ##
   ## ```cure
   ## use Std.Option
   ##
-  ## some(3)                                 # => Some(3)
-  ## map(some(3), fn(x) -> x * 2)            # => Some(6)
-  ## unwrap(none(), 0)                       # => 0
-  ## filter(some(3), fn(x) -> x > 5)         # => None()
+  ## map(Some(3), fn(x) -> x * 2)            # => Some(6)
+  ## unwrap(None(), 0)                       # => 0
+  ## filter(Some(3), fn(x) -> x > 5)         # => None()
   ## ```
   ##
   ## ```cure
   ## use Std.Option
   ##
   ## # Chain two Options into one.
-  ## zip(some("Ada"), some(1815))            # => Some(%["Ada", 1815])
-  ## zip(some("Ada"), none())                # => None()
+  ## zip(Some("Ada"), Some(1815))            # => Some(%["Ada", 1815])
+  ## zip(Some("Ada"), None())                # => None()
   ## ```
 
   ## Group tag consumed by `Cure.Stdlib.Preload`.
-  fn __group__() -> Atom = :option
-
-  ## Build a `Some(value)` Option.
-  fn some(value: T) -> Option(T) = Some(value)
-
-  ## The empty Option.
-  fn none() -> Option(T) = None()
+  ## An optional value: either present (`Some`) or absent (`None`). `Some(v)`
+  ## erases to `{:Some, v}` and the nullary `None()` to the bare atom `:None`
+  ## on the BEAM.
+  @prelude
+  type Option(t) = Some(t) | None()
 
   ## `true` when the option holds a value.
-  fn is_some(opt: Option(T)) -> Bool =
+  fn is_some(opt: Option(t)) -> Bool =
     match opt
       Some(_) -> true
       None() -> false
 
   ## `true` when the option is empty.
-  fn is_none(opt: Option(T)) -> Bool =
+  fn is_none(opt: Option(t)) -> Bool =
     match opt
       Some(_) -> false
       None() -> true
 
   ## Extract the value; returns `default` on `None`.
-  fn unwrap(opt: Option(T), default: T) -> T =
+  fn unwrap(opt: Option(t), default: t) -> t =
     match opt
       Some(v) -> v
       None() -> default
 
   ## Functorial map; preserves `None`.
-  fn map(opt: Option(T), f: T -> U) -> Option(U) =
+  fn map(opt: Option(t), f: t -> u) -> Option(u) =
     match opt
       Some(v) -> Some(f(v))
       None() -> None()
 
   ## Monadic bind; short-circuits on `None`.
-  fn flat_map(opt: Option(T), f: T -> Option(U)) -> Option(U) =
+  fn flat_map(opt: Option(t), f: t -> Option(u)) -> Option(u) =
     match opt
       Some(v) -> f(v)
       None() -> None()
 
   ## Unwrap-or-default. Useful as a pipeline terminal.
-  fn or_else(opt: Option(T), default: T) -> T =
+  fn or_else(opt: Option(t), default: t) -> t =
     match opt
       Some(v) -> v
       None() -> default
 
   ## Keep the value only when `pred` accepts it; otherwise drop to
   ## `None`.
-  fn filter(opt: Option(T), pred: T -> Bool) -> Option(T) =
+  fn filter(opt: Option(t), pred: t -> Bool) -> Option(t) =
     match opt
       Some(v) ->
         pickup
@@ -82,7 +80,7 @@ mod Std.Option
 
   ## Pair two Options. Returns `Some(%[va, vb])` when both sides are
   ## `Some`, `None` otherwise.
-  fn zip(a: Option(T), b: Option(U)) -> Option(Tuple) =
+  fn zip(a: Option(t), b: Option(u)) -> Option(Tuple(t, u)) =
     match a
       None() -> None()
       Some(va) ->

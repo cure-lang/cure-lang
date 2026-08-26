@@ -1,9 +1,9 @@
 defmodule Cure.Observe.Journal do
   @moduledoc """
-  ETS-backed trace journal for `@record`-annotated FSM and actor containers.
+  ETS-backed trace journal for `@record`-annotated lifted process modules.
 
-  Every opted-in `on_transition` and `on_message` call appends an entry
-  to an in-memory ETS table. Entries are flushed to disk as Erlang term
+  Every opted-in transition or message callback appends an entry to an
+  in-memory ETS table. Entries are flushed to disk as Erlang term
   files under `.cure-trace/<pid>.journal` so they survive process death
   and can be replayed later with `cure replay`.
 
@@ -18,14 +18,14 @@ defmodule Cure.Observe.Journal do
   - `state_before` -- the FSM state atom before the transition
   - `event`      -- the event atom that triggered the transition
   - `state_after`  -- the FSM state atom after the transition (`:same` when
-                      `do_on_transition` returned `:__same__`)
+                      the callback retained the current state)
   - `timestamp_us` -- `:erlang.monotonic_time(:microsecond)` when recorded
 
   ## Usage
 
-  Journal entries are written by generated FSM code when the container
-  carries an `@record` decorator. Users do not interact with this module
-  directly; instead they use `cure replay <path>` or the REPL
+  Journal entries are written by generated process code when the lifted
+  module carries an `@record` decorator. Users do not interact with this
+  module directly; instead they use `cure replay <path>` or the REPL
   `:replay <path>` command after producing a trace.
   """
 

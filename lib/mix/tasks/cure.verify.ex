@@ -33,12 +33,18 @@ defmodule Mix.Tasks.Cure.Verify do
 
   use Mix.Task
 
+  alias Cure.Diagnostic.Sink
+
   @shortdoc "Verify .cureproof artifacts in a package tarball or dependency directory"
 
   @impl Mix.Task
   def run(args) do
-    {opts, rest, _invalid} =
-      OptionParser.parse(args, switches: [strict: :boolean])
+    {opts, rest, invalid} =
+      OptionParser.parse(args, strict: [strict: :boolean])
+
+    if invalid != [] or length(rest) > 1 do
+      usage_error("Usage: mix cure.verify [path] [--strict]")
+    end
 
     strict? = Keyword.get(opts, :strict, false)
     path = List.first(rest)
@@ -56,7 +62,10 @@ defmodule Mix.Tasks.Cure.Verify do
         verify_directory(path, strict?)
 
       true ->
-        Mix.shell().error("cure.verify: #{path} is not a .tar.gz file or directory")
+        Mix.shell().error(
+          render_diagnostic(Cure.Diagnostic.Operational.artifact_error("#{path} is not a .tar.gz file or directory"))
+        )
+
         exit({:shutdown, 1})
     end
   end
@@ -98,7 +107,8 @@ defmodule Mix.Tasks.Cure.Verify do
         end
 
       {:error, reason} ->
-        Mix.shell().error("cure.verify: cannot read #{path}: #{inspect(reason)}")
+        Mix.shell().error(render_diagnostic(Cure.Diagnostic.Operational.file_read(path, reason)))
+
         exit({:shutdown, 1})
     end
   end
@@ -124,13 +134,22 @@ defmodule Mix.Tasks.Cure.Verify do
 
       {:error, :E067} ->
         Mix.shell().error(
-          "  #{label}: proof schema incompatible (E067) -- update Cure or ask the publisher to re-publish"
+          render_diagnostic(
+            Cure.Diagnostic.Operational.proof_schema_incompatible(
+              "#{label}: update Cure or ask the publisher to re-publish"
+            )
+          )
         )
 
         exit({:shutdown, 1})
 
       {:error, :corrupt} ->
-        Mix.shell().error("  #{label}: proof file is corrupt or truncated")
+        Mix.shell().error(
+          render_diagnostic(
+            Cure.Diagnostic.Operational.proof_verification_failed("#{label}: proof file is corrupt or truncated")
+          )
+        )
+
         exit({:shutdown, 1})
     end
   end
@@ -143,10 +162,20 @@ defmodule Mix.Tasks.Cure.Verify do
         Mix.shell().info("  #{label}: all #{count} certificate(s) verified")
 
       {:error, failures} ->
-        Mix.shell().error("  #{label}: #{length(failures)} certificate(s) failed (E066):")
+        Mix.shell().error(
+          render_diagnostic(
+            Cure.Diagnostic.Operational.proof_verification_failed("#{label}: #{length(failures)} certificate(s) failed")
+          )
+        )
 
-        Enum.each(failures, fn {mod, stmt, reason} ->
-          Mix.shell().error("    #{mod}: #{inspect(stmt)} -- #{inspect(reason)}")
+        Enum.each(failures, fn {mod, _statement, reason} ->
+          Mix.shell().error(
+            render_diagnostic(
+              Cure.Diagnostic.Operational.proof_verification_failed(
+                "#{label}: certificate from #{mod} failed: #{verification_reason(reason)}"
+              )
+            )
+          )
         end)
 
         exit({:shutdown, 1})
@@ -154,11 +183,29 @@ defmodule Mix.Tasks.Cure.Verify do
   end
 
   defp handle_missing(true, label) do
-    Mix.shell().error("cure.verify: no .cureproof artifact found in #{label} (E065)")
+    Mix.shell().error(
+      render_diagnostic(Cure.Diagnostic.Operational.artifact_error("no .cureproof artifact found in #{label} (E065)"))
+    )
+
     exit({:shutdown, 1})
   end
 
   defp handle_missing(false, label) do
     Mix.shell().info("cure.verify: no .cureproof artifact found in #{label} (use --strict to treat as error)")
   end
+
+  defp render_diagnostic(diagnostic) do
+    Sink.new(format: :plain, color: :auto, width: 80)
+    |> Sink.render(diagnostic)
+  end
+
+  defp usage_error(message) do
+    Mix.shell().error(render_diagnostic(Cure.Diagnostic.Operational.usage(message)))
+    exit({:shutdown, 1})
+  end
+
+  defp verification_reason(reason) when is_binary(reason), do: reason
+  defp verification_reason(reason) when is_atom(reason), do: reason |> Atom.to_string() |> String.replace("_", " ")
+  defp verification_reason(%{__exception__: true} = reason), do: Exception.message(reason)
+  defp verification_reason(_reason), do: "the certificate witness was rejected"
 end

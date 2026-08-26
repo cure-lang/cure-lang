@@ -7,6 +7,8 @@ defmodule CureSiteWeb.Commands.CureEval do
   throw-away module before being handed to the compiler.
   """
 
+  alias Cure.Diagnostic.{Host, Operational}
+
   @behaviour Yeesh.Command
 
   @impl true
@@ -57,7 +59,7 @@ defmodule CureSiteWeb.Commands.CureEval do
         {:ok, "Loaded: #{inspect(mod)}"}
 
       {:error, reason} ->
-        {:error, format_error(reason)}
+        {:error, format_error(reason, source)}
     end
   end
 
@@ -74,17 +76,23 @@ defmodule CureSiteWeb.Commands.CureEval do
           try do
             apply(mod, :__run__, []) |> inspect()
           rescue
-            e -> "runtime error: #{Exception.message(e)}"
+            e -> render_exception(e, __STACKTRACE__)
           end
 
         {:ok, "=> #{result}"}
 
       {:error, reason} ->
-        {:error, format_error(reason)}
+        {:error, format_error(reason, wrapped)}
     end
   end
 
-  defp format_error(reason) do
-    Cure.Compiler.Errors.format_error(reason, "repl")
+  defp format_error(reason, source) do
+    Cure.Diagnostic.Host.render(reason, "repl.cure", source)
+  end
+
+  defp render_exception(exception, stacktrace) do
+    exception
+    |> Operational.internal_exception(stacktrace, context: "site eval")
+    |> Host.render_diagnostic(color: :never)
   end
 end

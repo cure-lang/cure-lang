@@ -8,7 +8,7 @@ defmodule CureSplineTest do
 
   @raw_module :"Cure.Spline"
 
-  defp knot(x, y), do: %{__struct__: :knot, x: x * 1.0, y: y * 1.0}
+  defp knot(x, y), do: {:Knot, x * 1.0, y * 1.0}
 
   # ===========================================================================
   # Cure module: error paths
@@ -16,31 +16,31 @@ defmodule CureSplineTest do
 
   describe "Cure.Spline.fit/1 validation" do
     test "rejects empty knot list" do
-      assert {:error, "spline: empty knot list"} = @raw_module.fit([])
+      assert {:error, ~c"spline: empty knot list"} = @raw_module.fit([])
     end
 
     test "rejects single knot" do
-      assert {:error, "spline: need at least two knots"} =
+      assert {:error, ~c"spline: need at least two knots"} =
                @raw_module.fit([knot(0.0, 1.0)])
     end
 
     test "rejects duplicate x coordinates" do
-      assert {:error, "spline: x values must be strictly increasing"} =
+      assert {:error, ~c"spline: x values must be strictly increasing"} =
                @raw_module.fit([knot(0.0, 0.0), knot(0.0, 1.0)])
     end
 
     test "rejects decreasing x coordinates" do
       knots = [knot(0.0, 0.0), knot(1.0, 1.0), knot(0.5, 0.25)]
 
-      assert {:error, "spline: x values must be strictly increasing"} =
+      assert {:error, ~c"spline: x values must be strictly increasing"} =
                @raw_module.fit(knots)
     end
 
     test "accepts a minimal 2-knot spline (degenerate to linear segment)" do
       assert {:ok, spline} = @raw_module.fit([knot(0.0, 0.0), knot(1.0, 2.0)])
-      assert spline.x_min == 0.0
-      assert spline.x_max == 1.0
-      assert [_one] = spline.segments
+      assert @raw_module.x_min(spline) == 0.0
+      assert @raw_module.x_max(spline) == 1.0
+      assert @raw_module.n_segments(spline) == 1
     end
 
     test "accepts 100 knots sampled from a quadratic" do
@@ -67,7 +67,7 @@ defmodule CureSplineTest do
 
       {:ok, spline} = @raw_module.fit(knots)
 
-      for %{x: x, y: y} <- knots do
+      for {:Knot, x, y} <- knots do
         {:ok, got} = @raw_module.evaluate(spline, x)
         assert_in_delta got, y, 1.0e-9
       end
@@ -113,11 +113,11 @@ defmodule CureSplineTest do
     end
 
     test "x below domain returns error", %{spline: spline} do
-      assert {:error, "spline: x below domain"} = @raw_module.evaluate(spline, -0.5)
+      assert {:error, ~c"spline: x below domain"} = @raw_module.evaluate(spline, -0.5)
     end
 
     test "x above domain returns error", %{spline: spline} do
-      assert {:error, "spline: x above domain"} = @raw_module.evaluate(spline, 2.5)
+      assert {:error, ~c"spline: x above domain"} = @raw_module.evaluate(spline, 2.5)
     end
 
     test "evaluate_clamped/2 returns a finite number outside domain", %{spline: spline} do
@@ -232,8 +232,7 @@ defmodule CureSplineTest do
       captured =
         ExUnit.CaptureIO.capture_io(fn ->
           spline = CureSpline.demo()
-          assert is_map(spline)
-          assert spline.__struct__ == :spline
+          assert match?({:Spline, _segments, _x_min, _x_max}, spline)
         end)
 
       assert captured =~ "cure_spline demo"

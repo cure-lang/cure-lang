@@ -6,8 +6,10 @@ defmodule CureAtelier.MixProject do
       app: :cure_atelier,
       version: "0.1.0",
       elixir: "~> 1.18",
+      lockfile: "../../mix.lock",
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
+      aliases: aliases()
     ]
   end
 
@@ -21,5 +23,9 @@ defmodule CureAtelier.MixProject do
     [
       {:cure, path: "../.."}
     ]
+  end
+
+  defp aliases do
+    [compile: ["compile_cure", "compile"], test: ["compile_cure", "test"]]
   end
 end

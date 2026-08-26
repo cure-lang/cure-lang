@@ -2,8 +2,8 @@ defmodule Cure.Pipeline.Events do
   @moduledoc """
   PubSub event system for the Cure compilation pipeline.
 
-  Every stage of the compilation pipeline (lexer, parser, type checker, codegen,
-  FSM verifier) emits structured events through this module. External tools such
+  Every stage of the compilation pipeline (lexer, parser, type checker, and
+  codegen) emits structured events through this module. External tools such
   as LSPs, profilers, debuggers, and IDE plugins can subscribe to these events
   to observe compilation in real time.
 
@@ -11,7 +11,7 @@ defmodule Cure.Pipeline.Events do
 
   Events are 4-tuples: `{stage, event_type, payload, metadata}`
 
-  - `stage` -- the pipeline stage (`:lexer`, `:parser`, `:type_checker`, `:codegen`, `:fsm_verifier`)
+  - `stage` -- the pipeline stage (`:lexer`, `:parser`, `:type_checker`, or `:codegen`)
   - `event_type` -- stage-specific atom (e.g. `:token_produced`, `:node_parsed`, `:error`)
   - `payload` -- the data (token, AST node, type, error struct, etc.)
   - `metadata` -- `%{file: String.t(), line: pos_integer(), timestamp: integer()}`
@@ -39,10 +39,8 @@ defmodule Cure.Pipeline.Events do
   """
 
   # `:registry` covers out-of-band lifecycle events from the package
-  # registry and transparency log; `:sup_verifier` covers the structural
-  # verification pass for `sup` containers; `:app_verifier` covers the
-  # structural verification pass for `app` containers (v0.26.0);
-  # `:synthesis` covers the typed-hole candidate-synthesis engine and
+  # registry and transparency log; `:synthesis` covers the typed-hole
+  # candidate-synthesis engine and
   # `:doc_mermaid` the Mermaid diagram emitter for `cure doc`
   # (v0.27.0). Every other stage maps to one of the compilation
   # pipeline phases.
@@ -51,14 +49,22 @@ defmodule Cure.Pipeline.Events do
           | :parser
           | :type_checker
           | :codegen
-          | :fsm_verifier
-          | :sup_verifier
-          | :app_verifier
           | :registry
           | :synthesis
           | :doc_mermaid
+          # :kernel — the trusted Core kernel's Final-Core grammar-boundary
+          # instrumentation (K11a); every other stage maps to a compilation phase.
+          | :kernel
   @type event_type :: atom()
-  @type metadata :: %{file: String.t(), line: pos_integer(), timestamp: integer()}
+  # Every field is optional: callers with source context populate file/line/
+  # timestamp, but stages without one (e.g. the kernel's post-elaboration
+  # `:final_core_violation`) legitimately pass `%{}`. `emit/4`'s map clause
+  # accepts any map, so the type documents the recognised keys, not a floor.
+  @type metadata :: %{
+          optional(:file) => String.t(),
+          optional(:line) => pos_integer(),
+          optional(:timestamp) => integer()
+        }
 
   @registry Cure.Pipeline.Events.Registry
 
@@ -101,23 +107,49 @@ defmodule Cure.Pipeline.Events do
   end
 
   def emit(stage, event_type, payload, %{} = metadata) when is_atom(stage) and is_atom(event_type) do
-    metadata =
-      metadata
-      |> Map.put_new(:file, "nofile")
-      |> Map.put_new(:line, 1)
-      |> Map.put_new(:timestamp, DateTime.utc_now() |> DateTime.to_unix(:millisecond))
+    if emission_enabled?() do
+      metadata =
+        metadata
+        |> Map.put_new(:file, "nofile")
+        |> Map.put_new(:line, 1)
+        |> Map.put_new(:timestamp, DateTime.utc_now() |> DateTime.to_unix(:millisecond))
 
-    message = {__MODULE__, stage, event_type, payload, metadata}
+      message = {__MODULE__, stage, event_type, payload, metadata}
 
-    Registry.dispatch(@registry, stage, fn entries ->
-      for {pid, filter} <- entries do
-        if filter == :all or filter == event_type do
-          send(pid, message)
+      Registry.dispatch(@registry, stage, fn entries ->
+        for {pid, filter} <- entries do
+          if filter == :all or filter == event_type do
+            send(pid, message)
+          end
         end
-      end
-    end)
+      end)
+    end
 
     :ok
+  end
+
+  @doc """
+  Whether pipeline event emission is currently active.
+
+  Emission is a no-op — and `emit/4` returns `:ok` without touching the
+  registry — when EITHER of the following holds:
+
+    * the application flag `config :cure, emit_events: false` is set, or
+    * the events `Registry` is not running.
+
+  The second condition is what lets the lexer and parser (which emit events)
+  run **headless** — under `mix run --no-compile --no-start`, a bare `elixir`
+  invocation, or any standalone script that never starts the `:cure`
+  application. This is the supported path for debugging tooling such as
+  `Cure.Compiler.parse_source/1`; event telemetry degrades gracefully rather
+  than crashing with `unknown registry: Cure.Pipeline.Events.Registry`.
+
+  Set `config :cure, emit_events: false` to force emission off even when the
+  application (and registry) are running — useful for quiet batch tooling.
+  """
+  @spec emission_enabled?() :: boolean()
+  def emission_enabled? do
+    Application.get_env(:cure, :emit_events, true) and Process.whereis(@registry) != nil
   end
 
   @doc """

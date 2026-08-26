@@ -1,0 +1,5 @@
+mod Cond01
+  type Nat = Z | S(Nat)
+  fn f(b: Bool) -> Nat = if b then S(Z()) else Z()
+  fn start() -> Nat = f(true)
+end

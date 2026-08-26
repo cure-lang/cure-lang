@@ -1,0 +1,10 @@
+mod Pl07
+  type Nat = Zero | Suc(Nat)
+  type MyList(a) = LNil | LCons(a, MyList(a))
+  fn emap({a}, f: (a)->a, l: MyList(a)) -> MyList(a) = match l
+    LNil() -> LNil()
+    LCons(x, xs) -> LCons(f(x), emap(f, xs))
+  fn s(n: Nat) -> Nat = Suc(n)
+  fn mklist() -> MyList(Nat) = LCons(Zero(), LCons(Suc(Zero()), LNil()))
+  fn g() -> MyList(Nat) = emap(s, mklist())
+end

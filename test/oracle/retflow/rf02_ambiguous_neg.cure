@@ -1,0 +1,6 @@
+mod Rf02
+  type Nat = Z | S(Nat)
+  type Bool = T | F
+  fn mk({a: Type}, {b: Type}, x: a) -> a = x
+  fn use() -> Nat = mk(Z())
+end

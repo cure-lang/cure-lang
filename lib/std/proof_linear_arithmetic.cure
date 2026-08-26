@@ -1,0 +1,198 @@
+@group(:core)
+mod Std.Proof.LinearArithmetic
+  ## Executable affine syntax for verified LIA reflection. This module is total
+  ## and deliberately rejects malformed dimensions instead of inheriting
+  ## List.zip_with's truncating semantics.
+  use Std.Bool
+  use Std.Nat
+  use Std.Int
+  use Std.List
+  use Std.Option
+  use Std.Equivalent
+  use Std.Proof.IntOrder
+  use Std.Proof.IntDiscrete
+
+  type Relation = LessOrEqual | LessThan
+
+  rec LinearAtom
+    coefficients: List(Int)
+    constant: Int
+    relation: Relation
+
+  typealias Hypotheses = List(LinearAtom)
+  typealias FarkasWitness = List(Nat)
+  typealias Valuation = List(Int)
+
+  @reducible
+  fn linear_atom(
+    coefficients: List(Int), constant: Int, relation: Relation
+  ) -> LinearAtom = LinearAtom{
+    coefficients: coefficients, constant: constant, relation: relation}
+
+  fn nat_length({a: Type}, values: List(a)) -> Nat =
+    match values
+      [] -> Z()
+      [_ | rest] -> S(nat_length(rest))
+
+  fn nat_equal(left: Nat, right: Nat) -> Bool =
+    match left
+      Z() -> match right
+        Z() -> True()
+        S(_) -> False()
+      S(left_predecessor) -> match right
+        Z() -> False()
+        S(right_predecessor) -> nat_equal(left_predecessor, right_predecessor)
+
+  fn coefficients_match_dimension(coefficients: List(Int), dimension: Nat) -> Bool =
+    nat_equal(nat_length(coefficients), dimension)
+
+  fn atoms_match_dimension(atoms: List(LinearAtom), dimension: Nat) -> Bool =
+    match atoms
+      [] -> True()
+      [atom | rest] -> `and`(
+        coefficients_match_dimension(atom.coefficients, dimension),
+        atoms_match_dimension(rest, dimension))
+
+  @reducible
+  fn dot(coefficients: List(Int), valuation: List(Int)) -> Int =
+    match coefficients
+      [] -> int_zero()
+      [coefficient | coefficient_rest] -> match valuation
+        [] -> int_zero()
+        [value | value_rest] -> add_int(
+          multiply_int(coefficient, value),
+          dot(coefficient_rest, value_rest))
+
+  ## Public defining equations: downstream proof modules consume these instead
+  ## of relying on eager δ-unfolding of the recursive global on open terms.
+  fn dot_empty(valuation: List(Int)) -> Equivalent(Int, dot(Nil(), valuation), int_zero()) =
+    reflexive(int_zero())
+
+  fn dot_cons(coefficient: Int, coefficients: List(Int), value: Int, valuation: List(Int)) -> Equivalent(Int,
+    dot(Cons(coefficient, coefficients), Cons(value, valuation)),
+    add_int(multiply_int(coefficient, value), dot(coefficients, valuation))) =
+    reflexive(add_int(multiply_int(coefficient, value), dot(coefficients, valuation)))
+
+  fn evaluate_relation(relation: Relation, left: Int, right: Int) -> Bool =
+    match relation
+      LessOrEqual() -> le_int(left, right)
+      LessThan() -> lt_int(left, right)
+
+  fn evaluate_normalized_relation(relation: Relation, left: Int, right: Int) -> Bool =
+    match relation
+      LessOrEqual() -> le_int(left, right)
+      LessThan() -> le_int(left, pred_int(right))
+
+  fn normalize_relation_preserves_evaluation(
+    relation: Relation, left: Int, right: Int
+  ) -> Equivalent(Bool,
+    evaluate_normalized_relation(relation, left, right),
+    evaluate_relation(relation, left, right)) =
+    match relation
+      LessOrEqual() -> reflexive(le_int(left, right))
+      LessThan() -> sym(lt_int_is_le_predecessor(left, right))
+
+  @reducible
+  fn evaluate_atom(atom: LinearAtom, valuation: Valuation) -> Bool =
+    evaluate_relation(atom.relation, dot(atom.coefficients, valuation), atom.constant)
+
+  fn evaluate_atom_checked(atom: LinearAtom, valuation: Valuation) -> Option(Bool) =
+    match coefficients_match_dimension(atom.coefficients, nat_length(valuation))
+      True() -> Some(evaluate_atom(atom, valuation))
+      False() -> None()
+
+  fn negate_coefficients(coefficients: List(Int)) -> List(Int) =
+    match coefficients
+      [] -> []
+      [coefficient | rest] -> [negate(coefficient) | negate_coefficients(rest)]
+
+  ## Negating lhs<=c gives -lhs < -c; negating lhs<c gives -lhs <= -c.
+  fn negate_atom(atom: LinearAtom) -> LinearAtom =
+    match atom.relation
+      LessOrEqual() -> LinearAtom{coefficients: negate_coefficients(atom.coefficients), constant: negate(atom.constant), relation: LessThan()}
+      LessThan() -> LinearAtom{coefficients: negate_coefficients(atom.coefficients), constant: negate(atom.constant), relation: LessOrEqual()}
+
+  ## Discrete-integer normalization: lhs<c iff lhs<=pred(c).
+  @reducible
+  fn normalize_atom(atom: LinearAtom) -> LinearAtom =
+    match atom.relation
+      LessOrEqual() -> atom
+      LessThan() -> LinearAtom{coefficients: atom.coefficients, constant: pred_int(atom.constant), relation: LessOrEqual()}
+
+  fn scale_coefficients(scalar: Nat, coefficients: List(Int)) -> List(Int) =
+    match coefficients
+      [] -> []
+      [coefficient | rest] -> [scale_nat_int(scalar, coefficient) | scale_coefficients(scalar, rest)]
+
+  fn scale_atom(scalar: Nat, atom: LinearAtom) -> LinearAtom =
+    let normalized = normalize_atom(atom)
+    LinearAtom{coefficients: scale_coefficients(scalar, normalized.coefficients), constant: scale_nat_int(scalar, normalized.constant), relation: LessOrEqual()}
+
+  fn add_coefficients(left: List(Int), right: List(Int)) -> Option(List(Int)) =
+    match left
+      [] -> match right
+        [] -> Some([])
+        [_ | _] -> None()
+      [left_head | left_rest] -> match right
+        [] -> None()
+        [right_head | right_rest] -> match add_coefficients(left_rest, right_rest)
+          None() -> None()
+          Some(rest) -> Some([add_int(left_head, right_head) | rest])
+
+  fn add_atoms(left: LinearAtom, right: LinearAtom) -> Option(LinearAtom) =
+    let normalized_left = normalize_atom(left)
+    let normalized_right = normalize_atom(right)
+    match add_coefficients(normalized_left.coefficients, normalized_right.coefficients)
+      None() -> None()
+      Some(coefficients) -> Some(LinearAtom{coefficients: coefficients, constant: add_int(normalized_left.constant, normalized_right.constant), relation: LessOrEqual()})
+
+  fn zeros(dimension: Nat) -> List(Int) =
+    match dimension
+      Z() -> []
+      S(predecessor) -> [int_zero() | zeros(predecessor)]
+
+  fn zero_atom(dimension: Nat) -> LinearAtom = LinearAtom{coefficients: zeros(dimension), constant: int_zero(), relation: LessOrEqual()}
+
+  fn combine(dimension: Nat, atoms: List(LinearAtom), witness: FarkasWitness) -> Option(LinearAtom) =
+    match atoms
+      [] -> match witness
+        [] -> Some(zero_atom(dimension))
+        [_ | _] -> None()
+      [atom | rest] -> match witness
+        [] -> None()
+        [scalar | scalar_rest] -> match combine(dimension, rest, scalar_rest)
+          None() -> None()
+          Some(accumulator) -> add_atoms(scale_atom(scalar, atom), accumulator)
+
+  fn append_goal(hypotheses: Hypotheses, goal: LinearAtom) -> List(LinearAtom) =
+    append(hypotheses, [negate_atom(goal)])
+
+  fn all_zero(coefficients: List(Int)) -> Bool =
+    match coefficients
+      [] -> True()
+      [coefficient | rest] -> match coefficient
+        FromNat(n) -> match n
+          Z() -> all_zero(rest)
+          S(_) -> False()
+        NegativeSuccessor(_) -> False()
+
+  fn is_manifest_contradiction(atom: LinearAtom) -> Bool =
+    match atom.relation
+      LessThan() -> False()
+      LessOrEqual() -> `and`(
+        all_zero(atom.coefficients),
+        lt_int(atom.constant, int_zero()))
+
+  ## Executable P1 candidate check. Task 6 wraps the same computation in
+  ## proof-relevant ValidFarkasCertificate evidence and exports check_lia.
+  fn check_lia_candidate(hypotheses: Hypotheses, goal: LinearAtom, witness: FarkasWitness) -> Bool =
+    let dimension = nat_length(goal.coefficients)
+    let atoms = append_goal(hypotheses, goal)
+    match `and`(
+      atoms_match_dimension(atoms, dimension),
+      nat_equal(nat_length(atoms), nat_length(witness)))
+      False() -> False()
+      True() -> match combine(dimension, atoms, witness)
+        None() -> False()
+        Some(atom) -> is_manifest_contradiction(atom)
+end

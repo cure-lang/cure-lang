@@ -1,5 +1,30 @@
-fsm TrafficLight
-  Red    --timer-->     Green
-  Green  --timer-->     Yellow
-  Yellow --timer-->     Red
-  *      --emergency--> Red
+# Transparent FSM example: the transition-table surface.
+#
+# The macro derives the `State` and `Event` types from the rows themselves and
+# verifies the graph while expanding — every state reachable, no non-terminal
+# dead end, no duplicate row. `with Int` is the machine's data type.
+#
+# The machine becomes a module of its own, so everything the table derives is
+# named through it: `TrafficLight.Handle`, `TrafficLight.Timer`, and the
+# generated `start`/`send`.
+
+mod TrafficLightDemo
+  use Std.Fsm
+  use Std.Otp
+
+  fsm TrafficLight with Int
+    Red    --Timer-->     Green
+    Green  --Timer-->     Yellow
+    Yellow --Timer-->     Red
+    *      --Emergency--> Red
+
+  # `start` is an effect, so the handle is reached by binding the result, not by
+  # matching the `Effect` itself.
+  fn run() -> Effect(Unit) =
+    let started = TrafficLight.start(0)
+    let machine = match started
+      Started(handle) -> Some(handle)
+      _               -> None()
+    match machine
+      Some(handle) -> TrafficLight.send(handle, TrafficLight.Timer())
+      None()       -> unit()

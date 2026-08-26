@@ -1,4 +1,7 @@
 mod Records
+  use Std.String
+  use Std.Semigroup
+
   # ---------------------------------------------------------------------------
   # Record definitions
   #

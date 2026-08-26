@@ -1,27 +1,19 @@
+## Refinement-oriented proof helpers for numeric predicates. Prefer ordinary
+## indexed data and explicit propositions for new APIs; this module remains for
+## compatibility with existing refinement clients.
+@group(:core)
 mod Std.Refine
-  ## Refinement type combinators.
-  ##
-  ## This module pairs common refinement-type aliases with matching
-  ## runtime predicates. The aliases are *type-level* constraints
-  ## used in function signatures; the predicates are plain `Bool`-
-  ## returning helpers for use at call sites.
-  ##
-  ## ## Examples
-  ##
-  ## ```cure
-  ## use Std.Refine
-  ##
-  ## # Signature uses the refinement type alias; the value is an
-  ## # ordinary integer satisfying the constraint.
-  ## fn decrement(n: Positive) -> NonNegative = n - 1
-  ##
-  ## positive?(3)                            # => true
-  ## percentage?(42)                         # => true
-  ## probability?(0.9)                       # => true
-  ## ```
+  use Std.Proof.Math
+  use Std.Proof.IntMath
+  use Std.Bool
 
-  ## Group tag consumed by `Cure.Stdlib.Preload`.
-  fn __group__() -> Atom = :core
+  # --- Primitive-comparison refinement types --------------------------------
+  #
+  # Each `{x: T | condition}` reflects a decidable Boolean comparison into a
+  # proposition (§3a level 1 auto-wraps the bar in `IsTrue`). A value inhabits
+  # the type only with kernel-checked evidence its condition holds; the auto
+  # proof-search discharges that evidence from an in-scope hypothesis or a
+  # `@lemma` without the author naming it.
 
   ## Non-zero integer (`Int` minus zero).
   type NonZero = {x: Int | x != 0}
@@ -47,7 +39,7 @@ mod Std.Refine
   ## Float in `[0.0, 1.0]` inclusive (a probability).
   type Probability = {p: Float | p >= 0.0 and p <= 1.0}
 
-  # Predicate combinators (compile-time hints; pure runtime helpers).
+  # Predicate combinators (pure runtime helpers; no proof obligation).
 
   ## `true` when `n` is strictly positive.
   fn positive?(n: Int) -> Bool = n > 0
@@ -60,3 +52,57 @@ mod Std.Refine
 
   ## `true` when `p` is a valid probability (0.0..1.0 inclusive).
   fn probability?(p: Float) -> Bool = p >= 0.0 and p <= 1.0
+
+  ## A value paired with kernel-checked evidence that it satisfies a proposition.
+  ##
+  ## The surface `{value: a | predicate(value)}` is an ordinary dependent pair.
+  ## It contains no solver result and gives no new authority to the compiler:
+  ## constructing one requires evidence the kernel checks like every other proof.
+  ## Pair a value with evidence that it satisfies the refinement proposition.
+  fn refine(
+    {a: Type},
+    {predicate: (a) -> Type},
+    value: a,
+    proof: predicate(value)
+  ) -> Sigma(refined_value: a, predicate(refined_value)) = %[value, proof]
+
+  ## Recover the underlying value from a proof-backed refinement.
+  fn refined_value(
+    {a: Type},
+    {predicate: (a) -> Type},
+    refined: Sigma(refined_value: a, predicate(refined_value))
+  ) -> a = refined.1
+
+  ## Recover the checked evidence carried by a refinement.
+  fn refinement_proof(
+    {a: Type},
+    {predicate: (a) -> Type},
+    refined: Sigma(value: a, predicate(value))
+  ) -> predicate(refined_value(refined)) = refined.2
+
+  ## Natural numbers known to be strictly positive.
+  type PositiveNatural = {value: Nat | IsPositive(value)}
+
+  ## Construct a positive natural number from any successor.
+  fn positive_natural_from_successor(predecessor: Nat) -> PositiveNatural =
+    refine(S(predecessor), successor_is_positive(predecessor))
+
+  ## Adding two positive natural numbers preserves positivity.
+  fn add_positive_natural_numbers(left: PositiveNatural, right: PositiveNatural) -> PositiveNatural =
+    refine(
+      plus(refined_value(left), refined_value(right)),
+      adding_to_a_positive_number_is_positive(refinement_proof(left))
+    )
+
+  ## Multiplying two positive natural numbers preserves positivity.
+  ##
+  ## The proof is left as a hole: `multiplying_positive_numbers_is_positive` is
+  ## `@lemma`-tagged in `Std.Proof.Math`, so the auto proof-search discharges it
+  ## from the two refinement projections without the author naming the lemma.
+  fn multiply_positive_natural_numbers(left: PositiveNatural, right: PositiveNatural) -> PositiveNatural =
+    refine(
+      multiply(refined_value(left), refined_value(right)),
+      ?
+    )
+
+end

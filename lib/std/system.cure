@@ -1,3 +1,4 @@
+@group(:system)
 mod Std.System
   ## System operations: time, process identity, node info, exit.
   ##
@@ -14,8 +15,21 @@ mod Std.System
   ## node() == :nonode@nohost                # true without -sname
   ## ```
 
+  ## `from_characters` rebuilds the nominal `String` at the `:otp_release`
+  ## boundary below.
+  use Std.String
+
   ## Group tag consumed by `Cure.Stdlib.Preload`.
-  fn __group__() -> Atom = :system
+  ## Units accepted by BEAM wall-clock time operations. Constructors are
+  ## translated at the private foreign boundary; callers cannot pass an
+  ## arbitrary atom that `:os.system_time/1` does not understand.
+  type TimeUnit = Second | Millisecond | Microsecond | Nanosecond
+
+  local fn time_unit_atom(unit: TimeUnit) -> Atom = match unit
+    Second()      -> :second
+    Millisecond() -> :millisecond
+    Microsecond() -> :microsecond
+    Nanosecond()  -> :nanosecond
 
   ## Native monotonic-time reading in implementation-defined units.
   ## Use for measuring durations (`a - b` is meaningful); not
@@ -26,33 +40,48 @@ mod Std.System
   ## OS wall-clock time in `unit` (typically `:second`, `:millisecond`,
   ## `:microsecond`, or `:nanosecond`).
   @extern(:os, :system_time, 1)
-  fn system_time(unit: Atom) -> Int
+  local fn raw_system_time(unit: Atom) -> Int
+
+  fn system_time(unit: TimeUnit) -> Int = raw_system_time(time_unit_atom(unit))
 
   ## Current millisecond timestamp since the Unix epoch.
-  fn timestamp_ms() -> Int = system_time(:millisecond)
+  fn timestamp_ms() -> Int = system_time(Millisecond())
 
   ## Current microsecond timestamp since the Unix epoch.
-  fn timestamp_us() -> Int = system_time(:microsecond)
-
-  ## Pid of the calling process.
-  @extern(:erlang, :self, 0)
-  fn self() -> Pid
+  fn timestamp_us() -> Int = system_time(Microsecond())
 
   ## Atom name of the local node.
   @extern(:erlang, :node, 0)
   fn node() -> Atom
 
-  ## Query the VM with `:erlang.system_info/1`. Return type depends on
-  ## `key`; callers should narrow it via the wrappers below.
+  ## `:erlang.system_info/1` answers a different shape for every key, so it gets
+  ## one private extern per key rather than a single polymorphic declaration: an
+  ## `@extern` is a direct remote call with no marshalling, so an unconstrained
+  ## `-> t` would let any caller claim any type for the BIF's result.
+  ##
+  ## `:otp_release` answers a code-point list. `List(Char)` erases to a bare
+  ## charlist, which is exactly that; nominal `String` erases to the tagged pair
+  ## `{String, chars}`, which the BIF does not build -- so the extern is declared
+  ## at `List(Char)` and `otp_version` wraps.
   @extern(:erlang, :system_info, 1)
-  fn system_info(key: Atom) -> T
+  local fn raw_otp_release(key: Atom) -> List(Char)
 
-  ## Running OTP release version (as a charlist, per the BIF).
-  fn otp_version() -> T = system_info(:otp_release)
+  ## Running OTP release version, e.g. `"27"`.
+  fn otp_version() -> String = Std.String.from_characters(raw_otp_release(:otp_release))
+
+  @extern(:erlang, :system_info, 1)
+  local fn raw_logical_processors(key: Atom) -> Int
 
   ## Number of logical processors available to the VM.
-  fn cpu_count() -> Int = system_info(:logical_processors)
+  fn cpu_count() -> Int = raw_logical_processors(:logical_processors)
 
   ## Halt the whole BEAM node with the given exit status.
   @extern(:erlang, :halt, 1)
-  fn exit(code: Int) -> Atom
+  local fn raw_exit(code: Int) -> Atom
+
+  ## Halt never reports a meaningful atom to its caller. The raw declaration
+  ## records BEAM's boundary shape; this safe surface communicates that there
+  ## is no result to inspect if a host substitutes or intercepts the call.
+  fn exit(code: Int) -> Unit =
+    let _ = raw_exit(code)
+    ()

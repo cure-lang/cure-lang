@@ -1,0 +1,8 @@
+mod Lex04
+  type Nat = Z | S(Nat)
+  fn f(a: Nat, b: Nat) -> Nat = match a
+    Z() -> b
+    S(x) -> match b
+      Z() -> f(x, x)
+      S(y) -> f(y, x)
+end

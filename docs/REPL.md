@@ -70,7 +70,8 @@ ANSI-highlighted `=>` arrow.
 
 ### Flow
 
-- `Enter`                        - submit (auto-continues on unbalanced brackets)
+- `Enter`                        - submit, or continue an open/indented block
+- blank line                     - preserved inside an indented block; otherwise submit
 - `;;` on its own line           - force-submit a multi-line buffer
 - `Tab`                          - completion (meta-commands, paths, modules, keywords)
 - `Ctrl+L`                       - clear screen
@@ -92,11 +93,11 @@ You can also start directly in vi mode via `CURE_REPL_MODE=vi cure repl`.
 
 - `:t expr` (also `:type expr`)  - infer the type of `expr`
 - `:effects expr`                - infer the effect set
-- `:holes`                       - list holes from the last evaluation
+- `:holes`                       - list typed goals retained from session definitions
+- `:total name`                  - report whether a session function is kernel-certified total
+- `:printdef name`               - print an authored session definition
 - `:ast expr`                    - dump the parsed AST
 - `:fmt expr`                    - pretty-print `expr`
-- `:bless path` (v0.28.0)        - run the interactive type-error fix
-  assistant on a `.cure` file; see `docs/BLESS.md`
 
 ### Modules and files
 
@@ -106,11 +107,24 @@ You can also start directly in vi mode via `CURE_REPL_MODE=vi cure repl`.
   (v0.28.0: warns and suggests the nearest stdlib module when unknown)
 - `:env`                         - list all imports
 - `:doc name`                    - show the docstring of `name`
+- `:browse Mod`                  - browse a module's public API
+- `:apropos term`                - search module, function, type, and protocol names
+
+Indented function, match, induction, and proof blocks remain in the input
+buffer while their body is deeper than the first line. `proof chain`, `have`,
+`because`, `rewrite`, `simplify`, `induction`, and `case ... =>` are recognised
+as continuation cues. Use `;;` to submit after the final indented line.
 
 ### Session
 
 - `:reset`                       - forget all bindings, fresh session
+- `:let name = expr`             - pin `expr` as a zero-arg session fn
+  `name/0` so it survives across prompts (call as `name()`)
 - `:save path`                   - write the session transcript to `path`
+- `:snap save [path]`            - freeze the session to a `.cure-snap`
+  file (default: `cure.snap`); see `docs/SNAP.md`
+- `:snap load <path>`            - restore a session from a `.cure-snap` file
+- `:snap list [dir]`             - list `.cure-snap` files in `dir` (default: `.`)
 - `:edit`                        - open `$EDITOR` on the current buffer
 - `:history [n]`                 - print the last `n` (default 20) entries
 - `:search term`                 - non-interactive history grep
@@ -147,7 +161,8 @@ Programmatic options to `Cure.REPL.start/1`:
 - `:mode`          - `:emacs` or `:vi`
 - `:stdlib`        - which stdlib modules to auto-import on startup. Accepts
   `:none` (default), `:all`, a single group atom, or a list of group atoms.
-  See `Cure.Stdlib.Preload.kind/0` for the full list.
+  Current groups are `:core`, `:collections`, `:text`, `:numeric`, `:system`,
+  `:concurrency`, `:option`, `:test`, and `:network`.
 - `:error_device`  - `:stderr` (default) or `:stdio`; use `:stdio` when the
   REPL is hosted behind a custom group leader (e.g. the Yeesh IOServer)
   so compiler diagnostics reach the embedder
@@ -186,7 +201,7 @@ Accepted `preload` values:
 See `Cure.Stdlib.Preload.known_groups/0` for the list of valid group
 atoms (`:core`, `:collections`, `:text`, `:numeric`, `:system`,
 `:concurrency`, `:option`, `:test`, `:network`). Every stdlib module
-carries a `fn __group__() -> Atom = :<group>` declaration that assigns
+carries a `@group(:<group>)` module-level decorator that assigns
 it to exactly one group; `docs/STDLIB.md` lists the current
 membership.
 

@@ -1,7 +1,7 @@
 defmodule Cure.REPL.Session do
   @moduledoc """
-  Accumulator for top-level declarations (`fn`, `type`, `rec`, `proto`,
-  `impl`, `proof`) submitted interactively to the REPL.
+  Accumulator for top-level declarations (`fn`, `type`, `rec`, `interface`,
+  `implementation`, `proof`) submitted interactively to the REPL.
 
   ## Why this exists
 
@@ -34,8 +34,8 @@ defmodule Cure.REPL.Session do
   * `:fn`    -> `{:fn, name, arity, visibility}`
   * `:type`  -> `{:type, name}`
   * `:rec`   -> `{:rec, name}`
-  * `:proto` -> `{:proto, name}`
-  * `:impl`  -> `{:impl, proto, for_name}`
+  * `:interface`      -> `{:interface, name}`
+  * `:implementation` -> `{:implementation, interface, for_name}`
   * `:proof` -> `{:proof, name}`
 
   ## Synthesised module
@@ -45,11 +45,10 @@ defmodule Cure.REPL.Session do
   module is `:"Cure.Repl.Session"`; `Cure.REPL` adds `Repl.Session` to
   the `use`-list of every expression module it compiles while any
   entries are present, so unqualified calls like `add(2, 3)` resolve
-  via the normal import path in `Cure.Compiler.Codegen`.
+  through the same canonical module interface as ordinary source imports.
   """
 
   alias Cure.Compiler
-  alias Cure.Types.Type
 
   @module_name "Repl.Session"
   @module_atom :"Cure.Repl.Session"
@@ -60,13 +59,13 @@ defmodule Cure.REPL.Session do
           {:fn, String.t(), non_neg_integer(), visibility()}
           | {:type, String.t()}
           | {:rec, String.t()}
-          | {:proto, String.t()}
-          | {:impl, String.t(), String.t()}
+          | {:interface, String.t()}
+          | {:implementation, String.t(), String.t()}
           | {:proof, String.t()}
 
   @type entry :: %{
           key: key(),
-          kind: :fn | :type | :rec | :proto | :impl | :proof,
+          kind: :fn | :type | :rec | :interface | :implementation | :proof,
           label: String.t(),
           source: String.t()
         }
@@ -125,7 +124,7 @@ defmodule Cure.REPL.Session do
   defp classify_nodes(nodes, src) do
     entries =
       Enum.reduce_while(nodes, [], fn node, acc ->
-        case entry_from_node(node, src) do
+        case entry_from_node(node, node_source(node, src)) do
           {:ok, entry} -> {:cont, [entry | acc]}
           :skip -> {:cont, acc}
           :expression -> {:halt, :expression}
@@ -138,6 +137,24 @@ defmodule Cure.REPL.Session do
       list -> {:definitions, Enum.reverse(list)}
     end
   end
+
+  # A submission may contain several declarations. Each session entry must own
+  # only its declaration; storing the entire submission on every entry duplicates
+  # siblings when `build_source/1` reassembles the module and breaks generated
+  # equation ownership. Parser spans are byte offsets into this exact trimmed
+  # submission, so slicing is lossless (fall back for synthetic/spanless nodes).
+  defp node_source({_tag, meta, _children}, src) when is_list(meta) do
+    case Cure.MetaAST.Metadata.source_info(meta) do
+      %Cure.MetaAST.SourceInfo{whole: %Cure.Diagnostic.Span{start_byte: first, end_byte: last}}
+      when first >= 0 and last >= first and last <= byte_size(src) ->
+        binary_part(src, first, last - first)
+
+      _ ->
+        src
+    end
+  end
+
+  defp node_source(_node, src), do: src
 
   # `line_comment` / `comment` nodes can appear at the top level. They
   # should not flip the whole submission into expression territory
@@ -184,6 +201,12 @@ defmodule Cure.REPL.Session do
       _ -> :expression
     end
   end
+
+  defp entry_from_node({:interface, meta, _body}, src) when is_list(meta),
+    do: container_entry(:interface, meta, src)
+
+  defp entry_from_node({:implementation, meta, _body}, src) when is_list(meta),
+    do: implementation_entry(meta, src)
 
   # `type Foo = Existing` elaborates to a `:type_annotation` node, not
   # a container. Treat it as a `type` entry.
@@ -232,9 +255,28 @@ defmodule Cure.REPL.Session do
      }}
   end
 
+  defp implementation_entry(meta, src) do
+    interface = Keyword.get(meta, :interface, "Unknown")
+    for_name = Keyword.get(meta, :for, "Unknown")
+    as_name = Keyword.get(meta, :as)
+
+    label =
+      "implementation #{interface} for #{for_name}" <>
+        if(is_binary(as_name), do: " as #{as_name}", else: "")
+
+    {:ok,
+     %{
+       key: {:implementation, interface, as_name || for_name},
+       kind: :implementation,
+       label: label,
+       source: String.trim(src)
+     }}
+  end
+
   defp label_for(:rec, name), do: "rec #{name}"
   defp label_for(:type, name), do: "type #{name}"
   defp label_for(:proto, name), do: "proto #{name}"
+  defp label_for(:interface, name), do: "interface #{name}"
   defp label_for(:proof, name), do: "proof #{name}"
 
   # ---------------------------------------------------------------------------
@@ -320,6 +362,20 @@ defmodule Cure.REPL.Session do
     Compiler.compile_and_load(source, file: "repl/session", emit_events: false)
   end
 
+  @doc "Elaborate the synthetic session and return typed hole goals without emitting it."
+  @spec hole_goals([entry()]) :: {:ok, [map()]} | {:error, term()}
+  def hole_goals([]), do: {:ok, []}
+
+  def hole_goals(defs) when is_list(defs) do
+    defs
+    |> build_source()
+    |> Cure.Elab.Program.elaborate()
+    |> case do
+      {:ok, env} -> {:ok, Cure.Elab.Program.hole_goals(env)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
   @doc """
   Best-effort unload of the session module. Safe to call when nothing
   has been compiled yet.
@@ -335,56 +391,4 @@ defmodule Cure.REPL.Session do
   # ---------------------------------------------------------------------------
   # Signatures (for the type checker)
   # ---------------------------------------------------------------------------
-
-  @doc """
-  Project the current list of entries into a list of `{name, type}`
-  bindings suitable for `Cure.Types.Checker.infer_expr/2`'s
-  `:extra_bindings` option.
-
-  Only public `fn` entries contribute bindings. Each entry's source
-  snippet is re-parsed through `Cure.quote/2` so we can resolve the
-  declared parameter and return types via `Cure.Types.Type.resolve/1`
-  -- identical to the machinery `Cure.Types.Checker.register_fn_signature/2`
-  uses for in-module definitions.
-
-  Entries whose source fails to re-parse are silently skipped; they
-  would already have been rejected by `compile/1` at install time.
-  """
-  @spec signatures([entry()]) :: [{String.t(), term()}]
-  def signatures(defs) when is_list(defs) do
-    Enum.flat_map(defs, &entry_signature/1)
-  end
-
-  defp entry_signature(%{kind: :fn, source: src}) do
-    case Cure.quote(src, file: "repl/session") do
-      {:ok, {:function_def, meta, _body}} -> build_fn_signature(meta)
-      _ -> []
-    end
-  end
-
-  defp entry_signature(_), do: []
-
-  defp build_fn_signature(meta) do
-    with name when is_binary(name) <- Keyword.get(meta, :name),
-         :public <- Keyword.get(meta, :visibility, :public) do
-      params = Keyword.get(meta, :params, [])
-      return_type_ast = Keyword.get(meta, :return_type)
-
-      param_types =
-        Enum.map(params, fn
-          {:param, pmeta, _pname} -> Type.resolve(Keyword.get(pmeta, :type))
-          _ -> :any
-        end)
-
-      ret_type =
-        case return_type_ast do
-          nil -> :any
-          ast -> Type.resolve(ast)
-        end
-
-      [{name, {:fun, param_types, ret_type}}]
-    else
-      _ -> []
-    end
-  end
 end

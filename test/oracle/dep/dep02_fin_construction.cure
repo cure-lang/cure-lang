@@ -1,0 +1,7 @@
+mod Dep02
+  type Nat = Zero | Suc(Nat)
+  type Fin indices (n: Nat)
+    fz : Fin(Suc(m))
+    fs : Fin(m) -> Fin(Suc(m))
+  fn f1() -> Fin(Suc(Suc(Zero))) = fs(fz())
+end

@@ -1,0 +1,55 @@
+mod Std.ProofDirectedExtraction
+  ## A deliberately small proof-directed data pipeline.
+  ##
+  ## `Accepted(shape)` stores data together with erased evidence for the indexed
+  ## constructor that accepted it. Once the package exists, `extract` is total:
+  ## matching the package refines the result of `Sem`, so there is no runtime
+  ## validation branch and no `Option` in the accepted path.
+
+  use Std.Data.Suffix
+
+  type Shape = NumberShape | FlagShape
+
+  fn Sem(shape: Shape) -> Type = match shape
+    NumberShape() -> Int
+    FlagShape() -> Bool
+
+  type Evidence indices (shape: Shape)
+    NumberEvidence : Evidence(NumberShape())
+    FlagEvidence : Evidence(FlagShape())
+
+  type Accepted indices (shape: Shape)
+    AcceptedNumber : (value: Int) -> (@erased evidence : Evidence(NumberShape())) -> Accepted(NumberShape())
+    AcceptedFlag : (value: Bool) -> (@erased evidence : Evidence(FlagShape())) -> Accepted(FlagShape())
+
+  ## A contextual package analogous to an Encodes witness: the runtime
+  ## remainder is retained, while erased Consumed evidence proves that it is
+  ## the strict suffix of the original input selected by the indices.
+  type AcceptedRemainder indices (original: List(Char), remainder: List(Char))
+    AcceptedRemainderValue : (value: Char) -> (rest: List(Char)) -> (@erased evidence : Consumed(Char, True, rest, original)) -> AcceptedRemainder(original, rest)
+
+  fn extract({shape: Shape}, accepted: Accepted(shape)) -> Sem(shape) = match accepted
+    AcceptedNumber(value, _) -> value
+    AcceptedFlag(value, _) -> value
+
+  fn accepted_number_example() -> Accepted(NumberShape()) =
+    AcceptedNumber(42, NumberEvidence())
+
+  fn accepted_flag_example() -> Accepted(FlagShape()) =
+    AcceptedFlag(true, FlagEvidence())
+
+  fn extract_number_example() -> Int =
+    extract(accepted_number_example())
+
+  fn extract_flag_example() -> Bool =
+    extract(accepted_flag_example())
+
+  fn remainder({original: List(Char)}, {rest: List(Char)}, accepted: AcceptedRemainder(original, rest)) -> List(Char) =
+    match accepted
+      AcceptedRemainderValue(_, actual, _) -> actual
+
+  fn contextual_example() -> AcceptedRemainder(Cons('a', Cons('b', Nil())), Cons('b', Nil())) =
+    AcceptedRemainderValue('a', ['b'], drop('a', same(['b'])))
+
+  fn contextual_remainder_example() -> List(Char) =
+    remainder(contextual_example())

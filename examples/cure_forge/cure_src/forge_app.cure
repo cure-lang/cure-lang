@@ -1,43 +1,6 @@
-## Application container for the Cure forge example.
-##
-## The compiler verifies that exactly one `app` container exists in
-## the project and that its name matches `[application].name` in
-## `Cure.toml` (both sides normalised through `Macro.underscore/1`).
-## The `root = sup Forge.Root` line wires the application's `start/2`
-## callback to the `Forge.Root` supervisor declared in
-## `forge_root.cure`, which in turn brings up the four actors
-## (`Metrics`, `Logger`, `Queue`, `Pool`) that make up the forge.
-##
-## Declared top-level assignments:
-##   * `vsn`          -- matches `[application].vsn` in `Cure.toml`.
-##   * `description`  -- free-form human text emitted into the
-##                       `<name>.app` resource file.
-##   * `root`         -- resolves to `:"Cure.Sup.Forge.Root"` via the
-##                       soft-keyword `sup` resolution rule.
-##   * `applications` -- merged with `[application].applications`.
-##   * `env`          -- overrides `[application.env]` entries when
-##                       both are present (the container wins).
-##
-## Lifecycle hooks:
-##   * `on_start`          -- invoked inside the generated `start/2`.
-##                            The body runs before the OTP boot script
-##                            hands control over to user code.
-##   * `on_stop`           -- invoked from the generated `stop/1`.
-##   * `on_phase :warm_cache`
-##                         -- invoked by the OTP boot script between
-##                            `start/2` and the first request. Must
-##                            appear in `[application].start_phases`
-##                            (`E053 Start Phase Mismatch` otherwise).
+## Transparent application example.
+
+use Std.App
 
 app CureForge
-  vsn          = "0.1.0"
-  description  = "Cure forge showcase: a typed OTP application"
-  root         = sup Forge.Root
-  applications = [:logger]
-  env          = %{greeting: "forge ready", idle_timeout_ms: 5000, max_log_lines: 16}
-  on_start
-    (_kind, _args) -> :ok
-  on_stop
-    (_state) -> :ok
-  on_phase :warm_cache
-    (_args, _kind, _start_args) -> :ok
+  root Forge.Root

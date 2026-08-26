@@ -12,7 +12,7 @@ mod JsonTree
     | JInt(Int)
     | JStr(String)
     | JArr(List(Json))
-    | JObj(List(Tuple))
+    | JObj(List(Tuple(String, Json)))
 
   # ---------------------------------------------------------------------------
   # Structural predicates
@@ -41,7 +41,7 @@ mod JsonTree
   # in an object that matches the requested key.
   # ---------------------------------------------------------------------------
 
-  fn lookup(obj: List(Tuple), key: String, default: Json) -> Json =
+  fn lookup(obj: List(Tuple(String, Json)), key: String, default: Json) -> Json =
     match obj
       []                        -> default
       [%[k, v] | rest] ->
@@ -70,7 +70,7 @@ mod JsonTree
       []       -> 0
       [h | t]  -> sum_ints(h) + sum_list_of_json(t)
 
-  local fn sum_pairs(pairs: List(Tuple)) -> Int =
+  local fn sum_pairs(pairs: List(Tuple(String, Json))) -> Int =
     match pairs
       []                 -> 0
       [%[_, v] | rest]   -> sum_ints(v) + sum_pairs(rest)

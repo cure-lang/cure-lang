@@ -199,14 +199,11 @@ export default function(hljs) {
     relevance: 0
   };
 
-  // Typed holes -- `??` anonymous, `?name` named. Distinct scope so
+  // Typed holes -- `?_` anonymous, `?name` named. Distinct scope so
   // editors can colour them differently from ordinary identifiers.
   const HOLE = {
     scope: 'variable.constant',
-    variants: [
-      { match: /\?\?/ },
-      { match: /\?[A-Za-z_][A-Za-z0-9_]*/ }
-    ],
+    match: /\?[A-Za-z_][A-Za-z0-9_]*/,
     relevance: 10
   };
 

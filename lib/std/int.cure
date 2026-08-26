@@ -1,0 +1,48 @@
+@group(:core)
+@prelude
+mod Std.Int
+  ## Canonical inductive integer, native at runtime.
+  ##
+  ## `Int` is an inductive built on `Nat`: `FromNat(n) = n` and
+  ## `NegativeSuccessor(n) = -(n + 1)`. It is CANONICAL (every integer has exactly
+  ## one representation; zero is only `FromNat(Z())`), so structural equality is
+  ## decidable. The compact literal `5`/`-3` is definitionally equal to the
+  ## corresponding constructor spine via the audited `int_to_ctor` fold, and every
+  ## value compiles to a native BEAM machine integer — arithmetic and bitwise ops
+  ## remain builtin operators folding to native results.
+  ##
+  ## SOUNDNESS CAVEAT (load-bearing): the native↔inductive correspondence holds
+  ## ONLY because BEAM integers are arbitrary-precision. The inductive ℤ is
+  ## unbounded and BEAM bignums never wrap, so the native ops and the inductive
+  ## semantics coincide on every value. On a FIXED-WIDTH target this fold would be
+  ## UNSOUND (wraparound ≠ unbounded ℤ).
+  use Std.Nat
+  use Std.Equivalent
+
+  @prelude
+  @builtin(:int)
+  type Int = FromNat(Nat) | NegativeSuccessor(Nat)
+
+  ## Integer negation on the canonical representation.
+  ##   negate(0)        = 0
+  ##   negate(k+1)      = -(k+1)
+  ##   negate(-(k+1))   = k+1
+  fn negate(i: Int) -> Int =
+    match i
+      FromNat(n) ->
+        match n
+          Z() -> FromNat(Z())
+          S(k) -> NegativeSuccessor(k)
+      NegativeSuccessor(k) -> FromNat(S(k))
+
+  ## Negation is an involution — proved by structural case analysis on `Int`
+  ## (and, in the FromNat arm, on the inner `Nat`). Each arm reduces both sides to
+  ## the same canonical form, discharged by reflexivity. This is the Phase-1
+  ## smoke-test that `match`/induction and literal-defeq genuinely work on `Int`.
+  fn negate_involutive(i: Int) -> Equivalent(Int, negate(negate(i)), i) =
+    match i
+      FromNat(n) ->
+        match n
+          Z() -> reflexive(FromNat(Z()))
+          S(k) -> reflexive(FromNat(S(k)))
+      NegativeSuccessor(k) -> reflexive(NegativeSuccessor(k))

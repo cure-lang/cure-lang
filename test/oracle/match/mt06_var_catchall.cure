@@ -1,0 +1,7 @@
+mod Mt06
+  type Color = Red | Green | Blue
+  type Nat = Z | S(Nat)
+  fn tag(c: Color) -> Nat = match c
+    Red() -> Z()
+    other -> S(Z())
+end

@@ -1,0 +1,230 @@
+@group(:text)
+mod Std.Regex
+  ## Public verified Regex API and compatibility façade.
+  use Std.Regex.Core
+  use Std.Regex.Runtime
+  public use Std.Regex.Core
+  public use Std.Regex.Runtime
+  use Std.Char
+  use Std.Option
+  use Std.String
+  use Std.Syntax
+  use Std.Bounded
+  use Std.Equivalent
+  use Std.Sigma
+
+  fn parse_pattern_full({shape: ShapeCode}, pattern: Pattern(shape), input: String) -> Option(Sem(shape)) =
+    Std.Regex.Proof.parse_pattern_full_verified(pattern, input)
+
+  fn parse_program_full({result: Type}, program: RegexProgram(result), input: String) -> Option(result) = match program
+    BuiltRegex(_shape, _pattern, _conversion, _hint) -> Std.Regex.Proof.parse_program_full_verified(program, input)
+
+  fn parse_full({result: Type}, regex: Regex(result), input: String) -> Option(result) = match compile_regex(regex)
+    NoProgram() -> None()
+    SomeProgram(program) -> parse_program_full(program, input)
+
+  fn parse_full_named({result: Type}, {shape: ShapeCode}, named: NamedRegex(result, shape), input: String) -> Option(NamedParse(result)) = match named
+    NamedRegex(ordinary, _compilation, lookaround, layout, _, policy) -> match parse_full(ordinary, input)
+      None() -> None()
+      Some(value) -> match named_lookaround_full_capture(lookaround, input, layout, policy)
+        None() -> None()
+        Some(captures) -> Some(NamedParse(value, captures))
+
+  fn search_named({result: Type}, {shape: ShapeCode}, named: NamedRegex(result, shape), input: String) -> Option(NamedMatch(result)) = match named
+    NamedRegex(ordinary, _compilation, lookaround, layout, _firstline_only, policy) -> match search(ordinary, input)
+      None() -> None()
+      Some(found) -> match found
+        Match(value, prefix, matched, suffix, _start, _length) ->
+          let position = advance_initial_position_with_policy(subject_initial_position(), Std.String.characters(prefix), policy)
+          let candidate = append_characters(Std.String.characters(matched), Std.String.characters(suffix))
+          match named_lookaround_prefix_capture_at(lookaround, candidate, true, position, history_from_reversed_prefix(evidence_reverse_chars(Std.String.characters(prefix))), layout, policy)
+            None() -> None()
+            Some(NamedPrefixCapture(named_matched, named_remaining, captures)) -> pickup
+              same_characters(named_matched, Std.String.characters(matched)) and same_characters(named_remaining, Std.String.characters(suffix)) -> Some(NamedMatch(found, captures))
+              else -> None()
+
+  fn named_capture(name: String, named: NamedMatch(result)) -> Option(String) = match named
+    NamedMatch(_, captures) -> named_capture_lookup(name, captures)
+
+  fn named_capture_lookup(name: String, captures: List(NamedCapture)) -> Option(String) = match captures
+    [] -> None()
+    [NamedCapture(capture_name, value) | rest] -> pickup
+      same_characters(Std.String.characters(name), Std.String.characters(capture_name)) -> value
+      else -> named_capture_lookup(name, rest)
+
+  fn same_characters(left: List(Char), right: List(Char)) -> Bool = match left
+    [] -> match right
+      [] -> true
+      _ -> false
+    [left_head | left_rest] -> match right
+      [right_head | right_rest] -> left_head == right_head and same_characters(left_rest, right_rest)
+      [] -> false
+
+  fn parse_prefix_with({result: Type}, regex: Regex(result), input: String, greedy: Bool) -> Option(Tuple(result, String)) = match compile_regex(regex)
+    NoProgram() -> None()
+    SomeProgram(program) -> Std.Regex.Proof.parse_program_prefix_verified_at(program, input, greedy, true, true, false, false)
+
+  fn parse_prefix_at({result: Type}, regex: Regex(result), input: String, subject_start: Bool, line_start: Bool, previous_ascii_word: Bool, previous_unicode_word: Bool) -> Option(Tuple(result, String)) = match compile_regex(regex)
+    NoProgram() -> None()
+    SomeProgram(program) -> Std.Regex.Proof.parse_program_prefix_verified_at(program, input, true, subject_start, line_start, previous_ascii_word, previous_unicode_word)
+
+  fn parse_prefix({result: Type}, regex: Regex(result), input: String) -> Option(Tuple(result, String)) =
+    parse_prefix_with(regex, input, true)
+
+  fn options_firstline(options: RegexOptions) -> Bool = match options
+    RegexOptions(_, _, _, _, _, firstline, _, _, _) -> firstline
+
+  fn options_newline_policy(options: RegexOptions) -> NewlinePolicy = match options
+    RegexOptions(_, _, _, _, _, _, _, _, policy) -> policy
+
+  fn regex_firstline({result: Type}, regex: Regex(result)) -> Bool = match regex
+    ConfiguredRegex(options, _) -> options_firstline(options)
+    _ -> false
+
+  fn regex_newline_policy({result: Type}, regex: Regex(result)) -> NewlinePolicy = match regex
+    ConfiguredRegex(options, _) -> options_newline_policy(options)
+    _ -> AnyUnicodeNewline()
+
+  fn search({result: Type}, regex: Regex(result), input: String) -> Option(Match(result)) =
+    search_from_position(regex, Std.String.characters(input), [], subject_initial_position(), regex_firstline(regex), regex_newline_policy(regex))
+
+  fn search_from({result: Type}, regex: Regex(result), candidate: List(Char), reversed_prefix: List(Char), subject_start: Bool, line_start: Bool, previous_ascii_word: Bool, previous_unicode_word: Bool, firstline_only: Bool, policy: NewlinePolicy) -> Option(Match(result)) =
+    search_from_position(regex, candidate, reversed_prefix, InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word, None()), firstline_only, policy)
+
+  fn search_from_position({result: Type}, regex: Regex(result), candidate: List(Char), reversed_prefix: List(Char), position: InitialPosition, firstline_only: Bool, policy: NewlinePolicy) -> Option(Match(result)) =
+    match pattern_prefix_program_at_position(regex, candidate, position, history_from_reversed_prefix(reversed_prefix))
+      Some(found) ->
+        let rest = found.2
+        let matched = list_drop_last(candidate, list_length(rest))
+        Some(Match(found.1, Std.String.from_characters(evidence_reverse_chars(reversed_prefix)), Std.String.from_characters(matched), Std.String.from_characters(rest), list_length(reversed_prefix), list_length(matched)))
+      None() -> match candidate
+        [] -> None()
+        [char | rest] -> pickup
+          firstline_only and newline_char(policy, char) -> None()
+          else -> search_from_position(regex, rest, [char | reversed_prefix], advance_initial_position(position, [char]), firstline_only, policy)
+
+  fn pattern_prefix_program_at({result: Type}, regex: Regex(result), input: List(Char), subject_start: Bool, line_start: Bool, previous_ascii_word: Bool, previous_unicode_word: Bool) -> Option(Tuple(result, List(Char))) = match compile_regex(regex)
+    NoProgram() -> None()
+    SomeProgram(program) -> Std.Regex.Proof.parse_program_prefix_chars_verified_at(program, input, true, subject_start, line_start, previous_ascii_word, previous_unicode_word)
+
+  fn pattern_prefix_program_at_position({result: Type}, regex: Regex(result), input: List(Char), position: InitialPosition, history: List(Char)) -> Option(Tuple(result, List(Char))) = match compile_regex(regex)
+    NoProgram() -> None()
+    SomeProgram(program) -> Std.Regex.Proof.parse_program_prefix_chars_verified_at_position(program, input, true, position, history)
+
+  fn history_from_reversed_prefix(reversed_prefix: List(Char)) -> List(Char) =
+    history_take_limit(reversed_prefix, literal_history_limit())
+
+  fn literal_history_limit() -> Nat = S(S(S(S(S(S(S(S(S(Z())))))))))
+
+  fn history_take_limit(values: List(Char), limit: Nat) -> List(Char) = match limit
+    Z() -> []
+    S(rest_limit) -> match values
+      [] -> []
+      [head | rest] -> [head | history_take_limit(rest, rest_limit)]
+
+  fn list_length(values: List(Char)) -> Int = match values
+    [] -> 0
+    [_ | rest] -> Std.Builtin.int_add(1, list_length(rest))
+
+  fn list_drop_last(values: List(Char), count: Int) -> List(Char) =
+    reverse_drop(evidence_reverse_chars(values), count)
+
+  fn reverse_drop(values: List(Char), count: Int) -> List(Char) = pickup
+    Std.Builtin.int_lt(0, count) -> match values
+      [] -> []
+      [_ | rest] -> reverse_drop(rest, Std.Builtin.int_sub(count, 1))
+    else -> evidence_reverse_chars(values)
+
+  fn matches({result: Type}, regex: Regex(result), input: String) -> Bool = match search(regex, input)
+    Some(_) -> true
+    None() -> false
+
+  fn characters_contain_newline(input: List(Char), policy: NewlinePolicy) -> Bool = match input
+    [] -> false
+    [char | rest] -> pickup
+      newline_char(policy, char) -> true
+      else -> characters_contain_newline(rest, policy)
+
+  fn scan({result: Type}, regex: Regex(result), input: String) -> List(Match(result)) =
+    scan_from(regex, Std.String.characters(input), [], subject_initial_position(), regex_firstline(regex), true, regex_newline_policy(regex))
+
+  fn scan_from({result: Type}, regex: Regex(result), candidate: List(Char), reversed_prefix: List(Char), position: InitialPosition, firstline_only: Bool, firstline_open: Bool, policy: NewlinePolicy) -> List(Match(result)) = pickup
+    firstline_only and not firstline_open -> []
+    else -> match search_from_position(regex, candidate, reversed_prefix, position, firstline_only, policy)
+      None() -> []
+      Some(found) -> match found
+        Match(value, prefix, matched, suffix, start, length) ->
+          let prefix_chars = Std.String.characters(prefix)
+          let matched_chars = Std.String.characters(matched)
+          let consumed = append_characters(prefix_chars, matched_chars)
+          let next_firstline_open = not characters_contain_newline(consumed, policy)
+          pickup
+            Std.Builtin.int_lt(0, length) ->
+              [found | scan_from(regex, Std.String.characters(suffix), evidence_reverse_chars(consumed), advance_initial_position(subject_initial_position(), consumed), firstline_only, next_firstline_open, policy)]
+            else -> match Std.String.characters(suffix)
+              [] -> [found]
+              [char | rest] ->
+                let advanced = append_characters(consumed, [char])
+                [found | scan_from(regex, rest, evidence_reverse_chars(advanced), advance_initial_position(subject_initial_position(), advanced), firstline_only, not characters_contain_newline(advanced, policy), policy)]
+
+  fn character_list_drop(values: List(Char), count: Int) -> List(Char) = pickup
+    Std.Builtin.int_lt(0, count) -> match values
+      [] -> []
+      [_ | rest] -> character_list_drop(rest, Std.Builtin.int_sub(count, 1))
+    else -> values
+
+  fn character_list_take(values: List(Char), count: Int) -> List(Char) = pickup
+    Std.Builtin.int_lt(0, count) -> match values
+      [] -> []
+      [head | rest] -> [head | character_list_take(rest, Std.Builtin.int_sub(count, 1))]
+    else -> []
+
+  fn split_can_continue(limit: SplitLimit) -> Bool = match limit
+    UnlimitedSplit -> true
+    AtMostSplitParts(remaining) -> Std.Builtin.int_lt(1, remaining)
+
+  fn split_next_limit(limit: SplitLimit) -> SplitLimit = match limit
+    UnlimitedSplit -> UnlimitedSplit
+    AtMostSplitParts(remaining) -> AtMostSplitParts(Std.Builtin.int_sub(remaining, 1))
+
+  fn prepend_split_part(chars: List(Char), trimming: SplitTrimming, rest: List(String)) -> List(String) = match trimming
+    KeepEmptyParts -> [Std.String.from_characters(chars) | rest]
+    TrimEmptyParts -> match chars
+      [] -> rest
+      _ -> [Std.String.from_characters(chars) | rest]
+
+  fn split_matches({result: Type}, input: List(Char), cursor: Int, matches: List(Match(result)), options: SplitOptions) -> List(String) = match options
+    SplitOptions(inclusion, trimming, limit) -> match matches
+      [] -> prepend_split_part(character_list_drop(input, cursor), trimming, [])
+      [found | rest] -> pickup
+        not split_can_continue(limit) -> prepend_split_part(character_list_drop(input, cursor), trimming, [])
+        else -> match found
+          Match(_, _, matched, _, start, length) ->
+            let field = character_list_take(character_list_drop(input, cursor), Std.Builtin.int_sub(start, cursor))
+            let next_cursor = Std.Builtin.int_add(start, length)
+            let tail = split_matches(input, next_cursor, rest, SplitOptions(inclusion, trimming, split_next_limit(limit)))
+            let with_separator = match inclusion
+              ExcludeSeparators -> tail
+              IncludeSeparators -> prepend_split_part(Std.String.characters(matched), trimming, tail)
+            prepend_split_part(field, trimming, with_separator)
+
+  fn split({result: Type}, regex: Regex(result), input: String, options: SplitOptions) -> List(String) =
+    split_matches(Std.String.characters(input), 0, scan(regex, input), options)
+
+  fn split_default({result: Type}, regex: Regex(result), input: String) -> List(String) =
+    split(regex, input, SplitOptions(ExcludeSeparators, KeepEmptyParts, UnlimitedSplit))
+
+  fn replace_matches({result: Type}, input: List(Char), cursor: Int, matches: List(Match(result)), replacement: (Match(result)) -> String) -> List(Char) = match matches
+    [] -> character_list_drop(input, cursor)
+    [found | rest] -> match found
+      Match(_, _, _, _, start, length) ->
+        let field = character_list_take(character_list_drop(input, cursor), Std.Builtin.int_sub(start, cursor))
+        let replacement_text: String = replacement(found)
+        let replaced = Std.String.characters(replacement_text)
+        append_characters(field, append_characters(replaced, replace_matches(input, Std.Builtin.int_add(start, length), rest, replacement)))
+
+  fn replace({result: Type}, regex: Regex(result), input: String, replacement: (Match(result)) -> String) -> String =
+    Std.String.from_characters(replace_matches(Std.String.characters(input), 0, scan(regex, input), replacement))
+
+  fn replace_literal({result: Type}, regex: Regex(result), input: String, replacement: String) -> String =
+    replace(regex, input, fn(_) -> replacement)

@@ -18,13 +18,13 @@ mod AdtFnPayload
   fn apply_cb(cb: Callback, x: Int) -> Int =
     match cb
       On(f) -> f(x)
-      Off   -> x
+      Off() -> x
 
   ## Apply a binary transform.
   fn apply_t(t: Transform, a: Int, b: Int) -> Int =
     match t
       Morph(f) -> f(a, b)
-      Id       -> a
+      Id() -> a
 
   fn main() -> Int =
     let incremented = apply_cb(On(fn(n) -> n + 1), 10)

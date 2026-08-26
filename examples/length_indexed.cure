@@ -1,28 +1,24 @@
 mod LengthIndexed
-  use Std.{List, Vector}
+  ## Standalone indexed-data example.
+  ##
+  ## `Std.Vector.empty()` still needs expected-type implicit solving for its
+  ## all-erased constructor arguments, so this example uses a smaller indexed
+  ## family whose constructors carry enough information at the call site.
 
-  ## Length-indexed vector operations.
-  #
-  # Real Pi types (dependent function return) are not yet surfaced in
-  # Cure source syntax: today this example is a *runtime* skeleton
-  # while the type checker validates the claims about lengths via
-  # the `Cure.Types.Pi` module on direct API use.
+  type Nat = Z | S(Nat)
 
-  ## Build a 3-element vector and query its length.
-  fn three_vec() -> Tuple =
-    let v = Std.Vector.from_list([1, 2, 3])
-    v
+  type Length indices (n: Nat)
+    zero_len : Length(Z)
+    succ_len : Length(n) -> Length(S(n))
 
-  ## Concatenate two vectors. The result has length `m + n`.
-  fn concat_two(a: Tuple, b: Tuple) -> Tuple =
-    Std.Vector.append(a, b)
+  fn zero() -> Length(Z) =
+    zero_len()
 
-  ## Total length is the sum of the parts.
-  fn total_length(a: Tuple, b: Tuple) -> Int =
-    Std.Vector.length(a) + Std.Vector.length(b)
+  fn one() -> Length(S(Z)) =
+    succ_len(zero())
 
-  ## Demonstrate: total_length(three_vec(), three_vec()) == 6
-  fn main() -> Int =
-    let a = three_vec()
-    let b = three_vec()
-    total_length(a, b)
+  fn two() -> Length(S(S(Z))) =
+    succ_len(one())
+
+  fn main() -> Length(S(S(Z))) =
+    two()

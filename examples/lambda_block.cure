@@ -12,17 +12,17 @@ mod LambdaBlock
 
   ## Single-expression lambda stays the default.
   fn bump(x: Int) -> Int =
-    let f = fn(n) -> n + 1
+    let f : Int -> Int = fn(n) -> n + 1
     f(x)
 
   ## Brace form: statements separated by `;`, final expression is the result.
   fn brace(x: Int) -> Int =
-    let f = fn(n) -> { let doubled = n + n; doubled + 1 }
+    let f : Int -> Int = fn(n) -> { let doubled = n + n; doubled + 1 }
     f(x)
 
   ## end-terminated form: same semantics, different surface syntax.
   fn ended(x: Int) -> Int =
-    let f = fn(n) -> let doubled = n + n; doubled + 2; end
+    let f : Int -> Int = fn(n) -> let doubled = n + n; doubled + 2; end
     f(x)
 
   ## Entry point used by `mix cure.check.examples`.

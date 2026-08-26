@@ -5,12 +5,12 @@ defmodule CureSiteWeb.PageControllerTest do
     conn = get(conn, ~p"/")
     body = html_response(conn, 200)
 
-    # Hero copy that identifies the Cure home page.
-    assert body =~
-             "Dependently-typed programming language for the BEAM virtual machine"
+    assert body =~ "one dependent compiler pipeline"
+    assert body =~ "kernel checking"
+    refute body =~ "refinements"
 
     # Version is injected from the top-level mix.exs at compile time and
-    # rendered both in the navbar badge and in the hero blurb.
+    # rendered in the navbar badge.
     version = CureSite.cure_version()
     assert body =~ "v" <> version
 

@@ -18,7 +18,7 @@ defmodule CureSiteWeb.JsonLdTest do
 
       assert org["@type"] == "Organization"
       assert org["name"] == "Cure"
-      assert "https://github.com/am-kantox/cure-lang" in org["sameAs"]
+      assert "https://github.com/cure-lang/cure-lang" in org["sameAs"]
     end
 
     test "appends a single :json_ld assign as a third entry" do
@@ -56,7 +56,7 @@ defmodule CureSiteWeb.JsonLdTest do
       assert schema["softwareVersion"] == "9.9.9"
       assert schema["programmingLanguage"] == "Cure"
       assert schema["operatingSystem"] =~ "BEAM"
-      assert schema["codeRepository"] == "https://github.com/am-kantox/cure-lang"
+      assert schema["codeRepository"] == "https://github.com/cure-lang/cure-lang"
       assert schema["offers"]["price"] == "0"
     end
   end

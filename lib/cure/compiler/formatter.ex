@@ -1,4 +1,6 @@
 defmodule Cure.Compiler.Formatter do
+  alias Cure.MetaAST.Metadata
+
   @moduledoc ~S"""
   Safe, source-preserving formatter for Cure source files.
 
@@ -36,7 +38,7 @@ defmodule Cure.Compiler.Formatter do
 
     * `"..."` string literals (including `#{...}` interpolation),
     * `'...'` character literals,
-    * `~r/.../flags` regex literals,
+    * `/.../flags` regex literals,
     * `## ...` single-line doc comments,
     * `### ... ###` fenced multi-line doc comments.
 
@@ -305,11 +307,6 @@ defmodule Cure.Compiler.Formatter do
     # unicode `✉` (U+2709 ENVELOPE) encodes to three bytes in UTF-8.
     {"<-|", :always_binary},
     {"✉", :always_binary},
-    # compound assignments (always binary, unambiguous)
-    {"+=", :always_binary},
-    {"-=", :always_binary},
-    {"*=", :always_binary},
-    {"/=", :always_binary},
     # comparisons / other two-char operators
     {"==", :always_binary},
     {"!=", :always_binary},
@@ -385,16 +382,16 @@ defmodule Cure.Compiler.Formatter do
   #
   # For `:always_binary` operators we always act. For context-sensitive
   # ones we peek at the surrounding byte to weed out false positives:
-  # `=` must not be the first `=` of `==`, `!=`, `<=`, `>=`, `=>`, or
-  # the assign of a compound-assignment like `+=` (already matched),
-  # `/` must not be part of a regex (protected span would have
-  # already blocked that), `%` must not be the start of `%[` or `%{`.
+  # `=` must not be the first `=` of `==`, `!=`, `<=`, `>=`, `=>`, or a
+  # trailing byte of some other operator run, `/` must not be part of a
+  # regex (protected span would have already blocked that), `%` must not
+  # be the start of `%[` or `%{`.
   defp classify_operator(_source, _pos, _len, _text, :always_binary), do: :binary
 
   defp classify_operator(source, pos, _len, _text, :assign_binary) do
     # Reject if next byte makes this part of a longer op that we
     # didn't match (shouldn't happen because the longer ops come
-    # first) or if prev byte is part of an already-spaced compound op.
+    # first) or if the prev byte makes this the tail of an operator run.
     next = byte_at(source, pos + 1)
 
     cond do
@@ -445,7 +442,7 @@ defmodule Cure.Compiler.Formatter do
     next = byte_at(source, pos + 1)
 
     cond do
-      # FSM transition arrow `--event-->` or `-->`: the lexer eats
+      # Transition-shaped punctuation `--event-->` or `-->`: the lexer eats
       # these whole, but our byte scan can land on one of them. Skip
       # if we see `--` either starting here or immediately before.
       next == ?- -> :skip
@@ -670,9 +667,9 @@ defmodule Cure.Compiler.Formatter do
         stop = scan_char(source, pos + 1, size)
         do_scan(source, stop, size, [{:char, pos, stop} | acc])
 
-      ?~ ->
-        if byte_at(source, pos + 1) == ?r and byte_at(source, pos + 2) == ?/ do
-          stop = scan_regex(source, pos + 3, size)
+      ?/ ->
+        if regex_start?(source, pos) do
+          stop = scan_regex(source, pos + 1, size)
           do_scan(source, stop, size, [{:regex, pos, stop} | acc])
         else
           do_scan(source, pos + 1, size, acc)
@@ -773,8 +770,27 @@ defmodule Cure.Compiler.Formatter do
 
   defp scan_regex_flags(source, pos, size) do
     case :binary.at(source, pos) do
-      c when c in ?a..?z -> scan_regex_flags(source, pos + 1, size)
-      _ -> pos
+      c when c in [?i, ?m, ?s, ?x, ?u, ?f, ?r, ?U, ?E] ->
+        scan_regex_flags(source, pos + 1, size)
+
+      _ ->
+        pos
+    end
+  end
+
+  defp regex_start?(_source, 0), do: true
+
+  defp regex_start?(source, pos) do
+    previous = previous_nonspace(source, pos - 1)
+    previous in [?=, ?(, ?[, ?{, ?,, ?:, ?\n]
+  end
+
+  defp previous_nonspace(_source, pos) when pos < 0, do: nil
+
+  defp previous_nonspace(source, pos) do
+    case :binary.at(source, pos) do
+      c when c in [?s, ?\t, ?\r] -> previous_nonspace(source, pos - 1)
+      c -> c
     end
   end
 
@@ -947,21 +963,10 @@ defmodule Cure.Compiler.Formatter do
   end
 
   defp strip({type, meta, children}) when is_list(meta) do
-    {type, strip_meta(meta), strip(children)}
+    Metadata.strip_diagnostics({type, meta, children})
   end
 
-  defp strip(list) when is_list(list), do: Enum.map(list, &strip/1)
-  defp strip(tuple) when is_tuple(tuple), do: tuple |> Tuple.to_list() |> Enum.map(&strip/1) |> List.to_tuple()
-  defp strip(map) when is_map(map), do: Map.new(map, fn {k, v} -> {k, strip(v)} end)
-  defp strip(other), do: other
-
-  defp strip_meta(meta) do
-    meta
-    |> Keyword.delete(:line)
-    |> Keyword.delete(:col)
-    |> Keyword.delete(:column)
-    |> Enum.map(fn {k, v} -> {k, strip(v)} end)
-  end
+  defp strip(other), do: Metadata.strip_diagnostics(other)
 
   # -- LSP edit helper ---------------------------------------------------------
 

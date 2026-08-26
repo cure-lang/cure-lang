@@ -1,0 +1,11 @@
+mod Im02
+  type Nat = Z | S(Nat)
+  type Bool2 = T | F
+  fn foo(n: Nat) -> Nat =
+    let b = match n
+      Z() -> T()
+      S(k) -> F()
+    match b
+      T() -> Z()
+      F() -> S(Z())
+end

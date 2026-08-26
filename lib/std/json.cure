@@ -1,66 +1,526 @@
+## Exact, typed JSON for Cure.
+##
+## JSON numbers retain their lexical category and normalized exact spelling.
+## Decoding a number into an application type is performed by that type's
+## literal protocol implementation; the JSON layer never routes through Float.
+
+@group(:text)
 mod Std.Json
-  ## JSON encoder and decoder for Cure (v0.23.0).
-  ##
-  ## Runtime companion to the v0.21.0 `@derive(JSON)` extension. The
-  ## decoder returns a `Std.Json.Value` ADT; encoders walk the ADT
-  ## back out to a JSON string.
-  ##
-  ## ## Examples
-  ##
-  ## ```cure
-  ## use Std.Json
-  ##
-  ## match decode("{\"x\": 1}")
-  ##   Ok(v)    -> encode(v)                 # => "{\"x\":1}"
-  ##   Error(_) -> ""
-  ## ```
-  ##
-  ## ```cure
-  ## use Std.Json
-  ##
-  ## let body = Obj([pair("status", Str("ok")), pair("count", num_of_int(3))])
-  ## encode(body)                            # => {"status":"ok","count":3}
-  ## ```
+  use Std.String
+  use Std.Result
+  use Std.Option
+  use Std.List
 
-  ## Group tag consumed by `Cure.Stdlib.Preload`.
-  fn __group__() -> Atom = :text
-
-  ## Key/value pair inside a JSON object. Named rather than using a
-  ## raw tuple type so the ADT surface stays simple.
-  rec JsonPair
+  rec ObjectMember
     key: String
     value: Value
 
-  ## Tag-union representation for any parsed JSON document.
-  ##
-  ## - `Null`        <-> JSON `null`
-  ## - `Bool(b)`     <-> JSON `true` / `false`
-  ## - `Num(n)`      <-> JSON number (always a `Float` at runtime)
-  ## - `Str(s)`      <-> JSON string
-  ## - `Arr(xs)`     <-> JSON array
-  ## - `Obj(kvs)`    <-> JSON object (ordered list of `JsonPair`)
+  type Number =
+    | NaturalNumber(NaturalLiteral)
+    | IntegerNumber(IntegerLiteral)
+    | DecimalNumber(DecimalLiteral)
+
   type Value =
     | Null
-    | Bool(Bool)
-    | Num(Float)
-    | Str(String)
-    | Arr(List(Value))
-    | Obj(List(JsonPair))
+    | Boolean(Bool)
+    | Number(Number)
+    | String(String)
+    | Array(List(Value))
+    | Object(List(ObjectMember))
 
-  ## Encode a `Value` as a JSON string.
-  @extern(:cure_std_json, :encode, 1)
-  fn encode(v: Value) -> String
+  type DecodeError =
+    | InvalidSyntax(String)
+    | UnexpectedValue(String)
+    | InvalidNumber(String)
 
-  ## Decode a JSON string into a `Value`. Returns `Error(msg)` on
-  ## malformed input.
-  @extern(:cure_std_json, :decode, 1)
-  fn decode(src: String) -> Result(Value, String)
+  type ParseResult(t) = Parsed(t, List(Char)) | ParseFailure(DecodeError)
 
-  # -- Construction helpers ----------------------------------------------------
+  rec NumberScan
+    spelling: String
+    rest: List(Char)
+    negative: Bool
+    decimal: Bool
 
-  ## Widen a Cure `Int` to a JSON number `Value` via the integer path.
-  @extern(:cure_std_json, :num_of_int, 1)
-  fn num_of_int(n: Int) -> Value
+  ## Conversion is deliberately split at the structured Value boundary.
+  ## Derivation constructs/consumes Values and therefore cannot accidentally
+  ## double-encode a field or smuggle host JSON semantics into the result.
+  interface ToJSON(t)
+    fn to_json_value(value: t) -> Value
 
-  ## Build a `JsonPair` for use inside `Obj(...)`.
-  fn pair(k: String, v: Value) -> JsonPair = JsonPair{key: k, value: v}
+  interface FromJSON(t)
+    fn from_json_value(value: Value) -> Result(t, DecodeError)
+
+  fn member(key: String, value: Value) -> ObjectMember =
+    ObjectMember{key: key, value: value}
+
+  fn required_member(key: String, members: List(ObjectMember)) -> Result(Value, DecodeError) =
+    match members
+      [] -> Error(UnexpectedValue(Std.String.concat("missing JSON object member: ", key)))
+      [entry | rest] ->
+        pickup
+          entry.key == key -> Ok(entry.value)
+          else -> required_member(key, rest)
+
+  implementation ToJSON for Value
+    fn to_json_value(value: Value) -> Value = value
+
+  implementation ToJSON for Bool
+    fn to_json_value(value: Bool) -> Value = Boolean(value)
+
+  implementation ToJSON for String
+    fn to_json_value(value: String) -> Value = String(value)
+
+  implementation ToJSON for Int
+    fn to_json_value(value: Int) -> Value =
+      Number(IntegerNumber(IntegerLiteral{spelling: Std.String.characters(Std.String.from_int(value)), value: value}))
+
+  implementation ToJSON for Nat
+    fn to_json_value(value: Nat) -> Value =
+      Number(NaturalNumber(NaturalLiteral{spelling: Std.String.characters(Std.String.from_int(FromNat(value))), value: value}))
+
+  implementation ToJSON for Float
+    fn to_json_value(value: Float) -> Value =
+      Number(DecimalNumber(DecimalLiteral{spelling: Std.String.characters(Std.String.from_float(value))}))
+
+  implementation ToJSON for Option(t) requires ToJSON(t)
+    fn to_json_value(value: Option(t)) -> Value =
+      match value
+        Some(item) -> assert_type to_json_value(item) : Value
+        None() -> Null()
+
+  implementation FromJSON for Value
+    fn from_json_value(value: Value) -> Result(Value, DecodeError) = Ok(value)
+
+  implementation FromJSON for Bool
+    fn from_json_value(value: Value) -> Result(Bool, DecodeError) =
+      match value
+        Boolean(result) -> Ok(result)
+        _ -> Error(UnexpectedValue("expected JSON boolean"))
+
+  implementation FromJSON for String
+    fn from_json_value(value: Value) -> Result(String, DecodeError) =
+      match value
+        String(result) -> Ok(result)
+        _ -> Error(UnexpectedValue("expected JSON string"))
+
+  implementation FromJSON for Int
+    fn from_json_value(value: Value) -> Result(Int, DecodeError) =
+      match value
+        Number(NaturalNumber(literal)) -> Ok(FromNat(literal.value))
+        Number(IntegerNumber(literal)) -> Ok(literal.value)
+        _ -> Error(UnexpectedValue("expected integral JSON number"))
+
+  implementation FromJSON for Nat
+    fn from_json_value(value: Value) -> Result(Nat, DecodeError) =
+      match value
+        Number(NaturalNumber(literal)) -> Ok(literal.value)
+        _ -> Error(UnexpectedValue("expected non-negative integral JSON number"))
+
+  implementation FromJSON for Float
+    fn from_json_value(value: Value) -> Result(Float, DecodeError) =
+      match value
+        Number(NaturalNumber(literal)) -> literal_float_natural(literal)
+        Number(IntegerNumber(literal)) -> literal_float_integer(literal)
+        Number(DecimalNumber(literal)) -> literal_float_decimal(literal)
+        _ -> Error(UnexpectedValue("expected JSON number"))
+
+  implementation FromJSON for Option(t) requires FromJSON(t)
+    fn from_json_value(value: Value) -> Result(Option(t), DecodeError) =
+      match value
+        Null() -> assert_type Ok(None()) : Result(Option(t), DecodeError)
+        _ ->
+          let decoded = assert_type from_json_value(value) : Result(t, DecodeError)
+          match decoded
+            Ok(item) -> assert_type Ok(Some(item)) : Result(Option(t), DecodeError)
+            Error(reason) -> assert_type Error(reason) : Result(Option(t), DecodeError)
+
+  local fn literal_float_natural(literal: NaturalLiteral) -> Result(Float, DecodeError) =
+    let converted = assert_type from_natural_literal(literal) : LiteralResult(Float)
+    match converted
+      LiteralValue(value) -> Ok(value)
+      InvalidLiteral() -> Error(InvalidNumber(Std.String.from_characters(literal.spelling)))
+
+  local fn literal_float_integer(literal: IntegerLiteral) -> Result(Float, DecodeError) =
+    let converted = assert_type from_integer_literal(literal) : LiteralResult(Float)
+    match converted
+      LiteralValue(value) -> Ok(value)
+      InvalidLiteral() -> Error(InvalidNumber(Std.String.from_characters(literal.spelling)))
+
+  local fn literal_float_decimal(literal: DecimalLiteral) -> Result(Float, DecodeError) =
+    let converted = assert_type from_decimal_literal(literal) : LiteralResult(Float)
+    match converted
+      LiteralValue(value) -> Ok(value)
+      InvalidLiteral() -> Error(InvalidNumber(Std.String.from_characters(literal.spelling)))
+
+  ## Render the structured tree entirely in Cure. Only principled character and
+  ## numeric primitives used by the wider stdlib remain across the extern edge.
+  fn encode(value: Value) -> String = render_value(value)
+
+  fn to_json(value: t) -> String requires ToJSON(t) = encode(to_json_value(value))
+
+  local fn render_value(value: Value) -> String =
+    match value
+      Null() -> "null"
+      Boolean(true) -> "true"
+      Boolean(false) -> "false"
+      Number(number) -> render_number(number)
+      String(text) -> Std.String.concat("\"", Std.String.concat(escape(text), "\""))
+      Array(values) -> Std.String.concat("[", Std.String.concat(render_values(values), "]"))
+      Object(members) -> Std.String.concat("{", Std.String.concat(render_members(members), "}"))
+
+  local fn render_number(number: Number) -> String =
+    match number
+      NaturalNumber(literal) -> Std.String.from_characters(literal.spelling)
+      IntegerNumber(literal) -> Std.String.from_characters(literal.spelling)
+      DecimalNumber(literal) -> Std.String.from_characters(literal.spelling)
+
+  local fn render_values(values: List(Value)) -> String =
+    match values
+      [] -> ""
+      [head] -> render_value(head)
+      [head | rest] -> Std.String.concat(render_value(head), Std.String.concat(",", render_values(rest)))
+
+  local fn render_members(members: List(ObjectMember)) -> String =
+    match members
+      [] -> ""
+      [head] -> render_member(head)
+      [head | rest] -> Std.String.concat(render_member(head), Std.String.concat(",", render_members(rest)))
+
+  local fn render_member(entry: ObjectMember) -> String =
+    Std.String.concat("\"", Std.String.concat(escape(entry.key), Std.String.concat("\":", render_value(entry.value))))
+
+  local fn escape(text: String) -> String =
+    Std.String.from_characters(Std.List.reverse(escape_reversed(Std.String.characters(text), [])))
+
+  local fn escape_reversed(text: List(Char), output: List(Char)) -> List(Char) =
+    match text
+      [] -> output
+      [char | rest] -> escape_reversed(rest, prepend_escape(char, output))
+
+  local fn prepend_escape(char: Char, output: List(Char)) -> List(Char) =
+    pickup
+      Std.Char.same(char, '"') -> ['"', '\\' | output]
+      Std.Char.same(char, '\\') -> ['\\', '\\' | output]
+      Std.Char.same(char, '\b') -> ['b', '\\' | output]
+      Std.Char.same(char, '\f') -> ['f', '\\' | output]
+      Std.Char.same(char, '\n') -> ['n', '\\' | output]
+      Std.Char.same(char, '\r') -> ['r', '\\' | output]
+      Std.Char.same(char, '\t') -> ['t', '\\' | output]
+      Std.Char.code_point(char) < 32 -> prepend_unicode_control(Std.Char.code_point(char), output)
+      else -> [char | output]
+
+  local fn prepend_unicode_control(point: Int, output: List(Char)) -> List(Char) =
+    [hex_digit(point % 16), hex_digit((point / 16) % 16), '0', '0', 'u', '\\' | output]
+
+  local fn hex_digit(value: Int) -> Char =
+    pickup
+      value < 10 -> Std.Char.from_valid_code_point(48 + value)
+      else -> Std.Char.from_valid_code_point(87 + value)
+
+  fn decode(source: String) -> Result(Value, DecodeError) =
+    match parse_value(skip_space(Std.String.characters(source)))
+      Parsed(value, rest) ->
+        match skip_space(rest)
+          [] -> Ok(value)
+          trailing -> Error(InvalidSyntax(Std.String.from_characters(trailing)))
+      ParseFailure(reason) -> Error(reason)
+
+  fn decode_as(source: String) -> Result(t, DecodeError) requires FromJSON(t) =
+    match decode(source)
+      Ok(value) -> assert_type from_json_value(value) : Result(t, DecodeError)
+      Error(reason) -> assert_type Error(reason) : Result(t, DecodeError)
+
+  local fn parse_value(source: List(Char)) -> ParseResult(Value) =
+    match source
+      [] -> ParseFailure(InvalidSyntax("expected JSON value"))
+      [head | rest] ->
+        pickup
+          Std.Char.same(head, 'n') -> parse_keyword(rest, Std.String.characters("ull"), Null())
+          Std.Char.same(head, 't') -> parse_keyword(rest, Std.String.characters("rue"), Boolean(true))
+          Std.Char.same(head, 'f') -> parse_keyword(rest, Std.String.characters("alse"), Boolean(false))
+          Std.Char.same(head, '"') -> parse_string(rest, [])
+          Std.Char.same(head, '[') -> parse_array(skip_space(rest), [])
+          Std.Char.same(head, '{') -> parse_object(skip_space(rest), [])
+          is_number_start(head) -> parse_number(source)
+          else -> ParseFailure(InvalidSyntax(Std.String.from_characters(source)))
+
+  local fn parse_keyword(source: List(Char), wanted: List(Char), value: Value) -> ParseResult(Value) =
+    match wanted
+      [] -> Parsed(value, source)
+      [expected | expected_rest] ->
+        match source
+          [actual | rest] ->
+            pickup
+              Std.Char.same(actual, expected) -> parse_keyword(rest, expected_rest, value)
+              else -> ParseFailure(InvalidSyntax(Std.String.from_characters(source)))
+          [] -> ParseFailure(InvalidSyntax("incomplete JSON keyword"))
+
+  local fn parse_string(source: List(Char), reversed: List(Char)) -> ParseResult(Value) =
+    match source
+      [] -> ParseFailure(InvalidSyntax("unterminated JSON string"))
+      [head | rest] ->
+        pickup
+          Std.Char.same(head, '"') ->
+            Parsed(String(Std.String.from_characters(Std.List.reverse(reversed))), rest)
+          Std.Char.same(head, '\\') -> parse_escape(rest, reversed)
+          Std.Char.code_point(head) < 32 -> ParseFailure(InvalidSyntax("unescaped control character in JSON string"))
+          else -> parse_string(rest, [head | reversed])
+
+  local fn parse_escape(source: List(Char), reversed: List(Char)) -> ParseResult(Value) =
+    match source
+      [] -> ParseFailure(InvalidSyntax("incomplete JSON escape"))
+      [escaped | rest] ->
+        pickup
+          Std.Char.same(escaped, '"') -> parse_string(rest, ['"' | reversed])
+          Std.Char.same(escaped, '\\') -> parse_string(rest, ['\\' | reversed])
+          Std.Char.same(escaped, '/') -> parse_string(rest, ['/' | reversed])
+          Std.Char.same(escaped, 'b') -> parse_string(rest, ['\b' | reversed])
+          Std.Char.same(escaped, 'f') -> parse_string(rest, ['\f' | reversed])
+          Std.Char.same(escaped, 'n') -> parse_string(rest, ['\n' | reversed])
+          Std.Char.same(escaped, 'r') -> parse_string(rest, ['\r' | reversed])
+          Std.Char.same(escaped, 't') -> parse_string(rest, ['\t' | reversed])
+          Std.Char.same(escaped, 'u') -> parse_unicode_escape(rest, reversed)
+          else -> ParseFailure(InvalidSyntax("invalid JSON escape"))
+
+  local fn parse_unicode_escape(source: List(Char), reversed: List(Char)) -> ParseResult(Value) =
+    match four_hex(source)
+      Parsed(first, rest) ->
+        pickup
+          first >= 55296 ->
+            pickup
+              first <= 56319 -> parse_low_surrogate(first, rest, reversed)
+              first <= 57343 -> ParseFailure(InvalidSyntax("unpaired low surrogate"))
+              else -> append_code_point(first, rest, reversed)
+          else -> append_code_point(first, rest, reversed)
+      ParseFailure(reason) -> ParseFailure(reason)
+
+  local fn parse_low_surrogate(high: Int, source: List(Char), reversed: List(Char)) -> ParseResult(Value) =
+    match source
+      [slash, u | rest] ->
+        pickup
+          Std.Char.same(slash, '\\') ->
+            pickup
+              Std.Char.same(u, 'u') ->
+                match four_hex(rest)
+                  Parsed(low, remaining) ->
+                    pickup
+                      low >= 56320 ->
+                        pickup
+                          low <= 57343 -> append_code_point(65536 + (high - 55296) * 1024 + (low - 56320), remaining, reversed)
+                          else -> ParseFailure(InvalidSyntax("invalid low surrogate"))
+                      else -> ParseFailure(InvalidSyntax("invalid low surrogate"))
+                  ParseFailure(reason) -> ParseFailure(reason)
+              else -> ParseFailure(InvalidSyntax("high surrogate requires a low surrogate"))
+          else -> ParseFailure(InvalidSyntax("high surrogate requires a low surrogate"))
+      _ -> ParseFailure(InvalidSyntax("high surrogate requires a low surrogate"))
+
+  local fn append_code_point(value: Int, rest: List(Char), reversed: List(Char)) -> ParseResult(Value) =
+    parse_string(rest, [Std.Char.from_valid_code_point(value) | reversed])
+
+  local fn four_hex(source: List(Char)) -> ParseResult(Int) =
+    match source
+      [a, b, c, d | rest] ->
+        match hex_values([a, b, c, d])
+          Ok([av, bv, cv, dv]) -> Parsed(av * 4096 + bv * 256 + cv * 16 + dv, rest)
+          Ok(_) -> ParseFailure(InvalidSyntax("incomplete Unicode escape"))
+          Error(reason) -> ParseFailure(reason)
+      _ -> ParseFailure(InvalidSyntax("incomplete Unicode escape"))
+
+  local fn hex_values(chars: List(Char)) -> Result(List(Int), DecodeError) =
+    match chars
+      [] -> Ok([])
+      [head | rest] ->
+        match hex_value(head)
+          Ok(value) ->
+            match hex_values(rest)
+              Ok(values) -> Ok([value | values])
+              Error(reason) -> Error(reason)
+          Error(reason) -> Error(reason)
+
+  local fn hex_value(char: Char) -> Result(Int, DecodeError) =
+    let point = Std.Char.code_point(char)
+    pickup
+      point >= 48 -> pickup
+        point <= 57 -> Ok(point - 48)
+        point >= 65 -> pickup
+          point <= 70 -> Ok(point - 55)
+          point >= 97 -> pickup
+            point <= 102 -> Ok(point - 87)
+            else -> Error(InvalidSyntax("invalid hexadecimal escape"))
+          else -> Error(InvalidSyntax("invalid hexadecimal escape"))
+        else -> Error(InvalidSyntax("invalid hexadecimal escape"))
+      else -> Error(InvalidSyntax("invalid hexadecimal escape"))
+
+  local fn parse_array(source: List(Char), reversed: List(Value)) -> ParseResult(Value) =
+    match source
+      [head | rest] ->
+        pickup
+          Std.Char.same(head, ']') -> Parsed(Array(Std.List.reverse(reversed)), rest)
+          else -> parse_array_value(source, reversed)
+      [] -> ParseFailure(InvalidSyntax("unterminated JSON array"))
+
+  local fn parse_array_value(source: List(Char), reversed: List(Value)) -> ParseResult(Value) =
+    match parse_value(source)
+      Parsed(value, remaining) -> parse_array_separator(skip_space(remaining), [value | reversed])
+      ParseFailure(reason) -> ParseFailure(reason)
+
+  local fn parse_array_separator(source: List(Char), reversed: List(Value)) -> ParseResult(Value) =
+    match source
+      [head | rest] ->
+        pickup
+          Std.Char.same(head, ',') -> parse_array_value(skip_space(rest), reversed)
+          Std.Char.same(head, ']') -> Parsed(Array(Std.List.reverse(reversed)), rest)
+          else -> ParseFailure(InvalidSyntax("expected ',' or ']'"))
+      [] -> ParseFailure(InvalidSyntax("unterminated JSON array"))
+
+  local fn parse_object(source: List(Char), reversed: List(ObjectMember)) -> ParseResult(Value) =
+    match source
+      [head | rest] ->
+        pickup
+          Std.Char.same(head, '}') -> Parsed(Object(Std.List.reverse(reversed)), rest)
+          Std.Char.same(head, '"') -> parse_object_member(rest, reversed)
+          else -> ParseFailure(InvalidSyntax("expected JSON object key"))
+      [] -> ParseFailure(InvalidSyntax("unterminated JSON object"))
+
+  local fn parse_object_member(source: List(Char), reversed: List(ObjectMember)) -> ParseResult(Value) =
+    match parse_string(source, [])
+      Parsed(String(key), remaining) -> parse_member_colon(key, skip_space(remaining), reversed)
+      Parsed(_, _) -> ParseFailure(InvalidSyntax("object key is not a string"))
+      ParseFailure(reason) -> ParseFailure(reason)
+
+  local fn parse_member_colon(key: String, source: List(Char), reversed: List(ObjectMember)) -> ParseResult(Value) =
+    match source
+      [head | rest] ->
+        pickup
+          Std.Char.same(head, ':') ->
+            match parse_value(skip_space(rest))
+              Parsed(value, remaining) -> parse_object_separator(skip_space(remaining), [member(key, value) | reversed])
+              ParseFailure(reason) -> ParseFailure(reason)
+          else -> ParseFailure(InvalidSyntax("expected ':' after object key"))
+      [] -> ParseFailure(InvalidSyntax("unterminated JSON object"))
+
+  local fn parse_object_separator(source: List(Char), reversed: List(ObjectMember)) -> ParseResult(Value) =
+    match source
+      [head | rest] ->
+        pickup
+          Std.Char.same(head, ',') ->
+            match skip_space(rest)
+              ['"' | member_rest] -> parse_object_member(member_rest, reversed)
+              _ -> ParseFailure(InvalidSyntax("expected JSON object key after ','"))
+          Std.Char.same(head, '}') -> Parsed(Object(Std.List.reverse(reversed)), rest)
+          else -> ParseFailure(InvalidSyntax("expected ',' or '}'"))
+      [] -> ParseFailure(InvalidSyntax("unterminated JSON object"))
+
+  local fn parse_number(source: List(Char)) -> ParseResult(Value) =
+    match scan_number(source)
+      Parsed(scan, _) ->
+        pickup
+          scan.decimal -> Parsed(Number(DecimalNumber(DecimalLiteral{spelling: Std.String.characters(scan.spelling)})), scan.rest)
+          scan.negative -> Parsed(Number(IntegerNumber(IntegerLiteral{spelling: Std.String.characters(scan.spelling), value: Std.String.to_int(scan.spelling)})), scan.rest)
+          else -> Parsed(Number(NaturalNumber(NaturalLiteral{spelling: Std.String.characters(scan.spelling), value: Std.Nat.of_int(Std.String.to_int(scan.spelling))})), scan.rest)
+      ParseFailure(reason) -> ParseFailure(reason)
+
+  local fn scan_number(source: List(Char)) -> ParseResult(NumberScan) =
+    match source
+      [head | rest] ->
+        pickup
+          Std.Char.same(head, '-') -> scan_integer_part(rest, ['-'], true)
+          else -> scan_integer_part(source, [], false)
+      [] -> ParseFailure(InvalidNumber(Std.String.from_characters(source)))
+
+  local fn scan_integer_part(source: List(Char), reversed: List(Char), negative: Bool) -> ParseResult(NumberScan) =
+    match source
+      [head | rest] ->
+        pickup
+          Std.Char.same(head, '0') -> scan_fraction_or_exponent(rest, ['0' | reversed], negative, false)
+          digit_1_to_9(head) ->
+            let scanned = scan_digits(rest, [head | reversed])
+            scan_fraction_or_exponent(scanned.2, scanned.1, negative, false)
+          else -> ParseFailure(InvalidNumber(Std.String.from_characters(source)))
+      [] -> ParseFailure(InvalidNumber(Std.String.from_characters(source)))
+
+  local fn scan_fraction_or_exponent(source: List(Char), reversed: List(Char), negative: Bool, decimal: Bool) -> ParseResult(NumberScan) =
+    match source
+      [head | rest] ->
+        pickup
+          Std.Char.same(head, '.') ->
+            match rest
+              [digit | digits] ->
+                pickup
+                  is_digit(digit) ->
+                    let scanned = scan_digits(digits, [digit, '.' | reversed])
+                    scan_exponent(scanned.2, scanned.1, negative)
+                  else -> ParseFailure(InvalidNumber(Std.String.from_characters(source)))
+              [] -> ParseFailure(InvalidNumber(Std.String.from_characters(source)))
+          Std.Char.same(head, 'e') -> scan_exponent_digits(rest, ['e' | reversed], negative)
+          Std.Char.same(head, 'E') -> scan_exponent_digits(rest, ['E' | reversed], negative)
+          else -> Parsed(NumberScan{spelling: Std.String.from_characters(Std.List.reverse(reversed)), rest: source, negative: negative, decimal: decimal}, source)
+      [] -> Parsed(NumberScan{spelling: Std.String.from_characters(Std.List.reverse(reversed)), rest: [], negative: negative, decimal: decimal}, [])
+
+  local fn scan_exponent(source: List(Char), reversed: List(Char), negative: Bool) -> ParseResult(NumberScan) =
+    match source
+      [head | rest] ->
+        pickup
+          Std.Char.same(head, 'e') -> scan_exponent_digits(rest, ['e' | reversed], negative)
+          Std.Char.same(head, 'E') -> scan_exponent_digits(rest, ['E' | reversed], negative)
+          else -> Parsed(NumberScan{spelling: Std.String.from_characters(Std.List.reverse(reversed)), rest: source, negative: negative, decimal: true}, source)
+      [] -> Parsed(NumberScan{spelling: Std.String.from_characters(Std.List.reverse(reversed)), rest: [], negative: negative, decimal: true}, [])
+
+  local fn scan_exponent_digits(source: List(Char), reversed: List(Char), negative: Bool) -> ParseResult(NumberScan) =
+    match source
+      [sign | rest] ->
+        pickup
+          Std.Char.same(sign, '+') -> finish_exponent_digits(rest, [sign | reversed], negative)
+          Std.Char.same(sign, '-') -> finish_exponent_digits(rest, [sign | reversed], negative)
+          else -> finish_exponent_digits(source, reversed, negative)
+      [] -> ParseFailure(InvalidNumber(Std.String.from_characters(source)))
+
+  local fn finish_exponent_digits(source: List(Char), reversed: List(Char), negative: Bool) -> ParseResult(NumberScan) =
+    match source
+      [digit | rest] ->
+        pickup
+          is_digit(digit) ->
+            let scanned = scan_digits(rest, [digit | reversed])
+            Parsed(NumberScan{spelling: Std.String.from_characters(Std.List.reverse(scanned.1)), rest: scanned.2, negative: negative, decimal: true}, scanned.2)
+          else -> ParseFailure(InvalidNumber(Std.String.from_characters(source)))
+      [] -> ParseFailure(InvalidNumber(Std.String.from_characters(source)))
+
+  local fn scan_digits(source: List(Char), reversed: List(Char)) -> Tuple(List(Char), List(Char)) =
+    match source
+      [head | rest] ->
+        pickup
+          is_digit(head) -> scan_digits(rest, [head | reversed])
+          else -> %[reversed, source]
+      [] -> %[reversed, []]
+
+  local fn is_number_start(char: Char) -> Bool =
+    pickup
+      Std.Char.same(char, '-') -> true
+      else -> is_digit(char)
+
+  local fn is_digit(char: Char) -> Bool =
+    let point = Std.Char.code_point(char)
+    pickup
+      point >= 48 -> pickup
+        point <= 57 -> true
+        else -> false
+      else -> false
+
+  local fn digit_1_to_9(char: Char) -> Bool =
+    let point = Std.Char.code_point(char)
+    pickup
+      point >= 49 -> pickup
+        point <= 57 -> true
+        else -> false
+      else -> false
+
+  local fn skip_space(source: List(Char)) -> List(Char) =
+    match source
+      [head | rest] ->
+        pickup
+          Std.Char.same(head, ' ') -> skip_space(rest)
+          Std.Char.same(head, '\t') -> skip_space(rest)
+          Std.Char.same(head, '\n') -> skip_space(rest)
+          Std.Char.same(head, '\r') -> skip_space(rest)
+          else -> source
+      [] -> []

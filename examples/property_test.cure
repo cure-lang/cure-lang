@@ -12,7 +12,7 @@ mod PropertyTest
 
   ## Property: `n + 0 == n` holds for every integer.
   ## Trivially true; used here to drive the generator loop.
-  fn check_plus_zero() -> Atom =
+  fn check_plus_zero() -> Unit =
     forall(
       fn(_) -> int_in(-100, 100),
       fn(n)  -> n + 0 == n,
@@ -20,7 +20,7 @@ mod PropertyTest
     )
 
   ## Property: adding a positive number grows the result.
-  fn check_monotone() -> Atom =
+  fn check_monotone() -> Unit =
     forall(
       fn(_) -> int_in(1, 50),
       fn(n)  -> n + 1 > n,
@@ -30,4 +30,5 @@ mod PropertyTest
   ## Run both checks and return `:ok` if neither raised.
   fn main() -> Atom =
     let _ = check_plus_zero()
-    check_monotone()
+    let _ = check_monotone()
+    :ok

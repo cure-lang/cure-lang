@@ -1,19 +1,9 @@
-## Painter actor for the Cure atelier showcase.
-##
-## In the Atelier.Gallery session-typed protocol the Painter role
-## sends a single `SubmitPiece` message carrying the title and the
-## list of tags, then waits for the Curator's response. This actor
-## keeps the last submission as its payload so the test suite can
-## assert on round-trips.
+## Transparent actor example. The payload is ordinary Cure data.
 
-actor Painter with %[:idle, ""]
-  on_start
-    (state) -> state
-  on_message
-    (%[:submit, title], _state) ->
-      %[:submitted, title]
-    (:reset, _state) ->
-      %[:idle, ""]
-    (:get, state) ->
-      notify(%[:painter_state, state])
-      state
+use Std.Actor
+
+actor Painter
+  state Tuple(Atom, String)
+  initial %[:idle, ""]
+  body
+    fn initial_state() -> Atom = :idle

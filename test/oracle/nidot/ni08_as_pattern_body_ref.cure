@@ -1,0 +1,8 @@
+mod Ni08
+  type Nat = Z | S(Nat)
+  type Vec(a: Type) indices (n: Nat)
+    vnil : Vec(a, Z)
+    vcons : a -> Vec(a, n) -> Vec(a, S(n))
+  fn g({a: Type}, {k: Nat}, v: Vec(a, S(k))) -> Vec(a, S(k)) = match v
+    w @ vcons({n = .k}, h, t) -> w
+end

@@ -1,0 +1,92 @@
+@group(:core)
+@prelude
+mod Std.Sigma
+  ## The dependent pair (Σ-type) — `Sigma(a, b)` packages a value `x : a` together
+  ## with a value of type `b(x)`, where the second component's type may depend on
+  ## the first. This is the library inductive that the compiler wires the surface
+  ## sugar to: `%[x, y]` builds one, `.1`/`.2` project, and `Sigma(x: T, U)` is the
+  ## type syntax (spec 2026-07-09-sigma-retirement).
+  ##
+  ## (Do not confuse this with `Std.Pair`, the non-dependent 2-tuple helpers.
+  ## `Sigma` is the dependently-typed form checked by the kernel; both share the
+  ## bare BEAM 2-tuple representation.)
+  ##
+  ## The `sigma_first`/`sigma_second` projection globals that `.1`/`.2` lower to are
+  ## added in D2 T2, once the surface `Sigma(x: T, U)` type lowers to this inductive
+  ## (before that, a `match` on a `Sigma`-typed value cannot be typed against the
+  ## `mk_pair` constructor).
+
+  ## Group tag consumed by `Cure.Stdlib.Preload`.
+  ## The dependent-pair type. The `@builtin(:sigma)` decorator binds this
+  ## declaration to the kernel's canonical Sigma family, so `Sigma`/`mk_pair` are
+  ## ordinary, go-to-definition-able names even though the compiler lowers the
+  ## `%[..]`/`.1`/`.2` surface sugar onto them. `mk_pair(x, y) : Sigma(a, b)` is the
+  ## sole constructor.
+  @builtin(:sigma)
+  type Sigma(a: Type, b: (a) -> Type) indices ()
+    mk_pair : (x: a) -> b(x) -> Sigma(a, b)
+
+  ## First projection: the witness. Surface users write `p.1`; the compiler lowers
+  ## it to this global (inlined to `element(1, p)` at codegen, keeping the bare
+  ## 2-tuple ABI). `a`/`b` are erased at runtime. The parameter type is written with
+  ## the `Sigma(x: T, U)` surface (a plain `Sigma(a, b)` is reserved by the parser).
+  @reducible
+  fn sigma_first({a: Type}, {b: (a) -> Type}, p: Sigma(x: a, b(x))) -> a = match p
+    mk_pair(x, y) -> x
+
+  ## Second projection: the dependent payload, at type `b(sigma_first(p))`. Surface
+  ## users write `p.2`; lowered to this global (inlined to `element(2, p)`).
+  @reducible
+  fn sigma_second({a: Type}, {b: (a) -> Type}, p: Sigma(x: a, b(x))) -> b(sigma_first(p)) = match p
+    mk_pair(x, y) -> y
+
+  ## --- flat-telescope positional projections `tproj2 … tproj8` ---------------
+  ##
+  ## A flat n-ary tuple `Tuple(T1, …, Tn)` is the unit-terminated telescope
+  ## `Sigma(T1, … Sigma(Tn, Unit))` and lowers to a FLAT BEAM tuple `{e1, …, en}`.
+  ## Its intermediate tails have no contiguous runtime representation (only leaf
+  ## `element(i)` slots do), so `.i` (for `i ≥ 2`) cannot go through
+  ## `sigma_second` — that projects the TAIL, whose type is a shorter telescope,
+  ## not the i-th component. These globals give the i-th component its true type
+  ## `Ti` (the body is the well-typed `sigma_first ∘ sigma_second^(i-1)`
+  ## composition, checked but never run) while INLINING at codegen to
+  ## `element(i, p)` — the same trick `sigma_first`/`sigma_second` use to stay
+  ## zero-cost on the BEAM tuple ABI. The prefix `{r: Type}` absorbs the tail, so
+  ## `tproj_i` accepts any telescope of arity ≥ i (`.2` on an arity-5 tuple binds
+  ## `r := Sigma(T3, … Unit)`). Arity ≥ 3 telescopes are non-dependent products,
+  ## so the component types do not depend on earlier elements. `.1` stays
+  ## `sigma_first` (already correct for any telescope); `Tuple` arity caps at 8.
+  @reducible
+  fn tproj2({a: Type}, {b: Type}, {r: Type},
+            p: Sigma(x1: a, Sigma(x2: b, r))) -> b =
+    sigma_first(sigma_second(p))
+
+  @reducible
+  fn tproj3({a: Type}, {b: Type}, {c: Type}, {r: Type},
+            p: Sigma(x1: a, Sigma(x2: b, Sigma(x3: c, r)))) -> c =
+    sigma_first(sigma_second(sigma_second(p)))
+
+  @reducible
+  fn tproj4({a: Type}, {b: Type}, {c: Type}, {d: Type}, {r: Type},
+            p: Sigma(x1: a, Sigma(x2: b, Sigma(x3: c, Sigma(x4: d, r))))) -> d =
+    sigma_first(sigma_second(sigma_second(sigma_second(p))))
+
+  @reducible
+  fn tproj5({a: Type}, {b: Type}, {c: Type}, {d: Type}, {e: Type}, {r: Type},
+            p: Sigma(x1: a, Sigma(x2: b, Sigma(x3: c, Sigma(x4: d, Sigma(x5: e, r)))))) -> e =
+    sigma_first(sigma_second(sigma_second(sigma_second(sigma_second(p)))))
+
+  @reducible
+  fn tproj6({a: Type}, {b: Type}, {c: Type}, {d: Type}, {e: Type}, {f: Type}, {r: Type},
+            p: Sigma(x1: a, Sigma(x2: b, Sigma(x3: c, Sigma(x4: d, Sigma(x5: e, Sigma(x6: f, r))))))) -> f =
+    sigma_first(sigma_second(sigma_second(sigma_second(sigma_second(sigma_second(p))))))
+
+  @reducible
+  fn tproj7({a: Type}, {b: Type}, {c: Type}, {d: Type}, {e: Type}, {f: Type}, {g: Type}, {r: Type},
+            p: Sigma(x1: a, Sigma(x2: b, Sigma(x3: c, Sigma(x4: d, Sigma(x5: e, Sigma(x6: f, Sigma(x7: g, r)))))))) -> g =
+    sigma_first(sigma_second(sigma_second(sigma_second(sigma_second(sigma_second(sigma_second(p)))))))
+
+  @reducible
+  fn tproj8({a: Type}, {b: Type}, {c: Type}, {d: Type}, {e: Type}, {f: Type}, {g: Type}, {h: Type}, {r: Type},
+            p: Sigma(x1: a, Sigma(x2: b, Sigma(x3: c, Sigma(x4: d, Sigma(x5: e, Sigma(x6: f, Sigma(x7: g, Sigma(x8: h, r))))))))) -> h =
+    sigma_first(sigma_second(sigma_second(sigma_second(sigma_second(sigma_second(sigma_second(sigma_second(p))))))))

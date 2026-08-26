@@ -1,232 +1,132 @@
 %{
   title: "Getting Started",
-  description: "Install and run your first Cure program.",
+  description: "Install Cure and run your first typed BEAM program.",
   order: 1
 }
 ---
-## Prerequisites
+## Before you begin
 
-Cure requires:
+Cure currently builds from source. You will need:
 
-- **Elixir** ~> 1.18 and **Erlang/OTP** (the version compatible with your Elixir)
-- **Git** for cloning the repository
-- **Z3 SMT solver** (optional) -- needed only for refinement type verification. Install via your package manager (`apt install z3`, `brew install z3`, etc.). If Z3 is not present, the compiler skips SMT-backed checks and emits a warning.
+- **Elixir** 1.18 or later and a compatible **Erlang/OTP** installation
+- **Git**
+- **Z3**, optional, for the compiler's SMT-backed checks
 
-## Installation
+If you already have Elixir and Git, you can be running Cure in a few minutes.
 
-Clone the repository and fetch dependencies:
+## Install Cure
+
+Clone the repository and build the compiler:
 
 ```bash
-git clone https://github.com/am-kantox/cure-lang.git
+git clone https://github.com/cure-lang/cure-lang.git
 cd cure-lang
 mix deps.get
 mix compile
-```
-
-## Building the escript
-
-Cure {{cure_vversion}} ships with a standalone CLI. Build it with the dedicated Mix
-task:
-
-```bash
 mix cure.escript
 ```
 
-This compiles the project and produces a `cure` binary in the project root.
-Move it somewhere on your `$PATH` to use it globally:
+The last command creates a `cure` executable in the project root. Put it on
+your `PATH` if you want to use it from other projects:
 
 ```bash
 cp cure ~/.local/bin/
-```
-
-Verify the installation:
-
-```bash
 cure version
-# Cure {{cure_version}}
 ```
 
-## Hello World
+## Write a program
 
-Create a file `examples/hello.cure`:
+Create `hello.cure`:
 
 ```cure
 mod Hello
-  fn greet(name: String) -> String = "Hello, " <> name <> "!"
-  fn main() -> Int = 42
+
+fn greet(_name: String) -> String = "Hello, Cure!"
+
+fn main() -> String = greet("Cure")
 ```
 
-Every Cure module starts with `mod ModuleName`. Functions are declared with `fn`, typed parameters, a return type annotation, and a body after `=`. The last expression in a block is its return value.
+Every Cure source file declares a module. Functions have explicit parameter
+and result types, and the final expression is the function's result.
 
-## Compiling
+## Check, compile, and run
+
+Start with a type check. This validates the program without writing BEAM
+output:
 
 ```bash
-cure compile examples/hello.cure
+cure check hello.cure
 ```
 
-This runs the full pipeline -- lexer, parser, bidirectional type checker, BEAM code generation -- and writes a `.beam` file to `_build/cure/ebin/`. You can specify a different output directory:
+Compile and run it:
 
 ```bash
-cure compile examples/hello.cure --output-dir ./out
+cure compile hello.cure
+cure run hello.cure
 ```
 
-Compile an entire directory at once:
+Compilation runs the full pipeline and publishes a verified artifact generation
+under `_build/cure/project/ebin/`.
+
+`cure run` compiles the source, loads the resulting BEAM module, and calls
+`main/0`. You should see:
+
+```text
+"Hello, Cure!"
+```
+
+The compiler reports parse errors, type errors, warnings, and their error
+codes in one place. When an error code is unfamiliar, ask Cure for its full
+explanation:
 
 ```bash
-cure compile examples/ --output-dir _build/cure/ebin
+cure explain E093
 ```
 
-## Running
+## Try the standard library
 
-```bash
-cure run examples/hello.cure
-```
-
-This compiles the file, loads the module into the VM, and calls `main/0` if it exists. The return value is printed to stdout (unless it is `:ok` or `nil`).
-
-## Type checking
-
-To type-check without generating BEAM output:
-
-```bash
-cure check examples/hello.cure
-```
-
-This runs the lexer, parser, and bidirectional type checker, then reports any type errors or warnings. No `.beam` file is produced.
-
-## Compiling the standard library
-
-The standard library is self-hosted -- written in Cure under `lib/std/`. Compile it with:
+The standard library is written in Cure and ships with the repository. Browse
+the generated reference at [/stdlib](/stdlib), or compile it locally:
 
 ```bash
 cure stdlib
 ```
 
-Or via the Mix task:
+The same source comments power the website and the local documentation build:
 
 ```bash
-mix cure.compile_stdlib
+cure doc lib/std -o _build/cure/doc
 ```
 
-This compiles all `.cure` files in `lib/std/` and writes the resulting `.beam` files to `_build/cure/ebin/`. The stdlib ships 33+ modules (`Std.Core`, `Std.List`, `Std.Math`, `Std.String`, `Std.Pair`, `Std.Show`, `Std.Io`, `Std.System`, `Std.Map`, `Std.Set`, `Std.Option`, `Std.Functor`, `Std.Equal`, `Std.Refine`, `Std.Match`, `Std.Proof`, `Std.Gen`, `Std.Iter`, `Std.Access`, `Std.Json`, `Std.Http`, `Std.Actor`, `Std.Process`, `Std.Supervisor`, `Std.App`, `Std.Time`, `Std.Regex`, `Std.CRDT`, and more). As of v0.29.0 every module carries a module-level `## Examples` block; browse the rendered docs at [cure-lang.org/stdlib](/stdlib) or run `cure doc` locally to produce the same two-pane layout under `_build/cure/doc/`.
+Open `_build/cure/doc/index.html` to browse the local copy.
 
-## Other CLI commands
+## Explore Cure by intent
+
+- [Language Guide](/language-guide) for syntax, functions, modules, and pattern matching
+- [Type System](/type-system) for refinements and dependent types
+- [Finite State Machines](/finite-state-machines) for verified state transitions
+- [Actors](/actors) for typed supervision trees and BEAM processes
+- [Applications](/applications) for OTP application structure and releases
+- [Standard Library](/stdlib) for source-generated module and API documentation
+
+## Choose your tools
+
+The compiler includes a terminal REPL, an LSP, and an MCP server for editor
+and assistant integrations. The [Tooling guide](/tooling) covers installation
+and configuration without interrupting this first-run path.
+
+For an interactive introduction, take the [Language Tour](/tour), then use
+the local REPL for open-ended exploration.
+
+## Build something larger
+
+Once the hello-world loop feels familiar, try one of the repository examples:
 
 ```bash
-cure version              # Show the Cure version
-cure help                 # Show usage information
-cure explain E011         # Show a detailed explanation for an error code
-cure new myproject --lib  # Scaffold a new library project
-cure new myapp --app      # Scaffold a new OTP app (v0.26.0): app + sup
-                          # root, matching [application] / [release] in
-                          # Cure.toml
-cure deps                 # List dependencies
-cure deps tree            # Inspect dependency graph
-cure deps update          # Refresh Cure.lock
-cure test --doctests      # Run tests, including doctests
-cure test --cover         # Emit _build/cure/cover/index.html
-cure release              # Build a bootable BEAM release under
-                          # _build/cure/rel/<name>/ (v0.26.0)
-cure release --include-erts # Bundle ERTS into the release
-cure repl                 # Raw-mode REPL with syntax highlighting,
-                          # persistent history, Ctrl+R reverse search,
-                          # Tab completion, :history / :bench / :time / :save
-cure watch lib/           # Recompile / check / test on every save
-cure fmt lib/             # Format Cure sources
-cure bench                # Run bench/**/*.cure benchmarks
-cure doctor               # Environment + project + source health report
-cure fix                  # Apply safe project-wide rewrites
-cure publish --dry-run    # Preview what `cure publish` would upload
-cure publish --hex        # Build a Hex-compatible tarball
-cure search <query>       # Search the registry
-cure info <name>[:ver]    # Inspect a package manifest
-cure keys generate <h>    # Generate an Ed25519 signing keypair
+cure run examples/dependent_types.cure
+cure check examples/match_showcase.cure
 ```
 
-## Editor setup
-
-### Neovim (LSP)
-
-Cure includes a Language Server Protocol implementation. Start it with `cure lsp` (or `mix cure.lsp` from the project directory). Configure Neovim to use it:
-
-```lua
-vim.api.nvim_create_autocmd("FileType", {
-  pattern = "cure",
-  callback = function()
-    vim.lsp.start({
-      name = "cure-lsp",
-      cmd = { "cure", "lsp" },
-      root_dir = vim.fs.root(0, { "mix.exs", ".git" }),
-    })
-  end,
-})
-```
-
-You also need filetype detection. Add to your Neovim config:
-
-```lua
-vim.filetype.add({
-  extension = {
-    cure = "cure",
-  },
-})
-```
-
-The LSP provides:
-
-- Real-time diagnostics (type errors, parse errors, exhaustiveness warnings, pattern coverage)
-- Hover information with function signatures, inferred effects, unification traces, and hole goals
-- Go-to-definition, `prepareRename` and rename
-- Document symbols (hierarchical module / function outline)
-- Workspace symbols
-- Code actions (add missing match arms, did-you-mean suggestions)
-- Completion (triggered by `.` and `:`)
-- Inlay hints, signature help, code lenses, semantic tokens
-- Formatting routed through the round-trip-tested `Cure.Compiler.Printer`
-
-## MCP server for AI assistants
-
-Cure provides an MCP (Model Context Protocol) server so AI coding assistants can compile, type-check, parse, and analyze Cure code directly:
-
-```bash
-mix cure.mcp
-```
-
-This starts a JSON-RPC 2.0 server over stdio, compatible with any MCP client (Claude, Warp, etc.). Available tools:
-
-- `compile_cure` -- compile source, return module name or errors
-- `parse_cure` -- parse source, return AST summary
-- `type_check_cure` -- type-check source, return errors and warnings
-- `analyze_fsm` -- analyze an FSM definition (states, transitions, verification)
-- `validate_syntax` -- quick lex + parse validation
-- `get_syntax_help` -- get help on a syntax topic
-- `get_stdlib_docs` -- get documentation for a stdlib module
-
-## Using from Elixir
-
-You can also use Cure as a library from Elixir:
-
-```elixir
-# Compile and load into the running VM
-{:ok, module} = Cure.Compiler.compile_and_load(source)
-module.my_function(args)
-
-# Compile with type checking
-{:ok, module} = Cure.Compiler.compile_and_load(source, check_types: true)
-
-# Compile to disk
-{:ok, module, warnings} = Cure.Compiler.compile_file("hello.cure")
-```
-
-## Next steps
-
-- [Language Guide](/language-guide) -- full syntax reference
-- [Type System](/type-system) -- bidirectional checking, refinement types, SMT verification
-- [Dependent Types](/type-system#dependent-types) -- Sigma, Pi, equality, implicit arguments, holes, totality
-- [Finite State Machines](/finite-state-machines) -- first-class FSMs with compile-time verification
-- [Actors](/actors) -- typed supervision trees, the Melquiades Operator, `actor` and `sup` containers (v0.25.0)
-- [Applications](/applications) -- first-class OTP applications and BEAM releases, the `app` container, `Cure.toml` `[application]` / `[release]` sections, `cure release`, `Std.App` (v0.26.0)
-- [REPL](/repl) -- the raw-mode REPL (v0.24.0): key bindings, meta-commands, themes, history, reverse search
-- [Standard Library](/stdlib) -- auto-generated docs for every `Std.*` module, extracted from `.cure` sources with the same two-pane layout `cure doc` produces locally (v0.29.0)
-- [Tooling](/tooling) -- CLI reference including `cure doc` (ExDoc-like two-pane layout, `[doc]` config, `--title` / `--main` / `--extras` flags), LSP, and MCP
-- [`docs/DOC.md`](https://github.com/am-kantox/cure-lang/blob/main/docs/DOC.md) -- on-disk reference for the `cure doc` pipeline, `Cure.Doc.Markdown`, placeholder interpolation, and the REPL Markdown renderer (v0.29.0)
+Then follow the [type system guide](/type-system) or the [actors guide](/actors)
+to see how Cure's static checks scale from one function to a supervised BEAM
+system.

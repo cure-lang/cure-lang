@@ -1,0 +1,22 @@
+@group(:concurrency)
+mod Std.ExitReason
+  ## Typed reasons understood by Cure's safe process APIs. `Because` is the
+  ## deliberate raw-atom escape hatch for application- and OTP-specific
+  ## reasons; callers do not need to abandon the typed API to use one.
+  type ExitReason = Normal | Kill | Shutdown | Because(Atom)
+
+  fn from_atom(reason: Atom) -> ExitReason =
+    pickup
+      reason == :normal -> Normal()
+      reason == :kill -> Kill()
+      reason == :shutdown -> Shutdown()
+      else -> Because(reason)
+
+  fn to_atom(reason: ExitReason) -> Atom = match reason
+    Normal() -> :normal
+    Kill() -> :kill
+    Shutdown() -> :shutdown
+    Because(other) -> other
+
+  ## Private-boundary encoding is repeated by the process modules so the Atom
+  ## representation never becomes the public result of a safe operation.

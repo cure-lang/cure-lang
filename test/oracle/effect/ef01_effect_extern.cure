@@ -1,0 +1,5 @@
+mod Ef01
+  @extern(:erlang, :yield, 0)
+  fn sched_yield() -> Effect(Unit)
+  fn act() -> Effect(Unit) = sched_yield()
+end

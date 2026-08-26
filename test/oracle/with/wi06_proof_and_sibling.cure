@@ -1,0 +1,15 @@
+mod Wi06
+  type Nat = Z | S(Nat)
+  type SNat indices (m: Nat)
+    szero : SNat(Z)
+    ssuc : SNat(m) -> SNat(S(m))
+  fn g(x: Nat) -> Nat = match x
+    Z() -> Z()
+    S(k) -> S(k)
+  fn consume(m: Nat, s: SNat(m)) -> Nat = m
+  fn lemma(a: Nat, b: Nat, e: Equivalent(Nat, a, b)) -> Nat = b
+  fn foo(n: Nat, pf: SNat(g(n))) -> Nat =
+    with g(n) proof eqp
+      Z() -> consume(lemma(g(n), Z(), eqp), pf)
+      S(k) -> consume(lemma(g(n), S(k), eqp), pf)
+end

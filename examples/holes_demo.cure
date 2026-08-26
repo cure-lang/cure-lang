@@ -6,7 +6,7 @@ mod HolesDemo
   #
   #   ?name  -- a named hole; the checker prints its goal type and
   #             the local context.
-  #   ??     -- an anonymous hole; numbered ?_1, ?_2, ... in source
+  #   ?_     -- an anonymous hole; numbered ?_1, ?_2, ... in source
   #             order across a single source file.
   #
   # Holes appear as `Cure.Types.Holes` records inside the type checker.

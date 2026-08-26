@@ -1,0 +1,8 @@
+mod Mt02
+  type Nat = Z | S(Nat)
+  fn refl_id(n: Nat) -> Equivalent(Nat, n, n) = match n
+    Z() -> reflexive(Z)
+    S(k) -> match k
+      Z() -> reflexive(S(Z))
+      S(j) -> reflexive(S(S(j)))
+end

@@ -179,11 +179,7 @@ defmodule Cure.John do
           fn -> Registry.count(Cure.Pipeline.Events.Registry) end,
           :unavailable
         ),
-      protocol_registry_size:
-        safe(
-          fn -> length(:ets.tab2list(Cure.Types.ProtocolRegistry)) end,
-          :unavailable
-        )
+      type_system: "dependent Core"
     }
   end
 
@@ -195,7 +191,7 @@ defmodule Cure.John do
       kv("application started", bool(cure.app_started?)),
       kv("stdlib modules loaded", inspect(cure.stdlib_loaded_modules)),
       kv("pipeline event bus", inspect(cure.pipeline_event_bus)),
-      kv("protocol registry", inspect(cure.protocol_registry_size)),
+      kv("type system", cure.type_system),
       kv("snapshot taken", DateTime.to_iso8601(at))
     ]
 
@@ -381,9 +377,16 @@ defmodule Cure.John do
         nil
 
       {:error, reason} ->
-        %{error: inspect(reason)}
+        %{error: project_error_reason(reason)}
     end
   end
+
+  defp project_error_reason(:enoent), do: "the file does not exist"
+  defp project_error_reason(:eacces), do: "permission was denied"
+  defp project_error_reason(:invalid_toml), do: "the TOML document is invalid"
+  defp project_error_reason(:invalid), do: "the project document is invalid"
+  defp project_error_reason(reason) when is_binary(reason), do: reason
+  defp project_error_reason(_reason), do: "the project document could not be read"
 
   defp project_md(nil) do
     section("Project", ["  *(no `Cure.toml` found in the current directory)*"])
@@ -444,28 +447,10 @@ defmodule Cure.John do
   # Runtime
   # ==========================================================================
 
-  defp runtime_info do
-    if Code.ensure_loaded?(Cure.Observe.Top) do
-      safe(
-        fn ->
-          snap = Cure.Observe.Top.snapshot()
-
-          %{
-            supervisors: length(snap.supervisors),
-            actors: length(snap.actors),
-            fsms: length(snap.fsms),
-            sample:
-              snap.supervisors
-              |> Enum.take(5)
-              |> Enum.map(fn s -> "#{s.module} (#{length(s.children)} children)" end)
-          }
-        end,
-        nil
-      )
-    else
-      nil
-    end
-  end
+  # The runtime snapshot came from `Cure.Observe.Top`, which tracked the
+  # supervisor/actor/fsm container runtimes. Those containers were removed with
+  # the classic pathway rip-out (#18), so there is no live topology to report.
+  defp runtime_info, do: nil
 
   defp runtime_md(nil) do
     section("Runtime", ["  *(Cure runtime not available in this context)*"])
@@ -923,10 +908,13 @@ defmodule Cure.John do
   defp try_marcli(md, opts) do
     if Code.ensure_loaded?(Marcli) do
       try do
-        Marcli.render(md,
-          escape_sequences: ansi_enabled?(opts),
-          newline: Keyword.get(opts, :newline, "\n")
-        )
+        apply(Marcli, :render, [
+          md,
+          [
+            escape_sequences: ansi_enabled?(opts),
+            newline: Keyword.get(opts, :newline, "\n")
+          ]
+        ])
       rescue
         _ -> nil
       catch

@@ -1,0 +1,9 @@
+mod Ei03
+  type Nat = Z | S(Nat)
+  type Vector(a: Type) indices (n: Nat)
+    empty : Vector(a, Z)
+    prepend : a -> Vector(a, n) -> Vector(a, S(n))
+  fn vhead({a: Type}, {n: Nat}, v: Vector(a, S(n))) -> a = match v
+    prepend(x, xs) -> x
+  fn bad() -> Nat = vhead(empty())
+end

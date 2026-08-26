@@ -1,0 +1,26 @@
+mod Frp07
+  type Sig = SigC | SigE
+  type Dec = DDec | DCau
+  fn dmeet(a: Dec, b: Dec) -> Dec = match a
+    DDec() -> match b
+      DDec() -> DDec()
+      DCau() -> DCau()
+    DCau() -> DCau()
+  type SList = SNil | SCons(Sig, SList)
+  fn app(xs: SList, ys: SList) -> SList = match xs
+    SNil() -> ys
+    SCons(x, r) -> SCons(x, app(r, ys))
+  type SF indices (i: SList, o: SList, dec: Dec)
+    prim : SF(av, bv, DCau)
+    dpre : SF(av, bv, DDec)
+    seq : SF(av, bv, d1) -> SF(bv, cv, d2) -> SF(av, cv, dmeet(d1, d2))
+  # A dependent match that RECONSTRUCTS the scrutinee constructor at the branch-
+  # refined index. Each branch body (`prim()`, `dpre()`, `seq(l,r)`) must be typed
+  # at that branch's `SF(as,bs,<refined d>)` — but `prim`/`dpre` are nullary and
+  # `seq`'s indices only partly determined, so the erased indices must be pinned
+  # from the branch's expected type (checking mode), not inferred from arguments.
+  fn ident({as: SList}, {bs: SList}, {d: Dec}, s: SF(as, bs, d)) -> SF(as, bs, d) = match s
+    prim() -> prim()
+    dpre() -> dpre()
+    seq(l, r) -> seq(l, r)
+end

@@ -1,4 +1,7 @@
 mod FfiDemo
+  use Std.String
+  use Std.Semigroup
+
   # Call Erlang stdlib functions via @extern
   @extern(:erlang, :abs, 1)
   fn abs(x: Int) -> Int

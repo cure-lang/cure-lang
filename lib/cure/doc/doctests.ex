@@ -25,7 +25,7 @@ defmodule Cure.Doc.Doctests do
   ## Public API
 
   - `extract/1` -- parse a `.cure` file and return the harvested cases.
-  - `run_one/2` -- run a single case and return `:ok` or `{:fail, msg}`.
+  - `run_one/2` -- run a single case and return `:ok` or a structured diagnostic.
   """
 
   @type test_case :: %{name: String.t(), expr: String.t(), expected: String.t()}
@@ -111,19 +111,22 @@ defmodule Cure.Doc.Doctests do
   @doc """
   Run a single doctest case.
 
-  Returns `:ok` if the expression's value matches the expected text
-  via `inspect/1`. Returns `{:fail, reason}` otherwise.
+  Returns `:ok` if the expression's value matches the expected text via
+  `inspect/1`. Failures retain a diagnostic and its source registry so callers
+  can choose terminal, JSON, or editor presentation without parsing strings.
   """
-  @spec run_one(String.t(), String.t()) :: :ok | {:fail, String.t()}
-  def run_one(expr, expected) do
+  @spec run_one(String.t(), String.t(), String.t()) ::
+          :ok
+          | {:fail, Cure.Diagnostic.t(), Cure.Diagnostic.SourceRegistry.t() | nil}
+  def run_one(expr, expected, file \\ "doctest.cure") do
     mod = "Doctest_#{:erlang.unique_integer([:positive])}"
 
     source = """
     mod #{mod}
-      fn main() -> Any = #{expr}
+      fn main() = #{expr}
     """
 
-    case Cure.Compiler.compile_and_load(source, emit_events: false) do
+    case Cure.Compiler.compile_and_load(source, file: file, emit_events: false) do
       {:ok, module} ->
         try do
           actual = inspect(module.main())
@@ -131,14 +134,29 @@ defmodule Cure.Doc.Doctests do
           if actual == expected do
             :ok
           else
-            {:fail, "expected #{expected}, got #{actual}"}
+            diagnostic =
+              Cure.Diagnostic.Operational.command_failure(
+                "doctest",
+                "expected #{expected}, got #{actual}"
+              )
+
+            {:fail, diagnostic, nil}
           end
         catch
-          kind, reason -> {:fail, "#{kind}: #{inspect(reason)}"}
+          kind, reason ->
+            {diagnostic, registry} =
+              Cure.Diagnostic.Host.to_diagnostic(
+                {:command_failed, "doctest", {kind, reason}},
+                file,
+                source
+              )
+
+            {:fail, diagnostic, registry}
         end
 
       {:error, reason} ->
-        {:fail, "compile error: #{inspect(reason)}"}
+        {diagnostic, registry} = Cure.Diagnostic.Host.to_diagnostic(reason, file, source)
+        {:fail, diagnostic, registry}
     end
   end
 end

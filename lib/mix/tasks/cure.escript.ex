@@ -36,7 +36,18 @@ defmodule Mix.Tasks.Cure.Escript do
     default_path = Atom.to_string(Mix.Project.config()[:app])
     output = Keyword.get(opts, :output, default_path)
 
-    Mix.Task.run("escript.build", [])
+    Mix.Task.run("cure.bundle_stdlib_beams", [])
+
+    case Cure.Compiler.Artifacts.open_verified_set(
+           kind: :stdlib,
+           candidates: [Cure.Stdlib.Paths.beam_bundle_destination()]
+         ) do
+      {:ok, _set} ->
+        Mix.Task.run("escript.build", [])
+
+      {:error, reason} ->
+        Mix.raise("refusing to build an escript with an invalid stdlib artifact set: #{inspect(reason)}")
+    end
 
     built_path =
       if output != default_path and File.regular?(default_path) do

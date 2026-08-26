@@ -1,0 +1,22 @@
+@group(:core)
+@prelude
+mod Std.Unit
+  ## The unit type — exactly one value, carrying no information.
+  ##
+  ## Written the Swift way: the type is `Unit` and its sole value is `()`. `()`
+  ## is to `Unit` what `0` is to `Int` — the one canonical inhabitant. A function
+  ## returning `Unit` is one called only for its effect; a field of type `Unit`
+  ## stores nothing.
+  ##
+  ## `Unit` is also the empty-telescope terminator: a `Tuple(T1, …, Tn)` unfolds
+  ## to the unit-terminated Σ chain `Sigma(T1, … Sigma(Tn, ()))`, and the empty
+  ## tuple `Tuple()` is exactly `Unit`. The compiler seeds `Unit` into every
+  ## module so that machinery always has it; this file is its one visible,
+  ## documented definition (mirroring `Std.Bool`/`Std.Nat`, which are likewise
+  ## both seeded and defined here in surface Cure).
+  ##
+  ## `= ()` is reserved: only `Unit` may be defined this way. Writing
+  ## `type Foo = ()` for any other name is a compile error — `()` denotes the one
+  ## built-in unit type, it is not a spelling other types may borrow.
+
+  type Unit = ()

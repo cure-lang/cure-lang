@@ -1,0 +1,1 @@
+{"pos01_nested_list":{"cure":"accept","idris":"accept","reason":"","relation":"same"},"pos02_mutual_iter":{"cure":"accept","idris":"accept","reason":"","relation":"same"},"pos03_negative_nested":{"cure":"reject","idris":"reject","reason":"","relation":"same"}}

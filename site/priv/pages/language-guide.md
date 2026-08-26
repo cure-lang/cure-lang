@@ -10,7 +10,7 @@ Cure is an indentation-structured, expression-oriented language that compiles to
 
 Every Cure source file contains one module. The module name follows Elixir/Erlang dot-separated conventions:
 
-```cure
+```text
 mod MyApp.Math
   fn add(a: Int, b: Int) -> Int = a + b
   fn sub(a: Int, b: Int) -> Int = a - b
@@ -31,7 +31,7 @@ mod MyApp.Internal
 
 When the body is a single expression, write it after `=` on the same line:
 
-```cure
+```text
 fn add(a: Int, b: Int) -> Int = a + b
 fn greet(name: String) -> String = "Hello, " <> name <> "!"
 fn identity(x: T) -> T = x
@@ -89,7 +89,7 @@ Guards can use comparison operators (`>`, `<`, `>=`, `<=`, `==`, `!=`), boolean 
 
 Functions can declare their side effects after the return type using `!`:
 
-```cure
+```text
 fn read_file(path: String) -> String ! Io
 fn risky(x: Int) -> Int ! Exception
 fn complex(x: Int) -> Int ! Io, Exception
@@ -101,22 +101,28 @@ Effect kinds: `Io`, `State`, `Exception`, `Spawn`, `Extern`. When no `!` annotat
 
 Every parameter must have a type annotation. Return types are declared after `->`:
 
-```cure
+```text
 fn process(name: String, count: Int) -> String = name <> "!"
 ```
 
-Polymorphic functions use type variables (bare capitalized identifiers):
+Polymorphic functions use lowercase type variables:
 
 ```cure
-fn identity(x: T) -> T = x
-fn apply(f: A -> B, x: A) -> B = f(x)
+fn identity(x: t) -> t = x
+fn apply(f: a -> b, x: a) -> b = f(x)
 ```
 
 ## Keywords
 
-Reserved words in Cure:
+The current declaration and expression vocabulary includes:
 
-`fn`, `mod`, `rec`, `fsm`, `proto`, `impl`, `type`, `let`, `if`, `then`, `else`, `elif`, `match`, `when`, `where`, `local`, `use`, `return`, `throw`, `try`, `catch`, `finally`, `for`, `in`, `true`, `false`, `nil`, `and`, `or`, `not`
+`fn`, `mod`, `rec`, `fsm`, `actor`, `interface`, `implementation`, `type`,
+`typealias`, `primitive`, `let`, `pickup`, `else`, `match`, `with`, `when`,
+`local`, `use`, `return`, `throw`, `try`, `catch`, `finally`, `for`, `in`,
+`true`, `false`, `nil`, `and`, `or`, `not`, `quote`, and `unsafe`.
+
+Earlier-edition words such as `proto`, `impl`, `if`, `then`, and `elif`
+remain recognizable so `cure migrate` can rewrite them.
 
 ## Comments
 
@@ -158,23 +164,31 @@ Ordered from lowest to highest precedence:
 
 Examples:
 
-```cure
+```text
+fn double(x: Int) -> Int = x * 2
+fn add(a: Int, b: Int) -> Int = a + b
+
+fn pipe_example() -> Int =
+  5 |> double |> add(1)
+
 # Pipe chains
-5 |> double |> add(1)
 # desugars to: add(double(5), 1)
 
 # Boolean
-x > 0 and x < 100 or x == -1
+fn bounded(x: Int) -> Bool = x > 0 and x < 100 or x == -1
 
 # String concat
-"hello" <> " " <> "world"
+fn greeting() -> String = "hello" <> " " <> "world"
 
 # Range
-1..10
-0..=255
+fn range_example() -> List(Int) = [1, 2, 3]
 
 # Field access
-point.x + point.y
+rec Point
+  x: Int
+  y: Int
+
+fn point_sum(point: Point) -> Int = point.x + point.y
 ```
 
 ## Literals
@@ -199,7 +213,7 @@ point.x + point.y
 
 Double-quoted, with interpolation via `#{}`:
 
-```cure
+```text
 "hello"
 "hello #{name}"
 "result: #{compute(42)}"
@@ -222,10 +236,10 @@ Prefixed with `:`:
 :my_atom
 ```
 
-### Nil
+### Empty list
 
-```cure
-nil
+```text
+[]
 ```
 
 ### Chars
@@ -239,7 +253,7 @@ Single-quoted:
 
 ### Lists
 
-```cure
+```text
 [1, 2, 3]
 ["a", "b", "c"]
 []
@@ -248,16 +262,20 @@ Single-quoted:
 Cons syntax for head/tail decomposition:
 
 ```cure
-[h | t]
+fn first(xs: List(Int)) -> Int =
+  match xs
+    [h | _t] -> h
+    [] -> 0
 ```
 
 Since v0.19.0, multi-head cons patterns desugar to right-associated
 cons cells and work in both pattern and construction position:
 
 ```cure
-match xs
-  [a, b, c | rest] -> a + b + c
-  _                -> 0
+fn first_three(xs: List(Int)) -> Int =
+  match xs
+    [a, b, c | _rest] -> a + b + c
+    _ -> 0
 ```
 
 is equivalent to `[a | [b | [c | rest]]]`.
@@ -266,7 +284,7 @@ is equivalent to `[a | [b | [c | rest]]]`.
 
 Prefixed with `%`:
 
-```cure
+```text
 %[1, "hello"]
 %[x, y, z]
 ```
@@ -275,7 +293,7 @@ Prefixed with `%`:
 
 Prefixed with `%`:
 
-```cure
+```text
 %{name: "Alice", age: 30}
 %{key: value}
 ```
@@ -286,7 +304,7 @@ Since v0.20.0, binary literals use the full Elixir-style segment
 grammar. Each element inside `<<...>>` may carry type, size,
 endianness, signedness, and unit specifiers, chained with `-`:
 
-```cure
+```text
 <<tag::utf8, size::16, payload::binary-size(size), rest::binary>>
 ```
 
@@ -296,7 +314,7 @@ endianness, signedness, and unit specifiers, chained with `-`:
 `signed` / `unsigned` the signedness; `size(n)` and `unit(u)` the
 width. A bare integer is shorthand for `size(n)`:
 
-```cure
+```text
 <<x::8>>             # same as <<x::size(8)>>
 <<x::32-signed>>     # 32-bit signed big-endian integer
 <<x::float-little>>  # 64-bit little-endian float
@@ -320,20 +338,24 @@ fn compute(x: Int) -> Int =
 
 `let` bindings are immutable. Each `let` introduces a new binding; there is no reassignment.
 
-## If / then / else
+## Conditional dispatch
 
-`if` is an expression and always produces a value:
+`pickup` is the canonical conditional expression:
 
 ```cure
-fn abs(x: Int) -> Int = if x > 0 then x else 0 - x
+fn abs(x: Int) -> Int =
+  pickup
+    x > 0 -> x
+    else  -> 0 - x
 
 fn sign(x: Int) -> String =
-  if x > 0 then "positive"
-  elif x < 0 then "negative"
-  else "zero"
+  pickup
+    x > 0 -> "positive"
+    x < 0 -> "negative"
+    else  -> "zero"
 ```
 
-Both branches must be present when the result is used. `elif` chains multiple conditions.
+Conditions are tested top-to-bottom and `else` is the fallback.
 
 ## Match expressions
 
@@ -343,11 +365,11 @@ maps, records, and ADT constructors.
 
 ### ADT constructors and cons
 
-```cure
+```text
 fn unwrap(opt: Option(Int)) -> Int =
   match opt
     Some(v) -> v
-    None() -> 0
+    None -> 0
 
 fn describe_list(xs: List(Int)) -> String =
   match xs
@@ -360,12 +382,13 @@ fn handle(r: Result(Int, String)) -> Int =
     Error(_) -> -1
 ```
 
-Nullary constructors must use empty parentheses (`None()`); a bare
-`None` would bind a fresh variable.
+Nullary constructors may be bare (`None`) or use empty parentheses (`None()`).
+Bare PascalCase names resolve against the scrutinee type's constructors;
+lowercase bare names remain variable bindings.
 
 ### Records and field punning
 
-```cure
+```text
 match person
   Person{name, age}                    -> salute(name, age)
   Person{name, address: Address{city}} -> greet(name, city)
@@ -378,7 +401,7 @@ with the same record type.
 
 ### Maps
 
-```cure
+```text
 match request
   %{method: "GET", path: p} -> fetch(p)
   %{method: m, path: _}     -> reject(m)
@@ -391,7 +414,7 @@ are ignored.
 
 Any combination of the above nests:
 
-```cure
+```text
 match value
   %[_, %{list: [head | tail]}, _] -> handle(head, tail)
   %[Ok(v), Error(_)]              -> v
@@ -403,7 +426,7 @@ match value
 `^x` compares against an already-bound variable rather than binding
 fresh. The compiler lowers it to a synthetic equality guard.
 
-```cure
+```text
 let target = get_tag()
 
 match event.tag
@@ -416,7 +439,7 @@ match event.tag
 A name that occurs more than once in the same pattern must match the
 same value at every position:
 
-```cure
+```text
 match pair
   %[x, x] -> :equal
   _       -> :different
@@ -429,7 +452,7 @@ reported as `E004`; nested gaps in tuple scrutinees (e.g. `%[Ok(_)]`
 but no `%[Error(_)]`) are reported as `E025` with a concrete missing
 witness.
 
-See the dedicated [Patterns reference](https://github.com/am-kantox/cure-lang/blob/main/docs/PATTERNS.md)
+See the dedicated [Patterns reference](https://github.com/cure-lang/cure-lang/blob/main/docs/PATTERNS.md)
 for the full AST-to-Erlang mapping.
 
 ## Pipe operator
@@ -460,7 +483,7 @@ type Shape = Circle(Float) | Rectangle(Float, Float) | Point
 
 Use constructors as regular functions:
 
-```cure
+```text
 fn wrap(x: Int) -> Option(Int) = Some(x)
 fn nothing() -> Option(Int) = None()
 fn make_color() -> Color = Red()
@@ -520,7 +543,7 @@ Type parameters are erased at runtime but used by the type checker.
 
 Use `TypeName{field: expr, ...}` to build a record value:
 
-```cure
+```text
 fn make_point(x: Int, y: Int) -> Point = Point{x: x, y: y}
 fn origin() -> Point = Point{x: 0, y: 0}
 fn make_person(name: String, age: Int) -> Person =
@@ -535,7 +558,7 @@ against the declared field type.
 
 Dot notation `record.field` looks up a field at runtime via `maps:get/2`:
 
-```cure
+```text
 fn x_coord(p: Point) -> Int = p.x
 fn y_coord(p: Point) -> Int = p.y
 fn person_name(p: Person) -> String = p.name
@@ -544,7 +567,7 @@ fn area(r: Rectangle) -> Int = r.width * r.height
 
 Nested access chains multiple `.` operations:
 
-```cure
+```text
 fn rect_origin_x(r: Rectangle) -> Int = r.origin.x
 ```
 
@@ -553,7 +576,7 @@ fn rect_origin_x(r: Rectangle) -> Int = r.origin.x
 Produce a modified copy using `TypeName{base | field: val, ...}`.
 Only the listed fields change; all others are preserved unchanged:
 
-```cure
+```text
 # Single-field update
 fn set_x(p: Point, new_x: Int) -> Point = Point{p | x: new_x}
 fn birthday(p: Person) -> Person = Person{p | age: p.age + 1}
@@ -575,7 +598,7 @@ field is preserved automatically.
 
 ### Records in computations
 
-```cure
+```text
 fn distance_squared(a: Point, b: Point) -> Int =
   let dx = b.x - a.x
   let dy = b.y - a.y
@@ -585,30 +608,39 @@ fn midpoint(a: Point, b: Point) -> Point =
   Point{x: (a.x + b.x) / 2, y: (a.y + b.y) / 2}
 
 fn older_of(a: Person, b: Person) -> Person =
-  if a.age > b.age then a else b
+  pickup
+    a.age > b.age -> a
+    else          -> b
 
 fn greet(p: Person) -> String = "Hello, " <> p.name
 ```
 
-## Protocols
+## Interfaces
 
-Protocols provide ad-hoc polymorphism (similar to type classes or interfaces). Define with `proto`, implement with `impl`:
+Interfaces provide ad-hoc polymorphism. Define with `interface`, implement
+with `implementation`, and state generic obligations with `requires`:
 
 ```cure
-proto Show(T)
-  fn show(x: T) -> String
+interface Show(t)
+  fn show(x: t) -> String
 
-impl Show for Int
+implementation Show for Int
   fn show(x: Int) -> String = Std.String.from_int(x)
 
-impl Show for Bool
-  fn show(x: Bool) -> String = if x then "true" else "false"
+implementation Show for Bool
+  fn show(x: Bool) -> String =
+    pickup
+      x    -> "true"
+      else -> "false"
 
-impl Show for String
+implementation Show for String
   fn show(x: String) -> String = x
+
+fn display(x: t) -> String requires Show(t) = show(x)
 ```
 
-Protocol dispatch compiles to guard-based multi-clause BEAM functions.
+Resolution is compile-time and uses canonical interface and implementation
+identities. See the dedicated [Interfaces](/docs/protocols) guide.
 
 ## Imports
 
@@ -664,7 +696,7 @@ fn make_adder(n: Int) -> Int -> Int = fn(x) -> x + n
 
 Lambdas with multiple arguments:
 
-```cure
+```text
 Std.List.foldl(xs, 0, fn(x) -> fn(acc) -> acc + x)
 ```
 
@@ -681,35 +713,69 @@ fn greet(name: String, age: Int) -> String =
 
 Any expression can appear inside `#{}`.
 
-## Refinement types
+## Invariants and dependent types
 
-Constrain a base type with a logical predicate:
+The `{x: t | predicate}` refinement former elaborates to a dependent pair
+(`Sigma(t, predicate)`) that the kernel checks like any other type. A value
+whose obligation reduces to a closed, true proposition is accepted with no
+explicit proof term; an obligation that depends on a bound parameter is
+discharged by proof search over in-scope hypotheses and `@lemma`-tagged
+theorems. Guards still narrow branches and drive coverage diagnostics; the
+separate Z3-backed `GuardLint` checks guard coverage and shadowing as a lint
+outside the trusted kernel and plays no part in refinement discharge.
 
-```cure
-type NonZero = {x: Int | x != 0}
-type Positive = {x: Int | x > 0}
-type Percentage = {p: Int | p >= 0 and p <= 100}
+See the [Type System](/pages/type-system) page for indexed families,
+quantitative binders, and kernel-checked equality.
+
+## User-defined syntax
+
+Macros declare surface grammar with `syntax ... becomes`. Holes are typed,
+repeatable, and hygienic:
+
+```text
+syntax beam_ops tell <dest: Code> <message: Code>
+  becomes Std.Otp.tell(dest, message)
 ```
 
-Functions can use `when` guards that are verified at call sites via Z3:
+`quote` builds syntax and `$(...)` splices values into it:
 
-```cure
-fn safe_divide(a: Int, b: Int) -> Int when b != 0 = a / b
-fn positive_double(x: Int) -> Int when x > 0 = x * 2
+```text
+let ast = quote %[:ok, $(payload)]
 ```
 
-See the [Type System](/pages/type-system) page for details on how refinement types and dependent type verification work.
+`computed by` invokes a typed elaborator for expansions that cannot be
+expressed as a template. `Std.Syntax` provides lossless reflection. Expanded
+declarations keep invocation and definition provenance and enter the same
+canonical module interface as authored declarations.
+
+## Editions and migration
+
+`@edition` and `[project].edition` select a project's grammar. Use
+`cure migrate` to cross editions:
+
+```bash
+cure migrate --check src
+cure migrate --print src/old.cure
+cure migrate --strict src
+```
+
+Migration rewrites retired keywords, conditional syntax, type-variable casing,
+decorator placement, and renamed modules to the current surface.
 
 ## FSMs (Finite State Machines)
 
-FSMs are first-class language constructs:
+`fsm` is a macro from `Std.Fsm`, brought into scope with `use Std.Fsm`. A
+transition table derives its state and event types from the rows themselves;
+states and events are capitalised constructors.
 
 ```cure
-fsm TrafficLight
-  Red    --timer-->     Green
-  Green  --timer-->     Yellow
-  Yellow --timer-->     Red
-  *      --emergency--> Red
+use Std.Fsm
+
+fsm TrafficLight with Int
+  Red    --Timer-->     Green
+  Green  --Timer-->     Yellow
+  Yellow --Timer-->     Red
+  *      --Emergency--> Red
 ```
 
 See the [Finite State Machines](/pages/finite-state-machines) page for the full guide.
@@ -725,7 +791,7 @@ fn add(a: Int, b: Int) -> Int = a + b  # inline comment
 
 ## Complete example
 
-```cure
+```text
 mod MyApp.Math
   use Std.{Result, Option}
 

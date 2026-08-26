@@ -1,0 +1,7 @@
+mod Mt20
+  type Nat = Z | S(Nat)
+  type Box = MkBox(Nat)
+  fn un(b: Box) -> Nat = match b
+    MkBox(x) -> x
+  fn g() -> Nat = un(MkBox(S(Z())))
+end

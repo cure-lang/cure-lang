@@ -1,0 +1,5 @@
+mod Refine02
+  use Std.Bool
+  use Std.Proof.IntMath
+  fn bad() -> IsTrue(5 < 0) = Confirmed()
+end

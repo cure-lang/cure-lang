@@ -48,8 +48,9 @@ defmodule CureSiteWeb.Yeesh.CallableRunnerTest do
       assert {:completed, output} =
                CallableRunner.run(fn -> raise "kaboom" end)
 
-      assert output =~ "error:"
-      assert output =~ "kaboom"
+      assert output =~ "INTERNAL COMPILER ERROR"
+      assert output =~ "[E101]"
+      refute output =~ "kaboom"
     end
 
     test "rejects non-zero-arity callables via the `is_function(fun, 0)` guard" do

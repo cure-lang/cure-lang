@@ -63,7 +63,9 @@ Result types:
 
 ```cure
 fn safe_divide(a: Int, b: Int) -> Result(Int, String) =
-  if b == 0 then Error("division by zero") else Ok(a / b)
+  pickup
+    b == 0 -> Error("division by zero")
+    else -> Ok(a / b)
 ```
 
 These compile to standard BEAM tuples (`{:ok, value}` / `{:error, reason}`)

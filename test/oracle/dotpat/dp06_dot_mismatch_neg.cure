@@ -1,0 +1,9 @@
+mod Dp06
+  type Nat = Z | S(Nat)
+  type MyEq(a: Type) indices (x: a, y: a)
+    mrefl : MyEq(a, w, w)
+  # WRONG explicit dot: `{w = .(S(a))}` asserts w = S(a), but matching forced
+  # w = a. `S(a)` is not convertible to `a` -> forced_pattern_mismatch (reject).
+  fn congS({a: Nat}, {b: Nat}, p: MyEq(Nat, a, b)) -> MyEq(Nat, S(a), S(b)) = match p
+    mrefl({w = .(S(a))}) -> mrefl()
+end

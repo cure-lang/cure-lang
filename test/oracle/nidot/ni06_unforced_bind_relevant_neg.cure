@@ -1,0 +1,10 @@
+mod Ni06
+  type Nat = Z | S(Nat)
+  type Vec(a: Type) indices (n: Nat)
+    vnil : Vec(a, Z)
+    vcons : a -> Vec(a, n) -> Vec(a, S(n))
+  type Pack(a: Type) indices ()
+    pk : Vec(a, m) -> Pack(a)
+  fn g({a: Type}, p: Pack(a)) -> Nat = match p
+    pk({m = mm}, v) -> mm
+end

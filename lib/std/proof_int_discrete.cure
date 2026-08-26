@@ -1,0 +1,43 @@
+## Discreteness of the inductive integers: strict comparison against `right`
+## is the same Boolean proposition as non-strict comparison against `right-1`.
+
+@group(:core)
+mod Std.Proof.IntDiscrete
+  use Std.Bool
+  use Std.Nat
+  use Std.Int
+  use Std.Equivalent
+  use Std.Proof.IntOrder
+
+  fn lt_nat_successor_right_is_le(left: Nat, right: Nat) -> Equivalent(Bool,
+    lt_nat(left, S(right)), le_nat(left, right)) =
+    match left
+      Z() -> reflexive(True())
+      S(left_predecessor) -> match right
+        Z() -> reflexive(False())
+        S(right_predecessor) ->
+          lt_nat_successor_right_is_le(left_predecessor, right_predecessor)
+
+  fn lt_nat_is_le_successor_left(left: Nat, right: Nat) -> Equivalent(Bool,
+    lt_nat(left, right), le_nat(S(left), right)) =
+    match right
+      Z() -> reflexive(False())
+      S(right_predecessor) -> match left
+        Z() -> reflexive(True())
+        S(left_predecessor) ->
+          lt_nat_is_le_successor_left(left_predecessor, right_predecessor)
+
+  fn lt_int_is_le_predecessor(left: Int, right: Int) -> Equivalent(Bool,
+    lt_int(left, right), le_int(left, pred_int(right))) =
+    match left
+      FromNat(m) -> match right
+        FromNat(n) -> match n
+          Z() -> reflexive(False())
+          S(k) -> lt_nat_successor_right_is_le(m, k)
+        NegativeSuccessor(j) -> reflexive(False())
+      NegativeSuccessor(k) -> match right
+        FromNat(n) -> match n
+          Z() -> reflexive(True())
+          S(j) -> reflexive(True())
+        NegativeSuccessor(j) -> lt_nat_is_le_successor_left(j, k)
+end

@@ -1,0 +1,9 @@
+mod Li01
+  type Nat = Z | S(Nat)
+  fn add(a: Nat, b: Nat) -> Nat = match a
+    Z() -> b
+    S(k) -> S(add(k, b))
+  # ML-style `let <pat> = <value> in <body>` — an expression-position binder.
+  fn f(n: Nat) -> Nat = let m = S(n) in add(m, m)
+  fn start() -> Nat = f(Z())
+end

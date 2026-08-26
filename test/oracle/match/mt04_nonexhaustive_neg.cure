@@ -1,0 +1,7 @@
+mod Mt04
+  type Nat = Z | S(Nat)
+  fn combine(n: Nat, m: Nat) -> Nat = match n
+    Z() -> m
+    S(k) -> match m
+      Z() -> k
+end

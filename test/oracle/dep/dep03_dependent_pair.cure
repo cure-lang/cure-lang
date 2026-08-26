@@ -1,0 +1,8 @@
+mod Dep03
+  type Nat = Zero | Suc(Nat)
+  type Vector(a: Type) indices (n: Nat)
+    empty : Vector(a, Zero)
+    prepend : a -> Vector(a, n) -> Vector(a, Suc(n))
+  fn twoVec() -> Sigma(n: Nat, Vector(Nat, n)) = %[Suc(Suc(Zero)), prepend(Zero(), prepend(Suc(Zero()), empty()))]
+  fn theLen() -> Nat = twoVec().1
+end

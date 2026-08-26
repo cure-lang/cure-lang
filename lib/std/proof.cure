@@ -1,41 +1,47 @@
-proof Std.Proof
-  ## Laws-as-programs (v0.19.0).
+@group(:core)
+mod Std.Proof
+  ## Genuine propositional-equality proofs over the inductive `Std.Nat`
+  ## (spec 2026-07-04-identity-type-as-inductive).
   ##
-  ## Every function in this container returns an `Eq(...)` witness
-  ## and is erased at runtime; the value is the `:cure_refl` atom
-  ## that `Std.Equal.refl/1` also returns. A `proof` container is
-  ## the same as a `mod` container except that the type checker
-  ## elaborates its contents in definitional style.
+  ## These are NOT runtime tokens. Each law is checked by the dependent
+  ## kernel: the proofs proceed by induction (`match` on the `Nat` index)
+  ## and close each case with `reflexive` or `rewrite`, exactly the technique
+  ## Agda's `Data.Nat.Properties` uses. `plus` is `Std.Nat.plus`, whose
+  ## definition the kernel unfolds during conversion, so `plus(Z, Z)`
+  ## reduces to `Z` and the reflexive cases type-check.
+  ##
+  ## The previous version of this module returned the `:cure_refl` atom
+  ## from `Equivalent(...)`-shaped signatures whose propositions were either
+  ## vacuous (`Equivalent(Int, n, n)`) or unstated (a "commutativity" law with
+  ## return type `Equivalent(Int, a, a)`). Those tokens carried no propositional
+  ## content; the laws below actually prove what they claim.
   ##
   ## ## Examples
   ##
   ## ```cure
-  ## # Every law here is a value of an `Eq` type that the type
-  ## # checker accepts when its two sides reduce to the same term.
-  ## plus_zero(42)                           # : Eq(Int, 42, 42)
-  ## append_nil([1, 2, 3])                   # : Eq(List(Int), [1,2,3], [1,2,3])
-  ## ```
+  ## use Std.Proof
   ##
-  ## Group: `:core` (inherited from the `Cure.Stdlib.Preload` default;
-  ## `proof` containers only allow `Eq(...)` returns, so no explicit
-  ## `__group__/0` can live here).
+  ## plus_zero_right(n)        # : Equivalent(Nat, plus(n, Z), n)
+  ## plus_comm(m, n)          # : Equivalent(Nat, plus(m, n), plus(n, m))
+  ## ```
 
-  # -- Reflexivity and basic arithmetic laws ---------------------------------
+  ## Group tag consumed by `Cure.Stdlib.Preload`.
+  ## `n + 0 = n`. Induction on `n`: the `Z` case is reflexive, and the
+  ## `S` case rewrites by the inductive hypothesis before closing on
+  ## `reflexive(S(k))`.
+  fn plus_zero_right(n: Nat) -> Equivalent(Nat, plus(n, Z), n) = match n
+    Z() -> reflexive(Z)
+    S(k) -> rewrite plus_zero_right(k) in reflexive(S(k))
 
-  ## `n + 0` equals `n` for every `n : Int`.
-  fn plus_zero(_n: Int) -> Eq(Int, n, n) = :cure_refl
+  ## `m + S(n) = S(m + n)`. Induction on `m`; the successor case pushes
+  ## the `S` outward via the inductive hypothesis.
+  fn plus_succ_right(m: Nat, n: Nat) -> Equivalent(Nat, plus(m, S(n)), S(plus(m, n))) = match m
+    Z() -> reflexive(S(n))
+    S(k) -> rewrite plus_succ_right(k, n) in reflexive(S(S(plus(k, n))))
 
-  ## `0 + n` equals `n` for every `n : Int`.
-  fn zero_plus(_n: Int) -> Eq(Int, n, n) = :cure_refl
-
-  ## Commutativity witness (the type checker reduces the full
-  ## statement to refl).
-  fn plus_comm(_a: Int, _b: Int) -> Eq(Int, a, a) = :cure_refl
-
-  # -- List laws --------------------------------------------------------------
-
-  ## Appending the empty list on the right is the identity.
-  fn append_nil(_xs: List(T)) -> Eq(List(T), xs, xs) = :cure_refl
-
-  ## `map` with the identity function is the identity on lists.
-  fn map_id(_xs: List(T)) -> Eq(List(T), xs, xs) = :cure_refl
+  ## Commutativity of addition, `m + n = n + m`. Induction on `m`, using
+  ## `plus_zero_right` for the base case and `plus_succ_right` together
+  ## with the inductive hypothesis for the successor case.
+  fn plus_comm(m: Nat, n: Nat) -> Equivalent(Nat, plus(m, n), plus(n, m)) = match m
+    Z() -> rewrite plus_zero_right(n) in reflexive(n)
+    S(k) -> rewrite plus_succ_right(n, k) in rewrite plus_comm(k, n) in reflexive(S(plus(n, k)))

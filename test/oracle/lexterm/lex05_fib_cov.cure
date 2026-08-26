@@ -1,0 +1,11 @@
+mod Lex05
+  type Nat = Z | S(Nat)
+  fn add(a: Nat, b: Nat) -> Nat = match a
+    Z() -> b
+    S(m) -> S(add(m, b))
+  fn fib(n: Nat) -> Nat = match n
+    Z() -> Z()
+    S(k) -> match k
+      Z() -> S(Z())
+      S(j) -> add(fib(S(j)), fib(j))
+end

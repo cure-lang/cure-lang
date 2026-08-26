@@ -5,13 +5,8 @@ defmodule Cure.Application do
 
   @impl Application
   def start(_type, _args) do
-    # Start the protocol registry ETS table
-    Cure.Types.ProtocolRegistry.start()
-
     children = [
-      {Registry, keys: :duplicate, name: Cure.Pipeline.Events.Registry},
-      Cure.FSM.Runtime,
-      Cure.Actor.Runtime
+      {Registry, keys: :duplicate, name: Cure.Pipeline.Events.Registry}
     ]
 
     opts = [strategy: :one_for_one, name: Cure.Supervisor]

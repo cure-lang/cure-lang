@@ -1,0 +1,6 @@
+mod Rp03
+  type Nat = Z | S(Nat)
+  type Bool = T | F
+  type List(a: Type) = Nil | Cons(a, List(a))
+  fn g() -> List(Nat) = Cons(T(), Nil())
+end

@@ -1,4 +1,7 @@
 mod Greeter
+  use Std.List
+  use Std.Semigroup
+  use Std.String
   fn hello(name: String) -> String = "Hello, " <> name <> "!"
 
   fn farewell(name: String) -> String = "Goodbye, " <> name <> ". See you soon!"

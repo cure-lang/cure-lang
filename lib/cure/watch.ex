@@ -113,19 +113,34 @@ defmodule Cure.Watch do
   def run_action(:compile, path) do
     info("[#{ts()}] compiling #{path}")
 
-    paths =
-      if File.dir?(path) do
-        Path.wildcard(Path.join(path, "**/*.cure"))
-      else
-        [path]
-      end
+    if File.dir?(path) do
+      paths = Path.wildcard(Path.join(path, "**/*.cure"))
 
-    Enum.each(paths, fn p ->
-      case Cure.Compiler.compile_file(p, emit_events: false) do
-        {:ok, mod, _warnings} -> info("  #{p} -> #{mod}")
-        {:error, reason} -> error("  #{p}: #{inspect(reason)}")
+      case Cure.Compiler.compile_files(paths, emit_events: false, continue_on_error: true) do
+        {:ok, %{compiled: compiled, errors: errors}} ->
+          Enum.each(compiled, fn {source, module, _warnings} ->
+            info("  #{source} -> #{module}")
+          end)
+
+          Enum.each(errors, fn {source, reason} ->
+            emit_error(reason, source, read_source(source))
+          end)
+
+        {:error, reason} ->
+          emit_error(reason, path, nil)
       end
-    end)
+    else
+      case Cure.Compiler.compile_files([path], emit_events: false) do
+        {:ok, %{compiled: [{_source, mod, _warnings}]}} ->
+          info("  #{path} -> #{mod}")
+
+        {:ok, %{compiled: []}} ->
+          info("  #{path} is up-to-date")
+
+        {:error, reason} ->
+          emit_error(reason, path, read_source(path))
+      end
+    end
   end
 
   def run_action(:check, path) do
@@ -143,14 +158,15 @@ defmodule Cure.Watch do
         {:ok, src} ->
           with {:ok, tokens} <- Cure.Compiler.Lexer.tokenize(src, file: p, emit_events: false),
                {:ok, ast} <- Cure.Compiler.Parser.parse(tokens, file: p, emit_events: false),
-               {:ok, _} <- Cure.Types.Checker.check_module(ast, file: p, emit_events: false) do
+               {:ok, _env} <- Cure.Elab.Program.check_ast(ast) do
             info("  #{p}: OK")
           else
-            {:error, reason} -> error("  #{p}: #{inspect(reason)}")
+            {:error, reason} ->
+              emit_error(reason, p, src)
           end
 
         {:error, reason} ->
-          error("  #{p}: #{reason}")
+          emit_diagnostic(Cure.Diagnostic.Operational.file_read(p, reason))
       end
     end)
   end
@@ -161,7 +177,8 @@ defmodule Cure.Watch do
   end
 
   def run_action(other, _path) do
-    error("unknown watch action: #{inspect(other)}")
+    diagnostic = Cure.Diagnostic.Operational.unknown_watch_action(other)
+    emit_diagnostic(diagnostic)
   end
 
   # -- Helpers -----------------------------------------------------------------
@@ -175,5 +192,20 @@ defmodule Cure.Watch do
   end
 
   defp info(msg), do: IO.puts(msg)
-  defp error(msg), do: IO.puts(:stderr, "error: #{msg}")
+
+  defp emit_error(reason, file, source) do
+    {diagnostic, registry} = Cure.Diagnostic.Host.to_diagnostic(reason, file, source)
+    emit_diagnostic(diagnostic, registry)
+  end
+
+  defp read_source(path) do
+    case File.read(path) do
+      {:ok, source} -> source
+      {:error, _reason} -> ""
+    end
+  end
+
+  defp emit_diagnostic(diagnostic, registry \\ nil) do
+    Cure.Diagnostic.Host.emit_diagnostic(diagnostic, output_device: :stderr, registry: registry)
+  end
 end

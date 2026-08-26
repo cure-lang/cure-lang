@@ -30,6 +30,13 @@ defmodule Cure.Compiler.FormatterTest do
       {:ok, twice} = Formatter.format(once)
       assert once == twice
     end
+
+    test "named-argument order and labels survive formatting at a fixed point" do
+      source = "mod NamedFmt\n  fn f(a: Int, b: Int) -> Int = a + b\n  fn g() -> Int = f(b: 2, a: 1)\n"
+      assert {:ok, once} = Formatter.format(source)
+      assert once =~ "f(b: 2, a: 1)"
+      assert {:ok, ^once} = Formatter.format(once)
+    end
   end
 
   describe "format/2 -- trailing whitespace" do
@@ -99,12 +106,6 @@ defmodule Cure.Compiler.FormatterTest do
       assert out =~ "a + b - a * b / 1"
     end
 
-    test "spaces around compound assignment" do
-      src = "mod Demo\n  fn f(a: Int) -> Int = a+=1\n"
-      assert {:ok, out} = Formatter.format(src)
-      assert out =~ "a += 1"
-    end
-
     test "spaces around comparison operators" do
       src = "mod Demo\n  fn f(a: Int, b: Int) -> Bool = a==b\n"
       assert {:ok, out} = Formatter.format(src)
@@ -138,7 +139,7 @@ defmodule Cure.Compiler.FormatterTest do
     end
 
     test "leaves content inside regex alone" do
-      src = "mod Demo\n  fn f() -> Regex = ~r/a+b/i\n"
+      src = "mod Demo\n  fn f() -> Regex = /a+b/i\n"
       assert {:ok, ^src} = Formatter.format(src)
     end
 

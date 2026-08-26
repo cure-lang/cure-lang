@@ -1,0 +1,27 @@
+mod Frp04
+  type Sig = SigC | SigE
+  type Dec = DDec | DCau
+  fn dmeet(a: Dec, b: Dec) -> Dec = match a
+    DDec() -> match b
+      DDec() -> DDec()
+      DCau() -> DCau()
+    DCau() -> DCau()
+  type SList = SNil | SCons(Sig, SList)
+  fn app(xs: SList, ys: SList) -> SList = match xs
+    SNil() -> ys
+    SCons(x, r) -> SCons(x, app(r, ys))
+  type SF indices (i: SList, o: SList, dec: Dec)
+    prim : SF(av, bv, DCau)
+    dpre : SF(av, bv, DDec)
+    seq : SF(av, bv, d1) -> SF(bv, cv, d2) -> SF(av, cv, dmeet(d1, d2))
+    par : SF(av, bv, d1) -> SF(cv, dv, d2) -> SF(app(av, cv), app(bv, dv), dmeet(d1, d2))
+    loop : SF(app(av, cv), app(bv, cv), DDec) -> SF(av, bv, DCau)
+  # An ILL-FORMED (instantaneous) feedback net: the loop body is CAUSAL (DCau) —
+  # the fed-back `cv` signal depends instantaneously on itself. `loop` requires
+  # a DDec body, so `DCau ≠ DDec` at its argument index and this MUST be rejected.
+  # This is the paper's safety property: instantaneous cycles are a type error.
+  # Expected reject/reject in both languages.
+  fn instantaneousCycle({av: SList}, {bv: SList}, {cv: SList},
+                        body: SF(app(av, cv), app(bv, cv), DCau)) -> SF(av, bv, DCau) =
+    loop(body)
+end

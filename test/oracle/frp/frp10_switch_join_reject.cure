@@ -1,0 +1,23 @@
+mod Frp10
+  type Sig = SigC | SigE
+  type Dec = DDec | DCau
+  fn djoin(a: Dec, b: Dec) -> Dec = match a
+    DDec() -> match b
+      DDec() -> DDec()
+      DCau() -> DCau()
+    DCau() -> DCau()
+  type SList = SNil | SCons(Sig, SList)
+  type SF indices (i: SList, o: SList, dec: Dec)
+    prim : SF(av, bv, DCau)
+    dpre : SF(av, bv, DDec)
+    switch : SF(av, SCons(SigE, bv), d1) -> SF(av, bv, d2) -> SF(av, bv, djoin(d1, d2))
+  # THE SWITCH SAFETY PROPERTY (join): a switch whose INITIAL network is causal
+  # (DCau) cannot be decoupled — `djoin DCau DDec = DCau ≠ DDec`. Claiming the
+  # switch is DDec is a type error. The join counterpart of frp04's
+  # instantaneous loop: the switch is decoupled only if the initial network is,
+  # too. reject/reject.
+  fn switchCausal({av: SList}, {bv: SList},
+                  initial: SF(av, SCons(SigE, bv), DCau),
+                  residual: SF(av, bv, DDec)) -> SF(av, bv, DDec) =
+    switch(initial, residual)
+end

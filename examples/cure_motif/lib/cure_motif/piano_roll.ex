@@ -54,8 +54,8 @@ defmodule CureMotif.PianoRoll do
 
   defp extract_ticks(events) do
     events
-    |> Enum.filter(&match?({:tick, _}, &1))
-    |> Enum.map(fn {:tick, t} -> t end)
+    |> Enum.filter(&match?({:Tick, _}, &1))
+    |> Enum.map(fn {:Tick, t} -> t end)
     |> Enum.sort()
     |> Enum.uniq()
   end
@@ -65,14 +65,14 @@ defmodule CureMotif.PianoRoll do
 
     {cells, pitches, _sustain, _last_tick} =
       Enum.reduce(events, {%{}, MapSet.new(), MapSet.new(), hd(columns)}, fn
-        {:tick, t}, {cells, pitches, sustain, _last} ->
+        {:Tick, t}, {cells, pitches, sustain, _last} ->
           {cells, pitches, sustain, t}
 
-        {:note_on, p, _v, _c}, {cells, pitches, sustain, tick} ->
+        {:NoteOn, p, _v, _c}, {cells, pitches, sustain, tick} ->
           key = {p, tick}
           {Map.put(cells, key, :on), MapSet.put(pitches, p), MapSet.put(sustain, p), tick}
 
-        {:note_off, _p, _c}, {cells, pitches, sustain, tick} ->
+        {:NoteOff, _p, _c}, {cells, pitches, sustain, tick} ->
           {cells, pitches, sustain, tick}
 
         _other, acc ->

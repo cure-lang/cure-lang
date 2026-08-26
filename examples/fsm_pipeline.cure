@@ -1,39 +1,20 @@
-# Callback-mode FSM showcasing the full v0.16.0 Finitomata-inspired
-# surface: a transition graph, a hard event (`init!` auto-fires as the
-# sole outgoing event of its source state), a soft event (`poll?`
-# silently stays put when it cannot transition), all four lifecycle
-# hooks (`on_enter`, `on_exit`, `on_failure`, `on_timer`), and a
-# `@timer` annotation that drives `on_timer` periodically.
+# Transparent FSM example: the structured surface.
 #
-# Compiles in callback mode because of `on_transition`, so the
-# resulting module is a GenServer-based BEAM module rather than a raw
-# `gen_statem`.
+# Where the transition table describes a graph, this surface describes what each
+# event *does*. Event constructors map to checked `FsmAction` values — `Keep`,
+# `Next`, `Stop` — and the transition algebra is ordinary Cure code.
 
-fsm Pipeline with Integer
-  Idle    --start-->   Setup
-  Setup   --init!-->   Ready
-  Ready   --poll?-->   Ready
-  Ready   --process--> Done
-  *       --abort-->   Failed
-  @timer 5000
-  on_transition
-    (:idle,  :start,   _payload, data) -> %[:ok, :setup,    data]
-    (:setup, :init,    _payload, data) -> %[:ok, :ready,    data + 1]
-    (:ready, :poll,    _payload, data) -> %[:ok, :__same__, data]
-    (:ready, :process, _payload, data) -> %[:ok, :done,     data]
-    (_,      :abort,   _payload, data) -> %[:ok, :failed,   data]
-    (_,      _,        _payload, data) -> %[:ok, :__same__, data]
-  on_enter
-    (:setup,  _state) -> :ok
-    (:ready,  _state) -> :ok
-    (:done,   _state) -> :ok
-    (:failed, _state) -> :ok
-    (_,       _state) -> :ok
-  on_exit
-    (:ready, _state) -> :ok
-    (_,      _state) -> :ok
-  on_failure
-    (_event, _payload, _state) -> :ok
-  on_timer
-    (:ready, state) -> %[:ok, state]
-    (_,      state) -> %[:ok, state]
+use Std.Fsm
+
+type PipelineState = Idle | Running | Finished
+type PipelineEvent = Start | Step | Finish
+
+fsm Pipeline
+  state Int
+  states PipelineState
+  initial Idle
+  event_type PipelineEvent
+  events
+    Start  -> Next(Running(), 0)
+    Step   -> Keep(data + 1)
+    Finish -> Next(Finished(), data)

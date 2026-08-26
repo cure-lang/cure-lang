@@ -1,0 +1,22 @@
+mod Frp08
+  type Sig = SigC | SigE
+  type Dec = DDec | DCau
+  fn dmeet(a: Dec, b: Dec) -> Dec = match a
+    DDec() -> match b
+      DDec() -> DDec()
+      DCau() -> DCau()
+    DCau() -> DCau()
+  type SList = SNil | SCons(Sig, SList)
+  fn app(xs: SList, ys: SList) -> SList = match xs
+    SNil() -> ys
+    SCons(x, r) -> SCons(x, app(r, ys))
+  fn appAssoc(xs: SList, ys: SList, zs: SList) -> Equivalent(SList, app(xs, app(ys, zs)), app(app(xs, ys), zs)) = match xs
+    SNil() -> reflexive(app(ys, zs))
+    SCons(x, r) -> rewrite appAssoc(r, ys, zs) in reflexive(SCons(x, app(app(r, ys), zs)))
+  type SF indices (i: SList, o: SList, dec: Dec)
+    prim : SF(av, bv, DCau)
+    seq : SF(av, bv, d1) -> SF(bv, cv, d2) -> SF(av, cv, dmeet(d1, d2))
+    par : SF(av, bv, d1) -> SF(cv, dv, d2) -> SF(app(av, cv), app(bv, dv), dmeet(d1, d2))
+  # one rewrite, two index occurrences (input AND output share the descriptor)
+  fn assocBoth({av: SList}, {bv: SList}, {cv: SList}, {d: Dec}, sf: SF(app(app(av, bv), cv), app(app(av, bv), cv), d)) -> SF(app(av, app(bv, cv)), app(av, app(bv, cv)), d) = rewrite appAssoc(av, bv, cv) in sf
+end

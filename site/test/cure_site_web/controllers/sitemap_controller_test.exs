@@ -11,7 +11,7 @@ defmodule CureSiteWeb.SitemapControllerTest do
       body = response(conn, 200)
 
       assert body =~ ~s(<?xml version="1.0" encoding="UTF-8"?>)
-      assert body =~ ~s(<urlset xmlns="http://www.sitemaps.org/schemas/sitemap-0.9">)
+      assert body =~ ~s(<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">)
 
       base = String.trim_trailing(CureSiteWeb.Endpoint.url(), "/")
 

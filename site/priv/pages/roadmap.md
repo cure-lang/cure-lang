@@ -5,6 +5,46 @@
 }
 ---
 
+## In development: v0.34.0 -- One dependent language
+
+v0.34 removes the classic compiler path. Every program now flows through the
+dependent elaborator, trusted Core kernel, quantitative erasure, and BEAM
+emitter.
+
+- **Dependent surface** -- indexed families with separate parameters and
+  indices, dependent results, implicit erased parameters, Sigma pairs,
+  impossible and forced patterns, `with` abstraction, unions, `typealias`, and
+  visible primitive declarations.
+- **Quantitative checking** -- `{0, 1, ω}` grades plus affine/linear binders;
+  proof/index data cannot escape erasure and capabilities cannot be duplicated.
+- **Identity** -- `Std.Equivalent` and `reflexive` replace primitive
+  `Eq`/`refl`/`rewrite`. Runtime comparison remains the distinct
+  `Std.Equatable` interface.
+- **Interfaces** -- `interface`, `implementation`, and `requires` replace
+  `proto`, `impl`, and implicit guard dispatch. `Std.Comparable` replaces
+  `Std.Ord`.
+- **Canonical modules** -- stable owner-qualified identities, lexical versus
+  qualified visibility, deterministic implementation loading, user preludes,
+  propagated operator fixity, and incremental dependency invalidation.
+- **Patterns and functions** -- one typed structural-pattern path for
+  `match`, function heads, and `let`; complete multi-expression lambda bodies
+  with expected-type inference.
+- **Generation** -- structural `@derive` implementations are published like
+  authored declarations; staged syntax, hygienic holes, quotation, splicing,
+  `computed by`, and `Std.Syntax` support user macros.
+- **Standard library** -- canonical `Std.Option` / `Std.Result`,
+  `Std.Equivalent`, `Std.Equatable`, `Std.Comparable`, indexed vectors,
+  typed optics and OTP, proof/reflection modules, and the expanded lazy
+  iterator surface.
+- **Tooling** -- editions and `cure migrate`, trust-ledger auditing,
+  structured diagnostics, canonical multi-file builds, and an authoritative
+  example runner. The root corpus currently has 40 passing examples with no
+  skips or failures.
+
+Optimization over validated dependent Core is future work. See
+[`ROADMAP-0.34.md`](https://github.com/cure-lang/cure-lang/blob/main/ROADMAP-0.34.md)
+and the Unreleased changelog for the full engineering inventory.
+
 ## Implemented: v0.33.0 -- Formalisation
 
 The two branching constructs in the language -- `match` and `pickup`
@@ -114,31 +154,11 @@ narrative.
   and `cure help`; `mix.exs` version 0.32.0; four new doc pages
   registered in Hex extras.
 
-## Implemented: v0.31.0 -- Specialise & Steer
+## Implemented: v0.31.0 -- Profile & Draw
 
-The optimisation release. Cure stops paying for polymorphism it
-doesn't use, and starts steering its own optimiser with profiling
-data. Two long-deferred items from the `## Future` block finally
-land: monomorphisation and profile-guided optimisation. ASCII-art
-diagrams (`cure draw`) graduate from `stuff/TODO-IDEAS.md` as a
-static counterpart to the v0.27.0 Mermaid emitter for terminals
-that cannot render Mermaid.
-
-- **Monomorphisation** (`Cure.Optimizer.Monomorphise`) -- new MetaAST
-  pass wired in front of `Cure.Optimizer.Inline`. Walks the module
-  body, identifies polymorphic `function_def` nodes (declared
-  signature mentions `{:type_var, _}`), unifies formal parameter
-  types against inferred call-site argument types, and synthesises
-  one specialised clone per unique substitution. Mangled name
-  `original__<6-hex-hash>` (stable across recompiles). The original
-  generic is **always retained** alongside the clones; cross-module
-  callers, protocol-registry dispatch, and dynamic `apply/3` keep
-  working unchanged. Per-function soft cap of 16 specialisations
-  (tunable via `[compiler].monomorph_budget`). Surfaces under code
-  **E064 Monomorphisation Budget Exhausted**. Specialised clones get
-  `nowarn_unused_function` automatically so erl_lint stays quiet
-  when the inliner devours their call sites. CLI: `cure compile`
-  defaults to `--monomorphise`; opt out with `--no-monomorphise`.
+This release added profile-data plumbing and terminal diagrams to the classic
+compiler. That optimizer and its PGO stack were later deleted with the classic
+pipeline; the profile format remains historical design material.
 - **Profile-Guided Optimisation** (`Cure.PGO`, `Cure.PGO.Profile`,
   `Cure.PGO.Recorder`) -- runtime-profile capture + compile-time
   consumption. `Cure.PGO.Recorder` is a `GenServer`-backed ETS
@@ -167,16 +187,7 @@ that cannot render Mermaid.
   `!`/`?` event suffixes, supervisor children as a `├──`/`└──`
   vertical tree, applications as a panel summarising vsn, root,
   and declared `applications`.
-- **Codegen `nowarn_unused_function` attribute** -- per-module
-  attribute synthesised whenever the module's body contains a
-  `function_def` with a `:specialised_from` meta. Keeps the
-  monomorphisation + inliner cycle warning-free.
-- **New error code: E064 Monomorphisation Budget Exhausted.**
-- **New docs:** `docs/MONOMORPHISATION.md`, `docs/PGO.md`. Both
-  added to the Hex documentation extras list.
-- **New example:** `examples/specialise.cure` -- small showcase that
-  exercises `id/1` and `pair_first/2` against four distinct
-  substitutions.
+- **New docs:** `docs/PGO.md`, retained as historical optimizer design.
 
 Deferred to v0.33.0 and beyond:
 - **Cure-native notebook** (v0.33.0 target) -- first-class `.cnb`
@@ -192,8 +203,6 @@ Deferred to v0.33.0 and beyond:
 - **`cure export-types --target typescript` and `--target rust`** --
   the Protobuf backend (v0.32.0) proved the extractor API; additional
   emitters are additive.
-- **Cross-module monomorphisation** -- whole-program specialisation
-  across compilation unit boundaries.
 
 ## Implemented: v0.30.0 -- John
 
@@ -578,7 +587,7 @@ as ANSI-styled Markdown.
 ### Documentation
 - New [`/repl`](/repl) user-facing reference page on the Cure
   website alongside the existing
-  [docs/REPL.md](https://github.com/am-kantox/cure-lang/blob/main/docs/REPL.md)
+  [docs/REPL.md](https://github.com/cure-lang/cure-lang/blob/main/docs/REPL.md)
   on-disk contract.
 ## Implemented: v0.23.0 -- Packaging, Proof, and Polish
 v0.23.0 ships the remote package-registry story that was
@@ -687,7 +696,7 @@ first-class FSM overhaul also graduates into a shipped release.
   and single-expression bodies keep their v0.19.0 semantics; two
   new shapes land for argument positions where the lexer
   suppresses newlines:
-```cure
+```text
 map(xs, fn(x) -> { let y = x + 1; y + 2 })
 map(xs, fn(x) -> let y = x + 1; y + 2; end)
 ```
@@ -705,7 +714,7 @@ map(xs, fn(x) -> let y = x + 1; y + 2; end)
 - `Cure.Compiler.Codegen.compile_comprehension/3` lowers the new
   `:binary_generator` qualifier to Erlang's `b_generate` form
   inside the existing `:lc` comprehension:
-```cure
+```text
 [byte for <<byte <- "abc">>]       # [97, 98, 99]
 [word for <<word::16 <- buf>>]     # 16-bit words
 [ch   for <<ch::utf8 <- text>>]    # UTF-8 code points
@@ -1154,7 +1163,7 @@ ecosystem groundwork.
 - **`Cure.Types.Unify`** -- first-order unification with occurs check
   for implicit-argument inference; `:unification_trace` pipeline event
   rendered in LSP hover and CLI error output.
-- **`Cure.Types.Holes`** -- `?name` and `??` placeholders with goal-type
+- **`Cure.Types.Holes`** -- `?name` and `?_` placeholders with goal-type
   and local-context reporting via `:hole_goal`.
 - **`Cure.Types.Totality`** -- coverage + structural-recursion analysis;
   `:total | :partial | :unknown` classification; `@total true` decorator.

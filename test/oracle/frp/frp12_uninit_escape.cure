@@ -1,0 +1,31 @@
+mod Frp12
+  type Init = IIni | IUni
+  type Sig = SigC(Init) | SigE
+  type Dec = DDec | DCau
+  fn djoin(a: Dec, b: Dec) -> Dec = match a
+    DDec() -> match b
+      DDec() -> DDec()
+      DCau() -> DCau()
+    DCau() -> DCau()
+  type SList = SNil | SCons(Sig, SList)
+  fn initcAux(s: Sig) -> Sig = match s
+    SigC(i) -> SigC(IIni)
+    SigE() -> SigE()
+  fn initc(xs: SList) -> SList = match xs
+    SNil() -> SNil()
+    SCons(x, r) -> SCons(initcAux(x), initc(r))
+  type SF indices (i: SList, o: SList, dec: Dec)
+    prim : SF(av, bv, DCau)
+    dpre : SF(av, bv, DDec)
+    switch : SF(av, SCons(SigE, bv), d1) -> SF(av, bv, d2) -> SF(av, initc(bv), djoin(d1, d2))
+  # THE UNINITIALISED-ESCAPE SAFETY PROPERTY (paper §5.2): a switch initialises
+  # its residual outputs (`initc bv`), so an UNINITIALISED continuous signal
+  # (SigC(IUni)) cannot escape. Claiming the switch outputs SigC(IUni) at the
+  # head is a type error — `initc` forces the head to SigC(IIni), and
+  # `IIni ≠ IUni`. This is the paper's guarantee that uninitialised signals do
+  # not escape a sub-network's local time0. reject/reject.
+  fn uninitEscape({av: SList}, {bv: SList},
+                  initial: SF(av, SCons(SigE, SCons(SigC(IUni), bv)), DDec),
+                  residual: SF(av, SCons(SigC(IUni), bv), DDec)) -> SF(av, SCons(SigC(IUni), bv), DDec) =
+    switch(initial, residual)
+end

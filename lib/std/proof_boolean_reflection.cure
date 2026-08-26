@@ -1,0 +1,78 @@
+@group(:core)
+mod Std.Proof.BooleanReflection
+  ## Boolean-connective algebra over `IsTrue` (constructive, zero trust).
+  ##
+  ## `IsTrue` reflects `Bool`, and `Std.Bool`'s connectives reduce definitionally
+  ## (`and`(True(), b) ≡ b), so these lemmas are proved by matching the reducing
+  ## operand. They never inspect what a comparison *means* — they serve `Int` and
+  ## `Nat` obligations alike. Uninhabited arms are discharged by an empty match on
+  ## the evidence, exactly like `Std.Proof.IntMath.true_is_not_false`.
+  ##
+  ## Where a lemma must learn the shape of a boolean operand to reduce the goal, it
+  ## takes that operand as an explicit argument and matches it — mirroring the
+  ## existing `Std.Proof.Math` idiom (`less_than_or_equal_is_reflexive(value: Nat)`
+  ## makes the scrutinised value explicit). A grade-0 implicit cannot be matched.
+  ## Where matching the evidence alone reduces the goal, the operands stay implicit.
+
+  use Std.Bool
+  use Std.Decision
+  use Std.Proof.IntMath
+
+  ## Split a true conjunction into its left operand's truth.
+  fn left_operand_is_true_from_true_conjunction(
+    left: Bool,
+    right: Bool,
+    conjunction_is_true: IsTrue(`and`(left, right))
+  ) -> IsTrue(left) = match left
+    True()  -> Confirmed()
+    False() -> match conjunction_is_true
+
+  ## Split a true conjunction into its right operand's truth.
+  fn right_operand_is_true_from_true_conjunction(
+    left: Bool,
+    right: Bool,
+    conjunction_is_true: IsTrue(`and`(left, right))
+  ) -> IsTrue(right) = match left
+    True()  -> conjunction_is_true
+    False() -> match conjunction_is_true
+
+  ## Combine two truths into the truth of their conjunction. Matching the left
+  ## evidence forces `left` to `True()`, reducing the goal to `IsTrue(right)`.
+  @lemma
+  fn conjunction_is_true_when_both_operands_are(
+    {left: Bool},
+    {right: Bool},
+    left_is_true: IsTrue(left),
+    right_is_true: IsTrue(right)
+  ) -> IsTrue(`and`(left, right)) = match left_is_true
+    Confirmed() -> right_is_true
+
+  ## The left operand's truth suffices for a disjunction: forcing `left` to
+  ## `True()` reduces `or(left, right)` to `True()`. `right` is explicit because
+  ## that same reduction absorbs it, leaving nothing to infer it from at a call.
+  @lemma
+  fn disjunction_is_true_from_left_operand(
+    {left: Bool}, right: Bool, left_is_true: IsTrue(left)
+  ) -> IsTrue(`or`(left, right)) = match left_is_true
+    Confirmed() -> Confirmed()
+
+  ## The right operand's truth suffices for a disjunction. `or(left, right)` is
+  ## stuck on `left`, so `left` is explicit and matched: either arm reduces the
+  ## disjunction (to `True()` when left is true, to `right` when false).
+  @lemma
+  fn disjunction_is_true_from_right_operand(
+    left: Bool, {right: Bool}, right_is_true: IsTrue(right)
+  ) -> IsTrue(`or`(left, right)) = match left
+    True()  -> Confirmed()
+    False() -> right_is_true
+
+  ## A claim and its negation cannot both hold. Matching `claim` refines both
+  ## evidences: one arm makes `not(claim)` false, the other makes `claim` false.
+  fn true_negation_contradicts_truth(
+    claim: Bool,
+    negation_is_true: IsTrue(`not`(claim)),
+    claim_is_true: IsTrue(claim)
+  ) -> Empty = match claim
+    True()  -> match negation_is_true
+    False() -> match claim_is_true
+end

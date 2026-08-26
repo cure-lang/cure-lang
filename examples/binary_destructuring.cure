@@ -9,20 +9,21 @@ mod BinaryDestructuring
   ###
 
   ## Read the first byte of a buffer; zero for the empty binary.
-  fn first_byte(buf: Bitstring) -> Int =
+  fn first_byte(buf: Binary) -> Int =
     match buf
       <<b, _rest::binary>> -> b
-      <<>>                 -> 0
+      _                   -> 0
 
   ## Multi-clause form using binary patterns as function-head patterns.
-  fn parse_leading(buf: Bitstring) -> Int
+  fn parse_leading(buf: Binary) -> Int
     | <<a, _rest::binary>> -> a
-    | <<>>                 -> 0
+    | _                   -> 0
 
-  ## Destructure a fixed-size header inside a `let`.
-  fn parse_header(buf: Bitstring) -> Int =
-    let <<tag, _rest::binary>> = buf
-    tag
+  ## Destructure a fixed-size header with an explicit empty-binary arm.
+  fn parse_header(buf: Binary) -> Int =
+    match buf
+      <<tag, _rest::binary>> -> tag
+      _                   -> 0
 
   ## Demonstration entry point.
   fn main() -> Int =

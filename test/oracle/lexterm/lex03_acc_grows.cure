@@ -1,0 +1,6 @@
+mod Lex03
+  type Nat = Z | S(Nat)
+  fn count_down(acc: Nat, n: Nat) -> Nat = match n
+    Z() -> acc
+    S(m) -> count_down(S(acc), m)
+end

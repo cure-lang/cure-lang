@@ -1,10 +1,9 @@
-## Echo actor for the Cure colony supervision tree.
-##
-## Stores the last message it received as its payload and also sends
-## `%[:echo, msg]` back to the spawning caller for every message.
+## Transparent actor example with a typed atom payload.
 
-actor Echo with nil
-  on_message
-    (msg, _payload) ->
-      notify(%[:echo, msg])
-      msg
+use Std.Actor
+
+actor Echo
+  state Atom
+  initial :nil
+  messages Atom
+  handle_cast %[:noreply, message]

@@ -1,0 +1,840 @@
+@group(:numeric)
+mod Std.Decimal
+  ## Arbitrary-precision decimal arithmetic.
+  ##
+  ## A finite value is `sign * coefficient * 10 ^ exponent`.  `Int` is an
+  ## arbitrary-precision BEAM integer, so the coefficient never silently wraps
+  ## or loses decimal digits.  Arithmetic is performed with integer operations;
+  ## Float is used only by the explicit conversion functions.
+  ##
+  ## The default context follows Elixir Decimal: 28 significant digits with
+  ## half-away-from-zero rounding.
+
+  use Std.String
+  use Std.Result
+  use Std.Math
+  use Std.Arithmetic
+  use Std.Comparable
+  use Std.Equatable
+  use Std.Bool
+  use Std.Json
+
+  type Sign = Positive | Negative
+
+  rec FiniteDecimal
+    sign: Sign
+    coefficient: Int
+    exponent: Int
+
+  type NaNPayload = NoPayload | Diagnostic(Int)
+
+  type Decimal =
+    Finite(FiniteDecimal)
+    | Infinity(Sign)
+    | QuietNaN(NaNPayload)
+    | SignallingNaN(NaNPayload)
+
+  type RoundingMode =
+    Down | Up | Ceiling | Floor | HalfUp | HalfEven | HalfDown
+
+  rec Context
+    precision: Int
+    rounding: RoundingMode
+
+  type DecimalError = InvalidOperation | OutOfRange
+
+  rec DigitScan
+    coefficient: Int
+    count: Int
+    rest: List(Char)
+
+  rec ExponentScan
+    exponent: Int
+    rest: List(Char)
+    valid: Bool
+
+  # -- Context and accessors -------------------------------------------------
+
+  fn default_context() -> Context = Context{precision: 28, rounding: HalfUp}
+
+  fn context(precision: Int, rounding: RoundingMode) -> Context =
+    Context{precision: max_int(1, precision), rounding: rounding}
+
+  fn sign(d: Decimal) -> Sign =
+    match d
+      Finite(value) -> value.sign
+      Infinity(s) -> s
+      QuietNaN(_) -> Positive
+      SignallingNaN(_) -> Positive
+
+  fn coefficient(d: Decimal) -> Int =
+    match d
+      Finite(value) -> value.coefficient
+      _ -> 0
+
+  fn exponent(d: Decimal) -> Int =
+    match d
+      Finite(value) -> value.exponent
+      _ -> 0
+
+  # -- Constants and construction ------------------------------------------
+
+  fn finite(s: Sign, coefficient: Int, exponent: Int) -> Decimal =
+    pickup
+      coefficient < 0 -> Finite(FiniteDecimal{sign: flip_sign(s), coefficient: -coefficient, exponent: exponent})
+      else -> Finite(FiniteDecimal{sign: s, coefficient: coefficient, exponent: exponent})
+
+  fn zero() -> Decimal = finite(Positive, 0, 0)
+  fn one() -> Decimal = finite(Positive, 1, 0)
+  fn infinity() -> Decimal = Infinity(Positive)
+  fn neg_infinity() -> Decimal = Infinity(Negative)
+  fn nan() -> Decimal = QuietNaN(NoPayload)
+
+  fn from_int(value: Int) -> Decimal =
+    pickup
+      value < 0 -> finite(Negative, -value, 0)
+      else -> finite(Positive, value, 0)
+
+  fn from_parts(s: Sign, coefficient: Int, exponent: Int) -> Decimal =
+    finite(s, abs_int(coefficient), exponent)
+
+  fn from_float(value: Float) -> Decimal =
+    match from_string(Std.String.from_float(value))
+      Ok(d) -> d
+      Error(_) -> nan()
+
+  implementation ExpressibleByNaturalLiteral for Decimal
+    fn from_natural_literal(literal: NaturalLiteral) -> LiteralResult(Decimal) =
+      LiteralValue(from_int(FromNat(literal.value)))
+
+  implementation ExpressibleByIntegerLiteral for Decimal
+    fn from_integer_literal(literal: IntegerLiteral) -> LiteralResult(Decimal) =
+      LiteralValue(from_int(literal.value))
+
+  implementation ExpressibleByDecimalLiteral for Decimal
+    fn from_decimal_literal(literal: DecimalLiteral) -> LiteralResult(Decimal) =
+      match parse_numeric(literal.spelling, Std.String.from_characters(literal.spelling))
+        Ok(pair) -> match Std.String.characters(pair.2)
+          [] -> LiteralValue(pair.1)
+          _ -> InvalidLiteral()
+        Error(_) -> InvalidLiteral()
+
+  implementation FromJSON for Decimal
+    fn from_json_value(value: Value) -> Result(Decimal, DecodeError) =
+      match value
+        Std.Json.Number(Std.Json.NaturalNumber(literal)) -> decimal_json_natural(literal)
+        Std.Json.Number(Std.Json.IntegerNumber(literal)) -> decimal_json_integer(literal)
+        Std.Json.Number(Std.Json.DecimalNumber(literal)) -> decimal_json_decimal(literal)
+        _ -> Error(Std.Json.UnexpectedValue("expected JSON number"))
+
+  local fn decimal_json_natural(literal: NaturalLiteral) -> Result(Decimal, DecodeError) =
+    let converted = assert_type from_natural_literal(literal) : LiteralResult(Decimal)
+    match converted
+      LiteralValue(value) -> Ok(value)
+      InvalidLiteral() -> Error(Std.Json.InvalidNumber(Std.String.from_characters(literal.spelling)))
+
+  local fn decimal_json_integer(literal: IntegerLiteral) -> Result(Decimal, DecodeError) =
+    let converted = assert_type from_integer_literal(literal) : LiteralResult(Decimal)
+    match converted
+      LiteralValue(value) -> Ok(value)
+      InvalidLiteral() -> Error(Std.Json.InvalidNumber(Std.String.from_characters(literal.spelling)))
+
+  local fn decimal_json_decimal(literal: DecimalLiteral) -> Result(Decimal, DecodeError) =
+    let converted = assert_type from_decimal_literal(literal) : LiteralResult(Decimal)
+    match converted
+      LiteralValue(value) -> Ok(value)
+      InvalidLiteral() -> Error(Std.Json.InvalidNumber(Std.String.from_characters(literal.spelling)))
+
+  # -- Exact string parser --------------------------------------------------
+
+  fn from_string(input: String) -> Result(Decimal, String) =
+    let trimmed = Std.String.trim(input)
+    match parse(trimmed)
+      Ok(pair) -> pickup
+        Std.String.is_empty(pair.2) -> Ok(pair.1)
+        else -> Error(input)
+      Error(_) -> Error(input)
+
+  ## Parse a decimal prefix and return the unconsumed suffix.
+  fn parse(input: String) -> Result(Tuple(Decimal, String), String) =
+    let lower = Std.String.downcase(input)
+    pickup
+      string_equal(lower, "infinity") -> Ok(%[infinity(), ""])
+      string_equal(lower, "+infinity") -> Ok(%[infinity(), ""])
+      string_equal(lower, "inf") -> Ok(%[infinity(), ""])
+      string_equal(lower, "+inf") -> Ok(%[infinity(), ""])
+      string_equal(lower, "-infinity") -> Ok(%[neg_infinity(), ""])
+      string_equal(lower, "-inf") -> Ok(%[neg_infinity(), ""])
+      string_equal(lower, "nan") -> Ok(%[nan(), ""])
+      string_equal(lower, "+nan") -> Ok(%[nan(), ""])
+      string_equal(lower, "-nan") -> Ok(%[nan(), ""])
+      else -> parse_numeric(Std.String.characters(input), input)
+
+  local fn parse_numeric(chars: List(Char), original: String) -> Result(Tuple(Decimal, String), String) =
+    let signed = parse_sign(chars)
+    let s = signed.1
+    let rest = signed.2
+    let whole = scan_digits(rest, 0, 0)
+    let remaining = whole.rest
+    match remaining
+      [head | fraction_chars] -> pickup
+        head == '.' ->
+          let fraction = scan_digits(fraction_chars, whole.coefficient, whole.count)
+          pickup
+            fraction.count == 0 -> Error(original)
+            else -> finish_parse(s, fraction, -(fraction.count - whole.count), original)
+        whole.count == 0 -> Error(original)
+        else -> finish_parse(s, whole, 0, original)
+      _ ->
+        pickup
+          whole.count == 0 -> Error(original)
+          else -> finish_parse(s, whole, 0, original)
+
+  local fn finish_parse(s: Sign, digits: DigitScan, base_exponent: Int, original: String) -> Result(Tuple(Decimal, String), String) =
+    let remaining = digits.rest
+    match remaining
+      [head | rest] -> pickup
+        head == 'e' -> finish_exponent(s, digits.coefficient, base_exponent, rest, digits.rest, original)
+        head == 'E' -> finish_exponent(s, digits.coefficient, base_exponent, rest, digits.rest, original)
+        else -> Ok(%[finite(s, digits.coefficient, base_exponent), Std.String.from_characters(remaining)])
+      [] -> Ok(%[finite(s, digits.coefficient, base_exponent), ""])
+
+  local fn finish_exponent(s: Sign, coefficient: Int, base_exponent: Int, chars: List(Char), unparsed: List(Char), original: String) -> Result(Tuple(Decimal, String), String) =
+    let scanned = scan_exponent(chars)
+    pickup
+      scanned.valid -> Ok(%[finite(s, coefficient, base_exponent + scanned.exponent), Std.String.from_characters(scanned.rest)])
+      else -> Ok(%[finite(s, coefficient, base_exponent), Std.String.from_characters(unparsed)])
+
+  local fn parse_sign(chars: List(Char)) -> Tuple(Sign, List(Char)) =
+    match chars
+      [head | rest] -> pickup
+        head == '-' -> %[Negative, rest]
+        head == '+' -> %[Positive, rest]
+        else -> %[Positive, chars]
+      [] -> %[Positive, []]
+
+  local fn scan_exponent(chars: List(Char)) -> ExponentScan =
+    let signed = parse_sign(chars)
+    let s = signed.1
+    let rest = signed.2
+    let digits = scan_digits(rest, 0, 0)
+    pickup
+      digits.count == 0 -> ExponentScan{exponent: 0, rest: chars, valid: false}
+      s == Negative -> ExponentScan{exponent: -digits.coefficient, rest: digits.rest, valid: true}
+      else -> ExponentScan{exponent: digits.coefficient, rest: digits.rest, valid: true}
+
+  local fn scan_digits(chars: List(Char), value: Int, count: Int) -> DigitScan =
+    match chars
+      [char | rest] ->
+        let digit = digit_value(char)
+        pickup
+          digit < 0 -> DigitScan{coefficient: value, count: count, rest: chars}
+          else -> scan_digits(rest, value * 10 + digit, count + 1)
+      [] -> DigitScan{coefficient: value, count: count, rest: []}
+
+  local fn digit_value(char: Char) -> Int =
+    match char
+      '0' -> 0
+      '1' -> 1
+      '2' -> 2
+      '3' -> 3
+      '4' -> 4
+      '5' -> 5
+      '6' -> 6
+      '7' -> 7
+      '8' -> 8
+      '9' -> 9
+      _ -> -1
+
+  local fn string_equal(a: String, b: String) -> Bool =
+    a == b
+
+  # -- Arithmetic -----------------------------------------------------------
+
+  fn absolute_value(d: Decimal) -> Decimal =
+    match d
+      Finite(value) -> finite(Positive, value.coefficient, value.exponent)
+      Infinity(_) -> infinity()
+      QuietNaN(payload) -> QuietNaN(payload)
+      SignallingNaN(payload) -> SignallingNaN(payload)
+
+  fn negate(d: Decimal) -> Decimal =
+    match d
+      Finite(value) -> finite(flip_sign(value.sign), value.coefficient, value.exponent)
+      Infinity(s) -> Infinity(flip_sign(s))
+      QuietNaN(payload) -> QuietNaN(payload)
+      SignallingNaN(payload) -> SignallingNaN(payload)
+
+  fn add(a: Decimal, b: Decimal) -> Decimal =
+    match a
+      QuietNaN(payload) -> QuietNaN(payload)
+      SignallingNaN(payload) -> QuietNaN(payload)
+      Infinity(sa) ->
+        match b
+          QuietNaN(payload) -> QuietNaN(payload)
+          SignallingNaN(payload) -> QuietNaN(payload)
+          Infinity(sb) -> pickup
+            same_sign(sa, sb) -> Infinity(sa)
+            else -> nan()
+          _ -> Infinity(sa)
+      Finite(va) ->
+        match b
+          QuietNaN(payload) -> QuietNaN(payload)
+          SignallingNaN(payload) -> QuietNaN(payload)
+          Infinity(sb) -> Infinity(sb)
+          Finite(vb) -> add_finite(va, vb)
+
+  local fn add_finite(a: FiniteDecimal, b: FiniteDecimal) -> Decimal =
+    let exp = min_int(a.exponent, b.exponent)
+    let ca = signed_coefficient(a) * pow10(a.exponent - exp)
+    let cb = signed_coefficient(b) * pow10(b.exponent - exp)
+    let sum = ca + cb
+    pickup
+      sum < 0 -> finite(Negative, -sum, exp)
+      sum > 0 -> finite(Positive, sum, exp)
+      same_sign(a.sign, b.sign) -> finite(a.sign, 0, exp)
+      else -> finite(Positive, 0, exp)
+
+  fn subtract(a: Decimal, b: Decimal) -> Decimal = add(a, negate(b))
+
+  fn multiply(a: Decimal, b: Decimal) -> Decimal =
+    match a
+      QuietNaN(payload) -> QuietNaN(payload)
+      SignallingNaN(payload) -> QuietNaN(payload)
+      Infinity(sa) -> multiply_infinity(sa, b)
+      Finite(va) ->
+        match b
+          QuietNaN(payload) -> QuietNaN(payload)
+          SignallingNaN(payload) -> QuietNaN(payload)
+          Infinity(sb) -> multiply_finite_infinity(va, sb)
+          Finite(vb) -> finite(mult_signs(va.sign, vb.sign), va.coefficient * vb.coefficient, va.exponent + vb.exponent)
+
+  local fn multiply_infinity(sa: Sign, b: Decimal) -> Decimal =
+    match b
+      QuietNaN(payload) -> QuietNaN(payload)
+      SignallingNaN(payload) -> QuietNaN(payload)
+      Infinity(sb) -> Infinity(mult_signs(sa, sb))
+      Finite(value) -> pickup
+        value.coefficient == 0 -> nan()
+        else -> Infinity(mult_signs(sa, value.sign))
+
+  local fn multiply_finite_infinity(value: FiniteDecimal, sb: Sign) -> Decimal =
+    pickup
+      value.coefficient == 0 -> nan()
+      else -> Infinity(mult_signs(value.sign, sb))
+
+  fn divide(a: Decimal, b: Decimal) -> Decimal = divide_with_context(a, b, default_context())
+
+  fn divide_with_context(a: Decimal, b: Decimal, ctx: Context) -> Decimal =
+    match a
+      QuietNaN(payload) -> QuietNaN(payload)
+      SignallingNaN(payload) -> QuietNaN(payload)
+      Infinity(sa) ->
+        match b
+          Infinity(_) -> nan()
+          Finite(vb) -> pickup
+            vb.coefficient == 0 -> nan()
+            else -> Infinity(mult_signs(sa, vb.sign))
+          _ -> nan()
+      Finite(va) ->
+        match b
+          QuietNaN(payload) -> QuietNaN(payload)
+          SignallingNaN(payload) -> QuietNaN(payload)
+          Infinity(sb) -> finite(mult_signs(va.sign, sb), 0, 0)
+          Finite(vb) -> divide_finite(va, vb, ctx)
+
+  local fn divide_finite(a: FiniteDecimal, b: FiniteDecimal, ctx: Context) -> Decimal =
+    pickup
+      b.coefficient == 0 -> nan()
+      a.coefficient == 0 -> finite(mult_signs(a.sign, b.sign), 0, 0)
+      else ->
+        let scale = max_int(0, ctx.precision + digit_count(b.coefficient) - digit_count(a.coefficient) + 1)
+        let numerator = a.coefficient * pow10(scale)
+        let quotient = numerator / b.coefficient
+        let result = finite(mult_signs(a.sign, b.sign), quotient, a.exponent - b.exponent - scale)
+        apply_context(normalize(result), ctx)
+
+  fn square_root(d: Decimal) -> Decimal = sqrt_with_context(d, default_context())
+
+  fn sqrt_with_context(d: Decimal, ctx: Context) -> Decimal =
+    match d
+      QuietNaN(payload) -> QuietNaN(payload)
+      SignallingNaN(payload) -> QuietNaN(payload)
+      Infinity(s) -> pickup
+        s == Positive -> infinity()
+        else -> nan()
+      Finite(value) ->
+        pickup
+          Std.Bool.`and`(value.sign == Negative, value.coefficient != 0) -> nan()
+          value.coefficient == 0 -> d
+          else -> sqrt_finite(value, ctx)
+
+  local fn sqrt_finite(value: FiniteDecimal, ctx: Context) -> Decimal =
+    let odd = value.exponent % 2 != 0
+    let adjusted_coefficient = pickup
+      odd -> value.coefficient * 10
+      else -> value.coefficient
+    let adjusted_exponent = pickup
+      odd -> value.exponent - 1
+      else -> value.exponent
+    let exact_root = integer_sqrt(adjusted_coefficient)
+    pickup
+      exact_root * exact_root == adjusted_coefficient -> finite(Positive, exact_root, adjusted_exponent / 2)
+      else ->
+        let guard_digits = ctx.precision + 2
+        let scaled = adjusted_coefficient * pow10(guard_digits * 2)
+        let root = integer_sqrt(scaled)
+        apply_context(normalize(finite(Positive, root, adjusted_exponent / 2 - guard_digits)), ctx)
+
+  local fn integer_sqrt(n: Int) -> Int =
+    pickup
+      n <= 1 -> n
+      else -> integer_sqrt_loop(n, (n / 2) + 1)
+
+  local fn integer_sqrt_loop(n: Int, guess: Int) -> Int =
+    let next = (guess + n / guess) / 2
+    pickup
+      next >= guess -> guess
+      else -> integer_sqrt_loop(n, next)
+
+  # -- Comparison -----------------------------------------------------------
+
+  fn compare(a: Decimal, b: Decimal) -> Result(Ordering, DecimalError) =
+    pickup
+      is_nan(a) -> Error(InvalidOperation)
+      is_nan(b) -> Error(InvalidOperation)
+      else -> Ok(compare_ordered(a, b))
+
+  local fn compare_ordered(a: Decimal, b: Decimal) -> Ordering =
+    match a
+      Infinity(sa) ->
+        match b
+          Infinity(sb) -> compare_signs(sa, sb)
+          _ -> pickup
+            sa == Positive -> GreaterThan
+            else -> LessThan
+      Finite(va) ->
+        match b
+          Infinity(sb) -> pickup
+            sb == Positive -> LessThan
+            else -> GreaterThan
+          Finite(vb) -> compare_finite(va, vb)
+          _ -> EqualTo
+      _ -> EqualTo
+
+  local fn compare_finite(a: FiniteDecimal, b: FiniteDecimal) -> Ordering =
+    pickup
+      Std.Bool.`and`(a.coefficient == 0, b.coefficient == 0) -> EqualTo
+      a.coefficient == 0 -> pickup
+        b.sign == Positive -> LessThan
+        else -> GreaterThan
+      b.coefficient == 0 -> pickup
+        a.sign == Positive -> GreaterThan
+        else -> LessThan
+      Std.Bool.`and`(a.sign == Positive, b.sign == Negative) -> GreaterThan
+      Std.Bool.`and`(a.sign == Negative, b.sign == Positive) -> LessThan
+      else ->
+        let exp = min_int(a.exponent, b.exponent)
+        let ca = a.coefficient * pow10(a.exponent - exp)
+        let cb = b.coefficient * pow10(b.exponent - exp)
+        let order = compare_int(ca, cb)
+        pickup
+          a.sign == Negative -> reverse_order(order)
+          else -> order
+
+  fn eq(a: Decimal, b: Decimal) -> Bool =
+    pickup
+      is_nan(a) -> false
+      is_nan(b) -> false
+      else -> compare_ordered(a, b) == EqualTo
+
+  fn lt(a: Decimal, b: Decimal) -> Bool =
+    pickup
+      is_nan(a) -> false
+      is_nan(b) -> false
+      else -> compare_ordered(a, b) == LessThan
+
+  fn gt(a: Decimal, b: Decimal) -> Bool =
+    pickup
+      is_nan(a) -> false
+      is_nan(b) -> false
+      else -> compare_ordered(a, b) == GreaterThan
+
+  fn lte(a: Decimal, b: Decimal) -> Bool = Std.Bool.`and`(Std.Bool.`and`(Std.Bool.`not`(gt(a, b)), Std.Bool.`not`(is_nan(a))), Std.Bool.`not`(is_nan(b)))
+  fn gte(a: Decimal, b: Decimal) -> Bool = Std.Bool.`and`(Std.Bool.`and`(Std.Bool.`not`(lt(a, b)), Std.Bool.`not`(is_nan(a))), Std.Bool.`not`(is_nan(b)))
+
+  fn max(a: Decimal, b: Decimal) -> Decimal =
+    pickup
+      is_nan(a) -> b
+      is_nan(b) -> a
+      gt(a, b) -> a
+      lt(a, b) -> b
+      else -> max_equal(a, b)
+
+  local fn max_equal(a: Decimal, b: Decimal) -> Decimal =
+    match a
+      Finite(va) ->
+        match b
+          Finite(vb) -> pickup
+            va.sign != vb.sign -> pickup
+              va.sign == Positive -> a
+              else -> b
+            va.sign == Positive -> pickup
+              va.exponent >= vb.exponent -> a
+              else -> b
+            va.exponent <= vb.exponent -> a
+            else -> b
+          _ -> a
+      _ -> a
+
+  fn min(a: Decimal, b: Decimal) -> Decimal =
+    pickup
+      is_nan(a) -> b
+      is_nan(b) -> a
+      lt(a, b) -> a
+      gt(a, b) -> b
+      else -> min_equal(a, b)
+
+  local fn min_equal(a: Decimal, b: Decimal) -> Decimal =
+    match a
+      Finite(va) ->
+        match b
+          Finite(vb) -> pickup
+            va.sign != vb.sign -> pickup
+              va.sign == Negative -> a
+              else -> b
+            va.sign == Positive -> pickup
+              va.exponent <= vb.exponent -> a
+              else -> b
+            va.exponent >= vb.exponent -> a
+            else -> b
+          _ -> a
+      _ -> a
+
+  fn compare_with_threshold(a: Decimal, b: Decimal, threshold: Decimal) -> Result(Ordering, DecimalError) =
+    pickup
+      is_negative(threshold) -> Error(InvalidOperation)
+      is_nan(threshold) -> Error(InvalidOperation)
+      lt(b, subtract(a, threshold)) -> Ok(GreaterThan)
+      gt(b, add(a, threshold)) -> Ok(LessThan)
+      else -> Ok(EqualTo)
+
+  fn eq_with_threshold(a: Decimal, b: Decimal, threshold: Decimal) -> Bool =
+    match compare_with_threshold(a, b, threshold)
+      Ok(EqualTo) -> true
+      _ -> false
+
+  # -- Conversion and formatting -------------------------------------------
+
+  fn to_string(d: Decimal) -> String =
+    match d
+      QuietNaN(_) -> "NaN"
+      SignallingNaN(_) -> "sNaN"
+      Infinity(s) -> pickup
+        s == Positive -> "Infinity"
+        else -> "-Infinity"
+      Finite(value) -> finite_to_string(value)
+
+  local fn finite_to_string(value: FiniteDecimal) -> String =
+    let prefix = sign_prefix(value.sign)
+    let digits = Std.String.from_int(value.coefficient)
+    let length = Std.String.length(digits)
+    let adjusted = value.exponent + length - 1
+    pickup
+      value.coefficient == 0 -> format_zero(prefix, value.exponent)
+      Std.Bool.`and`(value.exponent <= 0, adjusted >= -6) -> format_decimal(prefix, digits, length + value.exponent)
+      else -> format_scientific(prefix, digits, adjusted)
+
+  fn to_string_scientific(d: Decimal) -> String =
+    match d
+      Finite(value) ->
+        pickup
+          value.coefficient == 0 -> concat(sign_prefix(value.sign), "0E+0")
+          else ->
+            let normalized = normalize(d)
+            match normalized
+              Finite(n) -> format_scientific(sign_prefix(n.sign), Std.String.from_int(n.coefficient), n.exponent + digit_count(n.coefficient) - 1)
+              _ -> "NaN"
+      _ -> to_string(d)
+
+  fn to_string_raw(d: Decimal) -> String =
+    match d
+      Finite(value) -> concat(concat(concat(sign_prefix(value.sign), Std.String.from_int(value.coefficient)), exponent_marker(value.exponent)), Std.String.from_int(value.exponent))
+      _ -> to_string(d)
+
+  fn to_string_xsd(d: Decimal) -> String =
+    match d
+      Finite(value) ->
+        let normalized = normalize(d)
+        match normalized
+          Finite(n) ->
+            pickup
+              n.coefficient == 0 -> concat(sign_prefix(n.sign), "0.0")
+              n.exponent >= 0 -> concat(concat(sign_prefix(n.sign), Std.String.from_int(n.coefficient * pow10(n.exponent))), ".0")
+              else ->
+                let rendered = format_decimal(sign_prefix(n.sign), Std.String.from_int(n.coefficient), digit_count(n.coefficient) + n.exponent)
+                pickup
+                  n.exponent == 0 -> concat(rendered, ".0")
+                  else -> rendered
+          _ -> "NaN"
+      _ -> to_string(d)
+
+  local fn format_zero(prefix: String, exp: Int) -> String =
+    pickup
+      exp == 0 -> concat(prefix, "0")
+      exp < 0 -> concat(concat(prefix, "0."), Std.String.repeat("0", -exp))
+      else -> concat(concat(prefix, "0E+"), Std.String.from_int(exp))
+
+  local fn format_decimal(prefix: String, digits: String, position: Int) -> String =
+    pickup
+      position <= 0 -> concat(concat(concat(prefix, "0."), Std.String.repeat("0", -position)), digits)
+      position >= Std.String.length(digits) -> concat(concat(prefix, digits), Std.String.repeat("0", position - Std.String.length(digits)))
+      else ->
+        let parts = split_chars(Std.String.characters(digits), position, [])
+        concat(concat(concat(prefix, parts.1), "."), parts.2)
+
+  local fn format_scientific(prefix: String, digits: String, adjusted: Int) -> String =
+    match Std.String.characters(digits)
+      [head | rest] ->
+        let leading = Std.String.from_characters([head])
+        let mantissa = pickup
+          Std.List.is_empty(rest) -> leading
+          else -> concat(concat(leading, "."), Std.String.from_characters(rest))
+        concat(concat(concat(prefix, mantissa), exponent_marker(adjusted)), Std.String.from_int(adjusted))
+      [] -> concat(prefix, "0E+0")
+
+  local fn exponent_marker(exp: Int) -> String = pickup
+    exp >= 0 -> "E+"
+    else -> "E"
+
+  local fn split_chars(chars: List(Char), count: Int, reversed: List(Char)) -> Tuple(String, String) =
+    pickup
+      count <= 0 -> %[Std.String.reverse(Std.String.from_characters(reversed)), Std.String.from_characters(chars)]
+      else ->
+        match chars
+          [head | rest] -> split_chars(rest, count - 1, [head | reversed])
+          [] -> %[Std.String.reverse(Std.String.from_characters(reversed)), ""]
+
+  fn to_int(d: Decimal) -> Result(Int, DecimalError) =
+    match d
+      Finite(value) ->
+        pickup
+          value.exponent >= 0 -> Ok(apply_sign(value.sign, value.coefficient * pow10(value.exponent)))
+          value.coefficient % pow10(-value.exponent) == 0 -> Ok(apply_sign(value.sign, value.coefficient / pow10(-value.exponent)))
+          else -> Error(OutOfRange)
+      _ -> Error(InvalidOperation)
+
+  fn to_float(d: Decimal) -> Result(Float, DecimalError) =
+    match d
+      Finite(value) -> Ok(int_to_float(apply_sign(value.sign, value.coefficient)) * Std.Math.pow(10.0, int_to_float(value.exponent)))
+      _ -> Error(InvalidOperation)
+
+  @extern(:erlang, :float, 1)
+  local fn int_to_float(value: Int) -> Float
+
+  fn scale(d: Decimal) -> Int =
+    pickup
+      exponent(d) < 0 -> -exponent(d)
+      else -> 0
+
+  # -- Rounding and normalization ------------------------------------------
+
+  fn round(d: Decimal, places: Int, mode: RoundingMode) -> Decimal =
+    match d
+      Finite(value) -> round_finite(value, -places, mode)
+      _ -> d
+
+  local fn round_finite(value: FiniteDecimal, target_exponent: Int, mode: RoundingMode) -> Decimal =
+    pickup
+      value.exponent >= target_exponent -> finite(value.sign, value.coefficient * pow10(value.exponent - target_exponent), target_exponent)
+      else ->
+        let divisor = pow10(target_exponent - value.exponent)
+        let quotient = value.coefficient / divisor
+        let remainder = value.coefficient % divisor
+        finite(value.sign, rounded_coefficient(quotient, remainder, divisor, value.sign, mode), target_exponent)
+
+  fn normalize(d: Decimal) -> Decimal =
+    match d
+      Finite(value) -> normalize_finite(value)
+      _ -> d
+
+  local fn normalize_finite(value: FiniteDecimal) -> Decimal =
+    pickup
+      value.coefficient == 0 -> finite(value.sign, 0, 0)
+      value.coefficient % 10 == 0 -> normalize_finite(FiniteDecimal{sign: value.sign, coefficient: value.coefficient / 10, exponent: value.exponent + 1})
+      else -> Finite(value)
+
+  fn apply_context(d: Decimal, ctx: Context) -> Decimal =
+    match d
+      Finite(value) ->
+        let digits = digit_count(value.coefficient)
+        pickup
+          value.coefficient == 0 -> d
+          digits <= ctx.precision -> d
+          else -> round_significant(value, digits - ctx.precision, ctx.rounding)
+      _ -> d
+
+  local fn round_significant(value: FiniteDecimal, shift: Int, mode: RoundingMode) -> Decimal =
+    let divisor = pow10(shift)
+    let quotient = value.coefficient / divisor
+    let remainder = value.coefficient % divisor
+    let rounded = rounded_coefficient(quotient, remainder, divisor, value.sign, mode)
+    pickup
+      digit_count(rounded) > digit_count(quotient) -> finite(value.sign, rounded / 10, value.exponent + shift + 1)
+      else -> finite(value.sign, rounded, value.exponent + shift)
+
+  local fn rounded_coefficient(quotient: Int, remainder: Int, divisor: Int, s: Sign, mode: RoundingMode) -> Int =
+    pickup
+      remainder == 0 -> quotient
+      should_increment(quotient, remainder, divisor, s, mode) -> quotient + 1
+      else -> quotient
+
+  local fn should_increment(quotient: Int, remainder: Int, divisor: Int, s: Sign, mode: RoundingMode) -> Bool =
+    match mode
+      Down -> false
+      Up -> true
+      Ceiling -> s == Positive
+      Floor -> s == Negative
+      HalfUp -> remainder * 2 >= divisor
+      HalfDown -> remainder * 2 > divisor
+      HalfEven -> pickup
+        remainder * 2 > divisor -> true
+        remainder * 2 < divisor -> false
+        else -> quotient % 2 != 0
+
+  # -- Predicates -----------------------------------------------------------
+
+  fn is_nan(d: Decimal) -> Bool =
+    match d
+      QuietNaN(_) -> true
+      SignallingNaN(_) -> true
+      _ -> false
+
+  fn is_inf(d: Decimal) -> Bool =
+    match d
+      Infinity(_) -> true
+      _ -> false
+
+  fn is_positive(d: Decimal) -> Bool =
+    match d
+      Finite(value) -> Std.Bool.`and`(value.sign == Positive, value.coefficient != 0)
+      _ -> false
+
+  fn is_negative(d: Decimal) -> Bool =
+    match d
+      Finite(value) -> Std.Bool.`and`(value.sign == Negative, value.coefficient != 0)
+      _ -> false
+
+  fn is_zero(d: Decimal) -> Bool =
+    match d
+      Finite(value) -> value.coefficient == 0
+      _ -> false
+
+  fn is_integer(d: Decimal) -> Bool =
+    match to_int(d)
+      Ok(_) -> true
+      Error(_) -> false
+
+  # -- Integer division -----------------------------------------------------
+
+  fn divide_integer(a: Decimal, b: Decimal) -> Decimal =
+    match aligned_division(a, b)
+      Ok(pair) -> pair.1
+      Error(_) -> nan()
+
+  fn remainder(a: Decimal, b: Decimal) -> Decimal =
+    match aligned_division(a, b)
+      Ok(pair) -> pair.2
+      Error(_) -> nan()
+
+  fn divide_remainder(a: Decimal, b: Decimal) -> Tuple(Decimal, Decimal) =
+    match aligned_division(a, b)
+      Ok(pair) -> pair
+      Error(_) -> %[nan(), nan()]
+
+  local fn aligned_division(a: Decimal, b: Decimal) -> Result(Tuple(Decimal, Decimal), DecimalError) =
+    match a
+      Finite(va) ->
+        match b
+          Finite(vb) ->
+            pickup
+              vb.coefficient == 0 -> Error(InvalidOperation)
+              else -> aligned_finite_division(va, vb)
+          _ -> Error(InvalidOperation)
+      _ -> Error(InvalidOperation)
+
+  local fn aligned_finite_division(a: FiniteDecimal, b: FiniteDecimal) -> Result(Tuple(Decimal, Decimal), DecimalError) =
+    let exp = min_int(a.exponent, b.exponent)
+    let ca = a.coefficient * pow10(a.exponent - exp)
+    let cb = b.coefficient * pow10(b.exponent - exp)
+    let quotient = ca / cb
+    let rem = ca % cb
+    Ok(%[
+      finite(mult_signs(a.sign, b.sign), quotient, 0),
+      finite(a.sign, rem, exp)
+    ])
+
+  # -- Small integer/sign helpers ------------------------------------------
+
+  local fn pow10(n: Int) -> Int =
+    pickup
+      n <= 0 -> 1
+      n == 1 -> 10
+      n % 2 == 0 ->
+        let half = pow10(n / 2)
+        half * half
+      else -> 10 * pow10(n - 1)
+
+  local fn digit_count(value: Int) -> Int =
+    pickup
+      value < 10 -> 1
+      else -> 1 + digit_count(value / 10)
+
+  local fn abs_int(value: Int) -> Int = pickup
+    value < 0 -> -value
+    else -> value
+
+  local fn min_int(a: Int, b: Int) -> Int = pickup
+    a <= b -> a
+    else -> b
+
+  local fn max_int(a: Int, b: Int) -> Int = pickup
+    a >= b -> a
+    else -> b
+
+  local fn compare_int(a: Int, b: Int) -> Ordering = pickup
+    a < b -> LessThan
+    a > b -> GreaterThan
+    else -> EqualTo
+
+  local fn reverse_order(order: Ordering) -> Ordering =
+    match order
+      LessThan -> GreaterThan
+      GreaterThan -> LessThan
+      EqualTo -> EqualTo
+
+  local fn flip_sign(s: Sign) -> Sign =
+    match s
+      Positive -> Negative
+      Negative -> Positive
+
+  local fn same_sign(a: Sign, b: Sign) -> Bool = a == b
+
+  local fn mult_signs(a: Sign, b: Sign) -> Sign = pickup
+    same_sign(a, b) -> Positive
+    else -> Negative
+
+  local fn apply_sign(s: Sign, value: Int) -> Int = pickup
+    s == Negative -> -value
+    else -> value
+
+  local fn signed_coefficient(value: FiniteDecimal) -> Int = apply_sign(value.sign, value.coefficient)
+
+  local fn sign_prefix(s: Sign) -> String = pickup
+    s == Negative -> "-"
+    else -> ""
+
+  local fn compare_signs(a: Sign, b: Sign) -> Ordering = pickup
+    a == b -> EqualTo
+    a == Positive -> GreaterThan
+    else -> LessThan

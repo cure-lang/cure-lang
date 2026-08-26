@@ -25,11 +25,8 @@ defmodule CureSite.Application do
     Supervisor.start_link(children, opts)
   end
 
-  # Parse every stdlib `.cure` file exactly once at boot so the first
-  # `:t Std.List.map` / `:doc Std.List` in the browser REPL does not
-  # pay for lexing + parsing. The bundle is memoised in
-  # `:persistent_term` by `Cure.Types.Stdlib.all/0`, so subsequent
-  # callers just read the already-built map.
+  # Verify and load the complete stdlib generation at boot so the first
+  # playground compilation or browser REPL request does not pay that cost.
   #
   # The work is scheduled in an unlinked `Task` so a missing stdlib
   # (e.g. a broken release that stripped `priv/std/`) cannot prevent
@@ -39,7 +36,7 @@ defmodule CureSite.Application do
   defp warm_cure_stdlib do
     Task.start(fn ->
       try do
-        _ = Cure.Types.Stdlib.all()
+        _ = Cure.Stdlib.Preload.preload(kind: :all)
       rescue
         _ -> :ok
       end

@@ -1,0 +1,18 @@
+mod Frp02
+  type Sig = SigC | SigE
+  type Dec = DDec | DCau
+  fn dmeet(a: Dec, b: Dec) -> Dec = match a
+    DDec() -> match b
+      DDec() -> DDec()
+      DCau() -> DCau()
+    DCau() -> DCau()
+  type SList = SNil | SCons(Sig, SList)
+  fn app(xs: SList, ys: SList) -> SList = match xs
+    SNil() -> ys
+    SCons(x, r) -> SCons(x, app(r, ys))
+  type SF indices (i: SList, o: SList, dec: Dec)
+    prim : SF(av, bv, DCau)
+    seq : SF(av, bv, d1) -> SF(bv, cv, d2) -> SF(av, cv, dmeet(d1, d2))
+    par : SF(av, bv, d1) -> SF(cv, dv, d2) -> SF(app(av, cv), app(bv, dv), dmeet(d1, d2))
+  fn seqDec({av: SList}, {bv: SList}, {cv: SList}, x: SF(av, bv, DDec), y: SF(bv, cv, DDec)) -> SF(av, cv, DDec) = seq(x, y)
+end

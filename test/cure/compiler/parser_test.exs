@@ -9,11 +9,32 @@ defmodule Cure.Compiler.ParserTest do
     ast
   end
 
-  # Parse a `let` binding and return its `:type_annotation` meta -- the
-  # simplest way to exercise the private type-expression parser.
-  defp type_annotation!(source) do
-    {:assignment, meta, _} = parse!(source)
-    Keyword.fetch!(meta, :type_annotation)
+  describe "binder grade decorators" do
+    test "precede the binder and preserve external labels" do
+      ast = parse!("mod M\n  fn f(@linear label c : Box, @affine h : Handle) -> Box = c\n")
+
+      {:container, _, [{:function_def, meta, _}]} = ast
+      [{:param, linear_meta, "c"}, {:param, affine_meta, "h"}] = meta[:params]
+
+      assert linear_meta[:grade] == :linear
+      assert linear_meta[:label] == "label"
+      assert affine_meta[:grade] == :affine
+    end
+
+    test "supports graded implicit binders" do
+      ast = parse!("mod M\n  fn f({@erased n : Nat}) -> Nat = n\n")
+
+      {:container, _, [{:function_def, meta, _}]} = ast
+      [{:param, param_meta, "n"}] = meta[:params]
+      assert param_meta[:implicit]
+      assert param_meta[:grade] == :erased
+    end
+
+    test "supports graded local bindings" do
+      ast = parse!("mod M\n  fn f() -> Int =\n    let @linear c : Int = 1\n    c\n")
+
+      assert {:container, _, [{:function_def, _, [{:block, _, _}]}]} = ast
+    end
   end
 
   # ── Literals ──────────────────────────────────────────────────────────
@@ -55,13 +76,79 @@ defmodule Cure.Compiler.ParserTest do
     end
 
     test "regex" do
-      assert {:literal, meta, {"[a-z]+", "i"}} = parse!("~r/[a-z]+/i")
-      assert meta[:subtype] == :regex
+      assert {:computed_use, meta, [_expander, {:macro_input, input_meta, [pattern, flags]}]} =
+               parse!("/[a-z]+/i")
+
+      assert meta[:keyword] == "regex"
+      assert input_meta[:keyword] == "regex"
+      assert {:literal, pattern_meta, "[a-z]+"} = pattern
+      assert pattern_meta[:subtype] == :string
+      assert pattern_meta[:source_info].whole.start_column == 2
+      assert pattern_meta[:source_info].whole.end_column == 8
+      assert {:literal, flags_meta, "i"} = flags
+      assert flags_meta[:subtype] == :string
+      assert flags_meta[:source_info].whole.start_column == 9
+      assert flags_meta[:source_info].whole.end_column == 10
+    end
+
+    test "bare slash regex expands to the pure Cure Regex literal macro" do
+      assert {:computed_use, meta, [_expander, {:macro_input, _input_meta, [pattern, flags]}]} =
+               parse!("/[A-z]*/")
+
+      assert meta[:keyword] == "regex"
+
+      assert {:literal, pattern_meta, "[A-z]*"} = pattern
+      assert pattern_meta[:subtype] == :string
+      assert {:literal, flags_meta, ""} = flags
+      assert flags_meta[:subtype] == :string
+    end
+
+    test "preserves the complete Elixir modifier string for the pure macro" do
+      assert {:computed_use, meta,
+              [_expander, {:macro_input, _input_meta, [_pattern, {:literal, _flags_meta, "imsxurfUE"}]}]} =
+               parse!("/foo/imsxurfUE")
+
+      assert meta[:keyword] == "regex"
     end
 
     test "char" do
       assert {:literal, meta, ?x} = parse!("'x'")
       assert meta[:subtype] == :char
+    end
+  end
+
+  describe "match-chain function definitions" do
+    test "parses unguarded pattern clauses without an equals body" do
+      ast =
+        parse!("""
+        fn factorial(n: Nat) -> Nat
+          | 0 -> 1
+          | n -> n * factorial(n - 1)
+        """)
+
+      assert {:function_def, meta, []} = ast
+      assert meta[:name] == "factorial"
+      assert [%{guard: nil, params: [zero], body: [{:literal, _, 1}]}, second] = meta[:clauses]
+      assert {:literal, _, 0} = zero
+      assert second.guard == nil
+      assert [{:binary_op, _, _}] = second.body
+    end
+
+    test "parses guarded clauses and preserves the fallback pattern" do
+      ast =
+        parse!("""
+        fn classify(x: Int) -> Sign
+          | x when x > 0 -> Positive
+          | x when x < 0 -> Negative
+          | _             -> Zero
+        """)
+
+      assert {:function_def, meta, []} = ast
+      [positive, negative, fallback] = meta[:clauses]
+      assert positive.guard != nil
+      assert negative.guard != nil
+      assert fallback.guard == nil
+      assert [{:variable, _, "_"}] = fallback.params
     end
   end
 
@@ -81,6 +168,28 @@ defmodule Cure.Compiler.ParserTest do
     test "PascalCase identifier" do
       assert {:variable, meta, "MyModule"} = parse!("MyModule")
       assert meta[:scope] == :local
+    end
+  end
+
+  describe "type definitions" do
+    test "accepts newline between ADT name and assign" do
+      ast =
+        parse!("""
+        type Literal
+          = LInt(Int)
+          | LFloat(Float)
+          | LString(String)
+        """)
+
+      assert {:container, meta, variants} = ast
+      assert meta[:container_type] == :enum
+      assert meta[:name] == "Literal"
+
+      assert Enum.map(variants, fn {:function_def, meta, []} -> meta[:name] end) == [
+               "LInt",
+               "LFloat",
+               "LString"
+             ]
     end
   end
 
@@ -196,15 +305,17 @@ defmodule Cure.Compiler.ParserTest do
       assert {:assignment, meta, [{:variable, _, "x"}, {:literal, _, 42}]} = ast
       assert Keyword.has_key?(meta, :type_annotation)
     end
-  end
 
-  # ── Augmented Assignment ─────────────────────────────────────────────
+    test "function expression body can start with let chain" do
+      ast =
+        parse!("""
+        fn f() -> Int = let x = 1
+          x
+        """)
 
-  describe "augmented assignment" do
-    test "plus assign" do
-      ast = parse!("x += 1")
-      assert {:augmented_assignment, meta, [{:variable, _, "x"}, {:literal, _, 1}]} = ast
-      assert Keyword.get(meta, :operator) == :+
+      assert {:function_def, _, [{:block, _, [assignment, {:variable, _, "x"}]}]} = ast
+      assert {:assignment, meta, [{:variable, _, "x"}, {:literal, _, 1}]} = assignment
+      assert Keyword.get(meta, :let)
     end
   end
 
@@ -240,6 +351,20 @@ defmodule Cure.Compiler.ParserTest do
       assert {:pattern_match, _, [_, arm]} = ast
       assert {:match_arm, meta, [{:literal, _, 1}]} = arm
       assert {:literal, _, 0} = Keyword.get(meta, :pattern)
+    end
+
+    test "a `-> impossible` arm body is marked impossible in arm meta" do
+      ast = parse!("match x { bar() -> impossible }")
+      assert {:pattern_match, _, [_, arm]} = ast
+      assert {:match_arm, meta, _body} = arm
+      assert Keyword.get(meta, :impossible) == true
+    end
+
+    test "`impossible` is still usable as a normal identifier in an arm body" do
+      ast = parse!("match x { bar() -> impossible + 1 }")
+      assert {:pattern_match, _, [_, arm]} = ast
+      assert {:match_arm, meta, _body} = arm
+      refute Keyword.get(meta, :impossible) == true
     end
   end
 
@@ -369,7 +494,8 @@ defmodule Cure.Compiler.ParserTest do
     test "simple lambda" do
       ast = parse!("fn(x) -> x")
       assert {:lambda, meta, [{:variable, _, "x"}]} = ast
-      assert [{:param, [], "x"}] = Keyword.get(meta, :params)
+      assert [{:param, param_meta, "x"}] = Keyword.get(meta, :params)
+      assert %Cure.MetaAST.SourceInfo{} = Keyword.fetch!(param_meta, :source_info)
     end
 
     test "multi-param lambda" do
@@ -447,99 +573,6 @@ defmodule Cure.Compiler.ParserTest do
       Parser.parse(tokens, emit_events: true)
 
       assert_receive {Cure.Pipeline.Events, :parser, :parse_complete, _, _}
-    end
-  end
-
-  # ── Tuple types (%[A, B]) ──────────────────────────────────────────
-
-  describe "tuple types" do
-    test "%[A, B] parses as a tuple type" do
-      ann = type_annotation!("let x: %[Int, String] = y")
-      assert {:tuple, _, [{:variable, _, "Int"}, {:variable, _, "String"}]} = ann
-    end
-
-    test "%[A] is a single-element tuple type" do
-      ann = type_annotation!("let x: %[Int] = y")
-      assert {:tuple, _, [{:variable, _, "Int"}]} = ann
-    end
-
-    test "%[] is an empty tuple type" do
-      ann = type_annotation!("let x: %[] = y")
-      assert {:tuple, _, []} = ann
-    end
-
-    test "legacy (A, B) still parses to the same tuple type" do
-      legacy = type_annotation!("let x: (Int, String) = y")
-      sigil = type_annotation!("let x: %[Int, String] = y")
-      assert {:tuple, _, [{:variable, _, "Int"}, {:variable, _, "String"}]} = legacy
-      assert {:tuple, _, legacy_elems} = legacy
-      assert {:tuple, _, sigil_elems} = sigil
-      assert legacy_elems == sigil_elems
-    end
-
-    test "grouped single type (A) stays a plain type, not a tuple" do
-      ann = type_annotation!("let x: (Int) = y")
-      assert {:variable, _, "Int"} = ann
-    end
-
-    test "(A, B) -> C remains a function type, not a tuple" do
-      ann = type_annotation!("let f: (Int, String) -> Bool = g")
-      assert {:function_call, meta, [_, _, _]} = ann
-      assert Keyword.get(meta, :name) == "Function"
-      assert Keyword.get(meta, :function_type) == true
-    end
-
-    test "%[A, B] -> C is a unary function over a tuple" do
-      ann = type_annotation!("let f: %[Int, String] -> Bool = g")
-      assert {:function_call, meta, [tuple_arg, {:variable, _, "Bool"}]} = ann
-      assert Keyword.get(meta, :function_type) == true
-      assert {:tuple, _, [{:variable, _, "Int"}, {:variable, _, "String"}]} = tuple_arg
-    end
-
-    test "%[A, B] and legacy (A, B) resolve to the same canonical type" do
-      new_ann = type_annotation!("let x: %[Int, String] = y")
-      legacy_ann = type_annotation!("let x: (Int, String) = y")
-      assert Cure.Types.Type.resolve(new_ann) == {:tuple, [:int, :string]}
-      assert Cure.Types.Type.resolve(legacy_ann) == {:tuple, [:int, :string]}
-    end
-  end
-
-  # ── Tuple type deprecation (E086 / E-TYPE-TUPLE-PAREN) ─────────────
-
-  describe "legacy (A, B) tuple type deprecation" do
-    test "legacy (A, B) tuple type emits a :deprecation event" do
-      Cure.Pipeline.Events.subscribe(:parser, :deprecation)
-      {:ok, tokens} = Lexer.tokenize("let x: (Int, String) = y", emit_events: false)
-      Parser.parse(tokens, emit_events: true)
-
-      assert_receive {Cure.Pipeline.Events, :parser, :deprecation, payload, _}
-      assert {:tuple_type_paren_deprecated, msg, _} = payload
-      assert msg =~ "E-TYPE-TUPLE-PAREN"
-      assert msg =~ "%[A, B]"
-    end
-
-    test "%[A, B] tuple type does not emit a :deprecation event" do
-      Cure.Pipeline.Events.subscribe(:parser, :deprecation)
-      {:ok, tokens} = Lexer.tokenize("let x: %[Int, String] = y", emit_events: false)
-      Parser.parse(tokens, emit_events: true)
-
-      refute_receive {Cure.Pipeline.Events, :parser, :deprecation, _, _}, 50
-    end
-
-    test "(A, B) -> C function type does not emit a tuple deprecation" do
-      Cure.Pipeline.Events.subscribe(:parser, :deprecation)
-      {:ok, tokens} = Lexer.tokenize("let f: (Int, String) -> Bool = g", emit_events: false)
-      Parser.parse(tokens, emit_events: true)
-
-      refute_receive {Cure.Pipeline.Events, :parser, :deprecation, _, _}, 50
-    end
-
-    test "grouped single type (A) does not emit a deprecation" do
-      Cure.Pipeline.Events.subscribe(:parser, :deprecation)
-      {:ok, tokens} = Lexer.tokenize("let x: (Int) = y", emit_events: false)
-      Parser.parse(tokens, emit_events: true)
-
-      refute_receive {Cure.Pipeline.Events, :parser, :deprecation, _, _}, 50
     end
   end
 end

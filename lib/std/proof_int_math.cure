@@ -1,0 +1,37 @@
+@group(:core)
+mod Std.Proof.IntMath
+  ## Proof-carrying facts about `Int`, via decidable-Boolean reflection.
+  ##
+  ## Following Idris (`So`/`Oh`), Agda (`T`), and Lean (`Decidable`), this module
+  ## reflects a *decidable Boolean condition* into a proposition: the comparisons
+  ## already fold to the inductive `Bool`, so a closed condition reduces to
+  ## `True()` and is inhabited by pure computation, while an open condition is
+  ## carried as evidence by whoever constructs the value. This reflection is the
+  ## refinement-surface encoding and is entirely generic over the reflected
+  ## `Bool` — it does NOT depend on how `Int` is represented.
+  ##
+  ## (`Int` is now the inductive family `FromNat(Nat) | NegativeSuccessor(Nat)`
+  ## rather than a primitive, so open arithmetic `IsTrue`-claims can additionally
+  ## be discharged by structural induction — see `Std.Proof.IntOrder`. The
+  ## `IsTrue`/`Confirmed`/`decide_is_true` machinery below is unchanged and
+  ## continues to coexist as the decidable-Boolean reflector.)
+
+  use Std.Bool
+  use Std.Decision
+
+  ## Evidence that a decided Boolean condition holds. Its sole constructor
+  ## demands the condition already be `True()`, so a closed satisfied comparison
+  ## inhabits it by computation and an unsatisfied one is uninhabited.
+  type IsTrue indices (claim: Bool)
+    Confirmed : IsTrue(True())
+
+  ## A confirmed condition cannot also be false: matching evidence for the false
+  ## case is impossible, so the empty match discharges it.
+  fn true_is_not_false(proof: IsTrue(False())) -> Empty = match proof
+
+  ## Decide a condition, carrying checked evidence in either branch.
+  fn decide_is_true(claim: Bool) -> Decision(IsTrue(claim)) = match claim
+    True()  -> Yes(Confirmed())
+    False() -> No(true_is_not_false)
+
+end

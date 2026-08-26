@@ -1,0 +1,8 @@
+mod Dep11
+  type Nat = Zero | Suc(Nat)
+  type Vector(a: Type) indices (n: Nat)
+    empty : Vector(a, Zero)
+    prepend : a -> Vector(a, n) -> Vector(a, Suc(n))
+  fn second({a: Type},{k: Nat}, v: Vector(a, Suc(Suc(k)))) -> a = match v
+    prepend(x, prepend(y, r)) -> y
+end

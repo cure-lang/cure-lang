@@ -1,0 +1,8 @@
+mod Pl03
+  type Nat = Z | S(Nat)
+  type Opt(a) = None | Some(a)
+  fn empty() -> Opt(Nat) = None()
+  fn g() -> Nat = match empty()
+    Some(x) -> x
+    None() -> Z()
+end

@@ -1,0 +1,7 @@
+mod Al02
+  type Nat = Z | S(Nat)
+  type Endo = (Nat) -> Nat
+  fn ap(f: Endo, x: Nat) -> Nat = f(x)
+  fn inc(n: Nat) -> Nat = S(n)
+  fn g() -> Nat = ap(inc, Z())
+end

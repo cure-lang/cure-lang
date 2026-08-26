@@ -8,8 +8,8 @@ defmodule Cure.Doc.HTMLGenerator do
       `[doc]` section of `Cure.toml`) and every extracted module,
       optionally grouped via `[doc.groups_for_modules]`.
     * The right pane shows the page or module the user clicked. Every
-      function, type, and protocol inside a module page gets an
-      anchor (`#fn-<name>`, `#type-<name>`, `#proto-<name>`) so deep
+      function, type, and interface inside a module page gets an
+      anchor (`#fn-<name>`, `#type-<name>`, `#interface-<name>`) so deep
       links work out of the box.
     * A small vanilla-JS bundle implements a sidebar filter (press `/`
       to focus) and a `prefers-color-scheme`-driven theme toggle.
@@ -382,15 +382,15 @@ defmodule Cure.Doc.HTMLGenerator do
         ~s(<li><a href="#type-#{esc(t.name)}"><code>#{esc(t.name)}</code></a></li>)
       end)
 
-    proto_links =
+    interface_links =
       Enum.map_join(mod.protocols || [], "\n", fn p ->
-        ~s(<li><a href="#proto-#{esc(p.name)}"><code>#{esc(p.name)}</code></a></li>)
+        ~s(<li><a href="#interface-#{esc(p.name)}"><code>#{esc(p.name)}</code></a></li>)
       end)
 
     sections =
       [
         if(type_links != "", do: {"Types", type_links}, else: nil),
-        if(proto_links != "", do: {"Protocols", proto_links}, else: nil),
+        if(interface_links != "", do: {"Interfaces", interface_links}, else: nil),
         if(fn_links != "", do: {"Functions", fn_links}, else: nil)
       ]
       |> Enum.reject(&is_nil/1)
@@ -497,9 +497,6 @@ defmodule Cure.Doc.HTMLGenerator do
             Map.has_key?(t, :variants) and is_list(t.variants) and t.variants != [] ->
               " = " <> Enum.join(t.variants, " | ")
 
-            t.refinement ->
-              " (refinement)"
-
             true ->
               ""
           end
@@ -544,10 +541,10 @@ defmodule Cure.Doc.HTMLGenerator do
           end
 
         """
-        <article class="cure-doc-proto-entry" id="proto-#{esc(p.name)}">
+        <article class="cure-doc-proto-entry" id="interface-#{esc(p.name)}">
           <h3>
-            <a href="#proto-#{esc(p.name)}" class="cure-doc-anchor" aria-label="Link to this protocol">#</a>
-            <code>proto #{esc(p.name)}#{esc(tp)}</code>
+            <a href="#interface-#{esc(p.name)}" class="cure-doc-anchor" aria-label="Link to this interface">#</a>
+            <code>interface #{esc(p.name)}#{esc(tp)}</code>
           </h3>
           <p class="cure-doc-muted">Methods: #{methods}</p>
           #{doc_html}
@@ -557,7 +554,7 @@ defmodule Cure.Doc.HTMLGenerator do
 
     """
     <section class="cure-doc-protocols">
-      <h2>Protocols</h2>
+      <h2>Interfaces</h2>
       #{items}
     </section>
     """

@@ -1,0 +1,18 @@
+mod Frp05
+  type Dec = DDec | DCau
+  fn dmeet(a: Dec, b: Dec) -> Dec = match a
+    DDec() -> match b
+      DDec() -> DDec()
+      DCau() -> DCau()
+    DCau() -> DCau()
+  # A signal family indexed by decoupledness. `seqg` REFINES the index by a
+  # computed `dmeet`; `need` demands a decoupled (DDec) argument. Feeding
+  # `seqg(x,y) : G(dmeet(DDec,DDec))` to `need : G(DDec) -> …` requires the
+  # elaborator to reduce the computed index `dmeet(DDec,DDec) ≡ DDec` in
+  # ARGUMENT position — exactly the composed-computed-index conversion.
+  type G indices (d: Dec)
+    mkd : G(DDec)
+    seqg : G(d1) -> G(d2) -> G(dmeet(d1, d2))
+    need : G(DDec) -> G(DCau)
+  fn f(x: G(DDec), y: G(DDec)) -> G(DCau) = need(seqg(x, y))
+end

@@ -6,7 +6,7 @@
 ---
 > **Normative source (v0.33.0).** The `match` construct is specified at
 > version 1.0.0 in
-> [`docs/MATCH.md`](https://github.com/am-kantox/cure-lang/blob/main/docs/MATCH.md).
+> [`docs/MATCH.md`](https://github.com/cure-lang/cure-lang/blob/main/docs/MATCH.md).
 > That document covers grammar, the full pattern sub-grammar, static /
 > dynamic / operational semantics, formatter conformance, the
 > Maranget-style exhaustiveness algorithm, refinement narrowing, the
@@ -15,15 +15,15 @@
 > specification is the authority.
 
 Pattern matching is the primary way Cure programs decompose data and
-direct control flow. Every pattern is compiled down to Erlang abstract
-forms by `Cure.Compiler.PatternCompiler`, type-checked against the
-scrutinee, and analysed for exhaustiveness. Guards, pin equalities, and
-repeated-variable equalities are injected as `andalso` guard chains, so
-a pattern always succeeds-or-fails atomically.
+direct control flow. Every pattern passes through the dependent elaborator,
+which preserves constructor identities, narrowed bindings, index equations,
+and source spans before kernel validation and erasure. Runtime guards, pin
+equalities, and repeated-variable constraints then lower to atomic BEAM
+matching behavior.
 
 This page is the authoritative user-facing reference for the language
 feature. The on-disk companion document
-[docs/PATTERNS.md](https://github.com/am-kantox/cure-lang/blob/main/docs/PATTERNS.md)
+[docs/PATTERNS.md](https://github.com/cure-lang/cure-lang/blob/main/docs/PATTERNS.md)
 describes the AST-to-Erlang lowering in full.
 
 ## Where patterns can appear
@@ -53,12 +53,13 @@ pattern. A literal pattern succeeds exactly when the scrutinee is
 structurally equal to the literal.
 
 ```cure
-match n
-  0      -> :zero
-  1      -> :one
-  -1     -> :minus_one        # unary minus is recognised in patterns
-  0xFF   -> :byte
-  1_000  -> :big
+fn classify(n: Int) -> Atom =
+  pickup
+    n == 0 -> :zero
+    n == 1 -> :one
+    n == -1 -> :minus_one
+    n == 0xFF -> :byte
+    else -> :big
 ```
 
 Supported literal shapes:
@@ -66,8 +67,8 @@ Supported literal shapes:
 - Integers (`42`, `0xFF`, `0b1010`, `1_000_000`), with unary minus
   accepted as `-42`.
 - Floats (`3.14`, `0.001`).
-- Strings (`"hello"`), lowered to a `utf8` binary pattern. Byte
-  strings lower to a raw binary pattern.
+- Strings (`"hello"`), elaborated as `List(Char)` patterns. Byte literals
+  lower through `Std.Binary`.
 - Atoms (`:ok`, `:error`, `:my_atom`).
 - Booleans (`true`, `false`).
 - `nil`.
@@ -79,9 +80,9 @@ A bare identifier binds a fresh variable; the underscore is the
 wildcard and binds nothing.
 
 ```cure
-match value
-  _         -> :anything
-  x         -> do_something(x)
+fn classify(value: Int) -> Atom =
+  match value
+    _ -> :anything
 ```
 
 When a name occurs more than once in the same pattern, the compiler
@@ -89,9 +90,10 @@ emits a synthetic equality guard: every occurrence must match the same
 value.
 
 ```cure
-match pair
-  %[x, x] -> :equal
-  _       -> :different
+fn classify(pair: Tuple(Int, Int)) -> Atom =
+  match pair
+    %[x, x] -> :equal
+    _ -> :different
 ```
 
 The injected guard is conjoined with any user-written `when` clause
@@ -104,16 +106,16 @@ fresh one. It lowers to a fresh variable plus a synthetic equality
 guard against the pre-existing binding.
 
 ```cure
-let target = get_tag()
-
-match event.tag
-  ^target -> :hit
-  _       -> :miss
+fn pinned(value: Int) -> Atom =
+  let target = 1
+  match value
+    ^target -> :hit
+    _ -> :miss
 ```
 
-If `target` is not in scope at the pin position, the type checker
-emits `E024` (unbound pin variable) and the compiler degrades to a
-plain binding.
+If `target` is not in scope at the pin position, the compiler reports
+an unresolved-name error at the pin site rather than binding a fresh
+variable there.
 
 ## Lists
 
@@ -121,37 +123,40 @@ Two cons forms are accepted in both pattern and construction position.
 Single-head cons matches the head and the tail:
 
 ```cure
-match xs
-  []      -> :empty
-  [h | t] -> handle(h, t)
+fn classify(xs: List(Int)) -> Atom =
+  match xs
+    [] -> :empty
+    [_h | _t] -> :nonempty
 ```
 
 Multi-head cons desugars to right-associated cons cells. The pattern
 below is identical to `[a | [b | [c | rest]]]`:
 
 ```cure
-match xs
-  [a, b, c | rest] -> a + b + c
-  _                -> 0
+fn first_three(xs: List(Int)) -> Int =
+  match xs
+    [a, b, c | _rest] -> a + b + c
+    _ -> 0
 ```
 
 Fixed-size list patterns without a tail also work:
 
 ```cure
-match xs
-  [a, b] -> a + b
-  _      -> 0
+fn first_two(xs: List(Int)) -> Int =
+  match xs
+    [a, b] -> a + b
+    _ -> 0
 ```
 
 ## Tuples
 
 Tuple literals and patterns share the `%[...]` prefix.
 
-```cure
-match value
-  %[0, 0]     -> :origin
-  %[x, y]     -> move(x, y)
-  %[_, _, _]  -> :three_elements
+```text
+fn tuple_kind(value: Tuple(Int, Int)) -> Atom =
+  match value
+    %[0, 0] -> :origin
+    %[_, _] -> :other
 ```
 
 Tuple patterns recurse into every element, so arbitrary nesting works
@@ -164,16 +169,18 @@ the compiler lowers each field to an Erlang `map_field_exact` entry,
 which means the key is required to be present in the scrutinee. Fields
 not listed in the pattern are ignored (open matching).
 
-```cure
-match request
-  %{method: "GET", path: p}   -> fetch(p)
-  %{method: m,    path: _}    -> reject(m)
+```text
+fn request_kind(request: Map) -> Atom =
+  match request
+    %{method: "GET", path: _p} -> :fetch
+    %{method: _m, path: _} -> :reject
 ```
 
 A bare identifier at a map-key position is shorthand for `key: key`:
 
-```cure
-%{x, y} == %{x: x, y: y}
+```text
+fn map_punning(x: Int, y: Int) -> Bool =
+  %{x: x, y: y} == %{x: x, y: y}
 ```
 
 A non-literal, non-identifier map key triggers `E023`.
@@ -191,13 +198,10 @@ rec Point
   x: Int
   y: Int
 
-rec Person
-  name: String
-  address: Address
-
-match p
-  Point{x: 0, y: 0}                     -> :origin
-  Person{name, address: Address{city}}  -> greet(name, city)
+fn classify_point(p: Point) -> Atom =
+  match p
+    Point{x: 0, y: 0} -> :origin
+    Point{x: _, y: _} -> :point
 ```
 
 A bare identifier inside a record pattern is the field-punning
@@ -212,27 +216,31 @@ form `{:tuple, L, [tag_atom | child_forms]}`. Any PascalCase name in
 function-call position inside a pattern is treated as a constructor
 pattern.
 
-```cure
-type Option(T) = Some(T) | None
-type Result(T, E) = Ok(T) | Error(E)
+```text
+type Maybe = Some(Int) | None
+type Outcome = Ok(Int) | Error(Int)
 
-match opt
-  Some(v) -> v
-  None()  -> 0
+fn unwrap(opt: Maybe) -> Int =
+  match opt
+    Some(v) -> v
+    None -> 0
 ```
 
-Nullary constructors **must** use explicit empty parentheses. A bare
-`None` on its own would bind a fresh variable, not match the nullary
-constructor.
+Nullary constructors may be written bare (`None`) or with explicit empty
+parentheses (`None()`). Bare PascalCase names resolve against the scrutinee
+type's constructors; lowercase bare names remain variable bindings.
 
 Constructor patterns recurse into their arguments as patterns, so
 nested ADTs decompose in a single arm:
 
-```cure
-match x
-  Some(Ok(v))   -> v
-  Some(Error(_)) -> -1
-  None()        -> 0
+```text
+type Nested = Some(Outcome) | None
+
+fn unwrap_nested(x: Nested) -> Int =
+  match x
+    Some(Ok(v)) -> v
+    Some(Error(_)) -> -1
+    None() -> 0
 ```
 
 ## Nested destructuring
@@ -241,12 +249,13 @@ Every shape above composes with every other. The classic stress test
 from the v0.18.0 release notes destructures a 3-tuple whose middle
 element is a map holding a cons list:
 
-```cure
-match value
-  %[_, %{list: [head | _]}, _]           -> handle_head(head)
-  %[Ok(v), Error(_)]                     -> v
-  %[_, %{kind: "event", payload: p}, _]  -> p
-  _                                       -> default
+```text
+type Event = Event(Int)
+
+fn nested(value: Tuple(Map, Int, Int)) -> Int =
+  match value
+    %[ %{list: [head | _]}, _, _] -> head
+    %[_, _, _] -> 0
 ```
 
 There is no imposed depth limit.
@@ -256,16 +265,18 @@ There is no imposed depth limit.
 Guards restrict when a clause applies. They appear after `when`, both
 in function heads and in `match` arm heads:
 
-```cure
+```text
+type Message = Msg(String)
+
 fn classify(x: Int) -> String
   | x when x > 0 -> "positive"
   | x when x < 0 -> "negative"
   | _            -> "zero"
 
-match event
-  Msg(s) when Std.String.length(s) > 0 -> s
-  Msg(_)                               -> "empty"
-  _                                     -> "other"
+fn message(event: Message) -> String =
+  match event
+    Msg(s) when s != "" -> s
+    Msg(_) -> "empty"
 ```
 
 Guards accept the usual set of operators:
@@ -284,11 +295,11 @@ Since v0.20.0, bitstring patterns accept the full Elixir-style segment
 grammar. Segments inside `<<...>>` carry type, size, endianness,
 signedness, and unit specifiers chained with `-`:
 
-```cure
-match packet
-  <<tag::utf8, size::16, payload::binary-size(size), rest::binary>> ->
-    decode(tag, payload, rest)
-  _ -> :malformed
+```text
+fn decode_packet(packet: Bitstring) -> Atom =
+  match packet
+    <<_tag::utf8, _size::16, _payload::binary, _rest::binary>> -> :decoded
+    _ -> :malformed
 ```
 
 The specifier grammar mirrors Erlang's exactly. Type atoms are
@@ -299,11 +310,12 @@ signedness (`signed` / `unsigned`), and size/unit (`size(n)`,
 `integer-unsigned-big-size(8)-unit(1)`. A bare integer after `::` is
 shorthand for `size(n)`.
 
-```cure
-match bin
-  <<x::8>>            -> x           # same as <<x::size(8)>>
-  <<x::32-signed>>    -> x           # signed big-endian integer
-  <<x::float-little>> -> x           # 64-bit little-endian float
+```text
+fn decode_bits(bin: Bitstring) -> Int =
+  match bin
+    <<x::8>> -> x
+    <<x::32-signed>> -> x
+    _ -> 0
 ```
 
 ## Negated literals
@@ -312,35 +324,30 @@ Unary minus in a pattern position compiles to the negated literal, so
 `-5` matches the integer `-5`. This works for both integer and float
 literals.
 
-```cure
-match temperature
-  -273 -> :absolute_zero
-  0    -> :freezing
-  n    -> n
+```text
+fn temperature_kind(temperature: Int) -> Atom =
+  match temperature
+    -273 -> :absolute_zero
+    0 -> :freezing
+    _ -> :other
 ```
 
 ## Exhaustiveness
 
-The type checker runs two passes after every pattern-bearing
-construct:
-
-1. A **flat** classifier that recognises `:wildcard`, `:empty_list`,
-   `:cons`, `{:literal, subtype, value}`, `{:constructor, name, n}`,
-   `{:tuple, n}`, `{:map, n}`, and `{:record, name, fields}` at the
-   top level of each arm. Missing shapes are reported as `E004`.
-2. A **Maranget-style** nested pass that descends into tuple
-   scrutinees whose element types are enumerable (`Bool`,
-   `Result(T, E)`, `Option(T)`). Missing witnesses are rendered as
-   source-shape strings and reported as `E025`.
+The elaborator checks pattern coverage against the scrutinee's declared
+constructors (refined by any indices in scope). A pattern match that
+omits a reachable constructor, repeats one, or marks a reachable
+constructor `impossible` is a compile **error**, not a warning -- the
+program does not build until the gap is closed:
 
 ```text
-Warning: match expression has nested non-exhaustive cases (E025)
-  missing: %[Error(_), _]
+error: Pattern match is missing a case (E118)
+  missing: Error(_)
 ```
 
-Both passes emit `:type_warning` events via the pipeline. They do not
-block compilation: you can still build the program, but the warnings
-remain until the gap is closed.
+Structural problems -- a name bound twice in one pattern, more than one
+catch-all, or an open binary/map match with no fallback branch -- are
+reported separately as a pattern-structure error.
 
 For infinite types (`Int`, `Float`, `String`), a trailing wildcard `_`
 is required for exhaustiveness; you cannot enumerate all integers.
@@ -350,50 +357,34 @@ is required for exhaustiveness; you cannot enumerate all integers.
 The pattern engine contributes the following dedicated error codes,
 each available via `cure explain Edd` or `cure why Edd`:
 
-- **E004** - non-exhaustive patterns (flat classifier).
 - **E021** - unknown record field in a record pattern.
 - **E022** - record-pattern field type mismatch.
-- **E023** - non-literal, non-identifier map-pattern key.
-- **E024** - unbound pin variable.
-- **E025** - non-exhaustive nested match (Maranget walker).
+- **E118** - Pattern Coverage: a reachable constructor is missing,
+  repeated, or wrongly marked `impossible`.
+- **E119** - Pattern Structure: a name is bound more than once, a
+  catch-all is duplicated or impossible, a branch is unreachable after
+  a catch-all, or a binary/map match has no fallback.
 
-## Path-sensitive refinement
+Earlier releases reported non-exhaustive and malformed patterns under
+dedicated codes `E004`, `E023`, `E024`, and `E025`. Those codes are
+still documented by `cure explain` for historical continuity, but the
+current compiler no longer produces them -- the coverage and structure
+checks above have taken over that role.
 
-Pattern matches narrow the type of their scrutinee along each arm.
-`Cure.Types.PathRefinement` threads the arm's implied constraints
-back into the type environment so that subsequent expressions see a
-more precise type.
+## Dependent branch refinement
 
-```cure
-if x != 0 then 100 / x else 0
-```
+Pattern matching refines constructor indices and local binding types in each
+arm. This is performed by dependent pattern elaboration and index unification,
+not by the removed classic `Cure.Types.PathRefinement` /
+`PatternRefinement` modules.
 
-Inside the `then` branch `x` is refined to `{x: Int | x != 0}`, so the
-division is safe without an explicit refinement annotation.
+Literal and repeated-variable patterns contribute equality constraints;
+constructor patterns preserve their canonical family/constructor identity;
+record, tuple, list, and map subpatterns propagate the expected component
+types. Pattern-only evidence is erased after the kernel validates the branch.
 
-## Structural refinement narrowing
-
-v0.20.0 ships `Cure.Types.PatternRefinement`, whose `narrow/2` takes a
-pattern AST and a scrutinee type and returns
-`{bindings, narrowed_scrutinee}`. Two kinds of witnesses come back:
-
-**Literal-equality witnesses.** A sub-pattern that is a literal means
-the matched value *is* that literal along the arm. Matching `0`
-against `Int` narrows the scrutinee to `{x: Int | x == 0}`; inside a
-tuple pattern the other slots keep their original element types.
-
-**Disjoint-tag witnesses.** A constructor pattern (`Ok(v)`,
-`Error(e)`) or a map pattern with a literal `:kind` tag narrows the
-scrutinee to a tagged variant:
-
-```elixir
-narrow({:function_call, [name: "Ok"], [{:variable, [], "v"}]}, :any)
-# => {%{"v" => :any}, {:variant, :ok, []}}
-```
-
-Every narrowed type is something the SMT translator already
-understands, so `PatternRefinement` integrates directly with the
-existing refinement machinery.
+Guard coverage and shadowing may additionally be checked by Z3-backed linting.
+Those warnings do not create trusted refinement types or proof evidence.
 
 ## Worked example: JSON-shaped data
 
@@ -401,7 +392,7 @@ The example below uses only pattern matching -- no recursion helper,
 no conditional expression -- to classify a JSON-shaped value across
 five constructor variants, each with a different secondary shape:
 
-```cure
+```text
 type Json =
   | JNull
   | JBool(Bool)
@@ -450,11 +441,11 @@ every shape on this page.
 
 - The `pickup` construct -- the predicate-dispatch counterpart -- is
   documented at [`/pickup`](/pickup) and specified normatively at
-  [`docs/PICKUP.md`](https://github.com/am-kantox/cure-lang/blob/main/docs/PICKUP.md).
+  [`docs/PICKUP.md`](https://github.com/cure-lang/cure-lang/blob/main/docs/PICKUP.md).
 - The full normative specification of `match` is at
-  [`docs/MATCH.md`](https://github.com/am-kantox/cure-lang/blob/main/docs/MATCH.md).
+  [`docs/MATCH.md`](https://github.com/cure-lang/cure-lang/blob/main/docs/MATCH.md).
   Both specifications were published into HexDocs in v0.33.0.
 - The pattern-shape lowering tutorial lives in
-  [`docs/PATTERNS.md`](https://github.com/am-kantox/cure-lang/blob/main/docs/PATTERNS.md).
+  [`docs/PATTERNS.md`](https://github.com/cure-lang/cure-lang/blob/main/docs/PATTERNS.md).
 - The binary-segment grammar lives in
-  [`docs/BINARIES.md`](https://github.com/am-kantox/cure-lang/blob/main/docs/BINARIES.md).
+  [`docs/BINARIES.md`](https://github.com/cure-lang/cure-lang/blob/main/docs/BINARIES.md).

@@ -3,7 +3,7 @@ defmodule Cure.MixProject do
 
   @app :cure
   @version "0.33.1"
-  @source_url "https://github.com/am-kantox/cure-lang"
+  @source_url "https://github.com/cure-lang/cure-lang"
 
   def project do
     [
@@ -11,6 +11,7 @@ defmodule Cure.MixProject do
       version: @version,
       elixir: "~> 1.18",
       elixirc_paths: elixirc_paths(Mix.env()),
+      elixirc_options: elixirc_options(Mix.env()),
       start_permanent: Mix.env() == :prod,
       consolidate_protocols: Mix.env() not in [:dev, :test],
       deps: deps(),
@@ -20,6 +21,9 @@ defmodule Cure.MixProject do
       aliases: aliases(),
       package: package(),
       test_coverage: [tool: ExCoveralls],
+      # Fixtures under test/**/fixtures are loaded manually by tests, not run as
+      # test files — exclude them from the loader so 1.20 doesn't warn on them.
+      test_ignore_filters: [~r{/fixtures/}],
       dialyzer: [
         plt_file: {:no_warn, ".dialyzer/dialyzer.plt"},
         plt_add_deps: :app_tree,
@@ -37,6 +41,12 @@ defmodule Cure.MixProject do
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
 
+  # Under `mix test`, treat lib/support compile warnings as errors too. The
+  # `test` alias's --warnings-as-errors only covers test-file + test-run
+  # warnings; this catches warnings from compiling the project itself.
+  defp elixirc_options(:test), do: [warnings_as_errors: true]
+  defp elixirc_options(_), do: []
+
   def application do
     [
       extra_applications: [:logger, :inets, :ssl, :crypto, :public_key, :tools, :sasl, :runtime_tools],
@@ -47,6 +57,13 @@ defmodule Cure.MixProject do
   def cli do
     [
       preferred_envs: [
+        # Antigen drives StreamData (a `:test`-only dep), so these tasks must run
+        # in :test; auto-select it so no MIX_ENV=test prefix is needed. `antigen.prune`
+        # (replays assays) and `antigen.merge` (pure file ops) don't generate, so they
+        # run fine in :dev and are intentionally omitted.
+        antigen: :test,
+        "antigen.regen_seeds": :test,
+        "cure.diagnostics": :test,
         coveralls: :test,
         "coveralls.detail": :test,
         "coveralls.post": :test,
@@ -60,6 +77,9 @@ defmodule Cure.MixProject do
     [
       # Core -- MetaAST backing
       {:metastatic, "~> 0.18"},
+
+      # Terminal diagnostics -- Unicode display-width properties
+      {:unicode, "~> 1.21"},
 
       # REPL -- syntax highlighting and Markdown-to-ANSI rendering
       {:marcli, "~> 0.3"},
@@ -83,12 +103,39 @@ defmodule Cure.MixProject do
       {:excoveralls, "~> 0.18", only: :test, runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:oeditus_credo, "~> 0.4", only: [:dev, :test], runtime: false}
+      {:oeditus_credo, "~> 0.4", only: [:dev, :test], runtime: false},
+
+      # Antigen -- property-based metatheory testing (test-only; quarantined
+      # behind Antigen.Backend.StreamData per the architecture rule).
+      {:stream_data, "~> 1.0", only: [:test]}
     ]
   end
 
   defp aliases do
+    compile =
+      if Mix.env() == :test do
+        # Tests compile the host application and a VM-local stdlib generation.
+        # Packaged sources/BEAMs and the root escript are independent release
+        # gates; writing them here makes concurrent test VMs race on shared
+        # filesystem outputs.
+        ["compile", "cure.compile_stdlib"]
+      else
+        [
+          "compile",
+          "cure.bundle_stdlib",
+          "cure.compile_stdlib",
+          "cure.bundle_stdlib_beams",
+          "cure.escript"
+        ]
+      end
+
     [
+      # Warnings during `mix test` are failures — keeps the suite output clean
+      # and stops new compile warnings from slipping in. Covers lib AND test
+      # files (unlike elixirc_options, which misses test compilation). The
+      # documentation dragnet runs after ExUnit so fenced Cure examples and
+      # source docstrings are part of the default test gate too.
+      test: ["test --warnings-as-errors", "cure.check.docs"],
       quality: ["format", "credo --strict"],
       "quality.ci": [
         "format --check-formatted",
@@ -108,14 +155,14 @@ defmodule Cure.MixProject do
       # into `priv/ebin/`. That directory rides along with every OTP
       # release so the embedded REPL can call into the stdlib at runtime
       # without relying on the build-time `_build/cure/ebin` artefact.
-      compile: ["compile", "cure.bundle_stdlib", "cure.compile_stdlib", "cure.bundle_stdlib_beams", "cure.escript"]
+      compile: compile
     ]
   end
 
   defp description do
     """
     Dependently-typed programming language for the BEAM virtual machine
-    with first-class finite state machines and SMT-backed verification.
+    with one kernel-checked compiler pipeline and first-class OTP concurrency.
     """
   end
 
@@ -144,8 +191,11 @@ defmodule Cure.MixProject do
         "CHANGELOG.md",
         "docs/TUTORIAL.md",
         "docs/LANGUAGE_SPEC.md",
+        "docs/MACROS.md",
         "docs/TYPE_SYSTEM.md",
         "docs/DEPENDENT_TYPES.md",
+        "docs/KERNEL.md",
+        "docs/DEPENDENT_KERNEL_PEERNESS_ROADMAP.md",
         "docs/PATTERNS.md",
         "docs/BINARIES.md",
         "docs/PROOFS.md",
@@ -164,7 +214,6 @@ defmodule Cure.MixProject do
         "docs/BLESS.md",
         "docs/REPLAY.md",
         "docs/JOHN.md",
-        "docs/MONOMORPHISATION.md",
         "docs/PGO.md",
         "docs/PROOF_CARRYING.md",
         "docs/EXPORT_TYPES.md",
@@ -172,7 +221,8 @@ defmodule Cure.MixProject do
         "docs/STORY.md",
         "docs/MATCH.md",
         "docs/PICKUP.md",
-        "docs/FFI.md"
+        "docs/FFI.md",
+        "ROADMAP-0.34.md"
       ],
       source_url: @source_url,
       source_ref: "v#{@version}",

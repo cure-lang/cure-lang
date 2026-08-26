@@ -1,0 +1,40 @@
+@group(:core)
+mod Std.Semigroup
+  ## Semigroup interface — types that support an associative `combine`.
+  ##
+  ## A semigroup is any type `a` equipped with an associative binary
+  ## operation. `combine` is the operation the concatenation operators
+  ## desugar to: `x <> y` is `combine(x, y)`, and `x + y` on a non-numeric
+  ## operand is the same (a Swift-style `+` overload). Numeric `+` keeps its
+  ## primitive meaning — only non-numeric operands route through here.
+  ##
+  ## The built-in implementation for `List` is the ordinary structural append,
+  ## a reducing library function (not a kernel primitive), so `Vector`/length-
+  ## indexed reasoning keeps computing through a concatenation. `String` is
+  ## nominal, so it supplies its own instance (`Std.String.concat`) rather than
+  ## riding the `List` one.
+  ##
+  ## ## Examples
+  ##
+  ## ```cure
+  ## use Std.Semigroup
+  ##
+  ## combine([1, 2], [3, 4])        # => [1, 2, 3, 4]
+  ## [1, 2] <> [3, 4]               # => [1, 2, 3, 4]
+  ## "ab" <> "cd"                   # => "abcd"
+  ## ```
+
+  ## `Semigroup(a)` equips `a` with an associative `combine`.
+  interface Semigroup(a)
+    ## Associatively combine two `a` values into one.
+    fn combine(x: a, y: a) -> a
+
+  ## `Semigroup` implementation for `List`: structural append. Self-contained
+  ## (no cross-module reference) so the instance travels cleanly through the
+  ## auto-prelude into every module.
+  implementation Semigroup for List(t)
+    ## Concatenate two lists, preserving order. Linear in `length(x)`.
+    fn combine(x: List(t), y: List(t)) -> List(t) =
+      match x
+        [] -> y
+        [h | t] -> [h | combine(t, y)]

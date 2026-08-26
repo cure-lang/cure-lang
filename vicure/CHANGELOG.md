@@ -27,7 +27,7 @@ grammar; the three should stay in lockstep.
   `cureRegexDelim` groups.
 - Erlang-style char literals (`?c`, `?\n`) alongside the existing
   `'c'` form.
-- Typed holes: `?name` and anonymous `??` (`cureHole`).
+- Typed holes: `?name` and anonymous `?_` (`cureHole`).
 - Attribute / decorator lines: `@record`, `@derive`, etc.
   (`cureAttribute`).
 - FSM transition literal `State --event--> State`, including

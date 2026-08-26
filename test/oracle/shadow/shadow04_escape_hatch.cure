@@ -1,0 +1,8 @@
+mod EscapeHatch
+  use Std.Nat
+  type Nat = Zero | Suc(Nat)
+  fn imported_two() -> Std.Nat = Std.Nat.S(Std.Nat.Z())
+  fn is_zero(n: Std.Nat) -> Nat = match n
+    Std.Nat.Z() -> Zero()
+    Std.Nat.S(k) -> Suc(Zero())
+end

@@ -1,0 +1,8 @@
+mod Mt19
+  type Nat = Z | S(Nat)
+  type T = A(Sigma(a: Nat, Nat)) | B
+  fn f(t: T) -> Nat = match t
+    A(%[x, y]) -> y
+    B() -> Z()
+  fn g() -> Nat = f(A(%[Z(), S(Z())]))
+end

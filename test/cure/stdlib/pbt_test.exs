@@ -44,7 +44,7 @@ defmodule Cure.Stdlib.PbtTest do
       # `n + 0 == n` is trivially true for any Int.
       gen = fn _ -> :"Cure.Std.Gen".int_in(-1_000, 1_000) end
       property = fn n -> n + 0 == n end
-      assert :"Cure.Std.Test".forall(gen, property, 50) == :ok
+      assert :"Cure.Std.Test".forall(gen, property, 50) == :unit
     end
 
     test "raises when property is false at some sample" do

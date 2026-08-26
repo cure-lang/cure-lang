@@ -1,0 +1,34 @@
+# Kernel conformance corpus (design spec §9, C3). Every kernel implementation
+# must agree on these verdicts. Format:  verdict | term | inferred-type(optional)
+# verdict is `accept` (infer succeeds; type checked if given) or `reject`.
+# Terms and types use the C2 S-expression format (Cure.Core.Serialize).
+accept | (int 5) | (data Std.Int#Int () ())
+accept | (int -7) | (data Std.Int#Int () ())
+accept | (float 1.5) | (float-type)
+accept | (ctor True) | (data Std.Bool#Bool () ())
+accept | (int-type) | (type 0)
+accept | (data Bool () ()) | (type 0)
+accept | (type 0) | (type 1)
+accept | (app (app (global int_add) (int 3)) (int 5)) | (data Std.Int#Int () ())
+accept | (app (app (global int_mul) (int 4)) (int 6)) | (data Std.Int#Int () ())
+accept | (app (app (global float_add) (float 1.0)) (float 2.0)) | (float-type)
+accept | (app (app (global int_lt) (int 3)) (int 5)) | (data Std.Bool#Bool () ())
+reject | (app (global not) (ctor True))
+accept | (app (global int_neg) (int 5)) | (data Std.Int#Int () ())
+accept | (pi unrestricted (int-type) (type 0)) | (type 1)
+accept | (data Sigma ((int-type) (lam unrestricted (int-type) (int-type))) ()) | (type 0)
+accept | (lam unrestricted (int-type) (var 0))
+# identity type: the primitive (eq …)/(refl …) forms retired (Phase C,
+# spec 2026-07-04) — the inductive family is the conformance surface. The
+# params-on-spine reflexive is the inferable spelling (K6 §E.1); the type
+# column uses the flat params++indices read-back (reify has no signature).
+accept | (data Equivalent ((data Std.Int#Int () ())) ((int 1) (int 1))) | (type 0)
+accept | (ctor reflexive (data Std.Int#Int () ()) (int 1)) | (data Std.Equivalent#Equivalent ((data Std.Int#Int () ()) (int 1) (int 1)) ())
+reject | (app (app (global int_add) (int 1)) (type 0))
+reject | (app (app (global int_lt) (ctor True)) (int 2))
+reject | (app (app (global and) (int 1)) (int 2))
+reject | (app (int 5) (int 3))
+reject | (var 0)
+reject | (app (app (app (global int_add) (int 1)) (int 2)) (int 3))
+reject | (ctor mk_pair (int 5))
+reject | (type 2)

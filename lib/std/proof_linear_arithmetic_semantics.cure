@@ -1,0 +1,269 @@
+## Trusted semantic lemmas used by the linear-arithmetic proof modules.
+## The declarations relate coefficient lists and their evaluated sums.
+@group(:core)
+mod Std.Proof.LinearArithmetic.Semantics
+  use Std.Nat
+  use Std.Int
+  use Std.List
+  use Std.Equivalent
+  use Std.Proof.IntOrder
+  use Std.Proof.IntDiscrete
+  use Std.Proof.LinearArithmetic
+
+  type AlignedCoefficients indices (coefficients: List(Int), valuation: List(Int))
+    AlignedEmpty : AlignedCoefficients(Nil(), Nil())
+    AlignedCons : {coefficients: List(Int)} -> {valuation: List(Int)} -> {coefficient: Int} -> {value: Int} -> AlignedCoefficients(coefficients, valuation) -> AlignedCoefficients(Cons(coefficient, coefficients), Cons(value, valuation))
+
+  type AddedCoefficientsAt indices (left: List(Int), right: List(Int), result: List(Int), valuation: List(Int))
+    AddedEmpty : AddedCoefficientsAt(Nil(), Nil(), Nil(), Nil())
+    AddedCons : {lefts: List(Int)} -> {rights: List(Int)} -> {results: List(Int)} -> {valuation: List(Int)} -> {left: Int} -> {right: Int} -> {value: Int} -> AddedCoefficientsAt(lefts, rights, results, valuation) -> AddedCoefficientsAt(Cons(left, lefts), Cons(right, rights), Cons(add_int(left, right), results), Cons(value, valuation))
+
+  type ZeroCoefficientsAt indices (coefficients: List(Int), valuation: List(Int))
+    ZeroAtEmpty : ZeroCoefficientsAt(Nil(), Nil())
+    ZeroAtCons : {coefficients: List(Int)} -> {valuation: List(Int)} -> {value: Int} -> ZeroCoefficientsAt(coefficients, valuation) -> ZeroCoefficientsAt(Cons(int_zero(), coefficients), Cons(value, valuation))
+
+  type ScaledCoefficientsAt indices (scalar: Nat, source: List(Int), result: List(Int), valuation: List(Int))
+    ScaledEmpty : {scalar: Nat} -> ScaledCoefficientsAt(scalar, Nil(), Nil(), Nil())
+    ScaledCons : {scalar: Nat} -> {source: List(Int)} -> {result: List(Int)} -> {valuation: List(Int)} -> {coefficient: Int} -> {value: Int} -> ScaledCoefficientsAt(scalar, source, result, valuation) -> ScaledCoefficientsAt(scalar, Cons(coefficient, source), Cons(scale_nat_int(scalar, coefficient), result), Cons(value, valuation))
+
+  type AllAffineFormsHold indices (coefficient_sets: List(List(Int)), constants: List(Int), valuation: List(Int))
+    AllAffineEmpty : AllAffineFormsHold(Nil(), Nil(), valuation)
+    AllAffineCons : {coefficients: List(Int)} -> {constant: Int} -> {rest_coefficients: List(List(Int))} -> {rest_constants: List(Int)} -> {valuation: List(Int)} -> IsLessThanOrEqual(dot(coefficients, valuation), constant) -> AllAffineFormsHold(rest_coefficients, rest_constants, valuation) -> AllAffineFormsHold(Cons(coefficients, rest_coefficients), Cons(constant, rest_constants), valuation)
+
+  type WeightedAffineFold indices (
+    coefficient_sets: List(List(Int)), constants: List(Int), witness: List(Nat),
+    result_coefficients: List(Int), result_constant: Int, valuation: List(Int)
+  )
+    WeightedAffineEmpty : {result_coefficients: List(Int)} -> {valuation: List(Int)} -> ZeroCoefficientsAt(result_coefficients, valuation) -> WeightedAffineFold(Nil(), Nil(), Nil(), result_coefficients, int_zero(), valuation)
+    WeightedAffineCons : {coefficients: List(Int)} -> {constant: Int} -> {scalar: Nat} -> {scaled_coefficients: List(Int)} -> {tail_coefficients: List(List(Int))} -> {tail_constants: List(Int)} -> {tail_witness: List(Nat)} -> {tail_result_coefficients: List(Int)} -> {tail_result_constant: Int} -> {valuation: List(Int)} -> {result_coefficients: List(Int)} -> ScaledCoefficientsAt(scalar, coefficients, scaled_coefficients, valuation) -> WeightedAffineFold(tail_coefficients, tail_constants, tail_witness, tail_result_coefficients, tail_result_constant, valuation) -> AddedCoefficientsAt(scaled_coefficients, tail_result_coefficients, result_coefficients, valuation) -> WeightedAffineFold(Cons(coefficients, tail_coefficients), Cons(constant, tail_constants), Cons(scalar, tail_witness), result_coefficients, add_int(scale_nat_int(scalar, constant), tail_result_constant), valuation)
+
+  fn dot_zero_coefficients(
+    {coefficients: List(Int)}, {valuation: Valuation},
+    alignment: ZeroCoefficientsAt(coefficients, valuation)
+  ) -> Equivalent(Int, dot(coefficients, valuation), int_zero()) = induction alignment
+    case ZeroAtEmpty =>
+      proof chain
+        dot(coefficients, valuation) == int_zero()
+        because simplify
+
+    case ZeroAtCons(
+      {coefficients = coefficients_rest},
+      {valuation = valuation_rest}, {value = value},
+      rest, induction_hypothesis
+    ) =>
+      have tail_evaluation = dot_zero_coefficients(rest)
+      proof chain
+        dot(coefficients, valuation) == int_zero()
+        because simplify using [tail_evaluation]
+
+  fn dot_added_coefficients(
+    {left: List(Int)}, {right: List(Int)}, {result: List(Int)}, {valuation: List(Int)},
+    alignment: AddedCoefficientsAt(left, right, result, valuation)
+  ) -> Equivalent(Int,
+    dot(result, valuation), add_int(dot(left, valuation), dot(right, valuation))) =
+    induction alignment
+      case AddedEmpty =>
+        proof chain
+          dot(result, valuation) == add_int(dot(left, valuation), dot(right, valuation))
+          because simplify
+
+      case AddedCons(
+        {lefts = left_rest}, {rights = right_rest},
+        {results = result_rest}, {valuation = valuation_rest},
+        {left = left_head}, {right = right_head}, {value = value},
+        rest, induction_hypothesis
+      ) =>
+        have tail_evaluation = dot_added_coefficients(rest)
+        have head_distribution = multiply_int_distributes_over_coefficient_add(
+          left: left_head, right: right_head, value: value)
+        have reassociation = add_int_rearrange_four(
+          a: multiply_int(left_head, value),
+          b: multiply_int(right_head, value),
+          c: dot(left_rest, valuation_rest),
+          d: dot(right_rest, valuation_rest))
+
+        proof chain
+          dot(result, valuation) == add_int(
+            multiply_int(add_int(left_head, right_head), value),
+            dot(result_rest, valuation_rest))
+          because simplify
+
+          _ == add_int(
+            add_int(multiply_int(left_head, value), multiply_int(right_head, value)),
+            dot(result_rest, valuation_rest))
+          because
+            rewrite using head_distribution
+            simplify
+
+          _ == add_int(
+            add_int(multiply_int(left_head, value), multiply_int(right_head, value)),
+            add_int(dot(left_rest, valuation_rest), dot(right_rest, valuation_rest)))
+          because
+            rewrite using tail_evaluation
+            simplify
+
+          _ == add_int(
+            add_int(multiply_int(left_head, value), dot(left_rest, valuation_rest)),
+            add_int(multiply_int(right_head, value), dot(right_rest, valuation_rest)))
+          because reassociation
+
+          _ == add_int(dot(left, valuation), dot(right, valuation))
+          because simplify
+
+  fn dot_scaled_coefficients(
+    {scalar: Nat}, {source: List(Int)}, {result: List(Int)}, {valuation: List(Int)},
+    alignment: ScaledCoefficientsAt(scalar, source, result, valuation)
+  ) -> Equivalent(Int,
+    dot(result, valuation), scale_nat_int(scalar, dot(source, valuation))) =
+    induction alignment
+      case ScaledEmpty({scalar = scalar}) =>
+        have scaled_zero = scale_nat_int_value_zero(scalar: scalar)
+        proof chain
+          dot(result, valuation) == scale_nat_int(scalar, dot(source, valuation))
+          because simplify using [scaled_zero]
+
+      case ScaledCons(
+        {scalar = scalar}, {source = source_rest}, {result = result_rest},
+        {valuation = valuation_rest}, {coefficient = coefficient}, {value = value},
+        rest, induction_hypothesis
+      ) =>
+        have tail_evaluation = dot_scaled_coefficients(rest)
+        have coefficient_scaling = multiply_int_scale_nat_coefficient(
+          scalar: scalar, coefficient: coefficient, value: value)
+        have distribution = scale_nat_int_distributes_over_add(
+          scalar: scalar,
+          left: multiply_int(coefficient, value),
+          right: dot(source_rest, valuation_rest))
+
+        proof chain
+          dot(result, valuation) == add_int(
+            multiply_int(scale_nat_int(scalar, coefficient), value),
+            dot(result_rest, valuation_rest))
+          because simplify
+
+          _ == add_int(
+            scale_nat_int(scalar, multiply_int(coefficient, value)),
+            dot(result_rest, valuation_rest))
+          because
+            rewrite using coefficient_scaling
+            simplify
+
+          _ == add_int(
+            scale_nat_int(scalar, multiply_int(coefficient, value)),
+            scale_nat_int(scalar, dot(source_rest, valuation_rest)))
+          because
+            rewrite using tail_evaluation
+            simplify
+
+          _ == scale_nat_int(scalar, add_int(
+            multiply_int(coefficient, value), dot(source_rest, valuation_rest)))
+          because
+            rewrite backwards using distribution
+            simplify
+
+          _ == scale_nat_int(scalar, dot(source, valuation))
+          because simplify
+
+  fn normalize_atom_preserves_evaluation(
+    coefficients: List(Int), constant: Int, relation: Relation,
+    valuation: Valuation
+  ) -> Equivalent(Bool,
+    evaluate_atom(normalize_atom(linear_atom(coefficients, constant, relation)), valuation),
+    evaluate_atom(linear_atom(coefficients, constant, relation), valuation)
+  ) = match relation
+    Std.Proof.LinearArithmetic.LessOrEqual() -> proof chain
+      evaluate_atom(normalize_atom(linear_atom(coefficients, constant, relation)), valuation) == evaluate_atom(linear_atom(coefficients, constant, relation), valuation)
+      because simplify
+
+    Std.Proof.LinearArithmetic.LessThan() ->
+      have discrete_equivalence = normalize_relation_preserves_evaluation(
+        relation: Std.Proof.LinearArithmetic.LessThan(), left: dot(coefficients, valuation), right: constant)
+      proof chain
+        evaluate_atom(normalize_atom(linear_atom(coefficients, constant, relation)), valuation) == evaluate_atom(linear_atom(coefficients, constant, relation), valuation)
+        because simplify using [discrete_equivalence]
+
+  fn adding_holding_affine_forms_preserves_holding(
+    left_coefficients: List(Int), right_coefficients: List(Int),
+    result_coefficients: List(Int), valuation: List(Int),
+    left_constant: Int, right_constant: Int,
+    alignment: AddedCoefficientsAt(
+      left_coefficients, right_coefficients, result_coefficients, valuation),
+    left_holds: IsLessThanOrEqual(
+      dot(left_coefficients, valuation), left_constant),
+    right_holds: IsLessThanOrEqual(
+      dot(right_coefficients, valuation), right_constant)
+  ) -> IsLessThanOrEqual(
+    dot(result_coefficients, valuation),
+    add_int(left_constant, right_constant)) =
+    have combined_evaluation = dot_added_coefficients(alignment)
+    have combined_order = adding_preserves_less_than_or_equal(
+      a: dot(left_coefficients, valuation), b: left_constant,
+      c: dot(right_coefficients, valuation), d: right_constant,
+      ab: left_holds, cd: right_holds)
+    less_than_or_equal_transport(
+      left: add_int(dot(left_coefficients, valuation), dot(right_coefficients, valuation)),
+      left2: dot(result_coefficients, valuation),
+      right: add_int(left_constant, right_constant),
+      right2: add_int(left_constant, right_constant),
+      left_equal: sym(combined_evaluation),
+      right_equal: reflexive(add_int(left_constant, right_constant)),
+      proof: combined_order)
+
+  fn folding_aligned_holding_affine_forms_preserves_holding(
+    {coefficient_sets: List(List(Int))}, {constants: List(Int)}, {witness: List(Nat)},
+    {result_coefficients: List(Int)}, {result_constant: Int}, {valuation: List(Int)},
+    fold: WeightedAffineFold(
+      coefficient_sets, constants, witness,
+      result_coefficients, result_constant, valuation),
+    holds: AllAffineFormsHold(coefficient_sets, constants, valuation)
+  ) -> IsLessThanOrEqual(
+    dot(result_coefficients, valuation), result_constant) =
+    induction fold
+      case WeightedAffineEmpty(
+        {result_coefficients = result_coefficients}, {valuation = valuation},
+        zero_alignment
+      ) => match holds
+        AllAffineEmpty() -> less_than_or_equal_transport(
+          left: int_zero(), left2: dot(result_coefficients, valuation),
+          right: int_zero(), right2: int_zero(),
+          left_equal: sym(dot_zero_coefficients(zero_alignment)),
+          right_equal: reflexive(int_zero()),
+          proof: is_less_than_or_equal_is_reflexive(int_zero()))
+
+      case WeightedAffineCons(
+        {coefficients = coefficients}, {constant = constant}, {scalar = scalar},
+        {scaled_coefficients = scaled_coefficients},
+        {tail_coefficients = tail_coefficients},
+        {tail_constants = tail_constants}, {tail_witness = tail_witness},
+        {tail_result_coefficients = tail_result_coefficients},
+        {tail_result_constant = tail_result_constant},
+        {valuation = valuation}, {result_coefficients = result_coefficients},
+        scale_alignment, tail_fold, addition_alignment,
+        _
+      ) => match holds
+        AllAffineCons(head_holds, tail_holds) ->
+          have scaled_evaluation = dot_scaled_coefficients(scale_alignment)
+          have scaled_holds = less_than_or_equal_transport(
+            left: scale_nat_int(scalar, dot(coefficients, valuation)),
+            left2: dot(scaled_coefficients, valuation),
+            right: scale_nat_int(scalar, constant),
+            right2: scale_nat_int(scalar, constant),
+            left_equal: sym(scaled_evaluation),
+            right_equal: reflexive(scale_nat_int(scalar, constant)),
+            proof: scale_nat_int_is_monotone(
+              scalar: scalar, left: dot(coefficients, valuation),
+              right: constant, proof: head_holds))
+          have tail_result_holds = folding_aligned_holding_affine_forms_preserves_holding(
+            tail_fold, tail_holds)
+          adding_holding_affine_forms_preserves_holding(
+            left_coefficients: scaled_coefficients,
+            right_coefficients: tail_result_coefficients,
+            result_coefficients: result_coefficients,
+            valuation: valuation,
+            left_constant: scale_nat_int(scalar, constant),
+            right_constant: tail_result_constant,
+            alignment: addition_alignment,
+            left_holds: scaled_holds,
+            right_holds: tail_result_holds)
+
+end

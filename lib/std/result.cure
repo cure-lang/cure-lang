@@ -1,3 +1,4 @@
+@group(:option)
 mod Std.Result
   ## Standalone `Result(T, E)` helpers.
   ##
@@ -10,12 +11,14 @@ mod Std.Result
   ## ```cure
   ## use Std.Result
   ##
+  ## let positive = fn(x: Int) -> Result(Int, Atom) =
+  ##   pickup
+  ##     x > 0 -> ok(x)
+  ##     else  -> error(:neg)
+  ##
   ## ok(42)
   ##   |> map(fn(x) -> x * 2)
-  ##   |> and_then(fn(x) ->
-  ##        pickup
-  ##          x > 0 -> ok(x)
-  ##          else  -> error(:neg))
+  ##   |> and_then(positive)
   ##   |> unwrap(0)                          # => 84
   ## ```
   ##
@@ -29,58 +32,63 @@ mod Std.Result
   ## ```
 
   ## Group tag consumed by `Cure.Stdlib.Preload`.
-  fn __group__() -> Atom = :option
+  ## A computation that either succeeded with a value (`Ok`) or failed with a
+  ## reason (`Error`). `Ok(v)` erases to `{:Ok, v}` and `Error(e)` to
+  ## `{:Error, e}` on the BEAM.
+  type Result(t, e) = Ok(t) | Error(e)
 
   ## Build an `Ok(value)` Result.
-  fn ok(value: T) -> Result(T, E) = Ok(value)
+  @reducible
+  fn ok(value: t) -> Result(t, e) = Ok(value)
 
   ## Build an `Error(reason)` Result.
-  fn error(reason: E) -> Result(T, E) = Error(reason)
+  @reducible
+  fn error(reason: e) -> Result(t, e) = Error(reason)
 
   ## `true` when the result is in the `Ok` arm.
-  fn is_ok(result: Result(T, E)) -> Bool =
+  fn is_ok(result: Result(t, e)) -> Bool =
     match result
       Ok(_) -> true
       Error(_) -> false
 
   ## `true` when the result is in the `Error` arm.
-  fn is_error(result: Result(T, E)) -> Bool =
+  fn is_error(result: Result(t, e)) -> Bool =
     match result
       Ok(_) -> false
       Error(_) -> true
 
   ## Extract the `Ok` value or fall back to `default` on `Error`.
-  fn unwrap(result: Result(T, E), default: T) -> T =
+  fn unwrap(result: Result(t, e), default: t) -> t =
     match result
       Ok(v) -> v
       Error(_) -> default
 
   ## Extract the `Error` reason or fall back to `default` on `Ok`.
-  fn unwrap_error(result: Result(T, E), default: E) -> E =
+  fn unwrap_error(result: Result(t, e), default: e) -> e =
     match result
       Ok(_) -> default
       Error(e) -> e
 
   ## Functorial map over the `Ok` arm; passes `Error` through.
-  fn map(result: Result(T, E), f: T -> U) -> Result(U, E) =
+  fn map(result: Result(t, e), f: t -> u) -> Result(u, e) =
     match result
       Ok(v) -> Ok(f(v))
       Error(e) -> Error(e)
 
   ## Functorial map over the `Error` arm; passes `Ok` through.
-  fn map_error(result: Result(T, E), f: E -> F) -> Result(T, F) =
+  fn map_error(result: Result(t, e), f: e -> b) -> Result(t, b) =
     match result
       Ok(v) -> Ok(v)
       Error(e) -> Error(f(e))
 
   ## Monadic bind on `Ok`; short-circuits on `Error`.
-  fn and_then(result: Result(T, E), f: T -> Result(U, E)) -> Result(U, E) =
+  fn and_then(result: Result(t, e), f: t -> Result(u, e)) -> Result(u, e) =
     match result
       Ok(v) -> f(v)
       Error(e) -> Error(e)
 
   ## Recovery: continue with `f(reason)` on `Error`; pass `Ok` through.
-  fn or_else(result: Result(T, E), f: E -> Result(T, F)) -> Result(T, F) =
+  fn or_else(result: Result(t, e), f: e -> Result(t, b)) -> Result(t, b) =
     match result
       Ok(v) -> Ok(v)
       Error(e) -> f(e)
@@ -88,7 +96,7 @@ mod Std.Result
   ## Collapse a nested `Result(Result(T, E), E)` into `Result(T, E)`.
   ## Useful when `and_then` produced another `Result` and you want
   ## the inner arm directly.
-  fn flatten(result: Result(Result(T, E), E)) -> Result(T, E) =
+  fn flatten(result: Result(Result(t, e), e)) -> Result(t, e) =
     match result
       Ok(inner) -> inner
       Error(e) -> Error(e)

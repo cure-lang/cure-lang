@@ -5,80 +5,69 @@ defmodule CureTurnstileTest do
   # Raw FSM (gen_statem) tests
   # ============================================================================
 
-  describe "raw Cure.FSM.Turnstile gen_statem" do
-    @fsm :"Cure.FSM.Turnstile"
+  describe "raw Cure.Main.Turnstile gen_statem" do
+    @fsm :"Cure.Main.Turnstile"
 
-    test "start_link/0 initializes with nil payload" do
-      {:ok, pid} = @fsm.start_link()
-      {state, payload} = @fsm.get_state(pid)
-
-      assert state == :locked
-      # payload defaults to nil in the new FsmState contract
-      assert payload == nil
-
-      GenServer.stop(pid)
-    end
-
-    test "start_link/1 initializes with custom payload" do
-      {:ok, pid} = @fsm.start_link(0)
-      assert {:locked, 0} = @fsm.get_state(pid)
-
-      GenServer.stop(pid)
+    test "start_link/1 initializes with a locked tuple payload" do
+      {:ok, pid} = @fsm.start_link({0, 0})
+      assert {:Locked, {0, 0}} = :sys.get_state(pid)
+      :gen_statem.stop(pid)
     end
 
     test "coin do block increments data" do
-      {:ok, pid} = @fsm.start_link(%Cure.FSM.State{payload: 0, meta: %{passages: 0}})
+      {:ok, pid} = @fsm.start_link({0, 0})
 
-      @fsm.send_event(pid, :coin)
+      :gen_statem.cast(pid, :coin)
       _ = :sys.get_state(pid)
-      assert {:unlocked, 1} = @fsm.get_state(pid)
+      assert {:Unlocked, {1, 0}} = :sys.get_state(pid)
 
       # second coin still increments
-      @fsm.send_event(pid, :coin)
+      :gen_statem.cast(pid, :coin)
       _ = :sys.get_state(pid)
-      assert {:unlocked, 2} = @fsm.get_state(pid)
+      assert {:Unlocked, {2, 0}} = :sys.get_state(pid)
 
-      GenServer.stop(pid)
+      :gen_statem.stop(pid)
     end
 
     test "push preserves payload (no do block)" do
-      {:ok, pid} = @fsm.start_link(%Cure.FSM.State{payload: 0, meta: %{passages: 0}})
+      {:ok, pid} = @fsm.start_link({0, 0})
 
-      @fsm.send_event(pid, :coin)
+      :gen_statem.cast(pid, :coin)
       _ = :sys.get_state(pid)
-      assert {:unlocked, 1} = @fsm.get_state(pid)
+      assert {:Unlocked, {1, 0}} = :sys.get_state(pid)
 
-      @fsm.send_event(pid, :push)
+      :gen_statem.cast(pid, :push)
       _ = :sys.get_state(pid)
-      assert {:locked, 1} = @fsm.get_state(pid)
+      assert {:Locked, {1, 1}} = :sys.get_state(pid)
 
-      GenServer.stop(pid)
+      :gen_statem.stop(pid)
     end
 
     test "push on locked stays locked, payload unchanged" do
-      {:ok, pid} = @fsm.start_link(%Cure.FSM.State{payload: 0, meta: %{passages: 0}})
+      {:ok, pid} = @fsm.start_link({0, 0})
 
-      @fsm.send_event(pid, :push)
+      :gen_statem.cast(pid, :push)
       _ = :sys.get_state(pid)
-      assert {:locked, 0} = @fsm.get_state(pid)
+      assert {:Locked, {0, 0}} = :sys.get_state(pid)
 
-      GenServer.stop(pid)
+      :gen_statem.stop(pid)
     end
 
     test "full cycles accumulate coin count" do
-      {:ok, pid} = @fsm.start_link(%Cure.FSM.State{payload: 0, meta: %{passages: 0}})
+      {:ok, pid} = @fsm.start_link({0, 0})
 
       for n <- 1..5 do
-        @fsm.send_event(pid, :coin)
+        :gen_statem.cast(pid, :coin)
         _ = :sys.get_state(pid)
-        assert {:unlocked, ^n} = @fsm.get_state(pid)
+        assert {:Unlocked, {^n, passages}} = :sys.get_state(pid)
+        assert passages == n - 1
 
-        @fsm.send_event(pid, :push)
+        :gen_statem.cast(pid, :push)
         _ = :sys.get_state(pid)
-        assert {:locked, ^n} = @fsm.get_state(pid)
+        assert {:Locked, {^n, ^n}} = :sys.get_state(pid)
       end
 
-      GenServer.stop(pid)
+      :gen_statem.stop(pid)
     end
   end
 
@@ -139,15 +128,6 @@ defmodule CureTurnstileTest do
       end
 
       assert %{coins: 10, passages: 10, state: :locked} = CureTurnstile.stats(pid)
-    end
-
-    test "@notify_transitions reaches the caller" do
-      {:ok, pid} = CureTurnstile.start_link()
-
-      CureTurnstile.insert_coin(pid)
-
-      # Exactly one transition message is expected: locked -> unlocked on :coin.
-      assert_receive {:cure_fsm, ^pid, {:transition, :locked, :coin, :unlocked, 1}}, 500
     end
   end
 end

@@ -53,7 +53,7 @@ have a clear sibling to keep in sync.
 - Regex literals (`~r/.../flags`) are recognised.
 - Erlang-style char literals (`?c`, `?\n`) are recognised alongside
   the existing `'c'` form.
-- Typed holes (`?name`, anonymous `??`) are a new group.
+- Typed holes (`?name`, anonymous `?_`) are a new group.
 - `@decorator` / `@record` attribute lines are a new group.
 - FSM transition literals (`State --event--> State`) are a new
   group; event names may end in `?` or `!` for soft / hard events.

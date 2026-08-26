@@ -1,0 +1,8 @@
+mod Lex01
+  type Nat = Z | S(Nat)
+  fn ack(m: Nat, n: Nat) -> Nat = match m
+    Z() -> S(n)
+    S(mm) -> match n
+      Z() -> ack(mm, S(Z()))
+      S(nn) -> ack(mm, ack(S(mm), nn))
+end

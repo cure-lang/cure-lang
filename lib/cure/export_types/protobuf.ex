@@ -21,7 +21,7 @@ defmodule Cure.ExportTypes.Protobuf do
   | `rec Foo { ... }`   | `message Foo { ... }`                           |
   | Pure-enum ADT       | `enum Foo { FOO_UNSPECIFIED = 0; A = 1; ... }`  |
   | Payload-bearing ADT | wrapper `message` + `oneof value { ... }`       |
-  | Refinement / dependent types | comment + E068 warning                |
+  | Dependent types     | comment + E068 warning                          |
   """
 
   @doc """
@@ -206,11 +206,6 @@ defmodule Cure.ExportTypes.Protobuf do
     name
   end
 
-  defp map_type({:refinement, _meta, _base, _pred}) do
-    emit_e068_warning("refinement type has no proto3 equivalent")
-    "bytes /* E068: refinement type -- no proto3 equivalent */"
-  end
-
   defp map_type({:dependent, _meta, _}) do
     emit_e068_warning("dependent type has no proto3 equivalent")
     "bytes /* E068: dependent type -- no proto3 equivalent */"
@@ -222,7 +217,10 @@ defmodule Cure.ExportTypes.Protobuf do
   end
 
   defp emit_e068_warning(reason) do
-    IO.warn("E068 Export Type Unmappable: #{reason}", [])
+    Cure.Diagnostic.Host.emit_diagnostic(
+      Cure.Diagnostic.Operational.export_unmappable(reason),
+      output_device: :stderr
+    )
   end
 
   # -- Helpers ------------------------------------------------------------------

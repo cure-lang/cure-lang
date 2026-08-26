@@ -1,148 +1,127 @@
 # Cure Dependent Types Guide
-This guide covers the dependent-typing layer added in v0.17.0:
-Sigma types (dependent pairs), Pi types (dependent function types),
-propositional equality, implicit arguments and unification, type-level
-reduction, hole-driven development, and totality checking.
-## 1. The big picture
-Cure is *gradually dependently typed*. You may use the entire language
-without ever encountering a dependent type, and you can opt in to as
-much rigour as you need on a per-function basis. The mechanisms below
-exist to make it possible to:
-- Express invariants that survive into type-checked code.
-- Carry small proofs alongside data.
-- Get the type checker to *help* you write code interactively.
-- Decide when a function is total enough to live in type-level computation.
-## 2. Sigma types -- dependent pairs
-A Sigma type pairs a value with a type that may depend on it.
+
+Every accepted Cure program follows the dependent path: surface syntax
+elaborates to `Cure.Core`, `Cure.Core.Kernel` validates it, and quantitative
+erasure removes compile-time-only evidence before BEAM emission. The former
+`Cure.Types.*` classic pipeline has been deleted.
+
+## Indexed families
+
+Parameters are uniform across constructors; indices may vary:
+
 ```cure
-type Sized(T) = Sigma(n: Nat, Vector(T, n))
+type Vector(a: Type) indices (n: Nat)
+  empty   : Vector(a, Z)
+  prepend : a -> Vector(a, n) -> Vector(a, S(n))
 ```
-The first component is a natural number `n`; the second component is
-a vector of `T` of length exactly `n`. The bound name `n` is in scope
-in the second component.
-Cure recognises three surface forms:
-- `Sigma(T1, T2)` -- non-dependent.
-- `Sigma(name: T1, T2)` -- dependent; `name` is bound in `T2`.
-- `DPair(...)` -- alias for `Sigma(...)` with the same conventions.
-Internally, `Cure.Types.Sigma` represents these as
-`{:sigma, var, fst_type, snd_ast}`.
-### Subtyping
-- Sigma types subtype componentwise.
-- A Sigma forgets its dependency to become a plain tuple type.
-- A plain tuple promotes to a Sigma when the components match.
-## 3. Pi types -- dependent function types
-A Pi type is a function whose return type may depend on its arguments:
+
+The checker preserves constructor index equations. A match on `Vector(a, n)`
+therefore refines `n` independently in each branch, and a constructor whose
+indices cannot unify is impossible.
+
+Empty families use `= |`; a single constructor needs no leading bar:
+
 ```cure
-fn append(xs: Vector(T, m), ys: Vector(T, n)) -> Vector(T, m + n)
+type Void = |
+type Wrapper = Wrap(Int)
 ```
-The result type literally references the parameter names `m` and `n`.
-At every call site, the type checker:
-1. Substitutes the call-site argument expressions into the return-type
-   AST.
-2. Normalises the resulting expression with `Cure.Types.Reduce`.
-3. Resolves the normalised AST back to a concrete `Cure.Types.Type`.
-This means `append(va, vb)` where `va : Vector(T, 3)` and
-`vb : Vector(T, 5)` is checked against `Vector(T, 8)` *without ever
-calling SMT*.
-Internal representation: `{:pi, [{name, type, mode}], ret_ast}` where
-`mode` is one of `:explicit`, `:implicit`, `:erased`.
-### Backward compatibility
-Plain `{:fun, params, ret}` is treated as Pi with anonymous explicit
-parameters and a return type that ignores its arguments. Existing
-code paths in the type checker keep working unchanged.
-## 4. Propositional equality
-`Eq(T, a, b)` is the type of proofs that `a` and `b` are equal at
-type `T`. There is exactly one constructor:
+
+## Dependent functions and implicits
+
+A result type may mention explicit arguments:
+
+```text
+fn append(
+  {a: Type},
+  {m: Nat},
+  {n: Nat},
+  xs: Vector(a, m),
+  ys: Vector(a, n)
+) -> Vector(a, plus(m, n))
+```
+
+Braced parameters are implicit. The elaborator solves them from explicit
+arguments, postponing constraints when necessary so argument order does not
+decide typability. Grade-`0` arguments are checked but erased and do not change
+the emitted BEAM arity.
+
+## Sigma types
+
+`Sigma(x: a, b)` pairs a witness `x` with a second component whose type may
+mention that witness:
+
+```text
+fn pack(d: Dec) -> Sigma(x: Dec, Dec) = %[d, d]
+fn recover(p: Sigma(x: Dec, Dec)) -> Dec = p.2
+```
+
+Sigma introduction uses the tuple surface and dependent projections use `.1`
+and `.2`. Runtime pairs emit as ordinary BEAM tuples after evidence erasure.
+
+## Definitional equality
+
+The kernel decides type equality with normalization by evaluation. Beta
+reduction, projections, dependent-case iota reduction, and certified global
+definitions participate automatically. A global definition unfolds only when
+its size-change totality certificate validates, preventing conversion from
+running arbitrary nonterminating code.
+
+## Propositional equality
+
+`Std.Equivalent` declares the inductive identity type:
+
 ```cure
-refl(x) : Eq(T, x, x)
+@builtin(:eq)
+type Equivalent(a: Type) indices (x: a, y: a)
+  reflexive : Equivalent(a, w, w)
 ```
-and exactly one eliminator:
-```cure
-rewrite eq in expr
+
+`reflexive` closes goals whose endpoints are definitionally equal. Matching an
+equality proof against `reflexive` identifies the endpoints, which is enough to
+implement transport, symmetry, transitivity, and congruence as ordinary Cure
+functions. Primitive `Eq`, `refl`, and `rewrite` Core nodes are retired.
+
+`Equivalent` is proof equality. `Std.Equatable` is a separate runtime
+comparison interface returning `Bool`.
+
+## Impossible and forced patterns
+
+When index unification proves that a constructor cannot inhabit the scrutinee
+type, the branch may be written `impossible`. A forced (`.`) pattern records
+that a value is already determined by surrounding indices. These forms are
+checked rather than trusted.
+
+## Quantitative binders
+
+Binders carry grades from `{0, 1, ω}`, with affine usage available:
+
+- `0` values are compile-time-only;
+- `@linear` values are consumed exactly once;
+- `@affine` values are consumed at most once;
+- `ω` values are unrestricted.
+
+The kernel rejects returning, scrutinizing, or reusing erased data at runtime.
+This same discipline checks typed OTP capabilities before they are erased or
+lowered.
+
+## Holes
+
+`?name` and `?_` create typed holes. Tooling reports the expected type and local
+context, but final emission rejects any reachable definition that still
+contains a hole.
+
+## Trust boundary
+
+Strict positivity, totality certification, conversion, dependent case, and
+usage checking live inside the trusted kernel. `postulate`, bodyless `@extern`,
+and `believe_me` are explicit axiom roots and are recorded in the trust ledger:
+
+```bash
+cure audit trust My.Module
 ```
-which substitutes equal terms in the goal type while type-checking
-`expr`.
-### Runtime erasure
-Equality types and their proofs vanish at runtime. `refl(x)` lowers
-to the atom `:cure_refl`; `rewrite eq in expr` lowers to `expr`
-unchanged. The entire mechanism lives in the type checker.
-### `Std.Equal`
-The standard library exposes the basic combinators:
-- `refl(x)` -- reflexivity.
-- `sym(eq)` -- symmetry.
-- `trans(p, q)` -- transitivity.
-- `cong(f, eq)` -- congruence under a function.
-## 5. Implicit arguments and unification
-Implicit arguments use `{T}` braces in signatures:
-```cure
-fn id({T}, x: T) -> T = x
-fn append({T}, {m: Nat}, {n: Nat},
-          xs: Vector(T, m), ys: Vector(T, n)) -> Vector(T, m + n)
-```
-At each call site, `Cure.Types.Unify` solves the implicit values from
-the explicit-argument types using first-order unification with an
-occurs check. Unsolvable implicits become explicit type errors carrying
-a structured **unification trace** that the LSP renders in hover and
-the CLI prints in errors.
-Implicit arguments are *erased* at codegen: they cost nothing at
-runtime.
-## 6. Type-level reduction
-`Cure.Types.Reduce` is a small, terminating normaliser for type-level
-expressions. It folds:
-- Integer arithmetic (`+`, `-`, `*`, `/`, `%`).
-- Float arithmetic (same operators on floats).
-- Booleans (`and`, `or`, `not`).
-- Comparisons over literals.
-- `fst`/`snd` projection over literal tuples.
-- Free-variable substitution.
-This gives definitional equality for closed type-level expressions:
-`Vector(T, 2 + 3)` is the same type as `Vector(T, 5)` without an
-SMT call. SMT is still the fallback when reduction is not enough.
-## 7. Hole-driven development
-A *hole* is a placeholder for an as-yet-unwritten expression that the
-type checker should *report on*, not silently accept.
-- `?name` -- named hole.
-- `??` -- anonymous hole, numbered `?_1`, `?_2`, ... in source order.
-At each hole the checker emits a `:hole_goal` pipeline event carrying:
-- the **goal type** at the hole position;
-- the **local context** -- every variable in scope and its type.
-The LSP turns hole reports into hover popups and inlay hints; the REPL
-exposes them through the `:holes` command.
-## 8. Totality / termination
-`Cure.Types.Totality` classifies every function as `:total`, `:partial`,
-or `:unknown`:
-- **Coverage** -- every clause-set must cover all input shapes (we
-  reuse `Cure.Types.PatternChecker`).
-- **Termination** -- direct recursive calls must reduce a structural
-  argument (`n - 1` of a pattern variable `n`, the tail of a list
-  pattern, etc.).
-The default behaviour is to *report* the classification, not reject
-the program. Add `@total true` above a function to upgrade the report to
-a compile-time error if the function is not total.
-v0.17.0 only handles direct recursion. Mutual recursion is deferred to
-v0.18.0.
-## 9. Refinement upgrades
-Refinement types now compose with the rest of the dependent layer:
-- **Path-sensitive refinement** -- inside `if` and `match` arms, the
-  type of any variable referenced in the guard is refined for the
-  duration of that path. See `Cure.Types.PathRefinement`.
-- **`Std.Refine`** -- a stdlib module of common refinement aliases:
-  `NonZero`, `Positive`, `Negative`, `NonNegative`, `Percentage`,
-  `Probability`, ...
-- The refinement subtype check still uses Z3 in the background.
-## 10. Tying it all together
-The full dependent-typing toolbox:
-| Goal | Tool |
-|---|---|
-| Pair a value with a dependent type | `Sigma` |
-| Function whose return type depends on args | `Pi` + `Reduce` |
-| Carry a proof that two terms are equal | `Eq`, `refl`, `rewrite` |
-| Hide boilerplate type/value parameters | `{T}` implicit + `Unify` |
-| Get type-level integer arithmetic for free | `Reduce` |
-| Sketch a function and ask the checker for help | `?name`, `??`, `:hole_goal` |
-| Confirm a function never gets stuck | `Totality` + `@total true` |
-| Constrain values at the type level | refinement types + `Std.Refine` |
-The fingertip rule: **reach for refinements first, Sigma when shape
-matters, Pi when the return type computes from the args, Eq when you
-need to share a fact between two pieces of code, holes when you don't
-yet know what to write.**
+
+Z3 guard coverage and shadow analysis are useful lint diagnostics but are
+outside the trusted kernel and never synthesize proof evidence.
+
+See [Type System](TYPE_SYSTEM.md), [Proofs](PROOFS.md), and
+[Kernel](KERNEL.md) for more detail.

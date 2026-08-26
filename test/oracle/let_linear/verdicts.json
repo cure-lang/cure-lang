@@ -1,0 +1,1 @@
+{"ll01_alias_dup":{"cure":"reject","idris":"reject","reason":"","relation":"same"},"ll02_consume_dup":{"cure":"reject","idris":"reject","reason":"","relation":"same"},"ll03_alias_once":{"cure":"accept","idris":"accept","reason":"","relation":"same"},"ll04_consume_once":{"cure":"accept","idris":"accept","reason":"","relation":"same"}}

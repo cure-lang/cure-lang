@@ -100,9 +100,12 @@ defmodule Cure.Compiler.AlgebraTest do
     end
 
     test "degrades to original source when verification fails" do
-      # Deliberately broken source. The algebra formatter must not emit
-      # garbage; it must return the original unchanged.
-      source = "mod  *&^ not valid"
+      # Deliberately broken source (unbalanced delimiters — cannot parse). The
+      # algebra formatter must not emit garbage; it must return the original
+      # unchanged. (An earlier fixture used the symbol run `*&^`, which the
+      # generic-operator lexer now tokenises as a legitimate operator, so it no
+      # longer fails to parse — structural breakage exercises the same guard.)
+      source = "fn ((("
       {:ok, returned} = Formatter.format_algebra(source)
       assert returned == source
     end

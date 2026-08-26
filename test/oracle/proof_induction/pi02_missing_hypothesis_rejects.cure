@@ -1,0 +1,7 @@
+mod Pi02
+  type Nat = Z | S(Nat)
+
+  fn bad(value: Nat) -> Equivalent(Nat, value, value) = induction value
+    case Z => reflexive(Z)
+    case S(previous) => reflexive(S(previous))
+end

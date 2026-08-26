@@ -1,59 +1,10 @@
-## Envelope FSM for the Cure motif showcase.
-##
-## Models the ADSR-like envelope of a single voice as a four-state
-## lifecycle: every `note_on` starts a short Attack phase that auto-
-## advances to Sustain; every `note_off` starts a short Release phase
-## that auto-advances back to Silent; a `kill?` wildcard soft event
-## forcibly returns to Silent from any state.
-##
-##   Silent   --note_on-->   Attack
-##   Attack   --peak-->      Sustain
-##   Sustain  --note_off-->  Release
-##   Release  --done-->      Silent
-##   *        --kill?-->     Silent
-##
-## The `peak` and `done` events are not triggered by the caller; the
-## `on_timer` lifecycle callback fires them automatically once per
-## tick. That lets the temporal model checker prove liveness:
-##
-##   * `always eventually Silent`      -- the voice never gets stuck.
-##   * `always (Attack -> eventually Sustain)`  -- every Attack reaches
-##     Sustain through the peak auto-transition.
-##   * `always (Sustain -> eventually Silent)`  -- every Sustain reaches
-##     Silent through the Release phase.
-##
-## The `@record` decorator enables the Cure time-travel journal, so the
-## test suite can replay a recorded session against a fresh FSM and
-## confirm the state sequence is reproducible.
-##
-## The payload is an Int tick counter, reset to 0 on every state
-## entry; the Elixir test harness reads it via `Cure.FSM.Envelope.get_state/1`.
+## Transparent FSM envelope lifecycle.
 
-@record
+use Std.Fsm
+
 fsm Envelope with Int
-  Silent   --note_on-->   Attack
-  Attack   --peak-->      Sustain
-  Sustain  --note_off-->  Release
-  Release  --done-->      Silent
-  *        --kill?-->     Silent
-
-  @timer 25
-
-  on_enter
-    (_, _) -> :ok
-
-  on_timer
-    (:attack,  _) -> %[:transition, :peak, 0]
-    (:release, _) -> %[:transition, :done, 0]
-    (_, _)        -> :ok
-
-  on_failure
-    (_, _, _) -> :ok
-
-  on_transition
-    (:silent,  :note_on,  _p, _d) -> %[:ok, :attack,  0]
-    (:attack,  :peak,     _p, _d) -> %[:ok, :sustain, 0]
-    (:sustain, :note_off, _p, _d) -> %[:ok, :release, 0]
-    (:release, :done,     _p, _d) -> %[:ok, :silent,  0]
-    (_,        :kill,     _p, _d) -> %[:ok, :silent,  0]
-    (_,        _,         _,  d)  -> %[:ok, :__same__, d]
+  Silent --note_on--> Attack
+  Attack --on_timer--> Sustain
+  Sustain --note_off--> Release
+  Release --on_timer--> Silent
+  * --kill--> Silent

@@ -1,53 +1,214 @@
+## The structured supervisor surface is source-defined.
+
+@group(:concurrency)
 mod Std.Supervisor
-  ## Start, stop, and introspect Cure supervisor trees.
-  ##
-  ## Each Cure `sup` container compiles to a loaded BEAM module that
-  ## implements the `:supervisor` behaviour. The functions below
-  ## delegate to `Cure.Sup.Runtime`, which wraps `:supervisor` with
-  ## a tiny ETS registry so a tree can be reached by its compiled
-  ## module atom without threading pids through user code.
-  ##
-  ## ## Examples
-  ##
-  ## ```cure
-  ## use Std.Supervisor
-  ##
-  ## start(:"Cure.Sup.MyRoot")
-  ## which_children(:"Cure.Sup.MyRoot")
-  ## stop(:"Cure.Sup.MyRoot")
-  ## ```
+  use Std.Syntax
+  use Std.List
+  use Std.Option
+  use Std.Otp.Raw
+  use Std.ActorBehavior
 
-  ## Group tag consumed by `Cure.Stdlib.Preload`.
-  fn __group__() -> Atom = :concurrency
+  macro sup <name: ModuleName>
+    syntax family ChildDefinition
+      syntax <kind: Name> <module: ModuleName> as <identity: Name>
+      optional restart Expression
+      optional shutdown Expression
+    syntax family SupervisorDefinition
+      optional strategy Expression
+      optional intensity Expression
+      optional period Expression
+      one_or_more children ChildDefinition
+    accepts SupervisorDefinition
+    expands with derive_supervisor_family
 
-  ## Start a compiled Cure supervisor module. Returns the top-level
-  ## supervisor pid on success.
-  @extern(Elixir.Cure.Sup.Builtins, :sup_start, 1)
-  fn start(sup_module: Atom) -> Pid
+  fn derive_supervisor_family(name: ModuleNameSyntax, definition: SupervisorDefinitionSyntax) -> Syntax =
+    match duplicate_child_identity(definition.children, [])
+      true -> Failure(:duplicate_supervisor_child_identity, [])
+      false -> derive_verified_supervisor(name, definition)
 
-  ## Start a compiled Cure supervisor with an explicit initial
-  ## argument that is threaded into its `init/1` callback.
-  @extern(Elixir.Cure.Sup.Builtins, :sup_start_with, 2)
-  fn start_with(sup_module: Atom, init: Any) -> Pid
+  fn derive_verified_supervisor(name: ModuleNameSyntax, definition: SupervisorDefinitionSyntax) -> Syntax =
+    let name_syntax: Syntax = name
+    let module_name: SynLit = match name_syntax
+      Leaf(_, _, SAtom(value)) -> SAtom(value)
+      _ -> SStr("Cure.Generated.Supervisor")
+    let module_expr: Syntax = match name_syntax
+      Leaf(_, _, SAtom(value)) -> atom_literal(value)
+      _ -> atom_literal(:generated_supervisor)
+    let child_ids = supervisor_child_ids(definition.children)
+    let child_specs = supervisor_child_specs(definition.children)
+    let strategy_value = option_syntax_or(definition.strategy, call("Std.Supervisor.one_for_one", []))
+    let intensity_value = option_syntax_or(definition.intensity, call("S", [call("S", [call("S", [call("Z", [])])])]))
+    let period_value = option_syntax_or(definition.period, call("Std.Supervisor.more", [call("S", [call("S", [call("S", [call("S", [call("Z", [])])])])])]))
+    let strategy = call("supervision_strategy", [strategy_value, intensity_value, period_value])
+    let init_body = tuple([atom_literal(:ok), tuple([strategy, list(child_specs)])])
+    let strategy_type = tuple_type([variable("Atom"), variable("Nat"), variable("Nat")])
+    let init_type = call("Effect", [tuple_type([variable("Atom"), tuple_type([strategy_type, call("List", [variable("ChildSpec")])])])])
+    let handle_type = variable("SupervisorHandle")
+    Std.ActorBehavior.supervisor_module(module_name, [
+      use_module("Std.Beam"),
+      enum_type("ChildId", child_ids),
+      alias_node("Handle", handle_type),
+      function("init", [parameter("arg", call("List", [variable("p")]))], init_type, init_body),
+      function("start_link", [], call("Effect", [variable("Tuple")]), call("Std.Otp.start_supervisor", [module_expr])),
+      function("start", [], call("Effect", [call("Std.Otp.StartResult", [variable("Handle")])]), call("Std.Otp.start_typed_supervisor", [module_expr])),
+      function("stop", [parameter("supervisor", variable("Handle")), parameter("reason", variable("ExitReason"))], call("Effect", [variable("Unit")]), call("Std.Otp.stop_supervisor", [variable("supervisor"), variable("reason")]))
+    ])
 
-  ## Stop a running supervisor tree.
-  @extern(Elixir.Cure.Sup.Builtins, :sup_stop, 1)
-  fn stop(sup_module: Atom) -> Atom
+  fn duplicate_child_identity(children: List(ChildDefinitionSyntax), found: List(Syntax)) -> Bool = match children
+    [] -> false
+    [entry | rest] -> match syntax_key(entry.identity)
+      None() -> duplicate_child_identity(rest, found)
+      Some(key) -> match contains_identity(found, key)
+        true -> true
+        false -> duplicate_child_identity(rest, [entry.identity | found])
 
-  ## Return the list of `%[id, child_pid, type, modules]` tuples for
-  ## the supervisor's direct children.
-  @extern(Elixir.Cure.Sup.Builtins, :sup_which_children, 1)
-  fn which_children(sup_module: Atom) -> List(Tuple)
+  fn contains_identity(values: List(Syntax), expected: Atom) -> Bool = match values
+    [] -> false
+    [value | rest] -> match syntax_key(value)
+      Some(key) -> match key == expected
+        true -> true
+        false -> contains_identity(rest, expected)
+      None() -> contains_identity(rest, expected)
 
-  ## Count children grouped by type, as `%{type => count}`.
-  @extern(Elixir.Cure.Sup.Builtins, :sup_count_children, 1)
-  fn count_children(sup_module: Atom) -> Map
+  fn syntax_key(value: Syntax) -> Option(Atom) = match attr(attrs(value), :constructor_key)
+    Found(SAtom(key)) -> Some(key)
+    _ -> None()
 
-  ## Look up a running supervisor's pid by its compiled module atom.
-  ## Returns `nil` when no such tree is running.
-  @extern(Elixir.Cure.Sup.Builtins, :sup_lookup, 1)
-  fn lookup(sup_module: Atom) -> Pid
+  fn option_syntax_or(value: Option(Syntax), fallback: Syntax) -> Syntax = match value
+    None() -> fallback
+    Some(found) -> found
 
-  ## List every supervisor tree the runtime is currently tracking.
-  @extern(Elixir.Cure.Sup.Builtins, :sup_list, 0)
-  fn list() -> List(Atom)
+  fn supervisor_child_ids(children: List(ChildDefinitionSyntax)) -> List(Syntax) = match children
+    [] -> []
+    [entry | rest] -> match identifier_name(entry.identity)
+      None() -> supervisor_child_ids(rest)
+      Some(name) -> [enum_variant(name) | supervisor_child_ids(rest)]
+
+  fn supervisor_child_specs(children: List(ChildDefinitionSyntax)) -> List(Syntax) = match children
+    [] -> []
+    [entry | rest] ->
+      let identity = syntax_constructor(entry.identity)
+      let restart = option_syntax_or(entry.restart, call("Std.Supervisor.permanent", []))
+      let shutdown = option_syntax_or(entry.shutdown, call("Std.Supervisor.shutdown_after", [int_literal(5000)]))
+      let spec = call("Std.Supervisor.child_with_encoded", [entry.module, call("Std.Supervisor.raw_arg", [identity]), restart, shutdown, supervisor_child_kind(entry.kind)])
+      [spec | supervisor_child_specs(rest)]
+
+  fn supervisor_child_kind(kind: Syntax) -> Syntax = match is_variable_named(kind, :supervisor)
+    true -> call("Std.Supervisor.supervisor", [])
+    false -> match is_variable_named(kind, :actor)
+      true -> call("Std.Supervisor.worker", [])
+      false -> match is_variable_named(kind, :worker)
+        true -> call("Std.Supervisor.worker", [])
+        false -> Failure(:invalid_supervisor_child_kind, [kind])
+
+  fn syntax_constructor(value: Syntax) -> Syntax = match identifier_name(value)
+    None() -> value
+    Some(name) -> call(name, [])
+
+  ## Child entries are transparent expression macros. Typed identities are
+  ## checked at the use site and encoded only in the generated ordinary code.
+  macro SupervisorSyntax
+    syntax child <module: ModuleName> id <identity: Expression> where BeamEncode(identity) computed directly by derive_typed_child
+    syntax child_spec <module: ModuleName> <id: Atom> raw with <args: Code> contextual becomes Std.Supervisor.child_with_raw_args(module, id, args, Std.Supervisor.permanent(), Std.Supervisor.shutdown_after(5000), Std.Supervisor.worker())
+    syntax child_spec <module: ModuleName> <id: Atom> with <args: Code> contextual becomes Std.Supervisor.child_with_typed_args(module, id, args, Std.Supervisor.permanent(), Std.Supervisor.shutdown_after(5000), Std.Supervisor.worker())
+    syntax child_spec <module: ModuleName> <id: Atom> becomes Std.Supervisor.child(module, id)
+
+  fn derive_typed_child(module: ModuleNameSyntax, identity: Syntax) -> Syntax =
+    quote Std.Supervisor.encoded_child($(module), to_beam($(identity)))
+
+
+  type Restart = Permanent | Temporary | Transient
+  type Shutdown = Brutal | Timeout(Nat)
+  type ChildType = Worker | Supervisor
+  type Strategy = OneForOne | OneForAll | RestForOne
+  type Positive = One | More(Nat)
+
+  typealias StrategySpec = Tuple(Atom, Nat, Nat)
+  typealias ChildSpec = Tuple(RawTerm, Tuple(Atom, Atom, List(RawTerm)), Atom, Nat, Atom, List(Atom))
+
+  fn permanent() -> Restart = Permanent()
+  fn temporary() -> Restart = Temporary()
+  fn transient() -> Restart = Transient()
+
+  fn brutal_shutdown() -> Shutdown = Brutal()
+  fn shutdown_after(timeout: Nat) -> Shutdown = Timeout(timeout)
+
+  fn worker() -> ChildType = Worker()
+  fn supervisor() -> ChildType = Supervisor()
+
+  fn one_for_one() -> Strategy = OneForOne()
+  fn one_for_all() -> Strategy = OneForAll()
+  fn rest_for_one() -> Strategy = RestForOne()
+
+  fn one() -> Positive = One()
+  fn more(n: Nat) -> Positive = More(n)
+
+  ## Convert the closed strategy vocabulary to the ordinary supervisor tuple.
+  ## The strategy itself cannot be an arbitrary atom at a checked call site.
+  ## OTP permits zero restart intensity, but its restart period must be
+  ## strictly positive. `Positive` encodes that distinction without an
+  ## assertion or unchecked integer conversion.
+  local fn positive_nat(period: Positive) -> Nat =
+    match period
+      One() -> S(Z())
+      More(n) -> S(n)
+
+  fn supervision_strategy(strategy: Strategy, intensity: Nat, period: Positive) -> StrategySpec =
+    match strategy
+      OneForOne() -> %[:one_for_one, intensity, positive_nat(period)]
+      OneForAll() -> %[:one_for_all, intensity, positive_nat(period)]
+      RestForOne() -> %[:rest_for_one, intensity, positive_nat(period)]
+
+  local fn restart_atom(restart: Restart) -> Atom =
+    match restart
+      Permanent() -> :permanent
+      Temporary() -> :temporary
+      Transient() -> :transient
+
+  local fn shutdown_value(shutdown: Shutdown) -> Nat =
+    match shutdown
+      Brutal() -> Z()
+      Timeout(timeout) -> timeout
+
+  local fn child_type_atom(child_type: ChildType) -> Atom =
+    match child_type
+      Worker() -> :worker
+      Supervisor() -> :supervisor
+
+  ## The MFA argument list is polymorphic for direct homogeneous child specs.
+  ## Heterogeneous supervisor lists still require the raw BEAM term boundary.
+  fn child_with_args({a: Type}, module: Atom, id: Atom, args: List(a), restart: Restart, shutdown: Shutdown, child_type: ChildType) -> Tuple(RawTerm, Tuple(Atom, Atom, List(a)), Atom, Nat, Atom, List(Atom)) =
+    %[raw_arg(id), %[module, :start_link, args], restart_atom(restart), shutdown_value(shutdown), child_type_atom(child_type), [module]]
+
+  local fn raw_args({a: Type}, args: List(a)) -> List(RawTerm) =
+    match args
+      [] -> []
+      [head | tail] -> [raw_arg(head) | raw_args(tail)]
+
+  fn child_with_typed_args({a: Type}, module: Atom, id: Atom, args: List(a), restart: Restart, shutdown: Shutdown, child_type: ChildType) -> ChildSpec =
+    child_with_raw_args(module, id, raw_args(args), restart, shutdown, child_type)
+
+  ## Explicit raw-term child arguments for a heterogeneous BEAM MFA list.
+  ## Every element must cross `raw_arg/1` at the call site; no typed value is
+  ## silently widened by this constructor.
+  fn raw_arg({a: Type}, value: a) -> RawTerm = raw_term(1, %[value, :raw_term])
+
+  fn empty_raw_args() -> List(RawTerm) = []
+
+  fn child_with_raw_args(module: Atom, id: Atom, args: List(RawTerm), restart: Restart, shutdown: Shutdown, child_type: ChildType) -> ChildSpec =
+    %[raw_arg(id), %[module, :start_link, args], restart_atom(restart), shutdown_value(shutdown), child_type_atom(child_type), [module]]
+
+  fn child_with_encoded(module: Atom, id: RawTerm, restart: Restart, shutdown: Shutdown, child_type: ChildType) -> ChildSpec =
+    %[id, %[module, :start_link, empty_raw_args()], restart_atom(restart), shutdown_value(shutdown), child_type_atom(child_type), [module]]
+
+  fn child_with(module: Atom, id: Atom, restart: Restart, shutdown: Shutdown, child_type: ChildType) -> ChildSpec =
+    %[raw_arg(id), %[module, :start_link, assert_type [] : List(RawTerm)], restart_atom(restart), shutdown_value(shutdown), child_type_atom(child_type), [module]]
+
+  fn child(module: Atom, id: Atom) -> ChildSpec =
+    child_with(module, id, permanent(), shutdown_after(5000), worker())
+
+  ## Preferred typed-ID boundary. The caller resolves `BeamEncode(id)` and passes
+  ## the resulting opaque term here; macro expansion itself carries no hidden
+  ## dictionary argument. At runtime the term is the exact supervisor child ID.
+  fn encoded_child(module: Atom, id: RawTerm) -> ChildSpec =
+    %[id, %[module, :start_link, assert_type [] : List(RawTerm)], restart_atom(permanent()), shutdown_value(shutdown_after(5000)), child_type_atom(worker()), [module]]

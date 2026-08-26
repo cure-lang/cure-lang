@@ -80,22 +80,6 @@ defmodule Cure.Story.Outline do
         :module ->
           Enum.reduce(body, acc, fn child, a -> walk_node(child, file, a) end)
 
-        :app ->
-          node = parse_app(meta, body, file)
-          %{acc | apps: [node | acc.apps]}
-
-        :supervisor ->
-          node = parse_supervisor(meta, body, file)
-          %{acc | supervisors: [node | acc.supervisors]}
-
-        :actor ->
-          node = parse_actor(meta, body, file)
-          %{acc | actors: [node | acc.actors]}
-
-        :fsm ->
-          node = parse_fsm(meta, body, file)
-          %{acc | fsms: [node | acc.fsms]}
-
         :enum ->
           node = %{
             name: Keyword.get(meta, :name, "Unknown"),
@@ -123,6 +107,30 @@ defmodule Cure.Story.Outline do
     acc
   end
 
+  defp walk_node({:lift_module, meta, _body}, file, acc) when is_list(meta) do
+    name = Keyword.get(meta, :module, "Unknown") |> to_string()
+
+    case Keyword.get(meta, :behaviour) do
+      :application ->
+        %{acc | apps: [%{name: name, file: file, supervisors: [], actors: []} | acc.apps]}
+
+      :supervisor ->
+        node = %{name: name, file: file, strategy: :one_for_one, children: []}
+        %{acc | supervisors: [node | acc.supervisors]}
+
+      :gen_server ->
+        node = %{name: name, file: file, effects: [], messages: []}
+        %{acc | actors: [node | acc.actors]}
+
+      :gen_statem ->
+        node = %{name: name, file: file, states: [], transitions: []}
+        %{acc | fsms: [node | acc.fsms]}
+
+      _ ->
+        acc
+    end
+  end
+
   defp walk_node({:type_annotation, meta, _}, file, acc) when is_list(meta) do
     node = %{
       name: Keyword.get(meta, :name, "Unknown"),
@@ -135,145 +143,6 @@ defmodule Cure.Story.Outline do
   end
 
   defp walk_node(_, _file, acc), do: acc
-
-  # -- Container parsers --------------------------------------------------------
-
-  defp parse_app(meta, body, file) do
-    name = Keyword.get(meta, :name, "Unknown")
-
-    supervisors =
-      Enum.flat_map(body, fn
-        {:root, _, [{:supervisor, _, sname}]} ->
-          [sname]
-
-        {:binding, [{:key, "root"} | _], [{:supervisor, _, sname}]} ->
-          [sname]
-
-        {:application_clause, m, _} when is_list(m) ->
-          case Keyword.get(m, :clause_type) do
-            :root -> [Keyword.get(m, :supervisor, "")]
-            _ -> []
-          end
-
-        _ ->
-          []
-      end)
-
-    actors =
-      Enum.flat_map(body, fn
-        {:container, m, _} when is_list(m) ->
-          case Keyword.get(m, :container_type) do
-            :actor -> [Keyword.get(m, :name, "")]
-            _ -> []
-          end
-
-        _ ->
-          []
-      end)
-
-    %{name: name, file: file, supervisors: supervisors, actors: actors}
-  end
-
-  defp parse_supervisor(meta, body, file) do
-    name = Keyword.get(meta, :name, "Unknown")
-    strategy = extract_strategy(body)
-    children = extract_children(body)
-    %{name: name, file: file, strategy: strategy, children: children}
-  end
-
-  defp parse_actor(meta, body, file) do
-    name = Keyword.get(meta, :name, "Unknown")
-    effects = extract_effects(meta)
-    messages = extract_message_types(body)
-    %{name: name, file: file, effects: effects, messages: messages}
-  end
-
-  defp parse_fsm(meta, body, file) do
-    name = Keyword.get(meta, :name, "Unknown")
-    transitions = extract_transitions(body)
-    states = extract_states(transitions)
-    %{name: name, file: file, states: states, transitions: transitions}
-  end
-
-  # -- Helper extractors --------------------------------------------------------
-
-  defp extract_strategy(body) do
-    Enum.find_value(body, :one_for_one, fn
-      {:binding, [{:key, "strategy"} | _], [{:atom, _, strategy}]} -> strategy
-      {:field, [{:name, "strategy"} | _], [{:atom, _, strategy}]} -> strategy
-      {:assign, _, {:atom, _, strategy}} -> strategy
-      _ -> nil
-    end)
-  end
-
-  defp extract_children(body) do
-    Enum.flat_map(body, fn
-      {:children, _, children} ->
-        Enum.flat_map(children, fn
-          {:child, m, _} when is_list(m) -> [Keyword.get(m, :module, "?")]
-          {:variable, _, name} -> [name]
-          _ -> []
-        end)
-
-      _ ->
-        []
-    end)
-  end
-
-  defp extract_effects(meta) do
-    case Keyword.get(meta, :effects) do
-      nil -> []
-      effects when is_list(effects) -> Enum.map(effects, &to_string/1)
-    end
-  end
-
-  defp extract_message_types(body) do
-    Enum.flat_map(body, fn
-      {:container, m, _clauses} when is_list(m) ->
-        case Keyword.get(m, :container_type) do
-          :inbox ->
-            Keyword.get(m, :variants, [])
-            |> Enum.map(fn
-              {:variant, vm, _} when is_list(vm) -> Keyword.get(vm, :name, "?")
-              {:variable, _, name} -> name
-              other -> inspect(other)
-            end)
-
-          _ ->
-            []
-        end
-
-      _ ->
-        []
-    end)
-  end
-
-  defp extract_transitions(body) do
-    Enum.flat_map(body, fn
-      {:transition, meta, _} when is_list(meta) ->
-        from = Keyword.get(meta, :from, "?")
-        event = Keyword.get(meta, :event, "?")
-        to = Keyword.get(meta, :to, "?")
-        [%{from: to_string(from), event: to_string(event), to: to_string(to)}]
-
-      {:fsm_rule, meta, _} when is_list(meta) ->
-        from = Keyword.get(meta, :from, "?")
-        event = Keyword.get(meta, :event, "?")
-        to = Keyword.get(meta, :to, "?")
-        [%{from: to_string(from), event: to_string(event), to: to_string(to)}]
-
-      _ ->
-        []
-    end)
-  end
-
-  defp extract_states(transitions) do
-    transitions
-    |> Enum.flat_map(fn %{from: f, to: t} -> [f, t] end)
-    |> Enum.uniq()
-    |> Enum.reject(&(&1 == "?"))
-    |> Enum.sort()
-  end
 
   # -- File parsing -------------------------------------------------------------
 

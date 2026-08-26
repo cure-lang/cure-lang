@@ -1,8 +1,21 @@
 mod DependentTypes
-  # Refinement types constrain values at compile time
+  use Std.Bool
+  use Std.Proof.IntMath
+
+  # Domain invariants expressed as refinement types. Each `{x: Int | phi}`
+  # binder reflects its boolean clause into `IsTrue(phi)` (surface sugar), and a
+  # value whose closed obligation reduces to `IsTrue(True())` is discharged
+  # automatically -- no explicit proof term. These replace the former
+  # "unchecked pending SMTCoq" plain-Int aliases.
   type NonZero = {x: Int | x != 0}
   type Positive = {x: Int | x > 0}
-  type Percentage = {p: Int | p >= 0 and p <= 100}
+  type Percentage = {p: Int | 0 <= p and p <= 100}
+
+  # Literals checked against the refinements above. The obligation is closed,
+  # so it folds by computation and the proof is filled with `Confirmed()`.
+  fn one_positive() -> Positive = 42
+  fn half_percent() -> Percentage = 50
+  fn a_nonzero() -> NonZero = 7
 
   # Functions with guard constraints are verified at call sites
   fn safe_divide(a: Int, b: Int) -> Int when b != 0 = a / b

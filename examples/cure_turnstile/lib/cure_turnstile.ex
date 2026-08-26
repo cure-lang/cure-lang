@@ -32,31 +32,25 @@ defmodule CureTurnstile do
   suite for the exact shape.
   """
 
-  alias Cure.FSM.State, as: FsmState
-  alias Cure.FSM.Runtime
-
-  @fsm_module :"Cure.FSM.Turnstile"
+  @fsm_module :"Cure.Main.Turnstile"
 
   @doc """
   Start a turnstile FSM. The initial `:payload` is `0` (coins) and the
   initial `:meta` is `%{passages: 0}`.
 
-  The spawning process is recorded as the FSM's `:caller`; lifecycle
-  hooks reach it via `Std.Fsm.notify/1`, and -- because the `.cure`
-  file opts in with `@notify_transitions` -- every completed
-  transition sends a message to it.
+  The generated module is a normal `:gen_statem` implementation. Events
+  are delivered through the standard `:gen_statem.cast/2` operation and
+  state is observed through `:sys.get_state/1`.
   """
   @spec start_link() :: {:ok, pid()} | {:error, term()}
   def start_link do
-    Runtime.spawn_fsm(@fsm_module,
-      init: %FsmState{caller: self(), meta: %{passages: 0}, payload: 0}
-    )
+    apply(@fsm_module, :start_link, [{0, 0}])
   end
 
   @doc "Insert a coin. Delivered as an event; the FSM advances asynchronously."
   @spec insert_coin(pid()) :: :ok
   def insert_coin(pid) do
-    Runtime.send_event(pid, :coin)
+    :gen_statem.cast(pid, :coin)
     sync(pid)
     :ok
   end
@@ -64,28 +58,27 @@ defmodule CureTurnstile do
   @doc "Push through the turnstile. Delivered as an event."
   @spec push(pid()) :: :ok
   def push(pid) do
-    Runtime.send_event(pid, :push)
+    :gen_statem.cast(pid, :push)
     sync(pid)
     :ok
   end
 
   @doc "Stop the turnstile."
   @spec stop(pid()) :: :ok
-  def stop(pid), do: Runtime.stop_fsm(pid)
+  def stop(pid), do: :gen_statem.stop(pid)
 
   @doc "Return the current FSM state atom (`:locked` or `:unlocked`)."
   @spec state(pid()) :: atom()
   def state(pid) do
-    {current, _payload} = @fsm_module.get_state(pid)
-    current
+    {current, _payload} = :sys.get_state(pid)
+    external_state(current)
   end
 
   @doc "Return a stats map with `:state`, `:coins`, and `:passages`."
   @spec stats(pid()) :: map()
   def stats(pid) do
-    {current, %FsmState{payload: coins, meta: meta}} = @fsm_module.get_fsm_state(pid)
-    passages = if is_map(meta), do: Map.get(meta, :passages, 0), else: 0
-    %{state: current, coins: coins, passages: passages}
+    {current, {coins, passages}} = :sys.get_state(pid)
+    %{state: external_state(current), coins: coins, passages: passages}
   end
 
   @doc "Check whether the turnstile is currently unlocked."
@@ -96,4 +89,7 @@ defmodule CureTurnstile do
   # blocks until the event has been handled so callers can immediately
   # read the resulting state.
   defp sync(pid), do: _ = :sys.get_state(pid)
+
+  defp external_state(:Locked), do: :locked
+  defp external_state(:Unlocked), do: :unlocked
 end

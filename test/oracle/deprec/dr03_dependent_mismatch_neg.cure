@@ -1,0 +1,10 @@
+mod Dr03
+  type Nat = Z | S(Nat)
+  type SNat indices (n: Nat)
+    szero : SNat(Z)
+    ssuc : SNat(n) -> SNat(S(n))
+  rec DPair
+    fst: Nat
+    snd: SNat(fst)
+  fn bad() -> DPair = DPair{fst: S(Z()), snd: szero()}
+end

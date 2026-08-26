@@ -63,7 +63,18 @@ defmodule :cure_std_gen do
     |> Enum.reject(&(&1 == xs))
   end
 
-  @doc "Polymorphic dispatch based on runtime shape."
+  @doc """
+  Runtime-shape dispatch, used internally by `:cure_std_test`'s shrink loop.
+
+  **Not part of the axiom surface.** No `@extern` points here. It used to be
+  postulated as `Std.Gen.shrink : ∀t. t -> List(t)`, which no parametric
+  function inhabits — the free theorem requires `shrink(g x) == map(g, shrink x)`
+  and this violates it. The Cure-visible shrinker is now the `Shrink(t)`
+  interface in `lib/std/gen.cure`, whose method may legitimately dispatch on `t`.
+
+  Erlang has no types to erase, so dispatching here is fine; the lie was in the
+  Cure signature, not in this code.
+  """
   def shrink(n) when is_integer(n), do: shrink_int(n)
   def shrink(xs) when is_list(xs), do: shrink_list(xs)
 

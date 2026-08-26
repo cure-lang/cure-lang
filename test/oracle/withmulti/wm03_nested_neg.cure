@@ -1,0 +1,24 @@
+mod Wm03
+  type Nat = Z | S(Nat)
+  type SNat indices (n: Nat)
+    szero : SNat(Z)
+    ssuc : SNat(n) -> SNat(S(n))
+  type Two indices (x: Nat, y: Nat)
+    mkTwo : SNat(x) -> SNat(y) -> Two(x, y)
+  fn toS(m: Nat) -> SNat(m) = match m
+    Z() -> szero()
+    S(j) -> ssuc(toS(j))
+  fn g(m: Nat) -> Nat = match m
+    Z() -> Z()
+    S(k) -> S(k)
+  fn foo(a: Nat, b: Nat) -> Two(g(a), g(b)) =
+    with g(a)
+      Z() ->
+        with g(b)
+          Z() -> mkTwo(szero(), szero())
+          S(k) -> mkTwo(szero(), szero())
+      S(j) ->
+        with g(b)
+          Z() -> mkTwo(ssuc(toS(j)), szero())
+          S(k) -> mkTwo(ssuc(toS(j)), ssuc(toS(k)))
+end

@@ -1,0 +1,6 @@
+mod Pos02
+  type Opt(a) = ONone | OSome(a)
+  type Tok = MkTok
+  type Iter(a) = MkIter(Tok -> Opt(IterStep(a)))
+  type IterStep(a) = Yield(a, Iter(a))
+end

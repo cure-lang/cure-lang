@@ -23,7 +23,7 @@ browser-side and ExDoc-side renderings stay in step.
   `match` / `when`, `for` / `in`, `try` / `catch` / `finally`, `throw`,
   `return`, `yield`, `end`.
 - Dependent-type constructs: `assert_type`, `rewrite`, typed holes
-  (`??`, `?name`), predicate identifiers (`even?`, `is_empty?`).
+  (`?_`, `?name`), predicate identifiers (`even?`, `is_empty?`).
 - FSM / actor / supervisor / application lifecycle callbacks:
   `on_start`, `on_stop`, `on_transition`, `on_enter`, `on_exit`,
   `on_failure`, `on_timer`, `on_message`, `on_phase`.

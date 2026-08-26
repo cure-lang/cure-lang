@@ -1,0 +1,7 @@
+mod Im01
+  type Nat = Z | S(Nat)
+  fn f(n: Nat) -> Nat =
+    match (match n { S(m) -> m, other -> Z() })
+      Z() -> Z()
+      k -> S(k)
+end

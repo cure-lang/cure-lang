@@ -52,13 +52,11 @@ defmodule Cure.Compiler.ImportTest do
         use Std.{List, Core}
 
         fn doubled(xs: List(Int)) -> List(Int) = map(xs, fn(x) -> x * 2)
-        fn wrap(x: Int) -> Result(Int, String) = ok(x)
         fn get_id(x: Int) -> Int = identity(x)
       """
 
       {:ok, m} = Cure.Compiler.compile_and_load(source)
       assert m.doubled([1, 2, 3]) == [2, 4, 6]
-      assert m.wrap(42) == {:ok, 42}
       assert m.get_id(99) == 99
     after
       purge(:"Cure.ImportSelective")
@@ -86,9 +84,12 @@ defmodule Cure.Compiler.ImportTest do
 
   describe "imports with qualified calls" do
     test "qualified calls still work alongside imports" do
+      # Must-import: a qualified `Std.String.length` requires `Std.String` in
+      # scope. Both List and String define `length`, so bare `length` is
+      # ambiguous — the qualified spelling is exactly how you disambiguate.
       source = """
       mod ImportMixed
-        use Std.List
+        use Std.{List, String}
 
         fn doubled(xs: List(Int)) -> List(Int) = map(xs, fn(x) -> x * 2)
         fn str_len(s: String) -> Int = Std.String.length(s)
@@ -96,7 +97,10 @@ defmodule Cure.Compiler.ImportTest do
 
       {:ok, m} = Cure.Compiler.compile_and_load(source)
       assert m.doubled([1, 2]) == [2, 4]
-      assert m.str_len("hello") == 5
+      # `String` is nominal and erases to `{String, code_points}` — a raw BEAM
+      # binary is a `Std.Binary`, not a `String`, and there is no marshalling
+      # wrapper at the export boundary. Hand the function what it declares.
+      assert m.str_len({:String, ~c"hello"}) == 5
     after
       purge(:"Cure.ImportMixed")
     end

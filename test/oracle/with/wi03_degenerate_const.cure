@@ -1,0 +1,10 @@
+mod Wi03
+  type Nat = Z | S(Nat)
+  fn g(m: Nat) -> Nat = match m
+    Z() -> Z()
+    S(k) -> S(k)
+  fn foo(n: Nat) -> Nat =
+    with g(n)
+      Z() -> Z()
+      S(k) -> Z()
+end

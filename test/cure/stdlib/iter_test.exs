@@ -1,5 +1,5 @@
 defmodule Cure.Stdlib.IterTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   # `Cure.Std.Iter` is loaded dynamically by `Cure.Stdlib.Preload` in
   # `setup_all` below; Elixir's compile-time checker doesn't see it,
@@ -53,8 +53,10 @@ defmodule Cure.Stdlib.IterTest do
     end
 
     test "unfold supports the Fibonacci recurrence" do
-      # f({a, b}) -> Some(%[a, %[b, a + b]])
-      fib_step = fn {a, b} -> {:some, {a, {b, a + b}}} end
+      # f({a, b}) -> Some(Emit(a, %[b, a + b]))
+      # Option `Some/None` erase to OTP tags (`{:some, _}` / `:none`); Iter's own
+      # `Emit` ctor keeps its declared PascalCase tag (`{:Emit, _, _}`).
+      fib_step = fn {a, b} -> {:some, {:Emit, a, {b, a + b}}} end
       it = @iter.unfold({0, 1}, fib_step)
       assert @iter.take(it, 8) == [0, 1, 1, 2, 3, 5, 8, 13]
     end
@@ -62,8 +64,8 @@ defmodule Cure.Stdlib.IterTest do
     test "unfold terminates on None" do
       # Walk a counter down to zero, emitting each value.
       step = fn
-        0 -> {:none}
-        n -> {:some, {n, n - 1}}
+        0 -> :none
+        n -> {:some, {:Emit, n, n - 1}}
       end
 
       it = @iter.unfold(3, step)
@@ -205,7 +207,7 @@ defmodule Cure.Stdlib.IterTest do
       assert @iter.to_list(@iter.range(1, 4)) == [1, 2, 3, 4]
     end
 
-    test "each runs f for every element and returns :ok" do
+    test "each runs f for every element and returns Done" do
       Process.put(:iter_each_acc, [])
 
       f = fn x ->
@@ -213,7 +215,7 @@ defmodule Cure.Stdlib.IterTest do
         :ok
       end
 
-      assert @iter.each(@iter.from_list([1, 2, 3]), f) == :ok
+      assert @iter.each(@iter.from_list([1, 2, 3]), f) == :Done
       assert Process.get(:iter_each_acc) == [3, 2, 1]
     after
       Process.delete(:iter_each_acc)

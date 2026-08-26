@@ -42,9 +42,10 @@ defmodule Cure.REPL.SessionTest do
     test "multi-line function with indented body" do
       src = """
       fn clamp(x: Int, lo: Int, hi: Int) -> Int =
-        if x < lo then lo
-        else if x > hi then hi
-        else x
+        pickup
+          x < lo -> lo
+          x > hi -> hi
+          else -> x
       """
 
       assert {:definitions, [entry]} = Session.classify(src)
@@ -81,6 +82,24 @@ defmodule Cure.REPL.SessionTest do
       assert entry.label == "rec Point"
     end
 
+    test "canonical interface and implementation declarations" do
+      src = """
+      interface Marker(a)
+        fn mark(value: a) -> Bool
+      implementation Marker for Int
+        fn mark(value: Int) -> Bool = true
+      """
+
+      assert {:definitions, [interface, implementation]} = Session.classify(src)
+      assert interface.key == {:interface, "Marker"}
+      assert interface.kind == :interface
+      assert interface.label == "interface Marker"
+      assert implementation.key == {:implementation, "Marker", "Int"}
+      assert implementation.kind == :implementation
+      assert implementation.label == "implementation Marker for Int"
+      assert {:ok, _module} = Session.compile([interface, implementation])
+    end
+
     test "lambda is an expression, not a definition" do
       assert :expression = Session.classify("fn(x) -> x + 1 end")
     end
@@ -100,6 +119,10 @@ defmodule Cure.REPL.SessionTest do
       assert {:definitions, [inc, dec]} = Session.classify(src)
       assert inc.key == {:fn, "inc", 1, :public}
       assert dec.key == {:fn, "dec", 1, :public}
+      assert inc.source == "fn inc(x: Int) -> Int = x + 1"
+      assert dec.source == "fn dec(x: Int) -> Int = x - 1"
+      refute inc.source =~ "fn dec"
+      refute dec.source =~ "fn inc"
     end
 
     test "declaration followed by expression falls back to expression" do
@@ -228,49 +251,9 @@ defmodule Cure.REPL.SessionTest do
     end
   end
 
-  describe "signatures/1" do
-    test "empty input yields an empty list" do
-      assert [] = Session.signatures([])
-    end
-
-    test "public fn entry yields a resolved {:fun, params, ret} signature" do
-      entry = %{
-        key: {:fn, "add", 2, :public},
-        kind: :fn,
-        label: "add/2",
-        source: "fn add(a: Int, b: Int) -> Int = a + b"
-      }
-
-      assert [{"add", {:fun, [:int, :int], :int}}] = Session.signatures([entry])
-    end
-
-    test "missing return type falls back to :any" do
-      entry = %{
-        key: {:fn, "untyped", 1, :public},
-        kind: :fn,
-        label: "untyped/1",
-        source: "fn untyped(x) = x"
-      }
-
-      assert [{"untyped", {:fun, [:any], :any}}] = Session.signatures([entry])
-    end
-
-    test "private (local) fns are not exposed" do
-      entry = %{
-        key: {:fn, "hidden", 0, :private},
-        kind: :fn,
-        label: "hidden/0",
-        source: "local fn hidden() -> Int = 1"
-      }
-
-      assert [] = Session.signatures([entry])
-    end
-
-    test "non-fn entries are ignored" do
-      rec = %{key: {:rec, "Point"}, kind: :rec, label: "rec Point", source: "rec Point\n  x: Int"}
-      type = %{key: {:type, "Color"}, kind: :type, label: "type Color", source: "type Color = Red"}
-
-      assert [] = Session.signatures([rec, type])
-    end
-  end
+  # The `signatures/1` describe block was removed with the classic pathway (#18):
+  # it projected REPL entries into `{:fun, params, ret}` bindings for
+  # `Cure.Types.Checker.infer_expr/2`'s `:extra_bindings`, and both the checker
+  # and that projection are gone (the REPL no longer does expression-level type
+  # inference).
 end

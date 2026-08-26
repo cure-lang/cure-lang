@@ -64,18 +64,20 @@ layer LTL properties on top of the projected protocol.
    initial state.
 
 Failures surface as `{:protocol_violation, message, meta}` tuples
-with `code: "E056"` in their meta keyword list. The formatter in
-`Cure.Compiler.Errors` treats `E056` like any other catalog entry.
+with `code: "PROTO001"` in their meta keyword list. This code is
+private to the protocol DSL: it is not registered in
+`Cure.Diagnostic.Registry` and is never formatted by
+`Cure.Compiler.Errors`, since `Cure.Protocol.Verifier` runs outside
+the `.cure` compiler pipeline.
 
-## E056 -- Protocol Violation
+## PROTO001 -- Protocol Violation
 
 Canonical examples:
 
-- **Dead role** (declared but never used). Appears as `role X never
-  appears in the protocol body`.
+- **Dead role** (declared but never used). Appears as
+  `role X never appears in the protocol body`.
 - **Stranger role** (used in a step but not declared). Appears as
-  `role X referenced in protocol body but not declared in the
-  \`with\` list`.
+  `role X referenced in protocol body but not declared in the with list`.
 - **Unreachable state** (should only arise from malformed input).
 
 ## Integration with actors

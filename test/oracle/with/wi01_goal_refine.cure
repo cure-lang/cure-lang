@@ -1,0 +1,16 @@
+mod Wi01
+  type Nat = Z | S(Nat)
+  type SNat indices (n: Nat)
+    szero : SNat(Z)
+    ssuc : SNat(n) -> SNat(S(n))
+  fn g(m: Nat) -> Nat = match m
+    Z() -> Z()
+    S(k) -> S(k)
+  fn toS(m: Nat) -> SNat(m) = match m
+    Z() -> szero()
+    S(j) -> ssuc(toS(j))
+  fn foo(n: Nat) -> SNat(g(n)) =
+    with g(n)
+      Z() -> szero()
+      S(k) -> ssuc(toS(k))
+end

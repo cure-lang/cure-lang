@@ -1,0 +1,39 @@
+# Declarations available to Markdown snippets that need ordinary example
+# scaffolding. Keep this deliberately small: public library APIs in docs should
+# be brought into scope with their real `use Std.*` imports.
+
+use Std.Nat
+use Std.Option
+use Std.Result
+use Std.List
+use Std.Vector
+
+fn assert(_condition: Bool) -> Unit = ()
+
+fn assert_equal({a: Type}, _expected: a, _actual: a) -> Unit = ()
+
+fn print({a: Type}, _value: a) -> Unit = ()
+
+fn println({a: Type}, _value: a) -> Unit = ()
+# Neutral scaffolding for small teaching snippets. These helpers deliberately
+# return their input (or Unit); they let an isolated pattern/example express
+# its shape without pretending to be part of the public stdlib.
+fn do_something({a: Type}, value: a) -> a = value
+
+fn handle({a: Type}, value: a) -> a = value
+
+fn some_call({a: Type}, value: a) -> a = value
+
+fn lookup({a: Type}, _key: Atom) -> Option(a) = None()
+
+fn get_tag({a: Type}, value: a) -> Atom = :value
+
+fn has_key({a: Type}, _key: Atom, _value: a) -> Bool = false
+
+fn format({a: Type}, value: a) -> String = ""
+
+fn next_token() -> Atom = :eof
+
+fn lock_acquired?() -> Bool = true
+
+fn singleton({a: Type}, value: a) -> List(a) = [value]

@@ -1,0 +1,86 @@
+@group(:collections)
+mod Std.Dynamic
+  ## A typed, honest stand-in for a dynamically-shaped value — the well-typed
+  ## replacement for `Any`.
+  ##
+  ## `Dynamic` is a single homogeneous tagged sum over Cure's real BEAM value
+  ## shapes: an atom, an integer, a float, a string, a list of `Dynamic`, a tuple
+  ## (as a list of `Dynamic`), or a map from `Dynamic` to `Dynamic`. Because every
+  ## leaf is itself a `Dynamic`, an arbitrarily-nested document — a decoded JSON
+  ## blob, a heterogeneous config — has one static type, and you narrow to a
+  ## concrete shape by pattern-matching a constructor rather than by an unchecked
+  ## runtime `is_map`/`is_tuple` guess.
+  ##
+  ## This module knows nothing about optics: it is an ordinary stdlib citizen,
+  ## usable on its own by anyone who wants a typed `Any`. `Std.Optic` imports it to
+  ## offer per-constructor "case affines" (`dyn_str : Affine(Dynamic, String)`, …),
+  ## but the dependency is one-way — `Std.Dynamic` never imports `Std.Optic`.
+  ##
+  ## ## Examples
+  ##
+  ## ```cure
+  ## use Std.Dynamic
+  ##
+  ## Int(3)                                   # => Int(3)
+  ## match Str("hi")                          # => true
+  ##   Str(s) -> true
+  ##   other  -> false
+  ## ```
+
+  use Std.Atom
+  use Std.List
+  use Std.String
+
+  ## A dynamically-shaped value. One constructor per BEAM value shape; the
+  ## container shapes (`List`, `Tuple`, `Map`) recurse through `Dynamic`, so the
+  ## whole thing is one type no matter how deeply nested the data is.
+  type Dynamic = Atom(Atom) | Int(Int) | Float(Float) | Str(String) | List(List(Dynamic)) | Tuple(List(Dynamic)) | Map(List(DynamicEntry))
+
+  ## One key/value entry of a `Map`. A dynamic map is an association list of these
+  ## rather than an opaque `Map(Dynamic, Dynamic)`: `Dynamic` in the *key* position
+  ## of an opaque map is not provably strictly positive (an opaque map could be
+  ## function-backed, making the key contravariant), so the kernel rejects it —
+  ## exactly as Idris/Agda reject a recursive occurrence through an abstract type.
+  ## An explicit product whose definition the positivity checker can see is strictly
+  ## positive in both fields, so the mutual recursion `Dynamic`/`DynamicEntry` is
+  ## accepted.
+  type DynamicEntry = Entry(Dynamic, Dynamic)
+
+  ## Smart constructors: inject a native BEAM value into `Dynamic`. These are the
+  ## public way to build a dynamic value — prefer them over naming the raw
+  ## constructors so callers do not depend on constructor spelling.
+  fn of_atom(a: Atom) -> Dynamic = Atom(a)
+  fn of_int(n: Int) -> Dynamic = Int(n)
+  fn of_float(x: Float) -> Dynamic = Float(x)
+  fn of_str(s: String) -> Dynamic = Str(s)
+  fn of_list(xs: List(Dynamic)) -> Dynamic = List(xs)
+  fn of_tuple(xs: List(Dynamic)) -> Dynamic = Tuple(xs)
+  fn of_map(es: List(DynamicEntry)) -> Dynamic = Map(es)
+
+  ## Build one association-list entry of a `Map`.
+  fn entry(k: Dynamic, v: Dynamic) -> DynamicEntry = Entry(k, v)
+
+  ## The shape tag of a dynamic value — a total discriminator, one atom per
+  ## constructor. Use it to branch before narrowing with a `match`.
+  fn tag(d: Dynamic) -> Atom = match d
+    Atom(a) -> :atom
+    Int(n) -> :int
+    Float(x) -> :float
+    Str(s) -> :str
+    List(xs) -> :list
+    Tuple(xs) -> :tuple
+    Map(es) -> :map
+
+  ## The entries of a `Map`, or the empty list for any other shape. Total: it
+  ## never crashes on a mis-shaped value, it just yields no entries.
+  fn entries(d: Dynamic) -> List(DynamicEntry) = match d
+    Map(es) -> es
+    other -> []
+
+  ## Projections of a `DynamicEntry` into its key and value halves.
+  fn entry_key(e: DynamicEntry) -> Dynamic = match e
+    Entry(k, v) -> k
+
+  fn entry_value(e: DynamicEntry) -> Dynamic = match e
+    Entry(k, v) -> v
+end

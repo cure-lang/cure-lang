@@ -1,7 +1,7 @@
 defmodule Cure do
   @moduledoc """
   Cure -- dependently-typed programming language for the BEAM virtual machine
-  with first-class finite state machines and SMT-backed verification.
+  with first-class finite state machines and Z3-assisted guard analysis.
 
   Cure compiles `.cure` source files to BEAM bytecode through the following pipeline:
 
@@ -12,10 +12,12 @@ defmodule Cure do
         |  Cure.Compiler.Parser       (MetaAST generation)
         v
       MetaAST (Metastatic 3-tuples)
-        |  Cure.Types.Checker         (bidirectional type checking)
+        |  Cure.Elab.Program          (dependent elaboration)
         v
-      Typed MetaAST
-        |  Cure.Compiler.Codegen      (Erlang abstract forms)
+      Checked Cure.Core
+        |  Cure.Core.Kernel           (validation)
+        |  Cure.Elab.Erase            (proof/index erasure)
+        |  Cure.Elab.Emit             (Erlang abstract forms)
         v
       BEAM bytecode
 
@@ -67,13 +69,13 @@ defmodule Cure do
 
   ## Examples
 
-      iex> Cure.quote("42")
-      {:ok, {:literal, [subtype: :integer, line: 1, col: 1], 42}}
+      iex> {:ok, {:literal, meta, 42}} = Cure.quote("42")
+      iex> Keyword.fetch!(meta, :subtype)
+      :integer
 
-      iex> Cure.quote("x + 1")
-      {:ok, {:binary_op, [category: :arithmetic, operator: :+, line: 1, col: 3],
-        [{:variable, [scope: :local, line: 1, col: 1], "x"},
-         {:literal, [subtype: :integer, line: 1, col: 5], 1}]}}
+      iex> {:ok, {:binary_op, meta, _}} = Cure.quote("x + 1")
+      iex> Keyword.fetch!(meta, :operator)
+      :+
   """
   @spec quote(String.t(), keyword()) :: {:ok, Parser.ast()} | {:error, term()}
   def quote(source, opts \\ []) do

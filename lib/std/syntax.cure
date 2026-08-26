@@ -1,0 +1,540 @@
+@group(:core)
+mod Std.Syntax
+  ## The generic quoted-AST value a Tier-3 `computed by` elab receives and
+  ## returns (macro-facility design §3, generic layer). Reflects the parser's
+  ## `{tag, meta, third}` node: `Node` for a child list, `Leaf` for a scalar
+  ## third value, `Raw` for a node the parser produced that doesn't fit the
+  ## `{tag, meta, third}` shape at all (e.g. a bare `impossible`-body marker
+  ## or a non-conforming pattern tuple) -- reflected opaquely rather than
+  ## crashing. `attrs` carries the semantic meta (a function's name, an
+  ## operator, a literal's subtype) — dropping it would lose those. A meta
+  ## value need not be a plain scalar: `SynLit` also covers a list of values
+  ## (`SList`), a nested AST (`SSyntax`), and a lookup table (`SMap`), each
+  ## losslessly. Source positions are not represented (the expansion is
+  ## re-elaborated, K3 firewall).
+  use Std.String
+  use Std.Char
+  use Std.Option
+
+  type Syntax =
+    | Node(Atom, List(Attr), List(Syntax))
+    | Leaf(Atom, List(Attr), SynLit)
+    | Raw(SynLit)
+    | Quoted(Syntax)
+    | Failure(Atom, List(Syntax))
+
+  ## Shape-specific aliases keep generated family records readable without
+  ## introducing separate runtime representations or weakening the generic
+  ## reflection boundary.
+  typealias NameSyntax = Syntax
+  typealias ModuleNameSyntax = Syntax
+  typealias TypeSyntax = Syntax
+  typealias PatternSyntax = Syntax
+  typealias ExpressionSyntax = Syntax
+  typealias StatementSyntax = Syntax
+  typealias CodeSyntax = Syntax
+  typealias CasesSyntax = Syntax
+  typealias ParametersSyntax = Syntax
+  typealias FieldsSyntax = Syntax
+  typealias DeclarationsSyntax = Syntax
+  typealias ModuleBodySyntax = Syntax
+  typealias TokenSyntax = Syntax
+  typealias Diagnostic = Syntax
+
+  type MacroResult =
+    | Expanded(Syntax)
+    | Rejected(List(Diagnostic))
+
+  type Attr = KV(Atom, SynLit)
+
+  type SynLit =
+    | SInt(Int)
+    | SChar(Char)
+    | SFloat(Float)
+    | SStr(String)
+    | SBool(Bool)
+    | SAtom(Atom)
+    | SList(List(SynLit))
+    | SSyntax(Syntax)
+    | SMap(List(SynPair))
+    | SOpaque
+
+  type SynPair = SPair(SynLit, SynLit)
+
+  type AttrResult = Found(SynLit) | Missing
+
+  ## A constructor head extracted from a reflected match arm. The arity is
+  ## retained in the generic constructor key so source-defined derivations can
+  ## reject unsupported payload views without compiler-owned domain knowledge.
+  type PatternHeads = Heads(List(Syntax)) | InvalidHeads(Atom)
+
+  type PatternHead = ValidHead(Atom, Syntax) | InvalidHead(Atom)
+
+  type PayloadTypes = Payloads(List(Syntax)) | InvalidPayload(Atom)
+
+  ## Typed declaration specifications keep ordinary macro authors away from
+  ## positional attribute lists. They are source-level records, so a builder
+  ## call reads like the declaration it produces and remains reusable by any
+  ## user-defined macro.
+  rec ParameterSpec
+    name: String
+    kind: Syntax
+    linear: Bool
+
+  rec FunctionSpec
+    name: String
+    parameters: List(ParameterSpec)
+    returns: Syntax
+    body: Syntax
+
+  rec ModuleSpec
+    name: String
+    behaviour: Atom
+    declarations: List(Syntax)
+
+  rec AliasSpec
+    name: String
+    value: Syntax
+
+  ## Small, total operations used by source-defined syntax macros. These keep
+  ## syntax analysis in Cure instead of teaching the compiler about a macro's
+  ## domain-specific declarations.
+  fn tag(syntax: Syntax) -> Atom = match syntax
+    Node(name, _, _) -> name
+    Leaf(name, _, _) -> name
+    Raw(_) -> :raw
+    Quoted(_) -> :quoted
+    Failure(name, _) -> name
+
+  fn has_tag(syntax: Syntax, expected: Atom) -> Bool = tag(syntax) == expected
+
+  fn is_variable_named(syntax: Syntax, expected: Atom) -> Bool = match tag(syntax) == :variable
+    true -> attr_atom_is(attrs(syntax), :variable_name, expected)
+    false -> false
+
+  fn attrs(syntax: Syntax) -> List(Attr) = match syntax
+    Node(_, values, _) -> values
+    Leaf(_, values, _) -> values
+    Raw(_) -> []
+    Quoted(inner) -> attrs(inner)
+    Failure(_, _) -> []
+
+  fn children(syntax: Syntax) -> List(Syntax) = match syntax
+    Node(_, _, values) -> values
+    Leaf(_, _, _) -> []
+    Raw(_) -> []
+    Quoted(inner) -> [inner]
+    Failure(_, values) -> values
+
+  fn leaf_value(syntax: Syntax) -> SynLit = match syntax
+    Leaf(_, _, value) -> value
+    _ -> SOpaque
+
+  fn attr(values: List(Attr), key: Atom) -> AttrResult = match values
+    [] -> Missing
+    [KV(name, value) | rest] ->
+      match name == key
+        true -> Found(value)
+        false -> attr(rest, key)
+
+  fn attr_atom_is(values: List(Attr), key: Atom, expected: Atom) -> Bool = match attr(values, key)
+    Found(value) -> match value
+      SAtom(actual) -> actual == expected
+      _ -> false
+    Missing -> false
+
+  ## Read the generic staged expansion context attached to reflected syntax.
+  ## A context-free use site is represented by the same opaque value used for
+  ## any unavailable syntax, so a source-defined macro can inspect it without
+  ## relying on a compiler-owned callback record.
+  fn expansion_context(syntax: Syntax) -> Syntax = match attr(attrs(syntax), :expansion_context)
+    Found(SSyntax(value)) -> value
+    _ -> Raw(SOpaque)
+
+  ## Look up one field in the generic staged expansion context.
+  fn context_attr(syntax: Syntax, key: Atom) -> AttrResult =
+    attr(attrs(expansion_context(syntax)), key)
+
+  fn node(name: Atom, values: List(Attr), terms: List(Syntax)) -> Syntax =
+    Node(name, values, terms)
+
+  @reducible
+  fn leaf(name: Atom, values: List(Attr), value: SynLit) -> Syntax =
+    Leaf(name, values, value)
+
+  @reducible
+  fn expand(value: Syntax) -> MacroResult = Expanded(value)
+
+  @reducible
+  fn reject(diagnostic: Diagnostic) -> MacroResult = Rejected([diagnostic])
+
+  @reducible
+  fn reject_all(diagnostics: List(Diagnostic)) -> MacroResult = Rejected(diagnostics)
+
+  ## Select a Unicode-scalar-relative range inside syntax captured from the
+  ## caller. The compiler validates the range against the captured source span;
+  ## an invalid or generated target falls back to the macro invocation. Macro
+  ## authors therefore cannot forge a path or escape the captured syntax.
+  @reducible
+  fn diagnostic_subspan(target: Syntax, start: Int, length: Int) -> Syntax =
+    Node(
+      :diagnostic_subspan,
+      [KV(:relative_start, SInt(start)), KV(:relative_length, SInt(length))],
+      [target]
+    )
+
+  ## Attach user-facing content to an authored diagnostic while keeping its
+  ## stable failure name in the outer `Failure`. Presentation adapters consume
+  ## this record uniformly for source-defined macros.
+  @reducible
+  fn diagnostic_details(primary: Syntax, message: String, hint: String) -> Syntax =
+    Node(
+      :diagnostic_details,
+      [KV(:message, SStr(message)), KV(:hint, SStr(hint))],
+      [primary]
+    )
+
+  @reducible
+  fn attr_value(name: Atom, value: SynLit) -> Attr = KV(name, value)
+
+  @reducible
+  fn syntax_atom(value: Atom) -> SynLit = SAtom(value)
+  @reducible
+  fn syntax_string(value: String) -> SynLit = SStr(value)
+  @reducible
+  fn syntax_bool(value: Bool) -> SynLit = SBool(value)
+  fn syntax_int(value: Int) -> SynLit = SInt(value)
+
+  ## Lift ordinary primitive values into literal syntax. These constructors are
+  ## explicit so a string can never be mistaken for an identifier or raw syntax.
+  @reducible
+  fn int_literal(value: Int) -> Syntax = integer(value)
+
+  fn float_literal(value: Float) -> Syntax =
+    Leaf(:literal, [KV(:subtype, SAtom(:float))], SFloat(value))
+
+  fn bool_literal(value: Bool) -> Syntax =
+    Leaf(:literal, [KV(:subtype, SAtom(:boolean))], SBool(value))
+
+  fn string_literal(value: String) -> Syntax =
+    Leaf(:literal, [KV(:subtype, SAtom(:string))], SStr(value))
+
+  fn char_literal(value: Char) -> Syntax =
+    Leaf(:literal, [KV(:subtype, SAtom(:char))], SChar(value))
+
+  fn syntax_list(items: List(Syntax)) -> SynLit = match items
+    [] -> SList([])
+    [head | rest] ->
+      match syntax_list(rest)
+        SList(values) -> SList([SSyntax(head) | values])
+        _ -> SList([])
+
+  @reducible
+  fn variable(name: String) -> Syntax =
+    Leaf(:variable, [KV(:scope, SAtom(:local))], SStr(name))
+
+  ## Name-intent constructors make scope decisions explicit in macro source.
+  ## `caller_identifier` deliberately retains the call-site scope; the other
+  ## two are used for generated references and declaration names respectively.
+  fn caller_identifier(name: String) -> Syntax =
+    Leaf(:variable, [KV(:scope, SAtom(:caller))], SStr(name))
+
+  fn private_identifier(name: String) -> Syntax = fresh(name)
+
+  fn exported_identifier(name: String) -> Syntax =
+    Leaf(:variable, [KV(:scope, SAtom(:exported))], SStr(name))
+
+  ## Mark a generated binder or reference for the parser's existing hygienic
+  ## freshening pass. Use the marker at each generated occurrence that should
+  ## share a binding; syntax reflected from the caller remains untouched. The
+  ## marker is compile-time syntax and disappears before ordinary elaboration;
+  ## it is not a runtime name generator.
+  @reducible
+  fn fresh(name: String) -> Syntax =
+    Leaf(:fresh_name, [], SStr(name))
+
+  @reducible
+  fn atom_literal(value: Atom) -> Syntax =
+    Leaf(:literal, [KV(:subtype, SAtom(:symbol))], SAtom(value))
+
+  ## The unit value has a two-tuple parser representation rather than an
+  ## ordinary expression node. The parser bridge recognizes this reflected
+  ## marker and restores the canonical `()` AST before re-elaboration.
+  fn unit_literal() -> Syntax =
+    Node(:unit_value, [], [])
+
+  ## `call` is part of the compile-time reflection API. Core-evaluator macro
+  ## execution must unfold it across the Std.Syntax interface boundary, so its
+  ## body is semantic interface data rather than an opaque runtime detail.
+  @reducible
+  fn call(name: String, args: List(Syntax)) -> Syntax =
+    Node(:function_call, [KV(:name, SStr(name))], args)
+
+  fn use_module(name: String) -> Syntax =
+    Node(:import, [KV(:source, SStr(name)), KV(:import_type, SAtom(:use))], [])
+
+  @reducible
+  fn tuple(items: List(Syntax)) -> Syntax = Node(:tuple, [], items)
+
+  fn list(items: List(Syntax)) -> Syntax = Node(:list, [], items)
+
+  fn tuple_type(items: List(Syntax)) -> Syntax =
+    Node(:tuple_type, [KV(:binders, parameter_names(items))], items)
+
+  fn parameter_names(items: List(Syntax)) -> SynLit =
+    match items
+      [] -> SList([])
+      [_head | rest] -> match parameter_names(rest)
+        SList(names) -> SList([SStr("_") | names])
+        _ -> SList([])
+
+  fn parameter(name: String, kind: Syntax) -> Syntax =
+    Node(:param, [KV(:name, SStr(name)), KV(:type, SSyntax(kind))], [])
+
+  fn typed_pattern(name: String, kind: Syntax) -> Syntax =
+    Node(:typed_pattern, [], [variable(name), kind])
+
+  fn captured_parameter_name(value: Syntax) -> Option(String) = match value
+    Leaf(_, _, SStr(name)) -> match tag(value) == :param
+      true -> Some(name)
+      false -> None()
+    Node(_, values, _) -> match tag(value) == :param
+      true -> match attr(values, :name)
+        Found(SStr(name)) -> Some(name)
+        _ -> None()
+      false -> None()
+    _ -> None()
+
+  fn captured_parameter_type(value: Syntax) -> Option(Syntax) = match attr(attrs(value), :type)
+    Found(SSyntax(kind)) -> Some(kind)
+    _ -> None()
+
+  fn captured_parameter_pattern(value: Syntax) -> Option(Syntax) = match captured_parameter_name(value)
+    None() -> None()
+    Some(name) -> match captured_parameter_type(value)
+      None() -> None()
+      Some(kind) -> Some(typed_pattern(name, kind))
+
+  ## Generic identifier transformations for declaration-producing macros.
+  ## These inspect reflected identifier syntax only; domain macros decide what
+  ## generated name means (for example, an actor query adapter).
+  fn identifier_name(value: Syntax) -> Option(String) = match value
+    Leaf(_, _, SStr(name)) -> Some(name)
+    Node(_, values, _) -> match attr(values, :name)
+      Found(SStr(name)) -> Some(name)
+      _ -> None()
+    _ -> None()
+
+
+  fn parameter_linear(name: String, kind: Syntax) -> Syntax =
+    Node(:param, [KV(:name, SStr(name)), KV(:type, SSyntax(kind)), KV(:grade, SAtom(:linear))], [])
+
+  fn parameter_spec(name: String, kind: Syntax) -> ParameterSpec =
+    ParameterSpec{name: name, kind: kind, linear: false}
+
+  fn linear_parameter_spec(name: String, kind: Syntax) -> ParameterSpec =
+    ParameterSpec{name: name, kind: kind, linear: true}
+
+  fn parameter_from(spec: ParameterSpec) -> Syntax = match spec.linear
+    true -> parameter_linear(spec.name, spec.kind)
+    false -> parameter(spec.name, spec.kind)
+
+  fn parameters_from(specs: List(ParameterSpec)) -> List(Syntax) = match specs
+    [] -> []
+    [head | rest] -> [parameter_from(head) | parameters_from(rest)]
+
+  fn let_binding(name: String, value: Syntax) -> Syntax =
+    Node(:assignment, [KV(:let, SBool(true))], [variable(name), value])
+
+  fn typed_let_binding(name: String, kind: Syntax, value: Syntax) -> Syntax =
+    Node(:assignment, [KV(:let, SBool(true)), KV(:type_annotation, SSyntax(kind))], [variable(name), value])
+
+  @reducible
+  fn parameter_literals(params: List(Syntax)) -> SynLit =
+    match params
+      [] -> SList([])
+      [head | rest] -> match parameter_literals(rest)
+        SList(values) -> SList([SSyntax(head) | values])
+        _ -> SList([])
+
+  @reducible
+  fn function(name: String, params: List(Syntax), return_type: Syntax, body: Syntax) -> Syntax =
+    Node(:function_def, [
+      KV(:name, SStr(name)),
+      KV(:params, parameter_literals(params)),
+      KV(:return_type, SSyntax(return_type))
+    ], [body])
+
+  ## Build a function whose name is derived from reflected identifier syntax.
+  ## The generic syntax bridge performs the requested Unicode-safe transform
+  ## while converting the compile-time Syntax value back to parser AST.
+  fn function_downcase_identifier(identifier: Syntax, params: List(Syntax), return_type: Syntax, body: Syntax) -> Syntax =
+    Node(:function_def, [
+      KV(:name_from_identifier, SSyntax(identifier)),
+      KV(:identifier_transform, SAtom(:lower_initial)),
+      KV(:params, parameter_literals(params)),
+      KV(:return_type, SSyntax(return_type))
+    ], [body])
+
+  fn function_from(spec: FunctionSpec) -> Syntax =
+    function(spec.name, parameters_from(spec.parameters), spec.returns, spec.body)
+
+  fn module_from(spec: ModuleSpec) -> Syntax =
+    lift_module(SStr(spec.name), spec.behaviour, spec.declarations)
+
+  fn alias_from(spec: AliasSpec) -> Syntax =
+    alias_node(spec.name, spec.value)
+
+  fn alias_spec(name: String, value: Syntax) -> AliasSpec =
+    AliasSpec{name: name, value: value}
+
+  fn match_arm(pattern: Syntax, body: Syntax) -> Syntax =
+    Node(:match_arm, [KV(:pattern, SSyntax(pattern))], [body])
+
+  fn guarded_match_arm(pattern: Syntax, guard: Syntax, body: Syntax) -> Syntax =
+    Node(:match_arm, [KV(:pattern, SSyntax(pattern)), KV(:guard, SSyntax(guard))], [body])
+
+  fn integer(value: Int) -> Syntax =
+    Leaf(:literal, [KV(:subtype, SAtom(:integer))], SInt(value))
+
+  ## `typealias` is what the authored surface tags this node with, and the
+  ## elaborator's header pre-pass keys off it: only a flagged alias gets a
+  ## forward-referenceable header. Emitting the flag is therefore not cosmetic
+  ## -- without it a generated alias (`Handle`, `Data` in an `fsm`) is invisible
+  ## to any declaration lowered before it, including the enclosing unit's own
+  ## declarations, which module lifting inlines ahead of the generated ones.
+  fn alias_node(name: String, rhs: Syntax) -> Syntax =
+    Node(:type_annotation, [KV(:name, SStr(name)), KV(:typealias, SBool(true))], [rhs])
+
+  fn enum_type(name: String, variants: List(Syntax)) -> Syntax =
+    Node(:container, [
+      KV(:container_type, SAtom(:enum)),
+      KV(:name, SStr(name))
+    ], variants)
+
+  fn enum_variant(name: String) -> Syntax =
+    Leaf(:variable, [KV(:variant, SBool(true))], SStr(name))
+
+  ## Build a constructor variant with explicitly typed payload fields. The
+  ## parser represents enum constructors as function definitions whose params
+  ## are type expressions, so this is the same surface form as a user-written
+  ## `type Message = Ping(Int)` declaration.
+  fn enum_variant_payload(name: String, payloads: List(Syntax)) -> Syntax =
+    Node(:function_def, [
+      KV(:name, SStr(name)),
+      KV(:params, syntax_list(payloads)),
+      KV(:variant, SBool(true))
+    ], [])
+
+  ## Extract a closed constructor head from a reflected match arm. A handler
+  ## whose head cannot determine a nominal constructor is rejected by the
+  ## caller rather than silently widening the generated message/event type.
+  fn pattern_head(pattern: Syntax) -> PatternHead = match pattern
+    Leaf(_, values, SStr(name)) -> match constructor_name(values)
+      true -> ValidHead(constructor_key(values), enum_variant(name))
+      false -> InvalidHead(:non_constructor_pattern)
+    Node(_, values, args) -> match has_tag(pattern, :function_call)
+      true -> match attr(values, :name)
+        Found(value) -> match value
+          SStr(name) -> match constructor_name(values)
+            true -> match payload_types(args)
+              Payloads([]) -> ValidHead(constructor_key(values), enum_variant(name))
+              Payloads(types) -> ValidHead(constructor_key(values), enum_variant_payload(name, types))
+              InvalidPayload(reason) -> InvalidHead(reason)
+            false -> InvalidHead(:non_constructor_pattern)
+          _ -> InvalidHead(:unsupported_pattern)
+        Missing -> InvalidHead(:unsupported_pattern)
+      false -> InvalidHead(:unsupported_pattern)
+    _ -> InvalidHead(:unsupported_pattern)
+
+  fn handler_head(arm: Syntax) -> PatternHead = match arm
+    Node(_, values, _) -> match attr(values, :guard)
+      Found(_) -> InvalidHead(:guarded_handler)
+      Missing -> match attr(values, :pattern)
+        Found(SSyntax(pattern)) -> pattern_head(pattern)
+        _ -> InvalidHead(:missing_pattern)
+    _ -> InvalidHead(:unsupported_handler)
+
+  fn collect_pattern_heads(arms: List(Syntax), seen: List(Syntax), keys: List(Atom)) -> PatternHeads =
+    match arms
+      [] -> match reverse_heads(seen)
+        [] -> InvalidHeads(:empty_handler)
+        [head | rest] -> Heads([head | rest])
+      [arm | rest] ->
+        match handler_head(arm)
+          InvalidHead(reason) -> InvalidHeads(reason)
+          ValidHead(key, value) -> pickup
+            has_key(keys, key) -> collect_pattern_heads(rest, seen, keys)
+            else -> collect_pattern_heads(rest, [value | seen], [key | keys])
+
+  fn reverse_heads(items: List(Syntax)) -> List(Syntax) =
+    reverse_heads_acc(items, [])
+
+  fn reverse_heads_acc(items: List(Syntax), acc: List(Syntax)) -> List(Syntax) =
+    match items
+      [] -> acc
+      [head | rest] -> reverse_heads_acc(rest, [head | acc])
+
+  fn has_key(keys: List(Atom), key: Atom) -> Bool = match keys
+    [] -> false
+    [head | rest] -> pickup
+      head == key -> true
+      else -> has_key(rest, key)
+
+  fn constructor_key(values: List(Attr)) -> Atom = match attr(values, :constructor_key)
+    Found(value) -> match value
+      SAtom(key) -> key
+      _ -> :invalid_constructor
+    Missing -> :invalid_constructor
+
+  fn payload_types(args: List(Syntax)) -> PayloadTypes = match args
+    [] -> Payloads([])
+    [head | rest] -> match head
+      Node(tag, _, values) -> match tag == :typed_pattern
+        true -> match values
+          [_, payload] -> match valid_payload_type(payload)
+            true -> match payload_types(rest)
+              Payloads(types) -> Payloads([payload | types])
+              InvalidPayload(reason) -> InvalidPayload(reason)
+            false -> InvalidPayload(:payload_type_not_derivable)
+          _ -> InvalidPayload(:payload_type_not_derivable)
+        false -> InvalidPayload(:payload_type_not_derivable)
+      _ -> InvalidPayload(:payload_type_not_derivable)
+
+  fn valid_payload_type(payload: Syntax) -> Bool = match payload
+    Raw(_) -> false
+    _ -> true
+
+  fn derive_pattern_heads(body: Syntax) -> PatternHeads = match handler_children(body)
+    [_scrutinee | arms] -> collect_pattern_heads(arms, [], [])
+    _ -> InvalidHeads(:invalid_handler_body)
+
+  fn handler_children(body: Syntax) -> List(Syntax) = children(body)
+
+  fn constructor_name(values: List(Attr)) -> Bool = match attr(values, :pascal_case)
+    Found(value) -> match value
+      SBool(result) -> result
+      _ -> false
+    Missing -> false
+
+  @reducible
+  fn block(items: List(Syntax)) -> Syntax = Node(:block, [], items)
+
+  @reducible
+  fn lift_module(module: SynLit, behaviour: Atom, declarations: List(Syntax)) -> Syntax =
+    Node(:lift_module, [
+      KV(:module, module),
+      KV(:behaviour, SAtom(behaviour)),
+      KV(:declarations, syntax_list(declarations))
+    ], [])
+
+  ## Build a lifted unit that inherits enclosing declarations but not the
+  ## imports used only to define the surrounding macro. Macro authors can use
+  ## this when the generated unit declares its complete import surface.
+  fn lift_module_isolated(module: SynLit, behaviour: Atom, declarations: List(Syntax)) -> Syntax =
+    Node(:lift_module, [
+      KV(:module, module),
+      KV(:behaviour, SAtom(behaviour)),
+      KV(:inherit_imports, SBool(false)),
+      KV(:declarations, syntax_list(declarations))
+    ], [])

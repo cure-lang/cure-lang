@@ -83,7 +83,8 @@ defmodule Cure.Release do
   # -- Compile project -------------------------------------------------------
 
   defp compile_project(project, opts) do
-    ebin_dir = Keyword.get(opts, :ebin_dir, Path.join(project.root, "_build/cure/ebin"))
+    ebin_dir =
+      Keyword.get(opts, :ebin_dir, Path.join(project.root, "_build/cure/project/ebin"))
 
     case Cure.Project.compile_project(project, output_dir: ebin_dir, emit_events: false) do
       {:ok, result} -> {:ok, Map.put(result, :ebin_dir, ebin_dir)}
@@ -175,7 +176,67 @@ defmodule Cure.Release do
       :logger.warning(~c"cure release: skipping apps that were not loaded: ~p", [skipped])
     end
 
-    :ok
+    with :ok <- copy_verified_stdlib(release_lib, copied),
+         :ok <- copy_project_dependencies(release_lib, project) do
+      :ok
+    end
+  end
+
+  defp copy_verified_stdlib(release_lib, copied_apps) do
+    if :cure in copied_apps do
+      with {:ok, set} <-
+             Cure.Compiler.Artifacts.open_verified_set(
+               kind: :stdlib,
+               candidates: Cure.Stdlib.Paths.beam_dirs()
+             ),
+           version <- Application.spec(:cure, :vsn) |> to_string(),
+           destination <- Path.join([release_lib, "cure-#{version}", "ebin"]),
+           {:ok, _copied} <-
+             Cure.Compiler.Artifacts.copy_verified_flat(set.artifact_root, destination) do
+        :ok
+      end
+    else
+      :ok
+    end
+  end
+
+  defp copy_project_dependencies(release_lib, project) do
+    dependency_roots = Cure.Project.dependency_ebin_paths(project)
+
+    if dependency_roots == [] do
+      :ok
+    else
+      project_app = Cure.Project.app_name_for(project)
+
+      case Path.wildcard(Path.join([release_lib, "#{project_app}-*", "ebin"])) do
+        [destination] -> build_release_artifact_set(destination, dependency_roots)
+        [] -> {:error, {:release_app_missing, String.to_atom(project_app), :missing_project_ebin}}
+        paths -> {:error, {:artifact_error, "Ambiguous project release artifact roots", %{paths: paths}}}
+      end
+    end
+  end
+
+  defp build_release_artifact_set(destination, dependency_roots) do
+    with {:ok, project_set} <- Cure.Compiler.Artifacts.open_verified_set(destination) do
+      package_artifact_digests =
+        case get_in(project_set, [:dependencies, :packages]) do
+          generations when is_map(generations) and map_size(generations) > 0 ->
+            generations
+
+          _ ->
+            %{}
+        end
+
+      case Cure.Compiler.Artifacts.merge_verified_flat(
+             [destination | dependency_roots],
+             destination,
+             kind: :release,
+             package_artifact_digests: package_artifact_digests
+           ) do
+        {:ok, _set} -> :ok
+        {:error, reason} -> {:error, reason}
+      end
+    end
   end
 
   defp resolved_apps(release, project) do
@@ -268,6 +329,24 @@ defmodule Cure.Release do
 
   defp copy_application(app, release_lib, project, compile_result) do
     case locate_application(app, project, compile_result) do
+      {:ok, vsn, {source_ebin, extra_files}} ->
+        dest = Path.join(release_lib, "#{app}-#{vsn}/ebin")
+        File.mkdir_p!(dest)
+
+        source_ebin
+        |> File.ls!()
+        |> Enum.each(fn entry ->
+          src = Path.join(source_ebin, entry)
+          dst = Path.join(dest, entry)
+          File.cp!(src, dst)
+        end)
+
+        Enum.each(extra_files, fn src ->
+          File.cp!(src, Path.join(dest, Path.basename(src)))
+        end)
+
+        :ok
+
       {:ok, vsn, source_ebin} ->
         dest = Path.join(release_lib, "#{app}-#{vsn}/ebin")
         File.mkdir_p!(dest)
@@ -288,11 +367,17 @@ defmodule Cure.Release do
   end
 
   # Locate an application's ebin directory and vsn. For the project's
-  # own app we look in the local `_build/cure/ebin`; every other app
+  # own app we look in the local `_build/cure/project/ebin`; every other app
   # comes from the currently-loaded code path, which covers the OTP
   # stdlib and every Hex dependency built by Mix.
   defp locate_application(app, project, compile_result) do
-    ebin_dir = Map.get(compile_result, :ebin_dir, Path.join(project.root, "_build/cure/ebin"))
+    ebin_dir =
+      Map.get(
+        compile_result,
+        :ebin_dir,
+        Path.join(project.root, "_build/cure/project/ebin")
+      )
+
     project_app = String.to_atom(Cure.Project.app_name_for(project))
 
     cond do
@@ -300,8 +385,11 @@ defmodule Cure.Release do
         app_path = Path.join(ebin_dir, "#{app}.app")
 
         if File.exists?(app_path) do
-          vsn = read_app_vsn(app_path)
-          {:ok, vsn, ebin_dir}
+          with {:ok, artifact_set} <-
+                 Cure.Compiler.Artifacts.open_verified_set(ebin_dir) do
+            vsn = read_app_vsn(app_path)
+            {:ok, vsn, {artifact_set.artifact_root, [app_path]}}
+          end
         else
           {:error, :missing_app_file}
         end
@@ -355,7 +443,7 @@ defmodule Cure.Release do
           case Application.spec(app, :vsn) do
             nil ->
               # project's own app: read from .app file we emitted
-              ebin = Path.join(project.root, "_build/cure/ebin")
+              ebin = Path.join(project.root, "_build/cure/project/ebin")
               read_app_vsn(Path.join(ebin, "#{app}.app"))
 
             v when is_list(v) ->

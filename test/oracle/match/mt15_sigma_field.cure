@@ -1,0 +1,8 @@
+mod Mt15
+  type Nat = Z | S(Nat)
+  type W = MkW(Sigma(a: Nat, Nat)) | NoW
+  fn snd(w: W) -> Nat = match w
+    MkW(p) -> p.2
+    NoW() -> Z()
+  fn g() -> Nat = snd(MkW(%[Z(), S(Z())]))
+end

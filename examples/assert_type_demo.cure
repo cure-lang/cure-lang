@@ -15,7 +15,7 @@ mod AssertTypeDemo
   ## stays in the declared return type.
   fn doubled(n: Int) -> Int = assert_type n * 2 : Int
 
-  ## Assert through a refinement. `NonNegative` refines Int to x >= 0.
+  ## Assert each branch's result stays an Int on both sides of the guard.
   fn absolute(n: Int) -> Int =
     pickup
       n >= 0 -> assert_type n : Int

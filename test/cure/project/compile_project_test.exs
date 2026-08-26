@@ -11,14 +11,6 @@ defmodule Cure.Project.CompileProjectTest do
     end)
   end
 
-  defp purge(modules) do
-    Enum.each(modules, fn m ->
-      :code.purge(m)
-      :code.delete(m)
-      :code.purge(m)
-    end)
-  end
-
   describe "[application] / [release] TOML parsing" do
     @tag :tmp_dir
     test "parses arrays of strings, booleans, ints, and nested env maps", %{tmp_dir: tmp} do
@@ -59,7 +51,7 @@ defmodule Cure.Project.CompileProjectTest do
 
   describe "Cure.Project.detect_app/2" do
     @tag :tmp_dir
-    test "returns nil when no app container exists", %{tmp_dir: tmp} do
+    test "returns nil when no application macro exists", %{tmp_dir: tmp} do
       setup_project(tmp, [
         {"Cure.toml", "[project]\nname = \"demo\"\nversion = \"0.1.0\"\n"},
         {"lib/lib.cure", "mod Demo\n  fn hello() -> Atom = :ok\n"}
@@ -68,32 +60,6 @@ defmodule Cure.Project.CompileProjectTest do
       {:ok, project} = Cure.Project.load(tmp)
       files = Path.wildcard(Path.join(tmp, "lib/**/*.cure"))
       assert {:ok, nil} = Cure.Project.detect_app(files, project)
-    end
-
-    @tag :tmp_dir
-    test "returns the single app container when there is exactly one", %{tmp_dir: tmp} do
-      setup_project(tmp, [
-        {"Cure.toml", "[project]\nname = \"demo\"\nversion = \"0.1.0\"\n"},
-        {"lib/app.cure", "app Demo\n"}
-      ])
-
-      {:ok, project} = Cure.Project.load(tmp)
-      files = Path.wildcard(Path.join(tmp, "lib/**/*.cure"))
-      assert {:ok, %{name: "Demo"}} = Cure.Project.detect_app(files, project)
-    end
-
-    @tag :tmp_dir
-    test "returns {:error, :duplicate_app, _} when there are two", %{tmp_dir: tmp} do
-      setup_project(tmp, [
-        {"Cure.toml", "[project]\nname = \"demo\"\nversion = \"0.1.0\"\n"},
-        {"lib/foo.cure", "app Foo\n"},
-        {"lib/bar.cure", "app Bar\n"}
-      ])
-
-      {:ok, project} = Cure.Project.load(tmp)
-      files = Path.wildcard(Path.join(tmp, "lib/**/*.cure"))
-      assert {:error, {:duplicate_app, occurrences}} = Cure.Project.detect_app(files, project)
-      assert length(occurrences) == 2
     end
   end
 
@@ -181,73 +147,41 @@ defmodule Cure.Project.CompileProjectTest do
     end
   end
 
-  describe "Cure.Project.compile_project/2" do
+  describe "dependency artifact preflight" do
     @tag :tmp_dir
-    test "compiles + emits .app resource for a minimal app project", %{tmp_dir: tmp} do
-      setup_project(tmp, [
-        {"Cure.toml",
-         """
-         [project]
-         name = "minimal_app"
-         version = "0.1.0"
+    test "reports an unbuilt path dependency before scanning consumer modules", %{tmp_dir: tmp} do
+      dependency = Path.join(tmp, "dependency")
+      consumer = Path.join(tmp, "consumer")
+      File.mkdir_p!(dependency)
+      File.mkdir_p!(consumer)
 
-         [application]
-         name = "minimal_app"
-         vsn  = "0.1.0"
-         """},
-        {"lib/app.cure", "app MinimalApp\n"}
-      ])
+      File.write!(Path.join(consumer, "Cure.toml"), """
+      [project]
+      name = "consumer"
+      version = "0.1.0"
 
-      {:ok, project} = Cure.Project.load(tmp)
-      ebin = Path.join(tmp, "_build/cure/ebin")
+      [dependencies]
+      sample = { path = "../dependency" }
+      """)
 
-      try do
-        assert {:ok, result} =
-                 Cure.Project.compile_project(project, output_dir: ebin, emit_events: false)
+      assert {:ok, project} = Cure.Project.load(consumer)
 
-        assert result.app_module == :"Cure.App.MinimalApp"
-        assert File.exists?(Path.join(ebin, "minimal_app.app"))
-        assert File.exists?(Path.join(ebin, "Cure.App.MinimalApp.beam"))
-      after
-        purge([:"Cure.App.MinimalApp"])
-      end
+      assert {:error, {:dependency_artifact_set_missing, {:package, "sample"}}} =
+               Cure.Project.dependency_artifact_sets(project)
     end
 
-    @tag :tmp_dir
-    test "rejects two app containers under E051", %{tmp_dir: tmp} do
-      setup_project(tmp, [
-        {"Cure.toml", "[project]\nname = \"demo\"\nversion = \"0.1.0\"\n"},
-        {"lib/foo.cure", "app Foo\n"},
-        {"lib/bar.cure", "app Bar\n"}
-      ])
+    test "missing dependency artifacts render an actionable non-ICE diagnostic" do
+      {diagnostic, _registry} =
+        Cure.Diagnostic.Host.to_diagnostic(
+          {:dependency_artifact_set_missing, {:package, "sample"}},
+          "Cure.toml",
+          ""
+        )
 
-      {:ok, project} = Cure.Project.load(tmp)
-      ebin = Path.join(tmp, "_build/cure/ebin")
-
-      assert {:error, {:duplicate_app, _occurrences}} =
-               Cure.Project.compile_project(project, output_dir: ebin, emit_events: false)
-    end
-
-    @tag :tmp_dir
-    test "rejects a name mismatch with [application].name", %{tmp_dir: tmp} do
-      setup_project(tmp, [
-        {"Cure.toml",
-         """
-         [project]
-         name = "demo"
-         version = "0.1.0"
-
-         [application]
-         name = "other"
-         """},
-        {"lib/app.cure", "app Demo\n"}
-      ])
-
-      {:ok, project} = Cure.Project.load(tmp)
-      ebin = Path.join(tmp, "_build/cure/ebin")
-
-      assert {:error, {:app_name_mismatch, "other", "demo"}} =
-               Cure.Project.compile_project(project, output_dir: ebin, emit_events: false)
+      assert diagnostic.code == "E100"
+      assert diagnostic.key == :artifact_error
+      assert Cure.Diagnostic.message(diagnostic) =~ "cure deps"
+      refute diagnostic.code == "E101"
     end
   end
 end

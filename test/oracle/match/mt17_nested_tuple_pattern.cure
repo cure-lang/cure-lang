@@ -1,0 +1,6 @@
+mod Mt17
+  type Nat = Z | S(Nat)
+  fn f(p: Sigma(a: Nat, Sigma(b: Nat, Nat))) -> Nat = match p
+    %[x, %[y, z]] -> z
+  fn g() -> Nat = f(%[Z(), %[S(Z()), S(S(Z()))]])
+end

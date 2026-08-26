@@ -1,4 +1,5 @@
 mod Calculator
+  use Std.Result
   fn add(a: Int, b: Int) -> Int = a + b
   fn sub(a: Int, b: Int) -> Int = a - b
   fn mul(a: Int, b: Int) -> Int = a * b

@@ -1,33 +1,12 @@
-## Queue actor for the Cure forge supervision tree.
-##
-## A task buffer used by the forge facade to feed the `Pool` worker.
-## The payload is a plain list. For parse-time simplicity (Cure does
-## not yet expose `Std.List` implicitly inside actor bodies), the
-## queue prepends new tasks to the head and dequeues from the head;
-## the order in which tasks are drained is therefore LIFO. The facade
-## does not rely on ordering: it drains until the queue reports
-## `:empty`, routing every dequeued task through `Pool` and then to
-## `Metrics`.
-##
-## Messages understood:
-##   * `%[:enqueue, task]` -- prepend `task` to the head.
-##   * `:dequeue`          -- pop the head of the queue. Notifies the
-##                            caller with `%[:task, task]` when a task
-##                            is available or `:empty` otherwise. The
-##                            new payload is the tail.
-##   * `:clear`            -- reset the queue to `[]`.
+## Transparent queue actor with a typed atom-list state.
 
-actor Queue with []
-  on_start
-    (state) -> state
-  on_message
-    (%[:enqueue, task], items) ->
-      [task | items]
-    (:dequeue, []) ->
-      notify(:empty)
-      []
-    (:dequeue, [head | tail]) ->
-      notify(%[:task, head])
-      tail
-    (:clear, _items) ->
-      []
+use Std.Actor
+
+actor Queue
+  state List(Atom)
+  initial assert_type [:empty] : List(Atom)
+  messages Atom
+  handle_cast
+    pickup
+      message == :clear -> %[:noreply, assert_type [] : List(Atom)]
+      else -> %[:noreply, [message | state]]

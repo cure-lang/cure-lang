@@ -1,0 +1,8 @@
+mod Imp03
+  type Nat = Z | S(Nat)
+  type Vec(a) indices (n: Nat)
+    vnil : Vec(a, Z)
+    vcons : (k: Nat) -> a -> Vec(a, k) -> Vec(a, S(k))
+  fn onlyNil(v: Vec(Nat, Z)) -> Nat = match v
+    vnil() -> impossible
+end

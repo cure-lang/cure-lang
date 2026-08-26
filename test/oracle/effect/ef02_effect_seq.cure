@@ -1,0 +1,9 @@
+mod Ef02
+  @extern(:erlang, :make_ref, 0)
+  fn mkref() -> Effect(Int)
+  @extern(:erlang, :abs, 1)
+  fn eff_abs(n: Int) -> Effect(Int)
+  fn act() -> Effect(Int) =
+    let x = mkref()
+    eff_abs(x)
+end

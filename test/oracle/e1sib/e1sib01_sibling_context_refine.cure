@@ -1,0 +1,32 @@
+mod E1Sib01
+  type Tag = TA | TB
+  type Behaviour = BNil | BRecv(Tag, Behaviour) | BSend(Tag, Behaviour)
+  type TagList = TNil | TCons(Tag, TagList)
+
+  ## `infer` collects the tags a behaviour SENDS (recv/nil contribute none).
+  fn infer(b: Behaviour) -> TagList = match b
+    BNil()      -> TNil
+    BRecv(t, k) -> infer(k)
+    BSend(t, k) -> TCons(t, infer(k))
+
+  type Member indices (t: Tag, ts: TagList)
+    MemHere  : Member(t, TCons(t, rest))
+    MemThere : Member(t, rest) -> Member(t, TCons(y, rest))
+
+  ## Evidence that behaviour `b` sends tag `t` somewhere.
+  type SendsIn indices (b: Behaviour, t: Tag)
+    SendHere  : SendsIn(BSend(t, k), t)
+    SendSendK : SendsIn(k, t) -> SendsIn(BSend(y, k), t)
+
+  ## E1 (the headline): matching the EVIDENCE `sends` refines the SIBLING binder
+  ## `b` in the local context — in the `SendSendK` arm `b` is forced to `BSend(y, k)`.
+  ## The nested `match b` then needs ONLY the `BSend` branch: refinement made `BNil`
+  ## and `BRecv` impossible, so a single-branch match is exhaustive. If the refinement
+  ## reached only the motive and not the context, coverage would demand the two
+  ## impossible arms (or reject the single-arm match). Idris accepts the mirror by
+  ## refining the whole context on the dependent match.
+  fn coverage(b: Behaviour, {t: Tag}, sends: SendsIn(b, t)) -> Member(t, infer(b)) = match sends
+    SendHere()    -> MemHere()
+    SendSendK(s2) -> match b
+      BSend(y, k) -> MemThere(coverage(k, s2))
+end

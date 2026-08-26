@@ -112,7 +112,7 @@ defmodule Cure.Doctor do
         %{
           severity: :warning,
           code: "DOC-ENV-Z3",
-          message: "Z3 not found on $PATH. SMT-backed refinement checks will be skipped.",
+          message: "Z3 not found on $PATH. Guard-coverage lint checks will be skipped.",
           file: nil,
           fix: "apt install z3 (Ubuntu/Debian) or brew install z3 (macOS)"
         }
@@ -190,13 +190,20 @@ defmodule Cure.Doctor do
           %{
             severity: :error,
             code: "DOC-PROJ-BAD",
-            message: "Cure.toml unreadable: #{inspect(reason)}",
+            message: "Cure.toml unreadable: #{project_error_reason(reason)}",
             file: Path.join(root, "Cure.toml"),
             fix: "Check file permissions and TOML syntax."
           }
         ]
     end
   end
+
+  defp project_error_reason(:enoent), do: "the file does not exist"
+  defp project_error_reason(:eacces), do: "permission was denied"
+  defp project_error_reason(:invalid_toml), do: "the TOML document is invalid"
+  defp project_error_reason(:invalid), do: "the project document is invalid"
+  defp project_error_reason(reason) when is_binary(reason), do: reason
+  defp project_error_reason(_reason), do: "the project document could not be read"
 
   defp lock_findings(project, root) do
     registry_deps =
@@ -270,7 +277,7 @@ defmodule Cure.Doctor do
             code: "E014",
             message: "Unfilled type hole on line #{lineno}",
             file: file,
-            fix: "Replace the hole (`?name` or `??`) with a concrete expression."
+            fix: "Replace the hole (`?name` or `?_`) with a concrete expression."
           }
         ]
       else

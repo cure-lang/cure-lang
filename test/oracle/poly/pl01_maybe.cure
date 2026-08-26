@@ -1,0 +1,8 @@
+mod Pl01
+  type Nat = Z | S(Nat)
+  type Opt(a) = None | Some(a)
+  fn get(d: Nat, o: Opt(Nat)) -> Nat = match o
+    Some(x) -> x
+    None() -> d
+  fn g() -> Nat = get(Z(), Some(S(Z())))
+end

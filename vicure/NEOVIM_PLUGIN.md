@@ -84,7 +84,7 @@ on what is syntactic vs. user code.
 - **Numbers**: decimal, hex (`0x`), binary (`0b`), and floats, with
   `_` digit separators.
 - **Atoms**: `:name`, `:name?`, `:name!`.
-- **Holes**: anonymous `??` and named `?identifier`.
+- **Holes**: anonymous `?_` and named `?identifier`.
 - **Attributes**: `@record`, `@derive`, `@deprecated`, ...
 - **FSM transition literals**: `State --event--> State` (event
   names may end in `?` or `!` for soft / hard events).
@@ -121,7 +121,7 @@ continuation outdents accordingly.
 non-block: the next line inherits the indent of the real header
 below the attribute, so
 
-```cure
+```text
 @record
 fsm TrafficLight
   Red --timer--> Green

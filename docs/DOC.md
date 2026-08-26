@@ -63,7 +63,7 @@ links remain valid across rebuilds:
 
 - `#fn-<name>` -- public functions.
 - `#type-<name>` -- `type` aliases and ADTs.
-- `#proto-<name>` -- `proto` declarations.
+- `#interface-<name>` -- `interface` declarations.
 
 When `[doc].source_url` is configured (or the built-in Cure site
 falls back to the repository's GitHub path), each entry also carries a
@@ -112,10 +112,9 @@ source_ref = "main"
 
 ### Normalisation
 
-The TOML parser lives in `Cure.Project`. The `[doc]` and
-`[doc.groups_for_modules]` tables are normalised by
-`Cure.Project.normalize_doc/2` into a plain map shape that the
-generator consumes directly:
+The TOML parser and documentation-config normalisation live in
+`Cure.Project`. The `[doc]` and `[doc.groups_for_modules]` tables become a
+plain map shape that the generator consumes directly:
 
 ```elixir
 %{
@@ -214,13 +213,13 @@ so the two views of the same stdlib module are visually consistent.
 ### `##` blocks and blank-line merging
 
 `##` comments above a definition (`mod`, `fn`, `type`, `rec`,
-`proto`) attach as its docstring. Consecutive `##` blocks separated
+`interface`) attach as its docstring. Consecutive `##` blocks separated
 by a blank-line gap (or by plain `#` comments that the lexer drops)
 are merged into a single Markdown body with a paragraph break
 between blocks -- so a module-level docstring can read as natural
 prose:
 
-```cure
+```text
 mod Std.List
   ## Eager, persistent, singly-linked lists.
   ##
@@ -244,7 +243,7 @@ The `###` fence still works for cases where a docstring would
 otherwise collide with indentation-sensitive parent containers.
 Leading indentation common to every body line is stripped:
 
-```cure
+````cure
 mod MyApp
   ###
   Longform prose here.
@@ -256,7 +255,7 @@ mod MyApp
   ```
   ###
   fn run() -> Atom = :ok
-```
+````
 
 ### `## Examples` blocks
 
@@ -267,6 +266,25 @@ compile. The Cure stdlib enforces this end-to-end: the examples in
 four high-traffic `Std.Core` functions (`compose`, `map_ok`,
 `and_then`, `map_option`) carry per-function examples on top of the
 module-level block.
+
+Repository Markdown and `.cure` docstrings follow the same rule. `mix cure.check.docs`
+compiles every fence whose info string begins with the complete word
+`cure`, including attributed forms such as `` ```cure path=demo.cure ``.
+A fence may add `expr` or `declarations` when its shape is ambiguous.
+An intentionally rejected example names its expected diagnostic, for example
+`` ```cure E093 ``. The checker requires that exact error code and fails if a
+different error appears, the example starts compiling, or the compiler crashes.
+
+An example that compiles but cannot be written warning-free names the warning
+instead, for example `` ```cure W000 ``. That fence passes only when the
+snippet compiles *and* emits the warning, so the warning stays part of the
+documented behaviour rather than being waived; if the compiler later stops
+emitting it, the fence fails and the example gets revisited. Macros that lift
+whole modules are the usual reason to need this — see `docs/MACROS.md` §7.
+
+Multiple diagnostic tags on one fence are invalid, whether `E` or `W`. An
+incomplete design sketch is not Cure source and uses a plain `text` fence.
+Ordinary `cure` fences always have to compile with no warnings at all.
 
 ## See also
 

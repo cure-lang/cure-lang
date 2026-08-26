@@ -1,0 +1,93 @@
+@group(:core)
+@prelude
+mod Std.Bounded
+  ## Bounded natural indices.
+  ##
+  ## `Bounded(n)` is inhabited by values strictly less than `n`. It is the
+  ## stdlib replacement for the traditional `Fin(n)` name and is used for
+  ## length-safe indexing into `Std.Vector`.
+
+  use Std.Nat
+  use Std.Equivalent
+
+  @builtin(:bounded)
+  type Bounded indices (n: Nat)
+    First : Bounded(S(m))
+    Next : Bounded(m) -> Bounded(S(m))
+
+  ## Preserve a bounded value while extending its upper bound on the right.
+  ## The recursion follows the value itself, so no unchecked conversion from
+  ## `Nat` is involved.
+  @reducible
+  fn widen({n: Nat}, {extra: Nat}, value: Bounded(n)) -> Bounded(plus(n, extra)) = match value
+    First() -> First()
+    Next(previous) -> Next(widen(previous))
+
+  ## Embed the left side of a disjoint `n + m` state space.
+  @reducible
+  fn inject_left({n: Nat}, {m: Nat}, value: Bounded(n)) -> Bounded(plus(n, m)) =
+    widen(value)
+
+  ## Embed the right side of a disjoint `n + m` state space. Each constructor
+  ## in the left bound shifts the right value once, making the two images
+  ## disjoint by construction.
+  @reducible
+  fn inject_right(n: Nat, {m: Nat}, value: Bounded(m)) -> Bounded(plus(n, m)) = match n
+    Z() -> value
+    S(previous) -> Next(inject_right(previous, value))
+
+  @reducible
+  fn inject_left_at(@erased left: Nat, @erased right: Nat, value: Bounded(left)) -> Bounded(plus(left, right)) = inject_left(value)
+
+  @reducible
+  fn inject_right_at(left: Nat, @erased right: Nat, value: Bounded(right)) -> Bounded(plus(left, right)) = inject_right(left, value)
+
+  ## Structural view of a value in a disjoint `n + m` state space. This is the
+  ## elimination counterpart to `inject_left`/`inject_right`: callers learn
+  ## which side owns the value and recover a value with that side's exact bound,
+  ## without converting through an unchecked Nat.
+  type BoundedSum indices (left: Nat, right: Nat)
+    BoundedLeft : Bounded(left) -> BoundedSum(left, right)
+    BoundedRight : Bounded(right) -> BoundedSum(left, right)
+
+  @reducible
+  fn bounded_left_at(@erased left: Nat, @erased right: Nat, value: Bounded(left)) -> BoundedSum(left, right) = BoundedLeft(value)
+
+  @reducible
+  fn bounded_right_at(@erased left: Nat, @erased right: Nat, value: Bounded(right)) -> BoundedSum(left, right) = BoundedRight(value)
+
+  @reducible
+  fn lift_bounded_sum(@erased left: Nat, @erased right: Nat, side: BoundedSum(left, right)) -> BoundedSum(S(left), right) = match side
+    BoundedLeft(value) -> bounded_left_at(S(left), right, Next(value))
+    BoundedRight(value) -> bounded_right_at(S(left), right, value)
+
+  fn lift_bounded_sum_equivalent(@erased left: Nat, @erased right: Nat, {source: BoundedSum(left, right)}, {target: BoundedSum(left, right)}, equality: Equivalent(BoundedSum(left, right), source, target)) -> Equivalent(BoundedSum(S(left), right), lift_bounded_sum(left, right, source), lift_bounded_sum(left, right, target)) = match equality
+    reflexive() -> reflexive(lift_bounded_sum(left, right, source))
+
+  @reducible
+  fn split_sum(left: Nat, {right: Nat}, value: Bounded(plus(left, right))) -> BoundedSum(left, right) = match left
+    Z() -> BoundedRight(value)
+    S(previous) -> match value
+      First() -> BoundedLeft(First())
+      Next(rest) -> match split_sum(previous, rest)
+        BoundedLeft(left_value) -> BoundedLeft(Next(left_value))
+        BoundedRight(right_value) -> BoundedRight(right_value)
+
+  ## The structural splitter is a left inverse of both disjoint injections.
+  ## These equations are the elimination laws needed by dependent consumers:
+  ## once a combined state is already known to come from one side, matching the
+  ## proof reduces `split_sum` to that exact side and value.
+  fn split_injected_left({left: Nat}, {right: Nat}, value: Bounded(left)) -> Equivalent(BoundedSum(left, right), split_sum(left, inject_left_at(left, right, value)), bounded_left_at(left, right, value)) = split_injected_left_at(right, value)
+
+  fn split_injected_left_at({left: Nat}, @erased right: Nat, value: Bounded(left)) -> Equivalent(BoundedSum(left, right), split_sum(left, inject_left_at(left, right, value)), bounded_left_at(left, right, value)) = with value
+    First({m = size}) -> reflexive(bounded_left_at(S(size), right, First()))
+    Next({m = size}, previous) -> lift_bounded_sum_equivalent(size, right, split_injected_left_at(right, previous))
+
+  fn split_injected_right(left: Nat, {right: Nat}, value: Bounded(right)) -> Equivalent(BoundedSum(left, right), split_sum(left, inject_right_at(left, right, value)), bounded_right_at(left, right, value)) = with left
+    Z() -> reflexive(bounded_right_at(left, right, value))
+    S(previous) -> lift_bounded_sum_equivalent(previous, right, split_injected_right(previous, value))
+
+  @reducible
+  fn fold_sum({left: Nat}, {right: Nat}, {a: Type}, side: BoundedSum(left, right), on_left: (Bounded(left)) -> a, on_right: (Bounded(right)) -> a) -> a = match side
+    BoundedLeft(value) -> on_left(value)
+    BoundedRight(value) -> on_right(value)

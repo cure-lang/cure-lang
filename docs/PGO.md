@@ -1,5 +1,10 @@
 # Profile-Guided Optimisation (PGO)
 
+> **Deferred after 0.33.** The profile format and v0.31 design are retained
+> here for the future optimizer release, but profile-guided specialization is
+> not part of the current dependent compiler. Checked dependent Core must
+> become the optimizer input before these flags and decisions are restored.
+
 The v0.31.0 PGO pipeline lets the optimiser see how a program behaves
 at runtime and steer per-function decisions accordingly. Hot paths get
 more inlining and a stronger SMT budget; cold paths stay small and

@@ -1,0 +1,6 @@
+mod Fn01
+  type Nat = Z | S(Nat)
+  fn ap(f: (Nat) -> Nat, x: Nat) -> Nat = f(x)
+  fn inc(n: Nat) -> Nat = S(n)
+  fn g() -> Nat = ap(inc, S(Z()))
+end

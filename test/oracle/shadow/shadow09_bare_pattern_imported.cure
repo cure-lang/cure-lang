@@ -1,0 +1,7 @@
+mod BarePatternImported
+  use Std.Nat
+  type Nat = Zero | Suc(Nat)
+  fn is_zero(n: Std.Nat) -> Nat = match n
+    Z() -> Zero()
+    S(k) -> Suc(Zero())
+end

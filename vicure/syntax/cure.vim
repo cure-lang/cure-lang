@@ -80,8 +80,7 @@ syn match cureNumber "\v<\d[\d_]*>"
 " Atoms keep the trailing `?`/`!` the same as identifiers.
 syn match  cureAtom "\v\:[a-z_][a-zA-Z0-9_]*[!?]?"
 
-" Typed holes -- `??` anonymous, `?name` named.
-syn match  cureHole "\v\?\?"
+" Typed holes -- `?_` anonymous, `?name` named.
 syn match  cureHole "\v\?[A-Za-z_][A-Za-z0-9_]*"
 
 " Attributes / decorators -- `@record`, `@derive`, `@deprecated`, etc.

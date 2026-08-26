@@ -1,0 +1,19 @@
+mod Le01
+  # Large elimination: a type-level selector `FocusShape : OpticKind -> Type` that
+  # matches on an `OpticKind` value and returns DIFFERENT types per branch, then
+  # USES the reduced type at each kind. This is the kernel capability underpinning
+  # Std.Optic's kind-indexed representation (spec 2026-07-11-std-optic-design §4):
+  # the elaborator must reduce `FocusShape(LensKind)` to `Unit` and
+  # `FocusShape(AffineKind)` to `Two` to check the constructor bodies. Proven to
+  # compute by the paired negative control in test/cure/elab (MkUnit :
+  # FocusShape(AffineKind) is rejected).
+  type OpticKind = LensKind | AffineKind | TraversalKind
+  type Unit = MkUnit
+  type Two = T | F
+  fn FocusShape(k: OpticKind) -> Type = match k
+    LensKind -> Unit
+    AffineKind -> Two
+    TraversalKind -> Unit
+  fn mk_lens() -> FocusShape(LensKind) = MkUnit
+  fn ok_affine() -> FocusShape(AffineKind) = T
+end

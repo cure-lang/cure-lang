@@ -10,7 +10,7 @@ defmodule CureForgeTest do
 
     case CureForge.queue_pid() do
       nil -> :ok
-      pid -> send(pid, :clear)
+      pid -> :gen_server.cast(pid, :clear)
     end
 
     :ok
@@ -21,15 +21,15 @@ defmodule CureForgeTest do
       assert {:ok, _} = Application.ensure_all_started(:cure_forge)
     end
 
-    test "Cure.App.CureForge is loaded and exposes the Application callbacks" do
-      assert Code.ensure_loaded?(:"Cure.App.CureForge")
+    test "Cure.Main.CureForge is loaded and exposes the Application callbacks" do
+      assert Code.ensure_loaded?(:"Cure.Main.CureForge")
 
       for callback <- [:start, :stop, :start_phase] do
-        assert function_exported?(:"Cure.App.CureForge", callback, callback_arity(callback))
+        assert function_exported?(:"Cure.Main.CureForge", callback, callback_arity(callback))
       end
     end
 
-    test "Cure.Sup.Forge.Root is registered by name and alive" do
+    test "Cure.Forge.Root is registered by name and alive" do
       pid = Process.whereis(CureForge.sup_module())
       assert is_pid(pid)
       assert Process.alive?(pid)

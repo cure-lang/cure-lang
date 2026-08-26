@@ -95,19 +95,17 @@ defmodule CureSiteWeb.PlaygroundLive do
       Phoenix.HTML.html_escape(source) |> Phoenix.HTML.safe_to_string()
   end
 
-  # Run the bidirectional type checker on the source. Returns
-  # `{:ok, []}` (no errors) or `{:error, [error_tuples]}`.
+  # Run the same dependent compiler pipeline used by builds, stopping at a
+  # scratch BEAM artifact rather than loading submitted code into the site VM.
+  # The panel keeps its historical `{:error, [reason]}` shape for rendering.
   defp type_check(source) when is_binary(source) do
-    with {:ok, tokens} <-
-           Cure.Compiler.Lexer.tokenize(source, emit_events: false),
-         {:ok, ast} <-
-           Cure.Compiler.Parser.parse(tokens, emit_events: false) do
-      case Cure.Types.Checker.check_module(ast, emit_events: false) do
-        {:ok, _} -> {:ok, []}
-        {:error, errors} -> {:error, errors}
-      end
-    else
-      {:error, errors} -> {:error, errors}
+    case Cure.Compiler.compile_string(source,
+           file: "playground.cure",
+           output_dir: Path.join(System.tmp_dir!(), "cure_site_playground_check"),
+           emit_events: false
+         ) do
+      {:ok, _module, _warnings} -> {:ok, []}
+      {:error, reason} -> {:error, [reason]}
     end
   rescue
     _ -> {:ok, []}
@@ -120,7 +118,7 @@ defmodule CureSiteWeb.PlaygroundLive do
       <main class="mx-auto max-w-6xl p-6">
         <h1 class="text-3xl font-bold mb-2">Cure Playground</h1>
         <p class="text-gray-500 text-sm mb-6">
-          Live type-checking powered by the Cure bidirectional checker.
+          Live type-checking powered by Cure's dependent compiler.
           Hit <strong>Run</strong> to evaluate in a sandboxed process.
         </p>
 
@@ -177,7 +175,7 @@ defmodule CureSiteWeb.PlaygroundLive do
                   <% {:error, errors} -> %>
                     <%= for err <- errors do %>
                       <p class="text-red-700 mb-1">
-                        {Cure.Compiler.Errors.format_error(err)}
+                        {Cure.Diagnostic.Host.render(err, "playground.cure", @source)}
                       </p>
                     <% end %>
                 <% end %>

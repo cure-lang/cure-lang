@@ -28,7 +28,7 @@ The decorator takes exactly three arguments:
 
 | Argument | Meaning | Examples |
 |----------|---------|----------|
-| `<module>` | The target BEAM module | `:erlang`, `:io`, `:math`, `Elixir.Cure.FSM.Builtins` |
+| `<module>` | The target BEAM module | `:erlang`, `:io`, `:math`, `Elixir.MyApp.Native` |
 | `<function>` | The target function name (an atom) | `:abs`, `:put_chars`, `:fsm_spawn` |
 | `<arity>` | The function's arity; must equal the number of parameters in the head | `0`, `1`, `2` |
 
@@ -37,9 +37,9 @@ The decorator takes exactly three arguments:
 - **Erlang / OTP modules** are written as plain atoms: `:erlang`, `:io`,
   `:math`, `:lists`, `:maps`.
 - **Elixir modules** are written with their fully qualified dotted path under
-  the `Elixir.` namespace: `Elixir.Cure.FSM.Builtins`, `Elixir.Enum`. The
+  the `Elixir.` namespace: `Elixir.MyApp.Native`, `Elixir.Enum`. The
   parser converts the dotted path into the underlying module atom
-  (`:"Elixir.Cure.FSM.Builtins"`) for you.
+(`:"Elixir.MyApp.Native"`) for you.
 
 ### Visibility
 
@@ -63,12 +63,13 @@ declared. The compiler cannot see the external implementation, so the declared
 types are the *only* contract it has. Without them the signature would silently
 default to `Any` and the type checker would be blind at every call site.
 
-```cure
+```cure E056
 # rejected (E056): parameter `x` and the return type are missing
 @extern(:erlang, :abs, 1)
 fn abs(x)
+```
 
-# ok
+```cure
 @extern(:erlang, :abs, 1)
 fn abs(x: Int) -> Int
 ```
@@ -88,18 +89,21 @@ run. To stop that silent discard from misleading a reader, a body is an error.
 This applies to both body forms: a `= ...` body and a multi-clause `|`
 definition.
 
-```cure
+```cure E057
 # rejected (E057): the `= x` body is ignored by codegen
 @extern(:erlang, :abs, 1)
 fn abs(x: Int) -> Int = x
+```
 
+```cure E057
 # rejected (E057): multi-clause bodies are ignored too
 @extern(:erlang, :abs, 1)
 fn abs(x: Int) -> Int
   | 0 -> 0
   | n -> n
+```
 
-# ok
+```cure
 @extern(:erlang, :abs, 1)
 fn abs(x: Int) -> Int
 ```
@@ -153,19 +157,14 @@ will not catch.
 
 ## Effects
 
-Calls through `@extern` carry an inferred effect, derived from the target
-module, so effect tracking still works across the FFI boundary:
-
-| Effect | Target modules |
-|--------|----------------|
-| `:io` | `:io`, `:file`, `:io_lib` |
-| `:state` | `:gen_server`, `:gen_statem`, `:ets`, `:persistent_term`, `:erlang` |
-| `:spawn` | `:proc_lib` |
-| `:extern` | any other module (the catch-all) |
-
-These feed Cure's effect inference the same way a native function's body would,
-so an effect annotation on a caller is checked against the effects its `@extern`
-calls introduce.
+An earlier version of the compiler inferred a per-`@extern` effect kind
+(`:io`, `:state`, `:spawn`, `:extern`, ...) from the target module, as part of
+the classic type checker's effect-tracking pass (`Cure.Types.Effects`, added in
+v0.15.0). That pass was removed along with the rest of the classic checker and
+code generator; the current dependent pipeline does not classify `@extern`
+calls by target module or effect kind. The REPL's `:effects expr` command
+reports only a coarse pure-vs-effectful verdict based on whether `expr`'s
+inferred type is the kernel's `Effect(T)` type former.
 
 ## Examples
 
@@ -182,23 +181,20 @@ fn sqrt(x: Float) -> Float
 fn print(s: String) -> Atom
 ```
 
-Elixir / `Cure.*.Builtins` helpers (note the dotted `Elixir.` module path):
+Elixir helpers (note the dotted `Elixir.` module path):
 
 ```cure
-@extern(Elixir.Cure.FSM.Builtins, :fsm_spawn, 1)
-fn spawn(fsm_module: Atom) -> Pid
-
-@extern(Elixir.Cure.FSM.Builtins, :fsm_spawn_with_payload, 2)
-fn spawn_with_payload(fsm_module: Atom, payload: Any) -> Pid
+@extern(Elixir.MyApp.Native, :read_counter, 1)
+fn read_counter(key: Atom) -> Int
 ```
 
 The same name may be bound at several arities, each its own `@extern`:
 
 ```cure
-@extern(Elixir.Cure.App.Builtins, :get_env, 2)
+@extern(Elixir.MyApp.Native, :get_env, 2)
 fn get_env(name: Atom, key: Atom) -> Any
 
-@extern(Elixir.Cure.App.Builtins, :get_env, 3)
+@extern(Elixir.MyApp.Native, :get_env, 3)
 fn get_env(name: Atom, key: Atom, default: Any) -> Any
 ```
 

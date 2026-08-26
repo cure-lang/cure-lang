@@ -1,38 +1,14 @@
-## Metrics actor for the Cure forge supervision tree.
-##
-## Keeps two monotonic counters in a tuple payload
-## `%[requests, errors]`:
-##
-##   * first slot  -- incremented whenever `Pool` finishes a task.
-##   * second slot -- incremented whenever `Pool` reports a failure.
-##
-## A tuple is used rather than a map because Cure's map-update syntax
-## is reserved for records. With a two-slot tuple, every clause can
-## destructure `%[r, e]` in the pattern head and rebuild it in the
-## body without needing an intermediate record declaration.
-##
-## Messages understood:
-##   * `:inc_requests`            -- bump the first slot.
-##   * `:inc_errors`              -- bump the second slot.
-##   * `%[:observe, :ok]`         -- single-point success ingestion.
-##   * `%[:observe, _other]`      -- single-point failure ingestion.
-##   * `:reset`                   -- zero both counters.
-##   * `:get`                     -- notify the caller with the tuple.
+## Transparent metrics actor with a typed tuple state.
 
-actor Metrics with %[0, 0]
-  on_start
-    (state) -> state
-  on_message
-    (:inc_requests, %[r, e]) ->
-      %[r + 1, e]
-    (:inc_errors, %[r, e]) ->
-      %[r, e + 1]
-    (%[:observe, :ok], %[r, e]) ->
-      %[r + 1, e]
-    (%[:observe, _other], %[r, e]) ->
-      %[r, e + 1]
-    (:reset, _state) ->
-      %[0, 0]
-    (:get, state) ->
-      notify(%[:metrics, state])
-      state
+use Std.Actor
+
+actor Metrics
+  state Tuple(Int, Int)
+  initial %[0, 0]
+  messages Atom
+  handle_cast
+    pickup
+      message == :reset -> %[:noreply, %[0, 0]]
+      message == :ok -> %[:noreply, %[state.1 + 1, state.2]]
+      message == :error -> %[:noreply, %[state.1, state.2 + 1]]
+      else -> %[:noreply, state]

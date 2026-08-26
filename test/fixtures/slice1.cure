@@ -1,0 +1,33 @@
+# Slice-1 acceptance program (design spec §6): the Sculthorpe–Nilsson safe-FRP
+# fragment — an indexed stream-function family with a computed decoupledness
+# index, dependent composition, a dependent match, a Sigma package, and a hole.
+
+type Dec = Dcoupled | Causal
+type Sig = CSig | ESig
+type SVDesc = SVNil | SVCons(Sig, SVDesc)
+
+# Used in a type (SF's index) ⇒ totality REQUIRED.
+fn andd(x: Dec, y: Dec) -> Dec = x
+
+type SF indices (as: SVDesc, bs: SVDesc, d: Dec)
+  prim : SF(as, bs, Causal)
+  seq : SF(as, bs, d1) -> SF(bs, cs, d2) -> SF(as, cs, andd(d1, d2))
+
+# Dependent construction — indices inferred and checked.
+fn compose({as: SVDesc}, {bs: SVDesc}, {cs: SVDesc}, {d1: Dec}, {d2: Dec}, l: SF(as, bs, d1), r: SF(bs, cs, d2)) -> SF(as, cs, andd(d1, d2)) = seq(l, r)
+
+# One operational-semantics step — dependent match on SF constructors.
+fn run({as: SVDesc}, {bs: SVDesc}, {d: Dec}, s: SF(as, bs, d)) -> Dec = match s
+  prim() -> Causal
+  seq(l, r) -> Dcoupled
+
+# Dependent pair (Sigma): package then project the decoupledness index. `d` is
+# an EXPLICIT (present) parameter: `forget_dec` materialises it into the runtime
+# Sigma so `recover`/`step` can inspect it later, so it cannot be an erased
+# implicit (the {0,ω} check, spec §2, rejects using an erased binder in a
+# computationally-relevant position — here the Sigma's runtime-relevant fst).
+fn forget_dec({as: SVDesc}, {bs: SVDesc}, d: Dec, sf: SF(as, bs, d)) -> Sigma(x: Dec, SF(as, bs, x)) = %[d, sf]
+fn recover({as: SVDesc}, {bs: SVDesc}, p: Sigma(x: Dec, SF(as, bs, x))) -> SF(as, bs, p.1) = p.2
+
+# Hole: typechecks, reports its goal, and blocks codegen until filled.
+fn sketch({as: SVDesc}, {bs: SVDesc}, {cs: SVDesc}, {d1: Dec}, {d2: Dec}, l: SF(as, bs, d1), r: SF(bs, cs, d2)) -> SF(as, cs, andd(d1, d2)) = ?body

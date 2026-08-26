@@ -2,54 +2,55 @@ mod Motif
   ## Length-indexed step sequencer for the Cure motif showcase.
   #
   # Demonstrates:
-  #   * Refinement types for every MIDI-domain primitive: Pitch, Velocity,
-  #     Channel, Bpm, StepsPerBeat, BarCount, RollReps. Z3 rejects
-  #     out-of-range literals and scales at compile time.
+  #   * Named aliases for every MIDI-domain primitive: Pitch, Velocity,
+  #     Channel, Bpm, StepsPerBeat, BarCount, RollReps. Each is a plain Int;
+  #     the documented ranges are invariants left unchecked pending SMTCoq.
   #   * ADT with parameter-carrying variants: Step (Rest, Note, Chord, Roll)
   #     and Event (NoteOn, NoteOff, Tick).
-  #   * Length-indexed Pattern over Std.Vector: concat/1 claims the output
-  #     length is the sum of the inputs, repeat/2 claims n*|p|, and both
-  #     claims are observable through Std.Vector.length/1 at runtime.
+  #   * Pattern operations over runtime lists: concat/1 and repeat/2 preserve
+  #     the documented pattern length relationships at runtime.
   #   * Step -> Event rendering that is a total function -- every Step ADT
   #     variant is matched exhaustively in step_events/2.
   #   * Plain show_step/1 and show_event/1 functions (not protocol impls)
   #     because Step and Event are ADT tagged tuples; protocol dispatch in
   #     Cure is record-map-based. Mirrors moneta.cure's Currency handling.
-  use Std.{List, Vector}
+  use Std.List
+  use Std.String
+  use Std.Semigroup
 
   # ---------------------------------------------------------------------------
   # FFI helpers -- keep the Cure source self-contained.
   # ---------------------------------------------------------------------------
 
-  @extern(:erlang, :integer_to_binary, 1)
+  @extern(:erlang, :integer_to_list, 1)
   local fn int_to_string(n: Int) -> String
 
   # ---------------------------------------------------------------------------
-  # Refinement types
+  # MIDI-domain aliases (documented ranges are invariants, unchecked pending SMTCoq)
   # ---------------------------------------------------------------------------
 
-  ## MIDI note number (0-127, 60 = middle C).
-  type Pitch = {p: Int | p >= 0 and p <= 127}
+  ## MIDI note number (invariant: 0-127, 60 = middle C).
+  typealias Pitch = Int
 
-  ## MIDI velocity (1-127, 0 is reserved for "note off").
-  type Velocity = {v: Int | v >= 1 and v <= 127}
+  ## MIDI velocity (invariant: 1-127, 0 is reserved for "note off").
+  typealias Velocity = Int
 
-  ## MIDI channel (0-15).
-  type Channel = {c: Int | c >= 0 and c <= 15}
+  ## MIDI channel (invariant: 0-15).
+  typealias Channel = Int
 
-  ## Musical tempo in beats per minute. The lower bound 20 matches the
-  ## slowest metronome marking in common notation; the upper bound 300
-  ## keeps the scheduler from spinning pathologically fast.
-  type Bpm = {b: Int | b >= 20 and b <= 300}
+  ## Musical tempo in beats per minute. Invariant: 20-300 -- the lower bound
+  ## 20 matches the slowest metronome marking in common notation; the upper
+  ## bound 300 keeps the scheduler from spinning pathologically fast.
+  typealias Bpm = Int
 
-  ## Subdivisions per beat. 1 = quarter notes, 4 = sixteenths, 8 = 32nds.
-  type StepsPerBeat = {s: Int | s >= 1 and s <= 16}
+  ## Subdivisions per beat (invariant: 1-16). 1 = quarter notes, 4 = sixteenths, 8 = 32nds.
+  typealias StepsPerBeat = Int
 
-  ## Number of bars in a repeat operation.
-  type BarCount = {n: Int | n >= 1 and n <= 64}
+  ## Number of bars in a repeat operation (invariant: 1-64).
+  typealias BarCount = Int
 
-  ## Number of notes in a roll (stuttered repeat at one step).
-  type RollReps = {k: Int | k >= 2 and k <= 8}
+  ## Number of notes in a roll (invariant: 2-8), a stuttered repeat at one step.
+  typealias RollReps = Int
 
   # ---------------------------------------------------------------------------
   # ADTs
@@ -75,18 +76,18 @@ mod Motif
     | Tick(Int)
 
   # ---------------------------------------------------------------------------
-  # Safe constructors -- all inputs are refinement-typed
+  # Constructors -- inputs use the MIDI-domain aliases
   # ---------------------------------------------------------------------------
 
-  ## Build a Note step from a refined Pitch and Velocity.
+  ## Build a Note step from a Pitch and Velocity.
   fn note(pitch: Pitch, vel: Velocity) -> Step = Note(pitch, vel)
 
-  ## Build a Chord step from three refined Pitches. Velocity is hard-coded
+  ## Build a Chord step from three Pitches. Velocity is hard-coded
   ## at 96 (mezzo-forte) to keep the constructor's surface small.
   fn chord(root: Pitch, third: Pitch, fifth: Pitch) -> Step =
     Chord(root, third, fifth)
 
-  ## Build a Roll step from a refined Pitch, Velocity, and repeat count.
+  ## Build a Roll step from a Pitch, Velocity, and repeat count.
   fn roll(pitch: Pitch, vel: Velocity, reps: RollReps) -> Step =
     Roll(pitch, vel, reps)
 
@@ -94,47 +95,40 @@ mod Motif
   fn rest() -> Step = Rest()
 
   # ---------------------------------------------------------------------------
-  # Pattern(n) helpers -- length tracked by Std.Vector
+  # Pattern helpers -- runtime lists
   # ---------------------------------------------------------------------------
   #
-  # A Pattern is a Std.Vector of Steps. The Vector tag keeps length metadata
-  # alongside the payload so the dependent claim "concat(a, b) has length
-  # |a| + |b|" is observable at runtime and verifiable in the checker.
+  # A Pattern is a plain list of Steps. Indexed vector reasoning belongs to
+  # the dependent kernel; this runtime example deliberately uses the list
+  # vocabulary exposed by the standard library.
 
   ## The empty pattern. Length 0.
-  fn empty_pattern() -> Tuple = Std.Vector.empty()
+  fn empty_pattern() -> List(Step) = assert_type [] : List(Step)
 
   ## Build a pattern from an explicit list of Steps.
-  fn pattern_from_steps(steps: List(Step)) -> Tuple =
-    Std.Vector.from_list(steps)
+  fn pattern_from_steps(steps: List(Step)) -> List(Step) = steps
 
   ## Length of a pattern, in steps.
-  fn pattern_length(p: Tuple) -> Int = Std.Vector.length(p)
+  fn pattern_length(p: List(Step)) -> Int = Std.List.length(p)
 
   ## The underlying list of Steps.
-  fn pattern_steps(p: Tuple) -> List(Step) = Std.Vector.to_list(p)
+  fn pattern_steps(p: List(Step)) -> List(Step) = p
 
-  ## Concatenate two patterns. The length of the result equals the sum of
-  ## the input lengths; see the test suite for the observable claim.
-  fn concat(a: Tuple, b: Tuple) -> Tuple = Std.Vector.append(a, b)
+  ## Concatenate two patterns.
+  fn concat(a: List(Step), b: List(Step)) -> List(Step) = Std.List.append(a, b)
 
   ## Repeat a pattern `n` times. Length of the result is n * |p|.
   ##
-  ## `n` is declared as a plain `Int` so the recursive helper below can
-  ## decrement it without re-establishing a refinement at every step.
-  ## The `BarCount` type is kept above as documentation of the intended
-  ## domain range; the test suite exercises `1`, `4`, and `8` which all
-  ## fall inside it.
-  fn repeat(p: Tuple, n: Int) -> Tuple =
+  ## `n` is declared as a plain `Int`. The `BarCount` alias is kept above as
+  ## documentation of the intended domain range; the test suite exercises
+  ## `1`, `4`, and `8` which all fall inside it.
+  fn repeat(p: List(Step), n: Int) -> List(Step) =
     repeat_acc(p, n, empty_pattern())
 
-  local fn repeat_acc(p: Tuple, n: Int, acc: Tuple) -> Tuple =
+  local fn repeat_acc(p: List(Step), n: Int, acc: List(Step)) -> List(Step) =
     pickup
       n <= 0 -> acc
       else   -> repeat_acc(p, n - 1, concat(acc, p))
-
-  ## Prepend a single step onto a pattern.
-  fn cons_step(s: Step, p: Tuple) -> Tuple = Std.Vector.cons(s, p)
 
   # ---------------------------------------------------------------------------
   # Rendering helpers (plain functions rather than protocol impls because
@@ -161,12 +155,12 @@ mod Motif
   ## Render a whole pattern as an ASCII strip using show_step for each
   ## step. For instance a pattern of [Note, Rest, Note, Rest] renders as
   ## "N.N.".
-  fn show_pattern(p: Tuple) -> String =
+  fn show_pattern(p: List(Step)) -> String =
     show_pattern_steps(pattern_steps(p))
 
   local fn show_pattern_steps(steps: List(Step)) -> String =
     match steps
-      []       -> ""
+      []       -> assert_type "" : String
       [h | t]  -> show_step(h) <> show_pattern_steps(t)
 
   # ---------------------------------------------------------------------------
@@ -177,7 +171,7 @@ mod Motif
   ## Render a single Step into the flat Event list (exclusive of Tick).
   fn step_events(s: Step, channel: Channel) -> List(Event) =
     match s
-      Rest() -> []
+      Rest() -> assert_type [] : List(Event)
       Note(p, v) -> [NoteOn(p, v, channel), NoteOff(p, channel)]
       Chord(r, t, f) -> chord_events(r, t, f, channel)
       Roll(p, v, reps) -> roll_events(p, v, reps, channel)
@@ -189,7 +183,7 @@ mod Motif
 
   local fn roll_events(pitch: Int, vel: Int, reps: Int, channel: Channel) -> List(Event) =
     pickup
-      reps <= 0 -> []
+      reps <= 0 -> assert_type [] : List(Event)
       else      ->
         Std.List.append(
           [NoteOn(pitch, vel, channel), NoteOff(pitch, channel)],
@@ -197,12 +191,12 @@ mod Motif
 
   ## Render a whole pattern as a flat Event list. Every step is bracketed
   ## by a Tick so downstream consumers can align events to a tempo grid.
-  fn render(p: Tuple, channel: Channel) -> List(Event) =
+  fn render(p: List(Step), channel: Channel) -> List(Event) =
     render_steps(pattern_steps(p), 0, channel)
 
   local fn render_steps(steps: List(Step), tick: Int, channel: Channel) -> List(Event) =
     match steps
-      [] -> []
+      [] -> assert_type [] : List(Event)
       [h | t] ->
         let head = [Tick(tick) | step_events(h, channel)]
         Std.List.append(head, render_steps(t, tick + 1, channel))

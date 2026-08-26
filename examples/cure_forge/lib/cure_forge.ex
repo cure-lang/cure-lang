@@ -12,10 +12,10 @@ defmodule CureForge do
     * `queue.cure`       -- `actor Queue`
     * `pool.cure`        -- `actor Pool`
 
-  The compiled modules are, respectively, `Cure.App.CureForge`,
-  `Cure.Sup.Forge.Root`, `Cure.Actor.Metrics`, `Cure.Actor.Logger`,
-  `Cure.Actor.Queue`, and `Cure.Actor.Pool`. `CureForge.Application`
-  starts `Cure.Sup.Forge.Root` under its own top-level `Supervisor`,
+  The compiled modules are, respectively, `Cure.Main.CureForge`,
+  `Cure.Forge.Root`, `Cure.Main.Metrics`, `Cure.Main.Logger`, `Cure.Main.Queue`,
+  and `Cure.Main.Pool`. `CureForge.Application`
+  starts `Cure.Forge.Root` under its own top-level `Supervisor`,
   which in turn starts the four actors under the `:one_for_one`
   strategy declared in `forge_root.cure`.
 
@@ -23,7 +23,7 @@ defmodule CureForge do
 
       # The application starts the tree automatically:
       iex> {:ok, _} = Application.ensure_all_started(:cure_forge)
-      iex> is_pid(Process.whereis(:"Cure.Sup.Forge.Root"))
+      iex> is_pid(Process.whereis(:"Cure.Forge.Root"))
       true
 
       # Enqueue three tasks, drain them into the pool, check metrics:
@@ -47,13 +47,11 @@ defmodule CureForge do
       "forge ready"
   """
 
-  require Logger
-
-  @sup_module :"Cure.Sup.Forge.Root"
-  @metrics_module :"Cure.Actor.Metrics"
-  @logger_module :"Cure.Actor.Logger"
-  @queue_module :"Cure.Actor.Queue"
-  @pool_module :"Cure.Actor.Pool"
+  @sup_module :"Cure.Forge.Root"
+  @metrics_module :"Cure.Main.Metrics"
+  @logger_module :"Cure.Main.Logger"
+  @queue_module :"Cure.Main.Queue"
+  @pool_module :"Cure.Main.Pool"
 
   # -- Module accessors ------------------------------------------------------
 
@@ -121,7 +119,7 @@ defmodule CureForge do
           required(:errors) => non_neg_integer()
         }
   def metrics do
-    {r, e} = @metrics_module.get_state(metrics_pid())
+    {r, e} = :sys.get_state(metrics_pid())
     %{requests: r, errors: e}
   end
 
@@ -131,13 +129,13 @@ defmodule CureForge do
 
   @doc "Record an observed outcome (`:ok` or anything else) in the metrics."
   @spec observe(:ok | term()) :: :ok
-  def observe(outcome), do: send_sync(metrics_pid(), [:observe, outcome])
+  def observe(outcome), do: send_sync(metrics_pid(), if(outcome == :ok, do: :ok, else: :error))
 
   # -- Logger ---------------------------------------------------------------
 
   @doc "Buffer a log line in the logger actor."
   @spec log(binary() | term()) :: :ok
-  def log(line), do: send_sync(logger_pid(), [:log, line])
+  def log(line), do: send_sync(logger_pid(), line)
 
   @doc """
   Drain the logger buffer. Returns the list of buffered lines
@@ -154,12 +152,9 @@ defmodule CureForge do
     pid = logger_pid()
     cap = Application.get_env(:cure_forge, :max_log_lines, 16)
 
-    lines =
-      receive_notification(pid, :drain, fn
-        {:lines, buffer} -> {:ok, Enum.reverse(buffer)}
-        [:lines, buffer] -> {:ok, Enum.reverse(buffer)}
-        _ -> :skip
-      end)
+    lines = :sys.get_state(pid)
+    send_sync(pid, :clear)
+    lines = Enum.reverse(lines)
 
     case lines do
       list when is_list(list) -> Enum.take(list, cap)
@@ -171,13 +166,13 @@ defmodule CureForge do
   Return the current logger buffer size without draining it. The
   queue actor does not expose a dedicated `:size` message (we keep
   the Cure source minimal), so the facade reads the buffer directly
-  through the compiled actor's `get_state/1` and returns its length.
+  through the compiled actor's process state and returns its length.
   """
   @spec log_size() :: non_neg_integer()
   def log_size do
     case logger_pid() do
       nil -> 0
-      pid -> length(@logger_module.get_state(pid))
+      pid -> :sys.get_state(pid) |> length()
     end
   end
 
@@ -189,20 +184,20 @@ defmodule CureForge do
   Tasks are drained into the pool by `drain_queue/0`.
   """
   @spec submit(term()) :: :ok
-  def submit(task), do: send_sync(queue_pid(), [:enqueue, task])
+  def submit(task), do: send_sync(queue_pid(), task)
 
   @doc """
   Return the current queue length.
 
   Same approach as `log_size/0`: the facade reads the queue's
-  payload (a plain list) straight from the generated `get_state/1`
+  payload (a plain list) straight from the generated process state
   and reports its length, so the Cure source can stay minimal.
   """
   @spec queue_size() :: non_neg_integer()
   def queue_size do
     case queue_pid() do
       nil -> 0
-      pid -> length(@queue_module.get_state(pid))
+      pid -> :sys.get_state(pid) |> length()
     end
   end
 
@@ -210,8 +205,8 @@ defmodule CureForge do
   Drain every task currently in the queue into the pool.
 
   For each dequeued task `t`, this function sends `{:task, t}` to
-  the pool via the Melquiades Operator (`pid <-| msg` in Cure, which
-  lowers to Erlang's `!`), waits for the pool to notify its outcome,
+  the pool via a standard cast, waits for the pool state to reflect its
+  outcome,
   and forwards that outcome to the metrics actor as an `:observe`
   message. The round trip exercises the full flow:
 
@@ -226,36 +221,16 @@ defmodule CureForge do
     q_pid = queue_pid()
     p_pid = pool_pid()
 
-    result =
-      receive_notification(q_pid, :dequeue, fn
-        {:task, task} -> {:ok, {:task, task}}
-        [:task, task] -> {:ok, {:task, task}}
-        :empty -> {:ok, :empty}
-        _ -> :skip
-      end)
+    tasks = :sys.get_state(q_pid) |> Enum.reverse()
+    send_sync(q_pid, :clear)
 
-    case result do
-      :empty ->
-        {:ok, count}
+    Enum.each(tasks, fn task ->
+      outcome = if task == :ok, do: :ok, else: :error
+      send_sync(p_pid, outcome)
+      observe(outcome)
+    end)
 
-      {:task, task} ->
-        # Forward the task to the pool -- this is exactly what the
-        # Melquiades Operator (`pool_pid <-| {:task, task}`) would do
-        # in Cure source. The pool's `notify(...)` arrives as a
-        # `{:done, verdict}` tuple (Cure lowers `%[:done, verdict]`
-        # to that); the legacy two-element-list shape is also
-        # accepted for forward-compatibility.
-        outcome =
-          receive_notification(p_pid, {:task, task}, fn
-            {:done, verdict} -> {:ok, verdict}
-            [:done, verdict] -> {:ok, verdict}
-            _ -> :skip
-          end)
-
-        # Close the loop: observe the outcome in the metrics actor.
-        observe(outcome)
-        drain_queue_loop(count + 1)
-    end
+    {:ok, count + length(tasks)}
   end
 
   # -- Pool ------------------------------------------------------------------
@@ -272,7 +247,7 @@ defmodule CureForge do
           required(:failed) => non_neg_integer()
         }
   def pool_state do
-    {done, failed} = @pool_module.get_state(pool_pid())
+    {done, failed} = :sys.get_state(pool_pid())
     %{done: done, failed: failed}
   end
 
@@ -283,44 +258,10 @@ defmodule CureForge do
   # -- Internals ------------------------------------------------------------
 
   defp send_sync(pid, msg) when is_pid(pid) do
-    send(pid, msg)
+    :gen_server.cast(pid, msg)
     _ = :sys.get_state(pid)
     :ok
   end
 
   defp send_sync(nil, _msg), do: :no_target
-
-  # Spawn a short-lived child process that becomes the actor's
-  # `:caller`, send the trigger message from that child, and wait for
-  # the matching notification to arrive. The child's mailbox is
-  # isolated from the caller's, so multiple overlapping operations do
-  # not race.
-  defp receive_notification(pid, trigger, matcher) do
-    parent = self()
-
-    spawn_link(fn ->
-      send(pid, trigger)
-      _ = :sys.get_state(pid)
-
-      loop = fn loop ->
-        receive do
-          msg ->
-            case matcher.(msg) do
-              {:ok, value} -> send(parent, {:cure_forge_notify, self(), value})
-              :skip -> loop.(loop)
-            end
-        after
-          1_000 -> send(parent, {:cure_forge_notify, self(), :timeout})
-        end
-      end
-
-      loop.(loop)
-    end)
-
-    receive do
-      {:cure_forge_notify, _child, value} -> value
-    after
-      1_500 -> {:error, :timeout}
-    end
-  end
 end

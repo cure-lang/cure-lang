@@ -1,0 +1,4 @@
+mod Pos01
+  type Lst(a) = LNil | LCons(a, Lst(a))
+  type Rose = RNode(Lst(Rose))
+end

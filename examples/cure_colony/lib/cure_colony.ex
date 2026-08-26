@@ -8,15 +8,15 @@ defmodule CureColony do
     * `cure_src/echo.cure`   -- `actor Echo`
     * `cure_src/colony.cure` -- `sup Colony`
 
-  The compiled modules are, respectively, `Cure.Actor.Worker`,
-  `Cure.Actor.Echo`, and `Cure.Sup.Colony`. `CureColony.Application`
-  starts `Cure.Sup.Colony` under its own top-level `Supervisor`, which
+  The compiled modules are, respectively, `Cure.Main.Worker`, `Cure.Main.Echo`,
+  and `Cure.Main.Colony`. `CureColony.Application`
+  starts `Cure.Main.Colony` under its own top-level `Supervisor`, which
   in turn starts two `Worker` instances and one `Echo` instance.
 
   ## Quick Start
 
       # The application starts the tree automatically:
-      iex> is_pid(Process.whereis(:"Cure.Sup.Colony"))
+      iex> is_pid(Process.whereis(:"Cure.Main.Colony"))
       true
 
       # Each child can be addressed by its supervisor id:
@@ -32,9 +32,9 @@ defmodule CureColony do
       :ping
   """
 
-  @sup_module :"Cure.Sup.Colony"
-  @worker_module :"Cure.Actor.Worker"
-  @echo_module :"Cure.Actor.Echo"
+  @sup_module :"Cure.Main.Colony"
+  @worker_module :"Cure.Main.Worker"
+  @echo_module :"Cure.Main.Echo"
 
   @doc "Atom of the compiled supervisor module."
   @spec sup_module() :: module()
@@ -97,21 +97,21 @@ defmodule CureColony do
 
   @doc "Return the current payload for a worker pid."
   @spec worker_state(pid()) :: integer()
-  def worker_state(worker), do: @worker_module.get_state(worker)
+  def worker_state(worker), do: :sys.get_state(worker)
 
   @doc "Return the echo actor's current payload (the last message it saw)."
   @spec echo_state() :: term()
   def echo_state do
     case echo() do
       nil -> nil
-      pid -> @echo_module.get_state(pid)
+      pid -> :sys.get_state(pid)
     end
   end
 
   # -- Internals ------------------------------------------------------------
 
   defp send_sync(pid, msg) do
-    send(pid, msg)
+    :gen_server.cast(pid, msg)
     _ = :sys.get_state(pid)
     :ok
   end

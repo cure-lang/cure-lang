@@ -1,30 +1,28 @@
 mod SigmaVector
-  use Std.{List, Pair, Vector}
+  use Std.{List, Tuple}
 
-  ## Sigma types + length-indexed vectors (v0.17.0).
+  ## Sigma-style sized list example.
   #
-  # This example demonstrates the *pattern* for dependent pairs where
-  # the first component carries a length and the second component is
-  # a vector of exactly that length. Today the length dependency is
-  # tracked by the type checker but not enforced at runtime; tomorrow
-  # it will be.
+  # `Std.Vector` is now a real indexed family checked by the dependent
+  # kernel. This example stays on the legacy runtime compiler path and
+  # uses a plain tuple `%[length, items]` instead of the old tuple-backed
+  # Vector helper API.
 
-  ## Build a "sized vector" -- a pair whose first component is the
-  ## claimed length, and whose second component is the vector data.
-  fn make_sized(items: List(Int)) -> Tuple =
-    let vec = Std.Vector.from_list(items)
-    %[Std.Vector.length(vec), vec]
+  ## Build a "sized list" -- a pair whose first component is the
+  ## claimed length, and whose second component is the list data.
+  fn make_sized(items: List(Int)) -> Tuple(Int, List(Int)) =
+    %[Std.List.length(items), items]
 
-  ## Project the length out of a sized vector.
-  fn claimed_length(sv: Tuple) -> Int =
-    Std.Pair.first(sv)
+  ## Project the length out of a sized list.
+  fn claimed_length(sv: Tuple(Int, List(Int))) -> Int =
+    Std.Tuple.first(sv)
 
   ## Project the payload out of a sized vector.
-  fn payload(sv: Tuple) -> Tuple =
-    Std.Pair.second(sv)
+  fn payload(sv: Tuple(Int, List(Int))) -> List(Int) =
+    Std.Tuple.second(sv)
 
-  ## Total length of two sized vectors.
-  fn combined_length(a: Tuple, b: Tuple) -> Int =
+  ## Total length of two sized lists.
+  fn combined_length(a: Tuple(Int, List(Int)), b: Tuple(Int, List(Int))) -> Int =
     claimed_length(a) + claimed_length(b)
 
   ## Demonstration entry point:

@@ -1,0 +1,17 @@
+mod Guard05
+  type Nat = Z | S(Nat)
+  # A guard on a NESTED constructor pattern `S(S(k))`, threaded through the
+  # pattern-matrix compiler: the guarded row falls through to the next
+  # same-shaped row (`S(S(k)) -> S(Z())`) when the guard is false — the
+  # Wadler/Augustsson `match … default` continuation (Idris `CaseBuilder`),
+  # realised over surface names at each matrix leaf.
+  fn isZ(n: Nat) -> Bool = match n
+    Z() -> true
+    S(k) -> false
+  fn classify(n: Nat) -> Nat = match n
+    S(S(k)) when isZ(k) -> Z()
+    S(S(k)) -> S(Z())
+    S(Z()) -> S(S(Z()))
+    Z() -> S(S(S(Z())))
+  fn start() -> Nat = classify(S(S(Z())))
+end

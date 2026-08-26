@@ -1,3 +1,4 @@
+@group(:collections)
 mod Std.Map
   ## Map operations: get, put, delete, keys, values, merge.
   ##
@@ -17,6 +18,8 @@ mod Std.Map
   ## ```
   ##
   ## ```cure
+  ## use Std.Map
+  ##
   ## # Right-biased merge: values in the second map win.
   ## let a = from_list([%[:x, 1], %[:y, 2]])
   ## let b = from_list([%[:y, 20], %[:z, 30]])
@@ -25,62 +28,69 @@ mod Std.Map
   ## ```
 
   ## Group tag consumed by `Cure.Stdlib.Preload`.
-  fn __group__() -> Atom = :collections
+  ## The map carrier, indexed by its key and value types. `Map(k, v)`
+  ## is the Idris (`SortedMap k v`) / Haskell (`Map k v`) design: the
+  ## index makes `get`'s result type recoverable (no return-polymorphism
+  ## wall) and, in turn, lets map *patterns* bind values at a known type.
+  ## Maps are homogeneous in their values; a genuinely heterogeneous map
+  ## uses `Map(k, Any)`. The index is purely type-level — `Map(k, v)`
+  ## still erases to a raw BEAM map and the `:maps` externs are unchanged.
+  opaque type Map(k, v)
 
   ## New empty map.
   @extern(:maps, :new, 0)
-  fn new() -> Map
+  fn new() -> Map(k, v)
 
   ## Return a new map with `key` set to `value` (replaces any
   ## existing entry).
   @extern(:maps, :put, 3)
-  fn put(key: K, value: V, map: Map) -> Map
+  fn put(key: k, value: v, map: Map(k, v)) -> Map(k, v)
 
   ## Look up `key`. Raises `:badkey` if missing; use `get_or/3` for a
   ## total variant.
   @extern(:maps, :get, 2)
-  fn get(key: K, map: Map) -> V
+  fn get(key: k, map: Map(k, v)) -> v
 
   ## Look up `key`, returning `default` when missing.
-  fn get_or(key: K, map: Map, default: V) -> V =
+  fn get_or(key: k, map: Map(k, v), default: v) -> v =
     pickup
       has_key(key, map) -> get(key, map)
       else              -> default
 
   ## Return `map` without `key`.
   @extern(:maps, :remove, 2)
-  fn remove(key: K, map: Map) -> Map
+  fn remove(key: k, map: Map(k, v)) -> Map(k, v)
 
   ## `true` when `key` is a member of `map`.
   @extern(:maps, :is_key, 2)
-  fn has_key(key: K, map: Map) -> Bool
+  fn has_key(key: k, map: Map(k, v)) -> Bool
 
   ## Number of entries in `map`.
   @extern(:maps, :size, 1)
-  fn size(map: Map) -> Int
+  fn size(map: Map(k, v)) -> Int
 
   ## List of keys.
   @extern(:maps, :keys, 1)
-  fn keys(map: Map) -> List(K)
+  fn keys(map: Map(k, v)) -> List(k)
 
   ## List of values.
   @extern(:maps, :values, 1)
-  fn values(map: Map) -> List(V)
+  fn values(map: Map(k, v)) -> List(v)
 
   ## List of `%[key, value]` tuples.
   @extern(:maps, :to_list, 1)
-  fn to_list(map: Map) -> List(Tuple)
+  fn to_list(map: Map(k, v)) -> List(Tuple)
 
   ## Build a map from a list of `%[key, value]` tuples.
   @extern(:maps, :from_list, 1)
-  fn from_list(list: List(Tuple)) -> Map
+  fn from_list(list: List(Tuple)) -> Map(k, v)
 
   ## Right-biased merge: keys in `map2` override `map1`.
   @extern(:maps, :merge, 2)
-  fn merge(map1: Map, map2: Map) -> Map
+  fn merge(map1: Map(k, v), map2: Map(k, v)) -> Map(k, v)
 
   ## `true` when `map` has no entries.
-  fn is_empty(map: Map) -> Bool = size(map) == 0
+  fn is_empty(map: Map(k, v)) -> Bool = size(map) == 0
 
   ## Alias for `size/1`; reads better in some contexts.
-  fn count(map: Map) -> Int = size(map)
+  fn count(map: Map(k, v)) -> Int = size(map)

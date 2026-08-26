@@ -1,0 +1,9 @@
+mod Lb02
+  type Nat = Z | S(Nat)
+  type Op = A(Nat) | B(Nat)
+  fn f(n: Nat, o: Op) -> Nat =
+    let x = S(n)
+    match o
+      A(x) -> A(x)
+      B(y) -> x
+end

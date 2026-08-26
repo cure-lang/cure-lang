@@ -1,0 +1,7 @@
+mod Un01
+  fn describe(v: Int | Bool | Atom) -> Int = match v
+    n: Int -> n
+    b: Bool -> 1
+    a: Atom -> 2
+  fn use_int() -> Int = describe(7)
+end

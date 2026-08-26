@@ -1,303 +1,323 @@
-mod Std.Iter
-  ## Lazy iterators.
-  ##
-  ## Cure comprehensions and `Std.List` are eager: every step
-  ## materialises a new cons list. `Std.Iter` is the lazy half of the
-  ## collections story. An iterator is a zero-argument lambda
-  ## (concretely typed `Atom -> Any`) returning either
-  ## `Some(%[element, next_iter])` or `None()`. That shape is close to
-  ## Elixir's `Stream` and lets the caller resume after every step
-  ## without forcing the tail.
-  ##
-  ## ## The `lazy` idiom
-  ##
-  ## The recommended way to spell a lazy pipeline is to mark the entry
-  ## point with `lazy/1` and let the rest of the chain stay in
-  ## `Std.Iter`:
-  ##
-  ## ```cure
-  ## use Std.Iter
-  ##
-  ## # Squares of the first five even integers in [1, 1_000_000].
-  ## [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-  ##   |> lazy
-  ##   |> filter(fn(x) -> x % 2 == 0)
-  ##   |> map(fn(x) -> x * x)
-  ##   |> take(5)
-  ## # => [4, 16, 36, 64, 100]
-  ## ```
-  ##
-  ## Nothing materialises until the terminal `take/2` (which returns a
-  ## plain list). For an open-ended chain, end with `to_list/1` --
-  ## guard infinite producers with `take/2` or `take_while/2` first.
-  ##
-  ## ## Examples
-  ##
-  ## ```cure
-  ## use Std.Iter
-  ##
-  ## # Sum of the integers in [1, 10] via the iterator API.
-  ## fold(range(1, 10), 0, fn(x) -> fn(acc) -> acc + x)
-  ## # => 55
-  ## ```
-  ##
-  ## ```cure
-  ## use Std.Iter
-  ##
-  ## # First five Fibonacci numbers from an infinite producer.
-  ## let pair_step = fn(p) ->
-  ##   match p
-  ##     %[a, b] -> Some(%[a, %[b, a + b]])
-  ## unfold(%[0, 1], pair_step) |> take(5)
-  ## # => [0, 1, 1, 2, 3]
-  ## ```
+## Lazy iterators.
+##
+## Cure comprehensions and `Std.List` are eager: every step
+## materialises a new cons list. `Std.Iter` is the lazy half of the
+## collections story. An iterator is an inductive wrapper around a
+## step function. Each step returns either `Some(Yield(element, next))`
+## or `None()`, so the element and continuation stay typed without
+## falling back to `Any`.
+##
+## ## The `lazy` idiom
+##
+## The recommended way to spell a lazy pipeline is to mark the entry
+## point with `lazy/1` and let the rest of the chain stay in
+## `Std.Iter`:
+##
+## ```cure
+## use Std.Iter
+##
+## # Squares of the first five even integers in [1, 10].
+## [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+##   |> lazy
+##   |> filter(fn(x) -> x % 2 == 0)
+##   |> map(fn(x) -> x * x)
+##   |> take(5)
+## # => [4, 16, 36, 64, 100]
+## ```
+##
+## Nothing materialises until the terminal `take/2` (which returns a
+## plain list). For an open-ended chain, end with `to_list/1` --
+## guard infinite producers with `take/2` or `take_while/2` first.
+##
+## ## Examples
+##
+## ```cure
+## use Std.Iter
+##
+## # Sum of the integers in [1, 10] via the iterator API.
+## fold(range(1, 10), 0, fn(x) -> fn(acc) -> acc + x)
+## # => 55
+## ```
+##
+## ```cure
+## use Std.Iter
+##
+## # First five Fibonacci numbers from an infinite producer.
+## let pair_step = fn(p) ->
+##   match p
+##     %[a, b] -> Some(Emit(a, %[b, a + b]))
+## unfold(%[0, 1], pair_step) |> take(5)
+## # => [0, 1, 1, 2, 3]
+## ```
 
-  ## Group tag consumed by `Cure.Stdlib.Preload`.
-  fn __group__() -> Atom = :collections
+# Group tag consumed by `Cure.Stdlib.Preload`.
+
+@group(:collections)
+mod Std.Iter
+  use Std.Option
+  type StepToken = Step
+  type Iter(a) = Iter(StepToken -> Option(IterStep(a)))
+  type IterStep(a) = Yield(a, Iter(a))
+  type UnfoldStep(a, seed) = Emit(a, seed)
+  type EachDone = Done
+
+  local fn step(it: Iter(t)) -> Option(IterStep(t)) =
+    match it
+      Iter(next) -> next(Step())
 
   # -- Constructors -----------------------------------------------------------
 
   ## An iterator that is immediately exhausted.
-  fn empty() -> Atom -> Any =
-    fn(_) -> None()
+  fn empty() -> Iter(t) =
+    Iter(fn(_) -> None())
 
   ## An iterator over a list (walks left to right).
-  fn from_list(list: List(T)) -> Atom -> Any =
-    fn(_) ->
+  fn from_list(list: List(t)) -> Iter(t) =
+    let next = fn(_) ->
       match list
         []      -> None()
-        [h | t] -> Some(%[h, from_list(t)])
+        [h | t] -> Some(Yield(h, from_list(t)))
+    Iter(next)
 
   ## Bridge for the lazy-pipeline idiom: `xs |> lazy |> map(...) |> ...`.
   ## Identical to `from_list/1`; the alternate name documents intent at
   ## the call site.
-  fn lazy(list: List(T)) -> Atom -> Any = from_list(list)
+  fn lazy(list: List(t)) -> Iter(t) = from_list(list)
 
   ## A bounded integer range iterator (inclusive).
-  fn range(lo: Int, hi: Int) -> Atom -> Any =
-    fn(_) -> range_step(lo, hi)
+  fn range(lo: Int, hi: Int) -> Iter(Int) =
+    Iter(fn(_) -> range_step(lo, hi))
 
   ## Private: single step of the `range/2` iterator.
-  local fn range_step(lo: Int, hi: Int) -> Any =
+  local fn range_step(lo: Int, hi: Int) -> Option(IterStep(Int)) =
     pickup
       lo > hi -> None()
-      else    -> Some(%[lo, range(lo + 1, hi)])
+      else    -> Some(Yield(lo, range(lo + 1, hi)))
 
   ## Infinite iterator: `x0, f(x0), f(f(x0)), ...`. Always pair with
   ## a slicer such as `take/2` or `take_while/2` before forcing.
-  fn iterate(x0: T, f: T -> T) -> Atom -> Any =
-    fn(_) -> Some(%[x0, iterate(f(x0), f)])
+  fn iterate(x0: t, f: t -> t) -> Iter(t) =
+    Iter(fn(_) -> Some(Yield(x0, iterate(f(x0), f))))
 
   ## Stream-style unfold. `f(seed)` returns either
-  ## `Some(%[value, next_seed])` to emit `value` and continue, or
+  ## `Some(Emit(value, next_seed))` to emit `value` and continue, or
   ## `None()` to terminate.
-  fn unfold(seed: T, f: T -> Any) -> Atom -> Any =
-    fn(_) ->
+  fn unfold(seed: s, f: s -> Option(UnfoldStep(t, s))) -> Iter(t) =
+    let next_step = fn(_) ->
       match f(seed)
-        None()           -> None()
-        Some(%[v, next]) -> Some(%[v, unfold(next, f)])
+        None() -> None()
+        Some(Emit(v, next)) -> Some(Yield(v, unfold(next, f)))
+    Iter(next_step)
 
   ## Infinite iterator that yields `x` forever.
-  fn repeat(x: T) -> Atom -> Any =
-    fn(_) -> Some(%[x, repeat(x)])
+  fn repeat(x: t) -> Iter(t) =
+    Iter(fn(_) -> Some(Yield(x, repeat(x))))
 
   ## Infinite iterator that walks `list` repeatedly. An empty input
   ## collapses to `empty/0` so consumers terminate.
-  fn cycle(list: List(T)) -> Atom -> Any =
+  fn cycle(list: List(t)) -> Iter(t) =
     match list
       []      -> empty()
       [_ | _] -> cycle_step(list, list)
 
   ## Private: step `cycle/1` by tracking the unspent suffix and the
   ## original list to restart from.
-  local fn cycle_step(remaining: List(T), original: List(T)) -> Atom -> Any =
-    fn(_) ->
+  local fn cycle_step(remaining: List(t), original: List(t)) -> Iter(t) =
+    let next = fn(_) ->
       match remaining
-        []      -> cycle_step(original, original)(:step)
-        [h | t] -> Some(%[h, cycle_step(t, original)])
+        []      -> step(cycle_step(original, original))
+        [h | t] -> Some(Yield(h, cycle_step(t, original)))
+    Iter(next)
 
   # -- Transformers (lazy in, lazy out) --------------------------------------
 
   ## Map `f` over every element of `it`, on demand.
-  fn map(it: Atom -> Any, f: T -> U) -> Atom -> Any =
-    fn(_) ->
-      match it(:step)
-        None()           -> None()
-        Some(%[x, rest]) -> Some(%[f(x), map(rest, f)])
+  fn map(it: Iter(t), f: t -> u) -> Iter(u) =
+    let next = fn(_) ->
+      match step(it)
+        None() -> None()
+        Some(Yield(x, rest)) -> Some(Yield(f(x), map(rest, f)))
+    Iter(next)
 
   ## Keep elements of `it` for which `pred(elem)` is `true`.
-  fn filter(it: Atom -> Any, pred: T -> Bool) -> Atom -> Any =
-    fn(_) -> filter_step(it, pred)
+  fn filter(it: Iter(t), pred: t -> Bool) -> Iter(t) =
+    Iter(fn(_) -> filter_step(it, pred))
 
   ## Private: drive `filter/2` until a passing element is found.
-  local fn filter_step(it: Atom -> Any, pred: T -> Bool) -> Any =
-    match it(:step)
-      None()           -> None()
-      Some(%[x, rest]) ->
+  local fn filter_step(it: Iter(t), pred: t -> Bool) -> Option(IterStep(t)) =
+    match step(it)
+      None() -> None()
+      Some(Yield(x, rest)) ->
         pickup
-          pred(x) -> Some(%[x, filter(rest, pred)])
+          pred(x) -> Some(Yield(x, filter(rest, pred)))
           else    -> filter_step(rest, pred)
 
   ## Concatenate two iterators. Stepping `b` is deferred until `a`
   ## is exhausted.
-  fn concat(a: Atom -> Any, b: Atom -> Any) -> Atom -> Any =
-    fn(_) ->
-      match a(:step)
-        None()           -> b(:step)
-        Some(%[x, rest]) -> Some(%[x, concat(rest, b)])
+  fn concat(a: Iter(t), b: Iter(t)) -> Iter(t) =
+    let next = fn(_) ->
+      match step(a)
+        None() -> step(b)
+        Some(Yield(x, rest)) -> Some(Yield(x, concat(rest, b)))
+    Iter(next)
 
   ## Map `f` over `it` and flatten one level of nesting; `f` returns
   ## an iterator per element.
-  fn flat_map(it: Atom -> Any, f: T -> Atom -> Any) -> Atom -> Any =
-    fn(_) ->
-      match it(:step)
-        None()           -> None()
-        Some(%[x, rest]) -> concat(f(x), flat_map(rest, f))(:step)
+  fn flat_map(it: Iter(t), f: t -> Iter(u)) -> Iter(u) =
+    let next = fn(_) ->
+      match step(it)
+        None() -> None()
+        Some(Yield(x, rest)) -> step(concat(f(x), flat_map(rest, f)))
+    Iter(next)
 
   ## Combine two iterators element-wise using a curried `f`. Stops at
   ## the shorter iterator. `f` is `a -> b -> c`.
-  fn zip_with(a: Atom -> Any, b: Atom -> Any, f: T -> U -> V) -> Atom -> Any =
-    fn(_) ->
-      match a(:step)
+  fn zip_with(a: Iter(t), b: Iter(u), f: t -> u -> v) -> Iter(v) =
+    let next = fn(_) ->
+      match step(a)
         None() -> None()
-        Some(%[x, rest_a]) ->
-          match b(:step)
+        Some(Yield(x, rest_a)) ->
+          match step(b)
             None() -> None()
-            Some(%[y, rest_b]) -> Some(%[f(x)(y), zip_with(rest_a, rest_b, f)])
+            Some(Yield(y, rest_b)) -> Some(Yield(f(x)(y), zip_with(rest_a, rest_b, f)))
+    Iter(next)
 
   ## Insert `sep` between consecutive elements of `it`. Empty and
   ## single-element iterators are passed through unchanged.
-  fn intersperse(it: Atom -> Any, sep: T) -> Atom -> Any =
-    fn(_) ->
-      match it(:step)
-        None()           -> None()
-        Some(%[x, rest]) -> Some(%[x, intersperse_tail(rest, sep)])
+  fn intersperse(it: Iter(t), sep: t) -> Iter(t) =
+    let next = fn(_) ->
+      match step(it)
+        None() -> None()
+        Some(Yield(x, rest)) -> Some(Yield(x, intersperse_tail(rest, sep)))
+    Iter(next)
 
   ## Private: keep emitting `sep, elem` pairs after the first element.
-  local fn intersperse_tail(it: Atom -> Any, sep: T) -> Atom -> Any =
-    fn(_) ->
-      match it(:step)
-        None()           -> None()
-        Some(%[x, rest]) -> Some(%[sep, prepend(x, intersperse_tail(rest, sep))])
+  local fn intersperse_tail(it: Iter(t), sep: t) -> Iter(t) =
+    let next = fn(_) ->
+      match step(it)
+        None() -> None()
+        Some(Yield(x, rest)) -> Some(Yield(sep, prepend(x, intersperse_tail(rest, sep))))
+    Iter(next)
 
   ## Private: prepend a single element to an existing iterator.
-  local fn prepend(x: T, it: Atom -> Any) -> Atom -> Any =
-    fn(_) -> Some(%[x, it])
+  local fn prepend(x: t, it: Iter(t)) -> Iter(t) =
+    Iter(fn(_) -> Some(Yield(x, it)))
 
   # -- Slicers (lazy in, lazy out) -------------------------------------------
 
   ## Lazy prefix: keep elements while `pred` holds, then terminate.
-  fn take_while(it: Atom -> Any, pred: T -> Bool) -> Atom -> Any =
-    fn(_) ->
-      match it(:step)
-        None()           -> None()
-        Some(%[x, rest]) ->
+  fn take_while(it: Iter(t), pred: t -> Bool) -> Iter(t) =
+    let next = fn(_) ->
+      match step(it)
+        None() -> None()
+        Some(Yield(x, rest)) ->
           pickup
-            pred(x) -> Some(%[x, take_while(rest, pred)])
+            pred(x) -> Some(Yield(x, take_while(rest, pred)))
             else    -> None()
+    Iter(next)
 
   ## Skip the first `n` elements. Negative or zero `n` is a no-op.
-  fn drop(it: Atom -> Any, n: Int) -> Atom -> Any =
-    fn(_) -> drop_step(it, n)
+  fn drop(it: Iter(t), n: Int) -> Iter(t) =
+    Iter(fn(_) -> drop_step(it, n))
 
   ## Private: walk `n` elements past the iterator's current position.
-  local fn drop_step(it: Atom -> Any, n: Int) -> Any =
+  local fn drop_step(it: Iter(t), n: Int) -> Option(IterStep(t)) =
     pickup
-      n <= 0 -> it(:step)
+      n <= 0 -> step(it)
       else   ->
-        match it(:step)
-          None()           -> None()
-          Some(%[_, rest]) -> drop_step(rest, n - 1)
+        match step(it)
+          None() -> None()
+          Some(Yield(_, rest)) -> drop_step(rest, n - 1)
 
   ## Skip elements while `pred` holds, then yield the rest unchanged.
-  fn drop_while(it: Atom -> Any, pred: T -> Bool) -> Atom -> Any =
-    fn(_) -> drop_while_step(it, pred)
+  fn drop_while(it: Iter(t), pred: t -> Bool) -> Iter(t) =
+    Iter(fn(_) -> drop_while_step(it, pred))
 
   ## Private: drive `drop_while/2` until the first failing element.
-  local fn drop_while_step(it: Atom -> Any, pred: T -> Bool) -> Any =
-    match it(:step)
-      None()           -> None()
-      Some(%[x, rest]) ->
+  local fn drop_while_step(it: Iter(t), pred: t -> Bool) -> Option(IterStep(t)) =
+    match step(it)
+      None() -> None()
+      Some(Yield(x, rest)) ->
         pickup
           pred(x) -> drop_while_step(rest, pred)
-          else    -> Some(%[x, rest])
+          else    -> Some(Yield(x, rest))
 
   # -- Consumers (terminal) --------------------------------------------------
 
   ## Left fold an iterator. `f` is a curried function
   ## `elem -> acc -> acc`.
-  fn fold(it: Atom -> Any, acc: T, f: Any -> T -> T) -> T =
-    match it(:step)
-      None()          -> acc
-      Some(%[x, rest]) -> fold(rest, f(x)(acc), f)
+  fn fold(it: Iter(t), acc: u, f: t -> u -> u) -> u =
+    match step(it)
+      None() -> acc
+      Some(Yield(x, rest)) -> fold(rest, f(x)(acc), f)
 
   ## Take at most `n` values from the iterator as a plain list.
   ## Safe to call on infinite iterators.
-  fn take(it: Atom -> Any, n: Int) -> List(Any) =
+  fn take(it: Iter(t), n: Int) -> List(t) =
     match n
       0 -> []
       _ ->
-        match it(:step)
-          None()          -> []
-          Some(%[x, rest]) -> [x | take(rest, n - 1)]
+        match step(it)
+          None() -> []
+          Some(Yield(x, rest)) -> [x | take(rest, n - 1)]
 
   ## Materialise an iterator as a list. Non-terminating iterators
   ## never return; guard with `take/2` when unsure.
-  fn to_list(it: Atom -> Any) -> List(Any) =
-    match it(:step)
-      None()          -> []
-      Some(%[x, rest]) -> [x | to_list(rest)]
+  fn to_list(it: Iter(t)) -> List(t) =
+    match step(it)
+      None() -> []
+      Some(Yield(x, rest)) -> [x | to_list(rest)]
 
-  ## Apply `f` to every element for its side effects. Returns `:ok`
+  ## Apply `f` to every element for its side effects. Returns `Done`
   ## once the iterator is exhausted.
-  fn each(it: Atom -> Any, f: T -> Any) -> Atom =
-    match it(:step)
-      None()           -> :ok
-      Some(%[x, rest]) -> each_after(f(x), rest, f)
+  fn each(it: Iter(t), f: t -> u) -> EachDone =
+    match step(it)
+      None() -> Done()
+      Some(Yield(x, rest)) -> each_after(f(x), rest, f)
 
   ## Private: ignore `f`'s return value and continue iterating.
-  local fn each_after(_value: Any, rest: Atom -> Any, f: T -> Any) -> Atom =
+  local fn each_after(_value: u, rest: Iter(t), f: t -> u) -> EachDone =
     each(rest, f)
 
   ## Count elements satisfying `pred`. Tail-recursive.
-  fn count(it: Atom -> Any, pred: T -> Bool) -> Int =
+  fn count(it: Iter(t), pred: t -> Bool) -> Int =
     count_acc(it, pred, 0)
 
   ## Private accumulator helper for `count/2`.
-  local fn count_acc(it: Atom -> Any, pred: T -> Bool, acc: Int) -> Int =
-    match it(:step)
-      None()           -> acc
-      Some(%[x, rest]) ->
+  local fn count_acc(it: Iter(t), pred: t -> Bool, acc: Int) -> Int =
+    match step(it)
+      None() -> acc
+      Some(Yield(x, rest)) ->
         pickup
           pred(x) -> count_acc(rest, pred, acc + 1)
           else    -> count_acc(rest, pred, acc)
 
   ## `true` when at least one element satisfies `pred`. Stops at the
   ## first hit.
-  fn any(it: Atom -> Any, pred: T -> Bool) -> Bool =
-    match it(:step)
-      None()           -> false
-      Some(%[x, rest]) ->
+  fn any(it: Iter(t), pred: t -> Bool) -> Bool =
+    match step(it)
+      None() -> false
+      Some(Yield(x, rest)) ->
         pickup
           pred(x) -> true
           else    -> any(rest, pred)
 
   ## `true` when every element satisfies `pred` (vacuously true for
   ## the empty iterator). Stops at the first miss.
-  fn all(it: Atom -> Any, pred: T -> Bool) -> Bool =
-    match it(:step)
-      None()           -> true
-      Some(%[x, rest]) ->
+  fn all(it: Iter(t), pred: t -> Bool) -> Bool =
+    match step(it)
+      None() -> true
+      Some(Yield(x, rest)) ->
         pickup
           pred(x) -> all(rest, pred)
           else    -> false
 
   ## First element satisfying `pred`; returns `default` when nothing
   ## matches. Stops at the first hit.
-  fn find(it: Atom -> Any, pred: T -> Bool, default: T) -> T =
-    match it(:step)
-      None()           -> default
-      Some(%[x, rest]) ->
+  fn find(it: Iter(t), pred: t -> Bool, default: t) -> t =
+    match step(it)
+      None() -> default
+      Some(Yield(x, rest)) ->
         pickup
           pred(x) -> x
           else    -> find(rest, pred, default)

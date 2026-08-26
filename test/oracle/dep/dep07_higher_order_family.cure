@@ -1,0 +1,9 @@
+mod Dep07
+  type N = Z | S(N)
+  # `the2` takes an implicit type family {F : N -> Type} and a dependent function
+  # `g : (n:N) -> F(n)`. Applying `the2(fn(n) -> n, m)` must INFER F from the
+  # argument's type `(n:N) -> N`, i.e. solve `?F(n) =? N` under the pi binder —
+  # a higher-order (Miller) pattern: metavariable applied to a bound variable.
+  fn the2({F: (N) -> Type}, g: (n: N) -> F(n), m: N) -> F(m) = g(m)
+  fn test(m: N) -> N = the2(fn(n) -> n, m)
+end

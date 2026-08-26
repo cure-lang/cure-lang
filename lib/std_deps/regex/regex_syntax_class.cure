@@ -1,0 +1,106 @@
+## Parser helpers for character classes inside regex literals.
+@group(:text)
+mod Std.Regex.Syntax.Class
+  use Std.Regex.Syntax.Model
+
+  fn parse_literal_class(input: List(Char), origin: List(Char)) -> LiteralParse = match input
+    ['^' | rest] -> finish_literal_class(parse_literal_class_items_fuel(rest, [], [], no_class_kinds(), literal_fuel(input)), true, origin)
+    _ -> finish_literal_class(parse_literal_class_items_fuel(input, [], [], no_class_kinds(), literal_fuel(input)), false, origin)
+
+  fn finish_literal_class(result: LiteralClassParse, negated: Bool, origin: List(Char)) -> LiteralParse = match result
+    LiteralClassParsed(chars, ranges, kinds, rest) -> LiteralParsed(LiteralClass(reverse_chars(chars), reverse_ranges(ranges), kinds, negated), rest)
+    LiteralClassInvalid(reason) -> pickup
+      reason == :UnclosedRegexClass -> LiteralAtInvalid(reason, origin, literal_length(origin))
+      else -> LiteralInvalid(reason)
+    LiteralClassAtInvalid(reason, suffix, width) -> LiteralAtInvalid(reason, suffix, width)
+
+  fn parse_literal_class_items_fuel(input: List(Char), chars: List(Char), ranges: List(LiteralCharacterRange), kinds: LiteralClassKinds, fuel: Nat) -> LiteralClassParse = match fuel
+    Z() -> LiteralClassInvalid(:RegexParseLimit)
+    S(next_fuel) -> parse_literal_class_items_step(input, chars, ranges, kinds, next_fuel)
+
+  fn parse_literal_class_items_step(input: List(Char), chars: List(Char), ranges: List(LiteralCharacterRange), kinds: LiteralClassKinds, fuel: Nat) -> LiteralClassParse = match input
+    [] -> LiteralClassInvalid(:UnclosedRegexClass)
+    ['[', ':' | rest] -> match parse_literal_posix(rest)
+      LiteralPosixParsed(posix_class, negated, tail) -> parse_literal_class_items_fuel(tail, chars, ranges, enable_posix_class(posix_class, negated, kinds), fuel)
+      LiteralPosixInvalid(reason) -> LiteralClassAtInvalid(reason, ['[', ':' | rest], literal_delimited_width(['[', ':' | rest], ']'))
+    ['\\', 'd' | rest] -> parse_literal_class_items_fuel(rest, chars, ranges, enable_class_kind(DigitKind, kinds), fuel)
+    ['\\', 'D' | rest] -> parse_literal_class_items_fuel(rest, chars, ranges, enable_class_kind(NotDigitKind, kinds), fuel)
+    ['\\', 'w' | rest] -> parse_literal_class_items_fuel(rest, chars, ranges, enable_class_kind(WordKind, kinds), fuel)
+    ['\\', 'W' | rest] -> parse_literal_class_items_fuel(rest, chars, ranges, enable_class_kind(NotWordKind, kinds), fuel)
+    ['\\', 's' | rest] -> parse_literal_class_items_fuel(rest, chars, ranges, enable_class_kind(SpaceKind, kinds), fuel)
+    ['\\', 'S' | rest] -> parse_literal_class_items_fuel(rest, chars, ranges, enable_class_kind(NotSpaceKind, kinds), fuel)
+    ['\\', 'h' | rest] -> parse_literal_class_items_fuel(rest, chars, ranges, enable_class_kind(HorizontalKind, kinds), fuel)
+    ['\\', 'H' | rest] -> parse_literal_class_items_fuel(rest, chars, ranges, enable_class_kind(NotHorizontalKind, kinds), fuel)
+    ['\\', 'v' | rest] -> parse_literal_class_items_fuel(rest, chars, ranges, enable_class_kind(VerticalKind, kinds), fuel)
+    ['\\', 'V' | rest] -> parse_literal_class_items_fuel(rest, chars, ranges, enable_class_kind(NotVerticalKind, kinds), fuel)
+    ['\\', 'b' | rest] -> parse_literal_class_items_fuel(rest, ['\b' | chars], ranges, kinds, fuel)
+    ['\\', 'a' | rest] -> parse_literal_class_items_fuel(rest, ['\a' | chars], ranges, kinds, fuel)
+    ['\\', 'e' | rest] -> parse_literal_class_items_fuel(rest, ['\e' | chars], ranges, kinds, fuel)
+    ['\\', 'f' | rest] -> parse_literal_class_items_fuel(rest, ['\f' | chars], ranges, kinds, fuel)
+    ['\\', 'n' | rest] -> parse_literal_class_items_fuel(rest, ['\n' | chars], ranges, kinds, fuel)
+    ['\\', 'r' | rest] -> parse_literal_class_items_fuel(rest, ['\r' | chars], ranges, kinds, fuel)
+    ['\\', 't' | rest] -> parse_literal_class_items_fuel(rest, ['\t' | chars], ranges, kinds, fuel)
+    ['\\', 'x' | rest] -> match parse_literal_hex_scalar(rest)
+      LiteralScalarParsed(scalar, tail) -> parse_literal_class_character(scalar, tail, chars, ranges, kinds, fuel)
+      LiteralScalarInvalid(reason) -> LiteralClassAtInvalid(reason, ['\\', 'x' | rest], literal_scalar_escape_width(['\\', 'x' | rest]))
+    ['\\', 'p' | rest] -> match parse_literal_unicode_property(rest)
+      LiteralPropertyParsed(property, tail) -> parse_literal_class_items_fuel(tail, chars, ranges, enable_unicode_property(property, false, kinds), fuel)
+      LiteralPropertyInvalid(reason) -> LiteralClassAtInvalid(reason, ['\\', 'p' | rest], literal_property_escape_width(['\\', 'p' | rest]))
+    ['\\', 'P' | rest] -> match parse_literal_unicode_property(rest)
+      LiteralPropertyParsed(property, tail) -> parse_literal_class_items_fuel(tail, chars, ranges, enable_unicode_property(property, true, kinds), fuel)
+      LiteralPropertyInvalid(reason) -> LiteralClassAtInvalid(reason, ['\\', 'P' | rest], literal_property_escape_width(['\\', 'P' | rest]))
+    [first | rest] -> parse_literal_class_character(first, rest, chars, ranges, kinds, fuel)
+
+  fn parse_literal_class_character(first: Char, rest: List(Char), chars: List(Char), ranges: List(LiteralCharacterRange), kinds: LiteralClassKinds, fuel: Nat) -> LiteralClassParse = pickup
+    first == ']' -> LiteralClassParsed(chars, ranges, kinds, rest)
+    first == '\\' -> match rest
+      [] -> LiteralClassAtInvalid(:TrailingRegexClassEscape, [first], 1)
+      [escaped | tail] -> parse_literal_class_items_fuel(tail, [escaped | chars], ranges, kinds, fuel)
+    else -> parse_literal_class_range(first, rest, chars, ranges, kinds, fuel)
+
+  fn parse_literal_class_range(first: Char, rest: List(Char), chars: List(Char), ranges: List(LiteralCharacterRange), kinds: LiteralClassKinds, fuel: Nat) -> LiteralClassParse = match rest
+    [] -> parse_literal_class_items_fuel(empty_regex_input(), [first | chars], ranges, kinds, fuel)
+    [dash | after_dash] -> pickup
+      dash == '-' -> parse_literal_class_range_end(first, rest, after_dash, chars, ranges, kinds, fuel)
+      else -> parse_literal_class_items_fuel(rest, [first | chars], ranges, kinds, fuel)
+
+  fn parse_literal_class_range_end(first: Char, original_rest: List(Char), after_dash: List(Char), chars: List(Char), ranges: List(LiteralCharacterRange), kinds: LiteralClassKinds, fuel: Nat) -> LiteralClassParse = match after_dash
+    [] -> parse_literal_class_items_fuel(original_rest, [first | chars], ranges, kinds, fuel)
+    [last | tail] -> pickup
+      last == ']' -> LiteralClassParsed(prepend_literal_dash(first, chars), ranges, kinds, tail)
+      Std.Char.less_than(last, first) -> LiteralClassAtInvalid(:ReversedRegexRange, [first | original_rest], 3)
+      else -> parse_literal_class_items_fuel(tail, chars, [LiteralCharacterRange(first, last) | ranges], kinds, fuel)
+
+  fn parse_literal_posix(input: List(Char)) -> LiteralPosixParse = match input
+    ['^' | rest] -> parse_literal_posix_name(rest, true, [])
+    _ -> parse_literal_posix_name(input, false, [])
+
+  fn parse_literal_posix_name(input: List(Char), negated: Bool, reversed: List(Char)) -> LiteralPosixParse = match input
+    [] -> LiteralPosixInvalid(:UnclosedRegexPosixClass)
+    [':', ']' | rest] -> match reverse_chars(reversed)
+      [] -> LiteralPosixInvalid(:EmptyRegexPosixClass)
+      name -> match literal_posix_class(name)
+        Some(posix_class) -> LiteralPosixParsed(posix_class, negated, rest)
+        None() -> LiteralPosixInvalid(:UnknownRegexPosixClass)
+    [':' | _] -> LiteralPosixInvalid(:MalformedRegexPosixClass)
+    [char | rest] -> parse_literal_posix_name(rest, negated, [char | reversed])
+
+  fn literal_posix_class(name: List(Char)) -> Option(LiteralPosixClass) = match name
+    ['a', 'l', 'n', 'u', 'm'] -> Some(PosixAlnum)
+    ['a', 'l', 'p', 'h', 'a'] -> Some(PosixAlpha)
+    ['a', 's', 'c', 'i', 'i'] -> Some(PosixAscii)
+    ['b', 'l', 'a', 'n', 'k'] -> Some(PosixBlank)
+    ['c', 'n', 't', 'r', 'l'] -> Some(PosixCntrl)
+    ['d', 'i', 'g', 'i', 't'] -> Some(PosixDigit)
+    ['g', 'r', 'a', 'p', 'h'] -> Some(PosixGraph)
+    ['l', 'o', 'w', 'e', 'r'] -> Some(PosixLower)
+    ['p', 'r', 'i', 'n', 't'] -> Some(PosixPrint)
+    ['p', 'u', 'n', 'c', 't'] -> Some(PosixPunct)
+    ['s', 'p', 'a', 'c', 'e'] -> Some(PosixSpace)
+    ['u', 'p', 'p', 'e', 'r'] -> Some(PosixUpper)
+    ['w', 'o', 'r', 'd'] -> Some(PosixWord)
+    ['x', 'd', 'i', 'g', 'i', 't'] -> Some(PosixXdigit)
+    _ -> None()
+
+  fn prepend_literal_dash(first: Char, chars: List(Char)) -> List(Char) =
+    ['-' | [first | chars]]

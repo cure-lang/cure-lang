@@ -7,10 +7,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/am-kantox/cure-lang"
+    "url": "https://github.com/cure-lang/cure-lang"
   },
   "bugs": {
-    "url": "https://github.com/am-kantox/cure-lang/issues"
+    "url": "https://github.com/cure-lang/cure-lang/issues"
   },
   "homepage": "https://cure-lang.org",
   "engines": {

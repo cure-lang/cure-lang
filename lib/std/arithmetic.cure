@@ -1,0 +1,73 @@
+@group(:core)
+mod Std.Arithmetic
+  ## Arithmetic interfaces, split by operation rather than one monolithic
+  ## `Num` (spec §2.3): motivated by `Std.Measurements` (`Duration` has
+  ## `add`/`sub`/`scale` but no `Duration * Duration` — measurements.cure:84-90).
+  ##
+  ## `` `%` `` (remainder) is Int-specific and does NOT live on `Divisible` —
+  ## Float has no clean total modulo on AtomVM. It is pinned as an Int-only
+  ## method on its own `Integral(t)` interface; only `Int` conforms. Float
+  ## never implements `` `%` ``.
+  ##
+  ## ADDITIVE and DORMANT: operators (`+`, `-`, `*`, `/`, `%`) do NOT route
+  ## through these interfaces yet — `build_binop` still hardcodes the
+  ## primitive by operand kind. The methods are callable by their backtick
+  ## operator name (e.g. `` `+`(2, 3) ``). Operator dispatch rewiring is a
+  ## later task.
+
+  ## Types supporting addition, subtraction, and negation.
+  interface Additive(t)
+    ## `a + b`.
+    fn `+`(a: t, b: t) -> t
+    ## `a - b`.
+    fn `-`(a: t, b: t) -> t
+    ## `-a`.
+    fn negate(a: t) -> t
+
+  ## Types supporting multiplication.
+  interface Multiplicative(t)
+    ## `a * b`.
+    fn `*`(a: t, b: t) -> t
+
+  ## Types supporting division.
+  interface Divisible(t)
+    ## `a / b`.
+    fn `/`(a: t, b: t) -> t
+
+  ## Types supporting integer remainder. Int-only — Float has no clean total
+  ## modulo on AtomVM.
+  interface Integral(t)
+    ## `a % b`.
+    fn `%`(a: t, b: t) -> t
+
+  ## `Additive` impl for `Int`.
+  implementation Additive for Int
+    fn `+`(a: Int, b: Int) -> Int = Std.Builtin.int_add(a, b)
+    fn `-`(a: Int, b: Int) -> Int = Std.Builtin.int_sub(a, b)
+    fn negate(a: Int) -> Int = Std.Builtin.int_neg(a)
+
+  ## `Multiplicative` impl for `Int`.
+  implementation Multiplicative for Int
+    fn `*`(a: Int, b: Int) -> Int = Std.Builtin.int_mul(a, b)
+
+  ## `Divisible` impl for `Int`.
+  implementation Divisible for Int
+    fn `/`(a: Int, b: Int) -> Int = Std.Builtin.int_div(a, b)
+
+  ## `Integral` impl for `Int`.
+  implementation Integral for Int
+    fn `%`(a: Int, b: Int) -> Int = Std.Builtin.int_rem(a, b)
+
+  ## `Additive` impl for `Float`.
+  implementation Additive for Float
+    fn `+`(a: Float, b: Float) -> Float = Std.Builtin.float_add(a, b)
+    fn `-`(a: Float, b: Float) -> Float = Std.Builtin.float_sub(a, b)
+    fn negate(a: Float) -> Float = Std.Builtin.float_neg(a)
+
+  ## `Multiplicative` impl for `Float`.
+  implementation Multiplicative for Float
+    fn `*`(a: Float, b: Float) -> Float = Std.Builtin.float_mul(a, b)
+
+  ## `Divisible` impl for `Float`.
+  implementation Divisible for Float
+    fn `/`(a: Float, b: Float) -> Float = Std.Builtin.float_div(a, b)

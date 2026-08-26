@@ -1,0 +1,13 @@
+mod Im04
+  type Nat = Zero | Suc(Nat)
+  type Vector(a: Type) indices (n: Nat)
+    empty : Vector(a, Zero)
+    prepend : a -> Vector(a, n) -> Vector(a, Suc(n))
+  fn foo(m: Nat, v: Vector(Nat, m)) -> Nat =
+    let b = match v
+      prepend(x, rest) -> rest
+      empty() -> empty()
+    match b
+      empty() -> Zero()
+      prepend(y, ys) -> Zero()
+end

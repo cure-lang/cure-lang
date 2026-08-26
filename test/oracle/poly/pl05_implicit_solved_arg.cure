@@ -1,0 +1,8 @@
+mod Pl05
+  type Nat = Zero | Suc(Nat)
+  type MyList(a) = LNil | LCons(a, MyList(a))
+  fn firstOr({a}, d: a, l: MyList(a)) -> a = match l
+    LCons(x, xs) -> x
+    LNil() -> d
+  fn g() -> Nat = firstOr(Zero(), LCons(Suc(Zero()), LNil()))
+end

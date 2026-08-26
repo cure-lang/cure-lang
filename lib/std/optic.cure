@@ -1,0 +1,444 @@
+@group(:collections)
+mod Std.Optic
+  ## Statically-typed optics: lenses, affine traversals, and traversals.
+  ##
+  ## An optic is a first-class, composable "path" into a data structure. Unlike the
+  ## deleted `Std.Access` — which leaned on `believe_me` and runtime `is_map`/
+  ## `is_tuple` dispatch over an opaque `Any` — every optic here is checked by the
+  ## dependent kernel. The kind of an optic (how many foci it has, whether focusing
+  ## can fail) is a STATIC index `k : OpticKind`, so `view` on a lens is total,
+  ## `preview` on an affine returns `Option`, and a traversal rebuilds a structure
+  ## from EXACTLY the foci it produced (a length-indexed `Vector`, so the rebuild
+  ## can never be given the wrong number of elements).
+  ##
+  ## The representation is a single GADT family `Optic(s, a, k)` — one constructor
+  ## per kind, each carrying an extraction function `s -> <focus bundle>` (the focus
+  ## value(s) plus a total rebuilder back to `s`). Because the kind is a constructor
+  ## index, a `match` on an optic refines `k`, so the eliminators below are written
+  ## once, kind-polymorphically, and stay total at each kind. (The extraction
+  ## functions are wrapped in per-kind newtypes because an arrow type does not parse
+  ## directly in a GADT `indices`-form constructor field, only in an inline one.)
+
+  use Std.Nat
+  use Std.Vector
+  use Std.Sigma
+  use Std.Option
+  use Std.List
+  use Std.Dynamic
+
+  # ---- kinds --------------------------------------------------------------
+
+  ## The kind of an optic, used as a static index. `LensKind` focuses exactly one
+  ## value; `AffineKind` focuses zero-or-one; `TraversalKind` focuses any number.
+  type OpticKind = LensKind | AffineKind | TraversalKind
+
+  ## The least-upper-bound of two kinds under composition: composing optics of
+  ## kinds `k1` and `k2` yields an optic of kind `join(k1, k2)`. A lens composed
+  ## with a lens stays a lens; anything touching a traversal becomes a traversal;
+  ## anything touching an affine (but no traversal) becomes an affine.
+  fn join(k1: OpticKind, k2: OpticKind) -> OpticKind = match k1
+    LensKind -> k2
+    AffineKind -> match k2
+      TraversalKind -> TraversalKind
+      other -> AffineKind
+    TraversalKind -> TraversalKind
+
+  # ---- focus bundles (post-extraction) ------------------------------------
+
+  ## A lens focus bundle: the focus value `a`, and a total rebuilder `a -> s` that
+  ## puts a (possibly new) focus back into the original structure.
+  type LensRep(a: Type, s: Type) = MkLensRep(a, (a) -> s)
+
+  ## An affine focus bundle: a lens bundle if the focus is present, else nothing
+  ## (the structure has no focus, e.g. the missing key of a map).
+  type AffineRep(a: Type, s: Type) = MkAffineRep(Option(LensRep(a, s)))
+
+  ## A traversal focus bundle: existentially, SOME count `n`, a `Vector` of exactly
+  ## `n` foci, and a rebuilder that consumes exactly `n` replacements to rebuild the
+  ## structure. The length index is what makes the rebuild total — it can only be
+  ## applied to a vector of the same length it produced.
+  # NOTE the parentheses around the rebuilder's domain `(Vector(a, n))`: a bare
+  # `Vector(a, n) -> s` is mis-parsed as `Function(a, n, s)` (the parser splices the
+  # type application's arguments into the arrow's domain list), and `n : Nat` is not
+  # a type, so it fails as `:not_a_type`. Parenthesising the domain keeps it one type.
+  type TravRep(a: Type, s: Type) =
+    MkTravRep(Sigma(n: Nat, Sigma(v: Vector(a, n), (Vector(a, n)) -> s)))
+
+  # ---- extraction newtypes (hide the arrow from the GADT field) -----------
+
+  ## `s -> LensRep(a, s)`, wrapped. The wrap is only to keep an arrow out of the
+  ## GADT constructor field below (arrows parse in an inline ctor field, not a
+  ## GADT `indices`-form one); `MkLensExt`/`f` peel it back in one step.
+  type LensExt(s: Type, a: Type) = MkLensExt((s) -> LensRep(a, s))
+  type AffineExt(s: Type, a: Type) = MkAffineExt((s) -> AffineRep(a, s))
+  type TravExt(s: Type, a: Type) = MkTravExt((s) -> TravRep(a, s))
+
+  # ---- the optic family ---------------------------------------------------
+
+  ## `Optic(s, a, k)` is the optic type for kind `k` over structure `s` with focus
+  ## `a`. It is a single GADT indexed by the kind, with one constructor per kind;
+  ## matching an optic value therefore refines `k`, which is what lets the
+  ## eliminators dispatch on the kind while staying precisely typed at each one.
+  type Optic(s: Type, a: Type) indices (k: OpticKind)
+    MkLensO : LensExt(s, a) -> Optic(s, a, LensKind)
+    MkAffineO : AffineExt(s, a) -> Optic(s, a, AffineKind)
+    MkTravO : TravExt(s, a) -> Optic(s, a, TraversalKind)
+
+  ## `Lens(s, a)` — an optic focusing exactly one `a` inside `s`.
+  fn Lens(s: Type, a: Type) -> Type = Optic(s, a, LensKind)
+
+  ## `Affine(s, a)` — an optic focusing zero-or-one `a` inside `s`.
+  fn Affine(s: Type, a: Type) -> Type = Optic(s, a, AffineKind)
+
+  ## `Traversal(s, a)` — an optic focusing any number of `a`s inside `s`.
+  fn Traversal(s: Type, a: Type) -> Type = Optic(s, a, TraversalKind)
+
+  # ---- lens: constructor --------------------------------------------------
+
+  ## Build a lens from a getter and a setter. `get(x)` reads the focus; `put(y)(x)`
+  ## writes `y` as the new focus of `x`.
+  fn lens({s: Type}, {a: Type}, get: (s) -> a, put: (a) -> (s) -> s) -> Optic(s, a, LensKind) =
+    MkLensO(MkLensExt(fn(x) -> MkLensRep(get(x), fn(y) -> put(y)(x))))
+
+  # ---- eliminators (each total at its kind, dispatching on the static k) --
+
+  ## Read the focus of a lens. Total: a lens always has exactly one focus — this is
+  ## the concrete win over an `Access`-style getter that returns `nil`/`Option`.
+  fn view({s: Type}, {a: Type}, o: Optic(s, a, LensKind), x: s) -> a =
+    match o
+      MkLensO(le) -> match le
+        MkLensExt(f) -> match f(x)
+          MkLensRep(focus, rebuild) -> focus
+
+  ## The first focus of any optic, or `None` if it has none. Total at every kind.
+  fn preview({s: Type}, {a: Type}, {k: OpticKind}, o: Optic(s, a, k), x: s) -> Option(a) =
+    match o
+      MkLensO(le) -> match le
+        MkLensExt(f) -> match f(x)
+          MkLensRep(focus, rebuild) -> Some(focus)
+      MkAffineO(ae) -> match ae
+        MkAffineExt(f) -> match f(x)
+          MkAffineRep(opt) -> match opt
+            Some(lr) -> match lr
+              MkLensRep(focus, rebuild) -> Some(focus)
+            None() -> None()
+      MkTravO(te) -> match te
+        MkTravExt(f) -> match f(x)
+          MkTravRep(sig) -> match sig
+            mk_pair(n, rest) -> match rest
+              mk_pair(v, rebuild) -> match v
+                empty() -> None()
+                prepend(h, tl) -> Some(h)
+
+  ## Transform every focus of an optic by applying `g`, rebuilding the structure.
+  fn over({s: Type}, {a: Type}, {k: OpticKind}, o: Optic(s, a, k), g: (a) -> a, x: s) -> s =
+    match o
+      MkLensO(le) -> match le
+        MkLensExt(f) -> match f(x)
+          MkLensRep(focus, rebuild) -> rebuild(g(focus))
+      MkAffineO(ae) -> match ae
+        MkAffineExt(f) -> match f(x)
+          MkAffineRep(opt) -> match opt
+            Some(lr) -> match lr
+              MkLensRep(focus, rebuild) -> rebuild(g(focus))
+            None() -> x
+      MkTravO(te) -> match te
+        MkTravExt(f) -> match f(x)
+          MkTravRep(sig) -> match sig
+            mk_pair(n, rest) -> match rest
+              mk_pair(v, rebuild) -> rebuild(Std.Vector.map(v, g))
+
+  ## Replace every focus of an optic with `new`. `over` with a constant transform:
+  ## the inline `fn(ignored) -> new` ignores the old focus. (Its `(a) -> a` domain
+  ## is fixed by the later `x` argument, so it elaborates in checking mode.)
+  fn set({s: Type}, {a: Type}, {k: OpticKind}, o: Optic(s, a, k), new: a, x: s) -> s =
+    over(o, fn(ignored) -> new, x)
+
+  # ---- affine: constructor ------------------------------------------------
+
+  ## The extraction behind `affine`, factored out of the constructor lambda so its
+  ## `match` body is an ordinary function (a `match` directly inside the stored
+  ## lambda does not lower). `pre(x)` decides whether the focus is present; when it
+  ## is, the setter `fn(new) -> put(new)(x)` is closed over `x` exactly as `lens`
+  ## closes over its structure.
+  fn affine_ext({s: Type}, {a: Type}, pre: (s) -> Option(a), put: (a) -> (s) -> s, x: s) -> AffineRep(a, s) =
+    match pre(x)
+      Some(v) -> MkAffineRep(Some(MkLensRep(v, fn(new) -> put(new)(x))))
+      None() -> MkAffineRep(None())
+
+  ## Build an affine (zero-or-one focus) from a partial getter `pre : s -> Option(a)`
+  ## and a setter `put : a -> s -> s`. When `pre(x)` is `None`, `over`/`set` leave the
+  ## structure untouched and `preview` yields `None`; this is the total, statically-
+  ## kinded replacement for an `Access`-style "maybe this key exists" path.
+  fn affine({s: Type}, {a: Type}, pre: (s) -> Option(a), put: (a) -> (s) -> s) -> Optic(s, a, AffineKind) =
+    MkAffineO(MkAffineExt(fn(x) -> affine_ext(pre, put, x)))
+
+  # ---- to_list_of: collect every focus ------------------------------------
+
+  ## Every focus of an optic, in order, as an ordinary `List`. Total at every kind:
+  ## a lens yields a one-element list, an affine zero-or-one, a traversal the whole
+  ## `Vector` of foci flattened to a list. The kind-polymorphic counterpart to
+  ## `preview` (which keeps only the first).
+  fn to_list_of({s: Type}, {a: Type}, {k: OpticKind}, o: Optic(s, a, k), x: s) -> List(a) =
+    match o
+      MkLensO(le) -> match le
+        MkLensExt(f) -> match f(x)
+          MkLensRep(focus, rebuild) -> [focus]
+      MkAffineO(ae) -> match ae
+        MkAffineExt(f) -> match f(x)
+          MkAffineRep(opt) -> match opt
+            Some(lr) -> match lr
+              MkLensRep(focus, rebuild) -> [focus]
+            None() -> []
+      MkTravO(te) -> match te
+        MkTravExt(f) -> match f(x)
+          MkTravRep(sig) -> match sig
+            mk_pair(n, rest) -> match rest
+              mk_pair(v, rebuild) -> Std.Vector.to_list(v)
+
+  # ---- composition --------------------------------------------------------
+
+  ## The extraction behind `compose_lens`, factored out of the constructor lambda
+  ## (a `match` directly inside the stored lambda does not lower, exactly as in
+  ## `affine_ext`). Reads the outer lens at `x` to get focus `fa : a` and rebuilder
+  ## `ra : a -> s`, then the inner lens at `fa` to get `fb : b` and `rb : b -> a`;
+  ## the composed rebuilder threads a new `b` back through both, `ra(rb(new))`.
+  fn compose_lens_ext({s: Type}, {a: Type}, {b: Type}, o1: Optic(s, a, LensKind), o2: Optic(a, b, LensKind), x: s) -> LensRep(b, s) =
+    match o1
+      MkLensO(le1) -> match le1
+        MkLensExt(f1) -> match f1(x)
+          MkLensRep(fa, ra) -> match o2
+            MkLensO(le2) -> match le2
+              MkLensExt(f2) -> match f2(fa)
+                MkLensRep(fb, rb) -> MkLensRep(fb, fn(new) -> ra(rb(new)))
+
+  ## Compose two lenses into a lens focusing `b` inside `s` through the intermediate
+  ## `a`. `view` reads through both; `set`/`over` rebuild through both. Composing a
+  ## lens with a lens keeps a lens (`join(LensKind, LensKind) = LensKind`), so the
+  ## result is again total — the composability that makes optics worth the GADT.
+  fn compose_lens({s: Type}, {a: Type}, {b: Type}, o1: Optic(s, a, LensKind), o2: Optic(a, b, LensKind)) -> Optic(s, b, LensKind) =
+    MkLensO(MkLensExt(fn(x) -> compose_lens_ext(o1, o2, x)))
+
+  ## The extraction behind `compose_affine`. The focus is present only if BOTH the
+  ## outer affine finds an `a` in `x` AND the inner affine finds a `b` in that `a`;
+  ## any `None` short-circuits to `None`. When both hit, the rebuilder threads a new
+  ## `b` back through both, `ra(rb(new))`, exactly as the lens case.
+  fn compose_affine_ext({s: Type}, {a: Type}, {b: Type}, o1: Optic(s, a, AffineKind), o2: Optic(a, b, AffineKind), x: s) -> AffineRep(b, s) =
+    match o1
+      MkAffineO(ae1) -> match ae1
+        MkAffineExt(f1) -> match f1(x)
+          MkAffineRep(opt1) -> match opt1
+            Some(lr1) -> match lr1
+              MkLensRep(fa, ra) -> match o2
+                MkAffineO(ae2) -> match ae2
+                  MkAffineExt(f2) -> match f2(fa)
+                    MkAffineRep(opt2) -> match opt2
+                      Some(lr2) -> match lr2
+                        MkLensRep(fb, rb) -> MkAffineRep(Some(MkLensRep(fb, fn(new) -> ra(rb(new)))))
+                      None() -> MkAffineRep(None())
+            None() -> MkAffineRep(None())
+
+  ## Compose two affines. `join(AffineKind, AffineKind) = AffineKind`, so the result
+  ## is again an affine: it focuses `b` inside `s` when both partial steps succeed,
+  ## and `preview`/`set` treat a miss at either step as "no focus" (leaving `s`
+  ## untouched under `set`). The zero-or-one analogue of `compose_lens`.
+  fn compose_affine({s: Type}, {a: Type}, {b: Type}, o1: Optic(s, a, AffineKind), o2: Optic(a, b, AffineKind)) -> Optic(s, b, AffineKind) =
+    MkAffineO(MkAffineExt(fn(x) -> compose_affine_ext(o1, o2, x)))
+
+  ## The recursion behind `compose_trav`. Walks the outer traversal's focus vector
+  ## `va : Vector(a, n)` and, for each focus, runs the inner traversal `o2` to get a
+  ## `Vector(b, m_i)` of sub-foci plus a rebuilder `Vector(b, m_i) -> a`. It returns,
+  ## existentially, the CONCATENATION of every sub-vector (total length `t`) together
+  ## with a single rebuilder `Vector(b, t) -> Vector(a, n)` that splits a length-`t`
+  ## vector back into the per-focus chunks. The split is where `Vector.take`/`drop`
+  ## earn their keep: at each step the combined length is `plus(m, t2)`, `take(m, w)`
+  ## peels the current focus's `m` replacements and `drop(m, w)` leaves the rest —
+  ## both total precisely because the length index is tracked through the `plus`.
+  fn compose_trav_gather({a: Type}, {b: Type}, {n: Nat}, o2: Optic(a, b, TraversalKind), va: Vector(a, n)) -> Sigma(t: Nat, Sigma(vv: Vector(b, t), (Vector(b, t)) -> Vector(a, n))) =
+    match va
+      empty() -> %[Z(), %[empty(), fn(w) -> empty()]]
+      prepend(hd, tl) ->
+        match o2
+          MkTravO(te) -> match te
+            MkTravExt(f) -> match f(hd)
+              MkTravRep(sig) -> match sig
+                mk_pair(m, rest) -> match rest
+                  mk_pair(vb, rb) ->
+                    match compose_trav_gather(o2, tl)
+                      mk_pair(t2, rest2) -> match rest2
+                        mk_pair(vrest, rebrest) ->
+                          %[plus(m, t2), %[Std.Vector.append(vb, vrest), fn(w) -> prepend(rb(Std.Vector.take(m, w)), rebrest(Std.Vector.drop(m, w)))]]
+
+  ## The extraction behind `compose_trav`, factored out of the constructor lambda
+  ## (a `match` inside a stored lambda does not lower — same reason as `affine_ext`).
+  ## Reads the outer traversal at `x` for its focus vector `va` and structure
+  ## rebuilder `rebuild_s`, gathers all inner sub-foci with `compose_trav_gather`, and
+  ## chains the two rebuilders: `rebuild_s` after the gather's `Vector(b, t) ->
+  ## Vector(a, n)`, so a length-`t` replacement vector rebuilds all the way back to `s`.
+  fn compose_trav_ext({s: Type}, {a: Type}, {b: Type}, o1: Optic(s, a, TraversalKind), o2: Optic(a, b, TraversalKind), x: s) -> TravRep(b, s) =
+    match o1
+      MkTravO(te1) -> match te1
+        MkTravExt(f1) -> match f1(x)
+          MkTravRep(sig1) -> match sig1
+            mk_pair(n, rest1) -> match rest1
+              mk_pair(va, rebuild_s) ->
+                match compose_trav_gather(o2, va)
+                  mk_pair(t, rest2) -> match rest2
+                    mk_pair(vb, rebuild_va) ->
+                      MkTravRep(%[t, %[vb, fn(w) -> rebuild_s(rebuild_va(w))]])
+
+  ## Compose two traversals into a traversal focusing every `b` reachable through
+  ## every `a`. `join(TraversalKind, TraversalKind) = TraversalKind`, so the result
+  ## is again a traversal; `to_list_of` on it flattens the full nested collection and
+  ## `over`/`set` rebuild the whole structure from exactly the foci produced.
+  fn compose_trav({s: Type}, {a: Type}, {b: Type}, o1: Optic(s, a, TraversalKind), o2: Optic(a, b, TraversalKind)) -> Optic(s, b, TraversalKind) =
+    MkTravO(MkTravExt(fn(x) -> compose_trav_ext(o1, o2, x)))
+
+  # ---- kind coercions (widen an optic to a laxer kind) --------------------
+
+  ## A lens is an affine that always focuses: wrap its single focus bundle in
+  ## `Some`. Needed so `compose` can put a lens where an affine step is expected
+  ## (`join(LensKind, AffineKind) = AffineKind`).
+  fn lens_to_affine({s: Type}, {a: Type}, o: Optic(s, a, LensKind)) -> Optic(s, a, AffineKind) =
+    match o
+      MkLensO(le) -> match le
+        MkLensExt(f) -> MkAffineO(MkAffineExt(fn(x) -> MkAffineRep(Some(f(x)))))
+
+  ## The extraction behind `affine_to_trav` (factored out for the same `match`-in-a-
+  ## stored-lambda reason as `affine_ext`). A present focus becomes a one-element
+  ## traversal (`Vector(a, S(Z))`, rebuilt from the single head); an absent focus
+  ## becomes the empty traversal (`Vector(a, Z)`, rebuilding to the untouched `x`).
+  fn affine_to_trav_ext({s: Type}, {a: Type}, ar: AffineRep(a, s), x: s) -> TravRep(a, s) =
+    match ar
+      MkAffineRep(opt) -> match opt
+        Some(lr) -> match lr
+          MkLensRep(focus, rebuild) ->
+            MkTravRep(%[S(Z()), %[prepend(focus, empty()), fn(w) -> rebuild(Std.Vector.head(w))]])
+        None() -> MkTravRep(%[Z(), %[empty(), fn(w) -> x]])
+
+  ## An affine is a traversal focusing zero-or-one element. Needed so `compose` can
+  ## put an affine where a traversal step is expected (`join(AffineKind,
+  ## TraversalKind) = TraversalKind`).
+  fn affine_to_trav({s: Type}, {a: Type}, o: Optic(s, a, AffineKind)) -> Optic(s, a, TraversalKind) =
+    match o
+      MkAffineO(ae) -> match ae
+        MkAffineExt(g) -> MkTravO(MkTravExt(fn(x) -> affine_to_trav_ext(g(x), x)))
+
+  ## A lens is a one-element traversal — widen through the affine coercion.
+  fn lens_to_trav({s: Type}, {a: Type}, o: Optic(s, a, LensKind)) -> Optic(s, a, TraversalKind) =
+    affine_to_trav(lens_to_affine(o))
+
+  # ---- the fully kind-polymorphic composition -----------------------------
+
+  ## Compose any two optics: `Optic(s, a, k1)` after `Optic(a, b, k2)` yields an
+  ## `Optic(s, b, join(k1, k2))`. Matching both optics refines `k1` and `k2` in the
+  ## result motive, so `join(k1, k2)` reduces to a concrete kind in every one of the
+  ## nine branches; each branch widens the laxer-kinded side with a coercion (so both
+  ## sides meet at `join(k1, k2)`) and delegates to the same-kind composer. This is
+  ## the one entry point a caller needs — `compose_lens`/`compose_affine`/
+  ## `compose_trav` are the specialised cores it dispatches to.
+  fn compose({s: Type}, {a: Type}, {b: Type}, {k1: OpticKind}, {k2: OpticKind}, o1: Optic(s, a, k1), o2: Optic(a, b, k2)) -> Optic(s, b, join(k1, k2)) =
+    match o1
+      MkLensO(le1) -> match o2
+        MkLensO(le2) -> compose_lens(MkLensO(le1), MkLensO(le2))
+        MkAffineO(ae2) -> compose_affine(lens_to_affine(MkLensO(le1)), MkAffineO(ae2))
+        MkTravO(te2) -> compose_trav(lens_to_trav(MkLensO(le1)), MkTravO(te2))
+      MkAffineO(ae1) -> match o2
+        MkLensO(le2) -> compose_affine(MkAffineO(ae1), lens_to_affine(MkLensO(le2)))
+        MkAffineO(ae2) -> compose_affine(MkAffineO(ae1), MkAffineO(ae2))
+        MkTravO(te2) -> compose_trav(affine_to_trav(MkAffineO(ae1)), MkTravO(te2))
+      MkTravO(te1) -> match o2
+        MkLensO(le2) -> compose_trav(MkTravO(te1), lens_to_trav(MkLensO(le2)))
+        MkAffineO(ae2) -> compose_trav(MkTravO(te1), affine_to_trav(MkAffineO(ae2)))
+        MkTravO(te2) -> compose_trav(MkTravO(te1), MkTravO(te2))
+
+  # ---- List index affine --------------------------------------------------
+
+  ## Focus the element at index `i` of a `List(a)`. A bare `List` carries no
+  ## length, so the index genuinely may miss — `ix(i)` is an AFFINE, not a lens:
+  ## `preview` yields `Some(elem)` in range and `None` out of range or on `[]`,
+  ## and `set`/`over` replace in place when the index exists and are a NO-OP
+  ## otherwise (the affine miss-is-a-no-op law). Totality is available by choosing
+  ## a length-indexed container instead — a `Vector(a, n)` with a `Bounded(n)`
+  ## index is a total lens; the container is the totality declaration.
+  ##
+  ## The getter and putter are the total `Std.List.at`/`set_at`; both are ordinary
+  ## calls (not a `match`), so they inline as the affine's stored lambdas.
+  fn ix({a: Type}, i: Int) -> Optic(List(a), a, AffineKind) =
+    affine(fn(xs) -> Std.List.at(xs, i), fn(v) -> fn(xs) -> Std.List.set_at(xs, i, v))
+
+  # ---- Std.Dynamic case affines -------------------------------------------
+
+  ## One `Affine(Dynamic, T)` per constructor of `Std.Dynamic`'s typed-`Any` sum.
+  ## Narrowing a `Dynamic` to a concrete leaf is an AFFINE (it may miss), never a
+  ## cast: `preview` yields `Some` only when the tag matches, and `set`/`over`
+  ## rebuild a same-tagged `Dynamic`, leaving a mis-tagged value untouched. Each is
+  ## built from a partial getter (a `match` returning `Some`/`None`) and a setter
+  ## that re-injects through the matching constructor. This is the statically-
+  ## kinded replacement for a runtime `is_integer`/`is_map` guess over an `Any`.
+  ##
+  ## The getters are factored out because a `match` does not lower as the direct
+  ## body of the lambda `affine` stores; the setters are constant re-injections
+  ## (they ignore the old, already-narrowed structure) and inline cleanly.
+
+  fn dyn_atom_pre(d: Dynamic) -> Option(Atom) = match d
+    Atom(a) -> Some(a)
+    other -> None()
+  fn dyn_atom() -> Optic(Dynamic, Atom, AffineKind) =
+    affine(dyn_atom_pre, fn(v) -> fn(x) -> Atom(v))
+
+  fn dyn_int_pre(d: Dynamic) -> Option(Int) = match d
+    Int(n) -> Some(n)
+    other -> None()
+  fn dyn_int() -> Optic(Dynamic, Int, AffineKind) =
+    affine(dyn_int_pre, fn(v) -> fn(x) -> Int(v))
+
+  fn dyn_float_pre(d: Dynamic) -> Option(Float) = match d
+    Float(x) -> Some(x)
+    other -> None()
+  fn dyn_float() -> Optic(Dynamic, Float, AffineKind) =
+    affine(dyn_float_pre, fn(v) -> fn(x) -> Float(v))
+
+  fn dyn_str_pre(d: Dynamic) -> Option(String) = match d
+    Str(s) -> Some(s)
+    other -> None()
+  fn dyn_str() -> Optic(Dynamic, String, AffineKind) =
+    affine(dyn_str_pre, fn(v) -> fn(x) -> Str(v))
+
+  fn dyn_list_pre(d: Dynamic) -> Option(List(Dynamic)) = match d
+    List(xs) -> Some(xs)
+    other -> None()
+  fn dyn_list() -> Optic(Dynamic, List(Dynamic), AffineKind) =
+    affine(dyn_list_pre, fn(v) -> fn(x) -> List(v))
+
+  fn dyn_tuple_pre(d: Dynamic) -> Option(List(Dynamic)) = match d
+    Tuple(xs) -> Some(xs)
+    other -> None()
+  fn dyn_tuple() -> Optic(Dynamic, List(Dynamic), AffineKind) =
+    affine(dyn_tuple_pre, fn(v) -> fn(x) -> Tuple(v))
+
+  fn dyn_map_pre(d: Dynamic) -> Option(List(DynamicEntry)) = match d
+    Map(es) -> Some(es)
+    other -> None()
+  fn dyn_map() -> Optic(Dynamic, List(DynamicEntry), AffineKind) =
+    affine(dyn_map_pre, fn(v) -> fn(x) -> Map(v))
+
+  ## Common tuple lenses exposed through the `lens` syntax macro. The macro is
+  ## only surface sugar; these are ordinary typed Std.Optic functions.
+  fn first_get_int(x: Tuple(Int, Int)) -> Int = x.1
+  fn first_put_int(y: Int) -> (Tuple(Int, Int)) -> Tuple(Int, Int) = fn(x) -> %[y, x.2]
+  fn second_get_int(x: Tuple(Int, Int)) -> Int = x.2
+  fn second_put_int(y: Int) -> (Tuple(Int, Int)) -> Tuple(Int, Int) = fn(x) -> %[x.1, y]
+
+  fn first_lens() -> Optic(Tuple(Int, Int), Int, LensKind) =
+    lens(first_get_int, first_put_int)
+
+  fn second_lens() -> Optic(Tuple(Int, Int), Int, LensKind) =
+    lens(second_get_int, second_put_int)
+
+  macro TupleLenses
+    syntax lens first becomes __optic_lens_first()
+      example lens first expands first_lens()
+    syntax lens second becomes __optic_lens_second()
+      example lens second expands second_lens()
+end

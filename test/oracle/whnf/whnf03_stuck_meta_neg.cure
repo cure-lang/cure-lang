@@ -1,0 +1,11 @@
+mod Whnf03
+  type Nat = Z | S(Nat)
+  fn plus(a: Nat, b: Nat) -> Nat = match a
+    Z() -> b
+    S(k) -> S(plus(k, b))
+  type Vec indices (n: Nat)
+    vz : Vec(Z)
+    vs : Vec(k) -> Vec(S(k))
+  fn stuck({m: Nat}, v: Vec(plus(m, Z)), r: Nat) -> Nat = r
+  fn use() -> Nat = stuck(vs(vz()), Z())
+end

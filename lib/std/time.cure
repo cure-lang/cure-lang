@@ -1,46 +1,48 @@
+## Time primitives for Cure (v0.27.0).
+##
+## `Instant` is a point in time represented as Unix microseconds since
+## the epoch (1970-01-01T00:00:00Z). `Duration` is a signed length in
+## microseconds; both types are closed records over a single `micros`
+## field so arithmetic on time values stays monomorphic.
+##
+## The ISO 8601 helpers accept the canonical `YYYY-MM-DDTHH:MM:SS`
+## form with optional fractional seconds and trailing `Z` or `+HH:MM`
+## offset; any other shape yields `Error(InvalidFormat(_))`.
+##
+## All functions are pure from Cure's point of view: the `now/0` and
+## `utc_now/0` wall-clock readers carry the `Io` effect so callers
+## are forced to declare it.
+##
+## Runtime companion: `:cure_std_time` (see
+## `lib/cure/stdlib/cure_std_time.ex`). Every external call here
+## maps directly to a one-line wrapper in that module, so the
+## surface remains small and auditable.
+##
+## ## Examples
+##
+## ```cure
+## use Std.Time
+##
+## let origin = of_unix(0)
+## format_iso8601(origin)                   # => "1970-01-01T00:00:00Z"
+## add(origin, seconds(60))                 # one minute after the epoch
+## ```
+##
+## ```cure
+## use Std.Time
+##
+## match parse_iso8601("2024-05-01T12:00:00Z")
+##   Ok(i)    -> to_unix(i)                 # => 1714564800
+##   Error(_) -> 0
+## ```
+
+# Group tag consumed by `Cure.Stdlib.Preload`.
+## A point in time, stored as Unix epoch microseconds.
+
+@group(:system)
 mod Std.Time
-  ## Time primitives for Cure (v0.27.0).
-  ##
-  ## `Instant` is a point in time represented as Unix microseconds since
-  ## the epoch (1970-01-01T00:00:00Z). `Duration` is a signed length in
-  ## microseconds; both types are closed records over a single `micros`
-  ## field so arithmetic on time values stays monomorphic.
-  ##
-  ## The ISO 8601 helpers accept the canonical `YYYY-MM-DDTHH:MM:SS`
-  ## form with optional fractional seconds and trailing `Z` or `+HH:MM`
-  ## offset; any other shape yields `Error(InvalidFormat(_))`.
-  ##
-  ## All functions are pure from Cure's point of view: the `now/0` and
-  ## `utc_now/0` wall-clock readers carry the `Io` effect so callers
-  ## are forced to declare it.
-  ##
-  ## Runtime companion: `:cure_std_time` (see
-  ## `lib/cure/stdlib/cure_std_time.ex`). Every external call here
-  ## maps directly to a one-line wrapper in that module, so the
-  ## surface remains small and auditable.
-  ##
-  ## ## Examples
-  ##
-  ## ```cure
-  ## use Std.Time
-  ##
-  ## let origin = of_unix(0)
-  ## format_iso8601(origin)                   # => "1970-01-01T00:00:00Z"
-  ## add(origin, seconds(60))                 # one minute after the epoch
-  ## ```
-  ##
-  ## ```cure
-  ## use Std.Time
-  ##
-  ## match parse_iso8601("2024-05-01T12:00:00Z")
-  ##   Ok(i)    -> to_unix(i)                 # => 1714564800
-  ##   Error(_) -> 0
-  ## ```
-
-  ## Group tag consumed by `Cure.Stdlib.Preload`.
-  fn __group__() -> Atom = :system
-
-  ## A point in time, stored as Unix epoch microseconds.
+  use Std.Result
+  use Std.String
   rec Instant
     micros: Int
 

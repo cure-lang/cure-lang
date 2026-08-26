@@ -1,0 +1,7 @@
+mod Rf01
+  type Nat = Z | S(Nat)
+  fn plus(m: Nat, n: Nat) -> Nat = match m
+    Z() -> n
+    S(k) -> S(plus(k, n))
+  fn plus_zero_left(n: Nat) -> Equivalent(Nat, plus(Z, n), n) = reflexive(n)
+end

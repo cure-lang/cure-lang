@@ -1,0 +1,22 @@
+mod E6SimUni02
+  ## SOUNDNESS BOUNDARY for the sim-unification fix. Identical to probe 01 except the
+  ## goal measure is `S(S(Z))` while the present arguments force measure
+  ## `add(S(Z), Z) = S(Z)`. Component-wise `unify_data_components` still solves the
+  ## sibling implicit `a` from position 0 (the `PTimes` spine) — but the tolerated,
+  ## initially-stuck measure component is NOT discarded: once `m1`, `m2` are pinned the
+  ## deferred equation `add(m1, m2) = S(S(Z))` retries as `S(Z) = S(S(Z))` and FAILS.
+  ## The assembled term is kernel-re-checked, so a fabricated solution could not slip
+  ## through even if the elaborator tried. Both Cure and Idris reject — the tolerance
+  ## makes progress possible without making an unsound program typecheck.
+  type Tag = TA | TB
+  fn add(m: Nat, n: Nat) -> Nat = match m
+    Z()  -> n
+    S(k) -> S(add(k, n))
+  type Pat = PA(Tag) | PStar(Pat) | PTimes(Pat, Pat)
+  type Acc indices (p: Pat, n: Nat)
+    AAtomA : Acc(PA(TA), S(Z))
+    AStar  : Acc(PStar(q), Z)
+    ATimes : Acc(l, m1) -> Acc(r, m2) -> Acc(PTimes(l, r), add(m1, m2))
+  fn star_fold({a: Tag}, x: Acc(PTimes(PA(a), PStar(PA(a))), S(S(Z)))) -> Unit = unit()
+  fn use() -> Unit = star_fold(ATimes(AAtomA(), AStar()))
+end

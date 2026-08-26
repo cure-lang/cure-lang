@@ -1,0 +1,5 @@
+mod Rf03
+  type Nat = Z | S(Nat)
+  fn sym({a: Type}, {x: a}, {y: a}, p: Equivalent(a, x, y)) -> Equivalent(a, y, x) = match p
+    reflexive() -> reflexive(x)
+end

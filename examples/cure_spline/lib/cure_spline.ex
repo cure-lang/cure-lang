@@ -201,5 +201,5 @@ defmodule CureSpline do
 
   # -- Internal ---------------------------------------------------------------
 
-  defp to_knot({x, y}), do: %{__struct__: :knot, x: x * 1.0, y: y * 1.0}
+  defp to_knot({x, y}), do: {:Knot, x * 1.0, y * 1.0}
 end

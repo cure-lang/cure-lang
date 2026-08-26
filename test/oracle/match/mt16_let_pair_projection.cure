@@ -1,0 +1,6 @@
+mod Mt16
+  type Nat = Z | S(Nat)
+  fn g() -> Nat =
+    let p = %[Z(), S(Z())]
+    p.2
+end

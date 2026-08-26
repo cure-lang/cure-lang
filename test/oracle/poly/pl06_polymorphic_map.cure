@@ -1,0 +1,10 @@
+mod Pl06
+  type Nat = Zero | Suc(Nat)
+  type MyList(a) = LNil | LCons(a, MyList(a))
+  fn mapL({a}, {b}, f: (a)->b, l: MyList(a)) -> MyList(b) = match l
+    LNil() -> LNil()
+    LCons(x, xs) -> LCons(f(x), mapL(f, xs))
+  fn s(n: Nat) -> Nat = Suc(n)
+  fn mklist() -> MyList(Nat) = LCons(Zero(), LCons(Suc(Zero()), LNil()))
+  fn g() -> MyList(Nat) = mapL(s, mklist())
+end

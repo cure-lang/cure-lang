@@ -1,0 +1,8 @@
+mod Li02
+  type Nat = Z | S(Nat)
+  fn add(a: Nat, b: Nat) -> Nat = match a
+    Z() -> b
+    S(k) -> S(add(k, b))
+  fn f(p: Nat) -> Nat = add(let d = S(p) in add(d, d), p)
+  fn start() -> Nat = f(S(Z()))
+end

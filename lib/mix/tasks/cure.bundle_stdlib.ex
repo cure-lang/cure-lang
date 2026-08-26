@@ -1,6 +1,7 @@
 defmodule Mix.Tasks.Cure.BundleStdlib do
   @moduledoc """
-  Copy `lib/std/*.cure` stdlib sources into `priv/std/*.cure`.
+  Copy foundational `lib/std/*.cure` sources into `priv/std/*.cure` and the
+  embedded Regex package into `priv/std_deps/regex/*.cure`.
 
   Host applications (e.g. `:cure_site`) that embed the Cure REPL need
   the stdlib `.cure` source files at runtime in order to resolve
@@ -24,13 +25,22 @@ defmodule Mix.Tasks.Cure.BundleStdlib do
 
   alias Cure.Stdlib.Paths
 
-  @shortdoc "Bundle Cure stdlib sources into priv/std/"
+  @shortdoc "Bundle Cure stdlib and embedded package sources"
 
   @source_dir Path.join(["lib", "std"])
+  @regex_source_dir Path.join(["lib", "std_deps", "regex"])
+  @regex_destination Path.join(["priv", "std_deps", "regex"])
 
   @impl Mix.Task
   def run(_args) do
-    bundle(@source_dir, Paths.bundle_destination())
+    {:ok, foundation} = bundle(@source_dir, Paths.bundle_destination())
+    {:ok, regex} = bundle(@regex_source_dir, @regex_destination)
+
+    {:ok,
+     %{
+       copied: foundation.copied + regex.copied,
+       skipped: foundation.skipped + regex.skipped
+     }}
   end
 
   @doc false
@@ -39,9 +49,10 @@ defmodule Mix.Tasks.Cure.BundleStdlib do
     if File.dir?(source_dir) do
       File.mkdir_p!(dest_dir)
 
-      source_dir
-      |> Path.join("*.cure")
-      |> Path.wildcard()
+      sources = source_dir |> Path.join("*.cure") |> Path.wildcard()
+      prune_removed_sources(sources, dest_dir)
+
+      sources
       |> Enum.reduce({:ok, %{copied: 0, skipped: 0}}, fn src, {:ok, counts} ->
         dst = Path.join(dest_dir, Path.basename(src))
 
@@ -55,6 +66,16 @@ defmodule Mix.Tasks.Cure.BundleStdlib do
     else
       {:ok, %{copied: 0, skipped: 0}}
     end
+  end
+
+  defp prune_removed_sources(sources, dest_dir) do
+    current = sources |> Enum.map(&Path.basename/1) |> MapSet.new()
+
+    dest_dir
+    |> Path.join("*.cure")
+    |> Path.wildcard()
+    |> Enum.reject(&MapSet.member?(current, Path.basename(&1)))
+    |> Enum.each(&File.rm!/1)
   end
 
   @doc false

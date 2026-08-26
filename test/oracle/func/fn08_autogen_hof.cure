@@ -1,0 +1,6 @@
+mod Fn08
+  type Nat = Zero | Suc(Nat)
+  fn ap(f: (a) -> b, x: a) -> b = f(x)
+  fn inc(n: Nat) -> Nat = Suc(n)
+  fn g() -> Nat = ap(inc, Suc(Zero()))
+end

@@ -1,29 +1,38 @@
-mod Std.Gen
-  ## Tiny stateless generator API for property-based testing (v0.19.0).
-  ##
-  ## Generators are plain zero-argument lambdas returning a fresh
-  ## value on every call. Randomness is delegated to Erlang's `:rand`
-  ## module. Used in tandem with `Std.Test.forall/3` to drive
-  ## property-based tests, with optional shrinkers below.
-  ##
-  ## ## Examples
-  ##
-  ## ```cure
-  ## use Std.Gen
-  ##
-  ## let g = fn(_) -> int_in(1, 100)
-  ## Std.Test.forall_default(g, fn(x) -> x > 0)   # => :ok
-  ## ```
-  ##
-  ## ```cure
-  ## use Std.Gen
-  ##
-  ## # Generate a list of 0..10 small ints.
-  ## list_int(10, 0, 5)                           # e.g. [3, 0, 2, 5]
-  ## ```
+## Tiny stateless generator API for property-based testing (v0.19.0).
+##
+## Generators are plain zero-argument lambdas returning a fresh
+## value on every call. Randomness is delegated to Erlang's `:rand`
+## module. Used in tandem with `Std.Test.forall/3` to drive
+## property-based tests, with optional shrinkers below.
+##
+## ## Examples
+##
+## ```cure
+## use Std.Gen
+##
+## let g = fn(_) -> int_in(1, 100)
+## Std.Test.forall_default(g, fn(x) -> x > 0)   # => :ok
+## ```
+##
+## ```cure
+## use Std.Gen
+##
+## # Generate a list of 0..10 small ints.
+## list_int(10, 0, 5)                           # e.g. [3, 0, 2, 5]
+## ```
 
-  ## Group tag consumed by `Cure.Stdlib.Preload`.
-  fn __group__() -> Atom = :test
+# Group tag consumed by `Cure.Stdlib.Preload`.
+
+@group(:test)
+mod Std.Gen
+  use Std.List
+  type RandomAlgorithm = Default | Exsss | Exsplus | Exs1024
+
+  local fn random_algorithm_atom(algorithm: RandomAlgorithm) -> Atom = match algorithm
+    Default() -> :default
+    Exsss()   -> :exsss
+    Exsplus() -> :exsplus
+    Exs1024() -> :exs1024
 
   # -- Primitive randomness ---------------------------------------------------
 
@@ -35,7 +44,10 @@ mod Std.Gen
   ## Seed the PRNG. Thin wrapper over `:rand.seed/2`; returns the new
   ## state tuple.
   @extern(:rand, :seed, 2)
-  fn seed(_alg: Atom, _seed: Tuple) -> Tuple
+  local fn raw_seed(_alg: Atom, _seed: Tuple) -> Tuple
+
+  fn seed(algorithm: RandomAlgorithm, seed_value: Tuple) -> Tuple =
+    raw_seed(random_algorithm_atom(algorithm), seed_value)
 
   # -- Scalar generators ------------------------------------------------------
 
@@ -51,7 +63,7 @@ mod Std.Gen
     rand_uniform(2) == 1
 
   ## A constant "generator" that always returns the given value.
-  fn constant(v: T) -> T = v
+  fn constant(v: t) -> t = v
 
   # -- Combinators ------------------------------------------------------------
 
@@ -92,7 +104,26 @@ mod Std.Gen
   @extern(:cure_std_gen, :shrink_list, 1)
   fn shrink_list(xs: List(Int)) -> List(List(Int))
 
-  ## Default polymorphic shrinker; dispatches on the runtime shape of
-  ## `v` and returns the empty list for types with no defined shrink.
-  @extern(:cure_std_gen, :shrink, 1)
-  fn shrink(v: T) -> List(T)
+  ## `Shrink(t)` produces progressively smaller candidates for a value of
+  ## type `t`, most aggressive first. An empty list means "already minimal".
+  ##
+  ## This is an interface rather than a `fn shrink(v: t) -> List(t)`, and the
+  ## difference is not cosmetic. No parametric inhabitant of `∀t. t -> List(t)`
+  ## can inspect its argument — the free theorem forces
+  ## `shrink(g x) == map(g, shrink x)` for every `g` — yet shrinking must
+  ## inspect. A typeclass method may dispatch on `t`, because the dictionary is
+  ## a real argument. Applying `shrink` at a type with no implementation is now
+  ## a compile error instead of a silent `[]`.
+  interface Shrink(t)
+    ## Smaller candidates for `v`, most aggressive first.
+    fn shrink(v: t) -> List(t)
+
+  ## Shrink an integer by halving toward zero, then by subtracting one.
+  implementation Shrink for Int
+    ## Smaller candidates for `v`.
+    fn shrink(v: Int) -> List(Int) = shrink_int(v)
+
+  ## Shrink a list of integers by dropping elements; shortest first.
+  implementation Shrink for List(Int)
+    ## Smaller candidates for `xs`.
+    fn shrink(xs: List(Int)) -> List(List(Int)) = shrink_list(xs)

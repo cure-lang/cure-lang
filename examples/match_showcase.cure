@@ -1,4 +1,10 @@
 mod MatchShowcase
+  use Std.String
+  use Std.Semigroup
+  use Std.Map
+  use Std.Option
+  use Std.Result
+
   ###
   Comprehensive tour of every pattern shape supported by Cure's match
   engine as of v0.21.0.
@@ -100,11 +106,13 @@ mod MatchShowcase
   # 3. Tuple patterns via the `%[...]` prefix.
   # ---------------------------------------------------------------------------
 
-  fn tuple_sum(t: Tuple) -> Int =
+  fn tuple_sum2(t: Tuple(Int, Int)) -> Int =
     match t
-      %[a, b]    -> a + b
+      %[a, b] -> a + b
+
+  fn tuple_sum3(t: Tuple(Int, Int, Int)) -> Int =
+    match t
       %[a, b, c] -> a + b + c
-      _          -> 0
 
   # ---------------------------------------------------------------------------
   # 4. List patterns: empty, single-head cons, fixed length, multi-head cons.
@@ -133,14 +141,14 @@ mod MatchShowcase
   #    are ignored (open matching).
   # ---------------------------------------------------------------------------
 
-  fn route(request: Map) -> String =
+  fn route(request: Map(Atom, String)) -> String =
     match request
       %{method: "GET",  path: p} -> "fetch "  <> p
       %{method: "POST", path: p} -> "submit " <> p
       %{method: m}               -> "other "  <> m
       _                          -> "malformed"
 
-  fn point_sum(m: Map) -> Int =
+  fn point_sum(m: Map(Atom, Int)) -> Int =
     match m
       %{x, y} -> x + y
       _       -> 0
@@ -211,7 +219,7 @@ mod MatchShowcase
   #    the first.
   # ---------------------------------------------------------------------------
 
-  fn is_diagonal_pair(t: Tuple) -> Bool =
+  fn is_diagonal_pair(t: Tuple(Int, Int)) -> Bool =
     match t
       %[x, x] -> true
       _       -> false
@@ -222,20 +230,20 @@ mod MatchShowcase
   #     ...), `size(expr)`, `unit(n)`, signedness, and endianness.
   # ---------------------------------------------------------------------------
 
-  fn first_byte(buf: Bitstring) -> Int =
+  fn first_byte(buf: Binary) -> Int =
     match buf
       <<b, _rest::binary>> -> b
-      <<>>                 -> 0
+      _                    -> 0
 
-  fn fixed_header(frame: Bitstring) -> Int =
+  fn fixed_header(frame: Binary) -> Int =
     match frame
       <<len::16, _payload::binary-size(len), _::binary>> -> len
       _                                                  -> 0
 
   # Multi-clause function heads can use binary patterns directly.
-  fn parse_leading(buf: Bitstring) -> Int
+  fn parse_leading(buf: Binary) -> Int
     | <<a, _rest::binary>> -> a
-    | <<>>                 -> 0
+    | _                    -> 0
 
   # ---------------------------------------------------------------------------
   # 11. Pattern guards (`when`) attach boolean side-conditions to any arm.
@@ -272,18 +280,29 @@ mod MatchShowcase
   # ---------------------------------------------------------------------------
 
   fn let_showcase() -> Int =
-    let Ok(x)                    = Ok(10)
+    let result: Result(Int, String) = Ok(10)
+    let x = match result
+      Ok(value) -> value
+      Error(_) -> 0
     let %[a, b]                  = %[3, 4]
-    let [h | _tail]              = [100, 200]
+    let values: List(Int)        = [100, 200]
+    let h = match values
+      [head | _tail] -> head
+      [] -> 0
     let Address{city: _city}     = Address{city: "Madrid", zip: 28001}
-    let <<head_byte, _::binary>> = <<5, 6, 7>>
+    let bytes: Binary            = <<5, 6, 7>>
+    let head_byte = match bytes
+      <<byte, _::binary>> -> byte
+      _ -> 0
     x + a + b + h + head_byte
 
   # ---------------------------------------------------------------------------
   # 14. Deeply nested destructuring combining tuples, maps, cons, and ADTs.
   # ---------------------------------------------------------------------------
 
-  fn deep(value: Tuple) -> Int =
+  fn deep(
+    value: Tuple(Any, Map(Atom, List(Result(Int, String))), Any)
+  ) -> Int =
     match value
       %[_, %{list: [Ok(head) | _rest]}, _] -> head
       _                                    -> 0

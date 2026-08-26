@@ -34,7 +34,14 @@ defmodule Cure.Doc.HTMLGeneratorTest do
             guards: false
           }
         ],
-        protocols: [],
+        protocols: [
+          %{
+            name: "Show",
+            type_params: ["t"],
+            methods: [%{name: "show"}],
+            doc: "Values which can be displayed."
+          }
+        ],
         types: []
       },
       %{
@@ -99,6 +106,17 @@ defmodule Cure.Doc.HTMLGeneratorTest do
     assert page =~ ~s(id="fn-identity")
     assert page =~ ~s(href="#fn-identity")
     refute page =~ "helper"
+  end
+
+  test "module page renders interfaces using canonical syntax", %{tmp_dir: tmp} do
+    HTMLGenerator.generate(sample_modules(), tmp, title: "Demo")
+
+    page = File.read!(Path.join(tmp, "std_core.html"))
+    assert page =~ ~s(id="interface-Show")
+    assert page =~ ~s(href="#interface-Show")
+    assert page =~ "<h2>Interfaces</h2>"
+    assert page =~ "<code>interface Show(t)</code>"
+    refute page =~ "<code>proto Show"
   end
 
   test "function doc is rendered as HTML (not escaped markdown)", %{tmp_dir: tmp} do

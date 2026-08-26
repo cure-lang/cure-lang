@@ -1,13 +1,15 @@
 mod ResultHandling
+  use Std.Result
+
   fn safe_divide(a: Int, b: Int) -> Result(Int, String) =
     pickup
       b == 0 -> Error("division by zero")
       else   -> Ok(a / b)
 
   fn double_result(r: Result(Int, String)) -> Result(Int, String) =
-    Std.Core.map_ok(r, fn(x) -> x * 2)
+    Std.Result.map(r, fn(x) -> x * 2)
 
   fn chain_ops(x: Int) -> Result(Int, String) =
-    Std.Core.and_then(safe_divide(100, x), fn(v) -> safe_divide(v, 2))
+    Std.Result.and_then(safe_divide(100, x), fn(v) -> safe_divide(v, 2))
 
   fn main() -> Int = 0

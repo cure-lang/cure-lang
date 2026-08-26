@@ -1,0 +1,390 @@
+## SEALED unsafe raw base for the typed BEAM process algebra.
+##
+## Honest, permissive, effect-typed externs over stock Erlang/OTP BIFs — the
+## only trust boundary for concurrency. `Std.Otp` narrows these into a typed
+## algebra (`Pid(m)`, session channels) and is the sanctioned surface; nothing
+## here is meant for direct use. Every operation that performs a BEAM side
+## effect returns `Effect(T)` (design 2026-07-09-effect-type-former §3.3,
+## 2026-07-10-checked-beam-concurrency §2), which the old pure `@extern` types
+## (the "purity lie") did not.
+##
+## The effect discipline forbids duplicating, dropping, or reordering an
+## OPERATION — that is a statement about the PROGRAM'S EFFECT SEQUENCE, not
+## about the mailbox. The BEAM itself guarantees far less, and nothing here may
+## assume otherwise:
+##
+##   * NO DELIVERY. A `send` to a dead process silently succeeds. Nothing here
+##     promises a message arrives, and no typed op sequences on arrival.
+##   * ORDERING IS PAIRWISE ONLY. Signals from the SAME sender to the SAME
+##     target arrive in order — messages and exit signals alike. Order between
+##     DIFFERENT senders is unspecified.
+##
+## (Bereczky/Horpácsi/Thompson, *A Formalisation of Core Erlang*, Thm. 2 and Ex. 3;
+## verified against AtomVM in
+## https://github.com/cure-lang/cure-otp/tree/main/docs/research/process-types/raw-algebra-conformance-checklist.md.)
+##
+## Messages and replies are POLYMORPHIC, not `Any`: the type variable is the
+## narrow point where `Std.Otp` supplies the message-set code `m`. Payloads must
+## be first-order serialisable data (the BEAM copies messages); the typed layer
+## enforces that.
+##
+## Process creation receives a function, never a bare `Effect` value. The
+## function boundary is the honest raw representation of a fresh BEAM
+## process; typed wrappers choose the indexed handle exposed to callers.
+
+## Which BEAM protocol a process handle speaks — a PHANTOM TAG, carried as `RawPid`'s
+## third type argument. A plain process answers only raw sends; a `gen_server`
+## additionally answers `call`/`cast`/`stop`. Neither tag has values and neither
+## reaches the BEAM: the distinction is erased entirely.
+
+@group(:concurrency)
+mod Std.Otp.Raw
+  use Std.Option
+  opaque type Plain
+  opaque type Server
+
+  ## An opaque process identifier — the raw `erlang:pid()`. `Std.Otp` selectively
+  ## imports this indexed carrier and supplies the typed operation vocabulary.
+  ## `@erases(:pid)` declares the guard that recognises it, which is what lets it
+  ## appear in a union (see `raw_whereis`).
+  @erases(:pid)
+  opaque type RawPid(m, r, k)
+
+  ## A gen_server PID with distinct asynchronous-message, synchronous-request,
+  ## and reply indices. This is the honest carrier for actor-like behaviors;
+  ## it has the same native pid representation as RawPid and no wrapper.
+  @erases(:pid)
+  opaque type RawServerPid(m, q, r)
+
+  ## Request-indexed reply family over the same native PID. All parameters are
+  ## phantom and the carrier has no constructor or runtime wrapper.
+  @erases(:pid)
+  opaque type RawDepServerPid(m: Type, q: Type, rep: (q) -> Type)
+
+  @erases(:pid)
+  opaque type RawFsmPid(event, state, data)
+
+  ## A supervisor handle is the native supervisor pid with no message algebra
+  ## claim. Its distinct carrier prevents actor/FSM operations from being used
+  ## on it while erasing to the same pid at runtime.
+  @erases(:pid)
+  opaque type RawSupervisorPid
+
+  ## An uninhabited message type. `BarePid` carries it, which is what makes a pid
+  ## recovered from the registry UNSENDABLE: `tell` would demand a `NoMessage` value and
+  ## no constructor produces one.
+  type NoMessage = |
+
+  ## A process handle with NO message-type claim — what a registry lookup can honestly
+  ## give you. Supervisable (`link`/`monitor`/`exit`/`is_alive` never cared about the
+  ## message type) but not sendable. Recovering a TYPED handle from a name needs a
+  ## name-to-code association nothing builds yet; that is F-1 (see the audit, §6).
+  typealias BarePid = RawPid(NoMessage, NoMessage, Plain)
+
+  ## An opaque BEAM reference — the raw `erlang:reference()`. Kept as the honest raw type
+  ## of `erlang:demonitor/1`, which accepts any reference; the typed layer never uses it.
+  opaque type Ref
+
+  ## A monitor reference — the `erlang:reference()` returned by `erlang:monitor/2`.
+  ## DISTINCT from `TimerRef`: cancelling a monitor or demonitoring a timer is nonsense,
+  ## and the BEAM will not tell you. Both erase to the same runtime reference.
+  @erases(:reference)
+  opaque type MonitorRef
+
+  ## A timer reference — the `erlang:reference()` returned by `erlang:send_after/3`.
+  @erases(:reference)
+  opaque type TimerRef
+
+  ## An explicitly marked erased BEAM term. This is the only standard-library
+  ## boundary that admits a value whose static type is intentionally forgotten;
+  ## callers must construct it explicitly before heterogeneous OTP argument
+  ## lists can be formed.
+  opaque type RawTerm
+
+  @extern(:erlang, :element, 2)
+  fn raw_term({a: Type}, index: Int, boxed: Tuple(a, Atom)) -> RawTerm
+
+  ## Safe inbound observation floor. Predicates never refine by themselves;
+  ## the representation-preserving projections below are used only after the
+  ## corresponding predicate succeeds in Std.Beam.
+  @extern(:erlang, :is_atom, 1)
+  fn raw_term_is_atom(term: RawTerm) -> Bool
+
+  @extern(:erlang, :is_pid, 1)
+  fn raw_term_is_pid(term: RawTerm) -> Bool
+
+  @extern(:erlang, :is_tuple, 1)
+  fn raw_term_is_tuple(term: RawTerm) -> Bool
+
+  @extern(:erlang, :is_integer, 1)
+  fn raw_term_is_integer(term: RawTerm) -> Bool
+
+  @extern(:erlang, :is_float, 1)
+  fn raw_term_is_float(term: RawTerm) -> Bool
+
+  @extern(:erlang, :is_boolean, 1)
+  fn raw_term_is_boolean(term: RawTerm) -> Bool
+
+  @extern(:erlang, :is_binary, 1)
+  fn raw_term_is_binary(term: RawTerm) -> Bool
+
+  @extern(:erlang, :tuple_size, 1)
+  fn raw_term_tuple_size(term: RawTerm) -> Int
+
+  @extern(:erlang, :element, 2)
+  fn raw_term_tuple_element(index: Int, term: RawTerm) -> RawTerm
+
+  @extern(:erlang, :element, 2)
+  fn raw_term_atom(index: Int, checked: Tuple(RawTerm, Atom)) -> Atom
+
+  @extern(:erlang, :element, 2)
+  fn raw_term_pid(index: Int, checked: Tuple(RawTerm, Atom)) -> BarePid
+
+  @extern(:erlang, :element, 2)
+  fn raw_term_integer(index: Int, checked: Tuple(RawTerm, Atom)) -> Int
+
+  @extern(:erlang, :element, 2)
+  fn raw_term_float(index: Int, checked: Tuple(RawTerm, Atom)) -> Float
+
+  @extern(:erlang, :element, 2)
+  fn raw_term_boolean(index: Int, checked: Tuple(RawTerm, Atom)) -> Bool
+
+  ## The guard that admits this extraction is `raw_term_is_binary`, so what comes
+  ## out is a `Binary` — not a Cure `String`, which is nominal and erases to
+  ## `{String, code_points}`. `Std.Beam.decode_string` decodes the binary.
+  @extern(:erlang, :element, 2)
+  fn raw_term_binary(index: Int, checked: Tuple(RawTerm, Atom)) -> Binary
+
+  ## Attach erased actor protocol indices to an already PID-validated carrier.
+  ## This is the construction trust point used by Std.Otp.start_actor; it does
+  ## not accept an arbitrary BeamTerm.
+  @extern(:erlang, :element, 2)
+  fn raw_actor_server({m: Type}, {q: Type}, {r: Type}, index: Int, checked: Tuple(BarePid, Atom)) -> RawServerPid(m, q, r)
+
+  @extern(:erlang, :element, 2)
+  fn raw_fsm_pid({event: Type}, {state: Type}, {data: Type}, index: Int, checked: Tuple(BarePid, Atom)) -> RawFsmPid(event, state, data)
+
+  @extern(:erlang, :element, 2)
+  fn raw_supervisor_pid(index: Int, checked: Tuple(BarePid, Atom)) -> RawSupervisorPid
+
+  @extern(:erlang, :element, 2)
+  fn raw_dep_actor_server({m: Type}, {q: Type}, {rep: (q) -> Type}, index: Int, checked: Tuple(RawServerPid(m, q, Unit), Atom)) -> RawDepServerPid(m, q, rep)
+
+  @extern(:erlang, :element, 2)
+  fn raw_dep_actor_base({m: Type}, {q: Type}, {rep: (q) -> Type}, index: Int, checked: Tuple(RawDepServerPid(m, q, rep), Atom)) -> RawServerPid(m, q, Unit)
+
+  ## The calling process's own pid. A process the VM spawned for us speaks no
+  ## gen_server protocol, so the handle is `Plain`.
+  @extern(:erlang, :self, 0)
+  fn raw_self({m: Type}) -> Effect(RawPid(m, m, Plain))
+
+  @extern(:erlang, :spawn, 1)
+  fn raw_spawn({m: Type}, thunk: () -> Unit) -> Effect(RawPid(m, m, Plain))
+
+  @extern(:erlang, :spawn_link, 1)
+  fn raw_spawn_link({m: Type}, thunk: () -> Unit) -> Effect(RawPid(m, m, Plain))
+
+  ## Start a gen_server through its standard callback module. The raw return is
+  ## deliberately the OTP `{ok, pid}`/error tuple; a behavior-specific wrapper
+  ## narrows that contract after the callback context is established.
+  ##
+  ## ⚠ The return is typed `Effect(Tuple)`, which is honest on AtomVM (whose gen_server init
+  ## result is `{ok, State} | {stop, Reason}`) but NOT on OTP, where an `init/1` returning
+  ## `ignore` makes `start_link` return the BARE ATOM `ignore`. Typing that honestly means
+  ## producing a TYPED handle from an untyped BEAM tuple — the same unfounded assertion as
+  ## F-1, and deferred with it (audit §6). This applies to every op in the family below.
+  @extern(:gen_server, :start_link, 4)
+  fn raw_start_link({a: Type}, name: Tuple(Atom, Atom), module: Atom, args: a, opts: List(Atom)) -> Effect(Tuple)
+
+  @extern(:gen_server, :start_link, 3)
+  fn raw_start_link_unnamed({a: Type}, module: Atom, args: a, opts: List(Atom)) -> Effect(Tuple)
+
+  ## Honest inbound form: unlike the compatibility Tuple signature, this admits
+  ## every OTP outcome (`{:ok,pid}`, `{:error,reason}`, or `:ignore`).
+  @extern(:gen_server, :start_link, 3)
+  fn raw_start_link_term({a: Type}, module: Atom, args: a, opts: List(Atom)) -> Effect(RawTerm)
+
+  ## Start a gen_statem through its standard callback module. The raw return is
+  ## deliberately the OTP `{ok, pid}`/error tuple; the transparent FSM macro
+  ## supplies the behavior-specific callback contract.
+  @extern(:gen_statem, :start_link, 4)
+  fn raw_statem_start_link({a: Type}, name: Tuple(Atom, Atom), module: Atom, args: a, opts: List(Atom)) -> Effect(Tuple)
+
+  @extern(:gen_statem, :start_link, 3)
+  fn raw_statem_start_link_unnamed({a: Type}, module: Atom, args: a, opts: List(Atom)) -> Effect(Tuple)
+
+  @extern(:gen_statem, :start_link, 3)
+  fn raw_statem_start_link_term({a: Type}, module: Atom, args: a, opts: List(Atom)) -> Effect(RawTerm)
+
+  @extern(:gen_statem, :cast, 2)
+  fn raw_statem_cast({event: Type}, {state: Type}, {data: Type}, server: RawFsmPid(event, state, data), value: event) -> Effect(Atom)
+
+  @extern(:supervisor, :start_link, 3)
+  fn raw_supervisor_start_link({a: Type}, name: Tuple(Atom, Atom), module: Atom, args: List(a)) -> Effect(Tuple)
+
+  ## Honest supervisor startup result, including OTP's bare `ignore` outcome.
+  @extern(:supervisor, :start_link, 3)
+  fn raw_supervisor_start_link_term({a: Type}, name: Tuple(Atom, Atom), module: Atom, args: List(a)) -> Effect(RawTerm)
+
+  @extern(:gen_server, :stop, 3)
+  fn raw_supervisor_stop(pid: RawSupervisorPid, reason: Atom, timeout: Int) -> Effect(Atom)
+
+  ## Send `msg` to `dest`. Fire-and-forget; the effect is performing the send.
+  ## Tag-polymorphic: a raw send to a gen_server is legitimate — it lands in
+  ## `handle_info`. `erlang:send/2` returns the MESSAGE, not `ok`.
+  @extern(:erlang, :send, 2)
+  fn raw_send({m: Type}, {r: Type}, {k: Type}, dest: RawPid(m, r, k), msg: m) -> Effect(m)
+
+  ## Asynchronous `gen_server` cast — no reply. `Server`-only: a plain process does
+  ## not implement the gen_server protocol. Returns the atom `ok`.
+  @extern(:gen_server, :cast, 2)
+  fn raw_cast({q: Type}, {r: Type}, server: RawPid(q, r, Server), msg: q) -> Effect(Atom)
+
+  @extern(:gen_server, :cast, 2)
+  fn raw_server_cast({m: Type}, {q: Type}, {r: Type}, server: RawServerPid(m, q, r), msg: m) -> Effect(Atom)
+
+  ## Synchronous `gen_server` call — the typed `Std.Otp` surface narrows this raw,
+  ## return-polymorphic boundary.
+  ## `Server`-only: calling a plain process blocks the caller for 5s and then exits it.
+  ##
+  ## ⚠ PARTIAL. On timeout (default 5000 ms) or server death the CALLER EXITS. No value is
+  ## returned at the wrong type — there is simply no continuation — so `Effect(r)` is sound
+  ## but not total. A `try_call` that reifies the failure needs a try/catch shim and is
+  ## deferred (audit §6).
+  @extern(:gen_server, :call, 2)
+  fn raw_call({q: Type}, {r: Type}, server: RawPid(q, r, Server), req: q) -> Effect(r)
+
+  @extern(:gen_server, :call, 2)
+  fn raw_server_call({m: Type}, {q: Type}, {r: Type}, server: RawServerPid(m, q, r), req: q) -> Effect(r)
+
+  @extern(:gen_server, :call, 2)
+  fn raw_server_call_dep({m: Type}, {q: Type}, {kr: Type}, {res: Type}, server: RawServerPid(m, q, kr), req: q) -> Effect(res)
+
+  ## Dependent-reply variant of `raw_call`: the server's reply-index slot `kr` and the RESULT `res` are
+  ## DECOUPLED, so the caller may choose `res = ReplyOf(request)` — a function of the EXPLICIT request. Same BIF
+  ## (`gen_server:call/2`), same partiality/trust as `raw_call`; `Std.Otp.call_dep` threads it.
+  @extern(:gen_server, :call, 2)
+  fn raw_call_dep({q: Type}, {kr: Type}, {res: Type}, server: RawPid(q, kr, Server), req: q) -> Effect(res)
+
+  ## Reply explicitly to a `gen_server` caller. The public wrapper gives the
+  ## callback-side `from` value a linear binder before consuming it.
+  @extern(:gen, :reply, 2)
+  fn raw_reply({r: Type}, @linear from : Tuple(RawPid(NoMessage, NoMessage, Plain), Ref), value: r) -> Effect(Atom)
+
+  ## Establish a monitor on `pid`; the returned `MonitorRef` tags the `DOWN` message.
+  @extern(:erlang, :monitor, 2)
+  fn raw_monitor({m: Type}, {r: Type}, {k: Type}, kind: Atom, pid: RawPid(m, r, k)) -> Effect(MonitorRef)
+
+  ## Stop a generic OTP process. The reason is intentionally polymorphic at
+  ## this raw boundary; typed lifecycle wrappers choose the narrower reason
+  ## type required by their behavior. `Server`-only, like the rest of the
+  ## gen_server protocol. Returns the atom `ok`.
+  @extern(:gen_server, :stop, 1)
+  fn raw_stop({q: Type}, {r: Type}, pid: RawPid(q, r, Server)) -> Effect(Atom)
+
+  @extern(:gen_server, :stop, 1)
+  fn raw_server_stop({m: Type}, {q: Type}, {r: Type}, pid: RawServerPid(m, q, r)) -> Effect(Atom)
+
+  ## Schedule a message for a process and receive an opaque timer reference.
+  @extern(:erlang, :send_after, 3)
+  fn raw_send_after({m: Type}, {r: Type}, {k: Type}, delay: Int, pid: RawPid(m, r, k), msg: m) -> Effect(TimerRef)
+
+  ## Cancel a timer. `erlang:cancel_timer/1` returns the REMAINING MILLISECONDS, or
+  ## `false` once the timer has already fired or been cancelled. It is not `Unit` and
+  ## never was — the sharpest of the `Effect(Unit)` lies.
+  @extern(:erlang, :cancel_timer, 1)
+  fn raw_cancel_timer(ref: TimerRef) -> Effect(Int | Bool)
+
+  ## Remove a monitor. Returns `true`. Honest over the bare `Ref` — `erlang:demonitor/1`
+  ## accepts any reference — and drives no typed wrapper: the typed `demonitor` flushes.
+  @extern(:erlang, :demonitor, 1)
+  fn raw_demonitor(ref: Ref) -> Effect(Bool)
+
+  ## `erlang:demonitor/2` with `[flush]` — removes the monitor AND discards a `DOWN` that
+  ## has already been delivered. The option list is a real parameter, not baked in. With
+  ## `flush` and no `info`, the BIF always returns `true`.
+  @extern(:erlang, :demonitor, 2)
+  fn raw_demonitor_flush(ref: MonitorRef, opts: List(Atom)) -> Effect(Bool)
+
+  ## Link and unlink the current process to a target. Both return `true`.
+  @extern(:erlang, :link, 1)
+  fn raw_link({m: Type}, {r: Type}, {k: Type}, pid: RawPid(m, r, k)) -> Effect(Bool)
+
+  @extern(:erlang, :unlink, 1)
+  fn raw_unlink({m: Type}, {r: Type}, {k: Type}, pid: RawPid(m, r, k)) -> Effect(Bool)
+
+  ## Send an exit signal and query process liveness. `erlang:exit/2` returns `true`.
+  @extern(:erlang, :exit, 2)
+  fn raw_exit({m: Type}, {r: Type}, {k: Type}, {x: Type}, pid: RawPid(m, r, k), reason: x) -> Effect(Bool)
+
+  @extern(:erlang, :is_process_alive, 1)
+  fn raw_is_alive({m: Type}, {r: Type}, {k: Type}, pid: RawPid(m, r, k)) -> Effect(Bool)
+
+  ## The registry operations deliberately remain raw and effect-typed. A
+  ## higher layer may expose a name-indexed handle without asserting that a
+  ## dynamic registry lookup is always successful.
+  ##
+  ## `register`/`unregister` both answer the constant atom `true` — there is no
+  ## failure they report by value (they raise instead).
+  @extern(:erlang, :register, 2)
+  fn raw_register({m: Type}, {r: Type}, {k: Type}, name: Atom, pid: RawPid(m, r, k)) -> Effect(Bool)
+
+  @extern(:erlang, :unregister, 1)
+  fn raw_unregister(name: Atom) -> Effect(Bool)
+
+  ## `whereis` returns the bare atom `undefined` when the name is not registered — that
+  ## is the BIF's real contract, and typing it as a pid would let a well-typed handle BE
+  ## the atom `undefined`. The FFI boundary re-tags the union: `:undefined` by exact
+  ## value, the pid by the `is_pid` guard `@erases(:pid)` declares. `Std.Otp.whereis`
+  ## turns that into an `Option`.
+  @extern(:erlang, :whereis, 1)
+  fn raw_whereis(name: Atom) -> Effect(BarePid | :undefined)
+
+  ## ── Subject: a typed message ADDRESS `{owner_pid, tag_ref}` (Gleam-style, F-1 addressing) ──
+  ##
+  ## A subject is a fresh `(pid, unique reference)` pair. A send delivers `{tag, message}` to the owner's mailbox
+  ## and a receive matches THAT tag, so one process may own several subjects of different message types and
+  ## receive each independently — the decoupling `Pid(m)` (one message type per process) cannot give. The tagged
+  ## `receive … after … end` is not a BIF, so these route through the `Cure.Otp.Builtins` runtime helper;
+  ## `Std.Otp` narrows them into the typed `Subject(m)` surface. Ordinary effect discipline (each op is `Effect`).
+  @extern(Elixir.Cure.Otp.Builtins, :subject_new, 0)
+  fn raw_subject_new({m: Type}) -> Effect(Tuple(RawPid(m, m, Plain), Ref))
+
+  @extern(Elixir.Cure.Otp.Builtins, :subject_send, 2)
+  fn raw_subject_send({m: Type}, subject: Tuple(RawPid(m, m, Plain), Ref), message: m) -> Effect(Atom)
+
+  @extern(Elixir.Cure.Otp.Builtins, :subject_receive, 2)
+  fn raw_subject_receive({m: Type}, subject: Tuple(RawPid(m, m, Plain), Ref), timeout: Int) -> Effect(Option(m))
+
+  ## ── Selector: typed selective receive over several heterogeneous subjects ──
+  ##
+  ## A SELECTOR is a set of `(subject-tag → transform)` handlers; `selector_receive` does ONE guarded receive that
+  ## matches ANY registered tag (the dynamic multi-tag select) and maps the message into the common payload `p`.
+  ## Building/extending a selector is PURE (a data structure); only the receive is an `Effect`. Erases to
+  ## `{selector, #{ {tag,2} => handler }}`. `Std.Otp` gives it the typed `Selector(p)` surface.
+  opaque type Selector(p)
+
+  @extern(Elixir.Cure.Otp.Builtins, :selector_new, 0)
+  fn raw_selector_new({p: Type}) -> Selector(p)
+
+  @extern(Elixir.Cure.Otp.Builtins, :selector_select_map, 3)
+  fn raw_selector_select_map({p: Type}, {m: Type}, selector: Selector(p), subject: Tuple(RawPid(m, m, Plain), Ref), transform: (m) -> p) -> Selector(p)
+
+  @extern(Elixir.Cure.Otp.Builtins, :selector_receive, 2)
+  fn raw_selector_receive({p: Type}, selector: Selector(p), timeout: Int) -> Effect(Option(p))
+
+  ## ── Name: typed process registration (the F-1 typed name → handle) ──
+  ##
+  ## `name_whereis` returns a TYPED `Option(RawPid(m,m,Plain))` — a sendable handle — instead of the untyped bare
+  ## pid `raw_whereis` gives, closing F-1: the message type `m` rides on the caller's `Std.Otp.Name(m)` (the trust
+  ## point, as in Gleam's `Name(message)`). Register/unregister are Bool-safe via the helper. AtomVM caveat:
+  ## needs `erlang:register/whereis`; confirm support before relying on it there (host OTP is fine).
+  @extern(Elixir.Cure.Otp.Builtins, :name_register, 2)
+  fn raw_name_register({m: Type}, name: Atom, pid: RawPid(m, m, Plain)) -> Effect(Bool)
+
+  @extern(Elixir.Cure.Otp.Builtins, :name_whereis, 1)
+  fn raw_name_whereis({m: Type}, name: Atom) -> Effect(Option(RawPid(m, m, Plain)))
+
+  @extern(Elixir.Cure.Otp.Builtins, :name_unregister, 1)
+  fn raw_name_unregister(name: Atom) -> Effect(Bool)
+end

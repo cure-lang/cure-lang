@@ -45,7 +45,12 @@ defmodule Cure.Types.SynthTest do
     end
 
     test "returns [] gracefully for unknown goals" do
+      Cure.Pipeline.Events.subscribe(:synthesis, :no_candidates)
       assert Synth.synthesise("SomeUnknownType", %{}, %{}) == []
+
+      assert_receive {Cure.Pipeline.Events, :synthesis, :no_candidates, payload, _meta}
+      assert payload.goal == "SomeUnknownType"
+      refute Map.has_key?(payload, :code)
     end
   end
 end

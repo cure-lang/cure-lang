@@ -1,0 +1,7 @@
+mod Rc03
+  type Nat = Z | S(Nat)
+  rec Box(a)
+    val: a
+  fn unbox(b: Box(Nat)) -> Nat = b.val
+  fn g() -> Nat = unbox(Box{val: S(Z())})
+end

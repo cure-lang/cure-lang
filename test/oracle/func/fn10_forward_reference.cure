@@ -1,0 +1,6 @@
+mod Fn10
+  type Nat = Zero | Suc(Nat)
+  fn callee_first(n: Nat) -> Nat = helper(n)
+  fn helper(n: Nat) -> Nat = Suc(n)
+  fn g() -> Nat = callee_first(Zero())
+end

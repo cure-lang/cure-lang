@@ -21,9 +21,11 @@ defmodule Cure.REPL.Completer do
   )
 
   @keywords ~w(
-    fn mod use if then else match with do end let in for while return
-    case of when true false nil and or not Int Float String Bool Atom
-    List Tuple Map Set
+    fn mod rec actor fsm sup app interface implementation type typealias
+    primitive deriving local use let in for pickup else match with when
+    proof have because rewrite simplify induction case return throw try catch
+    finally spawn send receive after unsafe quote true false nil and or not
+    Int Float String Bool Atom List Tuple Map Set
   )
 
   @theme_names ~w(dark light mono)

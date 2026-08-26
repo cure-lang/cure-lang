@@ -1,0 +1,6 @@
+mod Un02
+  fn dir(d: :north | :south) -> Int = match d
+    :north -> 0
+    :south -> 1
+  fn go() -> Int = dir(:north)
+end

@@ -1,0 +1,8 @@
+mod FullShadow
+  use Std.Nat
+  type Nat = Z | S(Nat)
+  fn two() -> Nat = S(S(Z()))
+  fn pred(n: Nat) -> Nat = match n
+    Z() -> Z()
+    S(m) -> m
+end

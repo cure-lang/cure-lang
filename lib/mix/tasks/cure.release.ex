@@ -22,6 +22,8 @@ defmodule Mix.Tasks.Cure.Release do
 
   use Mix.Task
 
+  alias Cure.Diagnostic.Sink
+
   @shortdoc "Builds a BEAM release for a Cure project"
 
   @impl Mix.Task
@@ -52,17 +54,27 @@ defmodule Mix.Tasks.Cure.Release do
             Mix.shell().info("Release built: #{dir}")
 
           {:error, reason} ->
-            Mix.shell().error("cure release failed: #{inspect(reason)}")
+            Mix.shell().error(render_diagnostic(Cure.Diagnostic.Operational.command_failure("cure release", reason)))
+
             exit({:shutdown, 1})
         end
 
       {:error, :no_project_file} ->
-        Mix.shell().error("No Cure.toml found in current directory.")
+        Mix.shell().error(
+          render_diagnostic(Cure.Diagnostic.Operational.artifact_error("No Cure.toml found in current directory."))
+        )
+
         exit({:shutdown, 1})
 
       {:error, reason} ->
-        Mix.shell().error("cure release failed: #{inspect(reason)}")
+        Mix.shell().error(render_diagnostic(Cure.Diagnostic.Operational.command_failure("cure release", reason)))
+
         exit({:shutdown, 1})
     end
+  end
+
+  defp render_diagnostic(diagnostic) do
+    Sink.new(format: :plain, color: :auto, width: 80)
+    |> Sink.render(diagnostic)
   end
 end

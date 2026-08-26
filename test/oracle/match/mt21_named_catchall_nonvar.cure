@@ -1,0 +1,6 @@
+mod Mt21
+  type Nat = Z | S(Nat)
+  fn f(n: Nat) -> Nat = match S(n)
+    Z() -> Z()
+    other -> other
+end

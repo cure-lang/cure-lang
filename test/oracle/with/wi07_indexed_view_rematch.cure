@@ -1,0 +1,19 @@
+mod Wi07
+  type Nat = Z | S(Nat)
+  type SNat indices (n: Nat)
+    szero : SNat(Z)
+    ssuc : SNat(n) -> SNat(S(n))
+  type NV indices (n: Nat)
+    vz : NV(Z)
+    vs : SNat(n) -> NV(S(n))
+  fn toS(m: Nat) -> SNat(m) = match m
+    Z() -> szero()
+    S(j) -> ssuc(toS(j))
+  fn view(n: Nat) -> NV(n) = match n
+    Z() -> vz()
+    S(m) -> vs(toS(m))
+  fn foo(n: Nat, w: SNat(n)) -> SNat(n) =
+    with view(n)
+      Z(), w | vz() -> w
+      S(m), w | vs(s) -> w
+end

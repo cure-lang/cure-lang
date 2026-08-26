@@ -1,0 +1,7 @@
+mod Refine05
+  use Std.Nat
+  use Std.Proof.IntMath
+  use Std.Proof.Math
+  fn one_less_than_two() -> IsLessThan(S(Z()), S(S(Z()))) =
+    less_than_holds_when_boolean_comparison_is_true(S(Z()), S(S(Z())), Confirmed())
+end

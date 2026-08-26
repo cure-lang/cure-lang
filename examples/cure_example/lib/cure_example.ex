@@ -13,7 +13,8 @@ defmodule CureExample do
       iex> CureExample.greet("World")
       "Hello, World!"
   """
-  def greet(name), do: :"Cure.Greeter".hello(name)
+  def greet(name),
+    do: call(:"Cure.Greeter", :hello, [String.to_charlist(name)]) |> List.to_string()
 
   @doc """
   Says farewell using the Cure `Greeter` module.
@@ -21,7 +22,8 @@ defmodule CureExample do
       iex> CureExample.farewell("World")
       "Goodbye, World. See you soon!"
   """
-  def farewell(name), do: :"Cure.Greeter".farewell(name)
+  def farewell(name),
+    do: call(:"Cure.Greeter", :farewell, [String.to_charlist(name)]) |> List.to_string()
 
   @doc """
   Computes n! using the Cure `Calculator` module.
@@ -29,7 +31,7 @@ defmodule CureExample do
       iex> CureExample.factorial(10)
       3628800
   """
-  def factorial(n), do: :"Cure.Calculator".factorial(n)
+  def factorial(n), do: call(:"Cure.Calculator", :factorial, [n])
 
   @doc """
   Computes the n-th Fibonacci number using the Cure `Calculator` module.
@@ -37,7 +39,7 @@ defmodule CureExample do
       iex> CureExample.fibonacci(10)
       55
   """
-  def fibonacci(n), do: :"Cure.Calculator".fibonacci(n)
+  def fibonacci(n), do: call(:"Cure.Calculator", :fibonacci, [n])
 
   @doc """
   Classifies an integer as "positive", "negative", or "zero".
@@ -49,7 +51,7 @@ defmodule CureExample do
       iex> CureExample.classify(0)
       "zero"
   """
-  def classify(n), do: :"Cure.Calculator".classify(n)
+  def classify(n), do: call(:"Cure.Calculator", :classify, [n]) |> List.to_string()
 
   @doc """
   Safe division that returns `{:ok, result}` or `{:error, reason}`.
@@ -59,30 +61,39 @@ defmodule CureExample do
       iex> CureExample.safe_divide(10, 0)
       {:error, "division by zero"}
   """
-  def safe_divide(a, b), do: :"Cure.Calculator".safe_divide(a, b)
+  def safe_divide(a, b) do
+    case call(:"Cure.Calculator", :safe_divide, [a, b]) do
+      {:ok, value} -> {:ok, value}
+      {:error, reason} -> {:error, List.to_string(reason)}
+      {:Ok, value} -> {:ok, value}
+      {:Error, reason} -> {:error, List.to_string(reason)}
+    end
+  end
 
   @doc """
   Runs a demo showing all the Cure modules in action.
   """
   def demo do
     IO.puts("--- Cure Example: Greeter ---")
-    IO.puts(:"Cure.Greeter".hello("Elixir"))
-    IO.puts(:"Cure.Greeter".farewell("Elixir"))
+    IO.puts(greet("Elixir"))
+    IO.puts(farewell("Elixir"))
 
     IO.puts("\n--- Cure Example: Calculator ---")
-    IO.puts("5 + 3 = #{:"Cure.Calculator".add(5, 3)}")
-    IO.puts("10 - 4 = #{:"Cure.Calculator".sub(10, 4)}")
-    IO.puts("6 * 7 = #{:"Cure.Calculator".mul(6, 7)}")
-    IO.puts("10! = #{:"Cure.Calculator".factorial(10)}")
-    IO.puts("fib(10) = #{:"Cure.Calculator".fibonacci(10)}")
+    IO.puts("5 + 3 = #{call(:"Cure.Calculator", :add, [5, 3])}")
+    IO.puts("10 - 4 = #{call(:"Cure.Calculator", :sub, [10, 4])}")
+    IO.puts("6 * 7 = #{call(:"Cure.Calculator", :mul, [6, 7])}")
+    IO.puts("10! = #{factorial(10)}")
+    IO.puts("fib(10) = #{fibonacci(10)}")
 
     IO.puts("\n--- Cure Example: Pattern Guards ---")
-    IO.puts("classify(42) = #{:"Cure.Calculator".classify(42)}")
-    IO.puts("classify(-1) = #{:"Cure.Calculator".classify(-1)}")
-    IO.puts("classify(0)  = #{:"Cure.Calculator".classify(0)}")
+    IO.puts("classify(42) = #{classify(42)}")
+    IO.puts("classify(-1) = #{classify(-1)}")
+    IO.puts("classify(0)  = #{classify(0)}")
 
     IO.puts("\n--- Cure Example: Result Types ---")
-    IO.puts("safe_divide(10, 2) = #{inspect(:"Cure.Calculator".safe_divide(10, 2))}")
-    IO.puts("safe_divide(10, 0) = #{inspect(:"Cure.Calculator".safe_divide(10, 0))}")
+    IO.puts("safe_divide(10, 2) = #{inspect(safe_divide(10, 2))}")
+    IO.puts("safe_divide(10, 0) = #{inspect(safe_divide(10, 0))}")
   end
+
+  defp call(module, function, arguments), do: apply(module, function, arguments)
 end

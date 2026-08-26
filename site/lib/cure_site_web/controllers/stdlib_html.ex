@@ -8,7 +8,7 @@ defmodule CureSiteWeb.StdlibHTML do
 
   alias CureSite.Stdlib
 
-  embed_templates "stdlib_html/*"
+  embed_templates("stdlib_html/*")
 
   @doc "Render a module's public function signature as inline HTML."
   def render_signature(f) do

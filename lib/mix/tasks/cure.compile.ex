@@ -9,26 +9,31 @@ defmodule Mix.Tasks.Cure.Compile do
 
   ## Options
 
-  - `--output-dir` -- directory for `.beam` output (default: `_build/cure/ebin`)
+  - `--output-dir` -- artifact-set root (default: `_build/cure/project/ebin`)
   """
 
   use Mix.Task
+
+  alias Cure.Diagnostic.Sink
 
   @shortdoc "Compiles Cure source files to BEAM bytecode"
 
   @impl Mix.Task
   def run(args) do
-    {opts, paths, _} =
+    {opts, paths, invalid} =
       OptionParser.parse(args,
-        switches: [output_dir: :string],
+        strict: [output_dir: :string],
         aliases: [o: :output_dir]
       )
 
-    output_dir = Keyword.get(opts, :output_dir, "_build/cure/ebin")
+    if invalid != [] do
+      usage_error("Invalid options for mix cure.compile: #{inspect(invalid)}")
+    end
+
+    output_dir = Keyword.get(opts, :output_dir, "_build/cure/project/ebin")
 
     if paths == [] do
-      Mix.shell().error("Usage: mix cure.compile <path> [--output-dir DIR]")
-      exit({:shutdown, 1})
+      usage_error("Usage: mix cure.compile <path> [--output-dir DIR]")
     end
 
     # Ensure the application is started (for Registry)
@@ -36,30 +41,105 @@ defmodule Mix.Tasks.Cure.Compile do
 
     Enum.each(paths, fn path ->
       if File.dir?(path) do
-        path
-        |> Path.join("**/*.cure")
-        |> Path.wildcard()
-        |> Enum.each(&compile_one(&1, output_dir))
+        compile_dir(path, output_dir)
       else
         compile_one(path, output_dir)
       end
     end)
   end
 
+  defp compile_dir(path, output_dir) do
+    files = path |> Path.join("**/*.cure") |> Path.wildcard()
+
+    case Cure.Compiler.Artifacts.sweep(
+           module_pipeline: :canonical,
+           source_roots: [path],
+           output_dir: output_dir,
+           kind: :project,
+           repair: true,
+           verify_stdlib: true,
+           stdlib_artifact_digest: Cure.Compiler.Artifacts.stdlib_fingerprint()
+         ) do
+      {:ok, result} ->
+        Enum.each(result.cycles, fn walk ->
+          Mix.shell().error(render_host_diagnostic({:import_cycle, walk}, path))
+        end)
+
+        Mix.shell().info(
+          "  #{map_size(result.rebuilt)} compiled, " <>
+            "#{length(result.reused)} up-to-date, " <>
+            "#{map_size(result.removed)} removed"
+        )
+
+      {:error, reason} ->
+        render_sweep_error(reason, files, path)
+        exit({:shutdown, 1})
+    end
+  end
+
   defp compile_one(path, output_dir) do
     Mix.shell().info("Compiling #{path}")
 
-    case Cure.Compiler.compile_file(path, output_dir: output_dir) do
-      {:ok, module, warnings} ->
-        Enum.each(warnings, fn w ->
-          Mix.shell().info("  warning: #{inspect(w)}")
-        end)
-
-        Mix.shell().info("  -> #{module}")
+    case Cure.Compiler.Artifacts.sweep(
+           module_pipeline: :canonical,
+           source_roots: [Path.dirname(path)],
+           source_paths: [path],
+           output_dir: output_dir,
+           kind: :project,
+           repair: true,
+           verify_stdlib: true,
+           stdlib_artifact_digest: Cure.Compiler.Artifacts.stdlib_fingerprint()
+         ) do
+      {:ok, result} ->
+        Mix.shell().info("  -> #{result.rebuilt |> Map.keys() |> Enum.join(", ")}")
 
       {:error, reason} ->
-        formatted = Cure.Compiler.Errors.format_error(reason, path)
-        Mix.shell().error(formatted)
+        render_sweep_error(reason, [path], path)
     end
+  end
+
+  defp render_host_diagnostic(reason, path) do
+    {diagnostic, registry} = Cure.Diagnostic.Host.to_diagnostic(reason, path)
+    render_diagnostic(diagnostic, registry)
+  end
+
+  defp render_diagnostic(diagnostic, registry \\ nil) do
+    Sink.new(format: :plain, color: :auto, width: 80, registry: registry)
+    |> Sink.render(diagnostic)
+  end
+
+  defp usage_error(message) do
+    Mix.shell().error(render_diagnostic(Cure.Diagnostic.Operational.usage(message)))
+    exit({:shutdown, 1})
+  end
+
+  defp source_path_for(target, files) do
+    if File.exists?(target) do
+      target
+    else
+      module = target |> to_string() |> String.split(".") |> List.last()
+      stem = module |> Macro.underscore()
+
+      Enum.find(files, fn path ->
+        basename = Path.basename(path, ".cure")
+        basename == stem or String.ends_with?(basename, "_" <> stem)
+      end) || single_source_or_target(files, target)
+    end
+  end
+
+  # A standalone source without an enclosing `mod` is represented internally
+  # by a synthetic module name which need not resemble its filename. The sweep
+  # still has an unambiguous authored source when exactly one file was requested.
+  defp single_source_or_target([path], _target), do: path
+  defp single_source_or_target(_files, target), do: target
+
+  defp render_sweep_error({:artifact_sweep_failed, errors}, files, _default) do
+    Enum.each(errors, fn {target, reason} ->
+      Mix.shell().error(render_host_diagnostic(reason, source_path_for(target, files)))
+    end)
+  end
+
+  defp render_sweep_error(reason, _files, default) do
+    Mix.shell().error(render_host_diagnostic(reason, default))
   end
 end

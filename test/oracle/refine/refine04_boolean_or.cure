@@ -1,0 +1,7 @@
+mod Refine04
+  use Std.Bool
+  use Std.Proof.IntMath
+  use Std.Proof.BooleanReflection
+  fn left_intro() -> IsTrue(`or`(True(), False())) =
+    disjunction_is_true_from_left_operand(False(), Confirmed())
+end

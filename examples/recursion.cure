@@ -2,22 +2,15 @@ mod Recursion
   fn factorial(n: Int) -> Int
     | 0 -> 1
     | n -> n * factorial(n - 1)
-
   fn fibonacci(n: Int) -> Int
     | 0 -> 0
     | 1 -> 1
     | n -> fibonacci(n - 1) + fibonacci(n - 2)
-
-  fn length(xs: List(T)) -> Int =
-    match xs
-      [] -> 0
-      [_ | t] -> 1 + length(t)
-
-  fn reverse(xs: List(T)) -> List(T) = rev_acc(xs, [])
-
-  local fn rev_acc(xs: List(T), acc: List(T)) -> List(T) =
-    match xs
-      [] -> acc
-      [h | t] -> rev_acc(t, [h | acc])
-
+  fn length(xs: List(t1)) -> Int = match xs
+    []      -> 0
+    [_ | t] -> 1 + length(t)
+  fn reverse(xs: List(t)) -> List(t) = rev_acc(xs, [])
+  local fn rev_acc(xs: List(t1), acc: List(t1)) -> List(t1) = match xs
+    []      -> acc
+    [h | t] -> rev_acc(t, [h | acc])
   fn main() -> Int = factorial(10)

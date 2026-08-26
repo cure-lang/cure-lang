@@ -1,0 +1,7 @@
+mod Ni03
+  type Nat = Z | S(Nat)
+  type H indices (n: Nat, k: Nat)
+    hmk : H(S(m), m)
+  fn f({j: Nat}, v: H(S(j), j)) -> Nat = match v
+    hmk({m = .(S(j))}) -> Z()
+end

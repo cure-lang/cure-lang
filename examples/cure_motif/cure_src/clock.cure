@@ -1,30 +1,13 @@
-## Clock actor for the Cure motif supervision tree.
-##
-## Counts monotonic ticks and echoes the current count whenever a
-## `:tick` message arrives. The payload is an integer tick counter.
-##
-## Messages understood:
-##   * `:tick`   -- increment the counter and notify the caller with
-##                  `%[:tick_at, n]`.
-##   * `:reset`  -- reset the counter to zero.
-##   * `:get`    -- notify the caller with the current counter without
-##                  advancing it.
-##
-## This actor is intentionally passive: it keeps the sequencer tempo
-## honest by reporting when a tick fires, but the actual driving of
-## the clock is the Elixir side's job (test harness or `CureMotif.demo/0`).
-## Keeping the clock pure-synchronous simplifies the deterministic
-## replay story.
+## Transparent actor example with a typed integer payload.
 
-actor Clock with 0
-  on_start
-    (state) -> state
-  on_message
-    (:tick, n) ->
-      notify(%[:tick_at, n + 1])
-      n + 1
-    (:reset, _state) ->
-      0
-    (:get, n) ->
-      notify(%[:tick_at, n])
-      n
+use Std.Actor
+
+actor Clock
+  state Int
+  initial 0
+  messages Atom
+  handle_cast
+    pickup
+      message == :tick -> %[:noreply, state + 1]
+      message == :reset -> %[:noreply, 0]
+      else -> %[:noreply, state]

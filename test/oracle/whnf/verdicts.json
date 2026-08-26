@@ -1,0 +1,1 @@
+{"whnf01_computed_index":{"cure":"accept","idris":"accept","reason":"","relation":"same"},"whnf02_two_arg_shared_index":{"cure":"accept","idris":"accept","reason":"","relation":"same"},"whnf03_stuck_meta_neg":{"cure":"reject","idris":"reject","reason":"","relation":"same"},"whnf04_concrete_mismatch_neg":{"cure":"reject","idris":"reject","reason":"","relation":"same"}}

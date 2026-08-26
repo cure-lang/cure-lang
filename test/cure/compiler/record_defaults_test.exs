@@ -7,10 +7,16 @@ defmodule Cure.Compiler.RecordDefaultsTest do
     Compiler.compile_and_load(source, emit_events: false)
   end
 
+  # A record now erases to a tagged, field-ordered BEAM tuple (`{:Point, x, y}`),
+  # not a `%{__struct__: …}` map — the classic-pipeline representation is gone.
+  # Field access is by declaration-order tuple position (`elem(r, 1)` = first
+  # field). The tag keeps the record's declared (PascalCase) name.
+
   describe "record fields with default values" do
     test "defaults fill in omitted fields at construction time" do
       source = """
       mod RecordDefaults.Simple
+        use Std.String
         rec Person
           name: String = "Anonymous"
           age: Int = 0
@@ -21,16 +27,17 @@ defmodule Cure.Compiler.RecordDefaultsTest do
 
       {:ok, mod} = compile_and_load(source)
 
+      # {:Person, name, age} — `String` is a nominal record, so a string field
+      # erases to `{:String, charlist}` rather than to the bare charlist.
       blank = mod.blank()
-      assert is_map(blank)
-      assert Map.get(blank, :__struct__) == :person
-      assert Map.get(blank, :name) == "Anonymous"
-      assert Map.get(blank, :age) == 0
+      assert elem(blank, 0) == :Person
+      assert elem(blank, 1) == {:String, ~c"Anonymous"}
+      assert elem(blank, 2) == 0
 
-      alice = mod.named("Alice")
-      assert Map.get(alice, :name) == "Alice"
+      alice = mod.named({:String, ~c"Alice"})
+      assert elem(alice, 1) == {:String, ~c"Alice"}
       # default for age still applies
-      assert Map.get(alice, :age) == 0
+      assert elem(alice, 2) == 0
     end
 
     test "caller-provided value overrides the default" do
@@ -43,7 +50,8 @@ defmodule Cure.Compiler.RecordDefaultsTest do
       """
 
       {:ok, mod} = compile_and_load(source)
-      assert Map.get(mod.custom(42), :value) == 42
+      # {:Counter, value}
+      assert elem(mod.custom(42), 1) == 42
     end
 
     test "records without defaults still work" do
@@ -57,9 +65,11 @@ defmodule Cure.Compiler.RecordDefaultsTest do
       """
 
       {:ok, mod} = compile_and_load(source)
+      # {:Point, x, y}
       o = mod.origin()
-      assert Map.get(o, :x) == 0
-      assert Map.get(o, :y) == 0
+      assert elem(o, 0) == :Point
+      assert elem(o, 1) == 0
+      assert elem(o, 2) == 0
     end
   end
 end

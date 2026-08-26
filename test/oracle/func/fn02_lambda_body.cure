@@ -1,0 +1,4 @@
+mod Fn02
+  type Nat = Z | S(Nat)
+  fn mk() -> (Nat) -> Nat = fn(y) -> S(y)
+end

@@ -1,0 +1,12 @@
+mod Pi01
+  type Nat = Z | S(Nat)
+
+  fn plus(left: Nat, right: Nat) -> Nat = match left
+    Z() -> right
+    S(previous) -> S(plus(previous, right))
+
+  fn plus_zero_right(value: Nat) -> Equivalent(Nat, plus(value, Z), value) = induction value
+    case Z => reflexive(Z)
+    case S(previous, induction_hypothesis) =>
+      rewrite induction_hypothesis in reflexive(S(previous))
+end

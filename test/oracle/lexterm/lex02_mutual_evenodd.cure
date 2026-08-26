@@ -1,0 +1,10 @@
+mod Lex02
+  type Nat = Z | S(Nat)
+  type Bool = True | False
+  fn is_even(n: Nat) -> Bool = match n
+    Z() -> True()
+    S(m) -> is_odd(m)
+  fn is_odd(n: Nat) -> Bool = match n
+    Z() -> False()
+    S(m) -> is_even(m)
+end

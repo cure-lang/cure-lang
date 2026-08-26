@@ -1,17 +1,12 @@
-fsm Turnstile with Integer
-  Locked   --coin-->  Unlocked
-  Unlocked --push-->  Locked
-  Unlocked --coin-->  Unlocked
-  Locked   --push-->  Locked
+## Transparent FSM example with a tuple payload.
 
-  @notify_transitions
+use Std.Fsm
 
-  on_transition
-    (:locked, :coin, _payload, %{payload: p, meta: m}) ->
-      %[:ok, :unlocked, %{payload: p + 1, meta: m}]
-    (:unlocked, :push, _payload, %{payload: p, meta: m}) ->
-      %[:ok, :locked, %{payload: p, meta: %{passages: m.passages + 1}}]
-    (:unlocked, :coin, _payload, %{payload: p, meta: m}) ->
-      %[:ok, :unlocked, %{payload: p + 1, meta: m}]
-    (_, _, _, state) ->
-      %[:ok, :__same__, state]
+fsm Turnstile with Tuple(Int, Int)
+  Locked --coin--> Unlocked
+    update %[data.1 + 1, data.2]
+  Unlocked --push--> Locked
+    update %[data.1, data.2 + 1]
+  Unlocked --coin--> Unlocked
+    update %[data.1 + 1, data.2]
+  Locked --push--> Locked

@@ -1,0 +1,7 @@
+mod Cyc03
+  type Nat = Z | S(Nat)
+  type MyEq(a: Type) indices (x: a, y: a)
+    mrefl : MyEq(a, w, w)
+  fn noCycle2({n: Nat}, p: MyEq(Nat, n, S(S(n)))) -> Nat = match p
+    mrefl() -> impossible
+end

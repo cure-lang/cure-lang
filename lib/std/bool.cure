@@ -1,0 +1,43 @@
+@group(:core)
+@prelude
+mod Std.Bool
+  ## Booleans as a real inductive type.
+  ##
+  ## `Bool` is `False | True`. The `@builtin(:bool)` decorator marks this as the
+  ## canonical Bool the kernel constructs for primitive comparison/connective
+  ## results and the general `:case` recursor eliminates (retiring the bespoke
+  ## `bool_elim` primitive). Erasure lowers its constructors to native BEAM
+  ## atoms `false`/`true`.
+
+  @builtin(:bool)
+  type Bool = False | True
+
+  ## Boolean connectives, defined by `case`-elimination on the inductive `Bool`
+  ## (retiring the kernel `:and`/`:or`/`:not` primitives). On open terms they
+  ## reduce definitionally (e.g. `and`(True(), b) ≡ b); a *saturated*
+  ## application still lowers to the native BEAM boolean op at codegen.
+
+  fn `not`(a: Bool) -> Bool =
+    match a
+      True() -> False()
+      False() -> True()
+
+  fn `and`(a: Bool, b: Bool) -> Bool =
+    match a
+      True() -> b
+      False() -> False()
+
+  fn `or`(a: Bool, b: Bool) -> Bool =
+    match a
+      True() -> True()
+      False() -> b
+
+  fn `eq`(a: Bool, b: Bool) -> Bool =
+    match a
+      True() -> b
+      False() -> `not`(b)
+
+  fn `ne`(a: Bool, b: Bool) -> Bool =
+    match a
+      True() -> `not`(b)
+      False() -> b

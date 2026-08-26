@@ -1,21 +1,7 @@
-## Exhibit FSM for the Cure atelier showcase (v0.28.0).
-##
-## This FSM models the lifecycle of a gallery exhibit:
-##
-##   Closed --open--> Open --close--> Closed
-##   Closed --open--> Open --sold-->  Sold
-##
-## The `@record` decorator enables the time-travel journal so that
-## every transition is written to `Cure.Observe.Journal` and can
-## later be replayed via `cure replay`. See the test suite for a
-## demonstration of recording and replaying the trace.
-##
-## Temporal properties verified by the test suite:
-##   - `always eventually Open`  -- every exhibit eventually opens
-##   - `never (Open and Sold)`   -- an exhibit cannot be both at once
+## Transparent FSM example. Transition lowering belongs in the Cure macro.
 
-@record
-fsm Exhibit
+use Std.Fsm
+
+fsm Exhibit with Int
   Closed --open--> Open
   Open --close--> Closed
-  Open --sold--> Sold

@@ -1,6 +1,7 @@
 defmodule Mix.Tasks.Cure.BundleStdlibBeams do
   @moduledoc """
-  Compile `lib/std/*.cure` into `priv/ebin/Cure.Std.*.beam`.
+  Compile the foundational stdlib and embedded Regex package into
+  `priv/ebin/Cure.Std.*.beam`.
 
   Companion to `Mix.Tasks.Cure.BundleStdlib`, which stages stdlib
   *sources* into `priv/std/`. Host applications that embed Cure (most
@@ -18,15 +19,12 @@ defmodule Mix.Tasks.Cure.BundleStdlibBeams do
     * `mix release` bundles `priv/` into the release tarball.
     * `:code.priv_dir(:cure)` resolves to the staged location at runtime.
 
-  ## Idempotency
+  ## Integrity
 
-  Per-module mtime comparison: a `.cure` source triggers a recompile
-  only when the expected `.beam` in the destination is missing or
-  older than the source. The module name baked into the BEAM filename
-  is parsed from the source's `mod ...` declaration (the same regex
-  `Cure.Stdlib.Preload` uses at Elixir compile time). Sources we
-  cannot classify are compiled unconditionally, since `Cure.Compiler`
-  itself produces the canonical filename.
+  Bundling uses the same content-addressed artifact sweep as development
+  compilation. The destination includes its manifest and is accepted only as a
+  complete verified generation; mtimes and filename presence are never
+  freshness evidence.
 
   ## No-op paths
 
@@ -58,8 +56,22 @@ defmodule Mix.Tasks.Cure.BundleStdlibBeams do
     # when `compiler_available?/0` is false below; Mix handles the
     # "app not loaded yet" case gracefully.
     _ = ensure_cure_application_started()
-    _ = bundle(@source_dir, default_destination())
-    :ok
+
+    source = Cure.Stdlib.Paths.beam_dir() || Path.join(["_build", "cure", "ebin"])
+
+    result =
+      with {:ok, _generation_root} <- Cure.Compiler.Artifacts.copy_verified_set(source, default_destination()),
+           {:ok, _set} <- Cure.Compiler.Artifacts.open_verified_set(kind: :stdlib, candidates: [default_destination()]) do
+        {:ok, %{compiled: 0, skipped: 0, errors: 0}}
+      else
+        _ -> bundle(@source_dir, default_destination())
+      end
+
+    case result do
+      {:ok, %{errors: 0}} -> :ok
+      {:ok, %{errors: count}} -> Mix.raise("stdlib bundle failed with #{count} artifact errors")
+      {:error, reason} -> Mix.raise("stdlib bundle failed: #{inspect(reason)}")
+    end
   end
 
   defp ensure_cure_application_started do
@@ -85,10 +97,18 @@ defmodule Mix.Tasks.Cure.BundleStdlibBeams do
   @spec default_destination() :: String.t()
   def default_destination, do: Path.join(["priv", "ebin"])
 
-  @doc false
-  @spec bundle(String.t(), String.t()) ::
+  @doc """
+  Sweep `source_dir` into a verified artifact generation under `dest_dir`.
+
+  `opts` are forwarded to `Cure.Stdlib.Packages.compile/3`; notably
+  `embedded_packages: false` skips the embedded Regex package stage, which is
+  what a caller sweeping fixture sources rather than the real standard library
+  wants (see that function's docs).
+  """
+  @spec bundle(String.t(), String.t(), keyword()) ::
           {:ok, %{compiled: non_neg_integer(), skipped: non_neg_integer(), errors: non_neg_integer()}}
-  def bundle(source_dir, dest_dir) do
+          | {:error, term()}
+  def bundle(source_dir, dest_dir, opts \\ []) do
     cond do
       not File.dir?(source_dir) ->
         {:ok, %{compiled: 0, skipped: 0, errors: 0}}
@@ -99,13 +119,35 @@ defmodule Mix.Tasks.Cure.BundleStdlibBeams do
       true ->
         File.mkdir_p!(dest_dir)
 
-        source_dir
-        |> Path.join("*.cure")
-        |> Path.wildcard()
-        |> Enum.sort()
-        |> Enum.reduce({:ok, %{compiled: 0, skipped: 0, errors: 0}}, fn src, {:ok, counts} ->
-          compile_one(src, dest_dir, counts)
-        end)
+        case Cure.Stdlib.Packages.compile(
+               source_dir |> Path.join("*.cure") |> Path.wildcard(),
+               dest_dir,
+               Keyword.merge([compile_opts: [emit_events: false]], opts)
+             ) do
+          {:ok, result} ->
+            {:ok,
+             %{
+               compiled: map_size(result.rebuilt),
+               skipped: length(result.reused),
+               errors: length(result.errors)
+             }}
+
+          {:error, {:artifact_sweep_failed, errors}} ->
+            Enum.each(errors, fn {target, reason} ->
+              if Code.ensure_loaded?(Mix) and function_exported?(Mix, :shell, 0) do
+                Mix.shell().error(render_host_diagnostic(reason, source_path_for(target, source_dir)))
+              end
+            end)
+
+            {:error, {:artifact_sweep_failed, errors}}
+
+          {:error, reason} ->
+            if Code.ensure_loaded?(Mix) and function_exported?(Mix, :shell, 0) do
+              Mix.shell().error(render_host_diagnostic(reason, source_dir))
+            end
+
+            {:error, reason}
+        end
     end
   end
 
@@ -122,77 +164,29 @@ defmodule Mix.Tasks.Cure.BundleStdlibBeams do
       function_exported?(Cure.Compiler, :compile_file, 2)
   end
 
-  @doc false
-  @spec compile_one(String.t(), String.t(), map()) :: {:ok, map()}
-  def compile_one(src, dest_dir, counts) do
-    case expected_beam_path(src, dest_dir) do
-      {:ok, beam_path} ->
-        if should_compile?(src, beam_path) do
-          do_compile(src, dest_dir, counts)
-        else
-          {:ok, %{counts | skipped: counts.skipped + 1}}
-        end
+  defp render_host_diagnostic(reason, path) do
+    {diagnostic, registry} = Cure.Diagnostic.Host.to_diagnostic(reason, path)
 
-      :unknown ->
-        # Could not classify the module name from the source. Compile
-        # unconditionally and let `Cure.Compiler` place the BEAM under
-        # the canonical name.
-        do_compile(src, dest_dir, counts)
-    end
+    Cure.Diagnostic.Sink.new(format: :plain, color: :auto, width: 80, registry: registry)
+    |> Cure.Diagnostic.Sink.render(diagnostic)
   end
 
-  defp do_compile(src, dest_dir, counts) do
-    case Cure.Compiler.compile_file(src, output_dir: dest_dir, emit_events: false) do
-      {:ok, _module, _warnings} ->
-        {:ok, %{counts | compiled: counts.compiled + 1}}
-
-      {:error, _reason} ->
-        # Surface the failure to the shell but keep processing the
-        # remaining stdlib files so a single bad source does not
-        # prevent the rest from being staged.
-        if Code.ensure_loaded?(Mix) and function_exported?(Mix, :shell, 0) do
-          Mix.shell().error("cure.bundle_stdlib_beams: failed to compile #{src}")
-        end
-
-        {:ok, %{counts | errors: counts.errors + 1}}
-    end
-  end
-
-  @doc false
-  @spec expected_beam_path(String.t(), String.t()) :: {:ok, String.t()} | :unknown
-  def expected_beam_path(src, dest_dir) do
-    case module_name_from_source(src) do
-      {:ok, declared} ->
-        {:ok, Path.join(dest_dir, "Cure.#{declared}.beam")}
-
-      :unknown ->
-        :unknown
-    end
-  end
-
-  @doc false
-  @spec module_name_from_source(String.t()) :: {:ok, String.t()} | :unknown
-  def module_name_from_source(path) do
-    mod_regex = ~r/^\s*(?:mod|proof|actor|fsm|sup|app)\s+([A-Za-z_][\w\.]*)/m
-
-    with {:ok, contents} <- File.read(path),
-         [_, declared] <- Regex.run(mod_regex, contents) do
-      {:ok, declared}
+  defp source_path_for(target, source_dir) do
+    if is_binary(target) and File.regular?(target) do
+      target
     else
-      _ -> :unknown
-    end
-  end
+      stem =
+        target
+        |> to_string()
+        |> String.split(".")
+        |> List.last()
+        |> Macro.underscore()
 
-  @doc false
-  @spec should_compile?(String.t(), String.t()) :: boolean()
-  # True when the BEAM is missing entirely or the source has been
-  # touched more recently than the BEAM. mtime comparison is enough for
-  # our purposes (same rationale as `Mix.Tasks.Cure.BundleStdlib.should_copy?/2`).
-  def should_compile?(src, beam_path) do
-    case {File.stat(src, time: :posix), File.stat(beam_path, time: :posix)} do
-      {{:ok, src_stat}, {:ok, beam_stat}} -> src_stat.mtime > beam_stat.mtime
-      {{:ok, _}, _} -> true
-      _ -> false
+      Enum.find(
+        Path.wildcard(Path.join(source_dir, "*.cure")),
+        source_dir,
+        &(Path.basename(&1, ".cure") == stem)
+      )
     end
   end
 end

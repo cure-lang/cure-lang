@@ -1,0 +1,7 @@
+mod Ms01
+  type Box(a) = MkBox(a)
+  fn cyc(list: List(t)) -> Box(List(t)) =
+    match list
+      []      -> MkBox([])
+      [_ | _] -> MkBox(list)
+end

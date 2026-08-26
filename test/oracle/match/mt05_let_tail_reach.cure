@@ -1,0 +1,8 @@
+mod Mt05
+  type Nat = Z | S(Nat)
+  fn pred(n: Nat) -> Nat =
+    let r = match n
+      Z() -> Z()
+      S(k) -> k
+    r
+end

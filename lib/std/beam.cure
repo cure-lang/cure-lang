@@ -1,0 +1,130 @@
+## Opaque native term at the foreign boundary. It can be passed to trusted
+## primitives, but ordinary Cure code cannot inspect it or claim a type for it.
+
+@group(:concurrency)
+mod Std.Beam
+  use Std.Otp.Raw
+  use Std.Result
+
+  typealias BeamTerm = RawTerm
+  typealias EncodedTerm = RawTerm
+  typealias BarePid = Std.Otp.Raw.BarePid
+
+  ## Why an inbound BEAM term could not be validated as the requested Cure type.
+  ## Decoding is deliberately separate from encoding: outbound conversion is
+  ## total, while a foreign term may have any tag or payload shape.
+  type BeamDecodeError = InvalidBeamTerm
+
+  ## Total translation of a typed Cure value to its native BEAM representation.
+  ## ADTs receive an automatically-derived implementation unless their owner
+  ## supplies a hand-written implementation.
+  interface BeamEncode(t)
+    fn to_beam(value: t) -> EncodedTerm
+
+  ## Fallible validation of an opaque foreign term. Implementations are explicit
+  ## until structural decoder derivation can prove every field recursively.
+  interface BeamDecode(t)
+    fn from_beam(term: BeamTerm) -> Result(t, BeamDecodeError)
+
+  ## The primitive boundary used by derived and hand-written encoders. `raw_term`
+  ## is an erasing identity at runtime; the tuple merely prevents an unconstrained
+  ## polymorphic extern from manufacturing `RawTerm` in Core.
+  fn forget({a: Type}, value: a) -> BeamTerm =
+    raw_term(1, %[value, :beam_term])
+
+  implementation BeamEncode for Int
+    fn to_beam(value: Int) -> BeamTerm = forget(value)
+
+  implementation BeamEncode for Float
+    fn to_beam(value: Float) -> BeamTerm = forget(value)
+
+  implementation BeamEncode for Bool
+    fn to_beam(value: Bool) -> BeamTerm = forget(value)
+
+  implementation BeamEncode for Atom
+    fn to_beam(value: Atom) -> BeamTerm = forget(value)
+
+  implementation BeamEncode for String
+    fn to_beam(value: String) -> BeamTerm = forget(value)
+
+  implementation BeamDecode for Int
+    fn from_beam(term: BeamTerm) -> Result(Int, BeamDecodeError) = decode_int(term)
+
+  implementation BeamDecode for Float
+    fn from_beam(term: BeamTerm) -> Result(Float, BeamDecodeError) = decode_float(term)
+
+  implementation BeamDecode for Bool
+    fn from_beam(term: BeamTerm) -> Result(Bool, BeamDecodeError) = decode_bool(term)
+
+  implementation BeamDecode for Atom
+    fn from_beam(term: BeamTerm) -> Result(Atom, BeamDecodeError) = decode_atom(term)
+
+  implementation BeamDecode for String
+    fn from_beam(term: BeamTerm) -> Result(String, BeamDecodeError) = decode_string(term)
+
+  ## Total inbound observations. A projection is performed only after its BEAM
+  ## guard succeeds, so no unvalidated RawTerm is claimed as a Cure value.
+  fn atom(term: BeamTerm) -> Option(Atom) = match raw_term_is_atom(term)
+    true -> Some(raw_term_atom(1, %[term, :checked_atom]))
+    false -> None()
+
+  fn pid(term: BeamTerm) -> Option(BarePid) = match raw_term_is_pid(term)
+    true -> Some(raw_term_pid(1, %[term, :checked_pid]))
+    false -> None()
+
+  fn tuple_arity(term: BeamTerm) -> Option(Int) = match raw_term_is_tuple(term)
+    true -> Some(raw_term_tuple_size(term))
+    false -> None()
+
+  ## Zero-based checked tuple access for Cure callers; Erlang's element/2 is
+  ## one-based. Negative and out-of-range indices return None.
+  fn tuple_element(term: BeamTerm, index: Int) -> Option(BeamTerm) = match tuple_arity(term)
+    None() -> None()
+    Some(size) -> match index < 0
+      true -> None()
+      false -> match index < size
+        true -> Some(raw_term_tuple_element(index + 1, term))
+        false -> None()
+
+  ## Native ADTs use an atom for a nullary constructor and a tuple whose first
+  ## element is the constructor atom otherwise. These observations expose only
+  ## the validated tag and field count; structural decoders still validate and
+  ## reconstruct every field before producing a typed value.
+  fn adt_tag(term: BeamTerm) -> Option(Atom) = match atom(term)
+    Some(value) -> Some(value)
+    None() -> match tuple_element(term, 0)
+      Some(value) -> atom(value)
+      None() -> None()
+
+  fn adt_arity(term: BeamTerm) -> Option(Int) = match atom(term)
+    Some(_) -> Some(0)
+    None() -> match tuple_arity(term)
+      Some(size) -> Some(size - 1)
+      None() -> None()
+
+  fn decode_atom(term: BeamTerm) -> Result(Atom, BeamDecodeError) = match atom(term)
+    Some(value) -> Ok(value)
+    None() -> Error(InvalidBeamTerm())
+
+  fn decode_pid(term: BeamTerm) -> Result(BarePid, BeamDecodeError) = match pid(term)
+    Some(value) -> Ok(value)
+    None() -> Error(InvalidBeamTerm())
+
+  fn decode_int(term: BeamTerm) -> Result(Int, BeamDecodeError) = match raw_term_is_integer(term)
+    true -> Ok(raw_term_integer(1, %[term, :checked_integer]))
+    false -> Error(InvalidBeamTerm())
+
+  fn decode_float(term: BeamTerm) -> Result(Float, BeamDecodeError) = match raw_term_is_float(term)
+    true -> Ok(raw_term_float(1, %[term, :checked_float]))
+    false -> Error(InvalidBeamTerm())
+
+  fn decode_bool(term: BeamTerm) -> Result(Bool, BeamDecodeError) = match raw_term_is_boolean(term)
+    true -> Ok(raw_term_boolean(1, %[term, :checked_boolean]))
+    false -> Error(InvalidBeamTerm())
+
+  ## A BEAM binary is not a Cure `String`: `String` is nominal and erases to
+  ## `{String, code_points}`. Decode the UTF-8 binary into its code points and
+  ## rebuild the nominal value, rather than relabelling the binary.
+  fn decode_string(term: BeamTerm) -> Result(String, BeamDecodeError) = match raw_term_is_binary(term)
+    true -> Ok(Std.String.from_characters(Std.Binary.from_binary(raw_term_binary(1, %[term, :checked_string]))))
+    false -> Error(InvalidBeamTerm())

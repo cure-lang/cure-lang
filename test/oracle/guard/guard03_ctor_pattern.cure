@@ -1,0 +1,15 @@
+mod Guard03
+  type Nat = Z | S(Nat)
+  # A guard on a CONSTRUCTOR pattern (not a bare variable): the `S(k)` arm is
+  # taken only when `isZ(k)` holds; on a false guard it falls through to the
+  # next arm (here the unguarded `S(k)`), exactly like Idris collapsing the
+  # same-constructor guard into an `if` inside that constructor's case branch.
+  fn isZ(n: Nat) -> Bool = match n
+    Z() -> true
+    S(k) -> false
+  fn classify(n: Nat) -> Nat = match n
+    S(k) when isZ(k) -> Z()
+    S(k) -> S(Z())
+    Z() -> S(S(Z()))
+  fn start() -> Nat = classify(S(Z()))
+end

@@ -1,0 +1,6 @@
+mod PartialShadow
+  use Std.Nat
+  type Nat = Zero | Suc(Nat)
+  fn imported_one() -> Std.Nat = S(Z())
+  fn local_one() -> Nat = Suc(Zero())
+end

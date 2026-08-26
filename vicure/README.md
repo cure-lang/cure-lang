@@ -1,11 +1,11 @@
 # Vicure -- Cure Language Plugin for Neovim/Vim
 
-[![Language](https://img.shields.io/badge/language-Cure-blue.svg)](https://github.com/am-kantox/cure-lang)
+[![Language](https://img.shields.io/badge/language-Cure-blue.svg)](https://github.com/cure-lang/cure-lang)
 [![Editor](https://img.shields.io/badge/editor-Neovim%20%7C%20Vim-green.svg)](https://neovim.io/)
 [![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](LICENSE)
 
 Comprehensive syntax highlighting, indentation, filetype detection, and
-LSP hook-up for the [Cure programming language](https://github.com/am-kantox/cure-lang)
+LSP hook-up for the [Cure programming language](https://github.com/cure-lang/cure-lang)
 in Neovim and Vim.
 
 Target Cure version: **0.28.2** (Talk Back).
@@ -33,7 +33,7 @@ Recognised constructs:
   soft/hard event suffixes (`event?`, `event!`).
 - Decorators / attributes: `@record`, `@derive(Json)`,
   `@deprecated`, etc.
-- Typed holes: `?name` and the anonymous `??`.
+- Typed holes: `?name` and the anonymous `?_`.
 - Comments: plain `# line`, `## doc line`, and fenced
   `### multi-line ###` doc regions (with `@doctag` highlighting).
 - Strings with `#{...}` interpolation and `\uXXXX` escapes.
@@ -123,7 +123,7 @@ cp vicure/indent/cure.vim   ~/.vim/indent/
 
 ## Syntax showcase
 
-```cure
+```text
 ### Multi-line fenced doc comment.
 Demonstrates the surface area of modern Cure v0.28.x.
 ###
@@ -164,7 +164,7 @@ mod Showcase
 
   ## Named and anonymous typed holes.
   fn sketch(x: Int) -> Int = ?todo
-  fn another() -> Int      = ??
+  fn another() -> Int      = ?_
 
   ## Regex and char literals.
   fn is_digit?(c: Char) -> Bool =

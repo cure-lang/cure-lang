@@ -16,29 +16,32 @@ mod TestShowcase
   use Std.Test
   use Std.Gen
   use Std.List
+  use Std.Equatable
+  use Std.Comparable
+  use Std.Result
 
   # ---- 1. Basic assertions ---------------------------------------------------
 
   ## `assert/1` -- the simplest predicate guard.
-  fn check_assert() -> Atom =
+  fn check_assert() -> Unit =
     let _ = assert(true)
     let _ = assert(1 + 1 == 2)
     assert(42 > 0)
 
   ## `assert_eq/2` -- structural equality; raises `:not_equal`.
-  fn check_assert_eq() -> Atom =
+  fn check_assert_eq() -> Unit =
     let _ = assert_eq(1 + 1, 2)
     let _ = assert_eq(:hello, :hello)
     assert_eq([1, 2, 3], [1, 2, 3])
 
   ## `assert_ne/2` -- raises `:unexpectedly_equal` on a match.
-  fn check_assert_ne() -> Atom =
+  fn check_assert_ne() -> Unit =
     let _ = assert_ne(1, 2)
     let _ = assert_ne(:ok, :error)
     assert_ne([1], [1, 2])
 
   ## `assert_gt/2` and `assert_lt/2` -- strict ordering.
-  fn check_ordering() -> Atom =
+  fn check_ordering() -> Unit =
     let _ = assert_gt(10, 5)
     let _ = assert_gt(0, -1)
     let _ = assert_lt(3, 7)
@@ -48,7 +51,7 @@ mod TestShowcase
 
   ## Compose several assertions to verify a small `Std.List` contract:
   ## reversing a known list and checking head/tail.
-  fn check_list_reverse() -> Atom =
+  fn check_list_reverse() -> Unit =
     let xs = [1, 2, 3, 4, 5]
     let rev = reverse(xs)
     let _ = assert_eq(head(rev, 0), 5)
@@ -56,7 +59,7 @@ mod TestShowcase
     assert_eq(length(rev), length(xs))
 
   ## Demonstrate that `map` preserves length and transforms elements.
-  fn check_list_map() -> Atom =
+  fn check_list_map() -> Unit =
     let xs = [10, 20, 30]
     let doubled = map(xs, fn(x) -> x * 2)
     let _ = assert_eq(doubled, [20, 40, 60])
@@ -65,7 +68,7 @@ mod TestShowcase
   # ---- 3. Property-based testing (forall) ------------------------------------
 
   ## `n + 0 == n` for every integer in a range.
-  fn prop_add_identity() -> Atom =
+  fn prop_add_identity() -> Unit =
     forall(
       fn(_) -> int_in(-500, 500),
       fn(n) -> n + 0 == n,
@@ -73,7 +76,7 @@ mod TestShowcase
     )
 
   ## Doubling is always greater than the original for positives.
-  fn prop_double_gt() -> Atom =
+  fn prop_double_gt() -> Unit =
     forall(
       fn(_) -> int_in(1, 1000),
       fn(n) -> n * 2 > n,
@@ -82,28 +85,28 @@ mod TestShowcase
 
   ## Reversing a list twice yields the original (with `forall_default`,
   ## 100 runs).
-  fn prop_reverse_involution() -> Atom =
+  fn prop_reverse_involution() -> Unit =
     forall_default(
       fn(_) -> list_int(10, 0, 100),
       fn(xs) -> reverse(reverse(xs)) == xs
     )
 
   ## Length of a mapped list equals the original.
-  fn prop_map_preserves_length() -> Atom =
+  fn prop_map_preserves_length() -> Unit =
     forall_default(
       fn(_) -> list_int(8, -50, 50),
       fn(xs) -> length(map(xs, fn(x) -> x * x)) == length(xs)
     )
 
   ## `filter` never grows a list.
-  fn prop_filter_no_grow() -> Atom =
+  fn prop_filter_no_grow() -> Unit =
     forall_default(
       fn(_) -> list_int(12, 0, 100),
       fn(xs) -> length(filter(xs, fn(x) -> x > 50)) <= length(xs)
     )
 
   ## `sum` of a list of non-negatives is non-negative.
-  fn prop_sum_nonneg() -> Atom =
+  fn prop_sum_nonneg() -> Unit =
     forall(
       fn(_) -> list_int(10, 0, 999),
       fn(xs) -> sum(xs) >= 0,
@@ -111,7 +114,7 @@ mod TestShowcase
     )
 
   ## `one_of` always picks an element from the input list.
-  fn prop_one_of_membership() -> Atom =
+  fn prop_one_of_membership() -> Unit =
     let candidates = [10, 20, 30, 40, 50]
     forall(
       fn(_) -> one_of(candidates, 0),
@@ -122,28 +125,43 @@ mod TestShowcase
   # ---- 4. Shrinking-aware properties -----------------------------------------
 
   ## `forall_shrunk` shrinks counterexamples when a property fails.
-  ## Here the property always holds, so no shrinking is triggered --
-  ## we just verify the happy path compiles and returns `:ok`.
-  fn prop_shrunk_happy() -> Int =
-    forall_shrunk(
+  ## It returns a `Result`: `Ok(:ok)` when every sample satisfied the
+  ## property, `Error(minimal)` carrying the smallest counterexample
+  ## otherwise. It never raises -- a failing property is a value.
+  ##
+  ## Destructuring the result here is deliberate: it pins that the
+  ## runtime shape `cure_std_test` returns really is a `Result` this
+  ## pipeline can pattern-match.
+  fn prop_shrunk_happy() -> Unit =
+    match forall_shrunk(
       fn(_) -> int_in(0, 200),
       fn(n) -> n >= 0,
       50
     )
+      Ok(_)    -> ()
+      Error(_) -> raise_shrunk()
 
   ## Same with the 100-run convenience wrapper.
-  fn prop_shrunk_default_happy() -> List(Int) =
-    forall_shrunk_default(
+  fn prop_shrunk_default_happy() -> Unit =
+    match forall_shrunk_default(
       fn(_) -> list_int(6, 1, 50),
       fn(xs) -> all(xs, fn(x) -> x > 0)
     )
+      Ok(_)    -> ()
+      Error(_) -> raise_shrunk()
 
   ## `forall_shrunk` over lists: appending [] is the identity.
-  fn prop_shrunk_append_nil() -> List(Int) =
-    forall_shrunk_default(
+  fn prop_shrunk_append_nil() -> Unit =
+    match forall_shrunk_default(
       fn(_) -> list_int(8, -20, 20),
       fn(xs) -> append(xs, []) == xs
     )
+      Ok(_)    -> ()
+      Error(_) -> raise_shrunk()
+
+  ## A shrunk counterexample means the property is false: fail loudly.
+  local fn raise_shrunk() -> Unit =
+    assert(false)
 
   # ---- 5. Generator combinator showcase --------------------------------------
 
@@ -153,11 +171,11 @@ mod TestShowcase
       true  -> true
       false -> true
 
-  fn prop_bool_range() -> Atom =
+  fn prop_bool_range() -> Unit =
     forall_default(fn(_) -> bool(), fn(b) -> is_bool(b))
 
   ## `constant/1` -- every sample is the seeded value.
-  fn prop_constant() -> Atom =
+  fn prop_constant() -> Unit =
     forall(
       fn(_) -> constant(42),
       fn(v) -> v == 42,
@@ -165,7 +183,7 @@ mod TestShowcase
     )
 
   ## `list_of_int/3` -- exact-length generation.
-  fn prop_exact_length() -> Atom =
+  fn prop_exact_length() -> Unit =
     forall(
       fn(_) -> list_of_int(5, 0, 10),
       fn(xs) -> length(xs) == 5,

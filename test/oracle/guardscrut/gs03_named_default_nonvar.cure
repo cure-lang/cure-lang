@@ -1,0 +1,7 @@
+mod Gs03
+  type Nat = Z | S(Nat)
+  fn id(n: Nat) -> Nat = n
+  fn f(n: Nat) -> Nat = match id(n)
+    Z() -> S(Z())
+    other -> other
+end

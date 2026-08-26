@@ -18,8 +18,6 @@ defmodule Cure.Project.Proof do
 
     * `:equality`   -- an `Eq(T, a, b)` proof checked by definitional
       equality; the witness is `:cure_refl` or an equivalent term.
-    * `:refinement` -- a refinement-subtype witness; the witness is the
-      predicate source string plus the inferred bounds.
     * `:smt`        -- an SMT-discharged obligation; the witness is the
       serialized Z3 model that satisfies the negation of the goal.
     * `:totality`   -- a structural-decrease argument; the witness is
@@ -29,7 +27,7 @@ defmodule Cure.Project.Proof do
   @magic "CUREPROOF\0"
   @vsn <<0x01>>
 
-  @type kind :: :equality | :refinement | :smt | :totality
+  @type kind :: :equality | :smt | :totality
 
   @type certificate :: %{
           module: String.t(),

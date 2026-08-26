@@ -1,21 +1,14 @@
-## Curator actor for the Cure atelier showcase.
-##
-## The Curator role receives `SubmitPiece` messages from the Painter
-## and responds with `Accept` or `Reject` based on the submission.
-## In this minimal showcase the curator always accepts, so the session
-## type check passes cleanly. A deliberately-broken variant in the
-## test suite flips the response pattern to demonstrate `E056`.
+## Transparent actor example. Handler algebra is defined in Cure callbacks.
 
-actor Curator with %[:waiting, 0]
-  on_start
-    (state) -> state
-  on_message
-    (%[:accept, _title], %[_phase, n]) ->
-      %[:accepted, n + 1]
-    (%[:reject, _title, _reason], %[_phase, n]) ->
-      %[:rejected, n]
-    (:reset, _state) ->
-      %[:waiting, 0]
-    (:get, state) ->
-      notify(%[:curator_state, state])
-      state
+use Std.Actor
+use Std.Regex
+
+actor Curator
+  state Tuple(Atom, Int)
+  initial %[:waiting, 0]
+  body
+    fn initial_count() -> Int = 0
+
+    ## Regex literals are parsed and typed at Cure compile time; there is no
+    ## host-side pattern compiler or opaque regex handle.
+    fn valid_title(title: String) -> Bool = Std.Regex.matches(/^[A-Z][\w ]+\s\(\d\d\d\d\)$/, title)

@@ -253,7 +253,7 @@ Bye.
 Meta-commands (`:t`, `:effects`, `:load`, `:time`, `:bench`,
 `:doc`, `:history`, `:theme`, `:mode`, ...) live outside the
 expression grammar and are documented end-to-end under
-[`docs/REPL.md`](https://github.com/am-kantox/cure-lang/blob/main/docs/REPL.md).
+[`docs/REPL.md`](https://github.com/cure-lang/cure-lang/blob/main/docs/REPL.md).
 
 ## `cure watch` --- recompile on every save
 
@@ -541,7 +541,7 @@ Next: `mix hex.publish package --replace` with the tarball above.
 The plain form signs the tarball with the key bound to `--handle`
 (or `CURE_HANDLE`) and POSTs it to the registry with the bearer
 token in `--token` (or `CURE_TOKEN`). See
-[`docs/PUBLISHING.md`](https://github.com/am-kantox/cure-lang/blob/main/docs/PUBLISHING.md)
+[`docs/PUBLISHING.md`](https://github.com/cure-lang/cure-lang/blob/main/docs/PUBLISHING.md)
 for the full lifecycle.
 
 ## `cure search` --- registry substring search
@@ -581,7 +581,7 @@ error: cure info failed: {:fetch_failed, "/packages/std.list", {:failed_connect,
 
 Same caveat as `search`: this one needs the registry to be up. When
 the registry responds, the output shape is documented in
-[`docs/PACKAGE_REGISTRY.md`](https://github.com/am-kantox/cure-lang/blob/main/docs/PACKAGE_REGISTRY.md).
+[`docs/PACKAGE_REGISTRY.md`](https://github.com/cure-lang/cure-lang/blob/main/docs/PACKAGE_REGISTRY.md).
 
 ## `cure keys` --- Ed25519 publisher keys
 
@@ -787,7 +787,7 @@ If you skipped to the end and want a one-line setup to try any of
 this on your own machine:
 
 ```bash
-git clone https://github.com/am-kantox/cure-lang.git
+git clone https://github.com/cure-lang/cure-lang.git
 cd cure-lang
 mix deps.get && mix escript.build
 ./cure help

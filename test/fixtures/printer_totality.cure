@@ -1,0 +1,52 @@
+mod PrinterTotality
+
+# Construct-complete fixture for the Printer-totality gate.
+# Grown by the Task-3 loop: each time the gate reports UnprintableNodeError
+# for a node kind, add a construct here that produces it, then add its
+# Printer clause. Kinds already exercised by the in-repo corpus (indexed
+# families, gadt constructors, assert_type, binary generators, rewrite,
+# impossible arms, actor/sup/app/proof containers, ...) are covered there;
+# this fixture concentrates the kinds that no corpus file happens to use.
+
+fn classify(n: Int) -> String =
+  match n
+    ^zero -> "zero"
+    whole @ x -> "some"
+    _ -> "other"
+
+fn asserted() -> Int = assert_type 42 : Int
+
+fn goal() -> Int = ?hole
+
+fn dependent(g: (n: Nat) -> Vect(n)) -> Int = 0
+
+fn paired(p: Sigma(n: Nat, Vect(n))) -> Int = 0
+
+fn refined(x: Int) -> Int =
+  with g(x)
+    0 -> 1
+    _ -> 2
+
+type Vect(a: Type) indices (n: Nat)
+  VNil : Vect(a, Z)
+  VCons : (k: Nat) -> a -> Vect(a, k) -> Vect(a, S(k))
+
+interface Show(a)
+  fn show(x: a) -> String
+
+implementation Show for Int
+  fn show(x: Int) -> String = "int"
+
+fn `and`(a: Bool, b: Bool) -> Bool =
+  match a
+    True() -> b
+    False() -> False()
+
+# Anonymous union type in type-expression position (:union_type).
+typealias UnionFixture = Int | String | Bool
+
+# Typed pattern in a match arm (:typed_pattern), eliminating an anonymous union.
+fn union_elim(x: Int | String) -> Int =
+  match x
+    n: Int -> n
+    s: String -> 0

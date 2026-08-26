@@ -1,161 +1,152 @@
-# Applications and releases
-Cure 0.26.0 introduces the `app` container, a first-class declaration
-of an OTP application that lives next to the `actor` and `sup`
-containers shipped in 0.25.0. A project that declares an `app`
-gets, in addition to a runnable `Application` callback module, an
-emitted `<name>.app` OTP resource file and a buildable BEAM release
-via `cure release`.
-The surface consists of three pieces:
-1. The `app` container -- syntactic shape, lifecycle hooks, and
-   start phases.
-2. New `[application]` and `[release]` sections in `Cure.toml`.
-3. The `cure release` subcommand (also available as
-   `mix cure.release`).
-## The `app` container
-An `app` container declares the project's single OTP application:
+# Applications And Releases
+
+`app` is a standard-library macro that creates a transparent lifted
+`Application` module. It comes from `Std.App`, which a unit declaring an
+application must `use` — nothing here is ambient. Project metadata stays in
+`Cure.toml`; the macro's only job is to wire the OTP application callbacks to a
+root supervisor. The same module also carries the typed run-time surface for
+reaching a running application.
+
+## Declaring An Application
+
+An application is its name and the supervisor it starts. `root` is not
+optional — an application that starts nothing is an application the macro has
+no reason to generate:
+
+```cure
+use Std.App
+
+app Demo
+  root Root
 ```
-app MyApp
-  vsn          = "0.1.0"
-  description  = "My humble application"
-  root         = sup MyApp.Root
-  applications = [:logger, :crypto]
-  env          = %{port: 4000}
-  on_start
-    (start_kind, args) -> do_start(start_kind, args)
-  on_stop
-    (state) -> cleanup(state)
-  on_phase :init
-    (args, _kind, _start_args) -> init_phase(args)
-  on_phase :warm_cache
-    (_args, _kind, _start_args) -> Std.Cache.warm()
+
+The root is named the way any module is named, and the supervisor it refers to
+is an ordinary `sup` declared alongside it:
+
+```cure
+use Std.App
+use Std.Supervisor
+
+sup Root
+  strategy OneForOne
+  children []
+
+app Demo
+  root Root
 ```
-* `vsn`, `description`, `root`, `applications`, `included_applications`,
-  `env`, and `registered` are top-level assignments. They override the
-  corresponding values in `[application]` (TOML wins on conflict for
-  `applications`, which are merged).
-* `on_start` and `on_stop` follow the same syntax as actor/FSM
-  lifecycle hooks. Their bodies become the generated module's
-  `start/2` and `stop/1` callbacks.
-* `on_phase :name` introduces a single 3-argument clause
-  `(phase_args, start_kind, start_args)` and feeds the generated
-  `start_phase/3` callback.
-The container compiles to a loaded BEAM module named
-`:"Cure.App.<Name>"` that `use Application`. When `:output_dir` is
-provided, the bytecode is also persisted alongside every other Cure
-module. The module is never started automatically by the compiler;
-it is started by the OTP boot script when the release boots, or
-manually via `Std.App.ensure_all_started/1`.
-### Root supervisor resolution
-`root = ...` accepts four forms, mirroring the `sup` child-spec
-conventions documented in `docs/SUPERVISION.md`:
-* `root = sup Name`        -> `:"Cure.Sup.Name"` (the soft-keyword form).
-* `root = Name`            -> `:"Cure.Sup.Name"` (PascalCase identifier).
-* `root = App.Sub.Root`    -> `:"App.Sub.Root"` (dotted -- used verbatim).
-* `root = :my_app_sup`     -> `:my_app_sup` (atom literal).
-A phase-only application that does not need a root supervisor may
-omit the `root` line entirely; `start/2` then returns `{:ok, self()}`
-(matching what `:application` accepts).
-### Single-`app` enforcement
-Cure's project-wide compile driver
-(`Cure.Project.compile_project/2`) scans every `.cure` file under
-`lib/` and aborts when more than one `app` container is present:
-```
-error: duplicate application (E051)
- --> Cure.toml
-  | more than one `app` container in the project:
-  | lib/foo_app.cure -> app Foo
-  | lib/bar_app.cure -> app Bar
-```
-The same code surfaces when the `app` container's name does not
-match `[application].name` in `Cure.toml`. The match is performed
-after both names have been normalised through `Macro.underscore/1`,
-so `app MyApp` matches `name = "my_app"`.
-## Cure.toml: `[application]` and `[release]`
-A project that ships an `app` container declares its application
-metadata under `[application]`, optionally complemented by a
-`[release]` table:
-```
+
+## What The Macro Generates
+
+The expansion is a lifted module carrying the three callbacks OTP asks an
+application for:
+
+- `start/2` — calls `Std.Otp.start_supervisor` on the declared root and
+  returns `Effect(Tuple)`, the ordinary OTP startup tuple after effect erasure.
+- `stop/1` — returns `:ok`.
+- `start_phase/3` — returns `:ok` for every phase.
+
+Callback results use erased `Effect(...)` types, so pure results and effectful
+bodies share one elaboration path.
+
+Start phases are therefore a manifest-level feature, not a macro-level one:
+`[application].start_phases` in `Cure.toml` is what puts them in the generated
+`.app` resource, and the generated `start_phase/3` accepts each of them. An
+application that needs real work in a phase overrides that callback in its own
+module rather than declaring it on the `app` line.
+
+## Project Metadata
+
+The application manifest is declared separately:
+
+```toml
+[project]
+name = "demo"
+version = "0.1.0"
+
 [application]
-name           = "my_app"
-vsn            = "0.1.0"
-description    = ""
-applications   = ["logger", "crypto"]
-included_applications = []
-start_phases   = ["init", "warm_cache"]
+name = "demo"
+vsn = "0.1.0"
+applications = ["logger", "crypto"]
+start_phases = ["warm_cache", "ready"]
+
 [application.env]
 port = 4000
+
 [release]
-name         = "my_app"
-vsn          = "0.1.0"
+name = "demo"
+vsn = "0.1.0"
 include_erts = false
-applications = ["logger"]
-vm_args      = "rel/vm.args"
-sys_config   = "rel/sys.config"
 ```
-Notable rules:
-* `start_phases` is authoritative. Every entry must have a matching
-  `on_phase :name` clause in the `app`, and every `on_phase` clause
-  must appear in the list. Mismatches surface as `E053 Start Phase
-  Mismatch`.
-* `applications` is merged with the container's own `applications =
-  [...]` list; `[application].name` is the source of truth for the
-  emitted `<name>.app` resource.
-* The TOML parser accepts a minimal subset: scalar string / integer /
-  bool / array-of-strings values, plus nested tables for
-  `[application.env]`. More complex types (inline tables, mixed
-  arrays) are not supported.
-## `cure release`
-Once the project compiles cleanly, `cure release` (or
-`mix cure.release`) produces a self-contained BEAM release under
-`_build/cure/rel/<name>/`:
-```
-_build/cure/rel/my_app/
-  lib/<app>-<vsn>/ebin/*.{beam,app}    # for every included app
-  releases/<vsn>/<name>.rel
-  releases/<vsn>/start.boot
-  releases/<vsn>/start.script
-  releases/<vsn>/sys.config
-  releases/<vsn>/vm.args
-  bin/<name>                            # POSIX runner script
-```
-The runner script uses `${ERL:-erl}` so the release can be tested
-against any Erlang VM on `PATH`. Pass `--include-erts` (or set
-`[release].include_erts = true`) to bundle ERTS into the release
-directory itself, which makes the resulting tree fully
-self-contained.
-### Application closure
-The release boot script needs a complete list of applications.
-`Cure.Release` seeds it with `:kernel`, `:stdlib`, `:compiler`,
-`:elixir`, the project's own application atom, and every entry in
-`[release].applications`. Out-of-tree dependencies must be loaded by
-the calling VM (typically by Mix when `cure release` runs through
-`mix cure.release`); the closure is read from the live code path.
-### Stop / start phases / env at runtime
-From a Cure module, use `Std.App` to interact with the running
-application:
-```
+
+`Cure.Project.compile_project/2` discovers the lifted application module,
+enforces the single-application invariant, checks its name against
+`[application].name`, and emits the `<name>.app` resource. Release generation
+uses the same compiled modules and manifest data.
+
+## Reaching The Application At Run Time
+
+`Std.App` is not only the macro. The same module wraps OTP's application
+controller in typed functions, so starting an application and reading its
+environment are ordinary Cure calls. Each one touches VM-global state, so each
+returns `Effect(...)`.
+
+Starting answers a closed type rather than an OTP tuple:
+
+```cure
 use Std.App
-fn boot() -> Atom = Std.App.ensure_all_started(:my_app)
-fn port() -> Int  = Std.App.get_env(:my_app, :port, 4000)
+
+fn boot() -> Effect(AppStart) = ensure_all_started(:demo)
+
+fn running() -> Effect(Bool) =
+  let outcome = boot()
+  match outcome
+    AppStarted()     -> true
+    AlreadyStarted() -> true
+    AppStartFailed() -> false
 ```
-`Std.App` is a thin wrapper around `:application` that returns plain
-atoms / values rather than the OTP `{ok, _}` tuples.
-## Error codes
-The new codes are catalogued in `Cure.Compiler.Errors`:
-* **E051 Duplicate Application** -- more than one `app` container
-  in a project (or a name mismatch with `[application].name`).
-* **E052 Missing Application** -- `cure release` invoked with no
-  `app` declared.
-* **E053 Start Phase Mismatch** -- TOML and container disagree on
-  phase names.
-* **E054 Unresolved Root Supervisor** -- `root = ...` does not
-  resolve to a known module reference.
-* **E055 Release Build Failed** -- wraps `:systools.make_script/2`
-  or release-write I/O errors.
-Run `cure explain E054` (or any code) for the full catalog text.
-## Example
-The `examples/cure_colony/` project is the canonical end-to-end
-example. After `mix cure.compile examples/cure_colony/cure_src` the
-emitted `_build/cure/ebin/cure_colony.app` file is loadable with
-`:application.load/1` and the release is buildable with
-`mix cure.release`.
+
+`AlreadyStarted` is not a failure — OTP reports it as success with an empty list
+of newly started applications, and a caller that only asks "is it up" can treat
+it exactly like `AppStarted`. The failure case carries no reason, because the
+reason OTP supplies is an arbitrary term and typing it as an atom would be a lie
+at the boundary. `stop/1` mirrors this: `false` means the application was not
+running to begin with.
+
+Environment values arrive as `Option`, since a key that was never set is a real
+answer and not an error:
+
+```cure
+use Std.App
+use Std.Beam
+use Std.Option
+
+fn maybe_port() -> Effect(Option(BeamTerm)) = env(:demo, :port)
+```
+
+`env/2` hands back an undecoded `BeamTerm` because `[application.env]` may hold
+any term at all. When the expected shape is a primitive, the typed readers do
+the narrowing and fall back when the key is missing *or* holds something else:
+
+```cure
+use Std.App
+
+fn port() -> Effect(Int) = env_int(:demo, :port, 4000)
+fn mode() -> Effect(Atom) = env_atom(:demo, :mode, :production)
+fn tracing() -> Effect(Bool) = env_bool(:demo, :tracing, false)
+fn banner() -> Effect(String) = env_string(:demo, :banner, "demo")
+```
+
+The fallback is what makes these total. `env_int(:demo, :port, 4000)` is `4000`
+whether `:port` is absent or holds a string — a program reading its own
+configuration should not crash over a manifest typo, and the manifest's
+`[application.env]` is what decides which answer you actually get.
+
+Anything past these primitives — a list, a nested tuple, a map — comes back from
+`env/2` as a `BeamTerm` and is narrowed with `Std.Beam`. Reaching for `@extern`
+is only necessary for parts of `:application` this surface does not cover.
+
+## Transparency
+
+The `app` macro expands to ordinary `lift module`, `callback`, and checked
+algebra syntax. It does not use an OTP-specific compiler branch, source-string
+compilation, or direct code-server loading.

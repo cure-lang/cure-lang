@@ -1,35 +1,14 @@
-## Voice actor for the Cure motif supervision tree.
-##
-## Tracks the currently-playing note as a tuple payload
-##   %[state, pitch, velocity]
-## where `state` is one of `:silent`, `:playing`, or `:released`, and
-## `pitch` / `velocity` are the last-seen MIDI values.
-##
-## Messages understood:
-##   * `%[:play, pitch, velocity]`
-##       -- begin playing a note; update payload to :playing.
-##   * `:stop`
-##       -- move to :released; keep pitch + velocity for observation.
-##   * `:get`
-##       -- notify the caller with the current payload.
-##   * `:reset`
-##       -- restore to the initial silent state.
-##
-## The surface mirrors the four-phase `Cure.FSM.Envelope` FSM; in
-## practice a Voice actor holds a pointer to an Envelope instance and
-## simply relays events. We keep the state as a plain tuple here to
-## stay readable and avoid cross-file FSM coupling in the showcase.
+## Transparent voice actor with a typed tuple payload.
 
-actor Voice with %[:silent, 0, 0]
-  on_start
-    (state) -> state
-  on_message
-    (%[:play, pitch, velocity], _state) ->
-      %[:playing, pitch, velocity]
-    (:stop, %[_s, pitch, velocity]) ->
-      %[:released, pitch, velocity]
-    (:reset, _state) ->
-      %[:silent, 0, 0]
-    (:get, state) ->
-      notify(%[:voice_state, state])
-      state
+use Std.Actor
+
+actor Voice
+  state Tuple(Atom, Int, Int)
+  initial %[:silent, 0, 0]
+  messages Tuple(Atom, Int, Int)
+  handle_cast
+    let tag = message.1
+    pickup
+      tag == :play -> %[:noreply, %[:playing, message.2, message.3]]
+      tag == :stop -> %[:noreply, %[:released, state.2, state.3]]
+      else -> %[:noreply, state]

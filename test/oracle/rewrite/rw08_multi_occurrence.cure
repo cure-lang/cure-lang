@@ -1,0 +1,13 @@
+mod Rw08
+  type Nat = Z | S(Nat)
+  fn plus(m: Nat, n: Nat) -> Nat = match m
+    Z() -> n
+    S(k) -> S(plus(k, n))
+  fn plus_zero_right(n: Nat) -> Equivalent(Nat, plus(n, Z), n) = match n
+    Z() -> reflexive(Z)
+    S(k) -> rewrite plus_zero_right(k) in reflexive(S(k))
+  # SYNTACTIC multi-occurrence: `plus(n, Z)` appears twice in the goal; a single
+  # `rewrite` must abstract BOTH occurrences (the interchange/∗∗ shape distilled).
+  fn multi_occ(n: Nat) -> Equivalent(Nat, plus(plus(n, Z), plus(n, Z)), plus(n, n)) =
+    rewrite plus_zero_right(n) in reflexive(plus(n, n))
+end

@@ -1,0 +1,64 @@
+#!/bin/sh
+# Focused loop for the interface-first module pipeline.
+#
+#   scripts/check-canonical-module-pipeline            # the canonical red/green suites
+#   scripts/check-canonical-module-pipeline --full     # add the full + boundary red suites
+#   scripts/check-canonical-module-pipeline <args...>  # raw `elixir` args (ad-hoc scripts)
+#
+# In MIX_ENV=test the compile alias builds the host compiler and a VM-local
+# stdlib generation only. Packaging and escript gates are deliberately absent,
+# so this can use the ordinary dependency-aware compiler path without mutating
+# shared release outputs or compiling Elixir against a dependency-free path.
+set -eu
+
+repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+cd "$repository_root"
+
+formatted_sources="
+lib/cure/core/kernel.ex
+lib/cure/elab/program.ex
+lib/cure/compiler/parser/fixity_scan.ex
+lib/cure/compiler/module_pipeline/selection.ex
+lib/cure/compiler/module_pipeline/request.ex
+lib/cure/compiler/module_pipeline/semantic_graph.ex
+lib/cure/compiler/module_manifest.ex
+lib/cure/compiler/module_skeleton.ex
+lib/cure/compiler/module_pipeline/result.ex
+lib/cure/compiler/module_pipeline/interface.ex
+lib/cure/compiler/module_pipeline/emission.ex
+lib/cure/compiler/module_pipeline/publication.ex
+lib/cure/compiler/module_pipeline.ex
+test/cure/compiler/fixity_scan_test.exs
+test/cure/compiler/canonical_module_pipeline_gate_test.exs
+test/cure/compiler/canonical_module_pipeline_contract_red_test.exs
+test/cure/compiler/canonical_module_pipeline_full_red_test.exs
+test/cure/compiler/canonical_module_pipeline_boundary_red_test.exs
+test/cure/compiler/canonical_module_pipeline_beam_product_test.exs
+"
+
+# shellcheck disable=SC2086
+mix format $formatted_sources
+
+MIX_ENV=test mix compile
+
+if [ "$#" -gt 0 ] && [ "$1" != "--full" ]; then
+  MIX_ENV=test elixir -pa _build/test/lib/cure/ebin "$@"
+  exit $?
+fi
+
+suites='
+    Code.require_file("test/cure/compiler/fixity_scan_test.exs")
+    Code.require_file("test/cure/compiler/canonical_module_pipeline_gate_test.exs")
+    Code.require_file("test/cure/compiler/canonical_module_pipeline_contract_red_test.exs")
+    Code.require_file("test/cure/compiler/canonical_module_pipeline_beam_product_test.exs")
+'
+
+if [ "${1:-}" = "--full" ]; then
+  suites="$suites
+    Code.require_file(\"test/cure/compiler/canonical_module_pipeline_full_red_test.exs\")
+    Code.require_file(\"test/cure/compiler/canonical_module_pipeline_boundary_red_test.exs\")
+"
+fi
+
+MIX_ENV=test mix run --no-compile --no-start -e "ExUnit.start()
+$suites"

@@ -1,29 +1,6 @@
-## Application container for the Cure motif example.
-##
-## The compiler verifies that exactly one `app` container exists in the
-## project and that its name matches `[application].name` in
-## `Cure.toml`. The `root = sup Motif.Orchestra` line wires the
-## application's `start/2` callback to the `Motif.Orchestra` supervisor
-## declared in `orchestra.cure`, which in turn brings up the three
-## actors (`Clock`, `Sequencer`, `Voice`) that make up the motif runtime.
-##
-## Declared top-level assignments:
-##   * `vsn`          -- matches `[application].vsn` in `Cure.toml`.
-##   * `description`  -- free-form human text emitted into the
-##                       `<name>.app` resource file.
-##   * `root`         -- resolves to `:"Cure.Sup.Motif.Orchestra"` via
-##                       the soft-keyword `sup` resolution rule.
-##   * `applications` -- merged with `[application].applications`.
-##   * `env`          -- overrides `[application.env]` entries when both
-##                       are present (the container wins).
+## Transparent application example.
+
+use Std.App
 
 app CureMotif
-  vsn          = "0.1.0"
-  description  = "Cure motif showcase: length-indexed step sequencer with a typed envelope FSM"
-  root         = sup Motif.Orchestra
-  applications = [:logger]
-  env          = %{bpm: 120, steps_per_beat: 4, channel: 0, voice_count: 4}
-  on_start
-    (_kind, _args) -> :ok
-  on_stop
-    (_state) -> :ok
+  root Motif.Orchestra

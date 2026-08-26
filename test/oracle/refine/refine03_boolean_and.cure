@@ -1,0 +1,7 @@
+mod Refine03
+  use Std.Bool
+  use Std.Proof.IntMath
+  use Std.Proof.BooleanReflection
+  fn both(p: IsTrue(`and`(True(), True()))) -> IsTrue(True()) =
+    left_operand_is_true_from_true_conjunction(True(), True(), p)
+end

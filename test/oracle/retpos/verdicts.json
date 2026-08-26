@@ -1,0 +1,1 @@
+{"rp01_nil_return":{"cure":"accept","idris":"accept","reason":"","relation":"same"},"rp02_cons_return":{"cure":"accept","idris":"accept","reason":"","relation":"same"},"rp03_wrong_elem_neg":{"cure":"reject","idris":"reject","reason":"","relation":"same"}}

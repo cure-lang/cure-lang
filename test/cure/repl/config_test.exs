@@ -208,6 +208,10 @@ defmodule Cure.REPL.ConfigTest do
 
       out = capture_io(:stderr, fn -> assert Config.load() == %{preload: :all, imports: :none} end)
       assert out =~ "failed to parse"
+      assert out =~ "[W002]"
+      assert length(Regex.scan(~r/-- INVALID CONFIGURATION \[W002\]/, out)) == 1
+      refute out =~ "INVALID CONFIGURATION [W002].*INVALID CONFIGURATION"
+      refute out =~ "{:"
     end
   end
 end

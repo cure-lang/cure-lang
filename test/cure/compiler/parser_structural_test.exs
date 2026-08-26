@@ -41,7 +41,13 @@ defmodule Cure.Compiler.ParserStructuralTest do
       assert meta[:guards] != nil
     end
 
-    test "fn with where constraints" do
+    test "fn with requires constraints" do
+      ast = parse!("fn sort(xs: List) -> List requires Ord(T) = xs")
+      assert {:function_def, meta, _} = ast
+      assert [_] = meta[:constraints]
+    end
+
+    test "legacy constraint-position where remains parseable during migration" do
       ast = parse!("fn sort(xs: List) -> List where Ord(T) = xs")
       assert {:function_def, meta, _} = ast
       assert [_] = meta[:constraints]
@@ -154,13 +160,6 @@ defmodule Cure.Compiler.ParserStructuralTest do
       assert {:type_annotation, meta, [_type_expr]} = ast
       assert meta[:name] == "Name"
     end
-
-    test "refinement type" do
-      ast = parse!("type Nat = {x: Int | x >= 0}")
-      assert {:type_annotation, meta, [_var, _base, _pred]} = ast
-      assert meta[:name] == "Nat"
-      assert meta[:refinement] == true
-    end
   end
 
   # ── Protocols ────────────────────────────────────────────────────────
@@ -234,42 +233,9 @@ defmodule Cure.Compiler.ParserStructuralTest do
     end
   end
 
-  # ── FSM Definitions ─────────────────────────────────────────────────
+  # ── Transparent FSM Definitions ─────────────────────────────────────
 
   describe "FSM definitions" do
-    test "simple FSM with transitions" do
-      source =
-        "fsm TrafficLight with TrafficPayload{}\n  Red --timer--> Green\n  Green --timer--> Yellow\n  Yellow --timer--> Red"
-
-      ast = parse!(source)
-      assert {:container, meta, transitions} = ast
-      assert meta[:container_type] == :fsm
-      assert meta[:name] == "TrafficLight"
-      assert [_, _, _] = transitions
-    end
-
-    test "FSM transition has from/event/to metadata" do
-      source = "fsm Counter with Payload{}\n  Idle --start--> Running"
-      ast = parse!(source)
-      assert {:container, _, [t]} = ast
-      assert {:function_call, t_meta, []} = t
-      assert t_meta[:from] == "Idle"
-      assert t_meta[:event] == "start"
-      assert t_meta[:to] == "Running"
-    end
-
-    test "FSM with guarded transition" do
-      source = "fsm Counter with Payload{}\n  Counting --increment when value < 100--> Counting"
-      ast = parse!(source)
-      assert {:container, _, [t]} = ast
-      assert {:function_call, t_meta, []} = t
-      assert t_meta[:guard] != nil
-    end
-  end
-
-  # ── Enhanced Type Expressions ───────────────────────────────────────
-
-  describe "type expressions" do
     test "parameterized type" do
       ast = parse!("fn id(x: List(Int)) -> List(Int) = x")
       assert {:function_def, meta, _} = ast
@@ -285,6 +251,44 @@ defmodule Cure.Compiler.ParserStructuralTest do
     test "anonymous fn still works" do
       ast = parse!("fn(x) -> x + 1")
       assert {:lambda, _, _} = ast
+    end
+  end
+
+  describe "qualified applied type constructor (Mod.Name(args))" do
+    defp type_alias_rhs(module_src) do
+      ast = parse!(module_src)
+      {:container, _, body} = ast
+      {:type_annotation, _, [rhs]} = Enum.find(body, &match?({:type_annotation, _, _}, &1))
+      rhs
+    end
+
+    test "a qualified applied type in a typealias RHS parses as an application, not a garbled `unknown` call" do
+      # Regression: the type grammar parsed `Mod.Name` (dotted projection) and
+      # `Name(args)` (application) but had no production for `Mod.Name(args)`, so
+      # the `(args)` dangled and the postfix parser swallowed the whole typealias
+      # into a `{:function_call, name: "unknown", …}`. It must now be the qualified
+      # type application `Std.Map(k, v)`.
+      rhs = type_alias_rhs("mod M\n  typealias Q(k, v) = Std.Map(k, v)\n")
+
+      assert {:function_call, meta, args} = rhs
+      assert Keyword.get(meta, :name) == "Std.Map"
+      assert [{:variable, _, "k"}, {:variable, _, "v"}] = args
+    end
+
+    test "a qualified applied type parses in a function signature" do
+      # Previously this was a hard parse error (the dangling `(` closed the param
+      # list early). It must now parse to a well-formed function_def.
+      ast = parse!("mod M\n  fn f(m: Std.Map(k, v)) -> Int = 0\n")
+      assert {:container, _, [{:function_def, fmeta, _} | _]} = ast
+      [{:param, pmeta, "m"}] = Keyword.get(fmeta, :params)
+      assert {:function_call, tmeta, _} = Keyword.get(pmeta, :type)
+      assert Keyword.get(tmeta, :name) == "Std.Map"
+    end
+
+    test "a deeper qualification (A.B.C(x)) keeps the full dotted name" do
+      rhs = type_alias_rhs("mod M\n  typealias Q(x) = A.B.C(x)\n")
+      assert {:function_call, meta, [{:variable, _, "x"}]} = rhs
+      assert Keyword.get(meta, :name) == "A.B.C"
     end
   end
 end

@@ -26,8 +26,8 @@ defmodule Cure.QuoteTest do
     printed
   end
 
-  # Strip `line`, `col`, `column` keys from every meta keyword list in
-  # the tree. Mirrors `Cure.Compiler.Formatter.strip_meta/1`.
+  # Strip source-location and diagnostic-provenance keys from every meta keyword
+  # list in the tree. They do not affect quoted syntax semantics or printing.
   defp strip_positions({type, meta, children}) when is_list(meta) do
     {type, drop_position_keys(meta), strip_positions(children)}
   end
@@ -45,6 +45,10 @@ defmodule Cure.QuoteTest do
     |> Keyword.delete(:line)
     |> Keyword.delete(:col)
     |> Keyword.delete(:column)
+    |> Keyword.delete(:span)
+    |> Keyword.delete(:construct_span)
+    |> Keyword.delete(:source_info)
+    |> Keyword.delete(:provenance)
     |> Enum.map(fn {k, v} -> {k, strip_positions(v)} end)
   end
 
@@ -115,8 +119,8 @@ defmodule Cure.QuoteTest do
     end
 
     test "regex" do
-      ast = quote!("~r/[a-z]+/i")
-      assert Cure.quoted_to_string(ast) == "~r/[a-z]+/i"
+      ast = quote!("/[a-z]+/i")
+      assert Cure.quoted_to_string(ast) == "/[a-z]+/i"
     end
 
     test "char" do
@@ -167,10 +171,6 @@ defmodule Cure.QuoteTest do
 
     test "let with type annotation" do
       assert_round_trip("let x: Int = 42")
-    end
-
-    test "augmented assignment" do
-      assert_round_trip("x += 1")
     end
   end
 
@@ -343,10 +343,6 @@ defmodule Cure.QuoteTest do
 
     test "type alias" do
       assert_round_trip("type Name = String")
-    end
-
-    test "refinement type" do
-      assert_round_trip("type Nat = {x: Int | x >= 0}")
     end
   end
 

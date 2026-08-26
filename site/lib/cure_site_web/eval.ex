@@ -24,6 +24,8 @@ defmodule CureSiteWeb.Eval do
   similar isolated environment.
   """
 
+  alias Cure.Diagnostic.{Host, Operational}
+
   @timeout_ms 2_000
   @max_heap_words 8_000_000
 
@@ -90,7 +92,7 @@ defmodule CureSiteWeb.Eval do
         {:error, "Internal eval timeout"}
     end
   rescue
-    e -> {:error, "Evaluation error: #{Exception.message(e)}"}
+    e -> {:error, render_exception(e, __STACKTRACE__)}
   end
 
   # Lightweight stdout capture that does not depend on ExUnit (which is not
@@ -112,54 +114,16 @@ defmodule CureSiteWeb.Eval do
   end
 
   defp compile_and_run(source) do
-    with {:ok, tokens} <-
-           Cure.Compiler.Lexer.tokenize(source, emit_events: false),
-         {:ok, ast} <-
-           Cure.Compiler.Parser.parse(tokens, emit_events: false),
-         {:ok, forms} <-
-           Cure.Compiler.Codegen.compile_module(ast, emit_events: false),
-         {:ok, module} <-
-           load_module(forms) do
+    with {:ok, module} <-
+           Cure.Compiler.compile_and_load(source,
+             file: "playground.cure",
+             emit_events: false
+           ) do
       run_main(module)
     else
       {:error, reason} ->
         {:error, format_compile_error(reason)}
     end
-  end
-
-  # Plain `mod` / `proof` containers come back as a list of Erlang abstract
-  # forms -- we need to run them through `:compile.forms/2` and load the
-  # resulting BEAM binary.
-  defp load_module(forms) when is_list(forms) do
-    # `:compile.forms/2` can return either `{:ok, Mod, Bin}` (no warnings) or
-    # `{:ok, Mod, Bin, Warnings}` (with `:return_warnings`). We handle both.
-    case :compile.forms(forms, [:return_errors, :return_warnings]) do
-      {:ok, mod_atom, bytecode, _warnings} ->
-        load_bytecode(mod_atom, bytecode)
-
-      {:ok, mod_atom, bytecode} ->
-        load_bytecode(mod_atom, bytecode)
-
-      {:error, errors, _warnings} ->
-        {:error, inspect(errors)}
-
-      :error ->
-        {:error, "Unknown compile error"}
-    end
-  end
-
-  # Eager-loaded containers (callback-mode FSMs, typed actors, supervisors,
-  # OTP applications) are already compiled and loaded by `Cure.Compiler.Codegen`
-  # -- we just need to unwrap the module atom.
-  defp load_module({:callback_mode, mod_atom}), do: {:ok, mod_atom}
-  defp load_module({:actor, mod_atom}), do: {:ok, mod_atom}
-  defp load_module({:supervisor, mod_atom}), do: {:ok, mod_atom}
-  defp load_module({:app, mod_atom}), do: {:ok, mod_atom}
-
-  defp load_bytecode(mod_atom, bytecode) do
-    :code.purge(mod_atom)
-    {:module, ^mod_atom} = :code.load_binary(mod_atom, ~c"playground", bytecode)
-    {:ok, mod_atom}
   end
 
   defp run_main(module) do
@@ -170,13 +134,28 @@ defmodule CureSiteWeb.Eval do
       {:ok, :no_main}
     end
   rescue
-    e -> {:error, "Runtime error: #{Exception.message(e)}"}
+    e -> {:error, render_exception(e, __STACKTRACE__)}
   end
 
   defp format_compile_error(reason) when is_binary(reason), do: reason
-  defp format_compile_error(reason), do: Cure.Compiler.Errors.format_error(reason)
+  defp format_compile_error(reason), do: Cure.Diagnostic.Host.render(reason, "playground.cure")
 
   defp format_exit_reason(:normal), do: {:ok, "", ":ok"}
-  defp format_exit_reason(:killed), do: {:error, "Process killed (memory limit exceeded)"}
-  defp format_exit_reason(reason), do: {:error, "Process exited: #{inspect(reason)}"}
+
+  defp format_exit_reason(:killed),
+    do: {:error, render_operational("playground evaluation", :killed)}
+
+  defp format_exit_reason(reason),
+    do: {:error, render_operational("playground evaluation", reason)}
+
+  defp render_exception(exception, stacktrace) do
+    exception
+    |> Operational.internal_exception(stacktrace, context: "playground evaluation")
+    |> Host.render_diagnostic(color: :never)
+  end
+
+  defp render_operational(command, reason) do
+    Operational.command_failure(command, reason)
+    |> Host.render_diagnostic(color: :never)
+  end
 end

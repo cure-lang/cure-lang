@@ -1,0 +1,8 @@
+mod Pl02
+  type Nat = Z | S(Nat)
+  type Lst(a) = Nil | Cons(a, Lst(a))
+  fn hd(d: Nat, l: Lst(Nat)) -> Nat = match l
+    Cons(x, xs) -> x
+    Nil() -> d
+  fn g() -> Nat = hd(Z(), Cons(S(Z()), Nil()))
+end

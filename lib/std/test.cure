@@ -1,3 +1,4 @@
+@group(:test)
 mod Std.Test
   ## Test assertion primitives plus a shrinking-aware property runner.
   ##
@@ -11,7 +12,7 @@ mod Std.Test
   ## mod MyTest
   ##   use Std.Test
   ##
-  ##   fn test_sanity() -> Atom =
+  ##   fn test_sanity() -> Unit =
   ##     assert_eq(1 + 1, 2)
   ## ```
   ##
@@ -29,40 +30,43 @@ mod Std.Test
   ## ```
 
   ## Group tag consumed by `Cure.Stdlib.Preload`.
-  fn __group__() -> Atom = :test
+  use Std.Comparable
+  use Std.Result
 
   ## Private: raise `reason` as an Erlang error.
   @extern(:erlang, :error, 1)
-  local fn raise_error(reason: Atom) -> Atom
+  local fn raise_error(reason: Atom) -> Unit
 
   ## Assert `condition` is `true`; raises `:assertion_failed` on false.
-  fn assert(condition: Bool) -> Atom =
+  fn assert(condition: Bool) -> Unit =
     pickup
-      condition -> :ok
+      condition -> ()
       else      -> raise_error(:assertion_failed)
 
-  ## Assert `a == b`; raises `:not_equal` on mismatch.
-  fn assert_eq(a: T, b: T) -> Atom =
+  ## Assert structural equality; raises `:not_equal` on mismatch. Assertions are
+  ## intentionally available for every runtime value, including generic
+  ## containers whose element dictionary is not otherwise in lexical scope.
+  fn assert_eq(a: t, b: t) -> Unit =
     pickup
-      a == b -> :ok
+      Std.Builtin.struct_eq(t, a, b) -> ()
       else   -> raise_error(:not_equal)
 
   ## Assert `a != b`; raises `:unexpectedly_equal` when they match.
-  fn assert_ne(a: T, b: T) -> Atom =
+  fn assert_ne(a: t, b: t) -> Unit =
     pickup
-      a != b -> :ok
-      else   -> raise_error(:unexpectedly_equal)
+      Std.Builtin.struct_eq(t, a, b) -> raise_error(:unexpectedly_equal)
+      else   -> ()
 
   ## Assert `a > b`; raises `:not_greater` otherwise.
-  fn assert_gt(a: T, b: T) -> Atom =
+  fn assert_gt(a: t, b: t) -> Unit requires Comparable(t) =
     pickup
-      a > b -> :ok
+      a > b -> ()
       else  -> raise_error(:not_greater)
 
   ## Assert `a < b`; raises `:not_less` otherwise.
-  fn assert_lt(a: T, b: T) -> Atom =
+  fn assert_lt(a: t, b: t) -> Unit requires Comparable(t) =
     pickup
-      a < b -> :ok
+      a < b -> ()
       else  -> raise_error(:not_less)
 
   # -- Property-based testing (v0.19.0) --------------------------------------
@@ -74,27 +78,32 @@ mod Std.Test
   ## `gen` is a zero-argument function (e.g.
   ## `fn(_) -> Std.Gen.int_in(0, 100)`) that returns a fresh value
   ## on every call.
-  fn forall(gen: Atom -> T, property: T -> Bool, runs: Int) -> Atom =
+  fn forall(gen: Unit -> t, property: t -> Bool, runs: Int) -> Unit =
     match runs
-      0 -> :ok
+      0 -> ()
       _ ->
-        match property(gen(:draw))
+        match property(gen(()))
           true  -> forall(gen, property, runs - 1)
           false -> raise_error(:property_failed)
 
   ## Convenience wrapper that uses 100 runs by default.
-  fn forall_default(gen: Atom -> T, property: T -> Bool) -> Atom =
+  fn forall_default(gen: Unit -> t, property: t -> Bool) -> Unit =
     forall(gen, property, 100)
 
   # -- Shrinking-aware property runner (v0.23.0) -----------------------------
 
-  ## Run `property` against `runs` random samples. On the first
-  ## failure, shrink the counterexample using `Std.Gen.shrink/1`
-  ## until no smaller value also fails; raise
-  ## `:property_failed_with_shrunk` carrying the minimised value.
+  ## Run `property` against `runs` random samples. On the first failure,
+  ## shrink the counterexample until no smaller value also fails.
+  ##
+  ## Returns `Ok(:ok)` when every sample satisfied the property, and
+  ## `Error(minimal)` carrying the minimised counterexample otherwise.
+  ## Unlike `forall/3`, a failing property is a value, not a raise — including a
+  ## property that itself throws (treated as a failure). Given a total generator
+  ## and property this never raises; a generator that throws has no witness
+  ## value to return and is a caller error.
   @extern(:cure_std_test, :forall_shrunk, 3)
-  fn forall_shrunk(gen: Atom -> T, property: T -> Bool, runs: Int) -> T
+  fn forall_shrunk(gen: Unit -> t, property: t -> Bool, runs: Int) -> Result(Unit, t)
 
   ## Same as `forall_shrunk/3` but with a 100-run default.
-  fn forall_shrunk_default(gen: Atom -> T, property: T -> Bool) -> T =
+  fn forall_shrunk_default(gen: Unit -> t, property: t -> Bool) -> Result(Unit, t) =
     forall_shrunk(gen, property, 100)

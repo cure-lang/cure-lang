@@ -22,8 +22,8 @@ defmodule CureSiteWeb.LlmsController do
   alias CureSite.{Blog, Pages, Stdlib}
   alias CureSiteWeb.Endpoint
 
-  @repo_url "https://github.com/am-kantox/cure-lang"
-  @license_url "https://github.com/am-kantox/cure-lang/blob/main/LICENSE"
+  @repo_url "https://github.com/cure-lang/cure-lang"
+  @license_url "https://github.com/cure-lang/cure-lang/blob/main/LICENSE"
 
   @doc """
   Render the `llms.txt` document.
@@ -69,9 +69,9 @@ defmodule CureSiteWeb.LlmsController do
   defp header(version) do
     """
     # Cure v#{version}
-    > Dependently-typed programming language for the BEAM with first-class FSMs and SMT-backed verification.
+    > Dependently typed programming for the BEAM through one kernel-checked compiler pipeline.
 
-    Cure is an indentation-structured, expression-oriented language that compiles to BEAM bytecode and runs natively on the Erlang virtual machine alongside Elixir and Erlang. The type system is bidirectional with refinement types verified at compile time by the Z3 SMT solver. Finite state machines, typed actors, supervisors and OTP applications are all first-class language constructs.
+    Cure is an indentation-structured, expression-oriented language that compiles to BEAM bytecode and runs alongside Elixir and Erlang. Every program follows the same dependent pipeline: elaboration to dependent Core, independent kernel checking, quantitative erasure, and BEAM emission. Indexed families, total proofs, typed actors, finite-state machines, supervisors, and OTP applications are ordinary language constructs rather than separate compiler modes.
 
     This file is generated dynamically and reflects every page, blog post and standard-library module currently shipped with the site. A machine-readable XML companion is published at `/sitemap.xml`.\
     """
@@ -142,6 +142,8 @@ defmodule CureSiteWeb.LlmsController do
   defp optional_section do
     """
     ## Optional
+    - [Macro language](https://hexdocs.pm/cure/macros.html): Source-defined syntax, hygienic quotation, syntax families, and compile-time expansion.
+    - [Proof authoring](https://hexdocs.pm/cure/proofs.html): Proof chains, rewriting, simplification, induction, and generated defining equations.
     - [Source repository](#{@repo_url}): The Cure compiler, standard library and CLI sources.
     - [License](#{@license_url}): Project licence.\
     """

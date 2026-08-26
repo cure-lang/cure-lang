@@ -20,10 +20,13 @@ defmodule :cure_std_crdt do
 
   The MVRegister retains the latest stamped write per node and
   surfaces cross-node concurrent writes as a list via `mv_values/1`.
-  Tags in the ORSet are `{node, monotonic_counter}` pairs generated
-  via an atomic counter in the process dictionary; every `or_add`
-  call manufactures a fresh tag so concurrent adds from the same
-  replica never collide.
+
+  Tags in the ORSet are `{node, tag}` pairs, where `tag` is supplied by
+  the caller — as `stamp` is for `lww_set/4` and `mv_write/4`. Every
+  function here is pure, so none of them can mint a fresh tag: two calls
+  with equal arguments must return equal values. The caller owns the
+  contract that a given `node` never reuses a `tag`; break it and an
+  `or_remove/2` of one element will tombstone another.
   """
 
   @k :__struct__
@@ -83,11 +86,11 @@ defmodule :cure_std_crdt do
     %{@k => :or_set, entries: %{}, tombstones: MapSet.new()}
   end
 
-  def or_add(%{@k => :or_set, entries: entries, tombstones: tombs}, node, element)
-      when is_atom(node) do
-    tag = {node, next_counter(node)}
+  def or_add(%{@k => :or_set, entries: entries, tombstones: tombs}, node, tag, element)
+      when is_atom(node) and is_integer(tag) do
+    unique = {node, tag}
     tags_for_elem = Map.get(entries, element, MapSet.new())
-    new_tags = MapSet.put(tags_for_elem, tag)
+    new_tags = MapSet.put(tags_for_elem, unique)
     %{@k => :or_set, entries: Map.put(entries, element, new_tags), tombstones: tombs}
   end
 
@@ -146,7 +149,14 @@ defmodule :cure_std_crdt do
     %{@k => :lww_register, value: value, stamp: stamp, node: node}
   end
 
-  def lww_value(%{@k => :lww_register, value: value}), do: value
+  # An unset register has no value, so the result is an `Option(t)`. This used
+  # to return the bare atom `:empty` under a declared `-> t`: at `t = Int` a
+  # caller was promised an integer and handed `:empty`. Dependent-pipeline
+  # erasure gives the OTP-compatible shapes `{:some, v}` and `:none`.
+  # (The register's own `%{__struct__: :lww_register}` shape is internal and
+  # opaque — Cure never matches it — so it stays a struct map.)
+  def lww_value(%{@k => :lww_register, value: :empty}), do: :none
+  def lww_value(%{@k => :lww_register, value: value}), do: {:some, value}
 
   def lww_merge(
         %{@k => :lww_register, stamp: sa, node: na} = a,
@@ -196,19 +206,5 @@ defmodule :cure_std_crdt do
       end)
 
     %{@k => :mv_register, writes: merged}
-  end
-
-  # --------------------------------------------------------------------------
-  # Internals
-  # --------------------------------------------------------------------------
-
-  # Monotonic per-replica counter used to tag ORSet adds. We keep it in
-  # the process dictionary so separate logical replicas within the same
-  # VM can coexist without clobbering each other.
-  defp next_counter(node) do
-    key = {:cure_std_crdt_counter, node}
-    n = Process.get(key, 0) + 1
-    Process.put(key, n)
-    n
   end
 end

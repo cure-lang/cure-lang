@@ -1,0 +1,21 @@
+mod Tdoidx01
+  use Std.Equivalent
+  ## E11: a bare OVERLOADED name (two same-spelling members discriminated by
+  ## argument type) used inside a dependent INDEX position. `pick` has a Box
+  ## member and a Bag member; the occurrence `pick(MkB(Red()), MkB(Green()))`
+  ## sits in an `Equivalent` index, so the elaborator must resolve the overload
+  ## by argument type there exactly as it does in term position. Before the fix
+  ## the index path bypassed overload resolution, mis-picked an ambient provider,
+  ## and the kernel crashed on the wrong constructor.
+  type Colour = Red | Green
+  type Box = MkB(Colour)
+  type Bag = MkG(Colour)
+
+  fn pick(a: Box, b: Box) -> Box = match a
+    MkB(x) -> b
+
+  fn pick(a: Bag, b: Bag) -> Bag = match a
+    MkG(x) -> b
+
+  fn resolves() -> Equivalent(Box, pick(MkB(Red()), MkB(Green())), MkB(Green())) = reflexive(MkB(Green()))
+end

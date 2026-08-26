@@ -1,0 +1,1 @@
+{"gs01_nonvar_guarded":{"cure":"accept","idris":"accept","reason":"","relation":"same"},"gs02_nonvar_guarded_neg":{"cure":"reject","idris":"reject","reason":"","relation":"same"},"gs03_named_default_nonvar":{"cure":"accept","idris":"accept","reason":"","relation":"same"}}

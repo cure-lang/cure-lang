@@ -1,0 +1,12 @@
+mod Dr02
+  type Nat = Z | S(Nat)
+  type SNat indices (n: Nat)
+    szero : SNat(Z)
+    ssuc : SNat(n) -> SNat(S(n))
+  rec Box(a)
+    item: a
+    tag: Nat
+    pf: SNat(tag)
+  fn mk() -> Box(Nat) = Box{item: Z(), tag: S(Z()), pf: ssuc(szero())}
+  fn getTag(b: Box(Nat)) -> Nat = b.tag
+end

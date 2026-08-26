@@ -1,0 +1,17 @@
+@group(:core)
+mod Std.Atom
+  ## The primitive interned symbol.
+  ##
+  ## `Atom` is an irreducible BEAM atom — not an inductive, not a postulate. Its
+  ## introduction forms are symbol literals (`:ok`, `:error`, `:millisecond`),
+  ## which the elaborator lowers to `{:atom_lit, a}`; on the BEAM an atom is its
+  ## own value, so `==` compares them natively. This module gives the type itself
+  ## a visible, documented home, mirroring `Std.Int`/`Std.Float`/`Std.Binary`.
+  ##
+  ## `Atom` is an interoperability and reflection primitive, not Cure's default
+  ## spelling for a closed vocabulary. Prefer an ordinary data type for states,
+  ## events, options, results, modes, and domain errors; its constructors can be
+  ## encoded at the private BEAM boundary. Raw atoms remain appropriate for
+  ## foreign module/name identities, open Erlang protocols, syntax literals, and
+  ## explicitly unsafe operations.
+  @builtin(:atom) primitive Atom

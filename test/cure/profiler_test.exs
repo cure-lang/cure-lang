@@ -23,9 +23,20 @@ defmodule Cure.ProfilerTest do
       stage_names = Map.keys(report.stages)
       assert :lexer in stage_names or :parser in stage_names or :codegen in stage_names
     end
+
+    test "compile failures retain a structured diagnostic instead of a raw reason" do
+      source = "fn run() -> Int = missing_name\n"
+      {:ok, report} = Profiler.profile_string(source, file: "profile_failure.cure")
+
+      assert report.result == "error [E091]"
+      assert %{diagnostic: diagnostic, registry: _registry} = report.diagnostic
+      assert diagnostic.code == "E091"
+      refute Profiler.format_report(report) =~ "{:unknown_global"
+    end
   end
 
   describe "profile_file" do
+    @tag :examples
     test "profiles an example file" do
       {:ok, report} = Profiler.profile_file("examples/hello.cure")
 

@@ -55,10 +55,10 @@ defmodule CureSiteWeb.JsonLd do
 
   @site_name "Cure"
   @site_tagline "Cure — Dependently-Typed BEAM Language"
-  @site_description "Dependently-typed programming language for the BEAM with first-class FSMs and SMT-backed verification."
+  @site_description "Dependently typed programming for the BEAM through one kernel-checked compiler pipeline."
   @logo_path "/images/logo-128x128-nobg.png"
-  @repo_url "https://github.com/am-kantox/cure-lang"
-  @license_url "https://github.com/am-kantox/cure-lang/blob/main/LICENSE"
+  @repo_url "https://github.com/cure-lang/cure-lang"
+  @license_url "https://github.com/cure-lang/cure-lang/blob/main/LICENSE"
 
   # Page IDs that should be treated as step-by-step how-to articles
   # rather than reference articles. Add new HowTo pages here as they

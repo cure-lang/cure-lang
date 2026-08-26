@@ -1,0 +1,911 @@
+## Compile-time emitter for regex syntax trees. It turns parsed patterns into
+## the matcher representation consumed by `Std.Regex`.
+@group(:text)
+mod Std.Regex.Syntax.Emitter
+  use Std.Regex.Syntax.Model
+  use Std.String
+  use Std.Syntax
+
+  fn runtime_call(name: String, args: List(Syntax)) -> Syntax =
+    call(concat("Std.Regex.Runtime.", name), args)
+
+  fn core_call(name: String, args: List(Syntax)) -> Syntax =
+    call(concat("Std.Regex.Core.", name), args)
+
+  fn literal_shape(pattern: LiteralPattern) -> LiteralShapeCode = match pattern
+    LiteralEmpty -> UnitC
+    LiteralExact(_) -> UnitC
+    LiteralAny -> CharC
+    LiteralClass(_, _, _, _) -> CharC
+    LiteralProperty(_, _) -> CharC
+    LiteralDigit(_) -> CharC
+    LiteralWord(_) -> CharC
+    LiteralSpace(_) -> CharC
+    LiteralHorizontal(_) -> CharC
+    LiteralVertical(_) -> CharC
+    LiteralLineBreak() -> StringC
+    LiteralSequence(left, right) -> PairC(literal_shape(left), literal_shape(right))
+    LiteralAlternate(left, right) -> ChoiceC(literal_shape(left), literal_shape(right))
+    LiteralConditional(_, yes, no) -> ChoiceC(literal_shape(yes), literal_shape_or_unit(no))
+    LiteralAtomic(inner) -> literal_shape(inner)
+    LiteralLookahead(_, _) -> UnitC
+    LiteralLookbehind(_, _) -> UnitC
+    LiteralBranchReset(arms) -> literal_shape(literal_branch_reset_alternate(arms))
+    LiteralRepeat(inner, _) -> ListC(literal_shape(inner))
+    LiteralPlus(inner, _) -> ListC(literal_shape(inner))
+    LiteralOptional(inner, _) -> ChoiceC(literal_shape(inner), UnitC)
+    LiteralBoundedExact(inner, _) -> ListC(literal_shape(inner))
+    LiteralBoundedAtLeast(inner, _, _) -> ListC(literal_shape(inner))
+    LiteralBoundedBetween(inner, _, _, _) -> ListC(literal_shape(inner))
+    LiteralCapture(_) -> StringC
+    LiteralNamedCapture(_, _) -> StringC
+    LiteralCaptureIndexed(_, _, _) -> StringC
+    LiteralStart -> UnitC
+    LiteralEnd -> UnitC
+    LiteralAbsoluteStart -> UnitC
+    LiteralStrictEnd -> UnitC
+    LiteralFinalEnd -> UnitC
+    LiteralWordBoundary(_) -> UnitC
+    LiteralConfigured(_, inner) -> literal_shape(inner)
+    LiteralScopedOptions(_, _, inner) -> literal_shape(inner)
+
+  fn emit_shape(shape: LiteralShapeCode) -> Syntax = match shape
+    UnitC -> core_call("UnitC", [])
+    CharC -> core_call("CharC", [])
+    StringC -> core_call("StringC", [])
+    BoolC -> core_call("BoolC", [])
+    NatC -> core_call("NatC", [])
+    IntC -> core_call("IntC", [])
+    PairC(left, right) -> core_call("PairC", [emit_shape(left), emit_shape(right)])
+    ChoiceC(left, right) -> core_call("ChoiceC", [emit_shape(left), emit_shape(right)])
+    OptionC(inner) -> core_call("OptionC", [emit_shape(inner)])
+    ListC(inner) -> core_call("ListC", [emit_shape(inner)])
+
+  fn emit_staged_start_constraint(options: LiteralRegexOptions) -> Syntax = match has_modifier(options, MultilineModifier)
+    true -> runtime_call("line_start_constraint_with_policy", [emit_newline_policy(options)])
+    false -> runtime_call("subject_start_constraint_with_policy", [emit_newline_policy(options)])
+
+  fn emit_staged_end_constraint(options: LiteralRegexOptions) -> Syntax = match has_modifier(options, MultilineModifier)
+    true -> runtime_call("line_end_constraint_with_policy", [emit_newline_policy(options)])
+    false -> runtime_call("subject_end_constraint_with_policy", [emit_newline_policy(options)])
+
+  fn emit_staged_word_constraint(negated: Bool, options: LiteralRegexOptions) -> Syntax = match has_modifier(options, UnicodeModifier)
+    true -> runtime_call("unicode_word_constraint", [bool_literal(not negated)])
+    false -> runtime_call("ascii_word_constraint", [bool_literal(not negated)])
+
+  ## Staged literals publish the constructor-preserving Thompson IR and its
+  ## result conversion directly.  The runtime parser can therefore consume a
+  ## checked compilation tree instead of rebuilding a Pattern and certifying it
+  ## at every call site.
+  fn emit_atomic_runtime_pattern(pattern: LiteralPattern, options: LiteralRegexOptions) -> Syntax = match pattern
+    LiteralEmpty -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralExact(_) -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralAny -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralClass(_, _, _, _) -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralProperty(_, _) -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralDigit(_) -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralWord(_) -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralSpace(_) -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralHorizontal(_) -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralVertical(_) -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralLineBreak() -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralSequence(left, right) -> runtime_call("AtomicRuntimeConcat", [emit_atomic_runtime_pattern(left, options), emit_atomic_runtime_pattern(right, options)])
+    LiteralAlternate(left, right) -> runtime_call("AtomicRuntimeAlternate", [emit_atomic_runtime_pattern(left, options), emit_atomic_runtime_pattern(right, options), bool_literal(false)])
+    LiteralBranchReset(arms) -> emit_atomic_runtime_pattern(literal_branch_reset_alternate(arms), options)
+    LiteralConditional(_, yes, no) -> runtime_call("AtomicRuntimeAlternate", [emit_atomic_runtime_pattern(yes, options), emit_atomic_runtime_pattern_or_empty(no, options), bool_literal(false)])
+    LiteralAtomic(inner) -> runtime_call("AtomicRuntimeScope", [emit_atomic_runtime_pattern(inner, options)])
+    LiteralLookahead(_, _) -> runtime_call("AtomicRuntimeLeaf", [core_call("PatternEmpty", [])])
+    LiteralLookbehind(_, _) -> runtime_call("AtomicRuntimeLeaf", [core_call("PatternEmpty", [])])
+    LiteralRepeat(inner, lazy) -> runtime_call("AtomicRuntimeRepeat", [emit_atomic_runtime_pattern(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])
+    LiteralPlus(inner, lazy) -> runtime_call("AtomicRuntimeConcat", [emit_atomic_runtime_pattern(inner, options), runtime_call("AtomicRuntimeRepeat", [emit_atomic_runtime_pattern(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])])
+    LiteralOptional(inner, lazy) -> runtime_call("AtomicRuntimeAlternate", [emit_atomic_runtime_pattern(inner, options), runtime_call("AtomicRuntimeLeaf", [core_call("PatternEmpty", [])]), bool_literal(lazy != has_modifier(options, UngreedyModifier))])
+    LiteralBoundedExact(inner, count) -> emit_atomic_bounded_exact(inner, count, options)
+    LiteralBoundedAtLeast(inner, count, lazy) -> emit_atomic_bounded_at_least(inner, count, lazy != has_modifier(options, UngreedyModifier), options)
+    LiteralBoundedBetween(inner, minimum, maximum, lazy) -> emit_atomic_bounded_between(inner, minimum, maximum, lazy != has_modifier(options, UngreedyModifier), options)
+    LiteralCapture(inner) -> runtime_call("AtomicRuntimeGroup", [emit_atomic_runtime_pattern(inner, options)])
+    LiteralNamedCapture(_, inner) -> runtime_call("AtomicRuntimeGroup", [emit_atomic_runtime_pattern(inner, options)])
+    LiteralCaptureIndexed(_, _, inner) -> runtime_call("AtomicRuntimeGroup", [emit_atomic_runtime_pattern(inner, options)])
+    LiteralStart -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralEnd -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralAbsoluteStart -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralStrictEnd -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralFinalEnd -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralWordBoundary(_) -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralConfigured(_, inner) -> emit_atomic_runtime_pattern(inner, options)
+    LiteralScopedOptions(enabled, disabled, inner) -> emit_atomic_runtime_pattern(inner, apply_literal_scoped_options(enabled, disabled, options))
+
+  fn emit_atomic_runtime_pattern_or_empty(pattern: Option(LiteralPattern), options: LiteralRegexOptions) -> Syntax = match pattern
+    None() -> runtime_call("AtomicRuntimeLeaf", [core_call("PatternEmpty", [])])
+    Some(inner) -> emit_atomic_runtime_pattern(inner, options)
+
+  fn emit_atomic_bounded_exact(inner: LiteralPattern, count: Nat, options: LiteralRegexOptions) -> Syntax = match count
+    Z() -> runtime_call("AtomicRuntimeLeaf", [core_call("PatternEmpty", [])])
+    S(rest) -> runtime_call("AtomicRuntimeConcat", [emit_atomic_runtime_pattern(inner, options), emit_atomic_bounded_exact(inner, rest, options)])
+
+  fn emit_atomic_bounded_at_least(inner: LiteralPattern, count: Nat, lazy: Bool, options: LiteralRegexOptions) -> Syntax = match count
+    Z() -> runtime_call("AtomicRuntimeRepeat", [emit_atomic_runtime_pattern(inner, options), bool_literal(lazy)])
+    S(rest) -> runtime_call("AtomicRuntimeConcat", [emit_atomic_runtime_pattern(inner, options), emit_atomic_bounded_at_least(inner, rest, lazy, options)])
+
+  fn emit_atomic_bounded_between(inner: LiteralPattern, minimum: Nat, maximum: Nat, lazy: Bool, options: LiteralRegexOptions) -> Syntax = match minimum
+    Z() -> emit_atomic_bounded_up_to(inner, maximum, lazy, options)
+    S(rest) -> match maximum
+      Z() -> emit_atomic_bounded_exact(inner, S(rest), options)
+      S(maximum_rest) -> runtime_call("AtomicRuntimeConcat", [emit_atomic_runtime_pattern(inner, options), emit_atomic_bounded_between(inner, rest, maximum_rest, lazy, options)])
+
+  fn emit_atomic_bounded_up_to(inner: LiteralPattern, maximum: Nat, lazy: Bool, options: LiteralRegexOptions) -> Syntax = match maximum
+    Z() -> runtime_call("AtomicRuntimeLeaf", [core_call("PatternEmpty", [])])
+    S(rest) -> runtime_call("AtomicRuntimeConcat", [runtime_call("AtomicRuntimeAlternate", [emit_atomic_runtime_pattern(inner, options), runtime_call("AtomicRuntimeLeaf", [core_call("PatternEmpty", [])]), bool_literal(lazy)]), emit_atomic_bounded_up_to(inner, rest, lazy, options)])
+
+  fn emit_staged_literal_with_options(pattern: LiteralPattern, options: LiteralRegexOptions) -> Syntax =
+    runtime_call("StagedRegex", [
+      emit_compilation_shape(pattern),
+      emit_staged_pattern(pattern, options),
+      emit_staged_compilation(pattern, options),
+      emit_staged_hint(pattern, options),
+      emit_staged_conversion(pattern)
+    ])
+
+  fn emit_staged_literal_with_options_conditional(pattern: LiteralPattern, options: LiteralRegexOptions) -> Syntax =
+    runtime_call("StagedRegex", [
+      emit_compilation_shape(pattern),
+      emit_staged_pattern(pattern, options),
+      emit_staged_compilation(pattern, options),
+      emit_staged_hint(pattern, options),
+      emit_staged_conversion_conditional(pattern)
+    ])
+
+  fn emit_staged_hint(pattern: LiteralPattern, options: LiteralRegexOptions) -> Syntax = pickup
+    literal_pattern_has_lookaround(pattern) -> runtime_call("StagedLookaroundValue", [emit_staged_pattern(pattern, options), emit_lookaround_staged_compilation(pattern, options), emit_newline_policy(options)])
+    literal_pattern_has_atomic(pattern) -> runtime_call("StagedAtomicPatternValue", [emit_atomic_runtime_pattern(pattern, options)])
+    else -> runtime_call("StagedMachineValue", [emit_staged_compilation(pattern, options)])
+
+  fn emit_lookaround_polarity(polarity: LiteralAssertionPolarity) -> Syntax = match polarity
+    LiteralAssertionPositive -> bool_literal(true)
+    LiteralAssertionNegative -> bool_literal(false)
+
+  fn emit_lookaround_staged_compilation(pattern: LiteralPattern, options: LiteralRegexOptions) -> Syntax = match pattern
+    LiteralEmpty -> runtime_call("LookaroundEmpty", [])
+    LiteralExact(char) -> runtime_call("LookaroundPredicate", [runtime_call("option_exact_test", [char_literal(char), bool_literal(has_modifier(options, CaselessModifier)), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralAny -> runtime_call("LookaroundPredicate", [runtime_call("dot_test_with_policy", [bool_literal(has_modifier(options, DotallModifier)), emit_newline_policy(options)])])
+    LiteralClass(chars, ranges, kinds, negated) -> runtime_call("LookaroundPredicate", [runtime_call("extended_property_class_test", [emit_chars(chars), emit_ranges(ranges), emit_class_kinds(kinds), emit_unicode_property_matches(literal_class_properties(kinds)), emit_posix_class_matches(literal_class_posix(kinds)), bool_literal(negated), bool_literal(has_modifier(options, CaselessModifier)), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralProperty(property, negated) -> runtime_call("LookaroundPredicate", [runtime_call("unicode_property_test", [emit_unicode_property(property), bool_literal(negated)])])
+    LiteralDigit(negated) -> runtime_call("LookaroundPredicate", [runtime_call("digit_options_test", [bool_literal(negated), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralWord(negated) -> runtime_call("LookaroundPredicate", [runtime_call("word_options_test", [bool_literal(negated), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralSpace(negated) -> runtime_call("LookaroundPredicate", [runtime_call("space_options_test", [bool_literal(negated), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralHorizontal(negated) -> runtime_call("LookaroundPredicate", [runtime_call("horizontal_test", [bool_literal(negated)])])
+    LiteralVertical(negated) -> runtime_call("LookaroundPredicate", [runtime_call("vertical_test", [bool_literal(negated)])])
+    LiteralLineBreak() -> emit_lookaround_line_break_compilation(options)
+    LiteralSequence(left, right) -> runtime_call("LookaroundConcat", [emit_lookaround_staged_compilation(left, options), emit_lookaround_staged_compilation(right, options)])
+    LiteralAlternate(left, right) -> runtime_call("LookaroundAlternate", [emit_lookaround_staged_compilation(left, options), emit_lookaround_staged_compilation(right, options), bool_literal(false)])
+    LiteralConditional(reference, yes, no) -> emit_lookaround_conditional(reference, yes, no, options)
+    LiteralAtomic(inner) -> runtime_call("LookaroundAtomic", [emit_lookaround_staged_compilation(inner, options)])
+    LiteralLookahead(polarity, inner) -> runtime_call("LookaroundBoundary", [runtime_call("lookahead_constraint", [emit_lookaround_staged_compilation(inner, options), emit_lookaround_polarity(polarity), emit_newline_policy(options)])])
+    LiteralLookbehind(polarity, inner) -> runtime_call("LookaroundBoundary", [runtime_call("lookbehind_constraint", [emit_lookaround_staged_compilation(inner, options), emit_lookaround_polarity(polarity), emit_nat(literal_pattern_exact_width_value(inner)), emit_newline_policy(options)])])
+    LiteralBranchReset(arms) -> emit_lookaround_staged_compilation(literal_branch_reset_alternate(arms), options)
+    LiteralRepeat(inner, lazy) -> runtime_call("LookaroundRepeat", [emit_lookaround_staged_compilation(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])
+    LiteralPlus(inner, lazy) -> runtime_call("LookaroundConcat", [emit_lookaround_staged_compilation(inner, options), runtime_call("LookaroundRepeat", [emit_lookaround_staged_compilation(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])])
+    LiteralOptional(inner, lazy) -> runtime_call("LookaroundAlternate", [emit_lookaround_staged_compilation(inner, options), runtime_call("LookaroundEmpty", []), bool_literal(lazy != has_modifier(options, UngreedyModifier))])
+    LiteralBoundedExact(inner, count) -> emit_lookaround_bounded_exact(inner, count, options)
+    LiteralBoundedAtLeast(inner, count, lazy) -> emit_lookaround_bounded_at_least(inner, count, lazy != has_modifier(options, UngreedyModifier), options)
+    LiteralBoundedBetween(inner, minimum, maximum, lazy) -> emit_lookaround_bounded_between(inner, minimum, maximum, lazy != has_modifier(options, UngreedyModifier), options)
+    LiteralCapture(inner) -> runtime_call("LookaroundGroup", [emit_lookaround_staged_compilation(inner, options)])
+    LiteralNamedCapture(_, inner) -> runtime_call("LookaroundGroup", [emit_lookaround_staged_compilation(inner, options)])
+    LiteralCaptureIndexed(slot, _, inner) -> runtime_call("LookaroundGroupSlot", [emit_nat(slot), emit_lookaround_staged_compilation(inner, options)])
+    LiteralStart -> runtime_call("LookaroundBoundary", [emit_staged_start_constraint(options)])
+    LiteralEnd -> runtime_call("LookaroundBoundary", [emit_staged_end_constraint(options)])
+    LiteralAbsoluteStart -> runtime_call("LookaroundBoundary", [runtime_call("subject_start_constraint_with_policy", [emit_newline_policy(options)])])
+    LiteralStrictEnd -> runtime_call("LookaroundBoundary", [runtime_call("strict_end_constraint_with_policy", [emit_newline_policy(options)])])
+    LiteralFinalEnd -> runtime_call("LookaroundBoundary", [runtime_call("subject_end_constraint_with_policy", [emit_newline_policy(options)])])
+    LiteralWordBoundary(negated) -> runtime_call("LookaroundBoundary", [emit_staged_word_constraint(negated, options)])
+    LiteralConfigured(_, inner) -> emit_lookaround_staged_compilation(inner, options)
+    LiteralScopedOptions(enabled, disabled, inner) -> emit_lookaround_staged_compilation(inner, apply_literal_scoped_options(enabled, disabled, options))
+
+  fn emit_lookaround_staged_compilation_or_empty(pattern: Option(LiteralPattern), options: LiteralRegexOptions) -> Syntax = match pattern
+    None() -> runtime_call("LookaroundEmpty", [])
+    Some(inner) -> emit_lookaround_staged_compilation(inner, options)
+
+  fn emit_lookaround_conditional(reference: LiteralCaptureReference, yes: LiteralPattern, no: Option(LiteralPattern), options: LiteralRegexOptions) -> Syntax = match reference
+    LiteralCaptureSlotReference(slot) -> runtime_call("LookaroundAlternate", [runtime_call("LookaroundGuard", [emit_nat(slot), bool_literal(true), emit_lookaround_staged_compilation(yes, options)]), runtime_call("LookaroundGuard", [emit_nat(slot), bool_literal(false), emit_lookaround_staged_compilation_or_empty(no, options)]), bool_literal(false)])
+    LiteralCaptureNameReference(_) -> runtime_call("LookaroundAlternate", [emit_lookaround_staged_compilation(yes, options), emit_lookaround_staged_compilation_or_empty(no, options), bool_literal(false)])
+
+  fn emit_lookaround_bounded_exact(inner: LiteralPattern, count: Nat, options: LiteralRegexOptions) -> Syntax = match count
+    Z() -> runtime_call("LookaroundEmpty", [])
+    S(rest) -> runtime_call("LookaroundConcat", [emit_lookaround_staged_compilation(inner, options), emit_lookaround_bounded_exact(inner, rest, options)])
+
+  fn emit_lookaround_bounded_at_least(inner: LiteralPattern, count: Nat, lazy: Bool, options: LiteralRegexOptions) -> Syntax = match count
+    Z() -> runtime_call("LookaroundRepeat", [emit_lookaround_staged_compilation(inner, options), bool_literal(lazy)])
+    S(rest) -> runtime_call("LookaroundConcat", [emit_lookaround_staged_compilation(inner, options), emit_lookaround_bounded_at_least(inner, rest, lazy, options)])
+
+  fn emit_lookaround_bounded_between(inner: LiteralPattern, minimum: Nat, maximum: Nat, lazy: Bool, options: LiteralRegexOptions) -> Syntax = match minimum
+    Z() -> emit_lookaround_bounded_up_to(inner, maximum, lazy, options)
+    S(rest) -> match maximum
+      Z() -> emit_lookaround_bounded_exact(inner, S(rest), options)
+      S(maximum_rest) -> runtime_call("LookaroundConcat", [emit_lookaround_staged_compilation(inner, options), emit_lookaround_bounded_between(inner, rest, maximum_rest, lazy, options)])
+
+  fn emit_lookaround_bounded_up_to(inner: LiteralPattern, maximum: Nat, lazy: Bool, options: LiteralRegexOptions) -> Syntax = match maximum
+    Z() -> runtime_call("LookaroundEmpty", [])
+    S(rest) -> runtime_call("LookaroundConcat", [runtime_call("LookaroundAlternate", [emit_lookaround_staged_compilation(inner, options), runtime_call("LookaroundEmpty", []), bool_literal(lazy)]), emit_lookaround_bounded_up_to(inner, rest, lazy, options)])
+
+  fn emit_staged_conversion_conditional(pattern: LiteralPattern) -> Syntax = match pattern
+    LiteralEmpty -> runtime_call("unit_identity_conversion", [])
+    LiteralOptional(inner, _) -> runtime_call("OptionalConversion", [emit_staged_conversion_conditional(inner)])
+    LiteralSequence(left, right) -> runtime_call("PairConversion", [emit_staged_conversion_conditional(left), emit_staged_conversion_conditional(right)])
+    LiteralAlternate(left, right) -> runtime_call("ChoiceConversion", [emit_staged_conversion_conditional(left), emit_staged_conversion_conditional(right)])
+    LiteralConditional(_, yes, no) -> runtime_call("ChoiceConversion", [emit_staged_conversion_conditional(yes), emit_staged_conversion_conditional_or_unit(no)])
+    LiteralAtomic(inner) -> emit_staged_conversion_conditional(inner)
+    LiteralLookahead(_, _) -> runtime_call("unit_identity_conversion", [])
+    LiteralLookbehind(_, _) -> runtime_call("unit_identity_conversion", [])
+    LiteralCapture(_) -> runtime_call("string_identity_conversion", [])
+    LiteralNamedCapture(_, _) -> runtime_call("string_identity_conversion", [])
+    LiteralCaptureIndexed(_, _, _) -> runtime_call("string_identity_conversion", [])
+    LiteralRepeat(inner, _) -> runtime_call("ListConversion", [emit_staged_conversion_conditional(inner)])
+    LiteralPlus(inner, _) -> runtime_call("PrependConversion", [emit_staged_conversion_conditional(inner)])
+    LiteralBoundedExact(inner, count) -> emit_bounded_exact_conversion_conditional(inner, count)
+    LiteralBoundedAtLeast(inner, count, _) -> emit_bounded_at_least_conversion_conditional(inner, count)
+    LiteralBoundedBetween(inner, minimum, maximum, _) -> emit_bounded_between_conversion_conditional(inner, minimum, maximum)
+    LiteralLineBreak() -> runtime_call("string_identity_conversion", [])
+    LiteralExact(_) -> runtime_call("discard_char_conversion", [])
+    LiteralAny -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralClass(_, _, _, _) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralProperty(_, _) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralDigit(_) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralWord(_) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralSpace(_) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralHorizontal(_) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralVertical(_) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralStart -> runtime_call("unit_identity_conversion", [])
+    LiteralEnd -> runtime_call("unit_identity_conversion", [])
+    LiteralAbsoluteStart -> runtime_call("unit_identity_conversion", [])
+    LiteralStrictEnd -> runtime_call("unit_identity_conversion", [])
+    LiteralFinalEnd -> runtime_call("unit_identity_conversion", [])
+    LiteralWordBoundary(_) -> runtime_call("unit_identity_conversion", [])
+    LiteralConfigured(_, inner) -> emit_staged_conversion_conditional(inner)
+    LiteralScopedOptions(_, _, inner) -> emit_staged_conversion_conditional(inner)
+    LiteralBranchReset(arms) -> emit_staged_conversion_conditional(literal_branch_reset_alternate(arms))
+
+  fn emit_staged_conversion_conditional_or_unit(pattern: Option(LiteralPattern)) -> Syntax = match pattern
+    None() -> runtime_call("unit_identity_conversion", [])
+    Some(inner) -> emit_staged_conversion_conditional(inner)
+
+  fn emit_bounded_exact_conversion_conditional(inner: LiteralPattern, count: Nat) -> Syntax = match count
+    Z() -> runtime_call("empty_list_conversion_for", [emit_shape(literal_shape(inner))])
+    S(rest) -> runtime_call("ComposedConversion", [runtime_call("PairConversion", [emit_staged_conversion_conditional(inner), emit_bounded_exact_conversion_conditional(inner, rest)]), runtime_call("prepend_repetition_conversion_for", [emit_shape(literal_shape(inner))])])
+
+  fn emit_bounded_at_least_conversion_conditional(inner: LiteralPattern, count: Nat) -> Syntax = match count
+    Z() -> runtime_call("ListConversion", [emit_staged_conversion_conditional(inner)])
+    S(rest) -> runtime_call("ComposedConversion", [runtime_call("PairConversion", [emit_staged_conversion_conditional(inner), emit_bounded_at_least_conversion_conditional(inner, rest)]), runtime_call("prepend_repetition_conversion_for", [emit_shape(literal_shape(inner))])])
+
+  fn emit_bounded_between_conversion_conditional(inner: LiteralPattern, minimum: Nat, maximum: Nat) -> Syntax = match minimum
+    Z() -> emit_bounded_up_to_conversion_conditional(inner, maximum)
+    S(rest) -> match maximum
+      Z() -> emit_bounded_exact_conversion_conditional(inner, S(rest))
+      S(maximum_rest) -> runtime_call("ComposedConversion", [runtime_call("PairConversion", [emit_staged_conversion_conditional(inner), emit_bounded_between_conversion_conditional(inner, rest, maximum_rest)]), runtime_call("prepend_repetition_conversion_for", [emit_shape(literal_shape(inner))])])
+
+  fn emit_bounded_up_to_conversion_conditional(inner: LiteralPattern, maximum: Nat) -> Syntax = match maximum
+    Z() -> runtime_call("empty_list_conversion_for", [emit_shape(literal_shape(inner))])
+    S(rest) -> runtime_call("ComposedConversion", [runtime_call("PairConversion", [runtime_call("ChoiceConversion", [emit_staged_conversion_conditional(inner), runtime_call("unit_identity_conversion", [])]), emit_bounded_up_to_conversion_conditional(inner, rest)]), runtime_call("prepend_optional_repetition_conversion_for", [emit_shape(literal_shape(inner))])])
+
+  fn emit_compilation_shape(pattern: LiteralPattern) -> Syntax = match pattern
+    LiteralEmpty -> core_call("UnitC", [])
+    LiteralExact(_) -> core_call("CharC", [])
+    LiteralAny -> core_call("CharC", [])
+    LiteralClass(_, _, _, _) -> core_call("CharC", [])
+    LiteralProperty(_, _) -> core_call("CharC", [])
+    LiteralDigit(_) -> core_call("CharC", [])
+    LiteralWord(_) -> core_call("CharC", [])
+    LiteralSpace(_) -> core_call("CharC", [])
+    LiteralHorizontal(_) -> core_call("CharC", [])
+    LiteralVertical(_) -> core_call("CharC", [])
+    LiteralLineBreak() -> core_call("StringC", [])
+    LiteralSequence(left, right) -> core_call("PairC", [emit_compilation_shape(left), emit_compilation_shape(right)])
+    LiteralAlternate(left, right) -> core_call("ChoiceC", [emit_compilation_shape(left), emit_compilation_shape(right)])
+    LiteralConditional(_, yes, no) -> core_call("ChoiceC", [emit_compilation_shape(yes), emit_compilation_shape_or_unit(no)])
+    LiteralAtomic(inner) -> emit_compilation_shape(inner)
+    LiteralLookahead(_, _) -> core_call("UnitC", [])
+    LiteralLookbehind(_, _) -> core_call("UnitC", [])
+    LiteralBranchReset(arms) -> emit_compilation_shape(literal_branch_reset_alternate(arms))
+    LiteralRepeat(inner, _) -> core_call("ListC", [emit_compilation_shape(inner)])
+    LiteralPlus(inner, _) -> core_call("PairC", [emit_compilation_shape(inner), core_call("ListC", [emit_compilation_shape(inner)])])
+    LiteralOptional(inner, _) -> core_call("ChoiceC", [emit_compilation_shape(inner), core_call("UnitC", [])])
+    LiteralBoundedExact(inner, count) -> emit_bounded_exact_shape(inner, count)
+    LiteralBoundedAtLeast(inner, count, _) -> emit_bounded_at_least_shape(inner, count)
+    LiteralBoundedBetween(inner, minimum, maximum, _) -> emit_bounded_between_shape(inner, minimum, maximum)
+    LiteralCapture(_) -> core_call("StringC", [])
+    LiteralNamedCapture(_, _) -> core_call("StringC", [])
+    LiteralCaptureIndexed(_, _, _) -> core_call("StringC", [])
+    LiteralStart -> core_call("UnitC", [])
+    LiteralEnd -> core_call("UnitC", [])
+    LiteralAbsoluteStart -> core_call("UnitC", [])
+    LiteralStrictEnd -> core_call("UnitC", [])
+    LiteralFinalEnd -> core_call("UnitC", [])
+    LiteralWordBoundary(_) -> core_call("UnitC", [])
+    LiteralConfigured(_, inner) -> emit_compilation_shape(inner)
+    LiteralScopedOptions(_, _, inner) -> emit_compilation_shape(inner)
+
+  fn emit_staged_pattern(pattern: LiteralPattern, options: LiteralRegexOptions) -> Syntax = match pattern
+    LiteralEmpty -> core_call("PatternEmpty", [])
+    LiteralExact(char) -> core_call("PatternPredicate", [runtime_call("option_exact_test", [char_literal(char), bool_literal(has_modifier(options, CaselessModifier)), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralAny -> core_call("PatternPredicate", [runtime_call("dot_test_with_policy", [bool_literal(has_modifier(options, DotallModifier)), emit_newline_policy(options)])])
+    LiteralClass(chars, ranges, kinds, negated) -> core_call("PatternPredicate", [runtime_call("extended_property_class_test", [emit_chars(chars), emit_ranges(ranges), emit_class_kinds(kinds), emit_unicode_property_matches(literal_class_properties(kinds)), emit_posix_class_matches(literal_class_posix(kinds)), bool_literal(negated), bool_literal(has_modifier(options, CaselessModifier)), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralProperty(property, negated) -> core_call("PatternPredicate", [runtime_call("unicode_property_test", [emit_unicode_property(property), bool_literal(negated)])])
+    LiteralDigit(negated) -> core_call("PatternPredicate", [runtime_call("digit_options_test", [bool_literal(negated), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralWord(negated) -> core_call("PatternPredicate", [runtime_call("word_options_test", [bool_literal(negated), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralSpace(negated) -> core_call("PatternPredicate", [runtime_call("space_options_test", [bool_literal(negated), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralHorizontal(negated) -> core_call("PatternPredicate", [runtime_call("horizontal_test", [bool_literal(negated)])])
+    LiteralVertical(negated) -> core_call("PatternPredicate", [runtime_call("vertical_test", [bool_literal(negated)])])
+    LiteralLineBreak() -> core_call("PatternGroup", [emit_line_break_pattern(options)])
+    LiteralSequence(left, right) -> core_call("PatternConcat", [emit_staged_pattern(left, options), emit_staged_pattern(right, options)])
+    LiteralAlternate(left, right) -> core_call("PatternAlternate", [emit_staged_pattern(left, options), emit_staged_pattern(right, options)])
+    LiteralConditional(_, yes, no) -> core_call("PatternAlternate", [emit_staged_pattern(yes, options), emit_staged_pattern_or_empty(no, options)])
+    LiteralAtomic(inner) -> emit_staged_pattern(inner, options)
+    LiteralLookahead(_, _) -> core_call("PatternEmpty", [])
+    LiteralLookbehind(_, _) -> core_call("PatternEmpty", [])
+    LiteralBranchReset(arms) -> emit_staged_pattern(literal_branch_reset_alternate(arms), options)
+    LiteralRepeat(inner, lazy) -> core_call("PatternRepeatMode", [emit_staged_pattern(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])
+    LiteralPlus(inner, lazy) -> core_call("PatternConcat", [emit_staged_pattern(inner, options), core_call("PatternRepeatMode", [emit_staged_pattern(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])])
+    LiteralOptional(inner, lazy) -> core_call("PatternAlternateMode", [emit_staged_pattern(inner, options), core_call("PatternEmpty", []), bool_literal(lazy != has_modifier(options, UngreedyModifier))])
+    LiteralBoundedExact(inner, count) -> emit_bounded_exact_pattern(inner, count, options)
+    LiteralBoundedAtLeast(inner, count, lazy) -> emit_bounded_at_least_pattern(inner, count, lazy != has_modifier(options, UngreedyModifier), options)
+    LiteralBoundedBetween(inner, minimum, maximum, lazy) -> emit_bounded_between_pattern(inner, minimum, maximum, lazy != has_modifier(options, UngreedyModifier), options)
+    LiteralCapture(inner) -> core_call("PatternGroup", [emit_staged_pattern(inner, options)])
+    LiteralNamedCapture(_, inner) -> core_call("PatternGroup", [emit_staged_pattern(inner, options)])
+    LiteralCaptureIndexed(_, _, inner) -> core_call("PatternGroup", [emit_staged_pattern(inner, options)])
+    LiteralStart -> core_call("PatternBoundary", [emit_staged_start_constraint(options)])
+    LiteralEnd -> core_call("PatternBoundary", [emit_staged_end_constraint(options)])
+    LiteralAbsoluteStart -> core_call("PatternBoundary", [runtime_call("subject_start_constraint_with_policy", [emit_newline_policy(options)])])
+    LiteralStrictEnd -> core_call("PatternBoundary", [runtime_call("strict_end_constraint_with_policy", [emit_newline_policy(options)])])
+    LiteralFinalEnd -> core_call("PatternBoundary", [runtime_call("subject_end_constraint_with_policy", [emit_newline_policy(options)])])
+    LiteralWordBoundary(negated) -> core_call("PatternBoundary", [emit_staged_word_constraint(negated, options)])
+    LiteralConfigured(_, inner) -> emit_staged_pattern(inner, options)
+    LiteralScopedOptions(enabled, disabled, inner) -> emit_staged_pattern(inner, apply_literal_scoped_options(enabled, disabled, options))
+
+  fn emit_bounded_exact_pattern(inner: LiteralPattern, count: Nat, options: LiteralRegexOptions) -> Syntax = match count
+    Z() -> core_call("PatternEmpty", [])
+    S(rest) -> core_call("PatternConcat", [emit_staged_pattern(inner, options), emit_bounded_exact_pattern(inner, rest, options)])
+
+  fn emit_bounded_at_least_pattern(inner: LiteralPattern, count: Nat, lazy: Bool, options: LiteralRegexOptions) -> Syntax = match count
+    Z() -> core_call("PatternRepeatMode", [emit_staged_pattern(inner, options), bool_literal(lazy)])
+    S(rest) -> core_call("PatternConcat", [emit_staged_pattern(inner, options), emit_bounded_at_least_pattern(inner, rest, lazy, options)])
+
+  fn emit_bounded_between_pattern(inner: LiteralPattern, minimum: Nat, maximum: Nat, lazy: Bool, options: LiteralRegexOptions) -> Syntax = match minimum
+    Z() -> emit_bounded_up_to_pattern(inner, maximum, lazy, options)
+    S(rest) -> match maximum
+      Z() -> emit_bounded_exact_pattern(inner, S(rest), options)
+      S(maximum_rest) -> core_call("PatternConcat", [emit_staged_pattern(inner, options), emit_bounded_between_pattern(inner, rest, maximum_rest, lazy, options)])
+
+  fn emit_bounded_up_to_pattern(inner: LiteralPattern, maximum: Nat, lazy: Bool, options: LiteralRegexOptions) -> Syntax = match maximum
+    Z() -> core_call("PatternEmpty", [])
+    S(rest) -> core_call("PatternConcat", [core_call("PatternAlternateMode", [emit_staged_pattern(inner, options), core_call("PatternEmpty", []), bool_literal(lazy)]), emit_bounded_up_to_pattern(inner, rest, lazy, options)])
+
+  fn emit_staged_compilation(pattern: LiteralPattern, options: LiteralRegexOptions) -> Syntax = match pattern
+    LiteralEmpty -> runtime_call("ThompsonEmpty", [])
+    LiteralExact(char) -> runtime_call("ThompsonPredicate", [runtime_call("option_exact_test", [char_literal(char), bool_literal(has_modifier(options, CaselessModifier)), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralAny -> runtime_call("ThompsonPredicate", [runtime_call("dot_test_with_policy", [bool_literal(has_modifier(options, DotallModifier)), emit_newline_policy(options)])])
+    LiteralClass(chars, ranges, kinds, negated) -> runtime_call("ThompsonPredicate", [runtime_call("extended_property_class_test", [emit_chars(chars), emit_ranges(ranges), emit_class_kinds(kinds), emit_unicode_property_matches(literal_class_properties(kinds)), emit_posix_class_matches(literal_class_posix(kinds)), bool_literal(negated), bool_literal(has_modifier(options, CaselessModifier)), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralProperty(property, negated) -> runtime_call("ThompsonPredicate", [runtime_call("unicode_property_test", [emit_unicode_property(property), bool_literal(negated)])])
+    LiteralDigit(negated) -> runtime_call("ThompsonPredicate", [runtime_call("digit_options_test", [bool_literal(negated), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralWord(negated) -> runtime_call("ThompsonPredicate", [runtime_call("word_options_test", [bool_literal(negated), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralSpace(negated) -> runtime_call("ThompsonPredicate", [runtime_call("space_options_test", [bool_literal(negated), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralHorizontal(negated) -> runtime_call("ThompsonPredicate", [runtime_call("horizontal_test", [bool_literal(negated)])])
+    LiteralVertical(negated) -> runtime_call("ThompsonPredicate", [runtime_call("vertical_test", [bool_literal(negated)])])
+    LiteralLineBreak() -> runtime_call("ThompsonGroup", [emit_line_break_compilation(options)])
+    LiteralSequence(left, right) -> runtime_call("ThompsonConcat", [emit_staged_compilation(left, options), emit_staged_compilation(right, options)])
+    LiteralAlternate(left, right) -> runtime_call("ThompsonAlternate", [emit_staged_compilation(left, options), emit_staged_compilation(right, options), bool_literal(false)])
+    LiteralConditional(_, yes, no) -> runtime_call("ThompsonAlternate", [emit_staged_compilation(yes, options), emit_staged_compilation_or_empty(no, options), bool_literal(false)])
+    LiteralAtomic(inner) -> emit_staged_compilation(inner, options)
+    LiteralLookahead(_, _) -> runtime_call("ThompsonEmpty", [])
+    LiteralLookbehind(_, _) -> runtime_call("ThompsonEmpty", [])
+    LiteralBranchReset(arms) -> emit_staged_compilation(literal_branch_reset_alternate(arms), options)
+    LiteralRepeat(inner, lazy) -> runtime_call("ThompsonRepeat", [emit_staged_compilation(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])
+    LiteralPlus(inner, lazy) -> runtime_call("ThompsonConcat", [emit_staged_compilation(inner, options), runtime_call("ThompsonRepeat", [emit_staged_compilation(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])])
+    LiteralOptional(inner, lazy) -> runtime_call("ThompsonAlternate", [emit_staged_compilation(inner, options), runtime_call("ThompsonEmpty", []), bool_literal(lazy != has_modifier(options, UngreedyModifier))])
+    LiteralBoundedExact(inner, count) -> emit_bounded_exact_compilation(inner, count, options)
+    LiteralBoundedAtLeast(inner, count, lazy) -> emit_bounded_at_least_compilation(inner, count, lazy != has_modifier(options, UngreedyModifier), options)
+    LiteralBoundedBetween(inner, minimum, maximum, lazy) -> emit_bounded_between_compilation(inner, minimum, maximum, lazy != has_modifier(options, UngreedyModifier), options)
+    LiteralCapture(inner) -> runtime_call("ThompsonGroup", [emit_staged_compilation(inner, options)])
+    LiteralNamedCapture(_, inner) -> runtime_call("ThompsonGroup", [emit_staged_compilation(inner, options)])
+    LiteralCaptureIndexed(_, _, inner) -> runtime_call("ThompsonGroup", [emit_staged_compilation(inner, options)])
+    LiteralStart -> runtime_call("ThompsonBoundary", [emit_staged_start_constraint(options)])
+    LiteralEnd -> runtime_call("ThompsonBoundary", [emit_staged_end_constraint(options)])
+    LiteralAbsoluteStart -> runtime_call("ThompsonBoundary", [runtime_call("subject_start_constraint_with_policy", [emit_newline_policy(options)])])
+    LiteralStrictEnd -> runtime_call("ThompsonBoundary", [runtime_call("strict_end_constraint_with_policy", [emit_newline_policy(options)])])
+    LiteralFinalEnd -> runtime_call("ThompsonBoundary", [runtime_call("subject_end_constraint_with_policy", [emit_newline_policy(options)])])
+    LiteralWordBoundary(negated) -> runtime_call("ThompsonBoundary", [emit_staged_word_constraint(negated, options)])
+    LiteralConfigured(_, inner) -> emit_staged_compilation(inner, options)
+    LiteralScopedOptions(enabled, disabled, inner) -> emit_staged_compilation(inner, apply_literal_scoped_options(enabled, disabled, options))
+
+  ## Named literals publish a parallel Thompson tree.  Its ordinary branches
+  ## are identical to the staged tree above; only indexed capture groups carry
+  ## a slot-bearing group constructor.
+  fn emit_named_staged_compilation(pattern: LiteralPattern, options: LiteralRegexOptions) -> Syntax = match pattern
+    LiteralEmpty -> runtime_call("NamedThompsonEmpty", [])
+    LiteralExact(char) -> runtime_call("NamedThompsonPredicate", [runtime_call("option_exact_test", [char_literal(char), bool_literal(has_modifier(options, CaselessModifier)), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralAny -> runtime_call("NamedThompsonPredicate", [runtime_call("dot_test_with_policy", [bool_literal(has_modifier(options, DotallModifier)), emit_newline_policy(options)])])
+    LiteralClass(chars, ranges, kinds, negated) -> runtime_call("NamedThompsonPredicate", [runtime_call("extended_property_class_test", [emit_chars(chars), emit_ranges(ranges), emit_class_kinds(kinds), emit_unicode_property_matches(literal_class_properties(kinds)), emit_posix_class_matches(literal_class_posix(kinds)), bool_literal(negated), bool_literal(has_modifier(options, CaselessModifier)), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralProperty(property, negated) -> runtime_call("NamedThompsonPredicate", [runtime_call("unicode_property_test", [emit_unicode_property(property), bool_literal(negated)])])
+    LiteralDigit(negated) -> runtime_call("NamedThompsonPredicate", [runtime_call("digit_options_test", [bool_literal(negated), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralWord(negated) -> runtime_call("NamedThompsonPredicate", [runtime_call("word_options_test", [bool_literal(negated), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralSpace(negated) -> runtime_call("NamedThompsonPredicate", [runtime_call("space_options_test", [bool_literal(negated), bool_literal(has_modifier(options, UnicodeModifier))])])
+    LiteralHorizontal(negated) -> runtime_call("NamedThompsonPredicate", [runtime_call("horizontal_test", [bool_literal(negated)])])
+    LiteralVertical(negated) -> runtime_call("NamedThompsonPredicate", [runtime_call("vertical_test", [bool_literal(negated)])])
+    LiteralLineBreak() -> runtime_call("NamedThompsonCapture", [emit_named_line_break_compilation(options)])
+    LiteralSequence(left, right) -> runtime_call("NamedThompsonConcat", [emit_named_staged_compilation(left, options), emit_named_staged_compilation(right, options)])
+    LiteralAlternate(left, right) -> runtime_call("NamedThompsonAlternate", [emit_named_staged_compilation(left, options), emit_named_staged_compilation(right, options), bool_literal(false)])
+    LiteralConditional(reference, yes, no) -> emit_named_conditional(reference, yes, no, options)
+    LiteralAtomic(inner) -> emit_named_staged_compilation(inner, options)
+    LiteralLookahead(_, _) -> runtime_call("NamedThompsonEmpty", [])
+    LiteralLookbehind(_, _) -> runtime_call("NamedThompsonEmpty", [])
+    LiteralBranchReset(arms) -> emit_named_staged_compilation(literal_branch_reset_alternate(arms), options)
+    LiteralRepeat(inner, lazy) -> runtime_call("NamedThompsonRepeat", [emit_named_staged_compilation(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])
+    LiteralPlus(inner, lazy) -> runtime_call("NamedThompsonConcat", [emit_named_staged_compilation(inner, options), runtime_call("NamedThompsonRepeat", [emit_named_staged_compilation(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])])
+    LiteralOptional(inner, lazy) -> runtime_call("NamedThompsonAlternate", [emit_named_staged_compilation(inner, options), runtime_call("NamedThompsonEmpty", []), bool_literal(lazy != has_modifier(options, UngreedyModifier))])
+    LiteralBoundedExact(inner, count) -> emit_named_bounded_exact_compilation(inner, count, options)
+    LiteralBoundedAtLeast(inner, count, lazy) -> emit_named_bounded_at_least_compilation(inner, count, lazy != has_modifier(options, UngreedyModifier), options)
+    LiteralBoundedBetween(inner, minimum, maximum, lazy) -> emit_named_bounded_between_compilation(inner, minimum, maximum, lazy != has_modifier(options, UngreedyModifier), options)
+    LiteralCaptureIndexed(slot, _, inner) -> runtime_call("NamedThompsonGroup", [emit_nat(slot), emit_named_staged_compilation(inner, options)])
+    LiteralCapture(inner) -> runtime_call("NamedThompsonGroup", [emit_nat(Z()), emit_named_staged_compilation(inner, options)])
+    LiteralNamedCapture(_, inner) -> runtime_call("NamedThompsonGroup", [emit_nat(Z()), emit_named_staged_compilation(inner, options)])
+    LiteralStart -> runtime_call("NamedThompsonBoundary", [emit_staged_start_constraint(options)])
+    LiteralEnd -> runtime_call("NamedThompsonBoundary", [emit_staged_end_constraint(options)])
+    LiteralAbsoluteStart -> runtime_call("NamedThompsonBoundary", [runtime_call("subject_start_constraint_with_policy", [emit_newline_policy(options)])])
+    LiteralStrictEnd -> runtime_call("NamedThompsonBoundary", [runtime_call("strict_end_constraint_with_policy", [emit_newline_policy(options)])])
+    LiteralFinalEnd -> runtime_call("NamedThompsonBoundary", [runtime_call("subject_end_constraint_with_policy", [emit_newline_policy(options)])])
+    LiteralWordBoundary(negated) -> runtime_call("NamedThompsonBoundary", [emit_staged_word_constraint(negated, options)])
+    LiteralConfigured(_, inner) -> emit_named_staged_compilation(inner, options)
+    LiteralScopedOptions(enabled, disabled, inner) -> emit_named_staged_compilation(inner, apply_literal_scoped_options(enabled, disabled, options))
+
+  fn emit_named_bounded_exact_compilation(inner: LiteralPattern, count: Nat, options: LiteralRegexOptions) -> Syntax = match count
+    Z() -> runtime_call("NamedThompsonEmpty", [])
+    S(rest) -> runtime_call("NamedThompsonConcat", [emit_named_staged_compilation(inner, options), emit_named_bounded_exact_compilation(inner, rest, options)])
+
+  fn emit_named_bounded_at_least_compilation(inner: LiteralPattern, count: Nat, lazy: Bool, options: LiteralRegexOptions) -> Syntax = match count
+    Z() -> runtime_call("NamedThompsonRepeat", [emit_named_staged_compilation(inner, options), bool_literal(lazy)])
+    S(rest) -> runtime_call("NamedThompsonConcat", [emit_named_staged_compilation(inner, options), emit_named_bounded_at_least_compilation(inner, rest, lazy, options)])
+
+  fn emit_named_bounded_between_compilation(inner: LiteralPattern, minimum: Nat, maximum: Nat, lazy: Bool, options: LiteralRegexOptions) -> Syntax = match minimum
+    Z() -> emit_named_bounded_up_to_compilation(inner, maximum, lazy, options)
+    S(rest) -> match maximum
+      Z() -> emit_named_bounded_exact_compilation(inner, S(rest), options)
+      S(maximum_rest) -> runtime_call("NamedThompsonConcat", [emit_named_staged_compilation(inner, options), emit_named_bounded_between_compilation(inner, rest, maximum_rest, lazy, options)])
+
+  fn emit_named_bounded_up_to_compilation(inner: LiteralPattern, maximum: Nat, lazy: Bool, options: LiteralRegexOptions) -> Syntax = match maximum
+    Z() -> runtime_call("NamedThompsonEmpty", [])
+    S(rest) -> runtime_call("NamedThompsonConcat", [runtime_call("NamedThompsonAlternate", [emit_named_staged_compilation(inner, options), runtime_call("NamedThompsonEmpty", []), bool_literal(lazy)]), emit_named_bounded_up_to_compilation(inner, rest, lazy, options)])
+
+  fn emit_named_line_break_compilation(options: LiteralRegexOptions) -> Syntax = match literal_newline_policy(options)
+    LiteralLFPolicy -> emit_named_char_compilation('\n')
+    LiteralCRPolicy -> emit_named_char_compilation('\r')
+    LiteralCRLFPolicy -> emit_named_concat_compilation(emit_named_char_compilation('\r'), emit_named_char_compilation('\n'))
+    LiteralAnyCRLFPolicy -> emit_named_alt_compilation(emit_named_line_break_compilation(LiteralRegexOptions([], LiteralCRLFPolicy)), emit_named_alt_compilation(emit_named_char_compilation('\n'), emit_named_char_compilation('\r')))
+    LiteralAnyUnicodePolicy -> emit_named_alt_compilation(emit_named_line_break_compilation(LiteralRegexOptions([], LiteralAnyCRLFPolicy)), emit_named_alt_compilation(emit_named_char_compilation('\v'), emit_named_alt_compilation(emit_named_char_compilation('\f'), emit_named_alt_compilation(emit_named_char_compilation(0x85), emit_named_alt_compilation(emit_named_char_compilation(0x2028), emit_named_char_compilation(0x2029))))))
+
+  fn emit_named_char_compilation(char: Char) -> Syntax = runtime_call("NamedThompsonPredicate", [runtime_call("option_exact_test", [char_literal(char), bool_literal(false), bool_literal(false)])])
+
+  fn emit_named_concat_compilation(left: Syntax, right: Syntax) -> Syntax = runtime_call("NamedThompsonConcat", [left, right])
+
+  fn emit_named_alt_compilation(left: Syntax, right: Syntax) -> Syntax = runtime_call("NamedThompsonAlternate", [left, right, bool_literal(false)])
+
+  fn emit_capture_layout(layout: LiteralCaptureLayout) -> Syntax = match layout
+    LiteralCaptureLayout(slots) -> runtime_call("CaptureLayout", [emit_capture_slots(slots)])
+
+  fn emit_capture_slots(slots: List(LiteralCaptureSlotInfo)) -> Syntax = match slots
+    [] -> list([])
+    [LiteralCaptureSlotInfo(slot, name) | rest] -> prepend_syntax(runtime_call("CaptureSlot", [emit_nat(slot), emit_capture_name(name)]), emit_capture_slots(rest))
+
+  fn emit_capture_name(name: Option(String)) -> Syntax = match name
+    None() -> call("Std.Option.None", [])
+    Some(value) -> call("Std.Option.Some", [string_literal(value)])
+
+  fn literal_shape_or_unit(pattern: Option(LiteralPattern)) -> LiteralShapeCode = match pattern
+    None() -> UnitC
+    Some(inner) -> literal_shape(inner)
+
+  fn emit_compilation_shape_or_unit(pattern: Option(LiteralPattern)) -> Syntax = match pattern
+    None() -> core_call("UnitC", [])
+    Some(inner) -> emit_compilation_shape(inner)
+
+  fn emit_staged_pattern_or_empty(pattern: Option(LiteralPattern), options: LiteralRegexOptions) -> Syntax = match pattern
+    None() -> core_call("PatternEmpty", [])
+    Some(inner) -> emit_staged_pattern(inner, options)
+
+  fn emit_staged_compilation_or_empty(pattern: Option(LiteralPattern), options: LiteralRegexOptions) -> Syntax = match pattern
+    None() -> runtime_call("ThompsonEmpty", [])
+    Some(inner) -> emit_staged_compilation(inner, options)
+
+  fn emit_named_staged_compilation_or_empty(pattern: Option(LiteralPattern), options: LiteralRegexOptions) -> Syntax = match pattern
+    None() -> runtime_call("NamedThompsonEmpty", [])
+    Some(inner) -> emit_named_staged_compilation(inner, options)
+
+  fn emit_named_conditional(reference: LiteralCaptureReference, yes: LiteralPattern, no: Option(LiteralPattern), options: LiteralRegexOptions) -> Syntax = match reference
+    LiteralCaptureSlotReference(slot) -> runtime_call("NamedThompsonAlternate", [runtime_call("NamedThompsonGuard", [emit_nat(slot), bool_literal(true), emit_named_staged_compilation(yes, options)]), runtime_call("NamedThompsonGuard", [emit_nat(slot), bool_literal(false), emit_named_staged_compilation_or_empty(no, options)]), bool_literal(false)])
+    LiteralCaptureNameReference(_) -> runtime_call("NamedThompsonAlternate", [emit_named_staged_compilation(yes, options), emit_named_staged_compilation_or_empty(no, options), bool_literal(false)])
+
+  fn emit_staged_conversion_or_unit(pattern: Option(LiteralPattern)) -> Syntax = match pattern
+    None() -> runtime_call("unit_identity_conversion", [])
+    Some(inner) -> emit_staged_conversion(inner)
+
+  fn emit_literal_or_empty(pattern: Option(LiteralPattern)) -> Syntax = match pattern
+    None() -> runtime_call("empty", [])
+    Some(inner) -> emit_literal(inner)
+
+  fn emit_literal_with_options_or_empty(pattern: Option(LiteralPattern), options: LiteralRegexOptions) -> Syntax = match pattern
+    None() -> runtime_call("empty", [])
+    Some(inner) -> emit_literal_with_options(inner, options)
+
+  ## The staged parser consumes a row-backed machine reconstructed from the
+  ## checked Thompson tree.  No closure-machine constructor is emitted into
+  ## the literal expansion.
+  fn emit_staged_rows(pattern: LiteralPattern, options: LiteralRegexOptions) -> Syntax =
+    runtime_call("staged_machine_from_compilation", [emit_staged_compilation(pattern, options)])
+
+
+  fn emit_bounded_exact_compilation(inner: LiteralPattern, count: Nat, options: LiteralRegexOptions) -> Syntax = match count
+    Z() -> runtime_call("ThompsonEmpty", [])
+    S(rest) -> runtime_call("ThompsonConcat", [emit_staged_compilation(inner, options), emit_bounded_exact_compilation(inner, rest, options)])
+
+  fn emit_bounded_at_least_compilation(inner: LiteralPattern, count: Nat, lazy: Bool, options: LiteralRegexOptions) -> Syntax = match count
+    Z() -> runtime_call("ThompsonRepeat", [emit_staged_compilation(inner, options), bool_literal(lazy)])
+    S(rest) -> runtime_call("ThompsonConcat", [emit_staged_compilation(inner, options), emit_bounded_at_least_compilation(inner, rest, lazy, options)])
+
+  fn emit_bounded_between_compilation(inner: LiteralPattern, minimum: Nat, maximum: Nat, lazy: Bool, options: LiteralRegexOptions) -> Syntax = match minimum
+    Z() -> emit_bounded_up_to_compilation(inner, maximum, lazy, options)
+    S(rest) -> match maximum
+      Z() -> emit_bounded_exact_compilation(inner, S(rest), options)
+      S(maximum_rest) -> runtime_call("ThompsonConcat", [emit_staged_compilation(inner, options), emit_bounded_between_compilation(inner, rest, maximum_rest, lazy, options)])
+
+  fn emit_bounded_up_to_compilation(inner: LiteralPattern, maximum: Nat, lazy: Bool, options: LiteralRegexOptions) -> Syntax = match maximum
+    Z() -> runtime_call("ThompsonEmpty", [])
+    S(rest) -> runtime_call("ThompsonConcat", [runtime_call("ThompsonAlternate", [emit_staged_compilation(inner, options), runtime_call("ThompsonEmpty", []), bool_literal(lazy)]), emit_bounded_up_to_compilation(inner, rest, lazy, options)])
+
+  fn emit_bounded_exact_shape(inner: LiteralPattern, count: Nat) -> Syntax = match count
+    Z() -> core_call("UnitC", [])
+    S(rest) -> core_call("PairC", [emit_compilation_shape(inner), emit_bounded_exact_shape(inner, rest)])
+
+  fn emit_bounded_at_least_shape(inner: LiteralPattern, count: Nat) -> Syntax = match count
+    Z() -> core_call("ListC", [emit_compilation_shape(inner)])
+    S(rest) -> core_call("PairC", [emit_compilation_shape(inner), emit_bounded_at_least_shape(inner, rest)])
+
+  fn emit_bounded_between_shape(inner: LiteralPattern, minimum: Nat, maximum: Nat) -> Syntax = match minimum
+    Z() -> emit_bounded_up_to_shape(inner, maximum)
+    S(rest) -> match maximum
+      Z() -> emit_bounded_exact_shape(inner, S(rest))
+      S(maximum_rest) -> core_call("PairC", [emit_compilation_shape(inner), emit_bounded_between_shape(inner, rest, maximum_rest)])
+
+  fn emit_bounded_up_to_shape(inner: LiteralPattern, maximum: Nat) -> Syntax = match maximum
+    Z() -> core_call("UnitC", [])
+    S(rest) -> core_call("PairC", [core_call("ChoiceC", [emit_compilation_shape(inner), core_call("UnitC", [])]), emit_bounded_up_to_shape(inner, rest)])
+
+  fn emit_staged_conversion(pattern: LiteralPattern) -> Syntax = match pattern
+    LiteralEmpty -> runtime_call("unit_identity_conversion", [])
+    LiteralExact(_) -> runtime_call("discard_char_conversion", [])
+    LiteralAny -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralClass(_, _, _, _) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralProperty(_, _) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralDigit(_) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralWord(_) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralSpace(_) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralHorizontal(_) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralVertical(_) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralLineBreak() -> runtime_call("string_identity_conversion", [])
+    LiteralSequence(left, right) -> runtime_call("PairConversion", [emit_staged_conversion(left), emit_staged_conversion(right)])
+    LiteralAlternate(left, right) -> runtime_call("ChoiceConversion", [emit_staged_conversion(left), emit_staged_conversion(right)])
+    LiteralConditional(_, yes, no) -> runtime_call("ChoiceConversion", [emit_staged_conversion(yes), emit_staged_conversion_or_unit(no)])
+    LiteralAtomic(inner) -> emit_staged_conversion(inner)
+    LiteralLookahead(_, _) -> runtime_call("unit_identity_conversion", [])
+    LiteralLookbehind(_, _) -> runtime_call("unit_identity_conversion", [])
+    LiteralBranchReset(arms) -> emit_staged_conversion(literal_branch_reset_alternate(arms))
+    LiteralRepeat(inner, _) -> runtime_call("ListConversion", [emit_staged_conversion(inner)])
+    LiteralPlus(inner, _) -> runtime_call("PrependConversion", [emit_staged_conversion(inner)])
+    LiteralOptional(inner, _) -> runtime_call("OptionalConversion", [emit_staged_conversion(inner)])
+    LiteralBoundedExact(inner, count) -> emit_bounded_exact_conversion(inner, count)
+    LiteralBoundedAtLeast(inner, count, _) -> emit_bounded_at_least_conversion(inner, count)
+    LiteralBoundedBetween(inner, minimum, maximum, _) -> emit_bounded_between_conversion(inner, minimum, maximum)
+    LiteralCapture(_) -> runtime_call("string_identity_conversion", [])
+    LiteralNamedCapture(_, _) -> runtime_call("string_identity_conversion", [])
+    LiteralCaptureIndexed(_, _, _) -> runtime_call("string_identity_conversion", [])
+    LiteralStart -> runtime_call("unit_identity_conversion", [])
+    LiteralEnd -> runtime_call("unit_identity_conversion", [])
+    LiteralAbsoluteStart -> runtime_call("unit_identity_conversion", [])
+    LiteralStrictEnd -> runtime_call("unit_identity_conversion", [])
+    LiteralFinalEnd -> runtime_call("unit_identity_conversion", [])
+    LiteralWordBoundary(_) -> runtime_call("unit_identity_conversion", [])
+    LiteralConfigured(_, inner) -> emit_staged_conversion(inner)
+    LiteralScopedOptions(_, _, inner) -> emit_staged_conversion(inner)
+
+  fn emit_bounded_exact_conversion(inner: LiteralPattern, count: Nat) -> Syntax = match count
+    Z() -> runtime_call("empty_list_conversion_for", [emit_shape(literal_shape(inner))])
+    S(rest) -> runtime_call("ComposedConversion", [runtime_call("PairConversion", [emit_staged_conversion(inner), emit_bounded_exact_conversion(inner, rest)]), runtime_call("prepend_repetition_conversion_for", [emit_shape(literal_shape(inner))])])
+
+  fn emit_bounded_at_least_conversion(inner: LiteralPattern, count: Nat) -> Syntax = match count
+    Z() -> runtime_call("ListConversion", [emit_staged_conversion(inner)])
+    S(rest) -> runtime_call("ComposedConversion", [runtime_call("PairConversion", [emit_staged_conversion(inner), emit_bounded_at_least_conversion(inner, rest)]), runtime_call("prepend_repetition_conversion_for", [emit_shape(literal_shape(inner))])])
+
+  fn emit_bounded_between_conversion(inner: LiteralPattern, minimum: Nat, maximum: Nat) -> Syntax = match minimum
+    Z() -> emit_bounded_up_to_conversion(inner, maximum)
+    S(rest) -> match maximum
+      Z() -> emit_bounded_exact_conversion(inner, S(rest))
+      S(maximum_rest) -> runtime_call("ComposedConversion", [runtime_call("PairConversion", [emit_staged_conversion(inner), emit_bounded_between_conversion(inner, rest, maximum_rest)]), runtime_call("prepend_repetition_conversion_for", [emit_shape(literal_shape(inner))])])
+
+  fn emit_bounded_up_to_conversion(inner: LiteralPattern, maximum: Nat) -> Syntax = match maximum
+    Z() -> runtime_call("empty_list_conversion_for", [emit_shape(literal_shape(inner))])
+    S(rest) -> runtime_call("ComposedConversion", [runtime_call("PairConversion", [runtime_call("ChoiceConversion", [emit_staged_conversion(inner), runtime_call("IdentityConversion", [])]), emit_bounded_up_to_conversion(inner, rest)]), runtime_call("prepend_optional_repetition_conversion_for", [emit_shape(literal_shape(inner))])])
+
+  fn emit_literal(pattern: LiteralPattern) -> Syntax = match pattern
+    LiteralEmpty -> runtime_call("empty", [])
+    LiteralExact(char) -> runtime_call("exactly", [char_literal(char)])
+    LiteralAny -> runtime_call("any_char", [])
+    LiteralClass(chars, ranges, kinds, negated) ->
+      runtime_call("extended_unicode_property_class", [emit_chars(chars), emit_ranges(ranges), emit_class_kinds(kinds), emit_unicode_property_matches(literal_class_properties(kinds)), emit_posix_class_matches(literal_class_posix(kinds)), bool_literal(negated), bool_literal(false), bool_literal(false)])
+    LiteralProperty(property, negated) -> runtime_call("unicode_property_class", [emit_unicode_property(property), bool_literal(negated)])
+    LiteralDigit(negated) -> runtime_call("digit_class", [bool_literal(negated)])
+    LiteralWord(negated) -> runtime_call("word_class", [bool_literal(negated)])
+    LiteralSpace(negated) -> runtime_call("space_class", [bool_literal(negated)])
+    LiteralHorizontal(negated) -> runtime_call("horizontal_class", [bool_literal(negated)])
+    LiteralVertical(negated) -> runtime_call("vertical_class", [bool_literal(negated)])
+    LiteralLineBreak() -> runtime_call("line_break_with_policy", [emit_newline_policy(literal_default_options())])
+    LiteralSequence(left, right) -> runtime_call("concatenate", [emit_literal(left), emit_literal(right)])
+    LiteralAlternate(left, right) -> runtime_call("alternate", [emit_literal(left), emit_literal(right)])
+    LiteralConditional(_, yes, no) -> runtime_call("alternate", [emit_literal(yes), emit_literal_or_empty(no)])
+    LiteralAtomic(inner) -> runtime_call("atomic", [emit_literal(inner)])
+    LiteralLookahead(_, _) -> runtime_call("empty", [])
+    LiteralLookbehind(_, _) -> runtime_call("empty", [])
+    LiteralBranchReset(arms) -> emit_literal(literal_branch_reset_alternate(arms))
+    LiteralRepeat(inner, lazy) -> runtime_call("repeated_pattern", [emit_literal(inner), bool_literal(lazy)])
+    LiteralPlus(inner, lazy) -> runtime_call("one_or_more_pattern", [emit_literal(inner), bool_literal(lazy)])
+    LiteralOptional(inner, lazy) -> runtime_call("optional_literal", [emit_literal(inner), bool_literal(lazy)])
+    LiteralBoundedExact(inner, count) -> runtime_call("bounded_exact_pattern", [emit_literal(inner), emit_nat(count)])
+    LiteralBoundedAtLeast(inner, count, lazy) -> runtime_call("bounded_at_least_pattern", [emit_literal(inner), emit_nat(count), bool_literal(lazy)])
+    LiteralBoundedBetween(inner, minimum, maximum, lazy) -> runtime_call("bounded_between_pattern", [emit_literal(inner), emit_nat(minimum), emit_nat(maximum), bool_literal(lazy)])
+    LiteralCapture(inner) -> runtime_call("captured", [emit_literal(inner)])
+    LiteralNamedCapture(_, inner) -> runtime_call("captured", [emit_literal(inner)])
+    LiteralCaptureIndexed(_, _, inner) -> runtime_call("captured", [emit_literal(inner)])
+    LiteralStart -> runtime_call("start_anchor", [])
+    LiteralEnd -> runtime_call("end_anchor", [])
+    LiteralAbsoluteStart -> runtime_call("start_anchor", [])
+    LiteralStrictEnd -> runtime_call("strict_end_anchor", [])
+    LiteralFinalEnd -> runtime_call("end_anchor", [])
+    LiteralWordBoundary(negated) -> runtime_call("word_boundary", [bool_literal(false), bool_literal(negated)])
+    LiteralConfigured(_, inner) -> emit_literal(inner)
+    LiteralScopedOptions(_, _, inner) -> emit_literal(inner)
+
+  fn emit_literal_with_options(pattern: LiteralPattern, options: LiteralRegexOptions) -> Syntax =
+    let caseless = has_modifier(options, CaselessModifier)
+    let multiline = has_modifier(options, MultilineModifier)
+    let dotall = has_modifier(options, DotallModifier)
+    let unicode = has_modifier(options, UnicodeModifier)
+    let ungreedy = has_modifier(options, UngreedyModifier)
+    match pattern
+      LiteralEmpty -> runtime_call("empty", [])
+      LiteralExact(char) -> runtime_call("exactly_with_options", [char_literal(char), bool_literal(caseless), bool_literal(unicode)])
+      LiteralAny -> runtime_call("dot_with_policy", [bool_literal(dotall), emit_newline_policy(options)])
+      LiteralClass(chars, ranges, kinds, negated) ->
+        runtime_call("extended_unicode_property_class", [emit_chars(chars), emit_ranges(ranges), emit_class_kinds(kinds), emit_unicode_property_matches(literal_class_properties(kinds)), emit_posix_class_matches(literal_class_posix(kinds)), bool_literal(negated), bool_literal(caseless), bool_literal(unicode)])
+      LiteralProperty(property, negated) -> runtime_call("unicode_property_class", [emit_unicode_property(property), bool_literal(negated)])
+      LiteralDigit(negated) -> runtime_call("digit_class_with_options", [bool_literal(negated), bool_literal(unicode)])
+      LiteralWord(negated) -> runtime_call("word_class_with_options", [bool_literal(negated), bool_literal(unicode)])
+      LiteralSpace(negated) -> runtime_call("space_class_with_options", [bool_literal(negated), bool_literal(unicode)])
+      LiteralHorizontal(negated) -> runtime_call("horizontal_class", [bool_literal(negated)])
+      LiteralVertical(negated) -> runtime_call("vertical_class", [bool_literal(negated)])
+      LiteralLineBreak() -> runtime_call("line_break_with_policy", [emit_newline_policy(options)])
+      LiteralSequence(left, right) -> runtime_call("concatenate", [emit_literal_with_options(left, options), emit_literal_with_options(right, options)])
+      LiteralAlternate(left, right) -> runtime_call("alternate", [emit_literal_with_options(left, options), emit_literal_with_options(right, options)])
+      LiteralConditional(_, yes, no) -> runtime_call("alternate", [emit_literal_with_options(yes, options), emit_literal_with_options_or_empty(no, options)])
+      LiteralAtomic(inner) -> runtime_call("atomic", [emit_literal_with_options(inner, options)])
+      LiteralLookahead(_, _) -> runtime_call("empty", [])
+      LiteralLookbehind(_, _) -> runtime_call("empty", [])
+      LiteralBranchReset(arms) -> emit_literal_with_options(literal_branch_reset_alternate(arms), options)
+      LiteralRepeat(inner, lazy) -> runtime_call("repeated_pattern", [emit_literal_with_options(inner, options), bool_literal(lazy != ungreedy)])
+      LiteralPlus(inner, lazy) -> runtime_call("one_or_more_pattern", [emit_literal_with_options(inner, options), bool_literal(lazy != ungreedy)])
+      LiteralOptional(inner, lazy) -> runtime_call("optional_literal", [emit_literal_with_options(inner, options), bool_literal(lazy != ungreedy)])
+      LiteralBoundedExact(inner, count) -> runtime_call("bounded_exact_pattern", [emit_literal_with_options(inner, options), emit_nat(count)])
+      LiteralBoundedAtLeast(inner, count, lazy) -> runtime_call("bounded_at_least_pattern", [emit_literal_with_options(inner, options), emit_nat(count), bool_literal(lazy != ungreedy)])
+      LiteralBoundedBetween(inner, minimum, maximum, lazy) -> runtime_call("bounded_between_pattern", [emit_literal_with_options(inner, options), emit_nat(minimum), emit_nat(maximum), bool_literal(lazy != ungreedy)])
+      LiteralCapture(inner) -> runtime_call("captured", [emit_literal_with_options(inner, options)])
+      LiteralNamedCapture(_, inner) -> runtime_call("captured", [emit_literal_with_options(inner, options)])
+      LiteralCaptureIndexed(_, _, inner) -> runtime_call("captured", [emit_literal_with_options(inner, options)])
+      LiteralStart -> runtime_call("start_anchor_with_options", [bool_literal(multiline)])
+      LiteralEnd -> runtime_call("end_anchor_with_options", [bool_literal(multiline)])
+      LiteralAbsoluteStart -> runtime_call("start_anchor", [])
+      LiteralStrictEnd -> runtime_call("strict_end_anchor", [])
+      LiteralFinalEnd -> runtime_call("end_anchor", [])
+      LiteralWordBoundary(negated) -> runtime_call("word_boundary", [bool_literal(unicode), bool_literal(negated)])
+      LiteralConfigured(_, inner) -> emit_literal_with_options(inner, options)
+      LiteralScopedOptions(enabled, disabled, inner) -> emit_literal_with_options(inner, apply_literal_scoped_options(enabled, disabled, options))
+
+  fn emit_chars(chars: List(Char)) -> Syntax = match chars
+    [] -> list([])
+    [head | rest] -> prepend_syntax(char_literal(head), emit_chars(rest))
+
+  fn emit_nat(value: Nat) -> Syntax = match value
+    Z() -> call("Std.Nat.Z", [])
+    S(rest) -> call("Std.Nat.S", [emit_nat(rest)])
+
+  fn emit_ranges(ranges: List(LiteralCharacterRange)) -> Syntax = match ranges
+    [] -> list([])
+    [LiteralCharacterRange(first, last) | rest] ->
+      prepend_syntax(runtime_call("CharacterRange", [char_literal(first), char_literal(last)]), emit_ranges(rest))
+
+  fn emit_class_kinds(kinds: LiteralClassKinds) -> Syntax =
+    runtime_call("ClassKinds", [
+      bool_literal(has_class_kind(kinds, DigitKind)),
+      bool_literal(has_class_kind(kinds, NotDigitKind)),
+      bool_literal(has_class_kind(kinds, WordKind)),
+      bool_literal(has_class_kind(kinds, NotWordKind)),
+      bool_literal(has_class_kind(kinds, SpaceKind)),
+      bool_literal(has_class_kind(kinds, NotSpaceKind)),
+      bool_literal(has_class_kind(kinds, HorizontalKind)),
+      bool_literal(has_class_kind(kinds, NotHorizontalKind)),
+      bool_literal(has_class_kind(kinds, VerticalKind)),
+      bool_literal(has_class_kind(kinds, NotVerticalKind))
+    ])
+
+  fn emit_unicode_property(property: LiteralUnicodeProperty) -> Syntax = match property
+    PropertyAny -> runtime_call("PropertyAny", [])
+    PropertyLetter -> runtime_call("PropertyLetter", [])
+    PropertyLowercaseLetter -> runtime_call("PropertyLowercaseLetter", [])
+    PropertyUppercaseLetter -> runtime_call("PropertyUppercaseLetter", [])
+    PropertyTitlecaseLetter -> runtime_call("PropertyTitlecaseLetter", [])
+    PropertyModifierLetter -> runtime_call("PropertyModifierLetter", [])
+    PropertyOtherLetter -> runtime_call("PropertyOtherLetter", [])
+    PropertyMark -> runtime_call("PropertyMark", [])
+    PropertySpacingMark -> runtime_call("PropertySpacingMark", [])
+    PropertyEnclosingMark -> runtime_call("PropertyEnclosingMark", [])
+    PropertyNonspacingMark -> runtime_call("PropertyNonspacingMark", [])
+    PropertyNumber -> runtime_call("PropertyNumber", [])
+    PropertyDecimalNumber -> runtime_call("PropertyDecimalNumber", [])
+    PropertyLetterNumber -> runtime_call("PropertyLetterNumber", [])
+    PropertyOtherNumber -> runtime_call("PropertyOtherNumber", [])
+    PropertyPunctuation -> runtime_call("PropertyPunctuation", [])
+    PropertyConnectorPunctuation -> runtime_call("PropertyConnectorPunctuation", [])
+    PropertyDashPunctuation -> runtime_call("PropertyDashPunctuation", [])
+    PropertyClosePunctuation -> runtime_call("PropertyClosePunctuation", [])
+    PropertyFinalPunctuation -> runtime_call("PropertyFinalPunctuation", [])
+    PropertyInitialPunctuation -> runtime_call("PropertyInitialPunctuation", [])
+    PropertyOtherPunctuation -> runtime_call("PropertyOtherPunctuation", [])
+    PropertyOpenPunctuation -> runtime_call("PropertyOpenPunctuation", [])
+    PropertySymbol -> runtime_call("PropertySymbol", [])
+    PropertyCurrencySymbol -> runtime_call("PropertyCurrencySymbol", [])
+    PropertyModifierSymbol -> runtime_call("PropertyModifierSymbol", [])
+    PropertyMathSymbol -> runtime_call("PropertyMathSymbol", [])
+    PropertyOtherSymbol -> runtime_call("PropertyOtherSymbol", [])
+    PropertySeparator -> runtime_call("PropertySeparator", [])
+    PropertyLineSeparator -> runtime_call("PropertyLineSeparator", [])
+    PropertyParagraphSeparator -> runtime_call("PropertyParagraphSeparator", [])
+    PropertySpaceSeparator -> runtime_call("PropertySpaceSeparator", [])
+    PropertyOther -> runtime_call("PropertyOther", [])
+    PropertyControl -> runtime_call("PropertyControl", [])
+    PropertyFormat -> runtime_call("PropertyFormat", [])
+    PropertyUnassigned -> runtime_call("PropertyUnassigned", [])
+    PropertyPrivateUse -> runtime_call("PropertyPrivateUse", [])
+    PropertySurrogate -> runtime_call("PropertySurrogate", [])
+
+  fn emit_unicode_property_matches(values: List(LiteralUnicodePropertyMatch)) -> Syntax = match values
+    [] -> list([])
+    [LiteralUnicodePropertyMatch(property, negated) | rest] ->
+      prepend_syntax(runtime_call("UnicodePropertyMatch", [emit_unicode_property(property), bool_literal(negated)]), emit_unicode_property_matches(rest))
+
+  fn emit_posix_class(posix_class: LiteralPosixClass) -> Syntax = match posix_class
+    PosixAlnum -> runtime_call("PosixAlnum", [])
+    PosixAlpha -> runtime_call("PosixAlpha", [])
+    PosixAscii -> runtime_call("PosixAscii", [])
+    PosixBlank -> runtime_call("PosixBlank", [])
+    PosixCntrl -> runtime_call("PosixCntrl", [])
+    PosixDigit -> runtime_call("PosixDigit", [])
+    PosixGraph -> runtime_call("PosixGraph", [])
+    PosixLower -> runtime_call("PosixLower", [])
+    PosixPrint -> runtime_call("PosixPrint", [])
+    PosixPunct -> runtime_call("PosixPunct", [])
+    PosixSpace -> runtime_call("PosixSpace", [])
+    PosixUpper -> runtime_call("PosixUpper", [])
+    PosixWord -> runtime_call("PosixWord", [])
+    PosixXdigit -> runtime_call("PosixXdigit", [])
+
+  fn emit_posix_class_matches(values: List(LiteralPosixClassMatch)) -> Syntax = match values
+    [] -> list([])
+    [LiteralPosixClassMatch(posix_class, negated) | rest] ->
+      prepend_syntax(runtime_call("PosixClassMatch", [emit_posix_class(posix_class), bool_literal(negated)]), emit_posix_class_matches(rest))
+
+  fn emit_line_break_pattern(options: LiteralRegexOptions) -> Syntax =
+    core_call("PatternAlternate", [
+      core_call("PatternConcat", [emit_line_break_pair_char_pattern('\r', options), emit_line_break_pair_char_pattern('\n', options)]),
+      emit_line_break_scalar_pattern(options)
+    ])
+
+  fn emit_line_break_scalar_pattern(options: LiteralRegexOptions) -> Syntax =
+    core_call("PatternAlternate", [
+      emit_line_break_scalar_char_pattern('\n', options),
+      core_call("PatternAlternate", [
+        emit_line_break_scalar_char_pattern('\r', options),
+        core_call("PatternAlternate", [
+          emit_line_break_scalar_char_pattern('\v', options),
+          core_call("PatternAlternate", [
+            emit_line_break_scalar_char_pattern('\f', options),
+            core_call("PatternAlternate", [
+              emit_line_break_scalar_char_pattern(0x85, options),
+              core_call("PatternAlternate", [emit_line_break_scalar_char_pattern(0x2028, options), emit_line_break_scalar_char_pattern(0x2029, options)])
+            ])
+          ])
+        ])
+      ])
+    ])
+
+  fn emit_line_break_pair_char_pattern(_char: Char, options: LiteralRegexOptions) -> Syntax =
+    core_call("PatternPredicate", [runtime_call("line_break_pair_test", [emit_newline_policy(options), char_literal(_char)])])
+
+  fn emit_line_break_scalar_char_pattern(_char: Char, options: LiteralRegexOptions) -> Syntax =
+    core_call("PatternPredicate", [runtime_call("line_break_scalar_test", [emit_newline_policy(options), char_literal(_char)])])
+
+  fn emit_line_break_compilation(options: LiteralRegexOptions) -> Syntax =
+    runtime_call("ThompsonAlternate", [
+      runtime_call("ThompsonConcat", [emit_line_break_pair_char_compilation('\r', options), emit_line_break_pair_char_compilation('\n', options)]),
+      emit_line_break_scalar_compilation(options),
+      bool_literal(false)
+    ])
+
+  fn emit_line_break_scalar_compilation(options: LiteralRegexOptions) -> Syntax =
+    runtime_call("ThompsonAlternate", [
+      emit_line_break_scalar_char_compilation('\n', options),
+      runtime_call("ThompsonAlternate", [
+        emit_line_break_scalar_char_compilation('\r', options),
+        runtime_call("ThompsonAlternate", [
+          emit_line_break_scalar_char_compilation('\v', options),
+          runtime_call("ThompsonAlternate", [
+            emit_line_break_scalar_char_compilation('\f', options),
+            runtime_call("ThompsonAlternate", [
+              emit_line_break_scalar_char_compilation(0x85, options),
+              runtime_call("ThompsonAlternate", [emit_line_break_scalar_char_compilation(0x2028, options), emit_line_break_scalar_char_compilation(0x2029, options), bool_literal(false)]),
+              bool_literal(false)
+            ]),
+            bool_literal(false)
+          ]),
+          bool_literal(false)
+        ]),
+        bool_literal(false)
+      ]),
+      bool_literal(false)
+    ])
+
+  fn emit_line_break_pair_char_compilation(_char: Char, options: LiteralRegexOptions) -> Syntax =
+    runtime_call("ThompsonPredicate", [runtime_call("line_break_pair_test", [emit_newline_policy(options), char_literal(_char)])])
+
+  fn emit_line_break_scalar_char_compilation(_char: Char, options: LiteralRegexOptions) -> Syntax =
+    runtime_call("ThompsonPredicate", [runtime_call("line_break_scalar_test", [emit_newline_policy(options), char_literal(_char)])])
+
+  fn emit_lookaround_line_break_compilation(options: LiteralRegexOptions) -> Syntax = match literal_newline_policy(options)
+    LiteralLFPolicy -> emit_lookaround_char_compilation('\n')
+    LiteralCRPolicy -> emit_lookaround_char_compilation('\r')
+    LiteralCRLFPolicy -> emit_lookaround_concat_compilation(emit_lookaround_char_compilation('\r'), emit_lookaround_char_compilation('\n'))
+    LiteralAnyCRLFPolicy -> emit_lookaround_alt_compilation(emit_lookaround_line_break_compilation(LiteralRegexOptions([], LiteralCRLFPolicy)), emit_lookaround_alt_compilation(emit_lookaround_char_compilation('\n'), emit_lookaround_char_compilation('\r')))
+    LiteralAnyUnicodePolicy -> emit_lookaround_alt_compilation(emit_lookaround_line_break_compilation(LiteralRegexOptions([], LiteralAnyCRLFPolicy)), emit_lookaround_alt_compilation(emit_lookaround_char_compilation('\v'), emit_lookaround_alt_compilation(emit_lookaround_char_compilation('\f'), emit_lookaround_alt_compilation(emit_lookaround_char_compilation(0x85), emit_lookaround_alt_compilation(emit_lookaround_char_compilation(0x2028), emit_lookaround_char_compilation(0x2029))))))
+
+  fn emit_lookaround_char_compilation(char: Char) -> Syntax = runtime_call("LookaroundPredicate", [runtime_call("option_exact_test", [char_literal(char), bool_literal(false), bool_literal(false)])])
+
+  fn emit_lookaround_concat_compilation(left: Syntax, right: Syntax) -> Syntax = runtime_call("LookaroundConcat", [left, right])
+
+  fn emit_lookaround_alt_compilation(left: Syntax, right: Syntax) -> Syntax = runtime_call("LookaroundAlternate", [left, right, bool_literal(false)])
+
+  fn emit_options(options: LiteralRegexOptions) -> Syntax =
+    runtime_call("RegexOptions", [
+      bool_literal(has_modifier(options, CaselessModifier)),
+      bool_literal(has_modifier(options, MultilineModifier)),
+      bool_literal(has_modifier(options, DotallModifier)),
+      bool_literal(has_modifier(options, ExtendedModifier)),
+      bool_literal(has_modifier(options, UnicodeModifier)),
+      bool_literal(has_modifier(options, FirstlineModifier)),
+      bool_literal(has_modifier(options, UngreedyModifier)),
+      bool_literal(has_modifier(options, ExportModifier)),
+      emit_newline_policy(options)
+    ])
+
+  fn emit_newline_policy(options: LiteralRegexOptions) -> Syntax = match literal_newline_policy(options)
+    LiteralLFPolicy -> core_call("LFNewline", [])
+    LiteralCRPolicy -> core_call("CRNewline", [])
+    LiteralCRLFPolicy -> core_call("CRLFNewline", [])
+    LiteralAnyCRLFPolicy -> core_call("AnyCRLFNewline", [])
+    LiteralAnyUnicodePolicy -> core_call("AnyUnicodeNewline", [])
+
+  fn prepend_syntax(head: Syntax, tail: Syntax) -> Syntax = match tail
+    Node(tag, attrs, children) -> pickup
+      tag == :list -> Node(tag, attrs, [head | children])
+      else -> list([head])
+    _ -> list([head])

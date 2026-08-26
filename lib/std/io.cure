@@ -1,3 +1,4 @@
+@group(:system)
 mod Std.Io
   ## Standard I/O operations for printing to stdout.
   ##
@@ -18,43 +19,64 @@ mod Std.Io
   ## ```cure
   ## use Std.Io
   ##
-  ## fn greet(name: String) -> Atom ! Io =
+  ## fn greet(name: String) -> Unit ! Io =
   ##   println("Hello, " <> name <> "!")
   ## ```
 
-  ## Group tag consumed by `Cure.Stdlib.Preload`.
-  fn __group__() -> Atom = :system
+  ## `<>` on `String` desugars to `Std.Semigroup.combine`, which resolves to
+  ## `Std.String`'s own instance -- `String` is nominal, not a `List(Char)` alias.
+  use Std.String
+  use Std.Semigroup
 
+  ## Group tag consumed by `Cure.Stdlib.Preload`.
   ## Print a string to stdout without a trailing newline.
   ## Wraps `:io.put_chars/1`.
   @extern(:io, :put_chars, 1)
-  fn put_chars(text: String) -> Atom ! Io
+  local fn raw_put_chars(text: List(Char)) -> Atom ! Io
+
+  fn put_chars(text: String) -> Unit ! Io =
+    let _ = raw_put_chars(Std.String.characters(text))
+    ()
 
   ## Print a string to stdout with a trailing newline.
-  fn println(text: String) -> Atom ! Io =
+  fn println(text: String) -> Unit ! Io =
     put_chars(text <> "\n")
 
   ## Print a string to stdout without a trailing newline. Alias for
   ## `put_chars/1`; kept for readability at call sites.
-  fn print(text: String) -> Atom ! Io =
+  fn print(text: String) -> Unit ! Io =
     put_chars(text)
 
-  ## Render an integer as its decimal string (`:erlang.integer_to_binary/1`).
-  @extern(:erlang, :integer_to_binary, 1)
-  fn int_to_string(n: Int) -> String
+  ## An `@extern` is a direct Erlang remote call with no marshalling, so the
+  ## types written here are claims about the ERASED shape that crosses the
+  ## boundary. `String` is nominal (`rec String { characters: List(Char) }`) and
+  ## erases to the tagged pair `{String, chars}`, which no OTP function knows how
+  ## to read or produce; `List(Char)` erases to a bare charlist, which they do.
+  ## So the externs below are declared at `List(Char)` and the public functions
+  ## wrap -- the same convention `Std.String` documents and follows.
 
-  ## Render a float as its decimal string (`:erlang.float_to_binary/1`).
-  @extern(:erlang, :float_to_binary, 1)
-  fn float_to_string(f: Float) -> String
+  ## Render an integer as its decimal string (`:erlang.integer_to_list/1`).
+  @extern(:erlang, :integer_to_list, 1)
+  local fn int_to_charlist(n: Int) -> List(Char)
 
-  ## Render an atom as its name (`:erlang.atom_to_binary/1`).
-  @extern(:erlang, :atom_to_binary, 1)
-  fn atom_to_string(a: Atom) -> String
+  fn int_to_string(n: Int) -> String = Std.String.from_characters(int_to_charlist(n))
+
+  ## Render a float as its decimal string (`:erlang.float_to_list/1`).
+  @extern(:erlang, :float_to_list, 1)
+  local fn float_to_charlist(f: Float) -> List(Char)
+
+  fn float_to_string(f: Float) -> String = Std.String.from_characters(float_to_charlist(f))
+
+  ## Render an atom as its name (`:erlang.atom_to_list/1`).
+  @extern(:erlang, :atom_to_list, 1)
+  local fn atom_to_charlist(a: Atom) -> List(Char)
+
+  fn atom_to_string(a: Atom) -> String = Std.String.from_characters(atom_to_charlist(a))
 
   ## Print an integer followed by a newline.
-  fn print_int(n: Int) -> Atom =
+  fn print_int(n: Int) -> Unit ! Io =
     println(int_to_string(n))
 
   ## Print a float followed by a newline.
-  fn print_float(f: Float) -> Atom =
+  fn print_float(f: Float) -> Unit ! Io =
     println(float_to_string(f))

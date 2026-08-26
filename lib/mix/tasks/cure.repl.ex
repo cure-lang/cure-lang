@@ -42,6 +42,7 @@ defmodule Mix.Tasks.Cure.Repl do
 
   use Mix.Task
 
+  alias Cure.Diagnostic.Sink
   alias Cure.REPL.Options
 
   @shortdoc "Starts the interactive Cure REPL"
@@ -54,7 +55,11 @@ defmodule Mix.Tasks.Cure.Repl do
     # (e.g. a release that opted `:mix` into `extra_applications`).
     if Mix.Project.get(), do: Mix.Task.run("app.start", [])
 
-    {parsed, _rest, _invalid} = OptionParser.parse(args, switches: Options.switches())
+    {parsed, rest, invalid} = OptionParser.parse(args, strict: Options.switches())
+
+    if rest != [] or invalid != [] do
+      usage_error("Invalid arguments for mix cure.repl: #{inspect(rest ++ invalid)}")
+    end
 
     parsed
     |> build_opts()
@@ -76,7 +81,7 @@ defmodule Mix.Tasks.Cure.Repl do
     {opts, warnings} = Options.build_opts(parsed)
 
     Enum.each(warnings, fn message ->
-      Mix.shell().error("cure.repl: " <> message)
+      Mix.shell().error(render_diagnostic(Cure.Diagnostic.Operational.configuration_warning(message)))
     end)
 
     opts
@@ -93,5 +98,15 @@ defmodule Mix.Tasks.Cure.Repl do
       _ ->
         Cure.REPL.start(opts)
     end
+  end
+
+  defp usage_error(message) do
+    Mix.shell().error(render_diagnostic(Cure.Diagnostic.Operational.usage(message)))
+    exit({:shutdown, 1})
+  end
+
+  defp render_diagnostic(diagnostic) do
+    Sink.new(format: :plain, color: :auto, width: 80)
+    |> Sink.render(diagnostic)
   end
 end

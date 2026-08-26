@@ -1,0 +1,1068 @@
+@group(:core)
+mod Std.Proof.IntOrder
+  ## Proof-carrying order on the inductive integers `Int = FromNat(Nat) |
+  ## NegativeSuccessor(Nat)`, via decidable-Boolean reflection.
+  ##
+  ## **Family shape — reflected form (chosen).** The plan (Task 6 design note)
+  ## and spec §7 allow either a direct four-constructor inductive family or the
+  ## reflected form `IsTrue(le_int(a, b))`. We use the reflected form. The direct
+  ## family is currently *not expressible*: a constructor whose field lives in a
+  ## different inductive family (Nat-order evidence) combined with a
+  ## constructor-headed result index (`FromNat(m)`) trips a spurious
+  ## `:index_mismatch` in the elaborator's constructor-index-inversion path
+  ## (`kernel.ex` `remap_index_error`). The reflected form sidesteps that path:
+  ## indices stay plain variables and the sole constructor carries an `IsTrue`
+  ## witness of the total Boolean test. This mirrors Idris (`So`/`Oh`), Agda
+  ## (`T`), and Lean (`Decidable`).
+  ##
+  ## **Consequence for lemma shapes.** Because the reflected proof carries no
+  ## structure of the compared integers (only that a Boolean test is `True`),
+  ## order lemmas that must inspect those integers take them as *explicit*
+  ## (relevant) parameters rather than the erased implicit `{index}` slots used
+  ## by the structural `Nat`-order family in `Std.Proof.Math`. The Boolean tests
+  ## `le_int` / `lt_int` are total functions routed through `Nat`, and each law
+  ## is discharged by an ordinary Boolean lemma plus case analysis.
+  ##
+  ## ── Public kit ───────────────────────────────────────────────────────────
+  ## The complete exported surface of this module, grouped by role. Boolean
+  ## tests and arithmetic are total functions; the two families are the
+  ## proof-carrying order relations; the rest are the lemmas over them.
+  ##
+  ## Total Boolean tests & integer/nat arithmetic:
+  ##   le_nat(left: Nat, right: Nat) -> Bool
+  ##   lt_nat(left: Nat, right: Nat) -> Bool
+  ##   le_int(left: Int, right: Int) -> Bool
+  ##   lt_int(left: Int, right: Int) -> Bool
+  ##   succ_int(i: Int) -> Int
+  ##   pred_int(i: Int) -> Int
+  ##   add_nat_succ(count: Nat, x: Int) -> Int
+  ##   add_nat_pred(count: Nat, x: Int) -> Int
+  ##   add_int(addend: Int, x: Int) -> Int
+  ##   int_zero() -> Int
+  ##   int_one() -> Int
+  ##   int_negative_one() -> Int
+  ##   scale_nat_int(scalar: Nat, value: Int) -> Int
+  ##   multiply_int(coefficient: Int, value: Int) -> Int
+  ##   add_int_commutative(left: Int, right: Int) -> Equivalent(Int, left+right, right+left)
+  ##   add_int_associative(a: Int, b: Int, c: Int) -> Equivalent(Int, a+(b+c), (a+b)+c)
+  ##   scale_nat_int_distributes_over_add(scalar: Nat, left: Int, right: Int) -> Equivalent(...)
+  ##   multiply(left: Nat, right: Nat) -> Nat   ## local Std.Proof.Math.multiply mirror
+  ##
+  ## Proof-carrying order families (reflected form):
+  ##   type IsLessThanOrEqual indices (left: Int, right: Int)
+  ##     AtMost : IsTrue(le_int(left, right)) -> IsLessThanOrEqual(left, right)
+  ##   type IsLessThan indices (left: Int, right: Int)
+  ##     StrictlyBelow : IsTrue(lt_int(left, right)) -> IsLessThan(left, right)
+  ##
+  ## Ex falso:
+  ##   absurd({a: Type}, void: Empty) -> a
+  ##
+  ## Reflexivity:
+  ##   le_nat_is_reflexive(value: Nat) -> IsTrue(le_nat(value, value))
+  ##   le_int_from_nat_is_reflexive(n: Nat) -> IsTrue(le_int(FromNat(n), FromNat(n)))
+  ##   le_int_neg_succ_is_reflexive(k: Nat) -> IsTrue(le_int(NegativeSuccessor(k), NegativeSuccessor(k)))
+  ##   is_less_than_or_equal_is_reflexive(value: Int) -> IsLessThanOrEqual(value, value)
+  ##
+  ## Transitivity:
+  ##   le_nat_transitive(a: Nat, b: Nat, c: Nat, a_le_b, b_le_c) -> IsTrue(le_nat(a, c))
+  ##   le_int_transitive(a: Int, b: Int, c: Int, a_le_b, b_le_c) -> IsTrue(le_int(a, c))
+  ##   is_less_than_or_equal_is_transitive(left: Int, middle: Int, right: Int,
+  ##     left_to_middle, middle_to_right) -> IsLessThanOrEqual(left, right)
+  ##
+  ## Integer monotonicity:
+  ##   succ_int_is_monotone(a: Int, b: Int, a_le_b) -> IsTrue(le_int(succ_int(a), succ_int(b)))
+  ##   pred_int_is_monotone(a: Int, b: Int, a_le_b) -> IsTrue(le_int(pred_int(a), pred_int(b)))
+  ##   add_nat_succ_is_monotone(count: Nat, a: Int, b: Int, a_le_b)
+  ##     -> IsTrue(le_int(add_nat_succ(count, a), add_nat_succ(count, b)))
+  ##   add_nat_pred_is_monotone(count: Nat, a: Int, b: Int, a_le_b)
+  ##     -> IsTrue(le_int(add_nat_pred(count, a), add_nat_pred(count, b)))
+  ##   add_int_is_monotone(addend: Int, a: Int, b: Int, a_le_b)
+  ##     -> IsTrue(le_int(add_int(addend, a), add_int(addend, b)))
+  ##   adding_the_same_number_preserves_less_than_or_equal(addend: Int, left: Int, right: Int,
+  ##     proof) -> IsLessThanOrEqual(add_int(addend, left), add_int(addend, right))
+  ##   add_int_is_monotone_first(addend: Int, left: Int, right: Int, proof) -> IsTrue(...)
+  ##   add_int_is_monotone_both(a: Int, b: Int, c: Int, d: Int, ab, cd) -> IsTrue(...)
+  ##   adding_preserves_less_than_or_equal(a: Int, b: Int, c: Int, d: Int, ab, cd)
+  ##     -> IsLessThanOrEqual(add_int(a,c), add_int(b,d))
+  ##   scale_nat_int_is_monotone(scalar: Nat, left: Int, right: Int, proof)
+  ##     -> IsLessThanOrEqual(scale_nat_int(scalar,left), scale_nat_int(scalar,right))
+  ##
+  ## Refutation & decision:
+  ##   at_most_is_refuted_by_boolean_refuter({left}, {right},
+  ##     refuter: (IsTrue(le_int(left, right))) -> Empty, proof) -> Empty
+  ##   strictly_below_is_refuted_by_boolean_refuter({left}, {right},
+  ##     refuter: (IsTrue(lt_int(left, right))) -> Empty, proof) -> Empty
+  ##   decide_is_less_than_or_equal(left: Int, right: Int) -> Decision(IsLessThanOrEqual(left, right))
+  ##   decide_is_less_than(left: Int, right: Int) -> Decision(IsLessThan(left, right))
+  ##
+  ## Sign lemmas & nonnegative-scaling monotonicity:
+  ##   zero_le_int_from_nat_evidence(n: Nat) -> IsTrue(le_int(FromNat(Z()), FromNat(n)))
+  ##   nonneg_of_from_nat(n: Nat) -> IsLessThanOrEqual(FromNat(Z()), FromNat(n))
+  ##   zero_is_not_at_most_negative_one(proof: IsLessThanOrEqual(FromNat(Z()), NegativeSuccessor(Z()))) -> Empty
+  ##   le_nat_weaken_right(smaller: Nat, larger: Nat, evidence) -> IsTrue(le_nat(smaller, S(larger)))
+  ##   le_nat_add_left_weakens(base: Nat, addend: Nat) -> IsTrue(le_nat(base, plus(addend, base)))
+  ##   le_nat_plus_is_monotone_left(a: Nat, b: Nat, y: Nat, ab) -> IsTrue(le_nat(plus(a, y), plus(b, y)))
+  ##   le_nat_plus_is_monotone_right(a: Nat, x: Nat, y: Nat, xy) -> IsTrue(le_nat(plus(a, x), plus(a, y)))
+  ##   le_nat_plus_is_monotone(a: Nat, b: Nat, x: Nat, y: Nat, ab, xy)
+  ##     -> IsTrue(le_nat(plus(a, x), plus(b, y)))
+  ##   le_nat_multiply_is_monotone(scalar: Nat, left: Nat, right: Nat, lr)
+  ##     -> IsTrue(le_nat(multiply(scalar, left), multiply(scalar, right)))
+  ##   from_nat_le_evidence(l: Nat, r: Nat, ev: IsTrue(le_nat(l, r))) -> IsTrue(le_int(FromNat(l), FromNat(r)))
+  ##   scaling_by_nonneg_preserves_less_than_or_equal(scalar: Nat, left: Nat, right: Nat, proof)
+  ##     -> IsLessThanOrEqual(FromNat(multiply(scalar, left)), FromNat(multiply(scalar, right)))
+
+  use Std.Bool
+  use Std.Nat
+  use Std.Int
+  use Std.Decision
+  use Std.Equivalent
+  use Std.Proof.IntMath
+
+  ## Ex falso: anything follows from a proof of the empty type.
+  fn absurd({a: Type}, void: Empty) -> a = match void
+
+  ## Boolean less-than-or-equal on naturals, structural on the left operand.
+  fn le_nat(left: Nat, right: Nat) -> Bool =
+    match left
+      Z() -> True()
+      S(left_predecessor) ->
+        match right
+          Z() -> False()
+          S(right_predecessor) -> le_nat(left_predecessor, right_predecessor)
+
+  ## Boolean strictly-less-than on naturals, structural on the right operand.
+  fn lt_nat(left: Nat, right: Nat) -> Bool =
+    match right
+      Z() -> False()
+      S(right_predecessor) ->
+        match left
+          Z() -> True()
+          S(left_predecessor) -> lt_nat(left_predecessor, right_predecessor)
+
+  ## Boolean less-than-or-equal on the inductive integers. Nonneg/nonneg reduces
+  ## to `le_nat`; any negative is ≤ any nonneg; no nonneg is ≤ a negative;
+  ## neg/neg reverses `le_nat` on the successors, since -(k+1) ≤ -(j+1) ⇔ j ≤ k.
+  fn le_int(left: Int, right: Int) -> Bool =
+    match left
+      FromNat(m) ->
+        match right
+          FromNat(n) -> le_nat(m, n)
+          NegativeSuccessor(j) -> False()
+      NegativeSuccessor(k) ->
+        match right
+          FromNat(n) -> True()
+          NegativeSuccessor(j) -> le_nat(j, k)
+
+  ## Boolean strictly-less-than on the inductive integers. Nonneg/nonneg reduces
+  ## to `lt_nat`; any negative is < any nonneg; no nonneg is < a negative;
+  ## neg/neg reverses `lt_nat` on the successors, since -(k+1) < -(j+1) ⇔ j < k.
+  fn lt_int(left: Int, right: Int) -> Bool =
+    match left
+      FromNat(m) ->
+        match right
+          FromNat(n) -> lt_nat(m, n)
+          NegativeSuccessor(j) -> False()
+      NegativeSuccessor(k) ->
+        match right
+          FromNat(n) -> True()
+          NegativeSuccessor(j) -> lt_nat(j, k)
+
+  ## The integer successor `i + 1`. -(k+1)+1 folds the negative magnitude down
+  ## (to zero when k = 0), and nonnegatives grow by one.
+  fn succ_int(i: Int) -> Int =
+    match i
+      FromNat(n) -> FromNat(S(n))
+      NegativeSuccessor(k) ->
+        match k
+          Z() -> FromNat(Z())
+          S(predecessor) -> NegativeSuccessor(predecessor)
+
+  ## The integer predecessor `i - 1`. Nonnegatives shrink (to -1 at zero) and
+  ## negatives grow one more negative.
+  fn pred_int(i: Int) -> Int =
+    match i
+      FromNat(n) ->
+        match n
+          Z() -> NegativeSuccessor(Z())
+          S(predecessor) -> FromNat(predecessor)
+      NegativeSuccessor(k) -> NegativeSuccessor(S(k))
+
+  ## `x` advanced `count` integer successors.
+  fn add_nat_succ(count: Nat, x: Int) -> Int =
+    match count
+      Z() -> x
+      S(predecessor) -> succ_int(add_nat_succ(predecessor, x))
+
+  ## `x` retreated `count` integer predecessors.
+  fn add_nat_pred(count: Nat, x: Int) -> Int =
+    match count
+      Z() -> x
+      S(predecessor) -> pred_int(add_nat_pred(predecessor, x))
+
+  ## Total integer addition, defined by iterating the successor/predecessor on
+  ## `x` according to the sign and magnitude of `addend`. `FromNat(m)` steps up
+  ## `m` times; `NegativeSuccessor(k)` steps down `k + 1` times.
+  fn add_int(addend: Int, x: Int) -> Int =
+    match addend
+      FromNat(m) -> add_nat_succ(m, x)
+      NegativeSuccessor(k) -> add_nat_pred(S(k), x)
+
+  ## Canonical integer constants used by the reflective LIA checker. Functions,
+  ## rather than a second data representation, keep every caller on Std.Int.Int.
+  fn int_zero() -> Int = FromNat(Z())
+  fn int_one() -> Int = FromNat(S(Z()))
+  fn int_negative_one() -> Int = NegativeSuccessor(Z())
+
+  ## Scale an arbitrary signed integer by a nonnegative natural. This is repeated
+  ## proof-level integer addition, structural on the certificate coefficient.
+  ## Task 2 proves its monotonicity and distributive laws from these equations.
+  fn scale_nat_int(scalar: Nat, value: Int) -> Int =
+    match scalar
+      Z() -> int_zero()
+      S(predecessor) -> add_int(value, scale_nat_int(predecessor, value))
+
+  ## Signed coefficient application for affine evaluation. A nonnegative
+  ## coefficient delegates directly to natural scaling; -(n+1) negates the
+  ## result of scaling by n+1. Both recursions are therefore over Nat.
+  fn multiply_int(coefficient: Int, value: Int) -> Int =
+    match coefficient
+      FromNat(n) -> scale_nat_int(n, value)
+      NegativeSuccessor(n) -> negate(scale_nat_int(S(n), value))
+
+  fn multiply_int_from_nat(n: Nat, value: Int) -> Equivalent(Int,
+    multiply_int(FromNat(n), value), scale_nat_int(n, value)) =
+    reflexive(scale_nat_int(n, value))
+
+  fn multiply_int_negative_successor(n: Nat, value: Int) -> Equivalent(Int,
+    multiply_int(NegativeSuccessor(n), value), negate(scale_nat_int(S(n), value))) =
+    reflexive(negate(scale_nat_int(S(n), value)))
+
+  ## Successor and predecessor are mutually inverse on canonical integers.
+  fn succ_pred_int(value: Int) -> Equivalent(Int, succ_int(pred_int(value)), value) =
+    match value
+      FromNat(n) -> match n
+        Z() -> reflexive(FromNat(Z()))
+        S(k) -> reflexive(FromNat(S(k)))
+      NegativeSuccessor(k) -> reflexive(NegativeSuccessor(k))
+
+  fn pred_succ_int(value: Int) -> Equivalent(Int, pred_int(succ_int(value)), value) =
+    match value
+      FromNat(n) -> reflexive(FromNat(n))
+      NegativeSuccessor(k) -> match k
+        Z() -> reflexive(NegativeSuccessor(Z()))
+        S(j) -> reflexive(NegativeSuccessor(S(j)))
+
+  ## Iterated successor/predecessor commute with one step on their argument.
+  fn add_nat_succ_right_succ(count: Nat, value: Int) -> Equivalent(Int,
+    add_nat_succ(count, succ_int(value)),
+    succ_int(add_nat_succ(count, value))) =
+    match count
+      Z() -> reflexive(succ_int(value))
+      S(k) -> rewrite add_nat_succ_right_succ(k, value) in
+        reflexive(succ_int(succ_int(add_nat_succ(k, value))))
+
+  fn add_nat_pred_right_succ(count: Nat, value: Int) -> Equivalent(Int,
+    add_nat_pred(count, succ_int(value)),
+    succ_int(add_nat_pred(count, value))) =
+    match count
+      Z() -> reflexive(succ_int(value))
+      S(k) -> rewrite add_nat_pred_right_succ(k, value) in
+        rewrite pred_succ_int(add_nat_pred(k, value)) in
+        rewrite succ_pred_int(add_nat_pred(k, value)) in
+        reflexive(add_nat_pred(k, value))
+
+  fn add_nat_succ_right_pred(count: Nat, value: Int) -> Equivalent(Int,
+    add_nat_succ(count, pred_int(value)),
+    pred_int(add_nat_succ(count, value))) =
+    match count
+      Z() -> reflexive(pred_int(value))
+      S(k) -> rewrite add_nat_succ_right_pred(k, value) in
+        rewrite succ_pred_int(add_nat_succ(k, value)) in
+        rewrite pred_succ_int(add_nat_succ(k, value)) in
+        reflexive(add_nat_succ(k, value))
+
+  fn add_nat_pred_right_pred(count: Nat, value: Int) -> Equivalent(Int,
+    add_nat_pred(count, pred_int(value)),
+    pred_int(add_nat_pred(count, value))) =
+    match count
+      Z() -> reflexive(pred_int(value))
+      S(k) -> rewrite add_nat_pred_right_pred(k, value) in
+        reflexive(pred_int(pred_int(add_nat_pred(k, value))))
+
+  fn add_int_right_succ(addend: Int, value: Int) -> Equivalent(Int,
+    add_int(addend, succ_int(value)),
+    succ_int(add_int(addend, value))) =
+    match addend
+      FromNat(n) -> add_nat_succ_right_succ(n, value)
+      NegativeSuccessor(k) -> add_nat_pred_right_succ(S(k), value)
+
+  fn add_int_right_pred(addend: Int, value: Int) -> Equivalent(Int,
+    add_int(addend, pred_int(value)),
+    pred_int(add_int(addend, value))) =
+    match addend
+      FromNat(n) -> add_nat_succ_right_pred(n, value)
+      NegativeSuccessor(k) -> add_nat_pred_right_pred(S(k), value)
+
+  fn add_nat_succ_zero(count: Nat) -> Equivalent(Int,
+    add_nat_succ(count, int_zero()), FromNat(count)) =
+    match count
+      Z() -> reflexive(FromNat(Z()))
+      S(k) -> rewrite add_nat_succ_zero(k) in reflexive(FromNat(S(k)))
+
+  fn add_nat_pred_zero_successor(count: Nat) -> Equivalent(Int,
+    add_nat_pred(S(count), int_zero()), NegativeSuccessor(count)) =
+    match count
+      Z() -> reflexive(NegativeSuccessor(Z()))
+      S(k) -> rewrite add_nat_pred_zero_successor(k) in reflexive(NegativeSuccessor(S(k)))
+
+  fn add_int_zero_right(value: Int) -> Equivalent(Int, add_int(value, int_zero()), value) =
+    match value
+      FromNat(n) -> add_nat_succ_zero(n)
+      NegativeSuccessor(k) -> add_nat_pred_zero_successor(k)
+
+  fn add_int_zero_left(value: Int) -> Equivalent(Int, add_int(int_zero(), value), value) =
+    reflexive(value)
+
+  fn scale_nat_int_zero(value: Int) -> Equivalent(Int,
+    scale_nat_int(Z(), value), int_zero()) =
+    reflexive(int_zero())
+
+  fn scale_nat_int_value_zero(scalar: Nat) -> Equivalent(Int,
+    scale_nat_int(scalar, int_zero()), int_zero()) =
+    match scalar
+      Z() -> reflexive(int_zero())
+      S(k) -> trans(
+        add_int_cong_right(
+          int_zero(), scale_nat_int(k, int_zero()), int_zero(),
+          scale_nat_int_value_zero(k)),
+        reflexive(int_zero()))
+
+  fn scale_nat_int_successor(scalar: Nat, value: Int) -> Equivalent(Int,
+    scale_nat_int(S(scalar), value), add_int(value, scale_nat_int(scalar, value))) =
+    reflexive(add_int(value, scale_nat_int(scalar, value)))
+
+  fn add_int_commutative(left: Int, right: Int) -> Equivalent(Int,
+    add_int(left, right), add_int(right, left)) =
+    match left
+      FromNat(n) -> match n
+        Z() -> sym(add_int_zero_right(right))
+        S(k) -> rewrite add_int_commutative(FromNat(k), right) in
+          rewrite add_int_right_succ(right, FromNat(k)) in
+          reflexive(succ_int(add_int(right, FromNat(k))))
+      NegativeSuccessor(k) -> match k
+        Z() -> trans(
+          cong(fn(x) -> pred_int(x), sym(add_int_zero_right(right))),
+          sym(add_int_right_pred(right, FromNat(Z()))))
+        S(j) -> rewrite add_int_commutative(NegativeSuccessor(j), right) in
+          rewrite add_int_right_pred(right, NegativeSuccessor(j)) in
+          reflexive(pred_int(add_int(right, NegativeSuccessor(j))))
+
+  fn add_int_left_succ(left: Int, right: Int) -> Equivalent(Int,
+    add_int(succ_int(left), right), succ_int(add_int(left, right))) =
+    trans(
+      add_int_commutative(succ_int(left), right),
+      trans(
+        add_int_right_succ(right, left),
+        cong(fn(x) -> succ_int(x), add_int_commutative(right, left))))
+
+  fn add_int_left_pred(left: Int, right: Int) -> Equivalent(Int,
+    add_int(pred_int(left), right), pred_int(add_int(left, right))) =
+    trans(
+      add_int_commutative(pred_int(left), right),
+      trans(
+        add_int_right_pred(right, left),
+        cong(fn(x) -> pred_int(x), add_int_commutative(right, left))))
+
+  fn add_int_associative(a: Int, b: Int, c: Int) -> Equivalent(Int,
+    add_int(a, add_int(b, c)), add_int(add_int(a, b), c)) =
+    match a
+      FromNat(n) -> match n
+        Z() -> reflexive(add_int(b, c))
+        S(k) -> trans(
+          cong(fn(x) -> succ_int(x), add_int_associative(FromNat(k), b, c)),
+          sym(add_int_left_succ(add_int(FromNat(k), b), c)))
+      NegativeSuccessor(k) -> match k
+        Z() -> trans(
+          cong(fn(x) -> pred_int(x), add_int_associative(FromNat(Z()), b, c)),
+          sym(add_int_left_pred(add_int(FromNat(Z()), b), c)))
+        S(j) -> trans(
+          cong(fn(x) -> pred_int(x), add_int_associative(NegativeSuccessor(j), b, c)),
+          sym(add_int_left_pred(add_int(NegativeSuccessor(j), b), c)))
+
+  fn add_int_cong_left(a: Int, b: Int, c: Int, proof: Equivalent(Int, a, b)) -> Equivalent(Int,
+    add_int(a, c), add_int(b, c)) =
+    match proof
+      reflexive() -> reflexive(add_int(a, c))
+
+  fn add_int_cong_right(a: Int, b: Int, c: Int, proof: Equivalent(Int, b, c)) -> Equivalent(Int,
+    add_int(a, b), add_int(a, c)) =
+    match proof
+      reflexive() -> reflexive(add_int(a, b))
+
+  ## Four-term interchange, derived solely from associativity and commutativity:
+  ## (a+b)+(c+d) = (a+c)+(b+d).
+  fn add_int_rearrange_four(a: Int, b: Int, c: Int, d: Int) -> Equivalent(Int,
+    add_int(add_int(a, b), add_int(c, d)),
+    add_int(add_int(a, c), add_int(b, d))) =
+    trans(
+      sym(add_int_associative(a, b, add_int(c, d))),
+      trans(
+        add_int_cong_right(a, add_int(b, add_int(c, d)), add_int(add_int(b, c), d), add_int_associative(b, c, d)),
+        trans(
+          add_int_cong_right(a, add_int(add_int(b, c), d), add_int(add_int(c, b), d),
+            add_int_cong_left(add_int(b, c), add_int(c, b), d, add_int_commutative(b, c))),
+          trans(
+            add_int_cong_right(a, add_int(add_int(c, b), d), add_int(c, add_int(b, d)),
+              sym(add_int_associative(c, b, d))),
+            add_int_associative(a, c, add_int(b, d))))))
+
+  ## Scaling distributes over integer addition. This is the scalar algebra that
+  ## later lifts pointwise to coefficient vectors and dot products.
+  fn scale_nat_int_distributes_over_add(scalar: Nat, left: Int, right: Int) -> Equivalent(Int,
+    scale_nat_int(scalar, add_int(left, right)),
+    add_int(scale_nat_int(scalar, left), scale_nat_int(scalar, right))) =
+    match scalar
+      Z() -> reflexive(int_zero())
+      S(k) -> trans(
+        add_int_cong_right(
+          add_int(left, right),
+          scale_nat_int(k, add_int(left, right)),
+          add_int(scale_nat_int(k, left), scale_nat_int(k, right)),
+          scale_nat_int_distributes_over_add(k, left, right)),
+        add_int_rearrange_four(left, right, scale_nat_int(k, left), scale_nat_int(k, right)))
+
+  ## Canonical cancellation spines used to establish the additive inverse laws.
+  fn successors_cancel_matching_negative(count: Nat) -> Equivalent(Int,
+    add_nat_succ(count, NegativeSuccessor(count)), int_negative_one()) =
+    match count
+      Z() -> reflexive(int_negative_one())
+      S(k) -> trans(
+        sym(add_nat_succ_right_succ(k, NegativeSuccessor(S(k)))),
+        successors_cancel_matching_negative(k))
+
+  fn predecessors_cancel_matching_positive(count: Nat) -> Equivalent(Int,
+    add_nat_pred(S(count), FromNat(S(count))), int_zero()) =
+    match count
+      Z() -> reflexive(int_zero())
+      S(k) -> trans(
+        sym(add_nat_pred_right_pred(S(k), FromNat(S(S(k))))),
+        predecessors_cancel_matching_positive(k))
+
+  fn add_int_right_inverse(value: Int) -> Equivalent(Int,
+    add_int(value, negate(value)), int_zero()) =
+    match value
+      FromNat(n) -> match n
+        Z() -> reflexive(int_zero())
+        S(k) -> rewrite successors_cancel_matching_negative(k) in reflexive(int_zero())
+      NegativeSuccessor(k) -> predecessors_cancel_matching_positive(k)
+
+  fn add_int_left_inverse(value: Int) -> Equivalent(Int,
+    add_int(negate(value), value), int_zero()) =
+    trans(add_int_commutative(negate(value), value), add_int_right_inverse(value))
+
+  ## Addition in the natural scalar (coefficient) is represented by Nat.plus.
+  fn scale_nat_int_add_scalars(left: Nat, right: Nat, value: Int) -> Equivalent(Int,
+    scale_nat_int(plus(left, right), value),
+    add_int(scale_nat_int(left, value), scale_nat_int(right, value))) =
+    match left
+      Z() -> sym(add_int_zero_left(scale_nat_int(right, value)))
+      S(k) -> trans(
+        add_int_cong_right(
+          value,
+          scale_nat_int(plus(k, right), value),
+          add_int(scale_nat_int(k, value), scale_nat_int(right, value)),
+          scale_nat_int_add_scalars(k, right, value)),
+        add_int_associative(value, scale_nat_int(k, value), scale_nat_int(right, value)))
+
+  fn add_int_right_inverse_is_unique(value: Int, candidate: Int,
+    proof: Equivalent(Int, add_int(value, candidate), int_zero())) -> Equivalent(Int,
+    candidate, negate(value)) =
+    trans(
+      sym(add_int_zero_left(candidate)),
+      trans(
+        add_int_cong_left(
+          int_zero(), add_int(negate(value), value), candidate,
+          sym(add_int_left_inverse(value))),
+        trans(
+          sym(add_int_associative(negate(value), value, candidate)),
+          trans(
+            add_int_cong_right(
+              negate(value), add_int(value, candidate), int_zero(), proof),
+            add_int_zero_right(negate(value))))))
+
+  fn negate_distributes_over_add(left: Int, right: Int) -> Equivalent(Int,
+    negate(add_int(left, right)),
+    add_int(negate(left), negate(right))) =
+    sym(add_int_right_inverse_is_unique(
+      add_int(left, right),
+      add_int(negate(left), negate(right)),
+      trans(
+        add_int_rearrange_four(left, right, negate(left), negate(right)),
+        trans(
+          add_int_cong_left(
+            add_int(left, negate(left)), int_zero(),
+            add_int(right, negate(right)), add_int_right_inverse(left)),
+          trans(
+            add_int_cong_right(
+              int_zero(), add_int(right, negate(right)), int_zero(),
+              add_int_right_inverse(right)),
+            reflexive(int_zero()))))))
+
+  fn add_value_to_negated_successor_scale(count: Nat, value: Int) -> Equivalent(Int,
+    add_int(value, negate(scale_nat_int(S(count), value))),
+    negate(scale_nat_int(count, value))) =
+    match count
+      Z() -> trans(
+        add_int_cong_right(
+          value,
+          negate(scale_nat_int(S(Z()), value)), negate(value),
+          cong(fn(x) -> negate(x), add_int_zero_right(value))),
+        add_int_right_inverse(value))
+      S(k) -> trans(
+        add_int_cong_right(
+          value,
+          negate(scale_nat_int(S(S(k)), value)),
+          add_int(negate(value), negate(scale_nat_int(S(k), value))),
+          negate_distributes_over_add(value, scale_nat_int(S(k), value))),
+        trans(
+          add_int_associative(value, negate(value), negate(scale_nat_int(S(k), value))),
+          trans(
+            add_int_cong_left(
+              add_int(value, negate(value)), int_zero(),
+              negate(scale_nat_int(S(k), value)), add_int_right_inverse(value)),
+            add_int_zero_left(negate(scale_nat_int(S(k), value))))))
+
+  fn multiply_int_successor_coefficient(coefficient: Int, value: Int) -> Equivalent(Int,
+    multiply_int(succ_int(coefficient), value),
+    add_int(value, multiply_int(coefficient, value))) =
+    match coefficient
+      FromNat(n) -> reflexive(add_int(value, scale_nat_int(n, value)))
+      NegativeSuccessor(n) -> match n
+        Z() -> sym(add_value_to_negated_successor_scale(Z(), value))
+        S(k) -> sym(add_value_to_negated_successor_scale(S(k), value))
+
+  fn multiply_int_cong_coefficient(left: Int, right: Int, value: Int,
+    proof: Equivalent(Int, left, right)) -> Equivalent(Int,
+    multiply_int(left, value), multiply_int(right, value)) =
+    match proof
+      reflexive() -> reflexive(multiply_int(left, value))
+
+  fn multiply_int_predecessor_coefficient(coefficient: Int, value: Int) -> Equivalent(Int,
+    multiply_int(pred_int(coefficient), value),
+    add_int(negate(value), multiply_int(coefficient, value))) =
+    trans(
+      sym(add_int_zero_left(multiply_int(pred_int(coefficient), value))),
+      trans(
+        add_int_cong_left(
+          int_zero(), add_int(negate(value), value),
+          multiply_int(pred_int(coefficient), value),
+          sym(add_int_left_inverse(value))),
+        trans(
+          sym(add_int_associative(
+            negate(value), value, multiply_int(pred_int(coefficient), value))),
+          add_int_cong_right(
+            negate(value),
+            add_int(value, multiply_int(pred_int(coefficient), value)),
+            multiply_int(coefficient, value),
+            trans(
+              sym(multiply_int_successor_coefficient(pred_int(coefficient), value)),
+              multiply_int_cong_coefficient(
+                succ_int(pred_int(coefficient)), coefficient, value,
+                succ_pred_int(coefficient)))))))
+
+  fn multiply_int_distributes_over_from_nat_add(
+    count: Nat, right: Int, value: Int
+  ) -> Equivalent(Int,
+    multiply_int(add_int(FromNat(count), right), value),
+    add_int(multiply_int(FromNat(count), value), multiply_int(right, value))) =
+    match count
+      Z() -> sym(add_int_zero_left(multiply_int(right, value)))
+      S(k) -> trans(
+        multiply_int_cong_coefficient(
+          add_int(FromNat(S(k)), right),
+          succ_int(add_int(FromNat(k), right)), value,
+          add_int_left_succ(FromNat(k), right)),
+        trans(
+          multiply_int_successor_coefficient(add_int(FromNat(k), right), value),
+          trans(
+            add_int_cong_right(
+              value,
+              multiply_int(add_int(FromNat(k), right), value),
+              add_int(multiply_int(FromNat(k), value), multiply_int(right, value)),
+              multiply_int_distributes_over_from_nat_add(k, right, value)),
+            trans(
+              add_int_associative(
+                value, multiply_int(FromNat(k), value), multiply_int(right, value)),
+              add_int_cong_left(
+                add_int(value, multiply_int(FromNat(k), value)),
+                multiply_int(FromNat(S(k)), value),
+                multiply_int(right, value),
+                sym(multiply_int_successor_coefficient(FromNat(k), value)))))))
+
+  fn multiply_int_distributes_over_negative_add(
+    count: Nat, right: Int, value: Int
+  ) -> Equivalent(Int,
+    multiply_int(add_int(NegativeSuccessor(count), right), value),
+    add_int(multiply_int(NegativeSuccessor(count), value), multiply_int(right, value))) =
+    match count
+      Z() -> trans(
+        multiply_int_predecessor_coefficient(right, value),
+        add_int_cong_left(
+          negate(value), multiply_int(NegativeSuccessor(Z()), value),
+          multiply_int(right, value),
+          sym(cong(fn(x) -> negate(x), add_int_zero_right(value)))))
+      S(k) -> trans(
+        multiply_int_cong_coefficient(
+          add_int(NegativeSuccessor(S(k)), right),
+          pred_int(add_int(NegativeSuccessor(k), right)), value,
+          add_int_left_pred(NegativeSuccessor(k), right)),
+        trans(
+          multiply_int_predecessor_coefficient(
+            add_int(NegativeSuccessor(k), right), value),
+          trans(
+            add_int_cong_right(
+              negate(value),
+              multiply_int(add_int(NegativeSuccessor(k), right), value),
+              add_int(
+                multiply_int(NegativeSuccessor(k), value),
+                multiply_int(right, value)),
+              multiply_int_distributes_over_negative_add(k, right, value)),
+            trans(
+              add_int_associative(
+                negate(value), multiply_int(NegativeSuccessor(k), value),
+                multiply_int(right, value)),
+              add_int_cong_left(
+                add_int(negate(value), multiply_int(NegativeSuccessor(k), value)),
+                multiply_int(NegativeSuccessor(S(k)), value),
+                multiply_int(right, value),
+                sym(multiply_int_predecessor_coefficient(
+                  NegativeSuccessor(k), value)))))))
+
+  fn multiply_int_distributes_over_coefficient_add(
+    left: Int, right: Int, value: Int
+  ) -> Equivalent(Int,
+    multiply_int(add_int(left, right), value),
+    add_int(multiply_int(left, value), multiply_int(right, value))) =
+    match left
+      FromNat(n) -> multiply_int_distributes_over_from_nat_add(n, right, value)
+      NegativeSuccessor(n) -> multiply_int_distributes_over_negative_add(n, right, value)
+
+  fn multiply_int_scale_nat_coefficient(
+    scalar: Nat, coefficient: Int, value: Int
+  ) -> Equivalent(Int,
+    multiply_int(scale_nat_int(scalar, coefficient), value),
+    scale_nat_int(scalar, multiply_int(coefficient, value))) =
+    match scalar
+      Z() -> reflexive(int_zero())
+      S(k) -> trans(
+        multiply_int_distributes_over_coefficient_add(
+          coefficient, scale_nat_int(k, coefficient), value),
+        add_int_cong_right(
+          multiply_int(coefficient, value),
+          multiply_int(scale_nat_int(k, coefficient), value),
+          scale_nat_int(k, multiply_int(coefficient, value)),
+          multiply_int_scale_nat_coefficient(k, coefficient, value)))
+
+  ## Evidence that one integer is ≤ another: the reflected proposition that the
+  ## decidable Boolean test `le_int` returns `True`.
+  type IsLessThanOrEqual indices (left: Int, right: Int)
+    AtMost : IsTrue(le_int(left, right)) -> IsLessThanOrEqual(left, right)
+
+  ## Evidence that one integer is strictly < another: the reflected proposition
+  ## that the decidable Boolean test `lt_int` returns `True`.
+  type IsLessThan indices (left: Int, right: Int)
+    StrictlyBelow : IsTrue(lt_int(left, right)) -> IsLessThan(left, right)
+
+  ## `le_nat` is reflexive: `le_nat(n, n)` computes to `True` for every `n`.
+  fn le_nat_is_reflexive(value: Nat) -> IsTrue(le_nat(value, value)) =
+    match value
+      Z() -> Confirmed()
+      S(predecessor) -> le_nat_is_reflexive(predecessor)
+
+  ## `le_int(FromNat(n), FromNat(n))` reduces to `le_nat(n, n)`, which is `True`.
+  ## Stated at the reduced result type so the conversion — not the constructor
+  ## index path — performs the `le_int` → `le_nat` reduction; the witness is then
+  ## syntactically what `AtMost` expects on the `FromNat` reflexivity arm.
+  fn le_int_from_nat_is_reflexive(n: Nat) -> IsTrue(le_int(FromNat(n), FromNat(n))) =
+    le_nat_is_reflexive(n)
+
+  ## Same, for `le_int(NegativeSuccessor(k), NegativeSuccessor(k))` → `le_nat(k, k)`.
+  fn le_int_neg_succ_is_reflexive(k: Nat) -> IsTrue(le_int(NegativeSuccessor(k), NegativeSuccessor(k))) =
+    le_nat_is_reflexive(k)
+
+  ## Reflexivity: every integer is ≤ itself.
+  fn is_less_than_or_equal_is_reflexive(value: Int) -> IsLessThanOrEqual(value, value) =
+    match value
+      FromNat(n) -> AtMost(le_int_from_nat_is_reflexive(n))
+      NegativeSuccessor(k) -> AtMost(le_int_neg_succ_is_reflexive(k))
+
+  ## `le_nat` composes transitively (Boolean form). A zero left operand is
+  ## immediate; the impossible `S(_) ≤ Z` cases are refuted from the evidence.
+  fn le_nat_transitive(
+    a: Nat, b: Nat, c: Nat,
+    a_le_b: IsTrue(le_nat(a, b)),
+    b_le_c: IsTrue(le_nat(b, c))
+  ) -> IsTrue(le_nat(a, c)) =
+    match a
+      Z() -> Confirmed()
+      S(a_predecessor) ->
+        match b
+          Z() -> absurd(true_is_not_false(a_le_b))
+          S(b_predecessor) ->
+            match c
+              Z() -> absurd(true_is_not_false(b_le_c))
+              S(c_predecessor) -> le_nat_transitive(a_predecessor, b_predecessor, c_predecessor, a_le_b, b_le_c)
+
+  ## `le_int` composes transitively (Boolean form). Case-splits on the outer
+  ## integers `a`, `c`, then the middle `b`; real cases delegate to
+  ## `le_nat_transitive` (the neg/neg case reversed), the rest are immediate or
+  ## refuted from the evidence.
+  fn le_int_transitive(
+    a: Int, b: Int, c: Int,
+    a_le_b: IsTrue(le_int(a, b)),
+    b_le_c: IsTrue(le_int(b, c))
+  ) -> IsTrue(le_int(a, c)) =
+    match a
+      FromNat(x) ->
+        match c
+          FromNat(z) ->
+            match b
+              FromNat(y) -> le_nat_transitive(x, y, z, a_le_b, b_le_c)
+              NegativeSuccessor(w) -> absurd(true_is_not_false(a_le_b))
+          NegativeSuccessor(z) ->
+            match b
+              FromNat(y) -> absurd(true_is_not_false(b_le_c))
+              NegativeSuccessor(w) -> absurd(true_is_not_false(a_le_b))
+      NegativeSuccessor(x) ->
+        match c
+          FromNat(z) -> Confirmed()
+          NegativeSuccessor(z) ->
+            match b
+              FromNat(y) -> absurd(true_is_not_false(b_le_c))
+              NegativeSuccessor(w) -> le_nat_transitive(z, w, x, b_le_c, a_le_b)
+
+  ## Less-than-or-equal evidence composes transitively. The compared integers
+  ## are explicit (see the module header): the reflected proof does not carry
+  ## them, and `le_int_transitive` must inspect them.
+  fn is_less_than_or_equal_is_transitive(
+    left: Int, middle: Int, right: Int,
+    left_to_middle: IsLessThanOrEqual(left, middle),
+    middle_to_right: IsLessThanOrEqual(middle, right)
+  ) -> IsLessThanOrEqual(left, right) =
+    match left_to_middle
+      AtMost(left_middle_evidence) ->
+        match middle_to_right
+          AtMost(middle_right_evidence) ->
+            AtMost(le_int_transitive(left, middle, right, left_middle_evidence, middle_right_evidence))
+
+  ## The integer successor is monotone (Boolean form): `a ≤ b → a+1 ≤ b+1`.
+  fn succ_int_is_monotone(a: Int, b: Int, a_le_b: IsTrue(le_int(a, b))) -> IsTrue(le_int(succ_int(a), succ_int(b))) =
+    match a
+      FromNat(x) ->
+        match b
+          FromNat(y) -> a_le_b
+          NegativeSuccessor(w) -> absurd(true_is_not_false(a_le_b))
+      NegativeSuccessor(x) ->
+        match b
+          FromNat(y) ->
+            match x
+              Z() -> Confirmed()
+              S(x_predecessor) -> Confirmed()
+          NegativeSuccessor(w) ->
+            match x
+              Z() ->
+                match w
+                  Z() -> Confirmed()
+                  S(w_predecessor) -> absurd(true_is_not_false(a_le_b))
+              S(x_predecessor) ->
+                match w
+                  Z() -> Confirmed()
+                  S(w_predecessor) -> a_le_b
+
+  ## The integer predecessor is monotone (Boolean form): `a ≤ b → a-1 ≤ b-1`.
+  fn pred_int_is_monotone(a: Int, b: Int, a_le_b: IsTrue(le_int(a, b))) -> IsTrue(le_int(pred_int(a), pred_int(b))) =
+    match a
+      FromNat(x) ->
+        match b
+          FromNat(y) ->
+            match x
+              Z() ->
+                match y
+                  Z() -> Confirmed()
+                  S(y_predecessor) -> Confirmed()
+              S(x_predecessor) ->
+                match y
+                  Z() -> absurd(true_is_not_false(a_le_b))
+                  S(y_predecessor) -> a_le_b
+          NegativeSuccessor(w) -> absurd(true_is_not_false(a_le_b))
+      NegativeSuccessor(x) ->
+        match b
+          FromNat(y) ->
+            match y
+              Z() -> Confirmed()
+              S(y_predecessor) -> Confirmed()
+          NegativeSuccessor(w) -> a_le_b
+
+  ## Iterating a monotone integer successor preserves `≤`.
+  fn add_nat_succ_is_monotone(count: Nat, a: Int, b: Int, a_le_b: IsTrue(le_int(a, b))) -> IsTrue(le_int(add_nat_succ(count, a), add_nat_succ(count, b))) =
+    match count
+      Z() -> a_le_b
+      S(predecessor) ->
+        succ_int_is_monotone(add_nat_succ(predecessor, a), add_nat_succ(predecessor, b), add_nat_succ_is_monotone(predecessor, a, b, a_le_b))
+
+  ## Iterating a monotone integer predecessor preserves `≤`.
+  fn add_nat_pred_is_monotone(count: Nat, a: Int, b: Int, a_le_b: IsTrue(le_int(a, b))) -> IsTrue(le_int(add_nat_pred(count, a), add_nat_pred(count, b))) =
+    match count
+      Z() -> a_le_b
+      S(predecessor) ->
+        pred_int_is_monotone(add_nat_pred(predecessor, a), add_nat_pred(predecessor, b), add_nat_pred_is_monotone(predecessor, a, b, a_le_b))
+
+  ## Integer addition is monotone in its second argument (Boolean form):
+  ## `a ≤ b → addend + a ≤ addend + b`, by iterating succ/pred monotonicity.
+  fn add_int_is_monotone(addend: Int, a: Int, b: Int, a_le_b: IsTrue(le_int(a, b))) -> IsTrue(le_int(add_int(addend, a), add_int(addend, b))) =
+    match addend
+      FromNat(m) -> add_nat_succ_is_monotone(m, a, b, a_le_b)
+      NegativeSuccessor(k) -> add_nat_pred_is_monotone(S(k), a, b, a_le_b)
+
+  ## Adding the same integer to both sides preserves less-than-or-equal. The
+  ## sides are explicit (see the module header) since `add_int_is_monotone`
+  ## inspects them.
+  fn adding_the_same_number_preserves_less_than_or_equal(
+    addend: Int, left: Int, right: Int,
+    proof: IsLessThanOrEqual(left, right)
+  ) -> IsLessThanOrEqual(add_int(addend, left), add_int(addend, right)) =
+    match proof
+      AtMost(evidence) -> AtMost(add_int_is_monotone(addend, left, right, evidence))
+
+  fn le_int_transport(
+    left: Int, left2: Int, right: Int, right2: Int,
+    left_equal: Equivalent(Int, left, left2),
+    right_equal: Equivalent(Int, right, right2),
+    proof: IsTrue(le_int(left, right))
+  ) -> IsTrue(le_int(left2, right2)) =
+    match left_equal
+      reflexive() -> match right_equal
+        reflexive() -> proof
+
+  ## Addition is monotone in its first argument, derived from commutativity and
+  ## the already-proved second-argument monotonicity.
+  fn add_int_is_monotone_first(
+    addend: Int, left: Int, right: Int,
+    proof: IsTrue(le_int(left, right))
+  ) -> IsTrue(le_int(add_int(left, addend), add_int(right, addend))) =
+    le_int_transport(
+      add_int(addend, left), add_int(left, addend),
+      add_int(addend, right), add_int(right, addend),
+      add_int_commutative(addend, left),
+      add_int_commutative(addend, right),
+      add_int_is_monotone(addend, left, right, proof))
+
+  fn add_int_is_monotone_both(
+    a: Int, b: Int, c: Int, d: Int,
+    ab: IsTrue(le_int(a, b)), cd: IsTrue(le_int(c, d))
+  ) -> IsTrue(le_int(add_int(a, c), add_int(b, d))) =
+    le_int_transitive(
+      add_int(a, c), add_int(a, d), add_int(b, d),
+      add_int_is_monotone(a, c, d, cd),
+      add_int_is_monotone_first(d, a, b, ab))
+
+  fn adding_preserves_less_than_or_equal(
+    a: Int, b: Int, c: Int, d: Int,
+    ab: IsLessThanOrEqual(a, b), cd: IsLessThanOrEqual(c, d)
+  ) -> IsLessThanOrEqual(add_int(a, c), add_int(b, d)) =
+    match ab
+      AtMost(ab_evidence) -> match cd
+        AtMost(cd_evidence) -> AtMost(add_int_is_monotone_both(a, b, c, d, ab_evidence, cd_evidence))
+
+  fn less_than_or_equal_transport(
+    left: Int, left2: Int, right: Int, right2: Int,
+    left_equal: Equivalent(Int, left, left2),
+    right_equal: Equivalent(Int, right, right2),
+    proof: IsLessThanOrEqual(left, right)
+  ) -> IsLessThanOrEqual(left2, right2) =
+    match proof
+      AtMost(evidence) -> AtMost(le_int_transport(
+        left, left2, right, right2,
+        left_equal, right_equal, evidence))
+
+  ## Natural scaling preserves order for arbitrary signed operands. The
+  ## successor case combines the original inequality with the induction result.
+  fn scale_nat_int_is_monotone(
+    scalar: Nat, left: Int, right: Int,
+    proof: IsLessThanOrEqual(left, right)
+  ) -> IsLessThanOrEqual(scale_nat_int(scalar, left), scale_nat_int(scalar, right)) =
+    match scalar
+      Z() -> is_less_than_or_equal_is_reflexive(int_zero())
+      S(k) -> adding_preserves_less_than_or_equal(
+        left, right,
+        scale_nat_int(k, left), scale_nat_int(k, right),
+        proof,
+        scale_nat_int_is_monotone(k, left, right, proof))
+
+  ## Invert `AtMost`: a refutation of the reflected Boolean evidence refutes the
+  ## whole `≤` proof (its only constructor carries exactly that evidence).
+  fn at_most_is_refuted_by_boolean_refuter(
+    {left: Int},
+    {right: Int},
+    refuter: (IsTrue(le_int(left, right))) -> Empty,
+    proof: IsLessThanOrEqual(left, right)
+  ) -> Empty =
+    match proof
+      AtMost(evidence) -> refuter(evidence)
+
+  ## Invert `StrictlyBelow` likewise for strict `<`.
+  fn strictly_below_is_refuted_by_boolean_refuter(
+    {left: Int},
+    {right: Int},
+    refuter: (IsTrue(lt_int(left, right))) -> Empty,
+    proof: IsLessThan(left, right)
+  ) -> Empty =
+    match proof
+      StrictlyBelow(evidence) -> refuter(evidence)
+
+  ## Decide `≤` on integers, carrying checked evidence either way. Reuses the
+  ## generic decidable-Boolean decision on `le_int(left, right)`.
+  fn decide_is_less_than_or_equal(left: Int, right: Int) -> Decision(IsLessThanOrEqual(left, right)) =
+    match decide_is_true(le_int(left, right))
+      Yes(evidence) -> Yes(AtMost(evidence))
+      No(refuter) -> No(fn(proof) -> at_most_is_refuted_by_boolean_refuter(refuter, proof))
+
+  ## Decide strict `<` on integers, carrying checked evidence either way.
+  fn decide_is_less_than(left: Int, right: Int) -> Decision(IsLessThan(left, right)) =
+    match decide_is_true(lt_int(left, right))
+      Yes(evidence) -> Yes(StrictlyBelow(evidence))
+      No(refuter) -> No(fn(proof) -> strictly_below_is_refuted_by_boolean_refuter(refuter, proof))
+
+  ## ── Sign lemmas ──────────────────────────────────────────────────────────
+
+  ## `0 ≤ n` for every natural `n`: `le_int(FromNat(Z), FromNat(n))` reduces to
+  ## `le_nat(Z, n) = True`, so the reflected witness is `Confirmed()`. Stated via
+  ## a return-typed helper so the reduction lands in return-type conversion (the
+  ## constructor-index path does not reduce `le_int` — see the reflexivity
+  ## helpers above).
+  fn zero_le_int_from_nat_evidence(n: Nat) -> IsTrue(le_int(FromNat(Z()), FromNat(n))) =
+    Confirmed()
+
+  fn nonneg_of_from_nat(n: Nat) -> IsLessThanOrEqual(FromNat(Z()), FromNat(n)) =
+    AtMost(zero_le_int_from_nat_evidence(n))
+
+  ## `0 ≤ -1` is impossible. `le_int(FromNat(Z), NegativeSuccessor(Z))` reduces to
+  ## `False`, so the carried witness inhabits `IsTrue(False)`, refuted by
+  ## `true_is_not_false`. (In the reflected form the refutation is *not* an empty
+  ## match — every index pair is inhabited by `AtMost` — but destructuring the
+  ## impossible evidence yields `Empty` all the same. This is LIA's contradiction
+  ## extractor.)
+  fn zero_is_not_at_most_negative_one(
+    proof: IsLessThanOrEqual(FromNat(Z()), NegativeSuccessor(Z()))
+  ) -> Empty =
+    match proof
+      AtMost(evidence) -> true_is_not_false(evidence)
+
+  ## ── Nonnegative-scaling monotonicity ─────────────────────────────────────
+  ##
+  ## Scaling both sides of `b ≤ c` by a nonnegative integer preserves the order.
+  ## The reduction target is natural-number multiplication (`Nat → Nat → Nat`),
+  ## so the scalar and the operands are the nonnegative cone: `scalar : Nat`
+  ## witnesses `0 ≤ FromNat(scalar)`, and `left`/`right` are the `FromNat`
+  ## operands. On that cone the Int order proof between `FromNat` values is
+  ## exactly the Boolean `le_nat`, so the whole development stays in the Boolean
+  ## test world — no equational transport.
+  ##
+  ## `multiply` below is a local mirror of `Std.Proof.Math.multiply` (identical
+  ## structural definition). We cannot `use Std.Proof.Math`: it exports its own
+  ## `IsLessThanOrEqual`/`IsLessThan`/`IsPositive`, whose bare names collide with
+  ## this module's integer order families and mis-resolve at codegen. Referencing
+  ## it qualified is not an option either — a qualified cross-module reference
+  ## still requires the module to be imported. The local mirror is the same total
+  ## function; the lemma it proves is identical.
+  ##
+  ## Extending this to general integer operands would require first-argument
+  ## monotonicity of the iterated integer `add_int`, deferred as out of scope for
+  ## the multiply-reduction specified here.
+
+  ## Natural-number multiplication, structural on the left operand — a local
+  ## mirror of `Std.Proof.Math.multiply` (see the note above on why it is not
+  ## imported).
+  fn multiply(left: Nat, right: Nat) -> Nat =
+    match left
+      Z() -> Z()
+      S(predecessor) -> plus(right, multiply(predecessor, right))
+
+  ## `le_nat(smaller, larger) ⇒ le_nat(smaller, S(larger))`: weaken the bound.
+  fn le_nat_weaken_right(
+    smaller: Nat, larger: Nat, evidence: IsTrue(le_nat(smaller, larger))
+  ) -> IsTrue(le_nat(smaller, S(larger))) =
+    match smaller
+      Z() -> Confirmed()
+      S(sp) -> match larger
+        Z() -> absurd(true_is_not_false(evidence))
+        S(lp) -> le_nat_weaken_right(sp, lp, evidence)
+
+  ## `base ≤ addend + base`: adding on the left only grows a natural number.
+  fn le_nat_add_left_weakens(base: Nat, addend: Nat) -> IsTrue(le_nat(base, plus(addend, base))) =
+    match addend
+      Z() -> le_nat_is_reflexive(base)
+      S(ap) -> le_nat_weaken_right(base, plus(ap, base), le_nat_add_left_weakens(base, ap))
+
+  ## `a ≤ b ⇒ a + y ≤ b + y`: monotone in the left addend.
+  fn le_nat_plus_is_monotone_left(
+    a: Nat, b: Nat, y: Nat, ab: IsTrue(le_nat(a, b))
+  ) -> IsTrue(le_nat(plus(a, y), plus(b, y))) =
+    match a
+      Z() -> le_nat_add_left_weakens(y, b)
+      S(ap) -> match b
+        Z() -> absurd(true_is_not_false(ab))
+        S(bp) -> le_nat_plus_is_monotone_left(ap, bp, y, ab)
+
+  ## `x ≤ y ⇒ a + x ≤ a + y`: monotone in the right addend.
+  fn le_nat_plus_is_monotone_right(
+    a: Nat, x: Nat, y: Nat, xy: IsTrue(le_nat(x, y))
+  ) -> IsTrue(le_nat(plus(a, x), plus(a, y))) =
+    match a
+      Z() -> xy
+      S(ap) -> le_nat_plus_is_monotone_right(ap, x, y, xy)
+
+  ## `a ≤ b` and `x ≤ y ⇒ a + x ≤ b + y`: two-sided addition monotonicity.
+  fn le_nat_plus_is_monotone(
+    a: Nat, b: Nat, x: Nat, y: Nat,
+    ab: IsTrue(le_nat(a, b)), xy: IsTrue(le_nat(x, y))
+  ) -> IsTrue(le_nat(plus(a, x), plus(b, y))) =
+    le_nat_transitive(
+      plus(a, x), plus(a, y), plus(b, y),
+      le_nat_plus_is_monotone_right(a, x, y, xy),
+      le_nat_plus_is_monotone_left(a, b, y, ab))
+
+  ## `left ≤ right ⇒ scalar·left ≤ scalar·right` on the Boolean test. Induction
+  ## on the scalar; the successor step is `multiply(S(sp), v) = plus(v,
+  ## multiply(sp, v))`, discharged by two-sided addition monotonicity.
+  fn le_nat_multiply_is_monotone(
+    scalar: Nat, left: Nat, right: Nat, lr: IsTrue(le_nat(left, right))
+  ) -> IsTrue(le_nat(multiply(scalar, left), multiply(scalar, right))) =
+    match scalar
+      Z() -> Confirmed()
+      S(sp) -> le_nat_plus_is_monotone(
+        left, right,
+        multiply(sp, left), multiply(sp, right),
+        lr,
+        le_nat_multiply_is_monotone(sp, left, right, lr))
+
+  ## A nonnegative-into-Int order witness between `FromNat` operands is exactly
+  ## `le_nat` (return-type conversion reduces `le_int(FromNat l, FromNat r)`).
+  fn from_nat_le_evidence(l: Nat, r: Nat, ev: IsTrue(le_nat(l, r))) -> IsTrue(le_int(FromNat(l), FromNat(r))) =
+    ev
+
+  ## Nonnegative scaling preserves `≤`: given `left ≤ right` (as `FromNat`
+  ## operands) and any `scalar : Nat` (i.e. `0 ≤ FromNat(scalar)`),
+  ## `scalar·left ≤ scalar·right`. Reduces to `Std.Proof.Math.multiply` via the
+  ## Boolean monotonicity above.
+  fn scaling_by_nonneg_preserves_less_than_or_equal(
+    scalar: Nat, left: Nat, right: Nat,
+    proof: IsLessThanOrEqual(FromNat(left), FromNat(right))
+  ) -> IsLessThanOrEqual(FromNat(multiply(scalar, left)), FromNat(multiply(scalar, right))) =
+    match proof
+      AtMost(evidence) ->
+        AtMost(from_nat_le_evidence(
+          multiply(scalar, left), multiply(scalar, right),
+          le_nat_multiply_is_monotone(scalar, left, right, evidence)))
+
+end

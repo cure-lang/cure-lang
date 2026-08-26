@@ -1,0 +1,9 @@
+mod Hoidx01
+  use Std.Equivalent
+  type Dec = D0 | D1
+  type Eff = Pure(Dec) | Bind(Dec, (Dec) -> Eff)
+  fn bind(m: Eff, f: (Dec) -> Eff) -> Eff = match m
+    Pure(x) -> f(x)
+    Bind(e, g) -> Bind(e, fn(y) -> bind(g(y), f))
+  fn refl_bind(m: Eff) -> Equivalent(Eff, bind(m, fn(y) -> Pure(y)), bind(m, fn(y) -> Pure(y))) = reflexive(bind(m, fn(y) -> Pure(y)))
+end

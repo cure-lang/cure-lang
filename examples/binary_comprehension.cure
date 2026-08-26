@@ -1,8 +1,9 @@
 mod BinaryComprehension
+  use Std.List
   ###
   Binary comprehension generators (v0.22.0).
 
-  `for <<byte <- source>>` iterates the bytes of a `Bitstring`
+  `for <<byte <- source>>` iterates the bytes of a `Binary`
   source and yields each byte to the comprehension body. Segment
   specifiers work the same as in binary patterns, so
   `for <<word::16 <- buf>>` iterates 16-bit words; `for <<ch::utf8
@@ -10,11 +11,11 @@ mod BinaryComprehension
   ###
 
   ## Enumerate every byte of a three-byte binary into a list.
-  fn bytes_of(buf: Bitstring) -> List(Int) =
+  fn bytes_of(buf: Binary) -> List(Int) =
     [b for <<b <- buf>>]
 
   ## Sum the bytes of a binary by running the comprehension into a fold.
-  fn byte_sum(buf: Bitstring) -> Int =
+  fn byte_sum(buf: Binary) -> Int =
     Std.List.foldl([b for <<b <- buf>>], 0, fn(b) -> fn(acc) -> acc + b)
 
   ## Entry point used by `mix cure.check.examples`.

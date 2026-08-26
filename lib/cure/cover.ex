@@ -31,13 +31,21 @@ defmodule Cure.Cover do
     ensure_cover_started()
     _ = :cover.reset()
 
-    beams = Path.wildcard(Path.join(ebin_dir, "*.beam"))
+    case Cure.Compiler.Artifacts.open_verified_set(ebin_dir) do
+      {:ok, set} ->
+        set.modules
+        |> Map.values()
+        |> Enum.flat_map(&Map.fetch!(&1, :artifacts))
+        |> Enum.each(fn artifact ->
+          beam = Path.join(set.artifact_root, artifact.path)
+          _ = :cover.compile_beam(String.to_charlist(beam))
+        end)
 
-    Enum.each(beams, fn beam ->
-      _ = :cover.compile_beam(String.to_charlist(beam))
-    end)
+        :ok
 
-    :ok
+      {:error, reason} ->
+        raise ArgumentError, "cannot instrument an unverified Cure artifact set: #{inspect(reason)}"
+    end
   end
 
   @doc """

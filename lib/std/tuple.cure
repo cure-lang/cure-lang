@@ -1,0 +1,66 @@
+@group(:collections)
+mod Std.Tuple
+  ## `use Std.Sigma` supplies the projection globals `.1`/`.2`/`.i` lower to
+  ## (`sigma_first`, `sigma_second`, `tproj2`…`tproj8`). Every ordinary module
+  ## receives those ambiently — `Std.Sigma` is a whole-module `@prelude` — but
+  ## `@prelude opaque type Tuple` below puts THIS module in the prelude-bootstrap
+  ## closure, and a bootstrap module is elaborated with no prelude of its own so
+  ## it cannot be injected back into one of its own dependencies. The import must
+  ## therefore be explicit. `Std.Sigma` imports nothing, so this adds no cycle.
+  use Std.Sigma
+
+  ## Honest surface tuples.
+  ##
+  ## `Tuple(T, U)` is the arity-2 product — a flat BEAM `{a, b}` — and
+  ## `Tuple(T1, …, Tn)` (3 ≤ n ≤ 8) are the flat n-ary products. A tuple
+  ## literal is written `%[a, b, …]` and projected with `.1`, `.2`, … .
+  ##
+  ## Arity-2 aliases the non-dependent dependent-pair, so the later
+  ## position may depend on the earlier one; the n-ary families are plain
+  ## flat products. This module is the honest replacement for the old
+  ## `Std.Pair`. The n-ary accessors (`third`, …) land alongside the
+  ## n-ary literal surface.
+  ##
+  ## ## Examples
+  ##
+  ## ```cure
+  ## use Std.Tuple
+  ##
+  ## first(%[1, 2])          # => 1
+  ## second(%[1, 2])         # => 2
+  ## swap(%[1, 2])           # => %[2, 1]
+  ## third(%[1, 2, 3])       # => 3
+  ## ```
+
+  ## A BEAM tuple whose arity and component types are NOT known — the bare
+  ## `Tuple`, written with no arguments.
+  ##
+  ## This is the FFI carrier, not a product type: it is what an untyped BEAM
+  ## tuple crossing an `@extern` boundary is, and the only thing you can do with
+  ## one is hand it back across a boundary that expects it. `:rand`'s seed state
+  ## and OTP's `start_link` result (`{ok, Pid}` / `{error, Reason}`) are the
+  ## motivating cases — a shape the BEAM fixes and Cure cannot yet name.
+  ##
+  ## It is nominal and constructor-less for the same reason `Std.Otp.Raw`'s
+  ## `RawTerm` is: nothing in Cure may introduce one, so it cannot be confused
+  ## with a typed product. Applied `Tuple(T, U)` is a different thing entirely —
+  ## the honest Σ/flat product below — and the surface reads the applied form
+  ## syntactically, so the two never compete for the name.
+  ##
+  ## `@prelude` because the untyped form is what the `actor`/`fsm`/`supervisor`
+  ## macros emit as their generated `start_link` return type, in modules that
+  ## never wrote `use Std.Tuple`.
+  @prelude
+  opaque type Tuple
+
+  ## The first component of a pair.
+  fn first(t: Tuple(a, b)) -> a = t.1
+
+  ## The second component of a pair.
+  fn second(t: Tuple(a, b)) -> b = t.2
+
+  ## Swap the two components of a pair.
+  fn swap(t: Tuple(a, b)) -> Tuple(b, a) = %[t.2, t.1]
+
+  ## The third component of a 3-tuple.
+  fn third(t: Tuple(a, b, c)) -> c = t.3

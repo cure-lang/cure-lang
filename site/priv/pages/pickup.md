@@ -6,7 +6,7 @@
 ---
 > **Normative source (v0.33.0).** The `pickup` construct is specified
 > at version 1.0.0 in
-> [`docs/PICKUP.md`](https://github.com/am-kantox/cure-lang/blob/main/docs/PICKUP.md).
+> [`docs/PICKUP.md`](https://github.com/cure-lang/cure-lang/blob/main/docs/PICKUP.md).
 > That document covers the grammar, the static / dynamic / operational
 > semantics, the formatter rules, the algebraic laws, the legacy `if`
 > migration story, the diagnostic catalogue, and a soundness proof
@@ -29,12 +29,13 @@ A `pickup` block is a non-empty list of guarded clauses ending in a
 mandatory terminator:
 
 ```cure
-pickup
-  status >= 500 -> :server_error
-  status >= 400 -> :client_error
-  status >= 300 -> :redirect
-  status >= 200 -> :ok
-  else          -> :informational
+fn classify_status(status: Int) -> Atom =
+  pickup
+    status >= 500 -> :server_error
+    status >= 400 -> :client_error
+    status >= 300 -> :redirect
+    status >= 200 -> :ok
+    else -> :informational
 ```
 
 Each clause is one of two forms:
@@ -62,7 +63,7 @@ syntactically guaranteed.
 Each guard MUST type to `Bool`. There is no truthy / falsy coercion;
 `pickup` is uncompromising about types:
 
-```cure
+```cure E093
 # Rejected: 1 is not Bool
 pickup
   1     -> :truthy
@@ -74,11 +75,12 @@ The branch right-hand sides MUST share a common upper bound under the
 language's subtyping relation. If they do not, the program is
 rejected with `E-PICKUP-BRANCH-MISMATCH`:
 
-```cure
+```cure E093
 # Rejected: branches are Int and String
-pickup
-  cond -> 1
-  else -> "two"
+fn choose(cond: Bool) =
+  pickup
+    cond -> 1
+    else -> "two"
 # E-PICKUP-BRANCH-MISMATCH
 ```
 
@@ -89,10 +91,11 @@ subsequent guard runs and only the selected branch evaluates. If
 every guard yields `false`, the terminator runs.
 
 ```cure
-pickup
-  log "checking ready"  ; ready?    -> launch ()
-  log "checking timeout"; timed_out? -> retry ()
-  else                                -> wait ()
+fn next_step(ready: Bool, timed_out: Bool) -> Atom =
+  pickup
+    ready -> :launch
+    timed_out -> :retry
+    else -> :wait
 ```
 
 If `ready?` is `true`, `"checking timeout"` is never logged. The
@@ -145,51 +148,51 @@ fn loop(n: Int, acc: Int) -> Int =
 of the selected branch and is admissible everywhere an expression is:
 
 ```cure
-let label =
+fn label(n: Int) -> String =
   pickup
     n > 0 -> "positive"
     n < 0 -> "negative"
-    else  -> "zero"
-
-emit(label)
+    else -> "zero"
 ```
 
 It nests freely with `match` and other constructs:
 
 ```cure
-match request
-  %{method: "GET", path: p} ->
-    pickup
-      cached?(p) -> serve_cache(p)
-      stale?(p)  -> revalidate(p)
-      else       -> serve_fresh(p)
-  %{method: "POST", body: b} -> handle_post(b)
-  _                          -> :malformed
+fn request_kind(method: Atom) -> Atom =
+  pickup
+    method == :get -> :get
+    method == :post -> :post
+    else -> :malformed
 ```
 
 ## Migrating from `if` / `elif` / `else`
 
-The `if`/`elif` chain has been removed. The `cure rewrite if-to-pickup`
-tool migrates surviving code mechanically, preserving comments and
-running the formatter on every modified file:
+`if` / `elif` / `then` / `else` are deprecated in favour of `pickup`,
+but the parser still accepts them: each `if` still lowers to the same
+conditional it always has, and parsing one emits a deprecation event
+so editors and the LSP can surface a migration hint. `cure migrate`
+rewrites the whole rule registry, including `if`/`elif` to `pickup`,
+refuses to touch a dirty working tree, and reprints canonically:
 
 ```cure
--- Before (no longer accepted):
-if   score >= 90 then "A"
-elif score >= 80 then "B"
-elif score >= 70 then "C"
-else                   "F"
-
--- After:
-pickup
-  score >= 90 -> "A"
-  score >= 80 -> "B"
-  score >= 70 -> "C"
-  else        -> "F"
+fn grade(score: Int) -> String =
+  pickup
+    score >= 90 -> "A"
+    score >= 80 -> "B"
+    score >= 70 -> "C"
+    else -> "F"
 ```
 
-Post-migration, the parser rejects `if` with `E-IF-REMOVED` and a
-fix-it pointing at the rewriter.
+```bash
+cure migrate --check src
+cure migrate src
+```
+
+`mix cure.rewrite` is an older, narrower task that applies only this
+one rule without the git-cleanliness guard; it is retained for
+backward compatibility and now delegates to the same migration engine.
+Neither tool currently turns a lingering `if` into a hard compile
+error.
 
 ## Formatter conventions
 
@@ -197,54 +200,48 @@ The formatter aligns all `->` tokens within a single `pickup` block,
 including the `else` clause:
 
 ```cure
-pickup
-  x > 0     -> :positive
-  x < 0     -> :negative
-  even?(x)  -> :zero_even
-  else      -> :zero_odd
+fn parity(x: Int) -> Atom =
+  pickup
+    x > 0 -> :positive
+    x < 0 -> :negative
+    else -> :zero
 ```
 
 Other formatter rules:
 
-- A trailing `true ->` is rewritten to `else ->` with hint
-  `H-PICKUP-PREFER-ELSE`.
+- A trailing `true ->` is rewritten to `else ->`.
 - A degenerate `pickup` whose only clause is the terminator collapses
-  to its right-hand side (`H-PICKUP-DEGENERATE`).
+  to its right-hand side.
 - Multi-line right-hand sides switch every clause in the block to
   the wrapped form (`->` at the end of the guard line, body indented
   one step deeper). Mixing aligned and wrapped forms is forbidden.
 - Comments are preserved verbatim. Block-leading and clause-leading
   comments stay attached to their construct under refactoring.
-  Internal stray comments may be relocated by the formatter with
-  `H-PICKUP-COMMENT-RELOCATED`.
+  Internal stray comments may be relocated by the formatter (see the
+  Diagnostics section below for the status of the hint codes these
+  rewrites were once catalogued under).
 - The formatter is idempotent
   (`format(format(s, c), c) = format(s, c)`) and round-trip-safe
   (formatted source re-parses byte-identically).
 
 ## Diagnostics
 
-The full diagnostic catalogue:
+The three structural checks below are live, numbered codes (run
+`cure explain <code>` for the full text); the old `E-PICKUP-*` spelling
+from earlier drafts of this page survives only as a descriptive alias
+in that explanation text, not as an argument `cure explain` accepts:
 
-- **E-PICKUP-NO-ELSE** -- `pickup` lacks a valid terminator.
-- **E-PICKUP-ELSE-NOT-LAST** -- clauses follow the `else` clause.
-- **E-PICKUP-MULTIPLE-ELSE** -- more than one `else` clause.
-- **E-PICKUP-GUARD-TYPE** -- guard not of type `Bool`.
-- **E-PICKUP-BRANCH-MISMATCH** -- branch right-hand sides have no
-  common upper bound.
-- **E-IF-REMOVED** -- legacy `if` keyword encountered; emitted with
-  a fix-it pointing at `cure rewrite if-to-pickup`.
-- **W-PICKUP-UNREACHABLE** -- guard provably unreachable.
-- **W-PICKUP-DEAD-ELSE** -- terminator provably unreachable.
-- **W-PICKUP-EFFECTFUL-GUARD** -- guard observed to have side
-  effects.
-- **H-PICKUP-PREFER-ELSE** -- trailing `true ->` rewritten to
-  `else ->`.
-- **H-PICKUP-DEGENERATE** -- single-arm `pickup` collapsed to its
-  right-hand side.
-- **H-PICKUP-LINE-TOO-LONG** -- clause cannot fit within
-  `max_line_width` even when wrapped.
-- **H-PICKUP-COMMENT-RELOCATED** -- internal stray comment relocated
-  by the formatter.
+- **E076** -- `pickup` lacks a valid terminator (`E-PICKUP-NO-ELSE`).
+- **E077** -- clauses follow the `else` clause (`E-PICKUP-ELSE-NOT-LAST`).
+- **E078** -- more than one `else` clause (`E-PICKUP-MULTIPLE-ELSE`).
+
+A guard that is not `Bool`, or branches with no common upper bound, are
+reported through the general type-mismatch diagnostic (`E093`) rather
+than a `pickup`-specific code. The reachability warnings and formatter
+hints once catalogued here as `W-PICKUP-UNREACHABLE`, `W-PICKUP-DEAD-ELSE`,
+`H-PICKUP-PREFER-ELSE`, and `H-PICKUP-DEGENERATE` are not currently
+emitted by the compiler, even though the formatter still performs the
+rewrites they described.
 
 ## Idioms
 
@@ -272,7 +269,7 @@ side effect *is* the test (e.g. `lock_acquired?(lock)`).
 
 ### Bind once, dispatch many
 
-```cure
+```text
 # Less clear: each `next_token()` call advances state
 pickup
   next_token() == :open  -> parse_block()
@@ -296,10 +293,10 @@ real condition is being tested; `else` reads as the default arm.
 ## See also
 
 - The full normative specification is at
-  [`docs/PICKUP.md`](https://github.com/am-kantox/cure-lang/blob/main/docs/PICKUP.md).
+  [`docs/PICKUP.md`](https://github.com/cure-lang/cure-lang/blob/main/docs/PICKUP.md).
 - The `match` construct -- the structural-dispatch counterpart -- is
   documented at [`/match`](/match) and specified normatively at
-  [`docs/MATCH.md`](https://github.com/am-kantox/cure-lang/blob/main/docs/MATCH.md).
+  [`docs/MATCH.md`](https://github.com/cure-lang/cure-lang/blob/main/docs/MATCH.md).
   Both specifications were published into HexDocs in v0.33.0.
 - For the broader language reference, see
-  [`docs/LANGUAGE_SPEC.md`](https://github.com/am-kantox/cure-lang/blob/main/docs/LANGUAGE_SPEC.md).
+  [`docs/LANGUAGE_SPEC.md`](https://github.com/cure-lang/cure-lang/blob/main/docs/LANGUAGE_SPEC.md).

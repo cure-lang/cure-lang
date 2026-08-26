@@ -18,7 +18,7 @@ defmodule Cure.Project do
 
   ## Application and release sections (v0.26.0)
 
-  A project that ships an `app` container may additionally declare:
+  A project that ships an `app` macro may additionally declare:
 
       [application]
       name           = "my_app"
@@ -43,9 +43,12 @@ defmodule Cure.Project do
   values, string arrays, and nested tables (`[application.env]`).
   """
 
+  require Logger
+
   defstruct [
     :name,
     :version,
+    :edition,
     dependencies: [],
     compiler_opts: [],
     source_paths: ["lib"],
@@ -53,13 +56,54 @@ defmodule Cure.Project do
     application: nil,
     release: nil,
     doc: nil,
-    publish: nil
+    publish: nil,
+    exports: %{modules: []}
   ]
 
   @type dep :: %{name: String.t(), path: String.t()} | %{name: String.t(), git: String.t(), tag: String.t()}
   @type t :: %__MODULE__{}
 
   # -- Loading -----------------------------------------------------------------
+
+  @doc """
+  The directory of the nearest ancestor `Cure.toml`, starting from the directory
+  containing `file_path` and walking up to the filesystem root — or `nil` if no
+  ancestor holds a `Cure.toml`. Mirrors how Cargo/npm locate the enclosing
+  project: the NEAREST manifest wins, so a file deep in a dependency tree binds to
+  its own project's manifest, not a far-away app's (spec §3.2 edition precedence).
+  """
+  @spec find_root(String.t() | nil) :: String.t() | nil
+  def find_root(nil), do: nil
+
+  def find_root(file_path) when is_binary(file_path) do
+    file_path |> Path.expand() |> Path.dirname() |> find_root_from_dir()
+  end
+
+  defp find_root_from_dir(dir) do
+    parent = Path.dirname(dir)
+
+    cond do
+      File.regular?(Path.join(dir, "Cure.toml")) ->
+        dir
+
+      # Do not ESCAPE the enclosing git repository: a `Cure.toml` above the repo
+      # (a sibling/parent project, or a stray `~/Cure.toml`) is unrelated, and
+      # binding a file to it would let a stranger's edition silently drive — or,
+      # with a typo, spuriously fail — this repo's builds. `.git` marks the repo
+      # root (a normal clone: a directory; a git worktree: a file), so stop here
+      # with no manifest found rather than walking further up.
+      File.exists?(Path.join(dir, ".git")) ->
+        nil
+
+      # `Path.dirname/1` is a fixpoint at the filesystem root ("/" -> "/"), so
+      # stop there rather than looping forever when no manifest exists above.
+      parent == dir ->
+        nil
+
+      true ->
+        find_root_from_dir(parent)
+    end
+  end
 
   @doc "Load a Cure.toml from the given directory (or current dir)."
   @spec load(String.t()) :: {:ok, t()} | {:error, term()}
@@ -69,7 +113,17 @@ defmodule Cure.Project do
     case File.read(path) do
       {:ok, content} ->
         project = parse_toml(content)
-        {:ok, %{project | root: dir}}
+
+        case project.edition do
+          nil ->
+            {:ok, %{project | root: dir}}
+
+          ed ->
+            case Cure.Edition.parse(ed) do
+              {:ok, _} -> {:ok, %{project | root: dir}}
+              {:error, _} = err -> err
+            end
+        end
 
       {:error, :enoent} ->
         {:error, :no_project_file}
@@ -78,6 +132,73 @@ defmodule Cure.Project do
         {:error, {:file_error, reason}}
     end
   end
+
+  @doc """
+  Insert or replace `edition = "<edition>"` under the `[project]` table of the
+  `Cure.toml` at `path`, preserving all other lines. Lossless line edit — does
+  not reformat the file.
+  """
+  @spec set_edition(Path.t(), Cure.Edition.t()) :: :ok | {:error, term()}
+  def set_edition(path, edition) do
+    with {:ok, body} <- File.read(path) do
+      lines = String.split(body, "\n")
+      new = upsert_edition(lines, edition)
+      File.write(path, Enum.join(new, "\n"))
+    end
+  end
+
+  # Table-aware upsert (F10): only the [project] table's `edition` key is touched.
+  # An `edition =` key in another table (e.g. [dependencies]) is left alone, and a
+  # [project] header carrying a trailing comment is recognised (no duplicate table).
+  defp upsert_edition(lines, edition) do
+    kv = "edition = \"#{edition}\""
+
+    case Enum.find_index(lines, &project_header?/1) do
+      nil ->
+        ["[project]", kv | lines]
+
+      hidx ->
+        {head, [header | after_header]} = Enum.split(lines, hidx)
+        {section, tail} = Enum.split_while(after_header, &(not table_header?(&1)))
+        head ++ [header | edition_in_section(section, kv, edition)] ++ tail
+    end
+  end
+
+  # Set the edition within the [project] section. If any `edition =` key is
+  # present, replace EVERY one (a malformed duplicate would otherwise leave a
+  # stale value that the last-write-wins loader reads back); if none, insert the
+  # key right after the header. Keys in later tables are outside `section` and
+  # are never touched.
+  defp edition_in_section(section, kv, edition) do
+    if Enum.any?(section, &edition_key?/1) do
+      Enum.map(section, fn line ->
+        if edition_key?(line), do: replace_edition_value(line, kv, edition), else: line
+      end)
+    else
+      [kv | section]
+    end
+  end
+
+  # Rewrite only the VALUE of an existing `edition =` line, preserving leading
+  # indentation and any trailing inline comment — a lossless line edit, matching
+  # the migrate writer `Cure.CLI.replace_leading_pragma_line/2`. Falls back to the
+  # canonical `kv` when the line's value is not a simple quoted string (a
+  # malformed line the last-write-wins loader would reject anyway).
+  defp replace_edition_value(line, kv, edition) do
+    case Regex.run(~r/^(\s*edition\s*=\s*)"[^"]*"(.*)$/, line) do
+      [_, prefix, rest] -> prefix <> "\"#{edition}\"" <> rest
+      nil -> kv
+    end
+  end
+
+  # All three header predicates derive from ONE grammar (`table_header_name/1`)
+  # so the set_edition writer and the loader can never disagree about what a
+  # table boundary is (the I1/I1b/I1c bug class). `table_header?` is any header;
+  # `project_header?` is the [project] table specifically (name == "project",
+  # excluding dotted subtables like `[project.env]`).
+  defp table_header?(line), do: table_header_name(line) != nil
+  defp project_header?(line), do: table_header_name(line) == "project"
+  defp edition_key?(line), do: Regex.match?(~r/^\s*edition\s*=/, line)
 
   # -- Dependency Resolution ---------------------------------------------------
 
@@ -127,23 +248,54 @@ defmodule Cure.Project do
     is_nil(Map.get(dep, :path)) and is_nil(Map.get(dep, :git))
   end
 
-  defp resolve_one(%{path: rel_path, name: name}, root, _reuse_lock?)
-       when is_binary(rel_path) and rel_path != "" do
-    abs_path = Path.expand(rel_path, root)
-    cure_files = Path.wildcard(Path.join(abs_path, "lib/**/*.cure"))
-    dep_ebin = Path.join(root, "_build/deps/#{name}")
-    File.mkdir_p!(dep_ebin)
-
-    Enum.each(cure_files, fn file ->
-      _ = Cure.Compiler.compile_file(file, output_dir: dep_ebin, emit_events: false)
-    end)
-
-    :code.add_patha(String.to_charlist(Path.expand(dep_ebin)))
-    :ok
+  @doc false
+  # The project dir a dependency source at `file` resolves its edition against:
+  # the nearest ancestor directory holding a `Cure.toml`, walking up from the
+  # file but NEVER above `base` (the dependency's extraction/checkout root). This
+  # honours a dep that ships its own Cure.toml even under a nested layout
+  # (`base/<pkg>-<vsn>/Cure.toml`, which `Cure.Project.load` reads directly and
+  # would otherwise miss with a fixed `project_dir: base`), while the base bound
+  # guarantees a manifest-less dep never inherits the CONSUMER's edition (A1-F1).
+  @spec dep_project_dir(String.t(), String.t()) :: String.t()
+  def dep_project_dir(file, base) do
+    base = Path.expand(base)
+    file |> Path.expand() |> Path.dirname() |> find_dep_root(base)
   end
 
-  defp resolve_one(%{git: _url} = dep, root, _reuse_lock?) do
-    resolve_git_dep(dep, root)
+  defp find_dep_root(dir, base) do
+    cond do
+      File.regular?(Path.join(dir, "Cure.toml")) -> dir
+      dir == base -> base
+      # Defensive: a file under `base` reaches `base` exactly on the way up, but
+      # if we ever step above it, stop rather than escape into the consumer tree.
+      not String.starts_with?(dir <> "/", base <> "/") -> base
+      true -> dir |> Path.dirname() |> find_dep_root(base)
+    end
+  end
+
+  defp resolve_one(%{path: rel_path, name: name}, root, _reuse_lock?)
+       when is_binary(rel_path) do
+    # A whitespace-only path is a malformed dependency, not a real path — the
+    # literal `!= ""` guard alone let it through and it would "resolve" to zero
+    # files (A1-F3). Trim before deciding; an all-blank path is rejected like "".
+    if String.trim(rel_path) == "" do
+      {:error, {:invalid_dependency, name}}
+    else
+      resolve_path_dep(rel_path, name, root)
+    end
+  end
+
+  # A blank OR whitespace-only `git` is a malformed dependency. `parse_dep_line`
+  # captures the quoted URL verbatim (no trim), so `git = "   "` reaches here as a
+  # binary; the literal `!= ""` guard alone let it slip into System.cmd, cloning
+  # nothing and silently "resolving" to :ok. Trim before deciding — mirroring the
+  # path clause above so both malformed-dep guards agree.
+  defp resolve_one(%{git: url, name: name} = dep, root, _reuse_lock?) when is_binary(url) do
+    if String.trim(url) == "" do
+      {:error, {:invalid_dependency, name}}
+    else
+      resolve_git_dep(dep, root)
+    end
   end
 
   defp resolve_one(%{name: name} = dep, root, reuse_lock?) do
@@ -153,6 +305,120 @@ defmodule Cure.Project do
   end
 
   defp resolve_one(_, _root, _reuse_lock?), do: :ok
+
+  defp resolve_path_dep(rel_path, name, root) do
+    abs_path = Path.expand(rel_path, root)
+    cure_files = Path.wildcard(Path.join(abs_path, "lib/**/*.cure"))
+    dep_ebin = Path.join(root, "_build/deps/#{name}")
+    File.mkdir_p!(dep_ebin)
+
+    with :ok <- compile_dep_files(cure_files, name, dep_ebin, abs_path),
+         {:ok, set} <- Cure.Compiler.Artifacts.open_verified_set(dep_ebin) do
+      Cure.Compiler.Artifacts.load_verified_set(set.artifact_root)
+    end
+  end
+
+  @doc """
+  Return the source roots of installed dependencies.
+
+  Path dependencies resolve directly from their package `lib/` directory.
+  Git and registry dependencies resolve from their installed `_build/deps`
+  trees. The result is deterministic and contains only existing directories.
+  """
+  @spec dependency_source_paths(t()) :: [Path.t()]
+  def dependency_source_paths(%__MODULE__{dependencies: deps, root: root}) do
+    deps
+    |> Enum.flat_map(fn dep ->
+      name = Map.get(dep, :name, "")
+
+      cond do
+        is_binary(Map.get(dep, :path)) and String.trim(dep.path) != "" ->
+          [Path.join(Path.expand(dep.path, root), "lib")]
+
+        is_binary(Map.get(dep, :git)) and String.trim(dep.git) != "" ->
+          [Path.join([root, "_build", "deps", name, "lib"])]
+
+        true ->
+          Path.wildcard(Path.join([root, "_build", "deps", "#{name}-*", "**", "lib"]))
+      end
+    end)
+    |> Enum.map(&Path.expand/1)
+    |> Enum.filter(&File.dir?/1)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  @doc "Return installed dependency BEAM directories for runtime/codegen loading."
+  @spec dependency_ebin_paths(t()) :: [Path.t()]
+  def dependency_ebin_paths(%__MODULE__{dependencies: deps, root: root}) do
+    deps
+    |> Enum.flat_map(fn dep ->
+      name = Map.get(dep, :name, "")
+
+      if is_binary(Map.get(dep, :path)) or is_binary(Map.get(dep, :git)) do
+        [Path.join([root, "_build", "deps", name])]
+      else
+        Path.wildcard(Path.join([root, "_build", "deps", "#{name}-*", "ebin"]))
+      end
+    end)
+    |> Enum.map(&Path.expand/1)
+    |> Enum.filter(&File.dir?/1)
+    |> Enum.map(&Cure.Compiler.Artifacts.Writer.resolve/1)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  # Compile a dependency's sources, each under its OWN edition (dep_project_dir,
+  # bounded at `base`, so it honours the dep's own Cure.toml — nested or not — yet
+  # never inherits the consumer's edition). Most compile errors stay non-fatal (a
+  # dep may ship files the consumer never exercises, matching the historic `_ =`
+  # behaviour), but an UNKNOWN-EDITION error is FATAL and loud (A3-F1): a typo'd
+  # dep edition must brick the build, not silently emit no beams and surface later
+  # as opaque missing-module errors.
+  defp compile_dep_files(cure_files, name, dep_ebin, base) do
+    package_exports = dependency_exports(cure_files, name, base)
+
+    case Cure.Compiler.Artifacts.sweep(
+           module_pipeline: :canonical,
+           package: name,
+           package_exports: package_exports,
+           source_paths: cure_files,
+           source_roots: [Path.join(base, "lib")],
+           output_dir: dep_ebin,
+           kind: :dependency,
+           repair: true,
+           project_dir: base
+         ) do
+      {:ok, _result} ->
+        :ok
+
+      {:error, {:artifact_sweep_failed, errors}} ->
+        case Enum.find_value(errors, fn
+               {_file, {:edition_error, reason}} -> reason
+               _ -> nil
+             end) do
+          nil -> {:error, {:dependency_compile_failed, name, errors}}
+          reason -> {:error, {:dependency_edition_error, name, reason}}
+        end
+
+      {:error, reason} ->
+        {:error, {:dependency_compile_graph_error, name, reason}}
+    end
+  end
+
+  defp dependency_exports([], _name, _base), do: %{}
+
+  defp dependency_exports(cure_files, name, base) do
+    project_dir = dep_project_dir(List.first(cure_files), base)
+
+    case load(project_dir) do
+      {:ok, %{exports: %{modules: modules}}} when is_list(modules) ->
+        %{name => Enum.sort(Enum.uniq(modules))}
+
+      _ ->
+        %{}
+    end
+  end
 
   defp resolve_registry_dep(name, constraint, root, reuse_lock?) do
     with {:ok, version_string, sha} <- pick_version(name, constraint, root, reuse_lock?),
@@ -212,12 +478,14 @@ defmodule Cure.Project do
     dep_ebin = Path.join(root, "_build/deps/#{name}-#{version}/ebin")
     File.mkdir_p!(dep_ebin)
 
-    Enum.each(cure_files, fn file ->
-      _ = Cure.Compiler.compile_file(file, output_dir: dep_ebin, emit_events: false)
-    end)
-
-    :code.add_patha(String.to_charlist(Path.expand(dep_ebin)))
-    :ok
+    # Edition-per-package: each file resolves under the dep's own Cure.toml even in
+    # the common nested layout (target/<pkg>-<vsn>/Cure.toml, which the `**/lib/**`
+    # glob anticipates), bounded at `target`; an unknown dep edition fails loudly.
+    with :ok <- compile_dep_files(cure_files, name, dep_ebin, target) do
+      with {:ok, set} <- Cure.Compiler.Artifacts.open_verified_set(dep_ebin) do
+        Cure.Compiler.Artifacts.load_verified_set(set.artifact_root)
+      end
+    end
   end
 
   defp strip_sha_prefix("sha256:" <> rest), do: rest
@@ -291,7 +559,7 @@ defmodule Cure.Project do
     include_erts = false
     applications = []
 
-    # The `app` container in lib/app.cure is `app #{mod}`; the
+    # The `app` macro in lib/app.cure is `app #{mod}`; the
     # compiler verifies that its name matches `[application].name`
     # above.
     """
@@ -368,7 +636,7 @@ defmodule Cure.Project do
     ## #{mod} application.
     ##
     ## Compiles to `:"Cure.App.#{mod}"`, an OTP `Application` callback
-    ## module. The compiler verifies that exactly one `app` container
+    ## module. The compiler verifies that exactly one `app` macro
     ## exists in the project and that its name matches
     ## `[application].name` in `Cure.toml`.
     app #{mod}
@@ -383,11 +651,12 @@ defmodule Cure.Project do
     mod = String.capitalize(name)
 
     File.write!(Path.join([name, "lib", "fsm.cure"]), """
-    mod #{mod}.Fsm
+    mod #{mod}
 
-      fsm Switch
-        Off --on--> On
-        On  --off--> Off
+      fsm Fsm
+        state Atom
+        events
+          Tick -> :keep_state_and_data
     """)
   end
 
@@ -445,22 +714,47 @@ defmodule Cure.Project do
   """
   @spec resolve_git_dep(map(), String.t()) :: :ok | {:error, term()}
   def resolve_git_dep(%{name: name, git: url} = dep, root) do
-    target = Path.join(root, "_build/deps/#{name}")
+    # `cmd_deps_update` calls this DIRECTLY (bypassing resolve_one's trim guard),
+    # so the blank/whitespace-URL rejection must live here too — otherwise a
+    # `git = "   "` dep clones nothing and silently "resolves" to :ok.
+    if is_binary(url) and String.trim(url) != "" do
+      target = Path.join(root, "_build/deps/#{name}")
 
-    unless File.dir?(Path.join(target, ".git")) do
+      with :ok <- ensure_clone(dep, url, target, name) do
+        cure_files = Path.wildcard(Path.join(target, "lib/**/*.cure"))
+        dep_ebin = Path.join(root, "_build/deps/#{name}")
+
+        # Route through the shared helper so a git dep also resolves under its OWN
+        # edition (dep_project_dir bounded at `target`, honouring a nested manifest)
+        # rather than relying solely on find_root stopping at the clone's `.git`,
+        # and so an unknown dep edition fails loudly (A3-F1) — consistent with
+        # path/tarball.
+        with :ok <- compile_dep_files(cure_files, name, dep_ebin, target),
+             {:ok, set} <- Cure.Compiler.Artifacts.open_verified_set(dep_ebin) do
+          Cure.Compiler.Artifacts.load_verified_set(set.artifact_root)
+        end
+      end
+    else
+      {:error, {:invalid_dependency, name}}
+    end
+  end
+
+  # Clone the git dep unless it is already present. `System.cmd`'s exit status was
+  # previously discarded, so ANY failed clone (unreachable URL, bad tag, network
+  # error) left an empty dir → zero .cure files → a silent `:ok` "resolution".
+  # Fail loudly on a non-zero clone.
+  defp ensure_clone(dep, url, target, name) do
+    if File.dir?(Path.join(target, ".git")) do
+      :ok
+    else
       File.mkdir_p!(target)
       args = ["clone", "--depth", "1"] ++ ref_args(dep) ++ [url, target]
-      System.cmd("git", args, stderr_to_stdout: true)
+
+      case System.cmd("git", args, stderr_to_stdout: true) do
+        {_out, 0} -> :ok
+        {out, _nonzero} -> {:error, {:dependency_clone_failed, name, out}}
+      end
     end
-
-    cure_files = Path.wildcard(Path.join(target, "lib/**/*.cure"))
-
-    Enum.each(cure_files, fn file ->
-      _ = Cure.Compiler.compile_file(file, output_dir: Path.join(root, "_build/deps/#{name}"), emit_events: false)
-    end)
-
-    :code.add_patha(String.to_charlist(Path.expand(Path.join(root, "_build/deps/#{name}"))))
-    :ok
   end
 
   defp ref_args(%{tag: tag}) when is_binary(tag) and tag != "", do: ["--branch", tag]
@@ -497,12 +791,12 @@ defmodule Cure.Project do
   @doc """
   Compile every `.cure` file under the project's `lib/` directory,
   enforcing the single-`app` invariant and emitting a `<name>.app`
-  resource file when an `app` container is present.
+  resource file when an `app` macro is present.
 
   Steps:
 
   1. Lex+parse every candidate file with a lightweight pre-pass
-     looking for `app` containers.
+     looking for lifted application modules.
   2. If more than one `app` is found, return
      `{:error, {:duplicate_app, [{path, name}, ...]}}` (surfaced as
      `E051`).
@@ -520,7 +814,8 @@ defmodule Cure.Project do
   @spec compile_project(t(), keyword()) ::
           {:ok, map()} | {:error, term()}
   def compile_project(%__MODULE__{} = project, opts \\ []) do
-    output_dir = Keyword.get(opts, :output_dir, Path.join(project.root, "_build/cure/ebin"))
+    output_dir =
+      Keyword.get(opts, :output_dir, Path.join(project.root, "_build/cure/project/ebin"))
 
     extra_paths =
       Keyword.get_lazy(opts, :paths, fn -> default_source_paths(project) end)
@@ -542,49 +837,81 @@ defmodule Cure.Project do
           preload_opts
       end
 
-    Cure.Stdlib.Preload.preload(preload_opts)
-
-    cure_files =
+    discovered =
       extra_paths
       |> Enum.flat_map(fn dir ->
         if File.dir?(dir), do: Path.wildcard(Path.join(dir, "**/*.cure")), else: []
       end)
-      |> Enum.sort()
 
-    with {:ok, app_info} <- detect_app(cure_files, project),
+    cure_files_result = {:ok, Enum.sort(discovered)}
+
+    with {:ok, dependency_sets} <- dependency_artifact_sets(project),
+         :ok <- Cure.Stdlib.Preload.preload(preload_opts),
+         :ok <- load_dependency_sets(dependency_sets),
+         {:ok, cure_files} <- cure_files_result,
+         {:ok, app_info} <- detect_app(cure_files, project),
          :ok <- verify_app_name(app_info, project),
          {:ok, modules} <-
-           compile_all_files(cure_files, output_dir, emit_events?, check?, declared_phases(project)),
+           compile_all_files(
+             cure_files,
+             output_dir,
+             emit_events?,
+             check?,
+             declared_phases(project),
+             extra_paths,
+             project.root,
+             dependency_sets
+           ),
          :ok <- maybe_write_app_resource(app_info, modules, project, output_dir) do
       {:ok, %{modules: modules, app_module: app_module(app_info)}}
     end
   end
 
+  defp render_host_diagnostic(reason, path) do
+    {diagnostic, registry} = Cure.Diagnostic.Host.to_diagnostic(reason, path)
+
+    Cure.Diagnostic.Sink.new(format: :plain, color: :never, width: 80, registry: registry)
+    |> Cure.Diagnostic.Sink.render(diagnostic)
+  end
+
   @doc false
   @spec detect_app([String.t()], t()) :: {:ok, map() | nil} | {:error, term()}
   def detect_app(files, _project) do
-    # Lex+parse only enough to find `app` containers. We intentionally
+    # Lex+parse only enough to find lifted application modules. We intentionally
     # emit no events during the pre-pass so the main compile pass
     # remains the sole emitter for LSP consumers.
-    containers =
-      Enum.flat_map(files, fn file ->
+    # Thread a project-root → edition cache so a project of N files sharing one
+    # Cure.toml parses+validates that manifest ONCE, not N times (A1-F4).
+    {applications, _cache} =
+      Enum.flat_map_reduce(files, %{}, fn file, cache ->
         case File.read(file) do
           {:ok, source} ->
-            with {:ok, tokens} <-
-                   Cure.Compiler.Lexer.tokenize(source, file: file, emit_events: false),
-                 {:ok, ast} <-
-                   Cure.Compiler.Parser.parse(tokens, file: file, emit_events: false) do
-              find_app_containers(ast, file)
-            else
-              _ -> []
-            end
+            # Resolve each file's edition (pragma > its project's Cure.toml >
+            # default) so the pre-pass reads it against the SAME keyword set the
+            # real compile pass will (A2-F2). Without this the pre-pass lexed under
+            # current(), so a file pinned to an older edition that used a since-
+            # retired keyword would fail to parse here, get swallowed below, and go
+            # invisible to app detection while the real compile parsed it fine.
+            {edition, cache} = app_pre_pass_edition(source, file, cache)
+
+            result =
+              with {:ok, tokens} <-
+                     Cure.Compiler.Lexer.tokenize(source, file: file, emit_events: false, edition: edition),
+                   {:ok, ast} <-
+                     Cure.Compiler.Parser.parse(tokens, file: file, emit_events: false, edition: edition) do
+                find_application_modules(ast, file)
+              else
+                _ -> []
+              end
+
+            {result, cache}
 
           _ ->
-            []
+            {[], cache}
         end
       end)
 
-    case containers do
+    case applications do
       [] ->
         {:ok, nil}
 
@@ -596,22 +923,66 @@ defmodule Cure.Project do
     end
   end
 
+  # Edition for a single file in the app-detection pre-pass: its `@edition` pragma,
+  # else its project's Cure.toml (the nearest ancestor, bounded at the repo root),
+  # else the compiler default. An unknown edition degrades to the default here (the
+  # real compile pass reports it loudly); the pre-pass must never crash a build.
+  #
+  # The per-file pragma is checked FIRST (cheap regex) so a pragma'd file never
+  # triggers `find_root`; only a pragma-less file consults the project manifest,
+  # and that result is memoised by project root in `cache` (A1-F4) — equivalent to
+  # the old `resolve(%{source, project_dir: find_root(file)})` but without re-
+  # reading the same Cure.toml once per file.
+  defp app_pre_pass_edition(source, file, cache) do
+    case Cure.Edition.pragma_edition(source) do
+      nil ->
+        root = find_root(file)
+
+        case Map.fetch(cache, root) do
+          {:ok, ed} ->
+            {ed, cache}
+
+          :error ->
+            ed =
+              case Cure.Edition.resolve(%{project_dir: root}) do
+                {:ok, e} -> e
+                {:error, _} -> Cure.Edition.current()
+              end
+
+            {ed, Map.put(cache, root, ed)}
+        end
+
+      pragma ->
+        ed =
+          case Cure.Edition.parse(pragma) do
+            {:ok, e} -> e
+            {:error, _} -> Cure.Edition.current()
+          end
+
+        {ed, cache}
+    end
+  end
+
   defp default_source_paths(%__MODULE__{root: root, source_paths: paths}) do
     Enum.map(paths || ["lib"], &Path.join(root, &1))
   end
 
-  defp find_app_containers({:container, meta, _body}, file) do
-    case Keyword.get(meta, :container_type) do
-      :app -> [%{file: file, name: Keyword.get(meta, :name), meta: meta}]
-      _ -> []
+  defp find_application_modules({:lift_module, meta, _body}, file) when is_list(meta) do
+    if Keyword.get(meta, :behaviour) == :application do
+      case Keyword.get(meta, :module) do
+        "Cure.App." <> name -> [%{file: file, name: name, meta: meta}]
+        _ -> []
+      end
+    else
+      []
     end
   end
 
-  defp find_app_containers({:block, _, children}, file) when is_list(children) do
-    Enum.flat_map(children, &find_app_containers(&1, file))
+  defp find_application_modules({:block, _, children}, file) when is_list(children) do
+    Enum.flat_map(children, &find_application_modules(&1, file))
   end
 
-  defp find_app_containers(_, _), do: []
+  defp find_application_modules(_, _), do: []
 
   defp verify_app_name(nil, _project), do: :ok
 
@@ -647,30 +1018,128 @@ defmodule Cure.Project do
 
   defp declared_phases(_), do: nil
 
-  defp compile_all_files(files, output_dir, emit?, check?, declared_phases) do
-    base_opts = [
-      output_dir: output_dir,
-      emit_events: emit?,
-      check_types: check?
-    ]
+  defp compile_all_files(
+         files,
+         output_dir,
+         emit?,
+         check?,
+         declared_phases,
+         source_roots,
+         diagnostic_path,
+         dependency_sets
+       ) do
+    base_opts = [emit_events: emit?, check_types: check?]
 
     opts =
       if is_list(declared_phases),
         do: Keyword.put(base_opts, :declared_phases, declared_phases),
         else: base_opts
 
-    result =
-      Enum.reduce_while(files, {:ok, []}, fn file, {:ok, acc} ->
-        case Cure.Compiler.compile_file(file, opts) do
-          {:ok, module, _warnings} -> {:cont, {:ok, [module | acc]}}
-          {:error, _} = err -> {:halt, err}
-        end
-      end)
+    case Cure.Compiler.Artifacts.sweep(
+           module_pipeline: :canonical,
+           source_roots: source_roots,
+           source_paths: files,
+           output_dir: output_dir,
+           kind: :project,
+           repair: true,
+           stdlib_artifact_digest: Cure.Compiler.Artifacts.stdlib_fingerprint(),
+           verify_stdlib: true,
+           package_artifact_sets: dependency_sets,
+           package_artifact_digests: Map.new(dependency_sets, fn {name, set} -> {name, set.artifact_digest} end),
+           package_exports: dependency_exports(dependency_sets),
+           compile_opts: opts
+         ) do
+      {:ok, result} ->
+        Enum.each(result.cycles, fn walk ->
+          Logger.warning(render_host_diagnostic({:import_cycle, walk}, diagnostic_path))
+        end)
 
-    case result do
-      {:ok, modules} -> {:ok, Enum.reverse(modules)}
-      {:error, reason} -> {:error, {:compile_failed, reason}}
+        with {:ok, set} <- Cure.Compiler.Artifacts.open_verified_set(output_dir) do
+          modules =
+            set.modules
+            |> Map.keys()
+            |> Enum.sort()
+            |> Enum.map(&String.to_atom("Cure." <> &1))
+
+          {:ok, modules}
+        end
+
+      {:error, {:artifact_sweep_failed, [{_target, reason} | _]}} ->
+        {:error, {:compile_failed, reason}}
+
+      {:error, reason} ->
+        {:error, {:compile_failed, reason}}
     end
+  end
+
+  @doc "Open every installed Cure dependency as one complete verified artifact set."
+  @spec dependency_artifact_sets(t()) :: {:ok, map()} | {:error, term()}
+  def dependency_artifact_sets(project) do
+    project.dependencies
+    |> Enum.reduce_while({:ok, %{}}, fn dependency, {:ok, sets} ->
+      name = Map.get(dependency, :name, "")
+      roots = dependency_ebin_roots(dependency, project.root)
+
+      if roots == [] do
+        {:halt, {:error, {:dependency_artifact_set_missing, {:package, name}}}}
+      else
+        Enum.reduce_while(roots, {:ok, sets}, fn root, {:ok, accumulated} ->
+          case Cure.Compiler.Artifacts.open_verified_set(root) do
+            {:ok, set} ->
+              key = if Map.has_key?(accumulated, name), do: "#{name}@#{root}", else: name
+
+              dependency_set = %{
+                root: root,
+                artifact_digest: set.artifact_digest,
+                exports: Map.get(set.context, :package_exports, %{})
+              }
+
+              {:cont, {:ok, Map.put(accumulated, key, dependency_set)}}
+
+            {:error, reason} ->
+              {:halt, {:error, {:dependency_artifact_set_invalid, {:package, name}, reason}}}
+          end
+        end)
+        |> case do
+          {:ok, accumulated} -> {:cont, {:ok, accumulated}}
+          {:error, _reason} = error -> {:halt, error}
+        end
+      end
+    end)
+  end
+
+  defp dependency_exports(sets) when is_map(sets) do
+    Enum.reduce(sets, %{}, fn {name, set}, exports ->
+      Map.merge(exports, Map.get(set, :exports, %{}))
+      |> Map.put_new(name, [])
+    end)
+  end
+
+  defp load_dependency_sets(sets) do
+    Enum.reduce_while(sets, :ok, fn {name, %{root: root}}, :ok ->
+      case Cure.Compiler.Artifacts.load_verified_set(root) do
+        :ok -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, {:dependency_artifact_set_invalid, {:package, name}, reason}}}
+      end
+    end)
+  end
+
+  defp dependency_ebin_roots(dependency, root) do
+    name = Map.get(dependency, :name, "")
+
+    roots =
+      if is_binary(Map.get(dependency, :path)) or is_binary(Map.get(dependency, :git)) do
+        [Path.join([root, "_build", "deps", name])]
+      else
+        Path.wildcard(Path.join([root, "_build", "deps", "#{name}-*", "ebin"]))
+      end
+
+    roots
+    |> Enum.map(&Path.expand/1)
+    |> Enum.filter(&File.dir?/1)
+    |> Enum.map(&Cure.Compiler.Artifacts.Writer.resolve/1)
+    |> Enum.uniq()
+    |> Enum.sort()
   end
 
   defp app_module(nil), do: nil
@@ -698,7 +1167,8 @@ defmodule Cure.Project do
       release: %{},
       doc: %{},
       doc_groups: %{},
-      publish: %{}
+      publish: %{},
+      exports: %{}
     }
 
     parsed = parse_lines(lines, nil, acc)
@@ -707,6 +1177,7 @@ defmodule Cure.Project do
     release_map = normalize_release(parsed.release)
     doc_map = normalize_doc(parsed.doc, parsed.doc_groups)
     publish_map = normalize_publish(parsed.publish)
+    exports_map = normalize_exports(parsed.exports)
 
     source_paths =
       case Map.get(parsed.project, "source_paths") do
@@ -717,13 +1188,15 @@ defmodule Cure.Project do
     %__MODULE__{
       name: Map.get(parsed.project, "name", "unnamed"),
       version: Map.get(parsed.project, "version", "0.1.0"),
+      edition: Map.get(parsed.project, "edition"),
       dependencies: parsed.deps,
       compiler_opts: parsed.compiler,
       source_paths: source_paths,
       application: application_map,
       release: release_map,
       doc: doc_map,
-      publish: publish_map
+      publish: publish_map,
+      exports: exports_map
     }
   end
 
@@ -736,13 +1209,29 @@ defmodule Cure.Project do
       trimmed == "" or String.starts_with?(trimmed, "#") ->
         parse_lines(rest, section, acc)
 
-      String.starts_with?(trimmed, "[") and String.ends_with?(trimmed, "]") ->
-        header = String.slice(trimmed, 1..-2//1) |> String.trim()
+      header = table_header_name(trimmed) ->
         parse_lines(rest, {:table, header}, acc)
 
       true ->
         acc = apply_kv(section, trimmed, acc)
         parse_lines(rest, section, acc)
+    end
+  end
+
+  # A table header line, tolerating an inline comment after the `]` (valid TOML,
+  # e.g. `[project] # my project`). Returns the header name, or nil if the line
+  # is not a header. Kept consistent with the `set_edition` writer grammar so a
+  # header this loader accepts is one the writer will also target (and vice
+  # versa) — otherwise a written `edition` would be dropped on read-back.
+  defp table_header_name(line) do
+    # `\[{1,2}..\]{1,2}` recognises both a table header `[name]` and a TOML
+    # array-of-tables header `[[name]]` (the latter is still a section boundary —
+    # dropping it would leak its keys into the preceding table). `\s*(?:#.*)?$`
+    # tolerates an inline comment. Trimmed internally so the writer's boundary
+    # predicates can call this on raw lines.
+    case Regex.run(~r/^\[{1,2}([^\]]*)\]{1,2}\s*(?:#.*)?$/, String.trim(line)) do
+      [_, name] -> String.trim(name)
+      nil -> nil
     end
   end
 
@@ -782,9 +1271,20 @@ defmodule Cure.Project do
         %{acc | compiler: [{:stdlib_path, strip_quotes(val)} | acc.compiler]}
 
       {key, val} ->
-        atom_key = String.to_atom(key)
-        bool_val = strip_quotes(val) == "true"
-        %{acc | compiler: [{atom_key, bool_val} | acc.compiler]}
+        # Only the boolean flags the compiler actually reads (see compiler_opts/1)
+        # are recognized; map those to their atom via a fixed allow-list. Every
+        # other key is stored-but-never-consumed, so it is dropped rather than
+        # fed through String.to_atom/1 on arbitrary user bytes — which raised on
+        # a non-UTF-8 key and interned one permanent atom per distinct key (an
+        # atom-table DoS from a large or malicious manifest).
+        case compiler_bool_key(key) do
+          {:ok, atom_key} ->
+            bool_val = strip_quotes(val) == "true"
+            %{acc | compiler: [{atom_key, bool_val} | acc.compiler]}
+
+          :error ->
+            acc
+        end
     end
   end
 
@@ -828,6 +1328,19 @@ defmodule Cure.Project do
     end
   end
 
+  defp apply_kv({:table, "exports"}, line, acc) do
+    case parse_kv(line) do
+      {"", _} ->
+        acc
+
+      {"modules", val} ->
+        %{acc | exports: Map.put(acc.exports, "modules", parse_scalar(val))}
+
+      _ ->
+        acc
+    end
+  end
+
   defp apply_kv({:table, "doc.groups_for_modules"}, line, acc) do
     case parse_kv(line) do
       {"", _} ->
@@ -850,12 +1363,53 @@ defmodule Cure.Project do
 
   defp apply_kv(_section, _line, acc), do: acc
 
+  # The recognized boolean `[compiler]` keys, as an allow-list. Kept in lockstep
+  # with compiler_opts/1 (the only reader of these flags). An unrecognized key is
+  # dropped rather than interned via String.to_atom/1 on arbitrary user bytes.
+  defp compiler_bool_key("type_check"), do: {:ok, :type_check}
+  defp compiler_bool_key("optimize"), do: {:ok, :optimize}
+  defp compiler_bool_key(_other), do: :error
+
   defp parse_kv(line) do
     case String.split(line, "=", parts: 2) do
-      [key, val] -> {String.trim(key), String.trim(val)}
+      [key, val] -> {String.trim(key), val |> strip_inline_comment() |> String.trim()}
       _ -> {"", ""}
     end
   end
+
+  # Drop a TOML inline comment from a value: the first `#` that is NOT inside a
+  # double-quoted string begins a comment (a `#` within quotes — e.g. a
+  # `"C# rocks"` value — is literal). This mirrors the inline-comment tolerance the
+  # table-header parser already has, so a trailing `# note` on a value line does
+  # not leak into the value — which for the validated `edition` key would turn a
+  # valid `"2026"  # pin` into `2026"  # pin` and hard-fail the load (A2-F1).
+  defp strip_inline_comment(val) when is_binary(val) do
+    # Scan the value BYTE-WISE, not via String.to_charlist/1: a Cure.toml is
+    # arbitrary user bytes and a non-UTF-8 byte (e.g. a latin-1 `café`) made
+    # to_charlist raise UnicodeConversionError, crashing every project load. The
+    # comment/quote logic only inspects ASCII bytes (`#`, `"`, `\`), so byte
+    # iteration is equivalent and preserves all other bytes verbatim.
+    val |> scan_inline_comment(false, false, []) |> :erlang.iolist_to_binary()
+  end
+
+  # (bytes-kept-reversed accumulator; in_quotes?; escaped?)
+  defp scan_inline_comment(<<>>, _in_q, _esc, acc), do: Enum.reverse(acc)
+
+  # Inside a basic string a backslash escapes the next char, so a `\"` does NOT
+  # close the string (and a following `#` stays part of the value).
+  defp scan_inline_comment(<<?\\, rest::binary>>, true, false, acc),
+    do: scan_inline_comment(rest, true, true, [?\\ | acc])
+
+  defp scan_inline_comment(<<ch, rest::binary>>, in_q, true, acc),
+    do: scan_inline_comment(rest, in_q, false, [ch | acc])
+
+  defp scan_inline_comment(<<?#, _rest::binary>>, false, false, acc), do: Enum.reverse(acc)
+
+  defp scan_inline_comment(<<?", rest::binary>>, in_q, false, acc),
+    do: scan_inline_comment(rest, not in_q, false, [?" | acc])
+
+  defp scan_inline_comment(<<ch, rest::binary>>, in_q, false, acc),
+    do: scan_inline_comment(rest, in_q, false, [ch | acc])
 
   # `parse_kv/1` only ever yields a `{binary, binary}` pair, so every
   # in-tree call site of `strip_quotes/1` and `parse_scalar/1` hands
@@ -952,6 +1506,12 @@ defmodule Cure.Project do
     }
   end
 
+  defp normalize_exports(map) when map == %{} or map == nil, do: %{modules: []}
+
+  defp normalize_exports(map) do
+    %{modules: list_of_strings(Map.get(map, "modules", []))}
+  end
+
   defp list_of_strings(list) when is_list(list), do: Enum.map(list, &to_string/1)
   defp list_of_strings(str) when is_binary(str), do: [str]
   defp list_of_strings(_), do: []
@@ -972,6 +1532,10 @@ defmodule Cure.Project do
           path: Map.get(pairs, "path"),
           git: Map.get(pairs, "git"),
           tag: Map.get(pairs, "tag"),
+          # `ref` was recorded by write_lock and consumed by ref_args/1 but never
+          # parsed here, so a `ref =` pin was silently dropped (dep cloned the
+          # remote default branch). Extract it so the pin is honoured.
+          ref: Map.get(pairs, "ref"),
           version: Map.get(pairs, "version"),
           constraint: Map.get(pairs, "constraint") || Map.get(pairs, "version")
         }

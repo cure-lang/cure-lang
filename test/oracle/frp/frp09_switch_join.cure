@@ -1,0 +1,24 @@
+mod Frp09
+  type Sig = SigC | SigE
+  type Dec = DDec | DCau
+  fn djoin(a: Dec, b: Dec) -> Dec = match a
+    DDec() -> match b
+      DDec() -> DDec()
+      DCau() -> DCau()
+    DCau() -> DCau()
+  type SList = SNil | SCons(Sig, SList)
+  type SF indices (i: SList, o: SList, dec: Dec)
+    prim : SF(av, bv, DCau)
+    dpre : SF(av, bv, DDec)
+    switch : SF(av, SCons(SigE, bv), d1) -> SF(av, bv, d2) -> SF(av, bv, djoin(d1, d2))
+  # `switch` (paper §3.3.2) runs an initial signal function until its head event
+  # fires, then swaps in a residual. Its decoupledness is the JOIN (`∨`,
+  # `djoin`): a switch is decoupled only when BOTH the initial network AND the
+  # residual are decoupled. `djoin DDec DDec = DDec`, so switching two decoupled
+  # sub-networks stays decoupled. The join counterpart of frp02's meet.
+  # accept/accept.
+  fn switchDec({av: SList}, {bv: SList},
+               initial: SF(av, SCons(SigE, bv), DDec),
+               residual: SF(av, bv, DDec)) -> SF(av, bv, DDec) =
+    switch(initial, residual)
+end

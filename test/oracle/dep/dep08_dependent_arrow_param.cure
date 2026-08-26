@@ -1,0 +1,11 @@
+mod Dep08
+  type N = Z | S(N)
+  type P indices (n: N)
+    mkp : P(n)
+  # A parameter whose type is a DEPENDENT function `(n: N) -> P(n)`: the codomain
+  # `P(n)` mentions the domain binder `n`. `f(m)` then has type `P(m)`. This is an
+  # explicit dependent arrow with a CONCRETE codomain family, so it isolates the
+  # parser feature (named arrow domain) from higher-order implicit inference — no
+  # metavariable to solve. Should parse and type-check: accept/accept.
+  fn ap2(f: (n: N) -> P(n), m: N) -> P(m) = f(m)
+end

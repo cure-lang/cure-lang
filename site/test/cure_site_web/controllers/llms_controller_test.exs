@@ -47,7 +47,10 @@ defmodule CureSiteWeb.LlmsControllerTest do
       [first_line, second_line | _rest] = String.split(body, "\n")
 
       assert String.starts_with?(first_line, "# Cure v")
-      assert String.starts_with?(second_line, "> Dependently-typed programming language")
+      assert String.starts_with?(second_line, "> Dependently typed programming")
+      assert body =~ "Every program follows the same dependent pipeline"
+      assert body =~ "independent kernel checking"
+      refute body =~ "SMT-backed verification"
     end
 
     test "lists every page under the Documentation section", %{conn: conn} do
@@ -93,7 +96,9 @@ defmodule CureSiteWeb.LlmsControllerTest do
       assert body =~ "[REPL](#{base_url()}/repl)"
       assert body =~ "[Sitemap](#{base_url()}/sitemap.xml)"
       assert body =~ "[Robots](#{base_url()}/robots.txt)"
-      assert body =~ "[Source repository](https://github.com/am-kantox/cure-lang)"
+      assert body =~ "[Source repository](https://github.com/cure-lang/cure-lang)"
+      assert body =~ "[Macro language](https://hexdocs.pm/cure/macros.html)"
+      assert body =~ "[Proof authoring](https://hexdocs.pm/cure/proofs.html)"
     end
 
     test "the .well-known variant is byte-identical with the root variant", %{conn: conn} do

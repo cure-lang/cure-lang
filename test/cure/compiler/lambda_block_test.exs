@@ -13,7 +13,7 @@ defmodule Cure.Compiler.LambdaBlockTest do
   """
   use ExUnit.Case, async: true
 
-  alias Cure.Compiler.{Codegen, Lexer, Parser}
+  alias Cure.Compiler.{Lexer, Parser}
 
   defp parse!(source) do
     {:ok, tokens} = Lexer.tokenize(source, emit_events: false)
@@ -61,14 +61,8 @@ defmodule Cure.Compiler.LambdaBlockTest do
     end
   end
 
-  describe "codegen" do
-    test "brace-delimited body compiles to an Erlang block form" do
-      ast = parse!("fn (x) -> { x + 1; x + 2 }")
-      {:ok, form} = Codegen.compile_expr(ast)
-      # {:fun, _, {:clauses, [{:clause, _, _, [], [body]}]}}
-      assert {:fun, _, {:clauses, [clause]}} = form
-      {:clause, _, _params, [], [body]} = clause
-      assert match?({:block, _, [_, _]}, body)
-    end
-  end
+  # The classic "codegen" describe block (asserting the `{:fun, …}` / `{:block, …}`
+  # Erlang abstract form emitted by `Codegen.compile_expr/1`) was removed with the
+  # classic pathway (#18); it was white-box-coupled to that deleted lowerer. The
+  # parser coverage above stands.
 end

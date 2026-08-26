@@ -1,0 +1,178 @@
+@group(:core)
+mod Std.Char
+  ## The Unicode code point — Cure's character type.
+  ##
+  ## A `Char` is a Unicode scalar, represented by its code point. It is a
+  ## nominal opaque carrier rather than an alias for `Bounded(0x110000)`, so
+  ## APIs cannot accidentally accept arbitrary bounded values as characters.
+  ## `@builtin(:char)` names the kernel rule that introduces its values: a
+  ## character literal is a compact code point, so the runtime representation is
+  ## one machine integer and no constructor is needed (or allowed). Character
+  ## literals (`'a'`, `'\n'`) elaborate to `Char` values, and a `String` stores
+  ## its text as a `List(Char)` behind its own nominal boundary. This
+  ## module gives the type its visible, documented home, mirroring
+  ## `Std.Int`/`Std.Float`/`Std.Binary`/`Std.Atom`.
+  ##
+  ## Construction is confined to literals and the checked `from_code_point`
+  ## boundary below, which excludes values outside Unicode scalar space.
+  ##
+  ## This module is the floor of the text layer: `Std.Literal` describes the
+  ## literal syntax that produces a `Char`, and `Std.String` stores its text as
+  ## a `List(Char)`, so both sit above it. `Std.Char` therefore names neither —
+  ## the `ExpressibleByCharacterLiteral` instance lives with the interface in
+  ## `Std.Literal`, and the `String`-shaped case conversions live with the type
+  ## in `Std.String`.
+
+  use Std.Equatable
+  use Std.Comparable
+
+  ## `@prelude`: `Char` is ambient like `String`, so a bare `Char` return/field
+  ## type and character literals resolve with no `use`.
+  @prelude
+  @builtin(:char)
+  opaque type Char
+
+  implementation Equatable for Char
+    fn `==`(a: Char, b: Char) -> Bool = same(a, b)
+
+  implementation Comparable for Char
+    fn `<`(a: Char, b: Char) -> Bool = less_than(a, b)
+
+  ## The Unicode code point of `c` as an `Int`. A `Char` already erases to its code point, so
+  ## the runtime bridge is the identity; this names the `Char -> Int` coercion
+  ## so `Std.Comparable`'s `Char`/`String` instances can compare code points. Named
+  ## `code_point` (not `to_int`) because `Std.String` also exposes a `to_int`
+  ## and the dependent pipeline resolves globals by bare name.
+  @extern(:cure_std_char, :code_point, 1)
+  fn code_point(c: Char) -> Int
+
+  ## Checked inverse of `code_point`. JSON and other text decoders use this for
+  ## escaped Unicode scalars; invalid values and UTF-16 surrogate code points
+  ## are rejected rather than wrapped into `Bounded(0x110000)`.
+  @extern(:cure_std_char, :from_code_point, 1)
+  fn from_code_point(value: Int) -> Option(Char)
+
+  ## Compile-time Unicode character-name lookup for syntax macros. The name
+  ## arrives as a List(Char); successful macro expansion emits the resulting
+  ## Char literal, so no name table or parser reaches runtime regex code.
+  @extern(:cure_std_char, :from_unicode_name, 1)
+  fn from_unicode_name(name: List(Char)) -> Option(Char)
+
+  ## Construct from a code point the caller has already proved is a Unicode
+  ## scalar. Parsers use this only after checking range and surrogate rules.
+  @extern(:cure_std_char, :code_point, 1)
+  fn from_valid_code_point(value: Int) -> Char
+
+  ## Named scalar-boundary predicates keep parsers from duplicating Unicode's
+  ## numeric ceiling or the reserved UTF-16 surrogate interval.
+  @extern(:cure_std_char, :unicode_code_point?, 1)
+  fn is_unicode_code_point(value: Int) -> Bool
+
+  @extern(:cure_std_char, :utf16_surrogate_code_point?, 1)
+  fn is_utf16_surrogate_code_point(value: Int) -> Bool
+
+  @extern(:cure_std_char, :unicode_scalar_code_point?, 1)
+  fn is_unicode_scalar_code_point(value: Int) -> Bool
+
+  ## Scalar equality and ordering. Keeping these operations here prevents
+  ## consumers from unpacking `Char` into implementation-level integers.
+  @extern(:cure_std_char, :same?, 2)
+  fn same(a: Char, b: Char) -> Bool
+
+  @extern(:cure_std_char, :less_than?, 2)
+  fn less_than(a: Char, b: Char) -> Bool
+
+  @extern(:cure_std_char, :between?, 3)
+  fn between(c: Char, first: Char, last: Char) -> Bool
+
+  @extern(:cure_std_char, :ascii?, 1)
+  fn is_ascii(c: Char) -> Bool
+
+  @extern(:cure_std_char, :ascii_value, 1)
+  fn ascii_value(c: Char) -> Option(Int)
+
+  @extern(:cure_std_char, :letter?, 1)
+  fn is_letter(c: Char) -> Bool
+
+  @extern(:cure_std_char, :punctuation?, 1)
+  fn is_punctuation(c: Char) -> Bool
+
+  @extern(:cure_std_char, :newline?, 1)
+  fn is_newline(c: Char) -> Bool
+
+  @extern(:cure_std_char, :whitespace?, 1)
+  fn is_whitespace(c: Char) -> Bool
+
+  @extern(:cure_std_char, :symbol?, 1)
+  fn is_symbol(c: Char) -> Bool
+
+  @extern(:cure_std_char, :math_symbol?, 1)
+  fn is_math_symbol(c: Char) -> Bool
+
+  @extern(:cure_std_char, :currency_symbol?, 1)
+  fn is_currency_symbol(c: Char) -> Bool
+
+  @extern(:cure_std_char, :cased?, 1)
+  fn is_cased(c: Char) -> Bool
+
+  @extern(:cure_std_char, :uppercase?, 1)
+  fn is_uppercase(c: Char) -> Bool
+
+  @extern(:cure_std_char, :lowercase?, 1)
+  fn is_lowercase(c: Char) -> Bool
+
+  ## Case conversion answers a `List(Char)` because Unicode mappings may expand
+  ## one scalar into several (uppercasing `'ß'` yields `SS`). The shim returns a
+  ## bare code-point list and an `@extern` performs no marshalling, so this is
+  ## the shape the boundary really has; `Std.String.uppercased_character/1` and
+  ## `Std.String.lowercased_character/1` assemble the nominal `String` form,
+  ## which erases to `{String, chars}` and belongs with the type that owns it.
+  @extern(:cure_std_char, :uppercased, 1)
+  fn uppercased_characters(c: Char) -> List(Char)
+
+  @extern(:cure_std_char, :lowercased, 1)
+  fn lowercased_characters(c: Char) -> List(Char)
+
+  ## ASCII-only one-to-one fold for protocols (such as non-Unicode regex
+  ## caseless matching) that explicitly require ASCII semantics.
+  @extern(:cure_std_char, :ascii_lowercased, 1)
+  fn ascii_lowercased(c: Char) -> Char
+
+  @extern(:cure_std_char, :number?, 1)
+  fn is_number(c: Char) -> Bool
+
+  ## Unicode General_Category as its stable two-letter atom (`:Lu`, `:Nd`, …).
+  ## Regex property matching consumes this immutable classification; no host
+  ## regex engine or compiled pattern crosses the boundary.
+  @extern(:cure_std_char, :unicode_category, 1)
+  fn unicode_category(c: Char) -> Atom
+
+  @extern(:cure_std_char, :whole_number?, 1)
+  fn is_whole_number(c: Char) -> Bool
+
+  @extern(:cure_std_char, :whole_number_value, 1)
+  fn whole_number_value(c: Char) -> Option(Int)
+
+  @extern(:cure_std_char, :hex_digit?, 1)
+  fn is_hex_digit(c: Char) -> Bool
+
+  @extern(:cure_std_char, :hex_digit_value, 1)
+  fn hex_digit_value(c: Char) -> Option(Int)
+
+  ## Unicode property predicates used by pure Cure text parsers. These expose
+  ## immutable Unicode tables only; no regex engine or compiled handle crosses
+  ## the boundary.
+  @extern(:cure_std_char, :unicode_digit?, 1)
+  fn is_unicode_digit(c: Char) -> Bool
+
+  @extern(:cure_std_char, :unicode_word?, 1)
+  fn is_unicode_word(c: Char) -> Bool
+
+  @extern(:cure_std_char, :unicode_space?, 1)
+  fn is_unicode_space(c: Char) -> Bool
+
+  @extern(:cure_std_char, :horizontal_space?, 1)
+  fn is_horizontal_space(c: Char) -> Bool
+
+  @extern(:cure_std_char, :vertical_space?, 1)
+  fn is_vertical_space(c: Char) -> Bool

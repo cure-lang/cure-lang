@@ -1,0 +1,32 @@
+mod E1Sub01
+  type Role = RA | RB
+  type TB2 = T | F
+  fn role_eq(x: Role, y: Role) -> TB2 = match x
+    RA() -> match y
+      RA() -> T
+      RB() -> F
+    RB() -> match y
+      RA() -> F
+      RB() -> T
+
+  type Tag = TA | TB
+  type Local = LEnd | LSend(Tag, Local)
+  type Global = GEnd | GMsg(Role, Tag, Global)
+  fn project(g: Global, r: Role) -> Local = match g
+    GEnd()           -> LEnd
+    GMsg(from, t, k) -> match role_eq(from, r)
+      T() -> LSend(t, project(k, r))
+      F() -> project(k, r)
+
+  type RoleIs indices (r: Role)
+    RIsA : RoleIs(RA)
+
+  ## E1-sub: matching the evidence `ev` refines the SIBLING binder `r` to `RA`.
+  ## The goal RHS `project(k, RA)` and the WRITTEN body term `project(k, r)` must
+  ## become convertible — i.e. the refinement `r := RA` has to reach the occurrence
+  ## of `r` the programmer literally wrote in the branch body, not just the motive.
+  ## `reflexive(project(k, r))` : Equivalent(Local, project(k,r), project(k,r)); with
+  ## `r` refined to `RA` both sides are `project(k, RA)`, matching the goal.
+  fn use_it(k: Global, r: Role, ev: RoleIs(r)) -> Equivalent(Local, project(k, r), project(k, RA)) = match ev
+    RIsA() -> reflexive(project(k, r))
+end

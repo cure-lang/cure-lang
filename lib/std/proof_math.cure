@@ -1,0 +1,224 @@
+@group(:core)
+mod Std.Proof.Math
+  ## Proof-carrying mathematics used by refinements and ordinary Cure programs.
+  ##
+  ## This module deliberately contains no trusted arithmetic oracle. Operations
+  ## are total Cure functions and every law is an ordinary dependent proof term
+  ## checked by the kernel. Future refinement automation may search for these
+  ## theorems, but it does not get to bypass them.
+
+  use Std.Bool
+  use Std.Decision
+  use Std.Nat
+  use Std.Proof.IntMath
+
+  ## Evidence that a natural number is strictly positive.
+  type IsPositive indices (value: Nat)
+    PositiveSuccessor : IsPositive(S(predecessor))
+
+  ## Evidence that one natural number is less than or equal to another.
+  type IsLessThanOrEqual indices (left: Nat, right: Nat)
+    ZeroIsLessThanOrEqual : IsLessThanOrEqual(Z, right)
+    SuccessorsAreLessThanOrEqual : IsLessThanOrEqual(left, right) -> IsLessThanOrEqual(S(left), S(right))
+
+  ## Evidence that one natural number is strictly less than another.
+  type IsLessThan indices (left: Nat, right: Nat)
+    ZeroIsLessThanSuccessor : IsLessThan(Z, S(right))
+    SuccessorsAreLessThan : IsLessThan(left, right) -> IsLessThan(S(left), S(right))
+
+  ## Natural-number multiplication, defined structurally on the left operand.
+  fn multiply(left: Nat, right: Nat) -> Nat = match left
+    Z() -> Z()
+    S(predecessor) -> plus(right, multiply(predecessor, right))
+
+  ## Zero cannot carry evidence of strict positivity.
+  fn zero_is_not_positive(proof: IsPositive(Z)) -> Empty = match proof
+
+  ## Every successor natural number is positive.
+  @lemma
+  fn successor_is_positive(predecessor: Nat) -> IsPositive(S(predecessor)) = PositiveSuccessor()
+
+  ## Decide positivity while carrying either a proof or a disproof.
+  fn decide_is_positive(value: Nat) -> Decision(IsPositive(value)) = match value
+    Z() -> No(zero_is_not_positive)
+    S(predecessor) -> Yes(PositiveSuccessor())
+
+  fn successor_is_not_less_than_or_equal_to_zero(predecessor: Nat, proof: IsLessThanOrEqual(S(predecessor), Z)) -> Empty = match proof
+
+  fn successors_preserve_less_than_or_equal_disproof(left: Nat, right: Nat, disproof: (IsLessThanOrEqual(left, right)) -> Empty, proof: IsLessThanOrEqual(S(left), S(right))) -> Empty = match proof
+    SuccessorsAreLessThanOrEqual(predecessor_proof) -> disproof(predecessor_proof)
+
+  ## Decide less-than-or-equal with checked evidence in either branch.
+  fn decide_is_less_than_or_equal(left: Nat, right: Nat) -> Decision(IsLessThanOrEqual(left, right)) = match left
+    Z() -> Yes(ZeroIsLessThanOrEqual())
+    S(left_predecessor) -> match right
+      Z() -> No(fn(proof) -> successor_is_not_less_than_or_equal_to_zero(left_predecessor, proof))
+      S(right_predecessor) -> match decide_is_less_than_or_equal(left_predecessor, right_predecessor)
+        Yes(proof) -> Yes(SuccessorsAreLessThanOrEqual(proof))
+        No(disproof) -> No(fn(proof) -> successors_preserve_less_than_or_equal_disproof(left_predecessor, right_predecessor, disproof, proof))
+
+  fn zero_is_not_less_than_zero(proof: IsLessThan(Z, Z)) -> Empty = match proof
+
+  fn successor_is_not_less_than_zero(predecessor: Nat, proof: IsLessThan(S(predecessor), Z)) -> Empty = match proof
+
+  fn successors_preserve_less_than_disproof(left: Nat, right: Nat, disproof: (IsLessThan(left, right)) -> Empty, proof: IsLessThan(S(left), S(right))) -> Empty = match proof
+    SuccessorsAreLessThan(predecessor_proof) -> disproof(predecessor_proof)
+
+  ## Decide strict less-than with checked evidence in either branch.
+  fn decide_is_less_than(left: Nat, right: Nat) -> Decision(IsLessThan(left, right)) = match left
+    Z() -> match right
+      Z() -> No(zero_is_not_less_than_zero)
+      S(right_predecessor) -> Yes(ZeroIsLessThanSuccessor())
+    S(left_predecessor) -> match right
+      Z() -> No(fn(proof) -> successor_is_not_less_than_zero(left_predecessor, proof))
+      S(right_predecessor) -> match decide_is_less_than(left_predecessor, right_predecessor)
+        Yes(proof) -> Yes(SuccessorsAreLessThan(proof))
+        No(disproof) -> No(fn(proof) -> successors_preserve_less_than_disproof(left_predecessor, right_predecessor, disproof, proof))
+
+  ## Positivity is the same proposition as zero being strictly less than a value.
+  fn positive_means_zero_is_less_than(
+    {value: Nat},
+    proof: IsPositive(value)
+  ) -> IsLessThan(Z, value) = match proof
+    PositiveSuccessor() -> ZeroIsLessThanSuccessor()
+
+  ## Strictly exceeding zero is evidence of positivity.
+  fn zero_is_less_than_means_positive(
+    {value: Nat},
+    proof: IsLessThan(Z, value)
+  ) -> IsPositive(value) = match proof
+    ZeroIsLessThanSuccessor() -> PositiveSuccessor()
+
+  ## Adding anything to a positive left operand remains positive.
+  fn adding_to_a_positive_number_is_positive(
+    {positive: Nat},
+    {other: Nat},
+    proof: IsPositive(positive)
+  ) -> IsPositive(plus(positive, other)) = match proof
+    PositiveSuccessor() -> PositiveSuccessor()
+
+  ## Adding a positive right operand to any natural number remains positive.
+  fn adding_a_positive_number_is_positive(
+    natural: Nat,
+    {positive: Nat},
+    proof: IsPositive(positive)
+  ) -> IsPositive(plus(natural, positive)) = match natural
+    Z() -> proof
+    S(predecessor) -> PositiveSuccessor()
+
+  ## The product of two positive natural numbers is positive.
+  ##
+  ## Matching the left proof refines `left` to a successor. Multiplication then
+  ## reduces to `right + multiply(predecessor, right)`, whose positivity follows
+  ## directly from the proof that `right` is positive.
+  @lemma
+  fn multiplying_positive_numbers_is_positive(
+    {left: Nat},
+    {right: Nat},
+    left_is_positive: IsPositive(left),
+    right_is_positive: IsPositive(right)
+  ) -> IsPositive(multiply(left, right)) = match left_is_positive
+    PositiveSuccessor() -> adding_to_a_positive_number_is_positive(right_is_positive)
+
+  ## Every natural number is less than or equal to itself.
+  fn less_than_or_equal_is_reflexive(value: Nat) -> IsLessThanOrEqual(value, value) = match value
+    Z() -> ZeroIsLessThanOrEqual()
+    S(predecessor) -> SuccessorsAreLessThanOrEqual(less_than_or_equal_is_reflexive(predecessor))
+
+  ## Less-than-or-equal evidence composes transitively.
+  fn less_than_or_equal_is_transitive(
+    {left: Nat},
+    {middle: Nat},
+    {right: Nat},
+    left_to_middle: IsLessThanOrEqual(left, middle),
+    middle_to_right: IsLessThanOrEqual(middle, right)
+  ) -> IsLessThanOrEqual(left, right) = match left_to_middle
+    ZeroIsLessThanOrEqual() -> ZeroIsLessThanOrEqual()
+    SuccessorsAreLessThanOrEqual(left_predecessors) -> match middle_to_right
+      SuccessorsAreLessThanOrEqual(right_predecessors) ->
+        SuccessorsAreLessThanOrEqual(
+          less_than_or_equal_is_transitive(left_predecessors, right_predecessors)
+        )
+
+  ## Adding the same number to both sides preserves less-than-or-equal.
+  fn adding_the_same_number_preserves_less_than_or_equal(addend: Nat, {left: Nat}, {right: Nat}, proof: IsLessThanOrEqual(left, right)) -> IsLessThanOrEqual(plus(addend, left), plus(addend, right)) = match addend
+    Z() -> proof
+    S(predecessor) -> SuccessorsAreLessThanOrEqual(adding_the_same_number_preserves_less_than_or_equal(predecessor, proof))
+
+  ## Adding the same number to both sides preserves strict less-than.
+  fn adding_the_same_number_preserves_less_than(addend: Nat, {left: Nat}, {right: Nat}, proof: IsLessThan(left, right)) -> IsLessThan(plus(addend, left), plus(addend, right)) = match addend
+    Z() -> proof
+    S(predecessor) -> SuccessorsAreLessThan(adding_the_same_number_preserves_less_than(predecessor, proof))
+
+  ## Boolean-valued "less than or equal", structural on both operands.
+  fn natural_is_less_than_or_equal(left: Nat, right: Nat) -> Bool = match left
+    Z() -> True()
+    S(left_predecessor) -> match right
+      Z() -> False()
+      S(right_predecessor) -> natural_is_less_than_or_equal(left_predecessor, right_predecessor)
+
+  ## Boolean-valued strict "less than".
+  fn natural_is_less_than(left: Nat, right: Nat) -> Bool =
+    natural_is_less_than_or_equal(S(left), right)
+
+  ## Boolean-valued positivity.
+  fn natural_is_positive(value: Nat) -> Bool = match value
+    Z() -> False()
+    S(predecessor) -> True()
+
+  ## Reflection: the boolean comparison being true carries the same information as
+  ## the inductive relation. Proved by induction, mirroring the boolean function's
+  ## own match structure; uninhabited arms discharge by empty match on `evidence`.
+  @lemma
+  fn less_than_or_equal_holds_when_boolean_comparison_is_true(
+    left: Nat, right: Nat,
+    evidence: IsTrue(natural_is_less_than_or_equal(left, right))
+  ) -> IsLessThanOrEqual(left, right) = match left
+    Z() -> ZeroIsLessThanOrEqual()
+    S(left_predecessor) -> match right
+      Z() -> match evidence
+      S(right_predecessor) -> SuccessorsAreLessThanOrEqual(
+        less_than_or_equal_holds_when_boolean_comparison_is_true(left_predecessor, right_predecessor, evidence))
+
+  fn boolean_comparison_is_true_when_less_than_or_equal_holds(
+    {left: Nat}, {right: Nat},
+    proof: IsLessThanOrEqual(left, right)
+  ) -> IsTrue(natural_is_less_than_or_equal(left, right)) = match proof
+    ZeroIsLessThanOrEqual() -> Confirmed()
+    SuccessorsAreLessThanOrEqual(inner) ->
+      boolean_comparison_is_true_when_less_than_or_equal_holds(inner)
+
+  @lemma
+  fn less_than_holds_when_boolean_comparison_is_true(
+    left: Nat, right: Nat,
+    evidence: IsTrue(natural_is_less_than(left, right))
+  ) -> IsLessThan(left, right) = match right
+    Z() -> match evidence
+    S(right_predecessor) -> match left
+      Z() -> ZeroIsLessThanSuccessor()
+      S(left_predecessor) -> SuccessorsAreLessThan(
+        less_than_holds_when_boolean_comparison_is_true(left_predecessor, right_predecessor, evidence))
+
+  fn boolean_comparison_is_true_when_less_than_holds(
+    {left: Nat}, {right: Nat},
+    proof: IsLessThan(left, right)
+  ) -> IsTrue(natural_is_less_than(left, right)) = match proof
+    ZeroIsLessThanSuccessor() -> Confirmed()
+    SuccessorsAreLessThan(inner) ->
+      boolean_comparison_is_true_when_less_than_holds(inner)
+
+  @lemma
+  fn positive_holds_when_boolean_comparison_is_true(
+    value: Nat,
+    evidence: IsTrue(natural_is_positive(value))
+  ) -> IsPositive(value) = match value
+    Z() -> match evidence
+    S(predecessor) -> PositiveSuccessor()
+
+  fn boolean_comparison_is_true_when_positive_holds(
+    {value: Nat},
+    proof: IsPositive(value)
+  ) -> IsTrue(natural_is_positive(value)) = match proof
+    PositiveSuccessor() -> Confirmed()
+
+end

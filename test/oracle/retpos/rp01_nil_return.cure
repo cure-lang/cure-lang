@@ -1,0 +1,5 @@
+mod Rp01
+  type Nat = Z | S(Nat)
+  type List(a: Type) = Nil | Cons(a, List(a))
+  fn g() -> List(Nat) = Nil()
+end

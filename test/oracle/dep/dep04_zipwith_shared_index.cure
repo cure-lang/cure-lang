@@ -1,0 +1,13 @@
+mod Dep04
+  type Nat = Zero | Suc(Nat)
+  type Vector(a: Type) indices (n: Nat)
+    empty : Vector(a, Zero)
+    prepend : a -> Vector(a, n) -> Vector(a, Suc(n))
+  fn add(x: Nat, y: Nat) -> Nat = match x
+    Zero() -> y
+    Suc(p) -> Suc(add(p, y))
+  fn zipAdd({n: Nat}, xs: Vector(Nat, n), ys: Vector(Nat, n)) -> Vector(Nat, n) = match xs
+    empty() -> empty()
+    prepend(x, xr) -> match ys
+      prepend(y, yr) -> prepend(add(x, y), zipAdd(xr, yr))
+end

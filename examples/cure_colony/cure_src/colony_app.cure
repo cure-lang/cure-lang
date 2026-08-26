@@ -1,12 +1,6 @@
-## Application container for the Cure colony example.
-##
-## The compiler verifies that exactly one `app` container exists in
-## the project and that its name matches `[application].name` in
-## `Cure.toml`. The `root = sup Colony` line wires the application's
-## `start/2` callback to the `Colony` supervisor declared in
-## `colony.cure`.
+## Transparent application example. Lifecycle callbacks are ordinary Cure.
+
+use Std.App
 
 app CureColony
-  vsn         = "0.1.0"
-  description = "Cure colony showcase: a typed supervision tree"
-  root        = sup Colony
+  root Main.Colony

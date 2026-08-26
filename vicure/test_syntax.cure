@@ -61,7 +61,7 @@ mod Showcase
 
   ## [TODO] Support typed holes let you sketch bodies.
   # fn square_sketch(n: Int) -> Int = ?todo
-  # fn another_sketch() -> Int = ??
+  # fn another_sketch() -> Int = ?_
 
   ## String interpolation and `<>` concatenation.
   fn greet(name: String) -> String = "Hello, " <> name <> "!"

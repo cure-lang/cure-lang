@@ -1,0 +1,1 @@
+{"cyc01_eq_cycle":{"cure":"accept","idris":"accept","reason":"","relation":"same"},"cyc02_reachable_not_impossible":{"cure":"reject","idris":"reject","reason":"","relation":"same"},"cyc03_nested_cycle":{"cure":"accept","idris":"accept","reason":"","relation":"same"}}

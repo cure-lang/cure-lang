@@ -1,0 +1,7 @@
+mod ExplicitShadow
+  use Std.Nat
+  type Nat = Zero | Suc(Nat)
+  fn add(a: Nat, b: Nat) -> Nat = match a
+    Zero() -> b
+    Suc(m) -> Suc(add(m, b))
+end

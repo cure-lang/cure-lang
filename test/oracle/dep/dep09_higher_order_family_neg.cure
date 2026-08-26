@@ -1,0 +1,12 @@
+mod Dep09
+  type N = Z | S(N)
+  type M = MZ | MS(M)
+  # Adversarial negative control for the higher-order (Miller) inference in dep07:
+  # the implicit family `F` is inferred from the lambda body's type. Here the body
+  # `n` has type `N`, so `F` solves to the constant `N` and `the2(...)` has type
+  # `F(m) = N` — but the result is CLAIMED to be `M`. `N /= M`, so this MUST be
+  # rejected. Guards against the Miller solve blindly accepting: `F` is solved,
+  # then the kernel rejects the mismatched return type. reject/reject.
+  fn the2({F: (N) -> Type}, g: (n: N) -> F(n), m: N) -> F(m) = g(m)
+  fn test(m: N) -> M = the2(fn(n) -> n, m)
+end

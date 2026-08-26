@@ -1,21 +1,20 @@
 mod JsonDerive
+  use Std.Json
+  use Std.Result
+
   ###
-  `@derive(JSON)` generates `to_json/1` that renders a record as a
-  JSON object string (v0.21.0).
-
-  The derivation emits
-
-      fn to_json(x: Record) -> String =
-        "{\"field1\":" <> to_json(x.field1) <> ",\"field2\":" <> to_json(x.field2) <> "}"
-
-  Field names map 1:1 to JSON keys; the per-field serialisation is
-  delegated to the `to_json/1` protocol method. For primitive fields
-  the caller must provide the instance (typically from `Std.Show`
-  or a dedicated `Std.Json` module). `from_json/1` is reserved for a
-  future release.
+  `@derive(ToJSON, FromJSON)` generates ordinary interface implementations.
+  Encoding constructs a structured `Value.Object`; decoding looks up each
+  required member and routes its value through that field's `FromJSON`
+  implementation. Derivation never concatenates or reparses field JSON.
   ###
 
-  @derive(JSON)
-  rec Empty
+  @derive(ToJSON, FromJSON)
+  rec Person
+    name: String
+    age: Int
 
-  fn main() -> String = to_json(Empty{})
+  fn main() -> String = to_json(Person{name: "Ada", age: 36})
+
+  fn decode_person(source: String) -> Result(Person, DecodeError) =
+    assert_type decode_as(source) : Result(Person, DecodeError)

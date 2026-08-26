@@ -1,0 +1,61 @@
+@group(:core)
+mod Std.Equivalent
+  ## Propositional equality — the inductive identity type `Equivalent(a, x, y)`
+  ## (spec 2026-07-04-identity-type-as-inductive).
+  ##
+  ## `Equivalent(a, x, y)` is the proposition "`x` and `y` (both of type `a`) are
+  ## the same thing". Its single constructor `reflexive` proves the only case that
+  ## is always true — that a value equals itself — so a *value* of this type IS a
+  ## proof of equality, checked by the dependent kernel (not a runtime token).
+  ##
+  ## (Do not confuse this with `Std.Equatable`, the `==` comparison protocol.
+  ## `Equatable` answers "are these equal?" with a runtime `Bool`; `Equivalent`
+  ## is the type whose inhabitants are *proofs* that they are.)
+  ##
+  ## The combinators work by matching on `reflexive`: once matched, the two
+  ## endpoints are definitionally identified and the goal collapses to
+  ## reflexivity. This is the technique Agda's
+  ## `Relation.Binary.PropositionalEquality` uses.
+  ##
+  ## ## Examples
+  ##
+  ## ```cure
+  ## use Std.Equivalent
+  ##
+  ## # given  p : Equivalent(a, x, y)
+  ## sym(p)              # : Equivalent(a, y, x)
+  ## trans(p, q)         # : Equivalent(a, x, z)   when  q : Equivalent(a, y, z)
+  ## cong(f, p)          # : Equivalent(b, f(x), f(y))
+  ## ```
+
+  ## Group tag consumed by `Cure.Stdlib.Preload`.
+  ## The identity type. The `@builtin(:eq)` decorator binds this declaration to
+  ## the kernel's canonical identity family, so `Equivalent` and `reflexive` are
+  ## ordinary, go-to-definition-able names even though the compiler gives them
+  ## special dependent-typing treatment. `reflexive(x) : Equivalent(a, x, x)` is
+  ## the sole constructor — the proof that `x` equals itself; its witness is
+  ## erased at runtime.
+  @builtin(:eq)
+  type Equivalent(a: Type) indices (x: a, y: a)
+    reflexive : Equivalent(a, w, w)
+
+  ## Equality between small types themselves. `Equivalent(Type, A, B)` would
+  ## require `Type 0 : Type 0`, violating Cure's predicative hierarchy, so
+  ## type-valued defining equations use this ordinary indexed family instead.
+  type TypeEquivalent indices (x: Type, y: Type)
+    type_reflexive : TypeEquivalent(w, w)
+
+  ## Symmetry: from `x = y` derive `y = x`.
+  fn sym({a: Type}, {x: a}, {y: a}, p: Equivalent(a, x, y)) -> Equivalent(a, y, x) = 
+    match p
+      reflexive() -> reflexive(x)
+
+  ## Transitivity: from `x = y` and `y = z` derive `x = z`.
+  fn trans({a: Type}, {x: a}, {y: a}, {z: a}, p: Equivalent(a, x, y), q: Equivalent(a, y, z)) -> Equivalent(a, x, z) = 
+    match p
+      reflexive() -> q
+
+  ## Congruence: equal inputs give equal `f`-outputs.
+  fn cong({a: Type}, {b: Type}, {x: a}, {y: a}, f: (a) -> b, p: Equivalent(a, x, y)) -> Equivalent(b, f(x), f(y)) = 
+    match p
+      reflexive() -> reflexive(f(x))

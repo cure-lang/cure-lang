@@ -1,0 +1,13 @@
+mod Wc01
+  type Nat = Z | S(Nat)
+  type SNat indices (n: Nat)
+    szero : SNat(Z)
+    ssuc : SNat(n) -> SNat(S(n))
+  type NVv indices (n: Nat)
+    vz : NVv(Z)
+    vc : (k: Nat) -> SNat(k) -> NVv(S(k))
+  fn pred(n: Nat, v: NVv(n)) -> Nat =
+    with v
+      vz() -> Z()
+      vc(k, s) -> k
+end

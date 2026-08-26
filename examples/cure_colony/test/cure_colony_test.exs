@@ -12,7 +12,7 @@ defmodule CureColonyTest do
   end
 
   describe "application / supervision wiring" do
-    test "Cure.Sup.Colony is registered by name and alive" do
+    test "Cure.Colony is registered by name and alive" do
       pid = Process.whereis(CureColony.sup_module())
       assert is_pid(pid)
       assert Process.alive?(pid)

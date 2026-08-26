@@ -4,53 +4,55 @@
   order: 6
 }
 ---
+
+> **0.34 update:** `app` is a transparent macro over ordinary lifted modules,
+> callbacks, and checked OTP operations. It lives in `Std.App` and is not
+> ambient -- a unit declaring an application must `use Std.App`. The generated
+> declarations pass through the same canonical module interfaces and dependent
+> kernel as authored Cure code. The release resource and runtime behavior
+> described below remain the output contract.
+
 Cure 0.26.0 takes the supervision surface landed in v0.25.0 and wraps it in a full OTP application lifecycle. A project with a single `app` container compiles to three artefacts in one pass:
 
-1. A loaded BEAM module `:"Cure.App.<Name>"` implementing the `:application` behaviour (`start/2`, `stop/1`, and, when applicable, `start_phase/3`).
-2. An OTP `<name>.app` resource file written alongside every other Cure module under `_build/cure/ebin/`.
+1. A loaded BEAM module you refer to by the name the container gives it -- `app MyApp` -- carrying `-behaviour(application)` and the three callbacks `start/2`, `stop/1`, and `start_phase/3`.
+2. An OTP `<name>.app` resource file written alongside the project artifact set under `_build/cure/project/ebin/`.
 3. A bootable BEAM release under `_build/cure/rel/<name>/`, produced on demand by `cure release` (or `mix cure.release`).
 
-The container slots in next to `actor` and `sup` from v0.25.0 and inherits their clause grammar (`on_start`, `on_stop`, and the new `on_phase :name` blocks).
+The container slots in next to `actor` and `sup` from v0.25.0, but it is far smaller than either: where those carry callback clauses, `app` carries one clause naming a root supervisor.
 
 ## The `app` container
 
+The container is deliberately small. An application is its name and the supervisor it starts, and that is the whole grammar:
+
 ```cure
+use Std.App
+
 app MyApp
-  vsn          = "0.1.0"
-  description  = "My humble application"
-  root         = sup MyApp.Root
-  applications = [:logger, :crypto]
-  env          = %{port: 4000}
-  on_start
-    (start_kind, args) -> do_start(start_kind, args)
-  on_stop
-    (state) -> cleanup(state)
-  on_phase :init
-    (args, _kind, _start_args) -> init_phase(args)
-  on_phase :warm_cache
-    (_args, _kind, _start_args) -> Std.Cache.warm()
+  root MyApp.Root
 ```
 
-- `vsn`, `description`, `root`, `applications`, `included_applications`, `env`, and `registered` are top-level assignments inside the container body. Each one overrides the matching value in `[application]` (except `applications`, which is merged rather than replaced).
-- `on_start` / `on_stop` reuse the FSM and actor callback-clause grammar (pattern tuple, optional `when` guard, body). Their bodies become the generated module's `start/2` and `stop/1` callbacks.
-- Each `on_phase :name` block introduces a single three-argument clause `(phase_args, start_kind, start_args)` that feeds the generated `start_phase/3` callback.
-- `root = ...` is optional. A phase-only application (say, a diagnostic that only runs its `on_phase :warm_cache` step and then stops) can omit it entirely; `start/2` then simply returns `{:ok, self()}`.
+- The name is the lifted module's own name, so it must be `Cure.`-prefixed and dotted. `app MyApp` is rejected as an invalid module name.
+- `root` is not optional, and it is the only clause. An application that starts nothing is an application the macro has no reason to generate.
+- The root is written the way any module is named -- a dotted path naming the `sup` declared alongside it. There is no `sup Name` prefix form and no atom-literal escape hatch inside `root`.
 
-### Root supervisor resolution
+Everything else an application carries -- version, description, dependencies, environment, start phases -- lives in `Cure.toml`, not in the container. The macro's whole job is wiring the OTP callbacks to that root.
 
-`root = ...` accepts four forms, mirroring the `sup` child-spec conventions from [Actors](/actors):
+### What the macro generates
 
-- `root = sup Name` -> `:"Cure.Sup.Name"` (soft-keyword form; prefers the supervisor namespace).
-- `root = Name` -> `:"Cure.Sup.Name"` (PascalCase identifier; same rule as a bare child entry in a `sup` tree).
-- `root = App.Sub.Root` -> `:"App.Sub.Root"` (dotted path used verbatim, same as dotted child entries).
-- `root = :my_app_sup` -> `:my_app_sup` (atom literal; escape hatch for arbitrary registered names).
+The expansion is a lifted module carrying the three callbacks OTP asks an application for:
+
+- `start/2` calls `Std.Otp.start_supervisor` on the declared root and returns `Effect(Tuple)`, the ordinary OTP startup tuple after effect erasure.
+- `stop/1` returns `:ok`.
+- `start_phase/3` returns `:ok` for every phase.
+
+Start phases are therefore a manifest-level feature. `[application].start_phases` is what puts them in the generated `.app` resource; an application that needs real work in a phase overrides `start_phase/3` in its own module rather than declaring it on the `app`.
 
 ### Single-`app` enforcement
 
 `Cure.Project.compile_project/2` scans every `.cure` file under `lib/` and fails if more than one `app` container is declared:
 
 ```
-error: duplicate application (E051)
+error: duplicate application
  --> Cure.toml
   | more than one `app` container in the project:
   | lib/foo_app.cure -> app Foo
@@ -97,9 +99,9 @@ sys_config   = "rel/sys.config"
 
 Notable rules:
 
-- `[application].name` is the source of truth for the emitted `<name>.app` resource. The container's `app Name` just provides the BEAM module identity (`:"Cure.App.<Name>"`); the OTP application atom always comes from TOML.
-- `[application].start_phases` is authoritative. Every entry must have a matching `on_phase :name` clause in the `app`, and every `on_phase` clause must appear in the list. Mismatches surface as `E053 Start Phase Mismatch`.
-- `[application].applications` is merged with the container's own `applications = [...]` list, so the container can add dependencies (`:crypto`) without repeating what TOML already declares (`:logger`).
+- `[application].name` is the source of truth for the emitted `<name>.app` resource. The container's `app Name` just provides the BEAM module identity; the OTP application atom always comes from TOML.
+- `[application].start_phases` is authoritative and is the only place phases are declared. It is what emits them into the `.app` resource; the generated `start_phase/3` accepts each of them and returns `:ok`.
+- `[application].applications` is the dependency list. The container does not carry one, so there is nothing to merge it with.
 - `[release]` is only consulted by `cure release`. Omitting the whole table is fine; every field has a reasonable default derived from `[application]` and the running VM.
 - The TOML parser accepts a minimal subset: scalar string / integer / bool / array-of-strings values, plus nested tables for `[application.env]`. Inline tables and mixed-type arrays are rejected.
 
@@ -126,56 +128,57 @@ The boot script needs a complete list of applications. `Cure.Release` seeds it w
 
 ### Runtime env access from Cure
 
-Once the application is running, use `Std.App` to interact with it:
+`Std.App` is not only the `app` macro — it also wraps `:application` in typed functions, so a running application is reachable without `@extern`. Each one touches VM-global state, so each returns `Effect(...)`:
 
 ```cure
 use Std.App
 
-fn boot() -> Atom = Std.App.ensure_all_started(:my_app)
-fn port() -> Int  = Std.App.get_env(:my_app, :port, 4000)
+fn boot() -> Effect(AppStart) = ensure_all_started(:my_app)
+fn port() -> Effect(Int) = env_int(:my_app, :port, 4000)
 ```
 
-`Std.App` is a thin wrapper around `:application` that returns plain atoms and values rather than the OTP `{ok, _}` tuples. See [Stdlib](/standard-library) for the full nine-function surface.
+Starting answers the closed type `AppStart = AppStarted | AlreadyStarted | AppStartFailed` rather than an OTP `{ok, _}` tuple. `AlreadyStarted` is a success: OTP reports it as `{ok, []}`, meaning nothing new had to be started.
 
-## Error codes
+The typed readers -- `env_int`, `env_atom`, `env_bool`, `env_string` -- each take a fallback and return it when the key is absent *or* holds a value of another shape, which is what makes them total. For anything past a primitive, `env/2` returns `Effect(Option(BeamTerm))` and you narrow it with `Std.Beam`. See [Applications And Releases](https://github.com/cure-lang/cure-lang/blob/main/docs/APP.md) for the whole surface.
 
-The new codes are catalogued in `Cure.Compiler.Errors`. Run `cure explain <code>` for the full text:
+## Failure modes
 
-- **E051 Duplicate Application** -- more than one `app` container in a project (or a name mismatch with `[application].name`).
-- **E052 Missing Application** -- `cure release` invoked with no `app` declared.
-- **E053 Start Phase Mismatch** -- TOML and container disagree on phase names.
-- **E054 Unresolved Root Supervisor** -- `root = ...` does not resolve to a known module reference.
-- **E055 Release Build Failed** -- wraps `:systools.make_script/2` or release-write I/O errors.
+Application and release problems are reported as project-level errors rather than numbered diagnostics -- there is no `E05x` family, and `cure explain` does not know these:
+
+- `{:duplicate_app, [{path, name}, ...]}` -- more than one `app` container under the project's source paths.
+- `{:app_name_mismatch, expected, actual}` -- the container's name disagrees with `[application].name` (falling back to `[project].name`).
+- `:missing_app_file` -- `cure release` could not find the `.app` resource for an application it was asked to include.
+
+A malformed container fails earlier still, in the macro itself: a name that is not a valid `Cure.`-prefixed module is `{:invalid_module_name, name}`, and a body that does not match the macro's grammar is a `macro_use_mismatch` parse error.
 
 ## Full example
 
-[`examples/cure_forge/`](https://github.com/am-kantox/cure-lang/blob/main/examples/cure_forge) is the canonical end-to-end example. It ships as a small Mix project with three Cure source files wiring an application on top of four cooperating actors:
+[`examples/cure_forge/`](https://github.com/cure-lang/cure-lang/blob/main/examples/cure_forge) is the canonical end-to-end example. It ships as a small Mix project with three Cure source files wiring an application on top of four cooperating actors:
 
 ```cure
-app CureForge
-  vsn          = "0.1.0"
-  description  = "Cure forge showcase: a typed OTP application"
-  root         = sup Forge.Root
-  applications = [:logger]
-  env          = %{idle_timeout_ms: 5000, greeting: "forge ready"}
-  on_start
-    (_kind, _args) -> :ok
-  on_stop
-    (_state) -> :ok
-  on_phase :warm_cache
-    (_args, _kind, _start_args) -> :ok
+use Std.App
+use Std.Supervisor
 
 sup Forge.Root
-  strategy  = :one_for_one
-  intensity = 5
-  period    = 10
+  strategy OneForOne()
+  intensity 5
+  period more(9)
   children
-    Metrics as metrics
-    Logger  as logger  (restart: :permanent, shutdown: 2000)
-    Queue   as queue   (restart: :transient)
-    Pool    as pool    (restart: :permanent)
+    worker Forge.Metrics as metrics
+    worker Forge.Logger as logger
+      restart Permanent()
+      shutdown Timeout(2000)
+    worker Forge.Queue as queue
+      restart Transient()
+    worker Forge.Pool as pool
+      restart Permanent()
+
+app Forge
+  root Forge.Root
 ```
+
+`period` takes a `Positive`, not a plain number: `more(9)` is 10. `intensity` is an ordinary literal. Each child names its kind (`worker` or `supervisor`), its module, and the identity it is known by inside the tree; `restart` and `shutdown` are optional per child.
 
 Each actor owns a narrow responsibility (counting events, buffering log lines, enqueuing work, or running a small worker pool) and exchanges messages with its peers through the Melquiades Operator `<-|`. The accompanying `CureForge` Elixir facade exposes the running tree to `iex -S mix` and to the ExUnit suite, so you can observe the application booting, exercise every actor, watch the supervisor restart a killed worker, and confirm that the `:warm_cache` start phase executed before the first request.
 
-Read the project's [README](https://github.com/am-kantox/cure-lang/blob/main/examples/cure_forge/README.md) for the walk-through and [`docs/APP.md`](https://github.com/am-kantox/cure-lang/blob/main/docs/APP.md) for the on-disk reference that mirrors this page.
+Read the project's [README](https://github.com/cure-lang/cure-lang/blob/main/examples/cure_forge/README.md) for the walk-through and [`docs/APP.md`](https://github.com/cure-lang/cure-lang/blob/main/docs/APP.md) for the on-disk reference that mirrors this page.

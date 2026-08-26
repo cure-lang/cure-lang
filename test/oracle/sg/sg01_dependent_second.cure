@@ -1,0 +1,14 @@
+mod Sg01
+  # Sigma D1 (spec 2026-07-08-neutral-app-sort): a user-defined Sigma with a
+  # dependent second projection — the motive's body is the neutral application
+  # b(first(p)), sorted by the kernel's reify+infer napp clause; the implicit
+  # params {a}{b} are inserted in the return-type position by the type-position
+  # implicit-insertion path (spec §7).
+  type Nat = Z | S(Nat)
+  type MySigma(a: Type, b: (a) -> Type) indices ()
+    mk_pair : (x: a) -> b(x) -> MySigma(a, b)
+  fn first({a: Type}, {b: (a) -> Type}, p: MySigma(a, b)) -> a = match p
+    mk_pair(x, y) -> x
+  fn second({a: Type}, {b: (a) -> Type}, p: MySigma(a, b)) -> b(first(p)) = match p
+    mk_pair(x, y) -> y
+end

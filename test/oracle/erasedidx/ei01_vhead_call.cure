@@ -1,0 +1,9 @@
+mod Ei01
+  type Nat = Z | S(Nat)
+  type Vec indices (n: Nat)
+    vnil : Vec(Z)
+    vcons : Nat -> Vec(k) -> Vec(S(k))
+  fn vhead({n: Nat}, v: Vec(S(n))) -> Nat = match v
+    vcons(h, r) -> h
+  fn one() -> Nat = vhead(vcons(S(Z()), vnil()))
+end

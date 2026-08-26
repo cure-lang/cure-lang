@@ -1,0 +1,44 @@
+@group(:core)
+mod Std.Telescope
+  ## The telescope type — the shape all surface tuples are made of.
+  ##
+  ## A *telescope* is a list of component types, in order: the reified *shape* of
+  ## a tuple. `Telescope` below is that shape as honest data (the Agda/Idris
+  ## telescope-as-data): the empty telescope `Empty`, or `More(head, rest)` —
+  ## one component type `head` consed onto a shorter telescope `rest`. So
+  ## `Tuple(Int, Bool, Int)` has shape `More(Int, More(Bool, More(Int, Empty)))`.
+  ##
+  ## `Telescope` names the shape; a *value* of that shape is the right-nested
+  ## chain of dependent pairs terminated by the empty telescope `Unit`:
+  ##
+  ## ```
+  ##   Sigma(T1, λ. Sigma(T2, λ. … Sigma(Tn, λ. Unit)))
+  ## ```
+  ##
+  ## Each `Sigma` (from `Std.Sigma`) packages one component; the trailing `Unit`
+  ## marks "no more components". This is the honest, arity-uniform generalisation
+  ## of the dependent pair: `Std.Tuple`'s `Tuple(T1, …, Tn)` is exactly a
+  ## telescope, presented at a fixed arity so users never see the
+  ## `Sigma`/`Unit` spine.
+  ##
+  ## ## Representation
+  ##
+  ## `Unit` (`Std.Unit`) is the empty-telescope terminator. It exists only at the
+  ## type level: at CODEGEN a telescope value `mk_pair(e1, … mk_pair(en, ()))`
+  ## lowers to ONE FLAT BEAM tuple `{e1, …, en}` — the `()` marker is dropped,
+  ## never materialised at runtime. So a telescope keeps the bare BEAM-tuple ABI
+  ## (`element/2` interop) while remaining a genuine iterated Σ to the kernel.
+  ## Nesting is opt-in: `Tuple(A, Tuple(B, C))` is `{a, {b, c}}`.
+  ##
+  ## ## Projections
+  ##
+  ## Positional access `t.i` / `element(t, i)` projects the i-th component at its
+  ## true type `Ti`. `.1` is `Std.Sigma`'s `sigma_first`; `.i` for `i ≥ 2` is the
+  ## `sigma_first ∘ sigma_second^(i-1)` composition, which `Std.Sigma` provides as
+  ## the `tproj2 … tproj8` helpers — those live with the `Sigma`/`sigma_first`
+  ## machinery they are built from and that codegen inlines them alongside (each
+  ## `tproj_i` inlines to `element(i, p)` on the flat tuple). This module owns the
+  ## telescope *type*; `Std.Sigma` owns the projection *operations*.
+
+  ## The telescope shape as data: a heterogeneous list of component types.
+  type Telescope = Empty | More(Type, Telescope)

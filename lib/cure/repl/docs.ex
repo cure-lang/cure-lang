@@ -23,6 +23,7 @@ defmodule Cure.REPL.Docs do
 
   alias Cure.Compiler.{Lexer, Parser}
   alias Cure.Doc.Extractor
+  alias Cure.Diagnostic.{Host, Sink}
   alias Cure.REPL.{Markdown, Render}
   alias Cure.Stdlib.{Paths, Preload}
 
@@ -48,6 +49,41 @@ defmodule Cure.REPL.Docs do
       {:error, reason} ->
         info(state, "(cannot parse `#{raw}`: #{reason})")
     end
+  end
+
+  @doc "Search documentation names available to the current REPL session."
+  @spec apropos(String.t(), map()) :: :ok
+  def apropos(query, state) when is_binary(query) do
+    needle = query |> String.trim() |> String.downcase()
+
+    hits =
+      search_roots(state)
+      |> Enum.flat_map(&Path.wildcard(Path.join(&1, "**/*.cure")))
+      |> Enum.uniq()
+      |> Enum.flat_map(fn path ->
+        case cached_docs(path) do
+          {:ok, docs} -> apropos_entries(docs)
+          {:error, _} -> []
+        end
+      end)
+      |> Enum.filter(&(needle != "" and String.contains?(String.downcase(&1), needle)))
+      |> Enum.uniq()
+      |> Enum.sort()
+
+    case hits do
+      [] -> info(state, "(no declarations matching `#{query}`)")
+      _ -> Enum.each(hits, &Render.write_line("  " <> &1))
+    end
+
+    :ok
+  end
+
+  defp apropos_entries(docs) do
+    module = heading_name(docs, "Unknown")
+    functions = Enum.map(docs.functions || [], &"#{module}.#{&1.name}/#{length(&1.params)}")
+    types = Enum.map(docs.types || [], &"#{module}.#{&1.name}")
+    protocols = Enum.map(docs.protocols || [], &"#{module}.#{&1.name}")
+    [module | functions ++ types ++ protocols]
   end
 
   @doc false
@@ -106,8 +142,8 @@ defmodule Cure.REPL.Docs do
       :not_found ->
         info(state, "(no documentation source found for `#{mod_name}`)")
 
-      {:error, reason} ->
-        info(state, "(cannot extract docs for `#{mod_name}`: #{reason})")
+      {:error, error} ->
+        render_extract_error(state, mod_name, error)
     end
   end
 
@@ -133,8 +169,8 @@ defmodule Cure.REPL.Docs do
       :not_found ->
         info(state, "(no documentation source found for `#{mod_name}`)")
 
-      {:error, reason} ->
-        info(state, "(cannot extract docs for `#{mod_name}`: #{reason})")
+      {:error, error} ->
+        render_extract_error(state, mod_name, error)
     end
   end
 
@@ -196,7 +232,7 @@ defmodule Cure.REPL.Docs do
 
   defp render_protocol_index(%{protocols: protos}, state) when is_list(protos) and protos != [] do
     Render.write_line("")
-    Render.write_line(with_style(state, :info, "Protocols"))
+    Render.write_line(with_style(state, :info, "Interfaces"))
 
     Enum.each(protos, fn proto ->
       Render.write_line("  " <> with_style(state, :match, proto.name))
@@ -300,13 +336,38 @@ defmodule Cure.REPL.Docs do
   end
 
   defp extract_docs(path) do
-    with {:ok, src} <- File.read(path),
-         {:ok, tokens} <- Lexer.tokenize(src, emit_events: false),
-         {:ok, ast} <- Parser.parse(tokens, emit_events: false) do
-      {:ok, Extractor.extract(ast)}
-    else
-      {:error, reason} -> {:error, inspect(reason)}
+    case File.read(path) do
+      {:ok, src} ->
+        result =
+          with {:ok, tokens} <- Lexer.tokenize(src, file: path, emit_events: false),
+               {:ok, ast} <- Parser.parse(tokens, file: path, emit_events: false) do
+            {:ok, Extractor.extract(ast)}
+          end
+
+        case result do
+          {:ok, docs} -> {:ok, docs}
+          {:error, reason} -> {:error, {:source_diagnostic, reason, path, src}}
+        end
+
+      {:error, reason} ->
+        {:error, {:source_diagnostic, {:file_read_error, path, reason}, path, nil}}
     end
+  end
+
+  defp render_extract_error(state, mod_name, {:source_diagnostic, reason, path, source}) do
+    {diagnostic, registry} = Host.to_diagnostic(reason, path, source)
+
+    Sink.new(
+      format: :terminal,
+      registry: registry,
+      output_device: Map.get(state, :error_device, :stdio),
+      color: if(Map.get(state, :color, false), do: :always, else: :never),
+      width: 80
+    )
+    |> Sink.emit(diagnostic)
+    |> Sink.flush()
+
+    info(state, "(cannot extract docs for `#{mod_name}`)")
   end
 
   defp search_roots(state) do

@@ -1,0 +1,5 @@
+mod Refine01
+  use Std.Bool
+  use Std.Proof.IntMath
+  fn positive_five() -> IsTrue(5 > 0) = Confirmed()
+end

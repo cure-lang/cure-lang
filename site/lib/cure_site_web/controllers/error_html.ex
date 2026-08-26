@@ -7,5 +7,5 @@ defmodule CureSiteWeb.ErrorHTML do
   """
   use CureSiteWeb, :html
 
-  embed_templates "error_html/*"
+  embed_templates("error_html/*")
 end

@@ -1,0 +1,6 @@
+mod Al01
+  type Nat = Z | S(Nat)
+  type MyNat = Nat
+  fn f(n: MyNat) -> MyNat = S(n)
+  fn g() -> Nat = f(S(Z()))
+end

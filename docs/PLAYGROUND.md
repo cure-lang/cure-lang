@@ -1,35 +1,35 @@
 # Playground
 
-The Cure Playground lives on `cure-lang.org/playground`.
+## Current status
 
-## v0.27.0 -- Syntax highlighting
+The pre-0.34 Playground is not a supported compiler surface. Its LiveView still
+calls the deleted classic checker and code generator, so it does not provide
+authoritative checking or safe evaluation for the current language.
 
-- Two-pane editor: plain-text source on the left, Makeup-highlighted
-  HTML preview on the right.
-- Debounced (150 ms) LiveView updates so the preview follows typing
-  without saturating the socket.
-- Tailwind-based layout that cooperates with the rest of the site.
+Use one of the supported interactive surfaces instead:
 
-## v0.28.0 -- Live type checking + sandboxed evaluator
+- `cure repl` for checked local exploration;
+- `cure check <file>` for dependent elaboration without emission;
+- `cure run <file>` for checked compilation and `main/0` execution;
+- editor/LSP integrations for structured diagnostics and holes.
 
-Both features from the v0.27.0 roadmap shipped in v0.28.0:
+## Required dependent port
 
-- **Live type-check panel.** Every debounced keystroke runs the full
-  bidirectional checker (`Cure.Types.Checker`) on the source and
-  renders the result below the highlighted preview. Green on success,
-  red with formatted diagnostics on error.
-- **Sandboxed evaluator.** `CureSiteWeb.Eval` spawns an isolated BEAM
-  process via `:erlang.spawn_opt/2` with a 64 MB heap cap and a
-  2-second kill timer. The child compiles the source, loads the
-  module, calls `main/0`, and captures stdout. A "Run" button in the
-  playground triggers it on demand.
+A restored browser Playground must use the same headless dependent front end,
+canonical module loader, standard-library/prelude discovery, structured
+diagnostics, and validated emission path as the CLI. It must not call a
+compatibility checker or bypass Core validation. Evaluation must retain process
+isolation, output capture, memory limits, and a hard deadline.
 
-## v0.29 -- WASM target
+Until that port lands, `/playground` should be treated as unavailable rather
+than as a weaker classic-only compiler.
 
-Compiling the pure compiler half (lexer, parser, bidirectional checker,
-refinement translator without Z3, formatter, printer) to WASM via the
-AtomVM target so docs pages can embed truly in-browser executable
-snippets is deferred to v0.29.
+## Historical implementation
+
+The v0.27/v0.28 site provided a debounced editor, Makeup highlighting, a
+classic-checker panel, and a sandboxed BEAM evaluator. Those UI ideas remain
+useful, but their checker and emitter integration was removed with the classic
+pipeline.
 
 ## Running locally
 
@@ -41,17 +41,18 @@ mix setup            # first time
 mix phx.server
 ```
 
-Then open <http://localhost:4000/playground>.
+The documentation site still builds locally, but the `/playground` compiler
+integration remains unavailable until the dependent port described above.
 
 ## Architecture
 
-- `CureSiteWeb.PlaygroundLive` in `site/lib/cure_site_web/live/`.
-- `CureSiteWeb.Eval` in `site/lib/cure_site_web/eval.ex` -- sandboxed
-  BEAM process with heap + time limits.
+- `CureSiteWeb.PlaygroundLive` in `site/lib/cure_site_web/live/` is the stale
+  classic integration point.
+- `CureSiteWeb.Eval` in `site/lib/cure_site_web/eval.ex` is the stale compiler
+  and sandbox integration point.
 - Route wired at `/playground` via `CureSiteWeb.Router`.
 - HTML formatter: `Makeup.Formatters.HTML.HTMLFormatter`.
 - Lexer: `Makeup.Lexers.CureLexer` (from the `makeup_cure` Hex
   package).
-- Type checker: `Cure.Types.Checker.check_module/2` called directly
-  from the LiveView -- no extraction into a separate OTP app needed
-  because `:cure` is already a path dependency of `cure_site`.
+- The port must call the same dependent compiler service as the command line;
+  the site must not maintain a separate checker.

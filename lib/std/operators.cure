@@ -1,0 +1,120 @@
+@group(:core)
+@prelude
+## Prelude fixity declarations for Cure's built-in operators. This module is
+## loaded automatically; it does not expose a runtime API.
+mod Std.Operators
+
+# The fixity-declaration authority for Cure's core operators — the operators
+# every module gets, unconditionally, via `@prelude`. A user module may
+# declare NEW operators of its own; redeclaring one of THESE with a
+# different group/body is a conflict (`Cure.Compiler.Parser.FixityResolver`,
+# `:conflicting_operator_fixity` / `:conflicting_precedence_group`), not a
+# location-based rejection — because `@prelude` places this module's
+# declarations in every table via the same union every `use` triggers, a
+# redeclaration always collides. An identical redeclaration is a no-op.
+#
+# Binding power rises with each `higher_than` link (the numbers below are
+# illustrative; only the ORDER is significant):
+#
+#   5  =                 right  -- let / single binding
+#   8  <-|  ✉            none   -- Melquiades send (ASCII + envelope forms)
+#   10 |>                left   -- pipe
+#   20 or                left
+#   30 and               left
+#   40 == != < > <= >=   none
+#   50 .. ..=            none   -- ranges
+#   60 <>                right  -- concat
+#   70 + -   bor bxor bsl bsr   left
+#   80 * / %   band             left
+#   90 prefix - not bnot
+#   100 .                left   -- dot / attribute access
+#
+# `.`, `|>`, `=`, and the ranges keep dedicated AST nodes. The Melquiades
+# precedence group lives in this core lattice, while `Std.Otp` owns its two
+# infix declarations and ordinary overloadable function meanings.
+
+precedencegroup Assignment
+  associativity: right
+precedencegroup Melquiades
+  associativity: none
+  higher_than: Assignment
+precedencegroup Pipe
+  associativity: left
+  higher_than: Melquiades
+precedencegroup LogicalOr
+  associativity: left
+  higher_than: Pipe
+precedencegroup LogicalAnd
+  associativity: left
+  higher_than: LogicalOr
+precedencegroup Comparison
+  associativity: none
+  higher_than: LogicalAnd
+precedencegroup Range
+  associativity: none
+  higher_than: Comparison
+precedencegroup Concat
+  associativity: right
+  higher_than: Range
+precedencegroup Additive
+  associativity: left
+  higher_than: Concat
+precedencegroup Multiplicative
+  associativity: left
+  higher_than: Additive
+# Prefix operators are unary and do not chain associatively; the legacy table
+# marks none of them non-associative, so this group is deliberately NOT `none`
+# (that would spuriously flag infix `-`, which shares the `-` lexeme).
+precedencegroup Prefix
+  associativity: left
+  higher_than: Multiplicative
+precedencegroup Dot
+  associativity: left
+  higher_than: Prefix
+
+# Assignment (BP 5, right) -- let / single binding
+infix `=` : Assignment
+
+# Pipe (BP 10, left)
+infix `|>` : Pipe
+
+# Logical or / and (BP 20 / 30, left)
+infix or  : LogicalOr
+infix and : LogicalAnd
+
+# Comparison (BP 40, none)
+infix `==` : Comparison
+infix `!=` : Comparison
+infix `<`  : Comparison
+infix `>`  : Comparison
+infix `<=` : Comparison
+infix `>=` : Comparison
+
+# Range (BP 50, none)
+infix `..`  : Range
+infix `..=` : Range
+
+# String concat (BP 60, right)
+infix `<>` : Concat
+
+# Additive (BP 70, left) -- arithmetic + Erlang-precedence bitwise
+infix `+`  : Additive
+infix `-`  : Additive
+infix bor  : Additive
+infix bxor : Additive
+infix bsl  : Additive
+infix bsr  : Additive
+
+# Multiplicative (BP 80, left) -- arithmetic + Erlang-precedence `band`
+infix `*`  : Multiplicative
+infix `/`  : Multiplicative
+infix `%`  : Multiplicative
+infix band : Multiplicative
+
+# Prefix (BP 90) -- negation, logical not, bitwise not
+prefix `-`  : Prefix
+prefix not  : Prefix
+prefix bnot : Prefix
+
+# Dot access (BP 100, left)
+infix `.` : Dot

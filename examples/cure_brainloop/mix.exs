@@ -6,8 +6,10 @@ defmodule CureBrainloop.MixProject do
       app: :cure_brainloop,
       version: "0.1.0",
       elixir: "~> 1.18",
+      lockfile: "../../mix.lock",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
+      aliases: aliases(),
       escript: [main_module: CureBrainloop.CLI]
     ]
   end
@@ -23,5 +25,9 @@ defmodule CureBrainloop.MixProject do
     [
       {:cure, path: "../.."}
     ]
+  end
+
+  defp aliases do
+    [compile: ["compile_cure", "compile"], test: ["compile_cure", "test"]]
   end
 end

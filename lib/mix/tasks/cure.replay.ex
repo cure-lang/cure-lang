@@ -24,26 +24,31 @@ defmodule Mix.Tasks.Cure.Replay do
 
   use Mix.Task
 
+  alias Cure.Diagnostic.Sink
+
   @impl Mix.Task
   def run(args) do
     Application.ensure_all_started(:cure)
 
-    {opts, rest, _} =
+    {opts, rest, invalid} =
       OptionParser.parse(args,
-        switches: [module: :string, step: :boolean, print: :boolean],
+        strict: [module: :string, step: :boolean, print: :boolean],
         aliases: [m: :module, s: :step]
       )
+
+    if invalid != [] or length(rest) > 1 do
+      usage_error("Usage: mix cure.replay <path.journal> [--module ModuleName] [--step]")
+    end
 
     path = List.first(rest)
 
     if is_nil(path) do
-      Mix.Shell.IO.error("Usage: mix cure.replay <path.journal> [--module ModuleName] [--step]")
-      exit({:shutdown, 1})
+      usage_error("Usage: mix cure.replay <path.journal> [--module ModuleName] [--step]")
     end
 
     case Cure.Observe.Journal.load(path) do
       {:error, reason} ->
-        Mix.Shell.IO.error("Cannot load #{path}: #{inspect(reason)}")
+        Mix.Shell.IO.error(render_diagnostic(Cure.Diagnostic.Operational.file_read(path, reason)))
         exit({:shutdown, 1})
 
       {:ok, entries} ->
@@ -61,7 +66,7 @@ defmodule Mix.Tasks.Cure.Replay do
           mod_str ->
             mod = Module.concat([mod_str])
 
-            if Code.ensure_loaded?(mod) do
+            if verified_project_module?(mod) do
               step? = Keyword.get(opts, :step, false)
               Mix.Shell.IO.info("\nReplaying against #{mod_str}#{if step?, do: " (step mode)", else: ""}...")
 
@@ -75,14 +80,42 @@ defmodule Mix.Tasks.Cure.Replay do
                   Mix.Shell.IO.info("Replay complete: #{ok} ok, #{warn} warnings.")
 
                 {:error, reason} ->
-                  Mix.Shell.IO.error("Replay failed: #{inspect(reason)}")
+                  Mix.Shell.IO.error(render_diagnostic(Cure.Diagnostic.Operational.command_failure("Replay", reason)))
+
                   exit({:shutdown, 1})
               end
             else
-              Mix.Shell.IO.error("Module #{mod_str} is not loaded. Compile the project first.")
+              Mix.Shell.IO.error(
+                render_diagnostic(
+                  Cure.Diagnostic.Operational.artifact_error(
+                    "Module #{mod_str} is not loaded. Compile the project first."
+                  )
+                )
+              )
+
               exit({:shutdown, 1})
             end
         end
     end
+  end
+
+  defp verified_project_module?(module) do
+    case Cure.Compiler.Artifacts.load_verified_modules(
+           "_build/cure/project/ebin",
+           [module]
+         ) do
+      :ok -> true
+      {:error, _reason} -> false
+    end
+  end
+
+  defp render_diagnostic(diagnostic) do
+    Sink.new(format: :plain, color: :auto, width: 80)
+    |> Sink.render(diagnostic)
+  end
+
+  defp usage_error(message) do
+    Mix.Shell.IO.error(render_diagnostic(Cure.Diagnostic.Operational.usage(message)))
+    exit({:shutdown, 1})
   end
 end

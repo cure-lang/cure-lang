@@ -11,7 +11,7 @@ defmodule Cure.Telemetry do
   ## Event namespace
 
       [:cure, :pipeline, <stage>]  (lexer / parser / type_checker / codegen /
-                                   fsm_verifier / registry)
+                                   registry)
 
   Each event carries:
 
@@ -27,7 +27,7 @@ defmodule Cure.Telemetry do
 
   use GenServer
 
-  @stages [:lexer, :parser, :type_checker, :codegen, :fsm_verifier, :registry]
+  @stages [:lexer, :parser, :type_checker, :codegen, :registry]
 
   # -- Public API -------------------------------------------------------------
 
@@ -45,8 +45,20 @@ defmodule Cure.Telemetry do
   @spec stop() :: :ok
   def stop do
     case Process.whereis(__MODULE__) do
-      nil -> :ok
-      pid -> GenServer.stop(pid)
+      nil ->
+        :ok
+
+      pid ->
+        # `start/0` links the bridge to its caller, so it can already be dying by
+        # the time a later `stop/0` (e.g. an ExUnit `on_exit` callback) runs — the
+        # `whereis` above still returns a pid, but `GenServer.stop` then races the
+        # termination and exits with `:noproc`. Swallow that so `stop/0` is truly
+        # idempotent, as its `:: :ok` spec promises.
+        try do
+          GenServer.stop(pid)
+        catch
+          :exit, _ -> :ok
+        end
     end
   end
 

@@ -1,0 +1,19 @@
+mod RelImpl02
+  type NatT = ZZ | SS(NatT)
+
+  ## `VCons`'s length predecessor `m` is an INFERRED index — implicit AND erased
+  ## (quantity 0). It is the OTHER quadrant from relimpl01's relevant `{k: NatT}`.
+  type Vec indices (n: NatT)
+    VNil  : Vec(ZZ)
+    VCons : NatT -> Vec(m) -> Vec(SS(m))
+
+  ## The scrutinee type `Vec(n)` leaves `n` free, so matching `VCons` does NOT
+  ## force `m` — it binds via the named-implicit pattern at quantity 0. Returning
+  ## `mm` USES an erased value relevantly, so the quantity gate must reject. This
+  ## pins that the plicity/quantity decoupling did NOT launder quantity: an
+  ## implicit that is erased is still policed by Relevance. Idris rejects the
+  ## `{0 m}` mirror identically.
+  fn getm(n: NatT, v: Vec(n)) -> NatT = match v
+    VNil()                  -> ZZ
+    VCons({m = mm}, x, rest) -> mm
+end

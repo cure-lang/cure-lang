@@ -1,0 +1,17 @@
+mod Guard06
+  type Nat = Z | S(Nat)
+  type Other = A | B
+  # Adversarial control for guard05: the nested guarded arm's body `A()` has type
+  # `Other`, not `Nat`. The matrix folds the guard into a `bool_elim` `if` at the
+  # leaf that is still kernel-checked at the result type, so the fold must NOT
+  # blind-accept. reject/reject.
+  fn isZ(n: Nat) -> Bool = match n
+    Z() -> true
+    S(k) -> false
+  fn classify(n: Nat) -> Nat = match n
+    S(S(k)) when isZ(k) -> A()
+    S(S(k)) -> S(Z())
+    S(Z()) -> S(S(Z()))
+    Z() -> S(S(S(Z())))
+  fn start() -> Nat = classify(S(S(Z())))
+end

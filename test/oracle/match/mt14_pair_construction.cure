@@ -1,0 +1,6 @@
+mod Mt14
+  type Nat = Z | S(Nat)
+  fn f(p: Sigma(a: Nat, Nat)) -> Nat = match p
+    %[x, y] -> y
+  fn g() -> Nat = f(%[Z(), S(Z())])
+end

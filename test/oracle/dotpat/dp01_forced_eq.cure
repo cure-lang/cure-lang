@@ -1,0 +1,7 @@
+mod Dp01
+  type Nat = Z | S(Nat)
+  type MyEq(a: Type) indices (x: a, y: a)
+    mrefl : MyEq(a, w, w)
+  fn congS({a: Nat}, {b: Nat}, p: MyEq(Nat, a, b)) -> MyEq(Nat, S(a), S(b)) = match p
+    mrefl() -> mrefl()
+end

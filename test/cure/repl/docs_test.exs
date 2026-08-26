@@ -60,8 +60,8 @@ defmodule Cure.REPL.DocsTest do
       core = Docs.default_uses(:core)
 
       assert "Std.Core" in core
-      assert "Std.Eq" in core
-      assert "Std.Ord" in core
+      assert "Std.Equatable" in core
+      assert "Std.Comparable" in core
       refute "Std.List" in core
       refute "Std.Http" in core
     end
@@ -141,6 +141,36 @@ defmodule Cure.REPL.DocsTest do
     test "rejects bare lowercase names with a parse error" do
       state = fake_state()
       assert :ok = Docs.render("map", state)
+    end
+
+    test "source parse failures use the structured diagnostic renderer" do
+      tmp = Path.join(System.tmp_dir!(), "cure_docs_bad_#{System.unique_integer([:positive])}")
+      File.mkdir_p!(tmp)
+      File.write!(Path.join(tmp, "bad.cure"), "mod Bad\n  fn broken(] -> Int = 1\nend\n")
+
+      previous = Application.get_env(:cure, :stdlib_source_dir)
+
+      try do
+        Application.put_env(:cure, :stdlib_source_dir, tmp)
+
+        output =
+          ExUnit.CaptureIO.capture_io(:stderr, fn ->
+            Docs.render("Std.Bad", Map.put(fake_state(), :error_device, :stderr))
+          end)
+
+        assert output =~ "[E094]"
+        assert output =~ "bad.cure"
+        assert output =~ "fn broken(] -> Int = 1"
+        assert output =~ "^"
+        assert length(Regex.scan(~r/-- .* \[E094\]/, output)) == 1
+        refute output =~ "{:unexpected_token"
+      after
+        if is_nil(previous),
+          do: Application.delete_env(:cure, :stdlib_source_dir),
+          else: Application.put_env(:cure, :stdlib_source_dir, previous)
+
+        File.rm_rf!(tmp)
+      end
     end
   end
 

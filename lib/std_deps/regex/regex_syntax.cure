@@ -1,0 +1,195 @@
+## Compile-time support for Cure's regex literal syntax. The macro parses a
+## pattern and lowers it to the runtime `Std.Regex` representation.
+@group(:text)
+mod Std.Regex.Syntax
+  use Std.Regex.Syntax.Model
+  use Std.Regex.Syntax.Flags
+  use Std.Regex.Syntax.Parser
+  use Std.Regex.Syntax.Emitter
+  use Std.Syntax
+  use Std.String
+
+  macro RegexLiterals
+    literal regex <pattern: String> <flags: String> computed by expand_literal
+
+  fn expand_literal(input: Syntax) -> MacroResult = match children(input)
+    [pattern_syntax, flags_syntax] -> match leaf_value(pattern_syntax)
+      SStr(pattern) -> match leaf_value(flags_syntax)
+        SStr(flags) -> expand_literal_strings(pattern_syntax, pattern, flags)
+        _ -> reject(Failure(:InvalidRegexFlagsInput, []))
+      _ -> reject(Failure(:InvalidRegexPatternInput, []))
+    _ -> reject(Failure(:InvalidRegexLiteralInput, []))
+
+  fn reject_located_literal(pattern_syntax: Syntax, reason: Atom, start: Nat, width: Nat) -> MacroResult =
+    let primary = diagnostic_subspan(pattern_syntax, Std.Nat.to_integer(start), Std.Nat.to_integer(width))
+    reject(Failure(reason, [diagnostic_details(primary, regex_failure_message(reason), regex_failure_hint(reason))]))
+
+  fn reject_mapped_literal(pattern_syntax: Syntax, reason: Atom, positions: List(Nat), source_length: Nat, start: Nat, width: Nat) -> MacroResult =
+    match literal_source_span(positions, source_length, start, width)
+      LiteralSourceSpan(source_start, source_width) -> reject_located_literal(pattern_syntax, reason, source_start, source_width)
+
+  fn reject_unlocated_literal(pattern_syntax: Syntax, reason: Atom) -> MacroResult =
+    reject(Failure(reason, [diagnostic_details(pattern_syntax, regex_failure_message(reason), regex_failure_hint(reason))]))
+
+  fn regex_failure_message(reason: Atom) -> String = match reason
+    :MissingRegexQuantifierMinimum -> "This bounded quantifier is missing its minimum repetition count."
+    :MissingRegexQuantifierMaximum -> "This bounded quantifier is missing its maximum repetition count."
+    :RegexQuantifierRangeReversed -> "This bounded quantifier has a maximum smaller than its minimum."
+    :UnclosedRegexQuantifier -> "This bounded quantifier is missing its closing `}`."
+    :MalformedRegexQuantifier -> "This bounded quantifier must contain decimal repetition counts."
+    :RegexQuantifierTooLarge -> "This bounded quantifier exceeds Cure's compile-time expansion limit of 64 repetitions."
+    :QuantifierWithoutAtom -> "This quantifier has no preceding regex atom to repeat."
+    :IncompleteRegexHexEscape -> "This hexadecimal escape does not contain the required two digits."
+    :InvalidRegexHexEscape -> "This hexadecimal escape contains a non-hexadecimal digit."
+    :EmptyRegexScalarEscape -> "This braced hexadecimal escape is empty."
+    :RegexEscapeOutOfRange -> "This hexadecimal escape is outside the Unicode code-point range."
+    :RegexEscapeNotUnicodeScalar -> "This hexadecimal escape names a reserved UTF-16 surrogate, not a Unicode scalar."
+    :UnclosedRegexScalarEscape -> "This hexadecimal escape is missing its closing `}`."
+    :EmptyRegexUnicodeName -> "This Unicode character-name escape is empty."
+    :UnknownRegexUnicodeName -> "This Unicode character name is not present in Cure's pinned Unicode table."
+    :MalformedRegexUnicodeName -> "A Unicode character-name escape must use `\\N{name}`."
+    :UnclosedRegexUnicodeName -> "This Unicode character-name escape is missing its closing `}`."
+    :EmptyRegexUnicodeProperty -> "This Unicode property name is empty."
+    :UnknownRegexUnicodeProperty -> "This Unicode property name is not supported."
+    :MalformedRegexUnicodeProperty -> "A Unicode property escape must put its property name inside braces."
+    :UnclosedRegexUnicodeProperty -> "This Unicode property escape is missing its closing `}`."
+    :UnsupportedRegexBackreference -> "Backreferences are not regular and are not supported by Cure's finite regex language."
+    :UnsupportedRegexNumericEscape -> "Numeric escapes are not supported because PCRE interprets them contextually as octal escapes or backreferences."
+    :UnsupportedRegexRecursion -> "Recursive and subroutine regex calls are not supported by Cure's finite regex language."
+    :UnsupportedRegexConditional -> "Conditional regex groups are not supported by Cure's finite regex language."
+    :VariableLengthLookbehind -> "This lookbehind can match different scalar widths, so its required history is not finite and exact."
+    :LookbehindTooWide -> "This lookbehind exceeds Cure's bounded assertion history limit."
+    :NestedAssertionDepthExceeded -> "This nested assertion exceeds Cure's finite assertion-depth limit."
+    :AssertionCapturesUnsupported -> "Lookaround operands must not contain capture groups in this finite initial subset."
+    :NestedAssertionUnsupported -> "Lookaround operands cannot contain nested assertions or capture conditionals."
+    :UnsupportedRegexNamedCapture -> "Named capture syntax is not supported; captures are returned by their typed position."
+    :EmptyRegexCaptureName -> "This named capture has an empty name."
+    :MalformedRegexCaptureName -> "A named capture name must start with a letter or `_` and contain only letters, digits, or `_`."
+    :UnclosedRegexCaptureName -> "This named capture is missing the closing name delimiter."
+    :DuplicateRegexCaptureName -> "This named capture name is already used by an earlier capture in the regex."
+    :MalformedRegexConditional -> "This capture conditional must use `(?(1)yes|no)`, `(?(name)yes|no)`, or `(?(<name>)yes|no)`."
+    :UnknownRegexCaptureReference -> "This capture conditional refers to a slot or name that does not exist."
+    :ConditionalCaptureLayoutMismatch -> "Capture condition arms must allocate compatible capture slots."
+    :UnsupportedRegexInlineOptions -> "This scoped regex modifier is not supported by the finite Cure matcher."
+    :UnsupportedRegexNewlineControl -> "This newline control is only valid as the first token of a regex literal."
+    :UnclosedRegexGroup -> "This regex group is missing its closing `)`."
+    :UnclosedRegexClass -> "This character class is missing its closing `]`."
+    :TrailingRegexClassEscape -> "This character class ends with an incomplete escape."
+    :ReversedRegexRange -> "This character range ends before it starts."
+    :TrailingRegexEscape -> "This regex ends with an incomplete escape."
+    :UnexpectedRegexToken -> "This token cannot occur at this position in the regex."
+    :EmptyRegexPosixClass -> "This POSIX character class has no class name."
+    :UnknownRegexPosixClass -> "This POSIX character class name is not supported."
+    :MalformedRegexPosixClass -> "A POSIX character class must end its name with `:]`."
+    :UnclosedRegexPosixClass -> "This POSIX character class is missing its `:]` terminator."
+    :RegexParseLimit -> "This regex is too structurally deep for the compile-time parser's safety bound."
+    :MissingRegexAtom -> "This regex operator requires an atom, class, or group at this position."
+    :UnexpectedRegexSuffix -> "The regex parser left an unexpected suffix after the parsed expression."
+    _ -> "This regex literal contains malformed or unsupported syntax."
+
+  fn regex_failure_hint(reason: Atom) -> String = match reason
+    :MissingRegexQuantifierMinimum -> "Write a decimal minimum, for example `{2}`, `{2,}`, or `{2,4}`."
+    :MissingRegexQuantifierMaximum -> "Write a decimal maximum after the comma, or close immediately as `{m,}`."
+    :RegexQuantifierRangeReversed -> "Make the maximum greater than or equal to the minimum."
+    :UnclosedRegexQuantifier -> "Close the repetition range with `}`."
+    :MalformedRegexQuantifier -> "Use `{m}`, `{m,}`, or `{m,n}` with decimal counts."
+    :RegexQuantifierTooLarge -> "Reduce the bound to 64 or less, or build the repeated regex explicitly."
+    :QuantifierWithoutAtom -> "Place the quantifier after a literal, class, group, or other regex atom."
+    :IncompleteRegexHexEscape -> "Write exactly two hexadecimal digits after `\\x`, or use the braced form `\\x{...}`."
+    :InvalidRegexHexEscape -> "Replace the highlighted value with hexadecimal digits `0`-`9`, `a`-`f`, or `A`-`F`."
+    :EmptyRegexScalarEscape -> "Put one or more hexadecimal digits between the braces."
+    :RegexEscapeOutOfRange -> "Use a code point between `0` and `10FFFF`."
+    :RegexEscapeNotUnicodeScalar -> "Choose a Unicode scalar outside the surrogate interval `D800`-`DFFF`."
+    :UnclosedRegexScalarEscape -> "Close the scalar escape with `}`."
+    :EmptyRegexUnicodeName -> "Put a canonical Unicode character name between the braces."
+    :UnknownRegexUnicodeName -> "Use a name from the pinned Unicode character database, for example `LATIN CAPITAL LETTER A`."
+    :MalformedRegexUnicodeName -> "Write the escape as `\\N{LATIN CAPITAL LETTER A}`."
+    :UnclosedRegexUnicodeName -> "Close the Unicode character name with `}`."
+    :EmptyRegexUnicodeProperty -> "Name a general category such as `L`, `Lu`, or `Decimal_Number`."
+    :UnknownRegexUnicodeProperty -> "Use a supported Unicode general-category name or alias."
+    :MalformedRegexUnicodeProperty -> "Write the property as `\\p{L}` or its negated form `\\P{L}`."
+    :UnclosedRegexUnicodeProperty -> "Close the Unicode property name with `}`."
+    :UnsupportedRegexBackreference -> "Replace the backreference with a regular construction or capture and compare outside the regex."
+    :UnsupportedRegexNumericEscape -> "Write the character with `\\xHH` or `\\x{...}`; compare captured values outside the regex instead of using a backreference."
+    :UnsupportedRegexRecursion -> "Express the finite repeated structure directly instead of recursively invoking a group."
+    :UnsupportedRegexConditional -> "Move the condition outside the regex or use an explicit regular alternation."
+    :VariableLengthLookbehind -> "Use an exact-width operand such as `(?<=ab)` or rewrite the prefix explicitly."
+    :LookbehindTooWide -> "Shorten the assertion or make the required context explicit outside the regex."
+    :NestedAssertionDepthExceeded -> "Reduce nested assertion depth or split the condition into typed regex combinators."
+    :AssertionCapturesUnsupported -> "Move captures outside the assertion and inspect them in the surrounding match."
+    :NestedAssertionUnsupported -> "Flatten the assertion or move the inner condition outside the regex."
+    :UnsupportedRegexNamedCapture -> "Use an ordinary capture group and destructure the regex's inferred result type."
+    :EmptyRegexCaptureName -> "Put a non-empty identifier between the capture delimiters."
+    :MalformedRegexCaptureName -> "Use a name such as `word` or `capture_1`."
+    :UnclosedRegexCaptureName -> "Close the capture name with `>` or `'` before writing its body."
+    :DuplicateRegexCaptureName -> "Rename one of the captures so every name identifies exactly one slot."
+    :MalformedRegexConditional -> "Use a numeric or named earlier capture followed by a yes arm and optional `|no` arm."
+    :UnknownRegexCaptureReference -> "Refer only to a capture declared earlier in the regex."
+    :ConditionalCaptureLayoutMismatch -> "Keep capture groups aligned between the yes and no arms."
+    :UnsupportedRegexInlineOptions -> "Use a scoped `i`, `m`, `s`, `u`, or `U` modifier (with optional `-` removal); keep source-sensitive `x` and execution-level `f`/`E` modifiers outside the scope."
+    :UnsupportedRegexNewlineControl -> "Move the control to the beginning of the literal, before the first regex atom."
+    :UnclosedRegexGroup -> "Close the highlighted group with `)`."
+    :UnclosedRegexClass -> "Close the highlighted character class with `]`."
+    :TrailingRegexClassEscape -> "Add the escaped character or remove the trailing backslash."
+    :ReversedRegexRange -> "Swap the endpoints or write the characters separately."
+    :TrailingRegexEscape -> "Add the escaped character or remove the trailing backslash."
+    :UnexpectedRegexToken -> "Remove the token or place it inside a matching group or character class."
+    :EmptyRegexPosixClass -> "Use a name such as `[:alpha:]`, `[:digit:]`, or `[:word:]`."
+    :UnknownRegexPosixClass -> "Use one of alnum, alpha, ascii, blank, cntrl, digit, graph, lower, print, punct, space, upper, word, or xdigit."
+    :MalformedRegexPosixClass -> "Write the class as `[:name:]` or its negated form `[:^name:]`."
+    :UnclosedRegexPosixClass -> "Close the POSIX class name with `:]`."
+    :RegexParseLimit -> "Reduce the regex's nesting depth or split it into typed regex combinators."
+    :MissingRegexAtom -> "Add the missing atom or remove the operator that requires it."
+    :UnexpectedRegexSuffix -> "Correct the highlighted suffix so the complete pattern forms one regex expression."
+    _ -> "Correct the highlighted regex syntax."
+
+  fn expand_literal_strings(pattern_syntax: Syntax, pattern: String, flags: String) -> MacroResult = match parse_literal_flags(Std.String.characters(flags), literal_default_options())
+    LiteralFlagsParsed(options) ->
+      match prepare_literal(Std.String.characters(pattern), options)
+        LiteralPrepared(prepared, positions, source_length) ->
+          match parse_literal(prepared)
+            LiteralParsed(parsed, rest) -> match rest
+              [] -> match allocate_literal_captures(parsed)
+                LiteralCaptureAllocationInvalid(reason, name) -> reject_unlocated_literal(pattern_syntax, reason)
+                LiteralCaptureAllocated(numbered, layout) -> match validate_literal_lookarounds(numbered)
+                  LiteralLookaroundInvalid(reason, _) -> reject_unlocated_literal(pattern_syntax, reason)
+                  LiteralLookaroundValid() -> match literal_pattern_options(numbered, options)
+                    LiteralPatternOptions(effective_pattern, effective_options) ->
+                      pickup
+                          literal_pattern_has_conditionals(effective_pattern) -> expand(
+                          call("Std.Regex.Runtime.named_staged", [
+                            call("Std.Regex.Runtime.configured", [
+                              emit_options(effective_options),
+                              emit_staged_literal_with_options_conditional(effective_pattern, effective_options)
+                            ]),
+                            emit_named_staged_compilation(effective_pattern, effective_options),
+                            emit_lookaround_staged_compilation(effective_pattern, effective_options),
+                            emit_capture_layout(layout),
+                            bool_literal(has_modifier(effective_options, FirstlineModifier)),
+                            emit_newline_policy(effective_options)
+                          ])
+                        )
+                          literal_capture_layout_has_names(layout) -> expand(
+                          call("Std.Regex.Runtime.named_staged", [
+                            call("Std.Regex.Runtime.configured", [
+                              emit_options(effective_options),
+                              emit_staged_literal_with_options(effective_pattern, effective_options)
+                            ]),
+                            emit_named_staged_compilation(effective_pattern, effective_options),
+                            emit_lookaround_staged_compilation(effective_pattern, effective_options),
+                            emit_capture_layout(layout),
+                            bool_literal(has_modifier(effective_options, FirstlineModifier)),
+                            emit_newline_policy(effective_options)
+                          ])
+                        )
+                          else -> expand(
+                          call("Std.Regex.Runtime.configured", [
+                            emit_options(effective_options),
+                            call("Std.Regex.Runtime.simplified", [emit_shape(literal_shape(effective_pattern)), emit_staged_literal_with_options(effective_pattern, effective_options)])
+                            ])
+                          )
+              _ -> reject(Failure(:UnexpectedRegexSuffix, []))
+            LiteralInvalid(reason) -> reject_unlocated_literal(pattern_syntax, reason)
+            LiteralAtInvalid(reason, _, _) -> reject_unlocated_literal(pattern_syntax, reason)
+            LiteralLocatedInvalid(reason, start, width) -> reject_mapped_literal(pattern_syntax, reason, positions, source_length, start, width)
+    LiteralFlagsInvalid(reason) -> reject_unlocated_literal(pattern_syntax, reason)

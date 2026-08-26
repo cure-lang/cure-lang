@@ -1,24 +1,10 @@
-## Root supervisor for the Cure forge example.
-##
-## The dotted name `Forge.Root` resolves to the BEAM module
-## `:"Cure.Sup.Forge.Root"`. This supervisor is the `root` of the
-## `app CureForge` container declared in `forge_app.cure`, so its
-## lifecycle is tied to the OTP application: starting the
-## application starts this tree; stopping the application stops it.
-##
-## The supervisor manages four actors under a `:one_for_one`
-## strategy, so a crashing child restarts in isolation. Child-id
-## resolution follows the usual rules from `docs/SUPERVISION.md`:
-## undotted names (`Metrics`, `Logger`, `Queue`, `Pool`) resolve to
-## `Cure.Actor.<Name>`. Per-child `restart` and `shutdown` options
-## override the default `:permanent` / `5000ms`.
+## Transparent supervisor example.
+
+use Std.Supervisor
 
 sup Forge.Root
-  strategy  = :one_for_one
-  intensity = 5
-  period    = 10
   children
-    Metrics as metrics
-    Logger  as logger  (restart: :permanent, shutdown: 2000)
-    Queue   as queue   (restart: :transient)
-    Pool    as pool    (restart: :permanent)
+    worker Main.Metrics as metrics
+    worker Main.Logger as logger
+    worker Main.Queue as queue
+    worker Main.Pool as pool

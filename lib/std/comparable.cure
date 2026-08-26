@@ -1,0 +1,94 @@
+@group(:core)
+@prelude
+mod Std.Comparable
+  ## `use Std.Bool` supplies `` `not` `` for the derived `` `<=` ``/`` `>=` ``;
+  ## `use Std.Equatable` provides the `Equatable(t)` superinterface required by
+  ## `Comparable(t)`.
+  use Std.Bool
+  use Std.Equatable
+  ## Total-ordering interface on a minimal basis.
+  ##
+  ## The sole primitive obligation is `` `<` ``; `` `<=` ``, `` `>` ``,
+  ## `` `>=` `` and the three-way `compare` (returning an `Ordering`) are derived
+  ## `requires Comparable(t)` top-level functions, each expressed with `` `<` ``
+  ## alone (a total order is trichotomous in `` `<` ``). `Comparable(t)` requires
+  ## `Equatable(t)`, so every comparable type is also equatable.
+  ##
+  ## The derived operations are standalone `requires`-constrained functions rather
+  ## than interface defaults: an instance-specialised default re-dispatching a
+  ## sibling method at a concrete operand cannot be elaborated for every leaf
+  ## today, whereas a `requires`-constrained function stays polymorphic and is
+  ## resolved per call site (the same idiom `Std.Equatable.` `` `!=` `` uses).
+  ##
+  ## ## Examples
+  ##
+  ## ```cure
+  ## use Std.Comparable
+  ##
+  ## compare(1, 2)                           # => LessThan
+  ## `<`('a', 'b')                           # => true
+  ## `<`("ada", "grace")                     # => true
+  ## ```
+
+  ## Group tag consumed by `Cure.Stdlib.Preload`.
+  ## Three-way ordering result.
+  type Ordering = LessThan | EqualTo | GreaterThan
+
+  ## Total ordering over `t`. Requires `Equatable(t)` so every comparable type
+  ## is equatable; the ordering itself is generated from `` `<` `` alone.
+  interface Comparable(t) requires Equatable(t)
+    ## Strict less-than. Sole primitive obligation of the class.
+    fn `<`(a: t, b: t) -> Bool
+
+  ## `Comparable` impl for `Int`.
+  implementation Comparable for Int
+    ## Primitive integer less-than (matches `build_binop`'s `int_lt` lowering).
+    fn `<`(a: Int, b: Int) -> Bool = Std.Builtin.int_lt(a, b)
+
+  ## `Comparable` impl for `Float`.
+  implementation Comparable for Float
+    ## Primitive float less-than (matches `build_binop`'s `float_lt` lowering).
+    fn `<`(a: Float, b: Float) -> Bool = Std.Builtin.float_lt(a, b)
+
+  ## `` `<=` `` derived: `a <= b` iff `not (b < a)`.
+  fn `<=`(a: t, b: t) -> Bool requires Comparable(t) = Std.Bool.`not`(`<`(b, a))
+
+  ## `` `>` `` derived by flipping the operands: `a > b` iff `b < a`.
+  fn `>`(a: t, b: t) -> Bool requires Comparable(t) = `<`(b, a)
+
+  ## `` `>=` `` derived: `a >= b` iff `not (a < b)`.
+  fn `>=`(a: t, b: t) -> Bool requires Comparable(t) = Std.Bool.`not`(`<`(a, b))
+
+  ## Derived tripartite `compare`, generated from `` `<` `` alone (trichotomy of
+  ## a total order). Kept present and named `compare` so `compare_op_call` and
+  ## `min`/`max`/`clamp` (which dispatch to `compare`) keep working.
+  fn compare(a: t, b: t) -> Ordering requires Comparable(t) =
+    pickup
+      `<`(a, b) -> LessThan
+      `<`(b, a) -> GreaterThan
+      else      -> EqualTo
+
+  # `min`/`max`/`clamp` live here rather than in `Std.Core` because they are
+  # ordering operations: each carries a `requires Comparable(t)` constraint that
+  # threads this interface's dictionary. Keeping them here also keeps `Std.Core`
+  # free of a `use Std.Comparable`, which would otherwise close a cycle now that
+  # both modules are whole-module `@prelude` providers.
+
+  ## Pointwise minimum under the `Comparable` ordering.
+  fn min(x: t, y: t) -> t requires Comparable(t) =
+    pickup
+      x <= y -> x
+      else   -> y
+
+  ## Pointwise maximum under the `Comparable` ordering.
+  fn max(x: t, y: t) -> t requires Comparable(t) =
+    pickup
+      x >= y -> x
+      else   -> y
+
+  ## Clamp `value` into the inclusive range `[lo, hi]`.
+  fn clamp(value: t, lo: t, hi: t) -> t requires Comparable(t) =
+    pickup
+      value < lo -> lo
+      value > hi -> hi
+      else       -> value

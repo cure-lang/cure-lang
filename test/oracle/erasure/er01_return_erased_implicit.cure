@@ -1,0 +1,7 @@
+mod Er01
+  type Nat = Z | S(Nat)
+  type SNat indices (n: Nat)
+    szero : SNat(Z)
+    ssuc : SNat(n) -> SNat(S(n))
+  fn rel({k: Nat}, a: SNat(k)) -> Nat = k
+end

@@ -1,37 +1,6 @@
-defmodule Cure.Observe.TopTest do
-  use ExUnit.Case, async: false
-
-  alias Cure.Observe.Top
-
-  describe "snapshot/0" do
-    test "returns a map with the expected top-level keys" do
-      snap = Top.snapshot()
-      assert %{at: _, vm: _, supervisors: _, actors: _, fsms: _} = snap
-      assert is_list(snap.supervisors)
-      assert is_list(snap.actors)
-      assert is_list(snap.fsms)
-    end
-
-    test "reports the process count and reductions" do
-      snap = Top.snapshot()
-      assert is_integer(snap.vm.process_count)
-      assert snap.vm.process_count > 0
-      assert is_integer(snap.vm.reductions)
-    end
-  end
-
-  describe "render/2" do
-    test "includes the cure-top banner, section headers, and empty placeholders" do
-      out = Top.snapshot() |> Top.render(width: 80)
-
-      assert out =~ "cure top"
-      assert out =~ "Supervisors"
-      assert out =~ "Actors"
-      assert out =~ "FSMs"
-    end
-  end
-end
-
+# `Cure.Observe.TopTest` was removed with the classic pathway rip-out (#18):
+# `Cure.Observe.Top` snapshotted the supervisor/actor/fsm container runtimes,
+# which no longer exist. `Cure.Observe.Trace` (the typed :dbg tracer) survives.
 defmodule Cure.Observe.TraceTest do
   use ExUnit.Case, async: false
 

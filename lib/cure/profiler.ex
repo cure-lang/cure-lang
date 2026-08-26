@@ -17,7 +17,7 @@ defmodule Cure.Profiler do
 
   alias Cure.Pipeline.Events
 
-  @stages [:lexer, :parser, :type_checker, :codegen, :fsm_verifier]
+  @stages [:lexer, :parser, :type_checker, :codegen]
 
   @doc """
   Profile the compilation of a .cure file.
@@ -63,14 +63,34 @@ defmodule Cure.Profiler do
     # Build timing report
     stage_times = compute_stage_times(events)
 
+    {result, diagnostic} =
+      case compile_result do
+        {:ok, _module, _warnings} ->
+          {compile_result_summary(compile_result), nil}
+
+        {:error, reason} ->
+          {diagnostic, registry} = Cure.Diagnostic.Host.to_diagnostic(reason, file, source)
+          {"error [#{diagnostic.code}]", %{diagnostic: diagnostic, registry: registry}}
+      end
+
     report = %{
       file: file,
       source_bytes: byte_size(source),
       total_us: t_end - t_start,
       stages: stage_times,
       event_count: length(events),
-      result: compile_result_summary(compile_result)
+      result: result,
+      diagnostic: diagnostic
     }
+
+    report =
+      case diagnostic do
+        %{diagnostic: _diagnostic, registry: _registry} = details ->
+          Map.put(report, :diagnostic, details)
+
+        nil ->
+          report
+      end
 
     {:ok, report}
   end
@@ -137,10 +157,6 @@ defmodule Cure.Profiler do
 
   defp compile_result_summary({:ok, _module, warnings}) do
     if warnings == [], do: "success", else: "success (#{length(warnings)} warnings)"
-  end
-
-  defp compile_result_summary({:error, reason}) do
-    "error: #{inspect(reason, limit: 3)}"
   end
 
   defp payload_type(payload) when is_tuple(payload), do: elem(payload, 0)

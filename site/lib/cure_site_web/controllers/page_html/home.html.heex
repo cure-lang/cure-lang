@@ -1,192 +1,144 @@
 <Layouts.app flash={@flash} current_path={@conn.request_path}>
-  <%!-- Hero --%>
-  <div class="text-center py-8">
-    <img
-      src={~p"/images/logo-500x500-nobg.png"}
-      width="120"
-      height="120"
-      alt="Cure"
-      class="mx-auto mb-4"
-    />
-    <h1 class="text-4xl font-bold tracking-tight sm:text-5xl">Cure</h1>
-    <p class="mt-3 text-lg text-base-content/70">
-      Dependently-typed programming language for the BEAM virtual machine
-      with first-class finite state machines and SMT-backed verification.
-    </p>
-    <p class="mt-2 text-sm text-base-content/50">
-      Current release: <span class="font-mono">v{CureSite.cure_version()}</span>
-      -- <em>Applications and Releases</em>. An <code>app</code>
-      container wraps an entire supervision tree into a first-class OTP application declared in Cure source; the same compiler cycle emits the
-      <code>&lt;name&gt;.app</code>
-      OTP resource file and a loaded <code>Application</code>-behaviour module, and the new
-      <code>cure release</code>
-      subcommand packages the whole thing as a bootable BEAM release. See the new
-      <a href={~p"/applications"} class="underline">Applications reference</a>
-      for the tour, or the <a href={~p"/actors"} class="underline">Actors reference</a>
-      for the typed supervision primitives underneath.
-    </p>
-  </div>
-  <%!-- Quick example --%>
-  <div class="mt-8" phx-no-curly-interpolation>
-    <pre class="rounded-lg p-4 text-sm overflow-x-auto bg-base-200"><code class="makeup cure"><span class="k">mod</span> <span class="nc">MyApp.Math</span>
-  <span class="k">use</span> <span class="nc">Std</span>.{<span class="nc">Result</span>, <span class="nc">Option</span>}
+  <section class="py-12 lg:py-20">
+    <div class="mb-10">
+      <p class="mb-4 text-sm font-semibold uppercase tracking-[0.2em] text-primary">
+        Cure language
+      </p>
+      <h1 class="max-w-3xl text-4xl font-bold tracking-tight sm:text-6xl">
+        Build dependable systems on the BEAM
+        <span class="block text-primary">with dependent types</span>
+      </h1>
+    </div>
 
-  <span class="k">type</span> <span class="nc">Sign</span> <span class="o">=</span> <span class="nc">Positive</span> <span class="o">|</span> <span class="nc">Negative</span> <span class="o">|</span> <span class="nc">Zero</span>
-  <span class="k">type</span> <span class="nc">NonZero</span> <span class="o">=</span> {x: <span class="kt">Int</span> <span class="o">|</span> x <span class="o">!=</span> <span class="mi">0</span>}
+    <div class="grid items-stretch gap-10 lg:grid-cols-[1.05fr_0.95fr]">
+      <div>
+        <p class="max-w-2xl text-xl leading-relaxed text-base-content/70">
+          Cure sends every program through one dependent compiler pipeline:
+          elaboration, kernel checking, quantitative erasure, and native BEAM code.
+          Indexed types and ordinary OTP concurrency live in the same language.
+        </p>
+        <div class="mt-8 flex flex-wrap items-center gap-3">
+          <a
+            href={~p"/getting-started"}
+            class="rounded-lg bg-primary px-5 py-3 font-semibold text-primary-content transition hover:bg-primary/90"
+          >
+            Get started
+          </a>
+          <a
+            href={~p"/tour"}
+            class="rounded-lg border border-base-300 px-5 py-3 font-semibold transition hover:border-primary hover:bg-base-200"
+          >
+            Take the language tour
+          </a>
+        </div>
+      </div>
 
-  <span class="k">fn</span> <span class="nf">factorial</span>(n: <span class="kt">Nat</span>) <span class="o">-></span> <span class="kt">Nat</span>
-    <span class="o">|</span> <span class="mi">0</span> <span class="o">-></span> <span class="mi">1</span>
-    <span class="o">|</span> n <span class="o">-></span> n <span class="o">*</span> <span class="nf">factorial</span>(n <span class="o">-</span> <span class="mi">1</span>)
+      <div class="cure-code-window" phx-no-curly-interpolation>
+        <div class="cure-code-window-bar">
+          <span class="cure-code-window-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="cure-code-window-label">counter.cure</span>
+        </div>
+        <pre class="overflow-x-auto p-5 text-sm leading-7"><code class="makeup cure"><span class="k">mod</span> <span class="nc">Counter</span>
 
-  <span class="k">fn</span> <span class="nf">safe_divide</span>(a: <span class="kt">Int</span>, b: <span class="nc">NonZero</span>) <span class="o">-></span> <span class="kt">Int</span> <span class="o">=</span> a <span class="o">/</span> b
+  <span class="k">type</span> <span class="nc">State</span> <span class="o">=</span> <span class="nc">State</span><span class="o">(</span><span class="kt">Nat</span><span class="o">)</span>
 
-  <span class="k">fn</span> <span class="nf">classify</span>(x: <span class="kt">Int</span>) <span class="o">-></span> <span class="nc">Sign</span>
-    <span class="o">|</span> x <span class="k">when</span> x <span class="o">></span> <span class="mi">0</span> <span class="o">-></span> <span class="nc">Positive</span>
-    <span class="o">|</span> x <span class="k">when</span> x &lt; <span class="mi">0</span> <span class="o">-&gt;</span> <span class="nc">Negative</span>
-    <span class="o">|</span> _             <span class="o">-></span> <span class="nc">Zero</span></code></pre>
-  </div>
+  <span class="k">fn</span> <span class="nf">next</span><span class="o">(</span><span class="nc">State</span><span class="o">(</span>n<span class="o">))</span> <span class="o">-&gt;</span> <span class="nc">State</span> <span class="o">=</span>
+    <span class="nc">State</span><span class="o">(</span>n <span class="o">+</span> <span class="mi">1</span><span class="o">)</span>
 
-  <%!-- Description --%>
-  <div class="mt-10 space-y-4 text-base-content/80 leading-relaxed">
-    <p>
-      Cure compiles <code class="rounded bg-base-200 px-1.5 py-0.5 text-sm">.cure</code>
-      source files to BEAM bytecode. Your Cure modules run natively on the Erlang VM alongside
-      Erlang and Elixir code -- same OTP, same supervision trees, same hot code loading.
-    </p>
-    <p>
-      The type system is bidirectional, with refinement types verified at compile time by Z3.
-      The constraint <code class="rounded bg-base-200 px-1.5 py-0.5 text-sm">x != 0</code>
-      in <code class="rounded bg-base-200 px-1.5 py-0.5 text-sm">NonZero</code>
-      is not a
-      runtime check -- it is a theorem the compiler proves before a single BEAM instruction executes.
-    </p>
-    <p>
-      Finite state machines are a first-class language construct. They compile to OTP
-      <code class="rounded bg-base-200 px-1.5 py-0.5 text-sm">gen_statem</code>
-      modules
-      with compile-time verification of reachability and deadlock freedom.
-    </p>
-    <p>
-      v0.25.0 extends the process-oriented surface with typed
-      <code class="rounded bg-base-200 px-1.5 py-0.5 text-sm">actor</code>
-      containers that compile to loaded
-      <code class="rounded bg-base-200 px-1.5 py-0.5 text-sm">GenServer</code>
-      modules and <code class="rounded bg-base-200 px-1.5 py-0.5 text-sm">sup</code>
-      containers that compile to verified
-      <code class="rounded bg-base-200 px-1.5 py-0.5 text-sm">Supervisor</code>
-      behaviour modules, wired together by the Melquiades Operator <code class="rounded bg-base-200 px-1.5 py-0.5 text-sm">&lt;-|</code>.
-    </p>
-    <p>
-      v0.26.0 wraps the supervision tree into a first-class OTP application: an
-      <code class="rounded bg-base-200 px-1.5 py-0.5 text-sm">app</code>
-      container compiles to an
-      <code class="rounded bg-base-200 px-1.5 py-0.5 text-sm">Application</code>
-      callback module, emits an OTP
-      <code class="rounded bg-base-200 px-1.5 py-0.5 text-sm">&lt;name&gt;.app</code>
-      resource file, and is packaged by
-      <code class="rounded bg-base-200 px-1.5 py-0.5 text-sm">cure release</code>
-      as a bootable BEAM release.
-    </p>
-  </div>
+  <span class="k">fn</span> <span class="nf">value</span><span class="o">(</span><span class="nc">State</span><span class="o">(</span>n<span class="o">))</span> <span class="o">-&gt;</span> <span class="kt">Nat</span> <span class="o">=</span> n</code></pre>
+      </div>
+    </div>
+  </section>
 
-  <%!-- Navigation cards --%>
-  <div class="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-    <a
-      href={~p"/getting-started"}
-      class="group rounded-lg border border-base-300 p-5 transition hover:border-primary hover:bg-base-200"
-    >
-      <h3 class="font-semibold text-primary group-hover:text-accent">Getting Started</h3>
-      <p class="mt-1 text-sm text-base-content/60">
-        Install, compile, and run your first Cure program.
+  <section class="grid gap-6 border-y border-base-300 py-10 sm:grid-cols-3">
+    <div>
+      <h2 class="font-semibold">Make invariants explicit</h2>
+      <p class="mt-2 text-sm leading-relaxed text-base-content/65">
+        Express relationships between values in indexed types and prove them
+        with evidence independently checked by the dependent kernel.
       </p>
-    </a>
-    <a
-      href={~p"/language-guide"}
-      class="group rounded-lg border border-base-300 p-5 transition hover:border-primary hover:bg-base-200"
-    >
-      <h3 class="font-semibold text-primary group-hover:text-accent">Language Guide</h3>
-      <p class="mt-1 text-sm text-base-content/60">
-        Syntax, keywords, operators, and all language constructs.
+    </div>
+    <div>
+      <h2 class="font-semibold">Model concurrency directly</h2>
+      <p class="mt-2 text-sm leading-relaxed text-base-content/65">
+        Actors, supervisors, applications, and finite-state machines fit the
+        language instead of being hidden behind an untyped boundary.
       </p>
-    </a>
-    <a
-      href={~p"/type-system"}
-      class="group rounded-lg border border-base-300 p-5 transition hover:border-primary hover:bg-base-200"
-    >
-      <h3 class="font-semibold text-primary group-hover:text-accent">Type System</h3>
-      <p class="mt-1 text-sm text-base-content/60">
-        Bidirectional checking, refinement types, SMT verification.
+    </div>
+    <div>
+      <h2 class="font-semibold">Stay native to the BEAM</h2>
+      <p class="mt-2 text-sm leading-relaxed text-base-content/65">
+        Compile to BEAM bytecode, use OTP, and work alongside Erlang and Elixir
+        without giving up Cure’s checks.
       </p>
-    </a>
-    <a
-      href={~p"/finite-state-machines"}
-      class="group rounded-lg border border-base-300 p-5 transition hover:border-primary hover:bg-base-200"
-    >
-      <h3 class="font-semibold text-primary group-hover:text-accent">Finite State Machines</h3>
-      <p class="mt-1 text-sm text-base-content/60">
-        First-class FSMs with compile-time structural verification.
+    </div>
+  </section>
+
+  <section class="py-14 lg:py-20">
+    <div class="max-w-2xl">
+      <p class="text-sm font-semibold uppercase tracking-[0.2em] text-primary">A clear path</p>
+      <h2 class="mt-3 text-3xl font-bold tracking-tight">From idea to running system.</h2>
+      <p class="mt-4 text-base leading-relaxed text-base-content/70">
+        Cure is designed around the way BEAM systems are built: describe the
+        state, make the messages precise, and let supervision handle failure.
       </p>
-    </a>
-    <a
-      href={~p"/actors"}
-      class="group rounded-lg border border-base-300 p-5 transition hover:border-primary hover:bg-base-200"
-    >
-      <h3 class="font-semibold text-primary group-hover:text-accent">Actors</h3>
-      <p class="mt-1 text-sm text-base-content/60">
-        Typed supervision trees with the Melquiades Operator <code>&lt;-|</code>,
-        <code>actor</code>
-        and <code>sup</code>
-        containers, and stdlib wrappers for links, monitors, and trap_exit.
-      </p>
-    </a>
-    <a
-      href={~p"/applications"}
-      class="group rounded-lg border border-base-300 p-5 transition hover:border-primary hover:bg-base-200"
-    >
-      <h3 class="font-semibold text-primary group-hover:text-accent">Applications</h3>
-      <p class="mt-1 text-sm text-base-content/60">
-        First-class OTP applications and BEAM releases: the <code>app</code>
-        container, <code>Cure.toml</code> <code>[application]</code>
-        and <code>[release]</code>
-        sections, and the <code>cure release</code>
-        subcommand.
-      </p>
-    </a>
-    <a
-      href={~p"/standard-library"}
-      class="group rounded-lg border border-base-300 p-5 transition hover:border-primary hover:bg-base-200"
-    >
-      <h3 class="font-semibold text-primary group-hover:text-accent">Standard Library</h3>
-      <p class="mt-1 text-sm text-base-content/60">30 self-hosted modules, ~320 functions.</p>
-    </a>
-    <a
-      href={~p"/match"}
-      class="group rounded-lg border border-base-300 p-5 transition hover:border-primary hover:bg-base-200"
-    >
-      <h3 class="font-semibold text-primary group-hover:text-accent">Pattern Matching</h3>
-      <p class="mt-1 text-sm text-base-content/60">
-        Every pattern shape: literals, lists, tuples, maps, records, ADTs,
-        bitstrings, pins, guards, and nested destructuring.
-      </p>
-    </a>
-    <a
-      href={~p"/repl"}
-      class="group rounded-lg border border-base-300 p-5 transition hover:border-primary hover:bg-base-200"
-    >
-      <h3 class="font-semibold text-primary group-hover:text-accent">REPL</h3>
-      <p class="mt-1 text-sm text-base-content/60">
-        The raw-mode REPL (v0.24.0): live syntax highlighting, persistent
-        history, reverse search, Tab completion, and a minimal vi mode.
-      </p>
-    </a>
-    <a
-      href={~p"/roadmap"}
-      class="group rounded-lg border border-base-300 p-5 transition hover:border-primary hover:bg-base-200"
-    >
-      <h3 class="font-semibold text-primary group-hover:text-accent">Roadmap</h3>
-      <p class="mt-1 text-sm text-base-content/60">
-        What shipped through v{CureSite.cure_version()} and what comes next.
-      </p>
-    </a>
-  </div>
+    </div>
+    <div class="mt-10 grid gap-4 md:grid-cols-3">
+      <div class="rounded-xl border border-base-300 p-6">
+        <p class="text-sm font-mono text-primary">01</p>
+        <h3 class="mt-4 font-semibold">Describe the domain</h3>
+        <p class="mt-2 text-sm leading-relaxed text-base-content/65">
+          Use algebraic and indexed data types, dependent functions, and pattern
+          refinement to give values meaningful, machine-checked structure.
+        </p>
+      </div>
+      <div class="rounded-xl border border-base-300 p-6">
+        <p class="text-sm font-mono text-primary">02</p>
+        <h3 class="mt-4 font-semibold">Connect the pieces</h3>
+        <p class="mt-2 text-sm leading-relaxed text-base-content/65">
+          Build actors and state machines with typed transitions and messages
+          that make invalid states difficult to represent.
+        </p>
+      </div>
+      <div class="rounded-xl border border-base-300 p-6">
+        <p class="text-sm font-mono text-primary">03</p>
+        <h3 class="mt-4 font-semibold">Run with confidence</h3>
+        <p class="mt-2 text-sm leading-relaxed text-base-content/65">
+          Compile to the BEAM and deploy with the fault-tolerance and tooling
+          your production system already depends on.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="rounded-xl bg-base-200 px-6 py-10 sm:px-10">
+    <div class="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h2 class="text-2xl font-bold tracking-tight">Choose your next step.</h2>
+        <p class="mt-2 text-base-content/65">
+          Learn the language, explore the runtime, or try it in your browser.
+        </p>
+      </div>
+      <div class="flex flex-wrap gap-3 text-sm font-semibold">
+        <a
+          href={~p"/language-guide"}
+          class="rounded-lg border border-base-300 px-4 py-2 transition hover:border-primary"
+        >
+          Learn Cure
+        </a>
+        <a
+          href={~p"/stdlib"}
+          class="rounded-lg border border-base-300 px-4 py-2 transition hover:border-primary"
+        >
+          Browse the stdlib
+        </a>
+        <a
+          href={~p"/repl"}
+          class="rounded-lg border border-base-300 px-4 py-2 transition hover:border-primary"
+        >
+          Use the REPL
+        </a>
+      </div>
+    </div>
+  </section>
 </Layouts.app>

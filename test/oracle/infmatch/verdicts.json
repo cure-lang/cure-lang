@@ -1,0 +1,1 @@
+{"im01_nested_inference_match":{"cure":"accept","idris":"accept","reason":"","relation":"same"},"im02_let_equiv":{"cure":"accept","idris":"accept","reason":"","relation":"same"},"im03_incompatible_arms":{"cure":"reject","idris":"reject","reason":"","relation":"same"},"im04_dependent_needs_annotation":{"cure":"reject","idris":"reject","reason":"","relation":"same"}}

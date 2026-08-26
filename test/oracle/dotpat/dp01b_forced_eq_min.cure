@@ -1,0 +1,7 @@
+mod Dp01b
+  type Nat = Z | S(Nat)
+  type SameLen indices (n: Nat, m: Nat)
+    same : SameLen(k, k)
+  fn cong({a: Nat}, {b: Nat}, p: SameLen(a, b)) -> SameLen(S(a), S(b)) = match p
+    same() -> same()
+end

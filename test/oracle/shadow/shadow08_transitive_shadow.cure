@@ -1,0 +1,8 @@
+mod TransitiveShadow
+  use Std.Vector
+  type Nat = Zero | Suc(Nat)
+  fn two() -> Nat = Suc(Suc(Zero()))
+  fn pred(n: Nat) -> Nat = match n
+    Zero() -> Zero()
+    Suc(m) -> m
+end

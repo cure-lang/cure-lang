@@ -14,7 +14,7 @@ defmodule Cure.Stdlib.Paths do
       with an OTP release.
 
   This module provides resolution functions used by
-  `Cure.Types.Stdlib` (for `:t` signatures), `Cure.REPL.Docs` (for
+  the dependent module-interface loader, `Cure.REPL.Docs` (for
   `:doc` rendering), and `Cure.Stdlib.Preload` (for loading the BEAMs
   that back qualified calls like `Std.List.map`). Both sources and
   BEAMs fall through the same pattern of candidates:
@@ -43,16 +43,19 @@ defmodule Cure.Stdlib.Paths do
 
     1. `Application.get_env(:cure, :stdlib_beam_dir)` -- explicit
        override (tests, alternative deployment layouts).
-    2. `<priv_dir>/ebin` -- the canonical bundled location, populated
+    2. The `_build/cure/ebin` belonging to the checkout that contains this
+       module -- the current development generation, including when Cure is a
+       path dependency of a nested project.
+    3. `<priv_dir>/ebin` -- the canonical bundled location, populated
        by `Mix.Tasks.Cure.BundleStdlibBeams`. Rides along with OTP
        releases the same way `priv/std` does.
-    3. `$CURE_HOME/priv/ebin`, then `$CURE_HOME/_build/cure/ebin` --
+    4. `$CURE_HOME/priv/ebin`, then `$CURE_HOME/_build/cure/ebin` --
        locations derived from the `CURE_HOME` environment variable.
        The `priv/ebin` form matches a fully-bundled checkout (the
        output of `mix compile`); the `_build` form matches a fresh
        development checkout that has only ever run
        `mix cure.compile_stdlib`.
-    4. `_build/cure/ebin` relative to the current working directory
+    5. `_build/cure/ebin` relative to the current working directory
        -- the legacy `mix cure.compile_stdlib` output, kept so
        checkouts that never produced a `priv/ebin/` bundle still work
        in development.
@@ -61,10 +64,15 @@ defmodule Cure.Stdlib.Paths do
   """
 
   @legacy_cwd_source Path.join(["lib", "std"])
+  @legacy_cwd_regex_source Path.join(["lib", "std_deps", "regex"])
   @legacy_cwd_beam Path.join(["_build", "cure", "ebin"])
+  @checkout_source Path.expand("../../std", __DIR__)
+  @checkout_regex_source Path.expand("../../std_deps/regex", __DIR__)
+  @checkout_beam Path.expand("../../../_build/cure/ebin", __DIR__)
 
   @cure_home_env_var "CURE_HOME"
   @cure_lib_env_var "CURE_LIB"
+  @source_dir_cache_key {__MODULE__, :source_dir}
 
   @doc """
   Return every candidate stdlib source directory that currently exists,
@@ -73,11 +81,23 @@ defmodule Cure.Stdlib.Paths do
   """
   @spec source_dirs() :: [String.t()]
   def source_dirs do
-    ([configured_source_dir()] ++
-       cure_lib_source_dirs() ++
-       [bundled_source_dir()] ++
-       cure_home_source_dirs() ++
-       [@legacy_cwd_source])
+    source_candidates()
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+    |> Enum.filter(&File.dir?/1)
+  end
+
+  @doc "Return foundational and embedded package source directories."
+  @spec all_source_dirs() :: [String.t()]
+  def all_source_dirs, do: Enum.uniq(source_dirs() ++ embedded_source_dirs())
+
+  @doc "Return source directories for embedded stdlib packages."
+  @spec embedded_source_dirs() :: [String.t()]
+  def embedded_source_dirs do
+    ([@checkout_regex_source, bundled_regex_source_dir()] ++
+       cure_home_regex_source_dirs() ++
+       launcher_home_regex_source_dirs() ++
+       [@legacy_cwd_regex_source])
     |> Enum.reject(&is_nil/1)
     |> Enum.uniq()
     |> Enum.filter(&File.dir?/1)
@@ -91,7 +111,42 @@ defmodule Cure.Stdlib.Paths do
   bundle, `:not_found` for `:doc`).
   """
   @spec source_dir() :: String.t() | nil
-  def source_dir, do: List.first(source_dirs())
+  def source_dir do
+    # Module resolution asks this for every imported spelling. Re-probing every
+    # candidate through Erlang's single file server turns parallel elaboration
+    # into a queue and can push otherwise-fast tests past ExUnit's timeout. A
+    # compiler process observes one filesystem snapshot; configuration and cwd
+    # are part of the key, so a caller that changes resolution inputs gets a
+    # fresh snapshot automatically.
+    cwd =
+      case File.cwd() do
+        {:ok, dir} -> dir
+        {:error, _} -> ""
+      end
+
+    candidates = source_candidates()
+    key = {cwd, candidates}
+
+    case Process.get(@source_dir_cache_key) do
+      {^key, source_dir} ->
+        source_dir
+
+      _missing_or_changed ->
+        source_dir = List.first(source_dirs())
+        Process.put(@source_dir_cache_key, {key, source_dir})
+        source_dir
+    end
+  end
+
+  defp source_candidates do
+    [configured_source_dir()] ++
+      cure_lib_source_dirs() ++
+      [@checkout_source] ++
+      [bundled_source_dir()] ++
+      cure_home_source_dirs() ++
+      launcher_home_source_dirs() ++
+      [@legacy_cwd_source]
+  end
 
   @doc """
   Return every candidate stdlib BEAM directory that currently exists,
@@ -105,9 +160,12 @@ defmodule Cure.Stdlib.Paths do
     ([configured_beam_dir()] ++
        cure_lib_beam_dirs() ++
        [bundled_beam_dir()] ++
+       launcher_home_beam_dirs() ++
        cure_home_beam_dirs() ++
+       [@checkout_beam] ++
        [@legacy_cwd_beam])
     |> Enum.reject(&is_nil/1)
+    |> Enum.map(&Cure.Compiler.Artifacts.Writer.resolve/1)
     |> Enum.uniq()
     |> Enum.filter(&File.dir?/1)
   end
@@ -123,6 +181,20 @@ defmodule Cure.Stdlib.Paths do
   """
   @spec beam_dir() :: String.t() | nil
   def beam_dir, do: List.first(beam_dirs())
+
+  @doc """
+  Return the stdlib artifact publication directory for a Mix environment.
+
+  Test VMs share one publication root. Its children are immutable,
+  content-addressed generations and publication is lock-serialized, so
+  concurrent suites can reuse identical interfaces without replacing files
+  another VM has loaded. Development and production builds retain the
+  historical canonical output.
+  """
+  @spec build_beam_dir(atom(), term()) :: String.t()
+  def build_beam_dir(:test, _identity), do: Path.join(["_build", "cure", "test", "ebin"])
+
+  def build_beam_dir(_environment, _identity), do: @legacy_cwd_beam
 
   @doc """
   Default destination for `Mix.Tasks.Cure.BundleStdlib` and its
@@ -165,6 +237,15 @@ defmodule Cure.Stdlib.Paths do
     case :code.priv_dir(:cure) do
       {:error, _} -> nil
       priv -> Path.join(to_string(priv), "std")
+    end
+  end
+
+  @doc false
+  @spec bundled_regex_source_dir() :: String.t() | nil
+  def bundled_regex_source_dir do
+    case :code.priv_dir(:cure) do
+      {:error, _} -> nil
+      priv -> Path.join([to_string(priv), "std_deps", "regex"])
     end
   end
 
@@ -300,6 +381,52 @@ defmodule Cure.Stdlib.Paths do
           Path.join([home, "priv", "std"]),
           Path.join([home, "lib", "std"])
         ]
+    end
+  end
+
+  @doc false
+  @spec cure_home_regex_source_dirs() :: [String.t()]
+  def cure_home_regex_source_dirs do
+    case cure_home() do
+      nil -> []
+      home -> [Path.join([home, "priv", "std_deps", "regex"]), Path.join([home, "lib", "std_deps", "regex"])]
+    end
+  end
+
+  @doc false
+  @spec launcher_home_beam_dirs(charlist() | String.t()) :: [String.t()]
+  def launcher_home_beam_dirs(script_name \\ :escript.script_name()) do
+    case launcher_home(script_name) do
+      nil -> []
+      home -> [Path.join([home, "priv", "ebin"]), Path.join([home, "_build", "cure", "ebin"])]
+    end
+  end
+
+  @doc false
+  @spec launcher_home_source_dirs(charlist() | String.t()) :: [String.t()]
+  def launcher_home_source_dirs(script_name \\ :escript.script_name()) do
+    case launcher_home(script_name) do
+      nil -> []
+      home -> [Path.join([home, "priv", "std"]), Path.join([home, "lib", "std"])]
+    end
+  end
+
+  @doc false
+  @spec launcher_home_regex_source_dirs(charlist() | String.t()) :: [String.t()]
+  def launcher_home_regex_source_dirs(script_name \\ :escript.script_name()) do
+    case launcher_home(script_name) do
+      nil -> []
+      home -> [Path.join([home, "priv", "std_deps", "regex"]), Path.join([home, "lib", "std_deps", "regex"])]
+    end
+  end
+
+  defp launcher_home(script_name) do
+    script_name = to_string(script_name)
+
+    if script_name == "" or String.starts_with?(script_name, "-") do
+      nil
+    else
+      script_name |> Path.expand() |> Path.dirname()
     end
   end
 end

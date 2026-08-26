@@ -6,6 +6,7 @@ defmodule CureMotif.MixProject do
       app: :cure_motif,
       version: "0.1.0",
       elixir: "~> 1.18",
+      lockfile: "../../mix.lock",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       aliases: aliases()

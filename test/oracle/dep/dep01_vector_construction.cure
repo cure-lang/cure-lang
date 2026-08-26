@@ -1,0 +1,7 @@
+mod Dep01
+  type Nat = Zero | Suc(Nat)
+  type Vector(a: Type) indices (n: Nat)
+    empty : Vector(a, Zero)
+    prepend : a -> Vector(a, n) -> Vector(a, Suc(n))
+  fn v2() -> Vector(Nat, Suc(Suc(Zero))) = prepend(Zero(), prepend(Suc(Zero()), empty()))
+end

@@ -1,0 +1,4 @@
+mod Rw03
+  type Nat = Z | S(Nat)
+  fn no_occurrence(p: Equivalent(Nat, Z, Z), m: Nat) -> Equivalent(Nat, m, m) = rewrite p in reflexive(m)
+end

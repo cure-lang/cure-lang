@@ -115,10 +115,10 @@ Function inlining (small pure functions) + guard simplification (algebraic rules
 - Inline at call sites during optimization pass
 - Respect recursion (never inline recursive functions)
 
-### 4b -- Monomorphization
-- At call sites where all type parameters are concrete, specialize the function
-- Generate `map__int` from `map(list: List(Int), f: Int -> Int)`
-- Eliminate type dispatch overhead
+### 4b -- Type-directed cloning experiment
+- Clone functions for concrete call-site type shapes
+- Redirect eligible calls to the clone
+- This was experimental optimizer scaffolding, not full monomorphisation
 
 ### 4c -- Guard Optimizer
 Legacy: `cure_guard_optimizer.erl` (358 lines)
@@ -255,7 +255,7 @@ management, structured error catalog) that the legacy never had.
 ## Legacy Coverage After v0.13
 
 With v0.13, the only significant unported legacy code will be:
-- `cure_type_optimizer.erl` (7,196 lines) -- the bulk is monomorphization and
+- `cure_type_optimizer.erl` (7,196 lines) -- the bulk is optimizer experiments and
   profile-guided optimization, which Phase 4 covers the essential subset of
 - Runtime interpreter (`cure_runtime.erl`, 970 lines) -- not needed since
   Cure compiles to BEAM bytecode directly

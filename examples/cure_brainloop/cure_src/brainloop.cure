@@ -1,4 +1,5 @@
 mod Brainloop
+  use Std.Result
   ## Reference Cure-side helpers for the cure_brainloop example.
   ##
   ## The full interpreter lives on the Elixir side in
@@ -17,19 +18,21 @@ mod Brainloop
   ## division by zero, otherwise `Ok(result)`.
   fn apply(op: Op, left: Int, right: Int) -> Result(Int, Atom) =
     match op
-      Add -> Ok(left + right)
-      Sub -> Ok(left - right)
-      Mul -> Ok(left * right)
-      Div ->
-        pickup
-          right == 0 -> Error(:div_zero)
-          else       -> Ok(left / right)
+      Add() -> Ok(left + right)
+      Sub() -> Ok(left - right)
+      Mul() -> Ok(left * right)
+      Div() -> divide(left, right)
+
+  local fn divide(left: Int, right: Int) -> Result(Int, Atom) =
+    pickup
+      right == 0 -> Error(:div_zero)
+      else -> Ok(left / right)
 
   ## Decide whether an op is commutative. Used for the constant-
   ## folding optimiser lifted out of the main interpreter.
   fn commutative(op: Op) -> Bool =
     match op
-      Add -> true
-      Sub -> false
-      Mul -> true
-      Div -> false
+      Add() -> true
+      Sub() -> false
+      Mul() -> true
+      Div() -> false

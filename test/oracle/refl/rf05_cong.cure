@@ -1,0 +1,5 @@
+mod Rf05
+  type Nat = Z | S(Nat)
+  fn cong({a: Type}, {x: a}, {y: a}, f: (a) -> Nat, p: Equivalent(a, x, y)) -> Equivalent(Nat, f(x), f(y)) = match p
+    reflexive() -> reflexive(f(x))
+end

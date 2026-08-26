@@ -1,63 +1,15 @@
+## Transparent FSM transaction lifecycle.
+
+use Std.Fsm
+
 fsm Transaction with Int
-  # ---------------------------------------------------------------------------
-  # Transaction lifecycle state machine.
-  #
-  # The payload is an Int tracking the number of timer ticks that have fired
-  # while awaiting confirmation (used to detect settlement timeout).
-  #
-  # State graph:
-  #   Idle  --create-->    Pending
-  #   Pending --submit-->  Submitting
-  #   Submitting --dispatch!--> Awaiting   # hard: auto-fires; sole outgoing event
-  #   Awaiting --confirm--> Settled
-  #   Awaiting --reject-->  Failed
-  #   Failed  --retry?-->   Pending        # soft: silently ignored from any other state
-  #   *       --cancel?-->  Cancelled      # soft wildcard: silently ignored if already terminal
-  #
-  # Hard event  dispatch! : auto-fires when the FSM enters Submitting because
-  #   it is the sole outgoing event from that state.  Represents the instant the
-  #   payment request is dispatched to a payment processor.
-  #
-  # Soft event  retry?  : fails silently from Settled/Cancelled/Awaiting --
-  #   no error, no on_failure call.
-  #
-  # Soft event  cancel? : wildcard; silently no-ops from terminal states
-  #   (Settled, Cancelled) so callers can cancel speculatively.
-  #
-  # on_timer fires every 30 s while the FSM is alive.  When the state is
-  #   :awaiting, it immediately sends a :reject transition to prevent the
-  #   transaction from blocking indefinitely.
-  # ---------------------------------------------------------------------------
-
-  Idle        --create-->    Pending
-  Pending     --submit-->    Submitting
-  Submitting  --dispatch!--> Awaiting
-  Awaiting    --confirm-->   Settled
-  Awaiting    --reject-->    Failed
-  Failed      --retry?-->    Pending
-  *           --cancel?-->   Cancelled
-
-  @timer 30000
-
-  on_enter
-    (:awaiting, _) -> :ok
-    (:settled, _)  -> :ok
-    (:failed, _)   -> :ok
-    (_, _)         -> :ok
-
-  on_failure
-    (_, _, _) -> :ok
-
-  on_timer
-    (:awaiting, _) -> %[:transition, :reject, 0]
-    (_, _)         -> :ok
-
-  on_transition
-    (:idle,        :create,   _payload, _data) -> %[:ok, :pending,    0]
-    (:pending,     :submit,   _payload,  data) -> %[:ok, :submitting, data]
-    (:submitting,  :dispatch, _payload,  data) -> %[:ok, :awaiting,   data]
-    (:awaiting,    :confirm,  _payload,  data) -> %[:ok, :settled,    data]
-    (:awaiting,    :reject,   _payload, _data) -> %[:ok, :failed,     0]
-    (:failed,      :retry,    _payload, _data) -> %[:ok, :pending,    0]
-    (_,            :cancel,   _payload,  data) -> %[:ok, :cancelled,  data]
-    (_,            _,         _,         data) -> %[:ok, :__same__,   data]
+  Idle --create--> Pending
+  Pending --submit--> Awaiting
+  Awaiting --confirm--> Settled
+  Awaiting --reject--> Failed
+    update 0
+  Failed --retry--> Pending
+    update 0
+  Awaiting --on_timer--> Failed
+    update 0
+  * --cancel--> Cancelled

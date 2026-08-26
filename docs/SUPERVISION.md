@@ -1,217 +1,197 @@
 # Typed Supervision Trees
-Cure 0.25.0 introduces typed actors, supervision trees, and a typed
-send operator --- the Melquiades Operator --- on top of OTP.
 
-The surface consists of four pieces:
+`actor` and `sup` are standard-library macros living in `Std.Actor` and
+`Std.Supervisor`. Neither is ambient: a unit that declares one must `use` the
+module it comes from. Each expands to an ordinary lifted module and is checked
+and emitted through the common Cure pipeline. OTP behavior knowledge belongs in
+these Cure definitions and the checked `Std.Otp` algebra, not in a bespoke
+compiler object class.
 
-1. The Melquiades Operator `<-|` (unicode alias `✉`) for sending a
-   message to a pid.
-2. `actor` containers that compile to OTP `GenServer` modules with
-   exhaustiveness-checked message handlers.
-3. `sup` containers that compile to OTP `Supervisor` behaviour modules
-   with compile-time structural verification.
-4. Stdlib modules `Std.Actor`, `Std.Process`, `Std.Supervisor` that
-   expose the runtime from Cure source.
-
-Together they turn Cure into a first-class language for writing
-supervision trees without dropping into Elixir or Erlang.
-
-## The Melquiades Operator
-`pid <-| message` sends `message` to `pid`. The ASCII spelling and
-its unicode alias are interchangeable:
-```
-pid <-| :hello
-pid ✉  :hello
-```
-Both forms lower to Erlang's `!` operator, so the runtime semantics
-are identical to `erlang:send/2`: the call is non-blocking, returns
-the message it sent, and never raises for a dead receiver.
-
-The operator is a statement expression, so it chains cleanly:
-```
-let ack = actor_pid <-| {:ping, self()}
-```
-The name "Melquiades" honors the ghost-mailman of *One Hundred Years
-of Solitude*, who keeps delivering letters even after his own death.
-The arrow points into the inbox on the left: `pid <-| message` reads
-"the pid gets this message".
-
-The operator is `non-associative` and binds one notch below `|>`, so
-pipelines feed into sends naturally:
-```
-request
-|> encode()
-|> actor_pid <-| _          # equivalent to actor_pid <-| encode(request)
-```
-### Keyword form
-`send pid, message` is a synonymous statement form kept for
-backward compatibility and for `Std.Fsm` clients. It desugars to the
-same `{:send, ...}` MetaAST node as `<-|`, so round-trip printing
-preserves the original form.
-
-## Actors
-An `actor` container declares a typed process:
-```
-actor Counter with 0
-  on_start
-    (state) -> state
-  on_message
-    (:inc, n)   -> n + 1
-    (:dec, n)   -> n - 1
-    (:get, n)   -> notify({:value, n}); n
-  on_stop
-    (reason, _state) -> notify({:stopped, reason})
-```
-* `with <expr>` seeds the actor's initial payload. Omit it and the
-  payload starts as `nil`.
-* `on_start/on_message/on_stop` each accept one or more clauses; the
-  clause syntax mirrors `on_transition` in FSMs. The first argument
-  of an `on_message` clause is the inbox message, the second is the
-  current payload.
-* Inside any clause, `notify(message)` sends to the process that
-  spawned the actor. `actor_self()` returns the actor's own pid.
-* The return value of an `on_message` clause becomes the actor's new
-  payload. Returning a plain `%Cure.Actor.State{}` struct replaces
-  the entire runtime state instead.
-
-Each `actor Counter` container compiles to a loaded BEAM module
-named `Cure.Actor.Counter`. The module is a regular `GenServer`:
-```
-iex> :"Cure.Actor.Counter".start_link(0)
-{:ok, #PID<...>}
-iex> send(pid, :inc)
-iex> :"Cure.Actor.Counter".get_state(pid)
-1
-```
-For user code, prefer `Std.Actor.spawn/1` and the `<-|` operator:
-```
-let pid = Std.Actor.spawn(:"Cure.Actor.Counter")
-pid <-| :inc
-pid <-| :inc
-let current = Std.Actor.get_state(pid)      # => 2
-let _       = Std.Actor.stop(pid)
-```
-### Inbox types (preview)
-The type system reserves `Pid(Inbox)` and `Ref` primitives so future
-releases can extend the checker to unify message types against the
-receiver's declared inbox. Today, `Pid` alone elaborates to
-`{:pid, :any}`, which is the safe top of the covariant `Pid` family:
-everything accepted by any inbox is accepted by `Pid`, so existing
-FFI code keeps type-checking.
+Both macros name a lifted module, and they name it the way `mod` does: you write
+`sup Root`, and the emitter is the one that decides what the loaded BEAM module
+is called. Other Cure code refers to it by the name you wrote.
 
 ## Supervisors
-A `sup` container declares a supervisor module:
-```
-sup App.Root
-  strategy  = :one_for_one
-  intensity = 3
-  period    = 5
+
+A supervisor is a name and at least one child. `children` is not optional:
+
+```cure
+use Std.Supervisor
+
+sup Root
   children
-    Counter as counter
-    Counter as counter_b (restart: :transient)
-    App.External as external (restart: :permanent, shutdown: 10000)
-    sup Workers as workers
+    worker Counter as counter
 ```
-Settings (`strategy`, `intensity`, `period`) are top-level assignments
-within the body and default to `:one_for_one`, `3`, and `5`. The
-`children` block introduces one child spec per line.
 
-A child spec takes the form:
+Each child names its kind (`worker` or `supervisor`), the module that
+implements it, and the identity it is known by inside the tree. `restart` and
+`shutdown` are optional per child, and the tree's own policy is three optional
+clauses:
+
+```cure
+use Std.Supervisor
+
+sup Tree
+  strategy OneForOne()
+  intensity 5
+  period more(9)
+  children
+    worker Counter as counter
+      restart Permanent()
+      shutdown Timeout(5000)
+    supervisor Subtree as subtree
+      restart Transient()
 ```
-Module as child_id
-Module as child_id (restart: ..., shutdown: ..., kind: ...)
+
+`period` takes a `Positive`, which is `One | More(Nat)` -- `more(9)` is 10, and
+`one()` is 1. There is no way to write a zero or negative period, which is the
+point: OTP rejects both at run time, and here they are unrepresentable.
+`intensity` is an ordinary `Nat` literal.
+
+Two children may not share an identity. `sup` rejects that at expansion time
+with `duplicate_supervisor_child_identity` rather than deferring it to the
+supervisor's own start-up.
+
+### Child specs by hand
+
+The macro's `children` clause is the ordinary way to build a tree, but the
+underlying vocabulary is public. `Restart`, `Shutdown`, `ChildType`, and
+`Strategy` are closed Cure values rather than arbitrary atoms:
+
+```cure
+mod Specs
+  use Std.Supervisor
+
+  fn defaults() -> ChildSpec = child(:counter_mod, :counter)
+
+  fn explicit() -> ChildSpec =
+    child_with(:counter_mod, :counter, permanent(), shutdown_after(5000), worker())
+
+  fn subtree() -> ChildSpec =
+    child_with_raw_args(
+      :subtree_mod,
+      :subtree,
+      empty_raw_args(),
+      transient(),
+      brutal_shutdown(),
+      supervisor()
+    )
 ```
-The module path is resolved with two conventions and one escape
-hatch:
 
-* A dotted module path (`App.Gateway`) is used as-is and becomes the
-  atom `:"App.Gateway"`.
-* An undotted name (`Counter`) resolves to `:"Cure.Actor.Counter"`
-  (for workers) or `:"Cure.Sup.Counter"` (for a child introduced with
-  `sup Name as id`).
-* Prefix the child with the soft keyword `sup` to flip the default
-  from worker to supervisor lookup: `sup Workers as workers`.
+`child/2` is `child_with` at OTP's own defaults: permanent, a 5000ms shutdown,
+and worker. The module and identity are plain atoms here, not module paths --
+Cure has no quoted-atom literal, so a generated module is named by the atom the
+emitter gave it.
 
-The supervisor compiler runs `Cure.Sup.Verifier` automatically.
-Verification checks:
+The generated `init/1` callback returns the standard supervisor strategy and
+child-spec structure, built from exactly these values.
 
-* Strategy is one of the four recognised atoms.
-* Intensity is a non-negative integer.
-* Period is a positive integer.
-* All child ids are unique within the supervisor.
-* Each child spec's `restart` (if specified) is one of
-  `:permanent`, `:transient`, `:temporary`.
-* Each child spec's `shutdown` is `:brutal_kill`, `:infinity`, or a
-  positive integer.
-* The supervisor does not list itself as a direct child
-  (trivial cycle).
+## Actors
 
-A verification failure stops codegen with a
-`{:codegen_error, {:sup_verification_failed, errors}}` result; see
-the error codes below.
+An actor creates a lifted `gen_server` module. `state` is the only required
+clause; the rest of the family -- `initial`, `messages`, `init`, `on_start`,
+`on_message`, `on_cast`, `on_info`, `handle_cast`, `handle_info`, `terminate`,
+`on_stop`, `code_change`, `body`, and `on_call` queries -- is optional, and the
+shape of what you supply chooses how the module is derived.
 
-## Runtime
-`Cure.Sup.Runtime` wraps the compiled modules with a small
-ETS-backed registry so a tree can be reached by module atom. The
-table is created lazily on first use:
+The raw form splices full GenServer callback results verbatim, which is what
+lets value-equality dispatch and `pickup`/`else` appear where the structured
+surface cannot express them:
+
 ```
-{:ok, _pid} = Cure.Sup.Runtime.start(:"Cure.Sup.App.Root")
-Cure.Sup.Runtime.which_children(:"Cure.Sup.App.Root")
-:ok = Cure.Sup.Runtime.stop(:"Cure.Sup.App.Root")
+actor Clock state Int initial 0 messages Atom handle_cast
+  pickup
+    message == :tick -> %[:noreply, state + 1]
+    message == :reset -> %[:noreply, 0]
+    else -> %[:noreply, state]
 ```
-From Cure, use `Std.Supervisor`:
+
+Synchronous calls are declared as typed queries, each naming its request, its
+parameters, and the type of its reply:
+
+```cure
+use Std.Actor
+
+actor Counter
+  state Int
+  initial 0
+  on_call Value() returns Int
+    reply state
+  on_call Bump(step: Int) returns Int
+    reply state + step
+    update state + step
 ```
-let tree = :"Cure.Sup.App.Root"
-let _pid = Std.Supervisor.start(tree)
-let kids = Std.Supervisor.which_children(tree)
-let _    = Std.Supervisor.stop(tree)
+
+`reply` is what the caller receives; the optional `update` is the state the
+actor keeps. The generated module exports the normal `gen_server` callbacks
+plus a checked `start_link`, a typed `start`, `send`, `request`, and `stop`.
+
+A request name is a constructor of the generated `Request` family, so it is
+capitalised, and the adapter the caller uses is its downcased form -- `Value()`
+gives `value/1`, `Bump(step: Int)` gives `bump/2`. Spelling the request itself
+in lower case makes the constructor and its own adapter the same name, and the
+lifted module is rejected with `constructor_function_collision`.
+
+> **Known gap.** The raw fence above is shown unchecked because the one-line
+> positional form does not parse from a unit that only says `use Std.Actor`;
+> `actor Clock state ...` is rejected with a macro-syntax mismatch on the name.
+> The example packages that use this form compile it through their own preload.
+> The query fence beside it is checked and does describe emitted code.
+
+Callback results are checked as erased `Effect(...)` values. Pure values are
+lifted automatically, while `beam_ops` expressions must satisfy the ordinary
+process algebra.
+
+## The BEAM Algebra
+
+Process operations are expressed with `beam_ops` and checked `Std.Otp`
+functions:
+
+```cure
+mod ProcessUser
+  use Std.Otp
+
+  fn me() -> Effect(Pid(Atom)) = beam_ops self
+  fn tell(pid: Pid(Atom)) -> Effect(Unit) = beam_ops tell pid :ping
 ```
-Actor instances live in `Cure.Actor.Runtime`, a GenServer supervised
-by `Cure.Supervisor`. It tracks spawned actors, auto-cleans up on
-`DOWN`, and exposes `list_actors/0` for introspection.
 
-## Links and Monitors
-`Std.Process` exposes the raw BEAM process primitives directly:
+The message and reply indices are static only and erase to ordinary BEAM pids
+and terms. The raw extern boundary is isolated in `Std.Otp.Raw`.
 
-* `link/1`, `unlink/1`
-* `monitor/1` -> returns a `Ref`
-* `demonitor/1`
-* `trap_exit/1`
-* `exit/2`
-* `self/0`, `is_alive/1`
+## Runtime Helpers
 
-`link` / `monitor` / `trap_exit` go through small wrappers in
-`Cure.Process.Builtins` so the Cure signatures can stay idiomatic
-(`(Pid) -> Ref` rather than the two-argument erlang BIFs).
+Starting and stopping a tree is done through the module the macro generated,
+not through `Std.Supervisor` -- that module holds the vocabulary, while the
+generated one holds the running tree:
 
-## Error codes
-The new codes are catalogued in `Cure.Compiler.Errors`:
+```cure
+mod Driver
+  use Std.Supervisor
+  use Std.Otp
+  use Std.ExitReason
 
-* **E045 Untyped Send** --- `<-|` on a bare `Pid` in strict mode.
-* **E046 Inbox Mismatch** --- message not a subtype of the pid's inbox.
-* **E047 Supervisor Unknown Child** --- child resolves to no module.
-* **E048 Supervisor Cycle** --- supervisor references itself.
-* **E049 Actor Handler Non-Exhaustive** --- `on_message` misses an
-  inbox variant.
-* **E050 Invalid Supervisor Strategy** --- unknown strategy, restart,
-  or shutdown.
+  sup Tree
+    strategy OneForOne()
+    children
+      worker Counter as counter
 
-Run `cure explain E048` (or any code) for the full catalog text.
+  fn boot() -> Effect(Tuple) = Tree.start_link()
 
-## Example
-See `examples/cure_colony/` for a minimal supervision tree: a root
-supervisor, a worker actor, and an echo actor that exchange messages
-through `<-|`. For a fully-fledged OTP application built on the same
-primitives -- a root supervisor wrapped by an `app` container, four
-actors cooperating through typed sends, start-phase-driven cache
-warm-up, and a buildable BEAM release -- see
-`examples/cure_forge/`.
+  fn typed() -> Effect(StartResult(Tree.Handle)) = Tree.start()
 
-## See also
-With Cure 0.26.0 the `app` container ties an entire supervision tree
-to a single OTP application, and `cure release` packages it as a
-bootable BEAM release. See [`docs/APP.md`](APP.md) for the full
-surface (grammar, `Cure.toml` `[application]` / `[release]`
-sections, error codes `E051` -- `E055`, runner script), and
-[`examples/cure_forge/`](../examples/cure_forge) for the canonical
-end-to-end showcase.
+  fn halt(tree: Tree.Handle) -> Effect(Unit) =
+    Tree.stop(tree, Normal())
+```
+
+`start_link/0` is the raw OTP startup tuple; `start/0` narrows it to
+`StartResult(Handle)`, where `Handle` is the tree's own alias for a supervisor
+handle. Both route to `Std.Otp.start_supervisor` / `start_typed_supervisor`,
+the same checked effect path the generated `app` module's `start/2` uses.
+
+## Transparency
+
+The macro expansion contains no `__otp_container`, raw-source compilation, or
+direct code-server load. Nested macros and callback bodies are recursively
+parsed and elaborated before the generic lifted-module emitter writes BEAM
+forms. New user-defined actor-like abstractions can use the same `lift module`,
+`callback`, and algebra vocabulary without compiler changes.

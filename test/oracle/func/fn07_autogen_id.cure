@@ -1,0 +1,5 @@
+mod Fn07
+  type Nat = Zero | Suc(Nat)
+  fn id(x: a) -> a = x
+  fn g() -> Nat = id(Suc(Zero()))
+end

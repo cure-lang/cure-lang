@@ -1,3 +1,4 @@
+@group(:system)
 mod Std.CRDT
   ## Conflict-free Replicated Data Types for Cure (v0.27.0).
   ##
@@ -8,9 +9,11 @@ mod Std.CRDT
   ##   2. `merge(a, merge(b, c)) == merge(merge(a, b), c)` (associative)
   ##   3. `merge(a, a) == a`                (idempotent)
   ##
-  ## The laws are asserted in the companion `Std.Proof` obligations
-  ## emitted by `lib/std/crdt.cure` when re-checked; the runtime
-  ## implementation in `:cure_std_crdt` is hand-verified against them.
+  ## The runtime implementation in `:cure_std_crdt` is intended to
+  ## satisfy those laws, but Cure does not yet emit trusted Core proof
+  ## obligations for CRDTs. For genuine kernel-checked equality proofs,
+  ## see `Std.Proof` (arithmetic laws over `Std.Nat`) and `Std.Equivalent`
+  ## (the propositional-equality combinators).
   ##
   ## Types included:
   ##
@@ -38,41 +41,39 @@ mod Std.CRDT
   ## use Std.CRDT
   ##
   ## # Add-then-remove is commutative under concurrent updates.
-  ## let s0 = or_add(or_empty(), :n1, "x")
-  ## let s1 = or_add(s0, :n1, "y")
+  ## # Each add on replica :n1 carries a tag :n1 has not used before.
+  ## let s0 = or_add(or_empty(), :n1, 1, "x")
+  ## let s1 = or_add(s0, :n1, 2, "y")
   ## or_value(or_remove(s1, "x"))            # => ["y"]
   ## ```
 
   ## Group tag consumed by `Cure.Stdlib.Preload`.
-  fn __group__() -> Atom = :system
+  # Every CRDT value is an opaque handle to runtime state owned by the
+  # `:cure_std_crdt` backend: the whole module is `@extern`, and no Cure code
+  # constructs or projects these types. They are therefore `opaque type`
+  # carriers (Agda `postulate` — inhabited, non-eliminable), not records. The
+  # earlier `rec X\n field: t` spelling left `t` a free, undeclared type
+  # variable, which the dependent elaborator (correctly) rejects.
 
   ## Grow-only counter. Per-replica counts are summed on read.
-  rec GCounter
-    counts: T
+  opaque type GCounter
 
   ## Positive/negative counter -- two `GCounter`s, one for increments
   ## and one for decrements. `pn_value` returns `sum(p) - sum(n)`.
-  rec PNCounter
-    p: GCounter
-    n: GCounter
+  opaque type PNCounter
 
   ## Observed-remove set: each element carries the set of unique tags
   ## attributed to its addition; removals drop exactly the tags the
   ## remover has observed.
-  rec ORSet
-    entries: T
+  opaque type ORSet
 
   ## Last-write-wins register. Merges pick the side with the higher
   ## timestamp; ties break on node id.
-  rec LWWRegister
-    value: T
-    stamp: Int
-    node: Atom
+  opaque type LWWRegister
 
   ## Multi-value register. When two writes are concurrent, both are
   ## retained so the caller can resolve the conflict.
-  rec MVRegister
-    writes: T
+  opaque type MVRegister
 
   # -- GCounter ---------------------------------------------------------------
 
@@ -82,7 +83,7 @@ mod Std.CRDT
 
   ## Increment `c` by `by` on replica `node` (positive numbers only).
   @extern(:cure_std_crdt, :g_increment, 3)
-  fn g_increment(c: GCounter, node: Atom, by: Int) -> GCounter
+  fn g_increment({replica: Type}, c: GCounter, node: replica, by: Int) -> GCounter
 
   ## Current value of the `GCounter`: sum of per-replica counts.
   @extern(:cure_std_crdt, :g_value, 1)
@@ -100,11 +101,11 @@ mod Std.CRDT
 
   ## Increment by `by` on replica `node`.
   @extern(:cure_std_crdt, :pn_increment, 3)
-  fn pn_increment(c: PNCounter, node: Atom, by: Int) -> PNCounter
+  fn pn_increment({replica: Type}, c: PNCounter, node: replica, by: Int) -> PNCounter
 
   ## Decrement by `by` on replica `node`.
   @extern(:cure_std_crdt, :pn_decrement, 3)
-  fn pn_decrement(c: PNCounter, node: Atom, by: Int) -> PNCounter
+  fn pn_decrement({replica: Type}, c: PNCounter, node: replica, by: Int) -> PNCounter
 
   ## Current value: `sum(p) - sum(n)`.
   @extern(:cure_std_crdt, :pn_value, 1)
@@ -120,19 +121,20 @@ mod Std.CRDT
   @extern(:cure_std_crdt, :or_empty, 0)
   fn or_empty() -> ORSet
 
-  ## Add `elem` to the set on replica `node`; tags the addition with a
-  ## fresh unique identifier so it survives a concurrent remove.
-  @extern(:cure_std_crdt, :or_add, 3)
-  fn or_add(s: ORSet, node: Atom, elem: T) -> ORSet
+  ## Add `elem` to the set on replica `node`, identifying the addition
+  ## with `tag` so it survives a concurrent remove. `tag` must never be
+  ## reused for the same `node` — see `lww_set`'s `stamp`.
+  @extern(:cure_std_crdt, :or_add, 4)
+  fn or_add({replica: Type}, s: ORSet, node: replica, tag: Int, elem: t) -> ORSet
 
   ## Remove `elem` from the set; only removes tags this replica has
   ## observed, so concurrent re-adds from other replicas are retained.
   @extern(:cure_std_crdt, :or_remove, 2)
-  fn or_remove(s: ORSet, elem: T) -> ORSet
+  fn or_remove(s: ORSet, elem: t) -> ORSet
 
   ## List of current elements.
   @extern(:cure_std_crdt, :or_value, 1)
-  fn or_value(s: ORSet) -> List(T)
+  fn or_value(s: ORSet) -> List(t)
 
   ## Merge two `ORSet`s via tag union.
   @extern(:cure_std_crdt, :or_merge, 2)
@@ -142,15 +144,17 @@ mod Std.CRDT
 
   ## Empty `LWWRegister` bound to `node`.
   @extern(:cure_std_crdt, :lww_empty, 1)
-  fn lww_empty(node: Atom) -> LWWRegister
+  fn lww_empty({replica: Type}, node: replica) -> LWWRegister
 
   ## Write `value` with timestamp `stamp` from replica `node`.
   @extern(:cure_std_crdt, :lww_set, 4)
-  fn lww_set(r: LWWRegister, value: T, stamp: Int, node: Atom) -> LWWRegister
+  fn lww_set({replica: Type}, r: LWWRegister, value: t, stamp: Int, node: replica) -> LWWRegister
 
-  ## Current value of the register.
+  ## Current value of the register, or `None()` if nothing has been written.
+  ## An empty register has no `t` to return; it used to hand back the atom
+  ## `:empty` under a declared `-> t`.
   @extern(:cure_std_crdt, :lww_value, 1)
-  fn lww_value(r: LWWRegister) -> T
+  fn lww_value(r: LWWRegister) -> Option(t)
 
   ## Merge by selecting the side with the higher timestamp; ties
   ## break on node id.
@@ -166,11 +170,11 @@ mod Std.CRDT
   ## Write `value` on replica `node` with timestamp `stamp`; concurrent
   ## writes are retained.
   @extern(:cure_std_crdt, :mv_write, 4)
-  fn mv_write(r: MVRegister, value: T, stamp: Int, node: Atom) -> MVRegister
+  fn mv_write({replica: Type}, r: MVRegister, value: t, stamp: Int, node: replica) -> MVRegister
 
   ## List of currently-live values.
   @extern(:cure_std_crdt, :mv_values, 1)
-  fn mv_values(r: MVRegister) -> List(T)
+  fn mv_values(r: MVRegister) -> List(t)
 
   ## Merge by taking the union of non-dominated writes.
   @extern(:cure_std_crdt, :mv_merge, 2)

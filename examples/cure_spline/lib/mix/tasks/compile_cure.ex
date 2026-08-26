@@ -26,20 +26,28 @@ defmodule Mix.Tasks.CompileCure do
       end
 
       Application.ensure_all_started(:cure)
+      preload_stdlib!()
 
       Enum.each(cure_files, fn path ->
         case Cure.Compiler.compile_file(path,
                output_dir: @output_dir,
                emit_events: false,
-               check_types: false
+               check_types: true
              ) do
           {:ok, module, _warnings} ->
             Mix.shell().info("Compiled #{path} -> #{module}")
 
           {:error, reason} ->
-            Mix.shell().error("Failed to compile #{path}: #{inspect(reason)}")
+            Mix.raise("Failed to compile #{path}: #{inspect(reason)}")
         end
       end)
+    end
+  end
+
+  defp preload_stdlib! do
+    case Cure.Stdlib.Preload.preload(kind: :all) do
+      :ok -> :ok
+      {:error, reason} -> Mix.raise("Failed to load Cure stdlib: #{inspect(reason)}")
     end
   end
 end

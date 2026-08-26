@@ -1,0 +1,57 @@
+## A list that is *guaranteed* to hold at least one element.
+##
+## A `NonEmpty(T)` is a first element (its `head`) followed by an ordinary
+## `List(T)` tail. Because the head is always present, `head`/`tail` are
+## total — there is no "empty non-empty list" to guard against, so callers
+## never have to handle a missing-first-element case.
+##
+## Go the other way with `from_list`, which returns an `Option` because an
+## ordinary list *might* be empty.
+##
+## ## Examples
+##
+## ```cure
+## use Std.NonEmpty
+##
+## head(singleton(7))                       # => 7
+## to_list(push(0, singleton(1)))           # => [0, 1]
+## from_list([1, 2, 3])                     # => Some(NonEmpty(1, [2, 3]))
+## from_list([])                            # => None()
+## ```
+
+# Group tag consumed by `Cure.Stdlib.Preload`.
+## A first element (`head`) and everything after it (`tail`, possibly empty).
+
+@group(:collections)
+mod Std.NonEmpty
+  use Std.List
+  type NonEmpty(t) = NonEmpty(t, List(t))
+
+  ## A non-empty list of exactly one element.
+  fn singleton(x: t) -> NonEmpty(t) = NonEmpty(x, [])
+
+  ## The guaranteed-present first element.
+  fn head(ne: NonEmpty(t)) -> t = match ne
+    NonEmpty(h, _) -> h
+
+  ## Everything after the head (may be empty).
+  fn tail(ne: NonEmpty(t)) -> List(t) = match ne
+    NonEmpty(_, t) -> t
+
+  ## Forget the non-emptiness guarantee: view as an ordinary `List(T)`.
+  fn to_list(ne: NonEmpty(t)) -> List(t) = match ne
+    NonEmpty(h, t) -> [h | t]
+
+  ## Prepend `x`, which becomes the new head.
+  fn push(x: t, ne: NonEmpty(t)) -> NonEmpty(t) = match ne
+    NonEmpty(h, t) -> NonEmpty(x, [h | t])
+
+  ## Apply `f` to every element, preserving non-emptiness.
+  fn map(ne: NonEmpty(t), f: t -> u) -> NonEmpty(u) = match ne
+    NonEmpty(h, t) -> NonEmpty(f(h), Std.List.map(t, f))
+
+  ## Build a `NonEmpty(T)` from an ordinary list — `Some` when it has a head,
+  ## `None` when the list is empty.
+  fn from_list(xs: List(t)) -> Option(NonEmpty(t)) = match xs
+    [] -> None()
+    [h | t] -> Some(NonEmpty(h, t))

@@ -1,67 +1,732 @@
+## The structured actor surface is a source-defined family.
+
+@group(:concurrency)
 mod Std.Actor
-  ## Typed-actor runtime operations: spawn, stop, send, introspect.
+  use Std.Syntax
+  use Std.List
+  use Std.Option
+  use Std.String
+  use Std.ActorBehavior
+
+  macro actor <name: ModuleName>
+    syntax family ActorQueryDefinition
+      syntax on_call <request: Name> (<parameters: Parameters>) returns <reply_type: Type>
+      reply Expression
+      optional update Expression
+    syntax family ActorDefinition
+      state Type
+      optional messages Type
+      optional initial Expression
+      optional init Code
+      optional on_start Expression
+      optional on_message Cases
+      optional on_cast Cases
+      repeated queries ActorQueryDefinition
+      optional on_info Cases
+      optional handle_cast Code
+      optional handle_info Code
+      optional terminate Code
+      optional on_stop Expression
+      optional code_change Code
+      optional body Declarations
+    accepts ActorDefinition
+    expands with derive_actor_family
+
+  fn derive_actor_family(name: ModuleNameSyntax, definition: ActorDefinitionSyntax) -> Syntax = match definition.on_message
+    Some(message_cases) -> derive_actor_family_cases(name, definition, message_cases)
+    None() -> match definition.on_cast
+      None() -> derive_actor_family_raw(name, definition)
+      Some(cast_cases) -> derive_actor_family_cases(name, definition, cast_cases)
+
+  ## The derived (Cases) branch of the family: `on_cast` arms are reflected into
+  ## a message type and each arm body is wrapped in the GenServer `:noreply`
+  ## result. Byte-identical to the pre-1e emitter — this path feeds the
+  ## GDerived/GStructuredCall/GLifecycle byte-identical goldens.
+  fn derive_actor_family_cases(name: ModuleNameSyntax, definition: ActorDefinitionSyntax, cast_cases: Syntax) -> Syntax =
+    let body = Node(:pattern_match, [], [variable("message") | children(cast_cases)])
+    let call_body = actor_query_body(definition.queries)
+    let info_body = match definition.on_info
+      None() -> Raw(SOpaque)
+      Some(value) -> Node(:pattern_match, [], [variable("message") | children(value)])
+    let terminate_body = derive_actor_stop(definition.on_stop, definition.terminate)
+    let code_change_body = match definition.code_change
+      None() -> Raw(SOpaque)
+      Some(value) -> value
+    let extra_declarations = optional_declarations(definition.body)
+    let init_spec = derive_actor_init(definition.state, definition.initial, definition.init, definition.on_start)
+    let name_syntax: Syntax = name
+    let module_name: SynLit = match name_syntax
+      Leaf(_, _, SAtom(value)) -> SAtom(value)
+      _ -> SStr("Cure.Generated.Actor")
+    let module_expr: Syntax = match name_syntax
+      Leaf(_, _, SAtom(value)) -> atom_literal(value)
+      _ -> atom_literal(:generated_actor)
+    match derive_pattern_heads(body)
+      InvalidHeads(reason) -> Failure(reason, [])
+      Heads(heads) ->
+        let message_type = match definition.messages
+          None() -> variable("ActorMessage")
+          Some(value) -> value
+        let message_declarations = match definition.messages
+          None() -> [enum_type("ActorMessage", heads)]
+          Some(_) -> []
+        match definition.queries
+          [] -> emit_actor_parts(module_name, module_expr, definition.state, init_spec, message_type, message_declarations, body, info_body, terminate_body, code_change_body, heads, extra_declarations, true, false)
+          queries ->
+            let request_heads = actor_query_variants(queries)
+            let reply_family = actor_reply_family(queries)
+            let query_handle = call("Std.Otp.DepActorServer", [variable("Message"), variable("Request"), variable("ReplyOf")])
+            let query_adapters = actor_query_adapters(queries, query_handle)
+            emit_actor_dep_call_parts(module_name, module_expr, definition.state, init_spec, message_type, message_declarations, body, call_body, info_body, terminate_body, code_change_body, request_heads, variable("ReplyOf"), append([reply_family], append(query_adapters, extra_declarations)))
+
+  ## The Tier-0 raw branch of the family: `handle_cast`/`handle_info` bodies are
+  ## full GenServer callback results spliced verbatim (no `:noreply` wrapping,
+  ## no message-type derivation). Value-equality dispatch, `pickup`/`else`, and
+  ## guards that the Cases surface cannot express live here. All raw positional
+  ## rules can funnel into this one emitter instead of re-spelling a module.
+  fn derive_actor_family_raw(name: ModuleNameSyntax, definition: ActorDefinitionSyntax) -> Syntax =
+    let name_syntax: Syntax = name
+    let module_name: SynLit = match name_syntax
+      Leaf(_, _, SAtom(value)) -> SAtom(value)
+      _ -> SStr("Cure.Generated.Actor")
+    let module_expr: Syntax = match name_syntax
+      Leaf(_, _, SAtom(value)) -> atom_literal(value)
+      _ -> atom_literal(:generated_actor)
+    let init_spec = derive_actor_init(definition.state, definition.initial, definition.init, definition.on_start)
+    let extra_declarations = optional_declarations(definition.body)
+    let cast_body = match definition.handle_cast
+      None() -> quote %[:noreply, state]
+      Some(value) -> value
+    let info_body = match definition.handle_info
+      None() -> Raw(SOpaque)
+      Some(value) -> value
+    let terminate_body = derive_actor_stop(definition.on_stop, definition.terminate)
+    let code_change_body = match definition.code_change
+      None() -> Raw(SOpaque)
+      Some(value) -> value
+    let message_aliased = match definition.messages
+      None() -> false
+      Some(_) -> true
+    let message_type = match definition.messages
+      None() -> variable("m")
+      Some(value) -> value
+    match definition.queries
+      [] -> emit_actor_parts(module_name, module_expr, definition.state, init_spec, message_type, [], cast_body, info_body, terminate_body, code_change_body, [], extra_declarations, message_aliased, true)
+      queries -> derive_actor_family_raw_queries(module_name, module_expr, definition, init_spec, cast_body, info_body, terminate_body, code_change_body, extra_declarations, queries)
+
+  ## The raw branch's query dispatch, mirroring the Cases branch's own
+  ## `match definition.queries`. Without this an actor whose only synchronous
+  ## surface is `on_call` -- no `on_message`, no `on_cast`, so it lands here --
+  ## had its queries dropped in silence: no `handle_call/3`, no `Handle`, no
+  ## adapters, and a module that still compiled clean.
   ##
-  ## Runtime-facing surface for actor modules compiled from `actor`
-  ## containers. Every function here delegates to
-  ## `Cure.Actor.Builtins`, which calls `Cure.Actor.Runtime`.
-  ## Spawning captures the caller as the actor's `:caller`.
+  ## `Message` is `Unit` rather than the raw branch's free `m` because the
+  ## dependent emitter aliases the message type at module scope, where a free
+  ## type variable elaborates to :unknown_global. An actor that declares no cast
+  ## surface accepts no casts, which is exactly what `Unit` says; a raw
+  ## `handle_cast` alongside queries should name its inbox with `messages`.
+  fn derive_actor_family_raw_queries(module_name: SynLit, module_expr: Syntax, definition: ActorDefinitionSyntax, init_spec: ActorInitSpec, cast_body: Syntax, info_body: Syntax, terminate_body: Syntax, code_change_body: Syntax, extra_declarations: List(Syntax), queries: List(ActorQueryDefinitionSyntax)) -> Syntax =
+    let message_type = match definition.messages
+      None() -> variable("Unit")
+      Some(value) -> value
+    let call_body = actor_query_body(queries)
+    let request_heads = actor_query_variants(queries)
+    let reply_family = actor_reply_family(queries)
+    let query_handle = call("Std.Otp.DepActorServer", [variable("Message"), variable("Request"), variable("ReplyOf")])
+    let query_adapters = actor_query_adapters(queries, query_handle)
+    emit_actor_dep_call_parts(module_name, module_expr, definition.state, init_spec, message_type, [], cast_body, call_body, info_body, terminate_body, code_change_body, request_heads, variable("ReplyOf"), append([reply_family], append(query_adapters, extra_declarations)))
+
+  ## State-polymorphic sibling of `derive_actor_family_raw` for STATELESS actor
+  ## forms. Structurally identical, but the state stays polymorphic: it uses
+  ## `derive_actor_init_poly` (free `p` default init) and routes through
+  ## `emit_actor_parts_poly_state`, which emits NO `typealias State`. Stateless
+  ## templates never carry a `messages` annotation, so the message type is always
+  ## polymorphic here; `definition.state` is ignored (the callbacks are `p`).
+  fn derive_actor_family_raw_stateless(name: ModuleNameSyntax, definition: ActorDefinitionSyntax) -> Syntax =
+    let name_syntax: Syntax = name
+    let module_name: SynLit = match name_syntax
+      Leaf(_, _, SAtom(value)) -> SAtom(value)
+      _ -> SStr("Cure.Generated.Actor")
+    let module_expr: Syntax = match name_syntax
+      Leaf(_, _, SAtom(value)) -> atom_literal(value)
+      _ -> atom_literal(:generated_actor)
+    let init_spec = derive_actor_init_poly(definition.initial, definition.init)
+    let extra_declarations = optional_declarations(definition.body)
+    let cast_body = match definition.handle_cast
+      None() -> quote %[:noreply, state]
+      Some(value) -> value
+    let info_body = match definition.handle_info
+      None() -> Raw(SOpaque)
+      Some(value) -> value
+    let terminate_body = match definition.terminate
+      None() -> Raw(SOpaque)
+      Some(value) -> value
+    let code_change_body = match definition.code_change
+      None() -> Raw(SOpaque)
+      Some(value) -> value
+    emit_actor_parts_poly_state(module_name, module_expr, init_spec, [], cast_body, info_body, terminate_body, code_change_body, extra_declarations, true)
+
+  fn actor_info_handler(info_body: Syntax) -> Syntax = match tag(info_body) == :raw
+    true -> quote %[:noreply, state]
+    false -> actor_handler(info_body)
+
+  ## The raw-branch counterpart of `actor_info_handler`. An absent (`:raw`) info
+  ## body still defaults to the passthrough `%[:noreply, state]`, but a present
+  ## body is a full GenServer result spliced VERBATIM — never routed through
+  ## `actor_handler`, which would re-wrap a `match` body's arms in a second
+  ## `:noreply` (the raw/Cases double-wrap defect, §1e wall 4).
+  fn raw_info_handler(info_body: Syntax) -> Syntax = match tag(info_body) == :raw
+    true -> quote %[:noreply, state]
+    false -> info_body
+
+  ## Select the cast/info body transform for the emitter. The raw branch splices
+  ## the user's full GenServer result verbatim; the Cases branch wraps each arm
+  ## in `:noreply` via `actor_handler`. Kept as tail-position helpers (not an
+  ## inline `let`-RHS match) because a bool-literal match in `let`-RHS position
+  ## mis-lowers through the effect-bind path (§1e wall 4).
+  fn cast_handler_for(cast_body: Syntax, raw_body: Bool) -> Syntax = match raw_body
+    true -> cast_body
+    false -> actor_handler(cast_body)
+
+  fn info_handler_for(info_body: Syntax, raw_body: Bool) -> Syntax = match raw_body
+    true -> raw_info_handler(info_body)
+    false -> actor_info_handler(info_body)
+
+  fn actor_terminate_handler(body: Syntax) -> Syntax = match tag(body) == :raw
+    true -> quote :ok
+    false -> body
+
+  fn actor_code_change_handler(body: Syntax) -> Syntax = match tag(body) == :raw
+    true -> quote %[:ok, state]
+    false -> body
+
+
+  ## Adapt the state-valued body of an inferred actor handler to the ordinary
+  ## GenServer callback result. This remains in the actor macro module: it is
+  ## domain-specific syntax construction, not part of the generic reflection
+  ## vocabulary.
+  fn actor_handler(body: Syntax) -> Syntax = match tag(body) == :pattern_match
+    true -> actor_handler_node(attrs(body), children(body))
+    false -> body
+
+  fn actor_handler_node(values: List(Attr), children: List(Syntax)) -> Syntax = match children
+    [scrutinee | arms] -> Node(:pattern_match, values, [scrutinee | actor_handler_arms(arms)])
+    _ -> Node(:pattern_match, values, children)
+
+  fn actor_handler_arms(arms: List(Syntax)) -> List(Syntax) = match arms
+    [] -> []
+    [arm | rest] -> [actor_handler_arm(arm) | actor_handler_arms(rest)]
+
+  fn actor_handler_arm(arm: Syntax) -> Syntax = match tag(arm) == :match_arm
+    true -> actor_handler_arm_node(attrs(arm), children(arm))
+    false -> arm
+
+  fn actor_handler_arm_node(values: List(Attr), children: List(Syntax)) -> Syntax = match children
+    [body] -> Node(:match_arm, values, [block([quote %[:noreply, $(body)]])])
+    _ -> Node(:match_arm, values, children)
+
+  fn actor_query_body(queries: List(ActorQueryDefinitionSyntax)) -> Syntax = match queries
+    [] -> Raw(SOpaque)
+    _ -> Node(:pattern_match, [], [variable("request") | actor_query_arms(queries)])
+
+  fn actor_query_arms(queries: List(ActorQueryDefinitionSyntax)) -> List(Syntax) = match queries
+    [] -> []
+    [query | rest] -> [actor_query_arm(query) | actor_query_arms(rest)]
+
+  fn actor_query_arm(query: ActorQueryDefinitionSyntax) -> Syntax =
+    let next_state = match query.update
+      None() -> variable("state")
+      Some(value) -> value
+    Node(:match_arm, [
+      KV(:pattern, SSyntax(actor_query_pattern(query))),
+      KV(:actor_query_state, SSyntax(next_state))
+    ], [query.reply])
+
+  fn actor_query_pattern(query: ActorQueryDefinitionSyntax) -> Syntax = match identifier_name(query.request)
+    None() -> variable("_")
+    Some(name) -> call(name, actor_query_parameter_patterns(query.parameters))
+
+  fn actor_query_parameter_patterns(parameters: List(Syntax)) -> List(Syntax) = match parameters
+    [] -> []
+    [parameter | rest] -> match captured_parameter_name(parameter)
+      None() -> [variable("_") | actor_query_parameter_patterns(rest)]
+      Some(name) -> [variable(name) | actor_query_parameter_patterns(rest)]
+
+  fn actor_query_parameter_types(parameters: List(Syntax)) -> List(Syntax) = match parameters
+    [] -> []
+    [parameter | rest] -> match captured_parameter_type(parameter)
+      None() -> actor_query_parameter_types(rest)
+      Some(kind) -> [kind | actor_query_parameter_types(rest)]
+
+  fn actor_query_argument_values(parameters: List(Syntax)) -> List(Syntax) = match parameters
+    [] -> []
+    [parameter | rest] -> match captured_parameter_name(parameter)
+      None() -> actor_query_argument_values(rest)
+      Some(name) -> [variable(name) | actor_query_argument_values(rest)]
+
+  fn actor_query_adapter_parameters(parameters: List(Syntax)) -> List(Syntax) = match parameters
+    [] -> []
+    [captured | rest] -> match captured_parameter_name(captured)
+      None() -> actor_query_adapter_parameters(rest)
+      Some(name) -> match captured_parameter_type(captured)
+        None() -> actor_query_adapter_parameters(rest)
+        Some(kind) -> [parameter(name, kind) | actor_query_adapter_parameters(rest)]
+
+  fn actor_query_variants(queries: List(ActorQueryDefinitionSyntax)) -> List(Syntax) = match queries
+    [] -> []
+    [query | rest] -> match identifier_name(query.request)
+      None() -> actor_query_variants(rest)
+      Some(name) -> [enum_variant_payload(name, actor_query_parameter_types(query.parameters)) | actor_query_variants(rest)]
+
+  fn actor_reply_family(queries: List(ActorQueryDefinitionSyntax)) -> Syntax =
+    function("ReplyOf", [parameter("request", variable("ActorRequest"))], variable("Type"), Node(:pattern_match, [], [variable("request") | actor_reply_type_arms(queries)]))
+
+  fn actor_reply_type_arms(queries: List(ActorQueryDefinitionSyntax)) -> List(Syntax) = match queries
+    [] -> []
+    [query | rest] -> [match_arm(actor_query_pattern(query), query.reply_type) | actor_reply_type_arms(rest)]
+
+  fn actor_query_adapters(queries: List(ActorQueryDefinitionSyntax), handle_type: Syntax) -> List(Syntax) = match queries
+    [] -> []
+    [query | rest] ->
+      let request_value = match identifier_name(query.request)
+        None() -> variable("request")
+        Some(constructor) -> call(constructor, actor_query_argument_values(query.parameters))
+      let parameters = [parameter("actor", handle_type) | actor_query_adapter_parameters(query.parameters)]
+      let adapter = function_downcase_identifier(query.request, parameters, call("Effect", [query.reply_type]), call("request", [variable("actor"), request_value]))
+      [adapter | actor_query_adapters(rest, handle_type)]
+
+  type ReplyInference = NoCall | CallContract(List(Syntax), Syntax) | InvalidCall(Atom)
+  type ReplyTypeInference = ReplyType(Syntax, Atom) | InvalidReply(Atom)
+
+  ## The structured family has three initialization modes. The default keeps
+  ## the ordinary GenServer argument as the state; `initial` and `init` make
+  ## the generated starter nullary and use Unit only as the OTP callback's
+  ## transport argument. The state expression/body remains ordinary generated
+  ## Cure code and is checked by the normal callback type.
+  rec ActorInitSpec
+    parameter: Syntax
+    body: Syntax
+    start_parameters: List(Syntax)
+    start_argument: Syntax
+
+  fn default_actor_init(state_type: Syntax) -> ActorInitSpec =
+    ActorInitSpec{parameter: parameter("initial", variable("State")), body: quote %[:ok, initial], start_parameters: [parameter("initial", state_type)], start_argument: variable("initial")}
+
+  fn derive_actor_init(state_type: Syntax, initial: Option(Syntax), init: Option(Syntax), on_start: Option(Syntax)) -> ActorInitSpec =
+    match initial
+      Some(value) -> ActorInitSpec{parameter: parameter("args", variable("Atom")), body: actor_start_body(value, on_start), start_parameters: [], start_argument: atom_literal(:unit)}
+      None() -> match init
+        Some(value) -> ActorInitSpec{parameter: parameter("args", variable("Atom")), body: value, start_parameters: [], start_argument: atom_literal(:unit)}
+        None() ->
+          let base = default_actor_init(state_type)
+          ActorInitSpec{parameter: base.parameter, body: actor_start_body(variable("initial"), on_start), start_parameters: base.start_parameters, start_argument: base.start_argument}
+
+  fn actor_start_body(initial_state: Syntax, on_start: Option(Syntax)) -> Syntax = match on_start
+    None() -> tuple([atom_literal(:ok), initial_state])
+    Some(body) -> block([
+      let_binding("state", initial_state),
+      tuple([atom_literal(:ok), body])
+    ])
+
+  fn derive_actor_stop(on_stop: Option(Syntax), raw_terminate: Option(Syntax)) -> Syntax = match on_stop
+    Some(body) -> block([
+      let_binding("reason", call("Std.ExitReason.from_atom", [variable("reason")])),
+      typed_let_binding("stopped", variable("Atom"), body),
+      atom_literal(:ok)
+    ])
+    None() -> match raw_terminate
+      Some(body) -> body
+      None() -> Raw(SOpaque)
+
+  ## State-polymorphic default init for stateless actor forms. Mirrors
+  ## `default_actor_init` but binds the state to a free type var `p` instead of the
+  ## `State` alias (which stateless modules don't emit): `init(initial: p) =
+  ## %[:ok, initial]` with a unary `start_link(initial: p)` seeding the state.
+  fn default_actor_init_poly() -> ActorInitSpec =
+    ActorInitSpec{parameter: parameter("initial", variable("p")), body: quote %[:ok, initial], start_parameters: [parameter("initial", variable("p"))], start_argument: variable("initial")}
+
+  ## State-polymorphic counterpart of `derive_actor_init`. The `initial:`/`init:`
+  ## seed cases are identical (they pin the state to a concrete value, so they need
+  ## no `State` type); only the default falls through to the poly `p` init.
+  fn derive_actor_init_poly(initial: Option(Syntax), init: Option(Syntax)) -> ActorInitSpec =
+    match initial
+      Some(value) -> ActorInitSpec{parameter: parameter("args", variable("Atom")), body: quote %[:ok, $(value)], start_parameters: [], start_argument: atom_literal(:unit)}
+      None() -> match init
+        Some(value) -> ActorInitSpec{parameter: parameter("args", variable("Atom")), body: value, start_parameters: [], start_argument: atom_literal(:unit)}
+        None() -> default_actor_init_poly()
+
+
+  fn optional_declarations(value: Option(Syntax)) -> List(Syntax) = match value
+    None() -> []
+    Some(inner) -> children(inner)
+
+  fn derive_reply_contract(call_body: Syntax, state_type: Syntax) -> ReplyInference = match call_body
+    Raw(_) -> NoCall
+    _ -> match derive_pattern_heads(call_body)
+      InvalidHeads(reason) -> InvalidCall(reason)
+      Heads(request_heads) -> match infer_reply_type(call_body, state_type)
+        ReplyType(reply_type, _) -> CallContract(request_heads, reply_type)
+        InvalidReply(reason) -> InvalidCall(reason)
+
+  fn infer_reply_type(body: Syntax, state_type: Syntax) -> ReplyTypeInference = match tag(body) == :pattern_match
+    true -> match children(body)
+      [_scrutinee | arms] -> infer_reply_arms(arms, state_type)
+      _ -> InvalidReply(:reply_type_not_derivable)
+    false -> InvalidReply(:reply_type_not_derivable)
+
+  fn infer_reply_arms(arms: List(Syntax), state_type: Syntax) -> ReplyTypeInference = match arms
+    [first | rest] -> match reply_arm_type(first, state_type)
+      InvalidReply(reason) -> InvalidReply(reason)
+      ReplyType(reply_type, reply_key) -> infer_reply_tail(rest, state_type, reply_type, reply_key)
+    [] -> InvalidReply(:reply_type_not_derivable)
+
+  fn infer_reply_tail(arms: List(Syntax), state_type: Syntax, reply_type: Syntax, reply_key: Atom) -> ReplyTypeInference = match arms
+    [] -> ReplyType(reply_type, reply_key)
+    [arm | rest] -> match reply_arm_type(arm, state_type)
+      InvalidReply(reason) -> InvalidReply(reason)
+      ReplyType(_, arm_key) -> match reply_key == arm_key
+        true -> infer_reply_tail(rest, state_type, reply_type, reply_key)
+        false -> InvalidReply(:inconsistent_reply_types)
+
+  fn reply_arm_type(arm: Syntax, state_type: Syntax) -> ReplyTypeInference = match children(arm)
+    [body] -> match tag(body) == :block
+      true -> match children(body)
+        [expression] -> reply_expr_type(expression, state_type)
+        _ -> InvalidReply(:reply_type_not_derivable)
+      false -> reply_expr_type(body, state_type)
+    _ -> InvalidReply(:reply_type_not_derivable)
+
+  fn reply_expr_type(expr: Syntax, state_type: Syntax) -> ReplyTypeInference = match expr
+    _ -> match tag(expr) == :variable
+      true -> match is_variable_named(expr, :state)
+        true -> ReplyType(state_type, :state)
+        false -> InvalidReply(:reply_type_not_derivable)
+      false -> match tag(expr) == :literal
+        true -> literal_reply_type(attrs(expr))
+        false -> match tag(expr) == :tuple
+          true -> ReplyType(variable("Tuple"), :tuple)
+          false -> InvalidReply(:reply_type_not_derivable)
+
+  fn literal_reply_type(values: List(Attr)) -> ReplyTypeInference = match attr(values, :subtype)
+    _ -> match attr_atom_is(values, :subtype, :integer)
+      true -> ReplyType(variable("Int"), :int)
+      false -> match attr_atom_is(values, :subtype, :float)
+        true -> ReplyType(variable("Float"), :float)
+        false -> match attr_atom_is(values, :subtype, :symbol)
+          true -> ReplyType(variable("Atom"), :atom)
+          false -> match attr_atom_is(values, :subtype, :boolean)
+            true -> ReplyType(variable("Bool"), :bool)
+            false -> InvalidReply(:reply_type_not_derivable)
+
+  ## `message_aliased` selects how the `handle_cast`/`handle_info` message type is
+  ## expressed. When true (a `messages` type or a derived enum is supplied), the
+  ## type is a module-level `typealias Message = <type>` referenced by both
+  ## callbacks — the byte-identical pre-1e shape (`emit_actor_parts_aliased`).
+  ## When false (a raw actor with no `messages`), the message is polymorphic: NO
+  ## module-level alias is emitted (a free `m` there has no binder and fails as
+  ## `:unknown_global`); instead each callback carries an inline free type var,
+  ## auto-generalized per function (`emit_actor_parts_poly`). The two branches are
+  ## separate functions so the aliased list literal — and thus its compiled bytes
+  ## — stays untouched.
+  fn emit_actor_parts(module_name: SynLit, module_expr: Syntax, state_type: Syntax, init_spec: ActorInitSpec, message_type: Syntax, message_declarations: List(Syntax), cast_body: Syntax, info_body: Syntax, terminate_body: Syntax, code_change_body: Syntax, heads: List(Syntax), extra_declarations: List(Syntax), message_aliased: Bool, raw_body: Bool) -> Syntax = match message_aliased
+    true -> match raw_body
+      true -> emit_actor_parts_aliased_raw(module_name, module_expr, state_type, init_spec, message_type, message_declarations, cast_body, info_body, terminate_body, code_change_body, extra_declarations)
+      false -> emit_actor_parts_aliased(module_name, module_expr, state_type, init_spec, message_type, message_declarations, cast_body, info_body, terminate_body, code_change_body, extra_declarations, raw_body)
+    false -> emit_actor_parts_poly(module_name, module_expr, state_type, init_spec, message_declarations, cast_body, info_body, terminate_body, code_change_body, extra_declarations, raw_body)
+
+  ## A cast-only actor still claims the complete `gen_server` behaviour. Keep
+  ## that claim honest with an unreachable-through-the-typed-API call floor:
+  ## its request is polymorphic and its reply is Unit, while the actor state is
+  ## preserved. Raw BEAM callers therefore receive a total reply instead of
+  ## crashing the server, and the generated module carries no missing-callback
+  ## warning.
+  fn default_actor_handle_call(state_type: Syntax) -> Syntax =
+    function("handle_call", [parameter("request", variable("r")), parameter("from", variable("f")), parameter("state", state_type)], call("Effect", [tuple_type([variable("Atom"), variable("Unit"), state_type])]), tuple([atom_literal(:reply), unit_literal(), variable("state")]))
+
+  fn emit_actor_parts_aliased(module_name: SynLit, module_expr: Syntax, state_type: Syntax, init_spec: ActorInitSpec, message_type: Syntax, message_declarations: List(Syntax), cast_body: Syntax, info_body: Syntax, terminate_body: Syntax, code_change_body: Syntax, extra_declarations: List(Syntax), raw_body: Bool) -> Syntax =
+        let result_type: Syntax = call("Effect", [tuple_type([variable("Atom"), variable("State")])])
+        let init_type: Syntax = call("Effect", [tuple_type([variable("Atom"), variable("State")])])
+        let start_type: Syntax = call("Effect", [variable("Tuple")])
+        let handler_body: Syntax = cast_handler_for(cast_body, raw_body)
+        let info_handler: Syntax = info_handler_for(info_body, raw_body)
+        let terminate_handler: Syntax = actor_terminate_handler(terminate_body)
+        let code_change_handler: Syntax = actor_code_change_handler(code_change_body)
+        let request_type: Syntax = enum_type("ActorRequest", [])
+        let handle_type: Syntax = call("Std.Otp.ActorServer", [variable("Message"), variable("Request"), variable("Unit")])
+        let start_result_type: Syntax = call("Effect", [call("Std.Otp.StartResult", [variable("Handle")])])
+        let typed_api: List(Syntax) = [request_type, alias_node("Request", variable("ActorRequest")), alias_node("Handle", handle_type), function("start", init_spec.start_parameters, start_result_type, call("Std.Otp.start_actor", [module_expr, init_spec.start_argument])), function("send", [parameter("actor", variable("Handle")), parameter("message", variable("Message"))], call("Effect", [variable("Unit")]), call("Std.Otp.actor_cast", [variable("actor"), variable("message")])), function("stop", [parameter("actor", variable("Handle"))], call("Effect", [variable("Unit")]), call("Std.Otp.actor_stop", [variable("actor")]))]
+        block(append(message_declarations, [
+          gen_server_module(module_name, state_type, append([
+            alias_node("Message", message_type),
+            function("init", [init_spec.parameter], init_type, init_spec.body),
+            default_actor_handle_call(variable("State")),
+            quote (fn handle_cast(message: Message, state: State) -> Effect(Tuple(Atom, State)) = $(handler_body)),
+            quote (fn handle_info(message: Message, state: State) -> Effect(Tuple(Atom, State)) = $(info_handler)),
+            quote (fn terminate(reason: Atom, state: State) -> Effect(Atom) = $(terminate_handler)),
+            quote (fn code_change(old: Atom, state: State, extra: Atom) -> Effect(Tuple(Atom, State)) = $(code_change_handler)),
+            function("start_link", init_spec.start_parameters, start_type, call("Std.Otp.start_link", [module_expr, init_spec.start_argument]))
+          ], append(typed_api, extra_declarations)))
+        ]))
+
+  fn emit_actor_parts_aliased_raw(module_name: SynLit, module_expr: Syntax, state_type: Syntax, init_spec: ActorInitSpec, message_type: Syntax, message_declarations: List(Syntax), cast_body: Syntax, info_body: Syntax, terminate_body: Syntax, code_change_body: Syntax, extra_declarations: List(Syntax)) -> Syntax =
+        let init_type: Syntax = call("Effect", [tuple_type([variable("Atom"), variable("State")])])
+        let start_type: Syntax = call("Effect", [variable("Tuple")])
+        let info_handler: Syntax = info_handler_for(info_body, true)
+        let terminate_handler: Syntax = actor_terminate_handler(terminate_body)
+        let code_change_handler: Syntax = actor_code_change_handler(code_change_body)
+        block(append(message_declarations, [
+          gen_server_module(module_name, state_type, append([
+            alias_node("Message", message_type),
+            function("init", [init_spec.parameter], init_type, init_spec.body),
+            default_actor_handle_call(variable("State")),
+            quote (fn handle_cast(message: Message, state: State) -> Effect(Tuple(Atom, State)) = $(cast_body)),
+            quote (fn handle_info(message: Message, state: State) -> Effect(Tuple(Atom, State)) = $(info_handler)),
+            quote (fn terminate(reason: Atom, state: State) -> Effect(Atom) = $(terminate_handler)),
+            quote (fn code_change(old: Atom, state: State, extra: Atom) -> Effect(Tuple(Atom, State)) = $(code_change_handler)),
+            function("start_link", init_spec.start_parameters, start_type, call("Std.Otp.start_link", [module_expr, init_spec.start_argument]))
+          ], extra_declarations))
+        ]))
+
+  fn emit_actor_parts_poly(module_name: SynLit, module_expr: Syntax, state_type: Syntax, init_spec: ActorInitSpec, message_declarations: List(Syntax), cast_body: Syntax, info_body: Syntax, terminate_body: Syntax, code_change_body: Syntax, extra_declarations: List(Syntax), raw_body: Bool) -> Syntax =
+        let result_type: Syntax = call("Effect", [tuple_type([variable("Atom"), variable("State")])])
+        let init_type: Syntax = call("Effect", [tuple_type([variable("Atom"), variable("State")])])
+        let start_type: Syntax = call("Effect", [variable("Tuple")])
+        let handler_body: Syntax = cast_handler_for(cast_body, raw_body)
+        let info_handler: Syntax = info_handler_for(info_body, raw_body)
+        let terminate_handler: Syntax = actor_terminate_handler(terminate_body)
+        let code_change_handler: Syntax = actor_code_change_handler(code_change_body)
+        block(append(message_declarations, [
+          gen_server_module(module_name, state_type, append([
+            function("init", [init_spec.parameter], init_type, init_spec.body),
+            default_actor_handle_call(variable("State")),
+            function("handle_cast", [parameter("message", variable("m")), parameter("state", variable("State"))], result_type, handler_body),
+            function("handle_info", [parameter("message", variable("i")), parameter("state", variable("State"))], result_type, info_handler),
+            quote (fn terminate(reason: Atom, state: State) -> Effect(Atom) = $(terminate_handler)),
+            quote (fn code_change(old: Atom, state: State, extra: Atom) -> Effect(Tuple(Atom, State)) = $(code_change_handler)),
+            function("start_link", init_spec.start_parameters, start_type, call("Std.Otp.start_link", [module_expr, init_spec.start_argument]))
+          ], extra_declarations))
+        ]))
+
+  ## State-polymorphic emitter for stateless actor forms. Unlike
+  ## `emit_actor_parts_poly` (which references a `State` alias emitted by
+  ## `gen_server_module`), every callback here carries a free state type var `p`
+  ## and the module is built with `gen_server_module_raw` — NO `typealias State`.
+  ## Both the message (`m`/`i`) and state (`p`) type vars auto-generalize per
+  ## callback, exactly as the hand-written stateless templates did.
+  fn emit_actor_parts_poly_state(module_name: SynLit, module_expr: Syntax, init_spec: ActorInitSpec, message_declarations: List(Syntax), cast_body: Syntax, info_body: Syntax, terminate_body: Syntax, code_change_body: Syntax, extra_declarations: List(Syntax), raw_body: Bool) -> Syntax =
+        let result_type: Syntax = call("Effect", [tuple_type([variable("Atom"), variable("p")])])
+        let init_type: Syntax = call("Effect", [tuple_type([variable("Atom"), variable("p")])])
+        let start_type: Syntax = call("Effect", [variable("Tuple")])
+        let handler_body: Syntax = cast_handler_for(cast_body, raw_body)
+        let info_handler: Syntax = info_handler_for(info_body, raw_body)
+        let terminate_handler: Syntax = actor_terminate_handler(terminate_body)
+        let code_change_handler: Syntax = actor_code_change_handler(code_change_body)
+        block(append(message_declarations, [
+          gen_server_module_raw(module_name, append([
+            function("init", [init_spec.parameter], init_type, init_spec.body),
+            default_actor_handle_call(variable("p")),
+            function("handle_cast", [parameter("message", variable("m")), parameter("state", variable("p"))], result_type, handler_body),
+            function("handle_info", [parameter("message", variable("i")), parameter("state", variable("p"))], result_type, info_handler),
+            function("terminate", [parameter("reason", variable("Atom")), parameter("state", variable("p"))], call("Effect", [variable("Atom")]), terminate_handler),
+            function("code_change", [parameter("old", variable("Atom")), parameter("state", variable("p")), parameter("extra", variable("Atom"))], result_type, code_change_handler),
+            function("start_link", init_spec.start_parameters, start_type, call("Std.Otp.start_link", [module_expr, init_spec.start_argument]))
+          ], extra_declarations))
+        ]))
+
+  fn emit_actor_call_parts(module_name: SynLit, module_expr: Syntax, state_type: Syntax, init_spec: ActorInitSpec, message_type: Syntax, message_declarations: List(Syntax), cast_body: Syntax, call_body: Syntax, info_body: Syntax, terminate_body: Syntax, code_change_body: Syntax, message_heads: List(Syntax), request_heads: List(Syntax), reply_type: Syntax, extra_declarations: List(Syntax)) -> Syntax =
+    let request_type: Syntax = enum_type("ActorRequest", request_heads)
+    let cast_result_type: Syntax = call("Effect", [tuple_type([variable("Atom"), variable("State")])])
+    let init_type: Syntax = call("Effect", [tuple_type([variable("Atom"), variable("State")])])
+    let start_type: Syntax = call("Effect", [variable("Tuple")])
+    let cast_body: Syntax = actor_handler(cast_body)
+    let call_body: Syntax = actor_call_handler(call_body)
+    let info_handler: Syntax = actor_info_handler(info_body)
+    let terminate_handler: Syntax = actor_terminate_handler(terminate_body)
+    let code_change_handler: Syntax = actor_code_change_handler(code_change_body)
+    let handle_type: Syntax = call("Std.Otp.ActorServer", [variable("Message"), variable("Request"), reply_type])
+    let start_result_type: Syntax = call("Effect", [call("Std.Otp.StartResult", [variable("Handle")])])
+    block(append(message_declarations, [
+      request_type,
+      gen_server_module(module_name, state_type, append([
+        alias_node("Message", message_type),
+        alias_node("Request", variable("ActorRequest")),
+        alias_node("Handle", handle_type),
+        function("init", [init_spec.parameter], init_type, init_spec.body),
+        function("handle_call", [parameter("request", variable("Request")), parameter_linear("from", call("Reply", [reply_type])), parameter("state", variable("State"))], cast_result_type, call_body),
+        quote (fn handle_cast(message: Message, state: State) -> Effect(Tuple(Atom, State)) = $(cast_body)),
+        quote (fn handle_info(message: Message, state: State) -> Effect(Tuple(Atom, State)) = $(info_handler)),
+        quote (fn terminate(reason: Atom, state: State) -> Effect(Atom) = $(terminate_handler)),
+        quote (fn code_change(old: Atom, state: State, extra: Atom) -> Effect(Tuple(Atom, State)) = $(code_change_handler)),
+        function("start_link", init_spec.start_parameters, start_type, call("Std.Otp.start_link", [module_expr, init_spec.start_argument])),
+        function("start", init_spec.start_parameters, start_result_type, call("Std.Otp.start_actor", [module_expr, init_spec.start_argument])),
+        function("send", [parameter("actor", variable("Handle")), parameter("message", variable("Message"))], call("Effect", [variable("Unit")]), call("Std.Otp.actor_cast", [variable("actor"), variable("message")])),
+        function("request", [parameter("actor", variable("Handle")), parameter("request", variable("Request"))], call("Effect", [reply_type]), call("Std.Otp.actor_call", [variable("actor"), variable("request")])),
+        function("stop", [parameter("actor", variable("Handle"))], call("Effect", [variable("Unit")]), call("Std.Otp.actor_stop", [variable("actor")]))
+      ], extra_declarations))
+    ]))
+
+  fn emit_actor_dep_call_parts(module_name: SynLit, module_expr: Syntax, state_type: Syntax, init_spec: ActorInitSpec, message_type: Syntax, message_declarations: List(Syntax), cast_body: Syntax, call_body: Syntax, info_body: Syntax, terminate_body: Syntax, code_change_body: Syntax, request_heads: List(Syntax), reply_fn: Syntax, extra_declarations: List(Syntax)) -> Syntax =
+    let request_type: Syntax = enum_type("ActorRequest", request_heads)
+    let init_type: Syntax = call("Effect", [tuple_type([variable("Atom"), variable("State")])])
+    let reply_value_type: Syntax = behavior_reply_apply(reply_fn)
+    let reply_tuple_type: Syntax = tuple_type([variable("Atom"), reply_value_type, variable("State")])
+    let call_result_type: Syntax = call("Effect", [reply_tuple_type])
+    let handle_type: Syntax = call("Std.Otp.DepActorServer", [variable("Message"), variable("Request"), reply_fn])
+    let base_handle_type: Syntax = call("Std.Otp.ActorServer", [variable("Message"), variable("Request"), variable("Unit")])
+    let start_result_type: Syntax = call("Effect", [call("Std.Otp.StartResult", [handle_type])])
+    let cast_handler: Syntax = actor_handler(cast_body)
+    let dependent_call_body: Syntax = dependent_actor_call_body(call_body)
+    let reply_for_fn: Syntax = function("reply_for", [parameter("request", variable("Request")), parameter("state", variable("State"))], reply_tuple_type, dependent_call_body)
+    let attach_server_fn: Syntax = function("attach_server", [parameter("server", base_handle_type)], handle_type, call("Std.Otp.as_dep_actor", [variable("server")]))
+    let start_base_fn: Syntax = function("start_base", init_spec.start_parameters, call("Effect", [call("Std.Otp.StartResult", [base_handle_type])]), call("Std.Otp.start_actor", [module_expr, init_spec.start_argument]))
+    let start_body: Syntax = block([
+      let_binding("started", call("start_base", actor_start_adapter_args(init_spec.start_parameters))),
+      call("Std.Otp.map_start", [variable("started"), variable("attach_server")])
+    ])
+    let info_handler: Syntax = actor_info_handler(info_body)
+    let terminate_handler: Syntax = actor_terminate_handler(terminate_body)
+    let code_change_handler: Syntax = actor_code_change_handler(code_change_body)
+    block(append(message_declarations, [
+      request_type,
+      gen_server_module(module_name, state_type, append([
+        alias_node("Message", message_type),
+        alias_node("Request", variable("ActorRequest"))
+      ], append(extra_declarations, [
+        alias_node("Handle", handle_type),
+        function("init", [init_spec.parameter], init_type, init_spec.body),
+        reply_for_fn,
+        attach_server_fn,
+        start_base_fn,
+        function("handle_call", [parameter("request", variable("Request")), parameter("from", variable("f")), parameter("state", variable("State"))], call_result_type, call("reply_for", [variable("request"), variable("state")])),
+        quote (fn handle_cast(message: Message, state: State) -> Effect(Tuple(Atom, State)) = $(cast_handler)),
+        quote (fn handle_info(message: Message, state: State) -> Effect(Tuple(Atom, State)) = $(info_handler)),
+        quote (fn terminate(reason: Atom, state: State) -> Effect(Atom) = $(terminate_handler)),
+        quote (fn code_change(old: Atom, state: State, extra: Atom) -> Effect(Tuple(Atom, State)) = $(code_change_handler)),
+        function("start_link", init_spec.start_parameters, call("Effect", [variable("Tuple")]), call("Std.Otp.start_link", [module_expr, init_spec.start_argument])),
+        function("start", init_spec.start_parameters, start_result_type, start_body),
+        function("send", [parameter("actor", handle_type), parameter("message", variable("Message"))], call("Effect", [variable("Unit")]), call("Std.Otp.dep_actor_cast", [variable("actor"), variable("message")])),
+        function("request", [parameter("actor", handle_type), parameter("request", variable("Request"))], call("Effect", [reply_value_type]), call("Std.Otp.actor_call_dep", [variable("actor"), variable("request")])),
+        function("stop", [parameter("actor", handle_type)], call("Effect", [variable("Unit")]), call("Std.Otp.dep_actor_stop", [variable("actor")]))
+      ])))
+    ]))
+
+  fn dependent_actor_call_body(call_body: Syntax) -> Syntax = match children(call_body)
+    [_scrutinee | arms] -> Node(:pattern_match, [], [variable("request") | behavior_reply_arms(arms)])
+    _ -> call_body
+
+  fn actor_start_adapter_args(parameters: List(Syntax)) -> List(Syntax) = match parameters
+    [] -> []
+    _ -> [variable("initial")]
+
+  ## Shared transparent declaration bundle for generated GenServer modules.
+  ## Domain-specific builders supply only aliases and callback overrides; the
+  ## common import and state plumbing live in one ordinary Cure function.
+  fn gen_server_module(module_name: SynLit, state_type: Syntax, declarations: List(Syntax)) -> Syntax =
+    Std.ActorBehavior.actor_module(module_name, state_type, declarations)
+
+  ## State-alias-free variant of `gen_server_module`. Stateless actor forms keep
+  ## the state polymorphic (a free `p` on every callback), so they must NOT emit a
+  ## `typealias State = p` — a free `p` at module scope elaborates to
+  ## :unknown_global. `gen_server_module` is defined in terms of this by prepending
+  ## the State alias, so the aliased path stays byte-identical (append is
+  ## associative: [use_module] ++ ([alias] ++ decls) = [use_module, alias, ...decls]).
+  fn gen_server_module_raw(module_name: SynLit, declarations: List(Syntax)) -> Syntax =
+    Std.ActorBehavior.actor_module_raw(module_name, declarations)
+
+  fn actor_call_handler(body: Syntax) -> Syntax = match tag(body) == :pattern_match
+    true -> actor_call_handler_node(attrs(body), children(body))
+    false -> body
+
+  fn actor_call_handler_node(values: List(Attr), children: List(Syntax)) -> Syntax = match children
+    [scrutinee | arms] -> Node(:pattern_match, values, [scrutinee | actor_call_handler_arms(arms)])
+    _ -> Node(:pattern_match, values, children)
+
+  fn actor_call_handler_arms(arms: List(Syntax)) -> List(Syntax) = match arms
+    [] -> []
+    [arm | rest] -> [actor_call_handler_arm(arm) | actor_call_handler_arms(rest)]
+
+  fn actor_call_handler_arm(arm: Syntax) -> Syntax = match tag(arm) == :match_arm
+    true -> actor_call_handler_arm_node(attrs(arm), children(arm))
+    false -> arm
+
+  fn actor_call_handler_arm_node(values: List(Attr), children: List(Syntax)) -> Syntax = match children
+    [body] -> Node(:match_arm, values, [block([
+      let_binding("answered", call("Std.Otp.reply", [variable("from"), body])),
+      tuple([atom_literal(:noreply), variable("state")])
+    ])])
+    _ -> Node(:match_arm, values, children)
+
+  ## The DEPENDENT-reply gen_server spine as a ONE-FORM surface (OTP metatheory obligation (1), made sugar):
   ##
-  ## ## Examples
+  ##     behavior <Name>
+  ##       state <S>
+  ##       request <Q>
+  ##       reply <R>
+  ##       body
+  ##         <the request algebra Q, its reply family R : Q -> Type, and any aux types>
+  ##       handle
+  ##         <Ctor(args) -> the reply VALUE (of type R(Ctor …)) per request>
   ##
-  ## ```cure
-  ## use Std.Actor
-  ##
-  ## let pid = spawn(:"Cure.Actor.Echo")
-  ## send(pid, %[:ping, :hello])
-  ## is_alive(pid)                           # => true
-  ## stop(pid)
-  ## ```
-  ##
-  ## ```cure
-  ## use Std.Actor
-  ##
-  ## # Name an actor so other processes can find it without passing a pid.
-  ## let pid = spawn_named(:"Cure.Actor.Cache", "main-cache")
-  ## lookup("main-cache") == pid             # => true
-  ## ```
+  ## derives a complete gen_server whose `handle_call` answers each request at its OWN reply type `R(request)` —
+  ## the per-constructor `ReplyOf`, not a single uniform reply. The `body` declarations are emitted INTO the
+  ## lifted module (so `Q`/`R` are in scope); each `handle` arm gives ONLY the reply value, which the macro wraps
+  ## into the OTP result tuple `%[:reply, <value>, state]` — the STATE IS HELD CONSTANT (this form is for reply-
+  ## shaped / query servers; a state-mutating server writes its own `reply_for` returning `%[:reply, v, s']`, or
+  ## uses `Std.Otp.call_dep` against a hand-written `lift module`). The macro synthesises the `reply_for` helper
+  ## (the elaboration seam that keeps the dependent `Sigma` in checking position), and emits every callback
+  ## (init/handle_call/handle_cast/handle_info) + `start_link`. The dependent reply type is static and erases, so
+  ## the result is an ordinary OTP callback module a stock `gen_server:call` drives (client side:
+  ## `Std.Otp.call_dep`). Built programmatically (not a `becomes` template) for full control over the
+  ## dependent-type splicing.
+  macro behavior <name: ModuleName>
+    syntax family BehaviorDefinition
+      state Type
+      request Type
+      reply Code
+      optional body Declarations
+      handle Cases
+    accepts BehaviorDefinition
+    expands with derive_behavior_family
 
-  ## Group tag consumed by `Cure.Stdlib.Preload`.
-  fn __group__() -> Atom = :concurrency
+  fn derive_behavior_family(name: ModuleNameSyntax, definition: BehaviorDefinitionSyntax) -> Syntax =
+    let name_syntax: Syntax = name
+    let module_expr: Syntax = match name_syntax
+      Leaf(_, _, SAtom(value)) -> atom_literal(value)
+      _ -> atom_literal(:generated_behavior)
+    let module_name: SynLit = match name_syntax
+      Leaf(_, _, SAtom(value)) -> SAtom(value)
+      _ -> SStr("Cure.Generated.Behavior")
+    let request_type: Syntax = definition.request
+    let reply_fn: Syntax = definition.reply
+    let user_decls: List(Syntax) = optional_declarations(definition.body)
+    let reply_match: Syntax = Node(:pattern_match, [], [variable("request") | behavior_reply_arms(children(definition.handle))])
+    let reply_type: Syntax = tuple_type([variable("Atom"), behavior_reply_apply(reply_fn), variable("State")])
+    let reply_for_fn: Syntax = function("reply_for", [parameter("request", request_type), parameter("state", variable("State"))], reply_type, reply_match)
+    let handle_call_fn: Syntax = function("handle_call", [parameter("request", request_type), parameter("from", variable("f")), parameter("state", variable("State"))], call("Effect", [reply_type]), call("reply_for", [variable("request"), variable("state")]))
+    let init_fn: Syntax = quote (fn init(initial: State) -> Effect(Tuple(Atom, State)) = %[:ok, initial])
+    let cast_fn: Syntax = quote (fn handle_cast(message: m, state: State) -> Effect(Tuple(Atom, State)) = %[:noreply, state])
+    let info_fn: Syntax = quote (fn handle_info(message: i, state: State) -> Effect(Tuple(Atom, State)) = %[:noreply, state])
+    let start_fn: Syntax = quote (fn start_link(initial: State) -> Effect(Tuple) = Std.Otp.start_link($(module_expr), initial))
+    gen_server_module(module_name, definition.state, append(user_decls, [reply_for_fn, init_fn, handle_call_fn, cast_fn, info_fn, start_fn]))
 
-  ## Spawn a new actor instance from a compiled actor module atom.
-  ## The spawning process is recorded as the actor's caller
-  ## automatically; lifecycle hooks can reach it via
-  ## `Std.Actor.notify/1` (see the runtime docs).
-  @extern(Elixir.Cure.Actor.Builtins, :actor_spawn, 1)
-  fn spawn(actor_module: Atom) -> Pid
+  ## Wrap each `handle` arm's reply VALUE into the OTP call result tuple `%[:reply, <value>, state]`, so the user
+  ## writes only the answer and the macro supplies the protocol shape and the (unchanged) state.
+  fn behavior_reply_arms(arms: List(Syntax)) -> List(Syntax) = match arms
+    [] -> []
+    [arm | rest] -> [behavior_reply_arm(arm) | behavior_reply_arms(rest)]
 
-  ## Spawn an actor with an explicit initial payload.
-  @extern(Elixir.Cure.Actor.Builtins, :actor_spawn_with_payload, 2)
-  fn spawn_with_payload(actor_module: Atom, payload: Any) -> Pid
+  fn behavior_reply_arm(arm: Syntax) -> Syntax = match tag(arm) == :match_arm
+    true -> behavior_reply_arm_node(attrs(arm), children(arm))
+    false -> arm
 
-  ## Spawn a named actor. The `name` string is registered with the
-  ## runtime so it can be found later via `lookup/1`.
-  @extern(Elixir.Cure.Actor.Builtins, :actor_spawn_named, 2)
-  fn spawn_named(actor_module: Atom, name: String) -> Pid
+  fn behavior_reply_arm_node(values: List(Attr), children: List(Syntax)) -> Syntax = match children
+    [body] -> match attr(values, :actor_query_state)
+      Found(SSyntax(next_state)) -> Node(:match_arm, values, [tuple([atom_literal(:reply), body, next_state])])
+      _ -> Node(:match_arm, values, [tuple([atom_literal(:reply), body, variable("state")])])
+    _ -> Node(:match_arm, values, children)
 
-  ## Stop a running actor instance.
-  @extern(Elixir.Cure.Actor.Builtins, :actor_stop, 1)
-  fn stop(pid: Pid) -> Atom
-
-  ## Send a message to an actor (cast semantics: fire-and-forget).
-  ## This is the runtime counterpart of the Melquiades operator
-  ## `<-|`; both lower to Erlang's `!` and return the sent message.
-  @extern(Elixir.Cure.Actor.Builtins, :actor_send, 2)
-  fn send(pid: Pid, message: Any) -> Any
-
-  ## Fetch the actor's current user-visible payload.
-  @extern(Elixir.Cure.Actor.Builtins, :actor_get_state, 1)
-  fn get_state(pid: Pid) -> Any
-
-  ## `true` when the actor pid is still alive.
-  @extern(Elixir.Cure.Actor.Builtins, :actor_is_alive, 1)
-  fn is_alive(pid: Pid) -> Bool
-
-  ## Look up an actor by its registered name; returns its pid.
-  @extern(Elixir.Cure.Actor.Builtins, :actor_lookup, 1)
-  fn lookup(name: String) -> Pid
+  ## Build `reply(request)` — the request's own reply type — from the captured `reply` family name applied to the
+  ## `request` binder, the dependent middle of the `%[:reply, _, state]` result tuple.
+  fn behavior_reply_apply(reply_fn: Syntax) -> Syntax = match leaf_value(reply_fn)
+    SStr(name) -> call(name, [variable("request")])
+    _ -> call("ReplyOf", [variable("request")])

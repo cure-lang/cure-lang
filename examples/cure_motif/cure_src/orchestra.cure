@@ -1,21 +1,9 @@
-## Root supervisor for the Cure motif example.
-##
-## The dotted name `Motif.Orchestra` resolves to the BEAM module
-## `:"Cure.Sup.Motif.Orchestra"`. This supervisor is the `root` of the
-## `app CureMotif` container declared in `motif_app.cure`, so its
-## lifecycle is tied to the OTP application.
-##
-## The supervisor manages three actors under a `:one_for_one` strategy,
-## so a crashing child restarts in isolation. Undotted child names
-## (`Clock`, `Sequencer`, `Voice`) resolve to `Cure.Actor.<Name>` per the
-## supervision doc's naming convention. Per-child `restart` and
-## `shutdown` options override the default `:permanent` / `5000ms`.
+## Transparent supervisor example.
+
+use Std.Supervisor
 
 sup Motif.Orchestra
-  strategy  = :one_for_one
-  intensity = 5
-  period    = 10
   children
-    Clock     as clock     (restart: :permanent)
-    Sequencer as sequencer (restart: :transient)
-    Voice     as voice     (restart: :permanent, shutdown: 2000)
+    worker Main.Clock as clock
+    worker Main.Sequencer as sequencer
+    worker Main.Voice as voice

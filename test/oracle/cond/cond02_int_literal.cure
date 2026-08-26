@@ -1,0 +1,8 @@
+mod Cond02
+  type Nat = Z | S(Nat)
+  fn classify(n: Int) -> Nat = match n
+    0 -> Z()
+    1 -> S(Z())
+    m -> S(S(Z()))
+  fn start() -> Nat = classify(1)
+end

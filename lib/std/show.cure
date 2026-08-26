@@ -1,3 +1,4 @@
+@group(:core)
 mod Std.Show
   ## The `Show` protocol: convert values to their human-readable
   ## `String` form.
@@ -20,32 +21,37 @@ mod Std.Show
   ## ```
 
   ## Group tag consumed by `Cure.Stdlib.Preload`.
-  fn __group__() -> Atom = :core
+
+  ## `String` is nominal, not a `List(Char)` alias; its module supplies the
+  ## type the signatures below name. `<>` in the instance bodies desugars to
+  ## `Std.Semigroup.combine`, so that interface must be in scope too.
+  use Std.String
+  use Std.Semigroup
 
   ## Convert a value of any `Show`-able type to its string representation.
-  proto Show(T)
+  interface Show(t)
     ## Canonical string form of `x`.
-    fn show(x: T) -> String
+    fn show(x: t) -> String
 
   # -- Implementations for primitive types ---------------------------
 
   ## `Show` impl for `Int`: the canonical decimal string.
-  impl Show for Int
+  implementation Show for Int
     ## Render an integer as decimal digits.
     fn show(x: Int) -> String = int_to_string(x)
 
   ## `Show` impl for `Float`: the canonical decimal-with-point string.
-  impl Show for Float
+  implementation Show for Float
     ## Render a float as a decimal string.
     fn show(x: Float) -> String = float_to_string(x)
 
   ## `Show` impl for `String`: wraps the value in double quotes.
-  impl Show for String
+  implementation Show for String
     ## Render a string with surrounding quotes; does not escape.
     fn show(x: String) -> String = "\"" <> x <> "\""
 
   ## `Show` impl for `Bool`: "true" or "false".
-  impl Show for Bool
+  implementation Show for Bool
     ## Render a boolean as the literal words `true` or `false`.
     fn show(x: Bool) -> String =
       pickup
@@ -53,25 +59,37 @@ mod Std.Show
         else -> "false"
 
   ## `Show` impl for `Atom`: prefixed with `:` to match source syntax.
-  impl Show for Atom
+  implementation Show for Atom
     ## Render an atom as `":" <> name`.
     fn show(x: Atom) -> String = ":" <> atom_to_string(x)
 
   # -- FFI helpers ---------------------------------------------------
 
-  ## Private: integer -> binary.
-  @extern(:erlang, :integer_to_binary, 1)
-  local fn int_to_string(n: Int) -> String
+  ## Private: integer -> code-point list. The `*_to_list` BIFs are the coherent
+  ## choice because `List(Char)` erases to a bare charlist — `*_to_binary` would
+  ## yield a `Binary` instead. An `@extern` is a direct remote call with no
+  ## marshalling, so these are declared at `List(Char)` and wrapped below:
+  ## `String` is nominal and erases to `{String, chars}`, which no BIF produces.
+  @extern(:erlang, :integer_to_list, 1)
+  local fn int_to_charlist(n: Int) -> List(Char)
 
-  ## Private: float -> binary.
-  @extern(:erlang, :float_to_binary, 1)
-  local fn float_to_string(f: Float) -> String
+  local fn int_to_string(n: Int) -> String = Std.String.from_characters(int_to_charlist(n))
 
-  ## Private: atom -> binary.
-  @extern(:erlang, :atom_to_binary, 1)
-  local fn atom_to_string(a: Atom) -> String
+  ## Private: float -> code-point list.
+  @extern(:erlang, :float_to_list, 1)
+  local fn float_to_charlist(f: Float) -> List(Char)
+
+  local fn float_to_string(f: Float) -> String = Std.String.from_characters(float_to_charlist(f))
+
+  ## Private: atom -> code-point list.
+  @extern(:erlang, :atom_to_list, 1)
+  local fn atom_to_charlist(a: Atom) -> List(Char)
+
+  local fn atom_to_string(a: Atom) -> String = Std.String.from_characters(atom_to_charlist(a))
 
   # -- Convenience functions -----------------------------------------
 
   ## Same as `show/1` but append a trailing newline. Useful for logging.
-  fn show_line(x: T) -> String = show(x) <> "\n"
+  ## The `requires Show(t)` constraint threads the dictionary that
+  ## dispatches `show` at the caller's type.
+  fn show_line(x: t) -> String requires Show(t) = show(x) <> "\n"

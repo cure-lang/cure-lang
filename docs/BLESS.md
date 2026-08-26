@@ -1,9 +1,16 @@
 # cure bless
 
-`cure bless` is a Socratic type-error assistant that landed in
+> **Removed.** `cure bless` depended on `Cure.Types.Checker`, the classic
+> type checker retired when the compiler moved to the dependent-only
+> pipeline (see the Unreleased section of `CHANGELOG.md`). `Cure.Bless`,
+> `Cure.Bless.Advisor`, the `mix cure.bless` task, and the REPL `:bless`
+> command no longer exist in the tree. This page is kept to record the
+> pre-removal design in case a dependent-pipeline equivalent is built later.
+
+`cure bless` was a Socratic type-error assistant that landed in
 **v0.28.0**. For each type or refinement error in a `.cure` file it
-displays the diagnostic, explains what went wrong in one sentence,
-proposes the best available fix, and prompts the user for permission
+displayed the diagnostic, explained what went wrong in one sentence,
+proposed the best available fix, and prompted the user for permission
 before touching anything on disk.
 
 ## CLI
@@ -70,7 +77,7 @@ patches for five patterns:
 | `:type_mismatch` (declared return type) | Remove or widen the return-type annotation |
 | `:type_mismatch` (argument) | Inspect the call site |
 | `:constraint_violation` | Add a `when` guard at the call site |
-| `:unbound_variable` | Insert a `let` binding; or use `Cure.Types.Synth` to find a well-typed replacement from context |
+| `:unbound_variable` | Insert a `let` binding or choose a name from the diagnostic's in-scope candidates |
 | `:arity_mismatch` | Explain the expected argument count |
 | `:non_exhaustive_match` | Insert a wildcard `_ -> throw "unhandled case"` arm |
 

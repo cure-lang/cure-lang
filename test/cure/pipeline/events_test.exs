@@ -45,6 +45,20 @@ defmodule Cure.Pipeline.EventsTest do
     end
   end
 
+  describe "emit_events option gates per-token lexer events" do
+    test "tokenizing with emit_events: false delivers no token_produced events" do
+      Events.subscribe(:lexer)
+      {:ok, _toks} = Cure.Compiler.Lexer.tokenize("fn add(x, y) -> x + y", emit_events: false)
+      refute_receive {Events, :lexer, :token_produced, _, _}, 100
+    end
+
+    test "tokenizing with emit_events: true still delivers token_produced events" do
+      Events.subscribe(:lexer)
+      {:ok, _toks} = Cure.Compiler.Lexer.tokenize("fn add", emit_events: true)
+      assert_receive {Events, :lexer, :token_produced, _, _}, 200
+    end
+  end
+
   describe "meta/2" do
     test "builds metadata map with file, line, and timestamp" do
       meta = Events.meta("hello.cure", 42)

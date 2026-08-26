@@ -6,5 +6,5 @@ defmodule CureSiteWeb.PageHTML do
   """
   use CureSiteWeb, :html
 
-  embed_templates "page_html/*"
+  embed_templates("page_html/*")
 end

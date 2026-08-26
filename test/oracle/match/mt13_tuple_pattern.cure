@@ -1,0 +1,5 @@
+mod Mt13
+  type Nat = Z | S(Nat)
+  fn f(p: Sigma(a: Nat, Nat)) -> Nat = match p
+    %[x, y] -> y
+end

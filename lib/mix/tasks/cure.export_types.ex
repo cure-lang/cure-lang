@@ -37,13 +37,15 @@ defmodule Mix.Tasks.Cure.ExportTypes do
 
   use Mix.Task
 
+  alias Cure.Diagnostic.Sink
+
   @shortdoc "Export Cure type declarations to proto3 (or other schema languages)"
 
   @impl Mix.Task
   def run(args) do
-    {opts, rest, _invalid} =
+    {opts, rest, invalid} =
       OptionParser.parse(args,
-        switches: [
+        strict: [
           target: :string,
           out: :string,
           verbose: :boolean,
@@ -51,6 +53,10 @@ defmodule Mix.Tasks.Cure.ExportTypes do
         ],
         aliases: [v: :verbose]
       )
+
+    if invalid != [] do
+      usage_error("Invalid options for mix cure.export_types: #{inspect(invalid)}")
+    end
 
     target = parse_target(Keyword.get(opts, :target, "protobuf"))
     verbose? = Keyword.get(opts, :verbose, false)
@@ -94,7 +100,17 @@ defmodule Mix.Tasks.Cure.ExportTypes do
   defp parse_target("protobuf"), do: :protobuf
 
   defp parse_target(other) do
-    Mix.shell().error("cure.export_types: unknown target '#{other}' (supported: protobuf)")
+    usage_error("Unknown export target '#{other}'. Supported targets: protobuf")
+  end
+
+  defp usage_error(message) do
+    diagnostic = Cure.Diagnostic.Operational.usage(message)
+
+    rendered =
+      Sink.new(format: :plain, color: :auto, width: 80)
+      |> Sink.render(diagnostic)
+
+    Mix.shell().error(rendered)
     exit({:shutdown, 1})
   end
 

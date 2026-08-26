@@ -1,62 +1,147 @@
+## The structured application surface is source-defined.
+
+@group(:system)
 mod Std.App
-  ## Start, stop, and inspect OTP applications from Cure.
+  use Std.Syntax
+  use Std.ActorBehavior
+  use Std.Beam
+  use Std.Option
+  use Std.Result
+
+  macro app <name: ModuleName>
+    syntax family ApplicationDefinition
+      root ModuleName
+    accepts ApplicationDefinition
+    expands with derive_application_family
+
+  fn derive_application_family(name: ModuleNameSyntax, definition: ApplicationDefinitionSyntax) -> Syntax =
+    let name_syntax: Syntax = name
+    let module_name: SynLit = match name_syntax
+      Leaf(_, _, SAtom(value)) -> SAtom(value)
+      _ -> SStr("Cure.Generated.Application")
+    let start_type = call("Effect", [variable("Tuple")])
+    let stop_type = call("Effect", [variable("Atom")])
+    let start_body = call("Std.Otp.start_supervisor", [definition.root])
+    Std.ActorBehavior.application_module(module_name, [
+      use_module("Std.Supervisor"),
+      function("start", [parameter("kind", variable("t")), parameter("args", variable("a"))], start_type, start_body),
+      function("stop", [parameter("state", variable("s"))], stop_type, quote :ok),
+      function("start_phase", [parameter("phase", variable("Atom")), parameter("kind", variable("t")), parameter("args", variable("a"))], stop_type, quote :ok)
+    ])
+
+  # -- Runtime ----------------------------------------------------------------
+  #
+  # The application controller is reachable from Cure without dropping to
+  # `@extern` at every call site. These are the trust boundary for
+  # `:application`: each raw declaration below records the BEAM's shape, and the
+  # surface above it hands back a closed Cure type. Every operation observes or
+  # mutates VM-global state, so all of them return `Effect(...)`.
+
+  ## What happened when an application was asked to start.
   ##
-  ## Each Cure `app` container compiles to a loaded BEAM module that
-  ## implements the `:application` behaviour. The functions below
-  ## delegate to `Cure.App.Builtins`, which in turn wraps the Erlang
-  ## `:application` BIFs, so Cure code sees plain atoms and values
-  ## rather than OTP's tagged-tuple return shapes.
+  ## `AlreadyStarted` is not a failure — OTP reports it as success with an empty
+  ## list of newly-started applications, and a caller that only needs "is it
+  ## running" can treat it the same as `AppStarted`. `AppStartFailed` carries no
+  ## reason: the reason OTP supplies is an arbitrary term, and pretending it is
+  ## an atom would be a lie at the boundary. Use `Std.Io` on the raw call, or
+  ## OTP's own logging, when the reason itself matters.
+  type AppStart = AppStarted | AlreadyStarted | AppStartFailed
+
+  @extern(:application, :ensure_all_started, 1)
+  local fn raw_ensure_all_started(name: Atom) -> Effect(BeamTerm)
+
+  @extern(:application, :stop, 1)
+  local fn raw_stop(name: Atom) -> Effect(BeamTerm)
+
+  @extern(:application, :get_env, 2)
+  local fn raw_get_env(name: Atom, key: Atom) -> Effect(BeamTerm)
+
+  ## Length of a term the OTP contract already guarantees is a list. Guarded by
+  ## its only caller, which reaches it after matching `{ok, Started}`.
+  @extern(:erlang, :length, 1)
+  local fn raw_length(term: BeamTerm) -> Int
+
+  ## Start `name` together with every application it depends on.
+  fn ensure_all_started(name: Atom) -> Effect(AppStart) =
+    let outcome = raw_ensure_all_started(name)
+    decode_ensure_all_started(outcome)
+
+  ## Stop a running application. `false` means it was not running to begin with.
+  fn stop(name: Atom) -> Effect(Bool) =
+    let outcome = raw_stop(name)
+    is_ok_atom(outcome)
+
+  ## Read one key of an application's environment.
   ##
-  ## ## Examples
-  ##
-  ## ```cure
-  ## use Std.App
-  ##
-  ## ensure_all_started(:cure)
-  ## put_env(:my_app, :port, 4000)
-  ## get_env(:my_app, :port, 8080)           # => 4000
-  ## ```
+  ## The value is whatever the manifest's `[application.env]` put there, so it
+  ## arrives as an undecoded `BeamTerm`. Narrow it with `Std.Beam`, or use one of
+  ## the typed readers below when the expected shape is a primitive.
+  fn env(name: Atom, key: Atom) -> Effect(Option(BeamTerm)) =
+    let outcome = raw_get_env(name, key)
+    decode_env(outcome)
 
-  ## Group tag consumed by `Cure.Stdlib.Preload`.
-  fn __group__() -> Atom = :system
+  ## Read `key` as an `Int`, falling back when it is absent or is not one.
+  fn env_int(name: Atom, key: Atom, fallback: Int) -> Effect(Int) =
+    let value = env(name, key)
+    match value
+      None() -> fallback
+      Some(term) -> match decode_int(term)
+        Ok(decoded) -> decoded
+        Error(_)    -> fallback
 
-  ## Ensure the application and all of its dependencies are started.
-  ## Returns `:ok` whether or not the application was already running.
-  @extern(Elixir.Cure.App.Builtins, :ensure_all_started, 1)
-  fn ensure_all_started(name: Atom) -> Atom
+  ## Read `key` as an `Atom`, falling back when it is absent or is not one.
+  fn env_atom(name: Atom, key: Atom, fallback: Atom) -> Effect(Atom) =
+    let value = env(name, key)
+    match value
+      None() -> fallback
+      Some(term) -> match decode_atom(term)
+        Ok(decoded) -> decoded
+        Error(_)    -> fallback
 
-  ## Start a loaded application by name. Idempotent.
-  @extern(Elixir.Cure.App.Builtins, :start, 1)
-  fn start(name: Atom) -> Atom
+  ## Read `key` as a `Bool`, falling back when it is absent or is not one.
+  fn env_bool(name: Atom, key: Atom, fallback: Bool) -> Effect(Bool) =
+    let value = env(name, key)
+    match value
+      None() -> fallback
+      Some(term) -> match decode_bool(term)
+        Ok(decoded) -> decoded
+        Error(_)    -> fallback
 
-  ## Stop a running application by name. Idempotent.
-  @extern(Elixir.Cure.App.Builtins, :stop, 1)
-  fn stop(name: Atom) -> Atom
+  ## Read `key` as a `String`, falling back when it is absent or is not one.
+  fn env_string(name: Atom, key: Atom, fallback: String) -> Effect(String) =
+    let value = env(name, key)
+    match value
+      None() -> fallback
+      Some(term) -> match decode_string(term)
+        Ok(decoded) -> decoded
+        Error(_)    -> fallback
 
-  ## Fetch an environment variable. Returns `nil` when unset.
-  @extern(Elixir.Cure.App.Builtins, :get_env, 2)
-  fn get_env(name: Atom, key: Atom) -> Any
+  ## `ensure_all_started/1` answers `{ok, Started}` or `{error, Reason}`, where
+  ## `Started` lists only the applications this call actually started. An empty
+  ## list therefore means everything was already running.
+  local fn decode_ensure_all_started(outcome: BeamTerm) -> AppStart =
+    match tagged_payload(outcome, :ok)
+      None() -> AppStartFailed()
+      Some(started) -> match raw_length(started) == 0
+        true  -> AlreadyStarted()
+        false -> AppStarted()
 
-  ## Fetch an environment variable, falling back to `default` when
-  ## unset.
-  @extern(Elixir.Cure.App.Builtins, :get_env, 3)
-  fn get_env(name: Atom, key: Atom, default: Any) -> Any
+  ## `get_env/2` answers `{ok, Value}` or the bare atom `:undefined`.
+  local fn decode_env(outcome: BeamTerm) -> Option(BeamTerm) =
+    tagged_payload(outcome, :ok)
 
-  ## Set an environment variable for an application.
-  @extern(Elixir.Cure.App.Builtins, :put_env, 3)
-  fn put_env(name: Atom, key: Atom, value: Any) -> Atom
+  ## The payload of a two-element `{tag, Payload}` term, when the tag matches.
+  local fn tagged_payload(term: BeamTerm, expected: Atom) -> Option(BeamTerm) =
+    match tuple_element(term, 0)
+      None() -> None()
+      Some(tag_term) -> match atom(tag_term)
+        None() -> None()
+        Some(tag) -> match tag == expected
+          true  -> tuple_element(term, 1)
+          false -> None()
 
-  ## Return a list of `%[name, description, vsn]` tuples for every
-  ## currently-running application.
-  @extern(Elixir.Cure.App.Builtins, :which_applications, 0)
-  fn which_applications() -> List(Tuple)
-
-  ## Return a list of every loaded application's name atom.
-  @extern(Elixir.Cure.App.Builtins, :loaded_applications, 0)
-  fn loaded_applications() -> List(Atom)
-
-  ## Manually invoke a start-phase callback for an application.
-  ## Normally the OTP boot script drives this; exposed here for
-  ## tests and scripted scenarios.
-  @extern(Elixir.Cure.App.Builtins, :start_phase, 3)
-  fn start_phase(name: Atom, phase: Atom, phase_args: Any) -> Atom
+  ## Whether a call that answers `ok | {error, Reason}` answered `ok`.
+  local fn is_ok_atom(outcome: BeamTerm) -> Bool =
+    match atom(outcome)
+      None() -> false
+      Some(tag) -> tag == :ok

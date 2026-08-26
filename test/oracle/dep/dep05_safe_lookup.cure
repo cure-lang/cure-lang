@@ -1,0 +1,17 @@
+mod Dep05
+  type Nat = Zero | Suc(Nat)
+  type Vector(a: Type) indices (n: Nat)
+    empty : Vector(a, Zero)
+    prepend : a -> Vector(a, n) -> Vector(a, Suc(n))
+  type Fin indices (n: Nat)
+    fz : Fin(Suc(m))
+    fs : Fin(m) -> Fin(Suc(m))
+  fn lookup({a: Type},{n: Nat}, v: Vector(a, n), i: Fin(n)) -> a = match i
+    fz() -> match v
+      prepend(x, xs) -> x
+    fs(j) -> match v
+      prepend(x, xs) -> lookup(xs, j)
+  fn vec() -> Vector(Nat, Suc(Suc(Zero))) = prepend(Suc(Zero()), prepend(Zero(), empty()))
+  fn at0() -> Nat = lookup(vec(), fz())
+  fn at1() -> Nat = lookup(vec(), fs(fz()))
+end

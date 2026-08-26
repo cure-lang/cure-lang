@@ -204,7 +204,7 @@ rather than building new ones.
 ## Legacy Coverage After v0.14
 
 After v0.14, the only unported legacy code will be:
-- `cure_type_optimizer.erl` (7,196 lines) -- bulk monomorphization/PGO,
+- `cure_type_optimizer.erl` (7,196 lines) -- optimizer experiments and PGO,
   diminishing returns vs the function inliner added in v0.13
 - `cure_runtime.erl` (970 lines) -- bytecode interpreter, not needed
 - Native helpers (697 lines) -- replaced by stdlib + FFI

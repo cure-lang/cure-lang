@@ -119,7 +119,7 @@ defmodule Cure.Compiler.AlgebraFormatter do
   # Printer for compact rendering.
   defp container_doc(meta, body, indent, depth) do
     case Keyword.get(meta, :container_type) do
-      type when type in [:module, :protocol, :trait, :fsm, :proof] ->
+      type when type in [:module, :protocol, :trait, :proof] ->
         header = container_header(meta)
         body_doc = sequence_doc(body, indent, depth + 1)
 
@@ -151,9 +151,6 @@ defmodule Cure.Compiler.AlgebraFormatter do
           proto = Keyword.get(meta, :protocol, "")
           for_type = Keyword.get(meta, :for, "")
           "impl " <> proto <> " for " <> for_type
-
-        :fsm ->
-          "fsm " <> name
 
         :proof ->
           "proof " <> name

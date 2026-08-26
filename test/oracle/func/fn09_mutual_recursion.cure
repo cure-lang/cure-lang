@@ -1,0 +1,10 @@
+mod Fn09
+  type Nat = Zero | Suc(Nat)
+  fn ping(n: Nat) -> Nat = match n
+    Zero() -> Zero()
+    Suc(k) -> Suc(pong(k))
+  fn pong(n: Nat) -> Nat = match n
+    Zero() -> Zero()
+    Suc(k) -> Suc(ping(k))
+  fn g() -> Nat = ping(Suc(Suc(Zero())))
+end

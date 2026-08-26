@@ -1,0 +1,9 @@
+mod LlAliasDup
+  type Box = MkBox
+  type Widget = MkWidget
+  type Pair = MkPair(Box, Box)
+  type WPair = MkWPair(Widget, Widget)
+  fn consume(@linear c : Box) -> Widget = match c
+    MkBox() -> MkWidget
+  fn f(@linear c : Box) -> Pair = let x = c in MkPair(x, x)
+end

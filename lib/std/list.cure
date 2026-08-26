@@ -1,3 +1,4 @@
+@group(:collections)
 mod Std.List
   ## Eager, persistent, singly-linked lists.
   ##
@@ -21,7 +22,7 @@ mod Std.List
   ## use Std.List
   ##
   ## # Sum of squares of positive integers up to 10
-  ## let r = range_list(1, 11)                 # [1..10]
+  ## let r = (1..11)                           # [1..10]
   ##           |> filter(fn(x) -> x > 0)
   ##           |> map(fn(x) -> x * x)
   ##           |> sum
@@ -32,21 +33,27 @@ mod Std.List
   ## use Std.List
   ##
   ## match uncons([1, 2, 3])
-  ##   %[h, t] -> Std.Io.print_int(h)          # prints 1
-  ##   _       -> Std.Io.println("empty")
+  ##   Some(p) -> Std.Io.print_int(p.1)         # prints 1
+  ##   None()  -> Std.Io.println("empty")
   ## ```
 
+  use Std.Option
+
   ## Group tag consumed by `Cure.Stdlib.Preload`.
-  fn __group__() -> Atom = :collections
+  ## The canonical cons-list family. Seeded programmatically into every module
+  ## (so `[]`/`[h | t]` literal sugar resolves without `use`), and declared here
+  ## with the builtin decorator; `builtin_list_drift_test.exs` pins the two equal.
+  @builtin(:list)
+  type List(a) = Nil | Cons(a, List(a))
 
   # -- Basic queries ----------------------------------------------------------
 
   ## Length of `list` as an `Int`. Delegates to `:erlang.length/1`.
   @extern(:erlang, :length, 1)
-  fn length(list: List(T)) -> Int
+  fn length(list: List(t)) -> Int
 
   ## `true` when `list` has no elements.
-  fn is_empty(list: List(T)) -> Bool =
+  fn is_empty(list: List(t)) -> Bool =
     match list
       [] -> true
       _ -> false
@@ -54,19 +61,19 @@ mod Std.List
   # -- Head / Tail ------------------------------------------------------------
 
   ## First element of `list`; returns `default` when empty.
-  fn head(list: List(T), default: T) -> T =
+  fn head(list: List(t), default: t) -> t =
     match list
       [h | _] -> h
       [] -> default
 
   ## All-but-the-first elements of `list`; empty list yields `[]`.
-  fn tail(list: List(T)) -> List(T) =
+  fn tail(list: List(t)) -> List(t) =
     match list
       [_ | t] -> t
       [] -> []
 
   ## Last element of `list`; returns `default` when empty.
-  fn last(list: List(T), default: T) -> T =
+  fn last(list: List(t), default: t) -> t =
     match list
       [] -> default
       [x] -> x
@@ -75,25 +82,25 @@ mod Std.List
   # -- Construction -----------------------------------------------------------
 
   ## Prepend `elem` onto `list` (the Cure-level spelling of `[elem | list]`).
-  fn cons(elem: T, list: List(T)) -> List(T) = [elem | list]
+  fn cons(elem: t, list: List(t)) -> List(t) = [elem | list]
 
   ## Concatenate two lists. Linear in `length(a)`.
-  fn append(a: List(T), b: List(T)) -> List(T) =
+  fn append(a: List(t), b: List(t)) -> List(t) =
     match a
       [] -> b
       [h | t] -> [h | append(t, b)]
 
   ## Concatenate a list of lists into a single flat list.
-  fn concat(lists: List(List(T))) -> List(T) =
+  fn concat(lists: List(List(t))) -> List(t) =
     match lists
       [] -> []
       [h | t] -> append(h, concat(t))
 
   ## Reverse `list`; tail-recursive via a private accumulator.
-  fn reverse(list: List(T)) -> List(T) = reverse_acc(list, [])
+  fn reverse(list: List(t)) -> List(t) = reverse_acc(list, [])
 
   ## Private accumulator helper for `reverse/1`.
-  local fn reverse_acc(list: List(T), acc: List(T)) -> List(T) =
+  local fn reverse_acc(list: List(t), acc: List(t)) -> List(t) =
     match list
       [] -> acc
       [h | t] -> reverse_acc(t, [h | acc])
@@ -101,13 +108,13 @@ mod Std.List
   # -- Transformations --------------------------------------------------------
 
   ## Map `f` over every element of `list`.
-  fn map(list: List(T), f: T -> U) -> List(U) =
+  fn map(list: List(t), f: t -> u) -> List(u) =
     match list
       [] -> []
       [h | t] -> [f(h) | map(t, f)]
 
   ## Keep elements of `list` for which `pred(elem)` returns `true`.
-  fn filter(list: List(T), pred: T -> Bool) -> List(T) =
+  fn filter(list: List(t), pred: t -> Bool) -> List(t) =
     match list
       [] -> []
       [h | t] ->
@@ -117,7 +124,7 @@ mod Std.List
 
   ## Left fold. `f` is curried: `f(elem)(acc) -> acc`.
   ## Reduces `list` starting from the head.
-  fn foldl(list: List(T), acc: U, f: T -> U -> U) -> U =
+  fn foldl(list: List(t), acc: u, f: t -> u -> u) -> u =
     match list
       [] -> acc
       [h | t] -> foldl(t, f(h)(acc), f)
@@ -125,18 +132,18 @@ mod Std.List
   ## Right fold. `f` is curried: `f(elem)(acc) -> acc`.
   ## Builds up the result from the tail toward the head; not
   ## tail-recursive, so expect O(length) stack on very long lists.
-  fn foldr(list: List(T), acc: U, f: T -> U -> U) -> U =
+  fn foldr(list: List(t), acc: u, f: t -> u -> u) -> u =
     match list
       [] -> acc
       [h | t] -> f(h)(foldr(t, acc, f))
 
   ## Map `f` over `list` and flatten one level of nesting.
-  fn flat_map(list: List(T), f: T -> List(U)) -> List(U) =
+  fn flat_map(list: List(t), f: t -> List(u)) -> List(u) =
     concat(map(list, f))
 
   ## Combine two lists element-wise using `f`. Stops at the shorter list.
   ## `f` is curried: `f(a)(b) -> c`.
-  fn zip_with(a: List(T), b: List(U), f: T -> U -> V) -> List(V) =
+  fn zip_with(a: List(t), b: List(u), f: t -> u -> v) -> List(v) =
     match a
       [] -> []
       [h1 | t1] ->
@@ -147,7 +154,7 @@ mod Std.List
   # -- Access -----------------------------------------------------------------
 
   ## 0-based random access. Returns `default` when `idx` is out of range.
-  fn nth(list: List(T), idx: Int, default: T) -> T =
+  fn nth(list: List(t), idx: Int, default: t) -> t =
     match list
       [] -> default
       [h | t] ->
@@ -155,34 +162,59 @@ mod Std.List
           idx == 0 -> h
           else     -> nth(t, idx - 1, default)
 
+  ## 0-based lookup as an `Option`: `Some(element)` when `0 <= idx < length`,
+  ## `None()` otherwise (past either end, on `[]`, or a negative index). The
+  ## total, honest counterpart to `nth/3` — no default to invent. Structural
+  ## recursion; a negative index falls off the end and yields `None()`.
+  fn at(list: List(t), idx: Int) -> Option(t) =
+    match list
+      [] -> None()
+      [h | t] ->
+        pickup
+          idx == 0 -> Some(h)
+          else     -> at(t, idx - 1)
+
+  ## Replace the element at `idx` with `value` when `0 <= idx < length`; return
+  ## `list` unchanged otherwise (past either end, on `[]`, or a negative index).
+  ## Total; structural recursion. This is the putter half of the `ix` affine.
+  fn set_at(list: List(t), idx: Int, value: t) -> List(t) =
+    match list
+      [] -> []
+      [h | t] ->
+        pickup
+          idx == 0 -> [value | t]
+          else     -> [h | set_at(t, idx - 1, value)]
+
   ## First `n` elements; `[]` when `n <= 0`.
-  fn take(list: List(T), n: Int) -> List(T) =
+  fn take(list: List(t), n: Int) -> List(t) =
     pickup
       n <= 0 -> []
       else   -> take_rest(list, n)
 
   ## Private recursive step for `take/2`.
-  local fn take_rest(list: List(T), n: Int) -> List(T) =
+  local fn take_rest(list: List(t), n: Int) -> List(t) =
     match list
       [] -> []
       [h | t] -> [h | take(t, n - 1)]
 
   ## Drop the first `n` elements; returns `list` unchanged when `n <= 0`.
-  fn drop(list: List(T), n: Int) -> List(T) =
+  fn drop(list: List(t), n: Int) -> List(t) =
     pickup
       n <= 0 -> list
       else   -> drop_rest(list, n)
 
   ## Private recursive step for `drop/2`.
-  local fn drop_rest(list: List(T), n: Int) -> List(T) =
+  local fn drop_rest(list: List(t), n: Int) -> List(t) =
     match list
       [] -> []
       [_ | t] -> drop(t, n - 1)
 
   # -- Search -----------------------------------------------------------------
 
-  ## `true` when `elem` appears in `list` (structural equality).
-  fn contains(list: List(T), elem: T) -> Bool =
+  ## `true` when `elem` appears in `list` (structural equality). The
+  ## `requires Equatable(t)` constraint threads the dictionary that dispatches the
+  ## `h == elem` comparison at the element type.
+  fn contains(list: List(t), elem: t) -> Bool requires Equatable(t) =
     match list
       [] -> false
       [h | t] ->
@@ -191,7 +223,7 @@ mod Std.List
           else      -> contains(t, elem)
 
   ## First element satisfying `pred`; returns `default` when nothing matches.
-  fn find(list: List(T), pred: T -> Bool, default: T) -> T =
+  fn find(list: List(t), pred: t -> Bool, default: t) -> t =
     match list
       [] -> default
       [h | t] ->
@@ -200,7 +232,7 @@ mod Std.List
           else    -> find(t, pred, default)
 
   ## `true` when at least one element satisfies `pred`.
-  fn any(list: List(T), pred: T -> Bool) -> Bool =
+  fn any(list: List(t), pred: t -> Bool) -> Bool =
     match list
       [] -> false
       [h | t] ->
@@ -209,7 +241,7 @@ mod Std.List
           else    -> any(t, pred)
 
   ## `true` when every element satisfies `pred` (vacuously true for `[]`).
-  fn all(list: List(T), pred: T -> Bool) -> Bool =
+  fn all(list: List(t), pred: t -> Bool) -> Bool =
     match list
       [] -> true
       [h | t] ->
@@ -219,14 +251,15 @@ mod Std.List
 
   # -- Destructuring helpers (v0.18.0) ---------------------------------------
 
-  ## Split `list` into `%[head, tail]`; empty list maps to `%[[], []]`.
-  fn uncons(list: List(T)) -> Tuple =
+  ## Split `list` into `Some(%[head, tail])`, or `None()` when empty.
+  fn uncons(list: List(t)) -> Option(Tuple(t, List(t))) =
     match list
-      [h | t] -> %[h, t]
-      []      -> %[[], []]
+      [h | t] -> Some(%[h, t])
+      []      -> None()
 
-  ## Like `uncons/1`, but substitutes `default` for the head when empty.
-  fn split_first(list: List(T), default: T) -> Tuple =
+  ## Like `uncons/1`, but substitutes `default` for the head when empty, so the
+  ## result is always a `%[head, tail]` pair.
+  fn split_first(list: List(t), default: t) -> Tuple(t, List(t)) =
     match list
       [h | t] -> %[h, t]
       []      -> %[default, []]
@@ -242,7 +275,7 @@ mod Std.List
     foldl(list, 1, fn(x) -> fn(acc) -> acc * x)
 
   ## Count of elements satisfying `pred`.
-  fn count(list: List(T), pred: T -> Bool) -> Int =
+  fn count(list: List(t), pred: t -> Bool) -> Int =
     let step = fn(x) -> fn(acc) ->
       pickup
         pred(x) -> acc + 1

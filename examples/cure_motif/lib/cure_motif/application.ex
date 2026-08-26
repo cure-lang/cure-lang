@@ -4,7 +4,7 @@ defmodule CureMotif.Application do
 
   Starts a plain `Supervisor` that supervises three children:
 
-    * `:"Cure.Sup.Motif.Orchestra"` -- the Cure-compiled supervisor declared
+    * `:"Cure.Motif.Orchestra"` -- the Cure-compiled supervisor declared
       in `cure_src/orchestra.cure`, which in turn starts the `Clock`,
       `Sequencer`, and `Voice` actors declared in `cure_src/*.cure`.
     * `CureMotif.MidiOut` -- a tiny Elixir Agent that collects NoteOn /
@@ -19,8 +19,8 @@ defmodule CureMotif.Application do
 
   require Logger
 
-  @cure_sup :"Cure.Sup.Motif.Orchestra"
-  @cure_app :"Cure.App.CureMotif"
+  @cure_sup :"Cure.Motif.Orchestra"
+  @cure_app :"Cure.Main.CureMotif"
   @compile {:no_warn_undefined, @cure_sup}
   @compile {:no_warn_undefined, @cure_app}
 
@@ -32,7 +32,7 @@ defmodule CureMotif.Application do
       CureMotif.MidiOut,
       %{
         id: @cure_sup,
-        start: {@cure_sup, :start_link, [[]]},
+        start: {@cure_sup, :start_link, []},
         type: :supervisor,
         restart: :permanent
       }

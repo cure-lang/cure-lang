@@ -1,0 +1,554 @@
+## Public names for the sealed raw carriers used by this module's signatures.
+## These aliases make the `Std.Otp` interface self-contained without leaking
+## every bare name imported from `Std.Otp.Raw` into downstream modules.
+
+@group(:concurrency)
+mod Std.Otp
+  use Std.Otp.Raw
+  use Std.ExitReason
+  use Std.Bool
+  use Std.Option
+  use Std.Beam
+
+  # Library-owned operator declarations. Their precedence group is part of the
+  # core lattice in Std.Operators; importing Std.Otp brings these fixities and
+  # the checked function meanings below into scope together.
+  infix `<-|` : Melquiades
+  infix `✉` : Melquiades
+
+  typealias Plain = Std.Otp.Raw.Plain
+  typealias Server = Std.Otp.Raw.Server
+  typealias RawPid(m, r, k) = Std.Otp.Raw.RawPid(m, r, k)
+  typealias RawServerPid(m, q, r) = Std.Otp.Raw.RawServerPid(m, q, r)
+  typealias RawDepServerPid(m: Type, q: Type, rep: (q) -> Type) = Std.Otp.Raw.RawDepServerPid(m, q, rep)
+  typealias RawFsmPid(event, state, data) = Std.Otp.Raw.RawFsmPid(event, state, data)
+  typealias RawSupervisorPid = Std.Otp.Raw.RawSupervisorPid
+  typealias NoMessage = Std.Otp.Raw.NoMessage
+  typealias BarePid = Std.Otp.Raw.BarePid
+  typealias Ref = Std.Otp.Raw.Ref
+  typealias MonitorRef = Std.Otp.Raw.MonitorRef
+  typealias TimerRef = Std.Otp.Raw.TimerRef
+  typealias RawTerm = Std.Otp.Raw.RawTerm
+  typealias Selector(p) = Std.Otp.Raw.Selector(p)
+
+  ## Transparent process-operation syntax. Each rule produces ordinary Cure
+  ## syntax; the checked algebra remains the only semantic implementation.
+  macro BeamOps
+    syntax beam_ops start_statem <module: Code> <args: Code> contextual becomes Std.Otp.start_statem(module, args)
+    syntax beam_ops start_supervisor <module: Code> contextual becomes Std.Otp.start_supervisor(module)
+    syntax beam_ops start_supervisor <module: Code> <args: Code> contextual becomes Std.Otp.start_supervisor_with(module, args)
+    syntax beam_ops self becomes Std.Otp.self()
+
+    syntax beam_ops tell <dest: Code> <message: Code> contextual becomes Std.Otp.tell(dest, message)
+    syntax beam_ops send <dest: Code> <message: Code> contextual becomes Std.Otp.tell(dest, message)
+    syntax beam_ops call <server: Code> <request: Code> contextual becomes Std.Otp.call(server, request)
+    syntax beam_ops cast <server: Code> <request: Code> contextual becomes Std.Otp.cast(server, request)
+    syntax beam_ops spawn <thunk: Code> contextual becomes Std.Otp.spawn(thunk)
+    syntax beam_ops spawn_link <thunk: Code> contextual becomes Std.Otp.spawn_link(thunk)
+    syntax beam_ops start_link <module: Code> <args: Code> contextual becomes Std.Otp.start_link(module, args)
+    syntax beam_ops stop <pid: Code> contextual becomes Std.Otp.stop(pid)
+    syntax beam_ops send_after <delay: Code> <pid: Code> <message: Code> contextual becomes Std.Otp.send_after(delay, pid, message)
+    syntax beam_ops cancel_timer <ref: Code> contextual becomes Std.Otp.cancel_timer(ref)
+    syntax beam_ops monitor <kind: Code> <pid: Code> contextual becomes Std.Otp.monitor(kind, pid)
+    syntax beam_ops demonitor <ref: Code> contextual becomes Std.Otp.demonitor(ref)
+    syntax beam_ops link <pid: Code> contextual becomes Std.Otp.link(pid)
+    syntax beam_ops unlink <pid: Code> contextual becomes Std.Otp.unlink(pid)
+
+  ## The typed BEAM process algebra — the sanctioned concurrency surface.
+  ##
+  ## Two typed handles, both opaque phantoms erased to a raw `erlang:pid()` at
+  ## runtime; their whole job is static — using a process at the WRONG message or
+  ## reply type is a COMPILE error, the guarantee `Std.Otp.Raw`'s untyped `Pid`
+  ## cannot give (design 2026-07-10-checked-beam-concurrency §2,
+  ## 2026-07-09-typed-beam-process-algebra):
+  ##
+  ##   * `Pid(m)`            — a plain process accepting messages of type `m`
+  ##                          (raw `erlang:send`, one-way).
+  ##   * `GenServer(q, r)`   — a `gen_server` taking requests `q`; a synchronous
+  ##                          `call` returns a reply `r`. The reply type rides on
+  ##                          the SERVER'S type, so `call` needs no return-only
+  ##                          implicit (which does not resolve through an effectful
+  ##                          extern) — a wrong request AND a wrong reply are both
+  ##                          caught.
+  ##
+  ## Every operation performs a BEAM side effect, so it returns `Effect(T)`. The effect
+  ## discipline forbids duplicating, dropping, or reordering an OPERATION — a statement
+  ## about the PROGRAM'S EFFECT SEQUENCE, not about the mailbox. The BEAM promises no
+  ## delivery at all (a `tell` to a dead process silently succeeds) and orders signals only
+  ## PAIRWISE, from one sender to one target; nothing in this module claims more. Messages
+  ## are POLYMORPHIC (the narrow point for a message set), never `Any`.
+  ##
+  ## The typed layer calls the raw externs through ordinary qualified Cure
+  ## definitions. The only foreign declarations are in `Std.Otp.Raw`; the
+  ## imported opaque carrier preserves erased runtime identity while the public
+  ## aliases below attach message and request/reply indices.
+
+  ## A typed handle to a plain BEAM process accepting messages of type `m`. It answers
+  ## raw sends, and nothing else.
+  typealias Pid(m) = RawPid(m, m, Plain)
+
+  ## A typed `gen_server` taking requests `q`, replying `r`. DISTINCT from `Pid(m)`:
+  ## `call`/`cast`/`stop` are gen_server protocol operations, and a plain spawned process
+  ## cannot answer them — it would block the caller for 5s and then exit it. The `Plain`
+  ## / `Server` tag is a phantom at kind `Type`: no values, no runtime cost.
+  typealias GenServer(q, r) = RawPid(q, r, Server)
+
+  ## An actor-like server has independent asynchronous and synchronous input
+  ## codes. All three indices are erased; the runtime value is the native pid.
+  typealias ActorServer(m, q, r) = RawServerPid(m, q, r)
+
+  ## Typed handle for a generated finite-state machine. `state` and `data` are
+  ## phantom observations; `event` is the only asynchronously accepted code.
+  typealias FsmPid(event, state, data) = RawFsmPid(event, state, data)
+
+  ## Typed handle to an OTP supervisor. The carrier is a bare native pid, but
+  ## it is not interchangeable with an actor, FSM, or freely sendable process.
+  typealias SupervisorHandle = RawSupervisorPid
+
+  type StartResult(handle) = Started(handle) | StartFailed | StartIgnored | InvalidStartResult
+
+  fn map_start({a: Type}, {b: Type}, result: StartResult(a), convert: (a) -> b) -> StartResult(b) = match result
+    Started(handle) -> Started(convert(handle))
+    StartFailed() -> StartFailed()
+    StartIgnored() -> StartIgnored()
+    InvalidStartResult() -> InvalidStartResult()
+
+  typealias DepActorServer(m: Type, q: Type, rep: (q) -> Type) = RawDepServerPid(m, q, rep)
+
+  fn as_dep_actor({m: Type}, {q: Type}, {rep: (q) -> Type}, server: ActorServer(m, q, Unit)) -> DepActorServer(m, q, rep) =
+    raw_dep_actor_server(1, %[server, :checked_dep_actor])
+
+  ## A DEPENDENT `gen_server` handle: requests `q`, reply computed PER REQUEST by `rep : q -> Type` (an
+  ## `ReplyOf`). The SAME server answers different requests at different reply types. A real datatype INDEXED by
+  ## `rep` (mirroring `Std.Sigma`), so `call_dep` recovers the reply family from the handle — a phantom typealias
+  ## could not. Wraps the raw server pid and shares its bare-pid representation.
+  type DepGenServer(q: Type, rep: (q) -> Type) indices ()
+    mk_dep_server : (raw: RawPid(q, Unit, Server)) -> DepGenServer(q, rep)
+
+  ## View a running `gen_server` as a dependent server under a chosen reply family `rep` (from the expected
+  ## result type). Zero runtime content beyond the wrapped pid.
+  fn as_dep({q: Type}, {rep: (q) -> Type}, server: GenServer(q, Unit)) -> DepGenServer(q, rep) =
+    mk_dep_server(server)
+
+  ## The callback-side one-shot reply capability supplied by `gen_server`. It
+  ## erases to OTP's `{pid, tag}` tuple but remains linear at Cure call sites.
+  typealias Reply(r) = Tuple(RawPid(NoMessage, NoMessage, Plain), Ref)
+
+  ## A typed message ADDRESS — the Gleam-style `Subject`. A fresh `(owner-pid, unique-tag)` pair; UNLIKE `Pid(m)`
+  ## (one message type per process) a single process may own SEVERAL subjects of different types, each a distinct
+  ## typed channel. `subject_send` delivers a TAGGED message to the owner; `subject_receive` matches that tag, so
+  ## channels never cross. Erases to the bare `{pid, ref}` tuple — no registry / `persistent_term` (AtomVM-safe).
+  ## This is the addressing layer `Selector` (typed selective receive) and typed `Name` build on.
+  typealias Subject(m) = Tuple(Pid(m), Ref)
+
+  ## Mint a fresh subject owned by the calling process.
+  fn new_subject({m: Type}) -> Effect(Subject(m)) = raw_subject_new()
+
+  ## Send a typed message to a subject — delivered TAGGED to the owner's mailbox (fire-and-forget, like `tell`).
+  fn subject_send({m: Type}, subject: Subject(m), message: m) -> Effect(Unit) =
+    let sent = raw_subject_send(subject, message)
+    ()
+
+  ## Receive the next message addressed to `subject` within `timeout` ms; `None` on timeout. Only the subject's
+  ## OWNER (the process that created it) may receive.
+  fn subject_receive({m: Type}, subject: Subject(m), timeout: Int) -> Effect(Option(m)) =
+    raw_subject_receive(subject, timeout)
+
+  ## Typed SELECTIVE RECEIVE (Gleam-style `Selector`). Accumulate handlers over several subjects of DIFFERENT
+  ## message types — each mapped into a common payload `p` by `select_map` — then `selector_receive` returns
+  ## whichever arrives first, typed as `p`. `select` is the identity case (the subject's messages ARE the
+  ## payload). Building a selector is pure; only the receive is an `Effect`.
+  fn new_selector({p: Type}) -> Selector(p) = raw_selector_new()
+
+  ## Add `subject`, mapping its messages into the selector's payload `p`.
+  fn select_map({p: Type}, {m: Type}, selector: Selector(p), subject: Subject(m), transform: (m) -> p) -> Selector(p) =
+    raw_selector_select_map(selector, subject, transform)
+
+  ## Add a subject whose message type IS the payload (identity mapping).
+  fn select({p: Type}, selector: Selector(p), subject: Subject(p)) -> Selector(p) =
+    raw_selector_select_map(selector, subject, fn(x) -> x)
+
+  ## Receive from whichever selected subject arrives first within `timeout` ms; `None` on timeout.
+  fn selector_receive({p: Type}, selector: Selector(p), timeout: Int) -> Effect(Option(p)) =
+    raw_selector_receive(selector, timeout)
+
+  ## A typed process NAME (Gleam-style `Name(m)`) — a registered atom carrying the message type `m` its process
+  ## accepts. Registering binds a `Pid(m)` to the name; `whereis_name` looks it up as a TYPED, sendable
+  ## `Option(Pid(m))` — closing F-1 (a name lookup previously yielded only an untyped, unsendable `BarePid`). The
+  ## type `m` is the caller's claim, carried by the `Name` (the sole trust point, as in Gleam). AtomVM caveat:
+  ## uses `erlang:register`/`whereis` — host OTP is fine; confirm AtomVM support before relying on it there.
+  type Name(m: Type) indices ()
+    MkName : (registered: Atom) -> Name(m)
+
+  ## A typed name over a registered atom. `m` asserts what the named process accepts.
+  fn name({m: Type}, registered: Atom) -> Name(m) = MkName(registered)
+
+  local fn name_atom({m: Type}, n: Name(m)) -> Atom = match n
+    MkName(a) -> a
+
+  ## Register a `Pid(m)` under the name. Returns whether registration succeeded (false if the name is taken).
+  fn register_name({m: Type}, n: Name(m), pid: Pid(m)) -> Effect(Bool) = raw_name_register(name_atom(n), pid)
+
+  ## Look up the process registered under the name as a TYPED, sendable `Pid(m)`; `None` if unregistered.
+  fn whereis_name({m: Type}, n: Name(m)) -> Effect(Option(Pid(m))) = raw_name_whereis(name_atom(n))
+
+  ## Remove the name's registration. Returns whether it was registered.
+  fn unregister_name({m: Type}, n: Name(m)) -> Effect(Bool) = raw_name_unregister(name_atom(n))
+
+  ## A process message set. The first algebra floor stores tag and arity
+  ## shapes; typed ADT payload derivation is added by the transparent macro
+  ## phase once callback syntax is available.
+  type MessageCode = Empty | Shape(Atom, Int, MessageCode)
+
+  ## A single message shape constructor, convenient for macro-generated codes.
+  fn message_code(tag: Atom, arity: Int) -> MessageCode = Shape(tag, arity, Empty)
+
+  local fn same_shape(left_tag: Atom, left_arity: Int, right_tag: Atom, right_arity: Int) -> Bool =
+    `and`(left_tag == right_tag, left_arity == right_arity)
+
+  ## Does `code` accept a message tag with the given payload arity?
+  fn handles(code: MessageCode, tag: Atom, arity: Int) -> Bool =
+    match code
+      Empty -> false
+      Shape(found_tag, found_arity, rest) ->
+        match same_shape(found_tag, found_arity, tag, arity)
+          true -> true
+          false -> handles(rest, tag, arity)
+
+  ## Is every shape in `narrow` also accepted by `wide`?
+  fn subset(narrow: MessageCode, wide: MessageCode) -> Bool =
+    match narrow
+      Empty -> true
+      Shape(tag, arity, rest) -> `and`(handles(wide, tag, arity), subset(rest, wide))
+
+  local fn remove_shape(code: MessageCode, tag: Atom, arity: Int) -> MessageCode =
+    match code
+      Empty -> Empty
+      Shape(found_tag, found_arity, rest) ->
+        match same_shape(found_tag, found_arity, tag, arity)
+          true -> remove_shape(rest, tag, arity)
+          false -> Shape(found_tag, found_arity, remove_shape(rest, tag, arity))
+
+  ## Union two codes, preserving the first code's order and removing duplicate
+  ## tag/arity shapes from the second code.
+  fn union(left: MessageCode, right: MessageCode) -> MessageCode =
+    match left
+      Empty -> right
+      Shape(tag, arity, rest) -> Shape(tag, arity, union(rest, remove_shape(right, tag, arity)))
+
+  ## The calling process's own typed pid; the erased message index is supplied
+  ## by the enclosing expected result at each use site.
+  fn self({m: Type}) -> Effect(Pid(m)) = raw_self()
+
+  ## Spawn a nullary process function and return its indexed handle.
+  fn spawn({m: Type}, thunk: () -> Unit) -> Effect(Pid(m)) = raw_spawn(thunk)
+
+  ## Spawn and link a nullary process function to the calling process.
+  fn spawn_link({m: Type}, thunk: () -> Unit) -> Effect(Pid(m)) = raw_spawn_link(thunk)
+
+  ## Start a gen_server callback module. The generic floor preserves OTP's
+  ## result tuple; transparent behavior macros provide the typed specialization.
+  fn start_link({a: Type}, module: Atom, args: a) -> Effect(Tuple) =
+    raw_start_link_unnamed(module, args, assert_type [] : List(Atom))
+
+  ## Start a checked actor callback module and decode OTP's heterogeneous result.
+  ## Only the `:ok` branch may attach actor protocol indices, and only after the
+  ## second tuple element has passed the native PID guard.
+  fn start_actor({a: Type}, {m: Type}, {q: Type}, {r: Type}, module: Atom, args: a) -> Effect(StartResult(ActorServer(m, q, r))) =
+    let outcome = raw_start_link_term(module, args, assert_type [] : List(Atom))
+    decode_actor_start(outcome)
+
+  local fn decode_actor_start({m: Type}, {q: Type}, {r: Type}, outcome: BeamTerm) -> StartResult(ActorServer(m, q, r)) =
+    match atom(outcome)
+      Some(tag) -> match tag == :ignore
+        true -> StartIgnored()
+        false -> InvalidStartResult()
+      None() -> decode_actor_start_tuple(outcome)
+
+  local fn decode_actor_start_tuple({m: Type}, {q: Type}, {r: Type}, outcome: BeamTerm) -> StartResult(ActorServer(m, q, r)) =
+    match tuple_arity(outcome)
+      None() -> InvalidStartResult()
+      Some(size) -> match size == 2
+        true -> decode_actor_start_pair(outcome)
+        false -> InvalidStartResult()
+
+  local fn decode_actor_start_pair({m: Type}, {q: Type}, {r: Type}, outcome: BeamTerm) -> StartResult(ActorServer(m, q, r)) =
+    match tuple_element(outcome, 0)
+      None() -> InvalidStartResult()
+      Some(tag_term) -> match atom(tag_term)
+        None() -> InvalidStartResult()
+        Some(tag) -> match tag == :ok
+          true -> decode_started_actor(outcome)
+          false -> match tag == :error
+            true -> match tuple_element(outcome, 1)
+              Some(reason) -> StartFailed()
+              None() -> InvalidStartResult()
+            false -> InvalidStartResult()
+
+  local fn decode_started_actor({m: Type}, {q: Type}, {r: Type}, outcome: BeamTerm) -> StartResult(ActorServer(m, q, r)) =
+    match tuple_element(outcome, 1)
+      None() -> InvalidStartResult()
+      Some(pid_term) -> match pid(pid_term)
+        None() -> InvalidStartResult()
+        Some(process) -> Started(raw_actor_server(1, %[process, :checked_actor]))
+
+
+  fn start_statem({a: Type}, module: Atom, args: a) -> Effect(Tuple) =
+    raw_statem_start_link_unnamed(module, args, assert_type [] : List(Atom))
+
+  fn start_fsm({a: Type}, {event: Type}, {state: Type}, {data: Type}, module: Atom, args: a) -> Effect(StartResult(FsmPid(event, state, data))) =
+    let outcome = raw_statem_start_link_term(module, args, assert_type [] : List(Atom))
+    decode_fsm_start(outcome)
+
+  local fn decode_fsm_start({event: Type}, {state: Type}, {data: Type}, outcome: BeamTerm) -> StartResult(FsmPid(event, state, data)) = match atom(outcome)
+    Some(tag) -> match tag == :ignore
+      true -> StartIgnored()
+      false -> InvalidStartResult()
+    None() -> match tuple_arity(outcome)
+      Some(size) -> match size == 2
+        true -> match tuple_element(outcome, 0)
+          Some(tag_term) -> match atom(tag_term)
+            Some(tag) -> match tag == :ok
+              true -> decode_started_fsm(outcome)
+              false -> match tag == :error
+                true -> StartFailed()
+                false -> InvalidStartResult()
+            None() -> InvalidStartResult()
+          None() -> InvalidStartResult()
+        false -> InvalidStartResult()
+      None() -> InvalidStartResult()
+
+  local fn decode_started_fsm({event: Type}, {state: Type}, {data: Type}, outcome: BeamTerm) -> StartResult(FsmPid(event, state, data)) = match tuple_element(outcome, 1)
+    None() -> InvalidStartResult()
+    Some(pid_term) -> match pid(pid_term)
+      None() -> InvalidStartResult()
+      Some(process) -> Started(raw_fsm_pid(1, %[process, :checked_fsm]))
+
+  fn fsm_send({event: Type}, {state: Type}, {data: Type}, machine: FsmPid(event, state, data), value: event) -> Effect(Unit) =
+    let acked = raw_statem_cast(machine, value)
+    ()
+
+  fn start_supervisor(module: Atom) -> Effect(Tuple) =
+    raw_supervisor_start_link(%[:local, module], module, assert_type [] : List(Atom))
+
+  fn start_supervisor_with({a: Type}, module: Atom, args: List(a)) -> Effect(Tuple) =
+    raw_supervisor_start_link(%[:local, module], module, args)
+
+  fn start_typed_supervisor(module: Atom) -> Effect(StartResult(SupervisorHandle)) =
+    let outcome = raw_supervisor_start_link_term(%[:local, module], module, assert_type [] : List(Atom))
+    decode_supervisor_start(outcome)
+
+  local fn decode_supervisor_start(outcome: BeamTerm) -> StartResult(SupervisorHandle) = match atom(outcome)
+    Some(tag) -> match tag == :ignore
+      true -> StartIgnored()
+      false -> InvalidStartResult()
+    None() -> match tuple_arity(outcome)
+      Some(size) -> match size == 2
+        true -> match tuple_element(outcome, 0)
+          Some(tag_term) -> match atom(tag_term)
+            Some(tag) -> match tag == :ok
+              true -> decode_started_supervisor(outcome)
+              false -> match tag == :error
+                true -> StartFailed()
+                false -> InvalidStartResult()
+            None() -> InvalidStartResult()
+          None() -> InvalidStartResult()
+        false -> InvalidStartResult()
+      None() -> InvalidStartResult()
+
+  local fn decode_started_supervisor(outcome: BeamTerm) -> StartResult(SupervisorHandle) = match tuple_element(outcome, 1)
+    None() -> InvalidStartResult()
+    Some(pid_term) -> match pid(pid_term)
+      None() -> InvalidStartResult()
+      Some(process) -> Started(raw_supervisor_pid(1, %[process, :checked_supervisor]))
+
+  fn stop_supervisor(supervisor: SupervisorHandle, reason: ExitReason) -> Effect(Unit) =
+    let stopped = raw_supervisor_stop(supervisor, exit_atom(reason), 5000)
+    ()
+
+  ## Send a well-typed message: `msg : m` must match `dest`'s accepted type `m`,
+  ## so a `Pid(Command)` can never be sent a `Telemetry`. (Named `tell`, not
+  ## `send`: the Melquiades operators below provide the compact send surface.)
+  ##
+  ## Accepts BOTH handles: a raw send to a gen_server is legitimate BEAM practice —
+  ## it lands in `handle_info`.
+  ## The raw BIF returns the message itself; the typed wrapper DISCARDS it — a send is
+  ## fire-and-forget, and echoing the argument back tells the caller nothing. Discarding
+  ## is a choice the typed layer makes explicitly, not a lie the raw type tells.
+  fn tell({m: Type}, {r: Type}, {k: Type}, dest: RawPid(m, r, k), msg: m) -> Effect(Unit) =
+    let sent = raw_send(dest, msg)
+    ()
+
+  ## Melquiades is ordinary operator sugar over the checked operation above.
+  ## Both spellings have exactly `tell`'s indexed message check and effect result;
+  ## neither restores the retired raw-process send node.
+  fn `<-|`({m: Type}, {r: Type}, {k: Type}, dest: RawPid(m, r, k), msg: m) -> Effect(Unit) =
+    tell(dest, msg)
+
+  fn `✉`({m: Type}, {r: Type}, {k: Type}, dest: RawPid(m, r, k), msg: m) -> Effect(Unit) =
+    tell(dest, msg)
+
+  ## Synchronous `gen_server` call: send request `q`, block for reply `r`. Both the
+  ## request AND the reply are checked against the server's type.
+  ##
+  ## ⚠ PARTIAL. On timeout (default 5000 ms) or server death the CALLER EXITS. `Effect(r)`
+  ## is sound — no value is ever returned at the wrong type — but it is NOT total: there is
+  ## simply no continuation. A `try_call` reifying the failure as a value needs a try/catch
+  ## shim and is deferred (audit §6).
+  fn call({q: Type}, {r: Type}, server: GenServer(q, r), request: q) -> Effect(r) =
+    raw_call(server, request)
+
+  ## Synchronous DEPENDENT `gen_server` call: send `request`, block for the reply at the request's OWN type
+  ## `rep(request)`. The dependent counterpart of `call` — one server answers heterogeneous requests, each at its
+  ## own reply type, checked at the call site. `rep(request)` is fixed by the EXPLICIT request argument (not a
+  ## return-only implicit), so it threads through the extern. Same PARTIAL caveat as `call`.
+  ## Project the wrapped raw pid (constant, non-Effect motive so the dependent match is trivial).
+  local fn dep_raw({q: Type}, {rep: (q) -> Type}, server: DepGenServer(q, rep)) -> RawPid(q, Unit, Server) =
+    match server
+      mk_dep_server(raw) -> raw
+
+  fn call_dep({q: Type}, {rep: (q) -> Type}, server: DepGenServer(q, rep), request: q) -> Effect(rep(request)) =
+    raw_call_dep(dep_raw(server), request)
+
+  local fn dep_actor_raw({m: Type}, {q: Type}, {rep: (q) -> Type}, server: DepActorServer(m, q, rep)) -> RawServerPid(m, q, Unit) =
+    raw_dep_actor_base(1, %[server, :checked_dep_actor])
+
+  fn actor_cast({m: Type}, {q: Type}, {r: Type}, server: ActorServer(m, q, r), message: m) -> Effect(Unit) =
+    let acked = raw_server_cast(server, message)
+    ()
+
+  fn actor_call({m: Type}, {q: Type}, {r: Type}, server: ActorServer(m, q, r), request: q) -> Effect(r) =
+    raw_server_call(server, request)
+
+  fn actor_call_dep({m: Type}, {q: Type}, {rep: (q) -> Type}, server: DepActorServer(m, q, rep), request: q) -> Effect(rep(request)) =
+    raw_server_call_dep(dep_actor_raw(server), request)
+
+  fn dep_actor_cast({m: Type}, {q: Type}, {rep: (q) -> Type}, server: DepActorServer(m, q, rep), message: m) -> Effect(Unit) =
+    let acked = raw_server_cast(dep_actor_raw(server), message)
+    ()
+
+  fn dep_actor_stop({m: Type}, {q: Type}, {rep: (q) -> Type}, server: DepActorServer(m, q, rep)) -> Effect(Unit) =
+    let stopped = raw_server_stop(dep_actor_raw(server))
+    ()
+
+  fn actor_stop({m: Type}, {q: Type}, {r: Type}, server: ActorServer(m, q, r)) -> Effect(Unit) =
+    let stopped = raw_server_stop(server)
+    ()
+
+  ## Send one reply through a callback's linear `from` capability. Generated
+  ## actor callbacks use this direct operation and return `noreply`.
+  fn reply({r: Type}, @linear from : Reply(r), value: r) -> Effect(Unit) =
+    let answered = raw_reply(from, value)
+    ()
+
+  ## Asynchronous `gen_server` cast — a typed fire-and-forget request (no reply).
+  ## `gen_server:cast/2` answers the constant atom `ok`; the wrapper discards it.
+  fn cast({q: Type}, {r: Type}, server: GenServer(q, r), request: q) -> Effect(Unit) =
+    let acked = raw_cast(server, request)
+    ()
+
+  ## Typed lifecycle and observation wrappers over the raw effect boundary. `MonitorRef`
+  ## and `TimerRef` are the raw base's own DISTINCT carriers (imported, not aliased): they
+  ## used to be two names for one `Ref`, which made `cancel_timer(monitor_ref)` well-typed.
+  typealias BeamTerm = RawTerm
+
+  ## Stop a `gen_server`. `Server`-only — `gen_server:stop` on a plain process blocks
+  ## and then exits the caller. The BIF answers the constant atom `ok`; discarded.
+  fn stop({q: Type}, {r: Type}, server: GenServer(q, r)) -> Effect(Unit) =
+    let stopped = raw_stop(server)
+    ()
+
+  ## The signal-layer operations below accept BOTH handles: linking, monitoring,
+  ## exiting, naming and timing are properties of a BEAM PROCESS, not of the protocol
+  ## it speaks. They are tag-polymorphic in `k`.
+  fn send_after({m: Type}, {r: Type}, {k: Type}, delay: Int, pid: RawPid(m, r, k), msg: m) -> Effect(TimerRef) =
+    raw_send_after(delay, pid, msg)
+
+  ## Cancel a timer, surfacing what the BIF actually reports: `Some(ms)` when the timer
+  ## was still pending (`ms` milliseconds were left on it), `None` when it had already
+  ## fired or been cancelled. The old `Effect(Unit)` threw that answer away, which is how
+  ## a caller could believe a cancellation succeeded when it had not.
+  ##
+  ## ⚠ AtomVM: `erlang:send_after/3` registers its timer under a DIFFERENT ref than the one
+  ## it returns (timer_manager.erl:87-91), so on AtomVM cancelling a `send_after` ref always
+  ## yields `None` AND THE MESSAGE STILL FIRES. Cancellation is reliable on OTP; on AtomVM it
+  ## is not. See the audit, §5.
+  fn cancel_timer(ref: TimerRef) -> Effect(Option(Int)) =
+    let remaining = raw_cancel_timer(ref)
+    match remaining
+      ms: Int -> Some(ms)
+      already: Bool -> None()
+
+  fn monitor({m: Type}, {r: Type}, {k: Type}, kind: MonitorKind, pid: RawPid(m, r, k)) -> Effect(MonitorRef) =
+    raw_monitor(monitor_kind_atom(kind), pid)
+
+  ## Remove a monitor AND flush any `DOWN` already sitting in the mailbox. Without `flush`
+  ## a stale `DOWN` outlives the call, and every receiving `match` has to carry an arm for
+  ## a monitor the caller believes it already removed.
+  fn demonitor(ref: MonitorRef) -> Effect(Unit) =
+    let removed = raw_demonitor_flush(ref, [:flush])
+    ()
+
+  ## `erlang:link/1`, `unlink/1` and `register/2` all answer the constant `true` — there is
+  ## no failure they report by value (they raise instead). The wrappers discard it.
+  fn link({m: Type}, {r: Type}, {k: Type}, pid: RawPid(m, r, k)) -> Effect(Unit) =
+    let linked = raw_link(pid)
+    ()
+
+  fn unlink({m: Type}, {r: Type}, {k: Type}, pid: RawPid(m, r, k)) -> Effect(Unit) =
+    let unlinked = raw_unlink(pid)
+    ()
+
+  ## Why a process is being asked to exit. The BEAM's three exit rules turn on exactly this
+  ## distinction, crossed with the target's trap_exit flag and the signal's link flag:
+  ##
+  ##   * `Normal`          — dropped by a non-trapping target (unless it is the caller
+  ##                         itself, which does terminate).
+  ##   * `Kill`            — untrappable when sent explicitly with `exit/2`: the target dies
+  ##                         and propagates the reason `killed`. (Sent THROUGH A LINK it is
+  ##                         trappable — but this op only ever sends explicitly.)
+  ##   * `Because(reason)` — terminates a non-trapping target; a trapping target receives
+  ##                         `{'EXIT', From, reason}` at the END of its mailbox.
+  local fn exit_atom(reason: ExitReason) -> Atom =
+    match reason
+      Normal() -> :normal
+      Kill() -> :kill
+      Shutdown() -> :shutdown
+      Because(why) -> why
+
+  ## Send an exit signal. Makes NO type-level claim that the target dies — correctly: which
+  ## of the three outcomes occurs depends on the target's trap_exit flag, which the sender
+  ## cannot see. A polymorphic reason could not even state the distinction.
+  fn exit({m: Type}, {r: Type}, {k: Type}, pid: RawPid(m, r, k), reason: ExitReason) -> Effect(Unit) =
+    let signalled = raw_exit(pid, exit_atom(reason))
+    ()
+
+  fn is_alive({m: Type}, {r: Type}, {k: Type}, pid: RawPid(m, r, k)) -> Effect(Bool) =
+    raw_is_alive(pid)
+
+  fn register({m: Type}, {r: Type}, {k: Type}, name: Atom, pid: RawPid(m, r, k)) -> Effect(Unit) =
+    let registered = raw_register(name, pid)
+    ()
+
+  fn unregister(name: Atom) -> Effect(Unit) =
+    let unregistered = raw_unregister(name)
+    ()
+
+  ## Look up a registered name. `None` when the name is not registered — the BIF returns
+  ## the atom `undefined` there, and the old signature asserted a pid.
+  ##
+  ## The result is a `BarePid`: you may `link`, `monitor`, `exit` or `is_alive` it, but you
+  ## cannot `tell` to it. Nothing associates a registered NAME with a message TYPE, so a
+  ## typed handle cannot be recovered from one (audit F-1 / parent spec §13.7).
+  fn whereis(name: Atom) -> Effect(Option(BarePid)) =
+    let found = raw_whereis(name)
+    match found
+      p: BarePid -> Some(p)
+      :undefined -> None()
+end
+  ## Closed vocabulary accepted by `erlang:monitor/2`. More kinds can be added
+  ## here without exposing the raw atom boundary to ordinary callers.
+  type MonitorKind = Process
+
+  local fn monitor_kind_atom(kind: MonitorKind) -> Atom = match kind
+    Process() -> :process

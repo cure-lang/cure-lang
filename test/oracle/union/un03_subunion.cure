@@ -1,0 +1,7 @@
+mod Un03
+  fn narrow(n: Int) -> Int | Bool = n
+  fn widen(n: Int) -> Int | Bool | Atom = narrow(n)
+  fn split(x: Int | Bool | Atom) -> Int = match x
+    n: Int -> n
+    rest: Bool | Atom -> 0
+end

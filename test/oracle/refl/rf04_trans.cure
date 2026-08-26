@@ -1,0 +1,5 @@
+mod Rf04
+  type Nat = Z | S(Nat)
+  fn trans({a: Type}, {x: a}, {y: a}, {z: a}, p: Equivalent(a, x, y), q: Equivalent(a, y, z)) -> Equivalent(a, x, z) = match p
+    reflexive() -> q
+end

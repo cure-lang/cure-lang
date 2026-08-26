@@ -7,11 +7,27 @@ indentation level, not by keywords like `do`/`end` or braces.
 
 ### Keywords
 
-`fn`, `mod`, `rec`, `fsm`, `actor`, `proto`, `impl`, `type`, `let`, `if`,
-`then`, `else`, `elif`, `match`, `when`, `where`, `local`, `use`, `return`,
-`throw`, `try`, `catch`, `finally`, `for`, `in`, `true`, `false`, `nil`,
-`and`, `or`, `not`, `spawn`, `send`, `receive`, `after`, `proof`, `extern`,
-`end`, `do`
+The active edition reserves the words reported by the lexer. The declaration
+and expression keywords most users encounter are:
+
+`fn`, `mod`, `rec`, `fsm`, `actor`, `interface`, `implementation`, `type`,
+`typealias`, `primitive`, `let`, `pickup`, `else`, `match`, `with`, `when`,
+`local`, `use`, `return`, `throw`, `try`, `catch`, `finally`, `for`, `in`,
+`true`, `false`, `nil`, `and`, `or`, `not`, `spawn`, `send`, `receive`,
+`after`, `unsafe`, `quote`, `syntax`, `becomes`, `computed`, `by`, `end`,
+and `do`.
+
+`requires` is contextual in function and implementation signatures. It lists
+interface obligations without reserving the word as an ordinary identifier:
+
+```text
+fn show_both(a: t, b: t) -> String requires Show(t) =
+  show(a) <> show(b)
+```
+
+`where` is reserved for declaration-local definition blocks. The former
+constraint spelling `fn ... where Interface(t)` is deprecated; the parser still
+accepts it during migration and the printer canonicalizes it to `requires`.
 
 `sup` is a *contextual* soft keyword (v0.25.0): at the lexer level it is
 an ordinary identifier so legacy code that uses it as a field or variable
@@ -27,9 +43,9 @@ container; every other use of `app` remains a plain identifier.
 Identifiers may carry a trailing `?` to signal a predicate (Elixir
 convention):
 
-```cure
+```text
 fn even?(n: Int) -> Bool = n % 2 == 0
-fn is_empty?(xs: List(T)) -> Bool = ...
+fn is_empty?(xs: List(t)) -> Bool = ...
 ```
 
 The `!` suffix is reserved for effect annotations and FSM hard
@@ -155,7 +171,7 @@ Two rules are enforced:
   so a `= ...` is dead code.
 
 Erlang/OTP modules are plain atoms (`:erlang`, `:io`); Elixir modules use their
-dotted `Elixir.` path (`Elixir.Cure.FSM.Builtins`). `@extern` composes with
+dotted `Elixir.` path (`Elixir.MyApp.Native`). `@extern` composes with
 `local` for private bindings.
 
 See `docs/FFI.md` for the full guide (module forms, effects, lowering, and
@@ -165,32 +181,30 @@ patterns).
 
 ### Primitive types
 
-`Int`, `Float`, `String`, `Bool`, `Atom`, `Char`, `Pid`, `Pid(Inbox)`
-(v0.25.0), `Ref` (v0.25.0).
-
-`Pid` alone elaborates to `{:pid, :any}`, the top of the covariant `Pid`
-family; `Pid(Inbox)` attaches an inbox protocol (an ADT or record
-type) against which the Melquiades Operator type-checks every send.
-`Ref` is the monitor reference returned by `Std.Process.monitor/1`.
+`Int`, `Float`, `String`, `Bool`, `Atom`, and `Char` are foundational surface
+types. The formal OTP library defines indexed `Pid(message)` handles and
+distinct `MonitorRef` and `TimerRef` types; the old unindexed `Pid` and `Ref`
+spellings are retired.
 
 ### Composite types
 
 - `List(T)` -- linked list
 - `Map(K, V)` -- hash map
-- `%[A, B]` -- tuple (mirrors the value-tuple sigil `%[a, b]`)
+- `%[A, B]` -- tuple (the type-level counterpart of the value `%[a, b]`)
 - `A -> B` -- function type
 
-The tuple-type sigil `%[A, B]` is the canonical form. The legacy
-parenthesised form `(A, B)` is still accepted but deprecated
-(`E086 / E-TYPE-TUPLE-PAREN`); `cure check` flags it and the rewrite to
-`%[A, B]` is mechanical. A parenthesised parameter list before an arrow,
-`(A, B) -> C`, is a function type rather than a tuple and is unaffected.
+`%[A, B]` is the canonical tuple-type spelling; `Tuple(A, B)` parses to the
+same `{:tuple_type, ...}` node. The legacy spelling
+`(A, B)` remains accepted and has the same elaborated and runtime
+representation, but emits the `E086 / E-TYPE-TUPLE-PAREN` deprecation so the
+rewrite can be applied mechanically. A grouped type `(A)` and a function domain
+`(A, B) -> C` are unaffected.
 
 ### ADT (sum types)
 
 ```cure
-type Option(T) = Some(T) | None
-type Result(T, E) = Ok(T) | Error(E)
+type Option(t) = Some(t) | None
+type Result(t, e) = Ok(t) | Error(e)
 ```
 
 **Multi-line layout (v0.21.0).** ADT declarations may span multiple
@@ -218,21 +232,16 @@ any other lambda.
 
 ### Refinement types
 
-```cure
-type NonZero = {x: Int | x != 0}
-type Positive = {x: Int | x > 0}
-type Percentage = {p: Int | p >= 0 and p <= 100}
-```
-
-Refinement type subtyping is verified at compile time using Z3.
-With **path-sensitive refinement** (v0.17.0), the type of a variable
-appearing in an `if`/`match` guard is refined for the duration of that
-branch.
+The classic `{x: T | predicate}` type former has been retired from the trusted
+dependent pipeline. Express structural invariants with indexed families and
+proof arguments. Guard predicates still narrow control flow for diagnostics
+and exhaustiveness; SMT-backed guard analysis is linting outside the trusted
+kernel, not evidence for a dependent type.
 
 ### Sigma types (dependent pairs)
 
-```cure
-type Sized(T) = Sigma(n: Nat, Vector(T, n))
+```text
+type Sized(t) = Sigma(n: Nat, Vector(t, n))
 ```
 
 A Sigma type pairs a value with a type that may depend on it.
@@ -241,40 +250,65 @@ The surface forms `Sigma(T1, T2)`, `Sigma(name: T1, T2)`, and
 
 ### Pi types (dependent function types)
 
-```cure
-fn append(xs: Vector(T, m), ys: Vector(T, n)) -> Vector(T, m + n)
+```text
+fn append({t: Type}, xs: Vector(t, m), ys: Vector(t, n)) -> Vector(t, m + n)
 ```
 
 Return types may freely reference parameter names. The type checker
-substitutes the call-site arguments and normalises the resulting
-expression with `Cure.Types.Reduce` before comparing.
+substitutes the call-site arguments and compares the resulting Core terms by
+normalization and definitional equality.
 
 ### Equality types
 
-```cure
-refl(x) : Eq(T, x, x)
+```text
+reflexive : Equivalent(t, x, x)
 ```
 
-`Eq(T, a, b)` is the type of proofs that `a == b` at type `T`.
-`refl(x)` is the only constructor; `rewrite eq in expr` is the only
-eliminator. All Eq values are erased at runtime.
+`Std.Equivalent` declares the kernel-recognised inductive identity family
+`Equivalent(T, a, b)` and its sole constructor `reflexive`. Matching a proof
+against `reflexive` identifies its endpoints definitionally. `sym`, `trans`,
+and `cong` are ordinary Cure functions checked by the same kernel. This proof
+type is distinct from `Std.Equatable`, whose `==` method computes a runtime
+`Bool`.
+
+### Proof authoring
+
+The proof surface is implemented as ordinary, kernel-checked Cure terms. It
+includes `have name [: Proposition] = expression`, `proof chain` with
+`because`, `rewrite [backwards] using proof [at n] [in hypothesis]`,
+`simplify [using rules-or-proof]`, and structural `induction` with
+`case Constructor(fields, induction_hypotheses) =>`. Proof commands are
+elaboration-only and never appear in runtime Core or BEAM output. The complete
+worked authoring guide is [PROOFS.md](PROOFS.md); this section and that guide
+define the same surface rather than separate proof languages.
+
+Generated defining equations are certified theorem members and can be found
+after `function.` in completion and hover. Named arguments may be written in
+any order after a positional prefix (`label: value`); the compiler aligns them
+to the declaration telescope before dependent solving. Unknown, duplicate,
+missing, misplaced, and ambiguous labels use E115 with authored ranges and
+machine-safe code actions. Named implicit constructor patterns (`{n = .k}`)
+expose and force erased indices during dependent branch refinement. Automatic
+congruence lets directed rewriting descend through a unique function context.
+Proof-language diagnostics E109–E114 follow the same terminal, JSON, and LSP
+structured-diagnostic path.
 
 ### Implicit arguments
 
 ```cure
-fn id({T}, x: T) -> T = x
+fn id({t: Type}, x: t) -> t = x
 ```
 
-Parameters in `{...}` braces are inferred from explicit-argument types
-at each call site via `Cure.Types.Unify`. They cost nothing at runtime.
+Parameters in `{...}` braces are solved by dependent elaboration from
+explicit-argument types at each call site. They cost nothing at runtime.
 
 ### Holes
 
-```cure
-fn safe_head(xs: List(T)) -> T = ?body
+```text
+fn safe_head({t: Type}, xs: List(t)) -> t = ?body
 ```
 
-A `?name` or `??` placeholder triggers a `:hole_goal` pipeline event
+A `?name` or `?_` placeholder triggers a `:hole_goal` pipeline event
 that reports the goal type and the local context at the hole position.
 
 ### Totality
@@ -286,9 +320,82 @@ fn factorial(n: Int) -> Int
   | n -> n * factorial(n - 1)
 ```
 
-`Cure.Types.Totality` classifies every function as `:total`,
-`:partial`, or `:unknown`. Add `@total true` to upgrade the
-classification to a compile-time error.
+The dependent totality closure classifies definitions before certification.
+Add `@total true` to require a successful totality proof at compile time.
+
+### Indexed families
+
+Use `indices` to separate uniform parameters from constructor-varying indices:
+
+```cure
+type Vector(a: Type) indices (n: Nat)
+  empty   : Vector(a, Z)
+  prepend : a -> Vector(a, n) -> Vector(a, S(n))
+```
+
+Constructor-index equations refine each match branch. A branch whose
+constructor cannot inhabit the scrutinee indices may be marked `impossible`;
+forced (`.`) patterns record values already determined by those equations.
+Empty families use `type Void = |`.
+
+### Quantitative binders
+
+Core binders carry a grade in `{0, 1, ω}`. The surface supports `@erased`,
+`@linear`, `@affine`, and unrestricted parameters and local bindings. Grade
+`0` values are checked but erased. The kernel rejects using erased data in
+runtime computation and rejects duplicating or dropping a linear value.
+
+### Union and top types
+
+`A | B` is permitted in any type position and discrimination is ordered.
+`Never` is bottom and `Any` is top. Top-type widening propagates through safe
+covariant positions (`List(Int)` satisfies `List(Any)`) but not through
+invariant or index-sensitive positions.
+
+### Contextual integer literals
+
+A numeral infers as `Int` without an expected type. In a checking position the
+elaborator may resolve `ExpressibleByNaturalLiteral(t)` or
+`ExpressibleByIntegerLiteral(t)` and call its total conversion. Conversion
+returns `LiteralValue(value)` or `InvalidLiteral`, allowing bounded domains to
+reject an out-of-range source literal during compilation.
+
+## User-defined syntax
+
+Surface macros declare grammar with `syntax ... becomes`. Holes carry a syntax
+kind, may repeat, and may request hygienic fresh names:
+
+```text
+syntax beam_ops tell <dest: Code> <message: Code>
+  becomes Std.Otp.tell(dest, message)
+```
+
+`quote` constructs syntax and `$(...)` splices:
+
+```text
+let ast = quote %[:ok, $(payload)]
+```
+
+`computed by` delegates expansion to an elaborator function.
+`to_syntax`/`from_syntax` reflect losslessly through `Std.Syntax`. Generated
+declarations retain both macro-invocation and macro-definition provenance and
+are published through the ordinary module-interface tables.
+
+## Editions and migration
+
+`@edition` and `[project].edition` in `Cure.toml` select a grammar/keyword
+edition. Earlier spellings remain recognizable to migration tooling rather
+than becoming parallel current syntaxes:
+
+```bash
+cure migrate --check src
+cure migrate --print src/old.cure
+cure migrate --strict src
+```
+
+The canonical renames include `proto` / `impl` to `interface` /
+`implementation`, legacy conditionals to `pickup`, uppercase type variables to
+lowercase, and retired module names to current providers.
 
 ## Records
 
@@ -315,9 +422,9 @@ rec Rectangle
 Type parameters are supported for generic records:
 
 ```cure
-rec Pair(A, B)
-  first: A
-  second: B
+rec Pair(a, b)
+  first: a
+  second: b
 ```
 
 Type parameters are erased at runtime but are tracked by the type checker.
@@ -326,7 +433,7 @@ Type parameters are erased at runtime but are tracked by the type checker.
 
 Use `TypeName{field: expr, ...}` to build a record value:
 
-```cure
+```text
 fn make_point(x: Int, y: Int) -> Point = Point{x: x, y: y}
 fn origin() -> Point = Point{x: 0, y: 0}
 fn make_person(name: String, age: Int) -> Person =
@@ -337,7 +444,7 @@ fn make_person(name: String, age: Int) -> Person =
 
 Use dot notation `record.field`, which compiles to `maps:get(field, map)`:
 
-```cure
+```text
 fn x_coord(p: Point) -> Int = p.x
 fn area(r: Rectangle) -> Int = r.width * r.height
 fn rect_origin_x(r: Rectangle) -> Int = r.origin.x  # nested access
@@ -348,7 +455,7 @@ fn rect_origin_x(r: Rectangle) -> Int = r.origin.x  # nested access
 Produce a modified copy of a record with `TypeName{base | field: val, ...}`.
 Only the listed fields change; all others are copied from `base`:
 
-```cure
+```text
 fn set_x(p: Point, new_x: Int) -> Point = Point{p | x: new_x}
 fn birthday(p: Person) -> Person = Person{p | age: p.age + 1}
 fn translate(p: Point, dx: Int, dy: Int) -> Point =
@@ -359,7 +466,7 @@ fn rename(p: Person, new_name: String) -> Person =
 
 Multiple fields can be overridden in one expression:
 
-```cure
+```text
 fn move(p: Point, nx: Int, ny: Int) -> Point = Point{p | x: nx, y: ny}
 ```
 
@@ -379,266 +486,230 @@ Record construction uses `map_field_assoc` (`:=>`). Record update uses
 `map_field_exact` (`:=`) which requires the keys to already exist, giving
 a `bad_key` error at runtime if the base value has an incompatible shape.
 
-## Protocols
+## Interfaces and implementations
 
 ```cure
-proto Show(T)
-  fn show(x: T) -> String
+interface Show(t)
+  fn show(x: t) -> String
 
-impl Show for Int
+implementation Show for Int
   fn show(x: Int) -> String = Std.String.from_int(x)
 ```
 
-Protocol dispatch is compiled to guard-based multi-clause functions.
+Generic callers state dictionary requirements explicitly:
+
+```text
+fn display(x: t) -> String requires Show(t) = show(x)
+```
+
+A constraint head need not occur as the direct type of a value parameter. When
+it occurs only in the result, a call in checking position obtains the head from
+the expected result type and supplies the corresponding dictionary. `Std.Json`
+declares `decode_as` that way — `t` is named by the result and by the
+constraint, never by an argument:
+
+```text
+fn decode_as(source: String) -> Result(t, DecodeError) requires FromJSON(t)
+```
+
+The caller fixes `t` from the expected result type:
+
+```cure
+mod DecodeExample
+  use Std.Result
+  use Std.Json
+
+  fn flag() -> Result(Bool, DecodeError) =
+    assert_type decode_as("true") : Result(Bool, DecodeError)
+end
+```
+
+The annotation (or another surrounding expected type) is semantically relevant:
+without an argument or expected result that fixes `t`, the call is
+underconstrained. For a rigid `t` inside another constrained generic function,
+resolution threads that function's in-scope dictionary rather than selecting a
+concrete implementation.
+
+Definitions, methods, and implementations are published under canonical
+owner-qualified identities. A bare method is available only when its interface
+and implementation dictionary are in lexical scope; qualified module
+availability does not leak transitive bare names.
 
 ## FSMs (Finite State Machines)
 
-Cure supports two FSM compilation modes:
+`fsm` is an auto-preluded standard-library macro. It is transparent:
+the macro expands to a lifted module whose behavior declaration and
+callbacks are written in Cure using the checked BEAM algebra. The
+compiler does not recognize an FSM as a special object class.
 
-**Simple mode** (no `on_transition` block) compiles to a `gen_statem`
-module. The resulting machine carries a freeform data term that each
-transition's `do` action may replace.
+`Std.Fsm` declares two `fsm` macros over one callback floor. Both require
+`use Std.Fsm`. A bare lifted-module name is relative to its lexical owner
+(`Main` at top level), while a dotted name is absolute within the Cure source
+namespace. Source never needs to spell the emitter-owned `Cure.` prefix.
+
+The structured surface declares the callback state type with `state` and
+maps event constructors to `FsmAction` values under `events`:
 
 ```cure
-fsm TrafficLight
-  Red    --timer-->     Green
-  Green  --timer-->     Yellow
-  Yellow --timer-->     Red
-  *      --emergency--> Red
+use Std.Fsm
+
+fsm Ticker
+  state Int
+  events
+    Tick -> :keep_state_and_data
 ```
 
-**Callback mode** (v0.22.0, triggered by the presence of an
-`on_transition` block) compiles to a `GenServer` whose state is a
-fixed `%Cure.FSM.State{}` struct with three fields:
+Undeclared event constructors are collected into an `Event` enum owned by
+the generated machine (`Ticker.Event`), alongside its `State`. Companion
+types live inside the machine, not beside it, so the surrounding module
+neither sees nor collides with them.
 
-- `:caller` -- the pid that spawned the FSM. Outbound notifications
-  (`Std.Fsm.notify/1`, `@notify_transitions`) reach this pid. Defaults
-  to the spawning process when `Std.Fsm.spawn/1` is used.
-- `:meta` -- FSM-private bookkeeping, invisible to callers.
-- `:payload` -- user-visible domain value; read by
-  `Std.Fsm.get_state/1`.
-
-Every lifecycle hook receives the struct as its last argument and may
-return either a full `%Cure.FSM.State{}`, a partial map with
-`:payload`/`:meta` keys that is merged into the current struct, or
-any bare value which is interpreted as the new payload.
+`states`, `initial` and `event_type` name the state and event types
+instead of deriving them — that is how the enclosing module gets a name it
+can use. `states` requires `initial`:
 
 ```cure
+use Std.Fsm
+
+type CounterState = Idle | Counting
+type CounterEvent = Start | Bump
+
 fsm Counter
-  @notify_transitions
-
-  Idle --inc--> Idle
-  Idle --reset--> Idle
-
-  on_transition
-    (:idle, :inc,   _evp, %{payload: n, meta: m}) ->
-      %[:ok, :idle, %{payload: n + 1, meta: m}]
-    (:idle, :reset, _evp, %{payload: _, meta: m}) ->
-      %[:ok, :idle, %{payload: 0, meta: m}]
-    (_, _, _, state) -> %[:ok, :__same__, state]
-
-  on_start
-    (state) ->
-      notify(:started)
-      %[:ok, state]
+  state Int
+  states CounterState
+  initial Idle
+  event_type CounterEvent
+  events
+    Start -> Next(Counting(), data)
+    Bump  -> Keep(data + 1)
 ```
 
-### Lifecycle hooks
-
-- `on_start` -- called inside `init/1`. Receives the struct. May
-  return `:ok`, `{:ok, state}`, or `{:ok, partial}`.
-- `on_stop` -- called from `terminate/2`. Receives `(reason, state)`.
-- `on_transition` -- called on every accepted event. Receives
-  `(current_state, event, event_payload, %FsmState{})`.
-- `on_enter` -- called on entering a state. Receives
-  `(state, %FsmState{})`.
-- `on_exit` -- called on leaving a state. Receives
-  `(state, %FsmState{})`.
-- `on_failure` -- called when a transition is disallowed or the
-  handler returns `{:error, reason}`. Receives
-  `(event, event_payload, %FsmState{})`.
-- `on_timer` -- called every `@timer` milliseconds. Receives
-  `(state, %FsmState{})`.
-
-### Annotations
-
-- `@timer N` -- drive `on_timer` every `N` ms.
-- `@terminal State` -- mark a state as terminal (no outgoing
-  transitions required for deadlock freedom).
-- `@invariant expr` / `@verify expr` -- reserved for the verifier.
-- `@initial :state_name` -- override the initial state (default: the
-  first non-wildcard source).
-- `@notify_transitions` -- after every successful transition, send
-  `{:cure_fsm, pid, {:transition, from, event, to, payload}}` to the
-  caller.
-- `@auto_caller` -- when `:caller` is not explicitly provided, fall
-  back to the spawning process recorded under
-  `:cure_fsm_spawner` in the FSM's process dictionary.
-
-### Events with payloads
-
-Events may carry an arbitrary payload, threaded through to
-`on_transition` as the third argument:
+The transition-table surface, `fsm <Name> with <Data>`, is an ordinary
+macro over the same floor. It catalogs the rows into nominal `State` and
+`Event` types and compiles the graph to a total `decide/3`:
 
 ```cure
-let pid = Std.Fsm.spawn(:"Cure.FSM.Counter")
-Std.Fsm.send_with(pid, :inc, %{source: :button})
+use Std.Fsm
+
+fsm TrafficLight with Int
+  Red    --Timer-->     Green
+  Green  --Timer-->     Yellow
+  Yellow --Timer-->     Red
+  *      --Emergency--> Red
 ```
 
-### Notifying the outside world
+Reachability, deadlock freedom, terminal-state validity, duplicate rows,
+and payload consistency are checked during expansion; a violation is a
+compile error. See [`FSM_GUIDE.md`](FSM_GUIDE.md) for the full surface.
 
-Inside any lifecycle hook body, `notify(message)` sends `message` to
-the FSM's `:caller`. Callable as a bare identifier in Cure source; at
-the Elixir level it resolves to `Cure.FSM.State.notify_self/1`. When
-called outside a running FSM process, `notify/1` is a no-op returning
-`:no_caller`.
-
-The compiler verifies reachability, deadlock freedom, hard-event
-exclusivity, and terminal-state validity at compile time.
+The generated module implements the standard `gen_statem` behavior. The
+`actor`, `sup`, and `app` macros use the same transparent callback and
+algebra vocabulary. None of this is an alternate compiler parser or a
+hidden FSM lowering path: expansion runs from the inside out into the
+same checked algebra and BEAM behavior declarations as any user macro.
 
 ## Actors and Supervisors (v0.25.0)
 
-Typed supervision trees live in two container shapes and a typed send
-operator. See `docs/SUPERVISION.md` for the authoritative reference.
+Typed supervision trees are standard-library macros (`Std.Actor`,
+`Std.Supervisor`) over the checked BEAM algebra; a unit that declares an
+`actor` or `sup` must `use` the owning module. See `docs/SUPERVISION.md` for
+the authoritative reference. They expand to generic lifted modules, not
+compiler-owned object classes.
 
 ### The Melquiades Operator `<-|` / `✉`
 
-`pid <-| message` sends `message` to `pid` and returns the message. The
-unicode envelope `✉` is an interchangeable alias. Both forms lower to
-Erlang's `!` operator; non-blocking, never raises for a dead receiver.
-The keyword form `send target, msg` is preserved and desugars to the
-same `{:send, ...}` MetaAST node. Binding power is one notch below `|>`,
-non-associative.
+`pid <-| message` is ordinary operator sugar for
+`Std.Otp.tell(pid, message)`. The Unicode envelope `✉` is an interchangeable
+alias. Both meanings are defined by `Std.Otp`, use its indexed
+`RawPid(message, reply, kind)` checking, and return `Effect(Unit)`. They do not
+restore the retired raw-process send node or expose Erlang's returned message.
+Binding power is one notch below `|>` and is non-associative.
 
-```cure
-pid <-| :ping
-pid ✉  :ping
+```text
+pid <-| Ping()
+pid ✉  Ping()
 request
 |> encode()
 |> worker_pid <-| _
 ```
 
-### `actor` containers
+### `actor`
 
-```cure
-actor Counter with 0
-  on_start
-    (state) -> state
+```text
+use Std.Actor
+
+actor Counter
+  state Int
+  initial 0
   on_message
-    (:inc, n)   -> n + 1
-    (:dec, n)   -> n - 1
-    (:get, n) ->
-      notify(%[:value, n])
-      n
-  on_stop
-    (reason, _state) -> notify(%[:stopped, reason])
+    Inc -> state + 1
 ```
 
-- `with <expr>` seeds the initial payload.
-- `on_start`, `on_message`, `on_stop` reuse the FSM callback-clause
-  grammar (pattern tuple, optional `when` guard, body).
-- Inside any clause body, `notify(message)` sends to the spawning
-  caller (resolved via the process dictionary).
-- The clause return value is the new payload; returning a full
-  `%Cure.Actor.State{}` struct replaces the whole runtime state.
-- Compiles to a loaded `GenServer` module named `Cure.Actor.<Name>`.
-- Spawned and managed by `Cure.Actor.Runtime` (ETS-backed registry,
-  automatic cleanup on `DOWN`); also reachable from Cure through
-  `Std.Actor`.
+`actor` emits ordinary `gen_server` callbacks. `state T` shares a module-local
+`State` alias, and callback results use erased `Effect(...)` types so pure and
+effectful bodies follow one checked path. See [Actors](/actors) and
+`docs/SUPERVISION.md` for the full grammar (`on_message`, `on_call` queries,
+the raw `handle_cast`/`handle_info` form, and so on).
 
-### `sup` containers
+### `sup`
 
 ```cure
-sup App.Root
-  strategy  = :one_for_one
-  intensity = 3
-  period    = 5
+use Std.Supervisor
+
+sup Root
+  strategy OneForOne()
   children
-    Counter       as counter
-    Counter       as counter_b (restart: :transient)
-    App.External  as external  (restart: :permanent, shutdown: 10000)
-    sup Workers   as workers
+    worker Counter as counter
+      restart Permanent()
+      shutdown Timeout(5000)
 ```
 
-- `strategy` defaults to `:one_for_one` (also accepts `:one_for_all`,
-  `:rest_for_one`, `:simple_one_for_one`).
-- `intensity` defaults to `3`; `period` defaults to `5`.
-- `children` lists one child spec per line. Each line is
-  `Module as child_id` with an optional parenthesised keyword list of
-  `restart: ...`, `shutdown: ...`.
-- Child module resolution: dotted paths verbatim; bare names resolve
-  to `Cure.Actor.<Name>` (worker default) or `Cure.Sup.<Name>`
-  (with the soft-keyword prefix `sup <Name> as id`).
-- Compile-time verification rejects unknown strategies, invalid
-  `restart`/`shutdown` values, non-positive `period`, duplicate child
-  ids, and trivial self-reference cycles (codes `E047`/`E048`/`E050`).
-- Compiles to a `Supervisor`-behaviour module named `Cure.Sup.<Name>`;
-  managed from Cure via `Std.Supervisor`.
+Child policies use closed `Restart`, `Shutdown`, and `ChildType` values from
+`Std.Supervisor`; intensity and period use `Nat`. The generated `init/1` and
+`start_link/0` are ordinary checked declarations.
 
-### Links, monitors, trap_exit
+### Links, monitors
 
-`Std.Process` exposes the raw BEAM process primitives (`link/1`,
-`unlink/1`, `monitor/1` returning a `Ref`, `demonitor/1`,
-`trap_exit/1`, `exit/2`, `self/0`, `is_alive/1`). Most calls map
-directly to `:erlang` BIFs; `monitor/1` and `trap_exit/1` route
-through thin wrappers in `Cure.Process.Builtins` so the Cure
-signatures stay idiomatic.
+`Std.Process` is a compatibility facade over a slice of `Std.Otp`'s typed
+process algebra: `self/0`, `link/1`, `unlink/1`, `monitor/2` (takes the closed
+`MonitorKind` and returns a `MonitorRef`), `demonitor/1`, `is_alive/1`. Their
+process/reply-type parameters are implicit. `Std.Otp` itself additionally has
+`exit/2` for sending an exit signal built from `Std.ExitReason`; the current
+stdlib has no `trap_exit` wrapper.
 
 ### Typed sends
 
 The type checker has a dedicated clause for `{:send, ...}` that
-unifies the message type against the receiver's declared inbox and
-emits `E046 Inbox Mismatch` on conflict. Bare `Pid` elaborates to
-`{:pid, :any}` so existing FFI code remains compatible.
+unifies the message type against `Pid(m)` and emits a normal elaboration error
+on conflict. `beam_ops tell` and `beam_ops call` are standard-library macros
+over the same typed operations.
 
 ## Applications (v0.26.0)
 
-The `app` container wraps an entire supervision tree into a first-class
-OTP application. See `docs/APP.md` for the authoritative reference.
+The `app` macro creates a transparent lifted OTP application. It lives in
+`Std.App`, so a unit that declares one must `use` it. `root` names the
+supervisor the application starts, and is the container's only clause -- start
+phases and the dependency list come from `cure.toml`. See `docs/APP.md` for the
+authoritative reference.
 
 ```cure
+use Std.App
+
 app MyApp
-  vsn          = "0.1.0"
-  description  = "My humble application"
-  root         = sup MyApp.Root
-  applications = [:logger, :crypto]
-  env          = %{port: 4000}
-  on_start
-    (start_kind, args) -> do_start(start_kind, args)
-  on_stop
-    (state) -> cleanup(state)
-  on_phase :warm_cache
-    (_args, _kind, _start_args) -> Std.Cache.warm()
+  root Root
 ```
 
-- `vsn`, `description`, `root`, `applications`, `included_applications`,
-  `env`, and `registered` are top-level assignments inside the `app`
-  body. They override the corresponding values in the
-  `[application]` table of `Cure.toml` (with `applications` merged
-  instead of replaced).
-- `on_start` / `on_stop` reuse the actor / FSM callback-clause grammar
-  and produce the generated module's `start/2` and `stop/1` bodies.
-- Each `on_phase :name` block introduces one 3-argument clause
-  `(phase_args, start_kind, start_args)` feeding the generated
-  `start_phase/3` callback. Phase names must agree with
-  `[application].start_phases` in `Cure.toml` (code `E053`).
-- `root = ...` accepts four forms: `sup Name`, `Name`,
-  `App.Sub.Root`, and an atom literal (`:my_app_sup`). The first two
-  resolve to `:"Cure.Sup.<Name>"`; dotted paths and atoms are used
-  verbatim. A phase-only app may omit `root` entirely. Unresolved
-  roots surface as `E054`.
-- The container compiles to `:"Cure.App.<Name>"` (a loaded
-  `Application`-behaviour module). With `--output-dir`, the bytecode
-  and an OTP `<name>.app` resource file are persisted alongside every
-  other Cure module.
-- `Cure.Project.compile_project/2` enforces at most one `app`
-  container per project and cross-checks its name against
-  `[application].name` (code `E051`).
+The `phase` form accepts one delayed body and the `phases` form dispatches a
+flat list of phase/result atoms. Root startup uses `beam_ops start_supervisor`.
+All lifecycle results use erased `Effect(...)` contracts. Project discovery
+consumes lifted application metadata and enforces one application module per
+project.
 
 `cure release` (also `mix cure.release`) packages the compiled
 application as a bootable BEAM release under
-`_build/cure/rel/<name>/`; failure modes surface as `E052` (missing
-`app`) or `E055` (release-build failure). From Cure source,
+`_build/cure/rel/<name>/`; a missing project file, build failure, or
+release-assembly error surfaces as an operational `E098` (command failure)
+or `E100` (artifact) diagnostic. From Cure source,
 `Std.App` offers `ensure_all_started`, `start`, `stop`, `get_env`,
 `put_env`, `which_applications`, `loaded_applications`, and
 `start_phase` as thin wrappers over `:application`.
@@ -655,16 +726,18 @@ is the authority.
 `match` (and `let`) support deep destructuring across every structural
 form in the language. As of v0.18.0 the supported pattern shapes are:
 ### Literals and variables
-```cure
+```text
 match x
   0      -> "zero"
   n      -> "nonzero"
   _      -> "never reached"
 ```
 `_` is the wildcard. A name starting with `_` (for example `_unused`)
-is a binding that silences the unused-variable warning.
+is an ordinary binding; the convention signals an intentionally-unused
+value (the compiler does not currently emit an unused-variable warning
+to silence).
 ### Tuples and lists
-```cure
+```text
 match pair
   %[a, b]        -> a + b
   %[a, b, _rest] -> a + b
@@ -672,13 +745,15 @@ match pair
 match xs
   []             -> "empty"
   [h | t]        -> "non-empty"
+  [a, b | rest]  -> "at least two"
   [a, b, c]      -> "exactly three"
 ```
-Cons is single-head only: `[h | t]` binds `h` to the head and `t` to
-the tail. Matching against a literal-length list (`[a, b, c]`) requires
-the list to have that exact length.
+`[h | t]` binds `h` to the head and `t` to the tail. Multi-head cons
+`[a, b, ... | rest]` is desugared at parse time into right-associated
+cons cells (`[a | [b | rest]]`). Matching against a literal-length list
+(`[a, b, c]`) requires the list to have that exact length.
 ### Maps
-```cure
+```text
 match request
   %{method: "GET", path: p}    -> fetch(p)
   %{method: m, path: _}        -> reject(m)
@@ -687,7 +762,7 @@ Map keys in pattern position must be literal values. A map pattern
 matches if every listed key is present in the subject; keys not
 mentioned are ignored (open matching, like Elixir's `%{...}`).
 ### Records and field punning
-```cure
+```text
 match person
   Person{name, age}                    -> salute(name, age)
   Person{name, address: Address{city}} -> greet(name, city)
@@ -697,20 +772,20 @@ A bare identifier inside a record pattern is shorthand for
 with a `__struct__ := :tag` guard, so they only match values built
 with the same record type.
 ### ADT constructors
-```cure
+```text
 match result
   Ok(v)         -> v
   Error(reason) -> default
 
 match option
   Some(x) -> x
-  None()  -> 0
+  None    -> 0
 ```
-Nullary constructors must be written with empty parentheses
-(`None()`), never bare `None` -- a bare `None` is a fresh variable
-binding.
+Nullary constructors may be written bare (`None`) or with explicit empty
+parentheses (`None()`). A bare PascalCase name is resolved against the
+scrutinee type's constructors; lowercase bare names remain variable bindings.
 ### The pin operator `^x`
-```cure
+```text
 let target = get_tag()
 
 match event.tag
@@ -720,7 +795,7 @@ match event.tag
 `^x` compares against a previously-bound value rather than binding
 fresh. Lowered by the compiler to a guard `V_fresh =:= V_x`.
 ### Repeated variables
-```cure
+```text
 match pair
   %[x, x] -> :equal
   _       -> :different
@@ -731,17 +806,16 @@ position (so the pattern only matches when all occurrences hold the
 same value).
 ### Nested destructuring
 Any combination of the above can be nested:
-```cure
+```text
 match value
   %[_, %{list: [head | tail]}, _] -> handle(head, tail)
   Person{name: n, address: Address{city: c, zip: _}} when c == "Madrid" ->
     greet(n)
 ```
 ### Exhaustiveness
-The compiler checks pattern exhaustiveness. Shallow coverage gaps are
-reported by the flat classifier (`E004`); nested gaps (tuples of ADTs,
-records in tuples, etc.) are reported with a concrete witness under
-code `E025`.
+The compiler checks pattern exhaustiveness. Missing constructors -- at the
+top level or inside a tuple position -- are reported under code `E118`
+(Pattern Coverage).
 
 ## Conditional Dispatch (`pickup`)
 
@@ -756,7 +830,7 @@ the construct total by construction. Guards must type to `Bool`
 first `true`. The legacy `if`/`elif` shape is removed; the
 `cure rewrite if-to-pickup` tool migrates surviving sources.
 
-```cure
+```text
 pickup
   status >= 500 -> :server_error
   status >= 400 -> :client_error
@@ -778,7 +852,7 @@ Legacy `if`/`else` is removed; see
 shape historically rendered as `if x > 0 then "positive" else
 "non-positive"` is now written:
 
-```cure
+```text
 pickup
   x > 0 -> "positive"
   else  -> "non-positive"
@@ -786,7 +860,7 @@ pickup
 
 ### Let bindings
 
-```cure
+```text
 let x = 42
 let y = x * 2
 ```
@@ -796,7 +870,7 @@ pattern grammar as `match` arms: ADT constructors, tuples, cons
 cells, record field punning, maps, and binary segments. Each bound
 variable carries the narrowed scrutinee type.
 
-```cure
+```text
 let Ok(x)         = parse(input)       # ADT constructor
 let %[a, b]       = pair                # tuple destructure
 let [h | _rest]   = xs                  # cons destructure
@@ -804,56 +878,51 @@ let Point{x, y}   = p                   # record punning
 let <<b, _::binary>> = buf              # binary destructure
 ```
 
-Non-exhaustive `let` patterns emit code `E034` as a warning (not an
-error): the binding still compiles, and Erlang's `=` raises at
-runtime on a failed match. Setting `partial: true` on the assignment
-metadata suppresses the warning.
+Pattern-valued `let` uses the same typed pattern elaborator as `match`.
+Bindings receive their narrowed types and become visible to subsequent
+expressions in the block. Impossible or non-matching patterns produce a
+structured diagnostic rather than being silently weakened into an unchecked
+assignment.
 
 ### Binary patterns
 
-Binary literals use Erlang-style segment grammar between `<<` and
-`>>`. Every segment is `value [:: specifier_chain]`; the specifier
-chain is hyphen-joined and covers type (`integer`, `float`, `utf8`,
-`utf16`, `utf32`, `binary`, `bytes`, `bitstring`, `bits`),
-signedness, endianness, `size(expr)`, and `unit(n)`. See
-`docs/BINARIES.md` for the authoritative reference.
+Binary literals are written between `<<` and `>>`. The parser accepts the
+full Erlang-style segment grammar (`value [:: specifier_chain]`, covering
+type, signedness, endianness, `size(expr)`, and `unit(n)`), but the current
+elaborator only lowers plain 8-bit byte segments, plus a single trailing
+unsized `rest::binary` (or `::bytes`/`::bitstring`/`::bits`) tail in pattern
+position. A sized or typed segment (`x::16`, `x::float`, `x::utf8`, ...) is
+rejected under `E093` as a deferred rich-bit-syntax case rather than
+silently mislowered. See `docs/BINARIES.md` for the authoritative reference.
 
-```cure
+```text
 let header       = <<42, 1, 2, 3>>
 let <<tag, _::binary>> = buffer
 
 match frame
-  <<len::16, payload::binary-size(len), _::binary>> -> payload
-  <<>>                                              -> <<>>
+  <<tag, len, _::binary>> -> len
+  <<>>                    -> 0
 ```
 
-Binary exhaustiveness is tracked via code `E031`.
-
-**Trailing `rest::binary` refinement (v0.22.0).** A trailing
-`rest::binary` (or `rest::bytes`, `rest::bitstring`) segment after
-byte-aligned preceding segments inherits a refinement of the form
-`byte_size(rest) == byte_size(scrutinee) - sum_of_preceding_sizes`.
-The refinement flows through the SMT translator, so subsequent
-binary matches on `rest` type-check without having to re-assert the
-length invariant. Non-byte-aligned or non-linearisable preceding
-segments degrade the refinement to plain `Bitstring` and emit the
-`:refinement_ignored` event under code `E037`.
+Binary matches desugar to guarded byte-offset reads rather than an
+inductive case split, so they are open by construction: a binary `match`
+must end in a wildcard/variable catch-all, or the compiler rejects it under
+code `E119` (Pattern Structure).
 
 ### Binary comprehension generators
 
-```cure
+```text
 [byte for <<byte <- "abc">>]       # [97, 98, 99]
-[word for <<word::16 <- buf>>]     # 16-bit words, big-endian
-[ch   for <<ch::utf8 <- text>>]    # UTF-8 code points
 ```
 
 A binary comprehension generator (v0.22.0) wraps the whole generator
 in `<<...>>`: pattern segments, the `<-` arrow, and the source
-expression all live between `<<` and `>>`. The segments reuse the
-regular binary-pattern grammar (specifier chains, `::size(n)`,
-`::unit(k)`, `::utf8`, ...). The comprehension body sees the
-generator variables narrowed to their segment types. A non-bitstring
-source produces an `E036` warning.
+expression all live between `<<` and `>>`. The generator segment itself
+must be a bare, unsized, untyped binder (e.g. `byte`); it desugars to an
+ordinary list generator over the source's byte view. Sized or typed
+segment specifiers on the generator pattern (`::size(n)`, `::utf8`, ...)
+are a deliberate unsupported extension until their runtime representation
+exists.
 
 ### Lambda block bodies
 
@@ -890,7 +959,7 @@ Unterminated`.
 
 ### Pipe operator
 
-```cure
+```text
 5 |> double |> add(1)
 # desugars to: add(double(5), 1)
 ```

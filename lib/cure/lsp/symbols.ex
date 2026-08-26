@@ -1,141 +1,95 @@
 defmodule Cure.LSP.Symbols do
-  @moduledoc """
-  Symbol extraction from Cure AST for LSP features.
+  @moduledoc "Symbol extraction from Cure AST for LSP features."
 
-  Builds a list of symbols (modules, functions, types, FSMs) from a parsed
-  AST, suitable for `textDocument/documentSymbol` responses.
-  """
+  alias Cure.LSP.Positions
+  alias Cure.MetaAST.Metadata
 
-  @doc """
-  Extract symbols from a parsed AST.
-
-  Returns a list of LSP DocumentSymbol maps.
-  """
-  @spec extract(tuple()) :: [map()]
-  def extract(ast) do
+  @spec extract(tuple(), String.t() | nil, Positions.encoding()) :: [map()]
+  def extract(ast, source \\ nil, encoding \\ :utf16) do
     case ast do
-      {:container, meta, body} -> extract_container(meta, body)
-      {:block, _, children} -> Enum.flat_map(children, &extract/1)
+      {:container, meta, body} -> extract_generic_container(meta, body, source, encoding)
+      {:lift_module, meta, _body} -> extract_lift_module(meta, source, encoding)
+      {:block, _, children} -> Enum.flat_map(children, &extract(&1, source, encoding))
       _ -> []
     end
   end
 
-  defp extract_container(meta, body) do
+  defp extract_lift_module(meta, source, encoding) when is_list(meta) do
+    name = Keyword.get(meta, :module, "unnamed")
+    behavior = Keyword.get(meta, :behaviour, :unknown)
+    line = Keyword.get(meta, :line, 1)
+    declarations = Keyword.get(meta, :declarations, [])
+    callbacks = Keyword.get(meta, :callbacks, [])
+    callback_symbols = Enum.map(callbacks, &callback_symbol(&1, line, source, encoding))
+
+    [
+      %{
+        "name" => to_string(name),
+        "kind" => 2,
+        "range" => node_range(meta, line, source, encoding),
+        "selectionRange" => node_selection(meta, line, source, encoding),
+        "detail" => "lifted #{behavior}",
+        "children" => callback_symbols ++ Enum.flat_map(declarations, &extract_body_item(&1, source, encoding))
+      }
+    ]
+  end
+
+  defp callback_symbol(%{name: name, arity: arity, line: line}, _default, source, encoding) do
+    range = Positions.line_range(line, source, encoding)
+
+    %{
+      "name" => "callback #{name}/#{arity}",
+      "kind" => 12,
+      "detail" => "callback #{name}/#{arity}",
+      "range" => range,
+      "selectionRange" => range
+    }
+  end
+
+  defp callback_symbol(%{name: name}, default, source, encoding),
+    do: callback_symbol(%{name: name, arity: 0, line: default}, default, source, encoding)
+
+  defp extract_generic_container(meta, body, source, encoding) do
     type = Keyword.get(meta, :container_type, :unknown)
     name = Keyword.get(meta, :name, "unnamed")
     line = Keyword.get(meta, :line, 1)
-
-    kind =
-      case type do
-        :module -> 2
-        :fsm -> 2
-        :protocol -> 11
-        :trait -> 12
-        :struct -> 23
-        _ -> 2
-      end
-
-    children = Enum.flat_map(body, &extract_body_item/1)
-
-    # For FSMs, also include callback blocks and annotations as children
-    fsm_children =
-      if type == :fsm do
-        extract_fsm_meta_children(meta, line)
-      else
-        []
-      end
+    kind = %{module: 2, protocol: 11, trait: 12, struct: 23}[type] || 2
+    children = Enum.flat_map(body, &extract_body_item(&1, source, encoding))
 
     [
       %{
         "name" => name,
         "kind" => kind,
-        "range" => lsp_range(line),
-        "selectionRange" => lsp_range(line),
-        "detail" => fsm_detail(type, meta),
-        "children" => children ++ fsm_children
+        "range" => node_range(meta, line, source, encoding),
+        "selectionRange" => node_selection(meta, line, source, encoding),
+        "detail" => to_string(type),
+        "children" => children
       }
     ]
   end
 
-  defp fsm_detail(:fsm, meta) do
-    parts = []
-
-    parts =
-      if Keyword.has_key?(meta, :on_transition),
-        do: ["callback mode" | parts],
-        else: ["simple mode" | parts]
-
-    parts = if Keyword.get(meta, :timer), do: ["timer" | parts], else: parts
-    Enum.join(parts, ", ")
-  end
-
-  defp fsm_detail(type, _meta), do: to_string(type)
-
-  defp extract_fsm_meta_children(meta, line) do
-    callbacks =
-      ~w(on_transition on_enter on_exit on_failure on_timer)a
-      |> Enum.flat_map(fn cb_name ->
-        case Keyword.get(meta, cb_name) do
-          clauses when is_list(clauses) and clauses != [] ->
-            [
-              %{
-                "name" => to_string(cb_name),
-                "kind" => 12,
-                "detail" => "#{length(clauses)} clause(s)",
-                "range" => lsp_range(line),
-                "selectionRange" => lsp_range(line)
-              }
-            ]
-
-          _ ->
-            []
-        end
-      end)
-
-    timer_children =
-      case Keyword.get(meta, :timer) do
-        ms when is_integer(ms) ->
-          [
-            %{
-              "name" => "@timer #{ms}ms",
-              "kind" => 14,
-              "range" => lsp_range(line),
-              "selectionRange" => lsp_range(line)
-            }
-          ]
-
-        _ ->
-          []
-      end
-
-    callbacks ++ timer_children
-  end
-
-  defp extract_body_item({:function_def, meta, _body}) do
+  defp extract_body_item({:function_def, meta, _body}, source, encoding) do
     name = Keyword.get(meta, :name, "unknown")
     arity = Keyword.get(meta, :arity, 0)
     line = Keyword.get(meta, :line, 1)
     visibility = Keyword.get(meta, :visibility, :public)
-
-    detail =
-      if visibility == :private, do: "local fn #{name}/#{arity}", else: "fn #{name}/#{arity}"
+    detail = if visibility == :private, do: "local fn #{name}/#{arity}", else: "fn #{name}/#{arity}"
 
     [
       %{
         "name" => "#{name}/#{arity}",
         "kind" => 12,
         "detail" => detail,
-        "range" => lsp_range(line),
-        "selectionRange" => lsp_range(line)
+        "range" => node_range(meta, line, source, encoding),
+        "selectionRange" => node_selection(meta, line, source, encoding)
       }
     ]
   end
 
-  defp extract_body_item({:container, meta, body}) do
-    extract_container(meta, body)
-  end
+  defp extract_body_item({:container, meta, body}, source, encoding),
+    do: extract_generic_container(meta, body, source, encoding)
 
-  defp extract_body_item({:type_annotation, meta, _children}) do
+  defp extract_body_item({:type_annotation, meta, _children}, source, encoding) do
     name = Keyword.get(meta, :name, "unknown")
     line = Keyword.get(meta, :line, 1)
 
@@ -143,48 +97,24 @@ defmodule Cure.LSP.Symbols do
       %{
         "name" => name,
         "kind" => 26,
-        "range" => lsp_range(line),
-        "selectionRange" => lsp_range(line)
+        "range" => node_range(meta, line, source, encoding),
+        "selectionRange" => node_selection(meta, line, source, encoding)
       }
     ]
   end
 
-  # FSM transitions as symbols
-  defp extract_body_item({:function_call, meta, _}) do
-    case Keyword.get(meta, :name) do
-      "transition" ->
-        from = Keyword.get(meta, :from, "?")
-        event = Keyword.get(meta, :event, "?")
-        to = Keyword.get(meta, :to, "?")
-        event_kind = Keyword.get(meta, :event_kind, :normal)
-        line = Keyword.get(meta, :line, 1)
+  defp extract_body_item(_, _source, _encoding), do: []
 
-        suffix =
-          case event_kind do
-            :hard -> "!"
-            :soft -> "?"
-            _ -> ""
-          end
-
-        [
-          %{
-            "name" => "#{from} --#{event}#{suffix}--> #{to}",
-            "kind" => 24,
-            "detail" => "transition (#{event_kind})",
-            "range" => lsp_range(line),
-            "selectionRange" => lsp_range(line)
-          }
-        ]
-
-      _ ->
-        []
-    end
+  defp node_range(meta, line, source, encoding) do
+    info = Metadata.source_info(meta)
+    if info, do: Positions.range(info.whole, source, encoding), else: Positions.line_range(line, source, encoding)
   end
 
-  defp extract_body_item(_), do: []
+  defp node_selection(meta, line, source, encoding) do
+    info = Metadata.source_info(meta)
 
-  defp lsp_range(line) do
-    l = max(line - 1, 0)
-    %{"start" => %{"line" => l, "character" => 0}, "end" => %{"line" => l, "character" => 999}}
+    if info,
+      do: Positions.range(info.name || info.whole, source, encoding),
+      else: Positions.line_range(line, source, encoding)
   end
 end

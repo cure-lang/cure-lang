@@ -1,0 +1,9 @@
+mod Mt08
+  type Nat = Z | S(Nat)
+  type P = MkP(Nat, Nat) | Nil
+  fn h(p: P) -> Nat = match p
+    MkP(Z(), Z()) -> Z()
+    MkP(Z(), S(b)) -> b
+    MkP(S(a), y) -> a
+    Nil() -> Z()
+end

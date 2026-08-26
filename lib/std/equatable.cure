@@ -1,0 +1,105 @@
+@group(:core)
+@prelude
+mod Std.Equatable
+  ## `use Std.Bool` supplies `` `not` `` for the derived `` `!=` ``.
+  use Std.Bool
+  ## `use Std.Nat` keeps the `Nat` type name in scope for the `Nat` instance.
+  ## `Nat` is a `@prelude` bootstrap type, so its `==` cannot be auto-derived
+  ## (bootstrap modules elaborate with no ambient `Equatable` in scope); the
+  ## instance is provided here, where `Equatable` is declared and `Std.Nat`
+  ## already precedes this module in the bootstrap order (via `Char`/`Bounded`).
+  use Std.Nat
+  ## `use Std.Option` keeps `Option` in scope for the Option instance below.
+  ## Importing it here does NOT make `Std.Option`'s function surface ambient:
+  ## a whole-module `@prelude` provider's slice is owner-restricted, and it
+  ## confers no directness at all, so `map`/`filter`/`unwrap` neither resolve
+  ## nor shadow a consumer's `use Std.List`.
+  use Std.Option
+  ## Equality protocol for structural comparison of values.
+  ##
+  ## The `Equatable(t)` protocol mirrors the built-in `==` operator but can be
+  ## implemented for user-defined types so generic algorithms stay polymorphic.
+  ## The minimal basis is a single primitive method, `` `==` ``; `` `!=` `` is a
+  ## derived, `where`-constrained top-level function (`not (a == b)`), written
+  ## without the operator to avoid regress. It is a standalone function rather
+  ## than an interface default so it is never specialized per instance (an
+  ## instance-specialised default that re-dispatches `` `==` `` at a concrete
+  ## operand cannot be elaborated for every leaf today).
+  ##
+  ## (This is the *comparison* protocol — "can these two values be checked
+  ## for equality?". It is unrelated to `Equivalent`, the identity type
+  ## whose values are *proofs* that two things are equal.)
+  ##
+  ## ## Examples
+  ##
+  ## ```cure
+  ## use Std.Equatable
+  ##
+  ## `==`(1, 1)                               # => true
+  ## `!=`("a", "b")                           # => true
+  ## `==`(:ok, :ok)                           # => true
+  ## ```
+
+  ## Group tag consumed by `Cure.Stdlib.Preload`.
+  ## Equality between two `t` values. Sole primitive obligation of the class.
+  interface Equatable(t)
+    ## `true` when `a` equals `b`. The return type is spelled as the qualified
+    ## `Std.Bool.Bool` (not bare `Bool`) so it denotes the ambient boolean in
+    ## EVERY implementing module — including one that shadows the prelude with a
+    ## local `type Bool = ...`. A bare `Bool` re-resolves in the consumer's scope
+    ## and would bind to that local shadow, so an auto-derived structural `==`
+    ## (whose `Std.Builtin.struct_eq` body returns `Std.Bool#Bool`) could not
+    ## satisfy the interface signature there.
+    fn `==`(a: t, b: t) -> Std.Bool.Bool
+
+  ## `Equatable` impl for `Int`: primitive integer equality.
+  implementation Equatable for Int
+    ## Primitive integer equality (matches `build_binop`'s `int_eq` lowering).
+    fn `==`(a: Int, b: Int) -> Bool = Std.Builtin.int_eq(a, b)
+
+  ## `Equatable` impl for `Float`: primitive float equality. IEEE-754 NaNs are
+  ## not equal to themselves (`float_eq` is IEEE-correct).
+  implementation Equatable for Float
+    ## Primitive float equality (matches `build_binop`'s `float_eq` lowering).
+    fn `==`(a: Float, b: Float) -> Bool = Std.Builtin.float_eq(a, b)
+
+  ## `Equatable` impl for `Bool`.
+  implementation Equatable for Bool
+    ## Boolean equality via `Std.Bool`'s canonical `` `eq` `` (the primitive
+    ## `build_binop` selects for Bool operands).
+    fn `==`(a: Bool, b: Bool) -> Bool = Std.Bool.`eq`(a, b)
+
+  ## `Equatable` impl for `Atom`.
+  implementation Equatable for Atom
+    ## Structural atom equality (matches `build_binop`'s `struct_eq` lowering).
+    fn `==`(a: Atom, b: Atom) -> Bool = Std.Builtin.struct_eq(Atom, a, b)
+
+  ## `Equatable` impl for `Nat`: structural equality on the Peano value. `Nat`
+  ## is a bootstrap `@prelude` ADT, so it cannot auto-derive its own instance;
+  ## this hand-written instance is the value-surface `Nat == Nat` route and is
+  ## the same structural spine auto-derivation would synthesise for any ADT.
+  implementation Equatable for Nat
+    ## Structural Peano equality (matches a derived ADT `struct_eq` lowering).
+    fn `==`(a: Nat, b: Nat) -> Bool = Std.Builtin.struct_eq(Nat, a, b)
+
+  ## `Equatable` impl for `Option`: structural equality on the constructor spine.
+  ## `Option` cannot auto-derive its own instance: `Std.Equatable` reaches it via
+  ## `use Std.String` -> `use Std.Option`, which puts `Std.Option` in the prelude
+  ## BOOTSTRAP closure, and a bootstrap module elaborates with no ambient
+  ## `Equatable` in scope for `auto_derive_equatable/2` to key off. Without this
+  ## hand-written instance every consumer's `Some(1) == Some(1)` fails with
+  ## `{:no_instance, :Equatable, :"Std.Option#Option"}`. Same reason as `Nat`
+  ## above, and the same structural spine auto-derivation would have synthesised.
+  implementation Equatable for Option(t)
+    ## Structural Option equality (matches a derived ADT `struct_eq` lowering).
+    fn `==`(a: Option(t), b: Option(t)) -> Bool = Std.Builtin.struct_eq(Option(t), a, b)
+
+  ## Lists are a bootstrap family, so they cannot receive the ordinary
+  ## post-pass auto-derivation. Publish the canonical structural instance here,
+  ## just like Option and Nat above.
+  implementation Equatable for List(t)
+    fn `==`(a: List(t), b: List(t)) -> Bool = Std.Builtin.struct_eq(List(t), a, b)
+
+  ## Inequality derived from `` `==` ``. The `where Equatable(t)` constraint
+  ## threads the dictionary that dispatches `` `==` `` at the caller's type.
+  fn `!=`(a: t, b: t) -> Bool requires Equatable(t) = Std.Bool.`not`(`==`(a, b))

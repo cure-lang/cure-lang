@@ -1,0 +1,25 @@
+mod Frp06
+  type Sig = SigC | SigE
+  type Dec = DDec | DCau
+  fn dmeet(a: Dec, b: Dec) -> Dec = match a
+    DDec() -> match b
+      DDec() -> DDec()
+      DCau() -> DCau()
+    DCau() -> DCau()
+  type SList = SNil | SCons(Sig, SList)
+  fn app(xs: SList, ys: SList) -> SList = match xs
+    SNil() -> ys
+    SCons(x, r) -> SCons(x, app(r, ys))
+  type SF indices (i: SList, o: SList, dec: Dec)
+    prim : SF(av, bv, DCau)
+    dpre : SF(av, bv, DDec)
+    seq : SF(av, bv, d1) -> SF(bv, cv, d2) -> SF(av, cv, dmeet(d1, d2))
+    loop : SF(app(av, cv), app(bv, cv), DDec) -> SF(av, bv, DCau)
+  # A COMPOSED feedback loop: the body is a `seq` of two decoupled stages, so its
+  # decoupledness index is the COMPUTED `dmeet(DDec,DDec)`. `loop` requires `DDec`;
+  # feeding `seq(a,b) : SF(_,_,dmeet(DDec,DDec))` to it needs the computed index
+  # reduced in ARGUMENT position AND the composite's result type framed in the
+  # caller's context. accept/accept.
+  fn composedLoop({av: SList}, {bv: SList}, {cv: SList}, {mv: SList}, a: SF(app(av, cv), mv, DDec), b: SF(mv, app(bv, cv), DDec)) -> SF(av, bv, DCau) =
+    loop(seq(a, b))
+end

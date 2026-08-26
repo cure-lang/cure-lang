@@ -1,0 +1,11 @@
+mod Wi04
+  type Nat = Z | S(Nat)
+  fn g(m: Nat) -> Nat = match m
+    Z() -> Z()
+    S(k) -> S(k)
+  fn lemma(a: Nat, b: Nat, eq: Equivalent(Nat, a, b)) -> Nat = b
+  fn foo(n: Nat) -> Nat =
+    with g(n) proof pf
+      Z() -> lemma(g(n), Z(), pf)
+      S(k) -> lemma(g(n), S(k), pf)
+end

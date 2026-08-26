@@ -19,10 +19,10 @@ defmodule Cure.Compiler.LexerTest do
 
   describe "keywords" do
     test "all Cure keywords are recognized" do
-      keywords = ~w(mod fn let type rec proto impl fsm local use as
+      keywords = ~w(mod fn let type rec proto impl local use as
                     match if elif else then for do
                     in try catch finally throw return yield
-                    spawn send receive after when where extern)
+                    spawn send receive after when where extern unsafe)
 
       for kw <- keywords do
         tokens = lex!(kw)
@@ -76,6 +76,13 @@ defmodule Cure.Compiler.LexerTest do
       assert [%Token{type: :identifier, value: "x1"}, _] = lex!("x1")
       assert [%Token{type: :identifier, value: "vec3d"}, _] = lex!("vec3d")
     end
+
+    test "backticked identifiers can be keywords, spaced, unicode, or escaped" do
+      assert [%Token{type: :identifier, value: "not"}, _] = lex!("`not`")
+      assert [%Token{type: :identifier, value: "has spaces"}, _] = lex!("`has spaces`")
+      assert [%Token{type: :identifier, value: "λ snow ☃"}, _] = lex!("`λ snow ☃`")
+      assert [%Token{type: :identifier, value: "tick`name"}, _] = lex!("`tick\\`name`")
+    end
   end
 
   # ── Number Literals ──────────────────────────────────────────────────
@@ -113,6 +120,41 @@ defmodule Cure.Compiler.LexerTest do
       tokens = lex!("1e3")
       assert [%Token{type: :float, value: v}, _] = tokens
       assert v == 1.0e3
+    end
+  end
+
+  # A malformed numeric literal must return a clean {:error, reason} — never
+  # crash the lexer with a raised ArgumentError from String.to_integer/2 or
+  # String.to_float/1. These are reachable from any source the compiler reads.
+  describe "malformed numeric literals return errors, not crashes" do
+    test "an all-underscore radix literal (0x_/0b_) errors instead of raising" do
+      assert {:error, {:invalid_hex_literal, _, _}} = Lexer.tokenize("0x_", emit_events: false)
+
+      assert {:error, {:invalid_binary_literal, _, _}} =
+               Lexer.tokenize("0b_", emit_events: false)
+    end
+
+    test "an out-of-range exponent (float overflow) errors instead of raising" do
+      assert {:error, {:invalid_float_literal, _, _}} = Lexer.tokenize("1e400", emit_events: false)
+
+      assert {:error, {:invalid_float_literal, _, _}} =
+               Lexer.tokenize("1.5e400", emit_events: false)
+    end
+
+    test "a truncated exponent (no digits after e/e+/e-) errors instead of raising" do
+      assert {:error, {:invalid_float_literal, _, _}} = Lexer.tokenize("1e", emit_events: false)
+      assert {:error, {:invalid_float_literal, _, _}} = Lexer.tokenize("1e+", emit_events: false)
+      assert {:error, {:invalid_float_literal, _, _}} = Lexer.tokenize("1e-", emit_events: false)
+    end
+
+    test "an over-long atom literal (>255 chars) errors instead of raising SystemLimitError" do
+      # The BEAM caps atoms at 255 characters; String.to_atom/1 raises
+      # SystemLimitError past that. A 255-char atom is fine; 256 must be a clean
+      # error, not an uncaught crash escaping tokenize/2.
+      assert {:ok, _} = Lexer.tokenize(":" <> String.duplicate("a", 255), emit_events: false)
+
+      assert {:error, {:atom_too_long, _, _}} =
+               Lexer.tokenize(":" <> String.duplicate("a", 256), emit_events: false)
     end
   end
 
@@ -212,7 +254,19 @@ defmodule Cure.Compiler.LexerTest do
 
     test "escaped char" do
       assert [%Token{type: :char, value: ?\n}, _] = lex!("'\\n'")
+      assert [%Token{type: :char, value: ?\r}, _] = lex!("'\\r'")
+      assert [%Token{type: :char, value: ?\b}, _] = lex!("'\\b'")
+      assert [%Token{type: :char, value: ?\f}, _] = lex!("'\\f'")
       assert [%Token{type: :char, value: ?\\}, _] = lex!("'\\\\'")
+    end
+
+    test "three quotes denote a literal single quote" do
+      assert [%Token{type: :char, value: ?'}, _] = lex!(<<39, 39, 39>>)
+    end
+
+    test "both quote escape spellings remain valid" do
+      assert [%Token{type: :char, value: ?'}, _] = lex!(<<39, 92, 39, 39>>)
+      assert [%Token{type: :char, value: ?\\}, _] = lex!(<<39, 92, 92, 39>>)
     end
   end
 
@@ -220,11 +274,30 @@ defmodule Cure.Compiler.LexerTest do
 
   describe "regex literals" do
     test "simple regex" do
-      assert [%Token{type: :regex, value: {"[a-z]+", "i"}}, _] = lex!("~r/[a-z]+/i")
+      assert [%Token{type: :regex, value: {"[a-z]+", "i"}}, _] = lex!("/[a-z]+/i")
     end
 
     test "regex without flags" do
-      assert [%Token{type: :regex, value: {"\\d+", ""}}, _] = lex!("~r/\\d+/")
+      assert [%Token{type: :regex, value: {"\\d+", ""}}, _] = lex!("/\\d+/")
+    end
+
+    test "accepts the complete Elixir modifier alphabet" do
+      assert [%Token{type: :regex, value: {"foo", "imsxurfUE"}}, _] =
+               lex!("/foo/imsxurfUE")
+    end
+
+    test "rejects an unknown modifier instead of lexing it as an identifier" do
+      assert {:error, {:invalid_regex_modifier, ?z, 1, _col}} =
+               Lexer.tokenize("/foo/z", emit_events: false)
+    end
+
+    test "bare slash regex is recognized where an expression starts" do
+      assert [_assign, %Token{type: :regex, value: {"[A-z]*", ""}} | _] =
+               lex!("= /[A-z]*/")
+    end
+
+    test "slash remains division after an expression" do
+      assert [:identifier, :slash, :identifier] = types(lex!("left / right"))
     end
   end
 
@@ -241,9 +314,8 @@ defmodule Cure.Compiler.LexerTest do
                types(lex!("== != < > <= >="))
     end
 
-    test "assignment operators" do
-      assert [:assign, :plus_assign, :minus_assign, :star_assign, :slash_assign] =
-               types(lex!("= += -= *= /="))
+    test "assignment operator" do
+      assert [:assign] = types(lex!("="))
     end
 
     test "arrow and fat arrow" do
@@ -364,23 +436,20 @@ defmodule Cure.Compiler.LexerTest do
     end
   end
 
-  # ── FSM Transitions ──────────────────────────────────────────────────
+  # ── Ordinary minus punctuation ────────────────────────────────────────
 
-  describe "FSM transitions" do
-    test "simple transition --event-->" do
+  describe "ordinary minus punctuation" do
+    test "double minus is not a compiler-owned transition token" do
       tokens = lex!("--timer-->")
       token_types = types(tokens)
-      assert :transition_open in token_types
-      assert :transition_close in token_types
+      assert Enum.count(token_types, &(&1 == :minus)) == 3
       assert :identifier in token_types
     end
 
-    test "guarded transition --event when guard-->" do
+    test "transition-shaped text uses ordinary expression tokens" do
       tokens = lex!("--increment when value < 100-->")
       token_types = types(tokens)
-      assert :transition_open in token_types
-      assert :transition_close in token_types
-      # when
+      assert Enum.count(token_types, &(&1 == :minus)) == 3
       assert :keyword in token_types
     end
   end
@@ -434,6 +503,44 @@ defmodule Cure.Compiler.LexerTest do
     end
   end
 
+  describe "hole spans" do
+    test "?_ is the anonymous hole and does not disturb predicate identifiers" do
+      assert [%Token{type: :hole, value: "_"}, _eof] = lex!("?_")
+
+      assert [%Token{type: :identifier, value: "is_empty?"}, %Token{type: :identifier, value: "foo"}, _eof] =
+               lex!("is_empty? foo")
+    end
+
+    test "the obsolete ?? anonymous spelling is a targeted lexer error" do
+      assert {:error, {:obsolete_anonymous_hole, 1, 1}} = Lexer.tokenize("??", emit_events: false)
+    end
+
+    test "a generated triple-question hole owns one token before a following declaration" do
+      source = "mod M\n  fn bad() -> Int = ???\nend\n"
+      tokens = lex!(source)
+
+      assert [%Token{type: :hole, value: "?", span: span}] =
+               Enum.filter(tokens, &(&1.type == :hole))
+
+      assert binary_part(source, span.start_byte, span.end_byte - span.start_byte) == "???"
+      assert {span.start_line, span.start_column, span.end_line, span.end_column} == {2, 21, 2, 24}
+
+      assert %Token{type: :keyword, value: :end, span: end_span} =
+               Enum.find(tokens, &(&1.type == :keyword and &1.value == :end))
+
+      assert {end_span.start_line, end_span.start_column} == {3, 1}
+    end
+
+    test "a generated triple-question hole at EOF retains the whole spelling" do
+      source = "fn bad() -> Int = ???"
+      tokens = lex!(source)
+
+      assert %Token{type: :hole, span: span} = Enum.find(tokens, &(&1.type == :hole))
+      assert binary_part(source, span.start_byte, span.end_byte - span.start_byte) == "???"
+      assert span.end_byte == byte_size(source)
+    end
+  end
+
   # ── Pipeline Events ──────────────────────────────────────────────────
 
   describe "pipeline events" do
@@ -443,6 +550,24 @@ defmodule Cure.Compiler.LexerTest do
 
       assert_receive {Cure.Pipeline.Events, :lexer, :lex_complete, tokens, _meta}
       assert is_list(tokens)
+    end
+
+    test "token events carry the same exact spans as the completed token stream" do
+      Cure.Pipeline.Events.subscribe(:lexer, :token_produced)
+      Cure.Pipeline.Events.subscribe(:lexer, :lex_complete)
+
+      assert {:ok, returned} = Lexer.tokenize("fn value() = 1", file: "events.cure")
+
+      produced =
+        Enum.map(returned, fn expected ->
+          assert_receive {Cure.Pipeline.Events, :lexer, :token_produced, token, %{file: "events.cure"}}
+          assert token == expected
+          assert %Cure.Diagnostic.Span{} = token.span
+          token
+        end)
+
+      assert_receive {Cure.Pipeline.Events, :lexer, :lex_complete, completed, %{file: "events.cure"}}
+      assert produced == completed
     end
 
     test "error event is emitted on failure" do

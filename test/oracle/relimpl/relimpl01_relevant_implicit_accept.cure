@@ -1,0 +1,24 @@
+mod RelImpl01
+  type NatT = ZZ | SS(NatT)
+
+  type Vec indices (n: NatT)
+    VNil  : Vec(ZZ)
+    VCons : NatT -> Vec(m) -> Vec(SS(m))
+
+  ## E2-residual: a RELEVANT implicit constructor index `{k: NatT}` — implicit
+  ## (solved, non-positional at construction) yet quantity ω (retained, usable at
+  ## runtime). `Box` is unindexed, so `k` is redundant to pass positionally but is
+  ## still needed as a value; Idris writes exactly this as `{k : NatT}`. Before the
+  ## plicity/quantity decoupling Cure could only spell the two welded quadrants
+  ## (erased+implicit, or ω+explicit), so this shape forced an explicit `(k: NatT)`
+  ## field (the `https://github.com/cure-lang/cure-otp/tree/main/metatheory/src/otp_conversation.cure` workaround).
+  type Box indices ()
+    MkBox : {k: NatT} -> Vec(k) -> Box
+
+  ## Construct with `k` OMITTED — solved from the `Vec(k)` argument's index.
+  fn ex() -> Box = MkBox(VCons(ZZ, VNil))
+
+  ## Pattern-bind `k` by name and RETURN it: accepted iff `k` is retained (ω).
+  fn getk(b: Box) -> NatT = match b
+    MkBox({k = kk}, v) -> kk
+end

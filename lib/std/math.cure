@@ -1,3 +1,4 @@
+@group(:numeric)
 mod Std.Math
   ## Mathematical operations.
   ##
@@ -26,8 +27,6 @@ mod Std.Math
   ## ```
 
   ## Group tag consumed by `Cure.Stdlib.Preload`.
-  fn __group__() -> Atom = :numeric
-
   ## Absolute value. Implemented as `:erlang.abs/1`.
   @extern(:erlang, :abs, 1)
   fn abs(x: Int) -> Int

@@ -32,7 +32,8 @@ defmodule Cure.REPLTest do
     end
 
     test "lone block-opening keywords are continuations" do
-      for kw <- ~w(match if case cond try fn do let mod rec type proto impl proof actor fsm) do
+      for kw <-
+            ~w(match pickup if case cond try fn do let mod rec type interface implementation proto impl proof actor fsm) do
         assert :continue = REPL.__classify_input__(kw),
                "expected lone #{inspect(kw)} to be classified as continuation"
       end
@@ -70,6 +71,42 @@ defmodule Cure.REPLTest do
       state = REPL.__submit__(REPL.__new_state__(), "if")
       assert state.input_buffer == ["if"]
     end
+
+    test "a match nested in a function header remains open for indented arms" do
+      line = "fn choose(x: Bool) -> Int = match x"
+      state = REPL.__submit__(REPL.__new_state__(), line)
+      assert state.input_buffer == [line]
+      assert state.n == 1
+    end
+
+    test "indented clauses and blank lines remain buffered until explicit submission" do
+      state =
+        REPL.__new_state__()
+        |> REPL.__submit__("fn choose(x: Bool) -> Int = match x")
+        |> REPL.__submit__("  True() -> 1")
+        |> REPL.__submit__("")
+        |> REPL.__submit__("  False() -> 0")
+
+      assert state.input_buffer == [
+               "fn choose(x: Bool) -> Int = match x",
+               "  True() -> 1",
+               "",
+               "  False() -> 0"
+             ]
+
+      {state, stdout, stderr} = submit_capture(state, ";;")
+      assert state.input_buffer == []
+      assert stdout =~ "defined choose/1"
+      assert stderr == ""
+    end
+
+    test "proof authoring keywords are continuation cues" do
+      for line <- ["proof chain", "induction n", "have step", "because p", "rewrite using p", "simplify"] do
+        assert :continue = REPL.__classify_input__(line)
+      end
+
+      assert :continue = REPL.__classify_input__("case S(k, ih) =>")
+    end
   end
 
   describe "force-newline (Alt+Enter)" do
@@ -100,20 +137,6 @@ defmodule Cure.REPLTest do
     end
   end
 
-  describe "error formatting" do
-    test "string passes through" do
-      assert "boom" = REPL.__format_error__("boom")
-    end
-
-    test "structured tuple is human-readable" do
-      assert "parse: oops" = REPL.__format_error__({:parse, "oops", []})
-    end
-
-    test "fallback uses inspect" do
-      assert REPL.__format_error__({:weird, 42}) =~ "weird"
-    end
-  end
-
   describe "error_device option" do
     test "defaults to :stderr so the standalone REPL keeps stream separation" do
       state = REPL.__new_state__()
@@ -122,10 +145,12 @@ defmodule Cure.REPLTest do
 
       captured =
         capture_io(:stderr, fn ->
-          REPL.__render_error__(state, "kaboom")
+          REPL.__render_reason_error__(state, "kaboom")
         end)
 
-      assert captured =~ "error: kaboom"
+      assert captured =~ "COMMAND FAILED [E098]"
+      assert captured =~ "repl failed: kaboom"
+      refute captured =~ "error: --"
     end
 
     test ":stdio routes diagnostics through the group leader" do
@@ -133,10 +158,42 @@ defmodule Cure.REPLTest do
 
       captured =
         capture_io(fn ->
-          REPL.__render_error__(state, "kaboom")
+          REPL.__render_reason_error__(state, "kaboom")
         end)
 
-      assert captured =~ "error: kaboom"
+      assert captured =~ "COMMAND FAILED [E098]"
+    end
+
+    test "line-based warnings retain authored source and caret context" do
+      state = REPL.__new_state__()
+      source = "fn first() = 1\nfn second() = 2\n"
+
+      warning =
+        {:compiler_warning,
+         %{
+           file: "session.cure",
+           line: 2,
+           message: "this definition is unused"
+         }}
+
+      captured =
+        capture_io(:stderr, fn ->
+          REPL.__render_reason_error__(state, warning, "session.cure", source)
+        end)
+
+      assert captured =~ "COMPILER WARNING [W000]"
+      assert captured =~ "fn second() = 2"
+      assert captured =~ "^"
+      assert captured =~ "this definition is unused"
+    end
+
+    test "evaluation failures render the synthesized source instead of a blank evidence line" do
+      {_state, _stdout, stderr} = submit_capture(REPL.__new_state__(), "missing_repl_name")
+
+      assert stderr =~ "missing_repl_name"
+      assert stderr =~ "repl/Repl.M1.cure"
+      assert stderr =~ "^"
+      refute stderr =~ ~r/\d+ \|\s*\n\s*\^/
     end
   end
 
@@ -163,6 +220,26 @@ defmodule Cure.REPLTest do
 
       {_state, stdout, _stderr} = submit_capture(state, "add(2, 3)")
       assert stdout =~ "=> 5"
+    end
+
+    test "proof decorators and generated defining equations survive session inlining" do
+      state = REPL.__new_state__() |> submit(":use Std.Equivalent")
+
+      state =
+        state
+        |> submit("type Nat3 = Z3 | S3(Nat3)")
+        |> submit("fn add3(x: Nat3, y: Nat3) -> Nat3 = match x\n  Z3() -> y\n  S3(k) -> S3(add3(k, y))")
+
+      theorem =
+        "@lemma\nfn add3_succ_eq(k: Nat3, y: Nat3) -> Equivalent(Nat3, add3(S3(k), y), S3(add3(k, y))) = add3.S3(k, y)"
+
+      {state, stdout, stderr} = submit_capture(state, theorem)
+      assert stderr == ""
+      assert stdout =~ "defined add3_succ_eq/2"
+
+      {_state, stdout, stderr} = submit_capture(state, "add3(S3(Z3()), S3(Z3()))")
+      assert stdout =~ "{:S3, {:S3, :Z3}}"
+      assert stderr == ""
     end
 
     test "redefining a function replaces the previous entry in place" do
@@ -212,15 +289,61 @@ defmodule Cure.REPLTest do
       assert stdout =~ "type Color"
     end
 
-    test ":t reports the real return type for a session function" do
+    test ":t uses the dependent elaborator and prints the inferred type" do
+      {_state, stdout, stderr} = submit_capture(REPL.__new_state__(), ":t 1 + 2")
+
+      assert stdout =~ "1 + 2 : Int"
+      assert stderr == ""
+    end
+
+    test ":t can inspect expressions using session definitions" do
       state =
         REPL.__new_state__()
-        |> submit("fn add1(a: Int, b: Int) -> Int = a + b")
+        |> submit("fn add(a: Int, b: Int) -> Int = a + b")
 
-      {_state, stdout, _stderr} = submit_capture(state, ":t add1(1, 2)")
+      {_state, stdout, stderr} = submit_capture(state, ":type add(2, 3)")
+      assert stdout =~ "add(2, 3) : Int"
+      assert stderr == ""
+    end
 
-      assert stdout =~ "add1(1, 2) : Int"
-      refute stdout =~ ": Any"
+    test ":effects distinguishes pure expressions" do
+      {_state, stdout, stderr} = submit_capture(REPL.__new_state__(), ":effects 1 + 2")
+      assert stdout =~ "1 + 2 : pure"
+      assert stderr == ""
+    end
+
+    test ":printdef prints the authored session definition" do
+      state = submit(REPL.__new_state__(), "fn double(x: Int) -> Int = x + x")
+      {_state, stdout, stderr} = submit_capture(state, ":printdef double")
+      assert stdout =~ "fn double(x: Int) -> Int = x + x"
+      assert stderr == ""
+    end
+
+    test ":total reports the kernel certificate for a session function" do
+      state = submit(REPL.__new_state__(), "fn identity(x: Int) -> Int = x")
+      {_state, stdout, stderr} = submit_capture(state, ":total identity")
+      assert stdout =~ "identity/1 is total"
+      assert stderr == ""
+    end
+
+    test ":apropos searches stdlib declaration names" do
+      {_state, stdout, stderr} = submit_capture(REPL.__new_state__(), ":apropos map")
+      assert stdout =~ "Std.List.map/2"
+      assert stderr == ""
+    end
+
+    test ":holes reports typed goals retained from session definitions" do
+      {state, stdout, stderr} =
+        submit_capture(REPL.__new_state__(), "fn unfinished() -> Int = ?")
+
+      assert stdout =~ "defined unfinished/0 (with holes)"
+      assert stderr == ""
+      assert [%{goal: _, context: []}] = state.holes
+
+      {_state, stdout, stderr} = submit_capture(state, ":holes")
+      assert stdout =~ "unfinished"
+      assert stdout =~ "Int"
+      assert stderr == ""
     end
   end
 
@@ -288,10 +411,10 @@ defmodule Cure.REPLTest do
       {state, stdout, _stderr} =
         submit_capture(REPL.__new_state__(), ":let answer = 42")
 
-      assert [%{key: {:fn, "answer", 0, :public}, source: "fn answer() -> Any = 42"}] =
+      assert [%{key: {:fn, "answer", 0, :public}, source: "fn answer() = 42"}] =
                state.defs
 
-      assert stdout =~ "pinned answer/0 : () -> Int"
+      assert stdout =~ "pinned answer/0"
       assert function_exported?(Session.module_atom(), :answer, 0)
       # `apply/3` keeps the dynamic call off the compiler's radar so it does
       # not warn about `:"Cure.Repl.Session"` (which is defined at runtime).
@@ -317,7 +440,7 @@ defmodule Cure.REPLTest do
 
       assert stdout =~ "redefined x/0"
 
-      assert [%{key: {:fn, "x", 0, :public}, source: "fn x() -> Any = 99"}] = state.defs
+      assert [%{key: {:fn, "x", 0, :public}, source: "fn x() = 99"}] = state.defs
 
       {_state, stdout, _stderr} = submit_capture(state, "x()")
       assert stdout =~ "=> 99"
@@ -403,7 +526,7 @@ defmodule Cure.REPLTest do
 
     test "a multi-line editor buffer evaluates the whole body, not just the first line" do
       # Regression test: the old evaluator spliced the source inline after
-      # `fn main() -> Any = `, which left every line past the first at
+      # `fn main() = `, which left every line past the first at
       # column 0 -- siblings of `mod` instead of body statements of
       # `main/0`. Indenting the body under `main/0` lets the parser read
       # the whole thing as a block, so the REPL prints the result of the

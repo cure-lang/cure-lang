@@ -1,108 +1,571 @@
+## The structured FSM surface reuses the generic family parser.
+
+@group(:concurrency)
 mod Std.Fsm
-  ## FSM runtime operations: spawn, stop, send events, get state.
+  use Std.Syntax
+  use Std.List
+  use Std.Option
+  use Std.Beam
+  use Std.ExitReason
+  use Std.ActorBehavior
+
+  macro fsm <name: ModuleName>
+    syntax family FsmDefinition
+      state Type
+      optional states Type
+      optional initial Expression
+      events Cases
+      optional event_type Type
+    accepts FsmDefinition
+    expands with derive_fsm_family
+
+  ## A state machine's transition graph is itself a grammar, not an opaque
+  ## callback body. State and event constructors are catalogued from these
+  ## rows and emitted as nominal types in the generated module.
+  macro fsm <name: ModuleName> with <data: Type>
+    syntax family TransitionDefinition
+      syntax <from: Name> --<event: Name>(<payload: Parameters>)--> <to: Name>
+      syntax <from: Name> --<event: Name>--> <to: Name>
+      syntax * --<event: Name>(<payload: Parameters>)--> <to: Name>
+      syntax * --<event: Name>--> <to: Name>
+      optional when Expression
+      optional update Expression
+    syntax family TransitionTableDefinition
+      optional initial Name
+      repeated terminal Name
+      one_or_more transitions TransitionDefinition
+    accepts TransitionTableDefinition
+    expands with derive_transition_table
+
+  fn derive_transition_table(name: ModuleNameSyntax, data: TypeSyntax, definition: TransitionTableDefinitionSyntax) -> Syntax =
+    match definition.transitions
+      [] -> Failure(:fsm_requires_transition, [])
+      [_ | _] -> match validate_event_payloads(definition.transitions, [])
+        Some(reason) -> Failure(reason, [])
+        None() -> match select_initial(definition.initial, definition.transitions)
+          None() -> Failure(:fsm_requires_initial_state, [])
+          Some(initial) ->
+            let states = transition_states(definition.transitions, [])
+            let events = transition_events(definition.transitions, [])
+            match validate_compact_graph(initial, states, definition.terminal, definition.transitions)
+              Some(reason) -> Failure(reason, [])
+              None() -> emit_transition_table(name, data, initial, states, events, definition.transitions)
+
+  type GraphEdge = GraphEdge(Option(Atom), Atom, Atom, Bool)
+
+  fn validate_compact_graph(initial: Syntax, states: List(Syntax), terminals: List(Syntax), transitions: List(TransitionDefinitionSyntax)) -> Option(Atom) = match syntax_key(initial)
+    None() -> Some(:fsm_unknown_initial_state)
+    Some(initial_key) ->
+      let state_keys = syntax_keys(states)
+      let terminal_keys = syntax_keys(terminals)
+      let edges = compact_edges(transitions)
+      match atom_in(initial_key, state_keys)
+        false -> Some(:fsm_unknown_initial_state)
+        true -> match all_atoms_in(terminal_keys, state_keys)
+          false -> Some(:fsm_unknown_terminal_state)
+          true -> match duplicate_compact_edge(edges)
+            true -> Some(:fsm_duplicate_transition)
+            false ->
+              let reachable = reachable_atoms(state_keys, [initial_key], edges)
+              match all_atoms_in(state_keys, reachable)
+                false -> Some(:fsm_unreachable_state)
+                true -> match compact_deadlock(state_keys, terminal_keys, edges)
+                  true -> Some(:fsm_deadlocked_state)
+                  false -> None()
+
+  fn syntax_keys(values: List(Syntax)) -> List(Atom) = match values
+    [] -> []
+    [value | rest] -> match syntax_key(value)
+      None() -> syntax_keys(rest)
+      Some(key) -> [key | syntax_keys(rest)]
+
+  fn compact_edges(transitions: List(TransitionDefinitionSyntax)) -> List(GraphEdge) = match transitions
+    [] -> []
+    [edge | rest] -> match syntax_key(edge.event)
+      None() -> compact_edges(rest)
+      Some(event) -> match syntax_key(edge.to)
+        None() -> compact_edges(rest)
+        Some(to) -> [GraphEdge(optional_syntax_key(edge.from), event, to, option_present(edge.when)) | compact_edges(rest)]
+
+  fn optional_syntax_key(value: Option(Syntax)) -> Option(Atom) = match value
+    None() -> None()
+    Some(item) -> syntax_key(item)
+
+  fn option_present({a: Type}, value: Option(a)) -> Bool = match value
+    None() -> false
+    Some(_) -> true
+
+  fn atom_in(value: Atom, values: List(Atom)) -> Bool = match values
+    [] -> false
+    [head | rest] -> match head == value
+      true -> true
+      false -> atom_in(value, rest)
+
+  fn all_atoms_in(values: List(Atom), catalogue: List(Atom)) -> Bool = match values
+    [] -> true
+    [value | rest] -> match atom_in(value, catalogue)
+      true -> all_atoms_in(rest, catalogue)
+      false -> false
+
+  fn duplicate_compact_edge(edges: List(GraphEdge)) -> Bool = match edges
+    [] -> false
+    [GraphEdge(from, event, _, guarded) | rest] -> match guarded
+      true -> duplicate_compact_edge(rest)
+      false -> match compact_edge_in(from, event, rest)
+        true -> true
+        false -> duplicate_compact_edge(rest)
+
+  fn compact_edge_in(from: Option(Atom), event: Atom, edges: List(GraphEdge)) -> Bool = match edges
+    [] -> false
+    [GraphEdge(other_from, other_event, _, guarded) | rest] -> match guarded
+      true -> compact_edge_in(from, event, rest)
+      false -> match same_optional_atom(from, other_from)
+        false -> compact_edge_in(from, event, rest)
+        true -> match event == other_event
+          true -> true
+          false -> compact_edge_in(from, event, rest)
+
+  fn same_optional_atom(left: Option(Atom), right: Option(Atom)) -> Bool = match left
+    None() -> match right
+      None() -> true
+      Some(_) -> false
+    Some(a) -> match right
+      None() -> false
+      Some(b) -> a == b
+
+  ## At most |states| monotone passes are needed to saturate a finite graph.
+  ## Recursing on the shrinking catalogue is visibly structural to the totality
+  ## checker, unlike a conventional BFS whose work queue can grow.
+  fn reachable_atoms(fuel: List(Atom), reachable: List(Atom), edges: List(GraphEdge)) -> List(Atom) = match fuel
+    [] -> reachable
+    [_ | rest] -> reachable_atoms(rest, expand_reachable(edges, reachable), edges)
+
+  fn expand_reachable(edges: List(GraphEdge), reachable: List(Atom)) -> List(Atom) = match edges
+    [] -> reachable
+    [GraphEdge(from, _, to, _) | rest] -> match from
+      None() -> expand_reachable(rest, add_atom(to, reachable))
+      Some(source) -> match atom_in(source, reachable)
+        true -> expand_reachable(rest, add_atom(to, reachable))
+        false -> expand_reachable(rest, reachable)
+
+  fn add_atom(value: Atom, values: List(Atom)) -> List(Atom) = match atom_in(value, values)
+    true -> values
+    false -> [value | values]
+
+  fn compact_deadlock(states: List(Atom), terminals: List(Atom), edges: List(GraphEdge)) -> Bool = match states
+    [] -> false
+    [state | rest] -> match atom_in(state, terminals)
+      true -> compact_deadlock(rest, terminals, edges)
+      false -> match compact_outgoing(state, edges)
+        true -> compact_deadlock(rest, terminals, edges)
+        false -> true
+
+  fn compact_outgoing(state: Atom, edges: List(GraphEdge)) -> Bool = match edges
+    [] -> false
+    [GraphEdge(from, _, _, _) | rest] -> match from
+      None() -> true
+      Some(source) -> match source == state
+        true -> true
+        false -> compact_outgoing(state, rest)
+
+  fn select_initial(explicit: Option(Syntax), transitions: List(TransitionDefinitionSyntax)) -> Option(Syntax) = match explicit
+    Some(value) -> Some(value)
+    None() -> first_explicit_source(transitions)
+
+  fn first_explicit_source(transitions: List(TransitionDefinitionSyntax)) -> Option(Syntax) = match transitions
+    [] -> None()
+    [edge | rest] -> match edge.from
+      Some(value) -> Some(value)
+      None() -> first_explicit_source(rest)
+
+  fn transition_states(transitions: List(TransitionDefinitionSyntax), found: List(Syntax)) -> List(Syntax) = match transitions
+    [] -> found
+    [edge | rest] -> transition_states(rest, add_optional_syntax_name(edge.from, add_syntax_name(edge.to, found)))
+
+  fn add_optional_syntax_name(value: Option(Syntax), found: List(Syntax)) -> List(Syntax) = match value
+    None() -> found
+    Some(name) -> add_syntax_name(name, found)
+
+  type EventSpec = EventSpec(Syntax, List(Syntax))
+
+  fn transition_events(transitions: List(TransitionDefinitionSyntax), found: List(EventSpec)) -> List(EventSpec) = match transitions
+    [] -> found
+    [edge | rest] -> transition_events(rest, add_event(edge.event, optional_payload(edge.payload), found))
+
+  fn optional_payload(payload: Option(List(Syntax))) -> List(Syntax) = match payload
+    None() -> []
+    Some(parameters) -> parameters
+
+  fn validate_event_payloads(transitions: List(TransitionDefinitionSyntax), found: List(EventSpec)) -> Option(Atom) = match transitions
+    [] -> None()
+    [edge | rest] -> match syntax_key(edge.event)
+      None() -> validate_event_payloads(rest, found)
+      Some(key) -> match find_event(found, key)
+        None() -> validate_event_payloads(rest, append(found, [EventSpec(edge.event, optional_payload(edge.payload))]))
+        Some(EventSpec(_, expected)) -> match payload_types_equal(expected, optional_payload(edge.payload))
+          true -> validate_event_payloads(rest, found)
+          false -> Some(:fsm_inconsistent_event_payload)
+
+  fn find_event(values: List(EventSpec), expected: Atom) -> Option(EventSpec) = match values
+    [] -> None()
+    [EventSpec(name, payload) | rest] -> match syntax_key(name)
+      Some(actual) -> match actual == expected
+        true -> Some(EventSpec(name, payload))
+        false -> find_event(rest, expected)
+      None() -> find_event(rest, expected)
+
+  fn payload_types_equal(left: List(Syntax), right: List(Syntax)) -> Bool = match left
+    [] -> match right
+      [] -> true
+      _ -> false
+    [a | rest_a] -> match right
+      [] -> false
+      [b | rest_b] -> match captured_parameter_type(a)
+        None() -> false
+        Some(a_type) -> match captured_parameter_type(b)
+          None() -> false
+          Some(b_type) -> match identifier_name(a_type)
+            None() -> false
+            Some(a_key) -> match identifier_name(b_type)
+              None() -> false
+              Some(b_key) -> match a_key == b_key
+                true -> payload_types_equal(rest_a, rest_b)
+                false -> false
+
+  fn add_event(event: Syntax, payload: List(Syntax), found: List(EventSpec)) -> List(EventSpec) = match syntax_key(event)
+    None() -> found
+    Some(key) -> match contains_event(found, key)
+      true -> found
+      false -> append(found, [EventSpec(event, payload)])
+
+  fn contains_event(values: List(EventSpec), expected: Atom) -> Bool = match values
+    [] -> false
+    [EventSpec(value, _) | rest] -> match syntax_key(value)
+      None() -> contains_event(rest, expected)
+      Some(name) -> match name == expected
+        true -> true
+        false -> contains_event(rest, expected)
+
+  fn add_syntax_name(value: Syntax, found: List(Syntax)) -> List(Syntax) = match syntax_key(value)
+    None() -> found
+    Some(key) -> match contains_syntax_name(found, key)
+      true -> found
+      false -> append(found, [value])
+
+  fn contains_syntax_name(values: List(Syntax), expected: Atom) -> Bool = match values
+    [] -> false
+    [value | rest] -> match syntax_key(value)
+      None() -> contains_syntax_name(rest, expected)
+      Some(name) -> match name == expected
+        true -> true
+        false -> contains_syntax_name(rest, expected)
+
+  fn syntax_key(value: Syntax) -> Option(Atom) = match attr(attrs(value), :constructor_key)
+    Found(SAtom(key)) -> Some(key)
+    _ -> None()
+
+  fn syntax_name(value: Syntax) -> Option(String) = match value
+    Leaf(_, _, SStr(name)) -> Some(name)
+    _ -> None()
+
+  fn syntax_variants(values: List(Syntax)) -> List(Syntax) = match values
+    [] -> []
+    [value | rest] -> match syntax_name(value)
+      None() -> syntax_variants(rest)
+      Some(name) -> [enum_variant(name) | syntax_variants(rest)]
+
+  fn event_variants(values: List(EventSpec)) -> List(Syntax) = match values
+    [] -> []
+    [EventSpec(value, parameters) | rest] -> match syntax_name(value)
+      None() -> event_variants(rest)
+      Some(name) -> [enum_variant_payload(name, captured_parameter_types(parameters)) | event_variants(rest)]
+
+  fn captured_parameter_types(parameters: List(Syntax)) -> List(Syntax) = match parameters
+    [] -> []
+    [parameter | rest] -> match captured_parameter_type(parameter)
+      None() -> captured_parameter_types(rest)
+      Some(kind) -> [kind | captured_parameter_types(rest)]
+
+  fn captured_parameter_patterns(parameters: List(Syntax)) -> List(Syntax) = match parameters
+    [] -> []
+    [parameter | rest] -> match captured_parameter_name(parameter)
+      None() -> [variable("_") | captured_parameter_patterns(rest)]
+      Some(name) -> [variable(name) | captured_parameter_patterns(rest)]
+
+  fn syntax_constructor(value: Syntax) -> Syntax = match syntax_name(value)
+    None() -> value
+    Some(name) -> call(name, [])
+
+  fn emit_transition_table(name: Syntax, data: Syntax, initial: Syntax, states: List(Syntax), events: List(EventSpec), transitions: List(TransitionDefinitionSyntax)) -> Syntax =
+    let module_name = match name
+      Leaf(_, _, SAtom(value)) -> SAtom(value)
+      _ -> SStr("Cure.Generated.Fsm")
+    let module_expr: Syntax = match name
+      Leaf(_, _, SAtom(value)) -> atom_literal(value)
+      _ -> atom_literal(:generated_fsm)
+    let action_type = call("FsmAction", [variable("State"), variable("Data")])
+    let handle_type = call("Std.Otp.FsmPid", [variable("Event"), variable("State"), variable("Data")])
+    let decision = transition_decision(transitions)
+    let responds = transition_response_decision(transitions)
+    let encoded = call("Std.Fsm.action_to_beam", [call("decide", [variable("event"), variable("state"), variable("data")])])
+    Std.ActorBehavior.state_machine_module(module_name, [
+      enum_type("State", syntax_variants(states)),
+      enum_type("Event", event_variants(events)),
+      enum_type("TransitionInfo", [
+        enum_variant_payload("Explicit", [variable("Atom"), variable("Atom"), variable("Atom")]),
+        enum_variant_payload("Wildcard", [variable("Atom"), variable("Atom")])
+      ]),
+      alias_node("Data", data),
+      alias_node("Handle", handle_type),
+      function("transitions", [], call("List", [variable("TransitionInfo")]), list(transition_metadata(transitions))),
+      function("responds?", [parameter("state", variable("State")), parameter("event", variable("Event"))], variable("Bool"), responds),
+      function("callback_mode", [], variable("Atom"), quote :handle_event_function),
+      function("init", [parameter("initial", variable("Data"))], call("Effect", [tuple_type([variable("Atom"), variable("State"), variable("Data")])]), tuple([atom_literal(:ok), syntax_constructor(initial), variable("initial")])),
+      function("decide", [parameter("event", variable("Event")), parameter("state", variable("State")), parameter("data", variable("Data"))], action_type, decision),
+      function("handle_event", [parameter("event_type", variable("Atom")), parameter("event", variable("Event")), parameter("state", variable("State")), parameter("data", variable("Data"))], call("Effect", [variable("BeamTerm")]), encoded),
+      function("start_link", [parameter("initial", variable("Data"))], call("Effect", [variable("Tuple")]), call("Std.Otp.start_statem", [module_expr, variable("initial")])),
+      function("start", [parameter("initial", variable("Data"))], call("Effect", [call("Std.Otp.StartResult", [variable("Handle")])]), call("Std.Otp.start_fsm", [module_expr, variable("initial")])),
+      function("send", [parameter("machine", variable("Handle")), parameter("event", variable("Event"))], call("Effect", [variable("Unit")]), call("Std.Otp.fsm_send", [variable("machine"), variable("event")]))
+    ])
+
+  ## Emit the graph as ordinary generated data. Tooling and tests can inspect
+  ## exactly the rows which drive `decide/3`, without keeping a second table in
+  ## host code. Wildcard rows have a distinct constructor so callers cannot
+  ## accidentally mistake them for a concrete source state.
+  fn transition_metadata(transitions: List(TransitionDefinitionSyntax)) -> List(Syntax) = match transitions
+    [] -> []
+    [edge | rest] -> match syntax_name_atom(edge.event)
+      None() -> transition_metadata(rest)
+      Some(event) -> match syntax_name_atom(edge.to)
+        None() -> transition_metadata(rest)
+        Some(to) -> match edge.from
+          None() -> [call("Wildcard", [atom_literal(event), atom_literal(to)]) | transition_metadata(rest)]
+          Some(from) -> match syntax_name_atom(from)
+            None() -> transition_metadata(rest)
+            Some(source) -> [call("Explicit", [atom_literal(source), atom_literal(event), atom_literal(to)]) | transition_metadata(rest)]
+
+  ## Constructor keys include arity (`:Opened/0`) for duplicate checking.
+  ## Public graph metadata instead preserves the identifier the author wrote.
+  fn syntax_name_atom(value: Syntax) -> Option(Atom) = match syntax_name(value)
+    None() -> None()
+    Some(name) -> Some(Std.String.unsafe_to_atom(name))
+
+  ## `responds?/2` shares the same ordered patterns as `decide/3`. It answers
+  ## whether the compiled graph has a row for a state/event shape; guards are
+  ## deliberately not evaluated because they may depend on transition data.
+  fn transition_response_decision(transitions: List(TransitionDefinitionSyntax)) -> Syntax =
+    let key = "response_key"
+    let bind_key = let_binding(key, tuple([variable("state"), variable("event")]))
+    let fallback = match_arm(tuple([variable("_"), variable("_")]), bool_literal(false))
+    let arms = append(explicit_response_arms(transitions), wildcard_response_arms(transitions))
+    block([bind_key, Node(:pattern_match, [], [variable(key) | append(arms, [fallback])])])
+
+  fn explicit_response_arms(transitions: List(TransitionDefinitionSyntax)) -> List(Syntax) = match transitions
+    [] -> []
+    [edge | rest] -> match edge.from
+      None() -> explicit_response_arms(rest)
+      Some(from) -> [response_arm(edge, syntax_constructor(from)) | explicit_response_arms(rest)]
+
+  fn wildcard_response_arms(transitions: List(TransitionDefinitionSyntax)) -> List(Syntax) = match transitions
+    [] -> []
+    [edge | rest] -> match edge.from
+      Some(_) -> wildcard_response_arms(rest)
+      None() -> [response_arm(edge, variable("_")) | wildcard_response_arms(rest)]
+
+  fn response_arm(edge: TransitionDefinitionSyntax, state_pattern: Syntax) -> Syntax =
+    let event_match = event_pattern(edge.event, optional_payload(edge.payload))
+    match_arm(tuple([state_pattern, event_match]), bool_literal(true))
+
+  ## Compile the table as one linear tuple match. Explicit rows are emitted
+  ## before wildcard rows, which gives them precedence through ordinary pattern
+  ## ordering. The previous nested state/event decision duplicated its complete
+  ## fallback twice per row; moderately sized FSMs therefore produced an
+  ## exponential Syntax value and exhausted computed-macro normalization.
+  fn transition_decision(transitions: List(TransitionDefinitionSyntax)) -> Syntax =
+    let key = "transition_key"
+    let bind_key = let_binding(key, tuple([variable("state"), variable("event")]))
+    let fallback_pattern = tuple([variable("_"), variable("_")])
+    let fallback = match_arm(fallback_pattern, call("Keep", [variable("data")]))
+    let decision = Node(:pattern_match, [], [variable(key) | append(explicit_transition_arms(transitions), append(wildcard_transition_arms(transitions), [fallback]))])
+    block([bind_key, decision])
+
+  fn explicit_transition_arms(transitions: List(TransitionDefinitionSyntax)) -> List(Syntax) = match transitions
+    [] -> []
+    [edge | rest] -> match edge.from
+      None() -> explicit_transition_arms(rest)
+      Some(from) -> [transition_arm(edge, syntax_constructor(from)) | explicit_transition_arms(rest)]
+
+  fn wildcard_transition_arms(transitions: List(TransitionDefinitionSyntax)) -> List(Syntax) = match transitions
+    [] -> []
+    [edge | rest] -> match edge.from
+      Some(_) -> wildcard_transition_arms(rest)
+      None() -> [transition_arm(edge, variable("_")) | wildcard_transition_arms(rest)]
+
+  fn transition_arm(edge: TransitionDefinitionSyntax, state_pattern: Syntax) -> Syntax =
+    let event_match = event_pattern(edge.event, optional_payload(edge.payload))
+    let pattern = tuple([state_pattern, event_match])
+    let body = call("Next", [syntax_constructor(edge.to), transition_update(edge.update)])
+    match edge.when
+      None() -> match_arm(pattern, body)
+      Some(guard) -> guarded_match_arm(pattern, guard, body)
+
+  fn event_pattern(event: Syntax, parameters: List(Syntax)) -> Syntax = match identifier_name(event)
+    None() -> variable("_")
+    Some(name) -> call(name, captured_parameter_patterns(parameters))
+
+  fn transition_update(update: Option(ExpressionSyntax)) -> Syntax = match update
+    None() -> variable("data")
+    Some(value) -> value
+
+  ## Expand the structured `fsm` family into a `gen_statem` module.
   ##
-  ## Runtime surface for FSM modules compiled from `fsm` containers.
-  ## Every entry delegates to `Cure.FSM.Builtins`, which wraps
-  ## `Cure.FSM.Runtime`. Spawning captures the calling process as the
-  ## FSM's `:caller` so lifecycle hooks can notify it via
-  ## `Std.Fsm.notify/1`.
-  ##
-  ## ## Examples
-  ##
-  ## ```cure
-  ## use Std.Fsm
-  ##
-  ## # Assume a compiled `Cure.FSM.TrafficLight` with Red -> Green -> Yellow -> Red.
-  ## let pid = spawn(:"Cure.FSM.TrafficLight")
-  ## send(pid, :timer)
-  ## state(pid)                              # => :green
-  ## stop(pid)
-  ## ```
-  ##
-  ## ```cure
-  ## use Std.Fsm
-  ##
-  ## # Drive the FSM through a batch of events.
-  ## let pid = spawn_named(:"Cure.FSM.TrafficLight", "main")
-  ## send_batch(pid, [:timer, :timer, :timer])
-  ## history(pid)                            # => [:timer, :timer, :timer]
-  ## ```
+  ## The event type is a companion of the machine, so it is declared INSIDE the
+  ## generated module as `Event` -- the same place the transition-table emitter
+  ## puts its `State`/`Event`/`Data`. Declaring it beside the machine instead
+  ## would bind a name nobody wrote into the enclosing scope, and two sibling
+  ## modules each holding an `fsm` would collide on it.
+  fn derive_fsm_family(name: ModuleNameSyntax, definition: FsmDefinitionSyntax) -> Syntax =
+    let body = Node(:pattern_match, [], [variable("event") | children(definition.events)])
+    let name_syntax: Syntax = name
+    match derive_pattern_heads(body)
+      InvalidHeads(reason) -> Failure(reason, [])
+      Heads(heads) ->
+        let event_declarations = match definition.event_type
+          None() -> [enum_type("Event", heads)]
+          Some(value) -> [alias_node("Event", value)]
+        match definition.states
+          None() -> emit_fsm_parts(name_syntax, definition.state, event_declarations, fsm_handler(body))
+          Some(state_names) -> match definition.initial
+            None() -> Failure(:typed_fsm_requires_initial_state, [])
+            Some(initial_state) -> emit_typed_fsm_parts(name_syntax, definition.state, state_names, initial_state, event_declarations, body)
 
-  ## Group tag consumed by `Cure.Stdlib.Preload`.
-  fn __group__() -> Atom = :concurrency
+  ## Supporting transition syntax remains independent of the structured family.
+  macro FsmSyntax
+    syntax transition <from: Code> <event: Code> <to: Code> becomes Std.Fsm.transition(from, event, to)
 
-  ## Spawn an FSM instance from a compiled FSM module atom. The
-  ## spawning process is recorded as the FSM's caller automatically;
-  ## lifecycle hooks can reach it via `Std.Fsm.notify/1`.
-  @extern(Elixir.Cure.FSM.Builtins, :fsm_spawn, 1)
-  fn spawn(fsm_module: Atom) -> Pid
+  type Transition(state, event) = Row(state, event, state)
+  typealias AtomTransition = Transition(Atom, Atom)
 
-  ## Spawn an FSM instance with an explicit initial payload.
-  @extern(Elixir.Cure.FSM.Builtins, :fsm_spawn_with_payload, 2)
-  fn spawn_with_payload(fsm_module: Atom, payload: Any) -> Pid
+  ## Checked callback result for the preferred typed FSM surface. Constructors
+  ## are ordinary Cure values; `action_to_beam` is the single private-shape
+  ## lowering point to the tuple vocabulary required by `gen_statem`.
+  type FsmAction(state, data) = Keep(data) | Next(state, data) | Stop(ExitReason, data)
 
-  ## Spawn an FSM instance with a fully-specified initial state.
-  ## `init` may be a `%Cure.FSM.State{}` struct, a keyword list with
-  ## `:caller` / `:meta` / `:payload`, or a plain map in the same shape.
-  @extern(Elixir.Cure.FSM.Builtins, :fsm_spawn_with, 2)
-  fn spawn_with(fsm_module: Atom, init: Any) -> Pid
+  fn keep({s: Type}, data: d) -> FsmAction(s, d) = Keep(data)
+  fn next(state: s, data: d) -> FsmAction(s, d) = Next(state, data)
+  fn stop({s: Type}, reason: ExitReason, data: d) -> FsmAction(s, d) = Stop(reason, data)
 
-  ## Spawn a named FSM instance. The `name` string is registered with
-  ## the runtime registry for later `lookup/1`.
-  @extern(Elixir.Cure.FSM.Builtins, :fsm_spawn_named, 2)
-  fn spawn_named(fsm_module: Atom, name: String) -> Pid
+  local fn exit_reason_atom(reason: ExitReason) -> Atom = match reason
+    Normal() -> :normal
+    Kill() -> :kill
+    Shutdown() -> :shutdown
+    Because(value) -> value
 
-  ## Stop a running FSM instance.
-  @extern(Elixir.Cure.FSM.Builtins, :fsm_stop, 1)
-  fn stop(pid: Pid) -> Atom
+  fn action_to_beam(action: FsmAction(s, d)) -> BeamTerm = match action
+    Keep(data) -> Std.Beam.forget(%[:keep_state, data])
+    Next(state, data) -> Std.Beam.forget(%[:next_state, state, data])
+    Stop(reason, data) -> Std.Beam.forget(%[:stop, exit_reason_atom(reason), data])
 
-  ## Send an event (without a payload) to an FSM.
-  @extern(Elixir.Cure.FSM.Builtins, :fsm_send, 2)
-  fn send(pid: Pid, event: Atom) -> Atom
+  fn emit_fsm_parts(name_syntax: Syntax, state_type: Syntax, event_declarations: List(Syntax), event_body: Syntax) -> Syntax =
+    let module_name = match name_syntax
+      Leaf(_, _, SAtom(name)) -> SAtom(name)
+      _ -> SStr("Cure.Generated.Fsm")
+    let module_expr = match name_syntax
+      Leaf(_, _, SAtom(name)) -> atom_literal(name)
+      _ -> atom_literal(:generated_fsm)
+    match derive_pattern_heads(event_body)
+      InvalidHeads(reason) -> Failure(reason, [])
+      Heads(heads) ->
+        let result_type = call("Effect", [variable("Atom")])
+        let init_type = call("Effect", [tuple_type([variable("Atom"), variable("Atom"), variable("State")])])
+        let start_type = call("Effect", [variable("Tuple")])
+        Std.ActorBehavior.state_machine_module(module_name, append([alias_node("State", state_type)], append(event_declarations, [
+          function("callback_mode", [], variable("Atom"), quote :handle_event_function),
+          function("init", [parameter("initial", variable("State"))], init_type, quote %[:ok, :initial, initial]),
+          function("handle_event", [parameter("event_type", variable("Atom")), parameter("event", variable("Event")), parameter("state", variable("Atom")), parameter("data", variable("State"))], result_type, event_body),
+          function("start_link", [parameter("initial", variable("State"))], start_type, call("Std.Otp.start_statem", [module_expr, variable("initial")]))
+        ])))
 
-  ## Send an event carrying a payload to an FSM.
-  @extern(Elixir.Cure.FSM.Builtins, :fsm_send_with, 3)
-  fn send_with(pid: Pid, event: Atom, payload: Any) -> Atom
+  fn emit_typed_fsm_parts(name_syntax: Syntax, data_type: Syntax, state_name_type: Syntax, initial_state: Syntax, event_declarations: List(Syntax), event_body: Syntax) -> Syntax =
+    let module_name = match name_syntax
+      Leaf(_, _, SAtom(name)) -> SAtom(name)
+      _ -> SStr("Cure.Generated.TypedFsm")
+    let module_expr = match name_syntax
+      Leaf(_, _, SAtom(name)) -> atom_literal(name)
+      _ -> atom_literal(:generated_typed_fsm)
+    let init_type = call("Effect", [tuple_type([variable("Atom"), variable("StateName"), variable("Data")])])
+    let result_type = call("Effect", [variable("BeamTerm")])
+    let action_type = call("FsmAction", [variable("StateName"), variable("Data")])
+    let start_type = call("Effect", [variable("Tuple")])
+    let decided = call("decide", [variable("event"), variable("state"), variable("data")])
+    let encoded_body = call("Std.Fsm.action_to_beam", [decided])
+    Std.ActorBehavior.state_machine_module(module_name, append([
+      alias_node("Data", data_type),
+      alias_node("StateName", state_name_type)
+    ], append(event_declarations, [
+      function("callback_mode", [], variable("Atom"), quote :handle_event_function),
+      function("init", [parameter("initial", variable("Data"))], init_type, tuple([atom_literal(:ok), initial_state, variable("initial")])),
+      function("decide", [parameter("event", variable("Event")), parameter("state", variable("StateName")), parameter("data", variable("Data"))], action_type, event_body),
+      function("handle_event", [parameter("event_type", variable("Atom")), parameter("event", variable("Event")), parameter("state", variable("StateName")), parameter("data", variable("Data"))], result_type, encoded_body),
+      function("start_link", [parameter("initial", variable("Data"))], start_type, call("Std.Otp.start_statem", [module_expr, variable("initial")]))
+    ])))
 
-  ## Send a batch of events; each is delivered in order.
-  @extern(Elixir.Cure.FSM.Builtins, :fsm_send_batch, 2)
-  fn send_batch(pid: Pid, events: List(Atom)) -> Atom
+  ## checked block, so normalize each arm here in ordinary source-level syntax.
+  fn fsm_handler(body: Syntax) -> Syntax = match tag(body) == :pattern_match
+    true -> fsm_handler_node(attrs(body), children(body))
+    false -> body
 
-  ## Get the current state of an FSM as `%[state_atom, payload]`.
-  @extern(Elixir.Cure.FSM.Builtins, :fsm_get_state, 1)
-  fn get_state(pid: Pid) -> Tuple
+  fn fsm_handler_node(values: List(Attr), children: List(Syntax)) -> Syntax = match children
+    [scrutinee | arms] -> Node(:pattern_match, values, [scrutinee | fsm_handler_arms(arms)])
+    _ -> Node(:pattern_match, values, children)
 
-  ## Get the full `%Cure.FSM.State{}` wrapped as
-  ## `%[state_atom, %FsmState{caller, meta, payload}]`.
-  @extern(Elixir.Cure.FSM.Builtins, :fsm_full_state, 1)
-  fn full_state(pid: Pid) -> Tuple
+  fn fsm_handler_arms(arms: List(Syntax)) -> List(Syntax) = match arms
+    [] -> []
+    [arm | rest] -> [fsm_handler_arm(arm) | fsm_handler_arms(rest)]
 
-  ## Get just the current state atom (no payload).
-  @extern(Elixir.Cure.FSM.Builtins, :fsm_state, 1)
-  fn state(pid: Pid) -> Atom
+  fn fsm_handler_arm(arm: Syntax) -> Syntax = match tag(arm) == :match_arm
+    true -> fsm_handler_arm_node(attrs(arm), children(arm))
+    false -> arm
 
-  ## `true` when the FSM process is still alive.
-  @extern(Elixir.Cure.FSM.Builtins, :fsm_is_alive, 1)
-  fn is_alive(pid: Pid) -> Bool
+  fn fsm_handler_arm_node(values: List(Attr), children: List(Syntax)) -> Syntax = match children
+    [body] -> Node(:match_arm, values, [block([body])])
+    _ -> Node(:match_arm, values, children)
 
-  ## Get metadata about an FSM from the runtime registry.
-  @extern(Elixir.Cure.FSM.Builtins, :fsm_info, 1)
-  fn info(pid: Pid) -> Map
+  ## A transition row is ordinary data. The macro surface above expands rows to
+  ## this checked ADT so users can compose, inspect, and transform tables with
+  ## normal Cure functions.
+  fn transition({s: Type}, {e: Type}, from: s, event: e, to: s) -> Transition(s, e) =
+    Row(from, event, to)
 
-  ## Get the event history of an FSM (most-recent-first list of atoms).
-  @extern(Elixir.Cure.FSM.Builtins, :fsm_history, 1)
-  fn history(pid: Pid) -> List(Atom)
+  ## Compatibility helper for the original atom-labelled transition-table
+  ## macro. Typed callers use `first_state_or`, whose fallback has the same
+  ## state type as the table.
+  fn first_state(transitions: List(Transition(Atom, Atom))) -> Atom =
+    match transitions
+      [] -> :initial
+      [Row(from, _, _) | _] -> from
 
-  ## Look up an FSM by its registered name.
-  @extern(Elixir.Cure.FSM.Builtins, :fsm_lookup, 1)
-  fn lookup(name: String) -> Pid
+  fn first_state_or({s: Type}, {e: Type}, transitions: List(Transition(s, e)), fallback: s) -> s =
+    match transitions
+      [] -> fallback
+      [Row(from, _, _) | _] -> from
 
-  ## Send `message` to the caller registered for the currently-executing
-  ## FSM. Intended to be called from inside a lifecycle-hook body; a
-  ## no-op returning `:no_caller` when invoked outside an FSM process.
-  @extern(Elixir.Cure.FSM.Builtins, :fsm_notify, 1)
-  fn notify(message: Any) -> Atom
+  fn dispatch({s: Type}, {e: Type}, transitions: List(Transition(s, e)), state: s, event: e, data: a) -> Tuple(Atom, s, a) requires Equatable(s), Equatable(e) =
+    match transitions
+      [] -> %[:next_state, state, data]
+      [Row(from, expected, next) | rest] -> match state == from
+        true -> match event == expected
+          true -> %[:next_state, next, data]
+          false -> dispatch(rest, state, event, data)
+        false -> dispatch(rest, state, event, data)
 
-  ## Return the caller pid registered for a running FSM, or `nil`.
-  @extern(Elixir.Cure.FSM.Builtins, :fsm_caller, 1)
-  fn caller(pid: Pid) -> Pid
+  ## Exact encoder for atom-labelled transition tables.
+  ## Keeping it separate lets the ordinary `dispatch` algebra remain generic.
+  fn dispatch_atom(transitions: List(Transition(Atom, Atom)), state: Atom, event: Atom, data: a) -> Tuple(Atom, Atom, a) =
+    match transitions
+      [] -> %[:next_state, state, data]
+      [Row(from, expected, next) | rest] -> match state == from
+        true -> match event == expected
+          true -> %[:next_state, next, data]
+          false -> dispatch_atom(rest, state, event, data)
+        false -> dispatch_atom(rest, state, event, data)

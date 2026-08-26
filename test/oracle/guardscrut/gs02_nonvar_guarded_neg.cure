@@ -1,0 +1,7 @@
+mod Gs02
+  type Nat = Z | S(Nat)
+  fn classify(n: Int) -> Nat = match n + 1
+    x when x == 0 -> Z()
+    x -> x
+  fn start() -> Nat = classify(0)
+end

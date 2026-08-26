@@ -1,0 +1,6 @@
+mod Mt09
+  type Nat = Z | S(Nat)
+  fn f(n: Nat) -> Nat = match n
+    S(S(m)) -> m
+    _ -> Z()
+end

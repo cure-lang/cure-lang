@@ -1,0 +1,11 @@
+mod Pl09
+  type Nat = Zero | Suc(Nat)
+  type MyList(a) = LNil | LCons(a, MyList(a))
+  fn app({a}, xs: MyList(a), ys: MyList(a)) -> MyList(a) = match xs
+    LNil() -> ys
+    LCons(x, r) -> LCons(x, app(r, ys))
+  fn hd(d: Nat, l: MyList(Nat)) -> Nat = match l
+    LCons(x, xs) -> x
+    LNil() -> d
+  fn g() -> Nat = hd(Zero(), app(LCons(Suc(Zero()), LNil()), LCons(Zero(), LNil())))
+end

@@ -1,24 +1,27 @@
 mod SigmaPairs
-  ## Dependent pairs (Sigma types) example.
+  ## Dependent pairs (Sigma types), backed by the stdlib inductive `Std.Sigma`.
   #
-  # A Sigma type pairs a value with a type that may depend on it.
-  # Cure spells the type using the constructor `Sigma(name: T1, T2)`
-  # where `name` is bound in `T2`.
-  #
-  # Example: a "sized" structure carries its length at the type level,
-  # making it impossible to construct one whose claimed length and
-  # actual length disagree.
+  # `Sigma(x: A, B)` pairs a value `x : A` with a second component whose type `B`
+  # may mention `x`. It is an ordinary inductive family (constructor `mk_pair`),
+  # written with the tuple literal `%[a, b]` and read with the projections
+  # `.1` / `.2`. The BEAM representation is a bare 2-tuple, ABI-identical to a
+  # plain pair.
 
-  # Non-dependent pair: same as the regular tuple `%[Int, String]`.
-  fn pair_demo() -> Tuple = %[42, "hello"]
+  # A value-indexed family: Below(n) is inhabited only by naturals < n.
+  type Below indices (n: Nat)
+    bz : Below(S(n))
+    bs : Below(n) -> Below(S(n))
 
-  # Dependent pair: the second component's type can mention `n`.
-  # Here the second component is just a String, but the binding shape
-  # mirrors what you would use for `Vector(T, n)`.
-  fn make_sized() -> Tuple = %[3, "abc"]
+  # Non-dependent pair: the second component's type ignores the first.
+  fn plain() -> Sigma(x: Nat, Nat) = %[Z, S(Z)]
 
-  # First projection.
-  fn first_of(p: Tuple) -> Int = Std.Pair.first(p)
+  # Dependent pair: the second component's TYPE mentions the first component.
+  # Pack a bound `n = 2` with an element of `Below(n)`.
+  fn bounded() -> Sigma(n: Nat, Below(n)) = %[S(S(Z)), bz()]
 
-  # Second projection.
-  fn second_of(p: Tuple) -> String = Std.Pair.second(p)
+  # First projection: recover the packed witness.
+  fn bound_of(p: Sigma(n: Nat, Below(n))) -> Nat = p.1
+
+  # Second projection: its type `Below(p.1)` depends on the first projection.
+  fn elem_of(p: Sigma(n: Nat, Below(n))) -> Below(p.1) = p.2
+end

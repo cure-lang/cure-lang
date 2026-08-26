@@ -106,7 +106,7 @@ mod Comprehensive.Showcase
   # -------------------------------------------------------------------------
 
   fn sketch(x: Int) -> Int = ?body_goes_here
-  fn another()     -> Int = ??
+  fn another()     -> Int = ?_
 
   # -------------------------------------------------------------------------
   # Regex, char, and string literals

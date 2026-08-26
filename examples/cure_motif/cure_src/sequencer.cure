@@ -1,37 +1,12 @@
-## Sequencer actor for the Cure motif supervision tree.
-##
-## Acts as a single-event relay with a monotonic event counter. The
-## payload is an `Int` counting how many events have been relayed
-## since the last `:reset`.
-##
-## Walking a preloaded list is deliberately left on the Elixir side
-## (`CureMotif.drive/2`, `CureMotif.Demo.drive_sequencer/1`): the
-## `%[:emit, event]` message relays a single event to the caller via
-## `notify/1`, and the sequencer bumps its counter. Keeping the Cure
-## actor body small lets the showcase exercise actors and the
-## Melquiades Operator without having to work around the current
-## FSM/Actor clause translator (which compiles `[h | t]` patterns as
-## fixed-length list matches rather than cons matches; see
-## `lib/cure/fsm/compiler.ex`'s `cure_ast_to_elixir/1`).
-##
-## Messages understood:
-##   * `%[:emit, event]`
-##       -- relay `event` to the caller as `%[:event, event]`; bump
-##          the payload counter.
-##   * `:reset`
-##       -- reset the counter to zero.
-##   * `:get`
-##       -- notify the caller with the current count.
+## Transparent sequencer actor with a typed counter payload.
 
-actor Sequencer with 0
-  on_start
-    (state) -> state
-  on_message
-    (%[:emit, event], n) ->
-      notify(%[:event, event])
-      n + 1
-    (:reset, _state) ->
-      0
-    (:get, n) ->
-      notify(%[:count, n])
-      n
+use Std.Actor
+
+actor Sequencer
+  state Int
+  initial 0
+  messages Tuple(Atom, Atom)
+  handle_cast
+    pickup
+      message.1 == :emit -> %[:noreply, state + 1]
+      else -> %[:noreply, state]

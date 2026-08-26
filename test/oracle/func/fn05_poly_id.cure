@@ -1,0 +1,5 @@
+mod Fn05
+  type Nat = Z | S(Nat)
+  fn id({a}, x: a) -> a = x
+  fn g() -> Nat = id(S(Z()))
+end

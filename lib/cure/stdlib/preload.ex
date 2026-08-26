@@ -28,16 +28,15 @@ defmodule Cure.Stdlib.Preload do
 
   The set of stdlib modules is *not* hard-coded. At Elixir compile time
   this module walks `lib/std/*.cure`, extracts the declared `mod Std.X`
-  name, and the first `fn __group__() -> Atom = :<group>` declaration
-  in each source (see `docs/STDLIB.md`). Modules without a `__group__/0`
-  declaration are assigned to `:core` by default.
+  name, and the first `@group(:<group>)` module-level decorator in each
+  source (see `docs/STDLIB.md`). Modules without a `@group` decorator are
+  assigned to `:core` by default.
 
   The resulting `%{module => group}` map is baked into the module via
   `@external_resource` so any change to `lib/std/*.cure` invalidates the
   compile cache. When `lib/std/` is not available (e.g. a packaged
-  release), `stdlib_modules/1` falls back to scanning
-  `_build/cure/ebin` for `Cure.Std.*.beam` files and calling the
-  exported `__group__/0` on each module.
+  release), `stdlib_modules/1` opens one verified artifact generation and
+  reads each module's `-group([:g]).` BEAM attribute without loading code.
 
   ## Kinds
 
@@ -60,13 +59,14 @@ defmodule Cure.Stdlib.Preload do
   historical behaviour.
   """
 
+  alias Cure.Compiler.Artifacts
   alias Cure.Stdlib.Paths
-
-  require Logger
 
   @default_examples_ebin "_build/cure/ex_ebin"
 
   @stdlib_source_dir Path.expand("../../../lib/std", __DIR__)
+  @regex_source_dir Path.expand("../../std_deps/regex", __DIR__)
+  @stdlib_source_dirs [@stdlib_source_dir, @regex_source_dir]
 
   @known_groups [
     :core,
@@ -81,26 +81,29 @@ defmodule Cure.Stdlib.Preload do
   ]
 
   # ---------------------------------------------------------------------------
-  # Compile-time scan of lib/std/*.cure
+  # Compile-time scan of the foundational stdlib and embedded Regex package.
   # ---------------------------------------------------------------------------
 
-  @stdlib_sources (case File.ls(@stdlib_source_dir) do
-                     {:ok, entries} ->
-                       entries
-                       |> Enum.filter(&String.ends_with?(&1, ".cure"))
-                       |> Enum.map(&Path.join(@stdlib_source_dir, &1))
-                       |> Enum.sort()
+  @stdlib_sources @stdlib_source_dirs
+                  |> Enum.flat_map(fn source_dir ->
+                    case File.ls(source_dir) do
+                      {:ok, entries} ->
+                        entries
+                        |> Enum.filter(&String.ends_with?(&1, ".cure"))
+                        |> Enum.map(&Path.join(source_dir, &1))
 
-                     {:error, _} ->
-                       []
-                   end)
+                      {:error, _} ->
+                        []
+                    end
+                  end)
+                  |> Enum.sort()
 
   for src <- @stdlib_sources do
     @external_resource src
   end
 
   @mod_regex ~r/^\s*(?:mod|proof|actor|fsm|sup|app)\s+([A-Za-z_][\w\.]*)/m
-  @group_regex ~r/^\s*fn\s+__group__\s*\(\s*\)\s*->\s*Atom\s*=\s*:([a-z_][a-z0-9_]*)/m
+  @group_regex ~r/^\s*@group\(\s*:([a-z_][a-z0-9_]*)\s*\)/m
 
   # Cure stdlib modules are emitted as plain Erlang-style atoms
   # (`:"Cure.Std.List"`), not as Elixir-prefixed atoms
@@ -121,6 +124,42 @@ defmodule Cure.Stdlib.Preload do
 
                         {module, group}
                       end)
+
+  # Dependency maps baked at compile time via DepGraph (design spec
+  # 2026-07-08-auto-import-order §3.3): order-only (`use` edges) and full
+  # closure (`use` + qualified-call + auto-prelude). Keys/values are
+  # runtime module atoms (:"Cure.Std.X"). Empty when lib/std was absent
+  # at compile time (packaged releases) — consumers degrade to plain
+  # selection in that case.
+  {order_map, closure_map} =
+    (fn ->
+       # No `known_modules:` needed here: the compile set IS the full
+       # stdlib (`@stdlib_sources` already lists every foundational and
+       # embedded-package source
+       # file), so `DepGraph.scan/2`'s own AST-derived `modules` map
+       # already covers every stdlib module name -- there is nothing
+       # out-of-set left for `known_modules` to add. (Contrast a scan
+       # over a strict subset, or user files needing to recognize
+       # `Std.*` qualified calls as legitimate closure deps -- that's
+       # the scenario `known_modules` exists for; it isn't this one.)
+       case Cure.Compiler.DepGraph.scan(@stdlib_sources) do
+         {:ok, graph} ->
+           to_atoms = fn map ->
+             Map.new(map, fn {k, vs} ->
+               {String.to_atom("Cure." <> k), Enum.map(vs, &String.to_atom("Cure." <> &1))}
+             end)
+           end
+
+           {to_atoms.(Cure.Compiler.DepGraph.order_deps_map(graph)),
+            to_atoms.(Cure.Compiler.DepGraph.closure_deps_map(graph))}
+
+         {:error, _} ->
+           {%{}, %{}}
+       end
+     end).()
+
+  @std_order_deps order_map
+  @std_closure_deps closure_map
 
   # ---------------------------------------------------------------------------
   # Public API
@@ -171,6 +210,7 @@ defmodule Cure.Stdlib.Preload do
   """
   @type option ::
           {:kind, kind()}
+          | {:modules, [module()]}
           | {:examples, boolean()}
           | {:stdlib_ebin, String.t()}
           | {:examples_ebin, String.t()}
@@ -194,6 +234,63 @@ defmodule Cure.Stdlib.Preload do
   @spec module_groups() :: %{module() => group()}
   def module_groups, do: @std_module_groups
 
+  @doc "Baked `use`-only dependency map (module atoms). Empty in beams-only deployments."
+  @spec module_order_deps() :: %{module() => [module()]}
+  def module_order_deps, do: @std_order_deps
+
+  @doc "Baked full closure dependency map (use + qualified calls + auto-prelude)."
+  @spec module_closure_deps() :: %{module() => [module()]}
+  def module_closure_deps, do: @std_closure_deps
+
+  # ---------------------------------------------------------------------------
+  # Built-in operator fixity table (Phase 3, Task 3.2)
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  Assemble the built-in operator `Cure.Compiler.Parser.FixityTable` by parsing
+  the `Std.Operators` stdlib module (`lib/std/operators.cure`).
+
+  `Std.Operators` declares every built-in operator with the same relative
+  binding power and associativity as the legacy static
+  `Cure.Compiler.Parser.Precedence` table. This accessor reads those
+  `precedencegroup`/`infix`/`prefix`/`postfix` declarations and reduces them
+  into a `FixityTable`.
+
+  Purely additive in this task: nothing in the expression parser consults the
+  returned table yet (the static `Precedence` module still governs how
+  expressions bind). A later Phase-3 task flips the Pratt loop onto it.
+
+  Returns an empty table when the source cannot be found or parsed (e.g. a
+  packaged release that ships neither `lib/std/` nor `priv/std/`).
+  """
+  #
+  # The table computation itself now lives in
+  # `Cure.Compiler.Parser.BuiltinFixity` (compiler layer) so the parser can reach
+  # it during THIS module's own compile-time dependency bake without a load-order
+  # cycle. These are thin delegators kept for the public API.
+  @spec builtin_fixity_table() :: Cure.Compiler.Parser.FixityTable.t()
+  defdelegate builtin_fixity_table(), to: Cure.Compiler.Parser.BuiltinFixity, as: :table
+
+  @doc """
+  Extend an existing `FixityTable` with the `precedencegroup`/`infix`/… decls
+  found in `ast`. Used by the parser to layer a module's own fixity declarations
+  onto the memoized built-in table.
+  """
+  @spec extend_fixity_table(Cure.Compiler.Parser.FixityTable.t(), term()) ::
+          Cure.Compiler.Parser.FixityTable.t()
+  defdelegate extend_fixity_table(base, ast), to: Cure.Compiler.Parser.BuiltinFixity, as: :extend
+
+  @doc """
+  `stdlib_modules(kind)` expanded to its dependency closure over the baked
+  closure map. Selection semantics are unchanged — closure only adds the
+  modules the selection needs at runtime. Degrades to the plain selection
+  when the baked maps are empty (beams-only deployments).
+  """
+  @spec closure_modules(kind()) :: [module()]
+  def closure_modules(kind) do
+    Cure.Compiler.DepGraph.closure(@std_closure_deps, stdlib_modules(kind))
+  end
+
   @doc """
   Return the list of stdlib modules matching `kind`.
 
@@ -204,7 +301,7 @@ defmodule Cure.Stdlib.Preload do
       iex> Cure.Stdlib.Preload.stdlib_modules(:none)
       []
 
-      # :core returns modules tagged :core in their `__group__/0`:
+      # :core returns modules tagged :core via `@group(:core)`:
       iex> :"Cure.Std.Core" in Cure.Stdlib.Preload.stdlib_modules(:core)
       true
   """
@@ -236,41 +333,42 @@ defmodule Cure.Stdlib.Preload do
   @doc """
   Load compiled stdlib (and optionally example) modules.
 
-  Always returns `:ok`, even when nothing can be loaded (the build directory
-  may not exist yet during a fresh `mix deps.compile`). Modules already
-  loaded into the VM are left alone.
+  Returns `:ok` only after selecting and verifying one complete artifact
+  generation. Invalid or partial candidates return a structured error before
+  any module is loaded.
 
   Resolution order for each module:
 
-    1. Iterate `Cure.Stdlib.Paths.beam_dirs/0` and load the first
-       matching `.beam`. When `:stdlib_ebin` is supplied explicitly,
-       only that directory is consulted.
-    2. Fall back to compiling the module from its `.cure` source in
-       `Cure.Stdlib.Paths.source_dir/0` via
-       `Cure.Compiler.compile_and_load/2`. Disable with
-       `source_jit: false`.
+    1. Iterate `Cure.Stdlib.Paths.beam_dirs/0` and select the first directory
+       whose complete manifest and every claimed BEAM verify.
+    2. When repair is enabled and no candidate verifies, rebuild the complete
+       stdlib source set through the artifact sweep and verify it again.
 
-  Source-JIT recovery guarantees that a release carrying the stdlib
-  *sources* but not the BEAMs is still functional; failures are
-  logged at `:debug` and swallowed, mirroring the BEAM-load path.
+  A release carrying sources but no valid generation can therefore recover
+  without ever loading an isolated, unmanifested module.
 
   See `t:option/0` for the accepted options. `:kind` defaults to `:none`
   so the caller must opt into loading.
   """
-  @spec preload([option()]) :: :ok
+  @spec preload([option()]) :: :ok | {:error, term()}
   def preload(opts \\ []) do
     kind = Keyword.get(opts, :kind, :none)
+    requested_modules = Keyword.get(opts, :modules)
     examples_ebin = Keyword.get(opts, :examples_ebin, @default_examples_ebin)
     include_examples? = Keyword.get(opts, :examples, false)
     source_jit? = Keyword.get(opts, :source_jit, true)
 
-    candidate_dirs = stdlib_candidate_dirs(opts)
+    if kind == :none and is_nil(requested_modules) do
+      maybe_load_examples(include_examples?, examples_ebin)
+    else
+      candidate_dirs = stdlib_candidate_dirs(opts)
 
-    load_stdlib(candidate_dirs, kind)
-    if source_jit?, do: compile_missing_from_sources(kind)
-    if include_examples?, do: load_cure_beams(examples_ebin)
-
-    :ok
+      with {:ok, artifact_set} <-
+             open_or_repair_stdlib(candidate_dirs, source_jit?, opts),
+           :ok <- load_stdlib(artifact_set, kind, requested_modules) do
+        maybe_load_examples(include_examples?, examples_ebin)
+      end
+    end
   end
 
   # Resolve the list of candidate BEAM directories for this preload
@@ -333,12 +431,13 @@ defmodule Cure.Stdlib.Preload do
         Map.to_list(map)
 
       _ ->
-        # Walk every candidate BEAM directory and union the results.
-        # A module discovered in more than one directory keeps the
-        # first (highest-priority) entry, matching load order.
-        Paths.beam_dirs()
-        |> Enum.flat_map(&discover_from_beams/1)
-        |> Enum.uniq_by(fn {module, _group} -> module end)
+        case Artifacts.open_verified_set(
+               kind: :stdlib,
+               candidates: Paths.beam_dirs()
+             ) do
+          {:ok, set} -> discover_from_beams(set.artifact_root)
+          {:error, _reason} -> []
+        end
     end
   end
 
@@ -353,25 +452,27 @@ defmodule Cure.Stdlib.Preload do
           |> Path.basename(".beam")
           |> String.to_atom()
 
-        load_if_present(module, path)
-
-        group =
-          if function_exported?(module, :__group__, 0) do
-            try do
-              module.__group__()
-            rescue
-              _ -> :core
-            catch
-              _, _ -> :core
-            end
-          else
-            :core
-          end
-
-        {module, group}
+        {module, group_from_beam(module, path)}
       end)
     else
       []
+    end
+  end
+
+  # Read a module's group from its `-group([:g]).` BEAM attribute *without*
+  # loading the beam (the chunk is metadata, not code). Falls back to the
+  # legacy `__group__/0` export only for stale packaged beams that predate
+  # the `@group` decorator, and to `:core` as the final default.
+  defp group_from_beam(_module, path) do
+    case :beam_lib.chunks(String.to_charlist(path), [:attributes]) do
+      {:ok, {_module, [attributes: attrs]}} ->
+        case Keyword.get(attrs, :group) do
+          [g] when is_atom(g) -> g
+          _ -> :core
+        end
+
+      _ ->
+        :core
     end
   end
 
@@ -379,153 +480,88 @@ defmodule Cure.Stdlib.Preload do
   # order and load from the first one that has a readable `.beam`.
   # Missing modules are left unloaded; the source-JIT fallback picks
   # them up later.
-  defp load_stdlib([], _kind), do: :ok
-
-  defp load_stdlib(candidate_dirs, kind) do
-    Enum.each(stdlib_modules(kind), fn module ->
-      load_from_candidates(module, candidate_dirs)
-    end)
-  end
-
-  defp load_from_candidates(module, candidate_dirs) do
-    Enum.find_value(candidate_dirs, :not_found, fn dir ->
-      path = Path.join(dir, "#{module}.beam")
-
-      with true <- File.exists?(path),
-           :ok <- load_if_present(module, path) do
-        :ok
-      else
-        _ -> false
+  defp load_stdlib(artifact_set, kind, requested_modules) do
+    modules =
+      case requested_modules do
+        nil -> ordered_closure_modules(kind)
+        modules -> ordered_requested_modules(modules)
       end
-    end)
+
+    Artifacts.load_verified_modules(artifact_set.artifact_root, modules)
   end
 
-  # Compile any module in `stdlib_modules(kind)` that is still not
-  # loaded from its `.cure` source. This is the belt-and-braces
-  # fallback for deployments that carry the sources (`priv/std/`) but
-  # not the BEAMs (`priv/ebin/`). A failure on an individual module
-  # is logged at `:debug` and swallowed; the caller will get a
-  # `:undef` at call time, same as before.
-  @doc false
-  @spec compile_missing_from_sources(kind()) :: :ok
-  def compile_missing_from_sources(kind) do
-    case Paths.source_dir() do
-      nil ->
-        :ok
+  # Closure-expanded selection in dependency (use-edge) order. toposort/2
+  # is SCC-tolerant, so this always yields a complete deterministic list
+  # even if a cycle ever appears in the baked map.
+  defp ordered_closure_modules(kind) do
+    Cure.Compiler.DepGraph.toposort(@std_order_deps, closure_modules(kind))
+  end
 
-      source_dir ->
-        if compiler_available?() do
-          Enum.each(stdlib_modules(kind), fn module ->
-            unless module_loaded?(module) do
-              jit_compile_module(module, source_dir)
-            end
-          end)
-        end
+  defp ordered_requested_modules(modules) do
+    requested = modules |> Enum.filter(&is_atom/1) |> Enum.uniq()
+    closure = Cure.Compiler.DepGraph.closure(@std_closure_deps, requested)
+    Cure.Compiler.DepGraph.toposort(@std_order_deps, closure)
+  end
 
-        :ok
+  defp open_or_repair_stdlib(candidate_dirs, source_jit?, opts) do
+    trace_candidate_verification(candidate_dirs)
+
+    case Artifacts.open_verified_set(kind: :stdlib, candidates: candidate_dirs) do
+      {:ok, artifact_set} ->
+        {:ok, artifact_set}
+
+      {:error, verification_error} when source_jit? ->
+        repair_stdlib(candidate_dirs, opts, verification_error)
+
+      {:error, verification_error} ->
+        {:error, verification_error}
     end
   end
 
-  defp compiler_available? do
-    Code.ensure_loaded?(Cure.Compiler) and
-      function_exported?(Cure.Compiler, :compile_and_load, 2)
-  end
-
-  defp module_loaded?(module) do
-    case :code.is_loaded(module) do
-      {:file, _} -> true
-      _ -> Code.ensure_loaded?(module)
-    end
-  end
-
-  # Derive the stdlib source filename from the module atom. Our
-  # stdlib convention is `lib/std/<lowercased-last-segment>.cure`
-  # (e.g. `Cure.Std.List` -> `list.cure`). No deep search: a missing
-  # source is a hard miss.
-  defp jit_compile_module(module, source_dir) do
-    case source_path_for(module, source_dir) do
-      {:ok, path} ->
-        case File.read(path) do
-          {:ok, source} ->
-            try do
-              case Cure.Compiler.compile_and_load(source,
-                     file: path,
-                     emit_events: false,
-                     check_types: false
-                   ) do
-                {:ok, _module} ->
-                  :ok
-
-                {:error, reason} ->
-                  Logger.debug(fn ->
-                    "stdlib JIT: failed to compile #{module} from #{path}: #{inspect(reason)}"
-                  end)
-
-                  :ok
-              end
-            rescue
-              e ->
-                Logger.debug(fn ->
-                  "stdlib JIT: exception compiling #{module}: #{Exception.message(e)}"
-                end)
-
-                :ok
-            end
-
-          {:error, _reason} ->
-            :ok
-        end
-
-      :not_found ->
-        :ok
-    end
-  end
-
-  defp source_path_for(module, source_dir) do
-    basename =
-      module
-      |> Atom.to_string()
-      |> String.split(".")
-      |> List.last()
-      |> String.downcase()
-
-    path = Path.join(source_dir, basename <> ".cure")
-
-    if File.exists?(path) do
-      {:ok, path}
-    else
-      :not_found
-    end
-  end
-
-  # Load any `Cure.*.beam` in the given directory. We restrict to the
-  # `Cure.` prefix to make sure we never load a stale bare-name beam that
-  # would shadow an OTP or Elixir module.
-  defp load_cure_beams(ebin) do
-    if File.dir?(ebin) do
-      ebin
-      |> Path.join("Cure.*.beam")
-      |> Path.wildcard()
-      |> Enum.each(fn path ->
-        module =
-          path
-          |> Path.basename(".beam")
-          |> String.to_atom()
-
-        load_if_present(module, path)
+  defp trace_candidate_verification(candidate_dirs) do
+    if System.get_env("CURE_TRACE_STDLIB") in ["1", "true"] do
+      Enum.each(candidate_dirs, fn root ->
+        result = Artifacts.open_verified_set(root, verification: :full)
+        IO.puts(:stderr, "stdlib candidate #{Path.expand(root)}: #{inspect(result, limit: 8)}")
       end)
     end
   end
 
-  defp load_if_present(module, path) do
-    with true <- File.exists?(path),
-         {:ok, binary} <- File.read(path) do
-      case :code.load_binary(module, String.to_charlist(path), binary) do
-        {:module, ^module} -> :ok
-        {:error, _reason} -> :ok
-      end
+  defp repair_stdlib(candidate_dirs, opts, verification_error) do
+    with source_dir when is_binary(source_dir) <-
+           Keyword.get(opts, :stdlib_source_dir) || Paths.source_dir(),
+         files when files != [] <- Path.wildcard(Path.join(source_dir, "*.cure")),
+         output_dir <- repair_output_dir(candidate_dirs, opts),
+         {:ok, summary} <- Cure.Stdlib.Packages.compile(files, output_dir),
+         {:ok, artifact_set} <- Artifacts.open_verified_set(summary.artifact_root) do
+      {:ok, artifact_set}
     else
-      _ -> :ok
+      nil -> {:error, {:stdlib_sources_unavailable, verification_error}}
+      [] -> {:error, {:stdlib_sources_empty, verification_error}}
+      {:error, reason} -> {:error, {:stdlib_repair_failed, reason}}
+    end
+  end
+
+  defp repair_output_dir(candidate_dirs, opts) do
+    Keyword.get(opts, :stdlib_ebin) ||
+      List.first(candidate_dirs) ||
+      "_build/cure/ebin"
+  end
+
+  defp maybe_load_examples(false, _ebin), do: :ok
+  defp maybe_load_examples(true, ebin), do: load_cure_beams(ebin)
+
+  # Example artifacts obey the same whole-set rule as the standard library.
+  defp load_cure_beams(ebin) do
+    with {:ok, artifact_set} <- Artifacts.open_verified_set(ebin) do
+      modules =
+        artifact_set.modules
+        |> Map.values()
+        |> Enum.flat_map(&Map.get(&1, :artifacts, []))
+        |> Enum.map(&String.to_existing_atom(&1.module))
+        |> Enum.uniq()
+
+      Artifacts.load_verified_modules(artifact_set.artifact_root, modules)
     end
   end
 end
