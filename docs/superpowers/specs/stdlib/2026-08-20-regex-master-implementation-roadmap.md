@@ -1201,6 +1201,17 @@ does not yet relate that proof to an existential skip witness recovered from a
 rejected tail. The focused dependent-assertion file passes 112 tests, and the
 canonical stdlib pipeline passes with only the accepted W086 cycle warning.
 
+The next proof boundary is now explicit as `AtomicStartScopeSelection`. Its
+role index distinguishes blocked from escaping scope decisions, while the
+constructors retain the shared `AtomicDepthAtLeast(scope, commit)` or
+`AtomicDepthBelow(scope, commit)` witness. `atomic_depth_at_least_excludes_below`
+and `atomic_start_scope_selection_excludes` consume that relation structurally;
+the kernel rejects the attempted candidate-only tag because both constructors
+can inhabit the same candidate-indexed family. This is a sound construction
+boundary for the eventual blocked-tail dispatcher, not yet that dispatcher's
+integration with existential start evidence. The focused dependent-assertion
+file passes 113 tests.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

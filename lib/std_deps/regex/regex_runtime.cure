@@ -3068,6 +3068,16 @@ mod Std.Regex.Runtime
     AtomicStartSelectionAllowed : {@erased kind: AtomicStartSkipKind} -> (@erased evidence: AtomicStartAllowed(blocked_depth, kind)) -> AtomicStartSelection(blocked_depth)
     AtomicStartSelectionBlocked : {@erased kind: AtomicStartSkipKind} -> (@erased evidence: AtomicStartSkipEvidence(blocked_depth, kind)) -> AtomicStartSelection(blocked_depth)
 
+  ## The outer-commit decision is indexed by the exact scope/commit depth
+  ## comparison.  Unlike a bare candidate tag, its constructors carry the
+  ## disjoint `AtLeast`/`Below` witnesses at the same indices, so a blocked
+  ## and escaping decision for one candidate can be eliminated safely.
+  type AtomicStartScopeRole = AtomicStartScopeBlockedRole | AtomicStartScopeAllowedRole
+
+  type AtomicStartScopeSelection indices (scope_depth: Nat, blocked_depth: Nat, role: AtomicStartScopeRole)
+    AtomicStartScopeBlocked : (@erased proof: AtomicDepthAtLeast(scope_depth, blocked_depth)) -> AtomicStartScopeSelection(scope_depth, blocked_depth, AtomicStartScopeBlockedRole())
+    AtomicStartScopeAllowed : (@erased proof: AtomicDepthBelow(scope_depth, blocked_depth)) -> AtomicStartScopeSelection(scope_depth, blocked_depth, AtomicStartScopeAllowedRole())
+
   type AtomicStartFailureKind = AtomicStartFailureExhausted | AtomicStartFailureRejected | AtomicStartFailureBlocked
 
   type AtomicStartMembersRefutation(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)), kind: AtomicStartFailureKind)
@@ -5275,6 +5285,33 @@ mod Std.Regex.Runtime
     Some(commit_depth) -> match atomic_commit_disposition(atomic_scope_max_depth(machine_state_routine(n, state), Z()), commit_depth)
       AtomicCommitBlocks(proof) -> AtomicStartSelectionBlocked(AtomicStartSkipByScope(proof))
       AtomicCommitEscapes(proof) -> AtomicStartSelectionAllowed(AtomicStartAllowedEscape(proof))
+
+  @reducible
+  fn atomic_depth_at_least_excludes_below(
+    {result: Type},
+    {left: Nat},
+    {right: Nat},
+    @erased at_least: AtomicDepthAtLeast(left, right),
+    @erased below: AtomicDepthBelow(left, right)
+  ) -> result = match at_least
+    AtomicDepthAtLeastZero() -> match below
+      AtomicDepthBelowZero() -> impossible
+    AtomicDepthAtLeastFromZero() -> match below
+      AtomicDepthBelowZero() -> impossible
+      AtomicDepthBelowStep(_) -> impossible
+    AtomicDepthAtLeastStep(prior) -> match below
+      AtomicDepthBelowZero() -> impossible
+      AtomicDepthBelowStep(next) -> atomic_depth_at_least_excludes_below(prior, next)
+
+  fn atomic_start_scope_selection_excludes(
+    {result: Type},
+    {scope_depth: Nat},
+    {blocked_depth: Nat},
+    @erased blocked: AtomicStartScopeSelection(scope_depth, blocked_depth, AtomicStartScopeBlockedRole()),
+    @erased allowed: AtomicStartScopeSelection(scope_depth, blocked_depth, AtomicStartScopeAllowedRole())
+  ) -> result = match blocked
+    AtomicStartScopeBlocked(at_least) -> match allowed
+      AtomicStartScopeAllowed(below) -> atomic_depth_at_least_excludes_below(at_least, below)
 
   ## The origin token is part of the evidence index.  Candidate commits,
   ## blocked outer commits, and escaped outer commits therefore cannot be

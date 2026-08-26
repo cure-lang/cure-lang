@@ -869,6 +869,14 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/AtomicSelectedStartWitnessPacked.*?allowed/s, body)
   end
 
+  test "scope selection evidence shares the comparison indices" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "type AtomicStartScopeSelection"
+    assert Regex.match?(~r/AtomicStartScopeSelection.*?AtomicDepthAtLeast.*?AtomicDepthBelow/s, source)
+    assert source =~ "fn atomic_start_scope_selection_excludes"
+  end
+
   test "non-empty rejected tails consume an accepted head" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
