@@ -844,6 +844,14 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/atomic_selected_start_witness_tail.*?AtomicSelectedStartWitnessPacked/s, source)
   end
 
+  test "active rejected tails retain child scope alignment" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "type AtomicStartActiveRejectedTailPackage"
+    assert Regex.match?(~r/type AtomicStartActiveRejectedTailPackage.*?AtomicPathRefutation.*?child_scope_depth/s, source)
+    assert Regex.match?(~r/AtomicStartActiveRejectedTailPackagePacked.*?Equivalent\(Nat, child_scope_depth, atomic_scope_depth_after/s, source)
+  end
+
   test "non-empty rejected tails consume an accepted head" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 

@@ -3912,6 +3912,25 @@ mod Std.Regex.Runtime
   type AtomicStartActiveRejectedEvidence(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char), state: Bounded(n), routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), assertion_routine: List(ExtendedInstruction), assertion_markers: List(EvidenceInstruction), nested_decisions: List(LookaroundNestedDecision), whole: List(LookaroundAdmittedState(n)), remaining: List(LookaroundAdmittedState(n)))
     AtomicStartActiveRejectedEvidencePacked : (@erased tail: AtomicStartTailEvidence(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining)) -> AtomicStartActiveRejectedEvidence(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, state, routine, constraints, assertion_routine, assertion_markers, nested_decisions, whole, remaining)
 
+  ## The active child certificate is factored out so interface registration
+  ## sees its dependent scope index as a complete constructor boundary.
+  type AtomicStartActiveChildFailure(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char), thread_state: ThreadState(n), child_scope_depth: Nat)
+    AtomicStartActiveChildFailurePacked : (@erased failure: AtomicPathRootRefutation(depth, n, machine, Nil(), after_input, thread_state, history, capture_context, policy, child_scope_depth, prefix_mode, reversed_prefix, Nil())) -> AtomicStartActiveChildFailure(depth, n, machine, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, thread_state, child_scope_depth)
+
+  ## A construction-site package for the active empty-input branch. The
+  ## ordinary tail package intentionally existentially hides its failure kind
+  ## and child scope. This stronger package is used only when the selected
+  ## head is known to be active: it retains the child refutation, its cursor
+  ## suffix, the recursive tail package, and the erased equality that aligns
+  ## the child scope with the active start's selected-path scope. Without this
+  ## equality a generic tail dispatcher could silently feed a proof at one
+  ## scope to a path at another.
+  type AtomicStartActiveRejectedTailPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (position: InitialPosition, after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char), thread_state: ThreadState(n), routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), assertion_routine: List(ExtendedInstruction), assertion_markers: List(EvidenceInstruction), nested_decisions: List(LookaroundNestedDecision), whole: List(LookaroundAdmittedState(n)), remaining: List(LookaroundAdmittedState(n)), child_scope_depth: Nat)
+  ## The child certificate is an `AtomicPathRefutation` aligned at
+  ## `child_scope_depth`; the alias above keeps that dependent index local.
+    AtomicStartActiveRejectedTailPackagePacked : (@erased tail: AtomicStartTailPackage(depth, n, machine, position, Nil(), after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining)) -> (@erased child_failure: AtomicStartActiveChildFailure(depth, n, machine, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, thread_state, child_scope_depth)) -> (@erased child_suffix: LookaroundAdmittedStateCursorSuffix(n, Nil(), Nil())) -> (@erased child_scope_alignment: Equivalent(Nat, child_scope_depth, atomic_scope_depth_after(routine, Z()))) -> AtomicStartActiveRejectedTailPackage(depth, n, machine, position, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, thread_state, routine, constraints, assertion_routine, assertion_markers, nested_decisions, whole, remaining, child_scope_depth)
+
+
   fn atomic_start_rejected_tail_evidence(
     {depth: Nat},
     {n: Nat},
