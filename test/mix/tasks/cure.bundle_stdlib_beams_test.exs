@@ -53,7 +53,10 @@ defmodule Mix.Tasks.Cure.BundleStdlibBeamsTest do
         fn use_it(x: Int) -> Int = ext_helper(x)
       """)
 
-      assert {:ok, %{errors: 0}} = BundleStdlibBeams.bundle(src, dst)
+      # `embedded_packages: false`: this fixture pair says nothing about the
+      # embedded Regex package, and sweeping that package here would cost
+      # minutes and report ITS module counts alongside these two.
+      assert {:ok, %{errors: 0}} = BundleStdlibBeams.bundle(src, dst, embedded_packages: false)
       assert {:ok, set} = Cure.Compiler.Artifacts.open_verified_set(dst)
       assert File.exists?(Path.join(set.artifact_root, "Cure.Std.TcaUser.beam"))
     after
@@ -78,7 +81,7 @@ defmodule Mix.Tasks.Cure.BundleStdlibBeamsTest do
         fn use_it(x: Int) -> Int = ext_helper(x)
       """)
 
-      assert {:ok, %{errors: 0}} = BundleStdlibBeams.bundle(src, dst)
+      assert {:ok, %{errors: 0}} = BundleStdlibBeams.bundle(src, dst, embedded_packages: false)
 
       :code.purge(:"Cure.Std.TcaSkippedHelper")
       :code.delete(:"Cure.Std.TcaSkippedHelper")
@@ -89,8 +92,12 @@ defmodule Mix.Tasks.Cure.BundleStdlibBeamsTest do
         fn use_it(x: Int) -> Int = ext_helper(x) + 0
       """)
 
+      # The counts are exactly these two fixtures: the consumer is rebuilt and
+      # the untouched helper is reused. They only mean that with the embedded
+      # package stage off -- with it on, `skipped` also counts every reused
+      # Regex module.
       assert {:ok, %{compiled: 1, skipped: 1, errors: 0}} =
-               BundleStdlibBeams.bundle(src, dst)
+               BundleStdlibBeams.bundle(src, dst, embedded_packages: false)
 
       assert {:ok, set} = Cure.Compiler.Artifacts.open_verified_set(dst)
       assert File.exists?(Path.join(set.artifact_root, "Cure.Std.TcaSkippedHelper.beam"))
@@ -113,7 +120,7 @@ defmodule Mix.Tasks.Cure.BundleStdlibBeamsTest do
       output =
         capture_io(:stderr, fn ->
           assert {:error, {:artifact_sweep_failed, [_]}} =
-                   BundleStdlibBeams.bundle(src, dst)
+                   BundleStdlibBeams.bundle(src, dst, embedded_packages: false)
         end)
 
       assert output =~ "UNKNOWN VALUE [E091]"
@@ -136,7 +143,15 @@ defmodule Mix.Tasks.Cure.BundleStdlibBeamsTest do
   end
 
   defp cleanup_tmps do
-    Process.get(:cleanup, []) |> Enum.each(&File.rm_rf!/1)
+    # A sweep stages package builds in a SIBLING `<dir>.packages` root, so
+    # removing only the directories this module created would leave those
+    # behind in the system temp dir on every run.
+    Process.get(:cleanup, [])
+    |> Enum.each(fn dir ->
+      File.rm_rf!(dir)
+      File.rm_rf!(dir <> ".packages")
+    end)
+
     Process.put(:cleanup, [])
   end
 

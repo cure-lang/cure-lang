@@ -20,11 +20,25 @@ defmodule Cure.Stdlib.Packages do
     |> Enum.sort()
   end
 
-  @doc "Compile foundational stdlib sources, then the embedded Regex package."
+  @doc """
+  Compile foundational stdlib sources, then the embedded Regex package.
+
+  `:embedded_packages` (default `true`) selects whether the embedded package
+  stage runs at all. It is a real stage, not a detail: it sweeps every module
+  under `lib/std_deps/regex` (proof-heavy dependent code) and merges the result
+  with the foundation, which costs about two minutes cold and a dozen seconds
+  even when nothing changed. A caller sweeping a source set that is NOT the
+  standard library — a fixture directory, a single module under test — gets no
+  value from that stage while paying its whole cost, and its reused/rebuilt
+  counts then describe the embedded package instead of the caller's own
+  sources. Such callers pass `embedded_packages: false` and get the plain
+  foundation sweep.
+  """
   @spec compile([Path.t()], Path.t(), keyword()) ::
           {:ok, Result.t()} | {:error, term()}
   def compile(foundational_sources, output_dir, opts \\ []) do
-    regex_sources = regex_sources()
+    {embedded_packages?, opts} = Keyword.pop(opts, :embedded_packages, true)
+    regex_sources = if embedded_packages?, do: regex_sources(), else: []
 
     if regex_sources == [] do
       Artifacts.sweep(

@@ -108,7 +108,7 @@ defmodule Cure.CLI.MigrateCliTest do
     assert_receive {:migration_result, {:error, {:git_guard_failed, reasons}}}
     assert {untracked_f, :untracked} in reasons
     assert stderr =~ "COMMAND FAILED [E098]"
-    assert stderr =~ "because it is not tracked by git"
+    assert flowed(stderr) =~ "because it is not tracked by git"
     assert stderr =~ untracked_f
     refute stderr =~ "{:git_guard_failed"
     refute Enum.any?(reasons, &match?({^clean_f, _}, &1))
@@ -141,7 +141,7 @@ defmodule Cure.CLI.MigrateCliTest do
     assert_receive {:migration_result, {:error, {:preflight_failed, failed}}}
     assert bad in failed
     assert stderr =~ "COMMAND FAILED [E098]"
-    assert stderr =~ "producing invalid syntax or changing its comments"
+    assert flowed(stderr) =~ "producing invalid syntax or changing its comments"
     assert stderr =~ bad
     # good is untouched because bad failed the in-memory preflight
     assert File.read!(good) == before_good
@@ -233,7 +233,7 @@ defmodule Cure.CLI.MigrateCliTest do
 
     assert_receive {:migration_result, {:error, {:strict_violation, violators}}}
     assert Enum.any?(violators, fn {p, ids} -> p == f and :W_if_elif_pickup in ids end)
-    assert stderr =~ "rejected by `--strict`"
+    assert flowed(stderr) =~ "rejected by `--strict`"
     assert stderr =~ "W_if_elif_pickup"
     assert File.read!(f) == before
   end
@@ -258,7 +258,7 @@ defmodule Cure.CLI.MigrateCliTest do
 
     assert_receive {:migration_result, {:error, {:blocked, blocked}}}
     assert Enum.any?(blocked, fn {p, ids} -> p == f and :W_removed_module in ids end)
-    assert stderr =~ "manual migration for"
+    assert flowed(stderr) =~ "manual migration for"
     assert stderr =~ "W_removed_module"
     refute match?({:error, {:strict_violation, _}}, CLI.cmd_migrate([f], strict: true))
     assert File.read!(f) == before
@@ -298,4 +298,15 @@ defmodule Cure.CLI.MigrateCliTest do
     # (no-explicit-paths) scan, same as cmd_fmt/2's own file-discovery.
     refute File.read!(outside_scan) =~ "pickup"
   end
+
+  # Collapse the runs of whitespace a rendered diagnostic contains so a phrase
+  # assertion tests the MESSAGE, not where it happened to wrap.
+  #
+  # `Cure.Diagnostic.Doc` hard-wraps prose at the sink's 80 columns, and these
+  # fixtures live under a temp dir named with `System.unique_integer/1` — whose
+  # width grows as the suite runs. The interpolated path therefore shifts every
+  # following word, so a phrase like "...not tracked by git" breaks across a
+  # line boundary at a position that depends on how many tests ran first: the
+  # same assertion passes in isolation and fails inside the full suite.
+  defp flowed(text), do: String.replace(text, ~r/\s+/u, " ")
 end

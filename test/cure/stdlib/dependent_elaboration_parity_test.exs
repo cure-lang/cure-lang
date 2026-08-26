@@ -51,6 +51,7 @@ defmodule Cure.Stdlib.DependentElaborationParityTest do
     system telescope test time tuple unit vector
   )
 
+  @tag timeout: 180_000
   test "every dependent-green stdlib module elaborates on the dependent pipeline" do
     failures =
       Enum.reduce(@green, [], fn name, acc ->

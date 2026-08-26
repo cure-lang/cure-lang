@@ -96,10 +96,18 @@ defmodule Mix.Tasks.Cure.BundleStdlibBeams do
   @spec default_destination() :: String.t()
   def default_destination, do: Path.join(["priv", "ebin"])
 
-  @doc false
-  @spec bundle(String.t(), String.t()) ::
+  @doc """
+  Sweep `source_dir` into a verified artifact generation under `dest_dir`.
+
+  `opts` are forwarded to `Cure.Stdlib.Packages.compile/3`; notably
+  `embedded_packages: false` skips the embedded Regex package stage, which is
+  what a caller sweeping fixture sources rather than the real standard library
+  wants (see that function's docs).
+  """
+  @spec bundle(String.t(), String.t(), keyword()) ::
           {:ok, %{compiled: non_neg_integer(), skipped: non_neg_integer(), errors: non_neg_integer()}}
-  def bundle(source_dir, dest_dir) do
+          | {:error, term()}
+  def bundle(source_dir, dest_dir, opts \\ []) do
     cond do
       not File.dir?(source_dir) ->
         {:ok, %{compiled: 0, skipped: 0, errors: 0}}
@@ -110,8 +118,10 @@ defmodule Mix.Tasks.Cure.BundleStdlibBeams do
       true ->
         File.mkdir_p!(dest_dir)
 
-        case Cure.Stdlib.Packages.compile(source_dir |> Path.join("*.cure") |> Path.wildcard(), dest_dir,
-               compile_opts: [emit_events: false]
+        case Cure.Stdlib.Packages.compile(
+               source_dir |> Path.join("*.cure") |> Path.wildcard(),
+               dest_dir,
+               Keyword.merge([compile_opts: [emit_events: false]], opts)
              ) do
           {:ok, result} ->
             {:ok,
