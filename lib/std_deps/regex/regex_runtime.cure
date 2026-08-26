@@ -4647,6 +4647,7 @@ mod Std.Regex.Runtime
       remaining_input,
       routine
     ),
+    head_case: result,
     tail_case: () -> result
   ) -> result = let parent_membership: ListMember(
     LookaroundAdmittedState(n),
@@ -4666,7 +4667,7 @@ mod Std.Regex.Runtime
     failure,
     evidence,
     parent_membership,
-    tail_case,
+    head_case,
     tail_case
   )
 

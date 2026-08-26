@@ -1353,6 +1353,14 @@ handoff.  The focused dependent-assertion suite is 123/123, `./cure check` is
 green, and the canonical pipeline remains 52/52 with only the accepted W086
 cycle warning.
 
+That boundary now accepts distinct `head_case` and `tail_case` continuations.
+The indexed induction can therefore discharge a selected non-empty tail head
+with its own candidate contradiction while reserving `tail_case` for a deeper
+recursive sibling; forwarding the same continuation to both branches was an
+incomplete proof shape.  The focused dependent-assertion suite is 124/124,
+`./cure check` is green, and the canonical pipeline remains 52/52 with only
+the accepted W086 cycle warning.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
