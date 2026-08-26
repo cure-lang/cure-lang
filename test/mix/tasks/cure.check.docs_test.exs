@@ -25,7 +25,8 @@ defmodule Mix.Tasks.Cure.Check.DocsTest do
     # root. Without one, artifact verification rejects every snippet with E100
     # before it is judged, and each test fails for a reason it is not testing.
     File.mkdir_p!(Path.join(root, "_build/cure"))
-    File.ln_s!(Path.join(previous_cwd, "_build/cure/ebin"), Path.join(root, "_build/cure/ebin"))
+    compiled_stdlib = Cure.Stdlib.Paths.beam_dir() || Path.join(previous_cwd, "_build/cure/ebin")
+    File.ln_s!(compiled_stdlib, Path.join(root, "_build/cure/ebin"))
 
     # The task points `CURE_LIB`, the `:cure` stdlib config, and the code path at
     # the project it is run in, and keeps them there -- correct for a real `mix`

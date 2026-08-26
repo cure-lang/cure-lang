@@ -4,7 +4,7 @@ defmodule Mix.Tasks.Cure.Check.ExamplesTest do
   setup do
     previous_shell = Mix.shell()
     previous_cwd = File.cwd!()
-    compiled_stdlib = Path.join(previous_cwd, "_build/cure/ebin")
+    compiled_stdlib = Cure.Stdlib.Paths.beam_dir() || Path.join(previous_cwd, "_build/cure/ebin")
     Mix.shell(Mix.Shell.IO)
 
     dir = Path.join(System.tmp_dir!(), "cure_check_examples_#{System.unique_integer([:positive])}")
