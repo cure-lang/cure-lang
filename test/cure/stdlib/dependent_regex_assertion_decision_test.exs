@@ -831,6 +831,17 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/capture_context,\s+policy,\s+False\(\)/s, body)
   end
 
+  test "accepted non-empty tail dispatches through erased membership induction" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_start_rejected_member_there_accepted_tail_head_excludes_trace", parts: 2)
+
+    [body | _] = String.split(body, "\n  fn ", parts: 2)
+    assert body =~ "atomic_start_rejected_member_induction_erased"
+    assert body =~ "tail_case: () -> result"
+  end
+
   test "non-empty rejected tails consume a blocked active head" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 

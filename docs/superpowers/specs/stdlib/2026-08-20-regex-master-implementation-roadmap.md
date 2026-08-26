@@ -1094,6 +1094,15 @@ is no longer silently treated as the head. This is still one head case, not
 recursive tail completion. The focused dependent-assertion file now passes 102
 tests.
 
+The accepted-head consumer is now connected to the same erased induction
+bridge. It supplies the exact parent refutation and no-result witness as
+erased indices, preserves the exact child input and `False()` prefix mode,
+and dispatches `ListMemberHere`/`ListMemberThere` without inspecting a
+runtime candidate tag. The accepted-child contradiction is therefore limited
+to the selected head branch; later duplicate members remain the zero-argument
+tail continuation. This is still a head integration, not recursive tail
+completion. The focused dependent-assertion file now passes 103 tests.
+
 The accepted-head counterpart is now present as
 `atomic_start_rejected_member_there_accepted_tail_head_excludes_trace`. It
 specializes the non-empty `There` branch to an accepted head with exact child
