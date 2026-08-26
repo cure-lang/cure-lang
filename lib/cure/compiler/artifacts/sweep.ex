@@ -148,17 +148,22 @@ defmodule Cure.Compiler.Artifacts.Sweep do
       end)
 
     stdlib_roots =
-      if Keyword.get(opts, :kind, :project) == :stdlib do
-        []
-      else
-        case Artifacts.open_verified_set(
-               kind: :stdlib,
-               candidates: Cure.Stdlib.Paths.beam_dirs(),
-               verification: :full
-             ) do
-          {:ok, %{artifact_root: root}} -> [root]
-          {:error, _reason} -> []
-        end
+      cond do
+        Keyword.get(opts, :kind, :project) == :stdlib ->
+          []
+
+        Keyword.has_key?(opts, :stdlib_roots) ->
+          opts |> Keyword.get(:stdlib_roots, []) |> List.wrap()
+
+        true ->
+          case Artifacts.open_verified_set(
+                 kind: :stdlib,
+                 candidates: Cure.Stdlib.Paths.beam_dirs(),
+                 verification: :full
+               ) do
+            {:ok, %{artifact_root: root}} -> [root]
+            {:error, _reason} -> []
+          end
       end
 
     (explicit ++ package_roots ++ stdlib_roots)

@@ -118,8 +118,14 @@ defmodule Cure.Stdlib.Paths do
     # compiler process observes one filesystem snapshot; configuration and cwd
     # are part of the key, so a caller that changes resolution inputs gets a
     # fresh snapshot automatically.
+    cwd =
+      case File.cwd() do
+        {:ok, dir} -> dir
+        {:error, _} -> ""
+      end
+
     candidates = source_candidates()
-    key = {File.cwd!(), candidates}
+    key = {cwd, candidates}
 
     case Process.get(@source_dir_cache_key) do
       {^key, source_dir} ->
@@ -153,10 +159,10 @@ defmodule Cure.Stdlib.Paths do
   def beam_dirs do
     ([configured_beam_dir()] ++
        cure_lib_beam_dirs() ++
-       [@checkout_beam] ++
        [bundled_beam_dir()] ++
-       cure_home_beam_dirs() ++
        launcher_home_beam_dirs() ++
+       cure_home_beam_dirs() ++
+       [@checkout_beam] ++
        [@legacy_cwd_beam])
     |> Enum.reject(&is_nil/1)
     |> Enum.map(&Cure.Compiler.Artifacts.Writer.resolve/1)

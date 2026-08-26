@@ -56,7 +56,8 @@ defmodule Cure.Stdlib.Packages do
         )
       )
     else
-      stage_root = Path.join(output_dir <> ".packages", "regex")
+      tmp_dir = Path.join(System.tmp_dir!(), "cure_stdlib_stage_#{System.unique_integer([:positive])}")
+      stage_root = Path.join(tmp_dir, "regex")
       foundation_root = Path.join(stage_root, "foundation")
       regex_root = Path.join(stage_root, "package")
       merged_root = Path.join(stage_root, "merged")
@@ -76,47 +77,52 @@ defmodule Cure.Stdlib.Packages do
           opts
         )
 
-      with {:ok, foundation} <- Artifacts.sweep(foundation_opts),
-           {:ok, package} <-
-             Artifacts.sweep(
-               Keyword.merge(
-                 [
-                   module_pipeline: :canonical,
-                   package: "cure_regex",
-                   package_exports: %{"cure_regex" => ["Std.Regex"]},
-                   source_paths: regex_sources,
-                   source_roots: [@regex_source_dir],
-                   interface_roots: [foundation.artifact_root],
-                   output_dir: regex_root,
-                   kind: :dependency,
-                   repair: true
-                 ],
-                 opts
-               )
-             ),
-           _removed <- File.rm_rf!(merged_root),
-           {:ok, _merged} <-
-             Artifacts.merge_verified_flat([foundation.artifact_root, package.artifact_root], merged_root,
-               kind: :stdlib,
-               package_artifact_digests: %{"cure_regex" => package.artifact_digest},
-               package_exports: %{"cure_regex" => ["Std.Regex"]}
-             ),
-           {:ok, final_root} <- Writer.copy_verified(merged_root, output_dir),
-           {:ok, final_set} <- Artifacts.open_verified_set(final_root, verification: :full) do
-        {:ok,
-         %Result{
-           pipeline: :canonical,
-           workspace_key: final_set.workspace_key,
-           input_snapshot: final_set.input_snapshot,
-           artifact_digest: final_set.artifact_digest,
-           artifact_root: final_set.artifact_root,
-           reused: Enum.uniq(foundation.reused ++ package.reused) |> Enum.sort(),
-           rebuilt: Map.merge(foundation.rebuilt, package.rebuilt),
-           removed: Map.merge(foundation.removed, package.removed),
-           cycles: foundation.cycles ++ package.cycles,
-           verification: :full,
-           manifest_path: Path.join(final_set.artifact_root, Cure.Compiler.BuildManifest.filename())
-         }}
+      try do
+        with {:ok, foundation} <- Artifacts.sweep(foundation_opts),
+             {:ok, package} <-
+               Artifacts.sweep(
+                 Keyword.merge(
+                   [
+                     module_pipeline: :canonical,
+                     package: "cure_regex",
+                     package_exports: %{"cure_regex" => ["Std.Regex"]},
+                     source_paths: regex_sources,
+                     source_roots: [@regex_source_dir],
+                     interface_roots: [foundation.artifact_root],
+                     stdlib_roots: [],
+                     output_dir: regex_root,
+                     kind: :dependency,
+                     repair: true
+                   ],
+                   opts
+                 )
+               ),
+             _removed <- File.rm_rf!(merged_root),
+             {:ok, _merged} <-
+               Artifacts.merge_verified_flat([foundation.artifact_root, package.artifact_root], merged_root,
+                 kind: :stdlib,
+                 package_artifact_digests: %{"cure_regex" => package.artifact_digest},
+                 package_exports: %{"cure_regex" => ["Std.Regex"]}
+               ),
+             {:ok, final_root} <- Writer.copy_verified(merged_root, output_dir),
+             {:ok, final_set} <- Artifacts.open_verified_set(final_root, verification: :full) do
+          {:ok,
+           %Result{
+             pipeline: :canonical,
+             workspace_key: final_set.workspace_key,
+             input_snapshot: final_set.input_snapshot,
+             artifact_digest: final_set.artifact_digest,
+             artifact_root: final_set.artifact_root,
+             reused: Enum.uniq(foundation.reused ++ package.reused) |> Enum.sort(),
+             rebuilt: Map.merge(foundation.rebuilt, package.rebuilt),
+             removed: Map.merge(foundation.removed, package.removed),
+             cycles: foundation.cycles ++ package.cycles,
+             verification: :full,
+             manifest_path: Path.join(final_set.artifact_root, Cure.Compiler.BuildManifest.filename())
+           }}
+        end
+      after
+        File.rm_rf!(tmp_dir)
       end
     end
   end

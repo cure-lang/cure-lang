@@ -57,13 +57,14 @@ defmodule Mix.Tasks.Cure.BundleStdlibBeams do
     # "app not loaded yet" case gracefully.
     _ = ensure_cure_application_started()
 
+    source = Cure.Stdlib.Paths.beam_dir() || Path.join(["_build", "cure", "ebin"])
+
     result =
-      case Cure.Compiler.Artifacts.copy_verified_set(
-             "_build/cure/ebin",
-             default_destination()
-           ) do
-        {:ok, _generation_root} -> {:ok, %{compiled: 0, skipped: 0, errors: 0}}
-        {:error, _reason} -> bundle(@source_dir, default_destination())
+      with {:ok, _generation_root} <- Cure.Compiler.Artifacts.copy_verified_set(source, default_destination()),
+           {:ok, _set} <- Cure.Compiler.Artifacts.open_verified_set(kind: :stdlib, candidates: [default_destination()]) do
+        {:ok, %{compiled: 0, skipped: 0, errors: 0}}
+      else
+        _ -> bundle(@source_dir, default_destination())
       end
 
     case result do
