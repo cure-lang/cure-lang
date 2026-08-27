@@ -1581,6 +1581,15 @@ complete `lib/std_deps/regex/regex_runtime.cure` module succeeds. This is still
 one construction-site slice: the bridge is not the general non-empty
 start-fold or the final selected-trace/refutation correspondence.
 
+The public root wrapper now consumes that bridge through
+`atomic_start_refutation_blocked_excludes_trace`. Its failure and no-result
+evidence are both refined to the same non-empty `Cons(candidate, remaining)`
+spine before dispatch, so the existential root list cannot be peeled by a
+runtime tag or by rebuilding a tail witness. A regression pins the wrapper's
+`AtomicStartFailureBlocked`/`AtomicStartNoEvidence` pairing and bridge handoff;
+the complete Regex runtime compiles directly. The general blocked start-fold
+and final selected-trace/refutation theorem remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
