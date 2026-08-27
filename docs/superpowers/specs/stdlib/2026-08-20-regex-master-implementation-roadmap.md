@@ -1601,6 +1601,16 @@ and direct complete-module compilation pass; the concrete rejected head and
 arbitrary sibling-tail consumers remain to be wired through the final
 selected-trace/refutation correspondence.
 
+The first concrete rejected-root continuation is now named
+`atomic_start_refutation_rejected_active_excludes_trace`. It fixes the root
+candidate to an active admitted state with empty child input and forwards the
+indexed failure/evidence pair to `atomic_start_rejected_member_here_excludes_trace`.
+The latter consumes the active child contradiction at `Here` and retains the
+typed `AtomicStartActiveRootTailProofPackage` for a later sibling at `There`.
+The bridge is proof-only and does not re-run the machine or inspect an erased
+state tag. Its source regression and direct complete-module compilation pass;
+the accepted-head and arbitrary recursive-tail continuations remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

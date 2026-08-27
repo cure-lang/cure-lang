@@ -7644,6 +7644,134 @@ mod Std.Regex.Runtime
     tail_case
   )
 
+  ## The concrete active root case supplies the first head continuation to the
+  ## shared rejected-root fold.  Its child input is definitionally empty, so
+  ## the existing active-child consumer can eliminate the selected trace; a
+  ## later sibling receives the exact root-tail package through `tail_case`.
+  @reducible
+  fn atomic_start_refutation_rejected_active_excludes_trace(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    state: Bounded(n),
+    routine: List(EvidenceInstruction),
+    constraints: List(BoundaryConstraint),
+    assertion_routine: List(ExtendedInstruction),
+    assertion_markers: List(EvidenceInstruction),
+    nested_decisions: List(LookaroundNestedDecision),
+    {whole: List(LookaroundAdmittedState(n))},
+    rest: List(LookaroundAdmittedState(n)),
+    selected_start: LookaroundAdmittedState(n),
+    @erased failure: AtomicStartMembersRefutation(
+      depth,
+      n,
+      machine,
+      position,
+      Nil(),
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), rest),
+      AtomicStartFailureRejected()
+    ),
+    @erased evidence: AtomicStartNoEvidence(
+      depth,
+      n,
+      machine,
+      position,
+      Nil(),
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), rest),
+      AtomicStartFailureRejected()
+    ),
+    membership: ListMember(
+      LookaroundAdmittedState(n),
+      selected_start,
+      Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), rest)
+    ),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      Nil(),
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      selected_start,
+      matched,
+      remaining_input,
+      selected_routine
+    ),
+    tail_case: (AtomicStartActiveRootTailProofPackage(
+      depth,
+      n,
+      machine,
+      position,
+      capture_context,
+      append_routine(append_routine(capture_context, routine), assertion_markers),
+      after_input,
+      history,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      ThreadActive(state),
+      routine,
+      constraints,
+      assertion_routine,
+      assertion_markers,
+      nested_decisions,
+      whole,
+      rest,
+      atomic_scope_depth_after(routine, Z())
+    )) -> Empty
+  ) -> Empty = atomic_start_rejected_member_here_excludes_trace(
+    machine,
+    position,
+    after_input,
+    history,
+    capture_context,
+    policy,
+    prefix_mode,
+    reversed_prefix,
+    state,
+    routine,
+    constraints,
+    assertion_routine,
+    assertion_markers,
+    nested_decisions,
+    rest,
+    selected_start,
+    failure,
+    evidence,
+    membership,
+    path,
+    tail_case
+  )
+
   ## An active start candidate rejected by its child cannot also be the head of
   ## a selected trace.  The rejection constructor publishes the child's exact
   ## suffix and refutation; this consumer passes both to the indexed child
