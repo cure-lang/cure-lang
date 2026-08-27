@@ -1269,6 +1269,21 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert body =~ "AtomicStartActiveRootTailProofPackage"
   end
 
+  test "rejected accepted roots wire through the selected-trace root consumer" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "fn atomic_start_refutation_rejected_accepted_selected_trace"
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_start_refutation_rejected_accepted_selected_trace", parts: 2)
+
+    [body | _] = String.split(body, "\n  fn ", parts: 2)
+
+    assert body =~ "atomic_start_refutation_excludes_selected_trace"
+    assert body =~ "atomic_start_rejected_member_there_nonempty_tail_accepted_excludes_trace"
+    assert body =~ "AtomicStartAcceptedRejectedTailPackage"
+  end
+
   test "non-empty rejected tails consume an accepted head" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 

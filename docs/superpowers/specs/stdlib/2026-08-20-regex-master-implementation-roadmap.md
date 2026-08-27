@@ -1634,6 +1634,18 @@ the sibling continuation remains proof-only. Direct compilation and a source
 regression pass. Empty-input accepted roots and the arbitrary start-list fold
 remain open, so this does not discharge the Phase 2 correspondence gate.
 
+The accepted-root contradiction is now wired through the public selected-trace
+root consumer by `atomic_start_refutation_rejected_accepted_selected_trace`.
+This construction site carries an `AtomicStartAcceptedRejectedTailPackage`,
+passes its indexed membership and exact-child evidence to the canonical
+accepted-tail consumer, and then supplies that contradiction to
+`atomic_start_refutation_excludes_selected_trace` on the same accepted-head
+spine. No erased package or failure tag is inspected as runtime control flow,
+and no second machine search is introduced. The direct complete-module compile
+and source regression pass. Empty-input accepted roots, blocked-root wiring,
+arbitrary sibling recursion, and the final all-kinds selected-trace/refutation
+theorem remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
