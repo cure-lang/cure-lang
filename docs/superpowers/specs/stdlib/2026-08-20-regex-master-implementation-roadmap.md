@@ -1601,6 +1601,21 @@ and direct complete-module compilation pass; the concrete rejected head and
 arbitrary sibling-tail consumers remain to be wired through the final
 selected-trace/refutation correspondence.
 
+The blocked sibling boundary now carries the selected membership and path in a
+dedicated `AtomicStartBlockedSelectedTailPackage`.  Its constructor retains
+the existential tail failure/evidence pair together with the blocked
+skip/allow tokens, while the selected-start predecessor and replay path remain
+erased indices.  The blocked non-empty-tail dispatcher and both blocked root
+adapters consume this package instead of passing a zero-argument callback, so
+later siblings cannot lose the selected trace while the search refutation is
+transported.  The package declaration is placed after the complete
+`AtomicSelectedTrace` constructor family, which is required for the Cure
+declaration collector to register the indexed constructor before body checking.
+The complete `Std.Regex.Runtime` source now compiles directly with this
+transport and the focused source regression pins the package, dispatcher, and
+root callback shapes.  Arbitrary mixed-kind sibling recursion and the final
+selected-trace/refutation theorem remain open.
+
 The first concrete rejected-root continuation is now named
 `atomic_start_refutation_rejected_active_excludes_trace`. It fixes the root
 candidate to an active admitted state with empty child input and forwards the

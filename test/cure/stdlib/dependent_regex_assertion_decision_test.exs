@@ -1407,6 +1407,35 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     refute body =~ "tail_case: (AtomicStartActiveRootTailProofPackage"
   end
 
+  test "blocked sibling transport preserves selected membership and path" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "type AtomicStartBlockedSelectedTailPackage"
+    assert source =~ "fn atomic_start_blocked_member_induction_selected_erased"
+
+    for function <- [
+          "atomic_start_rejected_member_there_nonempty_tail_blocked_excludes_trace",
+          "atomic_start_rejected_tail_dispatch_blocked",
+          "atomic_start_root_blocked_tail_dispatch",
+          "atomic_start_refutation_blocked_excludes_trace",
+          "atomic_start_refutation_blocked_selected_trace"
+        ] do
+      [_prefix, body] = String.split(source, "fn #{function}", parts: 2)
+      [body | _] = String.split(body, "\n  fn ", parts: 2)
+
+      assert body =~ "AtomicStartBlockedSelectedTailPackage"
+      assert body =~ "tail_case"
+    end
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_start_blocked_member_induction_selected_erased", parts: 2)
+
+    [body | _] = String.split(body, "\n  fn ", parts: 2)
+    assert body =~ "AtomicStartBlockedSelectedTailPackagePacked"
+    assert body =~ "ListMemberThere(prior)"
+    assert body =~ "selected_path"
+  end
+
   test "accepted and blocked head consumers accept arbitrary selected tail membership" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
