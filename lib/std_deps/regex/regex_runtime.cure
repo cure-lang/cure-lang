@@ -4906,7 +4906,42 @@ mod Std.Regex.Runtime
       remaining_input,
       selected_routine
     ),
-    tail_case: () -> result
+    @erased selected_path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      Nil(),
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      selected_start,
+      matched,
+      remaining_input,
+      selected_routine
+    ),
+    tail_case: (AtomicStartSelectedTailPackage(
+      depth,
+      n,
+      machine,
+      position,
+      Nil(),
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      remaining,
+      selected_start,
+      matched,
+      remaining_input,
+      selected_routine
+    )) -> result
   ) -> result = let empty_input: List(Char) = []
     let head_case: result = atomic_start_tail_active_candidate_rejection_excludes_trace(
       machine,
@@ -4928,7 +4963,7 @@ mod Std.Regex.Runtime
       evidence,
       path
     )
-    atomic_start_rejected_member_induction_erased(
+    atomic_start_rejected_member_induction_selected_erased(
       machine,
       position,
       empty_input,
@@ -4941,6 +4976,7 @@ mod Std.Regex.Runtime
       failure,
       evidence,
       membership,
+      selected_path,
       head_case,
       tail_case
     )
@@ -5127,6 +5163,23 @@ mod Std.Regex.Runtime
       remaining_input,
       selected_routine
     ),
+    @erased selected_path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      Nil(),
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      selected_start,
+      matched,
+      remaining_input,
+      selected_routine
+    ),
     @erased package: AtomicStartActiveRootTailProofPackage(
       depth,
       n,
@@ -5149,7 +5202,25 @@ mod Std.Regex.Runtime
       remaining,
       atomic_scope_depth_after(routine, Z())
     ),
-    tail_case: () -> result
+    tail_case: (AtomicStartSelectedTailPackage(
+      depth,
+      n,
+      machine,
+      position,
+      Nil(),
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      remaining,
+      selected_start,
+      matched,
+      remaining_input,
+      selected_routine
+    )) -> result
   ) -> result = let head_case: result = match package
       AtomicStartActiveRootTailProofPackagePacked(
         _,
@@ -5175,9 +5246,10 @@ mod Std.Regex.Runtime
         failure,
         evidence,
         path,
+        selected_path,
         tail_case
       )
-    atomic_start_rejected_member_induction_erased(
+    atomic_start_rejected_member_induction_selected_erased(
       machine,
       position,
       Nil(),
@@ -5190,6 +5262,7 @@ mod Std.Regex.Runtime
       failure,
       evidence,
       membership,
+      selected_path,
       head_case,
       tail_case
     )

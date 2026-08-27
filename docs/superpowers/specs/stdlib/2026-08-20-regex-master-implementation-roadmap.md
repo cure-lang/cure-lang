@@ -1669,6 +1669,18 @@ root adapters and branch-specific accepted/blocked/active consumers still need
 to consume this package to discharge arbitrary rejected-child and sibling
 recursion, followed by the all-kinds selected-trace/refutation theorem.
 
+The active rejected-sibling construction now consumes the selected-tail package
+at both empty-child boundaries: `atomic_start_rejected_member_there_active_tail_head_excludes_trace`
+and its non-empty-tail adapter use the selected induction rather than a
+zero-argument continuation. Because the existing active-candidate contradiction
+uses a trace indexed to the active head, these helpers carry a separate
+`selected_path` indexed to the later selected start; the two paths are never
+coerced. The active branch therefore preserves both the head contradiction and
+the recursive membership/trace alignment. The source regression and complete
+Regex runtime compilation pass. Accepted and blocked sibling branches, public
+root wiring, arbitrary rejected-child recursion, and the final all-kinds theorem
+remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

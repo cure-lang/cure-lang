@@ -1345,6 +1345,24 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert body =~ "tail_case"
   end
 
+  test "active rejected siblings consume the selected-tail package" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    for function <- [
+          "atomic_start_rejected_member_there_active_tail_head_excludes_trace",
+          "atomic_start_rejected_member_there_nonempty_tail_active_excludes_trace"
+        ] do
+      [_prefix, body] = String.split(source, "fn #{function}", parts: 2)
+      [body | _] = String.split(body, "\n  fn ", parts: 2)
+
+      assert body =~ "atomic_start_rejected_member_induction_selected_erased"
+      assert body =~ "AtomicStartSelectedTailPackage"
+      assert body =~ "tail_case: (AtomicStartSelectedTailPackage"
+      assert body =~ "selected_path"
+      refute body =~ "tail_case: () -> result"
+    end
+  end
+
   test "accepted and blocked head consumers accept arbitrary selected tail membership" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
