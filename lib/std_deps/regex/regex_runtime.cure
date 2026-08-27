@@ -8503,7 +8503,7 @@ mod Std.Regex.Runtime
     matched: List(Char),
     remaining_input: List(Char),
     routine: List(ExtendedInstruction),
-    @erased selection_from_current: LookaroundAdmittedStateCursorSuffix(
+    selection_from_current: LookaroundAdmittedStateCursorSuffix(
       n,
       Cons(candidate, remaining),
       candidate_current
@@ -8531,9 +8531,33 @@ mod Std.Regex.Runtime
       remaining_input,
       routine
     ),
+    head_case: () -> result,
     tail_case: () -> result
   ) -> result = match failure
-    AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> tail_case()
+    AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) ->
+      atomic_path_destination_rejection_excludes_recursive_tail(
+        machine,
+        char,
+        rest,
+        after_input,
+        state,
+        history,
+        capture_context,
+        policy,
+        scope_depth,
+        prefix_mode,
+        reversed_prefix,
+        whole,
+        candidate,
+        failure,
+        matched,
+        remaining_input,
+        routine,
+        selection_from_current,
+        path,
+        head_case,
+        tail_case
+      )
 
   ## Generic selected-trace dispatcher for a rejected destination.  The parent
   ## refutation is indexed at `Cons(candidate, remaining)` while the selected
