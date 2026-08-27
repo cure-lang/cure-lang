@@ -53,6 +53,9 @@ ExUnit.configure(exclude: [examples: true])
    end
 
    IO.puts("test_helper: stuck #{MapSet.size(loaded)} canonical stdlib modules")
+
+   # Warm the parser prelude macros in persistent_term before test processes run
+   _ = Cure.Compiler.Parser.parse([])
  end).()
 
 # A tail-friendly failure formatter.
