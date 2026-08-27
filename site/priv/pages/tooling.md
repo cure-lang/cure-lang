@@ -912,7 +912,7 @@ match -- but the compiler surfaces the gap as a warning.
 
 Errors include source location with caret display:
 
-```cure
+```text
 error: type mismatch in function 'bad'
  --> hello.cure:3
   | declared return type Int but body has type String
@@ -1008,7 +1008,7 @@ IO.puts(Cure.Profiler.format_report(report))
 
 ### Formatted output
 
-```cure
+```text
 Cure Compilation Profile
 ========================
 File:         hello.cure

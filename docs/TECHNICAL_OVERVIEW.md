@@ -334,6 +334,7 @@ which walks clauses and picks the first whose guard is `true`, terminating in a
 mandatory `else`:
 
 ```cure
+let status = 500
 pickup
   status >= 500 -> :server_error
   status >= 400 -> :client_error
@@ -404,6 +405,7 @@ giving every concurrency construct full dependent typing.
   `State`/`Event` types and compiles the graph to a total `decide/3`:
 
   ```cure
+  use Std.Fsm
   fsm TrafficLight with Int
     Red    --Timer-->     Green
     Green  --Timer-->     Yellow

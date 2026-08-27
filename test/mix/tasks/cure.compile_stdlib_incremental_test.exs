@@ -7,7 +7,7 @@ defmodule Mix.Tasks.Cure.CompileStdlibIncrementalTest do
   # run locally with `mix test --include slow`, always in CI.
   @moduletag :slow
 
-  @tag timeout: 300_000, skip: true
+  @tag timeout: 300_000
   test "a second cure.compile_stdlib run with no source change recompiles nothing" do
     capture_io(fn -> Mix.Task.rerun("cure.compile_stdlib") end)
     output = capture_io(fn -> Mix.Task.rerun("cure.compile_stdlib") end)
