@@ -8290,7 +8290,7 @@ mod Std.Regex.Runtime
     active_assertion_routine: List(ExtendedInstruction),
     active_assertion_markers: List(EvidenceInstruction),
     active_nested_decisions: List(LookaroundNestedDecision),
-    {@erased tail_remaining: List(LookaroundAdmittedState(n))},
+    tail_remaining: List(LookaroundAdmittedState(n)),
     @erased _failure: AtomicPathRefutation(
       depth,
       n,
@@ -8364,8 +8364,8 @@ mod Std.Regex.Runtime
       child_selected_whole,
       child_current
     ),
-    {@erased selected_remaining: List(LookaroundAdmittedState(n))},
-    @erased _tail_selected_suffix: LookaroundAdmittedStateCursorSuffix(
+    selected_remaining: List(LookaroundAdmittedState(n)),
+    _tail_selected_suffix: LookaroundAdmittedStateCursorSuffix(
       n,
       Cons(LookaroundAdmittedActive(active_state, active_routine, active_constraints, active_assertion_routine, active_assertion_markers, active_nested_decisions), tail_remaining),
       Cons(LookaroundAdmittedActive(active_state, active_routine, active_constraints, active_assertion_routine, active_assertion_markers, active_nested_decisions), selected_remaining)
@@ -8397,30 +8397,54 @@ mod Std.Regex.Runtime
   ) -> Empty = match tail_failure
     AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, child_failure, _, child_scope_alignment, _, _, _, _) -> match path
       AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _, child_selection_suffix, child_selection_from_origin, child_trace) -> match child_scope_alignment
-        LookaroundAdmittedStateScopeActive(_, _, _, _, _, _) -> atomic_path_active_child_rejection_excludes_aligned_trace(
-          machine,
-          child_char,
-          child_rest,
-          after_input,
-          active_state,
-          history_push_bounded(history, char),
-          append_routine(append_routine(capture_context, active_routine), active_assertion_markers),
-          policy,
-          atomic_scope_depth_after(active_routine, scope_depth),
-          prefix_mode,
-          Cons(char, reversed_prefix),
-          child_whole,
-          child_failure_head,
-          child_current,
-          child_failure_suffix,
-          child_selected_whole,
-          child_selected_whole_equivalence,
-          child_failure_nonempty_equivalence,
-          child_selected_suffix,
-          child_left_case,
-          child_left_tail_case,
-          child_right_case
-        )
+        LookaroundAdmittedStateScopeActive(_, _, _, _, _, _) ->
+          let tail_result: Empty = atomic_path_active_child_rejection_excludes_aligned_trace(
+            machine,
+            child_char,
+            child_rest,
+            after_input,
+            active_state,
+            history_push_bounded(history, char),
+            append_routine(append_routine(capture_context, active_routine), active_assertion_markers),
+            policy,
+            atomic_scope_depth_after(active_routine, scope_depth),
+            prefix_mode,
+            Cons(char, reversed_prefix),
+            child_whole,
+            child_failure_head,
+            child_current,
+            child_failure_suffix,
+            child_selected_whole,
+            child_selected_whole_equivalence,
+            child_failure_nonempty_equivalence,
+            child_selected_suffix,
+            child_left_case,
+            child_left_tail_case,
+            child_right_case
+          )
+          atomic_path_destination_rejection_excludes_recursive_tail(
+            machine,
+            char,
+            Cons(child_char, child_rest),
+            after_input,
+            source,
+            history,
+            capture_context,
+            policy,
+            scope_depth,
+            prefix_mode,
+            reversed_prefix,
+            whole,
+            head,
+            _failure,
+            matched,
+            remaining_input,
+            selected_routine,
+            LookaroundAdmittedStateCursorSuffixDrop(head, _tail_selected_suffix),
+            path,
+            tail_result,
+            tail_result
+          )
 
   ## Align a recursively rejected active child with the selected child trace.
   ## The child failure kind is fixed before this helper is called, while the

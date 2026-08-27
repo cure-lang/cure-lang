@@ -1428,6 +1428,19 @@ callback payloads remain erased. The focused dependent-assertion suite passes
 multi-head sibling recursion, and the complete selected-trace/refutation
 correspondence remain open.
 
+The active-child rejected-tail construction now uses the same parent fold:
+`atomic_path_tail_active_child_rejection_excludes_selected_suffix` first builds
+the child contradiction through
+`atomic_path_active_child_rejection_excludes_aligned_trace`, then transports it
+across the parent `LookaroundAdmittedStateCursorSuffixDrop` with
+`atomic_path_destination_rejection_excludes_recursive_tail`. This keeps the
+child's left-to-right head/tail and reverse alignment cases as proof-only
+continuations while the parent cursor is the sole runtime branch authority.
+The focused dependent-assertion suite passes 132/132, `./cure check` passes, and
+the full canonical gate passes 52/52 with only the accepted W086 cycle warning.
+The general recursive rejected-child alignment and multi-head sibling fold are
+still open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
