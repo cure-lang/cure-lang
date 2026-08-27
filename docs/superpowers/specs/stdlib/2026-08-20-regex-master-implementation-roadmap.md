@@ -1391,6 +1391,18 @@ This preserves the recursive tail's typed refutation boundary; carrying the
 full active proof package through arbitrary sibling retries and completing the
 selected-trace/refutation correspondence remain open.
 
+The selected-trace side now has a generic construction-site dispatcher,
+`atomic_path_destination_rejection_excludes_recursive_tail`. It accepts an
+arbitrary rejected-candidate tail, preserves the indexed `Here`/`There` split
+through `atomic_path_destination_rejection_selected_suffix_dispatch`, and keeps
+the head and recursive-tail continuations explicit. The cursor witness remains
+runtime-relevant at this eliminator because its constructors are inspected;
+proof payloads and traces remain erased. This is the canonical dispatcher
+boundary for the final path correspondence, not that correspondence itself:
+the continuations still need to consume the child contradiction and recurse
+through arbitrary rejected sibling refutations. The focused dependent-assertion
+suite passes 127/127 and `./cure check` is green.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
