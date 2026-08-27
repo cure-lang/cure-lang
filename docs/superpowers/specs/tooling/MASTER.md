@@ -170,11 +170,12 @@ front-end entry DepGraph may use). Build-orchestration only: no kernel/elaborato
 **Ordering:** Tarjan SCC condensation, topological sort, alphabetical tie-break, deterministic (reproducible builds
 are a hard requirement).
 
-**Cycle policy — warn and proceed (W086), not error.** Amended 2026-07-08 from the original hard-error policy because
+**Cycle policy — proceed, with opt-in W086 reporting, not error.** Amended 2026-07-08 from the original hard-error policy because
 (a) the DAG premise broke — commit `5ef6d80` introduced a genuine `use` cycle `Environment ↔ Exception` in the stage1
 Lean-kernel port (type-level mutual recursion, zero runtime calls), and (b) the operator mandated defined SCC
 behavior. Cure's compile-set model matches Rust crate-internal modules (cycles legal), not OCaml units. Cycles stay
-observable (warning names the closed walk with file:line). Duplicate module name in a set = hard error (E087).
+observable in artifact metadata; the closed-walk W086 diagnostic is emitted only when `--warn-import-cycles` (or
+`warn_import_cycles: true`) is requested. Duplicate module name in a set = hard error (E087).
 
 **Integration:** stage1's hand-numbered table deleted; stdlib compile ordered by DepGraph; `Cure.CLI.cmd_compile` and
 `Cure.Project.compile_project` order the *union* of all resolved paths and load each emitted beam immediately after

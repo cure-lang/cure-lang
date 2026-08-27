@@ -157,8 +157,8 @@ briefing explicitly mandated it*: "Cure supports mutual recursion;
 cross-module cycles likely exist … the agent needs a defined behavior
 (compile an SCC together / arbitrary intra-SCC order), not a crash." Cure's
 compile-set model matches Rust's crate-internal modules (cycles legal), not
-OCaml's compilation units. Cycles stay *observable* (the warning names the
-full walk), and any genuinely order-unsatisfiable unqualified call inside an
+OCaml's compilation units. Cycles stay *observable* in the artifact result (the
+optional W086 diagnostic names the full walk), and any genuinely order-unsatisfiable unqualified call inside an
 SCC is caught by the separate unresolved-import warning (§3.2 item 4).
 Error/warning codes: the registry's `E`/`W`/`H` codes share one numeric
 sequence (e.g. `W081`/`W082`/`H083`/`H084` sit between `E080` and `E085`);
@@ -265,7 +265,7 @@ accidents; DepGraph replaces those.
 
 | Condition | Behavior |
 |---|---|
-| `use` cycle within a compile set | Warn (W086) and proceed: SCC compiled as a group in deterministic order; warning lists the closed cycle path with file:line |
+| `use` cycle within a compile set | Proceed silently by default: SCC is compiled as a group in deterministic order; `--warn-import-cycles` (or `warn_import_cycles: true`) emits W086 with the closed cycle path and file:line |
 | Duplicate module name in a compile set | Hard error naming both files |
 | In-set file fails to parse | Per-file error via existing channel; ordering proceeds for the rest (parse failure will also fail that file's own compile) |
 | `use` target not in set and not loadable (classic module) | Existing `missing_stdlib_module` for `Std.*` (unchanged); **new warning** for the silent local fallback on any import |

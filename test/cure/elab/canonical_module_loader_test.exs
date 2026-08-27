@@ -49,9 +49,9 @@ defmodule Cure.Elab.CanonicalModuleLoaderTest do
   #
   # Cycles are still reported, once, from the canonical manifest built by
   # `Cure.Compiler.Artifacts.Sweep`. Every driver (`mix cure.compile`,
-  # `Cure.CLI`, `Cure.Project`) renders its closed-hop walks as the W086
-  # warning -- see `canonical_artifact_sweep_test.exs` for that contract's
-  # coverage.
+  # `Cure.CLI` and `Cure.Project` retain the closed-hop walks for optional W086
+  # reporting (`--warn-import-cycles` / `warn_import_cycles: true`) -- see
+  # `canonical_artifact_sweep_test.exs` for the diagnostic payload contract.
   test "an import cycle elaborates through canonical interfaces", %{root: root} do
     a =
       write_module(

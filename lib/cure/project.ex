@@ -844,6 +844,10 @@ defmodule Cure.Project do
      start-phase mismatches at compile time.
   5. Emit the `.app` resource alongside the compiled `.beam` files.
 
+  The optional `warn_import_cycles: true` option reports legal `use` cycles as
+  W086 diagnostics. Cycle reporting is disabled by default; the compiler still
+  records SCC metadata for dependency and build tooling.
+
   Returns `{:ok, %{modules: [...], app_module: atom() | nil}}` on
   success, `{:error, reason}` otherwise.
   """
@@ -858,6 +862,7 @@ defmodule Cure.Project do
 
     emit_events? = Keyword.get(opts, :emit_events, false)
     check? = Keyword.get(opts, :check_types, false)
+    warn_import_cycles? = Keyword.get(opts, :warn_import_cycles, false)
 
     # Ensure the stdlib is loaded before compiling project files so that
     # `use Std.XXX` imports resolve. The project's [compiler] stdlib_path
@@ -896,7 +901,8 @@ defmodule Cure.Project do
              declared_phases(project),
              extra_paths,
              project.root,
-             dependency_sets
+             dependency_sets,
+             warn_import_cycles?
            ),
          :ok <- maybe_write_app_resource(app_info, modules, project, output_dir) do
       {:ok, %{modules: modules, app_module: app_module(app_info)}}
@@ -1062,7 +1068,8 @@ defmodule Cure.Project do
          declared_phases,
          source_roots,
          diagnostic_path,
-         dependency_sets
+         dependency_sets,
+         warn_import_cycles?
        ) do
     base_opts = [emit_events: emit?, check_types: check?]
 
@@ -1086,9 +1093,11 @@ defmodule Cure.Project do
            compile_opts: opts
          ) do
       {:ok, result} ->
-        Enum.each(result.cycles, fn walk ->
-          Logger.warning(render_host_diagnostic({:import_cycle, walk}, diagnostic_path))
-        end)
+        if warn_import_cycles? do
+          Enum.each(result.cycles, fn walk ->
+            Logger.warning(render_host_diagnostic({:import_cycle, walk}, diagnostic_path))
+          end)
+        end
 
         with {:ok, set} <- Cure.Compiler.Artifacts.open_verified_set(output_dir) do
           modules =

@@ -283,9 +283,16 @@ the warm path alone.
 ## Stabilization warning policy
 
 The stabilization gate means **no unexpected compiler warnings**, rather than
-an unconditional zero-warning count. The `lib/std` module graph, including the
-regex package, is fully acyclic: no `use` SCC is currently allowed or expected,
-and any reported `use` cycle (W086) fails the gate and requires review.
+an unconditional zero-warning count. `use` cycles are legal in project source:
+the canonical pipeline groups them into deterministic SCCs and the interface
+loader checks their bodies through signature skeletons. Cycle metadata remains
+in the artifact result, but W086 is opt-in (`cure compile --warn-import-cycles`,
+or `warn_import_cycles: true` in `Cure.Project.compile_project/2`) so ordinary
+builds stay quiet.
+
+The `lib/std` module graph, including the regex package, is expected to remain
+acyclic. A new stdlib SCC still fails the canonical stabilization gate; this is
+an architectural invariant, not a prohibition on legal project-level cycles.
 
 The text/literal component `{Std.Char, Std.Literal, Std.String}` was once a
 reviewed SCC until the layer was made acyclic: the character-literal instance

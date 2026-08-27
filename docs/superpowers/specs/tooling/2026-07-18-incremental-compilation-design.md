@@ -225,8 +225,9 @@ A new module, the single place both mix tasks route through.
 Steps:
 
 1. **Scan** the sources with `Cure.Compiler.DepGraph.scan/1` + `order/1`, used
-   only to report import cycles exactly as the current task does today (a real
-   `use` cycle stays a reported error; it is unrelated to the synthetic
+   only to retain import-cycle metadata exactly as the current task does today
+   (a real `use` cycle remains legal; `--warn-import-cycles` may request W086;
+   it is unrelated to the synthetic
    `@prelude`-provider cycles noted in step 5 below, which are not errors) —
    and `closure_deps_map/1` (module → full dependency set: `use` imports +
    ambient `@prelude` providers), which step 5 walks via `toposort/2` for both

@@ -55,7 +55,7 @@ defmodule Mix.Tasks.Cure.CompileTest do
     assert apply(module, :go, []) == 41
   end
 
-  test "directory import cycles emit one structured warning on stderr", %{dir: dir} do
+  test "directory import-cycle diagnostics are opt-in", %{dir: dir} do
     suffix = System.unique_integer([:positive])
     left = "MixCycleLeft#{suffix}"
     right = "MixCycleRight#{suffix}"
@@ -63,29 +63,45 @@ defmodule Mix.Tasks.Cure.CompileTest do
     File.write!(Path.join(dir, "left.cure"), "mod #{left}\n  use #{right}\n  fn left() -> Int = 1\nend\n")
     File.write!(Path.join(dir, "right.cure"), "mod #{right}\n  use #{left}\n  fn right() -> Int = 2\nend\n")
 
-    out = Path.join(dir, "cycle_ebin")
+    quiet_out = Path.join(dir, "cycle_quiet_ebin")
+    warned_out = Path.join(dir, "cycle_warned_ebin")
     Mix.shell(Mix.Shell.IO)
     Mix.Task.reenable("cure.compile")
 
-    # A cycle is a WARNING, not a failure: `load_module_interface/2` answers a
-    # back-edge with an interface skeleton, so cycle members check against each
-    # other's real signatures and the build completes. The stdlib relies on this
-    # — `Std.Char`/`Std.Literal`/`Std.String` are mutually recursive by design.
-    # What W086 buys is that the cycle is still SAID, exactly once, from the one
-    # place that can see the whole file set.
-    stderr =
+    # A cycle is legal: `load_module_interface/2` answers a back-edge with an
+    # interface skeleton, so cycle members check against each other's real
+    # signatures and the build completes. Cycle metadata remains available for
+    # tooling, but W086 is quiet unless explicitly requested.
+    quiet_stderr =
       ExUnit.CaptureIO.capture_io(:stderr, fn ->
         ExUnit.CaptureIO.capture_io(fn ->
-          assert :ok = Mix.Task.run("cure.compile", [dir, "--output-dir", out])
+          assert :ok = Mix.Task.run("cure.compile", [dir, "--output-dir", quiet_out])
         end)
       end)
 
-    assert stderr =~ "IMPORT CYCLE [W086]"
-    assert stderr =~ left
-    assert stderr =~ right
-    assert stderr =~ "Cycle members compile together in deterministic order"
-    assert length(Regex.scan(~r/-- IMPORT CYCLE \[W086\]/, stderr)) == 1
-    refute stderr =~ "{:import_cycle"
+    refute quiet_stderr =~ "W086"
+
+    Mix.Task.reenable("cure.compile")
+
+    warned_stderr =
+      ExUnit.CaptureIO.capture_io(:stderr, fn ->
+        ExUnit.CaptureIO.capture_io(fn ->
+          assert :ok =
+                   Mix.Task.run("cure.compile", [
+                     dir,
+                     "--output-dir",
+                     warned_out,
+                     "--warn-import-cycles"
+                   ])
+        end)
+      end)
+
+    assert warned_stderr =~ "IMPORT CYCLE [W086]"
+    assert warned_stderr =~ left
+    assert warned_stderr =~ right
+    assert warned_stderr =~ "Cycle members compile together in deterministic order"
+    assert length(Regex.scan(~r/-- IMPORT CYCLE \[W086\]/, warned_stderr)) == 1
+    refute warned_stderr =~ "{:import_cycle"
   end
 
   test "compile diagnostics render through the shared sink", %{dir: dir} do

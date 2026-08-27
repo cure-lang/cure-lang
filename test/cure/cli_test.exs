@@ -63,6 +63,7 @@ defmodule Cure.CLITest do
       assert output =~ "lsp"
       assert output =~ "migrate [path|dir]"
       assert output =~ "--edition YYYY"
+      assert output =~ "--warn-import-cycles"
     end
 
     test "no args shows help" do
@@ -159,6 +160,43 @@ defmodule Cure.CLITest do
       assert output =~ "->"
       artifact_root = Cure.Compiler.Artifacts.Writer.resolve(output_dir)
       assert File.exists?(Path.join(artifact_root, "Cure.CureCliDirectory.beam"))
+    end
+
+    @tag :tmp_dir
+    @tag timeout: 1_200_000
+    test "legal import-cycle diagnostics are opt-in", %{tmp_dir: tmp} do
+      source_dir = Path.join(tmp, "cycle_src")
+      quiet_output = Path.join(tmp, "quiet_ebin")
+      warned_output = Path.join(tmp, "warned_ebin")
+      File.mkdir_p!(source_dir)
+
+      File.write!(Path.join(source_dir, "a.cure"), """
+      mod CliCycle.A
+        use CliCycle.B
+        fn from_a() -> Int = 1
+      """)
+
+      File.write!(Path.join(source_dir, "b.cure"), """
+      mod CliCycle.B
+        use CliCycle.A
+        fn from_b() -> Int = 2
+      """)
+
+      quiet =
+        capture_io(:stderr, fn ->
+          Cure.CLI.main(["compile", source_dir, "-o", quiet_output])
+        end)
+
+      refute quiet =~ "W086"
+
+      warned =
+        capture_io(:stderr, fn ->
+          Cure.CLI.main(["compile", source_dir, "-o", warned_output, "--warn-import-cycles"])
+        end)
+
+      assert warned =~ "W086"
+      assert warned =~ "CliCycle.A"
+      assert warned =~ "CliCycle.B"
     end
 
     @tag :tmp_dir
