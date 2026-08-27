@@ -66,7 +66,8 @@ defmodule CureSite.MixProject do
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
       {:yeesh, "~> 0.8"},
-      {:cure, path: ".."}
+      {:cure, path: ".."},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
     ]
   end
 

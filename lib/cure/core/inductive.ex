@@ -388,7 +388,7 @@ defmodule Cure.Core.Env do
   end
 
   @doc "The global definition `%{name, type, body}` for `name`, or nil."
-  @spec get_def(t(), atom()) :: map() | nil
+  @spec get_def(t(), atom() | String.t()) :: map() | nil
   def get_def(%__MODULE__{} = env, name), do: Map.get(env.defs, resolve_key(env, env.defs, name))
 
   @doc "Mark a definition as an authored transparent type alias."

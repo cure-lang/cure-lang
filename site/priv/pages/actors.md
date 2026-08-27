@@ -11,7 +11,7 @@ Cure brings **dependent type safety** to the BEAM actor model. It bridges battle
 
 ## Why Concurrency in Cure?
 
-- **Phantom-Typed Handles (`Pid[M]`)**: Process handles carry phantom types representing their inbox message family (`M`). Sending an invalid message type to an actor is caught at compile time.
+- **Phantom-Typed Handles (`Pid(M)`)**: Process handles carry phantom types representing their inbox message family (`M`). Sending an invalid message type to an actor is caught at compile time.
 - **Exhaustive Message Handlers**: The `actor` macro enforces pattern-matching exhaustiveness over your inbox algebraic data type (ADT).
 - **The Melquiades Operator (`<-|` / `✉`)**: A first-class, pipeline-friendly send operator that desugars into checked, non-blocking BEAM effects.
 - **Declarative Supervision (`sup`)**: Construct OTP supervision trees with compile-time child identity uniqueness, verified restart strategies, and zero boilerplate.
@@ -21,7 +21,7 @@ Cure brings **dependent type safety** to the BEAM actor model. It bridges battle
 
 `pid <-| message` sends `message` to `pid` as a type-checked, non-blocking effect. You can use the ASCII spelling (`<-|`) or the Unicode symbol (`✉`):
 
-```cure
+```text
 pid <-| :hello
 pid ✉  :hello
 ```
@@ -32,7 +32,7 @@ Both spellings desugar to `Std.Otp.tell`, which validates `message` against `pid
 
 The operator binds just below the pipe operator (`|>`), allowing transformed data to feed directly into an actor:
 
-```cure
+```text
 request
 |> encode()
 |> worker_pid <-| _
@@ -108,7 +108,7 @@ Because these types are erased at runtime into raw BEAM pids, you get zero-cost 
 
 Supervisors manage actor lifecycles and ensure fault tolerance. The `sup` macro (from `Std.Supervisor`) defines a supervisor module:
 
-```cure
+```text
 use Std.Supervisor
 
 sup RootTree
@@ -134,11 +134,12 @@ sup RootTree
 
 `Std.Process` provides type-safe process operations wrapping BEAM primitives:
 
-```cure
-use Std.Process
+```text
+mod MyApp.Pool
+  use Std.Process
 
-fn watch(target: RawPid(m, r, k)) -> Effect(MonitorRef) =
-  monitor(Process(), target)
+  fn watch(target: RawPid(m, r, k)) -> Effect(MonitorRef) =
+    monitor(Process(), target)
 ```
 
 Core primitives include:
@@ -171,7 +172,7 @@ sup AppTree
 
 Starting and managing the tree:
 
-```cure
+```text
 mod Main
   use Std.Supervisor
   use Std.Otp
