@@ -7,20 +7,13 @@
 }
 ---
 
-> **0.34 update:** `app` is a transparent macro over ordinary lifted modules,
-> callbacks, and checked OTP operations. It lives in `Std.App` and is not
-> ambient -- a unit declaring an application must `use Std.App`. The generated
-> declarations pass through the same canonical module interfaces and dependent
-> kernel as authored Cure code. The release resource and runtime behavior
-> described below remain the output contract.
+Cure wraps supervision trees into a full, first-class OTP application lifecycle. A project with an `app` container compiles to three artefacts in one pass:
 
-Cure 0.26.0 takes the supervision surface landed in v0.25.0 and wraps it in a full OTP application lifecycle. A project with a single `app` container compiles to three artefacts in one pass:
-
-1. A loaded BEAM module you refer to by the name the container gives it -- `app MyApp` -- carrying `-behaviour(application)` and the three callbacks `start/2`, `stop/1`, and `start_phase/3`.
-2. An OTP `<name>.app` resource file written alongside the project artifact set under `_build/cure/project/ebin/`.
+1. A loaded BEAM module carrying `-behaviour(application)` and the three OTP callbacks (`start/2`, `stop/1`, `start_phase/3`).
+2. An OTP `<name>.app` resource file written alongside the project build under `_build/cure/project/ebin/`.
 3. A bootable BEAM release under `_build/cure/rel/<name>/`, produced on demand by `cure release` (or `mix cure.release`).
 
-The container slots in next to `actor` and `sup` from v0.25.0, but it is far smaller than either: where those carry callback clauses, `app` carries one clause naming a root supervisor.
+The `app` macro (from `Std.App`) slots in next to `actor` and `sup` to provide a declarative entry point for your application.
 
 ## The `app` container
 
