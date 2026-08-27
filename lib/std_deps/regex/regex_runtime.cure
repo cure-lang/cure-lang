@@ -8745,12 +8745,14 @@ mod Std.Regex.Runtime
   )
 
   ## A rejected candidate may leave a sibling tail whose search reaches the
-  ## destination-exhaustion leaf.  When the selected trace is already aligned
-  ## to that tail's empty cursor, the existing exhaustion contradiction can be
-  ## consumed directly through the parent rejection node.  This is the first
-  ## tail-induction slice; rejected-child alignment remains a separate branch.
-  fn atomic_path_tail_destinations_exhausted_excludes_aligned_trace({result: Type}, {depth: Nat}, {n: Nat}, machine: PatternMachine(n), char: Char, rest: List(Char), after_input: List(Char), state: Bounded(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), candidate: LookaroundAdmittedState(n), @erased failure: AtomicPathRefutation(depth, n, machine, Cons(char, rest), after_input, ThreadActive(state), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, Nil()), AtomicPathFailureDestinationRejected()), {candidate_current: List(LookaroundAdmittedState(n))}, matched: List(Char), remaining_input: List(Char), routine: List(ExtendedInstruction), @erased tail_suffix: LookaroundAdmittedStateCursorSuffix(n, Nil(), candidate_current), @erased path: AtomicSelectedPathTrace(depth, n, machine, Cons(char, rest), after_input, ThreadActive(state), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, candidate_current, matched, remaining_input, routine)) -> result =
-    atomic_path_tail_package_destinations_exhausted_excludes_trace(
+  ## destination-exhaustion leaf. When the selected trace is already aligned
+  ## to that tail's empty cursor, build the exhaustion contradiction once and
+  ## pass it through the generic parent dispatcher. The transported `Drop`
+  ## suffix selects the tail result; the duplicate head value is harmless and
+  ## keeps this proof boundary total for every indexed cursor shape. This is
+  ## the first tail-induction slice; rejected-child alignment remains separate.
+  fn atomic_path_tail_destinations_exhausted_excludes_aligned_trace({result: Type}, {depth: Nat}, {n: Nat}, machine: PatternMachine(n), char: Char, rest: List(Char), after_input: List(Char), state: Bounded(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), candidate: LookaroundAdmittedState(n), @erased failure: AtomicPathRefutation(depth, n, machine, Cons(char, rest), after_input, ThreadActive(state), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, Nil()), AtomicPathFailureDestinationRejected()), {candidate_current: List(LookaroundAdmittedState(n))}, matched: List(Char), remaining_input: List(Char), routine: List(ExtendedInstruction), tail_suffix: LookaroundAdmittedStateCursorSuffix(n, Nil(), candidate_current), @erased path: AtomicSelectedPathTrace(depth, n, machine, Cons(char, rest), after_input, ThreadActive(state), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, candidate_current, matched, remaining_input, routine)) -> result =
+    let tail_result: result = atomic_path_tail_package_destinations_exhausted_excludes_trace(
       machine,
       char,
       rest,
@@ -8782,6 +8784,29 @@ mod Std.Regex.Runtime
       routine,
       tail_suffix,
       path
+    )
+    atomic_path_destination_rejection_excludes_recursive_tail(
+      machine,
+      char,
+      rest,
+      after_input,
+      state,
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      candidate,
+      failure,
+      matched,
+      remaining_input,
+      routine,
+      LookaroundAdmittedStateCursorSuffixDrop(candidate, tail_suffix),
+      path,
+      tail_result,
+      tail_result
     )
 
   ## A rejected first candidate can be discharged when the selected trace is

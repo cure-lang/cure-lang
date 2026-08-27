@@ -1406,6 +1406,17 @@ correspondence itself: the selected child contradiction and recursive sibling
 refutation still need to be consumed through the general fold. The focused
 dependent-assertion suite passes 129/129 and `./cure check` is green.
 
+The first destination-tail leaf now uses that dispatcher in an actual
+construction site: `atomic_path_tail_destinations_exhausted_excludes_aligned_trace`
+builds its typed exhaustion contradiction once, transports the selected cursor
+through the rejected candidate with `LookaroundAdmittedStateCursorSuffixDrop`,
+and lets the generic `Here`/`There` authority select the result. The cursor is
+runtime-relevant only at this indexed proof eliminator; the refutation, path,
+and contradiction payloads remain erased. The focused dependent-assertion
+suite passes 130/130, `./cure check` passes, and the full canonical gate passes
+52/52 with only the accepted W086 cycle warning. Recursive rejected-child and
+arbitrary sibling-tail consumers remain the next proof obligations.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
