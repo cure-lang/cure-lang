@@ -1199,7 +1199,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert body =~ "atomic_path_destination_rejection_excludes_recursive_tail_rejected("
   end
 
-  test "active-child destination tails use the generic recursive dispatcher" do
+  test "active-child destination tails use the rejected-tail recursive dispatcher" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     [_prefix, body] =
@@ -1208,7 +1208,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
       )
 
     [body | _] = String.split(body, "\n  ##", parts: 2)
-    assert body =~ "atomic_path_destination_rejection_excludes_recursive_tail("
+    assert body =~ "atomic_path_destination_rejection_excludes_recursive_tail_rejected("
   end
 
   test "atomic active tail carries recursive child rejection" do

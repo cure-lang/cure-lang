@@ -1465,6 +1465,18 @@ the full canonical gate remains 52/52 with only the accepted W086 cycle
 warning. The general rejected-child alignment, arbitrary multi-head sibling
 fold, and final selected-trace/refutation correspondence are still open.
 
+The active-child sibling tail now uses the same constructor-specific rejected
+dispatcher. `atomic_path_tail_active_child_rejection_excludes_selected_suffix`
+passes its statically known `AtomicPathDestinationRejected` tail through
+`atomic_path_destination_rejection_excludes_recursive_tail_rejected`, retaining
+the active child's aligned contradiction as the tail result and keeping all
+failure and trace payloads erased. The cursor suffix remains the only runtime
+branch witness. The focused dependent-assertion suite remains 132/132 with all
+331 documentation snippets, `./cure check` passes, and the full canonical gate
+remains 52/52 with only the accepted W086 cycle warning. General rejected-child
+alignment, arbitrary multi-head sibling recursion, and the final
+selected-trace/refutation correspondence remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
