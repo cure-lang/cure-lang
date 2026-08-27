@@ -7904,6 +7904,122 @@ mod Std.Regex.Runtime
     tail_case
   )
 
+  ## Wire a blocked public root certificate into the selected-trace root
+  ## consumer. Commitment and allowance evidence remain erased indices; the
+  ## canonical blocked-root bridge owns the `Here`/`There` fold and receives a
+  ## proof-only continuation for the later sibling.
+  @reducible
+  fn atomic_start_refutation_blocked_selected_trace(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    candidate: LookaroundAdmittedState(n),
+    remaining: List(LookaroundAdmittedState(n)),
+    selected_start: LookaroundAdmittedState(n),
+    {@erased blocked_depth: Option(Nat)},
+    {@erased kind: AtomicStartSkipKind},
+    @erased skip: AtomicStartSkipEvidence(blocked_depth, kind),
+    @erased allowed: AtomicStartAllowed(blocked_depth, kind),
+    @erased _refutation: AtomicStartRefutation(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      Cons(candidate, remaining)
+    ),
+    @erased failure: AtomicStartMembersRefutation(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      Cons(candidate, remaining),
+      Cons(candidate, remaining),
+      AtomicStartFailureBlocked()
+    ),
+    @erased evidence: AtomicStartNoEvidence(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      Cons(candidate, remaining),
+      Cons(candidate, remaining),
+      AtomicStartFailureBlocked()
+    ),
+    membership: ListMember(
+      LookaroundAdmittedState(n),
+      selected_start,
+      Cons(candidate, remaining)
+    ),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      selected_start,
+      matched,
+      remaining_input,
+      selected_routine
+    ),
+    sibling_tail_case: () -> Empty
+  ) -> Empty = atomic_start_refutation_blocked_excludes_trace(
+    machine,
+    position,
+    input,
+    after_input,
+    history,
+    capture_context,
+    policy,
+    prefix_mode,
+    reversed_prefix,
+    candidate,
+    failure,
+    evidence,
+    skip,
+    allowed,
+    membership,
+    path,
+    sibling_tail_case
+  )
+
   ## Wire the concrete accepted-root contradiction into the public
   ## selected-trace consumer. Accepted roots consume a non-empty exact child
   ## input, so the package carries the child refutation and cursor suffix that

@@ -1646,6 +1646,15 @@ and source regression pass. Empty-input accepted roots, blocked-root wiring,
 arbitrary sibling recursion, and the final all-kinds selected-trace/refutation
 theorem remain open.
 
+Blocked public roots now have the corresponding selected-trace adapter,
+`atomic_start_refutation_blocked_selected_trace`. It forwards the indexed
+skip/allow evidence, root failure/no-result pair, selected membership, and
+trace to `atomic_start_refutation_blocked_excludes_trace`, keeping commitment
+control proof-only and leaving sibling recursion to the typed continuation.
+The direct complete-module compile and source regression pass. The remaining
+root obligations are empty-input accepted roots, arbitrary rejected-child and
+sibling recursion, and the final all-kinds selected-trace/refutation theorem.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
