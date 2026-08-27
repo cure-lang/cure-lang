@@ -7818,7 +7818,10 @@ mod Std.Regex.Runtime
   ## When a sibling tail rejects an accepted candidate, its exact child
   ## refutation can be consumed by the same accepted-child eliminator. The
   ## parent rejection is retained as an index witness; the tail constructor
-  ## exposes the child proof at this construction site.
+  ## exposes the child proof at this construction site. The accepted child
+  ## contradiction is routed through the generic dispatcher: the parent
+  ## selected suffix is a `Drop(head, ...)`, so the indexed cursor selects the
+  ## tail result rather than treating this accepted sibling as head-selected.
   fn atomic_path_tail_rejection_excludes_selected_suffix(
     {depth: Nat},
     {n: Nat},
@@ -7840,7 +7843,7 @@ mod Std.Regex.Runtime
     tail_assertion_routine: List(ExtendedInstruction),
     tail_assertion_markers: List(EvidenceInstruction),
     tail_nested_decisions: List(LookaroundNestedDecision),
-    {@erased tail_remaining: List(LookaroundAdmittedState(n))},
+    tail_remaining: List(LookaroundAdmittedState(n)),
     @erased _failure: AtomicPathRefutation(
       depth,
       n,
@@ -7875,8 +7878,8 @@ mod Std.Regex.Runtime
       Cons(LookaroundAdmittedAccepted(tail_routine, tail_constraints, tail_assertion_routine, tail_assertion_markers, tail_nested_decisions), tail_remaining),
       AtomicPathFailureDestinationRejected()
     ),
-    {@erased selected_remaining: List(LookaroundAdmittedState(n))},
-    @erased _tail_selected_suffix: LookaroundAdmittedStateCursorSuffix(
+    selected_remaining: List(LookaroundAdmittedState(n)),
+    _tail_selected_suffix: LookaroundAdmittedStateCursorSuffix(
       n,
       Cons(LookaroundAdmittedAccepted(tail_routine, tail_constraints, tail_assertion_routine, tail_assertion_markers, tail_nested_decisions), tail_remaining),
       Cons(LookaroundAdmittedAccepted(tail_routine, tail_constraints, tail_assertion_routine, tail_assertion_markers, tail_nested_decisions), selected_remaining)
@@ -7906,25 +7909,49 @@ mod Std.Regex.Runtime
     AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, child_failure, _, child_scope_alignment, _, _, _, _) -> match path
       AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _, _, _, suffix) -> match child_scope_alignment
         LookaroundAdmittedStateScopeAccepted(_, _, _, _, _) -> match child_failure
-          AtomicPathExactAcceptedWithInput(_, _, _, _) -> atomic_path_failure_excludes_selected_suffix(
-            machine,
-            char,
-            rest,
-            after_input,
-            ThreadActive(source),
-            history,
-            capture_context,
-            policy,
-            scope_depth,
-            reversed_prefix,
-            tail_routine,
-            tail_constraints,
-            tail_assertion_routine,
-            tail_assertion_markers,
-            tail_nested_decisions,
-            child_failure,
-            path
-          )
+          AtomicPathExactAcceptedWithInput(_, _, _, _) ->
+            let tail_result: Empty = atomic_path_failure_excludes_selected_suffix(
+              machine,
+              char,
+              rest,
+              after_input,
+              ThreadActive(source),
+              history,
+              capture_context,
+              policy,
+              scope_depth,
+              reversed_prefix,
+              tail_routine,
+              tail_constraints,
+              tail_assertion_routine,
+              tail_assertion_markers,
+              tail_nested_decisions,
+              child_failure,
+              path
+            )
+            atomic_path_destination_rejection_excludes_recursive_tail(
+              machine,
+              char,
+              rest,
+              after_input,
+              source,
+              history,
+              capture_context,
+              policy,
+              scope_depth,
+              prefix_mode,
+              reversed_prefix,
+              whole,
+              head,
+              _failure,
+              matched,
+              remaining_input,
+              selected_routine,
+              LookaroundAdmittedStateCursorSuffixDrop(head, _tail_selected_suffix),
+              path,
+              tail_result,
+              tail_result
+            )
 
   ## Base case for a selected trace at the accepted sibling after one rejected
   ## head. The parent-to-selected cursor is retained as an erased `Drop`
@@ -8599,7 +8626,7 @@ mod Std.Regex.Runtime
     prefix_mode: Bool,
     reversed_prefix: List(Char),
     whole: List(LookaroundAdmittedState(n)),
-    candidate: LookaroundAdmittedState(n),
+    @erased candidate: LookaroundAdmittedState(n),
     {remaining: List(LookaroundAdmittedState(n))},
     @erased failure: AtomicPathRefutation(
       depth,
@@ -8619,9 +8646,9 @@ mod Std.Regex.Runtime
       AtomicPathFailureDestinationRejected()
     ),
     {candidate_current: List(LookaroundAdmittedState(n))},
-    matched: List(Char),
-    remaining_input: List(Char),
-    routine: List(ExtendedInstruction),
+    @erased matched: List(Char),
+    @erased remaining_input: List(Char),
+    @erased routine: List(ExtendedInstruction),
     selection_from_current: LookaroundAdmittedStateCursorSuffix(
       n,
       Cons(candidate, remaining),

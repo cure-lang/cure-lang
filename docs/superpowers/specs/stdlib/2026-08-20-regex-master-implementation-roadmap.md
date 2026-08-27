@@ -1417,6 +1417,17 @@ suite passes 130/130, `./cure check` passes, and the full canonical gate passes
 52/52 with only the accepted W086 cycle warning. Recursive rejected-child and
 arbitrary sibling-tail consumers remain the next proof obligations.
 
+The accepted-destination sibling-tail leaf now follows the same route:
+`atomic_path_tail_rejection_excludes_selected_suffix` constructs the exact-child
+contradiction once and transports its accepted-tail cursor through
+`atomic_path_destination_rejection_excludes_recursive_tail`. The indexed
+`Drop(head, ...)` relation selects the recursive-tail result; the cursor is
+runtime-relevant only at this proof eliminator, while refutations, paths, and
+callback payloads remain erased. The focused dependent-assertion suite passes
+131/131 and `./cure check` is green. Arbitrary rejected-child alignment,
+multi-head sibling recursion, and the complete selected-trace/refutation
+correspondence remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
