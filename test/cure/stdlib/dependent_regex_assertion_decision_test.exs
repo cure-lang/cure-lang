@@ -863,6 +863,16 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/\[_ \| _\].*?match candidate.*?atomic_start_active_root_no_empty/s, body)
   end
 
+  test "recursive active tails remain visible after parent retry" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "AtomicStartMembersTailActiveNo"
+    assert Regex.match?(
+             ~r/atomic_lookaround_routine_initial_tail_after_failure.*?AtomicStartMembersActiveRootNo.*?atomic_start_initial_tail_no_with_active_tail/s,
+             source
+           )
+  end
+
   test "non-empty rejected tails consume an active head" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 

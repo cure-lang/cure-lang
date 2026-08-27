@@ -1376,6 +1376,21 @@ proof-only start-list dispatcher rather than by runtime control flow, so the
 general recursive active/rejected fold and final selected-trace/refutation
 correspondence remain open.
 
+The recursive active-tail retry now has its own indexed
+`AtomicStartMembersTailActiveNo` result. It preserves both the parent
+no-result/refutation and the no-result/refutation for the recursive tail while
+the parent candidate is reintroduced by
+`atomic_start_initial_tail_no_with_active_tail`. The constructor is proof-only,
+and the root/blocked adapters map it through the same parent failure/evidence
+authority as ordinary no-results; no runtime tag or fallback lookup was added.
+The source regression pins the active-tail constructor and the
+`AtomicStartMembersActiveRootNo` → retry construction site. The focused
+dependent-assertion suite passes 126/126, `./cure check` is green, and the full
+canonical pipeline passes 52/52 with only the accepted W086 cycle warning.
+This preserves the recursive tail's typed refutation boundary; carrying the
+full active proof package through arbitrary sibling retries and completing the
+selected-trace/refutation correspondence remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
