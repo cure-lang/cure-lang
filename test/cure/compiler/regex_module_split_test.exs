@@ -77,6 +77,22 @@ defmodule Cure.Compiler.RegexModuleSplitTest do
            "embedded Regex package must be a DAG, got SCCs: #{inspect(components)}"
   end
 
+  test "the complete Regex dependency closure is acyclic, including qualified calls" do
+    paths =
+      Path.wildcard("lib/std_deps/regex/regex*.cure")
+      |> Enum.map(&Path.expand/1)
+
+    assert {:ok, graph} = Cure.Compiler.DepGraph.scan(paths, validate_dependencies: false)
+
+    components =
+      graph
+      |> Cure.Compiler.DepGraph.closure_deps_map()
+      |> Cure.Compiler.DepGraph.components(Map.keys(graph.modules))
+
+    assert Enum.all?(components, &(length(&1) == 1)),
+           "embedded Regex closure must be a DAG, got SCCs: #{inspect(components)}"
+  end
+
   test "canonical visibility follows transitive public reexports", %{tmp_dir: dir} do
     base = Path.join(dir, "base.cure")
     middle = Path.join(dir, "middle.cure")

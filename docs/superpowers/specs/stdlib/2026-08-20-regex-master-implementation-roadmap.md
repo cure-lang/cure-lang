@@ -1560,9 +1560,10 @@ stdlib: `Std.Char` owns list-valued Unicode case mappings, while
 canonical `Std.Char.lowercased_characters/1` entry point directly and does not
 recreate the old `Std.Char -> Std.String` dependency. The complete embedded
 package source set (`regex*.cure`) has been checked through the compiler's
-`use`-dependency graph; every component is a singleton, with the package
-layers ordered Core -> Runtime -> Proof/Language -> façade as intended. A
-regression now guards this graph. The remaining E091 is therefore a stale
+`use`-dependency graph and its full qualified-call closure; every component is
+a singleton in both views, with the package layers ordered Core -> Runtime ->
+Proof/Language -> façade as intended. Regressions now guard both graphs. The
+remaining E091 is therefore a stale
 published `Std.Char` interface (the old artifact still advertises
 `lowercased_charlist`), not an unresolved Regex source dependency; rebuilding
 the canonical stdlib generation is required before the direct package compile
