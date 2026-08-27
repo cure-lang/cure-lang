@@ -4,7 +4,7 @@
 engine.  It is intended to replace the OTP `:re`/PCRE dependency for Cure and
 to provide the same portable erased engine to BEAM and AtomVM.  The package is
 currently embedded in the compiler tree at
-[`lib/std_deps/regex`](../../lib/std_deps/regex); this README is the package
+[`lib/std_deps/regex`](.); this README is the package
 capability and roadmap document.
 
 The public compile-time façade is `Std.Regex`.  The package manifest currently
@@ -426,22 +426,22 @@ The implementation is split as follows:
 
 | File | Role |
 | --- | --- |
-| [`regex.cure`](../../lib/std_deps/regex/regex.cure) | Public `Std.Regex` façade and collection/search APIs |
-| [`regex_syntax.cure`](../../lib/std_deps/regex/regex_syntax.cure) | Regex literal macro entry point: expansion, failure diagnostics, and hints |
-| [`regex_syntax_model.cure`](../../lib/std_deps/regex/regex_syntax_model.cure) | Compile-time syntax tree, options, capture layout, limits, diagnostics |
-| [`regex_syntax_parser.cure`](../../lib/std_deps/regex/regex_syntax_parser.cure) | Fuel-bounded literal grammar |
-| [`regex_syntax_class.cure`](../../lib/std_deps/regex/regex_syntax_class.cure) | Classes, ranges, POSIX forms, Unicode property syntax |
-| [`regex_syntax_flags.cure`](../../lib/std_deps/regex/regex_syntax_flags.cure) | Literal modifiers, extended-mode source mapping, newline options |
-| [`regex_syntax_emitter.cure`](../../lib/std_deps/regex/regex_syntax_emitter.cure) | Typed/staged machine emission |
-| [`regex_core.cure`](../../lib/std_deps/regex/regex_core.cure) | `ShapeCode`, indexed `Pattern`, evidence, boundaries, language core |
-| [`regex_runtime.cure`](../../lib/std_deps/regex/regex_runtime.cure) | Thompson machine, ordered search, captures, assertions, public runtime values |
-| [`regex_proof.cure`](../../lib/std_deps/regex/regex_proof.cure) | Compilation, acceptance, extraction, soundness/completeness adapters |
-| [`regex_language.cure`](../../lib/std_deps/regex/regex_language.cure) | Constructive pattern denotation and language semantics |
+| [`regex.cure`](regex.cure) | Public `Std.Regex` façade and collection/search APIs |
+| [`regex_syntax.cure`](regex_syntax.cure) | Regex literal macro entry point: expansion, failure diagnostics, and hints |
+| [`regex_syntax_model.cure`](regex_syntax_model.cure) | Compile-time syntax tree, options, capture layout, limits, diagnostics |
+| [`regex_syntax_parser.cure`](regex_syntax_parser.cure) | Fuel-bounded literal grammar |
+| [`regex_syntax_class.cure`](regex_syntax_class.cure) | Classes, ranges, POSIX forms, Unicode property syntax |
+| [`regex_syntax_flags.cure`](regex_syntax_flags.cure) | Literal modifiers, extended-mode source mapping, newline options |
+| [`regex_syntax_emitter.cure`](regex_syntax_emitter.cure) | Typed/staged machine emission |
+| [`regex_core.cure`](regex_core.cure) | `ShapeCode`, indexed `Pattern`, evidence, boundaries, language core |
+| [`regex_runtime.cure`](regex_runtime.cure) | Thompson machine, ordered search, captures, assertions, public runtime values |
+| [`regex_proof.cure`](regex_proof.cure) | Compilation, acceptance, extraction, soundness/completeness adapters |
+| [`regex_language.cure`](regex_language.cure) | Constructive pattern denotation and language semantics |
 | [`data/ScriptExtensions-17.0.0.txt`](data/ScriptExtensions-17.0.0.txt) | Pinned Unicode 17.0.0 Script_Extensions ranges |
 
 The governing sequence and gates are in the
-[Regex master implementation roadmap](../../docs/superpowers/specs/stdlib/2026-08-20-regex-master-implementation-roadmap.md).
+[Regex master implementation roadmap](../../../docs/superpowers/specs/stdlib/2026-08-20-regex-master-implementation-roadmap.md).
 The semantic foundation is specified in the
-[pure portable engine design](../../docs/superpowers/specs/stdlib/2026-08-19-pure-portable-regex-engine-design.md),
+[pure portable engine design](../../../docs/superpowers/specs/stdlib/2026-08-19-pure-portable-regex-engine-design.md),
 and the deferred runtime ABI is specified in the
-[runtime compatibility-layer design](../../docs/superpowers/specs/stdlib/2026-08-20-runtime-regex-compatibility-layer-design.md).
+[runtime compatibility-layer design](../../../docs/superpowers/specs/stdlib/2026-08-20-runtime-regex-compatibility-layer-design.md).
