@@ -256,7 +256,9 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
   test "atomic prefix endpoint policy is implemented by the atomic authority" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
-    [body] = Regex.run(~r/fn atomic_lookaround_routine_prefix\b.*?\n\n  fn atomic_lookaround_routine_first_prefix/s, source)
+
+    [body] =
+      Regex.run(~r/fn atomic_lookaround_routine_prefix\b.*?\n\n  fn atomic_lookaround_routine_first_prefix/s, source)
 
     assert body =~ "atomic_lookaround_routine_first_prefix"
     assert body =~ "atomic_lookaround_routine_last_prefix"
@@ -284,7 +286,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     assert Regex.match?(
              ~r/fn lookaround_admitted_cursor_suffix_alignment\b.*?LookaroundAdmittedStateCursorAlignment/s,
-           source
+             source
            )
   end
 
@@ -292,7 +294,9 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     [input_exhausted] = Enum.filter(String.split(source, "\n"), &String.contains?(&1, "AtomicPathInputExhausted :"))
-    [destination_rejected] = Enum.filter(String.split(source, "\n"), &String.contains?(&1, "AtomicPathDestinationRejected :"))
+
+    [destination_rejected] =
+      Enum.filter(String.split(source, "\n"), &String.contains?(&1, "AtomicPathDestinationRejected :"))
 
     assert input_exhausted =~ "LookaroundAdmittedStateCursorSuffix"
     assert destination_rejected =~ "LookaroundAdmittedStateCursorSuffix"
@@ -344,7 +348,11 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     assert source =~ "atomic_path_destination_rejection_excludes_stored_aligned_child"
-    assert Regex.match?(~r/atomic_path_destination_rejection_excludes_aligned_child\b[^=]*child_failure_suffix/s, source)
+
+    assert Regex.match?(
+             ~r/atomic_path_destination_rejection_excludes_aligned_child\b[^=]*child_failure_suffix/s,
+             source
+           )
   end
 
   test "atomic recursive refutation consumes the source-cursor suffix" do
@@ -365,6 +373,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     assert source =~ "transport_lookaround_admitted_cursor_suffix_outer"
     assert source =~ "atomic_child_cursor_alignment"
+
     assert Regex.match?(
              ~r/AtomicSelectedTransitionActive\s*:.*?child_selected_whole_equivalence/s,
              source
@@ -502,7 +511,12 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     assert source =~ "type AtomicSelectedStartWitness"
-    assert Regex.match?(~r/AtomicSelectedStartWitness\([^\n]+whole: List\(LookaroundAdmittedState\(n\)\), current: List\(LookaroundAdmittedState\(n\)\)/, source)
+
+    assert Regex.match?(
+             ~r/AtomicSelectedStartWitness\([^\n]+whole: List\(LookaroundAdmittedState\(n\)\), current: List\(LookaroundAdmittedState\(n\)\)/,
+             source
+           )
+
     assert Regex.match?(~r/AtomicSelectedStartWitnessPacked\s*:.*?ListMember/s, source)
     assert Regex.match?(~r/AtomicSelectedStartWitnessPacked\s*:.*?AtomicSelectedTrace/s, source)
     assert Regex.match?(~r/LookaroundRoutineSearchYes\s*:.*?AtomicSelectedStartWitness/s, source)
@@ -513,7 +527,11 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     assert source =~ "fn atomic_selected_start_witness_induction_erased"
     assert Regex.match?(~r/atomic_selected_start_witness_induction_erased.*?AtomicSelectedStartWitness/s, source)
-    assert Regex.match?(~r/atomic_selected_start_witness_induction_erased.*?atomic_start_rejected_member_induction_erased/s, source)
+
+    assert Regex.match?(
+             ~r/atomic_selected_start_witness_induction_erased.*?atomic_start_rejected_member_induction_erased/s,
+             source
+           )
   end
 
   test "blocked atomic starts retain typed skip evidence" do
@@ -555,7 +573,9 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
   test "active non-empty tails accept arbitrary selected membership" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
-    [_prefix, body] = String.split(source, "fn atomic_start_rejected_member_there_active_tail_head_excludes_trace", parts: 2)
+    [_prefix, body] =
+      String.split(source, "fn atomic_start_rejected_member_there_active_tail_head_excludes_trace", parts: 2)
+
     [body | _] = String.split(body, "\n  ##", parts: 2)
     assert body =~ "selected_start: LookaroundAdmittedState(n)"
     assert body =~ "atomic_start_rejected_member_induction_erased"
@@ -608,7 +628,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     assert Regex.match?(
              ~r/fn atomic_path_tail_destinations_exhausted_excludes_selected_suffix\b.*?AtomicPathDestinationRejected.*?AtomicPathDestinationsExhausted.*?AtomicSelectedPathTrace/s,
-           source
+             source
            )
   end
 
@@ -617,10 +637,12 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     assert source =~ "type AtomicPathTailPackage"
     assert source =~ "typealias AtomicPathRejectedTailAt"
+
     assert Regex.match?(
              ~r/fn atomic_path_destination_rejected_tail_package\b.*?AtomicPathDestinationRejected.*?AtomicPathTailPackagePacked/s,
              source
            )
+
     assert Regex.match?(
              ~r/fn atomic_path_tail_package_destinations_exhausted_excludes_trace\b.*?AtomicPathTailPackagePacked.*?AtomicPathDestinationsExhausted/s,
              source
@@ -692,9 +714,21 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     assert source =~ "fn atomic_start_tail_accepted_candidate_rejection_excludes_trace"
-    assert Regex.match?(~r/atomic_start_tail_accepted_candidate_rejection_excludes_trace.*?AtomicStartNoEvidence/s, source)
-    assert Regex.match?(~r/atomic_start_tail_accepted_candidate_rejection_excludes_trace.*?AtomicStartNoRejectedEvidence/s, source)
-    assert Regex.match?(~r/atomic_start_tail_accepted_candidate_rejection_excludes_trace.*?atomic_start_accepted_candidate_rejection_excludes_trace/s, source)
+
+    assert Regex.match?(
+             ~r/atomic_start_tail_accepted_candidate_rejection_excludes_trace.*?AtomicStartNoEvidence/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/atomic_start_tail_accepted_candidate_rejection_excludes_trace.*?AtomicStartNoRejectedEvidence/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/atomic_start_tail_accepted_candidate_rejection_excludes_trace.*?atomic_start_accepted_candidate_rejection_excludes_trace/s,
+             source
+           )
   end
 
   test "accepted rejected tails retain recursive siblings" do
@@ -711,9 +745,21 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     assert source =~ "fn atomic_start_tail_active_candidate_rejection_excludes_trace"
-    assert Regex.match?(~r/atomic_start_tail_active_candidate_rejection_excludes_trace.*?AtomicStartNoEvidence/s, source)
-    assert Regex.match?(~r/atomic_start_tail_active_candidate_rejection_excludes_trace.*?AtomicStartNoRejectedEvidence/s, source)
-    assert Regex.match?(~r/atomic_start_tail_active_candidate_rejection_excludes_trace.*?atomic_start_candidate_rejection_excludes_trace/s, source)
+
+    assert Regex.match?(
+             ~r/atomic_start_tail_active_candidate_rejection_excludes_trace.*?AtomicStartNoEvidence/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/atomic_start_tail_active_candidate_rejection_excludes_trace.*?AtomicStartNoRejectedEvidence/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/atomic_start_tail_active_candidate_rejection_excludes_trace.*?atomic_start_candidate_rejection_excludes_trace/s,
+             source
+           )
   end
 
   test "blocked rejected tails consume typed no-result evidence" do
@@ -721,10 +767,26 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     assert source =~ "fn atomic_start_tail_blocked_active_candidate_excludes_trace"
     assert source =~ "fn atomic_start_tail_blocked_accepted_candidate_excludes_trace"
-    assert Regex.match?(~r/atomic_start_tail_blocked_active_candidate_excludes_trace.*?AtomicStartNoBlockedEvidence/s, source)
-    assert Regex.match?(~r/atomic_start_tail_blocked_accepted_candidate_excludes_trace.*?AtomicStartNoBlockedEvidence/s, source)
-    assert Regex.match?(~r/atomic_start_tail_blocked_active_candidate_excludes_trace.*?atomic_start_scope_record_excludes_allowed/s, source)
-    assert Regex.match?(~r/atomic_start_tail_blocked_accepted_candidate_excludes_trace.*?atomic_start_scope_record_excludes_allowed/s, source)
+
+    assert Regex.match?(
+             ~r/atomic_start_tail_blocked_active_candidate_excludes_trace.*?AtomicStartNoBlockedEvidence/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/atomic_start_tail_blocked_accepted_candidate_excludes_trace.*?AtomicStartNoBlockedEvidence/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/atomic_start_tail_blocked_active_candidate_excludes_trace.*?atomic_start_scope_record_excludes_allowed/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/atomic_start_tail_blocked_accepted_candidate_excludes_trace.*?atomic_start_scope_record_excludes_allowed/s,
+             source
+           )
   end
 
   test "blocked rejected tails retain recursive siblings" do
@@ -744,7 +806,11 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     assert source =~ "fn atomic_start_rejected_tail_evidence"
-    assert Regex.match?(~r/atomic_start_rejected_tail_evidence.*?AtomicStartNoEvidence.*?AtomicStartNoRejectedEvidence/s, source)
+
+    assert Regex.match?(
+             ~r/atomic_start_rejected_tail_evidence.*?AtomicStartNoEvidence.*?AtomicStartNoRejectedEvidence/s,
+             source
+           )
   end
 
   test "active rejected start evidence retains its indexed tail" do
@@ -774,7 +840,11 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     assert source =~ "fn atomic_start_rejected_member_induction"
-    assert Regex.match?(~r/atomic_start_rejected_member_induction.*?AtomicStartMembersRefutation.*?AtomicStartNoEvidence/s, source)
+
+    assert Regex.match?(
+             ~r/atomic_start_rejected_member_induction.*?AtomicStartMembersRefutation.*?AtomicStartNoEvidence/s,
+             source
+           )
   end
 
   test "rejected induction uses an erased tail proof thunk" do
@@ -788,8 +858,16 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     assert source =~ "fn atomic_start_rejected_member_here_excludes_trace"
-    assert Regex.match?(~r/atomic_start_rejected_member_here_excludes_trace.*?AtomicStartMemberHere.*?AtomicStartCandidateRejected.*?AtomicPathInputExhausted/s, source)
-    assert Regex.match?(~r/atomic_start_rejected_member_here_excludes_trace.*?AtomicStartNoEvidence.*?tail_case: \(AtomicStartActiveRootTailProofPackage/s, source)
+
+    assert Regex.match?(
+             ~r/atomic_start_rejected_member_here_excludes_trace.*?AtomicStartMemberHere.*?AtomicStartCandidateRejected.*?AtomicPathInputExhausted/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/atomic_start_rejected_member_here_excludes_trace.*?AtomicStartNoEvidence.*?tail_case: \(AtomicStartActiveRootTailProofPackage/s,
+             source
+           )
   end
 
   test "rejected member induction exposes the typed recursive tail package" do
@@ -812,30 +890,40 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     assert source =~ "fn atomic_start_rejected_tail_package_exhausted_excludes_trace"
-    assert Regex.match?(~r/atomic_start_rejected_tail_package_exhausted_excludes_trace.*?AtomicStartTailPackagePacked.*?atomic_start_failure_excludes_trace/s, source)
+
+    assert Regex.match?(
+             ~r/atomic_start_rejected_tail_package_exhausted_excludes_trace.*?AtomicStartTailPackagePacked.*?atomic_start_failure_excludes_trace/s,
+             source
+           )
   end
 
   test "rejected recursive There consumes an exhausted tail package" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     assert source =~ "fn atomic_start_rejected_member_there_exhausted_tail_excludes_trace"
-    assert Regex.match?(~r/atomic_start_rejected_member_there_exhausted_tail_excludes_trace.*?AtomicStartMemberThere.*?atomic_start_rejected_tail_package_exhausted_excludes_trace/s, source)
+
+    assert Regex.match?(
+             ~r/atomic_start_rejected_member_there_exhausted_tail_excludes_trace.*?AtomicStartMemberThere.*?atomic_start_rejected_tail_package_exhausted_excludes_trace/s,
+             source
+           )
   end
 
   test "rejected recursive There descends through a non-empty tail" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     assert source =~ "fn atomic_start_rejected_member_there_nonempty_tail_excludes_trace"
-    assert Regex.match?(~r/atomic_start_rejected_member_there_nonempty_tail_excludes_trace.*?AtomicStartMembersRefutation.*?AtomicStartNoEvidence.*?tail_case/s, source)
+
+    assert Regex.match?(
+             ~r/atomic_start_rejected_member_there_nonempty_tail_excludes_trace.*?AtomicStartMembersRefutation.*?AtomicStartNoEvidence.*?tail_case/s,
+             source
+           )
   end
 
   test "non-empty rejected start tails consume the indexed induction boundary" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     [_prefix, body] =
-      String.split(source, "fn atomic_start_rejected_member_there_nonempty_tail_excludes_trace",
-        parts: 2
-      )
+      String.split(source, "fn atomic_start_rejected_member_there_nonempty_tail_excludes_trace", parts: 2)
 
     [body | _] = String.split(body, "\n  ##", parts: 2)
     assert body =~ "member_there"
@@ -846,9 +934,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     [_prefix, body] =
-      String.split(source, "fn atomic_start_rejected_member_there_nonempty_tail_excludes_trace",
-        parts: 2
-      )
+      String.split(source, "fn atomic_start_rejected_member_there_nonempty_tail_excludes_trace", parts: 2)
 
     [body | _] = String.split(body, "\n  ##", parts: 2)
     assert body =~ "head_case: result"
@@ -867,6 +953,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     assert source =~ "AtomicStartMembersTailActiveNo"
+
     assert Regex.match?(
              ~r/atomic_lookaround_routine_initial_tail_after_failure.*?AtomicStartMembersActiveRootNo.*?atomic_start_initial_tail_no_with_active_tail/s,
              source
@@ -877,7 +964,11 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     assert source =~ "fn atomic_start_rejected_member_there_active_tail_head_excludes_trace"
-    assert Regex.match?(~r/atomic_start_rejected_member_there_active_tail_head_excludes_trace.*?AtomicStartNoRejectedEvidence.*?atomic_start_tail_active_candidate_rejection_excludes_trace/s, source)
+
+    assert Regex.match?(
+             ~r/atomic_start_rejected_member_there_active_tail_head_excludes_trace.*?AtomicStartNoRejectedEvidence.*?atomic_start_tail_active_candidate_rejection_excludes_trace/s,
+             source
+           )
   end
 
   test "non-empty selected membership has an erased tail-witness transport" do
@@ -892,8 +983,16 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     assert source =~ "type AtomicStartActiveRejectedTailPackage"
-    assert Regex.match?(~r/type AtomicStartActiveRejectedTailPackage.*?AtomicPathRefutation.*?child_scope_depth/s, source)
-    assert Regex.match?(~r/AtomicStartActiveRejectedTailPackagePacked.*?Equivalent\(Nat, child_scope_depth, atomic_scope_depth_after/s, source)
+
+    assert Regex.match?(
+             ~r/type AtomicStartActiveRejectedTailPackage.*?AtomicPathRefutation.*?child_scope_depth/s,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/AtomicStartActiveRejectedTailPackagePacked.*?Equivalent\(Nat, child_scope_depth, atomic_scope_depth_after/s,
+             source
+           )
   end
 
   test "rejected start evidence retains child scope alignment" do
@@ -928,7 +1027,11 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     assert source =~ "fn atomic_start_scope_record_excludes_allowed"
-    assert Regex.match?(~r/atomic_start_scope_record_excludes_allowed.*?AtomicStartScopeEvidenceRecorded.*?atomic_start_skip_excludes_allowed/s, source)
+
+    assert Regex.match?(
+             ~r/atomic_start_scope_record_excludes_allowed.*?AtomicStartScopeEvidenceRecorded.*?atomic_start_skip_excludes_allowed/s,
+             source
+           )
 
     for name <- [
           "atomic_start_tail_blocked_active_candidate_excludes_trace",
@@ -944,10 +1047,12 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     assert source =~ "fn atomic_start_rejected_tail_dispatch_blocked"
+
     assert Regex.match?(
              ~r/atomic_start_rejected_tail_dispatch_blocked.*?AtomicStartBlockedTailPackagePacked.*?atomic_start_blocked_member_induction_erased/s,
              source
            )
+
     assert Regex.match?(
              ~r/atomic_start_rejected_tail_dispatch_blocked.*?AtomicStartBlockedTailPackagePacked.*?tail_case/s,
              source
@@ -971,6 +1076,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert source =~ "type AtomicStartAcceptedRejectedTailPackage"
     assert source =~ "fn atomic_start_accepted_rejected_tail_package"
     assert source =~ "fn atomic_start_rejected_member_there_nonempty_tail_accepted_excludes_trace"
+
     assert Regex.match?(
              ~r/atomic_start_rejected_member_there_nonempty_tail_accepted_excludes_trace.*?AtomicStartAcceptedRejectedTailPackage.*?atomic_start_rejected_member_there_accepted_tail_head_excludes_trace/s,
              source
@@ -983,6 +1089,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert source =~ "type AtomicStartActiveRootTailProofPackage"
     assert source =~ "fn atomic_start_active_root_tail_package"
     assert source =~ "fn atomic_start_rejected_member_there_nonempty_tail_active_excludes_trace"
+
     assert Regex.match?(
              ~r/atomic_start_rejected_member_there_nonempty_tail_active_excludes_trace.*?AtomicStartActiveRootTailProofPackage.*?atomic_start_rejected_member_there_active_tail_head_excludes_trace/s,
              source
@@ -1010,7 +1117,11 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     assert source =~ "AtomicStartActiveRootTailProofPackageAt"
 
-    assert Regex.match?(~r/atomic_lookaround_routine_initial_tail_after_failure.*?atomic_start_initial_tail_no/s, source)
+    assert Regex.match?(
+             ~r/atomic_lookaround_routine_initial_tail_after_failure.*?atomic_start_initial_tail_no/s,
+             source
+           )
+
     assert Regex.match?(~r/fn atomic_start_initial_tail_no.*?atomic_start_active_root_no_empty/s, source)
   end
 
@@ -1025,14 +1136,40 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert source =~ "fn atomic_start_root_exhaustion_excludes_trace"
   end
 
+  test "exhausted atomic starts have a root refutation consumer" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "fn atomic_start_refutation_exhaustion_excludes_trace"
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_start_refutation_exhaustion_excludes_trace", parts: 2)
+
+    [body | _] = String.split(body, "\n  fn ", parts: 2)
+
+    assert Regex.match?(
+             ~r/fn atomic_start_refutation_root_exhausted.*?AtomicStartRefutationRoot\(failure, evidence\)/s,
+             source
+           )
+
+    assert body =~ "AtomicStartFailureExhausted"
+    assert body =~ "atomic_start_root_exhaustion_excludes_trace"
+  end
+
   test "non-empty rejected tails consume an accepted head" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     assert source =~ "fn atomic_start_rejected_member_there_accepted_tail_head_excludes_trace"
 
-    [_prefix, body] = String.split(source, "fn atomic_start_rejected_member_there_accepted_tail_head_excludes_trace", parts: 2)
+    [_prefix, body] =
+      String.split(source, "fn atomic_start_rejected_member_there_accepted_tail_head_excludes_trace", parts: 2)
+
     [body | _] = String.split(body, "\n  ##", parts: 2)
-    assert Regex.match?(~r/AtomicStartNoRejectedEvidence.*?atomic_start_tail_accepted_candidate_rejection_excludes_trace/s, body)
+
+    assert Regex.match?(
+             ~r/AtomicStartNoRejectedEvidence.*?atomic_start_tail_accepted_candidate_rejection_excludes_trace/s,
+             body
+           )
+
     assert Regex.match?(~r/capture_context,\s+policy,\s+False\(\)/s, body)
   end
 
@@ -1068,7 +1205,9 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     assert source =~ "fn atomic_start_rejected_member_there_blocked_active_tail_head_excludes_trace"
 
-    [_prefix, body] = String.split(source, "fn atomic_start_rejected_member_there_blocked_active_tail_head_excludes_trace", parts: 2)
+    [_prefix, body] =
+      String.split(source, "fn atomic_start_rejected_member_there_blocked_active_tail_head_excludes_trace", parts: 2)
+
     [body | _] = String.split(body, "\n  ##", parts: 2)
     assert body =~ "AtomicSelectedTrace("
     assert Regex.match?(~r/AtomicStartNoBlockedEvidence.*?atomic_start_skip_excludes_allowed/s, body)
@@ -1090,7 +1229,9 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     assert source =~ "fn atomic_start_rejected_member_there_blocked_accepted_tail_head_excludes_trace"
 
-    [_prefix, body] = String.split(source, "fn atomic_start_rejected_member_there_blocked_accepted_tail_head_excludes_trace", parts: 2)
+    [_prefix, body] =
+      String.split(source, "fn atomic_start_rejected_member_there_blocked_accepted_tail_head_excludes_trace", parts: 2)
+
     [body | _] = String.split(body, "\n  ##", parts: 2)
     assert body =~ "AtomicSelectedTrace("
     assert Regex.match?(~r/AtomicStartNoBlockedEvidence.*?atomic_start_skip_excludes_allowed/s, body)
@@ -1112,9 +1253,16 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     assert source =~ "fn atomic_path_active_child_destinations_exhausted_excludes_aligned_trace"
 
-    [_prefix, body] = String.split(source, "fn atomic_path_active_child_destinations_exhausted_excludes_aligned_trace", parts: 2)
+    [_prefix, body] =
+      String.split(source, "fn atomic_path_active_child_destinations_exhausted_excludes_aligned_trace", parts: 2)
+
     [body | _] = String.split(body, "\n  ##", parts: 2)
-    assert Regex.match?(~r/atomic_child_cursor_alignment.*?LookaroundAdmittedCursorLeftToRight.*?atomic_path_failure_excludes_aligned_trace/s, body)
+
+    assert Regex.match?(
+             ~r/atomic_child_cursor_alignment.*?LookaroundAdmittedCursorLeftToRight.*?atomic_path_failure_excludes_aligned_trace/s,
+             body
+           )
+
     assert Regex.match?(~r/LookaroundAdmittedCursorRightToLeft.*?reverse_case/s, body)
   end
 
@@ -1123,7 +1271,9 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     assert source =~ "fn atomic_path_destination_rejection_excludes_recursive_tail_rejected"
 
-    [_prefix, body] = String.split(source, "fn atomic_path_destination_rejection_excludes_recursive_tail_rejected", parts: 2)
+    [_prefix, body] =
+      String.split(source, "fn atomic_path_destination_rejection_excludes_recursive_tail_rejected", parts: 2)
+
     [body | _] = String.split(body, "\n  ##", parts: 2)
     assert Regex.match?(~r/AtomicPathDestinationRejected.*?tail_case/s, body)
   end
@@ -1134,9 +1284,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert source =~ "fn atomic_path_destination_rejection_selected_suffix_dispatch"
 
     [_prefix, body] =
-      String.split(source, "fn atomic_path_destination_rejection_selected_suffix_dispatch",
-        parts: 2
-      )
+      String.split(source, "fn atomic_path_destination_rejection_selected_suffix_dispatch", parts: 2)
 
     [body | _] = String.split(body, "\n  ##", parts: 2)
 
@@ -1203,9 +1351,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     [_prefix, body] =
-      String.split(source, "fn atomic_path_tail_active_child_rejection_excludes_selected_suffix(",
-        parts: 2
-      )
+      String.split(source, "fn atomic_path_tail_active_child_rejection_excludes_selected_suffix(", parts: 2)
 
     [body | _] = String.split(body, "\n  ##", parts: 2)
     assert body =~ "atomic_path_destination_rejection_excludes_recursive_tail_rejected("
@@ -1216,9 +1362,12 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     assert source =~ "fn atomic_path_tail_active_child_rejection_excludes_selected_suffix"
 
-    [_prefix, body] = String.split(source, "fn atomic_path_tail_active_child_rejection_excludes_selected_suffix", parts: 2)
+    [_prefix, body] =
+      String.split(source, "fn atomic_path_tail_active_child_rejection_excludes_selected_suffix", parts: 2)
+
     [body | _] = String.split(body, "\n  ##", parts: 2)
     assert Regex.match?(~r/child_failure:\s+AtomicPathRefutation.*?AtomicPathFailureDestinationRejected/s, body)
+
     assert Regex.match?(
              ~r/AtomicSelectedTransitionActive.*?atomic_path_active_child_rejection_excludes_trace/s,
              body
@@ -1243,9 +1392,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert source =~ "fn atomic_path_tail_active_child_rejection_excludes_selected_suffix"
 
     [_prefix, body] =
-      String.split(source, "fn atomic_path_tail_active_child_rejection_excludes_selected_suffix",
-        parts: 2
-      )
+      String.split(source, "fn atomic_path_tail_active_child_rejection_excludes_selected_suffix", parts: 2)
 
     [body | _] = String.split(body, "\n  ##", parts: 2)
 
@@ -1347,9 +1494,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert source =~ "type AtomicPathActiveChildAlignment"
 
     [_prefix, body] =
-      String.split(source, "fn atomic_path_active_child_alignment",
-        parts: 2
-      )
+      String.split(source, "fn atomic_path_active_child_alignment", parts: 2)
 
     [body | _] = String.split(body, "\n  ##", parts: 2)
 
@@ -1694,8 +1839,16 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/AtomicSelectedStartActive\s*:[^\n]*selected_origin_equivalence/, source)
     assert Regex.match?(~r/AtomicSelectedStartAccepted\s*:[^\n]*selected_origin_equivalence/, source)
     assert source =~ "type LookaroundAdmittedStateCursor"
-    assert Regex.match?(~r/AtomicSelectedTransitionActive\s*:[^\n]*LookaroundAdmittedStateCursor[^\n]*ListMember/, source)
-    assert Regex.match?(~r/AtomicSelectedTransitionAccepted\s*:[^\n]*LookaroundAdmittedStateCursor[^\n]*ListMember/, source)
+
+    assert Regex.match?(
+             ~r/AtomicSelectedTransitionActive\s*:[^\n]*LookaroundAdmittedStateCursor[^\n]*ListMember/,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/AtomicSelectedTransitionAccepted\s*:[^\n]*LookaroundAdmittedStateCursor[^\n]*ListMember/,
+             source
+           )
 
     assert Regex.match?(
              ~r/AtomicSelectedTransitionActive\s*:[^\n]*Equivalent[^\n]*lookaround_machine_admitted_destinations/,
@@ -1753,9 +1906,17 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert source =~ "atomic_path_root_exact_accepted_with_input_evidence"
     assert source =~ "atomic_path_root_input_exhausted_evidence"
     assert Regex.match?(~r/AtomicPathExactAcceptedWithInput\s*:[^\n]*Cons\(char, rest\)/, source)
-    assert Regex.match?(~r/AtomicPathDestinationRejected\s*:[^\n]*LookaroundAdmittedStateCursor[^\n]*ListMember[^\n]*Equivalent[^\n]*lookaround_machine_admitted_destinations/, source)
+
+    assert Regex.match?(
+             ~r/AtomicPathDestinationRejected\s*:[^\n]*LookaroundAdmittedStateCursor[^\n]*ListMember[^\n]*Equivalent[^\n]*lookaround_machine_admitted_destinations/,
+             source
+           )
+
     assert source =~ "AtomicStartCandidateRejected"
-    start_rejection = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    AtomicStartCandidateRejected :"))
+
+    start_rejection =
+      Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    AtomicStartCandidateRejected :"))
+
     assert start_rejection =~ "LookaroundAdmittedState(n)"
     assert start_rejection =~ "LookaroundAdmittedStateCursor"
     assert start_rejection =~ "ListMember"
@@ -1778,11 +1939,17 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert source =~ "atomic_path_failure_excludes_selected_suffix"
     assert source =~ "atomic_path_tail_destinations_exhausted_excludes_aligned_trace"
     input_exhausted = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    AtomicPathInputExhausted :"))
-    destinations_exhausted = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    AtomicPathDestinationsExhausted :"))
+
+    destinations_exhausted =
+      Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    AtomicPathDestinationsExhausted :"))
+
     assert input_exhausted =~ "ThreadActive(source)"
     assert input_exhausted =~ "machine, Nil(), after_input, ThreadActive(source)"
     assert destinations_exhausted =~ "ThreadActive(source)"
-    destination_rejected = Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    AtomicPathDestinationRejected :"))
+
+    destination_rejected =
+      Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    AtomicPathDestinationRejected :"))
+
     assert destination_rejected =~ "ThreadActive(source)"
 
     destination_rejection =

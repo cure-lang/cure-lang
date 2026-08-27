@@ -7272,6 +7272,82 @@ mod Std.Regex.Runtime
       path
     )
 
+  ## The public start refutation is an existential wrapper around the complete
+  ## root member traversal.  Construct and eliminate that wrapper at the same
+  ## root boundary: the exhausted constructor exposes the empty root suffix
+  ## required by `atomic_start_root_exhaustion_excludes_trace`, while retaining
+  ## the public certificate shape used by the decision result.
+  @reducible
+  fn atomic_start_refutation_root_exhausted(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    @erased failure: AtomicStartMembersRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, Nil(), Nil(), AtomicStartFailureExhausted()),
+    @erased evidence: AtomicStartNoEvidence(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, Nil(), Nil(), AtomicStartFailureExhausted())
+  ) -> AtomicStartRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix) = AtomicStartRefutationRoot(failure, evidence)
+
+  @reducible
+  fn atomic_start_refutation_exhaustion_excludes_trace(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    @erased failure: AtomicStartMembersRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, Nil(), Nil(), AtomicStartFailureExhausted()),
+    @erased evidence: AtomicStartNoEvidence(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, Nil(), Nil(), AtomicStartFailureExhausted()),
+    {item: LookaroundAdmittedState(n)},
+    @erased membership: ListMember(LookaroundAdmittedState(n), item, Nil()),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      item,
+      matched,
+      remaining_input,
+      routine
+    )
+  ) -> result = lookaround_absurd(atomic_start_root_exhaustion_excludes_trace(
+    machine,
+    position,
+    input,
+    after_input,
+    history,
+    capture_context,
+    policy,
+    prefix_mode,
+    reversed_prefix,
+    failure,
+    evidence,
+    membership,
+    path
+  ))
+
   ## An active start candidate rejected by its child cannot also be the head of
   ## a selected trace.  The rejection constructor publishes the child's exact
   ## suffix and refutation; this consumer passes both to the indexed child
