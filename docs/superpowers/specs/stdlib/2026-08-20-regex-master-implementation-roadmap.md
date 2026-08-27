@@ -1569,6 +1569,18 @@ published `Std.Char` interface (the old artifact still advertises
 the canonical stdlib generation is required before the direct package compile
 can be rerun.
 
+The blocked root-start construction now has an explicit typed bridge,
+`atomic_start_root_blocked_tail_dispatch`. It preserves the parent
+`AtomicStartMembersRefutation` and matching `AtomicStartNoEvidence`, constructs
+the `AtomicStartTailPackage` at the proof boundary, and forwards the candidate
+to the existing non-empty-tail blocked dispatcher. The dispatcher is lifted
+through `lookaround_absurd`, so its `Empty` contradiction can serve any result
+type; the later sibling remains a zero-argument proof-only continuation. A
+source regression pins this construction shape, and direct compilation of the
+complete `lib/std_deps/regex/regex_runtime.cure` module succeeds. This is still
+one construction-site slice: the bridge is not the general non-empty
+start-fold or the final selected-trace/refutation correspondence.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

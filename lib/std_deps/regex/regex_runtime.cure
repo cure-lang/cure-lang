@@ -7348,6 +7348,124 @@ mod Std.Regex.Runtime
     path
   ))
 
+  ## Root blocked failures retain their exact parent failure/evidence pair
+  ## while entering the typed non-empty-tail dispatcher.  The package is
+  ## constructed at this boundary, and the later-sibling obligation remains a
+  ## zero-argument proof-only continuation; no existential tail kind or
+  ## commitment tag is promoted into runtime control.
+  @reducible
+  fn atomic_start_root_blocked_tail_dispatch(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {whole: List(LookaroundAdmittedState(n))},
+    candidate: LookaroundAdmittedState(n),
+    {remaining: List(LookaroundAdmittedState(n))},
+    @erased failure: AtomicStartMembersRefutation(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(candidate, remaining),
+      AtomicStartFailureBlocked()
+    ),
+    @erased evidence: AtomicStartNoEvidence(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(candidate, remaining),
+      AtomicStartFailureBlocked()
+    ),
+    {blocked_depth: Option(Nat)},
+    {@erased kind: AtomicStartSkipKind},
+    @erased skip: AtomicStartSkipEvidence(blocked_depth, kind),
+    @erased allowed: AtomicStartAllowed(blocked_depth, kind),
+    {@erased selected_start: LookaroundAdmittedState(n)},
+    membership: ListMember(LookaroundAdmittedState(n), selected_start, Cons(candidate, remaining)),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      selected_start,
+      matched,
+      remaining_input,
+      selected_routine
+    ),
+    tail_case: () -> Empty
+  ) -> result =
+    let package: AtomicStartTailPackage(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(candidate, remaining)
+    ) = AtomicStartTailPackagePacked(failure, evidence)
+    lookaround_absurd(atomic_start_rejected_member_there_nonempty_tail_blocked_excludes_trace(
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      candidate,
+      package,
+      failure,
+      evidence,
+      skip,
+      allowed,
+      membership,
+      path,
+      tail_case
+    ))
+
   ## An active start candidate rejected by its child cannot also be the head of
   ## a selected trace.  The rejection constructor publishes the child's exact
   ## suffix and refutation; this consumer passes both to the indexed child
