@@ -9114,38 +9114,39 @@ mod Std.Regex.Runtime
       remaining_input,
       routine
     )
-  ) -> Empty = match nested_failure
-    AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> match nested_tail_failure
-      AtomicPathDestinationsExhausted(_, _, _, _, _, _) ->
-        atomic_path_destination_rejection_excludes_recursive_trace(
-          machine,
-          char,
-          rest,
-          after_input,
-          state,
-          history,
-          capture_context,
-          policy,
-          scope_depth,
-          prefix_mode,
-          reversed_prefix,
-          whole,
-          nested_candidate,
-          nested_failure,
-          matched,
-          remaining_input,
-          routine,
-          LookaroundAdmittedStateCursorSuffixDrop(
+  ) -> Empty = match failure
+    AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> match nested_failure
+      AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> match nested_tail_failure
+        AtomicPathDestinationsExhausted(_, _, _, _, _, _) ->
+          atomic_path_destination_rejection_excludes_recursive_trace(
+            machine,
+            char,
+            rest,
+            after_input,
+            state,
+            history,
+            capture_context,
+            policy,
+            scope_depth,
+            prefix_mode,
+            reversed_prefix,
+            whole,
             nested_candidate,
+            nested_failure,
+            matched,
+            remaining_input,
+            routine,
+            LookaroundAdmittedStateCursorSuffixDrop(
+              nested_candidate,
+              LookaroundAdmittedStateCursorSuffixHere(
+                reflexive(empty_lookaround_admitted_states(n))
+              )
+            ),
             LookaroundAdmittedStateCursorSuffixHere(
               reflexive(empty_lookaround_admitted_states(n))
-            )
-          ),
-          LookaroundAdmittedStateCursorSuffixHere(
-            reflexive(empty_lookaround_admitted_states(n))
-          ),
-          path
-        )
+            ),
+            path
+          )
 
   ## A rejected first candidate can be discharged when the selected trace is
   ## aligned to the sibling tail.  The parent rejection publishes the exact
