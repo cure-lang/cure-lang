@@ -1655,6 +1655,20 @@ The direct complete-module compile and source regression pass. The remaining
 root obligations are empty-input accepted roots, arbitrary rejected-child and
 sibling recursion, and the final all-kinds selected-trace/refutation theorem.
 
+The selected-tail construction boundary now preserves the inherited membership
+needed for arbitrary sibling recursion. `AtomicStartSelectedTailPackage`
+bundles the recursive tail refutation/evidence with the `ListMemberThere`
+predecessor witness and the unchanged `AtomicSelectedTrace`; the new
+`atomic_start_rejected_member_induction_selected_erased` extracts that package
+at the rejected `There` branch instead of invoking a zero-argument
+continuation. The existing non-empty rejected-tail adapter is wired through
+this induction, so the tail's current spine and selected trace remain aligned
+without runtime dispatch or a second machine search. A direct source
+regression and complete `regex_runtime.cure` compilation pass. The public
+root adapters and branch-specific accepted/blocked/active consumers still need
+to consume this package to discharge arbitrary rejected-child and sibling
+recursion, followed by the all-kinds selected-trace/refutation theorem.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

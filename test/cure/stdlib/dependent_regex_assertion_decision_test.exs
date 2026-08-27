@@ -1328,6 +1328,23 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert body =~ "tail_case: () -> result"
   end
 
+  test "selected rejected-tail induction transports inherited membership" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "type AtomicStartSelectedTailPackage"
+    assert source =~ "fn atomic_start_rejected_member_induction_selected_erased"
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_start_rejected_member_induction_selected_erased", parts: 2)
+
+    [body | _] = String.split(body, "\n  fn ", parts: 2)
+
+    assert body =~ "ListMemberThere(prior)"
+    assert body =~ "AtomicStartSelectedTailPackagePacked"
+    assert body =~ "prior"
+    assert body =~ "tail_case"
+  end
+
   test "accepted and blocked head consumers accept arbitrary selected tail membership" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 

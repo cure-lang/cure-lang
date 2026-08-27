@@ -3553,6 +3553,90 @@ mod Std.Regex.Runtime
     ListMemberThere(_) -> match _evidence
       AtomicStartNoRejectedEvidence(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> tail_case()
 
+  ## Selected-trace counterpart of the erased rejected-member induction.  A
+  ## `There` witness contains the exact prior membership for the recursive
+  ## tail; package that witness together with the tail refutation/evidence and
+  ## the unchanged selected trace before invoking the continuation.  This is
+  ## the canonical transport boundary for arbitrary sibling recursion.
+  @reducible
+  fn atomic_start_rejected_member_induction_selected_erased(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {whole: List(LookaroundAdmittedState(n))},
+    {@erased head: LookaroundAdmittedState(n)},
+    {@erased rest: List(LookaroundAdmittedState(n))},
+    {@erased selected_start: LookaroundAdmittedState(n)},
+    @erased _failure: AtomicStartMembersRefutation(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(head, rest),
+      AtomicStartFailureRejected()
+    ),
+    @erased _evidence: AtomicStartNoEvidence(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(head, rest),
+      AtomicStartFailureRejected()
+    ),
+    membership: ListMember(LookaroundAdmittedState(n), selected_start, Cons(head, rest)),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      selected_start,
+      matched,
+      remaining_input,
+      selected_routine
+    ),
+    head_case: result,
+    tail_case: (AtomicStartSelectedTailPackage(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, rest, selected_start, matched, remaining_input, selected_routine)) -> result
+  ) -> result = match membership
+    ListMemberHere() -> head_case
+    ListMemberThere(prior) -> match _evidence
+      AtomicStartNoRejectedEvidence(_, _, _, _, _, _, _, _, _, _, _, _, _, tail_failure, tail_evidence) ->
+        tail_case(AtomicStartSelectedTailPackagePacked(tail_failure, tail_evidence, prior, path))
+
   ## Construction-site wrapper for a successful atomic witness.  The
   ## membership argument remains relevant here so the Here/There split can
   ## drive proof-only continuations; the linked witness is erased and fixes
@@ -3973,6 +4057,15 @@ mod Std.Regex.Runtime
 
   type AtomicStartTailPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), remaining: List(LookaroundAdmittedState(n)))
     AtomicStartTailPackagePacked : {@erased kind: AtomicStartFailureKind} -> (@erased failure: AtomicStartMembersRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining, kind)) -> (@erased evidence: AtomicStartNoEvidence(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining, kind)) -> AtomicStartTailPackage(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining)
+
+  ## A selected-tail package retains the inherited membership and trace while
+  ## the rejected start fold moves past one sibling.  The recursive failure
+  ## kind stays existential, exactly as in `AtomicStartTailPackage`; the
+  ## selected membership is the additional evidence that lets the next
+  ## construction site continue the same selected-start contradiction rather
+  ## than falling back to a zero-argument assumption.
+  type AtomicStartSelectedTailPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), remaining: List(LookaroundAdmittedState(n)), selected_start: LookaroundAdmittedState(n), matched: List(Char), remaining_input: List(Char), selected_routine: List(ExtendedInstruction))
+    AtomicStartSelectedTailPackagePacked : {@erased kind: AtomicStartFailureKind} -> (@erased failure: AtomicStartMembersRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining, kind)) -> (@erased evidence: AtomicStartNoEvidence(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining, kind)) -> (@erased membership: ListMember(LookaroundAdmittedState(n), selected_start, remaining)) -> (@erased path: AtomicSelectedTrace(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, selected_start, matched, remaining_input, selected_routine)) -> AtomicStartSelectedTailPackage(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining, selected_start, matched, remaining_input, selected_routine)
 
   typealias AtomicStartRejectedTailAt(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), remaining: List(LookaroundAdmittedState(n))) = AtomicStartTailPackage(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining)
 
@@ -4668,13 +4761,31 @@ mod Std.Regex.Runtime
       routine
     ),
     head_case: result,
-    tail_case: () -> result
+    tail_case: (AtomicStartSelectedTailPackage(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      tail_rest,
+      selected_start,
+      matched,
+      remaining_input,
+      routine
+    )) -> result
   ) -> result = let parent_membership: ListMember(
     LookaroundAdmittedState(n),
     selected_start,
     Cons(tail_head, tail_rest)
   ) = member_there(tail_head, tail_membership)
-  atomic_start_rejected_member_induction_erased(
+  atomic_start_rejected_member_induction_selected_erased(
     machine,
     position,
     input,
@@ -4687,6 +4798,7 @@ mod Std.Regex.Runtime
     failure,
     evidence,
     parent_membership,
+    path,
     head_case,
     tail_case
   )
