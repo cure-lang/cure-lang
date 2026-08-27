@@ -1590,6 +1590,17 @@ runtime tag or by rebuilding a tail witness. A regression pins the wrapper's
 the complete Regex runtime compiles directly. The general blocked start-fold
 and final selected-trace/refutation theorem remain open.
 
+The public rejected-root path now has the corresponding generic adapter,
+`atomic_start_refutation_rejected_excludes_trace`. It refines both existential
+root indices to the same non-empty spine and delegates to
+`atomic_start_rejected_member_induction_erased`, with separate head and
+proof-only tail continuations supplied by the eventual concrete consumers.
+The adapter is construction-site only: it does not inspect an erased failure
+constructor or claim the general rejected-child theorem. Its source regression
+and direct complete-module compilation pass; the concrete rejected head and
+arbitrary sibling-tail consumers remain to be wired through the final
+selected-trace/refutation correspondence.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
