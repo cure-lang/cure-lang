@@ -1611,6 +1611,15 @@ The bridge is proof-only and does not re-run the machine or inspect an erased
 state tag. Its source regression and direct complete-module compilation pass;
 the accepted-head and arbitrary recursive-tail continuations remain open.
 
+The non-empty accepted-root case now has its own construction adapter,
+`atomic_start_refutation_rejected_accepted_excludes_trace`. It fixes the root
+candidate to `LookaroundAdmittedAccepted`, carries the exact
+`AtomicPathFailureExactAccepted` child refutation and cursor suffix, and
+delegates the `Here` contradiction to the existing accepted-child consumer;
+the sibling continuation remains proof-only. Direct compilation and a source
+regression pass. Empty-input accepted roots and the arbitrary start-list fold
+remain open, so this does not discharge the Phase 2 correspondence gate.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
