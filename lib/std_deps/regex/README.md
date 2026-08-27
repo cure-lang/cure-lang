@@ -231,6 +231,17 @@ This discharges one recursive-tail base case but not arbitrary rejected-child
 or multi-head sibling induction, start-list correspondence, or the final
 selected-trace/refutation theorem.
 
+A two-sibling rejected-tail proof boundary is now typed explicitly by
+`atomic_path_destination_rejection_excludes_nested_tail_rejection`. The outer
+cursor is a candidate followed by one rejected sibling; the nested rejection
+has a singleton cursor and a destination-exhausted tail. Two erased `Drop`
+suffixes transport the selected trace to the existing singleton recursive
+consumer, without inspecting an existential failure tag or emitting proof
+state. This is a concrete multi-head induction slice, not the generic
+tail-kind refinement or arbitrary-length sibling fold; the remaining
+rejected-child, start-list, and final selected-trace correspondence proofs are
+still open.
+
 The executable behavior, exact/prefix refutation soundness, and constructive
 search-result completeness are present.  Search results retain their canonical
 filtered start list, so a valid path forces the actual evaluator result to be

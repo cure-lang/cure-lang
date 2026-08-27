@@ -1280,6 +1280,22 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert body =~ "atomic_path_active_destinations_exhausted_excludes_trace"
   end
 
+  test "two rejected destination siblings recurse into the nested tail" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "fn atomic_path_destination_rejection_excludes_nested_tail_rejection"
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_path_destination_rejection_excludes_nested_tail_rejection", parts: 2)
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+
+    assert Regex.match?(~r/AtomicPathFailureDestinationRejected.*?AtomicPathFailureDestinationRejected/s, body)
+    assert body =~ "AtomicPathFailureDestinationsExhausted"
+
+    assert body =~ "atomic_path_destination_rejection_excludes_recursive_trace"
+  end
+
   test "atomic active-child alignment exposes head, tail, and reverse cases" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 

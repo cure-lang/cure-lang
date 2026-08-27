@@ -9017,6 +9017,136 @@ mod Std.Regex.Runtime
       tail_result
     )
 
+  ## A two-sibling rejected tail reaches the same singleton recursion after
+  ## the outer candidate is skipped.  The nested rejected candidate is fixed
+  ## at the head of the parent's sibling tail and its own tail is fixed at
+  ## `Nil()`, so the nested destination-exhaustion branch can reuse the
+  ## singleton theorem below.  The two `Drop` witnesses are erased cursor
+  ## evidence: they transport the selected trace from the outer list to the
+  ## nested candidate and then to the exhausted tail without adding runtime
+  ## state.
+  fn atomic_path_destination_rejection_excludes_nested_tail_rejection(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    char: Char,
+    rest: List(Char),
+    after_input: List(Char),
+    state: Bounded(n),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    scope_depth: Nat,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    whole: List(LookaroundAdmittedState(n)),
+    candidate: LookaroundAdmittedState(n),
+    nested_candidate: LookaroundAdmittedState(n),
+    @erased failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(state),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(candidate, Cons(nested_candidate, Nil())),
+      AtomicPathFailureDestinationRejected()
+    ),
+    matched: List(Char),
+    remaining_input: List(Char),
+    routine: List(ExtendedInstruction),
+    @erased nested_failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(state),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(nested_candidate, Nil()),
+      AtomicPathFailureDestinationRejected()
+    ),
+    @erased nested_tail_failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(state),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Nil(),
+      AtomicPathFailureDestinationsExhausted()
+    ),
+    @erased path: AtomicSelectedPathTrace(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(state),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      Nil(),
+      matched,
+      remaining_input,
+      routine
+    )
+  ) -> Empty = match nested_failure
+    AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> match nested_tail_failure
+      AtomicPathDestinationsExhausted(_, _, _, _, _, _) ->
+        atomic_path_destination_rejection_excludes_recursive_trace(
+          machine,
+          char,
+          rest,
+          after_input,
+          state,
+          history,
+          capture_context,
+          policy,
+          scope_depth,
+          prefix_mode,
+          reversed_prefix,
+          whole,
+          nested_candidate,
+          nested_failure,
+          matched,
+          remaining_input,
+          routine,
+          LookaroundAdmittedStateCursorSuffixDrop(
+            nested_candidate,
+            LookaroundAdmittedStateCursorSuffixHere(
+              reflexive(empty_lookaround_admitted_states(n))
+            )
+          ),
+          LookaroundAdmittedStateCursorSuffixHere(
+            reflexive(empty_lookaround_admitted_states(n))
+          ),
+          path
+        )
+
   ## A rejected first candidate can be discharged when the selected trace is
   ## aligned to the sibling tail.  The parent rejection publishes the exact
   ## whole-to-tail suffix, while the selected trace supplies a source-relative

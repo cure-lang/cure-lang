@@ -1505,6 +1505,21 @@ final selected-trace/refutation theorem remain open. The focused
 dependent-assertion suite passes 134/134, `./cure check` passes, and the full
 canonical gate passes 52/52 with only the accepted W086 cycle warning.
 
+A two-sibling rejected-tail boundary is now typed explicitly by
+`atomic_path_destination_rejection_excludes_nested_tail_rejection`. It keeps
+the outer rejected list at `Cons(candidate, Cons(nested_candidate, Nil()))`,
+the nested rejection at a singleton cursor, and its nested tail at
+`AtomicPathFailureDestinationsExhausted`; the existing singleton recursive
+consumer then discharges the nested tail through two erased `Drop` transports.
+The proof boundary takes those refined nested refutations as erased arguments,
+so an existential tail kind is never inspected at runtime. This is a concrete
+multi-head induction slice and construction-site interface; it is not yet the
+generic tail-kind refinement or arbitrary-length sibling induction. The
+focused dependent-assertion suite passes 135/135, `./cure check` passes, and
+the full canonical gate passes 52/52 with only the accepted W086 cycle
+warning. Arbitrary rejected-child recursion, complete start-list
+correspondence, and the final selected-trace/refutation theorem remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
