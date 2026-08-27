@@ -181,7 +181,8 @@ defmodule Cure.Stdlib.Packages do
            sources <- all_sources |> Enum.map(&Path.expand/1) |> Enum.uniq(),
            true <- length(sources) == map_size(manifest.modules),
            {:ok, current_hashes} <- read_source_hashes(sources),
-           manifest_hashes <- manifest.modules |> Map.values() |> Enum.map(&get_in(&1, [:source, :sha256])) |> Enum.sort(),
+           manifest_hashes <-
+             manifest.modules |> Map.values() |> Enum.map(&get_in(&1, [:source, :sha256])) |> Enum.sort(),
            true <- Enum.sort(current_hashes) == manifest_hashes do
         {:ok,
          %Result{
