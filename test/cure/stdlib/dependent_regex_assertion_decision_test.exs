@@ -855,6 +855,14 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/parent_membership.*?head_case.*?tail_case/s, body)
   end
 
+  test "non-empty active start failures retain their child proof package" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [_prefix, body] = String.split(source, "fn atomic_start_initial_tail_no", parts: 2)
+    [body | _] = String.split(body, "\n fn atomic_lookaround_routine_initial_tail_after_failure", parts: 2)
+    assert Regex.match?(~r/\[_ \| _\].*?match candidate.*?atomic_start_active_root_no_empty/s, body)
+  end
+
   test "non-empty rejected tails consume an active head" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 

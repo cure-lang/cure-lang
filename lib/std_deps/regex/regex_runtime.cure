@@ -6509,11 +6509,72 @@ mod Std.Regex.Runtime
         AtomicStartCandidateRejected(LookaroundAdmittedAccepted(routine, constraints, assertion_routine, assertion_markers, nested_decisions), cursor, suffix, member_here(LookaroundAdmittedAccepted(routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining), canonical, child_scope_depth, child_skipped, child_current, child_origin_equivalence, child_suffix, child_failure, lookaround_admitted_cursor_suffix_tail(LookaroundAdmittedAccepted(routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining, suffix), tail_failure),
         AtomicStartNoRejectedEvidence(LookaroundAdmittedAccepted(routine, constraints, assertion_routine, assertion_markers, nested_decisions), cursor, suffix, member_here(LookaroundAdmittedAccepted(routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining), canonical, child_scope_depth, child_scope_alignment, child_skipped, child_current, child_origin_equivalence, child_suffix, child_failure, lookaround_admitted_cursor_suffix_tail(LookaroundAdmittedAccepted(routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining, suffix), tail_failure, tail_evidence)
       )
-    [_ | _] -> AtomicStartMembersNo(
-      AtomicStartFailureRejected(),
-      AtomicStartCandidateRejected(candidate, cursor, suffix, member_here(candidate, remaining), canonical, child_scope_depth, child_skipped, child_current, child_origin_equivalence, child_suffix, child_failure, lookaround_admitted_cursor_suffix_tail(candidate, remaining, suffix), tail_failure),
-      AtomicStartNoRejectedEvidence(candidate, cursor, suffix, member_here(candidate, remaining), canonical, child_scope_depth, child_scope_alignment, child_skipped, child_current, child_origin_equivalence, child_suffix, child_failure, lookaround_admitted_cursor_suffix_tail(candidate, remaining, suffix), tail_failure, tail_evidence)
-    )
+    [_ | _] -> match candidate
+      LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions) -> atomic_start_active_root_no_empty(
+        depth,
+        n,
+        machine,
+        position,
+        input,
+        after_input,
+        history,
+        capture_context,
+        policy,
+        prefix_mode,
+        reversed_prefix,
+        whole,
+        remaining,
+        state,
+        routine,
+        constraints,
+        assertion_routine,
+        assertion_markers,
+        nested_decisions,
+        child_scope_depth,
+        child_scope_alignment,
+        child_skipped,
+        child_whole,
+        child_current,
+        child_origin,
+        child_origin_equivalence,
+        child_suffix,
+        child_witness,
+        cursor,
+        witness,
+        suffix,
+        canonical,
+        child_kind,
+        child_failure,
+        AtomicStartCandidateRejected(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), cursor, suffix, member_here(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining), canonical, child_scope_depth, child_skipped, child_current, child_origin_equivalence, child_suffix, child_failure, lookaround_admitted_cursor_suffix_tail(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining, suffix), tail_failure),
+        AtomicStartNoRejectedEvidence(
+          LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions),
+          cursor,
+          suffix,
+          member_here(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining),
+          canonical,
+          child_scope_depth,
+          child_scope_alignment,
+          child_skipped,
+          child_current,
+          child_origin_equivalence,
+          child_suffix,
+          child_failure,
+          lookaround_admitted_cursor_suffix_tail(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining, suffix),
+          tail_failure,
+          tail_evidence
+        ),
+        child_whole,
+        child_current,
+        child_kind,
+        tail_kind,
+        tail_failure,
+        tail_evidence
+      )
+      LookaroundAdmittedAccepted(routine, constraints, assertion_routine, assertion_markers, nested_decisions) -> AtomicStartMembersNo(
+        AtomicStartFailureRejected(),
+        AtomicStartCandidateRejected(LookaroundAdmittedAccepted(routine, constraints, assertion_routine, assertion_markers, nested_decisions), cursor, suffix, member_here(LookaroundAdmittedAccepted(routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining), canonical, child_scope_depth, child_skipped, child_current, child_origin_equivalence, child_suffix, child_failure, lookaround_admitted_cursor_suffix_tail(LookaroundAdmittedAccepted(routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining, suffix), tail_failure),
+        AtomicStartNoRejectedEvidence(LookaroundAdmittedAccepted(routine, constraints, assertion_routine, assertion_markers, nested_decisions), cursor, suffix, member_here(LookaroundAdmittedAccepted(routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining), canonical, child_scope_depth, child_scope_alignment, child_skipped, child_current, child_origin_equivalence, child_suffix, child_failure, lookaround_admitted_cursor_suffix_tail(LookaroundAdmittedAccepted(routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining, suffix), tail_failure, tail_evidence)
+      )
  fn atomic_lookaround_routine_initial_tail_after_failure(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), position: InitialPosition, history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, blocked_depth: Option(Nat), whole: List(LookaroundAdmittedState(n)), remaining: List(LookaroundAdmittedState(n)), candidate: LookaroundAdmittedState(n), child_capture_context: List(EvidenceInstruction), child_scope_depth: Nat, @erased child_scope_alignment: LookaroundAdmittedStateScope(n, Z(), candidate, child_scope_depth), prefix_mode: Bool, reversed_prefix: List(Char), @erased child_skipped: List(LookaroundAdmittedState(n)), @erased child_whole: List(LookaroundAdmittedState(n)), @erased child_current: List(LookaroundAdmittedState(n)), @erased child_origin: List(LookaroundAdmittedState(n)), @erased child_origin_equivalence: Equivalent(List(LookaroundAdmittedState(n)), child_whole, child_origin), @erased child_suffix: LookaroundAdmittedStateCursorSuffix(n, child_whole, child_current), @erased child_witness: LookaroundAdmittedStateCursorWitness(n, child_whole, child_current), @erased cursor: LookaroundAdmittedStateCursor(n, whole, Cons(candidate, remaining)), @erased witness: LookaroundAdmittedStateCursorWitness(n, whole, Cons(candidate, remaining)), @erased suffix: LookaroundAdmittedStateCursorSuffix(n, whole, Cons(candidate, remaining)), @erased canonical: Equivalent(List(LookaroundAdmittedState(n)), whole, lookaround_admitted_starts(depth, n, machine, position, input, after_input, history, capture_context, policy)), @erased child_kind: AtomicPathFailureKind, @erased child_failure: AtomicPathRefutation(depth, n, machine, input, after_input, lookaround_admitted_state_thread(candidate), history, lookaround_admitted_state_capture_context(capture_context, candidate), policy, child_scope_depth, prefix_mode, reversed_prefix, child_whole, child_current, child_kind)) -> AtomicStartMembersResult(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, Cons(candidate, remaining)) = match atomic_lookaround_routine_initial_members(
     depth,
     n,

@@ -1361,6 +1361,21 @@ incomplete proof shape.  The focused dependent-assertion suite is 124/124,
 `./cure check` is green, and the canonical pipeline remains 52/52 with only
 the accepted W086 cycle warning.
 
+The non-empty branch of `atomic_start_initial_tail_no` now preserves the active
+root proof package instead of collapsing every rejected candidate into the
+ordinary `AtomicStartMembersNo` constructor. At the construction site it
+reuses `atomic_start_active_root_no_empty` with the actual non-empty input and
+the indexed active candidate, retaining the parent membership, child
+refutation, tail evidence, and `AtomicStartActiveRootTailPackage` for the same
+proof-facing fold used at the empty boundary. Accepted candidates still take
+the ordinary rejected result path. The focused dependent-assertion suite now
+passes 125 tests, `./cure check` is green, and the full canonical pipeline is
+52/52 with only the accepted W086 cycle warning. This closes the active
+non-empty construction boundary; the package is still consumed by the
+proof-only start-list dispatcher rather than by runtime control flow, so the
+general recursive active/rejected fold and final selected-trace/refutation
+correspondence remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
