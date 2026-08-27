@@ -2,7 +2,7 @@ defmodule Cure.MixProject do
   use Mix.Project
 
   @app :cure
-  @version "0.34.0"
+  @version "0.34.1"
   @source_url "https://github.com/cure-lang/cure-lang"
 
   def project do
