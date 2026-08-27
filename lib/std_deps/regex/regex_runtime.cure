@@ -8486,29 +8486,15 @@ mod Std.Regex.Runtime
     left_case: () -> Empty,
     left_tail_case: () -> Empty,
     right_case: () -> Empty
-  ) -> Empty =
-    let anchored_equivalence: Equivalent(
-      List(LookaroundAdmittedState(n)),
-      Cons(failure_head, failure_tail),
-      selected_whole
-    ) = trans(
-      sym(failure_nonempty_equivalence),
-      selected_whole_equivalence
-    )
-    match atomic_child_cursor_alignment(
+  ) -> Empty = match atomic_path_active_child_alignment(
       failure_suffix,
+      failure_nonempty_equivalence,
       selected_whole_equivalence,
       selected_suffix
     )
-      LookaroundAdmittedCursorLeftToRight(_) -> atomic_path_selected_child_suffix_location_elim(
-        transport_lookaround_admitted_cursor_suffix_outer(
-          anchored_equivalence,
-          selected_suffix
-        ),
-        left_case,
-        left_tail_case
-      )
-      LookaroundAdmittedCursorRightToLeft(_) -> right_case()
+      AtomicPathActiveChildAlignmentHere(_, _) -> left_case()
+      AtomicPathActiveChildAlignmentThere(_, _) -> left_tail_case()
+      AtomicPathActiveChildAlignmentReverse(_) -> right_case()
 
   ## The first refutation-tree eliminator is indexed at the same exhausted
   ## input as the selected trace.  The other failure constructors all carry a

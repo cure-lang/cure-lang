@@ -1441,6 +1441,18 @@ the full canonical gate passes 52/52 with only the accepted W086 cycle warning.
 The general recursive rejected-child alignment and multi-head sibling fold are
 still open.
 
+The active-child alignment theorem now consumes the canonical
+`atomic_path_active_child_alignment` result rather than duplicating cursor
+transport and direction matching inline. Its indexed `Here`, `There`, and
+`Reverse` constructors dispatch to the corresponding proof-only continuations;
+the parent active-child construction then carries that result through the
+`Drop(head, ...)` destination-rejection fold. This removes a second alignment
+authority while preserving runtime erasure. The focused dependent-assertion
+suite passes 132/132, `./cure check` passes, and the full canonical gate passes
+52/52 with only the accepted W086 cycle warning. Instantiating the recursive
+tail continuation for arbitrary rejected children and completing the
+multi-head sibling fold remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

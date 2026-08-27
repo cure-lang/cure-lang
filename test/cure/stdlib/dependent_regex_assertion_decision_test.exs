@@ -1232,9 +1232,9 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     [_prefix, body] = String.split(source, "fn atomic_path_active_child_rejection_excludes_aligned_trace", parts: 2)
     [body | _] = String.split(body, "\n  ##", parts: 2)
-    assert Regex.match?(~r/atomic_child_cursor_alignment.*?LookaroundAdmittedCursorLeftToRight.*?left_case/s, body)
-    assert Regex.match?(~r/LookaroundAdmittedCursorRightToLeft.*?right_case/s, body)
-    assert body =~ "atomic_path_selected_child_suffix_location_elim"
+    assert Regex.match?(~r/atomic_path_active_child_alignment.*?AtomicPathActiveChildAlignmentHere.*?left_case/s, body)
+    assert Regex.match?(~r/AtomicPathActiveChildAlignmentReverse.*?right_case/s, body)
+    assert body =~ "atomic_path_active_child_alignment("
   end
 
   test "atomic active child rejection consumes the aligned child bridge" do
