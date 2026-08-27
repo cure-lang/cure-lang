@@ -1220,7 +1220,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     [body | _] = String.split(body, "\n  ##", parts: 2)
     assert Regex.match?(~r/child_failure:\s+AtomicPathRefutation.*?AtomicPathFailureDestinationRejected/s, body)
     assert Regex.match?(
-             ~r/AtomicSelectedTransitionActive.*?atomic_path_active_child_rejection_excludes_aligned_trace/s,
+             ~r/AtomicSelectedTransitionActive.*?atomic_path_active_child_rejection_excludes_trace/s,
              body
            )
   end
@@ -1250,9 +1250,21 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     [body | _] = String.split(body, "\n  ##", parts: 2)
 
     assert Regex.match?(
-             ~r/child_failure.*?child_failure_suffix.*?atomic_path_active_child_rejection_excludes_aligned_trace/s,
+             ~r/child_failure.*?child_failure_suffix.*?atomic_path_active_child_rejection_excludes_trace/s,
              body
            )
+  end
+
+  test "atomic active child rejection has a recursive child eliminator" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "fn atomic_path_active_child_rejection_excludes_trace"
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_path_active_child_rejection_excludes_trace", parts: 2)
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert body =~ "atomic_path_active_child_rejection_excludes_aligned_trace"
   end
 
   test "atomic active-child alignment exposes head, tail, and reverse cases" do

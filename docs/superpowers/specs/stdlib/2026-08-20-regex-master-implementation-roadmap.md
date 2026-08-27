@@ -1477,6 +1477,20 @@ remains 52/52 with only the accepted W086 cycle warning. General rejected-child
 alignment, arbitrary multi-head sibling recursion, and the final
 selected-trace/refutation correspondence remain open.
 
+The recursively rejected active-child boundary now has a named, proof-only
+consumer: `atomic_path_active_child_rejection_excludes_trace`. The parent
+active-child sibling construction routes its ordered `Here`/`There`/`Reverse`
+alignment through this consumer, which delegates to the single canonical
+`atomic_path_active_child_alignment` authority. It introduces no runtime
+failure tag, callback payload, or alternate lookup path; the existing
+constructor-specific rejected dispatcher remains the source of the sibling
+tail result. This is a construction-site normalization slice, not the final
+recursive child theorem: destination-exhaustion transport, arbitrary
+multi-head sibling recursion, and selected-trace/refutation correspondence
+remain open. The focused dependent-assertion suite passes 133/133,
+`./cure check` passes, and the canonical gate is unchanged at 52/52 with only
+the accepted W086 cycle warning.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

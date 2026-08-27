@@ -212,6 +212,15 @@ only the matched text, remainder, and routine; these ordered candidate
 witnesses are proof metadata for the remaining atomic trace/refutation
 correspondence.
 
+The active-child rejected-tail construction has a dedicated proof-only
+`atomic_path_active_child_rejection_excludes_trace` boundary. It routes the
+child's ordered cursor alignment through the canonical
+`atomic_path_active_child_alignment` authority before the parent rejected-tail
+fold selects the sibling result. No failure tag or proof payload is emitted at
+runtime. This is transport scaffolding for the generalized refutation proof;
+arbitrary rejected-child recursion and the final selected-trace/refutation
+correspondence remain open.
+
 The executable behavior, exact/prefix refutation soundness, and constructive
 search-result completeness are present.  Search results retain their canonical
 filtered start list, so a valid path forces the actual evaluator result to be

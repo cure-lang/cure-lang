@@ -8399,7 +8399,7 @@ mod Std.Regex.Runtime
     AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, child_failure, _, child_scope_alignment, _, _, _, _) -> match path
       AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _, child_selection_suffix, child_selection_from_origin, child_trace) -> match child_scope_alignment
         LookaroundAdmittedStateScopeActive(_, _, _, _, _, _) ->
-          let tail_result: Empty = atomic_path_active_child_rejection_excludes_aligned_trace(
+          let tail_result: Empty = atomic_path_active_child_rejection_excludes_trace(
             machine,
             child_char,
             child_rest,
@@ -8497,6 +8497,70 @@ mod Std.Regex.Runtime
       AtomicPathActiveChildAlignmentHere(_, _) -> left_case()
       AtomicPathActiveChildAlignmentThere(_, _) -> left_tail_case()
       AtomicPathActiveChildAlignmentReverse(_) -> right_case()
+
+  ## Consume a recursively rejected active-child refutation at the construction
+  ## site. This named boundary retains the child/refutation distinction while
+  ## delegating the ordered cursor cases to the single alignment authority.
+  ## Keeping the wrapper proof-only avoids rebuilding erased GADT evidence in a
+  ## runtime-valued parent fold.
+  fn atomic_path_active_child_rejection_excludes_trace(
+    {n: Nat},
+    machine: PatternMachine(n),
+    child_char: Char,
+    child_rest: List(Char),
+    after_input: List(Char),
+    destination: Bounded(n),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    child_scope_depth: Nat,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    @erased failure_whole: List(LookaroundAdmittedState(n)),
+    failure_head: LookaroundAdmittedState(n),
+    {failure_tail: List(LookaroundAdmittedState(n))},
+    @erased failure_current: List(LookaroundAdmittedState(n)),
+    failure_suffix: LookaroundAdmittedStateCursorSuffix(n, failure_whole, failure_current),
+    selected_whole: List(LookaroundAdmittedState(n)),
+    {selected_current: List(LookaroundAdmittedState(n))},
+    selected_whole_equivalence: Equivalent(
+      List(LookaroundAdmittedState(n)),
+      failure_whole,
+      selected_whole
+    ),
+    failure_nonempty_equivalence: Equivalent(
+      List(LookaroundAdmittedState(n)),
+      failure_whole,
+      Cons(failure_head, failure_tail)
+    ),
+    selected_suffix: LookaroundAdmittedStateCursorSuffix(n, selected_whole, selected_current),
+    left_case: () -> Empty,
+    left_tail_case: () -> Empty,
+    right_case: () -> Empty
+  ) -> Empty = atomic_path_active_child_rejection_excludes_aligned_trace(
+    machine,
+    child_char,
+    child_rest,
+    after_input,
+    destination,
+    history,
+    capture_context,
+    policy,
+    child_scope_depth,
+    prefix_mode,
+    reversed_prefix,
+    failure_whole,
+    failure_head,
+    failure_current,
+    failure_suffix,
+    selected_whole,
+    selected_whole_equivalence,
+    failure_nonempty_equivalence,
+    selected_suffix,
+    left_case,
+    left_tail_case,
+    right_case
+  )
 
   ## The first refutation-tree eliminator is indexed at the same exhausted
   ## input as the selected trace.  The other failure constructors all carry a
