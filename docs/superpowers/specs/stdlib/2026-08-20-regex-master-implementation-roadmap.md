@@ -1711,6 +1711,17 @@ construction sites without conflating head and selected indices. Complete
 sibling transport, arbitrary rejected-child recursion, and the final all-kinds
 selected-trace/refutation theorem remain open.
 
+The exhausted public root now has the matching selected-trace construction
+adapter, `atomic_start_refutation_exhausted_selected_trace`. It carries the
+root `AtomicStartRefutation`, its aligned exhausted member/evidence pair, and
+the selected-start membership claim into the existing empty-root eliminator.
+Because the membership is indexed at `Nil()`, the contradiction is discharged
+at the construction site; no runtime failure tag, cursor payload, or second
+machine traversal is introduced. The source regression passes and the complete
+`regex_runtime.cure` module compiles directly. Empty-input accepted roots,
+arbitrary rejected-child/sibling recursion, and the final all-kinds
+selected-trace/refutation theorem remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

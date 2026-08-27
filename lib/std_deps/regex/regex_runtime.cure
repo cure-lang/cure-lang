@@ -7903,6 +7903,114 @@ mod Std.Regex.Runtime
     path
   ))
 
+  ## Public selected-trace adapter for an exhausted start root.  The root
+  ## wrapper and its parallel no-result evidence both refine the complete
+  ## start list to `Nil()`, while the selected trace still carries the member
+  ## it claims to have chosen.  Passing that impossible membership through
+  ## the existing root exhaustion consumer closes this failure family without
+  ## inspecting an erased failure tag or retrying the machine search.
+  @reducible
+  fn atomic_start_refutation_exhausted_selected_trace(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    @erased _refutation: AtomicStartRefutation(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      Nil()
+    ),
+    @erased failure: AtomicStartMembersRefutation(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      Nil(),
+      Nil(),
+      AtomicStartFailureExhausted()
+    ),
+    @erased evidence: AtomicStartNoEvidence(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      Nil(),
+      Nil(),
+      AtomicStartFailureExhausted()
+    ),
+    {selected_start: LookaroundAdmittedState(n)},
+    @erased membership: ListMember(
+      LookaroundAdmittedState(n),
+      selected_start,
+      Nil()
+    ),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      selected_start,
+      matched,
+      remaining_input,
+      routine
+    )
+  ) -> result = atomic_start_refutation_exhaustion_excludes_trace(
+    machine,
+    position,
+    input,
+    after_input,
+    history,
+    capture_context,
+    policy,
+    prefix_mode,
+    reversed_prefix,
+    failure,
+    evidence,
+    membership,
+    path
+  )
+
   ## Root blocked failures retain their exact parent failure/evidence pair
   ## while entering the typed non-empty-tail dispatcher.  The package is
   ## constructed at this boundary, and the later-sibling obligation remains a

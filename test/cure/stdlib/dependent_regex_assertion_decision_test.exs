@@ -1530,6 +1530,23 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/AtomicPathDestinationRejected.*?tail_case/s, body)
   end
 
+  test "exhausted atomic roots have a public selected-trace consumer" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "fn atomic_start_refutation_exhausted_selected_trace"
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_start_refutation_exhausted_selected_trace", parts: 2)
+
+    [body | _] = String.split(body, "\n  fn ", parts: 2)
+    assert body =~ "AtomicStartRefutation"
+    assert body =~ "AtomicStartMembersRefutation"
+    assert body =~ "atomic_start_refutation_exhaustion_excludes_trace"
+    assert body =~ "ListMember("
+    assert body =~ "selected_start"
+    assert body =~ "Nil()"
+  end
+
   test "atomic destination rejection dispatches selected head versus sibling tail" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
