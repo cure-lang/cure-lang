@@ -1,4 +1,5 @@
 defmodule CureSite.Pages do
+  alias CureSite.Pages.GettingStarted
   alias CureSite.Pages.Page
   alias CureSite.Pages.TechnicalOverview
 
@@ -9,12 +10,13 @@ defmodule CureSite.Pages do
     highlighters: [:makeup_cure, :makeup_elixir, :makeup_erlang],
     html_converter: CureSite.MarkdownConverter
 
-  # `/about` has no markdown file under `priv/pages`: it is the
-  # repository's `docs/TECHNICAL_OVERVIEW.md`, rendered at compile time
-  # by `CureSite.Pages.TechnicalOverview`. Merging it into `@pages`
-  # here means the docs sidebar, prev/next navigation, `/sitemap.xml`
-  # and `llms.txt` treat it exactly like an authored page.
-  @pages Enum.sort_by([TechnicalOverview.page() | @pages], & &1.order)
+  # `/about` and `/getting-started` have no markdown files under `priv/pages`:
+  # they are rendered directly from `docs/TECHNICAL_OVERVIEW.md` and
+  # `docs/GETTING_STARTED.md` at compile time by TechnicalOverview and
+  # GettingStarted. Merging them into `@pages` here means the docs sidebar,
+  # prev/next navigation, `/sitemap.xml` and `llms.txt` treat them exactly
+  # like authored pages.
+  @pages Enum.sort_by([TechnicalOverview.page(), GettingStarted.page() | @pages], & &1.order)
 
   def all_pages, do: @pages
 

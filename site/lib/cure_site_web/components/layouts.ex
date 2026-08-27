@@ -54,7 +54,10 @@ defmodule CureSiteWeb.Layouts do
         </a>
 
         <div class="hidden items-center gap-1 md:flex">
-          <a href={~p"/getting-started"} class={nav_class(@current_path, :learn)}>
+          <a href={~p"/about"} class={nav_class(@current_path, :about)}>
+            About
+          </a>
+          <a href={~p"/tour"} class={nav_class(@current_path, :learn)}>
             Learn
           </a>
           <a href={~p"/actors"} class={nav_class(@current_path, :concurrency)}>
@@ -68,9 +71,6 @@ defmodule CureSiteWeb.Layouts do
           </a>
           <a href={~p"/blog"} class={nav_class(@current_path, :blog)}>
             Blog
-          </a>
-          <a href={~p"/about"} class={nav_class(@current_path, :about)}>
-            About
           </a>
           <.theme_toggle />
         </div>
@@ -91,15 +91,26 @@ defmodule CureSiteWeb.Layouts do
       <div id="mobile-menu" class="hidden border-t border-base-300 px-4 py-3 md:hidden space-y-2">
         <div>
           <div class="text-xs font-semibold uppercase tracking-wider text-base-content/50 mb-1">
-            Learn Cure
+            About
           </div>
           <div class="pl-2 space-y-1">
+            <a href={~p"/about"} class={mobile_nav_class(@current_path, ~p"/about")}>
+              Technical Overview
+            </a>
             <a
               href={~p"/getting-started"}
               class={mobile_nav_class(@current_path, ~p"/getting-started")}
             >
-              Getting Started
+              Your First Project
             </a>
+          </div>
+        </div>
+
+        <div>
+          <div class="text-xs font-semibold uppercase tracking-wider text-base-content/50 mb-1">
+            Learn Cure
+          </div>
+          <div class="pl-2 space-y-1">
             <a href={~p"/tour"} class={mobile_nav_class(@current_path, ~p"/tour")}>
               Language Tour
             </a>
@@ -278,7 +289,6 @@ defmodule CureSiteWeb.Layouts do
 
   defp active_category?(current, :learn) do
     current in [
-      "/getting-started",
       "/tour",
       "/language-guide",
       "/match",
@@ -305,7 +315,7 @@ defmodule CureSiteWeb.Layouts do
   end
 
   defp active_category?(current, :about) do
-    current == "/about"
+    current in ["/about", "/getting-started"]
   end
 
   defp active_category?(_current, _target), do: false

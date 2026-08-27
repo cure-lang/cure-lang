@@ -46,7 +46,7 @@ defmodule CureSite.PagesTest do
 
     test "leads the docs sidebar and the prev/next chain" do
       assert [{:about, "About", _desc, about_pages} | _rest] = Pages.grouped_pages()
-      assert [%{id: "about"}] = about_pages
+      assert [%{id: "about"}, %{id: "getting-started"}] = about_pages
 
       assert {nil, next} = Pages.prev_and_next("about")
       assert next.id == "getting-started"

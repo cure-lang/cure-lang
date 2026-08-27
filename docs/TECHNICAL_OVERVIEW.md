@@ -1,9 +1,5 @@
 # Cure Language — Technical Overview
 
-**Version:** 0.34.0
-**Repository:** `cure-lang/cure-lang`
-**License:** MIT
-
 Cure is a **dependently-typed programming language for the BEAM virtual
 machine** with a single kernel-checked compiler pipeline and first-class OTP
 concurrency. It compiles `.cure` source files to standard BEAM bytecode, so
@@ -290,7 +286,6 @@ mod MyApp.Math
   fn double(n: Int) -> Int = n + n
 
   local fn helper() -> Int = 42          # private
-end
 ```
 
 Functions support single-expression bodies, indented multi-expression blocks,
