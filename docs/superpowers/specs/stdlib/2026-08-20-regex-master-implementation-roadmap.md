@@ -1554,6 +1554,20 @@ because its locked Hex dependencies are unavailable; direct Cure compilation
 gets past this new definition and currently stops on the pre-existing
 `Std.Char.lowercased_characters` E091 in the regex runtime.
 
+The Regex package is now aligned with the acyclic text-layer boundary from the
+stdlib: `Std.Char` owns list-valued Unicode case mappings, while
+`Std.String` owns nominal `String` wrappers. `Std.Regex.Runtime` calls the
+canonical `Std.Char.lowercased_characters/1` entry point directly and does not
+recreate the old `Std.Char -> Std.String` dependency. The complete embedded
+package source set (`regex*.cure`) has been checked through the compiler's
+`use`-dependency graph; every component is a singleton, with the package
+layers ordered Core -> Runtime -> Proof/Language -> façade as intended. A
+regression now guards this graph. The remaining E091 is therefore a stale
+published `Std.Char` interface (the old artifact still advertises
+`lowercased_charlist`), not an unresolved Regex source dependency; rebuilding
+the canonical stdlib generation is required before the direct package compile
+can be rerun.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
