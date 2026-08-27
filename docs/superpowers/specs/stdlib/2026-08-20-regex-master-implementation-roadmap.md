@@ -1536,6 +1536,24 @@ canonical pipeline passes 52/52 with only the accepted W086 cycle warning.
 Arbitrary rejected-child recursion, complete start-list correspondence, and
 the final selected-trace/refutation theorem remain open.
 
+A deeper sibling-tail construction slice is now present as
+`atomic_path_destination_rejection_excludes_three_tail_rejection`. Starting
+from a rejected three-candidate destination list, it extracts the typed tail
+package at the second candidate, refines that package at the next
+constructor-specific `AtomicPathDestinationRejected` boundary, and then
+reuses the singleton rejected-tail refinement for the third candidate. The
+two package peels are proof-only; failure kinds, candidate lists, and traces
+remain erased, and no runtime failure tag or alternate search is introduced.
+This demonstrates the first non-singleton sibling fold beyond the concrete
+two-candidate boundary, but it is deliberately not reported as arbitrary
+length induction: the generic recursive tail dispatcher, arbitrary rejected
+child alignment, complete start-list correspondence, and final
+selected-trace/refutation theorem remain open. The source regression passes
+in a direct Elixir check. The focused Mix test cannot start in this checkout
+because its locked Hex dependencies are unavailable; direct Cure compilation
+gets past this new definition and currently stops on the pre-existing
+`Std.Char.lowercased_characters` E091 in the regex runtime.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

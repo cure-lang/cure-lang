@@ -9310,6 +9310,151 @@ mod Std.Regex.Runtime
       path
     )
 
+  ## A three-sibling rejected tail peels the typed package twice before
+  ## reaching the singleton refinement.  Each peel happens at a
+  ## constructor-specific destination-rejection boundary, so the existential
+  ## failure kinds stay proof-only and no runtime tag is consulted.  This is
+  ## the first genuinely non-singleton sibling fold beyond the concrete
+  ## two-state boundary above; longer folds reuse the same package shape.
+  fn atomic_path_destination_rejection_excludes_three_tail_rejection(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    char: Char,
+    rest: List(Char),
+    after_input: List(Char),
+    state: Bounded(n),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    scope_depth: Nat,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    whole: List(LookaroundAdmittedState(n)),
+    candidate: LookaroundAdmittedState(n),
+    nested_candidate: LookaroundAdmittedState(n),
+    tail_candidate: LookaroundAdmittedState(n),
+    @erased failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(state),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(candidate, Cons(nested_candidate, Cons(tail_candidate, Nil()))),
+      AtomicPathFailureDestinationRejected()
+    ),
+    matched: List(Char),
+    remaining_input: List(Char),
+    routine: List(ExtendedInstruction),
+    @erased path: AtomicSelectedPathTrace(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(state),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      Nil(),
+      matched,
+      remaining_input,
+      routine
+    )
+  ) -> Empty =
+    let nested_package: AtomicPathTailPackage(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(state),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(nested_candidate, Cons(tail_candidate, Nil()))
+    ) = atomic_path_destination_rejected_tail_package(
+      machine,
+      char,
+      rest,
+      after_input,
+      state,
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      failure
+    )
+    match nested_package
+      AtomicPathTailPackagePacked(nested_failure) -> match nested_failure
+        AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) ->
+          let tail_package: AtomicPathTailPackage(
+            depth,
+            n,
+            machine,
+            Cons(char, rest),
+            after_input,
+            ThreadActive(state),
+            history,
+            capture_context,
+            policy,
+            scope_depth,
+            prefix_mode,
+            reversed_prefix,
+            whole,
+            Cons(tail_candidate, Nil())
+          ) = atomic_path_destination_rejected_tail_package(
+            machine,
+            char,
+            rest,
+            after_input,
+            state,
+            history,
+            capture_context,
+            policy,
+            scope_depth,
+            prefix_mode,
+            reversed_prefix,
+            nested_failure
+          )
+          atomic_path_rejected_tail_refinement(
+            machine,
+            char,
+            rest,
+            after_input,
+            state,
+            history,
+            capture_context,
+            policy,
+            scope_depth,
+            prefix_mode,
+            reversed_prefix,
+            whole,
+            tail_candidate,
+            tail_package,
+            matched,
+            remaining_input,
+            routine,
+            path
+          )
+
   ## A rejected first candidate can be discharged when the selected trace is
   ## aligned to the sibling tail.  The parent rejection publishes the exact
   ## whole-to-tail suffix, while the selected trace supplies a source-relative
