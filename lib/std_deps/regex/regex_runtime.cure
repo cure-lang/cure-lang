@@ -3133,8 +3133,8 @@ mod Std.Regex.Runtime
   ## Public atomic-start failures are complete root certificates. Internal
   ## recursion retains the exact whole/current start-list suffix; only the
   ## root wrapper is exposed at the lookaround decision boundary.
-  type AtomicStartRefutation(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char))
-    AtomicStartRefutationRoot : {@erased whole: List(LookaroundAdmittedState(n))} -> {@erased kind: AtomicStartFailureKind} -> (@erased failure: AtomicStartMembersRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, whole, kind)) -> (@erased evidence: AtomicStartNoEvidence(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, whole, kind)) -> AtomicStartRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix)
+  type AtomicStartRefutation(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)))
+    AtomicStartRefutationRoot : {@erased whole: List(LookaroundAdmittedState(n))} -> {@erased kind: AtomicStartFailureKind} -> (@erased failure: AtomicStartMembersRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, whole, kind)) -> (@erased evidence: AtomicStartNoEvidence(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, whole, kind)) -> AtomicStartRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole)
 
   ## A decision is the only value consumed by an assertion constraint. A
   ## satisfied branch now carries an existential package containing the finite
@@ -3144,7 +3144,7 @@ mod Std.Regex.Runtime
   ## its soundness and completeness against the machine semantics.
   type LookaheadRefutation(n: Nat, machine: PatternMachine(n)) indices ()
     LookaheadSearchExhausted : {@erased starts: List(MachineState(n))} -> (@erased depth: Nat) -> (input: List(Char)) -> (after_input: List(Char)) -> (history: List(Char)) -> (policy: NewlinePolicy) -> (@erased failure: LookaroundPrefixSearchFailure(depth, n, machine, input, after_input, history, capture_context, policy, starts, starts)) -> LookaheadRefutation(n, machine)
-    LookaheadAtomicSearchRejected : (@erased depth: Nat) -> (position: InitialPosition) -> (input: List(Char)) -> (history: List(Char)) -> (@erased capture_context: List(EvidenceInstruction)) -> (policy: NewlinePolicy) -> (@erased failure: Option(AtomicStartRefutation(depth, n, machine, position, input, Nil(), history, capture_context, policy, True(), Nil()))) -> (reason: LookaroundRoutineRejectionReason) -> LookaheadRefutation(n, machine)
+    LookaheadAtomicSearchRejected : (@erased depth: Nat) -> (position: InitialPosition) -> (input: List(Char)) -> (history: List(Char)) -> (@erased capture_context: List(EvidenceInstruction)) -> (policy: NewlinePolicy) -> {@erased whole: List(LookaroundAdmittedState(n))} -> (@erased failure: Option(AtomicStartRefutation(depth, n, machine, position, input, Nil(), history, capture_context, policy, True(), Nil(), whole))) -> (reason: LookaroundRoutineRejectionReason) -> LookaheadRefutation(n, machine)
 
   ## A successful atomic start is only useful as a proof when its selected
   ## trace is tied to the membership witness that chose the start.  The
@@ -3234,7 +3234,7 @@ mod Std.Regex.Runtime
   type LookbehindRefutation(n: Nat, machine: PatternMachine(n)) indices ()
     LookbehindSearchExhausted : {@erased starts: List(MachineState(n))} -> (@erased depth: Nat) -> (input: List(Char)) -> (after_input: List(Char)) -> (history: List(Char)) -> (policy: NewlinePolicy) -> (@erased failure: LookaroundSearchFailure(depth, n, machine, input, after_input, history, capture_context, policy, starts, starts)) -> LookbehindRefutation(n, machine)
     LookbehindHistoryUnavailable : (width: Nat) -> (history: List(Char)) -> (policy: NewlinePolicy) -> (@erased exhaustion: LookaroundExhaustion(n)) -> LookbehindRefutation(n, machine)
-    LookbehindAtomicSearchRejected : (@erased depth: Nat) -> (position: InitialPosition) -> (input: List(Char)) -> (after_input: List(Char)) -> (history: List(Char)) -> (@erased capture_context: List(EvidenceInstruction)) -> (policy: NewlinePolicy) -> (@erased failure: Option(AtomicStartRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, False(), Nil()))) -> (reason: LookaroundRoutineRejectionReason) -> LookbehindRefutation(n, machine)
+    LookbehindAtomicSearchRejected : (@erased depth: Nat) -> (position: InitialPosition) -> (input: List(Char)) -> (after_input: List(Char)) -> (history: List(Char)) -> (@erased capture_context: List(EvidenceInstruction)) -> (policy: NewlinePolicy) -> {@erased whole: List(LookaroundAdmittedState(n))} -> (@erased failure: Option(AtomicStartRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, False(), Nil(), whole))) -> (reason: LookaroundRoutineRejectionReason) -> LookbehindRefutation(n, machine)
 
   type LookbehindWitness(n: Nat, machine: PatternMachine(n)) indices ()
     LookbehindWitnessPacked : (routine: List(ExtendedInstruction)) -> {@erased matched: List(Char)} -> {@erased remaining_input: List(Char)} -> {@erased position: InitialPosition} -> {@erased depth: Nat} -> {@erased input: List(Char)} -> {@erased after_input: List(Char)} -> {@erased history: List(Char)} -> {@erased capture_context: List(EvidenceInstruction)} -> {@erased policy: NewlinePolicy} -> {@erased blocked_depth: Option(Nat)} -> {@erased kind: AtomicStartSkipKind} -> (@erased selected_witness: AtomicSelectedStartWitness(depth, n, machine, position, input, after_input, history, capture_context, policy, False(), Nil(), whole, current, selected_start, blocked_depth, kind, matched, remaining_input, routine)) -> LookbehindWitness(n, machine)
@@ -3308,7 +3308,7 @@ mod Std.Regex.Runtime
   ) -> LookaheadDecision(n, machine) = match result
     LookaroundRoutineSearchYes(matched, remaining, routine, selected_trace) -> LookaheadSatisfied(lookahead_witness(depth, n, machine, position, input, history, capture_context, policy, matched, remaining, routine, selected_trace))
     LookaroundRoutineSearchNo(failure) -> LookaheadRefuted(LookaheadAtomicSearchRejected(depth, position, input, history, capture_context, policy, Some(failure), LookaroundRoutineRejected()))
-    LookaroundRoutineSearchCommit(commit_depth) -> LookaheadRefuted(LookaheadAtomicSearchRejected(depth, position, input, history, capture_context, policy, None(), LookaroundRoutineCommitted(commit_depth)))
+    LookaroundRoutineSearchCommit(commit_depth) -> LookaheadRefuted(LookaheadAtomicSearchRejected(depth, position, input, history, capture_context, policy, assert_type None() : Option(AtomicStartRefutation(depth, n, machine, position, input, Nil(), history, capture_context, policy, True(), Nil(), empty_lookaround_admitted_states(n))), LookaroundRoutineCommitted(commit_depth)))
 
   fn lookaround_prefix_search_decision(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> LookaheadDecision(n, machine) = match machine
     MkPatternMachine(_, _) ->
@@ -3329,7 +3329,7 @@ mod Std.Regex.Runtime
   ) -> LookbehindDecision(n, machine) = match result
     LookaroundRoutineSearchYes(_, _, routine, selected_trace) -> LookbehindSatisfied(lookbehind_witness(depth, n, machine, position, input, after_input, history, capture_context, policy, routine, selected_trace))
     LookaroundRoutineSearchNo(failure) -> LookbehindRefuted(LookbehindAtomicSearchRejected(depth, position, input, after_input, history, capture_context, policy, Some(failure), LookaroundRoutineRejected()))
-    LookaroundRoutineSearchCommit(commit_depth) -> LookbehindRefuted(LookbehindAtomicSearchRejected(depth, position, input, after_input, history, capture_context, policy, None(), LookaroundRoutineCommitted(commit_depth)))
+    LookaroundRoutineSearchCommit(commit_depth) -> LookbehindRefuted(LookbehindAtomicSearchRejected(depth, position, input, after_input, history, capture_context, policy, assert_type None() : Option(AtomicStartRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, False(), Nil(), empty_lookaround_admitted_states(n))), LookaroundRoutineCommitted(commit_depth)))
 
   fn lookaround_search_decision(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> LookbehindDecision(n, machine) = match machine
     MkPatternMachine(_, _) ->
@@ -6113,7 +6113,7 @@ mod Std.Regex.Runtime
     AtomicPathMembersYes : (matched: List(Char)) -> (remaining: List(Char)) -> (routine: List(ExtendedInstruction)) -> (@erased selected_whole: List(LookaroundAdmittedState(n))) -> (@erased selected_current: List(LookaroundAdmittedState(n))) -> (@erased selection_suffix: LookaroundAdmittedStateCursorSuffix(n, selected_whole, selected_current)) -> (@erased selected_whole_equivalence: Equivalent(List(LookaroundAdmittedState(n)), current, selected_whole)) -> (@erased selection_from_current: LookaroundAdmittedStateCursorSuffix(n, current, selected_current)) -> (@erased trace: AtomicSelectedPathTrace(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, selected_current, matched, remaining, routine)) -> AtomicPathMembersResult(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current)
 
   type LookaroundRoutineSearchResult(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char))
-    LookaroundRoutineSearchNo : (@erased failure: AtomicStartRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix)) -> LookaroundRoutineSearchResult(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix)
+    LookaroundRoutineSearchNo : {@erased whole: List(LookaroundAdmittedState(n))} -> (@erased failure: AtomicStartRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole)) -> LookaroundRoutineSearchResult(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix)
     LookaroundRoutineSearchCommit : (commit_depth: Nat) -> LookaroundRoutineSearchResult(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix)
     LookaroundRoutineSearchYes : (matched: List(Char)) -> (remaining: List(Char)) -> (routine: List(ExtendedInstruction)) -> {@erased blocked_depth: Option(Nat)} -> {@erased kind: AtomicStartSkipKind} -> (@erased witness: AtomicSelectedStartWitness(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, current, selected_start, blocked_depth, kind, matched, remaining, routine)) -> LookaroundRoutineSearchResult(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix)
 
@@ -7435,7 +7435,7 @@ mod Std.Regex.Runtime
     reversed_prefix: List(Char),
     @erased failure: AtomicStartMembersRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, Nil(), Nil(), AtomicStartFailureExhausted()),
     @erased evidence: AtomicStartNoEvidence(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, Nil(), Nil(), AtomicStartFailureExhausted())
-  ) -> AtomicStartRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix) = AtomicStartRefutationRoot(failure, evidence)
+  ) -> AtomicStartRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, Nil()) = AtomicStartRefutationRoot(failure, evidence)
 
   @reducible
   fn atomic_start_refutation_exhaustion_excludes_trace(
@@ -7783,6 +7783,123 @@ mod Std.Regex.Runtime
     failure,
     evidence,
     membership,
+    head_case,
+    tail_case
+  )
+
+  ## Consume the public root certificate against the selected-start witness.
+  ## The root constructor's indexed whole list is carried alongside the
+  ## constructor-specific root packages; after that refinement the shared
+  ## rejected fold can consume the exact membership edge without rebuilding a
+  ## start list or introducing runtime proof dispatch.
+  @reducible
+  fn atomic_start_refutation_excludes_selected_trace(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {@erased candidate: LookaroundAdmittedState(n)},
+    {@erased remaining: List(LookaroundAdmittedState(n))},
+    {@erased selected_start: LookaroundAdmittedState(n)},
+    {@erased blocked_depth: Option(Nat)},
+    {@erased kind: AtomicStartSkipKind},
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    @erased _refutation: AtomicStartRefutation(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      Cons(candidate, remaining)
+    ),
+    @erased root_failure: AtomicStartMembersRefutation(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      Cons(candidate, remaining),
+      Cons(candidate, remaining),
+      AtomicStartFailureRejected()
+    ),
+    @erased root_evidence: AtomicStartNoEvidence(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      Cons(candidate, remaining),
+      Cons(candidate, remaining),
+      AtomicStartFailureRejected()
+    ),
+    @erased _witness: AtomicSelectedStartWitness(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      Cons(candidate, remaining),
+      Cons(candidate, remaining),
+      selected_start,
+      blocked_depth,
+      kind,
+      matched,
+      remaining_input,
+      selected_routine
+    ),
+    selected_member: ListMember(
+      LookaroundAdmittedState(n),
+      selected_start,
+      Cons(candidate, remaining)
+    ),
+    head_case: Empty,
+    tail_case: () -> Empty
+  ) -> Empty = atomic_start_refutation_rejected_excludes_trace(
+    machine,
+    position,
+    input,
+    after_input,
+    history,
+    capture_context,
+    policy,
+    prefix_mode,
+    reversed_prefix,
+    root_failure,
+    root_evidence,
+    selected_member,
     head_case,
     tail_case
   )

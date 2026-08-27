@@ -1611,6 +1611,20 @@ The bridge is proof-only and does not re-run the machine or inspect an erased
 state tag. Its source regression and direct complete-module compilation pass;
 the accepted-head and arbitrary recursive-tail continuations remain open.
 
+The first selected-trace consumer at the public root boundary is now named
+`atomic_start_refutation_excludes_selected_trace`. Its erased arguments carry
+the public `AtomicStartRefutation` wrapper and the same
+`whole = Cons(candidate, remaining)` spine as the rejected root failure and
+no-result evidence; the selected membership is then forwarded to
+`atomic_start_refutation_rejected_excludes_trace`. The consumer is deliberately
+restricted to the rejected-root kind while the kernel's erased GADT fields
+remain proof-only, so no runtime constructor dispatch or duplicated search is
+introduced. A source regression pins the root-list index, wrapper name, and
+canonical rejected-fold handoff; direct compilation of the complete Regex
+runtime passes. Exhausted and blocked root consumers, arbitrary rejected-child
+recursion, and the final all-kinds selected-trace/refutation theorem remain
+open.
+
 The non-empty accepted-root case now has its own construction adapter,
 `atomic_start_refutation_rejected_accepted_excludes_trace`. It fixes the root
 candidate to `LookaroundAdmittedAccepted`, carries the exact
