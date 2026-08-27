@@ -242,6 +242,18 @@ tail-kind refinement or arbitrary-length sibling fold; the remaining
 rejected-child, start-list, and final selected-trace correspondence proofs are
 still open.
 
+That boundary now extracts the nested tail from the parent failure with
+`atomic_path_destination_rejected_tail_package`. The reducible
+`atomic_path_rejected_tail_refinement` consumer performs the indexed
+constructor refinement only in proof space and delegates the resulting empty
+tail to `atomic_path_destinations_exhausted_tail_refinement`; it returns
+`Empty`, so no erased failure tag, cursor witness, or proof payload is emitted
+or inspected at runtime. Runtime match data remains explicit for the shared
+trace consumer. The focused dependent-assertion suite passes 137/137 and the
+canonical module pipeline passes 52/52 with only W086. Generic tail-kind
+elimination, arbitrary-length sibling induction, and final
+selected-trace/refutation correspondence remain open.
+
 The executable behavior, exact/prefix refutation soundness, and constructive
 search-result completeness are present.  Search results retain their canonical
 filtered start list, so a valid path forces the actual evaluator result to be

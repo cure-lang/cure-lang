@@ -1520,6 +1520,22 @@ the full canonical gate passes 52/52 with only the accepted W086 cycle
 warning. Arbitrary rejected-child recursion, complete start-list
 correspondence, and the final selected-trace/refutation theorem remain open.
 
+The two-sibling boundary now obtains the nested tail from the parent failure
+through `atomic_path_destination_rejected_tail_package`, rather than accepting
+independent nested failure witnesses. The new reducible
+`atomic_path_rejected_tail_refinement` consumer matches the package only at
+the proof-only construction boundary and hands its extracted tail to
+`atomic_path_destinations_exhausted_tail_refinement`; both consumers return
+`Empty`, so erased failure kinds and cursor evidence never become runtime
+values or branch tests. Runtime match data remains explicit because the
+underlying trace consumer needs it. This closes the construction-site package
+refinement for the concrete two-sibling case without claiming generic
+tail-kind elimination or arbitrary-length sibling induction. The focused
+dependent-assertion suite passes 137/137, `./cure check` passes, and the full
+canonical pipeline passes 52/52 with only the accepted W086 cycle warning.
+Arbitrary rejected-child recursion, complete start-list correspondence, and
+the final selected-trace/refutation theorem remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

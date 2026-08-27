@@ -1290,10 +1290,36 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     [body | _] = String.split(body, "\n  ##", parts: 2)
 
-    assert Regex.match?(~r/AtomicPathFailureDestinationRejected.*?AtomicPathFailureDestinationRejected/s, body)
-    assert body =~ "AtomicPathFailureDestinationsExhausted"
+    assert body =~ "AtomicPathFailureDestinationRejected"
 
-    assert body =~ "atomic_path_destination_rejection_excludes_recursive_trace"
+    assert body =~ "atomic_path_rejected_tail_refinement"
+  end
+
+  test "rejected-tail refinement is a proof-only construction boundary" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "fn atomic_path_rejected_tail_refinement"
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_path_rejected_tail_refinement", parts: 2)
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert Regex.match?(~r/@reducible\s+fn atomic_path_rejected_tail_refinement/s, source)
+    assert body =~ "AtomicPathTailPackagePacked"
+    assert body =~ "AtomicPathDestinationRejected"
+    assert body =~ "atomic_path_destinations_exhausted_tail_refinement"
+    assert body =~ "-> Empty"
+  end
+
+  test "nested rejected tails are extracted from the parent package" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_path_destination_rejection_excludes_nested_tail_rejection", parts: 2)
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert body =~ "atomic_path_destination_rejected_tail_package"
+    assert body =~ "atomic_path_rejected_tail_refinement"
   end
 
   test "atomic active-child alignment exposes head, tail, and reverse cases" do

@@ -6268,6 +6268,186 @@ mod Std.Regex.Runtime
   ) = match evidence
     AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, tail_failure) -> AtomicPathTailPackagePacked(tail_failure)
 
+  ## Refine a non-empty existential tail at its proof-only construction
+  ## boundary.  A tail package whose current spine starts with `candidate`
+  ## can only contain a destination-rejection refutation.  The contradiction
+  ## is consumed here rather than returned as an erased runtime value.
+  @reducible
+  fn atomic_path_rejected_tail_refinement(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    char: Char,
+    rest: List(Char),
+    after_input: List(Char),
+    source: Bounded(n),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    scope_depth: Nat,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    whole: List(LookaroundAdmittedState(n)),
+    candidate: LookaroundAdmittedState(n),
+    @erased package: AtomicPathTailPackage(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(candidate, Nil())
+    ),
+    matched: List(Char),
+    remaining_input: List(Char),
+    routine: List(ExtendedInstruction),
+    @erased path: AtomicSelectedPathTrace(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      Nil(),
+      matched,
+      remaining_input,
+      routine
+    )
+  ) -> Empty = match package
+    AtomicPathTailPackagePacked(failure) -> match failure
+      AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) ->
+        atomic_path_destinations_exhausted_tail_refinement(
+          machine,
+          char,
+          rest,
+          after_input,
+          source,
+          history,
+          capture_context,
+          policy,
+          scope_depth,
+          prefix_mode,
+          reversed_prefix,
+          whole,
+          atomic_path_destination_rejected_tail_package(
+            machine,
+            char,
+            rest,
+            after_input,
+            source,
+            history,
+            capture_context,
+            policy,
+            scope_depth,
+            prefix_mode,
+            reversed_prefix,
+            failure
+          ),
+          matched,
+          remaining_input,
+          routine,
+          LookaroundAdmittedStateCursorSuffixHere(
+            reflexive(empty_lookaround_admitted_states(n))
+          ),
+          path
+        )
+
+  ## The empty-tail counterpart fixes the existential package's kind at the
+  ## destination-exhaustion constructor.  It is used only after a rejected
+  ## sibling has been refined, so the nested proof consumes the actual tail
+  ## package rather than manufacturing an exhaustion witness.
+  @reducible
+  fn atomic_path_destinations_exhausted_tail_refinement(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    char: Char,
+    rest: List(Char),
+    after_input: List(Char),
+    source: Bounded(n),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    scope_depth: Nat,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    whole: List(LookaroundAdmittedState(n)),
+    @erased package: AtomicPathTailPackage(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Nil()
+    ),
+    matched: List(Char),
+    remaining_input: List(Char),
+    routine: List(ExtendedInstruction),
+    @erased tail_suffix: LookaroundAdmittedStateCursorSuffix(
+      n,
+      Nil(),
+      Nil()
+    ),
+    @erased path: AtomicSelectedPathTrace(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      Nil(),
+      matched,
+      remaining_input,
+      routine
+    )
+  ) -> Empty = atomic_path_tail_package_destinations_exhausted_excludes_trace(
+    machine,
+    char,
+    rest,
+    after_input,
+    source,
+    history,
+    capture_context,
+    policy,
+    scope_depth,
+    prefix_mode,
+    reversed_prefix,
+    whole,
+    package,
+    matched,
+    remaining_input,
+    routine,
+    tail_suffix,
+    path
+  )
+
 
   fn atomic_lookaround_routine_accepting_from(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char)) -> AtomicPathSearchResult(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix) = match state
     ThreadAccepted() -> match prefix_mode
@@ -9021,10 +9201,9 @@ mod Std.Regex.Runtime
   ## the outer candidate is skipped.  The nested rejected candidate is fixed
   ## at the head of the parent's sibling tail and its own tail is fixed at
   ## `Nil()`, so the nested destination-exhaustion branch can reuse the
-  ## singleton theorem below.  The two `Drop` witnesses are erased cursor
-  ## evidence: they transport the selected trace from the outer list to the
-  ## nested candidate and then to the exhausted tail without adding runtime
-  ## state.
+  ## canonical active-child exhaustion consumer.  The parent tail package is
+  ## refined twice at this construction site; the resulting `Drop` suffixes
+  ## are erased cursor evidence and add no runtime state.
   fn atomic_path_destination_rejection_excludes_nested_tail_rejection(
     {depth: Nat},
     {n: Nat},
@@ -9062,40 +9241,6 @@ mod Std.Regex.Runtime
     matched: List(Char),
     remaining_input: List(Char),
     routine: List(ExtendedInstruction),
-    @erased nested_failure: AtomicPathRefutation(
-      depth,
-      n,
-      machine,
-      Cons(char, rest),
-      after_input,
-      ThreadActive(state),
-      history,
-      capture_context,
-      policy,
-      scope_depth,
-      prefix_mode,
-      reversed_prefix,
-      whole,
-      Cons(nested_candidate, Nil()),
-      AtomicPathFailureDestinationRejected()
-    ),
-    @erased nested_tail_failure: AtomicPathRefutation(
-      depth,
-      n,
-      machine,
-      Cons(char, rest),
-      after_input,
-      ThreadActive(state),
-      history,
-      capture_context,
-      policy,
-      scope_depth,
-      prefix_mode,
-      reversed_prefix,
-      whole,
-      Nil(),
-      AtomicPathFailureDestinationsExhausted()
-    ),
     @erased path: AtomicSelectedPathTrace(
       depth,
       n,
@@ -9114,39 +9259,56 @@ mod Std.Regex.Runtime
       remaining_input,
       routine
     )
-  ) -> Empty = match failure
-    AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> match nested_failure
-      AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> match nested_tail_failure
-        AtomicPathDestinationsExhausted(_, _, _, _, _, _) ->
-          atomic_path_destination_rejection_excludes_recursive_trace(
-            machine,
-            char,
-            rest,
-            after_input,
-            state,
-            history,
-            capture_context,
-            policy,
-            scope_depth,
-            prefix_mode,
-            reversed_prefix,
-            whole,
-            nested_candidate,
-            nested_failure,
-            matched,
-            remaining_input,
-            routine,
-            LookaroundAdmittedStateCursorSuffixDrop(
-              nested_candidate,
-              LookaroundAdmittedStateCursorSuffixHere(
-                reflexive(empty_lookaround_admitted_states(n))
-              )
-            ),
-            LookaroundAdmittedStateCursorSuffixHere(
-              reflexive(empty_lookaround_admitted_states(n))
-            ),
-            path
-          )
+  ) -> Empty =
+    let nested_package: AtomicPathRejectedTailAt(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(state),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(nested_candidate, Nil())
+    ) = atomic_path_destination_rejected_tail_package(
+      machine,
+      char,
+      rest,
+      after_input,
+      state,
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      failure
+    )
+    atomic_path_rejected_tail_refinement(
+      machine,
+      char,
+      rest,
+      after_input,
+      state,
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      nested_candidate,
+      nested_package,
+      matched,
+      remaining_input,
+      routine,
+      path
+    )
 
   ## A rejected first candidate can be discharged when the selected trace is
   ## aligned to the sibling tail.  The parent rejection publishes the exact
