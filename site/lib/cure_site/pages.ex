@@ -1,5 +1,7 @@
 defmodule CureSite.Pages do
+  alias CureSite.Pages.GettingStarted
   alias CureSite.Pages.Page
+  alias CureSite.Pages.TechnicalOverview
 
   use NimblePublisher,
     build: Page,
@@ -8,12 +10,57 @@ defmodule CureSite.Pages do
     highlighters: [:makeup_cure, :makeup_elixir, :makeup_erlang],
     html_converter: CureSite.MarkdownConverter
 
-  @pages Enum.sort_by(@pages, & &1.order)
+  # `/about` and `/getting-started` have no markdown files under `priv/pages`:
+  # they are rendered directly from `docs/TECHNICAL_OVERVIEW.md` and
+  # `docs/GETTING_STARTED.md` at compile time by TechnicalOverview and
+  # GettingStarted. Merging them into `@pages` here means the docs sidebar,
+  # prev/next navigation, `/sitemap.xml` and `llms.txt` treat them exactly
+  # like authored pages.
+  @pages Enum.sort_by([TechnicalOverview.page(), GettingStarted.page() | @pages], & &1.order)
 
   def all_pages, do: @pages
 
   def nav_pages do
     Enum.filter(all_pages(), &(&1.order > 0))
+  end
+
+  def categories do
+    [
+      {:about, "About", "What Cure is, how its compiler works, and why it is designed this way"},
+      {:learn, "Learn Cure", "Language basics, syntax, patterns, and type system"},
+      {:concurrency, "OTP & Concurrency",
+       "Actors, state machines, supervision, and applications"},
+      {:tooling, "Tooling & Ecosystem", "CLI, LSP, compiler events, profiler, and REPL"},
+      {:roadmap, "Roadmap", "Language evolution and upcoming features"}
+    ]
+  end
+
+  def pages_by_category(category) do
+    all_pages()
+    |> Enum.filter(&(&1.category == category))
+    |> Enum.sort_by(& &1.order)
+  end
+
+  def grouped_pages do
+    for {cat, title, desc} <- categories() do
+      {cat, title, desc, pages_by_category(cat)}
+    end
+  end
+
+  def prev_and_next(current_id) do
+    # Flatten all ordered pages across categories
+    ordered = Enum.flat_map(categories(), fn {cat, _, _} -> pages_by_category(cat) end)
+    idx = Enum.find_index(ordered, &(&1.id == current_id))
+
+    case idx do
+      nil ->
+        {nil, nil}
+
+      i ->
+        prev_page = if i > 0, do: Enum.at(ordered, i - 1), else: nil
+        next_page = if i < length(ordered) - 1, do: Enum.at(ordered, i + 1), else: nil
+        {prev_page, next_page}
+    end
   end
 
   defmodule NotFoundError do

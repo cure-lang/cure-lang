@@ -74,7 +74,7 @@ for `Cure.Stdlib.Preload.known_groups/0`):
   `Std.Equatable`, `Std.Comparable`, `Std.Show`, `Std.Functor`,
   `Std.Semigroup`, and `Std.Proof`.
 - `:collections` -- `Std.List`, `Std.Map`, `Std.Set`, `Std.Vector`,
-  `Std.Tuple`, `Std.Match`, `Std.NonEmpty`, `Std.Optic`,
+  `Std.Tuple`, `Std.Match`, `Std.NonEmpty`, `Std.Optic`, `Std.Data.Suffix`,
   `Std.Dynamic`, and `Std.Iter`.
 - `:text` -- `Std.String`, `Std.Regex`, the `Std.Regex.Syntax` family,
   and `Std.Json`.
@@ -82,10 +82,12 @@ for `Cure.Stdlib.Preload.known_groups/0`):
 - `:system` -- `Std.Io`, `Std.System`, `Std.Time`, `Std.Measurements`,
   `Std.App`, and `Std.CRDT`.
 - `:concurrency` -- the typed `Std.Otp` algebra and its raw boundary,
-  plus `Std.Actor`, `Std.ActorBehavior`, `Std.Beam`, `Std.Fsm`,
-  `Std.Process`, and `Std.Supervisor`.
+  plus `Std.Actor`, `Std.ActorBehavior`, `Std.Beam`, `Std.ExitReason`,
+  `Std.Fsm`, `Std.Process`, and `Std.Supervisor`.
 - `:option` -- `Std.Option`, `Std.Result`.
 - `:test` -- `Std.Test`, `Std.Gen`.
+- `:network` -- reserved; no `lib/std/*.cure` module currently declares this
+  group.
 
 Groups are **selection tags only** — they say *which* modules a `kind:`
 pulls in, never in what order. Compile order and load closure are automatic:
@@ -123,7 +125,7 @@ Modules added or substantially reshaped by the dependent pipeline include:
   `Std.Proof.Int.*` and linear-arithmetic modules, `Std.Refine`,
   `Std.Telescope`, `Std.Syntax`, and `Std.Syntax.Raw`.
 - **Collections and data shape** -- `Std.List`, `Std.Map`, `Std.Set`,
-  `Std.Dynamic`, `Std.DataSuffix`, `Std.Match`, `Std.Optic`, and `Std.Iter`.
+  `Std.Dynamic`, `Std.Data.Suffix`, `Std.Match`, `Std.Optic`, and `Std.Iter`.
 - **Text and parsing** -- `Std.String`, `Std.Regex` plus its syntax-parser
   family, and `Std.Json`.
 - **Numeric and measurements** -- `Std.Math`, `Std.Decimal`, and

@@ -64,6 +64,22 @@ mod Std.Literal
   implementation ExpressibleByAtomLiteral for Atom
     fn from_atom_literal(literal: AtomLiteral) -> LiteralResult(Atom) = LiteralValue(literal.value)
 
+  ## `Char` declares no `ExpressibleByNaturalLiteral` instance, and cannot have a
+  ## working one. Every route from `Int` to `Char` is an `@extern` postulate with
+  ## no body, so an initializer written in terms of one never reduces to a
+  ## compile-time value — `fn c() -> Char = 12` failed rather than producing a
+  ## character. A numeral checked against `Char` is admitted by the kernel's
+  ## compact-literal rule instead, which re-derives the Unicode scalar ceiling
+  ## itself; that rule is the type's only introduction form, as it is for `Char`
+  ## in Idris and Lean.
+  ##
+  ## The instance lives here rather than in `Std.Char` for the same reason the
+  ## `Nat`, `Int`, and `Atom` instances above do: this module owns the interface
+  ## and already describes a character literal in `CharacterLiteral`, whereas
+  ## `Std.Char` is the floor below it and must not import upward.
+  implementation ExpressibleByCharacterLiteral for Char
+    fn from_character_literal(literal: CharacterLiteral) -> LiteralResult(Char) = LiteralValue(literal.value)
+
   ## Primitive Float conversions are explicitly lossy: choosing Float is the
   ## user's request to round an exact literal to IEEE-754. Decimal and custom
   ## targets never pass through these helpers.

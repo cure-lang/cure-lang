@@ -22,7 +22,7 @@ mod Std.List
   ## use Std.List
   ##
   ## # Sum of squares of positive integers up to 10
-  ## let r = range_list(1, 11)                 # [1..10]
+  ## let r = (1..11)                           # [1..10]
   ##           |> filter(fn(x) -> x > 0)
   ##           |> map(fn(x) -> x * x)
   ##           |> sum

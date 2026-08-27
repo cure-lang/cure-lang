@@ -1,0 +1,147 @@
+mod Calc
+  ###
+  A four-function calculator over a tiny expression tree.
+
+  The module is deliberately small: it exists to be read alongside
+  `docs/GETTING_STARTED.md`, which walks through creating, compiling,
+  running, and testing this project from an empty directory.
+
+  Three ideas carry the whole example:
+
+  1. `Op` and `Expr` are algebraic data types. `Expr` is recursive, so
+     an expression is a tree and every function over it is structural
+     recursion the totality checker can see through.
+  2. Evaluation returns `Result(Float, String)`. Division by zero is a
+     value, not an exception, so `eval/1` is total.
+  3. Rendering is a separate pass. `render/1` prints the tree,
+     `explain/1` pairs the rendering with its value.
+  ###
+
+  use Std.Result
+  use Std.String
+  use Std.Semigroup
+
+  ## The four binary operators the calculator understands.
+  type Op =
+    | OpAdd
+    | OpSub
+    | OpMul
+    | OpDiv
+
+  ## An arithmetic expression: a literal, a negation, or a binary
+  ## operator applied to two sub-expressions.
+  type Expr =
+    | Lit(Float)
+    | Neg(Expr)
+    | Bin(Op, Expr, Expr)
+
+  # -- Construction -----------------------------------------------------------
+  #
+  # Callers outside this module build trees through these functions instead of
+  # naming constructors directly. The surface stays stable even if the
+  # representation of `Expr` changes.
+
+  ## A literal value.
+  fn lit(x: Float) -> Expr = Lit(x)
+
+  ## Arithmetic negation of `e`.
+  fn neg(e: Expr) -> Expr = Neg(e)
+
+  ## `a + b`.
+  fn add(a: Expr, b: Expr) -> Expr = Bin(OpAdd(), a, b)
+
+  ## `a - b`.
+  fn sub(a: Expr, b: Expr) -> Expr = Bin(OpSub(), a, b)
+
+  ## `a * b`.
+  fn mul(a: Expr, b: Expr) -> Expr = Bin(OpMul(), a, b)
+
+  ## `a / b`. Evaluating this fails with an `Error` when `b` is zero.
+  fn ratio(a: Expr, b: Expr) -> Expr = Bin(OpDiv(), a, b)
+
+  # -- Evaluation -------------------------------------------------------------
+
+  ## Evaluate `e`. The only failure is division by zero, reported as
+  ## `Error("division by zero")`.
+  fn eval(e: Expr) -> Result(Float, String) =
+    match e
+      Lit(x)        -> Ok(x)
+      Neg(a)        -> negate(eval(a))
+      Bin(op, a, b) -> apply_op(op, eval(a), eval(b))
+
+  ## Evaluate `e`, falling back to `default` on any error.
+  fn eval_or(e: Expr, default: Float) -> Float =
+    match eval(e)
+      Ok(v)    -> v
+      Error(_) -> default
+
+  ## Apply `op` to two floats. Kept public so the operator table can be
+  ## tested without building a tree.
+  fn compute(op: Op, x: Float, y: Float) -> Result(Float, String) =
+    match op
+      OpAdd() -> Ok(x + y)
+      OpSub() -> Ok(x - y)
+      OpMul() -> Ok(x * y)
+      OpDiv() -> safe_div(x, y)
+
+  ## Total division: a zero divisor is an `Error`, never an exception.
+  fn safe_div(x: Float, y: Float) -> Result(Float, String) =
+    pickup
+      y == 0.0 -> Error("division by zero")
+      else     -> Ok(x / y)
+
+  ## Negate an already-evaluated operand, passing errors through.
+  local fn negate(r: Result(Float, String)) -> Result(Float, String) =
+    match r
+      Ok(x)    -> Ok(0.0 - x)
+      Error(m) -> Error(m)
+
+  ## Combine two already-evaluated operands. The first error wins, which
+  ## is what makes `eval/1` short-circuit.
+  local fn apply_op(
+    op: Op,
+    left: Result(Float, String),
+    right: Result(Float, String)
+  ) -> Result(Float, String) =
+    match left
+      Error(m) -> Error(m)
+      Ok(x) ->
+        match right
+          Error(m) -> Error(m)
+          Ok(y)    -> compute(op, x, y)
+
+  # -- Rendering --------------------------------------------------------------
+
+  ## Fully parenthesised source text for `e`.
+  fn render(e: Expr) -> String =
+    match e
+      Lit(x)        -> show(x)
+      Neg(a)        -> "-" <> render(a)
+      Bin(op, a, b) -> "(" <> render(a) <> " " <> symbol(op) <> " " <> render(b) <> ")"
+
+  ## The printed form of `e` together with its value, or with the reason
+  ## it has none.
+  fn explain(e: Expr) -> String =
+    match eval(e)
+      Ok(v)    -> render(e) <> " = " <> show(v)
+      Error(m) -> render(e) <> " ! " <> m
+
+  ## The infix symbol of an operator.
+  fn symbol(op: Op) -> String =
+    match op
+      OpAdd() -> "+"
+      OpSub() -> "-"
+      OpMul() -> "*"
+      OpDiv() -> "/"
+
+  ## Fixed-point rendering of a float: `14.0` prints as `14.0000`.
+  ## `Std.String.from_float/1` uses the shortest round-trip form
+  ## (`1.4000000000000000e+01`), which is precise but unreadable in a
+  ## calculator transcript.
+  fn show(f: Float) -> String = Std.String.from_characters(float_to_cl(f, [%[:decimals, 4]]))
+
+  ## `:erlang.float_to_list/2`. `Std.String` stores text as a list of code
+  ## points, so an extern that returns a charlist needs no conversion beyond
+  ## `from_characters/1`.
+  @extern(:erlang, :float_to_list, 2)
+  local fn float_to_cl(f: Float, opts: List(Tuple(Atom, Int))) -> List(Char)

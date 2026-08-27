@@ -69,10 +69,8 @@ defmodule Cure.Diagnostic.Sink do
       |> render_all()
       |> Enum.map_join("\n\n", &IO.iodata_to_binary/1)
 
-    case IO.write(sink.output_device, if(output == "", do: "", else: output <> "\n")) do
-      :ok -> {:ok, %{sink | diagnostics: []}}
-      other -> {:error, other}
-    end
+    :ok = IO.write(sink.output_device, if(output == "", do: "", else: output <> "\n"))
+    {:ok, %{sink | diagnostics: []}}
   end
 
   def flush(%__MODULE__{format: :json} = sink), do: flush_serialized(sink, Jason.encode!(render_all(sink)))
@@ -84,9 +82,7 @@ defmodule Cure.Diagnostic.Sink do
     do: flush_serialized(sink, Jason.encode!(Enum.map(sink.diagnostics, &Renderer.code_map/1)))
 
   defp flush_serialized(sink, output) do
-    case IO.write(sink.output_device, output <> "\n") do
-      :ok -> {:ok, %{sink | diagnostics: []}}
-      other -> {:error, other}
-    end
+    :ok = IO.write(sink.output_device, output <> "\n")
+    {:ok, %{sink | diagnostics: []}}
   end
 end

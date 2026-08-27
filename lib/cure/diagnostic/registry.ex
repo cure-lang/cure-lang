@@ -97,7 +97,7 @@ defmodule Cure.Diagnostic.Registry do
     "W081" => "No first-party producer remains; pickup reachability warnings are not emitted.",
     "W082" => "No first-party producer remains; pickup reachability warnings are not emitted.",
     "W088" =>
-      "The dependent-only pipeline rejects unresolved imported names as E091 before the classic codegen fallback can occur."
+      "No first-party producer remains; the dependent-only pipeline rejects unresolved imported names as E091 before any fallback resolution can occur."
   }
   @structured ~w[E002 E003 E011 E013 E014 E021 E022 E026 E035 E056 E057 E063 E076 E077 E078 E087 E089 E090 E091 E092 E093 E094 E102 E103 E104 E105 E106 E107 E108 E109 E110 E111 E112 E113 E114 E115 E116 E117 E118 E119 E120 W086 W088]
   @known_producers ~w[

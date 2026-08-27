@@ -212,8 +212,7 @@ defmodule Cure.Audit.ShimConformance do
     # `String` erases to `{:String, code_points}`, which is what these externs
     # actually receive from Cure — a bare binary is not a Cure `String`.
     iso =
-      {:member_of,
-       Enum.map(["2026-05-01T09:00:00Z", "2026-04-21T15:11:46.5Z", "not-a-date", ""], &cure_string/1)}
+      {:member_of, Enum.map(["2026-05-01T09:00:00Z", "2026-04-21T15:11:46.5Z", "not-a-date", ""], &cure_string/1)}
 
     [
       # Reads the clock. Declared `-> Instant ! Io`, but `declarations.ex` never

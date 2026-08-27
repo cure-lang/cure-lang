@@ -283,17 +283,30 @@ the warm path alone.
 ## Stabilization warning policy
 
 The stabilization gate means **no unexpected compiler warnings**, rather than
-an unconditional zero-warning count. Exactly two reviewed `use` SCCs are
-allowed, with membership equal to `{Std.Char, Std.Literal, Std.String}` and
-`{Std.Regex, Std.Regex.Proof}`; each is reported once as W086. Any additional
-warning, additional SCC, or change to either membership fails the gate and
-requires review.
+an unconditional zero-warning count. The `lib/std` module graph, including the
+regex package, is fully acyclic: no `use` SCC is currently allowed or expected,
+and any reported `use` cycle (W086) fails the gate and requires review.
 
-The gate compares complete SCC membership rather than the rendered closed walk.
-A traversal may print `Char -> Literal -> Char` or `Char -> String -> Char` for
-the same three-member component. The canonical-pipeline gate pins both complete
-components and their two W086 reports; `mix cure.check.stdlib` independently
-rejects unexpected module compiler warnings.
+The text/literal component `{Std.Char, Std.Literal, Std.String}` was once a
+reviewed SCC until the layer was made acyclic: the character-literal instance
+moved to `Std.Literal`, which owns the interface, and the `String`-shaped case
+conversions moved to `Std.String`, which owns the type, leaving
+`Std.Char <- Std.Literal <- Std.String`.
+
+The regex package (`Std.Regex.Core`, `Std.Regex.Runtime`, `Std.Regex.Proof`,
+`Std.Regex`, `Std.Regex.Language`) looks superficially cyclic because the
+`Std.Regex` façade makes qualified calls into `Std.Regex.Proof`, but the
+dependency is strictly one-way (`Core <- Runtime <- Proof <- Regex`, with
+`Language` depending on `Core`, `Runtime`, and `Proof`); `Std.Regex.Proof`
+and `Std.Regex.Core` never depend back on `Std.Regex`. This one-way ownership
+is pinned by `test/cure/compiler/regex_module_split_test.exs`. `lib/std`
+therefore has no `use` cycle anywhere.
+
+The gate compares complete SCC membership rather than the rendered closed walk,
+since a traversal may print any loop of a multi-member component. The
+canonical-pipeline gate pins the complete component set and its W086 report;
+`mix cure.check.stdlib` independently rejects unexpected module compiler
+warnings.
 
 ## Focused test startup
 

@@ -19,8 +19,9 @@ defmodule Cure.Compiler.StructuredOtpMacroTest do
 
     # The derived event type is a companion of the machine, so it is owned by
     # the generated module rather than bound beside it in `M`.
-    assert {:"__impl_Equatable_Generated.StructuredFsm#Event_==", 2} in
-             :"Cure.Generated.StructuredFsm".module_info(:exports)
+    assert {:"__impl_Equatable_Generated.StructuredFsm#Event_==", 2} in :"Cure.Generated.StructuredFsm".module_info(
+             :exports
+           )
 
     assert apply(:"Cure.Generated.StructuredFsm", :handle_event, [
              :cast,

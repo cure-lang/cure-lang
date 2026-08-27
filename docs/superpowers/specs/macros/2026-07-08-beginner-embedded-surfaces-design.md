@@ -12,9 +12,9 @@ projects, for users who will never learn what a Pi type is — while delivering
 domain (web, data, services, distributed, play).
 
 Companion documents:
-- Kernel foundation this rides on: [`2026-07-07-final-core-grammar-design.md`](../2026-07-07-final-core-grammar-design.md)
+- Kernel foundation this rides on: [`2026-07-07-final-core-grammar-design.md`](../kernel/2026-07-07-final-core-grammar-design.md)
   (grades §B power ownership/IFC; delta-globals §G power literal-index discharge).
-- Effects: [`2026-07-07-sound-effect-discipline-design.md`](../2026-07-07-sound-effect-discipline-design.md)
+- Effects: [`2026-07-07-sound-effect-discipline-design.md`](../effects/2026-07-07-sound-effect-discipline-design.md)
   (capability manifests, §6.10).
 - FRP/Flow: the reactive-runtime design bible (v12) — the flagship DSL; this doc
   does not respecify it, only positions it.

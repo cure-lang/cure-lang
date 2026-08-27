@@ -1,7 +1,9 @@
 %{
   title: "Roadmap",
   description: "What's implemented, what's next, and what's planned for the future.",
-  order: 10
+  category: :roadmap,
+  category_title: "Roadmap",
+  order: 1
 }
 ---
 

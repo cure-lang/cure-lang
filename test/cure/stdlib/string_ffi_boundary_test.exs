@@ -54,10 +54,14 @@ defmodule Cure.Stdlib.StringFfiBoundaryTest do
   end
 
   describe "Std.Char" do
-    test "case mapping produces a Cure string" do
+    test "case mapping produces code points, which Std.String tags" do
       c = std("char")
-      assert c.uppercased(?a) == cure_string("A")
-      assert c.lowercased(?Z) == cure_string("z")
+      s = std("string")
+
+      assert c.uppercased_characters(?a) == ~c"A"
+      assert c.lowercased_characters(?Z) == ~c"z"
+      assert s.uppercased_character(?a) == cure_string("A")
+      assert s.lowercased_character(?Z) == cure_string("z")
     end
   end
 

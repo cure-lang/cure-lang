@@ -15,11 +15,16 @@ mod Std.Char
   ##
   ## Construction is confined to literals and the checked `from_code_point`
   ## boundary below, which excludes values outside Unicode scalar space.
+  ##
+  ## This module is the floor of the text layer: `Std.Literal` describes the
+  ## literal syntax that produces a `Char`, and `Std.String` stores its text as
+  ## a `List(Char)`, so both sit above it. `Std.Char` therefore names neither —
+  ## the `ExpressibleByCharacterLiteral` instance lives with the interface in
+  ## `Std.Literal`, and the `String`-shaped case conversions live with the type
+  ## in `Std.String`.
 
-  use Std.String
   use Std.Equatable
   use Std.Comparable
-  use Std.Literal
 
   ## `@prelude`: `Char` is ambient like `String`, so a bare `Char` return/field
   ## type and character literals resolve with no `use`.
@@ -32,17 +37,6 @@ mod Std.Char
 
   implementation Comparable for Char
     fn `<`(a: Char, b: Char) -> Bool = less_than(a, b)
-
-  ## `Char` declares no `ExpressibleByNaturalLiteral` instance, and cannot have a
-  ## working one. Every route from `Int` to `Char` is an `@extern` postulate with
-  ## no body, so an initializer written in terms of one never reduces to a
-  ## compile-time value — `fn c() -> Char = 12` failed rather than producing a
-  ## character. A numeral checked against `Char` is admitted by the kernel's
-  ## compact-literal rule instead, which re-derives the Unicode scalar ceiling
-  ## itself; that rule is the type's only introduction form, as it is for `Char`
-  ## in Idris and Lean.
-  implementation ExpressibleByCharacterLiteral for Char
-    fn from_character_literal(literal: CharacterLiteral) -> LiteralResult(Char) = LiteralValue(literal.value)
 
   ## The Unicode code point of `c` as an `Int`. A `Char` already erases to its code point, so
   ## the runtime bridge is the identity; this names the `Char -> Int` coercion
@@ -127,20 +121,17 @@ mod Std.Char
   @extern(:cure_std_char, :lowercase?, 1)
   fn is_lowercase(c: Char) -> Bool
 
-  ## Case conversion returns a String because Unicode mappings may expand one
-  ## scalar into several (`'ß'.uppercased()` is `"SS"`). The shim returns a bare
-  ## code-point list, so the extern is declared at `List(Char)` and wrapped: an
-  ## `@extern` performs no marshalling, and nominal `String` erases to
-  ## `{String, chars}`, a shape the shim does not build.
+  ## Case conversion answers a `List(Char)` because Unicode mappings may expand
+  ## one scalar into several (uppercasing `'ß'` yields `SS`). The shim returns a
+  ## bare code-point list and an `@extern` performs no marshalling, so this is
+  ## the shape the boundary really has; `Std.String.uppercased_character/1` and
+  ## `Std.String.lowercased_character/1` assemble the nominal `String` form,
+  ## which erases to `{String, chars}` and belongs with the type that owns it.
   @extern(:cure_std_char, :uppercased, 1)
-  local fn uppercased_charlist(c: Char) -> List(Char)
-
-  fn uppercased(c: Char) -> String = Std.String.from_characters(uppercased_charlist(c))
+  fn uppercased_characters(c: Char) -> List(Char)
 
   @extern(:cure_std_char, :lowercased, 1)
-  local fn lowercased_charlist(c: Char) -> List(Char)
-
-  fn lowercased(c: Char) -> String = Std.String.from_characters(lowercased_charlist(c))
+  fn lowercased_characters(c: Char) -> List(Char)
 
   ## ASCII-only one-to-one fold for protocols (such as non-Unicode regex
   ## caseless matching) that explicitly require ASCII semantics.

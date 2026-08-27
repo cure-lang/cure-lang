@@ -193,7 +193,8 @@ spellings are retired.
 - `%[A, B]` -- tuple (the type-level counterpart of the value `%[a, b]`)
 - `A -> B` -- function type
 
-`%[A, B]` is the canonical tuple-type spelling. The legacy spelling
+`%[A, B]` is the canonical tuple-type spelling; `Tuple(A, B)` parses to the
+same `{:tuple_type, ...}` node. The legacy spelling
 `(A, B)` remains accepted and has the same elaborated and runtime
 representation, but emits the `E086 / E-TYPE-TUPLE-PAREN` deprecation so the
 rewrite can be applied mechanically. A grouped type `(A)` and a function domain
@@ -609,10 +610,11 @@ same checked algebra and BEAM behavior declarations as any user macro.
 
 ## Actors and Supervisors (v0.25.0)
 
-Typed supervision trees are auto-preluded standard-library macros over the
-checked BEAM algebra. See `docs/SUPERVISION.md` for the authoritative
-reference. They expand to generic lifted modules, not compiler-owned object
-classes.
+Typed supervision trees are standard-library macros (`Std.Actor`,
+`Std.Supervisor`) over the checked BEAM algebra; a unit that declares an
+`actor` or `sup` must `use` the owning module. See `docs/SUPERVISION.md` for
+the authoritative reference. They expand to generic lifted modules, not
+compiler-owned object classes.
 
 ### The Melquiades Operator `<-|` / `✉`
 
@@ -634,14 +636,20 @@ request
 ### `actor`
 
 ```text
-actor Counter state Int handle_info
-  let pid: Pid(Atom) = beam_ops self
-  %[:noreply, state + 1]
+use Std.Actor
+
+actor Counter
+  state Int
+  initial 0
+  on_message
+    Inc -> state + 1
 ```
 
 `actor` emits ordinary `gen_server` callbacks. `state T` shares a module-local
 `State` alias, and callback results use erased `Effect(...)` types so pure and
-effectful bodies follow one checked path.
+effectful bodies follow one checked path. See [Actors](/actors) and
+`docs/SUPERVISION.md` for the full grammar (`on_message`, `on_call` queries,
+the raw `handle_cast`/`handle_info` form, and so on).
 
 ### `sup`
 
@@ -660,14 +668,14 @@ Child policies use closed `Restart`, `Shutdown`, and `ChildType` values from
 `Std.Supervisor`; intensity and period use `Nat`. The generated `init/1` and
 `start_link/0` are ordinary checked declarations.
 
-### Links, monitors, trap_exit
+### Links, monitors
 
-`Std.Process` exposes the raw BEAM process primitives (`link/1`,
-`unlink/1`, `monitor/1` returning a `Ref`, `demonitor/1`,
-`trap_exit/1`, `exit/2`, `self/0`, `is_alive/1`). Most calls map
-directly to `:erlang` BIFs; `monitor/1` and `trap_exit/1` route
-through thin wrappers in `Cure.Process.Builtins` so the Cure
-signatures stay idiomatic.
+`Std.Process` is a compatibility facade over a slice of `Std.Otp`'s typed
+process algebra: `self/0`, `link/1`, `unlink/1`, `monitor/2` (takes the closed
+`MonitorKind` and returns a `MonitorRef`), `demonitor/1`, `is_alive/1`. Their
+process/reply-type parameters are implicit. `Std.Otp` itself additionally has
+`exit/2` for sending an exit signal built from `Std.ExitReason`; the current
+stdlib has no `trap_exit` wrapper.
 
 ### Typed sends
 
@@ -699,8 +707,9 @@ project.
 
 `cure release` (also `mix cure.release`) packages the compiled
 application as a bootable BEAM release under
-`_build/cure/rel/<name>/`; failure modes surface as `E052` (missing
-`app`) or `E055` (release-build failure). From Cure source,
+`_build/cure/rel/<name>/`; a missing project file, build failure, or
+release-assembly error surfaces as an operational `E098` (command failure)
+or `E100` (artifact) diagnostic. From Cure source,
 `Std.App` offers `ensure_all_started`, `start`, `stop`, `get_env`,
 `put_env`, `which_applications`, `loaded_applications`, and
 `start_phase` as thin wrappers over `:application`.
@@ -724,7 +733,9 @@ match x
   _      -> "never reached"
 ```
 `_` is the wildcard. A name starting with `_` (for example `_unused`)
-is a binding that silences the unused-variable warning.
+is an ordinary binding; the convention signals an intentionally-unused
+value (the compiler does not currently emit an unused-variable warning
+to silence).
 ### Tuples and lists
 ```text
 match pair
@@ -734,11 +745,13 @@ match pair
 match xs
   []             -> "empty"
   [h | t]        -> "non-empty"
+  [a, b | rest]  -> "at least two"
   [a, b, c]      -> "exactly three"
 ```
-Cons is single-head only: `[h | t]` binds `h` to the head and `t` to
-the tail. Matching against a literal-length list (`[a, b, c]`) requires
-the list to have that exact length.
+`[h | t]` binds `h` to the head and `t` to the tail. Multi-head cons
+`[a, b, ... | rest]` is desugared at parse time into right-associated
+cons cells (`[a | [b | rest]]`). Matching against a literal-length list
+(`[a, b, c]`) requires the list to have that exact length.
 ### Maps
 ```text
 match request
@@ -800,10 +813,9 @@ match value
     greet(n)
 ```
 ### Exhaustiveness
-The compiler checks pattern exhaustiveness. Shallow coverage gaps are
-reported by the flat classifier (`E004`); nested gaps (tuples of ADTs,
-records in tuples, etc.) are reported with a concrete witness under
-code `E025`.
+The compiler checks pattern exhaustiveness. Missing constructors -- at the
+top level or inside a tuple position -- are reported under code `E118`
+(Pattern Coverage).
 
 ## Conditional Dispatch (`pickup`)
 
@@ -874,49 +886,43 @@ assignment.
 
 ### Binary patterns
 
-Binary literals use Erlang-style segment grammar between `<<` and
-`>>`. Every segment is `value [:: specifier_chain]`; the specifier
-chain is hyphen-joined and covers type (`integer`, `float`, `utf8`,
-`utf16`, `utf32`, `binary`, `bytes`, `bitstring`, `bits`),
-signedness, endianness, `size(expr)`, and `unit(n)`. See
-`docs/BINARIES.md` for the authoritative reference.
+Binary literals are written between `<<` and `>>`. The parser accepts the
+full Erlang-style segment grammar (`value [:: specifier_chain]`, covering
+type, signedness, endianness, `size(expr)`, and `unit(n)`), but the current
+elaborator only lowers plain 8-bit byte segments, plus a single trailing
+unsized `rest::binary` (or `::bytes`/`::bitstring`/`::bits`) tail in pattern
+position. A sized or typed segment (`x::16`, `x::float`, `x::utf8`, ...) is
+rejected under `E093` as a deferred rich-bit-syntax case rather than
+silently mislowered. See `docs/BINARIES.md` for the authoritative reference.
 
 ```text
 let header       = <<42, 1, 2, 3>>
 let <<tag, _::binary>> = buffer
 
 match frame
-  <<len::16, payload::binary-size(len), _::binary>> -> payload
-  <<>>                                              -> <<>>
+  <<tag, len, _::binary>> -> len
+  <<>>                    -> 0
 ```
 
-Binary exhaustiveness is tracked via code `E031`.
-
-**Trailing `rest::binary` refinement (v0.22.0).** A trailing
-`rest::binary` (or `rest::bytes`, `rest::bitstring`) segment after
-byte-aligned preceding segments inherits a refinement of the form
-`byte_size(rest) == byte_size(scrutinee) - sum_of_preceding_sizes`.
-The refinement flows through the SMT translator, so subsequent
-binary matches on `rest` type-check without having to re-assert the
-length invariant. Non-byte-aligned or non-linearisable preceding
-segments degrade the refinement to plain `Bitstring` and emit the
-`:refinement_ignored` event under code `E037`.
+Binary matches desugar to guarded byte-offset reads rather than an
+inductive case split, so they are open by construction: a binary `match`
+must end in a wildcard/variable catch-all, or the compiler rejects it under
+code `E119` (Pattern Structure).
 
 ### Binary comprehension generators
 
 ```text
 [byte for <<byte <- "abc">>]       # [97, 98, 99]
-[word for <<word::16 <- buf>>]     # 16-bit words, big-endian
-[ch   for <<ch::utf8 <- text>>]    # UTF-8 code points
 ```
 
 A binary comprehension generator (v0.22.0) wraps the whole generator
 in `<<...>>`: pattern segments, the `<-` arrow, and the source
-expression all live between `<<` and `>>`. The segments reuse the
-regular binary-pattern grammar (specifier chains, `::size(n)`,
-`::unit(k)`, `::utf8`, ...). The comprehension body sees the
-generator variables narrowed to their segment types. A non-bitstring
-source produces an `E036` warning.
+expression all live between `<<` and `>>`. The generator segment itself
+must be a bare, unsized, untyped binder (e.g. `byte`); it desugars to an
+ordinary list generator over the source's byte view. Sized or typed
+segment specifiers on the generator pattern (`::size(n)`, `::utf8`, ...)
+are a deliberate unsupported extension until their runtime representation
+exists.
 
 ### Lambda block bodies
 

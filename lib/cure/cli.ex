@@ -458,7 +458,7 @@ defmodule Cure.CLI do
           exit({:shutdown, 1})
       end
 
-    dependency_roots = dependency_source_roots(project)
+    dependency_roots = project_source_roots(project) ++ dependency_source_roots(project)
 
     compile_opts = [
       output_dir: output_dir,
@@ -540,7 +540,20 @@ defmodule Cure.CLI do
       end
 
     preload_runtime_dependencies!(project)
-    source_roots = [Path.dirname(Path.expand(path)) | dependency_source_roots(project)]
+
+    # A file in a real project almost always calls into its sibling modules
+    # (`lib/main.cure` -> `lib/calc.cure`). Import resolution finds those
+    # siblings from source, so the file COMPILES, but the escript starts with
+    # none of them loaded and the run then dies with `:undef` on the first
+    # cross-module call. Compile and load the whole project `lib/` first --
+    # exactly what `cure test` does for the same reason. Without a `Cure.toml`
+    # (a loose script such as `cure run examples/hello.cure`) there is no
+    # project to bootstrap and this is a no-op.
+    if project, do: load_project_lib(project)
+
+    source_roots =
+      [Path.dirname(Path.expand(path))] ++
+        project_source_roots(project) ++ dependency_source_roots(project)
 
     source =
       case File.read(path) do
@@ -702,6 +715,13 @@ defmodule Cure.CLI do
 
   defp dependency_source_roots(_project), do: []
 
+  # The project's OWN source roots (`lib/` by default). A file outside them --
+  # `test/calc_test.cure`, `bench/*.cure` -- still imports the project's modules,
+  # and source-level import resolution only searches the roots it is given.
+  defp project_source_roots(%Cure.Project{} = project), do: Cure.Project.source_roots(project)
+
+  defp project_source_roots(_project), do: []
+
   defp source_roots(paths) do
     paths
     |> Enum.map(fn path -> if File.dir?(path), do: path, else: Path.dirname(path) end)
@@ -713,27 +733,30 @@ defmodule Cure.CLI do
 
   @dialyzer {:nowarn_function, cmd_check: 2}
   defp cmd_check(path, _opts) do
-    source =
-      case File.read(path) do
-        {:ok, s} ->
-          s
-
-        {:error, reason} ->
-          error_diagnostic(Cure.Diagnostic.Operational.file_read(path, reason))
-          exit({:shutdown, 1})
+    project =
+      case Cure.Project.load() do
+        {:ok, p} -> p
+        _ -> nil
       end
 
-    with {:ok, tokens} <- Cure.Compiler.Lexer.tokenize(source, file: path, emit_events: false),
-         {:ok, ast} <- Cure.Compiler.Parser.parse(tokens, file: path, emit_events: false),
-         {:ok, ast} <- Cure.Elab.Program.expand_declaration_uses(ast),
-         {:ok, _lifted_requests} <- Cure.Compiler.LiftModule.collect(ast),
-         {:ok, _env} <- Cure.Elab.Program.check_ast(ast) do
-      info("#{path}: OK")
-    else
+    source = read_source_or_exit(path)
+
+    # Checking one file of a project still has to resolve that project's other
+    # modules: `lib/main.cure` naming `Calc` is not an unknown value, it is a
+    # sibling source the compile path would find through its source roots. A
+    # file outside `lib/` (a test module) needs the project roots as well.
+    source_roots =
+      [Path.dirname(Path.expand(path))] ++
+        project_source_roots(project) ++ dependency_source_roots(project)
+
+    case Cure.Compiler.check_source(source, file: path, source_roots: source_roots) do
+      {:ok, _env} ->
+        info("#{path}: OK")
+
       {:error, reason} ->
         # The dependent checker returns a tagged `{:error, term}`; funnel it
         # through the shared structured sink.
-        emit_host_diagnostic(reason, path)
+        emit_host_diagnostic(reason, path, source)
         exit({:shutdown, 1})
     end
   end
@@ -919,7 +942,9 @@ defmodule Cure.CLI do
       end
 
     preload_runtime_dependencies!(project)
-    dependency_roots = dependency_source_roots(project)
+    # A test module lives outside `lib/`, so resolving its `use MyModule` needs
+    # the project's own source roots alongside the dependency roots.
+    dependency_roots = project_source_roots(project) ++ dependency_source_roots(project)
     load_project_lib(project)
 
     if cover? do

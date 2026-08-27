@@ -32,6 +32,7 @@ defmodule Mix.Tasks.Cure.Bench.Interfaces do
       if paths == [],
         do: Path.wildcard("lib/std/**/*.cure") ++ Path.wildcard("lib/std_deps/regex/*.cure"),
         else: paths
+
     iterations = Keyword.get(opts, :warm_iterations, 3)
     top = Keyword.get(opts, :top, 20)
 

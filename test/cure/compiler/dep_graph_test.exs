@@ -11,14 +11,14 @@ defmodule Cure.Compiler.DepGraphTest do
     path
   end
 
-  describe "scan/2 + order/1" do
+  describe "scan/2 + order_deps_map/1 + components/3" do
     test "indexes a declaration-only source under the implicit Main module", %{tmp_dir: dir} do
       path = write!(dir, "main.cure", "fn answer() -> Int = 42\n")
 
       assert {:ok, graph} = DepGraph.scan([path])
       assert graph.modules["Main"] == path
       assert graph.module_index.entries["Main"].provided_modules == ["Main"]
-      assert {:ok, [^path], []} = DepGraph.order(graph)
+      assert DepGraph.order_deps_map(graph) == %{"Main" => []}
     end
 
     test "orders use-dependencies before their dependents", %{tmp_dir: dir} do
@@ -26,9 +26,9 @@ defmodule Cure.Compiler.DepGraphTest do
       b = write!(dir, "aa_user.cure", "mod UserB\n  use LibA\n  fn start() -> Int = ping()\n")
 
       {:ok, graph} = DepGraph.scan([b, a])
-      {:ok, order, []} = DepGraph.order(graph)
+      deps = DepGraph.order_deps_map(graph)
 
-      assert order == [a, b]
+      assert DepGraph.toposort(deps, Map.keys(deps)) == ["LibA", "UserB"]
       assert graph.module_index.entries["LibA"].source_path == a
       assert graph.module_index.entries["UserB"].source_path == b
     end
@@ -91,32 +91,28 @@ defmodule Cure.Compiler.DepGraphTest do
 
       {:ok, g1} = DepGraph.scan(paths)
       {:ok, g2} = DepGraph.scan(Enum.reverse(paths))
-      assert DepGraph.order(g1) == DepGraph.order(g2)
-      assert {:ok, Enum.sort(paths), []} == DepGraph.order(g1)
+      deps1 = DepGraph.order_deps_map(g1)
+      deps2 = DepGraph.order_deps_map(g2)
+
+      assert deps1 == deps2
+      assert DepGraph.toposort(deps1, Map.keys(deps1)) == DepGraph.toposort(deps2, Map.keys(deps2))
+      assert DepGraph.toposort(deps1, Map.keys(deps1)) == ["M1", "M2", "M3", "M4"]
     end
 
-    test "cycle: ordering succeeds as an SCC group and reports the closed walk", %{tmp_dir: dir} do
+    test "cycle: order_deps_map + components groups the SCC together, dependents after", %{tmp_dir: dir} do
       a = write!(dir, "a.cure", "mod CycA\n  use CycB\n  fn f() -> Int = 1\n")
       b = write!(dir, "b.cure", "mod CycB\n  use CycA\n  fn g() -> Int = 2\n")
       c = write!(dir, "c.cure", "mod Down\n  use CycA\n  fn h() -> Int = 3\n")
 
       {:ok, graph} = DepGraph.scan([a, b, c])
-      # SCC policy (spec §3.1 as amended): no crash — members compile as a
-      # group in alphabetical path order, dependents still AFTER the SCC,
-      # and the cycle is reported as one closed walk.
-      assert {:ok, order, [hops]} = DepGraph.order(graph)
+      deps = DepGraph.order_deps_map(graph)
 
-      assert order == [a, b, c]
-
-      modules = Enum.map(hops, & &1.module)
-      assert "CycA" in modules and "CycB" in modules
-      refute "Down" in modules
-      assert Enum.all?(hops, &(is_binary(&1.path) and is_integer(&1.line)))
-      # The hop list must be a CLOSED walk, not just "both modules appear
-      # somewhere" -- assert it actually loops back to its own start, per
-      # the spec's `A (a.cure:3) -> B (b.cure:2) -> A` format.
-      assert length(hops) == 3
-      assert List.first(hops).module == List.last(hops).module
+      # SCC policy (spec §3.1 as amended): no crash — members are grouped
+      # together (alphabetical within the group), dependents still AFTER
+      # the SCC. The closed-walk cycle diagnostic with file/line hops is a
+      # separate contract owned by `Cure.Compiler.Artifacts.Sweep` — see
+      # `canonical_artifact_sweep_test.exs`.
+      assert DepGraph.components(deps, Map.keys(deps)) == [["CycA", "CycB"], ["Down"]]
     end
 
     test "duplicate module name across files is an error", %{tmp_dir: dir} do
@@ -138,10 +134,27 @@ defmodule Cure.Compiler.DepGraphTest do
 
       assert duplicate_diagnostic.code == "E087"
 
-      cycle_a = write!(dir, "cycle_a.cure", "mod CycleA\n  use CycleB\n  fn left() -> Int = 1\n")
-      cycle_b = write!(dir, "cycle_b.cure", "mod CycleB\n  use CycleA\n  fn right() -> Int = 2\n")
-      assert {:ok, graph} = DepGraph.scan([cycle_a, cycle_b])
-      assert {:ok, _order, [hops]} = DepGraph.order(graph)
+      # The closed-walk `:import_cycle` payload is produced by the live
+      # canonical pipeline (`Cure.Compiler.Artifacts.Sweep`), not by this
+      # module, so exercise it through the real `sweep/1` entry point (its
+      # own dedicated subdirectory keeps it isolated from the duplicate-module
+      # fixture above).
+      cycle_root = Path.join(dir, "cycle_src")
+      File.mkdir_p!(cycle_root)
+      cycle_a = write!(cycle_root, "cycle_a.cure", "mod CycleA\n  use CycleB\n  fn left() -> Int = 1\n")
+      _cycle_b = write!(cycle_root, "cycle_b.cure", "mod CycleB\n  use CycleA\n  fn right() -> Int = 2\n")
+
+      assert {:ok, result} =
+               Cure.Compiler.Artifacts.sweep(
+                 module_pipeline: :canonical,
+                 package: "cycle_fixture",
+                 kind: :project,
+                 source_roots: [cycle_root],
+                 output_dir: Path.join(dir, "cycle_ebin"),
+                 repair: true
+               )
+
+      assert [hops] = result.cycles
 
       {cycle_diagnostic, _registry} =
         Cure.Compiler.Errors.to_diagnostic({:import_cycle, hops}, cycle_a, File.read!(cycle_a))
@@ -158,7 +171,7 @@ defmodule Cure.Compiler.DepGraphTest do
       a = write!(dir, "a.cure", "mod OnlyOne\n  use Std.List\n  use NotInSet\n  fn f() -> Int = 1\n")
 
       {:ok, graph} = DepGraph.scan([a])
-      assert {:ok, [^a], []} = DepGraph.order(graph)
+      assert DepGraph.order_deps_map(graph) == %{"OnlyOne" => []}
 
       assert graph.nodes[a].order_deps == [] or
                Enum.all?(graph.nodes[a].order_deps, &(&1.target in ["Std.List", "NotInSet"]))
@@ -205,7 +218,7 @@ defmodule Cure.Compiler.DepGraphTest do
       assert graph.modules["Cure.Generated.Worker"] == source
     end
 
-    test "blank placeholders sort last; parse failures are isolated nodes", %{tmp_dir: dir} do
+    test "blank placeholders and parse failures are isolated nodes", %{tmp_dir: dir} do
       blank = write!(dir, "a_blank.cure", "   \n")
       bad = write!(dir, "b_bad.cure", "mod ((((\n")
       good = write!(dir, "c_good.cure", "mod Good\n  fn f() -> Int = 1\n")
@@ -214,15 +227,17 @@ defmodule Cure.Compiler.DepGraphTest do
       assert graph.nodes[blank].blank?
       assert graph.nodes[bad].parse_error != nil
 
-      {:ok, order, []} = DepGraph.order(graph)
-      assert List.last(order) == blank
-      assert bad in order and good in order
+      # Nodes without a resolved module name (blank) are excluded from the
+      # module-name-keyed maps entirely; a recoverable parse error still
+      # contributes whatever module name the tolerant fixity harvest found
+      # (here, none -- `mod ((((` recovers no real name).
+      assert DepGraph.order_deps_map(graph) == %{"(" => [], "Good" => []}
     end
 
     test "self-use is ignored", %{tmp_dir: dir} do
       a = write!(dir, "selfy.cure", "mod Selfy\n  use Selfy\n  fn f() -> Int = 1\n")
       {:ok, graph} = DepGraph.scan([a])
-      assert {:ok, [^a], []} = DepGraph.order(graph)
+      assert DepGraph.order_deps_map(graph) == %{"Selfy" => []}
     end
 
     test "generic lifted modules are discovered without OTP container kinds", %{tmp_dir: dir} do
@@ -251,29 +266,23 @@ defmodule Cure.Compiler.DepGraphTest do
       ]
 
       {:ok, graph} = DepGraph.scan(files)
-      {:ok, order, cycles} = DepGraph.order(graph)
+      deps = DepGraph.order_deps_map(graph)
+      order = DepGraph.toposort(deps, Map.keys(deps))
+      components = DepGraph.components(deps, Map.keys(deps))
       index = order |> Enum.with_index() |> Map.new()
 
       scc_of =
-        for {cycle, i} <- Enum.with_index(cycles),
-            hop <- cycle,
-            into: %{},
-            do: {hop.path, i}
+        for {members, i} <- Enum.with_index(components), m <- members, into: %{}, do: {m, i}
 
-      assert Enum.any?(cycles, fn cycle ->
-               mods = Enum.map(cycle, & &1.module)
-               "MEnv" in mods and "MExc" in mods
-             end),
-             "expected the MEnv<->MExc cycle to be reported, got: #{inspect(cycles)}"
+      assert Enum.any?(components, fn members -> "MEnv" in members and "MExc" in members end),
+             "expected the MEnv<->MExc cycle to be reported, got: #{inspect(components)}"
 
-      for {path, node} <- graph.nodes,
-          %{target: target} <- node.order_deps,
-          dep_path = graph.modules[target],
-          dep_path != nil,
+      for {source_module, targets} <- deps,
+          target <- targets,
           # intra-SCC edges are exempt (no valid topological constraint exists)
-          scc_of[path] == nil or scc_of[path] != scc_of[dep_path] do
-        assert index[dep_path] < index[path],
-               "#{target} (#{dep_path}) must precede #{node.module} (#{path})"
+          scc_of[source_module] == nil or scc_of[source_module] != scc_of[target] do
+        assert index[target] < index[source_module],
+               "#{target} must precede #{source_module}"
       end
     end
   end

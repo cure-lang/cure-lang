@@ -1,7 +1,9 @@
 %{
   title: "Type System",
   description: "The dependent kernel: indexed families, conversion, quantitative binders, patterns, and interfaces.",
-  order: 3
+  category: :learn,
+  category_title: "Learn Cure",
+  order: 6
 }
 ---
 
@@ -69,8 +71,8 @@ type Wrapper = Wrap(Int)
 ## Primitive and composite types
 
 Visible primitive homes include `Std.Int`, `Std.Float`, `Std.Char`,
-`Std.Atom`, and `Std.Binary`. `String` is the transparent alias
-`List(Char)`.
+`Std.Atom`, and `Std.Binary`. `String` is a nominal type (`Std.String`)
+storing its text as a `List(Char)`, not a transparent alias for it.
 
 Common composite types are:
 
@@ -224,9 +226,8 @@ cure audit trust My.Module
 ## Effects
 
 The kernel recognises `Effect(t)` as a type former for direct-style effectful
-computations. Existing BEAM-facing APIs may also expose the edition's explicit
-`! Io`, `! State`, and related effect annotations. Erased binders cannot carry
-runtime effects.
+computations; BEAM-facing APIs (OTP, I/O, and so on) return values wrapped in
+it. Erased binders cannot carry runtime effects.
 
 For deeper treatment, read the
 [Dependent Types](https://hexdocs.pm/cure/dependent-types.html),

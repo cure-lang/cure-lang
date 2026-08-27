@@ -35,6 +35,16 @@ defmodule Cure.CLITest do
     end
   end
 
+  defp ensure_escript! do
+    path = Path.expand("cure")
+
+    unless File.exists?(path) do
+      Mix.Task.run("cure.escript", [])
+    end
+
+    path
+  end
+
   describe "cure version" do
     test "prints version" do
       output = capture_io(fn -> Cure.CLI.main(["version"]) end)
@@ -98,7 +108,7 @@ defmodule Cure.CLITest do
         fn run() -> Int = answer()
       """)
 
-      executable = Path.expand("cure")
+      executable = ensure_escript!()
       args = ["compile", "lib", "-o", output_root]
 
       assert {first_output, 0} = System.cmd(executable, args, cd: project_root, stderr_to_stdout: true)
@@ -163,7 +173,7 @@ defmodule Cure.CLITest do
       """)
 
       assert {output, 0} =
-               System.cmd(Path.expand("cure"), ["compile", source, "-o", output_dir],
+               System.cmd(ensure_escript!(), ["compile", source, "-o", output_dir],
                  cd: tmp,
                  stderr_to_stdout: true
                )
@@ -415,7 +425,7 @@ defmodule Cure.CLITest do
       # sticky. Exercise the built CLI in its own VM so this public-path test
       # cannot mistake that test-only protection for a compiler load failure.
       {output, status} =
-        System.cmd(Path.expand("cure"), ["stdlib", "-o", output_dir], stderr_to_stdout: true)
+        System.cmd(ensure_escript!(), ["stdlib", "-o", output_dir], stderr_to_stdout: true)
 
       assert status == 0, output
       assert output =~ "Compiling Cure standard library"

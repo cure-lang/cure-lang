@@ -32,26 +32,107 @@ defmodule CureSite.Stdlib do
   # that are not listed below fall into the trailing "Other" bucket so
   # nothing gets silently dropped.
   @groups_for_modules [
-    {"Core", ["Std.Core", "Std.Equal", "Std.Eq", "Std.Ord", "Std.Show", "Std.Functor"]},
-    {"Collections",
+    {"Core & Type System",
      [
+       "Std.Core",
+       "Std.Decision",
+       "Std.Dynamic",
+       "Std.Literal",
+       "Std.Match",
+       "Std.Optic",
+       "Std.Refine",
+       "Std.Sigma",
+       "Std.Telescope"
+     ]},
+    {"Primitive Types",
+     [
+       "Std.Atom",
+       "Std.Binary",
+       "Std.Bool",
+       "Std.Char",
+       "Std.String",
+       "Std.Tuple",
+       "Std.Unit"
+     ]},
+    {"Numeric & Math",
+     [
+       "Std.Arithmetic",
+       "Std.Bounded",
+       "Std.Decimal",
+       "Std.Float",
+       "Std.Int",
+       "Std.Math",
+       "Std.Measurements",
+       "Std.Nat"
+     ]},
+    {"Collections & Iteration",
+     [
+       "Std.Data.Suffix",
+       "Std.Iter",
        "Std.List",
        "Std.Map",
+       "Std.NonEmpty",
        "Std.Set",
-       "Std.Pair",
-       "Std.Vector",
-       "Std.Iter",
-       "Std.Access",
-       "Std.Match"
+       "Std.Vector"
      ]},
-    {"Text & Regex", ["Std.String", "Std.Regex"]},
-    {"Numeric", ["Std.Math"]},
-    {"I/O & System", ["Std.Io", "Std.System", "Std.Time"]},
-    {"Concurrency",
-     ["Std.Actor", "Std.Process", "Std.Supervisor", "Std.Fsm", "Std.App", "Std.CRDT"]},
-    {"Error & Option", ["Std.Option", "Std.Result"]},
-    {"Testing & Proofs", ["Std.Test", "Std.Gen", "Std.Proof"]},
-    {"Network", ["Std.Http", "Std.Json"]}
+    {"Protocols & Abstractions",
+     [
+       "Std.Comparable",
+       "Std.Equatable",
+       "Std.Equivalent",
+       "Std.Functor",
+       "Std.Operators",
+       "Std.Semigroup",
+       "Std.Show"
+     ]},
+    {"Control & Error Handling",
+     [
+       "Std.Option",
+       "Std.Result"
+     ]},
+    {"Concurrency & OTP",
+     [
+       "Std.Actor",
+       "Std.ActorBehavior",
+       "Std.App",
+       "Std.Beam",
+       "Std.CRDT",
+       "Std.ExitReason",
+       "Std.Fsm",
+       "Std.Otp",
+       "Std.Otp.Raw",
+       "Std.Process",
+       "Std.Supervisor"
+     ]},
+    {"System & I/O",
+     [
+       "Std.Io",
+       "Std.Json",
+       "Std.System",
+       "Std.Time"
+     ]},
+    {"Syntax & Metaprogramming",
+     [
+       "Std.Syntax",
+       "Std.Syntax.Raw"
+     ]},
+    {"Proofs & Formal Verification",
+     [
+       "Std.Proof",
+       "Std.Proof.BooleanReflection",
+       "Std.ProofDirectedExtraction",
+       "Std.Proof.IntDiscrete",
+       "Std.Proof.IntMath",
+       "Std.Proof.IntOrder",
+       "Std.Proof.LinearArithmetic",
+       "Std.Proof.LinearArithmetic.Semantics",
+       "Std.Proof.Math"
+     ]},
+    {"Testing & Quality",
+     [
+       "Std.Gen",
+       "Std.Test"
+     ]}
   ]
 
   # Discover the stdlib source tree at compile time. The site is built

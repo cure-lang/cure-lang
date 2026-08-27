@@ -1,6 +1,6 @@
 # Kernel Specs — Condensed Master (2026-07-21)
 
-**Scope.** This document condenses all 25 design specs in
+**Scope.** This document condenses all 26 design specs in
 `docs/superpowers/specs/kernel/` into one master reference covering the Cure
 dependent kernel: the Final Core grammar and cleanup campaign, the
 builtin-inductive foundation and primitive retirements (Bool/Nat/Sigma/Eq/prim

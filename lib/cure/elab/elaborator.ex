@@ -1084,7 +1084,7 @@ defmodule Cure.Elab.Elaborator do
   # `assert_type expr : T` — a compile-time ascription. Lower `T`, then elaborate
   # `expr` in CHECKING mode against it (so the assertion can also steer inference).
   # The wrapper carries no runtime content: the result IS the checked term at type
-  # `T`, so emit sees only `expr`. Mirrors the classic codegen, which strips it.
+  # `T`, so emit sees only `expr` (the retired classic codegen stripped it the same way).
   def elaborate_expr_typed({:assert_type, _meta, [expr, type_ast]}, names, ctx, env) do
     with {:ok, expected_core} <- elaborate_type(type_ast, names, env, ctx),
          {:ok, term} <- elaborate_expr_checked(expr, expected_core, names, ctx, env) do

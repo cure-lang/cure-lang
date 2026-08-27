@@ -799,6 +799,7 @@ defmodule Cure.Compiler.CanonicalArtifactIncrementalTest do
     assert {:ok, s} = canonical_sweep(paths, out, source_roots: [src])
 
     assert "R" in compiled(s)
+
     assert "P" in compiled(s),
            "R's body hash changes P's dependency-bound certificate identity"
 
@@ -874,11 +875,12 @@ defmodule Cure.Compiler.CanonicalArtifactIncrementalTest do
     order_deps = DepGraph.order_deps_map(graph)
 
     # "After its use-deps" is a property of the CONDENSATION, not of the raw
-    # graph: inside a strongly connected component no such order exists, and the
-    # stdlib has one on purpose — `Std.Char` and `Std.String` are mutually
-    # recursive, which the canonical pipeline permits via interface skeletons and
-    # `DepGraph` reports once as W086. Cycle members compile together in a
-    # deterministic order, so the ordering claim applies between components.
+    # graph: inside a strongly connected component no such order exists. The
+    # stdlib had one on purpose while `Std.Char` and `Std.String` were mutually
+    # recursive, which the canonical pipeline permits via interface skeletons
+    # and `DepGraph` reports once as W086. The text layer is layered now, so
+    # every component is a singleton — but the claim stays phrased over the
+    # condensation, because that is what the compile order actually guarantees.
     component_of =
       order_deps
       |> DepGraph.components(Map.keys(order_deps))
@@ -903,10 +905,11 @@ defmodule Cure.Compiler.CanonicalArtifactIncrementalTest do
       |> DepGraph.components(Map.keys(order_deps))
       |> Enum.reject(&match?([_single], &1))
 
-    # `Std.Char` uses `Std.String` and `Std.Literal`; `Std.String` uses both of
-    # the others; `Std.Literal` uses `Std.Char` to give `Char` its character
-    # literal. One three-member component, and the only one in the stdlib.
-    assert cycles == [["Std.Char", "Std.Literal", "Std.String"]]
+    # `Std.Char` names neither `Std.Literal` nor `Std.String`: the
+    # character-literal instance lives with its interface in `Std.Literal`, and
+    # the `String`-shaped case conversions live with the type in `Std.String`.
+    # The text layer is a chain, so no component has more than one member.
+    assert cycles == []
     # The exact edge that the buggy closure-ordering got wrong.
     assert pos["Std.Char"] < pos["Std.Binary"]
     # Every named stdlib module is scheduled exactly once.

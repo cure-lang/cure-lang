@@ -88,10 +88,15 @@ defmodule Cure.Compiler.AtomVMRegexContainerTest do
       File.write!(probe_wrapper, binary)
 
       archive = Path.join(out, "cure_regex_atomvm.avm")
+
       beams =
         [probe_wrapper | Path.wildcard(Path.join(estdlib, "*.beam"))] ++
           [staged_probe, staged_char_bridge | closure_original_beams ++ closure_beams ++ unicode_beams]
-      {_pack_output, 0} = System.cmd(packbeam, ["create", "--start", "cure_regex_atomvm_probe", archive | Enum.uniq(beams)], cd: atomvm_root)
+
+      {_pack_output, 0} =
+        System.cmd(packbeam, ["create", "--start", "cure_regex_atomvm_probe", archive | Enum.uniq(beams)],
+          cd: atomvm_root
+        )
 
       {output, 0} = System.cmd(atomvm, [archive], cd: atomvm_root)
       assert output =~ "CURE_REGEX_ATOMVM=true"
@@ -110,6 +115,7 @@ defmodule Cure.Compiler.AtomVMRegexContainerTest do
       |> String.downcase()
       |> String.replace(".", "_")
       |> then(&(&1 <> ".beam"))
+
     target = Path.join(out, target_name)
     File.cp!(path, target)
     target

@@ -427,6 +427,7 @@ The implementation is split as follows:
 | File | Role |
 | --- | --- |
 | [`regex.cure`](../../lib/std_deps/regex/regex.cure) | Public `Std.Regex` façade and collection/search APIs |
+| [`regex_syntax.cure`](../../lib/std_deps/regex/regex_syntax.cure) | Regex literal macro entry point: expansion, failure diagnostics, and hints |
 | [`regex_syntax_model.cure`](../../lib/std_deps/regex/regex_syntax_model.cure) | Compile-time syntax tree, options, capture layout, limits, diagnostics |
 | [`regex_syntax_parser.cure`](../../lib/std_deps/regex/regex_syntax_parser.cure) | Fuel-bounded literal grammar |
 | [`regex_syntax_class.cure`](../../lib/std_deps/regex/regex_syntax_class.cure) | Classes, ranges, POSIX forms, Unicode property syntax |

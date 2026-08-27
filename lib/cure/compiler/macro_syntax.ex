@@ -255,6 +255,7 @@ defmodule Cure.Compiler.MacroSyntax do
   # the nominal `String` constructor survives erasure, so this mirrors `to_core_string/1`.
   defp synlit_to_runtime({:s_str, value}) when is_binary(value),
     do: {:SStr, {:String, String.to_charlist(value)}}
+
   defp synlit_to_runtime({:s_bool, value}), do: {:SBool, value}
   defp synlit_to_runtime({:s_atom, value}), do: {:SAtom, value}
   defp synlit_to_runtime({:s_list, values}), do: {:SList, Enum.map(values, &synlit_to_runtime/1)}

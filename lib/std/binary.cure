@@ -3,9 +3,10 @@
 mod Std.Binary
   ## The bridge between Cure's two string representations.
   ##
-  ## A **`String`** is a `List(Char)` — a cons spine of code points, the form a
-  ## string literal `"hi"` elaborates to. It is the value-surface representation:
-  ## you pattern-match, `map`, and fold it like any other list.
+  ## A **`List(Char)`** is a cons spine of code points — the value-surface
+  ## representation you pattern-match, `map`, and fold like any other list.
+  ## `String` stores its text this way internally (`characters`/`from_characters`
+  ## in `Std.String`), but `String` itself is nominal, not a `List(Char)` alias.
   ##
   ## A **`Binary`** is the BEAM binary. It is what OTP's `:string`, `:binary`,
   ## and `:erlang` string functions consume and produce (Unicode case folding,

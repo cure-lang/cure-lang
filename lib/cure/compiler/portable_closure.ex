@@ -24,18 +24,18 @@ defmodule Cure.Compiler.PortableClosure do
         }
 
   @host_regex_modules MapSet.new([
-                       :re,
-                       :pcre,
-                       :pcres,
-                       :pcres_elixir,
-                       :erl_scan,
-                       :erl_parse,
-                       :elixir_parser,
-                       :"Elixir.Regex",
-                       :"Elixir.PCRE",
-                       :"Elixir.PCRE2",
-                       :"Elixir.Code"
-                     ])
+                        :re,
+                        :pcre,
+                        :pcres,
+                        :pcres_elixir,
+                        :erl_scan,
+                        :erl_parse,
+                        :elixir_parser,
+                        :"Elixir.Regex",
+                        :"Elixir.PCRE",
+                        :"Elixir.PCRE2",
+                        :"Elixir.Code"
+                      ])
 
   @ets_modules MapSet.new([:ets, :dets, :persistent_term])
 
@@ -147,17 +147,20 @@ defmodule Cure.Compiler.PortableClosure do
            {beam_module, %{source: source, path: path, chunks: chunks}}
          end)}
 
-      {:error, _} = error -> error
+      {:error, _} = error ->
+        error
     end
   end
 
   defp resolve_roots(names, beam_index) do
     roots =
       Enum.map(names, fn source ->
-        Enum.find_value(beam_index, fn {beam_module, %{source: ^source} = entry} ->
-          Map.put(entry, :beam_module, beam_module)
-        _ ->
-          nil
+        Enum.find_value(beam_index, fn
+          {beam_module, %{source: ^source} = entry} ->
+            Map.put(entry, :beam_module, beam_module)
+
+          _ ->
+            nil
         end) || %{source: source, beam_module: nil}
       end)
 
@@ -211,16 +214,20 @@ defmodule Cure.Compiler.PortableClosure do
       {module, _function, _arity} = mfa
 
       case Map.get(beam_index, module) do
-        nil -> acc
+        nil ->
+          acc
+
         %{source: target_source} = target ->
           %{
             acc
             | edges: [{source, mfa} | acc.edges],
               queue:
                 acc.queue ++
-                  [target
-                   |> Map.put(:source, target_source)
-                   |> Map.put(:beam_module, module)]
+                  [
+                    target
+                    |> Map.put(:source, target_source)
+                    |> Map.put(:beam_module, module)
+                  ]
           }
       end
     end)

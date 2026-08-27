@@ -174,7 +174,7 @@ defmodule Cure.Stdlib.PreloadTest do
 
     test "rejects an unmanifested partial override instead of mixing candidates" do
       tmp = make_tmp!()
-      canonical = Cure.Compiler.Artifacts.Writer.resolve("_build/cure/ebin")
+      canonical = Cure.Stdlib.Paths.beam_dir() || Cure.Compiler.Artifacts.Writer.resolve("_build/cure/ebin")
       File.cp!(Path.join(canonical, "Cure.Std.Core.beam"), Path.join(tmp, "Cure.Std.Core.beam"))
 
       assert {:error, {:no_verified_artifact_set, _}} =

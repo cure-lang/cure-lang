@@ -14,7 +14,7 @@ mod Std.Measurements
   ##   9600baud ==> Std.Measurements.baud(9600)  # a Baud rate
   ##
   ## Each quantity is a closed record over one `Int`, so arithmetic stays
-  ## same-unit: `plus`/`minus`/`scale` are defined per quantity and there is no
+  ## same-unit: `add`/`sub`/`scale` are defined per quantity and there is no
   ## cross-quantity operation, which is what makes `500ms` and `3khz` unmixable.
   ##
   ## ## Example
@@ -22,7 +22,7 @@ mod Std.Measurements
   ## ```cure
   ## use Std.Measurements
   ##
-  ## let budget = plus(500ms, 250ms)     # a Duration of 750_000 microseconds
+  ## let budget = add(500ms, 250ms)      # a Duration of 750_000 microseconds
   ## as_ms(budget)                        # => 750
   ## ```
 

@@ -51,8 +51,7 @@ defmodule Cure.Elab.JoinUnjoinDifferentialTest do
   # asserts per-branch == un-join == expected for each.
   @battery [
     {"linear once per branch",
-     "  fn f(x: C) -> Int =\n    let @linear v = 1\n    match x\n      A() -> sink(v)\n      _ -> sink(v)\n",
-     :accept},
+     "  fn f(x: C) -> Int =\n    let @linear v = 1\n    match x\n      A() -> sink(v)\n      _ -> sink(v)\n", :accept},
     {"linear twice in catch-all",
      "  fn f(x: C) -> Int =\n    let @linear v = 1\n    match x\n      A() -> use2(v, v)\n      _ -> use2(v, v)\n",
      :reject},

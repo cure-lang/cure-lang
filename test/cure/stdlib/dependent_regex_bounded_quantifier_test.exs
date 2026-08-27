@@ -27,6 +27,7 @@ defmodule Cure.Stdlib.DependentRegexBoundedQuantifierTest do
     assert apply(module, :at_least, [{:String, ~c"aaaa"}]) == {:some, 4}
     assert apply(module, :ranged, [{:String, ~c"aaaa"}]) == {:some, 4}
     assert apply(module, :ranged, [{:String, ~c"aaaaa"}]) == :none
+
     assert apply(module, :ranged_lazy, [{:String, ~c"aaaaa"}]) ==
              {:some, {2, {:String, ~c"aaa"}}}
 
@@ -49,8 +50,8 @@ defmodule Cure.Stdlib.DependentRegexBoundedQuantifierTest do
 
       assert {:error,
               {:source_context,
-               {:computed_macro_error, _meta,
-                {:author_diagnostics, [{:macro_failure, ^expected, _arguments}]}}, _context} = reason} =
+               {:computed_macro_error, _meta, {:author_diagnostics, [{:macro_failure, ^expected, _arguments}]}},
+               _context} = reason} =
                Program.elaborate(source)
 
       {diagnostic, _registry} = Errors.to_diagnostic(reason, "nofile", source)

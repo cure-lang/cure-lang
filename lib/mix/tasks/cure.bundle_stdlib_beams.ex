@@ -57,13 +57,14 @@ defmodule Mix.Tasks.Cure.BundleStdlibBeams do
     # "app not loaded yet" case gracefully.
     _ = ensure_cure_application_started()
 
+    source = Cure.Stdlib.Paths.beam_dir() || Path.join(["_build", "cure", "ebin"])
+
     result =
-      case Cure.Compiler.Artifacts.copy_verified_set(
-             "_build/cure/ebin",
-             default_destination()
-           ) do
-        {:ok, _generation_root} -> {:ok, %{compiled: 0, skipped: 0, errors: 0}}
-        {:error, _reason} -> bundle(@source_dir, default_destination())
+      with {:ok, _generation_root} <- Cure.Compiler.Artifacts.copy_verified_set(source, default_destination()),
+           {:ok, _set} <- Cure.Compiler.Artifacts.open_verified_set(kind: :stdlib, candidates: [default_destination()]) do
+        {:ok, %{compiled: 0, skipped: 0, errors: 0}}
+      else
+        _ -> bundle(@source_dir, default_destination())
       end
 
     case result do
@@ -96,10 +97,18 @@ defmodule Mix.Tasks.Cure.BundleStdlibBeams do
   @spec default_destination() :: String.t()
   def default_destination, do: Path.join(["priv", "ebin"])
 
-  @doc false
-  @spec bundle(String.t(), String.t()) ::
+  @doc """
+  Sweep `source_dir` into a verified artifact generation under `dest_dir`.
+
+  `opts` are forwarded to `Cure.Stdlib.Packages.compile/3`; notably
+  `embedded_packages: false` skips the embedded Regex package stage, which is
+  what a caller sweeping fixture sources rather than the real standard library
+  wants (see that function's docs).
+  """
+  @spec bundle(String.t(), String.t(), keyword()) ::
           {:ok, %{compiled: non_neg_integer(), skipped: non_neg_integer(), errors: non_neg_integer()}}
-  def bundle(source_dir, dest_dir) do
+          | {:error, term()}
+  def bundle(source_dir, dest_dir, opts \\ []) do
     cond do
       not File.dir?(source_dir) ->
         {:ok, %{compiled: 0, skipped: 0, errors: 0}}
@@ -110,7 +119,7 @@ defmodule Mix.Tasks.Cure.BundleStdlibBeams do
       true ->
         File.mkdir_p!(dest_dir)
 
-        case compile_sources(source_dir, dest_dir) do
+        case compile_sources(source_dir, dest_dir, opts) do
           {:ok, result} ->
             {:ok,
              %{
@@ -146,12 +155,12 @@ defmodule Mix.Tasks.Cure.BundleStdlibBeams do
   # fixtures fail with a missing `Std.Bounded` interface. Keep package
   # composition at the real stdlib boundary and retain isolated sweep
   # semantics for custom source roots.
-  defp compile_sources(source_dir, dest_dir) do
+  defp compile_sources(source_dir, dest_dir, opts) do
     if Path.expand(source_dir) == Path.expand(@source_dir) do
       Cure.Stdlib.Packages.compile(
         source_dir |> Path.join("*.cure") |> Path.wildcard(),
         dest_dir,
-        compile_opts: [emit_events: false]
+        Keyword.merge([compile_opts: [emit_events: false]], opts)
       )
     else
       Cure.Compiler.Artifacts.sweep(

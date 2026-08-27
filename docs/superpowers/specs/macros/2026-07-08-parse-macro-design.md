@@ -8,7 +8,7 @@ Built as a `macro` (§5) — zero compiler special-casing.
 
 **Release placement (2026-07-17):** public completion and lowering onto
 `Std.Parse` are parked for Cure 0.35 as part of
-[`../2026-07-17-cure-native-parser-diagnostics-self-hosting-design.md`](../2026-07-17-cure-native-parser-diagnostics-self-hosting-design.md).
+[`../language/2026-07-17-cure-native-parser-diagnostics-self-hosting-design.md`](../language/2026-07-17-cure-native-parser-diagnostics-self-hosting-design.md).
 This is outside the 0.34 dependent-type rewrite.
 
 ---

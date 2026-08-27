@@ -1,8 +1,14 @@
 # Binaries
 
 Reference guide for Cure's binary literal and pattern syntax.
-Introduced in v0.20.0 (segment AST, codegen, printer) and completed
-in v0.21.0 (type-checker bindings, exhaustiveness via `E031`).
+Introduced in v0.20.0 (segment AST, codegen, printer) and extended in
+v0.21.0 (type-checker bindings). The dependent-pipeline rewrite that
+removed the classic checker/codegen (see `CHANGELOG.md`) narrowed what
+the elaborator actually lowers: today only plain byte segments and a
+single trailing unsized tail elaborate successfully, in both
+construction and pattern position. The richer specifier grammar below
+still parses, but a sized or typed segment is rejected as unsupported
+rather than silently mislowered.
 
 ## Syntax
 
@@ -14,7 +20,7 @@ value [:: specifier_chain]
 ```
 
 The specifier chain is a hyphen-joined list of specifiers (mirroring
-Elixir's grammar):
+Elixir's grammar) and is accepted by the parser:
 
 - **Type**: `integer`, `float`, `bits`, `bitstring`, `bytes`, `binary`,
   `utf8`, `utf16`, `utf32`.
@@ -24,8 +30,22 @@ Elixir's grammar):
   `size(<integer>)`.
 - **Unit**: `unit(n)`.
 
-Defaults mirror Erlang: `integer-unsigned-big-size(8)-unit(1)`; the
-`utf8`, `utf16`, and `utf32` types carry their own implicit size.
+## What actually elaborates
+
+The elaborator only lowers two segment shapes:
+
+- A **plain segment** with no specifier chain: a bare literal integer
+  (0-255) or a bare variable/`_`, each consuming exactly one byte.
+- A single **trailing unsized tail** (`rest::binary`, `::bytes`,
+  `::bitstring`, or `::bits`, with no `size`), binding the remaining
+  bytes as a `Bitstring`.
+
+Any other segment -- a size (`x::16`), a numeric type other than a
+plain byte (`x::float`), a text type (`x::utf8`), explicit signedness,
+endianness, or `unit(n)` -- is rejected under `E093` ("Binary segment
+form is not supported") in both binary literals and binary patterns.
+This applies uniformly to `match` arms, multi-clause function heads,
+and `let` destructuring.
 
 ## Examples
 
@@ -45,52 +65,31 @@ Binary patterns work in every destructuring position:
 2. Multi-clause function heads: `fn parse(buf: Bitstring) -> Int | <<a, _rest::binary>> -> a | <<>> -> 0`.
 3. `let` bindings: `let <<tag, body::binary>> = buf`.
 
-Comprehension generators with a binary source (`for <<b <- buf>>`)
-are reserved for a future release.
+A binary comprehension generator (`for <<b <- buf>>`) is supported for
+a single bare, unsized, untyped binder; sized or typed generator
+segments are rejected the same way as sized/typed match segments.
 
 ## Type-checker semantics
 
-The dependent elaborator assigns every binary segment's inner variable the
-type implied by the segment specifier:
-
-| Specifier type        | Bound variable type |
-| --------------------- | ------------------- |
-| `integer` (default)   | `Int`               |
-| `float`               | `Float`             |
-| `utf8` / `utf16` / `utf32` | `Char` (code point) |
-| `binary` / `bytes` / `bitstring` / `bits` | `Bitstring` |
-
-Where the checker can prove a byte-size refinement on the
-scrutinee, it propagates the narrowing through the segments. The
-v0.21.0 propagation is conservative: a trailing `rest::binary` binds
-to plain `Bitstring`. Future releases will emit
-`byte_size(rest) == byte_size(scrutinee) - sum_of_preceding_sizes`
-once the SMT translator gains the corresponding arithmetic.
+A plain byte segment's bound variable has type `Int`; a trailing
+unsized tail's bound variable has type `Bitstring`. There is no
+byte-size refinement propagation for the tail today.
 
 ## Exhaustiveness
 
-The dependent coverage checker runs
-whenever the scrutinee of a `match` is a `Bitstring` (or a
-`Bitstring` refinement). It reports `E031` when a set of arms does
-not cover every inhabitant:
-
-- A top-level wildcard (variable binding) covers everything.
-- A binary pattern whose last segment is an open-ended tail
-  (`::binary`, `::bits`, `::bitstring`, `::bytes` with no `:size`)
-  covers every non-empty suffix.
-- The empty binary `<<>>` covers the zero-byte case.
-
-A set of arms is exhaustive if at least one arm is a wildcard, or
-if both the empty and open-tail cases are covered. Otherwise the
-compiler prints a concrete witness such as `"<<>>"` or
-`"<<_, _rest::binary>>"`.
+Binary matches desugar to guarded byte-offset reads (length and
+per-byte equality checks) rather than an inductive case split over
+enumerated shapes, so they are open by construction. There is no
+per-shape coverage checker or witness synthesis; a binary `match`
+without a trailing wildcard/variable catch-all is rejected outright
+under `E119` ("Binary match needs a catch-all").
 
 ## Codegen
 
-Binary patterns lower directly to Erlang's `:bin_element` form.
-Construction uses the same AST shape as patterns, so
-`<<x::utf8, rest::binary>>` emits a matching binary with the
-correct size/type/unit/sign/endian tuples.
+Binary patterns lower to guarded `byte_size`/`byte_at`/`drop_bytes`
+calls over `Std.Binary` rather than to Erlang bit-syntax match
+instructions directly; construction of a plain-byte literal lowers to
+`Std.Binary.of_bytes/1` over the segment values.
 
 See also: `docs/PATTERNS.md` for the broader destructuring
 reference and `docs/LANGUAGE_SPEC.md` for the full grammar.

@@ -53,48 +53,25 @@ defmodule CureSiteWeb.Layouts do
           </span>
         </a>
 
-        <div class="hidden items-center gap-0.5 md:flex">
-          <a href={~p"/getting-started"} class={nav_class(@current_path, ~p"/getting-started")}>
-            Start
+        <div class="hidden items-center gap-1 md:flex">
+          <a href={~p"/about"} class={nav_class(@current_path, :about)}>
+            About
           </a>
-          <a href={~p"/language-guide"} class={nav_class(@current_path, ~p"/language-guide")}>
-            Language
+          <a href={~p"/tour"} class={nav_class(@current_path, :learn)}>
+            Learn
           </a>
-          <a href={~p"/match"} class={nav_class(@current_path, ~p"/match")}>Match</a>
-          <a
-            href={~p"/type-system"}
-            class={nav_class(@current_path, ~p"/type-system")}
-            title="Dependent checking, indexed families, Sigma and Pi types, equality proofs, implicit arguments, holes, and totality"
-          >
-            Types
+          <a href={~p"/actors"} class={nav_class(@current_path, :concurrency)}>
+            Concurrency
           </a>
-          <a
-            href={~p"/finite-state-machines"}
-            class={nav_class(@current_path, ~p"/finite-state-machines")}
-          >
-            FSMs
-          </a>
-          <a
-            href={~p"/actors"}
-            class={nav_class(@current_path, ~p"/actors")}
-            title="Typed supervision trees, the Melquiades Operator, actor and sup containers"
-          >
-            Actors
-          </a>
-          <a
-            href={~p"/applications"}
-            class={nav_class(@current_path, ~p"/applications")}
-            title="First-class OTP applications and BEAM releases, the app container, cure release"
-          >
-            Apps
-          </a>
-          <a href={~p"/protocols"} class={nav_class(@current_path, ~p"/protocols")}>Protocols</a>
-          <a href={~p"/stdlib"} class={nav_class(@current_path, ~p"/stdlib")}>
+          <a href={~p"/stdlib"} class={nav_class(@current_path, :stdlib)}>
             Stdlib
           </a>
-          <a href={~p"/tooling"} class={nav_class(@current_path, ~p"/tooling")}>Tooling</a>
-          <a href={~p"/repl"} class={nav_class(@current_path, ~p"/repl")}>REPL</a>
-          <a href={~p"/blog"} class={nav_class(@current_path, ~p"/blog")}>Blog</a>
+          <a href={~p"/tooling"} class={nav_class(@current_path, :tooling)}>
+            Tooling
+          </a>
+          <a href={~p"/blog"} class={nav_class(@current_path, :blog)}>
+            Blog
+          </a>
           <.theme_toggle />
         </div>
 
@@ -111,50 +88,112 @@ defmodule CureSiteWeb.Layouts do
       </nav>
 
       <%!-- Mobile navigation --%>
-      <div id="mobile-menu" class="hidden border-t border-base-300 px-4 py-2 md:hidden">
-        <a href={~p"/getting-started"} class={mobile_nav_class(@current_path, ~p"/getting-started")}>
-          Getting Started
-        </a>
-        <a href={~p"/language-guide"} class={mobile_nav_class(@current_path, ~p"/language-guide")}>
-          Language Guide
-        </a>
-        <a href={~p"/match"} class={mobile_nav_class(@current_path, ~p"/match")}>
-          Pattern Matching
-        </a>
-        <a href={~p"/type-system"} class={mobile_nav_class(@current_path, ~p"/type-system")}>
-          Type System
-        </a>
-        <a
-          href={~p"/finite-state-machines"}
-          class={mobile_nav_class(@current_path, ~p"/finite-state-machines")}
-        >
-          Finite State Machines
-        </a>
-        <a href={~p"/actors"} class={mobile_nav_class(@current_path, ~p"/actors")}>
-          Actors
-        </a>
-        <a href={~p"/applications"} class={mobile_nav_class(@current_path, ~p"/applications")}>
-          Applications
-        </a>
-        <a href={~p"/protocols"} class={mobile_nav_class(@current_path, ~p"/protocols")}>
-          Protocols
-        </a>
-        <a href={~p"/stdlib"} class={mobile_nav_class(@current_path, ~p"/stdlib")}>
-          Standard Library
-        </a>
-        <a href={~p"/tooling"} class={mobile_nav_class(@current_path, ~p"/tooling")}>Tooling</a>
-        <a href={~p"/repl"} class={mobile_nav_class(@current_path, ~p"/repl")}>REPL</a>
-        <a href={~p"/roadmap"} class={mobile_nav_class(@current_path, ~p"/roadmap")}>Roadmap</a>
-        <a href={~p"/blog"} class={mobile_nav_class(@current_path, ~p"/blog")}>Blog</a>
+      <div id="mobile-menu" class="hidden border-t border-base-300 px-4 py-3 md:hidden space-y-2">
+        <div>
+          <div class="text-xs font-semibold uppercase tracking-wider text-base-content/50 mb-1">
+            About
+          </div>
+          <div class="pl-2 space-y-1">
+            <a href={~p"/about"} class={mobile_nav_class(@current_path, ~p"/about")}>
+              Technical Overview
+            </a>
+            <a
+              href={~p"/getting-started"}
+              class={mobile_nav_class(@current_path, ~p"/getting-started")}
+            >
+              Your First Project
+            </a>
+          </div>
+        </div>
+
+        <div>
+          <div class="text-xs font-semibold uppercase tracking-wider text-base-content/50 mb-1">
+            Learn Cure
+          </div>
+          <div class="pl-2 space-y-1">
+            <a href={~p"/tour"} class={mobile_nav_class(@current_path, ~p"/tour")}>
+              Language Tour
+            </a>
+            <a href={~p"/language-guide"} class={mobile_nav_class(@current_path, ~p"/language-guide")}>
+              Language Guide
+            </a>
+            <a href={~p"/match"} class={mobile_nav_class(@current_path, ~p"/match")}>
+              Pattern Matching
+            </a>
+            <a href={~p"/pickup"} class={mobile_nav_class(@current_path, ~p"/pickup")}>
+              Conditional Dispatch
+            </a>
+            <a href={~p"/type-system"} class={mobile_nav_class(@current_path, ~p"/type-system")}>
+              Type System
+            </a>
+            <a href={~p"/protocols"} class={mobile_nav_class(@current_path, ~p"/protocols")}>
+              Interfaces & Protocols
+            </a>
+          </div>
+        </div>
+
+        <div>
+          <div class="text-xs font-semibold uppercase tracking-wider text-base-content/50 mb-1">
+            OTP & Concurrency
+          </div>
+          <div class="pl-2 space-y-1">
+            <a href={~p"/actors"} class={mobile_nav_class(@current_path, ~p"/actors")}>
+              Actors & Supervision
+            </a>
+            <a
+              href={~p"/finite-state-machines"}
+              class={mobile_nav_class(@current_path, ~p"/finite-state-machines")}
+            >
+              Finite State Machines
+            </a>
+            <a href={~p"/applications"} class={mobile_nav_class(@current_path, ~p"/applications")}>
+              Applications & Releases
+            </a>
+          </div>
+        </div>
+
+        <div>
+          <div class="text-xs font-semibold uppercase tracking-wider text-base-content/50 mb-1">
+            Ecosystem
+          </div>
+          <div class="pl-2 space-y-1">
+            <a href={~p"/stdlib"} class={mobile_nav_class(@current_path, ~p"/stdlib")}>
+              Standard Library
+            </a>
+            <a href={~p"/tooling"} class={mobile_nav_class(@current_path, ~p"/tooling")}>
+              Tooling
+            </a>
+            <a href={~p"/repl"} class={mobile_nav_class(@current_path, ~p"/repl")}>
+              REPL Reference
+            </a>
+            <a href={~p"/roadmap"} class={mobile_nav_class(@current_path, ~p"/roadmap")}>
+              Roadmap
+            </a>
+            <a href={~p"/blog"} class={mobile_nav_class(@current_path, ~p"/blog")}>
+              Blog
+            </a>
+          </div>
+        </div>
+
+        <div>
+          <div class="text-xs font-semibold uppercase tracking-wider text-base-content/50 mb-1">
+            About
+          </div>
+          <div class="pl-2 space-y-1">
+            <a href={~p"/about"} class={mobile_nav_class(@current_path, ~p"/about")}>
+              Technical Overview
+            </a>
+          </div>
+        </div>
       </div>
     </header>
 
-    <main class="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
+    <main class="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
       {render_slot(@inner_block)}
     </main>
 
     <footer class="border-t border-base-300 mt-16">
-      <div class="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+      <div class="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         <div class="flex flex-col items-center justify-between gap-4 sm:flex-row">
           <div class="flex items-center gap-4 text-sm text-base-content/60">
             <a href="https://github.com/cure-lang/cure-lang" class="hover:text-base-content">
@@ -231,10 +270,14 @@ defmodule CureSiteWeb.Layouts do
 
   @desktop_base "btn btn-ghost btn-sm"
   @desktop_active "btn btn-sm btn-active bg-base-200 text-primary font-semibold"
-  @mobile_base "block py-2 text-sm"
-  @mobile_active "block py-2 text-sm text-primary font-semibold"
+  @mobile_base "block py-1.5 text-sm"
+  @mobile_active "block py-1.5 text-sm text-primary font-semibold"
 
   @doc false
+  def nav_class(current_path, target) when is_atom(target) do
+    if active_category?(current_path, target), do: @desktop_active, else: @desktop_base
+  end
+
   def nav_class(current_path, target) do
     if active_link?(current_path, target), do: @desktop_active, else: @desktop_base
   end
@@ -243,6 +286,39 @@ defmodule CureSiteWeb.Layouts do
   def mobile_nav_class(current_path, target) do
     if active_link?(current_path, target), do: @mobile_active, else: @mobile_base
   end
+
+  defp active_category?(current, :learn) do
+    current in [
+      "/tour",
+      "/language-guide",
+      "/match",
+      "/pickup",
+      "/type-system",
+      "/protocols"
+    ]
+  end
+
+  defp active_category?(current, :concurrency) do
+    current in ["/actors", "/finite-state-machines", "/applications"]
+  end
+
+  defp active_category?(current, :tooling) do
+    current in ["/tooling", "/repl", "/playground"]
+  end
+
+  defp active_category?(current, :stdlib) do
+    String.starts_with?(current, "/stdlib") or String.starts_with?(current, "/standard-library")
+  end
+
+  defp active_category?(current, :blog) do
+    String.starts_with?(current, "/blog")
+  end
+
+  defp active_category?(current, :about) do
+    current in ["/about", "/getting-started"]
+  end
+
+  defp active_category?(_current, _target), do: false
 
   # A link is active when the current path matches the target exactly or,
   # for non-root targets, the current path sits under the target segment

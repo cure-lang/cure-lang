@@ -58,7 +58,7 @@ CURE_HANDLE=alice CURE_TOKEN=$CURE_TOKEN cure publish
 ```
 
 `cure publish`:
-1. Calls `Cure.Project.Publisher.build_tarball/1` to assemble the
+1. Calls `Cure.Project.Publisher.build_tarball/2` to assemble the
    gzipped tarball. The layout is:
    ```
    my_pkg-0.1.0/
@@ -68,6 +68,9 @@ CURE_HANDLE=alice CURE_TOKEN=$CURE_TOKEN cure publish
      lib/*.cure
      docs/*.md
    ```
+   When `[publish] include_proofs` is `true` (the default, added in
+   v0.32.0), a `<name>.cureproof` certificate file is also embedded;
+   see `docs/PROOF_CARRYING.md`.
 2. Delegates to `Cure.Project.Signing.sign_tarball/4` to sign
    `name || NUL || version || NUL || sha256(tarball)`.
 3. POSTs a JSON envelope to `/packages`:

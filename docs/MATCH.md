@@ -224,7 +224,7 @@ The multi-head cons form is desugared at parse time into right-associated `cons`
 
 A map pattern `%{ k_1: p_1, ..., k_n: p_n }` matches a map value `m` iff every key `k_i` is present in `m` and the corresponding value matches `p_i`. Keys not mentioned in the pattern are *ignored* (open matching).
 
-Map keys in pattern position MUST be literal values (atoms, integers, strings). A non-literal expression at a map-key position is rejected with `E023`.
+Map keys in pattern position MUST be literal atoms. A non-atom or non-literal expression at a map-key position is rejected with `E093` (the general type-mismatch diagnostic; the historical dedicated `E023` code is retired).
 
 A bare identifier at a map-key position is permitted as *punning shorthand*: `%{ x, y }` is equivalent to `%{ x: x, y: y }`. The desugaring expands before pattern matching is performed.
 
@@ -234,7 +234,7 @@ A record pattern `T{ f_1: p_1, ..., f_n: p_n }` matches a value `v` iff `v` is a
 
 A bare identifier at a field position is punning shorthand: `T{ name }` is equivalent to `T{ name: name }`.
 
-Field references that do not exist in `T`'s declared schema emit `E021` (warning). A sub-pattern whose static type is incompatible with the declared field type emits `E022`.
+Field references that do not exist in `T`'s declared schema emit `E022` as an error (the same code construction and update use for an unknown/missing field; the historical claim that this was `E021`-at-warning-severity is wrong -- `E021` names an unknown record *type*, and every `E`-prefixed code is error severity). A sub-pattern whose static type is incompatible with the declared field type also emits `E022`.
 
 ### 5.12 ADT Constructor Patterns
 
@@ -249,7 +249,7 @@ The number of arguments in the pattern MUST match the constructor's declared ari
 
 ### 5.13 The Pin Operator
 
-The pin pattern `^x` matches a value `v` iff `v` is structurally equal to the value already bound to `x` in the enclosing scope at the time the `match` expression is evaluated. It does *not* introduce a new binding; the name `x` MUST be in scope when the clause is parsed, otherwise `E024` is emitted.
+The pin pattern `^x` matches a value `v` iff `v` is structurally equal to the value already bound to `x` in the enclosing scope at the time the `match` expression is evaluated. It does *not* introduce a new binding; the name `x` MUST be in scope when the clause is elaborated, otherwise the ordinary unknown-name diagnostic `E091` is emitted (the historical dedicated `E024` code is retired).
 
 ```text
 let target = get_tag()
@@ -263,15 +263,15 @@ The pin is lowered by the compiler to a fresh variable binding plus an equality 
 
 ### 5.14 Binary Patterns
 
-A binary pattern uses the segment grammar of `docs/BINARIES.md`. Each segment is *value* `[::` *specifier-chain* `]`; the specifier chain covers type (`integer`, `float`, `utf8`, `utf16`, `utf32`, `binary`, `bytes`, `bitstring`, `bits`), signedness, endianness, `size(expr)`, and `unit(n)`.
+The parser accepts the full segment grammar of `docs/BINARIES.md`: each segment is *value* `[::` *specifier-chain* `]`, where the specifier chain covers type, signedness, endianness, `size(expr)`, and `unit(n)`. The elaborator, however, only lowers a plain byte segment (a bare literal 0-255 or a bare variable/`_`) and a single trailing unsized tail (`rest::binary`, `::bytes`, `::bitstring`, or `::bits`, no `size`). Any sized or otherwise typed segment (`x::16`, `x::float`, `x::utf8`, ...) is rejected under `E093`.
 
 ```text
 match frame
-  <<len::16, payload::binary-size(len), _::binary>> -> payload
-  <<>>                                              -> <<>>
+  <<tag, len, _::binary>> -> len
+  <<>>                    -> 0
 ```
 
-Binary exhaustiveness is tracked under code `E031`. A trailing `rest::binary` segment after byte-aligned preceding segments inherits the refinement `byte_size(rest) == byte_size(scrutinee) - sum_of_preceding_sizes`.
+A binary match desugars to guarded byte-offset reads rather than an inductive case split, so it is open by construction: it MUST end in a wildcard/variable catch-all or the compiler rejects it under `E119` (§ 20).
 
 ### 5.15 Guards (`when` Clauses)
 
@@ -307,7 +307,7 @@ The scrutinee MUST type-check against some type `τ_s`. Each pattern in the bloc
 
 #### 6.1.2 Branches
 
-The result type of a `match` expression is the least upper bound of the types of its branches under the language's existing subtyping rules. If no such bound exists, the program is rejected with `E-MATCH-BRANCH-MISMATCH` (numeric alias `E033`).
+The result type of a `match` expression is the least upper bound of the types of its branches under the language's existing subtyping rules. If no such bound exists, the program is rejected with `E-MATCH-BRANCH-MISMATCH` (the general type-mismatch diagnostic `E093`; the historical dedicated `E033` code is retired).
 
 #### 6.1.3 Pattern Variables
 
@@ -319,12 +319,14 @@ A `when` guard MUST have type `Bool`. No implicit conversion is performed; a non
 
 ### 6.2 Exhaustiveness
 
-The compiler runs two passes:
+A missing constructor is reported under a single code, `E118` (Pattern Coverage), whether the gap is at the top level of the scrutinee or at a tuple element position:
 
-1. A **flat classifier** that recognizes top-level shapes per arm: `:wildcard`, `:empty_list`, `:cons`, `{:literal, subtype, value}`, `{:constructor, name, n}`, `{:tuple, n}`, `{:map, n}`, and `{:record, name, fields}`. Missing top-level shapes are reported under code `E004`.
-2. A **nested pass** (Maranget-style, best-effort) that descends into tuple scrutinees whose element types are enumerable (`Bool`, `Result`, `Option`, finite-arity ADTs). Missing witnesses are rendered as concrete source-shape strings and reported under code `E025`.
+- **Top level.** Every scrutinee type's constructors MUST appear (directly, or via a wildcard/variable catch-all). A missing one is `E118` naming the constructor.
+- **Tuple positions.** When arms are tuple patterns of ADT constructors, a missing constructor at a given tuple position is `E118` naming both the branch and the position.
 
-Both passes emit `:type_warning` events through the compiler pipeline. They do not block compilation: a non-exhaustive `match` compiles, and the resulting BEAM code raises `case_clause` at runtime if the missing shape is encountered. A future revision MAY promote `E004`/`E025` from warning to error for `match` (it is already a hard error for `let` patterns under code `E034`'s sibling rules).
+`E118` also covers a constructor listed more than once (`:duplicate_branch`) and an `impossible`-marked arm whose constructor is in fact reachable (`:reachable_impossible`).
+
+This check is a compile-time **error**, not a warning: it blocks compilation. There is no separate flat/nested pass and no historical `E004`/`E025` split -- those numeric codes are retired.
 
 ### 6.3 Maranget's Algorithm (Normative Behaviour)
 
@@ -339,7 +341,7 @@ The implementation is permitted to terminate early upon finding the first missin
 
 ### 6.4 Reachability (Redundancy)
 
-A clause `i` is *unreachable* iff every value matched by clause `i`'s pattern (and satisfying its guard) is also matched by some clause `j < i` (with that earlier clause's guard). The compiler SHOULD warn on unreachable clauses (`W-MATCH-UNREACHABLE`, numeric alias `E032`). The analysis is sound but, in general, incomplete in the presence of guards: a guard that is statically `false` makes its clause unreachable, but arbitrary guard expressions are undecidable.
+A clause `i` is *unreachable* iff every value matched by clause `i`'s pattern (and satisfying its guard) is also matched by some clause `j < i` (with that earlier clause's guard). The historical general-purpose `W-MATCH-UNREACHABLE` / `E032` check is retired; the compiler catches two specific, verified cases instead: a clause appearing after a wildcard/variable catch-all is `E119` (`:unreachable_after_default_pattern`), and a guarded arm shadowed by the disjunction of earlier guards is a separate compiler warning from the guard-exhaustiveness lint. There is no general Maranget-style redundancy check across arbitrary non-constructor pattern shapes today.
 
 ### 6.5 Scoping
 
@@ -362,7 +364,7 @@ Let the typing judgment for `match` extend the language's general typing relatio
        Γ_i ⊢ g_i : Bool                  (if guard present; otherwise omit)
        Γ_i ⊢ e_i : τ_i
    τ = τ_1 ⊔ ... ⊔ τ_n
-   exhaustive(p_1, ..., p_n, τ_s)        (warning E004/E025 otherwise)
+   exhaustive(p_1, ..., p_n, τ_s)        (error E118 otherwise)
    ───────────────────────────────────────────────────────────  (T-Match)
         Γ ⊢ match s with p_1 [when g_1] -> e_1
                        | ... | p_n [when g_n] -> e_n  : τ
@@ -788,8 +790,8 @@ match event.tag
 
 ```text
 match frame
-  <<len::16, payload::binary-size(len), _::binary>> -> payload
-  <<>>                                              -> <<>>
+  <<tag, len, _::binary>> -> len
+  <<>>                    -> 0
 ```
 
 ## 12. Algebraic Laws
@@ -828,7 +830,7 @@ When two adjacent clauses share the same outermost constructor and differ only i
 
 An exception in the scrutinee propagates and the `match` itself is not entered. An exception in a guard propagates and aborts selection. An exception in a selected branch propagates as in any expression position. Non-termination in the scrutinee, a guard, or a selected branch makes the `match` diverge.
 
-A non-exhaustive `match` whose runtime scrutinee falls outside every pattern raises `case_clause` (or its language-level analogue) with the offending value. The static-analysis warnings of § 6.2 are intended to make this case detectable at compile time.
+A non-exhaustive `match` whose runtime scrutinee falls outside every pattern raises `case_clause` (or its language-level analogue) with the offending value. The compile-time error of § 6.2 rejects the enumerable-constructor case outright; `case_clause` remains reachable only for domains § 6.2 does not cover (e.g. `Int` scrutinees without a catch-all).
 
 ## 14. Tail-Position Behaviour
 
@@ -905,7 +907,7 @@ A multi-clause function is semantically equivalent to a single-clause function w
 let p = e
 ```
 
-A `let` binding is a single-arm `match` whose pattern MUST be irrefutable (§ 5.16). A refutable `let` pattern emits `E034` as a warning: the binding still compiles, and the runtime raises a match error if the pattern fails.
+A `let` binding is a single-arm `match` whose pattern MUST be irrefutable (§ 5.16). A refutable `let` pattern is rejected under `E118`, the same pattern-coverage error `match` uses; it does not compile (the historical dedicated `E034` warning code is retired).
 
 The formatter rewrites a `match` containing a single irrefutable-pattern clause into a `let` binding (§ 9.6).
 
@@ -939,7 +941,7 @@ A conforming language server MUST:
 - on hover of a constructor pattern, display the ADT and arity;
 - on hover of `when`, display the guard's type;
 - provide code actions:
-  - *Add wildcard `_` clause* for `E004` and `E025`;
+  - *Add wildcard `_` clause* for `E118`;
   - *Convert single-clause `match` to `let`* for `H-MATCH-USE-LET`;
   - *Insert missing constructor* for each Maranget-witnessed missing case;
   - *Inline pin* (rewrite `^x -> ...` as `x_ -> ... when x_ == x`);
@@ -948,27 +950,23 @@ A conforming language server MUST:
 
 ## 20. Errors and Diagnostics
 
-The compiler MUST produce diagnostics with the following stable identifiers; implementations MAY refine wording but MUST preserve codes. Numeric codes match the long-standing Cure compiler diagnostics; descriptive aliases are provided for cross-spec consistency.
+The compiler MUST produce diagnostics with the following stable identifiers; implementations MAY refine wording but MUST preserve codes. Numeric codes match the current Cure compiler diagnostic registry (`lib/cure/diagnostic/registry.ex`); descriptive aliases are provided for cross-spec consistency. Every `E`-prefixed code is error severity and every `W`-prefixed code is warning severity by construction; there is no per-code override.
 
-- `E004` / `E-MATCH-NONEXHAUSTIVE-FLAT` — top-level coverage gap. Severity: warning.
-- `E021` / `W-MATCH-UNKNOWN-RECORD-FIELD` — record-field reference not in declared schema. Severity: warning.
-- `E022` / `E-MATCH-RECORD-FIELD-TYPE` — sub-pattern type incompatible with declared field. Severity: error.
-- `E023` / `E-MATCH-NON-LITERAL-MAP-KEY` — map key in pattern is not a literal. Severity: error.
-- `E024` / `E-MATCH-PIN-UNBOUND` — pin operator references unbound name. Severity: error.
-- `E025` / `E-MATCH-NONEXHAUSTIVE-NESTED` — nested coverage gap with concrete witness. Severity: warning.
-- `E031` / `E-MATCH-BINARY-NONEXHAUSTIVE` — binary-pattern coverage gap. Severity: warning.
-- `E032` / `W-MATCH-UNREACHABLE` — clause provably unreachable (§ 6.4). Severity: warning.
-- `E033` / `E-MATCH-BRANCH-MISMATCH` — branch right-hand sides have no common upper bound. Severity: error.
-- `E034` / `W-MATCH-LET-NONEXHAUSTIVE` — refutable pattern in `let` position (§ 18.3). Severity: warning.
+- `E118` / `E-MATCH-NONEXHAUSTIVE` — missing constructor at the top level or a tuple position, a duplicate constructor branch, or a reachable branch wrongly marked `impossible` (§ 6.2). Severity: error. Also used for a refutable `let` pattern (§ 18.3). Supersedes the retired `E004`/`E025`/`E034`.
+- `E119` / `E-MATCH-STRUCTURE` — a pattern binds a name twice outside the sanctioned repeated-variable form, more than one catch-all, an `impossible`-marked catch-all, a branch after a catch-all, or an open binary/map match with no trailing fallback. Severity: error. Supersedes the retired `E031`/`E032` for these specific shapes.
+- `E021` / `E-MATCH-UNKNOWN-RECORD` — the named record type itself is not in scope. Severity: error.
+- `E022` / `E-MATCH-RECORD-FIELD-TYPE` — a field reference does not exist in the record's declared schema, or a sub-pattern's static type is incompatible with the declared field type. Severity: error.
+- `E091` / `E-MATCH-UNKNOWN-CONSTRUCTOR` — PascalCase pattern name is not a
+  constructor of the scrutinee type; also covers an unbound pin reference
+  (§ 5.13, superseding the retired `E024`).
+- `E093` / `E-MATCH-TYPE-MISMATCH` — general type mismatch, covering a non-literal-atom map key (superseding the retired `E023`) and a branch join with no common upper bound (superseding the retired `E033`).
 - `E-MATCH-EMPTY` — `match` block contains no clauses (macro-generated case). Severity: error.
 - `E-MATCH-CONSTRUCTOR-ARITY` — constructor pattern arity disagrees with declaration. Severity: error.
-- `E091` / `E-MATCH-UNKNOWN-CONSTRUCTOR` — PascalCase pattern name is not a
-  constructor of the scrutinee type. Severity: error.
-- `W-MATCH-EFFECTFUL-GUARD` — `when` guard observed to have side effects. Severity: warning.
 - `H-MATCH-USE-LET` — single-arm irrefutable-pattern `match` rewritten to `let`. Severity: hint.
 - `H-MATCH-LINE-TOO-LONG` — clause cannot fit within `max_line_width` even when wrapped. Severity: hint.
 - `H-MATCH-COMMENT-RELOCATED` — internal stray comment relocated by the formatter. Severity: hint.
-- `W-MATCH-STATIC-NOMATCH` — scrutinee is a literal value with no matching clause; reduces to a static `case_clause`. Severity: warning.
+
+The following descriptive aliases from earlier revisions of this document no longer correspond to a reachable diagnostic: `W-MATCH-UNREACHABLE` (general-purpose clause subsumption is not checked; see § 6.4 for the narrower checks that remain), `W-MATCH-EFFECTFUL-GUARD`, and `W-MATCH-STATIC-NOMATCH`.
 
 ## 21. Non-Goals
 
@@ -986,11 +984,11 @@ The compiler MUST produce diagnostics with the following stable identifiers; imp
 - Behaviour of `match` defined in §§ 1-21 is stable. Future revisions MAY add capabilities (Appendix I, Appendix L) but MUST NOT alter the value, side-effect set, or termination behaviour of any program conforming to this revision.
 - `match` and `when` are reserved indefinitely.
 - The pattern sub-grammar of § 5 is stable. New pattern shapes (or-patterns, view patterns, range patterns, dependent matches) MAY be added in minor revisions; existing shapes MUST NOT be removed.
-- Numeric diagnostic codes (`E004`, `E021`-`E025`, `E031`-`E034`) are immutable and MUST NOT be reused for different conditions.
+- Numeric diagnostic codes are immutable and MUST NOT be reused for different conditions. (Post-1.0.0 note: the compiler's dependent-pipeline rewrite retired several codes this specification originally cited -- `E004`, `E023`-`E025`, `E031`-`E034` -- and consolidated their conditions under `E091`, `E093`, `E118`, and `E119`; see § 20.)
 
 ## 23. Summary
 
-`match` is a strict, ordered, structural-dispatch expression. It evaluates a scrutinee once and matches it, in source order, against a non-empty list of patterns; the first matching pattern (whose guard, if any, succeeds) selects the corresponding branch. Patterns introduce hygienic, linear bindings into branch and guard scope. Exhaustiveness is checked by a Maranget-style algorithm and reported as a warning; non-exhaustive `match` falls through to a runtime `case_clause` error.
+`match` is a strict, ordered, structural-dispatch expression. It evaluates a scrutinee once and matches it, in source order, against a non-empty list of patterns; the first matching pattern (whose guard, if any, succeeds) selects the corresponding branch. Patterns introduce hygienic, linear bindings into branch and guard scope. Exhaustiveness is checked by a Maranget-style algorithm and reported as a compile-time error (`E118`); a `match` over an enumerable-constructor scrutinee that omits a reachable constructor does not compile.
 
 > **`match` walks the clauses and picks up the first one whose pattern matches the scrutinee.**
 
@@ -1088,12 +1086,12 @@ match value
 
 match m
   %{(1 + 1): v} -> v
--- E023
+-- E093 (map key is not a literal atom)
 
 match v
   ^undefined -> 0
   _          -> 1
--- E024
+-- E091 (pin references an unbound name)
 ```
 
 ### A.7 Exhaustiveness
@@ -1104,12 +1102,12 @@ type RGB = | Red | Green | Blue
 match c
   Red()   -> 1
   Green() -> 2
--- E004 (missing: Blue)
+-- E118 (missing: Blue)
 
 match %[a, b]
   %[Ok(_),    Ok(_)]   -> :both
   %[Error(_), Ok(_)]   -> :left
--- E025 (missing witness e.g. %[Ok(_), Error(_)])
+-- E118 (missing witness e.g. %[Ok(_), Error(_)] at position 2)
 ```
 
 ### A.8 Reachability
@@ -1117,7 +1115,7 @@ match %[a, b]
 ```text
 match x
   _ -> :a
-  0 -> :b   -- W-MATCH-UNREACHABLE / E032
+  0 -> :b   -- E119 (branch after a catch-all)
 ```
 
 ### A.9 Layout
@@ -1160,7 +1158,7 @@ match req
 
 ## 26. Appendix C — Change Log
 
-- **1.0.0** — Initial formal specification of the existing `match` construct. Consolidates and supersedes the pattern-matching content in `docs/LANGUAGE_SPEC.md` § "Pattern Matching"; refers to `docs/PATTERNS.md` as a complementary tutorial reference. Locks numeric diagnostic codes (`E004`, `E021`-`E025`, `E031`-`E034`) and introduces descriptive aliases.
+- **1.0.0** — Initial formal specification of the existing `match` construct. Consolidates and supersedes the pattern-matching content in `docs/LANGUAGE_SPEC.md` § "Pattern Matching"; refers to `docs/PATTERNS.md` as a complementary tutorial reference. Locks numeric diagnostic codes (`E004`, `E021`-`E025`, `E031`-`E034`) and introduces descriptive aliases. (Several of these codes were later retired by the dependent-pipeline rewrite and their conditions consolidated under `E091`, `E093`, `E118`, and `E119`; see § 20.)
 - **v0.33.0 publication** — Specification published into HexDocs alongside `docs/PICKUP.md` via `mix.exs` `docs.extras`. `docs/LANGUAGE_SPEC.md` § "Pattern Matching" cross-references this document as the normative source. The companion `pickup` page on the Cure website (`/pickup`) and the `/match` user-facing tutorial both link to this document. No normative content changed.
 
 ## 27. Appendix D — Index of Normative Requirements
@@ -1172,7 +1170,7 @@ match req
 - § 5.12 — Nullary constructors MUST be written with `()`.
 - § 5.13 — Pin references MUST resolve to in-scope bindings.
 - § 6.1 — Patterns MUST be statically compatible with the scrutinee; branches MUST share a join.
-- § 6.2 — Implementations MUST run flat and nested exhaustiveness passes.
+- § 6.2 — Implementations MUST reject a missing reachable constructor, at the top level or a tuple position, under `E118`.
 - § 7.1 — Scrutinee evaluated exactly once; clauses tried in source order.
 - § 9.1-9.25 — Formatter rules in full.
 - § 14 — Branches in tail position iff `match` is; scrutinee, guards, and pattern machinery are not.
@@ -1224,7 +1222,7 @@ compile_pattern(p, subject_var, scope):
       return ([guard(fresh == scope[name])], scope ∪ {name → subject_var})
     return ([], scope ∪ {name → subject_var})
   if p is Pin(name):
-    if name not in scope: error E024
+    if name not in scope: error E091
     return ([guard(subject_var == scope[name])], scope)
   if p is Literal(v):
     return ([test(subject_var == v)], scope)
@@ -1246,16 +1244,16 @@ compile_pattern(p, subject_var, scope):
 
 ```text
 check_exhaustive(clauses, scrutinee_type):
-  -- Flat pass
+  -- Top-level pass
   shapes = {flat_classify(c.pattern) for c in clauses}
   missing = expected_shapes(scrutinee_type) \ shapes
-  for m in missing: warn E004 with witness m
+  for m in missing: error E118 with witness m
 
-  -- Nested (Maranget) pass for tuples of enumerable elements
+  -- Tuple-position pass for tuples of enumerable elements
   if scrutinee_type is enumerable_tuple:
     matrix = [pattern_row(c.pattern) for c in clauses]
     witness = maranget_first_uncovered(matrix, scrutinee_type)
-    if witness != none: warn E025 with witness
+    if witness != none: error E118 with witness
 ```
 
 ### E.4 Type Checker
@@ -1265,12 +1263,12 @@ type_match(Γ, node):
   τ_s = type(Γ, node.scrutinee)
   τ_acc = fresh()
   for c in node.clauses:
-    Γ_p = pattern_type(Γ, c.pattern, τ_s)        -- E022, E021, E024 etc.
+    Γ_p = pattern_type(Γ, c.pattern, τ_s)        -- E022, E021, E091 etc.
     if c.guard:
       unify(type(Γ_p, c.guard), Bool)            -- general guard-type error
     τ_e = type(Γ_p, c.rhs)
-    τ_acc = join(τ_acc, τ_e)                     -- E033 on failure
-  check_exhaustive(node.clauses, τ_s)            -- E004 / E025
+    τ_acc = join(τ_acc, τ_e)                     -- E093 on failure
+  check_exhaustive(node.clauses, τ_s)            -- E118
   return τ_acc
 ```
 
@@ -1382,10 +1380,10 @@ match incoming
 
 ```text
 match frame
-  <<0xC0, len::16, payload::binary-size(len)>> -> {:cmd, payload}
-  <<0xC1, code::8>>                            -> {:err, code}
-  <<>>                                         -> :empty
-  _                                            -> :unknown
+  <<0xC0, code, _::binary>> -> {:cmd, code}
+  <<0xC1, code>>            -> {:err, code}
+  <<>>                      -> :empty
+  _                         -> :unknown
 ```
 
 ### F.8 Recursive Loop
@@ -1407,7 +1405,7 @@ When the deciding question is *"what shape does this value have?"*, use `match`.
 
 ### G.2 Order Clauses From Specific to General
 
-Place the most specific patterns first. The compiler will warn on unreachable specific clauses placed after more-general ones (`E032`); use this as a sanity check.
+Place the most specific patterns first. A clause placed after a wildcard/variable catch-all is rejected outright (`E119`); use this as a sanity check. The compiler does not, however, catch every case of a more specific clause shadowed by an earlier non-catch-all clause -- ordering discipline still matters.
 
 ### G.3 Make Coverage Visible
 
@@ -1476,10 +1474,10 @@ match c
   Red()   -> 1
   Green() -> 2
   Blue()  -> 3
-  _       -> impossible ()    -- silences future E004 warnings
+  _       -> impossible ()    -- silences the future E118 error
 ```
 
-The wildcard prevents the type checker from warning when a new variant is added to `RGB`. Drop it; let `E004` guide future updates.
+The wildcard prevents the type checker from rejecting the `match` when a new variant is added to `RGB`. Drop it; let `E118` guide future updates.
 
 ### H.4 Deep Nested Patterns Without Naming
 
@@ -1618,9 +1616,9 @@ Non-normative.
 
 Non-normative.
 
-### L.1 Promote `E004`/`E025` to Errors
+### L.1 (Resolved) Non-Exhaustive `match` and `let` Are Errors
 
-Today non-exhaustive `match` is a warning. A future revision MAY promote it to an error, mirroring `let` (`E034` already warns; promotion of `let` to error is a parallel decision).
+This was an open question in earlier drafts of this specification. It is resolved: both a non-exhaustive `match` over an enumerable-constructor scrutinee and a refutable `let` pattern are compile-time errors (`E118`), not warnings.
 
 ### L.2 Or-Patterns
 

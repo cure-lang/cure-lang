@@ -17,6 +17,7 @@ defmodule CureSiteWeb.JsonLd do
       `targetPlatform` set
     * `priv/pages/getting-started.md`   -> `HowTo` whose `step` list
       is extracted from the page's `<h2>` headings
+    * `/about` (`docs/TECHNICAL_OVERVIEW.md`) -> `AboutPage`
     * a markdown page whose body looks like a Q/A list -> `FAQPage`
       with each `<h2>`/`<h3>` ending in `?` lifted into a Question
     * every other markdown page         -> `TechArticle`
@@ -64,6 +65,11 @@ defmodule CureSiteWeb.JsonLd do
   # rather than reference articles. Add new HowTo pages here as they
   # appear under `priv/pages/`.
   @howto_ids ~w(getting-started)
+
+  # Page IDs that describe the project itself rather than a single
+  # technical topic. Schema.org's `AboutPage` is the closest match and
+  # tells crawlers this is the canonical "what is this" document.
+  @about_ids ~w(about)
 
   # ---------------------------------------------------------------------------
   # Public API
@@ -396,6 +402,7 @@ defmodule CureSiteWeb.JsonLd do
   # --- type inference --------------------------------------------------------
 
   defp infer_page_type(%Page{id: id}) when id in @howto_ids, do: "HowTo"
+  defp infer_page_type(%Page{id: id}) when id in @about_ids, do: "AboutPage"
 
   defp infer_page_type(%Page{body: body}) when is_binary(body) do
     if faq_page?(body), do: "FAQPage", else: "TechArticle"

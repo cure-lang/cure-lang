@@ -64,10 +64,13 @@ layer LTL properties on top of the projected protocol.
    initial state.
 
 Failures surface as `{:protocol_violation, message, meta}` tuples
-with `code: "E056"` in their meta keyword list. The formatter in
-`Cure.Compiler.Errors` treats `E056` like any other catalog entry.
+with `code: "PROTO001"` in their meta keyword list. This code is
+private to the protocol DSL: it is not registered in
+`Cure.Diagnostic.Registry` and is never formatted by
+`Cure.Compiler.Errors`, since `Cure.Protocol.Verifier` runs outside
+the `.cure` compiler pipeline.
 
-## E056 -- Protocol Violation
+## PROTO001 -- Protocol Violation
 
 Canonical examples:
 

@@ -198,12 +198,8 @@ defmodule Cure.Doctor do
     end
   end
 
-  defp project_error_reason(:enoent), do: "the file does not exist"
-  defp project_error_reason(:eacces), do: "permission was denied"
-  defp project_error_reason(:invalid_toml), do: "the TOML document is invalid"
-  defp project_error_reason(:invalid), do: "the project document is invalid"
-  defp project_error_reason(reason) when is_binary(reason), do: reason
-  defp project_error_reason(_reason), do: "the project document could not be read"
+  defp project_error_reason({:file_error, posix}), do: "file error (#{posix})"
+  defp project_error_reason({:unknown_edition, ed}), do: "unknown edition (#{ed})"
 
   defp lock_findings(project, root) do
     registry_deps =

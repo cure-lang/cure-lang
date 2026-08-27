@@ -37,9 +37,11 @@ defmodule Cure.Project.PackageIdentityTest do
 
     output_dir = Path.join(consumer, "_build/deps/cure_fixture_dependency")
     assert {:ok, artifacts} = Cure.Compiler.Artifacts.open_verified_set(output_dir)
+
     assert artifacts.context.package_exports == %{
              "cure_fixture_dependency" => ["Fixture.Provider"]
            }
+
     interface_path = Path.join(artifacts.artifact_root, "Fixture.Provider.cureinterface")
     assert {:ok, interface} = Cure.Compiler.ModulePipeline.Interface.read(interface_path)
     assert interface.source_metadata.package == "cure_fixture_dependency"

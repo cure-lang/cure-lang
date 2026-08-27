@@ -13,8 +13,12 @@ defmodule Antigen.CertifyHardeningAntibodyTest do
     * an OPEN certified body must never δ-unfold (it would eval in the empty env
       and leak/capture a context variable) — the "equates no distinct normal
       forms" guard specialised to the certificate seam;
-    * a forged NON-TERMINATING cert must stay fuel-bounded under the metered
-      conversion path — the termination guard.
+    * a forged NON-TERMINATING cert must never make the metered conversion path
+      diverge — the termination guard. For a bare self-loop this is decided
+      SOUNDLY and well within budget (`unfold_certified_head` freezes a δ-unfold
+      that reproduces the identical neutral as stuck, rather than re-attempting
+      it until fuel runs out), so the guard is pinned as "never exhausts fuel to
+      reach a wrong answer", not "always reports :fuel_exhausted".
 
   A `forge/2` raw-struct write bypasses `Env.certify/2` on purpose, to prove the
   `normalise` unfold-site backstop holds independently of the `certify` assertion.
@@ -61,9 +65,12 @@ defmodule Antigen.CertifyHardeningAntibodyTest do
     assert {:ok, false} = Conv.conv_within?({:global, :bad}, s(@z), [], 0, env, 200)
   end
 
-  test "termination guard: a forged NON-TERMINATING closed cert stays fuel-bounded" do
+  test "termination guard: a forged NON-TERMINATING closed cert decides false, not fuel exhaustion" do
+    # `loop`'s δ-unfold reproduces the identical `{:nglobal, :loop}` neutral every
+    # step, so `unfold_certified_head`'s same-neutral guard freezes it as stuck
+    # after ONE step: conversion decides `loop` and `Z` are not convertible almost
+    # immediately, using almost none of the 200-step budget.
     env = nat_env() |> Env.add_def(:loop, @nat, {:global, :loop}) |> forge(:loop)
-
     # The normalizer recognizes an unfold that reproduces the exact neutral
     # head and freezes it immediately. It therefore returns a decisive false
     # result instead of spending the whole budget rediscovering the same loop.

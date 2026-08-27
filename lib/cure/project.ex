@@ -319,6 +319,25 @@ defmodule Cure.Project do
   end
 
   @doc """
+  Return the project's own `.cure` source roots.
+
+  These are `[project] source_paths` (default `["lib"]`), expanded against the
+  project root and filtered to directories that exist. Tooling that compiles or
+  checks a file living OUTSIDE those roots -- a `test/` module, a `bench/`
+  module -- needs them to resolve `use` of the project's own modules from
+  source.
+  """
+  @spec source_roots(t()) :: [Path.t()]
+  def source_roots(%__MODULE__{} = project) do
+    project
+    |> default_source_paths()
+    |> Enum.map(&Path.expand/1)
+    |> Enum.filter(&File.dir?/1)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  @doc """
   Return the source roots of installed dependencies.
 
   Path dependencies resolve directly from their package `lib/` directory.
@@ -536,6 +555,7 @@ defmodule Cure.Project do
     [project]
     name = "#{name}"
     version = "0.1.0"
+    edition = "#{Cure.Edition.current()}"
 
     [dependencies]
 
@@ -570,6 +590,7 @@ defmodule Cure.Project do
     [project]
     name = "#{name}"
     version = "0.1.0"
+    edition = "#{Cure.Edition.current()}"
 
     [dependencies]
 
@@ -605,15 +626,25 @@ defmodule Cure.Project do
 
     File.write!(Path.join([name, "lib", "main.cure"]), """
     mod #{mod}
+      use Std.Io
+
       ## Public entry point.
       fn hello() -> String = "hello from #{name}"
+
+      ## Called by `cure run lib/main.cure`.
+      fn main() -> Atom =
+        let _: Unit = Std.Io.println(hello())
+        :ok
     """)
 
+    # `Std.Test.assert_eq/2` returns `Unit`; declaring the test as `-> Atom`
+    # made a freshly scaffolded project fail `cure test` on its own template.
     File.write!(Path.join([name, "test", "main_test.cure"]), """
     mod #{mod}.Test
       use Std.Test
+      use #{mod}
 
-      fn test_hello() -> Atom =
+      fn test_hello() -> Unit =
         Std.Test.assert_eq(#{mod}.hello(), "hello from #{name}")
     """)
   end
@@ -650,13 +681,18 @@ defmodule Cure.Project do
     write_lib_template(name)
     mod = String.capitalize(name)
 
+    # The machine gets a module of its own. `lib/main.cure` already declares the
+    # project's top-level module, and two files claiming one module name is a
+    # duplicate module identity, not a project.
     File.write!(Path.join([name, "lib", "fsm.cure"]), """
-    mod #{mod}
+    mod #{mod}.Fsm
+      use Std.Fsm
 
-      fsm Fsm
-        state Atom
-        events
-          Tick -> :keep_state_and_data
+      ## Transition-table surface: the macro derives the `State` and `Event`
+      ## types from the rows and verifies the graph while expanding.
+      fsm Switch with Int
+        Off --Toggle--> On
+        On  --Toggle--> Off
     """)
   end
 

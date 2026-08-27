@@ -59,3 +59,8 @@ cure-*.tar
 
 # Local investigation probes and handover notes.
 /scratchpad/
+
+.dsh/
+.ragex/
+dllb.redb
+dllb.redb.search/

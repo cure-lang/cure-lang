@@ -90,7 +90,7 @@ defmodule Cure.Protocol.VerifierTest do
       assert Protocol.verify(script) == :ok
     end
 
-    test "emits E056 when a declared role is never used" do
+    test "emits PROTO001 when a declared role is never used" do
       {:ok, script} =
         Protocol.parse("""
         protocol Idle with Client, Server, Spectator
@@ -102,7 +102,7 @@ defmodule Cure.Protocol.VerifierTest do
 
       assert Enum.any?(errors, fn
                {:protocol_violation, msg, meta} ->
-                 Keyword.get(meta, :code) == "E056" and msg =~ "Spectator"
+                 Keyword.get(meta, :code) == "PROTO001" and msg =~ "Spectator"
 
                _ ->
                  false

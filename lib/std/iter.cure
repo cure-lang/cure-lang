@@ -16,7 +16,7 @@
 ## ```cure
 ## use Std.Iter
 ##
-## # Squares of the first five even integers in [1, 1_000_000].
+## # Squares of the first five even integers in [1, 10].
 ## [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 ##   |> lazy
 ##   |> filter(fn(x) -> x % 2 == 0)

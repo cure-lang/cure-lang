@@ -381,12 +381,9 @@ defmodule Cure.John do
     end
   end
 
-  defp project_error_reason(:enoent), do: "the file does not exist"
-  defp project_error_reason(:eacces), do: "permission was denied"
-  defp project_error_reason(:invalid_toml), do: "the TOML document is invalid"
-  defp project_error_reason(:invalid), do: "the project document is invalid"
-  defp project_error_reason(reason) when is_binary(reason), do: reason
-  defp project_error_reason(_reason), do: "the project document could not be read"
+  defp project_error_reason(:unavailable), do: "the project document is unavailable"
+  defp project_error_reason({tag, detail}) when is_binary(detail), do: "#{tag}: #{detail}"
+  defp project_error_reason({tag, _detail}), do: "the project document is invalid (#{tag})"
 
   defp project_md(nil) do
     section("Project", ["  *(no `Cure.toml` found in the current directory)*"])

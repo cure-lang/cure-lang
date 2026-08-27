@@ -1,8 +1,80 @@
 <Layouts.app flash={@flash} current_path={@conn.request_path}>
-  <article>
-    <h1 class="text-3xl font-bold mb-6">{@page.title}</h1>
-    <div class="prose-cure text-base-content/90">
-      {raw(@page.body)}
+  <div class="lg:grid lg:grid-cols-[240px_1fr] lg:gap-10">
+    <%!-- Sidebar navigation --%>
+    <aside class="hidden lg:block">
+      <div class="sticky top-20 space-y-6 pr-4 border-r border-base-300">
+        <%= for {cat_id, cat_title, _desc, pages} <- CureSite.Pages.grouped_pages() do %>
+          <div>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-base-content/50 mb-2">
+              {cat_title}
+            </h3>
+            <ul class="space-y-1 text-sm">
+              <%= for page <- pages do %>
+                <li>
+                  <a
+                    href={~p"/#{page.id}"}
+                    class={[
+                      "block px-3 py-1.5 rounded-lg transition text-sm",
+                      if(@page.id == page.id,
+                        do: "bg-primary/10 text-primary font-semibold",
+                        else: "text-base-content/70 hover:bg-base-200 hover:text-base-content"
+                      )
+                    ]}
+                  >
+                    {page.title}
+                  </a>
+                </li>
+              <% end %>
+            </ul>
+          </div>
+        <% end %>
+      </div>
+    </aside>
+
+    <%!-- Main content area --%>
+    <div class="min-w-0">
+      <%!-- Breadcrumbs --%>
+      <nav class="mb-4 text-xs font-medium text-base-content/60 flex items-center gap-1.5">
+        <a href={~p"/getting-started"} class="hover:underline">Docs</a>
+        <span>/</span>
+        <span>{@page.category_title}</span>
+        <span>/</span>
+        <span class="text-base-content font-semibold">{@page.title}</span>
+      </nav>
+
+      <article>
+        <h1 class="text-3xl font-bold mb-6">{@page.title}</h1>
+        <div class="prose-cure text-base-content/90">
+          {raw(@page.body)}
+        </div>
+      </article>
+
+      <%!-- Next / Prev navigation --%>
+      <% {prev_page, next_page} = CureSite.Pages.prev_and_next(@page.id) %>
+      <div class="mt-12 flex items-center justify-between border-t border-base-300 pt-6">
+        <div>
+          <%= if prev_page do %>
+            <a
+              href={~p"/#{prev_page.id}"}
+              class="group flex flex-col items-start gap-0.5 text-sm text-base-content/70 hover:text-primary"
+            >
+              <span class="text-xs text-base-content/40 font-mono">← Previous</span>
+              <span class="font-semibold group-hover:underline">{prev_page.title}</span>
+            </a>
+          <% end %>
+        </div>
+        <div class="text-right">
+          <%= if next_page do %>
+            <a
+              href={~p"/#{next_page.id}"}
+              class="group flex flex-col items-end gap-0.5 text-sm text-base-content/70 hover:text-primary"
+            >
+              <span class="text-xs text-base-content/40 font-mono">Next →</span>
+              <span class="font-semibold group-hover:underline">{next_page.title}</span>
+            </a>
+          <% end %>
+        </div>
+      </div>
     </div>
-  </article>
+  </div>
 </Layouts.app>

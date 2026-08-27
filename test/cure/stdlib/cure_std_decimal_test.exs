@@ -31,6 +31,7 @@ defmodule Cure.Stdlib.DecimalTest do
     test "parse/1 returns the unconsumed suffix" do
       assert {:ok, {value, {:String, ~c"rest"}}} =
                apply(@decimal, :parse, [cure_string("3.14rest")])
+
       assert render(value) == "3.14"
     end
 

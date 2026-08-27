@@ -34,8 +34,7 @@ defmodule Cure.Elab.EmitGradePredicateTest do
     access_type = {:pi, Grade.unrestricted(), box_type, field_type}
 
     access_body =
-      {:lam, Grade.unrestricted(), box_type,
-       {:case, {:var, 0}, field_type, [{:MkBox, 1, {:var, 0}}]}}
+      {:lam, Grade.unrestricted(), box_type, {:case, {:var, 0}, field_type, [{:MkBox, 1, {:var, 0}}]}}
 
     env =
       Env.empty()

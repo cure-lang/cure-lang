@@ -69,3 +69,65 @@ document.querySelectorAll("[role=alert][data-flash]").forEach((el) => {
     el.setAttribute("hidden", "")
   })
 })
+
+// Standard Library interactive filter & '/' hotkey
+const setupStdlibFilter = () => {
+  const filterInput = document.getElementById("stdlib-filter")
+  if (!filterInput) return
+
+  const onInput = () => {
+    const query = filterInput.value.toLowerCase().trim()
+
+    // Filter sidebar list items and sections
+    document.querySelectorAll("aside section").forEach((section) => {
+      let hasVisibleLi = false
+      section.querySelectorAll("li").forEach((li) => {
+        const text = li.textContent.toLowerCase()
+        if (query === "" || text.includes(query)) {
+          li.style.display = ""
+          hasVisibleLi = true
+        } else {
+          li.style.display = "none"
+        }
+      })
+      section.style.display = query === "" || hasVisibleLi ? "" : "none"
+    })
+
+    // Filter index page grid cards
+    document.querySelectorAll("article section").forEach((section) => {
+      const cards = section.querySelectorAll(".grid > a")
+      if (cards.length > 0) {
+        let hasVisibleCard = false
+        cards.forEach((card) => {
+          const text = card.textContent.toLowerCase()
+          if (query === "" || text.includes(query)) {
+            card.style.display = ""
+            hasVisibleCard = true
+          } else {
+            card.style.display = "none"
+          }
+        })
+        section.style.display = query === "" || hasVisibleCard ? "" : "none"
+      }
+    })
+  }
+
+  filterInput.addEventListener("input", onInput)
+
+  window.addEventListener("keydown", (e) => {
+    if (
+      e.key === "/" &&
+      document.activeElement !== filterInput &&
+      !["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)
+    ) {
+      e.preventDefault()
+      filterInput.focus()
+    }
+  })
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", setupStdlibFilter)
+} else {
+  setupStdlibFilter()
+}

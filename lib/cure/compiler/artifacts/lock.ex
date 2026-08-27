@@ -8,6 +8,10 @@ defmodule Cure.Compiler.Artifacts.Lock do
 
   @spec with_lock(Path.t(), (-> result)) :: result | {:error, term()} when result: term()
   def with_lock(output_root, fun) when is_function(fun, 0) do
+    if match?({:ok, %File.Stat{type: :symlink}}, File.lstat(output_root)) and not File.exists?(output_root) do
+      File.rm_rf!(output_root)
+    end
+
     File.mkdir_p!(output_root)
     path = Path.join(output_root, @lock_name)
 

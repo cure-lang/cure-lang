@@ -61,33 +61,25 @@ scope, so names can be reused freely across clauses.
 
 ## Map keys in pattern position
 
-Map keys in a pattern must be literal values (atoms, integers,
-strings, ...). A bare identifier at a map-key position is permitted
-as an abbreviation: `%{x, y}` expands to `%{x: x, y: y}`. Any
-non-literal non-identifier expression triggers `E023`.
+Map keys in a pattern must be literal atoms. A bare identifier at a
+map-key position is permitted as an abbreviation: `%{x, y}` expands to
+`%{x: x, y: y}`. Any non-atom-literal, non-identifier expression
+triggers the general type-mismatch diagnostic `E093`.
 
 ## Record fields
 
 Record patterns resolve against the record's declared schema when the
-type is known. Referring to a field that is not in the schema emits a
-`E021` warning. Providing a sub-pattern whose type is incompatible
-with the declared field type emits `E022`.
+type is known. Referring to a field that is not in the schema, or
+supplying a sub-pattern whose type is incompatible with the declared
+field type, emits `E022` as an error.
 
 ## Exhaustiveness
 
-The type checker runs two passes:
-
-1. A **flat** classifier that recognises `:wildcard`, `:empty_list`,
-   `:cons`, `{:literal, subtype, value}`, `{:constructor, name, n}`,
-   `{:tuple, n}`, `{:map, n}`, and `{:record, name, fields}` at the
-   top level of each arm. Missing shapes are reported as `E004`.
-2. A **nested** pass (Maranget-style, best-effort) that descends into
-   tuple scrutinees whose element types are enumerable (Bool,
-   Result, Option). Missing witnesses are rendered as source-shape
-   strings and reported as `E025`.
-
-Both passes emit `:type_warning` events via the pipeline. They do
-not block compilation.
+A missing reachable constructor -- at the top level of the scrutinee
+or at a tuple element position -- is rejected under `E118` (Pattern
+Coverage). This is a compile-time error: it blocks compilation. There
+is no separate flat/nested pass; both cases are reported under the
+same code.
 
 ## Injected guards
 
@@ -100,15 +92,14 @@ uses:
 These are conjoined with the user-written `when` clause via
 `andalso` before being emitted into the Erlang abstract form.
 
-## What is not supported (yet)
+## What is not supported
 
-- Multi-head cons patterns such as `[a, b | rest]`. Use nested
-  `match` or the helpers in `Std.Match`.
 - Range patterns (`1..10 -> ...`). Compile-time rejected.
-- Bitstring patterns with complex segment specifiers (`x:8/integer,
-  rest::binary`). The parser accepts `<<...>>` literals; the
-  pattern compiler only handles integer segments and bare variable
-  tails today. Full segment specifiers land in v0.19.0.
+- Bitstring patterns with sized or typed segment specifiers (`x::16`,
+  `x::float`, `x::utf8`, ...). The parser accepts the full `<<...>>`
+  specifier-chain grammar, but the elaborator only lowers plain 8-bit
+  byte segments plus a single trailing unsized tail (`rest::binary`);
+  anything richer is rejected under `E093`. See `docs/BINARIES.md`.
 
 See `docs/LANGUAGE_SPEC.md` §"Pattern Matching" for the surface
 syntax, `examples/destructuring.cure`, `examples/json_tree.cure`,

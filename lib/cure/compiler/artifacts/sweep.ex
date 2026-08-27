@@ -57,36 +57,87 @@ defmodule Cure.Compiler.Artifacts.Sweep do
 
     if not prior.reusable? and is_binary(cache), do: File.rm_rf(cache)
 
-    request_opts =
-      [
-        module_pipeline: :canonical,
-        entry_point: :artifact_sweep,
-        kind: Keyword.get(opts, :kind, :project),
-        package: Keyword.get(opts, :package, "root"),
-        source_roots: source_roots,
-        interface_roots: interface_roots,
-        artifact_roots: prior.artifact_roots,
-        cache: cache,
-        products: [:beams],
-        publication: nil,
-        collect_diagnostics: true,
-        event_sink: Keyword.get(opts, :progress)
-      ]
-      |> maybe_request_option(opts, :macro_execution)
-      |> maybe_request_option(opts, :package_exports)
-      |> maybe_request_option(opts, :prelude_set)
-      |> maybe_request_option(opts, :compiler_providers)
-      |> maybe_request_option(opts, :edition)
-      |> maybe_request_option(opts, :compiler_options)
+    case unchanged_generation(prior, interface_roots, source_paths) do
+      {:ok, _result} = short_circuit ->
+        short_circuit
 
-    with {:ok, checked} <- check_canonical_pipeline(source_paths, request_opts),
-         {:ok, staged} <-
-           Writer.transact(output_dir, fn stage ->
-             publish_canonical_generation(stage, checked, opts, source_roots)
-           end),
-         {:ok, manifest} <- Artifacts.open_verified_set(staged.artifact_root, verification: :full) do
-      {:ok, canonical_result(manifest, checked, prior)}
+      :changed ->
+        request_opts =
+          [
+            module_pipeline: :canonical,
+            entry_point: :artifact_sweep,
+            kind: Keyword.get(opts, :kind, :project),
+            package: Keyword.get(opts, :package, "root"),
+            source_roots: source_roots,
+            interface_roots: interface_roots,
+            artifact_roots: prior.artifact_roots,
+            cache: cache,
+            products: [:beams],
+            publication: nil,
+            collect_diagnostics: true,
+            event_sink: Keyword.get(opts, :progress)
+          ]
+          |> maybe_request_option(opts, :macro_execution)
+          |> maybe_request_option(opts, :package_exports)
+          |> maybe_request_option(opts, :prelude_set)
+          |> maybe_request_option(opts, :compiler_providers)
+          |> maybe_request_option(opts, :edition)
+          |> maybe_request_option(opts, :compiler_options)
+
+        with {:ok, checked} <- check_canonical_pipeline(source_paths, request_opts),
+             {:ok, staged} <-
+               Writer.transact(output_dir, fn stage ->
+                 publish_canonical_generation(stage, checked, opts, source_roots)
+               end),
+             {:ok, manifest} <- Artifacts.open_verified_set(staged.artifact_root, verification: :full) do
+          {:ok, canonical_result(manifest, checked, prior)}
+        end
     end
+  end
+
+  # Skip the module pipeline entirely when we can already prove nothing
+  # needs it: the prior generation's toolchain/compiler context matched
+  # (`prior.reusable?`), this sweep has no external interface dependencies
+  # that could go stale without any of *this* sweep's own sources changing
+  # (`interface_roots == []` -- a sweep that imports another package's or
+  # the stdlib's interfaces must still ask the pipeline, since a
+  # dependency's interface can change independently), and every current
+  # source file's content hash is exactly the set already recorded in the
+  # published manifest's `input_snapshot`. Hashing the raw source files
+  # here is cheap -- plain SHA-256 reads via `Artifacts.record_source/1` --
+  # it is elaborating and kernel-checking each one through
+  # `ModulePipeline.check_entry_point/3` that is not, and that is exactly
+  # the redundant work a caller skips when literally nothing has changed
+  # since the last successful sweep of this same `output_dir`.
+  defp unchanged_generation(%{reusable?: true, manifest: %{modules: modules} = manifest}, [], source_paths)
+       when map_size(modules) == length(source_paths) do
+    if current_source_digest(source_paths) == manifest.input_snapshot do
+      {:ok,
+       %Result{
+         pipeline: :canonical,
+         workspace_key: manifest.workspace_key,
+         input_snapshot: manifest.input_snapshot,
+         artifact_digest: manifest.artifact_digest,
+         artifact_root: manifest.artifact_root,
+         reused: modules |> Map.keys() |> Enum.sort(),
+         rebuilt: %{},
+         removed: %{},
+         cycles: [],
+         verification: :full,
+         manifest_path: Path.join(manifest.artifact_root, BuildManifest.filename())
+       }}
+    else
+      :changed
+    end
+  end
+
+  defp unchanged_generation(_prior, _interface_roots, _source_paths), do: :changed
+
+  defp current_source_digest(source_paths) do
+    source_paths
+    |> Enum.map(fn path -> path |> Artifacts.record_source() |> Map.fetch!(:sha256) end)
+    |> Enum.sort()
+    |> digest()
   end
 
   defp canonical_edition(opts) do
@@ -155,18 +206,25 @@ defmodule Cure.Compiler.Artifacts.Sweep do
     # project builds retain ambient discovery because they may not have an
     # explicit foundation root.
     stdlib_roots =
-      if Keyword.get(opts, :kind, :project) == :stdlib or
-           (Keyword.get(opts, :kind, :project) == :dependency and explicit != []) do
-        []
-      else
-        case Artifacts.open_verified_set(
-               kind: :stdlib,
-               candidates: Cure.Stdlib.Paths.beam_dirs(),
-               verification: :full
-             ) do
-          {:ok, %{artifact_root: root}} -> [root]
-          {:error, _reason} -> []
-        end
+      cond do
+        Keyword.get(opts, :kind, :project) == :stdlib ->
+          []
+
+        Keyword.has_key?(opts, :stdlib_roots) ->
+          opts |> Keyword.get(:stdlib_roots, []) |> List.wrap()
+
+        Keyword.get(opts, :kind, :project) == :dependency and explicit != [] ->
+          []
+
+        true ->
+          case Artifacts.open_verified_set(
+                 kind: :stdlib,
+                 candidates: Cure.Stdlib.Paths.beam_dirs(),
+                 verification: :full
+               ) do
+            {:ok, %{artifact_root: root}} -> [root]
+            {:error, _reason} -> []
+          end
       end
 
     (explicit ++ package_roots ++ stdlib_roots)
@@ -409,6 +467,7 @@ defmodule Cure.Compiler.Artifacts.Sweep do
     checked.components
     |> Enum.filter(&(length(&1) > 1))
     |> Enum.map(&canonical_cycle_hops(&1, checked.manifest))
+    |> Enum.reject(&is_nil/1)
   end
 
   defp canonical_cycle_hops(component, manifest) do
@@ -420,6 +479,7 @@ defmodule Cure.Compiler.Artifacts.Sweep do
         targets =
           manifest.dependencies
           |> Map.get(identity, [])
+          |> Enum.filter(&(&1.kind == :use_import))
           |> Enum.map(& &1.target)
           |> Enum.filter(&MapSet.member?(members, &1))
           |> Enum.uniq()
@@ -428,23 +488,28 @@ defmodule Cure.Compiler.Artifacts.Sweep do
         {identity, targets}
       end)
 
-    path = find_cycle_path(start, start, adjacency, MapSet.new([start])) || [start, start]
+    case find_cycle_path(start, start, adjacency, MapSet.new([start])) do
+      nil ->
+        nil
 
-    path
-    |> Enum.with_index()
-    |> Enum.map(fn {identity, index} ->
-      entry = Map.fetch!(manifest.entries, identity)
-      next = Enum.at(path, index + 1) || Enum.at(path, 1)
+      path ->
+        path
+        |> Enum.with_index()
+        |> Enum.map(fn {identity, index} ->
+          entry = Map.fetch!(manifest.entries, identity)
+          next = Enum.at(path, index + 1) || Enum.at(path, 1)
 
-      line =
-        manifest.dependencies
-        |> Map.get(identity, [])
-        |> Enum.find_value(entry_line(entry), fn dependency ->
-          if dependency.target == next, do: get_in(dependency, [:span, :line]) || entry_line(entry)
+          line =
+            manifest.dependencies
+            |> Map.get(identity, [])
+            |> Enum.filter(&(&1.kind == :use_import))
+            |> Enum.find_value(entry_line(entry), fn dependency ->
+              if dependency.target == next, do: get_in(dependency, [:span, :line]) || entry_line(entry)
+            end)
+
+          %{module: entry.module_name, path: entry.source_path, line: line}
         end)
-
-      %{module: entry.module_name, path: entry.source_path, line: line}
-    end)
+    end
   end
 
   defp find_cycle_path(current, start, adjacency, visited) do

@@ -143,10 +143,12 @@ defmodule Cure.Diagnostic.Adapter.Kernel do
        "Use one of `#{family}`'s own constructors"}
 
   defp field_cause({:unknown_global, name, _context}, _family),
-    do: {"`#{surface_name(name)}` is not defined here", "Define `#{surface_name(name)}`, or import the module that does"}
+    do:
+      {"`#{surface_name(name)}` is not defined here", "Define `#{surface_name(name)}`, or import the module that does"}
 
   defp field_cause({:unknown_global, name}, _family),
-    do: {"`#{surface_name(name)}` is not defined here", "Define `#{surface_name(name)}`, or import the module that does"}
+    do:
+      {"`#{surface_name(name)}` is not defined here", "Define `#{surface_name(name)}`, or import the module that does"}
 
   defp field_cause(:ctor_arity, family),
     do:

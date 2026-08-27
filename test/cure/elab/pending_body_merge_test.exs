@@ -5,7 +5,7 @@ defmodule Cure.Elab.PendingBodyMergeTest do
   `Declarations` forward-declares a signature with `{:hole, "__pending__"}` for a
   body, to be overwritten once the real body elaborates. A module's published env
   can still carry that placeholder for a def it never owned — `Std.String` holds
-  a pending record for `Std.Char`'s `ExpressibleByCharacterLiteral` method — and
+  a pending record for `Std.Literal`'s `ExpressibleByCharacterLiteral` method — and
   `merge_env/2` merged defs with plain `Map.merge/2`, so the importer's side won
   unconditionally. Importing `Std.String` therefore DELETED the elaborated body
   that the ambient prelude had already supplied.
@@ -25,7 +25,7 @@ defmodule Cure.Elab.PendingBodyMergeTest do
   alias Cure.Core.Env
   alias Cure.Elab.Program
 
-  @method :"Std.Char#__impl_ExpressibleByCharacterLiteral_Std.Char#Char_from_character_literal"
+  @method :"Std.Literal#__impl_ExpressibleByCharacterLiteral_Std.Char#Char_from_character_literal"
 
   test "importing a module keeps an already-elaborated instance body" do
     assert {:ok, env} =

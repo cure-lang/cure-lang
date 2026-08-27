@@ -20,8 +20,7 @@ defmodule Cure.Stdlib.JsonRunTest do
     assert {:ok,
             {:Object,
              [
-               {:ObjectMember, {:String, ~c"n"},
-                {:Number, {:DecimalNumber, {:DecimalLiteral, ~c"-1.2300e+4"}}}},
+               {:ObjectMember, {:String, ~c"n"}, {:Number, {:DecimalNumber, {:DecimalLiteral, ~c"-1.2300e+4"}}}},
                {:ObjectMember, {:String, ~c"s"}, {:String, {:String, [0x1F600]}}},
                {:ObjectMember, {:String, ~c"a"}, {:Array, [{:Boolean, true}, :Null]}}
              ]}} = apply(@json, :decode, [source])
@@ -49,8 +48,7 @@ defmodule Cure.Stdlib.JsonRunTest do
       {:Object,
        [
          {:ObjectMember, cure_string("message"), {:String, cure_string("a\n\"b")}},
-         {:ObjectMember, cure_string("number"),
-          {:Number, {:DecimalNumber, {:DecimalLiteral, ~c"1.2300"}}}}
+         {:ObjectMember, cure_string("number"), {:Number, {:DecimalNumber, {:DecimalLiteral, ~c"1.2300"}}}}
        ]}
 
     assert apply(@json, :encode, [value]) ==

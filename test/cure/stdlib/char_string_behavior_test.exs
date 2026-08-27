@@ -58,10 +58,13 @@ defmodule Cure.Stdlib.CharStringBehaviorTest do
   end
 
   test "character casing is Unicode-aware and permits expansion" do
-    # Casing returns a `String`, not a `Char`, because one scalar may expand into
-    # several -- so these results carry the nominal tag.
-    assert char(:lowercased, [?É]) == cure_string(~c"é")
-    assert char(:uppercased, [?ß]) == cure_string(~c"SS")
+    # `Std.Char` answers in code points, because one scalar may expand into
+    # several and `Std.Char` sits below `Std.String`.
+    assert char(:lowercased_characters, [?É]) == ~c"é"
+    assert char(:uppercased_characters, [?ß]) == ~c"SS"
+    # `Std.String` assembles the same mapping into a nominal, tagged `String`.
+    assert string(:lowercased_character, [?É]) == cure_string(~c"é")
+    assert string(:uppercased_character, [?ß]) == cure_string(~c"SS")
     # `ascii_lowercased` is the one-to-one ASCII fold, so it stays at `Char`.
     assert char(:ascii_lowercased, [?A]) == ?a
     assert char(:ascii_lowercased, [?É]) == ?É
@@ -124,8 +127,10 @@ defmodule Cure.Stdlib.CharStringBehaviorTest do
                  ascii_value == if(cp <= 0x7F, do: {:some, cp}, else: :none) and
                  char(:less_than, [cp, 0x10FFFF]) == cp < 0x10FFFF and
                  char(:between, [cp, 0, 0x10FFFF]) and
-                 char(:lowercased, [cp]) == cure_string(:string.lowercase([cp])) and
-                 char(:uppercased, [cp]) == cure_string(:string.uppercase([cp])) and
+                 char(:lowercased_characters, [cp]) == :string.lowercase([cp]) and
+                 char(:uppercased_characters, [cp]) == :string.uppercase([cp]) and
+                 string(:lowercased_character, [cp]) == cure_string(:string.lowercase([cp])) and
+                 string(:uppercased_character, [cp]) == cure_string(:string.uppercase([cp])) and
                  char(:is_letter, [cp]) == :alphabetic in properties and
                  char(:is_punctuation, [cp]) == category in [:Pc, :Pd, :Pe, :Pf, :Pi, :Po, :Ps] and
                  char(:is_newline, [cp]) == cp in [10, 11, 12, 13, 0x85, 0x2028, 0x2029] and
