@@ -221,6 +221,16 @@ runtime. This is transport scaffolding for the generalized refutation proof;
 arbitrary rejected-child recursion and the final selected-trace/refutation
 correspondence remain open.
 
+The singleton destination-exhaustion tail is also consumed by the named
+proof-only `atomic_path_active_child_rejection_excludes_tail_exhaustion`
+boundary. Its indexed arguments fix a rejected parent and a
+`AtomicPathFailureDestinationsExhausted` tail before delegating to the active
+destination-exhaustion contradiction. The singleton rejected-trace fold uses
+this construction-site consumer; all proof and cursor arguments remain erased.
+This discharges one recursive-tail base case but not arbitrary rejected-child
+or multi-head sibling induction, start-list correspondence, or the final
+selected-trace/refutation theorem.
+
 The executable behavior, exact/prefix refutation soundness, and constructive
 search-result completeness are present.  Search results retain their canonical
 filtered start list, so a valid path forces the actual evaluator result to be

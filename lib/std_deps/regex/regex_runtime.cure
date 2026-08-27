@@ -7815,6 +7815,111 @@ mod Std.Regex.Runtime
     )
   ) -> Empty = atomic_path_destinations_exhausted_excludes_trace(tail_selected_suffix)
 
+  ## A recursively rejected active child can leave a singleton sibling tail
+  ## whose search reaches destination exhaustion.  This construction-site
+  ## consumer keeps the child refutation at its indexed destination-rejection
+  ## boundary and forwards the tail cursor to the existing exhaustion lemma.
+  ## The child path remains proof-only; no failure tag or cursor is emitted.
+  fn atomic_path_active_child_rejection_excludes_tail_exhaustion(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    child_char: Char,
+    child_rest: List(Char),
+    after_input: List(Char),
+    source: Bounded(n),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    scope_depth: Nat,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    whole: List(LookaroundAdmittedState(n)),
+    candidate: LookaroundAdmittedState(n),
+    @erased failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(child_char, child_rest),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(candidate, Nil()),
+      AtomicPathFailureDestinationRejected()
+    ),
+    @erased tail_failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(child_char, child_rest),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Nil(),
+      AtomicPathFailureDestinationsExhausted()
+    ),
+    {selected_current: List(LookaroundAdmittedState(n))},
+    @erased tail_selected_suffix: LookaroundAdmittedStateCursorSuffix(
+      n,
+      Nil(),
+      selected_current
+    ),
+    matched: List(Char),
+    remaining_input: List(Char),
+    selected_routine: List(ExtendedInstruction),
+    @erased path: AtomicSelectedPathTrace(
+      depth,
+      n,
+      machine,
+      Cons(child_char, child_rest),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      selected_current,
+      matched,
+      remaining_input,
+      selected_routine
+    )
+  ) -> Empty = match tail_selected_suffix
+    LookaroundAdmittedStateCursorSuffixHere(equality) -> match equality
+      reflexive() -> atomic_path_active_destinations_exhausted_excludes_trace(
+        machine,
+        child_char,
+        child_rest,
+        after_input,
+        source,
+        history,
+        capture_context,
+        policy,
+        scope_depth,
+        prefix_mode,
+        reversed_prefix,
+        whole,
+        matched,
+        remaining_input,
+        selected_routine,
+        tail_failure,
+        path
+      )
+    LookaroundAdmittedStateCursorSuffixDrop(_, _) -> impossible
+
   ## When a sibling tail rejects an accepted candidate, its exact child
   ## refutation can be consumed by the same accepted-child eliminator. The
   ## parent rejection is retained as an index witness; the tail constructor
@@ -8924,48 +9029,27 @@ mod Std.Regex.Runtime
     AtomicPathDestinationsExhausted(_, _, _, _, _, _) -> impossible
     AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, tail_failure) -> match tail_failure
       AtomicPathDestinationsExhausted(_, _, _, _, _, _) ->
-        atomic_path_destination_rejection_excludes_recursive_tail_empty(
-          selection_from_current,
-          atomic_path_failure_excludes_aligned_trace(
-            machine,
-            char,
-            rest,
-            after_input,
-            state,
-            history,
-            capture_context,
-            policy,
-            scope_depth,
-            prefix_mode,
-            reversed_prefix,
-            whole,
-            tail_failure,
-            matched,
-            remaining_input,
-            routine,
-            tail_alignment,
-            path
-          ),
-          atomic_path_failure_excludes_aligned_trace(
-            machine,
-            char,
-            rest,
-            after_input,
-            state,
-            history,
-            capture_context,
-            policy,
-            scope_depth,
-            prefix_mode,
-            reversed_prefix,
-            whole,
-            tail_failure,
-            matched,
-            remaining_input,
-            routine,
-            tail_alignment,
-            path
-          )
+        atomic_path_active_child_rejection_excludes_tail_exhaustion(
+          machine,
+          char,
+          rest,
+          after_input,
+          state,
+          history,
+          capture_context,
+          policy,
+          scope_depth,
+          prefix_mode,
+          reversed_prefix,
+          whole,
+          candidate,
+          failure,
+          tail_failure,
+          tail_alignment,
+          matched,
+          remaining_input,
+          routine,
+          path
         )
 
   ## The active root wrapper has no suffix-local alternative: its empty-input

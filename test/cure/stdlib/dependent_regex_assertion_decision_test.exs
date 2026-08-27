@@ -1176,7 +1176,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
       String.split(source, "fn atomic_path_destination_rejection_excludes_recursive_trace(", parts: 2)
 
     [body | _] = String.split(body, "\n  ##", parts: 2)
-    assert body =~ "atomic_path_destination_rejection_excludes_recursive_tail_empty("
+    assert body =~ "atomic_path_active_child_rejection_excludes_tail_exhaustion("
   end
 
   test "destination exhaustion tails use the generic recursive dispatcher" do
@@ -1265,6 +1265,19 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     [body | _] = String.split(body, "\n  ##", parts: 2)
     assert body =~ "atomic_path_active_child_rejection_excludes_aligned_trace"
+  end
+
+  test "recursive active-child rejection consumes a destination-exhausted sibling tail" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "fn atomic_path_active_child_rejection_excludes_tail_exhaustion"
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_path_active_child_rejection_excludes_tail_exhaustion", parts: 2)
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert Regex.match?(~r/AtomicPathFailureDestinationRejected.*?AtomicPathFailureDestinationsExhausted/s, body)
+    assert body =~ "atomic_path_active_destinations_exhausted_excludes_trace"
   end
 
   test "atomic active-child alignment exposes head, tail, and reverse cases" do

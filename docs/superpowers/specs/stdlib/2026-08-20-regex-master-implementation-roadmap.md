@@ -1491,6 +1491,20 @@ remain open. The focused dependent-assertion suite passes 133/133,
 `./cure check` passes, and the canonical gate is unchanged at 52/52 with only
 the accepted W086 cycle warning.
 
+The singleton destination-exhaustion tail is now consumed through the named
+`atomic_path_active_child_rejection_excludes_tail_exhaustion` construction-site
+consumer. Its failure index fixes the parent as a rejected destination and the
+tail as `AtomicPathFailureDestinationsExhausted`; after the indexed cursor
+boundary is reduced, it delegates to the active destination-exhaustion
+contradiction. The existing singleton rejected-trace fold now uses this
+consumer, so the proof no longer duplicates the exhaustion transport in that
+branch. All failure, cursor, and selected-trace arguments remain erased. This
+is one concrete recursive-tail base case; arbitrary rejected-child recursion,
+non-singleton sibling induction, complete start-list correspondence, and the
+final selected-trace/refutation theorem remain open. The focused
+dependent-assertion suite passes 134/134, `./cure check` passes, and the full
+canonical gate passes 52/52 with only the accepted W086 cycle warning.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
