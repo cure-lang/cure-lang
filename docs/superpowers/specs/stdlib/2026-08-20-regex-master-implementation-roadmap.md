@@ -1453,6 +1453,18 @@ suite passes 132/132, `./cure check` passes, and the full canonical gate passes
 tail continuation for arbitrary rejected children and completing the
 multi-head sibling fold remain open.
 
+The accepted-sibling rejected-tail construction now consumes the
+constructor-specific `atomic_path_destination_rejection_excludes_recursive_tail_rejected`
+dispatcher instead of calling the generic fold directly. Its tail failure is
+already indexed as `AtomicPathDestinationRejected`, so this handoff preserves
+that constructor fact without inspecting an erased failure tag at runtime; the
+candidate, selected trace, and path payloads are proof-only, while the cursor
+suffix remains the sole branch authority. The focused dependent-assertion suite
+passes 132/132 with all 331 documentation snippets, `./cure check` passes, and
+the full canonical gate remains 52/52 with only the accepted W086 cycle
+warning. The general rejected-child alignment, arbitrary multi-head sibling
+fold, and final selected-trace/refutation correspondence are still open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

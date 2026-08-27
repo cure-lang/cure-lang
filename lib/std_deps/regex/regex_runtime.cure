@@ -7929,7 +7929,7 @@ mod Std.Regex.Runtime
               child_failure,
               path
             )
-            atomic_path_destination_rejection_excludes_recursive_tail(
+            atomic_path_destination_rejection_excludes_recursive_tail_rejected(
               machine,
               char,
               rest,
@@ -7948,6 +7948,7 @@ mod Std.Regex.Runtime
               remaining_input,
               selected_routine,
               LookaroundAdmittedStateCursorSuffixDrop(head, _tail_selected_suffix),
+              _tail_selected_suffix,
               path,
               tail_result,
               tail_result
@@ -8534,7 +8535,7 @@ mod Std.Regex.Runtime
     prefix_mode: Bool,
     reversed_prefix: List(Char),
     whole: List(LookaroundAdmittedState(n)),
-    candidate: LookaroundAdmittedState(n),
+    @erased candidate: LookaroundAdmittedState(n),
     {remaining: List(LookaroundAdmittedState(n))},
     @erased failure: AtomicPathRefutation(
       depth,
@@ -8554,9 +8555,9 @@ mod Std.Regex.Runtime
       AtomicPathFailureDestinationRejected()
     ),
     {candidate_current: List(LookaroundAdmittedState(n))},
-    matched: List(Char),
-    remaining_input: List(Char),
-    routine: List(ExtendedInstruction),
+    @erased matched: List(Char),
+    @erased remaining_input: List(Char),
+    @erased routine: List(ExtendedInstruction),
     selection_from_current: LookaroundAdmittedStateCursorSuffix(
       n,
       Cons(candidate, remaining),
