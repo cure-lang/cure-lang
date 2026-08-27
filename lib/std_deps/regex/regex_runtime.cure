@@ -3883,7 +3883,7 @@ mod Std.Regex.Runtime
       remaining_input,
       selected_routine
     ),
-    tail_case: (AtomicStartActiveRootTailProofPackage(depth, n, machine, position, capture_context, append_routine(append_routine(capture_context, routine), assertion_markers), after_input, history, policy, prefix_mode, reversed_prefix, ThreadActive(state), routine, constraints, assertion_routine, assertion_markers, nested_decisions, whole, rest, atomic_scope_depth_after(routine, Z()))) -> Empty
+    tail_case: (AtomicStartSelectedTailPackage(depth, n, machine, position, Nil(), after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, rest, selected_start, matched, remaining_input, selected_routine)) -> Empty
   ) -> Empty =
     match atomic_start_member_location(
       selected_start,
@@ -3912,13 +3912,15 @@ mod Std.Regex.Runtime
             empty_lookaround_admitted_cursor_suffix(n),
             path
           )
-      AtomicStartMemberThere(_, _) -> match failure
+      AtomicStartMemberThere(_, prior) -> match failure
         AtomicStartCandidateRejected(_, _, _, _, _, _, _, _, _, _, child_failure, _, _) -> match child_failure
           AtomicPathInputExhausted(child_witness, child_suffix) -> match evidence
             AtomicStartNoRejectedEvidence(_, _, _, _, _, _, _, _, _, _, _, _, _, tail_failure, tail_evidence) ->
-              tail_case(AtomicStartActiveRootTailProofPackagePacked(
-                AtomicStartTailPackagePacked(tail_failure, tail_evidence),
-                AtomicPathInputExhausted(child_witness, child_suffix)
+              tail_case(AtomicStartSelectedTailPackagePacked(
+                tail_failure,
+                tail_evidence,
+                prior,
+                path
               ))
 
   ## Turn intrinsic list membership into the ordered cursor suffix consumed by
@@ -5369,7 +5371,42 @@ mod Std.Regex.Runtime
       remaining_input,
       selected_routine
     ),
-    tail_case: () -> result
+    @erased selected_path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      Cons(child_char, child_rest),
+      after_input,
+      history,
+      capture_context,
+      policy,
+      False(),
+      reversed_prefix,
+      selected_start,
+      matched,
+      remaining_input,
+      selected_routine
+    ),
+    tail_case: (AtomicStartSelectedTailPackage(
+      depth,
+      n,
+      machine,
+      position,
+      Cons(child_char, child_rest),
+      after_input,
+      history,
+      capture_context,
+      policy,
+      False(),
+      reversed_prefix,
+      whole,
+      remaining,
+      selected_start,
+      matched,
+      remaining_input,
+      selected_routine
+    )) -> result
   ) -> result = let head_case: result = match evidence
       AtomicStartNoRejectedEvidence(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _) ->
         atomic_start_tail_accepted_candidate_rejection_excludes_trace(
@@ -5392,7 +5429,7 @@ mod Std.Regex.Runtime
           evidence,
           path
         )
-    atomic_start_rejected_member_induction_erased(
+    atomic_start_rejected_member_induction_selected_erased(
       machine,
       position,
       Cons(child_char, child_rest),
@@ -5405,6 +5442,7 @@ mod Std.Regex.Runtime
       failure,
       evidence,
       membership,
+      selected_path,
       head_case,
       tail_case
     )
@@ -5941,7 +5979,42 @@ mod Std.Regex.Runtime
       remaining_input,
       selected_routine
     ),
-    tail_case: () -> result
+    @erased selected_path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      Cons(child_char, child_rest),
+      after_input,
+      history,
+      capture_context,
+      policy,
+      False(),
+      reversed_prefix,
+      selected_start,
+      matched,
+      remaining_input,
+      selected_routine
+    ),
+    tail_case: (AtomicStartSelectedTailPackage(
+      depth,
+      n,
+      machine,
+      position,
+      Cons(child_char, child_rest),
+      after_input,
+      history,
+      capture_context,
+      policy,
+      False(),
+      reversed_prefix,
+      whole,
+      remaining,
+      selected_start,
+      matched,
+      remaining_input,
+      selected_routine
+    )) -> result
   ) -> result = match package
     AtomicStartAcceptedRejectedTailPackagePacked(_, failure, child_failure, child_suffix, evidence) ->
       atomic_start_rejected_member_there_accepted_tail_head_excludes_trace(
@@ -5965,6 +6038,7 @@ mod Std.Regex.Runtime
         child_suffix,
         evidence,
         path,
+        selected_path,
         tail_case
       )
   ## A blocked-tail package restores the skip/allow indices after the ordinary
@@ -8070,9 +8144,44 @@ mod Std.Regex.Runtime
       selected_start,
       Cons(candidate, remaining)
     ),
+    @erased path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      selected_start,
+      matched,
+      remaining_input,
+      selected_routine
+    ),
     head_case: Empty,
-    tail_case: () -> Empty
-  ) -> Empty = atomic_start_refutation_rejected_excludes_trace(
+    tail_case: (AtomicStartSelectedTailPackage(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      Cons(candidate, remaining),
+      remaining,
+      selected_start,
+      matched,
+      remaining_input,
+      selected_routine
+    )) -> Empty
+  ) -> Empty = atomic_start_rejected_member_induction_selected_erased(
     machine,
     position,
     input,
@@ -8085,6 +8194,7 @@ mod Std.Regex.Runtime
     root_failure,
     root_evidence,
     selected_member,
+    path,
     head_case,
     tail_case
   )
@@ -8349,7 +8459,42 @@ mod Std.Regex.Runtime
       remaining_input,
       selected_routine
     ),
-    sibling_tail_case: () -> Empty
+    @erased selected_path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      Cons(child_char, child_rest),
+      after_input,
+      history,
+      capture_context,
+      policy,
+      False(),
+      reversed_prefix,
+      selected_start,
+      matched,
+      remaining_input,
+      selected_routine
+    ),
+    sibling_tail_case: (AtomicStartSelectedTailPackage(
+      depth,
+      n,
+      machine,
+      position,
+      Cons(child_char, child_rest),
+      after_input,
+      history,
+      capture_context,
+      policy,
+      False(),
+      reversed_prefix,
+      Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), rest),
+      rest,
+      selected_start,
+      matched,
+      remaining_input,
+      selected_routine
+    )) -> Empty
   ) -> Empty = let head_case: Empty = atomic_start_rejected_member_there_nonempty_tail_accepted_excludes_trace(
       machine,
       position,
@@ -8368,6 +8513,7 @@ mod Std.Regex.Runtime
       package,
       membership,
       path,
+      selected_path,
       sibling_tail_case
     )
     atomic_start_refutation_excludes_selected_trace(
@@ -8385,6 +8531,7 @@ mod Std.Regex.Runtime
       evidence,
       witness,
       membership,
+      selected_path,
       head_case,
       sibling_tail_case
     )
@@ -8507,29 +8654,44 @@ mod Std.Regex.Runtime
       remaining_input,
       selected_routine
     ),
-    active_tail_case: (AtomicStartActiveRootTailProofPackage(
+    active_tail_case: (AtomicStartSelectedTailPackage(
       depth,
       n,
       machine,
       position,
-      capture_context,
-      append_routine(append_routine(capture_context, routine), assertion_markers),
+      Nil(),
       after_input,
       history,
+      capture_context,
       policy,
       prefix_mode,
       reversed_prefix,
-      ThreadActive(state),
-      routine,
-      constraints,
-      assertion_routine,
-      assertion_markers,
-      nested_decisions,
       Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), rest),
       rest,
-      atomic_scope_depth_after(routine, Z())
+      selected_start,
+      matched,
+      remaining_input,
+      selected_routine
     )) -> Empty,
-    sibling_tail_case: () -> Empty
+    sibling_tail_case: (AtomicStartSelectedTailPackage(
+      depth,
+      n,
+      machine,
+      position,
+      Nil(),
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), rest),
+      rest,
+      selected_start,
+      matched,
+      remaining_input,
+      selected_routine
+    )) -> Empty
   ) -> Empty =
     let head_case: Empty = atomic_start_refutation_rejected_active_excludes_trace(
       machine,
@@ -8569,6 +8731,7 @@ mod Std.Regex.Runtime
       evidence,
       witness,
       membership,
+      path,
       head_case,
       sibling_tail_case
     )
@@ -8655,27 +8818,24 @@ mod Std.Regex.Runtime
       remaining_input,
       selected_routine
     ),
-    tail_case: (AtomicStartActiveRootTailProofPackage(
+    tail_case: (AtomicStartSelectedTailPackage(
       depth,
       n,
       machine,
       position,
-      capture_context,
-      append_routine(append_routine(capture_context, routine), assertion_markers),
+      Nil(),
       after_input,
       history,
+      capture_context,
       policy,
       prefix_mode,
       reversed_prefix,
-      ThreadActive(state),
-      routine,
-      constraints,
-      assertion_routine,
-      assertion_markers,
-      nested_decisions,
       whole,
       rest,
-      atomic_scope_depth_after(routine, Z())
+      selected_start,
+      matched,
+      remaining_input,
+      selected_routine
     )) -> Empty
   ) -> Empty = atomic_start_rejected_member_here_excludes_trace(
     machine,

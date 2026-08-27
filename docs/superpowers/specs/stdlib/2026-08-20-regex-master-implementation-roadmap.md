@@ -1681,6 +1681,21 @@ Regex runtime compilation pass. Accepted and blocked sibling branches, public
 root wiring, arbitrary rejected-child recursion, and the final all-kinds theorem
 remain open.
 
+The accepted rejected-sibling path now carries the same selected-tail contract
+through both the exact-child head consumer and its non-empty-tail adapter.
+`atomic_start_rejected_member_there_accepted_tail_head_excludes_trace` keeps
+the accepted-head `AtomicSelectedTrace` separate from the selected-start trace,
+and `atomic_start_rejected_member_there_nonempty_tail_accepted_excludes_trace`
+forwards that pair together with an `AtomicStartSelectedTailPackage`. The
+accepted public root adapter supplies a typed sibling package and feeds the
+selected path into `atomic_start_refutation_excludes_selected_trace`; the
+active root adapter now supplies the corresponding package shape as well. This
+removes the remaining zero-argument continuation at these accepted/root
+construction sites without conflating head and selected indices. Complete
+`regex_runtime.cure` compilation and the source regressions pass. Blocked
+sibling transport, arbitrary rejected-child recursion, and the final all-kinds
+selected-trace/refutation theorem remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

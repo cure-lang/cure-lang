@@ -865,7 +865,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
            )
 
     assert Regex.match?(
-             ~r/atomic_start_rejected_member_here_excludes_trace.*?AtomicStartNoEvidence.*?tail_case: \(AtomicStartActiveRootTailProofPackage/s,
+             ~r/atomic_start_rejected_member_here_excludes_trace.*?AtomicStartNoEvidence.*?tail_case: \(AtomicStartSelectedTailPackage/s,
              source
            )
   end
@@ -1101,13 +1101,13 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
            )
   end
 
-  test "active Here boundary publishes a proof package with child context" do
+  test "active Here boundary publishes the selected-tail proof package" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     assert source =~ "type AtomicStartActiveRootTailProofPackage"
 
     assert Regex.match?(
-             ~r/atomic_start_rejected_member_here_excludes_trace.*?AtomicStartActiveRootTailProofPackagePacked/s,
+             ~r/atomic_start_rejected_member_here_excludes_trace.*?AtomicStartSelectedTailPackagePacked/s,
              source
            )
   end
@@ -1222,7 +1222,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     assert body =~ "atomic_start_rejected_member_here_excludes_trace"
 
-    assert body =~ "AtomicStartActiveRootTailProofPackage"
+    assert body =~ "AtomicStartSelectedTailPackage"
   end
 
   test "rejected accepted roots use the exact-child consumer" do
@@ -1266,7 +1266,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     assert body =~ "atomic_start_refutation_excludes_selected_trace"
     assert body =~ "atomic_start_refutation_rejected_active_excludes_trace"
-    assert body =~ "AtomicStartActiveRootTailProofPackage"
+    assert body =~ "AtomicStartSelectedTailPackage"
   end
 
   test "rejected accepted roots wire through the selected-trace root consumer" do
@@ -1317,15 +1317,17 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/capture_context,\s+policy,\s+False\(\)/s, body)
   end
 
-  test "accepted non-empty tail dispatches through erased membership induction" do
+  test "accepted non-empty tail dispatches through selected membership induction" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     [_prefix, body] =
       String.split(source, "fn atomic_start_rejected_member_there_accepted_tail_head_excludes_trace", parts: 2)
 
     [body | _] = String.split(body, "\n  fn ", parts: 2)
-    assert body =~ "atomic_start_rejected_member_induction_erased"
-    assert body =~ "tail_case: () -> result"
+    assert body =~ "atomic_start_rejected_member_induction_selected_erased"
+    assert body =~ "tail_case: (AtomicStartSelectedTailPackage"
+    assert body =~ "selected_path"
+    refute body =~ "tail_case: () -> result"
   end
 
   test "selected rejected-tail induction transports inherited membership" do
@@ -1361,6 +1363,48 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
       assert body =~ "selected_path"
       refute body =~ "tail_case: () -> result"
     end
+  end
+
+  test "accepted rejected siblings preserve a separate selected path" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [_prefix, accepted_head] =
+      String.split(
+        source,
+        "fn atomic_start_rejected_member_there_accepted_tail_head_excludes_trace",
+        parts: 2
+      )
+
+    [accepted_head | _] = String.split(accepted_head, "\n  fn ", parts: 2)
+    assert accepted_head =~ "atomic_start_rejected_member_induction_selected_erased"
+    assert accepted_head =~ "AtomicStartSelectedTailPackage"
+    assert accepted_head =~ "tail_case: (AtomicStartSelectedTailPackage"
+    assert accepted_head =~ "selected_path"
+    refute accepted_head =~ "tail_case: () -> result"
+
+    [_prefix, accepted_tail] =
+      String.split(
+        source,
+        "fn atomic_start_rejected_member_there_nonempty_tail_accepted_excludes_trace",
+        parts: 2
+      )
+
+    [accepted_tail | _] = String.split(accepted_tail, "\n  fn ", parts: 2)
+    assert accepted_tail =~ "AtomicStartSelectedTailPackage"
+    assert accepted_tail =~ "selected_path"
+    refute accepted_tail =~ "tail_case: () -> result"
+  end
+
+  test "the active head bridge forwards selected-tail membership" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [_prefix, body] = String.split(source, "fn atomic_start_rejected_member_here_excludes_trace", parts: 2)
+    [body | _] = String.split(body, "\n  fn ", parts: 2)
+
+    assert body =~ "AtomicStartSelectedTailPackage"
+    assert body =~ "AtomicStartSelectedTailPackagePacked"
+    assert body =~ "AtomicStartMemberThere(_, prior)"
+    refute body =~ "tail_case: (AtomicStartActiveRootTailProofPackage"
   end
 
   test "accepted and blocked head consumers accept arbitrary selected tail membership" do
