@@ -1788,6 +1788,24 @@ mod Std.Regex.Runtime
     AtomicPathSelectedChildHere(_, _) -> here_case()
     AtomicPathSelectedChildThere(_, _) -> there_case()
 
+  ## Value form of the same split for callers whose contradiction is already
+  ## constructed. Cure does not admit zero-argument lambdas in every dependent
+  ## callback context, so this boundary selects between proof values directly
+  ## while retaining the cursor as the sole branch authority.
+  @reducible
+  fn atomic_path_selected_child_suffix_location_select(
+    {result: Type},
+    {n: Nat},
+    {head: LookaroundAdmittedState(n)},
+    {rest: List(LookaroundAdmittedState(n))},
+    {current: List(LookaroundAdmittedState(n))},
+    suffix: LookaroundAdmittedStateCursorSuffix(n, Cons(head, rest), current),
+    here_case: result,
+    there_case: result
+  ) -> result = match atomic_path_selected_child_suffix_location(suffix)
+    AtomicPathSelectedChildHere(_, _) -> here_case
+    AtomicPathSelectedChildThere(_, _) -> there_case
+
   type LookaroundAdmittedStateCursorAlignment(n: Nat) indices (left: List(LookaroundAdmittedState(n)), right: List(LookaroundAdmittedState(n)))
     LookaroundAdmittedCursorLeftToRight : (@erased suffix: LookaroundAdmittedStateCursorSuffix(n, left, right)) -> LookaroundAdmittedStateCursorAlignment(n, left, right)
     LookaroundAdmittedCursorRightToLeft : (@erased suffix: LookaroundAdmittedStateCursorSuffix(n, right, left)) -> LookaroundAdmittedStateCursorAlignment(n, left, right)
@@ -8459,11 +8477,10 @@ mod Std.Regex.Runtime
         reflexive() -> atomic_path_active_destinations_exhausted_excludes_trace(machine, char, rest, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, matched, remaining_input, routine, failure, path)
       LookaroundAdmittedStateCursorSuffixDrop(_, _) -> impossible
 
-  ## A rejected sibling tail is the recursive induction branch.  Its failure
+  ## A rejected sibling tail is the recursive induction branch. Its failure
   ## kind is fixed at the construction site, so the proof never inspects an
-  ## erased failure tag at runtime.  The continuation closes over the typed
-  ## tail refutation, cursor alignment, and selected trace supplied by the
-  ## caller; no erased proof becomes a runtime callback argument.
+  ## erased failure tag at runtime. The caller supplies both already-built
+  ## branch results; no erased proof becomes a runtime callback argument.
   fn atomic_path_destination_rejection_excludes_recursive_tail_rejected(
     {result: Type},
     {depth: Nat},
@@ -8531,8 +8548,8 @@ mod Std.Regex.Runtime
       remaining_input,
       routine
     ),
-    head_case: () -> result,
-    tail_case: () -> result
+    head_case: result,
+    tail_case: result
   ) -> result = match failure
     AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) ->
       atomic_path_destination_rejection_excludes_recursive_tail(
@@ -8559,13 +8576,12 @@ mod Std.Regex.Runtime
         tail_case
       )
 
-  ## Generic selected-trace dispatcher for a rejected destination.  The parent
+  ## Generic selected-trace dispatcher for a rejected destination. The parent
   ## refutation is indexed at `Cons(candidate, remaining)` while the selected
-  ## trace may begin at either that candidate or a later sibling.  Keep both
-  ## continuations proof-only: the head continuation consumes the candidate's
-  ## child contradiction, and the tail continuation recursively consumes the
-  ## sibling refutation.  The cursor relation is the sole authority for this
-  ## split; no runtime state tag or erased failure payload is inspected.
+  ## trace may begin at either that candidate or a later sibling. The caller
+  ## supplies the already-built head and tail results, and the cursor relation
+  ## is the sole authority for selecting between them; no runtime state tag or
+  ## erased failure payload is inspected.
   @reducible
   fn atomic_path_destination_rejection_excludes_recursive_tail(
     {result: Type},
@@ -8629,31 +8645,28 @@ mod Std.Regex.Runtime
       remaining_input,
       routine
     ),
-    head_case: () -> result,
-    tail_case: () -> result
-  ) -> result = atomic_path_destination_rejection_selected_suffix_dispatch(
-    machine,
-    char,
-    rest,
-    after_input,
-    state,
-    history,
-    capture_context,
-    policy,
-    scope_depth,
-    prefix_mode,
-    reversed_prefix,
-    whole,
-    candidate,
-    failure,
-    matched,
-    remaining_input,
-    routine,
+    head_case: result,
+    tail_case: result
+  ) -> result = atomic_path_selected_child_suffix_location_select(
     selection_from_current,
-    path,
     head_case,
     tail_case
   )
+
+  ## Empty-result form of the same dispatcher. The selected cursor is
+  ## runtime-relevant at this eliminator because its indexed `Here`/`Drop`
+  ## shape selects the contradiction; no proof callback or payload is added.
+  fn atomic_path_destination_rejection_excludes_recursive_tail_empty(
+    {n: Nat},
+    {head: LookaroundAdmittedState(n)},
+    {rest: List(LookaroundAdmittedState(n))},
+    {current: List(LookaroundAdmittedState(n))},
+    selection_from_current: LookaroundAdmittedStateCursorSuffix(n, Cons(head, rest), current),
+    head_case: Empty,
+    tail_case: Empty
+  ) -> Empty = match selection_from_current
+    LookaroundAdmittedStateCursorSuffixHere(_) -> head_case
+    LookaroundAdmittedStateCursorSuffixDrop(_, _) -> tail_case
 
   ## Split a rejected destination's selected suffix at the construction site.
   ## A `Here` suffix is the rejected candidate itself and must be discharged by
@@ -8777,12 +8790,55 @@ mod Std.Regex.Runtime
   ## suffix.  Eliminating that source suffix first proves that this theorem is
   ## only entered for a later sibling; the head-selected branch is reserved
   ## for the child induction below.
-  fn atomic_path_destination_rejection_excludes_recursive_trace({result: Type}, {depth: Nat}, {n: Nat}, machine: PatternMachine(n), char: Char, rest: List(Char), after_input: List(Char), state: Bounded(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), candidate: LookaroundAdmittedState(n), @erased failure: AtomicPathRefutation(depth, n, machine, Cons(char, rest), after_input, ThreadActive(state), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, Nil()), AtomicPathFailureDestinationRejected()), {candidate_current: List(LookaroundAdmittedState(n))}, matched: List(Char), remaining_input: List(Char), routine: List(ExtendedInstruction), @erased selection_from_current: LookaroundAdmittedStateCursorSuffix(n, Cons(candidate, Nil()), candidate_current), @erased tail_alignment: LookaroundAdmittedStateCursorSuffix(n, Nil(), candidate_current), @erased path: AtomicSelectedPathTrace(depth, n, machine, Cons(char, rest), after_input, ThreadActive(state), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, candidate_current, matched, remaining_input, routine)) -> result = match failure
+  fn atomic_path_destination_rejection_excludes_recursive_trace({depth: Nat}, {n: Nat}, machine: PatternMachine(n), char: Char, rest: List(Char), after_input: List(Char), state: Bounded(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), candidate: LookaroundAdmittedState(n), @erased failure: AtomicPathRefutation(depth, n, machine, Cons(char, rest), after_input, ThreadActive(state), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, Nil()), AtomicPathFailureDestinationRejected()), {candidate_current: List(LookaroundAdmittedState(n))}, matched: List(Char), remaining_input: List(Char), routine: List(ExtendedInstruction), selection_from_current: LookaroundAdmittedStateCursorSuffix(n, Cons(candidate, Nil()), candidate_current), @erased tail_alignment: LookaroundAdmittedStateCursorSuffix(n, Nil(), candidate_current), @erased path: AtomicSelectedPathTrace(depth, n, machine, Cons(char, rest), after_input, ThreadActive(state), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, candidate_current, matched, remaining_input, routine)) -> Empty = match failure
     AtomicPathInputExhausted(_, _) -> impossible
     AtomicPathExactAcceptedWithInput(_, _, _, _) -> impossible
     AtomicPathDestinationsExhausted(_, _, _, _, _, _) -> impossible
-    AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _stored_tail_suffix, _, _, _, tail_failure) -> match tail_failure
-      AtomicPathDestinationsExhausted(_, _, _, _, _, _) -> atomic_path_failure_excludes_aligned_trace(machine, char, rest, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, tail_failure, matched, remaining_input, routine, tail_alignment, path)
+    AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, tail_failure) -> match tail_failure
+      AtomicPathDestinationsExhausted(_, _, _, _, _, _) ->
+        atomic_path_destination_rejection_excludes_recursive_tail_empty(
+          selection_from_current,
+          atomic_path_failure_excludes_aligned_trace(
+            machine,
+            char,
+            rest,
+            after_input,
+            state,
+            history,
+            capture_context,
+            policy,
+            scope_depth,
+            prefix_mode,
+            reversed_prefix,
+            whole,
+            tail_failure,
+            matched,
+            remaining_input,
+            routine,
+            tail_alignment,
+            path
+          ),
+          atomic_path_failure_excludes_aligned_trace(
+            machine,
+            char,
+            rest,
+            after_input,
+            state,
+            history,
+            capture_context,
+            policy,
+            scope_depth,
+            prefix_mode,
+            reversed_prefix,
+            whole,
+            tail_failure,
+            matched,
+            remaining_input,
+            routine,
+            tail_alignment,
+            path
+          )
+        )
 
   ## The active root wrapper has no suffix-local alternative: its empty-input
   ## index eliminates every refutation constructor except

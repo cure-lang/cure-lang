@@ -1394,14 +1394,17 @@ selected-trace/refutation correspondence remain open.
 The selected-trace side now has a generic construction-site dispatcher,
 `atomic_path_destination_rejection_excludes_recursive_tail`. It accepts an
 arbitrary rejected-candidate tail, preserves the indexed `Here`/`There` split
-through `atomic_path_destination_rejection_selected_suffix_dispatch`, and keeps
-the head and recursive-tail continuations explicit. The cursor witness remains
-runtime-relevant at this eliminator because its constructors are inspected;
-proof payloads and traces remain erased. This is the canonical dispatcher
-boundary for the final path correspondence, not that correspondence itself:
-the continuations still need to consume the child contradiction and recurse
-through arbitrary rejected sibling refutations. The focused dependent-assertion
-suite passes 127/127 and `./cure check` is green.
+through `atomic_path_selected_child_suffix_location_select`, and keeps the
+head and recursive-tail results explicit. The singleton rejected-trace
+construction now routes through the corresponding
+`atomic_path_destination_rejection_excludes_recursive_tail_empty` dispatcher,
+so it uses the same indexed authority instead of a one-off bare match. The
+cursor witness remains runtime-relevant at this eliminator because its
+constructors are inspected; proof payloads and traces remain erased. This is
+the canonical dispatcher boundary for the final path correspondence, not that
+correspondence itself: the selected child contradiction and recursive sibling
+refutation still need to be consumed through the general fold. The focused
+dependent-assertion suite passes 129/129 and `./cure check` is green.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in

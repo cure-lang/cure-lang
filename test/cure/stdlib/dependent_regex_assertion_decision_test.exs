@@ -1156,7 +1156,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     [body | _] = String.split(body, "\n  ##", parts: 2)
     assert body =~ "remaining: List(LookaroundAdmittedState(n))"
-    assert Regex.match?(~r/atomic_path_destination_rejection_selected_suffix_dispatch.*?head_case.*?tail_case/s, body)
+    assert Regex.match?(~r/atomic_path_selected_child_suffix_location_select.*?head_case.*?tail_case/s, body)
   end
 
   test "rejected-tail construction sites use the generic dispatcher" do
@@ -1167,6 +1167,16 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     [body | _] = String.split(body, "\n  ##", parts: 2)
     assert body =~ "atomic_path_destination_rejection_excludes_recursive_tail("
+  end
+
+  test "singleton rejected traces use the generic tail dispatcher" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_path_destination_rejection_excludes_recursive_trace(", parts: 2)
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert body =~ "atomic_path_destination_rejection_excludes_recursive_tail_empty("
   end
 
   test "atomic active tail carries recursive child rejection" do
