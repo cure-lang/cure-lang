@@ -1,4 +1,5 @@
 defmodule CureSite.Pages do
+  alias CureSite.Pages.EscrowExchange
   alias CureSite.Pages.GettingStarted
   alias CureSite.Pages.Page
   alias CureSite.Pages.TechnicalOverview
@@ -10,13 +11,15 @@ defmodule CureSite.Pages do
     highlighters: [:makeup_cure, :makeup_elixir, :makeup_erlang],
     html_converter: CureSite.MarkdownConverter
 
-  # `/about` and `/getting-started` have no markdown files under `priv/pages`:
-  # they are rendered directly from `docs/TECHNICAL_OVERVIEW.md` and
-  # `docs/GETTING_STARTED.md` at compile time by TechnicalOverview and
-  # GettingStarted. Merging them into `@pages` here means the docs sidebar,
-  # prev/next navigation, `/sitemap.xml` and `llms.txt` treat them exactly
-  # like authored pages.
-  @pages Enum.sort_by([TechnicalOverview.page(), GettingStarted.page() | @pages], & &1.order)
+  # `/about`, `/getting-started`, and `/escrow-exchange` have no markdown files under `priv/pages`:
+  # they are rendered directly from `docs/TECHNICAL_OVERVIEW.md`, `docs/GETTING_STARTED.md`,
+  # and `docs/ESCROW_EXCHANGE.md` at compile time by TechnicalOverview, GettingStarted, and
+  # EscrowExchange. Merging them into `@pages` here means the docs sidebar, prev/next
+  # navigation, `/sitemap.xml` and `llms.txt` treat them exactly like authored pages.
+  @pages Enum.sort_by(
+           [TechnicalOverview.page(), GettingStarted.page(), EscrowExchange.page() | @pages],
+           & &1.order
+         )
 
   def all_pages, do: @pages
 
