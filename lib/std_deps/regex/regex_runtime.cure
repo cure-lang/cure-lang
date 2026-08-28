@@ -1834,6 +1834,31 @@ mod Std.Regex.Runtime
   ) -> LookaroundAdmittedStateCursorSuffix(n, left, inner) = match equality
     reflexive() -> suffix
 
+  ## Transport the selected child suffix from a path constructor's local
+  ## origin to the parent selected origin.  The current spine is deliberately
+  ## shared by the two views; a later recursive package will carry a separate
+  ## current-spine equality when the child search advances through a sibling.
+  ## Keeping this outer transport at one authority prevents callers from
+  ## rebuilding or guessing the selected cursor list.
+  @reducible
+  fn atomic_path_active_child_selection_suffix_transport(
+    {n: Nat},
+    {selected_whole: List(LookaroundAdmittedState(n))},
+    {path_selected_whole: List(LookaroundAdmittedState(n))},
+    {selected_current: List(LookaroundAdmittedState(n))},
+    selected_whole_equivalence: Equivalent(
+      List(LookaroundAdmittedState(n)),
+      selected_whole,
+      path_selected_whole
+    ),
+    path_selection_suffix: LookaroundAdmittedStateCursorSuffix(
+      n,
+      path_selected_whole,
+      selected_current
+    )
+  ) -> LookaroundAdmittedStateCursorSuffix(n, selected_whole, selected_current) =
+    transport_lookaround_admitted_cursor_suffix_outer(selected_whole_equivalence, path_selection_suffix)
+
   ## Align a failed child cursor with the selected child cursor after
   ## transporting the latter across the common-origin equality published by
   ## the selected path.  This is the reusable recursive bridge: it equates

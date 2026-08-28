@@ -1762,6 +1762,20 @@ transporting the path's constructor-local suffix into the parent equality,
 arbitrary rejected-child recursion, and the final all-kinds
 selected-trace/refutation theorem remain open.
 
+The selected child suffix now has an explicit outer-origin transport authority,
+`atomic_path_active_child_selection_suffix_transport`.  It transports a
+`LookaroundAdmittedStateCursorSuffix` across the selected-child whole-spine
+equality instead of asking each caller to rebuild or guess the cursor list.  A
+source regression pins the equality and suffix indices, and the complete
+`regex_runtime.cure` module elaborates directly (about 53 seconds in the
+current test build).  Parent integration is intentionally still open: the
+path constructor's selected suffix carries an existential constructor-local
+current spine, so arbitrary sibling advancement needs a typed existential
+package (or an equivalent construction-site equality) before the outer
+transport can be consumed soundly.  No bare-name or unchecked cast bridge is
+introduced; arbitrary rejected-child recursion and the final all-kinds
+selected-trace/refutation theorem remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

@@ -1716,6 +1716,20 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/child_selected_suffix,\s*child_failure,/s, body)
   end
 
+  test "active-child selected suffix transport is explicit" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "fn atomic_path_active_child_selection_suffix_transport"
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_path_active_child_selection_suffix_transport(\n", parts: 2)
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert body =~ "selected_whole_equivalence: Equivalent"
+    assert body =~ "path_selection_suffix: LookaroundAdmittedStateCursorSuffix"
+    assert body =~ "transport_lookaround_admitted_cursor_suffix_outer"
+  end
+
   test "atomic active child rejection has a recursive child eliminator" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
