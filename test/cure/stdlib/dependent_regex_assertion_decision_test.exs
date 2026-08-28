@@ -1800,6 +1800,21 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert source =~ "atomic_path_active_child_rejection_excludes_aligned_trace"
   end
 
+  test "atomic active-child reverse alignment carries the cursor witness" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [_prefix, alignment] = String.split(source, "type AtomicPathActiveChildAlignment", parts: 2)
+    [alignment | _] = String.split(alignment, "fn atomic_path_active_child_alignment", parts: 2)
+
+    assert alignment =~
+             "AtomicPathActiveChildAlignmentReverse : {@erased failure_current: List(LookaroundAdmittedState(n))} -> (@erased alignment: LookaroundAdmittedStateCursorSuffix"
+
+    [_prefix, body] = String.split(source, "fn atomic_path_active_child_alignment", parts: 2)
+    [body | _] = String.split(body, "\n  fn ", parts: 2)
+    assert body =~ "LookaroundAdmittedCursorRightToLeft(suffix)"
+    assert body =~ "AtomicPathActiveChildAlignmentReverse(suffix)"
+  end
+
   test "atomic selected traces use the canonical child capture context" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 

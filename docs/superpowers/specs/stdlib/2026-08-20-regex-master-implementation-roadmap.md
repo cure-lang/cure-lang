@@ -1735,6 +1735,18 @@ search; arbitrary rejected-child/sibling recursion and the final all-kinds
 selected-trace/refutation theorem remain open. The source regression and direct
 complete-module compilation pass.
 
+The active-child alignment witness no longer has a vacuous reverse constructor.
+`AtomicPathActiveChildAlignment` now indexes the failed current suffix and
+stores an explicit `LookaroundAdmittedStateCursorSuffix` for every direction:
+the head case stores the failure-to-head relation, the tail case stores both
+the failure-to-selected and tail-to-selected relations, and the reverse case
+stores the selected-to-failure relation. The alignment constructor therefore
+cannot be fabricated with an unrelated `Unit`; its indexed cursor evidence is
+the same authority consumed by the active-child proof dispatcher. The complete
+Regex runtime still compiles directly and the focused source regression passes.
+This strengthens the proof boundary but does not yet discharge the arbitrary
+rejected-child recursion or final all-kinds selected-trace/refutation theorem.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

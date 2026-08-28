@@ -1815,10 +1815,10 @@ mod Std.Regex.Runtime
   ## dropped into its sibling tail, or may precede the failed suffix.  Keep all
   ## three cases in an erased indexed witness so the construction site can
   ## dispatch without inspecting proof data at runtime.
-  type AtomicPathActiveChildAlignment(n: Nat) indices (candidate: LookaroundAdmittedState(n), remaining: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)))
-    AtomicPathActiveChildAlignmentHere : (@erased candidate: LookaroundAdmittedState(n)) -> (@erased remaining: List(LookaroundAdmittedState(n))) -> AtomicPathActiveChildAlignment(n, candidate, remaining, Cons(candidate, remaining))
-    AtomicPathActiveChildAlignmentThere : (@erased candidate: LookaroundAdmittedState(n)) -> (@erased suffix: LookaroundAdmittedStateCursorSuffix(n, remaining, current)) -> AtomicPathActiveChildAlignment(n, candidate, remaining, current)
-    AtomicPathActiveChildAlignmentReverse : (@erased marker: Unit) -> AtomicPathActiveChildAlignment(n, candidate, remaining, current)
+  type AtomicPathActiveChildAlignment(n: Nat) indices (candidate: LookaroundAdmittedState(n), remaining: List(LookaroundAdmittedState(n)), failure_current: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)))
+    AtomicPathActiveChildAlignmentHere : {@erased failure_current: List(LookaroundAdmittedState(n))} -> (@erased alignment: LookaroundAdmittedStateCursorSuffix(n, failure_current, Cons(candidate, remaining))) -> AtomicPathActiveChildAlignment(n, candidate, remaining, failure_current, Cons(candidate, remaining))
+    AtomicPathActiveChildAlignmentThere : {@erased failure_current: List(LookaroundAdmittedState(n))} -> (@erased alignment: LookaroundAdmittedStateCursorSuffix(n, failure_current, current)) -> (@erased tail: LookaroundAdmittedStateCursorSuffix(n, remaining, current)) -> AtomicPathActiveChildAlignment(n, candidate, remaining, failure_current, current)
+    AtomicPathActiveChildAlignmentReverse : {@erased failure_current: List(LookaroundAdmittedState(n))} -> (@erased alignment: LookaroundAdmittedStateCursorSuffix(n, current, failure_current)) -> AtomicPathActiveChildAlignment(n, candidate, remaining, failure_current, current)
 
   ## A child search and its selected trace may publish extensionally equal
   ## origin lists through different existential binders. Transporting the
@@ -1873,7 +1873,7 @@ mod Std.Regex.Runtime
       selected_whole
     ),
     selected_suffix: LookaroundAdmittedStateCursorSuffix(n, selected_whole, selected_current)
-  ) -> AtomicPathActiveChildAlignment(n, failure_head, failure_tail, selected_current) =
+  ) -> AtomicPathActiveChildAlignment(n, failure_head, failure_tail, failure_current, selected_current) =
     let anchored_equivalence: Equivalent(
       List(LookaroundAdmittedState(n)),
       Cons(failure_head, failure_tail),
@@ -1887,15 +1887,15 @@ mod Std.Regex.Runtime
       selected_whole_equivalence,
       selected_suffix
     )
-      LookaroundAdmittedCursorLeftToRight(_) -> match atomic_path_selected_child_suffix_location(
+      LookaroundAdmittedCursorLeftToRight(alignment) -> match atomic_path_selected_child_suffix_location(
         transport_lookaround_admitted_cursor_suffix_outer(
           anchored_equivalence,
           selected_suffix
         )
       )
-        AtomicPathSelectedChildHere(candidate_value, remaining_value) -> AtomicPathActiveChildAlignmentHere(candidate_value, remaining_value)
-        AtomicPathSelectedChildThere(candidate_value, suffix_value) -> AtomicPathActiveChildAlignmentThere(candidate_value, suffix_value)
-      LookaroundAdmittedCursorRightToLeft(_) -> AtomicPathActiveChildAlignmentReverse(())
+        AtomicPathSelectedChildHere(candidate_value, remaining_value) -> AtomicPathActiveChildAlignmentHere(alignment)
+        AtomicPathSelectedChildThere(candidate_value, suffix_value) -> AtomicPathActiveChildAlignmentThere(alignment, suffix_value)
+      LookaroundAdmittedCursorRightToLeft(alignment) -> AtomicPathActiveChildAlignmentReverse(alignment)
 
   fn lookaround_admitted_cursor_suffix_alignment(
     {n: Nat},
@@ -10909,7 +10909,7 @@ mod Std.Regex.Runtime
       selected_whole_equivalence,
       selected_suffix
     )
-      AtomicPathActiveChildAlignmentHere(_, _) -> left_case()
+      AtomicPathActiveChildAlignmentHere(_) -> left_case()
       AtomicPathActiveChildAlignmentThere(_, _) -> left_tail_case()
       AtomicPathActiveChildAlignmentReverse(_) -> right_case()
 
