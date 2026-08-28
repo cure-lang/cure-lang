@@ -1747,6 +1747,18 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert body =~ "child_trace"
   end
 
+  test "the active-child parent branch consumes its selection package" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_path_tail_active_child_rejection_excludes_selected_suffix(\n", parts: 2)
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert body =~ "atomic_path_active_child_selection_package"
+    assert body =~ "atomic_path_active_child_selection_package_consume"
+    refute body =~ "let @erased selection_package"
+  end
+
   test "active transition publishes child cursor indices as erased fields" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 

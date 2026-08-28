@@ -4159,6 +4159,52 @@ mod Std.Regex.Runtime
   type AtomicPathActiveChildSelectionPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), matched: List(Char), remaining_input: List(Char), selected_routine: List(ExtendedInstruction))
     AtomicPathActiveChildSelectionPackageActive : (@erased source: Bounded(n)) -> (@erased char: Char) -> (@erased rest: List(Char)) -> (@erased destination: Bounded(n)) -> (@erased routine: List(EvidenceInstruction)) -> (@erased constraints: List(BoundaryConstraint)) -> (@erased assertion_routine: List(ExtendedInstruction)) -> (@erased assertion_markers: List(EvidenceInstruction)) -> (@erased nested_decisions: List(LookaroundNestedDecision)) -> (@erased child_whole: List(LookaroundAdmittedState(n))) -> (@erased child_selected_whole: List(LookaroundAdmittedState(n))) -> (@erased child_current: List(LookaroundAdmittedState(n))) -> (@erased child_selection_suffix: LookaroundAdmittedStateCursorSuffix(n, child_selected_whole, child_current)) -> (@erased child_selection_from_origin: LookaroundAdmittedStateCursorSuffix(n, child_whole, child_current)) -> (@erased child_trace: AtomicSelectedPathTrace(depth, n, machine, rest, after_input, ThreadActive(destination), history_push_bounded(history, char), lookaround_admitted_active_capture_context(capture_context, routine, assertion_markers), policy, atomic_scope_depth_after(routine, scope_depth), prefix_mode, Cons(char, reversed_prefix), child_current, matched, remaining_input, suffix_routine)) -> (@erased path: AtomicSelectedPathTrace(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, Cons(LookaroundAdmittedActive(destination, routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining), matched, remaining_input, append_extended_routines(transition_routine(char, routine), append_extended_routines(assertion_routine, suffix_routine)))) -> AtomicPathActiveChildSelectionPackage(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, matched, remaining_input, append_extended_routines(transition_routine(char, routine), append_extended_routines(assertion_routine, suffix_routine)))
 
+  ## Consume the package only in an erased argument position.  A package is a
+  ## proof-only existential: constructing it as a relevant let value would make
+  ## the erased path witness appear relevant even though every constructor field
+  ## is erased.  This boundary keeps construction and elimination at one
+  ## authority while the continuation remains ordinary result code.
+  @reducible
+  fn atomic_path_active_child_selection_package_consume(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    char: Char,
+    child_char: Char,
+    child_rest: List(Char),
+    after_input: List(Char),
+    source: Bounded(n),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    scope_depth: Nat,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    @erased package: AtomicPathActiveChildSelectionPackage(
+      depth,
+      n,
+      machine,
+      Cons(char, Cons(child_char, child_rest)),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      matched,
+      remaining_input,
+      selected_routine
+    ),
+    continuation: () -> result
+  ) -> result = match package
+    AtomicPathActiveChildSelectionPackageActive(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> continuation()
+
   ## Selected-trace counterpart of the blocked-member induction. The blocked
   ## head's skip/allow evidence is threaded through the recursive tail package
   ## together with the inherited membership predecessor and selected path.
@@ -10918,33 +10964,68 @@ mod Std.Regex.Runtime
     AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, tail_child_failure, _, child_scope_alignment, _, _, _, _) -> match path
       AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, child_selection_suffix, child_selection_from_origin, child_trace) -> match child_scope_alignment
         LookaroundAdmittedStateScopeActive(_, _, _, _, _, _) ->
-          let tail_result: Empty = atomic_path_active_child_rejection_excludes_trace(
+          atomic_path_active_child_selection_package_consume(
             machine,
+            char,
             child_char,
             child_rest,
             after_input,
-            active_state,
-            history_push_bounded(history, char),
-            append_routine(append_routine(capture_context, active_routine), active_assertion_markers),
+            source,
+            history,
+            capture_context,
             policy,
-            atomic_scope_depth_after(active_routine, scope_depth),
+            scope_depth,
             prefix_mode,
-            Cons(char, reversed_prefix),
-            child_whole,
-            child_failure_head,
-            child_current,
-            child_failure_suffix,
-            child_selected_whole,
-            child_selected_whole_equivalence,
-            child_failure_nonempty_equivalence,
-            child_selected_suffix,
-            child_failure,
-            child_trace,
-            child_left_case,
-            child_left_tail_case,
-            child_right_case
+            reversed_prefix,
+            atomic_path_active_child_selection_package(
+              machine,
+              char,
+              Cons(child_char, child_rest),
+              after_input,
+              source,
+              history,
+              capture_context,
+              policy,
+              scope_depth,
+              prefix_mode,
+              reversed_prefix,
+              active_state,
+              active_routine,
+              active_constraints,
+              active_assertion_routine,
+              active_assertion_markers,
+              active_nested_decisions,
+              path
+            ),
+            fn() ->
+              atomic_path_active_child_rejection_excludes_trace(
+                machine,
+                child_char,
+                child_rest,
+                after_input,
+                active_state,
+                history_push_bounded(history, char),
+                append_routine(append_routine(capture_context, active_routine), active_assertion_markers),
+                policy,
+                atomic_scope_depth_after(active_routine, scope_depth),
+                prefix_mode,
+                Cons(char, reversed_prefix),
+                child_whole,
+                child_failure_head,
+                child_current,
+                child_failure_suffix,
+                child_selected_whole,
+                child_selected_whole_equivalence,
+                child_failure_nonempty_equivalence,
+                child_selected_suffix,
+                child_failure,
+                child_trace,
+                child_left_case,
+                child_left_tail_case,
+                child_right_case
+              )
+            end
           )
-          tail_result
 
   ## Align a recursively rejected active child with the selected child trace.
   ## The child failure kind is fixed before this helper is called, while the

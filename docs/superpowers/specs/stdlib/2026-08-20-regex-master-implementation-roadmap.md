@@ -423,10 +423,16 @@ contexts through the same reducible construction helpers used by refutation
 trees. This removes the duplicated spelling of child context at the trace
 boundary and keeps the change proof-only; the emitted runtime is unchanged. A
 regression covers both transition and start traces, and the focused
-dependent-assertion suite passes 98 tests. Combining the erased child failure
-and selected trace into one dependent package remains deliberately open: the
-current kernel rejects that direct construction with E093 at the two-erased-
-witness boundary, so no wrapper or runtime tag was added.
+dependent-assertion suite passes 98 tests. The active-child parent now
+constructs its `AtomicPathActiveChildSelectionPackage` at an erased argument
+boundary and eliminates it through a proof-only consumer before invoking the
+ordinary contradiction continuation. This avoids a relevant `let` binding of
+an erased package (which the kernel correctly rejects as an erased-value
+relevance error) without adding a runtime wrapper or tag. The package's
+selected child cursor, origin cursor, and child trace therefore remain
+available to the construction-site branch. The complete child/tail
+contradiction still needs to consume those fields, and arbitrary sibling-tail
+induction plus the start-list correspondence remain open.
 The Phase 2 exit gate is therefore still not discharged.
 
 The root start-refutation boundary has since been strengthened: the public
