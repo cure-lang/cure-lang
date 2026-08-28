@@ -956,6 +956,10 @@ mod Std.Regex.Syntax.Model
     ['\\' | rest] -> S(literal_decimal_prefix_width(rest))
     _ -> Z()
 
+  fn literal_octal_escape_width(input: List(Char)) -> Nat = match input
+    ['\\', 'o', '{' | _] -> literal_delimited_width(input, '}')
+    _ -> literal_prefix_width(input, 2)
+
   fn is_literal_stop(char: Char) -> Bool =
     char == '|' or char == ')'
 

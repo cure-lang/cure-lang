@@ -39,6 +39,8 @@ mod Std.Regex.Syntax.Class
     ['\\', 'X' | rest] -> LiteralClassAtInvalid(:UnsupportedRegexGrapheme, ['\\', 'X' | rest], 2)
     ['\\', 'g' | rest] -> LiteralClassAtInvalid(:UnsupportedRegexBackreference, ['\\', 'g' | rest], 2)
     ['\\', 'k' | rest] -> LiteralClassAtInvalid(:UnsupportedRegexBackreference, ['\\', 'k' | rest], 2)
+    ['\\', 'c' | rest] -> LiteralClassAtInvalid(:UnsupportedRegexControlEscape, ['\\', 'c' | rest], 2)
+    ['\\', 'o' | rest] -> LiteralClassAtInvalid(:UnsupportedRegexNumericEscape, ['\\', 'o' | rest], literal_octal_escape_width(['\\', 'o' | rest]))
     ['\\', 'N' | rest] -> match rest
       ['{' | _] -> match parse_literal_unicode_name(['{' | rest], ['\\', 'N' | rest], [])
         LiteralParsed(LiteralExact(scalar), tail) -> parse_literal_class_character(scalar, tail, chars, ranges, kinds, fuel)

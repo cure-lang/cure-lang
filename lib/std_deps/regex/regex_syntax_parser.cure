@@ -515,6 +515,8 @@ mod Std.Regex.Syntax.Parser
     ['Z' | rest] -> LiteralParsed(LiteralFinalEnd, rest)
     ['b' | rest] -> LiteralParsed(LiteralWordBoundary(false), rest)
     ['B' | rest] -> LiteralParsed(LiteralWordBoundary(true), rest)
+    ['c' | _] -> LiteralAtInvalid(:UnsupportedRegexControlEscape, origin, 2)
+    ['o' | _] -> LiteralAtInvalid(:UnsupportedRegexNumericEscape, origin, literal_octal_escape_width(origin))
     ['Q' | rest] -> parse_literal_quoted(rest, [])
     ['a' | rest] -> LiteralParsed(LiteralExact('\a'), rest)
     ['e' | rest] -> LiteralParsed(LiteralExact('\e'), rest)
