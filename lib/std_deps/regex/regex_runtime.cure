@@ -1859,10 +1859,10 @@ mod Std.Regex.Runtime
   ) -> LookaroundAdmittedStateCursorSuffix(n, selected_whole, selected_current) =
     transport_lookaround_admitted_cursor_suffix_outer(selected_whole_equivalence, path_selection_suffix)
 
-  ## Extract the active transition package without exposing its
-  ## constructor-local child current spine in the caller's signature.  The
+  ## Extract the active transition package at the construction boundary.  The
   ## active-source and non-empty-input indices eliminate the terminal and
-  ## accepted transition constructors before the package is built.
+  ## accepted transition constructors before the package is built; all child
+  ## cursor spines remain explicit erased fields of the package constructor.
   @reducible
   fn atomic_path_active_child_selection_package(
     {depth: Nat},
