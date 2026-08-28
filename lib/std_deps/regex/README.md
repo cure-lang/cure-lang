@@ -74,7 +74,9 @@ The current parser admits the following forms.
 | Atomicity | `(?>...)` and nested atomic scopes | Implemented |
 | Assertions | `(?=...)`, `(?!...)`, `(?<=...)`, `(?<!...)` | Implemented for finite admitted operands; generalized proof gate remains open |
 | Conditionals | `(?(1)yes\|no)`, `(?(name)yes\|no)`, `(?(<name>)yes\|no)`, `(?(?=assertion)yes\|no)`, `(?(?!assertion)yes\|no)`, `(?(?<=assertion)yes\|no)`, `(?(?<!assertion)yes\|no)` | Capture-participation conditionals are implemented; finite assertion-conditionals use the lookaround IR; generalized proof/replay coverage remains open |
-| Anchors | `^`, `$`, `\A`, `\z`, `\Z`, word boundaries `\b`/`\B` | Implemented |
+| Anchors | `^`, `$`, `\A`, `\z`, `\Z`, word boundaries `\b`/`\B` | Implemented; `\G` is rejected with `:UnsupportedRegexSearchAnchor` until an explicit search-context cursor is part of the API |
+| Match-span controls | `\K` | Rejected with `:UnsupportedRegexMatchReset` until additive reported-span semantics are specified |
+| Raw-byte atom | `\C` | Rejected with `:UnsupportedRegexByteEscape`; Cure subjects are Unicode-scalar sequences |
 | Line breaks | `\R`; leading `(*LF)`, `(*CR)`, `(*CRLF)`, `(*ANYCRLF)`, `(*ANY)`, `(*BSR_ANYCRLF)`, `(*BSR_UNICODE)` | Implemented |
 | Classes | ranges, negation, unions, escaped members, POSIX classes | Implemented |
 | Generic classes | `\d`, `\D`, `\w`, `\W`, `\s`, `\S`, `\h`, `\H`, `\v`, `\V` | Implemented with ASCII/Unicode option semantics |

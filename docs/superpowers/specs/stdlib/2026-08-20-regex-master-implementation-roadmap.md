@@ -1887,6 +1887,13 @@ proof, treating them as empty atoms would be unsound. Missing closing
 parentheses use the structured `:UnclosedRegexControl` diagnostic with the
 whole control span. This makes the compatibility divergence explicit rather
 than allowing these verbs to fall through to a misleading quantifier error.
+The parser also rejects the currently deferred `\G` search anchor and `\K`
+match-span reset with dedicated structured diagnostics rather than treating
+them as escaped literal letters. `\G` requires an explicit caller-provided
+search cursor and `\K` requires additive reported-span semantics; both are
+reserved for the runtime search-context work in Phase 4. Raw-byte `\C` is
+rejected as `:UnsupportedRegexByteEscape` because the Cure subject model is a
+Unicode-scalar sequence, not a byte string.
 Remaining Phase 3 work is grapheme clusters,
 duplicate-name and capture-layout policy, other finite control normalizations,
 and the remaining control families below. `(*FAIL)`/`(*F)` and terminal `(*ACCEPT)`
