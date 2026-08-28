@@ -33,6 +33,12 @@ mod Std.Regex.Syntax.Class
     ['\\', 'H' | rest] -> parse_literal_class_items_fuel(rest, chars, ranges, enable_class_kind(NotHorizontalKind, kinds), fuel)
     ['\\', 'v' | rest] -> parse_literal_class_items_fuel(rest, chars, ranges, enable_class_kind(VerticalKind, kinds), fuel)
     ['\\', 'V' | rest] -> parse_literal_class_items_fuel(rest, chars, ranges, enable_class_kind(NotVerticalKind, kinds), fuel)
+    ['\\', 'G' | rest] -> LiteralClassAtInvalid(:UnsupportedRegexSearchAnchor, ['\\', 'G' | rest], 2)
+    ['\\', 'K' | rest] -> LiteralClassAtInvalid(:UnsupportedRegexMatchReset, ['\\', 'K' | rest], 2)
+    ['\\', 'C' | rest] -> LiteralClassAtInvalid(:UnsupportedRegexByteEscape, ['\\', 'C' | rest], 2)
+    ['\\', 'X' | rest] -> LiteralClassAtInvalid(:UnsupportedRegexGrapheme, ['\\', 'X' | rest], 2)
+    ['\\', 'g' | rest] -> LiteralClassAtInvalid(:UnsupportedRegexBackreference, ['\\', 'g' | rest], 2)
+    ['\\', 'k' | rest] -> LiteralClassAtInvalid(:UnsupportedRegexBackreference, ['\\', 'k' | rest], 2)
     ['\\', 'N' | rest] -> match rest
       ['{' | _] -> match parse_literal_unicode_name(['{' | rest], ['\\', 'N' | rest], [])
         LiteralParsed(LiteralExact(scalar), tail) -> parse_literal_class_character(scalar, tail, chars, ranges, kinds, fuel)
