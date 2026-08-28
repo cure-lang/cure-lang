@@ -1876,6 +1876,16 @@ direct zero-warning runtime compile pass.  The non-singleton rejected-child
 fold, all remaining tail-failure kinds, and the final selected-trace/refutation
 correspondence remain open.
 
+The first non-singleton sibling peel now follows the same package discipline:
+`atomic_path_destination_rejection_excludes_nested_tail_rejection` builds its
+singleton nested contradiction, sends the parent `Drop` selection through the
+generic dispatcher, and consumes the resulting package at
+`atomic_path_rejected_tail_dispatch_excludes_trace`.  The package consumer
+keeps the tail refutation and selected path existential and proof-only while
+reusing the existing singleton refinement.  A focused source regression and
+direct zero-warning runtime compile pass.  Arbitrary-length rejected-child
+folding and the final all-kinds selected-trace/refutation theorem remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

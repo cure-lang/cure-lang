@@ -7112,6 +7112,77 @@ mod Std.Regex.Runtime
           path
         )
 
+  ## Consume the selected-tail package produced by a two-sibling rejected
+  ## destination.  The parent construction site has already fixed the
+  ## selected cursor to the empty tail, so the dispatch can only carry the
+  ## recursive package for `candidate`; refining that package reuses the
+  ## existing singleton tail contradiction without rebuilding its failure.
+  @reducible
+  fn atomic_path_rejected_tail_dispatch_excludes_trace(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    char: Char,
+    rest: List(Char),
+    after_input: List(Char),
+    source: Bounded(n),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    scope_depth: Nat,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    whole: List(LookaroundAdmittedState(n)),
+    candidate: LookaroundAdmittedState(n),
+    matched: List(Char),
+    remaining_input: List(Char),
+    routine: List(ExtendedInstruction),
+    dispatch: AtomicPathSelectedTailDispatch(
+      Empty,
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(candidate, Nil()),
+      Nil(),
+      matched,
+      remaining_input,
+      routine
+    )
+  ) -> Empty = match dispatch
+    AtomicPathSelectedTailHead(value) -> lookaround_absurd(value)
+    AtomicPathSelectedTailTail(package) -> match package
+      AtomicPathSelectedTailPackagePacked(tail_package, _tail_suffix, path) ->
+        atomic_path_rejected_tail_refinement(
+          machine,
+          char,
+          rest,
+          after_input,
+          source,
+          history,
+          capture_context,
+          policy,
+          scope_depth,
+          prefix_mode,
+          reversed_prefix,
+          whole,
+          candidate,
+          tail_package,
+          matched,
+          remaining_input,
+          routine,
+          path
+        )
+
   ## The empty-tail counterpart fixes the existential package's kind at the
   ## destination-exhaustion constructor.  It is used only after a rejected
   ## sibling has been refined, so the nested proof consumes the actual tail
@@ -11963,7 +12034,7 @@ mod Std.Regex.Runtime
       reversed_prefix,
       failure
     )
-    atomic_path_rejected_tail_refinement(
+    let nested_result: Empty = atomic_path_rejected_tail_refinement(
       machine,
       char,
       rest,
@@ -11982,6 +12053,52 @@ mod Std.Regex.Runtime
       remaining_input,
       routine,
       path
+    )
+    atomic_path_rejected_tail_dispatch_excludes_trace(
+      machine,
+      char,
+      rest,
+      after_input,
+      state,
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      nested_candidate,
+      matched,
+      remaining_input,
+      routine,
+      atomic_path_destination_rejection_excludes_recursive_tail(
+        machine,
+        char,
+        rest,
+        after_input,
+        state,
+        history,
+        capture_context,
+        policy,
+        scope_depth,
+        prefix_mode,
+        reversed_prefix,
+        whole,
+        candidate,
+        failure,
+        matched,
+        remaining_input,
+        routine,
+        LookaroundAdmittedStateCursorSuffixDrop(
+          candidate,
+          LookaroundAdmittedStateCursorSuffixDrop(
+            nested_candidate,
+            LookaroundAdmittedStateCursorSuffixHere(reflexive(empty_lookaround_admitted_states(n)))
+          )
+        ),
+        path,
+        nested_result
+      )
     )
 
   ## A three-sibling rejected tail peels the typed package twice before
