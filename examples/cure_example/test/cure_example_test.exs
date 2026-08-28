@@ -1,13 +1,19 @@
 defmodule CureExampleTest do
   use ExUnit.Case, async: true
 
+  # `String` is a nominal Cure type, not a bare charlist -- it erases to the
+  # tagged pair `{String, code_points}` (see `docs/FFI.md`). Calling a
+  # compiled `.cure` function that takes or returns `String` directly (as
+  # these raw tests do, bypassing `CureExample`'s own `to_cure_string`/
+  # `from_cure_string` helpers) must use exactly that shape.
   describe "Greeter (cure module)" do
     test "hello/1 greets by name" do
-      assert apply(:"Cure.Greeter", :hello, [~c"World"]) == ~c"Hello, World!"
+      assert apply(:"Cure.Greeter", :hello, [{:String, ~c"World"}]) == {:String, ~c"Hello, World!"}
     end
 
     test "farewell/1 says goodbye" do
-      assert apply(:"Cure.Greeter", :farewell, [~c"Cure"]) == ~c"Goodbye, Cure. See you soon!"
+      assert apply(:"Cure.Greeter", :farewell, [{:String, ~c"Cure"}]) ==
+               {:String, ~c"Goodbye, Cure. See you soon!"}
     end
   end
 
@@ -32,14 +38,14 @@ defmodule CureExampleTest do
     end
 
     test "classify/1 with guards" do
-      assert apply(:"Cure.Calculator", :classify, [42]) == ~c"positive"
-      assert apply(:"Cure.Calculator", :classify, [-1]) == ~c"negative"
-      assert apply(:"Cure.Calculator", :classify, [0]) == ~c"zero"
+      assert apply(:"Cure.Calculator", :classify, [42]) == {:String, ~c"positive"}
+      assert apply(:"Cure.Calculator", :classify, [-1]) == {:String, ~c"negative"}
+      assert apply(:"Cure.Calculator", :classify, [0]) == {:String, ~c"zero"}
     end
 
     test "safe_divide/2 returns Result tuples" do
       assert {:ok, 5} = apply(:"Cure.Calculator", :safe_divide, [10, 2])
-      assert {:error, ~c"division by zero"} = apply(:"Cure.Calculator", :safe_divide, [10, 0])
+      assert {:error, {:String, ~c"division by zero"}} = apply(:"Cure.Calculator", :safe_divide, [10, 0])
     end
   end
 

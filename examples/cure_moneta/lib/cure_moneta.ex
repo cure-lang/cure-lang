@@ -75,7 +75,7 @@ defmodule CureMoneta do
 
   @doc "Render a Currency or Money value to a string (delegates to the Cure Show protocol)."
   @spec show(map() | tuple()) :: String.t()
-  def show(value), do: @moneta.show(to_cure_money(value)) |> List.to_string()
+  def show(value), do: @moneta.show(to_cure_money(value)) |> from_cure_string()
 
   @doc "Test equality of two Money or Currency values (delegates to the Cure Eq protocol)."
   @spec eq(map() | tuple(), map() | tuple()) :: boolean()
@@ -213,5 +213,9 @@ defmodule CureMoneta do
   end
 
   defp map_money_result({:ok, money}), do: {:ok, from_cure_money(money)}
-  defp map_money_result({:error, reason}), do: {:error, List.to_string(reason)}
+  defp map_money_result({:error, reason}), do: {:error, from_cure_string(reason)}
+
+  # `String` is a nominal Cure type, not a bare charlist -- it erases to the
+  # tagged pair `{String, code_points}` (see `docs/FFI.md`).
+  defp from_cure_string({:String, chars}), do: List.to_string(chars)
 end

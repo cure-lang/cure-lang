@@ -1,0 +1,136 @@
+mod Exchange.Money
+  ###
+  Money values and foreign-exchange conversion for the escrow engine.
+
+  Amounts are always stored in *minor units* (the smallest denomination of a
+  currency): EUR/USD/GBP use cents, so `Money{amount: 10_050, ...}` renders as
+  `USD 100.50`. This mirrors `examples/cure_moneta/cure_src/moneta.cure`, but
+  is scoped down to the three currencies this example actually trades.
+  ###
+
+  use Std.Result
+  use Std.String
+  use Std.Semigroup
+  use Std.Io
+
+  # ---------------------------------------------------------------------------
+  # FFI helpers -- float arithmetic not available in the Cure core.
+  #
+  # This is a pure Cure project (no Elixir/Mix compilation step), so unlike
+  # `examples/cure_moneta`, there is no companion `Elixir.*` helper module to
+  # reach for. `:erlang` itself is enough here: `erlang:float/1` promotes an
+  # integer to a float, and the `*` operator already works over `Float`
+  # without any extern.
+  #
+  # Integer-to-string rendering deliberately goes through `Std.Io.int_to_string`
+  # rather than a fresh `@extern(:erlang, :integer_to_list, 1) -> String`
+  # declared here: `:erlang.integer_to_list/1` returns a raw charlist
+  # (`List(Char)`), not Cure's nominal `String` (`{String, code_points}`).
+  # Declaring the extern's return type as `String` directly type-checks but
+  # crashes at run time the first time the result is concatenated -- exactly
+  # the FFI pitfall `docs/FFI.md` calls out. `Std.Io.int_to_string` already
+  # wraps the charlist correctly via `Std.String.from_characters`.
+  # ---------------------------------------------------------------------------
+
+  @extern(:erlang, :float, 1)
+  local fn int_to_float(n: Int) -> Float
+
+  @extern(:erlang, :round, 1)
+  local fn float_round(f: Float) -> Int
+
+  @extern(:erlang, :abs, 1)
+  local fn abs_int(n: Int) -> Int
+
+  # ---------------------------------------------------------------------------
+  # ADT -- Currency
+  # ---------------------------------------------------------------------------
+
+  ## The three currencies this escrow engine trades. All three use 100 minor
+  ## units per major unit (cents), which keeps rendering uniform.
+  type Currency =
+    | USD
+    | EUR
+    | GBP
+
+  ## Render a Currency to its three-letter ISO code.
+  fn show_currency(c: Currency) -> String =
+    match c
+      USD() -> "USD"
+      EUR() -> "EUR"
+      GBP() -> "GBP"
+
+  fn eq_currency(a: Currency, b: Currency) -> Bool =
+    show_currency(a) == show_currency(b)
+
+  # ---------------------------------------------------------------------------
+  # Records
+  # ---------------------------------------------------------------------------
+
+  ## A monetary value stored in minor units (cents).
+  rec Money
+    amount: Int
+    currency: Currency
+
+  ## Construct a Money value.
+  fn money(amount: Int, currency: Currency) -> Money =
+    Money{amount: amount, currency: currency}
+
+  ## Zero balance in a given currency.
+  fn zero(currency: Currency) -> Money =
+    Money{amount: 0, currency: currency}
+
+  fn eq(a: Money, b: Money) -> Bool =
+    eq_currency(a.currency, b.currency) and a.amount == b.amount
+
+  ## Renders as `"USD 100.50"`. Handles negative amounts with a leading `-`.
+  fn show(m: Money) -> String =
+    let sign =
+      pickup
+        m.amount < 0 -> "-"
+        else         -> ""
+    let abs_amt = abs_int(m.amount)
+    let major = abs_amt / 100
+    let minor = abs_amt % 100
+    sign <> show_currency(m.currency) <> " " <> Std.Io.int_to_string(major) <> "." <> pad2(minor)
+
+  local fn pad2(minor: Int) -> String =
+    pickup
+      minor < 10 -> "0" <> Std.Io.int_to_string(minor)
+      else       -> Std.Io.int_to_string(minor)
+
+  # ---------------------------------------------------------------------------
+  # Result constructors
+  # ---------------------------------------------------------------------------
+
+  fn money_ok(value: Money) -> Result(Money, String) = Ok(value)
+  fn money_error(message: String) -> Result(Money, String) = Error(message)
+
+  # ---------------------------------------------------------------------------
+  # Arithmetic
+  # ---------------------------------------------------------------------------
+
+  ## Add two Money values. Fails if they have different currencies.
+  fn add(a: Money, b: Money) -> Result(Money, String) =
+    pickup
+      eq_currency(a.currency, b.currency) ->
+        money_ok(Money{amount: a.amount + b.amount, currency: a.currency})
+      else ->
+        money_error("currency mismatch: cannot add " <> show_currency(a.currency) <> " and " <> show_currency(b.currency))
+
+  ## Subtract `b` from `a`. Fails on currency mismatch or a negative result.
+  fn subtract(a: Money, b: Money) -> Result(Money, String) =
+    pickup
+      not(eq_currency(a.currency, b.currency)) ->
+        money_error("currency mismatch: cannot subtract " <> show_currency(b.currency) <> " from " <> show_currency(a.currency))
+      a.amount < b.amount ->
+        money_error("insufficient funds: balance " <> show(a) <> " < " <> show(b))
+      else ->
+        money_ok(Money{amount: a.amount - b.amount, currency: a.currency})
+
+  ## Convert Money to another currency using a spot `rate` (target minor units
+  ## per source minor unit). Example: convert USD 100.00 to EUR at rate=0.92
+  ## gives EUR 92.00.
+  fn convert(m: Money, to: Currency, rate: Float) -> Money =
+    let amount_f = int_to_float(m.amount)
+    let converted = float_round(amount_f * rate)
+    Money{amount: converted, currency: to}

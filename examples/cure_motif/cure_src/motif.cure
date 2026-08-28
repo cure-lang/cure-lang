@@ -22,8 +22,14 @@ mod Motif
   # FFI helpers -- keep the Cure source self-contained.
   # ---------------------------------------------------------------------------
 
+  # `:erlang.integer_to_list/1` returns a raw charlist (`List(Char)`), not
+  # Cure's nominal `String` (`{String, code_points}`) -- declaring the extern
+  # itself as returning `String` type-checks but crashes at run time the
+  # first time the result is concatenated (see `docs/FFI.md`).
   @extern(:erlang, :integer_to_list, 1)
-  local fn int_to_string(n: Int) -> String
+  local fn int_to_charlist(n: Int) -> List(Char)
+
+  local fn int_to_string(n: Int) -> String = Std.String.from_characters(int_to_charlist(n))
 
   # ---------------------------------------------------------------------------
   # MIDI-domain aliases (documented ranges are invariants, unchecked pending SMTCoq)

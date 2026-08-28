@@ -1,0 +1,118 @@
+mod Exchange.EscrowFsm
+  ###
+  The escrow state graph:
+
+                          [ Created ]
+                               |
+                               | LockFunds(amount, quote_id)
+                               v
+                       [ FundsReserved ]
+                        /             \
+          QuoteExpired /               \ CounterpartyMatched(trade_id)
+                      v                 v
+                 [ Cancelled ]      [ ExecutingSwap ]
+                                     /            \
+                    BankConfirmed   /              \ SettleTimeout / BankFailed
+                                   v                v
+                             [ Completed ]     [ Refunding ]
+                                                    |
+                                                    | RefundCompleted
+                                                    v
+                                               [ Refunded ]
+
+  This is the hand-written, actually-tested/run half of the graph: a total
+  `transition/3` function over ordinary `EscrowState`/`EscrowEvent` ADTs,
+  returning `Std.Fsm`'s own `FsmAction`/`Keep`/`Next` result vocabulary.
+
+  The SAME graph is also declared using the real `use Std.Fsm; fsm Escrow with
+  EscrowData ...` transition-graph DSL, in `lib/escrow_fsm_dsl_reference.cure`
+  -- deliberately in its own module, not this one. See that file's header
+  comment for why the DSL declaration and this hand-written mirror are kept
+  separate rather than the DSL declaration being called from here directly.
+  ###
+
+  use Std.Fsm
+  use Std.List
+
+  ## The FSM's carried data: what was reserved, which quote and counterparty
+  ## trade it is bound to, and a running audit trail of events applied.
+  rec EscrowData
+    amount: Int
+    quote_id: String
+    trade_id: String
+    history: List(String)
+
+  fn initial_data(quote_id: String) -> EscrowData =
+    EscrowData{amount: 0, quote_id: quote_id, trade_id: "", history: []}
+
+  ## The escrow's state, as an ordinary ADT.
+  type EscrowState =
+    | Created
+    | FundsReserved
+    | ExecutingSwap
+    | Cancelled
+    | Completed
+    | Refunding
+    | Refunded
+
+  ## The events the escrow reacts to.
+  type EscrowEvent =
+    | LockFunds(Int, String)
+    | QuoteExpired
+    | CounterpartyMatched(String)
+    | BankConfirmed
+    | SettleTimeout
+    | BankFailed
+    | RefundCompleted
+
+  fn show_state(s: EscrowState) -> String =
+    match s
+      Created() -> "Created"
+      FundsReserved() -> "FundsReserved"
+      ExecutingSwap() -> "ExecutingSwap"
+      Cancelled() -> "Cancelled"
+      Completed() -> "Completed"
+      Refunding() -> "Refunding"
+      Refunded() -> "Refunded"
+
+  fn show_event(e: EscrowEvent) -> String =
+    match e
+      LockFunds(_, _) -> "LockFunds"
+      QuoteExpired() -> "QuoteExpired"
+      CounterpartyMatched(_) -> "CounterpartyMatched"
+      BankConfirmed() -> "BankConfirmed"
+      SettleTimeout() -> "SettleTimeout"
+      BankFailed() -> "BankFailed"
+      RefundCompleted() -> "RefundCompleted"
+
+  local fn record(data: EscrowData, event: EscrowEvent) -> EscrowData =
+    EscrowData{data | history: append(data.history, [show_event(event)])}
+
+  ## The total transition function. Every reachable `(state, event)` pair
+  ## that the graph above declares an edge for returns `Next`; every other
+  ## pair -- including a stray timer or webhook message that arrives after
+  ## the escrow has already moved on -- safely `Keep`s the current state and
+  ## data, exactly like the DSL's own unmatched-row fallback.
+  fn transition(state: EscrowState, event: EscrowEvent, data: EscrowData) -> FsmAction(EscrowState, EscrowData) =
+    match state
+      Created() -> match event
+        LockFunds(amount, quote_id) ->
+          pickup
+            amount > 0 -> Next(FundsReserved(), record(EscrowData{data | amount: amount, quote_id: quote_id}, event))
+            else       -> Keep(data)
+        _ -> Keep(data)
+      FundsReserved() -> match event
+        QuoteExpired() -> Next(Cancelled(), record(data, event))
+        CounterpartyMatched(trade_id) -> Next(ExecutingSwap(), record(EscrowData{data | trade_id: trade_id}, event))
+        _ -> Keep(data)
+      ExecutingSwap() -> match event
+        BankConfirmed() -> Next(Completed(), record(data, event))
+        SettleTimeout() -> Next(Refunding(), record(data, event))
+        BankFailed() -> Next(Refunding(), record(data, event))
+        _ -> Keep(data)
+      Refunding() -> match event
+        RefundCompleted() -> Next(Refunded(), record(data, event))
+        _ -> Keep(data)
+      Cancelled() -> Keep(data)
+      Completed() -> Keep(data)
+      Refunded() -> Keep(data)

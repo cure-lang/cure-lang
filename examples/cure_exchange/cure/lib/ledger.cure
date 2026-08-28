@@ -1,0 +1,123 @@
+mod Exchange.Ledger
+  ###
+  A tiny account ledger that models the escrow hold lifecycle:
+
+    reserve  -- move funds from `balance` into `held` (LockFunds)
+    capture  -- remove `held` funds entirely, e.g. paid out to the
+                counterparty (BankConfirmed / Completed)
+    release  -- move `held` funds back to `balance` (a refund, after
+                BankFailed / SettleTimeout -> Refunding -> RefundCompleted)
+
+  Keeping `held` as its own field (rather than just debiting `balance`
+  immediately) is what makes the refund path a pure ledger operation instead
+  of a second, hopeful deposit.
+  ###
+
+  use Std.Result
+  use Std.Io
+  use Exchange.Money
+
+  ## An account holding an available balance plus any amount currently on
+  ## hold in an escrow.
+  rec Account
+    id: Int
+    owner: String
+    balance: Exchange.Money.Money
+    held: Exchange.Money.Money
+
+  ## A collection of accounts forming the ledger state.
+  rec Ledger
+    accounts: List(Account)
+
+  fn new_account(id: Int, owner: String, balance: Exchange.Money.Money) -> Account =
+    Account{id: id, owner: owner, balance: balance, held: Exchange.Money.zero(balance.currency)}
+
+  fn new_ledger(accounts: List(Account)) -> Ledger =
+    Ledger{accounts: accounts}
+
+  fn open_account(ledger: Ledger, id: Int, owner: String, balance: Exchange.Money.Money) -> Ledger =
+    Ledger{ledger | accounts: [new_account(id, owner, balance) | ledger.accounts]}
+
+  # ---------------------------------------------------------------------------
+  # Queries
+  # ---------------------------------------------------------------------------
+
+  fn account_ok(value: Account) -> Result(Account, String) = Ok(value)
+  fn account_error(message: String) -> Result(Account, String) = Error(message)
+  fn ledger_ok(value: Ledger) -> Result(Ledger, String) = Ok(value)
+  fn ledger_error(message: String) -> Result(Ledger, String) = Error(message)
+
+  fn find_account(accounts: List(Account), id: Int) -> Result(Account, String) =
+    match accounts
+      [] -> account_error("account not found: " <> Std.Io.int_to_string(id))
+      [a | rest] ->
+        pickup
+          a.id == id -> account_ok(a)
+          else       -> find_account(rest, id)
+
+  ## The balance of account `id` available to spend (excludes held funds).
+  fn balance(ledger: Ledger, id: Int) -> Result(Exchange.Money.Money, String) =
+    match find_account(ledger.accounts, id)
+      Ok(account) -> Ok(account.balance)
+      Error(e) -> Error(e)
+
+  ## The amount currently held on behalf of an in-flight escrow.
+  fn held(ledger: Ledger, id: Int) -> Result(Exchange.Money.Money, String) =
+    match find_account(ledger.accounts, id)
+      Ok(account) -> Ok(account.held)
+      Error(e) -> Error(e)
+
+  local fn update_account(ledger: Ledger, updated: Account) -> Ledger =
+    Ledger{ledger | accounts: replace_account(ledger.accounts, updated)}
+
+  local fn replace_account(accounts: List(Account), updated: Account) -> List(Account) =
+    match accounts
+      [] -> []
+      [a | rest] ->
+        pickup
+          a.id == updated.id -> [updated | rest]
+          else               -> [a | replace_account(rest, updated)]
+
+  # ---------------------------------------------------------------------------
+  # Escrow hold lifecycle
+  # ---------------------------------------------------------------------------
+
+  ## Move `amount` from account `id`'s available balance into its hold.
+  ## This is what backs the `LockFunds` transition.
+  fn reserve(ledger: Ledger, id: Int, amount: Exchange.Money.Money) -> Result(Ledger, String) =
+    match find_account(ledger.accounts, id)
+      Error(e) -> ledger_error(e)
+      Ok(account) ->
+        match Exchange.Money.subtract(account.balance, amount)
+          Error(e) -> ledger_error(e)
+          Ok(new_balance) ->
+            match Exchange.Money.add(account.held, amount)
+              Error(e) -> ledger_error(e)
+              Ok(new_held) ->
+                ledger_ok(update_account(ledger, Account{account | balance: new_balance, held: new_held}))
+
+  ## Remove `amount` from account `id`'s hold entirely -- the funds have left
+  ## the escrow (paid to the counterparty). This is what backs
+  ## `BankConfirmed` / `Completed`.
+  fn capture(ledger: Ledger, id: Int, amount: Exchange.Money.Money) -> Result(Ledger, String) =
+    match find_account(ledger.accounts, id)
+      Error(e) -> ledger_error(e)
+      Ok(account) ->
+        match Exchange.Money.subtract(account.held, amount)
+          Error(e) -> ledger_error(e)
+          Ok(new_held) ->
+            ledger_ok(update_account(ledger, Account{account | held: new_held}))
+
+  ## Move `amount` from account `id`'s hold back to its available balance --
+  ## a refund. This is what backs `Refunding` -> `RefundCompleted`.
+  fn release(ledger: Ledger, id: Int, amount: Exchange.Money.Money) -> Result(Ledger, String) =
+    match find_account(ledger.accounts, id)
+      Error(e) -> ledger_error(e)
+      Ok(account) ->
+        match Exchange.Money.subtract(account.held, amount)
+          Error(e) -> ledger_error(e)
+          Ok(new_held) ->
+            match Exchange.Money.add(account.balance, amount)
+              Error(e) -> ledger_error(e)
+              Ok(new_balance) ->
+                ledger_ok(update_account(ledger, Account{account | balance: new_balance, held: new_held}))

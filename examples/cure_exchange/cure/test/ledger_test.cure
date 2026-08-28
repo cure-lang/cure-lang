@@ -1,0 +1,37 @@
+mod Exchange.Ledger.Test
+  use Std.Test
+  use Std.Result
+  use Exchange.Money
+  use Exchange.Ledger
+
+  local fn fresh_ledger() -> Ledger =
+    let empty = Exchange.Ledger.new_ledger([])
+    Exchange.Ledger.open_account(empty, 1, "Alice", Exchange.Money.money(10000, Exchange.Money.USD()))
+
+  fn test_reserve_moves_funds_from_balance_to_held() -> Unit =
+    let ledger = fresh_ledger()
+    let reserved = Std.Result.unwrap(Exchange.Ledger.reserve(ledger, 1, Exchange.Money.money(4000, Exchange.Money.USD())), ledger)
+    let _: Unit = Std.Test.assert_eq(Std.Result.unwrap(Exchange.Ledger.balance(reserved, 1), Exchange.Money.zero(Exchange.Money.USD())), Exchange.Money.money(6000, Exchange.Money.USD()))
+    Std.Test.assert_eq(Std.Result.unwrap(Exchange.Ledger.held(reserved, 1), Exchange.Money.zero(Exchange.Money.USD())), Exchange.Money.money(4000, Exchange.Money.USD()))
+
+  fn test_reserve_more_than_available_is_an_error() -> Unit =
+    let ledger = fresh_ledger()
+    Std.Test.assert(Std.Result.is_error(Exchange.Ledger.reserve(ledger, 1, Exchange.Money.money(20000, Exchange.Money.USD()))))
+
+  fn test_capture_removes_the_hold_entirely() -> Unit =
+    let ledger = fresh_ledger()
+    let reserved = Std.Result.unwrap(Exchange.Ledger.reserve(ledger, 1, Exchange.Money.money(4000, Exchange.Money.USD())), ledger)
+    let captured = Std.Result.unwrap(Exchange.Ledger.capture(reserved, 1, Exchange.Money.money(4000, Exchange.Money.USD())), reserved)
+    let _: Unit = Std.Test.assert_eq(Std.Result.unwrap(Exchange.Ledger.held(captured, 1), Exchange.Money.zero(Exchange.Money.USD())), Exchange.Money.zero(Exchange.Money.USD()))
+    Std.Test.assert_eq(Std.Result.unwrap(Exchange.Ledger.balance(captured, 1), Exchange.Money.zero(Exchange.Money.USD())), Exchange.Money.money(6000, Exchange.Money.USD()))
+
+  fn test_release_returns_the_hold_to_the_balance() -> Unit =
+    let ledger = fresh_ledger()
+    let reserved = Std.Result.unwrap(Exchange.Ledger.reserve(ledger, 1, Exchange.Money.money(4000, Exchange.Money.USD())), ledger)
+    let released = Std.Result.unwrap(Exchange.Ledger.release(reserved, 1, Exchange.Money.money(4000, Exchange.Money.USD())), reserved)
+    let _: Unit = Std.Test.assert_eq(Std.Result.unwrap(Exchange.Ledger.held(released, 1), Exchange.Money.zero(Exchange.Money.USD())), Exchange.Money.zero(Exchange.Money.USD()))
+    Std.Test.assert_eq(Std.Result.unwrap(Exchange.Ledger.balance(released, 1), Exchange.Money.zero(Exchange.Money.USD())), Exchange.Money.money(10000, Exchange.Money.USD()))
+
+  fn test_operations_on_an_unknown_account_are_errors() -> Unit =
+    let ledger = fresh_ledger()
+    Std.Test.assert(Std.Result.is_error(Exchange.Ledger.balance(ledger, 999)))

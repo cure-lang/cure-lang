@@ -93,3 +93,11 @@ jobs:
 
       - name: Cure regression checks (umbrella)
         run: mix cure.check
+
+      # Compiles and tests every nested example project (examples/*/mix.exs
+      # and examples/*/Cure.toml) with its own real toolchain invocation --
+      # `mix test` for the Mix-based ones, `cure test` (via a freshly built
+      # escript) for the pure-Cure ones such as `cure_calc` and
+      # `cure_exchange/cure`.
+      - name: Cure example projects regression check
+        run: mix cure.check.projects

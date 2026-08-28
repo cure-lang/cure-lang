@@ -35,6 +35,10 @@ defmodule CureMonetaTest do
 
   defp ledger(accounts), do: {:Ledger, accounts}
 
+  # `String` is a nominal Cure type, not a bare charlist -- it erases to the
+  # tagged pair `{String, code_points}` (see `docs/FFI.md`).
+  defp from_cure_string({:String, chars}), do: List.to_string(chars)
+
   # Advance the FSM through create + submit (dispatch! auto-fires) and sync.
   defp reach_awaiting(pid) do
     :gen_statem.cast(pid, :create)
@@ -50,19 +54,19 @@ defmodule CureMonetaTest do
 
   describe "Cure.Moneta: Show protocol (Money record)" do
     test "EUR renders as major.minor with two decimal places" do
-      assert @moneta.show(eur(10_050)) == ~c"EUR 100.50"
+      assert @moneta.show(eur(10_050)) == {:String, ~c"EUR 100.50"}
     end
 
     test "JPY renders without decimal point" do
-      assert @moneta.show(jpy(1250)) == ~c"JPY 1250"
+      assert @moneta.show(jpy(1250)) == {:String, ~c"JPY 1250"}
     end
 
     test "OMR renders with three decimal places" do
-      assert @moneta.show(omr(1_500)) == ~c"OMR 1.500"
+      assert @moneta.show(omr(1_500)) == {:String, ~c"OMR 1.500"}
     end
 
     test "EUR zero pads the minor part" do
-      assert @moneta.show(eur(500)) == ~c"EUR 5.00"
+      assert @moneta.show(eur(500)) == {:String, ~c"EUR 5.00"}
     end
   end
 
@@ -70,19 +74,19 @@ defmodule CureMonetaTest do
     # Currency is an Erlang tagged tuple; plain function dispatch avoids the
     # map-based protocol guard that only works for record types.
     test "EUR renders the ISO code" do
-      assert @moneta.show_currency(:EUR) == ~c"EUR"
+      assert @moneta.show_currency(:EUR) == {:String, ~c"EUR"}
     end
 
     test "OMR renders the ISO code" do
-      assert @moneta.show_currency(:OMR) == ~c"OMR"
+      assert @moneta.show_currency(:OMR) == {:String, ~c"OMR"}
     end
 
     test "JPY renders the ISO code" do
-      assert @moneta.show_currency(:JPY) == ~c"JPY"
+      assert @moneta.show_currency(:JPY) == {:String, ~c"JPY"}
     end
 
     test "show/1 on a Money value uses show_currency internally for the currency field" do
-      assert @moneta.show(eur(10_050)) == ~c"EUR 100.50"
+      assert @moneta.show(eur(10_050)) == {:String, ~c"EUR 100.50"}
     end
   end
 
@@ -108,7 +112,7 @@ defmodule CureMonetaTest do
 
     test "returns error for currency mismatch" do
       assert {:error, msg} = @moneta.add(eur(100), usd(100))
-      assert List.to_string(msg) =~ "currency mismatch"
+      assert from_cure_string(msg) =~ "currency mismatch"
     end
 
     test "addition is commutative" do
@@ -126,12 +130,12 @@ defmodule CureMonetaTest do
 
     test "returns error for insufficient funds" do
       assert {:error, msg} = @moneta.subtract(eur(100), eur(500))
-      assert List.to_string(msg) =~ "insufficient funds"
+      assert from_cure_string(msg) =~ "insufficient funds"
     end
 
     test "returns error for currency mismatch" do
       assert {:error, msg} = @moneta.subtract(eur(1000), usd(100))
-      assert List.to_string(msg) =~ "currency mismatch"
+      assert from_cure_string(msg) =~ "currency mismatch"
     end
 
     test "subtracting zero gives the same amount" do
@@ -201,7 +205,7 @@ defmodule CureMonetaTest do
 
     test "balance returns error for unknown id", %{ledger: l} do
       assert {:error, msg} = @moneta.balance(l, 99)
-      assert List.to_string(msg) =~ "account not found"
+      assert from_cure_string(msg) =~ "account not found"
     end
 
     test "deposit increases balance", %{ledger: l} do
@@ -212,7 +216,7 @@ defmodule CureMonetaTest do
 
     test "deposit rejects currency mismatch", %{ledger: l} do
       assert {:error, msg} = @moneta.deposit(l, 1, usd(100))
-      assert List.to_string(msg) =~ "currency mismatch"
+      assert from_cure_string(msg) =~ "currency mismatch"
     end
 
     test "withdraw decreases balance", %{ledger: l} do
@@ -223,7 +227,7 @@ defmodule CureMonetaTest do
 
     test "withdraw rejects insufficient funds", %{ledger: l} do
       assert {:error, msg} = @moneta.withdraw(l, 2, eur(99_999))
-      assert List.to_string(msg) =~ "insufficient funds"
+      assert from_cure_string(msg) =~ "insufficient funds"
     end
 
     test "transfer moves money between accounts", %{ledger: l} do

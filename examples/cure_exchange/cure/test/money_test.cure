@@ -1,0 +1,33 @@
+mod Exchange.Money.Test
+  use Std.Test
+  use Std.Result
+  use Exchange.Money
+
+  fn test_show_renders_major_and_minor_units() -> Unit =
+    Std.Test.assert_eq(Exchange.Money.show(Exchange.Money.money(10050, Exchange.Money.USD())), "USD 100.50")
+
+  fn test_show_pads_single_digit_cents() -> Unit =
+    Std.Test.assert_eq(Exchange.Money.show(Exchange.Money.money(905, Exchange.Money.EUR())), "EUR 9.05")
+
+  fn test_show_handles_negative_amounts() -> Unit =
+    Std.Test.assert_eq(Exchange.Money.show(Exchange.Money.money(0 - 150, Exchange.Money.GBP())), "-GBP 1.50")
+
+  fn test_add_same_currency() -> Unit =
+    let sum = Exchange.Money.add(Exchange.Money.money(100, Exchange.Money.USD()), Exchange.Money.money(250, Exchange.Money.USD()))
+    Std.Test.assert_eq(Std.Result.unwrap(sum, Exchange.Money.zero(Exchange.Money.USD())), Exchange.Money.money(350, Exchange.Money.USD()))
+
+  fn test_add_currency_mismatch_is_an_error() -> Unit =
+    let sum = Exchange.Money.add(Exchange.Money.money(100, Exchange.Money.USD()), Exchange.Money.money(100, Exchange.Money.EUR()))
+    Std.Test.assert(Std.Result.is_error(sum))
+
+  fn test_subtract_insufficient_funds_is_an_error() -> Unit =
+    let diff = Exchange.Money.subtract(Exchange.Money.money(100, Exchange.Money.USD()), Exchange.Money.money(200, Exchange.Money.USD()))
+    Std.Test.assert(Std.Result.is_error(diff))
+
+  fn test_subtract_exact_balance_reaches_zero() -> Unit =
+    let diff = Exchange.Money.subtract(Exchange.Money.money(500, Exchange.Money.USD()), Exchange.Money.money(500, Exchange.Money.USD()))
+    Std.Test.assert_eq(Std.Result.unwrap(diff, Exchange.Money.zero(Exchange.Money.USD())), Exchange.Money.zero(Exchange.Money.USD()))
+
+  fn test_convert_applies_the_spot_rate() -> Unit =
+    let converted = Exchange.Money.convert(Exchange.Money.money(10000, Exchange.Money.USD()), Exchange.Money.EUR(), 0.92)
+    Std.Test.assert_eq(converted, Exchange.Money.money(9200, Exchange.Money.EUR()))
