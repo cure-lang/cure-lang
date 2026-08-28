@@ -17,7 +17,9 @@ The package-boundary regression models the embedded sources as the `cure_regex`
 package itself (rather than accidentally scanning them as part of `stdlib`).
 This keeps the manifest identity, source-hash namespace, export filtering, and
 acyclic dependency checks aligned with the package artifact produced by the
-stdlib bootstrap.
+stdlib bootstrap. A package-specific ordering property now rebuilds that
+manifest from reversed and rotated source lists and requires identical
+canonical entries, so filename order cannot rekey the embedded modules.
 
 The first Phase 2 evidence slice is also landed: successful lookahead and
 lookbehind decisions carry an existential package containing the indexed finite

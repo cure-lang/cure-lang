@@ -63,6 +63,35 @@ defmodule Cure.Compiler.RegexModuleSplitTest do
     refute "Std.Regex" in dependencies.("Std.Regex.Proof")
   end
 
+  test "Regex manifest identities are independent of source ordering" do
+    paths =
+      Path.wildcard("lib/std_deps/regex/regex*.cure")
+      |> Enum.map(&Path.expand/1)
+      |> Enum.sort()
+
+    assert {:ok, stdlib_index} =
+             ModuleIndex.build(Path.wildcard("lib/std/**/*.cure"), validate_dependencies: false)
+
+    known_modules = ["Std.Builtin" | ModuleIndex.module_names(stdlib_index)]
+
+    build_entries = fn ordered ->
+      assert {:ok, manifest} =
+               ModuleManifest.build(ordered,
+                 package: "cure_regex",
+                 known_modules: known_modules
+               )
+
+      manifest.entries
+    end
+
+    baseline = build_entries.(paths)
+
+    [Enum.reverse(paths), Enum.drop(paths, 3) ++ Enum.take(paths, 3)]
+    |> Enum.each(fn ordered ->
+      assert build_entries.(ordered) == baseline
+    end)
+  end
+
   test "the complete embedded Regex package has an acyclic use graph" do
     paths =
       Path.wildcard("lib/std_deps/regex/regex*.cure")
