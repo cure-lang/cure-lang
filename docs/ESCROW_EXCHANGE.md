@@ -76,7 +76,7 @@ examples/cure_exchange/cure/
 
 To prevent double-spending, accounts maintain two separate amounts: `balance` (available to spend) and `held` (locked in active escrows).
 
-```cure
+```text
 mod Exchange.Ledger
   use Std.Result
   use Exchange.Money
@@ -97,7 +97,7 @@ The escrow hold lifecycle is governed by three total operations:
 2. `capture(ledger, account_id, amount)`: Debits `held` entirely when a trade completes (`BankConfirmed`).
 3. `release(ledger, account_id, amount)`: Moves `held` back into `balance` on cancellation or refund (`RefundCompleted`).
 
-```cure
+```text
   ## Move amount from available balance into hold
   fn reserve(ledger: Ledger, id: Int, amount: Exchange.Money.Money) -> Result(Ledger, String) =
     match find_account(ledger.accounts, id)
@@ -116,7 +116,7 @@ The escrow hold lifecycle is governed by three total operations:
 
 `Exchange.EscrowFsm` models transitions using a `match` expression over state and event ADTs. Unhandled state/event combinations return `Keep(data)` instead of crashing, ensuring stray webhooks or delayed timers are safely ignored.
 
-```cure
+```text
 mod Exchange.EscrowFsm
   use Std.Fsm
 
@@ -173,7 +173,7 @@ mod Exchange.EscrowFsm
 
 In addition to hand-written transitions, the project includes `Exchange.EscrowFsmDslReference`, which uses Cure's `Std.Fsm` macro DSL. When compiled, the compiler automatically verifies graph properties (reachability, deadlock-freedom, and payload consistency):
 
-```cure
+```text
 mod Exchange.EscrowFsmDslReference
   use Std.Fsm
 
@@ -258,7 +258,7 @@ examples/cure_exchange/elixir/
 
 The state machine is defined using `Std.Fsm`. Note that identifiers like `quote_id` and `trade_id` use `Atom` to cross the BEAM boundary cleanly without String allocation overhead.
 
-```cure
+```text
 use Std.Fsm
 
 rec EscrowData

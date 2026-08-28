@@ -102,7 +102,7 @@ on another) is a compile error (`:fsm_inconsistent_event_payload`).
 
 Send a payload-bearing event by passing its constructor to `send/2`:
 
-```cure
+```text
 Machine.send(handle, Coin(5))
 ```
 
