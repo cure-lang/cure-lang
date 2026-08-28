@@ -12591,6 +12591,102 @@ mod Std.Regex.Runtime
     path
   )
 
+  ## A four-sibling rejected tail uses the same recursive fold without adding
+  ## another fixed-arity package peel.  This concrete instantiation keeps the
+  ## proof-facing candidate spine explicit so the compiler checks that the
+  ## generalized helper really transports one more `Drop` step.
+  fn atomic_path_destination_rejection_excludes_four_tail_rejection(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    char: Char,
+    rest: List(Char),
+    after_input: List(Char),
+    state: Bounded(n),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    scope_depth: Nat,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    whole: List(LookaroundAdmittedState(n)),
+    candidate: LookaroundAdmittedState(n),
+    nested_candidate: LookaroundAdmittedState(n),
+    third_candidate: LookaroundAdmittedState(n),
+    tail_candidate: LookaroundAdmittedState(n),
+    @erased failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(state),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(candidate, Cons(nested_candidate, Cons(third_candidate, Cons(tail_candidate, Nil())))),
+      AtomicPathFailureDestinationRejected()
+    ),
+    matched: List(Char),
+    remaining_input: List(Char),
+    routine: List(ExtendedInstruction),
+    @erased path: AtomicSelectedPathTrace(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(state),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      Nil(),
+      matched,
+      remaining_input,
+      routine
+    )
+  ) -> Empty = atomic_path_rejected_tail_fold_excludes_trace(
+    machine,
+    char,
+    rest,
+    after_input,
+    state,
+    history,
+    capture_context,
+    policy,
+    scope_depth,
+    prefix_mode,
+    reversed_prefix,
+    whole,
+    candidate,
+    Cons(nested_candidate, Cons(third_candidate, Cons(tail_candidate, Nil()))),
+    failure,
+    matched,
+    remaining_input,
+    routine,
+    LookaroundAdmittedStateCursorSuffixDrop(
+      candidate,
+      LookaroundAdmittedStateCursorSuffixDrop(
+        nested_candidate,
+        LookaroundAdmittedStateCursorSuffixDrop(
+          third_candidate,
+          LookaroundAdmittedStateCursorSuffixDrop(
+            tail_candidate,
+            LookaroundAdmittedStateCursorSuffixHere(reflexive(empty_lookaround_admitted_states(n)))
+          )
+        )
+      )
+    ),
+    path
+  )
+
   ## A rejected first candidate can be discharged when the selected trace is
   ## aligned to the sibling tail.  The parent rejection publishes the exact
   ## whole-to-tail suffix, while the selected trace supplies a source-relative

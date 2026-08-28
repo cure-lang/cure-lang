@@ -1762,6 +1762,17 @@ destination-rejection-tail chain; rejected child correspondence, mixed failure
 kinds, start-list recursion, and the final all-kinds selected-trace/refutation
 theorem remain open.
 
+The generalized destination-rejection fold is now instantiated by a concrete
+four-sibling theorem, `atomic_path_destination_rejection_excludes_four_tail_rejection`.
+Its indexed candidate spine contains four rejected destinations and four
+ordered `Drop` transports before the empty cursor; the complete Regex runtime
+compiles with zero warnings, and the source regression confirms that this
+instantiation calls the recursive fold rather than introducing another
+fixed-arity helper. This is additional coverage of the fold's arbitrary-tail
+shape only; mixed tail-failure kinds, rejected-child correspondence,
+start-list recursion, and the final all-kinds selected-trace/refutation theorem
+remain open.
+
 The active-child alignment witness no longer has a vacuous reverse constructor.
 `AtomicPathActiveChildAlignment` now indexes the failed current suffix and
 stores an explicit `LookaroundAdmittedStateCursorSuffix` for every direction:

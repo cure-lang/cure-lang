@@ -1942,6 +1942,23 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert package_body =~ "atomic_path_failure_excludes_aligned_trace"
   end
 
+  test "four rejected destination siblings instantiate the recursive fold" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "fn atomic_path_destination_rejection_excludes_four_tail_rejection"
+
+    [_prefix, body] =
+      String.split(
+        source,
+        "fn atomic_path_destination_rejection_excludes_four_tail_rejection",
+        parts: 2
+      )
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert body =~ "atomic_path_rejected_tail_fold_excludes_trace("
+    assert Regex.match?(~r/Cons(candidate, Cons(nested_candidate, Cons(third_candidate, Cons(tail_candidate/s, body)
+  end
+
   test "rejected-tail refinement is a proof-only construction boundary" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
