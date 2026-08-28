@@ -1824,14 +1824,17 @@ correspondence remain open.
 
 The generic rejected-tail dispatcher now delegates to the named
 `atomic_path_destination_rejection_selected_suffix_dispatch` boundary.  That
-boundary selects the already-built head or tail result solely from the
-indexed cursor, while its failure, candidate, path, and cursor payloads remain
-erased.  The branch results are supplied through the compiler's supported
-proof-only zero-argument continuation form; no erased failure tag is inspected
-and no runtime state is added.  The complete `Std.Regex.Runtime` module
-compiles directly with zero warnings.  This centralizes the rejected-tail
-selection authority but does not discharge arbitrary rejected-child recursion
-or the final all-kinds selected-trace/refutation theorem.
+boundary returns an indexed `AtomicPathSelectedTailDispatch` branch selected
+solely from the cursor: `AtomicPathSelectedTailHead` carries the caller's
+already-built result, while `AtomicPathSelectedTailTail` carries a typed
+`AtomicPathSelectedTailPackage` containing the recursive refutation, the tail
+cursor suffix, and the selected path.  All of that evidence remains erased;
+the dispatcher uses no higher-order runtime continuation and inspects no
+failure tag.  The complete `Std.Regex.Runtime` module compiles directly with
+zero warnings.  This centralizes the rejected-tail construction authority and
+makes the exact package available for arbitrary sibling recursion, but the
+recursive consumers and final all-kinds selected-trace/refutation theorem are
+still open.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in

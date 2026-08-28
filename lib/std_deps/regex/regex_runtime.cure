@@ -4152,6 +4152,25 @@ mod Std.Regex.Runtime
     AtomicSelectedStartActive : (@erased state: Bounded(n)) -> (@erased routine: List(EvidenceInstruction)) -> (@erased constraints: List(BoundaryConstraint)) -> (@erased assertion_routine: List(ExtendedInstruction)) -> (@erased assertion_markers: List(EvidenceInstruction)) -> (@erased nested_decisions: List(LookaroundNestedDecision)) -> {@erased whole: List(LookaroundAdmittedState(n))} -> {@erased remaining: List(LookaroundAdmittedState(n))} -> (@erased cursor: LookaroundAdmittedStateCursor(n, whole, Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining))) -> (@erased start_selection_suffix: LookaroundAdmittedStateCursorSuffix(n, whole, Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining))) -> (@erased edge: ListMember(LookaroundAdmittedState(n), LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining))) -> (@erased canonical: Equivalent(List(LookaroundAdmittedState(n)), whole, lookaround_admitted_starts(depth, n, machine, position, input, after_input, history, capture_context, policy))) -> {@erased selected_whole: List(LookaroundAdmittedState(n))} -> {@erased selected_current: List(LookaroundAdmittedState(n))} -> (@erased selection_suffix: LookaroundAdmittedStateCursorSuffix(n, selected_whole, selected_current)) -> {@erased selected_origin: List(LookaroundAdmittedState(n))} -> (@erased selected_origin_equivalence: Equivalent(List(LookaroundAdmittedState(n)), selected_origin, selected_whole)) -> (@erased selection_from_origin: LookaroundAdmittedStateCursorSuffix(n, selected_origin, selected_current)) -> (@erased suffix: AtomicSelectedPathTrace(depth, n, machine, input, after_input, ThreadActive(state), history, lookaround_admitted_active_capture_context(capture_context, routine, assertion_markers), policy, atomic_scope_depth_after(routine, Z()), prefix_mode, reversed_prefix, selected_current, matched, remaining_input, suffix_routine)) -> AtomicSelectedTrace(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), matched, remaining_input, append_extended_routines(regular_routine(routine), append_extended_routines(assertion_routine, suffix_routine)))
     AtomicSelectedStartAccepted : (@erased routine: List(EvidenceInstruction)) -> (@erased constraints: List(BoundaryConstraint)) -> (@erased assertion_routine: List(ExtendedInstruction)) -> (@erased assertion_markers: List(EvidenceInstruction)) -> (@erased nested_decisions: List(LookaroundNestedDecision)) -> {@erased whole: List(LookaroundAdmittedState(n))} -> {@erased remaining: List(LookaroundAdmittedState(n))} -> (@erased cursor: LookaroundAdmittedStateCursor(n, whole, Cons(LookaroundAdmittedAccepted(routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining))) -> (@erased start_selection_suffix: LookaroundAdmittedStateCursorSuffix(n, whole, Cons(LookaroundAdmittedAccepted(routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining))) -> (@erased edge: ListMember(LookaroundAdmittedState(n), LookaroundAdmittedAccepted(routine, constraints, assertion_routine, assertion_markers, nested_decisions), Cons(LookaroundAdmittedAccepted(routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining))) -> (@erased canonical: Equivalent(List(LookaroundAdmittedState(n)), whole, lookaround_admitted_starts(depth, n, machine, position, input, after_input, history, capture_context, policy))) -> {@erased selected_whole: List(LookaroundAdmittedState(n))} -> {@erased selected_current: List(LookaroundAdmittedState(n))} -> (@erased selection_suffix: LookaroundAdmittedStateCursorSuffix(n, selected_whole, selected_current)) -> {@erased selected_origin: List(LookaroundAdmittedState(n))} -> (@erased selected_origin_equivalence: Equivalent(List(LookaroundAdmittedState(n)), selected_origin, selected_whole)) -> (@erased selection_from_origin: LookaroundAdmittedStateCursorSuffix(n, selected_origin, selected_current)) -> (@erased suffix: AtomicSelectedPathTrace(depth, n, machine, input, after_input, ThreadAccepted(), history, lookaround_admitted_accepted_capture_context(capture_context, routine, assertion_markers), policy, atomic_scope_depth_after(routine, Z()), prefix_mode, reversed_prefix, selected_current, matched, remaining_input, suffix_routine)) -> AtomicSelectedTrace(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, LookaroundAdmittedAccepted(routine, constraints, assertion_routine, assertion_markers, nested_decisions), matched, remaining_input, append_extended_routines(regular_routine(routine), append_extended_routines(assertion_routine, suffix_routine)))
 
+  ## A rejected destination's selected sibling tail carries three pieces of
+  ## proof-only state together: the recursive refutation (whose failure kind
+  ## remains existential), the cursor suffix from the rejected tail to the
+  ## selected current list, and the selected path itself.  Keeping these in a
+  ## single indexed package means arbitrary sibling recursion can consume the
+  ## exact tail produced by the parent construction site instead of rebuilding
+  ## any of the erased evidence.
+  type AtomicPathSelectedTailPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), remaining: List(LookaroundAdmittedState(n)), selected_current: List(LookaroundAdmittedState(n)), matched: List(Char), remaining_input: List(Char), selected_routine: List(ExtendedInstruction))
+    AtomicPathSelectedTailPackagePacked : (@erased tail: AtomicPathTailPackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, remaining)) -> (@erased selection_suffix: LookaroundAdmittedStateCursorSuffix(n, remaining, selected_current)) -> (@erased path: AtomicSelectedPathTrace(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, selected_current, matched, remaining_input, selected_routine)) -> AtomicPathSelectedTailPackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, remaining, selected_current, matched, remaining_input, selected_routine)
+
+  ## The selected-suffix dispatcher returns a proof-only branch instead of a
+  ## higher-order continuation.  The tail branch retains the exact package
+  ## produced at the rejected-destination construction site; consumers can
+  ## then recurse on that package without putting an erased proof in a runtime
+  ## closure.
+  type AtomicPathSelectedTailDispatch(result: Type, depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), remaining: List(LookaroundAdmittedState(n)), selected_current: List(LookaroundAdmittedState(n)), matched: List(Char), remaining_input: List(Char), selected_routine: List(ExtendedInstruction))
+    AtomicPathSelectedTailHead : (value: result) -> AtomicPathSelectedTailDispatch(result, depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, remaining, selected_current, matched, remaining_input, selected_routine)
+    AtomicPathSelectedTailTail : (@erased package: AtomicPathSelectedTailPackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, remaining, selected_current, matched, remaining_input, selected_routine)) -> AtomicPathSelectedTailDispatch(result, depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, remaining, selected_current, matched, remaining_input, selected_routine)
+
   ## Package the child evidence carried by an active selected transition at the
   ## construction site.  The selected whole/current lists are deliberately
   ## constructor-local existentials: consumers must refine this package to
@@ -11331,7 +11350,7 @@ mod Std.Regex.Runtime
     tail_case: result
   ) -> result = match failure
     AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) ->
-      atomic_path_destination_rejection_excludes_recursive_tail(
+      match atomic_path_destination_rejection_excludes_recursive_tail(
         machine,
         char,
         rest,
@@ -11351,16 +11370,18 @@ mod Std.Regex.Runtime
         routine,
         selection_from_current,
         path,
-        head_case,
-        tail_case
+        head_case
       )
+        AtomicPathSelectedTailHead(value) -> value
+        AtomicPathSelectedTailTail(_) -> tail_case
 
   ## Generic selected-trace dispatcher for a rejected destination. The parent
   ## refutation is indexed at `Cons(candidate, remaining)` while the selected
-  ## trace may begin at either that candidate or a later sibling. The caller
-  ## supplies the already-built head and tail results, and the cursor relation
-  ## is the sole authority for selecting between them; no runtime state tag or
-  ## erased failure payload is inspected.
+  ## trace may begin at either that candidate or a later sibling. The cursor
+  ## relation selects a proof-only head or tail branch; the tail branch keeps
+  ## the recursive failure, suffix, and selected path together for the next
+  ## induction step. No runtime state tag or erased failure payload is
+  ## inspected.
   @reducible
   fn atomic_path_destination_rejection_excludes_recursive_tail(
     {result: Type},
@@ -11424,9 +11445,28 @@ mod Std.Regex.Runtime
       remaining_input,
       routine
     ),
-    head_case: result,
-    tail_case: result
-  ) -> result = atomic_path_destination_rejection_selected_suffix_dispatch(
+    head_case: result
+  ) -> AtomicPathSelectedTailDispatch(
+    result,
+    depth,
+    n,
+    machine,
+    Cons(char, rest),
+    after_input,
+    ThreadActive(state),
+    history,
+    capture_context,
+    policy,
+    scope_depth,
+    prefix_mode,
+    reversed_prefix,
+    whole,
+    remaining,
+    candidate_current,
+    matched,
+    remaining_input,
+    routine
+  ) = atomic_path_destination_rejection_selected_suffix_dispatch(
     machine,
     char,
     rest,
@@ -11446,12 +11486,7 @@ mod Std.Regex.Runtime
     routine,
     selection_from_current,
     path,
-    fn() ->
-      head_case
-    end,
-    fn() ->
-      tail_case
-    end
+    head_case
   )
 
   ## Empty-result form of the same dispatcher. The selected cursor is
@@ -11472,8 +11507,9 @@ mod Std.Regex.Runtime
   ## Split a rejected destination's selected suffix at the construction site.
   ## A `Here` suffix is the rejected candidate itself and must be discharged by
   ## the child theorem supplied by the caller.  A `Drop` suffix is a later
-  ## sibling; its tail cursor is forwarded to the recursive tail dispatcher so
-  ## the parent cannot accidentally treat a sibling trace as a head trace.
+  ## sibling; its tail cursor is packaged with the recursive refutation and
+  ## selected path so the parent cannot accidentally treat a sibling trace as
+  ## a head trace.
   @reducible
   fn atomic_path_destination_rejection_selected_suffix_dispatch(
     {result: Type},
@@ -11537,13 +11573,50 @@ mod Std.Regex.Runtime
       remaining_input,
       routine
     ),
-    head_case: () -> result,
-    tail_case: () -> result
-  ) -> result = atomic_path_selected_child_suffix_location_elim(
-    selection_from_current,
-    head_case,
-    tail_case
-  )
+    head_case: result
+  ) -> AtomicPathSelectedTailDispatch(
+    result,
+    depth,
+    n,
+    machine,
+    Cons(char, rest),
+    after_input,
+    ThreadActive(state),
+    history,
+    capture_context,
+    policy,
+    scope_depth,
+    prefix_mode,
+    reversed_prefix,
+    whole,
+    remaining,
+    candidate_current,
+    matched,
+    remaining_input,
+    routine
+  ) = match atomic_path_selected_child_suffix_location(selection_from_current)
+    AtomicPathSelectedChildHere(_, _) -> AtomicPathSelectedTailHead(head_case)
+    AtomicPathSelectedChildThere(_, _) -> match selection_from_current
+      LookaroundAdmittedStateCursorSuffixDrop(_, tail_suffix) ->
+        AtomicPathSelectedTailTail(AtomicPathSelectedTailPackagePacked(
+          atomic_path_destination_rejected_tail_package(
+            machine,
+            char,
+            rest,
+            after_input,
+            state,
+            history,
+            capture_context,
+            policy,
+            scope_depth,
+            prefix_mode,
+            reversed_prefix,
+            failure
+          ),
+          tail_suffix,
+          path
+        ))
+      LookaroundAdmittedStateCursorSuffixHere(_) -> AtomicPathSelectedTailHead(head_case)
 
   ## A rejected candidate may leave a sibling tail whose search reaches the
   ## destination-exhaustion leaf. When the selected trace is already aligned
@@ -11586,7 +11659,7 @@ mod Std.Regex.Runtime
       tail_suffix,
       path
     )
-    atomic_path_destination_rejection_excludes_recursive_tail(
+    match atomic_path_destination_rejection_excludes_recursive_tail(
       machine,
       char,
       rest,
@@ -11606,9 +11679,10 @@ mod Std.Regex.Runtime
       routine,
       LookaroundAdmittedStateCursorSuffixDrop(candidate, tail_suffix),
       path,
-      tail_result,
       tail_result
     )
+      AtomicPathSelectedTailHead(value) -> value
+      AtomicPathSelectedTailTail(_) -> tail_result
 
   ## A two-sibling rejected tail reaches the same singleton recursion after
   ## the outer candidate is skipped.  The nested rejected candidate is fixed

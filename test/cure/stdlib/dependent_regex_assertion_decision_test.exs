@@ -1582,10 +1582,8 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     [body | _] = String.split(body, "\n  ##", parts: 2)
 
-    assert Regex.match?(
-             ~r/atomic_path_selected_child_suffix_location_elim.*?head_case.*?tail_case/s,
-             body
-           )
+    assert Regex.match?(~r/atomic_path_selected_child_suffix_location.*?AtomicPathSelectedChildHere/s, body)
+    assert Regex.match?(~r/AtomicPathSelectedTailHead.*?AtomicPathSelectedTailTail/s, body)
   end
 
   test "atomic destination rejection has a generic recursive-tail dispatcher" do
@@ -1599,6 +1597,21 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     [body | _] = String.split(body, "\n  ##", parts: 2)
     assert body =~ "remaining: List(LookaroundAdmittedState(n))"
     assert body =~ "atomic_path_destination_rejection_selected_suffix_dispatch("
+  end
+
+  test "atomic destination recursion preserves the selected tail package" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "type AtomicPathSelectedTailPackage"
+    assert source =~ "AtomicPathSelectedTailPackagePacked"
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_path_destination_rejection_selected_suffix_dispatch(\n", parts: 2)
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert body =~ "AtomicPathSelectedTailPackagePacked"
+    assert body =~ "tail_suffix"
+    assert body =~ "path"
   end
 
   test "rejected-tail construction sites use the generic dispatcher" do
