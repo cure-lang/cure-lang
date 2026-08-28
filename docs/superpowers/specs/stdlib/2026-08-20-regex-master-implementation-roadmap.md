@@ -1854,6 +1854,18 @@ the preserved `AtomicPathSelectedTailPackage` rather than rebuilding a tail
 failure or discarding the selected suffix.  Direct runtime compilation remains
 zero-warning; the arbitrary rejected-child branch is still open.
 
+The active-child side now has a matching proof-only package consumer at the
+first concrete tail base:
+`atomic_path_active_child_rejection_excludes_tail_package` consumes the indexed
+`AtomicPathSelectedTailDispatch`, preserves the head result, and routes a
+`Tail(package)` through the existing active destination-exhaustion contradiction.
+The `Empty` contradiction is eliminated explicitly at this polymorphic boundary;
+no runtime failure tag or unchecked conversion is introduced.  The focused
+source regression and direct zero-warning `Std.Regex.Runtime` compile pass.
+This helper is intentionally not claimed as the general non-empty rejected-child
+fold: wiring the package into that recursive construction site, and consuming
+all remaining tail-failure kinds, are still open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

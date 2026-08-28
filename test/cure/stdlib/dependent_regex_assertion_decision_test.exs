@@ -1843,6 +1843,21 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert body =~ "atomic_path_active_destinations_exhausted_excludes_trace"
   end
 
+  test "recursive active-child rejection consumes the selected tail package" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "fn atomic_path_active_child_rejection_excludes_tail_package"
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_path_active_child_rejection_excludes_tail_package", parts: 2)
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert body =~ "AtomicPathSelectedTailTail(package)"
+    assert body =~ "AtomicPathSelectedTailPackagePacked"
+    assert body =~ "AtomicPathTailPackagePacked"
+    assert body =~ "atomic_path_active_child_rejection_excludes_tail_exhaustion"
+  end
+
   test "two rejected destination siblings recurse into the nested tail" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 

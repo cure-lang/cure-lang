@@ -10427,6 +10427,104 @@ mod Std.Regex.Runtime
       )
     LookaroundAdmittedStateCursorSuffixDrop(_, _) -> impossible
 
+  ## Consume the selected-tail package produced for a rejected active child.
+  ## The package keeps the sibling-tail refutation, its cursor suffix, and the
+  ## selected child path under one proof-only index.  At this first concrete
+  ## recursive-tail base, the package tail is destination exhaustion, so the
+  ## existing active exhaustion eliminator can consume it without rebuilding
+  ## a cursor or inspecting an erased failure tag.
+  @reducible
+  fn atomic_path_active_child_rejection_excludes_tail_package(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    child_char: Char,
+    child_rest: List(Char),
+    after_input: List(Char),
+    source: Bounded(n),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    scope_depth: Nat,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    whole: List(LookaroundAdmittedState(n)),
+    candidate: LookaroundAdmittedState(n),
+    @erased failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(child_char, child_rest),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(candidate, Nil()),
+      AtomicPathFailureDestinationRejected()
+    ),
+    {selected_current: List(LookaroundAdmittedState(n))},
+    matched: List(Char),
+    remaining_input: List(Char),
+    selected_routine: List(ExtendedInstruction),
+    dispatch: AtomicPathSelectedTailDispatch(
+      result,
+      depth,
+      n,
+      machine,
+      Cons(child_char, child_rest),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Nil(),
+      selected_current,
+      matched,
+      remaining_input,
+      selected_routine
+    )
+  ) -> result = match dispatch
+    AtomicPathSelectedTailHead(value) -> value
+    AtomicPathSelectedTailTail(package) -> match package
+      AtomicPathSelectedTailPackagePacked(tail_package, tail_suffix, path) -> match tail_package
+        AtomicPathTailPackagePacked(tail_failure) -> match tail_failure
+          AtomicPathInputExhausted(_, _) -> impossible
+          AtomicPathExactAcceptedWithInput(_, _, _, _) -> impossible
+          AtomicPathDestinationsExhausted(_, _, _, _, _, _) ->
+            lookaround_absurd(atomic_path_active_child_rejection_excludes_tail_exhaustion(
+              machine,
+              child_char,
+              child_rest,
+              after_input,
+              source,
+              history,
+              capture_context,
+              policy,
+              scope_depth,
+              prefix_mode,
+              reversed_prefix,
+              whole,
+              candidate,
+              failure,
+              tail_failure,
+              tail_suffix,
+              matched,
+              remaining_input,
+              selected_routine,
+              path
+            ))
+          AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+
   ## When a sibling tail rejects an accepted candidate, its exact child
   ## refutation can be consumed by the same accepted-child eliminator. The
   ## parent rejection is retained as an index witness; the tail constructor
