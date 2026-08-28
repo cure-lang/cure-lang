@@ -221,6 +221,13 @@ runtime. This is transport scaffolding for the generalized refutation proof;
 arbitrary rejected-child recursion and the final selected-trace/refutation
 correspondence remain open.
 
+The active-child selection package now consumes its erased
+`child_selected_whole_equivalence` at the construction boundary, refining it
+to `reflexive` before the continuation runs. This prevents the selected and
+failure whole-list spines from being silently discarded, while leaving the
+parent contradiction and arbitrary sibling recursion as the remaining proof
+obligation.
+
 The singleton destination-exhaustion tail is also consumed by the named
 proof-only `atomic_path_active_child_rejection_excludes_tail_exhaustion`
 boundary. Its indexed arguments fix a rejected parent and a

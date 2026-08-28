@@ -2670,6 +2670,19 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert source =~ "cursor_suffix: MachineStateCursorSuffix(n, current, candidates)"
   end
 
+  test "active-child package consumption refines its selected-whole equality" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_path_active_child_selection_package_consume", parts: 2)
+
+    body = String.split(body, "\n  fn ", parts: 2) |> List.first()
+
+    assert body =~ "child_selected_whole_equivalence"
+    assert body =~ "match child_selected_whole_equivalence"
+    assert body =~ "reflexive() -> continuation()"
+  end
+
   test "atomic scope proofs use indexed construction helpers" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 

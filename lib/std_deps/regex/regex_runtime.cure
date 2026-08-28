@@ -4204,7 +4204,9 @@ mod Std.Regex.Runtime
     ),
     continuation: () -> result
   ) -> result = match package
-    AtomicPathActiveChildSelectionPackageActive(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> continuation()
+    AtomicPathActiveChildSelectionPackageActive(_, _, _, _, _, _, _, _, _, _, _, child_selected_whole_equivalence, _, _, _, _, _) ->
+      match child_selected_whole_equivalence
+        reflexive() -> continuation()
 
   ## Selected-trace counterpart of the blocked-member induction. The blocked
   ## head's skip/allow evidence is threaded through the recursive tail package

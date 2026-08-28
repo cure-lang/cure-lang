@@ -1784,8 +1784,11 @@ recursive child trace.  The complete `regex_runtime.cure` module elaborates
 directly in about 51 seconds, and a source regression pins the explicit erased
 indices.  The package now also carries the selected-whole `Equivalent` witness,
 giving the generic parent alignment one construction-site source for that
-equality.  The witness is not yet consumed by the parent contradiction:
-arbitrary rejected-child recursion and the final all-kinds
+equality.  The package consumer now refines that witness to `reflexive` before
+invoking its continuation, so the equality cannot be silently discarded at the
+erased boundary.  This is still only a local construction-site refinement, not
+consumption by the parent contradiction: arbitrary rejected-child recursion and
+the final all-kinds
 selected-trace/refutation theorem remain open.  No bare-name or unchecked cast
 bridge is introduced.
 
