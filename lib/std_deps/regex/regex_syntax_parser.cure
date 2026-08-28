@@ -169,6 +169,7 @@ mod Std.Regex.Syntax.Parser
       ['(', '*', 'A', 'C', 'C', 'E', 'P', 'T', ')' | rest] -> pickup
         literal_accept_continuation_allowed(rest) -> LiteralParsed(LiteralEmpty, rest)
         else -> LiteralAtInvalid(:UnsupportedRegexAcceptContinuation, input, literal_delimited_width(input, ')'))
+      ['(', '*', 'M', 'A', 'R', 'K', ':' | rest] -> parse_literal_mark_control(rest, next_fuel, input, [])
       ['(' | rest] -> parse_literal_group_fuel(rest, next_fuel, ['(' | rest])
       ['[' | rest] -> parse_literal_class(rest, ['[' | rest])
       ['\\' | rest] -> parse_literal_escape(rest, ['\\' | rest])
@@ -194,6 +195,7 @@ mod Std.Regex.Syntax.Parser
       ['*', 'A', 'N', 'Y', ')' | _] -> LiteralAtInvalid(:UnsupportedRegexNewlineControl, origin, literal_delimited_width(origin, ')'))
       ['*', 'B', 'S', 'R', '_', 'A', 'N', 'Y', 'C', 'R', 'L', 'F', ')' | _] -> LiteralAtInvalid(:UnsupportedRegexNewlineControl, origin, literal_delimited_width(origin, ')'))
       ['*', 'B', 'S', 'R', '_', 'U', 'N', 'I', 'C', 'O', 'D', 'E', ')' | _] -> LiteralAtInvalid(:UnsupportedRegexNewlineControl, origin, literal_delimited_width(origin, ')'))
+      ['*', 'M', 'A', 'R', 'K', ')' | _] -> LiteralAtInvalid(:MalformedRegexMarkControl, origin, literal_delimited_width(origin, ')'))
       ['?', ':' | rest] -> parse_literal_non_capture_fuel(rest, next_fuel, origin)
       ['?', '|' | rest] -> parse_literal_branch_reset_fuel(rest, next_fuel, origin, [])
       ['?', 'R' | _] -> LiteralAtInvalid(:UnsupportedRegexRecursion, origin, 3)
@@ -220,6 +222,21 @@ mod Std.Regex.Syntax.Parser
         Some(_) -> LiteralAtInvalid(:UnsupportedRegexRecursion, origin, 3)
         None() -> parse_literal_capture_fuel(input, next_fuel, origin)
       _ -> parse_literal_capture_fuel(input, next_fuel, origin)
+
+  ## `(*MARK:NAME)` is a zero-width annotation in PCRE. Cure's public match
+  ## values expose no MARK channel, so consume and validate the label at the
+  ## syntax boundary and normalize the control to `LiteralEmpty`. A closing
+  ## parenthesis is the delimiter; labels may otherwise contain arbitrary
+  ## scalar characters. The bounded parser fuel keeps malformed input within
+  ## the same compile-time safety limit as every other regex construct.
+  fn parse_literal_mark_control(input: List(Char), fuel: Nat, origin: List(Char), reversed: List(Char)) -> LiteralParse = match fuel
+    Z() -> LiteralInvalid(:RegexParseLimit)
+    S(next_fuel) -> match input
+      [] -> LiteralAtInvalid(:UnclosedRegexMarkControl, origin, literal_length(origin))
+      [')' | rest] -> match reversed
+        [] -> LiteralAtInvalid(:EmptyRegexMarkName, origin, literal_delimited_width(origin, ')'))
+        _ -> LiteralParsed(LiteralEmpty, rest)
+      [char | rest] -> parse_literal_mark_control(rest, next_fuel, origin, [char | reversed])
 
   fn parse_literal_inline_options(input: List(Char), fuel: Nat, origin: List(Char), enabled: List(LiteralModifier), disabled: List(LiteralModifier), removing: Bool) -> LiteralParse = match fuel
     Z() -> LiteralInvalid(:RegexParseLimit)

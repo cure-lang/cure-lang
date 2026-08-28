@@ -82,4 +82,47 @@ defmodule Cure.Stdlib.DependentRegexUnsupportedConstructTest do
               {:author_diagnostics, [{:macro_failure, :UnsupportedRegexAcceptContinuation, _}]}}, _context}} =
              Cure.Elab.Program.elaborate(source_with_continuation)
   end
+
+  test "MARK controls normalize to zero-width annotations" do
+    source = ~S'''
+    mod RegexMarkControl
+      use Std.Regex
+
+      fn leading(input: String) -> Bool = matches(/(*MARK:leading)a/, input)
+      fn inline(input: String) -> Bool = matches(/a(*MARK:middle)b/, input)
+      fn alternated(input: String) -> Bool = matches(/(*MARK:left)a|(*MARK:right)b/, input)
+    end
+    '''
+
+    assert {:ok, runtime_module} = Cure.Compiler.compile_and_load(source, emit_events: false)
+    assert apply(runtime_module, :leading, [{:String, ~c"a"}]) == true
+    assert apply(runtime_module, :inline, [{:String, ~c"ab"}]) == true
+    assert apply(runtime_module, :alternated, [{:String, ~c"a"}]) == true
+    assert apply(runtime_module, :alternated, [{:String, ~c"b"}]) == true
+  end
+
+  test "malformed MARK controls have dedicated diagnostics" do
+    cases = [
+      {"(*MARK)", :MalformedRegexMarkControl, "(*MARK)"},
+      {"(*MARK:)", :EmptyRegexMarkName, "(*MARK:)"},
+      {"(*MARK:label", :UnclosedRegexMarkControl, "(*MARK:label"}
+    ]
+
+    Enum.each(cases, fn {pattern, expected, expected_span} ->
+      source = "mod MalformedRegexMark\n  use Std.Regex\n  fn run() = /#{pattern}/\nend\n"
+
+      reason = Program.elaborate(source)
+
+      assert {:error,
+              {:source_context,
+               {:computed_macro_error, _meta,
+                {:author_diagnostics, [{:macro_failure, ^expected, _arguments}]}}, _context}} =
+               reason
+
+      {diagnostic, _registry} = Errors.to_diagnostic(reason, "nofile", source)
+      assert Cure.Diagnostic.message(diagnostic) =~ "MARK"
+      span = diagnostic.primary.span
+      assert binary_part(source, span.start_byte, span.end_byte - span.start_byte) == expected_span
+    end)
+  end
 end

@@ -1865,6 +1865,12 @@ the `u` option. `(*UTF16)` and `(*UTF32)` are rejected with the structured
 `:UnsupportedRegexEncodingControl` diagnostic because Cure does not model
 UTF code-unit subjects. These controls have focused runtime and exact-span
 diagnostic regressions.
+The finite `(*MARK:NAME)` control is now accepted anywhere an atom is allowed:
+its label is consumed by a fuel-bounded parser, must be non-empty, and the
+control normalizes to `LiteralEmpty`. Cure's public match values expose no
+MARK channel, so this preserves the observable acceptance and capture result
+without introducing runtime state. Missing, empty, and colon-less MARK forms
+produce dedicated structured diagnostics with exact source spans.
 Remaining Phase 3 work is grapheme clusters,
 duplicate-name and capture-layout policy, other finite control normalizations,
 and the remaining control families below. `(*FAIL)` and terminal `(*ACCEPT)`
