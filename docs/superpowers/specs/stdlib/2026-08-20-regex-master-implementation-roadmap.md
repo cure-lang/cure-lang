@@ -1893,7 +1893,10 @@ them as escaped literal letters. `\G` requires an explicit caller-provided
 search cursor and `\K` requires additive reported-span semantics; both are
 reserved for the runtime search-context work in Phase 4. Raw-byte `\C` is
 rejected as `:UnsupportedRegexByteEscape` because the Cure subject model is a
-Unicode-scalar sequence, not a byte string.
+Unicode-scalar sequence, not a byte string. PCRE octal `\o{...}` and control
+character `\cX` escapes are likewise rejected as
+`:UnsupportedRegexNumericEscape` and `:UnsupportedRegexControlEscape`; their
+byte-oriented encodings must not fall through to literal `o` or `c` atoms.
 Remaining Phase 3 work is grapheme clusters,
 duplicate-name and capture-layout policy, other finite control normalizations,
 and the remaining control families below. `(*FAIL)`/`(*F)` and terminal `(*ACCEPT)`
