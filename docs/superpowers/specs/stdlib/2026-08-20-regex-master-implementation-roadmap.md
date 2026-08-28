@@ -1886,6 +1886,16 @@ reusing the existing singleton refinement.  A focused source regression and
 direct zero-warning runtime compile pass.  Arbitrary-length rejected-child
 folding and the final all-kinds selected-trace/refutation theorem remain open.
 
+The three-sibling construction now performs the next package peel through
+`atomic_path_rejected_tail_dispatch_excludes_nested_trace`: its parent `Drop`
+selection is dispatched once, the existential nested rejection is refined at
+that boundary, and the final singleton package is consumed by the same
+construction-site contradiction.  The old manually rebuilt inner package is
+retained only as the already-built head result for the dispatcher, not as the
+selected-tail input.  The focused source regression and direct zero-warning
+runtime compile pass; arbitrary-length recursion and the all-kinds theorem
+remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
