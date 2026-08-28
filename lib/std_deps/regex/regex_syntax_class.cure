@@ -39,6 +39,11 @@ mod Std.Regex.Syntax.Class
     ['\\', 'X' | rest] -> LiteralClassAtInvalid(:UnsupportedRegexGrapheme, ['\\', 'X' | rest], 2)
     ['\\', 'g' | rest] -> LiteralClassAtInvalid(:UnsupportedRegexBackreference, ['\\', 'g' | rest], 2)
     ['\\', 'k' | rest] -> LiteralClassAtInvalid(:UnsupportedRegexBackreference, ['\\', 'k' | rest], 2)
+    ['\\', 'A' | rest] -> LiteralClassAtInvalid(:UnsupportedRegexClassEscape, ['\\', 'A' | rest], 2)
+    ['\\', 'B' | rest] -> LiteralClassAtInvalid(:UnsupportedRegexClassEscape, ['\\', 'B' | rest], 2)
+    ['\\', 'R' | rest] -> LiteralClassAtInvalid(:UnsupportedRegexClassEscape, ['\\', 'R' | rest], 2)
+    ['\\', 'Z' | rest] -> LiteralClassAtInvalid(:UnsupportedRegexClassEscape, ['\\', 'Z' | rest], 2)
+    ['\\', 'z' | rest] -> LiteralClassAtInvalid(:UnsupportedRegexClassEscape, ['\\', 'z' | rest], 2)
     ['\\', 'c' | rest] -> LiteralClassAtInvalid(:UnsupportedRegexControlEscape, ['\\', 'c' | rest], 2)
     ['\\', 'o' | rest] -> LiteralClassAtInvalid(:UnsupportedRegexNumericEscape, ['\\', 'o' | rest], literal_octal_escape_width(['\\', 'o' | rest]))
     ['\\', 'N' | rest] -> match rest
@@ -72,6 +77,9 @@ mod Std.Regex.Syntax.Class
     ['\\', 'P' | rest] -> match parse_literal_unicode_property(rest)
       LiteralPropertyParsed(property, tail) -> parse_literal_class_items_fuel(tail, chars, ranges, enable_unicode_property(property, true, kinds), fuel)
       LiteralPropertyInvalid(reason) -> LiteralClassAtInvalid(reason, ['\\', 'P' | rest], literal_property_escape_width(['\\', 'P' | rest]))
+    ['\\', char | rest] -> match literal_decimal_digit(char)
+      Some(_) -> LiteralClassAtInvalid(:UnsupportedRegexNumericEscape, ['\\', char | rest], literal_numeric_escape_width(['\\', char | rest]))
+      None() -> parse_literal_class_character('\\', [char | rest], chars, ranges, kinds, fuel)
     [first | rest] -> parse_literal_class_character(first, rest, chars, ranges, kinds, fuel)
 
   fn parse_literal_class_character(first: Char, rest: List(Char), chars: List(Char), ranges: List(LiteralCharacterRange), kinds: LiteralClassKinds, fuel: Nat) -> LiteralClassParse = pickup

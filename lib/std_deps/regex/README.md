@@ -77,6 +77,7 @@ The current parser admits the following forms.
 | Anchors | `^`, `$`, `\A`, `\z`, `\Z`, word boundaries `\b`/`\B` | Implemented; `\G` is rejected with `:UnsupportedRegexSearchAnchor` until an explicit search-context cursor is part of the API |
 | Match-span controls | `\K` | Rejected with `:UnsupportedRegexMatchReset` until additive reported-span semantics are specified |
 | Raw-byte atom | `\C` | Rejected with `:UnsupportedRegexByteEscape`; Cure subjects are Unicode-scalar sequences |
+| Special escapes in classes | `\A`, `\B`, `\R`, `\Z`, `\z`, and numeric escapes | Rejected with `:UnsupportedRegexClassEscape` or `:UnsupportedRegexNumericEscape` rather than being reduced to literal class members |
 | Line breaks | `\R`; leading `(*LF)`, `(*CR)`, `(*CRLF)`, `(*ANYCRLF)`, `(*ANY)`, `(*BSR_ANYCRLF)`, `(*BSR_UNICODE)` | Implemented |
 | Classes | ranges, negation, unions, escaped members, POSIX classes | Implemented |
 | Generic classes | `\d`, `\D`, `\w`, `\W`, `\s`, `\S`, `\h`, `\H`, `\v`, `\V` | Implemented with ASCII/Unicode option semantics |

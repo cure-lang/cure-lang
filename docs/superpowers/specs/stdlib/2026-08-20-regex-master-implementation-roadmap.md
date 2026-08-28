@@ -1897,6 +1897,10 @@ Unicode-scalar sequence, not a byte string. PCRE octal `\o{...}` and control
 character `\cX` escapes are likewise rejected as
 `:UnsupportedRegexNumericEscape` and `:UnsupportedRegexControlEscape`; their
 byte-oriented encodings must not fall through to literal `o` or `c` atoms.
+The class parser applies the same boundary: anchor, line-break, numeric, and
+other special escapes that have no character-class meaning are rejected with
+structured `:UnsupportedRegexClassEscape` or numeric diagnostics instead of
+becoming literal class members.
 Remaining Phase 3 work is grapheme clusters,
 duplicate-name and capture-layout policy, other finite control normalizations,
 and the remaining control families below. `(*FAIL)`/`(*F)` and terminal `(*ACCEPT)`
