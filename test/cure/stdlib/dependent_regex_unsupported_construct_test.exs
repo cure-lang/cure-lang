@@ -53,6 +53,22 @@ defmodule Cure.Stdlib.DependentRegexUnsupportedConstructTest do
     assert apply(runtime_module, :alternated, [{:String, ~c"b"}]) == true
   end
 
+  test "the short F control is the finite FAIL alias" do
+    source = ~S'''
+    mod RegexShortFailControl
+      use Std.Regex
+
+      fn failed(input: String) -> Bool = matches(/a(*F)/, input)
+      fn alternated(input: String) -> Bool = matches(/a(*F)|b/, input)
+    end
+    '''
+
+    assert {:ok, runtime_module} = Cure.Compiler.compile_and_load(source, emit_events: false)
+    assert apply(runtime_module, :failed, [{:String, ~c"a"}]) == false
+    assert apply(runtime_module, :alternated, [{:String, ~c"a"}]) == false
+    assert apply(runtime_module, :alternated, [{:String, ~c"b"}]) == true
+  end
+
   test "terminal ACCEPT is finite, while a continuing branch is diagnosed" do
     source = ~S'''
     mod RegexAcceptControl

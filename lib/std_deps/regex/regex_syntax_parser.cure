@@ -166,6 +166,7 @@ mod Std.Regex.Syntax.Parser
       ['^' | rest] -> LiteralParsed(LiteralStart, rest)
       ['$' | rest] -> LiteralParsed(LiteralEnd, rest)
       ['(', '*', 'F', 'A', 'I', 'L', ')' | rest] -> LiteralParsed(LiteralLookahead(LiteralAssertionNegative, LiteralEmpty), rest)
+      ['(', '*', 'F', ')' | rest] -> LiteralParsed(LiteralLookahead(LiteralAssertionNegative, LiteralEmpty), rest)
       ['(', '*', 'A', 'C', 'C', 'E', 'P', 'T', ')' | rest] -> pickup
         literal_accept_continuation_allowed(rest) -> LiteralParsed(LiteralEmpty, rest)
         else -> LiteralAtInvalid(:UnsupportedRegexAcceptContinuation, input, literal_delimited_width(input, ')'))
