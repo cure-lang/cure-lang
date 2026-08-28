@@ -1614,6 +1614,21 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert body =~ "path"
   end
 
+  test "destination-exhaustion tails consume the selected package" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "fn atomic_path_selected_tail_dispatch_destinations_exhausted"
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_path_selected_tail_dispatch_destinations_exhausted(", parts: 2)
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert body =~ "AtomicPathSelectedTailTail(package)"
+    assert body =~ "AtomicPathSelectedTailPackagePacked(tail_package, tail_suffix, path)"
+    assert body =~ "AtomicPathDestinationsExhausted"
+    assert body =~ "atomic_path_failure_excludes_aligned_trace"
+  end
+
   test "rejected-tail construction sites use the generic dispatcher" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 

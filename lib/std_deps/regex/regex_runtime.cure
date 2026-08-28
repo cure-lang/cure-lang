@@ -11504,6 +11504,81 @@ mod Std.Regex.Runtime
     LookaroundAdmittedStateCursorSuffixHere(_) -> head_case
     LookaroundAdmittedStateCursorSuffixDrop(_, _) -> tail_case
 
+  ## Consume the selected-tail dispatch at the destination-exhaustion base
+  ## case.  Here the recursive tail is indexed at `Nil()`, so the only
+  ## admissible refutation constructor is `AtomicPathDestinationsExhausted`;
+  ## the package's cursor suffix can therefore be handed directly to the
+  ## aligned-trace contradiction.  Rejected-child tails remain a separate
+  ## induction branch below.
+  @reducible
+  fn atomic_path_selected_tail_dispatch_destinations_exhausted(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    char: Char,
+    rest: List(Char),
+    after_input: List(Char),
+    source: Bounded(n),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    scope_depth: Nat,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    whole: List(LookaroundAdmittedState(n)),
+    {selected_current: List(LookaroundAdmittedState(n))},
+    matched: List(Char),
+    remaining_input: List(Char),
+    routine: List(ExtendedInstruction),
+    dispatch: AtomicPathSelectedTailDispatch(
+      result,
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Nil(),
+      selected_current,
+      matched,
+      remaining_input,
+      routine
+    )
+  ) -> result = match dispatch
+    AtomicPathSelectedTailHead(value) -> value
+    AtomicPathSelectedTailTail(package) -> match package
+      AtomicPathSelectedTailPackagePacked(tail_package, tail_suffix, path) -> match tail_package
+        AtomicPathTailPackagePacked(failure) -> match failure
+          AtomicPathDestinationsExhausted(_, _, _, _, _, _) ->
+            atomic_path_failure_excludes_aligned_trace(
+              machine,
+              char,
+              rest,
+              after_input,
+              source,
+              history,
+              capture_context,
+              policy,
+              scope_depth,
+              prefix_mode,
+              reversed_prefix,
+              whole,
+              failure,
+              matched,
+              remaining_input,
+              routine,
+              tail_suffix,
+              path
+            )
+
   ## Split a rejected destination's selected suffix at the construction site.
   ## A `Here` suffix is the rejected candidate itself and must be discharged by
   ## the child theorem supplied by the caller.  A `Drop` suffix is a later
@@ -11659,7 +11734,7 @@ mod Std.Regex.Runtime
       tail_suffix,
       path
     )
-    match atomic_path_destination_rejection_excludes_recursive_tail(
+    atomic_path_selected_tail_dispatch_destinations_exhausted(
       machine,
       char,
       rest,
@@ -11672,17 +11747,32 @@ mod Std.Regex.Runtime
       prefix_mode,
       reversed_prefix,
       whole,
-      candidate,
-      failure,
       matched,
       remaining_input,
       routine,
-      LookaroundAdmittedStateCursorSuffixDrop(candidate, tail_suffix),
-      path,
-      tail_result
+      atomic_path_destination_rejection_excludes_recursive_tail(
+        machine,
+        char,
+        rest,
+        after_input,
+        state,
+        history,
+        capture_context,
+        policy,
+        scope_depth,
+        prefix_mode,
+        reversed_prefix,
+        whole,
+        candidate,
+        failure,
+        matched,
+        remaining_input,
+        routine,
+        LookaroundAdmittedStateCursorSuffixDrop(candidate, tail_suffix),
+        path,
+        tail_result
+      )
     )
-      AtomicPathSelectedTailHead(value) -> value
-      AtomicPathSelectedTailTail(_) -> tail_result
 
   ## A two-sibling rejected tail reaches the same singleton recursion after
   ## the outer candidate is skipped.  The nested rejected candidate is fixed

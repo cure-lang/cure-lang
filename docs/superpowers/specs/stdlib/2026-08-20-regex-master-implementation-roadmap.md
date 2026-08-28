@@ -1836,6 +1836,16 @@ makes the exact package available for arbitrary sibling recursion, but the
 recursive consumers and final all-kinds selected-trace/refutation theorem are
 still open.
 
+The first selected-tail consumer is now wired at the destination-exhaustion
+base: `atomic_path_selected_tail_dispatch_destinations_exhausted` destructures
+the indexed `Tail(package)` branch, refines its existential tail package to
+`AtomicPathDestinationsExhausted`, and passes the preserved cursor suffix and
+selected path to `atomic_path_failure_excludes_aligned_trace`.  The consumer
+is polymorphic in its result type, so it introduces no special `Empty` path or
+runtime tag.  A focused source regression and direct zero-warning runtime
+compile pass.  Rejected-child recursion and non-empty sibling folds remain
+open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
