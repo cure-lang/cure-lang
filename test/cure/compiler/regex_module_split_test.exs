@@ -93,6 +93,41 @@ defmodule Cure.Compiler.RegexModuleSplitTest do
            "embedded Regex closure must be a DAG, got SCCs: #{inspect(components)}"
   end
 
+  test "Regex follows the acyclic Char-Literal-String text boundary" do
+    runtime = File.read!(Path.expand("lib/std_deps/regex/regex_runtime.cure"))
+
+    # Unicode case mappings belong to the Char floor and return List(Char).
+    # Regex must not route them through the nominal String wrapper, which would
+    # recreate the old Char -> String edge that the text-layer migration removed.
+    assert runtime =~ "Std.Char.lowercased_characters("
+    refute runtime =~ "Std.Char.lowercased("
+    refute runtime =~ "Std.String.characters(Std.Char.lowercased("
+
+    paths =
+      (["lib/std/char.cure", "lib/std/literal.cure", "lib/std/string.cure"] ++
+         Path.wildcard("lib/std_deps/regex/regex*.cure"))
+      |> Enum.map(&Path.expand/1)
+
+    assert {:ok, graph} = Cure.Compiler.DepGraph.scan(paths, validate_dependencies: false)
+
+    direct_targets = fn module_name, kind ->
+      graph.module_index.entries[module_name].direct_edges
+      |> Enum.filter(&(&1.kind == kind))
+      |> Enum.map(& &1.target)
+      |> MapSet.new()
+    end
+
+    char_imports = direct_targets.("Std.Char", :use_import)
+    literal_imports = direct_targets.("Std.Literal", :use_import)
+    string_imports = direct_targets.("Std.String", :use_import)
+
+    refute MapSet.member?(char_imports, "Std.String")
+    refute MapSet.member?(char_imports, "Std.Literal")
+    assert MapSet.member?(literal_imports, "Std.Char")
+    assert MapSet.member?(string_imports, "Std.Char")
+    assert MapSet.member?(string_imports, "Std.Literal")
+  end
+
   test "canonical visibility follows transitive public reexports", %{tmp_dir: dir} do
     base = Path.join(dir, "base.cure")
     middle = Path.join(dir, "middle.cure")
