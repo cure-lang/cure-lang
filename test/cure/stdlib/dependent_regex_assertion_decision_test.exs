@@ -1641,14 +1641,15 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert body =~ "atomic_path_destination_rejection_excludes_recursive_tail_rejected("
   end
 
-  test "active-child destination tails use the rejected-tail recursive dispatcher" do
+  test "active-child destination tails use the direct child eliminator" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 
     [_prefix, body] =
       String.split(source, "fn atomic_path_tail_active_child_rejection_excludes_selected_suffix(", parts: 2)
 
     [body | _] = String.split(body, "\n  ##", parts: 2)
-    assert body =~ "atomic_path_destination_rejection_excludes_recursive_tail_rejected("
+    assert body =~ "atomic_path_active_child_rejection_excludes_trace("
+    refute body =~ "atomic_path_destination_rejection_excludes_recursive_tail_rejected("
   end
 
   test "atomic active tail carries recursive child rejection" do
@@ -1706,6 +1707,26 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     [body | _] = String.split(body, "\n  ##", parts: 2)
     assert body =~ "atomic_path_active_child_rejection_excludes_aligned_trace"
+  end
+
+  test "recursive active-child rejection consumes the child failure and path" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_path_active_child_rejection_excludes_aligned_trace", parts: 2)
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+
+    assert Regex.match?(~r/@erased child_failure:\s+AtomicPathRefutation/s, body)
+    assert Regex.match?(~r/@erased child_path:\s+AtomicSelectedPathTrace/s, body)
+
+    [_prefix, wrapper] =
+      String.split(source, "fn atomic_path_active_child_rejection_excludes_trace", parts: 2)
+
+    [wrapper | _] = String.split(wrapper, "\n  ##", parts: 2)
+
+    assert Regex.match?(~r/child_failure,\s*child_path,/s, wrapper)
+    assert Regex.match?(~r/child_failure,\s*child_trace,/s, source)
   end
 
   test "recursive active-child rejection consumes a destination-exhausted sibling tail" do

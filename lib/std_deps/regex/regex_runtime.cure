@@ -10707,23 +10707,6 @@ mod Std.Regex.Runtime
     active_assertion_markers: List(EvidenceInstruction),
     active_nested_decisions: List(LookaroundNestedDecision),
     tail_remaining: List(LookaroundAdmittedState(n)),
-    @erased _failure: AtomicPathRefutation(
-      depth,
-      n,
-      machine,
-      Cons(char, Cons(child_char, child_rest)),
-      after_input,
-      ThreadActive(source),
-      history,
-      capture_context,
-      policy,
-      scope_depth,
-      prefix_mode,
-      reversed_prefix,
-      whole,
-      Cons(head, Cons(LookaroundAdmittedActive(active_state, active_routine, active_constraints, active_assertion_routine, active_assertion_markers, active_nested_decisions), tail_remaining)),
-      AtomicPathFailureDestinationRejected()
-    ),
     @erased tail_failure: AtomicPathRefutation(
       depth,
       n,
@@ -10811,7 +10794,7 @@ mod Std.Regex.Runtime
     child_left_tail_case: () -> Empty,
     child_right_case: () -> Empty
   ) -> Empty = match tail_failure
-    AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, child_failure, _, child_scope_alignment, _, _, _, _) -> match path
+    AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, tail_child_failure, _, child_scope_alignment, _, _, _, _) -> match path
       AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _, child_selection_suffix, child_selection_from_origin, child_trace) -> match child_scope_alignment
         LookaroundAdmittedStateScopeActive(_, _, _, _, _, _) ->
           let tail_result: Empty = atomic_path_active_child_rejection_excludes_trace(
@@ -10834,34 +10817,13 @@ mod Std.Regex.Runtime
             child_selected_whole_equivalence,
             child_failure_nonempty_equivalence,
             child_selected_suffix,
+            child_failure,
+            child_trace,
             child_left_case,
             child_left_tail_case,
             child_right_case
           )
-          atomic_path_destination_rejection_excludes_recursive_tail_rejected(
-            machine,
-            char,
-            Cons(child_char, child_rest),
-            after_input,
-            source,
-            history,
-            capture_context,
-            policy,
-            scope_depth,
-            prefix_mode,
-            reversed_prefix,
-            whole,
-            head,
-            _failure,
-            matched,
-            remaining_input,
-            selected_routine,
-            LookaroundAdmittedStateCursorSuffixDrop(head, _tail_selected_suffix),
-            _tail_selected_suffix,
-            path,
-            tail_result,
-            tail_result
-          )
+          tail_result
 
   ## Align a recursively rejected active child with the selected child trace.
   ## The child failure kind is fixed before this helper is called, while the
@@ -10869,7 +10831,9 @@ mod Std.Regex.Runtime
   ## alignment eliminator.  Both directions are explicit continuations: the
   ## left-to-right branch can descend through the rejected sibling tail, and
   ## the right-to-left branch remains the separate reverse induction case.
+  @reducible
   fn atomic_path_active_child_rejection_excludes_aligned_trace(
+    {@erased depth: Nat},
     {n: Nat},
     machine: PatternMachine(n),
     child_char: Char,
@@ -10900,25 +10864,67 @@ mod Std.Regex.Runtime
       Cons(failure_head, failure_tail)
     ),
     selected_suffix: LookaroundAdmittedStateCursorSuffix(n, selected_whole, selected_current),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    @erased child_failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(child_char, child_rest),
+      after_input,
+      ThreadActive(destination),
+      history,
+      capture_context,
+      policy,
+      child_scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      failure_whole,
+      failure_current,
+      AtomicPathFailureDestinationRejected()
+    ),
+    {child_path_current: List(LookaroundAdmittedState(n))},
+    {child_selected_routine: List(ExtendedInstruction)},
+    @erased child_path: AtomicSelectedPathTrace(
+      depth,
+      n,
+      machine,
+      Cons(child_char, child_rest),
+      after_input,
+      ThreadActive(destination),
+      history,
+      capture_context,
+      policy,
+      child_scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      child_path_current,
+      matched,
+      remaining_input,
+      child_selected_routine
+    ),
     left_case: () -> Empty,
     left_tail_case: () -> Empty,
     right_case: () -> Empty
-  ) -> Empty = match atomic_path_active_child_alignment(
-      failure_suffix,
-      failure_nonempty_equivalence,
-      selected_whole_equivalence,
-      selected_suffix
-    )
-      AtomicPathActiveChildAlignmentHere(_) -> left_case()
-      AtomicPathActiveChildAlignmentThere(_, _) -> left_tail_case()
-      AtomicPathActiveChildAlignmentReverse(_) -> right_case()
+  ) -> Empty = match child_failure
+    AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> match atomic_path_active_child_alignment(
+        failure_suffix,
+        failure_nonempty_equivalence,
+        selected_whole_equivalence,
+        selected_suffix
+      )
+          AtomicPathActiveChildAlignmentHere(_) -> left_case()
+          AtomicPathActiveChildAlignmentThere(_, _) -> left_tail_case()
+          AtomicPathActiveChildAlignmentReverse(_) -> right_case()
 
   ## Consume a recursively rejected active-child refutation at the construction
   ## site. This named boundary retains the child/refutation distinction while
   ## delegating the ordered cursor cases to the single alignment authority.
   ## Keeping the wrapper proof-only avoids rebuilding erased GADT evidence in a
   ## runtime-valued parent fold.
+  @reducible
   fn atomic_path_active_child_rejection_excludes_trace(
+    {@erased depth: Nat},
     {n: Nat},
     machine: PatternMachine(n),
     child_char: Char,
@@ -10949,6 +10955,45 @@ mod Std.Regex.Runtime
       Cons(failure_head, failure_tail)
     ),
     selected_suffix: LookaroundAdmittedStateCursorSuffix(n, selected_whole, selected_current),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    @erased child_failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(child_char, child_rest),
+      after_input,
+      ThreadActive(destination),
+      history,
+      capture_context,
+      policy,
+      child_scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      failure_whole,
+      failure_current,
+      AtomicPathFailureDestinationRejected()
+    ),
+    {child_path_current: List(LookaroundAdmittedState(n))},
+    {child_selected_routine: List(ExtendedInstruction)},
+    @erased child_path: AtomicSelectedPathTrace(
+      depth,
+      n,
+      machine,
+      Cons(child_char, child_rest),
+      after_input,
+      ThreadActive(destination),
+      history,
+      capture_context,
+      policy,
+      child_scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      child_path_current,
+      matched,
+      remaining_input,
+      child_selected_routine
+    ),
     left_case: () -> Empty,
     left_tail_case: () -> Empty,
     right_case: () -> Empty
@@ -10972,6 +11017,8 @@ mod Std.Regex.Runtime
     selected_whole_equivalence,
     failure_nonempty_equivalence,
     selected_suffix,
+    child_failure,
+    child_path,
     left_case,
     left_tail_case,
     right_case
