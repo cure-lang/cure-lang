@@ -2397,6 +2397,25 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     assert root_to_search =~ "active_current_equivalence"
     assert root_to_search =~ "match active_current_equivalence"
+
+    for consumer <- [
+          "atomic_start_initial_tail_no_with_active_tail",
+          "atomic_lookaround_routine_initial_tail_after_failure",
+          "atomic_start_members_add_skipped_candidate"
+        ] do
+      body =
+        source
+        |> String.split("fn #{consumer}", parts: 2)
+        |> List.last()
+        |> String.split("\n  fn ", parts: 2)
+        |> List.first()
+
+      assert body =~ "active_current_equivalence",
+             "#{consumer} must retain the active-root spine equality"
+
+      assert body =~ "match active_current_equivalence",
+             "#{consumer} must consume the active-root spine equality"
+    end
   end
 
   test "constraint admission has one construction authority" do

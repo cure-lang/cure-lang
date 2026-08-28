@@ -1810,6 +1810,18 @@ selected-trace/refutation correspondence remain open.  The red source
 regression passes and the complete `Std.Regex.Runtime` module compiles
 directly with no warnings.
 
+The active-root start-list equality is now consumed at every existing
+downstream construction site that can carry the no-result forward:
+`atomic_start_initial_tail_no_with_active_tail`,
+`atomic_lookaround_routine_initial_tail_after_failure`, and
+`atomic_start_members_add_skipped_candidate` all match the erased
+`active_current_equivalence` witness before reintroducing or prepending a
+candidate.  This prevents the exact active-head spine from being dropped
+between recursive start traversal and its public refutation wrapper.  The
+focused source regression passes and the complete Regex runtime still compiles
+with no warnings; arbitrary sibling recursion and final selected-trace
+correspondence remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

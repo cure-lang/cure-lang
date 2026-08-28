@@ -239,6 +239,11 @@ publishing the refutation, preserving the candidate identity at the start
 boundary without adding runtime proof state. General start-list recursion and
 the final selected-trace/refutation theorem remain open.
 
+The recursive start-list adapters now consume that same equality before
+reintroducing an active candidate, forwarding a rejected tail, or prepending a
+skipped candidate. This keeps the exact active-head spine intact across all
+existing no-result transitions without exposing proof data at runtime.
+
 The singleton destination-exhaustion tail is also consumed by the named
 proof-only `atomic_path_active_child_rejection_excludes_tail_exhaustion`
 boundary. Its indexed arguments fix a rejected parent and a

@@ -7531,7 +7531,8 @@ mod Std.Regex.Runtime
     result_value: AtomicStartMembersResult(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, Cons(candidate, remaining))
   ) -> AtomicStartMembersResult(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, Cons(candidate, remaining)) = match result_value
     AtomicStartMembersNo(kind, failure, evidence) -> AtomicStartMembersTailActiveNo(candidate, remaining, kind, failure, evidence, tail_kind, tail_failure, tail_evidence)
-    AtomicStartMembersActiveRootNo(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> result_value
+    AtomicStartMembersActiveRootNo(_, _, _, _, _, _, _, _, _, _, _, _, _, _, active_current_equivalence, _) -> match active_current_equivalence
+      reflexive() -> result_value
     AtomicStartMembersTailActiveNo(_, _, kind, failure, evidence, old_tail_kind, old_tail_failure, old_tail_evidence) -> AtomicStartMembersTailActiveNo(candidate, remaining, kind, failure, evidence, old_tail_kind, old_tail_failure, old_tail_evidence)
     AtomicStartMembersCommit(commit_depth) -> AtomicStartMembersCommit(commit_depth)
     AtomicStartMembersYes(matched, remaining_input, routine, selection_suffix, selected_member, allowed, scope, trace) -> AtomicStartMembersYes(matched, remaining_input, routine, selection_suffix, selected_member, allowed, scope, trace)
@@ -7592,7 +7593,8 @@ mod Std.Regex.Runtime
       tail_failure,
       tail_evidence
     )
-    AtomicStartMembersActiveRootNo(_, _, tail_failure, tail_evidence, _, _, _, _, _, _, _, _, _, _, _, _) -> atomic_start_initial_tail_no(
+    AtomicStartMembersActiveRootNo(_, _, tail_failure, tail_evidence, _, _, _, _, _, _, _, _, _, _, active_current_equivalence, _) -> match active_current_equivalence
+      reflexive() -> atomic_start_initial_tail_no(
       depth,
       n,
       machine,
@@ -7686,7 +7688,8 @@ mod Std.Regex.Runtime
 
   fn atomic_start_members_add_skipped_candidate(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char), blocked_depth: Option(Nat), candidate: LookaroundAdmittedState(n), {@erased kind: AtomicStartSkipKind}, @erased skip: AtomicStartSkipEvidence(blocked_depth, kind), @erased scope: AtomicStartScopeEvidence(n, AtomicStartScopeEvidenceBlockedRole()), {whole: List(LookaroundAdmittedState(n))}, {current: List(LookaroundAdmittedState(n))}, @erased candidate_suffix: LookaroundAdmittedStateCursorSuffix(n, whole, Cons(candidate, current)), result: AtomicStartMembersResult(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, current)) -> AtomicStartMembersResult(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, Cons(candidate, current)) = match result
     AtomicStartMembersNo(tail_kind, failure, tail_evidence) -> AtomicStartMembersNo(AtomicStartFailureBlocked(), AtomicStartCandidateBlocked(candidate, blocked_depth, skip, failure), AtomicStartNoBlockedEvidence(candidate, blocked_depth, skip, scope, failure, tail_evidence))
-    AtomicStartMembersActiveRootNo(_, _, failure, evidence, _, _, _, _, _, _, _, _, _, _, _, _) -> AtomicStartMembersNo(AtomicStartFailureBlocked(), AtomicStartCandidateBlocked(candidate, blocked_depth, skip, failure), AtomicStartNoBlockedEvidence(candidate, blocked_depth, skip, scope, failure, evidence))
+    AtomicStartMembersActiveRootNo(_, _, failure, evidence, _, _, _, _, _, _, _, _, _, _, active_current_equivalence, _) -> match active_current_equivalence
+      reflexive() -> AtomicStartMembersNo(AtomicStartFailureBlocked(), AtomicStartCandidateBlocked(candidate, blocked_depth, skip, failure), AtomicStartNoBlockedEvidence(candidate, blocked_depth, skip, scope, failure, evidence))
     AtomicStartMembersTailActiveNo(_, _, kind, failure, evidence, _, _, _) -> AtomicStartMembersNo(AtomicStartFailureBlocked(), AtomicStartCandidateBlocked(candidate, blocked_depth, skip, failure), AtomicStartNoBlockedEvidence(candidate, blocked_depth, skip, scope, failure, evidence))
     AtomicStartMembersCommit(commit_depth) -> AtomicStartMembersCommit(commit_depth)
     AtomicStartMembersYes(matched, remaining_input, routine, _selection_suffix, selected_member, allowed, scope, trace) -> AtomicStartMembersYes(matched, remaining_input, routine, candidate_suffix, member_there(candidate, selected_member), allowed, scope, trace)
