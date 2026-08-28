@@ -1867,7 +1867,11 @@ UTF code-unit subjects. These controls have focused runtime and exact-span
 diagnostic regressions.
 The finite `(*F)` spelling is now accepted as PCRE's short alias for
 `(*FAIL)` and lowers through the same negative-empty assertion, so it adds no
-separate runtime or proof state. The finite `(*MARK:NAME)` control is now
+separate runtime or proof state. The label-bearing `(*FAIL:NAME)` and
+`(*ACCEPT:NAME)` forms are likewise consumed at the syntax boundary and lower
+through the existing finite controls; empty labels retain PCRE's no-label
+meaning, and an unclosed label receives the structured `:UnclosedRegexControl`
+diagnostic with its exact source span. The finite `(*MARK:NAME)` control is now
 accepted anywhere an atom is allowed:
 its label is consumed by a fuel-bounded parser, must be non-empty, and the
 control normalizes to `LiteralEmpty`. Cure's public match values expose no

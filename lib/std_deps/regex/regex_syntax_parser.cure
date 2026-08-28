@@ -165,8 +165,10 @@ mod Std.Regex.Syntax.Parser
       ['.' | rest] -> LiteralParsed(LiteralAny, rest)
       ['^' | rest] -> LiteralParsed(LiteralStart, rest)
       ['$' | rest] -> LiteralParsed(LiteralEnd, rest)
+      ['(', '*', 'F', 'A', 'I', 'L', ':' | rest] -> parse_literal_fail_control(rest, next_fuel, input, [])
       ['(', '*', 'F', 'A', 'I', 'L', ')' | rest] -> LiteralParsed(LiteralLookahead(LiteralAssertionNegative, LiteralEmpty), rest)
       ['(', '*', 'F', ')' | rest] -> LiteralParsed(LiteralLookahead(LiteralAssertionNegative, LiteralEmpty), rest)
+      ['(', '*', 'A', 'C', 'C', 'E', 'P', 'T', ':' | rest] -> parse_literal_accept_control(rest, next_fuel, input, [])
       ['(', '*', 'A', 'C', 'C', 'E', 'P', 'T', ')' | rest] -> pickup
         literal_accept_continuation_allowed(rest) -> LiteralParsed(LiteralEmpty, rest)
         else -> LiteralAtInvalid(:UnsupportedRegexAcceptContinuation, input, literal_delimited_width(input, ')'))
@@ -185,6 +187,27 @@ mod Std.Regex.Syntax.Parser
     [')' | _] -> true
     ['|' | _] -> true
     _ -> false
+
+  ## PCRE permits an optional MARK-style label on FAIL and ACCEPT. Cure's
+  ## public match values expose no mark channel, so the label is validated and
+  ## consumed at the syntax boundary while the control keeps the same finite
+  ## semantics as its unlabeled spelling. An empty label is equivalent to no
+  ## label in PCRE and is therefore accepted here as well.
+  fn parse_literal_fail_control(input: List(Char), fuel: Nat, origin: List(Char), reversed: List(Char)) -> LiteralParse = match fuel
+    Z() -> LiteralInvalid(:RegexParseLimit)
+    S(next_fuel) -> match input
+      [] -> LiteralAtInvalid(:UnclosedRegexControl, origin, literal_length(origin))
+      [')' | rest] -> LiteralParsed(LiteralLookahead(LiteralAssertionNegative, LiteralEmpty), rest)
+      [char | rest] -> parse_literal_fail_control(rest, next_fuel, origin, [char | reversed])
+
+  fn parse_literal_accept_control(input: List(Char), fuel: Nat, origin: List(Char), reversed: List(Char)) -> LiteralParse = match fuel
+    Z() -> LiteralInvalid(:RegexParseLimit)
+    S(next_fuel) -> match input
+      [] -> LiteralAtInvalid(:UnclosedRegexControl, origin, literal_length(origin))
+      [')' | rest] -> pickup
+        literal_accept_continuation_allowed(rest) -> LiteralParsed(LiteralEmpty, rest)
+        else -> LiteralAtInvalid(:UnsupportedRegexAcceptContinuation, origin, literal_delimited_width(origin, ')'))
+      [char | rest] -> parse_literal_accept_control(rest, next_fuel, origin, [char | reversed])
 
   fn parse_literal_group_fuel(input: List(Char), fuel: Nat, origin: List(Char)) -> LiteralParse = match fuel
     Z() -> LiteralInvalid(:RegexParseLimit)

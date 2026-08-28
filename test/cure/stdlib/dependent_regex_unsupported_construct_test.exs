@@ -69,6 +69,23 @@ defmodule Cure.Stdlib.DependentRegexUnsupportedConstructTest do
     assert apply(runtime_module, :alternated, [{:String, ~c"b"}]) == true
   end
 
+  test "labelled FAIL and ACCEPT controls preserve finite semantics" do
+    source = ~S'''
+    mod RegexLabelledControl
+      use Std.Regex
+
+      fn failed(input: String) -> Bool = matches(/a(*FAIL:branch)/, input)
+      fn accepted(input: String) -> Bool = matches(/a(*ACCEPT:branch)/, input)
+      fn empty_label(input: String) -> Bool = matches(/a(*FAIL:)/, input)
+    end
+    '''
+
+    assert {:ok, runtime_module} = Cure.Compiler.compile_and_load(source, emit_events: false)
+    assert apply(runtime_module, :failed, [{:String, ~c"a"}]) == false
+    assert apply(runtime_module, :accepted, [{:String, ~c"a"}]) == true
+    assert apply(runtime_module, :empty_label, [{:String, ~c"a"}]) == false
+  end
+
   test "terminal ACCEPT is finite, while a continuing branch is diagnosed" do
     source = ~S'''
     mod RegexAcceptControl
@@ -139,6 +156,30 @@ defmodule Cure.Stdlib.DependentRegexUnsupportedConstructTest do
       assert Cure.Diagnostic.message(diagnostic) =~ "MARK"
       span = diagnostic.primary.span
       assert binary_part(source, span.start_byte, span.end_byte - span.start_byte) == expected_span
+    end)
+  end
+
+  test "unclosed labelled controls have a dedicated diagnostic span" do
+    cases = [
+      {"(*FAIL:branch", :UnclosedRegexControl},
+      {"(*ACCEPT:branch", :UnclosedRegexControl}
+    ]
+
+    Enum.each(cases, fn {pattern, expected} ->
+      source = "mod UnclosedRegexControl\n  use Std.Regex\n  fn run() = /#{pattern}/\nend\n"
+
+      reason = Program.elaborate(source)
+
+      assert {:error,
+              {:source_context,
+               {:computed_macro_error, _meta,
+                {:author_diagnostics, [{:macro_failure, ^expected, _arguments}]}}, _context}} =
+               reason
+
+      {diagnostic, _registry} = Errors.to_diagnostic(reason, "nofile", source)
+      assert Cure.Diagnostic.message(diagnostic) =~ "closing `)`"
+      span = diagnostic.primary.span
+      assert binary_part(source, span.start_byte, span.end_byte - span.start_byte) == pattern
     end)
   end
 end
