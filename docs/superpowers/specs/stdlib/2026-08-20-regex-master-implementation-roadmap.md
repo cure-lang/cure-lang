@@ -1749,6 +1749,19 @@ search; arbitrary rejected-child/sibling recursion and the final all-kinds
 selected-trace/refutation theorem remain open. The source regression and direct
 complete-module compilation pass.
 
+The destination-rejected sibling-tail fold is now generalized beyond the
+singleton and three-sibling fixtures. `atomic_path_rejected_tail_fold_excludes_trace`
+recurses over the indexed `LookaroundAdmittedStateCursorSuffix`; its
+construction-site package step peels one `AtomicPathDestinationRejected` tail
+without inspecting the erased existential failure, and the empty suffix routes
+to the aligned destination-exhaustion contradiction. The existing three-tail
+consumer now calls this fold, so its proof no longer encodes a fixed sibling
+count. The complete `Std.Regex.Runtime` module compiles directly with no
+warnings and the source regression passes. This closes only the arbitrary-length
+destination-rejection-tail chain; rejected child correspondence, mixed failure
+kinds, start-list recursion, and the final all-kinds selected-trace/refutation
+theorem remain open.
+
 The active-child alignment witness no longer has a vacuous reverse constructor.
 `AtomicPathActiveChildAlignment` now indexes the failed current suffix and
 stores an explicit `LookaroundAdmittedStateCursorSuffix` for every direction:

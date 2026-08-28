@@ -1900,7 +1900,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
       String.split(source, "fn atomic_path_destination_rejection_excludes_three_tail_rejection(", parts: 2)
 
     [body | _] = String.split(body, "\n  ##", parts: 2)
-    assert body =~ "atomic_path_rejected_tail_dispatch_excludes_nested_trace("
+    assert body =~ "atomic_path_rejected_tail_fold_excludes_trace("
   end
 
   test "three rejected destination siblings recurse through the nested tail package" do
@@ -1917,9 +1917,29 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
 
     [body | _] = String.split(body, "\n  ##", parts: 2)
 
-    assert body =~ "atomic_path_destination_rejected_tail_package"
-    assert body =~ "atomic_path_rejected_tail_refinement"
+    assert body =~ "atomic_path_rejected_tail_fold_excludes_trace"
     assert Regex.match?(~r/Cons\(candidate, Cons\(nested_candidate, Cons\(tail_candidate/s, body)
+  end
+
+  test "rejected destination tails have an arbitrary-length recursive fold" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "fn atomic_path_rejected_tail_fold_excludes_trace"
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_path_rejected_tail_fold_excludes_trace", parts: 2)
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert body =~ "atomic_path_rejected_tail_fold_from_package("
+    assert Regex.match?(~r/LookaroundAdmittedStateCursorSuffixDrop.*?tail_suffix/s, body)
+
+    [_prefix, package_body] =
+      String.split(source, "fn atomic_path_rejected_tail_fold_from_package", parts: 2)
+
+    [package_body | _] = String.split(package_body, "\n  ##", parts: 2)
+    assert package_body =~ "AtomicPathDestinationRejected"
+    assert package_body =~ "AtomicPathDestinationsExhausted"
+    assert package_body =~ "atomic_path_failure_excludes_aligned_trace"
   end
 
   test "rejected-tail refinement is a proof-only construction boundary" do
