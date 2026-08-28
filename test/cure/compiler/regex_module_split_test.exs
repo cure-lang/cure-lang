@@ -38,9 +38,11 @@ defmodule Cure.Compiler.RegexModuleSplitTest do
 
     assert {:ok, manifest} =
              ModuleManifest.build(paths,
-               package: "stdlib",
+               package: "cure_regex",
                known_modules: ["Std.Builtin" | ModuleIndex.module_names(stdlib_index)]
              )
+
+    assert manifest.package == "cure_regex"
 
     dependencies = fn module_name ->
       manifest

@@ -13,6 +13,12 @@ package, and merged-publication stages. The portable BEAM-import closure audit,
 generic-unix AtomVM gate, Unicode dependency pin, and cold/warm baseline are
 recorded in `2026-08-20-regex-performance-baseline.md`.
 
+The package-boundary regression models the embedded sources as the `cure_regex`
+package itself (rather than accidentally scanning them as part of `stdlib`).
+This keeps the manifest identity, source-hash namespace, export filtering, and
+acyclic dependency checks aligned with the package artifact produced by the
+stdlib bootstrap.
+
 The first Phase 2 evidence slice is also landed: successful lookahead and
 lookbehind decisions carry an existential package containing the indexed finite
 child path. Lookahead admission now also requires the atomic prefix traversal
