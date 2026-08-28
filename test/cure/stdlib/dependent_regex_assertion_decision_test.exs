@@ -1697,6 +1697,25 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
            )
   end
 
+  test "active-child rejection keeps failed and selected child cursors distinct" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_path_tail_active_child_rejection_excludes_selected_suffix(\n", parts: 2)
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+
+    assert body =~ "{child_current: List(LookaroundAdmittedState(n))}"
+    assert body =~ "{child_selected_current: List(LookaroundAdmittedState(n))}"
+
+    assert Regex.match?(
+             ~r/child_selected_suffix:\s+LookaroundAdmittedStateCursorSuffix\(\s*n,\s*child_selected_whole,\s*child_selected_current/s,
+             body
+           )
+
+    assert Regex.match?(~r/child_selected_suffix,\s*child_failure,/s, body)
+  end
+
   test "atomic active child rejection has a recursive child eliminator" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 

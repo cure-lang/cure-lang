@@ -1747,6 +1747,21 @@ Regex runtime still compiles directly and the focused source regression passes.
 This strengthens the proof boundary but does not yet discharge the arbitrary
 rejected-child recursion or final all-kinds selected-trace/refutation theorem.
 
+The recursive active-child rejection boundary now keeps the failed child cursor
+and the selected child cursor as distinct erased indices.  The former remains
+the current list of the `AtomicPathRefutation`; the latter indexes the selected
+suffix supplied to `atomic_path_active_child_rejection_excludes_trace`.  The
+previous signature forced both cursors to the same list, which made a selected
+trace that had advanced through a different ordered sibling spine impossible to
+state without an unsound coercion.  The construction site now passes the
+selected suffix through its own index while retaining the failure suffix for the
+canonical `atomic_path_active_child_alignment` eliminator.  The source
+regression pins both binders and the complete `regex_runtime.cure` module
+elaborates directly in 52 seconds.  This is an index-separation slice only;
+transporting the path's constructor-local suffix into the parent equality,
+arbitrary rejected-child recursion, and the final all-kinds
+selected-trace/refutation theorem remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

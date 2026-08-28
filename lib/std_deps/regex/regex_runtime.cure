@@ -10758,10 +10758,11 @@ mod Std.Regex.Runtime
       child_whole,
       child_selected_whole
     ),
+    {child_selected_current: List(LookaroundAdmittedState(n))},
     child_selected_suffix: LookaroundAdmittedStateCursorSuffix(
       n,
       child_selected_whole,
-      child_current
+      child_selected_current
     ),
     selected_remaining: List(LookaroundAdmittedState(n)),
     _tail_selected_suffix: LookaroundAdmittedStateCursorSuffix(
