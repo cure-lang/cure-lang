@@ -1959,6 +1959,46 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/Cons(candidate, Cons(nested_candidate, Cons(third_candidate, Cons(tail_candidate/s, body)
   end
 
+  test "rejected destination tails recurse to an accepted selected sibling" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "fn atomic_path_rejected_tail_fold_to_accepted"
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_path_rejected_tail_fold_to_accepted(", parts: 2)
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert body =~ "atomic_path_rejected_tail_fold_to_accepted_from_failure("
+
+    [_prefix, helper_body] =
+      String.split(source, "fn atomic_path_rejected_tail_fold_to_accepted_from_failure(", parts: 2)
+
+    [helper_body | _] = String.split(helper_body, "\n  ##", parts: 2)
+    assert helper_body =~ "atomic_path_failure_excludes_selected_suffix"
+    assert helper_body =~ "AtomicPathExactAcceptedWithInput"
+  end
+
+  test "accepted selected tails consume arbitrary rejected predecessors" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "fn atomic_path_rejected_tail_fold_to_accepted"
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_path_rejected_tail_fold_to_accepted(", parts: 2)
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert body =~ "atomic_path_rejected_tail_fold_to_accepted_from_failure"
+    assert body =~ "AtomicPathDestinationRejected"
+    assert Regex.match?(~r/LookaroundAdmittedStateCursorSuffixDrop.*?tail_suffix/s, body)
+
+    [_prefix, helper_body] =
+      String.split(source, "fn atomic_path_rejected_tail_fold_to_accepted_from_failure(", parts: 2)
+
+    [helper_body | _] = String.split(helper_body, "\n  ##", parts: 2)
+    assert helper_body =~ "atomic_path_failure_excludes_selected_suffix"
+    assert helper_body =~ "AtomicPathExactAcceptedWithInput"
+  end
+
   test "rejected-tail refinement is a proof-only construction boundary" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 

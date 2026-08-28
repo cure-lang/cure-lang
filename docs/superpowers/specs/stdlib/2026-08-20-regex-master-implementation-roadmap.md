@@ -1773,6 +1773,20 @@ shape only; mixed tail-failure kinds, rejected-child correspondence,
 start-list recursion, and the final all-kinds selected-trace/refutation theorem
 remain open.
 
+The accepted-selected-tail case now has a direct recursive construction site,
+`atomic_path_rejected_tail_fold_to_accepted_from_failure`. Each
+`AtomicPathDestinationRejected` tail constructor exposes the next existential
+refutation while the indexed cursor suffix supplies the next sibling; the
+`Here` branch first refines the selected `AtomicSelectedTransitionAccepted`
+path and then reuses `atomic_path_failure_excludes_selected_suffix` for the
+exact-child trailing-input contradiction. Matching the selected path before
+the child refutation keeps dependent transport proof-only and passes the
+complete Regex runtime compile with zero warnings. No package wrapper,
+runtime failure tag, or second machine search is introduced. This closes only
+the accepted-head tail recursion; active/rejected child failures, mixed
+failure kinds beyond the recursive destination-rejected spine, start-list
+recursion, and the final all-kinds theorem remain open.
+
 The active-child alignment witness no longer has a vacuous reverse constructor.
 `AtomicPathActiveChildAlignment` now indexes the failed current suffix and
 stores an explicit `LookaroundAdmittedStateCursorSuffix` for every direction:
