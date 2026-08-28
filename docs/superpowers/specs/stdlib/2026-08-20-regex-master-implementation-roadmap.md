@@ -1866,6 +1866,16 @@ This helper is intentionally not claimed as the general non-empty rejected-child
 fold: wiring the package into that recursive construction site, and consuming
 all remaining tail-failure kinds, are still open.
 
+The singleton `atomic_path_destination_rejection_excludes_recursive_trace`
+construction site now routes its selected suffix through the generic dispatcher
+and consumes the resulting `AtomicPathSelectedTailPackage` with that active-child
+consumer.  The direct exhaustion call remains only as the already-built head
+result supplied to the dispatcher; the selected tail itself is no longer
+reconstructed from a separate refutation value.  A red source regression and a
+direct zero-warning runtime compile pass.  The non-singleton rejected-child
+fold, all remaining tail-failure kinds, and the final selected-trace/refutation
+correspondence remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

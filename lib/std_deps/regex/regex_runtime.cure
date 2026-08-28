@@ -12141,7 +12141,7 @@ mod Std.Regex.Runtime
     AtomicPathDestinationsExhausted(_, _, _, _, _, _) -> impossible
     AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, tail_failure) -> match tail_failure
       AtomicPathDestinationsExhausted(_, _, _, _, _, _) ->
-        atomic_path_active_child_rejection_excludes_tail_exhaustion(
+        let tail_result: Empty = atomic_path_active_child_rejection_excludes_tail_exhaustion(
           machine,
           char,
           rest,
@@ -12162,6 +12162,47 @@ mod Std.Regex.Runtime
           remaining_input,
           routine,
           path
+        )
+        atomic_path_active_child_rejection_excludes_tail_package(
+          machine,
+          char,
+          rest,
+          after_input,
+          state,
+          history,
+          capture_context,
+          policy,
+          scope_depth,
+          prefix_mode,
+          reversed_prefix,
+          whole,
+          candidate,
+          failure,
+          matched,
+          remaining_input,
+          routine,
+          atomic_path_destination_rejection_excludes_recursive_tail(
+            machine,
+            char,
+            rest,
+            after_input,
+            state,
+            history,
+            capture_context,
+            policy,
+            scope_depth,
+            prefix_mode,
+            reversed_prefix,
+            whole,
+            candidate,
+            failure,
+            matched,
+            remaining_input,
+            routine,
+            selection_from_current,
+            path,
+            tail_result
+          )
         )
 
   ## The active root wrapper has no suffix-local alternative: its empty-input
