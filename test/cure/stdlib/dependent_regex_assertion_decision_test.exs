@@ -1936,6 +1936,16 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert Regex.match?(~r/LookaroundAdmittedStateCursorSuffixDrop.*?AtomicPathSelectedChildThere/s, body)
   end
 
+  test "the active-child package carries selected-whole equivalence" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [_prefix, package] =
+      String.split(source, "AtomicPathActiveChildSelectionPackageActive :", parts: 2)
+
+    [package | _] = String.split(package, "\n\n", parts: 2)
+    assert package =~ "child_selected_whole_equivalence: Equivalent"
+  end
+
   test "certified assertion decisions enforce atomic commitment", %{runtime_module: module} do
     assert apply(module, :atomic_trace_authority_rejects, [])
     assert apply(module, :certified_atomic_trace_rejects, [])

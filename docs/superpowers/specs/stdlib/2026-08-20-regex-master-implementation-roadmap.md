@@ -1782,9 +1782,10 @@ transition constructors now publish `child_whole`, `child_selected_whole`, and
 fields together with the selected suffix, its outer-origin transport, and the
 recursive child trace.  The complete `regex_runtime.cure` module elaborates
 directly in about 51 seconds, and a source regression pins the explicit erased
-indices.  The package is a construction-site refinement only: child whole/
-selected-whole equivalence still needs to be consumed by the generic parent
-alignment, arbitrary rejected-child recursion and the final all-kinds
+indices.  The package now also carries the selected-whole `Equivalent` witness,
+giving the generic parent alignment one construction-site source for that
+equality.  The witness is not yet consumed by the parent contradiction:
+arbitrary rejected-child recursion and the final all-kinds
 selected-trace/refutation theorem remain open.  No bare-name or unchecked cast
 bridge is introduced.
 
