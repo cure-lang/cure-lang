@@ -1722,6 +1722,19 @@ machine traversal is introduced. The source regression passes and the complete
 arbitrary rejected-child/sibling recursion, and the final all-kinds
 selected-trace/refutation theorem remain open.
 
+The empty-input accepted-root boundary now has its own indexed consumer,
+`atomic_start_accepted_empty_child_excludes_trace`. Its child certificate is
+fixed to `ThreadAccepted()` at `Nil()`, so the only possible empty-input
+refutation constructor is active-only and reduces to `Empty` at the construction
+site. The public adapter
+`atomic_start_refutation_rejected_accepted_empty_selected_trace` threads that
+contradiction through the shared selected-start fold while keeping the
+later-sibling continuation typed and erased. This closes the accepted
+empty-child base case without adding a runtime tag or duplicating the child
+search; arbitrary rejected-child/sibling recursion and the final all-kinds
+selected-trace/refutation theorem remain open. The source regression and direct
+complete-module compilation pass.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
