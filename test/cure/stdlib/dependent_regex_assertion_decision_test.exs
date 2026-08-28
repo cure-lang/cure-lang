@@ -1730,6 +1730,34 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert body =~ "transport_lookaround_admitted_cursor_suffix_outer"
   end
 
+  test "active-child transition packages hide its constructor-local cursor" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "type AtomicPathActiveChildSelectionPackage"
+    assert source =~ "AtomicPathActiveChildSelectionPackageActive"
+    assert source =~ "fn atomic_path_active_child_selection_package"
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_path_active_child_selection_package(\n", parts: 2)
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert body =~ "AtomicSelectedTransitionActive"
+    assert body =~ "child_selection_suffix"
+    assert body =~ "child_selection_from_origin"
+    assert body =~ "child_trace"
+  end
+
+  test "active transition publishes child cursor indices as erased fields" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    [_prefix, active] = String.split(source, "AtomicSelectedTransitionActive :", parts: 2)
+    [active | _] = String.split(active, "AtomicSelectedTransitionAccepted :", parts: 2)
+
+    assert active =~ "(@erased child_whole: List(LookaroundAdmittedState(n)))"
+    assert active =~ "(@erased child_selected_whole: List(LookaroundAdmittedState(n)))"
+    assert active =~ "(@erased child_current: List(LookaroundAdmittedState(n)))"
+  end
+
   test "atomic active child rejection has a recursive child eliminator" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 

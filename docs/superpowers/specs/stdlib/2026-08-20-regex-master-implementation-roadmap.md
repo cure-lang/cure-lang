@@ -1766,15 +1766,21 @@ The selected child suffix now has an explicit outer-origin transport authority,
 `atomic_path_active_child_selection_suffix_transport`.  It transports a
 `LookaroundAdmittedStateCursorSuffix` across the selected-child whole-spine
 equality instead of asking each caller to rebuild or guess the cursor list.  A
-source regression pins the equality and suffix indices, and the complete
-`regex_runtime.cure` module elaborates directly (about 53 seconds in the
-current test build).  Parent integration is intentionally still open: the
-path constructor's selected suffix carries an existential constructor-local
-current spine, so arbitrary sibling advancement needs a typed existential
-package (or an equivalent construction-site equality) before the outer
-transport can be consumed soundly.  No bare-name or unchecked cast bridge is
-introduced; arbitrary rejected-child recursion and the final all-kinds
-selected-trace/refutation theorem remain open.
+source regression pins the equality and suffix indices.  Parent integration
+is intentionally still open: the path constructor's selected suffix carried
+its current spine through implicit constructor arguments, so consumers could
+not refine that spine at the construction boundary.  The active and accepted
+transition constructors now publish `child_whole`, `child_selected_whole`, and
+`child_current` as explicit erased fields, and
+`atomic_path_active_child_selection_package` packages those
+fields together with the selected suffix, its outer-origin transport, and the
+recursive child trace.  The complete `regex_runtime.cure` module elaborates
+directly in about 51 seconds, and a source regression pins the explicit erased
+indices.  The package is a construction-site refinement only: child whole/
+selected-whole equivalence still needs to be consumed by the generic parent
+alignment, arbitrary rejected-child recursion and the final all-kinds
+selected-trace/refutation theorem remain open.  No bare-name or unchecked cast
+bridge is introduced.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
