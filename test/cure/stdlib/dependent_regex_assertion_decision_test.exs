@@ -2378,6 +2378,27 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert source =~ "Option(AtomicStartRefutation"
   end
 
+  test "active root no-results retain their exact start-list head" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    active_root =
+      Enum.find(String.split(source, "\n"), &String.starts_with?(&1, "    AtomicStartMembersActiveRootNo :"))
+
+    assert active_root =~ "active_current_equivalence: Equivalent"
+    assert active_root =~
+             "current, Cons(LookaroundAdmittedActive(active_state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining)"
+
+    root_to_search =
+      source
+      |> String.split("fn atomic_start_members_root_to_search", parts: 2)
+      |> List.last()
+      |> String.split("\n  fn ", parts: 2)
+      |> List.first()
+
+    assert root_to_search =~ "active_current_equivalence"
+    assert root_to_search =~ "match active_current_equivalence"
+  end
+
   test "constraint admission has one construction authority" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 

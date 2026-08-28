@@ -232,6 +232,13 @@ failure whole-list spines from being silently discarded, while leaving the
 parent contradiction and arbitrary sibling recursion as the remaining proof
 obligation.
 
+The active-root no-result package likewise carries an erased
+`active_current_equivalence` witness for its exact `Cons(active, remaining)`
+start-list spine. The public root adapter consumes this equality before
+publishing the refutation, preserving the candidate identity at the start
+boundary without adding runtime proof state. General start-list recursion and
+the final selected-trace/refutation theorem remain open.
+
 The singleton destination-exhaustion tail is also consumed by the named
 proof-only `atomic_path_active_child_rejection_excludes_tail_exhaustion`
 boundary. Its indexed arguments fix a rejected parent and a

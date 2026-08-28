@@ -1800,6 +1800,16 @@ the final all-kinds
 selected-trace/refutation theorem remain open.  No bare-name or unchecked cast
 bridge is introduced.
 
+The active-root no-result constructor now publishes an erased
+`active_current_equivalence` witness relating its result cursor to the exact
+`Cons(active, remaining)` start-list spine.  The root adapter consumes that
+equality by matching on `reflexive` before wrapping the failure, so the active
+head cannot be silently discarded at the public start boundary.  This is a
+construction-site invariant only; arbitrary start-list recursion and the final
+selected-trace/refutation correspondence remain open.  The red source
+regression passes and the complete `Std.Regex.Runtime` module compiles
+directly with no warnings.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
