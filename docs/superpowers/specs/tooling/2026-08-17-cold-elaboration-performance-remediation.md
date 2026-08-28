@@ -287,9 +287,9 @@ special constructor case to `Std.Regex.Proof` or to a test helper.
 The source files to classify and graph are:
 
 ```text
-/Users/ch/Develop/esp32-beam/cure-lang/lib/std/regex.cure
-/Users/ch/Develop/esp32-beam/cure-lang/lib/std/regex_proof.cure
-/Users/ch/Develop/esp32-beam/cure-lang/lib/std/regex_language.cure
+/Users/ch/Develop/esp32-beam/cure-lang/lib/std_deps/regex/regex.cure
+/Users/ch/Develop/esp32-beam/cure-lang/lib/std_deps/regex/regex_proof.cure
+/Users/ch/Develop/esp32-beam/cure-lang/lib/std_deps/regex/regex_language.cure
 ```
 
 The current edges that create the expensive body SCC are:
@@ -606,12 +606,18 @@ prepared value into another module.
 This is the main graph-level optimization. It must be implemented as a source
 migration, not as a pipeline special case.
 
+The migration is now landed in the embedded `cure_regex` package under
+`lib/std_deps/regex`. The former `lib/std/regex*.cure` paths are historical and
+must not be recreated. Package identity, explicit exports, and the acyclic
+`Std.Char` → `Std.Literal` → `Std.String` text boundary are part of the current
+implementation.
+
 ### 7.1 Inventory and classification
 
 Parse the current three files with Chiasmus and inspect the source directly.
 The Chiasmus adapter is a navigation aid; it is not the authority for Cure's
 dynamic module visibility or generated declarations. For every declaration in
-`lib/std/regex.cure`, classify it into exactly one of:
+`lib/std_deps/regex/regex.cure`, classify it into exactly one of:
 
 1. **Core data:** indexed data families, aliases, constructors, and values
    that appear in the types of both runtime and proof declarations.
@@ -631,7 +637,8 @@ remain a small foundational interface.
 
 ### 7.2 `Std.Regex.Core`
 
-Create `lib/std/regex_core.cure` with module name `Std.Regex.Core`.
+Create or update `lib/std_deps/regex/regex_core.cure` with module name
+`Std.Regex.Core`.
 
 It owns the shared indexed vocabulary required by multiple layers, including
 the final reviewed set of:
@@ -658,7 +665,8 @@ in Core merely moves the cold cost rather than removing it.
 
 ### 7.3 `Std.Regex.Runtime`
 
-Create `lib/std/regex_runtime.cure` with module name `Std.Regex.Runtime`.
+Create or update `lib/std_deps/regex/regex_runtime.cure` with module name
+`Std.Regex.Runtime`.
 
 Move executable behavior that depends on Core but has no theorem dependency:
 
@@ -683,7 +691,7 @@ dependency edge out of the foundational runtime module.
 
 ### 7.4 `Std.Regex.Proof`
 
-Change `lib/std/regex_proof.cure` to import `Std.Regex.Core` and
+Change `lib/std_deps/regex/regex_proof.cure` to import `Std.Regex.Core` and
 `Std.Regex.Runtime`, never `Std.Regex`.
 
 All theorem declarations remain semantically unchanged unless a moved owner
@@ -701,7 +709,8 @@ bridge to retain old names.
 
 ### 7.5 `Std.Regex.Language`
 
-Change `lib/std/regex_language.cure` to import Core, Runtime, and Proof.
+Change `lib/std_deps/regex/regex_language.cure` to import Core, Runtime, and
+Proof.
 It must not import the façade. Its denotation and completeness declarations
 must refer to Core's canonical type families and Runtime's canonical execution
 functions. Proof calls remain explicit and are not replaced with unchecked
@@ -709,7 +718,7 @@ runtime calls.
 
 ### 7.6 `Std.Regex` compatibility façade
 
-Retain `lib/std/regex.cure` as module `Std.Regex`, but reduce it to:
+Retain `lib/std_deps/regex/regex.cure` as module `Std.Regex`, but reduce it to:
 
 - explicitly reviewed typealiases to Core families;
 - explicitly reviewed constructor/function wrappers for the existing public
