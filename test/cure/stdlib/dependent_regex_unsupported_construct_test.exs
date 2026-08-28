@@ -41,6 +41,14 @@ defmodule Cure.Stdlib.DependentRegexUnsupportedConstructTest do
       {"(*SKIP:branch)", :UnsupportedRegexBacktrackingControl, "(*SKIP:branch)"},
       {"(*COMMIT)", :UnsupportedRegexBacktrackingControl, "(*COMMIT)"},
       {"(*COMMIT:branch)", :UnsupportedRegexBacktrackingControl, "(*COMMIT:branch)"},
+      {"(*LIMIT_MATCH=100)", :UnsupportedRegexResourceControl, "(*LIMIT_MATCH=100)"},
+      {"(*LIMIT_DEPTH=10)", :UnsupportedRegexResourceControl, "(*LIMIT_DEPTH=10)"},
+      {"(*LIMIT_HEAP=1024)", :UnsupportedRegexResourceControl, "(*LIMIT_HEAP=1024)"},
+      {"(*NOTEMPTY)", :UnsupportedRegexEmptyMatchControl, "(*NOTEMPTY)"},
+      {"(*NOTEMPTY_ATSTART)", :UnsupportedRegexEmptyMatchControl, "(*NOTEMPTY_ATSTART)"},
+      {"(*NOTEMPTY_ATEND)", :UnsupportedRegexEmptyMatchControl, "(*NOTEMPTY_ATEND)"},
+      {"a(*LIMIT_MATCH=100)", :UnsupportedRegexResourceControl, "(*LIMIT_MATCH=100)"},
+      {"a(*NOTEMPTY)", :UnsupportedRegexEmptyMatchControl, "(*NOTEMPTY)"},
       {"(*UTF16)a", :UnsupportedRegexEncodingControl, "(*UTF16)"},
       {"(*UTF32)a", :UnsupportedRegexEncodingControl, "(*UTF32)"},
       {~S"a{2,1}", :RegexQuantifierRangeReversed, "{2,1}"}
@@ -224,6 +232,32 @@ defmodule Cure.Stdlib.DependentRegexUnsupportedConstructTest do
 
     Enum.each(cases, fn {pattern, expected} ->
       source = "mod UnclosedBacktrackingControl\n  use Std.Regex\n  fn run() = /#{pattern}/\nend\n"
+
+      reason = Program.elaborate(source)
+
+      assert {:error,
+              {:source_context,
+               {:computed_macro_error, _meta,
+                {:author_diagnostics, [{:macro_failure, ^expected, _arguments}]}}, _context}} =
+               reason
+
+      {diagnostic, _registry} = Errors.to_diagnostic(reason, "nofile", source)
+      assert Cure.Diagnostic.message(diagnostic) =~ "closing `)`"
+      span = diagnostic.primary.span
+      assert binary_part(source, span.start_byte, span.end_byte - span.start_byte) == pattern
+    end)
+  end
+
+  test "unclosed resource and empty-match controls have a dedicated diagnostic" do
+    cases = [
+      {"(*LIMIT_MATCH=100", :UnclosedRegexControl},
+      {"(*LIMIT_DEPTH=10", :UnclosedRegexControl},
+      {"(*NOTEMPTY", :UnclosedRegexControl},
+      {"(*NOTEMPTY_ATSTART", :UnclosedRegexControl}
+    ]
+
+    Enum.each(cases, fn {pattern, expected} ->
+      source = "mod UnclosedResourceControl\n  use Std.Regex\n  fn run() = /#{pattern}/\nend\n"
 
       reason = Program.elaborate(source)
 

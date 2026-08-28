@@ -21,6 +21,8 @@ mod Std.Regex.Syntax.Parser
       ['(', '*', 'N', 'O', '_', 'S', 'T', 'A', 'R', 'T', '_', 'O', 'P', 'T', ')' | rest] -> parse_literal(rest)
       ['(', '*', 'N', 'O', '_', 'A', 'U', 'T', 'O', '_', 'P', 'O', 'S', 'S', 'E', 'S', 'S', ')' | rest] -> parse_literal(rest)
       ['(', '*', 'U', 'C', 'P', ')' | rest] -> parse_literal_with_modifier(UnicodeModifier, rest)
+      ['(', '*', 'L', 'I', 'M', 'I', 'T', '_' | rest] -> parse_literal_unsupported_resource_control(rest, literal_fuel(input), input)
+      ['(', '*', 'N', 'O', 'T', 'E', 'M', 'P', 'T' | rest] -> parse_literal_unsupported_empty_match_control(rest, literal_fuel(input), input)
       ['(', '*', 'U', 'T', 'F', '1', '6', ')' | rest] -> LiteralLocatedInvalid(:UnsupportedRegexEncodingControl, Z(), literal_prefix_width(input, 8))
       ['(', '*', 'U', 'T', 'F', '3', '2', ')' | rest] -> LiteralLocatedInvalid(:UnsupportedRegexEncodingControl, Z(), literal_prefix_width(input, 8))
       _ -> parse_literal_complete(parse_literal_alternate_fuel(input, literal_fuel(input)), input)
@@ -173,6 +175,8 @@ mod Std.Regex.Syntax.Parser
         literal_accept_continuation_allowed(rest) -> LiteralParsed(LiteralEmpty, rest)
         else -> LiteralAtInvalid(:UnsupportedRegexAcceptContinuation, input, literal_delimited_width(input, ')'))
       ['(', '*', 'M', 'A', 'R', 'K', ':' | rest] -> parse_literal_mark_control(rest, next_fuel, input, [])
+      ['(', '*', 'L', 'I', 'M', 'I', 'T', '_' | rest] -> parse_literal_unsupported_resource_control(rest, next_fuel, input)
+      ['(', '*', 'N', 'O', 'T', 'E', 'M', 'P', 'T' | rest] -> parse_literal_unsupported_empty_match_control(rest, next_fuel, input)
       ['(', '*', 'T', 'H', 'E', 'N', ':' | rest] -> parse_literal_unsupported_control(rest, next_fuel, input)
       ['(', '*', 'T', 'H', 'E', 'N', ')' | _] -> LiteralAtInvalid(:UnsupportedRegexBacktrackingControl, input, literal_delimited_width(input, ')'))
       ['(', '*', 'T', 'H', 'E', 'N' | rest] -> parse_literal_unsupported_control(rest, next_fuel, input)
@@ -204,12 +208,21 @@ mod Std.Regex.Syntax.Parser
   ## recognized before ordinary group parsing so they cannot degrade into a
   ## misleading quantifier or group diagnostic. The optional label is consumed
   ## only to report the whole control span; no runtime state is fabricated.
-  fn parse_literal_unsupported_control(input: List(Char), fuel: Nat, origin: List(Char)) -> LiteralParse = match fuel
+  fn parse_literal_unsupported_control(input: List(Char), fuel: Nat, origin: List(Char)) -> LiteralParse =
+    parse_literal_unsupported_control_reason(input, fuel, origin, :UnsupportedRegexBacktrackingControl)
+
+  fn parse_literal_unsupported_resource_control(input: List(Char), fuel: Nat, origin: List(Char)) -> LiteralParse =
+    parse_literal_unsupported_control_reason(input, fuel, origin, :UnsupportedRegexResourceControl)
+
+  fn parse_literal_unsupported_empty_match_control(input: List(Char), fuel: Nat, origin: List(Char)) -> LiteralParse =
+    parse_literal_unsupported_control_reason(input, fuel, origin, :UnsupportedRegexEmptyMatchControl)
+
+  fn parse_literal_unsupported_control_reason(input: List(Char), fuel: Nat, origin: List(Char), reason: Atom) -> LiteralParse = match fuel
     Z() -> LiteralInvalid(:RegexParseLimit)
     S(next_fuel) -> match input
       [] -> LiteralAtInvalid(:UnclosedRegexControl, origin, literal_length(origin))
-      [')' | _] -> LiteralAtInvalid(:UnsupportedRegexBacktrackingControl, origin, literal_delimited_width(origin, ')'))
-      [_ | rest] -> parse_literal_unsupported_control(rest, next_fuel, origin)
+      [')' | _] -> LiteralAtInvalid(reason, origin, literal_delimited_width(origin, ')'))
+      [_ | rest] -> parse_literal_unsupported_control_reason(rest, next_fuel, origin, reason)
 
   ## PCRE permits an optional MARK-style label on FAIL and ACCEPT. Cure's
   ## public match values expose no mark channel, so the label is validated and

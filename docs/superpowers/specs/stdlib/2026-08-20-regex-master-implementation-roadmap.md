@@ -1901,6 +1901,13 @@ The class parser applies the same boundary: anchor, line-break, numeric, and
 other special escapes that have no character-class meaning are rejected with
 structured `:UnsupportedRegexClassEscape` or numeric diagnostics instead of
 becoming literal class members.
+PCRE resource-limit controls (`(*LIMIT_MATCH=...)`, `(*LIMIT_DEPTH=...)`, and
+`(*LIMIT_HEAP=...)`) now receive the dedicated structured
+`:UnsupportedRegexResourceControl` diagnostic, and the caller-level empty-match
+controls `(*NOTEMPTY)`, `(*NOTEMPTY_ATSTART)`, and `(*NOTEMPTY_ATEND)` receive
+`:UnsupportedRegexEmptyMatchControl`. Neither family is silently treated as an
+empty atom: Cure's resource policy and empty-match policy are explicit in the
+typed APIs and cannot be replaced by mutable host controls.
 Remaining Phase 3 work is grapheme clusters,
 duplicate-name and capture-layout policy, other finite control normalizations,
 and the remaining control families below. `(*FAIL)`/`(*F)` and terminal `(*ACCEPT)`
