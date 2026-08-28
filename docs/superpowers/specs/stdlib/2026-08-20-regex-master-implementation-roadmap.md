@@ -1854,6 +1854,11 @@ pinned paired scalar while the regex property remains Boolean membership.
 Finite PCRE start controls `(*UTF)`, `(*UTF8)`, and `(*NO_JIT)` now normalize
 away at the syntax boundary: Cure's subjects are already Unicode-scalar lists,
 and the matcher has no host JIT mode whose selection could affect semantics.
+The optimizer-only controls `(*NO_START_OPT)` and `(*NO_AUTO_POSSESS)` now
+normalize away for the same reason: the Cure lowering has no observable host
+start optimizer or automatic-possessification pass. They are accepted only as
+leading controls, just like the other start controls, and do not add runtime
+control state.
 `(*UCP)` normalizes to the existing scoped Unicode modifier, so generic
 word/digit/space predicates use the same typed and erased implementation as
 the `u` option. `(*UTF16)` and `(*UTF32)` are rejected with the structured

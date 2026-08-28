@@ -43,6 +43,8 @@ defmodule Cure.Stdlib.DependentRegexModifierTest do
       fn utf_control_exact() -> Option(Unit) = parse_full(/(*UTF)abc/, "abc")
       fn utf8_control_exact() -> Option(Unit) = parse_full(/(*UTF8)abc/, "abc")
       fn no_jit_control_exact() -> Option(Unit) = parse_full(/(*NO_JIT)abc/, "abc")
+      fn no_start_opt_control_exact() -> Option(Unit) = parse_full(/(*NO_START_OPT)abc/, "abc")
+      fn no_auto_possess_control_exact() -> Option(Unit) = parse_full(/(*NO_AUTO_POSSESS)abc/, "abc")
 
       fn alert_escape(input: String) -> Option(Unit) = parse_full(/\\a/, input)
       fn escape_escape(input: String) -> Option(Unit) = parse_full(/\\e/, input)
@@ -121,6 +123,8 @@ defmodule Cure.Stdlib.DependentRegexModifierTest do
     assert apply(module, :utf_control_exact, []) == {:some, :unit}
     assert apply(module, :utf8_control_exact, []) == {:some, :unit}
     assert apply(module, :no_jit_control_exact, []) == {:some, :unit}
+    assert apply(module, :no_start_opt_control_exact, []) == {:some, :unit}
+    assert apply(module, :no_auto_possess_control_exact, []) == {:some, :unit}
   end
 
   test "x removes unescaped pattern whitespace before parsing", %{runtime_module: module} do

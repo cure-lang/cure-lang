@@ -18,6 +18,8 @@ mod Std.Regex.Syntax.Parser
       ['(', '*', 'U', 'T', 'F', ')' | rest] -> parse_literal(rest)
       ['(', '*', 'U', 'T', 'F', '8', ')' | rest] -> parse_literal(rest)
       ['(', '*', 'N', 'O', '_', 'J', 'I', 'T', ')' | rest] -> parse_literal(rest)
+      ['(', '*', 'N', 'O', '_', 'S', 'T', 'A', 'R', 'T', '_', 'O', 'P', 'T', ')' | rest] -> parse_literal(rest)
+      ['(', '*', 'N', 'O', '_', 'A', 'U', 'T', 'O', '_', 'P', 'O', 'S', 'S', 'E', 'S', 'S', ')' | rest] -> parse_literal(rest)
       ['(', '*', 'U', 'C', 'P', ')' | rest] -> parse_literal_with_modifier(UnicodeModifier, rest)
       ['(', '*', 'U', 'T', 'F', '1', '6', ')' | rest] -> LiteralLocatedInvalid(:UnsupportedRegexEncodingControl, Z(), literal_prefix_width(input, 8))
       ['(', '*', 'U', 'T', 'F', '3', '2', ')' | rest] -> LiteralLocatedInvalid(:UnsupportedRegexEncodingControl, Z(), literal_prefix_width(input, 8))
