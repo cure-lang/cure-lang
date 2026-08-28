@@ -173,6 +173,18 @@ mod Std.Regex.Syntax.Parser
         literal_accept_continuation_allowed(rest) -> LiteralParsed(LiteralEmpty, rest)
         else -> LiteralAtInvalid(:UnsupportedRegexAcceptContinuation, input, literal_delimited_width(input, ')'))
       ['(', '*', 'M', 'A', 'R', 'K', ':' | rest] -> parse_literal_mark_control(rest, next_fuel, input, [])
+      ['(', '*', 'T', 'H', 'E', 'N', ':' | rest] -> parse_literal_unsupported_control(rest, next_fuel, input)
+      ['(', '*', 'T', 'H', 'E', 'N', ')' | _] -> LiteralAtInvalid(:UnsupportedRegexBacktrackingControl, input, literal_delimited_width(input, ')'))
+      ['(', '*', 'T', 'H', 'E', 'N' | rest] -> parse_literal_unsupported_control(rest, next_fuel, input)
+      ['(', '*', 'P', 'R', 'U', 'N', 'E', ':' | rest] -> parse_literal_unsupported_control(rest, next_fuel, input)
+      ['(', '*', 'P', 'R', 'U', 'N', 'E', ')' | _] -> LiteralAtInvalid(:UnsupportedRegexBacktrackingControl, input, literal_delimited_width(input, ')'))
+      ['(', '*', 'P', 'R', 'U', 'N', 'E' | rest] -> parse_literal_unsupported_control(rest, next_fuel, input)
+      ['(', '*', 'S', 'K', 'I', 'P', ':' | rest] -> parse_literal_unsupported_control(rest, next_fuel, input)
+      ['(', '*', 'S', 'K', 'I', 'P', ')' | _] -> LiteralAtInvalid(:UnsupportedRegexBacktrackingControl, input, literal_delimited_width(input, ')'))
+      ['(', '*', 'S', 'K', 'I', 'P' | rest] -> parse_literal_unsupported_control(rest, next_fuel, input)
+      ['(', '*', 'C', 'O', 'M', 'M', 'I', 'T', ':' | rest] -> parse_literal_unsupported_control(rest, next_fuel, input)
+      ['(', '*', 'C', 'O', 'M', 'M', 'I', 'T', ')' | _] -> LiteralAtInvalid(:UnsupportedRegexBacktrackingControl, input, literal_delimited_width(input, ')'))
+      ['(', '*', 'C', 'O', 'M', 'M', 'I', 'T' | rest] -> parse_literal_unsupported_control(rest, next_fuel, input)
       ['(' | rest] -> parse_literal_group_fuel(rest, next_fuel, ['(' | rest])
       ['[' | rest] -> parse_literal_class(rest, ['[' | rest])
       ['\\' | rest] -> parse_literal_escape(rest, ['\\' | rest])
@@ -187,6 +199,17 @@ mod Std.Regex.Syntax.Parser
     [')' | _] -> true
     ['|' | _] -> true
     _ -> false
+
+  ## These verbs alter the host backtracking stack or search cursor. They are
+  ## recognized before ordinary group parsing so they cannot degrade into a
+  ## misleading quantifier or group diagnostic. The optional label is consumed
+  ## only to report the whole control span; no runtime state is fabricated.
+  fn parse_literal_unsupported_control(input: List(Char), fuel: Nat, origin: List(Char)) -> LiteralParse = match fuel
+    Z() -> LiteralInvalid(:RegexParseLimit)
+    S(next_fuel) -> match input
+      [] -> LiteralAtInvalid(:UnclosedRegexControl, origin, literal_length(origin))
+      [')' | _] -> LiteralAtInvalid(:UnsupportedRegexBacktrackingControl, origin, literal_delimited_width(origin, ')'))
+      [_ | rest] -> parse_literal_unsupported_control(rest, next_fuel, origin)
 
   ## PCRE permits an optional MARK-style label on FAIL and ACCEPT. Cure's
   ## public match values expose no mark channel, so the label is validated and

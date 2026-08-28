@@ -14,6 +14,14 @@ defmodule Cure.Stdlib.DependentRegexUnsupportedConstructTest do
       {~S"(?R)", :UnsupportedRegexRecursion, "(?R"},
       {~S"(?1)", :UnsupportedRegexRecursion, "(?1"},
       {~S"(?x:a)", :UnsupportedRegexInlineOptions, "(?x"},
+      {"(*THEN)", :UnsupportedRegexBacktrackingControl, "(*THEN)"},
+      {"(*THEN:branch)", :UnsupportedRegexBacktrackingControl, "(*THEN:branch)"},
+      {"(*PRUNE)", :UnsupportedRegexBacktrackingControl, "(*PRUNE)"},
+      {"(*PRUNE:branch)", :UnsupportedRegexBacktrackingControl, "(*PRUNE:branch)"},
+      {"(*SKIP)", :UnsupportedRegexBacktrackingControl, "(*SKIP)"},
+      {"(*SKIP:branch)", :UnsupportedRegexBacktrackingControl, "(*SKIP:branch)"},
+      {"(*COMMIT)", :UnsupportedRegexBacktrackingControl, "(*COMMIT)"},
+      {"(*COMMIT:branch)", :UnsupportedRegexBacktrackingControl, "(*COMMIT:branch)"},
       {"(*UTF16)a", :UnsupportedRegexEncodingControl, "(*UTF16)"},
       {"(*UTF32)a", :UnsupportedRegexEncodingControl, "(*UTF32)"},
       {~S"a{2,1}", :RegexQuantifierRangeReversed, "{2,1}"}
@@ -167,6 +175,36 @@ defmodule Cure.Stdlib.DependentRegexUnsupportedConstructTest do
 
     Enum.each(cases, fn {pattern, expected} ->
       source = "mod UnclosedRegexControl\n  use Std.Regex\n  fn run() = /#{pattern}/\nend\n"
+
+      reason = Program.elaborate(source)
+
+      assert {:error,
+              {:source_context,
+               {:computed_macro_error, _meta,
+                {:author_diagnostics, [{:macro_failure, ^expected, _arguments}]}}, _context}} =
+               reason
+
+      {diagnostic, _registry} = Errors.to_diagnostic(reason, "nofile", source)
+      assert Cure.Diagnostic.message(diagnostic) =~ "closing `)`"
+      span = diagnostic.primary.span
+      assert binary_part(source, span.start_byte, span.end_byte - span.start_byte) == pattern
+    end)
+  end
+
+  test "unclosed backtracking controls have a dedicated diagnostic" do
+    cases = [
+      {"(*THEN", :UnclosedRegexControl},
+      {"(*THEN:branch", :UnclosedRegexControl},
+      {"(*PRUNE", :UnclosedRegexControl},
+      {"(*PRUNE:branch", :UnclosedRegexControl},
+      {"(*SKIP", :UnclosedRegexControl},
+      {"(*SKIP:branch", :UnclosedRegexControl},
+      {"(*COMMIT", :UnclosedRegexControl},
+      {"(*COMMIT:branch", :UnclosedRegexControl}
+    ]
+
+    Enum.each(cases, fn {pattern, expected} ->
+      source = "mod UnclosedBacktrackingControl\n  use Std.Regex\n  fn run() = /#{pattern}/\nend\n"
 
       reason = Program.elaborate(source)
 

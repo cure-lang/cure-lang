@@ -1878,6 +1878,15 @@ control normalizes to `LiteralEmpty`. Cure's public match values expose no
 MARK channel, so this preserves the observable acceptance and capture result
 without introducing runtime state. Missing, empty, and colon-less MARK forms
 produce dedicated structured diagnostics with exact source spans.
+The search-stack controls `(*THEN)`, `(*PRUNE)`, `(*SKIP)`, and `(*COMMIT)` are
+recognized before ordinary group parsing, including their label-bearing forms,
+and rejected with the dedicated structured `:UnsupportedRegexBacktrackingControl`
+diagnostic. Their PCRE semantics mutate alternative backtracking or the search
+cursor; until Cure has an explicit finite control algebra and preservation
+proof, treating them as empty atoms would be unsound. Missing closing
+parentheses use the structured `:UnclosedRegexControl` diagnostic with the
+whole control span. This makes the compatibility divergence explicit rather
+than allowing these verbs to fall through to a misleading quantifier error.
 Remaining Phase 3 work is grapheme clusters,
 duplicate-name and capture-layout policy, other finite control normalizations,
 and the remaining control families below. `(*FAIL)`/`(*F)` and terminal `(*ACCEPT)`
