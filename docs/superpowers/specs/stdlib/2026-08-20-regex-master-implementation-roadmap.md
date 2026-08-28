@@ -1846,6 +1846,14 @@ runtime tag.  A focused source regression and direct zero-warning runtime
 compile pass.  Rejected-child recursion and non-empty sibling folds remain
 open.
 
+The destination-exhaustion consumer is now used by the singleton rejected-tail
+construction site itself.  `atomic_path_tail_destinations_exhausted_excludes_aligned_trace`
+passes the indexed dispatch to
+`atomic_path_selected_tail_dispatch_destinations_exhausted`, which consumes
+the preserved `AtomicPathSelectedTailPackage` rather than rebuilding a tail
+failure or discarding the selected suffix.  Direct runtime compilation remains
+zero-warning; the arbitrary rejected-child branch is still open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
