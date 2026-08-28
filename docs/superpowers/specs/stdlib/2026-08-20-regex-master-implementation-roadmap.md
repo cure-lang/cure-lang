@@ -1825,13 +1825,13 @@ correspondence remain open.
 The generic rejected-tail dispatcher now delegates to the named
 `atomic_path_destination_rejection_selected_suffix_dispatch` boundary.  That
 boundary selects the already-built head or tail result solely from the
-indexed cursor, while its failure, candidate, path, and result payloads remain
-erased.  The value-form call avoids introducing a closure into the dependent
-proof boundary (which previously caused an unsupported lambda expression and
-an elaboration blow-up); the complete `Std.Regex.Runtime` module compiles
-directly with zero warnings.  This centralizes the rejected-tail selection
-authority but does not discharge arbitrary rejected-child recursion or the
-final all-kinds selected-trace/refutation theorem.
+indexed cursor, while its failure, candidate, path, and cursor payloads remain
+erased.  The branch results are supplied through the compiler's supported
+proof-only zero-argument continuation form; no erased failure tag is inspected
+and no runtime state is added.  The complete `Std.Regex.Runtime` module
+compiles directly with zero warnings.  This centralizes the rejected-tail
+selection authority but does not discharge arbitrary rejected-child recursion
+or the final all-kinds selected-trace/refutation theorem.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in

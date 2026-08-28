@@ -11446,8 +11446,12 @@ mod Std.Regex.Runtime
     routine,
     selection_from_current,
     path,
-    head_case,
-    tail_case
+    fn() ->
+      head_case
+    end,
+    fn() ->
+      tail_case
+    end
   )
 
   ## Empty-result form of the same dispatcher. The selected cursor is
@@ -11533,9 +11537,9 @@ mod Std.Regex.Runtime
       remaining_input,
       routine
     ),
-    head_case: result,
-    tail_case: result
-  ) -> result = atomic_path_selected_child_suffix_location_select(
+    head_case: () -> result,
+    tail_case: () -> result
+  ) -> result = atomic_path_selected_child_suffix_location_elim(
     selection_from_current,
     head_case,
     tail_case

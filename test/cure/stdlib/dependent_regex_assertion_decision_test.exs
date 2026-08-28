@@ -1583,7 +1583,7 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     [body | _] = String.split(body, "\n  ##", parts: 2)
 
     assert Regex.match?(
-             ~r/atomic_path_selected_child_suffix_location_select.*?head_case.*?tail_case/s,
+             ~r/atomic_path_selected_child_suffix_location_elim.*?head_case.*?tail_case/s,
              body
            )
   end
