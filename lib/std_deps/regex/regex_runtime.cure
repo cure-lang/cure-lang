@@ -10435,7 +10435,6 @@ mod Std.Regex.Runtime
   ## a cursor or inspecting an erased failure tag.
   @reducible
   fn atomic_path_active_child_rejection_excludes_tail_package(
-    {result: Type},
     {depth: Nat},
     {n: Nat},
     machine: PatternMachine(n),
@@ -10473,7 +10472,7 @@ mod Std.Regex.Runtime
     remaining_input: List(Char),
     selected_routine: List(ExtendedInstruction),
     dispatch: AtomicPathSelectedTailDispatch(
-      result,
+      Empty,
       depth,
       n,
       machine,
@@ -10493,15 +10492,15 @@ mod Std.Regex.Runtime
       remaining_input,
       selected_routine
     )
-  ) -> result = match dispatch
-    AtomicPathSelectedTailHead(value) -> value
+  ) -> Empty = match dispatch
+    AtomicPathSelectedTailHead(value) -> lookaround_absurd(value)
     AtomicPathSelectedTailTail(package) -> match package
       AtomicPathSelectedTailPackagePacked(tail_package, tail_suffix, path) -> match tail_package
         AtomicPathTailPackagePacked(tail_failure) -> match tail_failure
           AtomicPathInputExhausted(_, _) -> impossible
           AtomicPathExactAcceptedWithInput(_, _, _, _) -> impossible
           AtomicPathDestinationsExhausted(_, _, _, _, _, _) ->
-            lookaround_absurd(atomic_path_active_child_rejection_excludes_tail_exhaustion(
+            atomic_path_active_child_rejection_excludes_tail_exhaustion(
               machine,
               child_char,
               child_rest,
@@ -10522,7 +10521,7 @@ mod Std.Regex.Runtime
               remaining_input,
               selected_routine,
               path
-            ))
+            )
           AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
 
   ## When a sibling tail rejects an accepted candidate, its exact child
