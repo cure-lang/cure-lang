@@ -2107,6 +2107,17 @@ head contradiction, recursive rejected-child consumers, complete start-list
 correspondence, and the final all-kinds selected-trace/refutation theorem
 remain open.
 
+The embedded `cure_regex` package now takes its identity and export surface
+from `lib/std_deps/regex/Cure.toml` at the package construction site. The
+stdlib bootstrap no longer duplicates `cure_regex`/`Std.Regex` in its stage and
+merge options; it derives the package name and normalized export list from the
+manifest, records that same map in the merged artifact, and compares it during
+the up-to-date short circuit so an export edit cannot reuse a stale generation.
+The source bundler preserves the package manifest beside the bundled `.cure`
+files under `priv/std_deps/regex`. Manifest-authority and bundling regressions
+pass, while the acyclic Core → Runtime → Proof/Language → façade graph and its
+selected-trace proof obligations remain as previously recorded.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
