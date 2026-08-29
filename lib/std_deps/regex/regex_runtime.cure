@@ -11983,7 +11983,6 @@ mod Std.Regex.Runtime
     prefix_mode: Bool,
     reversed_prefix: List(Char),
     whole: List(LookaroundAdmittedState(n)),
-    {@erased head: LookaroundAdmittedState(n)},
     active_state: Bounded(n),
     active_routine: List(EvidenceInstruction),
     active_constraints: List(BoundaryConstraint),
@@ -12109,6 +12108,206 @@ mod Std.Regex.Runtime
           child_path,
           right_case
         )
+
+  ## Dispatch the child refutation at the same construction boundary as the
+  ## selected active transition.  A non-empty active child can only end in
+  ## destination exhaustion or destination rejection; input exhaustion and
+  ## exact accepted terminals are ruled out by its input and thread indices.
+  ## The destination-exhaustion branch is consumed by the dedicated aligned
+  ## theorem above.  The rejection branch derives its non-empty cursor package
+  ## here and delegates to the existing recursive alignment authority.
+  @reducible
+  fn atomic_path_tail_active_child_failure_dispatch(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    char: Char,
+    child_char: Char,
+    child_rest: List(Char),
+    after_input: List(Char),
+    source: Bounded(n),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    scope_depth: Nat,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    whole: List(LookaroundAdmittedState(n)),
+    active_state: Bounded(n),
+    active_routine: List(EvidenceInstruction),
+    active_constraints: List(BoundaryConstraint),
+    active_assertion_routine: List(ExtendedInstruction),
+    active_assertion_markers: List(EvidenceInstruction),
+    active_nested_decisions: List(LookaroundNestedDecision),
+    tail_remaining: List(LookaroundAdmittedState(n)),
+    @erased tail_failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(char, Cons(child_char, child_rest)),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(LookaroundAdmittedActive(active_state, active_routine, active_constraints, active_assertion_routine, active_assertion_markers, active_nested_decisions), tail_remaining),
+      AtomicPathFailureDestinationRejected()
+    ),
+    child_whole: List(LookaroundAdmittedState(n)),
+    child_current: List(LookaroundAdmittedState(n)),
+    {@erased child_kind: AtomicPathFailureKind},
+    @erased child_failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(child_char, child_rest),
+      after_input,
+      ThreadActive(active_state),
+      history_push_bounded(history, char),
+      append_routine(append_routine(capture_context, active_routine), active_assertion_markers),
+      policy,
+      atomic_scope_depth_after(active_routine, scope_depth),
+      prefix_mode,
+      Cons(char, reversed_prefix),
+      child_whole,
+      child_current,
+      child_kind
+    ),
+    child_suffix: LookaroundAdmittedStateCursorSuffix(n, child_whole, child_current),
+    child_selected_whole: List(LookaroundAdmittedState(n)),
+    child_selected_current: List(LookaroundAdmittedState(n)),
+    child_selected_whole_equivalence: Equivalent(
+      List(LookaroundAdmittedState(n)),
+      child_whole,
+      child_selected_whole
+    ),
+    child_selection_suffix: LookaroundAdmittedStateCursorSuffix(
+      n,
+      child_selected_whole,
+      child_selected_current
+    ),
+    selected_remaining: List(LookaroundAdmittedState(n)),
+    matched: List(Char),
+    remaining_input: List(Char),
+    selected_routine: List(ExtendedInstruction),
+    child_selected_routine: List(ExtendedInstruction),
+    @erased child_path: AtomicSelectedPathTrace(
+      depth,
+      n,
+      machine,
+      Cons(child_char, child_rest),
+      after_input,
+      ThreadActive(active_state),
+      history_push_bounded(history, char),
+      append_routine(append_routine(capture_context, active_routine), active_assertion_markers),
+      policy,
+      atomic_scope_depth_after(active_routine, scope_depth),
+      prefix_mode,
+      Cons(char, reversed_prefix),
+      child_selected_current,
+      matched,
+      remaining_input,
+      child_selected_routine
+    ),
+    @erased path: AtomicSelectedPathTrace(
+      depth,
+      n,
+      machine,
+      Cons(char, Cons(child_char, child_rest)),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      Cons(LookaroundAdmittedActive(active_state, active_routine, active_constraints, active_assertion_routine, active_assertion_markers, active_nested_decisions), selected_remaining),
+      matched,
+      remaining_input,
+      selected_routine
+    ),
+    left_case: () -> Empty,
+    left_tail_case: () -> Empty,
+    right_case: () -> Empty
+  ) -> Empty = match child_current
+    Nil() -> match child_failure
+      AtomicPathDestinationsExhausted(_, _, _, _, _, _) ->
+        atomic_path_tail_active_child_destinations_exhausted_excludes_selected_suffix(
+          machine,
+          char,
+          child_char,
+          child_rest,
+          after_input,
+          source,
+          history,
+          capture_context,
+          policy,
+          scope_depth,
+          prefix_mode,
+          reversed_prefix,
+          whole,
+          active_state,
+          active_routine,
+          active_constraints,
+          active_assertion_routine,
+          active_assertion_markers,
+          active_nested_decisions,
+          tail_remaining,
+          tail_failure,
+          child_whole,
+          child_failure,
+          child_suffix,
+          child_selected_whole,
+          child_selected_whole_equivalence,
+          child_selected_current,
+          child_selection_suffix,
+          selected_remaining,
+          matched,
+          remaining_input,
+          selected_routine,
+          child_selected_routine,
+          child_path,
+          path,
+          right_case
+        )
+    Cons(_, _) -> match child_failure
+      AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) ->
+        match lookaround_admitted_cursor_suffix_nonempty(child_suffix)
+          LookaroundAdmittedNonemptyPacked(child_failure_head, child_failure_tail, child_failure_nonempty_equivalence) ->
+            atomic_path_active_child_rejection_excludes_trace(
+              machine,
+              child_char,
+              child_rest,
+              after_input,
+              active_state,
+              history_push_bounded(history, char),
+              append_routine(append_routine(capture_context, active_routine), active_assertion_markers),
+              policy,
+              atomic_scope_depth_after(active_routine, scope_depth),
+              prefix_mode,
+              Cons(char, reversed_prefix),
+              child_whole,
+              child_current,
+              child_suffix,
+              LookaroundAdmittedNonemptyPacked(
+                child_failure_head,
+                child_failure_tail,
+                child_failure_nonempty_equivalence
+              ),
+              child_selected_whole,
+              child_selected_whole_equivalence,
+              child_selection_suffix,
+              child_failure,
+              child_path,
+              left_case,
+              left_tail_case,
+              right_case
+            )
 
   ## Align a recursively rejected active child with the selected child trace.
   ## The child failure kind is fixed before this helper is called, while the

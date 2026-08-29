@@ -1995,6 +1995,19 @@ arbitrary rejected-child fold, handling the other three child failure kinds,
 and proving the final all-kinds selected-trace/refutation correspondence remain
 open.
 
+The active-child construction site now has a canonical failure dispatcher,
+`atomic_path_tail_active_child_failure_dispatch`. It branches on the relevant
+child cursor spine (`Nil()` versus `Cons(...)`) rather than inspecting the
+erased `AtomicPathRefutation` kind as runtime data. The empty-spine branch is
+indexed to the destination-exhaustion constructor and forwards to the typed
+destination consumer; the non-empty branch is indexed to destination rejection,
+packages the required non-empty cursor witness, and forwards to the existing
+recursive alignment authority. Input-exhausted and exact-accepted cases are
+excluded by the input/thread indices. The direct zero-warning runtime compile
+and the eight-test refutation regression pass. The dispatcher is a proof-only
+construction-site boundary; integrating it into the arbitrary fold and proving
+the final all-kinds selected-trace/refutation correspondence remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
