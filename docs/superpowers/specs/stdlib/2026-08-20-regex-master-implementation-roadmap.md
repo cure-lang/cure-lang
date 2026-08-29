@@ -2020,6 +2020,18 @@ slice passes 9/9. Non-empty rejected-child recursion, arbitrary sibling-tail
 folding, start-list correspondence, and the final all-kinds
 selected-trace/refutation theorem remain open.
 
+The accepted-sibling construction site now uses the existing arbitrary indexed
+fold, `atomic_path_rejected_tail_fold_to_accepted`, instead of a fixed first
+tail peel. The selected accepted candidate, its cursor suffix, and its path are
+passed directly to the fold; its recursive tail branch therefore preserves the
+same erased refutation/path indices for any later sibling. This removes the
+duplicated two-sibling accepted-tail proof without adding runtime state or
+reconstructing a candidate. The direct zero-warning `Std.Regex.Runtime`
+compile is green, and the source regression pins the generic fold call.
+Active/rejected child recursion, arbitrary rejected-tail exhaustion folding,
+start-list correspondence, and the final all-kinds selected-trace/refutation
+theorem remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

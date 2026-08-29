@@ -329,4 +329,16 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
 
     assert {:ok, _module} = Cure.Compiler.compile_and_load(source, emit_events: false)
   end
+
+  test "accepted destination tails fold arbitrary sibling suffixes" do
+    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_path_tail_rejection_excludes_selected_suffix(", parts: 2)
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+
+    assert body =~ "atomic_path_rejected_tail_fold_to_accepted("
+    assert body =~ "_tail_selected_suffix"
+  end
 end

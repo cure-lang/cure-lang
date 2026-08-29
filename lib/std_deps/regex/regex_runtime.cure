@@ -11418,54 +11418,37 @@ mod Std.Regex.Runtime
       remaining_input,
       selected_routine
     )
-  ) -> Empty = match tail_failure
-    AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, child_failure, _, child_scope_alignment, _, _, _, _) -> match path
-      AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, suffix) -> match child_scope_alignment
-        LookaroundAdmittedStateScopeAccepted(_, _, _, _, _) -> match child_failure
-          AtomicPathExactAcceptedWithInput(_, _, _, _) ->
-            let tail_result: Empty = atomic_path_failure_excludes_selected_suffix(
-              machine,
-              char,
-              rest,
-              after_input,
-              ThreadActive(source),
-              history,
-              capture_context,
-              policy,
-              scope_depth,
-              reversed_prefix,
-              tail_routine,
-              tail_constraints,
-              tail_assertion_routine,
-              tail_assertion_markers,
-              tail_nested_decisions,
-              child_failure,
-              path
-            )
-            atomic_path_destination_rejection_excludes_recursive_tail_rejected(
-              machine,
-              char,
-              rest,
-              after_input,
-              source,
-              history,
-              capture_context,
-              policy,
-              scope_depth,
-              prefix_mode,
-              reversed_prefix,
-              whole,
-              head,
-              _failure,
-              matched,
-              remaining_input,
-              selected_routine,
-              LookaroundAdmittedStateCursorSuffixDrop(head, _tail_selected_suffix),
-              _tail_selected_suffix,
-              path,
-              tail_result,
-              tail_result
-            )
+  ) -> Empty =
+    let accepted_candidate: LookaroundAdmittedState(n) = LookaroundAdmittedAccepted(
+      tail_routine,
+      tail_constraints,
+      tail_assertion_routine,
+      tail_assertion_markers,
+      tail_nested_decisions
+    )
+    atomic_path_rejected_tail_fold_to_accepted(
+      machine,
+      char,
+      rest,
+      after_input,
+      source,
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      accepted_candidate,
+      tail_failure,
+      tail_routine,
+      tail_constraints,
+      tail_assertion_routine,
+      tail_assertion_markers,
+      tail_nested_decisions,
+      _tail_selected_suffix,
+      path
+    )
 
   ## Base case for a selected trace at the accepted sibling after one rejected
   ## head. The parent-to-selected cursor is retained as an erased `Drop`
