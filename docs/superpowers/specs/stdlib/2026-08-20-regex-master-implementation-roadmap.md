@@ -2084,6 +2084,18 @@ dependent path-refutation regression passes 14/14. Recursive rejected-child
 consumers, complete start-list correspondence, and the final all-kinds
 selected-trace/refutation theorem remain open.
 
+The indexed `AtomicPathDestinationRejected` branch now has a named
+construction-site consumer, `atomic_path_active_child_rejection_excludes_destination_rejected`.
+The aligned helper only performs the constructor match and forwards the
+already-refined cursor witnesses to that consumer; the named boundary owns the
+single call to `atomic_path_active_child_rejection_tail_fold`. This removes the
+last duplicated alignment construction at that branch without introducing a
+runtime callback, cast, or second failure-kind authority. The complete
+`Std.Regex.Runtime` module compiles with zero warnings and the focused
+dependent path-refutation regression passes 15/15. Recursive rejected-child
+consumers, complete start-list correspondence, and the final all-kinds
+selected-trace/refutation theorem remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

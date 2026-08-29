@@ -394,6 +394,33 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
       )
 
     [body | _] = String.split(body, "\n  ##", parts: 2)
-    assert body =~ "atomic_path_active_child_rejection_tail_fold("
+    assert body =~ "atomic_path_active_child_rejection_excludes_destination_rejected("
+  end
+
+  test "active-child destination rejection has a named construction-site consumer" do
+    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+
+    assert source =~
+             "fn atomic_path_active_child_rejection_excludes_destination_rejected("
+
+    [_prefix, body] =
+      String.split(
+        source,
+        "fn atomic_path_active_child_rejection_excludes_aligned_trace(",
+        parts: 2
+      )
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert body =~ "atomic_path_active_child_rejection_excludes_destination_rejected("
+
+    [_prefix, helper_body] =
+      String.split(
+        source,
+        "fn atomic_path_active_child_rejection_excludes_destination_rejected(",
+        parts: 2
+      )
+
+    [helper_body | _] = String.split(helper_body, "\n  ##", parts: 2)
+    assert helper_body =~ "atomic_path_active_child_rejection_tail_fold("
   end
 end
