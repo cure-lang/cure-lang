@@ -6,6 +6,14 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
 
     assert source =~ "type AtomicPathSearchOrigin"
     assert source =~ "child_origin_canonical: AtomicPathSearchOrigin"
+    assert Regex.match?(
+             ~r/AtomicPathActiveChildSelectionPackageActive : [^\n]*child_selected_whole_equivalence: Equivalent\(List\(LookaroundAdmittedState\(n\)\), child_whole, child_selected_whole\)\) -> \(@erased child_origin_canonical: AtomicPathSearchOrigin/,
+             source
+           )
+    assert source =~
+             "child_selected_whole_equivalence, child_origin_canonical, _, _, _, _, _) ->\n"
+             <> "      match child_selected_whole_equivalence"
+    assert source =~ "AtomicPathSearchOriginActive(_, _, _, _) -> continuation()"
   end
 
   test "recursive path refutation rejects unrelated child destination indices" do

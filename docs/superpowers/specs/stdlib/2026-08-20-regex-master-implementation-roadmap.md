@@ -1945,6 +1945,16 @@ The direct `Std.Regex.Runtime` compile remains zero-warning.  This is a
 construction-site transport slice only; the arbitrary rejected-child fold and
 final all-kinds theorem remain open until a consumer eliminates the witness.
 
+The active-child selection package now retains that erased
+`AtomicPathSearchOrigin` witness instead of dropping it while packaging the
+selected child cursors.  Its proof-only consumer matches the indexed active
+origin constructor before invoking the child alignment continuation, so the
+consumer cannot accept a transition whose child origin was not published by
+the canonical member traversal.  The focused source regression and direct
+zero-warning `Std.Regex.Runtime` compile pass.  This closes the package handoff
+but does not yet prove the arbitrary rejected-child fold or the final
+all-kinds selected-trace/refutation correspondence.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
