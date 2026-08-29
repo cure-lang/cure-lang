@@ -2096,6 +2096,17 @@ dependent path-refutation regression passes 15/15. Recursive rejected-child
 consumers, complete start-list correspondence, and the final all-kinds
 selected-trace/refutation theorem remain open.
 
+The singleton active-child head now has its own reducible construction-site
+boundary, `atomic_path_active_child_rejection_head_excludes_trace`, and the
+aligned dispatcher routes the head case through it. The boundary currently
+delegates to the canonical destination-rejection consumer; this preserves the
+erased proof shape while isolating the one-character induction leaf for the
+next specialized theorem. `Std.Regex.Runtime` compiles with zero warnings and
+the focused dependent path-refutation regression passes 16/16. The specialized
+head contradiction, recursive rejected-child consumers, complete start-list
+correspondence, and the final all-kinds selected-trace/refutation theorem
+remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

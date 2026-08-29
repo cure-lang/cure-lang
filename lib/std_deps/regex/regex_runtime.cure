@@ -12718,6 +12718,41 @@ mod Std.Regex.Runtime
   ## alignment eliminator.  Both directions are explicit continuations: the
   ## left-to-right branch can descend through the rejected sibling tail, and
   ## the right-to-left branch remains the separate reverse induction case.
+  ## Keep the singleton child head at a named construction-site boundary. It
+  ## currently shares the destination-rejection cursor consumer; the separate
+  ## head theorem remains the next place to specialize the one-character leaf
+  ## without duplicating the alignment authority.
+  @reducible
+  fn atomic_path_active_child_rejection_head_excludes_trace(
+    {n: Nat},
+    @erased failure_whole: List(LookaroundAdmittedState(n)),
+    @erased failure_current: List(LookaroundAdmittedState(n)),
+    failure_suffix: LookaroundAdmittedStateCursorSuffix(n, failure_whole, failure_current),
+    @erased failure_nonempty: LookaroundAdmittedNonempty(n, failure_whole),
+    selected_whole: List(LookaroundAdmittedState(n)),
+    {selected_current: List(LookaroundAdmittedState(n))},
+    selected_whole_equivalence: Equivalent(
+      List(LookaroundAdmittedState(n)),
+      failure_whole,
+      selected_whole
+    ),
+    selected_suffix: LookaroundAdmittedStateCursorSuffix(n, selected_whole, selected_current),
+    left_case: () -> Empty,
+    left_tail_case: () -> Empty,
+    right_case: () -> Empty
+  ) -> Empty = atomic_path_active_child_rejection_excludes_destination_rejected(
+    failure_whole,
+    failure_current,
+    failure_suffix,
+    failure_nonempty,
+    selected_whole,
+    selected_whole_equivalence,
+    selected_suffix,
+    left_case,
+    left_tail_case,
+    right_case
+  )
+
   @reducible
   fn atomic_path_active_child_rejection_excludes_destination_rejected(
     {n: Nat},
@@ -12819,7 +12854,7 @@ mod Std.Regex.Runtime
     right_case: () -> Empty
   ) -> Empty = match child_failure
     AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) ->
-      atomic_path_active_child_rejection_excludes_destination_rejected(
+      atomic_path_active_child_rejection_head_excludes_trace(
         failure_whole,
         failure_current,
         failure_suffix,

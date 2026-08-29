@@ -394,7 +394,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
       )
 
     [body | _] = String.split(body, "\n  ##", parts: 2)
-    assert body =~ "atomic_path_active_child_rejection_excludes_destination_rejected("
+    assert body =~ "atomic_path_active_child_rejection_head_excludes_trace("
   end
 
   test "active-child destination rejection has a named construction-site consumer" do
@@ -411,7 +411,17 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
       )
 
     [body | _] = String.split(body, "\n  ##", parts: 2)
-    assert body =~ "atomic_path_active_child_rejection_excludes_destination_rejected("
+    assert body =~ "atomic_path_active_child_rejection_head_excludes_trace("
+
+    [_prefix, head_body] =
+      String.split(
+        source,
+        "fn atomic_path_active_child_rejection_head_excludes_trace(",
+        parts: 2
+      )
+
+    [head_body | _] = String.split(head_body, "\n  ##", parts: 2)
+    assert head_body =~ "atomic_path_active_child_rejection_excludes_destination_rejected("
 
     [_prefix, helper_body] =
       String.split(
@@ -422,5 +432,21 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
 
     [helper_body | _] = String.split(helper_body, "\n  ##", parts: 2)
     assert helper_body =~ "atomic_path_active_child_rejection_tail_fold("
+  end
+
+  test "active-child singleton rejection consumes the indexed head contradiction" do
+    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+
+    assert source =~ "fn atomic_path_active_child_rejection_head_excludes_trace"
+
+    [_prefix, body] =
+      String.split(
+        source,
+        "fn atomic_path_active_child_rejection_excludes_aligned_trace(",
+        parts: 2
+      )
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert body =~ "atomic_path_active_child_rejection_head_excludes_trace("
   end
 end
