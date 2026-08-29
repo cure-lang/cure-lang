@@ -2047,6 +2047,19 @@ and destination-exhaustion cases through the same fold, complete start-list
 correspondence, and prove the final all-kinds selected-trace/refutation
 theorem.
 
+The active-child alignment construction now computes the canonical alignment
+case once and routes its `Here`/`There`/`Reverse` result through the
+proof-only `atomic_path_active_child_rejection_tail_fold` dispatcher. The
+later-sibling case is therefore an explicit construction-site continuation,
+while the cursor and alignment witnesses remain erased; no runtime branch or
+failure-tag inspection is introduced. The direct zero-warning
+`Std.Regex.Runtime` compile and the focused dependent path-refutation
+regression pass 12/12. This is the typed dispatch/wiring slice, not the final
+child-failure-tail consumer: candidate-specific tail refutations, the other
+child-failure kinds, destination-exhaustion integration, start-list
+correspondence, and the all-kinds selected-trace/refutation theorem remain
+open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

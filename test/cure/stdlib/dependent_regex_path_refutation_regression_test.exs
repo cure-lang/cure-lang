@@ -353,4 +353,16 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     [body | _] = String.split(body, "\n  ##", parts: 2)
     assert body =~ "atomic_path_tail_active_child_rejection_excludes_selected_suffix_base("
   end
+
+  test "active-child later siblings use the indexed recursive tail fold" do
+    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_path_active_child_rejection_excludes_aligned_trace(",
+        parts: 2
+      )
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert body =~ "atomic_path_active_child_rejection_tail_fold("
+  end
 end

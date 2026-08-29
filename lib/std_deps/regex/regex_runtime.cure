@@ -12690,6 +12690,24 @@ mod Std.Regex.Runtime
               right_case
             )
 
+  ## Dispatch the indexed active-child alignment at the construction site. The
+  ## alignment case is already proof-relevant, so the three continuations can
+  ## remain proof-only while the eventual sibling-tail induction is supplied
+  ## by the caller that owns the child refutation.
+  @reducible
+  fn atomic_path_active_child_rejection_tail_fold(
+    {n: Nat},
+    {failure_current: List(LookaroundAdmittedState(n))},
+    {selected_current: List(LookaroundAdmittedState(n))},
+    location: AtomicPathActiveChildAlignmentCase(n, failure_current, selected_current),
+    head_case: () -> Empty,
+    tail_case: () -> Empty,
+    reverse_case: () -> Empty
+  ) -> Empty = match location
+    AtomicPathActiveChildAlignmentCaseHere() -> head_case()
+    AtomicPathActiveChildAlignmentCaseThere() -> tail_case()
+    AtomicPathActiveChildAlignmentCaseReverse() -> reverse_case()
+
   ## Align a recursively rejected active child with the selected child trace.
   ## The child failure kind is fixed before this helper is called, while the
   ## two cursor suffixes remain relevant construction-site witnesses for the
@@ -12766,15 +12784,18 @@ mod Std.Regex.Runtime
     left_tail_case: () -> Empty,
     right_case: () -> Empty
   ) -> Empty = match child_failure
-    AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> match atomic_path_active_child_alignment_from_nonempty(
-        failure_nonempty,
-        failure_suffix,
-        selected_whole_equivalence,
-        selected_suffix
+    AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) ->
+      atomic_path_active_child_rejection_tail_fold(
+        atomic_path_active_child_alignment_from_nonempty(
+          failure_nonempty,
+          failure_suffix,
+          selected_whole_equivalence,
+          selected_suffix
+        ),
+        left_case,
+        left_tail_case,
+        right_case
       )
-          AtomicPathActiveChildAlignmentCaseHere() -> left_case()
-          AtomicPathActiveChildAlignmentCaseThere() -> left_tail_case()
-          AtomicPathActiveChildAlignmentCaseReverse() -> right_case()
 
   ## Consume a recursively rejected active-child refutation at the construction
   ## site. This named boundary retains the child/refutation distinction while
