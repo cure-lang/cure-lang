@@ -12728,12 +12728,30 @@ mod Std.Regex.Runtime
   ## left-to-right branch can descend through the rejected sibling tail, and
   ## the right-to-left branch remains the separate reverse induction case.
   ## Keep the singleton child head at a named construction-site boundary. It
-  ## currently shares the destination-rejection cursor consumer; the separate
-  ## head theorem remains the next place to specialize the one-character leaf
-  ## without duplicating the alignment authority.
+  ## receives the canonical child origin witness from the rejection constructor
+  ## and currently shares the destination-rejection cursor consumer; the
+  ## separate head theorem remains the next place to specialize the
+  ## one-character leaf without duplicating the alignment authority.
   @reducible
   fn atomic_path_active_child_rejection_head_excludes_trace(
+    {@erased depth: Nat},
     {n: Nat},
+    machine: PatternMachine(n),
+    {@erased after_input: List(Char)},
+    {@erased state: ThreadState(n)},
+    {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy},
+    @erased _origin_witness: AtomicPathOriginWitness(
+      depth,
+      n,
+      machine,
+      after_input,
+      state,
+      history,
+      capture_context,
+      policy
+    ),
     @erased failure_whole: List(LookaroundAdmittedState(n)),
     @erased failure_current: List(LookaroundAdmittedState(n)),
     failure_suffix: LookaroundAdmittedStateCursorSuffix(n, failure_whole, failure_current),
@@ -12862,8 +12880,31 @@ mod Std.Regex.Runtime
     left_tail_case: () -> Empty,
     right_case: () -> Empty
   ) -> Empty = match child_failure
-    AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) ->
+    AtomicPathDestinationRejected(
+      _,
+      _,
+      _,
+      _,
+      _,
+      _,
+      _,
+      _,
+      _,
+      _,
+      _,
+      child_origin_canonical,
+      _,
+      _,
+      _,
+      _,
+      _,
+      _,
+      _,
+      _
+    ) ->
       atomic_path_active_child_rejection_head_excludes_trace(
+        machine,
+        child_origin_canonical,
         failure_whole,
         failure_current,
         failure_suffix,

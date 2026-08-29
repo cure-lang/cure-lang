@@ -460,4 +460,15 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     [body | _] = String.split(body, "\n  ##", parts: 2)
     assert body =~ "atomic_path_active_child_rejection_head_excludes_trace("
   end
+
+  test "active-child head consumer receives the canonical origin witness" do
+    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+
+    [_prefix, active_body] =
+      String.split(source, "fn atomic_path_active_child_rejection_head_excludes_trace(", parts: 2)
+
+    [active_body | _] = String.split(active_body, "\n  ##", parts: 2)
+
+    assert active_body =~ "_origin_witness: AtomicPathOriginWitness"
+  end
 end

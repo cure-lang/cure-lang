@@ -2118,6 +2118,18 @@ files under `priv/std_deps/regex`. Manifest-authority and bundling regressions
 pass, while the acyclic Core → Runtime → Proof/Language → façade graph and its
 selected-trace proof obligations remain as previously recorded.
 
+The active-child head consumer now receives the child's canonical
+`AtomicPathOriginWitness` directly from the `AtomicPathDestinationRejected`
+construction. Its witness indices carry the child thread state, pushed
+history, and derived capture context without requiring a runtime inspection or
+an untyped cast; the consumer keeps those values erased and delegates only the
+existing cursor-alignment authority. This is typed origin transport, not yet
+the final head contradiction. `Std.Regex.Runtime` compiles with zero warnings
+and the focused dependent path-refutation regression passes 18/18. The
+specialized head contradiction, arbitrary rejected-child recursion, complete
+start-list correspondence, and final all-kinds selected-trace/refutation
+theorem remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
