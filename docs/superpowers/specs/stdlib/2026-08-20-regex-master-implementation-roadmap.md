@@ -1980,6 +1980,21 @@ relevant proof leak, while arbitrary recursive child failure kinds and the
 final all-kinds selected-trace/refutation theorem remain open. The focused
 source regression and direct zero-warning runtime compile pass.
 
+The destination-exhaustion branch now has its own typed construction-site
+consumer, `atomic_path_tail_active_child_destinations_exhausted_excludes_selected_suffix`.
+It accepts a destination-exhaustion child refutation, its empty-cursor suffix,
+the selected-child whole-spine equivalence, selected cursor suffix, and child
+trace as explicit witnesses. The parent rejection and selected trace are first
+refined to the active-transition case, then those witnesses are forwarded to
+`atomic_path_active_child_destinations_exhausted_excludes_aligned_trace`, which
+uses the canonical cursor alignment and active destination-exhaustion leaf. No
+existential child failure tag is inspected as runtime data, and no unchecked
+cast or local index reconstruction is introduced. The direct runtime compile
+and seven-test refutation regression pass; wiring this consumer into the
+arbitrary rejected-child fold, handling the other three child failure kinds,
+and proving the final all-kinds selected-trace/refutation correspondence remain
+open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

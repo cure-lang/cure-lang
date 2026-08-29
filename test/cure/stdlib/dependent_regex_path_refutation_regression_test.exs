@@ -41,6 +41,16 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "LookaroundAdmittedNonemptyPacked(_, _, equality) -> match equality"
   end
 
+  test "active-child destination exhaustion has a construction-site consumer" do
+    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+
+    assert source =~
+             "fn atomic_path_tail_active_child_destinations_exhausted_excludes_selected_suffix"
+
+    assert source =~
+             "atomic_path_active_child_destinations_exhausted_excludes_aligned_trace"
+  end
+
   test "recursive path refutation rejects unrelated child destination indices" do
     source = ~S'''
     mod RegexPathRefutationRegression
