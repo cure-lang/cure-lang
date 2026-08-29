@@ -2060,6 +2060,18 @@ child-failure kinds, destination-exhaustion integration, start-list
 correspondence, and the all-kinds selected-trace/refutation theorem remain
 open.
 
+The active-child failure dispatcher now enumerates all four constructors of
+`AtomicPathFailureKind` at the indexed child boundary. `InputExhausted` and
+`ExactAcceptedWithInput` are explicitly discharged as impossible for a
+non-empty active child, `DestinationsExhausted` continues through the typed
+empty-cursor consumer, and `DestinationRejected` continues through the
+non-empty alignment consumer. This makes the failure-kind partition
+exhaustive without inspecting an erased tag at runtime. The direct
+zero-warning `Std.Regex.Runtime` compile and the focused path-refutation
+regression pass 13/13. The recursive child-tail consumers, complete
+start-list correspondence, and final all-kinds selected-trace/refutation
+theorem remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

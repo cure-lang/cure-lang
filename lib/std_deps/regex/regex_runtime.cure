@@ -12630,6 +12630,8 @@ mod Std.Regex.Runtime
     right_case: () -> Empty
   ) -> Empty = match child_current
     Nil() -> match child_failure
+      AtomicPathInputExhausted(_, _) -> impossible
+      AtomicPathExactAcceptedWithInput(_, _, _, _) -> impossible
       AtomicPathDestinationsExhausted(_, _, _, _, _, _) ->
         atomic_path_active_child_destinations_exhausted_excludes_aligned_trace(
           machine,
@@ -12656,7 +12658,11 @@ mod Std.Regex.Runtime
           child_path,
           right_case
         )
+      AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
     Cons(_, _) -> match child_failure
+      AtomicPathInputExhausted(_, _) -> impossible
+      AtomicPathExactAcceptedWithInput(_, _, _, _) -> impossible
+      AtomicPathDestinationsExhausted(_, _, _, _, _, _) -> impossible
       AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) ->
         match lookaround_admitted_cursor_suffix_nonempty(child_suffix)
           LookaroundAdmittedNonemptyPacked(child_failure_head, child_failure_tail, child_failure_nonempty_equivalence) ->
