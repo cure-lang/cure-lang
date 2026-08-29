@@ -1934,6 +1934,17 @@ selected-tail input.  The focused source regression and direct zero-warning
 runtime compile pass; arbitrary-length recursion and the all-kinds theorem
 remain open.
 
+The atomic selected-path result now also carries an erased
+`AtomicPathSearchOrigin` witness.  Terminal accepted searches use the empty
+origin constructor, while consuming active searches publish the exact
+filtered transition-list equation from the member traversal.  That witness is
+retained on both active and accepted selected-transition traces, so the next
+rejected-child induction can compose a failed child's origin equation with
+the selected child's canonical origin without rebuilding or guessing a list.
+The direct `Std.Regex.Runtime` compile remains zero-warning.  This is a
+construction-site transport slice only; the arbitrary rejected-child fold and
+final all-kinds theorem remain open until a consumer eliminates the witness.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

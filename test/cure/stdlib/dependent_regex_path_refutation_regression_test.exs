@@ -1,6 +1,13 @@
 defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
   use ExUnit.Case, async: false
 
+  test "selected atomic transitions retain the child origin certificate" do
+    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+
+    assert source =~ "type AtomicPathSearchOrigin"
+    assert source =~ "child_origin_canonical: AtomicPathSearchOrigin"
+  end
+
   test "recursive path refutation rejects unrelated child destination indices" do
     source = ~S'''
     mod RegexPathRefutationRegression
