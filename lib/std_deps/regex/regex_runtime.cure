@@ -1750,6 +1750,35 @@ mod Std.Regex.Runtime
     LookaroundAdmittedStateCursorSuffixHere : (@erased equality: Equivalent(List(LookaroundAdmittedState(n)), outer, inner)) -> LookaroundAdmittedStateCursorSuffix(n, outer, inner)
     LookaroundAdmittedStateCursorSuffixDrop : (@erased head: LookaroundAdmittedState(n)) -> (suffix: LookaroundAdmittedStateCursorSuffix(n, outer, inner)) -> LookaroundAdmittedStateCursorSuffix(n, Cons(head, outer), inner)
 
+  ## A non-empty cursor current proves that its whole spine is non-empty too.
+  ## Keep the decomposition existential and erased: callers need the
+  ## construction-site equality to refine a rejected child, but no runtime
+  ## representation of the chosen head or tail is allowed to escape.
+  type LookaroundAdmittedNonempty(n: Nat) indices (whole: List(LookaroundAdmittedState(n)))
+    LookaroundAdmittedNonemptyPacked : (@erased head: LookaroundAdmittedState(n)) -> (@erased tail: List(LookaroundAdmittedState(n))) -> (@erased equivalence: Equivalent(List(LookaroundAdmittedState(n)), whole, Cons(head, tail))) -> LookaroundAdmittedNonempty(n, whole)
+
+  ## Transport a non-empty decomposition backwards through an ordered cursor
+  ## suffix.  The `Here` case consumes the suffix equality; each `Drop` case
+  ## prepends the dropped head with the canonical cons congruence.  This is the
+  ## sole authority for deriving `whole = head :: tail` from a non-empty
+  ## cursor, so active-child proofs never manufacture that equality locally.
+  @reducible
+  fn lookaround_admitted_cursor_suffix_nonempty(
+    {n: Nat},
+    {whole: List(LookaroundAdmittedState(n))},
+    {head: LookaroundAdmittedState(n)},
+    {tail: List(LookaroundAdmittedState(n))},
+    suffix: LookaroundAdmittedStateCursorSuffix(n, whole, Cons(head, tail))
+  ) -> LookaroundAdmittedNonempty(n, whole) = match suffix
+    LookaroundAdmittedStateCursorSuffixHere(equality) -> match equality
+      reflexive() -> LookaroundAdmittedNonemptyPacked(head, tail, reflexive(Cons(head, tail)))
+    LookaroundAdmittedStateCursorSuffixDrop(dropped, prior) -> match lookaround_admitted_cursor_suffix_nonempty(prior)
+      LookaroundAdmittedNonemptyPacked(prior_head, prior_tail, prior_equivalence) -> LookaroundAdmittedNonemptyPacked(
+        dropped,
+        Cons(prior_head, prior_tail),
+        lookaround_admitted_state_cons_equivalent(dropped, prior_equivalence)
+      )
+
   ## A selected child suffix is either still at the rejected head or has
   ## dropped into its sibling tail.  Keeping that split indexed lets the
   ## recursive proof choose the child contradiction without inspecting an

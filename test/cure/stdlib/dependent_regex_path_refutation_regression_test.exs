@@ -16,6 +16,22 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "AtomicPathSearchOriginActive(_, _, _, _) -> continuation()"
   end
 
+  test "cursor suffixes publish a canonical non-empty whole decomposition" do
+    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+
+    assert source =~ "type LookaroundAdmittedNonempty"
+    assert source =~ "fn lookaround_admitted_cursor_suffix_nonempty"
+    assert source =~
+             "child_failure_nonempty_equivalence: Equivalent(\n" <>
+               "      List(LookaroundAdmittedState(n)),\n" <>
+               "      child_whole,\n" <>
+               "      Cons(child_failure_head, child_failure_tail)\n" <>
+               "    )"
+    assert source =~
+             "LookaroundAdmittedStateCursorSuffixDrop(dropped, prior) -> match lookaround_admitted_cursor_suffix_nonempty(prior)"
+    assert source =~ "lookaround_admitted_state_cons_equivalent(dropped, prior_equivalence)"
+  end
+
   test "recursive path refutation rejects unrelated child destination indices" do
     source = ~S'''
     mod RegexPathRefutationRegression

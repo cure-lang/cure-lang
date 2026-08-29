@@ -1955,6 +1955,18 @@ zero-warning `Std.Regex.Runtime` compile pass.  This closes the package handoff
 but does not yet prove the arbitrary rejected-child fold or the final
 all-kinds selected-trace/refutation correspondence.
 
+The cursor layer now exposes the missing non-empty decomposition authority:
+`lookaround_admitted_cursor_suffix_nonempty` packages an erased
+`whole = head :: tail` equality from any cursor suffix whose current spine is
+non-empty. Its `Here` branch consumes the stored equality and its `Drop`
+branch transports the decomposition with the canonical cons congruence. This
+is the witness required by the active-child rejected-tail theorem; callers no
+longer need to infer or locally rebuild that equality from a child refutation.
+The focused source regression and direct zero-warning `Std.Regex.Runtime`
+compile pass. The witness is a prerequisite for wiring the arbitrary
+rejected-child consumer, not that consumer or the final all-kinds theorem
+itself.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
