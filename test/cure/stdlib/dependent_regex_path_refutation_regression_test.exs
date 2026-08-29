@@ -32,6 +32,15 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "lookaround_admitted_state_cons_equivalent(dropped, prior_equivalence)"
   end
 
+  test "active-child alignment rewrites through the erased non-empty package" do
+    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+
+    assert source =~ "type AtomicPathActiveChildAlignmentCase"
+    assert source =~ "atomic_path_active_child_alignment_from_nonempty"
+    assert source =~ "match failure_nonempty"
+    assert source =~ "LookaroundAdmittedNonemptyPacked(_, _, equality) -> match equality"
+  end
+
   test "recursive path refutation rejects unrelated child destination indices" do
     source = ~S'''
     mod RegexPathRefutationRegression

@@ -1849,6 +1849,14 @@ mod Std.Regex.Runtime
     AtomicPathActiveChildAlignmentThere : {@erased failure_current: List(LookaroundAdmittedState(n))} -> (@erased alignment: LookaroundAdmittedStateCursorSuffix(n, failure_current, current)) -> (@erased tail: LookaroundAdmittedStateCursorSuffix(n, remaining, current)) -> AtomicPathActiveChildAlignment(n, candidate, remaining, failure_current, current)
     AtomicPathActiveChildAlignmentReverse : {@erased failure_current: List(LookaroundAdmittedState(n))} -> (@erased alignment: LookaroundAdmittedStateCursorSuffix(n, current, failure_current)) -> AtomicPathActiveChildAlignment(n, candidate, remaining, failure_current, current)
 
+  ## The package-consuming projection deliberately forgets the existential
+  ## head and tail values.  They are needed only to refine the erased whole
+  ## list; callers dispatch on the resulting location, not on proof payload.
+  type AtomicPathActiveChildAlignmentCase(n: Nat) indices (failure_current: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)))
+    AtomicPathActiveChildAlignmentCaseHere : AtomicPathActiveChildAlignmentCase(n, failure_current, current)
+    AtomicPathActiveChildAlignmentCaseThere : AtomicPathActiveChildAlignmentCase(n, failure_current, current)
+    AtomicPathActiveChildAlignmentCaseReverse : AtomicPathActiveChildAlignmentCase(n, failure_current, current)
+
   ## A child search and its selected trace may publish extensionally equal
   ## origin lists through different existential binders. Transporting the
   ## selected suffix across that equality gives both cursors one common outer
@@ -1995,6 +2003,44 @@ mod Std.Regex.Runtime
       failure_suffix,
       transport_lookaround_admitted_cursor_suffix_outer(selected_whole_equivalence, selected_suffix)
     )
+
+  ## Consume the erased non-empty decomposition without projecting erased
+  ## equality data into a relevant argument. Matching the equality rewrites
+  ## the whole-list index to its canonical `Cons` form; the selected whole
+  ## equality then supplies the only relevant transport needed to classify the
+  ## selected child as head, later sibling, or reverse-aligned.
+  @reducible
+  fn atomic_path_active_child_alignment_from_nonempty(
+    {n: Nat},
+    {failure_whole: List(LookaroundAdmittedState(n))},
+    {failure_current: List(LookaroundAdmittedState(n))},
+    {selected_whole: List(LookaroundAdmittedState(n))},
+    {selected_current: List(LookaroundAdmittedState(n))},
+    @erased failure_nonempty: LookaroundAdmittedNonempty(n, failure_whole),
+    failure_suffix: LookaroundAdmittedStateCursorSuffix(n, failure_whole, failure_current),
+    selected_whole_equivalence: Equivalent(
+      List(LookaroundAdmittedState(n)),
+      failure_whole,
+      selected_whole
+    ),
+    selected_suffix: LookaroundAdmittedStateCursorSuffix(n, selected_whole, selected_current)
+  ) -> AtomicPathActiveChildAlignmentCase(n, failure_current, selected_current) =
+    match failure_nonempty
+      LookaroundAdmittedNonemptyPacked(_, _, equality) -> match equality
+        reflexive() -> match atomic_child_cursor_alignment(
+            failure_suffix,
+            selected_whole_equivalence,
+            selected_suffix
+          )
+            LookaroundAdmittedCursorLeftToRight(_) -> match atomic_path_selected_child_suffix_location(
+              transport_lookaround_admitted_cursor_suffix_outer(
+                selected_whole_equivalence,
+                selected_suffix
+              )
+            )
+              AtomicPathSelectedChildHere(_, _) -> AtomicPathActiveChildAlignmentCaseHere()
+              AtomicPathSelectedChildThere(_, _) -> AtomicPathActiveChildAlignmentCaseThere()
+            LookaroundAdmittedCursorRightToLeft(_) -> AtomicPathActiveChildAlignmentCaseReverse()
 
   fn atomic_path_active_child_alignment(
     {n: Nat},
@@ -11897,12 +11943,15 @@ mod Std.Regex.Runtime
                 prefix_mode,
                 Cons(char, reversed_prefix),
                 child_whole,
-                child_failure_head,
                 child_current,
                 child_failure_suffix,
+                LookaroundAdmittedNonemptyPacked(
+                  child_failure_head,
+                  child_failure_tail,
+                  child_failure_nonempty_equivalence
+                ),
                 child_selected_whole,
                 child_selected_whole_equivalence,
-                child_failure_nonempty_equivalence,
                 child_selected_suffix,
                 child_failure,
                 child_trace,
@@ -11935,21 +11984,15 @@ mod Std.Regex.Runtime
     prefix_mode: Bool,
     reversed_prefix: List(Char),
     @erased failure_whole: List(LookaroundAdmittedState(n)),
-    failure_head: LookaroundAdmittedState(n),
-    {failure_tail: List(LookaroundAdmittedState(n))},
     @erased failure_current: List(LookaroundAdmittedState(n)),
     failure_suffix: LookaroundAdmittedStateCursorSuffix(n, failure_whole, failure_current),
+    @erased failure_nonempty: LookaroundAdmittedNonempty(n, failure_whole),
     selected_whole: List(LookaroundAdmittedState(n)),
     {selected_current: List(LookaroundAdmittedState(n))},
     selected_whole_equivalence: Equivalent(
       List(LookaroundAdmittedState(n)),
       failure_whole,
       selected_whole
-    ),
-    failure_nonempty_equivalence: Equivalent(
-      List(LookaroundAdmittedState(n)),
-      failure_whole,
-      Cons(failure_head, failure_tail)
     ),
     selected_suffix: LookaroundAdmittedStateCursorSuffix(n, selected_whole, selected_current),
     {matched: List(Char)},
@@ -11995,15 +12038,15 @@ mod Std.Regex.Runtime
     left_tail_case: () -> Empty,
     right_case: () -> Empty
   ) -> Empty = match child_failure
-    AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> match atomic_path_active_child_alignment(
+    AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> match atomic_path_active_child_alignment_from_nonempty(
+        failure_nonempty,
         failure_suffix,
-        failure_nonempty_equivalence,
         selected_whole_equivalence,
         selected_suffix
       )
-          AtomicPathActiveChildAlignmentHere(_) -> left_case()
-          AtomicPathActiveChildAlignmentThere(_, _) -> left_tail_case()
-          AtomicPathActiveChildAlignmentReverse(_) -> right_case()
+          AtomicPathActiveChildAlignmentCaseHere() -> left_case()
+          AtomicPathActiveChildAlignmentCaseThere() -> left_tail_case()
+          AtomicPathActiveChildAlignmentCaseReverse() -> right_case()
 
   ## Consume a recursively rejected active-child refutation at the construction
   ## site. This named boundary retains the child/refutation distinction while
@@ -12026,21 +12069,15 @@ mod Std.Regex.Runtime
     prefix_mode: Bool,
     reversed_prefix: List(Char),
     @erased failure_whole: List(LookaroundAdmittedState(n)),
-    failure_head: LookaroundAdmittedState(n),
-    {failure_tail: List(LookaroundAdmittedState(n))},
     @erased failure_current: List(LookaroundAdmittedState(n)),
     failure_suffix: LookaroundAdmittedStateCursorSuffix(n, failure_whole, failure_current),
+    @erased failure_nonempty: LookaroundAdmittedNonempty(n, failure_whole),
     selected_whole: List(LookaroundAdmittedState(n)),
     {selected_current: List(LookaroundAdmittedState(n))},
     selected_whole_equivalence: Equivalent(
       List(LookaroundAdmittedState(n)),
       failure_whole,
       selected_whole
-    ),
-    failure_nonempty_equivalence: Equivalent(
-      List(LookaroundAdmittedState(n)),
-      failure_whole,
-      Cons(failure_head, failure_tail)
     ),
     selected_suffix: LookaroundAdmittedStateCursorSuffix(n, selected_whole, selected_current),
     {matched: List(Char)},
@@ -12098,12 +12135,11 @@ mod Std.Regex.Runtime
     prefix_mode,
     reversed_prefix,
     failure_whole,
-    failure_head,
     failure_current,
     failure_suffix,
+    failure_nonempty,
     selected_whole,
     selected_whole_equivalence,
-    failure_nonempty_equivalence,
     selected_suffix,
     child_failure,
     child_path,

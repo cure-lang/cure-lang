@@ -1967,6 +1967,19 @@ compile pass. The witness is a prerequisite for wiring the arbitrary
 rejected-child consumer, not that consumer or the final all-kinds theorem
 itself.
 
+The active-child alignment boundary now consumes that non-empty witness at the
+canonical construction site. `atomic_path_active_child_alignment_from_nonempty`
+matches the erased decomposition and its equality to rewrite the whole cursor
+to a `Cons` spine, then uses the existing selected-whole transport to classify
+the selected child as head, later sibling, or reverse-aligned. A small indexed
+`AtomicPathActiveChildAlignmentCase` carries only that three-way control result;
+no erased head, tail, or equality is projected into a relevant argument. The
+active-child rejected-tail wrapper packages the construction-site decomposition
+once and delegates to this projection. This closes the former erased-to-
+relevant proof leak, while arbitrary recursive child failure kinds and the
+final all-kinds selected-trace/refutation theorem remain open. The focused
+source regression and direct zero-warning runtime compile pass.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
