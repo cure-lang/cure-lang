@@ -19,6 +19,19 @@ defmodule Mix.Tasks.Cure.BundleStdlibTest do
       cleanup_tmps()
     end
 
+    test "preserves a package Cure.toml manifest beside bundled sources" do
+      src = make_tmp!()
+      dst = make_tmp!()
+
+      write_cure!(src, "regex.cure", "mod Std.Regex\n")
+      File.write!(Path.join(src, "Cure.toml"), "[project]\nname = \"cure_regex\"\n")
+
+      assert {:ok, %{copied: 2, skipped: 0}} = BundleStdlib.bundle(src, dst)
+      assert File.read!(Path.join(dst, "Cure.toml")) =~ "name = \"cure_regex\""
+    after
+      cleanup_tmps()
+    end
+
     test "is a no-op when the source directory does not exist" do
       src = Path.join(System.tmp_dir!(), "cure_bundle_test_missing_#{unique()}")
       dst = make_tmp!()

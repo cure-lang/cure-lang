@@ -1,7 +1,8 @@
 defmodule Mix.Tasks.Cure.BundleStdlib do
   @moduledoc """
   Copy foundational `lib/std/*.cure` sources into `priv/std/*.cure` and the
-  embedded Regex package into `priv/std_deps/regex/*.cure`.
+  embedded Regex package into `priv/std_deps/regex/*.cure`, preserving its
+  `Cure.toml` package manifest alongside the sources.
 
   Host applications (e.g. `:cure_site`) that embed the Cure REPL need
   the stdlib `.cure` source files at runtime in order to resolve
@@ -51,8 +52,10 @@ defmodule Mix.Tasks.Cure.BundleStdlib do
 
       sources = source_dir |> Path.join("*.cure") |> Path.wildcard()
       prune_removed_sources(sources, dest_dir)
+      manifest = Path.join(source_dir, "Cure.toml")
+      files = if File.regular?(manifest), do: [manifest | sources], else: sources
 
-      sources
+      files
       |> Enum.reduce({:ok, %{copied: 0, skipped: 0}}, fn src, {:ok, counts} ->
         dst = Path.join(dest_dir, Path.basename(src))
 

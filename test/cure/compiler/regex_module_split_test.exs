@@ -22,6 +22,27 @@ defmodule Cure.Compiler.RegexModuleSplitTest do
     assert {:ok, _env} = Program.elaborate(source, file: "regex_facade_surface.cure")
   end
 
+  test "the embedded package export surface is read from its Cure.toml manifest" do
+    assert {:ok, exports} = Cure.Stdlib.Packages.package_exports("lib/std_deps/regex")
+    assert exports == %{"cure_regex" => ["Std.Regex"]}
+  end
+
+  test "package export authority follows the selected package manifest", %{tmp_dir: dir} do
+    File.write!(
+      Path.join(dir, "Cure.toml"),
+      """
+      [project]
+      name = "fixture_regex"
+
+      [exports]
+      modules = ["Fixture.Public", "Fixture.Public"]
+      """
+    )
+
+    assert {:ok, exports} = Cure.Stdlib.Packages.package_exports(dir)
+    assert exports == %{"fixture_regex" => ["Fixture.Public"]}
+  end
+
   test "the Regex layers have one-way manifest ownership" do
     paths =
       [

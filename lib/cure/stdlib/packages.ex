@@ -6,6 +6,7 @@ defmodule Cure.Stdlib.Packages do
   alias Cure.Compiler.Artifacts.Writer
 
   @regex_source_dir Path.expand("../../std_deps/regex", __DIR__)
+  @regex_package_name "cure_regex"
 
   # Persistent (not random-per-call) staging root for the two intermediate
   # sweeps the embedded-package path in `compile/3` needs: the foundational
@@ -41,6 +42,22 @@ defmodule Cure.Stdlib.Packages do
     |> Enum.sort()
   end
 
+  @doc "Read a Cure package's canonical export surface from its Cure.toml manifest."
+  @spec package_exports(Path.t()) :: {:ok, %{String.t() => [String.t()]}} | {:error, term()}
+  def package_exports(package_dir) when is_binary(package_dir) do
+    case Cure.Project.load(package_dir) do
+      {:ok, %{name: name, exports: %{modules: modules}}}
+      when is_binary(name) and name != "" and is_list(modules) ->
+        {:ok, %{name => modules |> Enum.map(&to_string/1) |> Enum.uniq() |> Enum.sort()}}
+
+      {:ok, %{name: name}} ->
+        {:error, {:invalid_package_exports, name}}
+
+      {:error, reason} ->
+        {:error, {:package_manifest_error, package_dir, reason}}
+    end
+  end
+
   @doc """
   Compile foundational stdlib sources, then the embedded Regex package.
 
@@ -62,10 +79,24 @@ defmodule Cure.Stdlib.Packages do
           {:ok, Result.t()} | {:error, term()}
   def compile(foundational_sources, output_dir, opts \\ []) do
     {embedded_packages?, opts} = Keyword.pop(opts, :embedded_packages, true)
+
+    package_exports =
+      if embedded_packages? do
+        package_exports(@regex_source_dir)
+      else
+        {:ok, %{}}
+      end
+
+    with {:ok, package_exports} <- package_exports do
+      do_compile(foundational_sources, output_dir, opts, embedded_packages?, package_exports)
+    end
+  end
+
+  defp do_compile(foundational_sources, output_dir, opts, embedded_packages?, package_exports) do
     regex_sources = if embedded_packages?, do: regex_sources(), else: []
     all_sources = foundational_sources ++ regex_sources
 
-    case short_circuit_up_to_date(output_dir, all_sources, opts) do
+    case short_circuit_up_to_date(output_dir, all_sources, opts, package_exports) do
       {:ok, %Result{} = result} ->
         {:ok, result}
 
@@ -88,6 +119,7 @@ defmodule Cure.Stdlib.Packages do
         else
           foundation_root = Path.join(@embedded_stage_root, "foundation")
           regex_root = Path.join(@embedded_stage_root, "package")
+          package_name = Map.keys(package_exports) |> List.first() || @regex_package_name
 
           # Unlike the two sweeps above, the merge step only copies
           # already-compiled, already-verified beams (see
@@ -123,8 +155,8 @@ defmodule Cure.Stdlib.Packages do
                      Keyword.merge(
                        [
                          module_pipeline: :canonical,
-                         package: "cure_regex",
-                         package_exports: %{"cure_regex" => ["Std.Regex"]},
+                         package: package_name,
+                         package_exports: package_exports,
                          source_paths: regex_sources,
                          source_roots: [@regex_source_dir],
                          interface_roots: [foundation.artifact_root],
@@ -135,13 +167,15 @@ defmodule Cure.Stdlib.Packages do
                        ],
                        opts
                      )
+                     |> Keyword.put(:package, package_name)
+                     |> Keyword.put(:package_exports, package_exports)
                    ),
                  _removed <- File.rm_rf!(merged_root),
                  {:ok, _merged} <-
                    Artifacts.merge_verified_flat([foundation.artifact_root, package.artifact_root], merged_root,
                      kind: :stdlib,
-                     package_artifact_digests: %{"cure_regex" => package.artifact_digest},
-                     package_exports: %{"cure_regex" => ["Std.Regex"]}
+                     package_artifact_digests: %{package_name => package.artifact_digest},
+                     package_exports: package_exports
                    ),
                  {:ok, final_root} <- Writer.copy_verified(merged_root, output_dir),
                  {:ok, final_set} <- Artifacts.open_verified_set(final_root, verification: :full) do
@@ -167,7 +201,7 @@ defmodule Cure.Stdlib.Packages do
     end
   end
 
-  defp short_circuit_up_to_date(output_dir, all_sources, opts) do
+  defp short_circuit_up_to_date(output_dir, all_sources, opts, expected_package_exports) do
     if Keyword.get(opts, :force, false) or not File.dir?(output_dir) do
       :miss
     else
@@ -178,6 +212,8 @@ defmodule Cure.Stdlib.Packages do
            true <- manifest.kind == expected_kind,
            recorded_compiler <- get_in(manifest, [:context, :compiler_hash]),
            true <- recorded_compiler == Cure.Compiler.BuildManifest.toolchain_fingerprint(),
+           recorded_package_exports <- get_in(manifest, [:context, :package_exports]) || %{},
+           true <- recorded_package_exports == expected_package_exports,
            sources <- all_sources |> Enum.map(&Path.expand/1) |> Enum.uniq(),
            true <- length(sources) == map_size(manifest.modules),
            {:ok, current_hashes} <- read_source_hashes(sources),
