@@ -2072,6 +2072,18 @@ regression pass 13/13. The recursive child-tail consumers, complete
 start-list correspondence, and final all-kinds selected-trace/refutation
 theorem remain open.
 
+The active-child selection package consumer no longer takes a zero-argument
+lambda continuation. It accepts the already-constructed proof result directly
+and returns it after validating the package's selected-whole equivalence and
+active origin. The rejected-active construction site now builds that result
+before entering the package boundary, so the branch remains proof-only while
+the Cure compiler can elaborate it when the path is reachable (Cure does not
+support the former lambda shape in this dependent callback context). The
+complete `Std.Regex.Runtime` module compiles with zero warnings and the focused
+dependent path-refutation regression passes 14/14. Recursive rejected-child
+consumers, complete start-list correspondence, and the final all-kinds
+selected-trace/refutation theorem remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

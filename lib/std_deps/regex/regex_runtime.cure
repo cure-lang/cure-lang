@@ -4297,12 +4297,12 @@ mod Std.Regex.Runtime
       remaining_input,
       selected_routine
     ),
-    continuation: () -> result
+    continuation: result
   ) -> result = match package
     AtomicPathActiveChildSelectionPackageActive(_, _, _, _, _, _, _, _, _, _, _, child_selected_whole_equivalence, child_origin_canonical, _, _, _, _, _) ->
       match child_selected_whole_equivalence
         reflexive() -> match child_origin_canonical
-          AtomicPathSearchOriginActive(_, _, _, _) -> continuation()
+          AtomicPathSearchOriginActive(_, _, _, _) -> continuation
 
   ## Selected-trace counterpart of the blocked-member induction. The blocked
   ## head's skip/allow evidence is threaded through the recursive tail package
@@ -11911,37 +11911,35 @@ mod Std.Regex.Runtime
               active_nested_decisions,
               path
             ),
-            fn() ->
-              atomic_path_active_child_rejection_excludes_trace(
-                machine,
-                child_char,
-                child_rest,
-                after_input,
-                active_state,
-                history_push_bounded(history, char),
-                append_routine(append_routine(capture_context, active_routine), active_assertion_markers),
-                policy,
-                atomic_scope_depth_after(active_routine, scope_depth),
-                prefix_mode,
-                Cons(char, reversed_prefix),
-                child_whole,
-                child_current,
-                child_failure_suffix,
-                LookaroundAdmittedNonemptyPacked(
-                  child_failure_head,
-                  child_failure_tail,
-                  child_failure_nonempty_equivalence
-                ),
-                child_selected_whole,
-                child_selected_whole_equivalence,
-                child_selected_suffix,
-                child_failure,
-                child_trace,
-                child_left_case,
-                child_left_tail_case,
-                child_right_case
-              )
-            end
+            atomic_path_active_child_rejection_excludes_trace(
+              machine,
+              child_char,
+              child_rest,
+              after_input,
+              active_state,
+              history_push_bounded(history, char),
+              append_routine(append_routine(capture_context, active_routine), active_assertion_markers),
+              policy,
+              atomic_scope_depth_after(active_routine, scope_depth),
+              prefix_mode,
+              Cons(char, reversed_prefix),
+              child_whole,
+              child_current,
+              child_failure_suffix,
+              LookaroundAdmittedNonemptyPacked(
+                child_failure_head,
+                child_failure_tail,
+                child_failure_nonempty_equivalence
+              ),
+              child_selected_whole,
+              child_selected_whole_equivalence,
+              child_selected_suffix,
+              child_failure,
+              child_trace,
+              child_left_case,
+              child_left_tail_case,
+              child_right_case
+            )
           )
 
   ## Recurse over an arbitrary sibling tail before consuming the selected

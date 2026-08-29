@@ -13,7 +13,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~
              "child_selected_whole_equivalence, child_origin_canonical, _, _, _, _, _) ->\n"
              <> "      match child_selected_whole_equivalence"
-    assert source =~ "AtomicPathSearchOriginActive(_, _, _, _) -> continuation()"
+    assert source =~ "AtomicPathSearchOriginActive(_, _, _, _) -> continuation"
   end
 
   test "cursor suffixes publish a canonical non-empty whole decomposition" do
@@ -76,6 +76,18 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
       assert body =~ constructor,
              "active-child dispatcher must account for #{constructor}"
     end
+  end
+
+  test "active-child selection consumer accepts a proof result directly" do
+    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_path_active_child_selection_package_consume(", parts: 2)
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert body =~ "continuation: result"
+    refute body =~ "continuation: () -> result"
+    assert body =~ "-> continuation"
   end
 
   test "active-child destination tails use the indexed failure dispatcher" do
