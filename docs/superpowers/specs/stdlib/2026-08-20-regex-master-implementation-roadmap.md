@@ -2032,6 +2032,21 @@ Active/rejected child recursion, arbitrary rejected-tail exhaustion folding,
 start-list correspondence, and the final all-kinds selected-trace/refutation
 theorem remain open.
 
+The active-child rejected-tail construction now has the corresponding generic
+fold, `atomic_path_rejected_tail_fold_to_active`. It recursively consumes the
+selected active candidate's rejected sibling suffix, matching only the
+indexed cursor and parent destination-rejection constructors; each adjacent
+candidate is handed to the original construction-site consumer,
+`atomic_path_tail_active_child_rejection_excludes_selected_suffix_base`.
+The wrapper preserves the public theorem shape while the base's head and
+remaining-tail witnesses are explicitly proof-erased, so the fold introduces
+no runtime representation or alternate resolver. The direct zero-warning
+`Std.Regex.Runtime` compile and the focused dependent path-refutation
+regression pass 11/11. Remaining work is to wire the other child-failure kinds
+and destination-exhaustion cases through the same fold, complete start-list
+correspondence, and prove the final all-kinds selected-trace/refutation
+theorem.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
