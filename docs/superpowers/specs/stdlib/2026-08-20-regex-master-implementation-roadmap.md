@@ -2008,6 +2008,18 @@ and the eight-test refutation regression pass. The dispatcher is a proof-only
 construction-site boundary; integrating it into the arbitrary fold and proving
 the final all-kinds selected-trace/refutation correspondence remain open.
 
+The active-child destination-exhaustion construction now delegates to that
+indexed failure dispatcher instead of duplicating its child-context refinement.
+The dispatcher consumes the `Nil()` child-cursor branch directly through
+`atomic_path_active_child_destinations_exhausted_excludes_aligned_trace`,
+while the wrapper retains the parent rejection and selected-trace indices.
+This avoids recursive re-entry through the wrapper and leaves the dispatcher as
+the single construction authority for the exhausted-child kind. The direct
+`Std.Regex.Runtime` compile is green and the focused path-refutation source
+slice passes 9/9. Non-empty rejected-child recursion, arbitrary sibling-tail
+folding, start-list correspondence, and the final all-kinds
+selected-trace/refutation theorem remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

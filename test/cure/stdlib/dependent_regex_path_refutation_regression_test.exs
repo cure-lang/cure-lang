@@ -59,6 +59,17 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "atomic_path_tail_active_child_destinations_exhausted_excludes_selected_suffix"
   end
 
+  test "active-child destination tails use the indexed failure dispatcher" do
+    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+
+    [_prefix, body] =
+      String.split(source, "fn atomic_path_tail_active_child_destinations_exhausted_excludes_selected_suffix(", parts: 2)
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert body =~ "atomic_path_tail_active_child_failure_dispatch"
+    refute body =~ "atomic_path_active_child_selection_package_consume"
+  end
+
   test "recursive path refutation rejects unrelated child destination indices" do
     source = ~S'''
     mod RegexPathRefutationRegression
