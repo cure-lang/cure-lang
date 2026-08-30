@@ -2340,6 +2340,25 @@ classification first loses the constructor refinement needed to consume the
 erased selected trace. Arbitrary non-empty child recursion, sibling-tail
 recursion, and the complete start-list lift remain open.
 
+The remaining reverse-cursor branch has now been traced to its sole legitimate
+construction source: `AtomicPathMembersEscapedNo`. When a child commitment
+escapes the current atomic scope, `atomic_lookaround_routine_add_skipped_candidate`
+prepends the skipped candidate while retaining only the later tail refutation.
+The public suffix-local `AtomicPathSearchNo` consequently publishes the skipped
+list but currently discards the certificate that the skipped candidate failed
+after committing. Cursor ordering alone therefore cannot soundly declare a
+selected trace in that prefix impossible. Before removing the reverse callback,
+the commit result and escaped-no result must retain an erased, indexed
+commit-refutation spine built at the three existing construction sites:
+failure-after-closing-scope, an active child's propagated commit, and an
+accepted child's propagated commit. Prepending an escaped candidate must
+prepend the corresponding commit certificate, and repeated escape propagation
+must preserve the certificate order alongside `skipped`. The reverse branch
+must consume that certificate against the selected trace; it must not infer
+rejection from a suffix relation or add a runtime Boolean/tag. The certificate
+is erased from emitted matchers and its construction must reuse the same atomic
+scope-disposition decision that selected the runtime `Commit`/continue branch.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
