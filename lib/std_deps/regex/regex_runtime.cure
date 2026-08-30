@@ -1839,12 +1839,21 @@ mod Std.Regex.Runtime
     LookaroundAdmittedCursorLeftToRight : (@erased suffix: LookaroundAdmittedStateCursorSuffix(n, left, right)) -> LookaroundAdmittedStateCursorAlignment(n, left, right)
     LookaroundAdmittedCursorRightToLeft : (@erased suffix: LookaroundAdmittedStateCursorSuffix(n, right, left)) -> LookaroundAdmittedStateCursorAlignment(n, left, right)
 
+  ## A proper suffix records at least one dropped candidate.  Ordinary cursor
+  ## suffixes also admit equality, which was too weak for the reverse atomic
+  ## branch: after recursive alignment it forgot that the selected cursor was
+  ## strictly before the failed cursor.  Retaining the dropped head makes that
+  ## ordering available to the skipped-prefix eliminator without a Boolean or
+  ## an unchecked list comparison.
+  type AtomicPathStrictCursorSuffix(n: Nat) indices (outer: List(LookaroundAdmittedState(n)), inner: List(LookaroundAdmittedState(n)))
+    AtomicPathStrictCursorSuffixDrop : (@erased head: LookaroundAdmittedState(n)) -> (@erased suffix: LookaroundAdmittedStateCursorSuffix(n, outer, inner)) -> AtomicPathStrictCursorSuffix(n, Cons(head, outer), inner)
+
   ## Compare two cursors from the same canonical origin. Equality remains an
   ## erased index; directional cases retain only the suffix needed by the
   ## recursive sibling-tail proof.
   type AtomicPathCursorLocation(n: Nat) indices (left: List(LookaroundAdmittedState(n)), right: List(LookaroundAdmittedState(n)))
     AtomicPathCursorLocationSame : (@erased equality: Equivalent(List(LookaroundAdmittedState(n)), left, right)) -> AtomicPathCursorLocation(n, left, right)
-    AtomicPathCursorLocationLeftAfter : (@erased marker: LookaroundAdmittedStateCursorSuffix(n, right, left)) -> AtomicPathCursorLocation(n, left, right)
+    AtomicPathCursorLocationLeftAfter : (@erased marker: AtomicPathStrictCursorSuffix(n, right, left)) -> AtomicPathCursorLocation(n, left, right)
     AtomicPathCursorLocationRightAfter : (@erased marker: LookaroundAdmittedStateCursorSuffix(n, left, right)) -> AtomicPathCursorLocation(n, left, right)
 
   @reducible
@@ -1862,9 +1871,9 @@ mod Std.Regex.Runtime
       )
       LookaroundAdmittedStateCursorSuffixDrop(_, _) -> match left_equality
         reflexive() -> AtomicPathCursorLocationRightAfter(right_suffix)
-    LookaroundAdmittedStateCursorSuffixDrop(_, left_prior) -> match right_suffix
+    LookaroundAdmittedStateCursorSuffixDrop(dropped, left_prior) -> match right_suffix
       LookaroundAdmittedStateCursorSuffixHere(right_equality) -> match right_equality
-        reflexive() -> AtomicPathCursorLocationLeftAfter(left_suffix)
+        reflexive() -> AtomicPathCursorLocationLeftAfter(AtomicPathStrictCursorSuffixDrop(dropped, left_prior))
       LookaroundAdmittedStateCursorSuffixDrop(_, right_prior) -> atomic_path_cursor_location(left_prior, right_prior)
 
   ## The active-child induction needs one more distinction than ordinary cursor
