@@ -2255,6 +2255,21 @@ sum tag. Runtime elaboration and the focused 27-test path-refutation gate pass;
 publishing both canonical origin certificates in the recursive failure package
 and consuming this alignment remain the next construction-site steps.
 
+Origin publication is now total and indexed rather than optional. Active
+searches on empty input publish `AtomicPathSearchOriginActiveEmpty` at the
+canonical empty list; accepted searches already publish the same empty origin,
+and consuming active searches retain their exact admitted-destination
+equation. `AtomicPathRootRefutation`, `AtomicPathSearchNo`, both member-failure
+results, `AtomicPathRefutation`, and `AtomicPathNoEvidence` now carry
+`AtomicPathSearchOrigin` tied to the explicit origin list. The former
+`AtomicPathOriginWitness` family and its unconstrained `None` constructor are
+removed. Root origin equality is eliminated before a child failure is handed
+to the recursive traversal, so independent existential binders cannot leak
+past the construction boundary. All fields remain erased; Runtime elaboration
+and the focused 27-test path-refutation gate pass. The remaining task is now a
+consumer problem: apply `AtomicPathSearchOriginAlignment` to the failed and
+selected child certificates and recurse over the aligned cursors.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

@@ -278,8 +278,8 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
       String.split(source, "AtomicPathDestinationRejected :", parts: 2)
 
     [body | _] = String.split(body, "-> AtomicPathRefutation", parts: 2)
-    assert body =~ "child_origin_canonical: AtomicPathOriginWitness"
-    assert source =~ "AtomicPathOriginWitnessActive"
+    assert body =~ "child_origin_canonical: AtomicPathSearchOrigin"
+    refute source =~ "type AtomicPathOriginWitness"
   end
 
   test "accepting-path rejection exposes its canonical transition destination" do
@@ -467,7 +467,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert body =~ "atomic_path_active_child_rejection_head_excludes_trace("
   end
 
-  test "active-child head consumer receives the canonical origin witness" do
+  test "active-child head consumer does not retain the removed weak origin witness" do
     source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
 
     [_prefix, active_body] =
@@ -475,7 +475,8 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
 
     [active_body | _] = String.split(active_body, "\n  ##", parts: 2)
 
-    assert active_body =~ "_origin_witness: AtomicPathOriginWitness"
+    refute active_body =~ "AtomicPathOriginWitness"
+    assert active_body =~ "failure_suffix: LookaroundAdmittedStateCursorSuffix"
   end
 
   test "active-child head consumer discharges terminal child failures" do
@@ -779,6 +780,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "type LookaroundAdmittedStateCaptureContext"
     assert source =~ "type AtomicPathSearchOriginAlignment"
     assert source =~ "fn atomic_path_search_origin_alignment("
+    assert source =~ "AtomicPathSearchOriginActiveEmpty :"
     assert source =~ "type AtomicPathNoEvidence"
     assert source =~ "AtomicPathNoInputExhausted :"
     assert source =~ "AtomicPathNoExactAcceptedWithInput :"
@@ -791,7 +793,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
 
     assert constructor =~ "child_context_alignment: LookaroundAdmittedStateCaptureContext("
     assert constructor =~ "child_origin_equivalence: Equivalent("
-    assert constructor =~ "child_origin_canonical: AtomicPathOriginWitness("
+    assert constructor =~ "child_origin_canonical: AtomicPathSearchOrigin("
     assert constructor =~ "child_suffix: LookaroundAdmittedStateCursorSuffix("
     assert constructor =~ "child_evidence: AtomicPathNoEvidence("
     assert constructor =~ "tail_suffix: LookaroundAdmittedStateCursorSuffix("
@@ -804,17 +806,20 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     [_prefix, root] = String.split(source, "type AtomicPathRootRefutation", parts: 2)
     [root | _] = String.split(root, "\n\n", parts: 2)
     assert root =~ "evidence: AtomicPathNoEvidence("
+    assert root =~ "origin_equivalence: Equivalent("
+    assert root =~ "origin_canonical: AtomicPathSearchOrigin("
 
     [_prefix, search] = String.split(source, "type AtomicPathSearchResult", parts: 2)
     [search | _] = String.split(search, "\n\n", parts: 2)
     assert search =~ "AtomicPathSearchNo :"
-    assert search =~ "origin_canonical: AtomicPathOriginWitness("
+    assert search =~ "origin_canonical: AtomicPathSearchOrigin("
     assert search =~ "evidence: AtomicPathNoEvidence("
 
     [_prefix, members] = String.split(source, "type AtomicPathMembersResult", parts: 2)
     [members | _] = String.split(members, "\n\n", parts: 2)
     assert members =~ "AtomicPathMembersNo :"
     assert members =~ "AtomicPathMembersEscapedNo :"
+    assert members =~ "origin_canonical: AtomicPathSearchOrigin("
     assert members =~ "evidence: AtomicPathNoEvidence("
 
     [_prefix, tail_fold] =
