@@ -982,6 +982,8 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
 
     [skipped_rejected | _] = String.split(skipped_rejected, "\n\n", parts: 2)
     assert skipped_rejected =~ "child_prefix: AtomicPathFailurePrefixEvidence("
+    assert skipped_rejected =~ "child_origin_canonical: AtomicPathSearchOrigin("
+    assert skipped_rejected =~ "child_suffix: LookaroundAdmittedStateCursorSuffix("
     assert source =~ "type AtomicPathStrictCursorSuffix("
     assert source =~ "AtomicPathStrictCursorSuffixDrop :"
     assert source =~ "fn atomic_path_cons_cannot_be_suffix_of_its_tail("
