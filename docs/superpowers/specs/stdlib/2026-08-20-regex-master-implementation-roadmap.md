@@ -2184,6 +2184,17 @@ active-child exhaustion leaf: non-terminal rejected-child recursion, arbitrary
 sibling-tail alignment, complete start-list correspondence, and the final
 all-kinds selected-trace/refutation theorem remain open.
 
+The corresponding singleton nested-child theorem is now explicit as
+`atomic_path_active_child_rejection_singleton_active_excludes_trace`. It fixes
+the child input to one character and the selected/refuted candidate to the same
+active head, then delegates to the indexed active-head contradiction without
+inspecting either erased certificate. Direct Runtime compilation and the
+focused path-refutation regression pass 24/24. This theorem is proof groundwork,
+not the general dispatcher: selecting the same head from independently
+existential failure and trace cursors still requires a construction-site
+alignment eliminator before recursive rejected-child and sibling-tail induction
+can use it.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
