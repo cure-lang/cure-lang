@@ -2281,6 +2281,21 @@ integration work is to replace the older caller-supplied
 `selected_whole_equivalence` assumptions in the recursive active-child fold
 with this construction-site bridge, then discharge its directional cases.
 
+The canonical active-child dispatcher is now present as
+`atomic_path_active_child_rejection_canonical_dispatch`. It keeps the failed
+and selected origins as distinct binders, derives their cursor alignment only
+through `atomic_path_failed_selected_child_cursor_alignment`, and separately
+transports the selected suffix to the failed whole-list index by eliminating
+the same canonical origin equalities locally. This separation is required by
+Cure's relevance discipline: an erased alignment payload cannot be projected
+into a relevant cursor operation, while the construction-site selected suffix
+is still relevant and may safely drive the `Here`/`There`/`Reverse` dispatcher.
+The focused 27-test path-refutation gate and the complete Regex module chain
+elaborate successfully. The next integration slice is to thread the two origin
+certificates through `atomic_path_rejected_tail_fold_to_active`, replace its
+older caller-supplied whole-list equality, and discharge the three recursive
+branches.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

@@ -781,6 +781,19 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "type AtomicPathSearchOriginAlignment"
     assert source =~ "fn atomic_path_search_origin_alignment("
     assert source =~ "fn atomic_path_failed_selected_child_cursor_alignment("
+    assert source =~ "fn atomic_path_active_child_rejection_canonical_dispatch("
+
+    [_prefix, canonical_dispatch] =
+      String.split(
+        source,
+        "fn atomic_path_active_child_rejection_canonical_dispatch(",
+        parts: 2
+      )
+
+    [canonical_dispatch | _] = String.split(canonical_dispatch, "\n  ##", parts: 2)
+
+    assert canonical_dispatch =~ "atomic_path_failed_selected_child_cursor_alignment("
+    assert canonical_dispatch =~ "atomic_path_active_child_alignment_from_canonical("
     assert source =~ "AtomicPathSearchOriginActiveEmpty :"
     assert source =~ "type AtomicPathNoEvidence"
     assert source =~ "AtomicPathNoInputExhausted :"
