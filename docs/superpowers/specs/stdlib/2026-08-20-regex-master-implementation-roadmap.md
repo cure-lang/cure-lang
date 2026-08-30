@@ -2208,6 +2208,17 @@ the two directional cursor cases remain the recursive sibling obligations.
 Direct Runtime compilation is green. General non-singleton child recursion and
 the complete start-list/all-kinds correspondence remain open.
 
+The path failure tree now has a parallel proof-only classification family,
+`AtomicPathNoEvidence`, matching the already established start-list evidence
+discipline. Its recursive destination-rejection constructor retains both child
+and sibling-tail evidence before their failure kinds are erased. Child capture
+context is tied to the admitted candidate by the indexed
+`LookaroundAdmittedStateCaptureContext` relation rather than forcing the
+candidate-context reducer inside a recursive constructor signature. This is the
+representation prerequisite for replacing the remaining opaque child-kind
+continuations; the evaluator construction sites do not yet publish the new
+evidence, so the general recursive correspondence remains open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

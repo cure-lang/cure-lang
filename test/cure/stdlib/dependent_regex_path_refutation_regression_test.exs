@@ -764,4 +764,23 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert fold_body =~ "@erased child_path: AtomicSelectedPathTrace("
     assert fold_body =~ "child_selected_suffix,\n            child_path,"
   end
+
+  test "atomic path rejection has a recursive proof-only kind witness" do
+    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+
+    assert source =~ "type LookaroundAdmittedStateCaptureContext"
+    assert source =~ "type AtomicPathNoEvidence"
+    assert source =~ "AtomicPathNoInputExhausted :"
+    assert source =~ "AtomicPathNoExactAcceptedWithInput :"
+    assert source =~ "AtomicPathNoDestinationsExhausted :"
+
+    [_prefix, constructor] =
+      String.split(source, "AtomicPathNoDestinationRejected :", parts: 2)
+
+    [constructor | _] = String.split(constructor, "\n\n", parts: 2)
+
+    assert constructor =~ "child_context_alignment: LookaroundAdmittedStateCaptureContext("
+    assert constructor =~ "child_evidence: AtomicPathNoEvidence("
+    assert constructor =~ "tail_evidence: AtomicPathNoEvidence("
+  end
 end
