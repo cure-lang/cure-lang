@@ -592,4 +592,117 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
 
     assert {:ok, _module} = Cure.Compiler.compile_and_load(source, emit_events: false)
   end
+
+  test "active-child head has a recursive active-child construction consumer" do
+    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+
+    assert source =~
+             "fn atomic_path_active_child_rejection_head_active_excludes_trace("
+
+    [_prefix, body] =
+      String.split(
+        source,
+        "fn atomic_path_active_child_rejection_head_active_excludes_trace(",
+        parts: 2
+      )
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert body =~ "AtomicSelectedTransitionActive"
+    assert body =~ "AtomicPathDestinationRejected"
+    assert body =~ "atomic_path_input_exhaustion_excludes_trace_erased(child_trace)"
+  end
+
+  test "active-child head active consumer type-checks at its indexed construction site" do
+    source = ~S'''
+    mod RegexActiveChildHeadConstructionRegression
+      use Std.Core
+      use Std.Decision
+      use Std.Regex.Core
+      use Std.Regex.Runtime
+
+      fn probe(
+        {depth: Nat},
+        {n: Nat},
+        machine: PatternMachine(n),
+        char: Char,
+        after_input: List(Char),
+        source: Bounded(n),
+        history: List(Char),
+        capture_context: List(EvidenceInstruction),
+        policy: NewlinePolicy,
+        scope_depth: Nat,
+        prefix_mode: Bool,
+        reversed_prefix: List(Char),
+        active_state: Bounded(n),
+        active_routine: List(EvidenceInstruction),
+        active_constraints: List(BoundaryConstraint),
+        active_assertion_routine: List(ExtendedInstruction),
+        active_assertion_markers: List(EvidenceInstruction),
+        active_nested_decisions: List(LookaroundNestedDecision),
+        {@erased failure_whole: List(LookaroundAdmittedState(n))},
+        {@erased failure_remaining: List(LookaroundAdmittedState(n))},
+        @erased failure: AtomicPathRefutation(
+          depth,
+          n,
+          machine,
+          Cons(char, Nil()),
+          after_input,
+          ThreadActive(source),
+          history,
+          capture_context,
+          policy,
+          scope_depth,
+          prefix_mode,
+          reversed_prefix,
+          failure_whole,
+          Cons(LookaroundAdmittedActive(active_state, active_routine, active_constraints, active_assertion_routine, active_assertion_markers, active_nested_decisions), failure_remaining),
+          AtomicPathFailureDestinationRejected()
+        ),
+        {@erased selected_remaining: List(LookaroundAdmittedState(n))},
+        {matched: List(Char)},
+        {remaining_input: List(Char)},
+        {selected_routine: List(ExtendedInstruction)},
+        @erased path: AtomicSelectedPathTrace(
+          depth,
+          n,
+          machine,
+          Cons(char, Nil()),
+          after_input,
+          ThreadActive(source),
+          history,
+          capture_context,
+          policy,
+          scope_depth,
+          prefix_mode,
+          reversed_prefix,
+          Cons(LookaroundAdmittedActive(active_state, active_routine, active_constraints, active_assertion_routine, active_assertion_markers, active_nested_decisions), selected_remaining),
+          matched,
+          remaining_input,
+          selected_routine
+        )
+      ) -> Empty = atomic_path_active_child_rejection_head_active_excludes_trace(
+        machine,
+        char,
+        after_input,
+        source,
+        history,
+        capture_context,
+        policy,
+        scope_depth,
+        prefix_mode,
+        reversed_prefix,
+        active_state,
+        active_routine,
+        active_constraints,
+        active_assertion_routine,
+        active_assertion_markers,
+        active_nested_decisions,
+        failure,
+        path
+      )
+    end
+    '''
+
+    assert {:ok, _module} = Cure.Compiler.compile_and_load(source, emit_events: false)
+  end
 end

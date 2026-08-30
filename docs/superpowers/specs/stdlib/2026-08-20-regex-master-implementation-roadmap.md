@@ -2159,6 +2159,16 @@ arguments, while preserving the same indexed contradiction and relevance
 boundary. The direct Runtime compile and the 20-test focused regression remain
 green; recursive non-terminal child alignment is unchanged and remains open.
 
+The first specialized active-head consumer is now present at the nested
+construction site. For a one-character rejected active head, its indexed
+`AtomicPathDestinationRejected` parent and `AtomicSelectedTransitionActive`
+trace refine the child refutation to `AtomicPathInputExhausted`; the selected
+child trace is then discharged by the erased terminal eliminator. This is a
+real head contradiction rather than a runtime failure-tag branch. Runtime
+compilation and a typed external construction-site probe pass; arbitrary
+non-terminal child rejection, sibling-tail alignment, start-list
+correspondence, and the all-kinds theorem remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
