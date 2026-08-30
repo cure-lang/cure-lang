@@ -856,6 +856,9 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     [_prefix, search] = String.split(source, "type AtomicPathSearchResult", parts: 2)
     [search | _] = String.split(search, "\n\n", parts: 2)
     assert search =~ "AtomicPathSearchNo :"
+    assert search =~ "skipped_evidence: AtomicPathSkippedPrefixEvidence("
+    assert search =~ "AtomicPathSearchCommit :"
+    assert search =~ "cause: AtomicPathCommitCause("
     assert search =~ "origin_canonical: AtomicPathSearchOrigin("
     assert search =~ "evidence: AtomicPathNoEvidence("
 
@@ -863,6 +866,9 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     [members | _] = String.split(members, "\n\n", parts: 2)
     assert members =~ "AtomicPathMembersNo :"
     assert members =~ "AtomicPathMembersEscapedNo :"
+    assert members =~ "skipped_evidence: AtomicPathSkippedPrefixEvidence("
+    assert members =~ "AtomicPathMembersCommit :"
+    assert members =~ "cause: AtomicPathCommitCause("
     assert members =~ "origin_canonical: AtomicPathSearchOrigin("
     assert members =~ "evidence: AtomicPathNoEvidence("
 
@@ -882,10 +888,20 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     [root_projection | _] = String.split(root_projection, "\n\n", parts: 2)
 
     assert root_projection =~
-             "AtomicPathMembersEscapedNo(skipped, tail_current, origin, origin_equivalence, origin_canonical, witness, suffix, kind, failure, evidence)"
+             "AtomicPathMembersEscapedNo(skipped, skipped_evidence, tail_current, origin, origin_equivalence, origin_canonical, witness, suffix, kind, failure, evidence)"
 
     assert root_projection =~
-             "AtomicPathSearchNo(skipped, whole, tail_current, origin, origin_equivalence, origin_canonical, witness, suffix, kind, failure, evidence)"
+             "AtomicPathSearchNo(skipped, whole, skipped_evidence, tail_current, origin, origin_equivalence, origin_canonical, witness, suffix, kind, failure, evidence)"
+
+    assert source =~ "type AtomicPathCommitCause("
+    assert source =~ "AtomicPathCommitAfterFailure :"
+    assert source =~ "AtomicPathCommitFromChild :"
+    assert source =~ "AtomicPathCommitPastRejected :"
+    assert source =~ "AtomicPathCommitPastEscaped :"
+    assert source =~ "type AtomicPathSkippedPrefixEvidence("
+    assert source =~ "AtomicPathSkippedRejectedCons :"
+    assert source =~ "AtomicPathEscapedCommitOne :"
+    assert source =~ "AtomicPathEscapedCommitCons :"
 
     [_prefix, after_failure] =
       String.split(source, "fn atomic_lookaround_routine_after_failure(", parts: 2)

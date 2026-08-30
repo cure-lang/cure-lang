@@ -2343,21 +2343,24 @@ recursion, and the complete start-list lift remain open.
 The remaining reverse-cursor branch has now been traced to its sole legitimate
 construction source: `AtomicPathMembersEscapedNo`. When a child commitment
 escapes the current atomic scope, `atomic_lookaround_routine_add_skipped_candidate`
-prepends the skipped candidate while retaining only the later tail refutation.
-The public suffix-local `AtomicPathSearchNo` consequently publishes the skipped
-list but currently discards the certificate that the skipped candidate failed
-after committing. Cursor ordering alone therefore cannot soundly declare a
-selected trace in that prefix impossible. Before removing the reverse callback,
-the commit result and escaped-no result must retain an erased, indexed
-commit-refutation spine built at the three existing construction sites:
-failure-after-closing-scope, an active child's propagated commit, and an
-accepted child's propagated commit. Prepending an escaped candidate must
-prepend the corresponding commit certificate, and repeated escape propagation
-must preserve the certificate order alongside `skipped`. The reverse branch
-must consume that certificate against the selected trace; it must not infer
-rejection from a suffix relation or add a runtime Boolean/tag. The certificate
-is erased from emitted matchers and its construction must reuse the same atomic
-scope-disposition decision that selected the runtime `Commit`/continue branch.
+prepends the committed candidate while retaining the later tail result. If an
+ordinary rejected candidate precedes that escaped result, the tail-after-failure
+fold prepends that rejection too. The prefix is therefore a mixed ordered spine,
+not merely a list of escaped commits. Cursor ordering alone cannot soundly
+declare a selected trace in that prefix impossible.
+
+The required construction-site strengthening is now implemented.
+`AtomicPathCommitCause` records local failure-after-close, propagated
+active-child commits, and commits preceded by either rejected or escaped
+candidates. `AtomicPathSkippedPrefixEvidence` records the corresponding mixed
+prefix in exact order. `AtomicPathMembersCommit`, `AtomicPathSearchCommit`,
+`AtomicPathMembersEscapedNo`, and `AtomicPathSearchNo` retain those erased
+certificates, and every constructor is built from the same
+`AtomicCommitBlocks`/`AtomicCommitEscapes` proof used by the runtime branch. The
+indices also eliminate the former accepted-child commit branch:
+`ThreadAccepted` has no `AtomicPathCommitCause` constructor. The reverse branch
+must next consume the mixed prefix against the selected trace; it must not infer
+rejection from a suffix relation or add a runtime Boolean/tag.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
