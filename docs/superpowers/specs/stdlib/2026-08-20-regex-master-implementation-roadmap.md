@@ -2214,10 +2214,13 @@ discipline. Its recursive destination-rejection constructor retains both child
 and sibling-tail evidence before their failure kinds are erased. Child capture
 context is tied to the admitted candidate by the indexed
 `LookaroundAdmittedStateCaptureContext` relation rather than forcing the
-candidate-context reducer inside a recursive constructor signature. This is the
-representation prerequisite for replacing the remaining opaque child-kind
-continuations; the evaluator construction sites do not yet publish the new
-evidence, so the general recursive correspondence remains open.
+candidate-context reducer inside a recursive constructor signature. Root,
+suffix-search, ordinary-member, and escaped-member negative results now publish
+that evidence, and the recursive destination traversal constructs
+`AtomicPathNoDestinationRejected` from the exact child and sibling-tail values
+at their common construction site. Direct Runtime compilation and the focused
+27-test path-refutation gate are green. The general theorem consumer and its
+start-list lift remain open.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in

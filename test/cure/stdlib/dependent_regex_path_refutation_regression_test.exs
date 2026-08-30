@@ -6,13 +6,16 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
 
     assert source =~ "type AtomicPathSearchOrigin"
     assert source =~ "child_origin_canonical: AtomicPathSearchOrigin"
+
     assert Regex.match?(
              ~r/AtomicPathActiveChildSelectionPackageActive : [^\n]*child_selected_whole_equivalence: Equivalent\(List\(LookaroundAdmittedState\(n\)\), child_whole, child_selected_whole\)\) -> \(@erased child_origin_canonical: AtomicPathSearchOrigin/,
              source
            )
+
     assert source =~
-             "child_selected_whole_equivalence, child_origin_canonical, _, _, _, _, _) ->\n"
-             <> "      match child_selected_whole_equivalence"
+             "child_selected_whole_equivalence, child_origin_canonical, _, _, _, _, _) ->\n" <>
+               "      match child_selected_whole_equivalence"
+
     assert source =~ "AtomicPathSearchOriginActive(_, _, _, _) -> continuation"
   end
 
@@ -21,14 +24,17 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
 
     assert source =~ "type LookaroundAdmittedNonempty"
     assert source =~ "fn lookaround_admitted_cursor_suffix_nonempty"
+
     assert source =~
              "child_failure_nonempty_equivalence: Equivalent(\n" <>
                "      List(LookaroundAdmittedState(n)),\n" <>
                "      child_whole,\n" <>
                "      Cons(child_failure_head, child_failure_tail)\n" <>
                "    )"
+
     assert source =~
              "LookaroundAdmittedStateCursorSuffixDrop(dropped, prior) -> match lookaround_admitted_cursor_suffix_nonempty(prior)"
+
     assert source =~ "lookaround_admitted_state_cons_equivalent(dropped, prior_equivalence)"
   end
 
@@ -94,7 +100,9 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
 
     [_prefix, body] =
-      String.split(source, "fn atomic_path_tail_active_child_destinations_exhausted_excludes_selected_suffix(", parts: 2)
+      String.split(source, "fn atomic_path_tail_active_child_destinations_exhausted_excludes_selected_suffix(",
+        parts: 2
+      )
 
     [body | _] = String.split(body, "\n  ##", parts: 2)
     assert body =~ "atomic_path_tail_active_child_failure_dispatch"
@@ -400,9 +408,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
 
     [_prefix, body] =
-      String.split(source, "fn atomic_path_active_child_rejection_excludes_aligned_trace(",
-        parts: 2
-      )
+      String.split(source, "fn atomic_path_active_child_rejection_excludes_aligned_trace(", parts: 2)
 
     [body | _] = String.split(body, "\n  ##", parts: 2)
     assert body =~ "atomic_path_active_child_rejection_head_excludes_trace("
@@ -486,8 +492,10 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
                "      Nil(),"
 
     assert source =~ "AtomicPathFailureInputExhausted()"
+
     assert source =~
              "fn atomic_path_active_child_rejection_head_exact_accepted_excludes_trace("
+
     assert source =~ "AtomicPathFailureExactAccepted()"
   end
 
@@ -782,5 +790,34 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert constructor =~ "child_context_alignment: LookaroundAdmittedStateCaptureContext("
     assert constructor =~ "child_evidence: AtomicPathNoEvidence("
     assert constructor =~ "tail_evidence: AtomicPathNoEvidence("
+  end
+
+  test "atomic path evaluators publish recursive rejection evidence at construction sites" do
+    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+
+    [_prefix, root] = String.split(source, "type AtomicPathRootRefutation", parts: 2)
+    [root | _] = String.split(root, "\n\n", parts: 2)
+    assert root =~ "evidence: AtomicPathNoEvidence("
+
+    [_prefix, search] = String.split(source, "type AtomicPathSearchResult", parts: 2)
+    [search | _] = String.split(search, "\n\n", parts: 2)
+    assert search =~ "AtomicPathSearchNo :"
+    assert search =~ "evidence: AtomicPathNoEvidence("
+
+    [_prefix, members] = String.split(source, "type AtomicPathMembersResult", parts: 2)
+    [members | _] = String.split(members, "\n\n", parts: 2)
+    assert members =~ "AtomicPathMembersNo :"
+    assert members =~ "AtomicPathMembersEscapedNo :"
+    assert members =~ "evidence: AtomicPathNoEvidence("
+
+    [_prefix, tail_fold] =
+      String.split(source, "fn atomic_lookaround_routine_tail_after_failure(", parts: 2)
+
+    [tail_fold | _] = String.split(tail_fold, "\n\n", parts: 2)
+    assert tail_fold =~ "child_evidence: AtomicPathNoEvidence("
+    assert tail_fold =~ "tail_evidence) -> AtomicPathMembersNo("
+
+    assert tail_fold =~
+             "AtomicPathNoDestinationRejected(child_context_alignment, child_evidence, tail_evidence)"
   end
 end
