@@ -880,7 +880,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert tail_fold =~ "tail_evidence) -> AtomicPathMembersNo("
 
     assert tail_fold =~
-             "AtomicPathNoDestinationRejected(child_context_alignment, child_origin_equivalence, child_origin_canonical, child_suffix, child_evidence, tail_suffix, tail_origin_equivalence, tail_evidence)"
+             "AtomicPathNoDestinationRejected(child_context_alignment, child_prefix, child_origin_equivalence, child_origin_canonical, child_suffix, child_evidence, tail_suffix, tail_origin_equivalence, tail_evidence)"
 
     [_prefix, root_projection] =
       String.split(source, "fn atomic_path_members_root_to_search(", parts: 2)
@@ -888,10 +888,10 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     [root_projection | _] = String.split(root_projection, "\n\n", parts: 2)
 
     assert root_projection =~
-             "AtomicPathMembersEscapedNo(skipped, skipped_evidence, tail_current, origin, origin_equivalence, origin_canonical, witness, suffix, kind, failure, evidence)"
+             "AtomicPathMembersEscapedNo(skipped, tail_current, skipped_evidence, origin, origin_equivalence, origin_canonical, witness, suffix, kind, failure, evidence)"
 
     assert root_projection =~
-             "AtomicPathSearchNo(skipped, whole, skipped_evidence, tail_current, origin, origin_equivalence, origin_canonical, witness, suffix, kind, failure, evidence)"
+             "AtomicPathSearchNo(skipped, whole, tail_current, skipped_evidence, origin, origin_equivalence, origin_canonical, witness, suffix, kind, failure, evidence)"
 
     assert source =~ "type AtomicPathCommitCause("
     assert source =~ "AtomicPathCommitAfterFailure :"
@@ -902,6 +902,21 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "AtomicPathSkippedRejectedCons :"
     assert source =~ "AtomicPathEscapedCommitOne :"
     assert source =~ "AtomicPathEscapedCommitCons :"
+    assert source =~ "type AtomicPathFailurePrefixEvidence("
+    assert source =~ "AtomicPathFailureAtRoot :"
+    assert source =~ "AtomicPathFailureAfterSkipped :"
+
+    [_prefix, rejection] =
+      String.split(source, "AtomicPathDestinationRejected :", parts: 2)
+
+    [rejection | _] = String.split(rejection, "\n", parts: 2)
+    assert rejection =~ "child_prefix: AtomicPathFailurePrefixEvidence("
+
+    [_prefix, no_rejection] =
+      String.split(source, "AtomicPathNoDestinationRejected :", parts: 2)
+
+    [no_rejection | _] = String.split(no_rejection, "\n", parts: 2)
+    assert no_rejection =~ "child_prefix: AtomicPathFailurePrefixEvidence("
 
     [_prefix, after_failure] =
       String.split(source, "fn atomic_lookaround_routine_after_failure(", parts: 2)
