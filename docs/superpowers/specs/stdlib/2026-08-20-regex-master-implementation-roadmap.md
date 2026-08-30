@@ -2428,6 +2428,13 @@ generic erased sum, which is the E104-safe shape required by the recursive
 non-empty active-thread fold. The complete Regex module chain and focused
 27-test refutation gate pass after the migration.
 
+Each commit-cause kind now has a constructor-specific non-empty projection.
+All four projections compile while their cause argument remains erased,
+confirming that the new index selects one constructor and avoids the generic
+erased-sum inspection rejected by E104. These projections provide the
+non-empty cursor premise needed by the per-constructor contradiction folds;
+they do not themselves discharge the mixed skipped-prefix correspondence.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
