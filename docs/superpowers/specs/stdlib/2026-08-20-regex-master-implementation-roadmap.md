@@ -2169,6 +2169,21 @@ compilation and a typed external construction-site probe pass; arbitrary
 non-terminal child rejection, sibling-tail alignment, start-list
 correspondence, and the all-kinds theorem remain open.
 
+That specialized leaf is now wired into the existing one-character
+`atomic_path_tail_active_child_exhaustion_excludes_selected_suffix`
+construction site. After the parent destination rejection, active scope, and
+both `Here` cursor refinements have been consumed, the site invokes
+`atomic_path_active_child_rejection_head_active_excludes_trace` with the full
+parent source/active-state indices and the original parent failure/path. The
+consumer therefore derives the child `AtomicPathInputExhausted` index itself
+and eliminates the selected child trace through the erased terminal theorem;
+the older aligned-child handoff is no longer the authority for this leaf.
+`Std.Regex.Runtime` compiles with zero warnings and the focused
+path-refutation regression passes 23/23. This closes only the singleton
+active-child exhaustion leaf: non-terminal rejected-child recursion, arbitrary
+sibling-tail alignment, complete start-list correspondence, and the final
+all-kinds selected-trace/refutation theorem remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

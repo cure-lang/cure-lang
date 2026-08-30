@@ -11774,10 +11774,11 @@ mod Std.Regex.Runtime
         LookaroundAdmittedStateScopeActive(_, _, _, _, _, _) -> match child_failure
           AtomicPathInputExhausted(_, stored_child_suffix) -> match child_suffix
             LookaroundAdmittedStateCursorSuffixHere(_) -> match stored_child_suffix
-              LookaroundAdmittedStateCursorSuffixHere(_) -> atomic_path_destination_rejection_excludes_aligned_child(
+              LookaroundAdmittedStateCursorSuffixHere(_) -> atomic_path_active_child_rejection_head_active_excludes_trace(
                 machine,
                 char,
                 after_input,
+                source,
                 history,
                 capture_context,
                 policy,
@@ -11786,11 +11787,12 @@ mod Std.Regex.Runtime
                 reversed_prefix,
                 active_state,
                 active_routine,
+                active_constraints,
+                active_assertion_routine,
                 active_assertion_markers,
-                child_selection_suffix,
-                child_failure,
-                child_suffix,
-                child_trace
+                active_nested_decisions,
+                tail_failure,
+                path
               )
 
   ## Consume a destination-exhaustion sibling tail through its typed package.

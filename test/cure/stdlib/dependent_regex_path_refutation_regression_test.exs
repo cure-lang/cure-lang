@@ -705,4 +705,19 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
 
     assert {:ok, _module} = Cure.Compiler.compile_and_load(source, emit_events: false)
   end
+
+  test "singleton active-child exhaustion is wired to the specialized head consumer" do
+    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+
+    [_prefix, body] =
+      String.split(
+        source,
+        "fn atomic_path_tail_active_child_exhaustion_excludes_selected_suffix(",
+        parts: 2
+      )
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+
+    assert body =~ "atomic_path_active_child_rejection_head_active_excludes_trace("
+  end
 end
