@@ -2130,6 +2130,19 @@ specialized head contradiction, arbitrary rejected-child recursion, complete
 start-list correspondence, and final all-kinds selected-trace/refutation
 theorem remain open.
 
+The active-child head slice now includes explicit indexed terminal consumers for
+`AtomicPathInputExhausted` and `AtomicPathExactAcceptedWithInput`. Each accepts
+the terminal refutation and selected trace only at their constructor indices and
+delegates to the existing input-exhaustion or exact-acceptance contradiction;
+no erased failure tag or proof path is inspected in a runtime-relevant branch.
+The generic `atomic_path_active_child_rejection_head_excludes_trace` bridge
+remains the alignment fallback, while wiring these terminal consumers into the
+recursive rejected-head dispatcher still requires a construction-site
+refinement of the nested failure kind. `Std.Regex.Runtime` compiles with zero
+warnings and the focused path-refutation regression passes 19/19. Arbitrary
+rejected-child recursion, complete start-list correspondence, and the final
+all-kinds selected-trace/refutation theorem remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

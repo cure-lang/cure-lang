@@ -471,4 +471,23 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
 
     assert active_body =~ "_origin_witness: AtomicPathOriginWitness"
   end
+
+  test "active-child head consumer discharges terminal child failures" do
+    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+
+    assert source =~
+             "fn atomic_path_active_child_rejection_head_input_exhausted_excludes_trace("
+
+    assert source =~
+             "@erased _failure: AtomicPathRefutation(\n" <>
+               "      depth,\n" <>
+               "      n,\n" <>
+               "      machine,\n" <>
+               "      Nil(),"
+
+    assert source =~ "AtomicPathFailureInputExhausted()"
+    assert source =~
+             "fn atomic_path_active_child_rejection_head_exact_accepted_excludes_trace("
+    assert source =~ "AtomicPathFailureExactAccepted()"
+  end
 end

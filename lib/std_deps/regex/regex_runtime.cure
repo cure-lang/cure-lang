@@ -12780,6 +12780,143 @@ mod Std.Regex.Runtime
     right_case
   )
 
+  ## Terminal child failures are discharged by the existing indexed leaves.
+  ## These two construction-site lemmas deliberately take the terminal child
+  ## refutation as an index, rather than inspecting an erased failure tag in a
+  ## runtime branch.  A caller that has refined the rejected head to one of
+  ## these constructors can therefore eliminate its selected child trace
+  ## without reifying proof data.
+  @reducible
+  fn atomic_path_active_child_rejection_head_input_exhausted_excludes_trace(
+    {@erased depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    after_input: List(Char),
+    state: Bounded(n),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    scope_depth: Nat,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {candidate_current: List(LookaroundAdmittedState(n))},
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {routine: List(ExtendedInstruction)},
+    @erased _failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Nil(),
+      after_input,
+      ThreadActive(state),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      Nil(),
+      Nil(),
+      AtomicPathFailureInputExhausted()
+    ),
+    @erased path: AtomicSelectedPathTrace(
+      depth,
+      n,
+      machine,
+      Nil(),
+      after_input,
+      ThreadActive(state),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      candidate_current,
+      matched,
+      remaining_input,
+      routine
+    )
+  ) -> Empty = atomic_path_input_exhaustion_excludes_trace(
+    machine,
+    after_input,
+    state,
+    history,
+    capture_context,
+    policy,
+    scope_depth,
+    prefix_mode,
+    reversed_prefix,
+    path
+  )
+
+  @reducible
+  fn atomic_path_active_child_rejection_head_exact_accepted_excludes_trace(
+    {@erased depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    {@erased char: Char},
+    {@erased rest: List(Char)},
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    scope_depth: Nat,
+    reversed_prefix: List(Char),
+    {candidate_current: List(LookaroundAdmittedState(n))},
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {routine: List(ExtendedInstruction)},
+    @erased _failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadAccepted(),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      False(),
+      reversed_prefix,
+      Nil(),
+      Nil(),
+      AtomicPathFailureExactAccepted()
+    ),
+    @erased path: AtomicSelectedPathTrace(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadAccepted(),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      False(),
+      reversed_prefix,
+      candidate_current,
+      matched,
+      remaining_input,
+      routine
+    )
+  ) -> Empty = atomic_path_exact_failure_excludes_trace(
+    machine,
+    char,
+    rest,
+    after_input,
+    history,
+    capture_context,
+    policy,
+    scope_depth,
+    reversed_prefix,
+    _failure,
+    path
+  )
+
   @reducible
   fn atomic_path_active_child_rejection_excludes_destination_rejected(
     {n: Nat},
