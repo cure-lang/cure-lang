@@ -80,4 +80,25 @@ defmodule Cure.Compiler.CanonicalModulePipelineGateTest do
     # being waved through as already reviewed.
     assert cyclic_components == []
   end
+
+  test "the embedded regex package retains an acyclic module shape" do
+    paths = Path.wildcard("lib/std_deps/regex/*.cure")
+
+    assert paths != []
+    assert {:ok, graph} = Cure.Compiler.DepGraph.scan(paths)
+
+    cyclic_components =
+      graph
+      |> Cure.Compiler.DepGraph.order_deps_map()
+      |> then(fn dependencies ->
+        Cure.Compiler.DepGraph.components(dependencies, Map.keys(dependencies))
+      end)
+      |> Enum.reject(&match?([_single], &1))
+
+    # `cure_regex` is compiled as an embedded package, so the ordinary stdlib
+    # scan above cannot protect its graph. Keep Core below Runtime/Proof and
+    # Syntax.Model below the parser/emitter façade instead of relying on the
+    # pipeline's legal runtime-SCC support.
+    assert cyclic_components == []
+  end
 end
