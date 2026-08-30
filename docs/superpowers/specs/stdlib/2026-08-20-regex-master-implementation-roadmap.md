@@ -2457,6 +2457,15 @@ locally blocking commit causes retain the canonical `Some(depth)` equation.
 finite-order contradiction between `AtomicDepthBelow` and
 `AtomicDepthAtLeast`. The complete module chain and focused 27-test gate pass.
 
+The first constructor-specific consumer now uses that invariant directly:
+`atomic_path_commit_after_failure_excludes_continuation` proves that a locally
+blocking `AfterFailure` cause excludes sibling continuation for the same
+candidate. The two propagated cause forms also project an erased
+`AtomicPathCommitTailPackage` containing the exact later-sibling cause,
+canonical origin, and whole-to-tail suffix. These projections are kind-refined
+and compile without reopening the generic cause sum, providing the recursive
+step needed by the mixed-prefix fold. The focused 27-test gate remains green.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
