@@ -780,6 +780,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "type LookaroundAdmittedStateCaptureContext"
     assert source =~ "type AtomicPathSearchOriginAlignment"
     assert source =~ "fn atomic_path_search_origin_alignment("
+    assert source =~ "fn atomic_path_failed_selected_child_cursor_alignment("
     assert source =~ "AtomicPathSearchOriginActiveEmpty :"
     assert source =~ "type AtomicPathNoEvidence"
     assert source =~ "AtomicPathNoInputExhausted :"

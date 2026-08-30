@@ -2270,6 +2270,17 @@ and the focused 27-test path-refutation gate pass. The remaining task is now a
 consumer problem: apply `AtomicPathSearchOriginAlignment` to the failed and
 selected child certificates and recurse over the aligned cursors.
 
+That consumer boundary is now implemented as
+`atomic_path_failed_selected_child_cursor_alignment`. It accepts the failed
+whole-to-origin equation, both canonical origin certificates, and the failed
+and selected cursor suffixes. The helper first aligns the two origins, then
+eliminates both erased equalities to rewrite the list indices before invoking
+the cursor-alignment relation; it does not pass erased equality values through
+relevant function arguments. Runtime elaboration is green. The remaining
+integration work is to replace the older caller-supplied
+`selected_whole_equivalence` assumptions in the recursive active-child fold
+with this construction-site bridge, then discharge its directional cases.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
