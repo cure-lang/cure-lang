@@ -2508,6 +2508,19 @@ mod Std.Regex.Runtime
       lookaround_admitted_cursor_suffix_compose(forward, reverse)
     )
 
+  ## A single skipped candidate leaves no ambiguous tail case. After dropping
+  ## that head, a selected cursor in `current` cannot also be strictly before
+  ## `current`. Mixed skipped-prefix consumption uses this as its one-element
+  ## base before handling the escaped-commit or rejected-head constructor.
+  @reducible
+  fn atomic_path_skipped_one_tail_excludes_strict_selection(
+    {n: Nat},
+    {current: List(LookaroundAdmittedState(n))},
+    {selected: List(LookaroundAdmittedState(n))},
+    reverse: LookaroundAdmittedStateCursorSuffix(n, current, selected),
+    strict: AtomicPathStrictCursorSuffix(n, selected, current)
+  ) -> Empty = atomic_path_strict_cursor_suffix_excludes_reverse(strict, reverse)
+
   ## A root failure exposes the canonical whole list unchanged. A selected
   ## cursor strictly before that root would therefore make the whole list both
   ## a suffix and a proper prefix of the selected cursor, contradicting strict

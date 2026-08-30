@@ -916,6 +916,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "fn atomic_path_cons_cannot_be_suffix_of_its_tail("
     assert source =~ "fn atomic_path_strict_cursor_suffix_excludes_reverse("
     assert source =~ "fn atomic_path_root_failure_excludes_strictly_prior_cursor("
+    assert source =~ "fn atomic_path_skipped_one_tail_excludes_strict_selection("
 
     [_prefix, current_dispatch] =
       String.split(
