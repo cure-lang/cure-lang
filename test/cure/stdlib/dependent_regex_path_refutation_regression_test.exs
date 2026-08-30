@@ -777,6 +777,8 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
 
     assert source =~ "type LookaroundAdmittedStateCaptureContext"
+    assert source =~ "type AtomicPathSearchOriginAlignment"
+    assert source =~ "fn atomic_path_search_origin_alignment("
     assert source =~ "type AtomicPathNoEvidence"
     assert source =~ "AtomicPathNoInputExhausted :"
     assert source =~ "AtomicPathNoExactAcceptedWithInput :"

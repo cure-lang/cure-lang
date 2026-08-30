@@ -2244,6 +2244,17 @@ runtime result. Runtime elaboration and the focused construction-site
 regressions pass. The next proof slice can now package child-origin equality
 directly before recursive rejection consumption.
 
+The canonical origin comparison itself is now discharged independently.
+`AtomicPathSearchOriginAlignment` has one proof-only constructor carrying the
+equality between two origin lists for the same indexed search, and
+`atomic_path_search_origin_alignment` derives it by reducing accepted origins
+to the canonical empty list or composing both active-origin equations through
+the exact `lookaround_machine_admitted_destinations` computation. This avoids
+the rejected alternative of converting erased origin evidence into a present
+sum tag. Runtime elaboration and the focused 27-test path-refutation gate pass;
+publishing both canonical origin certificates in the recursive failure package
+and consuming this alignment remain the next construction-site steps.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
