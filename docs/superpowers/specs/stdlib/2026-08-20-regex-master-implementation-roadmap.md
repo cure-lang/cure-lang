@@ -2329,6 +2329,17 @@ module chain elaborates and the focused 27-test gate passes. The remaining
 directional callbacks must now be replaced by the recursive child/tail
 contradictions themselves before the start-list lift can close Phase 2.
 
+The one-character same-head active-child case is now discharged at that
+construction boundary. The dispatcher refines the relevant selected trace
+before classifying its canonically transported cursor; this exposes whether
+the selected head is active or accepted without inspecting erased candidate
+data. The equal-cursor branch invokes the corresponding proof-erased singleton
+contradiction, while only the genuinely directional sibling cases retain
+callbacks. This ordering is required by relevance: attempting cursor
+classification first loses the constructor refinement needed to consume the
+erased selected trace. Arbitrary non-empty child recursion, sibling-tail
+recursion, and the complete start-list lift remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

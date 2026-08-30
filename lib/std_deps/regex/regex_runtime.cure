@@ -13367,7 +13367,38 @@ mod Std.Regex.Runtime
           child_path,
           right_case
         )
-      AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+      AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> match child_path
+        AtomicSelectedPrefixDone() -> impossible
+        AtomicSelectedExactDone() -> impossible
+        AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> match atomic_path_cursor_location(
+          child_suffix,
+          atomic_path_failed_selected_child_suffix(
+            child_failure_origin_equivalence,
+            child_failure_origin_canonical,
+            child_selected_origin_canonical,
+            child_selection_suffix
+          )
+        )
+          AtomicPathCursorLocationSame(equality) -> match equality
+            reflexive() -> atomic_path_active_child_rejection_singleton_active_excludes_trace_erased(
+              child_failure,
+              child_path
+            )
+          AtomicPathCursorLocationLeftAfter(_) -> left_case()
+          AtomicPathCursorLocationRightAfter(_) -> right_case()
+        AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> match atomic_path_cursor_location(
+          child_suffix,
+          atomic_path_failed_selected_child_suffix(
+            child_failure_origin_equivalence,
+            child_failure_origin_canonical,
+            child_selected_origin_canonical,
+            child_selection_suffix
+          )
+        )
+          AtomicPathCursorLocationSame(equality) -> match equality
+            reflexive() -> atomic_path_accepted_child_rejection_singleton_excludes_trace_erased(child_failure)
+          AtomicPathCursorLocationLeftAfter(_) -> left_case()
+          AtomicPathCursorLocationRightAfter(_) -> right_case()
     Cons(_, _) -> match child_failure
       AtomicPathInputExhausted(_, _) -> impossible
       AtomicPathExactAcceptedWithInput(_, _, _, _) -> impossible
