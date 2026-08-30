@@ -2508,6 +2508,22 @@ mod Std.Regex.Runtime
       lookaround_admitted_cursor_suffix_compose(forward, reverse)
     )
 
+  ## A root failure exposes the canonical whole list unchanged. A selected
+  ## cursor strictly before that root would therefore make the whole list both
+  ## a suffix and a proper prefix of the selected cursor, contradicting strict
+  ## cursor asymmetry before any candidate-level refutation is inspected.
+  @reducible
+  fn atomic_path_root_failure_excludes_strictly_prior_cursor(
+    {n: Nat},
+    whole: List(LookaroundAdmittedState(n)),
+    current: List(LookaroundAdmittedState(n)),
+    selected: List(LookaroundAdmittedState(n)),
+    @erased equality: Equivalent(List(LookaroundAdmittedState(n)), whole, current),
+    selected_suffix: LookaroundAdmittedStateCursorSuffix(n, whole, selected),
+    strict: AtomicPathStrictCursorSuffix(n, selected, current)
+  ) -> Empty = match equality
+    reflexive() -> atomic_path_strict_cursor_suffix_excludes_reverse(strict, selected_suffix)
+
   fn lookaround_admitted_cursor_suffix_reflexive(
     {n: Nat},
     {@erased outer: List(LookaroundAdmittedState(n))},
