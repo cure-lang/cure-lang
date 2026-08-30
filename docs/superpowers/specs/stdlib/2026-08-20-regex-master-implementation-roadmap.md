@@ -2296,6 +2296,22 @@ certificates through `atomic_path_rejected_tail_fold_to_active`, replace its
 older caller-supplied whole-list equality, and discharge the three recursive
 branches.
 
+That origin migration is now complete across
+`atomic_path_tail_active_child_rejection_excludes_selected_suffix_base`, its
+public wrapper, and `atomic_path_rejected_tail_fold_to_active`. The fold carries
+the failed whole-to-origin equation and both canonical origin certificates as
+separate parameters; the former `child_selected_whole_equivalence` premise is
+absent from all three signatures. The singleton branch obtains its common
+outer suffix only through `atomic_path_failed_selected_child_suffix`, while
+the non-terminal branch invokes
+`atomic_path_active_child_rejection_canonical_dispatch` directly. Recursive
+sibling peels preserve the same origin and cursor witnesses unchanged. The
+complete Regex module chain elaborates, and the focused 27-test path-refutation
+gate passes. The remaining proof obligation is no longer origin identity: it
+is to replace the fold's externally supplied `Here`/`There`/`Reverse`
+contradictions with recursive consumers of the child and sibling failure
+evidence, then lift that result through the start list.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

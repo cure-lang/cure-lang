@@ -763,7 +763,9 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
 
     assert base_body =~ "@erased child_path: AtomicSelectedPathTrace("
     assert base_body =~ "atomic_path_active_child_rejection_singleton_aligned_excludes_trace("
-    assert base_body =~ "child_selected_suffix,\n                child_path,"
+    assert base_body =~ "atomic_path_failed_selected_child_suffix("
+    assert base_body =~ "child_selected_origin_canonical,"
+    refute base_body =~ "child_selected_whole_equivalence: Equivalent("
 
     [_prefix, fold_body] =
       String.split(source, "fn atomic_path_rejected_tail_fold_to_active(", parts: 2)
@@ -794,6 +796,16 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
 
     assert canonical_dispatch =~ "atomic_path_failed_selected_child_cursor_alignment("
     assert canonical_dispatch =~ "atomic_path_active_child_alignment_from_canonical("
+
+    [_prefix, active_fold] =
+      String.split(source, "fn atomic_path_rejected_tail_fold_to_active(", parts: 2)
+
+    [active_fold | _] = String.split(active_fold, "\n  ##", parts: 2)
+
+    assert active_fold =~ "child_failure_origin_canonical: AtomicPathSearchOrigin("
+    assert active_fold =~ "child_selected_origin_canonical: AtomicPathSearchOrigin("
+    assert active_fold =~ "child_failure_origin_equivalence,"
+    refute active_fold =~ "child_selected_whole_equivalence: Equivalent("
     assert source =~ "AtomicPathSearchOriginActiveEmpty :"
     assert source =~ "type AtomicPathNoEvidence"
     assert source =~ "AtomicPathNoInputExhausted :"

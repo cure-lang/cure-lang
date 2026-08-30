@@ -12230,16 +12230,41 @@ mod Std.Regex.Runtime
       child_whole,
       Cons(child_failure_head, child_failure_tail)
     ),
-    child_selected_whole: List(LookaroundAdmittedState(n)),
-    child_selected_whole_equivalence: Equivalent(
+    child_failure_origin: List(LookaroundAdmittedState(n)),
+    child_failure_origin_equivalence: Equivalent(
       List(LookaroundAdmittedState(n)),
       child_whole,
-      child_selected_whole
+      child_failure_origin
+    ),
+    child_failure_origin_canonical: AtomicPathSearchOrigin(
+      depth,
+      n,
+      machine,
+      Cons(child_char, child_rest),
+      after_input,
+      ThreadActive(active_state),
+      history_push_bounded(history, char),
+      append_routine(append_routine(capture_context, active_routine), active_assertion_markers),
+      policy,
+      child_failure_origin
+    ),
+    child_selected_origin: List(LookaroundAdmittedState(n)),
+    child_selected_origin_canonical: AtomicPathSearchOrigin(
+      depth,
+      n,
+      machine,
+      Cons(child_char, child_rest),
+      after_input,
+      ThreadActive(active_state),
+      history_push_bounded(history, char),
+      append_routine(append_routine(capture_context, active_routine), active_assertion_markers),
+      policy,
+      child_selected_origin
     ),
     {child_selected_current: List(LookaroundAdmittedState(n))},
     child_selected_suffix: LookaroundAdmittedStateCursorSuffix(
       n,
-      child_selected_whole,
+      child_selected_origin,
       child_selected_current
     ),
     {matched: List(Char)},
@@ -12303,8 +12328,13 @@ mod Std.Regex.Runtime
                 child_candidate,
                 child_failure,
                 child_failure_suffix,
-                child_selected_whole_equivalence,
-                child_selected_suffix,
+                reflexive(child_whole),
+                atomic_path_failed_selected_child_suffix(
+                  child_failure_origin_equivalence,
+                  child_failure_origin_canonical,
+                  child_selected_origin_canonical,
+                  child_selected_suffix
+                ),
                 child_path,
                 child_left_case,
                 child_right_case
@@ -12346,31 +12376,17 @@ mod Std.Regex.Runtime
                 active_nested_decisions,
                 path
               ),
-              atomic_path_active_child_rejection_excludes_trace(
-                machine,
-                child_char,
-                child_rest,
-                after_input,
-                active_state,
-                history_push_bounded(history, char),
-                append_routine(append_routine(capture_context, active_routine), active_assertion_markers),
-                policy,
-                atomic_scope_depth_after(active_routine, scope_depth),
-                prefix_mode,
-                Cons(char, reversed_prefix),
-                child_whole,
-                child_current,
+              atomic_path_active_child_rejection_canonical_dispatch(
+                child_failure_origin_equivalence,
+                child_failure_origin_canonical,
                 child_failure_suffix,
+                child_selected_origin_canonical,
+                child_selected_suffix,
                 LookaroundAdmittedNonemptyPacked(
                   child_failure_head,
                   child_failure_tail,
                   child_failure_nonempty_equivalence
                 ),
-                child_selected_whole,
-                child_selected_whole_equivalence,
-                child_selected_suffix,
-                child_failure,
-                child_path,
                 child_left_case,
                 child_left_tail_case,
                 child_right_case
@@ -12452,16 +12468,41 @@ mod Std.Regex.Runtime
       child_whole,
       Cons(child_failure_head, child_failure_tail)
     ),
-    child_selected_whole: List(LookaroundAdmittedState(n)),
-    child_selected_whole_equivalence: Equivalent(
+    child_failure_origin: List(LookaroundAdmittedState(n)),
+    child_failure_origin_equivalence: Equivalent(
       List(LookaroundAdmittedState(n)),
       child_whole,
-      child_selected_whole
+      child_failure_origin
+    ),
+    child_failure_origin_canonical: AtomicPathSearchOrigin(
+      depth,
+      n,
+      machine,
+      Cons(child_char, child_rest),
+      after_input,
+      ThreadActive(active_state),
+      history_push_bounded(history, char),
+      append_routine(append_routine(capture_context, active_routine), active_assertion_markers),
+      policy,
+      child_failure_origin
+    ),
+    child_selected_origin: List(LookaroundAdmittedState(n)),
+    child_selected_origin_canonical: AtomicPathSearchOrigin(
+      depth,
+      n,
+      machine,
+      Cons(child_char, child_rest),
+      after_input,
+      ThreadActive(active_state),
+      history_push_bounded(history, char),
+      append_routine(append_routine(capture_context, active_routine), active_assertion_markers),
+      policy,
+      child_selected_origin
     ),
     {child_selected_current: List(LookaroundAdmittedState(n))},
     child_selected_suffix: LookaroundAdmittedStateCursorSuffix(
       n,
-      child_selected_whole,
+      child_selected_origin,
       child_selected_current
     ),
     {matched: List(Char)},
@@ -12541,8 +12582,11 @@ mod Std.Regex.Runtime
     child_failure_head,
     child_failure_tail,
     child_failure_nonempty_equivalence,
-    child_selected_whole,
-    child_selected_whole_equivalence,
+    child_failure_origin,
+    child_failure_origin_equivalence,
+    child_failure_origin_canonical,
+    child_selected_origin,
+    child_selected_origin_canonical,
     child_selected_suffix,
     child_path,
     selected_remaining,
@@ -12628,16 +12672,41 @@ mod Std.Regex.Runtime
       child_whole,
       Cons(child_failure_head, child_failure_tail)
     ),
-    child_selected_whole: List(LookaroundAdmittedState(n)),
-    child_selected_whole_equivalence: Equivalent(
+    child_failure_origin: List(LookaroundAdmittedState(n)),
+    child_failure_origin_equivalence: Equivalent(
       List(LookaroundAdmittedState(n)),
       child_whole,
-      child_selected_whole
+      child_failure_origin
+    ),
+    child_failure_origin_canonical: AtomicPathSearchOrigin(
+      depth,
+      n,
+      machine,
+      Cons(child_char, child_rest),
+      after_input,
+      ThreadActive(active_state),
+      history_push_bounded(history, char),
+      append_routine(append_routine(capture_context, active_routine), active_assertion_markers),
+      policy,
+      child_failure_origin
+    ),
+    child_selected_origin: List(LookaroundAdmittedState(n)),
+    child_selected_origin_canonical: AtomicPathSearchOrigin(
+      depth,
+      n,
+      machine,
+      Cons(child_char, child_rest),
+      after_input,
+      ThreadActive(active_state),
+      history_push_bounded(history, char),
+      append_routine(append_routine(capture_context, active_routine), active_assertion_markers),
+      policy,
+      child_selected_origin
     ),
     {child_selected_current: List(LookaroundAdmittedState(n))},
     child_selected_suffix: LookaroundAdmittedStateCursorSuffix(
       n,
-      child_selected_whole,
+      child_selected_origin,
       child_selected_current
     ),
     {matched: List(Char)},
@@ -12723,8 +12792,11 @@ mod Std.Regex.Runtime
             child_failure_head,
             child_failure_tail,
             child_failure_nonempty_equivalence,
-            child_selected_whole,
-            child_selected_whole_equivalence,
+            child_failure_origin,
+            child_failure_origin_equivalence,
+            child_failure_origin_canonical,
+            child_selected_origin,
+            child_selected_origin_canonical,
             child_selected_suffix,
             child_path,
             selected_remaining,
@@ -12770,8 +12842,11 @@ mod Std.Regex.Runtime
                 child_failure_head,
                 child_failure_tail,
                 child_failure_nonempty_equivalence,
-                child_selected_whole,
-                child_selected_whole_equivalence,
+                child_failure_origin,
+                child_failure_origin_equivalence,
+                child_failure_origin_canonical,
+                child_selected_origin,
+                child_selected_origin_canonical,
                 child_selected_suffix,
                 child_path,
                 selected_remaining,
@@ -12810,8 +12885,11 @@ mod Std.Regex.Runtime
               child_failure_head,
               child_failure_tail,
               child_failure_nonempty_equivalence,
-              child_selected_whole,
-              child_selected_whole_equivalence,
+              child_failure_origin,
+              child_failure_origin_equivalence,
+              child_failure_origin_canonical,
+              child_selected_origin,
+              child_selected_origin_canonical,
               child_selected_suffix,
               child_path,
               selected_remaining,
