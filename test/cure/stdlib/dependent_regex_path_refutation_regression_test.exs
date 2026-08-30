@@ -946,11 +946,29 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
 
     assert commit_past_escaped =~ "child_origin_canonical: AtomicPathSearchOrigin("
     assert commit_past_escaped =~ "child_suffix: LookaroundAdmittedStateCursorSuffix("
+    assert commit_past_escaped =~
+             "child_context_alignment: LookaroundAdmittedStateCaptureContext("
+
+    assert commit_past_escaped =~ "child_scope_alignment: LookaroundAdmittedStateScope("
 
     assert source =~ "type AtomicPathSkippedPrefixEvidence("
     assert source =~ "AtomicPathSkippedRejectedCons :"
     assert source =~ "AtomicPathEscapedCommitOne :"
     assert source =~ "AtomicPathEscapedCommitCons :"
+
+    [_prefix, escaped_one] = String.split(source, "AtomicPathEscapedCommitOne :", parts: 2)
+    [escaped_one | _] = String.split(escaped_one, "AtomicPathEscapedCommitCons :", parts: 2)
+    assert escaped_one =~ "child_context_alignment: LookaroundAdmittedStateCaptureContext("
+    assert escaped_one =~ "child_scope_alignment: LookaroundAdmittedStateScope("
+    assert escaped_one =~ "child_origin_canonical: AtomicPathSearchOrigin("
+    assert escaped_one =~ "child_suffix: LookaroundAdmittedStateCursorSuffix("
+
+    [_prefix, escaped_cons] = String.split(source, "AtomicPathEscapedCommitCons :", parts: 2)
+    [escaped_cons | _] = String.split(escaped_cons, "AtomicPathSkippedRejectedCons :", parts: 2)
+    assert escaped_cons =~ "child_context_alignment: LookaroundAdmittedStateCaptureContext("
+    assert escaped_cons =~ "child_scope_alignment: LookaroundAdmittedStateScope("
+    assert escaped_cons =~ "child_origin_canonical: AtomicPathSearchOrigin("
+    assert escaped_cons =~ "child_suffix: LookaroundAdmittedStateCursorSuffix("
     assert source =~ "type AtomicPathFailurePrefixEvidence("
     assert source =~ "AtomicPathFailureAtRoot :"
     assert source =~ "AtomicPathFailureAfterSkipped :"
