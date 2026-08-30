@@ -7447,6 +7447,79 @@ mod Std.Regex.Runtime
 
     AtomicPathSkippedRejectedCons : (@erased char: Char) -> (@erased rest: List(Char)) -> (@erased source: Bounded(n)) -> (@erased candidate: LookaroundAdmittedState(n)) -> (@erased child_capture_context: List(EvidenceInstruction)) -> (@erased child_context_alignment: LookaroundAdmittedStateCaptureContext(n, capture_context, candidate, child_capture_context)) -> (@erased child_scope_depth: Nat) -> (@erased child_scope_alignment: LookaroundAdmittedStateScope(n, scope_depth, candidate, child_scope_depth)) -> (@erased child_whole: List(LookaroundAdmittedState(n))) -> (@erased child_current: List(LookaroundAdmittedState(n))) -> (@erased child_prefix: AtomicPathFailurePrefixEvidence(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), child_capture_context, policy, child_scope_depth, prefix_mode, Cons(char, reversed_prefix), child_whole, child_current)) -> {@erased child_origin: List(LookaroundAdmittedState(n))} -> (@erased child_origin_equivalence: Equivalent(List(LookaroundAdmittedState(n)), child_whole, child_origin)) -> (@erased child_origin_canonical: AtomicPathSearchOrigin(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), lookaround_admitted_state_capture_context(capture_context, candidate), policy, child_origin)) -> (@erased child_suffix: LookaroundAdmittedStateCursorSuffix(n, child_whole, child_current)) -> (@erased child_kind: AtomicPathFailureKind) -> (@erased child_failure: AtomicPathRefutation(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), lookaround_admitted_state_capture_context(capture_context, candidate), policy, child_scope_depth, prefix_mode, Cons(char, reversed_prefix), child_whole, child_current, child_kind)) -> (@erased child_evidence: AtomicPathNoEvidence(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), child_capture_context, policy, child_scope_depth, prefix_mode, Cons(char, reversed_prefix), child_whole, child_current, child_kind)) -> (@erased continuation: AtomicPathFailureContinuation(scope_depth, lookaround_admitted_state_closed_depth(n, scope_depth, candidate))) -> {@erased front: List(LookaroundAdmittedState(n))} -> {@erased current: List(LookaroundAdmittedState(n))} -> (@erased tail_kind: AtomicPathSkippedPrefixKind) -> (@erased tail: AtomicPathSkippedPrefixEvidence(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, front, current, tail_kind)) -> AtomicPathSkippedPrefixEvidence(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, front), current, AtomicPathSkippedPrefixRejectedConsKind(tail_kind))
 
+  ## The skipped-prefix kind fixes the evidence constructor, so these erased
+  ## eliminators expose only structural facts needed by the recursive mixed
+  ## sibling fold. No runtime discriminator or second traversal is added.
+  @reducible
+  fn atomic_path_skipped_prefix_empty_equivalent(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased input: List(Char)}, {@erased after_input: List(Char)},
+    {@erased state: ThreadState(n)}, {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased front: List(LookaroundAdmittedState(n))},
+    {@erased current: List(LookaroundAdmittedState(n))},
+    @erased evidence: AtomicPathSkippedPrefixEvidence(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, front, current, AtomicPathSkippedPrefixEmptyKind())
+  ) -> Equivalent(List(LookaroundAdmittedState(n)), front, current) = match evidence
+    AtomicPathSkippedPrefixEmpty() -> reflexive(current)
+
+  @reducible
+  fn atomic_path_skipped_prefix_escaped_one_nonempty(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased rest: List(Char)},
+    {@erased after_input: List(Char)}, {@erased source: Bounded(n)},
+    {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased front: List(LookaroundAdmittedState(n))},
+    {@erased current: List(LookaroundAdmittedState(n))},
+    @erased evidence: AtomicPathSkippedPrefixEvidence(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, front, current, AtomicPathSkippedPrefixEscapedOneKind())
+  ) -> LookaroundAdmittedNonempty(n, front) = match evidence
+    AtomicPathEscapedCommitOne(_, _, _, candidate, _, _, _, _, _, _, _, _, _, _, _, _, _) -> LookaroundAdmittedNonemptyPacked(candidate, current, reflexive(Cons(candidate, current)))
+
+  type AtomicPathSkippedPrefixTailPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), front: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)), kind: AtomicPathSkippedPrefixKind)
+    AtomicPathSkippedPrefixTailPacked : (@erased evidence: AtomicPathSkippedPrefixEvidence(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, front, current, kind)) -> AtomicPathSkippedPrefixTailPackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, front, current, kind)
+
+  @reducible
+  fn atomic_path_skipped_prefix_escaped_cons_tail(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased rest: List(Char)},
+    {@erased after_input: List(Char)}, {@erased source: Bounded(n)},
+    {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased candidate: LookaroundAdmittedState(n)},
+    {@erased front: List(LookaroundAdmittedState(n))},
+    {@erased current: List(LookaroundAdmittedState(n))},
+    {@erased tail_kind: AtomicPathSkippedPrefixKind},
+    @erased evidence: AtomicPathSkippedPrefixEvidence(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, front), current, AtomicPathSkippedPrefixEscapedConsKind(tail_kind))
+  ) -> AtomicPathSkippedPrefixTailPackage(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, front, current, tail_kind) = match evidence
+    AtomicPathEscapedCommitCons(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, tail) -> AtomicPathSkippedPrefixTailPacked(tail)
+
+  @reducible
+  fn atomic_path_skipped_prefix_rejected_cons_tail(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased rest: List(Char)},
+    {@erased after_input: List(Char)}, {@erased source: Bounded(n)},
+    {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased candidate: LookaroundAdmittedState(n)},
+    {@erased front: List(LookaroundAdmittedState(n))},
+    {@erased current: List(LookaroundAdmittedState(n))},
+    {@erased tail_kind: AtomicPathSkippedPrefixKind},
+    @erased evidence: AtomicPathSkippedPrefixEvidence(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, front), current, AtomicPathSkippedPrefixRejectedConsKind(tail_kind))
+  ) -> AtomicPathSkippedPrefixTailPackage(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, front, current, tail_kind) = match evidence
+    AtomicPathSkippedRejectedCons(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, tail) -> AtomicPathSkippedPrefixTailPacked(tail)
+
   ## Every failed child search records where its exposed failure cursor sits
   ## relative to the complete canonical candidate spine. Ordinary root
   ## failures expose the whole spine unchanged. A suffix-local No result

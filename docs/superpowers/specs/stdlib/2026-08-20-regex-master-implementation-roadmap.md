@@ -2479,6 +2479,17 @@ path-refutation gate passes. Constructor-specific skipped-prefix consumers,
 their recursive cause/trace contradiction, and the complete start-list lift
 remain open.
 
+The kind-indexed skipped-prefix interface now has constructor-specific erased
+eliminators. The empty kind publishes its exact front/current equality; the
+singleton escaped kind publishes non-emptiness; and both recursive escaped and
+rejected kinds publish their exact tail through a zero-runtime
+`AtomicPathSkippedPrefixTailPackage`. Returning the erased tail directly was
+correctly rejected by E104, so the package mirrors the established commit-tail
+projection and keeps proof evidence out of runtime expressions. The complete
+module chain and focused 27-test gate pass. The next slice must combine these
+tail projections with the matching commit-cause projections and continuation
+contradiction in the recursive mixed-prefix fold.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
