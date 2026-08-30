@@ -1061,7 +1061,7 @@ defmodule Cure.CLI do
   # in `lib/` will already produce a follow-up `:undef` from the test
   # that depends on it, which is more actionable than a single
   # "compilation error" line.
-  defp load_project_lib(project, opts \\ []) do
+  defp load_project_lib(project, opts) do
     files = Path.wildcard("lib/**/*.cure")
 
     result =
