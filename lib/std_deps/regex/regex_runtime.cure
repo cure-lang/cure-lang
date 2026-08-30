@@ -1846,35 +1846,37 @@ mod Std.Regex.Runtime
   ## ordering available to the skipped-prefix eliminator without a Boolean or
   ## an unchecked list comparison.
   type AtomicPathStrictCursorSuffix(n: Nat) indices (outer: List(LookaroundAdmittedState(n)), inner: List(LookaroundAdmittedState(n)))
-    AtomicPathStrictCursorSuffixDrop : (@erased head: LookaroundAdmittedState(n)) -> (@erased suffix: LookaroundAdmittedStateCursorSuffix(n, outer, inner)) -> AtomicPathStrictCursorSuffix(n, Cons(head, outer), inner)
+    AtomicPathStrictCursorSuffixDrop : (head: LookaroundAdmittedState(n)) -> (tail: List(LookaroundAdmittedState(n))) -> (suffix: LookaroundAdmittedStateCursorSuffix(n, tail, inner)) -> AtomicPathStrictCursorSuffix(n, Cons(head, tail), inner)
 
   ## Compare two cursors from the same canonical origin. Equality remains an
   ## erased index; directional cases retain only the suffix needed by the
   ## recursive sibling-tail proof.
   type AtomicPathCursorLocation(n: Nat) indices (left: List(LookaroundAdmittedState(n)), right: List(LookaroundAdmittedState(n)))
     AtomicPathCursorLocationSame : (@erased equality: Equivalent(List(LookaroundAdmittedState(n)), left, right)) -> AtomicPathCursorLocation(n, left, right)
-    AtomicPathCursorLocationLeftAfter : (@erased marker: AtomicPathStrictCursorSuffix(n, right, left)) -> AtomicPathCursorLocation(n, left, right)
+    AtomicPathCursorLocationLeftAfter : (marker: AtomicPathStrictCursorSuffix(n, right, left)) -> AtomicPathCursorLocation(n, left, right)
     AtomicPathCursorLocationRightAfter : (@erased marker: LookaroundAdmittedStateCursorSuffix(n, left, right)) -> AtomicPathCursorLocation(n, left, right)
 
   @reducible
   fn atomic_path_cursor_location(
     {n: Nat},
-    {outer: List(LookaroundAdmittedState(n))},
+    outer: List(LookaroundAdmittedState(n)),
     {left: List(LookaroundAdmittedState(n))},
     {right: List(LookaroundAdmittedState(n))},
     left_suffix: LookaroundAdmittedStateCursorSuffix(n, outer, left),
     right_suffix: LookaroundAdmittedStateCursorSuffix(n, outer, right)
-  ) -> AtomicPathCursorLocation(n, left, right) = match left_suffix
-    LookaroundAdmittedStateCursorSuffixHere(left_equality) -> match right_suffix
-      LookaroundAdmittedStateCursorSuffixHere(right_equality) -> AtomicPathCursorLocationSame(
-        trans(sym(left_equality), right_equality)
-      )
-      LookaroundAdmittedStateCursorSuffixDrop(_, _) -> match left_equality
-        reflexive() -> AtomicPathCursorLocationRightAfter(right_suffix)
-    LookaroundAdmittedStateCursorSuffixDrop(dropped, left_prior) -> match right_suffix
-      LookaroundAdmittedStateCursorSuffixHere(right_equality) -> match right_equality
-        reflexive() -> AtomicPathCursorLocationLeftAfter(AtomicPathStrictCursorSuffixDrop(dropped, left_prior))
-      LookaroundAdmittedStateCursorSuffixDrop(_, right_prior) -> atomic_path_cursor_location(left_prior, right_prior)
+  ) -> AtomicPathCursorLocation(n, left, right) = match outer
+    Nil() -> match left_suffix
+      LookaroundAdmittedStateCursorSuffixHere(left_equality) -> match right_suffix
+        LookaroundAdmittedStateCursorSuffixHere(right_equality) -> AtomicPathCursorLocationSame(trans(sym(left_equality), right_equality))
+    Cons(outer_head, outer_tail) -> match left_suffix
+      LookaroundAdmittedStateCursorSuffixHere(left_equality) -> match right_suffix
+        LookaroundAdmittedStateCursorSuffixHere(right_equality) -> AtomicPathCursorLocationSame(trans(sym(left_equality), right_equality))
+        LookaroundAdmittedStateCursorSuffixDrop(_, _) -> match left_equality
+          reflexive() -> AtomicPathCursorLocationRightAfter(right_suffix)
+      LookaroundAdmittedStateCursorSuffixDrop(_, left_prior) -> match right_suffix
+        LookaroundAdmittedStateCursorSuffixHere(right_equality) -> match right_equality
+          reflexive() -> AtomicPathCursorLocationLeftAfter(AtomicPathStrictCursorSuffixDrop(outer_head, outer_tail, left_prior))
+        LookaroundAdmittedStateCursorSuffixDrop(_, right_prior) -> atomic_path_cursor_location(outer_tail, left_prior, right_prior)
 
   ## The active-child induction needs one more distinction than ordinary cursor
   ## alignment: a selected suffix may still be at the rejected head, may have
@@ -2350,7 +2352,7 @@ mod Std.Regex.Runtime
     {history: List(Char)},
     {capture_context: List(EvidenceInstruction)},
     {policy: NewlinePolicy},
-    {failure_whole: List(LookaroundAdmittedState(n))},
+    failure_whole: List(LookaroundAdmittedState(n)),
     {failure_current: List(LookaroundAdmittedState(n))},
     {failure_origin: List(LookaroundAdmittedState(n))},
     {selected_origin: List(LookaroundAdmittedState(n))},
@@ -2364,6 +2366,7 @@ mod Std.Regex.Runtime
     later_case: () -> Empty,
     reverse_case: () -> Empty
   ) -> Empty = match atomic_path_cursor_location(
+    failure_whole,
     failure_suffix,
     atomic_path_failed_selected_child_suffix(
       failure_origin_equivalence,
@@ -2464,6 +2467,45 @@ mod Std.Regex.Runtime
     lookaround_admitted_cursor_suffix_compose(
       suffix,
       LookaroundAdmittedStateCursorSuffixDrop(head, LookaroundAdmittedStateCursorSuffixHere(reflexive(tail)))
+    )
+
+  ## No finite list can contain one of its own proper extensions as a suffix.
+  ## The recursive case removes the outer list's head and the extension's head
+  ## together. This theorem is called only by the contradiction dispatcher;
+  ## the entire result is eliminated before code generation.
+  @reducible
+  fn atomic_path_cons_cannot_be_suffix_of_its_tail(
+    {n: Nat},
+    head: LookaroundAdmittedState(n),
+    tail: List(LookaroundAdmittedState(n)),
+    suffix: LookaroundAdmittedStateCursorSuffix(n, tail, Cons(head, tail))
+  ) -> Empty = match tail
+    Nil() -> match suffix
+      LookaroundAdmittedStateCursorSuffixHere(equality) -> match equality
+    Cons(next, rest) -> match suffix
+      LookaroundAdmittedStateCursorSuffixHere(equality) -> match equality
+      LookaroundAdmittedStateCursorSuffixDrop(_, prior) -> atomic_path_cons_cannot_be_suffix_of_its_tail(
+        next,
+        rest,
+        lookaround_admitted_cursor_suffix_tail(head, Cons(next, rest), prior)
+      )
+
+  ## Proper suffix is asymmetric.  Composing the ordinary forward suffix
+  ## stored by the strict witness with a hypothetical reverse suffix would
+  ## make `head :: tail` a suffix of `tail`, which the finite-list lemma above
+  ## eliminates.
+  @reducible
+  fn atomic_path_strict_cursor_suffix_excludes_reverse(
+    {n: Nat},
+    {outer: List(LookaroundAdmittedState(n))},
+    {inner: List(LookaroundAdmittedState(n))},
+    strict: AtomicPathStrictCursorSuffix(n, outer, inner),
+    reverse: LookaroundAdmittedStateCursorSuffix(n, inner, outer)
+  ) -> Empty = match strict
+    AtomicPathStrictCursorSuffixDrop(head, tail, forward) -> atomic_path_cons_cannot_be_suffix_of_its_tail(
+      head,
+      tail,
+      lookaround_admitted_cursor_suffix_compose(forward, reverse)
     )
 
   fn lookaround_admitted_cursor_suffix_reflexive(
@@ -12328,7 +12370,7 @@ mod Std.Regex.Runtime
       Cons(LookaroundAdmittedActive(active_state, active_routine, active_constraints, active_assertion_routine, active_assertion_markers, active_nested_decisions), tail_remaining),
       AtomicPathFailureDestinationRejected()
     ),
-    {child_whole: List(LookaroundAdmittedState(n))},
+    child_whole: List(LookaroundAdmittedState(n)),
     child_current: List(LookaroundAdmittedState(n)),
     @erased child_failure: AtomicPathRefutation(
       depth,
@@ -12451,6 +12493,7 @@ mod Std.Regex.Runtime
           AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> match child_scope_alignment
             LookaroundAdmittedStateScopeActive(_, _, _, _, _, _) ->
               atomic_path_active_child_rejection_singleton_aligned_excludes_trace(
+                child_whole,
                 child_candidate,
                 child_failure,
                 child_failure_suffix,
@@ -12566,7 +12609,7 @@ mod Std.Regex.Runtime
       Cons(LookaroundAdmittedActive(active_state, active_routine, active_constraints, active_assertion_routine, active_assertion_markers, active_nested_decisions), tail_remaining),
       AtomicPathFailureDestinationRejected()
     ),
-    {child_whole: List(LookaroundAdmittedState(n))},
+    child_whole: List(LookaroundAdmittedState(n)),
     child_current: List(LookaroundAdmittedState(n)),
     @erased child_failure: AtomicPathRefutation(
       depth,
@@ -12701,6 +12744,7 @@ mod Std.Regex.Runtime
     active_assertion_routine,
     active_assertion_markers,
     active_nested_decisions,
+    child_whole,
     child_current,
     child_failure,
     child_suffix,
@@ -12770,7 +12814,7 @@ mod Std.Regex.Runtime
     active_assertion_routine: List(ExtendedInstruction),
     active_assertion_markers: List(EvidenceInstruction),
     active_nested_decisions: List(LookaroundNestedDecision),
-    {child_whole: List(LookaroundAdmittedState(n))},
+    child_whole: List(LookaroundAdmittedState(n)),
     child_current: List(LookaroundAdmittedState(n)),
     @erased child_failure: AtomicPathRefutation(
       depth,
@@ -12911,6 +12955,7 @@ mod Std.Regex.Runtime
             active_nested_decisions,
             remaining,
             failure,
+            child_whole,
             child_current,
             child_failure,
             child_suffix,
@@ -12961,6 +13006,7 @@ mod Std.Regex.Runtime
                 active_nested_decisions,
                 selected_remaining,
                 tail_failure,
+                child_whole,
                 child_current,
                 child_failure,
                 child_suffix,
@@ -13004,6 +13050,7 @@ mod Std.Regex.Runtime
               active_assertion_routine,
               active_assertion_markers,
               active_nested_decisions,
+              child_whole,
               child_current,
               child_failure,
               child_suffix,
@@ -13404,6 +13451,7 @@ mod Std.Regex.Runtime
         AtomicSelectedPrefixDone() -> impossible
         AtomicSelectedExactDone() -> impossible
         AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> match atomic_path_cursor_location(
+          child_whole,
           child_suffix,
           atomic_path_failed_selected_child_suffix(
             child_failure_origin_equivalence,
@@ -13420,6 +13468,7 @@ mod Std.Regex.Runtime
           AtomicPathCursorLocationLeftAfter(_) -> left_case()
           AtomicPathCursorLocationRightAfter(_) -> right_case()
         AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> match atomic_path_cursor_location(
+          child_whole,
           child_suffix,
           atomic_path_failed_selected_child_suffix(
             child_failure_origin_equivalence,
@@ -13438,6 +13487,7 @@ mod Std.Regex.Runtime
       AtomicPathDestinationsExhausted(_, _, _, _, _, _) -> impossible
       AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) ->
         atomic_path_active_child_rejection_canonical_current_dispatch(
+          child_whole,
           child_failure_origin_equivalence,
           child_failure_origin_canonical,
           child_suffix,
@@ -14031,7 +14081,7 @@ mod Std.Regex.Runtime
     {@erased child_scope_depth: Nat},
     {@erased prefix_mode: Bool},
     {@erased reversed_prefix: List(Char)},
-    {@erased failure_whole: List(LookaroundAdmittedState(n))},
+    failure_whole: List(LookaroundAdmittedState(n)),
     candidate: LookaroundAdmittedState(n),
     {@erased failure_remaining: List(LookaroundAdmittedState(n))},
     @erased child_failure: AtomicPathRefutation(
@@ -14093,6 +14143,7 @@ mod Std.Regex.Runtime
     right_case: () -> Empty
   ) -> Empty = match candidate
     LookaroundAdmittedActive(_, _, _, _, _, _) -> match atomic_path_cursor_location(
+        failure_whole,
         failure_suffix,
         transport_lookaround_admitted_cursor_suffix_outer(
           selected_whole_equivalence,
@@ -14107,6 +14158,7 @@ mod Std.Regex.Runtime
         AtomicPathCursorLocationLeftAfter(_) -> left_case()
         AtomicPathCursorLocationRightAfter(_) -> right_case()
     LookaroundAdmittedAccepted(_, _, _, _, _) -> match atomic_path_cursor_location(
+        failure_whole,
         failure_suffix,
         transport_lookaround_admitted_cursor_suffix_outer(
           selected_whole_equivalence,
