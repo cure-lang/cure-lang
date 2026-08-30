@@ -898,6 +898,21 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "AtomicPathCommitFromChild :"
     assert source =~ "AtomicPathCommitPastRejected :"
     assert source =~ "AtomicPathCommitPastEscaped :"
+
+    [_prefix, commit_after_failure] =
+      String.split(source, "AtomicPathCommitAfterFailure :", parts: 2)
+
+    [commit_after_failure | _] =
+      String.split(commit_after_failure, "AtomicPathCommitFromChild :", parts: 2)
+
+    assert commit_after_failure =~ "child_prefix: AtomicPathFailurePrefixEvidence("
+
+    [_prefix, commit_past_rejected] =
+      String.split(source, "AtomicPathCommitPastRejected :", parts: 2)
+
+    [commit_past_rejected | _] = String.split(commit_past_rejected, "\n\n", parts: 2)
+    assert commit_past_rejected =~ "child_prefix: AtomicPathFailurePrefixEvidence("
+
     assert source =~ "type AtomicPathSkippedPrefixEvidence("
     assert source =~ "AtomicPathSkippedRejectedCons :"
     assert source =~ "AtomicPathEscapedCommitOne :"
