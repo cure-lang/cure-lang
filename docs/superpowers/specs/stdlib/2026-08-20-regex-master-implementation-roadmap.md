@@ -2490,6 +2490,15 @@ module chain and focused 27-test gate pass. The next slice must combine these
 tail projections with the matching commit-cause projections and continuation
 contradiction in the recursive mixed-prefix fold.
 
+The first mixed constructor pair is now discharged directly.
+`atomic_path_commit_after_failure_excludes_rejected_prefix` consumes an
+`AfterFailure` commit at the current candidate together with the
+`RejectedCons` evidence that allowed success to continue past that same
+candidate. It extracts the retained continuation witness at the construction
+site and invokes the finite depth contradiction, with both proof sums fixed by
+their erased kinds. This closes the locally blocking rejected-head case; the
+propagated escaped/rejected tail recursion and selected-child cause case remain.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

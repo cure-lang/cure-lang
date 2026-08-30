@@ -7520,6 +7520,29 @@ mod Std.Regex.Runtime
   ) -> AtomicPathSkippedPrefixTailPackage(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, front, current, tail_kind) = match evidence
     AtomicPathSkippedRejectedCons(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, tail) -> AtomicPathSkippedPrefixTailPacked(tail)
 
+  ## A locally blocking failure at the current head contradicts the exact
+  ## continuation certificate that allowed a successful search to skip that
+  ## same rejected head. Both constructor kinds are fixed by erased indices.
+  @reducible
+  fn atomic_path_commit_after_failure_excludes_rejected_prefix(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased rest: List(Char)},
+    {@erased after_input: List(Char)}, {@erased source: Bounded(n)},
+    {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased candidate: LookaroundAdmittedState(n)},
+    {@erased remaining: List(LookaroundAdmittedState(n))},
+    {@erased selected_current: List(LookaroundAdmittedState(n))},
+    {@erased commit_depth: Nat},
+    {@erased tail_kind: AtomicPathSkippedPrefixKind},
+    @erased cause: AtomicPathCommitCause(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, remaining), commit_depth, AtomicPathCommitAfterFailureKind()),
+    @erased evidence: AtomicPathSkippedPrefixEvidence(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, remaining), selected_current, AtomicPathSkippedPrefixRejectedConsKind(tail_kind))
+  ) -> Empty = match evidence
+    AtomicPathSkippedRejectedCons(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, continuation, _, _) -> atomic_path_commit_after_failure_excludes_continuation(cause, continuation)
+
   ## Every failed child search records where its exposed failure cursor sits
   ## relative to the complete canonical candidate spine. Ordinary root
   ## failures expose the whole spine unchanged. A suffix-local No result
