@@ -7244,6 +7244,44 @@ mod Std.Regex.Runtime
 
     AtomicPathCommitPastRejected : (@erased char: Char) -> (@erased rest: List(Char)) -> (@erased source: Bounded(n)) -> (@erased candidate: LookaroundAdmittedState(n)) -> (@erased remaining: List(LookaroundAdmittedState(n))) -> (@erased child_capture_context: List(EvidenceInstruction)) -> (@erased child_context_alignment: LookaroundAdmittedStateCaptureContext(n, capture_context, candidate, child_capture_context)) -> (@erased child_scope_depth: Nat) -> (@erased child_scope_alignment: LookaroundAdmittedStateScope(n, scope_depth, candidate, child_scope_depth)) -> (@erased child_whole: List(LookaroundAdmittedState(n))) -> (@erased child_current: List(LookaroundAdmittedState(n))) -> (@erased child_prefix: AtomicPathFailurePrefixEvidence(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), child_capture_context, policy, child_scope_depth, prefix_mode, Cons(char, reversed_prefix), child_whole, child_current)) -> {@erased child_origin: List(LookaroundAdmittedState(n))} -> (@erased child_origin_equivalence: Equivalent(List(LookaroundAdmittedState(n)), child_whole, child_origin)) -> (@erased child_origin_canonical: AtomicPathSearchOrigin(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), lookaround_admitted_state_capture_context(capture_context, candidate), policy, child_origin)) -> (@erased child_suffix: LookaroundAdmittedStateCursorSuffix(n, child_whole, child_current)) -> (@erased child_kind: AtomicPathFailureKind) -> (@erased child_failure: AtomicPathRefutation(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), lookaround_admitted_state_capture_context(capture_context, candidate), policy, child_scope_depth, prefix_mode, Cons(char, reversed_prefix), child_whole, child_current, child_kind)) -> (@erased child_evidence: AtomicPathNoEvidence(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), child_capture_context, policy, child_scope_depth, prefix_mode, Cons(char, reversed_prefix), child_whole, child_current, child_kind)) -> (@erased commit_depth: Nat) -> (@erased tail_cause: AtomicPathCommitCause(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, remaining, commit_depth)) -> AtomicPathCommitCause(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, remaining), commit_depth)
 
+  @reducible
+  fn atomic_path_commit_empty_input_impossible(
+    {depth: Nat},
+    {n: Nat},
+    {@erased machine: PatternMachine(n)},
+    {@erased after_input: List(Char)},
+    {@erased state: Bounded(n)},
+    {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy},
+    {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool},
+    {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased current: List(LookaroundAdmittedState(n))},
+    {@erased commit_depth: Nat},
+    @erased cause: AtomicPathCommitCause(depth, n, machine, Nil(), after_input, ThreadActive(state), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, commit_depth)
+  ) -> Empty = match cause
+
+  @reducible
+  fn atomic_path_commit_accepted_state_impossible(
+    {depth: Nat},
+    {n: Nat},
+    {@erased machine: PatternMachine(n)},
+    {@erased input: List(Char)},
+    {@erased after_input: List(Char)},
+    {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy},
+    {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool},
+    {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased current: List(LookaroundAdmittedState(n))},
+    {@erased commit_depth: Nat},
+    @erased cause: AtomicPathCommitCause(depth, n, machine, input, after_input, ThreadAccepted(), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, commit_depth)
+  ) -> Empty = match cause
+
   type AtomicPathSkippedPrefixEvidence(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), front: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)))
     AtomicPathEscapedCommitOne : (@erased char: Char) -> (@erased rest: List(Char)) -> (@erased source: Bounded(n)) -> (@erased candidate: LookaroundAdmittedState(n)) -> (@erased child_capture_context: List(EvidenceInstruction)) -> (@erased child_scope_depth: Nat) -> (@erased child_whole: List(LookaroundAdmittedState(n))) -> (@erased child_current: List(LookaroundAdmittedState(n))) -> (@erased commit_depth: Nat) -> (@erased cause: AtomicPathCommitCause(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), child_capture_context, policy, child_scope_depth, prefix_mode, Cons(char, reversed_prefix), child_whole, child_current, commit_depth)) -> (@erased escaped: AtomicDepthBelow(scope_depth, commit_depth)) -> {@erased current: List(LookaroundAdmittedState(n))} -> AtomicPathSkippedPrefixEvidence(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, current), current)
     AtomicPathEscapedCommitCons : (@erased char: Char) -> (@erased rest: List(Char)) -> (@erased source: Bounded(n)) -> (@erased candidate: LookaroundAdmittedState(n)) -> (@erased child_capture_context: List(EvidenceInstruction)) -> (@erased child_scope_depth: Nat) -> (@erased child_whole: List(LookaroundAdmittedState(n))) -> (@erased child_current: List(LookaroundAdmittedState(n))) -> (@erased commit_depth: Nat) -> (@erased cause: AtomicPathCommitCause(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), child_capture_context, policy, child_scope_depth, prefix_mode, Cons(char, reversed_prefix), child_whole, child_current, commit_depth)) -> (@erased escaped: AtomicDepthBelow(scope_depth, commit_depth)) -> {@erased front: List(LookaroundAdmittedState(n))} -> {@erased current: List(LookaroundAdmittedState(n))} -> (@erased tail: AtomicPathSkippedPrefixEvidence(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, front, current)) -> AtomicPathSkippedPrefixEvidence(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, front), current)

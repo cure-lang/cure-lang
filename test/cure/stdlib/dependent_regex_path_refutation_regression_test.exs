@@ -898,6 +898,8 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "AtomicPathCommitFromChild :"
     assert source =~ "AtomicPathCommitPastRejected :"
     assert source =~ "AtomicPathCommitPastEscaped :"
+    assert source =~ "fn atomic_path_commit_empty_input_impossible("
+    assert source =~ "fn atomic_path_commit_accepted_state_impossible("
 
     [_prefix, search_commit] = String.split(source, "AtomicPathSearchCommit :", parts: 2)
     [search_commit | _] = String.split(search_commit, "\n", parts: 2)
