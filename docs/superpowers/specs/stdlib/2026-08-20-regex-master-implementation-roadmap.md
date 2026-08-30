@@ -2392,6 +2392,20 @@ are singleton dependency components); the canonical stabilization gate now
 checks `lib/std_deps/regex` separately so package cycles cannot escape the
 ordinary `lib/std` scan.
 
+Commit-result transport is now complete at the same proof boundary.
+`AtomicPathMembersCommit` and `AtomicPathSearchCommit` retain the canonical
+origin equation/certificate plus the exact whole-to-current cursor witness and
+suffix. Rejected-tail and escaped-tail reconstruction preserve those fields at
+the parent cursor, while `AtomicPathCommitFromChild` and
+`AtomicPathCommitPastEscaped` retain the corresponding child origin and suffix
+beside the recursive cause. Consequently all four commit-cause constructors
+now expose the child alignment data required by direct selected-trace
+consumption; no commit branch needs to reopen the evaluator. The indexed
+terminal eliminators also establish that a commit cause cannot exist at empty
+input or under `ThreadAccepted`. The remaining implementation is the recursive
+non-empty active-thread cause fold, its integration into the mixed skipped-
+prefix consumer, and deletion of the reverse continuation.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
