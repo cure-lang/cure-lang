@@ -8765,6 +8765,114 @@ mod Std.Regex.Runtime
     AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
     AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, suffix) -> impossible
 
+  ## Erased-context counterpart for nested construction sites.  A selected
+  ## suffix extracted from an erased transition cannot be passed to the
+  ## polymorphic eliminator above because its context arguments are relevant
+  ## there.  This proof-only leaf repeats the same indexed absurdity with every
+  ## premise erased, so nested dispatch can consume the suffix without
+  ## manufacturing a runtime argument or weakening relevance checking.
+  @reducible
+  fn atomic_path_input_exhaustion_excludes_trace_erased(
+    {depth: Nat},
+    {n: Nat},
+    @erased machine: PatternMachine(n),
+    @erased after_input: List(Char),
+    @erased state: Bounded(n),
+    @erased history: List(Char),
+    @erased capture_context: List(EvidenceInstruction),
+    @erased policy: NewlinePolicy,
+    @erased scope_depth: Nat,
+    @erased prefix_mode: Bool,
+    @erased reversed_prefix: List(Char),
+    @erased candidate_current: List(LookaroundAdmittedState(n)),
+    @erased matched: List(Char),
+    @erased remaining_input: List(Char),
+    @erased routine: List(ExtendedInstruction),
+    @erased path: AtomicSelectedPathTrace(
+      depth,
+      n,
+      machine,
+      Nil(),
+      after_input,
+      ThreadActive(state),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      candidate_current,
+      matched,
+      remaining_input,
+      routine
+    )
+  ) -> Empty = match path
+    AtomicSelectedPrefixDone() -> impossible
+    AtomicSelectedExactDone() -> impossible
+    AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+    AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, suffix) -> impossible
+
+  ## Erased-context exact counterpart.  It is the accepted-thread/non-empty
+  ## input absurdity used when a nested selected transition is unpacked from
+  ## an erased parent trace.
+  @reducible
+  fn atomic_path_exact_failure_excludes_trace_erased(
+    {depth: Nat},
+    {n: Nat},
+    @erased machine: PatternMachine(n),
+    @erased char: Char,
+    @erased rest: List(Char),
+    @erased after_input: List(Char),
+    @erased history: List(Char),
+    @erased capture_context: List(EvidenceInstruction),
+    @erased policy: NewlinePolicy,
+    @erased scope_depth: Nat,
+    @erased reversed_prefix: List(Char),
+    @erased candidate_current: List(LookaroundAdmittedState(n)),
+    @erased matched: List(Char),
+    @erased remaining_input: List(Char),
+    @erased routine: List(ExtendedInstruction),
+    @erased failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadAccepted(),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      False(),
+      reversed_prefix,
+      Nil(),
+      Nil(),
+      AtomicPathFailureExactAccepted()
+    ),
+    @erased path: AtomicSelectedPathTrace(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadAccepted(),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      False(),
+      reversed_prefix,
+      candidate_current,
+      matched,
+      remaining_input,
+      routine
+    )
+  ) -> Empty = match path
+    AtomicSelectedPrefixDone() -> impossible
+    AtomicSelectedExactDone() -> impossible
+    AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+    AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+
   ## A start-list refutation at the empty suffix cannot coexist with any
   ## selected atomic trace.  The membership witness is the same construction
   ## authority used by the ordinary lookaround refutation theorem: once the

@@ -220,6 +220,15 @@ empty rejected tail. The remaining non-empty tail induction must specialize
 at the construction site: a generic eliminator may not inspect an erased
 refutation sum, and making its kind tag relevant would duplicate evaluator
 control metadata rather than preserve proof erasure.
+The nested-terminal construction boundary now has proof-only erased
+counterparts for both active input exhaustion and exact accepted-with-input
+absurdity. These helpers consume the fully indexed selected trace and
+refutation with every runtime premise erased, so nested dispatch can discharge
+the impossible index directly without manufacturing a runtime argument or
+relaxing relevance checking. Direct Runtime compilation and a synthetic
+erased-terminal construction regression pass. Recursive non-terminal
+destination rejection, tail alignment, and complete start-list correspondence
+remain open.
 The admitted-state `LookaroundAdmittedStateCursorSuffix` relation is explicit,
 permitting that induction to drop only ordered heads rather than inventing a
 candidate prefix. The exact-accepted-with-input refutation is indexed by an
