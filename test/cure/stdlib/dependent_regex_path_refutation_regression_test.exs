@@ -917,6 +917,17 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "fn atomic_path_strict_cursor_suffix_excludes_reverse("
     assert source =~ "fn atomic_path_root_failure_excludes_strictly_prior_cursor("
 
+    [_prefix, current_dispatch] =
+      String.split(
+        source,
+        "fn atomic_path_active_child_rejection_canonical_current_dispatch(",
+        parts: 2
+      )
+
+    [current_dispatch | _] = String.split(current_dispatch, "\n\n", parts: 2)
+    assert current_dispatch =~ "reverse_case: (AtomicPathStrictCursorSuffix("
+    assert current_dispatch =~ "AtomicPathCursorLocationLeftAfter(strict) -> reverse_case(strict)"
+
     [_prefix, cursor_location] =
       String.split(source, "type AtomicPathCursorLocation", parts: 2)
 

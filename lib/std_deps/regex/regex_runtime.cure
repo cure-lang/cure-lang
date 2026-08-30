@@ -2364,7 +2364,7 @@ mod Std.Regex.Runtime
     selected_suffix: LookaroundAdmittedStateCursorSuffix(n, selected_origin, selected_current),
     same_case: () -> Empty,
     later_case: () -> Empty,
-    reverse_case: () -> Empty
+    reverse_case: (AtomicPathStrictCursorSuffix(n, selected_current, failure_current)) -> Empty
   ) -> Empty = match atomic_path_cursor_location(
     failure_whole,
     failure_suffix,
@@ -2376,7 +2376,7 @@ mod Std.Regex.Runtime
     )
   )
     AtomicPathCursorLocationSame(_) -> same_case()
-    AtomicPathCursorLocationLeftAfter(_) -> reverse_case()
+    AtomicPathCursorLocationLeftAfter(strict) -> reverse_case(strict)
     AtomicPathCursorLocationRightAfter(_) -> later_case()
 
   fn atomic_path_active_child_alignment(
@@ -13511,7 +13511,7 @@ mod Std.Regex.Runtime
           child_selection_suffix,
           left_case,
           left_tail_case,
-          right_case
+          fn(_) -> right_case()
         )
 
   ## Dispatch the indexed active-child alignment at the construction site. The
