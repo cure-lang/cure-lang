@@ -2233,6 +2233,17 @@ unchanged because every added field is erased. The complete Runtime module and
 the focused 27-test path-refutation gate pass. Packaged recursive consumption,
 the complete start-list lift, and the final all-kinds theorem remain open.
 
+Escaped child-search failures now preserve their canonical origin witness all
+the way from `AtomicPathMembersEscapedNo` through `AtomicPathSearchNo` and
+commit-scope unwinding. Previously the member result retained this witness but
+the public search projection discarded it and later branches substituted
+`AtomicPathOriginWitnessNone`; that made the failed and selected child origins
+impossible to align without reopening evaluator internals. The witness is
+proof-only and erased, so this strengthens correspondence without changing the
+runtime result. Runtime elaboration and the focused construction-site
+regressions pass. The next proof slice can now package child-origin equality
+directly before recursive rejection consumption.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

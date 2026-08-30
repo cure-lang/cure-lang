@@ -806,6 +806,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     [_prefix, search] = String.split(source, "type AtomicPathSearchResult", parts: 2)
     [search | _] = String.split(search, "\n\n", parts: 2)
     assert search =~ "AtomicPathSearchNo :"
+    assert search =~ "origin_canonical: AtomicPathOriginWitness("
     assert search =~ "evidence: AtomicPathNoEvidence("
 
     [_prefix, members] = String.split(source, "type AtomicPathMembersResult", parts: 2)
@@ -823,5 +824,24 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
 
     assert tail_fold =~
              "AtomicPathNoDestinationRejected(child_context_alignment, child_origin_equivalence, child_origin_canonical, child_suffix, child_evidence, tail_suffix, tail_origin_equivalence, tail_evidence)"
+
+    [_prefix, root_projection] =
+      String.split(source, "fn atomic_path_members_root_to_search(", parts: 2)
+
+    [root_projection | _] = String.split(root_projection, "\n\n", parts: 2)
+
+    assert root_projection =~
+             "AtomicPathMembersEscapedNo(skipped, tail_current, origin, origin_equivalence, origin_canonical, witness, suffix, kind, failure, evidence)"
+
+    assert root_projection =~
+             "AtomicPathSearchNo(skipped, whole, tail_current, origin, origin_equivalence, origin_canonical, witness, suffix, kind, failure, evidence)"
+
+    [_prefix, after_failure] =
+      String.split(source, "fn atomic_lookaround_routine_after_failure(", parts: 2)
+
+    [after_failure | _] = String.split(after_failure, "\n\n", parts: 2)
+
+    refute after_failure =~ "child_origin_equivalence, AtomicPathOriginWitnessNone()"
+    assert after_failure =~ "child_origin_equivalence, child_origin_canonical, child_witness"
   end
 end
