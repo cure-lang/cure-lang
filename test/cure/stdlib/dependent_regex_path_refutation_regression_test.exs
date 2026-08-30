@@ -736,4 +736,32 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert body =~ ") -> Empty = atomic_path_active_child_rejection_head_active_excludes_trace("
     assert body =~ "child_failure,\n    child_path"
   end
+
+  test "singleton child alignment carries the indexed nested trace through sibling tails" do
+    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+
+    assert source =~ "type AtomicPathCursorLocation"
+    assert source =~ "fn atomic_path_active_child_rejection_singleton_aligned_excludes_trace("
+
+    [_prefix, base_body] =
+      String.split(
+        source,
+        "fn atomic_path_tail_active_child_rejection_excludes_selected_suffix_base(",
+        parts: 2
+      )
+
+    [base_body | _] = String.split(base_body, "\n  ##", parts: 2)
+
+    assert base_body =~ "@erased child_path: AtomicSelectedPathTrace("
+    assert base_body =~ "atomic_path_active_child_rejection_singleton_aligned_excludes_trace("
+    assert base_body =~ "child_selected_suffix,\n                child_path,"
+
+    [_prefix, fold_body] =
+      String.split(source, "fn atomic_path_rejected_tail_fold_to_active(", parts: 2)
+
+    [fold_body | _] = String.split(fold_body, "\n  ##", parts: 2)
+
+    assert fold_body =~ "@erased child_path: AtomicSelectedPathTrace("
+    assert fold_body =~ "child_selected_suffix,\n            child_path,"
+  end
 end

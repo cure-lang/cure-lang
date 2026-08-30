@@ -2195,6 +2195,19 @@ existential failure and trace cursors still requires a construction-site
 alignment eliminator before recursive rejected-child and sibling-tail induction
 can use it.
 
+The singleton cursor-alignment consumer is now wired at the real rejected-tail
+construction boundary. `AtomicPathCursorLocation` compares the relevant
+failure and selected cursor spines from their common origin while keeping the
+resulting equality erased. Candidate discrimination occurs before equality
+transport, so proof evidence cannot choose runtime control. The nested selected
+child trace is an explicit index of the base consumer and is threaded unchanged
+through `atomic_path_rejected_tail_fold_to_active`; the fold no longer accepts
+an unrelated parent trace as evidence for that child cursor. Equal active and
+accepted heads are discharged by separate erased terminal eliminators, while
+the two directional cursor cases remain the recursive sibling obligations.
+Direct Runtime compilation is green. General non-singleton child recursion and
+the complete start-list/all-kinds correspondence remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
