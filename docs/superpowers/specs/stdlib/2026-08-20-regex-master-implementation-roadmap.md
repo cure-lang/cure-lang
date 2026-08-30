@@ -2312,6 +2312,23 @@ is to replace the fold's externally supplied `Here`/`There`/`Reverse`
 contradictions with recursive consumers of the child and sibling failure
 evidence, then lift that result through the start list.
 
+The all-child-kind construction boundary now uses the same canonical-origin
+discipline. `atomic_path_tail_active_child_failure_dispatch` carries a relevant
+proof-only failure kind until its indexed branch has been selected; the child
+refutation, selected child trace, and parent trace likewise remain relevant
+only inside this theorem boundary and are still erased by the matcher result
+constructors. Destination exhaustion transports the selected suffix through
+`atomic_path_failed_selected_child_suffix` and reuses the existing exhausted
+leaf. Recursive destination rejection uses the new current-relative
+`atomic_path_active_child_rejection_canonical_current_dispatch`, which compares
+the failed and selected cursors after canonical transport and distinguishes
+same child, later sibling, and reverse ordering without projecting an erased
+non-empty existential. The old failed-whole/selected-whole equality is removed
+from both this dispatcher and its exhausted-child wrapper. The full Regex
+module chain elaborates and the focused 27-test gate passes. The remaining
+directional callbacks must now be replaced by the recursive child/tail
+contradictions themselves before the start-list lift can close Phase 2.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

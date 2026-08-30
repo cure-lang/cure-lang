@@ -806,6 +806,20 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert active_fold =~ "child_selected_origin_canonical: AtomicPathSearchOrigin("
     assert active_fold =~ "child_failure_origin_equivalence,"
     refute active_fold =~ "child_selected_whole_equivalence: Equivalent("
+
+    [_prefix, failure_dispatch] =
+      String.split(
+        source,
+        "fn atomic_path_tail_active_child_failure_dispatch(",
+        parts: 2
+      )
+
+    [failure_dispatch | _] = String.split(failure_dispatch, "\n  ##", parts: 2)
+
+    assert failure_dispatch =~ "child_kind: AtomicPathFailureKind"
+    assert failure_dispatch =~ "atomic_path_failed_selected_child_suffix("
+    assert failure_dispatch =~ "atomic_path_active_child_rejection_canonical_current_dispatch("
+    refute failure_dispatch =~ "child_selected_whole_equivalence: Equivalent("
     assert source =~ "AtomicPathSearchOriginActiveEmpty :"
     assert source =~ "type AtomicPathNoEvidence"
     assert source =~ "AtomicPathNoInputExhausted :"
