@@ -2533,6 +2533,16 @@ returning an erased proof as relevant data. These are the two branches needed
 by the final reverse-cursor dispatcher; the after-skipped package must next be
 fed into the recursive commit/skipped-kind matrix.
 
+The nominally suffix-local branch also closes its empty-prefix base explicitly.
+Although `AtomicPathFailureAfterSkippedKind` is structurally closed over every
+skipped-prefix kind, `AtomicPathSkippedPrefixEmpty` identifies the failure
+cursor with the whole list. The new
+`atomic_path_failure_after_empty_skipped_excludes_strict_selection` consumes
+that equality and reduces the alleged reverse selection to finite strict-suffix
+asymmetry. The proof therefore does not rely on an informal claim that this
+publicly constructible index is unreachable. Non-empty escaped and rejected
+heads remain the recursive cases.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
