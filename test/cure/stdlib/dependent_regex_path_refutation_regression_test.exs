@@ -899,6 +899,16 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "AtomicPathCommitPastRejected :"
     assert source =~ "AtomicPathCommitPastEscaped :"
 
+    [_prefix, search_commit] = String.split(source, "AtomicPathSearchCommit :", parts: 2)
+    [search_commit | _] = String.split(search_commit, "\n", parts: 2)
+    assert search_commit =~ "origin_canonical: AtomicPathSearchOrigin("
+    assert search_commit =~ "suffix: LookaroundAdmittedStateCursorSuffix("
+
+    [_prefix, members_commit] = String.split(source, "AtomicPathMembersCommit :", parts: 2)
+    [members_commit | _] = String.split(members_commit, "\n", parts: 2)
+    assert members_commit =~ "origin_canonical: AtomicPathSearchOrigin("
+    assert members_commit =~ "suffix: LookaroundAdmittedStateCursorSuffix("
+
     [_prefix, commit_after_failure] =
       String.split(source, "AtomicPathCommitAfterFailure :", parts: 2)
 
@@ -916,6 +926,24 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert commit_past_rejected =~ "child_prefix: AtomicPathFailurePrefixEvidence("
     assert commit_past_rejected =~ "child_origin_canonical: AtomicPathSearchOrigin("
     assert commit_past_rejected =~ "child_suffix: LookaroundAdmittedStateCursorSuffix("
+
+    [_prefix, commit_from_child] =
+      String.split(source, "AtomicPathCommitFromChild :", parts: 2)
+
+    [commit_from_child | _] =
+      String.split(commit_from_child, "AtomicPathCommitPastEscaped :", parts: 2)
+
+    assert commit_from_child =~ "child_origin_canonical: AtomicPathSearchOrigin("
+    assert commit_from_child =~ "child_suffix: LookaroundAdmittedStateCursorSuffix("
+
+    [_prefix, commit_past_escaped] =
+      String.split(source, "AtomicPathCommitPastEscaped :", parts: 2)
+
+    [commit_past_escaped | _] =
+      String.split(commit_past_escaped, "AtomicPathCommitPastRejected :", parts: 2)
+
+    assert commit_past_escaped =~ "child_origin_canonical: AtomicPathSearchOrigin("
+    assert commit_past_escaped =~ "child_suffix: LookaroundAdmittedStateCursorSuffix("
 
     assert source =~ "type AtomicPathSkippedPrefixEvidence("
     assert source =~ "AtomicPathSkippedRejectedCons :"
