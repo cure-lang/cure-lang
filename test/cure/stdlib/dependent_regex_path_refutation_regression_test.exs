@@ -13,7 +13,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
            )
 
     assert source =~
-             "child_selected_whole_equivalence, child_origin_canonical, _, _, _, _, _, _) ->\n" <>
+             "child_selected_whole_equivalence, child_origin_canonical, _, _, _, _, _, _, _) ->\n" <>
                "      match child_selected_whole_equivalence"
 
     assert source =~ "AtomicPathSearchOriginActive(_, _, _, _) -> continuation"
@@ -888,10 +888,10 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     [root_projection | _] = String.split(root_projection, "\n\n", parts: 2)
 
     assert root_projection =~
-             "AtomicPathMembersEscapedNo(skipped, tail_current, skipped_evidence, origin, origin_equivalence, origin_canonical, witness, suffix, kind, failure, evidence)"
+             "AtomicPathMembersEscapedNo(skipped, tail_current, skipped_kind, skipped_evidence, origin, origin_equivalence, origin_canonical, witness, suffix, kind, failure, evidence)"
 
     assert root_projection =~
-             "AtomicPathSearchNo(skipped, whole, tail_current, skipped_evidence, origin, origin_equivalence, origin_canonical, witness, suffix, kind, failure, evidence)"
+             "AtomicPathSearchNo(skipped, whole, tail_current, skipped_kind, skipped_evidence, origin, origin_equivalence, origin_canonical, witness, suffix, kind, failure, evidence)"
 
     assert source =~ "type AtomicPathCommitCause("
     assert source =~ "type AtomicPathCommitCauseKind"
@@ -907,6 +907,13 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "AtomicPathCommitFromChild :"
     assert source =~ "AtomicPathCommitPastRejected :"
     assert source =~ "AtomicPathSkippedPrefixEmpty :"
+    assert source =~ "type AtomicPathSkippedPrefixKind"
+    assert source =~ "AtomicPathSkippedPrefixEmptyKind"
+    assert source =~ "AtomicPathSkippedPrefixEscapedOneKind"
+    assert source =~ "AtomicPathSkippedPrefixEscapedConsKind"
+    assert source =~ "AtomicPathSkippedPrefixRejectedConsKind"
+    assert source =~ "(@erased skipped_kind: AtomicPathSkippedPrefixKind)"
+    assert source =~ "(@erased child_skipped_kind: AtomicPathSkippedPrefixKind)"
     assert source =~ "AtomicPathSearchYes :"
     assert source =~ "(@erased skipped_evidence: AtomicPathSkippedPrefixEvidence"
     assert source =~ "AtomicPathMembersYes :"

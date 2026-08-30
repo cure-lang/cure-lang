@@ -2466,6 +2466,19 @@ canonical origin, and whole-to-tail suffix. These projections are kind-refined
 and compile without reopening the generic cause sum, providing the recursive
 step needed by the mixed-prefix fold. The focused 27-test gate remains green.
 
+Skipped-prefix evidence is now indexed by the proof-erased recursive
+`AtomicPathSkippedPrefixKind`. Empty, singleton escaped-commit, recursive
+escaped-commit, and recursive rejected-child prefixes have distinct indices;
+the recursive constructors retain the tail kind explicitly. Search/member
+successes and failures, selected child transitions, and the active-child
+selection package carry the kind beside the erased evidence. This gives the
+mixed-prefix fold a constructor selector at every recursive step without
+making proof evidence runtime-relevant or reopening an arbitrary erased sum.
+The complete Regex module chain elaborates and the focused 27-test
+path-refutation gate passes. Constructor-specific skipped-prefix consumers,
+their recursive cause/trace contradiction, and the complete start-list lift
+remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
