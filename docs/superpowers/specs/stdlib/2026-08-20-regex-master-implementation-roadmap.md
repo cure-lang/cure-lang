@@ -2543,6 +2543,15 @@ asymmetry. The proof therefore does not rely on an informal claim that this
 publicly constructible index is unreachable. Non-empty escaped and rejected
 heads remain the recursive cases.
 
+Both recursive non-empty prefix constructors now publish kind-refined
+non-emptiness projections. The escaped-cons and rejected-cons consumers expose
+their exact `candidate :: tail` spine only after matching the corresponding
+erased evidence constructor; no caller reconstructs that decomposition from an
+unindexed list. Together with the existing escaped-one projection and both tail
+packages, the recursive cursor fold now has canonical head and tail structure
+for every non-empty skipped-prefix kind. Candidate-level commit/refutation
+contradictions still have to consume those heads against the selected trace.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
