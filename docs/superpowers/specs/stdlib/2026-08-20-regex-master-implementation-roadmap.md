@@ -2374,6 +2374,24 @@ is to consume the rejected and escaped-commit prefix constructors directly
 against the selected trace, then delete the final reverse continuation rather
 than wrapping it again.
 
+The one-element skipped-prefix tail case is now discharged explicitly:
+`atomic_path_skipped_one_tail_excludes_strict_selection` composes the selected
+tail suffix with the strict reverse witness and eliminates it through finite
+suffix asymmetry. Commit causes created after a failed child, or after an
+earlier rejected child, now retain that child's
+`AtomicPathFailurePrefixEvidence`, canonical search origin/equality, and exact
+cursor suffix alongside the existing refutation and no-evidence tree. The
+escaped-commit consumer therefore no longer needs to reconstruct any child
+root/suffix fact from evaluator internals. The next slice must match the
+relevant skipped-prefix constructor at its proof construction boundary, use
+these retained fields to consume an at-head selected child, recurse through the
+tail constructor otherwise, and remove the final reverse callback. The focused
+27-test refutation gate and the 52-check canonical pipeline are green. The
+embedded Regex package itself is already acyclic (all eleven package modules
+are singleton dependency components); the canonical stabilization gate now
+checks `lib/std_deps/regex` separately so package cycles cannot escape the
+ordinary `lib/std` scan.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
