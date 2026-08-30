@@ -928,6 +928,8 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert commit_past_rejected =~ "child_prefix: AtomicPathFailurePrefixEvidence("
     assert commit_past_rejected =~ "child_origin_canonical: AtomicPathSearchOrigin("
     assert commit_past_rejected =~ "child_suffix: LookaroundAdmittedStateCursorSuffix("
+    assert commit_past_rejected =~ "tail_origin_canonical: AtomicPathSearchOrigin("
+    assert commit_past_rejected =~ "tail_suffix: LookaroundAdmittedStateCursorSuffix("
 
     [_prefix, commit_from_child] =
       String.split(source, "AtomicPathCommitFromChild :", parts: 2)
@@ -950,6 +952,8 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              "child_context_alignment: LookaroundAdmittedStateCaptureContext("
 
     assert commit_past_escaped =~ "child_scope_alignment: LookaroundAdmittedStateScope("
+    assert commit_past_escaped =~ "tail_origin_canonical: AtomicPathSearchOrigin("
+    assert commit_past_escaped =~ "tail_suffix: LookaroundAdmittedStateCursorSuffix("
 
     assert source =~ "type AtomicPathSkippedPrefixEvidence("
     assert source =~ "AtomicPathSkippedRejectedCons :"
