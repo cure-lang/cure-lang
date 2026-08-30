@@ -894,6 +894,11 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              "AtomicPathSearchNo(skipped, whole, tail_current, skipped_evidence, origin, origin_equivalence, origin_canonical, witness, suffix, kind, failure, evidence)"
 
     assert source =~ "type AtomicPathCommitCause("
+    assert source =~ "type AtomicPathCommitCauseKind"
+    assert source =~ "AtomicPathCommitAfterFailureKind"
+    assert source =~ "AtomicPathCommitFromChildKind"
+    assert source =~ "AtomicPathCommitPastEscapedKind"
+    assert source =~ "AtomicPathCommitPastRejectedKind"
     assert source =~ "AtomicPathCommitAfterFailure :"
     assert source =~ "AtomicPathCommitFromChild :"
     assert source =~ "AtomicPathCommitPastRejected :"

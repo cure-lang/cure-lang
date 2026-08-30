@@ -2418,6 +2418,16 @@ rejected by E104 and removed; the implementation must match each cause directly
 into `Empty` rather than materializing an intermediate proof package. The
 focused 27-test refutation gate remains green.
 
+Commit causes are now indexed by the proof-erased
+`AtomicPathCommitCauseKind`, with one index for each of the four construction
+forms. The result boundaries carry that erased index explicitly so Cure gives
+nested causes a fully determined expected type; recursive causes retain their
+own erased kind. This does not add runtime control state, but it permits each
+next eliminator to select exactly one cause constructor without reopening a
+generic erased sum, which is the E104-safe shape required by the recursive
+non-empty active-thread fold. The complete Regex module chain and focused
+27-test refutation gate pass after the migration.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
