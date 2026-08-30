@@ -13,7 +13,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
            )
 
     assert source =~
-             "child_selected_whole_equivalence, child_origin_canonical, _, _, _, _, _) ->\n" <>
+             "child_selected_whole_equivalence, child_origin_canonical, _, _, _, _, _, _) ->\n" <>
                "      match child_selected_whole_equivalence"
 
     assert source =~ "AtomicPathSearchOriginActive(_, _, _, _) -> continuation"
@@ -906,6 +906,11 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "AtomicPathCommitAfterFailure :"
     assert source =~ "AtomicPathCommitFromChild :"
     assert source =~ "AtomicPathCommitPastRejected :"
+    assert source =~ "AtomicPathSkippedPrefixEmpty :"
+    assert source =~ "AtomicPathSearchYes :"
+    assert source =~ "(@erased skipped_evidence: AtomicPathSkippedPrefixEvidence"
+    assert source =~ "AtomicPathMembersYes :"
+    assert source =~ "(@erased child_skipped_evidence: AtomicPathSkippedPrefixEvidence"
     assert source =~ "AtomicPathCommitPastEscaped :"
     assert source =~ "fn atomic_path_commit_empty_input_impossible("
     assert source =~ "fn atomic_path_commit_accepted_state_impossible("

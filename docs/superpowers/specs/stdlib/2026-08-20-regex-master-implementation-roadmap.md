@@ -2435,6 +2435,17 @@ erased-sum inspection rejected by E104. These projections provide the
 non-empty cursor premise needed by the per-constructor contradiction folds;
 they do not themselves discharge the mixed skipped-prefix correspondence.
 
+Successful atomic destination searches now retain the same indexed skipped-
+prefix history as failures. `AtomicPathSkippedPrefixEmpty` marks a selected
+head; rejected-child and escaped-commit constructors are prepended whenever
+the evaluator continues to a sibling. `AtomicPathSearchYes`, internal member
+successes, recursive selected transitions, and the active-child selection
+package all preserve that erased certificate. A selected suffix therefore no
+longer loses why its preceding candidates were legally skipped. The next
+construction-site invariant is the indexed reason a rejected child was
+allowed to continue—no local close or an escaping close—so it can be compared
+directly with a blocking commit cause.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
