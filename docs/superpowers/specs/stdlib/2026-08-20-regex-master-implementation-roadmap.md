@@ -2152,6 +2152,13 @@ warnings and the focused path-refutation regression passes 19/19. Arbitrary
 rejected-child recursion, complete start-list correspondence, and the final
 all-kinds selected-trace/refutation theorem remain open.
 
+The terminal consumers now infer their erased machine, cursor, context, and
+result indices directly from the supplied trace/refutation pair. This keeps
+nested callers from having to re-pass proof-only lists or routines as explicit
+arguments, while preserving the same indexed contradiction and relevance
+boundary. The direct Runtime compile and the 20-test focused regression remain
+green; recursive non-terminal child alignment is unchanged and remains open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

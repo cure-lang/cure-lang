@@ -533,22 +533,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
           remaining_input,
           routine
         )
-      ) -> Empty = atomic_path_input_exhaustion_excludes_trace_erased(
-        machine,
-        after_input,
-        state,
-        history,
-        capture_context,
-        policy,
-        scope_depth,
-        prefix_mode,
-        reversed_prefix,
-        candidate_current,
-        matched,
-        remaining_input,
-        routine,
-        path
-      )
+      ) -> Empty = atomic_path_input_exhaustion_excludes_trace_erased(path)
 
       fn exact_probe(
         {depth: Nat},
@@ -601,23 +586,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
           remaining_input,
           routine
         )
-      ) -> Empty = atomic_path_exact_failure_excludes_trace_erased(
-        machine,
-        char,
-        rest,
-        after_input,
-        history,
-        capture_context,
-        policy,
-        scope_depth,
-        reversed_prefix,
-        candidate_current,
-        matched,
-        remaining_input,
-        routine,
-        failure,
-        path
-      )
+      ) -> Empty = atomic_path_exact_failure_excludes_trace_erased(failure, path)
     end
     '''
 
