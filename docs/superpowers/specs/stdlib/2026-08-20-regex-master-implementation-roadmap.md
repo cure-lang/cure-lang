@@ -2499,6 +2499,16 @@ site and invokes the finite depth contradiction, with both proof sums fixed by
 their erased kinds. This closes the locally blocking rejected-head case; the
 propagated escaped/rejected tail recursion and selected-child cause case remain.
 
+Both propagated sibling forms now expose one correlated recursive package.
+`AtomicPathCommitSkippedTailPackage` retains the later commit's canonical
+origin, whole-to-tail cursor, kind, and cause together with the skipped-prefix
+tail kind and evidence at that exact same list suffix. The escaped/escaped and
+rejected/rejected constructor pairs each build this package directly from
+their kind-refined erased inputs. Recursive consumers therefore cannot combine
+a commit cause and success prefix produced at unrelated cursors. The remaining
+step is to recurse over this package for every tail-kind/commit-kind pairing,
+then connect the resulting fold to selected-child and start-list alignment.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
