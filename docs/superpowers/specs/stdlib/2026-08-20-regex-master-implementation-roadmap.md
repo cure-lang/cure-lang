@@ -2406,6 +2406,18 @@ input or under `ThreadAccepted`. The remaining implementation is the recursive
 non-empty active-thread cause fold, its integration into the mixed skipped-
 prefix consumer, and deletion of the reverse continuation.
 
+Escaped-prefix evidence now retains the skipped candidate's capture-context
+and scope-alignment proofs together with the committed child origin and cursor
+suffix. Both `AtomicPathCommitPastEscaped` and
+`AtomicPathCommitPastRejected` also retain the later sibling cause's canonical
+origin and tail suffix. Thus the recursive fold has explicit evidence for both
+choices at every constructor: consume the selected head through its aligned
+child, or recurse into the canonically indexed sibling tail. A standalone
+projection from an erased cause to a non-empty witness was deliberately
+rejected by E104 and removed; the implementation must match each cause directly
+into `Empty` rather than materializing an intermediate proof package. The
+focused 27-test refutation gate remains green.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
