@@ -2523,6 +2523,16 @@ can therefore dispatch root failures to the strict-root contradiction and
 after-skipped failures to the recursively correlated skipped-prefix/commit
 consumer.
 
+Both failure-prefix constructors now have kind-refined consumer boundaries.
+`atomic_path_failure_at_root_excludes_strict_selection` immediately combines
+the stored root equality, the selected whole-to-cursor suffix, and the strict
+reverse witness through finite suffix asymmetry. The after-skipped constructor
+projects its exact skipped-prefix certificate through the zero-runtime
+`AtomicPathFailureSkippedPackage`, avoiding the E104-invalid operation of
+returning an erased proof as relevant data. These are the two branches needed
+by the final reverse-cursor dispatcher; the after-skipped package must next be
+fed into the recursive commit/skipped-kind matrix.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
