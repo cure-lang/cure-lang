@@ -2362,6 +2362,18 @@ indices also eliminate the former accepted-child commit branch:
 must next consume the mixed prefix against the selected trace; it must not infer
 rejection from a suffix relation or add a runtime Boolean/tag.
 
+The cursor side of that obligation is now explicit and checked. Reverse
+alignment retains `AtomicPathStrictCursorSuffix`, whose proper-suffix
+asymmetry is proved structurally for finite admitted-state lists. A root failure
+cannot have a strictly earlier selected cursor, and the canonical current
+dispatcher now passes the strict witness to its caller instead of discarding it
+behind a zero-argument callback. Every rejected element of the mixed skipped
+prefix also retains its own `AtomicPathFailurePrefixEvidence`, so recursive
+candidate exclusion no longer loses a nested child cursor. The remaining work
+is to consume the rejected and escaped-commit prefix constructors directly
+against the selected trace, then delete the final reverse continuation rather
+than wrapping it again.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
