@@ -2222,6 +2222,17 @@ at their common construction site. Direct Runtime compilation and the focused
 27-test path-refutation gate are green. The general theorem consumer and its
 start-list lift remain open.
 
+The recursive proof-only rejection constructor now also retains the failed
+child's origin equivalence, canonical origin witness, and exact cursor suffix,
+plus the sibling tail's cursor suffix and origin equivalence. These are the
+same witnesses already available where the evaluator combines the child and
+tail failures; publishing them there means the general correspondence theorem
+can recurse over `AtomicPathNoEvidence` without reopening and correlating the
+larger runtime `AtomicPathRefutation` GADT. The emitted representation remains
+unchanged because every added field is erased. The complete Runtime module and
+the focused 27-test path-refutation gate pass. Packaged recursive consumption,
+the complete start-list lift, and the final all-kinds theorem remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

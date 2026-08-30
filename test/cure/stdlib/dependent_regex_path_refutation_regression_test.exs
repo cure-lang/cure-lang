@@ -788,7 +788,11 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     [constructor | _] = String.split(constructor, "\n\n", parts: 2)
 
     assert constructor =~ "child_context_alignment: LookaroundAdmittedStateCaptureContext("
+    assert constructor =~ "child_origin_equivalence: Equivalent("
+    assert constructor =~ "child_origin_canonical: AtomicPathOriginWitness("
+    assert constructor =~ "child_suffix: LookaroundAdmittedStateCursorSuffix("
     assert constructor =~ "child_evidence: AtomicPathNoEvidence("
+    assert constructor =~ "tail_suffix: LookaroundAdmittedStateCursorSuffix("
     assert constructor =~ "tail_evidence: AtomicPathNoEvidence("
   end
 
@@ -818,6 +822,6 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert tail_fold =~ "tail_evidence) -> AtomicPathMembersNo("
 
     assert tail_fold =~
-             "AtomicPathNoDestinationRejected(child_context_alignment, child_evidence, tail_evidence)"
+             "AtomicPathNoDestinationRejected(child_context_alignment, child_origin_equivalence, child_origin_canonical, child_suffix, child_evidence, tail_suffix, tail_origin_equivalence, tail_evidence)"
   end
 end
