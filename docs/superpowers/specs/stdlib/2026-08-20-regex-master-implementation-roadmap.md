@@ -2509,6 +2509,20 @@ a commit cause and success prefix produced at unrelated cursors. The remaining
 step is to recurse over this package for every tail-kind/commit-kind pairing,
 then connect the resulting fold to selected-child and start-list alignment.
 
+Failure-prefix evidence is now indexed by the proof-erased
+`AtomicPathFailurePrefixKind`. Root failures and failures reached after a
+mixed skipped prefix have distinct indices, and the latter retains the exact
+`AtomicPathSkippedPrefixKind` that produced its current cursor. Every
+destination rejection, no-evidence mirror, commit cause, skipped-prefix node,
+and evaluator helper threads that index beside the erased evidence from its
+single construction site. This removes the last need to inspect the former
+unindexed erased `AtRoot`/`AfterSkipped` sum, which Cure correctly rejected
+under E104, without adding a runtime tag. The complete Regex module chain
+elaborates and the focused 27-test path-refutation gate passes. The next fold
+can therefore dispatch root failures to the strict-root contradiction and
+after-skipped failures to the recursively correlated skipped-prefix/commit
+consumer.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

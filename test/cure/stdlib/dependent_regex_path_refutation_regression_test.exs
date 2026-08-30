@@ -880,7 +880,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert tail_fold =~ "tail_evidence) -> AtomicPathMembersNo("
 
     assert tail_fold =~
-             "AtomicPathNoDestinationRejected(child_context_alignment, child_prefix, child_origin_equivalence, child_origin_canonical, child_suffix, child_evidence, tail_suffix, tail_origin_equivalence, tail_evidence)"
+             "AtomicPathNoDestinationRejected(child_context_alignment, child_prefix_kind, child_prefix, child_origin_equivalence, child_origin_canonical, child_suffix, child_evidence, tail_suffix, tail_origin_equivalence, tail_evidence)"
 
     [_prefix, root_projection] =
       String.split(source, "fn atomic_path_members_root_to_search(", parts: 2)
@@ -923,6 +923,12 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "type AtomicPathCommitSkippedTailPackage("
     assert source =~ "fn atomic_path_commit_past_escaped_skipped_tail("
     assert source =~ "fn atomic_path_commit_past_rejected_skipped_tail("
+    assert source =~ "type AtomicPathFailurePrefixKind"
+    assert source =~ "AtomicPathFailureAtRootKind"
+    assert source =~ "AtomicPathFailureAfterSkippedKind"
+    assert source =~ "kind: AtomicPathFailurePrefixKind"
+    assert source =~ "AtomicPathFailureAtRootKind())"
+    assert source =~ "AtomicPathFailureAfterSkippedKind(skipped_kind))"
     assert source =~ "AtomicPathSearchYes :"
     assert source =~ "(@erased skipped_evidence: AtomicPathSkippedPrefixEvidence"
     assert source =~ "AtomicPathMembersYes :"
