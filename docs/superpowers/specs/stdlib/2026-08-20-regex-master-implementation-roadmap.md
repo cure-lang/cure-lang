@@ -2944,6 +2944,17 @@ the focused 27-test gate passes. The next slice constructs these packages at
 the two start-success sites and publishes them through start and top-level
 search results.
 
+Selected-start package publication is now complete. Both active and accepted
+start-success branches construct the exact package from the two cursor
+packages and child path package already returned by `AtomicPathSearchYes`.
+`AtomicStartMembersYes` preserves it through sibling traversal. A one-
+constructor existential wrapper hides the exact erased start trace while
+`LookaroundRoutineSearchYes` carries the relevant package to its consumers;
+the existing erased selected-start witness remains unchanged. The complete
+Regex chain, downstream proof module, and focused 27-test gate pass. Recursive
+proof entry points can now accept this top-level package and refine down to the
+selected path package without inspecting an erased witness.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
