@@ -3142,6 +3142,20 @@ blow-up; the complete Regex chain and focused 27-test gate pass. Next extend
 the correlated commit/selection location carrier with the exact structure
 package and implement the root terminal fold over that intact carrier.
 
+The correlated commit/selection carrier now retains a single relevant
+`AtomicPathCommitStructureExistentialPackage` rather than independently typed
+cause and structure payloads. Its constructor carries the cause as an explicit
+erased field and the structure at that exact cause index: explicitness makes
+the witness available for type refinement while erasure still prevents it
+from affecting runtime representation. The input-exhausted, exact-accepted,
+and root-destinations-exhausted `Same` folds first inspect this relevant
+existential and selected-trace package, then refine the erased cursor equality.
+The root fold calls the package-native aligned leaf without scrutinizing its
+erased cause. `LeftAfter` and `RightAfter` preserve the entire carrier for the
+recursive sibling proof. The complete Regex chain and focused 27-test gate
+pass. Next implement those two strict recursive destination-rejection branches
+from the published `FromChild`, `PastEscaped`, and `PastRejected` structures.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the
