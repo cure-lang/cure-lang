@@ -2738,6 +2738,14 @@ Together these two folds cover the active empty-input and accepted non-empty
 terminal shapes without a generic failure-kind match. Root destination
 exhaustion is the remaining `AfterFailure` terminal fold.
 
+Root-relative destination exhaustion now has the same canonical-location
+fold. In the `Same` case it reuses the aligned leaf, including the child's
+root-prefix equality and canonical-origin transport; both strict locations
+are preserved for recursive sibling handling. All three terminal
+`AfterFailure` shapes are therefore composed with independently existential
+selected cursors. Remaining `AfterFailure` work is recursive destination
+rejection rather than another terminal alignment case.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
