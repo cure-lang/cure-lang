@@ -7834,6 +7834,37 @@ mod Std.Regex.Runtime
   ) -> Empty = match prefix
     AtomicPathFailureAtRoot(equality) -> atomic_path_root_failure_excludes_strictly_prior_cursor(whole, current, selected, equality, selected_suffix, strict)
 
+  ## Dispatch the reverse-cursor proof from its indexed construction source.
+  ## Root failures close by finite suffix asymmetry. Only a genuinely skipped
+  ## prefix is delegated to the recursive mixed-prefix consumer.
+  @reducible
+  fn atomic_path_failure_prefix_reverse_dispatch(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased input: List(Char)}, {@erased after_input: List(Char)},
+    {@erased state: ThreadState(n)}, {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    whole: List(LookaroundAdmittedState(n)),
+    current: List(LookaroundAdmittedState(n)),
+    selected: List(LookaroundAdmittedState(n)),
+    kind: AtomicPathFailurePrefixKind,
+    @erased prefix: AtomicPathFailurePrefixEvidence(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, kind),
+    selected_suffix: LookaroundAdmittedStateCursorSuffix(n, whole, selected),
+    strict: AtomicPathStrictCursorSuffix(n, selected, current),
+    after_skipped_case: () -> Empty
+  ) -> Empty = match kind
+    AtomicPathFailureAtRootKind() -> match prefix
+      AtomicPathFailureAtRoot(_) -> atomic_path_failure_at_root_excludes_strict_selection(
+        whole,
+        current,
+        selected,
+        prefix,
+        selected_suffix,
+        strict
+      )
+    AtomicPathFailureAfterSkippedKind(_) -> after_skipped_case()
+
   ## Constructor-refined projection of the exact skipped prefix that precedes
   ## a suffix-local failure. Keeping it in an erased package avoids returning
   ## erased evidence through a relevant expression, which E104 forbids.
@@ -13784,6 +13815,24 @@ mod Std.Regex.Runtime
       AtomicPathFailureDestinationRejected()
     ),
     child_whole: List(LookaroundAdmittedState(n)),
+    child_prefix_kind: AtomicPathFailurePrefixKind,
+    @erased child_prefix: AtomicPathFailurePrefixEvidence(
+      depth,
+      n,
+      machine,
+      Cons(child_char, child_rest),
+      after_input,
+      ThreadActive(active_state),
+      history_push_bounded(history, char),
+      append_routine(append_routine(capture_context, active_routine), active_assertion_markers),
+      policy,
+      atomic_scope_depth_after(active_routine, scope_depth),
+      prefix_mode,
+      Cons(char, reversed_prefix),
+      child_whole,
+      Nil(),
+      child_prefix_kind
+    ),
     child_failure: AtomicPathRefutation(
       depth,
       n,
@@ -13905,6 +13954,8 @@ mod Std.Regex.Runtime
     tail_failure,
     child_whole,
     Nil(),
+    child_prefix_kind,
+    child_prefix,
     AtomicPathFailureDestinationsExhausted(),
     child_failure,
     child_suffix,
@@ -13977,6 +14028,24 @@ mod Std.Regex.Runtime
     ),
     child_whole: List(LookaroundAdmittedState(n)),
     child_current: List(LookaroundAdmittedState(n)),
+    child_prefix_kind: AtomicPathFailurePrefixKind,
+    @erased child_prefix: AtomicPathFailurePrefixEvidence(
+      depth,
+      n,
+      machine,
+      Cons(child_char, child_rest),
+      after_input,
+      ThreadActive(active_state),
+      history_push_bounded(history, char),
+      append_routine(append_routine(capture_context, active_routine), active_assertion_markers),
+      policy,
+      atomic_scope_depth_after(active_routine, scope_depth),
+      prefix_mode,
+      Cons(char, reversed_prefix),
+      child_whole,
+      child_current,
+      child_prefix_kind
+    ),
     child_kind: AtomicPathFailureKind,
     child_failure: AtomicPathRefutation(
       depth,
@@ -14160,7 +14229,21 @@ mod Std.Regex.Runtime
           child_selection_suffix,
           left_case,
           left_tail_case,
-          fn(_) -> right_case()
+          fn(strict) -> atomic_path_failure_prefix_reverse_dispatch(
+              child_whole,
+              child_current,
+              child_selected_current,
+              child_prefix_kind,
+              child_prefix,
+              atomic_path_failed_selected_child_suffix(
+                child_failure_origin_equivalence,
+                child_failure_origin_canonical,
+                child_selected_origin_canonical,
+                child_selection_suffix
+              ),
+              strict,
+              right_case
+            )
         )
 
   ## Dispatch the indexed active-child alignment at the construction site. The

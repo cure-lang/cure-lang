@@ -817,8 +817,13 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     [failure_dispatch | _] = String.split(failure_dispatch, "\n  ##", parts: 2)
 
     assert failure_dispatch =~ "child_kind: AtomicPathFailureKind"
+    assert failure_dispatch =~ "child_prefix_kind: AtomicPathFailurePrefixKind"
+    assert failure_dispatch =~ "child_prefix: AtomicPathFailurePrefixEvidence("
     assert failure_dispatch =~ "atomic_path_failed_selected_child_suffix("
     assert failure_dispatch =~ "atomic_path_active_child_rejection_canonical_current_dispatch("
+    assert failure_dispatch =~ "atomic_path_failure_prefix_reverse_dispatch("
+    assert source =~ "fn atomic_path_failure_prefix_reverse_dispatch("
+    assert source =~ "atomic_path_failure_at_root_excludes_strict_selection("
     assert failure_dispatch =~ "AtomicSelectedTransitionActive("
     assert failure_dispatch =~ "atomic_path_active_child_rejection_singleton_active_excludes_trace_erased("
     assert failure_dispatch =~ "AtomicSelectedTransitionAccepted("

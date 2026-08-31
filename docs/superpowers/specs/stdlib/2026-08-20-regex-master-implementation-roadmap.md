@@ -2603,6 +2603,17 @@ erased destinations-exhausted eliminator closes the contradiction. No reverse
 continuation is supplied. Destination exhaustion after a non-empty skipped
 child prefix, recursive destination rejection, and outer tail recursion remain.
 
+The recursive active-child dispatcher now retains the failure-prefix kind and
+evidence instead of discarding them before cursor classification. Its reverse
+branch calls `atomic_path_failure_prefix_reverse_dispatch`: the relevant
+proof-only kind selects the construction case, after which the fixed erased
+root constructor is safe to consume and finite suffix asymmetry closes that
+branch directly. An attempted generic erased-prefix match was rejected by E104
+because it would make runtime control depend on erased evidence; the indexed
+dispatcher deliberately avoids that shape. Only `AfterSkipped` delegates to
+the remaining mixed-prefix recursion, narrowing the final reverse continuation
+to its genuine semantic source.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
