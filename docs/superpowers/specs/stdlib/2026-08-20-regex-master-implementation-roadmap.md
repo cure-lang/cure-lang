@@ -2948,6 +2948,19 @@ migrate the concrete active and accepted rejected-root wrappers to this bridge,
 then remove the legacy trace-only root adapter and tail transport once their
 callers are gone.
 
+The concrete active rejected-root path is now package-native.
+`atomic_start_refutation_rejected_active_excludes_package` owns the dependent
+membership split: `Here` refines the selected start to the active head and
+eliminates `AtomicSelectedTracePackage` through the empty-input active
+contradiction, while `There` constructs
+`AtomicStartSelectedTailTracePackage` from the rejected-tail certificate and
+preserves the same relevant trace package. The public
+`atomic_start_refutation_rejected_active_selected_package` wrapper exposes that
+consumer without the legacy erased public witness or trace-only tail callback.
+The full Runtime → Proof → Regex → Language chain and focused 27-test
+gate pass. Migrate the accepted rejected-root path next, then redirect concrete
+callers before deleting the trace-only variants.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the
