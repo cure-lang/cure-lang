@@ -3106,6 +3106,15 @@ neither recursive branch can be paired with another cursor or cause. The full
 Regex chain and focused 27-test gate pass. `PastRejected` is the remaining
 structure constructor before evaluator publication.
 
+`AtomicPathCommitStructurePastRejectedPacked` completes the recursive cause
+shape. It retains the rejected child cursor package at the exact child failure
+indices and the exact recursive tail commit structure; its result is indexed
+by the mirrored `AtomicPathCommitPastRejected(...)` value. All four cause
+constructors now have sound structure constructors, and the complete Regex
+chain plus focused 27-test gate pass. Next add this structure package to
+members/search commit results and build each constructor at its evaluator
+construction site.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the
