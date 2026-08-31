@@ -2965,6 +2965,16 @@ Regex chain and focused 27-test gate pass. The remaining migration is to thread
 the existential package through the existing start-refutation recursion and
 replace its legacy trace-only terminal calls with these package-native leaves.
 
+The selected sibling-tail transport now has a package-preserving authority.
+`AtomicStartSelectedTailTracePackage` correlates the recursive tail refutation,
+no-evidence witness, later membership, erased selected trace, and its relevant
+selected-start package. `atomic_start_rejected_member_induction_selected_package`
+returns the head result for `Here` and transports that complete package
+unchanged for `There`. The legacy trace-only induction remains temporarily for
+unmigrated callers; new recursion must use the package-preserving form. The
+complete Regex chain and focused 27-test gate pass. Next migrate the rejected-
+root adapters to this induction, then remove the trace-only tail type and fold.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

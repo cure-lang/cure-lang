@@ -4388,6 +4388,61 @@ mod Std.Regex.Runtime
       AtomicStartNoRejectedEvidence(_, _, _, _, _, _, _, _, _, _, _, _, _, tail_failure, tail_evidence) ->
         tail_case(AtomicStartSelectedTailPackagePacked(tail_failure, tail_evidence, prior, path))
 
+  ## Package-preserving dual of the selected rejected-member induction. The
+  ## exact selected-start package is relevant context and is transported
+  ## unchanged when membership advances into the sibling tail.
+  @reducible
+  fn atomic_start_rejected_member_induction_selected_package(
+    {result: Type}, {depth: Nat}, {n: Nat},
+    machine: PatternMachine(n), position: InitialPosition,
+    input: List(Char), after_input: List(Char), history: List(Char),
+    capture_context: List(EvidenceInstruction), policy: NewlinePolicy,
+    prefix_mode: Bool, reversed_prefix: List(Char),
+    {whole: List(LookaroundAdmittedState(n))},
+    {@erased head: LookaroundAdmittedState(n)},
+    {@erased rest: List(LookaroundAdmittedState(n))},
+    {@erased selected_start: LookaroundAdmittedState(n)},
+    @erased _failure: AtomicStartMembersRefutation(
+      depth, n, machine, position, input, after_input, history,
+      capture_context, policy, prefix_mode, reversed_prefix, whole,
+      Cons(head, rest), AtomicStartFailureRejected()
+    ),
+    @erased _evidence: AtomicStartNoEvidence(
+      depth, n, machine, position, input, after_input, history,
+      capture_context, policy, prefix_mode, reversed_prefix, whole,
+      Cons(head, rest), AtomicStartFailureRejected()
+    ),
+    membership: ListMember(LookaroundAdmittedState(n), selected_start, Cons(head, rest)),
+    {matched: List(Char)}, {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    {@erased path: AtomicSelectedTrace(
+      depth, n, machine, position, input, after_input, history,
+      capture_context, policy, prefix_mode, reversed_prefix, selected_start,
+      matched, remaining_input, selected_routine
+    )},
+    trace_package: AtomicSelectedTracePackage(
+      depth, n, machine, position, input, after_input, history,
+      capture_context, policy, prefix_mode, reversed_prefix, selected_start,
+      matched, remaining_input, selected_routine, path
+    ),
+    head_case: result,
+    tail_case: (AtomicStartSelectedTailTracePackage(
+      depth, n, machine, position, input, after_input, history,
+      capture_context, policy, prefix_mode, reversed_prefix, whole, rest,
+      selected_start, matched, remaining_input, selected_routine
+    )) -> result
+  ) -> result = match membership
+    ListMemberHere() -> head_case
+    ListMemberThere(prior) -> match _evidence
+      AtomicStartNoRejectedEvidence(_, _, _, _, _, _, _, _, _, _, _, _, _, tail_failure, tail_evidence) -> tail_case(
+        AtomicStartSelectedTailTracePacked(
+          tail_failure,
+          tail_evidence,
+          prior,
+          trace_package
+        )
+      )
+
   ## Construction-site wrapper for a successful atomic witness.  The
   ## membership argument remains relevant here so the Here/There split can
   ## drive proof-only continuations; the linked witness is erased and fixes
@@ -5206,6 +5261,9 @@ mod Std.Regex.Runtime
   ## than falling back to a zero-argument assumption.
   type AtomicStartSelectedTailPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), remaining: List(LookaroundAdmittedState(n)), selected_start: LookaroundAdmittedState(n), matched: List(Char), remaining_input: List(Char), selected_routine: List(ExtendedInstruction))
     AtomicStartSelectedTailPackagePacked : {@erased kind: AtomicStartFailureKind} -> (@erased failure: AtomicStartMembersRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining, kind)) -> (@erased evidence: AtomicStartNoEvidence(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining, kind)) -> (@erased membership: ListMember(LookaroundAdmittedState(n), selected_start, remaining)) -> (@erased path: AtomicSelectedTrace(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, selected_start, matched, remaining_input, selected_routine)) -> AtomicStartSelectedTailPackage(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining, selected_start, matched, remaining_input, selected_routine)
+
+  type AtomicStartSelectedTailTracePackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), remaining: List(LookaroundAdmittedState(n)), selected_start: LookaroundAdmittedState(n), matched: List(Char), remaining_input: List(Char), selected_routine: List(ExtendedInstruction))
+    AtomicStartSelectedTailTracePacked : {@erased kind: AtomicStartFailureKind} -> (@erased failure: AtomicStartMembersRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining, kind)) -> (@erased evidence: AtomicStartNoEvidence(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining, kind)) -> (@erased membership: ListMember(LookaroundAdmittedState(n), selected_start, remaining)) -> {@erased path: AtomicSelectedTrace(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, selected_start, matched, remaining_input, selected_routine)} -> (trace_package: AtomicSelectedTracePackage(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, selected_start, matched, remaining_input, selected_routine, path)) -> AtomicStartSelectedTailTracePackage(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining, selected_start, matched, remaining_input, selected_routine)
 
   typealias AtomicStartRejectedTailAt(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), remaining: List(LookaroundAdmittedState(n))) = AtomicStartTailPackage(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining)
 
