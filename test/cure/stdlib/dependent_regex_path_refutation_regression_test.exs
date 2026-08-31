@@ -985,6 +985,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ ~r/AtomicPathCommitStructureExistentialPacked :.*structure: AtomicPathCommitStructurePackage/s
     assert source =~ "type AtomicPathCommitStructureCursorExistentialPackage("
     assert source =~ ~r/AtomicPathCommitStructureCursorExistentialPacked :.*cursor: LookaroundAdmittedStateCursorSuffixPackage.*structure: AtomicPathCommitStructurePackage/s
+    assert source =~ ~r/AtomicPathCommitStructureCursorExistentialPacked : \(@erased cause: AtomicPathCommitCause/
     assert source =~ "fn atomic_path_commit_structure_past_escaped_tail_package("
     assert source =~ "fn atomic_path_commit_structure_past_rejected_tail_package("
     assert source =~ "fn atomic_path_commit_structure_cursor_past_escaped_tail_package("
@@ -1029,6 +1030,8 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "AtomicPathCommitStructureFromChildPacked :"
     assert source =~ "AtomicPathCommitStructurePastEscapedPacked :"
     assert source =~ "AtomicPathCommitStructurePastRejectedPacked :"
+    assert source =~ ~r/AtomicPathCommitStructurePastEscapedPacked :.*\(@erased tail_cause: AtomicPathCommitCause/s
+    assert source =~ ~r/AtomicPathCommitStructurePastRejectedPacked :.*\(@erased tail_cause: AtomicPathCommitCause/s
     assert source =~ ~r/AtomicPathCursorLocationRightAfter : \(marker: LookaroundAdmittedStateCursorSuffixPackage/s
     assert source =~ ~r/AtomicPathCommitSelectedRightAfterPacked :.*marker: LookaroundAdmittedStateCursorSuffixPackage/s
     assert source =~ "type LookaroundAdmittedStateCursorSuffixEvidence("

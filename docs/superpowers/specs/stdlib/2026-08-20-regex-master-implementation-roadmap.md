@@ -3385,6 +3385,21 @@ unmigrated callers; new recursion must use the package-preserving form. The
 complete Regex chain and focused 27-test gate pass. Next migrate the rejected-
 root adapters to this induction, then remove the trace-only tail type and fold.
 
+Recursive commit causes are now published explicitly at the relevant structure
+boundary while remaining quantity-zero. Coverage does not recover a hidden
+implicit cause from `AtomicPathCommitStructurePackage`: even after selecting a
+relevant structure constructor, a structure-native impossibility proof could
+not invoke the existing cause-native empty-input or accepted-state eliminator.
+`PastEscaped` and `PastRejected` therefore expose their exact tail cause as an
+explicit erased field, and `AtomicPathCommitStructureCursorExistentialPacked`
+exposes the cause correlated with its relevant cursor and structure in the
+same form. Tail projections bind that cause only to forward it into another
+erased slot; it never selects runtime data. The complete Regex chain compiles
+without E104 and the focused 27-test gate passes. Next expose the corresponding
+child cause on `FromChild` and `PastEscaped`, then use these exact erased causes
+to close the structure-native terminal cases in the common recursive
+dispatcher.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
