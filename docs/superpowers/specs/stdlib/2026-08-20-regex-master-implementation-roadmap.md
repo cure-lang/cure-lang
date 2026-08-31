@@ -2563,6 +2563,18 @@ commit/skipped-tail transport all thread the three-part index. The rejected
 head theorem can now dispatch the exact child refutation and its own prefix
 recursion entirely from erased indices.
 
+The rejected head now has its own constructor-refined erased package.
+`AtomicPathRejectedSkippedHeadPackage` deliberately carries the already
+canonical `AtomicPathSkippedPrefixEvidence` family rather than restating the
+child prefix/refutation indices in a second constructor: the latter produced
+an E093 index drift at interface registration, while the established
+single-evidence package shape preserves every existential at its construction
+site. `atomic_path_skipped_prefix_rejected_cons_head` fixes the package kind to
+`AtomicPathSkippedPrefixRejectedConsKind`, so the contradiction consumer can
+open the rejected constructor in an erased match without returning proof data
+through a relevant expression. The next slice consumes that package against
+the selected child trace and then recurses through its tail package.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

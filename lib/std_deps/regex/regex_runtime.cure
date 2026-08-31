@@ -7560,6 +7560,31 @@ mod Std.Regex.Runtime
   ) -> AtomicPathSkippedPrefixTailPackage(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, front, current, tail_kind) = match evidence
     AtomicPathSkippedRejectedCons(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, tail) -> AtomicPathSkippedPrefixTailPacked(tail)
 
+  ## Constructor-refined view of a rejected skipped head. The child prefix,
+  ## refutation, origin, cursor, scope, and continuation remain erased and
+  ## correlated in one package; no proof payload crosses into runtime data.
+  type AtomicPathRejectedSkippedHeadPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), front: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)), kind: AtomicPathSkippedPrefixKind)
+    AtomicPathRejectedSkippedHeadPacked : (@erased evidence: AtomicPathSkippedPrefixEvidence(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, front, current, kind)) -> AtomicPathRejectedSkippedHeadPackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, front, current, kind)
+
+  @reducible
+  fn atomic_path_skipped_prefix_rejected_cons_head(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased rest: List(Char)},
+    {@erased after_input: List(Char)}, {@erased source: Bounded(n)},
+    {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased candidate: LookaroundAdmittedState(n)},
+    {@erased front: List(LookaroundAdmittedState(n))},
+    {@erased current: List(LookaroundAdmittedState(n))},
+    {@erased child_prefix_kind: AtomicPathFailurePrefixKind},
+    {@erased child_kind: AtomicPathFailureKind},
+    {@erased tail_kind: AtomicPathSkippedPrefixKind},
+    @erased evidence: AtomicPathSkippedPrefixEvidence(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, front), current, AtomicPathSkippedPrefixRejectedConsKind(child_prefix_kind, child_kind, tail_kind))
+  ) -> AtomicPathRejectedSkippedHeadPackage(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, front), current, AtomicPathSkippedPrefixRejectedConsKind(child_prefix_kind, child_kind, tail_kind)) = AtomicPathRejectedSkippedHeadPacked(evidence)
+
   ## A locally blocking failure at the current head contradicts the exact
   ## continuation certificate that allowed a successful search to skip that
   ## same rejected head. Both constructor kinds are fixed by erased indices.
