@@ -3251,6 +3251,17 @@ The complete Regex chain and focused 27-test gate pass. Next combine the
 extracted commit tail with the selected skipped-prefix tail and its derived
 location to construct the recursive correlated carrier.
 
+`atomic_path_commit_selected_tail_location_package` now performs that generic
+combination. It opens the relevant commit-tail package only to obtain the
+cursor already correlated with its structure, retains the combined commit
+authority intact, and derives `Same` or `RightAfter` solely from the relevant
+selected skipped-prefix structure. The resulting
+`AtomicPathCommitSelectedLocationPackage` cannot pair an unrelated cursor,
+commit structure, or selected tail. The complete Regex chain and focused
+27-test gate pass. Next add constructor-specific PastEscaped/EscapedCons and
+PastRejected/RejectedCons adapters that extract both tails and invoke this
+constructor before the recursive RightAfter fold.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the
