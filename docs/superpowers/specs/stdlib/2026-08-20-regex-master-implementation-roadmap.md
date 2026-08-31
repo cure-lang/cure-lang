@@ -3089,6 +3089,15 @@ Language; the focused 27-test gate passes. Add `FromChild` next with its exact
 child cause and recursive structure package, followed by the two sibling-tail
 constructors.
 
+`AtomicPathCommitStructureFromChildPacked` now mirrors the propagated-child
+cause exactly and carries a strictly positive recursive
+`AtomicPathCommitStructurePackage` indexed by the exact child cause. The outer
+constructor fixes `AtomicPathCommitFromChild(...)` as its result index, so
+recursive consumption needs neither an erased kind match nor a separately
+recovered child cursor. The complete Regex chain and focused 27-test gate pass.
+Implement `PastEscaped` and `PastRejected` with the same exact tail-cause
+discipline next.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the
