@@ -3115,6 +3115,17 @@ chain plus focused 27-test gate pass. Next add this structure package to
 members/search commit results and build each constructor at its evaluator
 construction site.
 
+`AtomicPathMembersCommit` and `AtomicPathSearchCommit` now publish an exact
+`AtomicPathCommitStructurePackage` alongside every erased cause. The evaluator
+constructs `AfterFailure` from the child cursor package at the blocking site,
+wraps recursive child commits with `FromChild`, and combines child/tail
+structures for `PastEscaped` and `PastRejected`; the members-to-search boundary
+preserves that package unchanged. No later consumer has to inspect an erased
+cause to recover its relevant recursive data. The complete Regex chain and
+focused 27-test gate pass. Next consume the published structure in the
+correlated root-destination exhaustion fold, then implement the strict
+left/right recursive destination rejection branches.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the
