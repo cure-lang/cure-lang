@@ -3198,6 +3198,19 @@ pass. Next call this leaf from the strict `RightAfter` branch, then recurse
 through paired escaped/rejected cons tails; `LeftAfter` remains the reverse-
 cursor induction over the commit structure.
 
+The local blocking case is now connected to the intact location carrier.
+`atomic_path_commit_after_failure_excludes_selected_rejected_packages` opens
+the relevant commit existential and delegates to the rejected-head leaf;
+`atomic_path_commit_after_failure_excludes_selected_rejected_location_package`
+consumes `Same`, `LeftAfter`, and `RightAfter` carriers without separating
+their commit, skip, cursor, or trace authorities. All three locations close:
+once the exact `AfterFailure` commit and corresponding rejected skipped head
+are fixed, blocking close versus continuation is contradictory independently
+of the cursor comparison. The complete Regex chain and focused 27-test gate
+pass. Propagated `PastEscaped`/`PastRejected` cases next need their relevant
+tail cursor packages retained in the commit structure so they can construct a
+new correlated tail carrier and recurse.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the

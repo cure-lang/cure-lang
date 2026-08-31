@@ -9476,6 +9476,114 @@ mod Std.Regex.Runtime
     AtomicPathSkippedPrefixStructureRejectedConsPacked(evidence, _) ->
       atomic_path_commit_after_failure_excludes_rejected_prefix(cause, evidence)
 
+  ## Consume the exact commit existential only after both relevant package
+  ## constructors have established the paired local-failure/rejected-head
+  ## case. The cause remains erased and is never used as a branch selector.
+  @reducible
+  fn atomic_path_commit_after_failure_excludes_selected_rejected_packages(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased rest: List(Char)},
+    {@erased after_input: List(Char)}, {@erased source: Bounded(n)},
+    {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased candidate: LookaroundAdmittedState(n)},
+    {@erased remaining: List(LookaroundAdmittedState(n))},
+    {@erased selected_current: List(LookaroundAdmittedState(n))},
+    {@erased commit_depth: Nat},
+    {@erased child_prefix_kind: AtomicPathFailurePrefixKind},
+    {@erased child_kind: AtomicPathFailureKind},
+    {@erased tail_kind: AtomicPathSkippedPrefixKind},
+    commit_package: AtomicPathCommitStructureExistentialPackage(
+      depth, n, machine, Cons(char, rest), after_input, ThreadActive(source),
+      history, capture_context, policy, scope_depth, prefix_mode,
+      reversed_prefix, whole, Cons(candidate, remaining), commit_depth,
+      AtomicPathCommitAfterFailureKind(child_prefix_kind, child_kind)
+    ),
+    skipped_structure: AtomicPathSkippedPrefixStructurePackage(
+      depth, n, machine, Cons(char, rest), after_input, ThreadActive(source),
+      history, capture_context, policy, scope_depth, prefix_mode,
+      reversed_prefix, whole, Cons(candidate, remaining), selected_current,
+      AtomicPathSkippedPrefixRejectedConsKind(
+        child_prefix_kind,
+        child_kind,
+        tail_kind
+      )
+    )
+  ) -> Empty = match commit_package
+    AtomicPathCommitStructureExistentialPacked(cause, _) ->
+      atomic_path_commit_after_failure_excludes_selected_rejected_head_package(
+        cause,
+        skipped_structure
+      )
+
+  ## Every cursor-location constructor closes for this paired case. The
+  ## contradiction is semantic (blocking close versus continuation), so it
+  ## does not depend on whether the independently compared cursor is equal,
+  ## earlier, or later; the relevant location carrier merely guarantees that
+  ## all four authorities came from one comparison.
+  @reducible
+  fn atomic_path_commit_after_failure_excludes_selected_rejected_location_package(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased rest: List(Char)},
+    {@erased after_input: List(Char)}, {@erased source: Bounded(n)},
+    {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased candidate: LookaroundAdmittedState(n)},
+    {@erased remaining: List(LookaroundAdmittedState(n))},
+    {@erased selected_current: List(LookaroundAdmittedState(n))},
+    {@erased commit_depth: Nat},
+    {@erased child_prefix_kind: AtomicPathFailurePrefixKind},
+    {@erased child_kind: AtomicPathFailureKind},
+    {@erased tail_kind: AtomicPathSkippedPrefixKind},
+    {commit_cursor_package: Type}, {selected_trace_package: Type},
+    package: AtomicPathCommitSelectedLocationPackage(
+      n,
+      AtomicPathCommitStructureExistentialPackage(
+        depth, n, machine, Cons(char, rest), after_input,
+        ThreadActive(source), history, capture_context, policy, scope_depth,
+        prefix_mode, reversed_prefix, whole, Cons(candidate, remaining),
+        commit_depth,
+        AtomicPathCommitAfterFailureKind(child_prefix_kind, child_kind)
+      ),
+      commit_cursor_package,
+      selected_trace_package,
+      AtomicPathSkippedPrefixStructurePackage(
+        depth, n, machine, Cons(char, rest), after_input,
+        ThreadActive(source), history, capture_context, policy, scope_depth,
+        prefix_mode, reversed_prefix, whole, Cons(candidate, remaining),
+        selected_current,
+        AtomicPathSkippedPrefixRejectedConsKind(
+          child_prefix_kind,
+          child_kind,
+          tail_kind
+        )
+      ),
+      Cons(candidate, remaining),
+      selected_current
+    )
+  ) -> Empty = match package
+    AtomicPathCommitSelectedSamePacked(commit_package, _, _, skipped_structure, _) ->
+      atomic_path_commit_after_failure_excludes_selected_rejected_packages(
+        commit_package,
+        skipped_structure
+      )
+    AtomicPathCommitSelectedLeftAfterPacked(commit_package, _, _, skipped_structure, _) ->
+      atomic_path_commit_after_failure_excludes_selected_rejected_packages(
+        commit_package,
+        skipped_structure
+      )
+    AtomicPathCommitSelectedRightAfterPacked(commit_package, _, _, skipped_structure, _) ->
+      atomic_path_commit_after_failure_excludes_selected_rejected_packages(
+        commit_package,
+        skipped_structure
+      )
+
   ## Correlated recursive state for the propagated commit/prefix cases. The
   ## commit origin and cursor travel with both exact tail proofs, preventing a
   ## caller from pairing evidence produced at different sibling suffixes.
