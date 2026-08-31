@@ -3007,6 +3007,18 @@ is the canonical fix. The full Regex chain and focused 27-test gate pass.
 Recursive commit-cause packages can now retain and consume this relevant cursor
 authority in the strict directional branches.
 
+`AtomicPathCommitSelectedLocationPackage` now correlates the three authorities
+needed by strict recursion: the exact erased commit cause, its relevant commit
+cursor package, and the exact relevant selected-trace package. Separate
+`Same`, `LeftAfter`, and `RightAfter` constructors retain the cursor relation
+that selected the branch; `atomic_path_commit_selected_location_package`
+constructs them from the canonical cursor comparison. Recursive callbacks can
+therefore no longer pair a cause, cursor, and trace originating at different
+search results, and no erased cause projection selects runtime control. The
+full Regex chain and focused 27-test gate pass. Next specialize this carrier at
+the input-exhausted and exact-accepted location folds, then consume its strict
+constructors in sibling recursion.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the
