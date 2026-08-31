@@ -2594,6 +2594,15 @@ the accepted-thread/non-empty-input eliminator then discharges it. Rejected
 heads therefore have direct consumers for both terminal child-failure kinds,
 leaving only destination exhaustion/rejection and tail recursion.
 
+Root-relative destination exhaustion is direct too. The new erased exhaustion
+leaf consumes a selected child trace without making its existential routine or
+cursor relevant. The rejected-head consumer matches the stored root-prefix
+equality, failed-origin equality, and canonical-origin alignment in sequence;
+these refine the selected child origin and cursor to `Nil`, after which the
+erased destinations-exhausted eliminator closes the contradiction. No reverse
+continuation is supplied. Destination exhaustion after a non-empty skipped
+child prefix, recursive destination rejection, and outer tail recursion remain.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

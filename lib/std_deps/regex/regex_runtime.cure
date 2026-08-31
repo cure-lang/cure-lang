@@ -7661,6 +7661,71 @@ mod Std.Regex.Runtime
           AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, child_trace) -> match child_failure
             AtomicPathExactAcceptedWithInput(_, _, _, _) -> atomic_path_exact_failure_excludes_trace_erased(child_failure, child_trace)
 
+  ## A root-relative exhausted-destinations child has no skipped child cursor:
+  ## its failure whole is definitionally the empty current. Canonical origin
+  ## alignment transports the selected child suffix to that empty spine, so a
+  ## selected trace at the rejected parent head is impossible as well.
+  @reducible
+  fn atomic_path_active_child_destinations_exhausted_excludes_trace_erased(
+    {result: Type}, {depth: Nat}, {n: Nat},
+    {@erased machine: PatternMachine(n)}, {@erased char: Char},
+    {@erased rest: List(Char)}, {@erased after_input: List(Char)},
+    {@erased source: Bounded(n)}, {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased matched: List(Char)}, {@erased remaining_input: List(Char)},
+    {@erased routine: List(ExtendedInstruction)},
+    @erased _failure: AtomicPathRefutation(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Nil(), AtomicPathFailureDestinationsExhausted()),
+    @erased path: AtomicSelectedPathTrace(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, Nil(), matched, remaining_input, routine)
+  ) -> result = match path
+    AtomicSelectedPrefixDone() -> impossible
+    AtomicSelectedExactDone() -> impossible
+    AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+    AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+
+  @reducible
+  fn atomic_path_rejected_skipped_head_root_destinations_exhausted_excludes_selected_trace(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased child_char: Char},
+    {@erased child_rest: List(Char)}, {@erased after_input: List(Char)},
+    {@erased source: Bounded(n)}, {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased active_state: Bounded(n)},
+    {@erased active_routine: List(EvidenceInstruction)},
+    {@erased active_constraints: List(BoundaryConstraint)},
+    {@erased active_assertion_routine: List(ExtendedInstruction)},
+    {@erased active_assertion_markers: List(EvidenceInstruction)},
+    {@erased active_nested_decisions: List(LookaroundNestedDecision)},
+    {@erased front: List(LookaroundAdmittedState(n))},
+    {@erased current: List(LookaroundAdmittedState(n))},
+    {@erased tail_kind: AtomicPathSkippedPrefixKind},
+    @erased package: AtomicPathRejectedSkippedHeadPackage(depth, n, machine, Cons(char, Cons(child_char, child_rest)), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(LookaroundAdmittedActive(active_state, active_routine, active_constraints, active_assertion_routine, active_assertion_markers, active_nested_decisions), front), current, AtomicPathSkippedPrefixRejectedConsKind(AtomicPathFailureAtRootKind(), AtomicPathFailureDestinationsExhausted(), tail_kind)),
+    {@erased matched: List(Char)},
+    {@erased remaining_input: List(Char)},
+    {@erased selected_routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedPathTrace(depth, n, machine, Cons(char, Cons(child_char, child_rest)), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, Cons(LookaroundAdmittedActive(active_state, active_routine, active_constraints, active_assertion_routine, active_assertion_markers, active_nested_decisions), front), matched, remaining_input, selected_routine)
+  ) -> Empty = match package
+    AtomicPathRejectedSkippedHeadPacked(evidence) -> match evidence
+      AtomicPathSkippedRejectedCons(_, _, _, _, _, _, _, child_scope_alignment, _, _, _, child_prefix, child_origin_equivalence, child_origin_canonical, _, _, child_failure, _, _, _, _) -> match child_scope_alignment
+        LookaroundAdmittedStateScopeActive(_, _, _, _, _, _) -> match child_failure
+          AtomicPathDestinationsExhausted(_, _, _, _, _, _) -> match child_prefix
+            AtomicPathFailureAtRoot(root_equality) -> match root_equality
+              reflexive() -> match child_origin_equivalence
+                reflexive() -> match path
+                  AtomicSelectedPrefixDone() -> impossible
+                  AtomicSelectedExactDone() -> impossible
+                  AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _, _, selected_origin_canonical, _, _, selected_from_origin, _, _, child_trace) -> match atomic_path_search_origin_alignment(child_origin_canonical, selected_origin_canonical)
+                    AtomicPathSearchOriginsAligned(origin_equality) -> match origin_equality
+                      reflexive() -> match selected_from_origin
+                        LookaroundAdmittedStateCursorSuffixHere(selected_equality) -> match selected_equality
+                          reflexive() -> atomic_path_active_child_destinations_exhausted_excludes_trace_erased(child_failure, child_trace)
+                  AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+
   ## A locally blocking failure at the current head contradicts the exact
   ## continuation certificate that allowed a successful search to skip that
   ## same rejected head. Both constructor kinds are fixed by erased indices.
