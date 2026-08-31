@@ -2866,6 +2866,16 @@ the recursive active kind and no list, equality, origin certificate, or trace
 payload. The full Regex chain and focused 27-test gate pass. The accepted
 construction helper is the remaining dual before evaluator publication.
 
+`atomic_selected_path_trace_accepted_package` now supplies that dual. It opens
+the published accepted-child cursor and recursive suffix-trace packages
+kind-first, then constructs the exact accepted evidence with the correlated
+erased payloads. Active and accepted parent transitions therefore share the
+same construction boundary and expose only their finite relevant kind trees.
+The complete Regex module chain and focused 27-test refutation gate pass. The
+next slice publishes these exact trace packages through
+`AtomicPathMembersYes` and `AtomicPathSearchYes` and constructs them at every
+terminal and recursive evaluator success site.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
