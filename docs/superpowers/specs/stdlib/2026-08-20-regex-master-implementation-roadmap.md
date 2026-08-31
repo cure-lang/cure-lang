@@ -3225,6 +3225,18 @@ evidence once. The complete Regex chain and focused 27-test gate pass. Tail
 recursion can therefore advance existing authorities rather than enlarging
 the recursive commit structure.
 
+The selected-tail location is now derived without re-comparing canonical
+lists. `atomic_path_skipped_prefix_structure_location` maps the relevant empty
+structure to `Same` and every non-empty escaped/rejected structure to
+`RightAfter`, reusing the cursor package derived by the previous lemma. Thus a
+recursive tail carrier can obtain both its selected suffix and its location
+from one constructor-correlated authority; no erased suffix is promoted back
+into relevant control and no second traversal can disagree with the selected
+skip tree. The complete Regex chain and focused 27-test gate pass. Next extract
+the exact `PastEscaped`/`PastRejected` tail commit structure into a relevant
+existential, advance the outer commit cursor package, and combine those values
+with this location.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the

@@ -8223,6 +8223,42 @@ mod Std.Regex.Runtime
           atomic_path_skipped_prefix_structure_cursor_package(tail_structure)
         )
 
+  ## A successful skipped prefix determines its cursor direction without a
+  ## second list comparison: the empty constructor is equality, and every
+  ## non-empty constructor places the selection strictly to the right.
+  @reducible
+  fn atomic_path_skipped_prefix_structure_location(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased input: List(Char)}, {@erased after_input: List(Char)},
+    {@erased state: ThreadState(n)}, {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased front: List(LookaroundAdmittedState(n))},
+    {@erased current: List(LookaroundAdmittedState(n))},
+    {@erased kind: AtomicPathSkippedPrefixKind},
+    structure: AtomicPathSkippedPrefixStructurePackage(
+      depth, n, machine, input, after_input, state, history, capture_context,
+      policy, scope_depth, prefix_mode, reversed_prefix, whole, front,
+      current, kind
+    )
+  ) -> AtomicPathCursorLocation(n, front, current) = match structure
+    AtomicPathSkippedPrefixStructureEmptyPacked(_) ->
+      AtomicPathCursorLocationSame(reflexive(current))
+    AtomicPathSkippedPrefixStructureEscapedOnePacked(_) ->
+      AtomicPathCursorLocationRightAfter(
+        atomic_path_skipped_prefix_structure_cursor_package(structure)
+      )
+    AtomicPathSkippedPrefixStructureEscapedConsPacked(_, _) ->
+      AtomicPathCursorLocationRightAfter(
+        atomic_path_skipped_prefix_structure_cursor_package(structure)
+      )
+    AtomicPathSkippedPrefixStructureRejectedConsPacked(_, _) ->
+      AtomicPathCursorLocationRightAfter(
+        atomic_path_skipped_prefix_structure_cursor_package(structure)
+      )
+
   ## The skipped-prefix kind fixes the evidence constructor, so these erased
   ## eliminators expose only structural facts needed by the recursive mixed
   ## sibling fold. No runtime discriminator or second traversal is added.
