@@ -3323,6 +3323,17 @@ complete Regex chain and focused 27-test gate pass. Next add the propagated
 `PastEscaped` and `PastRejected` right-authority consumers whose recursive
 callbacks invoke the common induction again.
 
+Both propagated `RightAfter` consumers are now complete. Direct projections
+from `AtomicPathCommitStructureCursorExistentialPackage` advance the retained
+cursor and extract the exact `PastEscaped` or `PastRejected` tail structure;
+they never rebuild the older explicit-cause existential. The corresponding
+right-authority folds match the paired escaped-cons or rejected-cons selected
+structure and produce the next one-constructor `Same` or `RightAfter`
+authority for their callbacks. The complete Regex chain and focused 27-test
+gate pass. Next define the common structurally recursive dispatcher over
+commit structure and selected skipped-prefix structure, using the completed
+terminal and propagated consumers as its cases.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the
