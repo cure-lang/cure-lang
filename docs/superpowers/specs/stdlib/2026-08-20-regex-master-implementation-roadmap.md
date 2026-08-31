@@ -3070,6 +3070,15 @@ therefore refine the erased cause and obtain its actual child cursor without a
 trust convention or E104-invalid projection. The full Regex chain and focused
 27-test gate pass.
 
+Do not immediately hide that relation behind one generic outer structure
+indexed by both `kind` and `cause`. The attempted sum correctly failed during
+interface registration: refining generic `kind` to `AfterFailure(...)` does not
+transport the separately dependent `cause` index, and weakening the cause to a
+mere type would discard the correlation just established. Keep
+`AfterFailure`, `FromChild`, `PastEscaped`, and `PastRejected` as exact
+constructor-specific recursive families first; combine them only through a
+fully mirrored outer constructor whose result fixes the exact cause value.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the
