@@ -8161,17 +8161,18 @@ mod Std.Regex.Runtime
     {@erased matched: List(Char)},
     {@erased remaining_input: List(Char)},
     {@erased selected_routine: List(ExtendedInstruction)},
-    @erased path: AtomicSelectedPathTrace(depth, n, machine, Cons(char, Cons(child_char, child_rest)), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, False(), reversed_prefix, Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), current), matched, remaining_input, selected_routine)
+    @erased path: AtomicSelectedPathTrace(depth, n, machine, Cons(char, Cons(child_char, child_rest)), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, False(), reversed_prefix, Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), current), matched, remaining_input, selected_routine),
+    trace_package: AtomicSelectedPathTracePackage(depth, n, machine, Cons(char, Cons(child_char, child_rest)), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, False(), reversed_prefix, Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), current), matched, remaining_input, selected_routine, path)
   ) -> Empty = match package
-    AtomicPathEscapedSkippedHeadPacked(_) -> match path
-      AtomicSelectedPrefixDone() -> impossible
-      AtomicSelectedExactDone() -> impossible
-      AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
-      AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, child_trace) -> match child_trace
-        AtomicSelectedPrefixDone() -> impossible
-        AtomicSelectedExactDone() -> impossible
-        AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
-        AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+    AtomicPathEscapedSkippedHeadPacked(_) -> match trace_package
+      AtomicSelectedPathTracePrefixDonePacked() -> impossible
+      AtomicSelectedPathTraceExactDonePacked() -> impossible
+      AtomicSelectedPathTraceActivePacked(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+      AtomicSelectedPathTraceAcceptedPacked(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, suffix_package) -> match suffix_package
+        AtomicSelectedPathTracePrefixDonePacked() -> impossible
+        AtomicSelectedPathTraceExactDonePacked() -> impossible
+        AtomicSelectedPathTraceActivePacked(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+        AtomicSelectedPathTraceAcceptedPacked(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
 
   ## Same-cursor versions of the two terminal local-failure leaves. These are
   ## consumed after canonical commit/selection alignment has rewritten the

@@ -2925,6 +2925,15 @@ confirming that recursive package elimination—not erased evidence inspection�
 is accepted by the relevance checker. Apply the same pattern to the exact-
 accepted leaf and then to nonterminal destination-rejection recursion.
 
+The exact-accepted escaped-head leaf now uses the same package-only
+elimination. Its outer accepted package exposes a suffix package indexed at an
+accepted thread with non-empty input in exact mode; prefix completion has the
+wrong mode, exact completion requires empty input, and recursive packages
+require an active thread. The erased selected trace is no longer inspected.
+The complete Regex chain and focused 27-test gate pass. Both terminal
+escaped-head leaves are now migrated; the next proof slice is the recursive
+destination-rejection child/tail alignment.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
