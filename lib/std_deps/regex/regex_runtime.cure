@@ -8555,6 +8555,70 @@ mod Std.Regex.Runtime
         tail_structure
       )
 
+  ## Recursive escaped-head consumer. The relevant outer EscapedCons exposes
+  ## its selected tail, and the paired commit projection exposes the matching
+  ## commit tail before the two-way tail fold selects Same or RightAfter.
+  @reducible
+  fn atomic_path_commit_past_escaped_selected_tail_location_fold(
+    {result: Type}, {selected_trace_package: Type},
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased rest: List(Char)},
+    {@erased after_input: List(Char)}, {@erased source: Bounded(n)},
+    {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased candidate: LookaroundAdmittedState(n)},
+    {@erased remaining: List(LookaroundAdmittedState(n))},
+    {@erased selected_current: List(LookaroundAdmittedState(n))},
+    {@erased commit_depth: Nat},
+    {@erased child_commit_kind: AtomicPathCommitCauseKind},
+    {@erased tail_commit_kind: AtomicPathCommitCauseKind},
+    {@erased tail_skipped_kind: AtomicPathSkippedPrefixKind},
+    commit: AtomicPathCommitStructureExistentialPackage(
+      depth, n, machine, Cons(char, rest), after_input, ThreadActive(source),
+      history, capture_context, policy, scope_depth, prefix_mode,
+      reversed_prefix, whole, Cons(candidate, remaining), commit_depth,
+      AtomicPathCommitPastEscapedKind(child_commit_kind, tail_commit_kind)
+    ),
+    commit_cursor: LookaroundAdmittedStateCursorSuffixPackage(
+      n, whole, Cons(candidate, remaining)
+    ),
+    selected_trace: selected_trace_package,
+    selected_skipped: AtomicPathSkippedPrefixStructurePackage(
+      depth, n, machine, Cons(char, rest), after_input, ThreadActive(source),
+      history, capture_context, policy, scope_depth, prefix_mode,
+      reversed_prefix, whole, Cons(candidate, remaining), selected_current,
+      AtomicPathSkippedPrefixEscapedConsKind(
+        child_commit_kind, tail_skipped_kind
+      )
+    ),
+    same_case: (AtomicPathRecursiveCommitSelectedPackage(
+      depth, n, machine, Cons(char, rest), after_input, ThreadActive(source),
+      history, capture_context, policy, scope_depth, prefix_mode,
+      reversed_prefix, whole, remaining, selected_current, commit_depth,
+      tail_commit_kind, selected_trace_package, tail_skipped_kind
+    )) -> result,
+    right_case: (AtomicPathRecursiveCommitSelectedPackage(
+      depth, n, machine, Cons(char, rest), after_input, ThreadActive(source),
+      history, capture_context, policy, scope_depth, prefix_mode,
+      reversed_prefix, whole, remaining, selected_current, commit_depth,
+      tail_commit_kind, selected_trace_package, tail_skipped_kind
+    )) -> result
+  ) -> result = match selected_skipped
+    AtomicPathSkippedPrefixStructureEscapedConsPacked(_, tail_structure) ->
+      atomic_path_commit_selected_tail_location_fold(
+        atomic_path_commit_structure_past_escaped_tail_package(
+          commit,
+          commit_cursor
+        ),
+        selected_trace,
+        tail_structure,
+        same_case,
+        right_case
+      )
+
   ## Pair the two recursive tails selected by PastRejected/RejectedCons. The
   ## shared failure-prefix and failure-kind indices ensure both structures
   ## describe the same skipped candidate.
@@ -8622,6 +8686,73 @@ mod Std.Regex.Runtime
         ),
         selected_trace,
         tail_structure
+      )
+
+  ## Recursive rejected-head consumer. The shared child prefix/failure
+  ## indices identify the same skipped candidate before its commit and
+  ## selected tails enter the two-way recursive location fold.
+  @reducible
+  fn atomic_path_commit_past_rejected_selected_tail_location_fold(
+    {result: Type}, {selected_trace_package: Type},
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased rest: List(Char)},
+    {@erased after_input: List(Char)}, {@erased source: Bounded(n)},
+    {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased candidate: LookaroundAdmittedState(n)},
+    {@erased remaining: List(LookaroundAdmittedState(n))},
+    {@erased selected_current: List(LookaroundAdmittedState(n))},
+    {@erased commit_depth: Nat},
+    {@erased child_prefix_kind: AtomicPathFailurePrefixKind},
+    {@erased child_kind: AtomicPathFailureKind},
+    {@erased tail_commit_kind: AtomicPathCommitCauseKind},
+    {@erased tail_skipped_kind: AtomicPathSkippedPrefixKind},
+    commit: AtomicPathCommitStructureExistentialPackage(
+      depth, n, machine, Cons(char, rest), after_input, ThreadActive(source),
+      history, capture_context, policy, scope_depth, prefix_mode,
+      reversed_prefix, whole, Cons(candidate, remaining), commit_depth,
+      AtomicPathCommitPastRejectedKind(
+        child_prefix_kind, child_kind, tail_commit_kind
+      )
+    ),
+    commit_cursor: LookaroundAdmittedStateCursorSuffixPackage(
+      n, whole, Cons(candidate, remaining)
+    ),
+    selected_trace: selected_trace_package,
+    selected_skipped: AtomicPathSkippedPrefixStructurePackage(
+      depth, n, machine, Cons(char, rest), after_input, ThreadActive(source),
+      history, capture_context, policy, scope_depth, prefix_mode,
+      reversed_prefix, whole, Cons(candidate, remaining), selected_current,
+      AtomicPathSkippedPrefixRejectedConsKind(
+        child_prefix_kind, child_kind, tail_skipped_kind
+      )
+    ),
+    same_case: (AtomicPathRecursiveCommitSelectedPackage(
+      depth, n, machine, Cons(char, rest), after_input, ThreadActive(source),
+      history, capture_context, policy, scope_depth, prefix_mode,
+      reversed_prefix, whole, remaining, selected_current, commit_depth,
+      tail_commit_kind, selected_trace_package, tail_skipped_kind
+    )) -> result,
+    right_case: (AtomicPathRecursiveCommitSelectedPackage(
+      depth, n, machine, Cons(char, rest), after_input, ThreadActive(source),
+      history, capture_context, policy, scope_depth, prefix_mode,
+      reversed_prefix, whole, remaining, selected_current, commit_depth,
+      tail_commit_kind, selected_trace_package, tail_skipped_kind
+    )) -> result
+  ) -> result = match selected_skipped
+    AtomicPathSkippedPrefixStructureRejectedConsPacked(_, tail_structure) ->
+      atomic_path_commit_selected_tail_location_fold(
+        atomic_path_commit_structure_past_rejected_tail_package(
+          commit,
+          commit_cursor
+        ),
+        selected_trace,
+        tail_structure,
+        same_case,
+        right_case
       )
 
   ## The skipped-prefix kind fixes the evidence constructor, so these erased

@@ -3286,6 +3286,18 @@ step. The complete Regex chain and focused 27-test gate pass. Next route the
 PastEscaped/EscapedCons and PastRejected/RejectedCons outer branches through
 this two-way fold, then make its `RightAfter` callback the recursive call.
 
+Both propagated branches now use that interface.
+`atomic_path_commit_past_escaped_selected_tail_location_fold` and
+`atomic_path_commit_past_rejected_selected_tail_location_fold` first match the
+relevant selected head structure, extract the matching commit tail/cursor,
+and invoke the two-way fold. Their `Same` and `RightAfter` callbacks receive
+the exact recursive carrier, including the unchanged selected trace package;
+neither branch reconstructs erased evidence or admits `LeftAfter`. The
+complete Regex chain and focused 27-test gate pass. Next implement the common
+recursive consumer: `Same` dispatches the tail commit structure against the
+selected trace terminal leaves, while `RightAfter` consumes a local blocking
+head or invokes one of these propagated folds again.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the
