@@ -1761,6 +1761,14 @@ mod Std.Regex.Runtime
     LookaroundAdmittedStateCursorSuffixEvidenceHere : (@erased equality: Equivalent(List(LookaroundAdmittedState(n)), outer, inner)) -> LookaroundAdmittedStateCursorSuffixEvidence(n, outer, inner, LookaroundAdmittedStateCursorSuffixHereKind())
     LookaroundAdmittedStateCursorSuffixEvidenceDrop : (@erased prior_outer: List(LookaroundAdmittedState(n))) -> (@erased head: LookaroundAdmittedState(n)) -> (@erased prior_kind: LookaroundAdmittedStateCursorSuffixKind) -> (@erased prior: LookaroundAdmittedStateCursorSuffixEvidence(n, prior_outer, inner, prior_kind)) -> LookaroundAdmittedStateCursorSuffixEvidence(n, Cons(head, prior_outer), inner, LookaroundAdmittedStateCursorSuffixDropKind(prior_kind))
 
+  ## Runtime search results retain only this finite structural tag.  The full
+  ## cursor relation stays erased and constructor-correlated, so consumers can
+  ## select `Here` or `Drop` before opening any proof payload.  This is the
+  ## proof-safe publication boundary required by recursive destination
+  ## rejection; it does not reify admitted states or equality witnesses.
+  type LookaroundAdmittedStateCursorSuffixPackage(n: Nat) indices (outer: List(LookaroundAdmittedState(n)), inner: List(LookaroundAdmittedState(n)))
+    LookaroundAdmittedStateCursorSuffixPacked : (kind: LookaroundAdmittedStateCursorSuffixKind) -> (@erased evidence: LookaroundAdmittedStateCursorSuffixEvidence(n, outer, inner, kind)) -> LookaroundAdmittedStateCursorSuffixPackage(n, outer, inner)
+
   @reducible
   fn lookaround_admitted_cursor_suffix_evidence_here(
     {n: Nat}, {outer: List(LookaroundAdmittedState(n))},
@@ -1776,6 +1784,30 @@ mod Std.Regex.Runtime
     @erased prior_kind: LookaroundAdmittedStateCursorSuffixKind,
     @erased prior: LookaroundAdmittedStateCursorSuffixEvidence(n, outer, inner, prior_kind)
   ) -> LookaroundAdmittedStateCursorSuffixEvidence(n, Cons(head, outer), inner, LookaroundAdmittedStateCursorSuffixDropKind(prior_kind)) = LookaroundAdmittedStateCursorSuffixEvidenceDrop(outer, head, prior_kind, prior)
+
+  @reducible
+  fn lookaround_admitted_cursor_suffix_package_here(
+    {n: Nat}, {outer: List(LookaroundAdmittedState(n))},
+    {inner: List(LookaroundAdmittedState(n))},
+    @erased equality: Equivalent(List(LookaroundAdmittedState(n)), outer, inner)
+  ) -> LookaroundAdmittedStateCursorSuffixPackage(n, outer, inner) =
+    LookaroundAdmittedStateCursorSuffixPacked(
+      LookaroundAdmittedStateCursorSuffixHereKind(),
+      LookaroundAdmittedStateCursorSuffixEvidenceHere(equality)
+    )
+
+  @reducible
+  fn lookaround_admitted_cursor_suffix_package_drop(
+    {n: Nat}, {outer: List(LookaroundAdmittedState(n))},
+    {inner: List(LookaroundAdmittedState(n))},
+    @erased head: LookaroundAdmittedState(n),
+    package: LookaroundAdmittedStateCursorSuffixPackage(n, outer, inner)
+  ) -> LookaroundAdmittedStateCursorSuffixPackage(n, Cons(head, outer), inner) = match package
+    LookaroundAdmittedStateCursorSuffixPacked(kind, evidence) ->
+      LookaroundAdmittedStateCursorSuffixPacked(
+        LookaroundAdmittedStateCursorSuffixDropKind(kind),
+        LookaroundAdmittedStateCursorSuffixEvidenceDrop(outer, head, kind, evidence)
+      )
 
   ## A non-empty cursor current proves that its whole spine is non-empty too.
   ## Keep the decomposition existential and erased: callers need the

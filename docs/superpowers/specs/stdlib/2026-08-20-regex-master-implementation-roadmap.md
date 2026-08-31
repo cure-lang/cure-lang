@@ -2767,6 +2767,17 @@ theorem needs. The remaining plumbing task is to construct and publish the
 suffix kind/evidence alongside evaluator cursors, then retain it in commit and
 negative-result witnesses.
 
+The publication boundary is now represented explicitly by
+`LookaroundAdmittedStateCursorSuffixPackage`. Its `kind` is the only relevant
+payload; the constructor-correlated suffix evidence remains erased. Canonical
+`Here` construction and recursive `Drop` extension elaborate through the full
+Regex module chain, and the focused 27-test refutation gate is green. The next
+slice must thread this package through `AtomicPathMembersResult` and
+`AtomicPathSearchResult`, starting with a root `Here` package and extending it
+exactly once whenever destination traversal drops a head. Recursive commit and
+negative witnesses can then retain the published package instead of attempting
+to recover a relevant branch from an erased suffix.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
