@@ -954,6 +954,10 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~
              "fn atomic_path_escaped_skipped_head_after_exact_accepted_excludes_selected_trace("
     assert source =~
+             "fn atomic_path_commit_after_input_exhausted_excludes_aligned_selected_trace("
+    assert source =~
+             "fn atomic_path_commit_after_exact_accepted_excludes_aligned_selected_trace("
+    assert source =~
              "fn atomic_path_commit_after_root_destinations_exhausted_excludes_aligned_selected_trace("
     assert source =~ "type AtomicPathRejectedSkippedHeadPackage("
     assert source =~ "fn atomic_path_skipped_prefix_rejected_cons_head("

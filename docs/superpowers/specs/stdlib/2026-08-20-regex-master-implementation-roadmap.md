@@ -2680,6 +2680,17 @@ all other origin and cause witnesses remain proof-only. This supplies the
 missing alignment layer needed to compose the terminal leaves into
 `EscapedOne` without assuming that the commit and selected cursors coincide.
 
+The exhausted-input and exact-accepted terminal contradictions now also exist
+at the aligned commit cursor itself, alongside the root destinations-exhausted
+leaf. These are the reusable leaves required after a `Same` cursor equality is
+consumed. A proposed generic `AfterFailure` dispatcher was deliberately
+rejected: matching only its failure-kind parameter attempted to refine generic
+erased input/current indices across incompatible `Nil` and `Cons` branches,
+which E093 rejects. Dispatch must remain at the full construction site where
+the recursive cause kind, candidate shape, input shape, and cursor equality are
+simultaneously fixed; this is a stronger and more precise boundary than a
+failure-kind-only helper.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
