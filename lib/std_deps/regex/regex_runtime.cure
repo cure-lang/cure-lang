@@ -2031,6 +2031,31 @@ mod Std.Regex.Runtime
       marker
     )
 
+  ## Single eliminator for the correlated location carrier. Each continuation
+  ## receives the intact package, so recursive consumers choose a branch only
+  ## from its relevant constructor and cannot split its correlated payloads.
+  @reducible
+  fn atomic_path_commit_selected_location_package_fold(
+    {result: Type}, {n: Nat}, {cause: Type},
+    {commit_cursor_package: Type}, {selected_trace_package: Type},
+    {commit_current: List(LookaroundAdmittedState(n))},
+    {selected_current: List(LookaroundAdmittedState(n))},
+    package: AtomicPathCommitSelectedLocationPackage(
+      n,
+      cause,
+      commit_cursor_package,
+      selected_trace_package,
+      commit_current,
+      selected_current
+    ),
+    same_case: (AtomicPathCommitSelectedLocationPackage(n, cause, commit_cursor_package, selected_trace_package, commit_current, selected_current)) -> result,
+    left_case: (AtomicPathCommitSelectedLocationPackage(n, cause, commit_cursor_package, selected_trace_package, commit_current, selected_current)) -> result,
+    right_case: (AtomicPathCommitSelectedLocationPackage(n, cause, commit_cursor_package, selected_trace_package, commit_current, selected_current)) -> result
+  ) -> result = match package
+    AtomicPathCommitSelectedSamePacked(_, _, _, _) -> same_case(package)
+    AtomicPathCommitSelectedLeftAfterPacked(_, _, _, _) -> left_case(package)
+    AtomicPathCommitSelectedRightAfterPacked(_, _, _, _) -> right_case(package)
+
   @reducible
   fn atomic_path_cursor_location(
     {n: Nat},

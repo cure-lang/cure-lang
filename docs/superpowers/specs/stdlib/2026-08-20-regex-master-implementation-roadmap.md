@@ -3019,6 +3019,16 @@ full Regex chain and focused 27-test gate pass. Next specialize this carrier at
 the input-exhausted and exact-accepted location folds, then consume its strict
 constructors in sibling recursion.
 
+The correlated carrier now has a single constructor-directed eliminator,
+`atomic_path_commit_selected_location_package_fold`. Same, left-after, and
+right-after continuations each receive the intact carrier rather than separate
+payload arguments. This makes the relevant location constructor the sole
+branch authority and prevents recursive consumers from substituting a cause,
+commit cursor, or selected trace after dispatch. The complete Regex chain and
+focused 27-test gate pass. The next slice specializes the same continuation to
+the two terminal package leaves and replaces the left/right continuations with
+recursive sibling consumers.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the
