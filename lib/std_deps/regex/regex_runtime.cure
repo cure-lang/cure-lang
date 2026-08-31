@@ -7585,6 +7585,44 @@ mod Std.Regex.Runtime
     @erased evidence: AtomicPathSkippedPrefixEvidence(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, front), current, AtomicPathSkippedPrefixRejectedConsKind(child_prefix_kind, child_kind, tail_kind))
   ) -> AtomicPathRejectedSkippedHeadPackage(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, front), current, AtomicPathSkippedPrefixRejectedConsKind(child_prefix_kind, child_kind, tail_kind)) = AtomicPathRejectedSkippedHeadPacked(evidence)
 
+  ## If the rejected skipped head is an active candidate whose child ran out
+  ## of input, selecting that same head exposes the contradictory child trace
+  ## directly. The package match keeps the failure, scope refinement, and
+  ## selected transition at one proof-only construction boundary.
+  @reducible
+  fn atomic_path_rejected_skipped_head_input_exhausted_excludes_selected_trace(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased after_input: List(Char)},
+    {@erased source: Bounded(n)}, {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased active_state: Bounded(n)},
+    {@erased active_routine: List(EvidenceInstruction)},
+    {@erased active_constraints: List(BoundaryConstraint)},
+    {@erased active_assertion_routine: List(ExtendedInstruction)},
+    {@erased active_assertion_markers: List(EvidenceInstruction)},
+    {@erased active_nested_decisions: List(LookaroundNestedDecision)},
+    {@erased front: List(LookaroundAdmittedState(n))},
+    {@erased current: List(LookaroundAdmittedState(n))},
+    {@erased child_prefix_kind: AtomicPathFailurePrefixKind},
+    {@erased tail_kind: AtomicPathSkippedPrefixKind},
+    @erased package: AtomicPathRejectedSkippedHeadPackage(depth, n, machine, Cons(char, Nil()), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(LookaroundAdmittedActive(active_state, active_routine, active_constraints, active_assertion_routine, active_assertion_markers, active_nested_decisions), front), current, AtomicPathSkippedPrefixRejectedConsKind(child_prefix_kind, AtomicPathFailureInputExhausted(), tail_kind)),
+    {@erased matched: List(Char)},
+    {@erased remaining_input: List(Char)},
+    {@erased selected_routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedPathTrace(depth, n, machine, Cons(char, Nil()), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, Cons(LookaroundAdmittedActive(active_state, active_routine, active_constraints, active_assertion_routine, active_assertion_markers, active_nested_decisions), front), matched, remaining_input, selected_routine)
+  ) -> Empty = match package
+    AtomicPathRejectedSkippedHeadPacked(evidence) -> match evidence
+      AtomicPathSkippedRejectedCons(_, _, _, _, _, _, _, child_scope_alignment, _, _, _, _, _, _, _, _, child_failure, _, _, _, _) -> match child_scope_alignment
+        LookaroundAdmittedStateScopeActive(_, _, _, _, _, _) -> match path
+          AtomicSelectedPrefixDone() -> impossible
+          AtomicSelectedExactDone() -> impossible
+          AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, child_trace) -> match child_failure
+            AtomicPathInputExhausted(_, _) -> atomic_path_input_exhaustion_excludes_trace_erased(child_trace)
+          AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+
   ## A locally blocking failure at the current head contradicts the exact
   ## continuation certificate that allowed a successful search to skip that
   ## same rejected head. Both constructor kinds are fixed by erased indices.

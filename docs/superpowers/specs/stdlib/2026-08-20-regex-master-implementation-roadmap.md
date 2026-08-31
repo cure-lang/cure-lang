@@ -2575,6 +2575,16 @@ open the rejected constructor in an erased match without returning proof data
 through a relevant expression. The next slice consumes that package against
 the selected child trace and then recurses through its tail package.
 
+The first rejected-head contradiction is now direct rather than callback
+driven. `atomic_path_rejected_skipped_head_input_exhausted_excludes_selected_trace`
+opens the constructor-refined package for an active skipped candidate whose
+child failure is indexed by `AtomicPathFailureInputExhausted`. Selecting that
+same candidate necessarily exposes its active child trace, and the existing
+input-exhaustion eliminator closes the contradiction after the stored scope
+refinement is matched. This establishes the terminal leaf of the rejected
+head recursion without a runtime failure tag or a caller-supplied directional
+case. Recursive destination rejection and selected-in-tail transport remain.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
