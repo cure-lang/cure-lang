@@ -2824,6 +2824,17 @@ full Regex chain and the focused 27-test gate remains green. The next slice is
 the constructor-correlated erased evidence relation and its construction in
 `AtomicPathSearchYes`.
 
+`AtomicSelectedPathTraceEvidence` now indexes the exact erased trace value as
+well as its semantic inputs and structural kind. Prefix and exact completion
+are the first correlated base constructors; they cannot be paired with an
+arbitrary trace that merely shares the same output indices.
+`AtomicSelectedPathTracePackage` exposes only the relevant shape kind and
+keeps both the trace and correlation evidence erased. Named prefix/exact
+construction authorities elaborate through the full Regex chain, and the
+focused 27-test gate remains green. Active and accepted evidence constructors
+must extend this exact relation with the published child cursor package and a
+recursive suffix-trace package before the package is added to search results.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
