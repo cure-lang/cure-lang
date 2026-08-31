@@ -1759,7 +1759,7 @@ mod Std.Regex.Runtime
 
   type LookaroundAdmittedStateCursorSuffixEvidence(n: Nat) indices (outer: List(LookaroundAdmittedState(n)), inner: List(LookaroundAdmittedState(n)), kind: LookaroundAdmittedStateCursorSuffixKind)
     LookaroundAdmittedStateCursorSuffixEvidenceHere : (@erased equality: Equivalent(List(LookaroundAdmittedState(n)), outer, inner)) -> LookaroundAdmittedStateCursorSuffixEvidence(n, outer, inner, LookaroundAdmittedStateCursorSuffixHereKind())
-    LookaroundAdmittedStateCursorSuffixEvidenceDrop : (@erased head: LookaroundAdmittedState(n)) -> (@erased prior_kind: LookaroundAdmittedStateCursorSuffixKind) -> (@erased prior: LookaroundAdmittedStateCursorSuffixEvidence(n, outer, inner, prior_kind)) -> LookaroundAdmittedStateCursorSuffixEvidence(n, Cons(head, outer), inner, LookaroundAdmittedStateCursorSuffixDropKind(prior_kind))
+    LookaroundAdmittedStateCursorSuffixEvidenceDrop : (@erased prior_outer: List(LookaroundAdmittedState(n))) -> (@erased head: LookaroundAdmittedState(n)) -> (@erased prior_kind: LookaroundAdmittedStateCursorSuffixKind) -> (@erased prior: LookaroundAdmittedStateCursorSuffixEvidence(n, prior_outer, inner, prior_kind)) -> LookaroundAdmittedStateCursorSuffixEvidence(n, Cons(head, prior_outer), inner, LookaroundAdmittedStateCursorSuffixDropKind(prior_kind))
 
   @reducible
   fn lookaround_admitted_cursor_suffix_evidence_here(
@@ -1775,7 +1775,7 @@ mod Std.Regex.Runtime
     @erased head: LookaroundAdmittedState(n),
     @erased prior_kind: LookaroundAdmittedStateCursorSuffixKind,
     @erased prior: LookaroundAdmittedStateCursorSuffixEvidence(n, outer, inner, prior_kind)
-  ) -> LookaroundAdmittedStateCursorSuffixEvidence(n, Cons(head, outer), inner, LookaroundAdmittedStateCursorSuffixDropKind(prior_kind)) = LookaroundAdmittedStateCursorSuffixEvidenceDrop(head, prior_kind, prior)
+  ) -> LookaroundAdmittedStateCursorSuffixEvidence(n, Cons(head, outer), inner, LookaroundAdmittedStateCursorSuffixDropKind(prior_kind)) = LookaroundAdmittedStateCursorSuffixEvidenceDrop(outer, head, prior_kind, prior)
 
   ## A non-empty cursor current proves that its whole spine is non-empty too.
   ## Keep the decomposition existential and erased: callers need the
@@ -1783,6 +1783,23 @@ mod Std.Regex.Runtime
   ## representation of the chosen head or tail is allowed to escape.
   type LookaroundAdmittedNonempty(n: Nat) indices (whole: List(LookaroundAdmittedState(n)))
     LookaroundAdmittedNonemptyPacked : (@erased head: LookaroundAdmittedState(n)) -> (@erased tail: List(LookaroundAdmittedState(n))) -> (@erased equivalence: Equivalent(List(LookaroundAdmittedState(n)), whole, Cons(head, tail))) -> LookaroundAdmittedNonempty(n, whole)
+
+  ## Recover whole-spine non-emptiness without inspecting erased suffix
+  ## evidence generically. The relevant kind fixes `Here` or `Drop` first;
+  ## the corresponding erased constructor is then collapsible.
+  @reducible
+  fn lookaround_admitted_cursor_suffix_evidence_nonempty(
+    {n: Nat}, {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased head: LookaroundAdmittedState(n)},
+    {@erased tail: List(LookaroundAdmittedState(n))},
+    kind: LookaroundAdmittedStateCursorSuffixKind,
+    @erased evidence: LookaroundAdmittedStateCursorSuffixEvidence(n, whole, Cons(head, tail), kind)
+  ) -> LookaroundAdmittedNonempty(n, whole) = match kind
+    LookaroundAdmittedStateCursorSuffixHereKind() -> match evidence
+      LookaroundAdmittedStateCursorSuffixEvidenceHere(equality) -> match equality
+        reflexive() -> LookaroundAdmittedNonemptyPacked(head, tail, reflexive(Cons(head, tail)))
+    LookaroundAdmittedStateCursorSuffixDropKind(prior_kind) -> match evidence
+      LookaroundAdmittedStateCursorSuffixEvidenceDrop(prior_outer, dropped, _, _) -> LookaroundAdmittedNonemptyPacked(dropped, prior_outer, reflexive(Cons(dropped, prior_outer)))
 
   ## Transport a non-empty decomposition backwards through an ordered cursor
   ## suffix.  The `Here` case consumes the suffix equality; each `Drop` case

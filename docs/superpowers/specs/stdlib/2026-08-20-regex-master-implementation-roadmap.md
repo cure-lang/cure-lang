@@ -2758,6 +2758,15 @@ authorities are green. This structural index must now be published with child
 failure cursors and consumed kind-first, mirroring the sound recursive
 commit-cause design rather than weakening relevance checking.
 
+The suffix evidence now has its first kind-directed consumer:
+`lookaround_admitted_cursor_suffix_evidence_nonempty`. `Here` consumes its
+fixed erased equality; `Drop` uses the explicitly retained erased prior-outer
+spine to construct the non-empty decomposition without traversing erased
+evidence. This is the exact invariant the recursive destination-rejection
+theorem needs. The remaining plumbing task is to construct and publish the
+suffix kind/evidence alongside evaluator cursors, then retain it in commit and
+negative-result witnesses.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

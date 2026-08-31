@@ -939,6 +939,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "type LookaroundAdmittedStateCursorSuffixEvidence("
     assert source =~ "fn lookaround_admitted_cursor_suffix_evidence_here("
     assert source =~ "fn lookaround_admitted_cursor_suffix_evidence_drop("
+    assert source =~ "fn lookaround_admitted_cursor_suffix_evidence_nonempty("
     assert source =~ "AtomicPathCommitAfterFailure :"
     assert source =~ "AtomicPathCommitFromChild :"
     assert source =~ "AtomicPathCommitPastRejected :"
