@@ -2666,6 +2666,20 @@ the corrected theorem makes the required candidate alignment explicit. The
 outer `EscapedOne` dispatcher must next derive that alignment (or recurse over
 the ordered child cursor) before selecting these leaves.
 
+Commit/search cursor alignment now has a canonical construction authority.
+`atomic_path_commit_cause_nonempty` dispatches on the relevant recursive cause
+kind and selects exactly one erased constructor projection; the commit suffix
+then lifts that non-empty decomposition back to the canonical whole list.
+Canonical commit and selected origins feed the existing ordered child-cursor
+classifier through `atomic_path_commit_selected_alignment_fold`. Where a leaf
+needs the exact equality rather than only the three-way branch,
+`atomic_path_commit_selected_cursor_location` preserves `Same`, strictly
+later, and strictly earlier witnesses. The canonical whole list is deliberately
+relevant at that boundary because `atomic_path_cursor_location` traverses it;
+all other origin and cause witnesses remain proof-only. This supplies the
+missing alignment layer needed to compose the terminal leaves into
+`EscapedOne` without assuming that the commit and selected cursors coincide.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
