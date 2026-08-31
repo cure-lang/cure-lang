@@ -3156,6 +3156,22 @@ recursive sibling proof. The complete Regex chain and focused 27-test gate
 pass. Next implement those two strict recursive destination-rejection branches
 from the published `FromChild`, `PastEscaped`, and `PastRejected` structures.
 
+Strict recursion also requires the successful search's explanation for moving
+past earlier siblings; a commit structure and a selected trace alone do not
+prove that the selected cursor was reachable under ordered search. That
+authority is now published as
+`AtomicPathSkippedPrefixStructurePackage`. Its four relevant constructors
+correlate empty, escaped-one, escaped-cons, and rejected-cons prefixes while
+keeping the original evidence erased; both cons constructors retain the exact
+recursive tail package. `AtomicPathMembersYes` constructs this structure at
+the same escaped/rejected sibling sites as `AtomicPathSkippedPrefixEvidence`,
+and `AtomicPathSearchYes` preserves it. Active and accepted selected-path
+packages also retain the child's skipped-prefix structure, so it survives
+recursive character transitions instead of being recoverable only from an
+erased trace. The complete Regex chain and focused 27-test gate pass. Next add
+this authority to the commit/selection carrier and consume paired commit/skip
+constructors in the strict `LeftAfter` and `RightAfter` induction.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the
