@@ -2902,6 +2902,19 @@ packages without inspecting erased data. Migrate evaluator successes to this
 representation before implementing recursive destination-rejection alignment,
 then delete the generic packed boundary once no consumer remains.
 
+That atomic migration is now complete. `AtomicSelectedPathTracePackage` has
+four constructor-correlated cases: prefix completion, exact completion, active
+transition, and accepted transition. The recursive cases carry the relevant
+canonical child-origin cursor package and exact suffix-trace package directly;
+all trace values, cursor proofs, equalities, origin certificates, and skipped
+evidence remain erased indices or erased constructor arguments. Construction
+helpers no longer inspect either child package. The generic
+`AtomicSelectedPathTracePacked`, the redundant trace-kind tree, and its erased
+correlation relation have been removed. The complete Regex chain and focused
+27-test gate pass. Recursive destination-rejection alignment can now match the
+relevant active/accepted package constructor and recurse on its child packages
+without any E104-invalid recovery step.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

@@ -942,21 +942,12 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~
              "fn atomic_path_commit_after_root_destinations_exhausted_selected_location_fold("
     assert source =~ "type LookaroundAdmittedStateCursorSuffixKind"
-    assert source =~ "type AtomicSelectedPathTraceKind"
-    assert source =~ "AtomicSelectedPathTracePrefixDoneKind"
-    assert source =~ "AtomicSelectedPathTraceExactDoneKind"
-    assert source =~
-             "AtomicSelectedPathTraceActiveKind(LookaroundAdmittedStateCursorSuffixKind, AtomicSelectedPathTraceKind)"
-
-    assert source =~
-             "AtomicSelectedPathTraceAcceptedKind(LookaroundAdmittedStateCursorSuffixKind, AtomicSelectedPathTraceKind)"
-    assert source =~ "type AtomicSelectedPathTraceEvidence("
-    assert source =~ "AtomicSelectedPathTracePrefixDoneEvidence :"
-    assert source =~ "AtomicSelectedPathTraceExactDoneEvidence :"
-    assert source =~ "AtomicSelectedPathTraceActiveEvidence :"
-    assert source =~ "AtomicSelectedPathTraceAcceptedEvidence :"
     assert source =~ "type AtomicSelectedPathTracePackage("
-    assert source =~ "AtomicSelectedPathTracePacked :"
+    refute source =~ "AtomicSelectedPathTracePacked :"
+    assert source =~ "AtomicSelectedPathTracePrefixDonePacked :"
+    assert source =~ "AtomicSelectedPathTraceExactDonePacked :"
+    assert source =~ "AtomicSelectedPathTraceActivePacked :"
+    assert source =~ "AtomicSelectedPathTraceAcceptedPacked :"
     assert source =~ "fn atomic_selected_path_trace_prefix_done_package("
     assert source =~ "fn atomic_selected_path_trace_exact_done_package("
     assert source =~ "fn atomic_selected_path_trace_active_package("
