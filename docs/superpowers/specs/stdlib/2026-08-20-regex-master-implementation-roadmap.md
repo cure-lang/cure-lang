@@ -2631,6 +2631,14 @@ an `EscapedOne` consumer would have to inspect the erased four-constructor
 commit cause generically and trigger E104. Candidate-level commit dispatch can
 now select the fixed cause constructor from the proof-only kind first.
 
+`EscapedOne` now has a constructor-refined erased head package as well.
+`AtomicPathEscapedSkippedHeadPackage` carries the original canonical skipped
+evidence rather than duplicating its dependent child/cause indices, and
+`atomic_path_skipped_prefix_escaped_one_head` fixes the package kind to the
+new cause-indexed `EscapedOne`. The next consumer can therefore match one fixed
+escaped constructor and then dispatch its fixed commit-cause kind without
+returning any erased payload through a relevant expression.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

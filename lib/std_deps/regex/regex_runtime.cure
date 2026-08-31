@@ -7543,6 +7543,28 @@ mod Std.Regex.Runtime
   ) -> AtomicPathSkippedPrefixTailPackage(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, front, current, tail_kind) = match evidence
     AtomicPathEscapedCommitCons(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, tail) -> AtomicPathSkippedPrefixTailPacked(tail)
 
+  ## Constructor-refined view of the single escaped skipped head. The cause,
+  ## canonical child origin, cursor, scope, and escape comparison remain one
+  ## erased correlated witness while the commit-cause kind is fixed outside.
+  type AtomicPathEscapedSkippedHeadPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), front: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)), kind: AtomicPathSkippedPrefixKind)
+    AtomicPathEscapedSkippedHeadPacked : (@erased evidence: AtomicPathSkippedPrefixEvidence(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, front, current, kind)) -> AtomicPathEscapedSkippedHeadPackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, front, current, kind)
+
+  @reducible
+  fn atomic_path_skipped_prefix_escaped_one_head(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased rest: List(Char)},
+    {@erased after_input: List(Char)}, {@erased source: Bounded(n)},
+    {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased front: List(LookaroundAdmittedState(n))},
+    {@erased current: List(LookaroundAdmittedState(n))},
+    {@erased commit_kind: AtomicPathCommitCauseKind},
+    @erased evidence: AtomicPathSkippedPrefixEvidence(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, front, current, AtomicPathSkippedPrefixEscapedOneKind(commit_kind))
+  ) -> AtomicPathEscapedSkippedHeadPackage(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, front, current, AtomicPathSkippedPrefixEscapedOneKind(commit_kind)) = AtomicPathEscapedSkippedHeadPacked(evidence)
+
   @reducible
   fn atomic_path_skipped_prefix_rejected_cons_tail(
     {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
