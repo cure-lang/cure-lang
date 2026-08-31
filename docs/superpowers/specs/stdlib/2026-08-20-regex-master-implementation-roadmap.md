@@ -2973,6 +2973,17 @@ accepted rejected-root consumers now have relevant-package forms; redirect the
 remaining construction-site callers to these forms, then remove the obsolete
 trace-only consumers and recovery packages.
 
+Recursive commit alignment now has package-native terminal leaves for both
+local rejection causes. The input-exhausted active leaf and the exact-accepted
+leaf each consume `AtomicSelectedPathTracePackage` at the already-aligned outer
+candidate, refine its relevant active/accepted constructor, and eliminate the
+directly retained child package at its impossible index. Their erased
+`AtomicPathCommitCause` values remain certificates only and are never inspected
+to recover relevant data. The full Regex chain and focused 27-test gate pass.
+Next thread the trace package through the two cursor-location folds so their
+same-cursor branches call these leaves, then migrate the strict left/right
+recursive continuations.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the
