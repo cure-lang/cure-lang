@@ -2934,6 +2934,16 @@ The complete Regex chain and focused 27-test gate pass. Both terminal
 escaped-head leaves are now migrated; the next proof slice is the recursive
 destination-rejection child/tail alignment.
 
+`AtomicSelectedTracePackage` now introduces the corresponding selected-start
+boundary. Its active and accepted constructors are indexed by the exact erased
+`AtomicSelectedTrace` value and retain three relevant recursive packages: the
+selected-whole cursor, canonical selected-origin cursor, and selected path
+suffix. Start membership, canonical equalities, routines, and trace values
+remain erased. The declaration elaborates through the complete Regex chain and
+the focused 27-test gate passes. The next slice constructs these packages at
+the two start-success sites and publishes them through start and top-level
+search results.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
