@@ -2846,6 +2846,17 @@ Regex chain and focused 27-test gate pass. A named construction authority must
 next consume the already-published child cursor and suffix-trace packages,
 followed by the accepted-transition dual.
 
+The accepted-transition dual now completes the four-constructor exact trace
+relation. It correlates the accepted admitted-state head, canonical accepted
+child origin, child cursor evidence, skipped-prefix evidence, and recursively
+indexed suffix trace with the exact `AtomicSelectedTransitionAccepted` value.
+Both recursive constructors therefore retain the same proof boundary, with
+only their child thread state and admitted-state head differing. The full
+Regex chain and focused 27-test gate pass. Construction helpers can now consume
+the child cursor package and suffix trace package uniformly for active and
+accepted transitions, after which `AtomicPathSearchYes` can publish the exact
+trace package.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
