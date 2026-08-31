@@ -3237,6 +3237,20 @@ the exact `PastEscaped`/`PastRejected` tail commit structure into a relevant
 existential, advance the outer commit cursor package, and combine those values
 with this location.
 
+Recursive commit-tail extraction now has that authority.
+`AtomicPathCommitStructureCursorExistentialPackage` ties an exact erased tail
+cause to its relevant recursive structure and the cursor package for the same
+tail. Constructor-directed projections for `PastEscaped` and `PastRejected`
+first select the relevant commit structure, then retain its already-correlated
+tail structure while advancing the relevant outer cursor. An initial compile
+correctly raised E104 because the canonical cursor-advance API still declared
+its `head` and `tail` indices relevant; those values only index erased suffix
+evidence and never select runtime behavior, so both cursor-advance layers now
+declare them erased. The projections do not inspect the erased cause at all.
+The complete Regex chain and focused 27-test gate pass. Next combine the
+extracted commit tail with the selected skipped-prefix tail and its derived
+location to construct the recursive correlated carrier.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the
