@@ -931,6 +931,8 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "fn atomic_path_commit_selected_location_dispatch("
     assert source =~
              "fn atomic_path_commit_after_input_exhausted_selected_location_fold("
+    assert source =~
+             "fn atomic_path_commit_after_exact_accepted_selected_location_fold("
     assert source =~ "AtomicPathCommitAfterFailure :"
     assert source =~ "AtomicPathCommitFromChild :"
     assert source =~ "AtomicPathCommitPastRejected :"

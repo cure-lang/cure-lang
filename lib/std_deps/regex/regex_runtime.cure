@@ -7975,6 +7975,56 @@ mod Std.Regex.Runtime
         AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
         AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
 
+  @reducible
+  fn atomic_path_commit_after_exact_accepted_selected_location_fold(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased child_char: Char},
+    {@erased child_rest: List(Char)}, {@erased after_input: List(Char)},
+    {@erased source: Bounded(n)}, {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased reversed_prefix: List(Char)},
+    whole: List(LookaroundAdmittedState(n)),
+    {@erased accepted_routine: List(EvidenceInstruction)},
+    {@erased accepted_constraints: List(BoundaryConstraint)},
+    {@erased accepted_assertion_routine: List(ExtendedInstruction)},
+    {@erased accepted_assertion_markers: List(EvidenceInstruction)},
+    {@erased accepted_nested_decisions: List(LookaroundNestedDecision)},
+    {remaining: List(LookaroundAdmittedState(n))},
+    {commit_origin: List(LookaroundAdmittedState(n))},
+    {selected_origin: List(LookaroundAdmittedState(n))},
+    {selected_current: List(LookaroundAdmittedState(n))},
+    {commit_depth: Nat},
+    child_prefix_kind: AtomicPathFailurePrefixKind,
+    @erased cause: AtomicPathCommitCause(depth, n, machine, Cons(char, Cons(child_char, child_rest)), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, False(), reversed_prefix, whole, Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining), commit_depth, AtomicPathCommitAfterFailureKind(child_prefix_kind, AtomicPathFailureExactAccepted())),
+    commit_origin_equivalence: Equivalent(List(LookaroundAdmittedState(n)), whole, commit_origin),
+    commit_origin_canonical: AtomicPathSearchOrigin(depth, n, machine, Cons(char, Cons(child_char, child_rest)), after_input, ThreadActive(source), history, capture_context, policy, commit_origin),
+    commit_suffix: LookaroundAdmittedStateCursorSuffix(n, whole, Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining)),
+    selected_origin_canonical: AtomicPathSearchOrigin(depth, n, machine, Cons(char, Cons(child_char, child_rest)), after_input, ThreadActive(source), history, capture_context, policy, selected_origin),
+    selected_suffix: LookaroundAdmittedStateCursorSuffix(n, selected_origin, selected_current),
+    {@erased matched: List(Char)},
+    {@erased remaining_input: List(Char)},
+    {@erased selected_routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedPathTrace(depth, n, machine, Cons(char, Cons(child_char, child_rest)), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, False(), reversed_prefix, selected_current, matched, remaining_input, selected_routine),
+    later_case: (AtomicPathCursorLocation(n, Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining), selected_current)) -> Empty,
+    reverse_case: (AtomicPathCursorLocation(n, Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining), selected_current)) -> Empty
+  ) -> Empty = match atomic_path_commit_selected_cursor_location(
+    whole,
+    commit_origin_equivalence,
+    commit_origin_canonical,
+    commit_suffix,
+    selected_origin_canonical,
+    selected_suffix
+  )
+    AtomicPathCursorLocationSame(equality) -> match equality
+      reflexive() -> atomic_path_commit_after_exact_accepted_excludes_aligned_selected_trace(
+        child_prefix_kind,
+        cause,
+        path
+      )
+    AtomicPathCursorLocationLeftAfter(marker) -> reverse_case(AtomicPathCursorLocationLeftAfter(marker))
+    AtomicPathCursorLocationRightAfter(marker) -> later_case(AtomicPathCursorLocationRightAfter(marker))
+
   ## Root-relative destination exhaustion is the third terminal local-failure
   ## leaf. This boundary deliberately requires the selected path to begin at
   ## the same active commit candidate. The outer escaped-prefix dispatcher must
