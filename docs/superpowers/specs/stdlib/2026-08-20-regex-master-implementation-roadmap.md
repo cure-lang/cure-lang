@@ -3047,6 +3047,17 @@ terminal correlated folds are complete. The remaining work at this layer is
 the genuinely recursive `LeftAfter`/`RightAfter` sibling handling and the
 root-destinations-exhausted correlated fold.
 
+The missing child-cursor boundary for correlated `AfterFailure` commits is now
+explicit as `AtomicPathCommitAfterFailureChildPackage`. It pairs the exact
+erased commit cause with the relevant child
+`LookaroundAdmittedStateCursorSuffixPackage` already present at evaluator
+construction. This is the payload required by root destination exhaustion and
+recursive destination rejection; consumers no longer need to project a child
+cursor branch from the erased cause. The complete Regex chain and focused
+27-test gate pass. Next publish this carrier through the `AfterFailure` branch
+of the recursive commit-structure package and consume it in the correlated
+root-destinations-exhausted fold.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the

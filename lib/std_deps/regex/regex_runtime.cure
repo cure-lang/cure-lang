@@ -7727,6 +7727,21 @@ mod Std.Regex.Runtime
   type AtomicPathCommitCausePackage indices (cause: Type)
     AtomicPathCommitCausePacked : (@erased value: cause) -> AtomicPathCommitCausePackage(cause)
 
+  ## Relevant `AfterFailure` child-cursor carrier. Its type arguments are
+  ## instantiated with the exact commit cause and the exact child cursor
+  ## package at the evaluator construction site, keeping them correlated while
+  ## allowing the recursive commit structure to hide their existential indices.
+  type AtomicPathCommitAfterFailureChildPackage indices (cause: Type, child_cursor_package: Type)
+    AtomicPathCommitAfterFailureChildPacked : (@erased cause_value: cause) -> (child_cursor: child_cursor_package) -> AtomicPathCommitAfterFailureChildPackage(cause, child_cursor_package)
+
+  @reducible
+  fn atomic_path_commit_after_failure_child_package(
+    {cause: Type}, {child_cursor_package: Type},
+    @erased cause_value: cause,
+    child_cursor: child_cursor_package
+  ) -> AtomicPathCommitAfterFailureChildPackage(cause, child_cursor_package) =
+    AtomicPathCommitAfterFailureChildPacked(cause_value, child_cursor)
+
   @reducible
   fn atomic_path_commit_cause_dispatch(
     {context_type: Type},
