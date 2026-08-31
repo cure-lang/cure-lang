@@ -986,6 +986,8 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "fn atomic_path_commit_structure_past_escaped_tail_package("
     assert source =~ "fn atomic_path_commit_structure_past_rejected_tail_package("
     assert source =~ "fn atomic_path_commit_selected_tail_location_package("
+    assert source =~ "fn atomic_path_commit_past_escaped_selected_tail_location_package("
+    assert source =~ "fn atomic_path_commit_past_rejected_selected_tail_location_package("
     assert source =~ ~r/fn lookaround_admitted_cursor_suffix_evidence_advance\(.*?@erased head: LookaroundAdmittedState\(n\),.*?@erased tail: List\(LookaroundAdmittedState\(n\)\)/s
     assert source =~ ~r/fn lookaround_admitted_cursor_suffix_package_advance\(.*?@erased head: LookaroundAdmittedState\(n\),.*?@erased tail: List\(LookaroundAdmittedState\(n\)\)/s
     assert source =~ "type AtomicPathSkippedPrefixStructurePackage("

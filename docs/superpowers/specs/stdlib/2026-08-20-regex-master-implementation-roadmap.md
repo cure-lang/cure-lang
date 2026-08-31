@@ -3262,6 +3262,19 @@ commit structure, or selected tail. The complete Regex chain and focused
 PastRejected/RejectedCons adapters that extract both tails and invoke this
 constructor before the recursive RightAfter fold.
 
+Those paired adapters are now implemented.
+`atomic_path_commit_past_escaped_selected_tail_location_package` requires the
+same child commit-kind index on `PastEscaped` and `EscapedCons`, while
+`atomic_path_commit_past_rejected_selected_tail_location_package` requires the
+same child prefix/failure-kind indices on `PastRejected` and `RejectedCons`.
+Each relevant selected constructor exposes its tail structure, the matching
+commit projection supplies the exact tail commit/cursor authority, and the
+generic constructor derives the recursive location. There is no generic
+erased-kind dispatch and no uncorrelated tail pairing. The complete Regex
+chain and focused 27-test gate pass. Next consume these adapters from the
+outer RightAfter branch and recursively dispatch on the returned tail
+location.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the
