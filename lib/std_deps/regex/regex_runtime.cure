@@ -7279,6 +7279,7 @@ mod Std.Regex.Runtime
 
   @reducible
   fn atomic_path_commit_cause_dispatch(
+    {context_type: Type},
     {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
     {@erased input: List(Char)}, {@erased after_input: List(Char)},
     {@erased state: ThreadState(n)}, {@erased history: List(Char)},
@@ -7290,15 +7291,16 @@ mod Std.Regex.Runtime
     {@erased commit_depth: Nat},
     kind: AtomicPathCommitCauseKind,
     @erased cause: AtomicPathCommitCauseAt(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, commit_depth, kind),
-    after_failure_case: (AtomicPathCommitCausePackage(AtomicPathCommitCauseAt(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, commit_depth, kind))) -> Empty,
-    from_child_case: (AtomicPathCommitCausePackage(AtomicPathCommitCauseAt(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, commit_depth, kind))) -> Empty,
-    past_escaped_case: (AtomicPathCommitCausePackage(AtomicPathCommitCauseAt(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, commit_depth, kind))) -> Empty,
-    past_rejected_case: (AtomicPathCommitCausePackage(AtomicPathCommitCauseAt(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, commit_depth, kind))) -> Empty
+    context: context_type,
+    after_failure_case: (AtomicPathCommitCausePackage(AtomicPathCommitCauseAt(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, commit_depth, kind)), context_type) -> Empty,
+    from_child_case: (AtomicPathCommitCausePackage(AtomicPathCommitCauseAt(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, commit_depth, kind)), context_type) -> Empty,
+    past_escaped_case: (AtomicPathCommitCausePackage(AtomicPathCommitCauseAt(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, commit_depth, kind)), context_type) -> Empty,
+    past_rejected_case: (AtomicPathCommitCausePackage(AtomicPathCommitCauseAt(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, commit_depth, kind)), context_type) -> Empty
   ) -> Empty = match kind
-    AtomicPathCommitAfterFailureKind(_, _) -> after_failure_case(AtomicPathCommitCausePacked(cause))
-    AtomicPathCommitFromChildKind(_) -> from_child_case(AtomicPathCommitCausePacked(cause))
-    AtomicPathCommitPastEscapedKind(_, _) -> past_escaped_case(AtomicPathCommitCausePacked(cause))
-    AtomicPathCommitPastRejectedKind(_, _, _) -> past_rejected_case(AtomicPathCommitCausePacked(cause))
+    AtomicPathCommitAfterFailureKind(_, _) -> after_failure_case(AtomicPathCommitCausePacked(cause), context)
+    AtomicPathCommitFromChildKind(_) -> from_child_case(AtomicPathCommitCausePacked(cause), context)
+    AtomicPathCommitPastEscapedKind(_, _) -> past_escaped_case(AtomicPathCommitCausePacked(cause), context)
+    AtomicPathCommitPastRejectedKind(_, _, _) -> past_rejected_case(AtomicPathCommitCausePacked(cause), context)
 
   @reducible
   fn atomic_path_commit_empty_input_impossible(
@@ -7533,6 +7535,54 @@ mod Std.Regex.Runtime
       selected_suffix
     )
   )
+
+  ## Compose canonical cursor comparison with constructor-directed commit
+  ## elimination while the candidate spines are still relevant.  Each branch
+  ## receives the same computed location and a one-constructor package whose
+  ## cause payload remains erased.
+  @reducible
+  fn atomic_path_commit_selected_location_dispatch(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased input: List(Char)}, {@erased after_input: List(Char)},
+    {@erased state: ThreadState(n)}, {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    whole: List(LookaroundAdmittedState(n)),
+    {current: List(LookaroundAdmittedState(n))},
+    {commit_origin: List(LookaroundAdmittedState(n))},
+    {selected_origin: List(LookaroundAdmittedState(n))},
+    {selected_current: List(LookaroundAdmittedState(n))},
+    {commit_depth: Nat},
+    kind: AtomicPathCommitCauseKind,
+    @erased cause: AtomicPathCommitCauseAt(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, commit_depth, kind),
+    commit_origin_equivalence: Equivalent(List(LookaroundAdmittedState(n)), whole, commit_origin),
+    commit_origin_canonical: AtomicPathSearchOrigin(depth, n, machine, input, after_input, state, history, capture_context, policy, commit_origin),
+    commit_suffix: LookaroundAdmittedStateCursorSuffix(n, whole, current),
+    selected_origin_canonical: AtomicPathSearchOrigin(depth, n, machine, input, after_input, state, history, capture_context, policy, selected_origin),
+    selected_suffix: LookaroundAdmittedStateCursorSuffix(n, selected_origin, selected_current),
+    after_failure_case: (AtomicPathCommitCausePackage(AtomicPathCommitCauseAt(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, commit_depth, kind)), AtomicPathCursorLocation(n, current, selected_current)) -> Empty,
+    from_child_case: (AtomicPathCommitCausePackage(AtomicPathCommitCauseAt(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, commit_depth, kind)), AtomicPathCursorLocation(n, current, selected_current)) -> Empty,
+    past_escaped_case: (AtomicPathCommitCausePackage(AtomicPathCommitCauseAt(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, commit_depth, kind)), AtomicPathCursorLocation(n, current, selected_current)) -> Empty,
+    past_rejected_case: (AtomicPathCommitCausePackage(AtomicPathCommitCauseAt(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, commit_depth, kind)), AtomicPathCursorLocation(n, current, selected_current)) -> Empty
+  ) -> Empty =
+    let location: AtomicPathCursorLocation(n, current, selected_current) = atomic_path_commit_selected_cursor_location(
+      whole,
+      commit_origin_equivalence,
+      commit_origin_canonical,
+      commit_suffix,
+      selected_origin_canonical,
+      selected_suffix
+    )
+    atomic_path_commit_cause_dispatch(
+      kind,
+      cause,
+      location,
+      after_failure_case,
+      from_child_case,
+      past_escaped_case,
+      past_rejected_case
+    )
 
   ## A locally blocking close and a sibling-continuation certificate for the
   ## same rejected candidate cannot coexist.  The cause kind fixes the

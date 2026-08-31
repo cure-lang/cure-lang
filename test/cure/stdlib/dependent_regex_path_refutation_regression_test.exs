@@ -928,6 +928,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "type AtomicPathCommitCausePackage indices (cause: Type)"
     assert source =~ "AtomicPathCommitCausePacked : (@erased value: cause)"
     assert source =~ "fn atomic_path_commit_cause_dispatch("
+    assert source =~ "fn atomic_path_commit_selected_location_dispatch("
     assert source =~ "AtomicPathCommitAfterFailure :"
     assert source =~ "AtomicPathCommitFromChild :"
     assert source =~ "AtomicPathCommitPastRejected :"

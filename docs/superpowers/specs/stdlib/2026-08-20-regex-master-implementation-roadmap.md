@@ -2706,6 +2706,19 @@ canonical cursor-location fold there, and then recurse through `FromChild`,
 `PastEscaped`, and `PastRejected`.  The full four-module Regex elaboration
 chain and the focused 27-test refutation gate pass with this boundary.
 
+Canonical cursor classification and recursive cause dispatch are now composed
+by `atomic_path_commit_selected_location_dispatch`.  The combinator receives
+the canonical child `whole` spine as relevant data, computes the exact
+`Same`/left-after/right-after location once, and threads that location as an
+ordinary context through the proof-only cause dispatcher.  Extending the
+dispatcher with a generic context also avoids anonymous dependent lambdas:
+the first attempted composition reached the full module chain but E093
+rejected those lambdas in body checking.  Passing the context explicitly is
+both simpler and accepted.  This is the construction-site API the
+`EscapedOne` proof can now call before the child lists disappear into erased
+evidence; the per-constructor/per-location continuations and recursive cause
+consumers remain to be supplied.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
