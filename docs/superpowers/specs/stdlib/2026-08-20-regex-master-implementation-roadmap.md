@@ -2876,6 +2876,17 @@ next slice publishes these exact trace packages through
 `AtomicPathMembersYes` and `AtomicPathSearchYes` and constructs them at every
 terminal and recursive evaluator success site.
 
+Successful evaluator results now publish the exact trace package end to end.
+Prefix and exact completion construct the two terminal packages;
+active/accepted recursion constructs the parent package from the canonical
+child-origin cursor package and the child's exact trace package. Sibling
+skipping and the member-to-search projection preserve the package unchanged,
+while start selection consumes only the erased trace until its own package is
+introduced. Both `AtomicPathMembersYes` and `AtomicPathSearchYes` index their
+relevant package by the exact erased trace they return. The complete Regex
+chain and focused 27-test gate pass. Recursive commit alignment can now inspect
+the published trace kind before opening its correlated erased constructor.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

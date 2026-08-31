@@ -1026,6 +1026,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "AtomicPathSearchYes :"
     assert source =~ "(@erased skipped_evidence: AtomicPathSkippedPrefixEvidence"
     assert source =~ "AtomicPathMembersYes :"
+    assert length(Regex.scan(~r/trace_package: AtomicSelectedPathTracePackage\(/, source)) >= 2
     assert source =~ "(@erased child_skipped_evidence: AtomicPathSkippedPrefixEvidence"
     assert source =~ "type AtomicPathFailureContinuation("
     assert source =~ "AtomicPathSiblingNoClose :"
