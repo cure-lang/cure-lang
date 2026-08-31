@@ -977,6 +977,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "fn atomic_path_commit_selected_location_package("
     assert source =~ "fn atomic_path_commit_selected_location_package_fold("
     assert source =~ "fn atomic_path_commit_after_input_exhausted_correlated_location_fold("
+    assert source =~ "fn atomic_path_commit_after_exact_accepted_correlated_location_fold("
     assert source =~ "type LookaroundAdmittedStateCursorSuffixEvidence("
     assert source =~ "type LookaroundAdmittedStateCursorSuffixPackage("
     assert source =~ "LookaroundAdmittedStateCursorSuffixPacked :"

@@ -8838,6 +8838,87 @@ mod Std.Regex.Runtime
       trace_package
     )
 
+  ## Correlated exact-accepted dual. Same consumes the accepted child package
+  ## at its impossible non-empty exact index; strict locations preserve the
+  ## cause, commit cursor package, and selected trace package together.
+  @reducible
+  fn atomic_path_commit_after_exact_accepted_correlated_location_fold(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased child_char: Char},
+    {@erased child_rest: List(Char)}, {@erased after_input: List(Char)},
+    {@erased source: Bounded(n)}, {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased accepted_routine: List(EvidenceInstruction)},
+    {@erased accepted_constraints: List(BoundaryConstraint)},
+    {@erased accepted_assertion_routine: List(ExtendedInstruction)},
+    {@erased accepted_assertion_markers: List(EvidenceInstruction)},
+    {@erased accepted_nested_decisions: List(LookaroundNestedDecision)},
+    {@erased remaining: List(LookaroundAdmittedState(n))},
+    {@erased commit_depth: Nat},
+    child_prefix_kind: AtomicPathFailurePrefixKind,
+    {@erased selected_current: List(LookaroundAdmittedState(n))},
+    {@erased matched: List(Char)},
+    {@erased remaining_input: List(Char)},
+    {@erased selected_routine: List(ExtendedInstruction)},
+    {@erased path: AtomicSelectedPathTrace(
+      depth, n, machine, Cons(char, Cons(child_char, child_rest)), after_input,
+      ThreadActive(source), history, capture_context, policy, scope_depth,
+      False(), reversed_prefix, selected_current, matched, remaining_input,
+      selected_routine
+    )},
+    package: AtomicPathCommitSelectedLocationPackage(
+      n,
+      AtomicPathCommitCause(
+        depth, n, machine, Cons(char, Cons(child_char, child_rest)), after_input,
+        ThreadActive(source), history, capture_context, policy, scope_depth,
+        False(), reversed_prefix, whole,
+        Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining),
+        commit_depth,
+        AtomicPathCommitAfterFailureKind(child_prefix_kind, AtomicPathFailureExactAccepted())
+      ),
+      LookaroundAdmittedStateCursorSuffixPackage(
+        n,
+        whole,
+        Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining)
+      ),
+      AtomicSelectedPathTracePackage(
+        depth, n, machine, Cons(char, Cons(child_char, child_rest)), after_input,
+        ThreadActive(source), history, capture_context, policy, scope_depth,
+        False(), reversed_prefix, selected_current, matched, remaining_input,
+        selected_routine, path
+      ),
+      Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining),
+      selected_current
+    ),
+    left_case: (AtomicPathCommitSelectedLocationPackage(
+      n,
+      AtomicPathCommitCause(depth, n, machine, Cons(char, Cons(child_char, child_rest)), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, False(), reversed_prefix, whole, Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining), commit_depth, AtomicPathCommitAfterFailureKind(child_prefix_kind, AtomicPathFailureExactAccepted())),
+      LookaroundAdmittedStateCursorSuffixPackage(n, whole, Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining)),
+      AtomicSelectedPathTracePackage(depth, n, machine, Cons(char, Cons(child_char, child_rest)), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, False(), reversed_prefix, selected_current, matched, remaining_input, selected_routine, path),
+      Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining),
+      selected_current
+    )) -> Empty,
+    right_case: (AtomicPathCommitSelectedLocationPackage(
+      n,
+      AtomicPathCommitCause(depth, n, machine, Cons(char, Cons(child_char, child_rest)), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, False(), reversed_prefix, whole, Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining), commit_depth, AtomicPathCommitAfterFailureKind(child_prefix_kind, AtomicPathFailureExactAccepted())),
+      LookaroundAdmittedStateCursorSuffixPackage(n, whole, Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining)),
+      AtomicSelectedPathTracePackage(depth, n, machine, Cons(char, Cons(child_char, child_rest)), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, False(), reversed_prefix, selected_current, matched, remaining_input, selected_routine, path),
+      Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining),
+      selected_current
+    )) -> Empty
+  ) -> Empty = match package
+    AtomicPathCommitSelectedSamePacked(cause, _, trace_package, equality) -> match equality
+      reflexive() -> atomic_path_commit_after_exact_accepted_excludes_aligned_selected_package(
+        child_prefix_kind,
+        cause,
+        trace_package
+      )
+    AtomicPathCommitSelectedLeftAfterPacked(_, _, _, _) -> left_case(package)
+    AtomicPathCommitSelectedRightAfterPacked(_, _, _, _) -> right_case(package)
+
   ## Root-relative destination exhaustion is the third terminal local-failure
   ## leaf. This boundary deliberately requires the selected path to begin at
   ## the same active commit candidate. The outer escaped-prefix dispatcher must

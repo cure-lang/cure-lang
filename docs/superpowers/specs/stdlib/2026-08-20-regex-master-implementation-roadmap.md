@@ -3038,6 +3038,15 @@ and focused 27-test gate pass. Apply the identical construction to the
 exact-accepted terminal case, then replace both strict callbacks with recursive
 commit/sibling consumers.
 
+The exact-accepted `AfterFailure` dual now consumes the same correlated
+location carrier. Its `Same` constructor rewrites the selected cursor and
+eliminates the retained accepted child package at the non-empty exact index;
+strict constructors forward the intact cause/cursor/trace triple. Runtime,
+Proof, Regex, and Language elaborate and the focused 27-test gate passes. Both
+terminal correlated folds are complete. The remaining work at this layer is
+the genuinely recursive `LeftAfter`/`RightAfter` sibling handling and the
+root-destinations-exhausted correlated fold.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the
