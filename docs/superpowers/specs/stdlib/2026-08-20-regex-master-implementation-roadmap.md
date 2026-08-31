@@ -3172,6 +3172,19 @@ erased trace. The complete Regex chain and focused 27-test gate pass. Next add
 this authority to the commit/selection carrier and consume paired commit/skip
 constructors in the strict `LeftAfter` and `RightAfter` induction.
 
+`AtomicPathCommitSelectedLocationPackage` now retains that authority directly.
+All three location constructors carry the selected skipped-prefix package
+alongside the exact commit structure, commit cursor, and selected trace; the
+constructor helper accepts all four values before performing the canonical
+cursor comparison. The input-exhausted, exact-accepted, and root-exhaustion
+terminal folds are polymorphic over the new package because their `Same`
+branches do not inspect it, while strict callbacks receive it intact. This
+keeps terminal proofs small and makes the upcoming sibling induction the only
+consumer responsible for pairing commit and skip constructors. The complete
+Regex chain and focused 27-test gate pass. Next implement that paired strict
+induction, starting with the locally blocking `AfterFailure` versus rejected-
+head continuation contradiction.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the

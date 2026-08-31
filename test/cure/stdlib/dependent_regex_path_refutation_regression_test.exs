@@ -976,6 +976,9 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ ~r/AtomicPathSearchCommit :.*?structure: AtomicPathCommitStructurePackage/s
     assert source =~ ~r/AtomicPathMembersCommit :.*?structure: AtomicPathCommitStructurePackage/s
     assert source =~ "type AtomicPathCommitSelectedLocationPackage("
+    assert source =~ ~r/AtomicPathCommitSelectedSamePacked :.*selected_skipped: selected_skipped_package/s
+    assert source =~ ~r/AtomicPathCommitSelectedLeftAfterPacked :.*selected_skipped: selected_skipped_package/s
+    assert source =~ ~r/AtomicPathCommitSelectedRightAfterPacked :.*selected_skipped: selected_skipped_package/s
     assert source =~ "type AtomicPathCommitStructureExistentialPackage("
     assert source =~ ~r/AtomicPathCommitStructureExistentialPacked :.*structure: AtomicPathCommitStructurePackage/s
     assert source =~ "type AtomicPathSkippedPrefixStructurePackage("
