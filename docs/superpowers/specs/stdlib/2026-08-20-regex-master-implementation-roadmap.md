@@ -3098,6 +3098,14 @@ recovered child cursor. The complete Regex chain and focused 27-test gate pass.
 Implement `PastEscaped` and `PastRejected` with the same exact tail-cause
 discipline next.
 
+`AtomicPathCommitStructurePastEscapedPacked` now retains both exact recursive
+substructures: the child commitment that escaped the current scope and the
+later sibling-tail commitment that determines the outer commit depth. Its
+result is indexed by the exact `AtomicPathCommitPastEscaped(...)` cause, so
+neither recursive branch can be paired with another cursor or cause. The full
+Regex chain and focused 27-test gate pass. `PastRejected` is the remaining
+structure constructor before evaluator publication.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the
