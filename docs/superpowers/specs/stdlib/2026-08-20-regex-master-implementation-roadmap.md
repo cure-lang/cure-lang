@@ -3275,6 +3275,17 @@ chain and focused 27-test gate pass. Next consume these adapters from the
 outer RightAfter branch and recursively dispatch on the returned tail
 location.
 
+The recursive tail dispatch boundary now preserves its construction
+provenance. `AtomicPathRecursiveCommitSelectedPackage` names the exact
+commit/cursor/trace/skipped-tail carrier, while
+`atomic_path_commit_selected_tail_location_fold` matches the relevant skipped
+structure directly: `Empty` constructs `Same`; escaped-one, escaped-cons, and
+rejected-cons construct `RightAfter`. It exposes only those two callbacks, so
+an artificial `LeftAfter` obligation cannot re-enter after a forward tail
+step. The complete Regex chain and focused 27-test gate pass. Next route the
+PastEscaped/EscapedCons and PastRejected/RejectedCons outer branches through
+this two-way fold, then make its `RightAfter` callback the recursive call.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the
