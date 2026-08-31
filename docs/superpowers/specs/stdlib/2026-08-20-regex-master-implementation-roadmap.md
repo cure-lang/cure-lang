@@ -2778,6 +2778,15 @@ exactly once whenever destination traversal drops a head. Recursive commit and
 negative witnesses can then retain the published package instead of attempting
 to recover a relevant branch from an erased suffix.
 
+`lookaround_admitted_cursor_suffix_package_advance` now supplies that exact
+one-head traversal operation. Its worker recurses on the relevant suffix kind
+and accepts the correlated evidence through an erased parameter; an earlier
+form that repackaged the evidence as a relevant recursive argument was rejected
+by E104 and removed. The accepted worker creates the first `Drop` from `Here`
+or advances the nested prior suffix under an existing `Drop`, preserving the
+original outer spine. The full Regex chain and focused refutation gate remain
+green.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
