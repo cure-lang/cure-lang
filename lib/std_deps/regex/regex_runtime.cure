@@ -11750,6 +11750,71 @@ mod Std.Regex.Runtime
     tail_case
   )
 
+  ## Package-native rejected-root adapter. Unlike the legacy public bridge it
+  ## does not accept an erased witness merely to recover the selected trace;
+  ## the exact trace and its recursive package arrive already correlated.
+  @reducible
+  fn atomic_start_refutation_excludes_selected_package(
+    {depth: Nat}, {n: Nat}, machine: PatternMachine(n),
+    position: InitialPosition, input: List(Char), after_input: List(Char),
+    history: List(Char), capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy, prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {@erased candidate: LookaroundAdmittedState(n)},
+    {@erased remaining: List(LookaroundAdmittedState(n))},
+    {@erased selected_start: LookaroundAdmittedState(n)},
+    {matched: List(Char)}, {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    @erased root_failure: AtomicStartMembersRefutation(
+      depth, n, machine, position, input, after_input, history,
+      capture_context, policy, prefix_mode, reversed_prefix,
+      Cons(candidate, remaining), Cons(candidate, remaining),
+      AtomicStartFailureRejected()
+    ),
+    @erased root_evidence: AtomicStartNoEvidence(
+      depth, n, machine, position, input, after_input, history,
+      capture_context, policy, prefix_mode, reversed_prefix,
+      Cons(candidate, remaining), Cons(candidate, remaining),
+      AtomicStartFailureRejected()
+    ),
+    selected_member: ListMember(
+      LookaroundAdmittedState(n), selected_start, Cons(candidate, remaining)
+    ),
+    {@erased path: AtomicSelectedTrace(
+      depth, n, machine, position, input, after_input, history,
+      capture_context, policy, prefix_mode, reversed_prefix, selected_start,
+      matched, remaining_input, selected_routine
+    )},
+    trace_package: AtomicSelectedTracePackage(
+      depth, n, machine, position, input, after_input, history,
+      capture_context, policy, prefix_mode, reversed_prefix, selected_start,
+      matched, remaining_input, selected_routine, path
+    ),
+    head_case: Empty,
+    tail_case: (AtomicStartSelectedTailTracePackage(
+      depth, n, machine, position, input, after_input, history,
+      capture_context, policy, prefix_mode, reversed_prefix,
+      Cons(candidate, remaining), remaining, selected_start, matched,
+      remaining_input, selected_routine
+    )) -> Empty
+  ) -> Empty = atomic_start_rejected_member_induction_selected_package(
+    machine,
+    position,
+    input,
+    after_input,
+    history,
+    capture_context,
+    policy,
+    prefix_mode,
+    reversed_prefix,
+    root_failure,
+    root_evidence,
+    selected_member,
+    trace_package,
+    head_case,
+    tail_case
+  )
+
   ## Wire a blocked public root certificate into the selected-trace root
   ## consumer. Commitment and allowance evidence remain erased indices; the
   ## canonical blocked-root bridge owns the `Here`/`There` fold and receives a

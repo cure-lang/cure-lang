@@ -2934,6 +2934,20 @@ The complete Regex chain and focused 27-test gate pass. Both terminal
 escaped-head leaves are now migrated; the next proof slice is the recursive
 destination-rejection child/tail alignment.
 
+The rejected-root bridge now has the same package-native form.
+`atomic_start_refutation_excludes_selected_package` accepts the root rejection
+certificate, relevant selected membership, and the exact relevant
+`AtomicSelectedTracePackage`; the erased selected trace appears only as the
+package index. It delegates to the package-preserving membership induction, so
+the tail callback receives `AtomicStartSelectedTailTracePackage` without
+recovering anything from erased evidence. This shape correctly does not trigger
+E104: matching or reconstructing relevant data from the erased trace would be
+illegal, but eliminating the separately relevant constructor-correlated package
+is permitted. The complete focused 27-test Regex refutation gate passes. Next,
+migrate the concrete active and accepted rejected-root wrappers to this bridge,
+then remove the legacy trace-only root adapter and tail transport once their
+callers are gone.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the
