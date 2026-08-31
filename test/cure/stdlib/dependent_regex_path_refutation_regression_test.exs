@@ -872,6 +872,8 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert search =~ "cause: AtomicPathCommitCause("
     assert search =~ "origin_canonical: AtomicPathSearchOrigin("
     assert search =~ "suffix_package: LookaroundAdmittedStateCursorSuffixPackage("
+    assert search =~ "selection_suffix_package: LookaroundAdmittedStateCursorSuffixPackage("
+    assert search =~ "selection_from_origin_package: LookaroundAdmittedStateCursorSuffixPackage("
     assert search =~ "evidence: AtomicPathNoEvidence("
 
     [_prefix, members] = String.split(source, "type AtomicPathMembersResult", parts: 2)
@@ -883,6 +885,8 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert members =~ "cause: AtomicPathCommitCause("
     assert members =~ "origin_canonical: AtomicPathSearchOrigin("
     assert members =~ "suffix_package: LookaroundAdmittedStateCursorSuffixPackage("
+    assert members =~ "selection_suffix_package: LookaroundAdmittedStateCursorSuffixPackage("
+    assert members =~ "selection_from_current_package: LookaroundAdmittedStateCursorSuffixPackage("
     assert members =~ "evidence: AtomicPathNoEvidence("
 
     [_prefix, tail_fold] =

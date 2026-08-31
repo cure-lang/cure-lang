@@ -2800,6 +2800,19 @@ and its evidence remains erased. The full four-module Regex chain and focused
 witnesses by the published suffix kind so the destination-rejection consumer
 can dispatch kind-first after those runtime results are erased.
 
+Successful destination selection now publishes the dual cursor packages too.
+`AtomicPathMembersYes` retains packages for both its selected-whole suffix and
+its current-to-selection suffix; `AtomicPathSearchYes` retains the selected
+suffix and canonical-origin suffix packages. Terminal selections construct
+`Here`, and escaped/rejected sibling traversal prepends exactly one `Drop` to
+both relevant origins. Parent transitions deliberately construct a fresh
+`Here` package for their own selected candidate while preserving the child's
+packages at the runtime result boundary. The full Regex chain and focused
+27-test gate pass. The remaining trace migration must add these package kinds
+to `AtomicSelectedPathTrace` indices, allowing recursive commit alignment to
+consume both failure and selected suffix evidence without reopening an erased
+trace.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
