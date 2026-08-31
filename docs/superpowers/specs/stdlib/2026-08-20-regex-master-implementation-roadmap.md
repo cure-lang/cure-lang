@@ -3312,6 +3312,17 @@ root contradiction. The complete Regex chain and focused 27-test gate pass.
 Next extend `Same` dispatch across recursive commit structures, then implement
 the one-constructor `RightAfter` consumer and its recursive call.
 
+The first one-constructor `RightAfter` leaf is now complete.
+`atomic_path_recursive_commit_after_failure_right_excludes_selected_rejected_package`
+matches the relevant combined commit package, exact `AfterFailure` structure,
+and corresponding rejected skipped-prefix structure before consuming any
+erased fields. The child package supplies the blocking close and the selected
+skip supplies its continuation certificate, which contradict through the
+existing depth lemma. No erased cause is projected or reconstructed. The
+complete Regex chain and focused 27-test gate pass. Next add the propagated
+`PastEscaped` and `PastRejected` right-authority consumers whose recursive
+callbacks invoke the common induction again.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the

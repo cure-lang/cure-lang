@@ -8958,6 +8958,51 @@ mod Std.Regex.Runtime
           trace_package
         )
 
+  ## Local blocking RightAfter leaf. Relevant structure constructors establish
+  ## the exact rejected head before their erased close/continuation witnesses
+  ## are consumed.
+  @reducible
+  fn atomic_path_recursive_commit_after_failure_right_excludes_selected_rejected_package(
+    {selected_trace_package: Type},
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased rest: List(Char)},
+    {@erased after_input: List(Char)}, {@erased source: Bounded(n)},
+    {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased candidate: LookaroundAdmittedState(n)},
+    {@erased remaining: List(LookaroundAdmittedState(n))},
+    {@erased selected_current: List(LookaroundAdmittedState(n))},
+    {@erased commit_depth: Nat},
+    {@erased child_prefix_kind: AtomicPathFailurePrefixKind},
+    {@erased child_kind: AtomicPathFailureKind},
+    {@erased tail_kind: AtomicPathSkippedPrefixKind},
+    package: AtomicPathRecursiveCommitSelectedRightPackage(
+      depth, n, machine, Cons(char, rest), after_input, ThreadActive(source),
+      history, capture_context, policy, scope_depth, prefix_mode,
+      reversed_prefix, whole, Cons(candidate, remaining), selected_current,
+      commit_depth,
+      AtomicPathCommitAfterFailureKind(child_prefix_kind, child_kind),
+      selected_trace_package,
+      AtomicPathSkippedPrefixRejectedConsKind(
+        child_prefix_kind, child_kind, tail_kind
+      )
+    )
+  ) -> Empty = match package
+    AtomicPathCommitSelectedRightAuthorityPacked(commit_package, _, _, skipped_structure, _) -> match commit_package
+      AtomicPathCommitStructureCursorExistentialPacked(_, structure) -> match structure
+        AtomicPathCommitStructureAfterFailurePacked(child_package) -> match skipped_structure
+          AtomicPathSkippedPrefixStructureRejectedConsPacked(evidence, _) -> match child_package
+            AtomicPathCommitAfterFailureChildPacked(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, close_canonical, blocked) -> match evidence
+              AtomicPathSkippedRejectedCons(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, continuation, _, _) ->
+                atomic_path_failure_continuation_excludes_blocked(
+                  continuation,
+                  close_canonical,
+                  blocked
+                )
+
   ## The skipped-prefix kind fixes the evidence constructor, so these erased
   ## eliminators expose only structural facts needed by the recursive mixed
   ## sibling fold. No runtime discriminator or second traversal is added.
