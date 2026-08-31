@@ -7269,6 +7269,37 @@ mod Std.Regex.Runtime
 
     AtomicPathCommitPastRejected : (@erased char: Char) -> (@erased rest: List(Char)) -> (@erased source: Bounded(n)) -> (@erased candidate: LookaroundAdmittedState(n)) -> (@erased remaining: List(LookaroundAdmittedState(n))) -> (@erased child_capture_context: List(EvidenceInstruction)) -> (@erased child_context_alignment: LookaroundAdmittedStateCaptureContext(n, capture_context, candidate, child_capture_context)) -> (@erased child_scope_depth: Nat) -> (@erased child_scope_alignment: LookaroundAdmittedStateScope(n, scope_depth, candidate, child_scope_depth)) -> (@erased child_whole: List(LookaroundAdmittedState(n))) -> (@erased child_current: List(LookaroundAdmittedState(n))) -> (@erased child_prefix_kind: AtomicPathFailurePrefixKind) -> (@erased child_prefix: AtomicPathFailurePrefixEvidence(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), child_capture_context, policy, child_scope_depth, prefix_mode, Cons(char, reversed_prefix), child_whole, child_current, child_prefix_kind)) -> {@erased child_origin: List(LookaroundAdmittedState(n))} -> (@erased child_origin_equivalence: Equivalent(List(LookaroundAdmittedState(n)), child_whole, child_origin)) -> (@erased child_origin_canonical: AtomicPathSearchOrigin(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), lookaround_admitted_state_capture_context(capture_context, candidate), policy, child_origin)) -> (@erased child_suffix: LookaroundAdmittedStateCursorSuffix(n, child_whole, child_current)) -> (@erased child_kind: AtomicPathFailureKind) -> (@erased child_failure: AtomicPathRefutation(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), lookaround_admitted_state_capture_context(capture_context, candidate), policy, child_scope_depth, prefix_mode, Cons(char, reversed_prefix), child_whole, child_current, child_kind)) -> (@erased child_evidence: AtomicPathNoEvidence(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), child_capture_context, policy, child_scope_depth, prefix_mode, Cons(char, reversed_prefix), child_whole, child_current, child_kind)) -> (@erased continuation: AtomicPathFailureContinuation(scope_depth, lookaround_admitted_state_closed_depth(n, scope_depth, candidate))) -> (@erased commit_depth: Nat) -> {@erased tail_origin: List(LookaroundAdmittedState(n))} -> (@erased tail_origin_equivalence: Equivalent(List(LookaroundAdmittedState(n)), whole, tail_origin)) -> (@erased tail_origin_canonical: AtomicPathSearchOrigin(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, tail_origin)) -> (@erased tail_suffix: LookaroundAdmittedStateCursorSuffix(n, whole, remaining)) -> (@erased tail_commit_kind: AtomicPathCommitCauseKind) -> (@erased tail_cause: AtomicPathCommitCause(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, remaining, commit_depth, tail_commit_kind)) -> AtomicPathCommitCause(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, remaining), commit_depth, AtomicPathCommitPastRejectedKind(child_prefix_kind, child_kind, tail_commit_kind))
 
+  typealias AtomicPathCommitCauseAt(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)), commit_depth: Nat, kind: AtomicPathCommitCauseKind) = AtomicPathCommitCause(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, commit_depth, kind)
+
+  ## One-constructor carrier used by the constructor-directed commit fold.
+  ## Its payload is erased; the relevant recursive kind selects the branch,
+  ## while a consumer can open the resulting fixed package collapsibly.
+  type AtomicPathCommitCausePackage indices (cause: Type)
+    AtomicPathCommitCausePacked : (@erased value: cause) -> AtomicPathCommitCausePackage(cause)
+
+  @reducible
+  fn atomic_path_commit_cause_dispatch(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased input: List(Char)}, {@erased after_input: List(Char)},
+    {@erased state: ThreadState(n)}, {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased current: List(LookaroundAdmittedState(n))},
+    {@erased commit_depth: Nat},
+    kind: AtomicPathCommitCauseKind,
+    @erased cause: AtomicPathCommitCauseAt(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, commit_depth, kind),
+    after_failure_case: (AtomicPathCommitCausePackage(AtomicPathCommitCauseAt(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, commit_depth, kind))) -> Empty,
+    from_child_case: (AtomicPathCommitCausePackage(AtomicPathCommitCauseAt(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, commit_depth, kind))) -> Empty,
+    past_escaped_case: (AtomicPathCommitCausePackage(AtomicPathCommitCauseAt(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, commit_depth, kind))) -> Empty,
+    past_rejected_case: (AtomicPathCommitCausePackage(AtomicPathCommitCauseAt(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, commit_depth, kind))) -> Empty
+  ) -> Empty = match kind
+    AtomicPathCommitAfterFailureKind(_, _) -> after_failure_case(AtomicPathCommitCausePacked(cause))
+    AtomicPathCommitFromChildKind(_) -> from_child_case(AtomicPathCommitCausePacked(cause))
+    AtomicPathCommitPastEscapedKind(_, _) -> past_escaped_case(AtomicPathCommitCausePacked(cause))
+    AtomicPathCommitPastRejectedKind(_, _, _) -> past_rejected_case(AtomicPathCommitCausePacked(cause))
+
   @reducible
   fn atomic_path_commit_empty_input_impossible(
     {depth: Nat},

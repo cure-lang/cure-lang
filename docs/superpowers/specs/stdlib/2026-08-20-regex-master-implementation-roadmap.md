@@ -2691,6 +2691,21 @@ the recursive cause kind, candidate shape, input shape, and cursor equality are
 simultaneously fixed; this is a stronger and more precise boundary than a
 failure-kind-only helper.
 
+The recursive commit tree now has a constructor-directed CPS boundary as
+`atomic_path_commit_cause_dispatch`.  It branches only on the relevant
+`AtomicPathCommitCauseKind` and hands the corresponding cause to each
+continuation inside a one-constructor `AtomicPathCommitCausePackage`; the
+cause payload remains erased and can therefore be opened collapsibly once an
+outer `EscapedOne` construction has fixed the kind.  This records the sound
+alternative to inspecting erased cursor lists: Cure has no separate
+proof-function annotation, and allowing arbitrary `Empty`-returning functions
+to inspect erased data would be unsound because `Empty` can eliminate into a
+runtime result.  The remaining composition must invoke this dispatcher where
+the evaluator still has the relevant child `whole`/`current` spines, use the
+canonical cursor-location fold there, and then recurse through `FromChild`,
+`PastEscaped`, and `PastRejected`.  The full four-module Regex elaboration
+chain and the focused 27-test refutation gate pass with this boundary.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
