@@ -3029,6 +3029,15 @@ focused 27-test gate pass. The next slice specializes the same continuation to
 the two terminal package leaves and replaces the left/right continuations with
 recursive sibling consumers.
 
+The input-exhausted `AfterFailure` case now consumes the correlated location
+carrier directly. `Same` uses its erased equality only to rewrite the selected
+cursor index, then invokes the package-native exhausted-child contradiction
+with the cause and trace package retained by that same constructor. `LeftAfter`
+and `RightAfter` forward the original carrier intact. The complete Regex chain
+and focused 27-test gate pass. Apply the identical construction to the
+exact-accepted terminal case, then replace both strict callbacks with recursive
+commit/sibling consumers.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the
