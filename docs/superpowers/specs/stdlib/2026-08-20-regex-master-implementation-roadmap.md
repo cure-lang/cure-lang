@@ -2746,6 +2746,18 @@ are preserved for recursive sibling handling. All three terminal
 selected cursors. Remaining `AfterFailure` work is recursive destination
 rejection rather than another terminal alignment case.
 
+Recursive destination rejection exposed a deeper erased-cursor boundary. An
+attempt to derive child-whole non-emptiness by feeding the erased multi-clause
+suffix to the ordinary suffix traversal correctly failed with E104: that
+traversal chooses control flow, and an `Empty` result is not intrinsically
+proof-only because it can eliminate into runtime data. The invalid projection
+was removed. The replacement begins with
+`LookaroundAdmittedStateCursorSuffixKind` and its constructor-correlated erased
+`LookaroundAdmittedStateCursorSuffixEvidence`. `Here` and `Drop` construction
+authorities are green. This structural index must now be published with child
+failure cursors and consumed kind-first, mirroring the sound recursive
+commit-cause design rather than weakening relevance checking.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
