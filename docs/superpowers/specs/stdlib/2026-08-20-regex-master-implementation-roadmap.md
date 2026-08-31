@@ -2719,6 +2719,17 @@ both simpler and accepted.  This is the construction-site API the
 evidence; the per-constructor/per-location continuations and recursive cause
 consumers remain to be supplied.
 
+The first full construction-site terminal fold is now present for
+`AfterFailure(InputExhausted)`. It compares the committing and selected
+cursors from their canonical origins while the shared `whole` spine remains
+relevant. `Same` transports the selected trace to the exact commit cursor and
+immediately invokes the existing exhausted-input contradiction; strictly
+later and strictly earlier locations are retained as typed continuations for
+sibling recursion. This crosses the former erased-cursor boundary without
+recovering a list from proof evidence or adding a runtime witness. The
+accepted and root-destination terminal folds remain, followed by the recursive
+cause constructors.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
