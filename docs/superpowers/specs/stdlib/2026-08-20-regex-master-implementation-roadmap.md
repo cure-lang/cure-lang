@@ -2552,6 +2552,17 @@ packages, the recursive cursor fold now has canonical head and tail structure
 for every non-empty skipped-prefix kind. Candidate-level commit/refutation
 contradictions still have to consume those heads against the selected trace.
 
+Rejected skipped-prefix kinds now retain the rejected child's failure-prefix
+kind and path-failure kind in addition to the recursive tail kind. These were
+already present as erased constructor fields, but omitting them from
+`AtomicPathSkippedPrefixRejectedConsKind` prevented a recursive consumer from
+selecting either child proof constructor without an E104-invalid inspection of
+an erased sum. Evaluator success/failure construction, nonempty and tail
+projections, the blocking-continuation contradiction, and correlated
+commit/skipped-tail transport all thread the three-part index. The rejected
+head theorem can now dispatch the exact child refutation and its own prefix
+recursion entirely from erased indices.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

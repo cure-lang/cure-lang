@@ -911,7 +911,8 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "AtomicPathSkippedPrefixEmptyKind"
     assert source =~ "AtomicPathSkippedPrefixEscapedOneKind"
     assert source =~ "AtomicPathSkippedPrefixEscapedConsKind"
-    assert source =~ "AtomicPathSkippedPrefixRejectedConsKind"
+    assert source =~
+             "AtomicPathSkippedPrefixRejectedConsKind(AtomicPathFailurePrefixKind, AtomicPathFailureKind, AtomicPathSkippedPrefixKind)"
     assert source =~ "(@erased skipped_kind: AtomicPathSkippedPrefixKind)"
     assert source =~ "(@erased child_skipped_kind: AtomicPathSkippedPrefixKind)"
     assert source =~ "fn atomic_path_skipped_prefix_empty_equivalent("
