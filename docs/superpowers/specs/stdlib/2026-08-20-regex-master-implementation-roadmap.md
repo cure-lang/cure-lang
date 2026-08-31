@@ -2955,6 +2955,16 @@ Regex chain, downstream proof module, and focused 27-test gate pass. Recursive
 proof entry points can now accept this top-level package and refine down to the
 selected path package without inspecting an erased witness.
 
+Package-native active and accepted start-rejection eliminators now establish
+the terminal consumer API for that top-level package. The active case refines
+an active selected start with empty child input; the accepted case refines an
+accepted selected start in exact mode with remaining child input. Each closes
+by eliminating the directly retained path suffix package, without matching the
+erased start trace or using a child refutation to recover its suffix. The full
+Regex chain and focused 27-test gate pass. The remaining migration is to thread
+the existential package through the existing start-refutation recursion and
+replace its legacy trace-only terminal calls with these package-native leaves.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

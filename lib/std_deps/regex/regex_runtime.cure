@@ -12677,6 +12677,41 @@ mod Std.Regex.Runtime
         suffix
       )
 
+  ## Package-native form of the active start contradiction. The selected
+  ## start constructor exposes its exact child path package directly; at empty
+  ## child input no constructor can inhabit that active-thread package.
+  fn atomic_start_candidate_rejection_excludes_package(
+    {result: Type}, {depth: Nat}, {n: Nat},
+    machine: PatternMachine(n), position: InitialPosition,
+    after_input: List(Char), history: List(Char),
+    capture_context: List(EvidenceInstruction), policy: NewlinePolicy,
+    prefix_mode: Bool, reversed_prefix: List(Char), state: Bounded(n),
+    routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint),
+    assertion_routine: List(ExtendedInstruction),
+    assertion_markers: List(EvidenceInstruction),
+    nested_decisions: List(LookaroundNestedDecision),
+    {matched: List(Char)}, {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    {@erased path: AtomicSelectedTrace(
+      depth, n, machine, position, Nil(), after_input, history,
+      capture_context, policy, prefix_mode, reversed_prefix,
+      LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions),
+      matched, remaining_input, selected_routine
+    )},
+    package: AtomicSelectedTracePackage(
+      depth, n, machine, position, Nil(), after_input, history,
+      capture_context, policy, prefix_mode, reversed_prefix,
+      LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions),
+      matched, remaining_input, selected_routine, path
+    )
+  ) -> result = match package
+    AtomicSelectedStartAcceptedPacked(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+    AtomicSelectedStartActivePacked(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, suffix_package) -> match suffix_package
+      AtomicSelectedPathTracePrefixDonePacked() -> impossible
+      AtomicSelectedPathTraceExactDonePacked() -> impossible
+      AtomicSelectedPathTraceActivePacked(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+      AtomicSelectedPathTraceAcceptedPacked(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+
   ## An accepted start candidate cannot be selected when its child search
   ## rejects an exact match that leaves input behind.  The child failure's
   ## cursor suffix is consumed by the existing exact-child eliminator; this
@@ -12756,6 +12791,41 @@ mod Std.Regex.Runtime
         child_suffix,
         suffix
       )
+
+  ## Package-native accepted-start dual. Exact mode with remaining child input
+  ## admits no accepted-thread suffix package constructor.
+  fn atomic_start_accepted_candidate_rejection_excludes_package(
+    {result: Type}, {depth: Nat}, {n: Nat},
+    machine: PatternMachine(n), position: InitialPosition,
+    child_char: Char, child_rest: List(Char), after_input: List(Char),
+    history: List(Char), capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy, reversed_prefix: List(Char),
+    accepted_routine: List(EvidenceInstruction),
+    accepted_constraints: List(BoundaryConstraint),
+    accepted_assertion_routine: List(ExtendedInstruction),
+    accepted_assertion_markers: List(EvidenceInstruction),
+    accepted_nested_decisions: List(LookaroundNestedDecision),
+    {matched: List(Char)}, {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    {@erased path: AtomicSelectedTrace(
+      depth, n, machine, position, Cons(child_char, child_rest), after_input,
+      history, capture_context, policy, False(), reversed_prefix,
+      LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions),
+      matched, remaining_input, selected_routine
+    )},
+    package: AtomicSelectedTracePackage(
+      depth, n, machine, position, Cons(child_char, child_rest), after_input,
+      history, capture_context, policy, False(), reversed_prefix,
+      LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions),
+      matched, remaining_input, selected_routine, path
+    )
+  ) -> result = match package
+    AtomicSelectedStartActivePacked(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+    AtomicSelectedStartAcceptedPacked(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, suffix_package) -> match suffix_package
+      AtomicSelectedPathTracePrefixDonePacked() -> impossible
+      AtomicSelectedPathTraceExactDonePacked() -> impossible
+      AtomicSelectedPathTraceActivePacked(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+      AtomicSelectedPathTraceAcceptedPacked(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
 
   ## A singleton accepted tail publishes its rejection through the typed
   ## no-result witness. Matching that witness establishes the rejected-tail
