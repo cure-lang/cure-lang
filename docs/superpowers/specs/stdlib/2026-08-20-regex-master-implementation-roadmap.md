@@ -3334,6 +3334,16 @@ gate pass. Next define the common structurally recursive dispatcher over
 commit structure and selected skipped-prefix structure, using the completed
 terminal and propagated consumers as its cases.
 
+The terminal escaped-prefix edge is now explicit too.
+`atomic_path_recursive_commit_past_escaped_right_selected_one_tail_package`
+handles `PastEscaped` paired with `EscapedOne`: after the single escaped head,
+the projected tail commit cursor and selected cursor are definitionally the
+same `remaining` list. It therefore returns a one-constructor `Same` authority
+with an exact empty selected-prefix structure, rather than routing through the
+recursive `EscapedCons` fold. The complete Regex chain and focused 27-test
+gate pass. The common dispatcher can now treat escaped-one as the base and
+escaped-cons/rejected-cons as forward recursion.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the

@@ -9135,6 +9135,56 @@ mod Std.Regex.Runtime
           right_case
         )
 
+  ## Terminal escaped prefix: after its one escaped head, both the projected
+  ## commit tail and selected cursor are exactly `remaining`.
+  @reducible
+  fn atomic_path_recursive_commit_past_escaped_right_selected_one_tail_package(
+    {selected_trace_package: Type},
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased rest: List(Char)},
+    {@erased after_input: List(Char)}, {@erased source: Bounded(n)},
+    {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased candidate: LookaroundAdmittedState(n)},
+    {@erased remaining: List(LookaroundAdmittedState(n))},
+    {@erased commit_depth: Nat},
+    {@erased child_commit_kind: AtomicPathCommitCauseKind},
+    {@erased tail_commit_kind: AtomicPathCommitCauseKind},
+    package: AtomicPathRecursiveCommitSelectedRightPackage(
+      depth, n, machine, Cons(char, rest), after_input, ThreadActive(source),
+      history, capture_context, policy, scope_depth, prefix_mode,
+      reversed_prefix, whole, Cons(candidate, remaining), remaining,
+      commit_depth,
+      AtomicPathCommitPastEscapedKind(child_commit_kind, tail_commit_kind),
+      selected_trace_package,
+      AtomicPathSkippedPrefixEscapedOneKind(child_commit_kind)
+    )
+  ) -> AtomicPathRecursiveCommitSelectedSamePackage(
+    depth, n, machine, Cons(char, rest), after_input, ThreadActive(source),
+    history, capture_context, policy, scope_depth, prefix_mode,
+    reversed_prefix, whole, remaining, remaining, commit_depth,
+    tail_commit_kind, selected_trace_package,
+    AtomicPathSkippedPrefixEmptyKind()
+  ) = match package
+    AtomicPathCommitSelectedRightAuthorityPacked(commit_package, _, selected_trace, selected_skipped, _) -> match selected_skipped
+      AtomicPathSkippedPrefixStructureEscapedOnePacked(_) -> match atomic_path_commit_structure_cursor_past_escaped_tail_package(commit_package)
+        AtomicPathCommitStructureCursorExistentialPacked(tail_cursor, tail_structure) ->
+          AtomicPathCommitSelectedSameAuthorityPacked(
+            AtomicPathCommitStructureCursorExistentialPacked(
+              tail_cursor,
+              tail_structure
+            ),
+            tail_cursor,
+            selected_trace,
+            AtomicPathSkippedPrefixStructureEmptyPacked(
+              AtomicPathSkippedPrefixEmpty()
+            ),
+            reflexive(remaining)
+          )
+
   ## Propagated rejected RightAfter branch, indexed by the same child failure
   ## that licensed the selected search to skip the outer candidate.
   @reducible
