@@ -2622,6 +2622,15 @@ same finite suffix contradiction. The remaining continuation is now reachable
 only for `EscapedOne`, `EscapedCons`, or `RejectedCons`, exactly the three
 non-empty mixed-prefix constructors that require candidate-level consumption.
 
+Escaped skipped-prefix kinds now retain the head commit-cause kind.
+`EscapedOne` is indexed by its `AtomicPathCommitCauseKind`, and `EscapedCons`
+retains both that head kind and its recursive tail kind. The evaluator,
+successful-prefix reconstruction, non-empty projections, tail projection, and
+correlated commit/skipped transport all thread the new index. Without this,
+an `EscapedOne` consumer would have to inspect the erased four-constructor
+commit cause generically and trigger E104. Candidate-level commit dispatch can
+now select the fixed cause constructor from the proof-only kind first.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
