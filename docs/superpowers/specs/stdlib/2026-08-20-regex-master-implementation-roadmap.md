@@ -2835,6 +2835,17 @@ focused 27-test gate remains green. Active and accepted evidence constructors
 must extend this exact relation with the published child cursor package and a
 recursive suffix-trace package before the package is added to search results.
 
+The active-transition correlation constructor is now complete. It retains all
+existential fields of the exact `AtomicSelectedTransitionActive` trace,
+correlates the canonical child origin/current spine with erased suffix
+evidence, and recursively correlates the exact child trace with its own shape
+kind. The resulting outer kind is
+`AtomicSelectedPathTraceActiveKind(child_cursor_kind, suffix_kind)`; neither
+kind can be substituted independently of the trace it describes. The full
+Regex chain and focused 27-test gate pass. A named construction authority must
+next consume the already-published child cursor and suffix-trace packages,
+followed by the accepted-transition dual.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
