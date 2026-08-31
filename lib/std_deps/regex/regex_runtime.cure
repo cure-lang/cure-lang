@@ -7623,6 +7623,44 @@ mod Std.Regex.Runtime
             AtomicPathInputExhausted(_, _) -> atomic_path_input_exhaustion_excludes_trace_erased(child_trace)
           AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
 
+  ## Accepted candidates provide the dual terminal leaf. A rejected child at
+  ## an accepted thread with remaining input is indexed by exact-acceptance
+  ## failure; selecting the same accepted head exposes the impossible exact
+  ## child trace at the identical capture context and scope.
+  @reducible
+  fn atomic_path_rejected_skipped_head_exact_accepted_excludes_selected_trace(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased child_char: Char},
+    {@erased child_rest: List(Char)}, {@erased after_input: List(Char)},
+    {@erased source: Bounded(n)}, {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased accepted_routine: List(EvidenceInstruction)},
+    {@erased accepted_constraints: List(BoundaryConstraint)},
+    {@erased accepted_assertion_routine: List(ExtendedInstruction)},
+    {@erased accepted_assertion_markers: List(EvidenceInstruction)},
+    {@erased accepted_nested_decisions: List(LookaroundNestedDecision)},
+    {@erased front: List(LookaroundAdmittedState(n))},
+    {@erased current: List(LookaroundAdmittedState(n))},
+    {@erased child_prefix_kind: AtomicPathFailurePrefixKind},
+    {@erased tail_kind: AtomicPathSkippedPrefixKind},
+    @erased package: AtomicPathRejectedSkippedHeadPackage(depth, n, machine, Cons(char, Cons(child_char, child_rest)), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, False(), reversed_prefix, whole, Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), front), current, AtomicPathSkippedPrefixRejectedConsKind(child_prefix_kind, AtomicPathFailureExactAccepted(), tail_kind)),
+    {@erased matched: List(Char)},
+    {@erased remaining_input: List(Char)},
+    {@erased selected_routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedPathTrace(depth, n, machine, Cons(char, Cons(child_char, child_rest)), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, False(), reversed_prefix, Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), front), matched, remaining_input, selected_routine)
+  ) -> Empty = match package
+    AtomicPathRejectedSkippedHeadPacked(evidence) -> match evidence
+      AtomicPathSkippedRejectedCons(_, _, _, _, _, _, _, child_scope_alignment, _, _, _, _, _, _, _, _, child_failure, _, _, _, _) -> match child_scope_alignment
+        LookaroundAdmittedStateScopeAccepted(_, _, _, _, _) -> match path
+          AtomicSelectedPrefixDone() -> impossible
+          AtomicSelectedExactDone() -> impossible
+          AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+          AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, child_trace) -> match child_failure
+            AtomicPathExactAcceptedWithInput(_, _, _, _) -> atomic_path_exact_failure_excludes_trace_erased(child_failure, child_trace)
+
   ## A locally blocking failure at the current head contradicts the exact
   ## continuation certificate that allowed a successful search to skip that
   ## same rejected head. Both constructor kinds are fixed by erased indices.

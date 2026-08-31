@@ -2585,6 +2585,15 @@ refinement is matched. This establishes the terminal leaf of the rejected
 head recursion without a runtime failure tag or a caller-supplied directional
 case. Recursive destination rejection and selected-in-tail transport remain.
 
+The accepted terminal dual is closed as well.
+`atomic_path_rejected_skipped_head_exact_accepted_excludes_selected_trace`
+specializes the same package to an accepted skipped candidate and
+`AtomicPathFailureExactAccepted`. Matching its stored accepted-scope
+refinement makes the selected parent transition expose the exact child trace;
+the accepted-thread/non-empty-input eliminator then discharges it. Rejected
+heads therefore have direct consumers for both terminal child-failure kinds,
+leaving only destination exhaustion/rejection and tail recursion.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
