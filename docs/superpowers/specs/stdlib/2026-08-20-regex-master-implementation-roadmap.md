@@ -2651,6 +2651,21 @@ cause and reproduce E104 one level lower. The focused 27-test refutation gate
 and the complete `Std.Regex.Runtime` → `Std.Regex.Proof` → `Std.Regex` →
 `Std.Regex.Language` elaboration chain pass with the recursive algebra.
 
+The first `EscapedOne` terminal eliminators are now explicit. A locally
+committing child whose rejected descendant is indexed by input exhaustion
+cannot coexist with selection of the same active outer head: the selected
+transition exposes an impossible active trace at empty input. The accepted
+dual similarly exposes a selected trace at an accepted thread with input still
+remaining. The root destinations-exhausted leaf is separated at the exact
+same-candidate boundary; its root equality and canonical-origin alignment
+transport the nested selected suffix to the empty child cursor before applying
+the existing erased exhaustion eliminator. An earlier attempted wrapper
+compared the nested commit origin with the selected origin one transition too
+early, producing pathological normalization rather than a useful diagnostic;
+the corrected theorem makes the required candidate alignment explicit. The
+outer `EscapedOne` dispatcher must next derive that alignment (or recurse over
+the ordered child cursor) before selecting these leaves.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
