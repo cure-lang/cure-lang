@@ -3058,6 +3058,18 @@ cursor branch from the erased cause. The complete Regex chain and focused
 of the recursive commit-structure package and consume it in the correlated
 root-destinations-exhausted fold.
 
+The initial generic child carrier was deliberately replaced before
+publication: pairing an arbitrary cause type with an arbitrary cursor-package
+type preserved two values operationally but did not prove that the hidden
+child cursor belonged to the cause. The definitive
+`AtomicPathCommitAfterFailureChildPackage` is instead indexed by the exact
+`AtomicPathCommitAfterFailure(...)` value, its child whole/current cursors, and
+both child failure kinds. Its sole constructor mirrors the cause constructor
+and carries the relevant cursor package at those same indices. Consumers may
+therefore refine the erased cause and obtain its actual child cursor without a
+trust convention or E104-invalid projection. The full Regex chain and focused
+27-test gate pass.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the
