@@ -1809,6 +1809,23 @@ mod Std.Regex.Runtime
         LookaroundAdmittedStateCursorSuffixEvidenceDrop(outer, head, kind, evidence)
       )
 
+  ## Publish an existing relevant suffix through the constructor-correlated
+  ## package representation. Recursive strict-cursor proofs use this bridge
+  ## once, then advance the package without inspecting erased evidence.
+  @reducible
+  fn lookaround_admitted_cursor_suffix_package(
+    {n: Nat}, {outer: List(LookaroundAdmittedState(n))},
+    {inner: List(LookaroundAdmittedState(n))},
+    suffix: LookaroundAdmittedStateCursorSuffix(n, outer, inner)
+  ) -> LookaroundAdmittedStateCursorSuffixPackage(n, outer, inner) = match suffix
+    LookaroundAdmittedStateCursorSuffixHere(equality) ->
+      lookaround_admitted_cursor_suffix_package_here(equality)
+    LookaroundAdmittedStateCursorSuffixDrop(head, prior) ->
+      lookaround_admitted_cursor_suffix_package_drop(
+        head,
+        lookaround_admitted_cursor_suffix_package(prior)
+      )
+
   ## Advance the inner cursor by one candidate while preserving its original
   ## outer spine. The relevant kind chooses the unique erased evidence
   ## constructor at every level. `Here` creates the first drop; an existing
@@ -1982,7 +1999,7 @@ mod Std.Regex.Runtime
   type AtomicPathCursorLocation(n: Nat) indices (left: List(LookaroundAdmittedState(n)), right: List(LookaroundAdmittedState(n)))
     AtomicPathCursorLocationSame : (@erased equality: Equivalent(List(LookaroundAdmittedState(n)), left, right)) -> AtomicPathCursorLocation(n, left, right)
     AtomicPathCursorLocationLeftAfter : (marker: AtomicPathStrictCursorSuffix(n, right, left)) -> AtomicPathCursorLocation(n, left, right)
-    AtomicPathCursorLocationRightAfter : (@erased marker: LookaroundAdmittedStateCursorSuffix(n, left, right)) -> AtomicPathCursorLocation(n, left, right)
+    AtomicPathCursorLocationRightAfter : (marker: LookaroundAdmittedStateCursorSuffixPackage(n, left, right)) -> AtomicPathCursorLocation(n, left, right)
 
   ## Constructor-correlated carrier for strict commit/selection recursion.
   ## The commit payload is instantiated with one relevant existential that
@@ -1993,7 +2010,7 @@ mod Std.Regex.Runtime
   type AtomicPathCommitSelectedLocationPackage(n: Nat, commit_package: Type, commit_cursor_package: Type, selected_trace_package: Type, selected_skipped_package: Type) indices (commit_current: List(LookaroundAdmittedState(n)), selected_current: List(LookaroundAdmittedState(n)))
     AtomicPathCommitSelectedSamePacked : (commit: commit_package) -> (commit_cursor: commit_cursor_package) -> (selected_trace: selected_trace_package) -> (selected_skipped: selected_skipped_package) -> (@erased equality: Equivalent(List(LookaroundAdmittedState(n)), commit_current, selected_current)) -> AtomicPathCommitSelectedLocationPackage(n, commit_package, commit_cursor_package, selected_trace_package, selected_skipped_package, commit_current, selected_current)
     AtomicPathCommitSelectedLeftAfterPacked : (commit: commit_package) -> (commit_cursor: commit_cursor_package) -> (selected_trace: selected_trace_package) -> (selected_skipped: selected_skipped_package) -> (marker: AtomicPathStrictCursorSuffix(n, selected_current, commit_current)) -> AtomicPathCommitSelectedLocationPackage(n, commit_package, commit_cursor_package, selected_trace_package, selected_skipped_package, commit_current, selected_current)
-    AtomicPathCommitSelectedRightAfterPacked : (commit: commit_package) -> (commit_cursor: commit_cursor_package) -> (selected_trace: selected_trace_package) -> (selected_skipped: selected_skipped_package) -> (@erased marker: LookaroundAdmittedStateCursorSuffix(n, commit_current, selected_current)) -> AtomicPathCommitSelectedLocationPackage(n, commit_package, commit_cursor_package, selected_trace_package, selected_skipped_package, commit_current, selected_current)
+    AtomicPathCommitSelectedRightAfterPacked : (commit: commit_package) -> (commit_cursor: commit_cursor_package) -> (selected_trace: selected_trace_package) -> (selected_skipped: selected_skipped_package) -> (marker: LookaroundAdmittedStateCursorSuffixPackage(n, commit_current, selected_current)) -> AtomicPathCommitSelectedLocationPackage(n, commit_package, commit_cursor_package, selected_trace_package, selected_skipped_package, commit_current, selected_current)
 
   @reducible
   fn atomic_path_commit_selected_location_package(
@@ -2081,7 +2098,9 @@ mod Std.Regex.Runtime
       LookaroundAdmittedStateCursorSuffixHere(left_equality) -> match right_suffix
         LookaroundAdmittedStateCursorSuffixHere(right_equality) -> AtomicPathCursorLocationSame(trans(sym(left_equality), right_equality))
         LookaroundAdmittedStateCursorSuffixDrop(_, _) -> match left_equality
-          reflexive() -> AtomicPathCursorLocationRightAfter(right_suffix)
+          reflexive() -> AtomicPathCursorLocationRightAfter(
+            lookaround_admitted_cursor_suffix_package(right_suffix)
+          )
       LookaroundAdmittedStateCursorSuffixDrop(_, left_prior) -> match right_suffix
         LookaroundAdmittedStateCursorSuffixHere(right_equality) -> match right_equality
           reflexive() -> AtomicPathCursorLocationLeftAfter(AtomicPathStrictCursorSuffixDrop(outer_head, outer_tail, left_prior))
@@ -8159,6 +8178,50 @@ mod Std.Regex.Runtime
     AtomicPathSkippedPrefixStructureEscapedOnePacked : {@erased candidate: LookaroundAdmittedState(n)} -> {@erased commit_kind: AtomicPathCommitCauseKind} -> (@erased evidence: AtomicPathSkippedPrefixEvidence(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, current), current, AtomicPathSkippedPrefixEscapedOneKind(commit_kind))) -> AtomicPathSkippedPrefixStructurePackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, current), current, AtomicPathSkippedPrefixEscapedOneKind(commit_kind))
     AtomicPathSkippedPrefixStructureEscapedConsPacked : {@erased candidate: LookaroundAdmittedState(n)} -> {@erased tail_front: List(LookaroundAdmittedState(n))} -> {@erased commit_kind: AtomicPathCommitCauseKind} -> {@erased tail_kind: AtomicPathSkippedPrefixKind} -> (@erased evidence: AtomicPathSkippedPrefixEvidence(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, tail_front), current, AtomicPathSkippedPrefixEscapedConsKind(commit_kind, tail_kind))) -> (tail_structure: AtomicPathSkippedPrefixStructurePackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, tail_front, current, tail_kind)) -> AtomicPathSkippedPrefixStructurePackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, tail_front), current, AtomicPathSkippedPrefixEscapedConsKind(commit_kind, tail_kind))
     AtomicPathSkippedPrefixStructureRejectedConsPacked : {@erased candidate: LookaroundAdmittedState(n)} -> {@erased tail_front: List(LookaroundAdmittedState(n))} -> {@erased child_prefix_kind: AtomicPathFailurePrefixKind} -> {@erased child_kind: AtomicPathFailureKind} -> {@erased tail_kind: AtomicPathSkippedPrefixKind} -> (@erased evidence: AtomicPathSkippedPrefixEvidence(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, tail_front), current, AtomicPathSkippedPrefixRejectedConsKind(child_prefix_kind, child_kind, tail_kind))) -> (tail_structure: AtomicPathSkippedPrefixStructurePackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, tail_front, current, tail_kind)) -> AtomicPathSkippedPrefixStructurePackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, tail_front), current, AtomicPathSkippedPrefixRejectedConsKind(child_prefix_kind, child_kind, tail_kind))
+
+  ## Recover the ordered front-to-current cursor solely from the relevant
+  ## skipped-prefix structure. Each erased evidence match has one constructor
+  ## fixed by the already-selected relevant branch; erased fields affect only
+  ## indices and never runtime control.
+  @reducible
+  fn atomic_path_skipped_prefix_structure_cursor_package(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased input: List(Char)}, {@erased after_input: List(Char)},
+    {@erased state: ThreadState(n)}, {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased front: List(LookaroundAdmittedState(n))},
+    {@erased current: List(LookaroundAdmittedState(n))},
+    {@erased kind: AtomicPathSkippedPrefixKind},
+    structure: AtomicPathSkippedPrefixStructurePackage(
+      depth, n, machine, input, after_input, state, history, capture_context,
+      policy, scope_depth, prefix_mode, reversed_prefix, whole, front,
+      current, kind
+    )
+  ) -> LookaroundAdmittedStateCursorSuffixPackage(n, front, current) = match structure
+    AtomicPathSkippedPrefixStructureEmptyPacked(evidence) -> match evidence
+      AtomicPathSkippedPrefixEmpty() ->
+        lookaround_admitted_cursor_suffix_package_here(reflexive(current))
+    AtomicPathSkippedPrefixStructureEscapedOnePacked(evidence) -> match evidence
+      AtomicPathEscapedCommitOne(_, _, _, candidate, _, _, _, _, _, _, _, _, _, _, _, _, _) ->
+        lookaround_admitted_cursor_suffix_package_drop(
+          candidate,
+          lookaround_admitted_cursor_suffix_package_here(reflexive(current))
+        )
+    AtomicPathSkippedPrefixStructureEscapedConsPacked(evidence, tail_structure) -> match evidence
+      AtomicPathEscapedCommitCons(_, _, _, candidate, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) ->
+        lookaround_admitted_cursor_suffix_package_drop(
+          candidate,
+          atomic_path_skipped_prefix_structure_cursor_package(tail_structure)
+        )
+    AtomicPathSkippedPrefixStructureRejectedConsPacked(evidence, tail_structure) -> match evidence
+      AtomicPathSkippedRejectedCons(_, _, _, candidate, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) ->
+        lookaround_admitted_cursor_suffix_package_drop(
+          candidate,
+          atomic_path_skipped_prefix_structure_cursor_package(tail_structure)
+        )
 
   ## The skipped-prefix kind fixes the evidence constructor, so these erased
   ## eliminators expose only structural facts needed by the recursive mixed

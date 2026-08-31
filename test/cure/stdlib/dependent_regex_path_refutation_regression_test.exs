@@ -986,6 +986,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "AtomicPathSkippedPrefixStructureEscapedOnePacked :"
     assert source =~ "AtomicPathSkippedPrefixStructureEscapedConsPacked :"
     assert source =~ "AtomicPathSkippedPrefixStructureRejectedConsPacked :"
+    assert source =~ "fn atomic_path_skipped_prefix_structure_cursor_package("
     assert source =~ ~r/AtomicPathSearchYes :.*?skipped_structure: AtomicPathSkippedPrefixStructurePackage/s
     assert source =~ ~r/AtomicPathMembersYes :.*?skipped_structure: AtomicPathSkippedPrefixStructurePackage/s
     assert source =~ "fn atomic_path_commit_selected_location_package("
@@ -1004,6 +1005,8 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "AtomicPathCommitStructureFromChildPacked :"
     assert source =~ "AtomicPathCommitStructurePastEscapedPacked :"
     assert source =~ "AtomicPathCommitStructurePastRejectedPacked :"
+    assert source =~ ~r/AtomicPathCursorLocationRightAfter : \(marker: LookaroundAdmittedStateCursorSuffixPackage/s
+    assert source =~ ~r/AtomicPathCommitSelectedRightAfterPacked :.*marker: LookaroundAdmittedStateCursorSuffixPackage/s
     assert source =~ "type LookaroundAdmittedStateCursorSuffixEvidence("
     assert source =~ "type LookaroundAdmittedStateCursorSuffixPackage("
     assert source =~ "LookaroundAdmittedStateCursorSuffixPacked :"

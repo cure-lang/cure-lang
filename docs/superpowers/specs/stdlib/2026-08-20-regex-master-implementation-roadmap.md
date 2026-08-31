@@ -3211,6 +3211,20 @@ pass. Propagated `PastEscaped`/`PastRejected` cases next need their relevant
 tail cursor packages retained in the commit structure so they can construct a
 new correlated tail carrier and recurse.
 
+That last proposed duplication was rejected by the next red test before any
+commit-structure representation changed. The outer commit cursor package can
+already be advanced canonically, while the selected skipped-prefix structure
+itself determines the exact front-to-current cursor.
+`atomic_path_skipped_prefix_structure_cursor_package` now derives that cursor
+by matching the relevant empty/escaped/rejected structure first and rebuilding
+the package recursively; erased constructor fields affect only indices.
+`AtomicPathCursorLocationRightAfter` and the correlated carrier now retain a
+relevant cursor package instead of an erased suffix, and the generic bridge
+`lookaround_admitted_cursor_suffix_package` publishes existing relevant suffix
+evidence once. The complete Regex chain and focused 27-test gate pass. Tail
+recursion can therefore advance existing authorities rather than enlarging
+the recursive commit structure.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the
