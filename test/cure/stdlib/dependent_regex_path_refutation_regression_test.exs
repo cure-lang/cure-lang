@@ -965,6 +965,8 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "fn atomic_start_refutation_excludes_selected_package("
     assert source =~ "fn atomic_start_refutation_rejected_active_excludes_package("
     assert source =~ "fn atomic_start_refutation_rejected_active_selected_package("
+    assert source =~ "fn atomic_start_refutation_rejected_accepted_excludes_package("
+    assert source =~ "fn atomic_start_refutation_rejected_accepted_selected_package("
     assert source =~ "type LookaroundAdmittedStateCursorSuffixEvidence("
     assert source =~ "type LookaroundAdmittedStateCursorSuffixPackage("
     assert source =~ "LookaroundAdmittedStateCursorSuffixPacked :"

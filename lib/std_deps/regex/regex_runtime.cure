@@ -12881,6 +12881,168 @@ mod Std.Regex.Runtime
     tail_case
   )
 
+  ## Package-native accepted-root contradiction. The selected membership owns
+  ## the only relevant branch: Here exposes an accepted start package whose
+  ## exact child still has input and is therefore impossible; There forwards
+  ## the exact selected package with the rejected sibling tail.
+  @reducible
+  fn atomic_start_refutation_rejected_accepted_excludes_package(
+    {depth: Nat}, {n: Nat}, machine: PatternMachine(n),
+    position: InitialPosition, child_char: Char, child_rest: List(Char),
+    after_input: List(Char), history: List(Char),
+    capture_context: List(EvidenceInstruction), policy: NewlinePolicy,
+    reversed_prefix: List(Char),
+    accepted_routine: List(EvidenceInstruction),
+    accepted_constraints: List(BoundaryConstraint),
+    accepted_assertion_routine: List(ExtendedInstruction),
+    accepted_assertion_markers: List(EvidenceInstruction),
+    accepted_nested_decisions: List(LookaroundNestedDecision),
+    {whole: List(LookaroundAdmittedState(n))},
+    rest: List(LookaroundAdmittedState(n)),
+    selected_start: LookaroundAdmittedState(n),
+    @erased _failure: AtomicStartMembersRefutation(
+      depth, n, machine, position, Cons(child_char, child_rest), after_input,
+      history, capture_context, policy, False(), reversed_prefix, whole,
+      Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), rest),
+      AtomicStartFailureRejected()
+    ),
+    @erased evidence: AtomicStartNoEvidence(
+      depth, n, machine, position, Cons(child_char, child_rest), after_input,
+      history, capture_context, policy, False(), reversed_prefix, whole,
+      Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), rest),
+      AtomicStartFailureRejected()
+    ),
+    membership: ListMember(
+      LookaroundAdmittedState(n), selected_start,
+      Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), rest)
+    ),
+    {matched: List(Char)}, {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    {@erased path: AtomicSelectedTrace(
+      depth, n, machine, position, Cons(child_char, child_rest), after_input,
+      history, capture_context, policy, False(), reversed_prefix,
+      selected_start, matched, remaining_input, selected_routine
+    )},
+    trace_package: AtomicSelectedTracePackage(
+      depth, n, machine, position, Cons(child_char, child_rest), after_input,
+      history, capture_context, policy, False(), reversed_prefix,
+      selected_start, matched, remaining_input, selected_routine, path
+    ),
+    tail_case: (AtomicStartSelectedTailTracePackage(
+      depth, n, machine, position, Cons(child_char, child_rest), after_input,
+      history, capture_context, policy, False(), reversed_prefix, whole, rest,
+      selected_start, matched, remaining_input, selected_routine
+    )) -> Empty
+  ) -> Empty = match atomic_start_member_location(
+    selected_start,
+    LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions),
+    rest,
+    membership
+  )
+    AtomicStartMemberHere(_) -> atomic_start_accepted_candidate_rejection_excludes_package(
+      machine,
+      position,
+      child_char,
+      child_rest,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      reversed_prefix,
+      accepted_routine,
+      accepted_constraints,
+      accepted_assertion_routine,
+      accepted_assertion_markers,
+      accepted_nested_decisions,
+      trace_package
+    )
+    AtomicStartMemberThere(_, prior) -> match evidence
+      AtomicStartNoRejectedEvidence(_, _, _, _, _, _, _, _, _, _, _, _, _, tail_failure, tail_evidence) -> tail_case(
+        AtomicStartSelectedTailTracePacked(
+          tail_failure,
+          tail_evidence,
+          prior,
+          trace_package
+        )
+      )
+
+  ## Public package-native accepted-root wrapper. Unlike the trace-only
+  ## predecessor it needs neither the accepted-tail recovery package nor a
+  ## second erased trace specialized to the head candidate.
+  @reducible
+  fn atomic_start_refutation_rejected_accepted_selected_package(
+    {depth: Nat}, {n: Nat}, machine: PatternMachine(n),
+    position: InitialPosition, child_char: Char, child_rest: List(Char),
+    after_input: List(Char), history: List(Char),
+    capture_context: List(EvidenceInstruction), policy: NewlinePolicy,
+    reversed_prefix: List(Char),
+    accepted_routine: List(EvidenceInstruction),
+    accepted_constraints: List(BoundaryConstraint),
+    accepted_assertion_routine: List(ExtendedInstruction),
+    accepted_assertion_markers: List(EvidenceInstruction),
+    accepted_nested_decisions: List(LookaroundNestedDecision),
+    rest: List(LookaroundAdmittedState(n)),
+    selected_start: LookaroundAdmittedState(n),
+    @erased failure: AtomicStartMembersRefutation(
+      depth, n, machine, position, Cons(child_char, child_rest), after_input,
+      history, capture_context, policy, False(), reversed_prefix,
+      Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), rest),
+      Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), rest),
+      AtomicStartFailureRejected()
+    ),
+    @erased evidence: AtomicStartNoEvidence(
+      depth, n, machine, position, Cons(child_char, child_rest), after_input,
+      history, capture_context, policy, False(), reversed_prefix,
+      Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), rest),
+      Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), rest),
+      AtomicStartFailureRejected()
+    ),
+    membership: ListMember(
+      LookaroundAdmittedState(n), selected_start,
+      Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), rest)
+    ),
+    {matched: List(Char)}, {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    {@erased path: AtomicSelectedTrace(
+      depth, n, machine, position, Cons(child_char, child_rest), after_input,
+      history, capture_context, policy, False(), reversed_prefix,
+      selected_start, matched, remaining_input, selected_routine
+    )},
+    trace_package: AtomicSelectedTracePackage(
+      depth, n, machine, position, Cons(child_char, child_rest), after_input,
+      history, capture_context, policy, False(), reversed_prefix,
+      selected_start, matched, remaining_input, selected_routine, path
+    ),
+    tail_case: (AtomicStartSelectedTailTracePackage(
+      depth, n, machine, position, Cons(child_char, child_rest), after_input,
+      history, capture_context, policy, False(), reversed_prefix,
+      Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), rest),
+      rest, selected_start, matched, remaining_input, selected_routine
+    )) -> Empty
+  ) -> Empty = atomic_start_refutation_rejected_accepted_excludes_package(
+    machine,
+    position,
+    child_char,
+    child_rest,
+    after_input,
+    history,
+    capture_context,
+    policy,
+    reversed_prefix,
+    accepted_routine,
+    accepted_constraints,
+    accepted_assertion_routine,
+    accepted_assertion_markers,
+    accepted_nested_decisions,
+    rest,
+    selected_start,
+    failure,
+    evidence,
+    membership,
+    trace_package,
+    tail_case
+  )
+
   ## An active start candidate rejected by its child cannot also be the head of
   ## a selected trace.  The rejection constructor publishes the child's exact
   ## suffix and refutation; this consumer passes both to the indexed child

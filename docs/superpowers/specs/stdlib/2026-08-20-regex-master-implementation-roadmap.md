@@ -2961,6 +2961,18 @@ The full Runtime → Proof → Regex → Language chain and focused 27-test
 gate pass. Migrate the accepted rejected-root path next, then redirect concrete
 callers before deleting the trace-only variants.
 
+The accepted rejected-root dual is now package-native as well.
+`atomic_start_refutation_rejected_accepted_excludes_package` performs the same
+relevant membership split: `Here` eliminates the accepted selected package at
+non-empty exact child input, and `There` preserves that package in
+`AtomicStartSelectedTailTracePackage`. Its public selected-package wrapper no
+longer needs `AtomicStartAcceptedRejectedTailPackage`, a head-specialized erased
+trace, or the erased public start witness. Runtime, Proof, Regex, and Language
+all elaborate, and the focused 27-test gate passes. Both concrete active and
+accepted rejected-root consumers now have relevant-package forms; redirect the
+remaining construction-site callers to these forms, then remove the obsolete
+trace-only consumers and recovery packages.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the
