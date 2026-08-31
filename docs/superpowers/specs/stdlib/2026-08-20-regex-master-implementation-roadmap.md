@@ -2915,6 +2915,16 @@ correlation relation have been removed. The complete Regex chain and focused
 relevant active/accepted package constructor and recurse on its child packages
 without any E104-invalid recovery step.
 
+The exhausted-input escaped-head contradiction is the first migrated
+consumer. It now receives the exact trace package, refines the relevant active
+constructor, and eliminates the active child's suffix package directly. That
+suffix is indexed at an active thread with empty input, so none of the four
+package constructors can inhabit it. The former erased selected-trace match is
+gone from this theorem. The full Regex chain and focused 27-test gate pass,
+confirming that recursive package elimination—not erased evidence inspection—
+is accepted by the relevance checker. Apply the same pattern to the exact-
+accepted leaf and then to nonterminal destination-rejection recursion.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

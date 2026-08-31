@@ -987,6 +987,25 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "fn atomic_path_skipped_prefix_escaped_one_head("
     assert source =~
              "fn atomic_path_escaped_skipped_head_after_input_exhausted_excludes_selected_trace("
+
+    [_prefix, exhausted_trace_consumer] =
+      String.split(
+        source,
+        "fn atomic_path_escaped_skipped_head_after_input_exhausted_excludes_selected_trace(",
+        parts: 2
+      )
+
+    [exhausted_trace_consumer | _] =
+      String.split(
+        exhausted_trace_consumer,
+        "fn atomic_path_escaped_skipped_head_after_exact_accepted_excludes_selected_trace(",
+        parts: 2
+      )
+
+    assert exhausted_trace_consumer =~
+             "trace_package: AtomicSelectedPathTracePackage("
+
+    assert exhausted_trace_consumer =~ "match trace_package"
     assert source =~
              "fn atomic_path_escaped_skipped_head_after_exact_accepted_excludes_selected_trace("
     assert source =~
