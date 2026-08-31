@@ -3126,6 +3126,22 @@ focused 27-test gate pass. Next consume the published structure in the
 correlated root-destination exhaustion fold, then implement the strict
 left/right recursive destination rejection branches.
 
+The aligned root-destinations-exhausted leaf is now package-native. It matches
+the exact `AfterFailure` structure package and the selected-trace package
+before refining any erased child scope, failure, origin, cursor, or trace
+field; after those relevant constructors have fixed the branch, the existing
+canonical-origin contradiction is entirely erased. This ordering is
+essential. A discarded prototype aligned two erased origin certificates and
+then used that result to inspect a relevant cursor package: E104 correctly
+rejected it. A second discarded carrier matched the erased canonical
+equalities before the remaining relevant trace package and spent 251.65 s wall
+(232.78 s CPU) without finishing `Std.Regex.Runtime`, versus the established
+roughly two-minute complete Regex-chain window. Selecting all relevant package
+constructors first avoids both the relevance violation and that normalization
+blow-up; the complete Regex chain and focused 27-test gate pass. Next extend
+the correlated commit/selection location carrier with the exact structure
+package and implement the root terminal fold over that intact carrier.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the

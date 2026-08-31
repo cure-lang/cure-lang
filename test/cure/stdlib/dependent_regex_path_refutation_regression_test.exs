@@ -980,6 +980,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "fn atomic_path_commit_selected_location_package_fold("
     assert source =~ "fn atomic_path_commit_after_input_exhausted_correlated_location_fold("
     assert source =~ "fn atomic_path_commit_after_exact_accepted_correlated_location_fold("
+    assert source =~ "fn atomic_path_commit_after_root_destinations_exhausted_excludes_aligned_selected_package("
     assert source =~ "type AtomicPathCommitAfterFailureChildPackage(depth: Nat"
     assert source =~ "cause: AtomicPathCommitCause("
     assert source =~ "type AtomicPathCommitStructurePackage(depth: Nat"
