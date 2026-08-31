@@ -2993,6 +2993,20 @@ Language elaborate and the focused 27-test gate passes. Next implement the
 left/right recursive consumers over these two-argument continuations and
 connect them at the escaped/rejected-prefix commit dispatch sites.
 
+Commit cursor-package publication is now complete at the evaluator boundary.
+`AtomicPathMembersCommit` and `AtomicPathSearchCommit` retain the relevant
+`LookaroundAdmittedStateCursorSuffixPackage` alongside their erased suffix.
+Local blocking commits publish the package already owned by destination
+traversal; propagated child commits preserve the current parent package; and
+escaped/rejected sibling propagation preserves the exact parent package rather
+than attempting to derive it from a tail cursor with the same `whole` index.
+The members-to-search projection carries it unchanged. The first attempted
+tail-derived construction was correctly rejected by E093 because it changed
+the package's outer list; using the construction site's existing parent package
+is the canonical fix. The full Regex chain and focused 27-test gate pass.
+Recursive commit-cause packages can now retain and consume this relevant cursor
+authority in the strict directional branches.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the
