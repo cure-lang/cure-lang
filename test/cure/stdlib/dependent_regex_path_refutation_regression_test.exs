@@ -871,6 +871,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert search =~ "AtomicPathSearchCommit :"
     assert search =~ "cause: AtomicPathCommitCause("
     assert search =~ "origin_canonical: AtomicPathSearchOrigin("
+    assert search =~ "suffix_package: LookaroundAdmittedStateCursorSuffixPackage("
     assert search =~ "evidence: AtomicPathNoEvidence("
 
     [_prefix, members] = String.split(source, "type AtomicPathMembersResult", parts: 2)
@@ -881,6 +882,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert members =~ "AtomicPathMembersCommit :"
     assert members =~ "cause: AtomicPathCommitCause("
     assert members =~ "origin_canonical: AtomicPathSearchOrigin("
+    assert members =~ "suffix_package: LookaroundAdmittedStateCursorSuffixPackage("
     assert members =~ "evidence: AtomicPathNoEvidence("
 
     [_prefix, tail_fold] =
@@ -899,10 +901,10 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     [root_projection | _] = String.split(root_projection, "\n\n", parts: 2)
 
     assert root_projection =~
-             "AtomicPathMembersEscapedNo(skipped, tail_current, skipped_kind, skipped_evidence, origin, origin_equivalence, origin_canonical, witness, suffix, kind, failure, evidence)"
+             "AtomicPathMembersEscapedNo(skipped, tail_current, skipped_kind, skipped_evidence, origin, origin_equivalence, origin_canonical, witness, suffix, suffix_package, kind, failure, evidence)"
 
     assert root_projection =~
-             "AtomicPathSearchNo(skipped, whole, tail_current, skipped_kind, skipped_evidence, origin, origin_equivalence, origin_canonical, witness, suffix, kind, failure, evidence)"
+             "AtomicPathSearchNo(skipped, whole, tail_current, skipped_kind, skipped_evidence, origin, origin_equivalence, origin_canonical, witness, suffix, suffix_package, kind, failure, evidence)"
 
     assert source =~ "type AtomicPathCommitCause("
     assert source =~ "type AtomicPathCommitCauseKind"

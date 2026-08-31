@@ -2787,6 +2787,19 @@ or advances the nested prior suffix under an existing `Drop`, preserving the
 original outer spine. The full Regex chain and focused refutation gate remain
 green.
 
+Negative destination traversal now publishes the package through both
+`AtomicPathMembersNo`/`AtomicPathMembersEscapedNo` and the public
+`AtomicPathSearchNo` result. `atomic_lookaround_routine_members_from` starts
+with the canonical `Here` package and advances it once with every sibling
+drop; ordinary and escaped negative projections preserve the same indexed
+package. Root failures construct `Here` directly, while suffix-local child
+failures hand their published package to the failure construction boundary.
+This is runtime metadata only at the already-tagged negative search boundary,
+and its evidence remains erased. The full four-module Regex chain and focused
+27-test gate are green. The next slice is to index recursive commit/failure
+witnesses by the published suffix kind so the destination-rejection consumer
+can dispatch kind-first after those runtime results are erased.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
