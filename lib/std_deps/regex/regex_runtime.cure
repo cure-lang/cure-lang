@@ -7863,7 +7863,19 @@ mod Std.Regex.Runtime
         selected_suffix,
         strict
       )
-    AtomicPathFailureAfterSkippedKind(_) -> after_skipped_case()
+    AtomicPathFailureAfterSkippedKind(skipped_kind) -> match skipped_kind
+      AtomicPathSkippedPrefixEmptyKind() -> match prefix
+        AtomicPathFailureAfterSkipped(_, _) -> atomic_path_failure_after_empty_skipped_excludes_strict_selection(
+          whole,
+          current,
+          selected,
+          prefix,
+          selected_suffix,
+          strict
+        )
+      AtomicPathSkippedPrefixEscapedOneKind() -> after_skipped_case()
+      AtomicPathSkippedPrefixEscapedConsKind(_) -> after_skipped_case()
+      AtomicPathSkippedPrefixRejectedConsKind(_, _, _) -> after_skipped_case()
 
   ## Constructor-refined projection of the exact skipped prefix that precedes
   ## a suffix-local failure. Keeping it in an erased package avoids returning

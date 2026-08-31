@@ -2614,6 +2614,14 @@ dispatcher deliberately avoids that shape. Only `AfterSkipped` delegates to
 the remaining mixed-prefix recursion, narrowing the final reverse continuation
 to its genuine semantic source.
 
+The nominal `AfterSkipped` base is no longer delegated either. The dispatcher
+opens the relevant skipped-prefix kind first; when it is `Empty`, the erased
+prefix constructor is fixed and
+`atomic_path_failure_after_empty_skipped_excludes_strict_selection` closes the
+same finite suffix contradiction. The remaining continuation is now reachable
+only for `EscapedOne`, `EscapedCons`, or `RejectedCons`, exactly the three
+non-empty mixed-prefix constructors that require candidate-level consumption.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
