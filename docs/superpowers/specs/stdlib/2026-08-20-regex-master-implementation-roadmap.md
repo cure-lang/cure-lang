@@ -2813,6 +2813,17 @@ to `AtomicSelectedPathTrace` indices, allowing recursive commit alignment to
 consume both failure and selected suffix evidence without reopening an erased
 trace.
 
+The recursive structural index is now declared as
+`AtomicSelectedPathTraceKind`. It distinguishes prefix completion, exact
+completion, active transition, and accepted transition; each transition node
+retains both its canonical child-cursor suffix kind and the suffix trace kind.
+This deliberately records the whole recursive trace shape rather than only
+the outer cursor: otherwise the next induction step would again hide its
+cursor kind behind an erased existential. The declaration compiles through the
+full Regex chain and the focused 27-test gate remains green. The next slice is
+the constructor-correlated erased evidence relation and its construction in
+`AtomicPathSearchYes`.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
