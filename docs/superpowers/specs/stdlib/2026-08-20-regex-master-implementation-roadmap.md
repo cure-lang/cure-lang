@@ -3079,6 +3079,16 @@ mere type would discard the correlation just established. Keep
 constructor-specific recursive families first; combine them only through a
 fully mirrored outer constructor whose result fixes the exact cause value.
 
+That fully mirrored outer family now has its first sound branch.
+`AtomicPathCommitStructureAfterFailurePacked` explicitly binds an
+`after_cause` whose type is already fixed at
+`AtomicPathCommitAfterFailureKind(...)`, then carries the exact indexed child
+package for that value. This avoids transporting a generic dependent cause
+when the kind refines and elaborates through Runtime, Proof, Regex, and
+Language; the focused 27-test gate passes. Add `FromChild` next with its exact
+child cause and recursive structure package, followed by the two sibling-tail
+constructors.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the
