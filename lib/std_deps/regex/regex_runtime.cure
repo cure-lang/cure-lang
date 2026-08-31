@@ -9435,6 +9435,47 @@ mod Std.Regex.Runtime
   ) -> Empty = match evidence
     AtomicPathSkippedRejectedCons(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, continuation, _, _) -> atomic_path_commit_after_failure_excludes_continuation(cause, continuation)
 
+  ## Package-native base case for a later selected sibling. A local blocking
+  ## commit and a successful search's rejected-head continuation refer to the
+  ## same ordered candidate. The relevant skipped-prefix constructor selects
+  ## the case; only then is its exact erased evidence consumed.
+  @reducible
+  fn atomic_path_commit_after_failure_excludes_selected_rejected_head_package(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased rest: List(Char)},
+    {@erased after_input: List(Char)}, {@erased source: Bounded(n)},
+    {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased candidate: LookaroundAdmittedState(n)},
+    {@erased remaining: List(LookaroundAdmittedState(n))},
+    {@erased selected_current: List(LookaroundAdmittedState(n))},
+    {@erased commit_depth: Nat},
+    {@erased child_prefix_kind: AtomicPathFailurePrefixKind},
+    {@erased child_kind: AtomicPathFailureKind},
+    {@erased tail_kind: AtomicPathSkippedPrefixKind},
+    @erased cause: AtomicPathCommitCause(
+      depth, n, machine, Cons(char, rest), after_input, ThreadActive(source),
+      history, capture_context, policy, scope_depth, prefix_mode,
+      reversed_prefix, whole, Cons(candidate, remaining), commit_depth,
+      AtomicPathCommitAfterFailureKind(child_prefix_kind, child_kind)
+    ),
+    skipped_structure: AtomicPathSkippedPrefixStructurePackage(
+      depth, n, machine, Cons(char, rest), after_input, ThreadActive(source),
+      history, capture_context, policy, scope_depth, prefix_mode,
+      reversed_prefix, whole, Cons(candidate, remaining), selected_current,
+      AtomicPathSkippedPrefixRejectedConsKind(
+        child_prefix_kind,
+        child_kind,
+        tail_kind
+      )
+    )
+  ) -> Empty = match skipped_structure
+    AtomicPathSkippedPrefixStructureRejectedConsPacked(evidence, _) ->
+      atomic_path_commit_after_failure_excludes_rejected_prefix(cause, evidence)
+
   ## Correlated recursive state for the propagated commit/prefix cases. The
   ## commit origin and cursor travel with both exact tail proofs, preventing a
   ## caller from pairing evidence produced at different sibling suffixes.

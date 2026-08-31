@@ -3185,6 +3185,19 @@ Regex chain and focused 27-test gate pass. Next implement that paired strict
 induction, starting with the locally blocking `AfterFailure` versus rejected-
 head continuation contradiction.
 
+That first strict base contradiction is now package-native.
+`atomic_path_commit_after_failure_excludes_selected_rejected_head_package`
+accepts the exact local `AfterFailure` cause and a selected skipped-prefix
+structure whose head has the same child prefix/failure kinds. It first matches
+the relevant `RejectedCons` structure constructor and only then consumes its
+erased evidence; the retained continuation contradicts the commit's blocking
+close through the existing exact indexed lemma. This proves the fundamental
+later-sibling case without inspecting an erased skip-kind sum or accepting an
+uncorrelated continuation. The complete Regex chain and focused 27-test gate
+pass. Next call this leaf from the strict `RightAfter` branch, then recurse
+through paired escaped/rejected cons tails; `LeftAfter` remains the reverse-
+cursor induction over the commit structure.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the
