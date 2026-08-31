@@ -906,10 +906,17 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
 
     assert source =~ "type AtomicPathCommitCause("
     assert source =~ "type AtomicPathCommitCauseKind"
-    assert source =~ "AtomicPathCommitAfterFailureKind"
-    assert source =~ "AtomicPathCommitFromChildKind"
-    assert source =~ "AtomicPathCommitPastEscapedKind"
-    assert source =~ "AtomicPathCommitPastRejectedKind"
+    assert source =~
+             "AtomicPathCommitAfterFailureKind(AtomicPathFailurePrefixKind, AtomicPathFailureKind)"
+
+    assert source =~
+             "AtomicPathCommitFromChildKind(AtomicPathCommitCauseKind)"
+
+    assert source =~
+             "AtomicPathCommitPastEscapedKind(AtomicPathCommitCauseKind, AtomicPathCommitCauseKind)"
+
+    assert source =~
+             "AtomicPathCommitPastRejectedKind(AtomicPathFailurePrefixKind, AtomicPathFailureKind, AtomicPathCommitCauseKind)"
     assert source =~ "fn atomic_path_commit_after_failure_nonempty("
     assert source =~ "fn atomic_path_commit_from_child_nonempty("
     assert source =~ "fn atomic_path_commit_past_escaped_nonempty("

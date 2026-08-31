@@ -2639,6 +2639,18 @@ new cause-indexed `EscapedOne`. The next consumer can therefore match one fixed
 escaped constructor and then dispatch its fixed commit-cause kind without
 returning any erased payload through a relevant expression.
 
+The commit-cause kind itself is now recursively indexed rather than merely
+naming its outer constructor. `AfterFailure` retains the child failure-prefix
+and failure kinds, `FromChild` retains the child commit kind, and the two
+propagating constructors retain their child and tail kinds. Constructors,
+non-empty projections, contradiction projections, correlated skipped-tail
+packages, and evaluator result construction all preserve these indices. This
+is required for the `EscapedOne` consumer: an outer kind that discarded its
+nested proof shape would still force generic inspection of an erased child
+cause and reproduce E104 one level lower. The focused 27-test refutation gate
+and the complete `Std.Regex.Runtime` → `Std.Regex.Proof` → `Std.Regex` →
+`Std.Regex.Language` elaboration chain pass with the recursive algebra.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
