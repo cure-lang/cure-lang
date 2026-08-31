@@ -976,6 +976,8 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ ~r/AtomicPathSearchCommit :.*?structure: AtomicPathCommitStructurePackage/s
     assert source =~ ~r/AtomicPathMembersCommit :.*?structure: AtomicPathCommitStructurePackage/s
     assert source =~ "type AtomicPathCommitSelectedLocationPackage("
+    assert source =~ "type AtomicPathCommitSelectedSameAuthorityPackage("
+    assert source =~ "type AtomicPathCommitSelectedRightAuthorityPackage("
     assert source =~ ~r/AtomicPathCommitSelectedSamePacked :.*selected_skipped: selected_skipped_package/s
     assert source =~ ~r/AtomicPathCommitSelectedLeftAfterPacked :.*selected_skipped: selected_skipped_package/s
     assert source =~ ~r/AtomicPathCommitSelectedRightAfterPacked :.*selected_skipped: selected_skipped_package/s
@@ -991,6 +993,9 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "fn atomic_path_commit_past_escaped_selected_tail_location_fold("
     assert source =~ "fn atomic_path_commit_past_rejected_selected_tail_location_package("
     assert source =~ "fn atomic_path_commit_past_rejected_selected_tail_location_fold("
+    assert source =~ "fn atomic_path_recursive_commit_after_input_exhausted_same_excludes_selected_package("
+    assert source =~ "fn atomic_path_recursive_commit_after_exact_accepted_same_excludes_selected_package("
+    assert source =~ "fn atomic_path_recursive_commit_after_root_destinations_exhausted_same_excludes_selected_package("
     assert source =~ ~r/fn lookaround_admitted_cursor_suffix_evidence_advance\(.*?@erased head: LookaroundAdmittedState\(n\),.*?@erased tail: List\(LookaroundAdmittedState\(n\)\)/s
     assert source =~ ~r/fn lookaround_admitted_cursor_suffix_package_advance\(.*?@erased head: LookaroundAdmittedState\(n\),.*?@erased tail: List\(LookaroundAdmittedState\(n\)\)/s
     assert source =~ "type AtomicPathSkippedPrefixStructurePackage("

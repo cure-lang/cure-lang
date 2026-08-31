@@ -3298,6 +3298,20 @@ recursive consumer: `Same` dispatches the tail commit structure against the
 selected trace terminal leaves, while `RightAfter` consumes a local blocking
 head or invokes one of these propagated folds again.
 
+The recursive branch refinement is now retained in one-constructor authority
+types instead of being forgotten at callback entry.
+`AtomicPathCommitSelectedSameAuthorityPackage` and
+`AtomicPathCommitSelectedRightAuthorityPackage` carry the exact correlated
+payloads for their respective cases, and the two-way fold plus both
+propagated folds expose those types directly. The three initial `Same`
+terminal consumers are complete: active-child input exhaustion, accepted
+child with remaining input in exact mode, and active-child root-destination
+exhaustion. The first two close from the refined trace package; the third
+selects the relevant commit structure before reusing the exact package-native
+root contradiction. The complete Regex chain and focused 27-test gate pass.
+Next extend `Same` dispatch across recursive commit structures, then implement
+the one-constructor `RightAfter` consumer and its recursive call.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the
