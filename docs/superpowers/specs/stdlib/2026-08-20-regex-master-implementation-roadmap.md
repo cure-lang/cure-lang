@@ -2887,6 +2887,21 @@ relevant package by the exact erased trace they return. The complete Regex
 chain and focused 27-test gate pass. Recursive commit alignment can now inspect
 the published trace kind before opening its correlated erased constructor.
 
+Consumption testing found that the last sentence is too weak as written. The
+generic `AtomicSelectedPathTracePacked(kind, erased_evidence)` boundary is
+sound to construct, but a consumer still cannot reopen the erased correlation
+and repackage or dispatch on fields obtained from it: E104 correctly rejects
+both operations. Do not weaken E104 and do not project erased evidence back
+into a runtime package. Replace this generic boundary with constructor-
+correlated relevant package constructors for prefix completion, exact
+completion, active transition, and accepted transition. The active/accepted
+constructors must carry the already-existing child-origin cursor package and
+recursive suffix-trace package directly; their erased trace remains only an
+index. Matching the relevant package constructor then exposes the recursive
+packages without inspecting erased data. Migrate evaluator successes to this
+representation before implementing recursive destination-rejection alignment,
+then delete the generic packed boundary once no consumer remains.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
