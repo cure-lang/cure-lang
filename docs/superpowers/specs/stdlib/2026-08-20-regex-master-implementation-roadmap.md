@@ -2857,6 +2857,15 @@ the child cursor package and suffix trace package uniformly for active and
 accepted transitions, after which `AtomicPathSearchYes` can publish the exact
 trace package.
 
+`atomic_selected_path_trace_active_package` is now the single active
+construction authority. It receives the exact ordinary trace fields plus the
+relevant child cursor and suffix-trace packages, opens each package kind first,
+and feeds only erased correlated evidence into
+`AtomicSelectedPathTraceActiveEvidence`. The resulting runtime package carries
+the recursive active kind and no list, equality, origin certificate, or trace
+payload. The full Regex chain and focused 27-test gate pass. The accepted
+construction helper is the remaining dual before evaluator publication.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
