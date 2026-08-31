@@ -2984,6 +2984,15 @@ Next thread the trace package through the two cursor-location folds so their
 same-cursor branches call these leaves, then migrate the strict left/right
 recursive continuations.
 
+Both commit cursor-location folds now have package-preserving forms. Their
+same-cursor branches call the package-native input-exhausted and exact-accepted
+leaves, while both strict directional callbacks receive the cursor location
+and exact `AtomicSelectedPathTracePackage` explicitly. No callback must close
+over an erased trace or recover its package later. Runtime, Proof, Regex, and
+Language elaborate and the focused 27-test gate passes. Next implement the
+left/right recursive consumers over these two-argument continuations and
+connect them at the escaped/rejected-prefix commit dispatch sites.
+
 `AtomicSelectedTracePackage` now introduces the corresponding selected-start
 boundary. Its active and accepted constructors are indexed by the exact erased
 `AtomicSelectedTrace` value and retain three relevant recursive packages: the
