@@ -3558,6 +3558,18 @@ same-shape relation over these two authorities, retain it in the narrowed
 `Same` carrier, and use it with canonical-origin equality to reach the fixed
 terminal contradictions.
 
+Cursor-shape comparison now returns indexed structural authority rather than
+manufacturing the coarse location tag directly. `Same`, `LeftAfter`, and
+`RightAfter` each have recursive singleton relations over the two exact shape
+indices, and `AtomicPathCursorShapeComparison` is the total three-way result.
+The legacy `atomic_path_cursor_shapes_location` API is retained for existing
+callers but is now only an erasure through this canonical comparison. Thus a
+future narrowed branch can retain the full recursive relation while ordinary
+runtime consumers still receive the compact location enum. The complete Regex
+chain and focused 27-test refutation gate pass. Next carry the comparison
+authority—not merely its erased location—through the recursive child
+existential and into the dedicated `Same` carrier.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

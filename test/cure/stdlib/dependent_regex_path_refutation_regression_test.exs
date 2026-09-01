@@ -1093,6 +1093,11 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "LookaroundAdmittedStateCursorHereShapedPacked :"
     assert source =~ "LookaroundAdmittedStateCursorDropShapedPacked :"
     assert source =~ "fn lookaround_admitted_cursor_shaped_package("
+    assert source =~ "type AtomicPathCursorShapesSameAuthority indices ("
+    assert source =~ "type AtomicPathCursorShapeComparison indices ("
+    assert source =~ "fn atomic_path_cursor_shape_comparison("
+    assert source =~
+             ~r/fn atomic_path_cursor_shapes_location\(.*atomic_path_cursor_shape_comparison\(/s
     assert source =~ "type AtomicPathCommitChildCursorPayloadPackage("
     assert source =~
              ~r/AtomicPathCommitChildCursorPayloadPackage\(.*shape: LookaroundAdmittedStateCursorShape/s

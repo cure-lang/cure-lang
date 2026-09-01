@@ -1834,6 +1834,52 @@ mod Std.Regex.Runtime
     LookaroundAdmittedStateCursorHereShapedPacked : (@erased equality: Equivalent(List(LookaroundAdmittedState(n)), outer, inner)) -> LookaroundAdmittedStateCursorShapedPackage(n, outer, inner, LookaroundAdmittedStateCursorShapeHere())
     LookaroundAdmittedStateCursorDropShapedPacked : (@erased head: LookaroundAdmittedState(n)) -> (prior: LookaroundAdmittedStateCursorShapedPackage(n, outer, inner, shape)) -> LookaroundAdmittedStateCursorShapedPackage(n, Cons(head, outer), inner, LookaroundAdmittedStateCursorShapeDrop(shape))
 
+  type AtomicPathCursorShapesSameAuthority indices (left: LookaroundAdmittedStateCursorShape, right: LookaroundAdmittedStateCursorShape)
+    AtomicPathCursorShapesSameHere : AtomicPathCursorShapesSameAuthority(LookaroundAdmittedStateCursorShapeHere(), LookaroundAdmittedStateCursorShapeHere())
+    AtomicPathCursorShapesSameDrop : (prior: AtomicPathCursorShapesSameAuthority(left, right)) -> AtomicPathCursorShapesSameAuthority(LookaroundAdmittedStateCursorShapeDrop(left), LookaroundAdmittedStateCursorShapeDrop(right))
+
+  type AtomicPathCursorShapesLeftAfterAuthority indices (left: LookaroundAdmittedStateCursorShape, right: LookaroundAdmittedStateCursorShape)
+    AtomicPathCursorShapesLeftAfterHere : AtomicPathCursorShapesLeftAfterAuthority(LookaroundAdmittedStateCursorShapeDrop(left), LookaroundAdmittedStateCursorShapeHere())
+    AtomicPathCursorShapesLeftAfterDrop : (prior: AtomicPathCursorShapesLeftAfterAuthority(left, right)) -> AtomicPathCursorShapesLeftAfterAuthority(LookaroundAdmittedStateCursorShapeDrop(left), LookaroundAdmittedStateCursorShapeDrop(right))
+
+  type AtomicPathCursorShapesRightAfterAuthority indices (left: LookaroundAdmittedStateCursorShape, right: LookaroundAdmittedStateCursorShape)
+    AtomicPathCursorShapesRightAfterHere : AtomicPathCursorShapesRightAfterAuthority(LookaroundAdmittedStateCursorShapeHere(), LookaroundAdmittedStateCursorShapeDrop(right))
+    AtomicPathCursorShapesRightAfterDrop : (prior: AtomicPathCursorShapesRightAfterAuthority(left, right)) -> AtomicPathCursorShapesRightAfterAuthority(LookaroundAdmittedStateCursorShapeDrop(left), LookaroundAdmittedStateCursorShapeDrop(right))
+
+  type AtomicPathCursorShapeComparison indices (left: LookaroundAdmittedStateCursorShape, right: LookaroundAdmittedStateCursorShape)
+    AtomicPathCursorShapeComparisonSame : (authority: AtomicPathCursorShapesSameAuthority(left, right)) -> AtomicPathCursorShapeComparison(left, right)
+    AtomicPathCursorShapeComparisonLeftAfter : (authority: AtomicPathCursorShapesLeftAfterAuthority(left, right)) -> AtomicPathCursorShapeComparison(left, right)
+    AtomicPathCursorShapeComparisonRightAfter : (authority: AtomicPathCursorShapesRightAfterAuthority(left, right)) -> AtomicPathCursorShapeComparison(left, right)
+
+  fn atomic_path_cursor_shape_comparison(
+    left: LookaroundAdmittedStateCursorShape,
+    right: LookaroundAdmittedStateCursorShape
+  ) -> AtomicPathCursorShapeComparison(left, right) = match left
+    LookaroundAdmittedStateCursorShapeHere() -> match right
+      LookaroundAdmittedStateCursorShapeHere() ->
+        AtomicPathCursorShapeComparisonSame(AtomicPathCursorShapesSameHere())
+      LookaroundAdmittedStateCursorShapeDrop(_) ->
+        AtomicPathCursorShapeComparisonRightAfter(AtomicPathCursorShapesRightAfterHere())
+    LookaroundAdmittedStateCursorShapeDrop(left_prior) -> match right
+      LookaroundAdmittedStateCursorShapeHere() ->
+        AtomicPathCursorShapeComparisonLeftAfter(AtomicPathCursorShapesLeftAfterHere())
+      LookaroundAdmittedStateCursorShapeDrop(right_prior) -> match atomic_path_cursor_shape_comparison(left_prior, right_prior)
+        AtomicPathCursorShapeComparisonSame(authority) ->
+          AtomicPathCursorShapeComparisonSame(AtomicPathCursorShapesSameDrop(authority))
+        AtomicPathCursorShapeComparisonLeftAfter(authority) ->
+          AtomicPathCursorShapeComparisonLeftAfter(AtomicPathCursorShapesLeftAfterDrop(authority))
+        AtomicPathCursorShapeComparisonRightAfter(authority) ->
+          AtomicPathCursorShapeComparisonRightAfter(AtomicPathCursorShapesRightAfterDrop(authority))
+
+  fn atomic_path_cursor_shape_comparison_location(
+    {left: LookaroundAdmittedStateCursorShape},
+    {right: LookaroundAdmittedStateCursorShape},
+    comparison: AtomicPathCursorShapeComparison(left, right)
+  ) -> AtomicPathCursorShapeLocation = match comparison
+    AtomicPathCursorShapeComparisonSame(_) -> AtomicPathCursorShapeSame()
+    AtomicPathCursorShapeComparisonLeftAfter(_) -> AtomicPathCursorShapeLeftAfter()
+    AtomicPathCursorShapeComparisonRightAfter(_) -> AtomicPathCursorShapeRightAfter()
+
   fn lookaround_admitted_cursor_suffix_package_shape(
     {@erased n: Nat},
     {@erased outer: List(LookaroundAdmittedState(n))},
@@ -1889,17 +1935,10 @@ mod Std.Regex.Runtime
   fn atomic_path_cursor_shapes_location(
     left: LookaroundAdmittedStateCursorShape,
     right: LookaroundAdmittedStateCursorShape
-  ) -> AtomicPathCursorShapeLocation = match left
-    LookaroundAdmittedStateCursorShapeHere() -> match right
-      LookaroundAdmittedStateCursorShapeHere() ->
-        AtomicPathCursorShapeSame()
-      LookaroundAdmittedStateCursorShapeDrop(_) ->
-        AtomicPathCursorShapeRightAfter()
-    LookaroundAdmittedStateCursorShapeDrop(left_prior) -> match right
-      LookaroundAdmittedStateCursorShapeHere() ->
-        AtomicPathCursorShapeLeftAfter()
-      LookaroundAdmittedStateCursorShapeDrop(right_prior) ->
-        atomic_path_cursor_shapes_location(left_prior, right_prior)
+  ) -> AtomicPathCursorShapeLocation =
+    atomic_path_cursor_shape_comparison_location(
+      atomic_path_cursor_shape_comparison(left, right)
+    )
 
   fn atomic_path_cursor_shape_location(
     {@erased n: Nat},
