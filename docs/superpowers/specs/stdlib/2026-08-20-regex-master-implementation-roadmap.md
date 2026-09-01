@@ -3850,6 +3850,24 @@ fixed `Empty` transport that accepts these two opaque authorities, refines
 their hidden current lists only inside proof elimination, and enters recursive
 dispatch without returning a reindexed runtime value.
 
+That fixed transport is now implemented as
+`atomic_path_recursive_commit_selected_child_same_projected_dispatch`. It
+accepts only `Empty`-returning recursive callbacks. In the already-relevant
+`FromChild` or `PastEscaped` branch it reopens the exact structure, consumes
+the aligned inner-cursor equality, and forwards the existing projected child
+commit plus selected suffix into the common recursive dispatcher. The
+correlated recursive package exists only as an argument to this
+`Empty`-returning call; it cannot escape as relevant state. Structurally
+mismatched or accepted packages are delegated to an explicit impossible-case
+callback rather than silently assumed uninhabited. This formulation passes
+E104 because erased refinement selects no runtime result or continuation—the
+four recursive continuations were fixed before the equality was opened. The
+complete Regex chain elaborates and the focused structural regression passes.
+Next define the common recursive `Empty` consumer supplied to these callbacks:
+terminal and local-blocking branches close immediately, while propagated
+branches invoke this transport again on their structurally smaller child or
+sibling commit.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

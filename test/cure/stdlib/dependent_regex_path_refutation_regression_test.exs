@@ -1298,6 +1298,18 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              ~r/AtomicPathCommitStructureCursorClassifiedPastEscapedPacked\(child_commit\).*AtomicPathRecursiveCommitSelectedChildSamePastEscapedPacked\(\s*AtomicPathRecursiveCommitSelectedChildSameProjectedPacked\(\s*atomic_path_commit_structure_cursor_past_escaped_child_package\(\s*child_commit\s*\),\s*aligned/s
 
     assert source =~
+             "fn atomic_path_recursive_commit_selected_child_same_projected_dispatch("
+
+    assert source =~
+             ~r/fn atomic_path_recursive_commit_selected_child_same_projected_dispatch\(.*LookaroundAdmittedCursorInnerEquivalentPacked\(equality\) -> match equality\s*reflexive\(\) -> atomic_path_recursive_commit_selected_existential_dispatch\(/s
+
+    assert source =~
+             ~r/atomic_path_recursive_commit_selected_existential_dispatch\(\s*atomic_path_commit_child_selected_location_package\(.*atomic_path_commit_structure_cursor_from_child_child_package\(/s
+
+    assert source =~
+             ~r/atomic_path_recursive_commit_selected_existential_dispatch\(\s*atomic_path_commit_child_selected_location_package\(.*atomic_path_commit_structure_cursor_past_escaped_child_package\(/s
+
+    assert source =~
              ~r/fn atomic_path_recursive_commit_selected_existential_dispatch\(.*same_case: \(AtomicPathRecursiveCommitSelectedChildSameContinuationPackage/s
 
     assert source =~

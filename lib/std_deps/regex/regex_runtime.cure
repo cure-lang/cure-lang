@@ -9603,6 +9603,90 @@ mod Std.Regex.Runtime
         AtomicPathCursorShapeComparisonLeftAfter(_) -> left_case(package)
         AtomicPathCursorShapeComparisonRightAfter(_) -> right_case(package)
 
+  ## Enter the next recursive child only from a fixed propagated-Same branch.
+  ## The projected commit and selected suffix already exist as relevant
+  ## values. Their erased inner equality is consumed solely on a path whose
+  ## result is Empty; no transported package escapes this eliminator.
+  fn atomic_path_recursive_commit_selected_child_same_projected_dispatch(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    package: AtomicPathRecursiveCommitSelectedChildSameProjectedPackage(
+      depth, n, machine
+    ),
+    correlated_case: (AtomicPathRecursiveCommitSelectedExistentialPackage(
+      depth, n, machine
+    )) -> Empty,
+    same_case: (AtomicPathRecursiveCommitSelectedChildSameContinuationPackage(
+      depth, n, machine
+    )) -> Empty,
+    left_case: (AtomicPathRecursiveCommitSelectedExistentialPackage(
+      depth, n, machine
+    )) -> Empty,
+    right_case: (AtomicPathRecursiveCommitSelectedExistentialPackage(
+      depth, n, machine
+    )) -> Empty,
+    invalid_case: () -> Empty
+  ) -> Empty = match package
+    AtomicPathRecursiveCommitSelectedChildSameProjectedPacked(_, aligned) -> match aligned
+      AtomicPathRecursiveCommitSelectedChildSameAlignedActivePacked(
+        commit, _, selected_suffix, _, inner_equivalence, source
+      ) -> match source
+        AtomicPathRecursiveCommitSelectedChildSameExistentialPacked(
+          _, right_shape, _, _, _
+        ) -> match commit
+          AtomicPathCommitStructureCursorClassifiedFromChildPacked(child_commit) -> match child_commit
+            AtomicPathCommitStructureCursorExistentialPacked(
+              _, _, child_structure
+            ) -> match child_structure
+              AtomicPathCommitStructureFromChildPacked(
+                _, _, _, _, _, _, _, _, _, _, _, _, _, _, _
+              ) -> match inner_equivalence
+                LookaroundAdmittedCursorInnerEquivalentPacked(equality) -> match equality
+                  reflexive() -> atomic_path_recursive_commit_selected_existential_dispatch(
+                    atomic_path_commit_child_selected_location_package(
+                      atomic_path_commit_structure_cursor_from_child_child_package(
+                        child_commit
+                      ),
+                      atomic_selected_path_trace_runtime_envelope(
+                        right_shape,
+                        selected_suffix
+                      )
+                    ),
+                    correlated_case,
+                    same_case,
+                    left_case,
+                    right_case
+                  )
+          AtomicPathCommitStructureCursorClassifiedPastEscapedPacked(child_commit) -> match child_commit
+            AtomicPathCommitStructureCursorExistentialPacked(
+              _, _, child_structure
+            ) -> match child_structure
+              AtomicPathCommitStructurePastEscapedPacked(
+                _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _
+              ) -> match inner_equivalence
+                LookaroundAdmittedCursorInnerEquivalentPacked(equality) -> match equality
+                  reflexive() -> atomic_path_recursive_commit_selected_existential_dispatch(
+                    atomic_path_commit_child_selected_location_package(
+                      atomic_path_commit_structure_cursor_past_escaped_child_package(
+                        child_commit
+                      ),
+                      atomic_selected_path_trace_runtime_envelope(
+                        right_shape,
+                        selected_suffix
+                      )
+                    ),
+                    correlated_case,
+                    same_case,
+                    left_case,
+                    right_case
+                  )
+          AtomicPathCommitStructureCursorClassifiedAfterFailurePacked(_) ->
+            invalid_case()
+          AtomicPathCommitStructureCursorClassifiedPastRejectedPacked(_) ->
+            invalid_case()
+      AtomicPathRecursiveCommitSelectedChildSameAlignedAcceptedPacked(
+        _, _, _, _, _, _
+      ) -> invalid_case()
+
   ## Combine an extracted recursive commit tail with the corresponding
   ## selected skipped-prefix tail. Matching the commit package exposes the
   ## cursor already correlated with its exact structure; the selected
