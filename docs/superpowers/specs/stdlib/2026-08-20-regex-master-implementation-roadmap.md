@@ -3421,6 +3421,22 @@ Regex chain and focused 27-test gate pass. Next pair this child existential
 with the child cursor/skipped-prefix/trace package exposed by the selected
 trace constructor, then invoke the recursive location fold.
 
+The first recursive child/selection pairing boundary is now E104-safe. A
+direct dependent match over the child existential and selected trace caused
+their erased capture-context, scope, origin, and cursor indices to enter the
+runtime match convoy when the two relevant cursor packages were compared.
+The compiler correctly rejected that reconstruction as E104. The child cursor
+now publishes a finite `Here`/`Drop` runtime shape before its dependent indices
+are hidden, while `AtomicPathCommitChildCursorPayloadPackage` retains the exact
+dependent cursor/structure authority behind a non-dependent runtime envelope.
+The shape comparison is ordinary structural recursion and is intentionally not
+`@reducible`; it chooses runtime control but is not itself proof evidence. The
+complete Regex module chain and focused 27-test refutation gate pass. Next
+thread the selected cursor's construction-time shape alongside its retained
+trace package, use the shape tag only to select a branch, and discharge that
+branch from the retained cursor/structure authorities before invoking the
+recursive location fold.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

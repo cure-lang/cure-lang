@@ -1750,40 +1750,15 @@ mod Std.Regex.Runtime
     LookaroundAdmittedStateCursorSuffixHere : (@erased equality: Equivalent(List(LookaroundAdmittedState(n)), outer, inner)) -> LookaroundAdmittedStateCursorSuffix(n, outer, inner)
     LookaroundAdmittedStateCursorSuffixDrop : (@erased head: LookaroundAdmittedState(n)) -> (suffix: LookaroundAdmittedStateCursorSuffix(n, outer, inner)) -> LookaroundAdmittedStateCursorSuffix(n, Cons(head, outer), inner)
 
-  ## Proof-only structural index for an ordered cursor suffix. Recursive
-  ## correspondence cannot inspect a hidden erased suffix directly, so the
-  ## evaluator publishes this kind beside a constructor-correlated witness.
-  type LookaroundAdmittedStateCursorSuffixKind =
-    | LookaroundAdmittedStateCursorSuffixHereKind
-    | LookaroundAdmittedStateCursorSuffixDropKind(LookaroundAdmittedStateCursorSuffixKind)
-
-  type LookaroundAdmittedStateCursorSuffixEvidence(n: Nat) indices (outer: List(LookaroundAdmittedState(n)), inner: List(LookaroundAdmittedState(n)), kind: LookaroundAdmittedStateCursorSuffixKind)
-    LookaroundAdmittedStateCursorSuffixEvidenceHere : (@erased equality: Equivalent(List(LookaroundAdmittedState(n)), outer, inner)) -> LookaroundAdmittedStateCursorSuffixEvidence(n, outer, inner, LookaroundAdmittedStateCursorSuffixHereKind())
-    LookaroundAdmittedStateCursorSuffixEvidenceDrop : (@erased prior_outer: List(LookaroundAdmittedState(n))) -> (@erased head: LookaroundAdmittedState(n)) -> (@erased prior_kind: LookaroundAdmittedStateCursorSuffixKind) -> (@erased prior: LookaroundAdmittedStateCursorSuffixEvidence(n, prior_outer, inner, prior_kind)) -> LookaroundAdmittedStateCursorSuffixEvidence(n, Cons(head, prior_outer), inner, LookaroundAdmittedStateCursorSuffixDropKind(prior_kind))
-
-  ## Runtime search results retain only this finite structural tag.  The full
-  ## cursor relation stays erased and constructor-correlated, so consumers can
-  ## select `Here` or `Drop` before opening any proof payload.  This is the
-  ## proof-safe publication boundary required by recursive destination
-  ## rejection; it does not reify admitted states or equality witnesses.
+  ## Runtime search results retain only the recursive `Here`/`Drop` shape. The
+  ## admitted-state heads and equality witnesses stay erased, while the prior
+  ## package remains relevant. Keeping the recursive package—not just a kind
+  ## beside wholly erased evidence—lets two cursors from one origin be compared
+  ## and return their exact remaining suffix without reconstructing relevant
+  ## data from erased proof fields.
   type LookaroundAdmittedStateCursorSuffixPackage(n: Nat) indices (outer: List(LookaroundAdmittedState(n)), inner: List(LookaroundAdmittedState(n)))
-    LookaroundAdmittedStateCursorSuffixPacked : (kind: LookaroundAdmittedStateCursorSuffixKind) -> (@erased evidence: LookaroundAdmittedStateCursorSuffixEvidence(n, outer, inner, kind)) -> LookaroundAdmittedStateCursorSuffixPackage(n, outer, inner)
-
-  @reducible
-  fn lookaround_admitted_cursor_suffix_evidence_here(
-    {n: Nat}, {outer: List(LookaroundAdmittedState(n))},
-    {inner: List(LookaroundAdmittedState(n))},
-    @erased equality: Equivalent(List(LookaroundAdmittedState(n)), outer, inner)
-  ) -> LookaroundAdmittedStateCursorSuffixEvidence(n, outer, inner, LookaroundAdmittedStateCursorSuffixHereKind()) = LookaroundAdmittedStateCursorSuffixEvidenceHere(equality)
-
-  @reducible
-  fn lookaround_admitted_cursor_suffix_evidence_drop(
-    {n: Nat}, {outer: List(LookaroundAdmittedState(n))},
-    {inner: List(LookaroundAdmittedState(n))},
-    @erased head: LookaroundAdmittedState(n),
-    @erased prior_kind: LookaroundAdmittedStateCursorSuffixKind,
-    @erased prior: LookaroundAdmittedStateCursorSuffixEvidence(n, outer, inner, prior_kind)
-  ) -> LookaroundAdmittedStateCursorSuffixEvidence(n, Cons(head, outer), inner, LookaroundAdmittedStateCursorSuffixDropKind(prior_kind)) = LookaroundAdmittedStateCursorSuffixEvidenceDrop(outer, head, prior_kind, prior)
+    LookaroundAdmittedStateCursorSuffixHerePacked : (@erased equality: Equivalent(List(LookaroundAdmittedState(n)), outer, inner)) -> LookaroundAdmittedStateCursorSuffixPackage(n, outer, inner)
+    LookaroundAdmittedStateCursorSuffixDropPacked : (@erased head: LookaroundAdmittedState(n)) -> (prior: LookaroundAdmittedStateCursorSuffixPackage(n, outer, inner)) -> LookaroundAdmittedStateCursorSuffixPackage(n, Cons(head, outer), inner)
 
   @reducible
   fn lookaround_admitted_cursor_suffix_package_here(
@@ -1791,10 +1766,7 @@ mod Std.Regex.Runtime
     {inner: List(LookaroundAdmittedState(n))},
     @erased equality: Equivalent(List(LookaroundAdmittedState(n)), outer, inner)
   ) -> LookaroundAdmittedStateCursorSuffixPackage(n, outer, inner) =
-    LookaroundAdmittedStateCursorSuffixPacked(
-      LookaroundAdmittedStateCursorSuffixHereKind(),
-      LookaroundAdmittedStateCursorSuffixEvidenceHere(equality)
-    )
+    LookaroundAdmittedStateCursorSuffixHerePacked(equality)
 
   @reducible
   fn lookaround_admitted_cursor_suffix_package_drop(
@@ -1802,12 +1774,8 @@ mod Std.Regex.Runtime
     {inner: List(LookaroundAdmittedState(n))},
     @erased head: LookaroundAdmittedState(n),
     package: LookaroundAdmittedStateCursorSuffixPackage(n, outer, inner)
-  ) -> LookaroundAdmittedStateCursorSuffixPackage(n, Cons(head, outer), inner) = match package
-    LookaroundAdmittedStateCursorSuffixPacked(kind, evidence) ->
-      LookaroundAdmittedStateCursorSuffixPacked(
-        LookaroundAdmittedStateCursorSuffixDropKind(kind),
-        LookaroundAdmittedStateCursorSuffixEvidenceDrop(outer, head, kind, evidence)
-      )
+  ) -> LookaroundAdmittedStateCursorSuffixPackage(n, Cons(head, outer), inner) =
+    LookaroundAdmittedStateCursorSuffixDropPacked(head, package)
 
   ## Publish an existing relevant suffix through the constructor-correlated
   ## package representation. Recursive strict-cursor proofs use this bridge
@@ -1827,47 +1795,8 @@ mod Std.Regex.Runtime
       )
 
   ## Advance the inner cursor by one candidate while preserving its original
-  ## outer spine. The relevant kind chooses the unique erased evidence
-  ## constructor at every level. `Here` creates the first drop; an existing
-  ## drop recurses into its prior suffix and then rebuilds the erased spine.
-  ## No erased list or equality chooses runtime control flow.
-  @reducible
-  fn lookaround_admitted_cursor_suffix_evidence_advance(
-    {n: Nat}, {outer: List(LookaroundAdmittedState(n))},
-    @erased head: LookaroundAdmittedState(n),
-    @erased tail: List(LookaroundAdmittedState(n)),
-    kind: LookaroundAdmittedStateCursorSuffixKind,
-    @erased evidence: LookaroundAdmittedStateCursorSuffixEvidence(n, outer, Cons(head, tail), kind)
-  ) -> LookaroundAdmittedStateCursorSuffixPackage(n, outer, tail) = match kind
-    LookaroundAdmittedStateCursorSuffixHereKind() -> match evidence
-      LookaroundAdmittedStateCursorSuffixEvidenceHere(equality) -> match equality
-        reflexive() -> LookaroundAdmittedStateCursorSuffixPacked(
-          LookaroundAdmittedStateCursorSuffixDropKind(LookaroundAdmittedStateCursorSuffixHereKind()),
-          LookaroundAdmittedStateCursorSuffixEvidenceDrop(
-            tail,
-            head,
-            LookaroundAdmittedStateCursorSuffixHereKind(),
-            LookaroundAdmittedStateCursorSuffixEvidenceHere(reflexive(tail))
-          )
-        )
-    LookaroundAdmittedStateCursorSuffixDropKind(prior_kind) -> match evidence
-      LookaroundAdmittedStateCursorSuffixEvidenceDrop(prior_outer, dropped, _, prior) -> match lookaround_admitted_cursor_suffix_evidence_advance(
-          head,
-          tail,
-          prior_kind,
-          prior
-        )
-        LookaroundAdmittedStateCursorSuffixPacked(next_kind, next_evidence) ->
-          LookaroundAdmittedStateCursorSuffixPacked(
-            LookaroundAdmittedStateCursorSuffixDropKind(next_kind),
-            LookaroundAdmittedStateCursorSuffixEvidenceDrop(
-              prior_outer,
-              dropped,
-              next_kind,
-              next_evidence
-            )
-          )
-
+  ## outer spine. `Here` creates the first drop; an existing drop recurses into
+  ## its retained prior package and rebuilds the same finite shape.
   @reducible
   fn lookaround_admitted_cursor_suffix_package_advance(
     {n: Nat}, {outer: List(LookaroundAdmittedState(n))},
@@ -1875,8 +1804,100 @@ mod Std.Regex.Runtime
     @erased tail: List(LookaroundAdmittedState(n)),
     package: LookaroundAdmittedStateCursorSuffixPackage(n, outer, Cons(head, tail))
   ) -> LookaroundAdmittedStateCursorSuffixPackage(n, outer, tail) = match package
-    LookaroundAdmittedStateCursorSuffixPacked(kind, evidence) ->
-      lookaround_admitted_cursor_suffix_evidence_advance(head, tail, kind, evidence)
+    LookaroundAdmittedStateCursorSuffixHerePacked(equality) -> match equality
+      reflexive() -> LookaroundAdmittedStateCursorSuffixDropPacked(
+        head,
+        LookaroundAdmittedStateCursorSuffixHerePacked(reflexive(tail))
+      )
+    LookaroundAdmittedStateCursorSuffixDropPacked(dropped, prior) ->
+      LookaroundAdmittedStateCursorSuffixDropPacked(
+        dropped,
+        lookaround_admitted_cursor_suffix_package_advance(head, tail, prior)
+      )
+
+  ## Runtime comparison of two cursor depths. The canonical-origin evidence
+  ## remains proof-only; this tag records only the relative `Here`/`Drop`
+  ## shapes needed to choose the recursive induction branch.
+  type AtomicPathCursorShapeLocation =
+    | AtomicPathCursorShapeSame
+    | AtomicPathCursorShapeLeftAfter
+    | AtomicPathCursorShapeRightAfter
+
+  type LookaroundAdmittedStateCursorShape =
+    | LookaroundAdmittedStateCursorShapeHere
+    | LookaroundAdmittedStateCursorShapeDrop(LookaroundAdmittedStateCursorShape)
+
+  fn lookaround_admitted_cursor_suffix_package_shape(
+    {@erased n: Nat},
+    {@erased outer: List(LookaroundAdmittedState(n))},
+    {@erased inner: List(LookaroundAdmittedState(n))},
+    package: LookaroundAdmittedStateCursorSuffixPackage(n, outer, inner)
+  ) -> LookaroundAdmittedStateCursorShape = match package
+    LookaroundAdmittedStateCursorSuffixHerePacked(_) ->
+      LookaroundAdmittedStateCursorShapeHere()
+    LookaroundAdmittedStateCursorSuffixDropPacked(_, prior) ->
+      LookaroundAdmittedStateCursorShapeDrop(
+        lookaround_admitted_cursor_suffix_package_shape(prior)
+      )
+
+  fn atomic_path_cursor_shape_package_location(
+    left: LookaroundAdmittedStateCursorShape,
+    {@erased n: Nat},
+    {@erased right_outer: List(LookaroundAdmittedState(n))},
+    {@erased right_inner: List(LookaroundAdmittedState(n))},
+    right: LookaroundAdmittedStateCursorSuffixPackage(
+      n, right_outer, right_inner
+    )
+  ) -> AtomicPathCursorShapeLocation = match left
+    LookaroundAdmittedStateCursorShapeHere() -> match right
+      LookaroundAdmittedStateCursorSuffixHerePacked(_) ->
+        AtomicPathCursorShapeSame()
+      LookaroundAdmittedStateCursorSuffixDropPacked(_, _) ->
+        AtomicPathCursorShapeRightAfter()
+    LookaroundAdmittedStateCursorShapeDrop(left_prior) -> match right
+      LookaroundAdmittedStateCursorSuffixHerePacked(_) ->
+        AtomicPathCursorShapeLeftAfter()
+      LookaroundAdmittedStateCursorSuffixDropPacked(_, right_prior) ->
+        atomic_path_cursor_shape_package_location(left_prior, right_prior)
+
+  fn atomic_path_cursor_shapes_location(
+    left: LookaroundAdmittedStateCursorShape,
+    right: LookaroundAdmittedStateCursorShape
+  ) -> AtomicPathCursorShapeLocation = match left
+    LookaroundAdmittedStateCursorShapeHere() -> match right
+      LookaroundAdmittedStateCursorShapeHere() ->
+        AtomicPathCursorShapeSame()
+      LookaroundAdmittedStateCursorShapeDrop(_) ->
+        AtomicPathCursorShapeRightAfter()
+    LookaroundAdmittedStateCursorShapeDrop(left_prior) -> match right
+      LookaroundAdmittedStateCursorShapeHere() ->
+        AtomicPathCursorShapeLeftAfter()
+      LookaroundAdmittedStateCursorShapeDrop(right_prior) ->
+        atomic_path_cursor_shapes_location(left_prior, right_prior)
+
+  fn atomic_path_cursor_shape_location(
+    {@erased n: Nat},
+    {@erased left_outer: List(LookaroundAdmittedState(n))},
+    {@erased right_outer: List(LookaroundAdmittedState(n))},
+    {@erased left_inner: List(LookaroundAdmittedState(n))},
+    {@erased right_inner: List(LookaroundAdmittedState(n))},
+    left: LookaroundAdmittedStateCursorSuffixPackage(
+      n, left_outer, left_inner
+    ),
+    right: LookaroundAdmittedStateCursorSuffixPackage(
+      n, right_outer, right_inner
+    )
+  ) -> AtomicPathCursorShapeLocation = match left
+    LookaroundAdmittedStateCursorSuffixHerePacked(_) -> match right
+      LookaroundAdmittedStateCursorSuffixHerePacked(_) ->
+        AtomicPathCursorShapeSame()
+      LookaroundAdmittedStateCursorSuffixDropPacked(_, _) ->
+        AtomicPathCursorShapeRightAfter()
+    LookaroundAdmittedStateCursorSuffixDropPacked(_, left_prior) -> match right
+      LookaroundAdmittedStateCursorSuffixHerePacked(_) ->
+        AtomicPathCursorShapeLeftAfter()
+      LookaroundAdmittedStateCursorSuffixDropPacked(_, right_prior) ->
+        atomic_path_cursor_shape_location(left_prior, right_prior)
 
   ## A non-empty cursor current proves that its whole spine is non-empty too.
   ## Keep the decomposition existential and erased: callers need the
@@ -1884,23 +1905,6 @@ mod Std.Regex.Runtime
   ## representation of the chosen head or tail is allowed to escape.
   type LookaroundAdmittedNonempty(n: Nat) indices (whole: List(LookaroundAdmittedState(n)))
     LookaroundAdmittedNonemptyPacked : (@erased head: LookaroundAdmittedState(n)) -> (@erased tail: List(LookaroundAdmittedState(n))) -> (@erased equivalence: Equivalent(List(LookaroundAdmittedState(n)), whole, Cons(head, tail))) -> LookaroundAdmittedNonempty(n, whole)
-
-  ## Recover whole-spine non-emptiness without inspecting erased suffix
-  ## evidence generically. The relevant kind fixes `Here` or `Drop` first;
-  ## the corresponding erased constructor is then collapsible.
-  @reducible
-  fn lookaround_admitted_cursor_suffix_evidence_nonempty(
-    {n: Nat}, {@erased whole: List(LookaroundAdmittedState(n))},
-    {@erased head: LookaroundAdmittedState(n)},
-    {@erased tail: List(LookaroundAdmittedState(n))},
-    kind: LookaroundAdmittedStateCursorSuffixKind,
-    @erased evidence: LookaroundAdmittedStateCursorSuffixEvidence(n, whole, Cons(head, tail), kind)
-  ) -> LookaroundAdmittedNonempty(n, whole) = match kind
-    LookaroundAdmittedStateCursorSuffixHereKind() -> match evidence
-      LookaroundAdmittedStateCursorSuffixEvidenceHere(equality) -> match equality
-        reflexive() -> LookaroundAdmittedNonemptyPacked(head, tail, reflexive(Cons(head, tail)))
-    LookaroundAdmittedStateCursorSuffixDropKind(prior_kind) -> match evidence
-      LookaroundAdmittedStateCursorSuffixEvidenceDrop(prior_outer, dropped, _, _) -> LookaroundAdmittedNonemptyPacked(dropped, prior_outer, reflexive(Cons(dropped, prior_outer)))
 
   ## Transport a non-empty decomposition backwards through an ordered cursor
   ## suffix.  The `Here` case consumes the suffix equality; each `Drop` case
@@ -2009,7 +2013,7 @@ mod Std.Regex.Runtime
   ## callbacks without projecting anything from the erased cause.
   type AtomicPathCommitSelectedLocationPackage(n: Nat, commit_package: Type, commit_cursor_package: Type, selected_trace_package: Type, selected_skipped_package: Type) indices (commit_current: List(LookaroundAdmittedState(n)), selected_current: List(LookaroundAdmittedState(n)))
     AtomicPathCommitSelectedSamePacked : (commit: commit_package) -> (commit_cursor: commit_cursor_package) -> (selected_trace: selected_trace_package) -> (selected_skipped: selected_skipped_package) -> (@erased equality: Equivalent(List(LookaroundAdmittedState(n)), commit_current, selected_current)) -> AtomicPathCommitSelectedLocationPackage(n, commit_package, commit_cursor_package, selected_trace_package, selected_skipped_package, commit_current, selected_current)
-    AtomicPathCommitSelectedLeftAfterPacked : (commit: commit_package) -> (commit_cursor: commit_cursor_package) -> (selected_trace: selected_trace_package) -> (selected_skipped: selected_skipped_package) -> (marker: AtomicPathStrictCursorSuffix(n, selected_current, commit_current)) -> AtomicPathCommitSelectedLocationPackage(n, commit_package, commit_cursor_package, selected_trace_package, selected_skipped_package, commit_current, selected_current)
+    AtomicPathCommitSelectedLeftAfterPacked : (commit: commit_package) -> (commit_cursor: commit_cursor_package) -> (selected_trace: selected_trace_package) -> (selected_skipped: selected_skipped_package) -> (marker: LookaroundAdmittedStateCursorSuffixPackage(n, selected_current, commit_current)) -> AtomicPathCommitSelectedLocationPackage(n, commit_package, commit_cursor_package, selected_trace_package, selected_skipped_package, commit_current, selected_current)
     AtomicPathCommitSelectedRightAfterPacked : (commit: commit_package) -> (commit_cursor: commit_cursor_package) -> (selected_trace: selected_trace_package) -> (selected_skipped: selected_skipped_package) -> (marker: LookaroundAdmittedStateCursorSuffixPackage(n, commit_current, selected_current)) -> AtomicPathCommitSelectedLocationPackage(n, commit_package, commit_cursor_package, selected_trace_package, selected_skipped_package, commit_current, selected_current)
 
   ## One-constructor authorities preserve the branch refinement beyond a
@@ -2020,6 +2024,18 @@ mod Std.Regex.Runtime
 
   type AtomicPathCommitSelectedRightAuthorityPackage(n: Nat, commit_package: Type, commit_cursor_package: Type, selected_trace_package: Type, selected_skipped_package: Type) indices (commit_current: List(LookaroundAdmittedState(n)), selected_current: List(LookaroundAdmittedState(n)))
     AtomicPathCommitSelectedRightAuthorityPacked : (commit: commit_package) -> (commit_cursor: commit_cursor_package) -> (selected_trace: selected_trace_package) -> (selected_skipped: selected_skipped_package) -> (marker: LookaroundAdmittedStateCursorSuffixPackage(n, commit_current, selected_current)) -> AtomicPathCommitSelectedRightAuthorityPackage(n, commit_package, commit_cursor_package, selected_trace_package, selected_skipped_package, commit_current, selected_current)
+
+  @reducible
+  fn atomic_path_strict_cursor_suffix_package(
+    {n: Nat}, {outer: List(LookaroundAdmittedState(n))},
+    {inner: List(LookaroundAdmittedState(n))},
+    marker: AtomicPathStrictCursorSuffix(n, outer, inner)
+  ) -> LookaroundAdmittedStateCursorSuffixPackage(n, outer, inner) = match marker
+    AtomicPathStrictCursorSuffixDrop(head, _, suffix) ->
+      lookaround_admitted_cursor_suffix_package_drop(
+        head,
+        lookaround_admitted_cursor_suffix_package(suffix)
+      )
 
   @reducible
   fn atomic_path_commit_selected_location_package(
@@ -2053,7 +2069,7 @@ mod Std.Regex.Runtime
       commit_cursor,
       selected_trace,
       selected_skipped,
-      marker
+      atomic_path_strict_cursor_suffix_package(marker)
     )
     AtomicPathCursorLocationRightAfter(marker) -> AtomicPathCommitSelectedRightAfterPacked(
       commit,
@@ -3849,6 +3865,13 @@ mod Std.Regex.Runtime
   ## failure, so the start-list wrapper can carry one complete root tree.
   @reducible
   fn lookaround_admitted_state_thread({n: Nat}, state: LookaroundAdmittedState(n)) -> ThreadState(n) = match state
+    LookaroundAdmittedActive(destination, _, _, _, _, _) -> ThreadActive(destination)
+    LookaroundAdmittedAccepted(_, _, _, _, _) -> ThreadAccepted()
+
+  ## Explicit-arity form for dependent constructor telescopes, where the
+  ## hidden `n` cannot always be recovered before every later field is known.
+  @reducible
+  fn lookaround_admitted_state_thread_at(n: Nat, state: LookaroundAdmittedState(n)) -> ThreadState(n) = match state
     LookaroundAdmittedActive(destination, _, _, _, _, _) -> ThreadActive(destination)
     LookaroundAdmittedAccepted(_, _, _, _, _) -> ThreadAccepted()
 
@@ -7801,8 +7824,11 @@ mod Std.Regex.Runtime
   ## context, scope, canonical destination spine, depth, and commit kind. Those
   ## indices are existential at the parent boundary and must travel with the
   ## relevant cursor/structure package rather than being guessed by a caller.
-  type AtomicPathCommitChildCursorExistentialPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (rest: List(Char), after_input: List(Char), child_state: ThreadState(n), history: List(Char), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char))
-    AtomicPathCommitChildCursorExistentialPacked : {@erased child_capture_context: List(EvidenceInstruction)} -> {@erased child_scope_depth: Nat} -> {@erased child_whole: List(LookaroundAdmittedState(n))} -> {@erased child_current: List(LookaroundAdmittedState(n))} -> {@erased child_commit_depth: Nat} -> {@erased child_commit_kind: AtomicPathCommitCauseKind} -> (child: AtomicPathCommitStructureCursorExistentialPackage(depth, n, machine, rest, after_input, child_state, history, child_capture_context, policy, child_scope_depth, prefix_mode, reversed_prefix, child_whole, child_current, child_commit_depth, child_commit_kind)) -> AtomicPathCommitChildCursorExistentialPackage(depth, n, machine, rest, after_input, child_state, history, policy, prefix_mode, reversed_prefix)
+  type AtomicPathCommitChildCursorPayloadPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (rest: List(Char), after_input: List(Char), candidate: LookaroundAdmittedState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char))
+    AtomicPathCommitChildCursorPayloadPacked : {@erased child_capture_context: List(EvidenceInstruction)} -> (@erased context_alignment: LookaroundAdmittedStateCaptureContext(n, capture_context, candidate, child_capture_context)) -> {@erased child_scope_depth: Nat} -> (@erased scope_alignment: LookaroundAdmittedStateScope(n, scope_depth, candidate, child_scope_depth)) -> {@erased child_whole: List(LookaroundAdmittedState(n))} -> {@erased child_current: List(LookaroundAdmittedState(n))} -> {@erased child_origin: List(LookaroundAdmittedState(n))} -> (@erased child_origin_equivalence: Equivalent(List(LookaroundAdmittedState(n)), child_whole, child_origin)) -> (@erased child_origin_canonical: AtomicPathSearchOrigin(depth, n, machine, rest, after_input, lookaround_admitted_state_thread_at(n, candidate), history, child_capture_context, policy, child_origin)) -> {@erased child_commit_depth: Nat} -> {@erased child_commit_kind: AtomicPathCommitCauseKind} -> (child: AtomicPathCommitStructureCursorExistentialPackage(depth, n, machine, rest, after_input, lookaround_admitted_state_thread_at(n, candidate), history, child_capture_context, policy, child_scope_depth, prefix_mode, reversed_prefix, child_whole, child_current, child_commit_depth, child_commit_kind)) -> AtomicPathCommitChildCursorPayloadPackage(depth, n, machine, rest, after_input, candidate, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix)
+
+  type AtomicPathCommitChildCursorExistentialPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (rest: List(Char), after_input: List(Char), candidate: LookaroundAdmittedState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char))
+    AtomicPathCommitChildCursorExistentialPacked : (shape: LookaroundAdmittedStateCursorShape) -> (payload: AtomicPathCommitChildCursorPayloadPackage(depth, n, machine, rest, after_input, candidate, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix)) -> AtomicPathCommitChildCursorExistentialPackage(depth, n, machine, rest, after_input, candidate, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix)
 
   ## PastEscaped is selected by the relevant structure before its erased
   ## indices are refined. The recursive cursor is advanced from the relevant
@@ -7992,20 +8018,29 @@ mod Std.Regex.Runtime
       commit_depth, AtomicPathCommitFromChildKind(child_commit_kind)
     )
   ) -> AtomicPathCommitChildCursorExistentialPackage(
-    depth, n, machine, rest, after_input,
-    lookaround_admitted_state_thread(candidate),
-    history_push_bounded(history, char), policy, prefix_mode,
+    depth, n, machine, rest, after_input, candidate,
+    history_push_bounded(history, char), capture_context, policy, scope_depth,
+    prefix_mode,
     Cons(char, reversed_prefix)
   ) = match package
     AtomicPathCommitStructureCursorExistentialPacked(_, _, structure) -> match structure
       AtomicPathCommitStructureFromChildPacked(
         {child_cause = child_cause},
-        _, _, _, _, _, _, _, _, _, _, _, _, child_cursor, child_structure, _
+        _, _, _, _, _, _, child_context_alignment, _, child_scope_alignment,
+        child_origin_equivalence, child_origin_canonical, _, child_cursor,
+        child_structure, _
       ) -> AtomicPathCommitChildCursorExistentialPacked(
-        AtomicPathCommitStructureCursorExistentialPacked(
-          child_cause,
-          child_cursor,
-          child_structure
+        lookaround_admitted_cursor_suffix_package_shape(child_cursor),
+        AtomicPathCommitChildCursorPayloadPacked(
+          child_context_alignment,
+          child_scope_alignment,
+          child_origin_equivalence,
+          child_origin_canonical,
+          AtomicPathCommitStructureCursorExistentialPacked(
+            child_cause,
+            child_cursor,
+            child_structure
+          )
         )
       )
 
@@ -8033,21 +8068,30 @@ mod Std.Regex.Runtime
       AtomicPathCommitPastEscapedKind(child_commit_kind, tail_commit_kind)
     )
   ) -> AtomicPathCommitChildCursorExistentialPackage(
-    depth, n, machine, rest, after_input,
-    lookaround_admitted_state_thread(candidate),
-    history_push_bounded(history, char), policy, prefix_mode,
+    depth, n, machine, rest, after_input, candidate,
+    history_push_bounded(history, char), capture_context, policy, scope_depth,
+    prefix_mode,
     Cons(char, reversed_prefix)
   ) = match package
     AtomicPathCommitStructureCursorExistentialPacked(_, _, structure) -> match structure
       AtomicPathCommitStructurePastEscapedPacked(
         {child_cause = child_cause},
-        _, _, _, _, _, _, _, _, _, _, _, _, child_cursor, child_structure,
+        _, _, _, _, _, _, child_context_alignment, _, child_scope_alignment,
+        child_origin_equivalence, child_origin_canonical, _, child_cursor,
+        child_structure,
         _, _, _, _, _, _
       ) -> AtomicPathCommitChildCursorExistentialPacked(
-        AtomicPathCommitStructureCursorExistentialPacked(
-          child_cause,
-          child_cursor,
-          child_structure
+        lookaround_admitted_cursor_suffix_package_shape(child_cursor),
+        AtomicPathCommitChildCursorPayloadPacked(
+          child_context_alignment,
+          child_scope_alignment,
+          child_origin_equivalence,
+          child_origin_canonical,
+          AtomicPathCommitStructureCursorExistentialPacked(
+            child_cause,
+            child_cursor,
+            child_structure
+          )
         )
       )
 
@@ -8680,6 +8724,114 @@ mod Std.Regex.Runtime
   typealias AtomicPathRecursiveCommitSelectedSamePackage(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), commit_current: List(LookaroundAdmittedState(n)), selected_current: List(LookaroundAdmittedState(n)), commit_depth: Nat, commit_kind: AtomicPathCommitCauseKind, selected_trace_package: Type, skipped_kind: AtomicPathSkippedPrefixKind) = AtomicPathCommitSelectedSameAuthorityPackage(n, AtomicPathCommitStructureCursorExistentialPackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, commit_current, commit_depth, commit_kind), LookaroundAdmittedStateCursorSuffixPackage(n, whole, commit_current), selected_trace_package, AtomicPathSkippedPrefixStructurePackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, commit_current, selected_current, skipped_kind), commit_current, selected_current)
 
   typealias AtomicPathRecursiveCommitSelectedRightPackage(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), commit_current: List(LookaroundAdmittedState(n)), selected_current: List(LookaroundAdmittedState(n)), commit_depth: Nat, commit_kind: AtomicPathCommitCauseKind, selected_trace_package: Type, skipped_kind: AtomicPathSkippedPrefixKind) = AtomicPathCommitSelectedRightAuthorityPackage(n, AtomicPathCommitStructureCursorExistentialPackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, commit_current, commit_depth, commit_kind), LookaroundAdmittedStateCursorSuffixPackage(n, whole, commit_current), selected_trace_package, AtomicPathSkippedPrefixStructurePackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, commit_current, selected_current, skipped_kind), commit_current, selected_current)
+
+  ## One recursive induction state with every child-specific index hidden but
+  ## still correlated. Consumers open this package and dispatch on the retained
+  ## relevant commit, selected trace, and skipped-prefix structures.
+  type AtomicPathRecursiveCommitSelectedExistentialPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices ()
+    AtomicPathRecursiveCommitSelectedExistentialPacked : {@erased input: List(Char)} -> {@erased after_input: List(Char)} -> {@erased state: ThreadState(n)} -> {@erased history: List(Char)} -> {@erased capture_context: List(EvidenceInstruction)} -> {@erased policy: NewlinePolicy} -> {@erased scope_depth: Nat} -> {@erased prefix_mode: Bool} -> {@erased reversed_prefix: List(Char)} -> {@erased whole: List(LookaroundAdmittedState(n))} -> {@erased commit_current: List(LookaroundAdmittedState(n))} -> {@erased selected_current: List(LookaroundAdmittedState(n))} -> {@erased commit_depth: Nat} -> {@erased commit_kind: AtomicPathCommitCauseKind} -> {@erased matched: List(Char)} -> {@erased remaining_input: List(Char)} -> {@erased selected_routine: List(ExtendedInstruction)} -> {@erased path: AtomicSelectedPathTrace(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, selected_current, matched, remaining_input, selected_routine)} -> {@erased skipped_kind: AtomicPathSkippedPrefixKind} -> (package: AtomicPathRecursiveCommitSelectedPackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, commit_current, selected_current, commit_depth, commit_kind, AtomicSelectedPathTracePackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, selected_current, matched, remaining_input, selected_routine, path), skipped_kind)) -> AtomicPathRecursiveCommitSelectedExistentialPackage(depth, n, machine)
+    AtomicPathRecursiveCommitSelectedChildExistentialPacked : {@erased char: Char} -> {@erased rest: List(Char)} -> {@erased after_input: List(Char)} -> {@erased source: Bounded(n)} -> {@erased history: List(Char)} -> {@erased capture_context: List(EvidenceInstruction)} -> {@erased policy: NewlinePolicy} -> {@erased scope_depth: Nat} -> {@erased prefix_mode: Bool} -> {@erased reversed_prefix: List(Char)} -> {@erased candidate: LookaroundAdmittedState(n)} -> {@erased remaining: List(LookaroundAdmittedState(n))} -> {@erased matched: List(Char)} -> {@erased remaining_input: List(Char)} -> {@erased selected_routine: List(ExtendedInstruction)} -> {@erased path: AtomicSelectedPathTrace(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, Cons(candidate, remaining), matched, remaining_input, selected_routine)} -> (child_commit: AtomicPathCommitChildCursorExistentialPackage(depth, n, machine, rest, after_input, candidate, history_push_bounded(history, char), capture_context, policy, scope_depth, prefix_mode, Cons(char, reversed_prefix))) -> (selected_trace: AtomicSelectedPathTracePackage(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, Cons(candidate, remaining), matched, remaining_input, selected_routine, path)) -> (location: AtomicPathCursorShapeLocation) -> AtomicPathRecursiveCommitSelectedExistentialPackage(depth, n, machine)
+
+  @reducible
+  fn atomic_path_recursive_commit_selected_existential_pack(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased input: List(Char)}, {@erased after_input: List(Char)},
+    {@erased state: ThreadState(n)}, {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased commit_current: List(LookaroundAdmittedState(n))},
+    {@erased selected_current: List(LookaroundAdmittedState(n))},
+    {@erased commit_depth: Nat},
+    {@erased commit_kind: AtomicPathCommitCauseKind},
+    {@erased matched: List(Char)}, {@erased remaining_input: List(Char)},
+    {@erased selected_routine: List(ExtendedInstruction)},
+    {@erased path: AtomicSelectedPathTrace(
+      depth, n, machine, input, after_input, state, history, capture_context,
+      policy, scope_depth, prefix_mode, reversed_prefix, selected_current,
+      matched, remaining_input, selected_routine
+    )},
+    {@erased skipped_kind: AtomicPathSkippedPrefixKind},
+    package: AtomicPathRecursiveCommitSelectedPackage(
+      depth, n, machine, input, after_input, state, history, capture_context,
+      policy, scope_depth, prefix_mode, reversed_prefix, whole,
+      commit_current, selected_current, commit_depth, commit_kind,
+      AtomicSelectedPathTracePackage(
+        depth, n, machine, input, after_input, state, history, capture_context,
+        policy, scope_depth, prefix_mode, reversed_prefix, selected_current,
+        matched, remaining_input, selected_routine, path
+      ),
+      skipped_kind
+    )
+  ) -> AtomicPathRecursiveCommitSelectedExistentialPackage(depth, n, machine) =
+    AtomicPathRecursiveCommitSelectedExistentialPacked(package)
+
+  ## Pair a propagated commit child with the recursive child selected by the
+  ## same outer trace constructor. Context and scope alignment witnesses are
+  ## consumed before the two independently produced cursor authorities meet.
+  fn atomic_path_commit_child_selected_shape_location(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased rest: List(Char)}, {@erased after_input: List(Char)},
+    {@erased candidate: LookaroundAdmittedState(n)},
+    {@erased child_history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    child_commit: AtomicPathCommitChildCursorExistentialPackage(
+      depth, n, machine, rest, after_input, candidate,
+      child_history, capture_context, policy, scope_depth, prefix_mode,
+      reversed_prefix
+    ),
+    selected_shape: LookaroundAdmittedStateCursorShape
+  ) -> AtomicPathCursorShapeLocation = match child_commit
+    AtomicPathCommitChildCursorExistentialPacked(commit_shape, _) ->
+      atomic_path_cursor_shapes_location(commit_shape, selected_shape)
+
+  ## Retain both complete construction authorities without reopening either
+  ## one in the result-producing scope. The helper computes only the finite
+  ## runtime location tag; all erased context, scope, and origin certificates
+  ## remain encapsulated in their original relevant packages.
+  fn atomic_path_commit_child_selected_location_package(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased rest: List(Char)},
+    {@erased after_input: List(Char)}, {@erased source: Bounded(n)},
+    {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased candidate: LookaroundAdmittedState(n)},
+    {@erased remaining: List(LookaroundAdmittedState(n))},
+    {@erased matched: List(Char)},
+    {@erased remaining_input: List(Char)},
+    {@erased selected_routine: List(ExtendedInstruction)},
+    {@erased path: AtomicSelectedPathTrace(
+      depth, n, machine, Cons(char, rest), after_input, ThreadActive(source),
+      history, capture_context, policy, scope_depth, prefix_mode,
+      reversed_prefix, Cons(candidate, remaining), matched, remaining_input,
+      selected_routine
+    )},
+    child_commit: AtomicPathCommitChildCursorExistentialPackage(
+      depth, n, machine, rest, after_input, candidate,
+      history_push_bounded(history, char), capture_context, policy, scope_depth,
+      prefix_mode, Cons(char, reversed_prefix)
+    ),
+    selected_trace: AtomicSelectedPathTracePackage(
+      depth, n, machine, Cons(char, rest), after_input, ThreadActive(source),
+      history, capture_context, policy, scope_depth, prefix_mode,
+      reversed_prefix, Cons(candidate, remaining), matched, remaining_input,
+      selected_routine, path
+    ),
+    selected_shape: LookaroundAdmittedStateCursorShape
+  ) -> AtomicPathRecursiveCommitSelectedExistentialPackage(depth, n, machine) =
+    AtomicPathRecursiveCommitSelectedChildExistentialPacked(
+      child_commit,
+      selected_trace,
+      atomic_path_commit_child_selected_shape_location(
+        child_commit,
+        selected_shape
+      )
+    )
 
   ## Combine an extracted recursive commit tail with the corresponding
   ## selected skipped-prefix tail. Matching the commit package exposes the
