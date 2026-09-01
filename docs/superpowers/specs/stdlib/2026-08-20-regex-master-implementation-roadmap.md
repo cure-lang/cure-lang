@@ -3907,6 +3907,23 @@ focused structural regression passes. Next build the constructor-correlated
 local packages needed by the rejected-cons callbacks, then reuse the existing
 tail projections for the escaped and recursive sibling callbacks.
 
+The aligned local branches now publish a constructor-correlated skipped-tail
+carrier before recursive elimination. The carrier retains the classified
+commit, the current relevant skipped-prefix structure, the exact selected
+suffix, and the erased equality between the commit and selected final cursors.
+It also retains a canonical empty structure constructed while all dependent
+indices are still available; this avoids attempting to reconstruct
+polymorphic empty evidence after those indices have been existentially hidden.
+`atomic_path_recursive_commit_selected_child_same_skipped_tail_fold` then
+peels one relevant layer at a time: `EscapedOne` selects that stored empty
+tail, while escaped and rejected cons constructors forward their own stored
+tail structures. The commit, suffix, and cursor authority are never rebuilt,
+and erased evidence does not select a runtime continuation. The complete Regex
+chain elaborates and the focused structural regression passes. Next recurse
+this fold to its empty terminal, close that exact terminal against the selected
+trace, and wire the resulting contradiction into the strict-right recursive
+callbacks for `AfterFailure` and `PastRejected`.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
