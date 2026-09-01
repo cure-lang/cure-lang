@@ -9740,6 +9740,49 @@ mod Std.Regex.Runtime
     AtomicPathRecursiveCommitSelectedChildSameAcceptedImpossiblePacked(_) ->
       invalid_case()
 
+  ## Narrow a local AfterFailure continuation by the relevant selected-prefix
+  ## structure before any erased cause, failure, or cursor equality is opened.
+  fn atomic_path_recursive_commit_selected_child_same_after_failure_dispatch(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    ),
+    empty_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )) -> Empty,
+    escaped_one_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )) -> Empty,
+    escaped_cons_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )) -> Empty,
+    rejected_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )) -> Empty,
+    invalid_case: () -> Empty
+  ) -> Empty = match aligned
+    AtomicPathRecursiveCommitSelectedChildSameAlignedActivePacked(
+      commit, selected_skipped, _, _, _, _
+    ) -> match commit
+      AtomicPathCommitStructureCursorClassifiedAfterFailurePacked(_) -> match selected_skipped
+        AtomicPathSkippedPrefixStructureEmptyPacked(_) ->
+          empty_case(aligned)
+        AtomicPathSkippedPrefixStructureEscapedOnePacked(_) ->
+          escaped_one_case(aligned)
+        AtomicPathSkippedPrefixStructureEscapedConsPacked(_, _) ->
+          escaped_cons_case(aligned)
+        AtomicPathSkippedPrefixStructureRejectedConsPacked(_, _) ->
+          rejected_case(aligned)
+      AtomicPathCommitStructureCursorClassifiedFromChildPacked(_) ->
+        invalid_case()
+      AtomicPathCommitStructureCursorClassifiedPastEscapedPacked(_) ->
+        invalid_case()
+      AtomicPathCommitStructureCursorClassifiedPastRejectedPacked(_) ->
+        invalid_case()
+    AtomicPathRecursiveCommitSelectedChildSameAlignedAcceptedPacked(
+      _, _, _, _, _, _
+    ) -> invalid_case()
+
   ## Combine an extracted recursive commit tail with the corresponding
   ## selected skipped-prefix tail. Matching the commit package exposes the
   ## cursor already correlated with its exact structure; the selected

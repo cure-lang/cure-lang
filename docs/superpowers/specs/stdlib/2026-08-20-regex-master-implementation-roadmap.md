@@ -3882,6 +3882,19 @@ connect strict right branches to the existing one-constructor right folds,
 and make the recursive callbacks invoke the same theorem on the smaller
 commit structure.
 
+Local `AfterFailure` is now narrowed before its erased proof payload is
+opened. `atomic_path_recursive_commit_selected_child_same_after_failure_dispatch`
+matches the relevant selected skipped-prefix structure and exposes four fixed
+`Empty` obligations: empty, escaped-one, escaped-cons, or rejected-cons. A
+misclassified commit or accepted aligned package is routed to an explicit
+invalid callback. This avoids forcing whole-cursor transport into the broad
+aligned carrier prematurely and gives each final contradiction exactly one
+selected-prefix constructor. The complete Regex chain elaborates and the
+focused structural regression passes. Next close the rejected-cons branch by
+retaining its canonical whole alignment at the local construction boundary;
+then treat empty and escaped prefixes with their corresponding child or
+propagated commit recursion rather than a broad speculative match.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
