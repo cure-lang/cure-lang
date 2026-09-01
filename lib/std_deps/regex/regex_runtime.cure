@@ -9018,15 +9018,33 @@ mod Std.Regex.Runtime
       )
     )
   ) -> AtomicPathRecursiveCommitSelectedExistentialPackage(depth, n, machine) = match selected_trace_envelope
-    AtomicSelectedPathTraceRuntimeEnvelopePacked(selected_shape, _) ->
-      AtomicPathRecursiveCommitSelectedChildExistentialPacked(
-        child_commit,
-        selected_trace_envelope,
-        atomic_path_commit_child_selected_shape_location(
+    AtomicSelectedPathTraceRuntimeEnvelopePacked(_, trace_package) -> match trace_package
+      AtomicSelectedPathTracePrefixDonePacked() -> impossible
+      AtomicSelectedPathTraceExactDonePacked() -> impossible
+      AtomicSelectedPathTraceActivePacked(
+        _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _,
+        selected_shape, _, _, _, _, _, _, _
+      ) ->
+        AtomicPathRecursiveCommitSelectedChildExistentialPacked(
           child_commit,
-          selected_shape
+          selected_trace_envelope,
+          atomic_path_commit_child_selected_shape_location(
+            child_commit,
+            selected_shape
+          )
         )
-      )
+      AtomicSelectedPathTraceAcceptedPacked(
+        _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _,
+        selected_shape, _, _, _, _, _, _, _
+      ) ->
+        AtomicPathRecursiveCommitSelectedChildExistentialPacked(
+          child_commit,
+          selected_trace_envelope,
+          atomic_path_commit_child_selected_shape_location(
+            child_commit,
+            selected_shape
+          )
+        )
 
   ## Common runtime dispatcher for recursive commit/selection authorities.
   ## The finite tag chooses a branch, but every callback receives the original

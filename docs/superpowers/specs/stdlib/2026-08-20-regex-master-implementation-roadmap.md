@@ -3570,6 +3570,18 @@ chain and focused 27-test refutation gate pass. Next carry the comparison
 authority—not merely its erased location—through the recursive child
 existential and into the dedicated `Same` carrier.
 
+Recursive pairing no longer trusts the selected trace envelope's parallel
+shape hint. `atomic_path_commit_child_selected_location_package` opens the
+relevant trace package and obtains `selected_shape` from the active or accepted
+constructor whose final shaped authority certifies it. Prefix/exact terminal
+constructors are uninhabited at this non-empty outer cursor. The commit shape
+is already indexed by its payload, so the coarse location is now computed from
+two validated construction authorities. The envelope hint remains only a
+propagated optimization and cannot affect proof routing. The complete Regex
+chain and focused 27-test refutation gate pass. Next change the recursive
+existential to retain the full `AtomicPathCursorShapeComparison` produced from
+these validated shapes, then narrow `Same` with its structural authority.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

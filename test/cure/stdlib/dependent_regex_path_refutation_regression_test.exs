@@ -1107,6 +1107,9 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              ~r/AtomicSelectedPathTraceActivePacked :.*child_cursor_authority: LookaroundAdmittedStateCursorShapedPackage/s
     assert source =~
              ~r/AtomicSelectedPathTraceAcceptedPacked :.*child_cursor_authority: LookaroundAdmittedStateCursorShapedPackage/s
+    assert source =~ "AtomicSelectedPathTraceRuntimeEnvelopePacked(_, trace_package) -> match trace_package"
+    assert source =~
+             ~r/AtomicSelectedPathTraceActivePacked\(\s*_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _,\s*selected_shape/s
     assert source =~
              ~r/AtomicPathCommitChildCursorPayloadPacked :.*@erased child_suffix: LookaroundAdmittedStateCursorSuffix/
     assert source =~ "fn atomic_path_commit_structure_nonempty("
