@@ -1477,7 +1477,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              ~r/atomic_path_recursive_commit_selected_child_same_after_failure_unclassified_fold\(.*atomic_path_recursive_commit_selected_child_same_skipped_tail_empty_fold\(\s*atomic_path_recursive_commit_selected_child_same_skipped_tail_package\(aligned\)/s
 
     assert source =~
-             ~r/atomic_path_recursive_commit_selected_child_same_after_failure_unclassified_fold\(.*atomic_path_recursive_commit_selected_child_same_after_failure_empty_kind_dispatch\(\s*after_failure_empty,\s*fn\(_\) -> invalid_case\(\),\s*fn\(_\) -> invalid_case\(\),\s*fn\(_\) -> invalid_case\(\),\s*destination_rejected_case,/s
+             ~r/atomic_path_recursive_commit_selected_child_same_after_failure_unclassified_fold\(.*atomic_path_recursive_commit_selected_child_same_after_failure_empty_kind_dispatch\(\s*after_failure_empty,\s*fn\(_\) -> invalid_case\(\),\s*fn\(_\) -> invalid_case\(\),\s*fn\(_\) -> invalid_case\(\),\s*fn\(destination_rejected\) ->\s*atomic_path_recursive_commit_selected_child_same_destination_rejected_alignment_fold\(/s
 
     assert source =~
              "fn lookaround_admitted_cursor_suffix_package_evidence("
@@ -1538,6 +1538,30 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
 
     assert source =~
              ~r/AtomicPathActiveChildAlignmentReversePacked\(branch\) ->\s*reverse_case\(branch\)/s
+
+    assert source =~
+             "fn atomic_path_recursive_commit_selected_child_same_destination_rejected_alignment_fold("
+
+    assert source =~
+             ~r/atomic_path_recursive_commit_selected_child_same_destination_rejected_alignment_fold\(.*AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPacked\(.*\) -> match commit/s
+
+    assert source =~
+             ~r/AtomicPathFailureDestinationRejectedAuthority\(\) -> match selected_suffix.*AtomicSelectedPathTraceActivePacked\(/s
+
+    assert source =~
+             "type AtomicPathActiveChildShapeAlignmentAuthority"
+
+    assert source =~
+             ~r/atomic_path_active_child_shape_alignment_package\(\s*package,\s*selected_suffix,\s*lookaround_admitted_cursor_suffix_package_shape\(\s*child_cursor_package\s*\),\s*lookaround_admitted_cursor_suffix_package_shape\(\s*selected_child_cursor_package/s
+
+    assert source =~
+             ~r/fn\(branch\) -> atomic_path_active_child_shape_here_package_result\(\s*branch, here_case\(\)/s
+
+    assert source =~
+             ~r/fn\(branch\) -> atomic_path_active_child_shape_there_package_result\(\s*branch, there_case\(\)/s
+
+    assert source =~
+             ~r/fn\(branch\) -> atomic_path_active_child_shape_reverse_package_result\(\s*branch, reverse_case\(\)/s
 
     assert source =~
              "type AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalPackage("

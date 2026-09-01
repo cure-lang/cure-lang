@@ -1889,6 +1889,147 @@ mod Std.Regex.Runtime
         AtomicPathCursorShapeComparisonRightAfter(authority) ->
           AtomicPathCursorShapeComparisonRightAfter(AtomicPathCursorShapesRightAfterDrop(authority))
 
+  ## Active-child alignment at the runtime boundary is a property of cursor
+  ## depth, not of erased canonical-origin certificates. Equal `Here` shapes
+  ## select the rejected head; equal non-Here shapes and a deeper selected
+  ## shape select a later sibling; a deeper failure shape selects reverse.
+  type AtomicPathActiveChildShapeThereAuthority indices (failure_shape: LookaroundAdmittedStateCursorShape, selected_shape: LookaroundAdmittedStateCursorShape)
+    AtomicPathActiveChildShapeThereSameDrop : (prior: AtomicPathCursorShapesSameAuthority(failure_prior, selected_prior)) -> AtomicPathActiveChildShapeThereAuthority(LookaroundAdmittedStateCursorShapeDrop(failure_prior), LookaroundAdmittedStateCursorShapeDrop(selected_prior))
+    AtomicPathActiveChildShapeThereRightAfter : (authority: AtomicPathCursorShapesRightAfterAuthority(failure_shape, selected_shape)) -> AtomicPathActiveChildShapeThereAuthority(failure_shape, selected_shape)
+
+  type AtomicPathActiveChildShapeAlignmentAuthority indices (failure_shape: LookaroundAdmittedStateCursorShape, selected_shape: LookaroundAdmittedStateCursorShape)
+    AtomicPathActiveChildShapeHereAuthority : AtomicPathActiveChildShapeAlignmentAuthority(LookaroundAdmittedStateCursorShapeHere(), LookaroundAdmittedStateCursorShapeHere())
+    AtomicPathActiveChildShapeThereAuthorityPacked : (authority: AtomicPathActiveChildShapeThereAuthority(failure_shape, selected_shape)) -> AtomicPathActiveChildShapeAlignmentAuthority(failure_shape, selected_shape)
+    AtomicPathActiveChildShapeReverseAuthority : (authority: AtomicPathCursorShapesLeftAfterAuthority(failure_shape, selected_shape)) -> AtomicPathActiveChildShapeAlignmentAuthority(failure_shape, selected_shape)
+
+  @reducible
+  fn atomic_path_active_child_shape_alignment_authority(
+    failure_shape: LookaroundAdmittedStateCursorShape,
+    selected_shape: LookaroundAdmittedStateCursorShape
+  ) -> AtomicPathActiveChildShapeAlignmentAuthority(
+    failure_shape, selected_shape
+  ) = match atomic_path_cursor_shape_comparison(failure_shape, selected_shape)
+    AtomicPathCursorShapeComparisonSame(authority) -> match failure_shape
+      LookaroundAdmittedStateCursorShapeHere() -> match authority
+        AtomicPathCursorShapesSameHere() ->
+          AtomicPathActiveChildShapeHereAuthority()
+      LookaroundAdmittedStateCursorShapeDrop(_) -> match authority
+        AtomicPathCursorShapesSameDrop(prior) ->
+          AtomicPathActiveChildShapeThereAuthorityPacked(
+            AtomicPathActiveChildShapeThereSameDrop(prior)
+          )
+    AtomicPathCursorShapeComparisonLeftAfter(authority) ->
+      AtomicPathActiveChildShapeReverseAuthority(authority)
+    AtomicPathCursorShapeComparisonRightAfter(authority) ->
+      AtomicPathActiveChildShapeThereAuthorityPacked(
+        AtomicPathActiveChildShapeThereRightAfter(authority)
+      )
+
+  type AtomicPathActiveChildShapeHerePackage(failure_package: Type, selected_package: Type) indices (failure_shape: LookaroundAdmittedStateCursorShape, selected_shape: LookaroundAdmittedStateCursorShape)
+    AtomicPathActiveChildShapeHerePacked : (failure: failure_package) -> (selected: selected_package) -> AtomicPathActiveChildShapeHerePackage(failure_package, selected_package, LookaroundAdmittedStateCursorShapeHere(), LookaroundAdmittedStateCursorShapeHere())
+
+  type AtomicPathActiveChildShapeTherePackage(failure_package: Type, selected_package: Type) indices (failure_shape: LookaroundAdmittedStateCursorShape, selected_shape: LookaroundAdmittedStateCursorShape)
+    AtomicPathActiveChildShapeTherePacked : (failure: failure_package) -> (selected: selected_package) -> (authority: AtomicPathActiveChildShapeThereAuthority(failure_shape, selected_shape)) -> AtomicPathActiveChildShapeTherePackage(failure_package, selected_package, failure_shape, selected_shape)
+
+  type AtomicPathActiveChildShapeReversePackage(failure_package: Type, selected_package: Type) indices (failure_shape: LookaroundAdmittedStateCursorShape, selected_shape: LookaroundAdmittedStateCursorShape)
+    AtomicPathActiveChildShapeReversePacked : (failure: failure_package) -> (selected: selected_package) -> (authority: AtomicPathCursorShapesLeftAfterAuthority(failure_shape, selected_shape)) -> AtomicPathActiveChildShapeReversePackage(failure_package, selected_package, failure_shape, selected_shape)
+
+  type AtomicPathActiveChildShapeAlignmentPackage(failure_package: Type, selected_package: Type) indices (failure_shape: LookaroundAdmittedStateCursorShape, selected_shape: LookaroundAdmittedStateCursorShape)
+    AtomicPathActiveChildShapeAlignmentHerePacked : (branch: AtomicPathActiveChildShapeHerePackage(failure_package, selected_package, failure_shape, selected_shape)) -> AtomicPathActiveChildShapeAlignmentPackage(failure_package, selected_package, failure_shape, selected_shape)
+    AtomicPathActiveChildShapeAlignmentTherePacked : (branch: AtomicPathActiveChildShapeTherePackage(failure_package, selected_package, failure_shape, selected_shape)) -> AtomicPathActiveChildShapeAlignmentPackage(failure_package, selected_package, failure_shape, selected_shape)
+    AtomicPathActiveChildShapeAlignmentReversePacked : (branch: AtomicPathActiveChildShapeReversePackage(failure_package, selected_package, failure_shape, selected_shape)) -> AtomicPathActiveChildShapeAlignmentPackage(failure_package, selected_package, failure_shape, selected_shape)
+
+  @reducible
+  fn atomic_path_active_child_shape_alignment_package(
+    {failure_package: Type}, {selected_package: Type},
+    failure: failure_package,
+    selected: selected_package,
+    failure_shape: LookaroundAdmittedStateCursorShape,
+    selected_shape: LookaroundAdmittedStateCursorShape
+  ) -> AtomicPathActiveChildShapeAlignmentPackage(
+    failure_package, selected_package, failure_shape, selected_shape
+  ) = match atomic_path_active_child_shape_alignment_authority(
+    failure_shape, selected_shape
+  )
+    AtomicPathActiveChildShapeHereAuthority() ->
+      AtomicPathActiveChildShapeAlignmentHerePacked(
+        AtomicPathActiveChildShapeHerePacked(failure, selected)
+      )
+    AtomicPathActiveChildShapeThereAuthorityPacked(authority) ->
+      AtomicPathActiveChildShapeAlignmentTherePacked(
+        AtomicPathActiveChildShapeTherePacked(
+          failure,
+          selected,
+          authority
+        )
+      )
+    AtomicPathActiveChildShapeReverseAuthority(authority) ->
+      AtomicPathActiveChildShapeAlignmentReversePacked(
+        AtomicPathActiveChildShapeReversePacked(
+          failure,
+          selected,
+          authority
+        )
+      )
+
+  @reducible
+  fn atomic_path_active_child_shape_alignment_package_dispatch(
+    {result: Type}, {failure_package: Type}, {selected_package: Type},
+    {failure_shape: LookaroundAdmittedStateCursorShape},
+    {selected_shape: LookaroundAdmittedStateCursorShape},
+    package: AtomicPathActiveChildShapeAlignmentPackage(
+      failure_package, selected_package, failure_shape, selected_shape
+    ),
+    here_case: (AtomicPathActiveChildShapeHerePackage(
+      failure_package, selected_package, failure_shape, selected_shape
+    )) -> result,
+    there_case: (AtomicPathActiveChildShapeTherePackage(
+      failure_package, selected_package, failure_shape, selected_shape
+    )) -> result,
+    reverse_case: (AtomicPathActiveChildShapeReversePackage(
+      failure_package, selected_package, failure_shape, selected_shape
+    )) -> result
+  ) -> result = match package
+    AtomicPathActiveChildShapeAlignmentHerePacked(branch) -> here_case(branch)
+    AtomicPathActiveChildShapeAlignmentTherePacked(branch) -> there_case(branch)
+    AtomicPathActiveChildShapeAlignmentReversePacked(branch) -> reverse_case(branch)
+
+  @reducible
+  fn atomic_path_active_child_shape_here_package_result(
+    {result: Type}, {failure_package: Type}, {selected_package: Type},
+    {failure_shape: LookaroundAdmittedStateCursorShape},
+    {selected_shape: LookaroundAdmittedStateCursorShape},
+    package: AtomicPathActiveChildShapeHerePackage(
+      failure_package, selected_package, failure_shape, selected_shape
+    ),
+    value: result
+  ) -> result = match package
+    AtomicPathActiveChildShapeHerePacked(failure, selected) -> value
+
+  @reducible
+  fn atomic_path_active_child_shape_there_package_result(
+    {result: Type}, {failure_package: Type}, {selected_package: Type},
+    {failure_shape: LookaroundAdmittedStateCursorShape},
+    {selected_shape: LookaroundAdmittedStateCursorShape},
+    package: AtomicPathActiveChildShapeTherePackage(
+      failure_package, selected_package, failure_shape, selected_shape
+    ),
+    value: result
+  ) -> result = match package
+    AtomicPathActiveChildShapeTherePacked(failure, selected, authority) -> value
+
+  @reducible
+  fn atomic_path_active_child_shape_reverse_package_result(
+    {result: Type}, {failure_package: Type}, {selected_package: Type},
+    {failure_shape: LookaroundAdmittedStateCursorShape},
+    {selected_shape: LookaroundAdmittedStateCursorShape},
+    package: AtomicPathActiveChildShapeReversePackage(
+      failure_package, selected_package, failure_shape, selected_shape
+    ),
+    value: result
+  ) -> result = match package
+    AtomicPathActiveChildShapeReversePacked(failure, selected, authority) -> value
+
   fn atomic_path_cursor_shape_comparison_location(
     {left: LookaroundAdmittedStateCursorShape},
     {right: LookaroundAdmittedStateCursorShape},
@@ -10312,6 +10453,77 @@ mod Std.Regex.Runtime
           AtomicPathCommitStructureCursorClassifiedPastRejectedPacked(_) ->
             invalid_case()
 
+  ## Open the exact local destination rejection and the exact selected active
+  ## transition under the already-established Same cursor authority.  Their
+  ## child packages are placed in the canonical alignment carrier before any
+  ## branch is selected, so a Here/later/reverse callback cannot observe a
+  ## failure from one transition beside the suffix of another transition.
+  fn atomic_path_recursive_commit_selected_child_same_destination_rejected_alignment_fold(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    package: AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage(
+      depth, n, machine
+    ),
+    here_case: () -> Empty,
+    there_case: () -> Empty,
+    reverse_case: () -> Empty,
+    invalid_case: () -> Empty
+  ) -> Empty = match package
+    AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPacked(
+      commit, _, selected_suffix, _, _, _
+    ) -> match commit
+      AtomicPathCommitStructureCursorClassifiedAfterFailurePacked(
+        child_commit
+      ) -> match child_commit
+        AtomicPathCommitStructureCursorExistentialPacked(
+          _, _, structure
+        ) -> match structure
+          AtomicPathCommitStructureAfterFailurePacked(child_package) -> match child_package
+            AtomicPathCommitAfterFailureChildPacked(
+              _, _, _, _, _, _, _, _, _, _, _, _, _, child_cursor_package,
+              child_kind_authority, _, _, _, _, _
+            ) -> match child_kind_authority
+              AtomicPathFailureDestinationRejectedAuthority() -> match selected_suffix
+                AtomicSelectedPathTracePrefixDonePacked() -> invalid_case()
+                AtomicSelectedPathTraceExactDonePacked() -> invalid_case()
+                AtomicSelectedPathTraceAcceptedPacked(
+                  _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _,
+                  _, _, _, _, _, _, _
+                ) -> invalid_case()
+                AtomicSelectedPathTraceActivePacked(
+                  _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _,
+                  selected_child_cursor_package, _, _, _, suffix_package, _, _
+                ) ->
+                  atomic_path_active_child_shape_alignment_package_dispatch(
+                    atomic_path_active_child_shape_alignment_package(
+                      package,
+                      selected_suffix,
+                      lookaround_admitted_cursor_suffix_package_shape(
+                        child_cursor_package
+                      ),
+                      lookaround_admitted_cursor_suffix_package_shape(
+                        selected_child_cursor_package
+                      )
+                    ),
+                    fn(branch) -> atomic_path_active_child_shape_here_package_result(
+                      branch, here_case()
+                    ),
+                    fn(branch) -> atomic_path_active_child_shape_there_package_result(
+                      branch, there_case()
+                    ),
+                    fn(branch) -> atomic_path_active_child_shape_reverse_package_result(
+                      branch, reverse_case()
+                    )
+                  )
+              AtomicPathFailureInputExhaustedAuthority() -> invalid_case()
+              AtomicPathFailureExactAcceptedAuthority() -> invalid_case()
+              AtomicPathFailureDestinationsExhaustedAuthority() -> invalid_case()
+      AtomicPathCommitStructureCursorClassifiedFromChildPacked(_) ->
+        invalid_case()
+      AtomicPathCommitStructureCursorClassifiedPastEscapedPacked(_) ->
+        invalid_case()
+      AtomicPathCommitStructureCursorClassifiedPastRejectedPacked(_) ->
+        invalid_case()
+
   ## Terminal classification has already removed the three local child
   ## terminal kinds before this fold is entered. Descend the relevant selected
   ## skipped-prefix spine to its exact empty tail, retain that correlated
@@ -10323,9 +10535,9 @@ mod Std.Regex.Runtime
     aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
       depth, n, machine
     ),
-    destination_rejected_case: (AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage(
-      depth, n, machine
-    )) -> Empty,
+    here_case: () -> Empty,
+    there_case: () -> Empty,
+    reverse_case: () -> Empty,
     invalid_case: () -> Empty
   ) -> Empty =
     atomic_path_recursive_commit_selected_child_same_skipped_tail_empty_fold(
@@ -10339,7 +10551,14 @@ mod Std.Regex.Runtime
               fn(_) -> invalid_case(),
               fn(_) -> invalid_case(),
               fn(_) -> invalid_case(),
-              destination_rejected_case,
+              fn(destination_rejected) ->
+                atomic_path_recursive_commit_selected_child_same_destination_rejected_alignment_fold(
+                  destination_rejected,
+                  here_case,
+                  there_case,
+                  reverse_case,
+                  invalid_case
+                ),
               invalid_case
             ),
           fn(_) -> invalid_case(),

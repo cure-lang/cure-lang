@@ -4169,6 +4169,31 @@ their constructors are open, then consume each branch in `Empty` to connect the
 recursive rejection theorem. Do not reconstruct either payload from an
 independent existential package after dispatch.
 
+Construction-site instantiation exposed a stricter relevance boundary than the
+generic list-indexed carrier suggested. The exact canonical-origin and suffix
+equalities are erased, so neither an `Active` origin token reconstructed from
+those proofs nor the nested suffix package revealed under the selected trace
+may escape as a relevant payload; both forms correctly produce E104. Runtime
+branch selection is instead determined by the already-relevant cursor-package
+shapes. `AtomicPathActiveChildShapeAlignmentAuthority` now classifies equal
+`Here`, later/deeper, and reverse shapes, and its three one-constructor branch
+packages carry the original retained `SkippedEmpty` package beside the original
+exact one-transition selected suffix package. The inner cursor equality and
+nested suffix therefore remain correlated inside their owning packages until a
+fixed-`Empty` branch opens them.
+
+`atomic_path_recursive_commit_selected_child_same_destination_rejected_alignment_fold`
+constructs that shape carrier only after exposing the exact local
+`DestinationRejected` child and selected `Active` transition. The previously
+unclassified `AfterFailure` fold now routes its destination-rejected callback
+through this construction site and exposes explicit `Here`, later-sibling, and
+reverse obligations. The complete Runtime -> Proof -> Regex -> Language chain
+elaborates, the focused construction-site regression passes, and the full
+27-test structural gate passes. Next implement the three fixed-`Empty` branch
+eliminators: each must reopen the original two packages locally, consume the
+erased canonical equalities without exporting them, and invoke the recursive
+rejection theorem with the branch-specific alignment evidence.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
