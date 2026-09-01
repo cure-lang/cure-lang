@@ -1092,6 +1092,10 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "type AtomicPathCommitChildCursorPayloadPackage("
     assert source =~
              ~r/AtomicPathCommitChildCursorPayloadPacked :.*@erased child_suffix: LookaroundAdmittedStateCursorSuffix/
+    assert source =~ "fn atomic_path_commit_structure_nonempty("
+    assert source =~ "fn atomic_path_commit_selected_authority_alignment_fold("
+    assert source =~
+             ~r/fn atomic_path_commit_selected_alignment_fold\(.*atomic_path_commit_selected_authority_alignment_fold\(/s
     assert source =~ "AtomicPathCommitAfterFailure :"
     assert source =~ "AtomicPathCommitFromChild :"
     assert source =~ "AtomicPathCommitPastRejected :"

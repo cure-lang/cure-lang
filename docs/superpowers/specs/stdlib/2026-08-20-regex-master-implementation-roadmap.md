@@ -3488,11 +3488,22 @@ structure constructor, then discarded it while publishing the child payload;
 that forced any later same-cursor proof either to reopen the wrong abstraction
 boundary or to mistake the runtime shape tag for evidence. Both canonical
 payload construction sites now forward the original suffix unchanged. The
-complete Regex chain and focused 27-test refutation gate pass. Next implement
-the proof-only recursive child authority-alignment fold: open the dependent
-payload and selected trace behind their runtime envelopes, refine child
-capture/scope indices, and use the two canonical origins plus exact suffixes to
-derive each terminal or recursive cursor case independently of the shape tag.
+complete Regex chain and focused 27-test refutation gate pass.
+
+The canonical alignment core now accepts a structure-derived non-emptiness
+theorem rather than requiring the erased commit-kind index to be promoted to
+runtime data. `atomic_path_commit_structure_nonempty` dispatches on the
+relevant structure authority, and
+`atomic_path_commit_selected_authority_alignment_fold` contains the shared
+origin/suffix alignment calculation. A proposed generic recursive-child fold
+was rejected by E104: after erased origin refinement, invoking one of several
+relevant continuation callbacks would make erased proof data choose runtime
+control, even though every callback returns `Empty`. Therefore the next step
+is branch-specific: the existing relevant shape dispatcher first selects
+`Same`, `LeftAfter`, or `RightAfter`; each concrete commit/trace consumer then
+opens erased authorities only to derive its single fixed contradiction or
+recursive theorem. The shape remains a control hint, while each consumer
+independently validates the corresponding canonical cursor relation.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in

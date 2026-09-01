@@ -8402,6 +8402,40 @@ mod Std.Regex.Runtime
     AtomicPathCommitPastEscapedKind(child_commit_kind, tail_commit_kind) -> atomic_path_commit_past_escaped_nonempty(cause)
     AtomicPathCommitPastRejectedKind(child_prefix_kind, child_kind, tail_commit_kind) -> atomic_path_commit_past_rejected_nonempty(cause)
 
+  ## The relevant structure already fixes the outer commit constructor.  This
+  ## proof therefore does not need to promote the erased commit-kind index to
+  ## runtime data merely to establish that its cursor is non-empty.
+  @reducible
+  fn atomic_path_commit_structure_nonempty(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased input: List(Char)}, {@erased after_input: List(Char)},
+    {@erased state: ThreadState(n)}, {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased current: List(LookaroundAdmittedState(n))},
+    {@erased commit_depth: Nat}, {@erased kind: AtomicPathCommitCauseKind},
+    {@erased cause: AtomicPathCommitCause(
+      depth, n, machine, input, after_input, state, history, capture_context,
+      policy, scope_depth, prefix_mode, reversed_prefix, whole, current,
+      commit_depth, kind
+    )},
+    structure: AtomicPathCommitStructurePackage(
+      depth, n, machine, input, after_input, state, history, capture_context,
+      policy, scope_depth, prefix_mode, reversed_prefix, whole, current,
+      commit_depth, kind, cause
+    )
+  ) -> LookaroundAdmittedNonempty(n, current) = match structure
+    AtomicPathCommitStructureAfterFailurePacked(_) ->
+      atomic_path_commit_after_failure_nonempty(cause)
+    AtomicPathCommitStructureFromChildPacked(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _) ->
+      atomic_path_commit_from_child_nonempty(cause)
+    AtomicPathCommitStructurePastEscapedPacked(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) ->
+      atomic_path_commit_past_escaped_nonempty(cause)
+    AtomicPathCommitStructurePastRejectedPacked(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) ->
+      atomic_path_commit_past_rejected_nonempty(cause)
+
   @reducible
   fn atomic_path_commit_whole_nonempty(
     {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
@@ -8417,6 +8451,16 @@ mod Std.Regex.Runtime
     @erased cause: AtomicPathCommitCause(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, commit_depth, kind),
     suffix: LookaroundAdmittedStateCursorSuffix(n, whole, current)
   ) -> LookaroundAdmittedNonempty(n, whole) = match atomic_path_commit_cause_nonempty(kind, cause)
+    LookaroundAdmittedNonemptyPacked(head, tail, equality) -> match equality
+      reflexive() -> lookaround_admitted_cursor_suffix_nonempty(suffix)
+
+  @reducible
+  fn atomic_path_commit_cursor_whole_nonempty(
+    {n: Nat}, {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased current: List(LookaroundAdmittedState(n))},
+    current_nonempty: LookaroundAdmittedNonempty(n, current),
+    suffix: LookaroundAdmittedStateCursorSuffix(n, whole, current)
+  ) -> LookaroundAdmittedNonempty(n, whole) = match current_nonempty
     LookaroundAdmittedNonemptyPacked(head, tail, equality) -> match equality
       reflexive() -> lookaround_admitted_cursor_suffix_nonempty(suffix)
 
@@ -8449,9 +8493,47 @@ mod Std.Regex.Runtime
     head_case: () -> Empty,
     tail_case: () -> Empty,
     reverse_case: () -> Empty
+  ) -> Empty = atomic_path_commit_selected_authority_alignment_fold(
+    atomic_path_commit_cause_nonempty(kind, cause),
+    commit_origin_equivalence,
+    commit_origin_canonical,
+    commit_suffix,
+    selected_origin_canonical,
+    selected_suffix,
+    head_case,
+    tail_case,
+    reverse_case
+  )
+
+  ## Canonical cursor alignment once non-emptiness has been established from
+  ## either the explicit cause kind or its relevant structure package.
+  @reducible
+  fn atomic_path_commit_selected_authority_alignment_fold(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased input: List(Char)}, {@erased after_input: List(Char)},
+    {@erased state: ThreadState(n)}, {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased current: List(LookaroundAdmittedState(n))},
+    {@erased commit_origin: List(LookaroundAdmittedState(n))},
+    {@erased selected_origin: List(LookaroundAdmittedState(n))},
+    {@erased selected_current: List(LookaroundAdmittedState(n))},
+    commit_nonempty: LookaroundAdmittedNonempty(n, current),
+    commit_origin_equivalence: Equivalent(List(LookaroundAdmittedState(n)), whole, commit_origin),
+    commit_origin_canonical: AtomicPathSearchOrigin(depth, n, machine, input, after_input, state, history, capture_context, policy, commit_origin),
+    commit_suffix: LookaroundAdmittedStateCursorSuffix(n, whole, current),
+    selected_origin_canonical: AtomicPathSearchOrigin(depth, n, machine, input, after_input, state, history, capture_context, policy, selected_origin),
+    selected_suffix: LookaroundAdmittedStateCursorSuffix(n, selected_origin, selected_current),
+    head_case: () -> Empty,
+    tail_case: () -> Empty,
+    reverse_case: () -> Empty
   ) -> Empty = atomic_path_active_child_rejection_tail_fold(
     atomic_path_active_child_alignment_from_canonical(
-      atomic_path_commit_whole_nonempty(kind, cause, commit_suffix),
+      atomic_path_commit_cursor_whole_nonempty(
+        commit_nonempty,
+        commit_suffix
+      ),
       atomic_path_failed_selected_child_cursor_alignment(
         commit_origin_equivalence,
         commit_origin_canonical,
