@@ -3532,6 +3532,19 @@ chain and focused 27-test refutation gate pass. Next dispatch the narrowed
 `Same` carrier by this authority and connect input exhaustion, exact accepted,
 and root destination exhaustion to their existing fixed contradiction leaves.
 
+Commit-child cursor shape is now type-correlated too.
+`LookaroundAdmittedStateCursorShapedPackage` indexes its recursive runtime spine
+by the exact `Here`/`Drop` shape: the `Here` constructor can only inhabit
+`ShapeHere`, and every `Drop` constructor extends both the cursor and shape
+indices together. `lookaround_admitted_cursor_shaped_package` is the sole
+bridge from the existing suffix package. `AtomicPathCommitChildCursorPayloadPackage`
+is indexed by that shape and carries the shaped package, while its outer
+existential uses the same shape index. A hand-written mismatched commit
+`(shape, payload)` is therefore no longer typeable. The complete Regex chain
+and focused 27-test refutation gate pass. Next add the same shaped authority to
+active/accepted selected-trace constructors and derive their runtime envelope
+shape from it, completing both sides of the sound `Same` comparison.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

@@ -1827,6 +1827,13 @@ mod Std.Regex.Runtime
     | LookaroundAdmittedStateCursorShapeHere
     | LookaroundAdmittedStateCursorShapeDrop(LookaroundAdmittedStateCursorShape)
 
+  ## The runtime shape is an index of this constructor-correlated cursor
+  ## package. Unlike a parallel `(shape, package)` pair, its type makes a
+  ## mismatched depth unrepresentable.
+  type LookaroundAdmittedStateCursorShapedPackage(n: Nat) indices (outer: List(LookaroundAdmittedState(n)), inner: List(LookaroundAdmittedState(n)), shape: LookaroundAdmittedStateCursorShape)
+    LookaroundAdmittedStateCursorHereShapedPacked : (@erased equality: Equivalent(List(LookaroundAdmittedState(n)), outer, inner)) -> LookaroundAdmittedStateCursorShapedPackage(n, outer, inner, LookaroundAdmittedStateCursorShapeHere())
+    LookaroundAdmittedStateCursorDropShapedPacked : (@erased head: LookaroundAdmittedState(n)) -> (prior: LookaroundAdmittedStateCursorShapedPackage(n, outer, inner, shape)) -> LookaroundAdmittedStateCursorShapedPackage(n, Cons(head, outer), inner, LookaroundAdmittedStateCursorShapeDrop(shape))
+
   fn lookaround_admitted_cursor_suffix_package_shape(
     {@erased n: Nat},
     {@erased outer: List(LookaroundAdmittedState(n))},
@@ -1838,6 +1845,25 @@ mod Std.Regex.Runtime
     LookaroundAdmittedStateCursorSuffixDropPacked(_, prior) ->
       LookaroundAdmittedStateCursorShapeDrop(
         lookaround_admitted_cursor_suffix_package_shape(prior)
+      )
+
+  @reducible
+  fn lookaround_admitted_cursor_shaped_package(
+    {n: Nat}, {outer: List(LookaroundAdmittedState(n))},
+    {inner: List(LookaroundAdmittedState(n))},
+    package: LookaroundAdmittedStateCursorSuffixPackage(n, outer, inner)
+  ) -> LookaroundAdmittedStateCursorShapedPackage(
+    n,
+    outer,
+    inner,
+    lookaround_admitted_cursor_suffix_package_shape(package)
+  ) = match package
+    LookaroundAdmittedStateCursorSuffixHerePacked(equality) ->
+      LookaroundAdmittedStateCursorHereShapedPacked(equality)
+    LookaroundAdmittedStateCursorSuffixDropPacked(head, prior) ->
+      LookaroundAdmittedStateCursorDropShapedPacked(
+        head,
+        lookaround_admitted_cursor_shaped_package(prior)
       )
 
   fn atomic_path_cursor_shape_package_location(
@@ -7844,11 +7870,11 @@ mod Std.Regex.Runtime
   ## context, scope, canonical destination spine, depth, and commit kind. Those
   ## indices are existential at the parent boundary and must travel with the
   ## relevant cursor/structure package rather than being guessed by a caller.
-  type AtomicPathCommitChildCursorPayloadPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (rest: List(Char), after_input: List(Char), candidate: LookaroundAdmittedState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char))
-    AtomicPathCommitChildCursorPayloadPacked : {@erased child_capture_context: List(EvidenceInstruction)} -> (@erased context_alignment: LookaroundAdmittedStateCaptureContext(n, capture_context, candidate, child_capture_context)) -> {@erased child_scope_depth: Nat} -> (@erased scope_alignment: LookaroundAdmittedStateScope(n, scope_depth, candidate, child_scope_depth)) -> {@erased child_whole: List(LookaroundAdmittedState(n))} -> {@erased child_current: List(LookaroundAdmittedState(n))} -> {@erased child_origin: List(LookaroundAdmittedState(n))} -> (@erased child_origin_equivalence: Equivalent(List(LookaroundAdmittedState(n)), child_whole, child_origin)) -> (@erased child_origin_canonical: AtomicPathSearchOrigin(depth, n, machine, rest, after_input, lookaround_admitted_state_thread_at(n, candidate), history, child_capture_context, policy, child_origin)) -> {@erased child_commit_depth: Nat} -> {@erased child_commit_kind: AtomicPathCommitCauseKind} -> (@erased child_suffix: LookaroundAdmittedStateCursorSuffix(n, child_whole, child_current)) -> (child: AtomicPathCommitStructureCursorExistentialPackage(depth, n, machine, rest, after_input, lookaround_admitted_state_thread_at(n, candidate), history, child_capture_context, policy, child_scope_depth, prefix_mode, reversed_prefix, child_whole, child_current, child_commit_depth, child_commit_kind)) -> AtomicPathCommitChildCursorPayloadPackage(depth, n, machine, rest, after_input, candidate, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix)
+  type AtomicPathCommitChildCursorPayloadPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (rest: List(Char), after_input: List(Char), candidate: LookaroundAdmittedState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), shape: LookaroundAdmittedStateCursorShape)
+    AtomicPathCommitChildCursorPayloadPacked : {@erased child_capture_context: List(EvidenceInstruction)} -> (@erased context_alignment: LookaroundAdmittedStateCaptureContext(n, capture_context, candidate, child_capture_context)) -> {@erased child_scope_depth: Nat} -> (@erased scope_alignment: LookaroundAdmittedStateScope(n, scope_depth, candidate, child_scope_depth)) -> {@erased child_whole: List(LookaroundAdmittedState(n))} -> {@erased child_current: List(LookaroundAdmittedState(n))} -> {@erased child_origin: List(LookaroundAdmittedState(n))} -> (@erased child_origin_equivalence: Equivalent(List(LookaroundAdmittedState(n)), child_whole, child_origin)) -> (@erased child_origin_canonical: AtomicPathSearchOrigin(depth, n, machine, rest, after_input, lookaround_admitted_state_thread_at(n, candidate), history, child_capture_context, policy, child_origin)) -> {@erased child_commit_depth: Nat} -> {@erased child_commit_kind: AtomicPathCommitCauseKind} -> (@erased child_suffix: LookaroundAdmittedStateCursorSuffix(n, child_whole, child_current)) -> (child_cursor_authority: LookaroundAdmittedStateCursorShapedPackage(n, child_whole, child_current, shape)) -> (child: AtomicPathCommitStructureCursorExistentialPackage(depth, n, machine, rest, after_input, lookaround_admitted_state_thread_at(n, candidate), history, child_capture_context, policy, child_scope_depth, prefix_mode, reversed_prefix, child_whole, child_current, child_commit_depth, child_commit_kind)) -> AtomicPathCommitChildCursorPayloadPackage(depth, n, machine, rest, after_input, candidate, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, shape)
 
   type AtomicPathCommitChildCursorExistentialPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (rest: List(Char), after_input: List(Char), candidate: LookaroundAdmittedState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char))
-    AtomicPathCommitChildCursorExistentialPacked : (shape: LookaroundAdmittedStateCursorShape) -> (payload: AtomicPathCommitChildCursorPayloadPackage(depth, n, machine, rest, after_input, candidate, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix)) -> AtomicPathCommitChildCursorExistentialPackage(depth, n, machine, rest, after_input, candidate, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix)
+    AtomicPathCommitChildCursorExistentialPacked : (shape: LookaroundAdmittedStateCursorShape) -> (payload: AtomicPathCommitChildCursorPayloadPackage(depth, n, machine, rest, after_input, candidate, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, shape)) -> AtomicPathCommitChildCursorExistentialPackage(depth, n, machine, rest, after_input, candidate, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix)
 
   ## PastEscaped is selected by the relevant structure before its erased
   ## indices are refined. The recursive cursor is advanced from the relevant
@@ -8057,6 +8083,7 @@ mod Std.Regex.Runtime
           child_origin_equivalence,
           child_origin_canonical,
           child_suffix,
+          lookaround_admitted_cursor_shaped_package(child_cursor),
           AtomicPathCommitStructureCursorExistentialPacked(
             child_cause,
             child_cursor,
@@ -8109,6 +8136,7 @@ mod Std.Regex.Runtime
           child_origin_equivalence,
           child_origin_canonical,
           child_suffix,
+          lookaround_admitted_cursor_shaped_package(child_cursor),
           AtomicPathCommitStructureCursorExistentialPacked(
             child_cause,
             child_cursor,
