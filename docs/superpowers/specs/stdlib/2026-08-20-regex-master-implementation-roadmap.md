@@ -4055,6 +4055,24 @@ full 27-test structural refutation gate passes. Next project an exact
 destination-rejection child carrier from that retained package and feed its
 head/tail cursor decision into the existing destination-rejection induction.
 
+The cursor-package boundary now has the missing proof-facing inverse,
+`lookaround_admitted_cursor_suffix_package_evidence`. It reconstructs the
+erased indexed `Here`/`Drop` suffix from the relevant runtime package by a
+structural fold; heads and equality witnesses remain erased. This is required
+to pass a selected cursor into the existing canonical child-rejection theorem
+without rebuilding or guessing it. A direct attempt to feed the retained
+outer selected payload into
+`atomic_path_active_child_rejection_canonical_trace_dispatch` was rejected:
+it spent more than five CPU minutes normalizing `Std.Regex.Runtime`, compared
+with the established roughly one-minute module check, because the
+`AfterFailure` child refutation is one transition below that outer payload.
+The attempt was removed rather than accepted as a speculative compatibility
+path. The complete Regex chain and full 27-test structural gate pass with the
+inverse bridge. Next publish the one-level selected-transition projection
+beside the exact destination-rejection child, then call the canonical theorem
+with already-aligned indices instead of asking unification to discover that
+projection.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

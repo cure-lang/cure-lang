@@ -1480,6 +1480,12 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              ~r/atomic_path_recursive_commit_selected_child_same_after_failure_unclassified_fold\(.*atomic_path_recursive_commit_selected_child_same_after_failure_empty_kind_dispatch\(\s*after_failure_empty,\s*fn\(_\) -> invalid_case\(\),\s*fn\(_\) -> invalid_case\(\),\s*fn\(_\) -> invalid_case\(\),\s*destination_rejected_case,/s
 
     assert source =~
+             "fn lookaround_admitted_cursor_suffix_package_evidence("
+
+    assert source =~
+             ~r/LookaroundAdmittedStateCursorSuffixDropPacked\(head, prior\) ->\s*LookaroundAdmittedStateCursorSuffixDrop\(\s*head,\s*lookaround_admitted_cursor_suffix_package_evidence\(prior\)/s
+
+    assert source =~
              "type AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalPackage("
 
     assert source =~
