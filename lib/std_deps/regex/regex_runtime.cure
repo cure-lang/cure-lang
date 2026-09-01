@@ -9046,6 +9046,82 @@ mod Std.Regex.Runtime
   type AtomicPathRecursiveCommitSelectedChildSameExistentialPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices ()
     AtomicPathRecursiveCommitSelectedChildSameExistentialPacked : {@erased rest: List(Char)} -> {@erased after_input: List(Char)} -> {@erased candidate: LookaroundAdmittedState(n)} -> {@erased history: List(Char)} -> {@erased capture_context: List(EvidenceInstruction)} -> {@erased policy: NewlinePolicy} -> {@erased scope_depth: Nat} -> {@erased prefix_mode: Bool} -> {@erased reversed_prefix: List(Char)} -> {@erased matched: List(Char)} -> {@erased remaining_input: List(Char)} -> (left_shape: LookaroundAdmittedStateCursorShape) -> (right_shape: LookaroundAdmittedStateCursorShape) -> (commit_payload: AtomicPathCommitChildCursorPayloadPackage(depth, n, machine, rest, after_input, candidate, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, left_shape)) -> (selected_payload: AtomicPathSelectedChildCursorPayloadPackage(depth, n, machine, rest, after_input, candidate, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, matched, remaining_input, right_shape)) -> (same_authority: AtomicPathCursorShapesSameAuthority(left_shape, right_shape)) -> AtomicPathRecursiveCommitSelectedChildSameExistentialPackage(depth, n, machine)
 
+  ## The proof-facing form of a Same child pair. It discards the two opaque
+  ## payload shells only after retaining their exact recursive structures and
+  ## an inner-cursor equality derived from canonical-origin alignment plus the
+  ## validated common runtime shape.
+  type AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices ()
+    AtomicPathRecursiveCommitSelectedChildSameAlignedActivePacked : {@erased rest: List(Char)} -> {@erased after_input: List(Char)} -> {@erased destination: Bounded(n)} -> {@erased routine: List(EvidenceInstruction)} -> {@erased assertion_markers: List(EvidenceInstruction)} -> {@erased history: List(Char)} -> {@erased capture_context: List(EvidenceInstruction)} -> {@erased policy: NewlinePolicy} -> {@erased scope_depth: Nat} -> {@erased prefix_mode: Bool} -> {@erased reversed_prefix: List(Char)} -> {@erased matched: List(Char)} -> {@erased remaining_input: List(Char)} -> {@erased left_whole: List(LookaroundAdmittedState(n))} -> {@erased left_current: List(LookaroundAdmittedState(n))} -> {@erased commit_depth: Nat} -> {@erased commit_kind: AtomicPathCommitCauseKind} -> (commit: AtomicPathCommitStructureCursorExistentialPackage(depth, n, machine, rest, after_input, ThreadActive(destination), history, lookaround_admitted_active_capture_context(capture_context, routine, assertion_markers), policy, atomic_scope_depth_after(routine, scope_depth), prefix_mode, reversed_prefix, left_whole, left_current, commit_depth, commit_kind)) -> {@erased right_whole: List(LookaroundAdmittedState(n))} -> {@erased right_current: List(LookaroundAdmittedState(n))} -> {@erased skipped_kind: AtomicPathSkippedPrefixKind} -> (selected_skipped: AtomicPathSkippedPrefixStructurePackage(depth, n, machine, rest, after_input, ThreadActive(destination), history, lookaround_admitted_active_capture_context(capture_context, routine, assertion_markers), policy, atomic_scope_depth_after(routine, scope_depth), prefix_mode, reversed_prefix, right_whole, right_whole, right_current, skipped_kind)) -> {@erased suffix_routine: List(ExtendedInstruction)} -> {@erased suffix: AtomicSelectedPathTrace(depth, n, machine, rest, after_input, ThreadActive(destination), history, lookaround_admitted_active_capture_context(capture_context, routine, assertion_markers), policy, atomic_scope_depth_after(routine, scope_depth), prefix_mode, reversed_prefix, right_current, matched, remaining_input, suffix_routine)} -> (selected_suffix: AtomicSelectedPathTracePackage(depth, n, machine, rest, after_input, ThreadActive(destination), history, lookaround_admitted_active_capture_context(capture_context, routine, assertion_markers), policy, atomic_scope_depth_after(routine, scope_depth), prefix_mode, reversed_prefix, right_current, matched, remaining_input, suffix_routine, suffix)) -> (inner_equivalence: LookaroundAdmittedCursorInnerEquivalentAuthority(n, left_current, right_current)) -> AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(depth, n, machine)
+    AtomicPathRecursiveCommitSelectedChildSameAlignedAcceptedPacked : {@erased rest: List(Char)} -> {@erased after_input: List(Char)} -> {@erased routine: List(EvidenceInstruction)} -> {@erased assertion_markers: List(EvidenceInstruction)} -> {@erased history: List(Char)} -> {@erased capture_context: List(EvidenceInstruction)} -> {@erased policy: NewlinePolicy} -> {@erased scope_depth: Nat} -> {@erased prefix_mode: Bool} -> {@erased reversed_prefix: List(Char)} -> {@erased matched: List(Char)} -> {@erased remaining_input: List(Char)} -> {@erased left_whole: List(LookaroundAdmittedState(n))} -> {@erased left_current: List(LookaroundAdmittedState(n))} -> {@erased commit_depth: Nat} -> {@erased commit_kind: AtomicPathCommitCauseKind} -> (commit: AtomicPathCommitStructureCursorExistentialPackage(depth, n, machine, rest, after_input, ThreadAccepted(), history, lookaround_admitted_accepted_capture_context(capture_context, routine, assertion_markers), policy, atomic_scope_depth_after(routine, scope_depth), prefix_mode, reversed_prefix, left_whole, left_current, commit_depth, commit_kind)) -> {@erased right_whole: List(LookaroundAdmittedState(n))} -> {@erased right_current: List(LookaroundAdmittedState(n))} -> {@erased skipped_kind: AtomicPathSkippedPrefixKind} -> (selected_skipped: AtomicPathSkippedPrefixStructurePackage(depth, n, machine, rest, after_input, ThreadAccepted(), history, lookaround_admitted_accepted_capture_context(capture_context, routine, assertion_markers), policy, atomic_scope_depth_after(routine, scope_depth), prefix_mode, reversed_prefix, right_whole, right_whole, right_current, skipped_kind)) -> {@erased suffix_routine: List(ExtendedInstruction)} -> {@erased suffix: AtomicSelectedPathTrace(depth, n, machine, rest, after_input, ThreadAccepted(), history, lookaround_admitted_accepted_capture_context(capture_context, routine, assertion_markers), policy, atomic_scope_depth_after(routine, scope_depth), prefix_mode, reversed_prefix, right_current, matched, remaining_input, suffix_routine)} -> (selected_suffix: AtomicSelectedPathTracePackage(depth, n, machine, rest, after_input, ThreadAccepted(), history, lookaround_admitted_accepted_capture_context(capture_context, routine, assertion_markers), policy, atomic_scope_depth_after(routine, scope_depth), prefix_mode, reversed_prefix, right_current, matched, remaining_input, suffix_routine, suffix)) -> (inner_equivalence: LookaroundAdmittedCursorInnerEquivalentAuthority(n, left_current, right_current)) -> AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(depth, n, machine)
+
+  fn atomic_path_recursive_commit_selected_child_same_aligned_package(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    package: AtomicPathRecursiveCommitSelectedChildSameExistentialPackage(
+      depth, n, machine
+    )
+  ) -> AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+    depth, n, machine
+  ) = match package
+    AtomicPathRecursiveCommitSelectedChildSameExistentialPacked(
+      {rest = rest}, {after_input = after_input}, {history = history},
+      {capture_context = capture_context}, {policy = policy},
+      {scope_depth = scope_depth}, {prefix_mode = prefix_mode},
+      {reversed_prefix = reversed_prefix}, {matched = matched},
+      {remaining_input = remaining_input},
+      _, _, commit_payload, selected_payload, same_authority
+    ) -> match commit_payload
+      AtomicPathCommitChildCursorPayloadPacked(
+        {child_whole = left_whole}, {child_current = left_current},
+        {child_commit_depth = commit_depth},
+        {child_commit_kind = commit_kind},
+        context_alignment, scope_alignment, child_origin_equivalence,
+        child_origin_canonical, _, left_cursor, commit
+      ) -> match selected_payload
+        AtomicPathSelectedChildCursorActivePacked(
+          {child_whole = right_whole}, {child_current = right_current},
+          {child_skipped_kind = skipped_kind},
+          {suffix_routine = suffix_routine}, {suffix = suffix},
+          destination, routine, constraints, assertion_routine,
+          assertion_markers, nested_decisions, right_origin_canonical, _,
+          selected_skipped, selected_suffix, right_cursor
+        ) -> match context_alignment
+          LookaroundAdmittedStateCaptureContextActive() -> match scope_alignment
+            LookaroundAdmittedStateScopeActive(_, _, _, _, _, _) -> match atomic_path_search_origin_alignment(child_origin_canonical, right_origin_canonical)
+              AtomicPathSearchOriginsAligned(origin_equivalence) ->
+                AtomicPathRecursiveCommitSelectedChildSameAlignedActivePacked(
+                  commit,
+                  selected_skipped,
+                  selected_suffix,
+                  lookaround_admitted_cursor_same_shape_inner_equivalent(
+                    left_cursor,
+                    right_cursor,
+                    same_authority,
+                    trans(child_origin_equivalence, origin_equivalence)
+                  )
+                )
+        AtomicPathSelectedChildCursorAcceptedPacked(
+          {child_whole = right_whole}, {child_current = right_current},
+          {child_skipped_kind = skipped_kind},
+          {suffix_routine = suffix_routine}, {suffix = suffix},
+          routine, constraints, assertion_routine, assertion_markers,
+          nested_decisions, right_origin_canonical, _, selected_skipped,
+          selected_suffix, right_cursor
+        ) -> match context_alignment
+          LookaroundAdmittedStateCaptureContextAccepted() -> match scope_alignment
+            LookaroundAdmittedStateScopeAccepted(_, _, _, _, _) -> match atomic_path_search_origin_alignment(child_origin_canonical, right_origin_canonical)
+              AtomicPathSearchOriginsAligned(origin_equivalence) ->
+                AtomicPathRecursiveCommitSelectedChildSameAlignedAcceptedPacked(
+                  commit,
+                  selected_skipped,
+                  selected_suffix,
+                  lookaround_admitted_cursor_same_shape_inner_equivalent(
+                    left_cursor,
+                    right_cursor,
+                    same_authority,
+                    trans(child_origin_equivalence, origin_equivalence)
+                  )
+                )
+
   @reducible
   fn atomic_path_recursive_commit_selected_existential_pack(
     {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},

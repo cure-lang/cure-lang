@@ -3659,6 +3659,23 @@ consumer, derive the inner-cursor equality through
 `lookaround_admitted_cursor_same_shape_inner_equivalent`, and feed that erased
 authority to the existing input-exhausted contradiction leaf.
 
+The `Same` branch now has a proof-facing aligned carrier rather than another
+shape-only convention. The active and accepted constructors of
+`AtomicPathRecursiveCommitSelectedChildSameAlignedPackage` retain the exact
+recursive commit structure, selected skipped-prefix structure, recursive
+selected suffix package, and a
+`LookaroundAdmittedCursorInnerEquivalentAuthority` indexed by their actual
+inner cursors. Its sole constructor helper opens both opaque payloads, consumes
+the candidate's capture-context and scope alignment, aligns their independently
+published canonical origins, and combines that outer equality with the
+validated common shape. Candidate metadata that does not occur in the child
+proof state is deliberately absent from the aligned existential; retaining it
+would leave hidden indices underdetermined. The complete Regex module chain
+elaborates and the exact construction-site regression passes. Next match the
+aligned commit structure: route `AfterFailure` terminal kinds into the existing
+input-exhausted/exact-accepted leaves, and route `FromChild`, `PastEscaped`, and
+`PastRejected` through their existing package-preserving recursive projections.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
