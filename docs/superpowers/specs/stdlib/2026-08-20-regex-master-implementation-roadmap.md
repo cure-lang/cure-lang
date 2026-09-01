@@ -3937,6 +3937,20 @@ regression passes. Next define the empty callback's exact contradiction against
 the selected trace, then install it in the `AfterFailure` and `PastRejected`
 strict-right recursive routes.
 
+The empty callback now receives an exact terminal authority rather than the
+generic traversal carrier. `AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage`
+fixes the selected-prefix index to `AtomicPathSkippedPrefixEmptyKind` while
+retaining the classified commit, selected suffix, and erased final-cursor
+equality. Both the already-empty branch and the terminal escaped-one branch of
+the structural descent construct this authority; recursive cons branches
+cannot reach the callback without first exposing their stored tails. This
+prevents later consumers from rematching or assuming a hidden prefix kind and
+makes the next recursive projection boundary explicit in its type. The
+complete Regex chain elaborates and the focused structural regression passes.
+Next split this exact terminal by its relevant commit classification: project
+the nonterminal `AfterFailure` child against the selected child suffix, and
+project the `PastRejected` sibling tail into the common recursive dispatcher.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

@@ -9196,6 +9196,12 @@ mod Std.Regex.Runtime
   type AtomicPathRecursiveCommitSelectedChildSameSkippedTailPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices ()
     AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked : {@erased input: List(Char)} -> {@erased after_input: List(Char)} -> {@erased state: ThreadState(n)} -> {@erased history: List(Char)} -> {@erased capture_context: List(EvidenceInstruction)} -> {@erased policy: NewlinePolicy} -> {@erased scope_depth: Nat} -> {@erased prefix_mode: Bool} -> {@erased reversed_prefix: List(Char)} -> {@erased left_whole: List(LookaroundAdmittedState(n))} -> {@erased left_current: List(LookaroundAdmittedState(n))} -> (commit: AtomicPathCommitStructureCursorClassifiedPackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, left_whole, left_current)) -> {@erased right_whole: List(LookaroundAdmittedState(n))} -> {@erased front: List(LookaroundAdmittedState(n))} -> {@erased right_current: List(LookaroundAdmittedState(n))} -> {@erased skipped_kind: AtomicPathSkippedPrefixKind} -> (selected_skipped: AtomicPathSkippedPrefixStructurePackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, right_whole, front, right_current, skipped_kind)) -> (selected_empty: AtomicPathSkippedPrefixStructurePackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, right_whole, right_current, right_current, AtomicPathSkippedPrefixEmptyKind())) -> {@erased matched: List(Char)} -> {@erased remaining_input: List(Char)} -> {@erased suffix_routine: List(ExtendedInstruction)} -> {@erased suffix: AtomicSelectedPathTrace(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, right_current, matched, remaining_input, suffix_routine)} -> (selected_suffix: AtomicSelectedPathTracePackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, right_current, matched, remaining_input, suffix_routine, suffix)) -> (inner_equivalence: LookaroundAdmittedCursorInnerEquivalentAuthority(n, left_current, right_current)) -> AtomicPathRecursiveCommitSelectedChildSameSkippedTailPackage(depth, n, machine)
 
+  ## Exact terminal produced by the structural skipped-tail descent. Unlike
+  ## the traversal carrier, this package exposes Empty in the selected-prefix
+  ## index, so consumers cannot accidentally reopen a non-terminal spine.
+  type AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices ()
+    AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPacked : {@erased input: List(Char)} -> {@erased after_input: List(Char)} -> {@erased state: ThreadState(n)} -> {@erased history: List(Char)} -> {@erased capture_context: List(EvidenceInstruction)} -> {@erased policy: NewlinePolicy} -> {@erased scope_depth: Nat} -> {@erased prefix_mode: Bool} -> {@erased reversed_prefix: List(Char)} -> {@erased left_whole: List(LookaroundAdmittedState(n))} -> {@erased left_current: List(LookaroundAdmittedState(n))} -> (commit: AtomicPathCommitStructureCursorClassifiedPackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, left_whole, left_current)) -> {@erased right_whole: List(LookaroundAdmittedState(n))} -> {@erased right_current: List(LookaroundAdmittedState(n))} -> (selected_empty: AtomicPathSkippedPrefixStructurePackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, right_whole, right_current, right_current, AtomicPathSkippedPrefixEmptyKind())) -> {@erased matched: List(Char)} -> {@erased remaining_input: List(Char)} -> {@erased suffix_routine: List(ExtendedInstruction)} -> {@erased suffix: AtomicSelectedPathTrace(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, right_current, matched, remaining_input, suffix_routine)} -> (selected_suffix: AtomicSelectedPathTracePackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, right_current, matched, remaining_input, suffix_routine, suffix)) -> (inner_equivalence: LookaroundAdmittedCursorInnerEquivalentAuthority(n, left_current, right_current)) -> AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage(depth, n, machine)
+
   fn atomic_path_recursive_commit_selected_child_same_aligned_package(
     {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
     package: AtomicPathRecursiveCommitSelectedChildSameExistentialPackage(
@@ -9914,7 +9920,7 @@ mod Std.Regex.Runtime
     package: AtomicPathRecursiveCommitSelectedChildSameSkippedTailPackage(
       depth, n, machine
     ),
-    empty_case: (AtomicPathRecursiveCommitSelectedChildSameSkippedTailPackage(
+    empty_case: (AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage(
       depth, n, machine
     )) -> result
   ) -> result = match package
@@ -9923,12 +9929,15 @@ mod Std.Regex.Runtime
       inner_equivalence
     ) -> match selected_skipped
       AtomicPathSkippedPrefixStructureEmptyPacked(_) ->
-        empty_case(package)
+        empty_case(
+          AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPacked(
+            commit, selected_skipped, selected_suffix, inner_equivalence
+          )
+        )
       AtomicPathSkippedPrefixStructureEscapedOnePacked(_) ->
         empty_case(
-          AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked(
-            commit, selected_empty, selected_empty, selected_suffix,
-            inner_equivalence
+          AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPacked(
+            commit, selected_empty, selected_suffix, inner_equivalence
           )
         )
       AtomicPathSkippedPrefixStructureEscapedConsPacked(_, tail_structure) ->

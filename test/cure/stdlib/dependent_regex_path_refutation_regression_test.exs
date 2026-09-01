@@ -1358,7 +1358,19 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              "type AtomicPathRecursiveCommitSelectedChildSameSkippedTailPackage("
 
     assert source =~
-             ~r/AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked :.*commit: AtomicPathCommitStructureCursorClassifiedPackage.*selected_skipped: AtomicPathSkippedPrefixStructurePackage.*selected_suffix: AtomicSelectedPathTracePackage.*inner_equivalence: LookaroundAdmittedCursorInnerEquivalentAuthority/s
+             "AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked :"
+
+    assert source =~
+             "commit: AtomicPathCommitStructureCursorClassifiedPackage"
+
+    assert source =~
+             "selected_skipped: AtomicPathSkippedPrefixStructurePackage"
+
+    assert source =~
+             "selected_suffix: AtomicSelectedPathTracePackage"
+
+    assert source =~
+             "inner_equivalence: LookaroundAdmittedCursorInnerEquivalentAuthority"
 
     assert source =~
              "fn atomic_path_recursive_commit_selected_child_same_skipped_tail_package("
@@ -1382,10 +1394,24 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              "fn atomic_path_recursive_commit_selected_child_same_skipped_tail_empty_fold("
 
     assert source =~
-             ~r/AtomicPathSkippedPrefixStructureEmptyPacked\(_\) ->\s*empty_case\(package\)/s
+             "type AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage("
 
     assert source =~
-             ~r/AtomicPathSkippedPrefixStructureEscapedOnePacked\(_\) ->\s*empty_case\(\s*AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked\(.*selected_empty/s
+             "AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPacked :"
+
+    assert source =~
+             "selected_empty: AtomicPathSkippedPrefixStructurePackage"
+
+    assert source =~ "AtomicPathSkippedPrefixEmptyKind"
+
+    assert source =~
+             ~r/empty_case: \(AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage\(/s
+
+    assert source =~
+             ~r/AtomicPathSkippedPrefixStructureEmptyPacked\(_\) ->\s*empty_case\(\s*AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPacked\(/s
+
+    assert source =~
+             ~r/AtomicPathSkippedPrefixStructureEscapedOnePacked\(_\) ->\s*empty_case\(\s*AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPacked\(/s
 
     assert source =~
              ~r/AtomicPathSkippedPrefixStructureEscapedConsPacked\(_, tail_structure\) ->\s*atomic_path_recursive_commit_selected_child_same_skipped_tail_empty_fold\(\s*AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked\(.*tail_structure/s
