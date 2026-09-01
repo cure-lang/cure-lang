@@ -4073,6 +4073,41 @@ beside the exact destination-rejection child, then call the canonical theorem
 with already-aligned indices instead of asking unification to discover that
 projection.
 
+The one-level carrier must obey the following construction contract. Do not
+reuse `AtomicPathActiveChildSelectionPackage` as a relevant carrier: every
+field of that package is erased and its existing consumer is intentionally
+only a local refinement barrier. Do not return the selected-child projection
+as an independent existential either; that would permit pairing it with a
+different `AfterFailure` child having extensionally similar indices. Instead:
+
+1. enter through the destination-rejected callback of
+   `atomic_path_recursive_commit_selected_child_same_after_failure_unclassified_fold`;
+2. open the retained `AtomicPathRecursiveCommitSelectedChildSameExistentialPackage`
+   and its selected suffix package in the same fixed-`Empty` eliminator;
+3. match the relevant `AtomicPathFailureDestinationRejectedAuthority` before
+   opening the erased child refutation;
+4. match exactly one `AtomicSelectedPathTraceActivePacked` transition from the
+   selected suffix, retaining its child origin, cursor package, skipped-prefix
+   structure, and recursive suffix package together;
+5. share the child input, state, history, capture context, policy, scope,
+   prefix mode, reversed prefix, and canonical-origin indices between that
+   transition and the exact `AtomicPathCommitAfterFailureChildPackage` in one
+   constructor or non-escaping eliminator;
+6. reconstruct the selected cursor witness only with
+   `lookaround_admitted_cursor_suffix_package_evidence`;
+7. pass the already-correlated failure origin/cursor and selected origin/cursor
+   to `atomic_path_active_child_rejection_canonical_trace_dispatch` with fixed
+   head, later-sibling, and reverse `Empty` callbacks; and
+8. never ask conversion to infer the intervening transition, never recover a
+   runtime branch from erased refutation data, and never retain two unrelated
+   existential packages beside one another.
+
+The selected `Accepted` transition is a separate impossible/local terminal
+case at this active destination-rejection boundary and must go to the explicit
+invalid obligation unless its exact contradiction is established before the
+carrier is constructed. This contract is the red-test target for the next
+implementation slice.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
