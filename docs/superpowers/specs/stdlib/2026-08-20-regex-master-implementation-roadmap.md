@@ -3505,6 +3505,19 @@ opens erased authorities only to derive its single fixed contradiction or
 recursive theorem. The shape remains a control hint, while each consumer
 independently validates the corresponding canonical cursor relation.
 
+The runtime dispatcher now narrows its `Same` branch into
+`AtomicPathRecursiveCommitSelectedChildSameExistentialPackage` before handing
+control to a consumer. This carrier preserves the exact dependent child commit
+and selected trace envelope but no longer includes a location sum: its sole
+constructor can only be built from the relevant `AtomicPathCursorShapeSame`
+branch. Consequently the eventual same-cursor contradiction has one fixed
+runtime control path before it opens any erased context, origin, or suffix
+authority. The complete Regex chain and focused 27-test refutation gate pass.
+Next add the structure-specific `Same` consumers: begin with the three existing
+`AfterFailure` terminal leaves, validate canonical cursor equality directly in
+each fixed branch, then recurse through `FromChild`, `PastEscaped`, and
+`PastRejected` without rebuilding the legacy broad location package.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
