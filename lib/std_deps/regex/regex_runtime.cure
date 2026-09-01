@@ -8026,6 +8026,151 @@ mod Std.Regex.Runtime
     @erased cause: AtomicPathCommitCause(depth, n, machine, input, after_input, ThreadAccepted(), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, commit_depth, commit_kind)
   ) -> Empty = match cause
 
+  ## A child-propagated commit is impossible when the selected active child
+  ## has no input left. The named forced-erased field is bound at quantity zero
+  ## and forwarded only to the cause-native eliminator.
+  @reducible
+  fn atomic_path_commit_structure_from_child_empty_input_impossible(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased after_input: List(Char)},
+    {@erased source: Bounded(n)}, {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased active_state: Bounded(n)},
+    {@erased active_routine: List(EvidenceInstruction)},
+    {@erased active_constraints: List(BoundaryConstraint)},
+    {@erased active_assertion_routine: List(ExtendedInstruction)},
+    {@erased active_assertion_markers: List(EvidenceInstruction)},
+    {@erased active_nested_decisions: List(LookaroundNestedDecision)},
+    {@erased remaining: List(LookaroundAdmittedState(n))},
+    {@erased commit_depth: Nat},
+    {@erased child_commit_kind: AtomicPathCommitCauseKind},
+    package: AtomicPathCommitStructureCursorExistentialPackage(
+      depth, n, machine, Cons(char, Nil()), after_input,
+      ThreadActive(source), history, capture_context, policy, scope_depth,
+      prefix_mode, reversed_prefix, whole,
+      Cons(LookaroundAdmittedActive(
+        active_state, active_routine, active_constraints,
+        active_assertion_routine, active_assertion_markers,
+        active_nested_decisions
+      ), remaining),
+      commit_depth, AtomicPathCommitFromChildKind(child_commit_kind)
+    )
+  ) -> Empty = match package
+    AtomicPathCommitStructureCursorExistentialPacked(_, _, structure) -> match structure
+      AtomicPathCommitStructureFromChildPacked({child_cause = child_cause}, _, _, _, _, _, _, _, _, _, _, _, _, _, _) ->
+        atomic_path_commit_empty_input_impossible(child_commit_kind, child_cause)
+
+  ## The propagated escaped case retains the same forced-erased child cause.
+  ## Its outer tail cause is irrelevant to the terminal child contradiction.
+  @reducible
+  fn atomic_path_commit_structure_past_escaped_empty_input_impossible(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased after_input: List(Char)},
+    {@erased source: Bounded(n)}, {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased active_state: Bounded(n)},
+    {@erased active_routine: List(EvidenceInstruction)},
+    {@erased active_constraints: List(BoundaryConstraint)},
+    {@erased active_assertion_routine: List(ExtendedInstruction)},
+    {@erased active_assertion_markers: List(EvidenceInstruction)},
+    {@erased active_nested_decisions: List(LookaroundNestedDecision)},
+    {@erased remaining: List(LookaroundAdmittedState(n))},
+    {@erased commit_depth: Nat},
+    {@erased child_commit_kind: AtomicPathCommitCauseKind},
+    {@erased tail_commit_kind: AtomicPathCommitCauseKind},
+    package: AtomicPathCommitStructureCursorExistentialPackage(
+      depth, n, machine, Cons(char, Nil()), after_input,
+      ThreadActive(source), history, capture_context, policy, scope_depth,
+      prefix_mode, reversed_prefix, whole,
+      Cons(LookaroundAdmittedActive(
+        active_state, active_routine, active_constraints,
+        active_assertion_routine, active_assertion_markers,
+        active_nested_decisions
+      ), remaining),
+      commit_depth,
+      AtomicPathCommitPastEscapedKind(child_commit_kind, tail_commit_kind)
+    )
+  ) -> Empty = match package
+    AtomicPathCommitStructureCursorExistentialPacked(_, _, structure) -> match structure
+      AtomicPathCommitStructurePastEscapedPacked({child_cause = child_cause}, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) ->
+        atomic_path_commit_empty_input_impossible(child_commit_kind, child_cause)
+
+  ## An accepted selected child cannot itself carry a commit cause.  The
+  ## structure publishes that exact cause only at quantity zero.
+  @reducible
+  fn atomic_path_commit_structure_from_child_accepted_impossible(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased rest: List(Char)},
+    {@erased after_input: List(Char)}, {@erased source: Bounded(n)},
+    {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased accepted_routine: List(EvidenceInstruction)},
+    {@erased accepted_constraints: List(BoundaryConstraint)},
+    {@erased accepted_assertion_routine: List(ExtendedInstruction)},
+    {@erased accepted_assertion_markers: List(EvidenceInstruction)},
+    {@erased accepted_nested_decisions: List(LookaroundNestedDecision)},
+    {@erased remaining: List(LookaroundAdmittedState(n))},
+    {@erased commit_depth: Nat},
+    {@erased child_commit_kind: AtomicPathCommitCauseKind},
+    package: AtomicPathCommitStructureCursorExistentialPackage(
+      depth, n, machine, Cons(char, rest), after_input,
+      ThreadActive(source), history, capture_context, policy, scope_depth,
+      prefix_mode, reversed_prefix, whole,
+      Cons(LookaroundAdmittedAccepted(
+        accepted_routine, accepted_constraints, accepted_assertion_routine,
+        accepted_assertion_markers, accepted_nested_decisions
+      ), remaining),
+      commit_depth, AtomicPathCommitFromChildKind(child_commit_kind)
+    )
+  ) -> Empty = match package
+    AtomicPathCommitStructureCursorExistentialPacked(_, _, structure) -> match structure
+      AtomicPathCommitStructureFromChildPacked({child_cause = child_cause}, _, _, _, _, _, _, _, _, _, _, _, _, _, _) ->
+        atomic_path_commit_accepted_state_impossible(child_commit_kind, child_cause)
+
+  @reducible
+  fn atomic_path_commit_structure_past_escaped_accepted_impossible(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased rest: List(Char)},
+    {@erased after_input: List(Char)}, {@erased source: Bounded(n)},
+    {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased accepted_routine: List(EvidenceInstruction)},
+    {@erased accepted_constraints: List(BoundaryConstraint)},
+    {@erased accepted_assertion_routine: List(ExtendedInstruction)},
+    {@erased accepted_assertion_markers: List(EvidenceInstruction)},
+    {@erased accepted_nested_decisions: List(LookaroundNestedDecision)},
+    {@erased remaining: List(LookaroundAdmittedState(n))},
+    {@erased commit_depth: Nat},
+    {@erased child_commit_kind: AtomicPathCommitCauseKind},
+    {@erased tail_commit_kind: AtomicPathCommitCauseKind},
+    package: AtomicPathCommitStructureCursorExistentialPackage(
+      depth, n, machine, Cons(char, rest), after_input,
+      ThreadActive(source), history, capture_context, policy, scope_depth,
+      prefix_mode, reversed_prefix, whole,
+      Cons(LookaroundAdmittedAccepted(
+        accepted_routine, accepted_constraints, accepted_assertion_routine,
+        accepted_assertion_markers, accepted_nested_decisions
+      ), remaining),
+      commit_depth,
+      AtomicPathCommitPastEscapedKind(child_commit_kind, tail_commit_kind)
+    )
+  ) -> Empty = match package
+    AtomicPathCommitStructureCursorExistentialPacked(_, _, structure) -> match structure
+      AtomicPathCommitStructurePastEscapedPacked({child_cause = child_cause}, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) ->
+        atomic_path_commit_accepted_state_impossible(child_commit_kind, child_cause)
+
   ## A commit-cause kind fixes exactly one constructor.  These projections are
   ## therefore safe across an erased cause: unlike the rejected generic
   ## projection, none of them performs runtime case analysis on proof data.

@@ -171,6 +171,61 @@ defmodule Cure.Elab.NamedImplicitTailTest do
     assert {:ok, _env} = Program.elaborate(src)
   end
 
+  test "a forced erased implicit can be pattern-bound for erased use" do
+    src = """
+    mod ForcedErasedImplicit
+      type Nat = Z | S(Nat)
+      type Indexed indices (index: Nat)
+        MkIndexed : {@erased value: Nat} -> Indexed(value)
+
+      fn discard(@erased value: Nat) -> Nat = Z()
+
+      fn consume({index: Nat}, item: Indexed(index)) -> Nat = match item
+        MkIndexed({value = revealed}) -> discard(revealed)
+    end
+    """
+
+    assert {:ok, _env} = Program.elaborate(src)
+  end
+
+  test "a bound forced erased implicit still cannot be used at runtime" do
+    src = """
+    mod ForcedErasedImplicitRuntimeUse
+      type Nat = Z | S(Nat)
+      type Indexed indices (index: Nat)
+        MkIndexed : {@erased value: Nat} -> Indexed(value)
+
+      fn reveal({index: Nat}, item: Indexed(index)) -> Nat = match item
+        MkIndexed({value = revealed}) -> revealed
+    end
+    """
+
+    assert {:error, {:erased_used_relevantly, _}} = semantic_elaborate(src)
+  end
+
+  test "a forced erased field keeps its name after a dependent erased kind" do
+    src = """
+    mod ForcedDependentErasedImplicit
+      type Nat = Z | S(Nat)
+      type Kind = OnlyKind
+      type Cause indices (kind: Kind)
+        OnlyCause : Cause(OnlyKind())
+      type Structure indices (kind: Kind, cause: Cause(kind))
+        Packed : {@erased child_kind: Kind} -> {@erased child_cause: Cause(child_kind)} -> Structure(child_kind, child_cause)
+
+      fn discard({kind: Kind}, @erased cause: Cause(kind)) -> Nat = Z()
+
+      fn consume(
+        {kind: Kind}, {cause: Cause(kind)},
+        structure: Structure(kind, cause)
+      ) -> Nat = match structure
+        Packed({child_cause = revealed}) -> discard(revealed)
+    end
+    """
+
+    assert {:ok, _env} = Program.elaborate(src)
+  end
+
   defp semantic_elaborate(src) do
     case Program.elaborate(src) do
       {:error, error} -> {:error, Program.semantic_error(error)}

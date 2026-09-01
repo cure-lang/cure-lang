@@ -13132,19 +13132,17 @@ defmodule Cure.Elab.Elaborator do
   defp constructor_named_implicits(_), do: []
 
   # Split a pattern's named implicits per spec 2026-07-08 §2.3. A bare variable
-  # binds an unforced position, and also binds a FORCED relevant implicit: the
-  # latter is retained at runtime, so hiding it merely because the result index
-  # also determines it would make `{k : T}` less usable than an ordinary field.
-  # Forced erased positions remain check-only, preserving the quantity-0 rule.
-  defp split_named_implicits(pattern, subst, arity, telescope, quantities) do
+  # binds the named position at that telescope slot's actual quantity. This is
+  # sound for a forced erased field too: the branch-unify substitution fixes its
+  # value, while binding it at quantity 0 permits only proof/type-level uses.
+  # Dot and other non-variable forms remain checks rather than bindings.
+  defp split_named_implicits(pattern, _subst, _arity, telescope, _quantities) do
     pattern
     |> constructor_named_implicits()
     |> Enum.split_with(fn {name, inner, _named_meta, _constructor_meta} ->
       position = Enum.find_index(telescope, fn {n, _t} -> n == String.to_atom(name) end)
 
-      match?({:variable, _, _}, inner) and position != nil and
-        (named_implicit_forced_value(name, subst, arity, telescope) == :error or
-           not Grade.erased?(Enum.at(quantities, position)))
+      match?({:variable, _, _}, inner) and position != nil
     end)
   end
 

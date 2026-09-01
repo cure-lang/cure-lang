@@ -3385,20 +3385,25 @@ unmigrated callers; new recursion must use the package-preserving form. The
 complete Regex chain and focused 27-test gate pass. Next migrate the rejected-
 root adapters to this induction, then remove the trace-only tail type and fold.
 
-Recursive commit causes are now published explicitly at the relevant structure
-boundary while remaining quantity-zero. Coverage does not recover a hidden
-implicit cause from `AtomicPathCommitStructurePackage`: even after selecting a
-relevant structure constructor, a structure-native impossibility proof could
-not invoke the existing cause-native empty-input or accepted-state eliminator.
-`PastEscaped` and `PastRejected` therefore expose their exact tail cause as an
-explicit erased field, and `AtomicPathCommitStructureCursorExistentialPacked`
-exposes the cause correlated with its relevant cursor and structure in the
-same form. Tail projections bind that cause only to forward it into another
-erased slot; it never selects runtime data. The complete Regex chain compiles
-without E104 and the focused 27-test gate passes. Next expose the corresponding
-child cause on `FromChild` and `PastEscaped`, then use these exact erased causes
-to close the structure-native terminal cases in the common recursive
-dispatcher.
+Recursive commit causes are now available at the relevant structure boundary
+while remaining quantity-zero. `PastEscaped` and `PastRejected` publish their
+exact tail cause explicitly, and
+`AtomicPathCommitStructureCursorExistentialPacked` publishes the cause
+correlated with its relevant cursor and structure in the same form. A separate
+compiler limitation prevented a named bare-variable pattern from binding a
+forced erased constructor field: the elaborator treated every forced field as
+check-only even when the binding would remain at quantity zero. Named implicit
+splitting now binds a bare variable at the telescope slot's actual quantity,
+including forced erased slots, while dot and non-variable patterns remain
+checks and relevance still rejects runtime use. Regressions cover both the
+basic case and a forced erased field following a dependent erased kind. The
+four package-native terminal eliminators can consequently select `FromChild`
+or `PastEscaped`, bind the exact child kind and cause, and close empty-input or
+accepted-child cases through the existing cause-native contradiction. No
+proof evidence is promoted into relevant runtime state. The complete Regex
+chain, 12-test named-implicit gate, and focused 27-test Regex gate pass. Next
+use these leaves in the common recursive dispatcher and complete its remaining
+structure/selected-prefix cases.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
