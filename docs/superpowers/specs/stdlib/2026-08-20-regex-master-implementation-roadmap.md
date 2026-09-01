@@ -3471,6 +3471,16 @@ consumer without inspecting the dependent trace. Next consume the propagated
 envelope in the common commit/selection dispatcher and replace its remaining
 trace-only recursive entry points.
 
+The common recursive existential now has a single runtime dispatcher.
+`atomic_path_recursive_commit_selected_existential_dispatch` distinguishes the
+ordinary correlated carrier from child `Same`, `LeftAfter`, and `RightAfter`
+shape cases, but passes the original existential unchanged to every callback.
+Consequently the finite tag controls branch selection without reconstructing
+erased child indices or masquerading as a cursor proof. Next replace the
+legacy entry points one constructor family at a time: terminal same-cursor
+leaves first, then rejected-head right branches, then escaped/rejected sibling
+tail recursion.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

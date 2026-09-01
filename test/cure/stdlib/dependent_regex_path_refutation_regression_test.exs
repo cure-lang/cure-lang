@@ -1012,6 +1012,10 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "type AtomicSelectedPathTraceRuntimeEnvelope("
     assert source =~ "AtomicSelectedPathTraceRuntimeEnvelopePacked :"
     assert source =~ "fn atomic_path_commit_child_selected_location_package("
+
+    assert source =~
+             "fn atomic_path_recursive_commit_selected_existential_dispatch("
+
     structure_declarations = String.split(source, "\n")
 
     from_child_declaration =

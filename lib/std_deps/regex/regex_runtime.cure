@@ -8850,6 +8850,36 @@ mod Std.Regex.Runtime
         )
       )
 
+  ## Common runtime dispatcher for recursive commit/selection authorities.
+  ## The finite tag chooses a branch, but every callback receives the original
+  ## existential unchanged; no erased child index is reconstructed and no tag
+  ## is treated as proof evidence.
+  fn atomic_path_recursive_commit_selected_existential_dispatch(
+    {result: Type}, {depth: Nat}, {n: Nat},
+    {@erased machine: PatternMachine(n)},
+    package: AtomicPathRecursiveCommitSelectedExistentialPackage(
+      depth, n, machine
+    ),
+    correlated_case: (AtomicPathRecursiveCommitSelectedExistentialPackage(
+      depth, n, machine
+    )) -> result,
+    same_case: (AtomicPathRecursiveCommitSelectedExistentialPackage(
+      depth, n, machine
+    )) -> result,
+    left_case: (AtomicPathRecursiveCommitSelectedExistentialPackage(
+      depth, n, machine
+    )) -> result,
+    right_case: (AtomicPathRecursiveCommitSelectedExistentialPackage(
+      depth, n, machine
+    )) -> result
+  ) -> result = match package
+    AtomicPathRecursiveCommitSelectedExistentialPacked(_) ->
+      correlated_case(package)
+    AtomicPathRecursiveCommitSelectedChildExistentialPacked(_, _, location) -> match location
+      AtomicPathCursorShapeSame() -> same_case(package)
+      AtomicPathCursorShapeLeftAfter() -> left_case(package)
+      AtomicPathCursorShapeRightAfter() -> right_case(package)
+
   ## Combine an extracted recursive commit tail with the corresponding
   ## selected skipped-prefix tail. Matching the commit package exposes the
   ## cursor already correlated with its exact structure; the selected
