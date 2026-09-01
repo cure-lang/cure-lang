@@ -3595,6 +3595,18 @@ its hidden shapes against the retained shaped cursor packages, and connect the
 input-exhausted, exact-accepted, and destination-exhausted cases to their fixed
 contradiction leaves.
 
+The structural `Same` witness can now be checked against both exact shaped
+cursor packages without reifying canonical proof equality. The local
+`lookaround_admitted_cursor_same_shape_inner_equivalent` recursion follows only
+the relevant `Here`/`Drop` spines and returns a one-constructor authority whose
+inner-cursor equality field is erased. A direct `Equivalent` return was rejected
+by E104 because it would have promoted the canonical outer equality into a
+runtime value; the authority package preserves the same theorem without that
+violation. The complete Regex chain elaborates, and the exact construction-site
+regression passes. Next consume this authority inside the fixed input-exhausted
+`Same` branch and forward its erased equality to the existing aligned terminal
+leaf.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

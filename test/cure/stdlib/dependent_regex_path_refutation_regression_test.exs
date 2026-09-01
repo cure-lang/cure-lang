@@ -1121,6 +1121,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~
              ~r/AtomicPathRecursiveCommitSelectedChildSameExistentialPacked :.*same_authority: AtomicPathCursorShapesSameAuthority/s
     assert source =~ "fn atomic_path_commit_child_selected_shape_comparison("
+    assert source =~ "fn lookaround_admitted_cursor_same_shape_inner_equivalent("
     assert source =~
              ~r/fn atomic_path_recursive_commit_selected_existential_dispatch\(.*same_case: \(AtomicPathRecursiveCommitSelectedChildSameExistentialPackage/s
     assert source =~

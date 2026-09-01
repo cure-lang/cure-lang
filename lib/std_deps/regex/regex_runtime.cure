@@ -1883,6 +1883,53 @@ mod Std.Regex.Runtime
     AtomicPathCursorShapeComparisonLeftAfter(_) -> AtomicPathCursorShapeLeftAfter()
     AtomicPathCursorShapeComparisonRightAfter(_) -> AtomicPathCursorShapeRightAfter()
 
+  type LookaroundAdmittedCursorInnerEquivalentAuthority(n: Nat) indices (left: List(LookaroundAdmittedState(n)), right: List(LookaroundAdmittedState(n)))
+    LookaroundAdmittedCursorInnerEquivalentPacked : (@erased equality: Equivalent(List(LookaroundAdmittedState(n)), left, right)) -> LookaroundAdmittedCursorInnerEquivalentAuthority(n, left, right)
+
+  ## A structural Same comparison is useful as proof authority only after
+  ## both shapes have been checked against their exact cursor packages.  With
+  ## the outer origins aligned, equal Here/Drop spines force the two hidden
+  ## inner cursors to be equal as well.
+  @reducible
+  local fn lookaround_admitted_cursor_same_shape_inner_equivalent(
+    {n: Nat},
+    {@erased left_outer: List(LookaroundAdmittedState(n))},
+    {@erased left_inner: List(LookaroundAdmittedState(n))},
+    {@erased right_outer: List(LookaroundAdmittedState(n))},
+    {@erased right_inner: List(LookaroundAdmittedState(n))},
+    {left_shape: LookaroundAdmittedStateCursorShape},
+    {right_shape: LookaroundAdmittedStateCursorShape},
+    left_cursor: LookaroundAdmittedStateCursorShapedPackage(
+      n, left_outer, left_inner, left_shape
+    ),
+    right_cursor: LookaroundAdmittedStateCursorShapedPackage(
+      n, right_outer, right_inner, right_shape
+    ),
+    same_authority: AtomicPathCursorShapesSameAuthority(
+      left_shape, right_shape
+    ),
+    @erased outer_equivalence: Equivalent(
+      List(LookaroundAdmittedState(n)), left_outer, right_outer
+    )
+  ) -> LookaroundAdmittedCursorInnerEquivalentAuthority(
+    n, left_inner, right_inner
+  ) = match same_authority
+    AtomicPathCursorShapesSameHere() -> match left_cursor
+      LookaroundAdmittedStateCursorHereShapedPacked(left_equality) -> match right_cursor
+        LookaroundAdmittedStateCursorHereShapedPacked(right_equality) ->
+          LookaroundAdmittedCursorInnerEquivalentPacked(
+            trans(sym(left_equality), trans(outer_equivalence, right_equality))
+          )
+    AtomicPathCursorShapesSameDrop(prior) -> match left_cursor
+      LookaroundAdmittedStateCursorDropShapedPacked(_, left_prior) -> match right_cursor
+        LookaroundAdmittedStateCursorDropShapedPacked(_, right_prior) -> match outer_equivalence
+          reflexive() -> lookaround_admitted_cursor_same_shape_inner_equivalent(
+              left_prior,
+              right_prior,
+              prior,
+              reflexive()
+            )
+
   fn lookaround_admitted_cursor_suffix_package_shape(
     {@erased n: Nat},
     {@erased outer: List(LookaroundAdmittedState(n))},
