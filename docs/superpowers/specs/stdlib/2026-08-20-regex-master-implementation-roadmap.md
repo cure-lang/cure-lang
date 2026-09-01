@@ -3481,6 +3481,19 @@ legacy entry points one constructor family at a time: terminal same-cursor
 leaves first, then rejected-head right branches, then escaped/rejected sibling
 tail recursion.
 
+The recursive child payload now also retains its exact erased cursor-suffix
+authority beside the canonical child origin and relevant cursor/structure.
+Previously `FromChild` and `PastEscaped` preserved the suffix only inside the
+structure constructor, then discarded it while publishing the child payload;
+that forced any later same-cursor proof either to reopen the wrong abstraction
+boundary or to mistake the runtime shape tag for evidence. Both canonical
+payload construction sites now forward the original suffix unchanged. The
+complete Regex chain and focused 27-test refutation gate pass. Next implement
+the proof-only recursive child authority-alignment fold: open the dependent
+payload and selected trace behind their runtime envelopes, refine child
+capture/scope indices, and use the two canonical origins plus exact suffixes to
+derive each terminal or recursive cursor case independently of the shape tag.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

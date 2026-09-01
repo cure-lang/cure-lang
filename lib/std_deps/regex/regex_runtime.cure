@@ -7827,7 +7827,7 @@ mod Std.Regex.Runtime
   ## indices are existential at the parent boundary and must travel with the
   ## relevant cursor/structure package rather than being guessed by a caller.
   type AtomicPathCommitChildCursorPayloadPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (rest: List(Char), after_input: List(Char), candidate: LookaroundAdmittedState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char))
-    AtomicPathCommitChildCursorPayloadPacked : {@erased child_capture_context: List(EvidenceInstruction)} -> (@erased context_alignment: LookaroundAdmittedStateCaptureContext(n, capture_context, candidate, child_capture_context)) -> {@erased child_scope_depth: Nat} -> (@erased scope_alignment: LookaroundAdmittedStateScope(n, scope_depth, candidate, child_scope_depth)) -> {@erased child_whole: List(LookaroundAdmittedState(n))} -> {@erased child_current: List(LookaroundAdmittedState(n))} -> {@erased child_origin: List(LookaroundAdmittedState(n))} -> (@erased child_origin_equivalence: Equivalent(List(LookaroundAdmittedState(n)), child_whole, child_origin)) -> (@erased child_origin_canonical: AtomicPathSearchOrigin(depth, n, machine, rest, after_input, lookaround_admitted_state_thread_at(n, candidate), history, child_capture_context, policy, child_origin)) -> {@erased child_commit_depth: Nat} -> {@erased child_commit_kind: AtomicPathCommitCauseKind} -> (child: AtomicPathCommitStructureCursorExistentialPackage(depth, n, machine, rest, after_input, lookaround_admitted_state_thread_at(n, candidate), history, child_capture_context, policy, child_scope_depth, prefix_mode, reversed_prefix, child_whole, child_current, child_commit_depth, child_commit_kind)) -> AtomicPathCommitChildCursorPayloadPackage(depth, n, machine, rest, after_input, candidate, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix)
+    AtomicPathCommitChildCursorPayloadPacked : {@erased child_capture_context: List(EvidenceInstruction)} -> (@erased context_alignment: LookaroundAdmittedStateCaptureContext(n, capture_context, candidate, child_capture_context)) -> {@erased child_scope_depth: Nat} -> (@erased scope_alignment: LookaroundAdmittedStateScope(n, scope_depth, candidate, child_scope_depth)) -> {@erased child_whole: List(LookaroundAdmittedState(n))} -> {@erased child_current: List(LookaroundAdmittedState(n))} -> {@erased child_origin: List(LookaroundAdmittedState(n))} -> (@erased child_origin_equivalence: Equivalent(List(LookaroundAdmittedState(n)), child_whole, child_origin)) -> (@erased child_origin_canonical: AtomicPathSearchOrigin(depth, n, machine, rest, after_input, lookaround_admitted_state_thread_at(n, candidate), history, child_capture_context, policy, child_origin)) -> {@erased child_commit_depth: Nat} -> {@erased child_commit_kind: AtomicPathCommitCauseKind} -> (@erased child_suffix: LookaroundAdmittedStateCursorSuffix(n, child_whole, child_current)) -> (child: AtomicPathCommitStructureCursorExistentialPackage(depth, n, machine, rest, after_input, lookaround_admitted_state_thread_at(n, candidate), history, child_capture_context, policy, child_scope_depth, prefix_mode, reversed_prefix, child_whole, child_current, child_commit_depth, child_commit_kind)) -> AtomicPathCommitChildCursorPayloadPackage(depth, n, machine, rest, after_input, candidate, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix)
 
   type AtomicPathCommitChildCursorExistentialPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (rest: List(Char), after_input: List(Char), candidate: LookaroundAdmittedState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char))
     AtomicPathCommitChildCursorExistentialPacked : (shape: LookaroundAdmittedStateCursorShape) -> (payload: AtomicPathCommitChildCursorPayloadPackage(depth, n, machine, rest, after_input, candidate, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix)) -> AtomicPathCommitChildCursorExistentialPackage(depth, n, machine, rest, after_input, candidate, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix)
@@ -8029,7 +8029,7 @@ mod Std.Regex.Runtime
       AtomicPathCommitStructureFromChildPacked(
         {child_cause = child_cause},
         _, _, _, _, _, _, child_context_alignment, _, child_scope_alignment,
-        child_origin_equivalence, child_origin_canonical, _, child_cursor,
+        child_origin_equivalence, child_origin_canonical, child_suffix, child_cursor,
         child_structure, _
       ) -> AtomicPathCommitChildCursorExistentialPacked(
         lookaround_admitted_cursor_suffix_package_shape(child_cursor),
@@ -8038,6 +8038,7 @@ mod Std.Regex.Runtime
           child_scope_alignment,
           child_origin_equivalence,
           child_origin_canonical,
+          child_suffix,
           AtomicPathCommitStructureCursorExistentialPacked(
             child_cause,
             child_cursor,
@@ -8079,7 +8080,7 @@ mod Std.Regex.Runtime
       AtomicPathCommitStructurePastEscapedPacked(
         {child_cause = child_cause},
         _, _, _, _, _, _, child_context_alignment, _, child_scope_alignment,
-        child_origin_equivalence, child_origin_canonical, _, child_cursor,
+        child_origin_equivalence, child_origin_canonical, child_suffix, child_cursor,
         child_structure,
         _, _, _, _, _, _
       ) -> AtomicPathCommitChildCursorExistentialPacked(
@@ -8089,6 +8090,7 @@ mod Std.Regex.Runtime
           child_scope_alignment,
           child_origin_equivalence,
           child_origin_canonical,
+          child_suffix,
           AtomicPathCommitStructureCursorExistentialPacked(
             child_cause,
             child_cursor,
