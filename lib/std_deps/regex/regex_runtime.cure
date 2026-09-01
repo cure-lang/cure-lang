@@ -2279,6 +2279,34 @@ mod Std.Regex.Runtime
     AtomicPathActiveChildAlignmentCaseThere : AtomicPathActiveChildAlignmentCase(n, failure_current, current)
     AtomicPathActiveChildAlignmentCaseReverse : AtomicPathActiveChildAlignmentCase(n, failure_current, current)
 
+  ## Evidence-preserving counterpart of the compact alignment case. Branch
+  ## consumers that discover their recursive proof data only after canonical
+  ## comparison need the exact suffix authority, not a nullary tag whose proof
+  ## had to be precomputed outside the construction site.
+  type AtomicPathActiveChildAlignmentAuthority(n: Nat) indices (failure_current: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)))
+    AtomicPathActiveChildAlignmentHereAuthority : {@erased candidate: LookaroundAdmittedState(n)} -> {@erased remaining: List(LookaroundAdmittedState(n))} -> (@erased alignment: LookaroundAdmittedStateCursorSuffix(n, failure_current, Cons(candidate, remaining))) -> AtomicPathActiveChildAlignmentAuthority(n, failure_current, Cons(candidate, remaining))
+    AtomicPathActiveChildAlignmentThereAuthority : {@erased remaining: List(LookaroundAdmittedState(n))} -> (@erased alignment: LookaroundAdmittedStateCursorSuffix(n, failure_current, current)) -> (@erased tail: LookaroundAdmittedStateCursorSuffix(n, remaining, current)) -> AtomicPathActiveChildAlignmentAuthority(n, failure_current, current)
+    AtomicPathActiveChildAlignmentReverseAuthority : (@erased alignment: LookaroundAdmittedStateCursorSuffix(n, current, failure_current)) -> AtomicPathActiveChildAlignmentAuthority(n, failure_current, current)
+
+  @reducible
+  fn atomic_path_active_child_alignment_authority(
+    {n: Nat}, {candidate: LookaroundAdmittedState(n)},
+    {remaining: List(LookaroundAdmittedState(n))},
+    {failure_current: List(LookaroundAdmittedState(n))},
+    {current: List(LookaroundAdmittedState(n))},
+    alignment: AtomicPathActiveChildAlignment(
+      n, candidate, remaining, failure_current, current
+    )
+  ) -> AtomicPathActiveChildAlignmentAuthority(
+    n, failure_current, current
+  ) = match alignment
+    AtomicPathActiveChildAlignmentHere(authority) ->
+      AtomicPathActiveChildAlignmentHereAuthority(authority)
+    AtomicPathActiveChildAlignmentThere(authority, tail) ->
+      AtomicPathActiveChildAlignmentThereAuthority(authority, tail)
+    AtomicPathActiveChildAlignmentReverse(authority) ->
+      AtomicPathActiveChildAlignmentReverseAuthority(authority)
+
   ## A child search and its selected trace may publish extensionally equal
   ## origin lists through different existential binders. Transporting the
   ## selected suffix across that equality gives both cursors one common outer
@@ -2669,6 +2697,60 @@ mod Std.Regex.Runtime
     tail_case,
     reverse_case
   )
+
+  ## Canonical comparison that returns the exact branch authority instead of
+  ## demanding precomputed nullary contradictions. The two origin
+  ## certificates provide the only whole-spine equality; the failure's
+  ## non-empty decomposition fixes the rejected head and sibling tail.
+  @reducible
+  fn atomic_path_active_child_alignment_authority_from_canonical(
+    {depth: Nat}, {n: Nat}, {machine: PatternMachine(n)},
+    {input: List(Char)}, {after_input: List(Char)},
+    {state: ThreadState(n)}, {history: List(Char)},
+    {capture_context: List(EvidenceInstruction)}, {policy: NewlinePolicy},
+    {failure_whole: List(LookaroundAdmittedState(n))},
+    {failure_current: List(LookaroundAdmittedState(n))},
+    {failure_origin: List(LookaroundAdmittedState(n))},
+    {selected_origin: List(LookaroundAdmittedState(n))},
+    {selected_current: List(LookaroundAdmittedState(n))},
+    failure_origin_equivalence: Equivalent(
+      List(LookaroundAdmittedState(n)), failure_whole, failure_origin
+    ),
+    failure_origin_canonical: AtomicPathSearchOrigin(
+      depth, n, machine, input, after_input, state, history,
+      capture_context, policy, failure_origin
+    ),
+    failure_suffix: LookaroundAdmittedStateCursorSuffix(
+      n, failure_whole, failure_current
+    ),
+    selected_origin_canonical: AtomicPathSearchOrigin(
+      depth, n, machine, input, after_input, state, history,
+      capture_context, policy, selected_origin
+    ),
+    selected_suffix: LookaroundAdmittedStateCursorSuffix(
+      n, selected_origin, selected_current
+    ),
+    failure_nonempty: LookaroundAdmittedNonempty(n, failure_whole)
+  ) -> AtomicPathActiveChildAlignmentAuthority(
+    n, failure_current, selected_current
+  ) = match atomic_path_search_origin_alignment(
+    failure_origin_canonical,
+    selected_origin_canonical
+  )
+    AtomicPathSearchOriginsAligned(origin_equivalence) -> match origin_equivalence
+      reflexive() -> match failure_nonempty
+        LookaroundAdmittedNonemptyPacked(
+          _, _, failure_nonempty_equivalence
+        ) -> match failure_nonempty_equivalence
+          reflexive() ->
+            atomic_path_active_child_alignment_authority(
+              atomic_path_active_child_alignment(
+                failure_suffix,
+                reflexive(failure_whole),
+                failure_origin_equivalence,
+                selected_suffix
+              )
+            )
 
   ## Refine the recursive failure/trace pair before entering the canonical
   ## cursor dispatcher. The non-empty active-child indices admit only a

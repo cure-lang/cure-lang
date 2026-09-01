@@ -4134,6 +4134,23 @@ nullary dispatcher and must not precompute branch proofs outside the carrier.
 Add a red construction-site regression requiring the three package-bearing
 branches before retrying the final recursive proof connection.
 
+The evidence-preserving canonical alignment layer is now implemented.
+`AtomicPathActiveChildAlignmentAuthority` has distinct `Here`, later-sibling,
+and reverse constructors that retain their exact erased suffix evidence while
+remaining indexed by the failed and selected current spines.
+`atomic_path_active_child_alignment_authority_from_canonical` aligns the two
+independently certified origins and returns this authority instead of
+requiring nullary precomputed branch proofs. E104 established the correct
+relevance boundary: the non-empty failure authority is relevant, while its
+stored equality and the canonical-origin equality are consumed locally and
+replaced by canonical reflexive witnesses before constructing runtime-visible
+authority. The complete Regex chain elaborates, the focused regression
+passes, and the full 27-test structural gate passes. Next define the correlated
+destination-rejection/selected-transition carrier whose three constructors
+embed this alignment authority alongside the exact child and selected
+packages; then its dispatcher can give each recursive callback both the branch
+proof and the construction-site data it needs.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

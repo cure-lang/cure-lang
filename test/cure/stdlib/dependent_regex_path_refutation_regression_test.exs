@@ -1486,6 +1486,24 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              ~r/LookaroundAdmittedStateCursorSuffixDropPacked\(head, prior\) ->\s*LookaroundAdmittedStateCursorSuffixDrop\(\s*head,\s*lookaround_admitted_cursor_suffix_package_evidence\(prior\)/s
 
     assert source =~
+             "type AtomicPathActiveChildAlignmentAuthority(n: Nat)"
+
+    assert source =~
+             "AtomicPathActiveChildAlignmentHereAuthority"
+
+    assert source =~
+             "AtomicPathActiveChildAlignmentThereAuthority"
+
+    assert source =~
+             "AtomicPathActiveChildAlignmentReverseAuthority"
+
+    assert source =~
+             "fn atomic_path_active_child_alignment_authority_from_canonical("
+
+    assert source =~
+             ~r/atomic_path_active_child_alignment_authority_from_canonical\(.*AtomicPathSearchOriginsAligned\(origin_equivalence\) -> match origin_equivalence\s*reflexive\(\).*atomic_path_active_child_alignment_authority\(\s*atomic_path_active_child_alignment\(\s*failure_suffix,\s*reflexive\(failure_whole\),\s*failure_origin_equivalence,\s*selected_suffix/s
+
+    assert source =~
              "type AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalPackage("
 
     assert source =~
