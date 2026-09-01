@@ -1203,6 +1203,12 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~
              ~r/AtomicPathCommitAfterFailureChildPacked :.*terminal_classification: AtomicPathCommitAfterFailureTerminalClassifiedPackage/s
 
+    assert source =~
+             "fn atomic_path_recursive_commit_selected_child_same_input_exhausted_fold("
+
+    assert source =~
+             ~r/atomic_path_recursive_commit_selected_child_same_input_exhausted_fold\(.*AtomicPathCommitAfterFailureInputExhaustedPacked\(\).*atomic_path_commit_after_input_exhausted_excludes_aligned_selected_package\(/s
+
     assert source =~ "type AtomicPathFailureKindAuthority indices (kind: AtomicPathFailureKind)"
 
     assert source =~

@@ -9184,6 +9184,53 @@ mod Std.Regex.Runtime
                   )
                 )
 
+  ## Consume the input-exhausted terminal classification without reopening
+  ## erased failure evidence. All other aligned cases remain available to the
+  ## recursive caller unchanged. The erased cursor equality is inspected only
+  ## while eliminating an impossible branch to `Empty`.
+  fn atomic_path_recursive_commit_selected_child_same_input_exhausted_fold(
+    {result: Type}, {depth: Nat}, {n: Nat},
+    {@erased machine: PatternMachine(n)},
+    package: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    ),
+    other_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )) -> result
+  ) -> result = match package
+    AtomicPathRecursiveCommitSelectedChildSameAlignedActivePacked(
+      commit, _, selected_suffix, inner_equivalence
+    ) -> match commit
+      AtomicPathCommitStructureCursorClassifiedAfterFailurePacked(
+        {child_prefix_kind = child_prefix_kind}, child_commit
+      ) -> match child_commit
+        AtomicPathCommitStructureCursorExistentialPacked(
+          cause, _, structure
+        ) -> match structure
+          AtomicPathCommitStructureAfterFailurePacked(after_child) -> match after_child
+            AtomicPathCommitAfterFailureChildPacked(
+              _, _, _, _, _, _, _, _, _, _, _, _, _, _, _,
+              terminal_classification, _, _, _, _
+            ) -> match terminal_classification
+              AtomicPathCommitAfterFailureInputExhaustedPacked() -> match inner_equivalence
+                LookaroundAdmittedCursorInnerEquivalentPacked(equality) -> match equality
+                  reflexive() -> match atomic_path_commit_after_input_exhausted_excludes_aligned_selected_package(
+                    child_prefix_kind,
+                    cause,
+                    selected_suffix
+                  )
+              AtomicPathCommitAfterFailureTerminalUnclassifiedPacked() ->
+                other_case(package)
+      AtomicPathCommitStructureCursorClassifiedFromChildPacked(_) ->
+        other_case(package)
+      AtomicPathCommitStructureCursorClassifiedPastEscapedPacked(_) ->
+        other_case(package)
+      AtomicPathCommitStructureCursorClassifiedPastRejectedPacked(_) ->
+        other_case(package)
+    AtomicPathRecursiveCommitSelectedChildSameAlignedAcceptedPacked(
+      _, _, _, _
+    ) -> other_case(package)
+
   @reducible
   fn atomic_path_recursive_commit_selected_existential_pack(
     {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},

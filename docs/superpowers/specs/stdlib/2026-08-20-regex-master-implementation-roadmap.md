@@ -3710,6 +3710,20 @@ classification in the aligned `Same` consumer and use its erased inner-cursor
 equality only inside an `Empty`-returning eliminator that forwards the selected
 suffix package to the existing aligned input-exhaustion leaf.
 
+The aligned `Same` consumer now performs that narrow elimination.
+`atomic_path_recursive_commit_selected_child_same_input_exhausted_fold` opens
+only the already-classified outer commit, selects the retained
+`AtomicPathCommitAfterFailureInputExhaustedPacked` authority, and forwards the
+exact cause and selected suffix package to the existing aligned terminal leaf.
+Its erased inner-cursor equality is inspected only on the path that eliminates
+to `Empty`; it never constructs relevant state. Every unclassified,
+`FromChild`, `PastEscaped`, `PastRejected`, and accepted-child case is returned
+unchanged to the recursive callback. The complete Regex chain elaborates in
+the established range and the exact construction-site regression passes. Next
+install this fold as the `Same` callback of the common recursive dispatcher,
+then classify and connect exact-accepted and destinations-exhausted terminals
+using the same construction-time pattern.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
