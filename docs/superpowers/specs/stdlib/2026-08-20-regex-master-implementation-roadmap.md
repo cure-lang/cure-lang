@@ -3801,6 +3801,21 @@ heterogeneous until an `Empty`-returning proof consumer can use their erased
 canonical alignment. It must not require an already-shared inner candidate as
 an input to relevant construction.
 
+The aligned `Same` boundary now has an explicit relevant structural
+continuation carrier. `AtomicPathRecursiveCommitSelectedChildSameContinuationPackage`
+classifies active aligned packages into `AfterFailure`, `FromChild`,
+`PastEscaped`, or `PastRejected`, and preserves accepted-state packages in a
+separate impossible branch. Every constructor retains the complete aligned
+package, including the original heterogeneous source payloads; classification
+therefore makes no use of erased cursor equality and manufactures no reindexed
+trace data. The common dispatcher now exposes only this continuation carrier
+after running all three terminal folds, preventing later consumers from
+bypassing relevant structural classification. The complete Regex chain
+elaborates and the exact structural regression passes. Next implement
+branch-specific `Empty` consumers for `FromChild` and `PastEscaped` that reopen
+the retained source, recurse over its left and right payloads heterogeneously,
+and use erased canonical alignment only at the final contradiction boundary.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
