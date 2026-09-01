@@ -3627,6 +3627,21 @@ an `AtomicPathCursorShapeComparison(left_shape, right_shape)` without opening
 either dependent payload. Do not resume the terminal leaves until both shape
 indices occur in the carrier's field types.
 
+The selected side now has that opaque construction boundary.
+`AtomicPathSelectedChildCursorPayloadPackage` has separate active and accepted
+constructors indexed by the parent candidate and by the exact validated cursor
+shape. Each constructor retains the child canonical origin, ordinary cursor
+package, shaped cursor authority, skipped-prefix structure, and recursive
+suffix trace package under shared child-whole/current indices. The extractor
+`atomic_selected_path_trace_child_cursor_package` is the only bridge from an
+outer active/accepted trace package; prefix and exact terminals are impossible
+at this boundary. Consequently later recursive dispatch can consume a compact
+right-shape-indexed payload without retaining or reopening the outer erased
+trace path. The complete Regex chain elaborates and the exact structural
+regression passes. Next replace the trace envelope in the recursive child
+carrier with this selected payload, then add the symmetric opaque commit
+payload and index the comparison directly by both exposed shapes.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
