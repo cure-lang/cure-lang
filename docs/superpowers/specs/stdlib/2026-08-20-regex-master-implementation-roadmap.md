@@ -3834,6 +3834,22 @@ retain the selected side independently from the aligned source, and perform
 the recursive canonical comparison without first constructing a shared-index
 runtime carrier.
 
+The selected side now survives that boundary in the same opaque form.
+`AtomicSelectedPathTraceExistentialRuntimeEnvelope` hides the selected suffix's
+input, state, contexts, cursor, result, routine, and exact path indices while
+retaining the runtime envelope built from its validated right cursor shape and
+exact suffix package. Both active and accepted aligned-`Same` constructors
+carry this envelope beside the selected suffix and the original source. The
+right shape is taken directly from the source comparison that is already
+indexed to the selected payload; it is not recovered by reopening the
+dependent trace. Consequently the propagated continuation now has an existing
+left child projection and an existing right selected-suffix envelope before
+any erased inner-cursor equality is consumed. The complete Regex chain
+elaborates and the focused structural regression passes. Next define the
+fixed `Empty` transport that accepts these two opaque authorities, refines
+their hidden current lists only inside proof elimination, and enters recursive
+dispatch without returning a reindexed runtime value.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

@@ -1177,6 +1177,18 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              ~r/AtomicPathRecursiveCommitSelectedChildSameAlignedAcceptedPacked :.*source: AtomicPathRecursiveCommitSelectedChildSameExistentialPackage/s
 
     assert source =~
+             "type AtomicSelectedPathTraceExistentialRuntimeEnvelope("
+
+    assert source =~
+             ~r/AtomicSelectedPathTraceExistentialRuntimeEnvelopePacked :.*envelope: AtomicSelectedPathTraceRuntimeEnvelope\(AtomicSelectedPathTracePackage/s
+
+    assert source =~
+             ~r/AtomicPathRecursiveCommitSelectedChildSameAlignedActivePacked :.*selected_envelope: AtomicSelectedPathTraceExistentialRuntimeEnvelope/s
+
+    assert source =~
+             ~r/AtomicPathRecursiveCommitSelectedChildSameAlignedAcceptedPacked :.*selected_envelope: AtomicSelectedPathTraceExistentialRuntimeEnvelope/s
+
+    assert source =~
              "fn atomic_path_recursive_commit_selected_child_same_aligned_package("
 
     assert source =~
@@ -1187,6 +1199,9 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
 
     assert source =~
              ~r/AtomicPathSelectedChildCursorActivePacked\(.*right_cursor.*lookaround_admitted_cursor_same_shape_inner_equivalent\(/s
+
+    assert source =~
+             ~r/AtomicPathSelectedChildCursorActivePacked\(.*atomic_selected_path_trace_existential_runtime_envelope\(\s*right_shape,\s*selected_suffix\s*\).*lookaround_admitted_cursor_same_shape_inner_equivalent\(/s
 
     assert source =~
              ~r/type AtomicPathRootRefutation\(.*kind: AtomicPathFailureKind/s
