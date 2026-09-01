@@ -9382,6 +9382,37 @@ mod Std.Regex.Runtime
       _, _, _, _, _, _
     ) -> AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalInvalidPacked(aligned)
 
+  fn atomic_path_recursive_commit_selected_child_same_after_failure_terminal_dispatch(
+    {result: Type}, {depth: Nat}, {n: Nat},
+    {@erased machine: PatternMachine(n)},
+    package: AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalPackage(
+      depth, n, machine
+    ),
+    input_exhausted_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )) -> result,
+    exact_accepted_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )) -> result,
+    root_destinations_exhausted_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )) -> result,
+    unclassified_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )) -> result,
+    invalid_case: () -> result
+  ) -> result = match package
+    AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalInputExhaustedPacked(aligned) ->
+      input_exhausted_case(aligned)
+    AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalExactAcceptedPacked(aligned) ->
+      exact_accepted_case(aligned)
+    AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalRootDestinationsExhaustedPacked(aligned) ->
+      root_destinations_exhausted_case(aligned)
+    AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalUnclassifiedPacked(aligned) ->
+      unclassified_case(aligned)
+    AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalInvalidPacked(_) ->
+      invalid_case()
+
   ## Consume the input-exhausted terminal classification without reopening
   ## erased failure evidence. All other aligned cases remain available to the
   ## recursive caller unchanged. The erased cursor equality is inspected only

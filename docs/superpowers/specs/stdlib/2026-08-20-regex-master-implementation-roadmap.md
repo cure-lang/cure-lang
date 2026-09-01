@@ -4014,6 +4014,17 @@ common Same boundary: close the three classified terminals with their existing
 package-native leaves, reject malformed input, and allow only unclassified to
 enter skipped-prefix and child-failure recursion.
 
+`atomic_path_recursive_commit_selected_child_same_after_failure_terminal_dispatch`
+now exposes the consolidated classification through five fixed callbacks. It
+forwards the unchanged aligned authority to each legitimate branch and sends
+the malformed constructor to a nullary invalid callback. This dispatcher adds
+no proof inspection or dependent transport; it is the relevant control
+boundary that will replace the three nested terminal reclassification folds.
+The complete Regex chain elaborates and the focused structural regression
+passes. Next install this dispatcher in the common recursive Same path, reuse
+the existing package-native terminal contradictions for its first three
+callbacks, and send only `TerminalUnclassified` into skipped-tail descent.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
