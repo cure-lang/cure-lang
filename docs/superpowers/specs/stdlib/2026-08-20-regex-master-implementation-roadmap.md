@@ -3868,6 +3868,20 @@ terminal and local-blocking branches close immediately, while propagated
 branches invoke this transport again on their structurally smaller child or
 sibling commit.
 
+The relevant continuation dispatcher now enforces that recursive route.
+`atomic_path_recursive_commit_selected_child_same_continuation_dispatch`
+passes `FromChild` and `PastEscaped` exclusively to the fixed projected
+transport with the caller's already-fixed four recursive callbacks. Local
+`AfterFailure` and `PastRejected` packages remain distinct exact callbacks,
+and the accepted/malformed case remains an explicit impossible obligation.
+There is no generic aligned fallback and no second child-pair construction
+path. The complete Regex chain elaborates and the focused structural
+regression passes. Next supply the concrete common induction callbacks:
+connect `AfterFailure` and `PastRejected` to their local contradictions,
+connect strict right branches to the existing one-constructor right folds,
+and make the recursive callbacks invoke the same theorem on the smaller
+commit structure.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

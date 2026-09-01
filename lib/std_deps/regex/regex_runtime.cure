@@ -9687,6 +9687,59 @@ mod Std.Regex.Runtime
         _, _, _, _, _, _
       ) -> invalid_case()
 
+  ## Structural Same continuation routing. Propagated child commits must enter
+  ## the fixed Empty transport; local branches remain exact proof obligations
+  ## for the eventual common induction theorem.
+  fn atomic_path_recursive_commit_selected_child_same_continuation_dispatch(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    package: AtomicPathRecursiveCommitSelectedChildSameContinuationPackage(
+      depth, n, machine
+    ),
+    after_failure_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )) -> Empty,
+    past_rejected_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )) -> Empty,
+    correlated_case: (AtomicPathRecursiveCommitSelectedExistentialPackage(
+      depth, n, machine
+    )) -> Empty,
+    same_case: (AtomicPathRecursiveCommitSelectedChildSameContinuationPackage(
+      depth, n, machine
+    )) -> Empty,
+    left_case: (AtomicPathRecursiveCommitSelectedExistentialPackage(
+      depth, n, machine
+    )) -> Empty,
+    right_case: (AtomicPathRecursiveCommitSelectedExistentialPackage(
+      depth, n, machine
+    )) -> Empty,
+    invalid_case: () -> Empty
+  ) -> Empty = match package
+    AtomicPathRecursiveCommitSelectedChildSameAfterFailurePacked(aligned) ->
+      after_failure_case(aligned)
+    AtomicPathRecursiveCommitSelectedChildSameFromChildPacked(projected) ->
+      atomic_path_recursive_commit_selected_child_same_projected_dispatch(
+        projected,
+        correlated_case,
+        same_case,
+        left_case,
+        right_case,
+        invalid_case
+      )
+    AtomicPathRecursiveCommitSelectedChildSamePastEscapedPacked(projected) ->
+      atomic_path_recursive_commit_selected_child_same_projected_dispatch(
+        projected,
+        correlated_case,
+        same_case,
+        left_case,
+        right_case,
+        invalid_case
+      )
+    AtomicPathRecursiveCommitSelectedChildSamePastRejectedPacked(aligned) ->
+      past_rejected_case(aligned)
+    AtomicPathRecursiveCommitSelectedChildSameAcceptedImpossiblePacked(_) ->
+      invalid_case()
+
   ## Combine an extracted recursive commit tail with the corresponding
   ## selected skipped-prefix tail. Matching the commit package exposes the
   ## cursor already correlated with its exact structure; the selected
