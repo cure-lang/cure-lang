@@ -3405,6 +3405,22 @@ chain, 12-test named-implicit gate, and focused 27-test Regex gate pass. Next
 use these leaves in the common recursive dispatcher and complete its remaining
 structure/selected-prefix cases.
 
+The recursive child cursor is now retained at its actual construction site.
+`FromChild` and `PastEscaped` previously kept an erased child suffix and a
+relevant child structure but discarded the corresponding relevant cursor
+package returned by `AtomicPathSearchCommit`; that made the common induction
+unable to compare the committed child suffix with the independently selected
+child suffix without reconstructing relevant data from erased evidence. Both
+structure constructors now retain that cursor package. Because the child
+capture context, scope, canonical spine, current suffix, commit depth, and kind
+are existential from the parent boundary,
+`AtomicPathCommitChildCursorExistentialPackage` owns all of those indices with
+the exact recursive cursor/structure package. Constructor-directed projections
+for `FromChild` and `PastEscaped` return this single authority. The complete
+Regex chain and focused 27-test gate pass. Next pair this child existential
+with the child cursor/skipped-prefix/trace package exposed by the selected
+trace constructor, then invoke the recursive location fold.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

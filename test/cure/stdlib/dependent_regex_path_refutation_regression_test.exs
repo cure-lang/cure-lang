@@ -990,6 +990,22 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "fn atomic_path_commit_structure_past_rejected_tail_package("
     assert source =~ "fn atomic_path_commit_structure_cursor_past_escaped_tail_package("
     assert source =~ "fn atomic_path_commit_structure_cursor_past_rejected_tail_package("
+    assert source =~ "fn atomic_path_commit_structure_cursor_from_child_child_package("
+    assert source =~ "fn atomic_path_commit_structure_cursor_past_escaped_child_package("
+    structure_declarations = String.split(source, "\n")
+
+    from_child_declaration =
+      Enum.find(structure_declarations, &String.contains?(&1, "AtomicPathCommitStructureFromChildPacked :"))
+
+    past_escaped_declaration =
+      Enum.find(structure_declarations, &String.contains?(&1, "AtomicPathCommitStructurePastEscapedPacked :"))
+
+    assert from_child_declaration =~
+             "(child_cursor_package: LookaroundAdmittedStateCursorSuffixPackage"
+
+    assert past_escaped_declaration =~
+             "(child_cursor_package: LookaroundAdmittedStateCursorSuffixPackage"
+
     assert source =~ "fn atomic_path_commit_structure_from_child_empty_input_impossible("
     assert source =~ "fn atomic_path_commit_structure_past_escaped_empty_input_impossible("
     assert source =~ "fn atomic_path_commit_structure_from_child_accepted_impossible("
