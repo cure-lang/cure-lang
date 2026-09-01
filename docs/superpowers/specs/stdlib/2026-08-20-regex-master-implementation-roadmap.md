@@ -3460,6 +3460,17 @@ the envelope at every active/accepted selected-trace publication site, then
 replace the legacy trace-only recursive dispatcher inputs with the enveloped
 form.
 
+Successful path search now publishes the runtime envelope as part of both
+`AtomicPathSearchYes` and `AtomicPathMembersYes`. Empty accepted terminals
+construct a `Here` envelope, recursive active and accepted transitions derive
+the next envelope from the exact child selection-from-origin package, and
+sibling traversal preserves the envelope unchanged while extending only the
+outer skipped prefix. Root conversion also forwards the same envelope. This
+keeps the selected child shape live from its construction site to every search
+consumer without inspecting the dependent trace. Next consume the propagated
+envelope in the common commit/selection dispatcher and replace its remaining
+trace-only recursive entry points.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
