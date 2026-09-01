@@ -3724,6 +3724,18 @@ install this fold as the `Same` callback of the common recursive dispatcher,
 then classify and connect exact-accepted and destinations-exhausted terminals
 using the same construction-time pattern.
 
+The common recursive dispatcher now enforces that sequencing. Its `Same`
+callback accepts only `AtomicPathRecursiveCommitSelectedChildSameAlignedPackage`;
+the dispatcher constructs that alignment from the correlated child payloads and
+runs the input-exhausted fold before invoking the callback. A caller therefore
+cannot accidentally consume the earlier shape-only existential or bypass the
+terminal contradiction. `LeftAfter` and `RightAfter` still receive the original
+complete carrier, preserving the recursive evidence they require. The complete
+Regex chain elaborates in the established range and the exact structural
+regression passes. Next extend the construction-time terminal classifier with
+the exact-accepted active/accepted dual and root destinations-exhausted case,
+then make the same canonical dispatcher discharge those leaves in order.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

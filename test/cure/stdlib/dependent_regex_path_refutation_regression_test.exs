@@ -1159,7 +1159,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              ~r/selected_payload: AtomicPathSelectedChildCursorPayloadPackage\([^\n]*right_shape\)\) -> \(comparison: AtomicPathCursorShapeComparison\(left_shape, right_shape\)/
 
     assert source =~
-             ~r/fn atomic_path_recursive_commit_selected_existential_dispatch\(.*same_case: \(AtomicPathRecursiveCommitSelectedChildSameExistentialPackage/s
+             ~r/fn atomic_path_recursive_commit_selected_existential_dispatch\(.*same_case: \(AtomicPathRecursiveCommitSelectedChildSameAlignedPackage/s
 
     assert source =~
              "type AtomicPathRecursiveCommitSelectedChildSameAlignedPackage("
@@ -1208,6 +1208,12 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
 
     assert source =~
              ~r/atomic_path_recursive_commit_selected_child_same_input_exhausted_fold\(.*AtomicPathCommitAfterFailureInputExhaustedPacked\(\).*atomic_path_commit_after_input_exhausted_excludes_aligned_selected_package\(/s
+
+    assert source =~
+             ~r/fn atomic_path_recursive_commit_selected_existential_dispatch\(.*same_case: \(AtomicPathRecursiveCommitSelectedChildSameAlignedPackage/s
+
+    assert source =~
+             ~r/AtomicPathCursorShapeComparisonSame\(same_authority\).*atomic_path_recursive_commit_selected_child_same_input_exhausted_fold\(\s*atomic_path_recursive_commit_selected_child_same_aligned_package\(/s
 
     assert source =~ "type AtomicPathFailureKindAuthority indices (kind: AtomicPathFailureKind)"
 

@@ -9311,9 +9311,10 @@ mod Std.Regex.Runtime
       )
 
   ## Common runtime dispatcher for recursive commit/selection authorities.
-  ## The finite tag chooses a branch, but every callback receives the original
-  ## existential unchanged; no erased child index is reconstructed and no tag
-  ## is treated as proof evidence.
+  ## The finite tag chooses a branch. Same is aligned and discharges its
+  ## input-exhausted terminal before reaching the recursive callback; strict
+  ## directions retain the original existential unchanged. No erased child
+  ## index is reconstructed and no tag is treated as proof evidence.
   fn atomic_path_recursive_commit_selected_existential_dispatch(
     {result: Type}, {depth: Nat}, {n: Nat},
     {@erased machine: PatternMachine(n)},
@@ -9323,7 +9324,7 @@ mod Std.Regex.Runtime
     correlated_case: (AtomicPathRecursiveCommitSelectedExistentialPackage(
       depth, n, machine
     )) -> result,
-    same_case: (AtomicPathRecursiveCommitSelectedChildSameExistentialPackage(
+    same_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
       depth, n, machine
     )) -> result,
     left_case: (AtomicPathRecursiveCommitSelectedExistentialPackage(
@@ -9337,15 +9338,19 @@ mod Std.Regex.Runtime
       correlated_case(package)
     AtomicPathRecursiveCommitSelectedChildExistentialPacked(pair) -> match pair
       AtomicPathCommitSelectedChildCursorPacked(left_shape, right_shape, commit_payload, selected_payload, comparison) -> match comparison
-        AtomicPathCursorShapeComparisonSame(same_authority) -> same_case(
-          AtomicPathRecursiveCommitSelectedChildSameExistentialPacked(
-            left_shape,
-            right_shape,
-            commit_payload,
-            selected_payload,
-            same_authority
+        AtomicPathCursorShapeComparisonSame(same_authority) ->
+          atomic_path_recursive_commit_selected_child_same_input_exhausted_fold(
+            atomic_path_recursive_commit_selected_child_same_aligned_package(
+              AtomicPathRecursiveCommitSelectedChildSameExistentialPacked(
+                left_shape,
+                right_shape,
+                commit_payload,
+                selected_payload,
+                same_authority
+              )
+            ),
+            same_case
           )
-        )
         AtomicPathCursorShapeComparisonLeftAfter(_) -> left_case(package)
         AtomicPathCursorShapeComparisonRightAfter(_) -> right_case(package)
 
