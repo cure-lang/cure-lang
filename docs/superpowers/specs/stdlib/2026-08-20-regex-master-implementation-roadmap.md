@@ -3766,6 +3766,26 @@ failure continues to its rejected-prefix proof, while `FromChild`,
 `PastEscaped`, and `PastRejected` recurse through their existing
 package-preserving projections.
 
+The first direct `FromChild`/`PastEscaped` routing attempt identified one more
+carrier boundary that must be strengthened before recursion is relevantly
+typeable. The aligned `Same` package currently retains the two exact current
+lists only through `LookaroundAdmittedCursorInnerEquivalentAuthority`; its
+equality field is erased. That is sufficient for the three terminal folds,
+because they use the equality only while eliminating to `Empty`, but it cannot
+reindex a selected trace package to construct a new runtime recursive carrier.
+E093 therefore rejects passing the projected commit child and selected suffix
+to `AtomicPathRecursiveCommitSelectedChildExistentialPacked`; using the erased
+equality to force the construction would violate E104. The failed formulation
+has been removed. Next construct a relevant recursive-continuation package
+inside `atomic_path_recursive_commit_selected_child_same_aligned_package`,
+while both opaque commit and selected payloads are still present. Its
+`FromChild` and `PastEscaped` constructors must contain the already-correlated
+next `AtomicPathRecursiveCommitSelectedExistentialPackage`; local
+`AfterFailure` and `PastRejected` constructors must retain the aligned package
+for contradiction. The later dispatcher may select among those relevant
+constructors, but must never manufacture a recursive package from the erased
+inner equality.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
