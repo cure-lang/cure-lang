@@ -4151,6 +4151,24 @@ embed this alignment authority alongside the exact child and selected
 packages; then its dispatcher can give each recursive callback both the branch
 proof and the construction-site data it needs.
 
+That correlated carrier is now implemented as
+`AtomicPathActiveChildAlignmentPackage`. Its `Here`, later-sibling, and reverse
+alternatives each contain a distinct one-constructor branch package carrying
+the same relevant destination-rejection and selected-transition payloads
+together with that branch's exact erased suffix evidence. The generic
+`atomic_path_active_child_alignment_package` constructor consumes the canonical
+alignment authority once, and
+`atomic_path_active_child_alignment_package_dispatch` exposes the correctly
+typed branch package to a non-escaping callback. This mirrors the established
+selected-location package discipline without duplicating the eventual large
+Regex-specific payload signatures. The complete Regex chain elaborates, the
+focused red regression is green, and the full 27-test structural gate passes.
+Next instantiate the two generic payload parameters with the exact retained
+destination-rejection child and one-transition selected-child packages while
+their constructors are open, then consume each branch in `Empty` to connect the
+recursive rejection theorem. Do not reconstruct either payload from an
+independent existential package after dispatch.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

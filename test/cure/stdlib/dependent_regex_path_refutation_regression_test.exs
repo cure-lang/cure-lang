@@ -1504,6 +1504,42 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              ~r/atomic_path_active_child_alignment_authority_from_canonical\(.*AtomicPathSearchOriginsAligned\(origin_equivalence\) -> match origin_equivalence\s*reflexive\(\).*atomic_path_active_child_alignment_authority\(\s*atomic_path_active_child_alignment\(\s*failure_suffix,\s*reflexive\(failure_whole\),\s*failure_origin_equivalence,\s*selected_suffix/s
 
     assert source =~
+             "type AtomicPathActiveChildAlignmentHerePackage(n: Nat, failure_package: Type, selected_package: Type)"
+
+    assert source =~
+             "type AtomicPathActiveChildAlignmentTherePackage(n: Nat, failure_package: Type, selected_package: Type)"
+
+    assert source =~
+             "type AtomicPathActiveChildAlignmentReversePackage(n: Nat, failure_package: Type, selected_package: Type)"
+
+    assert source =~
+             "type AtomicPathActiveChildAlignmentPackage(n: Nat, failure_package: Type, selected_package: Type)"
+
+    assert source =~
+             "fn atomic_path_active_child_alignment_package("
+
+    assert source =~
+             ~r/AtomicPathActiveChildAlignmentHereAuthority\(alignment\) ->\s*AtomicPathActiveChildAlignmentHerePacked\(\s*AtomicPathActiveChildHerePacked\(failure, selected, alignment\)/s
+
+    assert source =~
+             ~r/AtomicPathActiveChildAlignmentThereAuthority\(alignment, tail\) ->\s*AtomicPathActiveChildAlignmentTherePacked\(\s*AtomicPathActiveChildTherePacked\(failure, selected, alignment, tail\)/s
+
+    assert source =~
+             ~r/AtomicPathActiveChildAlignmentReverseAuthority\(alignment\) ->\s*AtomicPathActiveChildAlignmentReversePacked\(\s*AtomicPathActiveChildReversePacked\(failure, selected, alignment\)/s
+
+    assert source =~
+             "fn atomic_path_active_child_alignment_package_dispatch("
+
+    assert source =~
+             ~r/AtomicPathActiveChildAlignmentHerePacked\(branch\) ->\s*here_case\(branch\)/s
+
+    assert source =~
+             ~r/AtomicPathActiveChildAlignmentTherePacked\(branch\) ->\s*there_case\(branch\)/s
+
+    assert source =~
+             ~r/AtomicPathActiveChildAlignmentReversePacked\(branch\) ->\s*reverse_case\(branch\)/s
+
+    assert source =~
              "type AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalPackage("
 
     assert source =~

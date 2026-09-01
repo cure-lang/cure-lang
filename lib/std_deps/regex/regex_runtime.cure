@@ -2288,6 +2288,72 @@ mod Std.Regex.Runtime
     AtomicPathActiveChildAlignmentThereAuthority : {@erased remaining: List(LookaroundAdmittedState(n))} -> (@erased alignment: LookaroundAdmittedStateCursorSuffix(n, failure_current, current)) -> (@erased tail: LookaroundAdmittedStateCursorSuffix(n, remaining, current)) -> AtomicPathActiveChildAlignmentAuthority(n, failure_current, current)
     AtomicPathActiveChildAlignmentReverseAuthority : (@erased alignment: LookaroundAdmittedStateCursorSuffix(n, current, failure_current)) -> AtomicPathActiveChildAlignmentAuthority(n, failure_current, current)
 
+  ## Exact branch packages keep the destination-rejection payload and selected
+  ## transition payload correlated with the suffix authority that classified
+  ## them.  The payloads remain relevant because the recursive consumer needs
+  ## their construction data; cursor proofs remain erased because they only
+  ## refine the indexed spines during elaboration.
+  type AtomicPathActiveChildAlignmentHerePackage(n: Nat, failure_package: Type, selected_package: Type) indices (failure_current: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)))
+    AtomicPathActiveChildHerePacked : (failure: failure_package) -> (selected: selected_package) -> {@erased candidate: LookaroundAdmittedState(n)} -> {@erased remaining: List(LookaroundAdmittedState(n))} -> (@erased alignment: LookaroundAdmittedStateCursorSuffix(n, failure_current, Cons(candidate, remaining))) -> AtomicPathActiveChildAlignmentHerePackage(n, failure_package, selected_package, failure_current, Cons(candidate, remaining))
+
+  type AtomicPathActiveChildAlignmentTherePackage(n: Nat, failure_package: Type, selected_package: Type) indices (failure_current: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)))
+    AtomicPathActiveChildTherePacked : (failure: failure_package) -> (selected: selected_package) -> {@erased remaining: List(LookaroundAdmittedState(n))} -> (@erased alignment: LookaroundAdmittedStateCursorSuffix(n, failure_current, current)) -> (@erased tail: LookaroundAdmittedStateCursorSuffix(n, remaining, current)) -> AtomicPathActiveChildAlignmentTherePackage(n, failure_package, selected_package, failure_current, current)
+
+  type AtomicPathActiveChildAlignmentReversePackage(n: Nat, failure_package: Type, selected_package: Type) indices (failure_current: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)))
+    AtomicPathActiveChildReversePacked : (failure: failure_package) -> (selected: selected_package) -> (@erased alignment: LookaroundAdmittedStateCursorSuffix(n, current, failure_current)) -> AtomicPathActiveChildAlignmentReversePackage(n, failure_package, selected_package, failure_current, current)
+
+  type AtomicPathActiveChildAlignmentPackage(n: Nat, failure_package: Type, selected_package: Type) indices (failure_current: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)))
+    AtomicPathActiveChildAlignmentHerePacked : (branch: AtomicPathActiveChildAlignmentHerePackage(n, failure_package, selected_package, failure_current, current)) -> AtomicPathActiveChildAlignmentPackage(n, failure_package, selected_package, failure_current, current)
+    AtomicPathActiveChildAlignmentTherePacked : (branch: AtomicPathActiveChildAlignmentTherePackage(n, failure_package, selected_package, failure_current, current)) -> AtomicPathActiveChildAlignmentPackage(n, failure_package, selected_package, failure_current, current)
+    AtomicPathActiveChildAlignmentReversePacked : (branch: AtomicPathActiveChildAlignmentReversePackage(n, failure_package, selected_package, failure_current, current)) -> AtomicPathActiveChildAlignmentPackage(n, failure_package, selected_package, failure_current, current)
+
+  @reducible
+  fn atomic_path_active_child_alignment_package(
+    {n: Nat}, {failure_package: Type}, {selected_package: Type},
+    {failure_current: List(LookaroundAdmittedState(n))},
+    {current: List(LookaroundAdmittedState(n))},
+    failure: failure_package,
+    selected: selected_package,
+    authority: AtomicPathActiveChildAlignmentAuthority(n, failure_current, current)
+  ) -> AtomicPathActiveChildAlignmentPackage(
+    n, failure_package, selected_package, failure_current, current
+  ) = match authority
+    AtomicPathActiveChildAlignmentHereAuthority(alignment) ->
+      AtomicPathActiveChildAlignmentHerePacked(
+        AtomicPathActiveChildHerePacked(failure, selected, alignment)
+      )
+    AtomicPathActiveChildAlignmentThereAuthority(alignment, tail) ->
+      AtomicPathActiveChildAlignmentTherePacked(
+        AtomicPathActiveChildTherePacked(failure, selected, alignment, tail)
+      )
+    AtomicPathActiveChildAlignmentReverseAuthority(alignment) ->
+      AtomicPathActiveChildAlignmentReversePacked(
+        AtomicPathActiveChildReversePacked(failure, selected, alignment)
+      )
+
+  @reducible
+  fn atomic_path_active_child_alignment_package_dispatch(
+    {result: Type},
+    {n: Nat}, {failure_package: Type}, {selected_package: Type},
+    {failure_current: List(LookaroundAdmittedState(n))},
+    {current: List(LookaroundAdmittedState(n))},
+    package: AtomicPathActiveChildAlignmentPackage(
+      n, failure_package, selected_package, failure_current, current
+    ),
+    here_case: (AtomicPathActiveChildAlignmentHerePackage(
+      n, failure_package, selected_package, failure_current, current
+    )) -> result,
+    there_case: (AtomicPathActiveChildAlignmentTherePackage(
+      n, failure_package, selected_package, failure_current, current
+    )) -> result,
+    reverse_case: (AtomicPathActiveChildAlignmentReversePackage(
+      n, failure_package, selected_package, failure_current, current
+    )) -> result
+  ) -> result = match package
+    AtomicPathActiveChildAlignmentHerePacked(branch) -> here_case(branch)
+    AtomicPathActiveChildAlignmentTherePacked(branch) -> there_case(branch)
+    AtomicPathActiveChildAlignmentReversePacked(branch) -> reverse_case(branch)
+
   @reducible
   fn atomic_path_active_child_alignment_authority(
     {n: Nat}, {candidate: LookaroundAdmittedState(n)},
