@@ -3607,6 +3607,26 @@ regression passes. Next consume this authority inside the fixed input-exhausted
 `Same` branch and forward its erased equality to the existing aligned terminal
 leaf.
 
+The first direct terminal wiring attempt exposed one remaining carrier
+invariant that must be fixed before that forwarding is sound. Although the
+private dispatcher constructs `same_authority` from the two validated shapes,
+`AtomicPathRecursiveCommitSelectedChildSameExistentialPackage` does not index
+that authority to either retained payload. Opening the child existential and
+the dependent trace envelope together therefore leaves the authority's hidden
+shape metavariables unrelated to the cursor authorities; E093 rejects the
+correlated package rather than accepting a construction-time convention. An
+attempt to expose only the commit payload inside the existing outer constructor
+was also correctly rejected by E104: retaining the relevant trace envelope
+after opening the child imports the envelope's erased path index into runtime
+construction. The next carrier revision must introduce an opaque
+selected-child payload at the trace construction boundary. That payload must
+hide the outer path/context indices while exposing a right-shape-indexed cursor,
+origin, skipped-prefix, and suffix-trace authority. The recursive carrier can
+then pair it with an independently opaque left-shape-indexed commit payload and
+an `AtomicPathCursorShapeComparison(left_shape, right_shape)` without opening
+either dependent payload. Do not resume the terminal leaves until both shape
+indices occur in the carrier's field types.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
