@@ -4108,6 +4108,32 @@ invalid obligation unless its exact contradiction is established before the
 carrier is constructed. This contract is the red-test target for the next
 implementation slice.
 
+The first implementation probe refined all of those construction-site indices
+and then bisected the remaining elaboration cost. With the final canonical
+theorem call replaced by a fixed `Empty` result, the complete Regex chain
+returned to its normal elaboration window. Restoring only
+`atomic_path_active_child_rejection_canonical_trace_dispatch` again left
+`Std.Regex.Runtime` above four CPU minutes. Refining the deeper child capture-
+context and scope authorities (rather than the parent authorities) was
+necessary but did not remove that cost. The remaining mismatch is the API:
+the existing dispatcher accepts nullary branch callbacks and therefore assumes
+the branch proofs were constructed before entry, while this boundary first
+reveals the exact child refutation and selected child trace inside its
+non-escaping eliminator.
+
+Implement a package-native sibling of the canonical dispatcher before wiring
+this branch. Its `Here`, later-sibling, and reverse constructors/callbacks must
+retain one correlated authority containing the exact destination-rejection
+child package, the exact one-transition selected child package, their shared
+origin/cursor indices, and the already-consumed parent `Same` authority. Build
+that authority only while the relevant destination-rejection and selected-
+active constructors are open; consume it only in an `Empty` result. The
+package-native dispatcher may reuse
+`atomic_path_active_child_alignment_from_canonical`, but must not call the
+nullary dispatcher and must not precompute branch proofs outside the carrier.
+Add a red construction-site regression requiring the three package-bearing
+branches before retrying the final recursive proof connection.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
