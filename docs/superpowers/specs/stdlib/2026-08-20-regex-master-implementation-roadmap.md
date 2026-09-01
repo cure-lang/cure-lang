@@ -3545,6 +3545,19 @@ and focused 27-test refutation gate pass. Next add the same shaped authority to
 active/accepted selected-trace constructors and derive their runtime envelope
 shape from it, completing both sides of the sound `Same` comparison.
 
+Active and accepted selected traces now retain the same shaped cursor authority
+as their final relevant field. Their published `child_cursor_shape` is the
+shape computed from the exact `child_cursor_package`, and the dependent
+`LookaroundAdmittedStateCursorShapedPackage` field ties that value back to the
+cursor spine in the constructor type. Every existing trace consumer was
+migrated to the strengthened constructor arity. Thus both inputs to recursive
+shape comparison now carry independently checkable, type-correlated runtime
+spines; neither side relies on an unchecked parallel tag. The complete Regex
+chain and focused 27-test refutation gate pass. Next define the structural
+same-shape relation over these two authorities, retain it in the narrowed
+`Same` carrier, and use it with canonical-origin equality to reach the fixed
+terminal contradictions.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
