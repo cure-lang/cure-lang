@@ -1238,7 +1238,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              ~r/fn atomic_path_recursive_commit_selected_existential_dispatch\(.*same_case: \(AtomicPathRecursiveCommitSelectedChildSameContinuationPackage/s
 
     assert source =~
-             ~r/AtomicPathCursorShapeComparisonSame\(same_authority\).*atomic_path_recursive_commit_selected_child_same_input_exhausted_fold\(\s*atomic_path_recursive_commit_selected_child_same_aligned_package\(/s
+             ~r/AtomicPathCursorShapeComparisonSame\(same_authority\).*atomic_path_recursive_commit_selected_child_same_after_failure_terminal_dispatch\(\s*atomic_path_recursive_commit_selected_child_same_after_failure_terminal_package\(\s*atomic_path_recursive_commit_selected_child_same_aligned_package\(/s
 
     assert source =~
              "fn atomic_path_recursive_commit_selected_child_same_exact_accepted_fold("
@@ -1247,16 +1247,22 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              ~r/atomic_path_recursive_commit_selected_child_same_exact_accepted_fold\(.*AtomicPathCommitAfterFailureExactAcceptedPacked\(\).*atomic_path_commit_after_exact_accepted_excludes_aligned_selected_package\(/s
 
     assert source =~
-             ~r/atomic_path_recursive_commit_selected_child_same_input_exhausted_fold\(.*fn\(aligned\) ->\s*atomic_path_recursive_commit_selected_child_same_exact_accepted_fold\(/s
-
-    assert source =~
              "fn atomic_path_recursive_commit_selected_child_same_root_destinations_exhausted_fold("
 
     assert source =~
              ~r/atomic_path_recursive_commit_selected_child_same_root_destinations_exhausted_fold\(.*AtomicPathCommitAfterFailureRootDestinationsExhaustedPacked\(\).*atomic_path_commit_after_root_destinations_exhausted_excludes_aligned_selected_package\(/s
 
     assert source =~
-             ~r/atomic_path_recursive_commit_selected_child_same_exact_accepted_fold\(.*fn\(exact_remaining\) ->\s*atomic_path_recursive_commit_selected_child_same_root_destinations_exhausted_fold\(/s
+             ~r/atomic_path_recursive_commit_selected_child_same_after_failure_terminal_dispatch\(.*fn\(input_exhausted\) ->\s*atomic_path_recursive_commit_selected_child_same_input_exhausted_fold\(/s
+
+    assert source =~
+             ~r/atomic_path_recursive_commit_selected_child_same_after_failure_terminal_dispatch\(.*fn\(exact_accepted\) ->\s*atomic_path_recursive_commit_selected_child_same_exact_accepted_fold\(/s
+
+    assert source =~
+             ~r/atomic_path_recursive_commit_selected_child_same_after_failure_terminal_dispatch\(.*fn\(root_exhausted\) ->\s*atomic_path_recursive_commit_selected_child_same_root_destinations_exhausted_fold\(/s
+
+    assert source =~
+             ~r/atomic_path_recursive_commit_selected_child_same_after_failure_terminal_dispatch\(.*fn\(unclassified\) ->\s*same_case\(\s*atomic_path_recursive_commit_selected_child_same_continuation_package\(\s*unclassified/s
 
     assert source =~
              "type AtomicPathRecursiveCommitSelectedChildSameContinuationPackage("
@@ -1504,7 +1510,10 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              ~r/fn atomic_path_recursive_commit_selected_existential_dispatch\(.*same_case: \(AtomicPathRecursiveCommitSelectedChildSameContinuationPackage/s
 
     assert source =~
-             ~r/atomic_path_recursive_commit_selected_child_same_root_destinations_exhausted_fold\(.*fn\(structural_remaining\) ->\s*same_case\(\s*atomic_path_recursive_commit_selected_child_same_continuation_package\(\s*structural_remaining\s*\)\s*\)/s
+             ~r/fn atomic_path_recursive_commit_selected_existential_dispatch\(.*right_case: \(AtomicPathRecursiveCommitSelectedExistentialPackage\(.*invalid_case: \(\) -> result/s
+
+    assert source =~
+             ~r/atomic_path_recursive_commit_selected_existential_dispatch\(\s*atomic_path_commit_child_selected_location_package\(.*correlated_case,\s*same_case,\s*left_case,\s*right_case,\s*invalid_case/s
 
     assert source =~ "type AtomicPathFailureKindAuthority indices (kind: AtomicPathFailureKind)"
 

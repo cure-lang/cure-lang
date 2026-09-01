@@ -4025,6 +4025,20 @@ passes. Next install this dispatcher in the common recursive Same path, reuse
 the existing package-native terminal contradictions for its first three
 callbacks, and send only `TerminalUnclassified` into skipped-tail descent.
 
+The common recursive `Same` path now performs that consolidated dispatch.
+Input exhaustion, exact acceptance, and root-destination exhaustion go
+directly to their existing package-native contradiction folds; malformed
+classification goes to the caller's explicit invalid obligation. Only the
+relevant `TerminalUnclassified` constructor can construct an
+`AtomicPathRecursiveCommitSelectedChildSameContinuationPackage` and enter
+skipped-prefix or recursive child processing. The two projected recursive
+call sites also thread the same invalid callback, so no structural mismatch is
+silently converted into a recursive continuation. The complete Regex module
+chain elaborates, the focused regression passes, and the full 27-test
+structural refutation gate passes. Next consume the unclassified local
+`AfterFailure` branch through skipped-tail descent and route its destination-
+rejection child into the canonical recursive cursor induction.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

@@ -9641,8 +9641,8 @@ mod Std.Regex.Runtime
       )
 
   ## Common runtime dispatcher for recursive commit/selection authorities.
-  ## The finite tag chooses a branch. Same is aligned and discharges its
-  ## input-exhausted terminal before reaching the recursive callback; strict
+  ## The finite tag chooses a branch. Same is aligned and classifies its local
+  ## child terminal once before reaching the recursive callback; strict
   ## directions retain the original existential unchanged. No erased child
   ## index is reconstructed and no tag is treated as proof evidence.
   fn atomic_path_recursive_commit_selected_existential_dispatch(
@@ -9662,37 +9662,48 @@ mod Std.Regex.Runtime
     )) -> result,
     right_case: (AtomicPathRecursiveCommitSelectedExistentialPackage(
       depth, n, machine
-    )) -> result
+    )) -> result,
+    invalid_case: () -> result
   ) -> result = match package
     AtomicPathRecursiveCommitSelectedExistentialPacked(_) ->
       correlated_case(package)
     AtomicPathRecursiveCommitSelectedChildExistentialPacked(pair) -> match pair
       AtomicPathCommitSelectedChildCursorPacked(left_shape, right_shape, commit_payload, selected_payload, comparison) -> match comparison
         AtomicPathCursorShapeComparisonSame(same_authority) ->
-          atomic_path_recursive_commit_selected_child_same_input_exhausted_fold(
-            atomic_path_recursive_commit_selected_child_same_aligned_package(
-              AtomicPathRecursiveCommitSelectedChildSameExistentialPacked(
-                left_shape,
-                right_shape,
-                commit_payload,
-                selected_payload,
-                same_authority
+          atomic_path_recursive_commit_selected_child_same_after_failure_terminal_dispatch(
+            atomic_path_recursive_commit_selected_child_same_after_failure_terminal_package(
+              atomic_path_recursive_commit_selected_child_same_aligned_package(
+                AtomicPathRecursiveCommitSelectedChildSameExistentialPacked(
+                  left_shape,
+                  right_shape,
+                  commit_payload,
+                  selected_payload,
+                  same_authority
+                )
               )
             ),
-            fn(aligned) ->
+            fn(input_exhausted) ->
+              atomic_path_recursive_commit_selected_child_same_input_exhausted_fold(
+                input_exhausted,
+                fn(_) -> invalid_case()
+              ),
+            fn(exact_accepted) ->
               atomic_path_recursive_commit_selected_child_same_exact_accepted_fold(
-                aligned,
-                fn(exact_remaining) ->
-                  atomic_path_recursive_commit_selected_child_same_root_destinations_exhausted_fold(
-                    exact_remaining,
-                    fn(structural_remaining) ->
-                      same_case(
-                        atomic_path_recursive_commit_selected_child_same_continuation_package(
-                          structural_remaining
-                        )
-                      )
-                  )
-              )
+                exact_accepted,
+                fn(_) -> invalid_case()
+              ),
+            fn(root_exhausted) ->
+              atomic_path_recursive_commit_selected_child_same_root_destinations_exhausted_fold(
+                root_exhausted,
+                fn(_) -> invalid_case()
+              ),
+            fn(unclassified) ->
+              same_case(
+                atomic_path_recursive_commit_selected_child_same_continuation_package(
+                  unclassified
+                )
+              ),
+            invalid_case
           )
         AtomicPathCursorShapeComparisonLeftAfter(_) -> left_case(package)
         AtomicPathCursorShapeComparisonRightAfter(_) -> right_case(package)
@@ -9748,7 +9759,8 @@ mod Std.Regex.Runtime
                     correlated_case,
                     same_case,
                     left_case,
-                    right_case
+                    right_case,
+                    invalid_case
                   )
           AtomicPathCommitStructureCursorClassifiedPastEscapedPacked(child_commit) -> match child_commit
             AtomicPathCommitStructureCursorExistentialPacked(
@@ -9771,7 +9783,8 @@ mod Std.Regex.Runtime
                     correlated_case,
                     same_case,
                     left_case,
-                    right_case
+                    right_case,
+                    invalid_case
                   )
           AtomicPathCommitStructureCursorClassifiedAfterFailurePacked(_) ->
             invalid_case()
