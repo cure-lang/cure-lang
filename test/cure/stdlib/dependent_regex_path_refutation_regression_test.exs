@@ -1459,16 +1459,25 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              "fn atomic_path_recursive_commit_selected_child_same_after_failure_empty_kind_dispatch("
 
     assert source =~
-             ~r/AtomicPathFailureInputExhaustedAuthority\(\) ->\s*input_exhausted_case\(\)/s
+             ~r/AtomicPathFailureInputExhaustedAuthority\(\) ->\s*input_exhausted_case\(package\)/s
 
     assert source =~
-             ~r/AtomicPathFailureExactAcceptedAuthority\(\) ->\s*exact_accepted_case\(\)/s
+             ~r/AtomicPathFailureExactAcceptedAuthority\(\) ->\s*exact_accepted_case\(package\)/s
 
     assert source =~
-             ~r/AtomicPathFailureDestinationsExhaustedAuthority\(\) ->\s*destinations_exhausted_case\(\)/s
+             ~r/AtomicPathFailureDestinationsExhaustedAuthority\(\) ->\s*destinations_exhausted_case\(package\)/s
 
     assert source =~
-             ~r/AtomicPathFailureDestinationRejectedAuthority\(\) ->\s*destination_rejected_case\(\)/s
+             ~r/AtomicPathFailureDestinationRejectedAuthority\(\) ->\s*destination_rejected_case\(package\)/s
+
+    assert source =~
+             "fn atomic_path_recursive_commit_selected_child_same_after_failure_unclassified_fold("
+
+    assert source =~
+             ~r/atomic_path_recursive_commit_selected_child_same_after_failure_unclassified_fold\(.*atomic_path_recursive_commit_selected_child_same_skipped_tail_empty_fold\(\s*atomic_path_recursive_commit_selected_child_same_skipped_tail_package\(aligned\)/s
+
+    assert source =~
+             ~r/atomic_path_recursive_commit_selected_child_same_after_failure_unclassified_fold\(.*atomic_path_recursive_commit_selected_child_same_after_failure_empty_kind_dispatch\(\s*after_failure_empty,\s*fn\(_\) -> invalid_case\(\),\s*fn\(_\) -> invalid_case\(\),\s*fn\(_\) -> invalid_case\(\),\s*destination_rejected_case,/s
 
     assert source =~
              "type AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalPackage("

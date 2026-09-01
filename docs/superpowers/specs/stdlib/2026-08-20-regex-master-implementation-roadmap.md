@@ -4039,6 +4039,22 @@ structural refutation gate passes. Next consume the unclassified local
 `AfterFailure` branch through skipped-tail descent and route its destination-
 rejection child into the canonical recursive cursor induction.
 
+The unclassified local `AfterFailure` branch now has one fixed structural
+consumer. Child-kind callbacks retain the exact
+`AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage` instead of
+discarding it, so the selected suffix, runtime envelope, aligned cursor
+authority, and original correlated source remain available after relevant
+classification. The new
+`atomic_path_recursive_commit_selected_child_same_after_failure_unclassified_fold`
+descends the skipped-prefix spine to its canonical empty tail, rejects the
+three terminal child kinds that the preceding classifier already excluded,
+and exposes only destination rejection to its recursive callback. Structural
+or classification mismatches remain explicit invalid obligations. The
+complete Regex module chain elaborates, the focused regression passes, and the
+full 27-test structural refutation gate passes. Next project an exact
+destination-rejection child carrier from that retained package and feed its
+head/tail cursor decision into the existing destination-rejection induction.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
