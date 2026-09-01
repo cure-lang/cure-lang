@@ -1100,6 +1100,13 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "AtomicPathRecursiveCommitSelectedChildSameExistentialPacked :"
     assert source =~
              ~r/fn atomic_path_recursive_commit_selected_existential_dispatch\(.*same_case: \(AtomicPathRecursiveCommitSelectedChildSameExistentialPackage/s
+    assert source =~
+             ~r/type AtomicPathRootRefutation\(.*kind: AtomicPathFailureKind/s
+    assert source =~
+             ~r/AtomicPathSearchRootActiveNo :.*\(kind: AtomicPathFailureKind\).*AtomicPathRootRefutation\(.*kind\)/s
+    assert source =~ "type AtomicPathFailureKindAuthority indices (kind: AtomicPathFailureKind)"
+    assert source =~
+             ~r/AtomicPathCommitAfterFailureChildPacked :.*child_kind_authority: AtomicPathFailureKindAuthority\(child_kind\)/s
     assert source =~ "AtomicPathCommitAfterFailure :"
     assert source =~ "AtomicPathCommitFromChild :"
     assert source =~ "AtomicPathCommitPastRejected :"

@@ -3518,6 +3518,20 @@ Next add the structure-specific `Same` consumers: begin with the three existing
 each fixed branch, then recurse through `FromChild`, `PastEscaped`, and
 `PastRejected` without rebuilding the legacy broad location package.
 
+The failure side now retains an equally exact runtime discriminator.
+`AtomicPathRootRefutation` is indexed by its `AtomicPathFailureKind`, and every
+root/no search result publishes that kind as relevant data while keeping the
+refutation itself erased. `AtomicPathFailureKindAuthority` is a dependent
+singleton family, so an `AfterFailure` child package carries a runtime tag
+whose type is definitionally tied to the erased failure index; a loose or
+mismatched enum cannot be constructed. The authority is created once from the
+relevant search result at the blocking construction site and survives into the
+commit structure. This is the control input needed for the three terminal
+`Same` consumers without matching erased failure evidence. The complete Regex
+chain and focused 27-test refutation gate pass. Next dispatch the narrowed
+`Same` carrier by this authority and connect input exhaustion, exact accepted,
+and root destination exhaustion to their existing fixed contradiction leaves.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
