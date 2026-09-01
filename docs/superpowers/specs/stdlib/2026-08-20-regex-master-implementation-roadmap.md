@@ -3895,6 +3895,18 @@ retaining its canonical whole alignment at the local construction boundary;
 then treat empty and escaped prefixes with their corresponding child or
 propagated commit recursion rather than a broad speculative match.
 
+Aligned `PastRejected` now has the same relevant four-way narrowing.
+`atomic_path_recursive_commit_selected_child_same_past_rejected_dispatch`
+separates empty, escaped-one, escaped-cons, and rejected-cons selected prefixes
+while retaining the exact `PastRejected` commit and its recursive tail. Wrong
+commit classifications and accepted aligned packages remain explicit invalid
+obligations. Thus both remaining local `Same` families reach their proof
+callbacks with one fixed selected-prefix constructor and without inspecting
+erased failure kinds or causes. The complete Regex chain elaborates and the
+focused structural regression passes. Next build the constructor-correlated
+local packages needed by the rejected-cons callbacks, then reuse the existing
+tail projections for the escaped and recursive sibling callbacks.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

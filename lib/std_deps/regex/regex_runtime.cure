@@ -9783,6 +9783,49 @@ mod Std.Regex.Runtime
       _, _, _, _, _, _
     ) -> invalid_case()
 
+  ## PastRejected has the same relevant selected-prefix split, but retains its
+  ## recursive tail commit for the eventual sibling induction.
+  fn atomic_path_recursive_commit_selected_child_same_past_rejected_dispatch(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    ),
+    empty_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )) -> Empty,
+    escaped_one_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )) -> Empty,
+    escaped_cons_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )) -> Empty,
+    rejected_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )) -> Empty,
+    invalid_case: () -> Empty
+  ) -> Empty = match aligned
+    AtomicPathRecursiveCommitSelectedChildSameAlignedActivePacked(
+      commit, selected_skipped, _, _, _, _
+    ) -> match commit
+      AtomicPathCommitStructureCursorClassifiedPastRejectedPacked(_) -> match selected_skipped
+        AtomicPathSkippedPrefixStructureEmptyPacked(_) ->
+          empty_case(aligned)
+        AtomicPathSkippedPrefixStructureEscapedOnePacked(_) ->
+          escaped_one_case(aligned)
+        AtomicPathSkippedPrefixStructureEscapedConsPacked(_, _) ->
+          escaped_cons_case(aligned)
+        AtomicPathSkippedPrefixStructureRejectedConsPacked(_, _) ->
+          rejected_case(aligned)
+      AtomicPathCommitStructureCursorClassifiedAfterFailurePacked(_) ->
+        invalid_case()
+      AtomicPathCommitStructureCursorClassifiedFromChildPacked(_) ->
+        invalid_case()
+      AtomicPathCommitStructureCursorClassifiedPastEscapedPacked(_) ->
+        invalid_case()
+    AtomicPathRecursiveCommitSelectedChildSameAlignedAcceptedPacked(
+      _, _, _, _, _, _
+    ) -> invalid_case()
+
   ## Combine an extracted recursive commit tail with the corresponding
   ## selected skipped-prefix tail. Matching the commit package exposes the
   ## cursor already correlated with its exact structure; the selected
