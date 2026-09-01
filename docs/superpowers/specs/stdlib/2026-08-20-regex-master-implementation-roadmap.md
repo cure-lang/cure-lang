@@ -3582,6 +3582,19 @@ chain and focused 27-test refutation gate pass. Next change the recursive
 existential to retain the full `AtomicPathCursorShapeComparison` produced from
 these validated shapes, then narrow `Same` with its structural authority.
 
+The recursive existential now retains that full comparison. The two hidden
+shape indices are packed with `AtomicPathCursorShapeComparison` instead of
+being erased to `AtomicPathCursorShapeLocation`, so dispatch can distinguish
+the three runtime branches without losing the constructor-derived relation.
+The `Same` branch moves its `AtomicPathCursorShapesSameAuthority` into
+`AtomicPathRecursiveCommitSelectedChildSameExistentialPackage`; `LeftAfter`
+and `RightAfter` continue to forward the original complete carrier. The full
+Regex module chain elaborates and the focused 27-test refutation gate passes.
+Next open the narrowed `Same` carrier in branch-specific consumers, revalidate
+its hidden shapes against the retained shaped cursor packages, and connect the
+input-exhausted, exact-accepted, and destination-exhausted cases to their fixed
+contradiction leaves.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
