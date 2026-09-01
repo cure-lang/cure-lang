@@ -1096,45 +1096,76 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "type AtomicPathCursorShapesSameAuthority indices ("
     assert source =~ "type AtomicPathCursorShapeComparison indices ("
     assert source =~ "fn atomic_path_cursor_shape_comparison("
+
     assert source =~
              ~r/fn atomic_path_cursor_shapes_location\(.*atomic_path_cursor_shape_comparison\(/s
+
     assert source =~ "type AtomicPathCommitChildCursorPayloadPackage("
+
     assert source =~
              ~r/AtomicPathCommitChildCursorPayloadPackage\(.*shape: LookaroundAdmittedStateCursorShape/s
+
     assert source =~
              ~r/AtomicPathCommitChildCursorPayloadPacked :.*child_cursor_authority: LookaroundAdmittedStateCursorShapedPackage/s
+
     assert source =~
              ~r/AtomicSelectedPathTraceActivePacked :.*child_cursor_authority: LookaroundAdmittedStateCursorShapedPackage/s
+
     assert source =~
              ~r/AtomicSelectedPathTraceAcceptedPacked :.*child_cursor_authority: LookaroundAdmittedStateCursorShapedPackage/s
-    assert source =~ "AtomicSelectedPathTraceRuntimeEnvelopePacked(_, trace_package) -> match trace_package"
+
+    assert source =~ "AtomicSelectedPathTraceRuntimeEnvelopePacked(_, trace_package) ->"
+
     assert source =~
-             ~r/AtomicSelectedPathTraceActivePacked\(\s*_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _,\s*selected_shape/s
+             ~r/atomic_path_commit_selected_child_cursor_package\(\s*child_commit,\s*atomic_selected_path_trace_child_cursor_package\(trace_package\)/s
+
     assert source =~
              ~r/AtomicPathCommitChildCursorPayloadPacked :.*@erased child_suffix: LookaroundAdmittedStateCursorSuffix/
+
     assert source =~ "fn atomic_path_commit_structure_nonempty("
     assert source =~ "fn atomic_path_commit_selected_authority_alignment_fold("
+
     assert source =~
              ~r/fn atomic_path_commit_selected_alignment_fold\(.*atomic_path_commit_selected_authority_alignment_fold\(/s
+
     assert source =~ "type AtomicPathRecursiveCommitSelectedChildSameExistentialPackage("
     assert source =~ "AtomicPathRecursiveCommitSelectedChildSameExistentialPacked :"
+
     assert source =~
              ~r/AtomicPathRecursiveCommitSelectedChildSameExistentialPacked :.*same_authority: AtomicPathCursorShapesSameAuthority/s
-    assert source =~ "fn atomic_path_commit_child_selected_shape_comparison("
+
+    refute source =~ "AtomicPathCursorShapeComparisonExistential"
+    assert source =~ "fn atomic_path_commit_selected_child_cursor_package("
     assert source =~ "fn lookaround_admitted_cursor_same_shape_inner_equivalent("
     assert source =~ "type AtomicPathSelectedChildCursorPayloadPackage("
     assert source =~ "AtomicPathSelectedChildCursorActivePacked :"
     assert source =~ "AtomicPathSelectedChildCursorAcceptedPacked :"
     assert source =~ "fn atomic_selected_path_trace_child_cursor_package("
+    assert source =~ "type AtomicPathCommitSelectedChildCursorPackage("
+
+    assert source =~
+             ~r/AtomicPathCommitSelectedChildCursorPacked : \(left_shape: LookaroundAdmittedStateCursorShape\) -> \(right_shape: LookaroundAdmittedStateCursorShape\)/
+
+    assert source =~
+             ~r/commit_payload: AtomicPathCommitChildCursorPayloadPackage\([^\n]*left_shape\)\) -> \(selected_payload:/
+
+    assert source =~
+             ~r/selected_payload: AtomicPathSelectedChildCursorPayloadPackage\([^\n]*right_shape\)\) -> \(comparison: AtomicPathCursorShapeComparison\(left_shape, right_shape\)/
+
     assert source =~
              ~r/fn atomic_path_recursive_commit_selected_existential_dispatch\(.*same_case: \(AtomicPathRecursiveCommitSelectedChildSameExistentialPackage/s
+
     assert source =~
              ~r/type AtomicPathRootRefutation\(.*kind: AtomicPathFailureKind/s
+
     assert source =~
              ~r/AtomicPathSearchRootActiveNo :.*\(kind: AtomicPathFailureKind\).*AtomicPathRootRefutation\(.*kind\)/s
+
     assert source =~ "type AtomicPathFailureKindAuthority indices (kind: AtomicPathFailureKind)"
+
     assert source =~
              ~r/AtomicPathCommitAfterFailureChildPacked :.*child_kind_authority: AtomicPathFailureKindAuthority\(child_kind\)/s
+
     assert source =~ "AtomicPathCommitAfterFailure :"
     assert source =~ "AtomicPathCommitFromChild :"
     assert source =~ "AtomicPathCommitPastRejected :"

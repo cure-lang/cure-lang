@@ -3642,6 +3642,23 @@ regression passes. Next replace the trace envelope in the recursive child
 carrier with this selected payload, then add the symmetric opaque commit
 payload and index the comparison directly by both exposed shapes.
 
+The recursive child boundary is now fully path-free and constructionally
+correlated. `AtomicPathCommitSelectedChildCursorPackage` opens the opaque
+commit and selected existentials once, retains their left- and
+right-shape-indexed payloads, and stores
+`AtomicPathCursorShapeComparison(left_shape, right_shape)` over those exact
+indices. The recursive carrier retains only this package: the outer selected
+trace envelope, routine, and path no longer cross the dispatch boundary. The
+`Same` carrier likewise retains both payloads together with
+`AtomicPathCursorShapesSameAuthority(left_shape, right_shape)`, so a consumer
+cannot receive equality authority for unrelated hidden shapes. The obsolete
+unindexed comparison existential and late comparison helper have been removed.
+The complete Regex module chain elaborates and the exact construction-site
+regression passes. Next open the correlated `Same` payloads in its terminal
+consumer, derive the inner-cursor equality through
+`lookaround_admitted_cursor_same_shape_inner_equivalent`, and feed that erased
+authority to the existing input-exhausted contradiction leaf.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
