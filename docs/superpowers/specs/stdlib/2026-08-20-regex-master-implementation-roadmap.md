@@ -3437,6 +3437,18 @@ trace package, use the shape tag only to select a branch, and discharge that
 branch from the retained cursor/structure authorities before invoking the
 recursive location fold.
 
+Both recursive selected-trace constructors now retain the selected child's
+finite cursor shape at the same construction site as its canonical cursor
+package. Active and accepted transitions derive the shape structurally from
+that relevant package; every dependent consumer has been migrated to the new
+constructor arity. Attempting to recover the shape later by matching the full
+dependent trace package still correctly raises E104, because that match also
+opens erased transition and origin indices. Therefore the shape must next be
+threaded through a non-dependent outer trace envelope alongside the untouched
+dependent package. The envelope, not a projection through erased indices, will
+feed `atomic_path_commit_child_selected_location_package` and the recursive
+location fold.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
