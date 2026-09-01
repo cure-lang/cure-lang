@@ -9957,6 +9957,35 @@ mod Std.Regex.Runtime
           empty_case
         )
 
+  ## The exact empty terminal still retains its relevant outer commit tag.
+  ## Narrow it before opening any erased child failure, cause, or cursor
+  ## equality so the two recursive consumers receive fixed control branches.
+  fn atomic_path_recursive_commit_selected_child_same_skipped_empty_dispatch(
+    {result: Type}, {depth: Nat}, {n: Nat},
+    {@erased machine: PatternMachine(n)},
+    package: AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage(
+      depth, n, machine
+    ),
+    after_failure_case: (AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage(
+      depth, n, machine
+    )) -> result,
+    past_rejected_case: (AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage(
+      depth, n, machine
+    )) -> result,
+    invalid_case: () -> result
+  ) -> result = match package
+    AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPacked(
+      commit, _, _, _
+    ) -> match commit
+      AtomicPathCommitStructureCursorClassifiedAfterFailurePacked(_) ->
+        after_failure_case(package)
+      AtomicPathCommitStructureCursorClassifiedPastRejectedPacked(_) ->
+        past_rejected_case(package)
+      AtomicPathCommitStructureCursorClassifiedFromChildPacked(_) ->
+        invalid_case()
+      AtomicPathCommitStructureCursorClassifiedPastEscapedPacked(_) ->
+        invalid_case()
+
   ## Combine an extracted recursive commit tail with the corresponding
   ## selected skipped-prefix tail. Matching the commit package exposes the
   ## cursor already correlated with its exact structure; the selected

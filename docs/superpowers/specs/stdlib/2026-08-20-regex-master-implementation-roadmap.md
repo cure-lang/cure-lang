@@ -3951,6 +3951,17 @@ Next split this exact terminal by its relevant commit classification: project
 the nonterminal `AfterFailure` child against the selected child suffix, and
 project the `PastRejected` sibling tail into the common recursive dispatcher.
 
+The exact empty authority is now narrowed by its retained relevant commit
+classification. `atomic_path_recursive_commit_selected_child_same_skipped_empty_dispatch`
+routes `AfterFailure` and `PastRejected` to distinct fixed callbacks and sends
+the already-handled propagated forms to an explicit invalid obligation. It
+does not open the erased failure, commit cause, or final-cursor equality.
+Consequently the next two consumers can project their exact recursive child or
+sibling packages without a generic commit-kind recovery path. The complete
+Regex chain elaborates and the focused structural regression passes. Next
+implement those two projection consumers and feed their results back through
+the existing common recursive dispatcher.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
