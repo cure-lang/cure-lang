@@ -3694,6 +3694,22 @@ input-exhausted terminal authority from the classified `AfterFailure`
 construction itself, so the consumer does not normalize that entire telescope
 again.
 
+The empty-input equation is now retained at both relevant construction
+boundaries. `AtomicPathSearchRootActiveInputExhaustedNo` specializes the
+evaluator result to `Nil()` instead of immediately hiding it behind the generic
+active-root rejection constructor. At commit publication,
+`AtomicPathCommitAfterFailureTerminalClassifiedPackage` classifies the relevant
+child input, candidate, and failure kind before the recursive existential hides
+them; its input-exhausted constructor fixes `Nil()`, the exact active candidate,
+and `AtomicPathFailureInputExhausted()` together. The generic branch remains
+available for the other terminal and recursive cases. This construction never
+matches `child_failure`, so no erased evidence is used to manufacture relevant
+authority. The complete Regex chain elaborates in the established range and the
+exact construction-site regression passes. Next open this retained terminal
+classification in the aligned `Same` consumer and use its erased inner-cursor
+equality only inside an `Empty`-returning eliminator that forwards the selected
+suffix package to the existing aligned input-exhaustion leaf.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
