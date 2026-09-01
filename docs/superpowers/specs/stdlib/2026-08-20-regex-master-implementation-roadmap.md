@@ -3962,6 +3962,18 @@ Regex chain elaborates and the focused structural regression passes. Next
 implement those two projection consumers and feed their results back through
 the existing common recursive dispatcher.
 
+The skipped-tail and exact-empty carriers now retain the selected suffix's
+existing `AtomicSelectedPathTraceExistentialRuntimeEnvelope`. This envelope
+was originally built from the validated selected child cursor shape at the
+aligned construction boundary; dropping it would force the `AfterFailure`
+consumer to reconstruct relevant child-shape data after opening erased parent
+cursor equality. Both structural folds now forward the envelope unchanged,
+alongside the exact selected suffix package. The complete Regex chain
+elaborates and the focused structural regression passes. Next pair the
+`AfterFailure` child's retained cursor package with this envelope, classify
+their relevant shapes, and consume each fixed proof branch without returning
+transported runtime data.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
