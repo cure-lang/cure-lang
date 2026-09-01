@@ -3449,6 +3449,17 @@ dependent package. The envelope, not a projection through erased indices, will
 feed `atomic_path_commit_child_selected_location_package` and the recursive
 location fold.
 
+`AtomicSelectedPathTraceRuntimeEnvelope` now supplies that non-dependent
+boundary. It is parameterized only by the complete dependent trace-package
+type and retains `(shape, package)` as ordinary relevant fields, so matching
+the envelope introduces no erased transition binders. The recursive child
+existential and its location packer now retain this envelope intact and use
+only its shape for finite control selection. The dependent package remains the
+authority consumed by subsequent proof branches. Next construct and propagate
+the envelope at every active/accepted selected-trace publication site, then
+replace the legacy trace-only recursive dispatcher inputs with the enveloped
+form.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

@@ -8727,12 +8727,25 @@ mod Std.Regex.Runtime
 
   typealias AtomicPathRecursiveCommitSelectedRightPackage(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), commit_current: List(LookaroundAdmittedState(n)), selected_current: List(LookaroundAdmittedState(n)), commit_depth: Nat, commit_kind: AtomicPathCommitCauseKind, selected_trace_package: Type, skipped_kind: AtomicPathSkippedPrefixKind) = AtomicPathCommitSelectedRightAuthorityPackage(n, AtomicPathCommitStructureCursorExistentialPackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, commit_current, commit_depth, commit_kind), LookaroundAdmittedStateCursorSuffixPackage(n, whole, commit_current), selected_trace_package, AtomicPathSkippedPrefixStructurePackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, commit_current, selected_current, skipped_kind), commit_current, selected_current)
 
+  ## Non-dependent runtime envelope for a selected trace. The finite cursor
+  ## shape may choose control flow, while the untouched dependent package is
+  ## retained as the only proof authority for the selected path.
+  type AtomicSelectedPathTraceRuntimeEnvelope(trace_package: Type) indices ()
+    AtomicSelectedPathTraceRuntimeEnvelopePacked : (shape: LookaroundAdmittedStateCursorShape) -> (package: trace_package) -> AtomicSelectedPathTraceRuntimeEnvelope(trace_package)
+
+  fn atomic_selected_path_trace_runtime_envelope(
+    {trace_package: Type},
+    shape: LookaroundAdmittedStateCursorShape,
+    package: trace_package
+  ) -> AtomicSelectedPathTraceRuntimeEnvelope(trace_package) =
+    AtomicSelectedPathTraceRuntimeEnvelopePacked(shape, package)
+
   ## One recursive induction state with every child-specific index hidden but
   ## still correlated. Consumers open this package and dispatch on the retained
   ## relevant commit, selected trace, and skipped-prefix structures.
   type AtomicPathRecursiveCommitSelectedExistentialPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices ()
     AtomicPathRecursiveCommitSelectedExistentialPacked : {@erased input: List(Char)} -> {@erased after_input: List(Char)} -> {@erased state: ThreadState(n)} -> {@erased history: List(Char)} -> {@erased capture_context: List(EvidenceInstruction)} -> {@erased policy: NewlinePolicy} -> {@erased scope_depth: Nat} -> {@erased prefix_mode: Bool} -> {@erased reversed_prefix: List(Char)} -> {@erased whole: List(LookaroundAdmittedState(n))} -> {@erased commit_current: List(LookaroundAdmittedState(n))} -> {@erased selected_current: List(LookaroundAdmittedState(n))} -> {@erased commit_depth: Nat} -> {@erased commit_kind: AtomicPathCommitCauseKind} -> {@erased matched: List(Char)} -> {@erased remaining_input: List(Char)} -> {@erased selected_routine: List(ExtendedInstruction)} -> {@erased path: AtomicSelectedPathTrace(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, selected_current, matched, remaining_input, selected_routine)} -> {@erased skipped_kind: AtomicPathSkippedPrefixKind} -> (package: AtomicPathRecursiveCommitSelectedPackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, commit_current, selected_current, commit_depth, commit_kind, AtomicSelectedPathTracePackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, selected_current, matched, remaining_input, selected_routine, path), skipped_kind)) -> AtomicPathRecursiveCommitSelectedExistentialPackage(depth, n, machine)
-    AtomicPathRecursiveCommitSelectedChildExistentialPacked : {@erased char: Char} -> {@erased rest: List(Char)} -> {@erased after_input: List(Char)} -> {@erased source: Bounded(n)} -> {@erased history: List(Char)} -> {@erased capture_context: List(EvidenceInstruction)} -> {@erased policy: NewlinePolicy} -> {@erased scope_depth: Nat} -> {@erased prefix_mode: Bool} -> {@erased reversed_prefix: List(Char)} -> {@erased candidate: LookaroundAdmittedState(n)} -> {@erased remaining: List(LookaroundAdmittedState(n))} -> {@erased matched: List(Char)} -> {@erased remaining_input: List(Char)} -> {@erased selected_routine: List(ExtendedInstruction)} -> {@erased path: AtomicSelectedPathTrace(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, Cons(candidate, remaining), matched, remaining_input, selected_routine)} -> (child_commit: AtomicPathCommitChildCursorExistentialPackage(depth, n, machine, rest, after_input, candidate, history_push_bounded(history, char), capture_context, policy, scope_depth, prefix_mode, Cons(char, reversed_prefix))) -> (selected_trace: AtomicSelectedPathTracePackage(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, Cons(candidate, remaining), matched, remaining_input, selected_routine, path)) -> (location: AtomicPathCursorShapeLocation) -> AtomicPathRecursiveCommitSelectedExistentialPackage(depth, n, machine)
+    AtomicPathRecursiveCommitSelectedChildExistentialPacked : {@erased char: Char} -> {@erased rest: List(Char)} -> {@erased after_input: List(Char)} -> {@erased source: Bounded(n)} -> {@erased history: List(Char)} -> {@erased capture_context: List(EvidenceInstruction)} -> {@erased policy: NewlinePolicy} -> {@erased scope_depth: Nat} -> {@erased prefix_mode: Bool} -> {@erased reversed_prefix: List(Char)} -> {@erased candidate: LookaroundAdmittedState(n)} -> {@erased remaining: List(LookaroundAdmittedState(n))} -> {@erased matched: List(Char)} -> {@erased remaining_input: List(Char)} -> {@erased selected_routine: List(ExtendedInstruction)} -> {@erased path: AtomicSelectedPathTrace(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, Cons(candidate, remaining), matched, remaining_input, selected_routine)} -> (child_commit: AtomicPathCommitChildCursorExistentialPackage(depth, n, machine, rest, after_input, candidate, history_push_bounded(history, char), capture_context, policy, scope_depth, prefix_mode, Cons(char, reversed_prefix))) -> (selected_trace_envelope: AtomicSelectedPathTraceRuntimeEnvelope(AtomicSelectedPathTracePackage(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, Cons(candidate, remaining), matched, remaining_input, selected_routine, path))) -> (location: AtomicPathCursorShapeLocation) -> AtomicPathRecursiveCommitSelectedExistentialPackage(depth, n, machine)
 
   @reducible
   fn atomic_path_recursive_commit_selected_existential_pack(
@@ -8818,22 +8831,24 @@ mod Std.Regex.Runtime
       history_push_bounded(history, char), capture_context, policy, scope_depth,
       prefix_mode, Cons(char, reversed_prefix)
     ),
-    selected_trace: AtomicSelectedPathTracePackage(
+    selected_trace_envelope: AtomicSelectedPathTraceRuntimeEnvelope(
+      AtomicSelectedPathTracePackage(
       depth, n, machine, Cons(char, rest), after_input, ThreadActive(source),
       history, capture_context, policy, scope_depth, prefix_mode,
       reversed_prefix, Cons(candidate, remaining), matched, remaining_input,
       selected_routine, path
-    ),
-    selected_shape: LookaroundAdmittedStateCursorShape
-  ) -> AtomicPathRecursiveCommitSelectedExistentialPackage(depth, n, machine) =
-    AtomicPathRecursiveCommitSelectedChildExistentialPacked(
-      child_commit,
-      selected_trace,
-      atomic_path_commit_child_selected_shape_location(
-        child_commit,
-        selected_shape
       )
     )
+  ) -> AtomicPathRecursiveCommitSelectedExistentialPackage(depth, n, machine) = match selected_trace_envelope
+    AtomicSelectedPathTraceRuntimeEnvelopePacked(selected_shape, _) ->
+      AtomicPathRecursiveCommitSelectedChildExistentialPacked(
+        child_commit,
+        selected_trace_envelope,
+        atomic_path_commit_child_selected_shape_location(
+          child_commit,
+          selected_shape
+        )
+      )
 
   ## Combine an extracted recursive commit tail with the corresponding
   ## selected skipped-prefix tail. Matching the commit package exposes the
