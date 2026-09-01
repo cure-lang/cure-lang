@@ -310,7 +310,7 @@ interface Show(t)
   fn show(x: t) -> String
 
 implementation Show for Int
-  fn show(x: t) -> String = Std.String.from_int(x)
+  fn show(x: Int) -> String = Std.String.from_int(x)
 
 fn display(x: t) -> String requires Show(t) = show(x)
 ```
