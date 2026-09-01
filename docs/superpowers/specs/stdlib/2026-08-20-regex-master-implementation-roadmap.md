@@ -3750,6 +3750,22 @@ root-prefix authority at construction so destinations-exhausted can be
 classified without inspecting erased prefix or failure evidence, then add its
 third canonical `Same` fold.
 
+Root destinations exhaustion is now the third canonical `Same` terminal.
+`AtomicPathFailurePrefixRootAvailability` is published explicitly at each of
+the seven child-search result branches: root constructors supply the exact
+root witness, while suffix-local results supply an opaque unavailable witness
+without inspecting their erased skipped-prefix kind. Combined with non-empty
+input, an active candidate, and the destinations-exhausted failure tag, this
+constructs `AtomicPathCommitAfterFailureRootDestinationsExhaustedPacked`.
+The dispatcher runs the corresponding aligned fold after input exhaustion and
+exact acceptance; it forwards the retained structure and selected suffix to
+the existing package-native terminal leaf. The complete Regex chain
+elaborates in the established range and the exact structural regression
+passes. Next route the remaining aligned `Same` cases: unclassified local
+failure continues to its rejected-prefix proof, while `FromChild`,
+`PastEscaped`, and `PastRejected` recurse through their existing
+package-preserving projections.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
