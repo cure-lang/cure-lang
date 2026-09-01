@@ -4000,6 +4000,20 @@ regression passes. Next connect the first three callbacks to their already
 proved terminal/impossible leaves and route destination rejection into the
 canonical child-refutation cursor induction.
 
+Local child terminal classification is now published once as
+`AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalPackage`.
+`atomic_path_recursive_commit_selected_child_same_after_failure_terminal_package`
+opens the exact relevant `AfterFailure` child package and projects its stored
+terminal classifier into five runtime constructors: input exhausted, exact
+accepted, root destinations exhausted, unclassified, or malformed. No erased
+refutation is inspected. This consolidates the authority previously reopened
+independently by three terminal folds and gives the recursive path a dedicated
+`TerminalUnclassified` constructor. The complete Regex chain elaborates and
+the focused structural regression passes. Next dispatch this package at the
+common Same boundary: close the three classified terminals with their existing
+package-native leaves, reject malformed input, and allow only unclassified to
+enter skipped-prefix and child-failure recursion.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

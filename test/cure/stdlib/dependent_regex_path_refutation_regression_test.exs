@@ -1465,6 +1465,27 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              ~r/AtomicPathFailureDestinationRejectedAuthority\(\) ->\s*destination_rejected_case\(\)/s
 
     assert source =~
+             "type AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalPackage("
+
+    assert source =~
+             "AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalUnclassifiedPacked"
+
+    assert source =~
+             "fn atomic_path_recursive_commit_selected_child_same_after_failure_terminal_package("
+
+    assert source =~
+             ~r/AtomicPathCommitAfterFailureInputExhaustedPacked\(\) ->\s*AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalInputExhaustedPacked\(aligned\)/s
+
+    assert source =~
+             ~r/AtomicPathCommitAfterFailureExactAcceptedPacked\(\) ->\s*AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalExactAcceptedPacked\(aligned\)/s
+
+    assert source =~
+             ~r/AtomicPathCommitAfterFailureRootDestinationsExhaustedPacked\(\) ->\s*AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalRootDestinationsExhaustedPacked\(aligned\)/s
+
+    assert source =~
+             ~r/AtomicPathCommitAfterFailureTerminalUnclassifiedPacked\(\) ->\s*AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalUnclassifiedPacked\(aligned\)/s
+
+    assert source =~
              ~r/fn atomic_path_recursive_commit_selected_existential_dispatch\(.*same_case: \(AtomicPathRecursiveCommitSelectedChildSameContinuationPackage/s
 
     assert source =~

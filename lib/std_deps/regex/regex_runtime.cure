@@ -9189,6 +9189,16 @@ mod Std.Regex.Runtime
     AtomicPathRecursiveCommitSelectedChildSamePastRejectedPacked : (aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(depth, n, machine)) -> AtomicPathRecursiveCommitSelectedChildSameContinuationPackage(depth, n, machine)
     AtomicPathRecursiveCommitSelectedChildSameAcceptedImpossiblePacked : (aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(depth, n, machine)) -> AtomicPathRecursiveCommitSelectedChildSameContinuationPackage(depth, n, machine)
 
+  ## One relevant projection of the local child terminal classifier. This is
+  ## the single authority shared by terminal contradiction folds and the
+  ## nonterminal recursive continuation; no erased failure kind is reopened.
+  type AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices ()
+    AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalInputExhaustedPacked : (aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(depth, n, machine)) -> AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalPackage(depth, n, machine)
+    AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalExactAcceptedPacked : (aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(depth, n, machine)) -> AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalPackage(depth, n, machine)
+    AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalRootDestinationsExhaustedPacked : (aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(depth, n, machine)) -> AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalPackage(depth, n, machine)
+    AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalUnclassifiedPacked : (aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(depth, n, machine)) -> AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalPackage(depth, n, machine)
+    AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalInvalidPacked : (aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(depth, n, machine)) -> AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalPackage(depth, n, machine)
+
   ## Correlated structural tail for an aligned Same branch. The commit and
   ## selected suffix stay fixed while the relevant skipped-prefix spine is
   ## peeled. The only cross-cursor authority remains erased and cannot choose
@@ -9331,6 +9341,46 @@ mod Std.Regex.Runtime
       AtomicPathRecursiveCommitSelectedChildSameAcceptedImpossiblePacked(
         aligned
       )
+
+  fn atomic_path_recursive_commit_selected_child_same_after_failure_terminal_package(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )
+  ) -> AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalPackage(
+    depth, n, machine
+  ) = match aligned
+    AtomicPathRecursiveCommitSelectedChildSameAlignedActivePacked(
+      commit, _, _, _, _, _
+    ) -> match commit
+      AtomicPathCommitStructureCursorClassifiedAfterFailurePacked(
+        child_commit
+      ) -> match child_commit
+        AtomicPathCommitStructureCursorExistentialPacked(
+          _, _, structure
+        ) -> match structure
+          AtomicPathCommitStructureAfterFailurePacked(child_package) -> match child_package
+            AtomicPathCommitAfterFailureChildPacked(
+              _, _, _, _, _, _, _, _, _, _, _, _, _, _, _,
+              terminal_classification, _, _, _, _
+            ) -> match terminal_classification
+              AtomicPathCommitAfterFailureInputExhaustedPacked() ->
+                AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalInputExhaustedPacked(aligned)
+              AtomicPathCommitAfterFailureExactAcceptedPacked() ->
+                AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalExactAcceptedPacked(aligned)
+              AtomicPathCommitAfterFailureRootDestinationsExhaustedPacked() ->
+                AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalRootDestinationsExhaustedPacked(aligned)
+              AtomicPathCommitAfterFailureTerminalUnclassifiedPacked() ->
+                AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalUnclassifiedPacked(aligned)
+      AtomicPathCommitStructureCursorClassifiedFromChildPacked(_) ->
+        AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalInvalidPacked(aligned)
+      AtomicPathCommitStructureCursorClassifiedPastEscapedPacked(_) ->
+        AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalInvalidPacked(aligned)
+      AtomicPathCommitStructureCursorClassifiedPastRejectedPacked(_) ->
+        AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalInvalidPacked(aligned)
+    AtomicPathRecursiveCommitSelectedChildSameAlignedAcceptedPacked(
+      _, _, _, _, _, _
+    ) -> AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalInvalidPacked(aligned)
 
   ## Consume the input-exhausted terminal classification without reopening
   ## erased failure evidence. All other aligned cases remain available to the
