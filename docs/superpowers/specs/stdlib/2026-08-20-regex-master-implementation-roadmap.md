@@ -3786,6 +3786,21 @@ for contradiction. The later dispatcher may select among those relevant
 constructors, but must never manufacture a recursive package from the erased
 inner equality.
 
+The aligned carrier now retains that construction source explicitly. Both
+`AtomicPathRecursiveCommitSelectedChildSameAlignedActivePacked` and its
+accepted dual carry the original
+`AtomicPathRecursiveCommitSelectedChildSameExistentialPackage` alongside the
+classified commit, selected skipped structure, selected suffix, and erased
+inner equality. This keeps both opaque payloads and their common outer
+candidate available after terminal elimination; no index is reconstructed and
+the existing three terminal folds remain unchanged apart from forwarding the
+source. The complete Regex chain elaborates in the established range and the
+exact structural regression passes. The next continuation carrier must open
+this retained source and keep the projected left and right recursive children
+heterogeneous until an `Empty`-returning proof consumer can use their erased
+canonical alignment. It must not require an already-shared inner candidate as
+an input to relevant construction.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
