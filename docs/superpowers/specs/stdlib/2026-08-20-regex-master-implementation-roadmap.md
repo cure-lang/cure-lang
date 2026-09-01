@@ -4182,6 +4182,15 @@ exact one-transition selected suffix package. The inner cursor equality and
 nested suffix therefore remain correlated inside their owning packages until a
 fixed-`Empty` branch opens them.
 
+The three shape alternatives now enter typed package folds rather than
+discard-only result helpers. Each fold opens its one-constructor branch and
+passes the original failure package, original selected package, and (for the
+directional cases) exact shape authority to its callback. This is the final
+relevant-data boundary needed by the recursive proof: subsequent work belongs
+inside those fixed-`Empty` callbacks and must not add another existential
+carrier. The complete Regex chain and all 27 structural regressions remain
+green after this change.
+
 `atomic_path_recursive_commit_selected_child_same_destination_rejected_alignment_fold`
 constructs that shape carrier only after exposing the exact local
 `DestinationRejected` child and selected `Active` transition. The previously

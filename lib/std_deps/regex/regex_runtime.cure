@@ -1995,40 +1995,51 @@ mod Std.Regex.Runtime
     AtomicPathActiveChildShapeAlignmentReversePacked(branch) -> reverse_case(branch)
 
   @reducible
-  fn atomic_path_active_child_shape_here_package_result(
+  fn atomic_path_active_child_shape_here_package_fold(
     {result: Type}, {failure_package: Type}, {selected_package: Type},
     {failure_shape: LookaroundAdmittedStateCursorShape},
     {selected_shape: LookaroundAdmittedStateCursorShape},
     package: AtomicPathActiveChildShapeHerePackage(
       failure_package, selected_package, failure_shape, selected_shape
     ),
-    value: result
+    case: (failure_package, selected_package) -> result
   ) -> result = match package
-    AtomicPathActiveChildShapeHerePacked(failure, selected) -> value
+    AtomicPathActiveChildShapeHerePacked(failure, selected) ->
+      case(failure, selected)
 
   @reducible
-  fn atomic_path_active_child_shape_there_package_result(
+  fn atomic_path_active_child_shape_there_package_fold(
     {result: Type}, {failure_package: Type}, {selected_package: Type},
     {failure_shape: LookaroundAdmittedStateCursorShape},
     {selected_shape: LookaroundAdmittedStateCursorShape},
     package: AtomicPathActiveChildShapeTherePackage(
       failure_package, selected_package, failure_shape, selected_shape
     ),
-    value: result
+    case: (
+      failure_package,
+      selected_package,
+      AtomicPathActiveChildShapeThereAuthority(failure_shape, selected_shape)
+    ) -> result
   ) -> result = match package
-    AtomicPathActiveChildShapeTherePacked(failure, selected, authority) -> value
+    AtomicPathActiveChildShapeTherePacked(failure, selected, authority) ->
+      case(failure, selected, authority)
 
   @reducible
-  fn atomic_path_active_child_shape_reverse_package_result(
+  fn atomic_path_active_child_shape_reverse_package_fold(
     {result: Type}, {failure_package: Type}, {selected_package: Type},
     {failure_shape: LookaroundAdmittedStateCursorShape},
     {selected_shape: LookaroundAdmittedStateCursorShape},
     package: AtomicPathActiveChildShapeReversePackage(
       failure_package, selected_package, failure_shape, selected_shape
     ),
-    value: result
+    case: (
+      failure_package,
+      selected_package,
+      AtomicPathCursorShapesLeftAfterAuthority(failure_shape, selected_shape)
+    ) -> result
   ) -> result = match package
-    AtomicPathActiveChildShapeReversePacked(failure, selected, authority) -> value
+    AtomicPathActiveChildShapeReversePacked(failure, selected, authority) ->
+      case(failure, selected, authority)
 
   fn atomic_path_cursor_shape_comparison_location(
     {left: LookaroundAdmittedStateCursorShape},
@@ -10504,14 +10515,17 @@ mod Std.Regex.Runtime
                         selected_child_cursor_package
                       )
                     ),
-                    fn(branch) -> atomic_path_active_child_shape_here_package_result(
-                      branch, here_case()
+                    fn(branch) -> atomic_path_active_child_shape_here_package_fold(
+                      branch,
+                      fn(failure, selected) -> here_case()
                     ),
-                    fn(branch) -> atomic_path_active_child_shape_there_package_result(
-                      branch, there_case()
+                    fn(branch) -> atomic_path_active_child_shape_there_package_fold(
+                      branch,
+                      fn(failure, selected, authority) -> there_case()
                     ),
-                    fn(branch) -> atomic_path_active_child_shape_reverse_package_result(
-                      branch, reverse_case()
+                    fn(branch) -> atomic_path_active_child_shape_reverse_package_fold(
+                      branch,
+                      fn(failure, selected, authority) -> reverse_case()
                     )
                   )
               AtomicPathFailureInputExhaustedAuthority() -> invalid_case()

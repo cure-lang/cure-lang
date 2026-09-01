@@ -1554,14 +1554,26 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~
              ~r/atomic_path_active_child_shape_alignment_package\(\s*package,\s*selected_suffix,\s*lookaround_admitted_cursor_suffix_package_shape\(\s*child_cursor_package\s*\),\s*lookaround_admitted_cursor_suffix_package_shape\(\s*selected_child_cursor_package/s
 
-    assert source =~
-             ~r/fn\(branch\) -> atomic_path_active_child_shape_here_package_result\(\s*branch, here_case\(\)/s
+    refute source =~
+             ~r/fn\(branch\) -> atomic_path_active_child_shape_here_package_result\(/s
 
     assert source =~
-             ~r/fn\(branch\) -> atomic_path_active_child_shape_there_package_result\(\s*branch, there_case\(\)/s
+             ~r/fn atomic_path_active_child_shape_here_package_fold\(.*AtomicPathActiveChildShapeHerePacked\(failure, selected\) ->\s*case\(failure, selected\)/s
 
     assert source =~
-             ~r/fn\(branch\) -> atomic_path_active_child_shape_reverse_package_result\(\s*branch, reverse_case\(\)/s
+             ~r/fn atomic_path_active_child_shape_there_package_fold\(.*AtomicPathActiveChildShapeTherePacked\(failure, selected, authority\) ->\s*case\(failure, selected, authority\)/s
+
+    assert source =~
+             ~r/fn atomic_path_active_child_shape_reverse_package_fold\(.*AtomicPathActiveChildShapeReversePacked\(failure, selected, authority\) ->\s*case\(failure, selected, authority\)/s
+
+    assert source =~
+             ~r/fn\(branch\) -> atomic_path_active_child_shape_here_package_fold\(\s*branch,\s*fn\(failure, selected\) -> here_case\(\)/s
+
+    assert source =~
+             ~r/fn\(branch\) -> atomic_path_active_child_shape_there_package_fold\(\s*branch,\s*fn\(failure, selected, authority\) -> there_case\(\)/s
+
+    assert source =~
+             ~r/fn\(branch\) -> atomic_path_active_child_shape_reverse_package_fold\(\s*branch,\s*fn\(failure, selected, authority\) -> reverse_case\(\)/s
 
     assert source =~
              "type AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalPackage("
