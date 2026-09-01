@@ -3986,6 +3986,20 @@ structural regression passes. Next open this source only inside the fixed
 `AfterFailure` `Empty` consumer, select the already-correlated child payloads,
 and dispatch their relevant shape comparison.
 
+The source-native local branch now narrows the child failure kind without
+opening erased proof data.
+`atomic_path_recursive_commit_selected_child_same_after_failure_empty_kind_dispatch`
+opens the original correlated Same source, selects its exact relevant
+`AfterFailure` child package, and dispatches on the stored
+`AtomicPathFailureKindAuthority`. Input exhaustion, exact acceptance,
+destination exhaustion, and recursive destination rejection each receive a
+fixed `Empty` callback; malformed propagated commit classifications remain an
+explicit invalid obligation. The erased refutation and no-evidence witness are
+not inspected. The complete Regex chain elaborates and the focused structural
+regression passes. Next connect the first three callbacks to their already
+proved terminal/impossible leaves and route destination rejection into the
+canonical child-refutation cursor induction.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

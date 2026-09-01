@@ -9994,6 +9994,56 @@ mod Std.Regex.Runtime
       AtomicPathCommitStructureCursorClassifiedPastEscapedPacked(_) ->
         invalid_case()
 
+  ## A local Same/Empty branch is already fixed before this child failure kind
+  ## is selected. The relevant singleton stored with the exact AfterFailure
+  ## child chooses one of four pre-existing Empty callbacks; the erased
+  ## refutation and no-evidence payloads remain unopened.
+  fn atomic_path_recursive_commit_selected_child_same_after_failure_empty_kind_dispatch(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    package: AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage(
+      depth, n, machine
+    ),
+    input_exhausted_case: () -> Empty,
+    exact_accepted_case: () -> Empty,
+    destinations_exhausted_case: () -> Empty,
+    destination_rejected_case: () -> Empty,
+    invalid_case: () -> Empty
+  ) -> Empty = match package
+    AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPacked(
+      _, _, _, _, _, source
+    ) -> match source
+      AtomicPathRecursiveCommitSelectedChildSameExistentialPacked(
+        _, _, commit_payload, _, _
+      ) -> match commit_payload
+        AtomicPathCommitChildCursorPayloadPacked(
+          _, _, _, _, _, _, commit
+        ) -> match commit
+          AtomicPathCommitStructureCursorClassifiedAfterFailurePacked(
+            child_commit
+          ) -> match child_commit
+            AtomicPathCommitStructureCursorExistentialPacked(
+              _, _, structure
+            ) -> match structure
+              AtomicPathCommitStructureAfterFailurePacked(child_package) -> match child_package
+                AtomicPathCommitAfterFailureChildPacked(
+                  _, _, _, _, _, _, _, _, _, _, _, _, _, _,
+                  child_kind_authority, _, _, _, _, _
+                ) -> match child_kind_authority
+                  AtomicPathFailureInputExhaustedAuthority() ->
+                    input_exhausted_case()
+                  AtomicPathFailureExactAcceptedAuthority() ->
+                    exact_accepted_case()
+                  AtomicPathFailureDestinationsExhaustedAuthority() ->
+                    destinations_exhausted_case()
+                  AtomicPathFailureDestinationRejectedAuthority() ->
+                    destination_rejected_case()
+          AtomicPathCommitStructureCursorClassifiedFromChildPacked(_) ->
+            invalid_case()
+          AtomicPathCommitStructureCursorClassifiedPastEscapedPacked(_) ->
+            invalid_case()
+          AtomicPathCommitStructureCursorClassifiedPastRejectedPacked(_) ->
+            invalid_case()
+
   ## Combine an extracted recursive commit tail with the corresponding
   ## selected skipped-prefix tail. Matching the commit package exposes the
   ## cursor already correlated with its exact structure; the selected
