@@ -1379,6 +1379,21 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              ~r/AtomicPathSkippedPrefixStructureRejectedConsPacked\(_, tail_structure\) ->\s*tail_case\(\s*AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked\(.*tail_structure/s
 
     assert source =~
+             "fn atomic_path_recursive_commit_selected_child_same_skipped_tail_empty_fold("
+
+    assert source =~
+             ~r/AtomicPathSkippedPrefixStructureEmptyPacked\(_\) ->\s*empty_case\(package\)/s
+
+    assert source =~
+             ~r/AtomicPathSkippedPrefixStructureEscapedOnePacked\(_\) ->\s*empty_case\(\s*AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked\(.*selected_empty/s
+
+    assert source =~
+             ~r/AtomicPathSkippedPrefixStructureEscapedConsPacked\(_, tail_structure\) ->\s*atomic_path_recursive_commit_selected_child_same_skipped_tail_empty_fold\(\s*AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked\(.*tail_structure/s
+
+    assert source =~
+             ~r/AtomicPathSkippedPrefixStructureRejectedConsPacked\(_, tail_structure\) ->\s*atomic_path_recursive_commit_selected_child_same_skipped_tail_empty_fold\(\s*AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked\(.*tail_structure/s
+
+    assert source =~
              ~r/fn atomic_path_recursive_commit_selected_existential_dispatch\(.*same_case: \(AtomicPathRecursiveCommitSelectedChildSameContinuationPackage/s
 
     assert source =~

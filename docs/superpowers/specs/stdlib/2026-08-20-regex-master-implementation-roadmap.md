@@ -3924,6 +3924,19 @@ this fold to its empty terminal, close that exact terminal against the selected
 trace, and wire the resulting contradiction into the strict-right recursive
 callbacks for `AfterFailure` and `PastRejected`.
 
+The skipped-tail carrier now has a total structural descent to that canonical
+empty terminal. `atomic_path_recursive_commit_selected_child_same_skipped_tail_empty_fold`
+closes an already-empty structure directly, maps the single escaped head to
+the empty structure retained by the carrier, and recursively consumes the
+stored tail of either cons constructor. Cure's totality checker accepts both
+recursive calls as descent through `tail_structure`; the existential wrapper
+does not obscure the decreasing relevant argument. The fixed commit, exact
+selected suffix, and erased final-cursor equality survive unchanged to the
+empty callback. The complete Regex chain elaborates and the focused structural
+regression passes. Next define the empty callback's exact contradiction against
+the selected trace, then install it in the `AfterFailure` and `PastRejected`
+strict-right recursive routes.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

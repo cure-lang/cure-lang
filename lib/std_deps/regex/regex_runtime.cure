@@ -9905,6 +9905,49 @@ mod Std.Regex.Runtime
           )
         )
 
+  ## Descend the relevant skipped-prefix spine to its canonical empty tail.
+  ## The recursion is structural in the stored tail_structure argument. The
+  ## existential wrapper changes only the exposed front and kind indices.
+  fn atomic_path_recursive_commit_selected_child_same_skipped_tail_empty_fold(
+    {result: Type}, {depth: Nat}, {n: Nat},
+    {@erased machine: PatternMachine(n)},
+    package: AtomicPathRecursiveCommitSelectedChildSameSkippedTailPackage(
+      depth, n, machine
+    ),
+    empty_case: (AtomicPathRecursiveCommitSelectedChildSameSkippedTailPackage(
+      depth, n, machine
+    )) -> result
+  ) -> result = match package
+    AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked(
+      commit, selected_skipped, selected_empty, selected_suffix,
+      inner_equivalence
+    ) -> match selected_skipped
+      AtomicPathSkippedPrefixStructureEmptyPacked(_) ->
+        empty_case(package)
+      AtomicPathSkippedPrefixStructureEscapedOnePacked(_) ->
+        empty_case(
+          AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked(
+            commit, selected_empty, selected_empty, selected_suffix,
+            inner_equivalence
+          )
+        )
+      AtomicPathSkippedPrefixStructureEscapedConsPacked(_, tail_structure) ->
+        atomic_path_recursive_commit_selected_child_same_skipped_tail_empty_fold(
+          AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked(
+            commit, tail_structure, selected_empty, selected_suffix,
+            inner_equivalence
+          ),
+          empty_case
+        )
+      AtomicPathSkippedPrefixStructureRejectedConsPacked(_, tail_structure) ->
+        atomic_path_recursive_commit_selected_child_same_skipped_tail_empty_fold(
+          AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked(
+            commit, tail_structure, selected_empty, selected_suffix,
+            inner_equivalence
+          ),
+          empty_case
+        )
+
   ## Combine an extracted recursive commit tail with the corresponding
   ## selected skipped-prefix tail. Matching the commit package exposes the
   ## cursor already correlated with its exact structure; the selected
