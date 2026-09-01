@@ -1373,6 +1373,9 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              "selected_envelope: AtomicSelectedPathTraceExistentialRuntimeEnvelope"
 
     assert source =~
+             "source: AtomicPathRecursiveCommitSelectedChildSameExistentialPackage"
+
+    assert source =~
              "inner_equivalence: LookaroundAdmittedCursorInnerEquivalentAuthority"
 
     assert source =~
@@ -1408,6 +1411,9 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~
              ~r/AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPacked :.*selected_envelope: AtomicSelectedPathTraceExistentialRuntimeEnvelope/s
 
+    assert source =~
+             ~r/AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPacked :.*source: AtomicPathRecursiveCommitSelectedChildSameExistentialPackage/s
+
     assert source =~ "AtomicPathSkippedPrefixEmptyKind"
 
     assert source =~
@@ -1420,7 +1426,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              ~r/AtomicPathSkippedPrefixStructureEscapedOnePacked\(_\) ->\s*empty_case\(\s*AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPacked\(/s
 
     assert source =~
-             ~r/AtomicPathRecursiveCommitSelectedChildSameAlignedActivePacked\(\s*commit, selected_skipped, selected_suffix, selected_envelope,.*AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked\(\s*commit, selected_skipped,/s
+             ~r/AtomicPathRecursiveCommitSelectedChildSameAlignedActivePacked\(\s*commit, selected_skipped, selected_suffix, selected_envelope,\s*inner_equivalence, source\s*\).*AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked\(\s*commit, selected_skipped,/s
 
     assert source =~
              ~r/AtomicPathSkippedPrefixStructureEscapedConsPacked\(_, tail_structure\) ->\s*atomic_path_recursive_commit_selected_child_same_skipped_tail_empty_fold\(\s*AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked\(.*tail_structure/s

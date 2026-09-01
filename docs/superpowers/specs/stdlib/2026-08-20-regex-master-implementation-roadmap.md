@@ -3974,6 +3974,18 @@ elaborates and the focused structural regression passes. Next pair the
 their relevant shapes, and consume each fixed proof branch without returning
 transported runtime data.
 
+The traversal and exact-empty carriers also now retain the original
+`AtomicPathRecursiveCommitSelectedChildSameExistentialPackage`. That source is
+the canonical dependent authority tying the commit payload, selected payload,
+their validated cursor shapes, and the `Same` comparison in one constructor.
+The selected runtime envelope remains available as an execution convenience,
+but later proofs no longer need to assume that independently existential
+fields originated from the same child pair. Both skipped-prefix folds forward
+the source unchanged. The complete Regex chain elaborates and the focused
+structural regression passes. Next open this source only inside the fixed
+`AfterFailure` `Empty` consumer, select the already-correlated child payloads,
+and dispatch their relevant shape comparison.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
