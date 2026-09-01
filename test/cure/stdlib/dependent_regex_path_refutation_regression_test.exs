@@ -1262,7 +1262,25 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              "AtomicPathRecursiveCommitSelectedChildSameAcceptedImpossiblePacked :"
 
     assert source =~
+             "type AtomicPathRecursiveCommitSelectedChildSameProjectedPackage("
+
+    assert source =~
+             ~r/AtomicPathRecursiveCommitSelectedChildSameProjectedPacked :.*child_commit: AtomicPathCommitChildCursorExistentialPackage.*aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage/s
+
+    assert source =~
+             ~r/AtomicPathRecursiveCommitSelectedChildSameFromChildPacked : \(projected: AtomicPathRecursiveCommitSelectedChildSameProjectedPackage/s
+
+    assert source =~
+             ~r/AtomicPathRecursiveCommitSelectedChildSamePastEscapedPacked : \(projected: AtomicPathRecursiveCommitSelectedChildSameProjectedPackage/s
+
+    assert source =~
              "fn atomic_path_recursive_commit_selected_child_same_continuation_package("
+
+    assert source =~
+             ~r/AtomicPathCommitStructureCursorClassifiedFromChildPacked\(child_commit\).*AtomicPathRecursiveCommitSelectedChildSameFromChildPacked\(\s*AtomicPathRecursiveCommitSelectedChildSameProjectedPacked\(\s*atomic_path_commit_structure_cursor_from_child_child_package\(\s*child_commit\s*\),\s*aligned/s
+
+    assert source =~
+             ~r/AtomicPathCommitStructureCursorClassifiedPastEscapedPacked\(child_commit\).*AtomicPathRecursiveCommitSelectedChildSamePastEscapedPacked\(\s*AtomicPathRecursiveCommitSelectedChildSameProjectedPacked\(\s*atomic_path_commit_structure_cursor_past_escaped_child_package\(\s*child_commit\s*\),\s*aligned/s
 
     assert source =~
              ~r/fn atomic_path_recursive_commit_selected_existential_dispatch\(.*same_case: \(AtomicPathRecursiveCommitSelectedChildSameContinuationPackage/s

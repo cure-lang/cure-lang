@@ -3816,6 +3816,24 @@ branch-specific `Empty` consumers for `FromChild` and `PastEscaped` that reopen
 the retained source, recurse over its left and right payloads heterogeneously,
 and use erased canonical alignment only at the final contradiction boundary.
 
+Those two propagated branches now retain their projected left child before
+the proof consumer opens any cursor equality.
+`AtomicPathRecursiveCommitSelectedChildSameProjectedPackage` existentially
+hides the projected child's candidate, context, scope, history, and cursor
+while keeping its relevant commit authority beside the intact aligned package.
+The `FromChild` and `PastEscaped` continuation constructors carry this stronger
+package; projection occurs only after matching the corresponding relevant
+commit-structure constructor, which also exposes the required non-empty input
+index. The unused hidden `escaped_depth` parameter was removed from the
+`PastEscaped` child projection because it occurred in neither the projection's
+input nor result and prevented principled inference. No selected trace is
+reindexed, and erased inner equality still does not select runtime control.
+The complete Regex chain elaborates and the focused structural regression
+passes. Next open the projected package in fixed `Empty`-returning consumers,
+retain the selected side independently from the aligned source, and perform
+the recursive canonical comparison without first constructing a shared-index
+runtime carrier.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
