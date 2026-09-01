@@ -3736,6 +3736,20 @@ regression passes. Next extend the construction-time terminal classifier with
 the exact-accepted active/accepted dual and root destinations-exhausted case,
 then make the same canonical dispatcher discharge those leaves in order.
 
+The exact-accepted dual is now classified and discharged as the second
+canonical `Same` stage. The terminal authority is additionally indexed by
+`prefix_mode`; `AtomicPathCommitAfterFailureExactAcceptedPacked` exists only
+for `False()`, a non-empty child input, an accepted candidate, and
+`AtomicPathFailureExactAccepted()`. The dispatcher runs
+`atomic_path_recursive_commit_selected_child_same_exact_accepted_fold` after
+the input-exhausted fold and before exposing the aligned recursive callback.
+The fold uses the retained inner-cursor equality only to eliminate through the
+existing exact-accepted package leaf. The complete Regex chain elaborates in
+the established range and the exact structural regression passes. Next retain
+root-prefix authority at construction so destinations-exhausted can be
+classified without inspecting erased prefix or failure evidence, then add its
+third canonical `Same` fold.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

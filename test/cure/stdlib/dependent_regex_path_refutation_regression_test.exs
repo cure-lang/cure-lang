@@ -1198,6 +1198,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
 
     assert source =~ "type AtomicPathCommitAfterFailureTerminalClassifiedPackage("
     assert source =~ "AtomicPathCommitAfterFailureInputExhaustedPacked :"
+    assert source =~ "AtomicPathCommitAfterFailureExactAcceptedPacked :"
     assert source =~ "fn atomic_path_commit_after_failure_terminal_classified_package("
 
     assert source =~
@@ -1214,6 +1215,15 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
 
     assert source =~
              ~r/AtomicPathCursorShapeComparisonSame\(same_authority\).*atomic_path_recursive_commit_selected_child_same_input_exhausted_fold\(\s*atomic_path_recursive_commit_selected_child_same_aligned_package\(/s
+
+    assert source =~
+             "fn atomic_path_recursive_commit_selected_child_same_exact_accepted_fold("
+
+    assert source =~
+             ~r/atomic_path_recursive_commit_selected_child_same_exact_accepted_fold\(.*AtomicPathCommitAfterFailureExactAcceptedPacked\(\).*atomic_path_commit_after_exact_accepted_excludes_aligned_selected_package\(/s
+
+    assert source =~
+             ~r/atomic_path_recursive_commit_selected_child_same_input_exhausted_fold\(.*fn\(aligned\) ->\s*atomic_path_recursive_commit_selected_child_same_exact_accepted_fold\(/s
 
     assert source =~ "type AtomicPathFailureKindAuthority indices (kind: AtomicPathFailureKind)"
 

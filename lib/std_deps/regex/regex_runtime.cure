@@ -7923,14 +7923,15 @@ mod Std.Regex.Runtime
   ## case whose input equation would otherwise be hidden by the recursive
   ## commit existential.  It is built only from relevant evaluator state;
   ## erased refutation evidence is never inspected to recover the equation.
-  type AtomicPathCommitAfterFailureTerminalClassifiedPackage(n: Nat) indices (rest: List(Char), candidate: LookaroundAdmittedState(n), child_kind: AtomicPathFailureKind)
-    AtomicPathCommitAfterFailureInputExhaustedPacked : {@erased state: Bounded(n)} -> {@erased routine: List(EvidenceInstruction)} -> {@erased constraints: List(BoundaryConstraint)} -> {@erased assertion_routine: List(ExtendedInstruction)} -> {@erased assertion_markers: List(EvidenceInstruction)} -> {@erased nested_decisions: List(LookaroundNestedDecision)} -> AtomicPathCommitAfterFailureTerminalClassifiedPackage(n, Nil(), LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), AtomicPathFailureInputExhausted())
-    AtomicPathCommitAfterFailureTerminalUnclassifiedPacked : AtomicPathCommitAfterFailureTerminalClassifiedPackage(n, rest, candidate, child_kind)
+  type AtomicPathCommitAfterFailureTerminalClassifiedPackage(n: Nat) indices (prefix_mode: Bool, rest: List(Char), candidate: LookaroundAdmittedState(n), child_kind: AtomicPathFailureKind)
+    AtomicPathCommitAfterFailureInputExhaustedPacked : {@erased state: Bounded(n)} -> {@erased routine: List(EvidenceInstruction)} -> {@erased constraints: List(BoundaryConstraint)} -> {@erased assertion_routine: List(ExtendedInstruction)} -> {@erased assertion_markers: List(EvidenceInstruction)} -> {@erased nested_decisions: List(LookaroundNestedDecision)} -> AtomicPathCommitAfterFailureTerminalClassifiedPackage(n, prefix_mode, Nil(), LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), AtomicPathFailureInputExhausted())
+    AtomicPathCommitAfterFailureExactAcceptedPacked : {@erased child_char: Char} -> {@erased child_rest: List(Char)} -> {@erased routine: List(EvidenceInstruction)} -> {@erased constraints: List(BoundaryConstraint)} -> {@erased assertion_routine: List(ExtendedInstruction)} -> {@erased assertion_markers: List(EvidenceInstruction)} -> {@erased nested_decisions: List(LookaroundNestedDecision)} -> AtomicPathCommitAfterFailureTerminalClassifiedPackage(n, False(), Cons(child_char, child_rest), LookaroundAdmittedAccepted(routine, constraints, assertion_routine, assertion_markers, nested_decisions), AtomicPathFailureExactAccepted())
+    AtomicPathCommitAfterFailureTerminalUnclassifiedPacked : AtomicPathCommitAfterFailureTerminalClassifiedPackage(n, prefix_mode, rest, candidate, child_kind)
 
   fn atomic_path_commit_after_failure_terminal_classified_package(
-    {n: Nat}, rest: List(Char), candidate: LookaroundAdmittedState(n),
+    {n: Nat}, prefix_mode: Bool, rest: List(Char), candidate: LookaroundAdmittedState(n),
     child_kind: AtomicPathFailureKind
-  ) -> AtomicPathCommitAfterFailureTerminalClassifiedPackage(n, rest, candidate, child_kind) = match rest
+  ) -> AtomicPathCommitAfterFailureTerminalClassifiedPackage(n, prefix_mode, rest, candidate, child_kind) = match rest
     [] -> match candidate
       LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions) -> match child_kind
         AtomicPathFailureInputExhausted() -> AtomicPathCommitAfterFailureInputExhaustedPacked()
@@ -7938,7 +7939,15 @@ mod Std.Regex.Runtime
         AtomicPathFailureDestinationsExhausted() -> AtomicPathCommitAfterFailureTerminalUnclassifiedPacked()
         AtomicPathFailureDestinationRejected() -> AtomicPathCommitAfterFailureTerminalUnclassifiedPacked()
       LookaroundAdmittedAccepted(_, _, _, _, _) -> AtomicPathCommitAfterFailureTerminalUnclassifiedPacked()
-    [_ | _] -> AtomicPathCommitAfterFailureTerminalUnclassifiedPacked()
+    [child_char | child_rest] -> match candidate
+      LookaroundAdmittedActive(_, _, _, _, _, _) -> AtomicPathCommitAfterFailureTerminalUnclassifiedPacked()
+      LookaroundAdmittedAccepted(routine, constraints, assertion_routine, assertion_markers, nested_decisions) -> match child_kind
+        AtomicPathFailureInputExhausted() -> AtomicPathCommitAfterFailureTerminalUnclassifiedPacked()
+        AtomicPathFailureExactAccepted() -> match prefix_mode
+          True() -> AtomicPathCommitAfterFailureTerminalUnclassifiedPacked()
+          False() -> AtomicPathCommitAfterFailureExactAcceptedPacked()
+        AtomicPathFailureDestinationsExhausted() -> AtomicPathCommitAfterFailureTerminalUnclassifiedPacked()
+        AtomicPathFailureDestinationRejected() -> AtomicPathCommitAfterFailureTerminalUnclassifiedPacked()
 
   ## One-constructor carrier used by the constructor-directed commit fold.
   ## Its payload is erased; the relevant recursive kind selects the branch,
@@ -7950,7 +7959,7 @@ mod Std.Regex.Runtime
   ## indexed by the exact cause value, not merely by its outer type, so the
   ## relevant child cursor cannot be paired with an unrelated erased cause.
   type AtomicPathCommitAfterFailureChildPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)), commit_depth: Nat, child_whole: List(LookaroundAdmittedState(n)), child_current: List(LookaroundAdmittedState(n)), child_prefix_kind: AtomicPathFailurePrefixKind, child_kind: AtomicPathFailureKind, cause: AtomicPathCommitCause(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, commit_depth, AtomicPathCommitAfterFailureKind(child_prefix_kind, child_kind)))
-    AtomicPathCommitAfterFailureChildPacked : (@erased char: Char) -> (@erased rest: List(Char)) -> (@erased source: Bounded(n)) -> (@erased candidate: LookaroundAdmittedState(n)) -> (@erased remaining: List(LookaroundAdmittedState(n))) -> (@erased child_capture_context: List(EvidenceInstruction)) -> (@erased child_context_alignment: LookaroundAdmittedStateCaptureContext(n, capture_context, candidate, child_capture_context)) -> (@erased child_scope_depth: Nat) -> (@erased child_scope_alignment: LookaroundAdmittedStateScope(n, scope_depth, candidate, child_scope_depth)) -> (@erased child_prefix: AtomicPathFailurePrefixEvidence(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), child_capture_context, policy, child_scope_depth, prefix_mode, Cons(char, reversed_prefix), child_whole, child_current, child_prefix_kind)) -> {@erased child_origin: List(LookaroundAdmittedState(n))} -> (@erased child_origin_equivalence: Equivalent(List(LookaroundAdmittedState(n)), child_whole, child_origin)) -> (@erased child_origin_canonical: AtomicPathSearchOrigin(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), lookaround_admitted_state_capture_context(capture_context, candidate), policy, child_origin)) -> (@erased child_suffix: LookaroundAdmittedStateCursorSuffix(n, child_whole, child_current)) -> (child_cursor_package: LookaroundAdmittedStateCursorSuffixPackage(n, child_whole, child_current)) -> (child_kind_authority: AtomicPathFailureKindAuthority(child_kind)) -> (terminal_classification: AtomicPathCommitAfterFailureTerminalClassifiedPackage(n, rest, candidate, child_kind)) -> (@erased child_failure: AtomicPathRefutation(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), lookaround_admitted_state_capture_context(capture_context, candidate), policy, child_scope_depth, prefix_mode, Cons(char, reversed_prefix), child_whole, child_current, child_kind)) -> (@erased child_evidence: AtomicPathNoEvidence(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), child_capture_context, policy, child_scope_depth, prefix_mode, Cons(char, reversed_prefix), child_whole, child_current, child_kind)) -> (@erased close_canonical: Equivalent(Option(Nat), lookaround_admitted_state_closed_depth(n, scope_depth, candidate), Some(commit_depth))) -> (@erased blocked: AtomicDepthAtLeast(scope_depth, commit_depth)) -> AtomicPathCommitAfterFailureChildPackage(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, remaining), commit_depth, child_whole, child_current, child_prefix_kind, child_kind, AtomicPathCommitAfterFailure(char, rest, source, candidate, remaining, child_capture_context, child_context_alignment, child_scope_depth, child_scope_alignment, child_whole, child_current, child_prefix_kind, child_prefix, child_origin_equivalence, child_origin_canonical, child_suffix, child_kind, child_failure, child_evidence, close_canonical, blocked))
+    AtomicPathCommitAfterFailureChildPacked : (@erased char: Char) -> (@erased rest: List(Char)) -> (@erased source: Bounded(n)) -> (@erased candidate: LookaroundAdmittedState(n)) -> (@erased remaining: List(LookaroundAdmittedState(n))) -> (@erased child_capture_context: List(EvidenceInstruction)) -> (@erased child_context_alignment: LookaroundAdmittedStateCaptureContext(n, capture_context, candidate, child_capture_context)) -> (@erased child_scope_depth: Nat) -> (@erased child_scope_alignment: LookaroundAdmittedStateScope(n, scope_depth, candidate, child_scope_depth)) -> (@erased child_prefix: AtomicPathFailurePrefixEvidence(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), child_capture_context, policy, child_scope_depth, prefix_mode, Cons(char, reversed_prefix), child_whole, child_current, child_prefix_kind)) -> {@erased child_origin: List(LookaroundAdmittedState(n))} -> (@erased child_origin_equivalence: Equivalent(List(LookaroundAdmittedState(n)), child_whole, child_origin)) -> (@erased child_origin_canonical: AtomicPathSearchOrigin(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), lookaround_admitted_state_capture_context(capture_context, candidate), policy, child_origin)) -> (@erased child_suffix: LookaroundAdmittedStateCursorSuffix(n, child_whole, child_current)) -> (child_cursor_package: LookaroundAdmittedStateCursorSuffixPackage(n, child_whole, child_current)) -> (child_kind_authority: AtomicPathFailureKindAuthority(child_kind)) -> (terminal_classification: AtomicPathCommitAfterFailureTerminalClassifiedPackage(n, prefix_mode, rest, candidate, child_kind)) -> (@erased child_failure: AtomicPathRefutation(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), lookaround_admitted_state_capture_context(capture_context, candidate), policy, child_scope_depth, prefix_mode, Cons(char, reversed_prefix), child_whole, child_current, child_kind)) -> (@erased child_evidence: AtomicPathNoEvidence(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), child_capture_context, policy, child_scope_depth, prefix_mode, Cons(char, reversed_prefix), child_whole, child_current, child_kind)) -> (@erased close_canonical: Equivalent(Option(Nat), lookaround_admitted_state_closed_depth(n, scope_depth, candidate), Some(commit_depth))) -> (@erased blocked: AtomicDepthAtLeast(scope_depth, commit_depth)) -> AtomicPathCommitAfterFailureChildPackage(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, remaining), commit_depth, child_whole, child_current, child_prefix_kind, child_kind, AtomicPathCommitAfterFailure(char, rest, source, candidate, remaining, child_capture_context, child_context_alignment, child_scope_depth, child_scope_alignment, child_whole, child_current, child_prefix_kind, child_prefix, child_origin_equivalence, child_origin_canonical, child_suffix, child_kind, child_failure, child_evidence, close_canonical, blocked))
 
   ## Recursive commit structure, introduced one exact constructor at a time.
   ## This first branch binds a cause already typed at `AfterFailure`, avoiding
@@ -9219,6 +9228,56 @@ mod Std.Regex.Runtime
                     cause,
                     selected_suffix
                   )
+              AtomicPathCommitAfterFailureExactAcceptedPacked() ->
+                other_case(package)
+              AtomicPathCommitAfterFailureTerminalUnclassifiedPacked() ->
+                other_case(package)
+      AtomicPathCommitStructureCursorClassifiedFromChildPacked(_) ->
+        other_case(package)
+      AtomicPathCommitStructureCursorClassifiedPastEscapedPacked(_) ->
+        other_case(package)
+      AtomicPathCommitStructureCursorClassifiedPastRejectedPacked(_) ->
+        other_case(package)
+    AtomicPathRecursiveCommitSelectedChildSameAlignedAcceptedPacked(
+      _, _, _, _
+    ) -> other_case(package)
+
+  ## Accepted-child dual of the preceding terminal fold. The classification
+  ## fixes non-empty child input and exact mode before the recursive
+  ## existential is opened; all other aligned cases remain untouched.
+  fn atomic_path_recursive_commit_selected_child_same_exact_accepted_fold(
+    {result: Type}, {depth: Nat}, {n: Nat},
+    {@erased machine: PatternMachine(n)},
+    package: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    ),
+    other_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )) -> result
+  ) -> result = match package
+    AtomicPathRecursiveCommitSelectedChildSameAlignedActivePacked(
+      commit, _, selected_suffix, inner_equivalence
+    ) -> match commit
+      AtomicPathCommitStructureCursorClassifiedAfterFailurePacked(
+        {child_prefix_kind = child_prefix_kind}, child_commit
+      ) -> match child_commit
+        AtomicPathCommitStructureCursorExistentialPacked(
+          cause, _, structure
+        ) -> match structure
+          AtomicPathCommitStructureAfterFailurePacked(after_child) -> match after_child
+            AtomicPathCommitAfterFailureChildPacked(
+              _, _, _, _, _, _, _, _, _, _, _, _, _, _, _,
+              terminal_classification, _, _, _, _
+            ) -> match terminal_classification
+              AtomicPathCommitAfterFailureInputExhaustedPacked() ->
+                other_case(package)
+              AtomicPathCommitAfterFailureExactAcceptedPacked() -> match inner_equivalence
+                LookaroundAdmittedCursorInnerEquivalentPacked(equality) -> match equality
+                  reflexive() -> match atomic_path_commit_after_exact_accepted_excludes_aligned_selected_package(
+                    child_prefix_kind,
+                    cause,
+                    selected_suffix
+                  )
               AtomicPathCommitAfterFailureTerminalUnclassifiedPacked() ->
                 other_case(package)
       AtomicPathCommitStructureCursorClassifiedFromChildPacked(_) ->
@@ -9349,7 +9408,11 @@ mod Std.Regex.Runtime
                 same_authority
               )
             ),
-            same_case
+            fn(aligned) ->
+              atomic_path_recursive_commit_selected_child_same_exact_accepted_fold(
+                aligned,
+                same_case
+              )
           )
         AtomicPathCursorShapeComparisonLeftAfter(_) -> left_case(package)
         AtomicPathCursorShapeComparisonRightAfter(_) -> right_case(package)
@@ -13051,7 +13114,7 @@ mod Std.Regex.Runtime
       AtomicCommitEscapes(proof) -> atomic_lookaround_routine_tail_after_failure(depth, n, machine, char, rest, after_input, source, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, remaining, candidate, child_capture_context, child_context_alignment, child_scope_depth, child_scope_alignment, child_whole, child_current, child_origin, child_origin_equivalence, child_origin_canonical, child_witness, child_suffix, child_suffix_package, child_prefix_kind, child_prefix, cursor, witness, suffix, suffix_package, canonical, child_kind, child_failure, child_evidence, AtomicPathSiblingEscapedClose(commit_depth, close_canonical, proof))
       AtomicCommitBlocks(proof) ->
         let cause = assert_type AtomicPathCommitAfterFailure(char, rest, source, candidate, remaining, child_capture_context, child_context_alignment, child_scope_depth, child_scope_alignment, child_whole, child_current, child_prefix_kind, child_prefix, child_origin_equivalence, child_origin_canonical, child_suffix, child_kind, child_failure, child_evidence, close_canonical, proof) : AtomicPathCommitCause(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, remaining), commit_depth, AtomicPathCommitAfterFailureKind(child_prefix_kind, child_kind))
-        let child_package = assert_type AtomicPathCommitAfterFailureChildPacked(char, rest, source, candidate, remaining, child_capture_context, child_context_alignment, child_scope_depth, child_scope_alignment, child_prefix, child_origin_equivalence, child_origin_canonical, child_suffix, child_suffix_package, atomic_path_failure_kind_authority(child_kind), atomic_path_commit_after_failure_terminal_classified_package(rest, candidate, child_kind), child_failure, child_evidence, close_canonical, proof) : AtomicPathCommitAfterFailureChildPackage(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, remaining), commit_depth, child_whole, child_current, child_prefix_kind, child_kind, cause)
+        let child_package = assert_type AtomicPathCommitAfterFailureChildPacked(char, rest, source, candidate, remaining, child_capture_context, child_context_alignment, child_scope_depth, child_scope_alignment, child_prefix, child_origin_equivalence, child_origin_canonical, child_suffix, child_suffix_package, atomic_path_failure_kind_authority(child_kind), atomic_path_commit_after_failure_terminal_classified_package(prefix_mode, rest, candidate, child_kind), child_failure, child_evidence, close_canonical, proof) : AtomicPathCommitAfterFailureChildPackage(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, remaining), commit_depth, child_whole, child_current, child_prefix_kind, child_kind, cause)
         AtomicPathMembersCommit(commit_depth, canonical, AtomicPathSearchOriginActive(char, rest, source, reflexive(lookaround_machine_admitted_destinations(depth, n, machine, ThreadActive(source), char, rest, after_input, history, capture_context, policy))), witness, suffix, suffix_package, AtomicPathCommitAfterFailureKind(child_prefix_kind, child_kind), cause, AtomicPathCommitStructureAfterFailurePacked(child_package))
 
   fn atomic_lookaround_routine_members_from(depth: Nat, n: Nat, machine: PatternMachine(n), char: Char, rest: List(Char), after_input: List(Char), source: Bounded(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)), @erased cursor: LookaroundAdmittedStateCursor(n, whole, current), @erased witness: LookaroundAdmittedStateCursorWitness(n, whole, current), @erased suffix: LookaroundAdmittedStateCursorSuffix(n, whole, current), suffix_package: LookaroundAdmittedStateCursorSuffixPackage(n, whole, current), @erased canonical: Equivalent(List(LookaroundAdmittedState(n)), whole, lookaround_machine_admitted_destinations(depth, n, machine, ThreadActive(source), char, rest, after_input, history, capture_context, policy))) -> AtomicPathMembersResult(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current) = match current
