@@ -3676,6 +3676,24 @@ aligned commit structure: route `AfterFailure` terminal kinds into the existing
 input-exhausted/exact-accepted leaves, and route `FromChild`, `PastEscaped`, and
 `PastRejected` through their existing package-preserving recursive projections.
 
+Recursive commit outer structure is now classified at the commit-child
+construction boundary. `AtomicPathCommitStructureCursorClassifiedPackage` has
+exact `AfterFailure`, `FromChild`, `PastEscaped`, and `PastRejected`
+constructors, each retaining the original cursor/structure existential at its
+fully indexed cause kind. `AtomicPathCommitChildCursorPayloadPackage` and the
+aligned `Same` carrier now require this classified authority; a later consumer
+can no longer receive a generic commit structure and speculatively reopen all
+four possibilities. Both child projection sites construct the classification
+before hiding their dependent indices. The complete Regex chain elaborates in
+the established range and the exact structural regression passes. A direct
+terminal fold was deliberately rejected: even after classification, combining
+the nested failure/input/candidate refinements, inner-cursor equality rewrite,
+and the older broad aligned-selected leaf exceeded five CPU minutes in
+`Std.Regex.Runtime`. The next step is therefore to publish a narrow
+input-exhausted terminal authority from the classified `AfterFailure`
+construction itself, so the consumer does not normalize that entire telescope
+again.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
