@@ -4204,6 +4204,17 @@ correlated, propagated-Same, strict-left, strict-right, and `PastRejected`
 callbacks, using these three obligations as its local destination-rejection
 case.
 
+The `PastRejected` side of the same dispatcher is now equally constrained.
+Instead of returning a broad aligned package to one callback, it invokes the
+existing relevant skipped-prefix dispatcher and exposes separate empty,
+escaped-one, escaped-cons, and rejected-cons obligations. Both local `Same`
+families therefore arrive at the future common induction already split by
+their runtime constructors; neither can reclassify erased causes or cursor
+evidence. The complete Regex chain elaborates and the 27-test structural gate
+passes (the known near-60-second fixture requires the gate's 120-second test
+timeout). Next connect each of these four `PastRejected` obligations to its
+tail projection or local contradiction while defining the common induction.
+
 `atomic_path_recursive_commit_selected_child_same_destination_rejected_alignment_fold`
 constructs that shape carrier only after exposing the exact local
 `DestinationRejected` child and selected `Active` transition. The previously

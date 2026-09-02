@@ -10123,7 +10123,16 @@ mod Std.Regex.Runtime
     after_failure_here_case: () -> Empty,
     after_failure_there_case: () -> Empty,
     after_failure_reverse_case: () -> Empty,
-    past_rejected_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+    past_rejected_empty_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )) -> Empty,
+    past_rejected_escaped_one_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )) -> Empty,
+    past_rejected_escaped_cons_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )) -> Empty,
+    past_rejected_rejected_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
       depth, n, machine
     )) -> Empty,
     correlated_case: (AtomicPathRecursiveCommitSelectedExistentialPackage(
@@ -10167,7 +10176,14 @@ mod Std.Regex.Runtime
         invalid_case
       )
     AtomicPathRecursiveCommitSelectedChildSamePastRejectedPacked(aligned) ->
-      past_rejected_case(aligned)
+      atomic_path_recursive_commit_selected_child_same_past_rejected_dispatch(
+        aligned,
+        past_rejected_empty_case,
+        past_rejected_escaped_one_case,
+        past_rejected_escaped_cons_case,
+        past_rejected_rejected_case,
+        invalid_case
+      )
     AtomicPathRecursiveCommitSelectedChildSameAcceptedImpossiblePacked(_) ->
       invalid_case()
 
