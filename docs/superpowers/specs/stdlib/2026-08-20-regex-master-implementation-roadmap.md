@@ -4437,6 +4437,26 @@ authorities. Re-record the Runtime cold elaboration time after each field group;
 do not accept a carrier that exceeds the established approximately two-minute
 range.
 
+The proposed total `Missing | Present(shape)` projection plus an erased
+equality back to the outer skipped-empty package was also prototyped and
+rejected. Although it avoided duplicating the child-package type, checking the
+equality normalized through the complete outer existential and again left
+Runtime CPU-bound past four minutes. Do not add a downstream projection or
+equality whose normal form traverses
+`AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage`.
+
+Discharge the fixed `Here` case at the existing destination-rejection
+alignment match instead. At that point `child_package`,
+`child_cursor_package`, `selected_suffix`, and the relevant
+`AtomicPathActiveChildShapeHerePacked` branch are simultaneously live and
+already correlated. Introduce a package-native `Empty` theorem that accepts
+those exact local arguments (not a newly existentialized copy), consumes the
+destination-rejected child and selected trace directly, and call it from the
+Here arm before either authority is hidden in a callback carrier. Keep only
+the genuinely recursive There and Reverse branches in downstream carriers.
+This is the sole remaining design that neither asks erased evidence to select
+runtime control nor asks the normalizer to reopen the complete outer package.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
