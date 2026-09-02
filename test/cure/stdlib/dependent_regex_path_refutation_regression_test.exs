@@ -1,6 +1,18 @@
 defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
   use ExUnit.Case, async: false
 
+  test "successful sibling selection retains the rejected child cursor beside its trace" do
+    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+
+    assert source =~ "type AtomicPathRejectedSelectedTracePairPackage("
+
+    assert source =~
+             ~r/AtomicPathSkippedPrefixStructureRejectedConsPacked[^\n]*rejected_selected_pair: AtomicPathRejectedSelectedTracePairPackage\(/s
+
+    assert source =~
+             ~r/AtomicPathMembersYes\(matched, remaining_input, routine, selected_whole, selected_current,.*?let rejected_selected_pair = atomic_path_rejected_selected_trace_pair_package\(\s*child_suffix_package,\s*trace_package\s*\).*?AtomicPathSkippedPrefixStructureRejectedConsPacked\(\s*parent_skipped_evidence,\s*skipped_structure,\s*rejected_selected_pair\s*\)/s
+  end
+
   test "selected atomic transitions retain the child origin certificate" do
     source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
 
@@ -1358,7 +1370,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              ~r/AtomicPathCommitStructureCursorClassifiedAfterFailurePacked\(_\).*AtomicPathSkippedPrefixStructureEscapedConsPacked\(_, _\) ->\s*escaped_cons_case\(aligned\)/s
 
     assert source =~
-             ~r/AtomicPathCommitStructureCursorClassifiedAfterFailurePacked\(_\).*AtomicPathSkippedPrefixStructureRejectedConsPacked\(_, _\) ->\s*rejected_case\(aligned\)/s
+             ~r/AtomicPathCommitStructureCursorClassifiedAfterFailurePacked\(_\).*AtomicPathSkippedPrefixStructureRejectedConsPacked\(_, _, _\) ->\s*rejected_case\(aligned\)/s
 
     assert source =~
              "fn atomic_path_recursive_commit_selected_child_same_past_rejected_dispatch("
@@ -1373,7 +1385,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              ~r/AtomicPathCommitStructureCursorClassifiedPastRejectedPacked\(_\).*AtomicPathSkippedPrefixStructureEscapedConsPacked\(_, _\) ->\s*escaped_cons_case\(aligned\)/s
 
     assert source =~
-             ~r/AtomicPathCommitStructureCursorClassifiedPastRejectedPacked\(_\).*AtomicPathSkippedPrefixStructureRejectedConsPacked\(_, _\) ->\s*rejected_case\(aligned\)/s
+             ~r/AtomicPathCommitStructureCursorClassifiedPastRejectedPacked\(_\).*AtomicPathSkippedPrefixStructureRejectedConsPacked\(_, _, _\) ->\s*rejected_case\(aligned\)/s
 
     assert source =~
              "type AtomicPathRecursiveCommitSelectedChildSameSkippedTailPackage("
@@ -1415,7 +1427,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              ~r/AtomicPathSkippedPrefixStructureEscapedConsPacked\(_, tail_structure\) ->\s*tail_case\(\s*AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked\(.*tail_structure/s
 
     assert source =~
-             ~r/AtomicPathSkippedPrefixStructureRejectedConsPacked\(_, tail_structure\) ->\s*tail_case\(\s*AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked\(.*tail_structure/s
+             ~r/AtomicPathSkippedPrefixStructureRejectedConsPacked\(_, tail_structure, _\) ->\s*tail_case\(\s*AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked\(.*tail_structure/s
 
     assert source =~
              "fn atomic_path_recursive_commit_selected_child_same_skipped_tail_empty_fold("
@@ -1453,7 +1465,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              ~r/AtomicPathSkippedPrefixStructureEscapedConsPacked\(_, tail_structure\) ->\s*atomic_path_recursive_commit_selected_child_same_skipped_tail_empty_fold\(\s*AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked\(.*tail_structure/s
 
     assert source =~
-             ~r/AtomicPathSkippedPrefixStructureRejectedConsPacked\(_, tail_structure\) ->\s*atomic_path_recursive_commit_selected_child_same_skipped_tail_empty_fold\(\s*AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked\(.*tail_structure/s
+             ~r/AtomicPathSkippedPrefixStructureRejectedConsPacked\(_, tail_structure, _\) ->\s*atomic_path_recursive_commit_selected_child_same_skipped_tail_empty_fold\(\s*AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked\(.*tail_structure/s
 
     assert source =~
              "fn atomic_path_recursive_commit_selected_child_same_skipped_empty_dispatch("

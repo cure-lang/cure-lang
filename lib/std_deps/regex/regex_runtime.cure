@@ -9271,6 +9271,49 @@ mod Std.Regex.Runtime
 
     AtomicPathSkippedRejectedCons : (@erased char: Char) -> (@erased rest: List(Char)) -> (@erased source: Bounded(n)) -> (@erased candidate: LookaroundAdmittedState(n)) -> (@erased child_capture_context: List(EvidenceInstruction)) -> (@erased child_context_alignment: LookaroundAdmittedStateCaptureContext(n, capture_context, candidate, child_capture_context)) -> (@erased child_scope_depth: Nat) -> (@erased child_scope_alignment: LookaroundAdmittedStateScope(n, scope_depth, candidate, child_scope_depth)) -> (@erased child_whole: List(LookaroundAdmittedState(n))) -> (@erased child_current: List(LookaroundAdmittedState(n))) -> (@erased child_prefix_kind: AtomicPathFailurePrefixKind) -> (@erased child_prefix: AtomicPathFailurePrefixEvidence(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), child_capture_context, policy, child_scope_depth, prefix_mode, Cons(char, reversed_prefix), child_whole, child_current, child_prefix_kind)) -> {@erased child_origin: List(LookaroundAdmittedState(n))} -> (@erased child_origin_equivalence: Equivalent(List(LookaroundAdmittedState(n)), child_whole, child_origin)) -> (@erased child_origin_canonical: AtomicPathSearchOrigin(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), lookaround_admitted_state_capture_context(capture_context, candidate), policy, child_origin)) -> (@erased child_suffix: LookaroundAdmittedStateCursorSuffix(n, child_whole, child_current)) -> (@erased child_kind: AtomicPathFailureKind) -> (@erased child_failure: AtomicPathRefutation(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), lookaround_admitted_state_capture_context(capture_context, candidate), policy, child_scope_depth, prefix_mode, Cons(char, reversed_prefix), child_whole, child_current, child_kind)) -> (@erased child_evidence: AtomicPathNoEvidence(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), child_capture_context, policy, child_scope_depth, prefix_mode, Cons(char, reversed_prefix), child_whole, child_current, child_kind)) -> (@erased continuation: AtomicPathFailureContinuation(scope_depth, lookaround_admitted_state_closed_depth(n, scope_depth, candidate))) -> {@erased front: List(LookaroundAdmittedState(n))} -> {@erased current: List(LookaroundAdmittedState(n))} -> (@erased tail_kind: AtomicPathSkippedPrefixKind) -> (@erased tail: AtomicPathSkippedPrefixEvidence(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, front, current, tail_kind)) -> AtomicPathSkippedPrefixEvidence(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, front), current, AtomicPathSkippedPrefixRejectedConsKind(child_prefix_kind, child_kind, tail_kind))
 
+  ## Construction-site correlation between one rejected child cursor and the
+  ## exact selected trace returned by the subsequent sibling traversal.  The
+  ## child lists remain existential, but the parent search context and selected
+  ## current list stay indexed.  This package is constructed only while both
+  ## authorities are live in `atomic_lookaround_routine_tail_after_failure`;
+  ## later proof folds consume it instead of rebuilding either side from erased
+  ## failure evidence.
+  type AtomicPathRejectedSelectedTracePairPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), selected_current: List(LookaroundAdmittedState(n)))
+    AtomicPathRejectedSelectedTracePairPacked : {@erased rejected_child_whole: List(LookaroundAdmittedState(n))} -> {@erased rejected_child_current: List(LookaroundAdmittedState(n))} -> (rejected_child_cursor: LookaroundAdmittedStateCursorSuffixPackage(n, rejected_child_whole, rejected_child_current)) -> {@erased matched: List(Char)} -> {@erased remaining_input: List(Char)} -> {@erased selected_routine: List(ExtendedInstruction)} -> {@erased selected_trace: AtomicSelectedPathTrace(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, selected_current, matched, remaining_input, selected_routine)} -> (selected_trace_package: AtomicSelectedPathTracePackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, selected_current, matched, remaining_input, selected_routine, selected_trace)) -> AtomicPathRejectedSelectedTracePairPackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, selected_current)
+
+  fn atomic_path_rejected_selected_trace_pair_package(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased input: List(Char)}, {@erased after_input: List(Char)},
+    {@erased state: ThreadState(n)}, {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased rejected_child_whole: List(LookaroundAdmittedState(n))},
+    {@erased rejected_child_current: List(LookaroundAdmittedState(n))},
+    rejected_child_cursor: LookaroundAdmittedStateCursorSuffixPackage(
+      n, rejected_child_whole, rejected_child_current
+    ),
+    {@erased selected_current: List(LookaroundAdmittedState(n))},
+    {@erased matched: List(Char)}, {@erased remaining_input: List(Char)},
+    {@erased selected_routine: List(ExtendedInstruction)},
+    {@erased selected_trace: AtomicSelectedPathTrace(
+      depth, n, machine, input, after_input, state, history, capture_context,
+      policy, scope_depth, prefix_mode, reversed_prefix, selected_current,
+      matched, remaining_input, selected_routine
+    )},
+    selected_trace_package: AtomicSelectedPathTracePackage(
+      depth, n, machine, input, after_input, state, history, capture_context,
+      policy, scope_depth, prefix_mode, reversed_prefix, selected_current,
+      matched, remaining_input, selected_routine, selected_trace
+    )
+  ) -> AtomicPathRejectedSelectedTracePairPackage(
+    depth, n, machine, input, after_input, state, history, capture_context,
+    policy, scope_depth, prefix_mode, reversed_prefix, selected_current
+  ) = AtomicPathRejectedSelectedTracePairPacked(
+    rejected_child_cursor,
+    selected_trace_package
+  )
+
   ## Relevant constructor correlation for a successful search's skipped
   ## prefix. The evidence remains erased, while the relevant constructor and
   ## recursive tail package make its exact skip shape available to strict
@@ -9279,7 +9322,7 @@ mod Std.Regex.Runtime
     AtomicPathSkippedPrefixStructureEmptyPacked : (@erased evidence: AtomicPathSkippedPrefixEvidence(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, current, AtomicPathSkippedPrefixEmptyKind())) -> AtomicPathSkippedPrefixStructurePackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, current, AtomicPathSkippedPrefixEmptyKind())
     AtomicPathSkippedPrefixStructureEscapedOnePacked : {@erased candidate: LookaroundAdmittedState(n)} -> {@erased commit_kind: AtomicPathCommitCauseKind} -> (@erased evidence: AtomicPathSkippedPrefixEvidence(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, current), current, AtomicPathSkippedPrefixEscapedOneKind(commit_kind))) -> AtomicPathSkippedPrefixStructurePackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, current), current, AtomicPathSkippedPrefixEscapedOneKind(commit_kind))
     AtomicPathSkippedPrefixStructureEscapedConsPacked : {@erased candidate: LookaroundAdmittedState(n)} -> {@erased tail_front: List(LookaroundAdmittedState(n))} -> {@erased commit_kind: AtomicPathCommitCauseKind} -> {@erased tail_kind: AtomicPathSkippedPrefixKind} -> (@erased evidence: AtomicPathSkippedPrefixEvidence(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, tail_front), current, AtomicPathSkippedPrefixEscapedConsKind(commit_kind, tail_kind))) -> (tail_structure: AtomicPathSkippedPrefixStructurePackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, tail_front, current, tail_kind)) -> AtomicPathSkippedPrefixStructurePackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, tail_front), current, AtomicPathSkippedPrefixEscapedConsKind(commit_kind, tail_kind))
-    AtomicPathSkippedPrefixStructureRejectedConsPacked : {@erased candidate: LookaroundAdmittedState(n)} -> {@erased tail_front: List(LookaroundAdmittedState(n))} -> {@erased child_prefix_kind: AtomicPathFailurePrefixKind} -> {@erased child_kind: AtomicPathFailureKind} -> {@erased tail_kind: AtomicPathSkippedPrefixKind} -> (@erased evidence: AtomicPathSkippedPrefixEvidence(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, tail_front), current, AtomicPathSkippedPrefixRejectedConsKind(child_prefix_kind, child_kind, tail_kind))) -> (tail_structure: AtomicPathSkippedPrefixStructurePackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, tail_front, current, tail_kind)) -> AtomicPathSkippedPrefixStructurePackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, tail_front), current, AtomicPathSkippedPrefixRejectedConsKind(child_prefix_kind, child_kind, tail_kind))
+    AtomicPathSkippedPrefixStructureRejectedConsPacked : {@erased candidate: LookaroundAdmittedState(n)} -> {@erased tail_front: List(LookaroundAdmittedState(n))} -> {@erased child_prefix_kind: AtomicPathFailurePrefixKind} -> {@erased child_kind: AtomicPathFailureKind} -> {@erased tail_kind: AtomicPathSkippedPrefixKind} -> (@erased evidence: AtomicPathSkippedPrefixEvidence(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, tail_front), current, AtomicPathSkippedPrefixRejectedConsKind(child_prefix_kind, child_kind, tail_kind))) -> (tail_structure: AtomicPathSkippedPrefixStructurePackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, tail_front, current, tail_kind)) -> (rejected_selected_pair: AtomicPathRejectedSelectedTracePairPackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, current)) -> AtomicPathSkippedPrefixStructurePackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, tail_front), current, AtomicPathSkippedPrefixRejectedConsKind(child_prefix_kind, child_kind, tail_kind))
 
   ## Opaque recursive selection authority. Its result indices mention the
   ## parent candidate and contexts, while each constructor retains the exact
@@ -9392,7 +9435,7 @@ mod Std.Regex.Runtime
           candidate,
           atomic_path_skipped_prefix_structure_cursor_package(tail_structure)
         )
-    AtomicPathSkippedPrefixStructureRejectedConsPacked(evidence, tail_structure) -> match evidence
+    AtomicPathSkippedPrefixStructureRejectedConsPacked(evidence, tail_structure, _) -> match evidence
       AtomicPathSkippedRejectedCons(_, _, _, candidate, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) ->
         lookaround_admitted_cursor_suffix_package_drop(
           candidate,
@@ -9430,7 +9473,7 @@ mod Std.Regex.Runtime
       AtomicPathCursorLocationRightAfter(
         atomic_path_skipped_prefix_structure_cursor_package(structure)
       )
-    AtomicPathSkippedPrefixStructureRejectedConsPacked(_, _) ->
+    AtomicPathSkippedPrefixStructureRejectedConsPacked(_, _, _) ->
       AtomicPathCursorLocationRightAfter(
         atomic_path_skipped_prefix_structure_cursor_package(structure)
       )
@@ -10251,7 +10294,7 @@ mod Std.Regex.Runtime
           escaped_one_case(aligned)
         AtomicPathSkippedPrefixStructureEscapedConsPacked(_, _) ->
           escaped_cons_case(aligned)
-        AtomicPathSkippedPrefixStructureRejectedConsPacked(_, _) ->
+        AtomicPathSkippedPrefixStructureRejectedConsPacked(_, _, _) ->
           rejected_case(aligned)
       AtomicPathCommitStructureCursorClassifiedFromChildPacked(_) ->
         invalid_case()
@@ -10294,7 +10337,7 @@ mod Std.Regex.Runtime
           escaped_one_case(aligned)
         AtomicPathSkippedPrefixStructureEscapedConsPacked(_, _) ->
           escaped_cons_case(aligned)
-        AtomicPathSkippedPrefixStructureRejectedConsPacked(_, _) ->
+        AtomicPathSkippedPrefixStructureRejectedConsPacked(_, _, _) ->
           rejected_case(aligned)
       AtomicPathCommitStructureCursorClassifiedAfterFailurePacked(_) ->
         invalid_case()
@@ -10373,7 +10416,7 @@ mod Std.Regex.Runtime
             inner_equivalence, source
           )
         )
-      AtomicPathSkippedPrefixStructureRejectedConsPacked(_, tail_structure) ->
+      AtomicPathSkippedPrefixStructureRejectedConsPacked(_, tail_structure, _) ->
         tail_case(
           AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked(
             commit, tail_structure, selected_empty, selected_suffix,
@@ -10422,7 +10465,7 @@ mod Std.Regex.Runtime
           ),
           empty_case
         )
-      AtomicPathSkippedPrefixStructureRejectedConsPacked(_, tail_structure) ->
+      AtomicPathSkippedPrefixStructureRejectedConsPacked(_, tail_structure, _) ->
         atomic_path_recursive_commit_selected_child_same_skipped_tail_empty_fold(
           AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked(
             commit, tail_structure, selected_empty, selected_suffix,
@@ -10847,7 +10890,7 @@ mod Std.Regex.Runtime
           atomic_path_skipped_prefix_structure_cursor_package(selected_skipped)
         )
       )
-      AtomicPathSkippedPrefixStructureRejectedConsPacked(_, _) -> right_case(
+      AtomicPathSkippedPrefixStructureRejectedConsPacked(_, _, _) -> right_case(
         AtomicPathCommitSelectedRightAuthorityPacked(
           commit,
           cursor,
@@ -11045,7 +11088,7 @@ mod Std.Regex.Runtime
     remaining,
     selected_current
   ) = match selected_skipped
-    AtomicPathSkippedPrefixStructureRejectedConsPacked(_, tail_structure) ->
+    AtomicPathSkippedPrefixStructureRejectedConsPacked(_, tail_structure, _) ->
       atomic_path_commit_selected_tail_location_package(
         atomic_path_commit_structure_past_rejected_tail_package(
           commit,
@@ -11110,7 +11153,7 @@ mod Std.Regex.Runtime
       tail_commit_kind, selected_trace_package, tail_skipped_kind
     )) -> result
   ) -> result = match selected_skipped
-    AtomicPathSkippedPrefixStructureRejectedConsPacked(_, tail_structure) ->
+    AtomicPathSkippedPrefixStructureRejectedConsPacked(_, tail_structure, _) ->
       atomic_path_commit_selected_tail_location_fold(
         atomic_path_commit_structure_past_rejected_tail_package(
           commit,
@@ -11348,7 +11391,7 @@ mod Std.Regex.Runtime
     AtomicPathCommitSelectedRightAuthorityPacked(commit_package, _, _, skipped_structure, _) -> match commit_package
       AtomicPathCommitStructureCursorExistentialPacked(_, _, structure) -> match structure
         AtomicPathCommitStructureAfterFailurePacked(child_package) -> match skipped_structure
-          AtomicPathSkippedPrefixStructureRejectedConsPacked(evidence, _) -> match child_package
+          AtomicPathSkippedPrefixStructureRejectedConsPacked(evidence, _, _) -> match child_package
             AtomicPathCommitAfterFailureChildPacked(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, close_canonical, blocked) -> match evidence
               AtomicPathSkippedRejectedCons(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, continuation, _, _) ->
                 atomic_path_failure_continuation_excludes_blocked(
@@ -11513,7 +11556,7 @@ mod Std.Regex.Runtime
     )) -> result
   ) -> result = match package
     AtomicPathCommitSelectedRightAuthorityPacked(commit_package, _, selected_trace, selected_skipped, _) -> match selected_skipped
-      AtomicPathSkippedPrefixStructureRejectedConsPacked(_, tail_structure) ->
+      AtomicPathSkippedPrefixStructureRejectedConsPacked(_, tail_structure, _) ->
         atomic_path_commit_selected_tail_location_fold(
           atomic_path_commit_structure_cursor_past_rejected_tail_package(
             commit_package
@@ -12837,7 +12880,7 @@ mod Std.Regex.Runtime
       )
     )
   ) -> Empty = match skipped_structure
-    AtomicPathSkippedPrefixStructureRejectedConsPacked(evidence, _) ->
+    AtomicPathSkippedPrefixStructureRejectedConsPacked(evidence, _, _) ->
       atomic_path_commit_after_failure_excludes_rejected_prefix(cause, evidence)
 
   ## Consume the exact commit existential only after both relevant package
@@ -14409,7 +14452,11 @@ mod Std.Regex.Runtime
       AtomicPathMembersCommit(commit_depth, origin_equivalence, origin_canonical, witness, suffix, suffix_package, AtomicPathCommitPastRejectedKind(child_prefix_kind, child_kind, tail_kind), AtomicPathCommitPastRejected(char, rest, source, candidate, remaining, child_capture_context, child_context_alignment, child_scope_depth, child_scope_alignment, child_whole, child_current, child_prefix_kind, child_prefix, child_origin_equivalence, child_origin_canonical, child_suffix, child_kind, child_failure, child_evidence, continuation, commit_depth, origin_equivalence, origin_canonical, tail_suffix, tail_kind, tail_cause), AtomicPathCommitStructurePastRejectedPacked(char, rest, source, candidate, remaining, child_capture_context, child_context_alignment, child_scope_depth, child_scope_alignment, child_prefix, child_origin_equivalence, child_origin_canonical, child_suffix, child_suffix_package, child_failure, child_evidence, continuation, origin_equivalence, origin_canonical, tail_suffix, tail_cause, tail_structure))
     AtomicPathMembersYes(matched, remaining_input, routine, selected_whole, selected_current, selection_suffix, selection_suffix_package, selected_whole_equivalence, selection_from_current, selection_from_current_package, skipped_kind, skipped_evidence, skipped_structure, trace, trace_package, trace_envelope) ->
       let parent_skipped_evidence = AtomicPathSkippedRejectedCons(char, rest, source, candidate, child_capture_context, child_context_alignment, child_scope_depth, child_scope_alignment, child_whole, child_current, child_prefix_kind, child_prefix, child_origin_equivalence, child_origin_canonical, child_suffix, child_kind, child_failure, child_evidence, continuation, skipped_kind, skipped_evidence)
-      AtomicPathMembersYes(matched, remaining_input, routine, Cons(candidate, selected_whole), selected_current, LookaroundAdmittedStateCursorSuffixDrop(candidate, selection_suffix), lookaround_admitted_cursor_suffix_package_drop(candidate, selection_suffix_package), lookaround_admitted_state_cons_equivalent(candidate, selected_whole_equivalence), LookaroundAdmittedStateCursorSuffixDrop(candidate, selection_from_current), lookaround_admitted_cursor_suffix_package_drop(candidate, selection_from_current_package), AtomicPathSkippedPrefixRejectedConsKind(child_prefix_kind, child_kind, skipped_kind), parent_skipped_evidence, AtomicPathSkippedPrefixStructureRejectedConsPacked(parent_skipped_evidence, skipped_structure), trace, trace_package, trace_envelope)
+      let rejected_selected_pair = atomic_path_rejected_selected_trace_pair_package(
+        child_suffix_package,
+        trace_package
+      )
+      AtomicPathMembersYes(matched, remaining_input, routine, Cons(candidate, selected_whole), selected_current, LookaroundAdmittedStateCursorSuffixDrop(candidate, selection_suffix), lookaround_admitted_cursor_suffix_package_drop(candidate, selection_suffix_package), lookaround_admitted_state_cons_equivalent(candidate, selected_whole_equivalence), LookaroundAdmittedStateCursorSuffixDrop(candidate, selection_from_current), lookaround_admitted_cursor_suffix_package_drop(candidate, selection_from_current_package), AtomicPathSkippedPrefixRejectedConsKind(child_prefix_kind, child_kind, skipped_kind), parent_skipped_evidence, AtomicPathSkippedPrefixStructureRejectedConsPacked(parent_skipped_evidence, skipped_structure, rejected_selected_pair), trace, trace_package, trace_envelope)
 
   fn atomic_lookaround_routine_after_failure(depth: Nat, n: Nat, machine: PatternMachine(n), char: Char, rest: List(Char), after_input: List(Char), source: Bounded(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), remaining: List(LookaroundAdmittedState(n)), candidate: LookaroundAdmittedState(n), child_capture_context: List(EvidenceInstruction), @erased child_context_alignment: LookaroundAdmittedStateCaptureContext(n, capture_context, candidate, child_capture_context), child_scope_depth: Nat, @erased child_scope_alignment: LookaroundAdmittedStateScope(n, scope_depth, candidate, child_scope_depth), closed_depth: Option(Nat), @erased close_canonical: Equivalent(Option(Nat), lookaround_admitted_state_closed_depth(n, scope_depth, candidate), closed_depth), @erased child_whole: List(LookaroundAdmittedState(n)), @erased child_current: List(LookaroundAdmittedState(n)), @erased child_origin: List(LookaroundAdmittedState(n)), @erased child_origin_equivalence: Equivalent(List(LookaroundAdmittedState(n)), child_whole, child_origin), @erased child_origin_canonical: AtomicPathSearchOrigin(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), lookaround_admitted_state_capture_context(capture_context, candidate), policy, child_origin), @erased child_witness: LookaroundAdmittedStateCursorWitness(n, child_whole, child_current), @erased child_suffix: LookaroundAdmittedStateCursorSuffix(n, child_whole, child_current), child_suffix_package: LookaroundAdmittedStateCursorSuffixPackage(n, child_whole, child_current), @erased child_prefix_kind: AtomicPathFailurePrefixKind, child_prefix_root_availability: AtomicPathFailurePrefixRootAvailability(child_prefix_kind), @erased child_prefix: AtomicPathFailurePrefixEvidence(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), child_capture_context, policy, child_scope_depth, prefix_mode, Cons(char, reversed_prefix), child_whole, child_current, child_prefix_kind), @erased cursor: LookaroundAdmittedStateCursor(n, whole, Cons(candidate, remaining)), @erased witness: LookaroundAdmittedStateCursorWitness(n, whole, Cons(candidate, remaining)), @erased suffix: LookaroundAdmittedStateCursorSuffix(n, whole, Cons(candidate, remaining)), suffix_package: LookaroundAdmittedStateCursorSuffixPackage(n, whole, Cons(candidate, remaining)), @erased canonical: Equivalent(List(LookaroundAdmittedState(n)), whole, lookaround_machine_admitted_destinations(depth, n, machine, ThreadActive(source), char, rest, after_input, history, capture_context, policy)), child_kind: AtomicPathFailureKind, @erased child_failure: AtomicPathRefutation(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), lookaround_admitted_state_capture_context(capture_context, candidate), policy, child_scope_depth, prefix_mode, Cons(char, reversed_prefix), child_whole, child_current, child_kind), @erased child_evidence: AtomicPathNoEvidence(depth, n, machine, rest, after_input, lookaround_admitted_state_thread(candidate), history_push_bounded(history, char), child_capture_context, policy, child_scope_depth, prefix_mode, Cons(char, reversed_prefix), child_whole, child_current, child_kind)) -> AtomicPathMembersResult(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, remaining)) = match closed_depth
     None() -> atomic_lookaround_routine_tail_after_failure(depth, n, machine, char, rest, after_input, source, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, remaining, candidate, child_capture_context, child_context_alignment, child_scope_depth, child_scope_alignment, child_whole, child_current, child_origin, child_origin_equivalence, child_origin_canonical, child_witness, child_suffix, child_suffix_package, child_prefix_kind, child_prefix, cursor, witness, suffix, suffix_package, canonical, child_kind, child_failure, child_evidence, AtomicPathSiblingNoClose(close_canonical))

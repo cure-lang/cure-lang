@@ -4350,16 +4350,30 @@ the failed candidate's state/capture context has not yet been identified with
 the selected active candidate. Therefore staging the data types alone is not
 enough if all stages are reconstructed at the final existential fold.
 
-Publish the canonical child pair earlier, at the evaluator branch that already
-constructs both `AtomicPathCommitAfterFailureChildPacked` and
-`AtomicSelectedPathTraceActivePacked` (or at their nearest common relevant
-result boundary), before either side is hidden behind the recursive commit and
-selected-trace existentials. Thread that small pair through the existing
-packages as a relevant field. The final destination-rejection fold should only
-pattern-match an already-published pair and the direction classifier; it must
-not recompute the pair after matching `inner_equivalence`. Preserve the same
-single-authority rule: the pair is created from the exact cursor packages used
-by those two constructors, never from a later re-scan or reconstructed proof.
+The evaluator-flow audit corrects one part of that prescription: no evaluator
+branch constructs both `AtomicPathCommitAfterFailureChildPacked` and a
+successful `AtomicSelectedPathTraceActivePacked`. A blocking commit and a
+successful sibling selection are mutually exclusive results. Their first
+common boundary exists only in the correspondence theorem, which is too late
+to reconstruct their child identity safely.
+
+The attainable upstream authority is instead the failed-child/selected-trace
+pair. When `atomic_lookaround_routine_tail_after_failure` receives an
+`AtomicPathMembersYes` from the remaining siblings, it still has the exact
+failed-child cursor package and the exact selected trace package. That branch
+now constructs `AtomicPathRejectedSelectedTracePairPackage` and retains it in
+`AtomicPathSkippedPrefixStructureRejectedConsPacked`. The package remains
+inside already-erased successful-search evidence, so it adds no emitted runtime
+proof object. Direct Runtime, Proof, facade, and Language compilation passes,
+and the construction-site regression is green.
+
+Next align the independently produced commit child with the retained rejected
+child, then compare that already-aligned child with the selected trace carried
+by the same package. Thread the resulting staged direction carrier through the
+Here/later/reverse folds. The final destination-rejection fold must consume
+those published authorities; it must not recompute a three-way pair after
+matching `inner_equivalence`, re-scan a cursor, or assume a nonexistent common
+evaluator outcome.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
