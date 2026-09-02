@@ -1,0 +1,71 @@
+defmodule Cure.Refactor.AnalysisTest do
+  use ExUnit.Case, async: false
+
+  alias Cure.Refactor.Analysis
+
+  setup do
+    dir = Path.join(System.tmp_dir!(), "cure_refactor_#{System.unique_integer([:positive])}")
+    File.mkdir_p!(dir)
+
+    on_exit(fn -> File.rm_rf!(dir) end)
+
+    {:ok, dir: dir}
+  end
+
+  test "reports declarations, visibility, spans, and source order", %{dir: dir} do
+    path = Path.join(dir, "demo.cure")
+
+    source = """
+    mod Demo
+      ## public entry
+      fn answer() -> Int = helper(41)
+
+      local fn helper(value: Int) -> Int = value + 1
+    end
+    """
+
+    File.write!(path, source)
+
+    assert {:ok, report} = Analysis.analyze(path)
+    assert report.module == "Demo"
+    assert report.path == Path.expand(path)
+    assert report.line_count == 7
+    assert report.declaration_count == 2
+    assert report.imports == []
+
+    assert [%{name: "answer"} = answer, %{name: "helper"} = helper] = report.declarations
+    assert answer.kind == :function
+    assert answer.arity == 0
+    assert answer.visibility == :public
+    assert answer.span.start_line == 3
+    assert answer.span.end_line == 3
+    assert helper.kind == :function
+    assert helper.arity == 1
+    assert helper.visibility == :private
+    assert helper.span.start_line == 5
+    assert helper.span.end_line == 5
+  end
+
+  test "analysis is deterministic and has a stable JSON projection", %{dir: dir} do
+    path = Path.join(dir, "stable.cure")
+    File.write!(path, "mod Stable\n  fn z() -> Int = 1\n  fn a() -> Int = z()\n")
+
+    assert {:ok, first} = Analysis.analyze(path)
+    assert {:ok, second} = Analysis.analyze(path)
+    assert first == second
+    assert Analysis.to_json(first) == Analysis.to_json(second)
+
+    assert {:ok, decoded} = Jason.decode(Analysis.to_json(first))
+    assert decoded["module"] == "Stable"
+    assert decoded["declaration_count"] == 2
+    assert Enum.map(decoded["declarations"], & &1["name"]) == ["z", "a"]
+  end
+
+  test "checked mode runs the canonical module pipeline", %{dir: dir} do
+    path = Path.join(dir, "checked.cure")
+    File.write!(path, "mod Checked\n  fn value() -> Int = 7\n")
+
+    assert {:ok, report} = Analysis.analyze(path, checked: true)
+    assert report.checked?
+  end
+end

@@ -1,0 +1,31 @@
+defmodule Mix.Tasks.Cure.RefactorTest do
+  use ExUnit.Case, async: false
+
+  setup do
+    dir = Path.join(System.tmp_dir!(), "cure_refactor_task_#{System.unique_integer([:positive])}")
+    File.mkdir_p!(dir)
+
+    on_exit(fn ->
+      File.rm_rf!(dir)
+      Mix.Task.reenable("cure.refactor")
+    end)
+
+    {:ok, dir: dir}
+  end
+
+  test "JSON mode prints a report without changing the source", %{dir: dir} do
+    path = Path.join(dir, "task.cure")
+    source = "mod Task\n  fn value() -> Int = 7\n"
+    File.write!(path, source)
+    Mix.Task.reenable("cure.refactor")
+
+    output =
+      ExUnit.CaptureIO.capture_io(fn ->
+        assert :ok = Mix.Task.run("cure.refactor", ["--json", path])
+      end)
+
+    assert output =~ "\"module\":\"Task\""
+    assert output =~ "\"declaration_count\":1"
+    assert File.read!(path) == source
+  end
+end
