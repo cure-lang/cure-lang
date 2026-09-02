@@ -7,11 +7,13 @@ defmodule Mix.Tasks.Cure.Refactor do
   The analysis phase reports declarations and imports without modifying source.
   Use `--recursive` to include nested declarations, `--stats` for deterministic
   size/kind counts, `--dependencies` for declaration-level call references, and
+  `--plan` to derive dependency components and isolated split candidates, and
   `--verbose` to print import details. `--checked` runs the canonical compiler
-  pipeline before producing the report.
+  pipeline before producing the report. Plan mode is advisory and read-only.
 
       mix cure.refactor path/to/module.cure
       mix cure.refactor --recursive --stats --dependencies path/to/module.cure
+      mix cure.refactor --plan path/to/module.cure
       mix cure.refactor --json --checked path/to/module.cure
   """
 
@@ -29,11 +31,12 @@ defmodule Mix.Tasks.Cure.Refactor do
           recursive: :boolean,
           stats: :boolean,
           dependencies: :boolean,
+          plan: :boolean,
           verbose: :boolean,
           max_depth: :integer,
           prelude_macros: :boolean
         ],
-        aliases: [j: :json, c: :checked, r: :recursive, d: :dependencies, v: :verbose]
+        aliases: [j: :json, c: :checked, r: :recursive, d: :dependencies, p: :plan, v: :verbose]
       )
 
     start_app(opts)
@@ -45,7 +48,7 @@ defmodule Mix.Tasks.Cure.Refactor do
       length(paths) != 1 ->
         usage_error(
           "Usage: mix cure.refactor [--json] [--checked] [--recursive] [--stats] " <>
-            "[--dependencies] [--verbose] [--max-depth N] <path.cure>"
+            "[--dependencies] [--plan] [--verbose] [--max-depth N] <path.cure>"
         )
 
       true ->
@@ -69,7 +72,7 @@ defmodule Mix.Tasks.Cure.Refactor do
 
   defp analyze(path, opts) do
     analysis_opts =
-      Keyword.take(opts, [:checked, :recursive, :stats, :dependencies, :verbose, :max_depth, :prelude_macros])
+      Keyword.take(opts, [:checked, :recursive, :stats, :dependencies, :plan, :verbose, :max_depth, :prelude_macros])
 
     case Analysis.analyze(path, analysis_opts) do
       {:ok, report} ->

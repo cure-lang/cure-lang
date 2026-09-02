@@ -136,4 +136,42 @@ defmodule Cure.Refactor.AnalysisTest do
     rendered = Analysis.format(report, dependencies: true)
     assert rendered =~ "references: Deps#helper (call), external (call)"
   end
+
+  test "plans dependency components without rewriting the source", %{dir: dir} do
+    path = Path.join(dir, "plan.cure")
+
+    source = """
+    mod Plan
+      fn root() -> Int = leaf()
+      fn leaf() -> Int = 1
+      fn cycle_a() -> Int = cycle_b()
+      fn cycle_b() -> Int = cycle_a()
+      fn isolated() -> Int = 4
+    end
+    """
+
+    File.write!(path, source)
+
+    assert {:ok, report} = Analysis.analyze(path, plan: true)
+    assert report.plan.component_count == 4
+    assert report.plan.cyclic_components == 1
+    assert report.plan.cross_component_edges == 1
+    assert report.plan.boundary_references == 1
+    assert report.plan.unresolved_references == 0
+    assert report.plan.isolated_candidates == 1
+
+    [root, leaf, cycle, isolated] = report.plan.components
+    assert root.declarations == [:"Plan#root"]
+    assert root.dependencies == ["component_2"]
+    assert leaf.dependents == ["component_1"]
+    assert cycle.cyclic?
+    assert cycle.declarations == [:"Plan#cycle_a", :"Plan#cycle_b"]
+    assert isolated.isolated?
+    assert isolated.declarations == [:"Plan#isolated"]
+
+    assert Analysis.format(report) =~ "isolated candidate"
+    mapped = Analysis.to_map(report)
+    assert mapped.plan.components |> Enum.at(3) |> Map.get(:isolated?) == true
+    assert File.read!(path) == source
+  end
 end

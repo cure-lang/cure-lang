@@ -60,6 +60,7 @@ defmodule Cure.Refactor.Analysis.Report do
     :imports,
     :declarations,
     stats: %{},
+    plan: nil,
     warnings: [],
     checked?: false
   ]
@@ -73,6 +74,7 @@ defmodule Cure.Refactor.Analysis.Report do
           imports: [map()],
           declarations: [Cure.Refactor.Analysis.Declaration.t()],
           stats: map(),
+          plan: map() | nil,
           warnings: [map()],
           checked?: boolean()
         }
@@ -89,9 +91,10 @@ defmodule Cure.Refactor.Analysis do
   deterministic and derived from that tree. Dependency mode records a
   syntax-level call projection, canonicalizing names proven local and leaving
   imported or otherwise unresolved names explicit. It never edits a source
-  file and never infers a split from line ranges. A future planning/apply phase
-  can build on this record after checked dependency validation is exposed by
-  the compiler pipeline.
+  file and never infers a split from line ranges. Plan mode derives a
+  dependency-only component graph and labels components with no local edges as
+  isolated candidates; it does not apply a split or claim that moving a
+  declaration preserves module identity.
 
   Prelude macro expansion is opt-in (`prelude_macros: true`). Keeping the
   default syntax-only makes analysis cheap and deterministic for large files;
@@ -124,7 +127,8 @@ defmodule Cure.Refactor.Analysis do
          {:ok, ast} <- parse_source(source, expanded, opts),
          {:ok, module, body, extras} <- module_body(ast, expanded),
          {:ok, checked?} <- maybe_check(expanded, opts) do
-      declarations = declarations(body, module, source, opts)
+      dependencies? = Keyword.get(opts, :dependencies, false) or Keyword.get(opts, :plan, false)
+      declarations = declarations(body, module, source, Keyword.put(opts, :dependencies, dependencies?))
       imports = imports(body)
       warnings = out_of_module_warnings(extras)
 
@@ -132,6 +136,8 @@ defmodule Cure.Refactor.Analysis do
         if Keyword.get(opts, :stats, false),
           do: statistics(declarations, imports),
           else: %{}
+
+      plan = if Keyword.get(opts, :plan, false), do: dependency_plan(declarations), else: nil
 
       {:ok,
        %Report{
@@ -143,6 +149,7 @@ defmodule Cure.Refactor.Analysis do
          imports: imports,
          declarations: declarations,
          stats: stats,
+         plan: plan,
          warnings: warnings,
          checked?: checked?
        }}
@@ -166,6 +173,7 @@ defmodule Cure.Refactor.Analysis do
       imports: Enum.map(report.imports, &import_to_map/1),
       declarations: Enum.map(report.declarations, &declaration_to_map/1),
       stats: report.stats,
+      plan: plan_to_map(report.plan),
       warnings: report.warnings
     }
   end
@@ -197,6 +205,13 @@ defmodule Cure.Refactor.Analysis do
         ["", "Stats:"] ++ format_statistics(report.stats)
       end
 
+    plan_lines =
+      if report.plan == nil do
+        []
+      else
+        ["", "Dependency plan:"] ++ format_plan(report.plan)
+      end
+
     ([
        "Module: #{report.module}",
        "Path: #{report.path}",
@@ -207,7 +222,7 @@ defmodule Cure.Refactor.Analysis do
        "Checked: #{report.checked?}",
        "",
        "Declarations:"
-     ] ++ declaration_lines ++ import_lines ++ stats_lines ++ [""])
+     ] ++ declaration_lines ++ import_lines ++ stats_lines ++ plan_lines ++ [""])
     |> Enum.join("\n")
   end
 
@@ -560,6 +575,241 @@ defmodule Cure.Refactor.Analysis do
     ]
   end
 
+  # The planner intentionally works on top-level declarations only. Nested
+  # declarations (interface members and `where` helpers) are owned by their
+  # enclosing declaration and cannot be moved without a separate surface
+  # rewrite. Strongly connected components are the smallest units that must
+  # move together to preserve local dependency edges.
+  defp dependency_plan(declarations) do
+    top_level = Enum.filter(declarations, &(&1.depth == 0 and is_atom(&1.identity)))
+
+    groups =
+      top_level
+      |> Enum.group_by(& &1.identity)
+      |> Enum.map(fn {identity, members} ->
+        %{identity: identity, members: Enum.sort_by(members, & &1.source_order)}
+      end)
+      |> Enum.sort_by(fn group -> List.first(group.members).source_order end)
+
+    group_index =
+      groups
+      |> Enum.with_index()
+      |> Map.new(fn {group, index} -> {group.identity, index} end)
+
+    edges =
+      groups
+      |> Enum.with_index()
+      |> Map.new(fn {group, index} ->
+        targets =
+          group.members
+          |> Enum.flat_map(& &1.references)
+          |> Enum.map(& &1.identity)
+          |> Enum.map(&Map.get(group_index, &1))
+          |> Enum.reject(&is_nil/1)
+          |> Enum.uniq()
+          |> Enum.sort()
+
+        {index, targets}
+      end)
+
+    components = strongly_connected_components(edges, length(groups))
+    component_for = component_membership(components)
+    component_records = build_component_records(groups, edges, components, component_for)
+    cross_component_edges = count_cross_component_edges(edges, component_for)
+    isolated = Enum.count(component_records, & &1.isolated?)
+    cyclic = Enum.count(component_records, & &1.cyclic?)
+    boundary_references = Enum.reduce(component_records, 0, &(&1.boundary_reference_count + &2))
+    unresolved_references = Enum.reduce(component_records, 0, &(&1.unresolved_reference_count + &2))
+
+    %{
+      components: component_records,
+      component_count: length(component_records),
+      isolated_candidates: isolated,
+      cyclic_components: cyclic,
+      cross_component_edges: cross_component_edges,
+      boundary_references: boundary_references,
+      unresolved_references: unresolved_references
+    }
+  end
+
+  defp strongly_connected_components(_edges, 0), do: []
+
+  defp strongly_connected_components(edges, count) do
+    state = %{next_index: 0, stack: [], on_stack: MapSet.new(), indices: %{}, lowlinks: %{}, components: []}
+
+    state =
+      Enum.reduce(0..(count - 1), state, fn node, state ->
+        if Map.has_key?(state.indices, node), do: state, else: tarjan_visit(node, state, edges)
+      end)
+
+    state.components
+    |> Enum.map(&Enum.sort/1)
+    |> Enum.sort_by(&List.first/1)
+  end
+
+  defp tarjan_visit(node, state, edges) do
+    index = state.next_index
+
+    state = %{
+      state
+      | next_index: index + 1,
+        indices: Map.put(state.indices, node, index),
+        lowlinks: Map.put(state.lowlinks, node, index),
+        stack: [node | state.stack],
+        on_stack: MapSet.put(state.on_stack, node)
+    }
+
+    state =
+      edges
+      |> Map.get(node, [])
+      |> Enum.reduce(state, fn target, state ->
+        cond do
+          not Map.has_key?(state.indices, target) ->
+            state = tarjan_visit(target, state, edges)
+            lowlink = min(state.lowlinks[node], state.lowlinks[target])
+            %{state | lowlinks: Map.put(state.lowlinks, node, lowlink)}
+
+          MapSet.member?(state.on_stack, target) ->
+            lowlink = min(state.lowlinks[node], state.indices[target])
+            %{state | lowlinks: Map.put(state.lowlinks, node, lowlink)}
+
+          true ->
+            state
+        end
+      end)
+
+    if state.lowlinks[node] == state.indices[node] do
+      {component, stack, on_stack} = pop_component(node, state.stack, state.on_stack, [])
+      %{state | stack: stack, on_stack: on_stack, components: [component | state.components]}
+    else
+      state
+    end
+  end
+
+  defp pop_component(node, [node | rest], on_stack, component),
+    do: {[node | component], rest, MapSet.delete(on_stack, node)}
+
+  defp pop_component(node, [head | rest], on_stack, component),
+    do: pop_component(node, rest, MapSet.delete(on_stack, head), [head | component])
+
+  defp component_membership(components) do
+    components
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {members, component} -> Enum.map(members, &{&1, component}) end)
+    |> Map.new()
+  end
+
+  defp build_component_records(groups, edges, components, component_for) do
+    components
+    |> Enum.with_index()
+    |> Enum.map(fn {members, component_index} ->
+      groups_in_component = Enum.map(members, &Enum.at(groups, &1))
+      declarations = Enum.flat_map(groups_in_component, & &1.members) |> Enum.sort_by(& &1.source_order)
+      outgoing = component_edges(members, edges, component_for, component_index)
+      incoming = incoming_component_edges(component_index, edges, component_for)
+      source_orders = Enum.map(declarations, & &1.source_order)
+      spans = declarations |> Enum.map(& &1.span) |> Enum.reject(&is_nil/1)
+      line_start = spans |> Enum.map(& &1.start_line) |> Enum.min(fn -> nil end)
+      line_end = spans |> Enum.map(& &1.end_line) |> Enum.max(fn -> nil end)
+      self_edge? = Enum.any?(members, fn member -> member in Map.get(edges, member, []) end)
+      cyclic? = length(members) > 1 or self_edge?
+      isolated? = outgoing == [] and incoming == []
+      representative = declarations |> List.first() |> Map.get(:identity)
+      references = Enum.flat_map(declarations, & &1.references)
+      local_identities = MapSet.new(Enum.map(declarations, & &1.identity))
+      boundary_references = Enum.reject(references, &MapSet.member?(local_identities, &1.identity))
+      unresolved_references = Enum.count(boundary_references, &is_nil(&1.identity))
+
+      %{
+        id: "component_#{component_index + 1}",
+        representative: representative,
+        declarations: Enum.map(declarations, & &1.identity),
+        source_orders: source_orders,
+        line_start: line_start,
+        line_end: line_end,
+        line_count: if(line_start && line_end, do: line_end - line_start + 1, else: 0),
+        dependencies: Enum.map(outgoing, &"component_#{&1 + 1}"),
+        dependents: Enum.map(incoming, &"component_#{&1 + 1}"),
+        cyclic?: cyclic?,
+        isolated?: isolated?,
+        public?: Enum.any?(declarations, &(&1.visibility == :public)),
+        boundary_reference_count: length(boundary_references),
+        unresolved_reference_count: unresolved_references,
+        boundary_references: boundary_references |> Enum.map(& &1.name) |> Enum.uniq() |> Enum.sort()
+      }
+    end)
+  end
+
+  defp component_edges(members, edges, component_for, component_index) do
+    members
+    |> Enum.flat_map(&Map.get(edges, &1, []))
+    |> Enum.map(&Map.get(component_for, &1))
+    |> Enum.reject(&(&1 == component_index or is_nil(&1)))
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  defp incoming_component_edges(component_index, edges, component_for) do
+    edges
+    |> Enum.flat_map(fn {source, targets} ->
+      if Enum.any?(targets, &(Map.get(component_for, &1) == component_index)),
+        do: [Map.get(component_for, source)],
+        else: []
+    end)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  defp count_cross_component_edges(edges, component_for) do
+    Enum.reduce(edges, 0, fn {source, targets}, count ->
+      source_component = Map.get(component_for, source)
+
+      count +
+        Enum.count(targets, fn target ->
+          source_component != Map.get(component_for, target)
+        end)
+    end)
+  end
+
+  defp format_plan(plan) do
+    summary = [
+      "  components: #{plan.component_count}",
+      "  isolated candidates: #{plan.isolated_candidates}",
+      "  cyclic components: #{plan.cyclic_components}",
+      "  cross-component edges: #{plan.cross_component_edges}",
+      "  boundary references: #{plan.boundary_references} (#{plan.unresolved_references} unresolved)"
+    ]
+
+    components =
+      Enum.flat_map(plan.components, fn component ->
+        flags =
+          cond do
+            component.isolated? -> "isolated candidate"
+            component.cyclic? -> "cyclic"
+            true -> "dependency component"
+          end
+
+        boundary =
+          if component.boundary_references == [],
+            do: "none",
+            else: Enum.join(component.boundary_references, ",")
+
+        [
+          "  #{component.id}: #{flags}; " <>
+            "declarations=#{Enum.map_join(component.declarations, ", ", &Atom.to_string/1)}; " <>
+            "depends_on=#{format_component_ids(component.dependencies)}; " <>
+            "dependents=#{format_component_ids(component.dependents)}; " <>
+            "boundary=#{boundary}"
+        ]
+      end)
+
+    summary ++ components
+  end
+
+  defp format_component_ids([]), do: "none"
+  defp format_component_ids(ids), do: Enum.join(ids, ",")
+
   defp references(node, module, local_names) do
     node
     |> collect_references([])
@@ -733,6 +983,23 @@ defmodule Cure.Refactor.Analysis do
       references: Enum.map(declaration.references, &reference_to_map/1)
     }
   end
+
+  defp plan_to_map(nil), do: nil
+
+  defp plan_to_map(plan) do
+    plan
+    |> Map.update!(:components, fn components ->
+      Enum.map(components, fn component ->
+        component
+        |> Map.update!(:representative, &identity_to_string/1)
+        |> Map.update!(:declarations, fn identities -> Enum.map(identities, &identity_to_string/1) end)
+      end)
+    end)
+  end
+
+  defp identity_to_string(nil), do: nil
+  defp identity_to_string(identity) when is_atom(identity), do: Atom.to_string(identity)
+  defp identity_to_string(identity), do: to_string(identity)
 
   defp reference_to_map(%Reference{} = reference) do
     %{

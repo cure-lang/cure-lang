@@ -28,4 +28,20 @@ defmodule Mix.Tasks.Cure.RefactorTest do
     assert output =~ "\"declaration_count\":1"
     assert File.read!(path) == source
   end
+
+  test "plan mode exposes dependency components in JSON", %{dir: dir} do
+    path = Path.join(dir, "planned_task.cure")
+    source = "mod PlannedTask\n  fn entry() -> Int = 1\n"
+    File.write!(path, source)
+    Mix.Task.reenable("cure.refactor")
+
+    output =
+      ExUnit.CaptureIO.capture_io(fn ->
+        assert :ok = Mix.Task.run("cure.refactor", ["--json", "--plan", path])
+      end)
+
+    assert output =~ "\"plan\":{"
+    assert output =~ "\"component_count\":1"
+    assert File.read!(path) == source
+  end
 end
