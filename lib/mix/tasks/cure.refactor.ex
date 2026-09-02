@@ -36,13 +36,12 @@ defmodule Mix.Tasks.Cure.Refactor do
 
   defp start_app(opts) do
     if Keyword.get(opts, :json, false) do
-      previous_shell = Mix.shell()
-      Mix.shell(Mix.Shell.Quiet)
-
-      try do
-        Mix.Task.run("app.start", [])
-      after
-        Mix.shell(previous_shell)
+      # Mix has already compiled the task before invoking it. Starting the
+      # application directly avoids re-entering the project's compile alias,
+      # whose stdlib/escript progress output would corrupt a JSON document.
+      case Application.ensure_all_started(:cure) do
+        {:ok, _started} -> :ok
+        {:error, reason} -> Mix.raise("could not start Cure: #{inspect(reason)}")
       end
     else
       Mix.Task.run("app.start", [])
