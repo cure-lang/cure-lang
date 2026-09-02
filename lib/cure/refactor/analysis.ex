@@ -1,3 +1,17 @@
+defmodule Cure.Refactor.Analysis.Reference do
+  @moduledoc "A source-level reference recorded for dependency-aware analysis."
+
+  @enforce_keys [:name, :identity, :kind, :span]
+  defstruct [:name, :identity, :kind, :span]
+
+  @type t :: %__MODULE__{
+          name: String.t(),
+          identity: atom() | nil,
+          kind: atom(),
+          span: Cure.Diagnostic.Span.t() | nil
+        }
+end
+
 defmodule Cure.Refactor.Analysis.Declaration do
   @moduledoc "A source-level declaration record used by the refactor analyzer."
 
@@ -13,7 +27,8 @@ defmodule Cure.Refactor.Analysis.Declaration do
     :source_order,
     depth: 0,
     parent: nil,
-    children: []
+    children: [],
+    references: []
   ]
 
   @type t :: %__MODULE__{
@@ -27,7 +42,8 @@ defmodule Cure.Refactor.Analysis.Declaration do
           source_order: pos_integer(),
           depth: non_neg_integer(),
           parent: atom() | nil,
-          children: [t()]
+          children: [t()],
+          references: [Cure.Refactor.Analysis.Reference.t()]
         }
 end
 
@@ -70,10 +86,12 @@ defmodule Cure.Refactor.Analysis do
   authored declarations and imports in source order, preserving canonical
   declaration identities and exact source spans. Recursive mode adds a nested
   declaration tree without treating ordinary expressions as members; stats are
-  deterministic and derived from that tree. It never edits a source file and
-  never infers a split from line ranges. A future planning/apply phase can
-  build on this record after a declaration-level dependency projection is
-  exposed by the checked compiler pipeline.
+  deterministic and derived from that tree. Dependency mode records a
+  syntax-level call projection, canonicalizing names proven local and leaving
+  imported or otherwise unresolved names explicit. It never edits a source
+  file and never infers a split from line ranges. A future planning/apply phase
+  can build on this record after checked dependency validation is exposed by
+  the compiler pipeline.
 
   Prelude macro expansion is opt-in (`prelude_macros: true`). Keeping the
   default syntax-only makes analysis cheap and deterministic for large files;
@@ -85,7 +103,7 @@ defmodule Cure.Refactor.Analysis do
   alias Cure.Elab.{Name, Program}
   alias Cure.MetaAST.{Metadata, SourceInfo}
 
-  alias Cure.Refactor.Analysis.{Declaration, Report}
+  alias Cure.Refactor.Analysis.{Declaration, Reference, Report}
 
   @type error ::
           {:file_read_error, Path.t(), atom()}
@@ -109,7 +127,11 @@ defmodule Cure.Refactor.Analysis do
       declarations = declarations(body, module, source, opts)
       imports = imports(body)
       warnings = out_of_module_warnings(extras)
-      stats = if Keyword.get(opts, :stats, false), do: statistics(declarations, imports), else: %{}
+
+      stats =
+        if Keyword.get(opts, :stats, false),
+          do: statistics(declarations, imports),
+          else: %{}
 
       {:ok,
        %Report{
@@ -152,7 +174,14 @@ defmodule Cure.Refactor.Analysis do
   @spec format(Report.t(), keyword()) :: String.t()
   def format(%Report{} = report, opts \\ []) do
     declaration_lines =
-      Enum.flat_map(report.declarations, &format_declaration(&1, Keyword.get(opts, :recursive, false)))
+      Enum.flat_map(
+        report.declarations,
+        &format_declaration(
+          &1,
+          Keyword.get(opts, :recursive, false),
+          Keyword.get(opts, :dependencies, false)
+        )
+      )
 
     import_lines =
       if Keyword.get(opts, :verbose, false) do
@@ -337,12 +366,25 @@ defmodule Cure.Refactor.Analysis do
   defp declarations(body, module, source, opts) do
     recursive? = Keyword.get(opts, :recursive, false)
     max_depth = Keyword.get(opts, :max_depth, :infinity)
+    dependencies? = Keyword.get(opts, :dependencies, false)
+    local_names = local_declaration_names(body)
 
     {declarations, _next_order} =
       Enum.reduce(body, {[], 1}, fn node, {acc, next_order} ->
         if Program.declaration?(node) do
           {declaration, next_order} =
-            declaration_tree(node, module, source, next_order, 0, nil, recursive?, max_depth)
+            declaration_tree(
+              node,
+              module,
+              source,
+              next_order,
+              0,
+              nil,
+              recursive?,
+              max_depth,
+              dependencies?,
+              local_names
+            )
 
           {[declaration | acc], next_order}
         else
@@ -353,9 +395,35 @@ defmodule Cure.Refactor.Analysis do
     Enum.reverse(declarations)
   end
 
-  defp declaration_tree(node, module, source, source_order, depth, parent, recursive?, max_depth) do
+  defp local_declaration_names(body) do
+    body
+    |> Enum.filter(&Program.declaration?/1)
+    |> Enum.map(fn {_tag, meta, _body} -> declaration_name(meta, nil) end)
+    |> Enum.filter(&(is_binary(&1) and &1 != ""))
+    |> MapSet.new()
+  end
+
+  defp declaration_tree(
+         node,
+         module,
+         source,
+         source_order,
+         depth,
+         parent,
+         recursive?,
+         max_depth,
+         dependencies?,
+         local_names
+       ) do
     declaration = declaration(node, module, source, source_order)
     declaration = %{declaration | depth: depth, parent: parent}
+
+    declaration =
+      if dependencies? do
+        %{declaration | references: references(node, module, local_names)}
+      else
+        declaration
+      end
 
     if recursive? and below_depth_limit?(depth, max_depth) do
       {children, next_order} =
@@ -371,7 +439,9 @@ defmodule Cure.Refactor.Analysis do
               depth + 1,
               declaration.identity,
               recursive?,
-              max_depth
+              max_depth,
+              dependencies?,
+              local_names
             )
 
           {[nested | acc], next_order}
@@ -408,7 +478,7 @@ defmodule Cure.Refactor.Analysis do
 
   defp collect_declaration_nodes(_other), do: []
 
-  defp format_declaration(declaration, recursive?) do
+  defp format_declaration(declaration, recursive?, dependencies?) do
     indent = String.duplicate("  ", declaration.depth)
     span = format_span(declaration.span)
     visibility = declaration.visibility || :n_a
@@ -418,11 +488,32 @@ defmodule Cure.Refactor.Analysis do
       "#{indent}#{declaration.source_order}. #{declaration.identity || declaration.name}#{arity} " <>
         "(#{declaration.kind}, #{visibility}, #{span})"
 
-    if recursive? do
-      [line | Enum.flat_map(declaration.children, &format_declaration(&1, true))]
-    else
-      [line]
-    end
+    references =
+      if dependencies? and declaration.references != [] do
+        [
+          "#{indent}  references: " <>
+            Enum.map_join(declaration.references, ", ", &format_reference/1)
+        ]
+      else
+        []
+      end
+
+    children =
+      if recursive? do
+        Enum.flat_map(
+          declaration.children,
+          &format_declaration(&1, true, dependencies?)
+        )
+      else
+        []
+      end
+
+    [line | references ++ children]
+  end
+
+  defp format_reference(%Reference{name: name, identity: identity, kind: kind}) do
+    target = if identity, do: Atom.to_string(identity), else: name
+    "#{target} (#{kind})"
   end
 
   defp format_import(import) do
@@ -432,6 +523,7 @@ defmodule Cure.Refactor.Analysis do
 
   defp statistics(declarations, imports) do
     all = flatten_declarations(declarations)
+    references = Enum.flat_map(all, & &1.references)
 
     %{
       "top_level_declarations" => length(declarations),
@@ -440,7 +532,10 @@ defmodule Cure.Refactor.Analysis do
       "max_depth" => if(all == [], do: 0, else: Enum.max_by(all, & &1.depth).depth),
       "declarations_by_kind" => frequencies(all, &Atom.to_string(&1.kind)),
       "declarations_by_visibility" => frequencies(all, &to_string(&1.visibility || :n_a)),
-      "imports_by_source" => frequencies(imports, & &1.source)
+      "imports_by_source" => frequencies(imports, & &1.source),
+      "references" => length(references),
+      "unresolved_references" => Enum.count(references, &is_nil(&1.identity)),
+      "references_by_kind" => frequencies(references, &Atom.to_string(&1.kind))
     }
   end
 
@@ -459,8 +554,83 @@ defmodule Cure.Refactor.Analysis do
       "  maximum depth: #{stats["max_depth"]}",
       "  declarations by kind: #{inspect(stats["declarations_by_kind"], pretty: false)}",
       "  declarations by visibility: #{inspect(stats["declarations_by_visibility"], pretty: false)}",
-      "  imports by source: #{inspect(stats["imports_by_source"], pretty: false)}"
+      "  imports by source: #{inspect(stats["imports_by_source"], pretty: false)}",
+      "  references: #{stats["references"]} (#{stats["unresolved_references"]} unresolved)",
+      "  references by kind: #{inspect(stats["references_by_kind"], pretty: false)}"
     ]
+  end
+
+  defp references(node, module, local_names) do
+    node
+    |> collect_references([])
+    |> Enum.reverse()
+    |> Enum.uniq_by(&{&1.name, &1.kind, &1.span})
+    |> Enum.map(fn %{name: name, kind: kind, span: span} ->
+      %Reference{
+        name: name,
+        identity: reference_identity(name, module, local_names),
+        kind: kind,
+        span: span
+      }
+    end)
+  end
+
+  defp collect_references({:function_call, meta, args}, acc) when is_list(meta) do
+    acc =
+      case Keyword.get(meta, :name) do
+        name when is_binary(name) or is_atom(name) ->
+          [%{name: to_string(name), kind: reference_kind(meta), span: node_span(meta)} | acc]
+
+        _ ->
+          acc
+      end
+
+    acc = collect_references(args, acc)
+    collect_references(Keyword.values(meta), acc)
+  end
+
+  defp collect_references({tag, meta, children}, acc) when is_atom(tag) and is_list(meta) do
+    acc = collect_references(children, acc)
+    collect_references(Keyword.values(meta), acc)
+  end
+
+  defp collect_references(items, acc) when is_list(items),
+    do: Enum.reduce(items, acc, &collect_references/2)
+
+  defp collect_references(tuple, acc) when is_tuple(tuple),
+    do: tuple |> Tuple.to_list() |> Enum.reduce(acc, &collect_references/2)
+
+  defp collect_references(map, acc) when is_map(map),
+    do: map |> Map.values() |> Enum.reduce(acc, &collect_references/2)
+
+  defp collect_references(_other, acc), do: acc
+
+  defp reference_kind(meta) do
+    cond do
+      Keyword.get(meta, :function_type, false) -> :type
+      Keyword.get(meta, :record, false) -> :record
+      true -> :call
+    end
+  end
+
+  defp reference_identity(name, module, local_names) do
+    cond do
+      MapSet.member?(local_names, name) -> Name.qualify(module, name)
+      String.contains?(name, ".") -> qualified_identity(name)
+      true -> nil
+    end
+  end
+
+  defp qualified_identity(name) do
+    case String.split(name, ".", trim: true) do
+      parts when length(parts) >= 2 ->
+        member = List.last(parts)
+        owner = parts |> Enum.drop(-1) |> Enum.join(".")
+        Name.qualify(owner, member)
+
+      _ ->
+        nil
+    end
   end
 
   defp declaration({:function_def, meta, _body}, module, source, source_order) do
@@ -559,7 +729,17 @@ defmodule Cure.Refactor.Analysis do
       line_count: declaration.line_count,
       source_order: declaration.source_order,
       span: span_to_map(declaration.span),
-      children: Enum.map(declaration.children, &declaration_to_map/1)
+      children: Enum.map(declaration.children, &declaration_to_map/1),
+      references: Enum.map(declaration.references, &reference_to_map/1)
+    }
+  end
+
+  defp reference_to_map(%Reference{} = reference) do
+    %{
+      name: reference.name,
+      identity: if(reference.identity, do: Atom.to_string(reference.identity)),
+      kind: Atom.to_string(reference.kind),
+      span: span_to_map(reference.span)
     }
   end
 

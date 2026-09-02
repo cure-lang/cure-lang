@@ -114,4 +114,26 @@ defmodule Cure.Refactor.AnalysisTest do
     assert rendered =~ "Nested#Marker"
     assert rendered =~ "  2. Nested#mark/1"
   end
+
+  test "records canonical local and unresolved dependency references", %{dir: dir} do
+    path = Path.join(dir, "dependencies.cure")
+
+    File.write!(
+      path,
+      "mod Deps\n  fn answer() -> Int = helper() + external()\n  fn helper() -> Int = 41\n"
+    )
+
+    assert {:ok, report} = Analysis.analyze(path, dependencies: true, stats: true)
+    assert [%{name: "answer", references: references}, _helper] = report.declarations
+
+    assert [%{name: "helper", identity: :"Deps#helper", kind: :call}, %{name: "external", identity: nil, kind: :call}] =
+             references
+
+    assert report.stats["references"] == 2
+    assert report.stats["unresolved_references"] == 1
+    assert report.stats["references_by_kind"] == %{"call" => 2}
+
+    rendered = Analysis.format(report, dependencies: true)
+    assert rendered =~ "references: Deps#helper (call), external (call)"
+  end
 end
