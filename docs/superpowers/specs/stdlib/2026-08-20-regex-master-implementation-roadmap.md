@@ -4340,6 +4340,27 @@ introduced. This mirrors the existing successful split between
 `AtomicSelectedPathTracePackage`, rather than asking normalization to solve all
 three existential boundaries in one constructor application.
 
+A downstream two-stage prototype narrows the required publication point
+further. The small canonical Here pair by itself type-checks through a named
+factory, but attaching it to the already-built skipped-empty package requires
+reopening the outer erased inner-equivalence first. That downstream match again
+drives Runtime elaboration outside the established range. Without the equality
+the factory call instead reports the expected dependent-index mismatch, because
+the failed candidate's state/capture context has not yet been identified with
+the selected active candidate. Therefore staging the data types alone is not
+enough if all stages are reconstructed at the final existential fold.
+
+Publish the canonical child pair earlier, at the evaluator branch that already
+constructs both `AtomicPathCommitAfterFailureChildPacked` and
+`AtomicSelectedPathTraceActivePacked` (or at their nearest common relevant
+result boundary), before either side is hidden behind the recursive commit and
+selected-trace existentials. Thread that small pair through the existing
+packages as a relevant field. The final destination-rejection fold should only
+pattern-match an already-published pair and the direction classifier; it must
+not recompute the pair after matching `inner_equivalence`. Preserve the same
+single-authority rule: the pair is created from the exact cursor packages used
+by those two constructors, never from a later re-scan or reconstructed proof.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
