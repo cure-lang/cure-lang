@@ -1582,16 +1582,25 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              ~r/fn atomic_path_active_child_shape_reverse_package_fold\(.*AtomicPathActiveChildShapeReversePacked\(failure, selected, authority\) ->\s*case\(failure, selected, authority\)/s
 
     assert source =~
-             ~r/fn\(branch\) -> atomic_path_active_child_shape_here_package_fold\(\s*branch,\s*fn\(failure, selected\) -> here_case\(\)/s
+             "type AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePackage("
 
     assert source =~
-             ~r/fn\(branch\) -> atomic_path_active_child_shape_there_package_fold\(\s*branch,\s*fn\(failure, selected, authority\) -> there_case\(\)/s
+             "type AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePackage("
 
     assert source =~
-             ~r/fn\(branch\) -> atomic_path_active_child_shape_reverse_package_fold\(\s*branch,\s*fn\(failure, selected, authority\) -> reverse_case\(\)/s
+             "type AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage("
 
     assert source =~
-             ~r/atomic_path_recursive_commit_selected_child_same_continuation_dispatch\(.*after_failure_here_case: \(\) -> Empty,.*after_failure_there_case: \(\) -> Empty,.*after_failure_reverse_case: \(\) -> Empty,/s
+             ~r/fn\(failure, selected\) -> here_case\(\s*AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePacked\(failure\)/s
+
+    assert source =~
+             ~r/fn\(failure, selected, authority\) -> there_case\(\s*AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePacked\(failure\)/s
+
+    assert source =~
+             ~r/fn\(failure, selected, authority\) -> reverse_case\(\s*AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePacked\(failure\)/s
+
+    assert source =~
+             ~r/atomic_path_recursive_commit_selected_child_same_continuation_dispatch\(.*after_failure_here_case: \(AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePackage\(.*after_failure_there_case: \(AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePackage\(.*after_failure_reverse_case: \(AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage\(/s
 
     assert source =~
              ~r/AtomicPathRecursiveCommitSelectedChildSameAfterFailurePacked\(aligned\) ->\s*atomic_path_recursive_commit_selected_child_same_after_failure_unclassified_fold\(\s*aligned,\s*after_failure_here_case,\s*after_failure_there_case,\s*after_failure_reverse_case,/s

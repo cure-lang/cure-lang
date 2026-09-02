@@ -4245,6 +4245,20 @@ tests pass. Next consume this reverse package at the common induction boundary
 alongside the already-refined `AfterFailure` Here/later/reverse cases, then
 connect projected `FromChild` and `PastEscaped` packages recursively.
 
+The three local `AfterFailure` directions now have the same proof-bearing
+interface as `PastRejected`. Separate Here, later-sibling, and reverse
+one-constructor packages retain the exact destination-rejected skipped-empty
+authority selected by the runtime shape comparison. The typed shape folds
+construct those packages from their original failure payload; the common
+continuation dispatcher no longer accepts nullary obligations that have lost
+the child refutation, selected suffix, aligned source, or cursor packages.
+This is the final local carrier boundary: the common induction can open each
+package in `Empty` and recurse or contradict using its exact data, without
+rematching a broad aligned existential. The complete Regex chain and all 27
+structural tests pass. Next implement the package consumers, beginning with
+Here (recursive child refutation), then later sibling and reverse, and combine
+them with the proved `PastRejected` reverse consumer.
+
 `atomic_path_recursive_commit_selected_child_same_destination_rejected_alignment_fold`
 constructs that shape carrier only after exposing the exact local
 `DestinationRejected` child and selected `Active` transition. The previously

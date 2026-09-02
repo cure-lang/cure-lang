@@ -9556,6 +9556,19 @@ mod Std.Regex.Runtime
   type AtomicPathRecursiveCommitSelectedChildSamePastRejectedReversePackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices ()
     AtomicPathRecursiveCommitSelectedChildSamePastRejectedReversePacked : (empty: AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage(depth, n, machine)) -> AtomicPathRecursiveCommitSelectedChildSamePastRejectedReversePackage(depth, n, machine)
 
+  ## Proof-bearing local destination-rejection branches. Each runtime shape
+  ## decision retains the exact skipped-empty authority that produced it, so
+  ## the common induction receives construction-site evidence rather than a
+  ## nullary obligation detached from the failed and selected child pair.
+  type AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices ()
+    AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePacked : (empty: AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage(depth, n, machine)) -> AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePackage(depth, n, machine)
+
+  type AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices ()
+    AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePacked : (empty: AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage(depth, n, machine)) -> AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePackage(depth, n, machine)
+
+  type AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices ()
+    AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePacked : (empty: AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage(depth, n, machine)) -> AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage(depth, n, machine)
+
   fn atomic_path_recursive_commit_selected_child_same_aligned_package(
     {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
     package: AtomicPathRecursiveCommitSelectedChildSameExistentialPackage(
@@ -10146,9 +10159,15 @@ mod Std.Regex.Runtime
     package: AtomicPathRecursiveCommitSelectedChildSameContinuationPackage(
       depth, n, machine
     ),
-    after_failure_here_case: () -> Empty,
-    after_failure_there_case: () -> Empty,
-    after_failure_reverse_case: () -> Empty,
+    after_failure_here_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePackage(
+      depth, n, machine
+    )) -> Empty,
+    after_failure_there_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePackage(
+      depth, n, machine
+    )) -> Empty,
+    after_failure_reverse_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage(
+      depth, n, machine
+    )) -> Empty,
     past_rejected_empty_case: (AtomicPathRecursiveCommitSelectedChildSamePastRejectedReversePackage(
       depth, n, machine
     )) -> Empty,
@@ -10510,9 +10529,15 @@ mod Std.Regex.Runtime
     package: AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage(
       depth, n, machine
     ),
-    here_case: () -> Empty,
-    there_case: () -> Empty,
-    reverse_case: () -> Empty,
+    here_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePackage(
+      depth, n, machine
+    )) -> Empty,
+    there_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePackage(
+      depth, n, machine
+    )) -> Empty,
+    reverse_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage(
+      depth, n, machine
+    )) -> Empty,
     invalid_case: () -> Empty
   ) -> Empty = match package
     AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPacked(
@@ -10553,15 +10578,21 @@ mod Std.Regex.Runtime
                     ),
                     fn(branch) -> atomic_path_active_child_shape_here_package_fold(
                       branch,
-                      fn(failure, selected) -> here_case()
+                      fn(failure, selected) -> here_case(
+                        AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePacked(failure)
+                      )
                     ),
                     fn(branch) -> atomic_path_active_child_shape_there_package_fold(
                       branch,
-                      fn(failure, selected, authority) -> there_case()
+                      fn(failure, selected, authority) -> there_case(
+                        AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePacked(failure)
+                      )
                     ),
                     fn(branch) -> atomic_path_active_child_shape_reverse_package_fold(
                       branch,
-                      fn(failure, selected, authority) -> reverse_case()
+                      fn(failure, selected, authority) -> reverse_case(
+                        AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePacked(failure)
+                      )
                     )
                   )
               AtomicPathFailureInputExhaustedAuthority() -> invalid_case()
@@ -10585,9 +10616,15 @@ mod Std.Regex.Runtime
     aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
       depth, n, machine
     ),
-    here_case: () -> Empty,
-    there_case: () -> Empty,
-    reverse_case: () -> Empty,
+    here_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePackage(
+      depth, n, machine
+    )) -> Empty,
+    there_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePackage(
+      depth, n, machine
+    )) -> Empty,
+    reverse_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage(
+      depth, n, machine
+    )) -> Empty,
     invalid_case: () -> Empty
   ) -> Empty =
     atomic_path_recursive_commit_selected_child_same_skipped_tail_empty_fold(
