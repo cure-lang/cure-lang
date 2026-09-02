@@ -79,4 +79,39 @@ defmodule Cure.Refactor.AnalysisTest do
 
     assert [%{kind: "declarations_outside_module", count: 1, first_name: "outside"}] = report.warnings
   end
+
+  test "recursively reports nested declarations with canonical parents and stats", %{dir: dir} do
+    path = Path.join(dir, "nested.cure")
+
+    File.write!(
+      path,
+      "mod Nested\n  interface Marker(t)\n    fn mark(value: t) -> Bool\n"
+    )
+
+    assert {:ok, report} = Analysis.analyze(path, recursive: true, stats: true)
+    assert report.declaration_count == 1
+
+    assert [%{name: "Marker", kind: :interface, depth: 0, children: [member]} = marker] =
+             report.declarations
+
+    assert marker.identity == :"Nested#Marker"
+    assert member.name == "mark"
+    assert member.kind == :function
+    assert member.identity == :"Nested#mark"
+    assert member.depth == 1
+    assert member.parent == marker.identity
+
+    assert report.stats["top_level_declarations"] == 1
+    assert report.stats["total_declarations"] == 2
+    assert report.stats["nested_declarations"] == 1
+    assert report.stats["max_depth"] == 1
+    assert report.stats["declarations_by_kind"] == %{"function" => 1, "interface" => 1}
+
+    assert {:ok, shallow} = Analysis.analyze(path, recursive: true, max_depth: 0)
+    assert [%{children: []}] = shallow.declarations
+
+    rendered = Analysis.format(report, recursive: true)
+    assert rendered =~ "Nested#Marker"
+    assert rendered =~ "  2. Nested#mark/1"
+  end
 end

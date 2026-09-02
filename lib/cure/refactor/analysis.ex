@@ -10,7 +10,10 @@ defmodule Cure.Refactor.Analysis.Declaration do
     :visibility,
     :span,
     :line_count,
-    :source_order
+    :source_order,
+    depth: 0,
+    parent: nil,
+    children: []
   ]
 
   @type t :: %__MODULE__{
@@ -21,7 +24,10 @@ defmodule Cure.Refactor.Analysis.Declaration do
           visibility: atom() | nil,
           span: Cure.Diagnostic.Span.t() | nil,
           line_count: pos_integer(),
-          source_order: pos_integer()
+          source_order: pos_integer(),
+          depth: non_neg_integer(),
+          parent: atom() | nil,
+          children: [t()]
         }
 end
 
@@ -37,6 +43,7 @@ defmodule Cure.Refactor.Analysis.Report do
     :declaration_count,
     :imports,
     :declarations,
+    stats: %{},
     warnings: [],
     checked?: false
   ]
@@ -49,6 +56,7 @@ defmodule Cure.Refactor.Analysis.Report do
           declaration_count: non_neg_integer(),
           imports: [map()],
           declarations: [Cure.Refactor.Analysis.Declaration.t()],
+          stats: map(),
           warnings: [map()],
           checked?: boolean()
         }
@@ -60,8 +68,10 @@ defmodule Cure.Refactor.Analysis do
 
   The analyzer deliberately stops at the parsed module boundary. It reports
   authored declarations and imports in source order, preserving canonical
-  declaration identities and exact source spans. It never edits a source file
-  and never infers a split from line ranges. A future planning/apply phase can
+  declaration identities and exact source spans. Recursive mode adds a nested
+  declaration tree without treating ordinary expressions as members; stats are
+  deterministic and derived from that tree. It never edits a source file and
+  never infers a split from line ranges. A future planning/apply phase can
   build on this record after a declaration-level dependency projection is
   exposed by the checked compiler pipeline.
 
@@ -91,13 +101,15 @@ defmodule Cure.Refactor.Analysis do
     expanded = Path.expand(path)
 
     with :ok <- validate_source_path(expanded),
+         {:ok, opts} <- validate_analysis_options(opts),
          {:ok, source} <- read_source(expanded),
          {:ok, ast} <- parse_source(source, expanded, opts),
          {:ok, module, body, extras} <- module_body(ast, expanded),
          {:ok, checked?} <- maybe_check(expanded, opts) do
-      declarations = declarations(body, module, source)
+      declarations = declarations(body, module, source, opts)
       imports = imports(body)
       warnings = out_of_module_warnings(extras)
+      stats = if Keyword.get(opts, :stats, false), do: statistics(declarations, imports), else: %{}
 
       {:ok,
        %Report{
@@ -108,6 +120,7 @@ defmodule Cure.Refactor.Analysis do
          declaration_count: length(declarations),
          imports: imports,
          declarations: declarations,
+         stats: stats,
          warnings: warnings,
          checked?: checked?
        }}
@@ -130,22 +143,30 @@ defmodule Cure.Refactor.Analysis do
       checked: report.checked?,
       imports: Enum.map(report.imports, &import_to_map/1),
       declarations: Enum.map(report.declarations, &declaration_to_map/1),
+      stats: report.stats,
       warnings: report.warnings
     }
   end
 
   @doc "Render the compact human-readable report used by the Mix task."
-  @spec format(Report.t()) :: String.t()
-  def format(%Report{} = report) do
+  @spec format(Report.t(), keyword()) :: String.t()
+  def format(%Report{} = report, opts \\ []) do
     declaration_lines =
-      Enum.map(report.declarations, fn declaration ->
-        span = format_span(declaration.span)
-        visibility = declaration.visibility || :n_a
-        arity = if is_integer(declaration.arity), do: "/#{declaration.arity}", else: ""
+      Enum.flat_map(report.declarations, &format_declaration(&1, Keyword.get(opts, :recursive, false)))
 
-        "  #{declaration.source_order}. #{declaration.identity || declaration.name}#{arity} " <>
-          "(#{declaration.kind}, #{visibility}, #{span})"
-      end)
+    import_lines =
+      if Keyword.get(opts, :verbose, false) do
+        ["", "Imports:"] ++ Enum.map(report.imports, &format_import/1)
+      else
+        []
+      end
+
+    stats_lines =
+      if report.stats == %{} do
+        []
+      else
+        ["", "Stats:"] ++ format_statistics(report.stats)
+      end
 
     ([
        "Module: #{report.module}",
@@ -157,7 +178,7 @@ defmodule Cure.Refactor.Analysis do
        "Checked: #{report.checked?}",
        "",
        "Declarations:"
-     ] ++ declaration_lines ++ [""])
+     ] ++ declaration_lines ++ import_lines ++ stats_lines ++ [""])
     |> Enum.join("\n")
   end
 
@@ -166,6 +187,14 @@ defmodule Cure.Refactor.Analysis do
       :ok
     else
       {:error, {:usage_error, "refactor analysis requires a `.cure` source: #{path}"}}
+    end
+  end
+
+  defp validate_analysis_options(opts) do
+    case Keyword.get(opts, :max_depth, :infinity) do
+      :infinity -> {:ok, opts}
+      depth when is_integer(depth) and depth >= 0 -> {:ok, opts}
+      depth -> {:error, {:usage_error, "--max-depth must be a non-negative integer, got: #{inspect(depth)}"}}
     end
   end
 
@@ -305,16 +334,133 @@ defmodule Cure.Refactor.Analysis do
     end)
   end
 
-  defp declarations(body, module, source) do
-    body
-    |> Enum.with_index(1)
-    |> Enum.flat_map(fn {node, source_order} ->
-      if Program.declaration?(node) do
-        [declaration(node, module, source, source_order)]
-      else
-        []
-      end
-    end)
+  defp declarations(body, module, source, opts) do
+    recursive? = Keyword.get(opts, :recursive, false)
+    max_depth = Keyword.get(opts, :max_depth, :infinity)
+
+    {declarations, _next_order} =
+      Enum.reduce(body, {[], 1}, fn node, {acc, next_order} ->
+        if Program.declaration?(node) do
+          {declaration, next_order} =
+            declaration_tree(node, module, source, next_order, 0, nil, recursive?, max_depth)
+
+          {[declaration | acc], next_order}
+        else
+          {acc, next_order}
+        end
+      end)
+
+    Enum.reverse(declarations)
+  end
+
+  defp declaration_tree(node, module, source, source_order, depth, parent, recursive?, max_depth) do
+    declaration = declaration(node, module, source, source_order)
+    declaration = %{declaration | depth: depth, parent: parent}
+
+    if recursive? and below_depth_limit?(depth, max_depth) do
+      {children, next_order} =
+        node
+        |> nested_declaration_nodes()
+        |> Enum.reduce({[], source_order + 1}, fn child, {acc, next_order} ->
+          {nested, next_order} =
+            declaration_tree(
+              child,
+              module,
+              source,
+              next_order,
+              depth + 1,
+              declaration.identity,
+              recursive?,
+              max_depth
+            )
+
+          {[nested | acc], next_order}
+        end)
+
+      {%{declaration | children: Enum.reverse(children)}, next_order}
+    else
+      {declaration, source_order + 1}
+    end
+  end
+
+  defp below_depth_limit?(_depth, :infinity), do: true
+  defp below_depth_limit?(depth, max_depth), do: depth < max_depth
+
+  # Declarations are represented by arbitrary AST nodes. Walk their third
+  # field and stop at the next declaration so each child owns traversal of its
+  # own body. This finds interface members and nested `where` declarations
+  # without mistaking ordinary function calls for structural members.
+  defp nested_declaration_nodes(node) when is_tuple(node) and tuple_size(node) == 3,
+    do: node |> elem(2) |> collect_declaration_nodes()
+
+  defp collect_declaration_nodes(items) when is_list(items),
+    do: Enum.flat_map(items, &collect_declaration_nodes/1)
+
+  defp collect_declaration_nodes({tag, meta, children} = node) when is_atom(tag) and is_list(meta) do
+    if Program.declaration?(node), do: [node], else: collect_declaration_nodes(children)
+  end
+
+  defp collect_declaration_nodes(tuple) when is_tuple(tuple),
+    do: tuple |> Tuple.to_list() |> Enum.flat_map(&collect_declaration_nodes/1)
+
+  defp collect_declaration_nodes(map) when is_map(map),
+    do: map |> Map.values() |> Enum.flat_map(&collect_declaration_nodes/1)
+
+  defp collect_declaration_nodes(_other), do: []
+
+  defp format_declaration(declaration, recursive?) do
+    indent = String.duplicate("  ", declaration.depth)
+    span = format_span(declaration.span)
+    visibility = declaration.visibility || :n_a
+    arity = if is_integer(declaration.arity), do: "/#{declaration.arity}", else: ""
+
+    line =
+      "#{indent}#{declaration.source_order}. #{declaration.identity || declaration.name}#{arity} " <>
+        "(#{declaration.kind}, #{visibility}, #{span})"
+
+    if recursive? do
+      [line | Enum.flat_map(declaration.children, &format_declaration(&1, true))]
+    else
+      [line]
+    end
+  end
+
+  defp format_import(import) do
+    items = if import.items == [], do: "", else: " (#{Enum.join(import.items, ", ")})"
+    "  #{import.source_order}. #{import.import_type} #{import.source}#{items}"
+  end
+
+  defp statistics(declarations, imports) do
+    all = flatten_declarations(declarations)
+
+    %{
+      "top_level_declarations" => length(declarations),
+      "total_declarations" => length(all),
+      "nested_declarations" => max(length(all) - length(declarations), 0),
+      "max_depth" => if(all == [], do: 0, else: Enum.max_by(all, & &1.depth).depth),
+      "declarations_by_kind" => frequencies(all, &Atom.to_string(&1.kind)),
+      "declarations_by_visibility" => frequencies(all, &to_string(&1.visibility || :n_a)),
+      "imports_by_source" => frequencies(imports, & &1.source)
+    }
+  end
+
+  defp flatten_declarations(declarations),
+    do: Enum.flat_map(declarations, fn declaration -> [declaration | flatten_declarations(declaration.children)] end)
+
+  defp frequencies(items, selector), do: items |> Enum.map(selector) |> Enum.frequencies() |> sort_map()
+
+  defp sort_map(map), do: map |> Enum.sort_by(&elem(&1, 0)) |> Map.new()
+
+  defp format_statistics(stats) do
+    [
+      "  top-level declarations: #{stats["top_level_declarations"]}",
+      "  total declarations: #{stats["total_declarations"]}",
+      "  nested declarations: #{stats["nested_declarations"]}",
+      "  maximum depth: #{stats["max_depth"]}",
+      "  declarations by kind: #{inspect(stats["declarations_by_kind"], pretty: false)}",
+      "  declarations by visibility: #{inspect(stats["declarations_by_visibility"], pretty: false)}",
+      "  imports by source: #{inspect(stats["imports_by_source"], pretty: false)}"
+    ]
   end
 
   defp declaration({:function_def, meta, _body}, module, source, source_order) do
@@ -408,9 +554,12 @@ defmodule Cure.Refactor.Analysis do
       identity: if(declaration.identity, do: Atom.to_string(declaration.identity)),
       arity: declaration.arity,
       visibility: if(declaration.visibility, do: Atom.to_string(declaration.visibility)),
+      depth: declaration.depth,
+      parent: if(declaration.parent, do: Atom.to_string(declaration.parent)),
       line_count: declaration.line_count,
       source_order: declaration.source_order,
-      span: span_to_map(declaration.span)
+      span: span_to_map(declaration.span),
+      children: Enum.map(declaration.children, &declaration_to_map/1)
     }
   end
 
