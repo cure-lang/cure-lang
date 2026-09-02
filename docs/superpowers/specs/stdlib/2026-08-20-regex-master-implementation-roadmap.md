@@ -4445,17 +4445,20 @@ Runtime CPU-bound past four minutes. Do not add a downstream projection or
 equality whose normal form traverses
 `AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage`.
 
-Discharge the fixed `Here` case at the existing destination-rejection
-alignment match instead. At that point `child_package`,
-`child_cursor_package`, `selected_suffix`, and the relevant
-`AtomicPathActiveChildShapeHerePacked` branch are simultaneously live and
-already correlated. Introduce a package-native `Empty` theorem that accepts
-those exact local arguments (not a newly existentialized copy), consumes the
-destination-rejected child and selected trace directly, and call it from the
-Here arm before either authority is hidden in a callback carrier. Keep only
-the genuinely recursive There and Reverse branches in downstream carriers.
-This is the sole remaining design that neither asks erased evidence to select
-runtime control nor asks the normalizer to reopen the complete outer package.
+Consume the fixed `Here` case at the existing destination-rejection alignment
+match instead. At that point `child_package`, `child_cursor_package`,
+`selected_suffix`, and the relevant `AtomicPathActiveChildShapeHerePacked`
+branch are simultaneously live and already correlated. `Here` is not itself a
+terminal contradiction: the rejected head can contain another destination
+rejection, so the consumer must receive the structurally smaller recursive
+induction result rather than pretending every head reaches an existing leaf.
+Implement the common induction as a first-order recursive theorem whose
+`Here` step is invoked while those exact local arguments are live; terminal
+child failures use the existing erased leaves, recursive destination failures
+use the induction hypothesis, and There/Reverse retain their ordered sibling
+obligations. Do not first hide the arguments in a new carrier. This is the
+remaining design that neither asks erased evidence to select runtime control
+nor asks the normalizer to reopen the complete outer package.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
@@ -4565,10 +4568,18 @@ controls `(*NOTEMPTY)`, `(*NOTEMPTY_ATSTART)`, and `(*NOTEMPTY_ATEND)` receive
 `:UnsupportedRegexEmptyMatchControl`. Neither family is silently treated as an
 empty atom: Cure's resource policy and empty-match policy are explicit in the
 typed APIs and cannot be replaced by mutable host controls.
-Remaining Phase 3 work is grapheme clusters,
-duplicate-name and capture-layout policy, other finite control normalizations,
-and the remaining control families below. `(*FAIL)`/`(*F)` and terminal `(*ACCEPT)`
-are already implemented as finite normalizations.
+Remaining Phase 3 work is grapheme clusters, any additional capture-layout
+compatibility, other finite control normalizations, and the remaining control
+families below. `(*FAIL)`/`(*F)` and terminal `(*ACCEPT)` are already
+implemented as finite normalizations.
+
+The capture-name policy is now explicit and executable. Every named capture
+has one unique typed slot; duplicate declarations retain the existing
+`:DuplicateRegexCaptureName` diagnostic. PCRE's `(?J)` and leading
+`(*DUPNAMES)` opt-ins are recognized separately and rejected as
+`:UnsupportedRegexDuplicateNames`, with a diagnostic explaining that enabling
+them would destroy the one-name/one-slot typed lookup invariant. They no
+longer fall through to an unrelated quantifier or generic group error.
 
 **Read:**
 

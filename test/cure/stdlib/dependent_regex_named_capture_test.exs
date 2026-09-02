@@ -276,6 +276,8 @@ defmodule Cure.Stdlib.DependentRegexNamedCaptureTest do
       {~S"(?<>)", :EmptyRegexCaptureName},
       {~S"(?<1word>a)", :MalformedRegexCaptureName},
       {~S"(?<word>a)(?<word>b)", :DuplicateRegexCaptureName},
+      {~S"(?J)(?<word>a)(?<word>b)", :UnsupportedRegexDuplicateNames},
+      {~S"(*DUPNAMES)(?<word>a)(?<word>b)", :UnsupportedRegexDuplicateNames},
       {~S"(?<word>a", :UnclosedRegexGroup}
     ]
 

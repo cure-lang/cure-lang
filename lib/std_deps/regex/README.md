@@ -348,7 +348,8 @@ The planned families are:
 - remaining finite start/control normalizations, with `(*UTF)`, `(*UTF8)`,
   `(*UCP)`, and `(*NO_JIT)` now discharged and `(*UTF16)`/`(*UTF32)` explicitly
   rejected;
-- duplicate-name policy and any remaining capture-layout compatibility;
+- any remaining capture-layout compatibility; Cure assigns every named
+  capture one unique typed slot and rejects PCRE duplicate-name enablement;
 - generalized assertion conditionals (beyond the finite lookahead/lookbehind
   forms above) and the admitted assertion/atomic combinations;
 - finite controls such as `(*THEN)`, `(*PRUNE)`, `(*SKIP)`, and `(*COMMIT)`;
