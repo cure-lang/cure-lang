@@ -13,6 +13,24 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              ~r/AtomicPathMembersYes\(matched, remaining_input, routine, selected_whole, selected_current,.*?let rejected_selected_pair = atomic_path_rejected_selected_trace_pair_package\(\s*child_suffix_package,\s*trace_package\s*\).*?AtomicPathSkippedPrefixStructureRejectedConsPacked\(\s*parent_skipped_evidence,\s*skipped_structure,\s*rejected_selected_pair\s*\)/s
   end
 
+  test "recursive child direction retains any published rejected-selection pair" do
+    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+
+    assert source =~ "type AtomicPathRejectedSelectedTracePairAvailability("
+    assert source =~ "fn atomic_path_skipped_prefix_rejected_selected_pair_availability("
+
+    assert source =~
+             ~r/AtomicPathSkippedPrefixStructureRejectedConsPacked\(_, _, pair\) ->\s*AtomicPathRejectedSelectedTracePairAvailable\(/s
+
+    for package <- ["Here", "There", "Reverse"] do
+      assert source =~
+               ~r/type AtomicPathRecursiveCommitSelectedChildSameAfterFailure#{package}Package.*availability: AtomicPathRejectedSelectedTracePairAvailability/s
+    end
+
+    assert source =~
+             ~r/AtomicSelectedPathTraceActivePacked\(.*child_skipped_structure.*let rejected_selected_availability = atomic_path_skipped_prefix_rejected_selected_pair_availability\(\s*child_skipped_structure\s*\)/s
+  end
+
   test "selected atomic transitions retain the child origin certificate" do
     source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
 
@@ -1603,13 +1621,13 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              "type AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage("
 
     assert source =~
-             ~r/fn\(failure, selected\) -> here_case\(\s*AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePacked\(failure\)/s
+             ~r/fn\(failure, selected\) -> here_case\(\s*AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePacked\(\s*failure,\s*rejected_selected_availability/s
 
     assert source =~
-             ~r/fn\(failure, selected, authority\) -> there_case\(\s*AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePacked\(failure\)/s
+             ~r/fn\(failure, selected, authority\) -> there_case\(\s*AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePacked\(\s*failure,\s*rejected_selected_availability/s
 
     assert source =~
-             ~r/fn\(failure, selected, authority\) -> reverse_case\(\s*AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePacked\(failure\)/s
+             ~r/fn\(failure, selected, authority\) -> reverse_case\(\s*AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePacked\(\s*failure,\s*rejected_selected_availability/s
 
     assert source =~
              ~r/atomic_path_recursive_commit_selected_child_same_continuation_dispatch\(.*after_failure_here_case: \(AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePackage\(.*after_failure_there_case: \(AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePackage\(.*after_failure_reverse_case: \(AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage\(/s

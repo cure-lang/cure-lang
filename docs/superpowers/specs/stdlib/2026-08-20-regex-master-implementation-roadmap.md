@@ -4375,6 +4375,19 @@ those published authorities; it must not recompute a three-way pair after
 matching `inner_equivalence`, re-scan a cursor, or assume a nonexistent common
 evaluator outcome.
 
+The first threading slice is now present. The selected active trace's exact
+`child_skipped_structure` is traversed relevantly, distinguishing a spine with
+no ordinary rejection from one carrying an
+`AtomicPathRejectedSelectedTracePairPackage`; escaped commits are not
+misclassified as rejected children. The result is hidden behind the indexed
+`AtomicPathRejectedSelectedTracePairAvailability` authority and retained by
+each AfterFailure Here/There/Reverse package. All dependent indices remain
+inside the existential pair, while the relevant availability constructor can
+guide the next proof fold without inspecting erased evidence. The next slice
+must consume this authority: Here should discharge the structurally empty
+selected-child prefix, while later/reverse recurse through the retained
+rejected child or the separately classified escaped-commit path.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
