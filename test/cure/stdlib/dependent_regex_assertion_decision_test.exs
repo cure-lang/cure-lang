@@ -368,6 +368,25 @@ defmodule Cure.Stdlib.DependentRegexAssertionDecisionTest do
     assert recursive =~ "selection_from_current"
   end
 
+  test "atomic recursive sibling induction delegates to the canonical fold" do
+    source = File.read!("lib/std_deps/regex/regex_runtime.cure")
+
+    assert source =~ "fn atomic_path_destination_rejection_excludes_recursive_tail_induction"
+
+    [_prefix, body] =
+      String.split(
+        source,
+        "fn atomic_path_destination_rejection_excludes_recursive_tail_induction",
+        parts: 2
+      )
+
+    [body | _] = String.split(body, "\n  fn ", parts: 2)
+
+    assert body =~ "AtomicPathRefutation"
+    assert body =~ "AtomicSelectedPathTrace"
+    assert body =~ "atomic_path_destination_rejection_excludes_recursive_tail_rejected("
+  end
+
   test "atomic selected child paths retain their origin spine equivalence" do
     source = File.read!("lib/std_deps/regex/regex_runtime.cure")
 

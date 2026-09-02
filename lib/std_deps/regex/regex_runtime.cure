@@ -21057,6 +21057,110 @@ mod Std.Regex.Runtime
         reflexive() -> atomic_path_active_destinations_exhausted_excludes_trace(machine, char, rest, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, matched, remaining_input, routine, failure, path)
       LookaroundAdmittedStateCursorSuffixDrop(_, _) -> impossible
 
+  ## First-order induction over a rejected destination's sibling tail.  The
+  ## selected trace is either aligned with the rejected head (the supplied
+  ## construction-site contradiction) or starts in the tail.  In the latter
+  ## case the refutation's own tail is structurally smaller, so the canonical
+  ## fold consumes it without packing an existential callback or opening an
+  ## erased failure kind.  This construction-site boundary supplies the
+  ## aligned and tail contradictions to that fold; destination exhaustion is
+  ## its recursive base, while input exhaustion and exact acceptance are
+  ## excluded by the active/non-empty indices before any runtime branch can be
+  ## generated.
+  @reducible
+  fn atomic_path_destination_rejection_excludes_recursive_tail_induction(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    char: Char,
+    rest: List(Char),
+    after_input: List(Char),
+    state: Bounded(n),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    scope_depth: Nat,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    whole: List(LookaroundAdmittedState(n)),
+    @erased candidate: LookaroundAdmittedState(n),
+    {remaining: List(LookaroundAdmittedState(n))},
+    @erased failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(state),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(candidate, remaining),
+      AtomicPathFailureDestinationRejected()
+    ),
+    {candidate_current: List(LookaroundAdmittedState(n))},
+    @erased matched: List(Char),
+    @erased remaining_input: List(Char),
+    @erased routine: List(ExtendedInstruction),
+    selection_from_current: LookaroundAdmittedStateCursorSuffix(
+      n,
+      Cons(candidate, remaining),
+      candidate_current
+    ),
+    @erased tail_alignment: LookaroundAdmittedStateCursorSuffix(
+      n,
+      remaining,
+      candidate_current
+    ),
+    @erased path: AtomicSelectedPathTrace(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(state),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      candidate_current,
+      matched,
+      remaining_input,
+      routine
+    ),
+    head_case: Empty,
+    tail_case: Empty
+  ) -> Empty = atomic_path_destination_rejection_excludes_recursive_tail_rejected(
+    machine,
+    char,
+    rest,
+    after_input,
+    state,
+    history,
+    capture_context,
+    policy,
+    scope_depth,
+    prefix_mode,
+    reversed_prefix,
+    whole,
+    candidate,
+    failure,
+    matched,
+    remaining_input,
+    routine,
+    selection_from_current,
+    tail_alignment,
+    path,
+    head_case,
+    tail_case
+  )
+
   ## A rejected sibling tail is the recursive induction branch. Its failure
   ## kind is fixed at the construction site, so the proof never inspects an
   ## erased failure tag at runtime. The caller supplies both already-built
