@@ -31,6 +31,40 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              ~r/AtomicSelectedPathTraceActivePacked\(.*child_skipped_structure.*let rejected_selected_availability = atomic_path_skipped_prefix_rejected_selected_pair_availability\(\s*child_skipped_structure\s*\)/s
   end
 
+  test "recursive child direction is indexed by the skipped-prefix cursor itself" do
+    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+
+    assert source =~ "type AtomicPathSkippedPrefixCursorShapedExistentialPackage("
+    assert source =~ "fn atomic_path_skipped_prefix_cursor_shaped_existential_package("
+
+    assert source =~
+             ~r/let selected_child_cursor = atomic_path_skipped_prefix_cursor_shaped_existential_package\(\s*child_skipped_structure\s*\).*?match selected_child_cursor\s*AtomicPathSkippedPrefixCursorExistentialPacked\(\s*selected_child_shape, selected_child_payload\s*\) -> match atomic_path_active_child_shape_alignment_package/s
+
+    assert source =~
+             ~r/atomic_path_active_child_shape_alignment_package\(\s*package,\s*selected_child_payload,.*?selected_child_shape/s
+
+    for package <- ["Here", "There", "Reverse"] do
+      assert source =~
+               ~r/type AtomicPathRecursiveCommitSelectedChildSameAfterFailure#{package}Package.*selected_child: AtomicPathSkippedPrefixCursorShapedExistentialPackage/s
+    end
+  end
+
+  test "Here child direction eliminates every non-empty skipped prefix" do
+    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+
+    assert source =~
+             "type AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPackage("
+
+    assert source =~
+             "fn atomic_path_recursive_commit_selected_child_same_after_failure_here_empty_fold("
+
+    assert source =~
+             ~r/AtomicPathSkippedPrefixStructureEmptyPacked\(_\) ->\s*empty_case\(\s*AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPacked\(package\)/s
+
+    assert source =~
+             ~r/AtomicPathSkippedPrefixCursorShapedExistentialPacked\(selected_payload\) -> match selected_payload\s*AtomicPathSkippedPrefixCursorShapedEmptyPacked\(structure\) -> match structure/s
+  end
+
   test "selected atomic transitions retain the child origin certificate" do
     source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
 
@@ -1597,7 +1631,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              "type AtomicPathActiveChildShapeAlignmentAuthority"
 
     assert source =~
-             ~r/atomic_path_active_child_shape_alignment_package\(\s*package,\s*selected_suffix,\s*lookaround_admitted_cursor_suffix_package_shape\(\s*child_cursor_package\s*\),\s*lookaround_admitted_cursor_suffix_package_shape\(\s*selected_child_cursor_package/s
+             ~r/atomic_path_active_child_shape_alignment_package\(\s*package,\s*selected_child_payload,\s*lookaround_admitted_cursor_suffix_package_shape\(\s*child_cursor_package\s*\),\s*selected_child_shape/s
 
     refute source =~
              ~r/fn\(branch\) -> atomic_path_active_child_shape_here_package_result\(/s
@@ -1621,13 +1655,13 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              "type AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage("
 
     assert source =~
-             ~r/fn\(failure, selected\) -> here_case\(\s*AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePacked\(\s*failure,\s*rejected_selected_availability/s
+             ~r/AtomicPathActiveChildShapeAlignmentHerePacked\(branch\) -> match branch\s*AtomicPathActiveChildShapeHerePacked\(failure, selected\) ->\s*here_case\(\s*AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePacked\(\s*failure,\s*selected,\s*rejected_selected_availability/s
 
     assert source =~
-             ~r/fn\(failure, selected, authority\) -> there_case\(\s*AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePacked\(\s*failure,\s*rejected_selected_availability/s
+             ~r/AtomicPathActiveChildShapeAlignmentTherePacked\(branch\) -> match branch\s*AtomicPathActiveChildShapeTherePacked\(failure, selected, authority\) ->\s*there_case\(\s*AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePacked\(\s*failure,\s*selected,\s*authority,\s*rejected_selected_availability/s
 
     assert source =~
-             ~r/fn\(failure, selected, authority\) -> reverse_case\(\s*AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePacked\(\s*failure,\s*rejected_selected_availability/s
+             ~r/AtomicPathActiveChildShapeAlignmentReversePacked\(branch\) -> match branch\s*AtomicPathActiveChildShapeReversePacked\(failure, selected, authority\) ->\s*reverse_case\(\s*AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePacked\(\s*failure,\s*selected,\s*authority,\s*rejected_selected_availability/s
 
     assert source =~
              ~r/atomic_path_recursive_commit_selected_child_same_continuation_dispatch\(.*after_failure_here_case: \(AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePackage\(.*after_failure_there_case: \(AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePackage\(.*after_failure_reverse_case: \(AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage\(/s

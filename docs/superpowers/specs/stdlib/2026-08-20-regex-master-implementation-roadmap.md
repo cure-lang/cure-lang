@@ -4388,6 +4388,22 @@ must consume this authority: Here should discharge the structurally empty
 selected-child prefix, while later/reverse recurse through the retained
 rejected child or the separately classified escaped-commit path.
 
+The child direction is now tied to the skipped-prefix structure itself rather
+than to a separately recomputed cursor shape. An exact recursive helper returns
+`Sigma(shape, payload)` while all front/current/kind indices remain visible;
+only the completed payload is existentialized. Its four payload constructors
+mirror Empty, EscapedOne, EscapedCons, and RejectedCons and fix the corresponding
+Here/Drop shape in their result. The direction split retains that shape-indexed
+payload and the There/Reverse authority. Consequently the Here consumer has
+only the Empty payload constructor and publishes
+`AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPackage`
+without inspecting an erased equality or accepting an invalid callback. Direct
+Runtime/Proof/facade/Language compilation and the construction-site regression
+pass. The next leaf must open this fixed Empty package together with the local
+destination refutation and selected trace, then invoke the recursive child
+refutation contradiction; There/Reverse still require their retained pair and
+tail directions.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
