@@ -4230,6 +4230,21 @@ consumer, project the retained `PastRejected` tail structure/cursor, and pair
 it with the selected authority from the original correlated source before
 recursing.
 
+The `PastRejected` sibling direction is now proved before that recursive
+boundary. `atomic_path_cursor_shapes_advance_left_after` establishes by
+structural induction that advancing the left member of a `Same` shape pair by
+one cursor step is strictly `LeftAfter` the right member. The exact-empty
+consumer opens the relevant `PastRejected` classifier and the original
+correlated source, applies that theorem to its retained `Same` authority, and
+publishes only
+`AtomicPathRecursiveCommitSelectedChildSamePastRejectedReversePackage`.
+Consequently the common induction cannot speculate about Same or RightAfter
+for this tail, and the complete exact-empty authority remains available for
+the reverse contradiction. The complete Regex chain and all 27 structural
+tests pass. Next consume this reverse package at the common induction boundary
+alongside the already-refined `AfterFailure` Here/later/reverse cases, then
+connect projected `FromChild` and `PastEscaped` packages recursively.
+
 `atomic_path_recursive_commit_selected_child_same_destination_rejected_alignment_fold`
 constructs that shape carrier only after exposing the exact local
 `DestinationRejected` child and selected `Active` transition. The previously

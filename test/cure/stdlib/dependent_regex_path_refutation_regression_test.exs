@@ -1328,13 +1328,22 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              ~r/AtomicPathRecursiveCommitSelectedChildSameAfterFailurePacked\(aligned\) ->\s*atomic_path_recursive_commit_selected_child_same_after_failure_unclassified_fold\(/s
 
     assert source =~
-             ~r/atomic_path_recursive_commit_selected_child_same_continuation_dispatch\(.*past_rejected_empty_case: \(AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage\(/s
+             ~r/atomic_path_recursive_commit_selected_child_same_continuation_dispatch\(.*past_rejected_empty_case: \(AtomicPathRecursiveCommitSelectedChildSamePastRejectedReversePackage\(/s
 
     assert source =~
              ~r/AtomicPathRecursiveCommitSelectedChildSamePastRejectedPacked\(aligned\) ->\s*atomic_path_recursive_commit_selected_child_same_past_rejected_empty_fold\(\s*aligned,\s*past_rejected_empty_case,/s
 
     assert source =~
-             ~r/fn atomic_path_recursive_commit_selected_child_same_past_rejected_empty_fold\(.*atomic_path_recursive_commit_selected_child_same_skipped_tail_empty_fold\(\s*atomic_path_recursive_commit_selected_child_same_skipped_tail_package\(aligned\),.*atomic_path_recursive_commit_selected_child_same_skipped_empty_dispatch\(\s*empty,\s*fn\(_\) -> invalid_case\(\),\s*past_rejected_case,/s
+             ~r/fn atomic_path_recursive_commit_selected_child_same_past_rejected_empty_fold\(.*atomic_path_recursive_commit_selected_child_same_skipped_tail_empty_fold\(\s*atomic_path_recursive_commit_selected_child_same_skipped_tail_package\(aligned\),.*atomic_path_recursive_commit_selected_child_same_skipped_empty_dispatch\(\s*empty,\s*fn\(_\) -> invalid_case\(\),\s*fn\(past_rejected\) ->\s*atomic_path_recursive_commit_selected_child_same_past_rejected_reverse_fold\(/s
+
+    assert source =~
+             "type AtomicPathRecursiveCommitSelectedChildSamePastRejectedReversePackage("
+
+    assert source =~
+             ~r/fn atomic_path_cursor_shapes_advance_left_after\(.*AtomicPathCursorShapesSameHere\(\) ->\s*AtomicPathCursorShapesLeftAfterHere\(\).*AtomicPathCursorShapesSameDrop\(prior\) ->\s*AtomicPathCursorShapesLeftAfterDrop\(\s*atomic_path_cursor_shapes_advance_left_after\(prior\)/s
+
+    assert source =~
+             ~r/fn atomic_path_recursive_commit_selected_child_same_past_rejected_reverse_fold\(.*AtomicPathCommitStructureCursorClassifiedPastRejectedPacked\(_\) -> match source.*AtomicPathRecursiveCommitSelectedChildSameExistentialPacked\(.*same_authority.*atomic_path_cursor_shapes_advance_left_after\(same_authority\).*AtomicPathRecursiveCommitSelectedChildSamePastRejectedReversePacked\(empty\)/s
 
     assert source =~
              "fn atomic_path_recursive_commit_selected_child_same_after_failure_dispatch("
