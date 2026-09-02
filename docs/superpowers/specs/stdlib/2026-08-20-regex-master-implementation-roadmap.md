@@ -4319,6 +4319,27 @@ test against this first-order carrier before implementation; retain the E104
 negative lesson in the assertion by forbidding an erased-proof dispatcher that
 chooses callbacks.
 
+The first direct implementation probe also rules out one monolithic carrier.
+A single Here constructor was given the complete shared child context, both
+canonical origins and suffixes, both shaped Here cursor packages, the
+destination-rejected refutation, raw selected path, selected trace package,
+and exact empty package. Its indices were sound, but constructing it kept the
+normalizer CPU-bound beyond the established Runtime-module range; explicitly
+annotating the result and generalizing the child input away from `Cons` did not
+change that behavior. Do not reproduce this constructor.
+
+Stage the first-order carrier instead. First publish a small canonical child
+pair indexed only by the common input/state context, failure and selected
+origins/currents, and the two shaped cursor packages. Then publish the
+refutation/selected-trace pair in a second package indexed by that canonical
+pair. Finally let the directional Here/later/reverse carrier contain those two
+already-checked packages plus the exact empty continuation. Each stage must
+elaborate within the recorded Runtime-module baseline before the next is
+introduced. This mirrors the existing successful split between
+`AtomicPathCommitAfterFailureChildPackage`, cursor-shaped packages, and
+`AtomicSelectedPathTracePackage`, rather than asking normalization to solve all
+three existential boundaries in one constructor application.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
