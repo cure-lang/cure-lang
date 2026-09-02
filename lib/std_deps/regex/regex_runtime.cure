@@ -10123,16 +10123,7 @@ mod Std.Regex.Runtime
     after_failure_here_case: () -> Empty,
     after_failure_there_case: () -> Empty,
     after_failure_reverse_case: () -> Empty,
-    past_rejected_empty_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
-      depth, n, machine
-    )) -> Empty,
-    past_rejected_escaped_one_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
-      depth, n, machine
-    )) -> Empty,
-    past_rejected_escaped_cons_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
-      depth, n, machine
-    )) -> Empty,
-    past_rejected_rejected_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+    past_rejected_empty_case: (AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage(
       depth, n, machine
     )) -> Empty,
     correlated_case: (AtomicPathRecursiveCommitSelectedExistentialPackage(
@@ -10176,12 +10167,9 @@ mod Std.Regex.Runtime
         invalid_case
       )
     AtomicPathRecursiveCommitSelectedChildSamePastRejectedPacked(aligned) ->
-      atomic_path_recursive_commit_selected_child_same_past_rejected_dispatch(
+      atomic_path_recursive_commit_selected_child_same_past_rejected_empty_fold(
         aligned,
         past_rejected_empty_case,
-        past_rejected_escaped_one_case,
-        past_rejected_escaped_cons_case,
-        past_rejected_rejected_case,
         invalid_case
       )
     AtomicPathRecursiveCommitSelectedChildSameAcceptedImpossiblePacked(_) ->
@@ -10598,6 +10586,32 @@ mod Std.Regex.Runtime
               invalid_case
             ),
           fn(_) -> invalid_case(),
+          invalid_case
+        )
+    )
+
+  ## PastRejected carries a recursive sibling commit, but its selected prefix
+  ## may still expose any of the four relevant constructors. Consume that
+  ## prefix structurally before projecting the sibling: the callback receives
+  ## one exact empty authority, while AfterFailure and malformed propagated
+  ## classifications remain explicit invalid obligations.
+  fn atomic_path_recursive_commit_selected_child_same_past_rejected_empty_fold(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    ),
+    past_rejected_case: (AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage(
+      depth, n, machine
+    )) -> Empty,
+    invalid_case: () -> Empty
+  ) -> Empty =
+    atomic_path_recursive_commit_selected_child_same_skipped_tail_empty_fold(
+      atomic_path_recursive_commit_selected_child_same_skipped_tail_package(aligned),
+      fn(empty) ->
+        atomic_path_recursive_commit_selected_child_same_skipped_empty_dispatch(
+          empty,
+          fn(_) -> invalid_case(),
+          past_rejected_case,
           invalid_case
         )
     )

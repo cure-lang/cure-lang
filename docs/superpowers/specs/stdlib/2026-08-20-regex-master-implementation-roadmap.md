@@ -4215,6 +4215,21 @@ passes (the known near-60-second fixture requires the gate's 120-second test
 timeout). Next connect each of these four `PastRejected` obligations to its
 tail projection or local contradiction while defining the common induction.
 
+That four-way callback surface was still broader than necessary. All four
+selected-prefix constructors share the existing structurally recursive
+skipped-tail descent, so
+`atomic_path_recursive_commit_selected_child_same_past_rejected_empty_fold`
+now consumes the entire relevant prefix before any sibling projection. It
+then uses the exact-empty commit classifier to admit only `PastRejected` and
+passes one `AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage` to
+the common induction. This preserves the original correlated source, selected
+trace envelope, inner-cursor authority, and classified commit while removing
+four duplicate recursive entry points. The complete Regex chain and the full
+27-test structural gate pass. Next open this exact package in a fixed-`Empty`
+consumer, project the retained `PastRejected` tail structure/cursor, and pair
+it with the selected authority from the original correlated source before
+recursing.
+
 `atomic_path_recursive_commit_selected_child_same_destination_rejected_alignment_fold`
 constructs that shape carrier only after exposing the exact local
 `DestinationRejected` child and selected `Active` transition. The previously
