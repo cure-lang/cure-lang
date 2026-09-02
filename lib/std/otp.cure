@@ -545,10 +545,11 @@ mod Std.Otp
     match found
       p: BarePid -> Some(p)
       :undefined -> None()
-end
   ## Closed vocabulary accepted by `erlang:monitor/2`. More kinds can be added
   ## here without exposing the raw atom boundary to ordinary callers.
   type MonitorKind = Process
 
   local fn monitor_kind_atom(kind: MonitorKind) -> Atom = match kind
     Process() -> :process
+
+end

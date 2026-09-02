@@ -20,9 +20,9 @@ types they accept and return:
 ```cure
 mod Tour.Greetings
 
-fn greet(_name: String) -> String = "Hello, Cure!"
+  fn greet(_name: String) -> String = "Hello, Cure!"
 
-fn main() -> String = greet("Cure")
+  fn main() -> String = greet("Cure")
 ```
 
 The compiler checks the call before generating BEAM code. Try the complete
@@ -36,12 +36,12 @@ matching then handles each shape explicitly:
 ```cure
 mod Tour.Shapes
 
-type Shape = Circle(Float) | Rectangle(Float, Float)
+  type Shape = Circle(Float) | Rectangle(Float, Float)
 
-fn area(shape: Shape) -> Float =
-  match shape
-    Circle(radius) -> 3.14159 * radius * radius
-    Rectangle(width, height) -> width * height
+  fn area(shape: Shape) -> Float =
+    match shape
+      Circle(radius) -> 3.14159 * radius * radius
+      Rectangle(width, height) -> width * height
 ```
 
 When a case is missing, Cure reports it while you are writing the program.

@@ -193,6 +193,21 @@ defmodule Cure.Doc.SnippetsTest do
     assert {:ok, _module, []} = Snippets.compile(snippet, support: support)
   end
 
+  test "appended support follows an indented fence body" do
+    snippet = %Snippets{
+      path: "indented-support.md",
+      line: 7,
+      info: "cure",
+      code: "  fn documented() -> Int = 1"
+    }
+
+    source = Snippets.source(snippet, "fn support() -> Int = 2")
+
+    assert source =~ "    fn documented() -> Int = 1"
+    assert source =~ "    fn support() -> Int = 2"
+    refute source =~ "\n  fn support()"
+  end
+
   # A fence opening with `use` and then declaring top-level forms is a whole
   # compilation unit already. Wrapping it would nest those declarations inside
   # the synthetic module, where siblings can no longer name each other — which

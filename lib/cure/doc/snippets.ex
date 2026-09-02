@@ -256,7 +256,8 @@ defmodule Cure.Doc.Snippets do
       case snippet_kind(snippet.info, code) do
         :declarations ->
           prefix = pad_to_line("mod #{module}", max(snippet.line - 1, 1))
-          prefix <> "\n" <> indent(code) <> append_support(support)
+          body_indent = 2 + source_indent(code)
+          prefix <> "\n" <> indent(code) <> append_support(support, body_indent)
 
         :expression ->
           expression_source(module, code, snippet.line, support)
@@ -281,7 +282,7 @@ defmodule Cure.Doc.Snippets do
           "  fn snippet_#{index}() = #{expression}"
         end)
 
-      prefix <> "\n" <> functions <> append_support(support)
+      prefix <> "\n" <> functions <> append_support(support, 2)
     else
       # One `fn` per line, the branch above, is for a fence listing several
       # independent example expressions. A `let` rules that reading out: it has
@@ -289,7 +290,7 @@ defmodule Cure.Doc.Snippets do
       # a single block that happens to be written flush left, and splitting it
       # strands every binding in a function with no body.
       prefix = pad_to_line("mod #{module}\n  fn snippet() =", max(line - 2, 1))
-      prefix <> "\n" <> indent(code, 4) <> append_support(support)
+      prefix <> "\n" <> indent(code, 4) <> append_support(support, 2)
     end
   end
 
@@ -409,8 +410,34 @@ defmodule Cure.Doc.Snippets do
     end)
   end
 
-  defp append_support(""), do: "\n"
-  defp append_support(support), do: "\n\n" <> indent(String.trim(support)) <> "\n"
+  defp append_support("", _spaces), do: "\n"
+  defp append_support(support, spaces), do: "\n\n" <> indent(String.trim(support), spaces) <> "\n"
+
+  # Markdown fences are often indented along with the surrounding prose. The
+  # wrapper adds the module-body indentation on top of that authored padding,
+  # so appended support declarations must use the same resulting baseline or
+  # they become accidental siblings outside the synthetic module.
+  defp source_indent(code) do
+    code
+    |> String.split("\n", trim: false)
+    |> Enum.map(&leading_spaces/1)
+    |> Enum.reject(&is_nil/1)
+    |> case do
+      [] -> 0
+      indents -> Enum.min(indents)
+    end
+  end
+
+  defp leading_spaces(line) do
+    if String.trim(line) == "" do
+      nil
+    else
+      line
+      |> String.codepoints()
+      |> Enum.take_while(&(&1 == " "))
+      |> length()
+    end
+  end
 
   defp excluded_path?(path) do
     Enum.any?(["/.git/", "/_build/", "/deps/", "/site/deps/", "/doc/"], &String.contains?(path, &1))
