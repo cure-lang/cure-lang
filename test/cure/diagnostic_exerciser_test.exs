@@ -8,6 +8,7 @@ defmodule Cure.DiagnosticExerciserTest do
     [color: Keyword.get(config, :color, :always), width: Keyword.get(config, :width, 80)]
   end
 
+  @tag timeout: 120_000
   test "exercises every public diagnostic family and shows user output" do
     compiler_cases = [
       {"unknown global", "E091", "mod DiagnosticUnknown\n  fn run() -> Int = missing_name\n", :unknown_name_resolution},
@@ -85,6 +86,8 @@ defmodule Cure.DiagnosticExerciserTest do
        :pattern_structure},
       {"primitive declaration", "E120", "mod DiagnosticPrimitive\n  @builtin(:sparkle) primitive Sparkle\nend\n",
        :primitive_declaration},
+      {"declaration outside module", "E121",
+       "mod DiagnosticOutside\n  fn inside() -> Int = 1\n fn outside() -> Int = 2\n", :declaration_outside_module},
       {"non-positive recursive type", "E103",
        "mod DiagnosticPositivity\n  type Nat = Z | S(Nat)\n  type Bad = MkBad((Bad) -> Nat)\nend\n",
        :non_strictly_positive_type},

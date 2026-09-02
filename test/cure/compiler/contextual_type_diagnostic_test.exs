@@ -138,6 +138,31 @@ defmodule Cure.Compiler.ContextualTypeDiagnosticTest do
     assert related["location"]["range"]["start"] == %{"line" => 1, "character" => 5}
   end
 
+  test "a declaration dedented outside a module is rejected instead of dropped" do
+    source = "mod M\n  fn inside() -> Int = 1\n fn outside() -> Int = 2\n"
+
+    assert {:error, {:codegen_error, {:declaration_outside_module, details}} = reason} =
+             Cure.Compiler.compile_string(source,
+               file: "outside_module.cure",
+               emit_events: false
+             )
+
+    assert details.module == "M"
+
+    assert [%{kind: :function, name: "outside", span: %Cure.Diagnostic.Span{start_line: 3}}] =
+             details.declarations
+
+    {diagnostic, registry} = Errors.to_diagnostic(reason, "outside_module.cure", source)
+    rendered = Renderer.plain(diagnostic, registry)
+
+    assert diagnostic.code == "E121"
+    assert diagnostic.title == "Declaration outside module"
+    assert diagnostic.payload.kind == :declaration_outside_module
+    assert diagnostic.primary.span.start_line == 3
+    assert diagnostic.primary.message == "this declaration is outside module `M`"
+    assert rendered =~ "Indent this declaration beneath `mod M`"
+  end
+
   test "a duplicate record field labels both authored declarations" do
     source = "mod DupField\n  rec Point\n    x: Int\n    x: Bool\nend\n"
 

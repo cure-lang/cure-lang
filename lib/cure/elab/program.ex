@@ -352,7 +352,8 @@ defmodule Cure.Elab.Program do
   # through two doors they never covered.
   @spec check_declarations(tuple() | list()) :: :ok | {:error, term()}
   defp check_declarations(ast) do
-    with :ok <- check_implementation_structure(ast),
+    with :ok <- check_declarations_outside_modules(ast),
+         :ok <- check_implementation_structure(ast),
          :ok <- check_no_duplicate_defs(ast),
          :ok <- check_no_duplicate_types(ast),
          :ok <- check_no_duplicate_ctors(ast),
@@ -362,6 +363,98 @@ defmodule Cure.Elab.Program do
       check_no_sibling_collision(ast)
     end
   end
+
+  # A source unit that contains an explicit module (or proof-module) container
+  # must not leave declarations beside it. `declarations/1` intentionally
+  # unwraps module containers for the elaboration passes, so the old path
+  # silently discarded a dedented function: the parser had already closed the
+  # module, but codegen only visited the container's children. Reject the
+  # malformed unit while the authored declaration and its source span are still
+  # available. A unit with no module container remains the implicit `Main`
+  # namespace and is therefore allowed to contain ordinary top-level
+  # declarations.
+  defp check_declarations_outside_modules(ast) do
+    nodes = top_level_nodes(ast)
+    module_nodes = Enum.filter(nodes, &module_container_node?/1)
+
+    if module_nodes == [] do
+      :ok
+    else
+      outside = nodes |> Enum.reject(&module_container_node?/1) |> Enum.filter(&declaration?/1)
+
+      case outside do
+        [] ->
+          :ok
+
+        declarations ->
+          entries = Enum.map(declarations, &outside_module_declaration/1)
+          first = List.first(entries)
+
+          {:error,
+           {:declaration_outside_module,
+            %{
+              module: find_module_name(ast),
+              declarations: entries,
+              span: Map.get(first, :span)
+            }}}
+      end
+    end
+  end
+
+  # Only unwrap grouping blocks here. Descending through a declaration's
+  # children would mistake function bodies and nested data declarations for
+  # siblings of the outer module.
+  defp top_level_nodes({:block, _meta, items}) when is_list(items),
+    do: Enum.flat_map(items, &top_level_nodes/1)
+
+  defp top_level_nodes(items) when is_list(items),
+    do: Enum.flat_map(items, &top_level_nodes/1)
+
+  defp top_level_nodes(node), do: [node]
+
+  defp module_container_node?({:container, meta, _body}) when is_list(meta),
+    do: module_like_container?(meta)
+
+  defp module_container_node?(_node), do: false
+
+  defp outside_module_declaration({tag, meta, _body} = node) when is_list(meta) do
+    %{
+      kind: outside_module_declaration_kind(tag, meta),
+      name: declaration_surface_name(node),
+      span: metadata_whole_span(meta),
+      name_span: metadata_name_span(meta)
+    }
+  end
+
+  defp outside_module_declaration(node) do
+    %{kind: elem(node, 0), name: nil, span: nil, name_span: nil}
+  end
+
+  defp outside_module_declaration_kind(:function_def, _meta), do: :function
+  defp outside_module_declaration_kind(:macro_def, _meta), do: :macro
+  defp outside_module_declaration_kind(:indexed_type, _meta), do: :indexed_type
+  defp outside_module_declaration_kind(:interface, _meta), do: :interface
+  defp outside_module_declaration_kind(:implementation, _meta), do: :implementation
+  defp outside_module_declaration_kind(:type_annotation, _meta), do: :typealias
+  defp outside_module_declaration_kind(:container, meta), do: Keyword.get(meta, :container_type, :container)
+  defp outside_module_declaration_kind(tag, _meta), do: tag
+
+  defp declaration_surface_name({:function_def, meta, _body}) when is_list(meta),
+    do: Keyword.get(meta, :name)
+
+  defp declaration_surface_name({:macro_def, meta, _rules}) when is_list(meta),
+    do: Keyword.get(meta, :name)
+
+  defp declaration_surface_name({:type_annotation, meta, _rhs}) when is_list(meta),
+    do: Keyword.get(meta, :name)
+
+  defp declaration_surface_name({:container, meta, _body}) when is_list(meta),
+    do: Keyword.get(meta, :name)
+
+  defp declaration_surface_name({tag, meta, _body}) when tag in [:interface, :implementation] and is_list(meta),
+    do: Keyword.get(meta, :name)
+
+  defp declaration_surface_name(_node), do: nil
 
   defp prepared_declarations(ast, opts) do
     case Keyword.get(opts, :prepared_declarations) do

@@ -7,6 +7,57 @@ defmodule Cure.Diagnostic.Adapter.Declaration do
   @spec from_error(term(), keyword()) :: Diagnostic.t()
   def from_error(error, opts \\ [])
 
+  def from_error({:declaration_outside_module, %{module: module, declarations: declarations} = details}, opts)
+      when is_list(declarations) do
+    first = List.first(declarations) || %{}
+    primary_span = Map.get(first, :span) || Map.get(details, :span) || Keyword.get(opts, :span)
+    module_name = name_to_string(module)
+
+    secondary =
+      declarations
+      |> Enum.drop(1)
+      |> Enum.map(fn declaration ->
+        case Map.get(declaration, :span) do
+          %Span{} = span ->
+            %Label{span: span, style: :secondary, message: "another declaration is outside this module"}
+
+          _ ->
+            nil
+        end
+      end)
+      |> Enum.reject(&is_nil/1)
+
+    Diagnostic.new(
+      code: "E121",
+      key: :declaration_outside_module,
+      severity: :error,
+      title: "Declaration outside module",
+      body:
+        Doc.paragraph(
+          "The declaration `#{declaration_name(first)}` is outside module `#{module_name}`. " <>
+            "Because Cure uses indentation to delimit module bodies, this declaration would not be compiled as a member."
+        ),
+      primary:
+        primary(
+          Keyword.put(opts, :span, primary_span),
+          "this declaration is outside module `#{module_name}`"
+        ),
+      secondary: secondary,
+      suggestions: [
+        %Suggestion{
+          message: "Indent this declaration beneath `mod #{module_name}`, or put it in its own module",
+          applicability: :manual
+        }
+      ],
+      payload: %{
+        kind: :declaration_outside_module,
+        module: module,
+        declarations: declarations,
+        count: length(declarations)
+      }
+    )
+  end
+
   def from_error({:extern_untyped_head, message, meta}, opts) when is_binary(message) and is_list(meta) do
     Diagnostic.new(
       code: "E056",
@@ -139,4 +190,8 @@ defmodule Cure.Diagnostic.Adapter.Declaration do
       nil -> nil
     end
   end
+
+  defp declaration_name(%{name: name}) when is_binary(name) or is_atom(name), do: name_to_string(name)
+  defp declaration_name(%{kind: kind}), do: name_to_string(kind)
+  defp declaration_name(_), do: "<unnamed>"
 end

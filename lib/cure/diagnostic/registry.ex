@@ -99,7 +99,7 @@ defmodule Cure.Diagnostic.Registry do
     "W088" =>
       "No first-party producer remains; the dependent-only pipeline rejects unresolved imported names as E091 before any fallback resolution can occur."
   }
-  @structured ~w[E002 E003 E011 E013 E014 E021 E022 E026 E035 E056 E057 E063 E076 E077 E078 E087 E089 E090 E091 E092 E093 E094 E102 E103 E104 E105 E106 E107 E108 E109 E110 E111 E112 E113 E114 E115 E116 E117 E118 E119 E120 W086 W088]
+  @structured ~w[E002 E003 E011 E013 E014 E021 E022 E026 E035 E056 E057 E063 E076 E077 E078 E087 E089 E090 E091 E092 E093 E094 E102 E103 E104 E105 E106 E107 E108 E109 E110 E111 E112 E113 E114 E115 E116 E117 E118 E119 E120 E121 W086 W088]
   @known_producers ~w[
     beam_writer dependency_graph elaboration kernel lexer macro_expansion
     name_resolution operational parser pattern_checker proof_checker
@@ -181,6 +181,7 @@ defmodule Cure.Diagnostic.Registry do
     "E118" => :pattern_coverage,
     "E119" => :pattern_structure,
     "E120" => :primitive_declaration,
+    "E121" => :declaration_outside_module,
     "W000" => :compiler_warning,
     "W001" => :migration_warning,
     "W002" => :configuration_warning,
@@ -1468,6 +1469,17 @@ defmodule Cure.Diagnostic.Registry do
     Use only the supported `:float`, `:binary`, and `:atom` builtin tags, and
     keep seeded primitive names paired with their established representation.
     """,
+    "E121" => """
+    E121: Declaration Outside Module
+
+    A declaration was aligned outside an explicit `mod` or `proof` container.
+    Cure uses indentation to delimit module bodies, so the declaration is not
+    a member of that module and must not be silently omitted during elaboration
+    or code generation.
+
+    Fix: indent the declaration beneath the module header, or put it in its own
+    top-level module.
+    """,
     "W000" => """
     W000: Compiler Warning
 
@@ -1814,6 +1826,7 @@ defmodule Cure.Diagnostic.Registry do
   defp stable_key("E118", _title), do: :pattern_coverage
   defp stable_key("E119", _title), do: :pattern_structure
   defp stable_key("E120", _title), do: :primitive_declaration
+  defp stable_key("E121", _title), do: :declaration_outside_module
 
   defp stable_key(_code, title) do
     title
@@ -1879,6 +1892,9 @@ defmodule Cure.Diagnostic.Registry do
   defp producer_converter("E119", :elaboration),
     do: {Cure.Diagnostic.Adapter.StaticAnalysis, :from_error}
 
+  defp producer_converter("E121", :elaboration),
+    do: {Cure.Diagnostic.Adapter.Declaration, :from_error}
+
   defp producer_converter(_code, :operational),
     do: {Cure.Diagnostic.Adapter.Operational, :from_error}
 
@@ -1940,6 +1956,7 @@ defmodule Cure.Diagnostic.Registry do
   defp producers("E118"), do: [:elaboration]
   defp producers("E119"), do: [:elaboration]
   defp producers("E120"), do: [:elaboration]
+  defp producers("E121"), do: [:elaboration]
   defp producers("E008"), do: [:operational]
   defp producers("W086"), do: [:dependency_graph]
   defp producers("W088"), do: [:name_resolution]
@@ -2007,6 +2024,7 @@ defmodule Cure.Diagnostic.Registry do
   defp subsystem("E118"), do: :elaboration
   defp subsystem("E119"), do: :elaboration
   defp subsystem("E120"), do: :elaboration
+  defp subsystem("E121"), do: :elaboration
   defp subsystem("E091"), do: :resolution
   defp subsystem("E092"), do: :macros
   defp subsystem("E093"), do: :elaboration

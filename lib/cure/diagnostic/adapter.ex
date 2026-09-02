@@ -141,6 +141,9 @@ defmodule Cure.Diagnostic.Adapter do
   def from_error({:sibling_module_collision, %{name: _name}} = error, opts),
     do: NameAdapter.from_error(error, opts)
 
+  def from_error({:declaration_outside_module, %{module: _module, declarations: _declarations} = details}, opts),
+    do: Declaration.from_error({:declaration_outside_module, details}, opts)
+
   def from_error({:precedence_cycle, _groups} = error, opts), do: NameAdapter.from_error(error, opts)
   def from_error({:conflicting_operator_fixity, _details} = error, opts), do: NameAdapter.from_error(error, opts)
   def from_error({:conflicting_precedence_group, _details} = error, opts), do: NameAdapter.from_error(error, opts)
@@ -315,6 +318,9 @@ defmodule Cure.Diagnostic.Adapter do
   def from_error({:codegen_error, {:implementation_scope, _} = reason}, opts), do: from_error(reason, opts)
 
   def from_error({:codegen_error, {:sibling_module_collision, _} = reason}, opts),
+    do: from_error(reason, opts)
+
+  def from_error({:codegen_error, {:declaration_outside_module, _} = reason}, opts),
     do: from_error(reason, opts)
 
   def from_error({:codegen_error, {kind, _} = reason}, opts)
