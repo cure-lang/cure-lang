@@ -1663,6 +1663,11 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~
              ~r/AtomicPathActiveChildShapeAlignmentReversePacked\(branch\) -> match branch\s*AtomicPathActiveChildShapeReversePacked\(failure, selected, authority\) ->\s*reverse_case\(\s*AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePacked\(\s*failure,\s*selected,\s*authority,\s*rejected_selected_availability/s
 
+    refute source =~ "type AtomicPathRejectedChildCursorPayloadPackage("
+
+    refute source =~
+             "type AtomicPathRejectedChildCursorShapedExistentialPackage("
+
     assert source =~
              ~r/atomic_path_recursive_commit_selected_child_same_continuation_dispatch\(.*after_failure_here_case: \(AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePackage\(.*after_failure_there_case: \(AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePackage\(.*after_failure_reverse_case: \(AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage\(/s
 

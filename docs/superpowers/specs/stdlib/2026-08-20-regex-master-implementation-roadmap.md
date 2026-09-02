@@ -4404,6 +4404,39 @@ destination refutation and selected trace, then invoke the recursive child
 refutation contradiction; There/Reverse still require their retained pair and
 tail directions.
 
+A direct red consumer exposed one remaining authority gap before that leaf can
+be soundly implemented. The current direction fold compares the rejected
+child cursor's runtime shape, but the `Here` carrier retains only the outer
+skipped-empty package and the selected child's shaped skipped-prefix package.
+Consequently its `Here` tag does not type-index the exact rejected child cursor
+that was compared. Reopening the outer package later can recover that cursor,
+but it cannot prove that this recovered cursor is the one whose relevant shape
+selected the branch.
+
+Two downstream repairs were measured and rejected. A shaped existential around
+the complete `AtomicPathCommitAfterFailureChildPackage` left Runtime elaboration
+CPU-bound past 4.5 minutes. A smaller rejected-child payload containing its
+origin, cursor, and destination refutation still pushed the same module beyond
+three minutes and also demonstrated why its capture-context alignment cannot
+be inspected while constructing a relevant package (E104). The structural
+regression now forbids both discarded carrier names so that this normalizer
+regression is not reintroduced accidentally.
+
+Publish the missing proof-only data at the existing upstream construction site
+instead. `atomic_lookaround_routine_tail_after_failure` already has the exact
+rejected child origin, cursor, destination refutation, capture/scope alignment,
+and the selected trace when it constructs
+`AtomicPathRejectedSelectedTracePairPackage`. Extend that already-existing
+pair with erased rejected-child proof fields, leaving only its finite cursor
+shape/direction tag relevant. The downstream direction fold must carry this
+single pair unchanged; the `Empty`-returning Here consumer may then inspect its
+erased fields and invoke the proof-only recursive contradiction without
+constructing another dependent wrapper around `AtomicPathCommitAfterFailureChildPackage`.
+There and Reverse must consume the same upstream pair and their relevant shape
+authorities. Re-record the Runtime cold elaboration time after each field group;
+do not accept a carrier that exceeds the established approximately two-minute
+range.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
