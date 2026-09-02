@@ -19,18 +19,33 @@ defmodule Mix.Tasks.Cure.Refactor do
 
   @impl Mix.Task
   def run(args) do
-    Mix.Task.run("app.start", [])
-
     {opts, paths, invalid} =
       OptionParser.parse(args,
         strict: [json: :boolean, checked: :boolean],
         aliases: [j: :json, c: :checked]
       )
 
+    start_app(opts)
+
     cond do
       invalid != [] -> usage_error("Invalid options for mix cure.refactor: #{inspect(invalid)}")
       length(paths) != 1 -> usage_error("Usage: mix cure.refactor [--json] [--checked] <path.cure>")
       true -> analyze(Path.expand(hd(paths)), opts)
+    end
+  end
+
+  defp start_app(opts) do
+    if Keyword.get(opts, :json, false) do
+      previous_shell = Mix.shell()
+      Mix.shell(Mix.Shell.Quiet)
+
+      try do
+        Mix.Task.run("app.start", [])
+      after
+        Mix.shell(previous_shell)
+      end
+    else
+      Mix.Task.run("app.start", [])
     end
   end
 
