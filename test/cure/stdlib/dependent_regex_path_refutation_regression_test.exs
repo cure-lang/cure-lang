@@ -1325,7 +1325,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              ~r/AtomicPathRecursiveCommitSelectedChildSamePastEscapedPacked\(projected\) ->\s*atomic_path_recursive_commit_selected_child_same_projected_dispatch\(/s
 
     assert source =~
-             ~r/AtomicPathRecursiveCommitSelectedChildSameAfterFailurePacked\(aligned\) ->\s*after_failure_case\(aligned\)/s
+             ~r/AtomicPathRecursiveCommitSelectedChildSameAfterFailurePacked\(aligned\) ->\s*atomic_path_recursive_commit_selected_child_same_after_failure_unclassified_fold\(/s
 
     assert source =~
              ~r/AtomicPathRecursiveCommitSelectedChildSamePastRejectedPacked\(aligned\) ->\s*past_rejected_case\(aligned\)/s
@@ -1574,6 +1574,12 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
 
     assert source =~
              ~r/fn\(branch\) -> atomic_path_active_child_shape_reverse_package_fold\(\s*branch,\s*fn\(failure, selected, authority\) -> reverse_case\(\)/s
+
+    assert source =~
+             ~r/atomic_path_recursive_commit_selected_child_same_continuation_dispatch\(.*after_failure_here_case: \(\) -> Empty,.*after_failure_there_case: \(\) -> Empty,.*after_failure_reverse_case: \(\) -> Empty,/s
+
+    assert source =~
+             ~r/AtomicPathRecursiveCommitSelectedChildSameAfterFailurePacked\(aligned\) ->\s*atomic_path_recursive_commit_selected_child_same_after_failure_unclassified_fold\(\s*aligned,\s*after_failure_here_case,\s*after_failure_there_case,\s*after_failure_reverse_case,/s
 
     assert source =~
              "type AtomicPathRecursiveCommitSelectedChildSameAfterFailureTerminalPackage("

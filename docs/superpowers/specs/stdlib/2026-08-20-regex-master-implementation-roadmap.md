@@ -4191,6 +4191,19 @@ inside those fixed-`Empty` callbacks and must not add another existential
 carrier. The complete Regex chain and all 27 structural regressions remain
 green after this change.
 
+The common `Same` continuation dispatcher can no longer bypass this boundary.
+Its former raw `AfterFailure(aligned)` callback has been replaced by three
+fixed `Here`, later-sibling, and reverse `Empty` callbacks, and the dispatcher
+itself routes `AfterFailure` through skipped-tail descent, child-kind
+classification, destination-rejection construction, and the typed shape
+package folds. Thus the eventual common induction supplies only the three
+mathematical branch obligations; it cannot accidentally reopen an earlier,
+less-refined carrier. The complete Regex chain and all 27 structural
+regressions pass. Next define the common induction over the remaining
+correlated, propagated-Same, strict-left, strict-right, and `PastRejected`
+callbacks, using these three obligations as its local destination-rejection
+case.
+
 `atomic_path_recursive_commit_selected_child_same_destination_rejected_alignment_fold`
 constructs that shape carrier only after exposing the exact local
 `DestinationRejected` child and selected `Active` transition. The previously

@@ -10120,9 +10120,9 @@ mod Std.Regex.Runtime
     package: AtomicPathRecursiveCommitSelectedChildSameContinuationPackage(
       depth, n, machine
     ),
-    after_failure_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
-      depth, n, machine
-    )) -> Empty,
+    after_failure_here_case: () -> Empty,
+    after_failure_there_case: () -> Empty,
+    after_failure_reverse_case: () -> Empty,
     past_rejected_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
       depth, n, machine
     )) -> Empty,
@@ -10141,7 +10141,13 @@ mod Std.Regex.Runtime
     invalid_case: () -> Empty
   ) -> Empty = match package
     AtomicPathRecursiveCommitSelectedChildSameAfterFailurePacked(aligned) ->
-      after_failure_case(aligned)
+      atomic_path_recursive_commit_selected_child_same_after_failure_unclassified_fold(
+        aligned,
+        after_failure_here_case,
+        after_failure_there_case,
+        after_failure_reverse_case,
+        invalid_case
+      )
     AtomicPathRecursiveCommitSelectedChildSameFromChildPacked(projected) ->
       atomic_path_recursive_commit_selected_child_same_projected_dispatch(
         projected,
