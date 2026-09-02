@@ -4271,6 +4271,54 @@ eliminators: each must reopen the original two packages locally, consume the
 erased canonical equalities without exporting them, and invoke the recursive
 rejection theorem with the branch-specific alignment evidence.
 
+The first fixed-`Empty` consumer probe exposed a stricter prerequisite at this
+boundary. The current Here/later/reverse wrappers retain only the exact
+`AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage`; their
+construction callbacks discard the corresponding
+`AtomicPathActiveChildShapeHerePackage`, `...TherePackage`, or
+`...ReversePackage`. Reopening the empty package recovers the child origin,
+suffix, refutation, and selected trace, but all of those certificates are
+erased. Passing them to the older runtime
+`atomic_path_active_child_rejection_canonical_trace_dispatch` is correctly
+rejected as E104. A proof-only replacement that inspects those erased suffixes
+to choose among Here/later/reverse callbacks is also correctly E104: erased
+evidence may refine a fixed contradiction, but it may not select relevant
+control flow. Therefore the directional wrapper tag is runtime control, not by
+itself sufficient logical evidence.
+
+Do not solve this by making canonical equalities relevant, by making the
+machine index runtime-visible, or by trusting the wrapper tag. Before writing
+the consumers, replace these three wrappers with first-order indexed carriers
+constructed directly at
+`atomic_path_recursive_commit_selected_child_same_destination_rejected_alignment_fold`.
+Each carrier must retain, in one constructor-correlated payload:
+
+1. the exact skipped-empty package and selected active suffix;
+2. the failure and selected child cursor packages checked against their
+   relevant runtime shapes;
+3. the Here, later-sibling, or reverse shape authority selected at that same
+   construction site;
+4. the erased child-origin equivalence, canonical origins, cursor suffixes,
+   destination-rejected refutation, selected child trace, and active scope
+   alignment needed by the recursive theorem; and
+5. no generic `Type` existential that a callback lambda must infer.
+
+The last restriction is operational as well as stylistic. A prototype that
+stored `AtomicPathActiveChildShape*Package(failure_package,
+selected_package, ...)` behind an existential `selected_package: Type` hit E093
+in both higher-order lambda inference and a named constructor dispatcher; an
+explicit-erased version then failed dependent-index refinement. Use a dedicated
+constructor signature whose ordinary and erased fields name the concrete
+`AtomicSelectedPathTracePackage` and child indices, following the existing
+`AtomicSelectedPathTraceActivePacked` and
+`AtomicPathCommitAfterFailureChildPacked` pattern. The resulting consumer must
+match one relevant directional constructor first, use its shaped cursor
+packages to fix the only legal suffix constructors, and only then eliminate
+the erased canonical equalities while returning `Empty`. Add the red structural
+test against this first-order carrier before implementation; retain the E104
+negative lesson in the assertion by forbidding an erased-proof dispatcher that
+chooses callbacks.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
