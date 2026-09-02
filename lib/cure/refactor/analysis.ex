@@ -37,6 +37,7 @@ defmodule Cure.Refactor.Analysis.Report do
     :declaration_count,
     :imports,
     :declarations,
+    warnings: [],
     checked?: false
   ]
 
@@ -48,6 +49,7 @@ defmodule Cure.Refactor.Analysis.Report do
           declaration_count: non_neg_integer(),
           imports: [map()],
           declarations: [Cure.Refactor.Analysis.Declaration.t()],
+          warnings: [map()],
           checked?: boolean()
         }
 end
@@ -91,10 +93,11 @@ defmodule Cure.Refactor.Analysis do
     with :ok <- validate_source_path(expanded),
          {:ok, source} <- read_source(expanded),
          {:ok, ast} <- parse_source(source, expanded, opts),
-         {:ok, module, body} <- module_body(ast, expanded),
+         {:ok, module, body, extras} <- module_body(ast, expanded),
          {:ok, checked?} <- maybe_check(expanded, opts) do
       declarations = declarations(body, module, source)
       imports = imports(body)
+      warnings = out_of_module_warnings(extras)
 
       {:ok,
        %Report{
@@ -105,6 +108,7 @@ defmodule Cure.Refactor.Analysis do
          declaration_count: length(declarations),
          imports: imports,
          declarations: declarations,
+         warnings: warnings,
          checked?: checked?
        }}
     end
@@ -125,7 +129,8 @@ defmodule Cure.Refactor.Analysis do
       declaration_count: report.declaration_count,
       checked: report.checked?,
       imports: Enum.map(report.imports, &import_to_map/1),
-      declarations: Enum.map(report.declarations, &declaration_to_map/1)
+      declarations: Enum.map(report.declarations, &declaration_to_map/1),
+      warnings: report.warnings
     }
   end
 
@@ -215,11 +220,11 @@ defmodule Cure.Refactor.Analysis do
   end
 
   defp module_body(ast, path) do
-    case find_module(ast) do
-      {:ok, meta, body} ->
+    case locate_module(ast) do
+      {:ok, meta, body, extras} ->
         case Keyword.get(meta, :name) do
-          name when is_binary(name) and name != "" -> {:ok, name, List.wrap(body)}
-          name when is_atom(name) -> {:ok, Atom.to_string(name), List.wrap(body)}
+          name when is_binary(name) and name != "" -> {:ok, name, List.wrap(body), extras}
+          name when is_atom(name) -> {:ok, Atom.to_string(name), List.wrap(body), extras}
           _ -> {:error, {:module_not_found, path}}
         end
 
@@ -228,12 +233,50 @@ defmodule Cure.Refactor.Analysis do
     end
   end
 
-  defp find_module({:container, meta, body}) when is_list(meta) do
-    if Keyword.get(meta, :container_type) == :module, do: {:ok, meta, body}, else: :error
+  defp locate_module({:container, meta, body}) when is_list(meta) do
+    if Keyword.get(meta, :container_type) == :module, do: {:ok, meta, body, []}, else: :error
   end
 
-  defp find_module({:block, _meta, items}) when is_list(items), do: Enum.find_value(items, :error, &find_module/1)
-  defp find_module(_other), do: :error
+  defp locate_module({:block, _meta, items}) when is_list(items) do
+    case Enum.with_index(items) |> Enum.find(fn {node, _index} -> module_container?(node) end) do
+      {{:container, meta, body}, index} ->
+        extras =
+          items
+          |> Enum.with_index()
+          |> Enum.reject(fn {_node, candidate_index} -> candidate_index == index end)
+          |> Enum.map(&elem(&1, 0))
+          |> Enum.filter(&Program.declaration?/1)
+
+        {:ok, meta, body, extras}
+
+      nil ->
+        :error
+    end
+  end
+
+  defp locate_module(_other), do: :error
+
+  defp module_container?({:container, meta, _body}) when is_list(meta),
+    do: Keyword.get(meta, :container_type) == :module
+
+  defp module_container?(_other), do: false
+
+  defp out_of_module_warnings([]), do: []
+
+  defp out_of_module_warnings(extras) do
+    first = List.first(extras)
+    {tag, meta, _body} = first
+
+    [
+      %{
+        kind: "declarations_outside_module",
+        count: length(extras),
+        first_kind: Atom.to_string(tag),
+        first_name: declaration_name(meta, tag),
+        first_span: span_to_map(node_span(meta))
+      }
+    ]
+  end
 
   defp imports(body) do
     body

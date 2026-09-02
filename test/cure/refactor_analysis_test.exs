@@ -68,4 +68,15 @@ defmodule Cure.Refactor.AnalysisTest do
     assert {:ok, report} = Analysis.analyze(path, checked: true)
     assert report.checked?
   end
+
+  test "warns when parser recovery leaves declarations outside the module", %{dir: dir} do
+    path = Path.join(dir, "recovered.cure")
+
+    File.write!(path, "mod Recovered\n  fn inside() -> Int = 1\n fn outside() -> Int = 2\n")
+
+    assert {:ok, report} = Analysis.analyze(path)
+    assert report.declaration_count == 1
+
+    assert [%{kind: "declarations_outside_module", count: 1, first_name: "outside"}] = report.warnings
+  end
 end
