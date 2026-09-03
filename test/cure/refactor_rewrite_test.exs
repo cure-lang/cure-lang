@@ -58,6 +58,7 @@ defmodule Cure.Refactor.RewriteTest do
     source = """
     mod Source
       ## Documentation for the moved declaration.
+      @reducible
       fn move() -> Int = 1
       fn keep() -> Int = 2
     end
@@ -69,6 +70,7 @@ defmodule Cure.Refactor.RewriteTest do
              Rewrite.split(source_path, "helpers.cure:Extracted:move", output_directory: dir)
 
     assert result.target =~ "## Documentation for the moved declaration."
+    assert result.target =~ "@reducible"
     refute result.source =~ "Documentation for the moved declaration"
   end
 

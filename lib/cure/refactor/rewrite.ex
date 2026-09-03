@@ -467,14 +467,14 @@ defmodule Cure.Refactor.Rewrite do
     {leading_start(source, line_start(source, start_byte)), line_end(source, end_byte)}
   end
 
-  # A declaration's documentation comments are trivia attached to the AST
-  # node, not part of its token span. Carry adjacent comment lines with the
-  # declaration so extraction remains lossless and source removal does not
-  # strand the documentation above the next declaration.
+  # A declaration's documentation comments and decorators are trivia attached
+  # to the AST node, not necessarily part of its token span. Carry adjacent
+  # comment/attribute lines with the declaration so extraction remains lossless
+  # and source removal does not strand them above the next declaration.
   defp leading_start(source, start_byte) do
     previous = previous_line_start(source, start_byte)
 
-    if previous < start_byte and comment_line?(source, previous) do
+    if previous < start_byte and movable_trivia_line?(source, previous) do
       leading_start(source, previous)
     else
       start_byte
@@ -492,9 +492,10 @@ defmodule Cure.Refactor.Rewrite do
     end
   end
 
-  defp comment_line?(source, start_byte) do
+  defp movable_trivia_line?(source, start_byte) do
     end_byte = line_end(source, start_byte)
-    source |> binary_part(start_byte, end_byte - start_byte) |> String.trim() |> String.starts_with?("#")
+    line = source |> binary_part(start_byte, end_byte - start_byte) |> String.trim()
+    String.starts_with?(line, "#") or String.starts_with?(line, "@")
   end
 
   defp line_start(_source, 0), do: 0
