@@ -142,25 +142,27 @@ defmodule Cure.Refactor.AnalysisTest do
 
     source = """
     mod Plan
+      use Std.Option
       fn root() -> Int = leaf()
       fn leaf() -> Int = 1
       fn cycle_a() -> Int = cycle_b()
       fn cycle_b() -> Int = cycle_a()
       fn isolated() -> Int = 4
+      fn imported() -> Option(Int) = None()
     end
     """
 
     File.write!(path, source)
 
     assert {:ok, report} = Analysis.analyze(path, plan: true)
-    assert report.plan.component_count == 4
+    assert report.plan.component_count == 5
     assert report.plan.cyclic_components == 1
     assert report.plan.cross_component_edges == 1
-    assert report.plan.boundary_references == 1
-    assert report.plan.unresolved_references == 0
-    assert report.plan.isolated_candidates == 2
+    assert report.plan.boundary_references == 3
+    assert report.plan.unresolved_references == 2
+    assert report.plan.isolated_candidates == 3
 
-    [root, leaf, cycle, isolated] = report.plan.components
+    [root, leaf, cycle, isolated, imported] = report.plan.components
     assert root.declarations == [:"Plan#root"]
     assert root.dependencies == ["component_2"]
     assert leaf.dependents == ["component_1"]
@@ -170,6 +172,7 @@ defmodule Cure.Refactor.AnalysisTest do
     assert cycle.dependents == []
     assert isolated.isolated?
     assert isolated.declarations == [:"Plan#isolated"]
+    assert imported.required_imports == ["Std.Option"]
 
     assert Analysis.format(report) =~ "isolated candidate"
     mapped = Analysis.to_map(report)

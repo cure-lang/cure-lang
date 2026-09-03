@@ -137,7 +137,7 @@ defmodule Cure.Refactor.Analysis do
           do: statistics(declarations, imports),
           else: %{}
 
-      plan = if Keyword.get(opts, :plan, false), do: dependency_plan(declarations), else: nil
+      plan = if Keyword.get(opts, :plan, false), do: dependency_plan(declarations, imports), else: nil
 
       {:ok,
        %Report{
@@ -580,7 +580,7 @@ defmodule Cure.Refactor.Analysis do
   # enclosing declaration and cannot be moved without a separate surface
   # rewrite. Strongly connected components are the smallest units that must
   # move together to preserve local dependency edges.
-  defp dependency_plan(declarations) do
+  defp dependency_plan(declarations, imports) do
     top_level = Enum.filter(declarations, &(&1.depth == 0 and is_atom(&1.identity)))
 
     groups =
@@ -614,7 +614,7 @@ defmodule Cure.Refactor.Analysis do
 
     components = strongly_connected_components(edges, length(groups))
     component_for = component_membership(components)
-    component_records = build_component_records(groups, edges, components, component_for)
+    component_records = build_component_records(groups, edges, components, component_for, imports)
     cross_component_edges = count_cross_component_edges(edges, component_for)
     isolated = Enum.count(component_records, & &1.isolated?)
     cyclic = Enum.count(component_records, & &1.cyclic?)
@@ -628,7 +628,8 @@ defmodule Cure.Refactor.Analysis do
       cyclic_components: cyclic,
       cross_component_edges: cross_component_edges,
       boundary_references: boundary_references,
-      unresolved_references: unresolved_references
+      unresolved_references: unresolved_references,
+      imports: Enum.map(imports, &Map.take(&1, [:source, :import_type, :source_order]))
     }
   end
 
@@ -699,7 +700,7 @@ defmodule Cure.Refactor.Analysis do
     |> Map.new()
   end
 
-  defp build_component_records(groups, edges, components, component_for) do
+  defp build_component_records(groups, edges, components, component_for, imports) do
     components
     |> Enum.with_index()
     |> Enum.map(fn {members, component_index} ->
@@ -719,6 +720,7 @@ defmodule Cure.Refactor.Analysis do
       local_identities = MapSet.new(Enum.map(declarations, & &1.identity))
       boundary_references = Enum.reject(references, &MapSet.member?(local_identities, &1.identity))
       unresolved_references = Enum.count(boundary_references, &is_nil(&1.identity))
+      required_imports = required_imports(boundary_references, imports)
 
       %{
         id: "component_#{component_index + 1}",
@@ -735,7 +737,8 @@ defmodule Cure.Refactor.Analysis do
         public?: Enum.any?(declarations, &(&1.visibility == :public)),
         boundary_reference_count: length(boundary_references),
         unresolved_reference_count: unresolved_references,
-        boundary_references: boundary_references |> Enum.map(& &1.name) |> Enum.uniq() |> Enum.sort()
+        boundary_references: boundary_references |> Enum.map(& &1.name) |> Enum.uniq() |> Enum.sort(),
+        required_imports: required_imports
       }
     end)
   end
@@ -775,6 +778,23 @@ defmodule Cure.Refactor.Analysis do
     end)
   end
 
+  defp required_imports(references, imports) do
+    references
+    |> Enum.map(& &1.name)
+    |> Enum.uniq()
+    |> Enum.flat_map(fn name ->
+      imports
+      |> Enum.filter(&import_exposes?(&1, name))
+      |> Enum.map(& &1.source)
+    end)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  defp import_exposes?(import, name) do
+    import.items == [] or Enum.any?(import.items, &(&1 == name or String.trim_leading(&1, ":") == name))
+  end
+
   defp format_plan(plan) do
     summary = [
       "  components: #{plan.component_count}",
@@ -799,12 +819,17 @@ defmodule Cure.Refactor.Analysis do
             do: "none",
             else: Enum.join(component.boundary_references, ",")
 
+        imports =
+          if component.required_imports == [],
+            do: "none",
+            else: Enum.join(component.required_imports, ",")
+
         [
           "  #{component.id}: #{flags}; " <>
             "declarations=#{Enum.map_join(component.declarations, ", ", &Atom.to_string/1)}; " <>
             "depends_on=#{format_component_ids(component.dependencies)}; " <>
             "dependents=#{format_component_ids(component.dependents)}; " <>
-            "boundary=#{boundary}"
+            "boundary=#{boundary}; imports=#{imports}"
         ]
       end)
 
