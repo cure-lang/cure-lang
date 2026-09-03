@@ -110,6 +110,24 @@ defmodule Cure.Refactor.RewriteTest do
     assert File.read!(path) == source
   end
 
+  test "a split that would require a back-edge is rejected before writing", %{dir: dir} do
+    path = Path.join(dir, "source.cure")
+
+    File.write!(path, """
+    mod Source
+      fn root() -> Int = helper()
+      fn helper() -> Int = 1
+    end
+    """)
+
+    assert {:error, {:dependency_error, message}} =
+             Rewrite.split(path, "helpers.cure:Extracted:root", output_directory: dir, write: true)
+
+    assert message =~ "dependency closure"
+    refute File.exists?(Path.join(dir, "helpers.cure"))
+    assert File.read!(path) =~ "fn root()"
+  end
+
   test "declaration spans include every expression in a multiline body", %{dir: dir} do
     path = Path.join(dir, "multiline.cure")
 

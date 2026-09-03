@@ -72,6 +72,7 @@ defmodule Cure.Refactor.Rewrite do
           {:invalid_split_spec, String.t()}
           | {:file_read_error, Path.t(), atom()}
           | {:analysis_error, term()}
+          | {:source_changed, Path.t()}
           | {:selection_error, String.t()}
           | {:dependency_error, String.t()}
           | {:target_exists, Path.t()}
@@ -116,9 +117,11 @@ defmodule Cure.Refactor.Rewrite do
     with {:ok, spec} <- normalize_spec(spec),
          {:ok, source} <- read_source(source_path),
          {:ok, report} <- analyze(source_path),
+         :ok <- ensure_source_unchanged(source, report),
          {:ok, selected} <- select_declarations(report, spec.selectors),
          :ok <- ensure_movable(selected, Keyword.get(opts, :remove_from_source, true)),
          {:ok, crossing} <- dependency_edges(report.declarations, selected),
+         :ok <- ensure_boundary_acyclic(crossing, selected, Keyword.get(opts, :remove_from_source, true)),
          {:ok, target_path} <- target_path(source_path, spec.target_file, opts),
          :ok <- ensure_target_is_distinct(source_path, target_path),
          :ok <- ensure_target_available(target_path, opts),
@@ -179,7 +182,8 @@ defmodule Cure.Refactor.Rewrite do
 
   def ensure_public_use(source_path, target_module, opts) when is_binary(target_module) do
     with {:ok, source} <- read_source(source_path),
-         {:ok, report} <- analyze(source_path) do
+         {:ok, report} <- analyze(source_path),
+         :ok <- ensure_source_unchanged(source, report) do
       if has_import?(report, target_module) do
         {:ok, %{source: source, added?: false}}
       else
@@ -203,7 +207,8 @@ defmodule Cure.Refactor.Rewrite do
 
   def ensure_use(source_path, target_module, opts) when is_binary(target_module) do
     with {:ok, source} <- read_source(source_path),
-         {:ok, report} <- analyze(source_path) do
+         {:ok, report} <- analyze(source_path),
+         :ok <- ensure_source_unchanged(source, report) do
       if has_import?(report, target_module) do
         {:ok, %{source: source, added?: false}}
       else
@@ -262,6 +267,11 @@ defmodule Cure.Refactor.Rewrite do
       {:ok, report} -> {:ok, report}
       {:error, reason} -> {:error, {:analysis_error, reason}}
     end
+  end
+
+  defp ensure_source_unchanged(source, report) do
+    digest = :sha256 |> :crypto.hash(source) |> Base.encode16(case: :lower)
+    if digest == report.source_hash, do: :ok, else: {:error, {:source_changed, report.path}}
   end
 
   defp select_declarations(report, selectors) do
@@ -347,6 +357,18 @@ defmodule Cure.Refactor.Rewrite do
   end
 
   defp ensure_movable(_selected, false), do: :ok
+
+  defp ensure_boundary_acyclic(%{selected_to_remaining: [_ | _]}, selected, true) do
+    if public_declarations?(selected) do
+      {:error,
+       {:dependency_error,
+        "selected declarations depend on declarations left in the source; select that dependency closure to keep the split acyclic"}}
+    else
+      :ok
+    end
+  end
+
+  defp ensure_boundary_acyclic(_crossing, _selected, _remove_from_source), do: :ok
 
   defp private_crossing(%{selected_to_remaining: selected, remaining_to_selected: remaining}, declarations_by_id) do
     (selected ++ remaining)
