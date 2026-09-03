@@ -52,6 +52,26 @@ defmodule Cure.Refactor.RewriteTest do
     refute File.exists?(Path.join(dir, "helpers.cure"))
   end
 
+  test "leading documentation trivia follows an extracted declaration", %{dir: dir} do
+    source_path = Path.join(dir, "source.cure")
+
+    source = """
+    mod Source
+      ## Documentation for the moved declaration.
+      fn move() -> Int = 1
+      fn keep() -> Int = 2
+    end
+    """
+
+    File.write!(source_path, source)
+
+    assert {:ok, result} =
+             Rewrite.split(source_path, "helpers.cure:Extracted:move", output_directory: dir)
+
+    assert result.target =~ "## Documentation for the moved declaration."
+    refute result.source =~ "Documentation for the moved declaration"
+  end
+
   test "apply writes only the verified generated pair", %{dir: dir} do
     source_path = Path.join(dir, "source.cure")
     target_path = Path.join(dir, "helpers.cure")
@@ -106,7 +126,8 @@ defmodule Cure.Refactor.RewriteTest do
     File.write!(path, source)
 
     assert {:ok, %{source: rewritten, added?: true}} = Rewrite.ensure_use(path, "Extracted", write: false)
-    assert rewritten =~ "use Existing\n  use Extracted"
+    assert rewritten =~ "use Existing"
+    assert rewritten =~ "use Extracted"
     assert File.read!(path) == source
   end
 

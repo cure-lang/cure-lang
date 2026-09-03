@@ -443,7 +443,7 @@ defmodule Cure.Refactor.Rewrite do
 
   defp remove_spans(source, spans) do
     spans
-    |> Enum.map(&line_span(source, &1))
+    |> Enum.map(&declaration_line_span(source, &1))
     |> Enum.sort_by(&elem(&1, 0))
     |> merge_ranges()
     |> Enum.sort_by(&elem(&1, 0), :desc)
@@ -463,8 +463,38 @@ defmodule Cure.Refactor.Rewrite do
     |> Enum.reverse()
   end
 
-  defp line_span(source, %Span{start_byte: start_byte, end_byte: end_byte}) do
-    {line_start(source, start_byte), line_end(source, end_byte)}
+  defp declaration_line_span(source, %Span{start_byte: start_byte, end_byte: end_byte}) do
+    {leading_start(source, line_start(source, start_byte)), line_end(source, end_byte)}
+  end
+
+  # A declaration's documentation comments are trivia attached to the AST
+  # node, not part of its token span. Carry adjacent comment lines with the
+  # declaration so extraction remains lossless and source removal does not
+  # strand the documentation above the next declaration.
+  defp leading_start(source, start_byte) do
+    previous = previous_line_start(source, start_byte)
+
+    if previous < start_byte and comment_line?(source, previous) do
+      leading_start(source, previous)
+    else
+      start_byte
+    end
+  end
+
+  defp previous_line_start(_source, 0), do: 0
+
+  defp previous_line_start(source, start_byte) do
+    before = binary_part(source, 0, max(start_byte - 1, 0))
+
+    case :binary.matches(before, "\n") |> List.last() do
+      {index, 1} -> index + 1
+      nil -> 0
+    end
+  end
+
+  defp comment_line?(source, start_byte) do
+    end_byte = line_end(source, start_byte)
+    source |> binary_part(start_byte, end_byte - start_byte) |> String.trim() |> String.starts_with?("#")
   end
 
   defp line_start(_source, 0), do: 0
@@ -492,29 +522,22 @@ defmodule Cure.Refactor.Rewrite do
   defp insert_imports(source, _report, []), do: source
 
   defp insert_imports(source, report, imports) do
-    spans = Enum.map(report.imports, &span_from_map(&1.span)) |> Enum.reject(&is_nil/1)
-
-    first_declaration =
-      report.declarations
-      |> Enum.filter(&(&1.depth == 0))
-      |> Enum.map(& &1.span)
-      |> Enum.reject(&is_nil/1)
-      |> Enum.min_by(& &1.start_byte, fn -> nil end)
-
-    offset =
-      case spans do
-        [] -> if first_declaration, do: line_start(source, first_declaration.start_byte), else: module_body_end(source)
-        _ -> spans |> Enum.map(&line_end(source, &1.end_byte)) |> Enum.max()
-      end
+    offset = module_header_end(source, report.path)
 
     text = Enum.map_join(imports, "", &"  #{&1}\n")
     binary_part(source, 0, offset) <> text <> binary_part(source, offset, byte_size(source) - offset)
   end
 
-  defp module_body_end(source) do
-    case :binary.matches(source, "\nend") |> List.last() do
-      {index, _} -> index + 1
-      nil -> byte_size(source)
+  defp module_header_end(source, path) do
+    case parse_source(source, path) do
+      {:ok, ast} ->
+        case module_span(ast) do
+          %Span{start_byte: start_byte} -> line_end(source, start_byte)
+          _ -> byte_size(source)
+        end
+
+      _ ->
+        byte_size(source)
     end
   end
 
@@ -592,7 +615,8 @@ defmodule Cure.Refactor.Rewrite do
     end
   end
 
-  defp declaration_source(source, %Declaration{span: %Span{start_byte: start_byte, end_byte: end_byte}}) do
+  defp declaration_source(source, %Declaration{span: %Span{} = span}) do
+    {start_byte, end_byte} = declaration_line_span(source, span)
     binary_part(source, start_byte, end_byte - start_byte) |> String.trim()
   end
 
