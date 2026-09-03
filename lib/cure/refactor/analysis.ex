@@ -752,9 +752,12 @@ defmodule Cure.Refactor.Analysis do
   defp incoming_component_edges(component_index, edges, component_for) do
     edges
     |> Enum.flat_map(fn {source, targets} ->
-      if Enum.any?(targets, &(Map.get(component_for, &1) == component_index)),
-        do: [Map.get(component_for, source)],
-        else: []
+      source_component = Map.get(component_for, source)
+
+      if source_component != component_index and
+           Enum.any?(targets, &(Map.get(component_for, &1) == component_index)),
+         do: [source_component],
+         else: []
     end)
     |> Enum.reject(&is_nil/1)
     |> Enum.uniq()
@@ -785,6 +788,7 @@ defmodule Cure.Refactor.Analysis do
       Enum.flat_map(plan.components, fn component ->
         flags =
           cond do
+            component.isolated? and component.cyclic? -> "isolated cyclic component"
             component.isolated? -> "isolated candidate"
             component.cyclic? -> "cyclic"
             true -> "dependency component"

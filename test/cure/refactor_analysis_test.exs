@@ -158,14 +158,16 @@ defmodule Cure.Refactor.AnalysisTest do
     assert report.plan.cross_component_edges == 1
     assert report.plan.boundary_references == 1
     assert report.plan.unresolved_references == 0
-    assert report.plan.isolated_candidates == 1
+    assert report.plan.isolated_candidates == 2
 
     [root, leaf, cycle, isolated] = report.plan.components
     assert root.declarations == [:"Plan#root"]
     assert root.dependencies == ["component_2"]
     assert leaf.dependents == ["component_1"]
     assert cycle.cyclic?
+    assert cycle.isolated?
     assert cycle.declarations == [:"Plan#cycle_a", :"Plan#cycle_b"]
+    assert cycle.dependents == []
     assert isolated.isolated?
     assert isolated.declarations == [:"Plan#isolated"]
 
