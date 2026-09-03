@@ -1,0 +1,122 @@
+name: Release
+
+# Release creation is driven by the signed `vX.Y.Z` tag described in
+# `RELEASE.md`. Pushing that tag builds the `cure` escript from the tagged
+# tree and publishes it as a release asset, so the binary attached to a
+# release is always the one produced by the exact commit that was tagged.
+# `workflow_dispatch` exists for re-running the build against an existing
+# tag (for example after a transient runner failure) without moving the tag.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and publish (e.g. v0.34.1)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  escript:
+    name: Build escript and publish release
+    runs-on: ubuntu-latest
+
+    env:
+      MIX_ENV: dev
+      ELIXIR_VERSION: "1.20"
+      OTP_VERSION: "29"
+
+    steps:
+      - name: Resolve tag
+        id: tag
+        run: echo "name=${{ inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.name }}
+          fetch-depth: 0
+
+      # The Cure toolchain shells out to z3 for constraint solving; the
+      # stdlib compilation performed by the `compile` alias needs it.
+      - name: Install z3
+        run: sudo apt-get install -y z3
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+          otp-version: ${{ env.OTP_VERSION }}
+
+      - name: Cache deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-release-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-release-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      # `mix.exs` wires the stdlib staging tasks (`cure.bundle_stdlib`,
+      # `cure.compile_stdlib`, `cure.bundle_stdlib_beams`) into the `compile`
+      # alias for non-test environments, so this step also produces the
+      # `priv/std` sources and `priv/ebin/Cure.Std.*.beam` artifacts that the
+      # escript embeds.
+      - name: Compile (warnings as errors)
+        run: mix compile --warnings-as-errors
+
+      - name: Build escript
+        run: mix escript.build
+
+      # A release asset that cannot report its own version is not shippable.
+      # `Cure.version/0` is resolved at compile time from `mix.exs`, so this
+      # also catches a tag pushed without the accompanying version bump
+      # required by step 1 of `RELEASE.md`.
+      - name: Verify escript
+        run: |
+          ./cure version
+          reported="$(./cure version)"
+          expected="Cure ${TAG#v}"
+          if [ "$reported" != "$expected" ]; then
+            echo "escript reports '$reported', expected '$expected' for tag ${TAG}" >&2
+            exit 1
+          fi
+        env:
+          TAG: ${{ steps.tag.outputs.name }}
+
+      - name: Package escript
+        run: |
+          mkdir -p dist
+          cp cure "dist/cure-${TAG}-linux-x86_64"
+          cd dist
+          sha256sum "cure-${TAG}-linux-x86_64" > "cure-${TAG}-linux-x86_64.sha256"
+        env:
+          TAG: ${{ steps.tag.outputs.name }}
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cure-escript-${{ steps.tag.outputs.name }}
+          path: dist/*
+          if-no-files-found: error
+
+      # Creates the release when the tag push is the trigger, and updates the
+      # existing release (attaching the freshly built binary) on re-runs.
+      - name: Create or update GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.name }}
+          name: ${{ steps.tag.outputs.name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/cure-${{ steps.tag.outputs.name }}-linux-x86_64
+            dist/cure-${{ steps.tag.outputs.name }}-linux-x86_64.sha256
