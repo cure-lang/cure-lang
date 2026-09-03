@@ -398,7 +398,7 @@ defmodule Cure.Refactor.Rewrite do
   end
 
   defp ensure_target_available(path, opts) do
-    if File.exists?(path) and not Keyword.get(opts, :overwrite, false),
+    if Keyword.get(opts, :write, false) and File.exists?(path) and not Keyword.get(opts, :overwrite, false),
       do: {:error, {:target_exists, path}},
       else: :ok
   end
