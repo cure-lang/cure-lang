@@ -382,7 +382,7 @@ defmodule Cure.Refactor.Analysis do
     recursive? = Keyword.get(opts, :recursive, false)
     max_depth = Keyword.get(opts, :max_depth, :infinity)
     dependencies? = Keyword.get(opts, :dependencies, false)
-    local_names = local_declaration_names(body)
+    local_owners = local_declaration_owners(body, module)
 
     {declarations, _next_order} =
       Enum.reduce(body, {[], 1}, fn node, {acc, next_order} ->
@@ -398,7 +398,7 @@ defmodule Cure.Refactor.Analysis do
               recursive?,
               max_depth,
               dependencies?,
-              local_names
+              local_owners
             )
 
           {[declaration | acc], next_order}
@@ -410,13 +410,37 @@ defmodule Cure.Refactor.Analysis do
     Enum.reverse(declarations)
   end
 
-  defp local_declaration_names(body) do
-    body
-    |> Enum.filter(&Program.declaration?/1)
-    |> Enum.map(fn {_tag, meta, _body} -> declaration_name(meta, nil) end)
-    |> Enum.filter(&(is_binary(&1) and &1 != ""))
-    |> MapSet.new()
+  defp local_declaration_owners(body, module) do
+    Enum.reduce(body, %{}, fn node, owners ->
+      if Program.declaration?(node),
+        do: declaration_owner_entries(node, module, nil, owners),
+        else: owners
+    end)
   end
+
+  defp declaration_owner_entries({tag, meta, _body} = node, module, owner, owners)
+       when is_atom(tag) and is_list(meta) do
+    name = declaration_name(meta, tag)
+    identity = if is_binary(name) and name != "", do: Name.qualify(module, name), else: owner
+    owner = owner || identity
+    owners = put_local_owner(owners, name, owner)
+
+    Enum.reduce(nested_declaration_nodes(node), owners, fn child, owners ->
+      declaration_owner_entries(child, module, owner, owners)
+    end)
+  end
+
+  defp declaration_owner_entries(_other, _module, _owner, owners), do: owners
+
+  defp put_local_owner(owners, name, owner) when is_binary(name) and name != "" and is_atom(owner) do
+    case Map.get(owners, name) do
+      nil -> Map.put(owners, name, owner)
+      ^owner -> owners
+      _ -> Map.put(owners, name, :ambiguous)
+    end
+  end
+
+  defp put_local_owner(owners, _name, _owner), do: owners
 
   defp declaration_tree(
          node,
@@ -428,14 +452,14 @@ defmodule Cure.Refactor.Analysis do
          recursive?,
          max_depth,
          dependencies?,
-         local_names
+         local_owners
        ) do
     declaration = declaration(node, module, source, source_order)
     declaration = %{declaration | depth: depth, parent: parent}
 
     declaration =
       if dependencies? do
-        %{declaration | references: references(node, module, local_names)}
+        %{declaration | references: references(node, local_owners)}
       else
         declaration
       end
@@ -456,7 +480,7 @@ defmodule Cure.Refactor.Analysis do
               recursive?,
               max_depth,
               dependencies?,
-              local_names
+              local_owners
             )
 
           {[nested | acc], next_order}
@@ -839,7 +863,7 @@ defmodule Cure.Refactor.Analysis do
   defp format_component_ids([]), do: "none"
   defp format_component_ids(ids), do: Enum.join(ids, ",")
 
-  defp references(node, module, local_names) do
+  defp references(node, local_owners) do
     node
     |> collect_references([])
     |> Enum.reverse()
@@ -847,7 +871,7 @@ defmodule Cure.Refactor.Analysis do
     |> Enum.map(fn %{name: name, kind: kind, span: span} ->
       %Reference{
         name: name,
-        identity: reference_identity(name, module, local_names),
+        identity: reference_identity(name, local_owners),
         kind: kind,
         span: span
       }
@@ -892,9 +916,9 @@ defmodule Cure.Refactor.Analysis do
     end
   end
 
-  defp reference_identity(name, module, local_names) do
+  defp reference_identity(name, local_owners) do
     cond do
-      MapSet.member?(local_names, name) -> Name.qualify(module, name)
+      is_atom(Map.get(local_owners, name)) -> Map.get(local_owners, name)
       String.contains?(name, ".") -> qualified_identity(name)
       true -> nil
     end
