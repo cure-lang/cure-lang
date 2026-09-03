@@ -8531,14 +8531,44 @@ defmodule Cure.Compiler.Parser do
     end
   end
 
-  defp ast_source_span({_, meta, _}) when is_list(meta) do
+  # A statement-list wrapper often has no source span of its own.  Its
+  # children, however, may extend well beyond the first expression (notably a
+  # multiline `pickup` followed by a `match`).  Source spans used by
+  # declaration metadata must cover the complete subtree, otherwise a
+  # structural rewrite can remove only the header and leave a dangling tail in
+  # the original file.  Keep the node's explicit span and widen it over every
+  # child span in source order.
+  defp ast_source_span({_, meta, children}) when is_list(meta) and is_list(children) do
+    spans =
+      [metadata_whole_span(meta) | Enum.map(children, &ast_source_span/1)]
+      |> Enum.reject(&is_nil/1)
+
+    span_sequence(spans)
+  end
+
+  defp ast_source_span({_, meta, child}) when is_list(meta) do
+    span_sequence([metadata_whole_span(meta), ast_source_span(child)])
+  end
+
+  defp ast_source_span(children) when is_list(children) do
+    children |> Enum.map(&ast_source_span/1) |> Enum.reject(&is_nil/1) |> span_sequence()
+  end
+
+  defp ast_source_span(_), do: nil
+
+  defp metadata_whole_span(meta) do
     case Metadata.source_info(meta) do
-      %SourceInfo{whole: span} -> span
+      %SourceInfo{whole: %Cure.Diagnostic.Span{} = span} -> span
       _ -> nil
     end
   end
 
-  defp ast_source_span(_), do: nil
+  defp span_sequence(spans) do
+    case Enum.reject(spans, &is_nil/1) do
+      [] -> nil
+      [first | rest] -> Enum.reduce(rest, first, &merge_source_spans/2)
+    end
+  end
 
   defp parse_fn_clauses(state) do
     state = skip_newlines(state)

@@ -2,6 +2,7 @@
 @group(:text)
 mod Std.Regex.Syntax.Flags
   use Std.Regex.Syntax.Model
+  public use Std.Regex.Syntax.Flags.Literals
 
   fn parse_literal_flags(flags: List(Char), options: LiteralRegexOptions) -> LiteralFlags = match flags
     [] -> LiteralFlagsParsed(options)
@@ -38,9 +39,6 @@ mod Std.Regex.Syntax.Flags
       literal_extended_space(char) -> strip_extended(rest, S(position))
       else -> prepend_literal_source(char, position, strip_extended(rest, S(position)))
 
-  fn literal_extended_space(char: Char) -> Bool =
-    char == ' ' or char == '\t' or char == '\n' or char == '\r' or
-      char == '\f' or char == '\v'
 
   fn strip_extended_escaped(input: List(Char), position: Nat) -> LiteralSourceMap = match input
     [] -> LiteralSourceMap([], [])
