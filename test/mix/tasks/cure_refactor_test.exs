@@ -44,4 +44,28 @@ defmodule Mix.Tasks.Cure.RefactorTest do
     assert output =~ "\"component_count\":1"
     assert File.read!(path) == source
   end
+
+  test "split mode applies the verified structural rewrite", %{dir: dir} do
+    path = Path.join(dir, "split_task.cure")
+    target = Path.join(dir, "helpers.cure")
+    File.write!(path, "mod SplitTask\n  fn keep() -> Int = 2\n  fn move() -> Int = 1\nend\n")
+    Mix.Task.reenable("cure.refactor")
+
+    output =
+      ExUnit.CaptureIO.capture_io(fn ->
+        assert :ok =
+                 Mix.Task.run("cure.refactor", [
+                   "--split",
+                   "helpers.cure:Extracted:move",
+                   "--output-directory",
+                   dir,
+                   path
+                 ])
+      end)
+
+    assert output =~ "(written)"
+    assert File.exists?(target)
+    assert File.read!(target) =~ "mod Extracted"
+    refute File.read!(path) =~ "fn move()"
+  end
 end
