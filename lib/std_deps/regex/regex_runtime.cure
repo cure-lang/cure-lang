@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.Boundaries
   public use Std.Regex.Runtime.AtomicDiagnostics
   public use Std.Regex.Runtime.ClassKinds
   public use Std.Regex.Runtime.Named
@@ -1135,93 +1136,26 @@ mod Std.Regex.Runtime
       CaptureParticipatedByRoutine() -> CaptureParticipatedByRoutine()
       CaptureAbsentByRoutine() -> CaptureAbsentByRoutine()
 
-  fn newline_char(policy: NewlinePolicy, char: Char) -> Bool = match policy
-    LFNewline() -> char == '\n'
-    CRNewline() -> char == '\r'
-    CRLFNewline() -> char == '\r'
-    AnyCRLFNewline() -> char == '\r' or char == '\n'
-    AnyUnicodeNewline() -> Std.Char.is_newline(char)
 
-  fn option_is_char(value: Option(Char), expected: Char) -> Bool = match value
-    Some(char) -> char == expected
-    None() -> false
 
-  fn line_start_for(policy: NewlinePolicy, previous_char: Option(Char), next_char: Option(Char)) -> Bool = match previous_char
-    None() -> true
-    Some(previous) -> match policy
-      LFNewline() -> previous == '\n'
-      CRNewline() -> previous == '\r'
-      CRLFNewline() -> previous == '\n'
-      AnyCRLFNewline() -> previous == '\n' or (previous == '\r' and not option_is_char(next_char, '\n'))
-      AnyUnicodeNewline() -> newline_char(policy, previous) and (previous != '\r' or not option_is_char(next_char, '\n'))
 
-  fn line_end_for(policy: NewlinePolicy, next_char: Option(Char), after_next_char: Option(Char)) -> Bool = match next_char
-    None() -> true
-    Some(next) -> match policy
-      LFNewline() -> next == '\n'
-      CRNewline() -> next == '\r'
-      CRLFNewline() -> next == '\r' and option_is_char(after_next_char, '\n')
-      AnyCRLFNewline() -> next == '\n' or (next == '\r' and not option_is_char(after_next_char, '\n'))
-      AnyUnicodeNewline() -> (newline_char(policy, next) and (next != '\r' or not option_is_char(after_next_char, '\n')))
 
-  fn subject_end_for(policy: NewlinePolicy, next_char: Option(Char), after_next_char: Option(Char)) -> Bool = match next_char
-    None() -> true
-    Some(next) -> match after_next_char
-      None() -> terminal_newline(policy, next)
-      Some(after_next) -> next == '\r' and after_next == '\n' and crlf_policy(policy)
 
-  fn terminal_newline(policy: NewlinePolicy, char: Char) -> Bool = match policy
-    CRLFNewline() -> false
-    _ -> newline_char(policy, char)
 
-  fn crlf_policy(policy: NewlinePolicy) -> Bool = match policy
-    CRLFNewline() -> true
-    CRNewline() -> false
-    AnyCRLFNewline() -> true
-    AnyUnicodeNewline() -> true
-    LFNewline() -> false
 
-  fn subject_start_constraint() -> BoundaryConstraint =
-    subject_start_constraint_with_policy(AnyUnicodeNewline())
 
-  fn subject_start_constraint_with_policy(policy: NewlinePolicy) -> BoundaryConstraint =
-    BoundaryConstraint(true, false, false, false, false, false, false, false, false, policy, None(), None())
 
-  fn subject_end_constraint() -> BoundaryConstraint =
-    subject_end_constraint_with_policy(AnyUnicodeNewline())
 
-  fn subject_end_constraint_with_policy(policy: NewlinePolicy) -> BoundaryConstraint =
-    BoundaryConstraint(false, true, false, false, false, false, false, false, false, policy, None(), None())
 
-  fn strict_end_constraint() -> BoundaryConstraint =
-    strict_end_constraint_with_policy(AnyUnicodeNewline())
 
-  fn strict_end_constraint_with_policy(policy: NewlinePolicy) -> BoundaryConstraint =
-    BoundaryConstraint(false, false, true, false, false, false, false, false, false, policy, None(), None())
 
-  fn line_start_constraint() -> BoundaryConstraint =
-    line_start_constraint_with_policy(AnyUnicodeNewline())
 
-  fn line_start_constraint_with_policy(policy: NewlinePolicy) -> BoundaryConstraint =
-    BoundaryConstraint(false, false, false, true, false, false, false, false, false, policy, None(), None())
 
-  fn line_end_constraint() -> BoundaryConstraint =
-    line_end_constraint_with_policy(AnyUnicodeNewline())
 
-  fn line_end_constraint_with_policy(policy: NewlinePolicy) -> BoundaryConstraint =
-    BoundaryConstraint(false, false, false, false, true, false, false, false, false, policy, None(), None())
 
-  fn ascii_word_constraint(expected: Bool) -> BoundaryConstraint =
-    BoundaryConstraint(false, false, false, false, false, true, expected, false, false, AnyUnicodeNewline(), None(), None())
 
-  fn unicode_word_constraint(expected: Bool) -> BoundaryConstraint =
-    BoundaryConstraint(false, false, false, false, false, false, false, true, expected, AnyUnicodeNewline(), None(), None())
 
-  fn capture_participated_constraint(slot: Nat) -> BoundaryConstraint =
-    BoundaryConstraint(false, false, false, false, false, false, false, false, false, AnyUnicodeNewline(), Some(CaptureParticipated(slot)), None())
 
-  fn capture_absent_constraint(slot: Nat) -> BoundaryConstraint =
-    BoundaryConstraint(false, false, false, false, false, false, false, false, false, AnyUnicodeNewline(), Some(CaptureAbsent(slot)), None())
 
   ## Assertions are staged as ordinary zero-state boundary nodes.  The child
   ## machine is closed over once here; each boundary check only supplies the
