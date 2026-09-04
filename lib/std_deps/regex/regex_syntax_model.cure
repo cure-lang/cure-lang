@@ -3,6 +3,7 @@
 
 @group(:text)
 mod Std.Regex.Syntax.Model
+  public use Std.Regex.Syntax.Model.Modifiers
   public use Std.Regex.Syntax.Model.ClassPredicates
   public use Std.Regex.Syntax.Model.Shape
   public use Std.Regex.Syntax.Model.Utilities
@@ -34,17 +35,8 @@ mod Std.Regex.Syntax.Model
 
 
 
-  fn enable_modifier(modifier: LiteralModifier, options: LiteralRegexOptions) -> LiteralRegexOptions = match options
-    LiteralRegexOptions(values, policy) -> LiteralRegexOptions([modifier | values], policy)
 
-  fn disable_modifier(modifier: LiteralModifier, options: LiteralRegexOptions) -> LiteralRegexOptions = match options
-    LiteralRegexOptions(values, policy) -> LiteralRegexOptions(remove_modifier(values, modifier), policy)
 
-  fn remove_modifier(values: List(LiteralModifier), wanted: LiteralModifier) -> List(LiteralModifier) = match values
-    [] -> []
-    [head | rest] -> pickup
-      same_modifier(head, wanted) -> remove_modifier(rest, wanted)
-      else -> [head | remove_modifier(rest, wanted)]
 
   fn apply_literal_scoped_options(enabled: List(LiteralModifier), disabled: List(LiteralModifier), options: LiteralRegexOptions) -> LiteralRegexOptions =
     apply_literal_scoped_enabled(enabled, apply_literal_scoped_disabled(disabled, options))
@@ -57,8 +49,6 @@ mod Std.Regex.Syntax.Model
     [] -> options
     [head | rest] -> apply_literal_scoped_enabled(rest, enable_modifier(head, options))
 
-  fn has_modifier(options: LiteralRegexOptions, wanted: LiteralModifier) -> Bool = match options
-    LiteralRegexOptions(values, _) -> has_modifier_in(values, wanted)
 
 
   fn set_literal_newline_policy(policy: LiteralNewlinePolicy, options: LiteralRegexOptions) -> LiteralRegexOptions = match options
@@ -533,46 +523,8 @@ mod Std.Regex.Syntax.Model
 
 
 
-  fn has_modifier_in(values: List(LiteralModifier), wanted: LiteralModifier) -> Bool = match values
-    [] -> false
-    [head | rest] -> pickup
-      same_modifier(head, wanted) -> true
-      else -> has_modifier_in(rest, wanted)
 
-  fn same_modifier(left: LiteralModifier, right: LiteralModifier) -> Bool = match left
-    CaselessModifier -> modifier_is_caseless(right)
-    MultilineModifier -> modifier_is_multiline(right)
-    DotallModifier -> modifier_is_dotall(right)
-    ExtendedModifier -> modifier_is_extended(right)
-    UnicodeModifier -> modifier_is_unicode(right)
-    FirstlineModifier -> modifier_is_firstline(right)
-    UngreedyModifier -> modifier_is_ungreedy(right)
-    ExportModifier -> modifier_is_export(right)
 
-  fn modifier_is_caseless(value: LiteralModifier) -> Bool = match value
-    CaselessModifier -> true
-    _ -> false
-  fn modifier_is_multiline(value: LiteralModifier) -> Bool = match value
-    MultilineModifier -> true
-    _ -> false
-  fn modifier_is_dotall(value: LiteralModifier) -> Bool = match value
-    DotallModifier -> true
-    _ -> false
-  fn modifier_is_extended(value: LiteralModifier) -> Bool = match value
-    ExtendedModifier -> true
-    _ -> false
-  fn modifier_is_unicode(value: LiteralModifier) -> Bool = match value
-    UnicodeModifier -> true
-    _ -> false
-  fn modifier_is_firstline(value: LiteralModifier) -> Bool = match value
-    FirstlineModifier -> true
-    _ -> false
-  fn modifier_is_ungreedy(value: LiteralModifier) -> Bool = match value
-    UngreedyModifier -> true
-    _ -> false
-  fn modifier_is_export(value: LiteralModifier) -> Bool = match value
-    ExportModifier -> true
-    _ -> false
 
 
   fn literal_fuel(input: List(Char)) -> Nat = match input
