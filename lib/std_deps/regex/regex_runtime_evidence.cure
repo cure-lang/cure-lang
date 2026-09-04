@@ -1,0 +1,200 @@
+@group(:text)
+mod Std.Regex.Runtime.Evidence
+  use Std.Regex.Runtime.StateOps
+  use Std.Regex.Runtime.PatternMachines
+  use Std.Regex.Runtime.StagedOps
+  use Std.Regex.Runtime.Compilation
+  use Std.Regex.Runtime.MachineLaws
+  use Std.Regex.Runtime.MachineFilters
+  use Std.Regex.Runtime.SubjectContext
+  use Std.Regex.Runtime.CharacterPredicates
+  use Std.Regex.Runtime.Position
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Runtime.CaptureConditions
+
+  use Std.Regex.Runtime.Boundaries
+
+  use Std.Regex.Runtime.AtomicDiagnostics
+
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Char
+
+  use Std.Option
+
+  use Std.List
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  use Std.Decision
+
+  ## Match positions are zero-based Unicode-scalar offsets, not UTF-8 byte
+  ## offsets. `start` and `length` are native Int values so large subjects do
+  ## not allocate unary Nat structures at runtime.
+  type Match(result: Type) = Match(result, String, String, String, Int, Int)
+
+  @reducible
+  fn execute_instruction(instruction: EvidenceInstruction, evidence: List(Evidence), captures: List(CaptureFrame)) -> EvidenceExecution = match instruction
+    EmitChar(char) -> EvidenceExecution([CharacterEvidence(char) | evidence], captures)
+    EmitUnit() -> EvidenceExecution([UnitEvidence() | evidence], captures)
+    EmitPair() -> EvidenceExecution([PairEvidence() | evidence], captures)
+    EmitLeft() -> EvidenceExecution([LeftEvidence() | evidence], captures)
+    EmitRight() -> EvidenceExecution([RightEvidence() | evidence], captures)
+    BeginList() -> EvidenceExecution([BeginListEvidence() | evidence], captures)
+    EndList() -> EvidenceExecution([EndListEvidence() | evidence], captures)
+    BeginCapture() -> EvidenceExecution(evidence, [CaptureFrame([], evidence) | captures])
+    BeginCaptureSlot(_) -> EvidenceExecution(evidence, [CaptureFrame([], evidence) | captures])
+    EndCapture() -> match captures
+      [] -> EvidenceExecution(evidence, [])
+      [CaptureFrame(chars, saved) | rest] -> EvidenceExecution([StringEvidence(Std.String.from_characters(evidence_reverse_chars(chars))) | saved], rest)
+    EndCaptureSlot(_) -> match captures
+      [] -> EvidenceExecution(evidence, [])
+      [CaptureFrame(chars, saved) | rest] -> EvidenceExecution([StringEvidence(Std.String.from_characters(evidence_reverse_chars(chars))) | saved], rest)
+    BeginAtomic() -> EvidenceExecution(evidence, captures)
+    EndAtomic() -> EvidenceExecution(evidence, captures)
+
+  @reducible
+  fn execute_routine(routine: List(EvidenceInstruction), evidence: List(Evidence), captures: List(CaptureFrame)) -> EvidenceExecution = match routine
+    [] -> EvidenceExecution(evidence, captures)
+    [instruction | rest] ->
+      execute_routine(
+        rest,
+        executed_evidence(execute_instruction(instruction, evidence, captures)),
+        executed_captures(execute_instruction(instruction, evidence, captures))
+      )
+
+  @reducible
+  fn executed_evidence(execution: EvidenceExecution) -> List(Evidence) = match execution
+    EvidenceExecution(evidence, _) -> evidence
+
+  @reducible
+  fn executed_captures(execution: EvidenceExecution) -> List(CaptureFrame) = match execution
+    EvidenceExecution(_, captures) -> captures
+
+  ## The generalized Thompson proof uses an NFA-independent stream. `Observe`
+  ## advances capture input; `Regular` embeds the evidence VM language.
+  type ExtendedInstruction = Regular(EvidenceInstruction) | Observe(Char)
+
+  @reducible
+  fn regular_routine(routine: List(EvidenceInstruction)) -> List(ExtendedInstruction) = match routine
+    [] -> []
+    [instruction | rest] -> [Regular(instruction) | regular_routine(rest)]
+
+  type ExtendedEvidenceRoutineExecution indices (routine: List(ExtendedInstruction), input_evidence: List(Evidence), input_captures: List(CaptureFrame), output_evidence: List(Evidence), output_captures: List(CaptureFrame))
+    ExtendedEvidenceDone : {input_evidence: List(Evidence)} -> {input_captures: List(CaptureFrame)} -> ExtendedEvidenceRoutineExecution(Nil(), input_evidence, input_captures, input_evidence, input_captures)
+    ExtendedEvidenceObserve : (char: Char) -> {input_captures: List(CaptureFrame)} -> (suffix : ExtendedEvidenceRoutineExecution(rest, input_evidence, record_capture_char(input_captures, char), output_evidence, output_captures)) -> ExtendedEvidenceRoutineExecution(Cons(Observe(char), rest), input_evidence, input_captures, output_evidence, output_captures)
+    ExtendedEvidenceRegular : (instruction: EvidenceInstruction) -> {input_evidence: List(Evidence)} -> {input_captures: List(CaptureFrame)} -> (suffix : ExtendedEvidenceRoutineExecution(rest, executed_evidence(execute_instruction(instruction, input_evidence, input_captures)), executed_captures(execute_instruction(instruction, input_evidence, input_captures)), output_evidence, output_captures)) -> ExtendedEvidenceRoutineExecution(Cons(Regular(instruction), rest), input_evidence, input_captures, output_evidence, output_captures)
+
+  type RoutineExecution indices (routine: List(EvidenceInstruction), input_evidence: List(Evidence), input_captures: List(CaptureFrame), output_evidence: List(Evidence), output_captures: List(CaptureFrame))
+    RoutineDone : {evidence: List(Evidence)} -> {captures: List(CaptureFrame)} -> RoutineExecution(Nil(), evidence, captures, evidence, captures)
+    RoutineStep : (instruction: EvidenceInstruction) -> {input_evidence: List(Evidence)} -> {input_captures: List(CaptureFrame)} -> (suffix : RoutineExecution(rest, executed_evidence(execute_instruction(instruction, input_evidence, input_captures)), executed_captures(execute_instruction(instruction, input_evidence, input_captures)), output_evidence, output_captures)) -> RoutineExecution(Cons(instruction, rest), input_evidence, input_captures, output_evidence, output_captures)
+
+  type CertifiedRoutineExecution indices (routine: List(EvidenceInstruction), input_evidence: List(Evidence), input_captures: List(CaptureFrame))
+    CertifiedRoutineExecuted : (output_evidence: List(Evidence)) -> (output_captures: List(CaptureFrame)) -> (certificate : RoutineExecution(routine, input_evidence, input_captures, output_evidence, output_captures)) -> (extended_certificate : ExtendedEvidenceRoutineExecution(regular_routine(routine), input_evidence, input_captures, output_evidence, output_captures)) -> CertifiedRoutineExecution(routine, input_evidence, input_captures)
+
+  fn execute_routine_certified(routine: List(EvidenceInstruction), input_evidence: List(Evidence), input_captures: List(CaptureFrame)) -> CertifiedRoutineExecution(routine, input_evidence, input_captures) =
+    match routine
+      [] -> CertifiedRoutineExecuted(input_evidence, input_captures, RoutineDone(), ExtendedEvidenceDone())
+      [instruction | rest] ->
+        let instruction_execution = execute_instruction(instruction, input_evidence, input_captures)
+        let next_evidence = executed_evidence(instruction_execution)
+        let next_captures = executed_captures(instruction_execution)
+        match execute_routine_certified(rest, next_evidence, next_captures)
+          CertifiedRoutineExecuted(output_evidence, output_captures, suffix, extended_suffix) ->
+            CertifiedRoutineExecuted(output_evidence, output_captures, RoutineStep(instruction, suffix), ExtendedEvidenceRegular(instruction, extended_suffix))
+
+  ## Thompson's evidence proof reasons over one NFA-independent instruction
+  ## stream. `Observe` records the consumed character (and advances open capture
+  ## frames); `Regular` embeds the existing VM instruction language.
+  type ExtendedExecution = ExtendedExecution(Option(Char), List(Evidence), List(CaptureFrame))
+
+  @reducible
+  fn transition_routine(char: Char, routine: List(EvidenceInstruction)) -> List(ExtendedInstruction) =
+    [Observe(char) | regular_routine(routine)]
+
+  @reducible
+  fn append_extended_routines(left: List(ExtendedInstruction), right: List(ExtendedInstruction)) -> List(ExtendedInstruction) = match left
+    [] -> right
+    [instruction | rest] -> [instruction | append_extended_routines(rest, right)]
+
+  fn execute_extended_instruction(instruction: ExtendedInstruction, current: Option(Char), evidence: List(Evidence), captures: List(CaptureFrame)) -> ExtendedExecution = match instruction
+    Observe(char) -> ExtendedExecution(Some(char), evidence, record_capture_char(captures, char))
+    Regular(regular) -> match execute_instruction(regular, evidence, captures)
+      EvidenceExecution(next_evidence, next_captures) -> ExtendedExecution(current, next_evidence, next_captures)
+
+  fn execute_extended_routine(routine: List(ExtendedInstruction), current: Option(Char), evidence: List(Evidence), captures: List(CaptureFrame)) -> ExtendedExecution = match routine
+    [] -> ExtendedExecution(current, evidence, captures)
+    [instruction | rest] -> match execute_extended_instruction(instruction, current, evidence, captures)
+      ExtendedExecution(next_current, next_evidence, next_captures) -> execute_extended_routine(rest, next_current, next_evidence, next_captures)
+
+  fn extended_evidence(execution: ExtendedExecution) -> List(Evidence) = match execution
+    ExtendedExecution(_, evidence, _) -> evidence
+
+  fn extended_captures(execution: ExtendedExecution) -> List(CaptureFrame) = match execution
+    ExtendedExecution(_, _, captures) -> captures
+
+  fn extended_current(execution: ExtendedExecution) -> Option(Char) = match execution
+    ExtendedExecution(current, _, _) -> current
+
+  type ExtendedRoutineExecution indices (routine: List(ExtendedInstruction), input_current: Option(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame), output_current: Option(Char), output_evidence: List(Evidence), output_captures: List(CaptureFrame))
+    ExtendedRoutineExecuted : ExtendedRoutineExecution(routine, input_current, input_evidence, input_captures, extended_current(execute_extended_routine(routine, input_current, input_evidence, input_captures)), extended_evidence(execute_extended_routine(routine, input_current, input_evidence, input_captures)), extended_captures(execute_extended_routine(routine, input_current, input_evidence, input_captures)))
+
+  fn certify_extended_routine(routine: List(ExtendedInstruction), input_current: Option(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame)) -> ExtendedRoutineExecution(routine, input_current, input_evidence, input_captures, extended_current(execute_extended_routine(routine, input_current, input_evidence, input_captures)), extended_evidence(execute_extended_routine(routine, input_current, input_evidence, input_captures)), extended_captures(execute_extended_routine(routine, input_current, input_evidence, input_captures))) = ExtendedRoutineExecuted()
+
+  ## Evidence execution deliberately forgets `ExtendedExecution.current`.
+  ## `Observe` still advances every open capture frame, while the current
+  ## character is observational bookkeeping and cannot affect evidence.
+  fn execute_extended_evidence_instruction(instruction: ExtendedInstruction, evidence: List(Evidence), captures: List(CaptureFrame)) -> EvidenceExecution = match instruction
+    Observe(char) -> EvidenceExecution(evidence, record_capture_char(captures, char))
+    Regular(regular) -> execute_instruction(regular, evidence, captures)
+
+  fn execute_extended_evidence_routine(routine: List(ExtendedInstruction), evidence: List(Evidence), captures: List(CaptureFrame)) -> EvidenceExecution = match routine
+    [] -> EvidenceExecution(evidence, captures)
+    [instruction | rest] -> match execute_extended_evidence_instruction(instruction, evidence, captures)
+      EvidenceExecution(next_evidence, next_captures) -> execute_extended_evidence_routine(rest, next_evidence, next_captures)
+end
