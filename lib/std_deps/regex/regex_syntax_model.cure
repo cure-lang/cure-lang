@@ -3,6 +3,7 @@
 
 @group(:text)
 mod Std.Regex.Syntax.Model
+  public use Std.Regex.Syntax.Model.Shape
   public use Std.Regex.Syntax.Model.Utilities
   public use Std.Regex.Syntax.Model.ClassKinds
   public use Std.Regex.Syntax.Model.Predicates
@@ -620,17 +621,6 @@ mod Std.Regex.Syntax.Model
     ExportModifier -> true
     _ -> false
 
-  type LiteralShapeCode =
-    | UnitC
-    | CharC
-    | StringC
-    | BoolC
-    | NatC
-    | IntC
-    | PairC(LiteralShapeCode, LiteralShapeCode)
-    | ChoiceC(LiteralShapeCode, LiteralShapeCode)
-    | OptionC(LiteralShapeCode)
-    | ListC(LiteralShapeCode)
 
   fn literal_fuel(input: List(Char)) -> Nat = match input
     [] -> parse_fuel_step(Z())
