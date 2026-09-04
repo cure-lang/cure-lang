@@ -3,6 +3,7 @@
 ## evidence routines while retaining their dependent input and output indices.
 @group(:text)
 mod Std.Regex.Proof
+  use Std.Regex.Runtime.MachineEntry
   use Std.Regex.Runtime.Conversion
   use Std.Regex.Runtime.ProgramTypes
   use Std.Regex.Runtime.PublicTypes
