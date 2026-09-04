@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.NamedTypes
   public use Std.Regex.Runtime.RegexType
   public use Std.Regex.Runtime.CharacterSemantics
   public use Std.Regex.Runtime.Conversion
@@ -21330,14 +21331,6 @@ mod Std.Regex.Runtime
 
 
 
-  type NamedMatch(result: Type) = NamedMatch(Match(result), List(NamedCapture))
-  ## The public result type and the checked Thompson shape are independent:
-  ## conversions may expose `Option`, `List`, or a simplified tuple while the
-  ## machine still carries its constructor-preserving shape.  Keep the machine
-  ## shape as an explicit index instead of letting it unify accidentally with
-  ## the public result (which would reject optional/one-or-more captures).
-  type NamedRegex(result: Type) indices (shape: ShapeCode)
-    NamedRegex : Regex(result) -> NamedThompsonCompilation(shape) -> LookaroundCompilation(shape) -> CaptureLayout -> Bool -> NewlinePolicy -> NamedRegex(result, shape)
 
 
 

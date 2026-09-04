@@ -1,0 +1,118 @@
+@group(:text)
+mod Std.Regex.Runtime.NamedTypes
+  use Std.Decision
+  use Std.Sigma
+  use Std.Equivalent
+  use Std.Bounded
+  use Std.Syntax
+  use Std.String
+  use Std.List
+  use Std.Option
+  use Std.Char
+  use Std.Regex.Core
+  use Std.Regex.Core.Limits
+  use Std.Regex.Core.Evidence
+  use Std.Regex.Core.Newline
+  use Std.Regex.Core.Initial
+  use Std.Regex.Core.Boundary
+  use Std.Regex.Core.Capture
+  use Std.Regex.Runtime.Split
+  use Std.Regex.Runtime.Named
+  use Std.Regex.Runtime.ClassKinds
+  use Std.Regex.Runtime.AtomicDiagnostics
+  use Std.Regex.Runtime.Boundaries
+  use Std.Regex.Runtime.CaptureConditions
+  use Std.Regex.Runtime.TransitionRows
+  use Std.Regex.Runtime.StateOps
+  use Std.Regex.Runtime.PatternMachines
+  use Std.Regex.Runtime.StagedOps
+  use Std.Regex.Runtime.Compilation
+  use Std.Regex.Runtime.MachineLaws
+  use Std.Regex.Runtime.MachineFilters
+  use Std.Regex.Runtime.SubjectContext
+  use Std.Regex.Runtime.CharacterPredicates
+  use Std.Regex.Runtime.Position
+  use Std.Regex.Runtime.Evidence
+  use Std.Regex.Runtime.NamedCapture
+  use Std.Regex.Runtime.Compiler
+  use Std.Regex.Runtime.AtomicPlan
+  use Std.Regex.Runtime.LookaroundContext
+  use Std.Regex.Runtime.EvidenceThreads
+  use Std.Regex.Runtime.NewlinePolicy
+  use Std.Regex.Runtime.PublicTypes
+  use Std.Regex.Runtime.ProgramTypes
+  use Std.Regex.Runtime.Conversion
+  use Std.Regex.Runtime.CharacterSemantics
+  use Std.Regex.Runtime.RegexType
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  type NamedMatch(result: Type) = NamedMatch(Match(result), List(NamedCapture))
+
+  ## The public result type and the checked Thompson shape are independent:
+  ## conversions may expose `Option`, `List`, or a simplified tuple while the
+  ## machine still carries its constructor-preserving shape.  Keep the machine
+  ## shape as an explicit index instead of letting it unify accidentally with
+  ## the public result (which would reject optional/one-or-more captures).
+  type NamedRegex(result: Type) indices (shape: ShapeCode)
+    NamedRegex : Regex(result) -> NamedThompsonCompilation(shape) -> LookaroundCompilation(shape) -> CaptureLayout -> Bool -> NewlinePolicy -> NamedRegex(result, shape)
+end
