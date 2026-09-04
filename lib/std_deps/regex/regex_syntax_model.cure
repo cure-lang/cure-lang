@@ -3,6 +3,7 @@
 
 @group(:text)
 mod Std.Regex.Syntax.Model
+  public use Std.Regex.Syntax.Model.Measurements
   public use Std.Regex.Syntax.Model.Options
   public use Std.Regex.Syntax.Model.Collections
   public use Std.Regex.Syntax.Model.Modifiers
@@ -516,107 +517,25 @@ mod Std.Regex.Syntax.Model
 
 
 
-  fn literal_fuel(input: List(Char)) -> Nat = match input
-    [] -> parse_fuel_step(Z())
-    [_ | rest] -> parse_fuel_step(literal_fuel(rest))
-
-  ## Recursive descent crosses several grammar layers for one consumed source
-  ## character. A fixed allowance per character keeps the proof structural while
-  ## leaving enough room for nested groups and empty alternatives.
-  fn parse_fuel_step(fuel: Nat) -> Nat =
-    S(S(S(S(S(S(S(S(S(S(S(S(S(S(S(S(fuel))))))))))))))))
-
-  fn literal_length(input: List(Char)) -> Nat = match input
-    [] -> Z()
-    [_ | rest] -> S(literal_length(rest))
-
-  fn literal_nat_minus(left: Nat, right: Nat) -> Nat = match right
-    Z() -> left
-    S(right_rest) -> match left
-      Z() -> Z()
-      S(left_rest) -> literal_nat_minus(left_rest, right_rest)
-
-  fn literal_suffix_offset(input: List(Char), suffix: List(Char)) -> Nat =
-    literal_nat_minus(literal_length(input), literal_length(suffix))
-
-  fn literal_source_positions_after(positions: List(Nat), count: Nat) -> List(Nat) = match count
-    Z() -> positions
-    S(rest_count) -> match positions
-      [] -> []
-      [_ | rest] -> literal_source_positions_after(rest, rest_count)
-
-  fn literal_source_span_end(positions: List(Nat), remaining: Nat, current_end: Nat) -> Nat = match remaining
-    Z() -> current_end
-    S(rest_remaining) -> match positions
-      [] -> current_end
-      [position | rest] -> literal_source_span_end(rest, rest_remaining, S(position))
-
-  fn literal_source_span(positions: List(Nat), source_length: Nat, start: Nat, width: Nat) -> LiteralSourceSpan =
-    match literal_source_positions_after(positions, start)
-      [] -> LiteralSourceSpan(source_length, Z())
-      [source_start | rest] -> match width
-        Z() -> LiteralSourceSpan(source_start, Z())
-        S(remaining) ->
-          let source_end = literal_source_span_end(rest, remaining, S(source_start))
-          LiteralSourceSpan(source_start, literal_nat_minus(source_end, source_start))
-
-  fn literal_delimited_width(input: List(Char), closing: Char) -> Nat = match input
-    [] -> Z()
-    [char | rest] -> pickup
-      char == closing -> 1
-      else -> S(literal_delimited_width(rest, closing))
-
-  fn literal_prefix_width(input: List(Char), maximum: Nat) -> Nat = match maximum
-    Z() -> Z()
-    S(next_maximum) -> match input
-      [] -> Z()
-      [_ | rest] -> S(literal_prefix_width(rest, next_maximum))
-
-  fn literal_scalar_escape_width(input: List(Char)) -> Nat = match input
-    ['\\', 'x', '{' | _] -> literal_delimited_width(input, '}')
-    _ -> literal_prefix_width(input, 4)
-
-  fn literal_property_escape_width(input: List(Char)) -> Nat = match input
-    ['\\', _, '{' | _] -> literal_delimited_width(input, '}')
-    _ -> literal_prefix_width(input, 3)
-
-  fn literal_decimal_prefix_width(input: List(Char)) -> Nat = match input
-    [] -> Z()
-    [char | rest] -> match literal_decimal_digit(char)
-      Some(_) -> S(literal_decimal_prefix_width(rest))
-      None() -> Z()
-
-  fn literal_numeric_escape_width(input: List(Char)) -> Nat = match input
-    ['\\' | rest] -> S(literal_decimal_prefix_width(rest))
-    _ -> Z()
-
-  fn literal_octal_escape_width(input: List(Char)) -> Nat = match input
-    ['\\', 'o', '{' | _] -> literal_delimited_width(input, '}')
-    _ -> literal_prefix_width(input, 2)
 
 
 
-  fn literal_nat_less(left: Nat, right: Nat) -> Bool = match left
-    Z() -> match right
-      Z() -> false
-      S(_) -> true
-    S(left_rest) -> match right
-      Z() -> false
-      S(right_rest) -> literal_nat_less(left_rest, right_rest)
 
 
-  fn literal_decimal_digit(char: Char) -> Option(Nat) = match char
-    '0' -> Some(Z())
-    '1' -> Some(1)
-    '2' -> Some(2)
-    '3' -> Some(3)
-    '4' -> Some(4)
-    '5' -> Some(5)
-    '6' -> Some(6)
-    '7' -> Some(7)
-    '8' -> Some(8)
-    '9' -> Some(9)
-    _ -> None()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
   fn literal_unicode_scalar(value: Int, rest: List(Char)) -> LiteralScalarParse = pickup

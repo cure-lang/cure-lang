@@ -2,6 +2,7 @@
 ## literal and returns a structured syntax-tree error when parsing stops early.
 @group(:text)
 mod Std.Regex.Syntax.Parser
+  use Std.Regex.Syntax.Model.Measurements
   use Std.Regex.Syntax.Model.Collections
   use Std.Regex.Syntax.Model.Utilities
   use Std.Regex.Syntax.Model.Types
