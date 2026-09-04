@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.TransitionRows
   public use Std.Regex.Runtime.CaptureConditions
   public use Std.Regex.Runtime.Boundaries
   public use Std.Regex.Runtime.AtomicDiagnostics
@@ -24,86 +25,14 @@ mod Std.Regex.Runtime
   use Std.Sigma
   use Std.Decision
 
-  @reducible
-  fn build_transition_rows(remaining: Nat, {total: Nat}, inject: (Bounded(remaining)) -> Bounded(total), next: (Bounded(total)) -> Char -> List(MachineState(total))) -> TransitionRowsFrom(remaining, total) = match remaining
-    Z() -> NoTransitionRows()
-    S(rest) ->
-      MoreTransitionRows(
-        fn(char) -> next(inject(First()), char),
-        build_transition_rows(rest, fn(state) -> inject(Next(state)), next)
-      )
 
-  @reducible
-  fn compile_transition_rows(n: Nat, machine: PatternMachine(n)) -> TransitionRows(n) = match machine
-    MkPatternMachine(_, next) -> TransitionRows(build_transition_rows(n, fn(state) -> state, next))
 
-  @reducible
-  fn rows_from_next(n: Nat, next: (Bounded(n)) -> Char -> List(MachineState(n))) -> TransitionRows(n) =
-    TransitionRows(build_transition_rows(n, fn(state) -> state, next))
 
-  fn transition_rows_constructor_equivalent(
-    {n: Nat},
-    values: TransitionRowsFrom(n, n),
-    state: Bounded(n),
-    char: Char
-  ) -> Equivalent(
-    List(MachineState(n)),
-    transition_rows_next(TransitionRows(values), state, char),
-    transition_rows_from_next(values, state, char)
-  ) = reflexive(transition_rows_from_next(values, state, char))
 
-  fn rows_from_next_value_equivalent(
-    n: Nat,
-    next: (Bounded(n)) -> Char -> List(MachineState(n))
-  ) -> Equivalent(
-    TransitionRows(n),
-    rows_from_next(n, next),
-    TransitionRows(build_transition_rows(n, fn(state) -> state, next))
-  ) = reflexive(rows_from_next(n, next))
 
-  fn rows_from_next_equivalent(
-    n: Nat,
-    next: (Bounded(n)) -> Char -> List(MachineState(n)),
-    state: Bounded(n),
-    char: Char
-  ) -> Equivalent(
-    List(MachineState(n)),
-    transition_rows_next(rows_from_next(n, next), state, char),
-    next(state, char)
-  ) = trans(
-    trans(
-      cong(
-        fn(rows) -> transition_rows_next(rows, state, char),
-        rows_from_next_value_equivalent(n, next)
-      ),
-      transition_rows_constructor_equivalent(
-        build_transition_rows(n, fn(state) -> state, next),
-        state,
-        char
-      )
-    ),
-    build_transition_rows_equivalent(n, fn(state) -> state, next, state, char)
-  )
 
-  @reducible
-  fn transition_rows_from_next({remaining: Nat}, {total: Nat}, rows: TransitionRowsFrom(remaining, total), state: Bounded(remaining), char: Char) -> List(MachineState(total)) = match rows
-    NoTransitionRows() -> match state
-    MoreTransitionRows(row, rest) -> match state
-      First() -> row(char)
-      Next(index) -> transition_rows_from_next(rest, index, char)
 
-  @reducible
-  fn transition_rows_next({n: Nat}, rows: TransitionRows(n), state: Bounded(n), char: Char) -> List(MachineState(n)) = match rows
-    TransitionRows(values) -> transition_rows_from_next(values, state, char)
 
-  ## A table-backed machine exposes the same indexed machine interface as the
-  ## reference closure machine.  The only runtime closure is this single row
-  ## lookup adapter; transition construction itself is performed once when
-  ## the table is built, not by recursively rebuilding Thompson combinators
-  ## for each input character.
-  @reducible
-  fn transition_rows_machine({n: Nat}, starts: List(MachineState(n)), rows: TransitionRows(n)) -> PatternMachine(n) =
-    MkPatternMachine(starts, fn(state) -> fn(char) -> transition_rows_next(rows, state, char))
 
   fn transition_rows_machine_next_equation({n: Nat}, starts: List(MachineState(n)), rows: TransitionRows(n), state: Bounded(n), char: Char) -> Equivalent(
     List(MachineState(n)),
@@ -111,39 +40,7 @@ mod Std.Regex.Runtime
     transition_rows_next(rows, state, char)
   ) = reflexive(transition_rows_next(rows, state, char))
 
-  ## Pointwise correctness of the row compiler.  This is intentionally a
-  ## smaller theorem than function extensionality: every concrete bounded
-  ## source state reduces to the row installed for that state, so callers can
-  ## transport an edge without changing the existing PatternMachine proof
-  ## indices.
-  fn build_transition_rows_equivalent(
-    remaining: Nat,
-    {total: Nat},
-    inject: (Bounded(remaining)) -> Bounded(total),
-    next: (Bounded(total)) -> Char -> List(MachineState(total)),
-    state: Bounded(remaining),
-    char: Char
-  ) -> Equivalent(
-    List(MachineState(total)),
-    transition_rows_from_next(build_transition_rows(remaining, inject, next), state, char),
-    (next(inject(state), char))
-  ) = match remaining
-    Z() -> match state
-    S(rest) -> match state
-      First() -> reflexive(next(inject(First()), char))
-      Next(index) -> build_transition_rows_equivalent(rest, fn(state) -> inject(Next(state)), next, index, char)
 
-  fn transition_rows_next_equivalent(
-    n: Nat,
-    starts: List(MachineState(n)),
-    next: (Bounded(n)) -> Char -> List(MachineState(n)),
-    state: Bounded(n),
-    char: Char
-  ) -> Equivalent(
-    List(MachineState(n)),
-    transition_rows_next(compile_transition_rows(n, MkPatternMachine(starts, next)), state, char),
-    next(state, char)
-  ) = build_transition_rows_equivalent(n, fn(state) -> state, next, state, char)
 
   fn transition_rows_next_from_machine(n: Nat, machine: PatternMachine(n), state: Bounded(n), char: Char) -> Equivalent(
     List(MachineState(n)),

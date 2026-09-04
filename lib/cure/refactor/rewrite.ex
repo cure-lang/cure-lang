@@ -276,6 +276,36 @@ defmodule Cure.Refactor.Rewrite do
     end
   end
 
+  @doc "Normalize top-level declaration indentation through the structural rewrite path."
+  @spec normalize_module_indentation(Path.t(), keyword()) ::
+          {:ok, %{source: String.t(), changed?: boolean()}} | {:error, error()}
+  def normalize_module_indentation(source_path, opts \\ []) do
+    with {:ok, source} <- read_source(source_path),
+         {:ok, report} <- analyze(source_path),
+         :ok <- ensure_source_unchanged(source, report) do
+      declarations = Enum.filter(report.declarations, &(&1.depth == 0))
+
+      rewritten =
+        declarations
+        |> Enum.map(fn declaration ->
+          {start_byte, end_byte} = declaration_line_span(source, declaration.span)
+          raw = binary_part(source, start_byte, end_byte - start_byte)
+          normalized = normalize_block_to_top_level(raw)
+          {start_byte, end_byte, normalized}
+        end)
+        |> Enum.sort_by(fn {start_byte, _end_byte, _replacement} -> start_byte end)
+        |> Enum.reverse()
+        |> Enum.reduce(source, fn {start_byte, end_byte, replacement}, acc ->
+          binary_part(acc, 0, start_byte) <> replacement <> binary_part(acc, end_byte, byte_size(acc) - end_byte)
+        end)
+
+      with :ok <- verify_generated(report.module, rewritten, source_path),
+           :ok <- maybe_write_source(source_path, rewritten, opts) do
+        {:ok, %{source: rewritten, changed?: rewritten != source}}
+      end
+    end
+  end
+
   defp normalize_spec(spec) when is_map(spec) do
     with {:ok, target_file} <- nonempty_string(spec[:target_file], :target_file),
          {:ok, target_module} <- nonempty_string(spec[:target_module], :target_module),
@@ -687,7 +717,7 @@ defmodule Cure.Refactor.Rewrite do
 
   defp declaration_source(source, %Declaration{span: %Span{} = span}) do
     {start_byte, end_byte} = declaration_line_span(source, span)
-    binary_part(source, start_byte, end_byte - start_byte) |> String.trim()
+    binary_part(source, start_byte, end_byte - start_byte) |> String.trim("\n")
   end
 
   defp declaration_source(_source, _declaration), do: ""
@@ -697,6 +727,54 @@ defmodule Cure.Refactor.Rewrite do
     |> dedent()
     |> String.split("\n", trim: false)
     |> Enum.map_join("\n", &"  #{&1}")
+  end
+
+  # A previously generated target may have had its first decorator/comment
+  # dedented independently from the declaration header.  Re-anchor such a
+  # block at Cure's two-space top-level indentation while preserving the
+  # relative indentation of its body.
+  defp normalize_block_to_top_level(text) do
+    lines = text |> String.trim("\n") |> String.split("\n", trim: false)
+
+    case Enum.find_index(lines, fn line ->
+           trimmed = String.trim(line)
+           trimmed != "" and not trivia_line?(trimmed)
+         end) do
+      nil ->
+        text
+
+      header_index ->
+        header_indent = leading_space_count(Enum.at(lines, header_index))
+        shift = if header_index > 0, do: max(header_indent - 2, 0), else: 0
+
+        lines
+        |> Enum.with_index()
+        |> Enum.map_join("\n", fn {line, index} ->
+          cond do
+            String.trim(line) == "" ->
+              ""
+
+            index < header_index ->
+              "  " <> String.trim_leading(line, " ")
+
+            shift == 0 ->
+              line
+
+            true ->
+              removed = min(shift, leading_space_count(line))
+
+              String.duplicate(" ", leading_space_count(line) - removed) <>
+                binary_part(line, leading_space_count(line), byte_size(line) - leading_space_count(line))
+          end
+        end)
+        |> Kernel.<>(if String.ends_with?(text, "\n"), do: "\n", else: "")
+    end
+  end
+
+  defp trivia_line?(line), do: String.starts_with?(line, "#") or String.starts_with?(line, "@")
+
+  defp leading_space_count(line) do
+    line |> String.replace(~r/[^ ].*$/, "") |> byte_size()
   end
 
   defp dedent(text) do

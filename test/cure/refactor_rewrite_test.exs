@@ -71,6 +71,7 @@ defmodule Cure.Refactor.RewriteTest do
 
     assert result.target =~ "## Documentation for the moved declaration."
     assert result.target =~ "@reducible"
+    assert result.target =~ "  @reducible\n  fn move()"
     refute result.source =~ "Documentation for the moved declaration"
   end
 
@@ -153,6 +154,19 @@ defmodule Cure.Refactor.RewriteTest do
     assert {:ok, %{source: rewritten, changed?: true}} = Rewrite.normalize_trailing_newline(path, write: true)
     assert rewritten == "mod Source\n  fn value() -> Int = 1\nend\n"
     assert File.read!(path) == rewritten
+  end
+
+  test "decorated declarations can be re-anchored after an older split", %{dir: dir} do
+    path = Path.join(dir, "malformed.cure")
+
+    File.write!(path, "mod Source\n  @reducible\n    fn value() -> Int = 1\nend\n")
+
+    assert {:ok, %{source: rewritten, changed?: true}} =
+             Rewrite.normalize_module_indentation(path)
+
+    assert rewritten =~ "  @reducible\n  fn value()"
+    refute rewritten =~ "  @reducible\n    fn value()"
+    assert File.read!(path) == "mod Source\n  @reducible\n    fn value() -> Int = 1\nend\n"
   end
 
   test "a split that would require a back-edge is rejected before writing", %{dir: dir} do
