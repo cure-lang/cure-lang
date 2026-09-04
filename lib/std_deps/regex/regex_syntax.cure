@@ -2,6 +2,7 @@
 ## pattern and lowers it to the runtime `Std.Regex` representation.
 @group(:text)
 mod Std.Regex.Syntax
+  use Std.Regex.Syntax.Model.Predicates
   use Std.Regex.Syntax.Model.Types
   use Std.Regex.Syntax.Model
   use Std.Regex.Syntax.Flags

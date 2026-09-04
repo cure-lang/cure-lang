@@ -1,0 +1,132 @@
+## Compile-time-only literal syntax tree. It is consumed by `expand_literal`
+## and never appears in generated matching code.
+
+@group(:text)
+mod Std.Regex.Syntax.Model.Predicates
+  use Std.Regex.Syntax.Model.Types
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.String
+
+  fn literal_pattern_has_capture(pattern: LiteralPattern) -> Bool = match pattern
+      LiteralCapture(_) -> true
+      LiteralNamedCapture(_, _) -> true
+      LiteralCaptureIndexed(_, _, _) -> true
+      LiteralSequence(left, right) -> literal_pattern_has_capture(left) or literal_pattern_has_capture(right)
+      LiteralAlternate(left, right) -> literal_pattern_has_capture(left) or literal_pattern_has_capture(right)
+      LiteralBranchReset(arms) -> literal_pattern_list_has_capture(arms)
+      LiteralConditional(LiteralAssertionCondition(assertion), yes, no) -> literal_pattern_has_capture(assertion) or literal_pattern_has_capture(yes) or literal_pattern_option_has_capture(no)
+      LiteralConditional(_, yes, no) -> literal_pattern_has_capture(yes) or literal_pattern_option_has_capture(no)
+      LiteralAtomic(inner) -> literal_pattern_has_capture(inner)
+      LiteralLookahead(_, inner) -> literal_pattern_has_capture(inner)
+      LiteralLookbehind(_, inner) -> literal_pattern_has_capture(inner)
+      LiteralRepeat(inner, _) -> literal_pattern_has_capture(inner)
+      LiteralPlus(inner, _) -> literal_pattern_has_capture(inner)
+      LiteralOptional(inner, _) -> literal_pattern_has_capture(inner)
+      LiteralBoundedExact(inner, _) -> literal_pattern_has_capture(inner)
+      LiteralBoundedAtLeast(inner, _, _) -> literal_pattern_has_capture(inner)
+      LiteralBoundedBetween(inner, _, _, _) -> literal_pattern_has_capture(inner)
+      LiteralConfigured(_, inner) -> literal_pattern_has_capture(inner)
+      LiteralScopedOptions(_, _, inner) -> literal_pattern_has_capture(inner)
+      _ -> false
+
+  fn literal_pattern_list_has_capture(patterns: List(LiteralPattern)) -> Bool = match patterns
+      [] -> false
+      [head | rest] -> literal_pattern_has_capture(head) or literal_pattern_list_has_capture(rest)
+
+  fn literal_pattern_option_has_capture(pattern: Option(LiteralPattern)) -> Bool = match pattern
+      None() -> false
+      Some(inner) -> literal_pattern_has_capture(inner)
+
+  fn literal_pattern_has_lookaround(pattern: LiteralPattern) -> Bool = match pattern
+      LiteralLookahead(_, _) -> true
+      LiteralLookbehind(_, _) -> true
+      LiteralSequence(left, right) -> literal_pattern_has_lookaround(left) or literal_pattern_has_lookaround(right)
+      LiteralAlternate(left, right) -> literal_pattern_has_lookaround(left) or literal_pattern_has_lookaround(right)
+      LiteralBranchReset(arms) -> literal_pattern_list_has_lookaround(arms)
+      LiteralConditional(LiteralAssertionCondition(_), _, _) -> true
+      LiteralConditional(_, yes, no) -> literal_pattern_has_lookaround(yes) or literal_pattern_option_has_lookaround(no)
+      LiteralAtomic(inner) -> literal_pattern_has_lookaround(inner)
+      LiteralRepeat(inner, _) -> literal_pattern_has_lookaround(inner)
+      LiteralPlus(inner, _) -> literal_pattern_has_lookaround(inner)
+      LiteralOptional(inner, _) -> literal_pattern_has_lookaround(inner)
+      LiteralBoundedExact(inner, _) -> literal_pattern_has_lookaround(inner)
+      LiteralBoundedAtLeast(inner, _, _) -> literal_pattern_has_lookaround(inner)
+      LiteralBoundedBetween(inner, _, _, _) -> literal_pattern_has_lookaround(inner)
+      LiteralCapture(inner) -> literal_pattern_has_lookaround(inner)
+      LiteralNamedCapture(_, inner) -> literal_pattern_has_lookaround(inner)
+      LiteralCaptureIndexed(_, _, inner) -> literal_pattern_has_lookaround(inner)
+      LiteralConfigured(_, inner) -> literal_pattern_has_lookaround(inner)
+      LiteralScopedOptions(_, _, inner) -> literal_pattern_has_lookaround(inner)
+      _ -> false
+
+  fn literal_pattern_list_has_lookaround(patterns: List(LiteralPattern)) -> Bool = match patterns
+      [] -> false
+      [head | rest] -> literal_pattern_has_lookaround(head) or literal_pattern_list_has_lookaround(rest)
+
+  fn literal_pattern_option_has_lookaround(pattern: Option(LiteralPattern)) -> Bool = match pattern
+      None() -> false
+      Some(inner) -> literal_pattern_has_lookaround(inner)
+
+  fn literal_pattern_has_conditionals(pattern: LiteralPattern) -> Bool = match pattern
+      LiteralConditional(_, yes, no) -> literal_pattern_has_conditionals(yes) or literal_pattern_option_has_conditionals(no)
+      LiteralAtomic(inner) -> literal_pattern_has_conditionals(inner)
+      LiteralLookahead(_, inner) -> literal_pattern_has_conditionals(inner)
+      LiteralLookbehind(_, inner) -> literal_pattern_has_conditionals(inner)
+      LiteralSequence(left, right) -> literal_pattern_has_conditionals(left) or literal_pattern_has_conditionals(right)
+      LiteralAlternate(left, right) -> literal_pattern_has_conditionals(left) or literal_pattern_has_conditionals(right)
+      LiteralBranchReset(arms) -> literal_pattern_list_has_conditionals(arms)
+      LiteralCapture(inner) -> literal_pattern_has_conditionals(inner)
+      LiteralNamedCapture(_, inner) -> literal_pattern_has_conditionals(inner)
+      LiteralCaptureIndexed(_, _, inner) -> literal_pattern_has_conditionals(inner)
+      LiteralRepeat(inner, _) -> literal_pattern_has_conditionals(inner)
+      LiteralPlus(inner, _) -> literal_pattern_has_conditionals(inner)
+      LiteralOptional(inner, _) -> literal_pattern_has_conditionals(inner)
+      LiteralBoundedExact(inner, _) -> literal_pattern_has_conditionals(inner)
+      LiteralBoundedAtLeast(inner, _, _) -> literal_pattern_has_conditionals(inner)
+      LiteralBoundedBetween(inner, _, _, _) -> literal_pattern_has_conditionals(inner)
+      LiteralConfigured(_, inner) -> literal_pattern_has_conditionals(inner)
+      LiteralScopedOptions(_, _, inner) -> literal_pattern_has_conditionals(inner)
+      _ -> false
+
+  fn literal_pattern_has_atomic(pattern: LiteralPattern) -> Bool = match pattern
+      LiteralAtomic(_) -> true
+      LiteralLookahead(_, inner) -> literal_pattern_has_atomic(inner)
+      LiteralLookbehind(_, inner) -> literal_pattern_has_atomic(inner)
+      LiteralSequence(left, right) -> literal_pattern_has_atomic(left) or literal_pattern_has_atomic(right)
+      LiteralAlternate(left, right) -> literal_pattern_has_atomic(left) or literal_pattern_has_atomic(right)
+      LiteralBranchReset(arms) -> literal_pattern_list_has_atomic(arms)
+      LiteralConditional(LiteralAssertionCondition(assertion), yes, no) -> literal_pattern_has_atomic(assertion) or literal_pattern_has_atomic(yes) or literal_pattern_option_has_atomic(no)
+      LiteralConditional(_, yes, no) -> literal_pattern_has_atomic(yes) or literal_pattern_option_has_atomic(no)
+      LiteralCapture(inner) -> literal_pattern_has_atomic(inner)
+      LiteralNamedCapture(_, inner) -> literal_pattern_has_atomic(inner)
+      LiteralCaptureIndexed(_, _, inner) -> literal_pattern_has_atomic(inner)
+      LiteralRepeat(inner, _) -> literal_pattern_has_atomic(inner)
+      LiteralPlus(inner, _) -> literal_pattern_has_atomic(inner)
+      LiteralOptional(inner, _) -> literal_pattern_has_atomic(inner)
+      LiteralBoundedExact(inner, _) -> literal_pattern_has_atomic(inner)
+      LiteralBoundedAtLeast(inner, _, _) -> literal_pattern_has_atomic(inner)
+      LiteralBoundedBetween(inner, _, _, _) -> literal_pattern_has_atomic(inner)
+      LiteralConfigured(_, inner) -> literal_pattern_has_atomic(inner)
+      LiteralScopedOptions(_, _, inner) -> literal_pattern_has_atomic(inner)
+      _ -> false
+
+  fn literal_pattern_list_has_atomic(patterns: List(LiteralPattern)) -> Bool = match patterns
+      [] -> false
+      [head | rest] -> literal_pattern_has_atomic(head) or literal_pattern_list_has_atomic(rest)
+
+  fn literal_pattern_option_has_atomic(pattern: Option(LiteralPattern)) -> Bool = match pattern
+      None() -> false
+      Some(inner) -> literal_pattern_has_atomic(inner)
+
+  fn literal_pattern_option_has_conditionals(pattern: Option(LiteralPattern)) -> Bool = match pattern
+      None() -> false
+      Some(inner) -> literal_pattern_has_conditionals(inner)
+
+  fn literal_pattern_list_has_conditionals(patterns: List(LiteralPattern)) -> Bool = match patterns
+      [] -> false
+      [head | rest] -> literal_pattern_has_conditionals(head) or literal_pattern_list_has_conditionals(rest)
+end
