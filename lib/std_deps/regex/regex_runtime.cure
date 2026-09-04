@@ -1,5 +1,7 @@
 @group(:text)
 mod Std.Regex.Runtime
+  use Std.Regex.Runtime.Compilation
+  public use Std.Regex.Runtime.Compilation
   use Std.Regex.Runtime.StagedOps
   public use Std.Regex.Runtime.StagedOps
   use Std.Regex.Runtime.PatternMachines
@@ -128,148 +130,15 @@ mod Std.Regex.Runtime
 
 
 
-  ## Constructor-preserving Thompson IR. Both runtime compilation and the
-  ## evidence theorem consume this same tree, so proof code never reconstructs
-  ## machine provenance from a function-valued transition table.
-  type ThompsonCompilation indices (shape: ShapeCode)
-    ThompsonPredicate : (test: (Char -> Bool)) -> ThompsonCompilation(CharC)
-    ThompsonEmpty : ThompsonCompilation(UnitC)
-    ThompsonBoundary : (constraint: BoundaryConstraint) -> ThompsonCompilation(UnitC)
-    ThompsonConcat : (left: ThompsonCompilation(left_shape)) -> (right: ThompsonCompilation(right_shape)) -> ThompsonCompilation(PairC(left_shape, right_shape))
-    ThompsonGroup : (inner: ThompsonCompilation(inner_shape)) -> ThompsonCompilation(StringC)
-    ThompsonAlternate : (left: ThompsonCompilation(left_shape)) -> (right: ThompsonCompilation(right_shape)) -> (prefer_right: Bool) -> ThompsonCompilation(ChoiceC(left_shape, right_shape))
-    ThompsonRepeat : (inner: ThompsonCompilation(inner_shape)) -> (lazy: Bool) -> ThompsonCompilation(ListC(inner_shape))
 
-  ## Lookaround compilation is a runtime-only parallel IR. It preserves the
-  ## same finite Thompson constructors as the ordinary proof IR, but adds an
-  ## explicit atomic scope so assertion operands cannot silently erase
-  ## ordered commitment when they cross an assertion boundary. The ordinary
-  ## typed proof remains over ThompsonCompilation; this tree is consumed only
-  ## by the checked finite assertion evaluator.
-  type LookaroundCompilation indices (shape: ShapeCode)
-    LookaroundPredicate : (test: (Char -> Bool)) -> LookaroundCompilation(CharC)
-    LookaroundEmpty : LookaroundCompilation(UnitC)
-    LookaroundBoundary : (constraint: BoundaryConstraint) -> LookaroundCompilation(UnitC)
-    LookaroundBoundaryGuard : (constraint: BoundaryConstraint) -> (inner: LookaroundCompilation(inner_shape)) -> LookaroundCompilation(inner_shape)
-    LookaroundConcat : (left: LookaroundCompilation(left_shape)) -> (right: LookaroundCompilation(right_shape)) -> LookaroundCompilation(PairC(left_shape, right_shape))
-    LookaroundGroup : (inner: LookaroundCompilation(inner_shape)) -> LookaroundCompilation(StringC)
-    LookaroundGroupSlot : (slot: Nat) -> (inner: LookaroundCompilation(inner_shape)) -> LookaroundCompilation(StringC)
-    LookaroundAlternate : (left: LookaroundCompilation(left_shape)) -> (right: LookaroundCompilation(right_shape)) -> (prefer_right: Bool) -> LookaroundCompilation(ChoiceC(left_shape, right_shape))
-    LookaroundRepeat : (inner: LookaroundCompilation(inner_shape)) -> (lazy: Bool) -> LookaroundCompilation(ListC(inner_shape))
-    LookaroundAtomic : (inner: LookaroundCompilation(inner_shape)) -> LookaroundCompilation(inner_shape)
-    LookaroundGuard : (slot: Nat) -> (participated: Bool) -> (inner: LookaroundCompilation(inner_shape)) -> LookaroundCompilation(inner_shape)
 
-  ## Named compilation is constructor-for-constructor parallel to the checked
-  ## Thompson tree.  Only group nodes differ: they carry the explicit slot ID
-  ## used by the capture ledger.  Erasing the IDs recovers the ordinary
-  ## compilation, so language proofs can remain independent of names.
-  type NamedThompsonCompilation indices (shape: ShapeCode)
-    NamedThompsonPredicate : (test: (Char -> Bool)) -> NamedThompsonCompilation(CharC)
-    NamedThompsonEmpty : NamedThompsonCompilation(UnitC)
-    NamedThompsonBoundary : (constraint: BoundaryConstraint) -> NamedThompsonCompilation(UnitC)
-    NamedThompsonConcat : (left: NamedThompsonCompilation(left_shape)) -> (right: NamedThompsonCompilation(right_shape)) -> NamedThompsonCompilation(PairC(left_shape, right_shape))
-    NamedThompsonCapture : (inner: NamedThompsonCompilation(inner_shape)) -> NamedThompsonCompilation(StringC)
-    NamedThompsonGroup : (slot: Nat) -> (inner: NamedThompsonCompilation(inner_shape)) -> NamedThompsonCompilation(StringC)
-    NamedThompsonGuard : (slot: Nat) -> (participated: Bool) -> (inner: NamedThompsonCompilation(inner_shape)) -> NamedThompsonCompilation(inner_shape)
-    NamedThompsonAlternate : (left: NamedThompsonCompilation(left_shape)) -> (right: NamedThompsonCompilation(right_shape)) -> (prefer_right: Bool) -> NamedThompsonCompilation(ChoiceC(left_shape, right_shape))
-    NamedThompsonRepeat : (inner: NamedThompsonCompilation(inner_shape)) -> (lazy: Bool) -> NamedThompsonCompilation(ListC(inner_shape))
 
-  ## Erasure certificate: every named compilation has exactly the ordinary
-  ## Thompson compilation obtained by dropping slot IDs.  This is the bridge
-  ## used by the typed proof path; capture metadata cannot alter language.
-  type NamedCompilationErasure indices (shape: ShapeCode, named: NamedThompsonCompilation(shape), ordinary: ThompsonCompilation(shape))
-    NamedPredicateErasure : NamedCompilationErasure(CharC, NamedThompsonPredicate(test), ThompsonPredicate(test))
-    NamedEmptyErasure : NamedCompilationErasure(UnitC, NamedThompsonEmpty(), ThompsonEmpty())
-    NamedBoundaryErasure : NamedCompilationErasure(UnitC, NamedThompsonBoundary(constraint), ThompsonBoundary(constraint))
-    NamedConcatErasure : {@erased left_shape: ShapeCode} -> {@erased right_shape: ShapeCode} -> {@erased left_named: NamedThompsonCompilation(left_shape)} -> {@erased right_named: NamedThompsonCompilation(right_shape)} -> {@erased left_ordinary: ThompsonCompilation(left_shape)} -> {@erased right_ordinary: ThompsonCompilation(right_shape)} -> (@erased left: NamedCompilationErasure(left_shape, left_named, left_ordinary)) -> (@erased right: NamedCompilationErasure(right_shape, right_named, right_ordinary)) -> NamedCompilationErasure(PairC(left_shape, right_shape), NamedThompsonConcat(left_named, right_named), ThompsonConcat(left_ordinary, right_ordinary))
-    NamedCaptureErasure : {@erased inner_shape: ShapeCode} -> {@erased inner_named: NamedThompsonCompilation(inner_shape)} -> {@erased inner_ordinary: ThompsonCompilation(inner_shape)} -> (@erased inner: NamedCompilationErasure(inner_shape, inner_named, inner_ordinary)) -> NamedCompilationErasure(StringC, NamedThompsonCapture(inner_named), ThompsonGroup(inner_ordinary))
-    NamedGroupErasure : {@erased inner_shape: ShapeCode} -> {@erased inner_named: NamedThompsonCompilation(inner_shape)} -> {@erased inner_ordinary: ThompsonCompilation(inner_shape)} -> (slot: Nat) -> (@erased inner: NamedCompilationErasure(inner_shape, inner_named, inner_ordinary)) -> NamedCompilationErasure(StringC, NamedThompsonGroup(slot, inner_named), ThompsonGroup(inner_ordinary))
-    NamedGuardErasure : {@erased inner_shape: ShapeCode} -> {@erased inner_named: NamedThompsonCompilation(inner_shape)} -> {@erased inner_ordinary: ThompsonCompilation(inner_shape)} -> (slot: Nat) -> (participated: Bool) -> (@erased inner: NamedCompilationErasure(inner_shape, inner_named, inner_ordinary)) -> NamedCompilationErasure(inner_shape, NamedThompsonGuard(slot, participated, inner_named), inner_ordinary)
-    NamedAlternateErasure : {@erased left_shape: ShapeCode} -> {@erased right_shape: ShapeCode} -> {@erased left_named: NamedThompsonCompilation(left_shape)} -> {@erased right_named: NamedThompsonCompilation(right_shape)} -> {@erased left_ordinary: ThompsonCompilation(left_shape)} -> {@erased right_ordinary: ThompsonCompilation(right_shape)} -> (@erased left: NamedCompilationErasure(left_shape, left_named, left_ordinary)) -> (@erased right: NamedCompilationErasure(right_shape, right_named, right_ordinary)) -> (prefer_right: Bool) -> NamedCompilationErasure(ChoiceC(left_shape, right_shape), NamedThompsonAlternate(left_named, right_named, prefer_right), ThompsonAlternate(left_ordinary, right_ordinary, prefer_right))
-    NamedRepeatErasure : {@erased inner_shape: ShapeCode} -> {@erased inner_named: NamedThompsonCompilation(inner_shape)} -> {@erased inner_ordinary: ThompsonCompilation(inner_shape)} -> (@erased inner: NamedCompilationErasure(inner_shape, inner_named, inner_ordinary)) -> (lazy: Bool) -> NamedCompilationErasure(ListC(inner_shape), NamedThompsonRepeat(inner_named, lazy), ThompsonRepeat(inner_ordinary, lazy))
 
-  fn certify_named_compilation({shape: ShapeCode}, compilation: NamedThompsonCompilation(shape)) -> NamedCompilationErasure(shape, compilation, erase_named_thompson(compilation)) = match compilation
-    NamedThompsonPredicate(_) -> NamedPredicateErasure()
-    NamedThompsonEmpty() -> NamedEmptyErasure()
-    NamedThompsonBoundary(_) -> NamedBoundaryErasure()
-    NamedThompsonConcat(left, right) -> NamedConcatErasure(certify_named_compilation(left), certify_named_compilation(right))
-    NamedThompsonCapture(inner) -> NamedCaptureErasure(certify_named_compilation(inner))
-    NamedThompsonGroup(slot, inner) -> NamedGroupErasure(slot, certify_named_compilation(inner))
-    NamedThompsonGuard(slot, participated, inner) -> NamedGuardErasure(slot, participated, certify_named_compilation(inner))
-    NamedThompsonAlternate(left, right, prefer_right) -> NamedAlternateErasure(certify_named_compilation(left), certify_named_compilation(right), prefer_right)
-    NamedThompsonRepeat(inner, lazy) -> NamedRepeatErasure(certify_named_compilation(inner), lazy)
 
-  @reducible
-  fn named_thompson_state_count({@erased shape: ShapeCode}, compilation: NamedThompsonCompilation(shape)) -> Nat = match compilation
-    NamedThompsonPredicate(_) -> S(Z())
-    NamedThompsonEmpty() -> Z()
-    NamedThompsonBoundary(_) -> Z()
-    NamedThompsonConcat(left, right) -> plus(named_thompson_state_count(left), named_thompson_state_count(right))
-    NamedThompsonCapture(inner) -> named_thompson_state_count(inner)
-    NamedThompsonGroup(_, inner) -> named_thompson_state_count(inner)
-    NamedThompsonGuard(_, _, inner) -> named_thompson_state_count(inner)
-    NamedThompsonAlternate(left, right, _) -> plus(named_thompson_state_count(left), named_thompson_state_count(right))
-    NamedThompsonRepeat(inner, _) -> named_thompson_state_count(inner)
 
-  @reducible
-  fn erase_named_thompson({@erased shape: ShapeCode}, compilation: NamedThompsonCompilation(shape)) -> ThompsonCompilation(shape) = match compilation
-    NamedThompsonPredicate(test) -> ThompsonPredicate(test)
-    NamedThompsonEmpty() -> ThompsonEmpty()
-    NamedThompsonBoundary(constraint) -> ThompsonBoundary(constraint)
-    NamedThompsonConcat(left, right) -> ThompsonConcat(erase_named_thompson(left), erase_named_thompson(right))
-    NamedThompsonCapture(inner) -> ThompsonGroup(erase_named_thompson(inner))
-    NamedThompsonGroup(_, inner) -> ThompsonGroup(erase_named_thompson(inner))
-    NamedThompsonGuard(_, _, inner) -> erase_named_thompson(inner)
-    NamedThompsonAlternate(left, right, prefer_right) -> ThompsonAlternate(erase_named_thompson(left), erase_named_thompson(right), prefer_right)
-    NamedThompsonRepeat(inner, lazy) -> ThompsonRepeat(erase_named_thompson(inner), lazy)
 
-  @reducible
-  fn named_thompson_machine({@erased shape: ShapeCode}, compilation: NamedThompsonCompilation(shape)) -> PatternMachine(named_thompson_state_count(compilation)) = match compilation
-    NamedThompsonPredicate(test) -> predicate_pattern_machine(test)
-    NamedThompsonEmpty() -> empty_pattern_machine()
-    NamedThompsonBoundary(constraint) -> boundary_pattern_machine(constraint)
-    NamedThompsonConcat(left, right) -> concat_pattern_machine(named_thompson_state_count(left), named_thompson_machine(left), named_thompson_state_count(right), named_thompson_machine(right))
-    NamedThompsonCapture(inner) ->
-      let inner_machine = named_thompson_machine(inner)
-      group_pattern_machine(named_thompson_state_count(inner), pattern_machine_starts(inner_machine), pattern_machine_next(inner_machine))
-    NamedThompsonGroup(slot, inner) ->
-      let inner_machine = named_thompson_machine(inner)
-      group_pattern_machine_with_slot(named_thompson_state_count(inner), pattern_machine_starts(inner_machine), pattern_machine_next(inner_machine), slot)
-    NamedThompsonGuard(slot, participated, inner) -> guard_pattern_machine(capture_condition_constraint(slot, participated), named_thompson_machine(inner))
-    NamedThompsonAlternate(left, right, prefer_right) -> alternate_pattern_machine(named_thompson_state_count(left), named_thompson_machine(left), named_thompson_state_count(right), named_thompson_machine(right), prefer_right)
-    NamedThompsonRepeat(inner, lazy) -> repeat_pattern_machine(named_thompson_state_count(inner), named_thompson_machine(inner), lazy)
 
-  @reducible
-  fn thompson_state_count({@erased shape: ShapeCode}, compilation: ThompsonCompilation(shape)) -> Nat = match compilation
-    ThompsonPredicate(_) -> S(Z())
-    ThompsonEmpty() -> Z()
-    ThompsonBoundary(_) -> Z()
-    ThompsonConcat(left, right) -> plus(thompson_state_count(left), thompson_state_count(right))
-    ThompsonGroup(inner) -> thompson_state_count(inner)
-    ThompsonAlternate(left, right, _) -> plus(thompson_state_count(left), thompson_state_count(right))
-    ThompsonRepeat(inner, _) -> thompson_state_count(inner)
 
-  ## Construct the closure machine once per Thompson subtree.  Let-binding the
-  ## child results is important: starts and next are two projections of the
-  ## same child value, not two independent recursive reconstructions.
-  fn staged_machine_seed_from_compilation({@erased shape: ShapeCode}, compilation: ThompsonCompilation(shape)) -> PatternMachine(thompson_state_count(compilation)) = match compilation
-    ThompsonPredicate(test) -> predicate_pattern_machine(test)
-    ThompsonEmpty() -> empty_pattern_machine()
-    ThompsonBoundary(constraint) -> boundary_pattern_machine(constraint)
-    ThompsonGroup(inner) ->
-      let inner_machine = staged_machine_seed_from_compilation(inner)
-      group_pattern_machine(thompson_state_count(inner), pattern_machine_starts(inner_machine), pattern_machine_next(inner_machine))
-    ThompsonConcat(left, right) ->
-      let left_machine = staged_machine_seed_from_compilation(left)
-      let right_machine = staged_machine_seed_from_compilation(right)
-      concat_pattern_machine(thompson_state_count(left), left_machine, thompson_state_count(right), right_machine)
-    ThompsonAlternate(left, right, prefer_right) ->
-      let left_machine = staged_machine_seed_from_compilation(left)
-      let right_machine = staged_machine_seed_from_compilation(right)
-      alternate_pattern_machine(thompson_state_count(left), left_machine, thompson_state_count(right), right_machine, prefer_right)
-    ThompsonRepeat(inner, lazy) ->
-      let inner_machine = staged_machine_seed_from_compilation(inner)
-      repeat_pattern_machine(thompson_state_count(inner), inner_machine, lazy)
 
   @reducible
   fn direct_staged_rows_values_from_compilation({@erased shape: ShapeCode}, compilation: ThompsonCompilation(shape)) -> TransitionRows(thompson_state_count(compilation)) =
@@ -301,17 +170,8 @@ mod Std.Regex.Runtime
   fn staged_rows_from_compilation({@erased shape: ShapeCode}, compilation: ThompsonCompilation(shape)) -> StagedRows(thompson_state_count(compilation)) =
     StagedRowsValue(staged_starts_from_compilation(compilation), staged_rows_values_from_compilation(compilation))
 
-  @reducible
-  fn pattern_machine_starts({n: Nat}, machine: PatternMachine(n)) -> List(MachineState(n)) = match machine
-    MkPatternMachine(starts, next) -> starts
 
-  @reducible
-  fn pattern_machine_next({n: Nat}, machine: PatternMachine(n)) -> (Bounded(n)) -> Char -> List(MachineState(n)) = match machine
-    MkPatternMachine(starts, next) -> next
 
-  @reducible
-  fn pattern_machine_next_value({n: Nat}, machine: PatternMachine(n), state: Bounded(n), char: Char) -> List(MachineState(n)) =
-    pattern_machine_next(machine)(state, char)
 
   fn pattern_machine_next_at_from_next(
     {n: Nat},
