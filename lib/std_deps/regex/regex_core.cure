@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Core
+  public use Std.Regex.Core.Evidence
   public use Std.Regex.Core.Limits
   ## Shared indexed Regex vocabulary and definitionally relevant shape operations.
   use Std.Char
@@ -297,28 +298,6 @@ mod Std.Regex.Core
     PatternRepeatMode : Pattern(inner) -> Bool -> Pattern(ListC(inner))
     PatternBoundary : BoundaryConstraint -> Pattern(UnitC)
 
-  ## State identifiers are naturals below `state_count`. Thompson construction
-  ## allocates disjoint contiguous ranges and preserves that invariant by
-  ## shifting the right machine by the left machine's count. `Accepted` is an
-  ## accepting edge (the paper's `Nothing`), not an allocated state. The runtime
-  ## transition relation is ordered and epsilon-free.
-  ## Atomic markers are semantic no-ops in the evidence VM. The ordered search
-  ## consumes them as lexical commit boundaries; keeping them in the same
-  ## routine stream makes replay and proof paths share one trace.
-  type EvidenceInstruction =
-    | EmitChar(Char)
-    | EmitUnit
-    | EmitPair
-    | EmitLeft
-    | EmitRight
-    | BeginList
-    | EndList
-    | BeginCapture
-    | EndCapture
-    | BeginCaptureSlot(Nat)
-    | EndCaptureSlot(Nat)
-    | BeginAtomic
-    | EndAtomic
 
   type NewlinePolicy = LFNewline | CRNewline | CRLFNewline | AnyCRLFNewline | AnyUnicodeNewline
   type InitialPosition = InitialPosition(Bool, Bool, Bool, Bool, Option(Char))

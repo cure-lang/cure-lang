@@ -234,22 +234,22 @@ defmodule Cure.Compiler.RegexModuleSplitTest do
     # checks canonical environment entries rather than merely parsing names from
     # the source file, so copying a second nominal family cannot pass unnoticed.
     public_families = [
-      {:Pattern, 1},
-      {:ShapeCode, 0},
-      {:EvidenceInstruction, 0},
-      {:Evidence, 0},
-      {:Encodes, 3},
-      {:EncodesMany, 3},
-      {:EncodingExtraction, 3},
-      {:ManyEncodingExtraction, 3},
-      {:ThreadState, 1},
-      {:MachineState, 1},
-      {:PatternMachine, 1}
+      {:Pattern, "Std.Regex.Core"},
+      {:ShapeCode, "Std.Regex.Core"},
+      {:EvidenceInstruction, "Std.Regex.Core.Evidence"},
+      {:Evidence, "Std.Regex.Core"},
+      {:Encodes, "Std.Regex.Core"},
+      {:EncodesMany, "Std.Regex.Core"},
+      {:EncodingExtraction, "Std.Regex.Core"},
+      {:ManyEncodingExtraction, "Std.Regex.Core"},
+      {:ThreadState, "Std.Regex.Core"},
+      {:MachineState, "Std.Regex.Core"},
+      {:PatternMachine, "Std.Regex.Core"}
     ]
 
-    Enum.each(public_families, fn {name, _arity} ->
+    Enum.each(public_families, fn {name, owner} ->
       facade_key = String.to_atom("Std.Regex##{name}")
-      core_key = String.to_atom("Std.Regex.Core##{name}")
+      core_key = String.to_atom("#{owner}##{name}")
       assert Inductive.get_family(env, facade_key) == nil
       family = Inductive.get_family(env, core_key)
       assert family.name == core_key
@@ -277,11 +277,11 @@ defmodule Cure.Compiler.RegexModuleSplitTest do
     canonical_families =
       env.families
       |> Map.keys()
-      |> Enum.filter(&(Name.owner(&1) in ["Std.Regex.Core", "Std.Regex.Runtime"]))
+      |> Enum.filter(&(Name.owner(&1) in ["Std.Regex.Core", "Std.Regex.Core.Evidence", "Std.Regex.Runtime"]))
 
     Enum.each(canonical_families, fn key ->
       refute Inductive.get_family(env, String.to_atom("Std.Regex##{Name.base(key)}"))
-      assert Name.owner(key) in ["Std.Regex.Core", "Std.Regex.Runtime"]
+      assert Name.owner(key) in ["Std.Regex.Core", "Std.Regex.Core.Evidence", "Std.Regex.Runtime"]
     end)
   end
 

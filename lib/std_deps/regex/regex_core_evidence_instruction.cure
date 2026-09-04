@@ -1,0 +1,41 @@
+@group(:text)
+mod Std.Regex.Core.Evidence
+  use Std.Regex.Core.Limits
+
+  use Std.Char
+
+  use Std.Option
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  ## State identifiers are naturals below `state_count`. Thompson construction
+    ## allocates disjoint contiguous ranges and preserves that invariant by
+    ## shifting the right machine by the left machine's count. `Accepted` is an
+    ## accepting edge (the paper's `Nothing`), not an allocated state. The runtime
+    ## transition relation is ordered and epsilon-free.
+    ## Atomic markers are semantic no-ops in the evidence VM. The ordered search
+    ## consumes them as lexical commit boundaries; keeping them in the same
+    ## routine stream makes replay and proof paths share one trace.
+    type EvidenceInstruction =
+      | EmitChar(Char)
+      | EmitUnit
+      | EmitPair
+      | EmitLeft
+      | EmitRight
+      | BeginList
+      | EndList
+      | BeginCapture
+      | EndCapture
+      | BeginCaptureSlot(Nat)
+      | EndCaptureSlot(Nat)
+      | BeginAtomic
+      | EndAtomic
+end
