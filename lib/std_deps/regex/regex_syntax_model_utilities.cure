@@ -1,0 +1,42 @@
+## Compile-time-only literal syntax tree. It is consumed by `expand_literal`
+## and never appears in generated matching code.
+
+@group(:text)
+mod Std.Regex.Syntax.Model.Utilities
+  use Std.Regex.Syntax.Model.ClassKinds
+
+  use Std.Regex.Syntax.Model.Predicates
+
+  use Std.Regex.Syntax.Model.Types
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.String
+
+  fn literal_default_options() -> LiteralRegexOptions =
+      LiteralRegexOptions([], LiteralAnyUnicodePolicy)
+
+  fn literal_newline_policy(options: LiteralRegexOptions) -> LiteralNewlinePolicy = match options
+      LiteralRegexOptions(_, policy) -> policy
+
+  fn is_literal_stop(char: Char) -> Bool =
+      char == '|' or char == ')'
+
+  fn literal_bounded_less({n: Nat}, left: Bounded(n), right: Bounded(n)) -> Bool =
+      match left
+        First() -> match right
+          First() -> false
+          Next(_) -> true
+        Next(left_rest) -> match right
+          First() -> false
+          Next(right_rest) -> literal_bounded_less(left_rest, right_rest)
+
+  fn literal_nat_times_ten(value: Nat) -> Nat =
+      plus(value, plus(value, plus(value, plus(value, plus(value, plus(value, plus(value, plus(value, plus(value, value)))))))))
+
+  fn literal_quantifier_limit() -> Nat = 64
+
+  fn empty_regex_input() -> List(Char) = []
+end
