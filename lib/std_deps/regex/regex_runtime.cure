@@ -1,5 +1,7 @@
 @group(:text)
 mod Std.Regex.Runtime
+  use Std.Regex.Runtime.StagedOps
+  public use Std.Regex.Runtime.StagedOps
   use Std.Regex.Runtime.PatternMachines
   public use Std.Regex.Runtime.PatternMachines
   use Std.Regex.Runtime.StateOps
@@ -111,69 +113,20 @@ mod Std.Regex.Runtime
 
 
 
-  @reducible
-  fn rows_as_next({n: Nat}, rows: TransitionRows(n)) -> (Bounded(n)) -> Char -> List(MachineState(n)) =
-    fn(state) -> fn(char) -> transition_rows_next(rows, state, char)
 
-  @reducible
-  fn staged_group_next({n: Nat}, rows: TransitionRows(n), state: Bounded(n), char: Char) -> List(MachineState(n)) =
-    group_machine_next(rows_as_next(rows), state, char)
 
-  @reducible
-  fn staged_group_next_function({n: Nat}, rows: TransitionRows(n)) -> (Bounded(n)) -> Char -> List(MachineState(n)) =
-    fn(state) -> fn(char) -> staged_group_next(rows, state, char)
 
-  @reducible
-  fn staged_concat_next_from_side(left_count: Nat, {right_count: Nat}, left_rows: TransitionRows(left_count), right_starts: List(MachineState(right_count)), right_rows: TransitionRows(right_count), side: BoundedSum(left_count, right_count), char: Char) -> List(MachineState(plus(left_count, right_count))) =
-    match side
-      BoundedLeft(left_state) -> continue_with_right(left_count, transition_rows_next(left_rows, left_state, char), right_starts)
-      BoundedRight(right_state) -> inject_right_states(left_count, finish_pair(transition_rows_next(right_rows, right_state, char)))
 
-  @reducible
-  fn staged_concat_next(left_count: Nat, {right_count: Nat}, left_rows: TransitionRows(left_count), right_starts: List(MachineState(right_count)), right_rows: TransitionRows(right_count), state: Bounded(plus(left_count, right_count)), char: Char) -> List(MachineState(plus(left_count, right_count))) =
-    staged_concat_next_from_side(left_count, left_rows, right_starts, right_rows, split_sum(left_count, state), char)
 
-  @reducible
-  fn staged_concat_next_function(left_count: Nat, {right_count: Nat}, left_rows: TransitionRows(left_count), right_starts: List(MachineState(right_count)), right_rows: TransitionRows(right_count)) -> (Bounded(plus(left_count, right_count))) -> Char -> List(MachineState(plus(left_count, right_count))) =
-    fn(state) -> fn(char) -> staged_concat_next(left_count, left_rows, right_starts, right_rows, state, char)
 
-  @reducible
-  fn staged_alternate_next_from_side(left_count: Nat, {right_count: Nat}, left_rows: TransitionRows(left_count), right_rows: TransitionRows(right_count), side: BoundedSum(left_count, right_count), char: Char) -> List(MachineState(plus(left_count, right_count))) =
-    match side
-      BoundedLeft(left_state) -> inject_left_states(mark_branch(transition_rows_next(left_rows, left_state, char), EmitLeft()))
-      BoundedRight(right_state) -> inject_right_states(left_count, mark_branch(transition_rows_next(right_rows, right_state, char), EmitRight()))
 
-  @reducible
-  fn staged_alternate_next(left_count: Nat, {right_count: Nat}, left_rows: TransitionRows(left_count), right_rows: TransitionRows(right_count), state: Bounded(plus(left_count, right_count)), char: Char) -> List(MachineState(plus(left_count, right_count))) =
-    staged_alternate_next_from_side(left_count, left_rows, right_rows, split_sum(left_count, state), char)
 
-  @reducible
-  fn staged_alternate_next_function(left_count: Nat, {right_count: Nat}, left_rows: TransitionRows(left_count), right_rows: TransitionRows(right_count)) -> (Bounded(plus(left_count, right_count))) -> Char -> List(MachineState(plus(left_count, right_count))) =
-    fn(state) -> fn(char) -> staged_alternate_next(left_count, left_rows, right_rows, state, char)
 
-  @reducible
-  fn staged_repeat_next({n: Nat}, starts: List(MachineState(n)), rows: TransitionRows(n), lazy: Bool, state: Bounded(n), char: Char) -> List(MachineState(n)) =
-    repeat_machine_next(starts, lazy, rows_as_next(rows), state, char)
 
-  @reducible
-  fn staged_repeat_next_function({n: Nat}, starts: List(MachineState(n)), rows: TransitionRows(n), lazy: Bool) -> (Bounded(n)) -> Char -> List(MachineState(n)) =
-    fn(state) -> fn(char) -> staged_repeat_next(starts, rows, lazy, state, char)
 
-  @reducible
-  fn staged_group_starts({n: Nat}, starts: List(MachineState(n))) -> List(MachineState(n)) =
-    finish_capture(prefix_routine(BeginCapture(), starts))
 
-  @reducible
-  fn staged_concat_starts(left_count: Nat, {right_count: Nat}, left_starts: List(MachineState(left_count)), right_starts: List(MachineState(right_count))) -> List(MachineState(plus(left_count, right_count))) =
-    continue_with_right(left_count, left_starts, right_starts)
 
-  @reducible
-  fn staged_alternate_starts(left_count: Nat, {right_count: Nat}, left_starts: List(MachineState(left_count)), right_starts: List(MachineState(right_count)), prefer_right: Bool) -> List(MachineState(plus(left_count, right_count))) =
-    alternate_machine_starts(left_count, left_starts, right_starts, prefer_right)
 
-  @reducible
-  fn staged_repeat_starts({n: Nat}, starts: List(MachineState(n)), lazy: Bool) -> List(MachineState(n)) =
-    repeat_machine_starts(starts, lazy)
 
   ## Constructor-preserving Thompson IR. Both runtime compilation and the
   ## evidence theorem consume this same tree, so proof code never reconstructs
