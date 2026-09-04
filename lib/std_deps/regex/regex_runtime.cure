@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.Conversion
   use Std.Regex.Runtime.ProgramTypes
   public use Std.Regex.Runtime.ProgramTypes
   use Std.Regex.Runtime.PublicTypes
@@ -21366,36 +21367,9 @@ mod Std.Regex.Runtime
 
 
 
-  fn execute_left_choice_conversion({left_raw: Type}, {left_result: Type}, {right_raw: Type}, {right_result: Type}, left: Conversion(left_raw, left_result), _right: Conversion(right_raw, right_result), value: left_raw) -> Choice(left_result, right_result) =
-    assert_type ChoseLeft(execute_conversion(left, value)) : Choice(left_result, right_result)
 
-  fn execute_right_choice_conversion({left_raw: Type}, {left_result: Type}, {right_raw: Type}, {right_result: Type}, _left: Conversion(left_raw, left_result), right: Conversion(right_raw, right_result), value: right_raw) -> Choice(left_result, right_result) =
-    assert_type ChoseRight(execute_conversion(right, value)) : Choice(left_result, right_result)
 
-  fn execute_conversion({raw: Type}, {result: Type}, conversion: Conversion(raw, result), value: raw) -> result = match conversion
-    IdentityConversion() -> value
-    ApplyConversion(transform) -> transform(value)
-    ComposedConversion(first, second) -> execute_conversion(second, execute_conversion(first, value))
-    PairConversion(left, right) -> %[execute_conversion(left, value.1), execute_conversion(right, value.2)]
-    ChoiceConversion(left, right) -> match value
-      ChoseLeft(left_value) -> execute_left_choice_conversion(left, right, left_value)
-      ChoseRight(right_value) -> execute_right_choice_conversion(left, right, right_value)
-    ListConversion(inner) -> execute_list_conversion(inner, value)
-    LeftPairConversion(left, _right) -> execute_conversion(left, value.1)
-    RightPairConversion(_left, right) -> execute_conversion(right, value.2)
-    SameChoiceConversion(left, right) -> match value
-      ChoseLeft(left_value) -> execute_conversion(left, left_value)
-      ChoseRight(right_value) -> execute_conversion(right, right_value)
-    OptionalConversion(inner) -> match value
-      ChoseLeft(inner_value) -> Some(execute_conversion(inner, inner_value))
-      ChoseRight(_) -> None()
-    OneOrMoreConversion(inner) -> OneOrMore(execute_conversion(inner, value.1), execute_list_conversion(inner, value.2))
-    PrependConversion(inner) -> [execute_conversion(inner, value.1) | execute_list_conversion(inner, value.2)]
-    SimplifyConversion(shape) -> simplify_value(shape, value)
 
-  fn execute_list_conversion({raw: Type}, {result: Type}, conversion: Conversion(raw, result), values: List(raw)) -> List(result) = match values
-    [] -> []
-    [head | rest] -> [execute_conversion(conversion, head) | execute_list_conversion(conversion, rest)]
 
   ## Conversion values used by the literal emitter's staged IR. Keeping these
   ## small adapters here lets generated literals publish a first-order
