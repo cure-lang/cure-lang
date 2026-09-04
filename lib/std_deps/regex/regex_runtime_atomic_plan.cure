@@ -1,0 +1,119 @@
+@group(:text)
+mod Std.Regex.Runtime.AtomicPlan
+  use Std.Regex.Runtime.StateOps
+  use Std.Regex.Runtime.PatternMachines
+  use Std.Regex.Runtime.StagedOps
+  use Std.Regex.Runtime.Compilation
+  use Std.Regex.Runtime.MachineLaws
+  use Std.Regex.Runtime.MachineFilters
+  use Std.Regex.Runtime.SubjectContext
+  use Std.Regex.Runtime.CharacterPredicates
+  use Std.Regex.Runtime.Position
+  use Std.Regex.Runtime.Evidence
+  use Std.Regex.Runtime.NamedCapture
+  use Std.Regex.Runtime.Compiler
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Runtime.CaptureConditions
+
+  use Std.Regex.Runtime.Boundaries
+
+  use Std.Regex.Runtime.AtomicDiagnostics
+
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Char
+
+  use Std.Option
+
+  use Std.List
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  use Std.Decision
+
+  fn atomic_plan_compilation({@erased shape: ShapeCode}, plan: AtomicRuntimePattern(shape)) -> ThompsonCompilation(shape) = match plan
+    AtomicRuntimeLeaf(pattern) -> certify_thompson(pattern)
+    AtomicRuntimeConcat(left, right) -> ThompsonConcat(atomic_plan_compilation(left), atomic_plan_compilation(right))
+    AtomicRuntimeGroup(inner) -> ThompsonGroup(atomic_plan_compilation(inner))
+    AtomicRuntimeAlternate(left, right, prefer_right) -> ThompsonAlternate(atomic_plan_compilation(left), atomic_plan_compilation(right), prefer_right)
+    AtomicRuntimeScope(inner) -> atomic_plan_compilation(inner)
+    AtomicRuntimeRepeat(inner, lazy) -> ThompsonRepeat(atomic_plan_compilation(inner), lazy)
+
+  fn atomic_plan_pattern({@erased shape: ShapeCode}, plan: AtomicRuntimePattern(shape)) -> Pattern(shape) = match plan
+    AtomicRuntimeLeaf(pattern) -> pattern
+    AtomicRuntimeConcat(left, right) -> PatternConcat(atomic_plan_pattern(left), atomic_plan_pattern(right))
+    AtomicRuntimeGroup(inner) -> PatternGroup(atomic_plan_pattern(inner))
+    AtomicRuntimeAlternate(left, right, prefer_right) -> PatternAlternateMode(atomic_plan_pattern(left), atomic_plan_pattern(right), prefer_right)
+    AtomicRuntimeScope(inner) -> atomic_plan_pattern(inner)
+    AtomicRuntimeRepeat(inner, lazy) -> PatternRepeatMode(atomic_plan_pattern(inner), lazy)
+
+  fn atomic_runtime_machine_from_plan({@erased shape: ShapeCode}, plan: AtomicRuntimePattern(shape)) -> PatternMachine(thompson_state_count(atomic_plan_compilation(plan))) = match plan
+    AtomicRuntimeLeaf(pattern) -> thompson_machine(certify_thompson(pattern))
+    AtomicRuntimeConcat(left, right) -> concat_pattern_machine(thompson_state_count(atomic_plan_compilation(left)), atomic_runtime_machine_from_plan(left), thompson_state_count(atomic_plan_compilation(right)), atomic_runtime_machine_from_plan(right))
+    AtomicRuntimeGroup(inner) -> group_pattern_machine(thompson_state_count(atomic_plan_compilation(inner)), pattern_machine_starts(atomic_runtime_machine_from_plan(inner)), pattern_machine_next(atomic_runtime_machine_from_plan(inner)))
+    AtomicRuntimeAlternate(left, right, prefer_right) -> alternate_pattern_machine(thompson_state_count(atomic_plan_compilation(left)), atomic_runtime_machine_from_plan(left), thompson_state_count(atomic_plan_compilation(right)), atomic_runtime_machine_from_plan(right), prefer_right)
+    AtomicRuntimeScope(inner) -> atomic_pattern_machine(atomic_runtime_machine_from_plan(inner))
+    AtomicRuntimeRepeat(inner, lazy) -> repeat_pattern_machine(thompson_state_count(atomic_plan_compilation(inner)), atomic_runtime_machine_from_plan(inner), lazy)
+
+  ## Runtime-only atomic plan. Ordinary Pattern values and their Thompson
+  ## proofs stay unchanged; this parallel tree carries only the commitment
+  ## scopes needed by the ordered runtime search.
+  type AtomicRuntimePattern indices (shape: ShapeCode)
+    AtomicRuntimeLeaf : (pattern: Pattern(shape)) -> AtomicRuntimePattern(shape)
+    AtomicRuntimeConcat : (left: AtomicRuntimePattern(left_shape)) -> (right: AtomicRuntimePattern(right_shape)) -> AtomicRuntimePattern(PairC(left_shape, right_shape))
+    AtomicRuntimeGroup : (inner: AtomicRuntimePattern(inner_shape)) -> AtomicRuntimePattern(StringC)
+    AtomicRuntimeAlternate : (left: AtomicRuntimePattern(left_shape)) -> (right: AtomicRuntimePattern(right_shape)) -> (prefer_right: Bool) -> AtomicRuntimePattern(ChoiceC(left_shape, right_shape))
+    AtomicRuntimeScope : (inner: AtomicRuntimePattern(inner_shape)) -> AtomicRuntimePattern(inner_shape)
+    AtomicRuntimeRepeat : (inner: AtomicRuntimePattern(inner_shape)) -> (lazy: Bool) -> AtomicRuntimePattern(ListC(inner_shape))
+end
