@@ -1,0 +1,177 @@
+@group(:text)
+mod Std.Regex.Runtime.ThreadDedup
+  use Std.Decision
+  use Std.Sigma
+  use Std.Equivalent
+  use Std.Bounded
+  use Std.Syntax
+  use Std.String
+  use Std.List
+  use Std.Option
+  use Std.Char
+  use Std.Regex.Core
+  use Std.Regex.Core.Limits
+  use Std.Regex.Core.Evidence
+  use Std.Regex.Core.Newline
+  use Std.Regex.Core.Initial
+  use Std.Regex.Core.Boundary
+  use Std.Regex.Core.Capture
+  use Std.Regex.Runtime.Split
+  use Std.Regex.Runtime.Named
+  use Std.Regex.Runtime.ClassKinds
+  use Std.Regex.Runtime.AtomicDiagnostics
+  use Std.Regex.Runtime.Boundaries
+  use Std.Regex.Runtime.CaptureConditions
+  use Std.Regex.Runtime.TransitionRows
+  use Std.Regex.Runtime.StateOps
+  use Std.Regex.Runtime.PatternMachines
+  use Std.Regex.Runtime.StagedOps
+  use Std.Regex.Runtime.Compilation
+  use Std.Regex.Runtime.MachineLaws
+  use Std.Regex.Runtime.MachineFilters
+  use Std.Regex.Runtime.SubjectContext
+  use Std.Regex.Runtime.CharacterPredicates
+  use Std.Regex.Runtime.Position
+  use Std.Regex.Runtime.Evidence
+  use Std.Regex.Runtime.NamedCapture
+  use Std.Regex.Runtime.Compiler
+  use Std.Regex.Runtime.AtomicPlan
+  use Std.Regex.Runtime.LookaroundContext
+  use Std.Regex.Runtime.EvidenceThreads
+  use Std.Regex.Runtime.NewlinePolicy
+  use Std.Regex.Runtime.PublicTypes
+  use Std.Regex.Runtime.ProgramTypes
+  use Std.Regex.Runtime.Conversion
+  use Std.Regex.Runtime.CharacterSemantics
+  use Std.Regex.Runtime.RegexType
+  use Std.Regex.Runtime.NamedTypes
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  fn bounded_same({n: Nat}, left: Bounded(n), right: Bounded(n)) -> Bool = match left
+    First() -> match right
+      First() -> true
+      Next(_) -> false
+    Next(left_rest) -> match right
+      First() -> false
+      Next(right_rest) -> bounded_same(left_rest, right_rest)
+
+  fn same_thread_state({n: Nat}, left: ThreadState(n), right: ThreadState(n)) -> Bool = match left
+    ThreadAccepted() -> match right
+      ThreadAccepted() -> true
+      ThreadActive(_) -> false
+    ThreadActive(left_state) -> match right
+      ThreadAccepted() -> false
+      ThreadActive(right_state) -> bounded_same(left_state, right_state)
+
+  ## One winner slot per encountered intrinsic active state plus one accepted-state bit.
+  ## Traversal is left-to-right, so setting a slot preserves the first (highest
+  ## priority) thread and discards every later duplicate without rescanning the
+  ## growing winner list. `Bounded(n)` structurally indexes the slot spine: no
+  ## unchecked Nat conversion enters the machine and the erased bound need not
+  ## be materialized at runtime.
+  type ActiveWinnerSlots = NoWinnerSlots | ActiveWinnerSlot(Bool, ActiveWinnerSlots)
+
+  type ThreadWinnerTable = ThreadWinnerTable(Bool, ActiveWinnerSlots)
+
+  type DistinctThreadResult indices (n: Nat)
+    DistinctThreadResult : ThreadWinnerTable -> List(EvidenceThread(n)) -> DistinctThreadResult(n)
+
+  fn active_winner_seen({n: Nat}, slots: ActiveWinnerSlots, index: Bounded(n)) -> Bool = match index
+    First() -> match slots
+      NoWinnerSlots() -> false
+      ActiveWinnerSlot(seen, _) -> seen
+    Next(rest) -> match slots
+      NoWinnerSlots() -> false
+      ActiveWinnerSlot(_, tail) -> active_winner_seen(tail, rest)
+
+  fn record_active_winner({n: Nat}, slots: ActiveWinnerSlots, index: Bounded(n)) -> ActiveWinnerSlots = match index
+    First() -> match slots
+      NoWinnerSlots() -> ActiveWinnerSlot(true, NoWinnerSlots())
+      ActiveWinnerSlot(_, tail) -> ActiveWinnerSlot(true, tail)
+    Next(rest) -> match slots
+      NoWinnerSlots() -> ActiveWinnerSlot(false, record_active_winner(NoWinnerSlots(), rest))
+      ActiveWinnerSlot(seen, tail) -> ActiveWinnerSlot(seen, record_active_winner(tail, rest))
+
+  fn empty_thread_winners() -> ThreadWinnerTable = ThreadWinnerTable(false, NoWinnerSlots())
+
+  fn thread_winner_seen({n: Nat}, table: ThreadWinnerTable, state: ThreadState(n)) -> Bool = match table
+    ThreadWinnerTable(accepted, active) -> match state
+      ThreadAccepted() -> accepted
+      ThreadActive(index) -> active_winner_seen(active, index)
+
+  fn record_thread_winner({n: Nat}, table: ThreadWinnerTable, state: ThreadState(n)) -> ThreadWinnerTable = match table
+    ThreadWinnerTable(accepted, active) -> match state
+      ThreadAccepted() -> ThreadWinnerTable(true, active)
+      ThreadActive(index) -> ThreadWinnerTable(accepted, record_active_winner(active, index))
+
+  fn distinct_threads({n: Nat}, threads: List(EvidenceThread(n))) -> List(EvidenceThread(n)) = match distinct_threads_with(threads, empty_thread_winners())
+    DistinctThreadResult(_, winners) -> winners
+
+  fn distinct_threads_with({n: Nat}, threads: List(EvidenceThread(n)), table: ThreadWinnerTable) -> DistinctThreadResult(n) = match threads
+    [] -> DistinctThreadResult(table, [])
+    [EvidenceThread(state, evidence, captures) | rest] -> pickup
+      thread_winner_seen(table, state) -> distinct_threads_with(rest, table)
+      else -> match distinct_threads_with(rest, record_thread_winner(table, state))
+        DistinctThreadResult(final_table, winners) -> DistinctThreadResult(final_table, [EvidenceThread(state, evidence, captures) | winners])
+end
