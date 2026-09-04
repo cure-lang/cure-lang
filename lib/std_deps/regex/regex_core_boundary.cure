@@ -1,0 +1,30 @@
+@group(:text)
+mod Std.Regex.Core.Boundary
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Char
+
+  use Std.Option
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  ## Ordinary boundaries remain the small ten-field context used by the
+    ## existing Thompson proof. Lookaround evaluators carry their suffix and
+    ## bounded history separately, so adding assertions does not perturb the
+    ## ordinary proof indices.
+    type Boundary = Boundary(Bool, Bool, Bool, Bool, Bool, Bool, Bool, Option(Char), Option(Char), Option(Char))
+end

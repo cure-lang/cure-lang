@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Core
+  public use Std.Regex.Core.Boundary
   public use Std.Regex.Core.Initial
   public use Std.Regex.Core.Newline
   public use Std.Regex.Core.Evidence
@@ -301,11 +302,6 @@ mod Std.Regex.Core
     PatternBoundary : BoundaryConstraint -> Pattern(UnitC)
 
 
-  ## Ordinary boundaries remain the small ten-field context used by the
-  ## existing Thompson proof. Lookaround evaluators carry their suffix and
-  ## bounded history separately, so adding assertions does not perturb the
-  ## ordinary proof indices.
-  type Boundary = Boundary(Bool, Bool, Bool, Bool, Bool, Bool, Bool, Option(Char), Option(Char), Option(Char))
   type CaptureCondition = CaptureParticipated(Nat) | CaptureAbsent(Nat)
   typealias LookaroundMachine = Sigma(n: Nat, PatternMachine(n))
   type LookaroundCondition = LookaheadCondition(Bool, LookaroundMachine) | LookbehindCondition(Bool, Nat, LookaroundMachine)
