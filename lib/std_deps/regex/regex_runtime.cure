@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.RegexType
   public use Std.Regex.Runtime.CharacterSemantics
   public use Std.Regex.Runtime.Conversion
   use Std.Regex.Runtime.ProgramTypes
@@ -21328,32 +21329,6 @@ mod Std.Regex.Runtime
 
 
 
-  type Regex indices (result: Type)
-    FromPattern : (shape: ShapeCode) -> Pattern(shape) -> Regex(Sem(shape))
-    ## A literal may publish its constructor-preserving Thompson IR directly.
-    ## The proof layer certifies this IR structurally, so runtime compilation
-    ## does not need to rediscover it from a Pattern value.
-    StagedRegex : (shape: ShapeCode) -> Pattern(shape) -> ThompsonCompilation(shape) -> StagedMachine(shape) -> Conversion(Sem(shape), result) -> Regex(result)
-    Mapped : (a -> b) -> Regex(a) -> Regex(b)
-    Concatenated : Regex(a) -> Regex(b) -> Regex(Tuple(a, b))
-    Alternated : Regex(a) -> Regex(b) -> Regex(Choice(a, b))
-    Repeated : Regex(a) -> Regex(List(a))
-    MatchedText : Regex(a) -> Regex(String)
-    KeptRight : Regex(a) -> Regex(b) -> Regex(b)
-    KeptLeft : Regex(a) -> Regex(b) -> Regex(a)
-    SameAlternative : Regex(a) -> Regex(a) -> Regex(a)
-    OptionalRegex : Regex(a) -> Regex(Option(a))
-    OneOrMoreRegex : Regex(a) -> Regex(OneOrMore(a))
-    SimplifiedRegex : (shape: ShapeCode) -> Regex(Sem(shape)) -> Regex(Sem(Simplify(shape)))
-    OptionalPattern : Regex(a) -> Regex(Choice(a, Unit))
-    PlusPattern : Regex(a) -> Regex(List(a))
-    RepeatedPattern : Regex(a) -> Bool -> Regex(List(a))
-    OneOrMorePattern : Regex(a) -> Bool -> Regex(List(a))
-    OptionalLiteral : Regex(a) -> Bool -> Regex(Choice(a, Unit))
-    ConfiguredRegex : RegexOptions -> Regex(a) -> Regex(a)
-    StartAnchor : Bool -> Regex(Unit)
-    EndAnchor : Bool -> Regex(Unit)
-    StrictEndAnchor : Regex(Unit)
 
   type NamedMatch(result: Type) = NamedMatch(Match(result), List(NamedCapture))
   ## The public result type and the checked Thompson shape are independent:
