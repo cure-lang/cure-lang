@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.LineBreak
   public use Std.Regex.Runtime.CharacterMatchers
   public use Std.Regex.Runtime.Combinators
   public use Std.Regex.Runtime.Anchors
@@ -21301,33 +21302,7 @@ mod Std.Regex.Runtime
 
 
 
-  fn line_break() -> Regex(String) =
-    line_break_with_policy(AnyUnicodeNewline())
 
-  fn line_break_with_policy(policy: NewlinePolicy) -> Regex(String) = match policy
-    LFNewline() -> captured(exactly('\n'))
-    CRNewline() -> captured(exactly('\r'))
-    CRLFNewline() -> captured(concatenate(exactly('\r'), exactly('\n')))
-    AnyCRLFNewline() -> or_same(
-      captured(concatenate(exactly('\r'), exactly('\n'))),
-      or_same(captured(exactly('\n')), captured(exactly('\r')))
-    )
-    AnyUnicodeNewline() -> or_same(
-      captured(concatenate(exactly('\r'), exactly('\n'))),
-      or_same(
-        captured(exactly('\n')),
-        or_same(
-          captured(exactly('\r')),
-          or_same(
-            captured(exactly('\v')),
-            or_same(
-              captured(exactly('\f')),
-              or_same(captured(exactly(0x85)), or_same(captured(exactly(0x2028)), captured(exactly(0x2029))))
-            )
-          )
-        )
-      )
-    )
 
 
 
