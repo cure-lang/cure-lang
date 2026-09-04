@@ -1,0 +1,137 @@
+@group(:text)
+mod Std.Regex.Runtime.Anchors
+  use Std.Decision
+  use Std.Sigma
+  use Std.Equivalent
+  use Std.Bounded
+  use Std.Syntax
+  use Std.String
+  use Std.List
+  use Std.Option
+  use Std.Char
+  use Std.Regex.Core
+  use Std.Regex.Core.Limits
+  use Std.Regex.Core.Evidence
+  use Std.Regex.Core.Newline
+  use Std.Regex.Core.Initial
+  use Std.Regex.Core.Boundary
+  use Std.Regex.Core.Capture
+  use Std.Regex.Runtime.Split
+  use Std.Regex.Runtime.Named
+  use Std.Regex.Runtime.ClassKinds
+  use Std.Regex.Runtime.AtomicDiagnostics
+  use Std.Regex.Runtime.Boundaries
+  use Std.Regex.Runtime.CaptureConditions
+  use Std.Regex.Runtime.TransitionRows
+  use Std.Regex.Runtime.StateOps
+  use Std.Regex.Runtime.PatternMachines
+  use Std.Regex.Runtime.StagedOps
+  use Std.Regex.Runtime.Compilation
+  use Std.Regex.Runtime.MachineLaws
+  use Std.Regex.Runtime.MachineFilters
+  use Std.Regex.Runtime.SubjectContext
+  use Std.Regex.Runtime.CharacterPredicates
+  use Std.Regex.Runtime.Position
+  use Std.Regex.Runtime.Evidence
+  use Std.Regex.Runtime.NamedCapture
+  use Std.Regex.Runtime.Compiler
+  use Std.Regex.Runtime.AtomicPlan
+  use Std.Regex.Runtime.LookaroundContext
+  use Std.Regex.Runtime.EvidenceThreads
+  use Std.Regex.Runtime.NewlinePolicy
+  use Std.Regex.Runtime.PublicTypes
+  use Std.Regex.Runtime.ProgramTypes
+  use Std.Regex.Runtime.Conversion
+  use Std.Regex.Runtime.CharacterSemantics
+  use Std.Regex.Runtime.RegexType
+  use Std.Regex.Runtime.NamedTypes
+  use Std.Regex.Runtime.ThreadDedup
+  use Std.Regex.Runtime.ConversionAdapters
+  use Std.Regex.Runtime.CompileRegex
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  fn configured({a: Type}, options: RegexOptions, regex: Regex(a)) -> Regex(a) =
+    ConfiguredRegex(options, regex)
+
+  fn start_anchor() -> Regex(Unit) = StartAnchor(false)
+
+  fn start_anchor_with_options(multiline: Bool) -> Regex(Unit) = StartAnchor(multiline)
+
+  fn end_anchor() -> Regex(Unit) = EndAnchor(false)
+
+  fn end_anchor_with_options(multiline: Bool) -> Regex(Unit) = EndAnchor(multiline)
+
+  fn strict_end_anchor() -> Regex(Unit) = StrictEndAnchor()
+
+  fn word_boundary(unicode: Bool, negated: Bool) -> Regex(Unit) = pickup
+    unicode -> pickup
+      negated -> FromPattern(UnitC, PatternBoundary(unicode_word_constraint(false)))
+      else -> FromPattern(UnitC, PatternBoundary(unicode_word_constraint(true)))
+    else -> pickup
+      negated -> FromPattern(UnitC, PatternBoundary(ascii_word_constraint(false)))
+      else -> FromPattern(UnitC, PatternBoundary(ascii_word_constraint(true)))
+end

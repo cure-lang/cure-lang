@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.Anchors
   public use Std.Regex.Runtime.CompileRegex
   public use Std.Regex.Runtime.ConversionAdapters
   public use Std.Regex.Runtime.ThreadDedup
@@ -21448,26 +21449,12 @@ mod Std.Regex.Runtime
       Z() -> bounded_exact_pattern(regex, S(minimum_rest))
       S(maximum_rest) -> Mapped(prepend_repetition_result, Concatenated(regex, bounded_between_pattern(regex, minimum_rest, maximum_rest, lazy)))
 
-  fn configured({a: Type}, options: RegexOptions, regex: Regex(a)) -> Regex(a) =
-    ConfiguredRegex(options, regex)
 
-  fn start_anchor() -> Regex(Unit) = StartAnchor(false)
 
-  fn start_anchor_with_options(multiline: Bool) -> Regex(Unit) = StartAnchor(multiline)
 
-  fn end_anchor() -> Regex(Unit) = EndAnchor(false)
 
-  fn end_anchor_with_options(multiline: Bool) -> Regex(Unit) = EndAnchor(multiline)
 
-  fn strict_end_anchor() -> Regex(Unit) = StrictEndAnchor()
 
-  fn word_boundary(unicode: Bool, negated: Bool) -> Regex(Unit) = pickup
-    unicode -> pickup
-      negated -> FromPattern(UnitC, PatternBoundary(unicode_word_constraint(false)))
-      else -> FromPattern(UnitC, PatternBoundary(unicode_word_constraint(true)))
-    else -> pickup
-      negated -> FromPattern(UnitC, PatternBoundary(ascii_word_constraint(false)))
-      else -> FromPattern(UnitC, PatternBoundary(ascii_word_constraint(true)))
 
   fn always(_char: Char) -> Bool = true
 
