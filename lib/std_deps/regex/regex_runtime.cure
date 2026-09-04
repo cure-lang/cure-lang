@@ -1,5 +1,7 @@
 @group(:text)
 mod Std.Regex.Runtime
+  use Std.Regex.Runtime.Position
+  public use Std.Regex.Runtime.Position
   use Std.Regex.Runtime.CharacterPredicates
   public use Std.Regex.Runtime.CharacterPredicates
   use Std.Regex.Runtime.SubjectContext
@@ -331,27 +333,8 @@ mod Std.Regex.Runtime
 
 
 
-  fn next_ascii_word(input: List(Char)) -> Bool = match input
-    [] -> false
-    [char | _] -> ascii_word(char)
 
-  fn next_unicode_word(input: List(Char)) -> Bool = match input
-    [] -> false
-    [char | _] -> option_word(char, true)
 
-  fn position_boundary(subject_start: Bool, line_start: Bool, previous_ascii_word: Bool, previous_unicode_word: Bool, previous_char: Option(Char), input: List(Char)) -> Boundary =
-    Boundary(
-      subject_start,
-      position_subject_end(input),
-      position_strict_subject_end(input),
-      line_start,
-      position_line_end(input),
-      previous_ascii_word != next_ascii_word(input),
-      previous_unicode_word != next_unicode_word(input),
-      previous_char,
-      option_head(input),
-      option_second(input)
-    )
 
 
 
@@ -614,40 +597,14 @@ mod Std.Regex.Runtime
     [] -> []
     [head | rest] -> append_threads(step_evidence_thread(next, char, boundary, head), step_evidence_threads(next, char, boundary, rest))
 
-  fn transition_boundary(char: Char, rest: List(Char)) -> Boundary =
-    position_boundary(false, Std.Char.is_newline(char), ascii_word(char), option_word(char, true), Some(char), rest)
 
-  @reducible
-  fn append_characters(left: List(Char), right: List(Char)) -> List(Char) = match left
-    [] -> right
-    [head | rest] -> [head | append_characters(rest, right)]
 
-  fn transition_boundary_before(char: Char, rest: List(Char), after_input: List(Char)) -> Boundary =
-    transition_boundary(char, append_characters(rest, after_input))
 
-  @reducible
-  fn advance_initial_position(position: InitialPosition, input: List(Char)) -> InitialPosition = match input
-    Nil() -> position
-    Cons(char, rest) -> advance_initial_position(position_after_character(char), rest)
 
-  @reducible
-  fn position_after_character(char: Char) -> InitialPosition =
-    InitialPosition(False(), Std.Char.is_newline(char), ascii_word(char), option_word(char, True()), Some(char))
 
-  @reducible
-  fn position_after_character_with_policy(char: Char, policy: NewlinePolicy) -> InitialPosition =
-    InitialPosition(False(), newline_char(policy, char), ascii_word(char), option_word(char, True()), Some(char))
 
-  @reducible
-  fn advance_initial_position_with_policy(position: InitialPosition, input: List(Char), policy: NewlinePolicy) -> InitialPosition = match input
-    Nil() -> position
-    Cons(char, rest) -> advance_initial_position_with_policy(position_after_character_with_policy(char, policy), rest, policy)
 
-  fn initial_position_boundary(position: InitialPosition, input: List(Char)) -> Boundary = match position
-    InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word, previous_char) ->
-      position_boundary(subject_start, line_start, previous_ascii_word, previous_unicode_word, previous_char, input)
 
-  fn subject_initial_position() -> InitialPosition = InitialPosition(true, true, false, false, None())
 
   ## Lookaround child evaluation reuses the checked Thompson machine and has a
   ## context-aware, finite search loop. A satisfied lookahead retains both the
