@@ -1,5 +1,7 @@
 @group(:text)
 mod Std.Regex.Runtime
+  use Std.Regex.Runtime.LookaroundContext
+  public use Std.Regex.Runtime.LookaroundContext
   use Std.Regex.Runtime.AtomicPlan
   public use Std.Regex.Runtime.AtomicPlan
   use Std.Regex.Runtime.Compiler
@@ -455,18 +457,8 @@ mod Std.Regex.Runtime
           LookbehindRefuted(certificate) -> LookbehindRefuted(certificate)
           LookbehindResourceExhausted(child_depth, input, child_history, child_policy, exhaustion) -> LookbehindResourceExhausted(child_depth, input, child_history, child_policy, exhaustion)
 
-  fn no_characters() -> List(Char) = []
 
-  ## `Boundary` stores whether the current cursor crosses a word boundary;
-  ## `InitialPosition` stores whether the previous scalar itself was a word
-  ## character.  They are different facts.  Reconstruct the latter from the
-  ## previous scalar at this one boundary-to-child conversion site.
-  fn lookahead_initial_position(boundary: Boundary) -> InitialPosition = match boundary
-    Boundary(subject_start, _, _, line_start, _, _, _, previous_char, _, _) -> InitialPosition(subject_start, line_start, option_ascii_word(previous_char), option_unicode_word(previous_char), previous_char)
 
-  fn lookbehind_window(history: List(Char), width: Nat) -> Option(List(Char)) = match history_has_width(history, width)
-    false -> None()
-    true -> Some(evidence_reverse_chars(history_take_limit(history, width)))
 
   fn lookbehind_initial_position(boundary: Boundary, history: List(Char), width: Nat, policy: NewlinePolicy) -> InitialPosition = match width
     Z() -> match boundary
@@ -475,27 +467,9 @@ mod Std.Regex.Runtime
       None() -> InitialPosition(true, true, false, false, None())
       Some(previous) -> InitialPosition(false, newline_char(policy, previous), ascii_word(previous), option_word(previous, true), Some(previous))
 
-  fn history_at(history: List(Char), index: Nat) -> Option(Char) = match index
-    Z() -> match history
-      [] -> None()
-      [head | _] -> Some(head)
-    S(rest) -> match history
-      [] -> None()
-      [_ | tail] -> history_at(tail, rest)
 
-  fn option_ascii_word(previous: Option(Char)) -> Bool = match previous
-    None() -> false
-    Some(char) -> ascii_word(char)
 
-  fn option_unicode_word(previous: Option(Char)) -> Bool = match previous
-    None() -> false
-    Some(char) -> option_word(char, true)
 
-  fn history_has_width(history: List(Char), width: Nat) -> Bool = match width
-    Z() -> true
-    S(rest) -> match history
-      [] -> false
-      [_ | tail] -> history_has_width(tail, rest)
 
   fn lookaround_exact_filtered_starts(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> List(MachineState(n)) = match machine
     MkPatternMachine(starts, _) -> lookaround_filter_boundary_states(depth, starts, position_boundary_for_history(position, append_characters(input, after_input), history), append_characters(input, after_input), history, capture_context, policy)
