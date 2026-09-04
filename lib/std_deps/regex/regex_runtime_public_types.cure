@@ -1,0 +1,127 @@
+@group(:text)
+mod Std.Regex.Runtime.PublicTypes
+  use Std.Regex.Runtime.StateOps
+  use Std.Regex.Runtime.PatternMachines
+  use Std.Regex.Runtime.StagedOps
+  use Std.Regex.Runtime.Compilation
+  use Std.Regex.Runtime.MachineLaws
+  use Std.Regex.Runtime.MachineFilters
+  use Std.Regex.Runtime.SubjectContext
+  use Std.Regex.Runtime.CharacterPredicates
+  use Std.Regex.Runtime.Position
+  use Std.Regex.Runtime.Evidence
+  use Std.Regex.Runtime.NamedCapture
+  use Std.Regex.Runtime.Compiler
+  use Std.Regex.Runtime.AtomicPlan
+  use Std.Regex.Runtime.LookaroundContext
+  use Std.Regex.Runtime.EvidenceThreads
+  use Std.Regex.Runtime.NewlinePolicy
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Runtime.CaptureConditions
+
+  use Std.Regex.Runtime.Boundaries
+
+  use Std.Regex.Runtime.AtomicDiagnostics
+
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Char
+
+  use Std.Option
+
+  use Std.List
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  use Std.Decision
+
+  ## Public typed combinator layer. `Mapped` is the semantic bridge from a
+  ## structurally extracted Pattern value to the user-facing result type. It is
+  ## one-way: regex parsing does not imply an unparser.
+  type OneOrMore(value: Type) = OneOrMore(value, List(value))
+
+  type CharacterRange = CharacterRange(Char, Char)
+
+  fn no_class_kinds() -> ClassKinds =
+    ClassKinds(false, false, false, false, false, false, false, false, false, false)
+
+  fn enable_class_kind(kind: ClassKind, kinds: ClassKinds) -> ClassKinds = match kinds
+    ClassKinds(d, nd, w, nw, s, ns, h, nh, v, nv) -> match kind
+      DigitKind -> ClassKinds(true, nd, w, nw, s, ns, h, nh, v, nv)
+      NotDigitKind -> ClassKinds(d, true, w, nw, s, ns, h, nh, v, nv)
+      WordKind -> ClassKinds(d, nd, true, nw, s, ns, h, nh, v, nv)
+      NotWordKind -> ClassKinds(d, nd, w, true, s, ns, h, nh, v, nv)
+      SpaceKind -> ClassKinds(d, nd, w, nw, true, ns, h, nh, v, nv)
+      NotSpaceKind -> ClassKinds(d, nd, w, nw, s, true, h, nh, v, nv)
+      HorizontalKind -> ClassKinds(d, nd, w, nw, s, ns, true, nh, v, nv)
+      NotHorizontalKind -> ClassKinds(d, nd, w, nw, s, ns, h, true, v, nv)
+      VerticalKind -> ClassKinds(d, nd, w, nw, s, ns, h, nh, true, nv)
+      NotVerticalKind -> ClassKinds(d, nd, w, nw, s, ns, h, nh, v, true)
+
+  ## Elixir-compatible literal modifiers, in `i m s x u f U` order. Repeated
+  ## letters are idempotent and modifier order is irrelevant. No accepted flag
+  ## is metadata-only: each one must affect parsing or machine execution.
+  type RegexOptions = RegexOptions(Bool, Bool, Bool, Bool, Bool, Bool, Bool, Bool, NewlinePolicy)
+
+  fn default_options() -> RegexOptions =
+    RegexOptions(false, false, false, false, false, false, false, false, AnyUnicodeNewline())
+end
