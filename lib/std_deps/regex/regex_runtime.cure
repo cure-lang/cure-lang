@@ -1,5 +1,7 @@
 @group(:text)
 mod Std.Regex.Runtime
+  use Std.Regex.Runtime.NamedCapture
+  public use Std.Regex.Runtime.NamedCapture
   use Std.Regex.Runtime.Evidence
   public use Std.Regex.Runtime.Evidence
   use Std.Regex.Runtime.Position
@@ -381,83 +383,19 @@ mod Std.Regex.Runtime
 
 
 
-  ## A named replay is deliberately separate from the evidence VM.  The
-  ## ordinary certificate still proves the typed evidence; this effect-free
-  ## interpreter replays the same certified routine and records only slot
-  ## participation/text.  No host regex engine or second language semantics
-  ## is involved.
-  type NamedCaptureFrame = NamedCaptureFrame(Option(Nat), List(Char))
-  type NamedCaptureLedgerEntry = NamedCaptureLedgerEntry(Nat, Option(String))
-  type NamedCaptureExecution = NamedCaptureExecution(List(NamedCaptureFrame), List(NamedCaptureLedgerEntry))
-
-  @reducible
-  fn record_named_capture_char(frames: List(NamedCaptureFrame), char: Char) -> List(NamedCaptureFrame) = match frames
-    [] -> []
-    [NamedCaptureFrame(slot, chars) | rest] -> [NamedCaptureFrame(slot, [char | chars]) | record_named_capture_char(rest, char)]
 
 
-  @reducible
-  fn update_named_capture_ledger(slot: Nat, value: String, entries: List(NamedCaptureLedgerEntry)) -> List(NamedCaptureLedgerEntry) = match entries
-    [] -> []
-    [NamedCaptureLedgerEntry(entry_slot, current_value) | rest] -> pickup
-      same_capture_slot(slot, entry_slot) -> [NamedCaptureLedgerEntry(entry_slot, Some(value)) | rest]
-      else -> [NamedCaptureLedgerEntry(entry_slot, current_value) | update_named_capture_ledger(slot, value, rest)]
 
-  @reducible
-  fn named_capture_value(slot: Nat, entries: List(NamedCaptureLedgerEntry)) -> Option(String) = match entries
-    [] -> None()
-    [NamedCaptureLedgerEntry(entry_slot, value) | rest] -> pickup
-      same_capture_slot(slot, entry_slot) -> value
-      else -> named_capture_value(slot, rest)
 
-  @reducible
-  fn close_named_capture_frame(frames: List(NamedCaptureFrame), entries: List(NamedCaptureLedgerEntry)) -> NamedCaptureExecution = match frames
-    [] -> NamedCaptureExecution([], entries)
-    [NamedCaptureFrame(slot, chars) | rest] -> match slot
-      None() -> NamedCaptureExecution(rest, entries)
-      Some(slot_id) -> NamedCaptureExecution(rest, update_named_capture_ledger(slot_id, Std.String.from_characters(evidence_reverse_chars(chars)), entries))
 
-  @reducible
-  fn execute_named_instruction(instruction: EvidenceInstruction, frames: List(NamedCaptureFrame), entries: List(NamedCaptureLedgerEntry)) -> NamedCaptureExecution = match instruction
-    BeginCapture() -> NamedCaptureExecution([NamedCaptureFrame(None(), []) | frames], entries)
-    BeginCaptureSlot(slot) -> NamedCaptureExecution([NamedCaptureFrame(Some(slot), []) | frames], entries)
-    EndCapture() -> close_named_capture_frame(frames, entries)
-    EndCaptureSlot(_) -> close_named_capture_frame(frames, entries)
-    _ -> NamedCaptureExecution(frames, entries)
 
-  @reducible
-  fn execute_named_extended_instruction(instruction: ExtendedInstruction, frames: List(NamedCaptureFrame), entries: List(NamedCaptureLedgerEntry)) -> NamedCaptureExecution = match instruction
-    Observe(char) -> NamedCaptureExecution(record_named_capture_char(frames, char), entries)
-    Regular(regular) -> execute_named_instruction(regular, frames, entries)
 
-  @reducible
-  fn execute_named_extended_routine(routine: List(ExtendedInstruction), frames: List(NamedCaptureFrame), entries: List(NamedCaptureLedgerEntry)) -> NamedCaptureExecution = match routine
-    [] -> NamedCaptureExecution(frames, entries)
-    [instruction | rest] -> match execute_named_extended_instruction(instruction, frames, entries)
-      NamedCaptureExecution(next_frames, next_entries) -> execute_named_extended_routine(rest, next_frames, next_entries)
 
-  @reducible
-  fn capture_ledger_from_layout(layout: CaptureLayout) -> List(NamedCaptureLedgerEntry) = match layout
-    CaptureLayout(slots) -> capture_ledger_from_slots(slots)
 
-  @reducible
-  fn capture_ledger_from_slots(slots: List(CaptureSlot)) -> List(NamedCaptureLedgerEntry) = match slots
-    [] -> []
-    [CaptureSlot(slot, _) | rest] -> [NamedCaptureLedgerEntry(slot, None()) | capture_ledger_from_slots(rest)]
 
-  @reducible
-  fn named_captures_from_layout(layout: CaptureLayout, entries: List(NamedCaptureLedgerEntry)) -> List(NamedCapture) = match layout
-    CaptureLayout(slots) -> named_captures_from_slots(slots, entries)
 
-  @reducible
-  fn named_captures_from_slots(slots: List(CaptureSlot), entries: List(NamedCaptureLedgerEntry)) -> List(NamedCapture) = match slots
-    [] -> []
-    [CaptureSlot(slot, Some(name)) | rest] -> [NamedCapture(name, named_capture_value(slot, entries)) | named_captures_from_slots(rest, entries)]
-    [CaptureSlot(_, None()) | rest] -> named_captures_from_slots(rest, entries)
 
-  fn replay_named_capture_routine(routine: List(ExtendedInstruction), layout: CaptureLayout) -> Option(List(NamedCapture)) = match execute_named_extended_routine(routine, [], capture_ledger_from_layout(layout))
-    NamedCaptureExecution([], entries) -> Some(named_captures_from_layout(layout, entries))
-    NamedCaptureExecution(_, _) -> None()
+
 
   type CertifiedPathRoutine indices (routine: List(ExtendedInstruction), input_evidence: List(Evidence), input_captures: List(CaptureFrame), output_evidence: List(Evidence))
     PathRoutineDone : CertifiedPathRoutine(Nil(), evidence, captures, evidence)
@@ -21535,10 +21473,6 @@ mod Std.Regex.Runtime
     EndAnchor : Bool -> Regex(Unit)
     StrictEndAnchor : Regex(Unit)
 
-  ## Named capture metadata is additive.  It never enters ShapeCode or the
-  ## ordinary Match tuple, so existing typed regex APIs remain unchanged.
-  type CaptureSlot = CaptureSlot(Nat, Option(String))
-  type CaptureLayout = CaptureLayout(List(CaptureSlot))
   type NamedMatch(result: Type) = NamedMatch(Match(result), List(NamedCapture))
   ## The public result type and the checked Thompson shape are independent:
   ## conversions may expose `Option`, `List`, or a simplified tuple while the
