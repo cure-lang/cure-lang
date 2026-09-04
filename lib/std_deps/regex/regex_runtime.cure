@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.MachineTransitions
   public use Std.Regex.Runtime.NamedStaging
   public use Std.Regex.Runtime.MachineEntry
   public use Std.Regex.Runtime.LineBreak
@@ -3390,38 +3391,9 @@ mod Std.Regex.Runtime
     greedy -> lookaround_last_prefix(n, machine, position, input, history, policy)
     else -> lookaround_first_prefix(n, machine, position, input, history, policy)
 
-  @reducible
-  fn machine_destinations(n: Nat, machine: PatternMachine(n), state: ThreadState(n), char: Char, boundary: Boundary) -> List(MachineState(n)) = match state
-    ThreadAccepted() -> []
-    ThreadActive(active) -> match machine
-      MkPatternMachine(_, next) -> filter_boundary_states(next(active, char), boundary)
 
-  ## Named machines may carry capture-participation constraints on their
-  ## destination states. Those constraints are checked against the regular
-  ## evidence already executed on the path plus the destination's epsilon
-  ## routine: a group that participated contributes its EndCaptureSlot
-  ## instruction before the guarded branch is entered. Observe instructions
-  ## are intentionally erased from this view; they only advance capture text.
-  ## Ordinary machines deliberately continue through `machine_destinations`,
-  ## whose indexed proof contract does not mention capture conditions.
-  fn extended_regular_instructions(routine: List(ExtendedInstruction)) -> List(EvidenceInstruction) = match routine
-    [] -> []
-    [Regular(instruction) | rest] -> [instruction | extended_regular_instructions(rest)]
-    [Observe(_) | rest] -> extended_regular_instructions(rest)
 
-  fn filter_boundary_states_with_routine({n: Nat}, states: List(MachineState(n)), boundary: Boundary, prior_routine: List(EvidenceInstruction)) -> List(MachineState(n)) = match states
-    [] -> []
-    [Accepted(routine, constraints) | rest] -> pickup
-      constraints_hold_with_routine(constraints, boundary, append_routine(prior_routine, routine)) -> [Accepted(routine, constraints) | filter_boundary_states_with_routine(rest, boundary, prior_routine)]
-      else -> filter_boundary_states_with_routine(rest, boundary, prior_routine)
-    [Active(state, routine, constraints) | rest] -> pickup
-      constraints_hold_with_routine(constraints, boundary, append_routine(prior_routine, routine)) -> [Active(state, routine, constraints) | filter_boundary_states_with_routine(rest, boundary, prior_routine)]
-      else -> filter_boundary_states_with_routine(rest, boundary, prior_routine)
 
-  fn named_machine_destinations(n: Nat, machine: PatternMachine(n), state: ThreadState(n), char: Char, boundary: Boundary, prior_routine: List(EvidenceInstruction)) -> List(MachineState(n)) = match state
-    ThreadAccepted() -> []
-    ThreadActive(active) -> match machine
-      MkPatternMachine(_, next) -> filter_boundary_states_with_routine(next(active, char), boundary, prior_routine)
 
   ## Intrinsic list membership. The witness is erased at every accepting-run
   ## boundary; its only purpose is to make every path edge name a destination
