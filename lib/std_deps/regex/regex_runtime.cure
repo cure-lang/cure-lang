@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.EvidenceSearch
   public use Std.Regex.Runtime.MachineSearch
   public use Std.Regex.Runtime.CharacterClasses
   public use Std.Regex.Runtime.NamedSearch
@@ -20964,38 +20965,10 @@ mod Std.Regex.Runtime
 
 
 
-  fn first_accepted_evidence({n: Nat}, threads: List(EvidenceThread(n))) -> Option(List(Evidence)) = match threads
-    [] -> None()
-    [EvidenceThread(ThreadAccepted(), evidence, _) | _] -> Some(evidence)
-    [_ | rest] -> first_accepted_evidence(rest)
 
-  fn run_evidence({n: Nat}, next: (Bounded(n)) -> Char -> List(MachineState(n)), input: List(Char), threads: List(EvidenceThread(n))) -> Option(List(Evidence)) = match input
-    [] -> first_accepted_evidence(threads)
-    [char | rest] ->
-      let boundary = position_boundary(false, Std.Char.is_newline(char), ascii_word(char), option_word(char, true), Some(char), rest)
-      run_evidence(next, rest, distinct_threads(step_evidence_threads(next, char, boundary, threads)))
 
-  fn run_first_prefix_evidence({n: Nat}, next: (Bounded(n)) -> Char -> List(MachineState(n)), input: List(Char), threads: List(EvidenceThread(n))) -> Option(EvidencePrefix) = match first_accepted_evidence(threads)
-    Some(evidence) -> Some(EvidencePrefix(evidence, input))
-    None() -> match input
-      [] -> None()
-      [char | rest] ->
-        let boundary = position_boundary(false, Std.Char.is_newline(char), ascii_word(char), option_word(char, true), Some(char), rest)
-        run_first_prefix_evidence(next, rest, distinct_threads(step_evidence_threads(next, char, boundary, threads)))
 
-  fn remember_prefix({n: Nat}, threads: List(EvidenceThread(n)), rest: List(Char), previous: Option(EvidencePrefix)) -> Option(EvidencePrefix) = match first_accepted_evidence(threads)
-    Some(evidence) -> Some(EvidencePrefix(evidence, rest))
-    None() -> previous
 
-  fn run_last_prefix_evidence({n: Nat}, next: (Bounded(n)) -> Char -> List(MachineState(n)), input: List(Char), threads: List(EvidenceThread(n)), previous: Option(EvidencePrefix)) -> Option(EvidencePrefix) =
-    let remembered = remember_prefix(threads, input, previous)
-    match input
-      [] -> remembered
-      [char | rest] -> match threads
-        [] -> remembered
-        _ ->
-          let boundary = position_boundary(false, Std.Char.is_newline(char), ascii_word(char), option_word(char, true), Some(char), rest)
-          run_last_prefix_evidence(next, rest, distinct_threads(step_evidence_threads(next, char, boundary, threads)), remembered)
 
   fn pattern_evidence({shape: ShapeCode}, pattern: Pattern(shape), input: List(Char)) -> Option(List(Evidence)) = match compile_pattern(pattern)
     mk_pair(count, machine) -> match search_machine_acceptance(count, machine, subject_initial_position(), input, [])
