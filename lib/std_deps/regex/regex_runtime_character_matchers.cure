@@ -1,0 +1,241 @@
+@group(:text)
+mod Std.Regex.Runtime.CharacterMatchers
+  use Std.Decision
+  use Std.Sigma
+  use Std.Equivalent
+  use Std.Bounded
+  use Std.Syntax
+  use Std.String
+  use Std.List
+  use Std.Option
+  use Std.Char
+  use Std.Regex.Core
+  use Std.Regex.Core.Limits
+  use Std.Regex.Core.Evidence
+  use Std.Regex.Core.Newline
+  use Std.Regex.Core.Initial
+  use Std.Regex.Core.Boundary
+  use Std.Regex.Core.Capture
+  use Std.Regex.Runtime.Split
+  use Std.Regex.Runtime.Named
+  use Std.Regex.Runtime.ClassKinds
+  use Std.Regex.Runtime.AtomicDiagnostics
+  use Std.Regex.Runtime.Boundaries
+  use Std.Regex.Runtime.CaptureConditions
+  use Std.Regex.Runtime.TransitionRows
+  use Std.Regex.Runtime.StateOps
+  use Std.Regex.Runtime.PatternMachines
+  use Std.Regex.Runtime.StagedOps
+  use Std.Regex.Runtime.Compilation
+  use Std.Regex.Runtime.MachineLaws
+  use Std.Regex.Runtime.MachineFilters
+  use Std.Regex.Runtime.SubjectContext
+  use Std.Regex.Runtime.CharacterPredicates
+  use Std.Regex.Runtime.Position
+  use Std.Regex.Runtime.Evidence
+  use Std.Regex.Runtime.NamedCapture
+  use Std.Regex.Runtime.Compiler
+  use Std.Regex.Runtime.AtomicPlan
+  use Std.Regex.Runtime.LookaroundContext
+  use Std.Regex.Runtime.EvidenceThreads
+  use Std.Regex.Runtime.NewlinePolicy
+  use Std.Regex.Runtime.PublicTypes
+  use Std.Regex.Runtime.ProgramTypes
+  use Std.Regex.Runtime.Conversion
+  use Std.Regex.Runtime.CharacterSemantics
+  use Std.Regex.Runtime.RegexType
+  use Std.Regex.Runtime.NamedTypes
+  use Std.Regex.Runtime.ThreadDedup
+  use Std.Regex.Runtime.ConversionAdapters
+  use Std.Regex.Runtime.CompileRegex
+  use Std.Regex.Runtime.Anchors
+  use Std.Regex.Runtime.Combinators
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  fn always(_char: Char) -> Bool = true
+
+  fn any_char() -> Regex(Char) = predicate(always)
+
+  fn exact_predicate(expected: Char, actual: Char) -> Bool = Std.Char.same(expected, actual)
+
+  fn exact_test(expected: Char) -> Char -> Bool = fn(actual) -> exact_predicate(expected, actual)
+
+  fn exactly(expected: Char) -> Regex(Unit) = map(predicate(exact_test(expected)), discard_char)
+
+  fn same_chars(left: List(Char), right: List(Char)) -> Bool = match left
+    [] -> match right
+      [] -> true
+      _ -> false
+    [left_char | left_rest] -> match right
+      [] -> false
+      [right_char | right_rest] -> pickup
+        Std.Char.same(left_char, right_char) -> same_chars(left_rest, right_rest)
+        else -> false
+
+  fn caseless_same(expected: Char, actual: Char, unicode: Bool) -> Bool = pickup
+    unicode ->
+      same_chars(Std.Char.lowercased_characters(expected), Std.Char.lowercased_characters(actual))
+    else -> Std.Char.same(Std.Char.ascii_lowercased(expected), Std.Char.ascii_lowercased(actual))
+
+  fn option_exact_predicate(expected: Char, caseless: Bool, unicode: Bool, actual: Char) -> Bool = pickup
+    caseless -> caseless_same(expected, actual, unicode)
+    else -> Std.Char.same(expected, actual)
+
+  fn option_exact_test(expected: Char, caseless: Bool, unicode: Bool) -> Char -> Bool =
+    fn(actual) -> option_exact_predicate(expected, caseless, unicode, actual)
+
+  fn exactly_with_options(expected: Char, caseless: Bool, unicode: Bool) -> Regex(Unit) =
+    map(predicate(option_exact_test(expected, caseless, unicode)), discard_char)
+
+  fn dot_predicate(dotall: Bool, char: Char) -> Bool = pickup
+    dotall -> true
+    Std.Char.is_newline(char) -> false
+    else -> true
+
+  fn dot_test(dotall: Bool) -> Char -> Bool = fn(char) -> dot_predicate(dotall, char)
+
+  fn dot_with_options(dotall: Bool) -> Regex(Char) = predicate(dot_test(dotall))
+
+  fn dot_test_with_policy(dotall: Bool, policy: NewlinePolicy) -> Char -> Bool =
+    fn(char) -> pickup
+      dotall -> true
+      newline_char(policy, char) -> false
+      else -> true
+
+  fn dot_with_policy(dotall: Bool, policy: NewlinePolicy) -> Regex(Char) = predicate(dot_test_with_policy(dotall, policy))
+
+  fn contains_char(chars: List(Char), actual: Char) -> Bool = match chars
+    [] -> false
+    [head | rest] -> pickup
+      Std.Char.same(head, actual) -> true
+      else -> contains_char(rest, actual)
+
+  fn contains_char_with_options(chars: List(Char), actual: Char, caseless: Bool, unicode: Bool) -> Bool = match chars
+    [] -> false
+    [head | rest] -> pickup
+      caseless and caseless_same(head, actual, unicode) -> true
+      Std.Char.same(head, actual) -> true
+      else -> contains_char_with_options(rest, actual, caseless, unicode)
+
+  fn set_test(chars: List(Char)) -> Char -> Bool = fn(actual) -> contains_char(chars, actual)
+
+  fn one_of(chars: List(Char)) -> Regex(Char) = predicate(set_test(chars))
+
+  fn range_predicate(first: Char, last: Char, actual: Char) -> Bool =
+    Std.Char.between(actual, first, last)
+
+  fn range_test(first: Char, last: Char) -> Char -> Bool =
+    fn(actual) -> range_predicate(first, last, actual)
+
+  fn range(first: Char, last: Char) -> Regex(Char) = predicate(range_test(first, last))
+
+  fn in_ranges(ranges: List(CharacterRange), actual: Char) -> Bool = match ranges
+    [] -> false
+    [CharacterRange(first, last) | rest] -> pickup
+      Std.Char.between(actual, first, last) -> true
+      else -> in_ranges(rest, actual)
+
+  fn folded_range_match(first: Char, last: Char, actual: Char, unicode: Bool) -> Bool = pickup
+    Std.Char.between(actual, first, last) -> true
+    unicode -> match Std.Char.lowercased_characters(actual)
+      [folded] -> Std.Char.between(folded, first, last)
+      _ -> false
+    else -> Std.Char.between(Std.Char.ascii_lowercased(actual), Std.Char.ascii_lowercased(first), Std.Char.ascii_lowercased(last))
+
+  fn in_ranges_with_options(ranges: List(CharacterRange), actual: Char, caseless: Bool, unicode: Bool) -> Bool = match ranges
+    [] -> false
+    [CharacterRange(first, last) | rest] -> pickup
+      caseless and folded_range_match(first, last, actual, unicode) -> true
+      Std.Char.between(actual, first, last) -> true
+      else -> in_ranges_with_options(rest, actual, caseless, unicode)
+
+  fn class_predicate(chars: List(Char), ranges: List(CharacterRange), negated: Bool, actual: Char) -> Bool =
+    let found = contains_char(chars, actual) or in_ranges(ranges, actual)
+    pickup
+      found == negated -> false
+      else -> true
+
+  fn class_test(chars: List(Char), ranges: List(CharacterRange), negated: Bool) -> Char -> Bool =
+    fn(actual) -> class_predicate(chars, ranges, negated, actual)
+
+  fn character_class(chars: List(Char), ranges: List(CharacterRange), negated: Bool) -> Regex(Char) =
+    predicate(class_test(chars, ranges, negated))
+
+  fn option_class_predicate(chars: List(Char), ranges: List(CharacterRange), negated: Bool, caseless: Bool, unicode: Bool, actual: Char) -> Bool =
+    let found = contains_char_with_options(chars, actual, caseless, unicode) or in_ranges_with_options(ranges, actual, caseless, unicode)
+    pickup
+      found == negated -> false
+      else -> true
+
+  fn option_class_test(chars: List(Char), ranges: List(CharacterRange), negated: Bool, caseless: Bool, unicode: Bool) -> Char -> Bool =
+    fn(actual) -> option_class_predicate(chars, ranges, negated, caseless, unicode, actual)
+
+  fn character_class_with_options(chars: List(Char), ranges: List(CharacterRange), negated: Bool, caseless: Bool, unicode: Bool) -> Regex(Char) =
+    predicate(option_class_test(chars, ranges, negated, caseless, unicode))
+end
