@@ -1,0 +1,118 @@
+@group(:text)
+mod Std.Regex.Runtime.CharacterPredicates
+  use Std.Regex.Runtime.StateOps
+  use Std.Regex.Runtime.PatternMachines
+  use Std.Regex.Runtime.StagedOps
+  use Std.Regex.Runtime.Compilation
+  use Std.Regex.Runtime.MachineLaws
+  use Std.Regex.Runtime.MachineFilters
+  use Std.Regex.Runtime.SubjectContext
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Runtime.CaptureConditions
+
+  use Std.Regex.Runtime.Boundaries
+
+  use Std.Regex.Runtime.AtomicDiagnostics
+
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Char
+
+  use Std.Option
+
+  use Std.List
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  use Std.Decision
+
+  fn ascii_digit(char: Char) -> Bool = Std.Char.between(char, '0', '9')
+
+  fn ascii_word(char: Char) -> Bool =
+    Std.Char.between(char, 'a', 'z') or
+      Std.Char.between(char, 'A', 'Z') or
+      Std.Char.between(char, '0', '9') or
+      Std.Char.same(char, '_')
+
+  fn ascii_space(char: Char) -> Bool =
+    Std.Char.same(char, ' ') or Std.Char.same(char, '\t') or
+      Std.Char.same(char, '\n') or Std.Char.same(char, '\r') or
+      Std.Char.same(char, '\f') or Std.Char.same(char, '\v')
+
+  fn negate_test(test: Char -> Bool) -> Char -> Bool = fn(char) -> not test(char)
+
+  fn option_digit(char: Char, unicode: Bool) -> Bool = pickup
+    unicode -> Std.Char.is_unicode_digit(char)
+    else -> ascii_digit(char)
+
+  fn option_word(char: Char, unicode: Bool) -> Bool = pickup
+    unicode -> Std.Char.is_unicode_word(char)
+    else -> ascii_word(char)
+
+  fn option_space(char: Char, unicode: Bool) -> Bool = pickup
+    unicode -> Std.Char.is_unicode_space(char)
+    else -> ascii_space(char)
+
+  fn option_class_negated(test: Char -> Bool, negated: Bool, char: Char) -> Bool = pickup
+    negated -> not test(char)
+    else -> test(char)
+
+  fn digit_option_predicate(negated: Bool, unicode: Bool, char: Char) -> Bool = pickup
+    negated -> not option_digit(char, unicode)
+    else -> option_digit(char, unicode)
+
+  fn word_option_predicate(negated: Bool, unicode: Bool, char: Char) -> Bool = pickup
+    negated -> not option_word(char, unicode)
+    else -> option_word(char, unicode)
+
+  fn space_option_predicate(negated: Bool, unicode: Bool, char: Char) -> Bool = pickup
+    negated -> not option_space(char, unicode)
+    else -> option_space(char, unicode)
+
+  fn digit_options_test(negated: Bool, unicode: Bool) -> Char -> Bool = fn(char) -> digit_option_predicate(negated, unicode, char)
+
+  fn word_options_test(negated: Bool, unicode: Bool) -> Char -> Bool = fn(char) -> word_option_predicate(negated, unicode, char)
+
+  fn space_options_test(negated: Bool, unicode: Bool) -> Char -> Bool = fn(char) -> space_option_predicate(negated, unicode, char)
+end
