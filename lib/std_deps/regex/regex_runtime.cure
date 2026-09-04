@@ -1,5 +1,7 @@
 @group(:text)
 mod Std.Regex.Runtime
+  use Std.Regex.Runtime.ProgramTypes
+  public use Std.Regex.Runtime.ProgramTypes
   use Std.Regex.Runtime.PublicTypes
   public use Std.Regex.Runtime.PublicTypes
   use Std.Regex.Runtime.NewlinePolicy
@@ -21322,15 +21324,6 @@ mod Std.Regex.Runtime
 
 
 
-  ## A staged literal carries its checked machine and the erased equality that
-  ## relates that machine to the canonical Thompson construction.  The wrapper
-  ## is indexed by the public shape (rather than by the dependent compilation
-  ## itself) because that is the representation the constructor elaborator can
-  ## refine without introducing an existential dependent constructor.
-  type StagedMachine indices (shape: ShapeCode)
-    StagedMachineValue : (compilation: ThompsonCompilation(shape)) -> StagedMachine(shape)
-    StagedAtomicPatternValue : (plan: AtomicRuntimePattern(shape)) -> StagedMachine(shape)
-    StagedLookaroundValue : (pattern: Pattern(shape)) -> (compilation: LookaroundCompilation(shape)) -> (policy: NewlinePolicy) -> StagedMachine(shape)
 
 
   type Regex indices (result: Type)
@@ -21369,35 +21362,9 @@ mod Std.Regex.Runtime
   type NamedRegex(result: Type) indices (shape: ShapeCode)
     NamedRegex : Regex(result) -> NamedThompsonCompilation(shape) -> LookaroundCompilation(shape) -> CaptureLayout -> Bool -> NewlinePolicy -> NamedRegex(result, shape)
 
-  type Conversion indices (raw: Type, result: Type)
-    IdentityConversion : Conversion(value, value)
-    ApplyConversion : (raw -> result) -> Conversion(raw, result)
-    ComposedConversion : Conversion(raw, middle) -> Conversion(middle, result) -> Conversion(raw, result)
-    PairConversion : Conversion(left_raw, left_result) -> Conversion(right_raw, right_result) -> Conversion(Tuple(left_raw, right_raw), Tuple(left_result, right_result))
-    ChoiceConversion : Conversion(left_raw, left_result) -> Conversion(right_raw, right_result) -> Conversion(Choice(left_raw, right_raw), Choice(left_result, right_result))
-    ListConversion : Conversion(raw, result) -> Conversion(List(raw), List(result))
-    LeftPairConversion : Conversion(left_raw, left_result) -> Conversion(right_raw, right_result) -> Conversion(Tuple(left_raw, right_raw), left_result)
-    RightPairConversion : Conversion(left_raw, left_result) -> Conversion(right_raw, right_result) -> Conversion(Tuple(left_raw, right_raw), right_result)
-    SameChoiceConversion : Conversion(left_raw, result) -> Conversion(right_raw, result) -> Conversion(Choice(left_raw, right_raw), result)
-    OptionalConversion : Conversion(raw, result) -> Conversion(Choice(raw, Unit), Option(result))
-    OneOrMoreConversion : Conversion(raw, result) -> Conversion(Tuple(raw, List(raw)), OneOrMore(result))
-    PrependConversion : Conversion(raw, result) -> Conversion(Tuple(raw, List(raw)), List(result))
-    SimplifyConversion : (shape: ShapeCode) -> Conversion(Sem(shape), Sem(Simplify(shape)))
 
-  type RegexProgram indices (result: Type)
-    BuiltRegex : (shape: ShapeCode) -> Pattern(shape) -> Conversion(Sem(shape), result) -> CompilationHint(shape) -> RegexProgram(result)
 
-  type CompilationHint indices (shape: ShapeCode)
-    NoCompilationHint : CompilationHint(shape)
-    StagedCompilationHint : StagedMachine(shape) -> CompilationHint(shape)
 
-  ## `Option` is a `Type`-level family, so it cannot hold a `RegexProgram(result)`:
-  ## a family INDEXED by `Type` lives one universe up (`level: 1`), exactly as an
-  ## Agda `data … : Set → Set₁` does. Cure has no universe polymorphism, so the
-  ## large case needs its own carrier rather than a `Type`-level `Option`.
-  type CompiledRegex indices (result: Type)
-    NoProgram : CompiledRegex(result)
-    SomeProgram : RegexProgram(result) -> CompiledRegex(result)
 
   fn execute_left_choice_conversion({left_raw: Type}, {left_result: Type}, {right_raw: Type}, {right_result: Type}, left: Conversion(left_raw, left_result), _right: Conversion(right_raw, right_result), value: left_raw) -> Choice(left_result, right_result) =
     assert_type ChoseLeft(execute_conversion(left, value)) : Choice(left_result, right_result)

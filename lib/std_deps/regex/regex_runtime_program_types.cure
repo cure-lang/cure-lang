@@ -1,0 +1,139 @@
+@group(:text)
+mod Std.Regex.Runtime.ProgramTypes
+  use Std.Regex.Runtime.StateOps
+  use Std.Regex.Runtime.PatternMachines
+  use Std.Regex.Runtime.StagedOps
+  use Std.Regex.Runtime.Compilation
+  use Std.Regex.Runtime.MachineLaws
+  use Std.Regex.Runtime.MachineFilters
+  use Std.Regex.Runtime.SubjectContext
+  use Std.Regex.Runtime.CharacterPredicates
+  use Std.Regex.Runtime.Position
+  use Std.Regex.Runtime.Evidence
+  use Std.Regex.Runtime.NamedCapture
+  use Std.Regex.Runtime.Compiler
+  use Std.Regex.Runtime.AtomicPlan
+  use Std.Regex.Runtime.LookaroundContext
+  use Std.Regex.Runtime.EvidenceThreads
+  use Std.Regex.Runtime.NewlinePolicy
+  use Std.Regex.Runtime.PublicTypes
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Runtime.CaptureConditions
+
+  use Std.Regex.Runtime.Boundaries
+
+  use Std.Regex.Runtime.AtomicDiagnostics
+
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Char
+
+  use Std.Option
+
+  use Std.List
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  use Std.Decision
+
+  ## A staged literal carries its checked machine and the erased equality that
+  ## relates that machine to the canonical Thompson construction.  The wrapper
+  ## is indexed by the public shape (rather than by the dependent compilation
+  ## itself) because that is the representation the constructor elaborator can
+  ## refine without introducing an existential dependent constructor.
+  type StagedMachine indices (shape: ShapeCode)
+    StagedMachineValue : (compilation: ThompsonCompilation(shape)) -> StagedMachine(shape)
+    StagedAtomicPatternValue : (plan: AtomicRuntimePattern(shape)) -> StagedMachine(shape)
+    StagedLookaroundValue : (pattern: Pattern(shape)) -> (compilation: LookaroundCompilation(shape)) -> (policy: NewlinePolicy) -> StagedMachine(shape)
+
+  type Conversion indices (raw: Type, result: Type)
+    IdentityConversion : Conversion(value, value)
+    ApplyConversion : (raw -> result) -> Conversion(raw, result)
+    ComposedConversion : Conversion(raw, middle) -> Conversion(middle, result) -> Conversion(raw, result)
+    PairConversion : Conversion(left_raw, left_result) -> Conversion(right_raw, right_result) -> Conversion(Tuple(left_raw, right_raw), Tuple(left_result, right_result))
+    ChoiceConversion : Conversion(left_raw, left_result) -> Conversion(right_raw, right_result) -> Conversion(Choice(left_raw, right_raw), Choice(left_result, right_result))
+    ListConversion : Conversion(raw, result) -> Conversion(List(raw), List(result))
+    LeftPairConversion : Conversion(left_raw, left_result) -> Conversion(right_raw, right_result) -> Conversion(Tuple(left_raw, right_raw), left_result)
+    RightPairConversion : Conversion(left_raw, left_result) -> Conversion(right_raw, right_result) -> Conversion(Tuple(left_raw, right_raw), right_result)
+    SameChoiceConversion : Conversion(left_raw, result) -> Conversion(right_raw, result) -> Conversion(Choice(left_raw, right_raw), result)
+    OptionalConversion : Conversion(raw, result) -> Conversion(Choice(raw, Unit), Option(result))
+    OneOrMoreConversion : Conversion(raw, result) -> Conversion(Tuple(raw, List(raw)), OneOrMore(result))
+    PrependConversion : Conversion(raw, result) -> Conversion(Tuple(raw, List(raw)), List(result))
+    SimplifyConversion : (shape: ShapeCode) -> Conversion(Sem(shape), Sem(Simplify(shape)))
+
+  type RegexProgram indices (result: Type)
+    BuiltRegex : (shape: ShapeCode) -> Pattern(shape) -> Conversion(Sem(shape), result) -> CompilationHint(shape) -> RegexProgram(result)
+
+  type CompilationHint indices (shape: ShapeCode)
+    NoCompilationHint : CompilationHint(shape)
+    StagedCompilationHint : StagedMachine(shape) -> CompilationHint(shape)
+
+  ## `Option` is a `Type`-level family, so it cannot hold a `RegexProgram(result)`:
+  ## a family INDEXED by `Type` lives one universe up (`level: 1`), exactly as an
+  ## Agda `data … : Set → Set₁` does. Cure has no universe polymorphism, so the
+  ## large case needs its own carrier rather than a `Type`-level `Option`.
+  type CompiledRegex indices (result: Type)
+    NoProgram : CompiledRegex(result)
+    SomeProgram : RegexProgram(result) -> CompiledRegex(result)
+end
