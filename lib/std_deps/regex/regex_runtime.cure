@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.NamedStaging
   public use Std.Regex.Runtime.MachineEntry
   public use Std.Regex.Runtime.LineBreak
   public use Std.Regex.Runtime.CharacterMatchers
@@ -21239,11 +21240,7 @@ mod Std.Regex.Runtime
 
 
 
-  fn named_staged({result: Type}, {shape: ShapeCode}, ordinary: Regex(result), compilation: NamedThompsonCompilation(shape), lookaround: LookaroundCompilation(shape), layout: CaptureLayout, firstline_only: Bool, policy: NewlinePolicy) -> NamedRegex(result, shape) =
-    named_staged_checked(ordinary, compilation, lookaround, layout, firstline_only, policy, certify_named_compilation(compilation))
 
-  fn named_staged_checked({result: Type}, {shape: ShapeCode}, ordinary: Regex(result), compilation: NamedThompsonCompilation(shape), lookaround: LookaroundCompilation(shape), layout: CaptureLayout, firstline_only: Bool, policy: NewlinePolicy, @erased _proof: NamedCompilationErasure(shape, compilation, erase_named_thompson(compilation))) -> NamedRegex(result, shape) =
-    NamedRegex(ordinary, compilation, lookaround, layout, firstline_only, policy)
 
   type NamedPrefixCapture = NamedPrefixCapture(List(Char), List(Char), List(NamedCapture))
 

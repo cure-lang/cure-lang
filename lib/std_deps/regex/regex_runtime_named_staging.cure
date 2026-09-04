@@ -1,0 +1,132 @@
+@group(:text)
+mod Std.Regex.Runtime.NamedStaging
+  use Std.Decision
+  use Std.Sigma
+  use Std.Equivalent
+  use Std.Bounded
+  use Std.Syntax
+  use Std.String
+  use Std.List
+  use Std.Option
+  use Std.Char
+  use Std.Regex.Core
+  use Std.Regex.Core.Limits
+  use Std.Regex.Core.Evidence
+  use Std.Regex.Core.Newline
+  use Std.Regex.Core.Initial
+  use Std.Regex.Core.Boundary
+  use Std.Regex.Core.Capture
+  use Std.Regex.Runtime.Split
+  use Std.Regex.Runtime.Named
+  use Std.Regex.Runtime.ClassKinds
+  use Std.Regex.Runtime.AtomicDiagnostics
+  use Std.Regex.Runtime.Boundaries
+  use Std.Regex.Runtime.CaptureConditions
+  use Std.Regex.Runtime.TransitionRows
+  use Std.Regex.Runtime.StateOps
+  use Std.Regex.Runtime.PatternMachines
+  use Std.Regex.Runtime.StagedOps
+  use Std.Regex.Runtime.Compilation
+  use Std.Regex.Runtime.MachineLaws
+  use Std.Regex.Runtime.MachineFilters
+  use Std.Regex.Runtime.SubjectContext
+  use Std.Regex.Runtime.CharacterPredicates
+  use Std.Regex.Runtime.Position
+  use Std.Regex.Runtime.Evidence
+  use Std.Regex.Runtime.NamedCapture
+  use Std.Regex.Runtime.Compiler
+  use Std.Regex.Runtime.AtomicPlan
+  use Std.Regex.Runtime.LookaroundContext
+  use Std.Regex.Runtime.EvidenceThreads
+  use Std.Regex.Runtime.NewlinePolicy
+  use Std.Regex.Runtime.PublicTypes
+  use Std.Regex.Runtime.ProgramTypes
+  use Std.Regex.Runtime.Conversion
+  use Std.Regex.Runtime.CharacterSemantics
+  use Std.Regex.Runtime.RegexType
+  use Std.Regex.Runtime.NamedTypes
+  use Std.Regex.Runtime.ThreadDedup
+  use Std.Regex.Runtime.ConversionAdapters
+  use Std.Regex.Runtime.CompileRegex
+  use Std.Regex.Runtime.Anchors
+  use Std.Regex.Runtime.Combinators
+  use Std.Regex.Runtime.CharacterMatchers
+  use Std.Regex.Runtime.LineBreak
+  use Std.Regex.Runtime.MachineEntry
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  fn named_staged({result: Type}, {shape: ShapeCode}, ordinary: Regex(result), compilation: NamedThompsonCompilation(shape), lookaround: LookaroundCompilation(shape), layout: CaptureLayout, firstline_only: Bool, policy: NewlinePolicy) -> NamedRegex(result, shape) =
+    named_staged_checked(ordinary, compilation, lookaround, layout, firstline_only, policy, certify_named_compilation(compilation))
+
+  fn named_staged_checked({result: Type}, {shape: ShapeCode}, ordinary: Regex(result), compilation: NamedThompsonCompilation(shape), lookaround: LookaroundCompilation(shape), layout: CaptureLayout, firstline_only: Bool, policy: NewlinePolicy, @erased _proof: NamedCompilationErasure(shape, compilation, erase_named_thompson(compilation))) -> NamedRegex(result, shape) =
+    NamedRegex(ordinary, compilation, lookaround, layout, firstline_only, policy)
+end
