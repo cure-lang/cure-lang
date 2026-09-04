@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.ConversionAdapters
   public use Std.Regex.Runtime.ThreadDedup
   public use Std.Regex.Runtime.NamedTypes
   public use Std.Regex.Runtime.RegexType
@@ -21286,42 +21287,15 @@ mod Std.Regex.Runtime
 
 
 
-  ## Conversion values used by the literal emitter's staged IR. Keeping these
-  ## small adapters here lets generated literals publish a first-order
-  ## Thompson tree without rebuilding a Regex/Pattern wrapper at runtime.
-  fn discard_char_conversion() -> Conversion(Char, Unit) = ApplyConversion(discard_char)
 
-  fn empty_list_conversion({a: Type}) -> Conversion(Unit, List(a)) = ApplyConversion(fn(_) -> [])
 
-  ## Shape-indexed adapters keep generated bounded-literal conversions fully
-  ## inferable.  The emitter knows the inner shape, while the polymorphic
-  ## convenience form above has no expected type at the generated call site.
-  fn empty_list_conversion_for(shape: ShapeCode) -> Conversion(Unit, List(Sem(shape))) =
-    ApplyConversion(fn(_) -> [])
 
-  fn prepend_repetition_conversion({a: Type}) -> Conversion(Tuple(a, List(a)), List(a)) =
-    ApplyConversion(prepend_repetition_result)
 
-  fn prepend_repetition_conversion_for(shape: ShapeCode) -> Conversion(Tuple(Sem(shape), List(Sem(shape))), List(Sem(shape))) =
-    ApplyConversion(prepend_repetition_result)
 
-  fn prepend_optional_repetition_conversion({a: Type}) -> Conversion(Tuple(Choice(a, Unit), List(a)), List(a)) =
-    ApplyConversion(prepend_optional_repetition_result)
 
-  fn prepend_optional_repetition_conversion_for(shape: ShapeCode) -> Conversion(Tuple(Choice(Sem(shape), Unit), List(Sem(shape))), List(Sem(shape))) =
-    ApplyConversion(prepend_optional_repetition_result)
 
-  fn simplify_program(shape: ShapeCode, program: RegexProgram(Sem(shape))) -> RegexProgram(Sem(Simplify(shape))) = match program
-    BuiltRegex(raw_shape, pattern, conversion, hint) ->
-      BuiltRegex(raw_shape, pattern, ComposedConversion(conversion, SimplifyConversion(shape)), hint)
 
-  fn simplify_compiled(shape: ShapeCode, program: CompiledRegex(Sem(shape))) -> CompiledRegex(Sem(Simplify(shape))) = match program
-    NoProgram() -> NoProgram()
-    SomeProgram(compiled) -> SomeProgram(simplify_program(shape, compiled))
 
-  fn sem_identity_conversion(shape: ShapeCode) -> Conversion(Sem(shape), Sem(shape)) = IdentityConversion()
-  fn string_identity_conversion() -> Conversion(String, String) = IdentityConversion()
-  fn unit_identity_conversion() -> Conversion(Unit, Unit) = IdentityConversion()
 
   fn line_break() -> Regex(String) =
     line_break_with_policy(AnyUnicodeNewline())
@@ -21531,16 +21505,8 @@ mod Std.Regex.Runtime
   fn optional_literal({a: Type}, regex: Regex(a), lazy: Bool) -> Regex(Choice(a, Unit)) =
     OptionalLiteral(regex, lazy)
 
-  fn empty_repetition_transform({a: Type}, _: Regex(a)) -> (Unit -> List(a)) =
-    fn(_) -> []
 
-  fn prepend_repetition_result({a: Type}, value: Tuple(a, List(a))) -> List(a) = match value
-    %[head, rest] -> [head | rest]
 
-  fn prepend_optional_repetition_result({a: Type}, value: Tuple(Choice(a, Unit), List(a))) -> List(a) = match value
-    %[choice, rest] -> match choice
-      ChoseLeft(head) -> [head | rest]
-      ChoseRight(_) -> rest
 
   fn bounded_exact_pattern({a: Type}, regex: Regex(a), count: Nat) -> Regex(List(a)) = match count
     Z() -> Mapped(empty_repetition_transform(regex), FromPattern(UnitC, PatternEmpty()))
@@ -21589,7 +21555,6 @@ mod Std.Regex.Runtime
 
   fn exact_test(expected: Char) -> Char -> Bool = fn(actual) -> exact_predicate(expected, actual)
 
-  fn discard_char(_char: Char) -> Unit = ()
 
   fn exactly(expected: Char) -> Regex(Unit) = map(predicate(exact_test(expected)), discard_char)
 
