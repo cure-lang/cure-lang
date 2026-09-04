@@ -1,0 +1,100 @@
+@group(:text)
+mod Std.Regex.Runtime.SubjectContext
+  use Std.Regex.Runtime.StateOps
+  use Std.Regex.Runtime.PatternMachines
+  use Std.Regex.Runtime.StagedOps
+  use Std.Regex.Runtime.Compilation
+  use Std.Regex.Runtime.MachineLaws
+  use Std.Regex.Runtime.MachineFilters
+
+
+
+
+
+
+
+
+
+
+
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Runtime.CaptureConditions
+
+  use Std.Regex.Runtime.Boundaries
+
+  use Std.Regex.Runtime.AtomicDiagnostics
+
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Char
+
+  use Std.Option
+
+  use Std.List
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  use Std.Decision
+
+  fn position_line_end(input: List(Char)) -> Bool = match input
+    [] -> true
+    [char | _] -> Std.Char.is_newline(char)
+
+  fn position_subject_end(input: List(Char)) -> Bool = match input
+    [] -> true
+    [char] -> Std.Char.is_newline(char)
+    _ -> false
+
+  ## Histories are newest-first and bounded to one scalar beyond the eight-
+  ## scalar assertion limit.  The extra scalar supplies the boundary context
+  ## immediately before a fixed-width lookbehind window.
+  fn history_push_bounded(history: List(Char), char: Char) -> List(Char) = history_take_limit([char | history], literal_history_limit())
+
+  fn history_take_limit(values: List(Char), limit: Nat) -> List(Char) = match limit
+    Z() -> []
+    S(rest_limit) -> match values
+      [] -> []
+      [head | rest] -> [head | history_take_limit(rest, rest_limit)]
+
+  fn literal_history_limit() -> Nat = S(S(S(S(S(S(S(S(S(Z())))))))))
+
+  fn option_head(input: List(Char)) -> Option(Char) = match input
+    [] -> None()
+    [char | _] -> Some(char)
+
+  fn option_second(input: List(Char)) -> Option(Char) = match input
+    [_ | rest] -> option_head(rest)
+    [] -> None()
+
+  fn position_strict_subject_end(input: List(Char)) -> Bool = match input
+    [] -> true
+    _ -> false
+end
