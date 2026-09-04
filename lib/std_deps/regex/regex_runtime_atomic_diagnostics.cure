@@ -1,0 +1,92 @@
+@group(:text)
+mod Std.Regex.Runtime.AtomicDiagnostics
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Char
+
+  use Std.Option
+
+  use Std.List
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  use Std.Decision
+
+  ## Runtime comparison of two cursor depths. The canonical-origin evidence
+    ## remains proof-only; this tag records only the relative `Here`/`Drop`
+    ## shapes needed to choose the recursive induction branch.
+    type AtomicPathCursorShapeLocation =
+      | AtomicPathCursorShapeSame
+      | AtomicPathCursorShapeLeftAfter
+      | AtomicPathCursorShapeRightAfter
+
+  type AtomicPathFailureKind = AtomicPathFailureInputExhausted | AtomicPathFailureExactAccepted | AtomicPathFailureDestinationsExhausted | AtomicPathFailureDestinationRejected
+
+  ## Every skipped start records why it was skipped. A child commit is a
+    ## distinct suppression reason from an enclosing commit whose depth blocks
+    ## this candidate; the reason is indexed by the same blocked-depth value and
+    ## an origin token shared with successful selection evidence.
+    type AtomicStartSkipKind = AtomicStartSkipNone | AtomicStartSkipOuterCommit | AtomicStartSkipOuterEscape | AtomicStartSkipCandidateCommit
+
+  ## An erased scope record accompanies blocked candidates without placing the
+    ## full admitted state in every downstream index. The existing skip token is
+    ## retained as the canonical depth/suppression evidence.
+    type AtomicStartScopeEvidenceRole = AtomicStartScopeEvidenceNoneRole | AtomicStartScopeEvidenceCandidateCommitRole | AtomicStartScopeEvidenceBlockedRole | AtomicStartScopeEvidenceAllowedRole
+
+  ## The outer-commit decision is indexed by the exact scope/commit depth
+    ## comparison.  Unlike a bare candidate tag, its constructors carry the
+    ## disjoint `AtLeast`/`Below` witnesses at the same indices, so a blocked
+    ## and escaping decision for one candidate can be eliminated safely.
+    type AtomicStartScopeRole = AtomicStartScopeBlockedRole | AtomicStartScopeAllowedRole
+
+  type AtomicStartFailureKind = AtomicStartFailureExhausted | AtomicStartFailureRejected | AtomicStartFailureBlocked
+
+  type AtomicSearchResult = AtomicSearchNo | AtomicSearchCommit(Nat) | AtomicSearchYes
+
+  type AtomicPathCommitCauseKind =
+      | AtomicPathCommitAfterFailureKind(AtomicPathFailurePrefixKind, AtomicPathFailureKind)
+      | AtomicPathCommitFromChildKind(AtomicPathCommitCauseKind)
+      | AtomicPathCommitPastEscapedKind(AtomicPathCommitCauseKind, AtomicPathCommitCauseKind)
+      | AtomicPathCommitPastRejectedKind(AtomicPathFailurePrefixKind, AtomicPathFailureKind, AtomicPathCommitCauseKind)
+
+  type AtomicPathSkippedPrefixKind =
+      | AtomicPathSkippedPrefixEmptyKind
+      | AtomicPathSkippedPrefixEscapedOneKind(AtomicPathCommitCauseKind)
+      | AtomicPathSkippedPrefixEscapedConsKind(AtomicPathCommitCauseKind, AtomicPathSkippedPrefixKind)
+      | AtomicPathSkippedPrefixRejectedConsKind(AtomicPathFailurePrefixKind, AtomicPathFailureKind, AtomicPathSkippedPrefixKind)
+
+  ## Every failed child search records where its exposed failure cursor sits
+    ## relative to the complete canonical candidate spine. Ordinary root
+    ## failures expose the whole spine unchanged. A suffix-local No result
+    ## exposes the tail after a mixed prefix whose rejected/escaped causes are
+    ## retained by `AtomicPathSkippedPrefixEvidence`.
+    type AtomicPathFailurePrefixKind =
+      | AtomicPathFailureAtRootKind
+      | AtomicPathFailureAfterSkippedKind(AtomicPathSkippedPrefixKind)
+end

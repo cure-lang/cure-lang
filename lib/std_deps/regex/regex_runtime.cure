@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.AtomicDiagnostics
   public use Std.Regex.Runtime.ClassKinds
   public use Std.Regex.Runtime.Named
   public use Std.Regex.Runtime.Split
@@ -1838,13 +1839,6 @@ mod Std.Regex.Runtime
         lookaround_admitted_cursor_suffix_package_advance(head, tail, prior)
       )
 
-  ## Runtime comparison of two cursor depths. The canonical-origin evidence
-  ## remains proof-only; this tag records only the relative `Here`/`Drop`
-  ## shapes needed to choose the recursive induction branch.
-  type AtomicPathCursorShapeLocation =
-    | AtomicPathCursorShapeSame
-    | AtomicPathCursorShapeLeftAfter
-    | AtomicPathCursorShapeRightAfter
 
   type LookaroundAdmittedStateCursorShape =
     | LookaroundAdmittedStateCursorShapeHere
@@ -4369,7 +4363,6 @@ mod Std.Regex.Runtime
 
   fn atomic_lookaround_state_capture_context_accepted({n: Nat}, base: List(EvidenceInstruction), routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), assertion_routine: List(ExtendedInstruction), assertion_markers: List(EvidenceInstruction), nested_decisions: List(LookaroundNestedDecision)) -> LookaroundAdmittedStateCaptureContext(n, base, LookaroundAdmittedAccepted(routine, constraints, assertion_routine, assertion_markers, nested_decisions), append_routine(append_routine(base, routine), assertion_markers)) = LookaroundAdmittedStateCaptureContextAccepted()
 
-  type AtomicPathFailureKind = AtomicPathFailureInputExhausted | AtomicPathFailureExactAccepted | AtomicPathFailureDestinationsExhausted | AtomicPathFailureDestinationRejected
 
   ## Relevant singleton authority for the otherwise erased failure-kind
   ## index. Search constructs this tag at the same site as the refutation, so
@@ -4423,16 +4416,7 @@ mod Std.Regex.Runtime
   type AtomicPathRootRefutation(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), kind: AtomicPathFailureKind)
     AtomicPathRootRefutation : {@erased origin: List(LookaroundAdmittedState(n))} -> (@erased origin_equivalence: Equivalent(List(LookaroundAdmittedState(n)), whole, origin)) -> (@erased origin_canonical: AtomicPathSearchOrigin(depth, n, machine, input, after_input, state, history, capture_context, policy, origin)) -> (@erased failure: AtomicPathRefutation(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, whole, kind)) -> (@erased evidence: AtomicPathNoEvidence(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, whole, kind)) -> AtomicPathRootRefutation(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, kind)
 
-  ## Every skipped start records why it was skipped. A child commit is a
-  ## distinct suppression reason from an enclosing commit whose depth blocks
-  ## this candidate; the reason is indexed by the same blocked-depth value and
-  ## an origin token shared with successful selection evidence.
-  type AtomicStartSkipKind = AtomicStartSkipNone | AtomicStartSkipOuterCommit | AtomicStartSkipOuterEscape | AtomicStartSkipCandidateCommit
 
-  ## An erased scope record accompanies blocked candidates without placing the
-  ## full admitted state in every downstream index. The existing skip token is
-  ## retained as the canonical depth/suppression evidence.
-  type AtomicStartScopeEvidenceRole = AtomicStartScopeEvidenceNoneRole | AtomicStartScopeEvidenceCandidateCommitRole | AtomicStartScopeEvidenceBlockedRole | AtomicStartScopeEvidenceAllowedRole
 
   type AtomicStartScopeEvidence(n: Nat) indices (role: AtomicStartScopeEvidenceRole)
     AtomicStartScopeEvidenceNone : AtomicStartScopeEvidence(n, AtomicStartScopeEvidenceNoneRole())
@@ -4458,17 +4442,11 @@ mod Std.Regex.Runtime
     AtomicStartSelectionAllowed : {@erased kind: AtomicStartSkipKind} -> (@erased evidence: AtomicStartAllowed(blocked_depth, kind)) -> AtomicStartSelection(blocked_depth)
     AtomicStartSelectionBlocked : {@erased kind: AtomicStartSkipKind} -> (@erased evidence: AtomicStartSkipEvidence(blocked_depth, kind)) -> AtomicStartSelection(blocked_depth)
 
-  ## The outer-commit decision is indexed by the exact scope/commit depth
-  ## comparison.  Unlike a bare candidate tag, its constructors carry the
-  ## disjoint `AtLeast`/`Below` witnesses at the same indices, so a blocked
-  ## and escaping decision for one candidate can be eliminated safely.
-  type AtomicStartScopeRole = AtomicStartScopeBlockedRole | AtomicStartScopeAllowedRole
 
   type AtomicStartScopeSelection indices (scope_depth: Nat, blocked_depth: Nat, role: AtomicStartScopeRole)
     AtomicStartScopeBlocked : (@erased proof: AtomicDepthAtLeast(scope_depth, blocked_depth)) -> AtomicStartScopeSelection(scope_depth, blocked_depth, AtomicStartScopeBlockedRole())
     AtomicStartScopeAllowed : (@erased proof: AtomicDepthBelow(scope_depth, blocked_depth)) -> AtomicStartScopeSelection(scope_depth, blocked_depth, AtomicStartScopeAllowedRole())
 
-  type AtomicStartFailureKind = AtomicStartFailureExhausted | AtomicStartFailureRejected | AtomicStartFailureBlocked
 
   type AtomicStartMembersRefutation(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)), kind: AtomicStartFailureKind)
     AtomicStartExhausted : {@erased whole: List(LookaroundAdmittedState(n))} -> (@erased suffix: LookaroundAdmittedStateCursorSuffix(n, whole, Nil())) -> (@erased canonical: Equivalent(List(LookaroundAdmittedState(n)), whole, lookaround_admitted_starts(depth, n, machine, position, input, after_input, history, capture_context, policy))) -> AtomicStartMembersRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, Nil(), AtomicStartFailureExhausted())
@@ -5432,7 +5410,6 @@ mod Std.Regex.Runtime
   ## proof-carrying search result. A commit failure stops siblings at the
   ## scope that closed, while an outer scope may still propagate it.
   type AtomicScopeEffect = AtomicScopeEffect(Nat, Option(Nat))
-  type AtomicSearchResult = AtomicSearchNo | AtomicSearchCommit(Nat) | AtomicSearchYes
 
   ## The atomic evaluator records the exact start and destination sequence it
   ## selected. The trace is indexed by the machine's state count and retained
@@ -8234,11 +8211,6 @@ mod Std.Regex.Runtime
     AtomicPathSearchOriginActive(_, _, _, left_canonical) -> match right_origin
       AtomicPathSearchOriginActive(_, _, _, right_canonical) -> AtomicPathSearchOriginsAligned(trans(left_canonical, sym(right_canonical)))
 
-  type AtomicPathCommitCauseKind =
-    | AtomicPathCommitAfterFailureKind(AtomicPathFailurePrefixKind, AtomicPathFailureKind)
-    | AtomicPathCommitFromChildKind(AtomicPathCommitCauseKind)
-    | AtomicPathCommitPastEscapedKind(AtomicPathCommitCauseKind, AtomicPathCommitCauseKind)
-    | AtomicPathCommitPastRejectedKind(AtomicPathFailurePrefixKind, AtomicPathFailureKind, AtomicPathCommitCauseKind)
 
   ## Proof-only reason that a rejected candidate may continue to its ordered
   ## sibling.  The index is the exact close returned by that candidate's
@@ -9263,11 +9235,6 @@ mod Std.Regex.Runtime
   ) -> AtomicPathCommitTailPackage(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, remaining) = match cause
     AtomicPathCommitPastRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, tail_depth, tail_origin_equivalence, tail_origin_canonical, tail_suffix, tail_kind, tail_cause) -> AtomicPathCommitTailPacked(tail_depth, tail_origin_equivalence, tail_origin_canonical, tail_suffix, tail_kind, tail_cause)
 
-  type AtomicPathSkippedPrefixKind =
-    | AtomicPathSkippedPrefixEmptyKind
-    | AtomicPathSkippedPrefixEscapedOneKind(AtomicPathCommitCauseKind)
-    | AtomicPathSkippedPrefixEscapedConsKind(AtomicPathCommitCauseKind, AtomicPathSkippedPrefixKind)
-    | AtomicPathSkippedPrefixRejectedConsKind(AtomicPathFailurePrefixKind, AtomicPathFailureKind, AtomicPathSkippedPrefixKind)
 
   type AtomicPathSkippedPrefixEvidence(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), front: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)), kind: AtomicPathSkippedPrefixKind)
     AtomicPathSkippedPrefixEmpty : {@erased current: List(LookaroundAdmittedState(n))} -> AtomicPathSkippedPrefixEvidence(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, current, AtomicPathSkippedPrefixEmptyKind())
@@ -13215,14 +13182,6 @@ mod Std.Regex.Runtime
     AtomicPathCommitPastRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, tail_depth, tail_origin_equivalence, tail_origin_canonical, tail_suffix, tail_kind, tail_cause) -> match skipped
       AtomicPathSkippedRejectedCons(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, skipped_kind, skipped_tail) -> AtomicPathCommitSkippedTailPacked(tail_depth, tail_origin_equivalence, tail_origin_canonical, tail_suffix, tail_kind, tail_cause, skipped_kind, skipped_tail)
 
-  ## Every failed child search records where its exposed failure cursor sits
-  ## relative to the complete canonical candidate spine. Ordinary root
-  ## failures expose the whole spine unchanged. A suffix-local No result
-  ## exposes the tail after a mixed prefix whose rejected/escaped causes are
-  ## retained by `AtomicPathSkippedPrefixEvidence`.
-  type AtomicPathFailurePrefixKind =
-    | AtomicPathFailureAtRootKind
-    | AtomicPathFailureAfterSkippedKind(AtomicPathSkippedPrefixKind)
 
   type AtomicPathFailurePrefixEvidence(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)), kind: AtomicPathFailurePrefixKind)
     AtomicPathFailureAtRoot : (@erased equality: Equivalent(List(LookaroundAdmittedState(n)), whole, current)) -> AtomicPathFailurePrefixEvidence(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, AtomicPathFailureAtRootKind())
