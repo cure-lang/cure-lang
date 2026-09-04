@@ -1,0 +1,194 @@
+@group(:text)
+mod Std.Regex.Runtime.CompileRegex
+  use Std.Decision
+  use Std.Sigma
+  use Std.Equivalent
+  use Std.Bounded
+  use Std.Syntax
+  use Std.String
+  use Std.List
+  use Std.Option
+  use Std.Char
+  use Std.Regex.Core
+  use Std.Regex.Core.Limits
+  use Std.Regex.Core.Evidence
+  use Std.Regex.Core.Newline
+  use Std.Regex.Core.Initial
+  use Std.Regex.Core.Boundary
+  use Std.Regex.Core.Capture
+  use Std.Regex.Runtime.Split
+  use Std.Regex.Runtime.Named
+  use Std.Regex.Runtime.ClassKinds
+  use Std.Regex.Runtime.AtomicDiagnostics
+  use Std.Regex.Runtime.Boundaries
+  use Std.Regex.Runtime.CaptureConditions
+  use Std.Regex.Runtime.TransitionRows
+  use Std.Regex.Runtime.StateOps
+  use Std.Regex.Runtime.PatternMachines
+  use Std.Regex.Runtime.StagedOps
+  use Std.Regex.Runtime.Compilation
+  use Std.Regex.Runtime.MachineLaws
+  use Std.Regex.Runtime.MachineFilters
+  use Std.Regex.Runtime.SubjectContext
+  use Std.Regex.Runtime.CharacterPredicates
+  use Std.Regex.Runtime.Position
+  use Std.Regex.Runtime.Evidence
+  use Std.Regex.Runtime.NamedCapture
+  use Std.Regex.Runtime.Compiler
+  use Std.Regex.Runtime.AtomicPlan
+  use Std.Regex.Runtime.LookaroundContext
+  use Std.Regex.Runtime.EvidenceThreads
+  use Std.Regex.Runtime.NewlinePolicy
+  use Std.Regex.Runtime.PublicTypes
+  use Std.Regex.Runtime.ProgramTypes
+  use Std.Regex.Runtime.Conversion
+  use Std.Regex.Runtime.CharacterSemantics
+  use Std.Regex.Runtime.RegexType
+  use Std.Regex.Runtime.NamedTypes
+  use Std.Regex.Runtime.ThreadDedup
+  use Std.Regex.Runtime.ConversionAdapters
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  fn compile_regex({result: Type}, regex: Regex(result)) -> CompiledRegex(result) = match regex
+    FromPattern(shape, pattern) -> SomeProgram(BuiltRegex(shape, pattern, sem_identity_conversion(shape), NoCompilationHint()))
+    StagedRegex(shape, pattern, _compilation, machine, conversion) -> SomeProgram(BuiltRegex(shape, pattern, conversion, StagedCompilationHint(machine)))
+    Mapped(transform, inner) -> match compile_regex(inner)
+      NoProgram() -> NoProgram()
+      SomeProgram(BuiltRegex(shape, pattern, convert, _hint)) -> SomeProgram(BuiltRegex(shape, pattern, ComposedConversion(convert, ApplyConversion(transform)), NoCompilationHint()))
+    Concatenated(left, right) -> match compile_regex(left)
+      NoProgram() -> NoProgram()
+      SomeProgram(BuiltRegex(left_shape, left_pattern, left_convert, _left_hint)) -> match compile_regex(right)
+        NoProgram() -> NoProgram()
+        SomeProgram(BuiltRegex(right_shape, right_pattern, right_convert, _right_hint)) ->
+          SomeProgram(BuiltRegex(PairC(left_shape, right_shape), PatternConcat(left_pattern, right_pattern), PairConversion(left_convert, right_convert), NoCompilationHint()))
+    Alternated(left, right) -> match compile_regex(left)
+      NoProgram() -> NoProgram()
+      SomeProgram(BuiltRegex(left_shape, left_pattern, left_convert, _left_hint)) -> match compile_regex(right)
+        NoProgram() -> NoProgram()
+        SomeProgram(BuiltRegex(right_shape, right_pattern, right_convert, _right_hint)) ->
+          SomeProgram(BuiltRegex(ChoiceC(left_shape, right_shape), PatternAlternate(left_pattern, right_pattern), ChoiceConversion(left_convert, right_convert), NoCompilationHint()))
+    Repeated(inner) -> match compile_regex(inner)
+      NoProgram() -> NoProgram()
+      SomeProgram(BuiltRegex(shape, pattern, convert, _hint)) -> SomeProgram(BuiltRegex(ListC(shape), PatternRepeat(pattern), ListConversion(convert), NoCompilationHint()))
+    MatchedText(inner) -> match compile_regex(inner)
+      NoProgram() -> NoProgram()
+      SomeProgram(BuiltRegex(_shape, pattern, _convert, _hint)) -> SomeProgram(BuiltRegex(StringC, PatternGroup(pattern), string_identity_conversion(), NoCompilationHint()))
+    KeptRight(left, right) -> match compile_regex(left)
+      NoProgram() -> NoProgram()
+      SomeProgram(BuiltRegex(left_shape, left_pattern, left_convert, _left_hint)) -> match compile_regex(right)
+        NoProgram() -> NoProgram()
+        SomeProgram(BuiltRegex(right_shape, right_pattern, right_convert, _right_hint)) ->
+          SomeProgram(BuiltRegex(PairC(left_shape, right_shape), PatternConcat(left_pattern, right_pattern), RightPairConversion(left_convert, right_convert), NoCompilationHint()))
+    KeptLeft(left, right) -> match compile_regex(left)
+      NoProgram() -> NoProgram()
+      SomeProgram(BuiltRegex(left_shape, left_pattern, left_convert, _left_hint)) -> match compile_regex(right)
+        NoProgram() -> NoProgram()
+        SomeProgram(BuiltRegex(right_shape, right_pattern, right_convert, _right_hint)) ->
+          SomeProgram(BuiltRegex(PairC(left_shape, right_shape), PatternConcat(left_pattern, right_pattern), LeftPairConversion(left_convert, right_convert), NoCompilationHint()))
+    SameAlternative(left, right) -> match compile_regex(left)
+      NoProgram() -> NoProgram()
+      SomeProgram(BuiltRegex(left_shape, left_pattern, left_convert, _left_hint)) -> match compile_regex(right)
+        NoProgram() -> NoProgram()
+        SomeProgram(BuiltRegex(right_shape, right_pattern, right_convert, _right_hint)) ->
+          SomeProgram(BuiltRegex(ChoiceC(left_shape, right_shape), PatternAlternate(left_pattern, right_pattern), SameChoiceConversion(left_convert, right_convert), NoCompilationHint()))
+    OptionalRegex(inner) -> match compile_regex(inner)
+      NoProgram() -> NoProgram()
+      SomeProgram(BuiltRegex(shape, pattern, convert, _hint)) ->
+        SomeProgram(BuiltRegex(ChoiceC(shape, UnitC), PatternAlternate(pattern, PatternEmpty()), OptionalConversion(convert), NoCompilationHint()))
+    OneOrMoreRegex(inner) -> match compile_regex(inner)
+      NoProgram() -> NoProgram()
+      SomeProgram(BuiltRegex(shape, pattern, convert, _hint)) ->
+        SomeProgram(BuiltRegex(PairC(shape, ListC(shape)), PatternConcat(pattern, PatternRepeat(pattern)), OneOrMoreConversion(convert), NoCompilationHint()))
+    SimplifiedRegex(shape, inner) -> simplify_compiled(shape, compile_regex(inner))
+    OptionalPattern(inner) -> match compile_regex(inner)
+      NoProgram() -> NoProgram()
+      SomeProgram(BuiltRegex(shape, pattern, convert, _hint)) ->
+        SomeProgram(BuiltRegex(ChoiceC(shape, UnitC), PatternAlternate(pattern, PatternEmpty()), ChoiceConversion(convert, unit_identity_conversion()), NoCompilationHint()))
+    PlusPattern(inner) -> match compile_regex(inner)
+      NoProgram() -> NoProgram()
+      SomeProgram(BuiltRegex(shape, pattern, convert, _hint)) ->
+        SomeProgram(BuiltRegex(PairC(shape, ListC(shape)), PatternConcat(pattern, PatternRepeat(pattern)), PrependConversion(convert), NoCompilationHint()))
+    RepeatedPattern(inner, lazy) -> match compile_regex(inner)
+      NoProgram() -> NoProgram()
+      SomeProgram(BuiltRegex(shape, pattern, convert, _hint)) ->
+        SomeProgram(BuiltRegex(ListC(shape), PatternRepeatMode(pattern, lazy), ListConversion(convert), NoCompilationHint()))
+    OneOrMorePattern(inner, lazy) -> match compile_regex(inner)
+      NoProgram() -> NoProgram()
+      SomeProgram(BuiltRegex(shape, pattern, convert, _hint)) ->
+        SomeProgram(BuiltRegex(PairC(shape, ListC(shape)), PatternConcat(pattern, PatternRepeatMode(pattern, lazy)), PrependConversion(convert), NoCompilationHint()))
+    OptionalLiteral(inner, lazy) -> match compile_regex(inner)
+      NoProgram() -> NoProgram()
+      SomeProgram(BuiltRegex(shape, pattern, convert, _hint)) ->
+        SomeProgram(BuiltRegex(ChoiceC(shape, UnitC), PatternAlternateMode(pattern, PatternEmpty(), lazy), ChoiceConversion(convert, unit_identity_conversion()), NoCompilationHint()))
+    ConfiguredRegex(_options, inner) -> compile_regex(inner)
+    StartAnchor(multiline) -> pickup
+      multiline -> SomeProgram(BuiltRegex(UnitC, PatternBoundary(line_start_constraint()), unit_identity_conversion(), NoCompilationHint()))
+      else -> SomeProgram(BuiltRegex(UnitC, PatternBoundary(subject_start_constraint()), unit_identity_conversion(), NoCompilationHint()))
+    EndAnchor(multiline) -> pickup
+      multiline -> SomeProgram(BuiltRegex(UnitC, PatternBoundary(line_end_constraint()), unit_identity_conversion(), NoCompilationHint()))
+      else -> SomeProgram(BuiltRegex(UnitC, PatternBoundary(subject_end_constraint()), unit_identity_conversion(), NoCompilationHint()))
+    StrictEndAnchor() -> SomeProgram(BuiltRegex(UnitC, PatternBoundary(strict_end_constraint()), unit_identity_conversion(), NoCompilationHint()))
+end
