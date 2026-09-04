@@ -3,6 +3,7 @@
 
 @group(:text)
 mod Std.Regex.Syntax.Model
+  public use Std.Regex.Syntax.Model.ClassKinds
   public use Std.Regex.Syntax.Model.Predicates
   public use Std.Regex.Syntax.Model.Types
   use Std.Regex.Core.Limits
@@ -19,26 +20,14 @@ mod Std.Regex.Syntax.Model
 
 
 
-  fn no_class_kinds() -> LiteralClassKinds =
-    LiteralClassKinds([], [], [])
 
-  fn enable_class_kind(kind: LiteralClassKind, kinds: LiteralClassKinds) -> LiteralClassKinds = match kinds
-    LiteralClassKinds(values, properties, posix) -> LiteralClassKinds([kind | values], properties, posix)
 
-  fn enable_unicode_property(property: LiteralUnicodeProperty, negated: Bool, kinds: LiteralClassKinds) -> LiteralClassKinds = match kinds
-    LiteralClassKinds(values, properties, posix) -> LiteralClassKinds(values, [LiteralUnicodePropertyMatch(property, negated) | properties], posix)
 
-  fn enable_posix_class(posix_class: LiteralPosixClass, negated: Bool, kinds: LiteralClassKinds) -> LiteralClassKinds = match kinds
-    LiteralClassKinds(values, properties, posix) -> LiteralClassKinds(values, properties, [LiteralPosixClassMatch(posix_class, negated) | posix])
 
   fn has_class_kind(kinds: LiteralClassKinds, wanted: LiteralClassKind) -> Bool = match kinds
     LiteralClassKinds(values, _, _) -> has_class_kind_in(values, wanted)
 
-  fn literal_class_properties(kinds: LiteralClassKinds) -> List(LiteralUnicodePropertyMatch) = match kinds
-    LiteralClassKinds(_, properties, _) -> properties
 
-  fn literal_class_posix(kinds: LiteralClassKinds) -> List(LiteralPosixClassMatch) = match kinds
-    LiteralClassKinds(_, _, posix) -> posix
 
   fn has_class_kind_in(values: List(LiteralClassKind), wanted: LiteralClassKind) -> Bool = match values
     [] -> false

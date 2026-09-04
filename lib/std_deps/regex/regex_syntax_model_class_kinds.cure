@@ -1,0 +1,33 @@
+## Compile-time-only literal syntax tree. It is consumed by `expand_literal`
+## and never appears in generated matching code.
+
+@group(:text)
+mod Std.Regex.Syntax.Model.ClassKinds
+  use Std.Regex.Syntax.Model.Predicates
+
+  use Std.Regex.Syntax.Model.Types
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.String
+
+  fn no_class_kinds() -> LiteralClassKinds =
+      LiteralClassKinds([], [], [])
+
+  fn enable_class_kind(kind: LiteralClassKind, kinds: LiteralClassKinds) -> LiteralClassKinds = match kinds
+      LiteralClassKinds(values, properties, posix) -> LiteralClassKinds([kind | values], properties, posix)
+
+  fn enable_unicode_property(property: LiteralUnicodeProperty, negated: Bool, kinds: LiteralClassKinds) -> LiteralClassKinds = match kinds
+      LiteralClassKinds(values, properties, posix) -> LiteralClassKinds(values, [LiteralUnicodePropertyMatch(property, negated) | properties], posix)
+
+  fn enable_posix_class(posix_class: LiteralPosixClass, negated: Bool, kinds: LiteralClassKinds) -> LiteralClassKinds = match kinds
+      LiteralClassKinds(values, properties, posix) -> LiteralClassKinds(values, properties, [LiteralPosixClassMatch(posix_class, negated) | posix])
+
+  fn literal_class_properties(kinds: LiteralClassKinds) -> List(LiteralUnicodePropertyMatch) = match kinds
+      LiteralClassKinds(_, properties, _) -> properties
+
+  fn literal_class_posix(kinds: LiteralClassKinds) -> List(LiteralPosixClassMatch) = match kinds
+      LiteralClassKinds(_, _, posix) -> posix
+end

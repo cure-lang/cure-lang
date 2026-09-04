@@ -1,6 +1,7 @@
 ## Parser helpers for character classes inside regex literals.
 @group(:text)
 mod Std.Regex.Syntax.Class
+  use Std.Regex.Syntax.Model.ClassKinds
   use Std.Regex.Syntax.Model.Types
   use Std.Regex.Syntax.Model
 
