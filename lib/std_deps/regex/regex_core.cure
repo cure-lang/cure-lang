@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Core
+  public use Std.Regex.Core.Limits
   ## Shared indexed Regex vocabulary and definitionally relevant shape operations.
   use Std.Char
   use Std.Option
@@ -9,10 +10,6 @@ mod Std.Regex.Core
   use Std.Equivalent
   use Std.Sigma
 
-  ## One canonical resource bound shared by syntax admission, runtime child
-  ## evaluation, and proof-facing assertion entry points. Keeping this in the
-  ## core module prevents compile-time and runtime limits from drifting.
-  fn regex_assertion_depth_limit() -> Nat = S(S(S(S(Z()))))
 
   ## Cure does not otherwise expose a general-purpose Either in the current
   ## prelude. Keep the branch witness local to the typed regex result universe;

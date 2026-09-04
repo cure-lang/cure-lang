@@ -3,6 +3,7 @@
 
 @group(:text)
 mod Std.Regex.Syntax.Model
+  use Std.Regex.Core.Limits
   use Std.Regex.Core
   use Std.String
   type LiteralCharacterRange = LiteralCharacterRange(Char, Char)

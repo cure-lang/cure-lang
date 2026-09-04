@@ -323,7 +323,8 @@ defmodule Cure.Refactor.Rewrite do
           target_selected? = MapSet.member?(selected_keys, reference.identity)
 
           cond do
-            declaration_selected? and not target_selected? and is_atom(reference.identity) ->
+            declaration_selected? and not target_selected? and
+                Map.has_key?(declarations_by_id, reference.identity) ->
               {[{declaration, reference} | out], back}
 
             not declaration_selected? and target_selected? ->

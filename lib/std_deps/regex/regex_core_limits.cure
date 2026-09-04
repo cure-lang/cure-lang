@@ -1,0 +1,21 @@
+@group(:text)
+mod Std.Regex.Core.Limits
+  use Std.Char
+
+  use Std.Option
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  ## One canonical resource bound shared by syntax admission, runtime child
+    ## evaluation, and proof-facing assertion entry points. Keeping this in the
+    ## core module prevents compile-time and runtime limits from drifting.
+    fn regex_assertion_depth_limit() -> Nat = S(S(S(S(Z()))))
+end

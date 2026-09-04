@@ -151,6 +151,23 @@ defmodule Cure.Refactor.RewriteTest do
     assert File.read!(path) =~ "fn root()"
   end
 
+  test "prelude constructors do not look like source-side split dependencies", %{dir: dir} do
+    path = Path.join(dir, "source.cure")
+
+    File.write!(path, """
+    mod Source
+      fn bound() -> Nat = S(S(Z()))
+      fn keep() -> Int = 1
+    end
+    """)
+
+    assert {:ok, result} =
+             Rewrite.split(path, "limits.cure:Extracted:bound", output_directory: dir)
+
+    assert result.selected == ["bound"]
+    assert result.added_imports == ["public use Extracted"]
+  end
+
   test "declaration spans include every expression in a multiline body", %{dir: dir} do
     path = Path.join(dir, "multiline.cure")
 

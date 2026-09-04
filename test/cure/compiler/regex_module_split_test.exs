@@ -45,13 +45,7 @@ defmodule Cure.Compiler.RegexModuleSplitTest do
 
   test "the Regex layers have one-way manifest ownership" do
     paths =
-      [
-        "lib/std_deps/regex/regex_core.cure",
-        "lib/std_deps/regex/regex_runtime.cure",
-        "lib/std_deps/regex/regex_proof.cure",
-        "lib/std_deps/regex/regex.cure",
-        "lib/std_deps/regex/regex_language.cure"
-      ]
+      Path.wildcard("lib/std_deps/regex/regex*.cure")
       |> Enum.map(&Path.expand/1)
 
     assert {:ok, stdlib_index} =

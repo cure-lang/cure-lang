@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  use Std.Regex.Core.Limits
   ## Executable Regex machine, evidence VM, typed compiler, and combinators.
   use Std.Regex.Core
   use Std.Char
