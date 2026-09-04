@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.Named
   public use Std.Regex.Runtime.Split
   use Std.Regex.Core.Capture
   use Std.Regex.Core.Boundary
@@ -22715,9 +22716,7 @@ mod Std.Regex.Runtime
   ## ordinary Match tuple, so existing typed regex APIs remain unchanged.
   type CaptureSlot = CaptureSlot(Nat, Option(String))
   type CaptureLayout = CaptureLayout(List(CaptureSlot))
-  type NamedCapture = NamedCapture(String, Option(String))
   type NamedMatch(result: Type) = NamedMatch(Match(result), List(NamedCapture))
-  type NamedParse(result: Type) = NamedParse(result, List(NamedCapture))
   ## The public result type and the checked Thompson shape are independent:
   ## conversions may expose `Option`, `List`, or a simplified tuple while the
   ## machine still carries its constructor-preserving shape.  Keep the machine

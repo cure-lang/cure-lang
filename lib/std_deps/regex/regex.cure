@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex
+  use Std.Regex.Runtime.Named
   use Std.Regex.Runtime.Split
   use Std.Regex.Core.Initial
   use Std.Regex.Core.Newline
