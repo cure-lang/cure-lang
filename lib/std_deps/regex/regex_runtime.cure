@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.CharacterSemantics
   public use Std.Regex.Runtime.Conversion
   use Std.Regex.Runtime.ProgramTypes
   public use Std.Regex.Runtime.ProgramTypes
@@ -21788,169 +21789,24 @@ mod Std.Regex.Runtime
   fn character_class_with_options(chars: List(Char), ranges: List(CharacterRange), negated: Bool, caseless: Bool, unicode: Bool) -> Regex(Char) =
     predicate(option_class_test(chars, ranges, negated, caseless, unicode))
 
-  fn class_kinds_match(kinds: ClassKinds, actual: Char, unicode: Bool) -> Bool = match kinds
-    ClassKinds(digit, not_digit, word, not_word, space, not_space, horizontal, not_horizontal, vertical, not_vertical) ->
-      (digit and option_digit(actual, unicode)) or
-        (not_digit and not option_digit(actual, unicode)) or
-        (word and option_word(actual, unicode)) or
-        (not_word and not option_word(actual, unicode)) or
-        (space and option_space(actual, unicode)) or
-        (not_space and not option_space(actual, unicode)) or
-        (horizontal and Std.Char.is_horizontal_space(actual)) or
-        (not_horizontal and not Std.Char.is_horizontal_space(actual)) or
-        (vertical and Std.Char.is_vertical_space(actual)) or
-        (not_vertical and not Std.Char.is_vertical_space(actual))
 
-  fn unicode_category_in(category: Atom, values: List(Atom)) -> Bool = match values
-    [] -> false
-    [head | rest] -> pickup
-      category == head -> true
-      else -> unicode_category_in(category, rest)
 
-  fn unicode_property_matches(property: UnicodeProperty, actual: Char) -> Bool =
-    let category = Std.Char.unicode_category(actual)
-    match property
-      PropertyNonNewline -> not Std.Char.is_newline(actual)
-      PropertyAny -> true
-      PropertyAscii -> Std.Char.is_ascii(actual)
-      PropertyCased -> Std.Char.is_cased(actual)
-      PropertyLowercase -> Std.Char.is_lowercase(actual)
-      PropertyUppercase -> Std.Char.is_uppercase(actual)
-      PropertyAlphabetic -> Std.Char.is_letter(actual)
-      PropertyWhiteSpace -> Std.Char.is_unicode_space(actual)
-      PropertyHexDigit -> Std.Char.is_hex_digit(actual)
-      PropertyMath -> Std.Char.is_math_symbol(actual)
-      PropertyCurrencyBinary -> Std.Char.is_currency_symbol(actual)
-      PropertyScript(script) -> Std.Char.unicode_script(actual) == script
-      PropertyScriptExtensions(script) -> Std.Char.unicode_script_extensions?(actual, script)
-      PropertyBidiClass(bidi_class) -> Std.Char.unicode_bidi_class(actual) == bidi_class
-      PropertyBidiPairedBracketType(bpt) -> Std.Char.unicode_bidi_paired_bracket_type?(actual, bpt)
-      PropertyCategory(category) -> Std.Char.unicode_general_category?(actual, category)
-      PropertyBinary(property) -> Std.Char.unicode_binary_property?(actual, property)
-      PropertyLetter -> unicode_category_in(category, [:Lu, :Ll, :Lt, :Lm, :Lo])
-      PropertyLowercaseLetter -> category == :Ll
-      PropertyUppercaseLetter -> category == :Lu
-      PropertyTitlecaseLetter -> category == :Lt
-      PropertyModifierLetter -> category == :Lm
-      PropertyOtherLetter -> category == :Lo
-      PropertyMark -> unicode_category_in(category, [:Mc, :Me, :Mn])
-      PropertySpacingMark -> category == :Mc
-      PropertyEnclosingMark -> category == :Me
-      PropertyNonspacingMark -> category == :Mn
-      PropertyNumber -> unicode_category_in(category, [:Nd, :Nl, :No])
-      PropertyDecimalNumber -> category == :Nd
-      PropertyLetterNumber -> category == :Nl
-      PropertyOtherNumber -> category == :No
-      PropertyPunctuation -> unicode_category_in(category, [:Pc, :Pd, :Pe, :Pf, :Pi, :Po, :Ps])
-      PropertyConnectorPunctuation -> category == :Pc
-      PropertyDashPunctuation -> category == :Pd
-      PropertyClosePunctuation -> category == :Pe
-      PropertyFinalPunctuation -> category == :Pf
-      PropertyInitialPunctuation -> category == :Pi
-      PropertyOtherPunctuation -> category == :Po
-      PropertyOpenPunctuation -> category == :Ps
-      PropertySymbol -> unicode_category_in(category, [:Sc, :Sk, :Sm, :So])
-      PropertyCurrencySymbol -> category == :Sc
-      PropertyModifierSymbol -> category == :Sk
-      PropertyMathSymbol -> category == :Sm
-      PropertyOtherSymbol -> category == :So
-      PropertySeparator -> unicode_category_in(category, [:Zl, :Zp, :Zs])
-      PropertyLineSeparator -> category == :Zl
-      PropertyParagraphSeparator -> category == :Zp
-      PropertySpaceSeparator -> category == :Zs
-      PropertyOther -> unicode_category_in(category, [:Cc, :Cf, :Cn, :Co, :Cs])
-      PropertyControl -> category == :Cc
-      PropertyFormat -> category == :Cf
-      PropertyUnassigned -> category == :Cn
-      PropertyPrivateUse -> category == :Co
-      PropertySurrogate -> category == :Cs
 
-  fn unicode_property_match_matches(value: UnicodePropertyMatch, actual: Char) -> Bool = match value
-    UnicodePropertyMatch(property, negated) -> unicode_property_matches(property, actual) != negated
 
-  fn unicode_property_matches_any(values: List(UnicodePropertyMatch), actual: Char) -> Bool = match values
-    [] -> false
-    [head | rest] -> pickup
-      unicode_property_match_matches(head, actual) -> true
-      else -> unicode_property_matches_any(rest, actual)
 
-  fn ascii_alpha(actual: Char) -> Bool =
-    Std.Char.between(actual, 'a', 'z') or Std.Char.between(actual, 'A', 'Z')
 
-  fn ascii_alnum(actual: Char) -> Bool =
-    ascii_alpha(actual) or ascii_digit(actual)
 
-  fn ascii_blank(actual: Char) -> Bool =
-    Std.Char.same(actual, ' ') or Std.Char.same(actual, '\t')
 
-  fn ascii_control(actual: Char) -> Bool =
-    Std.Char.is_ascii(actual) and Std.Char.unicode_category(actual) == :Cc
 
-  fn ascii_graph(actual: Char) -> Bool =
-    Std.Char.between(actual, '!', '~')
 
-  fn ascii_print(actual: Char) -> Bool =
-    Std.Char.between(actual, ' ', '~')
 
-  fn ascii_punct(actual: Char) -> Bool =
-    ascii_graph(actual) and not ascii_alnum(actual)
 
-  fn unicode_alpha(actual: Char) -> Bool =
-    unicode_property_matches(PropertyLetter, actual) or unicode_property_matches(PropertyMark, actual)
 
-  fn unicode_alnum(actual: Char) -> Bool =
-    unicode_alpha(actual) or unicode_property_matches(PropertyNumber, actual)
 
-  fn unicode_graph(actual: Char) -> Bool =
-    unicode_alnum(actual) or unicode_property_matches(PropertyPunctuation, actual) or unicode_property_matches(PropertySymbol, actual)
 
-  fn unicode_print(actual: Char) -> Bool =
-    unicode_graph(actual) or unicode_property_matches(PropertySpaceSeparator, actual)
 
-  fn posix_class_matches(posix_class: PosixClass, actual: Char, unicode: Bool) -> Bool = match posix_class
-    PosixAlnum -> pickup
-      unicode -> unicode_alnum(actual)
-      else -> ascii_alnum(actual)
-    PosixAlpha -> pickup
-      unicode -> unicode_alpha(actual)
-      else -> ascii_alpha(actual)
-    PosixAscii -> Std.Char.is_ascii(actual)
-    PosixBlank -> pickup
-      unicode -> Std.Char.is_horizontal_space(actual)
-      else -> ascii_blank(actual)
-    PosixCntrl -> pickup
-      unicode -> Std.Char.unicode_category(actual) == :Cc
-      else -> ascii_control(actual)
-    PosixDigit -> option_digit(actual, unicode)
-    PosixGraph -> pickup
-      unicode -> unicode_graph(actual)
-      else -> ascii_graph(actual)
-    PosixLower -> pickup
-      unicode -> Std.Char.is_lowercase(actual)
-      else -> Std.Char.between(actual, 'a', 'z')
-    PosixPrint -> pickup
-      unicode -> unicode_print(actual)
-      else -> ascii_print(actual)
-    PosixPunct -> pickup
-      unicode -> unicode_property_matches(PropertyPunctuation, actual)
-      else -> ascii_punct(actual)
-    PosixSpace -> option_space(actual, unicode)
-    PosixUpper -> pickup
-      unicode -> Std.Char.is_uppercase(actual)
-      else -> Std.Char.between(actual, 'A', 'Z')
-    PosixWord -> option_word(actual, unicode)
-    PosixXdigit -> pickup
-      unicode -> Std.Char.is_hex_digit(actual)
-      else -> ascii_digit(actual) or Std.Char.between(actual, 'a', 'f') or Std.Char.between(actual, 'A', 'F')
 
-  fn posix_class_match_matches(value: PosixClassMatch, actual: Char, unicode: Bool) -> Bool = match value
-    PosixClassMatch(posix_class, negated) -> posix_class_matches(posix_class, actual, unicode) != negated
 
-  fn posix_class_matches_any(values: List(PosixClassMatch), actual: Char, unicode: Bool) -> Bool = match values
-    [] -> false
-    [head | rest] -> pickup
-      posix_class_match_matches(head, actual, unicode) -> true
-      else -> posix_class_matches_any(rest, actual, unicode)
 
   fn unicode_property_test(property: UnicodeProperty, negated: Bool) -> Char -> Bool =
     fn(actual) -> unicode_property_matches(property, actual) != negated
