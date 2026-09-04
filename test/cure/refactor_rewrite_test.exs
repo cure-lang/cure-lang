@@ -134,6 +134,28 @@ defmodule Cure.Refactor.RewriteTest do
     assert File.read!(path) == source
   end
 
+  test "an ordinary use can be added alongside an existing public re-export", %{dir: dir} do
+    path = Path.join(dir, "source.cure")
+    source = "mod Source\n  public use Extracted\n  fn value() -> Int = 1\nend\n"
+    File.write!(path, source)
+
+    assert {:ok, %{source: rewritten, added?: true}} = Rewrite.ensure_use(path, "Extracted", write: false)
+    assert rewritten =~ "public use Extracted\n  use Extracted"
+    assert File.read!(path) == source
+  end
+
+  test "reducibility annotations are added to selected declarations structurally", %{dir: dir} do
+    path = Path.join(dir, "source.cure")
+    source = "mod Source\n  ## Keep this documentation attached.\n  fn value() -> Int = 1\nend\n"
+    File.write!(path, source)
+
+    assert {:ok, %{source: rewritten, added: ["value"]}} =
+             Rewrite.ensure_reducible(path, ["value"], write: false)
+
+    assert rewritten =~ "## Keep this documentation attached.\n  @reducible\n  fn value()"
+    assert File.read!(path) == source
+  end
+
   test "an ordinary import can be removed structurally", %{dir: dir} do
     path = Path.join(dir, "source.cure")
     source = "mod Source\n  use Existing\n  use Extracted\n  fn value() -> Int = 1\nend\n"

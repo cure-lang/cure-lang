@@ -209,7 +209,7 @@ defmodule Cure.Refactor.Rewrite do
     with {:ok, source} <- read_source(source_path),
          {:ok, report} <- analyze(source_path),
          :ok <- ensure_source_unchanged(source, report) do
-      if has_import?(report, target_module) do
+      if has_ordinary_use?(report, target_module) do
         {:ok, %{source: source, added?: false}}
       else
         rewritten = insert_imports(source, report, ["use #{target_module}"])
@@ -224,6 +224,59 @@ defmodule Cure.Refactor.Rewrite do
 
   def ensure_use(_source_path, _target_module, _opts),
     do: {:error, {:invalid_split_spec, "import target module must be a string"}}
+
+  @doc "Add a reducibility decorator to selected top-level declarations structurally."
+  @spec ensure_reducible(Path.t(), [String.t()], keyword()) ::
+          {:ok, %{source: String.t(), added: [String.t()]}} | {:error, error()}
+  def ensure_reducible(source_path, names, opts \\ [])
+
+  def ensure_reducible(source_path, names, opts) when is_list(names) do
+    with {:ok, source} <- read_source(source_path),
+         {:ok, report} <- analyze(source_path),
+         :ok <- ensure_source_unchanged(source, report) do
+      selected =
+        report.declarations
+        |> Enum.filter(&(&1.depth == 0 and &1.name in names))
+
+      selected_names = MapSet.new(Enum.map(selected, & &1.name))
+
+      if MapSet.size(selected_names) != length(Enum.uniq(names)) do
+        missing = Enum.reject(Enum.uniq(names), &MapSet.member?(selected_names, &1))
+        {:error, {:selection_error, "declarations not found: #{Enum.join(missing, ", ")}"}}
+      else
+        {rewritten, added} =
+          selected
+          |> Enum.sort_by(& &1.span.start_byte, :desc)
+          |> Enum.reduce({source, []}, fn declaration, {acc, added} ->
+            line_start = line_start(acc, declaration.span.start_byte)
+            line = binary_part(acc, line_start, line_end(acc, declaration.span.start_byte) - line_start)
+            indent = String.replace(line, ~r/[^ ].*$/, "")
+            previous = previous_line_start(acc, line_start)
+            previous_line = binary_part(acc, previous, line_start - previous)
+
+            if String.trim(previous_line) == "@reducible" do
+              {acc, added}
+            else
+              decorator = indent <> "@reducible\n"
+
+              updated =
+                binary_part(acc, 0, line_start) <>
+                  decorator <> binary_part(acc, line_start, byte_size(acc) - line_start)
+
+              {updated, [declaration.name | added]}
+            end
+          end)
+
+        with :ok <- verify_generated(report.module, rewritten, source_path),
+             :ok <- maybe_write_source(source_path, rewritten, opts) do
+          {:ok, %{source: rewritten, added: Enum.reverse(added)}}
+        end
+      end
+    end
+  end
+
+  def ensure_reducible(_source_path, _names, _opts),
+    do: {:error, {:invalid_split_spec, "reducible declarations must be a list of names"}}
 
   @doc "Remove ordinary structural `use` imports for a module."
   @spec remove_use(Path.t(), String.t(), keyword()) ::
@@ -515,6 +568,12 @@ defmodule Cure.Refactor.Rewrite do
 
   defp has_import?(report, module) do
     Enum.any?(report.imports, &(&1.source == module))
+  end
+
+  defp has_ordinary_use?(report, module) do
+    Enum.any?(report.imports, fn import ->
+      import.source == module and import.import_type == "use" and not import.public
+    end)
   end
 
   defp public_declarations?(declarations) do

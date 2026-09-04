@@ -1,0 +1,182 @@
+@group(:text)
+mod Std.Regex.Runtime.StateOps
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Runtime.CaptureConditions
+
+  use Std.Regex.Runtime.Boundaries
+
+  use Std.Regex.Runtime.AtomicDiagnostics
+
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Char
+
+  use Std.Option
+
+  use Std.List
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  use Std.Decision
+
+  @reducible
+  fn machine_state_routine(n: Nat, state: MachineState(n)) -> List(EvidenceInstruction) = match state
+    Active(_, routine, _) -> routine
+    Accepted(routine, _) -> routine
+
+  fn append_routine(left: List(EvidenceInstruction), right: List(EvidenceInstruction)) -> List(EvidenceInstruction) = match left
+    [] -> right
+    [head | rest] -> [head | append_routine(rest, right)]
+
+  @reducible
+  fn append_states({n: Nat}, left: List(MachineState(n)), right: List(MachineState(n))) -> List(MachineState(n)) = match left
+    [] -> right
+    [head | rest] -> [head | append_states(rest, right)]
+
+  @reducible
+  fn append_machine_states(n: Nat, left: List(MachineState(n)), right: List(MachineState(n))) -> List(MachineState(n)) =
+    append_states(left, right)
+
+  fn append_constraints(left: List(BoundaryConstraint), right: List(BoundaryConstraint)) -> List(BoundaryConstraint) = match left
+    [] -> right
+    [head | rest] -> [head | append_constraints(rest, right)]
+
+  @reducible
+  fn inject_left_states({left_count: Nat}, {right_count: Nat}, states: List(MachineState(left_count))) -> List(MachineState(plus(left_count, right_count))) = match states
+    [] -> []
+    [Accepted(routine, constraints) | rest] -> [Accepted(routine, constraints) | inject_left_states(rest)]
+    [Active(state, routine, constraints) | rest] -> [Active(inject_left_at(left_count, right_count, state), routine, constraints) | inject_left_states(rest)]
+
+  @reducible
+  fn inject_alternate_left(left_count: Nat, right_count: Nat, state: Bounded(left_count)) -> Bounded(plus(left_count, right_count)) =
+    inject_left(state)
+
+  @reducible
+  fn inject_alternate_right(left_count: Nat, right_count: Nat, state: Bounded(right_count)) -> Bounded(plus(left_count, right_count)) =
+    inject_right(left_count, state)
+
+  fn alternate_left_injection_is_widening({left_count: Nat}, @erased right_count: Nat, state: Bounded(left_count)) -> Equivalent(Bounded(plus(left_count, right_count)), inject_alternate_left(left_count, right_count, state), inject_left_at(left_count, right_count, state)) =
+    reflexive(inject_left_at(left_count, right_count, state))
+
+  fn alternate_left_widening_is_injection({left_count: Nat}, @erased right_count: Nat, state: Bounded(left_count)) -> Equivalent(Bounded(plus(left_count, right_count)), inject_left_at(left_count, right_count, state), inject_alternate_left(left_count, right_count, state)) =
+    reflexive(inject_left_at(left_count, right_count, state))
+
+  fn alternate_right_injection_is_inject_right(left_count: Nat, {right_count: Nat}, state: Bounded(right_count)) -> Equivalent(Bounded(plus(left_count, right_count)), inject_alternate_right(left_count, right_count, state), inject_right_at(left_count, right_count, state)) =
+    reflexive(inject_right_at(left_count, right_count, state))
+
+  @reducible
+  fn inject_right_states(left_count: Nat, {right_count: Nat}, states: List(MachineState(right_count))) -> List(MachineState(plus(left_count, right_count))) = match states
+    [] -> []
+    [Accepted(routine, constraints) | rest] -> [Accepted(routine, constraints) | inject_right_states(left_count, rest)]
+    [Active(state, routine, constraints) | rest] -> [Active(inject_right(left_count, state), routine, constraints) | inject_right_states(left_count, rest)]
+
+  @reducible
+  fn enter_right_with_constraints(left_count: Nat, {right_count: Nat}, left_routine: List(EvidenceInstruction), left_constraints: List(BoundaryConstraint), right_starts: List(MachineState(right_count))) -> List(MachineState(plus(left_count, right_count))) = match right_starts
+    [] -> []
+    [Accepted(right_routine, right_constraints) | rest] ->
+      [Accepted(append_routine(append_routine(left_routine, right_routine), [EmitPair()]), append_constraints(left_constraints, right_constraints)) | enter_right_with_constraints(left_count, left_routine, left_constraints, rest)]
+    [Active(state, right_routine, right_constraints) | rest] ->
+      [Active(inject_right(left_count, state), append_routine(left_routine, right_routine), append_constraints(left_constraints, right_constraints)) | enter_right_with_constraints(left_count, left_routine, left_constraints, rest)]
+
+  fn enter_right(left_count: Nat, {right_count: Nat}, left_routine: List(EvidenceInstruction), right_starts: List(MachineState(right_count))) -> List(MachineState(plus(left_count, right_count))) =
+    enter_right_with_constraints(left_count, left_routine, [], right_starts)
+
+  @reducible
+  fn continue_with_right(left_count: Nat, {right_count: Nat}, left_states: List(MachineState(left_count)), right_starts: List(MachineState(right_count))) -> List(MachineState(plus(left_count, right_count))) = match left_states
+    [] -> []
+    [Accepted(left_routine, constraints) | rest] -> append_states(enter_right_with_constraints(left_count, left_routine, constraints, right_starts), continue_with_right(left_count, rest, right_starts))
+    [Active(state, routine, constraints) | rest] -> [Active(inject_left_at(left_count, right_count, state), routine, constraints) | continue_with_right(left_count, rest, right_starts)]
+
+  @reducible
+  fn finish_pair({n: Nat}, states: List(MachineState(n))) -> List(MachineState(n)) = match states
+    [] -> []
+    [Accepted(routine, constraints) | rest] -> [Accepted(append_routine(routine, [EmitPair()]), constraints) | finish_pair(rest)]
+    [Active(state, routine, constraints) | rest] -> [Active(state, routine, constraints) | finish_pair(rest)]
+
+  @reducible
+  fn mark_branch({n: Nat}, states: List(MachineState(n)), marker: EvidenceInstruction) -> List(MachineState(n)) = match states
+    [] -> []
+    [Accepted(routine, constraints) | rest] -> [Accepted(append_routine(routine, [marker]), constraints) | mark_branch(rest, marker)]
+    [Active(state, routine, constraints) | rest] -> [Active(state, routine, constraints) | mark_branch(rest, marker)]
+
+  @reducible
+  fn append_branch_marker(routine: List(EvidenceInstruction), marker: EvidenceInstruction) -> List(EvidenceInstruction) =
+    append_routine(routine, Cons(marker, Nil()))
+
+  @reducible
+  fn alternate_left_states(left_count: Nat, right_count: Nat, states: List(MachineState(left_count)), marker: EvidenceInstruction) -> List(MachineState(plus(left_count, right_count))) =
+    inject_left_states(mark_branch(states, marker))
+
+  @reducible
+  fn alternate_right_states(left_count: Nat, right_count: Nat, states: List(MachineState(right_count)), marker: EvidenceInstruction) -> List(MachineState(plus(left_count, right_count))) =
+    inject_right_states(left_count, mark_branch(states, marker))
+
+  fn prefix_routine({n: Nat}, instruction: EvidenceInstruction, states: List(MachineState(n))) -> List(MachineState(n)) = match states
+    [] -> []
+    [Accepted(routine, constraints) | rest] -> [Accepted([instruction | routine], constraints) | prefix_routine(instruction, rest)]
+    [Active(state, routine, constraints) | rest] -> [Active(state, [instruction | routine], constraints) | prefix_routine(instruction, rest)]
+
+  @reducible
+  fn finish_capture_with({n: Nat}, end_instruction: EvidenceInstruction, states: List(MachineState(n))) -> List(MachineState(n)) = match states
+    [] -> []
+    [Accepted(routine, constraints) | rest] -> [Accepted(append_routine(routine, [end_instruction]), constraints) | finish_capture_with(end_instruction, rest)]
+    [Active(state, routine, constraints) | rest] -> [Active(state, routine, constraints) | finish_capture_with(end_instruction, rest)]
+
+  @reducible
+  fn finish_capture({n: Nat}, states: List(MachineState(n))) -> List(MachineState(n)) =
+    finish_capture_with(EndCapture(), states)
+
+  @reducible
+  fn repeat_accepting({n: Nat}, routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint)) -> List(MachineState(n)) =
+    [Accepted(append_routine(routine, [EndList()]), constraints)]
+
+  @reducible
+  fn repeat_destination_order({n: Nat}, routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), starts: List(MachineState(n)), lazy: Bool) -> List(MachineState(n)) = pickup
+    lazy -> append_states(repeat_accepting(routine, constraints), enter_repeat_with_constraints(routine, constraints, starts))
+    else -> append_states(enter_repeat_with_constraints(routine, constraints, starts), repeat_accepting(routine, constraints))
+
+  @reducible
+  fn repeat_destinations({n: Nat}, destinations: List(MachineState(n)), starts: List(MachineState(n)), lazy: Bool) -> List(MachineState(n)) = match destinations
+    [] -> []
+    [Accepted(routine, constraints) | rest] ->
+      append_states(repeat_destination_order(routine, constraints, starts, lazy), repeat_destinations(rest, starts, lazy))
+    [Active(state, routine, constraints) | rest] -> [Active(state, routine, constraints) | repeat_destinations(rest, starts, lazy)]
+
+  @reducible
+  fn enter_repeat_with_constraints({n: Nat}, routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), starts: List(MachineState(n))) -> List(MachineState(n)) = match starts
+    [] -> []
+    [Accepted(_, _) | rest] -> enter_repeat_with_constraints(routine, constraints, rest)
+    [Active(state, next_routine, next_constraints) | rest] ->
+      [Active(state, append_routine(routine, next_routine), append_constraints(constraints, next_constraints)) | enter_repeat_with_constraints(routine, constraints, rest)]
+
+  @reducible
+  fn enter_repeat({n: Nat}, routine: List(EvidenceInstruction), starts: List(MachineState(n))) -> List(MachineState(n)) =
+    enter_repeat_with_constraints(routine, [], starts)
+end
