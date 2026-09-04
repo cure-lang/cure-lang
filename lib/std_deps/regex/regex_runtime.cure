@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.NamedCaptureSearch
   public use Std.Regex.Runtime.PatternSearch
   public use Std.Regex.Runtime.EvidenceSearch
   public use Std.Regex.Runtime.MachineSearch
@@ -21011,23 +21012,8 @@ mod Std.Regex.Runtime
 
 
 
-  type NamedPrefixCapture = NamedPrefixCapture(List(Char), List(Char), List(NamedCapture))
 
-  fn named_full_capture({shape: ShapeCode}, compilation: NamedThompsonCompilation(shape), input: String, layout: CaptureLayout) -> Option(List(NamedCapture)) =
-    let characters = Std.String.characters(input)
-    match named_search_machine_acceptance(named_thompson_state_count(compilation), named_thompson_machine(compilation), subject_initial_position(), characters, [])
-      NamedMachineNoPath() -> None()
-      NamedMachinePath(routine) -> replay_named_capture_routine(routine, layout)
 
-  fn named_prefix_capture_at({shape: ShapeCode}, compilation: NamedThompsonCompilation(shape), input: List(Char), greedy: Bool, position: InitialPosition, layout: CaptureLayout) -> Option(NamedPrefixCapture) =
-    let result = pickup
-      greedy -> named_search_last_prefix(named_thompson_state_count(compilation), named_thompson_machine(compilation), position, input)
-      else -> named_search_first_prefix(named_thompson_state_count(compilation), named_thompson_machine(compilation), position, input)
-    match result
-      NamedNoPrefix() -> None()
-      NamedPrefixPath(matched, remaining, routine) -> match replay_named_capture_routine(routine, layout)
-        None() -> None()
-        Some(captures) -> Some(NamedPrefixCapture(matched, remaining, captures))
 
   ## Named replay for a lookaround-aware compilation uses the same checked
   ## finite machine as assertion acceptance.  Unlike the typed path, the
