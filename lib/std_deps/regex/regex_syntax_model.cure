@@ -3,6 +3,7 @@
 
 @group(:text)
 mod Std.Regex.Syntax.Model
+  public use Std.Regex.Syntax.Model.Collections
   public use Std.Regex.Syntax.Model.Modifiers
   public use Std.Regex.Syntax.Model.ClassPredicates
   public use Std.Regex.Syntax.Model.Shape
@@ -766,14 +767,3 @@ mod Std.Regex.Syntax.Model
   fn parse_literal_unicode_property(input: List(Char)) -> LiteralPropertyParse = match input
     ['{' | rest] -> parse_literal_unicode_property_name(rest, [])
     _ -> LiteralPropertyInvalid(:MalformedRegexUnicodeProperty)
-
-
-  fn reverse_chars(values: List(Char)) -> List(Char) = reverse_chars_into(values, [])
-  fn reverse_chars_into(values: List(Char), output: List(Char)) -> List(Char) = match values
-    [] -> output
-    [head | rest] -> reverse_chars_into(rest, [head | output])
-
-  fn reverse_ranges(values: List(LiteralCharacterRange)) -> List(LiteralCharacterRange) = reverse_ranges_into(values, [])
-  fn reverse_ranges_into(values: List(LiteralCharacterRange), output: List(LiteralCharacterRange)) -> List(LiteralCharacterRange) = match values
-    [] -> output
-    [head | rest] -> reverse_ranges_into(rest, [head | output])

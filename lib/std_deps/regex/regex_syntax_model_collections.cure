@@ -1,0 +1,37 @@
+## Compile-time-only literal syntax tree. It is consumed by `expand_literal`
+## and never appears in generated matching code.
+
+@group(:text)
+mod Std.Regex.Syntax.Model.Collections
+  use Std.Regex.Syntax.Model.Modifiers
+
+  use Std.Regex.Syntax.Model.ClassPredicates
+
+  use Std.Regex.Syntax.Model.Shape
+
+  use Std.Regex.Syntax.Model.Utilities
+
+  use Std.Regex.Syntax.Model.ClassKinds
+
+  use Std.Regex.Syntax.Model.Predicates
+
+  use Std.Regex.Syntax.Model.Types
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.String
+
+  fn reverse_chars(values: List(Char)) -> List(Char) = reverse_chars_into(values, [])
+
+  fn reverse_chars_into(values: List(Char), output: List(Char)) -> List(Char) = match values
+      [] -> output
+      [head | rest] -> reverse_chars_into(rest, [head | output])
+
+  fn reverse_ranges(values: List(LiteralCharacterRange)) -> List(LiteralCharacterRange) = reverse_ranges_into(values, [])
+
+  fn reverse_ranges_into(values: List(LiteralCharacterRange), output: List(LiteralCharacterRange)) -> List(LiteralCharacterRange) = match values
+      [] -> output
+      [head | rest] -> reverse_ranges_into(rest, [head | output])
+end

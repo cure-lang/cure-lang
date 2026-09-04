@@ -260,6 +260,22 @@ defmodule Cure.Refactor.Rewrite do
   def remove_use(_source_path, _target_module, _opts),
     do: {:error, {:invalid_split_spec, "import target module must be a string"}}
 
+  @doc "Normalize a source file to one trailing newline through the structural rewrite path."
+  @spec normalize_trailing_newline(Path.t(), keyword()) ::
+          {:ok, %{source: String.t(), changed?: boolean()}} | {:error, error()}
+  def normalize_trailing_newline(source_path, opts \\ []) do
+    with {:ok, source} <- read_source(source_path),
+         {:ok, report} <- analyze(source_path),
+         :ok <- ensure_source_unchanged(source, report) do
+      rewritten = String.trim_trailing(source, "\n") <> "\n"
+
+      with :ok <- verify_generated(report.module, rewritten, source_path),
+           :ok <- maybe_write_source(source_path, rewritten, opts) do
+        {:ok, %{source: rewritten, changed?: rewritten != source}}
+      end
+    end
+  end
+
   defp normalize_spec(spec) when is_map(spec) do
     with {:ok, target_file} <- nonempty_string(spec[:target_file], :target_file),
          {:ok, target_module} <- nonempty_string(spec[:target_module], :target_module),

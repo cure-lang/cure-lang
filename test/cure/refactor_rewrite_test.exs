@@ -145,6 +145,16 @@ defmodule Cure.Refactor.RewriteTest do
     assert File.read!(path) == source
   end
 
+  test "trailing newline normalization is verified before writing", %{dir: dir} do
+    path = Path.join(dir, "source.cure")
+    source = "mod Source\n  fn value() -> Int = 1\nend\n\n"
+    File.write!(path, source)
+
+    assert {:ok, %{source: rewritten, changed?: true}} = Rewrite.normalize_trailing_newline(path, write: true)
+    assert rewritten == "mod Source\n  fn value() -> Int = 1\nend\n"
+    assert File.read!(path) == rewritten
+  end
+
   test "a split that would require a back-edge is rejected before writing", %{dir: dir} do
     path = Path.join(dir, "source.cure")
 
