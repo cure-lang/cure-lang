@@ -1,0 +1,22 @@
+@group(:text)
+mod Std.Regex.Core.Newline
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Char
+
+  use Std.Option
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  type NewlinePolicy = LFNewline | CRNewline | CRLFNewline | AnyCRLFNewline | AnyUnicodeNewline
+end

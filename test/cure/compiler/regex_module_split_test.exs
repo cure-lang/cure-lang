@@ -237,6 +237,7 @@ defmodule Cure.Compiler.RegexModuleSplitTest do
       {:Pattern, "Std.Regex.Core"},
       {:ShapeCode, "Std.Regex.Core"},
       {:EvidenceInstruction, "Std.Regex.Core.Evidence"},
+      {:NewlinePolicy, "Std.Regex.Core.Newline"},
       {:Evidence, "Std.Regex.Core"},
       {:Encodes, "Std.Regex.Core"},
       {:EncodesMany, "Std.Regex.Core"},
@@ -277,11 +278,11 @@ defmodule Cure.Compiler.RegexModuleSplitTest do
     canonical_families =
       env.families
       |> Map.keys()
-      |> Enum.filter(&(Name.owner(&1) in ["Std.Regex.Core", "Std.Regex.Core.Evidence", "Std.Regex.Runtime"]))
+      |> Enum.filter(&(Name.owner(&1) in ["Std.Regex.Core", "Std.Regex.Core.Evidence", "Std.Regex.Core.Newline", "Std.Regex.Runtime"]))
 
     Enum.each(canonical_families, fn key ->
       refute Inductive.get_family(env, String.to_atom("Std.Regex##{Name.base(key)}"))
-      assert Name.owner(key) in ["Std.Regex.Core", "Std.Regex.Core.Evidence", "Std.Regex.Runtime"]
+      assert Name.owner(key) in ["Std.Regex.Core", "Std.Regex.Core.Evidence", "Std.Regex.Core.Newline", "Std.Regex.Runtime"]
     end)
   end
 

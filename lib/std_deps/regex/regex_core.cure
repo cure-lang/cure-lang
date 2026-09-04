@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Core
+  public use Std.Regex.Core.Newline
   public use Std.Regex.Core.Evidence
   public use Std.Regex.Core.Limits
   ## Shared indexed Regex vocabulary and definitionally relevant shape operations.
@@ -299,7 +300,6 @@ mod Std.Regex.Core
     PatternBoundary : BoundaryConstraint -> Pattern(UnitC)
 
 
-  type NewlinePolicy = LFNewline | CRNewline | CRLFNewline | AnyCRLFNewline | AnyUnicodeNewline
   type InitialPosition = InitialPosition(Bool, Bool, Bool, Bool, Option(Char))
   ## Ordinary boundaries remain the small ten-field context used by the
   ## existing Thompson proof. Lookaround evaluators carry their suffix and
