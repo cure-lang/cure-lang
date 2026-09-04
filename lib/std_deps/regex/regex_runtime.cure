@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.MachineSearch
   public use Std.Regex.Runtime.CharacterClasses
   public use Std.Regex.Runtime.NamedSearch
   public use Std.Regex.Runtime.MachineTransitions
@@ -317,10 +318,6 @@ mod Std.Regex.Runtime
 
 
 
-  type CertifiedPathRoutine indices (routine: List(ExtendedInstruction), input_evidence: List(Evidence), input_captures: List(CaptureFrame), output_evidence: List(Evidence))
-    PathRoutineDone : CertifiedPathRoutine(Nil(), evidence, captures, evidence)
-    PathRoutineTransition : (char: Char) -> (regular: List(EvidenceInstruction)) -> (suffix_routine: List(ExtendedInstruction)) -> (destination_evidence: List(Evidence)) -> (destination_captures: List(CaptureFrame)) -> (regular_execution : ExtendedEvidenceRoutineExecution(regular_routine(regular), source_evidence, record_capture_char(source_captures, char), destination_evidence, destination_captures)) -> (suffix : CertifiedPathRoutine(suffix_routine, destination_evidence, destination_captures, final_evidence)) -> CertifiedPathRoutine(append_extended_routines(transition_routine(char, regular), suffix_routine), source_evidence, source_captures, final_evidence)
-    PathRoutineInitial : (regular: List(EvidenceInstruction)) -> (suffix_routine: List(ExtendedInstruction)) -> (initial_evidence: List(Evidence)) -> (initial_captures: List(CaptureFrame)) -> (regular_execution : ExtendedEvidenceRoutineExecution(regular_routine(regular), Nil(), Nil(), initial_evidence, initial_captures)) -> (suffix : CertifiedPathRoutine(suffix_routine, initial_evidence, initial_captures, final_evidence)) -> CertifiedPathRoutine(append_extended_routines(regular_routine(regular), suffix_routine), Nil(), Nil(), final_evidence)
 
 
 
@@ -3397,12 +3394,6 @@ mod Std.Regex.Runtime
 
 
 
-  ## Intrinsic list membership. The witness is erased at every accepting-run
-  ## boundary; its only purpose is to make every path edge name a destination
-  ## that the checked transition relation actually produced.
-  type ListMember(a: Type) indices (value: a, values: List(a))
-    ListMemberHere : ListMember(a, value, Cons(value, rest))
-    ListMemberThere : (prior : ListMember(a, value, rest)) -> ListMember(a, value, Cons(other, rest))
 
   ## Make the two cases of a selected start explicit before the refutation
   ## induction: either the selected member is the rejected head, or its
@@ -3992,21 +3983,11 @@ mod Std.Regex.Runtime
       ListMemberHere() -> lookaround_admitted_cursor_suffix_here(value, rest)
       ListMemberThere(prior) -> lookaround_admitted_cursor_suffix_there(head, value, rest, prior)
 
-  fn member_here({a: Type}, value: a, rest: List(a)) -> ListMember(a, value, Cons(value, rest)) = ListMemberHere()
 
-  fn member_there({a: Type}, head: a, {value: a}, {rest: List(a)}, member: ListMember(a, value, rest)) -> ListMember(a, value, Cons(head, rest)) = ListMemberThere(member)
 
   fn transport_list_member({a: Type}, value: a, {left: List(a)}, {right: List(a)}, member: ListMember(a, value, left), equality: Equivalent(List(a), left, right)) -> ListMember(a, value, right) = match equality
     reflexive() -> member
 
-  ## A candidate list whose every element is paired with erased evidence that it
-  ## belongs to the original transition result. State and proof are introduced by
-  ## the same constructor, so dependent pattern refinement never has to relate two
-  ## sibling scrutinees.
-  type MachineStateMembers(n: Nat) indices (whole: List(MachineState(n)), remaining_values: List(MachineState(n)))
-    MachineStateMembersNil : MachineStateMembers(n, whole, Nil())
-    MachineStateMembersActive : (state: Bounded(n)) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (member : ListMember(MachineState(n), Active(state, routine, constraints), whole)) -> (remaining: MachineStateMembers(n, whole, values)) -> MachineStateMembers(n, whole, Cons(Active(state, routine, constraints), values))
-    MachineStateMembersAccepted : (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (member : ListMember(MachineState(n), Accepted(routine, constraints), whole)) -> (remaining: MachineStateMembers(n, whole, values)) -> MachineStateMembers(n, whole, Cons(Accepted(routine, constraints), values))
 
   ## Normalize the terminal member spine at the same construction site as its
   ## destination equation.  `MachineStateMembersNil` deliberately permits an
@@ -4027,15 +4008,7 @@ mod Std.Regex.Runtime
   fn machine_state_members_accepted_current_edge({n: Nat}, routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), {whole: List(MachineState(n))}, {values: List(MachineState(n))}, members: MachineStateMembers(n, whole, Cons(Accepted(routine, constraints), values))) -> ListMember(MachineState(n), Accepted(routine, constraints), Cons(Accepted(routine, constraints), values)) = match members
     MachineStateMembersAccepted(_, _, _, _) -> ListMemberHere()
 
-  fn weaken_machine_state_members({n: Nat}, head: MachineState(n), {whole: List(MachineState(n))}, {values: List(MachineState(n))}, members: MachineStateMembers(n, whole, values)) -> MachineStateMembers(n, Cons(head, whole), values) = match members
-    MachineStateMembersNil() -> MachineStateMembersNil()
-    MachineStateMembersActive(state, routine, constraints, member, remaining) -> MachineStateMembersActive(state, routine, constraints, member_there(head, member), weaken_machine_state_members(head, remaining))
-    MachineStateMembersAccepted(routine, constraints, member, remaining) -> MachineStateMembersAccepted(routine, constraints, member_there(head, member), weaken_machine_state_members(head, remaining))
 
-  fn machine_state_members({n: Nat}, values: List(MachineState(n))) -> MachineStateMembers(n, values, values) = match values
-    [] -> MachineStateMembersNil()
-    [Active(state, routine, constraints) | rest] -> MachineStateMembersActive(state, routine, constraints, member_here(Active(state, routine, constraints), rest), weaken_machine_state_members(Active(state, routine, constraints), machine_state_members(rest)))
-    [Accepted(routine, constraints) | rest] -> MachineStateMembersAccepted(routine, constraints, member_here(Accepted(routine, constraints), rest), weaken_machine_state_members(Accepted(routine, constraints), machine_state_members(rest)))
 
   ## Turn a structurally enumerated candidate list into the compact erased
   ## exhaustion witness used by assertion refutations.  The recursive call is
@@ -4066,10 +4039,6 @@ mod Std.Regex.Runtime
     EvidenceStepActive : (destination: Bounded(n)) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (edge : ListMember(MachineState(n), Active(destination, routine, constraints), machine_destinations(n, machine, source_state, char, boundary))) -> (execution : RoutineExecution(routine, source_evidence, record_capture_char(source_captures, char), result_evidence, result_captures)) -> EvidenceStep(n, machine, char, boundary, source_state, source_evidence, source_captures, ThreadActive(destination), result_evidence, result_captures)
     EvidenceStepAccepted : (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (edge : ListMember(MachineState(n), Accepted(routine, constraints), machine_destinations(n, machine, source_state, char, boundary))) -> (execution : RoutineExecution(routine, source_evidence, record_capture_char(source_captures, char), result_evidence, result_captures)) -> EvidenceStep(n, machine, char, boundary, source_state, source_evidence, source_captures, ThreadAccepted(), result_evidence, result_captures)
 
-  type AcceptingFrom(n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), current_evidence: List(Evidence), captures: List(CaptureFrame), final_evidence: List(Evidence), extended_routine: List(ExtendedInstruction))
-    AcceptingNow : AcceptingFrom(n, machine, Nil(), after_input, ThreadAccepted(), evidence, captures, evidence, Nil())
-    AcceptingNextActive : (destination: Bounded(n)) -> (regular: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (destination_evidence: List(Evidence)) -> (destination_captures: List(CaptureFrame)) -> (suffix_routine: List(ExtendedInstruction)) -> (edge : ListMember(MachineState(n), Active(destination, regular, constraints), machine_destinations(n, machine, state, char, transition_boundary_before(char, rest, after_input)))) -> (execution : RoutineExecution(regular, current_evidence, record_capture_char(captures, char), destination_evidence, destination_captures)) -> (suffix : AcceptingFrom(n, machine, rest, after_input, ThreadActive(destination), destination_evidence, destination_captures, final_evidence, suffix_routine)) -> AcceptingFrom(n, machine, Cons(char, rest), after_input, state, current_evidence, captures, final_evidence, append_extended_routines(transition_routine(char, regular), suffix_routine))
-    AcceptingNextAccepted : (regular: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (destination_evidence: List(Evidence)) -> (destination_captures: List(CaptureFrame)) -> (suffix_routine: List(ExtendedInstruction)) -> (edge : ListMember(MachineState(n), Accepted(regular, constraints), machine_destinations(n, machine, state, char, transition_boundary_before(char, rest, after_input)))) -> (execution : RoutineExecution(regular, current_evidence, record_capture_char(captures, char), destination_evidence, destination_captures)) -> (suffix : AcceptingFrom(n, machine, rest, after_input, ThreadAccepted(), destination_evidence, destination_captures, final_evidence, suffix_routine)) -> AcceptingFrom(n, machine, Cons(char, rest), after_input, state, current_evidence, captures, final_evidence, append_extended_routines(transition_routine(char, regular), suffix_routine))
 
   ## Atomic commitment is runtime control state, not part of the ordinary
   ## proof-carrying search result. A commit failure stops siblings at the
@@ -20955,70 +20924,6 @@ mod Std.Regex.Runtime
     greedy -> atomic_runtime_last_prefix(n, machine, position, input)
     else -> atomic_runtime_first_prefix(n, machine, position, input)
 
-  type AcceptingSearch(n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), current_evidence: List(Evidence), captures: List(CaptureFrame))
-    NoAcceptingPath : AcceptingSearch(n, machine, input, after_input, state, current_evidence, captures)
-    AcceptingPath : (final_evidence: List(Evidence)) -> (extended_routine: List(ExtendedInstruction)) -> (routine_certificate : CertifiedPathRoutine(extended_routine, current_evidence, captures, final_evidence)) -> (@erased path : AcceptingFrom(n, machine, input, after_input, state, current_evidence, captures, final_evidence, extended_routine)) -> AcceptingSearch(n, machine, input, after_input, state, current_evidence, captures)
-
-  fn prepend_transition_certificate(char: Char, routine: List(EvidenceInstruction), suffix_routine: List(ExtendedInstruction), source_evidence: List(Evidence), source_captures: List(CaptureFrame), destination_evidence: List(Evidence), destination_captures: List(CaptureFrame), {final_evidence: List(Evidence)}, regular_execution: ExtendedEvidenceRoutineExecution(regular_routine(routine), source_evidence, record_capture_char(source_captures, char), destination_evidence, destination_captures), suffix_certificate: CertifiedPathRoutine(suffix_routine, destination_evidence, destination_captures, final_evidence)) -> CertifiedPathRoutine(append_extended_routines(transition_routine(char, routine), suffix_routine), source_evidence, source_captures, final_evidence) =
-    PathRoutineTransition(char, routine, suffix_routine, destination_evidence, destination_captures, regular_execution, suffix_certificate)
-
-  fn search_accepting_from(n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), state: ThreadState(n), current_evidence: List(Evidence), captures: List(CaptureFrame)) -> AcceptingSearch(n, machine, input, after_input, state, current_evidence, captures) = match input
-    [] -> match state
-      ThreadAccepted() -> AcceptingPath(current_evidence, [], PathRoutineDone(), AcceptingNow())
-      ThreadActive(_) -> NoAcceptingPath()
-    [char | rest] ->
-      let destinations = machine_destinations(n, machine, state, char, transition_boundary_before(char, rest, after_input))
-      search_accepting_members(n, machine, char, rest, after_input, state, current_evidence, captures, machine_state_members(destinations))
-
-  fn search_accepting_members(n: Nat, machine: PatternMachine(n), char: Char, rest: List(Char), after_input: List(Char), source_state: ThreadState(n), source_evidence: List(Evidence), source_captures: List(CaptureFrame), {current: List(MachineState(n))}, members: MachineStateMembers(n, machine_destinations(n, machine, source_state, char, transition_boundary_before(char, rest, after_input)), current)) -> AcceptingSearch(n, machine, Cons(char, rest), after_input, source_state, source_evidence, source_captures) = match members
-    MachineStateMembersNil() -> NoAcceptingPath()
-    MachineStateMembersActive(state, routine, constraints, edge, remaining) -> match execute_routine_certified(routine, source_evidence, record_capture_char(source_captures, char))
-      CertifiedRoutineExecuted(next_evidence, next_captures, execution, regular_execution) -> match search_accepting_from(n, machine, rest, after_input, ThreadActive(state), next_evidence, next_captures)
-        NoAcceptingPath() -> search_accepting_members(n, machine, char, rest, after_input, source_state, source_evidence, source_captures, remaining)
-        AcceptingPath(final_evidence, suffix_routine, suffix_certificate, suffix) -> AcceptingPath(final_evidence, append_extended_routines(transition_routine(char, routine), suffix_routine), prepend_transition_certificate(char, routine, suffix_routine, source_evidence, source_captures, next_evidence, next_captures, regular_execution, suffix_certificate), AcceptingNextActive(state, routine, constraints, next_evidence, next_captures, suffix_routine, edge, execution, suffix))
-    MachineStateMembersAccepted(routine, constraints, edge, remaining) -> match execute_routine_certified(routine, source_evidence, record_capture_char(source_captures, char))
-      CertifiedRoutineExecuted(next_evidence, next_captures, execution, regular_execution) -> match search_accepting_from(n, machine, rest, after_input, ThreadAccepted(), next_evidence, next_captures)
-        NoAcceptingPath() -> search_accepting_members(n, machine, char, rest, after_input, source_state, source_evidence, source_captures, remaining)
-        AcceptingPath(final_evidence, suffix_routine, suffix_certificate, suffix) -> AcceptingPath(final_evidence, append_extended_routines(transition_routine(char, routine), suffix_routine), prepend_transition_certificate(char, routine, suffix_routine, source_evidence, source_captures, next_evidence, next_captures, regular_execution, suffix_certificate), AcceptingNextAccepted(routine, constraints, next_evidence, next_captures, suffix_routine, edge, execution, suffix))
-
-  @reducible
-  fn initial_machine_destinations(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char)) -> List(MachineState(n)) = match machine
-    MkPatternMachine(starts, _) -> filter_boundary_states(starts, initial_position_boundary(position, append_characters(input, after_input)))
-
-  type InitialEvidenceStep(n: Nat, machine: PatternMachine(n)) indices (position: InitialPosition, input: List(Char), after_input: List(Char), destination_state: ThreadState(n), destination_evidence: List(Evidence), destination_captures: List(CaptureFrame))
-    InitialEvidenceActive : (destination: Bounded(n)) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (edge : ListMember(MachineState(n), Active(destination, routine, constraints), initial_machine_destinations(n, machine, position, input, after_input))) -> (execution : RoutineExecution(routine, Nil(), Nil(), result_evidence, result_captures)) -> InitialEvidenceStep(n, machine, position, input, after_input, ThreadActive(destination), result_evidence, result_captures)
-    InitialEvidenceAccepted : (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (edge : ListMember(MachineState(n), Accepted(routine, constraints), initial_machine_destinations(n, machine, position, input, after_input))) -> (execution : RoutineExecution(routine, Nil(), Nil(), result_evidence, result_captures)) -> InitialEvidenceStep(n, machine, position, input, after_input, ThreadAccepted(), result_evidence, result_captures)
-
-  type MachineAcceptance(n: Nat, machine: PatternMachine(n)) indices (position: InitialPosition, input: List(Char), after_input: List(Char), final_evidence: List(Evidence), extended_routine: List(ExtendedInstruction))
-    MachineAccepted : (destination: MachineState(n)) -> (initial_evidence: List(Evidence)) -> (initial_captures: List(CaptureFrame)) -> (path_routine: List(ExtendedInstruction)) -> (edge : ListMember(MachineState(n), destination, initial_machine_destinations(n, machine, position, input, after_input))) -> (execution : RoutineExecution(machine_state_routine(n, destination), Nil(), Nil(), initial_evidence, initial_captures)) -> (routine_certificate : CertifiedPathRoutine(append_extended_routines(regular_routine(machine_state_routine(n, destination)), path_routine), Nil(), Nil(), final_evidence)) -> (path : AcceptingFrom(n, machine, input, after_input, machine_state_thread(n, destination), initial_evidence, initial_captures, final_evidence, path_routine)) -> MachineAcceptance(n, machine, position, input, after_input, final_evidence, append_extended_routines(regular_routine(machine_state_routine(n, destination)), path_routine))
-
-  type MachineAcceptingSearch(n: Nat, machine: PatternMachine(n)) indices (position: InitialPosition, input: List(Char), after_input: List(Char))
-    MachineNoAcceptingPath : MachineAcceptingSearch(n, machine, position, input, after_input)
-    MachineAcceptingPath : (final_evidence: List(Evidence)) -> (extended_routine: List(ExtendedInstruction)) -> (@erased acceptance : MachineAcceptance(n, machine, position, input, after_input, final_evidence, extended_routine)) -> MachineAcceptingSearch(n, machine, position, input, after_input)
-
-  fn prepend_initial_certificate(routine: List(EvidenceInstruction), path_routine: List(ExtendedInstruction), initial_evidence: List(Evidence), initial_captures: List(CaptureFrame), {final_evidence: List(Evidence)}, regular_execution: ExtendedEvidenceRoutineExecution(regular_routine(routine), Nil(), Nil(), initial_evidence, initial_captures), path_certificate: CertifiedPathRoutine(path_routine, initial_evidence, initial_captures, final_evidence)) -> CertifiedPathRoutine(append_extended_routines(regular_routine(routine), path_routine), Nil(), Nil(), final_evidence) =
-    PathRoutineInitial(routine, path_routine, initial_evidence, initial_captures, regular_execution, path_certificate)
-
-  fn search_machine_acceptance(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char)) -> MachineAcceptingSearch(n, machine, position, input, after_input) =
-    let starts = initial_machine_destinations(n, machine, position, input, after_input)
-    search_initial_members(n, machine, position, input, after_input, machine_state_members(starts))
-
-  fn search_initial_members(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), {current: List(MachineState(n))}, members: MachineStateMembers(n, initial_machine_destinations(n, machine, position, input, after_input), current)) -> MachineAcceptingSearch(n, machine, position, input, after_input) = match members
-    MachineStateMembersNil() -> MachineNoAcceptingPath()
-    MachineStateMembersActive(state, routine, constraints, edge, remaining) -> match execute_routine_certified(routine, [], [])
-      CertifiedRoutineExecuted(initial_evidence, initial_captures, execution, regular_execution) -> match search_accepting_from(n, machine, input, after_input, ThreadActive(state), initial_evidence, initial_captures)
-        NoAcceptingPath() -> search_initial_members(n, machine, position, input, after_input, remaining)
-        AcceptingPath(final_evidence, path_routine, path_certificate, path) ->
-          let extended_routine = append_extended_routines(regular_routine(routine), path_routine)
-          let routine_certificate = prepend_initial_certificate(routine, path_routine, initial_evidence, initial_captures, regular_execution, path_certificate)
-          MachineAcceptingPath(final_evidence, extended_routine, MachineAccepted(Active(state, routine, constraints), initial_evidence, initial_captures, path_routine, edge, execution, routine_certificate, path))
-    MachineStateMembersAccepted(routine, constraints, edge, remaining) -> match execute_routine_certified(routine, [], [])
-      CertifiedRoutineExecuted(initial_evidence, initial_captures, execution, regular_execution) -> match search_accepting_from(n, machine, input, after_input, ThreadAccepted(), initial_evidence, initial_captures)
-        NoAcceptingPath() -> search_initial_members(n, machine, position, input, after_input, remaining)
-        AcceptingPath(final_evidence, path_routine, path_certificate, path) ->
-          let extended_routine = append_extended_routines(regular_routine(routine), path_routine)
-          let routine_certificate = prepend_initial_certificate(routine, path_routine, initial_evidence, initial_captures, regular_execution, path_certificate)
-          MachineAcceptingPath(final_evidence, extended_routine, MachineAccepted(Accepted(routine, constraints), initial_evidence, initial_captures, path_routine, edge, execution, routine_certificate, path))
 
 
 
@@ -21032,33 +20937,21 @@ mod Std.Regex.Runtime
 
 
 
-  type CertifiedPrefixSearch(n: Nat, machine: PatternMachine(n)) indices (position: InitialPosition)
-    NoCertifiedPrefix : CertifiedPrefixSearch(n, machine, position)
-    CertifiedPrefixPath : (matched_input: List(Char)) -> (remaining_input: List(Char)) -> (final_evidence: List(Evidence)) -> (extended_routine: List(ExtendedInstruction)) -> (@erased acceptance : MachineAcceptance(n, machine, position, matched_input, remaining_input, final_evidence, extended_routine)) -> CertifiedPrefixSearch(n, machine, position)
 
-  fn search_first_machine_prefix(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char)) -> CertifiedPrefixSearch(n, machine, position) =
-    search_first_machine_prefix_loop(n, machine, position, [], input)
 
-  fn search_first_machine_prefix_loop(n: Nat, machine: PatternMachine(n), position: InitialPosition, reversed_prefix: List(Char), remaining_input: List(Char)) -> CertifiedPrefixSearch(n, machine, position) =
-    let matched_input = evidence_reverse_chars(reversed_prefix)
-    match search_machine_acceptance(n, machine, position, matched_input, remaining_input)
-      MachineAcceptingPath(evidence, routine, acceptance) -> CertifiedPrefixPath(matched_input, remaining_input, evidence, routine, acceptance)
-      MachineNoAcceptingPath() -> match remaining_input
-        [] -> NoCertifiedPrefix()
-        [char | rest] -> search_first_machine_prefix_loop(n, machine, position, [char | reversed_prefix], rest)
 
-  fn search_last_machine_prefix(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char)) -> CertifiedPrefixSearch(n, machine, position) =
-    search_last_machine_prefix_loop(n, machine, position, [], input, NoCertifiedPrefix())
 
-  fn search_last_machine_prefix_loop(n: Nat, machine: PatternMachine(n), position: InitialPosition, reversed_prefix: List(Char), remaining_input: List(Char), previous: CertifiedPrefixSearch(n, machine, position)) -> CertifiedPrefixSearch(n, machine, position) =
-    let matched_input = evidence_reverse_chars(reversed_prefix)
-    match search_machine_acceptance(n, machine, position, matched_input, remaining_input)
-      MachineNoAcceptingPath() -> continue_last_machine_prefix(n, machine, position, reversed_prefix, remaining_input, previous)
-      MachineAcceptingPath(evidence, routine, acceptance) -> continue_last_machine_prefix(n, machine, position, reversed_prefix, remaining_input, CertifiedPrefixPath(matched_input, remaining_input, evidence, routine, acceptance))
 
-  fn continue_last_machine_prefix(n: Nat, machine: PatternMachine(n), position: InitialPosition, reversed_prefix: List(Char), remaining_input: List(Char), previous: CertifiedPrefixSearch(n, machine, position)) -> CertifiedPrefixSearch(n, machine, position) = match remaining_input
-    [] -> previous
-    [char | rest] -> search_last_machine_prefix_loop(n, machine, position, [char | reversed_prefix], rest, previous)
+
+
+
+
+
+
+
+
+
+
 
 
 
