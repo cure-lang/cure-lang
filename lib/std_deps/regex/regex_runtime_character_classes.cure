@@ -1,0 +1,200 @@
+@group(:text)
+mod Std.Regex.Runtime.CharacterClasses
+  use Std.Decision
+  use Std.Sigma
+  use Std.Equivalent
+  use Std.Bounded
+  use Std.Syntax
+  use Std.String
+  use Std.List
+  use Std.Option
+  use Std.Char
+  use Std.Regex.Core
+  use Std.Regex.Core.Limits
+  use Std.Regex.Core.Evidence
+  use Std.Regex.Core.Newline
+  use Std.Regex.Core.Initial
+  use Std.Regex.Core.Boundary
+  use Std.Regex.Core.Capture
+  use Std.Regex.Runtime.Split
+  use Std.Regex.Runtime.Named
+  use Std.Regex.Runtime.ClassKinds
+  use Std.Regex.Runtime.AtomicDiagnostics
+  use Std.Regex.Runtime.Boundaries
+  use Std.Regex.Runtime.CaptureConditions
+  use Std.Regex.Runtime.TransitionRows
+  use Std.Regex.Runtime.StateOps
+  use Std.Regex.Runtime.PatternMachines
+  use Std.Regex.Runtime.StagedOps
+  use Std.Regex.Runtime.Compilation
+  use Std.Regex.Runtime.MachineLaws
+  use Std.Regex.Runtime.MachineFilters
+  use Std.Regex.Runtime.SubjectContext
+  use Std.Regex.Runtime.CharacterPredicates
+  use Std.Regex.Runtime.Position
+  use Std.Regex.Runtime.Evidence
+  use Std.Regex.Runtime.NamedCapture
+  use Std.Regex.Runtime.Compiler
+  use Std.Regex.Runtime.AtomicPlan
+  use Std.Regex.Runtime.LookaroundContext
+  use Std.Regex.Runtime.EvidenceThreads
+  use Std.Regex.Runtime.NewlinePolicy
+  use Std.Regex.Runtime.PublicTypes
+  use Std.Regex.Runtime.ProgramTypes
+  use Std.Regex.Runtime.Conversion
+  use Std.Regex.Runtime.CharacterSemantics
+  use Std.Regex.Runtime.RegexType
+  use Std.Regex.Runtime.NamedTypes
+  use Std.Regex.Runtime.ThreadDedup
+  use Std.Regex.Runtime.ConversionAdapters
+  use Std.Regex.Runtime.CompileRegex
+  use Std.Regex.Runtime.Anchors
+  use Std.Regex.Runtime.Combinators
+  use Std.Regex.Runtime.CharacterMatchers
+  use Std.Regex.Runtime.LineBreak
+  use Std.Regex.Runtime.MachineEntry
+  use Std.Regex.Runtime.NamedStaging
+  use Std.Regex.Runtime.MachineTransitions
+  use Std.Regex.Runtime.NamedSearch
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  fn unicode_property_test(property: UnicodeProperty, negated: Bool) -> Char -> Bool =
+    fn(actual) -> unicode_property_matches(property, actual) != negated
+
+  fn unicode_property_class(property: UnicodeProperty, negated: Bool) -> Regex(Char) =
+    predicate(unicode_property_test(property, negated))
+
+  fn extended_class_predicate(chars: List(Char), ranges: List(CharacterRange), kinds: ClassKinds, negated: Bool, caseless: Bool, unicode: Bool, actual: Char) -> Bool =
+    let found =
+      contains_char_with_options(chars, actual, caseless, unicode) or
+        in_ranges_with_options(ranges, actual, caseless, unicode) or
+        class_kinds_match(kinds, actual, unicode)
+    found != negated
+
+  fn extended_class_test(chars: List(Char), ranges: List(CharacterRange), kinds: ClassKinds, negated: Bool, caseless: Bool, unicode: Bool) -> Char -> Bool =
+    fn(actual) -> extended_class_predicate(chars, ranges, kinds, negated, caseless, unicode, actual)
+
+  fn extended_character_class(chars: List(Char), ranges: List(CharacterRange), kinds: ClassKinds, negated: Bool, caseless: Bool, unicode: Bool) -> Regex(Char) =
+    predicate(extended_class_test(chars, ranges, kinds, negated, caseless, unicode))
+
+  fn extended_property_class_predicate(chars: List(Char), ranges: List(CharacterRange), kinds: ClassKinds, properties: List(UnicodePropertyMatch), posix: List(PosixClassMatch), negated: Bool, caseless: Bool, unicode: Bool, actual: Char) -> Bool =
+    let found =
+      contains_char_with_options(chars, actual, caseless, unicode) or
+        in_ranges_with_options(ranges, actual, caseless, unicode) or
+        class_kinds_match(kinds, actual, unicode) or
+        unicode_property_matches_any(properties, actual) or
+        posix_class_matches_any(posix, actual, unicode)
+    found != negated
+
+  fn extended_property_class_test(chars: List(Char), ranges: List(CharacterRange), kinds: ClassKinds, properties: List(UnicodePropertyMatch), posix: List(PosixClassMatch), negated: Bool, caseless: Bool, unicode: Bool) -> Char -> Bool =
+    fn(actual) -> extended_property_class_predicate(chars, ranges, kinds, properties, posix, negated, caseless, unicode, actual)
+
+  fn extended_unicode_property_class(chars: List(Char), ranges: List(CharacterRange), kinds: ClassKinds, properties: List(UnicodePropertyMatch), posix: List(PosixClassMatch), negated: Bool, caseless: Bool, unicode: Bool) -> Regex(Char) =
+    predicate(extended_property_class_test(chars, ranges, kinds, properties, posix, negated, caseless, unicode))
+
+  fn digit_class(negated: Bool) -> Regex(Char) = pickup
+    negated -> predicate(negate_test(ascii_digit))
+    else -> predicate(ascii_digit)
+
+  fn digit_class_with_options(negated: Bool, unicode: Bool) -> Regex(Char) = predicate(digit_options_test(negated, unicode))
+
+  fn word_class_with_options(negated: Bool, unicode: Bool) -> Regex(Char) = predicate(word_options_test(negated, unicode))
+
+  fn space_class_with_options(negated: Bool, unicode: Bool) -> Regex(Char) = predicate(space_options_test(negated, unicode))
+
+  fn horizontal_predicate(negated: Bool, char: Char) -> Bool = pickup
+    negated -> not Std.Char.is_horizontal_space(char)
+    else -> Std.Char.is_horizontal_space(char)
+
+  fn vertical_predicate(negated: Bool, char: Char) -> Bool = pickup
+    negated -> not Std.Char.is_vertical_space(char)
+    else -> Std.Char.is_vertical_space(char)
+
+  fn horizontal_test(negated: Bool) -> Char -> Bool = fn(char) -> horizontal_predicate(negated, char)
+
+  fn vertical_test(negated: Bool) -> Char -> Bool = fn(char) -> vertical_predicate(negated, char)
+
+  fn horizontal_class(negated: Bool) -> Regex(Char) = predicate(horizontal_test(negated))
+
+  fn vertical_class(negated: Bool) -> Regex(Char) = predicate(vertical_test(negated))
+
+  fn word_class(negated: Bool) -> Regex(Char) = pickup
+    negated -> predicate(negate_test(ascii_word))
+    else -> predicate(ascii_word)
+
+  fn space_class(negated: Bool) -> Regex(Char) = pickup
+    negated -> predicate(negate_test(ascii_space))
+    else -> predicate(ascii_space)
+end
