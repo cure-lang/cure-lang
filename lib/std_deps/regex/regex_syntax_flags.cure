@@ -1,6 +1,7 @@
 ## Parser helpers for regex literal modifiers such as `i`, `m`, and `u`.
 @group(:text)
 mod Std.Regex.Syntax.Flags
+  use Std.Regex.Syntax.Model.Types
   use Std.Regex.Syntax.Model
   public use Std.Regex.Syntax.Flags.Literals
 

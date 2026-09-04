@@ -1,0 +1,175 @@
+## Compile-time-only literal syntax tree. It is consumed by `expand_literal`
+## and never appears in generated matching code.
+
+@group(:text)
+mod Std.Regex.Syntax.Model.Types
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.String
+
+  type LiteralCharacterRange = LiteralCharacterRange(Char, Char)
+
+  type LiteralClassKinds = LiteralClassKinds(List(LiteralClassKind), List(LiteralUnicodePropertyMatch), List(LiteralPosixClassMatch))
+
+  type LiteralNewlinePolicy = LiteralLFPolicy | LiteralCRPolicy | LiteralCRLFPolicy | LiteralAnyCRLFPolicy | LiteralAnyUnicodePolicy
+
+  type LiteralRegexOptions = LiteralRegexOptions(List(LiteralModifier), LiteralNewlinePolicy)
+
+  type LiteralPatternOptions = LiteralPatternOptions(LiteralPattern, LiteralRegexOptions)
+
+  type LiteralPrepared = LiteralPrepared(List(Char), List(Nat), Nat)
+
+  type LiteralSourceMap = LiteralSourceMap(List(Char), List(Nat))
+
+  type LiteralSourceSpan = LiteralSourceSpan(Nat, Nat)
+
+  ## Capture slots are allocated once, immediately after parsing.  The slot
+    ## number is stable metadata used by the named-capture side channel; it is
+    ## deliberately absent from ShapeCode and therefore cannot perturb the
+    ## existing typed result.
+    type LiteralCaptureSlotInfo = LiteralCaptureSlotInfo(Nat, Option(String))
+
+  type LiteralCaptureLayout = LiteralCaptureLayout(List(LiteralCaptureSlotInfo))
+
+  type LiteralCaptureAllocation =
+      | LiteralCaptureAllocated(LiteralPattern, LiteralCaptureLayout)
+      | LiteralCaptureAllocationInvalid(Atom, String)
+
+  type LiteralCaptureWalk =
+      | LiteralCaptureWalked(LiteralPattern, List(LiteralCaptureSlotInfo), Nat, List(String))
+      | LiteralCaptureWalkInvalid(Atom, String)
+
+  type LiteralCaptureReference = LiteralCaptureSlotReference(Nat) | LiteralCaptureNameReference(String)
+
+  type LiteralConditionalReference = LiteralConditionalSlotReference(Nat) | LiteralConditionalNameReference(String) | LiteralAssertionCondition(LiteralPattern)
+
+  type LiteralAssertionPolarity = LiteralAssertionPositive | LiteralAssertionNegative
+
+  type LiteralWidth = LiteralWidthExact(Nat) | LiteralWidthVariable
+
+  type LiteralLookaroundValidation = LiteralLookaroundValid() | LiteralLookaroundInvalid(Atom, String)
+
+  ## Capture-layout validation is a checked decision, not a Boolean side
+    ## condition.  The compatible branch is the certificate consumed by the
+    ## branch-reset and conditional walkers; the incompatible branch is the
+    ## only route to their structured diagnostics.  Keeping this distinction in
+    ## an indexed data type prevents a caller from accidentally treating a
+    ## failed comparison as a valid layout.
+    type LiteralCaptureLayoutDecision indices (left: List(LiteralCaptureSlotInfo), right: List(LiteralCaptureSlotInfo))
+      LiteralCaptureLayoutsCompatible : LiteralCaptureLayoutDecision(left, right)
+      LiteralCaptureLayoutsIncompatible : LiteralCaptureLayoutDecision(left, right)
+
+  ## A lexical atomic scope. The inner pattern keeps its ordinary typed
+    ## result shape; commitment is carried by the compiled machine rather than
+    ## by a second untyped matcher.
+    type LiteralPattern =
+      | LiteralEmpty
+      | LiteralExact(Char)
+      | LiteralAny
+      | LiteralClass(List(Char), List(LiteralCharacterRange), LiteralClassKinds, Bool)
+      | LiteralProperty(LiteralUnicodeProperty, Bool)
+      | LiteralDigit(Bool)
+      | LiteralWord(Bool)
+      | LiteralSpace(Bool)
+      | LiteralHorizontal(Bool)
+      | LiteralVertical(Bool)
+      | LiteralLineBreak
+      | LiteralSequence(LiteralPattern, LiteralPattern)
+      | LiteralAlternate(LiteralPattern, LiteralPattern)
+      | LiteralBranchReset(List(LiteralPattern))
+      | LiteralConditional(LiteralConditionalReference, LiteralPattern, Option(LiteralPattern))
+      | LiteralAtomic(LiteralPattern)
+      | LiteralLookahead(LiteralAssertionPolarity, LiteralPattern)
+      | LiteralLookbehind(LiteralAssertionPolarity, LiteralPattern)
+      | LiteralRepeat(LiteralPattern, Bool)
+      | LiteralPlus(LiteralPattern, Bool)
+      | LiteralOptional(LiteralPattern, Bool)
+      | LiteralBoundedExact(LiteralPattern, Nat)
+      | LiteralBoundedAtLeast(LiteralPattern, Nat, Bool)
+      | LiteralBoundedBetween(LiteralPattern, Nat, Nat, Bool)
+      | LiteralCapture(LiteralPattern)
+      | LiteralNamedCapture(String, LiteralPattern)
+      | LiteralCaptureIndexed(Nat, Option(String), LiteralPattern)
+      | LiteralStart
+      | LiteralEnd
+      | LiteralAbsoluteStart
+      | LiteralStrictEnd
+      | LiteralFinalEnd
+      | LiteralWordBoundary(Bool)
+      | LiteralConfigured(LiteralNewlinePolicy, LiteralPattern)
+      | LiteralScopedOptions(List(LiteralModifier), List(LiteralModifier), LiteralPattern)
+
+  type LiteralParse =
+      | LiteralParsed(LiteralPattern, List(Char))
+      | LiteralInvalid(Atom)
+      | LiteralAtInvalid(Atom, List(Char), Nat)
+      | LiteralLocatedInvalid(Atom, Nat, Nat)
+
+  type LiteralClassParse =
+      | LiteralClassParsed(List(Char), List(LiteralCharacterRange), LiteralClassKinds, List(Char))
+      | LiteralClassInvalid(Atom)
+      | LiteralClassAtInvalid(Atom, List(Char), Nat)
+
+  type LiteralFlags = LiteralFlagsParsed(LiteralRegexOptions) | LiteralFlagsInvalid(Atom)
+
+  type LiteralCountParse = LiteralCountParsed(Nat, Bool, List(Char)) | LiteralCountInvalid(Atom)
+
+  type LiteralScalarParse = LiteralScalarParsed(Char, List(Char)) | LiteralScalarInvalid(Atom)
+
+  type LiteralPropertyParse = LiteralPropertyParsed(LiteralUnicodeProperty, List(Char)) | LiteralPropertyInvalid(Atom)
+
+  type LiteralPosixParse = LiteralPosixParsed(LiteralPosixClass, Bool, List(Char)) | LiteralPosixInvalid(Atom)
+
+  type LiteralClassKind =
+      | DigitKind
+      | NotDigitKind
+      | WordKind
+      | NotWordKind
+      | SpaceKind
+      | NotSpaceKind
+      | HorizontalKind
+      | NotHorizontalKind
+      | VerticalKind
+      | NotVerticalKind
+
+  type LiteralUnicodeProperty =
+      | PropertyNonNewline
+      | PropertyAny
+      | PropertyAscii
+      | PropertyCased | PropertyLowercase | PropertyUppercase
+      | PropertyAlphabetic | PropertyWhiteSpace | PropertyHexDigit | PropertyMath | PropertyCurrencyBinary
+      | PropertyScript(Atom)
+      | PropertyScriptExtensions(Atom)
+      | PropertyBidiClass(Atom)
+      | PropertyBidiPairedBracketType(Atom)
+      | PropertyCategory(Atom)
+      | PropertyBinary(Atom)
+      | PropertyLetter | PropertyLowercaseLetter | PropertyUppercaseLetter | PropertyTitlecaseLetter | PropertyModifierLetter | PropertyOtherLetter
+      | PropertyMark | PropertySpacingMark | PropertyEnclosingMark | PropertyNonspacingMark
+      | PropertyNumber | PropertyDecimalNumber | PropertyLetterNumber | PropertyOtherNumber
+      | PropertyPunctuation | PropertyConnectorPunctuation | PropertyDashPunctuation | PropertyClosePunctuation | PropertyFinalPunctuation | PropertyInitialPunctuation | PropertyOtherPunctuation | PropertyOpenPunctuation
+      | PropertySymbol | PropertyCurrencySymbol | PropertyModifierSymbol | PropertyMathSymbol | PropertyOtherSymbol
+      | PropertySeparator | PropertyLineSeparator | PropertyParagraphSeparator | PropertySpaceSeparator
+      | PropertyOther | PropertyControl | PropertyFormat | PropertyUnassigned | PropertyPrivateUse | PropertySurrogate
+
+  type LiteralUnicodePropertyMatch = LiteralUnicodePropertyMatch(LiteralUnicodeProperty, Bool)
+
+  type LiteralPosixClass =
+      | PosixAlnum | PosixAlpha | PosixAscii | PosixBlank | PosixCntrl
+      | PosixDigit | PosixGraph | PosixLower | PosixPrint | PosixPunct
+      | PosixSpace | PosixUpper | PosixWord | PosixXdigit
+
+  type LiteralPosixClassMatch = LiteralPosixClassMatch(LiteralPosixClass, Bool)
+
+  type LiteralModifier =
+      | CaselessModifier
+      | MultilineModifier
+      | DotallModifier
+      | ExtendedModifier
+      | UnicodeModifier
+      | FirstlineModifier
+      | UngreedyModifier
+      | ExportModifier
+end
