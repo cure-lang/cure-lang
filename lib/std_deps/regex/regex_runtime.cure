@@ -1,5 +1,7 @@
 @group(:text)
 mod Std.Regex.Runtime
+  use Std.Regex.Runtime.NewlinePolicy
+  public use Std.Regex.Runtime.NewlinePolicy
   use Std.Regex.Runtime.EvidenceThreads
   public use Std.Regex.Runtime.EvidenceThreads
   use Std.Regex.Runtime.LookaroundContext
@@ -21516,36 +21518,12 @@ mod Std.Regex.Runtime
       )
     )
 
-  fn line_break_pair_start_policy(policy: NewlinePolicy) -> Bool = match policy
-      LFNewline() -> false
-      CRNewline() -> false
-      CRLFNewline() -> true
-      AnyCRLFNewline() -> true
-      AnyUnicodeNewline() -> true
 
-  fn line_break_pair_start_test(policy: NewlinePolicy, char: Char) -> Bool = char == '\r' and line_break_pair_start_policy(policy)
 
-  fn line_break_pair_test(policy: NewlinePolicy, expected: Char) -> Char -> Bool =
-    fn(char) -> char == expected and (line_break_pair_start_test(policy, char) or line_break_pair_end_test(policy, char))
 
-  fn line_break_pair_end_policy(policy: NewlinePolicy) -> Bool = match policy
-      LFNewline() -> false
-      CRNewline() -> false
-      CRLFNewline() -> true
-      AnyCRLFNewline() -> true
-      AnyUnicodeNewline() -> true
 
-  fn line_break_pair_end_test(policy: NewlinePolicy, char: Char) -> Bool = char == '\n' and line_break_pair_end_policy(policy)
 
-  fn line_break_scalar_test(policy: NewlinePolicy, expected: Char) -> Char -> Bool =
-    fn(char) -> char == expected and line_break_scalar_policy(policy, char)
 
-  fn line_break_scalar_policy(policy: NewlinePolicy, char: Char) -> Bool = match policy
-      LFNewline() -> char == '\n'
-      CRNewline() -> char == '\r'
-      CRLFNewline() -> false
-      AnyCRLFNewline() -> char == '\r' or char == '\n'
-      AnyUnicodeNewline() -> Std.Char.is_newline(char)
 
   fn compile_regex({result: Type}, regex: Regex(result)) -> CompiledRegex(result) = match regex
     FromPattern(shape, pattern) -> SomeProgram(BuiltRegex(shape, pattern, sem_identity_conversion(shape), NoCompilationHint()))
