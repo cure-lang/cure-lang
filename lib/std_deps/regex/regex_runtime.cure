@@ -1,5 +1,7 @@
 @group(:text)
 mod Std.Regex.Runtime
+  use Std.Regex.Runtime.MachineFilters
+  public use Std.Regex.Runtime.MachineFilters
   use Std.Regex.Runtime.MachineLaws
   public use Std.Regex.Runtime.MachineLaws
   use Std.Regex.Runtime.Compilation
@@ -277,36 +279,11 @@ mod Std.Regex.Runtime
   fn compile_pattern({shape: ShapeCode}, pattern: Pattern(shape)) -> Sigma(n: Nat, PatternMachine(n)) =
     thompson_compiled(certify_thompson(pattern))
 
-  fn machine_has_accept({n: Nat}, states: List(MachineState(n))) -> Bool = match states
-    [] -> false
-    [Accepted(_, _) | _] -> true
-    [Active(_, _, _) | rest] -> machine_has_accept(rest)
 
-  fn machine_step_one({n: Nat}, next: (Bounded(n)) -> Char -> List(MachineState(n)), char: Char, current: MachineState(n)) -> List(MachineState(n)) = match current
-    Accepted(_, _) -> []
-    Active(state, _, _) -> next(state, char)
 
-  fn machine_step({n: Nat}, next: (Bounded(n)) -> Char -> List(MachineState(n)), char: Char, current: List(MachineState(n))) -> List(MachineState(n)) = match current
-    [] -> []
-    [head | rest] -> append_states(machine_step_one(next, char, head), machine_step(next, char, rest))
 
-  fn constraint_holds(constraint: BoundaryConstraint, boundary: Boundary) -> Bool = constraint_holds_with_routine(constraint, boundary, [])
 
-  fn constraint_holds_with_routine(constraint: BoundaryConstraint, boundary: Boundary, routine: List(EvidenceInstruction)) -> Bool = match boundary
-    Boundary(subject_start, _subject_end, strict_subject_end, _line_start, _line_end, ascii_boundary, unicode_boundary, previous_char, next_char, after_next_char) -> match constraint
-      BoundaryConstraint(require_subject_start, require_subject_end, require_strict_end, require_line_start, require_line_end, check_ascii, expected_ascii, check_unicode, expected_unicode, policy, capture_condition, _) ->
-        (not require_subject_start or subject_start) and
-          (not require_subject_end or subject_end_for(policy, next_char, after_next_char)) and
-          (not require_strict_end or strict_subject_end) and
-          (not require_line_start or line_start_for(policy, previous_char, next_char)) and
-          (not require_line_end or line_end_for(policy, next_char, after_next_char)) and
-          (not check_ascii or ascii_boundary == expected_ascii) and
-          (not check_unicode or unicode_boundary == expected_unicode) and
-          capture_condition_holds(capture_condition, routine)
 
-  fn lookaround_polarity_holds(positive: Bool, result: Bool) -> Bool = pickup
-    positive -> result
-    else -> not result
 
 
 
@@ -342,34 +319,11 @@ mod Std.Regex.Runtime
   fn lookbehind_constraint({shape: ShapeCode}, compilation: LookaroundCompilation(shape), positive: Bool, width: Nat, policy: NewlinePolicy) -> BoundaryConstraint =
     BoundaryConstraint(false, false, false, false, false, false, false, false, false, policy, None(), Some(LookbehindCondition(positive, width, lookaround_compiled(compilation))))
 
-  @reducible
-  fn constraints_hold(constraints: List(BoundaryConstraint), boundary: Boundary) -> Bool = match constraints
-    [] -> true
-    [head | rest] -> constraint_holds(head, boundary) and constraints_hold(rest, boundary)
 
-  fn constraints_hold_with_routine(constraints: List(BoundaryConstraint), boundary: Boundary, routine: List(EvidenceInstruction)) -> Bool = match constraints
-    [] -> true
-    [head | rest] -> constraint_holds_with_routine(head, boundary, routine) and constraints_hold_with_routine(rest, boundary, routine)
 
-  @reducible
-  fn filter_active_decision({n: Nat}, keep: Bool, state: Bounded(n), routine: List(EvidenceInstruction), rest: List(MachineState(n)), boundary: Boundary) -> List(MachineState(n)) = match keep
-    True() -> Cons(Active(state, routine, Nil()), filter_boundary_states(rest, boundary))
-    False() -> filter_boundary_states(rest, boundary)
 
-  @reducible
-  fn filter_accepted_decision({n: Nat}, keep: Bool, routine: List(EvidenceInstruction), rest: List(MachineState(n)), boundary: Boundary) -> List(MachineState(n)) = match keep
-    True() -> Cons(Accepted(routine, Nil()), filter_boundary_states(rest, boundary))
-    False() -> filter_boundary_states(rest, boundary)
 
-  @reducible
-  fn filter_boundary_states({n: Nat}, states: List(MachineState(n)), boundary: Boundary) -> List(MachineState(n)) = match states
-    [] -> []
-    [Accepted(routine, constraints) | rest] -> filter_accepted_decision(constraints_hold(constraints, boundary), routine, rest, boundary)
-    [Active(state, routine, constraints) | rest] -> filter_active_decision(constraints_hold(constraints, boundary), state, routine, rest, boundary)
 
-  @reducible
-  fn filter_machine_states(n: Nat, states: List(MachineState(n)), boundary: Boundary) -> List(MachineState(n)) =
-    filter_boundary_states(states, boundary)
 
   fn position_line_end(input: List(Char)) -> Bool = match input
     [] -> true
