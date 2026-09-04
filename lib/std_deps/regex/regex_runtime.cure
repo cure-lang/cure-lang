@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.LookaroundSupport
   public use Std.Regex.Runtime.NamedCaptureSearch
   public use Std.Regex.Runtime.PatternSearch
   public use Std.Regex.Runtime.EvidenceSearch
@@ -377,12 +378,6 @@ mod Std.Regex.Runtime
 
 
 
-  fn lookbehind_initial_position(boundary: Boundary, history: List(Char), width: Nat, policy: NewlinePolicy) -> InitialPosition = match width
-    Z() -> match boundary
-      Boundary(subject_start, _, _, line_start, _, _, _, previous_char, _, _) -> InitialPosition(subject_start, line_start, option_ascii_word(previous_char), option_unicode_word(previous_char), previous_char)
-    S(_) -> match history_at(history, width)
-      None() -> InitialPosition(true, true, false, false, None())
-      Some(previous) -> InitialPosition(false, newline_char(policy, previous), ascii_word(previous), option_word(previous, true), Some(previous))
 
 
 
@@ -420,8 +415,6 @@ mod Std.Regex.Runtime
     [] -> tail
     [head | rest] -> Cons(head, atomic_admitted_prepend(rest, tail))
 
-  @reducible
-  fn empty_extended_instructions() -> List(ExtendedInstruction) = []
 
   @reducible
   fn empty_lookaround_admitted_cursor_suffix(n: Nat) -> LookaroundAdmittedStateCursorSuffix(n, empty_lookaround_admitted_states(n), empty_lookaround_admitted_states(n)) =
@@ -2069,9 +2062,6 @@ mod Std.Regex.Runtime
     None() -> None()
     Some(LookaroundConstraintAdmitted(routine, _, _)) -> Some(routine)
 
-  fn position_boundary_for_history(position: InitialPosition, input: List(Char), history: List(Char)) -> Boundary = match position
-    InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word, previous_char) ->
-      position_boundary(subject_start, line_start, previous_ascii_word, previous_unicode_word, previous_char, input)
 
   ## Capture-free assertion paths carry state reachability plus an erased list
   ## of the nested decisions used by each accepted transition. The depth index
@@ -2167,11 +2157,7 @@ mod Std.Regex.Runtime
   fn lookaround_machine_raw_destinations(n: Nat, machine: PatternMachine(n), state: ThreadState(n), char: Char) -> List(MachineState(n)) = match machine
     MkPatternMachine(_, next) -> next_for_thread(n, next, state, char)
 
-  @reducible
-  fn empty_machine_states(n: Nat) -> List(MachineState(n)) = []
 
-  @reducible
-  fn empty_characters() -> List(Char) = []
 
   fn lookaround_path_exhausted(depth: Nat, n: Nat, machine: PatternMachine(n), after_input: List(Char), source: Bounded(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, destinations: List(MachineState(n)), members: MachineStateMembers(n, destinations, Nil()), @erased cursor: MachineStateCursor(n, destinations, Nil()), destinations_equivalent: Equivalent(List(MachineState(n)), destinations, empty_machine_states(n))) -> LookaroundPathFailure(depth, n, machine, Nil(), after_input, ThreadActive(source), history, capture_context, policy, destinations, Nil()) = LookaroundPathExhausted(empty_machine_states(n), source, members, cursor, destinations_equivalent, reflexive(empty_machine_states(n)))
 
@@ -2375,67 +2361,11 @@ mod Std.Regex.Runtime
     LookaroundPrefixSearchMembersRejected : (failure: LookaroundPrefixSearchFailure(depth, n, machine, input, after_input, history, capture_context, policy, starts, current)) -> LookaroundPrefixSearchMembersResult(depth, n, machine, starts, current, input, after_input, history, policy, capture_context)
     LookaroundPrefixSearchMembersFound : (path: LookaroundPrefixSearchPath(depth, n, machine, capture_context, starts, input, after_input, history, policy)) -> LookaroundPrefixSearchMembersResult(depth, n, machine, starts, current, input, after_input, history, policy, capture_context)
 
-  ## The empty start list has no accepting path.  This is the base case used
-  ## by the refutation-tree soundness proof: every search-path
-  ## constructor carries a membership witness in `starts`, so `starts = []`
-  ## is eliminated constructively rather than treated as an unchecked claim.
-  fn lookaround_impossible_list_member({item_type: Type}, {item: item_type}, {result: Type}, @erased membership: ListMember(item_type, item, Nil())) -> result = match membership
 
   fn lookaround_impossible_empty_candidate_equivalence({n: Nat}, {state: MachineState(n)}, {values: List(MachineState(n))}, @erased equality: Equivalent(List(MachineState(n)), empty_machine_states(n), Cons(state, values))) -> Empty = match equality
     reflexive() -> impossible
 
-  ## Compose the erased candidate-list equation with the path's erased
-  ## candidate equation without routing either proof through `trans/2`.
-  ## `trans` has runtime proof arguments in the generic equality module; using
-  ## it here would make a genuinely erased certificate relevant. Matching the
-  ## two identity proofs directly keeps this refutation proof erased end-to-end.
-  fn lookaround_impossible_accepted_active_candidates(
-    {n: Nat},
-    {accepted_routine: List(EvidenceInstruction)},
-    {accepted_constraints: List(BoundaryConstraint)},
-    {@erased accepted_values: List(MachineState(n))},
-    {active_destination: Bounded(n)},
-    {active_routine: List(EvidenceInstruction)},
-    {active_constraints: List(BoundaryConstraint)},
-    {@erased active_values: List(MachineState(n))},
-    {@erased candidates: List(MachineState(n))},
-    @erased accepted_to_candidates: Equivalent(
-      List(MachineState(n)),
-      Cons(Accepted(accepted_routine, accepted_constraints), accepted_values),
-      candidates
-    ),
-    @erased candidates_to_active: Equivalent(
-      List(MachineState(n)),
-      candidates,
-      Cons(Active(active_destination, active_routine, active_constraints), active_values)
-    )
-  ) -> Empty = match accepted_to_candidates
-    reflexive() -> match candidates_to_active
-      reflexive() -> impossible
 
-  fn lookaround_impossible_active_accepted_candidates(
-    {n: Nat},
-    {active_destination: Bounded(n)},
-    {active_routine: List(EvidenceInstruction)},
-    {active_constraints: List(BoundaryConstraint)},
-    {@erased active_values: List(MachineState(n))},
-    {accepted_routine: List(EvidenceInstruction)},
-    {accepted_constraints: List(BoundaryConstraint)},
-    {@erased accepted_values: List(MachineState(n))},
-    {@erased candidates: List(MachineState(n))},
-    @erased active_to_candidates: Equivalent(
-      List(MachineState(n)),
-      Cons(Active(active_destination, active_routine, active_constraints), active_values),
-      candidates
-    ),
-    @erased candidates_to_accepted: Equivalent(
-      List(MachineState(n)),
-      candidates,
-      Cons(Accepted(accepted_routine, accepted_constraints), accepted_values)
-    )
-  ) -> Empty = match active_to_candidates
-    reflexive() -> match candidates_to_accepted
-      reflexive() -> impossible
 
   fn lookaround_search_path_excludes_empty_starts(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, {result: Type}, path: LookaroundSearchPath(depth, n, machine, capture_context, Nil(), input, after_input, history, policy)) -> result = match path
     LookaroundSearchFoundActive(_, _, _, _, _, _, member, _, _) -> lookaround_impossible_list_member(member)
@@ -2918,7 +2848,6 @@ mod Std.Regex.Runtime
         ListMemberHere() -> impossible
         ListMemberThere(tail_member) -> lookaround_prefix_search_failure_excludes_path(depth, n, machine, input, after_input, history, capture_context, policy, tail_failure, LookaroundPrefixSearchFoundAccepted(path_routine, path_constraints, tail_member, child_path))
 
-  fn lookaround_absurd({result: Type}, contradiction: Empty) -> result = match contradiction
 
   ## Converse direction for exact assertion search.  Any independently
   ## constructed accepting path rules out the evaluator's rejected branch, so
@@ -3010,15 +2939,7 @@ mod Std.Regex.Runtime
     LookaroundAdmittedActive(destination, _, _, _, _, _) -> ThreadActive(destination)
     LookaroundAdmittedAccepted(_, _, _, _, _) -> ThreadAccepted()
 
-  ## The child evidence VM starts after the candidate's regular and assertion
-  ## instructions have both run.  Keep that context derived from the indexed
-  ## candidate rather than accepting an unrelated list at the refutation site;
-  ## selected traces use the same construction for their recursive suffix.
-  @reducible
-  fn lookaround_admitted_active_capture_context(base: List(EvidenceInstruction), routine: List(EvidenceInstruction), assertion_markers: List(EvidenceInstruction)) -> List(EvidenceInstruction) = append_routine(append_routine(base, routine), assertion_markers)
 
-  @reducible
-  fn lookaround_admitted_accepted_capture_context(base: List(EvidenceInstruction), routine: List(EvidenceInstruction), assertion_markers: List(EvidenceInstruction)) -> List(EvidenceInstruction) = append_routine(append_routine(base, routine), assertion_markers)
 
   @reducible
   fn lookaround_admitted_state_capture_context({n: Nat}, base: List(EvidenceInstruction), state: LookaroundAdmittedState(n)) -> List(EvidenceInstruction) = match state
@@ -3356,8 +3277,6 @@ mod Std.Regex.Runtime
       let atomic_result = atomic_lookaround_routine_initial(depth, n, machine, input, after_input, position, history, capture_context, policy, false, [])
       lookbehind_atomic_path_decision(depth, n, machine, position, input, after_input, history, capture_context, policy, atomic_result)
 
-  fn lookaround_transition_boundary(char: Char, rest: List(Char), after_input: List(Char), policy: NewlinePolicy) -> Boundary =
-    position_boundary(false, newline_char(policy, char), ascii_word(char), option_word(char, true), Some(char), append_characters(rest, after_input))
 
   fn lookaround_first_prefix(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), history: List(Char), policy: NewlinePolicy) -> Option(Tuple(List(Char), List(Char))) =
     lookaround_first_prefix_loop(n, machine, position, [], input, history, policy)
@@ -4036,10 +3955,6 @@ mod Std.Regex.Runtime
     EvidenceStepAccepted : (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (edge : ListMember(MachineState(n), Accepted(routine, constraints), machine_destinations(n, machine, source_state, char, boundary))) -> (execution : RoutineExecution(routine, source_evidence, record_capture_char(source_captures, char), result_evidence, result_captures)) -> EvidenceStep(n, machine, char, boundary, source_state, source_evidence, source_captures, ThreadAccepted(), result_evidence, result_captures)
 
 
-  ## Atomic commitment is runtime control state, not part of the ordinary
-  ## proof-carrying search result. A commit failure stops siblings at the
-  ## scope that closed, while an outer scope may still propagate it.
-  type AtomicScopeEffect = AtomicScopeEffect(Nat, Option(Nat))
 
   ## The atomic evaluator records the exact start and destination sequence it
   ## selected. The trace is indexed by the machine's state count and retained
@@ -11956,7 +11871,6 @@ mod Std.Regex.Runtime
     LookaroundRoutineSearchCommit : (commit_depth: Nat) -> LookaroundRoutineSearchResult(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix)
     LookaroundRoutineSearchYes : (matched: List(Char)) -> (remaining: List(Char)) -> (routine: List(ExtendedInstruction)) -> {@erased blocked_depth: Option(Nat)} -> {@erased kind: AtomicStartSkipKind} -> (trace_package: AtomicSelectedTraceExistentialPackage(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, selected_start, matched, remaining, routine)) -> (@erased witness: AtomicSelectedStartWitness(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, current, selected_start, blocked_depth, kind, matched, remaining, routine)) -> LookaroundRoutineSearchResult(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix)
 
-  type LookaroundRoutineRejectionReason = LookaroundRoutineRejected | LookaroundRoutineCommitted(Nat)
 
   ## The runtime search never compares scope depths with an unchecked Boolean.
   ## This finite decision relation carries the proof that a commit is either
