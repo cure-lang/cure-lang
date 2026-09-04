@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.Split
   use Std.Regex.Core.Capture
   use Std.Regex.Core.Boundary
   use Std.Regex.Core.Initial
@@ -1332,10 +1333,6 @@ mod Std.Regex.Runtime
   ## not allocate unary Nat structures at runtime.
   type Match(result: Type) = Match(result, String, String, String, Int, Int)
 
-  type SplitInclusion = ExcludeSeparators | IncludeSeparators
-  type SplitTrimming = KeepEmptyParts | TrimEmptyParts
-  type SplitLimit = UnlimitedSplit | AtMostSplitParts(Int)
-  type SplitOptions = SplitOptions(SplitInclusion, SplitTrimming, SplitLimit)
 
   @reducible
   fn execute_instruction(instruction: EvidenceInstruction, evidence: List(Evidence), captures: List(CaptureFrame)) -> EvidenceExecution = match instruction
