@@ -1,0 +1,110 @@
+## Compile-time-only literal syntax tree. It is consumed by `expand_literal`
+## and never appears in generated matching code.
+
+@group(:text)
+mod Std.Regex.Syntax.Model.Width
+  use Std.Regex.Syntax.Model.Captures
+
+  use Std.Regex.Syntax.Model.Measurements
+
+  use Std.Regex.Syntax.Model.Options
+
+  use Std.Regex.Syntax.Model.Collections
+
+  use Std.Regex.Syntax.Model.Modifiers
+
+  use Std.Regex.Syntax.Model.ClassPredicates
+
+  use Std.Regex.Syntax.Model.Shape
+
+  use Std.Regex.Syntax.Model.Utilities
+
+  use Std.Regex.Syntax.Model.ClassKinds
+
+  use Std.Regex.Syntax.Model.Predicates
+
+  use Std.Regex.Syntax.Model.Types
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.String
+
+  fn literal_pattern_exact_width(pattern: LiteralPattern) -> Option(Nat) = match pattern
+      LiteralEmpty -> Some(Z())
+      LiteralExact(_) -> Some(S(Z()))
+      LiteralAny -> Some(S(Z()))
+      LiteralClass(_, _, _, _) -> Some(S(Z()))
+      LiteralProperty(_, _) -> Some(S(Z()))
+      LiteralDigit(_) -> Some(S(Z()))
+      LiteralWord(_) -> Some(S(Z()))
+      LiteralSpace(_) -> Some(S(Z()))
+      LiteralHorizontal(_) -> Some(S(Z()))
+      LiteralVertical(_) -> Some(S(Z()))
+      LiteralLineBreak() -> None()
+      LiteralStart -> Some(Z())
+      LiteralEnd -> Some(Z())
+      LiteralAbsoluteStart -> Some(Z())
+      LiteralStrictEnd -> Some(Z())
+      LiteralFinalEnd -> Some(Z())
+      LiteralWordBoundary(_) -> Some(Z())
+      LiteralAtomic(inner) -> literal_pattern_exact_width(inner)
+      LiteralLookahead(_, _) -> Some(Z())
+      LiteralLookbehind(_, _) -> Some(Z())
+      LiteralSequence(left, right) -> match literal_pattern_exact_width(left)
+        None() -> None()
+        Some(left_width) -> match literal_pattern_exact_width(right)
+          None() -> None()
+          Some(right_width) -> Some(literal_nat_add(left_width, right_width))
+      LiteralAlternate(left, right) -> match literal_pattern_exact_width(left)
+        None() -> None()
+        Some(left_width) -> match literal_pattern_exact_width(right)
+          Some(right_width) -> pickup
+            same_literal_nat(left_width, right_width) -> Some(left_width)
+            else -> None()
+          None() -> None()
+      LiteralBranchReset(arms) -> literal_pattern_list_exact_width(arms)
+      LiteralConditional(_, _, _) -> None()
+      LiteralRepeat(_, _) -> None()
+      LiteralPlus(_, _) -> None()
+      LiteralOptional(_, _) -> None()
+      LiteralBoundedExact(inner, count) -> match literal_pattern_exact_width(inner)
+        None() -> None()
+        Some(width) -> Some(literal_nat_multiply(width, count))
+      LiteralBoundedAtLeast(_, _, _) -> None()
+      LiteralBoundedBetween(inner, minimum, maximum, _) -> pickup
+        same_literal_nat(minimum, maximum) -> literal_pattern_exact_width(LiteralBoundedExact(inner, minimum))
+        else -> None()
+      LiteralCapture(inner) -> literal_pattern_exact_width(inner)
+      LiteralNamedCapture(_inner_name, inner) -> literal_pattern_exact_width(inner)
+      LiteralCaptureIndexed(_, _, inner) -> literal_pattern_exact_width(inner)
+      LiteralConfigured(_, inner) -> literal_pattern_exact_width(inner)
+      LiteralScopedOptions(_, _, inner) -> literal_pattern_exact_width(inner)
+
+  fn literal_pattern_exact_width_value(pattern: LiteralPattern) -> Nat = match literal_pattern_exact_width(pattern)
+      Some(width) -> width
+      None() -> Z()
+
+  fn literal_pattern_list_exact_width(patterns: List(LiteralPattern)) -> Option(Nat) = match patterns
+      [] -> Some(Z())
+      [head | rest] -> match literal_pattern_exact_width(head)
+        None() -> None()
+        Some(width) -> literal_pattern_tail_exact_width(rest, width)
+
+  fn literal_pattern_tail_exact_width(patterns: List(LiteralPattern), expected: Nat) -> Option(Nat) = match patterns
+      [] -> Some(expected)
+      [head | rest] -> match literal_pattern_exact_width(head)
+        Some(width) -> pickup
+          same_literal_nat(width, expected) -> literal_pattern_tail_exact_width(rest, expected)
+          else -> None()
+        None() -> None()
+
+  fn literal_nat_add(left: Nat, right: Nat) -> Nat = match left
+      Z() -> right
+      S(rest) -> S(literal_nat_add(rest, right))
+
+  fn literal_nat_multiply(left: Nat, right: Nat) -> Nat = match right
+      Z() -> Z()
+      S(rest) -> literal_nat_add(left, literal_nat_multiply(left, rest))
+end

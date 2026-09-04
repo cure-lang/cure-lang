@@ -2,6 +2,7 @@
 ## the matcher representation consumed by `Std.Regex`.
 @group(:text)
 mod Std.Regex.Syntax.Emitter
+  use Std.Regex.Syntax.Model.Width
   use Std.Regex.Syntax.Model.Options
   use Std.Regex.Syntax.Model.Modifiers
   use Std.Regex.Syntax.Model.ClassPredicates
