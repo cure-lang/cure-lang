@@ -1,5 +1,7 @@
 @group(:text)
 mod Std.Regex.Runtime
+  use Std.Regex.Runtime.EvidenceThreads
+  public use Std.Regex.Runtime.EvidenceThreads
   use Std.Regex.Runtime.LookaroundContext
   public use Std.Regex.Runtime.LookaroundContext
   use Std.Regex.Runtime.AtomicPlan
@@ -372,38 +374,12 @@ mod Std.Regex.Runtime
     PathRoutineTransition : (char: Char) -> (regular: List(EvidenceInstruction)) -> (suffix_routine: List(ExtendedInstruction)) -> (destination_evidence: List(Evidence)) -> (destination_captures: List(CaptureFrame)) -> (regular_execution : ExtendedEvidenceRoutineExecution(regular_routine(regular), source_evidence, record_capture_char(source_captures, char), destination_evidence, destination_captures)) -> (suffix : CertifiedPathRoutine(suffix_routine, destination_evidence, destination_captures, final_evidence)) -> CertifiedPathRoutine(append_extended_routines(transition_routine(char, regular), suffix_routine), source_evidence, source_captures, final_evidence)
     PathRoutineInitial : (regular: List(EvidenceInstruction)) -> (suffix_routine: List(ExtendedInstruction)) -> (initial_evidence: List(Evidence)) -> (initial_captures: List(CaptureFrame)) -> (regular_execution : ExtendedEvidenceRoutineExecution(regular_routine(regular), Nil(), Nil(), initial_evidence, initial_captures)) -> (suffix : CertifiedPathRoutine(suffix_routine, initial_evidence, initial_captures, final_evidence)) -> CertifiedPathRoutine(append_extended_routines(regular_routine(regular), suffix_routine), Nil(), Nil(), final_evidence)
 
-  fn initial_thread({n: Nat}, destination: MachineState(n)) -> EvidenceThread(n) = match destination
-    Active(state, routine, _) -> match execute_routine(routine, [], [])
-      EvidenceExecution(evidence, captures) -> EvidenceThread(ThreadActive(state), evidence, captures)
-    Accepted(routine, _) -> match execute_routine(routine, [], [])
-      EvidenceExecution(evidence, captures) -> EvidenceThread(ThreadAccepted(), evidence, captures)
 
-  fn initial_threads({n: Nat}, starts: List(MachineState(n))) -> List(EvidenceThread(n)) = match starts
-    [] -> []
-    [head | rest] -> [initial_thread(head) | initial_threads(rest)]
 
-  fn destination_thread({n: Nat}, destination: MachineState(n), evidence: List(Evidence), captures: List(CaptureFrame)) -> EvidenceThread(n) = match destination
-    Active(state, routine, _) -> match execute_routine(routine, evidence, captures)
-      EvidenceExecution(next_evidence, next_captures) -> EvidenceThread(ThreadActive(state), next_evidence, next_captures)
-    Accepted(routine, _) -> match execute_routine(routine, evidence, captures)
-      EvidenceExecution(next_evidence, next_captures) -> EvidenceThread(ThreadAccepted(), next_evidence, next_captures)
 
-  fn destination_threads({n: Nat}, destinations: List(MachineState(n)), evidence: List(Evidence), captures: List(CaptureFrame)) -> List(EvidenceThread(n)) = match destinations
-    [] -> []
-    [head | rest] -> [destination_thread(head, evidence, captures) | destination_threads(rest, evidence, captures)]
 
-  fn step_evidence_thread({n: Nat}, next: (Bounded(n)) -> Char -> List(MachineState(n)), char: Char, boundary: Boundary, thread: EvidenceThread(n)) -> List(EvidenceThread(n)) = match thread
-    EvidenceThread(ThreadAccepted(), _, _) -> []
-    EvidenceThread(ThreadActive(state), evidence, captures) ->
-      destination_threads(filter_boundary_states(next(state, char), boundary), evidence, record_capture_char(captures, char))
 
-  fn append_threads({n: Nat}, left: List(EvidenceThread(n)), right: List(EvidenceThread(n))) -> List(EvidenceThread(n)) = match left
-    [] -> right
-    [head | rest] -> [head | append_threads(rest, right)]
 
-  fn step_evidence_threads({n: Nat}, next: (Bounded(n)) -> Char -> List(MachineState(n)), char: Char, boundary: Boundary, threads: List(EvidenceThread(n))) -> List(EvidenceThread(n)) = match threads
-    [] -> []
-    [head | rest] -> append_threads(step_evidence_thread(next, char, boundary, head), step_evidence_threads(next, char, boundary, rest))
 
 
 
