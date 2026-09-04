@@ -1,0 +1,82 @@
+## Compile-time-only literal syntax tree. It is consumed by `expand_literal`
+## and never appears in generated matching code.
+
+@group(:text)
+mod Std.Regex.Syntax.Model.ClassPredicates
+  use Std.Regex.Syntax.Model.Shape
+
+  use Std.Regex.Syntax.Model.Utilities
+
+  use Std.Regex.Syntax.Model.ClassKinds
+
+  use Std.Regex.Syntax.Model.Predicates
+
+  use Std.Regex.Syntax.Model.Types
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.String
+
+  fn has_class_kind(kinds: LiteralClassKinds, wanted: LiteralClassKind) -> Bool = match kinds
+      LiteralClassKinds(values, _, _) -> has_class_kind_in(values, wanted)
+
+  fn has_class_kind_in(values: List(LiteralClassKind), wanted: LiteralClassKind) -> Bool = match values
+      [] -> false
+      [head | rest] -> pickup
+        same_class_kind(head, wanted) -> true
+        else -> has_class_kind_in(rest, wanted)
+
+  fn same_class_kind(left: LiteralClassKind, right: LiteralClassKind) -> Bool = match left
+      DigitKind -> class_kind_is_digit(right)
+      NotDigitKind -> class_kind_is_not_digit(right)
+      WordKind -> class_kind_is_word(right)
+      NotWordKind -> class_kind_is_not_word(right)
+      SpaceKind -> class_kind_is_space(right)
+      NotSpaceKind -> class_kind_is_not_space(right)
+      HorizontalKind -> class_kind_is_horizontal(right)
+      NotHorizontalKind -> class_kind_is_not_horizontal(right)
+      VerticalKind -> class_kind_is_vertical(right)
+      NotVerticalKind -> class_kind_is_not_vertical(right)
+
+  fn class_kind_is_digit(value: LiteralClassKind) -> Bool = match value
+      DigitKind -> true
+      _ -> false
+
+  fn class_kind_is_not_digit(value: LiteralClassKind) -> Bool = match value
+      NotDigitKind -> true
+      _ -> false
+
+  fn class_kind_is_word(value: LiteralClassKind) -> Bool = match value
+      WordKind -> true
+      _ -> false
+
+  fn class_kind_is_not_word(value: LiteralClassKind) -> Bool = match value
+      NotWordKind -> true
+      _ -> false
+
+  fn class_kind_is_space(value: LiteralClassKind) -> Bool = match value
+      SpaceKind -> true
+      _ -> false
+
+  fn class_kind_is_not_space(value: LiteralClassKind) -> Bool = match value
+      NotSpaceKind -> true
+      _ -> false
+
+  fn class_kind_is_horizontal(value: LiteralClassKind) -> Bool = match value
+      HorizontalKind -> true
+      _ -> false
+
+  fn class_kind_is_not_horizontal(value: LiteralClassKind) -> Bool = match value
+      NotHorizontalKind -> true
+      _ -> false
+
+  fn class_kind_is_vertical(value: LiteralClassKind) -> Bool = match value
+      VerticalKind -> true
+      _ -> false
+
+  fn class_kind_is_not_vertical(value: LiteralClassKind) -> Bool = match value
+      NotVerticalKind -> true
+      _ -> false
+end
