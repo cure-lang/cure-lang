@@ -225,6 +225,41 @@ defmodule Cure.Refactor.Rewrite do
   def ensure_use(_source_path, _target_module, _opts),
     do: {:error, {:invalid_split_spec, "import target module must be a string"}}
 
+  @doc "Remove ordinary structural `use` imports for a module."
+  @spec remove_use(Path.t(), String.t(), keyword()) ::
+          {:ok, %{source: String.t(), removed?: boolean()}} | {:error, error()}
+  def remove_use(source_path, target_module, opts \\ [])
+
+  def remove_use(source_path, target_module, opts) when is_binary(target_module) do
+    with {:ok, source} <- read_source(source_path),
+         {:ok, report} <- analyze(source_path),
+         :ok <- ensure_source_unchanged(source, report) do
+      imports =
+        report.imports
+        |> Enum.filter(fn import ->
+          import.source == target_module and import.import_type == "use" and not import.public
+        end)
+
+      if imports == [] do
+        {:ok, %{source: source, removed?: false}}
+      else
+        rewritten =
+          imports
+          |> Enum.map(&span_from_map(&1.span))
+          |> Enum.reject(&is_nil/1)
+          |> remove_import_spans(source)
+
+        with :ok <- verify_generated(report.module, rewritten, source_path),
+             :ok <- maybe_write_source(source_path, rewritten, opts) do
+          {:ok, %{source: rewritten, removed?: true}}
+        end
+      end
+    end
+  end
+
+  def remove_use(_source_path, _target_module, _opts),
+    do: {:error, {:invalid_split_spec, "import target module must be a string"}}
+
   defp normalize_spec(spec) when is_map(spec) do
     with {:ok, target_file} <- nonempty_string(spec[:target_file], :target_file),
          {:ok, target_module} <- nonempty_string(spec[:target_module], :target_module),
@@ -453,6 +488,19 @@ defmodule Cure.Refactor.Rewrite do
     end)
   end
 
+  defp remove_import_spans([], source), do: source
+
+  defp remove_import_spans(spans, source) do
+    spans
+    |> Enum.map(&import_line_span(source, &1))
+    |> Enum.sort_by(&elem(&1, 0))
+    |> merge_ranges()
+    |> Enum.sort_by(&elem(&1, 0), :desc)
+    |> Enum.reduce(source, fn {start_byte, end_byte}, acc ->
+      binary_part(acc, 0, start_byte) <> binary_part(acc, end_byte, byte_size(acc) - end_byte)
+    end)
+  end
+
   defp merge_ranges([]), do: []
 
   defp merge_ranges([{start_byte, end_byte} | rest]) do
@@ -466,6 +514,10 @@ defmodule Cure.Refactor.Rewrite do
 
   defp declaration_line_span(source, %Span{start_byte: start_byte, end_byte: end_byte}) do
     {leading_start(source, line_start(source, start_byte)), line_end(source, end_byte)}
+  end
+
+  defp import_line_span(source, %Span{start_byte: start_byte, end_byte: end_byte}) do
+    {line_start(source, start_byte), line_end(source, end_byte)}
   end
 
   # A declaration's documentation comments and decorators are trivia attached

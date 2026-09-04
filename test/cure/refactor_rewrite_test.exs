@@ -133,6 +133,18 @@ defmodule Cure.Refactor.RewriteTest do
     assert File.read!(path) == source
   end
 
+  test "an ordinary import can be removed structurally", %{dir: dir} do
+    path = Path.join(dir, "source.cure")
+    source = "mod Source\n  use Existing\n  use Extracted\n  fn value() -> Int = 1\nend\n"
+    File.write!(path, source)
+
+    assert {:ok, %{source: rewritten, removed?: true}} = Rewrite.remove_use(path, "Extracted")
+    assert rewritten =~ "use Existing"
+    refute rewritten =~ "use Extracted"
+    assert rewritten =~ "fn value() -> Int = 1"
+    assert File.read!(path) == source
+  end
+
   test "a split that would require a back-edge is rejected before writing", %{dir: dir} do
     path = Path.join(dir, "source.cure")
 

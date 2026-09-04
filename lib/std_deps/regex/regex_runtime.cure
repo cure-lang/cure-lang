@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.ClassKinds
   public use Std.Regex.Runtime.Named
   public use Std.Regex.Runtime.Split
   use Std.Regex.Core.Capture
@@ -22608,37 +22609,10 @@ mod Std.Regex.Runtime
   type OneOrMore(value: Type) = OneOrMore(value, List(value))
 
   type CharacterRange = CharacterRange(Char, Char)
-  type ClassKinds = ClassKinds(Bool, Bool, Bool, Bool, Bool, Bool, Bool, Bool, Bool, Bool)
-  type ClassKind = DigitKind | NotDigitKind | WordKind | NotWordKind | SpaceKind | NotSpaceKind | HorizontalKind | NotHorizontalKind | VerticalKind | NotVerticalKind
 
-  type UnicodeProperty =
-    | PropertyNonNewline
-    | PropertyAny
-    | PropertyAscii
-    | PropertyCased | PropertyLowercase | PropertyUppercase
-    | PropertyAlphabetic | PropertyWhiteSpace | PropertyHexDigit | PropertyMath | PropertyCurrencyBinary
-    | PropertyScript(Atom)
-    | PropertyScriptExtensions(Atom)
-    | PropertyBidiClass(Atom)
-    | PropertyBidiPairedBracketType(Atom)
-    | PropertyCategory(Atom)
-    | PropertyBinary(Atom)
-    | PropertyLetter | PropertyLowercaseLetter | PropertyUppercaseLetter | PropertyTitlecaseLetter | PropertyModifierLetter | PropertyOtherLetter
-    | PropertyMark | PropertySpacingMark | PropertyEnclosingMark | PropertyNonspacingMark
-    | PropertyNumber | PropertyDecimalNumber | PropertyLetterNumber | PropertyOtherNumber
-    | PropertyPunctuation | PropertyConnectorPunctuation | PropertyDashPunctuation | PropertyClosePunctuation | PropertyFinalPunctuation | PropertyInitialPunctuation | PropertyOtherPunctuation | PropertyOpenPunctuation
-    | PropertySymbol | PropertyCurrencySymbol | PropertyModifierSymbol | PropertyMathSymbol | PropertyOtherSymbol
-    | PropertySeparator | PropertyLineSeparator | PropertyParagraphSeparator | PropertySpaceSeparator
-    | PropertyOther | PropertyControl | PropertyFormat | PropertyUnassigned | PropertyPrivateUse | PropertySurrogate
 
-  type UnicodePropertyMatch = UnicodePropertyMatch(UnicodeProperty, Bool)
 
-  type PosixClass =
-    | PosixAlnum | PosixAlpha | PosixAscii | PosixBlank | PosixCntrl
-    | PosixDigit | PosixGraph | PosixLower | PosixPrint | PosixPunct
-    | PosixSpace | PosixUpper | PosixWord | PosixXdigit
 
-  type PosixClassMatch = PosixClassMatch(PosixClass, Bool)
 
   fn no_class_kinds() -> ClassKinds =
     ClassKinds(false, false, false, false, false, false, false, false, false, false)
