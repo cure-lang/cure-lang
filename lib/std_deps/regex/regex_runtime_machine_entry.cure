@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime.MachineEntry
+  use Std.Regex.Runtime.CompilationMachines
   use Std.Regex.Runtime.LookaroundCompilation
   public use Std.Regex.Runtime.MachineEntryPrimitives
   use Std.Regex.Runtime.PatternMachinePrimitives

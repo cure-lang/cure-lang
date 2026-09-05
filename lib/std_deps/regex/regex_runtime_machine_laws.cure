@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime.MachineLaws
+  use Std.Regex.Runtime.CompilationMachines
   use Std.Regex.Runtime.CompilationTypes
   use Std.Regex.Runtime.PatternMachinePrimitives
   public use Std.Regex.Runtime.MachineLaws.StagedConcat

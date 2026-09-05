@@ -1,0 +1,110 @@
+@group(:text)
+mod Std.Regex.Runtime.CompilationMachines
+  use Std.Regex.Runtime.CompilationTypes
+
+  use Std.Regex.Runtime.LookaroundCompilation
+
+  use Std.Regex.Runtime.PatternMachinePrimitives
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Runtime.CaptureConditions
+
+  use Std.Regex.Runtime.Boundaries
+
+  use Std.Regex.Runtime.AtomicDiagnostics
+
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Char
+
+  use Std.Option
+
+  use Std.List
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  use Std.Decision
+
+  @reducible
+  fn named_thompson_machine({@erased shape: ShapeCode}, compilation: NamedThompsonCompilation(shape)) -> PatternMachine(named_thompson_state_count(compilation)) = match compilation
+    NamedThompsonPredicate(test) -> predicate_pattern_machine(test)
+    NamedThompsonEmpty() -> empty_pattern_machine()
+    NamedThompsonBoundary(constraint) -> boundary_pattern_machine(constraint)
+    NamedThompsonConcat(left, right) -> concat_pattern_machine(named_thompson_state_count(left), named_thompson_machine(left), named_thompson_state_count(right), named_thompson_machine(right))
+    NamedThompsonCapture(inner) ->
+      let inner_machine = named_thompson_machine(inner)
+      group_pattern_machine(named_thompson_state_count(inner), pattern_machine_starts(inner_machine), pattern_machine_next(inner_machine))
+    NamedThompsonGroup(slot, inner) ->
+      let inner_machine = named_thompson_machine(inner)
+      group_pattern_machine_with_slot(named_thompson_state_count(inner), pattern_machine_starts(inner_machine), pattern_machine_next(inner_machine), slot)
+    NamedThompsonGuard(slot, participated, inner) -> guard_pattern_machine(capture_condition_constraint(slot, participated), named_thompson_machine(inner))
+    NamedThompsonAlternate(left, right, prefer_right) -> alternate_pattern_machine(named_thompson_state_count(left), named_thompson_machine(left), named_thompson_state_count(right), named_thompson_machine(right), prefer_right)
+    NamedThompsonRepeat(inner, lazy) -> repeat_pattern_machine(named_thompson_state_count(inner), named_thompson_machine(inner), lazy)
+
+  ## Construct the closure machine once per Thompson subtree.  Let-binding the
+  ## child results is important: starts and next are two projections of the
+  ## same child value, not two independent recursive reconstructions.
+  fn staged_machine_seed_from_compilation({@erased shape: ShapeCode}, compilation: ThompsonCompilation(shape)) -> PatternMachine(thompson_state_count(compilation)) = match compilation
+    ThompsonPredicate(test) -> predicate_pattern_machine(test)
+    ThompsonEmpty() -> empty_pattern_machine()
+    ThompsonBoundary(constraint) -> boundary_pattern_machine(constraint)
+    ThompsonGroup(inner) ->
+      let inner_machine = staged_machine_seed_from_compilation(inner)
+      group_pattern_machine(thompson_state_count(inner), pattern_machine_starts(inner_machine), pattern_machine_next(inner_machine))
+    ThompsonConcat(left, right) ->
+      let left_machine = staged_machine_seed_from_compilation(left)
+      let right_machine = staged_machine_seed_from_compilation(right)
+      concat_pattern_machine(thompson_state_count(left), left_machine, thompson_state_count(right), right_machine)
+    ThompsonAlternate(left, right, prefer_right) ->
+      let left_machine = staged_machine_seed_from_compilation(left)
+      let right_machine = staged_machine_seed_from_compilation(right)
+      alternate_pattern_machine(thompson_state_count(left), left_machine, thompson_state_count(right), right_machine, prefer_right)
+    ThompsonRepeat(inner, lazy) ->
+      let inner_machine = staged_machine_seed_from_compilation(inner)
+      repeat_pattern_machine(thompson_state_count(inner), inner_machine, lazy)
+
+  @reducible
+  fn pattern_machine_starts({n: Nat}, machine: PatternMachine(n)) -> List(MachineState(n)) = match machine
+    MkPatternMachine(starts, next) -> starts
+
+  @reducible
+  fn pattern_machine_next({n: Nat}, machine: PatternMachine(n)) -> (Bounded(n)) -> Char -> List(MachineState(n)) = match machine
+    MkPatternMachine(starts, next) -> next
+
+  @reducible
+  fn pattern_machine_next_value({n: Nat}, machine: PatternMachine(n), state: Bounded(n), char: Char) -> List(MachineState(n)) =
+    pattern_machine_next(machine)(state, char)
+end

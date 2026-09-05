@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime.NamedFullCapture
+  use Std.Regex.Runtime.CompilationMachines
   use Std.Regex.Runtime.CompilationTypes
   use Std.Decision
 

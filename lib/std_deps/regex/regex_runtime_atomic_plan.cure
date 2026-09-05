@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime.AtomicPlan
+  use Std.Regex.Runtime.CompilationMachines
   use Std.Regex.Runtime.CompilationTypes
   use Std.Regex.Runtime.StateOps
   use Std.Regex.Runtime.PatternMachines
