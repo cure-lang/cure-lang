@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime.CharacterClasses
+  public use Std.Regex.Runtime.CharacterClassPrimitives
   use Std.Regex.Runtime.CombinatorPrimitives
   use Std.Decision
   use Std.Sigma
@@ -165,15 +166,9 @@ mod Std.Regex.Runtime.CharacterClasses
   fn extended_unicode_property_class(chars: List(Char), ranges: List(CharacterRange), kinds: ClassKinds, properties: List(UnicodePropertyMatch), posix: List(PosixClassMatch), negated: Bool, caseless: Bool, unicode: Bool) -> Regex(Char) =
     predicate(extended_property_class_test(chars, ranges, kinds, properties, posix, negated, caseless, unicode))
 
-  fn digit_class(negated: Bool) -> Regex(Char) = pickup
-    negated -> predicate(negate_test(ascii_digit))
-    else -> predicate(ascii_digit)
 
-  fn digit_class_with_options(negated: Bool, unicode: Bool) -> Regex(Char) = predicate(digit_options_test(negated, unicode))
 
-  fn word_class_with_options(negated: Bool, unicode: Bool) -> Regex(Char) = predicate(word_options_test(negated, unicode))
 
-  fn space_class_with_options(negated: Bool, unicode: Bool) -> Regex(Char) = predicate(space_options_test(negated, unicode))
 
   fn horizontal_predicate(negated: Bool, char: Char) -> Bool = pickup
     negated -> not Std.Char.is_horizontal_space(char)
@@ -191,11 +186,5 @@ mod Std.Regex.Runtime.CharacterClasses
 
   fn vertical_class(negated: Bool) -> Regex(Char) = predicate(vertical_test(negated))
 
-  fn word_class(negated: Bool) -> Regex(Char) = pickup
-    negated -> predicate(negate_test(ascii_word))
-    else -> predicate(ascii_word)
 
-  fn space_class(negated: Bool) -> Regex(Char) = pickup
-    negated -> predicate(negate_test(ascii_space))
-    else -> predicate(ascii_space)
 end
