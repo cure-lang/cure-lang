@@ -1,0 +1,192 @@
+@group(:text)
+mod Std.Regex.Runtime.AtomicDepthMaximum
+  use Std.Regex.Runtime.MemberTransport
+
+  use Std.Regex.Runtime.EvidenceStep
+
+  use Std.Regex.Runtime.AtomicStartMember
+
+  use Std.Regex.Runtime.AtomicFailureAuthority
+
+  use Std.Regex.Runtime.AtomicDepth
+
+  use Std.Regex.Runtime.LookaroundSupport
+
+  use Std.Regex.Runtime.NamedCaptureSearch
+
+  use Std.Regex.Runtime.PatternSearch
+
+  use Std.Regex.Runtime.EvidenceSearch
+
+  use Std.Regex.Runtime.MachineSearch
+
+  use Std.Regex.Runtime.CharacterClasses
+
+  use Std.Regex.Runtime.NamedSearch
+
+  use Std.Regex.Runtime.MachineTransitions
+
+  use Std.Regex.Runtime.NamedStaging
+
+  use Std.Regex.Runtime.MachineEntry
+
+  use Std.Regex.Runtime.LineBreak
+
+  use Std.Regex.Runtime.CharacterMatchers
+
+  use Std.Regex.Runtime.Combinators
+
+  use Std.Regex.Runtime.Anchors
+
+  use Std.Regex.Runtime.CompileRegex
+
+  use Std.Regex.Runtime.ConversionAdapters
+
+  use Std.Regex.Runtime.ThreadDedup
+
+  use Std.Regex.Runtime.NamedTypes
+
+  use Std.Regex.Runtime.RegexType
+
+  use Std.Regex.Runtime.CharacterSemantics
+
+  use Std.Regex.Runtime.Conversion
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Runtime.CaptureConditions
+
+  use Std.Regex.Runtime.Boundaries
+
+  use Std.Regex.Runtime.AtomicDiagnostics
+
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Char
+
+  use Std.Option
+
+  use Std.List
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  use Std.Decision
+
+  @reducible
+  fn atomic_depth_max(left: Nat, right: Nat) -> Nat = match left
+    Z() -> right
+    S(left_rest) -> match right
+      Z() -> S(left_rest)
+      S(right_rest) -> S(atomic_depth_max(left_rest, right_rest))
+
+  @reducible
+  fn atomic_scope_max_depth(routine: List(EvidenceInstruction), depth: Nat) -> Nat =
+    atomic_scope_max_depth_with(routine, depth, depth)
+
+  @reducible
+  fn atomic_scope_max_depth_with(routine: List(EvidenceInstruction), depth: Nat, maximum: Nat) -> Nat = match routine
+    [] -> maximum
+    [BeginAtomic() | rest] -> atomic_scope_max_depth_with(rest, S(depth), atomic_depth_max(maximum, S(depth)))
+    [EndAtomic() | rest] -> match depth
+      Z() -> atomic_scope_max_depth_with(rest, depth, maximum)
+      S(previous) -> atomic_scope_max_depth_with(rest, previous, maximum)
+    [_ | rest] -> atomic_scope_max_depth_with(rest, depth, maximum)
+end
