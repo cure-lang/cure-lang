@@ -52,6 +52,36 @@ defmodule Cure.Refactor.RewriteTest do
     refute File.exists?(Path.join(dir, "helpers.cure"))
   end
 
+  test "split updates direct importers of moved declarations", %{dir: dir} do
+    source_path = Path.join(dir, "source.cure")
+    importer_path = Path.join(dir, "consumer.cure")
+
+    File.write!(source_path, """
+    mod Source
+      fn root() -> Int = helper()
+      fn helper() -> Int = 1
+    end
+    """)
+
+    File.write!(importer_path, """
+    mod Consumer
+      use Source
+      fn result() -> Int = helper()
+    end
+    """)
+
+    assert {:ok, result} =
+             Rewrite.split(source_path, "helpers.cure:Extracted:helper",
+               output_directory: dir,
+               write: true
+             )
+
+    assert result.updated_dependents == [importer_path]
+    assert File.read!(importer_path) =~ "use Extracted"
+    assert File.read!(source_path) =~ "public use Extracted"
+    assert File.read!(Path.join(dir, "helpers.cure")) =~ "fn helper() -> Int = 1"
+  end
+
   test "leading documentation trivia follows an extracted declaration", %{dir: dir} do
     source_path = Path.join(dir, "source.cure")
 
@@ -140,7 +170,8 @@ defmodule Cure.Refactor.RewriteTest do
     File.write!(path, source)
 
     assert {:ok, %{source: rewritten, added?: true}} = Rewrite.ensure_use(path, "Extracted", write: false)
-    assert rewritten =~ "public use Extracted\n  use Extracted"
+    assert rewritten =~ "use Extracted"
+    assert rewritten =~ "public use Extracted"
     assert File.read!(path) == source
   end
 

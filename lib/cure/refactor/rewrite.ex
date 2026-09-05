@@ -21,7 +21,8 @@ defmodule Cure.Refactor.Rewrite.Result do
     :source,
     :target,
     :added_imports,
-    :applied?
+    :applied?,
+    updated_dependents: []
   ]
 
   @type t :: %__MODULE__{
@@ -33,6 +34,7 @@ defmodule Cure.Refactor.Rewrite.Result do
           source: String.t(),
           target: String.t(),
           added_imports: [String.t()],
+          updated_dependents: [Path.t()],
           applied?: boolean()
         }
 end
@@ -53,8 +55,10 @@ defmodule Cure.Refactor.Rewrite do
   The generated source is reparsed before it can be written. Dependency edges
   crossing the split are retained with a generated `use` import. Private
   declarations crossing that boundary are rejected because a `use` cannot make
-  a private definition public. The API is dry-run by default; pass `write: true`
-  to apply the already-verified pair of source buffers.
+  a private definition public. Direct importers in the source directory that
+  reference moved declarations are also updated with an ordinary `use` of the
+  destination module. The API is dry-run by default; pass `write: true` to
+  apply the already-verified buffers.
   """
 
   alias Cure.Compiler.{Lexer, Parser, Trivia}
@@ -138,7 +142,8 @@ defmodule Cure.Refactor.Rewrite do
            ),
          :ok <- verify_generated(generated.source_module, generated.source, generated.source_path),
          :ok <- verify_generated(generated.target_module, generated.target, generated.target_path),
-         {:ok, applied?} <- maybe_write(generated, opts) do
+         {:ok, generated_dependents} <- generate_dependent_rewrites(generated, report, selected, spec, opts),
+         {:ok, applied?} <- maybe_write(generated, generated_dependents, opts) do
       {:ok,
        %Cure.Refactor.Rewrite.Result{
          source_path: source_path,
@@ -149,6 +154,7 @@ defmodule Cure.Refactor.Rewrite do
          source: generated.source,
          target: generated.target,
          added_imports: generated.added_imports,
+         updated_dependents: Enum.map(generated_dependents, & &1.path),
          applied?: applied?
        }}
     end
@@ -164,6 +170,7 @@ defmodule Cure.Refactor.Rewrite do
       target_module: result.target_module,
       selected: result.selected,
       added_imports: result.added_imports,
+      updated_dependents: result.updated_dependents,
       applied: result.applied?
     }
   end
@@ -875,16 +882,102 @@ defmodule Cure.Refactor.Rewrite do
   defp module_name({:block, _meta, items}), do: items |> Enum.find_value(&module_name/1)
   defp module_name(_), do: nil
 
-  defp maybe_write(generated, opts) do
+  defp generate_dependent_rewrites(generated, report, selected, spec, opts) do
+    if Keyword.get(opts, :update_dependents, true) == false do
+      {:ok, []}
+    else
+      do_generate_dependent_rewrites(generated, report, selected, spec, opts)
+    end
+  end
+
+  defp do_generate_dependent_rewrites(generated, report, selected, spec, opts) do
+    selected_names = MapSet.new(Enum.map(selected, & &1.name))
+
+    generated.source_path
+    |> dependent_paths(generated.target_path, opts)
+    |> Enum.reduce_while({:ok, []}, fn path, {:ok, rewrites} ->
+      with {:ok, source} <- read_source(path),
+           {:ok, dependent_report} <- analyze(path),
+           :ok <- ensure_source_unchanged(source, dependent_report) do
+        if dependent_uses_moved_name?(dependent_report, report.module, selected_names) and
+             not has_local_moved_name?(dependent_report, selected_names) and
+             not has_ordinary_use?(dependent_report, spec.target_module) do
+          rewritten = insert_imports(source, dependent_report, ["use #{spec.target_module}"])
+
+          case verify_generated(dependent_report.module, rewritten, path) do
+            :ok -> {:cont, {:ok, [%{path: path, source: rewritten} | rewrites]}}
+            {:error, reason} -> {:halt, {:error, reason}}
+          end
+        else
+          {:cont, {:ok, rewrites}}
+        end
+      else
+        {:error, reason} -> {:halt, {:error, {:analysis_error, {path, reason}}}}
+      end
+    end)
+    |> case do
+      {:ok, rewrites} -> {:ok, Enum.reverse(rewrites)}
+      error -> error
+    end
+  end
+
+  defp dependent_paths(source_path, target_path, opts) do
+    paths =
+      case Keyword.fetch(opts, :dependent_paths) do
+        {:ok, paths} when is_list(paths) -> paths
+        _ -> Path.wildcard(Path.join(Path.dirname(Path.expand(source_path)), "*.cure"))
+      end
+
+    source_path = Path.expand(source_path)
+    target_path = Path.expand(target_path)
+
+    paths
+    |> Enum.map(&Path.expand/1)
+    |> Enum.uniq()
+    |> Enum.reject(&(&1 in [source_path, target_path]))
+    |> Enum.sort()
+  end
+
+  defp dependent_uses_moved_name?(report, source_module, selected_names) do
+    has_import?(report, source_module) and
+      report.declarations
+      |> declaration_tree()
+      |> Enum.flat_map(& &1.references)
+      |> Enum.any?(fn reference -> MapSet.member?(selected_names, reference.name) end)
+  end
+
+  defp has_local_moved_name?(report, selected_names) do
+    report.declarations
+    |> declaration_tree()
+    |> Enum.any?(fn declaration -> MapSet.member?(selected_names, declaration.name) end)
+  end
+
+  defp declaration_tree(declarations) do
+    Enum.flat_map(declarations, fn declaration ->
+      [declaration | declaration_tree(declaration.children)]
+    end)
+  end
+
+  defp maybe_write(generated, dependents, opts) do
     if Keyword.get(opts, :write, false) do
       with :ok <- File.mkdir_p(Path.dirname(generated.target_path)),
            :ok <- write_file(generated.target_path, generated.target),
-           :ok <- write_file(generated.source_path, generated.source) do
+           :ok <- write_file(generated.source_path, generated.source),
+           :ok <- write_dependent_files(dependents) do
         {:ok, true}
       end
     else
       {:ok, false}
     end
+  end
+
+  defp write_dependent_files(dependents) do
+    Enum.reduce_while(dependents, :ok, fn %{path: path, source: source}, :ok ->
+      case write_file(path, source) do
+        :ok -> {:cont, :ok}
+        error -> {:halt, error}
+      end
+    end)
   end
 
   defp maybe_write_source(path, contents, opts) do
