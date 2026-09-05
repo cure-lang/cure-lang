@@ -3,6 +3,7 @@
 ## evidence routines while retaining their dependent input and output indices.
 @group(:text)
 mod Std.Regex.Proof
+  public use Std.Regex.Proof.CertifiedMachine
   public use Std.Regex.Proof.GroupTransitionExact
   public use Std.Regex.Proof.GroupCharacterRoutine
   public use Std.Regex.Proof.SingleCharacterString
@@ -4109,35 +4110,12 @@ mod Std.Regex.Proof
       None() -> None()
       Some(%[value, rest]) -> Some(%[value, Std.String.from_characters(rest)])
 
-  type CertifiedPatternMachine = CertifiedEmptyMachine | CertifiedBoundaryMachine(BoundaryConstraint) | CertifiedPredicateMachine(Char -> Bool)
 
-  @reducible
-  fn certified_pattern_shape(certified: CertifiedPatternMachine) -> ShapeCode = match certified
-    CertifiedEmptyMachine() -> UnitC()
-    CertifiedBoundaryMachine(_) -> UnitC()
-    CertifiedPredicateMachine(_) -> CharC()
 
-  @reducible
-  fn certified_pattern_state_count(certified: CertifiedPatternMachine) -> Nat = match certified
-    CertifiedEmptyMachine() -> Z()
-    CertifiedBoundaryMachine(_) -> Z()
-    CertifiedPredicateMachine(_) -> S(Z())
 
-  @reducible
-  fn certified_pattern_machine(certified: CertifiedPatternMachine) -> PatternMachine(certified_pattern_state_count(certified)) = match certified
-    CertifiedEmptyMachine() -> empty_pattern_machine()
-    CertifiedBoundaryMachine(constraint) -> boundary_pattern_machine(constraint)
-    CertifiedPredicateMachine(test) -> predicate_pattern_machine(test)
 
-  @reducible
-  fn certify_empty_pattern_machine() -> CertifiedPatternMachine = CertifiedEmptyMachine()
 
-  @reducible
-  fn certify_boundary_pattern_machine(constraint: BoundaryConstraint) -> CertifiedPatternMachine = CertifiedBoundaryMachine(constraint)
 
-  @reducible
-  fn certify_predicate_pattern_machine(test: Char -> Bool) -> CertifiedPatternMachine =
-    CertifiedPredicateMachine(test)
 
   fn certified_pattern_acceptance_encodes(certified: CertifiedPatternMachine, input: List(Char), after_input: List(Char), position: InitialPosition, @erased final_evidence: List(Evidence), @erased routine: List(ExtendedInstruction), acceptance: MachineAcceptance(certified_pattern_state_count(certified), certified_pattern_machine(certified), position, input, after_input, final_evidence, routine)) -> Encodes(certified_pattern_shape(certified), final_evidence, empty_evidence()) = match certified
     CertifiedEmptyMachine() -> empty_machine_arbitrary_acceptance_encodes(input, after_input, position, final_evidence, routine, acceptance)
