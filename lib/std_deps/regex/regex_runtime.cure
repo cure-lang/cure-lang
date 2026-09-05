@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.EvidenceStep
   public use Std.Regex.Runtime.AtomicStartMember
   public use Std.Regex.Runtime.AtomicFailureAuthority
   public use Std.Regex.Runtime.AtomicDepth
@@ -3907,23 +3908,6 @@ mod Std.Regex.Runtime
 
   fn lookaround_exhaustion_from_list({n: Nat}, values: List(MachineState(n))) -> LookaroundExhaustion(n) = lookaround_exhaustion_from_members(machine_state_members(values))
 
-  ## A single winning NFA path through the evidence VM.  Both the starting
-  ## thread and final evidence are indices: `AcceptingNow` can close only at an
-  ## accepted thread carrying exactly that evidence, while `AcceptingNext` can
-  ## advance only to a member of `step_evidence_thread`.  Consequently a path
-  ## cannot invent a state, skip an input character, or claim evidence different
-  ## from the VM thread it reaches.
-  ##
-  ## Boundary filtering is part of the indexed edge, including the exact suffix
-  ## used by the runtime boundary calculation. This covers zero-width boundary
-  ## constraints without adding an unchecked side condition to the theorem.
-  ## One evidence-preserving transition. It separates machine reachability from
-  ## routine execution: `edge` proves the destination came from the checked
-  ## bounded transition relation, and `execution` proves that destination's
-  ## routine produced exactly the evidence/capture state named by the result.
-  type EvidenceStep(n: Nat, machine: PatternMachine(n)) indices (char: Char, boundary: Boundary, source_state: ThreadState(n), source_evidence: List(Evidence), source_captures: List(CaptureFrame), destination_state: ThreadState(n), destination_evidence: List(Evidence), destination_captures: List(CaptureFrame))
-    EvidenceStepActive : (destination: Bounded(n)) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (edge : ListMember(MachineState(n), Active(destination, routine, constraints), machine_destinations(n, machine, source_state, char, boundary))) -> (execution : RoutineExecution(routine, source_evidence, record_capture_char(source_captures, char), result_evidence, result_captures)) -> EvidenceStep(n, machine, char, boundary, source_state, source_evidence, source_captures, ThreadActive(destination), result_evidence, result_captures)
-    EvidenceStepAccepted : (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (edge : ListMember(MachineState(n), Accepted(routine, constraints), machine_destinations(n, machine, source_state, char, boundary))) -> (execution : RoutineExecution(routine, source_evidence, record_capture_char(source_captures, char), result_evidence, result_captures)) -> EvidenceStep(n, machine, char, boundary, source_state, source_evidence, source_captures, ThreadAccepted(), result_evidence, result_captures)
 
 
 
