@@ -3,6 +3,7 @@
 ## evidence routines while retaining their dependent input and output indices.
 @group(:text)
 mod Std.Regex.Proof
+  public use Std.Regex.Proof.SingleCharacterString
   public use Std.Regex.Proof.EquivalenceLaws
   public use Std.Regex.Proof.MarkerExecution
   use Std.Regex.Runtime.MemberTransport
@@ -4165,8 +4166,6 @@ mod Std.Regex.Proof
   type GroupedPredicateInitialView indices (evidence: List(Evidence), captures: List(CaptureFrame))
     GroupedPredicateInitialExact : GroupedPredicateInitialView(Nil(), Cons(CaptureFrame(Nil(), Nil()), Nil()))
 
-  @reducible
-  fn single_character_string(char: Char) -> String = Std.String.from_characters(Cons(char, Nil()))
 
   fn grouped_predicate_starts_view(test: Char -> Bool, position: InitialPosition, input: List(Char), after_input: List(Char)) -> GroupedPredicateStartsView(initial_machine_destinations(S(Z()), group_pattern_machine(S(Z()), Cons(predicate_machine_start(), Nil()), predicate_machine_next(test)), position, input, after_input)) = GroupedPredicateStartsExact()
 
