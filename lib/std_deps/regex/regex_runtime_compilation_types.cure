@@ -1,0 +1,144 @@
+@group(:text)
+mod Std.Regex.Runtime.CompilationTypes
+  use Std.Regex.Runtime.LookaroundCompilation
+
+  use Std.Regex.Runtime.PatternMachinePrimitives
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Runtime.CaptureConditions
+
+  use Std.Regex.Runtime.Boundaries
+
+  use Std.Regex.Runtime.AtomicDiagnostics
+
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Char
+
+  use Std.Option
+
+  use Std.List
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  use Std.Decision
+
+  ## Constructor-preserving Thompson IR. Both runtime compilation and the
+  ## evidence theorem consume this same tree, so proof code never reconstructs
+  ## machine provenance from a function-valued transition table.
+  type ThompsonCompilation indices (shape: ShapeCode)
+    ThompsonPredicate : (test: (Char -> Bool)) -> ThompsonCompilation(CharC)
+    ThompsonEmpty : ThompsonCompilation(UnitC)
+    ThompsonBoundary : (constraint: BoundaryConstraint) -> ThompsonCompilation(UnitC)
+    ThompsonConcat : (left: ThompsonCompilation(left_shape)) -> (right: ThompsonCompilation(right_shape)) -> ThompsonCompilation(PairC(left_shape, right_shape))
+    ThompsonGroup : (inner: ThompsonCompilation(inner_shape)) -> ThompsonCompilation(StringC)
+    ThompsonAlternate : (left: ThompsonCompilation(left_shape)) -> (right: ThompsonCompilation(right_shape)) -> (prefer_right: Bool) -> ThompsonCompilation(ChoiceC(left_shape, right_shape))
+    ThompsonRepeat : (inner: ThompsonCompilation(inner_shape)) -> (lazy: Bool) -> ThompsonCompilation(ListC(inner_shape))
+
+  ## Named compilation is constructor-for-constructor parallel to the checked
+  ## Thompson tree.  Only group nodes differ: they carry the explicit slot ID
+  ## used by the capture ledger.  Erasing the IDs recovers the ordinary
+  ## compilation, so language proofs can remain independent of names.
+  type NamedThompsonCompilation indices (shape: ShapeCode)
+    NamedThompsonPredicate : (test: (Char -> Bool)) -> NamedThompsonCompilation(CharC)
+    NamedThompsonEmpty : NamedThompsonCompilation(UnitC)
+    NamedThompsonBoundary : (constraint: BoundaryConstraint) -> NamedThompsonCompilation(UnitC)
+    NamedThompsonConcat : (left: NamedThompsonCompilation(left_shape)) -> (right: NamedThompsonCompilation(right_shape)) -> NamedThompsonCompilation(PairC(left_shape, right_shape))
+    NamedThompsonCapture : (inner: NamedThompsonCompilation(inner_shape)) -> NamedThompsonCompilation(StringC)
+    NamedThompsonGroup : (slot: Nat) -> (inner: NamedThompsonCompilation(inner_shape)) -> NamedThompsonCompilation(StringC)
+    NamedThompsonGuard : (slot: Nat) -> (participated: Bool) -> (inner: NamedThompsonCompilation(inner_shape)) -> NamedThompsonCompilation(inner_shape)
+    NamedThompsonAlternate : (left: NamedThompsonCompilation(left_shape)) -> (right: NamedThompsonCompilation(right_shape)) -> (prefer_right: Bool) -> NamedThompsonCompilation(ChoiceC(left_shape, right_shape))
+    NamedThompsonRepeat : (inner: NamedThompsonCompilation(inner_shape)) -> (lazy: Bool) -> NamedThompsonCompilation(ListC(inner_shape))
+
+  ## Erasure certificate: every named compilation has exactly the ordinary
+  ## Thompson compilation obtained by dropping slot IDs.  This is the bridge
+  ## used by the typed proof path; capture metadata cannot alter language.
+  type NamedCompilationErasure indices (shape: ShapeCode, named: NamedThompsonCompilation(shape), ordinary: ThompsonCompilation(shape))
+    NamedPredicateErasure : NamedCompilationErasure(CharC, NamedThompsonPredicate(test), ThompsonPredicate(test))
+    NamedEmptyErasure : NamedCompilationErasure(UnitC, NamedThompsonEmpty(), ThompsonEmpty())
+    NamedBoundaryErasure : NamedCompilationErasure(UnitC, NamedThompsonBoundary(constraint), ThompsonBoundary(constraint))
+    NamedConcatErasure : {@erased left_shape: ShapeCode} -> {@erased right_shape: ShapeCode} -> {@erased left_named: NamedThompsonCompilation(left_shape)} -> {@erased right_named: NamedThompsonCompilation(right_shape)} -> {@erased left_ordinary: ThompsonCompilation(left_shape)} -> {@erased right_ordinary: ThompsonCompilation(right_shape)} -> (@erased left: NamedCompilationErasure(left_shape, left_named, left_ordinary)) -> (@erased right: NamedCompilationErasure(right_shape, right_named, right_ordinary)) -> NamedCompilationErasure(PairC(left_shape, right_shape), NamedThompsonConcat(left_named, right_named), ThompsonConcat(left_ordinary, right_ordinary))
+    NamedCaptureErasure : {@erased inner_shape: ShapeCode} -> {@erased inner_named: NamedThompsonCompilation(inner_shape)} -> {@erased inner_ordinary: ThompsonCompilation(inner_shape)} -> (@erased inner: NamedCompilationErasure(inner_shape, inner_named, inner_ordinary)) -> NamedCompilationErasure(StringC, NamedThompsonCapture(inner_named), ThompsonGroup(inner_ordinary))
+    NamedGroupErasure : {@erased inner_shape: ShapeCode} -> {@erased inner_named: NamedThompsonCompilation(inner_shape)} -> {@erased inner_ordinary: ThompsonCompilation(inner_shape)} -> (slot: Nat) -> (@erased inner: NamedCompilationErasure(inner_shape, inner_named, inner_ordinary)) -> NamedCompilationErasure(StringC, NamedThompsonGroup(slot, inner_named), ThompsonGroup(inner_ordinary))
+    NamedGuardErasure : {@erased inner_shape: ShapeCode} -> {@erased inner_named: NamedThompsonCompilation(inner_shape)} -> {@erased inner_ordinary: ThompsonCompilation(inner_shape)} -> (slot: Nat) -> (participated: Bool) -> (@erased inner: NamedCompilationErasure(inner_shape, inner_named, inner_ordinary)) -> NamedCompilationErasure(inner_shape, NamedThompsonGuard(slot, participated, inner_named), inner_ordinary)
+    NamedAlternateErasure : {@erased left_shape: ShapeCode} -> {@erased right_shape: ShapeCode} -> {@erased left_named: NamedThompsonCompilation(left_shape)} -> {@erased right_named: NamedThompsonCompilation(right_shape)} -> {@erased left_ordinary: ThompsonCompilation(left_shape)} -> {@erased right_ordinary: ThompsonCompilation(right_shape)} -> (@erased left: NamedCompilationErasure(left_shape, left_named, left_ordinary)) -> (@erased right: NamedCompilationErasure(right_shape, right_named, right_ordinary)) -> (prefer_right: Bool) -> NamedCompilationErasure(ChoiceC(left_shape, right_shape), NamedThompsonAlternate(left_named, right_named, prefer_right), ThompsonAlternate(left_ordinary, right_ordinary, prefer_right))
+    NamedRepeatErasure : {@erased inner_shape: ShapeCode} -> {@erased inner_named: NamedThompsonCompilation(inner_shape)} -> {@erased inner_ordinary: ThompsonCompilation(inner_shape)} -> (@erased inner: NamedCompilationErasure(inner_shape, inner_named, inner_ordinary)) -> (lazy: Bool) -> NamedCompilationErasure(ListC(inner_shape), NamedThompsonRepeat(inner_named, lazy), ThompsonRepeat(inner_ordinary, lazy))
+
+  fn certify_named_compilation({shape: ShapeCode}, compilation: NamedThompsonCompilation(shape)) -> NamedCompilationErasure(shape, compilation, erase_named_thompson(compilation)) = match compilation
+    NamedThompsonPredicate(_) -> NamedPredicateErasure()
+    NamedThompsonEmpty() -> NamedEmptyErasure()
+    NamedThompsonBoundary(_) -> NamedBoundaryErasure()
+    NamedThompsonConcat(left, right) -> NamedConcatErasure(certify_named_compilation(left), certify_named_compilation(right))
+    NamedThompsonCapture(inner) -> NamedCaptureErasure(certify_named_compilation(inner))
+    NamedThompsonGroup(slot, inner) -> NamedGroupErasure(slot, certify_named_compilation(inner))
+    NamedThompsonGuard(slot, participated, inner) -> NamedGuardErasure(slot, participated, certify_named_compilation(inner))
+    NamedThompsonAlternate(left, right, prefer_right) -> NamedAlternateErasure(certify_named_compilation(left), certify_named_compilation(right), prefer_right)
+    NamedThompsonRepeat(inner, lazy) -> NamedRepeatErasure(certify_named_compilation(inner), lazy)
+
+  @reducible
+  fn named_thompson_state_count({@erased shape: ShapeCode}, compilation: NamedThompsonCompilation(shape)) -> Nat = match compilation
+    NamedThompsonPredicate(_) -> S(Z())
+    NamedThompsonEmpty() -> Z()
+    NamedThompsonBoundary(_) -> Z()
+    NamedThompsonConcat(left, right) -> plus(named_thompson_state_count(left), named_thompson_state_count(right))
+    NamedThompsonCapture(inner) -> named_thompson_state_count(inner)
+    NamedThompsonGroup(_, inner) -> named_thompson_state_count(inner)
+    NamedThompsonGuard(_, _, inner) -> named_thompson_state_count(inner)
+    NamedThompsonAlternate(left, right, _) -> plus(named_thompson_state_count(left), named_thompson_state_count(right))
+    NamedThompsonRepeat(inner, _) -> named_thompson_state_count(inner)
+
+  @reducible
+  fn erase_named_thompson({@erased shape: ShapeCode}, compilation: NamedThompsonCompilation(shape)) -> ThompsonCompilation(shape) = match compilation
+    NamedThompsonPredicate(test) -> ThompsonPredicate(test)
+    NamedThompsonEmpty() -> ThompsonEmpty()
+    NamedThompsonBoundary(constraint) -> ThompsonBoundary(constraint)
+    NamedThompsonConcat(left, right) -> ThompsonConcat(erase_named_thompson(left), erase_named_thompson(right))
+    NamedThompsonCapture(inner) -> ThompsonGroup(erase_named_thompson(inner))
+    NamedThompsonGroup(_, inner) -> ThompsonGroup(erase_named_thompson(inner))
+    NamedThompsonGuard(_, _, inner) -> erase_named_thompson(inner)
+    NamedThompsonAlternate(left, right, prefer_right) -> ThompsonAlternate(erase_named_thompson(left), erase_named_thompson(right), prefer_right)
+    NamedThompsonRepeat(inner, lazy) -> ThompsonRepeat(erase_named_thompson(inner), lazy)
+
+  @reducible
+  fn thompson_state_count({@erased shape: ShapeCode}, compilation: ThompsonCompilation(shape)) -> Nat = match compilation
+    ThompsonPredicate(_) -> S(Z())
+    ThompsonEmpty() -> Z()
+    ThompsonBoundary(_) -> Z()
+    ThompsonConcat(left, right) -> plus(thompson_state_count(left), thompson_state_count(right))
+    ThompsonGroup(inner) -> thompson_state_count(inner)
+    ThompsonAlternate(left, right, _) -> plus(thompson_state_count(left), thompson_state_count(right))
+    ThompsonRepeat(inner, _) -> thompson_state_count(inner)
+end

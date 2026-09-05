@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime.RegexType
+  use Std.Regex.Runtime.CompilationTypes
   use Std.Decision
   use Std.Sigma
   use Std.Equivalent

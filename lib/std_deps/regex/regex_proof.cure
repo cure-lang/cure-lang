@@ -3,6 +3,7 @@
 ## evidence routines while retaining their dependent input and output indices.
 @group(:text)
 mod Std.Regex.Proof
+  use Std.Regex.Runtime.CompilationTypes
   use Std.Regex.Runtime.EvidenceExecution
   use Std.Regex.Runtime.LookaroundCompilation
   use Std.Regex.Runtime.ExtendedEvidenceTypes
