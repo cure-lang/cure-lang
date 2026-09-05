@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime.Evidence
+  public use Std.Regex.Runtime.EvidenceExecution
   public use Std.Regex.Runtime.ExtendedEvidenceTypes
   public use Std.Regex.Runtime.MatchType
   use Std.Regex.Runtime.StateOps
@@ -76,68 +77,15 @@ mod Std.Regex.Runtime.Evidence
   use Std.Decision
 
 
-  @reducible
-  fn execute_instruction(instruction: EvidenceInstruction, evidence: List(Evidence), captures: List(CaptureFrame)) -> EvidenceExecution = match instruction
-    EmitChar(char) -> EvidenceExecution([CharacterEvidence(char) | evidence], captures)
-    EmitUnit() -> EvidenceExecution([UnitEvidence() | evidence], captures)
-    EmitPair() -> EvidenceExecution([PairEvidence() | evidence], captures)
-    EmitLeft() -> EvidenceExecution([LeftEvidence() | evidence], captures)
-    EmitRight() -> EvidenceExecution([RightEvidence() | evidence], captures)
-    BeginList() -> EvidenceExecution([BeginListEvidence() | evidence], captures)
-    EndList() -> EvidenceExecution([EndListEvidence() | evidence], captures)
-    BeginCapture() -> EvidenceExecution(evidence, [CaptureFrame([], evidence) | captures])
-    BeginCaptureSlot(_) -> EvidenceExecution(evidence, [CaptureFrame([], evidence) | captures])
-    EndCapture() -> match captures
-      [] -> EvidenceExecution(evidence, [])
-      [CaptureFrame(chars, saved) | rest] -> EvidenceExecution([StringEvidence(Std.String.from_characters(evidence_reverse_chars(chars))) | saved], rest)
-    EndCaptureSlot(_) -> match captures
-      [] -> EvidenceExecution(evidence, [])
-      [CaptureFrame(chars, saved) | rest] -> EvidenceExecution([StringEvidence(Std.String.from_characters(evidence_reverse_chars(chars))) | saved], rest)
-    BeginAtomic() -> EvidenceExecution(evidence, captures)
-    EndAtomic() -> EvidenceExecution(evidence, captures)
-
-  @reducible
-  fn execute_routine(routine: List(EvidenceInstruction), evidence: List(Evidence), captures: List(CaptureFrame)) -> EvidenceExecution = match routine
-    [] -> EvidenceExecution(evidence, captures)
-    [instruction | rest] ->
-      execute_routine(
-        rest,
-        executed_evidence(execute_instruction(instruction, evidence, captures)),
-        executed_captures(execute_instruction(instruction, evidence, captures))
-      )
-
-  @reducible
-  fn executed_evidence(execution: EvidenceExecution) -> List(Evidence) = match execution
-    EvidenceExecution(evidence, _) -> evidence
-
-  @reducible
-  fn executed_captures(execution: EvidenceExecution) -> List(CaptureFrame) = match execution
-    EvidenceExecution(_, captures) -> captures
 
 
 
-  type ExtendedEvidenceRoutineExecution indices (routine: List(ExtendedInstruction), input_evidence: List(Evidence), input_captures: List(CaptureFrame), output_evidence: List(Evidence), output_captures: List(CaptureFrame))
-    ExtendedEvidenceDone : {input_evidence: List(Evidence)} -> {input_captures: List(CaptureFrame)} -> ExtendedEvidenceRoutineExecution(Nil(), input_evidence, input_captures, input_evidence, input_captures)
-    ExtendedEvidenceObserve : (char: Char) -> {input_captures: List(CaptureFrame)} -> (suffix : ExtendedEvidenceRoutineExecution(rest, input_evidence, record_capture_char(input_captures, char), output_evidence, output_captures)) -> ExtendedEvidenceRoutineExecution(Cons(Observe(char), rest), input_evidence, input_captures, output_evidence, output_captures)
-    ExtendedEvidenceRegular : (instruction: EvidenceInstruction) -> {input_evidence: List(Evidence)} -> {input_captures: List(CaptureFrame)} -> (suffix : ExtendedEvidenceRoutineExecution(rest, executed_evidence(execute_instruction(instruction, input_evidence, input_captures)), executed_captures(execute_instruction(instruction, input_evidence, input_captures)), output_evidence, output_captures)) -> ExtendedEvidenceRoutineExecution(Cons(Regular(instruction), rest), input_evidence, input_captures, output_evidence, output_captures)
 
-  type RoutineExecution indices (routine: List(EvidenceInstruction), input_evidence: List(Evidence), input_captures: List(CaptureFrame), output_evidence: List(Evidence), output_captures: List(CaptureFrame))
-    RoutineDone : {evidence: List(Evidence)} -> {captures: List(CaptureFrame)} -> RoutineExecution(Nil(), evidence, captures, evidence, captures)
-    RoutineStep : (instruction: EvidenceInstruction) -> {input_evidence: List(Evidence)} -> {input_captures: List(CaptureFrame)} -> (suffix : RoutineExecution(rest, executed_evidence(execute_instruction(instruction, input_evidence, input_captures)), executed_captures(execute_instruction(instruction, input_evidence, input_captures)), output_evidence, output_captures)) -> RoutineExecution(Cons(instruction, rest), input_evidence, input_captures, output_evidence, output_captures)
 
-  type CertifiedRoutineExecution indices (routine: List(EvidenceInstruction), input_evidence: List(Evidence), input_captures: List(CaptureFrame))
-    CertifiedRoutineExecuted : (output_evidence: List(Evidence)) -> (output_captures: List(CaptureFrame)) -> (certificate : RoutineExecution(routine, input_evidence, input_captures, output_evidence, output_captures)) -> (extended_certificate : ExtendedEvidenceRoutineExecution(regular_routine(routine), input_evidence, input_captures, output_evidence, output_captures)) -> CertifiedRoutineExecution(routine, input_evidence, input_captures)
 
-  fn execute_routine_certified(routine: List(EvidenceInstruction), input_evidence: List(Evidence), input_captures: List(CaptureFrame)) -> CertifiedRoutineExecution(routine, input_evidence, input_captures) =
-    match routine
-      [] -> CertifiedRoutineExecuted(input_evidence, input_captures, RoutineDone(), ExtendedEvidenceDone())
-      [instruction | rest] ->
-        let instruction_execution = execute_instruction(instruction, input_evidence, input_captures)
-        let next_evidence = executed_evidence(instruction_execution)
-        let next_captures = executed_captures(instruction_execution)
-        match execute_routine_certified(rest, next_evidence, next_captures)
-          CertifiedRoutineExecuted(output_evidence, output_captures, suffix, extended_suffix) ->
-            CertifiedRoutineExecuted(output_evidence, output_captures, RoutineStep(instruction, suffix), ExtendedEvidenceRegular(instruction, extended_suffix))
+
+
+
 
 
 
