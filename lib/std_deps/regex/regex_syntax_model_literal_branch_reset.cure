@@ -1,0 +1,39 @@
+## Compile-time-only literal syntax tree. It is consumed by `expand_literal`
+## and never appears in generated matching code.
+
+@group(:text)
+mod Std.Regex.Syntax.Model.LiteralBranchReset
+  use Std.Regex.Syntax.Model.Unicode
+
+  use Std.Regex.Syntax.Model.Width
+
+  use Std.Regex.Syntax.Model.Captures
+
+  use Std.Regex.Syntax.Model.Measurements
+
+  use Std.Regex.Syntax.Model.Options
+
+  use Std.Regex.Syntax.Model.Collections
+
+  use Std.Regex.Syntax.Model.Modifiers
+
+  use Std.Regex.Syntax.Model.ClassPredicates
+
+  use Std.Regex.Syntax.Model.Shape
+
+  use Std.Regex.Syntax.Model.Utilities
+
+  use Std.Regex.Syntax.Model.ClassKinds
+
+  use Std.Regex.Syntax.Model.Predicates
+
+  use Std.Regex.Syntax.Model.Types
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.String
+
+  fn literal_branch_reset_alternate(arms: List(LiteralPattern)) -> LiteralPattern = literal_alternate_list(arms)
+end

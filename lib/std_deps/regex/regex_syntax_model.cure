@@ -3,6 +3,7 @@
 
 @group(:text)
 mod Std.Regex.Syntax.Model
+  public use Std.Regex.Syntax.Model.LiteralBranchReset
   public use Std.Regex.Syntax.Model.Unicode
   public use Std.Regex.Syntax.Model.Width
   public use Std.Regex.Syntax.Model.Captures
@@ -156,4 +157,3 @@ mod Std.Regex.Syntax.Model
 
 
 
-  fn literal_branch_reset_alternate(arms: List(LiteralPattern)) -> LiteralPattern = literal_alternate_list(arms)
