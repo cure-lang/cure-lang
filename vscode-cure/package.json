@@ -1,39 +1,28 @@
 {
   "name": "vscode-cure",
-  "displayName": "Cure",
-  "description": "Cure language support for VS Code: LSP, syntax highlighting, and editor defaults aligned with Cure 0.28.x.",
-  "version": "0.2.0",
-  "publisher": "oeditus",
-  "license": "MIT",
+  "displayName": "Cure Language Support",
+  "description": "Rich language support, LSP diagnostics, MCP AI tooling, and interactive REPL for Cure",
+  "version": "0.34.0",
+  "publisher": "cure-lang",
   "repository": {
     "type": "git",
-    "url": "https://github.com/cure-lang/cure-lang"
+    "url": "https://github.com/cure-lang/cure.git"
   },
-  "bugs": {
-    "url": "https://github.com/cure-lang/cure-lang/issues"
-  },
-  "homepage": "https://cure-lang.org",
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.80.0"
   },
   "categories": [
     "Programming Languages",
-    "Snippets",
-    "Formatters"
-  ],
-  "keywords": [
-    "cure",
-    "cure-lang",
-    "beam",
-    "erlang",
-    "dependent types",
-    "fsm",
-    "lsp"
-  ],
-  "activationEvents": [
-    "onLanguage:cure"
+    "Linters",
+    "Snippets"
   ],
   "main": "./out/extension.js",
+  "activationEvents": [
+    "onLanguage:cure",
+    "onCommand:cure.openRepl",
+    "onCommand:cure.mcp.getDocs",
+    "onCommand:cure.mcp.getHelp"
+  ],
   "contributes": {
     "languages": [
       {
@@ -55,54 +44,87 @@
         "path": "./syntaxes/cure.tmLanguage.json"
       }
     ],
+    "snippets": [
+      {
+        "language": "cure",
+        "path": "./snippets/cure.code-snippets"
+      }
+    ],
     "commands": [
       {
         "command": "cure.restartLsp",
-        "title": "Cure: Restart Language Server",
+        "title": "Cure: Restart LSP Server",
+        "category": "Cure"
+      },
+      {
+        "command": "cure.openRepl",
+        "title": "Cure: Open Interactive REPL",
+        "category": "Cure"
+      },
+      {
+        "command": "cure.mcp.getDocs",
+        "title": "Cure MCP: View Stdlib Documentation",
+        "category": "Cure"
+      },
+      {
+        "command": "cure.mcp.getHelp",
+        "title": "Cure MCP: View Syntax Help Topic",
+        "category": "Cure"
+      },
+      {
+        "command": "cure.mcp.typeCheck",
+        "title": "Cure MCP: Type-Check Current Document",
+        "category": "Cure"
+      },
+      {
+        "command": "cure.mcp.parse",
+        "title": "Cure MCP: View MetaAST Summary",
         "category": "Cure"
       }
     ],
     "configuration": {
-      "title": "Cure",
+      "type": "object",
+      "title": "Cure Configuration",
       "properties": {
         "cure.lsp.path": {
           "type": "string",
+          "default": "cure-lsp",
+          "description": "Path to the cure-lsp executable binary or script."
+        },
+        "cure.mcp.path": {
+          "type": "string",
           "default": "cure",
-          "description": "Absolute path to (or `PATH`-resolvable name of) the `cure` escript used to start the LSP. Build it from the Cure repo with `mix escript.build`."
+          "description": "Path to the cure executable binary used to launch cure mcp."
         },
-        "cure.lsp.args": {
-          "type": "array",
-          "items": { "type": "string" },
-          "default": ["lsp"],
-          "description": "Arguments passed to the Cure binary to start the LSP. The default `[\"lsp\"]` targets `cure lsp` over stdio."
-        },
-        "cure.lsp.env": {
-          "type": "object",
-          "default": {},
-          "additionalProperties": { "type": "string" },
-          "description": "Additional environment variables to set when spawning the LSP. Useful for `CURE_HYPERLINKS`, `NO_COLOR`, or pointing at a Z3 binary."
+        "cure.mcp.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Model Context Protocol (MCP) integration over stdio."
         },
         "cure.trace.server": {
           "type": "string",
-          "enum": ["off", "messages", "verbose"],
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
           "default": "off",
-          "description": "Traces the communication between VS Code and the Cure language server. Written to the `Cure Language Server` output channel."
+          "description": "Traces the communication between VS Code and the Cure LSP server."
         }
       }
     }
   },
   "scripts": {
+    "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "package": "vsce package"
+    "watch": "tsc -watch -p ./"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
-    "@types/vscode": "^1.85.0",
-    "@vscode/vsce": "^3.0.0",
-    "typescript": "^5.4.0"
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.80.0",
+    "typescript": "^5.3.3"
   }
 }
