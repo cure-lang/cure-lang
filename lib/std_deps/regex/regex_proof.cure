@@ -3,6 +3,7 @@
 ## evidence routines while retaining their dependent input and output indices.
 @group(:text)
 mod Std.Regex.Proof
+  public use Std.Regex.Proof.EquivalenceLaws
   public use Std.Regex.Proof.MarkerExecution
   use Std.Regex.Runtime.MemberTransport
   use Std.Regex.Runtime.MachineSearch
@@ -2414,8 +2415,6 @@ mod Std.Regex.Proof
   fn capture_equivalent_symmetric_inferred({left: List(CaptureFrame)}, {right: List(CaptureFrame)}, equality: Equivalent(List(CaptureFrame), left, right)) -> Equivalent(List(CaptureFrame), right, left) = match equality
     reflexive() -> reflexive(left)
 
-  fn evidence_equivalent_symmetric(left: List(Evidence), right: List(Evidence), equality: Equivalent(List(Evidence), left, right)) -> Equivalent(List(Evidence), right, left) = match equality
-    reflexive() -> reflexive(left)
 
   fn shared_capture_equivalent_transitive(left: List(CaptureFrame), middle: List(CaptureFrame), right: List(CaptureFrame), first: Equivalent(List(CaptureFrame), left, middle), second: Equivalent(List(CaptureFrame), middle, right)) -> Equivalent(List(CaptureFrame), left, right) = match first
     reflexive() -> second
@@ -3593,11 +3592,7 @@ mod Std.Regex.Proof
     NoCertifiedPrefix() -> NoCertifiedPrefix()
     CertifiedPrefixPath(matched_input, remaining_input, final_evidence, extended_routine, acceptance) -> CertifiedPrefixPath(matched_input, remaining_input, final_evidence, extended_routine, transport_staged_machine_acceptance(compilation, position, matched_input, remaining_input, final_evidence, extended_routine, acceptance))
 
-  fn pattern_machine_equivalent_symmetric({n: Nat}, left: PatternMachine(n), right: PatternMachine(n), equality: Equivalent(PatternMachine(n), left, right)) -> Equivalent(PatternMachine(n), right, left) = match equality
-    reflexive() -> reflexive(left)
 
-  fn repeat_pattern_machine_congruent(n: Nat, left: PatternMachine(n), right: PatternMachine(n), lazy: Bool, equality: Equivalent(PatternMachine(n), left, right)) -> Equivalent(PatternMachine(n), repeat_pattern_machine(n, left, lazy), repeat_pattern_machine(n, right, lazy)) = match equality
-    reflexive() -> reflexive(repeat_pattern_machine(n, left, lazy))
 
   fn group_active_child_acceptance(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame), state: Bounded(n), routine: List(EvidenceInstruction), initial_evidence: List(Evidence), initial_captures: List(CaptureFrame), path_routine: List(ExtendedInstruction), edge: ListMember(MachineState(n), Active(state, routine, empty_boundary_constraints()), initial_machine_destinations(n, machine, position, input, after_input)), initial_execution: RoutineExecution(routine, input_evidence, input_captures, initial_evidence, initial_captures), {final_evidence: List(Evidence)}, {final_captures: List(CaptureFrame)}, path: AcceptingFrom(n, machine, input, after_input, ThreadActive(state), initial_evidence, initial_captures, final_evidence, path_routine), execution: ExtendedEvidenceRoutineExecution(append_extended_routines(regular_routine(routine), path_routine), input_evidence, input_captures, final_evidence, final_captures)) -> AcceptanceWithExecution(n, machine, position, input, after_input, input_evidence, input_captures, final_evidence, final_captures) =
     AcceptedWithExecution(%[Active(state, routine, empty_boundary_constraints()), initial_evidence, initial_captures, path_routine, edge, initial_execution, path], execution)
