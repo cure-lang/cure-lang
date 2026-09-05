@@ -1,0 +1,319 @@
+@group(:text)
+mod Std.Regex.Runtime.LeafAuthorities
+  use Std.Regex.Runtime.EvidenceExecution
+
+  use Std.Regex.Runtime.LookaroundCompilation
+
+  use Std.Regex.Runtime.ExtendedEvidenceTypes
+
+  use Std.Regex.Runtime.AtomicDepthTypes
+
+  use Std.Regex.Runtime.CandidateEquivalencePrimitives
+
+  use Std.Regex.Runtime.CaptureSlotMarkerPrimitives
+
+  use Std.Regex.Runtime.StateRoutinePrimitives
+
+  use Std.Regex.Runtime.MachineMemberEdgePrimitives
+
+  use Std.Regex.Runtime.LookaroundSupportPrimitives
+
+  use Std.Regex.Runtime.AtomicPathActiveChildShapeHerePackageFold
+
+  use Std.Regex.Runtime.AtomicStartScopeSelectionExcludes
+
+  use Std.Regex.Runtime.LookaroundExhaustionFromList
+
+  use Std.Regex.Runtime.AtomicStartDecisions
+
+  use Std.Regex.Runtime.DepthExclusion
+
+  use Std.Regex.Runtime.ExhaustionFromMembers
+
+  use Std.Regex.Runtime.CursorShapeAuthority
+
+  use Std.Regex.Runtime.ActiveChildShapeHere
+
+  use Std.Regex.Runtime.CursorShape
+
+  use Std.Regex.Runtime.SearchCursors
+
+  use Std.Regex.Runtime.CandidateEquivalence
+
+  use Std.Regex.Runtime.CaptureSlotMarkers
+
+  use Std.Regex.Runtime.AtomicDecisions
+
+  use Std.Regex.Runtime.MachineMemberEdges
+
+  use Std.Regex.Runtime.AtomicDepthMaximum
+
+  use Std.Regex.Runtime.MemberTransport
+
+  use Std.Regex.Runtime.EvidenceStep
+
+  use Std.Regex.Runtime.AtomicStartMember
+
+  use Std.Regex.Runtime.AtomicFailureAuthority
+
+  use Std.Regex.Runtime.AtomicDepth
+
+  use Std.Regex.Runtime.LookaroundSupport
+
+  use Std.Regex.Runtime.NamedCaptureSearch
+
+  use Std.Regex.Runtime.PatternSearch
+
+  use Std.Regex.Runtime.EvidenceSearch
+
+  use Std.Regex.Runtime.MachineSearch
+
+  use Std.Regex.Runtime.CharacterClasses
+
+  use Std.Regex.Runtime.NamedSearch
+
+  use Std.Regex.Runtime.MachineTransitions
+
+  use Std.Regex.Runtime.NamedStaging
+
+  use Std.Regex.Runtime.MachineEntry
+
+  use Std.Regex.Runtime.LineBreak
+
+  use Std.Regex.Runtime.CharacterMatchers
+
+  use Std.Regex.Runtime.Combinators
+
+  use Std.Regex.Runtime.Anchors
+
+  use Std.Regex.Runtime.CompileRegex
+
+  use Std.Regex.Runtime.ConversionAdapters
+
+  use Std.Regex.Runtime.ThreadDedup
+
+  use Std.Regex.Runtime.NamedTypes
+
+  use Std.Regex.Runtime.RegexType
+
+  use Std.Regex.Runtime.CharacterSemantics
+
+  use Std.Regex.Runtime.Conversion
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Runtime.CaptureConditions
+
+  use Std.Regex.Runtime.Boundaries
+
+  use Std.Regex.Runtime.AtomicDiagnostics
+
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Char
+
+  use Std.Option
+
+  use Std.List
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  use Std.Decision
+
+  type AtomicPathCursorShapeComparison indices (left: LookaroundAdmittedStateCursorShape, right: LookaroundAdmittedStateCursorShape)
+    AtomicPathCursorShapeComparisonSame : (authority: AtomicPathCursorShapesSameAuthority(left, right)) -> AtomicPathCursorShapeComparison(left, right)
+    AtomicPathCursorShapeComparisonLeftAfter : (authority: AtomicPathCursorShapesLeftAfterAuthority(left, right)) -> AtomicPathCursorShapeComparison(left, right)
+    AtomicPathCursorShapeComparisonRightAfter : (authority: AtomicPathCursorShapesRightAfterAuthority(left, right)) -> AtomicPathCursorShapeComparison(left, right)
+
+  ## Advancing the left cursor by one sibling is strictly after any cursor
+  ## whose shape was previously equal to it. This proof is structural in the
+  ## shared unary depth and is the canonical direction theorem used when a
+  ## PastRejected commit projects its retained tail.
+  @reducible
+  fn atomic_path_cursor_shapes_advance_left_after(
+    {left: LookaroundAdmittedStateCursorShape},
+    {right: LookaroundAdmittedStateCursorShape},
+    same: AtomicPathCursorShapesSameAuthority(left, right)
+  ) -> AtomicPathCursorShapesLeftAfterAuthority(
+    LookaroundAdmittedStateCursorShapeDrop(left), right
+  ) = match same
+    AtomicPathCursorShapesSameHere() ->
+      AtomicPathCursorShapesLeftAfterHere()
+    AtomicPathCursorShapesSameDrop(prior) ->
+      AtomicPathCursorShapesLeftAfterDrop(
+        atomic_path_cursor_shapes_advance_left_after(prior)
+      )
+
+  ## Active-child alignment at the runtime boundary is a property of cursor
+  ## depth, not of erased canonical-origin certificates. Equal `Here` shapes
+  ## select the rejected head; equal non-Here shapes and a deeper selected
+  ## shape select a later sibling; a deeper failure shape selects reverse.
+  type AtomicPathActiveChildShapeThereAuthority indices (failure_shape: LookaroundAdmittedStateCursorShape, selected_shape: LookaroundAdmittedStateCursorShape)
+    AtomicPathActiveChildShapeThereSameDrop : (prior: AtomicPathCursorShapesSameAuthority(failure_prior, selected_prior)) -> AtomicPathActiveChildShapeThereAuthority(LookaroundAdmittedStateCursorShapeDrop(failure_prior), LookaroundAdmittedStateCursorShapeDrop(selected_prior))
+    AtomicPathActiveChildShapeThereRightAfter : (authority: AtomicPathCursorShapesRightAfterAuthority(failure_shape, selected_shape)) -> AtomicPathActiveChildShapeThereAuthority(failure_shape, selected_shape)
+
+  type AtomicPathActiveChildShapeReversePackage(failure_package: Type, selected_package: Type) indices (failure_shape: LookaroundAdmittedStateCursorShape, selected_shape: LookaroundAdmittedStateCursorShape)
+    AtomicPathActiveChildShapeReversePacked : (failure: failure_package) -> (selected: selected_package) -> (authority: AtomicPathCursorShapesLeftAfterAuthority(failure_shape, selected_shape)) -> AtomicPathActiveChildShapeReversePackage(failure_package, selected_package, failure_shape, selected_shape)
+
+  type AtomicStartSelection indices (blocked_depth: Option(Nat))
+    AtomicStartSelectionAllowed : {@erased kind: AtomicStartSkipKind} -> (@erased evidence: AtomicStartAllowed(blocked_depth, kind)) -> AtomicStartSelection(blocked_depth)
+    AtomicStartSelectionBlocked : {@erased kind: AtomicStartSkipKind} -> (@erased evidence: AtomicStartSkipEvidence(blocked_depth, kind)) -> AtomicStartSelection(blocked_depth)
+
+  ## Proof-only reason that a rejected candidate may continue to its ordered
+  ## sibling.  The index is the exact close returned by that candidate's
+  ## routine, so a no-close or escaping-close witness cannot coexist with a
+  ## blocking witness for the same construction site.
+  type AtomicPathFailureContinuation(scope_depth: Nat) indices (closed_depth: Option(Nat))
+    AtomicPathSiblingNoClose : (@erased close_canonical: Equivalent(Option(Nat), closed_depth, None())) -> AtomicPathFailureContinuation(scope_depth, closed_depth)
+    AtomicPathSiblingEscapedClose : (@erased commit_depth: Nat) -> (@erased close_canonical: Equivalent(Option(Nat), closed_depth, Some(commit_depth))) -> (@erased escaped: AtomicDepthBelow(scope_depth, commit_depth)) -> AtomicPathFailureContinuation(scope_depth, closed_depth)
+
+  ## Relevant construction-time classification for the one terminal child
+  ## case whose input equation would otherwise be hidden by the recursive
+  ## commit existential.  It is built only from relevant evaluator state;
+  ## erased refutation evidence is never inspected to recover the equation.
+  type AtomicPathFailurePrefixRootAvailability indices (child_prefix_kind: AtomicPathFailurePrefixKind)
+    AtomicPathFailurePrefixRootAvailable : AtomicPathFailurePrefixRootAvailability(AtomicPathFailureAtRootKind())
+    AtomicPathFailurePrefixRootUnavailable : AtomicPathFailurePrefixRootAvailability(child_prefix_kind)
+
+  ## One-constructor carrier used by the constructor-directed commit fold.
+  ## Its payload is erased; the relevant recursive kind selects the branch,
+  ## while a consumer can open the resulting fixed package collapsibly.
+  type AtomicPathCommitCausePackage indices (cause: Type)
+    AtomicPathCommitCausePacked : (@erased value: cause) -> AtomicPathCommitCausePackage(cause)
+
+  ## Non-dependent runtime envelope for a selected trace. The finite cursor
+  ## shape may choose control flow, while the untouched dependent package is
+  ## retained as the only proof authority for the selected path.
+  type AtomicSelectedPathTraceRuntimeEnvelope(trace_package: Type) indices ()
+    AtomicSelectedPathTraceRuntimeEnvelopePacked : (shape: LookaroundAdmittedStateCursorShape) -> (package: trace_package) -> AtomicSelectedPathTraceRuntimeEnvelope(trace_package)
+
+  @reducible
+  fn atomic_scope_effect(routine: List(EvidenceInstruction), depth: Nat) -> AtomicScopeEffect = match routine
+    [] -> AtomicScopeEffect(depth, None())
+    [BeginAtomic() | rest] -> match atomic_scope_effect(rest, S(depth))
+      AtomicScopeEffect(next_depth, closed) -> AtomicScopeEffect(next_depth, closed)
+    [EndAtomic() | rest] -> match depth
+      Z() -> atomic_scope_effect(rest, depth)
+      S(previous) -> match atomic_scope_effect(rest, previous)
+        AtomicScopeEffect(next_depth, closed) -> match closed
+          None() -> AtomicScopeEffect(next_depth, Some(S(previous)))
+          Some(existing) -> AtomicScopeEffect(next_depth, Some(existing))
+    [_ | rest] -> atomic_scope_effect(rest, depth)
+
+  @reducible
+  fn next_for_thread(n: Nat, next: (Bounded(n)) -> Char -> List(MachineState(n)), state: ThreadState(n), char: Char) -> List(MachineState(n)) = match state
+    ThreadAccepted() -> []
+    ThreadActive(active) -> next(active, char)
+
+  ## The origin token is part of the evidence index.  Candidate commits,
+  ## blocked outer commits, and escaped outer commits therefore cannot be
+  ## mistaken for one another when a refutation is consumed.
+  fn atomic_start_skip_excludes_allowed(
+    {result: Type},
+    {blocked_depth: Option(Nat)},
+    {kind: AtomicStartSkipKind},
+    @erased skip: AtomicStartSkipEvidence(blocked_depth, kind),
+    @erased allowed: AtomicStartAllowed(blocked_depth, kind)
+  ) -> result = match skip
+    AtomicStartSkipByCommit(_) -> match allowed
+    AtomicStartSkipByScope(proof) -> match allowed
+      AtomicStartAllowedEscape(_) -> impossible
+end
