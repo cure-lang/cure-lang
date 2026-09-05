@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.ExhaustionFromMembers
   public use Std.Regex.Runtime.CursorShapeAuthority
   public use Std.Regex.Runtime.ActiveChildShapeHere
   public use Std.Regex.Runtime.CursorShape
@@ -3844,14 +3845,6 @@ mod Std.Regex.Runtime
 
 
 
-  ## Turn a structurally enumerated candidate list into the compact erased
-  ## exhaustion witness used by assertion refutations.  The recursive call is
-  ## the only way to obtain the Nil remainder, so callers cannot manufacture a
-  ## certificate for a list whose traversal has not terminated.
-  fn lookaround_exhaustion_from_members({n: Nat}, {whole: List(MachineState(n))}, {values: List(MachineState(n))}, members: MachineStateMembers(n, whole, values)) -> LookaroundExhaustion(n) = match members
-    MachineStateMembersNil() -> LookaroundExhausted(whole, MachineStateMembersNil(), ())
-    MachineStateMembersActive(_, _, _, _, remaining) -> lookaround_exhaustion_from_members(remaining)
-    MachineStateMembersAccepted(_, _, _, remaining) -> lookaround_exhaustion_from_members(remaining)
 
   fn lookaround_exhaustion_from_list({n: Nat}, values: List(MachineState(n))) -> LookaroundExhaustion(n) = lookaround_exhaustion_from_members(machine_state_members(values))
 
