@@ -1,6 +1,5 @@
 @group(:text)
-mod Std.Regex.Runtime.CaptureSlotMarkers
-  public use Std.Regex.Runtime.CaptureSlotMarkerPrimitives
+mod Std.Regex.Runtime.CaptureSlotMarkerPrimitives
   use Std.Regex.Runtime.AtomicDecisions
 
   use Std.Regex.Runtime.MachineMemberEdges
@@ -177,4 +176,13 @@ mod Std.Regex.Runtime.CaptureSlotMarkers
 
   use Std.Decision
 
+  ## Extract only capture-slot markers from a selected assertion routine. The
+  ## child emits its own characters and evidence, but those must not be merged
+  ## into the surrounding typed result; only participation markers cross the
+  ## assertion boundary for later conditionals.
+  fn capture_slot_markers_from_extended(routine: List(ExtendedInstruction)) -> List(EvidenceInstruction) = match routine
+    [] -> []
+    [Regular(BeginCaptureSlot(slot)) | rest] -> [BeginCaptureSlot(slot) | capture_slot_markers_from_extended(rest)]
+    [Regular(EndCaptureSlot(slot)) | rest] -> [EndCaptureSlot(slot) | capture_slot_markers_from_extended(rest)]
+    [_ | rest] -> capture_slot_markers_from_extended(rest)
 end
