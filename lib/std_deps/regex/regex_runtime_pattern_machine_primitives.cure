@@ -1,0 +1,79 @@
+@group(:text)
+mod Std.Regex.Runtime.PatternMachinePrimitives
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Runtime.CaptureConditions
+
+  use Std.Regex.Runtime.Boundaries
+
+  use Std.Regex.Runtime.AtomicDiagnostics
+
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Char
+
+  use Std.Option
+
+  use Std.List
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  use Std.Decision
+
+  @reducible
+  fn empty_machine_next({n: Nat}, _state: Bounded(n), _char: Char) -> List(MachineState(n)) = []
+
+  @reducible
+  fn empty_pattern_machine() -> PatternMachine(Z()) =
+    let starts: List(MachineState(Z())) = [Accepted([EmitUnit()], [])]
+    MkPatternMachine(starts, empty_machine_next)
+
+  @reducible
+  fn boundary_pattern_machine(constraint: BoundaryConstraint) -> PatternMachine(Z()) =
+    let routine: List(EvidenceInstruction) = Cons(EmitUnit(), Nil())
+    let constraints: List(BoundaryConstraint) = Cons(constraint, Nil())
+    let starts: List(MachineState(Z())) = Cons(Accepted(routine, constraints), Nil())
+    MkPatternMachine(starts, empty_machine_next)
+
+  @reducible
+  fn capture_condition_constraint(slot: Nat, participated: Bool) -> BoundaryConstraint = pickup
+    participated -> capture_participated_constraint(slot)
+    else -> capture_absent_constraint(slot)
+
+  @reducible
+  fn predicate_machine_thread() -> ThreadState(S(Z())) = ThreadActive(First())
+
+  @reducible
+  fn predicate_accepting_destination(char: Char) -> MachineState(S(Z())) =
+    let routine: List(EvidenceInstruction) = [EmitChar(char)]
+    let constraints: List(BoundaryConstraint) = []
+    Accepted(routine, constraints)
+end

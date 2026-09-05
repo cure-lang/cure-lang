@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime.PatternMachines
+  public use Std.Regex.Runtime.PatternMachinePrimitives
   use Std.Regex.Runtime.StateOps
 
 
@@ -58,8 +59,6 @@ mod Std.Regex.Runtime.PatternMachines
   fn predicate_machine_next(test: Char -> Bool, _state: Bounded(S(Z())), char: Char) -> List(MachineState(S(Z()))) =
     predicate_machine_destinations(test(char), char)
 
-  @reducible
-  fn empty_machine_next({n: Nat}, _state: Bounded(n), _char: Char) -> List(MachineState(n)) = []
 
   @reducible
   fn group_machine_next_with({n: Nat}, next: (Bounded(n)) -> Char -> List(MachineState(n)), end_instruction: EvidenceInstruction, state: Bounded(n), char: Char) -> List(MachineState(n)) =
@@ -147,22 +146,8 @@ mod Std.Regex.Runtime.PatternMachines
   fn repeat_machine_next({n: Nat}, starts: List(MachineState(n)), lazy: Bool, next: (Bounded(n)) -> Char -> List(MachineState(n)), state: Bounded(n), char: Char) -> List(MachineState(n)) =
     repeat_destinations(next(state, char), starts, lazy)
 
-  @reducible
-  fn empty_pattern_machine() -> PatternMachine(Z()) =
-    let starts: List(MachineState(Z())) = [Accepted([EmitUnit()], [])]
-    MkPatternMachine(starts, empty_machine_next)
 
-  @reducible
-  fn boundary_pattern_machine(constraint: BoundaryConstraint) -> PatternMachine(Z()) =
-    let routine: List(EvidenceInstruction) = Cons(EmitUnit(), Nil())
-    let constraints: List(BoundaryConstraint) = Cons(constraint, Nil())
-    let starts: List(MachineState(Z())) = Cons(Accepted(routine, constraints), Nil())
-    MkPatternMachine(starts, empty_machine_next)
 
-  @reducible
-  fn capture_condition_constraint(slot: Nat, participated: Bool) -> BoundaryConstraint = pickup
-    participated -> capture_participated_constraint(slot)
-    else -> capture_absent_constraint(slot)
 
   @reducible
   fn guard_states({n: Nat}, constraint: BoundaryConstraint, states: List(MachineState(n))) -> List(MachineState(n)) = match states
@@ -180,14 +165,7 @@ mod Std.Regex.Runtime.PatternMachines
     let constraints: List(BoundaryConstraint) = []
     Active(First(), routine, constraints)
 
-  @reducible
-  fn predicate_machine_thread() -> ThreadState(S(Z())) = ThreadActive(First())
 
-  @reducible
-  fn predicate_accepting_destination(char: Char) -> MachineState(S(Z())) =
-    let routine: List(EvidenceInstruction) = [EmitChar(char)]
-    let constraints: List(BoundaryConstraint) = []
-    Accepted(routine, constraints)
 
   @reducible
   fn predicate_pattern_machine(test: Char -> Bool) -> PatternMachine(S(Z())) =
