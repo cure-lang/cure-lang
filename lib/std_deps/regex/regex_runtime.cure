@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.AtomicDepth
   public use Std.Regex.Runtime.LookaroundSupport
   public use Std.Regex.Runtime.NamedCaptureSearch
   public use Std.Regex.Runtime.PatternSearch
@@ -11872,20 +11873,7 @@ mod Std.Regex.Runtime
     LookaroundRoutineSearchYes : (matched: List(Char)) -> (remaining: List(Char)) -> (routine: List(ExtendedInstruction)) -> {@erased blocked_depth: Option(Nat)} -> {@erased kind: AtomicStartSkipKind} -> (trace_package: AtomicSelectedTraceExistentialPackage(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, selected_start, matched, remaining, routine)) -> (@erased witness: AtomicSelectedStartWitness(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, current, selected_start, blocked_depth, kind, matched, remaining, routine)) -> LookaroundRoutineSearchResult(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix)
 
 
-  ## The runtime search never compares scope depths with an unchecked Boolean.
-  ## This finite decision relation carries the proof that a commit is either
-  ## at-or-inside the current scope (so siblings are blocked) or strictly
-  ## deeper than it (so the commit belongs to an inner scope and outer
-  ## siblings remain eligible).  The evidence fields are erased after the
-  ## branch has been selected.
-  type AtomicDepthAtLeast indices (left: Nat, right: Nat)
-    AtomicDepthAtLeastZero : AtomicDepthAtLeast(Z(), Z())
-    AtomicDepthAtLeastFromZero : AtomicDepthAtLeast(S(left), Z())
-    AtomicDepthAtLeastStep : (@erased prior: AtomicDepthAtLeast(left, right)) -> AtomicDepthAtLeast(S(left), S(right))
 
-  type AtomicDepthBelow indices (left: Nat, right: Nat)
-    AtomicDepthBelowZero : AtomicDepthBelow(Z(), S(right))
-    AtomicDepthBelowStep : (@erased prior: AtomicDepthBelow(left, right)) -> AtomicDepthBelow(S(left), S(right))
 
   type AtomicDepthComparison indices (left: Nat, right: Nat)
     AtomicDepthStops : (@erased proof: AtomicDepthAtLeast(left, right)) -> AtomicDepthComparison(left, right)
