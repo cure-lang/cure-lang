@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime.StagedOps
+  use Std.Regex.Runtime.StateRoutinePrimitives
   use Std.Regex.Runtime.StateOps
   use Std.Regex.Runtime.PatternMachines
 

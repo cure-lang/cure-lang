@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime.StateOps
+  public use Std.Regex.Runtime.StateRoutinePrimitives
   use Std.Regex.Runtime.TransitionRows
 
   use Std.Regex.Runtime.CaptureConditions
@@ -46,10 +47,6 @@ mod Std.Regex.Runtime.StateOps
 
   use Std.Decision
 
-  @reducible
-  fn machine_state_routine(n: Nat, state: MachineState(n)) -> List(EvidenceInstruction) = match state
-    Active(_, routine, _) -> routine
-    Accepted(routine, _) -> routine
 
   fn append_routine(left: List(EvidenceInstruction), right: List(EvidenceInstruction)) -> List(EvidenceInstruction) = match left
     [] -> right
@@ -138,10 +135,6 @@ mod Std.Regex.Runtime.StateOps
   fn alternate_right_states(left_count: Nat, right_count: Nat, states: List(MachineState(right_count)), marker: EvidenceInstruction) -> List(MachineState(plus(left_count, right_count))) =
     inject_right_states(left_count, mark_branch(states, marker))
 
-  fn prefix_routine({n: Nat}, instruction: EvidenceInstruction, states: List(MachineState(n))) -> List(MachineState(n)) = match states
-    [] -> []
-    [Accepted(routine, constraints) | rest] -> [Accepted([instruction | routine], constraints) | prefix_routine(instruction, rest)]
-    [Active(state, routine, constraints) | rest] -> [Active(state, [instruction | routine], constraints) | prefix_routine(instruction, rest)]
 
   @reducible
   fn finish_capture_with({n: Nat}, end_instruction: EvidenceInstruction, states: List(MachineState(n))) -> List(MachineState(n)) = match states

@@ -1,0 +1,58 @@
+@group(:text)
+mod Std.Regex.Runtime.StateRoutinePrimitives
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Runtime.CaptureConditions
+
+  use Std.Regex.Runtime.Boundaries
+
+  use Std.Regex.Runtime.AtomicDiagnostics
+
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Char
+
+  use Std.Option
+
+  use Std.List
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  use Std.Decision
+
+  @reducible
+  fn machine_state_routine(n: Nat, state: MachineState(n)) -> List(EvidenceInstruction) = match state
+    Active(_, routine, _) -> routine
+    Accepted(routine, _) -> routine
+
+  fn prefix_routine({n: Nat}, instruction: EvidenceInstruction, states: List(MachineState(n))) -> List(MachineState(n)) = match states
+    [] -> []
+    [Accepted(routine, constraints) | rest] -> [Accepted([instruction | routine], constraints) | prefix_routine(instruction, rest)]
+    [Active(state, routine, constraints) | rest] -> [Active(state, [instruction | routine], constraints) | prefix_routine(instruction, rest)]
+end
