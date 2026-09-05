@@ -1,0 +1,129 @@
+@group(:text)
+mod Std.Regex.Runtime.MachineTransitionPrimitives
+  use Std.Decision
+
+  use Std.Sigma
+
+  use Std.Equivalent
+
+  use Std.Bounded
+
+  use Std.Syntax
+
+  use Std.String
+
+  use Std.List
+
+  use Std.Option
+
+  use Std.Char
+
+  use Std.Regex.Core
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.AtomicDiagnostics
+
+  use Std.Regex.Runtime.Boundaries
+
+  use Std.Regex.Runtime.CaptureConditions
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.Conversion
+
+  use Std.Regex.Runtime.CharacterSemantics
+
+  use Std.Regex.Runtime.RegexType
+
+  use Std.Regex.Runtime.NamedTypes
+
+  use Std.Regex.Runtime.ThreadDedup
+
+  use Std.Regex.Runtime.ConversionAdapters
+
+  use Std.Regex.Runtime.CompileRegex
+
+  use Std.Regex.Runtime.Anchors
+
+  use Std.Regex.Runtime.Combinators
+
+  use Std.Regex.Runtime.CharacterMatchers
+
+  use Std.Regex.Runtime.LineBreak
+
+  use Std.Regex.Runtime.MachineEntry
+
+  use Std.Regex.Runtime.NamedStaging
+
+  @reducible
+  fn machine_destinations(n: Nat, machine: PatternMachine(n), state: ThreadState(n), char: Char, boundary: Boundary) -> List(MachineState(n)) = match state
+    ThreadAccepted() -> []
+    ThreadActive(active) -> match machine
+      MkPatternMachine(_, next) -> filter_boundary_states(next(active, char), boundary)
+
+  ## Named machines may carry capture-participation constraints on their
+  ## destination states. Those constraints are checked against the regular
+  ## evidence already executed on the path plus the destination's epsilon
+  ## routine: a group that participated contributes its EndCaptureSlot
+  ## instruction before the guarded branch is entered. Observe instructions
+  ## are intentionally erased from this view; they only advance capture text.
+  ## Ordinary machines deliberately continue through `machine_destinations`,
+  ## whose indexed proof contract does not mention capture conditions.
+  fn extended_regular_instructions(routine: List(ExtendedInstruction)) -> List(EvidenceInstruction) = match routine
+    [] -> []
+    [Regular(instruction) | rest] -> [instruction | extended_regular_instructions(rest)]
+    [Observe(_) | rest] -> extended_regular_instructions(rest)
+end

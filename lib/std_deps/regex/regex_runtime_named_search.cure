@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime.NamedSearch
+  use Std.Regex.Runtime.MachineTransitionPrimitives
   use Std.Decision
   use Std.Sigma
   use Std.Equivalent

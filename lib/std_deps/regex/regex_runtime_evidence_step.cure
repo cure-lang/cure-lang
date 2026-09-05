@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime.EvidenceStep
+  use Std.Regex.Runtime.MachineTransitionPrimitives
   use Std.Regex.Runtime.AtomicStartMember
 
   use Std.Regex.Runtime.AtomicFailureAuthority
