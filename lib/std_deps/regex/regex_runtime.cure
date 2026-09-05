@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.CursorShape
   public use Std.Regex.Runtime.SearchCursors
   public use Std.Regex.Runtime.CandidateEquivalence
   public use Std.Regex.Runtime.CaptureSlotMarkers
@@ -531,9 +532,6 @@ mod Std.Regex.Runtime
       )
 
 
-  type LookaroundAdmittedStateCursorShape =
-    | LookaroundAdmittedStateCursorShapeHere
-    | LookaroundAdmittedStateCursorShapeDrop(LookaroundAdmittedStateCursorShape)
 
   ## The runtime shape is an index of this constructor-correlated cursor
   ## package. Unlike a parallel `(shape, package)` pair, its type makes a
