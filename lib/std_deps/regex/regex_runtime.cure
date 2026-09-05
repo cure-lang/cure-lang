@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.CaptureSlotMarkers
   public use Std.Regex.Runtime.AtomicDecisions
   public use Std.Regex.Runtime.MachineMemberEdges
   public use Std.Regex.Runtime.AtomicDepthMaximum
@@ -1985,15 +1986,6 @@ mod Std.Regex.Runtime
   fn lookaround_filter_boundary_states(depth: Nat, {n: Nat}, states: List(MachineState(n)), boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> List(MachineState(n)) =
     lookaround_admitted_machine_states(lookaround_admit_boundary_states(depth, states, boundary, remaining, history, capture_context, policy))
 
-  ## Extract only capture-slot markers from a selected assertion routine. The
-  ## child emits its own characters and evidence, but those must not be merged
-  ## into the surrounding typed result; only participation markers cross the
-  ## assertion boundary for later conditionals.
-  fn capture_slot_markers_from_extended(routine: List(ExtendedInstruction)) -> List(EvidenceInstruction) = match routine
-    [] -> []
-    [Regular(BeginCaptureSlot(slot)) | rest] -> [BeginCaptureSlot(slot) | capture_slot_markers_from_extended(rest)]
-    [Regular(EndCaptureSlot(slot)) | rest] -> [EndCaptureSlot(slot) | capture_slot_markers_from_extended(rest)]
-    [_ | rest] -> capture_slot_markers_from_extended(rest)
 
   fn lookaround_condition_admission(depth: Nat, condition: Option(LookaroundCondition), boundary: Boundary, remaining: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Option(LookaroundConstraintAdmission) = match condition
     None() -> Some(LookaroundConstraintAdmitted([], [], []))
