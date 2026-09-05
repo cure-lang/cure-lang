@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime.MachineLaws
+  public use Std.Regex.Runtime.MachineLaws.StagedConcat
   use Std.Regex.Runtime.StateOps
   use Std.Regex.Runtime.PatternMachines
   use Std.Regex.Runtime.StagedOps
@@ -194,24 +195,6 @@ mod Std.Regex.Runtime.MachineLaws
     MkPatternMachine(left_starts, left_next) -> match right_machine
       MkPatternMachine(right_starts, right_next) -> reflexive(concat_machine_next(left_count, left_next, right_starts, right_next, state, char))
 
-  fn staged_concat_rows_transition_equation(
-    left_count: Nat,
-    right_count: Nat,
-    left_rows: TransitionRows(left_count),
-    right_starts: List(MachineState(right_count)),
-    right_rows: TransitionRows(right_count),
-    state: Bounded(plus(left_count, right_count)),
-    char: Char
-  ) -> Equivalent(
-    List(MachineState(plus(left_count, right_count))),
-    transition_rows_next(rows_from_next(plus(left_count, right_count), staged_concat_next_function(left_count, left_rows, right_starts, right_rows)), state, char),
-    staged_concat_next(left_count, left_rows, right_starts, right_rows, state, char)
-  ) = rows_from_next_equivalent(
-    plus(left_count, right_count),
-    staged_concat_next_function(left_count, left_rows, right_starts, right_rows),
-    state,
-    char
-  )
 
   ## Staged literals use a row-backed machine. The transition rows are built
   ## from the direct staged machine seed below, rather than reconstructing a
