@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime.CharacterSemantics
+  public use Std.Regex.Runtime.CharacterSemantics.ClassKinds
   use Std.Decision
   use Std.Sigma
   use Std.Equivalent
@@ -102,18 +103,6 @@ mod Std.Regex.Runtime.CharacterSemantics
 
 
 
-  fn class_kinds_match(kinds: ClassKinds, actual: Char, unicode: Bool) -> Bool = match kinds
-    ClassKinds(digit, not_digit, word, not_word, space, not_space, horizontal, not_horizontal, vertical, not_vertical) ->
-      (digit and option_digit(actual, unicode)) or
-        (not_digit and not option_digit(actual, unicode)) or
-        (word and option_word(actual, unicode)) or
-        (not_word and not option_word(actual, unicode)) or
-        (space and option_space(actual, unicode)) or
-        (not_space and not option_space(actual, unicode)) or
-        (horizontal and Std.Char.is_horizontal_space(actual)) or
-        (not_horizontal and not Std.Char.is_horizontal_space(actual)) or
-        (vertical and Std.Char.is_vertical_space(actual)) or
-        (not_vertical and not Std.Char.is_vertical_space(actual))
 
   fn unicode_category_in(category: Atom, values: List(Atom)) -> Bool = match values
     [] -> false

@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime.CharacterClasses
+  use Std.Regex.Runtime.CharacterSemantics.ClassKinds
   public use Std.Regex.Runtime.CharacterClassPrimitives
   use Std.Regex.Runtime.CombinatorPrimitives
   use Std.Decision

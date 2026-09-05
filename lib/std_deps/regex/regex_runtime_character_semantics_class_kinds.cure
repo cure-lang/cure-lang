@@ -1,0 +1,99 @@
+@group(:text)
+mod Std.Regex.Runtime.CharacterSemantics.ClassKinds
+  use Std.Decision
+
+  use Std.Sigma
+
+  use Std.Equivalent
+
+  use Std.Bounded
+
+  use Std.Syntax
+
+  use Std.String
+
+  use Std.List
+
+  use Std.Option
+
+  use Std.Char
+
+  use Std.Regex.Core
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.AtomicDiagnostics
+
+  use Std.Regex.Runtime.Boundaries
+
+  use Std.Regex.Runtime.CaptureConditions
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.Conversion
+
+  fn class_kinds_match(kinds: ClassKinds, actual: Char, unicode: Bool) -> Bool = match kinds
+    ClassKinds(digit, not_digit, word, not_word, space, not_space, horizontal, not_horizontal, vertical, not_vertical) ->
+      (digit and option_digit(actual, unicode)) or
+        (not_digit and not option_digit(actual, unicode)) or
+        (word and option_word(actual, unicode)) or
+        (not_word and not option_word(actual, unicode)) or
+        (space and option_space(actual, unicode)) or
+        (not_space and not option_space(actual, unicode)) or
+        (horizontal and Std.Char.is_horizontal_space(actual)) or
+        (not_horizontal and not Std.Char.is_horizontal_space(actual)) or
+        (vertical and Std.Char.is_vertical_space(actual)) or
+        (not_vertical and not Std.Char.is_vertical_space(actual))
+end
