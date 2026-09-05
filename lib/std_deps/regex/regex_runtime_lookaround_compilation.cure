@@ -1,0 +1,75 @@
+@group(:text)
+mod Std.Regex.Runtime.LookaroundCompilation
+  use Std.Regex.Runtime.PatternMachinePrimitives
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Runtime.CaptureConditions
+
+  use Std.Regex.Runtime.Boundaries
+
+  use Std.Regex.Runtime.AtomicDiagnostics
+
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Char
+
+  use Std.Option
+
+  use Std.List
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  use Std.Decision
+
+  ## Lookaround compilation is a runtime-only parallel IR. It preserves the
+  ## same finite Thompson constructors as the ordinary proof IR, but adds an
+  ## explicit atomic scope so assertion operands cannot silently erase
+  ## ordered commitment when they cross an assertion boundary. The ordinary
+  ## typed proof remains over ThompsonCompilation; this tree is consumed only
+  ## by the checked finite assertion evaluator.
+  type LookaroundCompilation indices (shape: ShapeCode)
+    LookaroundPredicate : (test: (Char -> Bool)) -> LookaroundCompilation(CharC)
+    LookaroundEmpty : LookaroundCompilation(UnitC)
+    LookaroundBoundary : (constraint: BoundaryConstraint) -> LookaroundCompilation(UnitC)
+    LookaroundBoundaryGuard : (constraint: BoundaryConstraint) -> (inner: LookaroundCompilation(inner_shape)) -> LookaroundCompilation(inner_shape)
+    LookaroundConcat : (left: LookaroundCompilation(left_shape)) -> (right: LookaroundCompilation(right_shape)) -> LookaroundCompilation(PairC(left_shape, right_shape))
+    LookaroundGroup : (inner: LookaroundCompilation(inner_shape)) -> LookaroundCompilation(StringC)
+    LookaroundGroupSlot : (slot: Nat) -> (inner: LookaroundCompilation(inner_shape)) -> LookaroundCompilation(StringC)
+    LookaroundAlternate : (left: LookaroundCompilation(left_shape)) -> (right: LookaroundCompilation(right_shape)) -> (prefer_right: Bool) -> LookaroundCompilation(ChoiceC(left_shape, right_shape))
+    LookaroundRepeat : (inner: LookaroundCompilation(inner_shape)) -> (lazy: Bool) -> LookaroundCompilation(ListC(inner_shape))
+    LookaroundAtomic : (inner: LookaroundCompilation(inner_shape)) -> LookaroundCompilation(inner_shape)
+    LookaroundGuard : (slot: Nat) -> (participated: Bool) -> (inner: LookaroundCompilation(inner_shape)) -> LookaroundCompilation(inner_shape)
+end

@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  use Std.Regex.Runtime.LookaroundCompilation
   use Std.Regex.Runtime.ExtendedEvidenceTypes
   use Std.Regex.Runtime.AtomicDepthTypes
   use Std.Regex.Runtime.CandidateEquivalencePrimitives
