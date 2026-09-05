@@ -43,18 +43,20 @@ function M.start_server(config)
   job_id = vim.fn.jobstart(cmd, {
     on_stdout = function(_, data, _)
       if not data then return end
-      for _, line in ipairs(data) do
-        if line ~= "" then
-          buffer_output = buffer_output .. line
-          local ok, req_resp = pcall(vim.json.decode, buffer_output)
-          if ok and req_resp then
-            buffer_output = ""
-            if req_resp.id and pending_requests[req_resp.id] then
+      for i, chunk in ipairs(data) do
+        if i < #data then
+          local line = buffer_output .. chunk
+          buffer_output = ""
+          if line ~= "" then
+            local ok, req_resp = pcall(vim.json.decode, line)
+            if ok and type(req_resp) == "table" and req_resp.id and pending_requests[req_resp.id] then
               local callback = pending_requests[req_resp.id]
               pending_requests[req_resp.id] = nil
               callback(req_resp)
             end
           end
+        else
+          buffer_output = buffer_output .. chunk
         end
       end
     end,
@@ -236,13 +238,45 @@ function M.get_help(topic)
   end
 end
 
+--- Show a transient progress message that can be removed once the work is done
+---@param msg string
+---@return function clear Callback removing the message from the screen
+local function transient_status(msg)
+  local ok, notify = pcall(require, "notify")
+
+  if ok and (type(notify) == "function" or type(notify) == "table") then
+    local sent, record = pcall(notify, msg, vim.log.levels.INFO, {
+      title = "Cure MCP",
+      timeout = false,
+      hide_from_history = true,
+    })
+
+    if sent and record then
+      return function()
+        pcall(notify, "", vim.log.levels.INFO, {
+          replace = record,
+          timeout = 1,
+          hide_from_history = true,
+        })
+      end
+    end
+  end
+
+  -- Plain cmdline message: written without history, cleared when done
+  vim.api.nvim_echo({ { msg, "MoreMsg" } }, false, {})
+  return function()
+    vim.api.nvim_echo({ { "" } }, false, {})
+  end
+end
+
 --- Run type checker on current buffer via MCP
 function M.type_check_buffer()
   local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
   local source = table.concat(lines, "\n")
 
-  vim.notify("Running Cure MCP type check...", vim.log.levels.INFO)
+  local clear_status = transient_status("Running Cure MCP type check...")
   M.call_tool("type_check_cure", { source = source }, function(success, res)
+    clear_status()
     if success then
       open_float_win("Cure MCP Type Check Result", res, "cure")
     else
