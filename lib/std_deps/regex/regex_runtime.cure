@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.MachineMemberEdges
   public use Std.Regex.Runtime.AtomicDepthMaximum
   public use Std.Regex.Runtime.MemberTransport
   public use Std.Regex.Runtime.EvidenceStep
@@ -3877,11 +3878,7 @@ mod Std.Regex.Runtime
 
 
 
-  fn machine_state_members_active_current_edge({n: Nat}, state: Bounded(n), routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), {whole: List(MachineState(n))}, {values: List(MachineState(n))}, members: MachineStateMembers(n, whole, Cons(Active(state, routine, constraints), values))) -> ListMember(MachineState(n), Active(state, routine, constraints), Cons(Active(state, routine, constraints), values)) = match members
-    MachineStateMembersActive(_, _, _, _, _) -> ListMemberHere()
 
-  fn machine_state_members_accepted_current_edge({n: Nat}, routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), {whole: List(MachineState(n))}, {values: List(MachineState(n))}, members: MachineStateMembers(n, whole, Cons(Accepted(routine, constraints), values))) -> ListMember(MachineState(n), Accepted(routine, constraints), Cons(Accepted(routine, constraints), values)) = match members
-    MachineStateMembersAccepted(_, _, _, _) -> ListMemberHere()
 
 
 
