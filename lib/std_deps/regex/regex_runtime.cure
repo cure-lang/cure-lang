@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.AtomicStartDecisions
   public use Std.Regex.Runtime.DepthExclusion
   public use Std.Regex.Runtime.ExhaustionFromMembers
   public use Std.Regex.Runtime.CursorShapeAuthority
@@ -2993,22 +2994,13 @@ mod Std.Regex.Runtime
   @reducible
   fn atomic_start_scope_allowed({n: Nat}, @erased candidate: LookaroundAdmittedState(n), {@erased blocked_depth: Option(Nat)}, {@erased kind: AtomicStartSkipKind}, @erased allowed: AtomicStartAllowed(blocked_depth, kind)) -> AtomicStartScopeEvidence(n, AtomicStartScopeEvidenceAllowedRole()) = AtomicStartScopeEvidenceAllowed(candidate, allowed)
 
-  type AtomicStartSkipEvidence indices (blocked_depth: Option(Nat), kind: AtomicStartSkipKind)
-    AtomicStartSkipByCommit : (commit_depth: Nat) -> AtomicStartSkipEvidence(Some(commit_depth), AtomicStartSkipCandidateCommit())
-    AtomicStartSkipByScope : {@erased left: Nat} -> {@erased right: Nat} -> (@erased proof: AtomicDepthAtLeast(left, right)) -> AtomicStartSkipEvidence(Some(right), AtomicStartSkipOuterCommit())
 
-  type AtomicStartAllowed indices (blocked_depth: Option(Nat), kind: AtomicStartSkipKind)
-    AtomicStartAllowedNone : AtomicStartAllowed(None(), AtomicStartSkipNone())
-    AtomicStartAllowedEscape : {@erased left: Nat} -> {@erased right: Nat} -> (@erased proof: AtomicDepthBelow(left, right)) -> AtomicStartAllowed(Some(right), AtomicStartSkipOuterEscape())
 
   type AtomicStartSelection indices (blocked_depth: Option(Nat))
     AtomicStartSelectionAllowed : {@erased kind: AtomicStartSkipKind} -> (@erased evidence: AtomicStartAllowed(blocked_depth, kind)) -> AtomicStartSelection(blocked_depth)
     AtomicStartSelectionBlocked : {@erased kind: AtomicStartSkipKind} -> (@erased evidence: AtomicStartSkipEvidence(blocked_depth, kind)) -> AtomicStartSelection(blocked_depth)
 
 
-  type AtomicStartScopeSelection indices (scope_depth: Nat, blocked_depth: Nat, role: AtomicStartScopeRole)
-    AtomicStartScopeBlocked : (@erased proof: AtomicDepthAtLeast(scope_depth, blocked_depth)) -> AtomicStartScopeSelection(scope_depth, blocked_depth, AtomicStartScopeBlockedRole())
-    AtomicStartScopeAllowed : (@erased proof: AtomicDepthBelow(scope_depth, blocked_depth)) -> AtomicStartScopeSelection(scope_depth, blocked_depth, AtomicStartScopeAllowedRole())
 
 
   type AtomicStartMembersRefutation(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)), kind: AtomicStartFailureKind)
