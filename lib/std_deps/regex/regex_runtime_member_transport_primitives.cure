@@ -1,7 +1,7 @@
 @group(:text)
-mod Std.Regex.Runtime.MemberTransport
-  public use Std.Regex.Runtime.MemberTransportPrimitives
+mod Std.Regex.Runtime.MemberTransportPrimitives
   use Std.Regex.Runtime.LookaroundSupportPrimitives
+
   use Std.Regex.Runtime.EvidenceStep
 
   use Std.Regex.Runtime.AtomicStartMember
@@ -170,5 +170,19 @@ mod Std.Regex.Runtime.MemberTransport
 
   use Std.Decision
 
+  fn transport_list_member({a: Type}, value: a, {left: List(a)}, {right: List(a)}, member: ListMember(a, value, left), equality: Equivalent(List(a), left, right)) -> ListMember(a, value, right) = match equality
+    reflexive() -> member
 
+  ## Normalize the terminal member spine at the same construction site as its
+  ## destination equation.  `MachineStateMembersNil` deliberately permits an
+  ## arbitrary original list because it is a traversal suffix witness; this
+  ## helper uses the checked equation to transport that suffix to the canonical
+  ## empty list before a refutation proof consumes it.
+  fn lookaround_empty_members_normalized(
+    {n: Nat},
+    {whole: List(MachineState(n))},
+    members: MachineStateMembers(n, whole, Nil()),
+    equivalence: Equivalent(List(MachineState(n)), whole, empty_machine_states(n))
+  ) -> MachineStateMembers(n, empty_machine_states(n), Nil()) = match equivalence
+    reflexive() -> members
 end
