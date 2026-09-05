@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime.Evidence
+  public use Std.Regex.Runtime.MatchType
   use Std.Regex.Runtime.StateOps
   use Std.Regex.Runtime.PatternMachines
   use Std.Regex.Runtime.StagedOps
@@ -73,10 +74,6 @@ mod Std.Regex.Runtime.Evidence
 
   use Std.Decision
 
-  ## Match positions are zero-based Unicode-scalar offsets, not UTF-8 byte
-  ## offsets. `start` and `length` are native Int values so large subjects do
-  ## not allocate unary Nat structures at runtime.
-  type Match(result: Type) = Match(result, String, String, String, Int, Int)
 
   @reducible
   fn execute_instruction(instruction: EvidenceInstruction, evidence: List(Evidence), captures: List(CaptureFrame)) -> EvidenceExecution = match instruction

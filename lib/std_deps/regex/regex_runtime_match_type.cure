@@ -1,0 +1,71 @@
+@group(:text)
+mod Std.Regex.Runtime.MatchType
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Runtime.CaptureConditions
+
+  use Std.Regex.Runtime.Boundaries
+
+  use Std.Regex.Runtime.AtomicDiagnostics
+
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Char
+
+  use Std.Option
+
+  use Std.List
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  use Std.Decision
+
+  ## Match positions are zero-based Unicode-scalar offsets, not UTF-8 byte
+  ## offsets. `start` and `length` are native Int values so large subjects do
+  ## not allocate unary Nat structures at runtime.
+  type Match(result: Type) = Match(result, String, String, String, Int, Int)
+end
