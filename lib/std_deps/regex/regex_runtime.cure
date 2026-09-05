@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.ActiveChildShapeHere
   public use Std.Regex.Runtime.CursorShape
   public use Std.Regex.Runtime.SearchCursors
   public use Std.Regex.Runtime.CandidateEquivalence
@@ -632,8 +633,6 @@ mod Std.Regex.Runtime
         AtomicPathActiveChildShapeThereRightAfter(authority)
       )
 
-  type AtomicPathActiveChildShapeHerePackage(failure_package: Type, selected_package: Type) indices (failure_shape: LookaroundAdmittedStateCursorShape, selected_shape: LookaroundAdmittedStateCursorShape)
-    AtomicPathActiveChildShapeHerePacked : (failure: failure_package) -> (selected: selected_package) -> AtomicPathActiveChildShapeHerePackage(failure_package, selected_package, LookaroundAdmittedStateCursorShapeHere(), LookaroundAdmittedStateCursorShapeHere())
 
   type AtomicPathActiveChildShapeTherePackage(failure_package: Type, selected_package: Type) indices (failure_shape: LookaroundAdmittedStateCursorShape, selected_shape: LookaroundAdmittedStateCursorShape)
     AtomicPathActiveChildShapeTherePacked : (failure: failure_package) -> (selected: selected_package) -> (authority: AtomicPathActiveChildShapeThereAuthority(failure_shape, selected_shape)) -> AtomicPathActiveChildShapeTherePackage(failure_package, selected_package, failure_shape, selected_shape)
