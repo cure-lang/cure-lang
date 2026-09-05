@@ -1,0 +1,204 @@
+@group(:text)
+mod Std.Regex.Runtime.AtomicDecisions
+  use Std.Regex.Runtime.MachineMemberEdges
+
+  use Std.Regex.Runtime.AtomicDepthMaximum
+
+  use Std.Regex.Runtime.MemberTransport
+
+  use Std.Regex.Runtime.EvidenceStep
+
+  use Std.Regex.Runtime.AtomicStartMember
+
+  use Std.Regex.Runtime.AtomicFailureAuthority
+
+  use Std.Regex.Runtime.AtomicDepth
+
+  use Std.Regex.Runtime.LookaroundSupport
+
+  use Std.Regex.Runtime.NamedCaptureSearch
+
+  use Std.Regex.Runtime.PatternSearch
+
+  use Std.Regex.Runtime.EvidenceSearch
+
+  use Std.Regex.Runtime.MachineSearch
+
+  use Std.Regex.Runtime.CharacterClasses
+
+  use Std.Regex.Runtime.NamedSearch
+
+  use Std.Regex.Runtime.MachineTransitions
+
+  use Std.Regex.Runtime.NamedStaging
+
+  use Std.Regex.Runtime.MachineEntry
+
+  use Std.Regex.Runtime.LineBreak
+
+  use Std.Regex.Runtime.CharacterMatchers
+
+  use Std.Regex.Runtime.Combinators
+
+  use Std.Regex.Runtime.Anchors
+
+  use Std.Regex.Runtime.CompileRegex
+
+  use Std.Regex.Runtime.ConversionAdapters
+
+  use Std.Regex.Runtime.ThreadDedup
+
+  use Std.Regex.Runtime.NamedTypes
+
+  use Std.Regex.Runtime.RegexType
+
+  use Std.Regex.Runtime.CharacterSemantics
+
+  use Std.Regex.Runtime.Conversion
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Runtime.CaptureConditions
+
+  use Std.Regex.Runtime.Boundaries
+
+  use Std.Regex.Runtime.AtomicDiagnostics
+
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Char
+
+  use Std.Option
+
+  use Std.List
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  use Std.Decision
+
+  type AtomicDepthComparison indices (left: Nat, right: Nat)
+    AtomicDepthStops : (@erased proof: AtomicDepthAtLeast(left, right)) -> AtomicDepthComparison(left, right)
+    AtomicDepthPasses : (@erased proof: AtomicDepthBelow(left, right)) -> AtomicDepthComparison(left, right)
+
+  ## A named commitment decision keeps the control invariant visible at every
+  ## search boundary: a commit at the current scope or an enclosing scope
+  ## blocks the remaining siblings, while a commit strictly inside the current
+  ## scope escapes to the caller so an outer alternative may still run.
+  type AtomicCommitDisposition indices (current: Nat, commit: Nat)
+    AtomicCommitBlocks : (@erased proof: AtomicDepthAtLeast(current, commit)) -> AtomicCommitDisposition(current, commit)
+    AtomicCommitEscapes : (@erased proof: AtomicDepthBelow(current, commit)) -> AtomicCommitDisposition(current, commit)
+
+  @reducible
+  fn atomic_depth_comparison(left: Nat, right: Nat) -> AtomicDepthComparison(left, right) = match left
+    Z() -> match right
+      Z() -> AtomicDepthStops(AtomicDepthAtLeastZero())
+      S(rest) -> AtomicDepthPasses(AtomicDepthBelowZero())
+    S(left_rest) -> match right
+      Z() -> AtomicDepthStops(AtomicDepthAtLeastFromZero())
+      S(right_rest) -> match atomic_depth_comparison(left_rest, right_rest)
+        AtomicDepthStops(prior) -> AtomicDepthStops(AtomicDepthAtLeastStep(prior))
+        AtomicDepthPasses(prior) -> AtomicDepthPasses(AtomicDepthBelowStep(prior))
+
+  @reducible
+  fn atomic_commit_disposition(current: Nat, commit: Nat) -> AtomicCommitDisposition(current, commit) = match atomic_depth_comparison(current, commit)
+    AtomicDepthStops(proof) -> AtomicCommitBlocks(proof)
+    AtomicDepthPasses(proof) -> AtomicCommitEscapes(proof)
+end

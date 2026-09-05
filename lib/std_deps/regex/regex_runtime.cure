@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.AtomicDecisions
   public use Std.Regex.Runtime.MachineMemberEdges
   public use Std.Regex.Runtime.AtomicDepthMaximum
   public use Std.Regex.Runtime.MemberTransport
@@ -11814,33 +11815,9 @@ mod Std.Regex.Runtime
 
 
 
-  type AtomicDepthComparison indices (left: Nat, right: Nat)
-    AtomicDepthStops : (@erased proof: AtomicDepthAtLeast(left, right)) -> AtomicDepthComparison(left, right)
-    AtomicDepthPasses : (@erased proof: AtomicDepthBelow(left, right)) -> AtomicDepthComparison(left, right)
 
-  ## A named commitment decision keeps the control invariant visible at every
-  ## search boundary: a commit at the current scope or an enclosing scope
-  ## blocks the remaining siblings, while a commit strictly inside the current
-  ## scope escapes to the caller so an outer alternative may still run.
-  type AtomicCommitDisposition indices (current: Nat, commit: Nat)
-    AtomicCommitBlocks : (@erased proof: AtomicDepthAtLeast(current, commit)) -> AtomicCommitDisposition(current, commit)
-    AtomicCommitEscapes : (@erased proof: AtomicDepthBelow(current, commit)) -> AtomicCommitDisposition(current, commit)
 
-  @reducible
-  fn atomic_depth_comparison(left: Nat, right: Nat) -> AtomicDepthComparison(left, right) = match left
-    Z() -> match right
-      Z() -> AtomicDepthStops(AtomicDepthAtLeastZero())
-      S(rest) -> AtomicDepthPasses(AtomicDepthBelowZero())
-    S(left_rest) -> match right
-      Z() -> AtomicDepthStops(AtomicDepthAtLeastFromZero())
-      S(right_rest) -> match atomic_depth_comparison(left_rest, right_rest)
-        AtomicDepthStops(prior) -> AtomicDepthStops(AtomicDepthAtLeastStep(prior))
-        AtomicDepthPasses(prior) -> AtomicDepthPasses(AtomicDepthBelowStep(prior))
 
-  @reducible
-  fn atomic_commit_disposition(current: Nat, commit: Nat) -> AtomicCommitDisposition(current, commit) = match atomic_depth_comparison(current, commit)
-    AtomicDepthStops(proof) -> AtomicCommitBlocks(proof)
-    AtomicDepthPasses(proof) -> AtomicCommitEscapes(proof)
 
   @reducible
   fn atomic_scope_effect(routine: List(EvidenceInstruction), depth: Nat) -> AtomicScopeEffect = match routine
