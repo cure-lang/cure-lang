@@ -1,0 +1,145 @@
+@group(:text)
+mod Std.Regex.Runtime.CombinatorPrimitives
+  use Std.Decision
+
+  use Std.Sigma
+
+  use Std.Equivalent
+
+  use Std.Bounded
+
+  use Std.Syntax
+
+  use Std.String
+
+  use Std.List
+
+  use Std.Option
+
+  use Std.Char
+
+  use Std.Regex.Core
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.AtomicDiagnostics
+
+  use Std.Regex.Runtime.Boundaries
+
+  use Std.Regex.Runtime.CaptureConditions
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.Conversion
+
+  use Std.Regex.Runtime.CharacterSemantics
+
+  use Std.Regex.Runtime.RegexType
+
+  use Std.Regex.Runtime.NamedTypes
+
+  use Std.Regex.Runtime.ThreadDedup
+
+  use Std.Regex.Runtime.ConversionAdapters
+
+  use Std.Regex.Runtime.CompileRegex
+
+  use Std.Regex.Runtime.Anchors
+
+  fn empty() -> Regex(Unit) = FromPattern(UnitC, PatternEmpty())
+
+  fn predicate(test: Char -> Bool) -> Regex(Char) =
+    FromPattern(CharC, PatternPredicate(test))
+
+  fn concatenate({a: Type}, {b: Type}, left: Regex(a), right: Regex(b)) -> Regex(Tuple(a, b)) =
+    Concatenated(left, right)
+
+  fn alternate({a: Type}, {b: Type}, left: Regex(a), right: Regex(b)) -> Regex(Choice(a, b)) =
+    Alternated(left, right)
+
+  fn repeat({a: Type}, regex: Regex(a)) -> Regex(List(a)) = Repeated(regex)
+
+  fn map({a: Type}, {b: Type}, regex: Regex(a), transform: a -> b) -> Regex(b) =
+    Mapped(transform, regex)
+
+  fn discard_left({a: Type}, {b: Type}, left: Regex(a), right: Regex(b)) -> Regex(b) =
+    KeptRight(left, right)
+
+  fn discard_right({a: Type}, {b: Type}, left: Regex(a), right: Regex(b)) -> Regex(a) =
+    KeptLeft(left, right)
+
+  fn or_same({a: Type}, left: Regex(a), right: Regex(a)) -> Regex(a) =
+    SameAlternative(left, right)
+
+  fn optional({a: Type}, regex: Regex(a)) -> Regex(Option(a)) =
+    OptionalRegex(regex)
+
+  fn one_or_more({a: Type}, regex: Regex(a)) -> Regex(OneOrMore(a)) =
+    OneOrMoreRegex(regex)
+
+  fn captured({a: Type}, regex: Regex(a)) -> Regex(String) = MatchedText(regex)
+
+  fn as_string({a: Type}, regex: Regex(a)) -> Regex(String) = MatchedText(regex)
+
+  fn simplified(shape: ShapeCode, regex: Regex(Sem(shape))) -> Regex(Sem(Simplify(shape))) =
+    SimplifiedRegex(shape, regex)
+
+  fn optional_pattern({a: Type}, regex: Regex(a)) -> Regex(Choice(a, Unit)) = OptionalPattern(regex)
+
+  fn plus_pattern({a: Type}, regex: Regex(a)) -> Regex(List(a)) = PlusPattern(regex)
+
+  fn one_or_more_pattern({a: Type}, regex: Regex(a), lazy: Bool) -> Regex(List(a)) =
+    OneOrMorePattern(regex, lazy)
+end
