@@ -1,0 +1,85 @@
+## Proof infrastructure for the typed regular-expression evidence machine.
+## These views expose the structural laws used to assemble and invert compiled
+## evidence routines while retaining their dependent input and output indices.
+@group(:text)
+mod Std.Regex.Proof.MarkerExecution
+  use Std.Regex.Runtime.MemberTransport
+
+  use Std.Regex.Runtime.MachineSearch
+
+  use Std.Regex.Runtime.MachineTransitions
+
+  use Std.Regex.Runtime.MachineEntry
+
+  use Std.Regex.Runtime.Conversion
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Regex.Runtime
+
+  use Std.Equivalent
+
+  fn left_marker_execution_encodes({left: ShapeCode}, {right: ShapeCode}, {branch_evidence: List(Evidence)}, {rest: List(Evidence)}, {captures: List(CaptureFrame)}, @erased branch: Encodes(left, branch_evidence, rest), execution: RoutineExecution(Cons(EmitLeft(), Nil()), branch_evidence, captures, Cons(LeftEvidence(), branch_evidence), captures)) -> Encodes(ChoiceC(left, right), Cons(LeftEvidence(), branch_evidence), rest) = match execution
+    RoutineStep(_, suffix) -> match suffix
+      RoutineDone() -> EncodesLeft(branch)
+
+  fn left_marker_execution_captures(input_evidence: List(Evidence), input_captures: List(CaptureFrame), output_evidence: List(Evidence), output_captures: List(CaptureFrame), execution: RoutineExecution(Cons(EmitLeft(), Nil()), input_evidence, input_captures, output_evidence, output_captures)) -> Equivalent(List(CaptureFrame), output_captures, input_captures) = match execution
+    RoutineStep(_, suffix) -> match suffix
+      RoutineDone() -> reflexive(input_captures)
+
+  fn right_marker_execution_encodes({left: ShapeCode}, {right: ShapeCode}, {branch_evidence: List(Evidence)}, {rest: List(Evidence)}, {captures: List(CaptureFrame)}, @erased branch: Encodes(right, branch_evidence, rest), execution: RoutineExecution(Cons(EmitRight(), Nil()), branch_evidence, captures, Cons(RightEvidence(), branch_evidence), captures)) -> Encodes(ChoiceC(left, right), Cons(RightEvidence(), branch_evidence), rest) = match execution
+    RoutineStep(_, suffix) -> match suffix
+      RoutineDone() -> EncodesRight(branch)
+
+  fn right_marker_execution_captures(input_evidence: List(Evidence), input_captures: List(CaptureFrame), output_evidence: List(Evidence), output_captures: List(CaptureFrame), execution: RoutineExecution(Cons(EmitRight(), Nil()), input_evidence, input_captures, output_evidence, output_captures)) -> Equivalent(List(CaptureFrame), output_captures, input_captures) = match execution
+    RoutineStep(_, suffix) -> match suffix
+      RoutineDone() -> reflexive(input_captures)
+end

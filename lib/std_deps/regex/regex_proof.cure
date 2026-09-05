@@ -3,6 +3,7 @@
 ## evidence routines while retaining their dependent input and output indices.
 @group(:text)
 mod Std.Regex.Proof
+  public use Std.Regex.Proof.MarkerExecution
   use Std.Regex.Runtime.MemberTransport
   use Std.Regex.Runtime.MachineSearch
   use Std.Regex.Runtime.MachineTransitions
@@ -155,21 +156,9 @@ mod Std.Regex.Proof
         ExtendedEvidenceRegular(_, suffix) -> match split_appended_extended_routine_execution(rest, right, executed_evidence(execute_instruction(regular, input_evidence, input_captures)), executed_captures(execute_instruction(regular, input_evidence, input_captures)), suffix)
           AppendedExtendedRoutineExecuted(middle_evidence, middle_captures, left_execution, right_execution) -> AppendedExtendedRoutineExecuted(middle_evidence, middle_captures, ExtendedEvidenceRegular(regular, left_execution), right_execution)
 
-  fn left_marker_execution_encodes({left: ShapeCode}, {right: ShapeCode}, {branch_evidence: List(Evidence)}, {rest: List(Evidence)}, {captures: List(CaptureFrame)}, @erased branch: Encodes(left, branch_evidence, rest), execution: RoutineExecution(Cons(EmitLeft(), Nil()), branch_evidence, captures, Cons(LeftEvidence(), branch_evidence), captures)) -> Encodes(ChoiceC(left, right), Cons(LeftEvidence(), branch_evidence), rest) = match execution
-    RoutineStep(_, suffix) -> match suffix
-      RoutineDone() -> EncodesLeft(branch)
 
-  fn left_marker_execution_captures(input_evidence: List(Evidence), input_captures: List(CaptureFrame), output_evidence: List(Evidence), output_captures: List(CaptureFrame), execution: RoutineExecution(Cons(EmitLeft(), Nil()), input_evidence, input_captures, output_evidence, output_captures)) -> Equivalent(List(CaptureFrame), output_captures, input_captures) = match execution
-    RoutineStep(_, suffix) -> match suffix
-      RoutineDone() -> reflexive(input_captures)
 
-  fn right_marker_execution_encodes({left: ShapeCode}, {right: ShapeCode}, {branch_evidence: List(Evidence)}, {rest: List(Evidence)}, {captures: List(CaptureFrame)}, @erased branch: Encodes(right, branch_evidence, rest), execution: RoutineExecution(Cons(EmitRight(), Nil()), branch_evidence, captures, Cons(RightEvidence(), branch_evidence), captures)) -> Encodes(ChoiceC(left, right), Cons(RightEvidence(), branch_evidence), rest) = match execution
-    RoutineStep(_, suffix) -> match suffix
-      RoutineDone() -> EncodesRight(branch)
 
-  fn right_marker_execution_captures(input_evidence: List(Evidence), input_captures: List(CaptureFrame), output_evidence: List(Evidence), output_captures: List(CaptureFrame), execution: RoutineExecution(Cons(EmitRight(), Nil()), input_evidence, input_captures, output_evidence, output_captures)) -> Equivalent(List(CaptureFrame), output_captures, input_captures) = match execution
-    RoutineStep(_, suffix) -> match suffix
-      RoutineDone() -> reflexive(input_captures)
 
   fn pair_marker_execution_captures(input_evidence: List(Evidence), input_captures: List(CaptureFrame), output_evidence: List(Evidence), output_captures: List(CaptureFrame), execution: RoutineExecution(Cons(EmitPair(), Nil()), input_evidence, input_captures, output_evidence, output_captures)) -> Equivalent(List(CaptureFrame), output_captures, input_captures) = match execution
     RoutineStep(_, suffix) -> match suffix
