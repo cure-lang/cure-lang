@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime.CharacterMatchers
+  public use Std.Regex.Runtime.CharacterMatcherPrimitives
   use Std.Regex.Runtime.CombinatorPrimitives
   use Std.Decision
   use Std.Sigma
@@ -119,9 +120,7 @@ mod Std.Regex.Runtime.CharacterMatchers
 
 
 
-  fn always(_char: Char) -> Bool = true
 
-  fn any_char() -> Regex(Char) = predicate(always)
 
   fn exact_predicate(expected: Char, actual: Char) -> Bool = Std.Char.same(expected, actual)
 
