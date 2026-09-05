@@ -1,0 +1,23 @@
+name = "Cure"
+grammar = "cure"
+path_suffixes = ["cure"]
+line_comments = ["# "]
+block_comment = ["#|", "|#"]
+
+brackets = [
+    { start = "{", end = "}", close = true, newline = true },
+    { start = "[", end = "]", close = true, newline = true },
+    { start = "(", end = ")", close = true, newline = true },
+    { start = "\"", end = "\"", close = true, newline = false }
+]
+
+autoclosing_pairs = [
+    { start = "{", end = "}" },
+    { start = "[", end = "]" },
+    { start = "(", end = ")" },
+    { start = "\"", end = "\"" },
+    { start = "#|", end = "|#" }
+]
+
+indent_pattern = "^\\s*(mod|fn|type|typealias|rec|interface|implementation|actor|sup|app|fsm|state|event|transition|match|pickup|if|elif|else|try|catch|finally|receive|after|on_transition|on_enter|on_exit|on_failure|on_timer)\\b|=\\s*$"
+outdent_pattern = "^\\s*(elif|else|catch|finally|after)\\b"

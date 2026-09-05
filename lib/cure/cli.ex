@@ -134,6 +134,12 @@ defmodule Cure.CLI do
         ["lsp" | _] ->
           usage_error("Usage: cure lsp")
 
+        ["mcp"] ->
+          cmd_mcp()
+
+        ["mcp" | _] ->
+          usage_error("Usage: cure mcp")
+
         ["stdlib"] ->
           cmd_stdlib(opts)
 
@@ -766,6 +772,12 @@ defmodule Cure.CLI do
   defp cmd_lsp do
     {:ok, _pid} = Cure.LSP.Server.start_link()
     Process.sleep(:infinity)
+  end
+
+  # -- mcp ---------------------------------------------------------------------
+
+  defp cmd_mcp do
+    Cure.MCP.Server.start()
   end
 
   # -- stdlib ------------------------------------------------------------------
