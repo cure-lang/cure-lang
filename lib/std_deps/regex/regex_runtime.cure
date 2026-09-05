@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.DepthExclusion
   public use Std.Regex.Runtime.ExhaustionFromMembers
   public use Std.Regex.Runtime.CursorShapeAuthority
   public use Std.Regex.Runtime.ActiveChildShapeHere
@@ -13493,22 +13494,6 @@ mod Std.Regex.Runtime
       AtomicCommitBlocks(proof) -> AtomicStartSelectionBlocked(AtomicStartSkipByScope(proof))
       AtomicCommitEscapes(proof) -> AtomicStartSelectionAllowed(AtomicStartAllowedEscape(proof))
 
-  @reducible
-  fn atomic_depth_at_least_excludes_below(
-    {result: Type},
-    {left: Nat},
-    {right: Nat},
-    @erased at_least: AtomicDepthAtLeast(left, right),
-    @erased below: AtomicDepthBelow(left, right)
-  ) -> result = match at_least
-    AtomicDepthAtLeastZero() -> match below
-      AtomicDepthBelowZero() -> impossible
-    AtomicDepthAtLeastFromZero() -> match below
-      AtomicDepthBelowZero() -> impossible
-      AtomicDepthBelowStep(_) -> impossible
-    AtomicDepthAtLeastStep(prior) -> match below
-      AtomicDepthBelowZero() -> impossible
-      AtomicDepthBelowStep(next) -> atomic_depth_at_least_excludes_below(prior, next)
 
   ## The same routine close cannot both permit sibling traversal and block it.
   ## Equality of the indexed close first rules out None versus Some; for two
