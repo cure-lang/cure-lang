@@ -65,14 +65,41 @@ defmodule Cure.Compiler.SourceResolver do
   defp stdlib_path(_), do: :not_found
 
   defp user_path(name) do
-    Process.get(:cure_source_roots, [])
-    |> Enum.flat_map(fn root -> Path.wildcard(Path.join(root, "**/*.cure")) end)
-    |> Enum.uniq()
-    |> Enum.filter(fn path -> declared_module(path) == name end)
-    |> case do
-      [path] -> {:ok, path}
+    roots = Process.get(:cure_source_roots, [])
+    cache_key = {:source_resolver_user_paths, roots}
+
+    map =
+      case Process.get(cache_key) do
+        %{} = cached ->
+          cached
+
+        nil ->
+          built = build_user_path_index(roots)
+          Process.put(cache_key, built)
+          built
+      end
+
+    case Map.fetch(map, name) do
+      {:ok, [path]} -> {:ok, path}
       _ -> :not_found
     end
+  end
+
+  # Grouped by declared name (not `Map.put_new`'d to a single winner): two
+  # source files under the same roots declaring the same module name is an
+  # ambiguity the caller must not silently resolve by wildcard-scan order —
+  # `user_path/1` above treats anything but exactly one candidate as
+  # `:not_found`, matching the pre-caching behaviour this index replaces.
+  defp build_user_path_index(roots) do
+    roots
+    |> Enum.flat_map(fn root -> Path.wildcard(Path.join(root, "**/*.cure")) end)
+    |> Enum.uniq()
+    |> Enum.reduce(%{}, fn path, acc ->
+      case declared_module(path) do
+        name when is_binary(name) and name != "" -> Map.update(acc, name, [path], &[path | &1])
+        _ -> acc
+      end
+    end)
   end
 
   defp declared_module(path) do
