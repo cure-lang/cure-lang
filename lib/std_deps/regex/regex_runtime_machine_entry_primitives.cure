@@ -1,0 +1,143 @@
+@group(:text)
+mod Std.Regex.Runtime.MachineEntryPrimitives
+  use Std.Regex.Runtime.PatternMachinePrimitives
+
+  use Std.Decision
+
+  use Std.Sigma
+
+  use Std.Equivalent
+
+  use Std.Bounded
+
+  use Std.Syntax
+
+  use Std.String
+
+  use Std.List
+
+  use Std.Option
+
+  use Std.Char
+
+  use Std.Regex.Core
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.AtomicDiagnostics
+
+  use Std.Regex.Runtime.Boundaries
+
+  use Std.Regex.Runtime.CaptureConditions
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.Conversion
+
+  use Std.Regex.Runtime.CharacterSemantics
+
+  use Std.Regex.Runtime.RegexType
+
+  use Std.Regex.Runtime.NamedTypes
+
+  use Std.Regex.Runtime.ThreadDedup
+
+  use Std.Regex.Runtime.ConversionAdapters
+
+  use Std.Regex.Runtime.CompileRegex
+
+  use Std.Regex.Runtime.Anchors
+
+  use Std.Regex.Runtime.Combinators
+
+  use Std.Regex.Runtime.CharacterMatchers
+
+  use Std.Regex.Runtime.LineBreak
+
+  fn pattern_machine_next_at_from_next(
+    {n: Nat},
+    machine: PatternMachine(n),
+    state: Bounded(n),
+    char: Char
+  ) -> Equivalent(
+    List(MachineState(n)),
+    pattern_machine_next_at(machine, state, char),
+    pattern_machine_next_value(machine, state, char)
+  ) = match machine
+    MkPatternMachine(_, next) -> reflexive(next(state, char))
+
+  fn pattern_machine_eta({n: Nat}, machine: PatternMachine(n)) -> Equivalent(PatternMachine(n), machine, MkPatternMachine(pattern_machine_starts(machine), pattern_machine_next(machine))) = match machine
+    MkPatternMachine(starts, next) -> reflexive(MkPatternMachine(starts, next))
+
+  @reducible
+  ## Reference constructor retained for differential tests.
+  fn reference_thompson_machine({@erased shape: ShapeCode}, compilation: ThompsonCompilation(shape)) -> PatternMachine(thompson_state_count(compilation)) = match compilation
+    ThompsonPredicate(test) -> predicate_pattern_machine(test)
+    ThompsonEmpty() -> empty_pattern_machine()
+    ThompsonBoundary(constraint) -> boundary_pattern_machine(constraint)
+    ThompsonConcat(left, right) -> concat_pattern_machine(thompson_state_count(left), reference_thompson_machine(left), thompson_state_count(right), reference_thompson_machine(right))
+    ThompsonGroup(inner) -> group_pattern_machine(thompson_state_count(inner), pattern_machine_starts(reference_thompson_machine(inner)), pattern_machine_next(reference_thompson_machine(inner)))
+    ThompsonAlternate(left, right, prefer_right) -> alternate_pattern_machine(thompson_state_count(left), reference_thompson_machine(left), thompson_state_count(right), reference_thompson_machine(right), prefer_right)
+    ThompsonRepeat(inner, lazy) -> repeat_pattern_machine(thompson_state_count(inner), reference_thompson_machine(inner), lazy)
+
+  @reducible
+  fn staged_predicate_next(test: Char -> Bool, state: Bounded(S(Z())), char: Char) -> List(MachineState(S(Z()))) =
+    predicate_machine_next(test, state, char)
+
+  fn machine_accepts_chars({n: Nat}, next: (Bounded(n)) -> Char -> List(MachineState(n)), input: List(Char), current: List(MachineState(n))) -> Bool = match input
+    [] -> machine_has_accept(current)
+    [char | rest] ->
+      machine_accepts_chars(next, rest, filter_boundary_states(machine_step(next, char, current), position_boundary(false, Std.Char.is_newline(char), ascii_word(char), option_word(char, true), Some(char), rest)))
+end
