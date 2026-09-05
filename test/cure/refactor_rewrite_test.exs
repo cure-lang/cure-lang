@@ -112,6 +112,33 @@ defmodule Cure.Refactor.RewriteTest do
     assert File.read!(Path.join(dir, "types.cure")) =~ "type Nat = Z | S(Nat)"
   end
 
+  test "split updates importers that alias a moved type", %{dir: dir} do
+    source_path = Path.join(dir, "source.cure")
+    importer_path = Path.join(dir, "consumer.cure")
+
+    File.write!(source_path, """
+    mod Source
+      type Nat = Z | S(Nat)
+    end
+    """)
+
+    File.write!(importer_path, """
+    mod Consumer
+      use Source
+      type Alias = Nat
+    end
+    """)
+
+    assert {:ok, result} =
+             Rewrite.split(source_path, "types.cure:Extracted:Nat",
+               output_directory: dir,
+               write: true
+             )
+
+    assert result.updated_dependents == [importer_path]
+    assert File.read!(importer_path) =~ "use Extracted"
+  end
+
   test "split preserves implicit list inference through a public type re-export", %{dir: dir} do
     source_path = Path.join(dir, "source.cure")
 

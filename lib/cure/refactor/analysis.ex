@@ -890,6 +890,10 @@ defmodule Cure.Refactor.Analysis do
     |> Enum.reduce(acc, &collect_type_references/2)
   end
 
+  defp collect_signature_references(acc, {:type_annotation, _meta, body}) do
+    collect_type_references(body, acc)
+  end
+
   defp collect_signature_references(acc, _node), do: acc
 
   defp collect_type_references({:function_call, meta, children}, acc) when is_list(meta) do
