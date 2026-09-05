@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.AtomicFailureAuthority
   public use Std.Regex.Runtime.AtomicDepth
   public use Std.Regex.Runtime.LookaroundSupport
   public use Std.Regex.Runtime.NamedCaptureSearch
@@ -2973,23 +2974,7 @@ mod Std.Regex.Runtime
   fn atomic_lookaround_state_capture_context_accepted({n: Nat}, base: List(EvidenceInstruction), routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), assertion_routine: List(ExtendedInstruction), assertion_markers: List(EvidenceInstruction), nested_decisions: List(LookaroundNestedDecision)) -> LookaroundAdmittedStateCaptureContext(n, base, LookaroundAdmittedAccepted(routine, constraints, assertion_routine, assertion_markers, nested_decisions), append_routine(append_routine(base, routine), assertion_markers)) = LookaroundAdmittedStateCaptureContextAccepted()
 
 
-  ## Relevant singleton authority for the otherwise erased failure-kind
-  ## index. Search constructs this tag at the same site as the refutation, so
-  ## later recursive consumers can select a fixed proof branch without
-  ## inspecting erased evidence or accepting an uncorrelated runtime enum.
-  type AtomicPathFailureKindAuthority indices (kind: AtomicPathFailureKind)
-    AtomicPathFailureInputExhaustedAuthority : AtomicPathFailureKindAuthority(AtomicPathFailureInputExhausted())
-    AtomicPathFailureExactAcceptedAuthority : AtomicPathFailureKindAuthority(AtomicPathFailureExactAccepted())
-    AtomicPathFailureDestinationsExhaustedAuthority : AtomicPathFailureKindAuthority(AtomicPathFailureDestinationsExhausted())
-    AtomicPathFailureDestinationRejectedAuthority : AtomicPathFailureKindAuthority(AtomicPathFailureDestinationRejected())
 
-  fn atomic_path_failure_kind_authority(
-    kind: AtomicPathFailureKind
-  ) -> AtomicPathFailureKindAuthority(kind) = match kind
-    AtomicPathFailureInputExhausted() -> AtomicPathFailureInputExhaustedAuthority()
-    AtomicPathFailureExactAccepted() -> AtomicPathFailureExactAcceptedAuthority()
-    AtomicPathFailureDestinationsExhausted() -> AtomicPathFailureDestinationsExhaustedAuthority()
-    AtomicPathFailureDestinationRejected() -> AtomicPathFailureDestinationRejectedAuthority()
 
   type AtomicPathRefutation(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)), kind: AtomicPathFailureKind)
     AtomicPathInputExhausted : {@erased source: Bounded(n)} -> (@erased witness: LookaroundAdmittedStateCursorWitness(n, Nil(), Nil())) -> (@erased suffix: LookaroundAdmittedStateCursorSuffix(n, Nil(), Nil())) -> AtomicPathRefutation(depth, n, machine, Nil(), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, Nil(), Nil(), AtomicPathFailureInputExhausted())
