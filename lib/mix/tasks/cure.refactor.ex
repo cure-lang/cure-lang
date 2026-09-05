@@ -13,7 +13,9 @@ defmodule Mix.Tasks.Cure.Refactor do
   declaration extraction modelled after Rhizoid. Split specifications name the
   destination module because Cure definition identities include the module:
   `Target.cure:Target.Module:Declaration|OtherDeclaration`. Use `--dry-run` to
-  inspect the generated buffers without writing them.
+  inspect the generated buffers without writing them. Splits automatically
+  update direct importers in the source directory; pass
+  `--update-dependents false` to suppress those importer edits.
 
       mix cure.refactor path/to/module.cure
       mix cure.refactor --recursive --stats --dependencies path/to/module.cure
@@ -44,6 +46,7 @@ defmodule Mix.Tasks.Cure.Refactor do
           dry_run: :boolean,
           overwrite: :boolean,
           remove_from_source: :boolean,
+          update_dependents: :boolean,
           max_depth: :integer,
           prelude_macros: :boolean
         ],
@@ -76,6 +79,7 @@ defmodule Mix.Tasks.Cure.Refactor do
       output_directory: Keyword.get(opts, :output_directory, Path.dirname(path)),
       overwrite: Keyword.get(opts, :overwrite, false),
       remove_from_source: Keyword.get(opts, :remove_from_source, true),
+      update_dependents: Keyword.get(opts, :update_dependents, true),
       write: not Keyword.get(opts, :dry_run, false)
     ]
 
