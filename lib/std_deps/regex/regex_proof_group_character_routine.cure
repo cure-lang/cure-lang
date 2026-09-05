@@ -1,0 +1,86 @@
+## Proof infrastructure for the typed regular-expression evidence machine.
+## These views expose the structural laws used to assemble and invert compiled
+## evidence routines while retaining their dependent input and output indices.
+@group(:text)
+mod Std.Regex.Proof.GroupCharacterRoutine
+  use Std.Regex.Proof.SingleCharacterString
+
+  use Std.Regex.Proof.EquivalenceLaws
+
+  use Std.Regex.Proof.MarkerExecution
+
+  use Std.Regex.Runtime.MemberTransport
+
+  use Std.Regex.Runtime.MachineSearch
+
+  use Std.Regex.Runtime.MachineTransitions
+
+  use Std.Regex.Runtime.MachineEntry
+
+  use Std.Regex.Runtime.Conversion
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Regex.Runtime
+
+  use Std.Equivalent
+
+  ## Grouping discards the inner evidence program and replaces it with the text
+  ## observed by the capture frame. This one-transition lemma pins the crucial
+  ## compositional boundary: even though EmitChar mutates the temporary evidence,
+  ## EndCapture restores the saved suffix before emitting StringEvidence.
+  fn group_character_routine_encodes(char: Char, {input_evidence: List(Evidence)}, {input_captures: List(CaptureFrame)}, {output_evidence: List(Evidence)}, {output_captures: List(CaptureFrame)}, execution: ExtendedEvidenceRoutineExecution(Cons(Regular(BeginCapture()), transition_routine(char, Cons(EmitChar(char), Cons(EndCapture(), Nil())))), input_evidence, input_captures, output_evidence, output_captures)) -> Encodes(StringC, output_evidence, input_evidence) = match execution
+    ExtendedEvidenceRegular(_, after_begin) -> match after_begin
+      ExtendedEvidenceObserve(_, after_observe) -> match after_observe
+        ExtendedEvidenceRegular(_, after_emit) -> match after_emit
+          ExtendedEvidenceRegular(_, after_end) -> match after_end
+            ExtendedEvidenceDone() -> EncodesString(Std.String.from_characters(Cons(char, Nil())))
+end

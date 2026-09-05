@@ -3,6 +3,7 @@
 ## evidence routines while retaining their dependent input and output indices.
 @group(:text)
 mod Std.Regex.Proof
+  public use Std.Regex.Proof.GroupCharacterRoutine
   public use Std.Regex.Proof.SingleCharacterString
   public use Std.Regex.Proof.EquivalenceLaws
   public use Std.Regex.Proof.MarkerExecution
@@ -341,16 +342,6 @@ mod Std.Regex.Proof
       ExtendedEvidenceRegular(_, after_emit) -> match after_emit
         ExtendedEvidenceDone() -> EncodesCharacter(char)
 
-  ## Grouping discards the inner evidence program and replaces it with the text
-  ## observed by the capture frame. This one-transition lemma pins the crucial
-  ## compositional boundary: even though EmitChar mutates the temporary evidence,
-  ## EndCapture restores the saved suffix before emitting StringEvidence.
-  fn group_character_routine_encodes(char: Char, {input_evidence: List(Evidence)}, {input_captures: List(CaptureFrame)}, {output_evidence: List(Evidence)}, {output_captures: List(CaptureFrame)}, execution: ExtendedEvidenceRoutineExecution(Cons(Regular(BeginCapture()), transition_routine(char, Cons(EmitChar(char), Cons(EndCapture(), Nil())))), input_evidence, input_captures, output_evidence, output_captures)) -> Encodes(StringC, output_evidence, input_evidence) = match execution
-    ExtendedEvidenceRegular(_, after_begin) -> match after_begin
-      ExtendedEvidenceObserve(_, after_observe) -> match after_observe
-        ExtendedEvidenceRegular(_, after_emit) -> match after_emit
-          ExtendedEvidenceRegular(_, after_end) -> match after_end
-            ExtendedEvidenceDone() -> EncodesString(Std.String.from_characters(Cons(char, Nil())))
 
   type PredicateRoutineView indices (char: Char, routine: List(ExtendedInstruction))
     PredicateRoutineExact : PredicateRoutineView(char, transition_routine(char, Cons(EmitChar(char), Nil())))
