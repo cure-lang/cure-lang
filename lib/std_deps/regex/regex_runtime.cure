@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.CandidateEquivalence
   public use Std.Regex.Runtime.CaptureSlotMarkers
   public use Std.Regex.Runtime.AtomicDecisions
   public use Std.Regex.Runtime.MachineMemberEdges
@@ -2362,8 +2363,6 @@ mod Std.Regex.Runtime
     LookaroundPrefixSearchMembersFound : (path: LookaroundPrefixSearchPath(depth, n, machine, capture_context, starts, input, after_input, history, policy)) -> LookaroundPrefixSearchMembersResult(depth, n, machine, starts, current, input, after_input, history, policy, capture_context)
 
 
-  fn lookaround_impossible_empty_candidate_equivalence({n: Nat}, {state: MachineState(n)}, {values: List(MachineState(n))}, @erased equality: Equivalent(List(MachineState(n)), empty_machine_states(n), Cons(state, values))) -> Empty = match equality
-    reflexive() -> impossible
 
 
 
