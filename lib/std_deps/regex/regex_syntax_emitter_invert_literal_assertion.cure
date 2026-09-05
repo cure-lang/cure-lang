@@ -1,0 +1,37 @@
+## Compile-time emitter for regex syntax trees. It turns parsed patterns into
+## the matcher representation consumed by `Std.Regex`.
+@group(:text)
+mod Std.Regex.Syntax.Emitter.InvertLiteralAssertion
+  use Std.Regex.Syntax.Model.Width
+
+  use Std.Regex.Syntax.Model.Options
+
+  use Std.Regex.Syntax.Model.Modifiers
+
+  use Std.Regex.Syntax.Model.ClassPredicates
+
+  use Std.Regex.Syntax.Model.Shape
+
+  use Std.Regex.Syntax.Model.Utilities
+
+  use Std.Regex.Syntax.Model.ClassKinds
+
+  use Std.Regex.Syntax.Model.Predicates
+
+  use Std.Regex.Syntax.Model.Types
+
+  use Std.Regex.Syntax.Model
+
+  use Std.String
+
+  use Std.Syntax
+
+  fn invert_literal_assertion(assertion: LiteralPattern) -> LiteralPattern = match assertion
+    LiteralLookahead(polarity, inner) -> match polarity
+      LiteralAssertionPositive -> LiteralLookahead(LiteralAssertionNegative, inner)
+      LiteralAssertionNegative -> LiteralLookahead(LiteralAssertionPositive, inner)
+    LiteralLookbehind(polarity, inner) -> match polarity
+      LiteralAssertionPositive -> LiteralLookbehind(LiteralAssertionNegative, inner)
+      LiteralAssertionNegative -> LiteralLookbehind(LiteralAssertionPositive, inner)
+    _ -> assertion
+end

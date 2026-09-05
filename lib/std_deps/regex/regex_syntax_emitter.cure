@@ -2,6 +2,7 @@
 ## the matcher representation consumed by `Std.Regex`.
 @group(:text)
 mod Std.Regex.Syntax.Emitter
+  public use Std.Regex.Syntax.Emitter.InvertLiteralAssertion
   use Std.Regex.Syntax.Model.Width
   use Std.Regex.Syntax.Model.Options
   use Std.Regex.Syntax.Model.Modifiers
@@ -241,14 +242,6 @@ mod Std.Regex.Syntax.Emitter
     None() -> LiteralEmpty
     Some(inner) -> inner
 
-  fn invert_literal_assertion(assertion: LiteralPattern) -> LiteralPattern = match assertion
-    LiteralLookahead(polarity, inner) -> match polarity
-      LiteralAssertionPositive -> LiteralLookahead(LiteralAssertionNegative, inner)
-      LiteralAssertionNegative -> LiteralLookahead(LiteralAssertionPositive, inner)
-    LiteralLookbehind(polarity, inner) -> match polarity
-      LiteralAssertionPositive -> LiteralLookbehind(LiteralAssertionNegative, inner)
-      LiteralAssertionNegative -> LiteralLookbehind(LiteralAssertionPositive, inner)
-    _ -> assertion
 
   fn emit_lookaround_bounded_exact(inner: LiteralPattern, count: Nat, options: LiteralRegexOptions) -> Syntax = match count
     Z() -> runtime_call("LookaroundEmpty", [])
