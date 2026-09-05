@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime.NamedCaptureSearch
+  public use Std.Regex.Runtime.NamedFullCapture
   use Std.Decision
   use Std.Sigma
   use Std.Equivalent
@@ -140,11 +141,6 @@ mod Std.Regex.Runtime.NamedCaptureSearch
 
   type NamedPrefixCapture = NamedPrefixCapture(List(Char), List(Char), List(NamedCapture))
 
-  fn named_full_capture({shape: ShapeCode}, compilation: NamedThompsonCompilation(shape), input: String, layout: CaptureLayout) -> Option(List(NamedCapture)) =
-    let characters = Std.String.characters(input)
-    match named_search_machine_acceptance(named_thompson_state_count(compilation), named_thompson_machine(compilation), subject_initial_position(), characters, [])
-      NamedMachineNoPath() -> None()
-      NamedMachinePath(routine) -> replay_named_capture_routine(routine, layout)
 
   fn named_prefix_capture_at({shape: ShapeCode}, compilation: NamedThompsonCompilation(shape), input: List(Char), greedy: Bool, position: InitialPosition, layout: CaptureLayout) -> Option(NamedPrefixCapture) =
     let result = pickup
