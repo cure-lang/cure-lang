@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime.LookaroundSupport
+  public use Std.Regex.Runtime.LookaroundSupportPrimitives
   use Std.Decision
   use Std.Sigma
   use Std.Equivalent
@@ -140,104 +141,17 @@ mod Std.Regex.Runtime.LookaroundSupport
 
 
 
-  fn lookbehind_initial_position(boundary: Boundary, history: List(Char), width: Nat, policy: NewlinePolicy) -> InitialPosition = match width
-    Z() -> match boundary
-      Boundary(subject_start, _, _, line_start, _, _, _, previous_char, _, _) -> InitialPosition(subject_start, line_start, option_ascii_word(previous_char), option_unicode_word(previous_char), previous_char)
-    S(_) -> match history_at(history, width)
-      None() -> InitialPosition(true, true, false, false, None())
-      Some(previous) -> InitialPosition(false, newline_char(policy, previous), ascii_word(previous), option_word(previous, true), Some(previous))
 
-  @reducible
-  fn empty_extended_instructions() -> List(ExtendedInstruction) = []
 
-  fn position_boundary_for_history(position: InitialPosition, input: List(Char), history: List(Char)) -> Boundary = match position
-    InitialPosition(subject_start, line_start, previous_ascii_word, previous_unicode_word, previous_char) ->
-      position_boundary(subject_start, line_start, previous_ascii_word, previous_unicode_word, previous_char, input)
 
-  @reducible
-  fn empty_machine_states(n: Nat) -> List(MachineState(n)) = []
 
-  @reducible
-  fn empty_characters() -> List(Char) = []
 
-  ## The empty start list has no accepting path.  This is the base case used
-  ## by the refutation-tree soundness proof: every search-path
-  ## constructor carries a membership witness in `starts`, so `starts = []`
-  ## is eliminated constructively rather than treated as an unchecked claim.
-  fn lookaround_impossible_list_member({item_type: Type}, {item: item_type}, {result: Type}, @erased membership: ListMember(item_type, item, Nil())) -> result = match membership
 
-  ## Compose the erased candidate-list equation with the path's erased
-  ## candidate equation without routing either proof through `trans/2`.
-  ## `trans` has runtime proof arguments in the generic equality module; using
-  ## it here would make a genuinely erased certificate relevant. Matching the
-  ## two identity proofs directly keeps this refutation proof erased end-to-end.
-  fn lookaround_impossible_accepted_active_candidates(
-    {n: Nat},
-    {accepted_routine: List(EvidenceInstruction)},
-    {accepted_constraints: List(BoundaryConstraint)},
-    {@erased accepted_values: List(MachineState(n))},
-    {active_destination: Bounded(n)},
-    {active_routine: List(EvidenceInstruction)},
-    {active_constraints: List(BoundaryConstraint)},
-    {@erased active_values: List(MachineState(n))},
-    {@erased candidates: List(MachineState(n))},
-    @erased accepted_to_candidates: Equivalent(
-      List(MachineState(n)),
-      Cons(Accepted(accepted_routine, accepted_constraints), accepted_values),
-      candidates
-    ),
-    @erased candidates_to_active: Equivalent(
-      List(MachineState(n)),
-      candidates,
-      Cons(Active(active_destination, active_routine, active_constraints), active_values)
-    )
-  ) -> Empty = match accepted_to_candidates
-    reflexive() -> match candidates_to_active
-      reflexive() -> impossible
 
-  fn lookaround_impossible_active_accepted_candidates(
-    {n: Nat},
-    {active_destination: Bounded(n)},
-    {active_routine: List(EvidenceInstruction)},
-    {active_constraints: List(BoundaryConstraint)},
-    {@erased active_values: List(MachineState(n))},
-    {accepted_routine: List(EvidenceInstruction)},
-    {accepted_constraints: List(BoundaryConstraint)},
-    {@erased accepted_values: List(MachineState(n))},
-    {@erased candidates: List(MachineState(n))},
-    @erased active_to_candidates: Equivalent(
-      List(MachineState(n)),
-      Cons(Active(active_destination, active_routine, active_constraints), active_values),
-      candidates
-    ),
-    @erased candidates_to_accepted: Equivalent(
-      List(MachineState(n)),
-      candidates,
-      Cons(Accepted(accepted_routine, accepted_constraints), accepted_values)
-    )
-  ) -> Empty = match active_to_candidates
-    reflexive() -> match candidates_to_accepted
-      reflexive() -> impossible
 
-  fn lookaround_absurd({result: Type}, contradiction: Empty) -> result = match contradiction
 
-  ## The child evidence VM starts after the candidate's regular and assertion
-  ## instructions have both run.  Keep that context derived from the indexed
-  ## candidate rather than accepting an unrelated list at the refutation site;
-  ## selected traces use the same construction for their recursive suffix.
-  @reducible
-  fn lookaround_admitted_active_capture_context(base: List(EvidenceInstruction), routine: List(EvidenceInstruction), assertion_markers: List(EvidenceInstruction)) -> List(EvidenceInstruction) = append_routine(append_routine(base, routine), assertion_markers)
 
-  @reducible
-  fn lookaround_admitted_accepted_capture_context(base: List(EvidenceInstruction), routine: List(EvidenceInstruction), assertion_markers: List(EvidenceInstruction)) -> List(EvidenceInstruction) = append_routine(append_routine(base, routine), assertion_markers)
 
-  fn lookaround_transition_boundary(char: Char, rest: List(Char), after_input: List(Char), policy: NewlinePolicy) -> Boundary =
-    position_boundary(false, newline_char(policy, char), ascii_word(char), option_word(char, true), Some(char), append_characters(rest, after_input))
 
-  ## Atomic commitment is runtime control state, not part of the ordinary
-  ## proof-carrying search result. A commit failure stops siblings at the
-  ## scope that closed, while an outer scope may still propagate it.
-  type AtomicScopeEffect = AtomicScopeEffect(Nat, Option(Nat))
 
-  type LookaroundRoutineRejectionReason = LookaroundRoutineRejected | LookaroundRoutineCommitted(Nat)
 end

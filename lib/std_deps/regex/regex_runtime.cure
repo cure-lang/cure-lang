@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  use Std.Regex.Runtime.LookaroundSupportPrimitives
   public use Std.Regex.Runtime.AtomicPathActiveChildShapeHerePackageFold
   public use Std.Regex.Runtime.AtomicStartScopeSelectionExcludes
   public use Std.Regex.Runtime.LookaroundExhaustionFromList
