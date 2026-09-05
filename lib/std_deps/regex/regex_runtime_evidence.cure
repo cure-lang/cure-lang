@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime.Evidence
+  public use Std.Regex.Runtime.ExtendedEvidenceTypes
   public use Std.Regex.Runtime.MatchType
   use Std.Regex.Runtime.StateOps
   use Std.Regex.Runtime.PatternMachines
@@ -113,14 +114,7 @@ mod Std.Regex.Runtime.Evidence
   fn executed_captures(execution: EvidenceExecution) -> List(CaptureFrame) = match execution
     EvidenceExecution(_, captures) -> captures
 
-  ## The generalized Thompson proof uses an NFA-independent stream. `Observe`
-  ## advances capture input; `Regular` embeds the evidence VM language.
-  type ExtendedInstruction = Regular(EvidenceInstruction) | Observe(Char)
 
-  @reducible
-  fn regular_routine(routine: List(EvidenceInstruction)) -> List(ExtendedInstruction) = match routine
-    [] -> []
-    [instruction | rest] -> [Regular(instruction) | regular_routine(rest)]
 
   type ExtendedEvidenceRoutineExecution indices (routine: List(ExtendedInstruction), input_evidence: List(Evidence), input_captures: List(CaptureFrame), output_evidence: List(Evidence), output_captures: List(CaptureFrame))
     ExtendedEvidenceDone : {input_evidence: List(Evidence)} -> {input_captures: List(CaptureFrame)} -> ExtendedEvidenceRoutineExecution(Nil(), input_evidence, input_captures, input_evidence, input_captures)
@@ -145,19 +139,8 @@ mod Std.Regex.Runtime.Evidence
           CertifiedRoutineExecuted(output_evidence, output_captures, suffix, extended_suffix) ->
             CertifiedRoutineExecuted(output_evidence, output_captures, RoutineStep(instruction, suffix), ExtendedEvidenceRegular(instruction, extended_suffix))
 
-  ## Thompson's evidence proof reasons over one NFA-independent instruction
-  ## stream. `Observe` records the consumed character (and advances open capture
-  ## frames); `Regular` embeds the existing VM instruction language.
-  type ExtendedExecution = ExtendedExecution(Option(Char), List(Evidence), List(CaptureFrame))
 
-  @reducible
-  fn transition_routine(char: Char, routine: List(EvidenceInstruction)) -> List(ExtendedInstruction) =
-    [Observe(char) | regular_routine(routine)]
 
-  @reducible
-  fn append_extended_routines(left: List(ExtendedInstruction), right: List(ExtendedInstruction)) -> List(ExtendedInstruction) = match left
-    [] -> right
-    [instruction | rest] -> [instruction | append_extended_routines(rest, right)]
 
   fn execute_extended_instruction(instruction: ExtendedInstruction, current: Option(Char), evidence: List(Evidence), captures: List(CaptureFrame)) -> ExtendedExecution = match instruction
     Observe(char) -> ExtendedExecution(Some(char), evidence, record_capture_char(captures, char))

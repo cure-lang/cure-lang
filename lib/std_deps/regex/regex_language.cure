@@ -3,6 +3,7 @@
 ## needed to relate an accepted Thompson-machine path to the authored pattern.
 @group(:text)
 mod Std.Regex.Language
+  use Std.Regex.Runtime.ExtendedEvidenceTypes
   use Std.Regex.Runtime.MachineEntryPrimitives
   use Std.Regex.Runtime.PatternMachinePrimitives
   use Std.Regex.Runtime.MachineTransitionPrimitives

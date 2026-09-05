@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime.LookaroundSupportPrimitives
+  use Std.Regex.Runtime.ExtendedEvidenceTypes
   use Std.Decision
 
   use Std.Sigma
