@@ -1,7 +1,7 @@
 defmodule Cure.Refactor.RewriteTest do
   use ExUnit.Case, async: false
 
-  alias Cure.Compiler.{Lexer, Parser}
+  alias Cure.Compiler.{Lexer, ModulePipeline, Parser}
   alias Cure.Refactor.Analysis
   alias Cure.Refactor.Rewrite
 
@@ -130,10 +130,59 @@ defmodule Cure.Refactor.RewriteTest do
                output_directory: dir
              )
 
+    target_path = Path.join(dir, "atoms.cure")
+    File.write!(target_path, result.target)
+
+    utility_path = Path.join(dir, "utility.cure")
+
+    File.write!(utility_path, """
+    mod Utility
+      use Source
+      fn defaults() -> Options = Options([], Unicode)
+    end
+    """)
+
+    assert {:ok, _pipeline} =
+             ModulePipeline.check([utility_path, source_path, target_path],
+               module_pipeline: :canonical,
+               package: "reexport",
+               source_roots: [dir]
+             )
+
     assert result.target =~ "type Modifier = Caseless | Multiline"
     assert result.target =~ "type Policy = LF | Unicode"
     assert result.source =~ "public use Atoms"
     assert result.source =~ "Options([], Unicode)"
+  end
+
+  test "split keeps a moved map distinct from Std.List.map", %{dir: dir} do
+    source_path = Path.join(dir, "source.cure")
+    consumer_path = Path.join(dir, "consumer.cure")
+
+    File.write!(source_path, """
+    mod Source
+      fn map(left: Int, right: Int) -> Int = left
+    end
+    """)
+
+    File.write!(consumer_path, """
+    mod Consumer
+      use Source
+      use Std.List
+      fn result() -> Int = map(1, 2)
+    end
+    """)
+
+    assert {:ok, result} =
+             Rewrite.split(source_path, "map.cure:Extracted:map",
+               output_directory: dir,
+               write: true
+             )
+
+    assert result.updated_dependents == [consumer_path]
+    assert File.read!(consumer_path) =~ "use Extracted"
+
+    assert File.read!(source_path) =~ "public use Extracted"
   end
 
   test "leading documentation trivia follows an extracted declaration", %{dir: dir} do

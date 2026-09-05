@@ -22,6 +22,36 @@ defmodule Cure.Compiler.RegexModuleSplitTest do
     assert {:ok, _env} = Program.elaborate(source, file: "regex_facade_surface.cure")
   end
 
+  test "regex combinator map remains unambiguous beside Std.List" do
+    source = """
+    mod RegexMapSurface
+      use Std.List
+      use Std.Regex.Runtime.CombinatorPrimitives
+      use Std.Regex.Runtime.RegexType
+      use Std.Regex.Runtime.ConversionAdapters
+      use Std.Regex.Runtime.Conversion
+      use Std.Regex.Runtime
+
+      fn build() -> Regex(Unit) = map(predicate(fn(_) -> true), fn(_) -> ())
+    end
+    """
+
+    assert {:ok, _env} = Program.elaborate(source, file: "regex_map_surface.cure")
+  end
+
+  test "syntax model public re-export preserves constructor inference" do
+    source = """
+    mod RegexSyntaxReexportSurface
+      use Std.Regex.Syntax.Model
+
+      fn defaults() -> LiteralRegexOptions =
+        LiteralRegexOptions([], LiteralAnyUnicodePolicy)
+    end
+    """
+
+    assert {:ok, _env} = Program.elaborate(source, file: "regex_syntax_reexport_surface.cure")
+  end
+
   test "the embedded package export surface is read from its Cure.toml manifest" do
     assert {:ok, exports} = Cure.Stdlib.Packages.package_exports("lib/std_deps/regex")
     assert exports == %{"cure_regex" => ["Std.Regex"]}
@@ -140,14 +170,14 @@ defmodule Cure.Compiler.RegexModuleSplitTest do
   end
 
   test "Regex follows the acyclic Char-Literal-String text boundary" do
-    runtime = File.read!(Path.expand("lib/std_deps/regex/regex_runtime.cure"))
+    matcher = File.read!(Path.expand("lib/std_deps/regex/regex_runtime_character_matchers.cure"))
 
     # Unicode case mappings belong to the Char floor and return List(Char).
     # Regex must not route them through the nominal String wrapper, which would
     # recreate the old Char -> String edge that the text-layer migration removed.
-    assert runtime =~ "Std.Char.lowercased_characters("
-    refute runtime =~ "Std.Char.lowercased("
-    refute runtime =~ "Std.String.characters(Std.Char.lowercased("
+    assert matcher =~ "Std.Char.lowercased_characters("
+    refute matcher =~ "Std.Char.lowercased("
+    refute matcher =~ "Std.String.characters(Std.Char.lowercased("
 
     paths =
       (["lib/std/char.cure", "lib/std/literal.cure", "lib/std/string.cure"] ++
