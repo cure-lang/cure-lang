@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.SearchCursors
   public use Std.Regex.Runtime.CandidateEquivalence
   public use Std.Regex.Runtime.CaptureSlotMarkers
   public use Std.Regex.Runtime.AtomicDecisions
@@ -2106,28 +2107,8 @@ mod Std.Regex.Runtime
     LookaroundPrefixSearchActiveRejectedEmpty : (@erased remaining_starts: List(MachineState(n))) -> (state: Bounded(n)) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (@erased members: MachineStateMembers(n, starts, Cons(Active(state, routine, constraints), remaining_starts))) -> (@erased cursor: MachineStateCursor(n, starts, Cons(Active(state, routine, constraints), remaining_starts))) -> (child: LookaroundPrefixPathFailure(depth, n, machine, Nil(), after_input, state, history, append_routine(capture_context, routine), policy, Nil(), Nil())) -> (tail: LookaroundPrefixSearchFailure(depth, n, machine, Nil(), after_input, history, capture_context, policy, starts, remaining_starts)) -> LookaroundPrefixSearchFailure(depth, n, machine, Nil(), after_input, history, capture_context, policy, starts, Cons(Active(state, routine, constraints), remaining_starts))
     LookaroundPrefixSearchActiveRejectedStep : (@erased remaining_starts: List(MachineState(n))) -> (char: Char) -> (rest: List(Char)) -> (state: Bounded(n)) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (@erased members: MachineStateMembers(n, starts, Cons(Active(state, routine, constraints), remaining_starts))) -> (@erased cursor: MachineStateCursor(n, starts, Cons(Active(state, routine, constraints), remaining_starts))) -> (child: LookaroundPrefixPathFailure(depth, n, machine, Cons(char, rest), after_input, state, history, append_routine(capture_context, routine), policy, lookaround_machine_destinations(depth, n, machine, ThreadActive(state), char, rest, after_input, history, append_routine(capture_context, routine), policy), lookaround_machine_destinations(depth, n, machine, ThreadActive(state), char, rest, after_input, history, append_routine(capture_context, routine), policy))) -> (tail: LookaroundPrefixSearchFailure(depth, n, machine, Cons(char, rest), after_input, history, capture_context, policy, starts, remaining_starts)) -> LookaroundPrefixSearchFailure(depth, n, machine, Cons(char, rest), after_input, history, capture_context, policy, starts, Cons(Active(state, routine, constraints), remaining_starts))
 
-  ## Resource and history guards fail before a machine traversal exists. They
-  ## retain the compact terminal witness used by the public decision types;
-  ## ordinary search failures use the complete trees above.
-  type LookaroundExhaustion(n: Nat) indices ()
-    LookaroundExhausted : (@erased whole: List(MachineState(n))) -> (@erased members: MachineStateMembers(n, whole, Nil())) -> (token: Unit) -> LookaroundExhaustion(n)
 
-  ## A cursor is a suffix witness for a canonical destination list. Unlike the
-  ## membership spine, it records that the current list is reached by dropping
-  ## whole heads from the original list; it cannot represent an arbitrary
-  ## subsequence or a fabricated cursor.
-  type MachineStateCursor(n: Nat) indices (whole: List(MachineState(n)), current: List(MachineState(n)))
-    MachineStateCursorHere : MachineStateCursor(n, values, values)
-    MachineStateCursorDrop : (@erased head: MachineState(n)) -> (@erased cursor: MachineStateCursor(n, whole, Cons(head, values))) -> MachineStateCursor(n, whole, values)
 
-  ## A path candidate list is either the current failure list or a suffix of
-  ## it.  This relation is built by the member traversal itself: skipping a
-  ## head selects the corresponding tail failure, while equality selects the
-  ## child failure.  It deliberately has no constructor for adding elements to
-  ## the candidate side, so an accepting path cannot be related to a prefix.
-  type MachineStateCursorSuffix(n: Nat) indices (outer: List(MachineState(n)), inner: List(MachineState(n)))
-    MachineStateCursorSuffixHere : (@erased equality: Equivalent(List(MachineState(n)), outer, inner)) -> MachineStateCursorSuffix(n, outer, inner)
-    MachineStateCursorSuffixDrop : (head: MachineState(n)) -> (suffix: MachineStateCursorSuffix(n, outer, inner)) -> MachineStateCursorSuffix(n, Cons(head, outer), inner)
 
   type LookaroundAcceptingPath(depth: Nat, n: Nat, machine: PatternMachine(n), capture_context: List(EvidenceInstruction), candidates: List(MachineState(n))) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), policy: NewlinePolicy)
     LookaroundAcceptedNow : LookaroundAcceptingPath(depth, n, machine, capture_context, candidates, Nil(), after_input, ThreadAccepted(), history, policy)
