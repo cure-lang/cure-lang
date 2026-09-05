@@ -1,36 +1,5 @@
 @group(:text)
-mod Std.Regex.Runtime.DepthExclusion
-  use Std.Regex.Runtime.AtomicDepthTypes
-  use Std.Regex.Runtime.ExhaustionFromMembers
-
-  use Std.Regex.Runtime.CursorShapeAuthority
-
-  use Std.Regex.Runtime.ActiveChildShapeHere
-
-  use Std.Regex.Runtime.CursorShape
-
-  use Std.Regex.Runtime.SearchCursors
-
-  use Std.Regex.Runtime.CandidateEquivalence
-
-  use Std.Regex.Runtime.CaptureSlotMarkers
-
-  use Std.Regex.Runtime.AtomicDecisions
-
-  use Std.Regex.Runtime.MachineMemberEdges
-
-  use Std.Regex.Runtime.AtomicDepthMaximum
-
-  use Std.Regex.Runtime.MemberTransport
-
-  use Std.Regex.Runtime.EvidenceStep
-
-  use Std.Regex.Runtime.AtomicStartMember
-
-  use Std.Regex.Runtime.AtomicFailureAuthority
-
-  use Std.Regex.Runtime.AtomicDepth
-
+mod Std.Regex.Runtime.AtomicDepthTypes
   use Std.Regex.Runtime.LookaroundSupport
 
   use Std.Regex.Runtime.NamedCaptureSearch
@@ -191,20 +160,18 @@ mod Std.Regex.Runtime.DepthExclusion
 
   use Std.Decision
 
-  @reducible
-  fn atomic_depth_at_least_excludes_below(
-    {result: Type},
-    {left: Nat},
-    {right: Nat},
-    @erased at_least: AtomicDepthAtLeast(left, right),
-    @erased below: AtomicDepthBelow(left, right)
-  ) -> result = match at_least
-    AtomicDepthAtLeastZero() -> match below
-      AtomicDepthBelowZero() -> impossible
-    AtomicDepthAtLeastFromZero() -> match below
-      AtomicDepthBelowZero() -> impossible
-      AtomicDepthBelowStep(_) -> impossible
-    AtomicDepthAtLeastStep(prior) -> match below
-      AtomicDepthBelowZero() -> impossible
-      AtomicDepthBelowStep(next) -> atomic_depth_at_least_excludes_below(prior, next)
+  ## The runtime search never compares scope depths with an unchecked Boolean.
+  ## This finite decision relation carries the proof that a commit is either
+  ## at-or-inside the current scope (so siblings are blocked) or strictly
+  ## deeper than it (so the commit belongs to an inner scope and outer
+  ## siblings remain eligible).  The evidence fields are erased after the
+  ## branch has been selected.
+  type AtomicDepthAtLeast indices (left: Nat, right: Nat)
+    AtomicDepthAtLeastZero : AtomicDepthAtLeast(Z(), Z())
+    AtomicDepthAtLeastFromZero : AtomicDepthAtLeast(S(left), Z())
+    AtomicDepthAtLeastStep : (@erased prior: AtomicDepthAtLeast(left, right)) -> AtomicDepthAtLeast(S(left), S(right))
+
+  type AtomicDepthBelow indices (left: Nat, right: Nat)
+    AtomicDepthBelowZero : AtomicDepthBelow(Z(), S(right))
+    AtomicDepthBelowStep : (@erased prior: AtomicDepthBelow(left, right)) -> AtomicDepthBelow(S(left), S(right))
 end

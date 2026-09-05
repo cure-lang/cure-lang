@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime.AtomicDepth
+  public use Std.Regex.Runtime.AtomicDepthTypes
   use Std.Regex.Runtime.LookaroundSupport
 
   use Std.Regex.Runtime.NamedCaptureSearch
@@ -160,18 +161,5 @@ mod Std.Regex.Runtime.AtomicDepth
 
   use Std.Decision
 
-  ## The runtime search never compares scope depths with an unchecked Boolean.
-  ## This finite decision relation carries the proof that a commit is either
-  ## at-or-inside the current scope (so siblings are blocked) or strictly
-  ## deeper than it (so the commit belongs to an inner scope and outer
-  ## siblings remain eligible).  The evidence fields are erased after the
-  ## branch has been selected.
-  type AtomicDepthAtLeast indices (left: Nat, right: Nat)
-    AtomicDepthAtLeastZero : AtomicDepthAtLeast(Z(), Z())
-    AtomicDepthAtLeastFromZero : AtomicDepthAtLeast(S(left), Z())
-    AtomicDepthAtLeastStep : (@erased prior: AtomicDepthAtLeast(left, right)) -> AtomicDepthAtLeast(S(left), S(right))
 
-  type AtomicDepthBelow indices (left: Nat, right: Nat)
-    AtomicDepthBelowZero : AtomicDepthBelow(Z(), S(right))
-    AtomicDepthBelowStep : (@erased prior: AtomicDepthBelow(left, right)) -> AtomicDepthBelow(S(left), S(right))
 end

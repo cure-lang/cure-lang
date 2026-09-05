@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime.AtomicStartDecisions
+  use Std.Regex.Runtime.AtomicDepthTypes
   use Std.Regex.Runtime.DepthExclusion
 
   use Std.Regex.Runtime.ExhaustionFromMembers
