@@ -82,6 +82,60 @@ defmodule Cure.Refactor.RewriteTest do
     assert File.read!(Path.join(dir, "helpers.cure")) =~ "fn helper() -> Int = 1"
   end
 
+  test "split updates importers that use moved type constructors in signatures", %{dir: dir} do
+    source_path = Path.join(dir, "source.cure")
+    importer_path = Path.join(dir, "consumer.cure")
+
+    File.write!(source_path, """
+    mod Source
+      type Nat = Z | S(Nat)
+      fn root() -> Int = 1
+    end
+    """)
+
+    File.write!(importer_path, """
+    mod Consumer
+      use Source
+      fn successor(value: Nat) -> Nat = S(value)
+    end
+    """)
+
+    assert {:ok, result} =
+             Rewrite.split(source_path, "types.cure:Extracted:Nat",
+               output_directory: dir,
+               write: true
+             )
+
+    assert result.updated_dependents == [importer_path]
+    assert File.read!(importer_path) =~ "use Extracted"
+    assert File.read!(source_path) =~ "public use Extracted"
+    assert File.read!(Path.join(dir, "types.cure")) =~ "type Nat = Z | S(Nat)"
+  end
+
+  test "split preserves implicit list inference through a public type re-export", %{dir: dir} do
+    source_path = Path.join(dir, "source.cure")
+
+    File.write!(source_path, """
+    mod Source
+      type Modifier = Caseless | Multiline
+      type Policy = LF | Unicode
+      type Options = Options(List(Modifier), Policy)
+
+      fn defaults() -> Options = Options([], Unicode)
+    end
+    """)
+
+    assert {:ok, result} =
+             Rewrite.split(source_path, "atoms.cure:Atoms:Modifier|Policy",
+               output_directory: dir
+             )
+
+    assert result.target =~ "type Modifier = Caseless | Multiline"
+    assert result.target =~ "type Policy = LF | Unicode"
+    assert result.source =~ "public use Atoms"
+    assert result.source =~ "Options([], Unicode)"
+  end
+
   test "leading documentation trivia follows an extracted declaration", %{dir: dir} do
     source_path = Path.join(dir, "source.cure")
 

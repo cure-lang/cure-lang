@@ -866,6 +866,7 @@ defmodule Cure.Refactor.Analysis do
   defp references(node, local_owners) do
     node
     |> collect_references([])
+    |> collect_signature_references(node)
     |> Enum.reverse()
     |> Enum.uniq_by(&{&1.name, &1.kind, &1.span})
     |> Enum.map(fn %{name: name, kind: kind, span: span} ->
@@ -877,6 +878,57 @@ defmodule Cure.Refactor.Analysis do
       }
     end)
   end
+
+  # Function parameter and result types live in declaration metadata rather
+  # than the ordinary expression children.  Walk those fields in type mode so
+  # a bare type alias (for example `Nat` in `fn f(value: Nat) -> Nat`) is a
+  # dependency just like a constructor call in the body.  Keeping this walk
+  # separate from expression references avoids treating ordinary local
+  # variables as imported names.
+  defp collect_signature_references(acc, {:function_def, meta, _body}) when is_list(meta) do
+    [Keyword.get(meta, :params), Keyword.get(meta, :return_type)]
+    |> Enum.reduce(acc, &collect_type_references/2)
+  end
+
+  defp collect_signature_references(acc, _node), do: acc
+
+  defp collect_type_references({:function_call, meta, children}, acc) when is_list(meta) do
+    acc =
+      case Keyword.get(meta, :name) do
+        name when is_binary(name) or is_atom(name) ->
+          [%{name: to_string(name), kind: :type, span: node_span(meta)} | acc]
+
+        _ ->
+          acc
+      end
+
+    children
+    |> Enum.reduce(acc, &collect_type_references/2)
+  end
+
+  defp collect_type_references({:variable, meta, name}, acc) when is_list(meta) do
+    if is_binary(name) or is_atom(name) do
+      [%{name: to_string(name), kind: :type, span: node_span(meta)} | acc]
+    else
+      acc
+    end
+  end
+
+  defp collect_type_references({tag, meta, children}, acc) when is_atom(tag) and is_list(meta) do
+    acc = collect_type_references(children, acc)
+    collect_type_references(Keyword.values(meta), acc)
+  end
+
+  defp collect_type_references(items, acc) when is_list(items),
+    do: Enum.reduce(items, acc, &collect_type_references/2)
+
+  defp collect_type_references(tuple, acc) when is_tuple(tuple),
+    do: tuple |> Tuple.to_list() |> Enum.reduce(acc, &collect_type_references/2)
+
+  defp collect_type_references(map, acc) when is_map(map),
+    do: map |> Map.values() |> Enum.reduce(acc, &collect_type_references/2)
+
+  defp collect_type_references(_other, acc), do: acc
 
   defp collect_references({:function_call, meta, args}, acc) when is_list(meta) do
     acc =
