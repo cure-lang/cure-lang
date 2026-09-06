@@ -453,6 +453,42 @@ defmodule Cure.Refactor.Rewrite do
   def remove_use(_source_path, _target_module, _opts),
     do: {:error, {:invalid_split_spec, "import target module must be a string"}}
 
+  @doc "Prune ordinary `use` imports not listed in `keep` through the structural rewrite path."
+  @spec prune_uses(Path.t(), [String.t()], keyword()) ::
+          {:ok, %{source: String.t(), removed: [String.t()]}} | {:error, error()}
+  def prune_uses(source_path, keep, opts \\ [])
+
+  def prune_uses(source_path, keep, opts) when is_list(keep) do
+    keep = MapSet.new(Enum.filter(keep, &(is_binary(&1) and &1 != "")))
+
+    with {:ok, source} <- read_source(source_path),
+         {:ok, report} <- analyze(source_path),
+         :ok <- ensure_source_unchanged(source, report) do
+      imports =
+        report.imports
+        |> Enum.filter(fn import ->
+          import.import_type == "use" and not import.public and
+            not MapSet.member?(keep, import.source)
+        end)
+
+      rewritten =
+        imports
+        |> Enum.map(&span_from_map(&1.span))
+        |> Enum.reject(&is_nil/1)
+        |> remove_import_spans(source)
+
+      removed = Enum.map(imports, & &1.source) |> Enum.uniq()
+
+      with :ok <- verify_generated(report.module, rewritten, source_path),
+           :ok <- maybe_write_source(source_path, rewritten, opts) do
+        {:ok, %{source: rewritten, removed: removed}}
+      end
+    end
+  end
+
+  def prune_uses(_source_path, _keep, _opts),
+    do: {:error, {:invalid_split_spec, "use-pruning keep set must be a list"}}
+
   @doc "Normalize a source file to one trailing newline through the structural rewrite path."
   @spec normalize_trailing_newline(Path.t(), keyword()) ::
           {:ok, %{source: String.t(), changed?: boolean()}} | {:error, error()}

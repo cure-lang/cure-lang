@@ -1,0 +1,59 @@
+## Compile-time emitter for regex syntax trees. It turns parsed patterns into
+## the matcher representation consumed by `Std.Regex`.
+@group(:text)
+mod Std.Regex.Syntax.Emitter.Assertions
+
+  use Std.Regex.Syntax.Emitter.Options
+
+  use Std.Regex.Syntax.Emitter.Foundation
+
+  use Std.Regex.Syntax.Model.LiteralBranchReset
+
+  use Std.Regex.Syntax.Model.Width
+
+  use Std.Regex.Syntax.Model.Options
+
+  use Std.Regex.Syntax.Model.Modifiers
+
+  use Std.Regex.Syntax.Model.ClassPredicates
+
+  use Std.Regex.Syntax.Model.Shape
+
+  use Std.Regex.Syntax.Model.Utilities
+
+  use Std.Regex.Syntax.Model.ClassKinds
+
+  use Std.Regex.Syntax.Model.Predicates
+
+  use Std.Regex.Syntax.Model.Types
+
+  use Std.Regex.Syntax.Model
+
+  use Std.String
+
+  use Std.Syntax
+
+  fn emit_staged_start_constraint(options: LiteralRegexOptions) -> Syntax = match has_modifier(options, MultilineModifier)
+    true -> runtime_call("line_start_constraint_with_policy", [emit_newline_policy(options)])
+    false -> runtime_call("subject_start_constraint_with_policy", [emit_newline_policy(options)])
+
+  fn emit_staged_end_constraint(options: LiteralRegexOptions) -> Syntax = match has_modifier(options, MultilineModifier)
+    true -> runtime_call("line_end_constraint_with_policy", [emit_newline_policy(options)])
+    false -> runtime_call("subject_end_constraint_with_policy", [emit_newline_policy(options)])
+
+  fn emit_staged_word_constraint(negated: Bool, options: LiteralRegexOptions) -> Syntax = match has_modifier(options, UnicodeModifier)
+    true -> runtime_call("unicode_word_constraint", [bool_literal(not negated)])
+    false -> runtime_call("ascii_word_constraint", [bool_literal(not negated)])
+
+  fn emit_lookaround_polarity(polarity: LiteralAssertionPolarity) -> Syntax = match polarity
+    LiteralAssertionPositive -> bool_literal(true)
+    LiteralAssertionNegative -> bool_literal(false)
+
+  fn emit_assertion_polarity(polarity: LiteralAssertionPolarity, positive: Bool) -> Syntax = match polarity
+    LiteralAssertionPositive -> bool_literal(positive)
+    LiteralAssertionNegative -> bool_literal(not positive)
+
+  fn literal_option_or_empty(pattern: Option(LiteralPattern)) -> LiteralPattern = match pattern
+    None() -> LiteralEmpty
+    Some(inner) -> inner
+end

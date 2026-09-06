@@ -1,0 +1,65 @@
+## Compile-time emitter for regex syntax trees. It turns parsed patterns into
+## the matcher representation consumed by `Std.Regex`.
+@group(:text)
+mod Std.Regex.Syntax.Emitter.PatternLineBreaks
+
+  use Std.Regex.Syntax.Emitter.Options
+
+  use Std.Regex.Syntax.Emitter.Foundation
+
+  use Std.Regex.Syntax.Model.LiteralBranchReset
+
+  use Std.Regex.Syntax.Model.Width
+
+  use Std.Regex.Syntax.Model.Options
+
+  use Std.Regex.Syntax.Model.Modifiers
+
+  use Std.Regex.Syntax.Model.ClassPredicates
+
+  use Std.Regex.Syntax.Model.Shape
+
+  use Std.Regex.Syntax.Model.Utilities
+
+  use Std.Regex.Syntax.Model.ClassKinds
+
+  use Std.Regex.Syntax.Model.Predicates
+
+  use Std.Regex.Syntax.Model.Types
+
+  use Std.Regex.Syntax.Model
+
+  use Std.String
+
+  use Std.Syntax
+
+  fn emit_line_break_pattern(options: LiteralRegexOptions) -> Syntax =
+    core_call("PatternAlternate", [
+      core_call("PatternConcat", [emit_line_break_pair_char_pattern('\r', options), emit_line_break_pair_char_pattern('\n', options)]),
+      emit_line_break_scalar_pattern(options)
+    ])
+
+  fn emit_line_break_scalar_pattern(options: LiteralRegexOptions) -> Syntax =
+    core_call("PatternAlternate", [
+      emit_line_break_scalar_char_pattern('\n', options),
+      core_call("PatternAlternate", [
+        emit_line_break_scalar_char_pattern('\r', options),
+        core_call("PatternAlternate", [
+          emit_line_break_scalar_char_pattern('\v', options),
+          core_call("PatternAlternate", [
+            emit_line_break_scalar_char_pattern('\f', options),
+            core_call("PatternAlternate", [
+              emit_line_break_scalar_char_pattern(0x85, options),
+              core_call("PatternAlternate", [emit_line_break_scalar_char_pattern(0x2028, options), emit_line_break_scalar_char_pattern(0x2029, options)])
+            ])
+          ])
+        ])
+      ])
+    ])
+
+  fn emit_line_break_pair_char_pattern(_char: Char, options: LiteralRegexOptions) -> Syntax =
+    core_call("PatternPredicate", [runtime_call("line_break_pair_test", [emit_newline_policy(options), char_literal(_char)])])
+
+  fn emit_line_break_scalar_char_pattern(_char: Char, options: LiteralRegexOptions) -> Syntax =
+    core_call("PatternPredicate", [runtime_call("line_break_scalar_test", [emit_newline_policy(options), char_literal(_char)])])
+end

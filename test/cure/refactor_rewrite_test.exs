@@ -453,6 +453,21 @@ defmodule Cure.Refactor.RewriteTest do
     assert File.read!(path) == source
   end
 
+  test "ordinary imports can be pruned structurally while public uses survive", %{dir: dir} do
+    path = Path.join(dir, "source.cure")
+
+    source =
+      "mod Source\n  use Keep\n  use Remove\n  public use Public\n  fn value() -> Int = 1\nend\n"
+
+    File.write!(path, source)
+
+    assert {:ok, %{source: rewritten, removed: ["Remove"]}} = Rewrite.prune_uses(path, ["Keep"])
+    assert rewritten =~ "use Keep"
+    refute rewritten =~ "use Remove"
+    assert rewritten =~ "public use Public"
+    assert File.read!(path) == source
+  end
+
   test "trailing newline normalization is verified before writing", %{dir: dir} do
     path = Path.join(dir, "source.cure")
     source = "mod Source\n  fn value() -> Int = 1\nend\n\n"

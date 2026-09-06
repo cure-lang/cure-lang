@@ -1,0 +1,71 @@
+## Compile-time emitter for regex syntax trees. It turns parsed patterns into
+## the matcher representation consumed by `Std.Regex`.
+@group(:text)
+mod Std.Regex.Syntax.Emitter.CompilationLineBreaks
+
+  use Std.Regex.Syntax.Emitter.Options
+
+  use Std.Regex.Syntax.Emitter.Foundation
+
+  use Std.Regex.Syntax.Model.LiteralBranchReset
+
+  use Std.Regex.Syntax.Model.Width
+
+  use Std.Regex.Syntax.Model.Options
+
+  use Std.Regex.Syntax.Model.Modifiers
+
+  use Std.Regex.Syntax.Model.ClassPredicates
+
+  use Std.Regex.Syntax.Model.Shape
+
+  use Std.Regex.Syntax.Model.Utilities
+
+  use Std.Regex.Syntax.Model.ClassKinds
+
+  use Std.Regex.Syntax.Model.Predicates
+
+  use Std.Regex.Syntax.Model.Types
+
+  use Std.Regex.Syntax.Model
+
+  use Std.String
+
+  use Std.Syntax
+
+  fn emit_line_break_compilation(options: LiteralRegexOptions) -> Syntax =
+    runtime_call("ThompsonAlternate", [
+      runtime_call("ThompsonConcat", [emit_line_break_pair_char_compilation('\r', options), emit_line_break_pair_char_compilation('\n', options)]),
+      emit_line_break_scalar_compilation(options),
+      bool_literal(false)
+    ])
+
+  fn emit_line_break_scalar_compilation(options: LiteralRegexOptions) -> Syntax =
+    runtime_call("ThompsonAlternate", [
+      emit_line_break_scalar_char_compilation('\n', options),
+      runtime_call("ThompsonAlternate", [
+        emit_line_break_scalar_char_compilation('\r', options),
+        runtime_call("ThompsonAlternate", [
+          emit_line_break_scalar_char_compilation('\v', options),
+          runtime_call("ThompsonAlternate", [
+            emit_line_break_scalar_char_compilation('\f', options),
+            runtime_call("ThompsonAlternate", [
+              emit_line_break_scalar_char_compilation(0x85, options),
+              runtime_call("ThompsonAlternate", [emit_line_break_scalar_char_compilation(0x2028, options), emit_line_break_scalar_char_compilation(0x2029, options), bool_literal(false)]),
+              bool_literal(false)
+            ]),
+            bool_literal(false)
+          ]),
+          bool_literal(false)
+        ]),
+        bool_literal(false)
+      ]),
+      bool_literal(false)
+    ])
+
+  fn emit_line_break_pair_char_compilation(_char: Char, options: LiteralRegexOptions) -> Syntax =
+    runtime_call("ThompsonPredicate", [runtime_call("line_break_pair_test", [emit_newline_policy(options), char_literal(_char)])])
+
+  fn emit_line_break_scalar_char_compilation(_char: Char, options: LiteralRegexOptions) -> Syntax =
+    runtime_call("ThompsonPredicate", [runtime_call("line_break_scalar_test", [emit_newline_policy(options), char_literal(_char)])])
+end

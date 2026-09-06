@@ -1,7 +1,10 @@
 ## Compile-time emitter for regex syntax trees. It turns parsed patterns into
 ## the matcher representation consumed by `Std.Regex`.
 @group(:text)
-mod Std.Regex.Syntax.Emitter.Captures
+mod Std.Regex.Syntax.Emitter.Rows
+
+  use Std.Regex.Syntax.Emitter.Compilations
+
   use Std.Regex.Syntax.Emitter.Foundation
 
   use Std.Regex.Syntax.Model.LiteralBranchReset
@@ -30,14 +33,9 @@ mod Std.Regex.Syntax.Emitter.Captures
 
   use Std.Syntax
 
-  fn emit_capture_layout(layout: LiteralCaptureLayout) -> Syntax = match layout
-    LiteralCaptureLayout(slots) -> runtime_call("CaptureLayout", [emit_capture_slots(slots)])
-
-  fn emit_capture_slots(slots: List(LiteralCaptureSlotInfo)) -> Syntax = match slots
-    [] -> list([])
-    [LiteralCaptureSlotInfo(slot, name) | rest] -> prepend_syntax(runtime_call("CaptureSlot", [emit_nat(slot), emit_capture_name(name)]), emit_capture_slots(rest))
-
-  fn emit_capture_name(name: Option(String)) -> Syntax = match name
-    None() -> call("Std.Option.None", [])
-    Some(value) -> call("Std.Option.Some", [string_literal(value)])
+  ## The staged parser consumes a row-backed machine reconstructed from the
+  ## checked Thompson tree.  No closure-machine constructor is emitted into
+  ## the literal expansion.
+  fn emit_staged_rows(pattern: LiteralPattern, options: LiteralRegexOptions) -> Syntax =
+    runtime_call("staged_machine_from_compilation", [emit_staged_compilation(pattern, options)])
 end

@@ -4,8 +4,6 @@
 mod Std.Regex.Syntax.Emitter.Foundation
   use Std.Regex.Syntax.Model.LiteralBranchReset
 
-  use Std.Regex.Syntax.Emitter.InvertLiteralAssertion
-
   use Std.Regex.Syntax.Model.Width
 
   use Std.Regex.Syntax.Model.Options

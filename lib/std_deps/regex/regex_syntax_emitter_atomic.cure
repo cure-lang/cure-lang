@@ -1,0 +1,98 @@
+## Compile-time emitter for regex syntax trees. It turns parsed patterns into
+## the matcher representation consumed by `Std.Regex`.
+@group(:text)
+mod Std.Regex.Syntax.Emitter.Atomic
+
+  use Std.Regex.Syntax.Emitter.Patterns
+
+  use Std.Regex.Syntax.Emitter.Foundation
+
+  use Std.Regex.Syntax.Model.LiteralBranchReset
+
+  use Std.Regex.Syntax.Model.Width
+
+  use Std.Regex.Syntax.Model.Options
+
+  use Std.Regex.Syntax.Model.Modifiers
+
+  use Std.Regex.Syntax.Model.ClassPredicates
+
+  use Std.Regex.Syntax.Model.Shape
+
+  use Std.Regex.Syntax.Model.Utilities
+
+  use Std.Regex.Syntax.Model.ClassKinds
+
+  use Std.Regex.Syntax.Model.Predicates
+
+  use Std.Regex.Syntax.Model.Types
+
+  use Std.Regex.Syntax.Model
+
+  use Std.String
+
+  use Std.Syntax
+
+  ## Staged literals publish the constructor-preserving Thompson IR and its
+  ## result conversion directly.  The runtime parser can therefore consume a
+  ## checked compilation tree instead of rebuilding a Pattern and certifying it
+  ## at every call site.
+  fn emit_atomic_runtime_pattern(pattern: LiteralPattern, options: LiteralRegexOptions) -> Syntax = match pattern
+    LiteralEmpty -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralExact(_) -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralAny -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralClass(_, _, _, _) -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralProperty(_, _) -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralDigit(_) -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralWord(_) -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralSpace(_) -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralHorizontal(_) -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralVertical(_) -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralLineBreak() -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralSequence(left, right) -> runtime_call("AtomicRuntimeConcat", [emit_atomic_runtime_pattern(left, options), emit_atomic_runtime_pattern(right, options)])
+    LiteralAlternate(left, right) -> runtime_call("AtomicRuntimeAlternate", [emit_atomic_runtime_pattern(left, options), emit_atomic_runtime_pattern(right, options), bool_literal(false)])
+    LiteralBranchReset(arms) -> emit_atomic_runtime_pattern(literal_branch_reset_alternate(arms), options)
+    LiteralConditional(_, yes, no) -> runtime_call("AtomicRuntimeAlternate", [emit_atomic_runtime_pattern(yes, options), emit_atomic_runtime_pattern_or_empty(no, options), bool_literal(false)])
+    LiteralAtomic(inner) -> runtime_call("AtomicRuntimeScope", [emit_atomic_runtime_pattern(inner, options)])
+    LiteralLookahead(_, _) -> runtime_call("AtomicRuntimeLeaf", [core_call("PatternEmpty", [])])
+    LiteralLookbehind(_, _) -> runtime_call("AtomicRuntimeLeaf", [core_call("PatternEmpty", [])])
+    LiteralRepeat(inner, lazy) -> runtime_call("AtomicRuntimeRepeat", [emit_atomic_runtime_pattern(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])
+    LiteralPlus(inner, lazy) -> runtime_call("AtomicRuntimeConcat", [emit_atomic_runtime_pattern(inner, options), runtime_call("AtomicRuntimeRepeat", [emit_atomic_runtime_pattern(inner, options), bool_literal(lazy != has_modifier(options, UngreedyModifier))])])
+    LiteralOptional(inner, lazy) -> runtime_call("AtomicRuntimeAlternate", [emit_atomic_runtime_pattern(inner, options), runtime_call("AtomicRuntimeLeaf", [core_call("PatternEmpty", [])]), bool_literal(lazy != has_modifier(options, UngreedyModifier))])
+    LiteralBoundedExact(inner, count) -> emit_atomic_bounded_exact(inner, count, options)
+    LiteralBoundedAtLeast(inner, count, lazy) -> emit_atomic_bounded_at_least(inner, count, lazy != has_modifier(options, UngreedyModifier), options)
+    LiteralBoundedBetween(inner, minimum, maximum, lazy) -> emit_atomic_bounded_between(inner, minimum, maximum, lazy != has_modifier(options, UngreedyModifier), options)
+    LiteralCapture(inner) -> runtime_call("AtomicRuntimeGroup", [emit_atomic_runtime_pattern(inner, options)])
+    LiteralNamedCapture(_, inner) -> runtime_call("AtomicRuntimeGroup", [emit_atomic_runtime_pattern(inner, options)])
+    LiteralCaptureIndexed(_, _, inner) -> runtime_call("AtomicRuntimeGroup", [emit_atomic_runtime_pattern(inner, options)])
+    LiteralStart -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralEnd -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralAbsoluteStart -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralStrictEnd -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralFinalEnd -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralWordBoundary(_) -> runtime_call("AtomicRuntimeLeaf", [emit_staged_pattern(pattern, options)])
+    LiteralConfigured(_, inner) -> emit_atomic_runtime_pattern(inner, options)
+    LiteralScopedOptions(enabled, disabled, inner) -> emit_atomic_runtime_pattern(inner, apply_literal_scoped_options(enabled, disabled, options))
+
+  fn emit_atomic_runtime_pattern_or_empty(pattern: Option(LiteralPattern), options: LiteralRegexOptions) -> Syntax = match pattern
+    None() -> runtime_call("AtomicRuntimeLeaf", [core_call("PatternEmpty", [])])
+    Some(inner) -> emit_atomic_runtime_pattern(inner, options)
+
+  fn emit_atomic_bounded_exact(inner: LiteralPattern, count: Nat, options: LiteralRegexOptions) -> Syntax = match count
+    Z() -> runtime_call("AtomicRuntimeLeaf", [core_call("PatternEmpty", [])])
+    S(rest) -> runtime_call("AtomicRuntimeConcat", [emit_atomic_runtime_pattern(inner, options), emit_atomic_bounded_exact(inner, rest, options)])
+
+  fn emit_atomic_bounded_at_least(inner: LiteralPattern, count: Nat, lazy: Bool, options: LiteralRegexOptions) -> Syntax = match count
+    Z() -> runtime_call("AtomicRuntimeRepeat", [emit_atomic_runtime_pattern(inner, options), bool_literal(lazy)])
+    S(rest) -> runtime_call("AtomicRuntimeConcat", [emit_atomic_runtime_pattern(inner, options), emit_atomic_bounded_at_least(inner, rest, lazy, options)])
+
+  fn emit_atomic_bounded_between(inner: LiteralPattern, minimum: Nat, maximum: Nat, lazy: Bool, options: LiteralRegexOptions) -> Syntax = match minimum
+    Z() -> emit_atomic_bounded_up_to(inner, maximum, lazy, options)
+    S(rest) -> match maximum
+      Z() -> emit_atomic_bounded_exact(inner, S(rest), options)
+      S(maximum_rest) -> runtime_call("AtomicRuntimeConcat", [emit_atomic_runtime_pattern(inner, options), emit_atomic_bounded_between(inner, rest, maximum_rest, lazy, options)])
+
+  fn emit_atomic_bounded_up_to(inner: LiteralPattern, maximum: Nat, lazy: Bool, options: LiteralRegexOptions) -> Syntax = match maximum
+    Z() -> runtime_call("AtomicRuntimeLeaf", [core_call("PatternEmpty", [])])
+    S(rest) -> runtime_call("AtomicRuntimeConcat", [runtime_call("AtomicRuntimeAlternate", [emit_atomic_runtime_pattern(inner, options), runtime_call("AtomicRuntimeLeaf", [core_call("PatternEmpty", [])]), bool_literal(lazy)]), emit_atomic_bounded_up_to(inner, rest, lazy, options)])
+end

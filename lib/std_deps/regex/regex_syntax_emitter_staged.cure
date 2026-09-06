@@ -1,0 +1,69 @@
+## Compile-time emitter for regex syntax trees. It turns parsed patterns into
+## the matcher representation consumed by `Std.Regex`.
+@group(:text)
+mod Std.Regex.Syntax.Emitter.Staged
+  use Std.Regex.Syntax.Emitter.Atomic
+
+  use Std.Regex.Syntax.Emitter.Lookaround
+
+  use Std.Regex.Syntax.Emitter.Patterns
+
+  use Std.Regex.Syntax.Emitter.Compilations
+
+  use Std.Regex.Syntax.Emitter.Conversions
+
+  use Std.Regex.Syntax.Emitter.Shapes
+
+  use Std.Regex.Syntax.Emitter.Options
+
+  use Std.Regex.Syntax.Emitter.Foundation
+
+  use Std.Regex.Syntax.Model.LiteralBranchReset
+
+  use Std.Regex.Syntax.Model.Width
+
+  use Std.Regex.Syntax.Model.Options
+
+  use Std.Regex.Syntax.Model.Modifiers
+
+  use Std.Regex.Syntax.Model.ClassPredicates
+
+  use Std.Regex.Syntax.Model.Shape
+
+  use Std.Regex.Syntax.Model.Utilities
+
+  use Std.Regex.Syntax.Model.ClassKinds
+
+  use Std.Regex.Syntax.Model.Predicates
+
+  use Std.Regex.Syntax.Model.Types
+
+  use Std.Regex.Syntax.Model
+
+  use Std.String
+
+  use Std.Syntax
+
+  fn emit_staged_literal_with_options(pattern: LiteralPattern, options: LiteralRegexOptions) -> Syntax =
+    runtime_call("StagedRegex", [
+      emit_compilation_shape(pattern),
+      emit_staged_pattern(pattern, options),
+      emit_staged_compilation(pattern, options),
+      emit_staged_hint(pattern, options),
+      emit_staged_conversion(pattern)
+    ])
+
+  fn emit_staged_literal_with_options_conditional(pattern: LiteralPattern, options: LiteralRegexOptions) -> Syntax =
+    runtime_call("StagedRegex", [
+      emit_compilation_shape(pattern),
+      emit_staged_pattern(pattern, options),
+      emit_staged_compilation(pattern, options),
+      emit_staged_hint(pattern, options),
+      emit_staged_conversion_conditional(pattern)
+    ])
+
+  fn emit_staged_hint(pattern: LiteralPattern, options: LiteralRegexOptions) -> Syntax = pickup
+    literal_pattern_has_lookaround(pattern) -> runtime_call("StagedLookaroundValue", [emit_staged_pattern(pattern, options), emit_lookaround_staged_compilation(pattern, options), emit_newline_policy(options)])
+    literal_pattern_has_atomic(pattern) -> runtime_call("StagedAtomicPatternValue", [emit_atomic_runtime_pattern(pattern, options)])
+    else -> runtime_call("StagedMachineValue", [emit_staged_compilation(pattern, options)])
+end
