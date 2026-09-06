@@ -99,6 +99,31 @@ defmodule Cure.Refactor.RewriteTest do
              )
   end
 
+  test "dependency analysis records references from type-alias bodies", %{dir: dir} do
+    path = Path.join(dir, "aliases.cure")
+
+    File.write!(path, """
+    mod Aliases
+      type Inner = Nat
+      typealias Wrapped = List(Inner)
+      type Box = WrappedBox(Inner)
+    end
+    """)
+
+    assert {:ok, report} = Analysis.analyze(path, dependencies: true)
+    alias_declaration = Enum.find(report.declarations, &(&1.name == "Wrapped"))
+
+    assert Enum.any?(alias_declaration.references, fn reference ->
+             reference.identity == :"Aliases#Inner" and reference.kind == :type
+           end)
+
+    enum_declaration = Enum.find(report.declarations, &(&1.name == "Box"))
+
+    assert Enum.any?(enum_declaration.references, fn reference ->
+             reference.identity == :"Aliases#Inner" and reference.kind == :type
+           end)
+  end
+
   test "split updates direct importers of moved declarations", %{dir: dir} do
     source_path = Path.join(dir, "source.cure")
     importer_path = Path.join(dir, "consumer.cure")

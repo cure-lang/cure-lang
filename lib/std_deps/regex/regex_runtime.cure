@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.Roots
   public use Std.Regex.Runtime.LeafAuthorities
   use Std.Regex.Runtime.EvidenceExecution
   use Std.Regex.Runtime.LookaroundCompilation
@@ -563,31 +564,8 @@ mod Std.Regex.Runtime
 
 
 
-  fn atomic_path_cursor_shape_comparison(
-    left: LookaroundAdmittedStateCursorShape,
-    right: LookaroundAdmittedStateCursorShape
-  ) -> AtomicPathCursorShapeComparison(left, right) = match left
-    LookaroundAdmittedStateCursorShapeHere() -> match right
-      LookaroundAdmittedStateCursorShapeHere() ->
-        AtomicPathCursorShapeComparisonSame(AtomicPathCursorShapesSameHere())
-      LookaroundAdmittedStateCursorShapeDrop(_) ->
-        AtomicPathCursorShapeComparisonRightAfter(AtomicPathCursorShapesRightAfterHere())
-    LookaroundAdmittedStateCursorShapeDrop(left_prior) -> match right
-      LookaroundAdmittedStateCursorShapeHere() ->
-        AtomicPathCursorShapeComparisonLeftAfter(AtomicPathCursorShapesLeftAfterHere())
-      LookaroundAdmittedStateCursorShapeDrop(right_prior) -> match atomic_path_cursor_shape_comparison(left_prior, right_prior)
-        AtomicPathCursorShapeComparisonSame(authority) ->
-          AtomicPathCursorShapeComparisonSame(AtomicPathCursorShapesSameDrop(authority))
-        AtomicPathCursorShapeComparisonLeftAfter(authority) ->
-          AtomicPathCursorShapeComparisonLeftAfter(AtomicPathCursorShapesLeftAfterDrop(authority))
-        AtomicPathCursorShapeComparisonRightAfter(authority) ->
-          AtomicPathCursorShapeComparisonRightAfter(AtomicPathCursorShapesRightAfterDrop(authority))
 
 
-  type AtomicPathActiveChildShapeAlignmentAuthority indices (failure_shape: LookaroundAdmittedStateCursorShape, selected_shape: LookaroundAdmittedStateCursorShape)
-    AtomicPathActiveChildShapeHereAuthority : AtomicPathActiveChildShapeAlignmentAuthority(LookaroundAdmittedStateCursorShapeHere(), LookaroundAdmittedStateCursorShapeHere())
-    AtomicPathActiveChildShapeThereAuthorityPacked : (authority: AtomicPathActiveChildShapeThereAuthority(failure_shape, selected_shape)) -> AtomicPathActiveChildShapeAlignmentAuthority(failure_shape, selected_shape)
-    AtomicPathActiveChildShapeReverseAuthority : (authority: AtomicPathCursorShapesLeftAfterAuthority(failure_shape, selected_shape)) -> AtomicPathActiveChildShapeAlignmentAuthority(failure_shape, selected_shape)
 
   @reducible
   fn atomic_path_active_child_shape_alignment_authority(
@@ -613,8 +591,6 @@ mod Std.Regex.Runtime
       )
 
 
-  type AtomicPathActiveChildShapeTherePackage(failure_package: Type, selected_package: Type) indices (failure_shape: LookaroundAdmittedStateCursorShape, selected_shape: LookaroundAdmittedStateCursorShape)
-    AtomicPathActiveChildShapeTherePacked : (failure: failure_package) -> (selected: selected_package) -> (authority: AtomicPathActiveChildShapeThereAuthority(failure_shape, selected_shape)) -> AtomicPathActiveChildShapeTherePackage(failure_package, selected_package, failure_shape, selected_shape)
 
 
   type AtomicPathActiveChildShapeAlignmentPackage(failure_package: Type, selected_package: Type) indices (failure_shape: LookaroundAdmittedStateCursorShape, selected_shape: LookaroundAdmittedStateCursorShape)
@@ -695,31 +671,7 @@ mod Std.Regex.Runtime
     AtomicPathActiveChildShapeTherePacked(failure, selected, authority) ->
       case(failure, selected, authority)
 
-  @reducible
-  fn atomic_path_active_child_shape_reverse_package_fold(
-    {result: Type}, {failure_package: Type}, {selected_package: Type},
-    {failure_shape: LookaroundAdmittedStateCursorShape},
-    {selected_shape: LookaroundAdmittedStateCursorShape},
-    package: AtomicPathActiveChildShapeReversePackage(
-      failure_package, selected_package, failure_shape, selected_shape
-    ),
-    case: (
-      failure_package,
-      selected_package,
-      AtomicPathCursorShapesLeftAfterAuthority(failure_shape, selected_shape)
-    ) -> result
-  ) -> result = match package
-    AtomicPathActiveChildShapeReversePacked(failure, selected, authority) ->
-      case(failure, selected, authority)
 
-  fn atomic_path_cursor_shape_comparison_location(
-    {left: LookaroundAdmittedStateCursorShape},
-    {right: LookaroundAdmittedStateCursorShape},
-    comparison: AtomicPathCursorShapeComparison(left, right)
-  ) -> AtomicPathCursorShapeLocation = match comparison
-    AtomicPathCursorShapeComparisonSame(_) -> AtomicPathCursorShapeSame()
-    AtomicPathCursorShapeComparisonLeftAfter(_) -> AtomicPathCursorShapeLeftAfter()
-    AtomicPathCursorShapeComparisonRightAfter(_) -> AtomicPathCursorShapeRightAfter()
 
   type LookaroundAdmittedCursorInnerEquivalentAuthority(n: Nat) indices (left: List(LookaroundAdmittedState(n)), right: List(LookaroundAdmittedState(n)))
     LookaroundAdmittedCursorInnerEquivalentPacked : (@erased equality: Equivalent(List(LookaroundAdmittedState(n)), left, right)) -> LookaroundAdmittedCursorInnerEquivalentAuthority(n, left, right)
@@ -2092,14 +2044,6 @@ mod Std.Regex.Runtime
   fn lookaround_machine_admitted_destinations(depth: Nat, n: Nat, machine: PatternMachine(n), state: ThreadState(n), char: Char, rest: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> List(LookaroundAdmittedState(n)) = match machine
     MkPatternMachine(_, next) -> lookaround_admit_boundary_states(depth, next_for_thread(n, next, state, char), lookaround_transition_boundary(char, rest, after_input, policy), append_characters(rest, after_input), history_push_bounded(history, char), capture_context, policy)
 
-  ## Every accepting-path rejection is rooted at the one destination list that
-  ## the path would have traversed for its current thread and input.  Keeping
-  ## that list as a definitionally computed index (rather than an existential
-  ## list carried by the result constructor) lets recursive destination
-  ## failures retain the same canonical child identity all the way down.
-  @reducible
-  fn lookaround_machine_raw_destinations(n: Nat, machine: PatternMachine(n), state: ThreadState(n), char: Char) -> List(MachineState(n)) = match machine
-    MkPatternMachine(_, next) -> next_for_thread(n, next, state, char)
 
 
 
@@ -2888,9 +2832,6 @@ mod Std.Regex.Runtime
     LookaroundAdmittedActive(_, routine, _, _, assertion_markers, _) -> lookaround_admitted_active_capture_context(base, routine, assertion_markers)
     LookaroundAdmittedAccepted(routine, _, _, assertion_markers, _) -> lookaround_admitted_accepted_capture_context(base, routine, assertion_markers)
 
-  @reducible
-  fn atomic_scope_closed_depth(routine: List(EvidenceInstruction), depth: Nat) -> Option(Nat) = match atomic_scope_effect(routine, depth)
-    AtomicScopeEffect(_, closed_depth) -> closed_depth
 
   @reducible
   fn lookaround_admitted_state_closed_depth(n: Nat, base: Nat, state: LookaroundAdmittedState(n)) -> Option(Nat) = match state
@@ -4267,11 +4208,6 @@ mod Std.Regex.Runtime
   type AtomicStartActiveChildFailure(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char), thread_state: ThreadState(n), child_scope_depth: Nat)
     AtomicStartActiveChildFailurePacked : (@erased failure: AtomicPathRootRefutation(depth, n, machine, Nil(), after_input, thread_state, history, capture_context, policy, child_scope_depth, prefix_mode, reversed_prefix, Nil(), AtomicPathFailureInputExhausted())) -> AtomicStartActiveChildFailure(depth, n, machine, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, thread_state, child_scope_depth)
 
-  ## A small indexed refinement keeps the active bounded state tied to the
-  ## thread-state index without reopening the larger refutation GADT at the
-  ## no-result constructor.
-  type AtomicStartActiveThreadRefinement(n: Nat) indices (thread_state: ThreadState(n), state: Bounded(n))
-    AtomicStartActiveThreadRefinementHere : (@erased state: Bounded(n)) -> AtomicStartActiveThreadRefinement(n, ThreadActive(state), state)
 
   ## A construction-site package for the active empty-input branch. The
   ## ordinary tail package intentionally existentially hides its failure kind
@@ -7960,12 +7896,6 @@ mod Std.Regex.Runtime
   typealias AtomicPathRecursiveCommitSelectedRightPackage(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), commit_current: List(LookaroundAdmittedState(n)), selected_current: List(LookaroundAdmittedState(n)), commit_depth: Nat, commit_kind: AtomicPathCommitCauseKind, selected_trace_package: Type, skipped_kind: AtomicPathSkippedPrefixKind) = AtomicPathCommitSelectedRightAuthorityPackage(n, AtomicPathCommitStructureCursorExistentialPackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, commit_current, commit_depth, commit_kind), LookaroundAdmittedStateCursorSuffixPackage(n, whole, commit_current), selected_trace_package, AtomicPathSkippedPrefixStructurePackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, commit_current, selected_current, skipped_kind), commit_current, selected_current)
 
 
-  fn atomic_selected_path_trace_runtime_envelope(
-    {trace_package: Type},
-    shape: LookaroundAdmittedStateCursorShape,
-    package: trace_package
-  ) -> AtomicSelectedPathTraceRuntimeEnvelope(trace_package) =
-    AtomicSelectedPathTraceRuntimeEnvelopePacked(shape, package)
 
   ## Hide every dependent selected-suffix index while retaining the exact
   ## runtime envelope built alongside its validated cursor shape. This is the
@@ -11712,40 +11642,8 @@ mod Std.Regex.Runtime
 
 
 
-  fn atomic_runtime_accepting_from(n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), state: ThreadState(n), evidence: List(Evidence), captures: List(CaptureFrame), depth: Nat) -> AtomicSearchResult = match input
-    [] -> match state
-      ThreadAccepted() -> AtomicSearchYes()
-      ThreadActive(_) -> AtomicSearchNo()
-    [char | rest] -> match machine
-      MkPatternMachine(_, next) -> atomic_runtime_accepting_members(n, machine, char, rest, after_input, state, evidence, captures, depth, filter_boundary_states(next_for_thread(n, next, state, char), transition_boundary_before(char, rest, after_input)))
 
 
-  fn atomic_runtime_accepting_members(n: Nat, machine: PatternMachine(n), char: Char, rest: List(Char), after_input: List(Char), source_state: ThreadState(n), source_evidence: List(Evidence), source_captures: List(CaptureFrame), depth: Nat, destinations: List(MachineState(n))) -> AtomicSearchResult = match destinations
-    [] -> AtomicSearchNo()
-    [Active(state, routine, _) | remaining] -> match execute_routine(routine, source_evidence, record_capture_char(source_captures, char))
-      EvidenceExecution(next_evidence, next_captures) -> match atomic_scope_effect(routine, depth)
-        AtomicScopeEffect(next_depth, closed_depth) -> match atomic_runtime_accepting_from(n, machine, rest, after_input, ThreadActive(state), next_evidence, next_captures, next_depth)
-          AtomicSearchYes() -> AtomicSearchYes()
-          AtomicSearchCommit(commit_depth) -> match atomic_commit_disposition(depth, commit_depth)
-            AtomicCommitEscapes(_) -> atomic_runtime_accepting_members(n, machine, char, rest, after_input, source_state, source_evidence, source_captures, depth, remaining)
-            AtomicCommitBlocks(_) -> AtomicSearchCommit(commit_depth)
-          AtomicSearchNo() -> match closed_depth
-            None() -> atomic_runtime_accepting_members(n, machine, char, rest, after_input, source_state, source_evidence, source_captures, depth, remaining)
-            Some(commit_depth) -> match atomic_commit_disposition(depth, commit_depth)
-              AtomicCommitEscapes(_) -> atomic_runtime_accepting_members(n, machine, char, rest, after_input, source_state, source_evidence, source_captures, depth, remaining)
-              AtomicCommitBlocks(_) -> AtomicSearchCommit(commit_depth)
-    [Accepted(routine, _) | remaining] -> match execute_routine(routine, source_evidence, record_capture_char(source_captures, char))
-      EvidenceExecution(next_evidence, next_captures) -> match atomic_scope_effect(routine, depth)
-        AtomicScopeEffect(next_depth, closed_depth) -> match atomic_runtime_accepting_from(n, machine, rest, after_input, ThreadAccepted(), next_evidence, next_captures, next_depth)
-          AtomicSearchYes() -> AtomicSearchYes()
-          AtomicSearchCommit(commit_depth) -> match atomic_commit_disposition(depth, commit_depth)
-            AtomicCommitEscapes(_) -> atomic_runtime_accepting_members(n, machine, char, rest, after_input, source_state, source_evidence, source_captures, depth, remaining)
-            AtomicCommitBlocks(_) -> AtomicSearchCommit(commit_depth)
-          AtomicSearchNo() -> match closed_depth
-            None() -> atomic_runtime_accepting_members(n, machine, char, rest, after_input, source_state, source_evidence, source_captures, depth, remaining)
-            Some(commit_depth) -> match atomic_commit_disposition(depth, commit_depth)
-              AtomicCommitEscapes(_) -> atomic_runtime_accepting_members(n, machine, char, rest, after_input, source_state, source_evidence, source_captures, depth, remaining)
-              AtomicCommitBlocks(_) -> AtomicSearchCommit(commit_depth)
 
   fn atomic_runtime_initial_members(n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), starts: List(MachineState(n))) -> AtomicSearchResult =
     atomic_runtime_initial_members_with_commit(n, machine, input, after_input, None(), starts)
@@ -13406,29 +13304,8 @@ mod Std.Regex.Runtime
     [LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions) | remaining] -> atomic_lookaround_routine_initial_active(depth, n, machine, input, after_input, position, history, capture_context, policy, blocked_depth, whole, state, routine, constraints, assertion_routine, assertion_markers, nested_decisions, remaining, cursor, witness, suffix, canonical, prefix_mode, reversed_prefix)
     [LookaroundAdmittedAccepted(routine, constraints, assertion_routine, assertion_markers, nested_decisions) | remaining] -> atomic_lookaround_routine_initial_accepted(depth, n, machine, input, after_input, position, history, capture_context, policy, blocked_depth, whole, routine, constraints, assertion_routine, assertion_markers, nested_decisions, remaining, cursor, witness, suffix, canonical, prefix_mode, reversed_prefix)
 
-  fn atomic_lookaround_start_selection(n: Nat, state: MachineState(n), blocked_depth: Option(Nat)) -> AtomicStartSelection(blocked_depth) = match blocked_depth
-    None() -> AtomicStartSelectionAllowed(AtomicStartAllowedNone())
-    Some(commit_depth) -> match atomic_commit_disposition(atomic_scope_max_depth(machine_state_routine(n, state), Z()), commit_depth)
-      AtomicCommitBlocks(proof) -> AtomicStartSelectionBlocked(AtomicStartSkipByScope(proof))
-      AtomicCommitEscapes(proof) -> AtomicStartSelectionAllowed(AtomicStartAllowedEscape(proof))
 
 
-  ## The same routine close cannot both permit sibling traversal and block it.
-  ## Equality of the indexed close first rules out None versus Some; for two
-  ## Some values it identifies the commit depth before the finite order
-  ## contradiction is consumed.
-  @reducible
-  fn atomic_path_failure_continuation_excludes_blocked(
-    {scope_depth: Nat},
-    {closed_depth: Option(Nat)},
-    {commit_depth: Nat},
-    @erased continuation: AtomicPathFailureContinuation(scope_depth, closed_depth),
-    @erased close_canonical: Equivalent(Option(Nat), closed_depth, Some(commit_depth)),
-    @erased blocked: AtomicDepthAtLeast(scope_depth, commit_depth)
-  ) -> Empty = match continuation
-    AtomicPathSiblingNoClose(no_close) -> match trans(sym(no_close), close_canonical)
-    AtomicPathSiblingEscapedClose(_, escaped_close, escaped) -> match trans(sym(escaped_close), close_canonical)
-      reflexive() -> atomic_depth_at_least_excludes_below(blocked, escaped)
 
 
 
@@ -13584,8 +13461,6 @@ mod Std.Regex.Runtime
   ) -> result = match path
     AtomicSelectedStartAccepted(_, _, _, _, _, _, _, _, _, _, _, _, suffix) -> atomic_start_skip_excludes_allowed(skip, allowed)
 
-  fn atomic_scope_depth_after(routine: List(EvidenceInstruction), depth: Nat) -> Nat = match atomic_scope_effect(routine, depth)
-    AtomicScopeEffect(next_depth, _) -> next_depth
 
   ## An active atomic path cannot exist at an exhausted input.  The selected
   ## trace has only terminal constructors at an empty input, and both terminal

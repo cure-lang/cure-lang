@@ -894,6 +894,18 @@ defmodule Cure.Refactor.Analysis do
     collect_type_references(body, acc)
   end
 
+  # Enum and indexed-type constructor signatures carry their dependent fields
+  # in the declaration body rather than in function metadata.  Walk that body
+  # in type mode as well; otherwise a split can move a constructor family while
+  # leaving one of its local type aliases behind in the source module.
+  defp collect_signature_references(acc, {:container, _meta, body}) do
+    collect_type_references(body, acc)
+  end
+
+  defp collect_signature_references(acc, {:indexed_type, _meta, body}) do
+    collect_type_references(body, acc)
+  end
+
   defp collect_signature_references(acc, _node), do: acc
 
   defp collect_type_references({:function_call, meta, children}, acc) when is_list(meta) do
