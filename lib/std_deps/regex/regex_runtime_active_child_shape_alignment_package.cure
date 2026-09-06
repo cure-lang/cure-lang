@@ -1,0 +1,235 @@
+@group(:text)
+mod Std.Regex.Runtime.ActiveChildShapeAlignmentPackage
+  use Std.Regex.Runtime.ActiveChildShapeAlignment
+
+  use Std.Regex.Runtime.CursorShapeLocations
+
+  use Std.Regex.Runtime.InitialMembers
+
+  use Std.Regex.Runtime.Roots
+
+  use Std.Regex.Runtime.LeafAuthorities
+
+  use Std.Regex.Runtime.EvidenceExecution
+
+  use Std.Regex.Runtime.LookaroundCompilation
+
+  use Std.Regex.Runtime.ExtendedEvidenceTypes
+
+  use Std.Regex.Runtime.AtomicDepthTypes
+
+  use Std.Regex.Runtime.CandidateEquivalencePrimitives
+
+  use Std.Regex.Runtime.CaptureSlotMarkerPrimitives
+
+  use Std.Regex.Runtime.StateRoutinePrimitives
+
+  use Std.Regex.Runtime.MachineMemberEdgePrimitives
+
+  use Std.Regex.Runtime.LookaroundSupportPrimitives
+
+  use Std.Regex.Runtime.AtomicPathActiveChildShapeHerePackageFold
+
+  use Std.Regex.Runtime.AtomicStartScopeSelectionExcludes
+
+  use Std.Regex.Runtime.LookaroundExhaustionFromList
+
+  use Std.Regex.Runtime.AtomicStartDecisions
+
+  use Std.Regex.Runtime.DepthExclusion
+
+  use Std.Regex.Runtime.ExhaustionFromMembers
+
+  use Std.Regex.Runtime.CursorShapeAuthority
+
+  use Std.Regex.Runtime.ActiveChildShapeHere
+
+  use Std.Regex.Runtime.CursorShape
+
+  use Std.Regex.Runtime.SearchCursors
+
+  use Std.Regex.Runtime.CandidateEquivalence
+
+  use Std.Regex.Runtime.CaptureSlotMarkers
+
+  use Std.Regex.Runtime.AtomicDecisions
+
+  use Std.Regex.Runtime.MachineMemberEdges
+
+  use Std.Regex.Runtime.AtomicDepthMaximum
+
+  use Std.Regex.Runtime.MemberTransport
+
+  use Std.Regex.Runtime.EvidenceStep
+
+  use Std.Regex.Runtime.AtomicStartMember
+
+  use Std.Regex.Runtime.AtomicFailureAuthority
+
+  use Std.Regex.Runtime.AtomicDepth
+
+  use Std.Regex.Runtime.LookaroundSupport
+
+  use Std.Regex.Runtime.NamedCaptureSearch
+
+  use Std.Regex.Runtime.PatternSearch
+
+  use Std.Regex.Runtime.EvidenceSearch
+
+  use Std.Regex.Runtime.MachineSearch
+
+  use Std.Regex.Runtime.CharacterClasses
+
+  use Std.Regex.Runtime.NamedSearch
+
+  use Std.Regex.Runtime.MachineTransitions
+
+  use Std.Regex.Runtime.NamedStaging
+
+  use Std.Regex.Runtime.MachineEntry
+
+  use Std.Regex.Runtime.LineBreak
+
+  use Std.Regex.Runtime.CharacterMatchers
+
+  use Std.Regex.Runtime.Combinators
+
+  use Std.Regex.Runtime.Anchors
+
+  use Std.Regex.Runtime.CompileRegex
+
+  use Std.Regex.Runtime.ConversionAdapters
+
+  use Std.Regex.Runtime.ThreadDedup
+
+  use Std.Regex.Runtime.NamedTypes
+
+  use Std.Regex.Runtime.RegexType
+
+  use Std.Regex.Runtime.CharacterSemantics
+
+  use Std.Regex.Runtime.Conversion
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Runtime.CaptureConditions
+
+  use Std.Regex.Runtime.Boundaries
+
+  use Std.Regex.Runtime.AtomicDiagnostics
+
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Char
+
+  use Std.Option
+
+  use Std.List
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  use Std.Decision
+
+  type AtomicPathActiveChildShapeAlignmentPackage(failure_package: Type, selected_package: Type) indices (failure_shape: LookaroundAdmittedStateCursorShape, selected_shape: LookaroundAdmittedStateCursorShape)
+    AtomicPathActiveChildShapeAlignmentHerePacked : (branch: AtomicPathActiveChildShapeHerePackage(failure_package, selected_package, failure_shape, selected_shape)) -> AtomicPathActiveChildShapeAlignmentPackage(failure_package, selected_package, failure_shape, selected_shape)
+    AtomicPathActiveChildShapeAlignmentTherePacked : (branch: AtomicPathActiveChildShapeTherePackage(failure_package, selected_package, failure_shape, selected_shape)) -> AtomicPathActiveChildShapeAlignmentPackage(failure_package, selected_package, failure_shape, selected_shape)
+    AtomicPathActiveChildShapeAlignmentReversePacked : (branch: AtomicPathActiveChildShapeReversePackage(failure_package, selected_package, failure_shape, selected_shape)) -> AtomicPathActiveChildShapeAlignmentPackage(failure_package, selected_package, failure_shape, selected_shape)
+end
