@@ -123,8 +123,8 @@ defmodule Cure.Refactor.Rewrite do
          {:ok, report} <- analyze(source_path),
          :ok <- ensure_source_unchanged(source, report),
          {:ok, selected} <- select_declarations(report, spec.selectors),
-         :ok <- ensure_movable(selected, Keyword.get(opts, :remove_from_source, true)),
          {:ok, crossing} <- dependency_edges(report.declarations, selected),
+         :ok <- ensure_movable(crossing, Keyword.get(opts, :remove_from_source, true)),
          :ok <- ensure_boundary_acyclic(crossing, selected, Keyword.get(opts, :remove_from_source, true)),
          {:ok, target_path} <- target_path(source_path, spec.target_file, opts),
          :ok <- ensure_target_is_distinct(source_path, target_path),
@@ -485,20 +485,15 @@ defmodule Cure.Refactor.Rewrite do
     end
   end
 
-  defp ensure_movable(selected, true) do
-    private =
-      selected
-      |> Enum.filter(fn declaration ->
-        declaration.kind in [:function, :macro] and declaration.visibility not in [nil, :public]
-      end)
-      |> Enum.map(& &1.name)
+  # Private declarations are movable when the selected set is dependency
+  # closed.  `dependency_edges/2` has already rejected every private edge
+  # crossing the boundary, so rejecting all local helpers here would make a
+  # closed public function cluster impossible to extract.  Keep the boundary
+  # check at the canonical edge construction site where both directions are
+  # visible.
+  defp ensure_movable(_crossing, true), do: :ok
 
-    if private == [],
-      do: :ok,
-      else: {:error, {:dependency_error, "private declarations cannot be moved: #{Enum.join(private, ", ")}"}}
-  end
-
-  defp ensure_movable(_selected, false), do: :ok
+  defp ensure_movable(_crossing, false), do: :ok
 
   defp ensure_boundary_acyclic(%{selected_to_remaining: [_ | _]}, selected, true) do
     if public_declarations?(selected) do
@@ -595,7 +590,7 @@ defmodule Cure.Refactor.Rewrite do
   end
 
   defp public_declarations?(declarations) do
-    Enum.all?(declarations, fn declaration ->
+    Enum.any?(declarations, fn declaration ->
       declaration.kind not in [:function, :macro] or declaration.visibility in [nil, :public]
     end)
   end

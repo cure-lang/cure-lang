@@ -325,6 +325,27 @@ defmodule Cure.Refactor.RewriteTest do
     refute File.read!(source_path) =~ "fn move()"
   end
 
+  test "split moves a closed private helper with its public caller", %{dir: dir} do
+    source_path = Path.join(dir, "source.cure")
+
+    File.write!(source_path, """
+    mod Source
+      fn root(value: Int) -> Int = helper(value)
+      local fn helper(value: Int) -> Int = value
+    end
+    """)
+
+    assert {:ok, result} =
+             Rewrite.split(source_path, "helpers.cure:Extracted:root|helper",
+               output_directory: dir
+             )
+
+    assert result.target =~ "fn root(value: Int) -> Int = helper(value)"
+    assert result.target =~ "local fn helper(value: Int) -> Int = value"
+    assert result.source =~ "public use Extracted"
+    refute result.source =~ "fn root(value: Int)"
+  end
+
   test "split specifications require an explicit destination module" do
     assert {:error, {:invalid_split_spec, message}} = Rewrite.parse_spec("helpers.cure:helper")
     assert message =~ "Target.Module"
