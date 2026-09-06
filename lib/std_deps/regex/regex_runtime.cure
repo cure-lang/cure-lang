@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.DestinationRejectionTail
   public use Std.Regex.Runtime.SelectedChildSuffixLocation
   public use Std.Regex.Runtime.CursorSuffixPackageEvidence
   public use Std.Regex.Runtime.ActiveChildSelectionSuffixTransport
@@ -18835,20 +18836,6 @@ mod Std.Regex.Runtime
     head_case
   )
 
-  ## Empty-result form of the same dispatcher. The selected cursor is
-  ## runtime-relevant at this eliminator because its indexed `Here`/`Drop`
-  ## shape selects the contradiction; no proof callback or payload is added.
-  fn atomic_path_destination_rejection_excludes_recursive_tail_empty(
-    {n: Nat},
-    {head: LookaroundAdmittedState(n)},
-    {rest: List(LookaroundAdmittedState(n))},
-    {current: List(LookaroundAdmittedState(n))},
-    selection_from_current: LookaroundAdmittedStateCursorSuffix(n, Cons(head, rest), current),
-    head_case: Empty,
-    tail_case: Empty
-  ) -> Empty = match selection_from_current
-    LookaroundAdmittedStateCursorSuffixHere(_) -> head_case
-    LookaroundAdmittedStateCursorSuffixDrop(_, _) -> tail_case
 
   ## Consume the selected-tail dispatch at the destination-exhaustion base
   ## case.  Here the recursive tail is indexed at `Nil()`, so the only
