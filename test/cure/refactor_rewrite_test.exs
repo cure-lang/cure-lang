@@ -52,6 +52,53 @@ defmodule Cure.Refactor.RewriteTest do
     refute File.exists?(Path.join(dir, "helpers.cure"))
   end
 
+  test "split downgrades source re-exports to ordinary target imports", %{dir: dir} do
+    source_path = Path.join(dir, "source.cure")
+
+    File.write!(source_path, """
+    mod Source
+      public use Existing
+      fn move() -> Int = external()
+    end
+    """)
+
+    assert {:ok, result} =
+             Rewrite.split(source_path, "helpers.cure:Extracted:move", output_directory: dir)
+
+    assert result.target =~ "use Existing"
+    refute result.target =~ "public use Existing"
+  end
+
+  test "split preserves reducibility for definitions used in dependent source types", %{dir: dir} do
+    source_path = Path.join(dir, "source.cure")
+
+    File.write!(source_path, """
+    mod Source
+      type Vec(a: Type) indices (n: Nat)
+        empty : Vec(a, Z)
+
+      fn index() -> Nat = Z()
+      fn result() -> Vec(Int, index()) = empty()
+    end
+    """)
+
+    assert {:ok, result} =
+             Rewrite.split(source_path, "index.cure:Extracted:index",
+               output_directory: dir,
+               write: true
+             )
+
+    assert result.target =~ "  @reducible\n  fn index()"
+
+    assert {:ok, _pipeline} =
+             ModulePipeline.check(
+               [source_path, Path.join(dir, "index.cure")],
+               module_pipeline: :canonical,
+               package: "dependent_split",
+               source_roots: [dir]
+             )
+  end
+
   test "split updates direct importers of moved declarations", %{dir: dir} do
     source_path = Path.join(dir, "source.cure")
     importer_path = Path.join(dir, "consumer.cure")

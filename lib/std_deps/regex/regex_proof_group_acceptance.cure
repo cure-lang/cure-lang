@@ -1,0 +1,383 @@
+## Proof infrastructure for the typed regular-expression evidence machine.
+## These views expose the structural laws used to assemble and invert compiled
+## evidence routines while retaining their dependent input and output indices.
+@group(:text)
+mod Std.Regex.Proof.GroupAcceptance
+  use Std.Regex.Proof.RepeatProjection
+
+  use Std.Regex.Proof.ConcatLeft
+
+  use Std.Regex.Proof.SupportC
+
+  use Std.Regex.Proof.SupportB
+
+  use Std.Regex.Proof.SupportA
+
+  use Std.Regex.Proof.LeafSplit
+
+  use Std.Regex.Proof.FoundationalViews
+
+  use Std.Regex.Proof.ExecutionViews
+
+  use Std.Regex.Runtime.CompilationMachines
+
+  use Std.Regex.Runtime.CompilationTypes
+
+  use Std.Regex.Runtime.EvidenceExecution
+
+  use Std.Regex.Runtime.LookaroundCompilation
+
+  use Std.Regex.Runtime.ExtendedEvidenceTypes
+
+  use Std.Regex.Runtime.StateRoutinePrimitives
+
+  use Std.Regex.Runtime.MachineEntryPrimitives
+
+  use Std.Regex.Runtime.PatternMachinePrimitives
+
+  use Std.Regex.Runtime.MachineTransitionPrimitives
+
+  use Std.Regex.Runtime.MemberTransportPrimitives
+
+  use Std.Regex.Proof.CertifiedMachine
+
+  use Std.Regex.Proof.GroupTransitionExact
+
+  use Std.Regex.Proof.GroupCharacterRoutine
+
+  use Std.Regex.Proof.SingleCharacterString
+
+  use Std.Regex.Proof.EquivalenceLaws
+
+  use Std.Regex.Proof.MarkerExecution
+
+  use Std.Regex.Runtime.MemberTransport
+
+  use Std.Regex.Runtime.MachineSearch
+
+  use Std.Regex.Runtime.MachineTransitions
+
+  use Std.Regex.Runtime.MachineEntry
+
+  use Std.Regex.Runtime.Conversion
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Regex.Runtime
+
+  use Std.Equivalent
+
+  ## A nested convoy for the capture invariant of one exact acceptance value.
+  type CertifiedAcceptanceCaptures indices (n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame), final_evidence: List(Evidence), acceptance: AcceptancePathFrom(n, machine, position, input, after_input, input_evidence, input_captures, final_evidence))
+    AcceptanceCapturesExact : {n: Nat} -> {machine: PatternMachine(n)} -> {position: InitialPosition} -> {input: List(Char)} -> {after_input: List(Char)} -> {input_evidence: List(Evidence)} -> {input_captures: List(CaptureFrame)} -> {final_evidence: List(Evidence)} -> {acceptance: AcceptancePathFrom(n, machine, position, input, after_input, input_evidence, input_captures, final_evidence)} -> (proof: Equivalent(List(CaptureFrame), acceptance_path_final_captures(n, machine, position, input, after_input, input_evidence, input_captures, final_evidence, acceptance), record_capture_input(input_captures, input))) -> CertifiedAcceptanceCaptures(n, machine, position, input, after_input, input_evidence, input_captures, final_evidence, acceptance)
+
+  type ExactAcceptanceStartView(n: Nat, position: InitialPosition, after_input: List(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame), final_evidence: List(Evidence)) indices (machine: PatternMachine(n), input: List(Char), acceptance: AcceptancePathFrom(n, machine, position, input, after_input, input_evidence, input_captures, final_evidence))
+    ExactAcceptanceStartsActive : (starts: List(MachineState(n))) -> (next: ((Bounded(n)) -> Char -> List(MachineState(n)))) -> (input: List(Char)) -> (state: Bounded(n)) -> (regular: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (initial_evidence: List(Evidence)) -> (initial_captures: List(CaptureFrame)) -> (path_routine: List(ExtendedInstruction)) -> (edge: ListMember(MachineState(n), Active(state, regular, constraints), initial_machine_destinations(n, MkPatternMachine(starts, next), position, input, after_input))) -> (execution: RoutineExecution(regular, input_evidence, input_captures, initial_evidence, initial_captures)) -> (path: AcceptingFrom(n, MkPatternMachine(starts, next), input, after_input, ThreadActive(state), initial_evidence, initial_captures, final_evidence, path_routine)) -> ExactAcceptanceStartView(n, position, after_input, input_evidence, input_captures, final_evidence, MkPatternMachine(starts, next), input, active_acceptance_certificate(n, MkPatternMachine(starts, next), position, input, after_input, input_evidence, input_captures, final_evidence, state, regular, constraints, initial_evidence, initial_captures, path_routine, edge, execution, path))
+    ExactAcceptanceStartsAccepted : (starts: List(MachineState(n))) -> (next: ((Bounded(n)) -> Char -> List(MachineState(n)))) -> (regular: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (initial_captures: List(CaptureFrame)) -> (edge: ListMember(MachineState(n), Accepted(regular, constraints), initial_machine_destinations(n, MkPatternMachine(starts, next), position, Nil(), after_input))) -> (execution: RoutineExecution(regular, input_evidence, input_captures, final_evidence, initial_captures)) -> ExactAcceptanceStartView(n, position, after_input, input_evidence, input_captures, final_evidence, MkPatternMachine(starts, next), Nil(), accepted_now_certificate(n, MkPatternMachine(starts, next), position, after_input, input_evidence, input_captures, final_evidence, regular, constraints, initial_captures, edge, execution))
+
+  fn exact_acceptance_start_view(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame), final_evidence: List(Evidence), acceptance: AcceptancePathFrom(n, machine, position, input, after_input, input_evidence, input_captures, final_evidence)) -> ExactAcceptanceStartView(n, position, after_input, input_evidence, input_captures, final_evidence, machine, input, acceptance) = match machine
+    MkPatternMachine(starts, next) -> match acceptance
+      mk_pair(Active(state, regular, constraints), mk_pair(initial_evidence, mk_pair(initial_captures, mk_pair(path_routine, mk_pair(edge, mk_pair(execution, path)))))) -> ExactAcceptanceStartsActive(starts, next, input, state, regular, constraints, initial_evidence, initial_captures, path_routine, edge, execution, path)
+      mk_pair(Accepted(regular, constraints), mk_pair(initial_evidence, mk_pair(initial_captures, mk_pair(path_routine, mk_pair(edge, mk_pair(execution, path)))))) -> match path
+        AcceptingNow() -> ExactAcceptanceStartsAccepted(starts, next, regular, constraints, initial_captures, edge, execution)
+        AcceptingNextActive(_, _, _, _, _, _, impossible_edge, _, _) -> impossible_list_member(impossible_edge)
+        AcceptingNextAccepted(_, _, _, _, _, impossible_edge, _, _) -> impossible_list_member(impossible_edge)
+
+  fn normalize_initial_active(n: Nat, starts: List(MachineState(n)), next: (Bounded(n)) -> Char -> List(MachineState(n)), position: InitialPosition, input: List(Char), after_input: List(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame), state: Bounded(n), regular: List(EvidenceInstruction), constraints: List(BoundaryConstraint), initial_evidence: List(Evidence), initial_captures: List(CaptureFrame), edge: ListMember(MachineState(n), Active(state, regular, constraints), initial_machine_destinations(n, MkPatternMachine(starts, next), position, input, after_input)), execution: RoutineExecution(regular, input_evidence, input_captures, initial_evidence, initial_captures)) -> NormalizedInitialActive(n, starts, next, position, input, after_input, input_evidence, input_captures, state, initial_evidence, initial_captures) =
+    let boundary = initial_position_boundary(position, append_characters(input, after_input))
+    match filtered_active_witness(n, starts, boundary, state, regular, constraints, edge)
+      mk_pair(raw_routine, mk_pair(raw_constraints, mk_pair(raw_edge, mk_pair(holds, routine_exact)))) ->
+        let filtered_edge = filter_active_member(n, starts, boundary, state, raw_routine, raw_constraints, raw_edge, holds)
+        InitialActiveNormalized(raw_routine, pattern_initial_member(n, starts, next, position, input, after_input, Active(state, raw_routine, Nil()), filtered_edge), transport_routine_execution_routine(regular, raw_routine, input_evidence, input_captures, initial_evidence, initial_captures, routine_exact, execution))
+
+  fn normalize_initial_accepted(n: Nat, starts: List(MachineState(n)), next: (Bounded(n)) -> Char -> List(MachineState(n)), position: InitialPosition, input: List(Char), after_input: List(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame), regular: List(EvidenceInstruction), constraints: List(BoundaryConstraint), initial_evidence: List(Evidence), initial_captures: List(CaptureFrame), edge: ListMember(MachineState(n), Accepted(regular, constraints), initial_machine_destinations(n, MkPatternMachine(starts, next), position, input, after_input)), execution: RoutineExecution(regular, input_evidence, input_captures, initial_evidence, initial_captures)) -> NormalizedInitialAccepted(n, starts, next, position, input, after_input, input_evidence, input_captures, initial_evidence, initial_captures) =
+    let boundary = initial_position_boundary(position, append_characters(input, after_input))
+    match filtered_accepted_witness(n, starts, boundary, regular, constraints, edge)
+      mk_pair(raw_routine, mk_pair(raw_constraints, mk_pair(raw_edge, mk_pair(holds, routine_exact)))) ->
+        let filtered_edge = filter_accepted_member(n, starts, boundary, raw_routine, raw_constraints, raw_edge, holds)
+        InitialAcceptedNormalized(raw_routine, pattern_initial_member(n, starts, next, position, input, after_input, Accepted(raw_routine, Nil()), filtered_edge), transport_routine_execution_routine(regular, raw_routine, input_evidence, input_captures, initial_evidence, initial_captures, routine_exact, execution))
+
+  fn cons_empty_input(char: Char, rest: List(Char), rest_empty: Equivalent(List(Char), rest, proof_empty_characters())) -> Equivalent(List(Char), Cons(char, Nil()), Cons(char, rest)) = match rest_empty
+    reflexive() -> reflexive(Cons(char, Nil()))
+
+  ## Recording input is pointwise over the capture stack. In particular, a
+  ## freshly opened head frame contains exactly the reversed consumed input,
+  ## while every enclosing frame records the same input independently.
+  fn record_capture_frame_input(chars: List(Char), saved: List(Evidence), captures: List(CaptureFrame), input: List(Char)) -> Equivalent(List(CaptureFrame), record_capture_input(Cons(CaptureFrame(chars, saved), captures), input), Cons(CaptureFrame(evidence_reverse_chars_into(input, chars), saved), record_capture_input(captures, input))) = match input
+    Nil() -> reflexive(Cons(CaptureFrame(chars, saved), captures))
+    Cons(char, rest) -> record_capture_frame_input(Cons(char, chars), saved, record_capture_char(captures, char), rest)
+
+  fn lift_filtered_finish_capture_member(
+    n: Nat,
+    states: List(MachineState(n)),
+    boundary: Boundary,
+    state: MachineState(n),
+    edge: ListMember(MachineState(n), state, filter_machine_states(n, states, boundary))
+  ) -> ListMember(MachineState(n), finish_capture_state(state), filter_machine_states(n, finish_capture(states), boundary)) = match states
+    Nil() -> impossible_list_member(edge)
+    Cons(Active(destination, routine, constraints), rest) -> with constraints_hold(constraints, boundary)
+      True() -> match edge
+        ListMemberHere() -> member_here(Active(destination, routine, Nil()), filter_machine_states(n, finish_capture(rest), boundary))
+        ListMemberThere(prior) -> member_there(Active(destination, routine, Nil()), lift_filtered_finish_capture_member(n, rest, boundary, state, prior))
+      False() -> lift_filtered_finish_capture_member(n, rest, boundary, state, edge)
+    Cons(Accepted(routine, constraints), rest) -> with constraints_hold(constraints, boundary)
+      True() -> match edge
+        ListMemberHere() -> member_here(Accepted(append_routine(routine, Cons(EndCapture(), Nil())), Nil()), filter_machine_states(n, finish_capture(rest), boundary))
+        ListMemberThere(prior) -> member_there(Accepted(append_routine(routine, Cons(EndCapture(), Nil())), Nil()), lift_filtered_finish_capture_member(n, rest, boundary, state, prior))
+      False() -> lift_filtered_finish_capture_member(n, rest, boundary, state, edge)
+
+  fn lift_filtered_prefix_routine_member(
+    n: Nat,
+    instruction: EvidenceInstruction,
+    states: List(MachineState(n)),
+    boundary: Boundary,
+    state: MachineState(n),
+    edge: ListMember(MachineState(n), state, filter_machine_states(n, states, boundary))
+  ) -> ListMember(MachineState(n), prefix_routine_state(instruction, state), filter_machine_states(n, prefix_routine(instruction, states), boundary)) = match states
+    Nil() -> impossible_list_member(edge)
+    Cons(Active(destination, routine, constraints), rest) -> with constraints_hold(constraints, boundary)
+      True() -> match edge
+        ListMemberHere() -> member_here(Active(destination, Cons(instruction, routine), Nil()), filter_machine_states(n, prefix_routine(instruction, rest), boundary))
+        ListMemberThere(prior) -> member_there(Active(destination, Cons(instruction, routine), Nil()), lift_filtered_prefix_routine_member(n, instruction, rest, boundary, state, prior))
+      False() -> lift_filtered_prefix_routine_member(n, instruction, rest, boundary, state, edge)
+    Cons(Accepted(routine, constraints), rest) -> with constraints_hold(constraints, boundary)
+      True() -> match edge
+        ListMemberHere() -> member_here(Accepted(Cons(instruction, routine), Nil()), filter_machine_states(n, prefix_routine(instruction, rest), boundary))
+        ListMemberThere(prior) -> member_there(Accepted(Cons(instruction, routine), Nil()), lift_filtered_prefix_routine_member(n, instruction, rest, boundary, state, prior))
+      False() -> lift_filtered_prefix_routine_member(n, instruction, rest, boundary, state, edge)
+
+  fn lift_group_initial_member(
+    n: Nat,
+    starts: List(MachineState(n)),
+    next: (Bounded(n)) -> Char -> List(MachineState(n)),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    state: MachineState(n),
+    edge: ListMember(MachineState(n), state, initial_machine_destinations(n, MkPatternMachine(starts, next), position, input, after_input))
+  ) -> ListMember(MachineState(n), finish_capture_state(prefix_routine_state(BeginCapture(), state)), initial_machine_destinations(n, group_pattern_machine(n, starts, next), position, input, after_input)) =
+    let boundary = initial_position_boundary(position, append_characters(input, after_input))
+    let prefixed = lift_filtered_prefix_routine_member(n, BeginCapture(), starts, boundary, state, edge)
+    lift_filtered_finish_capture_member(n, prefix_routine(BeginCapture(), starts), boundary, prefix_routine_state(BeginCapture(), state), prefixed)
+
+  fn lift_group_transition_member(
+    n: Nat,
+    starts: List(MachineState(n)),
+    next: (Bounded(n)) -> Char -> List(MachineState(n)),
+    source: Bounded(n),
+    char: Char,
+    boundary: Boundary,
+    state: MachineState(n),
+    edge: ListMember(MachineState(n), state, machine_destinations(n, MkPatternMachine(starts, next), ThreadActive(source), char, boundary))
+  ) -> ListMember(MachineState(n), finish_capture_state(state), machine_destinations(n, group_pattern_machine(n, starts, next), ThreadActive(source), char, boundary)) =
+    lift_filtered_finish_capture_member(n, next(source, char), boundary, state, edge)
+
+  fn exact_filtered_state_member(n: Nat, states: List(MachineState(n)), boundary: Boundary, state: MachineState(n), edge: ListMember(MachineState(n), state, filter_machine_states(n, states, boundary))) -> ExactFilteredStateMember(n, states, boundary, state, edge) = match filtered_state_origin(n, states, boundary, state, edge)
+    FilteredActiveStateOrigin(destination, routine, _, _, _) -> ExactFilteredActiveMember(destination, routine, edge)
+    FilteredAcceptedStateOrigin(routine, _, _, _) -> ExactFilteredAcceptedMember(routine, edge)
+
+  fn lift_group_active_transition_member(n: Nat, starts: List(MachineState(n)), next: (Bounded(n)) -> Char -> List(MachineState(n)), source: Bounded(n), char: Char, boundary: Boundary, destination: Bounded(n), routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(n), Active(destination, routine, constraints), machine_destinations(n, MkPatternMachine(starts, next), ThreadActive(source), char, boundary))) -> ListMember(MachineState(n), Active(destination, routine, Nil()), machine_destinations(n, group_pattern_machine(n, starts, next), ThreadActive(source), char, boundary)) = match exact_filtered_state_member(n, next(source, char), boundary, Active(destination, routine, constraints), edge)
+    ExactFilteredActiveMember(_, _, _) -> lift_group_transition_member(n, starts, next, source, char, boundary, Active(destination, routine, Nil()), edge)
+
+  fn lift_group_accepted_transition_member(n: Nat, starts: List(MachineState(n)), next: (Bounded(n)) -> Char -> List(MachineState(n)), source: Bounded(n), char: Char, boundary: Boundary, routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(n), Accepted(routine, constraints), machine_destinations(n, MkPatternMachine(starts, next), ThreadActive(source), char, boundary))) -> ListMember(MachineState(n), Accepted(append_routine(routine, Cons(EndCapture(), Nil())), Nil()), filter_boundary_states(finish_capture(next(source, char)), boundary)) = match exact_filtered_state_member(n, next(source, char), boundary, Accepted(routine, constraints), edge)
+    ExactFilteredAcceptedMember(_, _) -> lift_filtered_finish_capture_member(n, next(source, char), boundary, Accepted(routine, Nil()), edge)
+
+  fn group_active_input_view(n: Nat, starts: List(MachineState(n)), next: (Bounded(n)) -> Char -> List(MachineState(n)), input: List(Char), after_input: List(Char), source: Bounded(n), current_evidence: List(Evidence), current_captures: List(CaptureFrame), final_evidence: List(Evidence), routine: List(ExtendedInstruction), path: AcceptingFrom(n, MkPatternMachine(starts, next), input, after_input, ThreadActive(source), current_evidence, current_captures, final_evidence, routine), path_final_captures: List(CaptureFrame), captures_exact: Equivalent(List(CaptureFrame), path_final_captures, accepting_final_captures(n, MkPatternMachine(starts, next), input, after_input, ThreadActive(source), current_evidence, current_captures, final_evidence, routine, path))) -> GroupActiveInputView(n, starts, next, after_input, source, current_evidence, current_captures, final_evidence, path_final_captures, input, routine, path) = match path
+    AcceptingNow() -> impossible
+    AcceptingNextActive(destination, regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix) -> match input
+      Cons(char, rest) -> GroupActiveInputNextActive(char, rest, destination, regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix, captures_exact)
+    AcceptingNextAccepted(regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix) -> match input
+      Cons(char, rest) -> GroupActiveInputNextAccepted(char, rest, regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix, captures_exact)
+
+  fn exact_group_active_input_view(n: Nat, starts: List(MachineState(n)), next: (Bounded(n)) -> Char -> List(MachineState(n)), input: List(Char), after_input: List(Char), source: Bounded(n), current_evidence: List(Evidence), current_captures: List(CaptureFrame), final_evidence: List(Evidence), routine: List(ExtendedInstruction), path: AcceptingFrom(n, MkPatternMachine(starts, next), input, after_input, ThreadActive(source), current_evidence, current_captures, final_evidence, routine), chars: List(Char), saved: List(Evidence), outer: List(CaptureFrame), captures_exact: Equivalent(List(CaptureFrame), accepting_final_captures(n, MkPatternMachine(starts, next), input, after_input, ThreadActive(source), current_evidence, current_captures, final_evidence, routine, path), Cons(CaptureFrame(chars, saved), outer))) -> ExactGroupActiveInputView(n, starts, next, after_input, source, current_evidence, current_captures, chars, saved, outer, final_evidence, input, routine, path) = match group_active_input_view(n, starts, next, input, after_input, source, current_evidence, current_captures, final_evidence, routine, path, Cons(CaptureFrame(chars, saved), outer), capture_equivalent_symmetric_inferred(captures_exact))
+    GroupActiveInputNextActive(char, rest, destination, regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix, branch_exact) -> ExactGroupActiveNextActive(char, rest, destination, regular, constraints, destination_evidence, destination_captures, final_evidence, suffix_routine, edge, execution, suffix, capture_equivalent_symmetric_inferred(branch_exact))
+    GroupActiveInputNextAccepted(char, rest, regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix, branch_exact) -> ExactGroupActiveNextAccepted(char, rest, regular, constraints, destination_evidence, destination_captures, final_evidence, suffix_routine, edge, execution, suffix, capture_equivalent_symmetric_inferred(branch_exact))
+
+  fn transport_group_active_embedding_input(n: Nat, starts: List(MachineState(n)), next: (Bounded(n)) -> Char -> List(MachineState(n)), source: Bounded(n), current_evidence: List(Evidence), current_captures: List(CaptureFrame), chars: List(Char), saved: List(Evidence), outer: List(CaptureFrame), first_input: List(Char), second_input: List(Char), after_input: List(Char), equality: Equivalent(List(Char), first_input, second_input), embedding: GroupActivePathEmbedding(n, starts, next, source, current_evidence, current_captures, chars, saved, outer, first_input, after_input)) -> GroupActivePathEmbedding(n, starts, next, source, current_evidence, current_captures, chars, saved, outer, second_input, after_input) = match equality
+    reflexive() -> embedding
+
+  fn prepend_group_active_path(
+    n: Nat,
+    starts: List(MachineState(n)),
+    next: (Bounded(n)) -> Char -> List(MachineState(n)),
+    char: Char,
+    rest: List(Char),
+    after_input: List(Char),
+    source: Bounded(n),
+    current_evidence: List(Evidence),
+    current_captures: List(CaptureFrame),
+    destination: Bounded(n),
+    regular: List(EvidenceInstruction),
+    constraints: List(BoundaryConstraint),
+    destination_evidence: List(Evidence),
+    destination_captures: List(CaptureFrame),
+    edge: ListMember(MachineState(n), Active(destination, regular, constraints), machine_destinations(n, MkPatternMachine(starts, next), ThreadActive(source), char, transition_boundary_before(char, rest, after_input))),
+    execution: RoutineExecution(regular, current_evidence, record_capture_char(current_captures, char), destination_evidence, destination_captures),
+    chars: List(Char),
+    saved: List(Evidence),
+    outer: List(CaptureFrame),
+    grouped_suffix_routine: List(ExtendedInstruction),
+    grouped_suffix: AcceptingFrom(n, group_pattern_machine(n, starts, next), rest, after_input, ThreadActive(destination), destination_evidence, destination_captures, Cons(StringEvidence(captured_string(chars)), saved), grouped_suffix_routine),
+    grouped_suffix_captures_exact: Equivalent(List(CaptureFrame), accepting_final_captures(n, group_pattern_machine(n, starts, next), rest, after_input, ThreadActive(destination), destination_evidence, destination_captures, Cons(StringEvidence(captured_string(chars)), saved), grouped_suffix_routine, grouped_suffix), outer)
+  ) -> GroupActivePathEmbedding(n, starts, next, source, current_evidence, current_captures, chars, saved, outer, Cons(char, rest), after_input) =
+    let grouped_edge = lift_group_active_transition_member(n, starts, next, source, char, transition_boundary_before(char, rest, after_input), destination, regular, constraints, edge)
+    let grouped_routine = append_extended_routines(transition_routine(char, regular), grouped_suffix_routine)
+    let grouped_path: AcceptingFrom(n, group_pattern_machine(n, starts, next), Cons(char, rest), after_input, ThreadActive(source), current_evidence, current_captures, Cons(StringEvidence(captured_string(chars)), saved), grouped_routine) = AcceptingNextActive(destination, regular, Nil(), destination_evidence, destination_captures, grouped_suffix_routine, grouped_edge, execution, grouped_suffix)
+    GroupActivePathLifted(grouped_routine, grouped_path, grouped_suffix_captures_exact)
+
+  fn close_group_active_path(
+    n: Nat,
+    starts: List(MachineState(n)),
+    next: (Bounded(n)) -> Char -> List(MachineState(n)),
+    char: Char,
+    after_input: List(Char),
+    source: Bounded(n),
+    current_evidence: List(Evidence),
+    current_captures: List(CaptureFrame),
+    regular: List(EvidenceInstruction),
+    constraints: List(BoundaryConstraint),
+    destination_evidence: List(Evidence),
+    destination_captures: List(CaptureFrame),
+    edge: ListMember(MachineState(n), Accepted(regular, constraints), machine_destinations(n, MkPatternMachine(starts, next), ThreadActive(source), char, transition_boundary_before(char, empty_characters(), after_input))),
+    execution: RoutineExecution(regular, current_evidence, record_capture_char(current_captures, char), destination_evidence, destination_captures),
+    chars: List(Char),
+    saved: List(Evidence),
+    outer: List(CaptureFrame),
+    destination_exact: Equivalent(List(CaptureFrame), destination_captures, Cons(CaptureFrame(chars, saved), outer))
+  ) -> GroupActivePathEmbedding(n, starts, next, source, current_evidence, current_captures, chars, saved, outer, Cons(char, empty_characters()), after_input) =
+    let exact_execution: RoutineExecution(regular, current_evidence, record_capture_char(current_captures, char), destination_evidence, Cons(CaptureFrame(chars, saved), outer)) = transport_routine_execution_output_captures(regular, current_evidence, record_capture_char(current_captures, char), destination_evidence, destination_captures, Cons(CaptureFrame(chars, saved), outer), destination_exact, execution)
+    let ending: RoutineExecution(Cons(EndCapture(), Nil()), destination_evidence, Cons(CaptureFrame(chars, saved), outer), Cons(StringEvidence(captured_string(chars)), saved), outer) = RoutineStep(EndCapture(), RoutineDone())
+    let grouped_regular: List(EvidenceInstruction) = append_routine(regular, Cons(EndCapture(), Nil()))
+    let grouped_execution: RoutineExecution(grouped_regular, current_evidence, record_capture_char(current_captures, char), Cons(StringEvidence(captured_string(chars)), saved), outer) = append_routine_execution(regular, Cons(EndCapture(), Nil()), current_evidence, record_capture_char(current_captures, char), destination_evidence, Cons(CaptureFrame(chars, saved), outer), Cons(StringEvidence(captured_string(chars)), saved), outer, exact_execution, ending)
+    let filtered_grouped_edge = lift_group_accepted_transition_member(n, starts, next, source, char, transition_boundary_before(char, empty_characters(), after_input), regular, constraints, edge)
+    let grouped_routine: List(ExtendedInstruction) = append_extended_routines(transition_routine(char, grouped_regular), Nil())
+    let grouped_suffix: AcceptingFrom(n, group_pattern_machine(n, starts, next), empty_characters(), after_input, ThreadAccepted(), Cons(StringEvidence(captured_string(chars)), saved), outer, Cons(StringEvidence(captured_string(chars)), saved), Nil()) = accepting_now(n, group_pattern_machine(n, starts, next), after_input, Cons(StringEvidence(captured_string(chars)), saved), outer)
+    let no_constraints: List(BoundaryConstraint) = Nil()
+    let no_suffix: List(ExtendedInstruction) = Nil()
+    let grouped_path: AcceptingFrom(n, group_pattern_machine(n, starts, next), Cons(char, empty_characters()), after_input, ThreadActive(source), current_evidence, current_captures, Cons(StringEvidence(captured_string(chars)), saved), grouped_routine) = AcceptingNextAccepted(grouped_regular, no_constraints, Cons(StringEvidence(captured_string(chars)), saved), outer, no_suffix, filtered_grouped_edge, grouped_execution, grouped_suffix)
+    GroupActivePathLifted(grouped_routine, grouped_path, reflexive(outer))
+
+  fn lift_group_active_path(
+    n: Nat,
+    starts: List(MachineState(n)),
+    next: (Bounded(n)) -> Char -> List(MachineState(n)),
+    input: List(Char),
+    after_input: List(Char),
+    source: Bounded(n),
+    current_evidence: List(Evidence),
+    current_captures: List(CaptureFrame),
+    child_final_evidence: List(Evidence),
+    child_routine: List(ExtendedInstruction),
+    child_path: AcceptingFrom(n, MkPatternMachine(starts, next), input, after_input, ThreadActive(source), current_evidence, current_captures, child_final_evidence, child_routine),
+    chars: List(Char),
+    saved: List(Evidence),
+    outer: List(CaptureFrame),
+    final_captures_exact: Equivalent(List(CaptureFrame), accepting_final_captures(n, MkPatternMachine(starts, next), input, after_input, ThreadActive(source), current_evidence, current_captures, child_final_evidence, child_routine, child_path), Cons(CaptureFrame(chars, saved), outer))
+  ) -> GroupActivePathEmbedding(n, starts, next, source, current_evidence, current_captures, chars, saved, outer, input, after_input) = match exact_group_active_input_view(n, starts, next, input, after_input, source, current_evidence, current_captures, child_final_evidence, child_routine, child_path, chars, saved, outer, final_captures_exact)
+    ExactGroupActiveNextActive(char, rest, destination, regular, constraints, destination_evidence, destination_captures, _, suffix_routine, edge, execution, suffix, captures_exact) ->
+        let whole_to_suffix = accepting_next_active_final_captures(n, MkPatternMachine(starts, next), char, rest, after_input, source, current_evidence, current_captures, destination, regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, child_final_evidence, suffix, child_path)
+        let suffix_exact = capture_equivalent_transitive(accepting_final_captures(n, MkPatternMachine(starts, next), rest, after_input, ThreadActive(destination), destination_evidence, destination_captures, child_final_evidence, suffix_routine, suffix), accepting_final_captures(n, MkPatternMachine(starts, next), Cons(char, rest), after_input, ThreadActive(source), current_evidence, current_captures, child_final_evidence, child_routine, child_path), Cons(CaptureFrame(chars, saved), outer), capture_equivalent_symmetric(accepting_final_captures(n, MkPatternMachine(starts, next), Cons(char, rest), after_input, ThreadActive(source), current_evidence, current_captures, child_final_evidence, child_routine, child_path), accepting_final_captures(n, MkPatternMachine(starts, next), rest, after_input, ThreadActive(destination), destination_evidence, destination_captures, child_final_evidence, suffix_routine, suffix), whole_to_suffix), captures_exact)
+        let grouped = lift_group_active_path(n, starts, next, rest, after_input, destination, destination_evidence, destination_captures, child_final_evidence, suffix_routine, suffix, chars, saved, outer, suffix_exact)
+        match grouped
+          GroupActivePathLifted(grouped_suffix_routine, grouped_suffix, grouped_suffix_captures_exact) ->
+            prepend_group_active_path(n, starts, next, char, rest, after_input, source, current_evidence, current_captures, destination, regular, constraints, destination_evidence, destination_captures, edge, execution, chars, saved, outer, grouped_suffix_routine, grouped_suffix, grouped_suffix_captures_exact)
+    ExactGroupActiveNextAccepted(char, rest, regular, constraints, destination_evidence, destination_captures, _, suffix_routine, edge, execution, child_suffix, captures_exact) ->
+      let rest_empty = accepted_path_input_empty(n, MkPatternMachine(starts, next), rest, after_input, destination_evidence, destination_captures, child_final_evidence, suffix_routine, child_suffix)
+      let whole_to_destination = capture_equivalent_transitive_fully_inferred(accepting_next_accepted_final_captures(n, MkPatternMachine(starts, next), char, rest, after_input, source, current_evidence, current_captures, regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, child_final_evidence, child_suffix, child_path), accepted_path_final_captures(n, MkPatternMachine(starts, next), rest, after_input, destination_evidence, destination_captures, child_final_evidence, suffix_routine, child_suffix))
+      let destination_exact = capture_equivalent_transitive_inferred(destination_captures, Cons(CaptureFrame(chars, saved), outer), capture_equivalent_symmetric_inferred(whole_to_destination), captures_exact)
+      let edge_at_empty = transport_transition_edge_after(n, MkPatternMachine(starts, next), source, char, append_characters(rest, after_input), after_input, Accepted(regular, constraints), append_empty_tail_after(rest, Nil(), after_input, rest_empty), edge)
+      let closed = close_group_active_path(n, starts, next, char, after_input, source, current_evidence, current_captures, regular, constraints, destination_evidence, destination_captures, edge_at_empty, execution, chars, saved, outer, destination_exact)
+      transport_group_active_embedding_input(n, starts, next, source, current_evidence, current_captures, chars, saved, outer, Cons(char, Nil()), Cons(char, rest), after_input, cons_empty_input(char, rest, rest_empty), closed)
+
+  type GroupAcceptanceEmbedding(n: Nat, grouped_machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame)) indices ()
+    GroupAcceptanceLifted : (final_evidence: List(Evidence)) -> (acceptance: AcceptancePathFrom(n, grouped_machine, position, input, after_input, input_evidence, input_captures, final_evidence)) -> (captures: CertifiedAcceptanceCaptures(n, grouped_machine, position, input, after_input, input_evidence, input_captures, final_evidence, acceptance)) -> GroupAcceptanceEmbedding(n, grouped_machine, position, input, after_input, input_evidence, input_captures)
+
+  fn active_acceptance_path_captures_exact(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame), final_evidence: List(Evidence), state: Bounded(n), regular: List(EvidenceInstruction), constraints: List(BoundaryConstraint), initial_evidence: List(Evidence), initial_captures: List(CaptureFrame), path_routine: List(ExtendedInstruction), edge: ListMember(MachineState(n), Active(state, regular, constraints), initial_machine_destinations(n, machine, position, input, after_input)), execution: RoutineExecution(regular, input_evidence, input_captures, initial_evidence, initial_captures), path: AcceptingFrom(n, machine, input, after_input, ThreadActive(state), initial_evidence, initial_captures, final_evidence, path_routine), target: List(CaptureFrame), equality: Equivalent(List(CaptureFrame), acceptance_path_final_captures(n, machine, position, input, after_input, input_evidence, input_captures, final_evidence, active_acceptance_certificate(n, machine, position, input, after_input, input_evidence, input_captures, final_evidence, state, regular, constraints, initial_evidence, initial_captures, path_routine, edge, execution, path)), target)) -> Equivalent(List(CaptureFrame), accepting_final_captures(n, machine, input, after_input, ThreadActive(state), initial_evidence, initial_captures, final_evidence, path_routine, path), target) = equality
+
+  fn lift_group_acceptance(
+    n: Nat,
+    starts: List(MachineState(n)),
+    next: ((Bounded(n)) -> Char -> List(MachineState(n))),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    input_evidence: List(Evidence),
+    input_captures: List(CaptureFrame),
+    child_final_evidence: List(Evidence),
+    child_acceptance: AcceptancePathFrom(n, MkPatternMachine(starts, next), position, input, after_input, input_evidence, Cons(CaptureFrame(Nil(), input_evidence), input_captures), child_final_evidence),
+    child_captures_exact: Equivalent(List(CaptureFrame), acceptance_path_final_captures(n, MkPatternMachine(starts, next), position, input, after_input, input_evidence, Cons(CaptureFrame(Nil(), input_evidence), input_captures), child_final_evidence, child_acceptance), record_capture_input(Cons(CaptureFrame(Nil(), input_evidence), input_captures), input))
+  ) -> GroupAcceptanceEmbedding(n, group_pattern_machine(n, starts, next), position, input, after_input, input_evidence, input_captures) =
+    let canonical_child_captures = capture_equivalent_transitive(acceptance_path_final_captures(n, MkPatternMachine(starts, next), position, input, after_input, input_evidence, Cons(CaptureFrame(Nil(), input_evidence), input_captures), child_final_evidence, child_acceptance), record_capture_input(Cons(CaptureFrame(Nil(), input_evidence), input_captures), input), Cons(CaptureFrame(evidence_reverse_chars_into(input, Nil()), input_evidence), record_capture_input(input_captures, input)), child_captures_exact, record_capture_frame_input(Nil(), input_evidence, input_captures, input))
+    match exact_acceptance_start_view(n, MkPatternMachine(starts, next), position, input, after_input, input_evidence, Cons(CaptureFrame(Nil(), input_evidence), input_captures), child_final_evidence, child_acceptance)
+        ExactAcceptanceStartsActive(_, _, _, state, regular, constraints, initial_evidence, initial_captures, path_routine, edge, execution, path) -> match normalize_initial_active(n, starts, next, position, input, after_input, input_evidence, Cons(CaptureFrame(Nil(), input_evidence), input_captures), state, regular, constraints, initial_evidence, initial_captures, edge, execution)
+          InitialActiveNormalized(raw_regular, normalized_edge, normalized_execution) ->
+            let path_captures_exact: Equivalent(List(CaptureFrame), accepting_final_captures(n, MkPatternMachine(starts, next), input, after_input, ThreadActive(state), initial_evidence, initial_captures, child_final_evidence, path_routine, path), Cons(CaptureFrame(evidence_reverse_chars_into(input, Nil()), input_evidence), record_capture_input(input_captures, input))) = active_acceptance_path_captures_exact(n, MkPatternMachine(starts, next), position, input, after_input, input_evidence, Cons(CaptureFrame(Nil(), input_evidence), input_captures), child_final_evidence, state, regular, constraints, initial_evidence, initial_captures, path_routine, edge, execution, path, Cons(CaptureFrame(evidence_reverse_chars_into(input, Nil()), input_evidence), record_capture_input(input_captures, input)), canonical_child_captures)
+            match lift_group_active_path(n, starts, next, input, after_input, state, initial_evidence, initial_captures, child_final_evidence, path_routine, path, evidence_reverse_chars_into(input, Nil()), input_evidence, record_capture_input(input_captures, input), path_captures_exact)
+              GroupActivePathLifted(grouped_path_routine, grouped_path, grouped_path_captures_exact) ->
+                let grouped_regular = Cons(BeginCapture(), raw_regular)
+                let grouped_edge = lift_group_initial_member(n, starts, next, position, input, after_input, Active(state, raw_regular, Nil()), normalized_edge)
+                let grouped_execution: RoutineExecution(grouped_regular, input_evidence, input_captures, initial_evidence, initial_captures) = prepend_begin_capture_execution(raw_regular, input_evidence, input_captures, initial_evidence, initial_captures, normalized_execution)
+                let final_evidence = Cons(StringEvidence(captured_string(evidence_reverse_chars_into(input, Nil()))), input_evidence)
+                let acceptance = active_acceptance_certificate(n, group_pattern_machine(n, starts, next), position, input, after_input, input_evidence, input_captures, final_evidence, state, grouped_regular, Nil(), initial_evidence, initial_captures, grouped_path_routine, grouped_edge, grouped_execution, grouped_path)
+                GroupAcceptanceLifted(final_evidence, acceptance, AcceptanceCapturesExact(grouped_path_captures_exact))
+        ExactAcceptanceStartsAccepted(_, _, regular, constraints, initial_captures, edge, execution) -> match normalize_initial_accepted(n, starts, next, position, Nil(), after_input, input_evidence, Cons(CaptureFrame(Nil(), input_evidence), input_captures), regular, constraints, child_final_evidence, initial_captures, edge, execution)
+          InitialAcceptedNormalized(raw_regular, normalized_edge, normalized_execution) ->
+            let opened_captures = Cons(CaptureFrame(Nil(), input_evidence), input_captures)
+            let normalized_open_execution: RoutineExecution(raw_regular, input_evidence, opened_captures, child_final_evidence, opened_captures) = transport_routine_execution_output_captures(raw_regular, input_evidence, opened_captures, child_final_evidence, initial_captures, opened_captures, canonical_child_captures, normalized_execution)
+            let after_begin: RoutineExecution(Cons(BeginCapture(), raw_regular), input_evidence, input_captures, child_final_evidence, opened_captures) = prepend_begin_capture_execution(raw_regular, input_evidence, input_captures, child_final_evidence, opened_captures, normalized_open_execution)
+            let ending: RoutineExecution(Cons(EndCapture(), Nil()), child_final_evidence, opened_captures, Cons(StringEvidence(captured_string(Nil())), input_evidence), input_captures) = RoutineStep(EndCapture(), RoutineDone())
+            let grouped_regular = append_routine(Cons(BeginCapture(), raw_regular), Cons(EndCapture(), Nil()))
+            let grouped_execution = append_routine_execution(Cons(BeginCapture(), raw_regular), Cons(EndCapture(), Nil()), input_evidence, input_captures, child_final_evidence, opened_captures, Cons(StringEvidence(captured_string(Nil())), input_evidence), input_captures, after_begin, ending)
+            let grouped_edge = lift_group_initial_member(n, starts, next, position, Nil(), after_input, Accepted(raw_regular, Nil()), normalized_edge)
+            let final_evidence = Cons(StringEvidence(captured_string(Nil())), input_evidence)
+            let acceptance = accepted_now_certificate(n, group_pattern_machine(n, starts, next), position, after_input, input_evidence, input_captures, final_evidence, grouped_regular, Nil(), input_captures, grouped_edge, grouped_execution)
+            GroupAcceptanceLifted(final_evidence, acceptance, AcceptanceCapturesExact(reflexive(input_captures)))
+end

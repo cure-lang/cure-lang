@@ -1,0 +1,148 @@
+## Proof infrastructure for the typed regular-expression evidence machine.
+## These views expose the structural laws used to assemble and invert compiled
+## evidence routines while retaining their dependent input and output indices.
+@group(:text)
+mod Std.Regex.Proof.Misc
+  use Std.Regex.Proof.ConcatLeftPath
+
+  use Std.Regex.Proof.GroupAcceptance
+
+  use Std.Regex.Proof.RepeatProjection
+
+  use Std.Regex.Proof.ConcatLeft
+
+  use Std.Regex.Proof.SupportC
+
+  use Std.Regex.Proof.SupportB
+
+  use Std.Regex.Proof.SupportA
+
+  use Std.Regex.Proof.LeafSplit
+
+  use Std.Regex.Proof.FoundationalViews
+
+  use Std.Regex.Proof.ExecutionViews
+
+  use Std.Regex.Runtime.CompilationMachines
+
+  use Std.Regex.Runtime.CompilationTypes
+
+  use Std.Regex.Runtime.EvidenceExecution
+
+  use Std.Regex.Runtime.LookaroundCompilation
+
+  use Std.Regex.Runtime.ExtendedEvidenceTypes
+
+  use Std.Regex.Runtime.StateRoutinePrimitives
+
+  use Std.Regex.Runtime.MachineEntryPrimitives
+
+  use Std.Regex.Runtime.PatternMachinePrimitives
+
+  use Std.Regex.Runtime.MachineTransitionPrimitives
+
+  use Std.Regex.Runtime.MemberTransportPrimitives
+
+  use Std.Regex.Proof.CertifiedMachine
+
+  use Std.Regex.Proof.GroupTransitionExact
+
+  use Std.Regex.Proof.GroupCharacterRoutine
+
+  use Std.Regex.Proof.SingleCharacterString
+
+  use Std.Regex.Proof.EquivalenceLaws
+
+  use Std.Regex.Proof.MarkerExecution
+
+  use Std.Regex.Runtime.MemberTransport
+
+  use Std.Regex.Runtime.MachineSearch
+
+  use Std.Regex.Runtime.MachineTransitions
+
+  use Std.Regex.Runtime.MachineEntry
+
+  use Std.Regex.Runtime.Conversion
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Regex.Runtime
+
+  use Std.Equivalent
+
+  fn certified_acceptance_captures_proof(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame), final_evidence: List(Evidence), acceptance: AcceptancePathFrom(n, machine, position, input, after_input, input_evidence, input_captures, final_evidence), certificate: CertifiedAcceptanceCaptures(n, machine, position, input, after_input, input_evidence, input_captures, final_evidence, acceptance)) -> Equivalent(List(CaptureFrame), acceptance_path_final_captures(n, machine, position, input, after_input, input_evidence, input_captures, final_evidence, acceptance), record_capture_input(input_captures, input)) = match certificate
+    AcceptanceCapturesExact(proof) -> proof
+
+  fn project_concat_right_path(left_count: Nat, left_machine: PatternMachine(left_count), right_count: Nat, right_machine: PatternMachine(right_count), input: List(Char), after_input: List(Char), source: Bounded(right_count), current_evidence: List(Evidence), captures: List(CaptureFrame), {final_evidence: List(Evidence)}, {routine: List(ExtendedInstruction)}, path: AcceptingFrom(plus(left_count, right_count), concat_pattern_machine(left_count, left_machine, right_count, right_machine), input, after_input, ThreadActive(inject_alternate_right(left_count, right_count, source)), current_evidence, captures, final_evidence, routine)) -> ConcatRightPathProjection(right_count, right_machine, input, after_input, source, current_evidence, captures, final_evidence) = match input
+    Nil() -> match path
+      AcceptingNow() -> impossible
+      AcceptingNextActive(_, _, _, _, _, _, _, _, _) -> impossible
+      AcceptingNextAccepted(_, _, _, _, _, _, _, _) -> impossible
+    Cons(char, rest) -> match left_machine
+      MkPatternMachine(left_starts, left_next) -> match right_machine
+        MkPatternMachine(right_starts, right_next) -> match path
+          AcceptingNextActive(destination, regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix) -> match concat_right_transition_origin(left_count, left_starts, left_next, right_count, right_starts, right_next, source, char, transition_boundary_before(char, rest, after_input), Active(destination, regular, constraints), edge)
+            FilteredRightActiveOrigin(child_destination, child_regular, child_edge) -> match project_concat_right_path(left_count, MkPatternMachine(left_starts, left_next), right_count, MkPatternMachine(right_starts, right_next), rest, after_input, child_destination, destination_evidence, destination_captures, suffix)
+              mk_pair(child_final_evidence, mk_pair(child_suffix_routine, mk_pair(child_suffix, final_is_paired))) -> %[child_final_evidence, append_extended_routines(transition_routine(char, child_regular), child_suffix_routine), AcceptingNextActive(child_destination, child_regular, Nil(), destination_evidence, destination_captures, child_suffix_routine, child_edge, execution, child_suffix), final_is_paired]
+          AcceptingNextAccepted(regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix) -> match concat_right_transition_origin(left_count, left_starts, left_next, right_count, right_starts, right_next, source, char, transition_boundary_before(char, rest, after_input), Accepted(regular, constraints), edge)
+            FilteredRightAcceptedOrigin(child_regular, child_edge) -> match accepted_path_view(plus(left_count, right_count), concat_pattern_machine(left_count, MkPatternMachine(left_starts, left_next), right_count, MkPatternMachine(right_starts, right_next)), rest, after_input, destination_evidence, destination_captures, final_evidence, suffix_routine, suffix)
+              AcceptedPathNow() -> match split_appended_routine_execution(child_regular, Cons(EmitPair(), Nil()), current_evidence, record_capture_char(captures, char), execution)
+                AppendedRoutineExecuted(child_final_evidence, child_final_captures, child_execution, marker_execution) -> match marker_execution
+                  RoutineStep(_, marker_suffix) -> match marker_suffix
+                    RoutineDone() -> %[child_final_evidence, append_extended_routines(transition_routine(char, child_regular), Nil()), AcceptingNextAccepted(child_regular, Nil(), child_final_evidence, child_final_captures, Nil(), child_edge, child_execution, AcceptingNow()), reflexive(Cons(PairEvidence(), child_final_evidence))]
+
+  fn active_transition_constraints_empty(n: Nat, states: List(MachineState(n)), boundary: Boundary, state: Bounded(n), routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(n), Active(state, routine, constraints), filter_machine_states(n, states, boundary))) -> Equivalent(List(BoundaryConstraint), constraints, empty_constraints()) = match filtered_state_origin(n, states, boundary, Active(state, routine, constraints), edge)
+    FilteredActiveStateOrigin(_, _, _, _, _) -> reflexive(empty_constraints())
+
+  fn accepted_transition_constraints_empty(n: Nat, states: List(MachineState(n)), boundary: Boundary, routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(n), Accepted(routine, constraints), filter_machine_states(n, states, boundary))) -> Equivalent(List(BoundaryConstraint), constraints, empty_constraints()) = match filtered_state_origin(n, states, boundary, Accepted(routine, constraints), edge)
+    FilteredAcceptedStateOrigin(_, _, _, _) -> reflexive(empty_constraints())
+end

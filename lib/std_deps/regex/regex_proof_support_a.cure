@@ -1,0 +1,138 @@
+## Proof infrastructure for the typed regular-expression evidence machine.
+## These views expose the structural laws used to assemble and invert compiled
+## evidence routines while retaining their dependent input and output indices.
+@group(:text)
+mod Std.Regex.Proof.SupportA
+  use Std.Regex.Proof.LeafSplit
+
+  use Std.Regex.Proof.FoundationalViews
+
+  use Std.Regex.Proof.ExecutionViews
+
+  use Std.Regex.Runtime.CompilationMachines
+
+  use Std.Regex.Runtime.CompilationTypes
+
+  use Std.Regex.Runtime.EvidenceExecution
+
+  use Std.Regex.Runtime.LookaroundCompilation
+
+  use Std.Regex.Runtime.ExtendedEvidenceTypes
+
+  use Std.Regex.Runtime.StateRoutinePrimitives
+
+  use Std.Regex.Runtime.MachineEntryPrimitives
+
+  use Std.Regex.Runtime.PatternMachinePrimitives
+
+  use Std.Regex.Runtime.MachineTransitionPrimitives
+
+  use Std.Regex.Runtime.MemberTransportPrimitives
+
+  use Std.Regex.Proof.CertifiedMachine
+
+  use Std.Regex.Proof.GroupTransitionExact
+
+  use Std.Regex.Proof.GroupCharacterRoutine
+
+  use Std.Regex.Proof.SingleCharacterString
+
+  use Std.Regex.Proof.EquivalenceLaws
+
+  use Std.Regex.Proof.MarkerExecution
+
+  use Std.Regex.Runtime.MemberTransport
+
+  use Std.Regex.Runtime.MachineSearch
+
+  use Std.Regex.Runtime.MachineTransitions
+
+  use Std.Regex.Runtime.MachineEntry
+
+  use Std.Regex.Runtime.Conversion
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Regex.Runtime
+
+  use Std.Equivalent
+
+  ## The nullable base case of the generalized Thompson theorem.  Unlike the
+  ## predicate case, its evidence is emitted by the initial accepting edge and
+  ## the accepting path consumes no input.
+  fn empty_machine_acceptance_encodes(position: InitialPosition, after_input: List(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame), {final_evidence: List(Evidence)}, {routine: List(ExtendedInstruction)}, {output_evidence: List(Evidence)}, {output_captures: List(CaptureFrame)}, acceptance: MachineAcceptance(Z(), empty_pattern_machine(), position, Nil(), after_input, final_evidence, routine), execution: ExtendedEvidenceRoutineExecution(routine, input_evidence, input_captures, output_evidence, output_captures)) -> Encodes(UnitC, output_evidence, input_evidence) = match acceptance
+    MachineAccepted(_, _, _, _, edge, _, _, path) -> match edge
+      ListMemberHere() -> match path
+        AcceptingNow() -> match execution
+          ExtendedEvidenceRegular(_, suffix) -> match suffix
+            ExtendedEvidenceDone() -> EncodesUnit()
+      ListMemberThere(prior) -> impossible_list_member(prior)
+
+  fn predicate_transition_truth(test: Char -> Bool, char: Char, boundary: Boundary, destination: MachineState(S(Z())), edge: ListMember(MachineState(S(Z())), destination, machine_destinations(S(Z()), predicate_pattern_machine(test), predicate_machine_thread(), char, boundary))) -> PredicateTransitionTruth(test, char) = with test(char) proof predicate_holds
+    True() -> PredicateTransitionHeld(predicate_holds)
+    False() -> impossible_list_member(edge)
+
+  fn transport_repeat_closing_embedding_input(n: Nat, starts: List(MachineState(n)), next: (Bounded(n)) -> Char -> List(MachineState(n)), lazy: Bool, source: Bounded(n), current_evidence: List(Evidence), current_captures: List(CaptureFrame), child_final_evidence: List(Evidence), first_input: List(Char), second_input: List(Char), after_input: List(Char), equality: Equivalent(List(Char), first_input, second_input), embedding: RepeatClosingPathEmbedding(n, starts, next, lazy, source, current_evidence, current_captures, child_final_evidence, first_input, after_input)) -> RepeatClosingPathEmbedding(n, starts, next, lazy, source, current_evidence, current_captures, child_final_evidence, second_input, after_input) = match equality
+    reflexive() -> embedding
+
+  fn transport_repeat_continuation_input(n: Nat, starts: List(MachineState(n)), next: (Bounded(n)) -> Char -> List(MachineState(n)), lazy: Bool, position: InitialPosition, first_input: List(Char), second_input: List(Char), after_input: List(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame), equality: Equivalent(List(Char), first_input, second_input), continuation: RepeatContinuationFrom(n, starts, next, lazy, position, first_input, after_input, input_evidence, input_captures)) -> RepeatContinuationFrom(n, starts, next, lazy, position, second_input, after_input, input_evidence, input_captures) = match equality
+    reflexive() -> continuation
+
+  fn transport_concat_left_active_path_input(left_count: Nat, left_machine: PatternMachine(left_count), right_count: Nat, right_machine: PatternMachine(right_count), position: InitialPosition, first_input: List(Char), second_input: List(Char), right_input: List(Char), after_input: List(Char), source: Bounded(left_count), current_evidence: List(Evidence), current_captures: List(CaptureFrame), right_final_evidence: List(Evidence), equality: Equivalent(List(Char), first_input, second_input), embedding: ConcatLeftActivePathEmbedding(left_count, left_machine, right_count, right_machine, position, first_input, right_input, after_input, source, current_evidence, current_captures, right_final_evidence)) -> ConcatLeftActivePathEmbedding(left_count, left_machine, right_count, right_machine, position, second_input, right_input, after_input, source, current_evidence, current_captures, right_final_evidence) = match equality
+    reflexive() -> embedding
+
+  fn concat_left_active_machines_view(left_count: Nat, left_machine: PatternMachine(left_count), right_count: Nat, right_machine: PatternMachine(right_count), position: InitialPosition, left_input: List(Char), right_input: List(Char), after_input: List(Char), source: Bounded(left_count), current_evidence: List(Evidence), current_captures: List(CaptureFrame), left_final_evidence: List(Evidence), left_path_routine: List(ExtendedInstruction), left_path: AcceptingFrom(left_count, left_machine, left_input, append_characters(right_input, after_input), ThreadActive(source), current_evidence, current_captures, left_final_evidence, left_path_routine), right_final_evidence: List(Evidence), right_acceptance: AcceptancePathFrom(right_count, right_machine, advance_initial_position(position, left_input), right_input, after_input, left_final_evidence, accepting_final_captures(left_count, left_machine, left_input, append_characters(right_input, after_input), ThreadActive(source), current_evidence, current_captures, left_final_evidence, left_path_routine, left_path), right_final_evidence)) -> ConcatLeftActiveMachinesView(left_count, right_count, position, left_input, right_input, after_input, source, current_evidence, current_captures, left_final_evidence, left_path_routine, right_final_evidence, left_machine, right_machine) = match left_machine
+    MkPatternMachine(left_starts, left_next) -> match right_machine
+      MkPatternMachine(right_starts, right_next) -> ConcatLeftActiveMachines(left_starts, left_next, right_starts, right_next, left_path, right_acceptance)
+
+  fn exact_open_capture_stack(chars: List(Char), saved: List(Evidence), outer: List(CaptureFrame), captures: List(CaptureFrame), exact: Equivalent(List(CaptureFrame), captures, Cons(CaptureFrame(chars, saved), outer))) -> ExactOpenCaptureStack(chars, saved, outer, captures) = rewrite exact in
+    ExactOpenCaptureStackHere()
+end

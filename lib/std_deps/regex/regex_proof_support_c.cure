@@ -1,0 +1,148 @@
+## Proof infrastructure for the typed regular-expression evidence machine.
+## These views expose the structural laws used to assemble and invert compiled
+## evidence routines while retaining their dependent input and output indices.
+@group(:text)
+mod Std.Regex.Proof.SupportC
+  use Std.Regex.Proof.SupportB
+
+  use Std.Regex.Proof.SupportA
+
+  use Std.Regex.Proof.LeafSplit
+
+  use Std.Regex.Proof.FoundationalViews
+
+  use Std.Regex.Proof.ExecutionViews
+
+  use Std.Regex.Runtime.CompilationMachines
+
+  use Std.Regex.Runtime.CompilationTypes
+
+  use Std.Regex.Runtime.EvidenceExecution
+
+  use Std.Regex.Runtime.LookaroundCompilation
+
+  use Std.Regex.Runtime.ExtendedEvidenceTypes
+
+  use Std.Regex.Runtime.StateRoutinePrimitives
+
+  use Std.Regex.Runtime.MachineEntryPrimitives
+
+  use Std.Regex.Runtime.PatternMachinePrimitives
+
+  use Std.Regex.Runtime.MachineTransitionPrimitives
+
+  use Std.Regex.Runtime.MemberTransportPrimitives
+
+  use Std.Regex.Proof.CertifiedMachine
+
+  use Std.Regex.Proof.GroupTransitionExact
+
+  use Std.Regex.Proof.GroupCharacterRoutine
+
+  use Std.Regex.Proof.SingleCharacterString
+
+  use Std.Regex.Proof.EquivalenceLaws
+
+  use Std.Regex.Proof.MarkerExecution
+
+  use Std.Regex.Runtime.MemberTransport
+
+  use Std.Regex.Runtime.MachineSearch
+
+  use Std.Regex.Runtime.MachineTransitions
+
+  use Std.Regex.Runtime.MachineEntry
+
+  use Std.Regex.Runtime.Conversion
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Regex.Runtime
+
+  use Std.Equivalent
+
+  fn concat_right_acceptance_start_view(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame), final_evidence: List(Evidence), boxed: ConcatRightAcceptance(n, machine, input, after_input, input_evidence, final_evidence, position, input_captures)) -> AcceptanceStartView(n, machine, position, input, after_input, input_evidence, input_captures, final_evidence) = boxed
+
+  fn left_marked_state_origin(left_count: Nat, right_count: Nat, states: List(MachineState(left_count)), marker: EvidenceInstruction, combined: MachineState(plus(left_count, right_count)), edge: ListMember(MachineState(plus(left_count, right_count)), combined, alternate_left_states(left_count, right_count, states, marker))) -> LeftMarkedStateOrigin(left_count, right_count, marker, states, combined) = match states
+    Nil() -> impossible_list_member(edge)
+    Cons(Active(state, routine, constraints), rest) -> match edge
+      ListMemberHere() -> LeftMarkedActiveOrigin(state, routine, constraints, ListMemberHere())
+      ListMemberThere(prior) -> match left_marked_state_origin(left_count, right_count, rest, marker, combined, prior)
+        LeftMarkedActiveOrigin(origin_state, origin_routine, origin_constraints, origin_edge) -> LeftMarkedActiveOrigin(origin_state, origin_routine, origin_constraints, ListMemberThere(origin_edge))
+        LeftMarkedAcceptedOrigin(origin_routine, origin_constraints, origin_edge) -> LeftMarkedAcceptedOrigin(origin_routine, origin_constraints, ListMemberThere(origin_edge))
+    Cons(Accepted(routine, constraints), rest) -> match edge
+      ListMemberHere() -> LeftMarkedAcceptedOrigin(routine, constraints, ListMemberHere())
+      ListMemberThere(prior) -> match left_marked_state_origin(left_count, right_count, rest, marker, combined, prior)
+        LeftMarkedActiveOrigin(origin_state, origin_routine, origin_constraints, origin_edge) -> LeftMarkedActiveOrigin(origin_state, origin_routine, origin_constraints, ListMemberThere(origin_edge))
+        LeftMarkedAcceptedOrigin(origin_routine, origin_constraints, origin_edge) -> LeftMarkedAcceptedOrigin(origin_routine, origin_constraints, ListMemberThere(origin_edge))
+
+  fn right_marked_state_origin(left_count: Nat, right_count: Nat, states: List(MachineState(right_count)), marker: EvidenceInstruction, combined: MachineState(plus(left_count, right_count)), edge: ListMember(MachineState(plus(left_count, right_count)), combined, alternate_right_states(left_count, right_count, states, marker))) -> RightMarkedStateOrigin(left_count, right_count, marker, states, combined) = match states
+    Nil() -> impossible_list_member(edge)
+    Cons(Active(state, routine, constraints), rest) -> match edge
+      ListMemberHere() -> RightMarkedActiveOrigin(state, routine, constraints, ListMemberHere())
+      ListMemberThere(prior) -> match right_marked_state_origin(left_count, right_count, rest, marker, combined, prior)
+        RightMarkedActiveOrigin(origin_state, origin_routine, origin_constraints, origin_edge) -> RightMarkedActiveOrigin(origin_state, origin_routine, origin_constraints, ListMemberThere(origin_edge))
+        RightMarkedAcceptedOrigin(origin_routine, origin_constraints, origin_edge) -> RightMarkedAcceptedOrigin(origin_routine, origin_constraints, ListMemberThere(origin_edge))
+    Cons(Accepted(routine, constraints), rest) -> match edge
+      ListMemberHere() -> RightMarkedAcceptedOrigin(routine, constraints, ListMemberHere())
+      ListMemberThere(prior) -> match right_marked_state_origin(left_count, right_count, rest, marker, combined, prior)
+        RightMarkedActiveOrigin(origin_state, origin_routine, origin_constraints, origin_edge) -> RightMarkedActiveOrigin(origin_state, origin_routine, origin_constraints, ListMemberThere(origin_edge))
+        RightMarkedAcceptedOrigin(origin_routine, origin_constraints, origin_edge) -> RightMarkedAcceptedOrigin(origin_routine, origin_constraints, ListMemberThere(origin_edge))
+
+  fn input_partition_equivalent({input: List(Char)}, {left: List(Char)}, {right: List(Char)}, partition: InputPartition(input, left, right)) -> Equivalent(List(Char), input, append_characters(left, right)) = match partition
+    InputPartitionHere(_) -> reflexive()
+    InputPartitionThere(char, prior) -> match input_partition_equivalent(prior)
+      reflexive() -> reflexive()
+
+  fn append_characters_empty_right(input: List(Char)) -> Equivalent(List(Char), input, append_characters(input, Nil())) = match input
+    Nil() -> reflexive()
+    Cons(char, rest) -> character_cons_congruent(char, rest, append_characters(rest, Nil()), append_characters_empty_right(rest))
+end

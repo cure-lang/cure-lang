@@ -559,7 +559,18 @@ defmodule Cure.Refactor.Rewrite do
     source_imports = if source_needs_import?, do: [target_import], else: []
     target_imports = if target_needs_import?, do: ["use #{source_module}"], else: []
     source_with_import = insert_imports(source_without_selected, report, source_imports)
-    target = build_target(source, report, selected, target_imports, spec.target_module, source_path)
+    reducible_names = reducible_crossing_names(crossing, selected)
+
+    target =
+      build_target(
+        source,
+        report,
+        selected,
+        target_imports,
+        spec.target_module,
+        source_path,
+        reducible_names
+      )
 
     {:ok,
      %{
@@ -587,6 +598,25 @@ defmodule Cure.Refactor.Rewrite do
     Enum.all?(declarations, fn declaration ->
       declaration.kind not in [:function, :macro] or declaration.visibility in [nil, :public]
     end)
+  end
+
+  # A moved function normally remains opaque at an interface boundary.  When a
+  # declaration left in the source mentions that function in a type, however,
+  # the source checker must reduce the function body to compare the dependent
+  # index.  Mark only those crossing functions reducible; ordinary value calls
+  # retain the normal opaque interface contract.
+  defp reducible_crossing_names(%{remaining_to_selected: crossing}, selected) do
+    selected_by_identity = Map.new(selected, &{&1.identity, &1})
+
+    crossing
+    |> Enum.filter(fn {_declaration, reference} -> reference.kind == :type end)
+    |> Enum.map(fn {_declaration, reference} -> Map.get(selected_by_identity, reference.identity) end)
+    |> Enum.filter(fn
+      %{kind: kind} when kind in [:function, :macro] -> true
+      _ -> false
+    end)
+    |> Enum.map(& &1.name)
+    |> MapSet.new()
   end
 
   defp remove_spans(source, spans) do
@@ -730,10 +760,19 @@ defmodule Cure.Refactor.Rewrite do
 
   defp span_from_map(_), do: nil
 
-  defp build_target(source, report, selected, extra_imports, target_module, source_path) do
+  defp build_target(source, report, selected, extra_imports, target_module, source_path, reducible_names) do
     prefix = module_prefix(source, source_path)
-    imports = Enum.map(report.imports, &import_source(source, &1)) ++ extra_imports
-    declarations = Enum.map(selected, fn declaration -> declaration_source(source, declaration) end)
+    # A target inherits the source module's direct dependencies, but it must
+    # not inherit the source module's compatibility re-exports. Re-exporting
+    # an already-public helper from the extracted module creates a second
+    # unqualified provider at use sites (and can alter dependent alias
+    # reduction). Keep those edges ordinary inside the target; only the source
+    # module publishes the target back to existing callers.
+    imports = Enum.map(report.imports, &target_import_source(source, &1)) ++ extra_imports
+    declarations =
+      Enum.map(selected, fn declaration ->
+        declaration_source(source, declaration, reducible_names)
+      end)
     body = (imports ++ declarations) |> Enum.reject(&(&1 == "")) |> Enum.map(&indent_block/1) |> Enum.join("\n\n")
     [prefix, "mod #{target_module}\n", if(body == "", do: "", else: body <> "\n"), "end\n"] |> IO.iodata_to_binary()
   end
@@ -781,12 +820,43 @@ defmodule Cure.Refactor.Rewrite do
     end
   end
 
-  defp declaration_source(source, %Declaration{span: %Span{} = span}) do
-    {start_byte, end_byte} = declaration_line_span(source, span)
-    binary_part(source, start_byte, end_byte - start_byte) |> String.trim("\n")
+  defp target_import_source(source, import) do
+    source
+    |> import_source(import)
+    |> String.replace_prefix("public use ", "use ")
   end
 
-  defp declaration_source(_source, _declaration), do: ""
+  defp declaration_source(source, %Declaration{span: %Span{} = span, name: name, kind: kind}, reducible_names) do
+    {start_byte, end_byte} = declaration_line_span(source, span)
+    text = binary_part(source, start_byte, end_byte - start_byte) |> String.trim("\n")
+
+    if kind in [:function, :macro] and MapSet.member?(reducible_names, name),
+      do: add_reducible_decorator(text),
+      else: text
+  end
+
+  defp declaration_source(_source, _declaration, _reducible_names), do: ""
+
+  defp add_reducible_decorator(text) do
+    lines = String.split(text, "\n", trim: false)
+
+    if Enum.any?(lines, &(String.trim(&1) == "@reducible")) do
+      text
+    else
+      case Enum.find_index(lines, fn line ->
+             trimmed = String.trim(line)
+             trimmed != "" and not trivia_line?(trimmed)
+           end) do
+        nil ->
+          text
+
+        index ->
+          indent = String.replace(Enum.at(lines, index), ~r/[^ ].*$/, "")
+          {before, after_lines} = Enum.split(lines, index)
+          Enum.join(before ++ [indent <> "@reducible"] ++ after_lines, "\n")
+      end
+    end
+  end
 
   defp indent_block(text) do
     text

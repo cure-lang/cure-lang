@@ -1,0 +1,116 @@
+## Proof infrastructure for the typed regular-expression evidence machine.
+## These views expose the structural laws used to assemble and invert compiled
+## evidence routines while retaining their dependent input and output indices.
+@group(:text)
+mod Std.Regex.Proof.LeafSplit
+  use Std.Regex.Proof.FoundationalViews
+
+  use Std.Regex.Proof.ExecutionViews
+
+  use Std.Regex.Runtime.CompilationMachines
+
+  use Std.Regex.Runtime.CompilationTypes
+
+  use Std.Regex.Runtime.EvidenceExecution
+
+  use Std.Regex.Runtime.LookaroundCompilation
+
+  use Std.Regex.Runtime.ExtendedEvidenceTypes
+
+  use Std.Regex.Runtime.StateRoutinePrimitives
+
+  use Std.Regex.Runtime.MachineEntryPrimitives
+
+  use Std.Regex.Runtime.PatternMachinePrimitives
+
+  use Std.Regex.Runtime.MachineTransitionPrimitives
+
+  use Std.Regex.Runtime.MemberTransportPrimitives
+
+  use Std.Regex.Proof.CertifiedMachine
+
+  use Std.Regex.Proof.GroupTransitionExact
+
+  use Std.Regex.Proof.GroupCharacterRoutine
+
+  use Std.Regex.Proof.SingleCharacterString
+
+  use Std.Regex.Proof.EquivalenceLaws
+
+  use Std.Regex.Proof.MarkerExecution
+
+  use Std.Regex.Runtime.MemberTransport
+
+  use Std.Regex.Runtime.MachineSearch
+
+  use Std.Regex.Runtime.MachineTransitions
+
+  use Std.Regex.Runtime.MachineEntry
+
+  use Std.Regex.Runtime.Conversion
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Regex.Runtime
+
+  use Std.Equivalent
+
+  fn split_end_capture_execution(routine: List(EvidenceInstruction), input_evidence: List(Evidence), input_captures: List(CaptureFrame), {output_evidence: List(Evidence)}, {output_captures: List(CaptureFrame)}, execution: RoutineExecution(append_routine(routine, Cons(EndCapture(), Nil())), input_evidence, input_captures, output_evidence, output_captures)) -> EndCaptureExecutionView(routine, input_evidence, input_captures, output_evidence, output_captures) = match split_appended_routine_execution(routine, Cons(EndCapture(), Nil()), input_evidence, input_captures, execution)
+    AppendedRoutineExecuted(middle_evidence, middle_captures, inner, ending) -> match middle_captures
+      Nil() -> match ending
+        RoutineStep(_, suffix) -> match suffix
+          RoutineDone() ->
+            let no_captures: List(CaptureFrame) = Nil()
+            EndCaptureWithoutFrame(middle_evidence, inner, middle_evidence, reflexive(middle_evidence), no_captures, reflexive(no_captures))
+      Cons(CaptureFrame(chars, saved), outer) -> match ending
+        RoutineStep(_, suffix) -> match suffix
+          RoutineDone() -> EndCaptureWithFrame(middle_evidence, chars, saved, outer, inner, Cons(StringEvidence(captured_string(chars)), saved), reflexive(Cons(StringEvidence(captured_string(chars)), saved)), outer, reflexive(outer))
+end

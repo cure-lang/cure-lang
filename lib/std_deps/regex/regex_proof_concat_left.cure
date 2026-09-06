@@ -1,0 +1,515 @@
+## Proof infrastructure for the typed regular-expression evidence machine.
+## These views expose the structural laws used to assemble and invert compiled
+## evidence routines while retaining their dependent input and output indices.
+@group(:text)
+mod Std.Regex.Proof.ConcatLeft
+  use Std.Regex.Proof.SupportC
+
+  use Std.Regex.Proof.SupportB
+
+  use Std.Regex.Proof.SupportA
+
+  use Std.Regex.Proof.LeafSplit
+
+  use Std.Regex.Proof.FoundationalViews
+
+  use Std.Regex.Proof.ExecutionViews
+
+  use Std.Regex.Runtime.CompilationMachines
+
+  use Std.Regex.Runtime.CompilationTypes
+
+  use Std.Regex.Runtime.EvidenceExecution
+
+  use Std.Regex.Runtime.LookaroundCompilation
+
+  use Std.Regex.Runtime.ExtendedEvidenceTypes
+
+  use Std.Regex.Runtime.StateRoutinePrimitives
+
+  use Std.Regex.Runtime.MachineEntryPrimitives
+
+  use Std.Regex.Runtime.PatternMachinePrimitives
+
+  use Std.Regex.Runtime.MachineTransitionPrimitives
+
+  use Std.Regex.Runtime.MemberTransportPrimitives
+
+  use Std.Regex.Proof.CertifiedMachine
+
+  use Std.Regex.Proof.GroupTransitionExact
+
+  use Std.Regex.Proof.GroupCharacterRoutine
+
+  use Std.Regex.Proof.SingleCharacterString
+
+  use Std.Regex.Proof.EquivalenceLaws
+
+  use Std.Regex.Proof.MarkerExecution
+
+  use Std.Regex.Runtime.MemberTransport
+
+  use Std.Regex.Runtime.MachineSearch
+
+  use Std.Regex.Runtime.MachineTransitions
+
+  use Std.Regex.Runtime.MachineEntry
+
+  use Std.Regex.Runtime.Conversion
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Regex.Runtime
+
+  use Std.Equivalent
+
+  @reducible
+  fn box_concat_right_acceptance(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame), final_evidence: List(Evidence), acceptance: AcceptancePathFrom(n, machine, position, input, after_input, input_evidence, input_captures, final_evidence)) -> ConcatRightAcceptance(n, machine, input, after_input, input_evidence, final_evidence, position, input_captures) = acceptance_start_view(n, machine, position, input, after_input, input_evidence, input_captures, final_evidence, acceptance)
+
+  @reducible
+  fn unbox_concat_right_acceptance(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame), final_evidence: List(Evidence), boxed: ConcatRightAcceptance(n, machine, input, after_input, input_evidence, final_evidence, position, input_captures)) -> AcceptancePathFrom(n, machine, position, input, after_input, input_evidence, input_captures, final_evidence) = acceptance_from_start_view(n, machine, position, input, after_input, input_evidence, input_captures, final_evidence, boxed)
+
+  @reducible
+  fn accepted_start_now_view(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame), final_evidence: List(Evidence), regular: List(EvidenceInstruction), constraints: List(BoundaryConstraint), initial_evidence: List(Evidence), initial_captures: List(CaptureFrame), path_routine: List(ExtendedInstruction), edge: ListMember(MachineState(n), Accepted(regular, constraints), initial_machine_destinations(n, machine, position, input, after_input)), execution: RoutineExecution(regular, input_evidence, input_captures, initial_evidence, initial_captures), path: AcceptingFrom(n, machine, input, after_input, ThreadAccepted(), initial_evidence, initial_captures, final_evidence, path_routine)) -> AcceptedStartNowView(n, machine, position, after_input, input_evidence, input_captures, input, final_evidence, regular, constraints, initial_evidence, initial_captures, path_routine) = match path
+    AcceptingNow() -> AcceptedStartNow(edge, execution)
+    AcceptingNextActive(_, _, _, _, _, _, impossible_edge, _, _) -> impossible_list_member(impossible_edge)
+    AcceptingNextAccepted(_, _, _, _, _, impossible_edge, _, _) -> impossible_list_member(impossible_edge)
+
+  @reducible
+  fn accepted_path_final_captures(n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), current_evidence: List(Evidence), captures: List(CaptureFrame), @erased final_evidence: List(Evidence), @erased routine: List(ExtendedInstruction), path: AcceptingFrom(n, machine, input, after_input, ThreadAccepted(), current_evidence, captures, final_evidence, routine)) -> Equivalent(List(CaptureFrame), accepting_final_captures(n, machine, input, after_input, ThreadAccepted(), current_evidence, captures, final_evidence, routine, path), captures) = match path
+    AcceptingNow() -> reflexive(captures)
+    AcceptingNextActive(_, _, _, _, _, _, edge, _, _) -> impossible_list_member(edge)
+    AcceptingNextAccepted(_, _, _, _, _, edge, _, _) -> impossible_list_member(edge)
+
+  @reducible
+  fn accepted_path_final_evidence(n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), current_evidence: List(Evidence), captures: List(CaptureFrame), @erased final_evidence: List(Evidence), @erased routine: List(ExtendedInstruction), path: AcceptingFrom(n, machine, input, after_input, ThreadAccepted(), current_evidence, captures, final_evidence, routine)) -> Equivalent(List(Evidence), final_evidence, current_evidence) = match path
+    AcceptingNow() -> reflexive(current_evidence)
+    AcceptingNextActive(_, _, _, _, _, _, edge, _, _) -> impossible_list_member(edge)
+    AcceptingNextAccepted(_, _, _, _, _, edge, _, _) -> impossible_list_member(edge)
+
+  @reducible
+  fn accepted_path_input_empty(n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), current_evidence: List(Evidence), captures: List(CaptureFrame), @erased final_evidence: List(Evidence), @erased routine: List(ExtendedInstruction), path: AcceptingFrom(n, machine, input, after_input, ThreadAccepted(), current_evidence, captures, final_evidence, routine)) -> Equivalent(List(Char), input, proof_empty_characters()) = match path
+    AcceptingNow() -> reflexive(proof_empty_characters())
+    AcceptingNextActive(_, _, _, _, _, _, edge, _, _) -> impossible_list_member(edge)
+    AcceptingNextAccepted(_, _, _, _, _, edge, _, _) -> impossible_list_member(edge)
+
+  @reducible
+  fn lift_append_left_member(n: Nat, left: List(MachineState(n)), right: List(MachineState(n)), value: MachineState(n), edge: ListMember(MachineState(n), value, left)) -> ListMember(MachineState(n), value, append_machine_states(n, left, right)) = match left
+    Nil() -> impossible_list_member(edge)
+    Cons(head, rest) -> match edge
+      ListMemberHere() -> member_here(head, append_machine_states(n, rest, right))
+      ListMemberThere(prior) -> member_there(head, lift_append_left_member(n, rest, right, value, prior))
+
+  @reducible
+  fn lift_filtered_right_active_member(left_count: Nat, right_count: Nat, states: List(MachineState(right_count)), marker: EvidenceInstruction, boundary: Boundary, state: Bounded(right_count), routine: List(EvidenceInstruction), edge: ListMember(MachineState(right_count), Active(state, routine, Nil()), filter_machine_states(right_count, states, boundary))) -> ListMember(MachineState(plus(left_count, right_count)), Active(inject_alternate_right(left_count, right_count, state), routine, Nil()), filter_machine_states(plus(left_count, right_count), alternate_right_states(left_count, right_count, states, marker), boundary)) = match states
+    Nil() -> impossible_list_member(edge)
+    Cons(Active(head_state, head_routine, constraints), rest) -> with constraints_hold(constraints, boundary)
+      True() -> match edge
+        ListMemberHere() -> member_here(Active(inject_alternate_right(left_count, right_count, head_state), head_routine, Nil()), filter_machine_states(plus(left_count, right_count), alternate_right_states(left_count, right_count, rest, marker), boundary))
+        ListMemberThere(prior) -> member_there(Active(inject_alternate_right(left_count, right_count, head_state), head_routine, Nil()), lift_filtered_right_active_member(left_count, right_count, rest, marker, boundary, state, routine, prior))
+      False() -> lift_filtered_right_active_member(left_count, right_count, rest, marker, boundary, state, routine, edge)
+    Cons(Accepted(head_routine, constraints), rest) -> with constraints_hold(constraints, boundary)
+      True() -> match edge
+        ListMemberHere() -> impossible
+        ListMemberThere(prior) -> member_there(Accepted(append_branch_marker(head_routine, marker), Nil()), lift_filtered_right_active_member(left_count, right_count, rest, marker, boundary, state, routine, prior))
+      False() -> lift_filtered_right_active_member(left_count, right_count, rest, marker, boundary, state, routine, edge)
+
+  @reducible
+  fn lift_filtered_right_accepted_member(left_count: Nat, right_count: Nat, states: List(MachineState(right_count)), marker: EvidenceInstruction, boundary: Boundary, routine: List(EvidenceInstruction), edge: ListMember(MachineState(right_count), Accepted(routine, Nil()), filter_machine_states(right_count, states, boundary))) -> ListMember(MachineState(plus(left_count, right_count)), Accepted(append_branch_marker(routine, marker), Nil()), filter_machine_states(plus(left_count, right_count), alternate_right_states(left_count, right_count, states, marker), boundary)) = match states
+    Nil() -> impossible_list_member(edge)
+    Cons(Active(head_state, head_routine, constraints), rest) -> with constraints_hold(constraints, boundary)
+      True() -> match edge
+        ListMemberHere() -> impossible
+        ListMemberThere(prior) -> member_there(Active(inject_alternate_right(left_count, right_count, head_state), head_routine, Nil()), lift_filtered_right_accepted_member(left_count, right_count, rest, marker, boundary, routine, prior))
+      False() -> lift_filtered_right_accepted_member(left_count, right_count, rest, marker, boundary, routine, edge)
+    Cons(Accepted(head_routine, constraints), rest) -> with constraints_hold(constraints, boundary)
+      True() -> match edge
+        ListMemberHere() -> member_here(Accepted(append_branch_marker(head_routine, marker), Nil()), filter_machine_states(plus(left_count, right_count), alternate_right_states(left_count, right_count, rest, marker), boundary))
+        ListMemberThere(prior) -> member_there(Accepted(append_branch_marker(head_routine, marker), Nil()), lift_filtered_right_accepted_member(left_count, right_count, rest, marker, boundary, routine, prior))
+      False() -> lift_filtered_right_accepted_member(left_count, right_count, rest, marker, boundary, routine, edge)
+
+  @reducible
+  fn lift_alternate_right_active_edge(left_count: Nat, right_count: Nat, states: List(MachineState(right_count)), marker: EvidenceInstruction, boundary: Boundary, state: Bounded(right_count), routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(right_count), Active(state, routine, constraints), filter_machine_states(right_count, states, boundary)), origin: FilteredStateOrigin(right_count, states, boundary, Active(state, routine, constraints))) -> ListMember(MachineState(plus(left_count, right_count)), Active(inject_alternate_right(left_count, right_count, state), routine, Nil()), filter_machine_states(plus(left_count, right_count), alternate_right_states(left_count, right_count, states, marker), boundary)) = match origin
+    FilteredActiveStateOrigin(_, _, _, _, _) -> lift_filtered_right_active_member(left_count, right_count, states, marker, boundary, state, routine, edge)
+    FilteredAcceptedStateOrigin(_, _, _, _) -> impossible
+
+  @reducible
+  fn lift_alternate_right_accepted_edge(left_count: Nat, right_count: Nat, states: List(MachineState(right_count)), marker: EvidenceInstruction, boundary: Boundary, routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(right_count), Accepted(routine, constraints), filter_machine_states(right_count, states, boundary)), origin: FilteredStateOrigin(right_count, states, boundary, Accepted(routine, constraints))) -> ListMember(MachineState(plus(left_count, right_count)), Accepted(append_branch_marker(routine, marker), Nil()), filter_machine_states(plus(left_count, right_count), alternate_right_states(left_count, right_count, states, marker), boundary)) = match origin
+    FilteredActiveStateOrigin(_, _, _, _, _) -> impossible
+    FilteredAcceptedStateOrigin(_, _, _, _) -> lift_filtered_right_accepted_member(left_count, right_count, states, marker, boundary, routine, edge)
+
+  @reducible
+  fn concat_right_destinations_equivalent(left_count: Nat, left_starts: List(MachineState(left_count)), left_next: (Bounded(left_count)) -> Char -> List(MachineState(left_count)), right_count: Nat, right_starts: List(MachineState(right_count)), right_next: (Bounded(right_count)) -> Char -> List(MachineState(right_count)), source: Bounded(right_count), char: Char, boundary: Boundary) -> Equivalent(List(MachineState(plus(left_count, right_count))), machine_destinations(plus(left_count, right_count), concat_pattern_machine(left_count, MkPatternMachine(left_starts, left_next), right_count, MkPatternMachine(right_starts, right_next)), ThreadActive(inject_alternate_right(left_count, right_count, source)), char, boundary), filter_machine_states(plus(left_count, right_count), alternate_right_states(left_count, right_count, right_next(source, char), EmitPair()), boundary)) =
+    rewrite split_injected_right(left_count, source) in rewrite finish_pair_is_mark_branch(right_next(source, char)) in reflexive(filter_machine_states(plus(left_count, right_count), alternate_right_states(left_count, right_count, right_next(source, char), EmitPair()), boundary))
+
+  @reducible
+  fn concat_right_transition_member(left_count: Nat, left_starts: List(MachineState(left_count)), left_next: (Bounded(left_count)) -> Char -> List(MachineState(left_count)), right_count: Nat, right_starts: List(MachineState(right_count)), right_next: (Bounded(right_count)) -> Char -> List(MachineState(right_count)), source: Bounded(right_count), char: Char, boundary: Boundary, destination: MachineState(plus(left_count, right_count)), edge: ListMember(MachineState(plus(left_count, right_count)), destination, filter_machine_states(plus(left_count, right_count), alternate_right_states(left_count, right_count, right_next(source, char), EmitPair()), boundary))) -> ListMember(MachineState(plus(left_count, right_count)), destination, machine_destinations(plus(left_count, right_count), concat_pattern_machine(left_count, MkPatternMachine(left_starts, left_next), right_count, MkPatternMachine(right_starts, right_next)), ThreadActive(inject_alternate_right(left_count, right_count, source)), char, boundary)) = match concat_right_destinations_equivalent(left_count, left_starts, left_next, right_count, right_starts, right_next, source, char, boundary)
+    reflexive() -> edge
+
+  @reducible
+  fn lift_concat_right_active_path(left_count: Nat, left_machine: PatternMachine(left_count), right_count: Nat, right_machine: PatternMachine(right_count), input: List(Char), after_input: List(Char), source: Bounded(right_count), current_evidence: List(Evidence), current_captures: List(CaptureFrame), child_final_evidence: List(Evidence), child_routine: List(ExtendedInstruction), path: AcceptingFrom(right_count, right_machine, input, after_input, ThreadActive(source), current_evidence, current_captures, child_final_evidence, child_routine)) -> ConcatRightActivePathEmbedding(left_count, left_machine, right_count, right_machine, input, after_input, source, current_evidence, current_captures, child_final_evidence) = match input
+    Nil() -> match path
+      AcceptingNow() -> impossible
+      AcceptingNextActive(_, _, _, _, _, _, _, _, _) -> impossible
+      AcceptingNextAccepted(_, _, _, _, _, _, _, _) -> impossible
+    Cons(char, rest) -> match left_machine
+      MkPatternMachine(left_starts, left_next) -> match right_machine
+        MkPatternMachine(right_starts, right_next) -> match path
+          AcceptingNow() -> impossible
+          AcceptingNextActive(destination, regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix) -> match lift_concat_right_active_path(left_count, MkPatternMachine(left_starts, left_next), right_count, MkPatternMachine(right_starts, right_next), rest, after_input, destination, destination_evidence, destination_captures, child_final_evidence, suffix_routine, suffix)
+            mk_pair(combined_suffix_routine, combined_suffix) ->
+              let origin = filtered_state_origin(right_count, right_next(source, char), transition_boundary_before(char, rest, after_input), Active(destination, regular, constraints), edge)
+              let filtered_combined_edge = lift_alternate_right_active_edge(left_count, right_count, right_next(source, char), EmitPair(), transition_boundary_before(char, rest, after_input), destination, regular, constraints, edge, origin)
+              let combined_edge = concat_right_transition_member(left_count, left_starts, left_next, right_count, right_starts, right_next, source, char, transition_boundary_before(char, rest, after_input), Active(inject_alternate_right(left_count, right_count, destination), regular, Nil()), filtered_combined_edge)
+              let combined_routine = append_extended_routines(transition_routine(char, regular), combined_suffix_routine)
+              %[combined_routine, AcceptingNextActive(inject_alternate_right(left_count, right_count, destination), regular, empty_constraints(), destination_evidence, destination_captures, combined_suffix_routine, combined_edge, execution, combined_suffix)]
+          AcceptingNextAccepted(regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix) -> match suffix
+            AcceptingNow() ->
+              let marker_execution: RoutineExecution(Cons(EmitPair(), Nil()), destination_evidence, destination_captures, Cons(PairEvidence(), destination_evidence), destination_captures) = RoutineStep(EmitPair(), RoutineDone())
+              let combined_execution = append_routine_execution(regular, Cons(EmitPair(), Nil()), current_evidence, record_capture_char(current_captures, char), destination_evidence, destination_captures, Cons(PairEvidence(), destination_evidence), destination_captures, execution, marker_execution)
+              let origin = filtered_state_origin(right_count, right_next(source, char), transition_boundary_before(char, rest, after_input), Accepted(regular, constraints), edge)
+              let filtered_combined_edge = lift_alternate_right_accepted_edge(left_count, right_count, right_next(source, char), EmitPair(), transition_boundary_before(char, rest, after_input), regular, constraints, edge, origin)
+              let combined_edge = concat_right_transition_member(left_count, left_starts, left_next, right_count, right_starts, right_next, source, char, transition_boundary_before(char, rest, after_input), Accepted(append_branch_marker(regular, EmitPair()), Nil()), filtered_combined_edge)
+              let no_extended: List(ExtendedInstruction) = Nil()
+              let combined_routine = append_extended_routines(transition_routine(char, append_branch_marker(regular, EmitPair())), no_extended)
+              %[combined_routine, AcceptingNextAccepted(append_branch_marker(regular, EmitPair()), empty_constraints(), Cons(PairEvidence(), destination_evidence), destination_captures, no_extended, combined_edge, combined_execution, AcceptingNow())]
+            AcceptingNextActive(_, _, _, _, _, _, _, _, _) -> impossible
+            AcceptingNextAccepted(_, _, _, _, _, _, _, _) -> impossible
+
+  @reducible
+  fn concat_left_active_path_routine(left_count: Nat, left_machine: PatternMachine(left_count), right_count: Nat, right_machine: PatternMachine(right_count), position: InitialPosition, left_input: List(Char), right_input: List(Char), after_input: List(Char), source: Bounded(left_count), current_evidence: List(Evidence), current_captures: List(CaptureFrame), right_final_evidence: List(Evidence), embedding: ConcatLeftActivePathEmbedding(left_count, left_machine, right_count, right_machine, position, left_input, right_input, after_input, source, current_evidence, current_captures, right_final_evidence)) -> List(ExtendedInstruction) = match embedding
+    ConcatLeftActivePath(combined_routine, _) -> combined_routine
+
+  @reducible
+  fn concat_left_active_path_value(left_count: Nat, left_machine: PatternMachine(left_count), right_count: Nat, right_machine: PatternMachine(right_count), position: InitialPosition, left_input: List(Char), right_input: List(Char), after_input: List(Char), source: Bounded(left_count), current_evidence: List(Evidence), current_captures: List(CaptureFrame), right_final_evidence: List(Evidence), embedding: ConcatLeftActivePathEmbedding(left_count, left_machine, right_count, right_machine, position, left_input, right_input, after_input, source, current_evidence, current_captures, right_final_evidence)) -> AcceptingFrom(plus(left_count, right_count), concat_pattern_machine(left_count, left_machine, right_count, right_machine), append_characters(left_input, right_input), after_input, ThreadActive(inject_alternate_left(left_count, right_count, source)), current_evidence, current_captures, Cons(PairEvidence(), right_final_evidence), concat_left_active_path_routine(left_count, left_machine, right_count, right_machine, position, left_input, right_input, after_input, source, current_evidence, current_captures, right_final_evidence, embedding)) = match embedding
+    ConcatLeftActivePath(_, path) -> path
+
+  @reducible
+  fn prepend_concat_left_active_path(left_count: Nat, left_machine: PatternMachine(left_count), right_count: Nat, right_machine: PatternMachine(right_count), char: Char, rest: List(Char), right_input: List(Char), after_input: List(Char), source: Bounded(left_count), current_evidence: List(Evidence), current_captures: List(CaptureFrame), destination: Bounded(left_count), regular: List(EvidenceInstruction), destination_evidence: List(Evidence), destination_captures: List(CaptureFrame), suffix_routine: List(ExtendedInstruction), edge: ListMember(MachineState(plus(left_count, right_count)), Active(inject_alternate_left(left_count, right_count, destination), regular, empty_constraints()), machine_destinations(plus(left_count, right_count), concat_pattern_machine(left_count, left_machine, right_count, right_machine), ThreadActive(inject_alternate_left(left_count, right_count, source)), char, transition_boundary_before(char, append_characters(rest, right_input), after_input))), execution: RoutineExecution(regular, current_evidence, record_capture_char(current_captures, char), destination_evidence, destination_captures), right_final_evidence: List(Evidence), suffix: AcceptingFrom(plus(left_count, right_count), concat_pattern_machine(left_count, left_machine, right_count, right_machine), append_characters(rest, right_input), after_input, ThreadActive(inject_alternate_left(left_count, right_count, destination)), destination_evidence, destination_captures, Cons(PairEvidence(), right_final_evidence), suffix_routine)) -> AcceptingFrom(plus(left_count, right_count), concat_pattern_machine(left_count, left_machine, right_count, right_machine), append_characters(Cons(char, rest), right_input), after_input, ThreadActive(inject_alternate_left(left_count, right_count, source)), current_evidence, current_captures, Cons(PairEvidence(), right_final_evidence), append_extended_routines(transition_routine(char, regular), suffix_routine)) =
+    AcceptingNextActive(inject_alternate_left(left_count, right_count, destination), regular, empty_constraints(), destination_evidence, destination_captures, suffix_routine, edge, execution, suffix)
+
+  @reducible
+  fn concat_left_active_input_view(left_count: Nat, left_starts: List(MachineState(left_count)), left_next: (Bounded(left_count)) -> Char -> List(MachineState(left_count)), right_count: Nat, right_starts: List(MachineState(right_count)), right_next: (Bounded(right_count)) -> Char -> List(MachineState(right_count)), position: InitialPosition, left_input: List(Char), right_input: List(Char), after_input: List(Char), source: Bounded(left_count), current_evidence: List(Evidence), current_captures: List(CaptureFrame), left_final_evidence: List(Evidence), left_path_routine: List(ExtendedInstruction), left_path: AcceptingFrom(left_count, MkPatternMachine(left_starts, left_next), left_input, append_characters(right_input, after_input), ThreadActive(source), current_evidence, current_captures, left_final_evidence, left_path_routine), left_final_captures: List(CaptureFrame), left_captures_exact: Equivalent(List(CaptureFrame), left_final_captures, accepting_final_captures(left_count, MkPatternMachine(left_starts, left_next), left_input, append_characters(right_input, after_input), ThreadActive(source), current_evidence, current_captures, left_final_evidence, left_path_routine, left_path)), right_final_evidence: List(Evidence), right_acceptance: AcceptancePathFrom(right_count, MkPatternMachine(right_starts, right_next), advance_initial_position(position, left_input), right_input, after_input, left_final_evidence, left_final_captures, right_final_evidence)) -> ConcatLeftActiveInputView(left_count, left_starts, left_next, right_count, right_starts, right_next, position, right_input, after_input, source, current_evidence, current_captures, left_final_evidence, right_final_evidence, left_input) = match left_path
+    AcceptingNow() -> impossible
+    AcceptingNextActive(destination, regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix) -> match left_input
+      Nil() -> impossible
+      Cons(char, rest) -> ConcatLeftActiveNextActive(char, rest, destination, regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix, left_final_captures, left_captures_exact, right_acceptance)
+    AcceptingNextAccepted(regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix) -> match left_input
+      Nil() -> impossible
+      Cons(char, rest) -> ConcatLeftActiveNextAccepted(char, rest, regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix, left_final_captures, left_captures_exact, right_acceptance)
+
+  @reducible
+  fn lift_concat_left_active_path_from_view(left_count: Nat, left_starts: List(MachineState(left_count)), left_next: (Bounded(left_count)) -> Char -> List(MachineState(left_count)), right_count: Nat, right_starts: List(MachineState(right_count)), right_next: (Bounded(right_count)) -> Char -> List(MachineState(right_count)), position: InitialPosition, left_input: List(Char), right_input: List(Char), after_input: List(Char), source: Bounded(left_count), current_evidence: List(Evidence), current_captures: List(CaptureFrame), left_final_evidence: List(Evidence), left_path_routine: List(ExtendedInstruction), left_path: AcceptingFrom(left_count, MkPatternMachine(left_starts, left_next), left_input, append_characters(right_input, after_input), ThreadActive(source), current_evidence, current_captures, left_final_evidence, left_path_routine), right_final_evidence: List(Evidence), right_acceptance: AcceptancePathFrom(right_count, MkPatternMachine(right_starts, right_next), advance_initial_position(position, left_input), right_input, after_input, left_final_evidence, accepting_final_captures(left_count, MkPatternMachine(left_starts, left_next), left_input, append_characters(right_input, after_input), ThreadActive(source), current_evidence, current_captures, left_final_evidence, left_path_routine, left_path), right_final_evidence), active_input: ConcatLeftActiveInputView(left_count, left_starts, left_next, right_count, right_starts, right_next, position, right_input, after_input, source, current_evidence, current_captures, left_final_evidence, right_final_evidence, left_input)) -> ConcatLeftActivePathEmbedding(left_count, MkPatternMachine(left_starts, left_next), right_count, MkPatternMachine(right_starts, right_next), position, left_input, right_input, after_input, source, current_evidence, current_captures, right_final_evidence) =
+    match active_input
+        ConcatLeftActiveNextActive(char, rest, destination, regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix, left_final_captures, left_captures_exact, branch_right_acceptance) ->
+              let right_acceptance_view = box_concat_right_acceptance(right_count, MkPatternMachine(right_starts, right_next), advance_initial_position(position, Cons(char, rest)), right_input, after_input, left_final_evidence, left_final_captures, right_final_evidence, branch_right_acceptance)
+              let branch_left_path: AcceptingFrom(left_count, MkPatternMachine(left_starts, left_next), Cons(char, rest), append_characters(right_input, after_input), ThreadActive(source), current_evidence, current_captures, left_final_evidence, append_extended_routines(transition_routine(char, regular), suffix_routine)) = AcceptingNextActive(destination, regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix)
+              let whole_final_captures = accepting_final_captures(left_count, MkPatternMachine(left_starts, left_next), Cons(char, rest), append_characters(right_input, after_input), ThreadActive(source), current_evidence, current_captures, left_final_evidence, append_extended_routines(transition_routine(char, regular), suffix_routine), branch_left_path)
+              let suffix_final_captures = accepting_final_captures(left_count, MkPatternMachine(left_starts, left_next), rest, append_characters(right_input, after_input), ThreadActive(destination), destination_evidence, destination_captures, left_final_evidence, suffix_routine, suffix)
+              let captures_step = accepting_next_active_final_captures(left_count, MkPatternMachine(left_starts, left_next), char, rest, append_characters(right_input, after_input), source, current_evidence, current_captures, destination, regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, left_final_evidence, suffix, branch_left_path)
+              let left_to_suffix = capture_equivalent_transitive(left_final_captures, whole_final_captures, suffix_final_captures, left_captures_exact, captures_step)
+              let position_to_suffix = initial_position_equivalent_symmetric(advance_initial_position(advance_initial_position(position, Cons(char, Nil())), rest), advance_initial_position(position, Cons(char, rest)), advance_initial_position_cons(position, char, rest))
+              let suffix_right_acceptance_view = transport_concat_right_acceptance(right_count, MkPatternMachine(right_starts, right_next), advance_initial_position(position, Cons(char, rest)), advance_initial_position(advance_initial_position(position, Cons(char, Nil())), rest), right_input, after_input, left_final_evidence, left_final_evidence, left_final_captures, suffix_final_captures, right_final_evidence, position_to_suffix, reflexive(left_final_evidence), left_to_suffix, right_acceptance_view)
+              let suffix_right_acceptance = unbox_concat_right_acceptance(right_count, MkPatternMachine(right_starts, right_next), advance_initial_position(advance_initial_position(position, Cons(char, Nil())), rest), right_input, after_input, left_final_evidence, suffix_final_captures, right_final_evidence, suffix_right_acceptance_view)
+              let suffix_embedding = lift_concat_left_active_path(left_count, MkPatternMachine(left_starts, left_next), right_count, MkPatternMachine(right_starts, right_next), advance_initial_position(position, Cons(char, Nil())), rest, right_input, after_input, destination, destination_evidence, destination_captures, left_final_evidence, suffix_routine, suffix, right_final_evidence, suffix_right_acceptance)
+              let combined_suffix_routine = concat_left_active_path_routine(left_count, MkPatternMachine(left_starts, left_next), right_count, MkPatternMachine(right_starts, right_next), advance_initial_position(position, Cons(char, Nil())), rest, right_input, after_input, destination, destination_evidence, destination_captures, right_final_evidence, suffix_embedding)
+              let combined_suffix = concat_left_active_path_value(left_count, MkPatternMachine(left_starts, left_next), right_count, MkPatternMachine(right_starts, right_next), advance_initial_position(position, Cons(char, Nil())), rest, right_input, after_input, destination, destination_evidence, destination_captures, right_final_evidence, suffix_embedding)
+              let boundary = transition_boundary_before(char, append_characters(rest, right_input), after_input)
+              let edge_after = transport_transition_edge_after(left_count, MkPatternMachine(left_starts, left_next), source, char, append_characters(rest, append_characters(right_input, after_input)), append_characters(append_characters(rest, right_input), after_input), Active(destination, regular, constraints), character_list_equivalent_symmetric(append_characters(append_characters(rest, right_input), after_input), append_characters(rest, append_characters(right_input, after_input)), partition_append_after(after_input, append_input_partition(rest, right_input))), edge)
+              let filtered_left_edge = transport_alternate_edge(reflexive(filter_machine_states(left_count, left_next(source, char), boundary)), edge_after)
+              let origin = filtered_state_origin(left_count, left_next(source, char), boundary, Active(destination, regular, constraints), filtered_left_edge)
+              let combined_edge = lift_concat_left_active_edge(left_count, left_starts, left_next, right_count, right_starts, right_next, source, char, boundary, destination, regular, constraints, filtered_left_edge, origin)
+              let combined_routine = append_extended_routines(transition_routine(char, regular), combined_suffix_routine)
+              let combined_path = prepend_concat_left_active_path(left_count, MkPatternMachine(left_starts, left_next), right_count, MkPatternMachine(right_starts, right_next), char, rest, right_input, after_input, source, current_evidence, current_captures, destination, regular, destination_evidence, destination_captures, combined_suffix_routine, combined_edge, execution, right_final_evidence, combined_suffix)
+              let result: ConcatLeftActivePathEmbedding(left_count, MkPatternMachine(left_starts, left_next), right_count, MkPatternMachine(right_starts, right_next), position, Cons(char, rest), right_input, after_input, source, current_evidence, current_captures, right_final_evidence) = ConcatLeftActivePath(combined_routine, combined_path)
+              result
+        ConcatLeftActiveNextAccepted(char, rest, left_regular, left_constraints, left_destination_evidence, left_destination_captures, left_suffix_routine, left_edge, left_execution, left_suffix, left_final_captures, left_captures_exact, branch_right_acceptance) ->
+                  let right_acceptance_view = box_concat_right_acceptance(right_count, MkPatternMachine(right_starts, right_next), advance_initial_position(position, Cons(char, rest)), right_input, after_input, left_final_evidence, left_final_captures, right_final_evidence, branch_right_acceptance)
+                  let unboxed_right_acceptance = unbox_concat_right_acceptance(right_count, MkPatternMachine(right_starts, right_next), advance_initial_position(position, Cons(char, rest)), right_input, after_input, left_final_evidence, left_final_captures, right_final_evidence, right_acceptance_view)
+                  let branch_left_path: AcceptingFrom(left_count, MkPatternMachine(left_starts, left_next), Cons(char, rest), append_characters(right_input, after_input), ThreadActive(source), current_evidence, current_captures, left_final_evidence, append_extended_routines(transition_routine(char, left_regular), left_suffix_routine)) = AcceptingNextAccepted(left_regular, left_constraints, left_destination_evidence, left_destination_captures, left_suffix_routine, left_edge, left_execution, left_suffix)
+                  let whole_final_captures = accepting_final_captures(left_count, MkPatternMachine(left_starts, left_next), Cons(char, rest), append_characters(right_input, after_input), ThreadActive(source), current_evidence, current_captures, left_final_evidence, append_extended_routines(transition_routine(char, left_regular), left_suffix_routine), branch_left_path)
+                  let suffix_final_captures = accepting_final_captures(left_count, MkPatternMachine(left_starts, left_next), rest, append_characters(right_input, after_input), ThreadAccepted(), left_destination_evidence, left_destination_captures, left_final_evidence, left_suffix_routine, left_suffix)
+                  let rest_empty = accepted_path_input_empty(left_count, MkPatternMachine(left_starts, left_next), rest, append_characters(right_input, after_input), left_destination_evidence, left_destination_captures, left_final_evidence, left_suffix_routine, left_suffix)
+                  let evidence_exact = accepted_path_final_evidence(left_count, MkPatternMachine(left_starts, left_next), rest, append_characters(right_input, after_input), left_destination_evidence, left_destination_captures, left_final_evidence, left_suffix_routine, left_suffix)
+                  let suffix_captures_exact = accepted_path_final_captures(left_count, MkPatternMachine(left_starts, left_next), rest, append_characters(right_input, after_input), left_destination_evidence, left_destination_captures, left_final_evidence, left_suffix_routine, left_suffix)
+                  let right_position_equality = advance_position_after_empty_tail(position, char, rest, rest_empty)
+                  let positioned_right_acceptance = transport_acceptance_position(right_count, MkPatternMachine(right_starts, right_next), advance_initial_position(position, Cons(char, rest)), advance_initial_position(position, Cons(char, Nil())), right_input, after_input, left_final_evidence, left_final_captures, right_final_evidence, right_position_equality, unboxed_right_acceptance)
+                  let evidence_right_acceptance = transport_acceptance_input_evidence(right_count, MkPatternMachine(right_starts, right_next), advance_initial_position(position, Cons(char, Nil())), right_input, after_input, left_final_evidence, left_destination_evidence, left_final_captures, right_final_evidence, evidence_exact, positioned_right_acceptance)
+                  let whole_to_suffix = accepting_next_accepted_final_captures(left_count, MkPatternMachine(left_starts, left_next), char, rest, append_characters(right_input, after_input), source, current_evidence, current_captures, left_regular, left_constraints, left_destination_evidence, left_destination_captures, left_suffix_routine, left_edge, left_execution, left_final_evidence, left_suffix, branch_left_path)
+                  let left_to_suffix = capture_equivalent_transitive(left_final_captures, whole_final_captures, suffix_final_captures, left_captures_exact, whole_to_suffix)
+                  let left_to_destination = capture_equivalent_transitive(left_final_captures, suffix_final_captures, left_destination_captures, left_to_suffix, suffix_captures_exact)
+                  let destination_right_acceptance = transport_acceptance_input_captures(right_count, MkPatternMachine(right_starts, right_next), advance_initial_position(position, Cons(char, Nil())), right_input, after_input, left_destination_evidence, left_final_captures, left_destination_captures, right_final_evidence, left_to_destination, evidence_right_acceptance)
+                  let combined_input_equality = append_after_empty_tail(char, rest, right_input, rest_empty)
+                  match acceptance_start_view(right_count, MkPatternMachine(right_starts, right_next), advance_initial_position(position, Cons(char, Nil())), right_input, after_input, left_destination_evidence, left_destination_captures, right_final_evidence, destination_right_acceptance)
+                    AcceptanceStartsActive(right_state, right_regular, right_constraints, right_initial_evidence, right_initial_captures, right_path_routine, right_edge, right_execution, right_path) ->
+                      let transition_boundary_value = transition_boundary_before(char, right_input, after_input)
+                      let initial_boundary_value = initial_position_boundary(advance_initial_position(position, Cons(char, Nil())), append_characters(right_input, after_input))
+                      let boundary_equality = advanced_position_boundary(position, char, right_input, after_input)
+                      let left_edge_after = transport_transition_edge_after(left_count, MkPatternMachine(left_starts, left_next), source, char, append_characters(rest, append_characters(right_input, after_input)), append_characters(right_input, after_input), Accepted(left_regular, left_constraints), append_empty_tail_after(rest, right_input, after_input, rest_empty), left_edge)
+                      let left_edge_at_initial = transport_filtered_state_boundary(left_count, left_next(source, char), transition_boundary_value, initial_boundary_value, Accepted(left_regular, left_constraints), boundary_equivalent_symmetric(initial_boundary_value, transition_boundary_value, boundary_equality), left_edge_after)
+                      match filtered_accepted_witness(left_count, left_next(source, char), initial_boundary_value, left_regular, left_constraints, left_edge_at_initial)
+                        mk_pair(raw_left_regular, mk_pair(raw_left_constraints, mk_pair(raw_left_edge, mk_pair(left_holds, left_routine_exact)))) -> match filtered_active_witness(right_count, right_starts, initial_boundary_value, right_state, right_regular, right_constraints, right_edge)
+                          mk_pair(raw_right_regular, mk_pair(raw_right_constraints, mk_pair(raw_right_edge, mk_pair(right_holds, right_routine_exact)))) -> match lift_concat_right_active_path(left_count, MkPatternMachine(left_starts, left_next), right_count, MkPatternMachine(right_starts, right_next), right_input, after_input, right_state, right_initial_evidence, right_initial_captures, right_final_evidence, right_path_routine, right_path)
+                            mk_pair(combined_suffix_routine, combined_suffix) ->
+                              let entered_edge = lift_enter_right_active_member(left_count, right_count, raw_left_regular, raw_left_constraints, right_starts, right_state, raw_right_regular, raw_right_constraints, raw_right_edge)
+                              let combined_state = inject_alternate_right(left_count, right_count, right_state)
+                              let combined_regular = append_routine(raw_left_regular, raw_right_regular)
+                              let combined_constraints = append_constraints(raw_left_constraints, raw_right_constraints)
+                              let continued_edge = lift_continue_entered_right_member(left_count, right_count, left_next(source, char), right_starts, raw_left_regular, raw_left_constraints, raw_left_edge, Active(combined_state, combined_regular, combined_constraints), entered_edge)
+                              let combined_holds = appended_constraints_hold(raw_left_constraints, raw_right_constraints, initial_boundary_value, left_holds, right_holds)
+                              let filtered_initial_edge = filter_active_member(plus(left_count, right_count), continue_with_right(left_count, left_next(source, char), right_starts), initial_boundary_value, combined_state, combined_regular, combined_constraints, continued_edge, combined_holds)
+                              let filtered_combined_edge = transport_filtered_state_boundary(plus(left_count, right_count), continue_with_right(left_count, left_next(source, char), right_starts), initial_boundary_value, transition_boundary_value, Active(combined_state, combined_regular, Nil()), boundary_equality, filtered_initial_edge)
+                              let combined_edge = concat_left_transition_member(left_count, left_starts, left_next, right_count, right_starts, right_next, source, char, transition_boundary_value, Active(combined_state, combined_regular, Nil()), filtered_combined_edge)
+                              let raw_left_execution = transport_routine_execution_routine(left_regular, raw_left_regular, current_evidence, record_capture_char(current_captures, char), left_destination_evidence, left_destination_captures, left_routine_exact, left_execution)
+                              let raw_right_execution = transport_routine_execution_routine(right_regular, raw_right_regular, left_destination_evidence, left_destination_captures, right_initial_evidence, right_initial_captures, right_routine_exact, right_execution)
+                              let combined_execution = append_routine_execution(raw_left_regular, raw_right_regular, current_evidence, record_capture_char(current_captures, char), left_destination_evidence, left_destination_captures, right_initial_evidence, right_initial_captures, raw_left_execution, raw_right_execution)
+                              let combined_routine = append_extended_routines(transition_routine(char, combined_regular), combined_suffix_routine)
+                              let combined_path: AcceptingFrom(plus(left_count, right_count), concat_pattern_machine(left_count, MkPatternMachine(left_starts, left_next), right_count, MkPatternMachine(right_starts, right_next)), Cons(char, right_input), after_input, ThreadActive(inject_alternate_left(left_count, right_count, source)), current_evidence, current_captures, Cons(PairEvidence(), right_final_evidence), combined_routine) = AcceptingNextActive(combined_state, combined_regular, empty_constraints(), right_initial_evidence, right_initial_captures, combined_suffix_routine, combined_edge, combined_execution, combined_suffix)
+                              ConcatLeftActivePath(combined_routine, transport_accepting_input(plus(left_count, right_count), concat_pattern_machine(left_count, MkPatternMachine(left_starts, left_next), right_count, MkPatternMachine(right_starts, right_next)), Cons(char, right_input), append_characters(Cons(char, rest), right_input), after_input, ThreadActive(inject_alternate_left(left_count, right_count, source)), current_evidence, current_captures, Cons(PairEvidence(), right_final_evidence), combined_routine, combined_input_equality, combined_path))
+                    AcceptanceStartsAccepted(right_regular, right_constraints, right_initial_evidence, right_initial_captures, right_path_routine, right_edge, right_execution, right_path) ->
+                      let right_input_empty = accepted_path_input_empty(right_count, MkPatternMachine(right_starts, right_next), right_input, after_input, right_initial_evidence, right_initial_captures, right_final_evidence, right_path_routine, right_path)
+                      let left_edge_after_right = transport_transition_edge_after(left_count, MkPatternMachine(left_starts, left_next), source, char, append_characters(rest, append_characters(right_input, after_input)), append_characters(right_input, after_input), Accepted(left_regular, left_constraints), append_empty_tail_after(rest, right_input, after_input, rest_empty), left_edge)
+                      let left_edge_at_empty = transport_filtered_state_boundary(left_count, left_next(source, char), transition_boundary_value, transition_boundary_before(char, Nil(), after_input), Accepted(left_regular, left_constraints), transition_boundary_input_empty(char, right_input, after_input, right_input_empty), left_edge_after_right)
+                      match accepted_start_now_view(right_count, MkPatternMachine(right_starts, right_next), advance_initial_position(position, Cons(char, Nil())), right_input, after_input, left_destination_evidence, left_destination_captures, right_final_evidence, right_regular, right_constraints, right_initial_evidence, right_initial_captures, right_path_routine, right_edge, right_execution, right_path)
+                        AcceptedStartNow(right_edge_now, right_execution_now) ->
+                          let transition_boundary_value = transition_boundary_before(char, Nil(), after_input)
+                          let initial_boundary_value = initial_position_boundary(advance_initial_position(position, Cons(char, Nil())), after_input)
+                          let boundary_equality = advanced_position_boundary(position, char, Nil(), after_input)
+                          let right_edge_at_transition: ListMember(MachineState(right_count), Accepted(right_regular, right_constraints), filter_machine_states(right_count, right_starts, transition_boundary_value)) = transport_filtered_state_boundary(right_count, right_starts, initial_boundary_value, transition_boundary_value, Accepted(right_regular, right_constraints), boundary_equality, right_edge_now)
+                          match filtered_accepted_witness(left_count, left_next(source, char), transition_boundary_value, left_regular, left_constraints, left_edge_at_empty)
+                            mk_pair(raw_left_regular, mk_pair(raw_left_constraints, mk_pair(raw_left_edge, mk_pair(left_holds, left_routine_exact)))) -> match filtered_accepted_witness(right_count, right_starts, transition_boundary_value, right_regular, right_constraints, right_edge_at_transition)
+                              mk_pair(raw_right_regular, mk_pair(raw_right_constraints, mk_pair(raw_right_edge, mk_pair(right_holds, right_routine_exact)))) ->
+                                let entered_edge = lift_enter_right_accepted_member(left_count, right_count, raw_left_regular, raw_left_constraints, right_starts, raw_right_regular, raw_right_constraints, raw_right_edge)
+                                let combined_regular = append_routine(append_routine(raw_left_regular, raw_right_regular), Cons(EmitPair(), Nil()))
+                                let combined_constraints = append_constraints(raw_left_constraints, raw_right_constraints)
+                                let continued_edge = lift_continue_entered_right_member(left_count, right_count, left_next(source, char), right_starts, raw_left_regular, raw_left_constraints, raw_left_edge, Accepted(combined_regular, combined_constraints), entered_edge)
+                                let combined_holds = appended_constraints_hold(raw_left_constraints, raw_right_constraints, transition_boundary_value, left_holds, right_holds)
+                                let filtered_combined_edge = filter_accepted_member(plus(left_count, right_count), continue_with_right(left_count, left_next(source, char), right_starts), transition_boundary_value, combined_regular, combined_constraints, continued_edge, combined_holds)
+                                let combined_edge = concat_left_transition_member(left_count, left_starts, left_next, right_count, right_starts, right_next, source, char, transition_boundary_value, Accepted(combined_regular, Nil()), filtered_combined_edge)
+                                let raw_left_execution = transport_routine_execution_routine(left_regular, raw_left_regular, current_evidence, record_capture_char(current_captures, char), left_destination_evidence, left_destination_captures, left_routine_exact, left_execution)
+                                let raw_right_execution = transport_routine_execution_routine(right_regular, raw_right_regular, left_destination_evidence, left_destination_captures, right_initial_evidence, right_initial_captures, right_routine_exact, right_execution_now)
+                                let left_right_execution = append_routine_execution(raw_left_regular, raw_right_regular, current_evidence, record_capture_char(current_captures, char), left_destination_evidence, left_destination_captures, right_initial_evidence, right_initial_captures, raw_left_execution, raw_right_execution)
+                                let marker_execution: RoutineExecution(Cons(EmitPair(), Nil()), right_initial_evidence, right_initial_captures, Cons(PairEvidence(), right_initial_evidence), right_initial_captures) = RoutineStep(EmitPair(), RoutineDone())
+                                let combined_execution = append_routine_execution(append_routine(raw_left_regular, raw_right_regular), Cons(EmitPair(), Nil()), current_evidence, record_capture_char(current_captures, char), right_initial_evidence, right_initial_captures, Cons(PairEvidence(), right_initial_evidence), right_initial_captures, left_right_execution, marker_execution)
+                                let no_extended: List(ExtendedInstruction) = Nil()
+                                let combined_routine = append_extended_routines(transition_routine(char, combined_regular), no_extended)
+                                let combined_path: AcceptingFrom(plus(left_count, right_count), concat_pattern_machine(left_count, MkPatternMachine(left_starts, left_next), right_count, MkPatternMachine(right_starts, right_next)), Cons(char, Nil()), after_input, ThreadActive(inject_alternate_left(left_count, right_count, source)), current_evidence, current_captures, Cons(PairEvidence(), right_initial_evidence), combined_routine) = AcceptingNextAccepted(combined_regular, Nil(), Cons(PairEvidence(), right_initial_evidence), right_initial_captures, no_extended, combined_edge, combined_execution, AcceptingNow())
+                                ConcatLeftActivePath(combined_routine, transport_accepting_input(plus(left_count, right_count), concat_pattern_machine(left_count, MkPatternMachine(left_starts, left_next), right_count, MkPatternMachine(right_starts, right_next)), Cons(char, Nil()), append_characters(Cons(char, rest), Nil()), after_input, ThreadActive(inject_alternate_left(left_count, right_count, source)), current_evidence, current_captures, Cons(PairEvidence(), right_final_evidence), combined_routine, combined_input_equality, combined_path))
+
+  @reducible
+  fn lift_concat_left_active_path(left_count: Nat, left_machine: PatternMachine(left_count), right_count: Nat, right_machine: PatternMachine(right_count), position: InitialPosition, left_input: List(Char), right_input: List(Char), after_input: List(Char), source: Bounded(left_count), current_evidence: List(Evidence), current_captures: List(CaptureFrame), left_final_evidence: List(Evidence), left_path_routine: List(ExtendedInstruction), left_path: AcceptingFrom(left_count, left_machine, left_input, append_characters(right_input, after_input), ThreadActive(source), current_evidence, current_captures, left_final_evidence, left_path_routine), right_final_evidence: List(Evidence), right_acceptance: AcceptancePathFrom(right_count, right_machine, advance_initial_position(position, left_input), right_input, after_input, left_final_evidence, accepting_final_captures(left_count, left_machine, left_input, append_characters(right_input, after_input), ThreadActive(source), current_evidence, current_captures, left_final_evidence, left_path_routine, left_path), right_final_evidence)) -> ConcatLeftActivePathEmbedding(left_count, left_machine, right_count, right_machine, position, left_input, right_input, after_input, source, current_evidence, current_captures, right_final_evidence) = match left_machine
+    MkPatternMachine(left_starts, left_next) -> match right_machine
+      MkPatternMachine(right_starts, right_next) -> lift_concat_left_active_path_from_view(left_count, left_starts, left_next, right_count, right_starts, right_next, position, left_input, right_input, after_input, source, current_evidence, current_captures, left_final_evidence, left_path_routine, left_path, right_final_evidence, right_acceptance, concat_left_active_input_view(left_count, left_starts, left_next, right_count, right_starts, right_next, position, left_input, right_input, after_input, source, current_evidence, current_captures, left_final_evidence, left_path_routine, left_path, accepting_final_captures(left_count, MkPatternMachine(left_starts, left_next), left_input, append_characters(right_input, after_input), ThreadActive(source), current_evidence, current_captures, left_final_evidence, left_path_routine, left_path), reflexive(accepting_final_captures(left_count, MkPatternMachine(left_starts, left_next), left_input, append_characters(right_input, after_input), ThreadActive(source), current_evidence, current_captures, left_final_evidence, left_path_routine, left_path)), right_final_evidence, right_acceptance))
+
+  @reducible
+  fn lift_enter_right_active_member(left_count: Nat, right_count: Nat, left_routine: List(EvidenceInstruction), left_constraints: List(BoundaryConstraint), right_starts: List(MachineState(right_count)), state: Bounded(right_count), right_routine: List(EvidenceInstruction), right_constraints: List(BoundaryConstraint), edge: ListMember(MachineState(right_count), Active(state, right_routine, right_constraints), right_starts)) -> ListMember(MachineState(plus(left_count, right_count)), Active(inject_alternate_right(left_count, right_count, state), append_routine(left_routine, right_routine), append_constraints(left_constraints, right_constraints)), enter_right_with_constraints(left_count, left_routine, left_constraints, right_starts)) = match right_starts
+    Nil() -> impossible_list_member(edge)
+    Cons(Active(head_state, head_routine, head_constraints), rest) -> match edge
+      ListMemberHere() -> member_here(Active(inject_alternate_right(left_count, right_count, head_state), append_routine(left_routine, head_routine), append_constraints(left_constraints, head_constraints)), enter_right_with_constraints(left_count, left_routine, left_constraints, rest))
+      ListMemberThere(prior) -> member_there(Active(inject_alternate_right(left_count, right_count, head_state), append_routine(left_routine, head_routine), append_constraints(left_constraints, head_constraints)), lift_enter_right_active_member(left_count, right_count, left_routine, left_constraints, rest, state, right_routine, right_constraints, prior))
+    Cons(Accepted(head_routine, head_constraints), rest) -> match edge
+      ListMemberHere() -> impossible
+      ListMemberThere(prior) -> member_there(Accepted(append_routine(append_routine(left_routine, head_routine), Cons(EmitPair(), Nil())), append_constraints(left_constraints, head_constraints)), lift_enter_right_active_member(left_count, right_count, left_routine, left_constraints, rest, state, right_routine, right_constraints, prior))
+
+  @reducible
+  fn lift_enter_right_accepted_member(left_count: Nat, right_count: Nat, left_routine: List(EvidenceInstruction), left_constraints: List(BoundaryConstraint), right_starts: List(MachineState(right_count)), right_routine: List(EvidenceInstruction), right_constraints: List(BoundaryConstraint), edge: ListMember(MachineState(right_count), Accepted(right_routine, right_constraints), right_starts)) -> ListMember(MachineState(plus(left_count, right_count)), Accepted(append_routine(append_routine(left_routine, right_routine), Cons(EmitPair(), Nil())), append_constraints(left_constraints, right_constraints)), enter_right_with_constraints(left_count, left_routine, left_constraints, right_starts)) = match right_starts
+    Nil() -> impossible_list_member(edge)
+    Cons(Active(head_state, head_routine, head_constraints), rest) -> match edge
+      ListMemberHere() -> impossible
+      ListMemberThere(prior) -> member_there(Active(inject_alternate_right(left_count, right_count, head_state), append_routine(left_routine, head_routine), append_constraints(left_constraints, head_constraints)), lift_enter_right_accepted_member(left_count, right_count, left_routine, left_constraints, rest, right_routine, right_constraints, prior))
+    Cons(Accepted(head_routine, head_constraints), rest) -> match edge
+      ListMemberHere() -> member_here(Accepted(append_routine(append_routine(left_routine, head_routine), Cons(EmitPair(), Nil())), append_constraints(left_constraints, head_constraints)), enter_right_with_constraints(left_count, left_routine, left_constraints, rest))
+      ListMemberThere(prior) -> member_there(Accepted(append_routine(append_routine(left_routine, head_routine), Cons(EmitPair(), Nil())), append_constraints(left_constraints, head_constraints)), lift_enter_right_accepted_member(left_count, right_count, left_routine, left_constraints, rest, right_routine, right_constraints, prior))
+
+  @reducible
+  fn lift_continue_entered_right_member(left_count: Nat, right_count: Nat, left_starts: List(MachineState(left_count)), right_starts: List(MachineState(right_count)), left_routine: List(EvidenceInstruction), left_constraints: List(BoundaryConstraint), left_edge: ListMember(MachineState(left_count), Accepted(left_routine, left_constraints), left_starts), combined: MachineState(plus(left_count, right_count)), entered_edge: ListMember(MachineState(plus(left_count, right_count)), combined, enter_right_with_constraints(left_count, left_routine, left_constraints, right_starts))) -> ListMember(MachineState(plus(left_count, right_count)), combined, continue_with_right(left_count, left_starts, right_starts)) = match left_starts
+    Nil() -> impossible_list_member(left_edge)
+    Cons(Active(state, routine, constraints), rest) -> match left_edge
+      ListMemberHere() -> impossible
+      ListMemberThere(prior) -> member_there(Active(inject_alternate_left(left_count, right_count, state), routine, constraints), lift_continue_entered_right_member(left_count, right_count, rest, right_starts, left_routine, left_constraints, prior, combined, entered_edge))
+    Cons(Accepted(head_routine, head_constraints), rest) -> match left_edge
+      ListMemberHere() -> lift_append_left_member(plus(left_count, right_count), enter_right_with_constraints(left_count, head_routine, head_constraints, right_starts), continue_with_right(left_count, rest, right_starts), combined, entered_edge)
+      ListMemberThere(prior) -> lift_append_right_member(plus(left_count, right_count), enter_right_with_constraints(left_count, head_routine, head_constraints, right_starts), continue_with_right(left_count, rest, right_starts), combined, lift_continue_entered_right_member(left_count, right_count, rest, right_starts, left_routine, left_constraints, prior, combined, entered_edge))
+
+  @reducible
+  fn lift_continue_left_active_member(left_count: Nat, right_count: Nat, left_states: List(MachineState(left_count)), right_starts: List(MachineState(right_count)), state: Bounded(left_count), routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(left_count), Active(state, routine, constraints), left_states)) -> ListMember(MachineState(plus(left_count, right_count)), Active(inject_alternate_left(left_count, right_count, state), routine, constraints), continue_with_right(left_count, left_states, right_starts)) = match left_states
+    Nil() -> impossible_list_member(edge)
+    Cons(Active(head_state, head_routine, head_constraints), rest) -> match edge
+      ListMemberHere() -> member_here(Active(inject_alternate_left(left_count, right_count, head_state), head_routine, head_constraints), continue_with_right(left_count, rest, right_starts))
+      ListMemberThere(prior) -> member_there(Active(inject_alternate_left(left_count, right_count, head_state), head_routine, head_constraints), lift_continue_left_active_member(left_count, right_count, rest, right_starts, state, routine, constraints, prior))
+    Cons(Accepted(head_routine, head_constraints), rest) ->
+      let entered = enter_right_with_constraints(left_count, head_routine, head_constraints, right_starts)
+      match edge
+        ListMemberHere() -> impossible
+        ListMemberThere(prior) -> lift_append_right_member(plus(left_count, right_count), entered, continue_with_right(left_count, rest, right_starts), Active(inject_alternate_left(left_count, right_count, state), routine, constraints), lift_continue_left_active_member(left_count, right_count, rest, right_starts, state, routine, constraints, prior))
+
+  @reducible
+  fn filtered_active_state_origin({n: Nat}, states: List(MachineState(n)), boundary: Boundary, state: Bounded(n), routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(n), Active(state, routine, constraints), states), holds: Equivalent(Bool, constraints_hold(constraints, boundary), True())) -> FilteredStateOrigin(n, states, boundary, Active(state, routine, Nil())) = FilteredActiveStateOrigin(state, routine, constraints, edge, holds)
+
+  @reducible
+  fn filtered_accepted_state_origin({n: Nat}, states: List(MachineState(n)), boundary: Boundary, routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(n), Accepted(routine, constraints), states), holds: Equivalent(Bool, constraints_hold(constraints, boundary), True())) -> FilteredStateOrigin(n, states, boundary, Accepted(routine, Nil())) = FilteredAcceptedStateOrigin(routine, constraints, edge, holds)
+
+  @reducible
+  fn prepend_filtered_state_origin({n: Nat}, head: MachineState(n), tail: List(MachineState(n)), boundary: Boundary, filtered: MachineState(n), origin: FilteredStateOrigin(n, tail, boundary, filtered)) -> FilteredStateOrigin(n, Cons(head, tail), boundary, filtered) = match origin
+    FilteredActiveStateOrigin(state, routine, constraints, edge, holds) -> FilteredActiveStateOrigin(state, routine, constraints, ListMemberThere(edge), holds)
+    FilteredAcceptedStateOrigin(routine, constraints, edge, holds) -> FilteredAcceptedStateOrigin(routine, constraints, ListMemberThere(edge), holds)
+
+  @reducible
+  fn filtered_active_cons_origin(n: Nat, state: Bounded(n), routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), rest: List(MachineState(n)), boundary: Boundary, filtered: MachineState(n), edge: ListMember(MachineState(n), filtered, filter_machine_states(n, Cons(Active(state, routine, constraints), rest), boundary))) -> FilteredStateOrigin(n, Cons(Active(state, routine, constraints), rest), boundary, filtered) = with constraints_hold(constraints, boundary) proof holds
+    True() -> match edge
+      ListMemberHere() -> filtered_active_state_origin(Cons(Active(state, routine, constraints), rest), boundary, state, routine, constraints, member_here(Active(state, routine, constraints), rest), holds)
+      ListMemberThere(prior) -> prepend_filtered_state_origin(Active(state, routine, constraints), rest, boundary, filtered, filtered_state_origin(n, rest, boundary, filtered, prior))
+    False() -> prepend_filtered_state_origin(Active(state, routine, constraints), rest, boundary, filtered, filtered_state_origin(n, rest, boundary, filtered, edge))
+
+  @reducible
+  fn filtered_accepted_cons_origin(n: Nat, routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), rest: List(MachineState(n)), boundary: Boundary, filtered: MachineState(n), edge: ListMember(MachineState(n), filtered, filter_machine_states(n, Cons(Accepted(routine, constraints), rest), boundary))) -> FilteredStateOrigin(n, Cons(Accepted(routine, constraints), rest), boundary, filtered) = with constraints_hold(constraints, boundary) proof holds
+    True() -> match edge
+      ListMemberHere() -> filtered_accepted_state_origin(Cons(Accepted(routine, constraints), rest), boundary, routine, constraints, member_here(Accepted(routine, constraints), rest), holds)
+      ListMemberThere(prior) -> prepend_filtered_state_origin(Accepted(routine, constraints), rest, boundary, filtered, filtered_state_origin(n, rest, boundary, filtered, prior))
+    False() -> prepend_filtered_state_origin(Accepted(routine, constraints), rest, boundary, filtered, filtered_state_origin(n, rest, boundary, filtered, edge))
+
+  @reducible
+  fn filtered_state_origin(n: Nat, states: List(MachineState(n)), boundary: Boundary, filtered: MachineState(n), edge: ListMember(MachineState(n), filtered, filter_machine_states(n, states, boundary))) -> FilteredStateOrigin(n, states, boundary, filtered) = match states
+    Nil() -> impossible_list_member(edge)
+    Cons(Active(state, routine, constraints), rest) -> filtered_active_cons_origin(n, state, routine, constraints, rest, boundary, filtered, edge)
+    Cons(Accepted(routine, constraints), rest) -> filtered_accepted_cons_origin(n, routine, constraints, rest, boundary, filtered, edge)
+
+  @reducible
+  fn filtered_active_witness(n: Nat, states: List(MachineState(n)), boundary: Boundary, state: Bounded(n), routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(n), Active(state, routine, constraints), filter_machine_states(n, states, boundary))) -> FilteredActiveWitness(n, states, boundary, state, routine) = match filtered_state_origin(n, states, boundary, Active(state, routine, constraints), edge)
+    FilteredActiveStateOrigin(_, raw_routine, raw_constraints, raw_edge, holds) -> %[raw_routine, raw_constraints, raw_edge, holds, reflexive(routine)]
+    FilteredAcceptedStateOrigin(_, _, _, _) -> impossible
+
+  @reducible
+  fn filtered_accepted_witness(n: Nat, states: List(MachineState(n)), boundary: Boundary, routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(n), Accepted(routine, constraints), filter_machine_states(n, states, boundary))) -> FilteredAcceptedWitness(n, states, boundary, routine) = match filtered_state_origin(n, states, boundary, Accepted(routine, constraints), edge)
+    FilteredActiveStateOrigin(_, _, _, _, _) -> impossible
+    FilteredAcceptedStateOrigin(raw_routine, raw_constraints, raw_edge, holds) -> %[raw_routine, raw_constraints, raw_edge, holds, reflexive(routine)]
+
+  @reducible
+  fn constraints_hold_append(left: List(BoundaryConstraint), right: List(BoundaryConstraint), boundary: Boundary) -> Equivalent(Bool, constraints_hold(append_constraints(left, right), boundary), constraints_hold(left, boundary) and constraints_hold(right, boundary)) = match left
+    Nil() -> reflexive(constraints_hold(right, boundary))
+    Cons(head, rest) -> rewrite constraints_hold_append(rest, right, boundary) in and_associative(constraint_holds(head, boundary), constraints_hold(rest, boundary), constraints_hold(right, boundary))
+
+  @reducible
+  fn appended_constraints_hold(left: List(BoundaryConstraint), right: List(BoundaryConstraint), boundary: Boundary, left_holds: Equivalent(Bool, constraints_hold(left, boundary), True()), right_holds: Equivalent(Bool, constraints_hold(right, boundary), True())) -> Equivalent(Bool, constraints_hold(append_constraints(left, right), boundary), True()) =
+    bool_equivalent_transitive(constraints_hold(append_constraints(left, right), boundary), constraints_hold(left, boundary) and constraints_hold(right, boundary), True(), constraints_hold_append(left, right, boundary), both_true(constraints_hold(left, boundary), constraints_hold(right, boundary), left_holds, right_holds))
+
+  @reducible
+  fn filter_active_member(n: Nat, states: List(MachineState(n)), boundary: Boundary, state: Bounded(n), routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(n), Active(state, routine, constraints), states), holds: Equivalent(Bool, constraints_hold(constraints, boundary), True())) -> ListMember(MachineState(n), Active(state, routine, Nil()), filter_machine_states(n, states, boundary)) = match states
+    Nil() -> impossible_list_member(edge)
+    Cons(Active(head_state, head_routine, head_constraints), rest) -> with constraints_hold(head_constraints, boundary) proof head_holds
+      True() -> match edge
+        ListMemberHere() -> ListMemberHere()
+        ListMemberThere(prior) -> ListMemberThere(filter_active_member(n, rest, boundary, state, routine, constraints, prior, holds))
+      False() -> match edge
+        ListMemberHere() -> impossible_false_is_true(transport_equivalent_source(constraints_hold(head_constraints, boundary), False(), True(), head_holds, holds))
+        ListMemberThere(prior) -> filter_active_member(n, rest, boundary, state, routine, constraints, prior, holds)
+    Cons(Accepted(head_routine, head_constraints), rest) -> with constraints_hold(head_constraints, boundary) proof head_holds
+      True() -> match edge
+        ListMemberThere(prior) -> ListMemberThere(filter_active_member(n, rest, boundary, state, routine, constraints, prior, holds))
+      False() -> match edge
+        ListMemberThere(prior) -> filter_active_member(n, rest, boundary, state, routine, constraints, prior, holds)
+
+  @reducible
+  fn filter_accepted_member(n: Nat, states: List(MachineState(n)), boundary: Boundary, routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(n), Accepted(routine, constraints), states), holds: Equivalent(Bool, constraints_hold(constraints, boundary), True())) -> ListMember(MachineState(n), Accepted(routine, Nil()), filter_machine_states(n, states, boundary)) = match states
+    Nil() -> impossible_list_member(edge)
+    Cons(Active(head_state, head_routine, head_constraints), rest) -> with constraints_hold(head_constraints, boundary) proof head_holds
+      True() -> match edge
+        ListMemberThere(prior) -> ListMemberThere(filter_accepted_member(n, rest, boundary, routine, constraints, prior, holds))
+      False() -> match edge
+        ListMemberThere(prior) -> filter_accepted_member(n, rest, boundary, routine, constraints, prior, holds)
+    Cons(Accepted(head_routine, head_constraints), rest) -> with constraints_hold(head_constraints, boundary) proof head_holds
+      True() -> match edge
+        ListMemberHere() -> ListMemberHere()
+        ListMemberThere(prior) -> ListMemberThere(filter_accepted_member(n, rest, boundary, routine, constraints, prior, holds))
+      False() -> match edge
+        ListMemberHere() -> impossible_false_is_true(transport_equivalent_source(constraints_hold(head_constraints, boundary), False(), True(), head_holds, holds))
+        ListMemberThere(prior) -> filter_accepted_member(n, rest, boundary, routine, constraints, prior, holds)
+
+  @reducible
+  fn concat_left_transition_member(left_count: Nat, left_starts: List(MachineState(left_count)), left_next: (Bounded(left_count)) -> Char -> List(MachineState(left_count)), right_count: Nat, right_starts: List(MachineState(right_count)), right_next: (Bounded(right_count)) -> Char -> List(MachineState(right_count)), source: Bounded(left_count), char: Char, boundary: Boundary, destination: MachineState(plus(left_count, right_count)), edge: ListMember(MachineState(plus(left_count, right_count)), destination, filter_machine_states(plus(left_count, right_count), continue_with_right(left_count, left_next(source, char), right_starts), boundary))) -> ListMember(MachineState(plus(left_count, right_count)), destination, machine_destinations(plus(left_count, right_count), concat_pattern_machine(left_count, MkPatternMachine(left_starts, left_next), right_count, MkPatternMachine(right_starts, right_next)), ThreadActive(inject_alternate_left(left_count, right_count, source)), char, boundary)) = match concat_left_destinations_equivalent(left_count, left_starts, left_next, right_count, right_starts, right_next, source, char, boundary)
+    reflexive() -> edge
+
+  @reducible
+  fn lift_concat_left_active_edge(left_count: Nat, left_starts: List(MachineState(left_count)), left_next: (Bounded(left_count)) -> Char -> List(MachineState(left_count)), right_count: Nat, right_starts: List(MachineState(right_count)), right_next: (Bounded(right_count)) -> Char -> List(MachineState(right_count)), source: Bounded(left_count), char: Char, boundary: Boundary, state: Bounded(left_count), routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(left_count), Active(state, routine, constraints), filter_machine_states(left_count, left_next(source, char), boundary)), origin: FilteredStateOrigin(left_count, left_next(source, char), boundary, Active(state, routine, constraints))) -> ListMember(MachineState(plus(left_count, right_count)), Active(inject_alternate_left(left_count, right_count, state), routine, Nil()), machine_destinations(plus(left_count, right_count), concat_pattern_machine(left_count, MkPatternMachine(left_starts, left_next), right_count, MkPatternMachine(right_starts, right_next)), ThreadActive(inject_alternate_left(left_count, right_count, source)), char, boundary)) = match origin
+    FilteredActiveStateOrigin(_, raw_routine, raw_constraints, raw_edge, holds) ->
+      let continued_edge = lift_continue_left_active_member(left_count, right_count, left_next(source, char), right_starts, state, raw_routine, raw_constraints, raw_edge)
+      let filtered_edge = filter_active_member(plus(left_count, right_count), continue_with_right(left_count, left_next(source, char), right_starts), boundary, inject_alternate_left(left_count, right_count, state), raw_routine, raw_constraints, continued_edge, holds)
+      concat_left_transition_member(left_count, left_starts, left_next, right_count, right_starts, right_next, source, char, boundary, Active(inject_alternate_left(left_count, right_count, state), raw_routine, Nil()), filtered_edge)
+    FilteredAcceptedStateOrigin(_, _, _, _) -> impossible
+
+  @reducible
+  fn advance_position_after_empty_tail(position: InitialPosition, char: Char, rest: List(Char), rest_empty: Equivalent(List(Char), rest, proof_empty_characters())) -> Equivalent(InitialPosition, advance_initial_position(position, Cons(char, rest)), advance_initial_position(position, Cons(char, Nil()))) = match rest_empty
+    reflexive() -> reflexive(advance_initial_position(position, Cons(char, Nil())))
+
+  @reducible
+  fn append_after_empty_tail(char: Char, rest: List(Char), right: List(Char), rest_empty: Equivalent(List(Char), rest, proof_empty_characters())) -> Equivalent(List(Char), Cons(char, right), append_characters(Cons(char, rest), right)) = match rest_empty
+    reflexive() -> reflexive(Cons(char, right))
+
+  @reducible
+  fn append_empty_tail_after(rest: List(Char), right: List(Char), after_input: List(Char), rest_empty: Equivalent(List(Char), rest, proof_empty_characters())) -> Equivalent(List(Char), append_characters(rest, append_characters(right, after_input)), append_characters(right, after_input)) = match rest_empty
+    reflexive() -> reflexive(append_characters(right, after_input))
+
+  @reducible
+  fn append_input_partition(left: List(Char), right: List(Char)) -> InputPartition(append_characters(left, right), left, right) = match left
+    Nil() -> InputPartitionHere(right)
+    Cons(char, rest) -> InputPartitionThere(char, append_input_partition(rest, right))
+
+  @reducible
+  fn partition_append_after({input: List(Char)}, {left: List(Char)}, {right: List(Char)}, after_input: List(Char), proof: InputPartition(input, left, right)) -> Equivalent(List(Char), append_characters(input, after_input), append_characters(left, append_characters(right, after_input))) = match proof
+    InputPartitionHere(parts_right) -> reflexive(append_characters(parts_right, after_input))
+    InputPartitionThere(char, prior) -> rewrite partition_append_after(after_input, prior) in reflexive(append_characters(left, append_characters(right, after_input)))
+
+  @reducible
+  fn transport_concat_right_acceptance(n: Nat, machine: PatternMachine(n), first_position: InitialPosition, second_position: InitialPosition, input: List(Char), after_input: List(Char), first_evidence: List(Evidence), second_evidence: List(Evidence), first_captures: List(CaptureFrame), second_captures: List(CaptureFrame), final_evidence: List(Evidence), position_equality: Equivalent(InitialPosition, first_position, second_position), evidence_equality: Equivalent(List(Evidence), first_evidence, second_evidence), captures_equality: Equivalent(List(CaptureFrame), first_captures, second_captures), boxed: ConcatRightAcceptance(n, machine, input, after_input, first_evidence, final_evidence, first_position, first_captures)) -> ConcatRightAcceptance(n, machine, input, after_input, second_evidence, final_evidence, second_position, second_captures) = match position_equality
+    reflexive() -> match evidence_equality
+      reflexive() -> match captures_equality
+        reflexive() -> boxed
+end
