@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.ActiveChildAlignmentDispatch
   public use Std.Regex.Runtime.CursorShapeLocation
   public use Std.Regex.Runtime.CommitSelectedLocation
   public use Std.Regex.Runtime.Prefix
@@ -867,28 +868,6 @@ mod Std.Regex.Runtime
 
 
 
-  @reducible
-  fn atomic_path_active_child_alignment_package_dispatch(
-    {result: Type},
-    {n: Nat}, {failure_package: Type}, {selected_package: Type},
-    {failure_current: List(LookaroundAdmittedState(n))},
-    {current: List(LookaroundAdmittedState(n))},
-    package: AtomicPathActiveChildAlignmentPackage(
-      n, failure_package, selected_package, failure_current, current
-    ),
-    here_case: (AtomicPathActiveChildAlignmentHerePackage(
-      n, failure_package, selected_package, failure_current, current
-    )) -> result,
-    there_case: (AtomicPathActiveChildAlignmentTherePackage(
-      n, failure_package, selected_package, failure_current, current
-    )) -> result,
-    reverse_case: (AtomicPathActiveChildAlignmentReversePackage(
-      n, failure_package, selected_package, failure_current, current
-    )) -> result
-  ) -> result = match package
-    AtomicPathActiveChildAlignmentHerePacked(branch) -> here_case(branch)
-    AtomicPathActiveChildAlignmentTherePacked(branch) -> there_case(branch)
-    AtomicPathActiveChildAlignmentReversePacked(branch) -> reverse_case(branch)
 
   @reducible
   fn atomic_path_active_child_alignment_authority(
