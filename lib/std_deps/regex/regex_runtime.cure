@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.ActiveChildShapeAlignmentDispatch
   public use Std.Regex.Runtime.ActiveChildAlignmentDispatch
   public use Std.Regex.Runtime.CursorShapeLocation
   public use Std.Regex.Runtime.CommitSelectedLocation
@@ -564,27 +565,6 @@ mod Std.Regex.Runtime
 
 
 
-  @reducible
-  fn atomic_path_active_child_shape_alignment_package_dispatch(
-    {result: Type}, {failure_package: Type}, {selected_package: Type},
-    {failure_shape: LookaroundAdmittedStateCursorShape},
-    {selected_shape: LookaroundAdmittedStateCursorShape},
-    package: AtomicPathActiveChildShapeAlignmentPackage(
-      failure_package, selected_package, failure_shape, selected_shape
-    ),
-    here_case: (AtomicPathActiveChildShapeHerePackage(
-      failure_package, selected_package, failure_shape, selected_shape
-    )) -> result,
-    there_case: (AtomicPathActiveChildShapeTherePackage(
-      failure_package, selected_package, failure_shape, selected_shape
-    )) -> result,
-    reverse_case: (AtomicPathActiveChildShapeReversePackage(
-      failure_package, selected_package, failure_shape, selected_shape
-    )) -> result
-  ) -> result = match package
-    AtomicPathActiveChildShapeAlignmentHerePacked(branch) -> here_case(branch)
-    AtomicPathActiveChildShapeAlignmentTherePacked(branch) -> there_case(branch)
-    AtomicPathActiveChildShapeAlignmentReversePacked(branch) -> reverse_case(branch)
 
 
 
