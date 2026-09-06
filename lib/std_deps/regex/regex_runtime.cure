@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.CursorShapeLocation
   public use Std.Regex.Runtime.CommitSelectedLocation
   public use Std.Regex.Runtime.Prefix
   public use Std.Regex.Runtime.ActiveChildAlignmentPackages
@@ -688,29 +689,6 @@ mod Std.Regex.Runtime
         atomic_path_cursor_shape_package_location(left_prior, right_prior)
 
 
-  fn atomic_path_cursor_shape_location(
-    {@erased n: Nat},
-    {@erased left_outer: List(LookaroundAdmittedState(n))},
-    {@erased right_outer: List(LookaroundAdmittedState(n))},
-    {@erased left_inner: List(LookaroundAdmittedState(n))},
-    {@erased right_inner: List(LookaroundAdmittedState(n))},
-    left: LookaroundAdmittedStateCursorSuffixPackage(
-      n, left_outer, left_inner
-    ),
-    right: LookaroundAdmittedStateCursorSuffixPackage(
-      n, right_outer, right_inner
-    )
-  ) -> AtomicPathCursorShapeLocation = match left
-    LookaroundAdmittedStateCursorSuffixHerePacked(_) -> match right
-      LookaroundAdmittedStateCursorSuffixHerePacked(_) ->
-        AtomicPathCursorShapeSame()
-      LookaroundAdmittedStateCursorSuffixDropPacked(_, _) ->
-        AtomicPathCursorShapeRightAfter()
-    LookaroundAdmittedStateCursorSuffixDropPacked(_, left_prior) -> match right
-      LookaroundAdmittedStateCursorSuffixHerePacked(_) ->
-        AtomicPathCursorShapeLeftAfter()
-      LookaroundAdmittedStateCursorSuffixDropPacked(_, right_prior) ->
-        atomic_path_cursor_shape_location(left_prior, right_prior)
 
 
   ## Transport a non-empty decomposition backwards through an ordered cursor
