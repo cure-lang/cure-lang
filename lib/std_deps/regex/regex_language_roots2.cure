@@ -1,0 +1,252 @@
+## Constructive language semantics for typed regular expressions. Denotations
+## retain the exact input partition, contextual suffix, and recursive evidence
+## needed to relate an accepted Thompson-machine path to the authored pattern.
+@group(:text)
+mod Std.Regex.Language.Roots2
+  use Std.Regex.Language.Roots
+
+  use Std.Regex.Proof.AcceptanceCaptures
+
+  use Std.Regex.Proof.Roots6
+
+  use Std.Regex.Proof.Roots5
+
+  use Std.Regex.Proof.Roots4
+
+  use Std.Regex.Proof.Roots3
+
+  use Std.Regex.Proof.Roots2
+
+  use Std.Regex.Proof.Roots
+
+  use Std.Regex.Proof.Misc
+
+  use Std.Regex.Proof.ConcatLeftPath
+
+  use Std.Regex.Proof.GroupAcceptance
+
+  use Std.Regex.Proof.RepeatProjection
+
+  use Std.Regex.Proof.ConcatLeft
+
+  use Std.Regex.Proof.SupportC
+
+  use Std.Regex.Proof.SupportA
+
+  use Std.Regex.Proof.FoundationalViews
+
+  use Std.Regex.Proof.ExecutionViews
+
+  use Std.Regex.Runtime.CompilationMachines
+
+  use Std.Regex.Runtime.CompilationTypes
+
+  use Std.Regex.Runtime.EvidenceExecution
+
+  use Std.Regex.Runtime.ExtendedEvidenceTypes
+
+  use Std.Regex.Runtime.MachineEntryPrimitives
+
+  use Std.Regex.Runtime.PatternMachinePrimitives
+
+  use Std.Regex.Runtime.MachineTransitionPrimitives
+
+  use Std.Regex.Proof.EquivalenceLaws
+
+  use Std.Regex.Runtime.MachineSearch
+
+  use Std.Regex.Runtime.MachineTransitions
+
+  use Std.Regex.Runtime.MachineEntry
+
+  use Std.Regex.Runtime.Conversion
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core
+
+  use Std.Regex.Runtime
+
+  use Std.Regex.Proof
+
+  use Std.Proof.IntMath
+
+  ## A denotation is the constructive witness consumed by completeness, not a
+  ## proof-irrelevant proposition: branch choices, partitions, and recursive
+  ## child denotations determine the accepting path that completeness returns.
+  ## Keep those fields runtime-relevant while the witness is interpreted.  The
+  ## resulting machine acceptance is still erased at PatternAccepted, which is
+  ## the public proof boundary.
+  type PatternDenotation indices (shape: ShapeCode, pattern: Pattern(shape), position: InitialPosition, input: List(Char), after_input: List(Char))
+    DenotesEmpty : PatternDenotation(UnitC, PatternEmpty(), position, Nil(), after_input)
+    DenotesPredicate : (input: List(Char)) -> (char: Char) -> (singleton: SingleCharacter(input, char)) -> (proof: Equivalent(Bool, test(char), True())) -> PatternDenotation(CharC, PatternPredicate(test), position, input, after_input)
+    DenotesBoundary : (proof: IsTrue(constraints_hold(Cons(constraint, Nil()), initial_position_boundary(position, after_input)))) -> PatternDenotation(UnitC, PatternBoundary(constraint), position, Nil(), after_input)
+    DenotesConcat : (left: Pattern(left_shape)) -> (right: Pattern(right_shape)) -> (left_input: List(Char)) -> (right_input: List(Char)) -> (@erased partition: InputPartition(input, left_input, right_input)) -> (left_denotation: PatternDenotation(left_shape, left, position, left_input, append_characters(right_input, after_input))) -> (right_denotation: PatternDenotation(right_shape, right, advance_initial_position(position, left_input), right_input, after_input)) -> PatternDenotation(PairC(left_shape, right_shape), PatternConcat(left, right), position, input, after_input)
+    DenotesGroup : (inner: Pattern(inner_shape)) -> (inner_denotation: PatternDenotation(inner_shape, inner, position, input, after_input)) -> PatternDenotation(StringC, PatternGroup(inner), position, input, after_input)
+    DenotesAlternateLeft : (left: Pattern(left_shape)) -> (right: Pattern(right_shape)) -> (left_denotation: PatternDenotation(left_shape, left, position, input, after_input)) -> PatternDenotation(ChoiceC(left_shape, right_shape), PatternAlternate(left, right), position, input, after_input)
+    DenotesAlternateRight : (left: Pattern(left_shape)) -> (right: Pattern(right_shape)) -> (right_denotation: PatternDenotation(right_shape, right, position, input, after_input)) -> PatternDenotation(ChoiceC(left_shape, right_shape), PatternAlternate(left, right), position, input, after_input)
+    DenotesAlternateModeLeft : (left: Pattern(left_shape)) -> (right: Pattern(right_shape)) -> (prefer_right: Bool) -> (left_denotation: PatternDenotation(left_shape, left, position, input, after_input)) -> PatternDenotation(ChoiceC(left_shape, right_shape), PatternAlternateMode(left, right, prefer_right), position, input, after_input)
+    DenotesAlternateModeRight : (left: Pattern(left_shape)) -> (right: Pattern(right_shape)) -> (prefer_right: Bool) -> (right_denotation: PatternDenotation(right_shape, right, position, input, after_input)) -> PatternDenotation(ChoiceC(left_shape, right_shape), PatternAlternateMode(left, right, prefer_right), position, input, after_input)
+    DenotesRepeatEmpty : (inner: Pattern(inner_shape)) -> PatternDenotation(ListC(inner_shape), PatternRepeat(inner), position, Nil(), after_input)
+    DenotesRepeatMore : (inner: Pattern(inner_shape)) -> (item_input: List(Char)) -> (remaining_input: List(Char)) -> (nonempty: NonEmptyCharacters(item_input)) -> (partition: InputPartition(input, item_input, remaining_input)) -> (item_denotation: PatternDenotation(inner_shape, inner, position, item_input, append_characters(remaining_input, after_input))) -> (remaining_denotation: PatternDenotation(ListC(inner_shape), PatternRepeat(inner), advance_initial_position(position, item_input), remaining_input, after_input)) -> PatternDenotation(ListC(inner_shape), PatternRepeat(inner), position, input, after_input)
+    DenotesRepeatModeEmpty : (inner: Pattern(inner_shape)) -> (lazy: Bool) -> PatternDenotation(ListC(inner_shape), PatternRepeatMode(inner, lazy), position, Nil(), after_input)
+    DenotesRepeatModeMore : (inner: Pattern(inner_shape)) -> (lazy: Bool) -> (item_input: List(Char)) -> (remaining_input: List(Char)) -> (nonempty: NonEmptyCharacters(item_input)) -> (partition: InputPartition(input, item_input, remaining_input)) -> (item_denotation: PatternDenotation(inner_shape, inner, position, item_input, append_characters(remaining_input, after_input))) -> (remaining_denotation: PatternDenotation(ListC(inner_shape), PatternRepeatMode(inner, lazy), advance_initial_position(position, item_input), remaining_input, after_input)) -> PatternDenotation(ListC(inner_shape), PatternRepeatMode(inner, lazy), position, input, after_input)
+
+  type PatternAcceptanceFrom indices (shape: ShapeCode, pattern: Pattern(shape), position: InitialPosition, input: List(Char), after_input: List(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame))
+    PatternAcceptedFrom : {@erased shape: ShapeCode} -> {@erased pattern: Pattern(shape)} -> {@erased position: InitialPosition} -> {@erased input: List(Char)} -> {@erased after_input: List(Char)} -> {@erased input_evidence: List(Evidence)} -> {@erased input_captures: List(CaptureFrame)} -> (final_evidence: List(Evidence)) -> (routine: List(ExtendedInstruction)) -> (certificate: PatternAcceptanceCertificate(shape, pattern, position, input, after_input, input_evidence, input_captures, final_evidence)) -> PatternAcceptanceFrom(shape, pattern, position, input, after_input, input_evidence, input_captures)
+
+  fn certify_thompson_proof({shape: ShapeCode}, pattern: Pattern(shape)) -> PatternCompilationProof(shape, pattern, certify_thompson(pattern)) = match pattern
+    PatternPredicate(test) -> CompilesPredicate(test)
+    PatternEmpty() -> CompilesEmpty()
+    PatternBoundary(constraint) -> CompilesBoundary(constraint)
+    PatternConcat(left, right) -> CompilesConcat(left, certify_thompson(left), certify_thompson_proof(left), right, certify_thompson(right), certify_thompson_proof(right))
+    PatternGroup(inner) -> CompilesGroup(inner, certify_thompson(inner), certify_thompson_proof(inner))
+    PatternAlternate(left, right) -> CompilesAlternate(left, certify_thompson(left), certify_thompson_proof(left), right, certify_thompson(right), certify_thompson_proof(right))
+    PatternAlternateMode(left, right, prefer_right) -> CompilesAlternateMode(left, certify_thompson(left), certify_thompson_proof(left), right, certify_thompson(right), certify_thompson_proof(right), prefer_right)
+    PatternRepeat(inner) -> CompilesRepeat(inner, certify_thompson(inner), certify_thompson_proof(inner))
+    PatternRepeatMode(inner, lazy) -> CompilesRepeatMode(inner, certify_thompson(inner), certify_thompson_proof(inner), lazy)
+
+  type CompilationSoundnessRequest(shape: ShapeCode, pattern: Pattern(shape), compilation: ThompsonCompilation(shape), input: List(Char), after_input: List(Char), position: InitialPosition, input_evidence: List(Evidence), input_captures: List(CaptureFrame)) indices ()
+    CompilationSoundnessRequested : (compilation_proof: PatternCompilationProof(shape, pattern, compilation)) -> (@erased final_evidence: List(Evidence)) -> (acceptance: AcceptancePathFrom(thompson_state_count(compilation), thompson_machine(compilation), position, input, after_input, input_evidence, input_captures, final_evidence)) -> CompilationSoundnessRequest(shape, pattern, compilation, input, after_input, position, input_evidence, input_captures)
+
+  fn boundary_result_member(
+    constraint: BoundaryConstraint,
+    after_input: List(Char),
+    position: InitialPosition,
+    holds: IsTrue(constraints_hold(Cons(constraint, Nil()), initial_position_boundary(position, after_input)))
+  ) -> ListMember(MachineState(Z()), boundary_accepting_destination(), initial_machine_destinations(Z(), boundary_pattern_machine(constraint), position, Nil(), after_input)) =
+    let routine: List(EvidenceInstruction) = Cons(EmitUnit(), Nil())
+    let constraints: List(BoundaryConstraint) = Cons(constraint, Nil())
+    let states: List(MachineState(Z())) = Cons(Accepted(routine, constraints), Nil())
+    let raw_edge = member_here(Accepted(routine, constraints), Nil())
+    let boundary = initial_position_boundary(position, after_input)
+    let equality = is_true_equivalence(constraints_hold(constraints, boundary), holds)
+    filter_accepted_member(Z(), states, boundary, routine, constraints, raw_edge, equality)
+
+  fn singleton_from_empty_rest(char: Char, rest: List(Char), rest_empty: Equivalent(List(Char), rest, Nil())) -> SingleCharacter(Cons(char, rest), char) = match rest_empty
+    reflexive() -> IsSingleCharacter(Cons(char, Nil()), char, reflexive(Cons(char, Nil())))
+
+  fn active_accepting_path_nonempty(
+    n: Nat,
+    machine: PatternMachine(n),
+    input: List(Char),
+    after_input: List(Char),
+    source: Bounded(n),
+    current_evidence: List(Evidence),
+    current_captures: List(CaptureFrame),
+    @erased final_evidence: List(Evidence),
+    @erased routine: List(ExtendedInstruction),
+    path: AcceptingFrom(n, machine, input, after_input, ThreadActive(source), current_evidence, current_captures, final_evidence, routine)
+  ) -> NonEmptyCharacters(input) = match input
+    Nil() -> match path
+      AcceptingNow() -> impossible
+      AcceptingNextActive(_, _, _, _, _, _, _, _, _) -> impossible
+      AcceptingNextAccepted(_, _, _, _, _, _, _, _) -> impossible
+    Cons(char, rest) -> CharactersPresent(char, rest)
+
+  fn grouped_predicate_result_member(
+    test: Char -> Bool,
+    char: Char,
+    after_input: List(Char),
+    holds: Equivalent(Bool, test(char), True())
+  ) -> ListMember(MachineState(S(Z())), grouped_predicate_accepting(char), machine_destinations(S(Z()), group_pattern_machine(S(Z()), Cons(predicate_machine_start(), Nil()), predicate_machine_next(test)), ThreadActive(First()), char, transition_boundary_before(char, Nil(), after_input))) =
+    lift_filtered_finish_capture_member(
+      S(Z()),
+      predicate_machine_next(test)(First(), char),
+      transition_boundary_before(char, Nil(), after_input),
+      predicate_accepting_destination(char),
+      predicate_result_member(test, char, after_input, holds)
+    )
+
+  fn predicate_repeat_empty_initial_member(
+    test: Char -> Bool,
+    lazy: Bool,
+    position: InitialPosition,
+    after_input: List(Char)
+  ) -> ListMember(MachineState(S(Z())), predicate_repeat_empty_start(), initial_machine_destinations(S(Z()), repeat_pattern_machine(S(Z()), predicate_pattern_machine(test), lazy), position, Nil(), after_input)) = match lazy
+    False() -> member_there(predicate_repeat_consuming_start(), member_here(predicate_repeat_empty_start(), Nil()))
+    True() -> member_here(predicate_repeat_empty_start(), Cons(predicate_repeat_consuming_start(), Nil()))
+
+  fn repeat_empty_initial_member(
+    n: Nat,
+    machine: PatternMachine(n),
+    lazy: Bool,
+    position: InitialPosition,
+    after_input: List(Char)
+  ) -> ListMember(MachineState(n), Accepted(Cons(BeginList(), Cons(EndList(), Nil())), Nil()), initial_machine_destinations(n, repeat_pattern_machine(n, machine, lazy), position, Nil(), after_input)) = match machine
+    MkPatternMachine(starts, _) -> match lazy
+      False() -> repeat_empty_after_filtered_states(n, enter_repeat(Cons(BeginList(), Nil()), starts), initial_position_boundary(position, after_input))
+      True() -> member_here(Accepted(Cons(BeginList(), Cons(EndList(), Nil())), Nil()), filter_machine_states(n, enter_repeat(Cons(BeginList(), Nil()), starts), initial_position_boundary(position, after_input)))
+
+  fn predicate_repeat_consuming_initial_member(
+    test: Char -> Bool,
+    lazy: Bool,
+    position: InitialPosition,
+    char: Char,
+    rest: List(Char),
+    after_input: List(Char)
+  ) -> ListMember(MachineState(S(Z())), predicate_repeat_consuming_start(), initial_machine_destinations(S(Z()), repeat_pattern_machine(S(Z()), predicate_pattern_machine(test), lazy), position, Cons(char, rest), after_input)) = match lazy
+    False() -> member_here(predicate_repeat_consuming_start(), Cons(predicate_repeat_empty_start(), Nil()))
+    True() -> member_there(predicate_repeat_empty_start(), member_here(predicate_repeat_consuming_start(), Nil()))
+
+  fn predicate_repeat_singleton_result_member(
+    test: Char -> Bool,
+    lazy: Bool,
+    char: Char,
+    after_input: List(Char),
+    holds: Equivalent(Bool, test(char), True())
+  ) -> ListMember(MachineState(S(Z())), predicate_repeat_singleton_accepting(char), machine_destinations(S(Z()), repeat_pattern_machine(S(Z()), predicate_pattern_machine(test), lazy), ThreadActive(First()), char, transition_boundary_before(char, Nil(), after_input))) = match lazy
+    False() -> rewrite holds in member_there(predicate_repeat_singleton_reentry(char), member_here(predicate_repeat_singleton_accepting(char), Nil()))
+    True() -> rewrite holds in member_here(predicate_repeat_singleton_accepting(char), Cons(predicate_repeat_singleton_reentry(char), Nil()))
+
+  fn predicate_repeat_reentry_result_member(
+    test: Char -> Bool,
+    lazy: Bool,
+    char: Char,
+    rest: List(Char),
+    after_input: List(Char),
+    holds: Equivalent(Bool, test(char), True())
+  ) -> ListMember(MachineState(S(Z())), predicate_repeat_singleton_reentry(char), machine_destinations(S(Z()), repeat_pattern_machine(S(Z()), predicate_pattern_machine(test), lazy), ThreadActive(First()), char, transition_boundary_before(char, rest, after_input))) = match lazy
+    False() -> rewrite holds in member_here(predicate_repeat_singleton_reentry(char), Cons(predicate_repeat_singleton_accepting(char), Nil()))
+    True() -> rewrite holds in member_there(predicate_repeat_singleton_accepting(char), member_here(predicate_repeat_singleton_reentry(char), Nil()))
+end

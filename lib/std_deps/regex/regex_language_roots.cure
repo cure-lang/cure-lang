@@ -1,0 +1,343 @@
+## Constructive language semantics for typed regular expressions. Denotations
+## retain the exact input partition, contextual suffix, and recursive evidence
+## needed to relate an accepted Thompson-machine path to the authored pattern.
+@group(:text)
+mod Std.Regex.Language.Roots
+  use Std.Regex.Proof.AcceptanceCaptures
+
+  use Std.Regex.Proof.Roots6
+
+  use Std.Regex.Proof.Roots5
+
+  use Std.Regex.Proof.Roots4
+
+  use Std.Regex.Proof.Roots3
+
+  use Std.Regex.Proof.Roots2
+
+  use Std.Regex.Proof.Roots
+
+  use Std.Regex.Proof.Misc
+
+  use Std.Regex.Proof.ConcatLeftPath
+
+  use Std.Regex.Proof.GroupAcceptance
+
+  use Std.Regex.Proof.RepeatProjection
+
+  use Std.Regex.Proof.ConcatLeft
+
+  use Std.Regex.Proof.SupportC
+
+  use Std.Regex.Proof.SupportA
+
+  use Std.Regex.Proof.FoundationalViews
+
+  use Std.Regex.Proof.ExecutionViews
+
+  use Std.Regex.Runtime.CompilationMachines
+
+  use Std.Regex.Runtime.CompilationTypes
+
+  use Std.Regex.Runtime.EvidenceExecution
+
+  use Std.Regex.Runtime.ExtendedEvidenceTypes
+
+  use Std.Regex.Runtime.MachineEntryPrimitives
+
+  use Std.Regex.Runtime.PatternMachinePrimitives
+
+  use Std.Regex.Runtime.MachineTransitionPrimitives
+
+  use Std.Regex.Proof.EquivalenceLaws
+
+  use Std.Regex.Runtime.MachineSearch
+
+  use Std.Regex.Runtime.MachineTransitions
+
+  use Std.Regex.Runtime.MachineEntry
+
+  use Std.Regex.Runtime.Conversion
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core
+
+  use Std.Regex.Runtime
+
+  use Std.Regex.Proof
+
+  use Std.Proof.IntMath
+
+  ## Structural membership in the language of a typed pattern.  The relation is
+  ## indexed by the exact consumed input, the contextual suffix, and the
+  ## position at which matching began; boundary assertions therefore remain
+  ## part of the language rather than an unchecked side condition.
+  type NonEmptyCharacters indices (input: List(Char))
+    CharactersPresent : (head: Char) -> (tail: List(Char)) -> NonEmptyCharacters(Cons(head, tail))
+
+  type SingleCharacter indices (input: List(Char), char: Char)
+    IsSingleCharacter : (input: List(Char)) -> (char: Char) -> (exact: Equivalent(List(Char), input, Cons(char, Nil()))) -> SingleCharacter(input, char)
+
+  ## Constructive completeness packages the runtime outputs existentially while
+  ## retaining the erased certificate that those outputs came from the verified
+  ## machine.  Callers do not have to guess the evidence stream or routine.
+  type PredicateAcceptance indices (test: Char -> Bool, char: Char, after_input: List(Char), position: InitialPosition)
+    PredicateAccepted : (final_evidence: List(Evidence)) -> (routine: List(ExtendedInstruction)) -> (@erased acceptance: MachineAcceptance(S(Z()), predicate_pattern_machine(test), position, Cons(char, Nil()), after_input, final_evidence, routine)) -> PredicateAcceptance(test, char, after_input, position)
+
+  type EmptyAcceptance indices (after_input: List(Char), position: InitialPosition)
+    EmptyAccepted : (final_evidence: List(Evidence)) -> (routine: List(ExtendedInstruction)) -> (@erased acceptance: MachineAcceptance(Z(), empty_pattern_machine(), position, Nil(), after_input, final_evidence, routine)) -> EmptyAcceptance(after_input, position)
+
+  type BoundaryAcceptance indices (constraint: BoundaryConstraint, after_input: List(Char), position: InitialPosition)
+    BoundaryAccepted : (final_evidence: List(Evidence)) -> (routine: List(ExtendedInstruction)) -> (@erased acceptance: MachineAcceptance(Z(), boundary_pattern_machine(constraint), position, Nil(), after_input, final_evidence, routine)) -> BoundaryAcceptance(constraint, after_input, position)
+
+  type PatternAcceptance indices (shape: ShapeCode, pattern: Pattern(shape), position: InitialPosition, input: List(Char), after_input: List(Char))
+    PatternAccepted : {accepted_shape: ShapeCode} -> {accepted_pattern: Pattern(accepted_shape)} -> {accepted_position: InitialPosition} -> {accepted_input: List(Char)} -> {accepted_after_input: List(Char)} -> (final_evidence: List(Evidence)) -> (routine: List(ExtendedInstruction)) -> (@erased acceptance: MachineAcceptance(thompson_state_count(certify_thompson(accepted_pattern)), thompson_machine(certify_thompson(accepted_pattern)), accepted_position, accepted_input, accepted_after_input, final_evidence, routine)) -> PatternAcceptance(accepted_shape, accepted_pattern, accepted_position, accepted_input, accepted_after_input)
+
+  ## The induction hypothesis needed by constructive completeness.  Composite
+  ## machines do not run every child from empty evidence and capture stacks:
+  ## concat threads the left result into the right, group opens a capture before
+  ## entering its child, and repeat threads every prior item.  Keeping those
+  ## starting states explicit makes the theorem compositional instead of
+  ## rebuilding special-case paths for each surface pattern.
+  type PatternAcceptanceCertificate indices (shape: ShapeCode, pattern: Pattern(shape), position: InitialPosition, input: List(Char), after_input: List(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame), final_evidence: List(Evidence))
+    PatternAcceptanceCertified : {@erased shape: ShapeCode} -> {@erased pattern: Pattern(shape)} -> {@erased position: InitialPosition} -> {@erased input: List(Char)} -> {@erased after_input: List(Char)} -> {@erased input_evidence: List(Evidence)} -> {@erased input_captures: List(CaptureFrame)} -> {@erased final_evidence: List(Evidence)} -> (acceptance: AcceptancePathFrom(thompson_state_count(certify_thompson(pattern)), thompson_machine(certify_thompson(pattern)), position, input, after_input, input_evidence, input_captures, final_evidence)) -> (captures: CertifiedAcceptanceCaptures(thompson_state_count(certify_thompson(pattern)), thompson_machine(certify_thompson(pattern)), position, input, after_input, input_evidence, input_captures, final_evidence, acceptance)) -> PatternAcceptanceCertificate(shape, pattern, position, input, after_input, input_evidence, input_captures, final_evidence)
+
+  ## Structural evidence that the constructor-preserving Thompson IR is the
+  ## compilation of one exact typed pattern.  The generic language theorems
+  ## recurse over this relation, keeping syntax, compilation, and machine
+  ## identity synchronized without reconstructing provenance from transition
+  ## functions.
+  type PatternCompilationProof indices (shape: ShapeCode, pattern: Pattern(shape), compilation: ThompsonCompilation(shape))
+    CompilesPredicate : (test: (Char -> Bool)) -> PatternCompilationProof(CharC, PatternPredicate(test), ThompsonPredicate(test))
+    CompilesEmpty : PatternCompilationProof(UnitC, PatternEmpty(), ThompsonEmpty())
+    CompilesBoundary : (constraint: BoundaryConstraint) -> PatternCompilationProof(UnitC, PatternBoundary(constraint), ThompsonBoundary(constraint))
+    CompilesConcat : (left_pattern: Pattern(left_shape)) -> (left_compilation: ThompsonCompilation(left_shape)) -> (left_proof: PatternCompilationProof(left_shape, left_pattern, left_compilation)) -> (right_pattern: Pattern(right_shape)) -> (right_compilation: ThompsonCompilation(right_shape)) -> (right_proof: PatternCompilationProof(right_shape, right_pattern, right_compilation)) -> PatternCompilationProof(PairC(left_shape, right_shape), PatternConcat(left_pattern, right_pattern), ThompsonConcat(left_compilation, right_compilation))
+    CompilesGroup : (inner_pattern: Pattern(inner_shape)) -> (inner_compilation: ThompsonCompilation(inner_shape)) -> (inner_proof: PatternCompilationProof(inner_shape, inner_pattern, inner_compilation)) -> PatternCompilationProof(StringC, PatternGroup(inner_pattern), ThompsonGroup(inner_compilation))
+    CompilesAlternate : (left_pattern: Pattern(left_shape)) -> (left_compilation: ThompsonCompilation(left_shape)) -> (left_proof: PatternCompilationProof(left_shape, left_pattern, left_compilation)) -> (right_pattern: Pattern(right_shape)) -> (right_compilation: ThompsonCompilation(right_shape)) -> (right_proof: PatternCompilationProof(right_shape, right_pattern, right_compilation)) -> PatternCompilationProof(ChoiceC(left_shape, right_shape), PatternAlternate(left_pattern, right_pattern), ThompsonAlternate(left_compilation, right_compilation, False()))
+    CompilesAlternateMode : (left_pattern: Pattern(left_shape)) -> (left_compilation: ThompsonCompilation(left_shape)) -> (left_proof: PatternCompilationProof(left_shape, left_pattern, left_compilation)) -> (right_pattern: Pattern(right_shape)) -> (right_compilation: ThompsonCompilation(right_shape)) -> (right_proof: PatternCompilationProof(right_shape, right_pattern, right_compilation)) -> (prefer_right: Bool) -> PatternCompilationProof(ChoiceC(left_shape, right_shape), PatternAlternateMode(left_pattern, right_pattern, prefer_right), ThompsonAlternate(left_compilation, right_compilation, prefer_right))
+    CompilesRepeat : (inner_pattern: Pattern(inner_shape)) -> (inner_compilation: ThompsonCompilation(inner_shape)) -> (inner_proof: PatternCompilationProof(inner_shape, inner_pattern, inner_compilation)) -> PatternCompilationProof(ListC(inner_shape), PatternRepeat(inner_pattern), ThompsonRepeat(inner_compilation, False()))
+    CompilesRepeatMode : (inner_pattern: Pattern(inner_shape)) -> (inner_compilation: ThompsonCompilation(inner_shape)) -> (inner_proof: PatternCompilationProof(inner_shape, inner_pattern, inner_compilation)) -> (lazy: Bool) -> PatternCompilationProof(ListC(inner_shape), PatternRepeatMode(inner_pattern, lazy), ThompsonRepeat(inner_compilation, lazy))
+
+  type PredicateAlternateAcceptance indices (left_test: Char -> Bool, right_test: Char -> Bool, prefer_right: Bool, char: Char, after_input: List(Char), position: InitialPosition)
+    PredicateAlternateAccepted : (final_evidence: List(Evidence)) -> (routine: List(ExtendedInstruction)) -> (@erased acceptance: MachineAcceptance(plus(S(Z()), S(Z())), predicate_alternate_mode_machine(left_test, right_test, prefer_right), position, Cons(char, Nil()), after_input, final_evidence, routine)) -> PredicateAlternateAcceptance(left_test, right_test, prefer_right, char, after_input, position)
+
+  fn predicate_result_member(
+    test: Char -> Bool,
+    char: Char,
+    after_input: List(Char),
+    predicate_holds: Equivalent(Bool, test(char), True())
+  ) -> ListMember(MachineState(S(Z())), predicate_accepting_destination(char), machine_destinations(S(Z()), predicate_pattern_machine(test), predicate_machine_thread(), char, transition_boundary_before(char, Nil(), after_input))) =
+    rewrite predicate_holds in member_here(predicate_accepting_destination(char), Nil())
+
+  fn is_true_equivalence(claim: Bool, proof: IsTrue(claim)) -> Equivalent(Bool, claim, True()) = match proof
+    Confirmed() -> reflexive(True())
+
+  fn equivalent_true_is_true(claim: Bool, equality: Equivalent(Bool, claim, True())) -> IsTrue(claim) = match equality
+    reflexive() -> Confirmed()
+
+  fn boundary_acceptance_truth(
+    constraint: BoundaryConstraint,
+    after_input: List(Char),
+    position: InitialPosition,
+    destination: MachineState(Z()),
+    edge: ListMember(MachineState(Z()), destination, initial_machine_destinations(Z(), boundary_pattern_machine(constraint), position, Nil(), after_input))
+  ) -> Equivalent(Bool, constraints_hold(Cons(constraint, Nil()), initial_position_boundary(position, after_input)), True()) =
+    let filtered_edge = filtered_starts_from_initial_edge(Z(), boundary_pattern_machine(constraint), position, Nil(), after_input, destination, edge)
+    match filtered_state_origin(Z(), Cons(Accepted(Cons(EmitUnit(), Nil()), Cons(constraint, Nil())), Nil()), initial_position_boundary(position, after_input), destination, filtered_edge)
+      FilteredActiveStateOrigin(_, _, _, raw_edge, _) -> match raw_edge
+        ListMemberThere(prior) -> impossible_list_member(prior)
+      FilteredAcceptedStateOrigin(_, _, raw_edge, holds) -> match raw_edge
+        ListMemberHere() -> holds
+        ListMemberThere(prior) -> impossible_list_member(prior)
+
+  fn predicate_acceptance_truth(
+    test: Char -> Bool,
+    char: Char,
+    after_input: List(Char),
+    position: InitialPosition,
+    @erased final_evidence: List(Evidence),
+    @erased routine: List(ExtendedInstruction),
+    acceptance: MachineAcceptance(S(Z()), predicate_pattern_machine(test), position, Cons(char, Nil()), after_input, final_evidence, routine)
+  ) -> Equivalent(Bool, test(char), True()) = match acceptance
+    MachineAccepted(_, _, _, _, initial_edge, initial_execution, _, path) -> match predicate_starts_view(test, position, Cons(char, Nil()), after_input)
+      PredicateStartsExact() -> match initial_edge
+        ListMemberHere() -> match initial_execution
+          RoutineDone() -> match path
+            AcceptingNextActive(destination, regular, constraints, _, _, _, edge, _, _) ->
+              match predicate_transition_truth(test, char, transition_boundary_before(char, Nil(), after_input), Active(destination, regular, constraints), edge)
+                PredicateTransitionHeld(predicate_holds) -> predicate_holds
+            AcceptingNextAccepted(regular, constraints, _, _, _, edge, _, _) ->
+              match predicate_transition_truth(test, char, transition_boundary_before(char, Nil(), after_input), Accepted(regular, constraints), edge)
+                PredicateTransitionHeld(predicate_holds) -> predicate_holds
+        ListMemberThere(prior) -> impossible_list_member(prior)
+
+  fn predicate_acceptance_path_truth(
+    test: Char -> Bool,
+    char: Char,
+    after_input: List(Char),
+    position: InitialPosition,
+    input_evidence: List(Evidence),
+    input_captures: List(CaptureFrame),
+    @erased final_evidence: List(Evidence),
+    acceptance: AcceptancePathFrom(S(Z()), predicate_pattern_machine(test), position, Cons(char, Nil()), after_input, input_evidence, input_captures, final_evidence)
+  ) -> Equivalent(Bool, test(char), True()) = match acceptance
+    mk_pair(destination, mk_pair(initial_evidence, mk_pair(initial_captures, mk_pair(path_routine, mk_pair(initial_edge, mk_pair(initial_execution, path)))))) ->
+      match predicate_starts_view(test, position, Cons(char, Nil()), after_input)
+        PredicateStartsExact() -> match initial_edge
+          ListMemberHere() -> match initial_execution
+            RoutineDone() -> match path
+              AcceptingNextActive(next_destination, regular, constraints, _, _, _, edge, _, _) ->
+                match predicate_transition_truth(test, char, transition_boundary_before(char, Nil(), after_input), Active(next_destination, regular, constraints), edge)
+                  PredicateTransitionHeld(predicate_holds) -> predicate_holds
+              AcceptingNextAccepted(regular, constraints, _, _, _, edge, _, _) ->
+                match predicate_transition_truth(test, char, transition_boundary_before(char, Nil(), after_input), Accepted(regular, constraints), edge)
+                  PredicateTransitionHeld(predicate_holds) -> predicate_holds
+          ListMemberThere(prior) -> impossible_list_member(prior)
+
+  fn input_partition_all_left(input: List(Char)) -> InputPartition(input, input, Nil()) = match input
+    Nil() -> InputPartitionHere(Nil())
+    Cons(char, rest) -> InputPartitionThere(char, input_partition_all_left(rest))
+
+  fn predicate_concat_first_member(
+    left_test: Char -> Bool,
+    right_test: Char -> Bool,
+    left_char: Char,
+    right_char: Char,
+    after_input: List(Char),
+    holds: Equivalent(Bool, left_test(left_char), True())
+  ) -> ListMember(MachineState(plus(S(Z()), S(Z()))), predicate_concat_middle(left_char), machine_destinations(plus(S(Z()), S(Z())), predicate_concat_machine(left_test, right_test), predicate_concat_start_thread(), left_char, transition_boundary_before(left_char, Cons(right_char, Nil()), after_input))) =
+    rewrite holds in member_here(predicate_concat_middle(left_char), Nil())
+
+  fn predicate_concat_second_member(
+    left_test: Char -> Bool,
+    right_test: Char -> Bool,
+    right_char: Char,
+    after_input: List(Char),
+    holds: Equivalent(Bool, right_test(right_char), True())
+  ) -> ListMember(MachineState(plus(S(Z()), S(Z()))), predicate_concat_accepting(right_char), machine_destinations(plus(S(Z()), S(Z())), predicate_concat_machine(left_test, right_test), predicate_concat_middle_thread(), right_char, transition_boundary_before(right_char, Nil(), after_input))) =
+    rewrite holds in member_here(predicate_concat_accepting(right_char), Nil())
+
+  fn predicate_alternate_left_initial_member(
+    left_test: Char -> Bool,
+    right_test: Char -> Bool,
+    prefer_right: Bool,
+    position: InitialPosition,
+    char: Char,
+    after_input: List(Char)
+  ) -> ListMember(MachineState(plus(S(Z()), S(Z()))), predicate_alternate_left_start(), initial_machine_destinations(plus(S(Z()), S(Z())), predicate_alternate_mode_machine(left_test, right_test, prefer_right), position, Cons(char, Nil()), after_input)) = match prefer_right
+    False() -> member_here(predicate_alternate_left_start(), Cons(predicate_alternate_right_start(), Nil()))
+    True() -> member_there(predicate_alternate_right_start(), member_here(predicate_alternate_left_start(), Nil()))
+
+  fn predicate_alternate_right_initial_member(
+    left_test: Char -> Bool,
+    right_test: Char -> Bool,
+    prefer_right: Bool,
+    position: InitialPosition,
+    char: Char,
+    after_input: List(Char)
+  ) -> ListMember(MachineState(plus(S(Z()), S(Z()))), predicate_alternate_right_start(), initial_machine_destinations(plus(S(Z()), S(Z())), predicate_alternate_mode_machine(left_test, right_test, prefer_right), position, Cons(char, Nil()), after_input)) = match prefer_right
+    False() -> member_there(predicate_alternate_left_start(), member_here(predicate_alternate_right_start(), Nil()))
+    True() -> member_here(predicate_alternate_right_start(), Cons(predicate_alternate_left_start(), Nil()))
+
+  fn predicate_alternate_left_result_member(
+    left_test: Char -> Bool,
+    right_test: Char -> Bool,
+    prefer_right: Bool,
+    char: Char,
+    after_input: List(Char),
+    holds: Equivalent(Bool, left_test(char), True())
+  ) -> ListMember(MachineState(plus(S(Z()), S(Z()))), Accepted(Cons(EmitChar(char), Cons(EmitLeft(), Nil())), Nil()), machine_destinations(plus(S(Z()), S(Z())), predicate_alternate_mode_machine(left_test, right_test, prefer_right), ThreadActive(First()), char, transition_boundary_before(char, Nil(), after_input))) =
+    rewrite holds in member_here(Accepted(Cons(EmitChar(char), Cons(EmitLeft(), Nil())), Nil()), Nil())
+
+  fn predicate_alternate_right_result_member(
+    left_test: Char -> Bool,
+    right_test: Char -> Bool,
+    prefer_right: Bool,
+    char: Char,
+    after_input: List(Char),
+    holds: Equivalent(Bool, right_test(char), True())
+  ) -> ListMember(MachineState(plus(S(Z()), S(Z()))), Accepted(Cons(EmitChar(char), Cons(EmitRight(), Nil())), Nil()), machine_destinations(plus(S(Z()), S(Z())), predicate_alternate_mode_machine(left_test, right_test, prefer_right), ThreadActive(Next(First())), char, transition_boundary_before(char, Nil(), after_input))) =
+    rewrite holds in member_here(Accepted(Cons(EmitChar(char), Cons(EmitRight(), Nil())), Nil()), Nil())
+
+  @reducible
+  fn grouped_predicate_accepting(char: Char) -> MachineState(S(Z())) =
+    let regular: List(EvidenceInstruction) = Cons(EmitChar(char), Cons(EndCapture(), Nil()))
+    let constraints: List(BoundaryConstraint) = Nil()
+    Accepted(regular, constraints)
+
+  type PredicateRepeatAcceptance indices (test: Char -> Bool, lazy: Bool, input: List(Char), after_input: List(Char), position: InitialPosition)
+    PredicateRepeatAccepted : (final_evidence: List(Evidence)) -> (routine: List(ExtendedInstruction)) -> (@erased acceptance: MachineAcceptance(S(Z()), repeat_pattern_machine(S(Z()), predicate_pattern_machine(test), lazy), position, input, after_input, final_evidence, routine)) -> PredicateRepeatAcceptance(test, lazy, input, after_input, position)
+
+  @reducible
+  fn predicate_repeat_empty_start() -> MachineState(S(Z())) =
+    Accepted(Cons(BeginList(), Cons(EndList(), Nil())), Nil())
+
+  @reducible
+  fn predicate_repeat_consuming_start() -> MachineState(S(Z())) =
+    Active(First(), Cons(BeginList(), Nil()), Nil())
+
+  fn repeat_empty_after_filtered_states(
+    n: Nat,
+    states: List(MachineState(n)),
+    boundary: Boundary
+  ) -> ListMember(MachineState(n), Accepted(Cons(BeginList(), Cons(EndList(), Nil())), Nil()), filter_machine_states(n, append_machine_states(n, states, Cons(Accepted(Cons(BeginList(), Cons(EndList(), Nil())), Nil()), Nil())), boundary)) = match states
+    Nil() -> member_here(Accepted(Cons(BeginList(), Cons(EndList(), Nil())), Nil()), Nil())
+    Cons(Active(state, routine, constraints), rest) -> match constraints_hold(constraints, boundary)
+      False() -> repeat_empty_after_filtered_states(n, rest, boundary)
+      True() -> member_there(Active(state, routine, Nil()), repeat_empty_after_filtered_states(n, rest, boundary))
+    Cons(Accepted(routine, constraints), rest) -> match constraints_hold(constraints, boundary)
+      False() -> repeat_empty_after_filtered_states(n, rest, boundary)
+      True() -> member_there(Accepted(routine, Nil()), repeat_empty_after_filtered_states(n, rest, boundary))
+
+  @reducible
+  fn predicate_repeat_singleton_accepting(char: Char) -> MachineState(S(Z())) =
+    Accepted(Cons(EmitChar(char), Cons(EndList(), Nil())), Nil())
+
+  @reducible
+  fn predicate_repeat_singleton_reentry(char: Char) -> MachineState(S(Z())) =
+    Active(First(), Cons(EmitChar(char), Nil()), Nil())
+
+  type PredicateRepeatContinuation indices (test: Char -> Bool, lazy: Bool, input: List(Char), after_input: List(Char), current_evidence: List(Evidence))
+    PredicateRepeatContinued : (final_evidence: List(Evidence)) -> (routine: List(ExtendedInstruction)) -> (path: AcceptingFrom(S(Z()), repeat_pattern_machine(S(Z()), predicate_pattern_machine(test), lazy), input, after_input, ThreadActive(First()), current_evidence, Nil(), final_evidence, routine)) -> (certificate: CertifiedPathRoutine(routine, current_evidence, Nil(), final_evidence)) -> PredicateRepeatContinuation(test, lazy, input, after_input, current_evidence)
+end
