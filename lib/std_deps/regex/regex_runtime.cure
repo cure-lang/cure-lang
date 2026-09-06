@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.CursorShapeLocations
   public use Std.Regex.Runtime.InitialMembers
   public use Std.Regex.Runtime.Roots
   public use Std.Regex.Runtime.LeafAuthorities
@@ -655,22 +656,6 @@ mod Std.Regex.Runtime
     AtomicPathActiveChildShapeAlignmentReversePacked(branch) -> reverse_case(branch)
 
 
-  @reducible
-  fn atomic_path_active_child_shape_there_package_fold(
-    {result: Type}, {failure_package: Type}, {selected_package: Type},
-    {failure_shape: LookaroundAdmittedStateCursorShape},
-    {selected_shape: LookaroundAdmittedStateCursorShape},
-    package: AtomicPathActiveChildShapeTherePackage(
-      failure_package, selected_package, failure_shape, selected_shape
-    ),
-    case: (
-      failure_package,
-      selected_package,
-      AtomicPathActiveChildShapeThereAuthority(failure_shape, selected_shape)
-    ) -> result
-  ) -> result = match package
-    AtomicPathActiveChildShapeTherePacked(failure, selected, authority) ->
-      case(failure, selected, authority)
 
 
 
@@ -773,13 +758,6 @@ mod Std.Regex.Runtime
       LookaroundAdmittedStateCursorSuffixDropPacked(_, right_prior) ->
         atomic_path_cursor_shape_package_location(left_prior, right_prior)
 
-  fn atomic_path_cursor_shapes_location(
-    left: LookaroundAdmittedStateCursorShape,
-    right: LookaroundAdmittedStateCursorShape
-  ) -> AtomicPathCursorShapeLocation =
-    atomic_path_cursor_shape_comparison_location(
-      atomic_path_cursor_shape_comparison(left, right)
-    )
 
   fn atomic_path_cursor_shape_location(
     {@erased n: Nat},
