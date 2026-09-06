@@ -39,6 +39,29 @@ defmodule Cure.Refactor.Rewrite.Result do
         }
 end
 
+defmodule Cure.Refactor.Rewrite.BatchResult do
+  @moduledoc "Result of one source rewrite that extracts several independent groups."
+
+  @enforce_keys [:source_path, :source_module, :targets, :source, :added_imports, :applied?]
+  defstruct [:source_path, :source_module, :targets, :source, :added_imports, :applied?]
+
+  @type target :: %{
+          required(:target_path) => Path.t(),
+          required(:target_module) => String.t(),
+          required(:selected) => [String.t()],
+          required(:target) => String.t()
+        }
+
+  @type t :: %__MODULE__{
+          source_path: Path.t(),
+          source_module: String.t(),
+          targets: [target()],
+          source: String.t(),
+          added_imports: [String.t()],
+          applied?: boolean()
+        }
+end
+
 defmodule Cure.Refactor.Rewrite do
   @moduledoc """
   Machine-applicable, AST-selected source rewrites for Cure modules.
@@ -159,6 +182,51 @@ defmodule Cure.Refactor.Rewrite do
        }}
     end
   end
+
+  @doc """
+  Extract several independent, dependency-closed groups from one source file.
+
+  Batch extraction analyzes and verifies the source once, then verifies each
+  generated target. Every selected group must have no dependency edge to a
+  declaration left in the source; this keeps the generated modules acyclic and
+  lets the source publish each group through an ordinary `public use`.
+  Dependents are deliberately not rewritten: the source re-exports remain the
+  compatibility surface. The operation is dry-run by default; pass `write:
+  true` to apply all verified buffers.
+  """
+  @spec split_many(Path.t(), [split_spec() | String.t()], keyword()) ::
+          {:ok, Cure.Refactor.Rewrite.BatchResult.t()} | {:error, error()}
+  def split_many(source_path, specs, opts \\ [])
+
+  def split_many(source_path, specs, opts) when is_list(specs) do
+    with {:ok, specs} <- normalize_batch_specs(specs),
+         {:ok, source} <- read_source(source_path),
+         {:ok, report} <- analyze(source_path),
+         :ok <- ensure_source_unchanged(source, report),
+         {:ok, groups} <- select_batch_groups(report, specs),
+         :ok <- ensure_batch_disjoint(groups),
+         {:ok, crossings} <- batch_crossings(report, groups, opts),
+         {:ok, target_paths} <- batch_target_paths(source_path, specs, opts),
+         :ok <- ensure_batch_targets_distinct(source_path, target_paths),
+         :ok <- ensure_batch_targets_available(target_paths, opts),
+         {:ok, generated} <- generate_batch(source, report, specs, groups, crossings, target_paths),
+         :ok <- verify_generated(report.module, generated.source, source_path),
+         :ok <- verify_batch_targets(generated.targets),
+         {:ok, applied?} <- maybe_write_batch(generated, opts) do
+      {:ok,
+       %Cure.Refactor.Rewrite.BatchResult{
+         source_path: source_path,
+         source_module: report.module,
+         targets: generated.targets,
+         source: generated.source,
+         added_imports: generated.added_imports,
+         applied?: applied?
+       }}
+    end
+  end
+
+  def split_many(_source_path, _specs, _opts),
+    do: {:error, {:invalid_split_spec, "batch split specifications must be a list"}}
 
   @doc "Return a compact JSON-safe summary of a rewrite result."
   @spec to_map(Cure.Refactor.Rewrite.Result.t()) :: map()
@@ -377,6 +445,98 @@ defmodule Cure.Refactor.Rewrite do
 
   defp normalize_spec(spec), do: parse_spec(spec)
 
+  defp normalize_batch_specs([]),
+    do: {:error, {:invalid_split_spec, "batch split must contain at least one specification"}}
+
+  defp normalize_batch_specs(specs) do
+    Enum.reduce_while(specs, {:ok, []}, fn spec, {:ok, normalized} ->
+      case normalize_spec(spec) do
+        {:ok, normalized_spec} -> {:cont, {:ok, [normalized_spec | normalized]}}
+        {:error, _reason} = error -> {:halt, error}
+      end
+    end)
+    |> case do
+      {:ok, normalized} ->
+        normalized = Enum.reverse(normalized)
+        keys = Enum.map(normalized, &{&1.target_file, &1.target_module})
+
+        if length(keys) == length(Enum.uniq(keys)) do
+          {:ok, normalized}
+        else
+          {:error, {:invalid_split_spec, "batch split target files and modules must be unique"}}
+        end
+
+      error ->
+        error
+    end
+  end
+
+  defp select_batch_groups(report, specs) do
+    Enum.reduce_while(specs, {:ok, []}, fn spec, {:ok, groups} ->
+      case select_declarations(report, spec.selectors) do
+        {:ok, selected} -> {:cont, {:ok, groups ++ [selected]}}
+        {:error, _reason} = error -> {:halt, error}
+      end
+    end)
+  end
+
+  defp ensure_batch_disjoint(groups) do
+    identities = groups |> List.flatten() |> Enum.map(& &1.identity)
+
+    if length(identities) == length(Enum.uniq(identities)),
+      do: :ok,
+      else: {:error, {:selection_error, "batch split groups select the same declaration more than once"}}
+  end
+
+  defp batch_crossings(report, groups, opts) do
+    if Keyword.get(opts, :remove_from_source, true) do
+      Enum.reduce_while(groups, {:ok, []}, fn selected, {:ok, crossings} ->
+        with {:ok, crossing} <- dependency_edges(report.declarations, selected),
+             :ok <- ensure_movable(crossing, true),
+             :ok <- ensure_boundary_acyclic(crossing, selected, true) do
+          {:cont, {:ok, crossings ++ [crossing]}}
+        else
+          {:error, _reason} = error -> {:halt, error}
+        end
+      end)
+    else
+      {:error, {:invalid_split_spec, "batch split requires remove_from_source: true"}}
+    end
+  end
+
+  defp batch_target_paths(source_path, specs, opts) do
+    Enum.reduce_while(specs, {:ok, []}, fn spec, {:ok, paths} ->
+      {:ok, path} = target_path(source_path, spec.target_file, opts)
+      {:cont, {:ok, paths ++ [path]}}
+    end)
+  end
+
+  defp ensure_batch_targets_distinct(source_path, target_paths) do
+    expanded_source = Path.expand(source_path)
+
+    cond do
+      Enum.any?(target_paths, &(&1 == expanded_source)) ->
+        {:error, {:invalid_split_spec, "a batch target must differ from the source file"}}
+
+      length(target_paths) != length(Enum.uniq(target_paths)) ->
+        {:error, {:invalid_split_spec, "batch target paths must be unique"}}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp ensure_batch_targets_available(target_paths, opts) do
+    if Keyword.get(opts, :write, false) and not Keyword.get(opts, :overwrite, false) do
+      case Enum.find(target_paths, &File.exists?/1) do
+        nil -> :ok
+        path -> {:error, {:target_exists, path}}
+      end
+    else
+      :ok
+    end
+  end
+
   defp nonempty_string(value, _key) when is_binary(value) and value != "", do: {:ok, value}
   defp nonempty_string(_value, key), do: {:error, {:invalid_split_spec, "#{key} must be a non-empty string"}}
 
@@ -577,6 +737,90 @@ defmodule Cure.Refactor.Rewrite do
        source_path: source_path,
        added_imports: source_imports ++ target_imports
      }}
+  end
+
+  defp generate_batch(source, report, specs, groups, crossings, target_paths) do
+    selected = List.flatten(groups)
+    source_without_selected = remove_spans(source, Enum.map(selected, & &1.span))
+
+    {source_imports, _seen} =
+      Enum.zip(specs, groups)
+      |> Enum.reduce({[], MapSet.new()}, fn {spec, group}, {imports, seen} ->
+        if public_declarations?(group) and not has_import?(report, spec.target_module) and
+             not MapSet.member?(seen, spec.target_module) do
+          {imports ++ ["public use #{spec.target_module}"], MapSet.put(seen, spec.target_module)}
+        else
+          {imports, seen}
+        end
+      end)
+
+    source_with_import = insert_imports(source_without_selected, report, source_imports)
+
+    targets =
+      Enum.zip([specs, groups, crossings, target_paths])
+      |> Enum.map(fn {spec, group, crossing, path} ->
+        target_imports =
+          if crossing.selected_to_remaining == [] or has_import?(report, report.module),
+            do: [],
+            else: ["use #{report.module}"]
+
+        target =
+          build_target(
+            source,
+            report,
+            group,
+            target_imports,
+            spec.target_module,
+            report.path,
+            reducible_crossing_names(crossing, group)
+          )
+
+        %{
+          target_path: path,
+          target_module: spec.target_module,
+          selected: Enum.map(group, & &1.name),
+          target: target
+        }
+      end)
+
+    {:ok,
+     %{
+       source_path: report.path,
+       source: source_with_import,
+       targets: targets,
+       added_imports: source_imports
+     }}
+  end
+
+  defp verify_batch_targets(targets) do
+    Enum.reduce_while(targets, :ok, fn target, :ok ->
+      case verify_generated(target.target_module, target.target, target.target_path) do
+        :ok -> {:cont, :ok}
+        {:error, _reason} = error -> {:halt, error}
+      end
+    end)
+  end
+
+  defp maybe_write_batch(generated, opts) do
+    if Keyword.get(opts, :write, false) do
+      with :ok <- write_batch_targets(generated.targets),
+           :ok <- write_file(generated.source_path, generated.source) do
+        {:ok, true}
+      end
+    else
+      {:ok, false}
+    end
+  end
+
+  defp write_batch_targets(targets) do
+    Enum.reduce_while(targets, :ok, fn target, :ok ->
+      with :ok <- File.mkdir_p(Path.dirname(target.target_path)),
+           :ok <- write_file(target.target_path, target.target) do
+        {:cont, :ok}
+      else
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
   end
 
   defp has_import?(report, module) do

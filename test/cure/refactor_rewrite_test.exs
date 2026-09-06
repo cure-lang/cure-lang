@@ -500,4 +500,35 @@ defmodule Cure.Refactor.RewriteTest do
     assert declaration.span.start_line == 2
     assert declaration.span.end_line >= 8
   end
+
+  test "split_many extracts independent closed groups in one source rewrite", %{dir: dir} do
+    source_path = Path.join(dir, "source.cure")
+
+    File.write!(source_path, """
+    mod Source
+      fn first() -> Int = 1
+      fn second() -> Int = 2
+      fn keep() -> Int = first() + second()
+    end
+    """)
+
+    assert {:ok, result} =
+             Rewrite.split_many(
+               source_path,
+               [
+                 %{target_file: "first.cure", target_module: "Extracted.First", selectors: ["first"]},
+                 %{target_file: "second.cure", target_module: "Extracted.Second", selectors: ["second"]}
+               ],
+               output_directory: dir
+             )
+
+    assert result.applied? == false
+    assert result.source =~ "public use Extracted.First"
+    assert result.source =~ "public use Extracted.Second"
+    refute result.source =~ "fn first()"
+    refute result.source =~ "fn second()"
+    assert Enum.map(result.targets, & &1.target_module) == ["Extracted.First", "Extracted.Second"]
+    assert Enum.at(result.targets, 0).target =~ "fn first() -> Int = 1"
+    assert Enum.at(result.targets, 1).target =~ "fn second() -> Int = 2"
+  end
 end
