@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.CursorToSuffix
   public use Std.Regex.Runtime.CursorSuffixMembers
   public use Std.Regex.Runtime.DestinationRejectionTail
   public use Std.Regex.Runtime.SelectedChildSuffixLocation
@@ -469,9 +470,6 @@ mod Std.Regex.Runtime
   fn empty_lookaround_admitted_cursor_witness(n: Nat) -> LookaroundAdmittedStateCursorWitness(n, empty_lookaround_admitted_states(n), empty_lookaround_admitted_states(n)) =
     LookaroundAdmittedStateCursorWitnessHere()
 
-  type LookaroundAdmittedStateCursor(n: Nat) indices (whole: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)))
-    LookaroundAdmittedStateCursorHere : LookaroundAdmittedStateCursor(n, values, values)
-    LookaroundAdmittedStateCursorDrop : (@erased head: LookaroundAdmittedState(n)) -> (@erased cursor: LookaroundAdmittedStateCursor(n, whole, Cons(head, values))) -> LookaroundAdmittedStateCursor(n, whole, values)
 
 
 
@@ -1338,18 +1336,7 @@ mod Std.Regex.Runtime
   ) -> Equivalent(List(LookaroundAdmittedState(n)), Cons(head, left), Cons(head, right)) = match equality
     reflexive() -> reflexive(Cons(head, left))
 
-  ## This witness mirrors the cursor's own arbitrary-whole traversal.  It is
-  ## distinct from `LookaroundAdmittedStateCursorSuffix`: the latter relates
-  ## two list spines whose outer list starts at the dropped head, while this
-  ## witness records a cursor that may already have skipped a prefix of its
-  ## original whole list.
-  type LookaroundAdmittedStateCursorWitness(n: Nat) indices (whole: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)))
-    LookaroundAdmittedStateCursorWitnessHere : LookaroundAdmittedStateCursorWitness(n, values, values)
-    LookaroundAdmittedStateCursorWitnessDrop : (@erased head: LookaroundAdmittedState(n)) -> (@erased witness: LookaroundAdmittedStateCursorWitness(n, whole, Cons(head, values))) -> LookaroundAdmittedStateCursorWitness(n, whole, values)
 
-  fn lookaround_admitted_cursor_to_suffix({n: Nat}, {whole: List(LookaroundAdmittedState(n))}, {current: List(LookaroundAdmittedState(n))}, cursor: LookaroundAdmittedStateCursor(n, whole, current)) -> LookaroundAdmittedStateCursorWitness(n, whole, current) = match cursor
-    LookaroundAdmittedStateCursorHere() -> LookaroundAdmittedStateCursorWitnessHere()
-    LookaroundAdmittedStateCursorDrop(head, cursor) -> LookaroundAdmittedStateCursorWitnessDrop(head, lookaround_admitted_cursor_to_suffix(cursor))
 
   fn lookaround_admitted_machine_state({n: Nat}, admitted: LookaroundAdmittedState(n)) -> MachineState(n) = match admitted
     LookaroundAdmittedActive(state, routine, constraints, _, assertion_markers, _) -> Active(state, append_routine(routine, assertion_markers), constraints)
