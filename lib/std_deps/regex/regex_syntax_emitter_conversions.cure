@@ -1,0 +1,152 @@
+## Compile-time emitter for regex syntax trees. It turns parsed patterns into
+## the matcher representation consumed by `Std.Regex`.
+@group(:text)
+mod Std.Regex.Syntax.Emitter.Conversions
+  use Std.Regex.Syntax.Emitter.Foundation
+
+  use Std.Regex.Syntax.Model.LiteralBranchReset
+
+  use Std.Regex.Syntax.Emitter.InvertLiteralAssertion
+
+  use Std.Regex.Syntax.Model.Width
+
+  use Std.Regex.Syntax.Model.Options
+
+  use Std.Regex.Syntax.Model.Modifiers
+
+  use Std.Regex.Syntax.Model.ClassPredicates
+
+  use Std.Regex.Syntax.Model.Shape
+
+  use Std.Regex.Syntax.Model.Utilities
+
+  use Std.Regex.Syntax.Model.ClassKinds
+
+  use Std.Regex.Syntax.Model.Predicates
+
+  use Std.Regex.Syntax.Model.Types
+
+  use Std.Regex.Syntax.Model
+
+  use Std.String
+
+  use Std.Syntax
+
+  fn emit_staged_conversion_conditional(pattern: LiteralPattern) -> Syntax = match pattern
+    LiteralEmpty -> runtime_call("unit_identity_conversion", [])
+    LiteralOptional(inner, _) -> runtime_call("OptionalConversion", [emit_staged_conversion_conditional(inner)])
+    LiteralSequence(left, right) -> runtime_call("PairConversion", [emit_staged_conversion_conditional(left), emit_staged_conversion_conditional(right)])
+    LiteralAlternate(left, right) -> runtime_call("ChoiceConversion", [emit_staged_conversion_conditional(left), emit_staged_conversion_conditional(right)])
+    LiteralConditional(_, yes, no) -> runtime_call("ChoiceConversion", [emit_staged_conversion_conditional(yes), emit_staged_conversion_conditional_or_unit(no)])
+    LiteralAtomic(inner) -> emit_staged_conversion_conditional(inner)
+    LiteralLookahead(_, _) -> runtime_call("unit_identity_conversion", [])
+    LiteralLookbehind(_, _) -> runtime_call("unit_identity_conversion", [])
+    LiteralCapture(_) -> runtime_call("string_identity_conversion", [])
+    LiteralNamedCapture(_, _) -> runtime_call("string_identity_conversion", [])
+    LiteralCaptureIndexed(_, _, _) -> runtime_call("string_identity_conversion", [])
+    LiteralRepeat(inner, _) -> runtime_call("ListConversion", [emit_staged_conversion_conditional(inner)])
+    LiteralPlus(inner, _) -> runtime_call("PrependConversion", [emit_staged_conversion_conditional(inner)])
+    LiteralBoundedExact(inner, count) -> emit_bounded_exact_conversion_conditional(inner, count)
+    LiteralBoundedAtLeast(inner, count, _) -> emit_bounded_at_least_conversion_conditional(inner, count)
+    LiteralBoundedBetween(inner, minimum, maximum, _) -> emit_bounded_between_conversion_conditional(inner, minimum, maximum)
+    LiteralLineBreak() -> runtime_call("string_identity_conversion", [])
+    LiteralExact(_) -> runtime_call("discard_char_conversion", [])
+    LiteralAny -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralClass(_, _, _, _) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralProperty(_, _) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralDigit(_) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralWord(_) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralSpace(_) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralHorizontal(_) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralVertical(_) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralStart -> runtime_call("unit_identity_conversion", [])
+    LiteralEnd -> runtime_call("unit_identity_conversion", [])
+    LiteralAbsoluteStart -> runtime_call("unit_identity_conversion", [])
+    LiteralStrictEnd -> runtime_call("unit_identity_conversion", [])
+    LiteralFinalEnd -> runtime_call("unit_identity_conversion", [])
+    LiteralWordBoundary(_) -> runtime_call("unit_identity_conversion", [])
+    LiteralConfigured(_, inner) -> emit_staged_conversion_conditional(inner)
+    LiteralScopedOptions(_, _, inner) -> emit_staged_conversion_conditional(inner)
+    LiteralBranchReset(arms) -> emit_staged_conversion_conditional(literal_branch_reset_alternate(arms))
+
+  fn emit_staged_conversion_conditional_or_unit(pattern: Option(LiteralPattern)) -> Syntax = match pattern
+    None() -> runtime_call("unit_identity_conversion", [])
+    Some(inner) -> emit_staged_conversion_conditional(inner)
+
+  fn emit_bounded_exact_conversion_conditional(inner: LiteralPattern, count: Nat) -> Syntax = match count
+    Z() -> runtime_call("empty_list_conversion_for", [emit_shape(literal_shape(inner))])
+    S(rest) -> runtime_call("ComposedConversion", [runtime_call("PairConversion", [emit_staged_conversion_conditional(inner), emit_bounded_exact_conversion_conditional(inner, rest)]), runtime_call("prepend_repetition_conversion_for", [emit_shape(literal_shape(inner))])])
+
+  fn emit_bounded_at_least_conversion_conditional(inner: LiteralPattern, count: Nat) -> Syntax = match count
+    Z() -> runtime_call("ListConversion", [emit_staged_conversion_conditional(inner)])
+    S(rest) -> runtime_call("ComposedConversion", [runtime_call("PairConversion", [emit_staged_conversion_conditional(inner), emit_bounded_at_least_conversion_conditional(inner, rest)]), runtime_call("prepend_repetition_conversion_for", [emit_shape(literal_shape(inner))])])
+
+  fn emit_bounded_between_conversion_conditional(inner: LiteralPattern, minimum: Nat, maximum: Nat) -> Syntax = match minimum
+    Z() -> emit_bounded_up_to_conversion_conditional(inner, maximum)
+    S(rest) -> match maximum
+      Z() -> emit_bounded_exact_conversion_conditional(inner, S(rest))
+      S(maximum_rest) -> runtime_call("ComposedConversion", [runtime_call("PairConversion", [emit_staged_conversion_conditional(inner), emit_bounded_between_conversion_conditional(inner, rest, maximum_rest)]), runtime_call("prepend_repetition_conversion_for", [emit_shape(literal_shape(inner))])])
+
+  fn emit_bounded_up_to_conversion_conditional(inner: LiteralPattern, maximum: Nat) -> Syntax = match maximum
+    Z() -> runtime_call("empty_list_conversion_for", [emit_shape(literal_shape(inner))])
+    S(rest) -> runtime_call("ComposedConversion", [runtime_call("PairConversion", [runtime_call("ChoiceConversion", [emit_staged_conversion_conditional(inner), runtime_call("unit_identity_conversion", [])]), emit_bounded_up_to_conversion_conditional(inner, rest)]), runtime_call("prepend_optional_repetition_conversion_for", [emit_shape(literal_shape(inner))])])
+
+  fn emit_staged_conversion_or_unit(pattern: Option(LiteralPattern)) -> Syntax = match pattern
+    None() -> runtime_call("unit_identity_conversion", [])
+    Some(inner) -> emit_staged_conversion(inner)
+
+  fn emit_staged_conversion(pattern: LiteralPattern) -> Syntax = match pattern
+    LiteralEmpty -> runtime_call("unit_identity_conversion", [])
+    LiteralExact(_) -> runtime_call("discard_char_conversion", [])
+    LiteralAny -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralClass(_, _, _, _) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralProperty(_, _) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralDigit(_) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralWord(_) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralSpace(_) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralHorizontal(_) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralVertical(_) -> runtime_call("sem_identity_conversion", [core_call("CharC", [])])
+    LiteralLineBreak() -> runtime_call("string_identity_conversion", [])
+    LiteralSequence(left, right) -> runtime_call("PairConversion", [emit_staged_conversion(left), emit_staged_conversion(right)])
+    LiteralAlternate(left, right) -> runtime_call("ChoiceConversion", [emit_staged_conversion(left), emit_staged_conversion(right)])
+    LiteralConditional(_, yes, no) -> runtime_call("ChoiceConversion", [emit_staged_conversion(yes), emit_staged_conversion_or_unit(no)])
+    LiteralAtomic(inner) -> emit_staged_conversion(inner)
+    LiteralLookahead(_, _) -> runtime_call("unit_identity_conversion", [])
+    LiteralLookbehind(_, _) -> runtime_call("unit_identity_conversion", [])
+    LiteralBranchReset(arms) -> emit_staged_conversion(literal_branch_reset_alternate(arms))
+    LiteralRepeat(inner, _) -> runtime_call("ListConversion", [emit_staged_conversion(inner)])
+    LiteralPlus(inner, _) -> runtime_call("PrependConversion", [emit_staged_conversion(inner)])
+    LiteralOptional(inner, _) -> runtime_call("OptionalConversion", [emit_staged_conversion(inner)])
+    LiteralBoundedExact(inner, count) -> emit_bounded_exact_conversion(inner, count)
+    LiteralBoundedAtLeast(inner, count, _) -> emit_bounded_at_least_conversion(inner, count)
+    LiteralBoundedBetween(inner, minimum, maximum, _) -> emit_bounded_between_conversion(inner, minimum, maximum)
+    LiteralCapture(_) -> runtime_call("string_identity_conversion", [])
+    LiteralNamedCapture(_, _) -> runtime_call("string_identity_conversion", [])
+    LiteralCaptureIndexed(_, _, _) -> runtime_call("string_identity_conversion", [])
+    LiteralStart -> runtime_call("unit_identity_conversion", [])
+    LiteralEnd -> runtime_call("unit_identity_conversion", [])
+    LiteralAbsoluteStart -> runtime_call("unit_identity_conversion", [])
+    LiteralStrictEnd -> runtime_call("unit_identity_conversion", [])
+    LiteralFinalEnd -> runtime_call("unit_identity_conversion", [])
+    LiteralWordBoundary(_) -> runtime_call("unit_identity_conversion", [])
+    LiteralConfigured(_, inner) -> emit_staged_conversion(inner)
+    LiteralScopedOptions(_, _, inner) -> emit_staged_conversion(inner)
+
+  fn emit_bounded_exact_conversion(inner: LiteralPattern, count: Nat) -> Syntax = match count
+    Z() -> runtime_call("empty_list_conversion_for", [emit_shape(literal_shape(inner))])
+    S(rest) -> runtime_call("ComposedConversion", [runtime_call("PairConversion", [emit_staged_conversion(inner), emit_bounded_exact_conversion(inner, rest)]), runtime_call("prepend_repetition_conversion_for", [emit_shape(literal_shape(inner))])])
+
+  fn emit_bounded_at_least_conversion(inner: LiteralPattern, count: Nat) -> Syntax = match count
+    Z() -> runtime_call("ListConversion", [emit_staged_conversion(inner)])
+    S(rest) -> runtime_call("ComposedConversion", [runtime_call("PairConversion", [emit_staged_conversion(inner), emit_bounded_at_least_conversion(inner, rest)]), runtime_call("prepend_repetition_conversion_for", [emit_shape(literal_shape(inner))])])
+
+  fn emit_bounded_between_conversion(inner: LiteralPattern, minimum: Nat, maximum: Nat) -> Syntax = match minimum
+    Z() -> emit_bounded_up_to_conversion(inner, maximum)
+    S(rest) -> match maximum
+      Z() -> emit_bounded_exact_conversion(inner, S(rest))
+      S(maximum_rest) -> runtime_call("ComposedConversion", [runtime_call("PairConversion", [emit_staged_conversion(inner), emit_bounded_between_conversion(inner, rest, maximum_rest)]), runtime_call("prepend_repetition_conversion_for", [emit_shape(literal_shape(inner))])])
+
+  fn emit_bounded_up_to_conversion(inner: LiteralPattern, maximum: Nat) -> Syntax = match maximum
+    Z() -> runtime_call("empty_list_conversion_for", [emit_shape(literal_shape(inner))])
+    S(rest) -> runtime_call("ComposedConversion", [runtime_call("PairConversion", [runtime_call("ChoiceConversion", [emit_staged_conversion(inner), runtime_call("IdentityConversion", [])]), emit_bounded_up_to_conversion(inner, rest)]), runtime_call("prepend_optional_repetition_conversion_for", [emit_shape(literal_shape(inner))])])
+end

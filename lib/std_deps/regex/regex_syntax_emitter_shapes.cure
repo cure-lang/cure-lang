@@ -1,0 +1,93 @@
+## Compile-time emitter for regex syntax trees. It turns parsed patterns into
+## the matcher representation consumed by `Std.Regex`.
+@group(:text)
+mod Std.Regex.Syntax.Emitter.Shapes
+  use Std.Regex.Syntax.Emitter.Foundation
+
+  use Std.Regex.Syntax.Model.LiteralBranchReset
+
+  use Std.Regex.Syntax.Emitter.InvertLiteralAssertion
+
+  use Std.Regex.Syntax.Model.Width
+
+  use Std.Regex.Syntax.Model.Options
+
+  use Std.Regex.Syntax.Model.Modifiers
+
+  use Std.Regex.Syntax.Model.ClassPredicates
+
+  use Std.Regex.Syntax.Model.Shape
+
+  use Std.Regex.Syntax.Model.Utilities
+
+  use Std.Regex.Syntax.Model.ClassKinds
+
+  use Std.Regex.Syntax.Model.Predicates
+
+  use Std.Regex.Syntax.Model.Types
+
+  use Std.Regex.Syntax.Model
+
+  use Std.String
+
+  use Std.Syntax
+
+  fn emit_compilation_shape(pattern: LiteralPattern) -> Syntax = match pattern
+    LiteralEmpty -> core_call("UnitC", [])
+    LiteralExact(_) -> core_call("CharC", [])
+    LiteralAny -> core_call("CharC", [])
+    LiteralClass(_, _, _, _) -> core_call("CharC", [])
+    LiteralProperty(_, _) -> core_call("CharC", [])
+    LiteralDigit(_) -> core_call("CharC", [])
+    LiteralWord(_) -> core_call("CharC", [])
+    LiteralSpace(_) -> core_call("CharC", [])
+    LiteralHorizontal(_) -> core_call("CharC", [])
+    LiteralVertical(_) -> core_call("CharC", [])
+    LiteralLineBreak() -> core_call("StringC", [])
+    LiteralSequence(left, right) -> core_call("PairC", [emit_compilation_shape(left), emit_compilation_shape(right)])
+    LiteralAlternate(left, right) -> core_call("ChoiceC", [emit_compilation_shape(left), emit_compilation_shape(right)])
+    LiteralConditional(_, yes, no) -> core_call("ChoiceC", [emit_compilation_shape(yes), emit_compilation_shape_or_unit(no)])
+    LiteralAtomic(inner) -> emit_compilation_shape(inner)
+    LiteralLookahead(_, _) -> core_call("UnitC", [])
+    LiteralLookbehind(_, _) -> core_call("UnitC", [])
+    LiteralBranchReset(arms) -> emit_compilation_shape(literal_branch_reset_alternate(arms))
+    LiteralRepeat(inner, _) -> core_call("ListC", [emit_compilation_shape(inner)])
+    LiteralPlus(inner, _) -> core_call("PairC", [emit_compilation_shape(inner), core_call("ListC", [emit_compilation_shape(inner)])])
+    LiteralOptional(inner, _) -> core_call("ChoiceC", [emit_compilation_shape(inner), core_call("UnitC", [])])
+    LiteralBoundedExact(inner, count) -> emit_bounded_exact_shape(inner, count)
+    LiteralBoundedAtLeast(inner, count, _) -> emit_bounded_at_least_shape(inner, count)
+    LiteralBoundedBetween(inner, minimum, maximum, _) -> emit_bounded_between_shape(inner, minimum, maximum)
+    LiteralCapture(_) -> core_call("StringC", [])
+    LiteralNamedCapture(_, _) -> core_call("StringC", [])
+    LiteralCaptureIndexed(_, _, _) -> core_call("StringC", [])
+    LiteralStart -> core_call("UnitC", [])
+    LiteralEnd -> core_call("UnitC", [])
+    LiteralAbsoluteStart -> core_call("UnitC", [])
+    LiteralStrictEnd -> core_call("UnitC", [])
+    LiteralFinalEnd -> core_call("UnitC", [])
+    LiteralWordBoundary(_) -> core_call("UnitC", [])
+    LiteralConfigured(_, inner) -> emit_compilation_shape(inner)
+    LiteralScopedOptions(_, _, inner) -> emit_compilation_shape(inner)
+
+  fn emit_compilation_shape_or_unit(pattern: Option(LiteralPattern)) -> Syntax = match pattern
+    None() -> core_call("UnitC", [])
+    Some(inner) -> emit_compilation_shape(inner)
+
+  fn emit_bounded_exact_shape(inner: LiteralPattern, count: Nat) -> Syntax = match count
+    Z() -> core_call("UnitC", [])
+    S(rest) -> core_call("PairC", [emit_compilation_shape(inner), emit_bounded_exact_shape(inner, rest)])
+
+  fn emit_bounded_at_least_shape(inner: LiteralPattern, count: Nat) -> Syntax = match count
+    Z() -> core_call("ListC", [emit_compilation_shape(inner)])
+    S(rest) -> core_call("PairC", [emit_compilation_shape(inner), emit_bounded_at_least_shape(inner, rest)])
+
+  fn emit_bounded_between_shape(inner: LiteralPattern, minimum: Nat, maximum: Nat) -> Syntax = match minimum
+    Z() -> emit_bounded_up_to_shape(inner, maximum)
+    S(rest) -> match maximum
+      Z() -> emit_bounded_exact_shape(inner, S(rest))
+      S(maximum_rest) -> core_call("PairC", [emit_compilation_shape(inner), emit_bounded_between_shape(inner, rest, maximum_rest)])
+
+  fn emit_bounded_up_to_shape(inner: LiteralPattern, maximum: Nat) -> Syntax = match maximum
+    Z() -> core_call("UnitC", [])
+    S(rest) -> core_call("PairC", [core_call("ChoiceC", [emit_compilation_shape(inner), core_call("UnitC", [])]), emit_bounded_up_to_shape(inner, rest)])
+end

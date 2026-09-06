@@ -1,0 +1,45 @@
+## Compile-time emitter for regex syntax trees. It turns parsed patterns into
+## the matcher representation consumed by `Std.Regex`.
+@group(:text)
+mod Std.Regex.Syntax.Emitter.Captures
+  use Std.Regex.Syntax.Emitter.Foundation
+
+  use Std.Regex.Syntax.Model.LiteralBranchReset
+
+  use Std.Regex.Syntax.Emitter.InvertLiteralAssertion
+
+  use Std.Regex.Syntax.Model.Width
+
+  use Std.Regex.Syntax.Model.Options
+
+  use Std.Regex.Syntax.Model.Modifiers
+
+  use Std.Regex.Syntax.Model.ClassPredicates
+
+  use Std.Regex.Syntax.Model.Shape
+
+  use Std.Regex.Syntax.Model.Utilities
+
+  use Std.Regex.Syntax.Model.ClassKinds
+
+  use Std.Regex.Syntax.Model.Predicates
+
+  use Std.Regex.Syntax.Model.Types
+
+  use Std.Regex.Syntax.Model
+
+  use Std.String
+
+  use Std.Syntax
+
+  fn emit_capture_layout(layout: LiteralCaptureLayout) -> Syntax = match layout
+    LiteralCaptureLayout(slots) -> runtime_call("CaptureLayout", [emit_capture_slots(slots)])
+
+  fn emit_capture_slots(slots: List(LiteralCaptureSlotInfo)) -> Syntax = match slots
+    [] -> list([])
+    [LiteralCaptureSlotInfo(slot, name) | rest] -> prepend_syntax(runtime_call("CaptureSlot", [emit_nat(slot), emit_capture_name(name)]), emit_capture_slots(rest))
+
+  fn emit_capture_name(name: Option(String)) -> Syntax = match name
+    None() -> call("Std.Option.None", [])
+    Some(value) -> call("Std.Option.Some", [string_literal(value)])
+end

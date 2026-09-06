@@ -1,0 +1,54 @@
+## Compile-time emitter for regex syntax trees. It turns parsed patterns into
+## the matcher representation consumed by `Std.Regex`.
+@group(:text)
+mod Std.Regex.Syntax.Emitter.Options
+  use Std.Regex.Syntax.Emitter.Foundation
+
+  use Std.Regex.Syntax.Model.LiteralBranchReset
+
+  use Std.Regex.Syntax.Emitter.InvertLiteralAssertion
+
+  use Std.Regex.Syntax.Model.Width
+
+  use Std.Regex.Syntax.Model.Options
+
+  use Std.Regex.Syntax.Model.Modifiers
+
+  use Std.Regex.Syntax.Model.ClassPredicates
+
+  use Std.Regex.Syntax.Model.Shape
+
+  use Std.Regex.Syntax.Model.Utilities
+
+  use Std.Regex.Syntax.Model.ClassKinds
+
+  use Std.Regex.Syntax.Model.Predicates
+
+  use Std.Regex.Syntax.Model.Types
+
+  use Std.Regex.Syntax.Model
+
+  use Std.String
+
+  use Std.Syntax
+
+  fn emit_options(options: LiteralRegexOptions) -> Syntax =
+    runtime_call("RegexOptions", [
+      bool_literal(has_modifier(options, CaselessModifier)),
+      bool_literal(has_modifier(options, MultilineModifier)),
+      bool_literal(has_modifier(options, DotallModifier)),
+      bool_literal(has_modifier(options, ExtendedModifier)),
+      bool_literal(has_modifier(options, UnicodeModifier)),
+      bool_literal(has_modifier(options, FirstlineModifier)),
+      bool_literal(has_modifier(options, UngreedyModifier)),
+      bool_literal(has_modifier(options, ExportModifier)),
+      emit_newline_policy(options)
+    ])
+
+  fn emit_newline_policy(options: LiteralRegexOptions) -> Syntax = match literal_newline_policy(options)
+    LiteralLFPolicy -> core_call("LFNewline", [])
+    LiteralCRPolicy -> core_call("CRNewline", [])
+    LiteralCRLFPolicy -> core_call("CRLFNewline", [])
+    LiteralAnyCRLFPolicy -> core_call("AnyCRLFNewline", [])
+    LiteralAnyUnicodePolicy -> core_call("AnyUnicodeNewline", [])
+end

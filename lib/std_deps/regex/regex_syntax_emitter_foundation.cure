@@ -1,0 +1,206 @@
+## Compile-time emitter for regex syntax trees. It turns parsed patterns into
+## the matcher representation consumed by `Std.Regex`.
+@group(:text)
+mod Std.Regex.Syntax.Emitter.Foundation
+  use Std.Regex.Syntax.Model.LiteralBranchReset
+
+  use Std.Regex.Syntax.Emitter.InvertLiteralAssertion
+
+  use Std.Regex.Syntax.Model.Width
+
+  use Std.Regex.Syntax.Model.Options
+
+  use Std.Regex.Syntax.Model.Modifiers
+
+  use Std.Regex.Syntax.Model.ClassPredicates
+
+  use Std.Regex.Syntax.Model.Shape
+
+  use Std.Regex.Syntax.Model.Utilities
+
+  use Std.Regex.Syntax.Model.ClassKinds
+
+  use Std.Regex.Syntax.Model.Predicates
+
+  use Std.Regex.Syntax.Model.Types
+
+  use Std.Regex.Syntax.Model
+
+  use Std.String
+
+  use Std.Syntax
+
+  fn runtime_call(name: String, args: List(Syntax)) -> Syntax =
+    call(concat("Std.Regex.Runtime.", name), args)
+
+  fn core_call(name: String, args: List(Syntax)) -> Syntax =
+    call(concat("Std.Regex.Core.", name), args)
+
+  fn literal_shape(pattern: LiteralPattern) -> LiteralShapeCode = match pattern
+    LiteralEmpty -> UnitC
+    LiteralExact(_) -> UnitC
+    LiteralAny -> CharC
+    LiteralClass(_, _, _, _) -> CharC
+    LiteralProperty(_, _) -> CharC
+    LiteralDigit(_) -> CharC
+    LiteralWord(_) -> CharC
+    LiteralSpace(_) -> CharC
+    LiteralHorizontal(_) -> CharC
+    LiteralVertical(_) -> CharC
+    LiteralLineBreak() -> StringC
+    LiteralSequence(left, right) -> PairC(literal_shape(left), literal_shape(right))
+    LiteralAlternate(left, right) -> ChoiceC(literal_shape(left), literal_shape(right))
+    LiteralConditional(_, yes, no) -> ChoiceC(literal_shape(yes), literal_shape_or_unit(no))
+    LiteralAtomic(inner) -> literal_shape(inner)
+    LiteralLookahead(_, _) -> UnitC
+    LiteralLookbehind(_, _) -> UnitC
+    LiteralBranchReset(arms) -> literal_shape(literal_branch_reset_alternate(arms))
+    LiteralRepeat(inner, _) -> ListC(literal_shape(inner))
+    LiteralPlus(inner, _) -> ListC(literal_shape(inner))
+    LiteralOptional(inner, _) -> ChoiceC(literal_shape(inner), UnitC)
+    LiteralBoundedExact(inner, _) -> ListC(literal_shape(inner))
+    LiteralBoundedAtLeast(inner, _, _) -> ListC(literal_shape(inner))
+    LiteralBoundedBetween(inner, _, _, _) -> ListC(literal_shape(inner))
+    LiteralCapture(_) -> StringC
+    LiteralNamedCapture(_, _) -> StringC
+    LiteralCaptureIndexed(_, _, _) -> StringC
+    LiteralStart -> UnitC
+    LiteralEnd -> UnitC
+    LiteralAbsoluteStart -> UnitC
+    LiteralStrictEnd -> UnitC
+    LiteralFinalEnd -> UnitC
+    LiteralWordBoundary(_) -> UnitC
+    LiteralConfigured(_, inner) -> literal_shape(inner)
+    LiteralScopedOptions(_, _, inner) -> literal_shape(inner)
+
+  fn emit_shape(shape: LiteralShapeCode) -> Syntax = match shape
+    UnitC -> core_call("UnitC", [])
+    CharC -> core_call("CharC", [])
+    StringC -> core_call("StringC", [])
+    BoolC -> core_call("BoolC", [])
+    NatC -> core_call("NatC", [])
+    IntC -> core_call("IntC", [])
+    PairC(left, right) -> core_call("PairC", [emit_shape(left), emit_shape(right)])
+    ChoiceC(left, right) -> core_call("ChoiceC", [emit_shape(left), emit_shape(right)])
+    OptionC(inner) -> core_call("OptionC", [emit_shape(inner)])
+    ListC(inner) -> core_call("ListC", [emit_shape(inner)])
+
+  fn literal_shape_or_unit(pattern: Option(LiteralPattern)) -> LiteralShapeCode = match pattern
+    None() -> UnitC
+    Some(inner) -> literal_shape(inner)
+
+  fn emit_chars(chars: List(Char)) -> Syntax = match chars
+    [] -> list([])
+    [head | rest] -> prepend_syntax(char_literal(head), emit_chars(rest))
+
+  fn emit_nat(value: Nat) -> Syntax = match value
+    Z() -> call("Std.Nat.Z", [])
+    S(rest) -> call("Std.Nat.S", [emit_nat(rest)])
+
+  fn emit_ranges(ranges: List(LiteralCharacterRange)) -> Syntax = match ranges
+    [] -> list([])
+    [LiteralCharacterRange(first, last) | rest] ->
+      prepend_syntax(runtime_call("CharacterRange", [char_literal(first), char_literal(last)]), emit_ranges(rest))
+
+  fn emit_class_kinds(kinds: LiteralClassKinds) -> Syntax =
+    runtime_call("ClassKinds", [
+      bool_literal(has_class_kind(kinds, DigitKind)),
+      bool_literal(has_class_kind(kinds, NotDigitKind)),
+      bool_literal(has_class_kind(kinds, WordKind)),
+      bool_literal(has_class_kind(kinds, NotWordKind)),
+      bool_literal(has_class_kind(kinds, SpaceKind)),
+      bool_literal(has_class_kind(kinds, NotSpaceKind)),
+      bool_literal(has_class_kind(kinds, HorizontalKind)),
+      bool_literal(has_class_kind(kinds, NotHorizontalKind)),
+      bool_literal(has_class_kind(kinds, VerticalKind)),
+      bool_literal(has_class_kind(kinds, NotVerticalKind))
+    ])
+
+  fn emit_unicode_property(property: LiteralUnicodeProperty) -> Syntax = match property
+    PropertyNonNewline -> runtime_call("PropertyNonNewline", [])
+    PropertyAny -> runtime_call("PropertyAny", [])
+    PropertyAscii -> runtime_call("PropertyAscii", [])
+    PropertyCased -> runtime_call("PropertyCased", [])
+    PropertyLowercase -> runtime_call("PropertyLowercase", [])
+    PropertyUppercase -> runtime_call("PropertyUppercase", [])
+    PropertyAlphabetic -> runtime_call("PropertyAlphabetic", [])
+    PropertyWhiteSpace -> runtime_call("PropertyWhiteSpace", [])
+    PropertyHexDigit -> runtime_call("PropertyHexDigit", [])
+    PropertyMath -> runtime_call("PropertyMath", [])
+    PropertyCurrencyBinary -> runtime_call("PropertyCurrencyBinary", [])
+    PropertyScript(script) -> runtime_call("PropertyScript", [atom_literal(script)])
+    PropertyScriptExtensions(script) -> runtime_call("PropertyScriptExtensions", [atom_literal(script)])
+    PropertyBidiClass(bidi_class) -> runtime_call("PropertyBidiClass", [atom_literal(bidi_class)])
+    PropertyBidiPairedBracketType(bpt) -> runtime_call("PropertyBidiPairedBracketType", [atom_literal(bpt)])
+    PropertyCategory(category) -> runtime_call("PropertyCategory", [atom_literal(category)])
+    PropertyBinary(property) -> runtime_call("PropertyBinary", [atom_literal(property)])
+    PropertyLetter -> runtime_call("PropertyLetter", [])
+    PropertyLowercaseLetter -> runtime_call("PropertyLowercaseLetter", [])
+    PropertyUppercaseLetter -> runtime_call("PropertyUppercaseLetter", [])
+    PropertyTitlecaseLetter -> runtime_call("PropertyTitlecaseLetter", [])
+    PropertyModifierLetter -> runtime_call("PropertyModifierLetter", [])
+    PropertyOtherLetter -> runtime_call("PropertyOtherLetter", [])
+    PropertyMark -> runtime_call("PropertyMark", [])
+    PropertySpacingMark -> runtime_call("PropertySpacingMark", [])
+    PropertyEnclosingMark -> runtime_call("PropertyEnclosingMark", [])
+    PropertyNonspacingMark -> runtime_call("PropertyNonspacingMark", [])
+    PropertyNumber -> runtime_call("PropertyNumber", [])
+    PropertyDecimalNumber -> runtime_call("PropertyDecimalNumber", [])
+    PropertyLetterNumber -> runtime_call("PropertyLetterNumber", [])
+    PropertyOtherNumber -> runtime_call("PropertyOtherNumber", [])
+    PropertyPunctuation -> runtime_call("PropertyPunctuation", [])
+    PropertyConnectorPunctuation -> runtime_call("PropertyConnectorPunctuation", [])
+    PropertyDashPunctuation -> runtime_call("PropertyDashPunctuation", [])
+    PropertyClosePunctuation -> runtime_call("PropertyClosePunctuation", [])
+    PropertyFinalPunctuation -> runtime_call("PropertyFinalPunctuation", [])
+    PropertyInitialPunctuation -> runtime_call("PropertyInitialPunctuation", [])
+    PropertyOtherPunctuation -> runtime_call("PropertyOtherPunctuation", [])
+    PropertyOpenPunctuation -> runtime_call("PropertyOpenPunctuation", [])
+    PropertySymbol -> runtime_call("PropertySymbol", [])
+    PropertyCurrencySymbol -> runtime_call("PropertyCurrencySymbol", [])
+    PropertyModifierSymbol -> runtime_call("PropertyModifierSymbol", [])
+    PropertyMathSymbol -> runtime_call("PropertyMathSymbol", [])
+    PropertyOtherSymbol -> runtime_call("PropertyOtherSymbol", [])
+    PropertySeparator -> runtime_call("PropertySeparator", [])
+    PropertyLineSeparator -> runtime_call("PropertyLineSeparator", [])
+    PropertyParagraphSeparator -> runtime_call("PropertyParagraphSeparator", [])
+    PropertySpaceSeparator -> runtime_call("PropertySpaceSeparator", [])
+    PropertyOther -> runtime_call("PropertyOther", [])
+    PropertyControl -> runtime_call("PropertyControl", [])
+    PropertyFormat -> runtime_call("PropertyFormat", [])
+    PropertyUnassigned -> runtime_call("PropertyUnassigned", [])
+    PropertyPrivateUse -> runtime_call("PropertyPrivateUse", [])
+    PropertySurrogate -> runtime_call("PropertySurrogate", [])
+
+  fn emit_unicode_property_matches(values: List(LiteralUnicodePropertyMatch)) -> Syntax = match values
+    [] -> list([])
+    [LiteralUnicodePropertyMatch(property, negated) | rest] ->
+      prepend_syntax(runtime_call("UnicodePropertyMatch", [emit_unicode_property(property), bool_literal(negated)]), emit_unicode_property_matches(rest))
+
+  fn emit_posix_class(posix_class: LiteralPosixClass) -> Syntax = match posix_class
+    PosixAlnum -> runtime_call("PosixAlnum", [])
+    PosixAlpha -> runtime_call("PosixAlpha", [])
+    PosixAscii -> runtime_call("PosixAscii", [])
+    PosixBlank -> runtime_call("PosixBlank", [])
+    PosixCntrl -> runtime_call("PosixCntrl", [])
+    PosixDigit -> runtime_call("PosixDigit", [])
+    PosixGraph -> runtime_call("PosixGraph", [])
+    PosixLower -> runtime_call("PosixLower", [])
+    PosixPrint -> runtime_call("PosixPrint", [])
+    PosixPunct -> runtime_call("PosixPunct", [])
+    PosixSpace -> runtime_call("PosixSpace", [])
+    PosixUpper -> runtime_call("PosixUpper", [])
+    PosixWord -> runtime_call("PosixWord", [])
+    PosixXdigit -> runtime_call("PosixXdigit", [])
+
+  fn emit_posix_class_matches(values: List(LiteralPosixClassMatch)) -> Syntax = match values
+    [] -> list([])
+    [LiteralPosixClassMatch(posix_class, negated) | rest] ->
+      prepend_syntax(runtime_call("PosixClassMatch", [emit_posix_class(posix_class), bool_literal(negated)]), emit_posix_class_matches(rest))
+
+  fn prepend_syntax(head: Syntax, tail: Syntax) -> Syntax = match tail
+    Node(tag, attrs, children) -> pickup
+      tag == :list -> Node(tag, attrs, [head | children])
+      else -> list([head])
+    _ -> list([head])
+end

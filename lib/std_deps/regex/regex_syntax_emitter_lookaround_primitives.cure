@@ -1,0 +1,47 @@
+## Compile-time emitter for regex syntax trees. It turns parsed patterns into
+## the matcher representation consumed by `Std.Regex`.
+@group(:text)
+mod Std.Regex.Syntax.Emitter.LookaroundPrimitives
+  use Std.Regex.Syntax.Emitter.Foundation
+
+  use Std.Regex.Syntax.Model.LiteralBranchReset
+
+  use Std.Regex.Syntax.Emitter.InvertLiteralAssertion
+
+  use Std.Regex.Syntax.Model.Width
+
+  use Std.Regex.Syntax.Model.Options
+
+  use Std.Regex.Syntax.Model.Modifiers
+
+  use Std.Regex.Syntax.Model.ClassPredicates
+
+  use Std.Regex.Syntax.Model.Shape
+
+  use Std.Regex.Syntax.Model.Utilities
+
+  use Std.Regex.Syntax.Model.ClassKinds
+
+  use Std.Regex.Syntax.Model.Predicates
+
+  use Std.Regex.Syntax.Model.Types
+
+  use Std.Regex.Syntax.Model
+
+  use Std.String
+
+  use Std.Syntax
+
+  fn emit_lookaround_line_break_compilation(options: LiteralRegexOptions) -> Syntax = match literal_newline_policy(options)
+    LiteralLFPolicy -> emit_lookaround_char_compilation('\n')
+    LiteralCRPolicy -> emit_lookaround_char_compilation('\r')
+    LiteralCRLFPolicy -> emit_lookaround_concat_compilation(emit_lookaround_char_compilation('\r'), emit_lookaround_char_compilation('\n'))
+    LiteralAnyCRLFPolicy -> emit_lookaround_alt_compilation(emit_lookaround_line_break_compilation(LiteralRegexOptions([], LiteralCRLFPolicy)), emit_lookaround_alt_compilation(emit_lookaround_char_compilation('\n'), emit_lookaround_char_compilation('\r')))
+    LiteralAnyUnicodePolicy -> emit_lookaround_alt_compilation(emit_lookaround_line_break_compilation(LiteralRegexOptions([], LiteralAnyCRLFPolicy)), emit_lookaround_alt_compilation(emit_lookaround_char_compilation('\v'), emit_lookaround_alt_compilation(emit_lookaround_char_compilation('\f'), emit_lookaround_alt_compilation(emit_lookaround_char_compilation(0x85), emit_lookaround_alt_compilation(emit_lookaround_char_compilation(0x2028), emit_lookaround_char_compilation(0x2029))))))
+
+  fn emit_lookaround_char_compilation(char: Char) -> Syntax = runtime_call("LookaroundPredicate", [runtime_call("option_exact_test", [char_literal(char), bool_literal(false), bool_literal(false)])])
+
+  fn emit_lookaround_concat_compilation(left: Syntax, right: Syntax) -> Syntax = runtime_call("LookaroundConcat", [left, right])
+
+  fn emit_lookaround_alt_compilation(left: Syntax, right: Syntax) -> Syntax = runtime_call("LookaroundAlternate", [left, right, bool_literal(false)])
+end
