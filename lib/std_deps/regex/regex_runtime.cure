@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.ActiveChildShapeAlignment
   public use Std.Regex.Runtime.ActiveChildRejection
   public use Std.Regex.Runtime.CursorShapeLocations
   public use Std.Regex.Runtime.InitialMembers
@@ -560,69 +561,11 @@ mod Std.Regex.Runtime
 
 
 
-  @reducible
-  fn atomic_path_active_child_shape_alignment_authority(
-    failure_shape: LookaroundAdmittedStateCursorShape,
-    selected_shape: LookaroundAdmittedStateCursorShape
-  ) -> AtomicPathActiveChildShapeAlignmentAuthority(
-    failure_shape, selected_shape
-  ) = match atomic_path_cursor_shape_comparison(failure_shape, selected_shape)
-    AtomicPathCursorShapeComparisonSame(authority) -> match failure_shape
-      LookaroundAdmittedStateCursorShapeHere() -> match authority
-        AtomicPathCursorShapesSameHere() ->
-          AtomicPathActiveChildShapeHereAuthority()
-      LookaroundAdmittedStateCursorShapeDrop(_) -> match authority
-        AtomicPathCursorShapesSameDrop(prior) ->
-          AtomicPathActiveChildShapeThereAuthorityPacked(
-            AtomicPathActiveChildShapeThereSameDrop(prior)
-          )
-    AtomicPathCursorShapeComparisonLeftAfter(authority) ->
-      AtomicPathActiveChildShapeReverseAuthority(authority)
-    AtomicPathCursorShapeComparisonRightAfter(authority) ->
-      AtomicPathActiveChildShapeThereAuthorityPacked(
-        AtomicPathActiveChildShapeThereRightAfter(authority)
-      )
 
 
 
 
-  type AtomicPathActiveChildShapeAlignmentPackage(failure_package: Type, selected_package: Type) indices (failure_shape: LookaroundAdmittedStateCursorShape, selected_shape: LookaroundAdmittedStateCursorShape)
-    AtomicPathActiveChildShapeAlignmentHerePacked : (branch: AtomicPathActiveChildShapeHerePackage(failure_package, selected_package, failure_shape, selected_shape)) -> AtomicPathActiveChildShapeAlignmentPackage(failure_package, selected_package, failure_shape, selected_shape)
-    AtomicPathActiveChildShapeAlignmentTherePacked : (branch: AtomicPathActiveChildShapeTherePackage(failure_package, selected_package, failure_shape, selected_shape)) -> AtomicPathActiveChildShapeAlignmentPackage(failure_package, selected_package, failure_shape, selected_shape)
-    AtomicPathActiveChildShapeAlignmentReversePacked : (branch: AtomicPathActiveChildShapeReversePackage(failure_package, selected_package, failure_shape, selected_shape)) -> AtomicPathActiveChildShapeAlignmentPackage(failure_package, selected_package, failure_shape, selected_shape)
 
-  @reducible
-  fn atomic_path_active_child_shape_alignment_package(
-    {failure_package: Type}, {selected_package: Type},
-    failure: failure_package,
-    selected: selected_package,
-    failure_shape: LookaroundAdmittedStateCursorShape,
-    selected_shape: LookaroundAdmittedStateCursorShape
-  ) -> AtomicPathActiveChildShapeAlignmentPackage(
-    failure_package, selected_package, failure_shape, selected_shape
-  ) = match atomic_path_active_child_shape_alignment_authority(
-    failure_shape, selected_shape
-  )
-    AtomicPathActiveChildShapeHereAuthority() ->
-      AtomicPathActiveChildShapeAlignmentHerePacked(
-        AtomicPathActiveChildShapeHerePacked(failure, selected)
-      )
-    AtomicPathActiveChildShapeThereAuthorityPacked(authority) ->
-      AtomicPathActiveChildShapeAlignmentTherePacked(
-        AtomicPathActiveChildShapeTherePacked(
-          failure,
-          selected,
-          authority
-        )
-      )
-    AtomicPathActiveChildShapeReverseAuthority(authority) ->
-      AtomicPathActiveChildShapeAlignmentReversePacked(
-        AtomicPathActiveChildShapeReversePacked(
-          failure,
-          selected,
-          authority
-        )
-      )
 
   @reducible
   fn atomic_path_active_child_shape_alignment_package_dispatch(
