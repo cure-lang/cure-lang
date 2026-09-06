@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.CursorSuffixPackages
   public use Std.Regex.Runtime.AdmittedPrepend
   public use Std.Regex.Runtime.CursorSuffixReflexivity
   public use Std.Regex.Runtime.CursorToSuffix
@@ -471,39 +472,8 @@ mod Std.Regex.Runtime
 
 
 
-  @reducible
-  fn lookaround_admitted_cursor_suffix_package_here(
-    {n: Nat}, {outer: List(LookaroundAdmittedState(n))},
-    {inner: List(LookaroundAdmittedState(n))},
-    @erased equality: Equivalent(List(LookaroundAdmittedState(n)), outer, inner)
-  ) -> LookaroundAdmittedStateCursorSuffixPackage(n, outer, inner) =
-    LookaroundAdmittedStateCursorSuffixHerePacked(equality)
 
-  @reducible
-  fn lookaround_admitted_cursor_suffix_package_drop(
-    {n: Nat}, {outer: List(LookaroundAdmittedState(n))},
-    {inner: List(LookaroundAdmittedState(n))},
-    @erased head: LookaroundAdmittedState(n),
-    package: LookaroundAdmittedStateCursorSuffixPackage(n, outer, inner)
-  ) -> LookaroundAdmittedStateCursorSuffixPackage(n, Cons(head, outer), inner) =
-    LookaroundAdmittedStateCursorSuffixDropPacked(head, package)
 
-  ## Publish an existing relevant suffix through the constructor-correlated
-  ## package representation. Recursive strict-cursor proofs use this bridge
-  ## once, then advance the package without inspecting erased evidence.
-  @reducible
-  fn lookaround_admitted_cursor_suffix_package(
-    {n: Nat}, {outer: List(LookaroundAdmittedState(n))},
-    {inner: List(LookaroundAdmittedState(n))},
-    suffix: LookaroundAdmittedStateCursorSuffix(n, outer, inner)
-  ) -> LookaroundAdmittedStateCursorSuffixPackage(n, outer, inner) = match suffix
-    LookaroundAdmittedStateCursorSuffixHere(equality) ->
-      lookaround_admitted_cursor_suffix_package_here(equality)
-    LookaroundAdmittedStateCursorSuffixDrop(head, prior) ->
-      lookaround_admitted_cursor_suffix_package_drop(
-        head,
-        lookaround_admitted_cursor_suffix_package(prior)
-      )
 
 
   ## Advance the inner cursor by one candidate while preserving its original
@@ -666,13 +636,6 @@ mod Std.Regex.Runtime
 
 
 
-  ## Compare two cursors from the same canonical origin. Equality remains an
-  ## erased index; directional cases retain only the suffix needed by the
-  ## recursive sibling-tail proof.
-  type AtomicPathCursorLocation(n: Nat) indices (left: List(LookaroundAdmittedState(n)), right: List(LookaroundAdmittedState(n)))
-    AtomicPathCursorLocationSame : (@erased equality: Equivalent(List(LookaroundAdmittedState(n)), left, right)) -> AtomicPathCursorLocation(n, left, right)
-    AtomicPathCursorLocationLeftAfter : (marker: AtomicPathStrictCursorSuffix(n, right, left)) -> AtomicPathCursorLocation(n, left, right)
-    AtomicPathCursorLocationRightAfter : (marker: LookaroundAdmittedStateCursorSuffixPackage(n, left, right)) -> AtomicPathCursorLocation(n, left, right)
 
 
   ## One-constructor authorities preserve the branch refinement beyond a
@@ -684,59 +647,7 @@ mod Std.Regex.Runtime
   type AtomicPathCommitSelectedRightAuthorityPackage(n: Nat, commit_package: Type, commit_cursor_package: Type, selected_trace_package: Type, selected_skipped_package: Type) indices (commit_current: List(LookaroundAdmittedState(n)), selected_current: List(LookaroundAdmittedState(n)))
     AtomicPathCommitSelectedRightAuthorityPacked : (commit: commit_package) -> (commit_cursor: commit_cursor_package) -> (selected_trace: selected_trace_package) -> (selected_skipped: selected_skipped_package) -> (marker: LookaroundAdmittedStateCursorSuffixPackage(n, commit_current, selected_current)) -> AtomicPathCommitSelectedRightAuthorityPackage(n, commit_package, commit_cursor_package, selected_trace_package, selected_skipped_package, commit_current, selected_current)
 
-  @reducible
-  fn atomic_path_strict_cursor_suffix_package(
-    {n: Nat}, {outer: List(LookaroundAdmittedState(n))},
-    {inner: List(LookaroundAdmittedState(n))},
-    marker: AtomicPathStrictCursorSuffix(n, outer, inner)
-  ) -> LookaroundAdmittedStateCursorSuffixPackage(n, outer, inner) = match marker
-    AtomicPathStrictCursorSuffixDrop(head, _, suffix) ->
-      lookaround_admitted_cursor_suffix_package_drop(
-        head,
-        lookaround_admitted_cursor_suffix_package(suffix)
-      )
 
-  @reducible
-  fn atomic_path_commit_selected_location_package(
-    {n: Nat}, {commit_package: Type}, {commit_cursor_package: Type},
-    {selected_trace_package: Type}, {selected_skipped_package: Type},
-    {commit_current: List(LookaroundAdmittedState(n))},
-    {selected_current: List(LookaroundAdmittedState(n))},
-    commit: commit_package,
-    commit_cursor: commit_cursor_package,
-    selected_trace: selected_trace_package,
-    selected_skipped: selected_skipped_package,
-    location: AtomicPathCursorLocation(n, commit_current, selected_current)
-  ) -> AtomicPathCommitSelectedLocationPackage(
-    n,
-    commit_package,
-    commit_cursor_package,
-    selected_trace_package,
-    selected_skipped_package,
-    commit_current,
-    selected_current
-  ) = match location
-    AtomicPathCursorLocationSame(equality) -> AtomicPathCommitSelectedSamePacked(
-      commit,
-      commit_cursor,
-      selected_trace,
-      selected_skipped,
-      equality
-    )
-    AtomicPathCursorLocationLeftAfter(marker) -> AtomicPathCommitSelectedLeftAfterPacked(
-      commit,
-      commit_cursor,
-      selected_trace,
-      selected_skipped,
-      atomic_path_strict_cursor_suffix_package(marker)
-    )
-    AtomicPathCursorLocationRightAfter(marker) -> AtomicPathCommitSelectedRightAfterPacked(
-      commit,
-      commit_cursor,
-      selected_trace,
-      selected_skipped,
-      marker
-    )
 
 
   @reducible

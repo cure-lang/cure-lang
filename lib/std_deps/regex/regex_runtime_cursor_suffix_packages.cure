@@ -1,0 +1,360 @@
+@group(:text)
+mod Std.Regex.Runtime.CursorSuffixPackages
+  use Std.Regex.Runtime.AdmittedPrepend
+
+  use Std.Regex.Runtime.CursorSuffixReflexivity
+
+  use Std.Regex.Runtime.CursorToSuffix
+
+  use Std.Regex.Runtime.CursorSuffixMembers
+
+  use Std.Regex.Runtime.DestinationRejectionTail
+
+  use Std.Regex.Runtime.SelectedChildSuffixLocation
+
+  use Std.Regex.Runtime.CursorSuffixPackageEvidence
+
+  use Std.Regex.Runtime.ActiveChildSelectionSuffixTransport
+
+  use Std.Regex.Runtime.CursorShapePackageLocation
+
+  use Std.Regex.Runtime.ActiveChildShapeAlignmentDispatch
+
+  use Std.Regex.Runtime.ActiveChildAlignmentDispatch
+
+  use Std.Regex.Runtime.CursorShapeLocation
+
+  use Std.Regex.Runtime.CommitSelectedLocation
+
+  use Std.Regex.Runtime.Prefix
+
+  use Std.Regex.Runtime.ActiveChildAlignmentPackages
+
+  use Std.Regex.Runtime.StrictCursorSelection
+
+  use Std.Regex.Runtime.ActiveChildShapeAlignment
+
+  use Std.Regex.Runtime.ActiveChildRejection
+
+  use Std.Regex.Runtime.CursorShapeLocations
+
+  use Std.Regex.Runtime.InitialMembers
+
+  use Std.Regex.Runtime.Roots
+
+  use Std.Regex.Runtime.LeafAuthorities
+
+  use Std.Regex.Runtime.EvidenceExecution
+
+  use Std.Regex.Runtime.LookaroundCompilation
+
+  use Std.Regex.Runtime.ExtendedEvidenceTypes
+
+  use Std.Regex.Runtime.AtomicDepthTypes
+
+  use Std.Regex.Runtime.CandidateEquivalencePrimitives
+
+  use Std.Regex.Runtime.CaptureSlotMarkerPrimitives
+
+  use Std.Regex.Runtime.StateRoutinePrimitives
+
+  use Std.Regex.Runtime.MachineMemberEdgePrimitives
+
+  use Std.Regex.Runtime.LookaroundSupportPrimitives
+
+  use Std.Regex.Runtime.AtomicPathActiveChildShapeHerePackageFold
+
+  use Std.Regex.Runtime.AtomicStartScopeSelectionExcludes
+
+  use Std.Regex.Runtime.LookaroundExhaustionFromList
+
+  use Std.Regex.Runtime.AtomicStartDecisions
+
+  use Std.Regex.Runtime.DepthExclusion
+
+  use Std.Regex.Runtime.ExhaustionFromMembers
+
+  use Std.Regex.Runtime.CursorShapeAuthority
+
+  use Std.Regex.Runtime.ActiveChildShapeHere
+
+  use Std.Regex.Runtime.CursorShape
+
+  use Std.Regex.Runtime.SearchCursors
+
+  use Std.Regex.Runtime.CandidateEquivalence
+
+  use Std.Regex.Runtime.CaptureSlotMarkers
+
+  use Std.Regex.Runtime.AtomicDecisions
+
+  use Std.Regex.Runtime.MachineMemberEdges
+
+  use Std.Regex.Runtime.AtomicDepthMaximum
+
+  use Std.Regex.Runtime.MemberTransport
+
+  use Std.Regex.Runtime.EvidenceStep
+
+  use Std.Regex.Runtime.AtomicStartMember
+
+  use Std.Regex.Runtime.AtomicFailureAuthority
+
+  use Std.Regex.Runtime.AtomicDepth
+
+  use Std.Regex.Runtime.LookaroundSupport
+
+  use Std.Regex.Runtime.NamedCaptureSearch
+
+  use Std.Regex.Runtime.PatternSearch
+
+  use Std.Regex.Runtime.EvidenceSearch
+
+  use Std.Regex.Runtime.MachineSearch
+
+  use Std.Regex.Runtime.CharacterClasses
+
+  use Std.Regex.Runtime.NamedSearch
+
+  use Std.Regex.Runtime.MachineTransitions
+
+  use Std.Regex.Runtime.NamedStaging
+
+  use Std.Regex.Runtime.MachineEntry
+
+  use Std.Regex.Runtime.LineBreak
+
+  use Std.Regex.Runtime.CharacterMatchers
+
+  use Std.Regex.Runtime.Combinators
+
+  use Std.Regex.Runtime.Anchors
+
+  use Std.Regex.Runtime.CompileRegex
+
+  use Std.Regex.Runtime.ConversionAdapters
+
+  use Std.Regex.Runtime.ThreadDedup
+
+  use Std.Regex.Runtime.NamedTypes
+
+  use Std.Regex.Runtime.RegexType
+
+  use Std.Regex.Runtime.CharacterSemantics
+
+  use Std.Regex.Runtime.Conversion
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Runtime.CaptureConditions
+
+  use Std.Regex.Runtime.Boundaries
+
+  use Std.Regex.Runtime.AtomicDiagnostics
+
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Char
+
+  use Std.Option
+
+  use Std.List
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  use Std.Decision
+
+  @reducible
+  fn lookaround_admitted_cursor_suffix_package_here(
+    {n: Nat}, {outer: List(LookaroundAdmittedState(n))},
+    {inner: List(LookaroundAdmittedState(n))},
+    @erased equality: Equivalent(List(LookaroundAdmittedState(n)), outer, inner)
+  ) -> LookaroundAdmittedStateCursorSuffixPackage(n, outer, inner) =
+    LookaroundAdmittedStateCursorSuffixHerePacked(equality)
+
+  @reducible
+  fn lookaround_admitted_cursor_suffix_package_drop(
+    {n: Nat}, {outer: List(LookaroundAdmittedState(n))},
+    {inner: List(LookaroundAdmittedState(n))},
+    @erased head: LookaroundAdmittedState(n),
+    package: LookaroundAdmittedStateCursorSuffixPackage(n, outer, inner)
+  ) -> LookaroundAdmittedStateCursorSuffixPackage(n, Cons(head, outer), inner) =
+    LookaroundAdmittedStateCursorSuffixDropPacked(head, package)
+
+  ## Publish an existing relevant suffix through the constructor-correlated
+  ## package representation. Recursive strict-cursor proofs use this bridge
+  ## once, then advance the package without inspecting erased evidence.
+  @reducible
+  fn lookaround_admitted_cursor_suffix_package(
+    {n: Nat}, {outer: List(LookaroundAdmittedState(n))},
+    {inner: List(LookaroundAdmittedState(n))},
+    suffix: LookaroundAdmittedStateCursorSuffix(n, outer, inner)
+  ) -> LookaroundAdmittedStateCursorSuffixPackage(n, outer, inner) = match suffix
+    LookaroundAdmittedStateCursorSuffixHere(equality) ->
+      lookaround_admitted_cursor_suffix_package_here(equality)
+    LookaroundAdmittedStateCursorSuffixDrop(head, prior) ->
+      lookaround_admitted_cursor_suffix_package_drop(
+        head,
+        lookaround_admitted_cursor_suffix_package(prior)
+      )
+
+  ## Compare two cursors from the same canonical origin. Equality remains an
+  ## erased index; directional cases retain only the suffix needed by the
+  ## recursive sibling-tail proof.
+  type AtomicPathCursorLocation(n: Nat) indices (left: List(LookaroundAdmittedState(n)), right: List(LookaroundAdmittedState(n)))
+    AtomicPathCursorLocationSame : (@erased equality: Equivalent(List(LookaroundAdmittedState(n)), left, right)) -> AtomicPathCursorLocation(n, left, right)
+    AtomicPathCursorLocationLeftAfter : (marker: AtomicPathStrictCursorSuffix(n, right, left)) -> AtomicPathCursorLocation(n, left, right)
+    AtomicPathCursorLocationRightAfter : (marker: LookaroundAdmittedStateCursorSuffixPackage(n, left, right)) -> AtomicPathCursorLocation(n, left, right)
+
+  @reducible
+  fn atomic_path_strict_cursor_suffix_package(
+    {n: Nat}, {outer: List(LookaroundAdmittedState(n))},
+    {inner: List(LookaroundAdmittedState(n))},
+    marker: AtomicPathStrictCursorSuffix(n, outer, inner)
+  ) -> LookaroundAdmittedStateCursorSuffixPackage(n, outer, inner) = match marker
+    AtomicPathStrictCursorSuffixDrop(head, _, suffix) ->
+      lookaround_admitted_cursor_suffix_package_drop(
+        head,
+        lookaround_admitted_cursor_suffix_package(suffix)
+      )
+
+  @reducible
+  fn atomic_path_commit_selected_location_package(
+    {n: Nat}, {commit_package: Type}, {commit_cursor_package: Type},
+    {selected_trace_package: Type}, {selected_skipped_package: Type},
+    {commit_current: List(LookaroundAdmittedState(n))},
+    {selected_current: List(LookaroundAdmittedState(n))},
+    commit: commit_package,
+    commit_cursor: commit_cursor_package,
+    selected_trace: selected_trace_package,
+    selected_skipped: selected_skipped_package,
+    location: AtomicPathCursorLocation(n, commit_current, selected_current)
+  ) -> AtomicPathCommitSelectedLocationPackage(
+    n,
+    commit_package,
+    commit_cursor_package,
+    selected_trace_package,
+    selected_skipped_package,
+    commit_current,
+    selected_current
+  ) = match location
+    AtomicPathCursorLocationSame(equality) -> AtomicPathCommitSelectedSamePacked(
+      commit,
+      commit_cursor,
+      selected_trace,
+      selected_skipped,
+      equality
+    )
+    AtomicPathCursorLocationLeftAfter(marker) -> AtomicPathCommitSelectedLeftAfterPacked(
+      commit,
+      commit_cursor,
+      selected_trace,
+      selected_skipped,
+      atomic_path_strict_cursor_suffix_package(marker)
+    )
+    AtomicPathCursorLocationRightAfter(marker) -> AtomicPathCommitSelectedRightAfterPacked(
+      commit,
+      commit_cursor,
+      selected_trace,
+      selected_skipped,
+      marker
+    )
+end
