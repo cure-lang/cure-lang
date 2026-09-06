@@ -1,0 +1,684 @@
+@group(:text)
+mod Std.Regex.Runtime.LeafCluster20
+  use Std.Regex.Runtime.LeafCluster09
+
+  use Std.Regex.Runtime.LeafCluster10
+
+  use Std.Regex.Runtime.LeafCluster11
+
+  use Std.Regex.Runtime.LeafCluster12
+
+  use Std.Regex.Runtime.LeafCluster13
+
+  use Std.Regex.Runtime.LeafCluster14
+
+  use Std.Regex.Runtime.LeafCluster01
+
+  use Std.Regex.Runtime.LeafCluster02
+
+  use Std.Regex.Runtime.LeafCluster03
+
+  use Std.Regex.Runtime.LeafCluster04
+
+  use Std.Regex.Runtime.LeafCluster05
+
+  use Std.Regex.Runtime.LeafCluster06
+
+  use Std.Regex.Runtime.LeafCluster07
+
+  use Std.Regex.Runtime.LeafCluster08
+
+  use Std.Regex.Runtime.SinkShapePrelude
+
+  use Std.Regex.Runtime.SinkLookaroundProofs
+
+  use Std.Regex.Runtime.SinkAtomicCommit
+
+  use Std.Regex.Runtime.SinkAtomicRejections
+
+  use Std.Regex.Runtime.LookaroundAdmission
+
+  use Std.Regex.Runtime.ActiveChildShapeAlignmentPackageBridge
+
+  use Std.Regex.Runtime.ActiveChildShapeAlignmentPackageDispatch
+
+  use Std.Regex.Runtime.InitialMembersRoot
+
+  use Std.Regex.Runtime.ActiveChildShapeAlignmentPackage
+
+  use Std.Regex.Runtime.ActiveChildShapeAlignment
+
+  use Std.Regex.Runtime.CursorShapeLocations
+
+  use Std.Regex.Runtime.InitialMembers
+
+  use Std.Regex.Runtime.Roots
+
+  use Std.Regex.Runtime.LeafAuthorities
+
+  use Std.Regex.Runtime.EvidenceExecution
+
+  use Std.Regex.Runtime.LookaroundCompilation
+
+  use Std.Regex.Runtime.ExtendedEvidenceTypes
+
+  use Std.Regex.Runtime.AtomicDepthTypes
+
+  use Std.Regex.Runtime.CandidateEquivalencePrimitives
+
+  use Std.Regex.Runtime.CaptureSlotMarkerPrimitives
+
+  use Std.Regex.Runtime.StateRoutinePrimitives
+
+  use Std.Regex.Runtime.MachineMemberEdgePrimitives
+
+  use Std.Regex.Runtime.LookaroundSupportPrimitives
+
+  use Std.Regex.Runtime.AtomicPathActiveChildShapeHerePackageFold
+
+  use Std.Regex.Runtime.AtomicStartScopeSelectionExcludes
+
+  use Std.Regex.Runtime.LookaroundExhaustionFromList
+
+  use Std.Regex.Runtime.AtomicStartDecisions
+
+  use Std.Regex.Runtime.DepthExclusion
+
+  use Std.Regex.Runtime.ExhaustionFromMembers
+
+  use Std.Regex.Runtime.CursorShapeAuthority
+
+  use Std.Regex.Runtime.ActiveChildShapeHere
+
+  use Std.Regex.Runtime.CursorShape
+
+  use Std.Regex.Runtime.SearchCursors
+
+  use Std.Regex.Runtime.CandidateEquivalence
+
+  use Std.Regex.Runtime.CaptureSlotMarkers
+
+  use Std.Regex.Runtime.AtomicDecisions
+
+  use Std.Regex.Runtime.MachineMemberEdges
+
+  use Std.Regex.Runtime.AtomicDepthMaximum
+
+  use Std.Regex.Runtime.MemberTransport
+
+  use Std.Regex.Runtime.EvidenceStep
+
+  use Std.Regex.Runtime.AtomicStartMember
+
+  use Std.Regex.Runtime.AtomicFailureAuthority
+
+  use Std.Regex.Runtime.AtomicDepth
+
+  use Std.Regex.Runtime.LookaroundSupport
+
+  use Std.Regex.Runtime.NamedCaptureSearch
+
+  use Std.Regex.Runtime.PatternSearch
+
+  use Std.Regex.Runtime.EvidenceSearch
+
+  use Std.Regex.Runtime.MachineSearch
+
+  use Std.Regex.Runtime.CharacterClasses
+
+  use Std.Regex.Runtime.NamedSearch
+
+  use Std.Regex.Runtime.MachineTransitions
+
+  use Std.Regex.Runtime.NamedStaging
+
+  use Std.Regex.Runtime.MachineEntry
+
+  use Std.Regex.Runtime.LineBreak
+
+  use Std.Regex.Runtime.CharacterMatchers
+
+  use Std.Regex.Runtime.Combinators
+
+  use Std.Regex.Runtime.Anchors
+
+  use Std.Regex.Runtime.CompileRegex
+
+  use Std.Regex.Runtime.ConversionAdapters
+
+  use Std.Regex.Runtime.ThreadDedup
+
+  use Std.Regex.Runtime.NamedTypes
+
+  use Std.Regex.Runtime.RegexType
+
+  use Std.Regex.Runtime.CharacterSemantics
+
+  use Std.Regex.Runtime.Conversion
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Runtime.CaptureConditions
+
+  use Std.Regex.Runtime.Boundaries
+
+  use Std.Regex.Runtime.AtomicDiagnostics
+
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Char
+
+  use Std.Option
+
+  use Std.List
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  use Std.Decision
+
+  ## Align the singleton rejected-child cursor with the selected child cursor
+  ## at their common canonical origin. The equality branch fixes both traces to
+  ## the same candidate. Active candidates use the singleton contradiction;
+  ## accepted candidates cannot carry the indexed empty-input child failure.
+  ## Directional cases remain the recursive sibling-tail obligations.
+  @reducible
+  fn atomic_path_active_child_rejection_singleton_aligned_excludes_trace(
+    {@erased depth: Nat},
+    {n: Nat},
+    {@erased machine: PatternMachine(n)},
+    {@erased child_char: Char},
+    {@erased after_input: List(Char)},
+    {@erased destination: Bounded(n)},
+    {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy},
+    {@erased child_scope_depth: Nat},
+    {@erased prefix_mode: Bool},
+    {@erased reversed_prefix: List(Char)},
+    failure_whole: List(LookaroundAdmittedState(n)),
+    candidate: LookaroundAdmittedState(n),
+    {@erased failure_remaining: List(LookaroundAdmittedState(n))},
+    @erased child_failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(child_char, Nil()),
+      after_input,
+      ThreadActive(destination),
+      history,
+      capture_context,
+      policy,
+      child_scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      failure_whole,
+      Cons(candidate, failure_remaining),
+      AtomicPathFailureDestinationRejected()
+    ),
+    failure_suffix: LookaroundAdmittedStateCursorSuffix(
+      n,
+      failure_whole,
+      Cons(candidate, failure_remaining)
+    ),
+    {@erased selected_whole: List(LookaroundAdmittedState(n))},
+    {@erased selected_current: List(LookaroundAdmittedState(n))},
+    selected_whole_equivalence: Equivalent(
+      List(LookaroundAdmittedState(n)),
+      failure_whole,
+      selected_whole
+    ),
+    selected_suffix: LookaroundAdmittedStateCursorSuffix(
+      n,
+      selected_whole,
+      selected_current
+    ),
+    {@erased matched: List(Char)},
+    {@erased remaining_input: List(Char)},
+    {@erased child_selected_routine: List(ExtendedInstruction)},
+    @erased child_path: AtomicSelectedPathTrace(
+      depth,
+      n,
+      machine,
+      Cons(child_char, Nil()),
+      after_input,
+      ThreadActive(destination),
+      history,
+      capture_context,
+      policy,
+      child_scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      selected_current,
+      matched,
+      remaining_input,
+      child_selected_routine
+    ),
+    left_case: () -> Empty,
+    right_case: () -> Empty
+  ) -> Empty = match candidate
+    LookaroundAdmittedActive(_, _, _, _, _, _) -> match atomic_path_cursor_location(
+        failure_whole,
+        failure_suffix,
+        transport_lookaround_admitted_cursor_suffix_outer(
+          selected_whole_equivalence,
+          selected_suffix
+        )
+      )
+        AtomicPathCursorLocationSame(equality) -> match equality
+          reflexive() -> atomic_path_active_child_rejection_singleton_active_excludes_trace_erased(
+            child_failure,
+            child_path
+          )
+        AtomicPathCursorLocationLeftAfter(_) -> left_case()
+        AtomicPathCursorLocationRightAfter(_) -> right_case()
+    LookaroundAdmittedAccepted(_, _, _, _, _) -> match atomic_path_cursor_location(
+        failure_whole,
+        failure_suffix,
+        transport_lookaround_admitted_cursor_suffix_outer(
+          selected_whole_equivalence,
+          selected_suffix
+        )
+      )
+        AtomicPathCursorLocationSame(equality) -> match equality
+          reflexive() -> atomic_path_accepted_child_rejection_singleton_excludes_trace_erased(child_failure)
+        AtomicPathCursorLocationLeftAfter(_) -> left_case()
+        AtomicPathCursorLocationRightAfter(_) -> right_case()
+
+  ## Consume the selected-tail dispatch at the destination-exhaustion base
+  ## case.  Here the recursive tail is indexed at `Nil()`, so the only
+  ## admissible refutation constructor is `AtomicPathDestinationsExhausted`;
+  ## the package's cursor suffix can therefore be handed directly to the
+  ## aligned-trace contradiction.  Rejected-child tails remain a separate
+  ## induction branch below.
+  @reducible
+  fn atomic_path_selected_tail_dispatch_destinations_exhausted(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    char: Char,
+    rest: List(Char),
+    after_input: List(Char),
+    source: Bounded(n),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    scope_depth: Nat,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    whole: List(LookaroundAdmittedState(n)),
+    {selected_current: List(LookaroundAdmittedState(n))},
+    matched: List(Char),
+    remaining_input: List(Char),
+    routine: List(ExtendedInstruction),
+    dispatch: AtomicPathSelectedTailDispatch(
+      result,
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Nil(),
+      selected_current,
+      matched,
+      remaining_input,
+      routine
+    )
+  ) -> result = match dispatch
+    AtomicPathSelectedTailHead(value) -> value
+    AtomicPathSelectedTailTail(package) -> match package
+      AtomicPathSelectedTailPackagePacked(tail_package, tail_suffix, path) -> match tail_package
+        AtomicPathTailPackagePacked(failure) -> match failure
+          AtomicPathDestinationsExhausted(_, _, _, _, _, _) ->
+            atomic_path_failure_excludes_aligned_trace(
+              machine,
+              char,
+              rest,
+              after_input,
+              source,
+              history,
+              capture_context,
+              policy,
+              scope_depth,
+              prefix_mode,
+              reversed_prefix,
+              whole,
+              failure,
+              matched,
+              remaining_input,
+              routine,
+              tail_suffix,
+              path
+            )
+
+  ## Split a rejected destination's selected suffix at the construction site.
+  ## A `Here` suffix is the rejected candidate itself and must be discharged by
+  ## the child theorem supplied by the caller.  A `Drop` suffix is a later
+  ## sibling; its tail cursor is packaged with the recursive refutation and
+  ## selected path so the parent cannot accidentally treat a sibling trace as
+  ## a head trace.
+  @reducible
+  fn atomic_path_destination_rejection_selected_suffix_dispatch(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    char: Char,
+    rest: List(Char),
+    after_input: List(Char),
+    state: Bounded(n),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    scope_depth: Nat,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    whole: List(LookaroundAdmittedState(n)),
+    @erased candidate: LookaroundAdmittedState(n),
+    {remaining: List(LookaroundAdmittedState(n))},
+    @erased failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(state),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(candidate, remaining),
+      AtomicPathFailureDestinationRejected()
+    ),
+    {candidate_current: List(LookaroundAdmittedState(n))},
+    @erased matched: List(Char),
+    @erased remaining_input: List(Char),
+    @erased routine: List(ExtendedInstruction),
+    selection_from_current: LookaroundAdmittedStateCursorSuffix(
+      n,
+      Cons(candidate, remaining),
+      candidate_current
+    ),
+    @erased path: AtomicSelectedPathTrace(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(state),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      candidate_current,
+      matched,
+      remaining_input,
+      routine
+    ),
+    head_case: result
+  ) -> AtomicPathSelectedTailDispatch(
+    result,
+    depth,
+    n,
+    machine,
+    Cons(char, rest),
+    after_input,
+    ThreadActive(state),
+    history,
+    capture_context,
+    policy,
+    scope_depth,
+    prefix_mode,
+    reversed_prefix,
+    whole,
+    remaining,
+    candidate_current,
+    matched,
+    remaining_input,
+    routine
+  ) = match atomic_path_selected_child_suffix_location(selection_from_current)
+    AtomicPathSelectedChildHere(_, _) -> AtomicPathSelectedTailHead(head_case)
+    AtomicPathSelectedChildThere(_, _) -> match selection_from_current
+      LookaroundAdmittedStateCursorSuffixDrop(_, tail_suffix) ->
+        AtomicPathSelectedTailTail(AtomicPathSelectedTailPackagePacked(
+          atomic_path_destination_rejected_tail_package(
+            machine,
+            char,
+            rest,
+            after_input,
+            state,
+            history,
+            capture_context,
+            policy,
+            scope_depth,
+            prefix_mode,
+            reversed_prefix,
+            failure
+          ),
+          tail_suffix,
+          path
+        ))
+      LookaroundAdmittedStateCursorSuffixHere(_) -> AtomicPathSelectedTailHead(head_case)
+
+  ## Consume a destination-exhaustion child after aligning its failed cursor
+  ## with the selected child cursor.  The two cursors may originate from
+  ## distinct existential lists, so the common-origin equation is transported
+  ## before the alignment is inspected.  A left-to-right alignment supplies
+  ## the suffix required by the generic failure theorem; a right-to-left
+  ## alignment can only be reflexive at the empty cursor and then reduces to
+  ## the active destination-exhaustion leaf.
+  @reducible
+  fn atomic_path_active_child_destinations_exhausted_excludes_aligned_trace(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    char: Char,
+    rest: List(Char),
+    after_input: List(Char),
+    source: Bounded(n),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    scope_depth: Nat,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    failure_whole: List(LookaroundAdmittedState(n)),
+    @erased failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      failure_whole,
+      Nil(),
+      AtomicPathFailureDestinationsExhausted()
+    ),
+    failure_suffix: LookaroundAdmittedStateCursorSuffix(n, failure_whole, Nil()),
+    selected_whole: List(LookaroundAdmittedState(n)),
+    selected_current: List(LookaroundAdmittedState(n)),
+    selected_whole_equivalence: Equivalent(
+      List(LookaroundAdmittedState(n)),
+      failure_whole,
+      selected_whole
+    ),
+    selected_suffix: LookaroundAdmittedStateCursorSuffix(n, selected_whole, selected_current),
+    matched: List(Char),
+    remaining_input: List(Char),
+    routine: List(ExtendedInstruction),
+    @erased path: AtomicSelectedPathTrace(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      selected_current,
+      matched,
+      remaining_input,
+      routine
+    ),
+    reverse_case: () -> Empty
+  ) -> Empty = match atomic_child_cursor_alignment(
+    failure_suffix,
+    selected_whole_equivalence,
+    selected_suffix
+  )
+    LookaroundAdmittedCursorLeftToRight(candidate_suffix) ->
+      atomic_path_failure_excludes_aligned_trace(
+        machine,
+        char,
+        rest,
+        after_input,
+        source,
+        history,
+        capture_context,
+        policy,
+        scope_depth,
+        prefix_mode,
+        reversed_prefix,
+        failure_whole,
+        failure,
+        matched,
+        remaining_input,
+        routine,
+        candidate_suffix,
+        path
+      )
+    LookaroundAdmittedCursorRightToLeft(_) -> reverse_case()
+
+  fn atomic_runtime_prefix(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), greedy: Bool) -> Option(Tuple(List(Char), List(Char))) = pickup
+    greedy -> atomic_runtime_last_prefix(n, machine, position, input)
+    else -> atomic_runtime_first_prefix(n, machine, position, input)
+
+  fn named_lookaround_prefix_capture_at({shape: ShapeCode}, compilation: LookaroundCompilation(shape), input: List(Char), greedy: Bool, position: InitialPosition, history: List(Char), layout: CaptureLayout, policy: NewlinePolicy) -> Option(NamedPrefixCapture) =
+    match lookaround_compiled(compilation)
+      mk_pair(count, machine) -> match atomic_lookaround_routine_prefix(regex_assertion_depth_limit(), count, machine, position, input, greedy, history, [], policy)
+        None() -> None()
+        Some(%[matched, remaining, routine]) -> match replay_named_capture_routine(routine, layout)
+          None() -> None()
+          Some(captures) -> Some(NamedPrefixCapture(matched, remaining, captures))
+end
