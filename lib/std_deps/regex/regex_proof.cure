@@ -3,6 +3,7 @@
 ## evidence routines while retaining their dependent input and output indices.
 @group(:text)
 mod Std.Regex.Proof
+  use Std.Regex.Runtime.Prefix
   public use Std.Regex.Proof.AcceptanceCaptures
   public use Std.Regex.Proof.Roots6
   public use Std.Regex.Proof.Roots5

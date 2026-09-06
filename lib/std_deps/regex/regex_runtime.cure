@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.Prefix
   public use Std.Regex.Runtime.ActiveChildAlignmentPackages
   public use Std.Regex.Runtime.StrictCursorSelection
   public use Std.Regex.Runtime.ActiveChildShapeAlignment
@@ -11312,16 +11313,9 @@ mod Std.Regex.Runtime
 
 
 
-  fn atomic_runtime_initial_members(n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), starts: List(MachineState(n))) -> AtomicSearchResult =
-    atomic_runtime_initial_members_with_commit(n, machine, input, after_input, None(), starts)
 
 
 
-  fn atomic_runtime_accepts(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char)) -> Bool = match machine
-    MkPatternMachine(starts, _) -> match atomic_runtime_initial_members(n, machine, input, after_input, filter_boundary_states(starts, initial_position_boundary(position, append_characters(input, after_input))))
-      AtomicSearchYes() -> true
-      AtomicSearchNo() -> false
-      AtomicSearchCommit(_) -> false
 
   ## Atomic assertion search is the same finite ordered search as the ordinary
   ## assertion path, but every destination is first passed through the
@@ -19963,32 +19957,10 @@ mod Std.Regex.Runtime
       AtomicSearchNo() -> false
       AtomicSearchCommit(_) -> false
 
-  fn atomic_runtime_first_prefix(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char)) -> Option(Tuple(List(Char), List(Char))) =
-    atomic_runtime_first_prefix_loop(n, machine, position, [], input)
 
-  fn atomic_runtime_first_prefix_loop(n: Nat, machine: PatternMachine(n), position: InitialPosition, reversed_prefix: List(Char), remaining_input: List(Char)) -> Option(Tuple(List(Char), List(Char))) =
-    let matched_input = evidence_reverse_chars(reversed_prefix)
-    pickup
-      atomic_runtime_accepts(n, machine, position, matched_input, remaining_input) -> Some(%[matched_input, remaining_input])
-      else -> match remaining_input
-        [] -> None()
-        [char | rest] -> atomic_runtime_first_prefix_loop(n, machine, position, [char | reversed_prefix], rest)
 
-  fn atomic_runtime_last_prefix(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char)) -> Option(Tuple(List(Char), List(Char))) =
-    atomic_runtime_last_prefix_loop(n, machine, position, [], input, None())
 
-  fn atomic_runtime_last_prefix_loop(n: Nat, machine: PatternMachine(n), position: InitialPosition, reversed_prefix: List(Char), remaining_input: List(Char), previous: Option(Tuple(List(Char), List(Char)))) -> Option(Tuple(List(Char), List(Char))) =
-    let matched_input = evidence_reverse_chars(reversed_prefix)
-    let current = pickup
-      atomic_runtime_accepts(n, machine, position, matched_input, remaining_input) -> Some(%[matched_input, remaining_input])
-      else -> previous
-    match remaining_input
-      [] -> current
-      [char | rest] -> atomic_runtime_last_prefix_loop(n, machine, position, [char | reversed_prefix], rest, current)
 
-  fn atomic_runtime_prefix(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), greedy: Bool) -> Option(Tuple(List(Char), List(Char))) = pickup
-    greedy -> atomic_runtime_last_prefix(n, machine, position, input)
-    else -> atomic_runtime_first_prefix(n, machine, position, input)
 
 
 
