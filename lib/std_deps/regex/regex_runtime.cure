@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.AdmittedPrepend
   public use Std.Regex.Runtime.CursorSuffixReflexivity
   public use Std.Regex.Runtime.CursorToSuffix
   public use Std.Regex.Runtime.CursorSuffixMembers
@@ -457,10 +458,6 @@ mod Std.Regex.Runtime
   @reducible
   fn empty_lookaround_admitted_states(n: Nat) -> List(LookaroundAdmittedState(n)) = []
 
-  @reducible
-  fn atomic_admitted_prepend({n: Nat}, prefix: List(LookaroundAdmittedState(n)), tail: List(LookaroundAdmittedState(n))) -> List(LookaroundAdmittedState(n)) = match prefix
-    [] -> tail
-    [head | rest] -> Cons(head, atomic_admitted_prepend(rest, tail))
 
 
   @reducible
