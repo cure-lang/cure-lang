@@ -99,6 +99,37 @@ defmodule Cure.Refactor.RewriteTest do
              )
   end
 
+  test "split_fragments preserves one canonical module identity across dependent groups", %{dir: dir} do
+    source_path = Path.join(dir, "source.cure")
+
+    File.write!(source_path, """
+    mod Source
+      fn first() -> Int = 1
+      fn second() -> Int = first()
+      fn third() -> Int = second()
+    end
+    """)
+
+    assert {:ok, result} =
+             Rewrite.split_fragments(
+               source_path,
+               [
+                 "first.cure:Source:first",
+                 "second.cure:Source:second"
+               ],
+               output_directory: dir,
+               write: true
+             )
+
+    assert result.source =~ "# cure:fragment"
+    assert Enum.all?(result.targets, &(&1.target =~ "# cure:fragment"))
+    assert Enum.all?(result.targets, &(&1.target =~ "mod Source"))
+    assert File.read!(Path.join(dir, "first.cure")) =~ "fn first() -> Int = 1"
+    assert File.read!(Path.join(dir, "second.cure")) =~ "fn second() -> Int = first()"
+    refute result.source =~ "fn first() -> Int = 1"
+    refute result.source =~ "fn second() -> Int = first()"
+  end
+
   test "dependency analysis records references from type-alias bodies", %{dir: dir} do
     path = Path.join(dir, "aliases.cure")
 

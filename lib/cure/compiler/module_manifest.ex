@@ -5,10 +5,12 @@ defmodule Cure.Compiler.ModuleManifest.Entry do
   defstruct identity: nil,
             module_name: nil,
             source_path: nil,
+            source_paths: [],
             source_hash: nil,
             dependencies: [],
             fixity: [],
-            prelude_provider?: false
+            prelude_provider?: false,
+            fragment?: false
 
   @type t :: %__MODULE__{}
 end
@@ -51,7 +53,7 @@ defmodule Cure.Compiler.ModuleManifest do
 
     with :ok <- validate_package(package),
          {:ok, entries} <- scan_entries(paths, package),
-         :ok <- reject_duplicates(entries),
+         {:ok, entries} <- collapse_duplicates(entries),
          entries =
            resolve_external_targets(
              entries,
@@ -202,10 +204,12 @@ defmodule Cure.Compiler.ModuleManifest do
              identity: identity,
              module_name: module_name,
              source_path: path,
+             source_paths: [path],
              source_hash: :crypto.hash(:sha256, source),
              dependencies: normalize_dependencies(dependencies),
              fixity: facts.fixity,
-             prelude_provider?: facts.prelude?
+             prelude_provider?: facts.prelude?,
+             fragment?: Cure.Compiler.ModuleFragments.marked?(source)
            }}
 
         _ ->
@@ -231,18 +235,44 @@ defmodule Cure.Compiler.ModuleManifest do
     |> Enum.sort_by(&{&1.target, &1.kind, &1.span.line})
   end
 
-  defp reject_duplicates(entries) do
+  defp collapse_duplicates(entries) do
     entries
     |> Enum.group_by(& &1.identity)
     |> Enum.sort_by(&elem(&1, 0))
-    |> Enum.find_value(:ok, fn
-      {_identity, [_entry]} ->
-        nil
+    |> Enum.reduce_while({:ok, []}, fn
+      {_identity, [entry]}, {:ok, collapsed} ->
+        {:cont, {:ok, [entry | collapsed]}}
 
-      {identity, duplicates} ->
-        providers = duplicates |> Enum.map(& &1.source_path) |> Enum.sort()
-        {:error, {:duplicate_module_identity, %{identity: identity, providers: providers}}}
+      {identity, entries}, {:ok, collapsed} ->
+        if Enum.all?(entries, & &1.fragment?) do
+          {:cont, {:ok, [merge_fragments(entries) | collapsed]}}
+        else
+          providers = entries |> Enum.map(& &1.source_path) |> Enum.sort()
+
+          {:halt,
+           {:error, {:duplicate_module_identity, %{identity: identity, providers: providers}}}}
+        end
     end)
+    |> case do
+      {:ok, collapsed} -> {:ok, Enum.reverse(collapsed)}
+      {:error, _} = error -> error
+    end
+  end
+
+  defp merge_fragments(entries) do
+    entries = Enum.sort_by(entries, & &1.source_path)
+    first = List.first(entries)
+
+    %{
+      first
+      | source_path: first.source_path,
+        source_paths: Enum.flat_map(entries, &Cure.Compiler.ModuleFragments.source_paths/1) |> Enum.uniq() |> Enum.sort(),
+        source_hash: Cure.Compiler.ModuleFragments.aggregate_hash(entries),
+        dependencies: entries |> Enum.flat_map(& &1.dependencies) |> normalize_dependencies(),
+        fixity: entries |> Enum.flat_map(& &1.fixity) |> Enum.uniq(),
+        prelude_provider?: Enum.any?(entries, & &1.prelude_provider?),
+        fragment?: true
+    }
   end
 
   # A source reference is initially package-relative because the header scan
@@ -350,7 +380,12 @@ defmodule Cure.Compiler.ModuleManifest do
     %__MODULE__{
       package: package,
       entries: entries,
-      paths: Map.new(entries, fn {identity, entry} -> {entry.source_path, identity} end),
+      paths:
+        entries
+        |> Enum.flat_map(fn {identity, entry} ->
+          Enum.map(Cure.Compiler.ModuleFragments.source_paths(entry), &{&1, identity})
+        end)
+        |> Map.new(),
       dependencies: Map.new(entries, fn {identity, entry} -> {identity, entry.dependencies} end),
       external_prelude_providers: external_prelude_providers
     }

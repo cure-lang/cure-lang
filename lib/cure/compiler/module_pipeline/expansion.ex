@@ -195,24 +195,172 @@ defmodule Cure.Compiler.ModulePipeline.Expansion do
   end
 
   defp parse_unit(entry, imported, imported_fixity, manifest_options) do
-    with {:ok, source} <- File.read(entry.source_path),
-         {:ok, edition} <- source_edition(source, manifest_options),
-         {:ok, tokens} <- Lexer.tokenize(source, file: entry.source_path, emit_events: false, edition: edition),
-         {:ok, ast} <-
-           Parser.parse(tokens,
-             file: entry.source_path,
-             emit_events: false,
-             edition: edition,
-             imported_macros: imported,
-             imported_fixity: imported_fixity
-           ) do
+    paths = Cure.Compiler.ModuleFragments.source_paths(entry)
+
+    with {:ok, sources} <- read_fragment_sources(paths),
+         {:ok, edition} <- source_edition(List.first(sources) |> elem(1), manifest_options),
+         :ok <- validate_fragment_editions(sources, manifest_options, edition),
+         {:ok, asts} <-
+           parse_fragment_sources(
+             sources,
+             edition,
+             imported,
+             imported_fixity
+           ),
+         {:ok, ast} <- merge_fragment_asts(asts, entry.module_name),
+         rules <- fragment_macro_rules(asts) do
+      source = Enum.map_join(sources, "\n", &elem(&1, 1))
+
       {:ok,
        %{
          ast: ast,
          source: source,
          skeleton: ModuleSkeleton.collect(ast, entry.identity, entry.source_path),
-         rules: Parser.macro_rules(ast, entry.source_path)
+         rules: rules
        }}
+    end
+  end
+
+  defp read_fragment_sources(paths) do
+    Enum.reduce_while(paths, {:ok, []}, fn path, {:ok, sources} ->
+      case File.read(path) do
+        {:ok, source} -> {:cont, {:ok, sources ++ [{path, source}]}}
+        {:error, reason} -> {:halt, {:error, {:module_fragment_source_error, path, reason}}}
+      end
+    end)
+  end
+
+  defp validate_fragment_editions(sources, manifest_options, edition) do
+    Enum.reduce_while(sources, :ok, fn {path, source}, :ok ->
+      case source_edition(source, manifest_options) do
+        {:ok, ^edition} -> {:cont, :ok}
+        {:ok, other} ->
+          {:halt, {:error, {:module_fragment_edition_mismatch, path, edition, other}}}
+
+        {:error, reason} -> {:halt, {:error, {:module_fragment_edition_error, path, reason}}}
+      end
+    end)
+  end
+
+  defp parse_fragment_sources(sources, edition, imported, imported_fixity) do
+    with {:ok, first_pass} <- parse_fragment_sources_once(sources, edition, imported, imported_fixity),
+         local_rules <-
+           Enum.reduce(first_pass, %{}, fn {path, ast}, rules ->
+             merge_macro_rules(rules, Parser.macro_rules(ast, path))
+           end),
+         all_rules <- merge_macro_rules(imported, local_rules),
+         {:ok, second_pass} <-
+           if(map_size(local_rules) == 0,
+             do: {:ok, first_pass},
+             else: parse_fragment_sources_once(sources, edition, all_rules, imported_fixity)
+           ) do
+      {:ok, second_pass}
+    end
+  end
+
+  defp parse_fragment_sources_once(sources, edition, imported, imported_fixity) do
+    Enum.reduce_while(sources, {:ok, []}, fn {path, source}, {:ok, asts} ->
+      with {:ok, tokens} <- Lexer.tokenize(source, file: path, emit_events: false, edition: edition),
+           {:ok, ast} <-
+             Parser.parse(tokens,
+               file: path,
+               emit_events: false,
+               edition: edition,
+               imported_macros: imported,
+               imported_fixity: imported_fixity
+             ) do
+        {:cont, {:ok, asts ++ [{path, ast}]}}
+      else
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  defp merge_macro_rules(left, right) do
+    Map.merge(left, right, fn _keyword, left_rules, right_rules ->
+      Enum.uniq(List.wrap(left_rules) ++ List.wrap(right_rules))
+    end)
+  end
+
+  defp fragment_macro_rules(asts) do
+    Enum.reduce(asts, %{}, fn {path, ast}, rules ->
+      merge_macro_rules(rules, Parser.macro_rules(ast, path))
+    end)
+  end
+
+  defp merge_fragment_asts(asts, module_name) do
+    with [{_first_path, first_ast} | rest] <- asts,
+         {:ok, first_container, first_body} <- find_module_container(first_ast, module_name),
+         {:ok, bodies} <-
+           Enum.reduce_while(rest, {:ok, [first_body]}, fn {_path, ast}, {:ok, bodies} ->
+             case find_module_container(ast, module_name) do
+               {:ok, _container, body} -> {:cont, {:ok, bodies ++ [body]}}
+               :error -> {:halt, {:error, {:module_fragment_missing_module, module_name}}}
+             end
+           end) do
+      merged = put_elem(first_container, 2, Enum.flat_map(bodies, &List.wrap/1))
+      {:ok, replace_first_module(first_ast, module_name, merged)}
+    else
+      [] -> {:error, {:module_fragment_empty, module_name}}
+      :error -> {:error, {:module_fragment_missing_module, module_name}}
+      {:error, _} = error -> error
+    end
+  end
+
+  defp find_module_container({:container, meta, body} = node, module_name) when is_list(meta) do
+    if Keyword.get(meta, :container_type) in [:module, :proof] and
+         Keyword.get(meta, :name) == module_name do
+      {:ok, node, body}
+    else
+      find_module_container(body, module_name)
+    end
+  end
+
+  defp find_module_container({:block, _meta, children}, module_name) when is_list(children),
+    do: find_module_container(children, module_name)
+
+  defp find_module_container(nodes, module_name) when is_list(nodes) do
+    Enum.find_value(nodes, :error, &find_module_container(&1, module_name))
+  end
+
+  defp find_module_container(_node, _module_name), do: :error
+
+  defp replace_first_module({:container, meta, body}, module_name, replacement)
+       when is_list(meta) do
+    if Keyword.get(meta, :container_type) in [:module, :proof] and
+         Keyword.get(meta, :name) == module_name do
+      {replacement, true}
+    else
+      {replacement_body, replaced?} = replace_first_module(body, module_name, replacement)
+      {{:container, meta, replacement_body}, replaced?}
+    end
+  end
+
+  defp replace_first_module(node, module_name, replacement) when is_tuple(node) do
+    {values, replaced?} =
+      node
+      |> Tuple.to_list()
+      |> replace_first_module_in_list(module_name, replacement)
+
+    {List.to_tuple(values), replaced?}
+  end
+
+  defp replace_first_module(nodes, module_name, replacement) when is_list(nodes) do
+    replace_first_module_in_list(nodes, module_name, replacement)
+  end
+
+  defp replace_first_module(node, _module_name, _replacement), do: {node, false}
+
+  defp replace_first_module_in_list([], _module_name, _replacement), do: {[], false}
+
+  defp replace_first_module_in_list([head | tail], module_name, replacement) do
+    {new_head, replaced?} = replace_first_module(head, module_name, replacement)
+
+    if replaced? do
+      {[new_head | tail], true}
+    else
+      {new_tail, tail_replaced?} = replace_first_module_in_list(tail, module_name, replacement)
+      {[new_head | new_tail], tail_replaced?}
     end
   end
 

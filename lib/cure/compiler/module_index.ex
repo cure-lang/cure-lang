@@ -4,14 +4,17 @@ defmodule Cure.Compiler.ModuleIndex.Entry do
   @enforce_keys [:module_name, :source_path, :source_hash]
   defstruct module_name: nil,
             source_path: nil,
+            source_paths: [],
             source_hash: nil,
             direct_edges: [],
             provided_modules: [],
-            prelude_provider?: false
+            prelude_provider?: false,
+            fragment?: false
 
   @type t :: %__MODULE__{
           module_name: String.t(),
           source_path: Path.t(),
+          source_paths: [Path.t()],
           source_hash: binary(),
           direct_edges: [Cure.Compiler.ModuleIndex.edge()],
           provided_modules: [String.t()],
@@ -65,7 +68,7 @@ defmodule Cure.Compiler.ModuleIndex do
     paths = paths |> Enum.map(&Path.expand/1) |> Enum.uniq() |> Enum.sort()
 
     with {:ok, entries} <- scan_entries(paths, opts),
-         :ok <- reject_duplicates(entries),
+         {:ok, entries} <- collapse_duplicates(entries),
          :ok <- reject_provider_duplicates(entries) do
       index = assemble(entries)
 
@@ -80,10 +83,16 @@ defmodule Cure.Compiler.ModuleIndex do
   def from_entries(entries, opts \\ []) do
     entries =
       entries
-      |> Enum.map(fn entry -> %{entry | source_path: Path.expand(entry.source_path)} end)
+      |> Enum.map(fn entry ->
+        source_paths =
+          Cure.Compiler.ModuleFragments.source_paths(entry)
+          |> Enum.map(&Path.expand/1)
+
+        %{entry | source_path: List.first(source_paths), source_paths: source_paths}
+      end)
       |> Enum.sort_by(&{&1.module_name, &1.source_path})
 
-    with :ok <- reject_duplicates(entries),
+    with {:ok, entries} <- collapse_duplicates(entries),
          :ok <- reject_provider_duplicates(entries) do
       index = assemble(entries)
 
@@ -196,10 +205,12 @@ defmodule Cure.Compiler.ModuleIndex do
              %Entry{
                module_name: module_name,
                source_path: path,
+               source_paths: [path],
                source_hash: :crypto.hash(:sha256, source),
                direct_edges: direct_edges,
                provided_modules: [module_name],
-               prelude_provider?: facts.prelude?
+               prelude_provider?: facts.prelude?,
+               fragment?: Cure.Compiler.ModuleFragments.marked?(source)
              }}
 
           _ ->
@@ -216,13 +227,46 @@ defmodule Cure.Compiler.ModuleIndex do
   defp edge(kind, source_module, target, path, line),
     do: %{kind: kind, source_module: source_module, target: target, source_path: path, line: line}
 
-  defp reject_duplicates(entries) do
+  defp collapse_duplicates(entries) do
     entries
     |> Enum.group_by(& &1.module_name)
-    |> Enum.find_value(:ok, fn
-      {_name, [_entry]} -> nil
-      {name, duplicates} -> {:error, {:duplicate_module, name, Enum.map(duplicates, & &1.source_path) |> Enum.sort()}}
+    |> Enum.sort_by(&elem(&1, 0))
+    |> Enum.reduce_while({:ok, []}, fn
+      {_name, [entry]}, {:ok, collapsed} ->
+        {:cont, {:ok, [entry | collapsed]}}
+
+      {name, entries}, {:ok, collapsed} ->
+        if Enum.all?(entries, & &1.fragment?) do
+          {:cont, {:ok, [merge_fragments(entries) | collapsed]}}
+        else
+          paths = Enum.map(entries, & &1.source_path) |> Enum.sort()
+          {:halt, {:error, {:duplicate_module, name, paths}}}
+        end
     end)
+    |> case do
+      {:ok, collapsed} -> {:ok, Enum.reverse(collapsed)}
+      {:error, _} = error -> error
+    end
+  end
+
+  defp merge_fragments(entries) do
+    entries = Enum.sort_by(entries, & &1.source_path)
+    first = List.first(entries)
+
+    %{
+      first
+      | source_path: first.source_path,
+        source_paths:
+          entries
+          |> Enum.flat_map(&Cure.Compiler.ModuleFragments.source_paths/1)
+          |> Enum.uniq()
+          |> Enum.sort(),
+        source_hash: Cure.Compiler.ModuleFragments.aggregate_hash(entries),
+        direct_edges: entries |> Enum.flat_map(& &1.direct_edges) |> Enum.uniq(),
+        provided_modules: entries |> Enum.flat_map(& &1.provided_modules) |> Enum.uniq() |> Enum.sort(),
+        prelude_provider?: Enum.any?(entries, & &1.prelude_provider?),
+        fragment?: true
+    }
   end
 
   defp reject_provider_duplicates(entries) do
@@ -254,7 +298,12 @@ defmodule Cure.Compiler.ModuleIndex do
 
     %__MODULE__{
       entries: Map.new(entries, &{&1.module_name, &1}),
-      paths: Map.new(entries, &{&1.source_path, &1.module_name}),
+      paths:
+        entries
+        |> Enum.flat_map(fn entry ->
+          Enum.map(Cure.Compiler.ModuleFragments.source_paths(entry), &{&1, entry.module_name})
+        end)
+        |> Map.new(),
       providers: providers,
       prelude_providers:
         entries

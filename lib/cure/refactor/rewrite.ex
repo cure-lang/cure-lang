@@ -62,6 +62,28 @@ defmodule Cure.Refactor.Rewrite.BatchResult do
         }
 end
 
+defmodule Cure.Refactor.Rewrite.FragmentBatchResult do
+  @moduledoc "Result of splitting one canonical module into source fragments."
+
+  @enforce_keys [:source_path, :source_module, :targets, :source, :applied?]
+  defstruct [:source_path, :source_module, :targets, :source, :applied?]
+
+  @type target :: %{
+          required(:target_path) => Path.t(),
+          required(:target_module) => String.t(),
+          required(:selected) => [String.t()],
+          required(:target) => String.t()
+        }
+
+  @type t :: %__MODULE__{
+          source_path: Path.t(),
+          source_module: String.t(),
+          targets: [target()],
+          source: String.t(),
+          applied?: boolean()
+        }
+end
+
 defmodule Cure.Refactor.Rewrite do
   @moduledoc """
   Machine-applicable, AST-selected source rewrites for Cure modules.
@@ -227,6 +249,49 @@ defmodule Cure.Refactor.Rewrite do
 
   def split_many(_source_path, _specs, _opts),
     do: {:error, {:invalid_split_spec, "batch split specifications must be a list"}}
+
+  @doc """
+  Split one canonical module into several marked source fragments.
+
+  Unlike `split_many/3`, this operation intentionally permits declarations in
+  different targets to depend on one another: the compiler aggregates all
+  marked files into one module before elaboration, so no artificial `use`
+  cycle or public wrapper is introduced. Every resulting file carries the
+  explicit `# cure:fragment` marker; an ordinary unmarked duplicate module is
+  still rejected by the manifest.
+  """
+  @spec split_fragments(Path.t(), [split_spec() | String.t()], keyword()) ::
+          {:ok, Cure.Refactor.Rewrite.FragmentBatchResult.t()} | {:error, error()}
+  def split_fragments(source_path, specs, opts \\ [])
+
+  def split_fragments(source_path, specs, opts) when is_list(specs) do
+    with {:ok, specs} <- normalize_batch_specs(specs),
+         {:ok, source} <- read_source(source_path),
+         {:ok, report} <- analyze(source_path),
+         :ok <- ensure_source_unchanged(source, report),
+         {:ok, groups} <- select_batch_groups(report, specs),
+         :ok <- ensure_batch_disjoint(groups),
+         :ok <- ensure_fragment_modules(report.module, specs),
+         {:ok, target_paths} <- batch_target_paths(source_path, specs, opts),
+         :ok <- ensure_batch_targets_distinct(source_path, target_paths),
+         :ok <- ensure_batch_targets_available(target_paths, opts),
+         {:ok, generated} <- generate_fragments(source, report, specs, groups, target_paths),
+         :ok <- verify_generated(report.module, generated.source, source_path),
+         :ok <- verify_batch_targets(generated.targets),
+         {:ok, applied?} <- maybe_write_fragments(generated, opts) do
+      {:ok,
+       %Cure.Refactor.Rewrite.FragmentBatchResult{
+         source_path: source_path,
+         source_module: report.module,
+         targets: generated.targets,
+         source: generated.source,
+         applied?: applied?
+       }}
+    end
+  end
+
+  def split_fragments(_source_path, _specs, _opts),
+    do: {:error, {:invalid_split_spec, "fragment split specifications must be a list"}}
 
   @doc "Return a compact JSON-safe summary of a rewrite result."
   @spec to_map(Cure.Refactor.Rewrite.Result.t()) :: map()
@@ -792,6 +857,59 @@ defmodule Cure.Refactor.Rewrite do
      }}
   end
 
+  defp ensure_fragment_modules(source_module, specs) do
+    if Enum.all?(specs, &(&1.target_module == source_module)) do
+      :ok
+    else
+      {:error, {:invalid_split_spec, "all fragment targets must use the source module identity"}}
+    end
+  end
+
+  defp generate_fragments(source, report, specs, groups, target_paths) do
+    selected = List.flatten(groups)
+    source_without_selected = remove_spans(source, Enum.map(selected, & &1.span))
+    source_with_marker = add_fragment_marker(source_without_selected)
+
+    targets =
+      Enum.zip([specs, groups, target_paths])
+      |> Enum.map(fn {_spec, group, path} ->
+        %{
+          target_path: path,
+          target_module: report.module,
+          selected: Enum.map(group, & &1.name),
+          target: build_fragment_target(source, report, group)
+        }
+      end)
+
+    {:ok, %{source_path: report.path, source: source_with_marker, targets: targets}}
+  end
+
+  defp build_fragment_target(source, report, selected) do
+    prefix = module_prefix(source, report.path)
+    imports = Enum.map(report.imports, &import_source(source, &1))
+
+    declarations =
+      Enum.map(selected, fn declaration -> declaration_source(source, declaration, MapSet.new()) end)
+
+    body =
+      (imports ++ declarations)
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.map(&indent_block/1)
+      |> Enum.join("\n\n")
+
+    [Cure.Compiler.ModuleFragments.marker(), "\n", prefix, "mod ", report.module, "\n",
+     if(body == "", do: "", else: body <> "\n"), "end\n"]
+    |> IO.iodata_to_binary()
+  end
+
+  defp add_fragment_marker(source) do
+    if Cure.Compiler.ModuleFragments.marked?(source) do
+      source
+    else
+      Cure.Compiler.ModuleFragments.marker() <> "\n" <> source
+    end
+  end
+
   defp verify_batch_targets(targets) do
     Enum.reduce_while(targets, :ok, fn target, :ok ->
       case verify_generated(target.target_module, target.target, target.target_path) do
@@ -802,6 +920,17 @@ defmodule Cure.Refactor.Rewrite do
   end
 
   defp maybe_write_batch(generated, opts) do
+    if Keyword.get(opts, :write, false) do
+      with :ok <- write_batch_targets(generated.targets),
+           :ok <- write_file(generated.source_path, generated.source) do
+        {:ok, true}
+      end
+    else
+      {:ok, false}
+    end
+  end
+
+  defp maybe_write_fragments(generated, opts) do
     if Keyword.get(opts, :write, false) do
       with :ok <- write_batch_targets(generated.targets),
            :ok <- write_file(generated.source_path, generated.source) do

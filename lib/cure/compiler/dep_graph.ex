@@ -44,6 +44,7 @@ defmodule Cure.Compiler.DepGraph do
           blank?: boolean(),
           parse_error: term() | nil,
           source_hash: binary(),
+          fragment?: boolean(),
           provided_modules: [String.t()],
           order_deps: [%{target: String.t(), line: pos_integer()}],
           qualified_deps: [%{target: String.t(), line: pos_integer()}],
@@ -156,10 +157,12 @@ defmodule Cure.Compiler.DepGraph do
       %Cure.Compiler.ModuleIndex.Entry{
         module_name: module_name,
         source_path: path,
+        source_paths: [path],
         source_hash: node.source_hash,
         direct_edges: use_edges ++ qualified_edges,
         provided_modules: node.provided_modules,
-        prelude_provider?: Map.get(node, :prelude_provider?, false)
+        prelude_provider?: Map.get(node, :prelude_provider?, false),
+        fragment?: Map.get(node, :fragment?, false)
       }
     end
   end
@@ -289,6 +292,7 @@ defmodule Cure.Compiler.DepGraph do
       blank?: false,
       parse_error: nil,
       source_hash: <<>>,
+      fragment?: false,
       provided_modules: [],
       order_deps: [],
       qualified_deps: [],
@@ -301,6 +305,7 @@ defmodule Cure.Compiler.DepGraph do
 
       {:ok, source} ->
         base = %{base | source_hash: :crypto.hash(:sha256, source)}
+        base = %{base | fragment?: Cure.Compiler.ModuleFragments.marked?(source)}
 
         if String.trim(source) == "" do
           %{base | blank?: true}
