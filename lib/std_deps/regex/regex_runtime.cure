@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.ActiveChildRejection
   public use Std.Regex.Runtime.CursorShapeLocations
   public use Std.Regex.Runtime.InitialMembers
   public use Std.Regex.Runtime.Roots
@@ -436,9 +437,6 @@ mod Std.Regex.Runtime
   type LookaroundConstraintAdmission =
     | LookaroundConstraintAdmitted(List(ExtendedInstruction), List(EvidenceInstruction), List(LookaroundNestedDecision))
 
-  type LookaroundAdmittedState(n: Nat) indices ()
-    LookaroundAdmittedActive : Bounded(n) -> List(EvidenceInstruction) -> List(BoundaryConstraint) -> List(ExtendedInstruction) -> List(EvidenceInstruction) -> List(LookaroundNestedDecision) -> LookaroundAdmittedState(n)
-    LookaroundAdmittedAccepted : List(EvidenceInstruction) -> List(BoundaryConstraint) -> List(ExtendedInstruction) -> List(EvidenceInstruction) -> List(LookaroundNestedDecision) -> LookaroundAdmittedState(n)
 
   @reducible
   fn empty_lookaround_admitted_states(n: Nat) -> List(LookaroundAdmittedState(n)) = []
@@ -461,13 +459,6 @@ mod Std.Regex.Runtime
     LookaroundAdmittedStateCursorHere : LookaroundAdmittedStateCursor(n, values, values)
     LookaroundAdmittedStateCursorDrop : (@erased head: LookaroundAdmittedState(n)) -> (@erased cursor: LookaroundAdmittedStateCursor(n, whole, Cons(head, values))) -> LookaroundAdmittedStateCursor(n, whole, values)
 
-  ## A selected candidate list is either the current admitted suffix or a
-  ## suffix reached by dropping ordered heads.  This is the lookaround-side
-  ## counterpart of `MachineStateCursorSuffix`; it is the relation consumed by
-  ## the atomic refutation induction when a path skips a rejected candidate.
-  type LookaroundAdmittedStateCursorSuffix(n: Nat) indices (outer: List(LookaroundAdmittedState(n)), inner: List(LookaroundAdmittedState(n)))
-    LookaroundAdmittedStateCursorSuffixHere : (@erased equality: Equivalent(List(LookaroundAdmittedState(n)), outer, inner)) -> LookaroundAdmittedStateCursorSuffix(n, outer, inner)
-    LookaroundAdmittedStateCursorSuffixDrop : (@erased head: LookaroundAdmittedState(n)) -> (suffix: LookaroundAdmittedStateCursorSuffix(n, outer, inner)) -> LookaroundAdmittedStateCursorSuffix(n, Cons(head, outer), inner)
 
   ## Runtime search results retain only the recursive `Here`/`Drop` shape. The
   ## admitted-state heads and equality witnesses stay erased, while the prior
@@ -783,12 +774,6 @@ mod Std.Regex.Runtime
       LookaroundAdmittedStateCursorSuffixDropPacked(_, right_prior) ->
         atomic_path_cursor_shape_location(left_prior, right_prior)
 
-  ## A non-empty cursor current proves that its whole spine is non-empty too.
-  ## Keep the decomposition existential and erased: callers need the
-  ## construction-site equality to refine a rejected child, but no runtime
-  ## representation of the chosen head or tail is allowed to escape.
-  type LookaroundAdmittedNonempty(n: Nat) indices (whole: List(LookaroundAdmittedState(n)))
-    LookaroundAdmittedNonemptyPacked : (@erased head: LookaroundAdmittedState(n)) -> (@erased tail: List(LookaroundAdmittedState(n))) -> (@erased equivalence: Equivalent(List(LookaroundAdmittedState(n)), whole, Cons(head, tail))) -> LookaroundAdmittedNonempty(n, whole)
 
   ## Transport a non-empty decomposition backwards through an ordered cursor
   ## suffix.  The `Here` case consumes the suffix equality; each `Drop` case
@@ -812,25 +797,7 @@ mod Std.Regex.Runtime
         lookaround_admitted_state_cons_equivalent(dropped, prior_equivalence)
       )
 
-  ## A selected child suffix is either still at the rejected head or has
-  ## dropped into its sibling tail.  Keeping that split indexed lets the
-  ## recursive proof choose the child contradiction without inspecting an
-  ## erased list at runtime.
-  type AtomicPathSelectedChildLocation(n: Nat) indices (head: LookaroundAdmittedState(n), rest: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)))
-    AtomicPathSelectedChildHere : (@erased head: LookaroundAdmittedState(n)) -> (@erased rest: List(LookaroundAdmittedState(n))) -> AtomicPathSelectedChildLocation(n, head, rest, Cons(head, rest))
-    AtomicPathSelectedChildThere : (@erased head: LookaroundAdmittedState(n)) -> (@erased suffix: LookaroundAdmittedStateCursorSuffix(n, rest, current)) -> AtomicPathSelectedChildLocation(n, head, rest, current)
 
-  @reducible
-  fn atomic_path_selected_child_suffix_location(
-    {n: Nat},
-    {head: LookaroundAdmittedState(n)},
-    {rest: List(LookaroundAdmittedState(n))},
-    {current: List(LookaroundAdmittedState(n))},
-    suffix: LookaroundAdmittedStateCursorSuffix(n, Cons(head, rest), current)
-  ) -> AtomicPathSelectedChildLocation(n, head, rest, current) = match suffix
-    LookaroundAdmittedStateCursorSuffixHere(equality) -> match equality
-      reflexive() -> AtomicPathSelectedChildHere(head, rest)
-    LookaroundAdmittedStateCursorSuffixDrop(_, prior) -> AtomicPathSelectedChildThere(head, prior)
 
   ## Consume the selected-child location without making the erased location
   ## witness a runtime callback argument.  The suffix itself is relevant at
@@ -868,9 +835,6 @@ mod Std.Regex.Runtime
     AtomicPathSelectedChildHere(_, _) -> here_case
     AtomicPathSelectedChildThere(_, _) -> there_case
 
-  type LookaroundAdmittedStateCursorAlignment(n: Nat) indices (left: List(LookaroundAdmittedState(n)), right: List(LookaroundAdmittedState(n)))
-    LookaroundAdmittedCursorLeftToRight : (@erased suffix: LookaroundAdmittedStateCursorSuffix(n, left, right)) -> LookaroundAdmittedStateCursorAlignment(n, left, right)
-    LookaroundAdmittedCursorRightToLeft : (@erased suffix: LookaroundAdmittedStateCursorSuffix(n, right, left)) -> LookaroundAdmittedStateCursorAlignment(n, left, right)
 
   ## A proper suffix records at least one dropped candidate.  Ordinary cursor
   ## suffixes also admit equality, which was too weak for the reverse atomic
@@ -1025,13 +989,6 @@ mod Std.Regex.Runtime
     AtomicPathActiveChildAlignmentThere : {@erased failure_current: List(LookaroundAdmittedState(n))} -> (@erased alignment: LookaroundAdmittedStateCursorSuffix(n, failure_current, current)) -> (@erased tail: LookaroundAdmittedStateCursorSuffix(n, remaining, current)) -> AtomicPathActiveChildAlignment(n, candidate, remaining, failure_current, current)
     AtomicPathActiveChildAlignmentReverse : {@erased failure_current: List(LookaroundAdmittedState(n))} -> (@erased alignment: LookaroundAdmittedStateCursorSuffix(n, current, failure_current)) -> AtomicPathActiveChildAlignment(n, candidate, remaining, failure_current, current)
 
-  ## The package-consuming projection deliberately forgets the existential
-  ## head and tail values.  They are needed only to refine the erased whole
-  ## list; callers dispatch on the resulting location, not on proof payload.
-  type AtomicPathActiveChildAlignmentCase(n: Nat) indices (failure_current: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)))
-    AtomicPathActiveChildAlignmentCaseHere : AtomicPathActiveChildAlignmentCase(n, failure_current, current)
-    AtomicPathActiveChildAlignmentCaseThere : AtomicPathActiveChildAlignmentCase(n, failure_current, current)
-    AtomicPathActiveChildAlignmentCaseReverse : AtomicPathActiveChildAlignmentCase(n, failure_current, current)
 
   ## Evidence-preserving counterpart of the compact alignment case. Branch
   ## consumers that discover their recursive proof data only after canonical
@@ -1127,19 +1084,6 @@ mod Std.Regex.Runtime
     AtomicPathActiveChildAlignmentReverse(authority) ->
       AtomicPathActiveChildAlignmentReverseAuthority(authority)
 
-  ## A child search and its selected trace may publish extensionally equal
-  ## origin lists through different existential binders. Transporting the
-  ## selected suffix across that equality gives both cursors one common outer
-  ## spine, which is the prerequisite for the alignment eliminator below.
-  fn transport_lookaround_admitted_cursor_suffix_outer(
-    {n: Nat},
-    {left: List(LookaroundAdmittedState(n))},
-    {right: List(LookaroundAdmittedState(n))},
-    {inner: List(LookaroundAdmittedState(n))},
-    equality: Equivalent(List(LookaroundAdmittedState(n)), left, right),
-    suffix: LookaroundAdmittedStateCursorSuffix(n, right, inner)
-  ) -> LookaroundAdmittedStateCursorSuffix(n, left, inner) = match equality
-    reflexive() -> suffix
 
   ## Transport the selected child suffix from a path constructor's local
   ## origin to the parent selected origin.  The current spine is deliberately
@@ -1257,24 +1201,6 @@ mod Std.Regex.Runtime
       )
     AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, suffix) -> impossible
 
-  ## Align a failed child cursor with the selected child cursor after
-  ## transporting the latter across the common-origin equality published by
-  ## the selected path.  This is the reusable recursive bridge: it equates
-  ## only the list spines, never runtime states or proof payloads.
-  fn atomic_child_cursor_alignment(
-    {n: Nat},
-    {failure_whole: List(LookaroundAdmittedState(n))},
-    {failure_current: List(LookaroundAdmittedState(n))},
-    {selected_whole: List(LookaroundAdmittedState(n))},
-    {selected_current: List(LookaroundAdmittedState(n))},
-    failure_suffix: LookaroundAdmittedStateCursorSuffix(n, failure_whole, failure_current),
-    selected_whole_equivalence: Equivalent(List(LookaroundAdmittedState(n)), failure_whole, selected_whole),
-    selected_suffix: LookaroundAdmittedStateCursorSuffix(n, selected_whole, selected_current)
-  ) -> LookaroundAdmittedStateCursorAlignment(n, failure_current, selected_current) =
-    lookaround_admitted_cursor_suffix_alignment(
-      failure_suffix,
-      transport_lookaround_admitted_cursor_suffix_outer(selected_whole_equivalence, selected_suffix)
-    )
 
   ## The failed search and selected trace publish their origins independently,
   ## but both certificates normalize to the same indexed machine search. First
@@ -1375,43 +1301,6 @@ mod Std.Regex.Runtime
         reflexive() -> match origin_equivalence
           reflexive() -> selected_suffix
 
-  ## Consume the erased non-empty decomposition without projecting erased
-  ## equality data into a relevant argument. Matching the equality rewrites
-  ## the whole-list index to its canonical `Cons` form; the selected whole
-  ## equality then supplies the only relevant transport needed to classify the
-  ## selected child as head, later sibling, or reverse-aligned.
-  @reducible
-  fn atomic_path_active_child_alignment_from_nonempty(
-    {n: Nat},
-    {failure_whole: List(LookaroundAdmittedState(n))},
-    {failure_current: List(LookaroundAdmittedState(n))},
-    {selected_whole: List(LookaroundAdmittedState(n))},
-    {selected_current: List(LookaroundAdmittedState(n))},
-    @erased failure_nonempty: LookaroundAdmittedNonempty(n, failure_whole),
-    failure_suffix: LookaroundAdmittedStateCursorSuffix(n, failure_whole, failure_current),
-    selected_whole_equivalence: Equivalent(
-      List(LookaroundAdmittedState(n)),
-      failure_whole,
-      selected_whole
-    ),
-    selected_suffix: LookaroundAdmittedStateCursorSuffix(n, selected_whole, selected_current)
-  ) -> AtomicPathActiveChildAlignmentCase(n, failure_current, selected_current) =
-    match failure_nonempty
-      LookaroundAdmittedNonemptyPacked(_, _, equality) -> match equality
-        reflexive() -> match atomic_child_cursor_alignment(
-            failure_suffix,
-            selected_whole_equivalence,
-            selected_suffix
-          )
-            LookaroundAdmittedCursorLeftToRight(_) -> match atomic_path_selected_child_suffix_location(
-              transport_lookaround_admitted_cursor_suffix_outer(
-                selected_whole_equivalence,
-                selected_suffix
-              )
-            )
-              AtomicPathSelectedChildHere(_, _) -> AtomicPathActiveChildAlignmentCaseHere()
-              AtomicPathSelectedChildThere(_, _) -> AtomicPathActiveChildAlignmentCaseThere()
-            LookaroundAdmittedCursorRightToLeft(_) -> AtomicPathActiveChildAlignmentCaseReverse()
 
   ## Classify an alignment whose two cursors have already been transported to
   ## independently certified canonical origins.  All witnesses are relevant at
@@ -1710,23 +1599,6 @@ mod Std.Regex.Runtime
         AtomicPathSelectedChildThere(candidate_value, suffix_value) -> AtomicPathActiveChildAlignmentThere(alignment, suffix_value)
       LookaroundAdmittedCursorRightToLeft(alignment) -> AtomicPathActiveChildAlignmentReverse(alignment)
 
-  fn lookaround_admitted_cursor_suffix_alignment(
-    {n: Nat},
-    {outer: List(LookaroundAdmittedState(n))},
-    {left: List(LookaroundAdmittedState(n))},
-    {right: List(LookaroundAdmittedState(n))},
-    left_suffix: LookaroundAdmittedStateCursorSuffix(n, outer, left),
-    right_suffix: LookaroundAdmittedStateCursorSuffix(n, outer, right)
-  ) -> LookaroundAdmittedStateCursorAlignment(n, left, right) = match left_suffix
-    LookaroundAdmittedStateCursorSuffixHere(left_equality) -> match left_equality
-      reflexive() -> match right_suffix
-        LookaroundAdmittedStateCursorSuffixHere(right_equality) -> match right_equality
-          reflexive() -> LookaroundAdmittedCursorLeftToRight(LookaroundAdmittedStateCursorSuffixHere(reflexive(left)))
-        LookaroundAdmittedStateCursorSuffixDrop(_, _) -> LookaroundAdmittedCursorLeftToRight(right_suffix)
-    LookaroundAdmittedStateCursorSuffixDrop(_, left_prior) -> match right_suffix
-      LookaroundAdmittedStateCursorSuffixHere(right_equality) -> match right_equality
-        reflexive() -> LookaroundAdmittedCursorRightToLeft(left_suffix)
-      LookaroundAdmittedStateCursorSuffixDrop(_, right_prior) -> lookaround_admitted_cursor_suffix_alignment(left_prior, right_prior)
 
   ## Ordered candidate suffixes compose when a refutation has already skipped
   ## one prefix and the selected trace skips another.  Keeping this operation
@@ -18226,66 +18098,7 @@ mod Std.Regex.Runtime
             )
         )
 
-  ## Dispatch the indexed active-child alignment at the construction site. The
-  ## alignment case is already proof-relevant, so the three continuations can
-  ## remain proof-only while the eventual sibling-tail induction is supplied
-  ## by the caller that owns the child refutation.
-  @reducible
-  fn atomic_path_active_child_rejection_tail_fold(
-    {n: Nat},
-    {failure_current: List(LookaroundAdmittedState(n))},
-    {selected_current: List(LookaroundAdmittedState(n))},
-    location: AtomicPathActiveChildAlignmentCase(n, failure_current, selected_current),
-    head_case: () -> Empty,
-    tail_case: () -> Empty,
-    reverse_case: () -> Empty
-  ) -> Empty = match location
-    AtomicPathActiveChildAlignmentCaseHere() -> head_case()
-    AtomicPathActiveChildAlignmentCaseThere() -> tail_case()
-    AtomicPathActiveChildAlignmentCaseReverse() -> reverse_case()
 
-  ## Align a recursively rejected active child with the selected child trace.
-  ## The child failure kind is fixed before this helper is called, while the
-  ## two cursor suffixes remain relevant construction-site witnesses for the
-  ## alignment eliminator.  Both directions are explicit continuations: the
-  ## left-to-right branch can descend through the rejected sibling tail, and
-  ## the right-to-left branch remains the separate reverse induction case.
-  ## Keep the singleton child head at a named construction-site boundary. It
-  ## receives only the cursor evidence consumed by the destination-rejection
-  ## alignment authority; canonical origin equality is handled before this
-  ## smaller cursor-only boundary. The
-  ## separate head theorem remains the next place to specialize the
-  ## one-character leaf without duplicating the alignment authority.
-  @reducible
-  fn atomic_path_active_child_rejection_head_excludes_trace(
-    {n: Nat},
-    @erased failure_whole: List(LookaroundAdmittedState(n)),
-    @erased failure_current: List(LookaroundAdmittedState(n)),
-    failure_suffix: LookaroundAdmittedStateCursorSuffix(n, failure_whole, failure_current),
-    @erased failure_nonempty: LookaroundAdmittedNonempty(n, failure_whole),
-    selected_whole: List(LookaroundAdmittedState(n)),
-    {selected_current: List(LookaroundAdmittedState(n))},
-    selected_whole_equivalence: Equivalent(
-      List(LookaroundAdmittedState(n)),
-      failure_whole,
-      selected_whole
-    ),
-    selected_suffix: LookaroundAdmittedStateCursorSuffix(n, selected_whole, selected_current),
-    left_case: () -> Empty,
-    left_tail_case: () -> Empty,
-    right_case: () -> Empty
-  ) -> Empty = atomic_path_active_child_rejection_excludes_destination_rejected(
-    failure_whole,
-    failure_current,
-    failure_suffix,
-    failure_nonempty,
-    selected_whole,
-    selected_whole_equivalence,
-    selected_suffix,
-    left_case,
-    left_tail_case,
-    right_case
-  )
 
   ## Terminal child failures are discharged by the existing indexed leaves.
   ## These two construction-site lemmas deliberately take the terminal child
@@ -18500,35 +18313,6 @@ mod Std.Regex.Runtime
     path
   )
 
-  @reducible
-  fn atomic_path_active_child_rejection_excludes_destination_rejected(
-    {n: Nat},
-    @erased failure_whole: List(LookaroundAdmittedState(n)),
-    @erased failure_current: List(LookaroundAdmittedState(n)),
-    failure_suffix: LookaroundAdmittedStateCursorSuffix(n, failure_whole, failure_current),
-    @erased failure_nonempty: LookaroundAdmittedNonempty(n, failure_whole),
-    selected_whole: List(LookaroundAdmittedState(n)),
-    {selected_current: List(LookaroundAdmittedState(n))},
-    selected_whole_equivalence: Equivalent(
-      List(LookaroundAdmittedState(n)),
-      failure_whole,
-      selected_whole
-    ),
-    selected_suffix: LookaroundAdmittedStateCursorSuffix(n, selected_whole, selected_current),
-    left_case: () -> Empty,
-    left_tail_case: () -> Empty,
-    right_case: () -> Empty
-  ) -> Empty = atomic_path_active_child_rejection_tail_fold(
-    atomic_path_active_child_alignment_from_nonempty(
-      failure_nonempty,
-      failure_suffix,
-      selected_whole_equivalence,
-      selected_suffix
-    ),
-    left_case,
-    left_tail_case,
-    right_case
-  )
 
   ## A singleton recursively rejected child can expose one more indexed leaf.
   ## When its selected suffix is the same head as the stored failure cursor,
