@@ -1,5 +1,8 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.ActiveChildShapeAlignmentPackageBridge
+  public use Std.Regex.Runtime.ActiveChildShapeAlignmentPackageDispatch
+  public use Std.Regex.Runtime.InitialMembersRoot
   public use Std.Regex.Runtime.ActiveChildShapeAlignmentPackage
   public use Std.Regex.Runtime.ActiveChildShapeAlignment
   public use Std.Regex.Runtime.CursorShapeLocations
@@ -576,60 +579,7 @@ mod Std.Regex.Runtime
 
 
 
-  @reducible
-  fn atomic_path_active_child_shape_alignment_package(
-    {failure_package: Type}, {selected_package: Type},
-    failure: failure_package,
-    selected: selected_package,
-    failure_shape: LookaroundAdmittedStateCursorShape,
-    selected_shape: LookaroundAdmittedStateCursorShape
-  ) -> AtomicPathActiveChildShapeAlignmentPackage(
-    failure_package, selected_package, failure_shape, selected_shape
-  ) = match atomic_path_active_child_shape_alignment_authority(
-    failure_shape, selected_shape
-  )
-    AtomicPathActiveChildShapeHereAuthority() ->
-      AtomicPathActiveChildShapeAlignmentHerePacked(
-        AtomicPathActiveChildShapeHerePacked(failure, selected)
-      )
-    AtomicPathActiveChildShapeThereAuthorityPacked(authority) ->
-      AtomicPathActiveChildShapeAlignmentTherePacked(
-        AtomicPathActiveChildShapeTherePacked(
-          failure,
-          selected,
-          authority
-        )
-      )
-    AtomicPathActiveChildShapeReverseAuthority(authority) ->
-      AtomicPathActiveChildShapeAlignmentReversePacked(
-        AtomicPathActiveChildShapeReversePacked(
-          failure,
-          selected,
-          authority
-        )
-      )
 
-  @reducible
-  fn atomic_path_active_child_shape_alignment_package_dispatch(
-    {result: Type}, {failure_package: Type}, {selected_package: Type},
-    {failure_shape: LookaroundAdmittedStateCursorShape},
-    {selected_shape: LookaroundAdmittedStateCursorShape},
-    package: AtomicPathActiveChildShapeAlignmentPackage(
-      failure_package, selected_package, failure_shape, selected_shape
-    ),
-    here_case: (AtomicPathActiveChildShapeHerePackage(
-      failure_package, selected_package, failure_shape, selected_shape
-    )) -> result,
-    there_case: (AtomicPathActiveChildShapeTherePackage(
-      failure_package, selected_package, failure_shape, selected_shape
-    )) -> result,
-    reverse_case: (AtomicPathActiveChildShapeReversePackage(
-      failure_package, selected_package, failure_shape, selected_shape
-    )) -> result
-  ) -> result = match package
-    AtomicPathActiveChildShapeAlignmentHerePacked(branch) -> here_case(branch)
-    AtomicPathActiveChildShapeAlignmentTherePacked(branch) -> there_case(branch)
-    AtomicPathActiveChildShapeAlignmentReversePacked(branch) -> reverse_case(branch)
 
 
 
@@ -11600,8 +11550,6 @@ mod Std.Regex.Runtime
 
 
 
-  fn atomic_runtime_initial_members(n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), starts: List(MachineState(n))) -> AtomicSearchResult =
-    atomic_runtime_initial_members_with_commit(n, machine, input, after_input, None(), starts)
 
 
 
