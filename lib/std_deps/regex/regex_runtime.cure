@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.SelectedChildSuffixLocation
   public use Std.Regex.Runtime.CursorSuffixPackageEvidence
   public use Std.Regex.Runtime.ActiveChildSelectionSuffixTransport
   public use Std.Regex.Runtime.CursorShapePackageLocation
@@ -663,41 +664,7 @@ mod Std.Regex.Runtime
 
 
 
-  ## Consume the selected-child location without making the erased location
-  ## witness a runtime callback argument.  The suffix itself is relevant at
-  ## this construction site, so only its indexed `Here`/`There` shape drives
-  ## the proof-only continuations.
-  @reducible
-  fn atomic_path_selected_child_suffix_location_elim(
-    {result: Type},
-    {n: Nat},
-    {head: LookaroundAdmittedState(n)},
-    {rest: List(LookaroundAdmittedState(n))},
-    {current: List(LookaroundAdmittedState(n))},
-    suffix: LookaroundAdmittedStateCursorSuffix(n, Cons(head, rest), current),
-    here_case: () -> result,
-    there_case: () -> result
-  ) -> result = match atomic_path_selected_child_suffix_location(suffix)
-    AtomicPathSelectedChildHere(_, _) -> here_case()
-    AtomicPathSelectedChildThere(_, _) -> there_case()
 
-  ## Value form of the same split for callers whose contradiction is already
-  ## constructed. Cure does not admit zero-argument lambdas in every dependent
-  ## callback context, so this boundary selects between proof values directly
-  ## while retaining the cursor as the sole branch authority.
-  @reducible
-  fn atomic_path_selected_child_suffix_location_select(
-    {result: Type},
-    {n: Nat},
-    {head: LookaroundAdmittedState(n)},
-    {rest: List(LookaroundAdmittedState(n))},
-    {current: List(LookaroundAdmittedState(n))},
-    suffix: LookaroundAdmittedStateCursorSuffix(n, Cons(head, rest), current),
-    here_case: result,
-    there_case: result
-  ) -> result = match atomic_path_selected_child_suffix_location(suffix)
-    AtomicPathSelectedChildHere(_, _) -> here_case
-    AtomicPathSelectedChildThere(_, _) -> there_case
 
 
 
