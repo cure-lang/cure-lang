@@ -383,6 +383,7 @@ defmodule Cure.Refactor.Analysis do
     max_depth = Keyword.get(opts, :max_depth, :infinity)
     dependencies? = Keyword.get(opts, :dependencies, false)
     local_owners = local_declaration_owners(body, module)
+    local_kinds = local_declaration_kinds(body, module)
 
     {declarations, _next_order} =
       Enum.reduce(body, {[], 1}, fn node, {acc, next_order} ->
@@ -398,7 +399,8 @@ defmodule Cure.Refactor.Analysis do
               recursive?,
               max_depth,
               dependencies?,
-              local_owners
+              local_owners,
+              local_kinds
             )
 
           {[declaration | acc], next_order}
@@ -417,6 +419,33 @@ defmodule Cure.Refactor.Analysis do
         else: owners
     end)
   end
+
+  # Constructor applications are represented by the parser as ordinary
+  # function calls, but their local owner is the data family rather than a
+  # value definition. Keep the owner-kind table alongside the owner-name
+  # table so dependency plans do not turn a constructor-heavy proof into a
+  # spurious value-call SCC.
+  defp local_declaration_kinds(body, module) do
+    Enum.reduce(body, %{}, fn node, kinds ->
+      if Program.declaration?(node),
+        do: declaration_kind_entries(node, module, nil, kinds),
+        else: kinds
+    end)
+  end
+
+  defp declaration_kind_entries({tag, meta, _body} = node, module, owner, kinds)
+       when is_atom(tag) and is_list(meta) do
+    name = declaration_name(meta, tag)
+    identity = if is_binary(name) and name != "", do: Name.qualify(module, name), else: owner
+    owner = owner || identity
+    kinds = if is_atom(owner), do: Map.put_new(kinds, owner, declaration_kind(meta, tag)), else: kinds
+
+    Enum.reduce(nested_declaration_nodes(node), kinds, fn child, acc ->
+      declaration_kind_entries(child, module, owner, acc)
+    end)
+  end
+
+  defp declaration_kind_entries(_other, _module, _owner, kinds), do: kinds
 
   defp declaration_owner_entries({tag, meta, _body} = node, module, owner, owners)
        when is_atom(tag) and is_list(meta) do
@@ -452,14 +481,15 @@ defmodule Cure.Refactor.Analysis do
          recursive?,
          max_depth,
          dependencies?,
-         local_owners
+         local_owners,
+         local_kinds
        ) do
     declaration = declaration(node, module, source, source_order)
     declaration = %{declaration | depth: depth, parent: parent}
 
     declaration =
       if dependencies? do
-        %{declaration | references: references(node, local_owners)}
+        %{declaration | references: references(node, local_owners, local_kinds)}
       else
         declaration
       end
@@ -480,7 +510,8 @@ defmodule Cure.Refactor.Analysis do
               recursive?,
               max_depth,
               dependencies?,
-              local_owners
+              local_owners,
+              local_kinds
             )
 
           {[nested | acc], next_order}
@@ -863,21 +894,32 @@ defmodule Cure.Refactor.Analysis do
   defp format_component_ids([]), do: "none"
   defp format_component_ids(ids), do: Enum.join(ids, ",")
 
-  defp references(node, local_owners) do
+  defp references(node, local_owners, local_kinds) do
     node
     |> collect_references([])
     |> collect_signature_references(node)
     |> Enum.reverse()
     |> Enum.uniq_by(&{&1.name, &1.kind, &1.span})
     |> Enum.map(fn %{name: name, kind: kind, span: span} ->
+      identity = reference_identity(name, local_owners)
+
       %Reference{
         name: name,
-        identity: reference_identity(name, local_owners),
-        kind: kind,
+        identity: identity,
+        kind: reference_kind(kind, identity, local_kinds),
         span: span
       }
     end)
   end
+
+  defp reference_kind(:call, identity, local_kinds) when is_atom(identity) do
+    case Map.get(local_kinds, identity) do
+      kind when kind in [:enum, :indexed_type, :typealias] -> :constructor
+      _ -> :call
+    end
+  end
+
+  defp reference_kind(kind, _identity, _local_kinds), do: kind
 
   # Function parameter and result types live in declaration metadata rather
   # than the ordinary expression children.  Walk those fields in type mode so
@@ -1029,6 +1071,17 @@ defmodule Cure.Refactor.Analysis do
     kind = Keyword.get(meta, :container_type, :container)
     named_declaration(meta, module, source, source_order, kind)
   end
+
+  defp declaration_kind(meta, :container),
+    do: Keyword.get(meta, :container_type, :container)
+
+  defp declaration_kind(_meta, :function_def), do: :function
+  defp declaration_kind(_meta, :macro_def), do: :macro
+  defp declaration_kind(_meta, :type_annotation), do: :typealias
+  defp declaration_kind(_meta, :indexed_type), do: :indexed_type
+  defp declaration_kind(_meta, :interface), do: :interface
+  defp declaration_kind(_meta, :implementation), do: :implementation
+  defp declaration_kind(_meta, tag), do: tag
 
   defp named_declaration(meta, module, source, source_order, kind) do
     name = declaration_name(meta, kind)

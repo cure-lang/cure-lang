@@ -126,15 +126,42 @@ defmodule Cure.Refactor.AnalysisTest do
     assert {:ok, report} = Analysis.analyze(path, dependencies: true, stats: true)
     assert [%{name: "answer", references: references}, _helper] = report.declarations
 
-    assert [%{name: "helper", identity: :"Deps#helper", kind: :call}, %{name: "external", identity: nil, kind: :call}] =
-             references
+    assert [%{name: "helper", identity: :"Deps#helper", kind: :call},
+            %{name: "external", identity: nil, kind: :call},
+            %{name: "Int", identity: nil, kind: :type}] = references
 
-    assert report.stats["references"] == 2
-    assert report.stats["unresolved_references"] == 1
-    assert report.stats["references_by_kind"] == %{"call" => 2}
+    assert report.stats["references"] == 3
+    assert report.stats["unresolved_references"] == 2
+    assert report.stats["references_by_kind"] == %{"call" => 2, "type" => 1}
 
     rendered = Analysis.format(report, dependencies: true)
-    assert rendered =~ "references: Deps#helper (call), external (call)"
+    assert rendered =~ "references: Deps#helper (call), external (call), Int (type)"
+  end
+
+  test "classifies local constructor applications separately from value calls", %{dir: dir} do
+    path = Path.join(dir, "constructors.cure")
+
+    File.write!(path, """
+    mod Constructors
+      type Either = Left(Int) | Right
+      fn answer() -> Either = Left(1)
+      fn value() -> Int = 1
+      fn use_value() -> Int = value()
+    end
+    """)
+
+    assert {:ok, report} = Analysis.analyze(path, dependencies: true, plan: true)
+    answer = Enum.find(report.declarations, &(&1.name == "answer"))
+    use_value = Enum.find(report.declarations, &(&1.name == "use_value"))
+
+    assert [%{name: "Left", identity: :"Constructors#Either", kind: :constructor},
+            %{name: "Either", identity: :"Constructors#Either", kind: :type}] =
+             answer.references
+
+    assert Enum.any?(use_value.references, fn reference ->
+             reference.name == "value" and reference.identity == :"Constructors#value" and
+               reference.kind == :call
+           end)
   end
 
   test "plans dependency components without rewriting the source", %{dir: dir} do
@@ -158,8 +185,8 @@ defmodule Cure.Refactor.AnalysisTest do
     assert report.plan.component_count == 5
     assert report.plan.cyclic_components == 1
     assert report.plan.cross_component_edges == 1
-    assert report.plan.boundary_references == 3
-    assert report.plan.unresolved_references == 2
+    assert report.plan.boundary_references == 10
+    assert report.plan.unresolved_references == 9
     assert report.plan.isolated_candidates == 3
 
     [root, leaf, cycle, isolated, imported] = report.plan.components

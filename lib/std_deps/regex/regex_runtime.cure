@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.InitialMembers
   public use Std.Regex.Runtime.Roots
   public use Std.Regex.Runtime.LeafAuthorities
   use Std.Regex.Runtime.EvidenceExecution
@@ -11648,27 +11649,7 @@ mod Std.Regex.Runtime
   fn atomic_runtime_initial_members(n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), starts: List(MachineState(n))) -> AtomicSearchResult =
     atomic_runtime_initial_members_with_commit(n, machine, input, after_input, None(), starts)
 
-  fn atomic_runtime_initial_members_with_commit(n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), blocked_depth: Option(Nat), starts: List(MachineState(n))) -> AtomicSearchResult = match starts
-    [] -> AtomicSearchNo()
-    [head | remaining] -> match blocked_depth
-      Some(commit_depth) -> match atomic_commit_disposition(atomic_scope_max_depth(machine_state_routine(n, head), Z()), commit_depth)
-        AtomicCommitBlocks(_) -> atomic_runtime_initial_members_with_commit(n, machine, input, after_input, blocked_depth, remaining)
-        AtomicCommitEscapes(_) -> atomic_runtime_initial_member(n, machine, input, after_input, blocked_depth, head, remaining)
-      None() -> atomic_runtime_initial_member(n, machine, input, after_input, blocked_depth, head, remaining)
 
-  fn atomic_runtime_initial_member(n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), blocked_depth: Option(Nat), head: MachineState(n), remaining: List(MachineState(n))) -> AtomicSearchResult = match head
-    Active(state, routine, _) -> match execute_routine(routine, [], [])
-      EvidenceExecution(evidence, captures) -> match atomic_scope_effect(routine, Z())
-        AtomicScopeEffect(next_depth, _) -> match atomic_runtime_accepting_from(n, machine, input, after_input, ThreadActive(state), evidence, captures, next_depth)
-          AtomicSearchYes() -> AtomicSearchYes()
-          AtomicSearchCommit(commit_depth) -> atomic_runtime_initial_members_with_commit(n, machine, input, after_input, Some(commit_depth), remaining)
-          AtomicSearchNo() -> atomic_runtime_initial_members_with_commit(n, machine, input, after_input, blocked_depth, remaining)
-    Accepted(routine, _) -> match execute_routine(routine, [], [])
-      EvidenceExecution(evidence, captures) -> match atomic_scope_effect(routine, Z())
-        AtomicScopeEffect(next_depth, _) -> match atomic_runtime_accepting_from(n, machine, input, after_input, ThreadAccepted(), evidence, captures, next_depth)
-          AtomicSearchYes() -> AtomicSearchYes()
-          AtomicSearchCommit(commit_depth) -> atomic_runtime_initial_members_with_commit(n, machine, input, after_input, Some(commit_depth), remaining)
-          AtomicSearchNo() -> atomic_runtime_initial_members_with_commit(n, machine, input, after_input, blocked_depth, remaining)
 
   fn atomic_runtime_accepts(n: Nat, machine: PatternMachine(n), position: InitialPosition, input: List(Char), after_input: List(Char)) -> Bool = match machine
     MkPatternMachine(starts, _) -> match atomic_runtime_initial_members(n, machine, input, after_input, filter_boundary_states(starts, initial_position_boundary(position, append_characters(input, after_input))))
