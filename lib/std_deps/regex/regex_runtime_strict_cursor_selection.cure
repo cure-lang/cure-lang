@@ -1,0 +1,321 @@
+@group(:text)
+mod Std.Regex.Runtime.StrictCursorSelection
+  use Std.Regex.Runtime.ActiveChildShapeAlignment
+
+  use Std.Regex.Runtime.ActiveChildRejection
+
+  use Std.Regex.Runtime.CursorShapeLocations
+
+  use Std.Regex.Runtime.InitialMembers
+
+  use Std.Regex.Runtime.Roots
+
+  use Std.Regex.Runtime.LeafAuthorities
+
+  use Std.Regex.Runtime.EvidenceExecution
+
+  use Std.Regex.Runtime.LookaroundCompilation
+
+  use Std.Regex.Runtime.ExtendedEvidenceTypes
+
+  use Std.Regex.Runtime.AtomicDepthTypes
+
+  use Std.Regex.Runtime.CandidateEquivalencePrimitives
+
+  use Std.Regex.Runtime.CaptureSlotMarkerPrimitives
+
+  use Std.Regex.Runtime.StateRoutinePrimitives
+
+  use Std.Regex.Runtime.MachineMemberEdgePrimitives
+
+  use Std.Regex.Runtime.LookaroundSupportPrimitives
+
+  use Std.Regex.Runtime.AtomicPathActiveChildShapeHerePackageFold
+
+  use Std.Regex.Runtime.AtomicStartScopeSelectionExcludes
+
+  use Std.Regex.Runtime.LookaroundExhaustionFromList
+
+  use Std.Regex.Runtime.AtomicStartDecisions
+
+  use Std.Regex.Runtime.DepthExclusion
+
+  use Std.Regex.Runtime.ExhaustionFromMembers
+
+  use Std.Regex.Runtime.CursorShapeAuthority
+
+  use Std.Regex.Runtime.ActiveChildShapeHere
+
+  use Std.Regex.Runtime.CursorShape
+
+  use Std.Regex.Runtime.SearchCursors
+
+  use Std.Regex.Runtime.CandidateEquivalence
+
+  use Std.Regex.Runtime.CaptureSlotMarkers
+
+  use Std.Regex.Runtime.AtomicDecisions
+
+  use Std.Regex.Runtime.MachineMemberEdges
+
+  use Std.Regex.Runtime.AtomicDepthMaximum
+
+  use Std.Regex.Runtime.MemberTransport
+
+  use Std.Regex.Runtime.EvidenceStep
+
+  use Std.Regex.Runtime.AtomicStartMember
+
+  use Std.Regex.Runtime.AtomicFailureAuthority
+
+  use Std.Regex.Runtime.AtomicDepth
+
+  use Std.Regex.Runtime.LookaroundSupport
+
+  use Std.Regex.Runtime.NamedCaptureSearch
+
+  use Std.Regex.Runtime.PatternSearch
+
+  use Std.Regex.Runtime.EvidenceSearch
+
+  use Std.Regex.Runtime.MachineSearch
+
+  use Std.Regex.Runtime.CharacterClasses
+
+  use Std.Regex.Runtime.NamedSearch
+
+  use Std.Regex.Runtime.MachineTransitions
+
+  use Std.Regex.Runtime.NamedStaging
+
+  use Std.Regex.Runtime.MachineEntry
+
+  use Std.Regex.Runtime.LineBreak
+
+  use Std.Regex.Runtime.CharacterMatchers
+
+  use Std.Regex.Runtime.Combinators
+
+  use Std.Regex.Runtime.Anchors
+
+  use Std.Regex.Runtime.CompileRegex
+
+  use Std.Regex.Runtime.ConversionAdapters
+
+  use Std.Regex.Runtime.ThreadDedup
+
+  use Std.Regex.Runtime.NamedTypes
+
+  use Std.Regex.Runtime.RegexType
+
+  use Std.Regex.Runtime.CharacterSemantics
+
+  use Std.Regex.Runtime.Conversion
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Runtime.CaptureConditions
+
+  use Std.Regex.Runtime.Boundaries
+
+  use Std.Regex.Runtime.AtomicDiagnostics
+
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Char
+
+  use Std.Option
+
+  use Std.List
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  use Std.Decision
+
+  ## A proper suffix records at least one dropped candidate.  Ordinary cursor
+  ## suffixes also admit equality, which was too weak for the reverse atomic
+  ## branch: after recursive alignment it forgot that the selected cursor was
+  ## strictly before the failed cursor.  Retaining the dropped head makes that
+  ## ordering available to the skipped-prefix eliminator without a Boolean or
+  ## an unchecked list comparison.
+  type AtomicPathStrictCursorSuffix(n: Nat) indices (outer: List(LookaroundAdmittedState(n)), inner: List(LookaroundAdmittedState(n)))
+    AtomicPathStrictCursorSuffixDrop : (head: LookaroundAdmittedState(n)) -> (tail: List(LookaroundAdmittedState(n))) -> (suffix: LookaroundAdmittedStateCursorSuffix(n, tail, inner)) -> AtomicPathStrictCursorSuffix(n, Cons(head, tail), inner)
+
+  ## Ordered candidate suffixes compose when a refutation has already skipped
+  ## one prefix and the selected trace skips another.  Keeping this operation
+  ## explicit prevents the atomic child theorem from treating two unrelated
+  ## suffix proofs as if they shared a spine.
+  fn lookaround_admitted_cursor_suffix_compose(
+    {n: Nat},
+    {outer: List(LookaroundAdmittedState(n))},
+    {middle: List(LookaroundAdmittedState(n))},
+    {inner: List(LookaroundAdmittedState(n))},
+    prefix: LookaroundAdmittedStateCursorSuffix(n, outer, middle),
+    suffix: LookaroundAdmittedStateCursorSuffix(n, middle, inner)
+  ) -> LookaroundAdmittedStateCursorSuffix(n, outer, inner) = match prefix
+    LookaroundAdmittedStateCursorSuffixHere(equality) -> match equality
+      reflexive() -> suffix
+    LookaroundAdmittedStateCursorSuffixDrop(head, prior) -> LookaroundAdmittedStateCursorSuffixDrop(head, lookaround_admitted_cursor_suffix_compose(prior, suffix))
+
+  fn lookaround_admitted_cursor_suffix_tail(
+    {n: Nat},
+    {outer: List(LookaroundAdmittedState(n))},
+    head: LookaroundAdmittedState(n),
+    tail: List(LookaroundAdmittedState(n)),
+    suffix: LookaroundAdmittedStateCursorSuffix(n, outer, Cons(head, tail))
+  ) -> LookaroundAdmittedStateCursorSuffix(n, outer, tail) =
+    lookaround_admitted_cursor_suffix_compose(
+      suffix,
+      LookaroundAdmittedStateCursorSuffixDrop(head, LookaroundAdmittedStateCursorSuffixHere(reflexive(tail)))
+    )
+
+  ## No finite list can contain one of its own proper extensions as a suffix.
+  ## The recursive case removes the outer list's head and the extension's head
+  ## together. This theorem is called only by the contradiction dispatcher;
+  ## the entire result is eliminated before code generation.
+  @reducible
+  fn atomic_path_cons_cannot_be_suffix_of_its_tail(
+    {n: Nat},
+    head: LookaroundAdmittedState(n),
+    tail: List(LookaroundAdmittedState(n)),
+    suffix: LookaroundAdmittedStateCursorSuffix(n, tail, Cons(head, tail))
+  ) -> Empty = match tail
+    Nil() -> match suffix
+      LookaroundAdmittedStateCursorSuffixHere(equality) -> match equality
+    Cons(next, rest) -> match suffix
+      LookaroundAdmittedStateCursorSuffixHere(equality) -> match equality
+      LookaroundAdmittedStateCursorSuffixDrop(_, prior) -> atomic_path_cons_cannot_be_suffix_of_its_tail(
+        next,
+        rest,
+        lookaround_admitted_cursor_suffix_tail(head, Cons(next, rest), prior)
+      )
+
+  ## Proper suffix is asymmetric.  Composing the ordinary forward suffix
+  ## stored by the strict witness with a hypothetical reverse suffix would
+  ## make `head :: tail` a suffix of `tail`, which the finite-list lemma above
+  ## eliminates.
+  @reducible
+  fn atomic_path_strict_cursor_suffix_excludes_reverse(
+    {n: Nat},
+    {outer: List(LookaroundAdmittedState(n))},
+    {inner: List(LookaroundAdmittedState(n))},
+    strict: AtomicPathStrictCursorSuffix(n, outer, inner),
+    reverse: LookaroundAdmittedStateCursorSuffix(n, inner, outer)
+  ) -> Empty = match strict
+    AtomicPathStrictCursorSuffixDrop(head, tail, forward) -> atomic_path_cons_cannot_be_suffix_of_its_tail(
+      head,
+      tail,
+      lookaround_admitted_cursor_suffix_compose(forward, reverse)
+    )
+
+  ## A single skipped candidate leaves no ambiguous tail case. After dropping
+  ## that head, a selected cursor in `current` cannot also be strictly before
+  ## `current`. Mixed skipped-prefix consumption uses this as its one-element
+  ## base before handling the escaped-commit or rejected-head constructor.
+  @reducible
+  fn atomic_path_skipped_one_tail_excludes_strict_selection(
+    {n: Nat},
+    {current: List(LookaroundAdmittedState(n))},
+    {selected: List(LookaroundAdmittedState(n))},
+    reverse: LookaroundAdmittedStateCursorSuffix(n, current, selected),
+    strict: AtomicPathStrictCursorSuffix(n, selected, current)
+  ) -> Empty = atomic_path_strict_cursor_suffix_excludes_reverse(strict, reverse)
+end

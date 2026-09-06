@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.StrictCursorSelection
   public use Std.Regex.Runtime.ActiveChildShapeAlignment
   public use Std.Regex.Runtime.ActiveChildRejection
   public use Std.Regex.Runtime.CursorShapeLocations
@@ -779,14 +780,6 @@ mod Std.Regex.Runtime
     AtomicPathSelectedChildThere(_, _) -> there_case
 
 
-  ## A proper suffix records at least one dropped candidate.  Ordinary cursor
-  ## suffixes also admit equality, which was too weak for the reverse atomic
-  ## branch: after recursive alignment it forgot that the selected cursor was
-  ## strictly before the failed cursor.  Retaining the dropped head makes that
-  ## ordering available to the skipped-prefix eliminator without a Boolean or
-  ## an unchecked list comparison.
-  type AtomicPathStrictCursorSuffix(n: Nat) indices (outer: List(LookaroundAdmittedState(n)), inner: List(LookaroundAdmittedState(n)))
-    AtomicPathStrictCursorSuffixDrop : (head: LookaroundAdmittedState(n)) -> (tail: List(LookaroundAdmittedState(n))) -> (suffix: LookaroundAdmittedStateCursorSuffix(n, tail, inner)) -> AtomicPathStrictCursorSuffix(n, Cons(head, tail), inner)
 
   ## Compare two cursors from the same canonical origin. Equality remains an
   ## erased index; directional cases retain only the suffix needed by the
@@ -1543,85 +1536,10 @@ mod Std.Regex.Runtime
       LookaroundAdmittedCursorRightToLeft(alignment) -> AtomicPathActiveChildAlignmentReverse(alignment)
 
 
-  ## Ordered candidate suffixes compose when a refutation has already skipped
-  ## one prefix and the selected trace skips another.  Keeping this operation
-  ## explicit prevents the atomic child theorem from treating two unrelated
-  ## suffix proofs as if they shared a spine.
-  fn lookaround_admitted_cursor_suffix_compose(
-    {n: Nat},
-    {outer: List(LookaroundAdmittedState(n))},
-    {middle: List(LookaroundAdmittedState(n))},
-    {inner: List(LookaroundAdmittedState(n))},
-    prefix: LookaroundAdmittedStateCursorSuffix(n, outer, middle),
-    suffix: LookaroundAdmittedStateCursorSuffix(n, middle, inner)
-  ) -> LookaroundAdmittedStateCursorSuffix(n, outer, inner) = match prefix
-    LookaroundAdmittedStateCursorSuffixHere(equality) -> match equality
-      reflexive() -> suffix
-    LookaroundAdmittedStateCursorSuffixDrop(head, prior) -> LookaroundAdmittedStateCursorSuffixDrop(head, lookaround_admitted_cursor_suffix_compose(prior, suffix))
 
-  fn lookaround_admitted_cursor_suffix_tail(
-    {n: Nat},
-    {outer: List(LookaroundAdmittedState(n))},
-    head: LookaroundAdmittedState(n),
-    tail: List(LookaroundAdmittedState(n)),
-    suffix: LookaroundAdmittedStateCursorSuffix(n, outer, Cons(head, tail))
-  ) -> LookaroundAdmittedStateCursorSuffix(n, outer, tail) =
-    lookaround_admitted_cursor_suffix_compose(
-      suffix,
-      LookaroundAdmittedStateCursorSuffixDrop(head, LookaroundAdmittedStateCursorSuffixHere(reflexive(tail)))
-    )
 
-  ## No finite list can contain one of its own proper extensions as a suffix.
-  ## The recursive case removes the outer list's head and the extension's head
-  ## together. This theorem is called only by the contradiction dispatcher;
-  ## the entire result is eliminated before code generation.
-  @reducible
-  fn atomic_path_cons_cannot_be_suffix_of_its_tail(
-    {n: Nat},
-    head: LookaroundAdmittedState(n),
-    tail: List(LookaroundAdmittedState(n)),
-    suffix: LookaroundAdmittedStateCursorSuffix(n, tail, Cons(head, tail))
-  ) -> Empty = match tail
-    Nil() -> match suffix
-      LookaroundAdmittedStateCursorSuffixHere(equality) -> match equality
-    Cons(next, rest) -> match suffix
-      LookaroundAdmittedStateCursorSuffixHere(equality) -> match equality
-      LookaroundAdmittedStateCursorSuffixDrop(_, prior) -> atomic_path_cons_cannot_be_suffix_of_its_tail(
-        next,
-        rest,
-        lookaround_admitted_cursor_suffix_tail(head, Cons(next, rest), prior)
-      )
 
-  ## Proper suffix is asymmetric.  Composing the ordinary forward suffix
-  ## stored by the strict witness with a hypothetical reverse suffix would
-  ## make `head :: tail` a suffix of `tail`, which the finite-list lemma above
-  ## eliminates.
-  @reducible
-  fn atomic_path_strict_cursor_suffix_excludes_reverse(
-    {n: Nat},
-    {outer: List(LookaroundAdmittedState(n))},
-    {inner: List(LookaroundAdmittedState(n))},
-    strict: AtomicPathStrictCursorSuffix(n, outer, inner),
-    reverse: LookaroundAdmittedStateCursorSuffix(n, inner, outer)
-  ) -> Empty = match strict
-    AtomicPathStrictCursorSuffixDrop(head, tail, forward) -> atomic_path_cons_cannot_be_suffix_of_its_tail(
-      head,
-      tail,
-      lookaround_admitted_cursor_suffix_compose(forward, reverse)
-    )
 
-  ## A single skipped candidate leaves no ambiguous tail case. After dropping
-  ## that head, a selected cursor in `current` cannot also be strictly before
-  ## `current`. Mixed skipped-prefix consumption uses this as its one-element
-  ## base before handling the escaped-commit or rejected-head constructor.
-  @reducible
-  fn atomic_path_skipped_one_tail_excludes_strict_selection(
-    {n: Nat},
-    {current: List(LookaroundAdmittedState(n))},
-    {selected: List(LookaroundAdmittedState(n))},
-    reverse: LookaroundAdmittedStateCursorSuffix(n, current, selected),
-    strict: AtomicPathStrictCursorSuffix(n, selected, current)
-  ) -> Empty = atomic_path_strict_cursor_suffix_excludes_reverse(strict, reverse)
 
   ## A root failure exposes the canonical whole list unchanged. A selected
   ## cursor strictly before that root would therefore make the whole list both
