@@ -1,0 +1,324 @@
+## Proof infrastructure for the typed regular-expression evidence machine.
+## These views expose the structural laws used to assemble and invert compiled
+## evidence routines while retaining their dependent input and output indices.
+@group(:text)
+mod Std.Regex.Proof.AcceptanceCaptures
+  use Std.Regex.Proof.Roots6
+
+  use Std.Regex.Proof.Roots5
+
+  use Std.Regex.Proof.Roots4
+
+  use Std.Regex.Proof.Roots3
+
+  use Std.Regex.Proof.Roots2
+
+  use Std.Regex.Proof.Roots
+
+  use Std.Regex.Proof.Misc
+
+  use Std.Regex.Proof.ConcatLeftPath
+
+  use Std.Regex.Proof.GroupAcceptance
+
+  use Std.Regex.Proof.RepeatProjection
+
+  use Std.Regex.Proof.ConcatLeft
+
+  use Std.Regex.Proof.SupportC
+
+  use Std.Regex.Proof.SupportB
+
+  use Std.Regex.Proof.SupportA
+
+  use Std.Regex.Proof.LeafSplit
+
+  use Std.Regex.Proof.FoundationalViews
+
+  use Std.Regex.Proof.ExecutionViews
+
+  use Std.Regex.Runtime.CompilationMachines
+
+  use Std.Regex.Runtime.CompilationTypes
+
+  use Std.Regex.Runtime.EvidenceExecution
+
+  use Std.Regex.Runtime.LookaroundCompilation
+
+  use Std.Regex.Runtime.ExtendedEvidenceTypes
+
+  use Std.Regex.Runtime.StateRoutinePrimitives
+
+  use Std.Regex.Runtime.MachineEntryPrimitives
+
+  use Std.Regex.Runtime.PatternMachinePrimitives
+
+  use Std.Regex.Runtime.MachineTransitionPrimitives
+
+  use Std.Regex.Runtime.MemberTransportPrimitives
+
+  use Std.Regex.Proof.CertifiedMachine
+
+  use Std.Regex.Proof.GroupTransitionExact
+
+  use Std.Regex.Proof.GroupCharacterRoutine
+
+  use Std.Regex.Proof.SingleCharacterString
+
+  use Std.Regex.Proof.EquivalenceLaws
+
+  use Std.Regex.Proof.MarkerExecution
+
+  use Std.Regex.Runtime.MemberTransport
+
+  use Std.Regex.Runtime.MachineSearch
+
+  use Std.Regex.Runtime.MachineTransitions
+
+  use Std.Regex.Runtime.MachineEntry
+
+  use Std.Regex.Runtime.Conversion
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Regex.Runtime
+
+  use Std.Equivalent
+
+  fn alternate_left_active_acceptance_captures(left_count: Nat, left_machine: PatternMachine(left_count), right_count: Nat, right_machine: PatternMachine(right_count), prefer_right: Bool, position: InitialPosition, input: List(Char), after_input: List(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame), source: Bounded(left_count), regular: List(EvidenceInstruction), initial_evidence: List(Evidence), initial_captures: List(CaptureFrame), path_routine: List(ExtendedInstruction), {final_evidence: List(Evidence)}, child_edge: ListMember(MachineState(left_count), Active(source, regular, Nil()), initial_machine_destinations(left_count, left_machine, position, input, after_input)), initial_execution: RoutineExecution(regular, input_evidence, input_captures, initial_evidence, initial_captures), combined_path: AcceptingFrom(plus(left_count, right_count), alternate_pattern_machine(left_count, left_machine, right_count, right_machine, prefer_right), input, after_input, ThreadActive(inject_alternate_left(left_count, right_count, source)), initial_evidence, initial_captures, final_evidence, path_routine)) -> AlternateLeftCapturedAcceptance(left_count, left_machine, position, input, after_input, input_evidence, input_captures, final_evidence, accepting_final_captures(plus(left_count, right_count), alternate_pattern_machine(left_count, left_machine, right_count, right_machine, prefer_right), input, after_input, ThreadActive(inject_alternate_left(left_count, right_count, source)), initial_evidence, initial_captures, final_evidence, path_routine, combined_path)) = match alternate_left_active_path_captures(left_count, left_machine, right_count, right_machine, prefer_right, input, after_input, source, initial_evidence, initial_captures, path_routine, combined_path)
+    CapturedAlternateLeftPath(child_final_evidence, child_routine, child_path, final_is_marked, captures_exact) -> CapturedAlternateLeftAcceptance(child_final_evidence, %[Active(source, regular, empty_boundary_constraints()), initial_evidence, initial_captures, child_routine, child_edge, initial_execution, child_path], final_is_marked, captures_exact)
+
+  fn alternate_left_origin_acceptance_captures(left_count: Nat, left_machine: PatternMachine(left_count), right_count: Nat, right_machine: PatternMachine(right_count), prefer_right: Bool, position: InitialPosition, input: List(Char), after_input: List(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame), destination: MachineState(plus(left_count, right_count)), initial_evidence: List(Evidence), initial_captures: List(CaptureFrame), path_routine: List(ExtendedInstruction), {final_evidence: List(Evidence)}, origin: FilteredLeftMarkedStateOrigin(left_count, right_count, EmitLeft(), initial_machine_destinations(left_count, left_machine, position, input, after_input), destination), initial_execution: RoutineExecution(machine_state_routine(plus(left_count, right_count), destination), input_evidence, input_captures, initial_evidence, initial_captures), path: AcceptingFrom(plus(left_count, right_count), alternate_pattern_machine(left_count, left_machine, right_count, right_machine, prefer_right), input, after_input, machine_state_thread(plus(left_count, right_count), destination), initial_evidence, initial_captures, final_evidence, path_routine)) -> AlternateLeftCapturedAcceptance(left_count, left_machine, position, input, after_input, input_evidence, input_captures, final_evidence, accepting_final_captures(plus(left_count, right_count), alternate_pattern_machine(left_count, left_machine, right_count, right_machine, prefer_right), input, after_input, machine_state_thread(plus(left_count, right_count), destination), initial_evidence, initial_captures, final_evidence, path_routine, path)) = match origin
+    FilteredLeftActiveOrigin(source, regular, child_edge) -> alternate_left_active_acceptance_captures(left_count, left_machine, right_count, right_machine, prefer_right, position, input, after_input, input_evidence, input_captures, source, regular, initial_evidence, initial_captures, path_routine, child_edge, initial_execution, path)
+    FilteredLeftAcceptedOrigin(regular, child_edge) -> match accepted_path_view(plus(left_count, right_count), alternate_pattern_machine(left_count, left_machine, right_count, right_machine, prefer_right), input, after_input, initial_evidence, initial_captures, final_evidence, path_routine, path)
+      AcceptedPathNow() -> rewrite accepted_path_final_captures(plus(left_count, right_count), alternate_pattern_machine(left_count, left_machine, right_count, right_machine, prefer_right), input, after_input, initial_evidence, initial_captures, final_evidence, path_routine, path) in
+        alternate_left_accepted_acceptance_captures(left_count, left_machine, position, after_input, input_evidence, input_captures, regular, initial_captures, child_edge, initial_execution)
+
+  fn group_child_supplied_captures(
+    {inner_shape: ShapeCode},
+    inner: ThompsonCompilation(inner_shape),
+    inner_proof: ThompsonEvidenceProof(inner_shape, inner),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    input_evidence: List(Evidence),
+    input_captures: List(CaptureFrame),
+    final_evidence: List(Evidence),
+    final_captures: List(CaptureFrame),
+    accepted: AcceptanceWithExecution(
+      thompson_state_count(inner),
+      MkPatternMachine(pattern_machine_starts(thompson_machine(inner)), pattern_machine_next(thompson_machine(inner))),
+      position,
+      input,
+      after_input,
+      input_evidence,
+      input_captures,
+      final_evidence,
+      final_captures
+    )
+  ) -> Equivalent(List(CaptureFrame), final_captures, record_capture_input(input_captures, input)) = match transport_acceptance_with_execution(
+    thompson_machine(inner),
+    MkPatternMachine(pattern_machine_starts(thompson_machine(inner)), pattern_machine_next(thompson_machine(inner))),
+    position,
+    input,
+    after_input,
+    input_evidence,
+    input_captures,
+    final_evidence,
+    final_captures,
+    pattern_machine_eta(thompson_machine(inner)),
+    accepted
+  )
+    AcceptedWithExecution(child_acceptance, supplied_execution) -> match extended_routine_execution_unique(
+      input_evidence,
+      input_captures,
+      acceptance_path_execution_exact(thompson_state_count(inner), thompson_machine(inner), position, input, after_input, input_evidence, input_captures, final_evidence, child_acceptance),
+      supplied_execution
+    )
+      mk_pair(evidence_exact, captures_exact) -> rewrite captures_exact in
+        thompson_evidence_acceptance_captures(inner, inner_proof, input, after_input, position, input_evidence, input_captures, child_acceptance)
+
+  fn thompson_group_acceptance_captures(
+    {inner_shape: ShapeCode},
+    inner: ThompsonCompilation(inner_shape),
+    inner_proof: ThompsonEvidenceProof(inner_shape, inner),
+    input: List(Char),
+    after_input: List(Char),
+    position: InitialPosition,
+    input_evidence: List(Evidence),
+    input_captures: List(CaptureFrame),
+    {final_evidence: List(Evidence)},
+    acceptance: AcceptancePathFrom(
+      thompson_state_count(inner),
+      thompson_machine(ThompsonGroup(inner)),
+      position,
+      input,
+      after_input,
+      input_evidence,
+      input_captures,
+      final_evidence
+    )
+  ) -> Equivalent(
+    List(CaptureFrame),
+    acceptance_path_final_captures(thompson_state_count(inner), thompson_machine(ThompsonGroup(inner)), position, input, after_input, input_evidence, input_captures, final_evidence, acceptance),
+    record_capture_input(input_captures, input)
+  ) = match project_group_acceptance_from(thompson_state_count(inner), pattern_machine_starts(thompson_machine(inner)), pattern_machine_next(thompson_machine(inner)), position, input, after_input, input_evidence, input_captures, acceptance)
+    ProjectedGroupAcceptanceMissingFrame(child_final_evidence, projected_child, combined_final_captures, captures_exact, _, _) -> impossible_missing_group_capture(
+        input_evidence,
+        input_captures,
+        input,
+        group_child_supplied_captures(inner, inner_proof, position, input, after_input, input_evidence, Cons(CaptureFrame(empty_characters(), input_evidence), input_captures), child_final_evidence, empty_captures(), projected_child)
+    )
+    ProjectedGroupAcceptanceClosedFrame(child_final_evidence, chars, saved, outer, projected_child, combined_final_captures, captures_exact, _, _) -> match recorded_open_capture_view(
+        empty_characters(),
+        input_evidence,
+        input_captures,
+        input,
+        Cons(CaptureFrame(chars, saved), outer),
+        group_child_supplied_captures(inner, inner_proof, position, input, after_input, input_evidence, Cons(CaptureFrame(empty_characters(), input_evidence), input_captures), child_final_evidence, Cons(CaptureFrame(chars, saved), outer), projected_child)
+    )
+      RecordedOpenCaptureExact() -> captures_exact
+
+  fn thompson_concat_acceptance_captures({@erased left_shape: ShapeCode}, {@erased right_shape: ShapeCode}, left: ThompsonCompilation(left_shape), right: ThompsonCompilation(right_shape), left_proof: ThompsonEvidenceProof(left_shape, left), right_proof: ThompsonEvidenceProof(right_shape, right), input: List(Char), after_input: List(Char), position: InitialPosition, input_evidence: List(Evidence), input_captures: List(CaptureFrame), {final_evidence: List(Evidence)}, acceptance: AcceptancePathFrom(plus(thompson_state_count(left), thompson_state_count(right)), concat_pattern_machine(thompson_state_count(left), thompson_machine(left), thompson_state_count(right), thompson_machine(right)), position, input, after_input, input_evidence, input_captures, final_evidence)) -> Equivalent(List(CaptureFrame), acceptance_path_final_captures(plus(thompson_state_count(left), thompson_state_count(right)), concat_pattern_machine(thompson_state_count(left), thompson_machine(left), thompson_state_count(right), thompson_machine(right)), position, input, after_input, input_evidence, input_captures, final_evidence, acceptance), record_capture_input(input_captures, input)) = match execute_concat_acceptance_projection(thompson_state_count(left), thompson_machine(left), thompson_state_count(right), thompson_machine(right), position, input, after_input, input_evidence, input_captures, project_concat_acceptance_from(thompson_state_count(left), thompson_machine(left), thompson_state_count(right), thompson_machine(right), position, input, after_input, input_evidence, input_captures, acceptance))
+    ProjectedExecutedConcatAcceptance(left_input, right_input, partition, left_final_evidence, left_final_captures, left_acceptance, left_captures_exact, right_final_evidence, right_final_captures, right_acceptance, right_execution, right_captures_exact, final_is_paired) ->
+      let left_recorded = capture_equivalent_transitive_inferred(
+        left_final_captures,
+        record_capture_input(input_captures, left_input),
+        left_captures_exact,
+        thompson_evidence_acceptance_captures_explicit(left_shape, left, left_proof, left_input, append_characters(right_input, after_input), position, input_evidence, input_captures, left_acceptance)
+      )
+      let right_recorded = capture_equivalent_transitive_inferred(
+        right_final_captures,
+        record_capture_input(left_final_captures, right_input),
+        right_captures_exact,
+        thompson_evidence_acceptance_captures_explicit(right_shape, right, right_proof, right_input, after_input, advance_initial_position(position, left_input), left_final_evidence, left_final_captures, right_acceptance)
+      )
+      capture_equivalent_transitive(
+        right_final_captures,
+        record_capture_input(left_final_captures, right_input),
+        record_capture_input(input_captures, input),
+        right_recorded,
+        capture_equivalent_transitive(
+          record_capture_input(left_final_captures, right_input),
+          record_capture_input(record_capture_input(input_captures, left_input), right_input),
+          record_capture_input(input_captures, input),
+          record_capture_input_congruent(left_final_captures, record_capture_input(input_captures, left_input), right_input, left_recorded),
+          record_capture_partition(input_captures, partition)
+        )
+      )
+
+  fn thompson_alternate_acceptance_captures({left_shape: ShapeCode}, {right_shape: ShapeCode}, left: ThompsonCompilation(left_shape), right: ThompsonCompilation(right_shape), prefer_right: Bool, left_proof: ThompsonEvidenceProof(left_shape, left), right_proof: ThompsonEvidenceProof(right_shape, right), input: List(Char), after_input: List(Char), position: InitialPosition, input_evidence: List(Evidence), input_captures: List(CaptureFrame), {final_evidence: List(Evidence)}, acceptance: AcceptancePathFrom(plus(thompson_state_count(left), thompson_state_count(right)), alternate_pattern_machine(thompson_state_count(left), thompson_machine(left), thompson_state_count(right), thompson_machine(right), prefer_right), position, input, after_input, input_evidence, input_captures, final_evidence)) -> Equivalent(List(CaptureFrame), acceptance_path_final_captures(plus(thompson_state_count(left), thompson_state_count(right)), alternate_pattern_machine(thompson_state_count(left), thompson_machine(left), thompson_state_count(right), thompson_machine(right), prefer_right), position, input, after_input, input_evidence, input_captures, final_evidence, acceptance), record_capture_input(input_captures, input)) = match acceptance
+    mk_pair(destination, mk_pair(initial_evidence, mk_pair(initial_captures, mk_pair(path_routine, mk_pair(edge, mk_pair(execution, path)))))) -> match alternate_initial_origin_for_machines(thompson_state_count(left), thompson_machine(left), thompson_state_count(right), thompson_machine(right), prefer_right, position, input, after_input, destination, edge)
+      AlternateInitialFromLeft(left_origin) -> match alternate_left_origin_acceptance_captures(thompson_state_count(left), thompson_machine(left), thompson_state_count(right), thompson_machine(right), prefer_right, position, input, after_input, input_evidence, input_captures, destination, initial_evidence, initial_captures, path_routine, left_origin, execution, path)
+        CapturedAlternateLeftAcceptance(child_final_evidence, child_acceptance, final_is_left, captures_exact) ->
+          let child_captures = thompson_evidence_acceptance_captures_explicit(left_shape, left, left_proof, input, after_input, position, input_evidence, input_captures, child_acceptance)
+          let combined_captures = accepting_final_captures(plus(thompson_state_count(left), thompson_state_count(right)), alternate_pattern_machine(thompson_state_count(left), thompson_machine(left), thompson_state_count(right), thompson_machine(right), prefer_right), input, after_input, machine_state_thread(plus(thompson_state_count(left), thompson_state_count(right)), destination), initial_evidence, initial_captures, final_evidence, path_routine, path)
+          capture_equivalent_transitive(
+          combined_captures,
+          acceptance_path_final_captures(thompson_state_count(left), thompson_machine(left), position, input, after_input, input_evidence, input_captures, child_final_evidence, child_acceptance),
+          record_capture_input(input_captures, input),
+          capture_equivalent_symmetric(
+            acceptance_path_final_captures(thompson_state_count(left), thompson_machine(left), position, input, after_input, input_evidence, input_captures, child_final_evidence, child_acceptance),
+            combined_captures,
+            captures_exact
+          ),
+          child_captures
+        )
+      AlternateInitialFromRight(right_origin) -> match alternate_right_origin_acceptance_captures(thompson_state_count(left), thompson_machine(left), thompson_state_count(right), thompson_machine(right), prefer_right, position, input, after_input, input_evidence, input_captures, destination, initial_evidence, initial_captures, path_routine, right_origin, execution, path)
+        CapturedAlternateRightAcceptance(child_final_evidence, child_acceptance, final_is_right, captures_exact) ->
+          let child_captures = thompson_evidence_acceptance_captures_explicit(right_shape, right, right_proof, input, after_input, position, input_evidence, input_captures, child_acceptance)
+          let combined_captures = accepting_final_captures(plus(thompson_state_count(left), thompson_state_count(right)), alternate_pattern_machine(thompson_state_count(left), thompson_machine(left), thompson_state_count(right), thompson_machine(right), prefer_right), input, after_input, machine_state_thread(plus(thompson_state_count(left), thompson_state_count(right)), destination), initial_evidence, initial_captures, final_evidence, path_routine, path)
+          capture_equivalent_transitive(
+          combined_captures,
+          acceptance_path_final_captures(thompson_state_count(right), thompson_machine(right), position, input, after_input, input_evidence, input_captures, child_final_evidence, child_acceptance),
+          record_capture_input(input_captures, input),
+          capture_equivalent_symmetric(
+            acceptance_path_final_captures(thompson_state_count(right), thompson_machine(right), position, input, after_input, input_evidence, input_captures, child_final_evidence, child_acceptance),
+            combined_captures,
+            captures_exact
+          ),
+          child_captures
+        )
+
+  fn thompson_repeat_projection_captures(@erased inner_shape: ShapeCode, inner: ThompsonCompilation(inner_shape), inner_proof: ThompsonEvidenceProof(inner_shape, inner), lazy: Bool, position: InitialPosition, input: List(Char), after_input: List(Char), item_input_evidence: List(Evidence), item_input_captures: List(CaptureFrame), state: Bounded(thompson_state_count(inner)), routine: List(EvidenceInstruction), initial_evidence: List(Evidence), initial_captures: List(CaptureFrame), initial_edge: ListMember(MachineState(thompson_state_count(inner)), Active(state, routine, Nil()), initial_machine_destinations(thompson_state_count(inner), thompson_machine(inner), position, input, after_input)), initial_execution: RoutineExecution(routine, item_input_evidence, item_input_captures, initial_evidence, initial_captures), {final_evidence: List(Evidence)}, {final_captures: List(CaptureFrame)}, projection: RepeatActivePathProjection(thompson_state_count(inner), thompson_machine(inner), lazy, position, input, after_input, state, initial_evidence, initial_captures, final_evidence, final_captures)) -> Equivalent(List(CaptureFrame), final_captures, record_capture_input(item_input_captures, input)) = match projection
+    ProjectedRepeatFinalItem(child_final_evidence, child_final_captures, child_routine, child_path, child_captures_exact, combined_final_captures, captures_exact, _, _) ->
+      let child_acceptance = active_acceptance_from_path(thompson_state_count(inner), thompson_machine(inner), position, input, after_input, item_input_evidence, item_input_captures, state, routine, initial_evidence, initial_captures, child_routine, initial_edge, initial_execution, child_path)
+      let child_recorded = thompson_evidence_acceptance_captures_explicit(inner_shape, inner, inner_proof, input, after_input, position, item_input_evidence, item_input_captures, child_acceptance)
+      capture_equivalent_transitive(combined_final_captures, child_final_captures, record_capture_input(item_input_captures, input), captures_exact, capture_equivalent_transitive(child_final_captures, acceptance_path_final_captures(thompson_state_count(inner), thompson_machine(inner), position, input, after_input, item_input_evidence, item_input_captures, child_final_evidence, child_acceptance), record_capture_input(item_input_captures, input), child_captures_exact, child_recorded))
+    ProjectedRepeatMoreItems(child_input, remaining_input, partition, child_final_evidence, child_final_captures, child_routine, child_path, child_captures_exact, next_state, next_routine, next_evidence, next_captures, next_edge, next_execution, projected_final_evidence, combined_final_captures, continuation) ->
+      let original_filtered_edge = filtered_starts_from_initial_edge(thompson_state_count(inner), thompson_machine(inner), position, input, after_input, Active(state, routine, Nil()), initial_edge)
+      let child_filtered_edge = transport_filtered_start_subject(thompson_state_count(inner), thompson_machine(inner), position, append_characters(input, after_input), append_characters(child_input, append_characters(remaining_input, after_input)), Active(state, routine, Nil()), partition_append_after(after_input, partition), original_filtered_edge)
+      let child_initial_edge = initial_edge_from_filtered_starts(thompson_state_count(inner), thompson_machine(inner), position, child_input, append_characters(remaining_input, after_input), Active(state, routine, Nil()), child_filtered_edge)
+      let child_acceptance = active_acceptance_from_path(thompson_state_count(inner), thompson_machine(inner), position, child_input, append_characters(remaining_input, after_input), item_input_evidence, item_input_captures, state, routine, initial_evidence, initial_captures, child_routine, child_initial_edge, initial_execution, child_path)
+      let child_recorded = thompson_evidence_acceptance_captures_explicit(inner_shape, inner, inner_proof, child_input, append_characters(remaining_input, after_input), position, item_input_evidence, item_input_captures, child_acceptance)
+      let child_final_recorded = capture_equivalent_transitive(child_final_captures, acceptance_path_final_captures(thompson_state_count(inner), thompson_machine(inner), position, child_input, append_characters(remaining_input, after_input), item_input_evidence, item_input_captures, child_final_evidence, child_acceptance), record_capture_input(item_input_captures, child_input), child_captures_exact, child_recorded)
+      let continuation_recorded = thompson_repeat_projection_captures(inner_shape, inner, inner_proof, lazy, advance_initial_position(position, child_input), remaining_input, after_input, child_final_evidence, child_final_captures, next_state, next_routine, next_evidence, next_captures, next_edge, next_execution, continuation)
+      let nested_recorded = capture_equivalent_transitive(combined_final_captures, record_capture_input(child_final_captures, remaining_input), record_capture_input(record_capture_input(item_input_captures, child_input), remaining_input), continuation_recorded, record_capture_input_congruent(child_final_captures, record_capture_input(item_input_captures, child_input), remaining_input, child_final_recorded))
+      capture_equivalent_transitive(combined_final_captures, record_capture_input(record_capture_input(item_input_captures, child_input), remaining_input), record_capture_input(item_input_captures, input), nested_recorded, record_capture_partition(item_input_captures, partition))
+
+  fn thompson_repeat_acceptance_captures(@erased inner_shape: ShapeCode, inner: ThompsonCompilation(inner_shape), inner_proof: ThompsonEvidenceProof(inner_shape, inner), lazy: Bool, input: List(Char), after_input: List(Char), position: InitialPosition, input_evidence: List(Evidence), input_captures: List(CaptureFrame), {final_evidence: List(Evidence)}, acceptance: AcceptancePathFrom(thompson_state_count(inner), repeat_pattern_machine(thompson_state_count(inner), thompson_machine(inner), lazy), position, input, after_input, input_evidence, input_captures, final_evidence)) -> Equivalent(List(CaptureFrame), acceptance_path_final_captures(thompson_state_count(inner), repeat_pattern_machine(thompson_state_count(inner), thompson_machine(inner), lazy), position, input, after_input, input_evidence, input_captures, final_evidence, acceptance), record_capture_input(input_captures, input)) = match project_repeat_acceptance_from_machine(thompson_state_count(inner), thompson_machine(inner), lazy, position, input, after_input, input_evidence, input_captures, acceptance)
+    ProjectedRepeatEmptyAcceptance(input_empty, _, _, combined_final_captures, captures_exact) -> match input_empty
+      reflexive() -> captures_exact
+    ProjectedRepeatItemsAcceptance(state, routine, list_evidence, list_captures, initial_evidence, initial_captures, initial_edge, initial_execution, projection, list_evidence_exact, list_captures_exact) -> match list_evidence_exact
+      reflexive() -> match list_captures_exact
+        reflexive() -> thompson_repeat_projection_captures(inner_shape, inner, inner_proof, lazy, position, input, after_input, Cons(BeginListEvidence(), input_evidence), input_captures, state, routine, initial_evidence, initial_captures, initial_edge, initial_execution, projection)
+
+  fn thompson_evidence_acceptance_captures_explicit(@erased shape: ShapeCode, compilation: ThompsonCompilation(shape), proof: ThompsonEvidenceProof(shape, compilation), input: List(Char), after_input: List(Char), position: InitialPosition, input_evidence: List(Evidence), input_captures: List(CaptureFrame), {final_evidence: List(Evidence)}, acceptance: AcceptancePathFrom(thompson_state_count(compilation), thompson_machine(compilation), position, input, after_input, input_evidence, input_captures, final_evidence)) -> Equivalent(List(CaptureFrame), acceptance_path_final_captures(thompson_state_count(compilation), thompson_machine(compilation), position, input, after_input, input_evidence, input_captures, final_evidence, acceptance), record_capture_input(input_captures, input)) = match proof
+    ThompsonEvidenceEmpty() -> empty_acceptance_captures(input, after_input, position, input_evidence, input_captures, acceptance)
+    ThompsonEvidenceBoundary(constraint) -> boundary_acceptance_captures(constraint, input, after_input, position, input_evidence, input_captures, acceptance)
+    ThompsonEvidencePredicate(test) -> predicate_acceptance_captures(test, input, after_input, position, input_evidence, input_captures, acceptance)
+    ThompsonEvidenceConcat({left_shape = left_shape}, {right_shape = right_shape}, left, right, left_proof, right_proof) -> thompson_concat_acceptance_captures(left, right, left_proof, right_proof, input, after_input, position, input_evidence, input_captures, acceptance)
+    ThompsonEvidenceGroup({inner_shape = inner_shape}, inner, inner_proof) -> thompson_group_acceptance_captures(inner, inner_proof, input, after_input, position, input_evidence, input_captures, acceptance)
+    ThompsonEvidenceAlternate({left_shape = left_shape}, {right_shape = right_shape}, left, right, prefer_right, left_proof, right_proof) -> thompson_alternate_acceptance_captures(left, right, prefer_right, left_proof, right_proof, input, after_input, position, input_evidence, input_captures, acceptance)
+    ThompsonEvidenceRepeat({inner_shape = inner_shape}, inner, lazy, inner_proof) -> thompson_repeat_acceptance_captures(inner_shape, inner, inner_proof, lazy, input, after_input, position, input_evidence, input_captures, acceptance)
+
+  fn thompson_evidence_acceptance_captures({shape: ShapeCode}, compilation: ThompsonCompilation(shape), proof: ThompsonEvidenceProof(shape, compilation), input: List(Char), after_input: List(Char), position: InitialPosition, input_evidence: List(Evidence), input_captures: List(CaptureFrame), {final_evidence: List(Evidence)}, acceptance: AcceptancePathFrom(thompson_state_count(compilation), thompson_machine(compilation), position, input, after_input, input_evidence, input_captures, final_evidence)) -> Equivalent(List(CaptureFrame), acceptance_path_final_captures(thompson_state_count(compilation), thompson_machine(compilation), position, input, after_input, input_evidence, input_captures, final_evidence, acceptance), record_capture_input(input_captures, input)) = thompson_evidence_acceptance_captures_explicit(shape, compilation, proof, input, after_input, position, input_evidence, input_captures, acceptance)
+end

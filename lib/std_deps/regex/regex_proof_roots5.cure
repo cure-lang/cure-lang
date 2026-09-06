@@ -1,0 +1,276 @@
+## Proof infrastructure for the typed regular-expression evidence machine.
+## These views expose the structural laws used to assemble and invert compiled
+## evidence routines while retaining their dependent input and output indices.
+@group(:text)
+mod Std.Regex.Proof.Roots5
+  use Std.Regex.Proof.Roots4
+
+  use Std.Regex.Proof.Roots3
+
+  use Std.Regex.Proof.Roots2
+
+  use Std.Regex.Proof.Roots
+
+  use Std.Regex.Proof.Misc
+
+  use Std.Regex.Proof.ConcatLeftPath
+
+  use Std.Regex.Proof.GroupAcceptance
+
+  use Std.Regex.Proof.RepeatProjection
+
+  use Std.Regex.Proof.ConcatLeft
+
+  use Std.Regex.Proof.SupportC
+
+  use Std.Regex.Proof.SupportB
+
+  use Std.Regex.Proof.SupportA
+
+  use Std.Regex.Proof.LeafSplit
+
+  use Std.Regex.Proof.FoundationalViews
+
+  use Std.Regex.Proof.ExecutionViews
+
+  use Std.Regex.Runtime.CompilationMachines
+
+  use Std.Regex.Runtime.CompilationTypes
+
+  use Std.Regex.Runtime.EvidenceExecution
+
+  use Std.Regex.Runtime.LookaroundCompilation
+
+  use Std.Regex.Runtime.ExtendedEvidenceTypes
+
+  use Std.Regex.Runtime.StateRoutinePrimitives
+
+  use Std.Regex.Runtime.MachineEntryPrimitives
+
+  use Std.Regex.Runtime.PatternMachinePrimitives
+
+  use Std.Regex.Runtime.MachineTransitionPrimitives
+
+  use Std.Regex.Runtime.MemberTransportPrimitives
+
+  use Std.Regex.Proof.CertifiedMachine
+
+  use Std.Regex.Proof.GroupTransitionExact
+
+  use Std.Regex.Proof.GroupCharacterRoutine
+
+  use Std.Regex.Proof.SingleCharacterString
+
+  use Std.Regex.Proof.EquivalenceLaws
+
+  use Std.Regex.Proof.MarkerExecution
+
+  use Std.Regex.Runtime.MemberTransport
+
+  use Std.Regex.Runtime.MachineSearch
+
+  use Std.Regex.Runtime.MachineTransitions
+
+  use Std.Regex.Runtime.MachineEntry
+
+  use Std.Regex.Runtime.Conversion
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Regex.Runtime
+
+  use Std.Equivalent
+
+  fn lift_repeat_filtered_reentry_transition_member(n: Nat, destinations: List(MachineState(n)), starts: List(MachineState(n)), lazy: Bool, boundary: Boundary, routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(n), Accepted(routine, constraints), filter_machine_states(n, destinations, boundary)), state: Bounded(n), start_routine: List(EvidenceInstruction), start_constraints: List(BoundaryConstraint), start_edge: ListMember(MachineState(n), Active(state, start_routine, start_constraints), filter_machine_states(n, starts, boundary))) -> ListMember(MachineState(n), Active(state, append_routine(routine, start_routine), Nil()), filter_machine_states(n, repeat_destinations(destinations, starts, lazy), boundary)) = match filtered_state_origin(n, destinations, boundary, Accepted(routine, constraints), edge)
+    FilteredAcceptedStateOrigin(raw_routine, raw_constraints, raw_edge, child_holds) -> match filtered_state_origin(n, starts, boundary, Active(state, start_routine, start_constraints), start_edge)
+      FilteredActiveStateOrigin(_, raw_start_routine, raw_start_constraints, raw_start_edge, start_holds) ->
+        lift_repeat_reentry_transition_member(n, destinations, starts, lazy, boundary, raw_routine, raw_constraints, raw_edge, state, raw_start_routine, raw_start_constraints, raw_start_edge, appended_constraints_hold(raw_constraints, raw_start_constraints, boundary, child_holds, start_holds))
+
+  fn lift_repeat_closing_active_path(n: Nat, starts: List(MachineState(n)), next: (Bounded(n)) -> Char -> List(MachineState(n)), lazy: Bool, input: List(Char), after_input: List(Char), source: Bounded(n), current_evidence: List(Evidence), current_captures: List(CaptureFrame), child_final_evidence: List(Evidence), child_routine: List(ExtendedInstruction), child_path: AcceptingFrom(n, MkPatternMachine(starts, next), input, after_input, ThreadActive(source), current_evidence, current_captures, child_final_evidence, child_routine)) -> RepeatClosingPathEmbedding(n, starts, next, lazy, source, current_evidence, current_captures, child_final_evidence, input, after_input) = match input
+    Nil() -> impossible_empty_active_path(n, MkPatternMachine(starts, next), after_input, source, current_evidence, current_captures, child_final_evidence, child_routine, child_path)
+    Cons(input_char, input_rest) -> match exact_repeat_child_active_path_view(n, starts, next, input, after_input, source, current_evidence, current_captures, child_final_evidence, child_routine, child_path)
+      ExactRepeatChildNextActive(char, rest, destination, regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix) -> match lift_repeat_closing_active_path(n, starts, next, lazy, input_rest, after_input, destination, destination_evidence, destination_captures, child_final_evidence, suffix_routine, suffix)
+          RepeatClosingPathLifted(repeat_suffix_routine, repeat_suffix) ->
+            let boundary = transition_boundary_before(char, rest, after_input)
+            let repeat_edge = lift_repeat_filtered_active_transition_member(n, next(source, char), starts, lazy, boundary, destination, regular, constraints, edge)
+            let repeat_routine = append_extended_routines(transition_routine(char, regular), repeat_suffix_routine)
+            let repeat_path: AcceptingFrom(n, repeat_pattern_machine(n, MkPatternMachine(starts, next), lazy), Cons(char, rest), after_input, ThreadActive(source), current_evidence, current_captures, Cons(EndListEvidence(), child_final_evidence), repeat_routine) = AcceptingNextActive(destination, regular, Nil(), destination_evidence, destination_captures, repeat_suffix_routine, repeat_edge, execution, repeat_suffix)
+            RepeatClosingPathLifted(repeat_routine, repeat_path)
+      ExactRepeatChildNextAccepted(char, rest, regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix) -> match exact_accepted_path_view(n, MkPatternMachine(starts, next), rest, after_input, destination_evidence, destination_captures, child_final_evidence, suffix_routine, suffix)
+          ExactAcceptedPathNow() ->
+            let boundary = transition_boundary_before(char, Nil(), after_input)
+            let closing_regular = append_routine(regular, Cons(EndList(), Nil()))
+            let closing_evidence = Cons(EndListEvidence(), child_final_evidence)
+            let ending: RoutineExecution(Cons(EndList(), Nil()), child_final_evidence, destination_captures, closing_evidence, destination_captures) = RoutineStep(EndList(), RoutineDone())
+            let closing_execution = append_routine_execution(regular, Cons(EndList(), Nil()), current_evidence, record_capture_char(current_captures, char), child_final_evidence, destination_captures, closing_evidence, destination_captures, execution, ending)
+            let repeat_edge = lift_repeat_filtered_closing_transition_member(n, next(source, char), starts, lazy, boundary, regular, constraints, edge)
+            let no_constraints: List(BoundaryConstraint) = Nil()
+            let no_suffix: List(ExtendedInstruction) = Nil()
+            let repeat_suffix: AcceptingFrom(n, repeat_pattern_machine(n, MkPatternMachine(starts, next), lazy), Nil(), after_input, ThreadAccepted(), closing_evidence, destination_captures, closing_evidence, no_suffix) = AcceptingNow()
+            let repeat_routine = append_extended_routines(transition_routine(char, closing_regular), no_suffix)
+            let repeat_path: AcceptingFrom(n, repeat_pattern_machine(n, MkPatternMachine(starts, next), lazy), Cons(char, Nil()), after_input, ThreadActive(source), current_evidence, current_captures, closing_evidence, repeat_routine) = AcceptingNextAccepted(closing_regular, no_constraints, closing_evidence, destination_captures, no_suffix, repeat_edge, closing_execution, repeat_suffix)
+            RepeatClosingPathLifted(repeat_routine, repeat_path)
+
+  fn project_repeat_acceptance_from_machine(n: Nat, machine: PatternMachine(n), lazy: Bool, position: InitialPosition, input: List(Char), after_input: List(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame), {final_evidence: List(Evidence)}, acceptance: AcceptancePathFrom(n, repeat_pattern_machine(n, machine, lazy), position, input, after_input, input_evidence, input_captures, final_evidence)) -> RepeatAcceptanceFromProjection(n, machine, lazy, position, input, after_input, input_evidence, input_captures, final_evidence, acceptance_path_final_captures(n, repeat_pattern_machine(n, machine, lazy), position, input, after_input, input_evidence, input_captures, final_evidence, acceptance)) = match machine
+    MkPatternMachine(starts, next) -> project_repeat_acceptance_from(n, starts, next, lazy, position, input, after_input, input_evidence, input_captures, acceptance)
+
+  fn project_alternate_left_path(left_count: Nat, left_machine: PatternMachine(left_count), right_count: Nat, right_machine: PatternMachine(right_count), prefer_right: Bool, input: List(Char), after_input: List(Char), source: Bounded(left_count), current_evidence: List(Evidence), captures: List(CaptureFrame), {final_evidence: List(Evidence)}, {routine: List(ExtendedInstruction)}, path: AcceptingFrom(plus(left_count, right_count), alternate_pattern_machine(left_count, left_machine, right_count, right_machine, prefer_right), input, after_input, ThreadActive(inject_alternate_left(left_count, right_count, source)), current_evidence, captures, final_evidence, routine)) -> AlternateLeftPathProjection(left_count, left_machine, input, after_input, source, current_evidence, captures, final_evidence) = match input
+    Nil() -> match path
+      AcceptingNow() -> impossible
+      AcceptingNextActive(_, _, _, _, _, _, _, _, _) -> impossible
+      AcceptingNextAccepted(_, _, _, _, _, _, _, _) -> impossible
+    Cons(char, rest) -> match left_machine
+      MkPatternMachine(left_starts, left_next) -> match right_machine
+        MkPatternMachine(right_starts, right_next) -> match path
+          AcceptingNextActive(destination, regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix) -> match alternate_left_transition_origin(left_count, left_starts, left_next, right_count, right_starts, right_next, prefer_right, source, char, transition_boundary_before(char, rest, after_input), Active(destination, regular, constraints), edge)
+            FilteredLeftActiveOrigin(child_destination, child_regular, child_edge) -> match project_alternate_left_path(left_count, MkPatternMachine(left_starts, left_next), right_count, MkPatternMachine(right_starts, right_next), prefer_right, rest, after_input, child_destination, destination_evidence, destination_captures, suffix)
+              mk_pair(child_final_evidence, mk_pair(child_suffix_routine, mk_pair(child_suffix, final_is_marked))) -> %[child_final_evidence, append_extended_routines(transition_routine(char, child_regular), child_suffix_routine), AcceptingNextActive(child_destination, child_regular, Nil(), destination_evidence, destination_captures, child_suffix_routine, child_edge, execution, child_suffix), final_is_marked]
+          AcceptingNextAccepted(regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix) -> match alternate_left_transition_origin(left_count, left_starts, left_next, right_count, right_starts, right_next, prefer_right, source, char, transition_boundary_before(char, rest, after_input), Accepted(regular, constraints), edge)
+            FilteredLeftAcceptedOrigin(child_regular, child_edge) -> match accepted_path_view(plus(left_count, right_count), alternate_pattern_machine(left_count, MkPatternMachine(left_starts, left_next), right_count, MkPatternMachine(right_starts, right_next), prefer_right), rest, after_input, destination_evidence, destination_captures, final_evidence, suffix_routine, suffix)
+              AcceptedPathNow() -> match split_appended_routine_execution(child_regular, Cons(EmitLeft(), Nil()), current_evidence, record_capture_char(captures, char), execution)
+                AppendedRoutineExecuted(child_final_evidence, child_final_captures, child_execution, marker_execution) -> match marker_execution
+                  RoutineStep(_, marker_suffix) -> match marker_suffix
+                    RoutineDone() -> %[child_final_evidence, append_extended_routines(transition_routine(char, child_regular), Nil()), AcceptingNextAccepted(child_regular, Nil(), child_final_evidence, child_final_captures, Nil(), child_edge, child_execution, AcceptingNow()), reflexive(Cons(LeftEvidence(), child_final_evidence))]
+
+  fn project_alternate_left_shared_execution(left_count: Nat, left_machine: PatternMachine(left_count), right_count: Nat, right_machine: PatternMachine(right_count), prefer_right: Bool, input: List(Char), after_input: List(Char), source: Bounded(left_count), current_evidence: List(Evidence), current_captures: List(CaptureFrame), {final_evidence: List(Evidence)}, {combined_routine: List(ExtendedInstruction)}, combined_path: AcceptingFrom(plus(left_count, right_count), alternate_pattern_machine(left_count, left_machine, right_count, right_machine, prefer_right), input, after_input, ThreadActive(inject_alternate_left(left_count, right_count, source)), current_evidence, current_captures, final_evidence, combined_routine)) -> AlternateLeftSharedExecutionProjection(left_count, left_machine, right_count, right_machine, prefer_right, input, after_input, source, current_evidence, current_captures, final_evidence, combined_routine, combined_path) = match input
+    Nil() -> match combined_path
+      AcceptingNow() -> impossible
+      AcceptingNextActive(_, _, _, _, _, _, _, _, _) -> impossible
+      AcceptingNextAccepted(_, _, _, _, _, _, _, _) -> impossible
+    Cons(char, rest) -> match left_machine
+      MkPatternMachine(left_starts, left_next) -> match right_machine
+        MkPatternMachine(right_starts, right_next) -> match combined_path
+          AcceptingNextActive(destination, regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix) -> match alternate_left_transition_origin(left_count, left_starts, left_next, right_count, right_starts, right_next, prefer_right, source, char, transition_boundary_before(char, rest, after_input), Active(destination, regular, constraints), edge)
+            FilteredLeftActiveOrigin(child_destination, child_regular, child_edge) -> match project_alternate_left_shared_execution(left_count, MkPatternMachine(left_starts, left_next), right_count, MkPatternMachine(right_starts, right_next), prefer_right, rest, after_input, child_destination, destination_evidence, destination_captures, suffix)
+              ProjectedAlternateLeftSharedExecution(child_final_evidence, child_suffix_routine, child_suffix, shared_final_captures, child_suffix_execution, combined_suffix_execution, final_is_marked) ->
+                let child_path = AcceptingNextActive(child_destination, child_regular, empty_boundary_constraints(), destination_evidence, destination_captures, child_suffix_routine, child_edge, execution, child_suffix)
+                let child_transition_execution = ExtendedEvidenceObserve(char, extend_routine_execution(child_regular, current_evidence, record_capture_char(current_captures, char), destination_evidence, destination_captures, execution))
+                let child_execution = append_extended_routine_execution_inferred(transition_routine(char, child_regular), child_suffix_routine, current_evidence, current_captures, destination_evidence, destination_captures, child_transition_execution, child_suffix_execution)
+                let combined_transition_execution = ExtendedEvidenceObserve(char, extend_routine_execution(child_regular, current_evidence, record_capture_char(current_captures, char), destination_evidence, destination_captures, execution))
+                let combined_execution = append_extended_routine_execution_inferred(transition_routine(char, child_regular), suffix_routine, current_evidence, current_captures, destination_evidence, destination_captures, combined_transition_execution, combined_suffix_execution)
+                ProjectedAlternateLeftSharedExecution(child_final_evidence, append_extended_routines(transition_routine(char, child_regular), child_suffix_routine), child_path, shared_final_captures, child_execution, combined_execution, final_is_marked)
+          AcceptingNextAccepted(regular, constraints, destination_evidence, destination_captures, suffix_routine, edge, execution, suffix) -> match alternate_left_transition_origin(left_count, left_starts, left_next, right_count, right_starts, right_next, prefer_right, source, char, transition_boundary_before(char, rest, after_input), Accepted(regular, constraints), edge)
+            FilteredLeftAcceptedOrigin(child_regular, child_edge) -> match accepted_path_view(plus(left_count, right_count), alternate_pattern_machine(left_count, MkPatternMachine(left_starts, left_next), right_count, MkPatternMachine(right_starts, right_next), prefer_right), rest, after_input, destination_evidence, destination_captures, final_evidence, suffix_routine, suffix)
+              AcceptedPathNow() -> match split_appended_routine_execution(child_regular, Cons(EmitLeft(), Nil()), current_evidence, record_capture_char(current_captures, char), execution)
+                AppendedRoutineExecuted(child_final_evidence, child_final_captures, child_execution_regular, marker_execution) -> match marker_execution
+                  RoutineStep(_, marker_suffix) -> match marker_suffix
+                    RoutineDone() ->
+                      let child_path = one_step_accepted_path(left_count, MkPatternMachine(left_starts, left_next), char, after_input, source, current_evidence, current_captures, child_regular, child_final_evidence, child_final_captures, child_edge, child_execution_regular)
+                      let child_transition_execution = ExtendedEvidenceObserve(char, extend_routine_execution(child_regular, current_evidence, record_capture_char(current_captures, char), child_final_evidence, child_final_captures, child_execution_regular))
+                      let child_execution = append_extended_routine_execution_inferred(transition_routine(char, child_regular), empty_extended_routine(), current_evidence, current_captures, child_final_evidence, child_final_captures, child_transition_execution, empty_extended_execution(child_final_evidence, child_final_captures))
+                      let combined_transition_execution = ExtendedEvidenceObserve(char, extend_routine_execution(append_branch_marker(child_regular, EmitLeft()), current_evidence, record_capture_char(current_captures, char), destination_evidence, child_final_captures, execution))
+                      let combined_execution = append_extended_routine_execution_inferred(transition_routine(char, append_branch_marker(child_regular, EmitLeft())), empty_extended_routine(), current_evidence, current_captures, destination_evidence, child_final_captures, combined_transition_execution, empty_extended_execution(destination_evidence, child_final_captures))
+                      ProjectedAlternateLeftSharedExecution(child_final_evidence, append_extended_routines(transition_routine(char, child_regular), empty_extended_routine()), child_path, child_final_captures, child_execution, combined_execution, reflexive(Cons(LeftEvidence(), child_final_evidence)))
+
+  fn alternate_right_origin_acceptance_captures(left_count: Nat, left_machine: PatternMachine(left_count), right_count: Nat, right_machine: PatternMachine(right_count), prefer_right: Bool, position: InitialPosition, input: List(Char), after_input: List(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame), destination: MachineState(plus(left_count, right_count)), initial_evidence: List(Evidence), initial_captures: List(CaptureFrame), path_routine: List(ExtendedInstruction), {final_evidence: List(Evidence)}, origin: FilteredRightMarkedStateOrigin(left_count, right_count, EmitRight(), initial_machine_destinations(right_count, right_machine, position, input, after_input), destination), initial_execution: RoutineExecution(machine_state_routine(plus(left_count, right_count), destination), input_evidence, input_captures, initial_evidence, initial_captures), path: AcceptingFrom(plus(left_count, right_count), alternate_pattern_machine(left_count, left_machine, right_count, right_machine, prefer_right), input, after_input, machine_state_thread(plus(left_count, right_count), destination), initial_evidence, initial_captures, final_evidence, path_routine)) -> AlternateRightCapturedAcceptance(right_count, right_machine, position, input, after_input, input_evidence, input_captures, final_evidence, accepting_final_captures(plus(left_count, right_count), alternate_pattern_machine(left_count, left_machine, right_count, right_machine, prefer_right), input, after_input, machine_state_thread(plus(left_count, right_count), destination), initial_evidence, initial_captures, final_evidence, path_routine, path)) = match origin
+    FilteredRightActiveOrigin(source, regular, child_edge) -> alternate_right_active_acceptance_captures(left_count, left_machine, right_count, right_machine, prefer_right, position, input, after_input, input_evidence, input_captures, source, regular, initial_evidence, initial_captures, path_routine, child_edge, initial_execution, path)
+    FilteredRightAcceptedOrigin(regular, child_edge) -> match accepted_path_view(plus(left_count, right_count), alternate_pattern_machine(left_count, left_machine, right_count, right_machine, prefer_right), input, after_input, initial_evidence, initial_captures, final_evidence, path_routine, path)
+      AcceptedPathNow() -> rewrite accepted_path_final_captures(plus(left_count, right_count), alternate_pattern_machine(left_count, left_machine, right_count, right_machine, prefer_right), input, after_input, initial_evidence, initial_captures, final_evidence, path_routine, path) in
+        alternate_right_accepted_acceptance_captures(right_count, right_machine, position, after_input, input_evidence, input_captures, regular, initial_captures, child_edge, initial_execution)
+
+  fn alternate_initial_origin(left_count: Nat, left_starts: List(MachineState(left_count)), right_count: Nat, right_starts: List(MachineState(right_count)), prefer_right: Bool, boundary: Boundary, combined: MachineState(plus(left_count, right_count)), edge: ListMember(MachineState(plus(left_count, right_count)), combined, filter_machine_states(plus(left_count, right_count), alternate_machine_starts(left_count, left_starts, right_starts, prefer_right), boundary))) -> AlternateInitialOrigin(left_count, right_count, filter_machine_states(left_count, left_starts, boundary), filter_machine_states(right_count, right_starts, boundary), combined) = with prefer_right proof order_eq
+    True() -> alternate_initial_right_preferred(left_count, left_starts, right_count, right_starts, boundary, combined, edge)
+    False() -> alternate_initial_left_preferred(left_count, left_starts, right_count, right_starts, boundary, combined, edge)
+
+  fn project_group_acceptance_components(n: Nat, starts: List(MachineState(n)), next: (Bounded(n)) -> Char -> List(MachineState(n)), position: InitialPosition, input: List(Char), after_input: List(Char), input_evidence: List(Evidence), input_captures: List(CaptureFrame), destination: MachineState(n), initial_evidence: List(Evidence), initial_captures: List(CaptureFrame), path_routine: List(ExtendedInstruction), edge: ListMember(MachineState(n), destination, initial_machine_destinations(n, group_pattern_machine(n, starts, next), position, input, after_input)), initial_execution: RoutineExecution(machine_state_routine(n, destination), input_evidence, input_captures, initial_evidence, initial_captures), {final_evidence: List(Evidence)}, path: AcceptingFrom(n, group_pattern_machine(n, starts, next), input, after_input, machine_state_thread(n, destination), initial_evidence, initial_captures, final_evidence, path_routine)) -> GroupAcceptanceFromProjection(n, starts, next, position, input, after_input, input_evidence, input_captures, final_evidence, accepting_final_captures(n, group_pattern_machine(n, starts, next), input, after_input, machine_state_thread(n, destination), initial_evidence, initial_captures, final_evidence, path_routine, path)) = match group_initial_origin(n, starts, next, position, input, after_input, destination, edge)
+    GroupStartActiveOrigin(state, child_regular, child_constraints, child_edge, holds) ->
+        let boundary = initial_position_boundary(position, append_characters(input, after_input))
+        let filtered_edge = filter_active_member(n, starts, boundary, state, child_regular, child_constraints, child_edge, holds)
+        let inner_edge = initial_edge_from_filtered_starts(n, MkPatternMachine(starts, next), position, input, after_input, Active(state, child_regular, empty_constraints()), filtered_edge)
+        let opened_captures = Cons(CaptureFrame(Nil(), input_evidence), input_captures)
+        let child_initial_execution = strip_begin_capture_execution(child_regular, input_evidence, input_captures, initial_evidence, initial_captures, initial_execution)
+        match project_group_active_path(n, starts, next, input, after_input, state, initial_evidence, initial_captures, path)
+          ProjectedGroupMissingFrame(child_final_evidence, child_path_routine, child_path, child_path_execution, combined_final_captures, captures_exact, projected_final_evidence, projected_evidence_exact, projected_final_captures, projected_captures_exact) ->
+            let initial_extended = extend_routine_execution(child_regular, input_evidence, opened_captures, initial_evidence, initial_captures, child_initial_execution)
+            let child_execution = append_extended_routine_execution(regular_routine(child_regular), child_path_routine, input_evidence, opened_captures, initial_evidence, initial_captures, child_final_evidence, empty_captures(), initial_extended, child_path_execution)
+            let acceptance_captures_exact = capture_equivalent_transitive(projected_final_captures, combined_final_captures, empty_captures(), projected_captures_exact, captures_exact)
+            ProjectedGroupAcceptanceMissingFrame(child_final_evidence, group_active_child_acceptance(n, MkPatternMachine(starts, next), position, input, after_input, input_evidence, opened_captures, state, child_regular, initial_evidence, initial_captures, child_path_routine, inner_edge, child_initial_execution, child_path, child_execution), projected_final_captures, acceptance_captures_exact, projected_final_evidence, projected_evidence_exact)
+          ProjectedGroupClosedFrame(child_final_evidence, child_path_routine, chars, saved, outer, child_path, child_path_execution, combined_final_captures, captures_exact, projected_final_evidence, projected_evidence_exact, projected_final_captures, projected_captures_exact) ->
+            let initial_extended = extend_routine_execution(child_regular, input_evidence, opened_captures, initial_evidence, initial_captures, child_initial_execution)
+            let final_captures = Cons(CaptureFrame(chars, saved), outer)
+            let child_execution = append_extended_routine_execution(regular_routine(child_regular), child_path_routine, input_evidence, opened_captures, initial_evidence, initial_captures, child_final_evidence, final_captures, initial_extended, child_path_execution)
+            let acceptance_captures_exact = capture_equivalent_transitive(projected_final_captures, combined_final_captures, outer, projected_captures_exact, captures_exact)
+            ProjectedGroupAcceptanceClosedFrame(child_final_evidence, chars, saved, outer, group_active_child_acceptance(n, MkPatternMachine(starts, next), position, input, after_input, input_evidence, opened_captures, state, child_regular, initial_evidence, initial_captures, child_path_routine, inner_edge, child_initial_execution, child_path, child_execution), projected_final_captures, acceptance_captures_exact, projected_final_evidence, projected_evidence_exact)
+      GroupStartAcceptedOrigin(child_regular, child_constraints, child_edge, holds) -> match accepted_path_view(n, group_pattern_machine(n, starts, next), input, after_input, initial_evidence, initial_captures, final_evidence, path_routine, path)
+        AcceptedPathNow() ->
+          let boundary = initial_position_boundary(position, after_input)
+          let filtered_edge = filter_accepted_member(n, starts, boundary, child_regular, child_constraints, child_edge, holds)
+          let inner_edge = initial_edge_from_filtered_starts(n, MkPatternMachine(starts, next), position, empty_characters(), after_input, Accepted(child_regular, empty_constraints()), filtered_edge)
+          let opened_captures = Cons(CaptureFrame(Nil(), input_evidence), input_captures)
+          let after_begin = strip_begin_capture_execution(append_routine(child_regular, Cons(EndCapture(), Nil())), input_evidence, input_captures, initial_evidence, initial_captures, initial_execution)
+          match split_end_capture_execution(child_regular, input_evidence, opened_captures, after_begin)
+            EndCaptureWithoutFrame(middle_evidence, inner, _, view_evidence_exact, _, view_captures_exact) ->
+              let projected_final_captures = accepting_final_captures(n, group_pattern_machine(n, starts, next), input, after_input, ThreadAccepted(), initial_evidence, initial_captures, final_evidence, path_routine, path)
+              let projected_evidence_exact = evidence_equivalent_transitive(final_evidence, initial_evidence, middle_evidence, accepted_path_final_evidence(n, group_pattern_machine(n, starts, next), input, after_input, initial_evidence, initial_captures, final_evidence, path_routine, path), view_evidence_exact)
+              let projected_captures_exact = capture_equivalent_transitive(projected_final_captures, initial_captures, empty_captures(), accepted_path_final_captures(n, group_pattern_machine(n, starts, next), input, after_input, initial_evidence, initial_captures, final_evidence, path_routine, path), view_captures_exact)
+              rewrite accepted_path_input_empty(n, group_pattern_machine(n, starts, next), input, after_input, initial_evidence, initial_captures, final_evidence, path_routine, path) in ProjectedGroupAcceptanceMissingFrame(middle_evidence, group_empty_child_acceptance(n, MkPatternMachine(starts, next), position, after_input, input_evidence, opened_captures, child_regular, middle_evidence, empty_captures(), inner_edge, inner), projected_final_captures, projected_captures_exact, final_evidence, projected_evidence_exact)
+            EndCaptureWithFrame(middle_evidence, chars, saved, outer, inner, _, view_evidence_exact, _, view_captures_exact) ->
+              let final_captures = Cons(CaptureFrame(chars, saved), outer)
+              let projected_final_captures = accepting_final_captures(n, group_pattern_machine(n, starts, next), input, after_input, ThreadAccepted(), initial_evidence, initial_captures, final_evidence, path_routine, path)
+              let closed_evidence = Cons(StringEvidence(captured_string(chars)), saved)
+              let projected_evidence_exact = evidence_equivalent_transitive(final_evidence, initial_evidence, closed_evidence, accepted_path_final_evidence(n, group_pattern_machine(n, starts, next), input, after_input, initial_evidence, initial_captures, final_evidence, path_routine, path), view_evidence_exact)
+              let projected_captures_exact = capture_equivalent_transitive(projected_final_captures, initial_captures, outer, accepted_path_final_captures(n, group_pattern_machine(n, starts, next), input, after_input, initial_evidence, initial_captures, final_evidence, path_routine, path), view_captures_exact)
+              rewrite accepted_path_input_empty(n, group_pattern_machine(n, starts, next), input, after_input, initial_evidence, initial_captures, final_evidence, path_routine, path) in ProjectedGroupAcceptanceClosedFrame(middle_evidence, chars, saved, outer, group_empty_child_acceptance(n, MkPatternMachine(starts, next), position, after_input, input_evidence, opened_captures, child_regular, middle_evidence, final_captures, inner_edge, inner), projected_final_captures, projected_captures_exact, final_evidence, projected_evidence_exact)
+
+  fn grouped_predicate_machine_acceptance_encodes(test: Char -> Bool, char: Char, after_input: List(Char), position: InitialPosition, @erased final_evidence: List(Evidence), @erased routine: List(ExtendedInstruction), acceptance: MachineAcceptance(S(Z()), group_pattern_machine(S(Z()), Cons(predicate_machine_start(), Nil()), predicate_machine_next(test)), position, Cons(char, empty_characters()), after_input, final_evidence, routine)) -> Encodes(StringC, final_evidence, empty_evidence()) = match acceptance
+    MachineAccepted(destination, initial_evidence, initial_captures, path_routine, edge, initial_execution, _, path) -> grouped_predicate_initial_path_encodes(test, char, after_input, position, destination, final_evidence, path_routine, edge, initial_execution, path)
+
+  ## The first compositional Thompson case. Reverse the two-state concatenation
+  ## path transition-by-transition, recovering the left and right predicate
+  ## paths and the final EmitPair marker from the only possible memberships.
+  fn predicate_concat_machine_acceptance_encodes(left: Char -> Bool, right: Char -> Bool, left_char: Char, right_char: Char, after_input: List(Char), position: InitialPosition, @erased final_evidence: List(Evidence), @erased routine: List(ExtendedInstruction), acceptance: MachineAcceptance(plus(S(Z()), S(Z())), predicate_concat_machine(left, right), position, Cons(left_char, Cons(right_char, empty_characters())), after_input, final_evidence, routine)) -> Encodes(PairC(CharC, CharC), final_evidence, empty_evidence()) = match acceptance
+    MachineAccepted(destination, _, _, _, initial_edge, initial_execution, _, path) -> match predicate_concat_initial_destination_view(left, right, position, Cons(left_char, Cons(right_char, empty_characters())), after_input, destination, initial_edge)
+      PredicateConcatInitialDestinationExact() -> match initial_execution
+        RoutineDone() -> predicate_concat_start_path_encodes(left, right, left_char, right_char, after_input, final_evidence, routine, path)
+
+  fn predicate_alternate_mode_machine_acceptance_encodes(left: Char -> Bool, right: Char -> Bool, prefer_right: Bool, char: Char, after_input: List(Char), position: InitialPosition, @erased final_evidence: List(Evidence), @erased routine: List(ExtendedInstruction), acceptance: MachineAcceptance(plus(S(Z()), S(Z())), predicate_alternate_mode_machine(left, right, prefer_right), position, Cons(char, Nil()), after_input, final_evidence, routine)) -> Encodes(ChoiceC(CharC, CharC), final_evidence, empty_evidence()) = match acceptance
+    MachineAccepted(destination, initial_evidence, initial_captures, path_routine, edge, initial_execution, _, path) -> predicate_alternate_initial_path_encodes(left, right, prefer_right, char, after_input, position, destination, final_evidence, path_routine, edge, initial_execution, path)
+end

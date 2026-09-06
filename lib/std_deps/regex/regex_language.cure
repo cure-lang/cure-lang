@@ -3,6 +3,12 @@
 ## needed to relate an accepted Thompson-machine path to the authored pattern.
 @group(:text)
 mod Std.Regex.Language
+  use Std.Regex.Proof.AcceptanceCaptures
+  use Std.Regex.Proof.Roots6
+  use Std.Regex.Proof.Roots5
+  use Std.Regex.Proof.Roots4
+  use Std.Regex.Proof.Roots3
+  use Std.Regex.Proof.Roots2
   use Std.Regex.Proof.Roots
   use Std.Regex.Proof.Misc
   use Std.Regex.Proof.ConcatLeftPath
