@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.CursorSuffixMembers
   public use Std.Regex.Runtime.DestinationRejectionTail
   public use Std.Regex.Runtime.SelectedChildSuffixLocation
   public use Std.Regex.Runtime.CursorSuffixPackageEvidence
@@ -3192,21 +3193,8 @@ mod Std.Regex.Runtime
                 path
               ))
 
-  ## Turn intrinsic list membership into the ordered cursor suffix consumed by
-  ## the atomic refutation induction.  Membership alone does not expose the
-  ## suffix list; this Sigma packages that suffix together with the proof that
-  ## it is reached only by dropping the preceding ordered heads.
-  fn lookaround_admitted_cursor_suffix_here({n: Nat}, value: LookaroundAdmittedState(n), rest: List(LookaroundAdmittedState(n))) -> Sigma(values: List(LookaroundAdmittedState(n)), LookaroundAdmittedStateCursorSuffix(n, Cons(value, rest), values)) =
-    %[Cons(value, rest), LookaroundAdmittedStateCursorSuffixHere(reflexive(Cons(value, rest)))]
 
-  fn lookaround_admitted_cursor_suffix_there({n: Nat}, head: LookaroundAdmittedState(n), value: LookaroundAdmittedState(n), rest: List(LookaroundAdmittedState(n)), prior: ListMember(LookaroundAdmittedState(n), value, rest)) -> Sigma(values: List(LookaroundAdmittedState(n)), LookaroundAdmittedStateCursorSuffix(n, Cons(head, rest), values)) = match lookaround_admitted_cursor_suffix_from_member(value, rest, prior)
-    mk_pair(values, suffix) -> %[values, LookaroundAdmittedStateCursorSuffixDrop(head, suffix)]
 
-  fn lookaround_admitted_cursor_suffix_from_member({n: Nat}, value: LookaroundAdmittedState(n), whole: List(LookaroundAdmittedState(n)), member: ListMember(LookaroundAdmittedState(n), value, whole)) -> Sigma(values: List(LookaroundAdmittedState(n)), LookaroundAdmittedStateCursorSuffix(n, whole, values)) = match whole
-    [] -> impossible
-    [head | rest] -> match member
-      ListMemberHere() -> lookaround_admitted_cursor_suffix_here(value, rest)
-      ListMemberThere(prior) -> lookaround_admitted_cursor_suffix_there(head, value, rest, prior)
 
 
 
