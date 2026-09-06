@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.CommitSelectedLocation
   public use Std.Regex.Runtime.Prefix
   public use Std.Regex.Runtime.ActiveChildAlignmentPackages
   public use Std.Regex.Runtime.StrictCursorSelection
@@ -464,15 +465,6 @@ mod Std.Regex.Runtime
     LookaroundAdmittedStateCursorDrop : (@erased head: LookaroundAdmittedState(n)) -> (@erased cursor: LookaroundAdmittedStateCursor(n, whole, Cons(head, values))) -> LookaroundAdmittedStateCursor(n, whole, values)
 
 
-  ## Runtime search results retain only the recursive `Here`/`Drop` shape. The
-  ## admitted-state heads and equality witnesses stay erased, while the prior
-  ## package remains relevant. Keeping the recursive package—not just a kind
-  ## beside wholly erased evidence—lets two cursors from one origin be compared
-  ## and return their exact remaining suffix without reconstructing relevant
-  ## data from erased proof fields.
-  type LookaroundAdmittedStateCursorSuffixPackage(n: Nat) indices (outer: List(LookaroundAdmittedState(n)), inner: List(LookaroundAdmittedState(n)))
-    LookaroundAdmittedStateCursorSuffixHerePacked : (@erased equality: Equivalent(List(LookaroundAdmittedState(n)), outer, inner)) -> LookaroundAdmittedStateCursorSuffixPackage(n, outer, inner)
-    LookaroundAdmittedStateCursorSuffixDropPacked : (@erased head: LookaroundAdmittedState(n)) -> (prior: LookaroundAdmittedStateCursorSuffixPackage(n, outer, inner)) -> LookaroundAdmittedStateCursorSuffixPackage(n, Cons(head, outer), inner)
 
   @reducible
   fn lookaround_admitted_cursor_suffix_package_here(
@@ -791,16 +783,6 @@ mod Std.Regex.Runtime
     AtomicPathCursorLocationLeftAfter : (marker: AtomicPathStrictCursorSuffix(n, right, left)) -> AtomicPathCursorLocation(n, left, right)
     AtomicPathCursorLocationRightAfter : (marker: LookaroundAdmittedStateCursorSuffixPackage(n, left, right)) -> AtomicPathCursorLocation(n, left, right)
 
-  ## Constructor-correlated carrier for strict commit/selection recursion.
-  ## The commit payload is instantiated with one relevant existential that
-  ## ties an exact erased cause to its structure, plus the relevant cursor
-  ## package and exact selected-trace package.
-  ## A relevant location tag keeps those values together across recursive
-  ## callbacks without projecting anything from the erased cause.
-  type AtomicPathCommitSelectedLocationPackage(n: Nat, commit_package: Type, commit_cursor_package: Type, selected_trace_package: Type, selected_skipped_package: Type) indices (commit_current: List(LookaroundAdmittedState(n)), selected_current: List(LookaroundAdmittedState(n)))
-    AtomicPathCommitSelectedSamePacked : (commit: commit_package) -> (commit_cursor: commit_cursor_package) -> (selected_trace: selected_trace_package) -> (selected_skipped: selected_skipped_package) -> (@erased equality: Equivalent(List(LookaroundAdmittedState(n)), commit_current, selected_current)) -> AtomicPathCommitSelectedLocationPackage(n, commit_package, commit_cursor_package, selected_trace_package, selected_skipped_package, commit_current, selected_current)
-    AtomicPathCommitSelectedLeftAfterPacked : (commit: commit_package) -> (commit_cursor: commit_cursor_package) -> (selected_trace: selected_trace_package) -> (selected_skipped: selected_skipped_package) -> (marker: LookaroundAdmittedStateCursorSuffixPackage(n, selected_current, commit_current)) -> AtomicPathCommitSelectedLocationPackage(n, commit_package, commit_cursor_package, selected_trace_package, selected_skipped_package, commit_current, selected_current)
-    AtomicPathCommitSelectedRightAfterPacked : (commit: commit_package) -> (commit_cursor: commit_cursor_package) -> (selected_trace: selected_trace_package) -> (selected_skipped: selected_skipped_package) -> (marker: LookaroundAdmittedStateCursorSuffixPackage(n, commit_current, selected_current)) -> AtomicPathCommitSelectedLocationPackage(n, commit_package, commit_cursor_package, selected_trace_package, selected_skipped_package, commit_current, selected_current)
 
   ## One-constructor authorities preserve the branch refinement beyond a
   ## fold callback. Recursive forward traversal cannot manufacture LeftAfter,
@@ -865,33 +847,6 @@ mod Std.Regex.Runtime
       marker
     )
 
-  ## Single eliminator for the correlated location carrier. Each continuation
-  ## receives the intact package, so recursive consumers choose a branch only
-  ## from its relevant constructor and cannot split its correlated payloads.
-  @reducible
-  fn atomic_path_commit_selected_location_package_fold(
-    {result: Type}, {n: Nat}, {commit_package: Type},
-    {commit_cursor_package: Type},
-    {selected_trace_package: Type},
-    {selected_skipped_package: Type},
-    {commit_current: List(LookaroundAdmittedState(n))},
-    {selected_current: List(LookaroundAdmittedState(n))},
-    package: AtomicPathCommitSelectedLocationPackage(
-      n,
-      commit_package,
-      commit_cursor_package,
-      selected_trace_package,
-      selected_skipped_package,
-      commit_current,
-      selected_current
-    ),
-    same_case: (AtomicPathCommitSelectedLocationPackage(n, commit_package, commit_cursor_package, selected_trace_package, selected_skipped_package, commit_current, selected_current)) -> result,
-    left_case: (AtomicPathCommitSelectedLocationPackage(n, commit_package, commit_cursor_package, selected_trace_package, selected_skipped_package, commit_current, selected_current)) -> result,
-    right_case: (AtomicPathCommitSelectedLocationPackage(n, commit_package, commit_cursor_package, selected_trace_package, selected_skipped_package, commit_current, selected_current)) -> result
-  ) -> result = match package
-    AtomicPathCommitSelectedSamePacked(_, _, _, _, _) -> same_case(package)
-    AtomicPathCommitSelectedLeftAfterPacked(_, _, _, _, _) -> left_case(package)
-    AtomicPathCommitSelectedRightAfterPacked(_, _, _, _, _) -> right_case(package)
 
   @reducible
   fn atomic_path_cursor_location(
