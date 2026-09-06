@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.CursorSuffixPackageEvidence
   public use Std.Regex.Runtime.ActiveChildSelectionSuffixTransport
   public use Std.Regex.Runtime.CursorShapePackageLocation
   public use Std.Regex.Runtime.ActiveChildShapeAlignmentDispatch
@@ -505,23 +506,6 @@ mod Std.Regex.Runtime
         lookaround_admitted_cursor_suffix_package(prior)
       )
 
-  ## Recover the erased indexed suffix represented by a relevant runtime
-  ## package. This is the inverse observation used at proof boundaries: the
-  ## package shape may be inspected, but every head and equality remains
-  ## erased in the reconstructed witness.
-  @reducible
-  fn lookaround_admitted_cursor_suffix_package_evidence(
-    {n: Nat}, {outer: List(LookaroundAdmittedState(n))},
-    {inner: List(LookaroundAdmittedState(n))},
-    package: LookaroundAdmittedStateCursorSuffixPackage(n, outer, inner)
-  ) -> LookaroundAdmittedStateCursorSuffix(n, outer, inner) = match package
-    LookaroundAdmittedStateCursorSuffixHerePacked(equality) ->
-      LookaroundAdmittedStateCursorSuffixHere(equality)
-    LookaroundAdmittedStateCursorSuffixDropPacked(head, prior) ->
-      LookaroundAdmittedStateCursorSuffixDrop(
-        head,
-        lookaround_admitted_cursor_suffix_package_evidence(prior)
-      )
 
   ## Advance the inner cursor by one candidate while preserving its original
   ## outer spine. `Here` creates the first drop; an existing drop recurses into
