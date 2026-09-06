@@ -486,9 +486,9 @@ defmodule Cure.Refactor.Rewrite do
   end
 
   # Private declarations are movable when the selected set is dependency
-  # closed.  `dependency_edges/2` has already rejected every private edge
+  # closed. `dependency_edges/2` has already rejected every private edge
   # crossing the boundary, so rejecting all local helpers here would make a
-  # closed public function cluster impossible to extract.  Keep the boundary
+  # closed public function cluster impossible to extract. Keep the boundary
   # check at the canonical edge construction site where both directions are
   # visible.
   defp ensure_movable(_crossing, true), do: :ok
