@@ -1,5 +1,6 @@
 @group(:text)
 mod Std.Regex.Runtime
+  public use Std.Regex.Runtime.CursorShapePackageLocation
   public use Std.Regex.Runtime.ActiveChildShapeAlignmentDispatch
   public use Std.Regex.Runtime.ActiveChildAlignmentDispatch
   public use Std.Regex.Runtime.CursorShapeLocation
@@ -649,25 +650,6 @@ mod Std.Regex.Runtime
         lookaround_admitted_cursor_shaped_package(prior)
       )
 
-  fn atomic_path_cursor_shape_package_location(
-    left: LookaroundAdmittedStateCursorShape,
-    {@erased n: Nat},
-    {@erased right_outer: List(LookaroundAdmittedState(n))},
-    {@erased right_inner: List(LookaroundAdmittedState(n))},
-    right: LookaroundAdmittedStateCursorSuffixPackage(
-      n, right_outer, right_inner
-    )
-  ) -> AtomicPathCursorShapeLocation = match left
-    LookaroundAdmittedStateCursorShapeHere() -> match right
-      LookaroundAdmittedStateCursorSuffixHerePacked(_) ->
-        AtomicPathCursorShapeSame()
-      LookaroundAdmittedStateCursorSuffixDropPacked(_, _) ->
-        AtomicPathCursorShapeRightAfter()
-    LookaroundAdmittedStateCursorShapeDrop(left_prior) -> match right
-      LookaroundAdmittedStateCursorSuffixHerePacked(_) ->
-        AtomicPathCursorShapeLeftAfter()
-      LookaroundAdmittedStateCursorSuffixDropPacked(_, right_prior) ->
-        atomic_path_cursor_shape_package_location(left_prior, right_prior)
 
 
 
