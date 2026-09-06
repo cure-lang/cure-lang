@@ -1,0 +1,775 @@
+@group(:text)
+mod Std.Regex.Runtime.LeafCluster28
+  use Std.Regex.Runtime.LeafCluster21
+
+  use Std.Regex.Runtime.LeafCluster22
+
+  use Std.Regex.Runtime.LeafCluster23
+
+  use Std.Regex.Runtime.LeafCluster24
+
+  use Std.Regex.Runtime.LeafCluster25
+
+  use Std.Regex.Runtime.LeafCluster26
+
+  use Std.Regex.Runtime.LeafCluster15
+
+  use Std.Regex.Runtime.LeafCluster16
+
+  use Std.Regex.Runtime.LeafCluster17
+
+  use Std.Regex.Runtime.LeafCluster18
+
+  use Std.Regex.Runtime.LeafCluster19
+
+  use Std.Regex.Runtime.LeafCluster20
+
+  use Std.Regex.Runtime.LeafCluster09
+
+  use Std.Regex.Runtime.LeafCluster10
+
+  use Std.Regex.Runtime.LeafCluster11
+
+  use Std.Regex.Runtime.LeafCluster12
+
+  use Std.Regex.Runtime.LeafCluster13
+
+  use Std.Regex.Runtime.LeafCluster14
+
+  use Std.Regex.Runtime.LeafCluster01
+
+  use Std.Regex.Runtime.LeafCluster02
+
+  use Std.Regex.Runtime.LeafCluster03
+
+  use Std.Regex.Runtime.LeafCluster04
+
+  use Std.Regex.Runtime.LeafCluster05
+
+  use Std.Regex.Runtime.LeafCluster06
+
+  use Std.Regex.Runtime.LeafCluster07
+
+  use Std.Regex.Runtime.LeafCluster08
+
+  use Std.Regex.Runtime.SinkShapePrelude
+
+  use Std.Regex.Runtime.SinkLookaroundProofs
+
+  use Std.Regex.Runtime.SinkAtomicCommit
+
+  use Std.Regex.Runtime.SinkAtomicRejections
+
+  use Std.Regex.Runtime.LookaroundAdmission
+
+  use Std.Regex.Runtime.ActiveChildShapeAlignmentPackageBridge
+
+  use Std.Regex.Runtime.ActiveChildShapeAlignmentPackageDispatch
+
+  use Std.Regex.Runtime.InitialMembersRoot
+
+  use Std.Regex.Runtime.ActiveChildShapeAlignmentPackage
+
+  use Std.Regex.Runtime.ActiveChildShapeAlignment
+
+  use Std.Regex.Runtime.CursorShapeLocations
+
+  use Std.Regex.Runtime.InitialMembers
+
+  use Std.Regex.Runtime.Roots
+
+  use Std.Regex.Runtime.LeafAuthorities
+
+  use Std.Regex.Runtime.EvidenceExecution
+
+  use Std.Regex.Runtime.LookaroundCompilation
+
+  use Std.Regex.Runtime.ExtendedEvidenceTypes
+
+  use Std.Regex.Runtime.AtomicDepthTypes
+
+  use Std.Regex.Runtime.CandidateEquivalencePrimitives
+
+  use Std.Regex.Runtime.CaptureSlotMarkerPrimitives
+
+  use Std.Regex.Runtime.StateRoutinePrimitives
+
+  use Std.Regex.Runtime.MachineMemberEdgePrimitives
+
+  use Std.Regex.Runtime.LookaroundSupportPrimitives
+
+  use Std.Regex.Runtime.AtomicPathActiveChildShapeHerePackageFold
+
+  use Std.Regex.Runtime.AtomicStartScopeSelectionExcludes
+
+  use Std.Regex.Runtime.LookaroundExhaustionFromList
+
+  use Std.Regex.Runtime.AtomicStartDecisions
+
+  use Std.Regex.Runtime.DepthExclusion
+
+  use Std.Regex.Runtime.ExhaustionFromMembers
+
+  use Std.Regex.Runtime.CursorShapeAuthority
+
+  use Std.Regex.Runtime.ActiveChildShapeHere
+
+  use Std.Regex.Runtime.CursorShape
+
+  use Std.Regex.Runtime.SearchCursors
+
+  use Std.Regex.Runtime.CandidateEquivalence
+
+  use Std.Regex.Runtime.CaptureSlotMarkers
+
+  use Std.Regex.Runtime.AtomicDecisions
+
+  use Std.Regex.Runtime.MachineMemberEdges
+
+  use Std.Regex.Runtime.AtomicDepthMaximum
+
+  use Std.Regex.Runtime.MemberTransport
+
+  use Std.Regex.Runtime.EvidenceStep
+
+  use Std.Regex.Runtime.AtomicStartMember
+
+  use Std.Regex.Runtime.AtomicFailureAuthority
+
+  use Std.Regex.Runtime.AtomicDepth
+
+  use Std.Regex.Runtime.LookaroundSupport
+
+  use Std.Regex.Runtime.NamedCaptureSearch
+
+  use Std.Regex.Runtime.PatternSearch
+
+  use Std.Regex.Runtime.EvidenceSearch
+
+  use Std.Regex.Runtime.MachineSearch
+
+  use Std.Regex.Runtime.CharacterClasses
+
+  use Std.Regex.Runtime.NamedSearch
+
+  use Std.Regex.Runtime.MachineTransitions
+
+  use Std.Regex.Runtime.NamedStaging
+
+  use Std.Regex.Runtime.MachineEntry
+
+  use Std.Regex.Runtime.LineBreak
+
+  use Std.Regex.Runtime.CharacterMatchers
+
+  use Std.Regex.Runtime.Combinators
+
+  use Std.Regex.Runtime.Anchors
+
+  use Std.Regex.Runtime.CompileRegex
+
+  use Std.Regex.Runtime.ConversionAdapters
+
+  use Std.Regex.Runtime.ThreadDedup
+
+  use Std.Regex.Runtime.NamedTypes
+
+  use Std.Regex.Runtime.RegexType
+
+  use Std.Regex.Runtime.CharacterSemantics
+
+  use Std.Regex.Runtime.Conversion
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Runtime.CaptureConditions
+
+  use Std.Regex.Runtime.Boundaries
+
+  use Std.Regex.Runtime.AtomicDiagnostics
+
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Char
+
+  use Std.Option
+
+  use Std.List
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  use Std.Decision
+
+  ## Accepted-child dual of the preceding terminal fold. The classification
+  ## fixes non-empty child input and exact mode before the recursive
+  ## existential is opened; all other aligned cases remain untouched.
+  fn atomic_path_recursive_commit_selected_child_same_exact_accepted_fold(
+    {result: Type}, {depth: Nat}, {n: Nat},
+    {@erased machine: PatternMachine(n)},
+    package: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    ),
+    other_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )) -> result
+  ) -> result = match package
+    AtomicPathRecursiveCommitSelectedChildSameAlignedActivePacked(
+      commit, _, selected_suffix, _, inner_equivalence, _
+    ) -> match commit
+      AtomicPathCommitStructureCursorClassifiedAfterFailurePacked(
+        {child_prefix_kind = child_prefix_kind}, child_commit
+      ) -> match child_commit
+        AtomicPathCommitStructureCursorExistentialPacked(
+          cause, _, structure
+        ) -> match structure
+          AtomicPathCommitStructureAfterFailurePacked(after_child) -> match after_child
+            AtomicPathCommitAfterFailureChildPacked(
+              _, _, _, _, _, _, _, _, _, _, _, _, _, _, _,
+              terminal_classification, _, _, _, _
+            ) -> match terminal_classification
+              AtomicPathCommitAfterFailureInputExhaustedPacked() ->
+                other_case(package)
+              AtomicPathCommitAfterFailureExactAcceptedPacked() -> match inner_equivalence
+                LookaroundAdmittedCursorInnerEquivalentPacked(equality) -> match equality
+                  reflexive() -> match atomic_path_commit_after_exact_accepted_excludes_aligned_selected_package(
+                    child_prefix_kind,
+                    cause,
+                    selected_suffix
+                  )
+              AtomicPathCommitAfterFailureRootDestinationsExhaustedPacked() ->
+                other_case(package)
+              AtomicPathCommitAfterFailureTerminalUnclassifiedPacked() ->
+                other_case(package)
+      AtomicPathCommitStructureCursorClassifiedFromChildPacked(_) ->
+        other_case(package)
+      AtomicPathCommitStructureCursorClassifiedPastEscapedPacked(_) ->
+        other_case(package)
+      AtomicPathCommitStructureCursorClassifiedPastRejectedPacked(_) ->
+        other_case(package)
+    AtomicPathRecursiveCommitSelectedChildSameAlignedAcceptedPacked(
+      _, _, _, _, _, _
+    ) -> other_case(package)
+
+  ## Root destinations-exhausted terminal. Root availability is published by
+  ## the search-result branch, so this fold never opens the erased prefix or
+  ## refutation merely to select relevant control flow.
+  fn atomic_path_recursive_commit_selected_child_same_root_destinations_exhausted_fold(
+    {result: Type}, {depth: Nat}, {n: Nat},
+    {@erased machine: PatternMachine(n)},
+    package: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    ),
+    other_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )) -> result
+  ) -> result = match package
+    AtomicPathRecursiveCommitSelectedChildSameAlignedActivePacked(
+      commit, _, selected_suffix, _, inner_equivalence, _
+    ) -> match commit
+      AtomicPathCommitStructureCursorClassifiedAfterFailurePacked(child_commit) -> match child_commit
+        AtomicPathCommitStructureCursorExistentialPacked(
+          _, _, structure
+        ) -> match structure
+          AtomicPathCommitStructureAfterFailurePacked(after_child) -> match after_child
+            AtomicPathCommitAfterFailureChildPacked(
+              _, _, _, _, _, _, _, _, _, _, _, _, _, _, _,
+              terminal_classification, _, _, _, _
+            ) -> match terminal_classification
+              AtomicPathCommitAfterFailureInputExhaustedPacked() ->
+                other_case(package)
+              AtomicPathCommitAfterFailureExactAcceptedPacked() ->
+                other_case(package)
+              AtomicPathCommitAfterFailureRootDestinationsExhaustedPacked() -> match inner_equivalence
+                LookaroundAdmittedCursorInnerEquivalentPacked(equality) -> match equality
+                  reflexive() -> match atomic_path_commit_after_root_destinations_exhausted_excludes_aligned_selected_package(
+                    structure,
+                    selected_suffix
+                  )
+              AtomicPathCommitAfterFailureTerminalUnclassifiedPacked() ->
+                other_case(package)
+      AtomicPathCommitStructureCursorClassifiedFromChildPacked(_) ->
+        other_case(package)
+      AtomicPathCommitStructureCursorClassifiedPastEscapedPacked(_) ->
+        other_case(package)
+      AtomicPathCommitStructureCursorClassifiedPastRejectedPacked(_) ->
+        other_case(package)
+    AtomicPathRecursiveCommitSelectedChildSameAlignedAcceptedPacked(
+      _, _, _, _, _, _
+    ) -> other_case(package)
+
+  @reducible
+  fn atomic_path_recursive_commit_selected_existential_pack(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased input: List(Char)}, {@erased after_input: List(Char)},
+    {@erased state: ThreadState(n)}, {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased commit_current: List(LookaroundAdmittedState(n))},
+    {@erased selected_current: List(LookaroundAdmittedState(n))},
+    {@erased commit_depth: Nat},
+    {@erased commit_kind: AtomicPathCommitCauseKind},
+    {@erased matched: List(Char)}, {@erased remaining_input: List(Char)},
+    {@erased selected_routine: List(ExtendedInstruction)},
+    {@erased path: AtomicSelectedPathTrace(
+      depth, n, machine, input, after_input, state, history, capture_context,
+      policy, scope_depth, prefix_mode, reversed_prefix, selected_current,
+      matched, remaining_input, selected_routine
+    )},
+    {@erased skipped_kind: AtomicPathSkippedPrefixKind},
+    package: AtomicPathRecursiveCommitSelectedPackage(
+      depth, n, machine, input, after_input, state, history, capture_context,
+      policy, scope_depth, prefix_mode, reversed_prefix, whole,
+      commit_current, selected_current, commit_depth, commit_kind,
+      AtomicSelectedPathTracePackage(
+        depth, n, machine, input, after_input, state, history, capture_context,
+        policy, scope_depth, prefix_mode, reversed_prefix, selected_current,
+        matched, remaining_input, selected_routine, path
+      ),
+      skipped_kind
+    )
+  ) -> AtomicPathRecursiveCommitSelectedExistentialPackage(depth, n, machine) =
+    AtomicPathRecursiveCommitSelectedExistentialPacked(package)
+
+  ## Discard the outer trace path after extracting its path-free selected-child
+  ## authority, then correlate that authority with the independently produced
+  ## commit child. No later carrier needs the trace envelope or its path index.
+  fn atomic_path_commit_child_selected_location_package(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased rest: List(Char)},
+    {@erased after_input: List(Char)}, {@erased source: Bounded(n)},
+    {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased candidate: LookaroundAdmittedState(n)},
+    {@erased remaining: List(LookaroundAdmittedState(n))},
+    {@erased matched: List(Char)},
+    {@erased remaining_input: List(Char)},
+    {@erased selected_routine: List(ExtendedInstruction)},
+    {@erased path: AtomicSelectedPathTrace(
+      depth, n, machine, Cons(char, rest), after_input, ThreadActive(source),
+      history, capture_context, policy, scope_depth, prefix_mode,
+      reversed_prefix, Cons(candidate, remaining), matched, remaining_input,
+      selected_routine
+    )},
+    child_commit: AtomicPathCommitChildCursorExistentialPackage(
+      depth, n, machine, rest, after_input, candidate,
+      history_push_bounded(history, char), capture_context, policy, scope_depth,
+      prefix_mode, Cons(char, reversed_prefix)
+    ),
+    selected_trace_envelope: AtomicSelectedPathTraceRuntimeEnvelope(
+      AtomicSelectedPathTracePackage(
+      depth, n, machine, Cons(char, rest), after_input, ThreadActive(source),
+      history, capture_context, policy, scope_depth, prefix_mode,
+      reversed_prefix, Cons(candidate, remaining), matched, remaining_input,
+      selected_routine, path
+      )
+    )
+  ) -> AtomicPathRecursiveCommitSelectedExistentialPackage(depth, n, machine) = match selected_trace_envelope
+    AtomicSelectedPathTraceRuntimeEnvelopePacked(_, trace_package) ->
+      AtomicPathRecursiveCommitSelectedChildExistentialPacked(
+        atomic_path_commit_selected_child_cursor_package(
+          child_commit,
+          atomic_selected_path_trace_child_cursor_package(trace_package)
+        )
+      )
+
+  ## Narrow a local AfterFailure continuation by the relevant selected-prefix
+  ## structure before any erased cause, failure, or cursor equality is opened.
+  fn atomic_path_recursive_commit_selected_child_same_after_failure_dispatch(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    ),
+    empty_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )) -> Empty,
+    escaped_one_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )) -> Empty,
+    escaped_cons_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )) -> Empty,
+    rejected_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )) -> Empty,
+    invalid_case: () -> Empty
+  ) -> Empty = match aligned
+    AtomicPathRecursiveCommitSelectedChildSameAlignedActivePacked(
+      commit, selected_skipped, _, _, _, _
+    ) -> match commit
+      AtomicPathCommitStructureCursorClassifiedAfterFailurePacked(_) -> match selected_skipped
+        AtomicPathSkippedPrefixStructureEmptyPacked(_) ->
+          empty_case(aligned)
+        AtomicPathSkippedPrefixStructureEscapedOnePacked(_) ->
+          escaped_one_case(aligned)
+        AtomicPathSkippedPrefixStructureEscapedConsPacked(_, _) ->
+          escaped_cons_case(aligned)
+        AtomicPathSkippedPrefixStructureRejectedConsPacked(_, _, _) ->
+          rejected_case(aligned)
+      AtomicPathCommitStructureCursorClassifiedFromChildPacked(_) ->
+        invalid_case()
+      AtomicPathCommitStructureCursorClassifiedPastEscapedPacked(_) ->
+        invalid_case()
+      AtomicPathCommitStructureCursorClassifiedPastRejectedPacked(_) ->
+        invalid_case()
+    AtomicPathRecursiveCommitSelectedChildSameAlignedAcceptedPacked(
+      _, _, _, _, _, _
+    ) -> invalid_case()
+
+  ## PastRejected has the same relevant selected-prefix split, but retains its
+  ## recursive tail commit for the eventual sibling induction.
+  fn atomic_path_recursive_commit_selected_child_same_past_rejected_dispatch(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    ),
+    empty_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )) -> Empty,
+    escaped_one_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )) -> Empty,
+    escaped_cons_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )) -> Empty,
+    rejected_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )) -> Empty,
+    invalid_case: () -> Empty
+  ) -> Empty = match aligned
+    AtomicPathRecursiveCommitSelectedChildSameAlignedActivePacked(
+      commit, selected_skipped, _, _, _, _
+    ) -> match commit
+      AtomicPathCommitStructureCursorClassifiedPastRejectedPacked(_) -> match selected_skipped
+        AtomicPathSkippedPrefixStructureEmptyPacked(_) ->
+          empty_case(aligned)
+        AtomicPathSkippedPrefixStructureEscapedOnePacked(_) ->
+          escaped_one_case(aligned)
+        AtomicPathSkippedPrefixStructureEscapedConsPacked(_, _) ->
+          escaped_cons_case(aligned)
+        AtomicPathSkippedPrefixStructureRejectedConsPacked(_, _, _) ->
+          rejected_case(aligned)
+      AtomicPathCommitStructureCursorClassifiedAfterFailurePacked(_) ->
+        invalid_case()
+      AtomicPathCommitStructureCursorClassifiedFromChildPacked(_) ->
+        invalid_case()
+      AtomicPathCommitStructureCursorClassifiedPastEscapedPacked(_) ->
+        invalid_case()
+    AtomicPathRecursiveCommitSelectedChildSameAlignedAcceptedPacked(
+      _, _, _, _, _, _
+    ) -> invalid_case()
+
+  fn atomic_path_recursive_commit_selected_child_same_skipped_tail_package(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    )
+  ) -> AtomicPathRecursiveCommitSelectedChildSameSkippedTailPackage(
+    depth, n, machine
+  ) = match aligned
+    AtomicPathRecursiveCommitSelectedChildSameAlignedActivePacked(
+      commit, selected_skipped, selected_suffix, selected_envelope,
+      inner_equivalence, source
+    ) -> AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked(
+      commit, selected_skipped,
+      AtomicPathSkippedPrefixStructureEmptyPacked(
+        AtomicPathSkippedPrefixEmpty()
+      ),
+      selected_suffix, selected_envelope, inner_equivalence, source
+    )
+    AtomicPathRecursiveCommitSelectedChildSameAlignedAcceptedPacked(
+      commit, selected_skipped, selected_suffix, selected_envelope,
+      inner_equivalence, source
+    ) -> AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked(
+      commit, selected_skipped,
+      AtomicPathSkippedPrefixStructureEmptyPacked(
+        AtomicPathSkippedPrefixEmpty()
+      ),
+      selected_suffix, selected_envelope, inner_equivalence, source
+    )
+
+  ## Peel exactly one relevant selected-prefix layer. EscapedOne becomes the
+  ## canonical Empty tail; cons cases retain their already-correlated tail
+  ## structure. Recursive callers therefore never rebuild or compare cursors.
+  fn atomic_path_recursive_commit_selected_child_same_skipped_tail_fold(
+    {result: Type}, {depth: Nat}, {n: Nat},
+    {@erased machine: PatternMachine(n)},
+    package: AtomicPathRecursiveCommitSelectedChildSameSkippedTailPackage(
+      depth, n, machine
+    ),
+    empty_case: (AtomicPathRecursiveCommitSelectedChildSameSkippedTailPackage(
+      depth, n, machine
+    )) -> result,
+    tail_case: (AtomicPathRecursiveCommitSelectedChildSameSkippedTailPackage(
+      depth, n, machine
+    )) -> result
+  ) -> result = match package
+    AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked(
+      commit, selected_skipped, selected_empty, selected_suffix,
+      selected_envelope, inner_equivalence, source
+    ) -> match selected_skipped
+      AtomicPathSkippedPrefixStructureEmptyPacked(_) ->
+        empty_case(package)
+      AtomicPathSkippedPrefixStructureEscapedOnePacked(_) ->
+        tail_case(
+          AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked(
+            commit, selected_empty, selected_empty,
+            selected_suffix, selected_envelope,
+            inner_equivalence, source
+          )
+        )
+      AtomicPathSkippedPrefixStructureEscapedConsPacked(_, tail_structure) ->
+        tail_case(
+          AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked(
+            commit, tail_structure, selected_empty, selected_suffix,
+            selected_envelope,
+            inner_equivalence, source
+          )
+        )
+      AtomicPathSkippedPrefixStructureRejectedConsPacked(_, tail_structure, _) ->
+        tail_case(
+          AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked(
+            commit, tail_structure, selected_empty, selected_suffix,
+            selected_envelope,
+            inner_equivalence, source
+          )
+        )
+
+  ## Descend the relevant skipped-prefix spine to its canonical empty tail.
+  ## The recursion is structural in the stored tail_structure argument. The
+  ## existential wrapper changes only the exposed front and kind indices.
+  fn atomic_path_recursive_commit_selected_child_same_skipped_tail_empty_fold(
+    {result: Type}, {depth: Nat}, {n: Nat},
+    {@erased machine: PatternMachine(n)},
+    package: AtomicPathRecursiveCommitSelectedChildSameSkippedTailPackage(
+      depth, n, machine
+    ),
+    empty_case: (AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage(
+      depth, n, machine
+    )) -> result
+  ) -> result = match package
+    AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked(
+      commit, selected_skipped, selected_empty, selected_suffix,
+      selected_envelope, inner_equivalence, source
+    ) -> match selected_skipped
+      AtomicPathSkippedPrefixStructureEmptyPacked(_) ->
+        empty_case(
+          AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPacked(
+            commit, selected_skipped, selected_suffix, selected_envelope,
+            inner_equivalence, source
+          )
+        )
+      AtomicPathSkippedPrefixStructureEscapedOnePacked(_) ->
+        empty_case(
+          AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPacked(
+            commit, selected_empty, selected_suffix, selected_envelope,
+            inner_equivalence, source
+          )
+        )
+      AtomicPathSkippedPrefixStructureEscapedConsPacked(_, tail_structure) ->
+        atomic_path_recursive_commit_selected_child_same_skipped_tail_empty_fold(
+          AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked(
+            commit, tail_structure, selected_empty, selected_suffix,
+            selected_envelope,
+            inner_equivalence, source
+          ),
+          empty_case
+        )
+      AtomicPathSkippedPrefixStructureRejectedConsPacked(_, tail_structure, _) ->
+        atomic_path_recursive_commit_selected_child_same_skipped_tail_empty_fold(
+          AtomicPathRecursiveCommitSelectedChildSameSkippedTailPacked(
+            commit, tail_structure, selected_empty, selected_suffix,
+            selected_envelope,
+            inner_equivalence, source
+          ),
+          empty_case
+        )
+
+  ## The exact empty terminal still retains its relevant outer commit tag.
+  ## Narrow it before opening any erased child failure, cause, or cursor
+  ## equality so the two recursive consumers receive fixed control branches.
+  fn atomic_path_recursive_commit_selected_child_same_skipped_empty_dispatch(
+    {result: Type}, {depth: Nat}, {n: Nat},
+    {@erased machine: PatternMachine(n)},
+    package: AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage(
+      depth, n, machine
+    ),
+    after_failure_case: (AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage(
+      depth, n, machine
+    )) -> result,
+    past_rejected_case: (AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage(
+      depth, n, machine
+    )) -> result,
+    invalid_case: () -> result
+  ) -> result = match package
+    AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPacked(
+      commit, _, _, _, _, _
+    ) -> match commit
+      AtomicPathCommitStructureCursorClassifiedAfterFailurePacked(_) ->
+        after_failure_case(package)
+      AtomicPathCommitStructureCursorClassifiedPastRejectedPacked(_) ->
+        past_rejected_case(package)
+      AtomicPathCommitStructureCursorClassifiedFromChildPacked(_) ->
+        invalid_case()
+      AtomicPathCommitStructureCursorClassifiedPastEscapedPacked(_) ->
+        invalid_case()
+
+  ## A local Same/Empty branch is already fixed before this child failure kind
+  ## is selected. The relevant singleton stored with the exact AfterFailure
+  ## child chooses one of four pre-existing Empty callbacks; the erased
+  ## refutation and no-evidence payloads remain unopened.
+  fn atomic_path_recursive_commit_selected_child_same_after_failure_empty_kind_dispatch(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    package: AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage(
+      depth, n, machine
+    ),
+    input_exhausted_case: (AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage(
+      depth, n, machine
+    )) -> Empty,
+    exact_accepted_case: (AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage(
+      depth, n, machine
+    )) -> Empty,
+    destinations_exhausted_case: (AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage(
+      depth, n, machine
+    )) -> Empty,
+    destination_rejected_case: (AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage(
+      depth, n, machine
+    )) -> Empty,
+    invalid_case: () -> Empty
+  ) -> Empty = match package
+    AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPacked(
+      _, _, _, _, _, source
+    ) -> match source
+      AtomicPathRecursiveCommitSelectedChildSameExistentialPacked(
+        _, _, commit_payload, _, _
+      ) -> match commit_payload
+        AtomicPathCommitChildCursorPayloadPacked(
+          _, _, _, _, _, _, commit
+        ) -> match commit
+          AtomicPathCommitStructureCursorClassifiedAfterFailurePacked(
+            child_commit
+          ) -> match child_commit
+            AtomicPathCommitStructureCursorExistentialPacked(
+              _, _, structure
+            ) -> match structure
+              AtomicPathCommitStructureAfterFailurePacked(child_package) -> match child_package
+                AtomicPathCommitAfterFailureChildPacked(
+                  _, _, _, _, _, _, _, _, _, _, _, _, _, _,
+                  child_kind_authority, _, _, _, _, _
+                ) -> match child_kind_authority
+                  AtomicPathFailureInputExhaustedAuthority() ->
+                    input_exhausted_case(package)
+                  AtomicPathFailureExactAcceptedAuthority() ->
+                    exact_accepted_case(package)
+                  AtomicPathFailureDestinationsExhaustedAuthority() ->
+                    destinations_exhausted_case(package)
+                  AtomicPathFailureDestinationRejectedAuthority() ->
+                    destination_rejected_case(package)
+          AtomicPathCommitStructureCursorClassifiedFromChildPacked(_) ->
+            invalid_case()
+          AtomicPathCommitStructureCursorClassifiedPastEscapedPacked(_) ->
+            invalid_case()
+          AtomicPathCommitStructureCursorClassifiedPastRejectedPacked(_) ->
+            invalid_case()
+end
