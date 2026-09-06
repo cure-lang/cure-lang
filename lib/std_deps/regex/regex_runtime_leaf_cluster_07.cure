@@ -1,0 +1,812 @@
+@group(:text)
+mod Std.Regex.Runtime.LeafCluster07
+  use Std.Regex.Runtime.SinkShapePrelude
+
+  use Std.Regex.Runtime.SinkLookaroundProofs
+
+  use Std.Regex.Runtime.SinkAtomicCommit
+
+  use Std.Regex.Runtime.SinkAtomicRejections
+
+  use Std.Regex.Runtime.LookaroundAdmission
+
+  use Std.Regex.Runtime.ActiveChildShapeAlignmentPackageBridge
+
+  use Std.Regex.Runtime.ActiveChildShapeAlignmentPackageDispatch
+
+  use Std.Regex.Runtime.InitialMembersRoot
+
+  use Std.Regex.Runtime.ActiveChildShapeAlignmentPackage
+
+  use Std.Regex.Runtime.ActiveChildShapeAlignment
+
+  use Std.Regex.Runtime.CursorShapeLocations
+
+  use Std.Regex.Runtime.InitialMembers
+
+  use Std.Regex.Runtime.Roots
+
+  use Std.Regex.Runtime.LeafAuthorities
+
+  use Std.Regex.Runtime.EvidenceExecution
+
+  use Std.Regex.Runtime.LookaroundCompilation
+
+  use Std.Regex.Runtime.ExtendedEvidenceTypes
+
+  use Std.Regex.Runtime.AtomicDepthTypes
+
+  use Std.Regex.Runtime.CandidateEquivalencePrimitives
+
+  use Std.Regex.Runtime.CaptureSlotMarkerPrimitives
+
+  use Std.Regex.Runtime.StateRoutinePrimitives
+
+  use Std.Regex.Runtime.MachineMemberEdgePrimitives
+
+  use Std.Regex.Runtime.LookaroundSupportPrimitives
+
+  use Std.Regex.Runtime.AtomicPathActiveChildShapeHerePackageFold
+
+  use Std.Regex.Runtime.AtomicStartScopeSelectionExcludes
+
+  use Std.Regex.Runtime.LookaroundExhaustionFromList
+
+  use Std.Regex.Runtime.AtomicStartDecisions
+
+  use Std.Regex.Runtime.DepthExclusion
+
+  use Std.Regex.Runtime.ExhaustionFromMembers
+
+  use Std.Regex.Runtime.CursorShapeAuthority
+
+  use Std.Regex.Runtime.ActiveChildShapeHere
+
+  use Std.Regex.Runtime.CursorShape
+
+  use Std.Regex.Runtime.SearchCursors
+
+  use Std.Regex.Runtime.CandidateEquivalence
+
+  use Std.Regex.Runtime.CaptureSlotMarkers
+
+  use Std.Regex.Runtime.AtomicDecisions
+
+  use Std.Regex.Runtime.MachineMemberEdges
+
+  use Std.Regex.Runtime.AtomicDepthMaximum
+
+  use Std.Regex.Runtime.MemberTransport
+
+  use Std.Regex.Runtime.EvidenceStep
+
+  use Std.Regex.Runtime.AtomicStartMember
+
+  use Std.Regex.Runtime.AtomicFailureAuthority
+
+  use Std.Regex.Runtime.AtomicDepth
+
+  use Std.Regex.Runtime.LookaroundSupport
+
+  use Std.Regex.Runtime.NamedCaptureSearch
+
+  use Std.Regex.Runtime.PatternSearch
+
+  use Std.Regex.Runtime.EvidenceSearch
+
+  use Std.Regex.Runtime.MachineSearch
+
+  use Std.Regex.Runtime.CharacterClasses
+
+  use Std.Regex.Runtime.NamedSearch
+
+  use Std.Regex.Runtime.MachineTransitions
+
+  use Std.Regex.Runtime.NamedStaging
+
+  use Std.Regex.Runtime.MachineEntry
+
+  use Std.Regex.Runtime.LineBreak
+
+  use Std.Regex.Runtime.CharacterMatchers
+
+  use Std.Regex.Runtime.Combinators
+
+  use Std.Regex.Runtime.Anchors
+
+  use Std.Regex.Runtime.CompileRegex
+
+  use Std.Regex.Runtime.ConversionAdapters
+
+  use Std.Regex.Runtime.ThreadDedup
+
+  use Std.Regex.Runtime.NamedTypes
+
+  use Std.Regex.Runtime.RegexType
+
+  use Std.Regex.Runtime.CharacterSemantics
+
+  use Std.Regex.Runtime.Conversion
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Runtime.CaptureConditions
+
+  use Std.Regex.Runtime.Boundaries
+
+  use Std.Regex.Runtime.AtomicDiagnostics
+
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Char
+
+  use Std.Option
+
+  use Std.List
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  use Std.Decision
+
+  ## A rejected head can leave a selected trace in a non-empty sibling tail.
+  ## When that tail refutation reaches destination exhaustion, its current
+  ## spine is definitionally empty; the selected suffix therefore contradicts
+  ## the exhaustion leaf through the cursor relation alone.
+  fn atomic_path_tail_destinations_exhausted_excludes_selected_suffix(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    char: Char,
+    rest: List(Char),
+    after_input: List(Char),
+    source: Bounded(n),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    scope_depth: Nat,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    whole: List(LookaroundAdmittedState(n)),
+    candidate: LookaroundAdmittedState(n),
+    @erased _failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(candidate, Nil()),
+      AtomicPathFailureDestinationRejected()
+    ),
+    @erased tail_failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Nil(),
+      AtomicPathFailureDestinationsExhausted()
+    ),
+    {selected_candidate: LookaroundAdmittedState(n)},
+    {@erased selected_remaining: List(LookaroundAdmittedState(n))},
+    @erased tail_selected_suffix: LookaroundAdmittedStateCursorSuffix(
+      n,
+      Nil(),
+      Cons(selected_candidate, selected_remaining)
+    ),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedPathTrace(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      Cons(selected_candidate, selected_remaining),
+      matched,
+      remaining_input,
+      selected_routine
+    )
+  ) -> Empty = atomic_path_destinations_exhausted_excludes_trace(tail_selected_suffix)
+
+  ## A recursively rejected active child can leave a singleton sibling tail
+  ## whose search reaches destination exhaustion.  This construction-site
+  ## consumer keeps the child refutation at its indexed destination-rejection
+  ## boundary and forwards the tail cursor to the existing exhaustion lemma.
+  ## The child path remains proof-only; no failure tag or cursor is emitted.
+  fn atomic_path_active_child_rejection_excludes_tail_exhaustion(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    child_char: Char,
+    child_rest: List(Char),
+    after_input: List(Char),
+    source: Bounded(n),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    scope_depth: Nat,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    whole: List(LookaroundAdmittedState(n)),
+    candidate: LookaroundAdmittedState(n),
+    @erased failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(child_char, child_rest),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(candidate, Nil()),
+      AtomicPathFailureDestinationRejected()
+    ),
+    @erased tail_failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(child_char, child_rest),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Nil(),
+      AtomicPathFailureDestinationsExhausted()
+    ),
+    {selected_current: List(LookaroundAdmittedState(n))},
+    @erased tail_selected_suffix: LookaroundAdmittedStateCursorSuffix(
+      n,
+      Nil(),
+      selected_current
+    ),
+    matched: List(Char),
+    remaining_input: List(Char),
+    selected_routine: List(ExtendedInstruction),
+    @erased path: AtomicSelectedPathTrace(
+      depth,
+      n,
+      machine,
+      Cons(child_char, child_rest),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      selected_current,
+      matched,
+      remaining_input,
+      selected_routine
+    )
+  ) -> Empty = match tail_selected_suffix
+    LookaroundAdmittedStateCursorSuffixHere(equality) -> match equality
+      reflexive() -> atomic_path_active_destinations_exhausted_excludes_trace(
+        machine,
+        child_char,
+        child_rest,
+        after_input,
+        source,
+        history,
+        capture_context,
+        policy,
+        scope_depth,
+        prefix_mode,
+        reversed_prefix,
+        whole,
+        matched,
+        remaining_input,
+        selected_routine,
+        tail_failure,
+        path
+      )
+    LookaroundAdmittedStateCursorSuffixDrop(_, _) -> impossible
+
+  ## Dispatch the indexed active-child alignment at the construction site. The
+  ## alignment case is already proof-relevant, so the three continuations can
+  ## remain proof-only while the eventual sibling-tail induction is supplied
+  ## by the caller that owns the child refutation.
+  @reducible
+  fn atomic_path_active_child_rejection_tail_fold(
+    {n: Nat},
+    {failure_current: List(LookaroundAdmittedState(n))},
+    {selected_current: List(LookaroundAdmittedState(n))},
+    location: AtomicPathActiveChildAlignmentCase(n, failure_current, selected_current),
+    head_case: () -> Empty,
+    tail_case: () -> Empty,
+    reverse_case: () -> Empty
+  ) -> Empty = match location
+    AtomicPathActiveChildAlignmentCaseHere() -> head_case()
+    AtomicPathActiveChildAlignmentCaseThere() -> tail_case()
+    AtomicPathActiveChildAlignmentCaseReverse() -> reverse_case()
+
+  ## Terminal child failures are discharged by the existing indexed leaves.
+  ## These two construction-site lemmas deliberately take the terminal child
+  ## refutation as an index, rather than inspecting an erased failure tag in a
+  ## runtime branch.  A caller that has refined the rejected head to one of
+  ## these constructors can therefore eliminate its selected child trace
+  ## without reifying proof data.
+  @reducible
+  fn atomic_path_active_child_rejection_head_input_exhausted_excludes_trace(
+    {@erased depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    after_input: List(Char),
+    state: Bounded(n),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    scope_depth: Nat,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {candidate_current: List(LookaroundAdmittedState(n))},
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {routine: List(ExtendedInstruction)},
+    @erased _failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Nil(),
+      after_input,
+      ThreadActive(state),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      Nil(),
+      Nil(),
+      AtomicPathFailureInputExhausted()
+    ),
+    @erased path: AtomicSelectedPathTrace(
+      depth,
+      n,
+      machine,
+      Nil(),
+      after_input,
+      ThreadActive(state),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      candidate_current,
+      matched,
+      remaining_input,
+      routine
+    )
+  ) -> Empty = atomic_path_input_exhaustion_excludes_trace(
+    machine,
+    after_input,
+    state,
+    history,
+    capture_context,
+    policy,
+    scope_depth,
+    prefix_mode,
+    reversed_prefix,
+    path
+  )
+
+  ## A rejected active head whose child has no input left cannot also publish
+  ## a selected active-child trace.  This is the first non-terminal parent
+  ## construction boundary: the parent failure is a destination rejection,
+  ## but its child refutation is refined to `AtomicPathInputExhausted` by the
+  ## one-character input index.  Matching the parent transition and then
+  ## feeding its selected child trace to the erased terminal eliminator keeps
+  ## the contradiction at the nested construction site.
+  @reducible
+  fn atomic_path_active_child_rejection_head_active_excludes_trace(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    char: Char,
+    after_input: List(Char),
+    source: Bounded(n),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    scope_depth: Nat,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    active_state: Bounded(n),
+    active_routine: List(EvidenceInstruction),
+    active_constraints: List(BoundaryConstraint),
+    active_assertion_routine: List(ExtendedInstruction),
+    active_assertion_markers: List(EvidenceInstruction),
+    active_nested_decisions: List(LookaroundNestedDecision),
+    {failure_whole: List(LookaroundAdmittedState(n))},
+    {@erased failure_remaining: List(LookaroundAdmittedState(n))},
+    @erased failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(char, Nil()),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      failure_whole,
+      Cons(LookaroundAdmittedActive(active_state, active_routine, active_constraints, active_assertion_routine, active_assertion_markers, active_nested_decisions), failure_remaining),
+      AtomicPathFailureDestinationRejected()
+    ),
+    {@erased selected_remaining: List(LookaroundAdmittedState(n))},
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedPathTrace(
+      depth,
+      n,
+      machine,
+      Cons(char, Nil()),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      Cons(LookaroundAdmittedActive(active_state, active_routine, active_constraints, active_assertion_routine, active_assertion_markers, active_nested_decisions), selected_remaining),
+      matched,
+      remaining_input,
+      selected_routine
+    )
+  ) -> Empty = match failure
+    AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, child_failure, _, _, _, _, _, _) -> match path
+      AtomicSelectedPrefixDone() -> impossible
+      AtomicSelectedExactDone() -> impossible
+      AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, child_trace) -> match child_failure
+        AtomicPathInputExhausted(_, _) -> atomic_path_input_exhaustion_excludes_trace_erased(child_trace)
+      AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+
+  @reducible
+  fn atomic_path_active_child_rejection_head_exact_accepted_excludes_trace(
+    {@erased depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    {@erased char: Char},
+    {@erased rest: List(Char)},
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    scope_depth: Nat,
+    reversed_prefix: List(Char),
+    {candidate_current: List(LookaroundAdmittedState(n))},
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {routine: List(ExtendedInstruction)},
+    @erased _failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadAccepted(),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      False(),
+      reversed_prefix,
+      Nil(),
+      Nil(),
+      AtomicPathFailureExactAccepted()
+    ),
+    @erased path: AtomicSelectedPathTrace(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadAccepted(),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      False(),
+      reversed_prefix,
+      candidate_current,
+      matched,
+      remaining_input,
+      routine
+    )
+  ) -> Empty = atomic_path_exact_failure_excludes_trace(
+    machine,
+    char,
+    rest,
+    after_input,
+    history,
+    capture_context,
+    policy,
+    scope_depth,
+    reversed_prefix,
+    _failure,
+    path
+  )
+
+  @reducible
+  fn atomic_path_active_child_rejection_singleton_active_excludes_trace_erased(
+    {@erased depth: Nat},
+    {n: Nat},
+    {@erased machine: PatternMachine(n)},
+    {@erased child_char: Char},
+    {@erased after_input: List(Char)},
+    {@erased destination: Bounded(n)},
+    {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy},
+    {@erased child_scope_depth: Nat},
+    {@erased prefix_mode: Bool},
+    {@erased reversed_prefix: List(Char)},
+    {@erased active_state: Bounded(n)},
+    {@erased active_routine: List(EvidenceInstruction)},
+    {@erased active_constraints: List(BoundaryConstraint)},
+    {@erased active_assertion_routine: List(ExtendedInstruction)},
+    {@erased active_assertion_markers: List(EvidenceInstruction)},
+    {@erased active_nested_decisions: List(LookaroundNestedDecision)},
+    {@erased failure_whole: List(LookaroundAdmittedState(n))},
+    {@erased failure_remaining: List(LookaroundAdmittedState(n))},
+    {@erased matched: List(Char)},
+    {@erased remaining_input: List(Char)},
+    @erased child_failure: AtomicPathRefutation(
+      depth,
+      n,
+      machine,
+      Cons(child_char, Nil()),
+      after_input,
+      ThreadActive(destination),
+      history,
+      capture_context,
+      policy,
+      child_scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      failure_whole,
+      Cons(LookaroundAdmittedActive(active_state, active_routine, active_constraints, active_assertion_routine, active_assertion_markers, active_nested_decisions), failure_remaining),
+      AtomicPathFailureDestinationRejected()
+    ),
+    {@erased child_selected_routine: List(ExtendedInstruction)},
+    @erased child_path: AtomicSelectedPathTrace(
+      depth,
+      n,
+      machine,
+      Cons(child_char, Nil()),
+      after_input,
+      ThreadActive(destination),
+      history,
+      capture_context,
+      policy,
+      child_scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      Cons(LookaroundAdmittedActive(active_state, active_routine, active_constraints, active_assertion_routine, active_assertion_markers, active_nested_decisions), failure_remaining),
+      matched,
+      remaining_input,
+      child_selected_routine
+    )
+  ) -> Empty = match child_failure
+    AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, nested_failure, _, _, _, _, _, _) -> match child_path
+      AtomicSelectedPrefixDone() -> impossible
+      AtomicSelectedExactDone() -> impossible
+      AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, child_trace) -> match nested_failure
+        AtomicPathInputExhausted(_, _) -> atomic_path_input_exhaustion_excludes_trace_erased(child_trace)
+      AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+
+  ## The first refutation-tree eliminator is indexed at the same exhausted
+  ## input as the selected trace.  The other failure constructors all carry a
+  ## non-empty input or an accepted thread, so dependent matching reduces this
+  ## wrapper to the empty-input lemma above without a runtime case split.
+  fn atomic_path_failure_excludes_trace({result: Type}, {depth: Nat}, {n: Nat}, machine: PatternMachine(n), after_input: List(Char), state: Bounded(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), {matched: List(Char)}, {remaining_input: List(Char)}, {routine: List(ExtendedInstruction)}, {whole: List(LookaroundAdmittedState(n))}, current: List(LookaroundAdmittedState(n)), @erased failure: AtomicPathRefutation(depth, n, machine, Nil(), after_input, ThreadActive(state), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, AtomicPathFailureInputExhausted()), @erased path: AtomicSelectedPathTrace(depth, n, machine, Nil(), after_input, ThreadActive(state), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, Nil(), matched, remaining_input, routine)) -> result = match failure
+    AtomicPathInputExhausted(_, _) -> atomic_path_input_exhaustion_excludes_trace(machine, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, path)
+
+  ## Consume the first non-empty destination-exhaustion branch of the atomic
+  ## refutation tree.  The failure cursor is indexed at `Nil()`, so the only
+  ## admissible selected-path suffix is `Here`; a `Drop` witness would require
+  ## a head in an empty list.  After that equality is consumed, the path-level
+  ## contradiction is discharged by the active destination-exhaustion lemma.
+  fn atomic_path_failure_excludes_aligned_trace({result: Type}, {depth: Nat}, {n: Nat}, machine: PatternMachine(n), char: Char, rest: List(Char), after_input: List(Char), state: Bounded(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), @erased failure: AtomicPathRefutation(depth, n, machine, Cons(char, rest), after_input, ThreadActive(state), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Nil(), AtomicPathFailureDestinationsExhausted()), {candidate_current: List(LookaroundAdmittedState(n))}, matched: List(Char), remaining_input: List(Char), routine: List(ExtendedInstruction), @erased candidate_suffix: LookaroundAdmittedStateCursorSuffix(n, Nil(), candidate_current), @erased path: AtomicSelectedPathTrace(depth, n, machine, Cons(char, rest), after_input, ThreadActive(state), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, candidate_current, matched, remaining_input, routine)) -> result = match failure
+    AtomicPathDestinationsExhausted(_, _, _, _, _, _) -> match candidate_suffix
+      LookaroundAdmittedStateCursorSuffixHere(equality) -> match equality
+        reflexive() -> atomic_path_active_destinations_exhausted_excludes_trace(machine, char, rest, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, matched, remaining_input, routine, failure, path)
+      LookaroundAdmittedStateCursorSuffixDrop(_, _) -> impossible
+
+  ## The active root wrapper has no suffix-local alternative: its empty-input
+  ## index eliminates every refutation constructor except
+  ## `AtomicPathInputExhausted`. This is the first theorem consumer that uses
+  ## the root/partial split directly.
+  fn atomic_path_root_active_failure_excludes_trace({result: Type}, {depth: Nat}, {n: Nat}, machine: PatternMachine(n), after_input: List(Char), state: Bounded(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), {candidate_current: List(LookaroundAdmittedState(n))}, {matched: List(Char)}, {remaining_input: List(Char)}, {routine: List(ExtendedInstruction)}, @erased failure: AtomicPathRootRefutation(depth, n, machine, Nil(), after_input, ThreadActive(state), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, Nil(), AtomicPathFailureInputExhausted()), @erased path: AtomicSelectedPathTrace(depth, n, machine, Nil(), after_input, ThreadActive(state), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, candidate_current, matched, remaining_input, routine)) -> result = match failure
+    AtomicPathRootRefutation(_, _, _, _) -> atomic_path_input_exhaustion_excludes_trace(machine, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, path)
+
+  ## Exact child failures receive the same suffix-indexed treatment as active
+  ## input exhaustion. The stored constructor suffix is checked before the
+  ## generic exact-input contradiction is reused.
+  fn atomic_path_child_exact_failure_excludes_trace({result: Type}, {depth: Nat}, {n: Nat}, machine: PatternMachine(n), @erased char: Char, @erased rest: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, reversed_prefix: List(Char), {whole: List(LookaroundAdmittedState(n))}, {current: List(LookaroundAdmittedState(n))}, @erased failure: AtomicPathRefutation(depth, n, machine, Cons(char, rest), after_input, ThreadAccepted(), history, capture_context, policy, scope_depth, False(), reversed_prefix, whole, current, AtomicPathFailureExactAccepted()), @erased failure_suffix: LookaroundAdmittedStateCursorSuffix(n, whole, current), {path_current: List(LookaroundAdmittedState(n))}, {matched: List(Char)}, {remaining_input: List(Char)}, {routine: List(ExtendedInstruction)}, @erased path: AtomicSelectedPathTrace(depth, n, machine, Cons(char, rest), after_input, ThreadAccepted(), history, capture_context, policy, scope_depth, False(), reversed_prefix, path_current, matched, remaining_input, routine)) -> result = match failure
+    AtomicPathExactAcceptedWithInput(_, _, _, stored_suffix) -> match failure_suffix
+      LookaroundAdmittedStateCursorSuffixHere(_) -> match stored_suffix
+        LookaroundAdmittedStateCursorSuffixHere(_) -> atomic_path_exact_failure_excludes_trace(machine, char, rest, after_input, history, capture_context, policy, scope_depth, reversed_prefix, failure, path)
+        LookaroundAdmittedStateCursorSuffixDrop(_, _) -> impossible
+      LookaroundAdmittedStateCursorSuffixDrop(_, _) -> impossible
+
+  ## The active-child destination-exhaustion leaf is the next base case for
+  ## recursive rejected-child induction.  Its selected child trace is already
+  ## aligned at the empty admitted-state cursor, so the generic active leaf
+  ## contradiction can consume it directly.  Parent destination-rejection
+  ## transport supplies this child proof; no runtime witness is introduced.
+  fn atomic_path_active_child_destinations_exhausted_excludes_trace({result: Type}, {depth: Nat}, {n: Nat}, machine: PatternMachine(n), char: Char, rest: List(Char), after_input: List(Char), source: Bounded(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), matched: List(Char), remaining_input: List(Char), routine: List(ExtendedInstruction), @erased failure: AtomicPathRefutation(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Nil(), AtomicPathFailureDestinationsExhausted()), @erased path: AtomicSelectedPathTrace(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, Nil(), matched, remaining_input, routine)) -> result = atomic_path_active_destinations_exhausted_excludes_trace(machine, char, rest, after_input, source, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, matched, remaining_input, routine, failure, path)
+
+  fn atomic_lookaround_routine_first_prefix(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, reversed_prefix: List(Char), remaining_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Option(Tuple(List(Char), List(Char), List(ExtendedInstruction))) =
+    let matched_input = evidence_reverse_chars(reversed_prefix)
+    match atomic_lookaround_routine_exact(depth, n, machine, position, matched_input, remaining_input, history, capture_context, policy)
+      Some(result) -> Some(result)
+      None() -> match remaining_input
+        [] -> None()
+        [char | rest] -> atomic_lookaround_routine_first_prefix(depth, n, machine, position, [char | reversed_prefix], rest, history, capture_context, policy)
+
+  fn atomic_lookaround_routine_last_prefix(depth: Nat, n: Nat, machine: PatternMachine(n), position: InitialPosition, reversed_prefix: List(Char), remaining_input: List(Char), previous: Option(Tuple(List(Char), List(Char), List(ExtendedInstruction))), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy) -> Option(Tuple(List(Char), List(Char), List(ExtendedInstruction))) =
+    let matched_input = evidence_reverse_chars(reversed_prefix)
+    let current = match atomic_lookaround_routine_exact(depth, n, machine, position, matched_input, remaining_input, history, capture_context, policy)
+      Some(result) -> Some(result)
+      None() -> previous
+    match remaining_input
+      [] -> current
+      [char | rest] -> atomic_lookaround_routine_last_prefix(depth, n, machine, position, [char | reversed_prefix], rest, current, history, capture_context, policy)
+
+  fn atomic_runtime_first_prefix_loop(n: Nat, machine: PatternMachine(n), position: InitialPosition, reversed_prefix: List(Char), remaining_input: List(Char)) -> Option(Tuple(List(Char), List(Char))) =
+    let matched_input = evidence_reverse_chars(reversed_prefix)
+    pickup
+      atomic_runtime_accepts(n, machine, position, matched_input, remaining_input) -> Some(%[matched_input, remaining_input])
+      else -> match remaining_input
+        [] -> None()
+        [char | rest] -> atomic_runtime_first_prefix_loop(n, machine, position, [char | reversed_prefix], rest)
+
+  fn atomic_runtime_last_prefix_loop(n: Nat, machine: PatternMachine(n), position: InitialPosition, reversed_prefix: List(Char), remaining_input: List(Char), previous: Option(Tuple(List(Char), List(Char)))) -> Option(Tuple(List(Char), List(Char))) =
+    let matched_input = evidence_reverse_chars(reversed_prefix)
+    let current = pickup
+      atomic_runtime_accepts(n, machine, position, matched_input, remaining_input) -> Some(%[matched_input, remaining_input])
+      else -> previous
+    match remaining_input
+      [] -> current
+      [char | rest] -> atomic_runtime_last_prefix_loop(n, machine, position, [char | reversed_prefix], rest, current)
+end

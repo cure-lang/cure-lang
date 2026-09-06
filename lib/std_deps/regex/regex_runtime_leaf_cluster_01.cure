@@ -1,0 +1,833 @@
+@group(:text)
+mod Std.Regex.Runtime.LeafCluster01
+  use Std.Regex.Runtime.SinkShapePrelude
+
+  use Std.Regex.Runtime.SinkLookaroundProofs
+
+  use Std.Regex.Runtime.SinkAtomicCommit
+
+  use Std.Regex.Runtime.SinkAtomicRejections
+
+  use Std.Regex.Runtime.LookaroundAdmission
+
+  use Std.Regex.Runtime.ActiveChildShapeAlignmentPackageBridge
+
+  use Std.Regex.Runtime.ActiveChildShapeAlignmentPackageDispatch
+
+  use Std.Regex.Runtime.InitialMembersRoot
+
+  use Std.Regex.Runtime.ActiveChildShapeAlignmentPackage
+
+  use Std.Regex.Runtime.ActiveChildShapeAlignment
+
+  use Std.Regex.Runtime.CursorShapeLocations
+
+  use Std.Regex.Runtime.InitialMembers
+
+  use Std.Regex.Runtime.Roots
+
+  use Std.Regex.Runtime.LeafAuthorities
+
+  use Std.Regex.Runtime.EvidenceExecution
+
+  use Std.Regex.Runtime.LookaroundCompilation
+
+  use Std.Regex.Runtime.ExtendedEvidenceTypes
+
+  use Std.Regex.Runtime.AtomicDepthTypes
+
+  use Std.Regex.Runtime.CandidateEquivalencePrimitives
+
+  use Std.Regex.Runtime.CaptureSlotMarkerPrimitives
+
+  use Std.Regex.Runtime.StateRoutinePrimitives
+
+  use Std.Regex.Runtime.MachineMemberEdgePrimitives
+
+  use Std.Regex.Runtime.LookaroundSupportPrimitives
+
+  use Std.Regex.Runtime.AtomicPathActiveChildShapeHerePackageFold
+
+  use Std.Regex.Runtime.AtomicStartScopeSelectionExcludes
+
+  use Std.Regex.Runtime.LookaroundExhaustionFromList
+
+  use Std.Regex.Runtime.AtomicStartDecisions
+
+  use Std.Regex.Runtime.DepthExclusion
+
+  use Std.Regex.Runtime.ExhaustionFromMembers
+
+  use Std.Regex.Runtime.CursorShapeAuthority
+
+  use Std.Regex.Runtime.ActiveChildShapeHere
+
+  use Std.Regex.Runtime.CursorShape
+
+  use Std.Regex.Runtime.SearchCursors
+
+  use Std.Regex.Runtime.CandidateEquivalence
+
+  use Std.Regex.Runtime.CaptureSlotMarkers
+
+  use Std.Regex.Runtime.AtomicDecisions
+
+  use Std.Regex.Runtime.MachineMemberEdges
+
+  use Std.Regex.Runtime.AtomicDepthMaximum
+
+  use Std.Regex.Runtime.MemberTransport
+
+  use Std.Regex.Runtime.EvidenceStep
+
+  use Std.Regex.Runtime.AtomicStartMember
+
+  use Std.Regex.Runtime.AtomicFailureAuthority
+
+  use Std.Regex.Runtime.AtomicDepth
+
+  use Std.Regex.Runtime.LookaroundSupport
+
+  use Std.Regex.Runtime.NamedCaptureSearch
+
+  use Std.Regex.Runtime.PatternSearch
+
+  use Std.Regex.Runtime.EvidenceSearch
+
+  use Std.Regex.Runtime.MachineSearch
+
+  use Std.Regex.Runtime.CharacterClasses
+
+  use Std.Regex.Runtime.NamedSearch
+
+  use Std.Regex.Runtime.MachineTransitions
+
+  use Std.Regex.Runtime.NamedStaging
+
+  use Std.Regex.Runtime.MachineEntry
+
+  use Std.Regex.Runtime.LineBreak
+
+  use Std.Regex.Runtime.CharacterMatchers
+
+  use Std.Regex.Runtime.Combinators
+
+  use Std.Regex.Runtime.Anchors
+
+  use Std.Regex.Runtime.CompileRegex
+
+  use Std.Regex.Runtime.ConversionAdapters
+
+  use Std.Regex.Runtime.ThreadDedup
+
+  use Std.Regex.Runtime.NamedTypes
+
+  use Std.Regex.Runtime.RegexType
+
+  use Std.Regex.Runtime.CharacterSemantics
+
+  use Std.Regex.Runtime.Conversion
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Runtime.CaptureConditions
+
+  use Std.Regex.Runtime.Boundaries
+
+  use Std.Regex.Runtime.AtomicDiagnostics
+
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Char
+
+  use Std.Option
+
+  use Std.List
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  use Std.Decision
+
+  ## Transport a non-empty decomposition backwards through an ordered cursor
+  ## suffix.  The `Here` case consumes the suffix equality; each `Drop` case
+  ## prepends the dropped head with the canonical cons congruence.  This is the
+  ## sole authority for deriving `whole = head :: tail` from a non-empty
+  ## cursor, so active-child proofs never manufacture that equality locally.
+  @reducible
+  fn lookaround_admitted_cursor_suffix_nonempty(
+    {n: Nat},
+    {whole: List(LookaroundAdmittedState(n))},
+    {head: LookaroundAdmittedState(n)},
+    {tail: List(LookaroundAdmittedState(n))},
+    suffix: LookaroundAdmittedStateCursorSuffix(n, whole, Cons(head, tail))
+  ) -> LookaroundAdmittedNonempty(n, whole) = match suffix
+    LookaroundAdmittedStateCursorSuffixHere(equality) -> match equality
+      reflexive() -> LookaroundAdmittedNonemptyPacked(head, tail, reflexive(Cons(head, tail)))
+    LookaroundAdmittedStateCursorSuffixDrop(dropped, prior) -> match lookaround_admitted_cursor_suffix_nonempty(prior)
+      LookaroundAdmittedNonemptyPacked(prior_head, prior_tail, prior_equivalence) -> LookaroundAdmittedNonemptyPacked(
+        dropped,
+        Cons(prior_head, prior_tail),
+        lookaround_admitted_state_cons_equivalent(dropped, prior_equivalence)
+      )
+
+  @reducible
+  fn atomic_path_selected_child_suffix_location(
+    {n: Nat},
+    {head: LookaroundAdmittedState(n)},
+    {rest: List(LookaroundAdmittedState(n))},
+    {current: List(LookaroundAdmittedState(n))},
+    suffix: LookaroundAdmittedStateCursorSuffix(n, Cons(head, rest), current)
+  ) -> AtomicPathSelectedChildLocation(n, head, rest, current) = match suffix
+    LookaroundAdmittedStateCursorSuffixHere(equality) -> match equality
+      reflexive() -> AtomicPathSelectedChildHere(head, rest)
+    LookaroundAdmittedStateCursorSuffixDrop(_, prior) -> AtomicPathSelectedChildThere(head, prior)
+
+  ## Compare two cursors from the same canonical origin. Equality remains an
+  ## erased index; directional cases retain only the suffix needed by the
+  ## recursive sibling-tail proof.
+  type AtomicPathCursorLocation(n: Nat) indices (left: List(LookaroundAdmittedState(n)), right: List(LookaroundAdmittedState(n)))
+    AtomicPathCursorLocationSame : (@erased equality: Equivalent(List(LookaroundAdmittedState(n)), left, right)) -> AtomicPathCursorLocation(n, left, right)
+    AtomicPathCursorLocationLeftAfter : (marker: AtomicPathStrictCursorSuffix(n, right, left)) -> AtomicPathCursorLocation(n, left, right)
+    AtomicPathCursorLocationRightAfter : (marker: LookaroundAdmittedStateCursorSuffixPackage(n, left, right)) -> AtomicPathCursorLocation(n, left, right)
+
+  @reducible
+  fn atomic_path_strict_cursor_suffix_package(
+    {n: Nat}, {outer: List(LookaroundAdmittedState(n))},
+    {inner: List(LookaroundAdmittedState(n))},
+    marker: AtomicPathStrictCursorSuffix(n, outer, inner)
+  ) -> LookaroundAdmittedStateCursorSuffixPackage(n, outer, inner) = match marker
+    AtomicPathStrictCursorSuffixDrop(head, _, suffix) ->
+      lookaround_admitted_cursor_suffix_package_drop(
+        head,
+        lookaround_admitted_cursor_suffix_package(suffix)
+      )
+
+  ## Single eliminator for the correlated location carrier. Each continuation
+  ## receives the intact package, so recursive consumers choose a branch only
+  ## from its relevant constructor and cannot split its correlated payloads.
+  @reducible
+  fn atomic_path_commit_selected_location_package_fold(
+    {result: Type}, {n: Nat}, {commit_package: Type},
+    {commit_cursor_package: Type},
+    {selected_trace_package: Type},
+    {selected_skipped_package: Type},
+    {commit_current: List(LookaroundAdmittedState(n))},
+    {selected_current: List(LookaroundAdmittedState(n))},
+    package: AtomicPathCommitSelectedLocationPackage(
+      n,
+      commit_package,
+      commit_cursor_package,
+      selected_trace_package,
+      selected_skipped_package,
+      commit_current,
+      selected_current
+    ),
+    same_case: (AtomicPathCommitSelectedLocationPackage(n, commit_package, commit_cursor_package, selected_trace_package, selected_skipped_package, commit_current, selected_current)) -> result,
+    left_case: (AtomicPathCommitSelectedLocationPackage(n, commit_package, commit_cursor_package, selected_trace_package, selected_skipped_package, commit_current, selected_current)) -> result,
+    right_case: (AtomicPathCommitSelectedLocationPackage(n, commit_package, commit_cursor_package, selected_trace_package, selected_skipped_package, commit_current, selected_current)) -> result
+  ) -> result = match package
+    AtomicPathCommitSelectedSamePacked(_, _, _, _, _) -> same_case(package)
+    AtomicPathCommitSelectedLeftAfterPacked(_, _, _, _, _) -> left_case(package)
+    AtomicPathCommitSelectedRightAfterPacked(_, _, _, _, _) -> right_case(package)
+
+  type AtomicPathActiveChildAlignmentPackage(n: Nat, failure_package: Type, selected_package: Type) indices (failure_current: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n)))
+    AtomicPathActiveChildAlignmentHerePacked : (branch: AtomicPathActiveChildAlignmentHerePackage(n, failure_package, selected_package, failure_current, current)) -> AtomicPathActiveChildAlignmentPackage(n, failure_package, selected_package, failure_current, current)
+    AtomicPathActiveChildAlignmentTherePacked : (branch: AtomicPathActiveChildAlignmentTherePackage(n, failure_package, selected_package, failure_current, current)) -> AtomicPathActiveChildAlignmentPackage(n, failure_package, selected_package, failure_current, current)
+    AtomicPathActiveChildAlignmentReversePacked : (branch: AtomicPathActiveChildAlignmentReversePackage(n, failure_package, selected_package, failure_current, current)) -> AtomicPathActiveChildAlignmentPackage(n, failure_package, selected_package, failure_current, current)
+
+  @reducible
+  fn atomic_path_active_child_alignment_authority(
+    {n: Nat}, {candidate: LookaroundAdmittedState(n)},
+    {remaining: List(LookaroundAdmittedState(n))},
+    {failure_current: List(LookaroundAdmittedState(n))},
+    {current: List(LookaroundAdmittedState(n))},
+    alignment: AtomicPathActiveChildAlignment(
+      n, candidate, remaining, failure_current, current
+    )
+  ) -> AtomicPathActiveChildAlignmentAuthority(
+    n, failure_current, current
+  ) = match alignment
+    AtomicPathActiveChildAlignmentHere(authority) ->
+      AtomicPathActiveChildAlignmentHereAuthority(authority)
+    AtomicPathActiveChildAlignmentThere(authority, tail) ->
+      AtomicPathActiveChildAlignmentThereAuthority(authority, tail)
+    AtomicPathActiveChildAlignmentReverse(authority) ->
+      AtomicPathActiveChildAlignmentReverseAuthority(authority)
+
+  ## Transport the selected child suffix from a path constructor's local
+  ## origin to the parent selected origin.  The current spine is deliberately
+  ## shared by the two views; a later recursive package will carry a separate
+  ## current-spine equality when the child search advances through a sibling.
+  ## Keeping this outer transport at one authority prevents callers from
+  ## rebuilding or guessing the selected cursor list.
+  @reducible
+  fn atomic_path_active_child_selection_suffix_transport(
+    {n: Nat},
+    {selected_whole: List(LookaroundAdmittedState(n))},
+    {path_selected_whole: List(LookaroundAdmittedState(n))},
+    {selected_current: List(LookaroundAdmittedState(n))},
+    selected_whole_equivalence: Equivalent(
+      List(LookaroundAdmittedState(n)),
+      selected_whole,
+      path_selected_whole
+    ),
+    path_selection_suffix: LookaroundAdmittedStateCursorSuffix(
+      n,
+      path_selected_whole,
+      selected_current
+    )
+  ) -> LookaroundAdmittedStateCursorSuffix(n, selected_whole, selected_current) =
+    transport_lookaround_admitted_cursor_suffix_outer(selected_whole_equivalence, path_selection_suffix)
+
+  ## Extract the active transition package at the construction boundary.  The
+  ## active-source and non-empty-input indices eliminate the terminal and
+  ## accepted transition constructors before the package is built; all child
+  ## cursor spines remain explicit erased fields of the package constructor.
+  @reducible
+  fn atomic_path_active_child_selection_package(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    char: Char,
+    rest: List(Char),
+    after_input: List(Char),
+    source: Bounded(n),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    scope_depth: Nat,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    active_state: Bounded(n),
+    active_routine: List(EvidenceInstruction),
+    active_constraints: List(BoundaryConstraint),
+    active_assertion_routine: List(ExtendedInstruction),
+    active_assertion_markers: List(EvidenceInstruction),
+    active_nested_decisions: List(LookaroundNestedDecision),
+    {selected_remaining: List(LookaroundAdmittedState(n))},
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedPathTrace(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      Cons(LookaroundAdmittedActive(active_state, active_routine, active_constraints, active_assertion_routine, active_assertion_markers, active_nested_decisions), selected_remaining),
+      matched,
+      remaining_input,
+      selected_routine
+    )
+  ) -> AtomicPathActiveChildSelectionPackage(
+    depth,
+    n,
+    machine,
+    Cons(char, rest),
+    after_input,
+    ThreadActive(source),
+    history,
+    capture_context,
+    policy,
+    scope_depth,
+    prefix_mode,
+    reversed_prefix,
+    matched,
+    remaining_input,
+    selected_routine
+  ) = match path
+    AtomicSelectedPrefixDone() -> impossible
+    AtomicSelectedExactDone() -> impossible
+    AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, child_whole, child_selected_whole, child_selected_whole_equivalence, child_origin_canonical, child_current, child_selection_suffix, child_selection_from_origin, child_skipped_kind, child_skipped_evidence, child_trace) ->
+      AtomicPathActiveChildSelectionPackageActive(
+        source,
+        char,
+        rest,
+        active_state,
+        active_routine,
+        active_constraints,
+        active_assertion_routine,
+        active_assertion_markers,
+        active_nested_decisions,
+        child_whole,
+        child_selected_whole,
+        child_selected_whole_equivalence,
+        child_origin_canonical,
+        child_current,
+        child_selection_suffix,
+        child_selection_from_origin,
+        child_skipped_kind,
+        child_skipped_evidence,
+        child_trace,
+        path
+      )
+    AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, suffix) -> impossible
+
+  fn lookaround_admitted_cursor_suffix_alignment(
+    {n: Nat},
+    {outer: List(LookaroundAdmittedState(n))},
+    {left: List(LookaroundAdmittedState(n))},
+    {right: List(LookaroundAdmittedState(n))},
+    left_suffix: LookaroundAdmittedStateCursorSuffix(n, outer, left),
+    right_suffix: LookaroundAdmittedStateCursorSuffix(n, outer, right)
+  ) -> LookaroundAdmittedStateCursorAlignment(n, left, right) = match left_suffix
+    LookaroundAdmittedStateCursorSuffixHere(left_equality) -> match left_equality
+      reflexive() -> match right_suffix
+        LookaroundAdmittedStateCursorSuffixHere(right_equality) -> match right_equality
+          reflexive() -> LookaroundAdmittedCursorLeftToRight(LookaroundAdmittedStateCursorSuffixHere(reflexive(left)))
+        LookaroundAdmittedStateCursorSuffixDrop(_, _) -> LookaroundAdmittedCursorLeftToRight(right_suffix)
+    LookaroundAdmittedStateCursorSuffixDrop(_, left_prior) -> match right_suffix
+      LookaroundAdmittedStateCursorSuffixHere(right_equality) -> match right_equality
+        reflexive() -> LookaroundAdmittedCursorRightToLeft(left_suffix)
+      LookaroundAdmittedStateCursorSuffixDrop(_, right_prior) -> lookaround_admitted_cursor_suffix_alignment(left_prior, right_prior)
+
+  ## Proper suffix is asymmetric.  Composing the ordinary forward suffix
+  ## stored by the strict witness with a hypothetical reverse suffix would
+  ## make `head :: tail` a suffix of `tail`, which the finite-list lemma above
+  ## eliminates.
+  @reducible
+  fn atomic_path_strict_cursor_suffix_excludes_reverse(
+    {n: Nat},
+    {outer: List(LookaroundAdmittedState(n))},
+    {inner: List(LookaroundAdmittedState(n))},
+    strict: AtomicPathStrictCursorSuffix(n, outer, inner),
+    reverse: LookaroundAdmittedStateCursorSuffix(n, inner, outer)
+  ) -> Empty = match strict
+    AtomicPathStrictCursorSuffixDrop(head, tail, forward) -> atomic_path_cons_cannot_be_suffix_of_its_tail(
+      head,
+      tail,
+      lookaround_admitted_cursor_suffix_compose(forward, reverse)
+    )
+
+  ## An active thread cannot have an accepting path over an empty input.
+  ## Keeping this contradiction at the typed path boundary prevents a later
+  ## refutation proof from accidentally treating an unconsumed active state as
+  ## terminally accepted.
+  fn impossible_lookaround_empty_active_path({@erased depth: Nat}, n: Nat, machine: PatternMachine(n), {@erased after_input: List(Char)}, source: Bounded(n), {@erased history: List(Char)}, {@erased capture_context: List(EvidenceInstruction)}, {@erased policy: NewlinePolicy}, {@erased candidates: List(MachineState(n))}, {result: Type}, path: LookaroundAcceptingPath(depth, n, machine, capture_context, candidates, Nil(), after_input, ThreadActive(source), history, policy)) -> result = match path
+    LookaroundAcceptedNow() -> impossible
+    LookaroundAcceptedNextActive(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+    LookaroundAcceptedNextAccepted(_, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+
+  fn lookaround_accepting_step_active(depth: Nat, n: Nat, machine: PatternMachine(n), char: Char, rest: List(Char), after_input: List(Char), source: Bounded(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, destination: Bounded(n), routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(n), Active(destination, routine, constraints), lookaround_machine_destinations(depth, n, machine, ThreadActive(source), char, rest, after_input, history, capture_context, policy)), {values: List(MachineState(n))}, members: MachineStateMembers(n, lookaround_machine_destinations(depth, n, machine, ThreadActive(source), char, rest, after_input, history, capture_context, policy), Cons(Active(destination, routine, constraints), values)), cursor: MachineStateCursor(n, lookaround_machine_destinations(depth, n, machine, ThreadActive(source), char, rest, after_input, history, capture_context, policy), Cons(Active(destination, routine, constraints), values)), child_char: Char, child_rest: List(Char), @erased child_input_equivalent: Equivalent(List(Char), rest, Cons(child_char, child_rest)), @erased child_destinations: List(MachineState(n)), @erased child_destinations_equivalent: Equivalent(List(MachineState(n)), child_destinations, lookaround_machine_destinations(depth, n, machine, ThreadActive(destination), child_char, child_rest, after_input, history_push_bounded(history, char), append_routine(capture_context, routine), policy)), {@erased child_candidates: List(MachineState(n))}, child_cursor_suffix: MachineStateCursorSuffix(n, child_destinations, child_candidates), suffix: LookaroundAcceptingPath(depth, n, machine, append_routine(capture_context, routine), child_candidates, Cons(child_char, child_rest), after_input, ThreadActive(destination), history_push_bounded(history, char), policy)) -> LookaroundAcceptingPath(depth, n, machine, capture_context, Cons(Active(destination, routine, constraints), values), Cons(char, rest), after_input, ThreadActive(source), history, policy) = assert_type LookaroundAcceptedNextActive(source, char, rest, destination, routine, constraints, lookaround_nested_decisions(depth, constraints, lookaround_transition_boundary(char, rest, after_input, policy), append_characters(rest, after_input), history, capture_context, policy), members, cursor, reflexive(Cons(Active(destination, routine, constraints), values)), machine_state_members_active_current_edge(destination, routine, constraints, members), child_char, child_rest, child_input_equivalent, child_destinations, child_destinations_equivalent, child_cursor_suffix, suffix) : LookaroundAcceptingPath(depth, n, machine, capture_context, Cons(Active(destination, routine, constraints), values), Cons(char, rest), after_input, ThreadActive(source), history, policy)
+
+  fn lookaround_accepting_step_accepted(depth: Nat, n: Nat, machine: PatternMachine(n), char: Char, rest: List(Char), after_input: List(Char), source: Bounded(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(n), Accepted(routine, constraints), lookaround_machine_destinations(depth, n, machine, ThreadActive(source), char, rest, after_input, history, capture_context, policy)), {values: List(MachineState(n))}, members: MachineStateMembers(n, lookaround_machine_destinations(depth, n, machine, ThreadActive(source), char, rest, after_input, history, capture_context, policy), Cons(Accepted(routine, constraints), values)), cursor: MachineStateCursor(n, lookaround_machine_destinations(depth, n, machine, ThreadActive(source), char, rest, after_input, history, capture_context, policy), Cons(Accepted(routine, constraints), values)), child_cursor_suffix: MachineStateCursorSuffix(n, empty_machine_states(n), empty_machine_states(n)), suffix: LookaroundAcceptingPath(depth, n, machine, append_routine(capture_context, routine), empty_machine_states(n), rest, after_input, ThreadAccepted(), history_push_bounded(history, char), policy)) -> LookaroundAcceptingPath(depth, n, machine, capture_context, Cons(Accepted(routine, constraints), values), Cons(char, rest), after_input, ThreadActive(source), history, policy) = assert_type LookaroundAcceptedNextAccepted(source, char, rest, routine, constraints, lookaround_nested_decisions(depth, constraints, lookaround_transition_boundary(char, rest, after_input, policy), append_characters(rest, after_input), history, capture_context, policy), members, cursor, reflexive(Cons(Accepted(routine, constraints), values)), machine_state_members_accepted_current_edge(routine, constraints, members), child_cursor_suffix, suffix) : LookaroundAcceptingPath(depth, n, machine, capture_context, Cons(Accepted(routine, constraints), values), Cons(char, rest), after_input, ThreadActive(source), history, policy)
+
+  fn lookaround_prefix_step_active(depth: Nat, n: Nat, machine: PatternMachine(n), char: Char, rest: List(Char), after_input: List(Char), source: Bounded(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, destination: Bounded(n), routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(n), Active(destination, routine, constraints), lookaround_machine_destinations(depth, n, machine, ThreadActive(source), char, rest, after_input, history, capture_context, policy)), {values: List(MachineState(n))}, members: MachineStateMembers(n, lookaround_machine_destinations(depth, n, machine, ThreadActive(source), char, rest, after_input, history, capture_context, policy), Cons(Active(destination, routine, constraints), values)), cursor: MachineStateCursor(n, lookaround_machine_destinations(depth, n, machine, ThreadActive(source), char, rest, after_input, history, capture_context, policy), Cons(Active(destination, routine, constraints), values)), child_char: Char, child_rest: List(Char), @erased child_input_equivalent: Equivalent(List(Char), rest, Cons(child_char, child_rest)), @erased child_destinations: List(MachineState(n)), @erased child_destinations_equivalent: Equivalent(List(MachineState(n)), child_destinations, lookaround_machine_destinations(depth, n, machine, ThreadActive(destination), child_char, child_rest, after_input, history_push_bounded(history, char), append_routine(capture_context, routine), policy)), {@erased child_candidates: List(MachineState(n))}, child_cursor_suffix: MachineStateCursorSuffix(n, child_destinations, child_candidates), suffix: LookaroundPrefixPath(depth, n, machine, append_routine(capture_context, routine), child_candidates, Cons(child_char, child_rest), after_input, ThreadActive(destination), history_push_bounded(history, char), policy)) -> LookaroundPrefixPath(depth, n, machine, capture_context, Cons(Active(destination, routine, constraints), values), Cons(char, rest), after_input, ThreadActive(source), history, policy) = assert_type LookaroundPrefixNextActive(source, char, rest, destination, routine, constraints, lookaround_nested_decisions(depth, constraints, lookaround_transition_boundary(char, rest, after_input, policy), append_characters(rest, after_input), history, capture_context, policy), members, cursor, reflexive(Cons(Active(destination, routine, constraints), values)), machine_state_members_active_current_edge(destination, routine, constraints, members), child_char, child_rest, child_input_equivalent, child_destinations, child_destinations_equivalent, child_cursor_suffix, suffix) : LookaroundPrefixPath(depth, n, machine, capture_context, Cons(Active(destination, routine, constraints), values), Cons(char, rest), after_input, ThreadActive(source), history, policy)
+
+  fn lookaround_prefix_step_accepted(depth: Nat, n: Nat, machine: PatternMachine(n), char: Char, rest: List(Char), after_input: List(Char), source: Bounded(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), edge: ListMember(MachineState(n), Accepted(routine, constraints), lookaround_machine_destinations(depth, n, machine, ThreadActive(source), char, rest, after_input, history, capture_context, policy)), {values: List(MachineState(n))}, members: MachineStateMembers(n, lookaround_machine_destinations(depth, n, machine, ThreadActive(source), char, rest, after_input, history, capture_context, policy), Cons(Accepted(routine, constraints), values)), cursor: MachineStateCursor(n, lookaround_machine_destinations(depth, n, machine, ThreadActive(source), char, rest, after_input, history, capture_context, policy), Cons(Accepted(routine, constraints), values)), child_cursor_suffix: MachineStateCursorSuffix(n, Nil(), Nil()), suffix: LookaroundPrefixPath(depth, n, machine, append_routine(capture_context, routine), Nil(), rest, after_input, ThreadAccepted(), history_push_bounded(history, char), policy)) -> LookaroundPrefixPath(depth, n, machine, capture_context, Cons(Accepted(routine, constraints), values), Cons(char, rest), after_input, ThreadActive(source), history, policy) = assert_type LookaroundPrefixNextAccepted(source, char, rest, routine, constraints, lookaround_nested_decisions(depth, constraints, lookaround_transition_boundary(char, rest, after_input, policy), append_characters(rest, after_input), history, capture_context, policy), members, cursor, reflexive(Cons(Accepted(routine, constraints), values)), machine_state_members_accepted_current_edge(routine, constraints, members), child_cursor_suffix, suffix) : LookaroundPrefixPath(depth, n, machine, capture_context, Cons(Accepted(routine, constraints), values), Cons(char, rest), after_input, ThreadActive(source), history, policy)
+
+  type LookaroundSearchPath(depth: Nat, n: Nat, machine: PatternMachine(n), capture_context: List(EvidenceInstruction), starts: List(MachineState(n))) indices (input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy)
+    LookaroundSearchFoundActive : (char: Char) -> (rest: List(Char)) -> (input_equivalent: Equivalent(List(Char), input, Cons(char, rest))) -> (state: Bounded(n)) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (member: ListMember(MachineState(n), Active(state, routine, constraints), starts)) -> {@erased candidates: List(MachineState(n))} -> (cursor_suffix: MachineStateCursorSuffix(n, lookaround_machine_destinations(depth, n, machine, ThreadActive(state), char, rest, after_input, history, append_routine(capture_context, routine), policy), candidates)) -> (path: LookaroundAcceptingPath(depth, n, machine, append_routine(capture_context, routine), candidates, Cons(char, rest), after_input, ThreadActive(state), history, policy)) -> LookaroundSearchPath(depth, n, machine, capture_context, starts, input, after_input, history, policy)
+    LookaroundSearchFoundAccepted : (input_equivalent: Equivalent(List(Char), input, Nil())) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (member: ListMember(MachineState(n), Accepted(routine, constraints), starts)) -> (cursor_suffix: MachineStateCursorSuffix(n, Nil(), Nil())) -> (path: LookaroundAcceptingPath(depth, n, machine, append_routine(capture_context, routine), Nil(), input, after_input, ThreadAccepted(), history, policy)) -> LookaroundSearchPath(depth, n, machine, capture_context, starts, input, after_input, history, policy)
+
+  type LookaroundPrefixSearchPath(depth: Nat, n: Nat, machine: PatternMachine(n), capture_context: List(EvidenceInstruction), starts: List(MachineState(n))) indices (input: List(Char), after_input: List(Char), history: List(Char), policy: NewlinePolicy)
+    LookaroundPrefixSearchFoundActive : (char: Char) -> (rest: List(Char)) -> (input_equivalent: Equivalent(List(Char), input, Cons(char, rest))) -> (state: Bounded(n)) -> (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (member: ListMember(MachineState(n), Active(state, routine, constraints), starts)) -> {@erased candidates: List(MachineState(n))} -> (cursor_suffix: MachineStateCursorSuffix(n, lookaround_machine_destinations(depth, n, machine, ThreadActive(state), char, rest, after_input, history, append_routine(capture_context, routine), policy), candidates)) -> (path: LookaroundPrefixPath(depth, n, machine, append_routine(capture_context, routine), candidates, Cons(char, rest), after_input, ThreadActive(state), history, policy)) -> LookaroundPrefixSearchPath(depth, n, machine, capture_context, starts, input, after_input, history, policy)
+    LookaroundPrefixSearchFoundAccepted : (routine: List(EvidenceInstruction)) -> (constraints: List(BoundaryConstraint)) -> (member: ListMember(MachineState(n), Accepted(routine, constraints), starts)) -> (path: LookaroundPrefixPath(depth, n, machine, append_routine(capture_context, routine), Nil(), input, after_input, ThreadAccepted(), history, policy)) -> LookaroundPrefixSearchPath(depth, n, machine, capture_context, starts, input, after_input, history, policy)
+
+  type LookaroundAcceptingPathResult(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), policy: NewlinePolicy, capture_context: List(EvidenceInstruction))
+    LookaroundAcceptingPathRejectedEmpty : (source: Bounded(n)) -> (@erased cursor: MachineStateCursor(n, Nil(), Nil())) -> (failure: LookaroundPathFailure(depth, n, machine, Nil(), after_input, ThreadActive(source), history, capture_context, policy, Nil(), Nil())) -> LookaroundAcceptingPathResult(depth, n, machine, Nil(), after_input, ThreadActive(source), history, policy, capture_context)
+    LookaroundAcceptingPathRejectedStep : (source: Bounded(n)) -> (char: Char) -> (rest: List(Char)) -> (@erased cursor: MachineStateCursor(n, lookaround_machine_destinations(depth, n, machine, ThreadActive(source), char, rest, after_input, history, capture_context, policy), lookaround_machine_destinations(depth, n, machine, ThreadActive(source), char, rest, after_input, history, capture_context, policy))) -> (failure: LookaroundPathFailure(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, lookaround_machine_destinations(depth, n, machine, ThreadActive(source), char, rest, after_input, history, capture_context, policy), lookaround_machine_destinations(depth, n, machine, ThreadActive(source), char, rest, after_input, history, capture_context, policy))) -> LookaroundAcceptingPathResult(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, policy, capture_context)
+    LookaroundAcceptingPathRejectedAcceptedStep : (char: Char) -> (rest: List(Char)) -> (@erased cursor: MachineStateCursor(n, Nil(), Nil())) -> (failure: LookaroundPathFailure(depth, n, machine, Cons(char, rest), after_input, ThreadAccepted(), history, capture_context, policy, Nil(), Nil())) -> LookaroundAcceptingPathResult(depth, n, machine, Cons(char, rest), after_input, ThreadAccepted(), history, policy, capture_context)
+    LookaroundAcceptingPathFoundActive : (source: Bounded(n)) -> (char: Char) -> (rest: List(Char)) -> (@erased destinations: List(MachineState(n))) -> (@erased destinations_equivalent: Equivalent(List(MachineState(n)), destinations, lookaround_machine_destinations(depth, n, machine, ThreadActive(source), char, rest, after_input, history, capture_context, policy))) -> {@erased candidates: List(MachineState(n))} -> (cursor_suffix: MachineStateCursorSuffix(n, destinations, candidates)) -> (path: LookaroundAcceptingPath(depth, n, machine, capture_context, candidates, Cons(char, rest), after_input, ThreadActive(source), history, policy)) -> LookaroundAcceptingPathResult(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, policy, capture_context)
+    LookaroundAcceptingPathFoundAccepted : (input_equivalent: Equivalent(List(Char), input, Nil())) -> (cursor_suffix: MachineStateCursorSuffix(n, empty_machine_states(n), empty_machine_states(n))) -> (path: LookaroundAcceptingPath(depth, n, machine, capture_context, empty_machine_states(n), input, after_input, ThreadAccepted(), history, policy)) -> LookaroundAcceptingPathResult(depth, n, machine, input, after_input, ThreadAccepted(), history, policy, capture_context)
+
+  ## Internal result for a destination-list traversal. Unlike the public result
+  ## above, this carries the full destination list as a parameter, so recursive
+  ## tail failures cannot escape as an unconstrained existential.
+  type LookaroundAcceptingMembersResult(depth: Nat, n: Nat, machine: PatternMachine(n), destinations: List(MachineState(n)), current: List(MachineState(n))) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), policy: NewlinePolicy, capture_context: List(EvidenceInstruction))
+    LookaroundAcceptingMembersRejected : (failure: LookaroundPathFailure(depth, n, machine, input, after_input, state, history, capture_context, policy, destinations, current)) -> (@erased cursor: MachineStateCursor(n, destinations, current)) -> LookaroundAcceptingMembersResult(depth, n, machine, destinations, current, input, after_input, state, history, policy, capture_context)
+    LookaroundAcceptingMembersFound : {@erased candidates: List(MachineState(n))} -> (cursor_suffix: MachineStateCursorSuffix(n, current, candidates)) -> (path: LookaroundAcceptingPath(depth, n, machine, capture_context, candidates, input, after_input, state, history, policy)) -> LookaroundAcceptingMembersResult(depth, n, machine, destinations, current, input, after_input, state, history, policy, capture_context)
+
+  type LookaroundPrefixMembersResult(depth: Nat, n: Nat, machine: PatternMachine(n), destinations: List(MachineState(n)), current: List(MachineState(n))) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), policy: NewlinePolicy, capture_context: List(EvidenceInstruction))
+    LookaroundPrefixMembersRejected : (source: Bounded(n)) -> (failure: LookaroundPrefixPathFailure(depth, n, machine, input, after_input, source, history, capture_context, policy, destinations, current)) -> (@erased cursor: MachineStateCursor(n, destinations, current)) -> LookaroundPrefixMembersResult(depth, n, machine, destinations, current, input, after_input, ThreadActive(source), history, policy, capture_context)
+    LookaroundPrefixMembersFound : {@erased candidates: List(MachineState(n))} -> (cursor_suffix: MachineStateCursorSuffix(n, current, candidates)) -> (path: LookaroundPrefixPath(depth, n, machine, capture_context, candidates, input, after_input, state, history, policy)) -> LookaroundPrefixMembersResult(depth, n, machine, destinations, current, input, after_input, state, history, policy, capture_context)
+
+  type LookaroundPrefixPathResult(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), policy: NewlinePolicy, capture_context: List(EvidenceInstruction))
+    LookaroundPrefixPathRejectedEmpty : (source: Bounded(n)) -> (@erased cursor: MachineStateCursor(n, Nil(), Nil())) -> (failure: LookaroundPrefixPathFailure(depth, n, machine, Nil(), after_input, source, history, capture_context, policy, Nil(), Nil())) -> LookaroundPrefixPathResult(depth, n, machine, Nil(), after_input, ThreadActive(source), history, policy, capture_context)
+    LookaroundPrefixPathRejectedStep : (source: Bounded(n)) -> (char: Char) -> (rest: List(Char)) -> (@erased cursor: MachineStateCursor(n, lookaround_machine_destinations(depth, n, machine, ThreadActive(source), char, rest, after_input, history, capture_context, policy), lookaround_machine_destinations(depth, n, machine, ThreadActive(source), char, rest, after_input, history, capture_context, policy))) -> (failure: LookaroundPrefixPathFailure(depth, n, machine, Cons(char, rest), after_input, source, history, capture_context, policy, lookaround_machine_destinations(depth, n, machine, ThreadActive(source), char, rest, after_input, history, capture_context, policy), lookaround_machine_destinations(depth, n, machine, ThreadActive(source), char, rest, after_input, history, capture_context, policy))) -> LookaroundPrefixPathResult(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, policy, capture_context)
+    LookaroundPrefixPathFoundActive : (source: Bounded(n)) -> (char: Char) -> (rest: List(Char)) -> (@erased destinations: List(MachineState(n))) -> (@erased destinations_equivalent: Equivalent(List(MachineState(n)), destinations, lookaround_machine_destinations(depth, n, machine, ThreadActive(source), char, rest, after_input, history, capture_context, policy))) -> {@erased candidates: List(MachineState(n))} -> (cursor_suffix: MachineStateCursorSuffix(n, destinations, candidates)) -> (path: LookaroundPrefixPath(depth, n, machine, capture_context, candidates, Cons(char, rest), after_input, ThreadActive(source), history, policy)) -> LookaroundPrefixPathResult(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, policy, capture_context)
+    LookaroundPrefixPathFoundAccepted : (path: LookaroundPrefixPath(depth, n, machine, capture_context, Nil(), input, after_input, ThreadAccepted(), history, policy)) -> LookaroundPrefixPathResult(depth, n, machine, input, after_input, ThreadAccepted(), history, policy, capture_context)
+
+  fn lookaround_path_failure_active_rejected_empty_here(
+    {@erased depth: Nat},
+    n: Nat,
+    machine: PatternMachine(n),
+    char: Char,
+    @erased after_input: List(Char),
+    @erased source: ThreadState(n),
+    @erased history: List(Char),
+    @erased capture_context: List(EvidenceInstruction),
+    @erased policy: NewlinePolicy,
+    @erased remaining_destinations: List(MachineState(n)),
+    destination: Bounded(n),
+    routine: List(EvidenceInstruction),
+    constraints: List(BoundaryConstraint),
+    @erased candidates: List(MachineState(n)),
+    @erased equality: Equivalent(List(MachineState(n)), Cons(Active(destination, routine, constraints), remaining_destinations), candidates),
+    path: LookaroundAcceptingPath(depth, n, machine, capture_context, candidates, Cons(char, Nil()), after_input, source, history, policy)
+  ) -> Empty = match path
+    LookaroundAcceptedNow() -> impossible
+    LookaroundAcceptedNextActive(_, _, _, _, _, _, _, _, _, candidate_equivalent, _, _, _, child_input_equivalent, _, _, _, _) -> match equality
+      reflexive() -> match candidate_equivalent
+        reflexive() -> match child_input_equivalent
+          reflexive() -> impossible
+    LookaroundAcceptedNextAccepted(_, _, _, accepted_routine, accepted_constraints, _, _, _, candidate_equivalent, _, _, _) ->
+      lookaround_impossible_active_accepted_candidates(equality, candidate_equivalent)
+
+  ## Prefix acceptance is intentionally different from exact acceptance: an
+  ## accepted thread succeeds immediately, even when input remains.  Its
+  ## rejection proof therefore uses the smaller prefix-only failure family and
+  ## has no accepted-with-input or accepted-destination rejection cases.
+  fn lookaround_prefix_empty_active_path_impossible(
+    {@erased depth: Nat},
+    n: Nat,
+    machine: PatternMachine(n),
+    {@erased after_input: List(Char)},
+    source: Bounded(n),
+    {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy},
+    {@erased candidates: List(MachineState(n))},
+    {result: Type},
+    path: LookaroundPrefixPath(depth, n, machine, capture_context, candidates, Nil(), after_input, ThreadActive(source), history, policy)
+  ) -> result = match path
+    LookaroundPrefixAccepted() -> impossible
+    LookaroundPrefixNextActive(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+    LookaroundPrefixNextAccepted(_, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+
+  fn lookaround_prefix_failure_active_empty_here(
+    {@erased depth: Nat},
+    n: Nat,
+    machine: PatternMachine(n),
+    char: Char,
+    @erased after_input: List(Char),
+    source: Bounded(n),
+    @erased history: List(Char),
+    @erased capture_context: List(EvidenceInstruction),
+    @erased policy: NewlinePolicy,
+    @erased remaining_destinations: List(MachineState(n)),
+    destination: Bounded(n),
+    routine: List(EvidenceInstruction),
+    constraints: List(BoundaryConstraint),
+    @erased candidates: List(MachineState(n)),
+    @erased equality: Equivalent(List(MachineState(n)), Cons(Active(destination, routine, constraints), remaining_destinations), candidates),
+    path: LookaroundPrefixPath(depth, n, machine, capture_context, candidates, Cons(char, Nil()), after_input, ThreadActive(source), history, policy)
+  ) -> Empty = match path
+    LookaroundPrefixAccepted() -> impossible
+    LookaroundPrefixNextActive(_, _, _, _, _, _, _, _, _, candidate_equivalent, _, _, _, child_input_equivalent, _, _, _, _) -> match equality
+      reflexive() -> match candidate_equivalent
+        reflexive() -> match child_input_equivalent
+    LookaroundPrefixNextAccepted(_, _, _, accepted_routine, accepted_constraints, _, _, _, candidate_equivalent, _, _, _) ->
+      lookaround_impossible_active_accepted_candidates(equality, candidate_equivalent)
+
+  typealias AtomicPathRejectedTailAt(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), current: List(LookaroundAdmittedState(n))) = AtomicPathTailPackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current)
+
+  ## Generic construction-site eliminator for a rejected start suffix. The
+  ## failure and no-result witness are indexed by the same `Cons(head, rest)`
+  ## spine; only the membership witness decides whether the supplied proof is
+  ## the head case or the recursively prepared tail case.  The `There` branch
+  ## receives the typed tail package extracted from the rejected constructor;
+  ## it does not recover or classify the existential tail failure kind.
+  @reducible
+  fn atomic_start_rejected_member_induction(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {whole: List(LookaroundAdmittedState(n))},
+    head: LookaroundAdmittedState(n),
+    rest: List(LookaroundAdmittedState(n)),
+    selected_start: LookaroundAdmittedState(n),
+    @erased _failure: AtomicStartMembersRefutation(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(head, rest),
+      AtomicStartFailureRejected()
+    ),
+    @erased _evidence: AtomicStartNoEvidence(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(head, rest),
+      AtomicStartFailureRejected()
+    ),
+    membership: ListMember(LookaroundAdmittedState(n), selected_start, Cons(head, rest)),
+    head_case: result,
+    tail_case: (AtomicStartRejectedTailAt(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, rest)) -> result
+  ) -> result = match atomic_start_member_location(selected_start, head, rest, membership)
+    AtomicStartMemberHere(_) -> head_case
+    AtomicStartMemberThere(_, _) -> match _evidence
+      AtomicStartNoRejectedEvidence(_, _, _, _, _, _, _, _, _, _, _, _, _, tail_failure, tail_evidence) ->
+        tail_case(AtomicStartTailPackagePacked(tail_failure, tail_evidence))
+
+  ## Selected-trace counterpart of the erased rejected-member induction.  A
+  ## `There` witness contains the exact prior membership for the recursive
+  ## tail; package that witness together with the tail refutation/evidence and
+  ## the unchanged selected trace before invoking the continuation.  This is
+  ## the canonical transport boundary for arbitrary sibling recursion.
+  @reducible
+  fn atomic_start_rejected_member_induction_selected_erased(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {whole: List(LookaroundAdmittedState(n))},
+    {@erased head: LookaroundAdmittedState(n)},
+    {@erased rest: List(LookaroundAdmittedState(n))},
+    {@erased selected_start: LookaroundAdmittedState(n)},
+    @erased _failure: AtomicStartMembersRefutation(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(head, rest),
+      AtomicStartFailureRejected()
+    ),
+    @erased _evidence: AtomicStartNoEvidence(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(head, rest),
+      AtomicStartFailureRejected()
+    ),
+    membership: ListMember(LookaroundAdmittedState(n), selected_start, Cons(head, rest)),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      selected_start,
+      matched,
+      remaining_input,
+      selected_routine
+    ),
+    head_case: result,
+    tail_case: (AtomicStartSelectedTailPackage(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, rest, selected_start, matched, remaining_input, selected_routine)) -> result
+  ) -> result = match membership
+    ListMemberHere() -> head_case
+    ListMemberThere(prior) -> match _evidence
+      AtomicStartNoRejectedEvidence(_, _, _, _, _, _, _, _, _, _, _, _, _, tail_failure, tail_evidence) ->
+        tail_case(AtomicStartSelectedTailPackagePacked(tail_failure, tail_evidence, prior, path))
+
+  ## Package-preserving dual of the selected rejected-member induction. The
+  ## exact selected-start package is relevant context and is transported
+  ## unchanged when membership advances into the sibling tail.
+  @reducible
+  fn atomic_start_rejected_member_induction_selected_package(
+    {result: Type}, {depth: Nat}, {n: Nat},
+    machine: PatternMachine(n), position: InitialPosition,
+    input: List(Char), after_input: List(Char), history: List(Char),
+    capture_context: List(EvidenceInstruction), policy: NewlinePolicy,
+    prefix_mode: Bool, reversed_prefix: List(Char),
+    {whole: List(LookaroundAdmittedState(n))},
+    {@erased head: LookaroundAdmittedState(n)},
+    {@erased rest: List(LookaroundAdmittedState(n))},
+    {@erased selected_start: LookaroundAdmittedState(n)},
+    @erased _failure: AtomicStartMembersRefutation(
+      depth, n, machine, position, input, after_input, history,
+      capture_context, policy, prefix_mode, reversed_prefix, whole,
+      Cons(head, rest), AtomicStartFailureRejected()
+    ),
+    @erased _evidence: AtomicStartNoEvidence(
+      depth, n, machine, position, input, after_input, history,
+      capture_context, policy, prefix_mode, reversed_prefix, whole,
+      Cons(head, rest), AtomicStartFailureRejected()
+    ),
+    membership: ListMember(LookaroundAdmittedState(n), selected_start, Cons(head, rest)),
+    {matched: List(Char)}, {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    {@erased path: AtomicSelectedTrace(
+      depth, n, machine, position, input, after_input, history,
+      capture_context, policy, prefix_mode, reversed_prefix, selected_start,
+      matched, remaining_input, selected_routine
+    )},
+    trace_package: AtomicSelectedTracePackage(
+      depth, n, machine, position, input, after_input, history,
+      capture_context, policy, prefix_mode, reversed_prefix, selected_start,
+      matched, remaining_input, selected_routine, path
+    ),
+    head_case: result,
+    tail_case: (AtomicStartSelectedTailTracePackage(
+      depth, n, machine, position, input, after_input, history,
+      capture_context, policy, prefix_mode, reversed_prefix, whole, rest,
+      selected_start, matched, remaining_input, selected_routine
+    )) -> result
+  ) -> result = match membership
+    ListMemberHere() -> head_case
+    ListMemberThere(prior) -> match _evidence
+      AtomicStartNoRejectedEvidence(_, _, _, _, _, _, _, _, _, _, _, _, _, tail_failure, tail_evidence) -> tail_case(
+        AtomicStartSelectedTailTracePacked(
+          tail_failure,
+          tail_evidence,
+          prior,
+          trace_package
+        )
+      )
+end

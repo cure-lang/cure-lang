@@ -1,0 +1,743 @@
+@group(:text)
+mod Std.Regex.Runtime.LeafCluster05
+  use Std.Regex.Runtime.SinkShapePrelude
+
+  use Std.Regex.Runtime.SinkLookaroundProofs
+
+  use Std.Regex.Runtime.SinkAtomicCommit
+
+  use Std.Regex.Runtime.SinkAtomicRejections
+
+  use Std.Regex.Runtime.LookaroundAdmission
+
+  use Std.Regex.Runtime.ActiveChildShapeAlignmentPackageBridge
+
+  use Std.Regex.Runtime.ActiveChildShapeAlignmentPackageDispatch
+
+  use Std.Regex.Runtime.InitialMembersRoot
+
+  use Std.Regex.Runtime.ActiveChildShapeAlignmentPackage
+
+  use Std.Regex.Runtime.ActiveChildShapeAlignment
+
+  use Std.Regex.Runtime.CursorShapeLocations
+
+  use Std.Regex.Runtime.InitialMembers
+
+  use Std.Regex.Runtime.Roots
+
+  use Std.Regex.Runtime.LeafAuthorities
+
+  use Std.Regex.Runtime.EvidenceExecution
+
+  use Std.Regex.Runtime.LookaroundCompilation
+
+  use Std.Regex.Runtime.ExtendedEvidenceTypes
+
+  use Std.Regex.Runtime.AtomicDepthTypes
+
+  use Std.Regex.Runtime.CandidateEquivalencePrimitives
+
+  use Std.Regex.Runtime.CaptureSlotMarkerPrimitives
+
+  use Std.Regex.Runtime.StateRoutinePrimitives
+
+  use Std.Regex.Runtime.MachineMemberEdgePrimitives
+
+  use Std.Regex.Runtime.LookaroundSupportPrimitives
+
+  use Std.Regex.Runtime.AtomicPathActiveChildShapeHerePackageFold
+
+  use Std.Regex.Runtime.AtomicStartScopeSelectionExcludes
+
+  use Std.Regex.Runtime.LookaroundExhaustionFromList
+
+  use Std.Regex.Runtime.AtomicStartDecisions
+
+  use Std.Regex.Runtime.DepthExclusion
+
+  use Std.Regex.Runtime.ExhaustionFromMembers
+
+  use Std.Regex.Runtime.CursorShapeAuthority
+
+  use Std.Regex.Runtime.ActiveChildShapeHere
+
+  use Std.Regex.Runtime.CursorShape
+
+  use Std.Regex.Runtime.SearchCursors
+
+  use Std.Regex.Runtime.CandidateEquivalence
+
+  use Std.Regex.Runtime.CaptureSlotMarkers
+
+  use Std.Regex.Runtime.AtomicDecisions
+
+  use Std.Regex.Runtime.MachineMemberEdges
+
+  use Std.Regex.Runtime.AtomicDepthMaximum
+
+  use Std.Regex.Runtime.MemberTransport
+
+  use Std.Regex.Runtime.EvidenceStep
+
+  use Std.Regex.Runtime.AtomicStartMember
+
+  use Std.Regex.Runtime.AtomicFailureAuthority
+
+  use Std.Regex.Runtime.AtomicDepth
+
+  use Std.Regex.Runtime.LookaroundSupport
+
+  use Std.Regex.Runtime.NamedCaptureSearch
+
+  use Std.Regex.Runtime.PatternSearch
+
+  use Std.Regex.Runtime.EvidenceSearch
+
+  use Std.Regex.Runtime.MachineSearch
+
+  use Std.Regex.Runtime.CharacterClasses
+
+  use Std.Regex.Runtime.NamedSearch
+
+  use Std.Regex.Runtime.MachineTransitions
+
+  use Std.Regex.Runtime.NamedStaging
+
+  use Std.Regex.Runtime.MachineEntry
+
+  use Std.Regex.Runtime.LineBreak
+
+  use Std.Regex.Runtime.CharacterMatchers
+
+  use Std.Regex.Runtime.Combinators
+
+  use Std.Regex.Runtime.Anchors
+
+  use Std.Regex.Runtime.CompileRegex
+
+  use Std.Regex.Runtime.ConversionAdapters
+
+  use Std.Regex.Runtime.ThreadDedup
+
+  use Std.Regex.Runtime.NamedTypes
+
+  use Std.Regex.Runtime.RegexType
+
+  use Std.Regex.Runtime.CharacterSemantics
+
+  use Std.Regex.Runtime.Conversion
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Runtime.CaptureConditions
+
+  use Std.Regex.Runtime.Boundaries
+
+  use Std.Regex.Runtime.AtomicDiagnostics
+
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Char
+
+  use Std.Option
+
+  use Std.List
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  use Std.Decision
+
+  ## Correlated terminal/recursive split for a local input-exhausted commit.
+  ## Same rewrites the selected cursor to the commit cursor and consumes the
+  ## package-native leaf. Strict branches retain the entire correlated carrier.
+  @reducible
+  fn atomic_path_commit_after_input_exhausted_correlated_location_fold(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased after_input: List(Char)},
+    {@erased source: Bounded(n)}, {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased active_state: Bounded(n)},
+    {@erased active_routine: List(EvidenceInstruction)},
+    {@erased active_constraints: List(BoundaryConstraint)},
+    {@erased active_assertion_routine: List(ExtendedInstruction)},
+    {@erased active_assertion_markers: List(EvidenceInstruction)},
+    {@erased active_nested_decisions: List(LookaroundNestedDecision)},
+    {@erased remaining: List(LookaroundAdmittedState(n))},
+    {@erased commit_depth: Nat},
+    child_prefix_kind: AtomicPathFailurePrefixKind,
+    {@erased selected_current: List(LookaroundAdmittedState(n))},
+    {@erased matched: List(Char)},
+    {@erased remaining_input: List(Char)},
+    {@erased selected_routine: List(ExtendedInstruction)},
+    {@erased path: AtomicSelectedPathTrace(
+      depth, n, machine, Cons(char, Nil()), after_input, ThreadActive(source),
+      history, capture_context, policy, scope_depth, prefix_mode,
+      reversed_prefix, selected_current, matched, remaining_input,
+      selected_routine
+    )},
+    {selected_skipped_package: Type},
+    package: AtomicPathCommitSelectedLocationPackage(
+      n,
+      AtomicPathCommitStructureExistentialPackage(
+        depth, n, machine, Cons(char, Nil()), after_input,
+        ThreadActive(source), history, capture_context, policy, scope_depth,
+        prefix_mode, reversed_prefix, whole,
+        Cons(LookaroundAdmittedActive(active_state, active_routine, active_constraints, active_assertion_routine, active_assertion_markers, active_nested_decisions), remaining),
+        commit_depth,
+        AtomicPathCommitAfterFailureKind(child_prefix_kind, AtomicPathFailureInputExhausted())
+      ),
+      LookaroundAdmittedStateCursorSuffixPackage(
+        n,
+        whole,
+        Cons(LookaroundAdmittedActive(active_state, active_routine, active_constraints, active_assertion_routine, active_assertion_markers, active_nested_decisions), remaining)
+      ),
+      AtomicSelectedPathTracePackage(
+        depth, n, machine, Cons(char, Nil()), after_input,
+        ThreadActive(source), history, capture_context, policy, scope_depth,
+        prefix_mode, reversed_prefix, selected_current, matched,
+        remaining_input, selected_routine, path
+      ),
+      selected_skipped_package,
+      Cons(LookaroundAdmittedActive(active_state, active_routine, active_constraints, active_assertion_routine, active_assertion_markers, active_nested_decisions), remaining),
+      selected_current
+    ),
+    left_case: (AtomicPathCommitSelectedLocationPackage(
+      n,
+      AtomicPathCommitStructureExistentialPackage(depth, n, machine, Cons(char, Nil()), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(LookaroundAdmittedActive(active_state, active_routine, active_constraints, active_assertion_routine, active_assertion_markers, active_nested_decisions), remaining), commit_depth, AtomicPathCommitAfterFailureKind(child_prefix_kind, AtomicPathFailureInputExhausted())),
+      LookaroundAdmittedStateCursorSuffixPackage(n, whole, Cons(LookaroundAdmittedActive(active_state, active_routine, active_constraints, active_assertion_routine, active_assertion_markers, active_nested_decisions), remaining)),
+      AtomicSelectedPathTracePackage(depth, n, machine, Cons(char, Nil()), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, selected_current, matched, remaining_input, selected_routine, path),
+      selected_skipped_package,
+      Cons(LookaroundAdmittedActive(active_state, active_routine, active_constraints, active_assertion_routine, active_assertion_markers, active_nested_decisions), remaining),
+      selected_current
+    )) -> Empty,
+    right_case: (AtomicPathCommitSelectedLocationPackage(
+      n,
+      AtomicPathCommitStructureExistentialPackage(depth, n, machine, Cons(char, Nil()), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(LookaroundAdmittedActive(active_state, active_routine, active_constraints, active_assertion_routine, active_assertion_markers, active_nested_decisions), remaining), commit_depth, AtomicPathCommitAfterFailureKind(child_prefix_kind, AtomicPathFailureInputExhausted())),
+      LookaroundAdmittedStateCursorSuffixPackage(n, whole, Cons(LookaroundAdmittedActive(active_state, active_routine, active_constraints, active_assertion_routine, active_assertion_markers, active_nested_decisions), remaining)),
+      AtomicSelectedPathTracePackage(depth, n, machine, Cons(char, Nil()), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, selected_current, matched, remaining_input, selected_routine, path),
+      selected_skipped_package,
+      Cons(LookaroundAdmittedActive(active_state, active_routine, active_constraints, active_assertion_routine, active_assertion_markers, active_nested_decisions), remaining),
+      selected_current
+    )) -> Empty
+  ) -> Empty = match package
+    AtomicPathCommitSelectedSamePacked(commit_package, _, trace_package, _, equality) -> match commit_package
+      AtomicPathCommitStructureExistentialPacked(cause, _) -> match equality
+        reflexive() -> atomic_path_commit_after_input_exhausted_excludes_aligned_selected_package(
+          child_prefix_kind,
+          cause,
+          trace_package
+        )
+    AtomicPathCommitSelectedLeftAfterPacked(_, _, _, _, _) -> left_case(package)
+    AtomicPathCommitSelectedRightAfterPacked(_, _, _, _, _) -> right_case(package)
+
+  ## Correlated exact-accepted dual. Same consumes the accepted child package
+  ## at its impossible non-empty exact index; strict locations preserve the
+  ## cause, commit cursor package, and selected trace package together.
+  @reducible
+  fn atomic_path_commit_after_exact_accepted_correlated_location_fold(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased child_char: Char},
+    {@erased child_rest: List(Char)}, {@erased after_input: List(Char)},
+    {@erased source: Bounded(n)}, {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased accepted_routine: List(EvidenceInstruction)},
+    {@erased accepted_constraints: List(BoundaryConstraint)},
+    {@erased accepted_assertion_routine: List(ExtendedInstruction)},
+    {@erased accepted_assertion_markers: List(EvidenceInstruction)},
+    {@erased accepted_nested_decisions: List(LookaroundNestedDecision)},
+    {@erased remaining: List(LookaroundAdmittedState(n))},
+    {@erased commit_depth: Nat},
+    child_prefix_kind: AtomicPathFailurePrefixKind,
+    {@erased selected_current: List(LookaroundAdmittedState(n))},
+    {@erased matched: List(Char)},
+    {@erased remaining_input: List(Char)},
+    {@erased selected_routine: List(ExtendedInstruction)},
+    {@erased path: AtomicSelectedPathTrace(
+      depth, n, machine, Cons(char, Cons(child_char, child_rest)), after_input,
+      ThreadActive(source), history, capture_context, policy, scope_depth,
+      False(), reversed_prefix, selected_current, matched, remaining_input,
+      selected_routine
+    )},
+    {selected_skipped_package: Type},
+    package: AtomicPathCommitSelectedLocationPackage(
+      n,
+      AtomicPathCommitStructureExistentialPackage(
+        depth, n, machine, Cons(char, Cons(child_char, child_rest)), after_input,
+        ThreadActive(source), history, capture_context, policy, scope_depth,
+        False(), reversed_prefix, whole,
+        Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining),
+        commit_depth,
+        AtomicPathCommitAfterFailureKind(child_prefix_kind, AtomicPathFailureExactAccepted())
+      ),
+      LookaroundAdmittedStateCursorSuffixPackage(
+        n,
+        whole,
+        Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining)
+      ),
+      AtomicSelectedPathTracePackage(
+        depth, n, machine, Cons(char, Cons(child_char, child_rest)), after_input,
+        ThreadActive(source), history, capture_context, policy, scope_depth,
+        False(), reversed_prefix, selected_current, matched, remaining_input,
+        selected_routine, path
+      ),
+      selected_skipped_package,
+      Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining),
+      selected_current
+    ),
+    left_case: (AtomicPathCommitSelectedLocationPackage(
+      n,
+      AtomicPathCommitStructureExistentialPackage(depth, n, machine, Cons(char, Cons(child_char, child_rest)), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, False(), reversed_prefix, whole, Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining), commit_depth, AtomicPathCommitAfterFailureKind(child_prefix_kind, AtomicPathFailureExactAccepted())),
+      LookaroundAdmittedStateCursorSuffixPackage(n, whole, Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining)),
+      AtomicSelectedPathTracePackage(depth, n, machine, Cons(char, Cons(child_char, child_rest)), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, False(), reversed_prefix, selected_current, matched, remaining_input, selected_routine, path),
+      selected_skipped_package,
+      Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining),
+      selected_current
+    )) -> Empty,
+    right_case: (AtomicPathCommitSelectedLocationPackage(
+      n,
+      AtomicPathCommitStructureExistentialPackage(depth, n, machine, Cons(char, Cons(child_char, child_rest)), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, False(), reversed_prefix, whole, Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining), commit_depth, AtomicPathCommitAfterFailureKind(child_prefix_kind, AtomicPathFailureExactAccepted())),
+      LookaroundAdmittedStateCursorSuffixPackage(n, whole, Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining)),
+      AtomicSelectedPathTracePackage(depth, n, machine, Cons(char, Cons(child_char, child_rest)), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, False(), reversed_prefix, selected_current, matched, remaining_input, selected_routine, path),
+      selected_skipped_package,
+      Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), remaining),
+      selected_current
+    )) -> Empty
+  ) -> Empty = match package
+    AtomicPathCommitSelectedSamePacked(commit_package, _, trace_package, _, equality) -> match commit_package
+      AtomicPathCommitStructureExistentialPacked(cause, _) -> match equality
+        reflexive() -> atomic_path_commit_after_exact_accepted_excludes_aligned_selected_package(
+          child_prefix_kind,
+          cause,
+          trace_package
+        )
+    AtomicPathCommitSelectedLeftAfterPacked(_, _, _, _, _) -> left_case(package)
+    AtomicPathCommitSelectedRightAfterPacked(_, _, _, _, _) -> right_case(package)
+
+  @reducible
+  fn atomic_path_skipped_prefix_rejected_cons_tail(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased rest: List(Char)},
+    {@erased after_input: List(Char)}, {@erased source: Bounded(n)},
+    {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased candidate: LookaroundAdmittedState(n)},
+    {@erased front: List(LookaroundAdmittedState(n))},
+    {@erased current: List(LookaroundAdmittedState(n))},
+    {@erased child_prefix_kind: AtomicPathFailurePrefixKind},
+    {@erased child_kind: AtomicPathFailureKind},
+    {@erased tail_kind: AtomicPathSkippedPrefixKind},
+    @erased evidence: AtomicPathSkippedPrefixEvidence(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, front), current, AtomicPathSkippedPrefixRejectedConsKind(child_prefix_kind, child_kind, tail_kind))
+  ) -> AtomicPathSkippedPrefixTailPackage(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, front, current, tail_kind) = match evidence
+    AtomicPathSkippedRejectedCons(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, tail) -> AtomicPathSkippedPrefixTailPacked(tail)
+
+  @reducible
+  fn atomic_path_skipped_prefix_rejected_cons_head(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased rest: List(Char)},
+    {@erased after_input: List(Char)}, {@erased source: Bounded(n)},
+    {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased candidate: LookaroundAdmittedState(n)},
+    {@erased front: List(LookaroundAdmittedState(n))},
+    {@erased current: List(LookaroundAdmittedState(n))},
+    {@erased child_prefix_kind: AtomicPathFailurePrefixKind},
+    {@erased child_kind: AtomicPathFailureKind},
+    {@erased tail_kind: AtomicPathSkippedPrefixKind},
+    @erased evidence: AtomicPathSkippedPrefixEvidence(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, front), current, AtomicPathSkippedPrefixRejectedConsKind(child_prefix_kind, child_kind, tail_kind))
+  ) -> AtomicPathRejectedSkippedHeadPackage(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, front), current, AtomicPathSkippedPrefixRejectedConsKind(child_prefix_kind, child_kind, tail_kind)) = AtomicPathRejectedSkippedHeadPacked(evidence)
+
+  ## If the rejected skipped head is an active candidate whose child ran out
+  ## of input, selecting that same head exposes the contradictory child trace
+  ## directly. The package match keeps the failure, scope refinement, and
+  ## selected transition at one proof-only construction boundary.
+  @reducible
+  fn atomic_path_rejected_skipped_head_input_exhausted_excludes_selected_trace(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased after_input: List(Char)},
+    {@erased source: Bounded(n)}, {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased active_state: Bounded(n)},
+    {@erased active_routine: List(EvidenceInstruction)},
+    {@erased active_constraints: List(BoundaryConstraint)},
+    {@erased active_assertion_routine: List(ExtendedInstruction)},
+    {@erased active_assertion_markers: List(EvidenceInstruction)},
+    {@erased active_nested_decisions: List(LookaroundNestedDecision)},
+    {@erased front: List(LookaroundAdmittedState(n))},
+    {@erased current: List(LookaroundAdmittedState(n))},
+    {@erased child_prefix_kind: AtomicPathFailurePrefixKind},
+    {@erased tail_kind: AtomicPathSkippedPrefixKind},
+    @erased package: AtomicPathRejectedSkippedHeadPackage(depth, n, machine, Cons(char, Nil()), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(LookaroundAdmittedActive(active_state, active_routine, active_constraints, active_assertion_routine, active_assertion_markers, active_nested_decisions), front), current, AtomicPathSkippedPrefixRejectedConsKind(child_prefix_kind, AtomicPathFailureInputExhausted(), tail_kind)),
+    {@erased matched: List(Char)},
+    {@erased remaining_input: List(Char)},
+    {@erased selected_routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedPathTrace(depth, n, machine, Cons(char, Nil()), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, Cons(LookaroundAdmittedActive(active_state, active_routine, active_constraints, active_assertion_routine, active_assertion_markers, active_nested_decisions), front), matched, remaining_input, selected_routine)
+  ) -> Empty = match package
+    AtomicPathRejectedSkippedHeadPacked(evidence) -> match evidence
+      AtomicPathSkippedRejectedCons(_, _, _, _, _, _, _, child_scope_alignment, _, _, _, _, _, _, _, _, child_failure, _, _, _, _) -> match child_scope_alignment
+        LookaroundAdmittedStateScopeActive(_, _, _, _, _, _) -> match path
+          AtomicSelectedPrefixDone() -> impossible
+          AtomicSelectedExactDone() -> impossible
+          AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, child_trace) -> match child_failure
+            AtomicPathInputExhausted(_, _) -> atomic_path_input_exhaustion_excludes_trace_erased(child_trace)
+          AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+
+  ## Accepted candidates provide the dual terminal leaf. A rejected child at
+  ## an accepted thread with remaining input is indexed by exact-acceptance
+  ## failure; selecting the same accepted head exposes the impossible exact
+  ## child trace at the identical capture context and scope.
+  @reducible
+  fn atomic_path_rejected_skipped_head_exact_accepted_excludes_selected_trace(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased child_char: Char},
+    {@erased child_rest: List(Char)}, {@erased after_input: List(Char)},
+    {@erased source: Bounded(n)}, {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased accepted_routine: List(EvidenceInstruction)},
+    {@erased accepted_constraints: List(BoundaryConstraint)},
+    {@erased accepted_assertion_routine: List(ExtendedInstruction)},
+    {@erased accepted_assertion_markers: List(EvidenceInstruction)},
+    {@erased accepted_nested_decisions: List(LookaroundNestedDecision)},
+    {@erased front: List(LookaroundAdmittedState(n))},
+    {@erased current: List(LookaroundAdmittedState(n))},
+    {@erased child_prefix_kind: AtomicPathFailurePrefixKind},
+    {@erased tail_kind: AtomicPathSkippedPrefixKind},
+    @erased package: AtomicPathRejectedSkippedHeadPackage(depth, n, machine, Cons(char, Cons(child_char, child_rest)), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, False(), reversed_prefix, whole, Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), front), current, AtomicPathSkippedPrefixRejectedConsKind(child_prefix_kind, AtomicPathFailureExactAccepted(), tail_kind)),
+    {@erased matched: List(Char)},
+    {@erased remaining_input: List(Char)},
+    {@erased selected_routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedPathTrace(depth, n, machine, Cons(char, Cons(child_char, child_rest)), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, False(), reversed_prefix, Cons(LookaroundAdmittedAccepted(accepted_routine, accepted_constraints, accepted_assertion_routine, accepted_assertion_markers, accepted_nested_decisions), front), matched, remaining_input, selected_routine)
+  ) -> Empty = match package
+    AtomicPathRejectedSkippedHeadPacked(evidence) -> match evidence
+      AtomicPathSkippedRejectedCons(_, _, _, _, _, _, _, child_scope_alignment, _, _, _, _, _, _, _, _, child_failure, _, _, _, _) -> match child_scope_alignment
+        LookaroundAdmittedStateScopeAccepted(_, _, _, _, _) -> match path
+          AtomicSelectedPrefixDone() -> impossible
+          AtomicSelectedExactDone() -> impossible
+          AtomicSelectedTransitionActive(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) -> impossible
+          AtomicSelectedTransitionAccepted(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, child_trace) -> match child_failure
+            AtomicPathExactAcceptedWithInput(_, _, _, _) -> atomic_path_exact_failure_excludes_trace_erased(child_failure, child_trace)
+
+  ## A locally blocking failure at the current head contradicts the exact
+  ## continuation certificate that allowed a successful search to skip that
+  ## same rejected head. Both constructor kinds are fixed by erased indices.
+  @reducible
+  fn atomic_path_commit_after_failure_excludes_rejected_prefix(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased rest: List(Char)},
+    {@erased after_input: List(Char)}, {@erased source: Bounded(n)},
+    {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased candidate: LookaroundAdmittedState(n)},
+    {@erased remaining: List(LookaroundAdmittedState(n))},
+    {@erased selected_current: List(LookaroundAdmittedState(n))},
+    {@erased commit_depth: Nat},
+    {@erased child_prefix_kind: AtomicPathFailurePrefixKind},
+    {@erased child_kind: AtomicPathFailureKind},
+    {@erased tail_kind: AtomicPathSkippedPrefixKind},
+    @erased cause: AtomicPathCommitCause(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, remaining), commit_depth, AtomicPathCommitAfterFailureKind(child_prefix_kind, child_kind)),
+    @erased evidence: AtomicPathSkippedPrefixEvidence(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, remaining), selected_current, AtomicPathSkippedPrefixRejectedConsKind(child_prefix_kind, child_kind, tail_kind))
+  ) -> Empty = match evidence
+    AtomicPathSkippedRejectedCons(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, continuation, _, _) -> atomic_path_commit_after_failure_excludes_continuation(cause, continuation)
+
+  @reducible
+  fn atomic_path_commit_past_escaped_skipped_tail(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased rest: List(Char)},
+    {@erased after_input: List(Char)}, {@erased source: Bounded(n)},
+    {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased candidate: LookaroundAdmittedState(n)},
+    {@erased remaining: List(LookaroundAdmittedState(n))},
+    {@erased selected_current: List(LookaroundAdmittedState(n))},
+    {@erased commit_depth: Nat},
+    {@erased head_commit_kind: AtomicPathCommitCauseKind},
+    {@erased tail_commit_kind: AtomicPathCommitCauseKind},
+    {@erased skipped_tail_kind: AtomicPathSkippedPrefixKind},
+    @erased cause: AtomicPathCommitCause(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, remaining), commit_depth, AtomicPathCommitPastEscapedKind(head_commit_kind, tail_commit_kind)),
+    @erased skipped: AtomicPathSkippedPrefixEvidence(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, remaining), selected_current, AtomicPathSkippedPrefixEscapedConsKind(head_commit_kind, skipped_tail_kind))
+  ) -> AtomicPathCommitSkippedTailPackage(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, remaining, selected_current) = match cause
+    AtomicPathCommitPastEscaped(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, tail_depth, tail_origin_equivalence, tail_origin_canonical, tail_suffix, tail_kind, tail_cause) -> match skipped
+      AtomicPathEscapedCommitCons(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, skipped_kind, skipped_tail) -> AtomicPathCommitSkippedTailPacked(tail_depth, tail_origin_equivalence, tail_origin_canonical, tail_suffix, tail_kind, tail_cause, skipped_kind, skipped_tail)
+
+  @reducible
+  fn atomic_path_commit_past_rejected_skipped_tail(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased char: Char}, {@erased rest: List(Char)},
+    {@erased after_input: List(Char)}, {@erased source: Bounded(n)},
+    {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased candidate: LookaroundAdmittedState(n)},
+    {@erased remaining: List(LookaroundAdmittedState(n))},
+    {@erased selected_current: List(LookaroundAdmittedState(n))},
+    {@erased commit_depth: Nat},
+    {@erased child_prefix_kind: AtomicPathFailurePrefixKind},
+    {@erased child_kind: AtomicPathFailureKind},
+    {@erased tail_commit_kind: AtomicPathCommitCauseKind},
+    {@erased skipped_tail_kind: AtomicPathSkippedPrefixKind},
+    @erased cause: AtomicPathCommitCause(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, remaining), commit_depth, AtomicPathCommitPastRejectedKind(child_prefix_kind, child_kind, tail_commit_kind)),
+    @erased skipped: AtomicPathSkippedPrefixEvidence(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, Cons(candidate, remaining), selected_current, AtomicPathSkippedPrefixRejectedConsKind(child_prefix_kind, child_kind, skipped_tail_kind))
+  ) -> AtomicPathCommitSkippedTailPackage(depth, n, machine, Cons(char, rest), after_input, ThreadActive(source), history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, remaining, selected_current) = match cause
+    AtomicPathCommitPastRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, tail_depth, tail_origin_equivalence, tail_origin_canonical, tail_suffix, tail_kind, tail_cause) -> match skipped
+      AtomicPathSkippedRejectedCons(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, skipped_kind, skipped_tail) -> AtomicPathCommitSkippedTailPacked(tail_depth, tail_origin_equivalence, tail_origin_canonical, tail_suffix, tail_kind, tail_cause, skipped_kind, skipped_tail)
+
+  @reducible
+  fn atomic_path_failure_after_skipped_package(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    {@erased input: List(Char)}, {@erased after_input: List(Char)},
+    {@erased state: ThreadState(n)}, {@erased history: List(Char)},
+    {@erased capture_context: List(EvidenceInstruction)},
+    {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
+    {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased whole: List(LookaroundAdmittedState(n))},
+    {@erased current: List(LookaroundAdmittedState(n))},
+    {@erased skipped_kind: AtomicPathSkippedPrefixKind},
+    @erased prefix: AtomicPathFailurePrefixEvidence(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, AtomicPathFailureAfterSkippedKind(skipped_kind))
+  ) -> AtomicPathFailureSkippedPackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, current, skipped_kind) = match prefix
+    AtomicPathFailureAfterSkipped(_, evidence) -> AtomicPathFailureSkippedPacked(evidence)
+
+  fn atomic_lookaround_initial_members(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, blocked_depth: Option(Nat), starts: List(MachineState(n))) -> AtomicSearchResult = match starts
+    [] -> AtomicSearchNo()
+    [head | remaining] -> match blocked_depth
+      Some(commit_depth) -> match atomic_commit_disposition(atomic_scope_max_depth(machine_state_routine(n, head), Z()), commit_depth)
+        AtomicCommitBlocks(_) -> atomic_lookaround_initial_members(depth, n, machine, input, after_input, history, capture_context, policy, blocked_depth, remaining)
+        AtomicCommitEscapes(_) -> atomic_lookaround_initial_member(depth, n, machine, input, after_input, history, capture_context, policy, blocked_depth, head, remaining)
+      None() -> atomic_lookaround_initial_member(depth, n, machine, input, after_input, history, capture_context, policy, blocked_depth, head, remaining)
+
+  fn atomic_lookaround_initial_member(depth: Nat, n: Nat, machine: PatternMachine(n), input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, blocked_depth: Option(Nat), head: MachineState(n), remaining: List(MachineState(n))) -> AtomicSearchResult = match head
+    Active(state, routine, _) -> match execute_routine(routine, [], [])
+      EvidenceExecution(_, _) -> match atomic_scope_effect(routine, Z())
+        AtomicScopeEffect(next_depth, _) -> match atomic_lookaround_accepting_from(depth, n, machine, input, after_input, ThreadActive(state), history, append_routine(capture_context, routine), policy, next_depth)
+          AtomicSearchYes() -> AtomicSearchYes()
+          AtomicSearchCommit(commit_depth) -> atomic_lookaround_initial_members(depth, n, machine, input, after_input, history, capture_context, policy, Some(commit_depth), remaining)
+          AtomicSearchNo() -> atomic_lookaround_initial_members(depth, n, machine, input, after_input, history, capture_context, policy, blocked_depth, remaining)
+    Accepted(routine, _) -> match execute_routine(routine, [], [])
+      EvidenceExecution(_, _) -> match atomic_scope_effect(routine, Z())
+        AtomicScopeEffect(next_depth, _) -> match atomic_lookaround_accepting_from(depth, n, machine, input, after_input, ThreadAccepted(), history, append_routine(capture_context, routine), policy, next_depth)
+          AtomicSearchYes() -> AtomicSearchYes()
+          AtomicSearchCommit(commit_depth) -> atomic_lookaround_initial_members(depth, n, machine, input, after_input, history, capture_context, policy, Some(commit_depth), remaining)
+          AtomicSearchNo() -> atomic_lookaround_initial_members(depth, n, machine, input, after_input, history, capture_context, policy, blocked_depth, remaining)
+
+  ## Consume an arbitrary-length rejected destination tail from the typed
+  ## package boundary.  Keeping the package as an erased argument preserves
+  ## the construction-site elimination discipline used by the shorter tail
+  ## consumers below.
+  @reducible
+  fn atomic_path_rejected_tail_package_step(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    char: Char,
+    rest: List(Char),
+    after_input: List(Char),
+    state: Bounded(n),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    scope_depth: Nat,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    whole: List(LookaroundAdmittedState(n)),
+    @erased candidate: LookaroundAdmittedState(n),
+    {@erased remaining: List(LookaroundAdmittedState(n))},
+    @erased package: AtomicPathTailPackage(
+      depth,
+      n,
+      machine,
+      Cons(char, rest),
+      after_input,
+      ThreadActive(state),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(candidate, remaining)
+    )
+  ) -> AtomicPathTailPackage(
+    depth,
+    n,
+    machine,
+    Cons(char, rest),
+    after_input,
+    ThreadActive(state),
+    history,
+    capture_context,
+    policy,
+    scope_depth,
+    prefix_mode,
+    reversed_prefix,
+    whole,
+    remaining
+  ) = match package
+    AtomicPathTailPackagePacked(failure) -> match failure
+      AtomicPathDestinationRejected(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, tail_failure) -> AtomicPathTailPackagePacked(tail_failure)
+
+  ## The root exhaustion consumer keeps the public wrapper and its parallel
+  ## no-result evidence together at the first complete start-list boundary.
+  ## Matching both packages refines the root list to `Nil()`; the selected
+  ## membership is then impossible, so no recursive failure tag or runtime
+  ## proof payload needs to be inspected.
+  @reducible
+  fn atomic_start_root_exhaustion_excludes_trace(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    @erased failure: AtomicStartMembersRefutation(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, Nil(), Nil(), AtomicStartFailureExhausted()),
+    @erased evidence: AtomicStartNoEvidence(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, Nil(), Nil(), AtomicStartFailureExhausted()),
+    {item: LookaroundAdmittedState(n)},
+    @erased membership: ListMember(LookaroundAdmittedState(n), item, Nil()),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedTrace(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, item, matched, remaining_input, routine)
+  ) -> Empty = match failure
+    AtomicStartExhausted(_, _) -> atomic_start_failure_excludes_trace(
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      membership,
+      failure,
+      path
+    )
+end

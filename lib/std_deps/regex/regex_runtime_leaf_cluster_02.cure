@@ -1,0 +1,773 @@
+@group(:text)
+mod Std.Regex.Runtime.LeafCluster02
+  use Std.Regex.Runtime.SinkShapePrelude
+
+  use Std.Regex.Runtime.SinkLookaroundProofs
+
+  use Std.Regex.Runtime.SinkAtomicCommit
+
+  use Std.Regex.Runtime.SinkAtomicRejections
+
+  use Std.Regex.Runtime.LookaroundAdmission
+
+  use Std.Regex.Runtime.ActiveChildShapeAlignmentPackageBridge
+
+  use Std.Regex.Runtime.ActiveChildShapeAlignmentPackageDispatch
+
+  use Std.Regex.Runtime.InitialMembersRoot
+
+  use Std.Regex.Runtime.ActiveChildShapeAlignmentPackage
+
+  use Std.Regex.Runtime.ActiveChildShapeAlignment
+
+  use Std.Regex.Runtime.CursorShapeLocations
+
+  use Std.Regex.Runtime.InitialMembers
+
+  use Std.Regex.Runtime.Roots
+
+  use Std.Regex.Runtime.LeafAuthorities
+
+  use Std.Regex.Runtime.EvidenceExecution
+
+  use Std.Regex.Runtime.LookaroundCompilation
+
+  use Std.Regex.Runtime.ExtendedEvidenceTypes
+
+  use Std.Regex.Runtime.AtomicDepthTypes
+
+  use Std.Regex.Runtime.CandidateEquivalencePrimitives
+
+  use Std.Regex.Runtime.CaptureSlotMarkerPrimitives
+
+  use Std.Regex.Runtime.StateRoutinePrimitives
+
+  use Std.Regex.Runtime.MachineMemberEdgePrimitives
+
+  use Std.Regex.Runtime.LookaroundSupportPrimitives
+
+  use Std.Regex.Runtime.AtomicPathActiveChildShapeHerePackageFold
+
+  use Std.Regex.Runtime.AtomicStartScopeSelectionExcludes
+
+  use Std.Regex.Runtime.LookaroundExhaustionFromList
+
+  use Std.Regex.Runtime.AtomicStartDecisions
+
+  use Std.Regex.Runtime.DepthExclusion
+
+  use Std.Regex.Runtime.ExhaustionFromMembers
+
+  use Std.Regex.Runtime.CursorShapeAuthority
+
+  use Std.Regex.Runtime.ActiveChildShapeHere
+
+  use Std.Regex.Runtime.CursorShape
+
+  use Std.Regex.Runtime.SearchCursors
+
+  use Std.Regex.Runtime.CandidateEquivalence
+
+  use Std.Regex.Runtime.CaptureSlotMarkers
+
+  use Std.Regex.Runtime.AtomicDecisions
+
+  use Std.Regex.Runtime.MachineMemberEdges
+
+  use Std.Regex.Runtime.AtomicDepthMaximum
+
+  use Std.Regex.Runtime.MemberTransport
+
+  use Std.Regex.Runtime.EvidenceStep
+
+  use Std.Regex.Runtime.AtomicStartMember
+
+  use Std.Regex.Runtime.AtomicFailureAuthority
+
+  use Std.Regex.Runtime.AtomicDepth
+
+  use Std.Regex.Runtime.LookaroundSupport
+
+  use Std.Regex.Runtime.NamedCaptureSearch
+
+  use Std.Regex.Runtime.PatternSearch
+
+  use Std.Regex.Runtime.EvidenceSearch
+
+  use Std.Regex.Runtime.MachineSearch
+
+  use Std.Regex.Runtime.CharacterClasses
+
+  use Std.Regex.Runtime.NamedSearch
+
+  use Std.Regex.Runtime.MachineTransitions
+
+  use Std.Regex.Runtime.NamedStaging
+
+  use Std.Regex.Runtime.MachineEntry
+
+  use Std.Regex.Runtime.LineBreak
+
+  use Std.Regex.Runtime.CharacterMatchers
+
+  use Std.Regex.Runtime.Combinators
+
+  use Std.Regex.Runtime.Anchors
+
+  use Std.Regex.Runtime.CompileRegex
+
+  use Std.Regex.Runtime.ConversionAdapters
+
+  use Std.Regex.Runtime.ThreadDedup
+
+  use Std.Regex.Runtime.NamedTypes
+
+  use Std.Regex.Runtime.RegexType
+
+  use Std.Regex.Runtime.CharacterSemantics
+
+  use Std.Regex.Runtime.Conversion
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.ProgramTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.PublicTypes
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.NewlinePolicy
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.EvidenceThreads
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.LookaroundContext
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.AtomicPlan
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.Compiler
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.NamedCapture
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Evidence
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.Position
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.CharacterPredicates
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.SubjectContext
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineFilters
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.MachineLaws
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.Compilation
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.StagedOps
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.PatternMachines
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.StateOps
+
+  use Std.Regex.Runtime.TransitionRows
+
+  use Std.Regex.Runtime.CaptureConditions
+
+  use Std.Regex.Runtime.Boundaries
+
+  use Std.Regex.Runtime.AtomicDiagnostics
+
+  use Std.Regex.Runtime.ClassKinds
+
+  use Std.Regex.Runtime.Named
+
+  use Std.Regex.Runtime.Split
+
+  use Std.Regex.Core.Capture
+
+  use Std.Regex.Core.Boundary
+
+  use Std.Regex.Core.Initial
+
+  use Std.Regex.Core.Newline
+
+  use Std.Regex.Core.Evidence
+
+  use Std.Regex.Core.Limits
+
+  use Std.Regex.Core
+
+  use Std.Char
+
+  use Std.Option
+
+  use Std.List
+
+  use Std.String
+
+  use Std.Syntax
+
+  use Std.Bounded
+
+  use Std.Equivalent
+
+  use Std.Sigma
+
+  use Std.Decision
+
+  ## Construction-site wrapper for a successful atomic witness.  The
+  ## membership argument remains relevant here so the Here/There split can
+  ## drive proof-only continuations; the linked witness is erased and fixes
+  ## the same whole/current spine and selected trace at the type level.
+  @reducible
+  fn atomic_selected_start_witness_induction_erased(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {whole: List(LookaroundAdmittedState(n))},
+    {@erased head: LookaroundAdmittedState(n)},
+    {@erased rest: List(LookaroundAdmittedState(n))},
+    {@erased selected_start: LookaroundAdmittedState(n)},
+    @erased failure: AtomicStartMembersRefutation(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(head, rest),
+      AtomicStartFailureRejected()
+    ),
+    @erased evidence: AtomicStartNoEvidence(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(head, rest),
+      AtomicStartFailureRejected()
+    ),
+    membership: ListMember(LookaroundAdmittedState(n), selected_start, Cons(head, rest)),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {routine: List(ExtendedInstruction)},
+    {@erased blocked_depth: Option(Nat)},
+    {@erased kind: AtomicStartSkipKind},
+    @erased _allowed: AtomicStartAllowed(blocked_depth, kind),
+    @erased witness: AtomicSelectedStartWitness(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(head, rest),
+      selected_start,
+      blocked_depth,
+      kind,
+      matched,
+      remaining_input,
+      routine
+    ),
+    head_case: result,
+    tail_case: () -> result
+  ) -> result = atomic_start_rejected_member_induction_erased(
+    machine,
+    position,
+    input,
+    after_input,
+    history,
+    capture_context,
+    policy,
+    prefix_mode,
+    reversed_prefix,
+    failure,
+    evidence,
+    membership,
+    head_case,
+    tail_case
+  )
+
+  fn lookaround_admitted_cursor_suffix_there({n: Nat}, head: LookaroundAdmittedState(n), value: LookaroundAdmittedState(n), rest: List(LookaroundAdmittedState(n)), prior: ListMember(LookaroundAdmittedState(n), value, rest)) -> Sigma(values: List(LookaroundAdmittedState(n)), LookaroundAdmittedStateCursorSuffix(n, Cons(head, rest), values)) = match lookaround_admitted_cursor_suffix_from_member(value, rest, prior)
+    mk_pair(values, suffix) -> %[values, LookaroundAdmittedStateCursorSuffixDrop(head, suffix)]
+
+  fn lookaround_admitted_cursor_suffix_from_member({n: Nat}, value: LookaroundAdmittedState(n), whole: List(LookaroundAdmittedState(n)), member: ListMember(LookaroundAdmittedState(n), value, whole)) -> Sigma(values: List(LookaroundAdmittedState(n)), LookaroundAdmittedStateCursorSuffix(n, whole, values)) = match whole
+    [] -> impossible
+    [head | rest] -> match member
+      ListMemberHere() -> lookaround_admitted_cursor_suffix_here(value, rest)
+      ListMemberThere(prior) -> lookaround_admitted_cursor_suffix_there(head, value, rest, prior)
+
+  ## A rejected destination's selected sibling tail carries three pieces of
+  ## proof-only state together: the recursive refutation (whose failure kind
+  ## remains existential), the cursor suffix from the rejected tail to the
+  ## selected current list, and the selected path itself.  Keeping these in a
+  ## single indexed package means arbitrary sibling recursion can consume the
+  ## exact tail produced by the parent construction site instead of rebuilding
+  ## any of the erased evidence.
+  type AtomicPathSelectedTailPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), whole: List(LookaroundAdmittedState(n)), remaining: List(LookaroundAdmittedState(n)), selected_current: List(LookaroundAdmittedState(n)), matched: List(Char), remaining_input: List(Char), selected_routine: List(ExtendedInstruction))
+    AtomicPathSelectedTailPackagePacked : (@erased tail: AtomicPathTailPackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, remaining)) -> (@erased selection_suffix: LookaroundAdmittedStateCursorSuffix(n, remaining, selected_current)) -> (@erased path: AtomicSelectedPathTrace(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, selected_current, matched, remaining_input, selected_routine)) -> AtomicPathSelectedTailPackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, whole, remaining, selected_current, matched, remaining_input, selected_routine)
+
+  ## Consume the package only in an erased argument position.  A package is a
+  ## proof-only existential: constructing it as a relevant let value would make
+  ## the erased path witness appear relevant even though every constructor field
+  ## is erased.  This boundary keeps construction and elimination at one
+  ## authority while the continuation remains ordinary result code.
+  @reducible
+  fn atomic_path_active_child_selection_package_consume(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    char: Char,
+    child_char: Char,
+    child_rest: List(Char),
+    after_input: List(Char),
+    source: Bounded(n),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    scope_depth: Nat,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    @erased package: AtomicPathActiveChildSelectionPackage(
+      depth,
+      n,
+      machine,
+      Cons(char, Cons(child_char, child_rest)),
+      after_input,
+      ThreadActive(source),
+      history,
+      capture_context,
+      policy,
+      scope_depth,
+      prefix_mode,
+      reversed_prefix,
+      matched,
+      remaining_input,
+      selected_routine
+    ),
+    continuation: result
+  ) -> result = match package
+    AtomicPathActiveChildSelectionPackageActive(_, _, _, _, _, _, _, _, _, _, _, child_selected_whole_equivalence, child_origin_canonical, _, _, _, _, _, _, _) ->
+      match child_selected_whole_equivalence
+        reflexive() -> match child_origin_canonical
+          AtomicPathSearchOriginActive(_, _, _, _) -> continuation
+
+  @reducible
+  fn atomic_start_blocked_member_induction_selected_erased(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {whole: List(LookaroundAdmittedState(n))},
+    {@erased head: LookaroundAdmittedState(n)},
+    {@erased rest: List(LookaroundAdmittedState(n))},
+    {@erased selected_start: LookaroundAdmittedState(n)},
+    {@erased blocked_depth: Option(Nat)},
+    {@erased kind: AtomicStartSkipKind},
+    @erased skip: AtomicStartSkipEvidence(blocked_depth, kind),
+    @erased allowed: AtomicStartAllowed(blocked_depth, kind),
+    @erased _failure: AtomicStartMembersRefutation(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(head, rest),
+      AtomicStartFailureBlocked()
+    ),
+    @erased _evidence: AtomicStartNoEvidence(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(head, rest),
+      AtomicStartFailureBlocked()
+    ),
+    membership: ListMember(LookaroundAdmittedState(n), selected_start, Cons(head, rest)),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      selected_start,
+      matched,
+      remaining_input,
+      selected_routine
+    ),
+    head_case: result,
+    tail_case: (AtomicStartBlockedSelectedTailPackage(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      rest,
+      selected_start,
+      matched,
+      remaining_input,
+      selected_routine
+    )) -> result
+  ) -> result = match membership
+    ListMemberHere() -> head_case
+    ListMemberThere(prior) -> match _evidence
+      AtomicStartNoBlockedEvidence(_, _, _, _, tail_failure, tail_evidence) ->
+        tail_case(AtomicStartBlockedSelectedTailPackagePacked(
+          tail_failure,
+          tail_evidence,
+          skip,
+          allowed,
+          prior,
+          path
+        ))
+
+  ## An active-headed rejected result retains its indexed recursive sibling
+  ## tail. The child refutation remains supplied at the branch-specific
+  ## eliminator, while this package keeps the tail witness available without
+  ## reconstructing its existential failure kind.
+  type AtomicStartActiveRejectedEvidence(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (position: InitialPosition, input: List(Char), after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char), state: Bounded(n), routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), assertion_routine: List(ExtendedInstruction), assertion_markers: List(EvidenceInstruction), nested_decisions: List(LookaroundNestedDecision), whole: List(LookaroundAdmittedState(n)), remaining: List(LookaroundAdmittedState(n)))
+    AtomicStartActiveRejectedEvidencePacked : (@erased tail: AtomicStartTailEvidence(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining)) -> AtomicStartActiveRejectedEvidence(depth, n, machine, position, input, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, state, routine, constraints, assertion_routine, assertion_markers, nested_decisions, whole, remaining)
+
+  ## A construction-site package for the active empty-input branch. The
+  ## ordinary tail package intentionally existentially hides its failure kind
+  ## and child scope. This stronger package is used only when the selected
+  ## head is known to be active: it retains the child refutation, its cursor
+  ## suffix, the recursive tail package, and the erased equality that aligns
+  ## the child scope with the active start's selected-path scope. Without this
+  ## equality a generic tail dispatcher could silently feed a proof at one
+  ## scope to a path at another.
+  type AtomicStartActiveRejectedTailPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (position: InitialPosition, after_input: List(Char), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, prefix_mode: Bool, reversed_prefix: List(Char), thread_state: ThreadState(n), routine: List(EvidenceInstruction), constraints: List(BoundaryConstraint), assertion_routine: List(ExtendedInstruction), assertion_markers: List(EvidenceInstruction), nested_decisions: List(LookaroundNestedDecision), whole: List(LookaroundAdmittedState(n)), remaining: List(LookaroundAdmittedState(n)), child_scope_depth: Nat)
+  ## The child certificate is an `AtomicPathRefutation` aligned at
+  ## `child_scope_depth`; the alias above keeps that dependent index local.
+    AtomicStartActiveRejectedTailPackagePacked : (@erased tail: AtomicStartTailPackage(depth, n, machine, position, Nil(), after_input, history, capture_context, policy, prefix_mode, reversed_prefix, whole, remaining)) -> (@erased child_failure: AtomicStartActiveChildFailure(depth, n, machine, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, thread_state, child_scope_depth)) -> (@erased child_suffix: LookaroundAdmittedStateCursorSuffix(n, Nil(), Nil())) -> (@erased child_scope_alignment: Equivalent(Nat, child_scope_depth, atomic_scope_depth_after(routine, Z()))) -> AtomicStartActiveRejectedTailPackage(depth, n, machine, position, after_input, history, capture_context, policy, prefix_mode, reversed_prefix, thread_state, routine, constraints, assertion_routine, assertion_markers, nested_decisions, whole, remaining, child_scope_depth)
+
+  fn atomic_start_rejected_tail_evidence(
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {whole: List(LookaroundAdmittedState(n))},
+    {candidate: LookaroundAdmittedState(n)},
+    {remaining: List(LookaroundAdmittedState(n))},
+    @erased evidence: AtomicStartNoEvidence(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(candidate, remaining),
+      AtomicStartFailureRejected()
+    )
+  ) -> AtomicStartTailEvidence(
+    depth,
+    n,
+    machine,
+    position,
+    input,
+    after_input,
+    history,
+    capture_context,
+    policy,
+    prefix_mode,
+    reversed_prefix,
+    whole,
+    remaining
+  ) = match evidence
+    AtomicStartNoRejectedEvidence(_, _, _, _, _, _, _, _, _, _, _, _, _, _, tail_evidence) -> AtomicStartTailEvidencePacked(tail_evidence)
+
+  ## Consume an exhausted recursive tail through the package boundary. The
+  ## package index fixes the tail current list to `Nil()`, so the ordinary
+  ## empty-start contradiction can be reused without recovering a bare list
+  ## or inspecting an erased failure tag at runtime.
+  fn atomic_start_rejected_tail_package_exhausted_excludes_trace(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    {whole: List(LookaroundAdmittedState(n))},
+    @erased package: AtomicStartTailPackage(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Nil()
+    ),
+    {item: LookaroundAdmittedState(n)},
+    @erased membership: ListMember(LookaroundAdmittedState(n), item, Nil()),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {routine: List(ExtendedInstruction)},
+    @erased path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      item,
+      matched,
+      remaining_input,
+      routine
+    )
+  ) -> result = match package
+    AtomicStartTailPackagePacked(failure, _) -> match failure
+      AtomicStartExhausted(_, _) -> lookaround_absurd(atomic_start_failure_excludes_trace(
+        machine,
+        position,
+        input,
+        after_input,
+        history,
+        capture_context,
+        policy,
+        prefix_mode,
+        reversed_prefix,
+        membership,
+        failure,
+        path
+      ))
+
+  ## A blocked active head in a non-empty rejected tail publishes the same
+  ## skip/allow contradiction as a singleton blocked tail.  The parent
+  ## membership keeps this branch tied to the recursive `There` boundary;
+  ## matching `AtomicStartNoBlockedEvidence` consumes the typed decision
+  ## without turning an erased commitment token into runtime control flow.
+  fn atomic_start_rejected_member_there_blocked_active_tail_head_excludes_trace(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    machine: PatternMachine(n),
+    position: InitialPosition,
+    input: List(Char),
+    after_input: List(Char),
+    history: List(Char),
+    capture_context: List(EvidenceInstruction),
+    policy: NewlinePolicy,
+    prefix_mode: Bool,
+    reversed_prefix: List(Char),
+    state: Bounded(n),
+    routine: List(EvidenceInstruction),
+    constraints: List(BoundaryConstraint),
+    assertion_routine: List(ExtendedInstruction),
+    assertion_markers: List(EvidenceInstruction),
+    nested_decisions: List(LookaroundNestedDecision),
+    {whole: List(LookaroundAdmittedState(n))},
+    {remaining: List(LookaroundAdmittedState(n))},
+    {@erased selected_start: LookaroundAdmittedState(n)},
+    membership: ListMember(
+      LookaroundAdmittedState(n),
+      selected_start,
+      Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining)
+    ),
+    @erased failure: AtomicStartMembersRefutation(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining),
+      AtomicStartFailureBlocked()
+    ),
+    {blocked_depth: Option(Nat)},
+    {@erased kind: AtomicStartSkipKind},
+    @erased skip: AtomicStartSkipEvidence(blocked_depth, kind),
+    @erased allowed: AtomicStartAllowed(blocked_depth, kind),
+    @erased evidence: AtomicStartNoEvidence(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      whole,
+      Cons(LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions), remaining),
+      AtomicStartFailureBlocked()
+    ),
+    {matched: List(Char)},
+    {remaining_input: List(Char)},
+    {selected_routine: List(ExtendedInstruction)},
+    @erased _path: AtomicSelectedTrace(
+      depth,
+      n,
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      LookaroundAdmittedActive(state, routine, constraints, assertion_routine, assertion_markers, nested_decisions),
+      matched,
+      remaining_input,
+      selected_routine
+    ),
+    tail_case: () -> result
+  ) -> result = let head_case: result = match evidence
+      AtomicStartNoBlockedEvidence(_, _, _, _, _, _) -> atomic_start_skip_excludes_allowed(skip, allowed)
+    atomic_start_blocked_member_induction_erased(
+      machine,
+      position,
+      input,
+      after_input,
+      history,
+      capture_context,
+      policy,
+      prefix_mode,
+      reversed_prefix,
+      failure,
+      evidence,
+      membership,
+      head_case,
+      tail_case
+    )
+end
