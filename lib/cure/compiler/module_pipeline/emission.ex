@@ -77,7 +77,7 @@ defmodule Cure.Compiler.ModulePipeline.Emission do
         {:ok, env} ->
           provenance = provenance(module_name, entry, interface, snapshot)
 
-          case emit(ast, env, provenance) do
+          case emit(ast, env, provenance, module_name) do
             {:ok, _module, _binary} = ok -> ok
             {:error, reason} -> {:error, {:beam_emission_failed, module_name, reason}}
           end
@@ -136,8 +136,13 @@ defmodule Cure.Compiler.ModulePipeline.Emission do
     end)
   end
 
-  defp emit(ast, env, provenance) do
-    module = Program.module_atom(ast)
+  defp emit(ast, env, provenance, module_name) do
+    # Canonical expansion merges module fragments and retains the authoritative
+    # identity in the manifest.  The expanded fragment can deliberately omit
+    # its source container, so deriving the BEAM name from the AST would
+    # incorrectly collapse every module to Cure.Main.  Emit against the
+    # manifest identity instead; the AST still supplies the owned definitions.
+    module = String.to_atom("Cure." <> module_name)
 
     case Emit.compile_forms(env, module, Program.local_defs(ast, env), %{}, artifact_provenance: provenance) do
       {:ok, forms} -> assemble(module, forms)

@@ -58,6 +58,34 @@ defmodule Cure.Compiler.ModuleFragmentsTest do
     assert {:ok, expansion} = Expansion.run(manifest, prelude_modules: [])
 
     skeleton = expansion.skeletons[{"root", "Expanded"}]
+
+    assert MapSet.new(Map.keys(skeleton.declarations)) ==
+             MapSet.new([{:value, "first"}, {:value, "second"}])
+  end
+
+  test "expansion finds a module after leading decorators in a fragment", %{tmp_dir: dir} do
+    first =
+      write!(
+        dir,
+        "decorated_fragment_a.cure",
+        "# cure:fragment\n@group(:core)\nmod Decorated\n  fn first() -> Int = 1\n"
+      )
+
+    second =
+      write!(
+        dir,
+        "decorated_fragment_b.cure",
+        "# cure:fragment\n@group(:core)\nmod Decorated\n  fn second() -> Int = 2\n"
+      )
+
+    assert {:ok, manifest} = ModuleManifest.build([first, second])
+    assert {:ok, expansion} = Expansion.run(manifest, prelude_modules: [])
+
+    skeleton = expansion.skeletons[{"root", "Decorated"}]
+
+    assert Cure.Elab.Program.module_atom(expansion.asts[{"root", "Decorated"}]) ==
+             :"Cure.Decorated"
+
     assert MapSet.new(Map.keys(skeleton.declarations)) ==
              MapSet.new([{:value, "first"}, {:value, "second"}])
   end

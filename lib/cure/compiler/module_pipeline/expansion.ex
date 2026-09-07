@@ -233,11 +233,14 @@ defmodule Cure.Compiler.ModulePipeline.Expansion do
   defp validate_fragment_editions(sources, manifest_options, edition) do
     Enum.reduce_while(sources, :ok, fn {path, source}, :ok ->
       case source_edition(source, manifest_options) do
-        {:ok, ^edition} -> {:cont, :ok}
+        {:ok, ^edition} ->
+          {:cont, :ok}
+
         {:ok, other} ->
           {:halt, {:error, {:module_fragment_edition_mismatch, path, edition, other}}}
 
-        {:error, reason} -> {:halt, {:error, {:module_fragment_edition_error, path, reason}}}
+        {:error, reason} ->
+          {:halt, {:error, {:module_fragment_edition_error, path, reason}}}
       end
     end)
   end
@@ -299,7 +302,11 @@ defmodule Cure.Compiler.ModulePipeline.Expansion do
              end
            end) do
       merged = put_elem(first_container, 2, Enum.flat_map(bodies, &List.wrap/1))
-      {:ok, replace_first_module(first_ast, module_name, merged)}
+
+      case replace_first_module(first_ast, module_name, merged) do
+        {ast, true} -> {:ok, ast}
+        {_ast, false} -> {:error, {:module_fragment_missing_module, module_name}}
+      end
     else
       [] -> {:error, {:module_fragment_empty, module_name}}
       :error -> {:error, {:module_fragment_missing_module, module_name}}
@@ -320,7 +327,12 @@ defmodule Cure.Compiler.ModulePipeline.Expansion do
     do: find_module_container(children, module_name)
 
   defp find_module_container(nodes, module_name) when is_list(nodes) do
-    Enum.find_value(nodes, :error, &find_module_container(&1, module_name))
+    Enum.find_value(nodes, fn node ->
+      case find_module_container(node, module_name) do
+        :error -> nil
+        result -> result
+      end
+    end) || :error
   end
 
   defp find_module_container(_node, _module_name), do: :error
