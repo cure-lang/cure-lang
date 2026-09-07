@@ -1,0 +1,61 @@
+{
+  "Module": {
+    "prefix": "mod",
+    "body": [
+      "mod ${1:MyApp.Module}",
+      "  use Std.Result",
+      "",
+      "  $0"
+    ],
+    "description": "Module declaration"
+  },
+  "Function": {
+    "prefix": "fn",
+    "body": [
+      "fn ${1:name}(${2:arg}: ${3:Type}) -> ${4:ReturnType} =",
+      "  $0"
+    ],
+    "description": "Function definition"
+  },
+  "Type Definition": {
+    "prefix": "type",
+    "body": [
+      "type ${1:Name} = ${2:Constructor1} | ${3:Constructor2}"
+    ],
+    "description": "Custom sum type definition"
+  },
+  "Record Definition": {
+    "prefix": "rec",
+    "body": [
+      "rec ${1:Point} = {",
+      "  ${2:x}: ${3:Int},",
+      "  ${4:y}: ${5:Int}",
+      "}"
+    ],
+    "description": "Record type definition"
+  },
+  "Actor Definition": {
+    "prefix": "actor",
+    "body": [
+      "actor ${1:Worker}",
+      "  state State = { count: Int }",
+      "",
+      "  fn init() -> State =",
+      "    State{ count: 0 }",
+      "  $0"
+    ],
+    "description": "OTP Actor container definition"
+  },
+  "FSM Definition": {
+    "prefix": "fsm",
+    "body": [
+      "fsm ${1:Door}",
+      "  state Closed | Open | Locked",
+      "  event toggle!",
+      "",
+      "  transition Closed + toggle! -> Open",
+      "  $0"
+    ],
+    "description": "Typed Finite State Machine definition"
+  }
+}

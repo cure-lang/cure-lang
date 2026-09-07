@@ -1,0 +1,65 @@
+*cure.txt*   Neovim plugin for the Cure programming language
+
+==============================================================================
+CURE NEOVIM PLUGIN                                              *cure-nvim*
+
+`neovim-cure` provides comprehensive editing support for the Cure programming
+language, including syntax highlighting, filetype detection, indentation,
+Language Server Protocol (LSP) integration, and Model Context Protocol (MCP)
+deep integration.
+
+==============================================================================
+USAGE & QUICKSTART                                            *cure-quickstart*
+
+In your Neovim `init.lua`:
+
+>lua
+    require('cure').setup({
+      lsp = {
+        enabled = true,
+        auto_attach = true,
+      },
+      mcp = {
+        enabled = true,
+        auto_start = true,
+      },
+    })
+<
+
+==============================================================================
+COMMANDS                                                        *cure-commands*
+
+:CureFmt            Formats current `.cure` buffer using Cure LSP.
+:CureCompile        Compiles current `.cure` buffer.
+:CureRepl           Opens the interactive Cure REPL in a split terminal.
+:CureMcpDocs [mod]  Fetches stdlib module docs via Cure MCP and shows floating window.
+:CureMcpHelp [topic] Fetches syntax topic help via Cure MCP and shows floating window.
+:CureMcpCheck       Type-checks current buffer via Cure MCP.
+:CureMcpParse       Shows MetaAST summary of current buffer via Cure MCP.
+
+==============================================================================
+MCP INTEGRATION                                                     *cure-mcp*
+
+Cure exposes a Model Context Protocol (MCP) server over stdio via `cure mcp`.
+This plugin connects directly to Cure MCP over stdio JSON-RPC to provide
+live documentation, syntax help, AST summaries, and type checks.
+
+You can also use Cure MCP with Neovim AI extensions like CodeCompanion:
+
+>lua
+    local cure_mcp = require('cure.mcp').get_codecompanion_tool_config()
+<
+
+==============================================================================
+KEYMAPS                                                          *cure-keymaps*
+
+By default, buffer-local keymaps are bound under `<leader>c`:
+
+<leader>cf          Format buffer
+<leader>cr          Open Cure REPL
+<leader>cd          Get MCP Stdlib Docs
+<leader>ch          Get MCP Syntax Help
+<leader>cc          Run MCP Type Check
+<leader>cp          View MCP MetaAST Parse summary
+
+vim:tw=78:ts=8:ft=help:norl:

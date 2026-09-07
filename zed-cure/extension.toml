@@ -1,0 +1,20 @@
+id = "cure"
+name = "Cure"
+version = "0.34.0"
+schema_version = 1
+description = "Official language support, LSP diagnostics, and MCP context server integration for Cure in Zed"
+repository = "https://github.com/cure-lang/cure"
+authors = ["Cure Core Team <info@cure-lang.org>"]
+
+[grammars.cure]
+repository = "https://github.com/cure-lang/tree-sitter-cure"
+commit = "main"
+
+[language_servers.cure-lsp]
+name = "Cure LSP"
+languages = ["Cure"]
+
+[context_servers.cure-mcp]
+name = "Cure MCP"
+command = "cure"
+args = ["mcp"]
