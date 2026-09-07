@@ -1344,7 +1344,7 @@ defmodule Cure.Refactor.Rewrite do
 
   defp parse_source(source, path) do
     with {:ok, tokens, trivia} <- Lexer.tokenize(source, file: path, emit_events: false, trivia: true),
-         {:ok, ast} <- Parser.parse(tokens, file: path, emit_events: false) do
+         {:ok, ast} <- Parser.parse(tokens, file: path, emit_events: false, prelude_macros: false) do
       {:ok, Trivia.attach(ast, trivia)}
     else
       {:error, errors} when is_list(errors) -> {:error, errors}
