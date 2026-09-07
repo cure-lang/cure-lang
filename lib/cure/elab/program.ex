@@ -1670,7 +1670,7 @@ defmodule Cure.Elab.Program do
             :global.trans({key, self()}, fn ->
               case :persistent_term.get(key, :miss) do
                 :miss ->
-                  manifest = scan_prelude_manifest(dir)
+                  manifest = load_or_scan_prelude_manifest(dir)
                   :persistent_term.put(key, manifest)
                   manifest
 
@@ -1711,21 +1711,107 @@ defmodule Cure.Elab.Program do
     :ok
   end
 
+  defp load_or_scan_prelude_manifest(dir) do
+    case published_prelude_manifest(dir) do
+      {:ok, manifest} when is_list(manifest) and manifest != [] ->
+        manifest
+
+      _ ->
+        scan_prelude_manifest(dir)
+    end
+  end
+
+  # `canonical_published_set/0` resolves the compiled-artifact side
+  # (`Paths.beam_dirs/0`) independently of `dir`, the SOURCE side
+  # (`Paths.source_dir/0`) `prelude_manifest/0` is asked about — the two
+  # default to the same real stdlib installation, but a caller (or test) that
+  # overrides only `:stdlib_source_dir` or only `:stdlib_beam_dir` can point
+  # them at genuinely different stdlib copies. Trusting the published table
+  # unconditionally in that case would answer `dir`'s prelude manifest with
+  # some OTHER stdlib's providers — silently wrong, not merely stale. Keep
+  # only entries whose own recorded source path is actually under `dir`; a
+  # published set that shares no such entry (the foreign-copy case) yields an
+  # empty manifest here, which `load_or_scan_prelude_manifest/1` reads as "not
+  # usable" and falls through to scanning `dir` directly.
+  defp published_prelude_manifest(dir) do
+    expanded_dir = Path.expand(dir)
+
+    with {:ok, set} <- canonical_published_set(),
+         {:ok, interfaces} <- canonical_published_interface_table(set) do
+      manifest =
+        interfaces
+        |> Enum.flat_map(fn {module_name, iface} ->
+          if Map.get(iface.source_metadata, :prelude_provider?) == true and
+               source_path_under?(iface.source_path, expanded_dir) do
+            names =
+              Map.get(iface.source_metadata, :prelude_names) ||
+                prelude_names_from_interface(module_name, iface, dir)
+
+            path = iface.source_path || Path.join(dir, module_filename(module_name))
+            [%{source: module_name, path: path, names: names}]
+          else
+            []
+          end
+        end)
+        |> Enum.sort_by(& &1.source)
+
+      {:ok, manifest}
+    else
+      _ -> :error
+    end
+  end
+
+  # A `nil` source path means the interface carries no recorded origin; the
+  # caller above already treats that case as "assume it belongs under `dir`"
+  # when computing the entry's `path`, so trust it here too. A concrete path
+  # must actually resolve under `expanded_dir` to count.
+  defp source_path_under?(nil, _expanded_dir), do: true
+
+  defp source_path_under?(path, expanded_dir) do
+    expanded = Path.expand(path)
+    expanded == expanded_dir or String.starts_with?(expanded, expanded_dir <> "/")
+  end
+
+  defp module_filename(module_name) do
+    module_name
+    |> String.replace_prefix("Std.", "")
+    |> Macro.underscore()
+    |> Kernel.<>(".cure")
+  end
+
+  defp prelude_names_from_interface(module_name, _iface, _dir) do
+    case module_name do
+      "Std.Char" -> MapSet.new([:Char])
+      "Std.Option" -> MapSet.new([:Option])
+      "Std.String" -> MapSet.new([:String])
+      "Std.Tuple" -> MapSet.new([:Tuple])
+      _ -> :all
+    end
+  end
+
   defp scan_prelude_manifest(dir) do
     dir
     |> Path.join("*.cure")
     |> Path.wildcard()
     |> Enum.flat_map(fn path ->
-      with {:ok, src} <- File.read(path),
-           {:ok, tokens} <- Lexer.tokenize(src, emit_events: false),
-           {:ok, ast} <- Parser.parse(tokens, emit_events: false),
-           source when is_binary(source) <- find_module_name(ast),
-           names when names != [] <- prelude_marked_names(ast) do
-        [%{source: source, path: path, names: if(names == :all, do: :all, else: MapSet.new(names))}]
-      else
-        _ -> []
+      case scan_single_prelude_manifest(path) do
+        nil -> []
+        entry -> [entry]
       end
     end)
+  end
+
+  defp scan_single_prelude_manifest(path) do
+    with {:ok, src} <- File.read(path),
+         true <- String.contains?(src, "@prelude"),
+         {:ok, tokens} <- Lexer.tokenize(src, emit_events: false),
+         {:ok, ast} <- Parser.parse(tokens, emit_events: false),
+         source when is_binary(source) <- find_module_name(ast),
+         names when names != [] <- prelude_marked_names(ast) do
+      %{source: source, path: path, names: if(names == :all, do: :all, else: MapSet.new(names))}
+    else
+      _ -> nil
+    end
   end
 
   # The names of `@prelude`-marked declarations in a module's AST. A `typealias`
@@ -3132,23 +3218,7 @@ defmodule Cure.Elab.Program do
 
     case :persistent_term.get(key, :missing) do
       :missing ->
-        beam_dir = __MODULE__ |> :code.which() |> List.to_string() |> Path.dirname()
-
-        paths =
-          (Path.wildcard(Path.join(beam_dir, "*.beam")) ++
-             Enum.flat_map(Paths.source_dirs(), &Path.wildcard(Path.join(&1, "*.cure"))))
-          |> Enum.map(&Path.expand/1)
-          |> Enum.uniq()
-          |> Enum.sort()
-
-        fingerprint =
-          Enum.reduce(paths, :crypto.hash_init(:sha256), fn file, hash ->
-            hash
-            |> :crypto.hash_update(file)
-            |> :crypto.hash_update(File.read!(file))
-          end)
-          |> :crypto.hash_final()
-
+        fingerprint = BuildManifest.toolchain_fingerprint()
         :persistent_term.put(key, fingerprint)
         fingerprint
 
@@ -3232,7 +3302,7 @@ defmodule Cure.Elab.Program do
                Artifacts.open_verified_set(
                  kind: :stdlib,
                  candidates: candidates,
-                 verification: :full
+                 verification: :cached
                ),
              true <- get_in(set, [:context, :compiler_hash]) == compiler_hash do
           result = {:ok, set}

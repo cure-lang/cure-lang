@@ -826,7 +826,7 @@ defmodule Cure.Compiler.Artifacts do
          expected_stat when is_map(expected_stat) <- Map.get(expected, :stat),
          {:ok, stat} <- File.stat(absolute, time: :posix),
          actual_stat <- stat_signature(stat),
-         true <- actual_stat == expected_stat,
+         true <- stat_matches?(expected_stat, actual_stat),
          true <- timestamp_safe?(actual_stat, validated_at) do
       increment_hash_stat(:reused)
       {:ok, expected}
@@ -835,9 +835,12 @@ defmodule Cure.Compiler.Artifacts do
     end
   end
 
-  defp timestamp_safe?(%{mtime: mtime, ctime: ctime}, validated_at)
+  defp stat_matches?(%{size: s, mtime: m}, %{size: s, mtime: m}), do: true
+  defp stat_matches?(_expected, _actual), do: false
+
+  defp timestamp_safe?(%{mtime: mtime}, validated_at)
        when is_integer(validated_at),
-       do: max(mtime, ctime) < validated_at
+       do: mtime < validated_at
 
   defp timestamp_safe?(_stat, _validated_at), do: false
 
@@ -858,7 +861,7 @@ defmodule Cure.Compiler.Artifacts do
     stat = path |> File.stat!(time: :posix) |> stat_signature()
     verification = Keyword.get(opts, :verification, :cached)
 
-    if verification == :cached and is_map(expected) and Map.get(expected, :stat) == stat and
+    if verification == :cached and is_map(expected) and stat_matches?(Map.get(expected, :stat), stat) and
          timestamp_safe?(stat, validated_at) do
       increment_hash_stat(:reused)
       expected
