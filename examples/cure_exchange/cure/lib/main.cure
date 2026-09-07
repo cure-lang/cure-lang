@@ -1,0 +1,46 @@
+mod Exchange.Demo
+  ## Entry point for `cure run lib/main.cure`.
+  ##
+  ## Plays the four scenarios from the state diagram through
+  ## `Exchange.Escrow.play/5` and prints the escrow's final state plus the
+  ## account's resulting balance and hold for each one.
+
+  use Std.Io
+  use Std.Result
+  use Exchange.Money
+  use Exchange.Ledger
+  use Exchange.EscrowFsm
+  use Exchange.Escrow
+
+  fn main() -> Atom =
+    let _: Unit = Std.Io.println("cure_exchange -- a multi-currency escrow engine in Cure")
+    let _: Unit = Std.Io.println("")
+    let ledger = starting_ledger()
+    let _: Unit = describe("happy path       ", Exchange.Escrow.play(ledger, 1, Exchange.Money.USD(), "Q-100", Exchange.Escrow.happy_path_events()))
+    let _: Unit = describe("quote expired    ", Exchange.Escrow.play(ledger, 1, Exchange.Money.USD(), "Q-200", Exchange.Escrow.quote_expired_events()))
+    let _: Unit = describe("bank failed      ", Exchange.Escrow.play(ledger, 1, Exchange.Money.USD(), "Q-300", Exchange.Escrow.bank_failed_events()))
+    let _: Unit = describe("settle timed out ", Exchange.Escrow.play(ledger, 1, Exchange.Money.USD(), "Q-400", Exchange.Escrow.settle_timeout_events()))
+    :ok
+
+  ## One account, funded with USD 10,000.00, shared read-only starting point
+  ## for every scenario below (each `play/5` call starts from this same
+  ## snapshot rather than threading state between scenarios).
+  local fn starting_ledger() -> Ledger =
+    let empty = Exchange.Ledger.new_ledger([])
+    Exchange.Ledger.open_account(empty, 1, "Alice", Exchange.Money.money(1000000, Exchange.Money.USD()))
+
+  local fn describe(label: String, result: Result(Outcome, String)) -> Unit ! Io =
+    match result
+      Error(reason) -> Std.Io.println(label <> ": error -- " <> reason)
+      Ok(outcome) ->
+        match Exchange.Ledger.balance(outcome.ledger, 1)
+          Error(reason) -> Std.Io.println(label <> ": error -- " <> reason)
+          Ok(balance) ->
+            match Exchange.Ledger.held(outcome.ledger, 1)
+              Error(reason) -> Std.Io.println(label <> ": error -- " <> reason)
+              Ok(hold) ->
+                Std.Io.println(
+                  label <> ": " <> Exchange.EscrowFsm.show_state(outcome.state) <>
+                  "  balance=" <> Exchange.Money.show(balance) <>
+                  "  held=" <> Exchange.Money.show(hold)
+                )

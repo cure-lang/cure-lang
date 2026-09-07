@@ -1,0 +1,113 @@
+mod Exchange.Escrow
+  ###
+  Ties `Exchange.EscrowFsm.transition/3` (the pure state graph) to
+  `Exchange.Ledger` (the account effects) and plays back a fixed sequence of
+  events, the way a real trade worker would react to `LockFunds`, a
+  counterparty match, a bank webhook, and so on -- just without a live
+  process or a wall clock behind it. See `Exchange.OtpDemo` for the (small,
+  separate) live-process side of this project, and `README.md` for why the
+  two are not fused into one process here.
+  ###
+
+  use Std.Option
+  use Std.Result
+  use Std.Fsm
+  use Exchange.Money
+  use Exchange.Ledger
+  use Exchange.EscrowFsm
+
+  ## The result of playing a scenario: the escrow's final state and data,
+  ## plus the ledger after every reserve/capture/release effect has run.
+  rec Outcome
+    state: EscrowState
+    data: EscrowData
+    ledger: Ledger
+
+  fn outcome_ok(value: Outcome) -> Result(Outcome, String) = Ok(value)
+  fn outcome_error(message: String) -> Result(Outcome, String) = Error(message)
+
+  # ---------------------------------------------------------------------------
+  # The pure transition walk
+  # ---------------------------------------------------------------------------
+
+  ## Fold `events` through `Exchange.EscrowFsm.transition/3`, starting from
+  ## `Created` with `initial_data(quote_id)`. `Stop` never occurs on this
+  ## graph (only the structured `fsm` surface can produce it), but is
+  ## handled for totality.
+  fn run_events(events: List(EscrowEvent), state: EscrowState, data: EscrowData) -> Tuple(EscrowState, EscrowData) =
+    match events
+      [] -> %[state, data]
+      [event | rest] ->
+        match Exchange.EscrowFsm.transition(state, event, data)
+          Next(next_state, next_data) -> run_events(rest, next_state, next_data)
+          Keep(next_data) -> run_events(rest, state, next_data)
+          Stop(_, next_data) -> %[state, next_data]
+
+  local fn lock_funds_amount(events: List(EscrowEvent)) -> Option(Int) =
+    match events
+      [] -> None()
+      [LockFunds(amount, _) | _] -> Some(amount)
+      [_ | rest] -> lock_funds_amount(rest)
+
+  # ---------------------------------------------------------------------------
+  # Scenario playback: FSM transitions plus the matching ledger effects
+  # ---------------------------------------------------------------------------
+
+  ## Play `events` against a fresh escrow (`Created`, `initial_data(quote_id)`)
+  ## and apply the matching ledger effect on `account_id`:
+  ##
+  ##   - the `LockFunds` amount is always reserved first (the hold),
+  ##   - `Completed`            -> the hold is captured (paid out),
+  ##   - `Cancelled`/`Refunded` -> the hold is released back to the balance,
+  ##   - any other final state  -> the hold is left in place (still in flight).
+  fn play(ledger: Ledger, account_id: Int, currency: Exchange.Money.Currency, quote_id: String, events: List(EscrowEvent)) -> Result(Outcome, String) =
+    match lock_funds_amount(events)
+      None() -> outcome_error("scenario has no LockFunds event")
+      Some(amount) ->
+        let result = run_events(events, Created(), Exchange.EscrowFsm.initial_data(quote_id))
+        match result
+          %[final_state, final_data] -> apply_ledger_effect(ledger, account_id, currency, amount, final_state, final_data)
+
+  local fn apply_ledger_effect(ledger: Ledger, account_id: Int, currency: Exchange.Money.Currency, amount: Int, final_state: EscrowState, final_data: EscrowData) -> Result(Outcome, String) =
+    let hold = Exchange.Money.money(amount, currency)
+    match Exchange.Ledger.reserve(ledger, account_id, hold)
+      Error(e) -> outcome_error(e)
+      Ok(reserved) ->
+        match final_state
+          Completed() -> settle_capture(reserved, account_id, hold, final_state, final_data)
+          Cancelled() -> settle_release(reserved, account_id, hold, final_state, final_data)
+          Refunded() -> settle_release(reserved, account_id, hold, final_state, final_data)
+          _ -> outcome_ok(Outcome{state: final_state, data: final_data, ledger: reserved})
+
+  local fn settle_capture(ledger: Ledger, account_id: Int, hold: Exchange.Money.Money, final_state: EscrowState, final_data: EscrowData) -> Result(Outcome, String) =
+    match Exchange.Ledger.capture(ledger, account_id, hold)
+      Error(e) -> outcome_error(e)
+      Ok(settled) -> outcome_ok(Outcome{state: final_state, data: final_data, ledger: settled})
+
+  local fn settle_release(ledger: Ledger, account_id: Int, hold: Exchange.Money.Money, final_state: EscrowState, final_data: EscrowData) -> Result(Outcome, String) =
+    match Exchange.Ledger.release(ledger, account_id, hold)
+      Error(e) -> outcome_error(e)
+      Ok(settled) -> outcome_ok(Outcome{state: final_state, data: final_data, ledger: settled})
+
+  # ---------------------------------------------------------------------------
+  # The three canned scenarios from the state diagram
+  # ---------------------------------------------------------------------------
+
+  ## Created -> FundsReserved -> ExecutingSwap -> Completed.
+  fn happy_path_events() -> List(EscrowEvent) =
+    [LockFunds(10000, "Q-100"), CounterpartyMatched("T-100"), BankConfirmed()]
+
+  ## Created -> FundsReserved -> Cancelled (the rate lock expired before a
+  ## counterparty was found).
+  fn quote_expired_events() -> List(EscrowEvent) =
+    [LockFunds(5000, "Q-200"), QuoteExpired()]
+
+  ## Created -> FundsReserved -> ExecutingSwap -> Refunding -> Refunded (the
+  ## bank rejected settlement, so the hold is unwound).
+  fn bank_failed_events() -> List(EscrowEvent) =
+    [LockFunds(7500, "Q-300"), CounterpartyMatched("T-300"), BankFailed(), RefundCompleted()]
+
+  ## Same shape as `bank_failed_events/0`, but the bank never answers at all
+  ## and a `SettleTimeout` safety-net fires instead.
+  fn settle_timeout_events() -> List(EscrowEvent) =
+    [LockFunds(2500, "Q-400"), CounterpartyMatched("T-400"), SettleTimeout(), RefundCompleted()]

@@ -101,7 +101,17 @@ inspection without rebuilding the stdlib from source.
 5. Build and publish HexDocs.
 6. Deploy the website and verify `/`, `/roadmap`, `/stdlib`, `/llms.txt`, and
    `/sitemap.xml` against the released version.
-7. Create the GitHub release from the 0.34 changelog and roadmap narrative.
+7. Edit the GitHub release created by the tag push with the 0.34 changelog and
+   roadmap narrative.
+
+Pushing the tag triggers `.github/workflows/release.yml`, which builds the
+`cure` escript with `mix escript.build` from the tagged tree, refuses to
+continue unless `cure version` matches the tag, and creates the GitHub release
+with `cure-v0.34.0-linux-x86_64` and its `.sha256` attached. The binary handed
+to users is therefore built by the release job, never uploaded by hand from a
+workstation. Re-run the workflow via `workflow_dispatch` with the same tag if
+the job fails for an environmental reason; never move the tag to force a
+rebuild.
 
 After publication, restore an empty `[Unreleased]` section only in the next
 development commit. Never amend or move the published tag.

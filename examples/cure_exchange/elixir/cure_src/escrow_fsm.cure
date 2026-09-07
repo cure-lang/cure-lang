@@ -1,0 +1,63 @@
+## The escrow state graph, and only the state graph -- money, the ledger,
+## quote/timer orchestration, bank-webhook simulation, and the multi-step
+## refund rollback all live in Elixir (see `lib/cure_exchange/`). See
+## `README.md` for why the split is drawn exactly here.
+##
+##                       [ Created ]
+##                            |
+##                            | LockFunds(amount, quote_id)
+##                            v
+##                    [ FundsReserved ]
+##                     /             \
+##       QuoteExpired /               \ CounterpartyMatched(trade_id)
+##                   v                 v
+##              [ Cancelled ]      [ ExecutingSwap ]
+##                                  /            \
+##                 BankConfirmed   /              \ SettleTimeout / BankFailed
+##                                v                v
+##                          [ Completed ]     [ Refunding ]
+##                                                 |
+##                                                 | RefundCompleted
+##                                                 v
+##                                            [ Refunded ]
+##
+## Compiles (via `compile_cure`, a single-file `Cure.Compiler.compile_file`
+## pass -- the same mechanism `examples/cure_turnstile` and
+## `examples/cure_moneta` use) to `:"Cure.Main.EscrowFsm"`. Elixir drives it
+## through that raw atom -- see `lib/cure_exchange/trade_worker.ex`.
+
+use Std.Fsm
+
+## The escrow's carried data: how much was reserved, which quote and
+## counterparty trade it is bound to, and how many settlement attempts have
+## been made (bumped by the Elixir side on each `SettleTimeout`; unused by
+## the graph itself, but demonstrates that `data` can carry host-managed
+## bookkeeping the FSM never inspects).
+## `quote_id`/`trade_id` are `Atom` rather than `String`: they are opaque
+## handles as far as this graph is concerned (never inspected, only stored
+## and threaded through), and an `Atom` round-trips to/from Elixir as a bare
+## atom with no wrapping -- unlike `String`, which is a nominal Cure type
+## (`{String, code_points}`) that a plain Elixir binary or charlist does not
+## satisfy.
+rec EscrowData
+  amount: Int
+  quote_id: Atom
+  trade_id: Atom
+  attempts: Int
+
+fsm EscrowFsm with EscrowData
+  terminal Cancelled
+  terminal Completed
+  terminal Refunded
+
+  Created --LockFunds(amount: Int, quote_id: Atom)--> FundsReserved
+    when amount > 0
+    update EscrowData{data | amount: amount, quote_id: quote_id}
+  FundsReserved --QuoteExpired--> Cancelled
+  FundsReserved --CounterpartyMatched(trade_id: Atom)--> ExecutingSwap
+    update EscrowData{data | trade_id: trade_id}
+  ExecutingSwap --BankConfirmed--> Completed
+  ExecutingSwap --SettleTimeout--> Refunding
+    update EscrowData{data | attempts: data.attempts + 1}
+  ExecutingSwap --BankFailed--> Refunding
+  Refunding --RefundCompleted--> Refunded

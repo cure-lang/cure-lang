@@ -37,7 +37,7 @@ defmodule Cure.Compiler.Parser do
   """
 
   alias Cure.Compiler.{MacroFamily, MacroRaw, Token}
-  alias Cure.Compiler.Parser.{BuiltinFixity, FixityTable, FixityScan, FixityResolver, Precedence}
+  alias Cure.Compiler.Parser.{BuiltinFixity, BuiltinMacros, FixityTable, FixityScan, FixityResolver, Precedence}
   alias Cure.Compiler.Parser.Range
   alias Cure.Diagnostic.{ProvenanceFrame, Span}
   alias Cure.MetaAST.Metadata
@@ -339,63 +339,51 @@ defmodule Cure.Compiler.Parser do
     exprs
   end
 
+  # The built-in `:syntax`/`:computed` macro grammar and suffix-keyed `literal`
+  # rule set, harvested from every bundled stdlib (+ embedded Regex package)
+  # source. Baked at ELIXIR COMPILE TIME by `BuiltinMacros` (mirroring
+  # `BuiltinFixity`'s built-in operator table) rather than lazily parsed on
+  # first use and memoized in `:persistent_term`: harvesting the grammar parses
+  # the whole stdlib source tree three times over (a harvest pass, a
+  # transitively-seeded reparse, and a literal-rule pass), which cost several
+  # seconds. That cost is invisible within one long-lived process (a `cure
+  # repl` session), but a fresh `cure` escript invocation starts a brand new
+  # VM with an empty `persistent_term` table, so `cure check`, the first line
+  # typed into a new `cure repl`, `cure run`, etc. paid the full harvest again
+  # on every single invocation — the "first call is slow, every other call is
+  # fast" symptom this bake removes. `Application.get_env(:cure,
+  # :stdlib_macro_rules)` remains as a legacy override escape hatch (unused
+  # anywhere in this codebase today); it carries no literal-rule channel,
+  # matching its historical behaviour.
   defp prelude_macros do
-    case {Process.get(:cure_loading_prelude), :persistent_term.get({__MODULE__, :prelude_macros}, :missing)} do
-      {true, _} -> %{}
-      {_, rules} when is_map(rules) -> rules
-      _ -> load_prelude_macros()
+    case Application.get_env(:cure, :stdlib_macro_rules) do
+      rules when is_map(rules) -> rules
+      _ -> BuiltinMacros.syntax_rules()
     end
   end
 
-  defp load_prelude_macros do
-    Process.put(:cure_loading_prelude, true)
-
-    {rules, literal_rules} =
-      case Application.get_env(:cure, :stdlib_macro_rules) do
-        rules when is_map(rules) ->
-          # Env-supplied grammar sets carry only keyword `:syntax` rules; there
-          # is no literal-rule channel for this legacy escape hatch.
-          {rules, %{}}
-
-        _ ->
-          stdlib_macro_paths =
-            (Path.wildcard(Path.expand("../../std/*.cure", __DIR__)) ++
-               Path.wildcard(Path.expand("../../std_deps/regex/*.cure", __DIR__)))
-            |> Enum.sort()
-
-          # First harvest every standard-library macro without any builtin
-          # rules. A second parse uses that complete grammar set so one
-          # standard-library macro can transparently invoke another (for
-          # example, standard-library starters invoking another syntax macro).
-          harvested = collect_stdlib_macro_rules(stdlib_macro_paths, %{})
-          syntax = collect_stdlib_macro_rules(stdlib_macro_paths, %{}, harvested)
-          literal = collect_stdlib_literal_rules(stdlib_macro_paths, harvested)
-          {syntax, literal}
-      end
-
-    :persistent_term.put({__MODULE__, :prelude_macros}, rules)
-    :persistent_term.put({__MODULE__, :prelude_literal_macros}, literal_rules)
-    Process.delete(:cure_loading_prelude)
-    rules
-  end
-
-  # Suffix-keyed `literal` rules gathered from every standard-library module, so
-  # a suffix such as `ms` expands in any file the way keyword `:syntax` macros
-  # are globally active. Populated as a side effect of `load_prelude_macros/0`
-  # (both persistent-term caches are written together); while the prelude is
-  # itself loading, no prelude literal rules are active (self-reference guard).
   defp prelude_literal_macros do
-    case {Process.get(:cure_loading_prelude), :persistent_term.get({__MODULE__, :prelude_literal_macros}, :missing)} do
-      {true, _} ->
-        %{}
-
-      {_, rules} when is_map(rules) ->
-        rules
-
-      _ ->
-        load_prelude_macros()
-        :persistent_term.get({__MODULE__, :prelude_literal_macros}, %{})
+    case Application.get_env(:cure, :stdlib_macro_rules) do
+      rules when is_map(rules) -> %{}
+      _ -> BuiltinMacros.literal_rules()
     end
+  end
+
+  @doc false
+  # Table-independent harvest of the stdlib's own macro grammar: parse every
+  # `path` with no active macros to collect the raw `:macro_def` rules
+  # (`harvested`), then reparse with that complete grammar seeded so one
+  # stdlib macro can transparently invoke another (e.g. a starter macro using
+  # another syntax macro), plus the suffix-keyed `literal` rules. Exposed so
+  # `BuiltinMacros` can bake the result into a compile-time constant; ordinary
+  # parsing never calls this directly (each `path` parses with
+  # `prelude_macros: false`, so no re-entrant harvest occurs).
+  @spec compute_prelude_macro_rules([Path.t()]) :: {map(), map()}
+  def compute_prelude_macro_rules(paths) do
+    harvested = collect_stdlib_macro_rules(paths, %{})
+    syntax = collect_stdlib_macro_rules(paths, %{}, harvested)
+    literal = collect_stdlib_literal_rules(paths, harvested)
+    {syntax, literal}
   end
 
   defp collect_stdlib_literal_rules(paths, builtin_macros) do

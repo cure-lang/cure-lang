@@ -81,21 +81,21 @@ defmodule CureMoneta.LedgerServer do
   def handle_call({:deposit, id, amount}, _from, ledger) do
     case @moneta.deposit(ledger, id, to_cure_money(amount)) do
       {:ok, new_ledger} -> {:reply, :ok, new_ledger}
-      {:error, reason} -> {:reply, {:error, List.to_string(reason)}, ledger}
+      {:error, reason} -> {:reply, {:error, from_cure_string(reason)}, ledger}
     end
   end
 
   def handle_call({:withdraw, id, amount}, _from, ledger) do
     case @moneta.withdraw(ledger, id, to_cure_money(amount)) do
       {:ok, new_ledger} -> {:reply, :ok, new_ledger}
-      {:error, reason} -> {:reply, {:error, List.to_string(reason)}, ledger}
+      {:error, reason} -> {:reply, {:error, from_cure_string(reason)}, ledger}
     end
   end
 
   def handle_call({:transfer, from_id, to_id, amount}, _from, ledger) do
     case @moneta.transfer(ledger, from_id, to_id, to_cure_money(amount)) do
       {:ok, new_ledger} -> {:reply, :ok, new_ledger}
-      {:error, reason} -> {:reply, {:error, List.to_string(reason)}, ledger}
+      {:error, reason} -> {:reply, {:error, from_cure_string(reason)}, ledger}
     end
   end
 
@@ -125,6 +125,10 @@ defmodule CureMoneta.LedgerServer do
      }}
   end
 
-  defp map_money_result({:error, reason}), do: {:error, List.to_string(reason)}
+  defp map_money_result({:error, reason}), do: {:error, from_cure_string(reason)}
   defp map_money_result(other), do: other
+
+  # `String` is a nominal Cure type, not a bare charlist -- it erases to the
+  # tagged pair `{String, code_points}` (see `docs/FFI.md`).
+  defp from_cure_string({:String, chars}), do: List.to_string(chars)
 end

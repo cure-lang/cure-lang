@@ -93,10 +93,10 @@ defmodule CureMotifTest do
 
   describe "show_step/1 and show_pattern/1" do
     test "show_step renders one-character glyphs per variant" do
-      assert @motif.show_step(@motif.note(60, 100)) == ~c"N"
-      assert @motif.show_step(@motif.rest()) == ~c"."
-      assert @motif.show_step(@motif.chord(57, 60, 64)) == ~c"C"
-      assert @motif.show_step(@motif.roll(60, 100, 4)) == ~c"R"
+      assert @motif.show_step(@motif.note(60, 100)) == {:String, ~c"N"}
+      assert @motif.show_step(@motif.rest()) == {:String, ~c"."}
+      assert @motif.show_step(@motif.chord(57, 60, 64)) == {:String, ~c"C"}
+      assert @motif.show_step(@motif.roll(60, 100, 4)) == {:String, ~c"R"}
     end
 
     test "show_pattern concatenates the per-step glyphs in order" do
@@ -108,7 +108,7 @@ defmodule CureMotifTest do
           @motif.rest()
         ])
 
-      assert @motif.show_pattern(p) == ~c"N.C."
+      assert @motif.show_pattern(p) == {:String, ~c"N.C."}
     end
   end
 
@@ -166,14 +166,14 @@ defmodule CureMotifTest do
     end
 
     test "pitch_name/1 follows scientific pitch notation" do
-      assert @motif.pitch_name(60) == ~c"C4"
-      assert @motif.pitch_name(69) == ~c"A4"
-      assert @motif.pitch_name(57) == ~c"A3"
-      assert @motif.pitch_name(72) == ~c"C5"
-      assert @motif.pitch_name(12) == ~c"C0"
-      assert @motif.pitch_name(61) == ~c"C#4"
-      assert @motif.pitch_name(66) == ~c"F#4"
-      assert @motif.pitch_name(71) == ~c"B4"
+      assert @motif.pitch_name(60) == {:String, ~c"C4"}
+      assert @motif.pitch_name(69) == {:String, ~c"A4"}
+      assert @motif.pitch_name(57) == {:String, ~c"A3"}
+      assert @motif.pitch_name(72) == {:String, ~c"C5"}
+      assert @motif.pitch_name(12) == {:String, ~c"C0"}
+      assert @motif.pitch_name(61) == {:String, ~c"C#4"}
+      assert @motif.pitch_name(66) == {:String, ~c"F#4"}
+      assert @motif.pitch_name(71) == {:String, ~c"B4"}
     end
   end
 

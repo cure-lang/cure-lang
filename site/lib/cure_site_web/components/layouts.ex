@@ -103,6 +103,12 @@ defmodule CureSiteWeb.Layouts do
             >
               Your First Project
             </a>
+            <a
+              href={~p"/escrow-exchange"}
+              class={mobile_nav_class(@current_path, ~p"/escrow-exchange")}
+            >
+              Escrew&Exchange project
+            </a>
           </div>
         </div>
 

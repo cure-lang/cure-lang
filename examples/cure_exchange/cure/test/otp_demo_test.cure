@@ -1,0 +1,7 @@
+mod Exchange.OtpDemo.Test
+  use Std.Test
+  use Exchange.OtpDemo
+
+  fn test_demo_completes_and_returns_ok() -> Effect(Unit) =
+    let result = Exchange.OtpDemo.demo()
+    Std.Test.assert_eq(result, :ok)

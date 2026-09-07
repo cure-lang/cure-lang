@@ -307,6 +307,17 @@ See the `examples/` directory for sample Cure programs:
   (`Clock`, `Sequencer`, `Voice`), a Melquiades-relay sequencer, an
   `app CureMotif` container, and an Elixir-side ASCII piano-roll
   renderer driven by `CureMotif.Demo.run/0`
+- `cure_exchange/` -- a multi-currency exchange and escrow engine, as two
+  sibling projects over the same seven-state `Created -> FundsReserved ->
+  (Cancelled | ExecutingSwap) -> (Completed | Refunding -> Refunded)` graph:
+  `cure_exchange/cure/` is pure Cure (`Std.Fsm`'s transition-graph DSL, a
+  hand-written total mirror using `FsmAction`/`Keep`/`Next`, `Result`-typed
+  ledger reserve/capture/release effects, and a `Std.Otp` process-identity
+  demo), with its README documenting several toolchain edge cases found
+  while building it; `cure_exchange/elixir/` puts only the FSM in Cure and
+  drives it from an Elixir `GenServer`/`DynamicSupervisor` stack that owns
+  the rate-lock timer, a simulated bank webhook, a settlement safety net,
+  and the multi-step refund rollback
 
 Compile and run:
 

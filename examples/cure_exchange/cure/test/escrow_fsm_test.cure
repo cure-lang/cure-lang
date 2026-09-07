@@ -1,0 +1,124 @@
+mod Exchange.EscrowFsm.Test
+  use Std.Test
+  use Std.Fsm
+  use Exchange.EscrowFsm
+
+  local fn data() -> EscrowData = Exchange.EscrowFsm.initial_data("Q-1")
+
+  # ---------------------------------------------------------------------------
+  # Created --LockFunds--> FundsReserved (and its guard)
+  # ---------------------------------------------------------------------------
+
+  fn test_lock_funds_with_positive_amount_reserves_funds() -> Unit =
+    match Exchange.EscrowFsm.transition(Created(), LockFunds(500, "Q-9"), data())
+      Next(state, next_data) ->
+        let _: Unit = Std.Test.assert_eq(Exchange.EscrowFsm.show_state(state), "FundsReserved")
+        let _: Unit = Std.Test.assert_eq(next_data.amount, 500)
+        Std.Test.assert_eq(next_data.quote_id, "Q-9")
+      Keep(_) -> Std.Test.assert(false)
+      Stop(_, _) -> Std.Test.assert(false)
+
+  fn test_lock_funds_guard_rejects_zero_amount() -> Unit =
+    match Exchange.EscrowFsm.transition(Created(), LockFunds(0, "Q-9"), data())
+      Keep(_) -> Std.Test.assert(true)
+      Next(_, _) -> Std.Test.assert(false)
+      Stop(_, _) -> Std.Test.assert(false)
+
+  fn test_lock_funds_guard_rejects_negative_amount() -> Unit =
+    match Exchange.EscrowFsm.transition(Created(), LockFunds(0 - 5, "Q-9"), data())
+      Keep(_) -> Std.Test.assert(true)
+      Next(_, _) -> Std.Test.assert(false)
+      Stop(_, _) -> Std.Test.assert(false)
+
+  # ---------------------------------------------------------------------------
+  # FundsReserved --QuoteExpired--> Cancelled
+  # FundsReserved --CounterpartyMatched--> ExecutingSwap
+  # ---------------------------------------------------------------------------
+
+  fn test_quote_expired_cancels() -> Unit =
+    match Exchange.EscrowFsm.transition(FundsReserved(), QuoteExpired(), data())
+      Next(state, _) -> Std.Test.assert_eq(Exchange.EscrowFsm.show_state(state), "Cancelled")
+      Keep(_) -> Std.Test.assert(false)
+      Stop(_, _) -> Std.Test.assert(false)
+
+  fn test_counterparty_matched_moves_to_executing_swap() -> Unit =
+    match Exchange.EscrowFsm.transition(FundsReserved(), CounterpartyMatched("T-9"), data())
+      Next(state, next_data) ->
+        let _: Unit = Std.Test.assert_eq(Exchange.EscrowFsm.show_state(state), "ExecutingSwap")
+        Std.Test.assert_eq(next_data.trade_id, "T-9")
+      Keep(_) -> Std.Test.assert(false)
+      Stop(_, _) -> Std.Test.assert(false)
+
+  # ---------------------------------------------------------------------------
+  # ExecutingSwap --BankConfirmed--> Completed
+  # ExecutingSwap --SettleTimeout--> Refunding
+  # ExecutingSwap --BankFailed--> Refunding
+  # ---------------------------------------------------------------------------
+
+  fn test_bank_confirmed_completes() -> Unit =
+    match Exchange.EscrowFsm.transition(ExecutingSwap(), BankConfirmed(), data())
+      Next(state, _) -> Std.Test.assert_eq(Exchange.EscrowFsm.show_state(state), "Completed")
+      Keep(_) -> Std.Test.assert(false)
+      Stop(_, _) -> Std.Test.assert(false)
+
+  fn test_settle_timeout_moves_to_refunding() -> Unit =
+    match Exchange.EscrowFsm.transition(ExecutingSwap(), SettleTimeout(), data())
+      Next(state, _) -> Std.Test.assert_eq(Exchange.EscrowFsm.show_state(state), "Refunding")
+      Keep(_) -> Std.Test.assert(false)
+      Stop(_, _) -> Std.Test.assert(false)
+
+  fn test_bank_failed_moves_to_refunding() -> Unit =
+    match Exchange.EscrowFsm.transition(ExecutingSwap(), BankFailed(), data())
+      Next(state, _) -> Std.Test.assert_eq(Exchange.EscrowFsm.show_state(state), "Refunding")
+      Keep(_) -> Std.Test.assert(false)
+      Stop(_, _) -> Std.Test.assert(false)
+
+  # ---------------------------------------------------------------------------
+  # Refunding --RefundCompleted--> Refunded
+  # ---------------------------------------------------------------------------
+
+  fn test_refund_completed_finishes_the_refund() -> Unit =
+    match Exchange.EscrowFsm.transition(Refunding(), RefundCompleted(), data())
+      Next(state, _) -> Std.Test.assert_eq(Exchange.EscrowFsm.show_state(state), "Refunded")
+      Keep(_) -> Std.Test.assert(false)
+      Stop(_, _) -> Std.Test.assert(false)
+
+  # ---------------------------------------------------------------------------
+  # Stray and terminal-state events are safely ignored (`Keep`), never a crash.
+  # ---------------------------------------------------------------------------
+
+  fn test_a_late_quote_expired_after_matching_is_ignored() -> Unit =
+    match Exchange.EscrowFsm.transition(ExecutingSwap(), QuoteExpired(), data())
+      Keep(_) -> Std.Test.assert(true)
+      Next(_, _) -> Std.Test.assert(false)
+      Stop(_, _) -> Std.Test.assert(false)
+
+  fn test_a_late_bank_confirmed_after_a_refund_started_is_ignored() -> Unit =
+    match Exchange.EscrowFsm.transition(Refunding(), BankConfirmed(), data())
+      Keep(_) -> Std.Test.assert(true)
+      Next(_, _) -> Std.Test.assert(false)
+      Stop(_, _) -> Std.Test.assert(false)
+
+  fn test_terminal_states_ignore_every_event() -> Unit =
+    let _: Unit = check_terminal_ignores(Cancelled())
+    let _: Unit = check_terminal_ignores(Completed())
+    check_terminal_ignores(Refunded())
+
+  local fn check_terminal_ignores(state: EscrowState) -> Unit =
+    match Exchange.EscrowFsm.transition(state, BankConfirmed(), data())
+      Keep(_) -> Std.Test.assert(true)
+      Next(_, _) -> Std.Test.assert(false)
+      Stop(_, _) -> Std.Test.assert(false)
+
+  # ---------------------------------------------------------------------------
+  # show_state / show_event
+  # ---------------------------------------------------------------------------
+
+  fn test_show_event_names_every_constructor() -> Unit =
+    let _: Unit = Std.Test.assert_eq(Exchange.EscrowFsm.show_event(LockFunds(1, "Q")), "LockFunds")
+    let _: Unit = Std.Test.assert_eq(Exchange.EscrowFsm.show_event(QuoteExpired()), "QuoteExpired")
+    let _: Unit = Std.Test.assert_eq(Exchange.EscrowFsm.show_event(CounterpartyMatched("T")), "CounterpartyMatched")
+    let _: Unit = Std.Test.assert_eq(Exchange.EscrowFsm.show_event(BankConfirmed()), "BankConfirmed")
+    let _: Unit = Std.Test.assert_eq(Exchange.EscrowFsm.show_event(SettleTimeout()), "SettleTimeout")
+    let _: Unit = Std.Test.assert_eq(Exchange.EscrowFsm.show_event(BankFailed()), "BankFailed")
+    Std.Test.assert_eq(Exchange.EscrowFsm.show_event(RefundCompleted()), "RefundCompleted")

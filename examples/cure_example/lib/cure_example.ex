@@ -14,7 +14,7 @@ defmodule CureExample do
       "Hello, World!"
   """
   def greet(name),
-    do: call(:"Cure.Greeter", :hello, [String.to_charlist(name)]) |> List.to_string()
+    do: call(:"Cure.Greeter", :hello, [to_cure_string(name)]) |> from_cure_string()
 
   @doc """
   Says farewell using the Cure `Greeter` module.
@@ -23,7 +23,7 @@ defmodule CureExample do
       "Goodbye, World. See you soon!"
   """
   def farewell(name),
-    do: call(:"Cure.Greeter", :farewell, [String.to_charlist(name)]) |> List.to_string()
+    do: call(:"Cure.Greeter", :farewell, [to_cure_string(name)]) |> from_cure_string()
 
   @doc """
   Computes n! using the Cure `Calculator` module.
@@ -51,7 +51,7 @@ defmodule CureExample do
       iex> CureExample.classify(0)
       "zero"
   """
-  def classify(n), do: call(:"Cure.Calculator", :classify, [n]) |> List.to_string()
+  def classify(n), do: call(:"Cure.Calculator", :classify, [n]) |> from_cure_string()
 
   @doc """
   Safe division that returns `{:ok, result}` or `{:error, reason}`.
@@ -64,9 +64,9 @@ defmodule CureExample do
   def safe_divide(a, b) do
     case call(:"Cure.Calculator", :safe_divide, [a, b]) do
       {:ok, value} -> {:ok, value}
-      {:error, reason} -> {:error, List.to_string(reason)}
+      {:error, reason} -> {:error, from_cure_string(reason)}
       {:Ok, value} -> {:ok, value}
-      {:Error, reason} -> {:error, List.to_string(reason)}
+      {:Error, reason} -> {:error, from_cure_string(reason)}
     end
   end
 
@@ -96,4 +96,11 @@ defmodule CureExample do
   end
 
   defp call(module, function, arguments), do: apply(module, function, arguments)
+
+  # `String` is a nominal Cure type (`rec String { characters: List(Char) }`),
+  # not a bare charlist -- it erases to the tagged pair `{String,
+  # code_points}`. A `.cure` function that takes or returns `String` expects
+  # exactly that shape at the Elixir boundary, not a raw charlist or binary.
+  defp to_cure_string(s) when is_binary(s), do: {:String, String.to_charlist(s)}
+  defp from_cure_string({:String, chars}), do: List.to_string(chars)
 end

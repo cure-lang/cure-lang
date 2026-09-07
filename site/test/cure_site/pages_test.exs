@@ -42,14 +42,34 @@ defmodule CureSite.PagesTest do
 
       assert "about" in ids
       assert "getting-started" in ids
+      assert "escrow-exchange" in ids
     end
 
     test "leads the docs sidebar and the prev/next chain" do
       assert [{:about, "About", _desc, about_pages} | _rest] = Pages.grouped_pages()
-      assert [%{id: "about"}, %{id: "getting-started"}] = about_pages
+      assert [%{id: "about"}, %{id: "getting-started"}, %{id: "escrow-exchange"}] = about_pages
 
       assert {nil, next} = Pages.prev_and_next("about")
       assert next.id == "getting-started"
+
+      assert {prev, next2} = Pages.prev_and_next("getting-started")
+      assert prev.id == "about"
+      assert next2.id == "escrow-exchange"
+
+      assert {prev2, next3} = Pages.prev_and_next("escrow-exchange")
+      assert prev2.id == "getting-started"
+      assert next3.id == "tour"
+    end
+
+    test "is served as /escrow-exchange with title Escrew&Exchange project" do
+      page = Pages.get_page_by_id!("escrow-exchange")
+
+      assert page.id == "escrow-exchange"
+      assert page.title == "Escrew&Exchange project"
+      assert page.category == :about
+      assert page.order == 3
+      assert page.body =~ "Pure Cure Project"
+      assert page.body =~ "Elixir + Cure FSM Hybrid"
     end
   end
 end

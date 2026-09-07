@@ -16,23 +16,23 @@ defmodule CureSplineTest do
 
   describe "Cure.Spline.fit/1 validation" do
     test "rejects empty knot list" do
-      assert {:error, ~c"spline: empty knot list"} = @raw_module.fit([])
+      assert {:error, {:String, ~c"spline: empty knot list"}} = @raw_module.fit([])
     end
 
     test "rejects single knot" do
-      assert {:error, ~c"spline: need at least two knots"} =
+      assert {:error, {:String, ~c"spline: need at least two knots"}} =
                @raw_module.fit([knot(0.0, 1.0)])
     end
 
     test "rejects duplicate x coordinates" do
-      assert {:error, ~c"spline: x values must be strictly increasing"} =
+      assert {:error, {:String, ~c"spline: x values must be strictly increasing"}} =
                @raw_module.fit([knot(0.0, 0.0), knot(0.0, 1.0)])
     end
 
     test "rejects decreasing x coordinates" do
       knots = [knot(0.0, 0.0), knot(1.0, 1.0), knot(0.5, 0.25)]
 
-      assert {:error, ~c"spline: x values must be strictly increasing"} =
+      assert {:error, {:String, ~c"spline: x values must be strictly increasing"}} =
                @raw_module.fit(knots)
     end
 
@@ -113,11 +113,11 @@ defmodule CureSplineTest do
     end
 
     test "x below domain returns error", %{spline: spline} do
-      assert {:error, ~c"spline: x below domain"} = @raw_module.evaluate(spline, -0.5)
+      assert {:error, {:String, ~c"spline: x below domain"}} = @raw_module.evaluate(spline, -0.5)
     end
 
     test "x above domain returns error", %{spline: spline} do
-      assert {:error, ~c"spline: x above domain"} = @raw_module.evaluate(spline, 2.5)
+      assert {:error, {:String, ~c"spline: x above domain"}} = @raw_module.evaluate(spline, 2.5)
     end
 
     test "evaluate_clamped/2 returns a finite number outside domain", %{spline: spline} do

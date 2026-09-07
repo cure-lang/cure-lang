@@ -1,44 +1,70 @@
 {
   "comments": {
     "lineComment": "#",
-    "blockComment": ["###", "###"]
+    "blockComment": [
+      "#|",
+      "|#"
+    ]
   },
   "brackets": [
-    ["[", "]"],
-    ["(", ")"],
-    ["{", "}"]
+    [
+      "{",
+      "}"
+    ],
+    [
+      "[",
+      "]"
+    ],
+    [
+      "(",
+      ")"
+    ]
   ],
   "autoClosingPairs": [
-    { "open": "[", "close": "]" },
-    { "open": "(", "close": ")" },
-    { "open": "{", "close": "}" },
-    { "open": "\"", "close": "\"", "notIn": ["string", "comment"] },
-    { "open": "'", "close": "'", "notIn": ["string", "comment"] },
-    { "open": "###", "close": "###", "notIn": ["string"] }
+    {
+      "open": "{",
+      "close": "}"
+    },
+    {
+      "open": "[",
+      "close": "]"
+    },
+    {
+      "open": "(",
+      "close": ")"
+    },
+    {
+      "open": "\"",
+      "close": "\"",
+      "notIn": [
+        "string"
+      ]
+    },
+    {
+      "open": "#|",
+      "close": "|#"
+    }
   ],
   "surroundingPairs": [
-    ["[", "]"],
-    ["(", ")"],
-    ["{", "}"],
-    ["\"", "\""],
-    ["'", "'"]
+    [
+      "{",
+      "}"
+    ],
+    [
+      "[",
+      "]"
+    ],
+    [
+      "(",
+      ")"
+    ],
+    [
+      "\"",
+      "\""
+    ]
   ],
-  "wordPattern": "(-?\\d+(?:\\.\\d+)?)|([A-Za-z_][A-Za-z0-9_]*[!?]?)",
   "indentationRules": {
-    "increaseIndentPattern": "^\\s*(mod|fn|rec|fsm|proto|impl|type|actor|sup|app|proof|use|match|for|try|receive|on_start|on_stop|on_transition|on_enter|on_exit|on_failure|on_timer|on_message|on_phase|children)\\b.*$|^.*(=|->|then|else|do|of|with)\\s*(#.*)?$|^.*[\\(\\{\\[]\\s*(#.*)?$",
-    "decreaseIndentPattern": "^\\s*(end|else|elif|\\)|\\]|\\}|\\|)\\b.*$"
-  },
-  "folding": {
-    "offSide": true,
-    "markers": {
-      "start": "^\\s*###\\b",
-      "end": "^\\s*###\\b"
-    }
-  },
-  "onEnterRules": [
-    {
-      "beforeText": "^\\s*###(?!#).*$",
-      "action": { "indent": "none" }
-    }
-  ]
+    "increaseIndentPattern": "^\\s*(mod|fn|type|typealias|rec|interface|implementation|actor|sup|app|fsm|state|event|transition|match|pickup|if|elif|else|try|catch|finally|receive|after|on_transition|on_enter|on_exit|on_failure|on_timer)\\b|=\\s*$",
+    "decreaseIndentPattern": "^\\s*(elif|else|catch|finally|after)\\b"
+  }
 }

@@ -6,7 +6,6 @@
   order: 2
 }
 ---
-# A tour of Cure
 
 Cure is a typed language for building reliable systems on the BEAM. This tour
 is deliberately short: each example introduces one idea and points to the

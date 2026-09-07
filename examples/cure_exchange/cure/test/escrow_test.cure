@@ -1,0 +1,44 @@
+mod Exchange.Escrow.Test
+  use Std.Test
+  use Std.Result
+  use Exchange.Money
+  use Exchange.Ledger
+  use Exchange.EscrowFsm
+  use Exchange.Escrow
+
+  local fn fresh_ledger() -> Ledger =
+    let empty = Exchange.Ledger.new_ledger([])
+    Exchange.Ledger.open_account(empty, 1, "Alice", Exchange.Money.money(1000000, Exchange.Money.USD()))
+
+  fn test_happy_path_reaches_completed_and_captures_the_hold() -> Unit =
+    match Exchange.Escrow.play(fresh_ledger(), 1, Exchange.Money.USD(), "Q-1", Exchange.Escrow.happy_path_events())
+      Error(_) -> Std.Test.assert(false)
+      Ok(outcome) ->
+        let _: Unit = Std.Test.assert_eq(Exchange.EscrowFsm.show_state(outcome.state), "Completed")
+        let _: Unit = Std.Test.assert_eq(Std.Result.unwrap(Exchange.Ledger.held(outcome.ledger, 1), Exchange.Money.zero(Exchange.Money.USD())), Exchange.Money.zero(Exchange.Money.USD()))
+        Std.Test.assert_eq(Std.Result.unwrap(Exchange.Ledger.balance(outcome.ledger, 1), Exchange.Money.zero(Exchange.Money.USD())), Exchange.Money.money(990000, Exchange.Money.USD()))
+
+  fn test_quote_expired_reaches_cancelled_and_releases_the_hold() -> Unit =
+    match Exchange.Escrow.play(fresh_ledger(), 1, Exchange.Money.USD(), "Q-2", Exchange.Escrow.quote_expired_events())
+      Error(_) -> Std.Test.assert(false)
+      Ok(outcome) ->
+        let _: Unit = Std.Test.assert_eq(Exchange.EscrowFsm.show_state(outcome.state), "Cancelled")
+        Std.Test.assert_eq(Std.Result.unwrap(Exchange.Ledger.balance(outcome.ledger, 1), Exchange.Money.zero(Exchange.Money.USD())), Exchange.Money.money(1000000, Exchange.Money.USD()))
+
+  fn test_bank_failed_reaches_refunded_and_releases_the_hold() -> Unit =
+    match Exchange.Escrow.play(fresh_ledger(), 1, Exchange.Money.USD(), "Q-3", Exchange.Escrow.bank_failed_events())
+      Error(_) -> Std.Test.assert(false)
+      Ok(outcome) ->
+        let _: Unit = Std.Test.assert_eq(Exchange.EscrowFsm.show_state(outcome.state), "Refunded")
+        Std.Test.assert_eq(Std.Result.unwrap(Exchange.Ledger.balance(outcome.ledger, 1), Exchange.Money.zero(Exchange.Money.USD())), Exchange.Money.money(1000000, Exchange.Money.USD()))
+
+  fn test_settle_timeout_also_reaches_refunded() -> Unit =
+    match Exchange.Escrow.play(fresh_ledger(), 1, Exchange.Money.USD(), "Q-4", Exchange.Escrow.settle_timeout_events())
+      Error(_) -> Std.Test.assert(false)
+      Ok(outcome) -> Std.Test.assert_eq(Exchange.EscrowFsm.show_state(outcome.state), "Refunded")
+
+  fn test_a_scenario_without_lock_funds_is_rejected() -> Unit =
+    Std.Test.assert(Std.Result.is_error(Exchange.Escrow.play(fresh_ledger(), 1, Exchange.Money.USD(), "Q-5", [QuoteExpired()])))
+
+  fn test_locking_more_than_the_balance_is_an_error() -> Unit =
+    Std.Test.assert(Std.Result.is_error(Exchange.Escrow.play(fresh_ledger(), 1, Exchange.Money.USD(), "Q-6", [LockFunds(10000000, "Q-6")])))

@@ -1,0 +1,67 @@
+mod Exchange.EscrowFsmDslReference
+  ###
+  The real `Std.Fsm` transition-graph DSL, applied to the exact same escrow
+  graph as `lib/escrow_fsm.cure`'s hand-written `transition/3`: typed event
+  payloads (`LockFunds(amount, quote_id)`, `CounterpartyMatched(trade_id)`),
+  a `when` guard, and three `terminal` states. This is the declarative
+  surface documented in `docs/FSM_GUIDE.md`; writing it here exercises the
+  compiler's compile-time graph verification (reachability, deadlock-freedom,
+  duplicate-transition and payload-consistency checks) on the real diagram.
+
+  This declaration lives in its own module, deliberately never `use`d by
+  anything else in this project, for two independent reasons:
+
+  1. Its generated `State`/`Event` constructors (`Created`, `FundsReserved`,
+     ...) would otherwise collide with `Exchange.EscrowFsm`'s own
+     hand-written `EscrowState`/`EscrowEvent` constructors of the same name
+     if both lived in one module -- unlike a plain nested `mod`, an `fsm`
+     macro's generated constructors are NOT independently namespaced from
+     the rest of their enclosing module in this compiler build.
+  2. In *project-mode* compilation (`cure compile <dir>`, and therefore
+     `cure test`), calling this macro's generated API (`.start`, `.send`,
+     even the pure `.decide`) from another module -- same file or not --
+     fails with an internal `missing_module` resolution error. Declaring it
+     on its own, as done here, is unaffected.
+
+  Validate this declaration with:
+
+    cure run lib/escrow_fsm_dsl_reference.cure
+
+  `cure run` compiles this file -- fully expanding and verifying the `fsm`
+  macro -- before calling `main/0` below. `main/0` here does nothing but
+  return `:ok`; printing it is a deliberately boring, reliable signal that
+  the DSL declaration above it is well-formed and its graph passed
+  verification. Try deleting a `terminal` line or an edge below and
+  re-running to see the compiler reject the graph (`fsm_deadlocked_state`,
+  `fsm_unreachable_state`, ...) before `main/0` ever runs.
+  ###
+
+  use Std.Fsm
+  use Std.Io
+
+  rec EscrowData
+    amount: Int
+    quote_id: String
+    trade_id: String
+
+  fsm Escrow with EscrowData
+    terminal Cancelled
+    terminal Completed
+    terminal Refunded
+
+    Created --LockFunds(amount: Int, quote_id: String)--> FundsReserved
+      when amount > 0
+      update EscrowData{data | amount: amount, quote_id: quote_id}
+    FundsReserved --QuoteExpired--> Cancelled
+    FundsReserved --CounterpartyMatched(trade_id: String)--> ExecutingSwap
+      update EscrowData{data | trade_id: trade_id}
+    ExecutingSwap --BankConfirmed--> Completed
+    ExecutingSwap --SettleTimeout--> Refunding
+    ExecutingSwap --BankFailed--> Refunding
+    Refunding --RefundCompleted--> Refunded
+
+  ## Nothing here touches `Escrow`'s generated API -- see the header comment
+  ## for why not. This only proves the declaration above compiled.
+  fn main() -> Atom =
+    let _: Unit = Std.Io.println("escrow_fsm_dsl_reference: graph verified")
+    :ok

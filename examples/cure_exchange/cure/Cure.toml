@@ -1,0 +1,15 @@
+[project]
+name = "cure_exchange"
+version = "0.1.0"
+edition = "2026"
+
+[dependencies]
+
+[compiler]
+type_check = false
+optimize = false
+# stdlib_path = "/path/to/cure/_build/cure/ebin"
+
+[doc]
+title = "cure_exchange"
+main = "Exchange.Escrow"

@@ -29,14 +29,23 @@ mod Moneta
   @extern(:erlang, :round, 1)
   local fn float_round(f: Float) -> Int
 
+  # `:erlang.integer_to_list/1` returns a raw charlist (`List(Char)`), not
+  # Cure's nominal `String` (`{String, code_points}`) -- declaring the extern
+  # itself as returning `String` type-checks but crashes at run time the
+  # first time the result is concatenated (see `docs/FFI.md`). Declare the
+  # extern at its real erased type and wrap with `Std.String.from_characters`.
   @extern(:erlang, :integer_to_list, 1)
-  local fn int_to_string(n: Int) -> String
+  local fn int_to_charlist(n: Int) -> List(Char)
+
+  local fn int_to_string(n: Int) -> String = Std.String.from_characters(int_to_charlist(n))
 
   @extern(:erlang, :abs, 1)
   local fn abs_int(n: Int) -> Int
 
-  @extern(:erlang, :length, 1)
-  local fn str_length(s: String) -> Int
+  # `:erlang.length/1` needs the raw charlist inside a `String`, not the
+  # `{String, code_points}` tuple itself; `Std.String.length/1` already does
+  # exactly this unwrapping.
+  local fn str_length(s: String) -> Int = Std.String.length(s)
 
   # ---------------------------------------------------------------------------
   # Domain aliases (documented invariants unchecked pending SMTCoq)

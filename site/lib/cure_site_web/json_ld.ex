@@ -64,7 +64,7 @@ defmodule CureSiteWeb.JsonLd do
   # Page IDs that should be treated as step-by-step how-to articles
   # rather than reference articles. Add new HowTo pages here as they
   # appear under `priv/pages/`.
-  @howto_ids ~w(getting-started)
+  @howto_ids ~w(getting-started escrow-exchange)
 
   # Page IDs that describe the project itself rather than a single
   # technical topic. Schema.org's `AboutPage` is the closest match and
