@@ -34,6 +34,13 @@ mod Std.Regex.Runtime.ActiveChildRejectionPackages
     AtomicPathActiveChildDirectionalTherePacked : {@erased failure_shape: LookaroundAdmittedStateCursorShape} -> {@erased selected_shape: LookaroundAdmittedStateCursorShape} -> (proof: AtomicPathActiveChildProofPairPackage(depth, n, machine, selected_shape)) -> (direction: AtomicPathActiveChildShapeThereAuthority(failure_shape, selected_shape)) -> AtomicPathActiveChildDirectionalPackage(depth, n, machine)
     AtomicPathActiveChildDirectionalReversePacked : {@erased failure_shape: LookaroundAdmittedStateCursorShape} -> {@erased selected_shape: LookaroundAdmittedStateCursorShape} -> (proof: AtomicPathActiveChildProofPairPackage(depth, n, machine, selected_shape)) -> (direction: AtomicPathCursorShapesLeftAfterAuthority(failure_shape, selected_shape)) -> AtomicPathActiveChildDirectionalPackage(depth, n, machine)
 
+  ## A Here direction has already fixed the selected skipped-prefix shape to
+  ## `Here`; opening that indexed package leaves exactly the empty selected
+  ## prefix. This wrapper is owned by the package-native boundary so the
+  ## dispatcher does not depend on the module that consumes the branch.
+  type AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices ()
+    AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPacked : (source: AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePackage(depth, n, machine)) -> AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPackage(depth, n, machine)
+
   ## Constructor-directed dispatch for the package-native sibling of the old
   ## nullary canonical rejection dispatcher.  Every callback receives the
   ## existing typed branch package reconstructed from one correlated carrier;
@@ -46,7 +53,7 @@ mod Std.Regex.Runtime.ActiveChildRejectionPackages
     {n: Nat},
     {@erased machine: PatternMachine(n)},
     package: AtomicPathActiveChildDirectionalPackage(depth, n, machine),
-    here_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePackage(depth, n, machine)) -> result,
+    here_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPackage(depth, n, machine)) -> result,
     there_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePackage(depth, n, machine)) -> result,
     reverse_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage(depth, n, machine)) -> result
   ) -> result = match package
@@ -58,13 +65,18 @@ mod Std.Regex.Runtime.ActiveChildRejectionPackages
           availability
         )
       )
-    ) -> here_case(
-      AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePacked(
-        empty,
-        selected,
-        availability
-      )
-    )
+    ) -> match selected
+      AtomicPathSkippedPrefixCursorShapedExistentialPacked(selected_payload) -> match selected_payload
+        AtomicPathSkippedPrefixCursorShapedEmptyPacked(structure) -> match structure
+          AtomicPathSkippedPrefixStructureEmptyPacked(_) -> here_case(
+            AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPacked(
+              AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePacked(
+                empty,
+                selected,
+                availability
+              )
+            )
+          )
     AtomicPathActiveChildDirectionalTherePacked(
       AtomicPathActiveChildProofPairPacked(
         AtomicPathActiveChildCanonicalPairPacked(

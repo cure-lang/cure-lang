@@ -4521,6 +4521,14 @@ Full Cure elaboration still needs to be rerun after the existing
 294-module universe reached that hotspot CPU-bound before this new module, so
 its result is not evidence against the staged package itself.
 
+The first fixed-`Empty` consumer is now also wired: the package dispatcher
+opens the indexed `Here` selected-prefix carrier, accepts only its empty
+constructor, and publishes `AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPackage`.
+The public construction-site callback and recursive continuation surface now
+consume that fixed package; no erased cursor evidence selects the branch.
+There and Reverse still expose their relevant direction packages and are the
+next two consumers to stage before the common recursive induction is connected.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

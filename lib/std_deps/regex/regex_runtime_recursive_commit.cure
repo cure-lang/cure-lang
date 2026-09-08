@@ -2,6 +2,8 @@
 mod Std.Regex.Runtime.RecursiveCommit
   use Std.Regex.Runtime.FinalSinks
 
+  use Std.Regex.Runtime.ActiveChildRejectionPackages
+
   use Std.Regex.Runtime.LeafCluster33
 
   use Std.Regex.Runtime.LeafCluster34
@@ -602,7 +604,7 @@ mod Std.Regex.Runtime.RecursiveCommit
     package: AtomicPathRecursiveCommitSelectedChildSameContinuationPackage(
       depth, n, machine
     ),
-    after_failure_here_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePackage(
+    after_failure_here_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPackage(
       depth, n, machine
     )) -> Empty,
     after_failure_there_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePackage(

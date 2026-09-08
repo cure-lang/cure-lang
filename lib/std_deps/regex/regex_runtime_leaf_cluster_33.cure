@@ -451,13 +451,6 @@ mod Std.Regex.Runtime.LeafCluster33
     AtomicPathRecursiveCommitSelectedChildSamePastRejectedPacked : (aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(depth, n, machine)) -> AtomicPathRecursiveCommitSelectedChildSameContinuationPackage(depth, n, machine)
     AtomicPathRecursiveCommitSelectedChildSameAcceptedImpossiblePacked : (aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(depth, n, machine)) -> AtomicPathRecursiveCommitSelectedChildSameContinuationPackage(depth, n, machine)
 
-  ## A Here direction fixes the selected skipped-prefix cursor to `Here`.
-  ## The canonical shape stored with that cursor rules out every non-empty
-  ## skipped constructor, leaving one exact empty package for the local child
-  ## contradiction.
-  type AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices ()
-    AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPacked : (source: AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePackage(depth, n, machine)) -> AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPackage(depth, n, machine)
-
   fn atomic_path_recursive_commit_selected_child_same_after_failure_terminal_package(
     {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
     aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
@@ -539,7 +532,7 @@ mod Std.Regex.Runtime.LeafCluster33
     package: AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage(
       depth, n, machine
     ),
-    here_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePackage(
+    here_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPackage(
       depth, n, machine
     )) -> Empty,
     there_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePackage(

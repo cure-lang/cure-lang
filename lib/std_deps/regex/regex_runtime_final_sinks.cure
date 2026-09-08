@@ -2,6 +2,8 @@
 mod Std.Regex.Runtime.FinalSinks
   use Std.Regex.Runtime.LeafCluster33
 
+  use Std.Regex.Runtime.ActiveChildRejectionPackages
+
   use Std.Regex.Runtime.LeafCluster34
 
   use Std.Regex.Runtime.LeafCluster35
@@ -441,7 +443,7 @@ mod Std.Regex.Runtime.FinalSinks
     aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
       depth, n, machine
     ),
-    here_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePackage(
+    here_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPackage(
       depth, n, machine
     )) -> Empty,
     there_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePackage(
