@@ -4525,9 +4525,13 @@ The first fixed-`Empty` consumer is now also wired: the package dispatcher
 opens the indexed `Here` selected-prefix carrier, accepts only its empty
 constructor, and publishes `AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPackage`.
 The public construction-site callback and recursive continuation surface now
-consume that fixed package; no erased cursor evidence selects the branch.
-There and Reverse still expose their relevant direction packages and are the
-next two consumers to stage before the common recursive induction is connected.
+consume that fixed package; no erased cursor evidence selects the branch. The
+canonical pair now also carries the already-live
+`AtomicPathRecursiveCommitSelectedChildSameAlignedPackage` authority through
+all three directional callbacks. This preserves the parent `Same` authority
+without reopening the outer existential when the There/Reverse consumers are
+connected. Those two consumers and the common recursive induction remain
+outstanding.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in

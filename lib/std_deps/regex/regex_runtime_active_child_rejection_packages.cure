@@ -20,7 +20,7 @@ mod Std.Regex.Runtime.ActiveChildRejectionPackages
   ## selected shape as an index means a later directional constructor cannot
   ## pair a `Here` callback with a non-Here selected cursor.
   type AtomicPathActiveChildCanonicalPairPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (selected_shape: LookaroundAdmittedStateCursorShape)
-    AtomicPathActiveChildCanonicalPairPacked : (empty: AtomicPathActiveChildExactEmptyPackage(depth, n, machine)) -> (selected: AtomicPathSkippedPrefixCursorShapedExistentialPackage(depth, n, machine, selected_shape)) -> (availability: AtomicPathRejectedSelectedTracePairAvailability(depth, n, machine)) -> AtomicPathActiveChildCanonicalPairPackage(depth, n, machine, selected_shape)
+    AtomicPathActiveChildCanonicalPairPacked : (aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(depth, n, machine)) -> (empty: AtomicPathActiveChildExactEmptyPackage(depth, n, machine)) -> (selected: AtomicPathSkippedPrefixCursorShapedExistentialPackage(depth, n, machine, selected_shape)) -> (availability: AtomicPathRejectedSelectedTracePairAvailability(depth, n, machine)) -> AtomicPathActiveChildCanonicalPairPackage(depth, n, machine, selected_shape)
 
   ## The second stage gives the canonical pair a stable proof-only boundary.
   ## Availability is retained rather than projected to an optional existential:
@@ -53,13 +53,14 @@ mod Std.Regex.Runtime.ActiveChildRejectionPackages
     {n: Nat},
     {@erased machine: PatternMachine(n)},
     package: AtomicPathActiveChildDirectionalPackage(depth, n, machine),
-    here_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPackage(depth, n, machine)) -> result,
-    there_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePackage(depth, n, machine)) -> result,
-    reverse_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage(depth, n, machine)) -> result
+    here_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(depth, n, machine), AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPackage(depth, n, machine)) -> result,
+    there_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(depth, n, machine), AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePackage(depth, n, machine)) -> result,
+    reverse_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(depth, n, machine), AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage(depth, n, machine)) -> result
   ) -> result = match package
     AtomicPathActiveChildDirectionalHerePacked(
       AtomicPathActiveChildProofPairPacked(
         AtomicPathActiveChildCanonicalPairPacked(
+          aligned,
           AtomicPathActiveChildExactEmptyPacked(empty),
           selected,
           availability
@@ -68,7 +69,7 @@ mod Std.Regex.Runtime.ActiveChildRejectionPackages
     ) -> match selected
       AtomicPathSkippedPrefixCursorShapedExistentialPacked(selected_payload) -> match selected_payload
         AtomicPathSkippedPrefixCursorShapedEmptyPacked(structure) -> match structure
-          AtomicPathSkippedPrefixStructureEmptyPacked(_) -> here_case(
+          AtomicPathSkippedPrefixStructureEmptyPacked(_) -> here_case(aligned,
             AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPacked(
               AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePacked(
                 empty,
@@ -80,13 +81,14 @@ mod Std.Regex.Runtime.ActiveChildRejectionPackages
     AtomicPathActiveChildDirectionalTherePacked(
       AtomicPathActiveChildProofPairPacked(
         AtomicPathActiveChildCanonicalPairPacked(
+          aligned,
           AtomicPathActiveChildExactEmptyPacked(empty),
           selected,
           availability
         )
       ),
       direction
-    ) -> there_case(
+    ) -> there_case(aligned,
       AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePacked(
         empty,
         selected,
@@ -97,13 +99,14 @@ mod Std.Regex.Runtime.ActiveChildRejectionPackages
     AtomicPathActiveChildDirectionalReversePacked(
       AtomicPathActiveChildProofPairPacked(
         AtomicPathActiveChildCanonicalPairPacked(
+          aligned,
           AtomicPathActiveChildExactEmptyPacked(empty),
           selected,
           availability
         )
       ),
       direction
-    ) -> reverse_case(
+    ) -> reverse_case(aligned,
       AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePacked(
         empty,
         selected,

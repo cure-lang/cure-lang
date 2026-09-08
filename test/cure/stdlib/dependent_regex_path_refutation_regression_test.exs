@@ -9,6 +9,8 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "type AtomicPathActiveChildProofPairPackage("
     assert source =~ "type AtomicPathActiveChildDirectionalPackage("
     assert source =~ "type AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPackage("
+    assert source =~
+             "AtomicPathActiveChildCanonicalPairPacked : (aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage("
 
     assert source =~
              "fn atomic_path_active_child_rejection_package_dispatch("
@@ -24,6 +26,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert body =~ "here_case"
     assert body =~ "there_case"
     assert body =~ "reverse_case"
+    assert body =~ "here_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage"
     assert body =~ "AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPacked("
     refute body =~ "atomic_path_active_child_rejection_excludes_aligned_trace("
 

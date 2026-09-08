@@ -443,13 +443,19 @@ mod Std.Regex.Runtime.FinalSinks
     aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
       depth, n, machine
     ),
-    here_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPackage(
+    here_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    ), AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPackage(
       depth, n, machine
     )) -> Empty,
-    there_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePackage(
+    there_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    ), AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePackage(
       depth, n, machine
     )) -> Empty,
-    reverse_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage(
+    reverse_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    ), AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage(
       depth, n, machine
     )) -> Empty,
     invalid_case: () -> Empty
@@ -467,6 +473,7 @@ mod Std.Regex.Runtime.FinalSinks
               fn(_) -> invalid_case(),
               fn(destination_rejected) ->
                 atomic_path_recursive_commit_selected_child_same_destination_rejected_alignment_fold(
+                  aligned,
                   destination_rejected,
                   here_case,
                   there_case,

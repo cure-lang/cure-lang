@@ -529,16 +529,25 @@ mod Std.Regex.Runtime.LeafCluster33
   ## failure from one transition beside the suffix of another transition.
   fn atomic_path_recursive_commit_selected_child_same_destination_rejected_alignment_fold(
     {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    ),
     package: AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage(
       depth, n, machine
     ),
-    here_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPackage(
+    here_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    ), AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPackage(
       depth, n, machine
     )) -> Empty,
-    there_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePackage(
+    there_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    ), AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePackage(
       depth, n, machine
     )) -> Empty,
-    reverse_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage(
+    reverse_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    ), AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage(
       depth, n, machine
     )) -> Empty,
     invalid_case: () -> Empty
@@ -592,6 +601,7 @@ mod Std.Regex.Runtime.LeafCluster33
                             AtomicPathActiveChildDirectionalHerePacked(
                               AtomicPathActiveChildProofPairPacked(
                                 AtomicPathActiveChildCanonicalPairPacked(
+                                  aligned,
                                   AtomicPathActiveChildExactEmptyPacked(package),
                                   selected,
                                   rejected_selected_availability
@@ -608,6 +618,7 @@ mod Std.Regex.Runtime.LeafCluster33
                             AtomicPathActiveChildDirectionalTherePacked(
                               AtomicPathActiveChildProofPairPacked(
                                 AtomicPathActiveChildCanonicalPairPacked(
+                                  aligned,
                                   AtomicPathActiveChildExactEmptyPacked(package),
                                   selected,
                                   rejected_selected_availability
@@ -625,6 +636,7 @@ mod Std.Regex.Runtime.LeafCluster33
                             AtomicPathActiveChildDirectionalReversePacked(
                               AtomicPathActiveChildProofPairPacked(
                                 AtomicPathActiveChildCanonicalPairPacked(
+                                  aligned,
                                   AtomicPathActiveChildExactEmptyPacked(package),
                                   selected,
                                   rejected_selected_availability
