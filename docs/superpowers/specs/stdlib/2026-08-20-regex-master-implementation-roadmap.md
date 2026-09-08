@@ -4564,7 +4564,11 @@ also retains the rejected child’s erased `AtomicPathRefutation` and parallel
 keeps the exact child contradiction available to the `Unavailable` local-head
 case without adding a second dependent wrapper around the full commit
 carrier; the next consumer must open these fields only under an `Empty`
-result.
+result. The package module now has a proof-only child-failure eliminator whose
+callbacks all return `Empty`; it classifies the retained child refutation and
+passes the original existential onward only for the recursive
+`DestinationRejected` case. No erased failure constructor can therefore
+select a runtime-valued branch.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in

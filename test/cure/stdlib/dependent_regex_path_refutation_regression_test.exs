@@ -93,6 +93,10 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              "after_failure_here_available_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage"
     assert source =~ "rejected_child_failure: AtomicPathRefutation("
     assert source =~ "rejected_child_evidence: AtomicPathNoEvidence("
+    assert source =~
+             "fn atomic_path_active_child_rejection_pair_failure_elim("
+    assert source =~
+             "destination_rejected_case: (AtomicPathRejectedSelectedTracePairExistentialPackage"
   end
 
   test "successful sibling selection retains the rejected child cursor beside its trace" do

@@ -73,6 +73,42 @@ mod Std.Regex.Runtime.ActiveChildRejectionPackages
     AtomicPathRejectedSelectedTracePairUnavailable() -> unavailable_case()
     AtomicPathRejectedSelectedTracePairAvailable(pair) -> available_case(pair)
 
+  ## Eliminate the child failure carried by an available pair only into
+  ## `Empty`.  The failure constructors are proof-only control information;
+  ## restricting every branch to contradiction prevents this helper from
+  ## turning an erased proof tag into runtime behavior.  The destination-
+  ## rejected branch returns the original existential so the recursive
+  ## consumer can open the retained child proof and selected trace together.
+  @reducible
+  fn atomic_path_active_child_rejection_pair_failure_elim(
+    {depth: Nat},
+    {n: Nat},
+    {@erased machine: PatternMachine(n)},
+    pair: AtomicPathRejectedSelectedTracePairExistentialPackage(
+      depth, n, machine
+    ),
+    input_exhausted_case: () -> Empty,
+    exact_accepted_case: () -> Empty,
+    destinations_exhausted_case: () -> Empty,
+    destination_rejected_case: (
+      AtomicPathRejectedSelectedTracePairExistentialPackage(depth, n, machine)
+    ) -> Empty,
+    invalid_case: () -> Empty
+  ) -> Empty = match pair
+    AtomicPathRejectedSelectedTracePairExistentialPacked(package) -> match package
+      AtomicPathRejectedSelectedTracePairPacked(
+        _, _, _, _, _, _, _, _, _, _, _, _, _, _,
+        child_failure,
+        _, _, _, _, _, _
+      ) -> match child_failure
+        AtomicPathInputExhausted(_, _) -> input_exhausted_case()
+        AtomicPathExactAcceptedWithInput(_, _, _, _) -> exact_accepted_case()
+        AtomicPathDestinationsExhausted(_, _, _, _, _, _) -> destinations_exhausted_case()
+        AtomicPathDestinationRejected(
+          _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _
+        ) -> destination_rejected_case(pair)
+end
+
   ## Directional pair consumers retain the branch package while opening its
   ## availability.  This is the first proof-facing boundary: the recursive
   ## induction receives the published sibling pair and the exact directional
