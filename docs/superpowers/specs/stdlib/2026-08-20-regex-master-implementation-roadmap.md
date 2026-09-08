@@ -573,6 +573,43 @@ resolution must reject private module names with a structured package-visibility
 diagnostic. Public façades may explicitly reexport selected declarations, and
 those reexports are the only transitive visibility path.
 
+### 1.2 Physical source-file architecture
+
+File structure is an implementation invariant, not cleanup to defer until the
+engine is finished. Every future regex slice must land in its final physical
+file layout so that a second repository-wide refactor is not required after the
+proof work is complete.
+
+1. One physical `.cure` file has one top-level module identity. A file that is
+   intentionally part of a same-module split must carry the explicit
+   `# cure:fragment` marker and must contain one cohesive family of that module;
+   accidental duplicate modules and unmarked fragments are errors.
+2. Each file owns one coherent responsibility: syntax/parser forms, syntax
+   normalization, machine construction, runtime execution, proof/evidence,
+   diagnostics, or a public façade. Do not place a new proof family in a
+   runtime “god file”, or a new parser/control family in an unrelated proof
+   file, merely because that file already imports the needed names.
+3. Keep public façade files thin. Internal constructors, staged helpers,
+   indexed evidence, and theorem families belong in named implementation files
+   with stable family-oriented names. A new feature must not increase an
+   existing mixed-responsibility file when a new family file is the natural
+   owner.
+4. Before implementation, record the ownership map and dependency direction
+   for every new file. Imports must follow the package layering
+   (syntax → normalization → machine/runtime → proofs/adapters → façade),
+   without back-edges introduced for convenience.
+5. Use `cure.refactor` for mechanical extraction and import insertion. Do not
+   hand-copy declarations between files. The generated source must be reparsed,
+   preserve canonical module identity and fragment markers, and pass the
+   package ordering and visibility checks before the feature is considered
+   landed.
+6. A phase is not complete if its code is known to need a later structural
+   split. The phase's completion record must name the files it changed and
+   demonstrate that each file remains cohesive, independently discoverable,
+   and within the recorded cold/warm elaboration budget. Line count alone is
+   not a reason to split a cohesive file, but mixed responsibility, dependency
+   direction, or compilation cost is a reason to split before adding more code.
+
 ## 2. Non-negotiable invariants
 
 Every phase must preserve all of these:
@@ -596,9 +633,14 @@ Every phase must preserve all of these:
   `Continue`; AtomVM reductions schedule pure Cure calls and loop backedges.
 - Streaming, if later implemented, is a separate incomplete-input API rather
   than a mutation of ordinary `run` semantics.
-- No module split is performed merely to move lines. Revisit the accepted
-  `Std.Regex` no-split decision only with cold/warm profiles demonstrating that
-  a proposed acyclic boundary reduces total work.
+- Physical file boundaries are part of the design: new features must be placed
+  in cohesive family files from the start, with one top-level module identity
+  per file (or an explicit same-module fragment). A split is not deferred to a
+  later cleanup pass. Splits must be semantic/family boundaries, not arbitrary
+  line-count cuts; use `cure.refactor` so imports, spans, and canonical identity
+  are rewritten mechanically. Revisit the accepted `Std.Regex` no-split
+  decision only with cold/warm profiles demonstrating that a proposed acyclic
+  boundary reduces total work.
 - No new compiler workaround may be embedded in regex code. Reproduce a
   compiler defect with a minimal red regression and fix its canonical authority.
 
@@ -616,6 +658,9 @@ At the beginning of each phase:
 During implementation:
 
 - work at the single semantic or compiler construction site;
+- choose and record the final family-oriented source file before adding code;
+  do not grow a mixed-responsibility module with the intention of splitting it
+  after the phase;
 - add complete structured diagnostics, including relevant span, declaration,
   term, expected/inferred type, and unresolved identity where available;
 - keep proofs, executable code, erasure checks, and compatibility behavior in
@@ -4838,6 +4883,8 @@ A phase is complete only when all answers are yes:
 - Are soundness, completeness, preservation, and erasure obligations discharged
   to the extent required by the focused specification?
 - Does the generated closure remain pure and portable?
+- Do the changed files have explicit cohesive ownership, one module identity
+  (or marked fragment) each, and no deferred structural refactor?
 - Did BEAM and AtomVM agree where the phase affects runtime behavior?
 - Were resource and performance regressions measured rather than guessed?
 - Was the compatibility ledger updated?
