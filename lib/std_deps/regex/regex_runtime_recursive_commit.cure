@@ -670,4 +670,120 @@ mod Std.Regex.Runtime.RecursiveCommit
       )
     AtomicPathRecursiveCommitSelectedChildSameAcceptedImpossiblePacked(_) ->
       invalid_case()
+
+  ## Pair-aware continuation dispatcher for the common induction.  The
+  ## `AfterFailure` branch now exposes both local-unavailable and
+  ## sibling-pair-available cases; propagated commits keep using the existing
+  ## projected consumers.  This leaves the recursive theorem with one typed
+  ## entry point instead of falling back to the legacy raw-trace dispatcher.
+  fn atomic_path_recursive_commit_selected_child_same_pair_continuation_dispatch(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    package: AtomicPathRecursiveCommitSelectedChildSameContinuationPackage(
+      depth, n, machine
+    ),
+    after_failure_here_unavailable_case: (
+      AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+        depth, n, machine
+      ),
+      AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPackage(
+        depth, n, machine
+      )
+    ) -> Empty,
+    after_failure_here_available_case: (
+      AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+        depth, n, machine
+      ),
+      AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePackage(
+        depth, n, machine
+      ),
+      AtomicPathRejectedSelectedTracePairExistentialPackage(depth, n, machine)
+    ) -> Empty,
+    after_failure_there_unavailable_case: (
+      AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+        depth, n, machine
+      ),
+      AtomicPathRecursiveCommitSelectedChildSameAfterFailureThereEmptyPackage(
+        depth, n, machine
+      )
+    ) -> Empty,
+    after_failure_there_available_case: (
+      AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+        depth, n, machine
+      ),
+      AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePackage(
+        depth, n, machine
+      ),
+      AtomicPathRejectedSelectedTracePairExistentialPackage(depth, n, machine)
+    ) -> Empty,
+    after_failure_reverse_unavailable_case: (
+      AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+        depth, n, machine
+      ),
+      AtomicPathRecursiveCommitSelectedChildSameAfterFailureReverseEmptyPackage(
+        depth, n, machine
+      )
+    ) -> Empty,
+    after_failure_reverse_available_case: (
+      AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+        depth, n, machine
+      ),
+      AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage(
+        depth, n, machine
+      ),
+      AtomicPathRejectedSelectedTracePairExistentialPackage(depth, n, machine)
+    ) -> Empty,
+    past_rejected_empty_case: (AtomicPathRecursiveCommitSelectedChildSamePastRejectedReversePackage(
+      depth, n, machine
+    )) -> Empty,
+    correlated_case: (AtomicPathRecursiveCommitSelectedExistentialPackage(
+      depth, n, machine
+    )) -> Empty,
+    same_case: (AtomicPathRecursiveCommitSelectedChildSameContinuationPackage(
+      depth, n, machine
+    )) -> Empty,
+    left_case: (AtomicPathRecursiveCommitSelectedExistentialPackage(
+      depth, n, machine
+    )) -> Empty,
+    right_case: (AtomicPathRecursiveCommitSelectedExistentialPackage(
+      depth, n, machine
+    )) -> Empty,
+    invalid_case: () -> Empty
+  ) -> Empty = match package
+    AtomicPathRecursiveCommitSelectedChildSameAfterFailurePacked(aligned) ->
+      atomic_path_recursive_commit_selected_child_same_after_failure_unclassified_pair_fold(
+        aligned,
+        after_failure_here_unavailable_case,
+        after_failure_here_available_case,
+        after_failure_there_unavailable_case,
+        after_failure_there_available_case,
+        after_failure_reverse_unavailable_case,
+        after_failure_reverse_available_case,
+        invalid_case
+      )
+    AtomicPathRecursiveCommitSelectedChildSameFromChildPacked(projected) ->
+      atomic_path_recursive_commit_selected_child_same_projected_dispatch(
+        projected,
+        correlated_case,
+        same_case,
+        left_case,
+        right_case,
+        invalid_case
+      )
+    AtomicPathRecursiveCommitSelectedChildSamePastEscapedPacked(projected) ->
+      atomic_path_recursive_commit_selected_child_same_projected_dispatch(
+        projected,
+        correlated_case,
+        same_case,
+        left_case,
+        right_case,
+        invalid_case
+      )
+    AtomicPathRecursiveCommitSelectedChildSamePastRejectedPacked(aligned) ->
+      atomic_path_recursive_commit_selected_child_same_past_rejected_empty_fold(
+        aligned,
+        past_rejected_empty_case,
+        invalid_case
+      )
+    AtomicPathRecursiveCommitSelectedChildSameAcceptedImpossiblePacked(_) ->
+      invalid_case()
 end

@@ -4550,7 +4550,13 @@ proof-facing handoff for the common induction: the next consumer can receive
 the construction-site sibling pair without reconstructing it from erased
 failure evidence. It is still not the contradiction theorem; the callbacks
 must be connected to the recursive child contradiction and the common
-induction.
+induction. The final-sink layer now provides a pair-aware unclassified
+`AfterFailure` fold, and `RecursiveCommit` exposes a pair-aware continuation
+dispatcher that routes propagated `FromChild`/`PastEscaped` and `PastRejected`
+branches through their existing package-native consumers. The dispatcher is
+the common induction entry point; its directional callbacks remain the next
+place where the strict child contradiction and sibling obligations must be
+discharged.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
