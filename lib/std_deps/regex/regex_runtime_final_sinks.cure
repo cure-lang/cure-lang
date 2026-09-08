@@ -450,12 +450,12 @@ mod Std.Regex.Runtime.FinalSinks
     )) -> Empty,
     there_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
       depth, n, machine
-    ), AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePackage(
+    ), AtomicPathRecursiveCommitSelectedChildSameAfterFailureThereEmptyPackage(
       depth, n, machine
     )) -> Empty,
     reverse_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
       depth, n, machine
-    ), AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage(
+    ), AtomicPathRecursiveCommitSelectedChildSameAfterFailureReverseEmptyPackage(
       depth, n, machine
     )) -> Empty,
     invalid_case: () -> Empty

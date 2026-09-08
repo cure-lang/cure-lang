@@ -41,6 +41,16 @@ mod Std.Regex.Runtime.ActiveChildRejectionPackages
   type AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices ()
     AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPacked : (source: AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePackage(depth, n, machine)) -> AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPackage(depth, n, machine)
 
+  ## Later-sibling and reverse directions retain their indexed authorities in
+  ## the same fixed-Empty transport as Here.  The wrappers deliberately do
+  ## not project or reclassify the selected shape; that correlation remains
+  ## owned by the directional package constructed at the alignment site.
+  type AtomicPathRecursiveCommitSelectedChildSameAfterFailureThereEmptyPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices ()
+    AtomicPathRecursiveCommitSelectedChildSameAfterFailureThereEmptyPacked : (source: AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePackage(depth, n, machine)) -> AtomicPathRecursiveCommitSelectedChildSameAfterFailureThereEmptyPackage(depth, n, machine)
+
+  type AtomicPathRecursiveCommitSelectedChildSameAfterFailureReverseEmptyPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices ()
+    AtomicPathRecursiveCommitSelectedChildSameAfterFailureReverseEmptyPacked : (source: AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage(depth, n, machine)) -> AtomicPathRecursiveCommitSelectedChildSameAfterFailureReverseEmptyPackage(depth, n, machine)
+
   ## Constructor-directed dispatch for the package-native sibling of the old
   ## nullary canonical rejection dispatcher.  Every callback receives the
   ## existing typed branch package reconstructed from one correlated carrier;
@@ -54,8 +64,8 @@ mod Std.Regex.Runtime.ActiveChildRejectionPackages
     {@erased machine: PatternMachine(n)},
     package: AtomicPathActiveChildDirectionalPackage(depth, n, machine),
     here_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(depth, n, machine), AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPackage(depth, n, machine)) -> result,
-    there_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(depth, n, machine), AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePackage(depth, n, machine)) -> result,
-    reverse_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(depth, n, machine), AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage(depth, n, machine)) -> result
+    there_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(depth, n, machine), AtomicPathRecursiveCommitSelectedChildSameAfterFailureThereEmptyPackage(depth, n, machine)) -> result,
+    reverse_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(depth, n, machine), AtomicPathRecursiveCommitSelectedChildSameAfterFailureReverseEmptyPackage(depth, n, machine)) -> result
   ) -> result = match package
     AtomicPathActiveChildDirectionalHerePacked(
       AtomicPathActiveChildProofPairPacked(
@@ -89,11 +99,13 @@ mod Std.Regex.Runtime.ActiveChildRejectionPackages
       ),
       direction
     ) -> there_case(aligned,
-      AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePacked(
-        empty,
-        selected,
-        direction,
-        availability
+      AtomicPathRecursiveCommitSelectedChildSameAfterFailureThereEmptyPacked(
+        AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePacked(
+          empty,
+          selected,
+          direction,
+          availability
+        )
       )
     )
     AtomicPathActiveChildDirectionalReversePacked(
@@ -107,11 +119,13 @@ mod Std.Regex.Runtime.ActiveChildRejectionPackages
       ),
       direction
     ) -> reverse_case(aligned,
-      AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePacked(
-        empty,
-        selected,
-        direction,
-        availability
+      AtomicPathRecursiveCommitSelectedChildSameAfterFailureReverseEmptyPacked(
+        AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePacked(
+          empty,
+          selected,
+          direction,
+          availability
+        )
       )
     )
 end

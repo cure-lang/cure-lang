@@ -4530,8 +4530,11 @@ canonical pair now also carries the already-live
 `AtomicPathRecursiveCommitSelectedChildSameAlignedPackage` authority through
 all three directional callbacks. This preserves the parent `Same` authority
 without reopening the outer existential when the There/Reverse consumers are
-connected. Those two consumers and the common recursive induction remain
-outstanding.
+connected. There and Reverse now have matching first-order fixed-`Empty`
+transport wrappers, so their direction authorities cannot be silently dropped
+at the callback boundary. The wrappers do not claim the recursive contradiction
+yet; the common induction still has to open them and consume the retained pair
+and tail direction.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in

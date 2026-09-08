@@ -611,12 +611,12 @@ mod Std.Regex.Runtime.RecursiveCommit
     )) -> Empty,
     after_failure_there_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
       depth, n, machine
-    ), AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePackage(
+    ), AtomicPathRecursiveCommitSelectedChildSameAfterFailureThereEmptyPackage(
       depth, n, machine
     )) -> Empty,
     after_failure_reverse_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
       depth, n, machine
-    ), AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage(
+    ), AtomicPathRecursiveCommitSelectedChildSameAfterFailureReverseEmptyPackage(
       depth, n, machine
     )) -> Empty,
     past_rejected_empty_case: (AtomicPathRecursiveCommitSelectedChildSamePastRejectedReversePackage(

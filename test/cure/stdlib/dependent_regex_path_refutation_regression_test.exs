@@ -9,6 +9,8 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "type AtomicPathActiveChildProofPairPackage("
     assert source =~ "type AtomicPathActiveChildDirectionalPackage("
     assert source =~ "type AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPackage("
+    assert source =~ "type AtomicPathRecursiveCommitSelectedChildSameAfterFailureThereEmptyPackage("
+    assert source =~ "type AtomicPathRecursiveCommitSelectedChildSameAfterFailureReverseEmptyPackage("
     assert source =~
              "AtomicPathActiveChildCanonicalPairPacked : (aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage("
 
@@ -27,7 +29,11 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert body =~ "there_case"
     assert body =~ "reverse_case"
     assert body =~ "here_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage"
+    assert body =~ "there_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage"
+    assert body =~ "reverse_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage"
     assert body =~ "AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPacked("
+    assert body =~ "AtomicPathRecursiveCommitSelectedChildSameAfterFailureThereEmptyPacked("
+    assert body =~ "AtomicPathRecursiveCommitSelectedChildSameAfterFailureReverseEmptyPacked("
     refute body =~ "atomic_path_active_child_rejection_excludes_aligned_trace("
 
     assert target =~ "atomic_path_active_child_rejection_package_dispatch("
