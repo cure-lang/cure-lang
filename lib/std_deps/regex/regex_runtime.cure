@@ -3,6 +3,7 @@ mod Std.Regex.Runtime
   public use Std.Regex.Runtime.RecursiveCommit
   public use Std.Regex.Runtime.FinalSinks
   public use Std.Regex.Runtime.LeafCluster33
+  public use Std.Regex.Runtime.ActiveChildRejectionPackages
   public use Std.Regex.Runtime.LeafCluster34
   public use Std.Regex.Runtime.LeafCluster35
   public use Std.Regex.Runtime.LeafCluster36

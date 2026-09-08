@@ -1,0 +1,102 @@
+@group(:text)
+mod Std.Regex.Runtime.ActiveChildRejectionPackages
+  use Std.Regex.Runtime.LeafCluster27
+  use Std.Regex.Runtime.LeafCluster23
+  use Std.Regex.Runtime.LeafCluster04
+  use Std.Regex.Runtime.LeafAuthorities
+  use Std.Regex.Runtime.CursorShapeAuthority
+  use Std.Regex.Runtime.CursorShape
+  use Std.Regex.Core
+
+  ## The exact-empty continuation is intentionally a separate first-order
+  ## stage.  It prevents directional dispatch from reopening the complete
+  ## outer existential merely to recover the commit/refutation package.
+  type AtomicPathActiveChildExactEmptyPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices ()
+    AtomicPathActiveChildExactEmptyPacked : (empty: AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage(depth, n, machine)) -> AtomicPathActiveChildExactEmptyPackage(depth, n, machine)
+
+  ## The first stage of destination-rejection correspondence.  The exact
+  ## skipped-empty package and selected-child package are captured while both
+  ## constructors are open in the destination-rejection fold.  Keeping the
+  ## selected shape as an index means a later directional constructor cannot
+  ## pair a `Here` callback with a non-Here selected cursor.
+  type AtomicPathActiveChildCanonicalPairPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (selected_shape: LookaroundAdmittedStateCursorShape)
+    AtomicPathActiveChildCanonicalPairPacked : (empty: AtomicPathActiveChildExactEmptyPackage(depth, n, machine)) -> (selected: AtomicPathSkippedPrefixCursorShapedExistentialPackage(depth, n, machine, selected_shape)) -> (availability: AtomicPathRejectedSelectedTracePairAvailability(depth, n, machine)) -> AtomicPathActiveChildCanonicalPairPackage(depth, n, machine, selected_shape)
+
+  ## The second stage gives the canonical pair a stable proof-only boundary.
+  ## Availability is retained rather than projected to an optional existential:
+  ## the unavailable case is itself the relevant result of the selected
+  ## skipped-prefix traversal, and no downstream consumer may invent a pair.
+  type AtomicPathActiveChildProofPairPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (selected_shape: LookaroundAdmittedStateCursorShape)
+    AtomicPathActiveChildProofPairPacked : (canonical: AtomicPathActiveChildCanonicalPairPackage(depth, n, machine, selected_shape)) -> AtomicPathActiveChildProofPairPackage(depth, n, machine, selected_shape)
+
+  type AtomicPathActiveChildDirectionalPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices ()
+    AtomicPathActiveChildDirectionalHerePacked : (proof: AtomicPathActiveChildProofPairPackage(depth, n, machine, LookaroundAdmittedStateCursorShapeHere())) -> AtomicPathActiveChildDirectionalPackage(depth, n, machine)
+    AtomicPathActiveChildDirectionalTherePacked : {@erased failure_shape: LookaroundAdmittedStateCursorShape} -> {@erased selected_shape: LookaroundAdmittedStateCursorShape} -> (proof: AtomicPathActiveChildProofPairPackage(depth, n, machine, selected_shape)) -> (direction: AtomicPathActiveChildShapeThereAuthority(failure_shape, selected_shape)) -> AtomicPathActiveChildDirectionalPackage(depth, n, machine)
+    AtomicPathActiveChildDirectionalReversePacked : {@erased failure_shape: LookaroundAdmittedStateCursorShape} -> {@erased selected_shape: LookaroundAdmittedStateCursorShape} -> (proof: AtomicPathActiveChildProofPairPackage(depth, n, machine, selected_shape)) -> (direction: AtomicPathCursorShapesLeftAfterAuthority(failure_shape, selected_shape)) -> AtomicPathActiveChildDirectionalPackage(depth, n, machine)
+
+  ## Constructor-directed dispatch for the package-native sibling of the old
+  ## nullary canonical rejection dispatcher.  Every callback receives the
+  ## existing typed branch package reconstructed from one correlated carrier;
+  ## no erased evidence is used to choose runtime control and no nullary
+  ## callback can discard the child/selected correlation before entry.
+  @reducible
+  fn atomic_path_active_child_rejection_package_dispatch(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    {@erased machine: PatternMachine(n)},
+    package: AtomicPathActiveChildDirectionalPackage(depth, n, machine),
+    here_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePackage(depth, n, machine)) -> result,
+    there_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePackage(depth, n, machine)) -> result,
+    reverse_case: (AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage(depth, n, machine)) -> result
+  ) -> result = match package
+    AtomicPathActiveChildDirectionalHerePacked(
+      AtomicPathActiveChildProofPairPacked(
+        AtomicPathActiveChildCanonicalPairPacked(
+          AtomicPathActiveChildExactEmptyPacked(empty),
+          selected,
+          availability
+        )
+      )
+    ) -> here_case(
+      AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePacked(
+        empty,
+        selected,
+        availability
+      )
+    )
+    AtomicPathActiveChildDirectionalTherePacked(
+      AtomicPathActiveChildProofPairPacked(
+        AtomicPathActiveChildCanonicalPairPacked(
+          AtomicPathActiveChildExactEmptyPacked(empty),
+          selected,
+          availability
+        )
+      ),
+      direction
+    ) -> there_case(
+      AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePacked(
+        empty,
+        selected,
+        direction,
+        availability
+      )
+    )
+    AtomicPathActiveChildDirectionalReversePacked(
+      AtomicPathActiveChildProofPairPacked(
+        AtomicPathActiveChildCanonicalPairPacked(
+          AtomicPathActiveChildExactEmptyPacked(empty),
+          selected,
+          availability
+        )
+      ),
+      direction
+    ) -> reverse_case(
+      AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePacked(
+        empty,
+        selected,
+        direction,
+        availability
+      )
+    )
+end

@@ -4505,6 +4505,22 @@ obligations. Do not first hide the arguments in a new carrier. This is the
 remaining design that neither asks erased evidence to select runtime control
 nor asks the normalizer to reopen the complete outer package.
 
+The first staged package boundary is now present in the dedicated
+`Std.Regex.Runtime.ActiveChildRejectionPackages` file and is wired at the
+destination-rejection construction site. Its exact-empty, canonical-pair,
+proof-pair, and directional carriers are first-order and retain the selected
+cursor shape as an index; the `Here`, later-sibling, and reverse constructors
+carry the existing relevant direction authorities. The package dispatcher
+reconstructs the three typed `AfterFailure` obligations only after opening the
+correlated carrier, and the destination-rejection fold no longer calls the old
+nullary `atomic_path_active_child_rejection_excludes_aligned_trace` path. The
+structural regression checks all three package-bearing branches and the absence
+of that old call. Lexer/parser validation and the static structural gate pass.
+Full Cure elaboration still needs to be rerun after the existing
+`SinkLookaroundProofs` normalization hotspot is isolated; an owned check of the
+294-module universe reached that hotspot CPU-bound before this new module, so
+its result is not evidence against the staged package itself.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

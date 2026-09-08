@@ -2,6 +2,8 @@
 mod Std.Regex.Runtime.LeafCluster33
   use Std.Regex.Runtime.LeafCluster27
 
+  use Std.Regex.Runtime.ActiveChildRejectionPackages
+
   use Std.Regex.Runtime.LeafCluster28
 
   use Std.Regex.Runtime.LeafCluster29
@@ -592,34 +594,55 @@ mod Std.Regex.Runtime.LeafCluster33
                         selected_child_shape
                       )
                       AtomicPathActiveChildShapeAlignmentHerePacked(branch) -> match branch
-                        AtomicPathActiveChildShapeHerePacked(failure, selected) ->
-                          here_case(
-                          AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePacked(
-                            failure,
-                            selected,
-                            rejected_selected_availability
+                        AtomicPathActiveChildShapeHerePacked(_, selected) ->
+                          atomic_path_active_child_rejection_package_dispatch(
+                            AtomicPathActiveChildDirectionalHerePacked(
+                              AtomicPathActiveChildProofPairPacked(
+                                AtomicPathActiveChildCanonicalPairPacked(
+                                  AtomicPathActiveChildExactEmptyPacked(package),
+                                  selected,
+                                  rejected_selected_availability
+                                )
+                              )
+                            ),
+                            here_case,
+                            there_case,
+                            reverse_case
                           )
-                        )
                       AtomicPathActiveChildShapeAlignmentTherePacked(branch) -> match branch
-                        AtomicPathActiveChildShapeTherePacked(failure, selected, authority) ->
-                          there_case(
-                          AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePacked(
-                            failure,
-                            selected,
-                            authority,
-                            rejected_selected_availability
+                        AtomicPathActiveChildShapeTherePacked(_, selected, authority) ->
+                          atomic_path_active_child_rejection_package_dispatch(
+                            AtomicPathActiveChildDirectionalTherePacked(
+                              AtomicPathActiveChildProofPairPacked(
+                                AtomicPathActiveChildCanonicalPairPacked(
+                                  AtomicPathActiveChildExactEmptyPacked(package),
+                                  selected,
+                                  rejected_selected_availability
+                                )
+                              ),
+                              authority
+                            ),
+                            here_case,
+                            there_case,
+                            reverse_case
                           )
-                        )
                       AtomicPathActiveChildShapeAlignmentReversePacked(branch) -> match branch
-                        AtomicPathActiveChildShapeReversePacked(failure, selected, authority) ->
-                          reverse_case(
-                          AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePacked(
-                            failure,
-                            selected,
-                            authority,
-                            rejected_selected_availability
+                        AtomicPathActiveChildShapeReversePacked(_, selected, authority) ->
+                          atomic_path_active_child_rejection_package_dispatch(
+                            AtomicPathActiveChildDirectionalReversePacked(
+                              AtomicPathActiveChildProofPairPacked(
+                                AtomicPathActiveChildCanonicalPairPacked(
+                                  AtomicPathActiveChildExactEmptyPacked(package),
+                                  selected,
+                                  rejected_selected_availability
+                                )
+                              ),
+                              authority
+                            ),
+                            here_case,
+                            there_case,
+                            reverse_case
                           )
-                        )
               AtomicPathFailureInputExhaustedAuthority() -> invalid_case()
               AtomicPathFailureExactAcceptedAuthority() -> invalid_case()
               AtomicPathFailureDestinationsExhaustedAuthority() -> invalid_case()

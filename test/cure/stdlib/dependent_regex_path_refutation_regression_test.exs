@@ -1,6 +1,39 @@
 defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
   use ExUnit.Case, async: false
 
+  test "destination rejection uses staged package-native branch authorities" do
+    source = runtime_fragment_source()
+    target = File.read!("lib/std_deps/regex/regex_runtime_leaf_cluster_33.cure")
+
+    assert source =~ "type AtomicPathActiveChildCanonicalPairPackage("
+    assert source =~ "type AtomicPathActiveChildProofPairPackage("
+    assert source =~ "type AtomicPathActiveChildDirectionalPackage("
+
+    assert source =~
+             "fn atomic_path_active_child_rejection_package_dispatch("
+
+    [_prefix, body] =
+      String.split(
+        source,
+        "fn atomic_path_active_child_rejection_package_dispatch(",
+        parts: 2
+      )
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert body =~ "here_case"
+    assert body =~ "there_case"
+    assert body =~ "reverse_case"
+    refute body =~ "atomic_path_active_child_rejection_excludes_aligned_trace("
+
+    assert target =~ "atomic_path_active_child_rejection_package_dispatch("
+    assert target =~ "AtomicPathActiveChildDirectionalHerePacked("
+    assert target =~ "AtomicPathActiveChildDirectionalTherePacked("
+    assert target =~ "AtomicPathActiveChildDirectionalReversePacked("
+    refute target =~ "here_case(\n                          AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePacked("
+    refute target =~ "there_case(\n                          AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePacked("
+    refute target =~ "reverse_case(\n                          AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePacked("
+  end
+
   test "successful sibling selection retains the rejected child cursor beside its trace" do
     source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
 
@@ -1972,5 +2005,11 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
 
     refute after_failure =~ "child_origin_equivalence, AtomicPathOriginWitnessNone()"
     assert after_failure =~ "child_origin_equivalence, child_origin_canonical, child_witness"
+  end
+
+  defp runtime_fragment_source do
+    Path.wildcard("lib/std_deps/regex/regex_runtime*.cure")
+    |> Enum.sort()
+    |> Enum.map_join("\n", &File.read!/1)
   end
 end
