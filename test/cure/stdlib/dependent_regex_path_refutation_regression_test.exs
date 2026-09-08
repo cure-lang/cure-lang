@@ -34,6 +34,10 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert body =~ "AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPacked("
     assert body =~ "AtomicPathRecursiveCommitSelectedChildSameAfterFailureThereEmptyPacked("
     assert body =~ "AtomicPathRecursiveCommitSelectedChildSameAfterFailureReverseEmptyPacked("
+    assert source =~ "fn atomic_path_active_child_rejection_there_empty_dispatch("
+    assert source =~ "fn atomic_path_active_child_rejection_reverse_empty_dispatch("
+    assert source =~ "AtomicPathActiveChildShapeThereSameDrop(_) -> same_case(source)"
+    assert source =~ "AtomicPathCursorShapesLeftAfterHere() -> here_case(source)"
     refute body =~ "atomic_path_active_child_rejection_excludes_aligned_trace("
 
     assert target =~ "atomic_path_active_child_rejection_package_dispatch("
