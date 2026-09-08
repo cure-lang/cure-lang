@@ -4556,7 +4556,9 @@ dispatcher that routes propagated `FromChild`/`PastEscaped` and `PastRejected`
 branches through their existing package-native consumers. The dispatcher is
 the common induction entry point; its directional callbacks remain the next
 place where the strict child contradiction and sibling obligations must be
-discharged.
+discharged. It is deliberately additive beside the transport-only dispatcher
+until the construction-site theorem supplies concrete callbacks; no legacy
+raw-trace path has been reintroduced.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
