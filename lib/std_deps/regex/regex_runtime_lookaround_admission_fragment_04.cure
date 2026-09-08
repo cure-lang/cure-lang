@@ -289,6 +289,8 @@ mod Std.Regex.Runtime.LookaroundAdmission
       let parent_skipped_evidence = AtomicPathSkippedRejectedCons(char, rest, source, candidate, child_capture_context, child_context_alignment, child_scope_depth, child_scope_alignment, child_whole, child_current, child_prefix_kind, child_prefix, child_origin_equivalence, child_origin_canonical, child_suffix, child_kind, child_failure, child_evidence, continuation, skipped_kind, skipped_evidence)
       let rejected_selected_pair = atomic_path_rejected_selected_trace_pair_package(
         child_suffix_package,
+        child_failure,
+        child_evidence,
         trace_package
       )
       AtomicPathMembersYes(matched, remaining_input, routine, Cons(candidate, selected_whole), selected_current, LookaroundAdmittedStateCursorSuffixDrop(candidate, selection_suffix), lookaround_admitted_cursor_suffix_package_drop(candidate, selection_suffix_package), lookaround_admitted_state_cons_equivalent(candidate, selected_whole_equivalence), LookaroundAdmittedStateCursorSuffixDrop(candidate, selection_from_current), lookaround_admitted_cursor_suffix_package_drop(candidate, selection_from_current_package), AtomicPathSkippedPrefixRejectedConsKind(child_prefix_kind, child_kind, skipped_kind), parent_skipped_evidence, AtomicPathSkippedPrefixStructureRejectedConsPacked(parent_skipped_evidence, skipped_structure, rejected_selected_pair), trace, trace_package, trace_envelope)

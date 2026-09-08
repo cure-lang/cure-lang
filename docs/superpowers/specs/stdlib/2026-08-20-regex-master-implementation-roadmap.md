@@ -4558,7 +4558,13 @@ the common induction entry point; its directional callbacks remain the next
 place where the strict child contradiction and sibling obligations must be
 discharged. It is deliberately additive beside the transport-only dispatcher
 until the construction-site theorem supplies concrete callbacks; no legacy
-raw-trace path has been reintroduced.
+raw-trace path has been reintroduced. The existing construction-site pair now
+also retains the rejected child’s erased `AtomicPathRefutation` and parallel
+`AtomicPathNoEvidence` alongside its cursor and selected trace package. This
+keeps the exact child contradiction available to the `Unavailable` local-head
+case without adding a second dependent wrapper around the full commit
+carrier; the next consumer must open these fields only under an `Empty`
+result.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in

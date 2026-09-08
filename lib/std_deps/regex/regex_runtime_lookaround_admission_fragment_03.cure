@@ -754,7 +754,7 @@ mod Std.Regex.Runtime.LookaroundAdmission
   ## later proof folds consume it instead of rebuilding either side from erased
   ## failure evidence.
   type AtomicPathRejectedSelectedTracePairPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices (input: List(Char), after_input: List(Char), state: ThreadState(n), history: List(Char), capture_context: List(EvidenceInstruction), policy: NewlinePolicy, scope_depth: Nat, prefix_mode: Bool, reversed_prefix: List(Char), selected_current: List(LookaroundAdmittedState(n)))
-    AtomicPathRejectedSelectedTracePairPacked : {@erased rejected_child_whole: List(LookaroundAdmittedState(n))} -> {@erased rejected_child_current: List(LookaroundAdmittedState(n))} -> (rejected_child_cursor: LookaroundAdmittedStateCursorSuffixPackage(n, rejected_child_whole, rejected_child_current)) -> {@erased matched: List(Char)} -> {@erased remaining_input: List(Char)} -> {@erased selected_routine: List(ExtendedInstruction)} -> {@erased selected_trace: AtomicSelectedPathTrace(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, selected_current, matched, remaining_input, selected_routine)} -> (selected_trace_package: AtomicSelectedPathTracePackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, selected_current, matched, remaining_input, selected_routine, selected_trace)) -> AtomicPathRejectedSelectedTracePairPackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, selected_current)
+    AtomicPathRejectedSelectedTracePairPacked : {@erased rejected_child_input: List(Char)} -> {@erased rejected_child_after_input: List(Char)} -> {@erased rejected_child_state: ThreadState(n)} -> {@erased rejected_child_history: List(Char)} -> {@erased rejected_child_failure_capture_context: List(EvidenceInstruction)} -> {@erased rejected_child_evidence_capture_context: List(EvidenceInstruction)} -> {@erased rejected_child_policy: NewlinePolicy} -> {@erased rejected_child_scope_depth: Nat} -> {@erased rejected_child_prefix_mode: Bool} -> {@erased rejected_child_reversed_prefix: List(Char)} -> {@erased rejected_child_whole: List(LookaroundAdmittedState(n))} -> {@erased rejected_child_current: List(LookaroundAdmittedState(n))} -> {@erased rejected_child_kind: AtomicPathFailureKind} -> (rejected_child_cursor: LookaroundAdmittedStateCursorSuffixPackage(n, rejected_child_whole, rejected_child_current)) -> (@erased rejected_child_failure: AtomicPathRefutation(depth, n, machine, rejected_child_input, rejected_child_after_input, rejected_child_state, rejected_child_history, rejected_child_failure_capture_context, rejected_child_policy, rejected_child_scope_depth, rejected_child_prefix_mode, rejected_child_reversed_prefix, rejected_child_whole, rejected_child_current, rejected_child_kind)) -> (@erased rejected_child_evidence: AtomicPathNoEvidence(depth, n, machine, rejected_child_input, rejected_child_after_input, rejected_child_state, rejected_child_history, rejected_child_evidence_capture_context, rejected_child_policy, rejected_child_scope_depth, rejected_child_prefix_mode, rejected_child_reversed_prefix, rejected_child_whole, rejected_child_current, rejected_child_kind)) -> {@erased matched: List(Char)} -> {@erased remaining_input: List(Char)} -> {@erased selected_routine: List(ExtendedInstruction)} -> {@erased selected_trace: AtomicSelectedPathTrace(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, selected_current, matched, remaining_input, selected_routine)} -> (selected_trace_package: AtomicSelectedPathTracePackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, selected_current, matched, remaining_input, selected_routine, selected_trace)) -> AtomicPathRejectedSelectedTracePairPackage(depth, n, machine, input, after_input, state, history, capture_context, policy, scope_depth, prefix_mode, reversed_prefix, selected_current)
 
   fn atomic_path_rejected_selected_trace_pair_package(
     {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
@@ -763,10 +763,37 @@ mod Std.Regex.Runtime.LookaroundAdmission
     {@erased capture_context: List(EvidenceInstruction)},
     {@erased policy: NewlinePolicy}, {@erased scope_depth: Nat},
     {@erased prefix_mode: Bool}, {@erased reversed_prefix: List(Char)},
+    {@erased rejected_child_input: List(Char)},
+    {@erased rejected_child_after_input: List(Char)},
+    {@erased rejected_child_state: ThreadState(n)},
+    {@erased rejected_child_history: List(Char)},
+    {@erased rejected_child_failure_capture_context: List(EvidenceInstruction)},
+    {@erased rejected_child_evidence_capture_context: List(EvidenceInstruction)},
+    {@erased rejected_child_policy: NewlinePolicy},
+    {@erased rejected_child_scope_depth: Nat},
+    {@erased rejected_child_prefix_mode: Bool},
+    {@erased rejected_child_reversed_prefix: List(Char)},
     {@erased rejected_child_whole: List(LookaroundAdmittedState(n))},
     {@erased rejected_child_current: List(LookaroundAdmittedState(n))},
+    {@erased rejected_child_kind: AtomicPathFailureKind},
     rejected_child_cursor: LookaroundAdmittedStateCursorSuffixPackage(
       n, rejected_child_whole, rejected_child_current
+    ),
+    @erased rejected_child_failure: AtomicPathRefutation(
+      depth, n, machine, rejected_child_input, rejected_child_after_input,
+      rejected_child_state, rejected_child_history,
+      rejected_child_failure_capture_context, rejected_child_policy,
+      rejected_child_scope_depth, rejected_child_prefix_mode,
+      rejected_child_reversed_prefix, rejected_child_whole,
+      rejected_child_current, rejected_child_kind
+    ),
+    @erased rejected_child_evidence: AtomicPathNoEvidence(
+      depth, n, machine, rejected_child_input, rejected_child_after_input,
+      rejected_child_state, rejected_child_history,
+      rejected_child_evidence_capture_context, rejected_child_policy,
+      rejected_child_scope_depth, rejected_child_prefix_mode,
+      rejected_child_reversed_prefix, rejected_child_whole,
+      rejected_child_current, rejected_child_kind
     ),
     {@erased selected_current: List(LookaroundAdmittedState(n))},
     {@erased matched: List(Char)}, {@erased remaining_input: List(Char)},
@@ -786,6 +813,8 @@ mod Std.Regex.Runtime.LookaroundAdmission
     policy, scope_depth, prefix_mode, reversed_prefix, selected_current
   ) = AtomicPathRejectedSelectedTracePairPacked(
     rejected_child_cursor,
+    rejected_child_failure,
+    rejected_child_evidence,
     selected_trace_package
   )
 
