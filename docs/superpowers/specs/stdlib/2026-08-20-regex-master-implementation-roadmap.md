@@ -4536,6 +4536,14 @@ at the callback boundary. The wrappers do not claim the recursive contradiction
 yet; the common induction still has to open them and consume the retained pair
 and tail direction.
 
+The fixed-`Empty` directional transports now have constructor-directed
+consumers in `Std.Regex.Runtime.ActiveChildRejectionPackages`: `There` splits
+its relevant authority into `SameDrop` and `RightAfter`, while `Reverse`
+splits `LeftAfterHere` from `LeftAfterDrop`. These folds preserve the exact
+first-order package for the callback and never inspect erased cursor evidence.
+This is transport refinement only; the callbacks still need to be connected
+to the recursive child contradiction and the common induction.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
