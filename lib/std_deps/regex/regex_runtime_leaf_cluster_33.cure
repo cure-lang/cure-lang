@@ -656,7 +656,99 @@ mod Std.Regex.Runtime.LeafCluster33
       AtomicPathCommitStructureCursorClassifiedPastEscapedPacked(_) ->
         invalid_case()
       AtomicPathCommitStructureCursorClassifiedPastRejectedPacked(_) ->
-        invalid_case()
+      invalid_case()
+
+  ## Proof-facing variant of the destination-rejection fold.  The ordinary
+  ## directional transport is useful for establishing the cursor relation;
+  ## this companion opens the published sibling-pair availability at the
+  ## same construction-site boundary.  `Unavailable` remains explicit, so a
+  ## recursive consumer cannot silently treat absence of a rejected-selection
+  ## pair as if it were a smaller induction case.
+  @reducible
+  fn atomic_path_recursive_commit_selected_child_same_destination_rejected_pair_fold(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    ),
+    package: AtomicPathRecursiveCommitSelectedChildSameSkippedEmptyPackage(
+      depth, n, machine
+    ),
+    here_unavailable_case: (
+      AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+        depth, n, machine
+      ),
+      AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPackage(
+        depth, n, machine
+      )
+    ) -> Empty,
+    here_available_case: (
+      AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+        depth, n, machine
+      ),
+      AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePackage(
+        depth, n, machine
+      ),
+      AtomicPathRejectedSelectedTracePairExistentialPackage(depth, n, machine)
+    ) -> Empty,
+    there_unavailable_case: (
+      AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+        depth, n, machine
+      ),
+      AtomicPathRecursiveCommitSelectedChildSameAfterFailureThereEmptyPackage(
+        depth, n, machine
+      )
+    ) -> Empty,
+    there_available_case: (
+      AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+        depth, n, machine
+      ),
+      AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePackage(
+        depth, n, machine
+      ),
+      AtomicPathRejectedSelectedTracePairExistentialPackage(depth, n, machine)
+    ) -> Empty,
+    reverse_unavailable_case: (
+      AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+        depth, n, machine
+      ),
+      AtomicPathRecursiveCommitSelectedChildSameAfterFailureReverseEmptyPackage(
+        depth, n, machine
+      )
+    ) -> Empty,
+    reverse_available_case: (
+      AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+        depth, n, machine
+      ),
+      AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage(
+        depth, n, machine
+      ),
+      AtomicPathRejectedSelectedTracePairExistentialPackage(depth, n, machine)
+    ) -> Empty,
+    invalid_case: () -> Empty
+  ) -> Empty =
+    atomic_path_recursive_commit_selected_child_same_destination_rejected_alignment_fold(
+      aligned,
+      package,
+      fn(aligned, here_empty) ->
+        atomic_path_active_child_rejection_here_empty_pair_dispatch(
+          here_empty,
+          fn(_) -> here_unavailable_case(aligned, here_empty),
+          fn(source, pair) -> here_available_case(aligned, source, pair)
+        ),
+      fn(aligned, there_empty) ->
+        atomic_path_active_child_rejection_there_empty_pair_dispatch(
+          there_empty,
+          fn(_) -> there_unavailable_case(aligned, there_empty),
+          fn(source, pair) -> there_available_case(aligned, source, pair)
+        ),
+      fn(aligned, reverse_empty) ->
+        atomic_path_active_child_rejection_reverse_empty_pair_dispatch(
+          reverse_empty,
+          fn(_) -> reverse_unavailable_case(aligned, reverse_empty),
+          fn(source, pair) -> reverse_available_case(aligned, source, pair)
+        ),
+      invalid_case
+    )
 
   ## Select the structurally forced reverse branch before exposing it to the
   ## common induction. The relevant PastRejected tag and the original Same
