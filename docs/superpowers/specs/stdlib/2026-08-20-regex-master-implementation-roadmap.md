@@ -4541,8 +4541,16 @@ consumers in `Std.Regex.Runtime.ActiveChildRejectionPackages`: `There` splits
 its relevant authority into `SameDrop` and `RightAfter`, while `Reverse`
 splits `LeftAfterHere` from `LeftAfterDrop`. These folds preserve the exact
 first-order package for the callback and never inspect erased cursor evidence.
-This is transport refinement only; the callbacks still need to be connected
-to the recursive child contradiction and the common induction.
+The same package boundary now also has an explicit availability consumer. It
+distinguishes `Unavailable` from `Available(pair)` and provides directional
+`Here`/`There`/`Reverse` pair folds that retain the exact fixed-`Empty` source
+package beside the published
+`AtomicPathRejectedSelectedTracePairExistentialPackage`. This is the first
+proof-facing handoff for the common induction: the next consumer can receive
+the construction-site sibling pair without reconstructing it from erased
+failure evidence. It is still not the contradiction theorem; the callbacks
+must be connected to the recursive child contradiction and the common
+induction.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in

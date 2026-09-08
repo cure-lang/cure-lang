@@ -49,6 +49,34 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     refute target =~ "reverse_case(\n                          AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePacked("
   end
 
+  test "directional consumers expose the published rejection pair" do
+    source = runtime_fragment_source()
+
+    assert source =~
+             "fn atomic_path_active_child_rejection_availability_dispatch("
+
+    [_prefix, body] =
+      String.split(
+        source,
+        "fn atomic_path_active_child_rejection_availability_dispatch(",
+        parts: 2
+      )
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert body =~ "unavailable_case: () -> result"
+    assert body =~
+             "available_case: (AtomicPathRejectedSelectedTracePairExistentialPackage"
+    assert body =~ "AtomicPathRejectedSelectedTracePairUnavailable()"
+    assert body =~ "AtomicPathRejectedSelectedTracePairAvailable(pair)"
+    assert body =~ "unavailable_case()"
+    assert body =~ "available_case(pair)"
+
+    for direction <- ["here", "there", "reverse"] do
+      assert source =~
+               "atomic_path_active_child_rejection_#{direction}_empty_dispatch("
+    end
+  end
+
   test "successful sibling selection retains the rejected child cursor beside its trace" do
     source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
 

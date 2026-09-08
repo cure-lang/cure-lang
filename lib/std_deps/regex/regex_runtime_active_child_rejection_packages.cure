@@ -51,6 +51,108 @@ mod Std.Regex.Runtime.ActiveChildRejectionPackages
   type AtomicPathRecursiveCommitSelectedChildSameAfterFailureReverseEmptyPackage(depth: Nat, n: Nat, machine: PatternMachine(n)) indices ()
     AtomicPathRecursiveCommitSelectedChildSameAfterFailureReverseEmptyPacked : (source: AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage(depth, n, machine)) -> AtomicPathRecursiveCommitSelectedChildSameAfterFailureReverseEmptyPackage(depth, n, machine)
 
+  ## The rejected-selection pair is published as an explicit availability
+  ## result.  Consumers must open this result before attempting the recursive
+  ## contradiction: the unavailable constructor is a real structural case,
+  ## while the available constructor carries the exact existential pair made
+  ## at the sibling-search construction site.
+  @reducible
+  fn atomic_path_active_child_rejection_availability_dispatch(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    {@erased machine: PatternMachine(n)},
+    availability: AtomicPathRejectedSelectedTracePairAvailability(
+      depth, n, machine
+    ),
+    unavailable_case: () -> result,
+    available_case: (AtomicPathRejectedSelectedTracePairExistentialPackage(
+      depth, n, machine
+    )) -> result
+  ) -> result = match availability
+    AtomicPathRejectedSelectedTracePairUnavailable() -> unavailable_case()
+    AtomicPathRejectedSelectedTracePairAvailable(pair) -> available_case(pair)
+
+  ## Directional pair consumers retain the branch package while opening its
+  ## availability.  This is the first proof-facing boundary: the recursive
+  ## induction receives the published sibling pair and the exact directional
+  ## package that carried it, rather than reconstructing either from erased
+  ## failure evidence.
+  @reducible
+  fn atomic_path_active_child_rejection_here_empty_pair_dispatch(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    {@erased machine: PatternMachine(n)},
+    package: AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPackage(
+      depth, n, machine
+    ),
+    unavailable_case: () -> result,
+    available_case: (
+      AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePackage(
+        depth, n, machine
+      ),
+      AtomicPathRejectedSelectedTracePairExistentialPackage(depth, n, machine)
+    ) -> result
+  ) -> result = match package
+    AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPacked(source) -> match source
+      AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePacked(_, _, availability) ->
+        atomic_path_active_child_rejection_availability_dispatch(
+          availability,
+          unavailable_case,
+          fn(pair) -> available_case(source, pair)
+        )
+
+  @reducible
+  fn atomic_path_active_child_rejection_there_empty_pair_dispatch(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    {@erased machine: PatternMachine(n)},
+    package: AtomicPathRecursiveCommitSelectedChildSameAfterFailureThereEmptyPackage(
+      depth, n, machine
+    ),
+    unavailable_case: () -> result,
+    available_case: (
+      AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePackage(
+        depth, n, machine
+      ),
+      AtomicPathRejectedSelectedTracePairExistentialPackage(depth, n, machine)
+    ) -> result
+  ) -> result = match package
+    AtomicPathRecursiveCommitSelectedChildSameAfterFailureThereEmptyPacked(source) -> match source
+      AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePacked(_, _, _, _, _, availability) ->
+        atomic_path_active_child_rejection_availability_dispatch(
+          availability,
+          unavailable_case,
+          fn(pair) -> available_case(source, pair)
+        )
+
+  @reducible
+  fn atomic_path_active_child_rejection_reverse_empty_pair_dispatch(
+    {result: Type},
+    {depth: Nat},
+    {n: Nat},
+    {@erased machine: PatternMachine(n)},
+    package: AtomicPathRecursiveCommitSelectedChildSameAfterFailureReverseEmptyPackage(
+      depth, n, machine
+    ),
+    unavailable_case: () -> result,
+    available_case: (
+      AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage(
+        depth, n, machine
+      ),
+      AtomicPathRejectedSelectedTracePairExistentialPackage(depth, n, machine)
+    ) -> result
+  ) -> result = match package
+    AtomicPathRecursiveCommitSelectedChildSameAfterFailureReverseEmptyPacked(source) -> match source
+      AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePacked(_, _, _, _, _, availability) ->
+        atomic_path_active_child_rejection_availability_dispatch(
+          availability,
+          unavailable_case,
+          fn(pair) -> available_case(source, pair)
+        )
+
   ## Directional consumers refine only the relevant authority.  The payload
   ## remains the exact package built at the alignment site, so later proof
   ## steps cannot recover a direction by rematching erased cursor evidence.
