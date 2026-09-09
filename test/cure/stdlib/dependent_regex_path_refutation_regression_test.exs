@@ -192,9 +192,9 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              "atomic_path_active_child_rejection_recursive_destination_pair_excludes_trace("
   end
 
-  test "Here recursive rejection consumer is callable at its package boundary" do
+  test "directional recursive rejection consumer is callable at its package boundary" do
     source = ~S'''
-    mod RegexHereRecursivePackageConsumerRegression
+    mod RegexDirectionalRecursivePackageConsumerRegression
       use Std.Core
       use Std.Regex.Core
       use Std.Regex.Runtime.FinalSinks
@@ -204,10 +204,12 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
         {depth: Nat},
         {n: Nat},
         {@erased machine: PatternMachine(n)},
+        directional: AtomicPathActiveChildDirectionalPackage(depth, n, machine),
         pair: AtomicPathRejectedSelectedTracePairExistentialPackage(depth, n, machine),
         otherwise_case: () -> Empty
       ) -> Empty =
-        atomic_path_active_child_rejection_recursive_destination_pair_excludes_trace(
+        atomic_path_active_child_rejection_directional_pair_dispatch(
+          directional,
           pair,
           otherwise_case
         )
