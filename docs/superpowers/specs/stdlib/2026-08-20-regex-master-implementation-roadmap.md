@@ -4624,6 +4624,14 @@ terminal leaf only, not the whole recursive `Here` theorem: the next slice
 must generalize the consumer to a multi-character rejected child and route
 its smaller destination-rejected proof to the induction hypothesis.
 
+The cursor-package boundary now also has a single canonical inverse,
+`lookaround_admitted_cursor_suffix_from_package`.  It reifies only the
+package's indexed `Here`/`Drop` spine, preserving the rule that relevant
+cursor witnesses are reconstructed at their owning proof boundary rather than
+by downstream consumers.  The multi-character `Here` consumer should use this
+inverse when opening the retained rejected-child package; it must not add a
+second package shape or recover a suffix by inspecting erased fields.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
