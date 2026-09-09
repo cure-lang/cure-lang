@@ -4601,6 +4601,18 @@ introduced a new global regression. The targeted structural gate remains the
 fast red/green check; the full canonical sweep is still required before this
 boundary can be called verified.
 
+The retained outcome is now consumed at the common-induction boundary rather
+than merely published. `atomic_path_active_child_rejection_outcome_failure_dispatch`
+opens `Unavailable` directly and, for `Available(pair)`, applies the retained
+child-failure eliminator. Input exhaustion, exact acceptance, destination
+exhaustion, and malformed failure kinds all discharge the caller's impossible
+branch; only `DestinationRejected` reaches the recursive callback, with the
+same directional carrier and exact pair. This keeps terminal classifications
+out of the induction hypothesis and makes the rejection-pair authority live in
+the proof path. The next slice is still the strict `Here` consumer: it must
+open that destination-rejected pair and feed the smaller child refutation to
+the existing alignment theorem without reconstructing erased origins.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

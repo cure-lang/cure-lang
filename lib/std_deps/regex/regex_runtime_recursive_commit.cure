@@ -722,7 +722,19 @@ mod Std.Regex.Runtime.RecursiveCommit
     AtomicPathRecursiveCommitSelectedChildSameAfterFailurePacked(aligned) ->
       atomic_path_recursive_commit_selected_child_same_after_failure_unclassified_pair_fold(
         aligned,
-        after_failure_outcome_case,
+        fn(outcome) ->
+          atomic_path_active_child_rejection_outcome_failure_dispatch(
+            outcome,
+            fn(directional) ->
+              after_failure_outcome_case(
+                AtomicPathActiveChildRejectionUnavailable(directional)
+              ),
+            fn(directional, pair) ->
+              after_failure_outcome_case(
+                AtomicPathActiveChildRejectionAvailable(directional, pair)
+              ),
+            invalid_case
+          ),
         invalid_case
       )
     AtomicPathRecursiveCommitSelectedChildSameFromChildPacked(projected) ->

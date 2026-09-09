@@ -126,6 +126,40 @@ mod Std.Regex.Runtime.ActiveChildRejectionPackages
         ) -> destination_rejected_case(pair)
 end
 
+  ## Consume the indexed outcome before entering recursive induction.  Missing
+  ## sibling evidence is a local directional case; an available pair is opened
+  ## by its retained child refutation.  Only a destination rejection can be a
+  ## smaller recursive case.  The terminal constructors deliberately collapse
+  ## to the caller's impossible branch, so no erased failure tag becomes
+  ## runtime control and no terminal proof is mistaken for an induction
+  ## hypothesis.
+  @reducible
+  fn atomic_path_active_child_rejection_outcome_failure_dispatch(
+    {depth: Nat},
+    {n: Nat},
+    {@erased machine: PatternMachine(n)},
+    outcome: AtomicPathActiveChildRejectionOutcome(depth, n, machine),
+    unavailable_case: (
+      AtomicPathActiveChildDirectionalPackage(depth, n, machine)
+    ) -> Empty,
+    destination_rejected_case: (
+      AtomicPathActiveChildDirectionalPackage(depth, n, machine),
+      AtomicPathRejectedSelectedTracePairExistentialPackage(depth, n, machine)
+    ) -> Empty,
+    invalid_case: () -> Empty
+  ) -> Empty = match outcome
+    AtomicPathActiveChildRejectionUnavailable(directional) ->
+      unavailable_case(directional)
+    AtomicPathActiveChildRejectionAvailable(directional, pair) ->
+      atomic_path_active_child_rejection_pair_failure_elim(
+        pair,
+        fn(_) -> invalid_case(),
+        fn(_) -> invalid_case(),
+        fn(_) -> invalid_case(),
+        fn(pair) -> destination_rejected_case(directional, pair),
+        fn(_) -> invalid_case()
+      )
+
   ## Directional pair consumers retain the branch package while opening its
   ## availability.  This is the first proof-facing boundary: the recursive
   ## induction receives the published sibling pair and the exact directional
