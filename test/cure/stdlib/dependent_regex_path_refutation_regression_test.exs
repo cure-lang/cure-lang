@@ -107,7 +107,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert continuation_body =~
              "atomic_path_active_child_rejection_outcome_failure_dispatch("
     assert continuation_body =~
-             "atomic_path_active_child_rejection_here_singleton_pair_dispatch("
+             "atomic_path_active_child_rejection_directional_pair_dispatch("
   end
 
   test "outcome consumption classifies the retained child failure before induction" do
@@ -132,16 +132,16 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert body =~ "fn(_) -> invalid_case()"
   end
 
-  test "Here singleton rejection consumes the existing erased contradiction" do
+  test "directional rejection dispatch consumes the Here singleton contradiction" do
     source = runtime_fragment_source()
 
     assert source =~
-             "fn atomic_path_active_child_rejection_here_singleton_pair_dispatch("
+             "fn atomic_path_active_child_rejection_directional_pair_dispatch("
 
     [_prefix, body] =
       String.split(
         source,
-        "fn atomic_path_active_child_rejection_here_singleton_pair_dispatch(",
+        "fn atomic_path_active_child_rejection_directional_pair_dispatch(",
         parts: 2
       )
 
@@ -155,16 +155,16 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert body =~ "otherwise_case()"
   end
 
-  test "Here recursive rejection reifies retained cursor packages once" do
+  test "recursive rejection reifies retained cursor packages once" do
     source = runtime_fragment_source()
 
     assert source =~
-             "fn atomic_path_active_child_rejection_here_recursive_destination_pair_excludes_trace("
+             "fn atomic_path_active_child_rejection_recursive_destination_pair_excludes_trace("
 
     [_prefix, body] =
       String.split(
         source,
-        "fn atomic_path_active_child_rejection_here_recursive_destination_pair_excludes_trace(",
+        "fn atomic_path_active_child_rejection_recursive_destination_pair_excludes_trace(",
         parts: 2
       )
 
@@ -173,7 +173,23 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert body =~ "transport_lookaround_admitted_cursor_suffix_outer"
     assert body =~ "atomic_path_active_child_rejection_excludes_trace("
     assert body =~ "atomic_path_search_origin_alignment("
-    assert source =~ "Cons(_, Cons(_, _)) ->\n          atomic_path_active_child_rejection_here_recursive_destination_pair_excludes_trace("
+    assert source =~ "Cons(_, Cons(_, _)) ->\n          atomic_path_active_child_rejection_recursive_destination_pair_excludes_trace("
+  end
+
+  test "recursive destination pair consumer preserves every directional authority" do
+    source = runtime_fragment_source()
+
+    assert source =~
+             "AtomicPathActiveChildDirectionalTherePacked(_, _, _, direction) -> match direction"
+
+    assert source =~ "AtomicPathActiveChildShapeThereSameDrop(_) ->"
+    assert source =~ "AtomicPathActiveChildShapeThereRightAfter(_) ->"
+    assert source =~
+             "AtomicPathActiveChildDirectionalReversePacked(_, _, _, direction) -> match direction"
+    assert source =~ "AtomicPathCursorShapesLeftAfterHere() ->"
+    assert source =~ "AtomicPathCursorShapesLeftAfterDrop(_) ->"
+    assert source =~
+             "atomic_path_active_child_rejection_recursive_destination_pair_excludes_trace("
   end
 
   test "Here recursive rejection consumer is callable at its package boundary" do
@@ -191,7 +207,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
         pair: AtomicPathRejectedSelectedTracePairExistentialPackage(depth, n, machine),
         otherwise_case: () -> Empty
       ) -> Empty =
-        atomic_path_active_child_rejection_here_recursive_destination_pair_excludes_trace(
+        atomic_path_active_child_rejection_recursive_destination_pair_excludes_trace(
           pair,
           otherwise_case
         )

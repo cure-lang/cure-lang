@@ -4645,6 +4645,16 @@ existing active-child induction theorem.  It does not add a second package
 shape or recover a suffix by inspecting erased fields; terminal and
 non-active selected traces remain explicit continuation cases.
 
+The retained pair is now dispatched through one direction-preserving
+construction-site consumer. `Here` keeps its singleton contradiction and
+multi-character recursive consumer; `There` opens either its `SameDrop` or
+`RightAfter` authority, and `Reverse` opens either its `LeftAfterHere` or
+`LeftAfterDrop` authority, before entering the common recursive pair
+consumer. This removes the former misleading Here-only entry point without
+adding direction-specific dependent callbacks. It is still a plumbing slice:
+the sibling-tail and mixed-prefix induction obligations remain open and are
+not claimed discharged by this dispatcher.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

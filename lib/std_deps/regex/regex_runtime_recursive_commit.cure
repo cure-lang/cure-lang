@@ -730,7 +730,7 @@ mod Std.Regex.Runtime.RecursiveCommit
                 AtomicPathActiveChildRejectionUnavailable(directional)
               ),
             fn(directional, pair) ->
-              atomic_path_active_child_rejection_here_singleton_pair_dispatch(
+              atomic_path_active_child_rejection_directional_pair_dispatch(
                 directional,
                 pair,
                 fn() ->

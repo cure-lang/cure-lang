@@ -659,14 +659,16 @@ mod Std.Regex.Runtime.FinalSinks
     right_case
   )
 
-  ## The recursive `Here` consumer for a rejected child whose input extends
+  ## The common recursive consumer for a rejected child whose input extends
   ## beyond the singleton leaf.  The pair retains the rejected child cursor
   ## package and the selected trace package; opening both packages at this
   ## boundary gives the existing induction theorem the exact suffixes it
   ## needs.  The selected suffix is transported back to the rejected child's
   ## outer list using the two canonical origin equalities, so no erased list
-  ## is reconstructed as a runtime value.
-  fn atomic_path_active_child_rejection_here_recursive_destination_pair_excludes_trace(
+  ## is reconstructed as a runtime value.  Direction-specific wrappers below
+  ## select this consumer only after their relevant cursor authority has been
+  ## opened.
+  fn atomic_path_active_child_rejection_recursive_destination_pair_excludes_trace(
     {depth: Nat},
     {n: Nat},
     {@erased machine: PatternMachine(n)},
@@ -796,17 +798,18 @@ mod Std.Regex.Runtime.FinalSinks
             child_trace
           )
         Cons(_, Cons(_, _)) ->
-          atomic_path_active_child_rejection_here_recursive_destination_pair_excludes_trace(
+          atomic_path_active_child_rejection_recursive_destination_pair_excludes_trace(
             pair,
             otherwise_case
           )
         Nil() -> otherwise_case()
 
-  ## Restrict the singleton leaf to the relevant `Here` authority.  `There`
-  ## and `Reverse` are not singleton contradictions: their retained direction
-  ## is the ordered sibling induction evidence and must be passed onward.
+  ## Dispatch a retained rejection pair through its relevant direction. The
+  ## singleton contradiction is available only for `Here`; `There` and
+  ## `Reverse` first open their ordered cursor authority, then enter the common
+  ## recursive consumer without manufacturing a new callback surface.
   @reducible
-  fn atomic_path_active_child_rejection_here_singleton_pair_dispatch(
+  fn atomic_path_active_child_rejection_directional_pair_dispatch(
     {depth: Nat},
     {n: Nat},
     {@erased machine: PatternMachine(n)},
@@ -823,6 +826,26 @@ mod Std.Regex.Runtime.FinalSinks
         pair,
         otherwise_case
       )
-    AtomicPathActiveChildDirectionalTherePacked(_, _) -> otherwise_case()
-    AtomicPathActiveChildDirectionalReversePacked(_, _) -> otherwise_case()
+    AtomicPathActiveChildDirectionalTherePacked(_, _, _, direction) -> match direction
+      AtomicPathActiveChildShapeThereSameDrop(_) ->
+        atomic_path_active_child_rejection_recursive_destination_pair_excludes_trace(
+          pair,
+          otherwise_case
+        )
+      AtomicPathActiveChildShapeThereRightAfter(_) ->
+        atomic_path_active_child_rejection_recursive_destination_pair_excludes_trace(
+          pair,
+          otherwise_case
+        )
+    AtomicPathActiveChildDirectionalReversePacked(_, _, _, direction) -> match direction
+      AtomicPathCursorShapesLeftAfterHere() ->
+        atomic_path_active_child_rejection_recursive_destination_pair_excludes_trace(
+          pair,
+          otherwise_case
+        )
+      AtomicPathCursorShapesLeftAfterDrop(_) ->
+        atomic_path_active_child_rejection_recursive_destination_pair_excludes_trace(
+          pair,
+          otherwise_case
+        )
 end
