@@ -585,7 +585,7 @@ mod Std.Regex.Runtime.LeafCluster31
     @erased failure_current: List(LookaroundAdmittedState(n)),
     failure_suffix: LookaroundAdmittedStateCursorSuffix(n, failure_whole, failure_current),
     @erased failure_nonempty: LookaroundAdmittedNonempty(n, failure_whole),
-    selected_whole: List(LookaroundAdmittedState(n)),
+    @erased selected_whole: List(LookaroundAdmittedState(n)),
     {selected_current: List(LookaroundAdmittedState(n))},
     selected_whole_equivalence: Equivalent(
       List(LookaroundAdmittedState(n)),

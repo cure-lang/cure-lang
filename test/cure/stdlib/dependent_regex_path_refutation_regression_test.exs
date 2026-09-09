@@ -155,6 +155,27 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert body =~ "otherwise_case()"
   end
 
+  test "Here recursive rejection reifies retained cursor packages once" do
+    source = runtime_fragment_source()
+
+    assert source =~
+             "fn atomic_path_active_child_rejection_here_recursive_destination_pair_excludes_trace("
+
+    [_prefix, body] =
+      String.split(
+        source,
+        "fn atomic_path_active_child_rejection_here_recursive_destination_pair_excludes_trace(",
+        parts: 2
+      )
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert body =~ "lookaround_admitted_cursor_suffix_package_evidence"
+    assert body =~ "transport_lookaround_admitted_cursor_suffix_outer"
+    assert body =~ "atomic_path_active_child_rejection_excludes_trace("
+    assert body =~ "atomic_path_search_origin_alignment("
+    assert source =~ "Cons(_, Cons(_, _)) ->\n          atomic_path_active_child_rejection_here_recursive_destination_pair_excludes_trace("
+  end
+
   test "cursor-package consumers use one canonical package-to-suffix inverse" do
     source = runtime_fragment_source()
 

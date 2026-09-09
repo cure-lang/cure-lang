@@ -4629,9 +4629,11 @@ The cursor-package boundary has one canonical inverse,
 It reifies only the package's indexed `Here`/`Drop` spine, preserving the rule
 that relevant cursor witnesses are reconstructed at their owning proof
 boundary rather than by downstream consumers.  The multi-character `Here`
-consumer must use this inverse when opening the retained rejected-child
-package; it must not add a second package shape or recover a suffix by
-inspecting erased fields.
+consumer now uses this inverse for both retained cursor packages, transports
+the selected suffix across the two canonical origin equalities, and feeds the
+existing active-child induction theorem.  It does not add a second package
+shape or recover a suffix by inspecting erased fields; terminal and
+non-active selected traces remain explicit continuation cases.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in

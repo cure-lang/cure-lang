@@ -568,22 +568,22 @@ mod Std.Regex.Runtime.FinalSinks
   fn atomic_path_active_child_rejection_excludes_trace(
     {@erased depth: Nat},
     {n: Nat},
-    machine: PatternMachine(n),
-    child_char: Char,
-    child_rest: List(Char),
-    after_input: List(Char),
-    destination: Bounded(n),
-    history: List(Char),
-    capture_context: List(EvidenceInstruction),
-    policy: NewlinePolicy,
-    child_scope_depth: Nat,
-    prefix_mode: Bool,
-    reversed_prefix: List(Char),
+    @erased machine: PatternMachine(n),
+    @erased child_char: Char,
+    @erased child_rest: List(Char),
+    @erased after_input: List(Char),
+    @erased destination: Bounded(n),
+    @erased history: List(Char),
+    @erased capture_context: List(EvidenceInstruction),
+    @erased policy: NewlinePolicy,
+    @erased child_scope_depth: Nat,
+    @erased prefix_mode: Bool,
+    @erased reversed_prefix: List(Char),
     @erased failure_whole: List(LookaroundAdmittedState(n)),
     @erased failure_current: List(LookaroundAdmittedState(n)),
     failure_suffix: LookaroundAdmittedStateCursorSuffix(n, failure_whole, failure_current),
     @erased failure_nonempty: LookaroundAdmittedNonempty(n, failure_whole),
-    selected_whole: List(LookaroundAdmittedState(n)),
+    @erased selected_whole: List(LookaroundAdmittedState(n)),
     {selected_current: List(LookaroundAdmittedState(n))},
     selected_whole_equivalence: Equivalent(
       List(LookaroundAdmittedState(n)),
@@ -659,6 +659,107 @@ mod Std.Regex.Runtime.FinalSinks
     right_case
   )
 
+  ## The recursive `Here` consumer for a rejected child whose input extends
+  ## beyond the singleton leaf.  The pair retains the rejected child cursor
+  ## package and the selected trace package; opening both packages at this
+  ## boundary gives the existing induction theorem the exact suffixes it
+  ## needs.  The selected suffix is transported back to the rejected child's
+  ## outer list using the two canonical origin equalities, so no erased list
+  ## is reconstructed as a runtime value.
+  @reducible
+  fn atomic_path_active_child_rejection_here_recursive_destination_pair_excludes_trace(
+    {depth: Nat},
+    {n: Nat},
+    {@erased machine: PatternMachine(n)},
+    pair: AtomicPathRejectedSelectedTracePairExistentialPackage(
+      depth, n, machine
+    ),
+    otherwise_case: () -> Empty
+  ) -> Empty = match pair
+    AtomicPathRejectedSelectedTracePairExistentialPacked(package) -> match package
+      AtomicPathRejectedSelectedTracePairPacked(
+        Cons(child_char, child_rest),
+        after_input,
+        ThreadActive(destination),
+        history,
+        capture_context,
+        _,
+        policy,
+        child_scope_depth,
+        prefix_mode,
+        reversed_prefix,
+        failure_whole,
+        failure_current,
+        _,
+        failure_cursor_package,
+        child_failure,
+        _,
+        _,
+        _,
+        _,
+        selected_trace_package
+      ) -> match child_failure
+        AtomicPathDestinationRejected(
+          _, _, _, _, _, _, _, _, _, _, _, _, _,
+          failure_origin_equivalence,
+          failure_origin_canonical,
+          _, _, _, _, _, _, _
+        ) -> match selected_trace_package
+          AtomicSelectedPathTracePrefixDonePacked() -> otherwise_case()
+          AtomicSelectedPathTraceExactDonePacked() -> otherwise_case()
+          AtomicSelectedPathTraceAcceptedPacked(
+            _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _
+          ) -> otherwise_case()
+          AtomicSelectedPathTraceActivePacked(
+            _, _, _, _, _, _, _, _, _, _, _, _, _, _,
+            selected_origin_canonical,
+            _, _, _, _, selected_cursor_package, _, _, _, child_path, _, _
+          ) -> match atomic_path_search_origin_alignment(
+              failure_origin_canonical,
+              selected_origin_canonical
+            )
+              AtomicPathSearchOriginsAligned(origin_equivalence) ->
+                let outer_equivalence = trans(
+                  failure_origin_equivalence,
+                  origin_equivalence
+                )
+                let failure_suffix =
+                  lookaround_admitted_cursor_suffix_package_evidence(
+                    failure_cursor_package
+                  )
+                let selected_suffix =
+                  transport_lookaround_admitted_cursor_suffix_outer(
+                    outer_equivalence,
+                    lookaround_admitted_cursor_suffix_package_evidence(
+                      selected_cursor_package
+                    )
+                  )
+                atomic_path_active_child_rejection_excludes_trace(
+                  machine,
+                  child_char,
+                  child_rest,
+                  after_input,
+                  destination,
+                  history,
+                  capture_context,
+                  policy,
+                  child_scope_depth,
+                  prefix_mode,
+                  reversed_prefix,
+                  failure_whole,
+                  failure_current,
+                  failure_suffix,
+                  lookaround_admitted_cursor_suffix_nonempty(failure_suffix),
+                  failure_whole,
+                  reflexive(),
+                  selected_suffix,
+                  child_failure,
+                  child_path,
+                  otherwise_case,
+                  otherwise_case,
+                  otherwise_case
+                )
+
   ## The first strict `Here` leaf is the singleton child case.  The retained
   ## pair has already been classified as a destination rejection by the
   ## outcome dispatcher; its child input is therefore safe to inspect only as
@@ -695,7 +796,11 @@ mod Std.Regex.Runtime.FinalSinks
             child_failure,
             child_trace
           )
-        Cons(_, Cons(_, _)) -> otherwise_case()
+        Cons(_, Cons(_, _)) ->
+          atomic_path_active_child_rejection_here_recursive_destination_pair_excludes_trace(
+            pair,
+            otherwise_case
+          )
         Nil() -> otherwise_case()
 
   ## Restrict the singleton leaf to the relevant `Here` authority.  `There`
