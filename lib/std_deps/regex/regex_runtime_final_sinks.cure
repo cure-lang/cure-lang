@@ -658,4 +658,67 @@ mod Std.Regex.Runtime.FinalSinks
     left_tail_case,
     right_case
   )
+
+  ## The first strict `Here` leaf is the singleton child case.  The retained
+  ## pair has already been classified as a destination rejection by the
+  ## outcome dispatcher; its child input is therefore safe to inspect only as
+  ## an indexed proof distinction.  A one-character child cannot expose a
+  ## successful active or accepted selected trace, so reuse the existing
+  ## erased terminal contradictions.  Longer children remain on the common
+  ## induction path supplied by `otherwise_case`.
+  @reducible
+  fn atomic_path_active_child_rejection_singleton_destination_pair_excludes_trace(
+    {depth: Nat},
+    {n: Nat},
+    {@erased machine: PatternMachine(n)},
+    pair: AtomicPathRejectedSelectedTracePairExistentialPackage(
+      depth, n, machine
+    ),
+    otherwise_case: () -> Empty
+  ) -> Empty = match pair
+    AtomicPathRejectedSelectedTracePairExistentialPacked(package) -> match package
+      AtomicPathRejectedSelectedTracePairPacked(
+        rejected_child_input, _, _, _, _, _, _, _, _, _, _, _, _, _,
+        child_failure, _, _, _, _, selected_trace_package
+      ) -> match rejected_child_input
+        Cons(_, Nil()) -> match selected_trace_package
+          AtomicSelectedPathTracePrefixDonePacked() -> otherwise_case()
+          AtomicSelectedPathTraceExactDonePacked() -> otherwise_case()
+          AtomicSelectedPathTraceAcceptedPacked(
+            _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _
+          ) -> atomic_path_accepted_child_rejection_singleton_excludes_trace_erased(
+            child_failure
+          )
+          AtomicSelectedPathTraceActivePacked(
+            _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, child_trace, _, _
+          ) -> atomic_path_active_child_rejection_singleton_active_excludes_trace_erased(
+            child_failure,
+            child_trace
+          )
+        Cons(_, Cons(_, _)) -> otherwise_case()
+        Nil() -> otherwise_case()
+
+  ## Restrict the singleton leaf to the relevant `Here` authority.  `There`
+  ## and `Reverse` are not singleton contradictions: their retained direction
+  ## is the ordered sibling induction evidence and must be passed onward.
+  @reducible
+  fn atomic_path_active_child_rejection_here_singleton_pair_dispatch(
+    {depth: Nat},
+    {n: Nat},
+    {@erased machine: PatternMachine(n)},
+    directional: AtomicPathActiveChildDirectionalPackage(
+      depth, n, machine
+    ),
+    pair: AtomicPathRejectedSelectedTracePairExistentialPackage(
+      depth, n, machine
+    ),
+    otherwise_case: () -> Empty
+  ) -> Empty = match directional
+    AtomicPathActiveChildDirectionalHerePacked(_) ->
+      atomic_path_active_child_rejection_singleton_destination_pair_excludes_trace(
+        pair,
+        otherwise_case
+      )
+    AtomicPathActiveChildDirectionalTherePacked(_, _) -> otherwise_case()
+    AtomicPathActiveChildDirectionalReversePacked(_, _) -> otherwise_case()
 end

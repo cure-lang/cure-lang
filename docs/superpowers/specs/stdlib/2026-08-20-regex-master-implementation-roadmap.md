@@ -4613,6 +4613,17 @@ the proof path. The next slice is still the strict `Here` consumer: it must
 open that destination-rejected pair and feed the smaller child refutation to
 the existing alignment theorem without reconstructing erased origins.
 
+The first strict `Here` leaf is now discharged for singleton rejected-child
+inputs. `atomic_path_active_child_rejection_here_singleton_pair_dispatch`
+accepts only the relevant `Here` direction; `There` and `Reverse` fall
+through to the common induction callback. For a `Here` pair whose retained
+child input is exactly one character, the existing erased active-child and
+accepted-child contradictions eliminate the selected trace. Longer inputs and
+non-active selected traces remain explicit continuation cases. This is a
+terminal leaf only, not the whole recursive `Here` theorem: the next slice
+must generalize the consumer to a multi-character rejected child and route
+its smaller destination-rejected proof to the induction hypothesis.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

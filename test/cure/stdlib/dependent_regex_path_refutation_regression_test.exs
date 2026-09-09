@@ -106,6 +106,8 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert continuation_body =~ "after_failure_outcome_case"
     assert continuation_body =~
              "atomic_path_active_child_rejection_outcome_failure_dispatch("
+    assert continuation_body =~
+             "atomic_path_active_child_rejection_here_singleton_pair_dispatch("
   end
 
   test "outcome consumption classifies the retained child failure before induction" do
@@ -122,12 +124,35 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
       )
 
     [body | _] = String.split(body, "\n  ##", parts: 2)
-    assert body =~ "AtomicPathActiveChildRejectionUnavailable(direction)"
-    assert body =~ "AtomicPathActiveChildRejectionAvailable(direction, pair)"
+    assert body =~ "AtomicPathActiveChildRejectionUnavailable(directional)"
+    assert body =~ "AtomicPathActiveChildRejectionAvailable(directional, pair)"
     assert body =~
              "atomic_path_active_child_rejection_pair_failure_elim("
     assert body =~ "destination_rejected_case"
     assert body =~ "fn(_) -> invalid_case()"
+  end
+
+  test "Here singleton rejection consumes the existing erased contradiction" do
+    source = runtime_fragment_source()
+
+    assert source =~
+             "fn atomic_path_active_child_rejection_here_singleton_pair_dispatch("
+
+    [_prefix, body] =
+      String.split(
+        source,
+        "fn atomic_path_active_child_rejection_here_singleton_pair_dispatch(",
+        parts: 2
+      )
+
+    [body | _] = String.split(body, "\n  ##", parts: 2)
+    assert body =~ "AtomicPathActiveChildDirectionalHerePacked"
+    assert source =~ "AtomicPathDestinationRejected"
+    assert source =~
+             "atomic_path_active_child_rejection_singleton_active_excludes_trace_erased"
+    assert source =~
+             "atomic_path_accepted_child_rejection_singleton_excludes_trace_erased"
+    assert body =~ "otherwise_case()"
   end
 
   test "common Same dispatch enters the pair-aware continuation boundary" do
