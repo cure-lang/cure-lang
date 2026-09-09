@@ -61,4 +61,26 @@ defmodule Cure.Core.NormaliseHotpathTest do
     term = {:app, {:global, :id}, {:var, 0}}
     assert Unify.whnf_meta_aware(term, MetaCtx.new(), env) == term
   end
+
+  test "cached definition closedness is reused by dependent elaboration helpers" do
+    env =
+      Env.empty()
+      |> Env.add_def(:id, {:pi, @grade, @nat, @nat}, {:lam, @grade, @nat, {:var, 0}})
+      |> Env.certify(:id)
+
+    definition = Env.get_def(env, :id)
+    assert definition.closed_body == true
+
+    {_result, events} =
+      Cure.Dev.Trace.calls(
+        Cure.Core.Term,
+        :closed?,
+        fn ->
+          Enum.each(1..100, fn _ -> assert Env.closed_body?(definition) end)
+        end,
+        arity: 1
+      )
+
+    assert events == []
+  end
 end

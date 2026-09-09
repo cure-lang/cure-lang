@@ -6571,8 +6571,8 @@ defmodule Cure.Elab.Elaborator do
     key = Env.resolve_key(env, env.defs, name)
 
     case Env.get_def(env, key) do
-      %{body: body, reducible: true} when not is_nil(body) ->
-        if not MapSet.member?(seen, key) and Env.certified?(env, key) and Term.closed?(body),
+      %{body: body, reducible: true} = definition when not is_nil(body) ->
+        if not MapSet.member?(seen, key) and Env.certified?(env, key) and Env.closed_body?(definition),
           do: {body, MapSet.put(seen, key)},
           else: {global, seen}
 
