@@ -4582,6 +4582,25 @@ direction package and sibling pair correlated. The dispatcher remains an
 additive entry point until the construction-site theorem supplies its concrete
 unavailable and recursive callbacks.
 
+The first callback-shaped version of this boundary was intentionally removed
+after profiling. Threading six direction-specific dependent callbacks through
+the projected recursive dispatcher made Cure spend more than thirty minutes in
+tuple normalization and grow the VM to roughly 800 MB. A two-callback version
+still multiplied the same dependent function type. The current boundary
+publishes one indexed first-order `AtomicPathActiveChildRejectionOutcome`
+carrier with `Unavailable(directional)` and `Available(directional, pair)`
+constructors. The common and projected dispatchers thread one
+`outcome_case: Outcome -> Empty`; the three package-owned Here/There/Reverse
+constructors build that outcome directly. This preserves availability and
+direction correlation without re-elaborating a dependent callback surface at
+each recursive call. A sequential baseline run against the unmodified tree
+reached the same `SinkLookaroundProofs` module and the same
+`tuple_to_list_1` normalization hotspot at approximately the same 10–15 minute
+window, so that hotspot is pre-existing rather than evidence that this carrier
+introduced a new global regression. The targeted structural gate remains the
+fast red/green check; the full canonical sweep is still required before this
+boundary can be called verified.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.

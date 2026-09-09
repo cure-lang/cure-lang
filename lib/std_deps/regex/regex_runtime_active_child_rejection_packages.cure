@@ -34,6 +34,15 @@ mod Std.Regex.Runtime.ActiveChildRejectionPackages
     AtomicPathActiveChildDirectionalTherePacked : {@erased failure_shape: LookaroundAdmittedStateCursorShape} -> {@erased selected_shape: LookaroundAdmittedStateCursorShape} -> (proof: AtomicPathActiveChildProofPairPackage(depth, n, machine, selected_shape)) -> (direction: AtomicPathActiveChildShapeThereAuthority(failure_shape, selected_shape)) -> AtomicPathActiveChildDirectionalPackage(depth, n, machine)
     AtomicPathActiveChildDirectionalReversePacked : {@erased failure_shape: LookaroundAdmittedStateCursorShape} -> {@erased selected_shape: LookaroundAdmittedStateCursorShape} -> (proof: AtomicPathActiveChildProofPairPackage(depth, n, machine, selected_shape)) -> (direction: AtomicPathCursorShapesLeftAfterAuthority(failure_shape, selected_shape)) -> AtomicPathActiveChildDirectionalPackage(depth, n, machine)
 
+  ## One proof-only result for the directional rejection fold.  Carrying
+  ## availability as a constructor, instead of threading separate dependent
+  ## callbacks through every recursive dispatcher, keeps the induction
+  ## boundary first-order and prevents elaboration from multiplying the full
+  ## pair signature at each projected call.
+  type AtomicPathActiveChildRejectionOutcome(depth: Nat, n: Nat, machine: PatternMachine(n)) indices ()
+    AtomicPathActiveChildRejectionUnavailable : (directional: AtomicPathActiveChildDirectionalPackage(depth, n, machine)) -> AtomicPathActiveChildRejectionOutcome(depth, n, machine)
+    AtomicPathActiveChildRejectionAvailable : (directional: AtomicPathActiveChildDirectionalPackage(depth, n, machine)) -> (pair: AtomicPathRejectedSelectedTracePairExistentialPackage(depth, n, machine)) -> AtomicPathActiveChildRejectionOutcome(depth, n, machine)
+
   ## A Here direction has already fixed the selected skipped-prefix shape to
   ## `Here`; opening that indexed package leaves exactly the empty selected
   ## prefix. This wrapper is owned by the package-native boundary so the
@@ -195,6 +204,87 @@ end
           availability,
           unavailable_case,
           fn(pair) -> available_case(source, pair)
+        )
+
+  ## The common-induction form keeps the branch direction and the aligned
+  ## parent authority in one package.  It is intentionally proof-only and
+  ## avoids exposing six direction-specific callback types to recursive
+  ## projected dispatch.
+  @reducible
+  fn atomic_path_active_child_rejection_here_empty_directional_pair_dispatch(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(depth, n, machine),
+    package: AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPackage(depth, n, machine),
+    outcome_case: (AtomicPathActiveChildRejectionOutcome(depth, n, machine)) -> Empty
+  ) -> Empty = match package
+    AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPacked(source) -> match source
+      AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePacked(empty, selected, availability) ->
+        let directional = AtomicPathActiveChildDirectionalHerePacked(
+          AtomicPathActiveChildProofPairPacked(
+            AtomicPathActiveChildCanonicalPairPacked(
+              aligned,
+              AtomicPathActiveChildExactEmptyPacked(empty),
+              selected,
+              availability
+            )
+          )
+        )
+        atomic_path_active_child_rejection_availability_dispatch(
+          availability,
+          fn() -> outcome_case(AtomicPathActiveChildRejectionUnavailable(directional)),
+          fn(pair) -> outcome_case(AtomicPathActiveChildRejectionAvailable(directional, pair))
+        )
+
+  @reducible
+  fn atomic_path_active_child_rejection_there_empty_directional_pair_dispatch(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(depth, n, machine),
+    package: AtomicPathRecursiveCommitSelectedChildSameAfterFailureThereEmptyPackage(depth, n, machine),
+    outcome_case: (AtomicPathActiveChildRejectionOutcome(depth, n, machine)) -> Empty
+  ) -> Empty = match package
+    AtomicPathRecursiveCommitSelectedChildSameAfterFailureThereEmptyPacked(source) -> match source
+      AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePacked(empty, selected, direction, availability) ->
+        let directional = AtomicPathActiveChildDirectionalTherePacked(
+          AtomicPathActiveChildProofPairPacked(
+            AtomicPathActiveChildCanonicalPairPacked(
+              aligned,
+              AtomicPathActiveChildExactEmptyPacked(empty),
+              selected,
+              availability
+            )
+          ),
+          direction
+        )
+        atomic_path_active_child_rejection_availability_dispatch(
+          availability,
+          fn() -> outcome_case(AtomicPathActiveChildRejectionUnavailable(directional)),
+          fn(pair) -> outcome_case(AtomicPathActiveChildRejectionAvailable(directional, pair))
+        )
+
+  @reducible
+  fn atomic_path_active_child_rejection_reverse_empty_directional_pair_dispatch(
+    {depth: Nat}, {n: Nat}, {@erased machine: PatternMachine(n)},
+    aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(depth, n, machine),
+    package: AtomicPathRecursiveCommitSelectedChildSameAfterFailureReverseEmptyPackage(depth, n, machine),
+    outcome_case: (AtomicPathActiveChildRejectionOutcome(depth, n, machine)) -> Empty
+  ) -> Empty = match package
+    AtomicPathRecursiveCommitSelectedChildSameAfterFailureReverseEmptyPacked(source) -> match source
+      AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePacked(empty, selected, direction, availability) ->
+        let directional = AtomicPathActiveChildDirectionalReversePacked(
+          AtomicPathActiveChildProofPairPacked(
+            AtomicPathActiveChildCanonicalPairPacked(
+              aligned,
+              AtomicPathActiveChildExactEmptyPacked(empty),
+              selected,
+              availability
+            )
+          ),
+          direction
+        )
+        atomic_path_active_child_rejection_availability_dispatch(
+          availability,
+          fn() -> outcome_case(AtomicPathActiveChildRejectionUnavailable(directional)),
+          fn(pair) -> outcome_case(AtomicPathActiveChildRejectionAvailable(directional, pair))
         )
 
   ## Directional consumers refine only the relevant authority.  The payload

@@ -79,17 +79,13 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~
              "fn atomic_path_recursive_commit_selected_child_same_destination_rejected_pair_fold("
 
-    assert source =~ "here_unavailable_case"
-    assert source =~ "here_available_case"
-    assert source =~ "there_unavailable_case"
-    assert source =~ "there_available_case"
-    assert source =~ "reverse_unavailable_case"
-    assert source =~ "reverse_available_case"
+    assert source =~ "AtomicPathActiveChildRejectionOutcome"
+    assert source =~ "outcome_case"
     assert source =~
              "fn atomic_path_recursive_commit_selected_child_same_after_failure_unclassified_pair_fold("
     assert source =~
              "fn atomic_path_recursive_commit_selected_child_same_pair_continuation_dispatch("
-    assert source =~ "after_failure_here_available_case:"
+    assert source =~ "after_failure_outcome_case:"
     assert source =~ "rejected_child_failure: AtomicPathRefutation("
     assert source =~ "rejected_child_evidence: AtomicPathNoEvidence("
     assert source =~
@@ -107,19 +103,25 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
 
     [continuation_body | _] = String.split(continuation_body, "\n  ##", parts: 2)
 
-    assert continuation_body =~
-             "atomic_path_active_child_rejection_pair_failure_elim("
+    assert continuation_body =~ "after_failure_outcome_case"
+  end
 
-    assert continuation_body =~
-             "after_failure_here_available_case(aligned, source, pair)"
+  test "common Same dispatch enters the pair-aware continuation boundary" do
+    source = runtime_fragment_source()
 
-    assert continuation_body =~
-             "after_failure_there_available_case(aligned, source, pair)"
+    [_prefix, body] =
+      String.split(
+        source,
+        "fn atomic_path_recursive_commit_selected_existential_dispatch(",
+        parts: 2
+      )
 
-    assert continuation_body =~
-             "after_failure_reverse_available_case(aligned, source, pair)"
+    [body | _] = String.split(body, "\n  ##", parts: 2)
 
-    assert continuation_body =~ "fn(_) -> invalid_case()"
+    assert body =~
+             "atomic_path_recursive_commit_selected_child_same_pair_continuation_dispatch("
+
+    assert body =~ "after_failure_outcome_case"
   end
 
   test "successful sibling selection retains the rejected child cursor beside its trace" do
@@ -1451,7 +1453,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              ~r/atomic_path_recursive_commit_selected_child_same_after_failure_terminal_dispatch\(.*fn\(root_exhausted\) ->\s*atomic_path_recursive_commit_selected_child_same_root_destinations_exhausted_fold\(/s
 
     assert source =~
-             ~r/atomic_path_recursive_commit_selected_child_same_after_failure_terminal_dispatch\(.*fn\(unclassified\) ->\s*same_case\(\s*atomic_path_recursive_commit_selected_child_same_continuation_package\(\s*unclassified/s
+             ~r/atomic_path_recursive_commit_selected_child_same_after_failure_terminal_dispatch\(.*fn\(unclassified\) ->\s*atomic_path_recursive_commit_selected_child_same_pair_continuation_dispatch\(\s*AtomicPathRecursiveCommitSelectedChildSameAfterFailurePacked\(\s*unclassified/s
 
     assert source =~
              "type AtomicPathRecursiveCommitSelectedChildSameContinuationPackage("
@@ -1840,10 +1842,10 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              ~r/fn atomic_path_recursive_commit_selected_existential_dispatch\(.*same_case: \(AtomicPathRecursiveCommitSelectedChildSameContinuationPackage/s
 
     assert source =~
-             ~r/fn atomic_path_recursive_commit_selected_existential_dispatch\(.*right_case: \(AtomicPathRecursiveCommitSelectedExistentialPackage\(.*invalid_case: \(\) -> result/s
+             ~r/fn atomic_path_recursive_commit_selected_existential_dispatch\(.*right_case: \(AtomicPathRecursiveCommitSelectedExistentialPackage\(.*invalid_case: \(\) -> Empty/s
 
     assert source =~
-             ~r/atomic_path_recursive_commit_selected_existential_dispatch\(\s*atomic_path_commit_child_selected_location_package\(.*correlated_case,\s*same_case,\s*left_case,\s*right_case,\s*invalid_case/s
+             ~r/atomic_path_recursive_commit_selected_existential_dispatch\(\s*atomic_path_commit_child_selected_location_package\(.*correlated_case,\s*same_case,\s*after_failure_outcome_case/s
 
     assert source =~ "type AtomicPathFailureKindAuthority indices (kind: AtomicPathFailureKind)"
 
