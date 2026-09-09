@@ -176,6 +176,30 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~ "Cons(_, Cons(_, _)) ->\n          atomic_path_active_child_rejection_here_recursive_destination_pair_excludes_trace("
   end
 
+  test "Here recursive rejection consumer is callable at its package boundary" do
+    source = ~S'''
+    mod RegexHereRecursivePackageConsumerRegression
+      use Std.Core
+      use Std.Regex.Core
+      use Std.Regex.Runtime
+
+      fn probe(
+        {depth: Nat},
+        {n: Nat},
+        {@erased machine: PatternMachine(n)},
+        pair: AtomicPathRejectedSelectedTracePairExistentialPackage(depth, n, machine),
+        otherwise_case: () -> Empty
+      ) -> Empty =
+        atomic_path_active_child_rejection_here_recursive_destination_pair_excludes_trace(
+          pair,
+          otherwise_case
+        )
+    end
+    '''
+
+    assert {:ok, _module} = Cure.Compiler.compile_and_load(source, emit_events: false)
+  end
+
   test "cursor-package consumers use one canonical package-to-suffix inverse" do
     source = runtime_fragment_source()
 
