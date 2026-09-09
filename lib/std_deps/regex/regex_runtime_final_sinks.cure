@@ -672,6 +672,9 @@ mod Std.Regex.Runtime.FinalSinks
     {depth: Nat},
     {n: Nat},
     {@erased machine: PatternMachine(n)},
+    @erased aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    ),
     pair: AtomicPathRejectedSelectedTracePairExistentialPackage(
       depth, n, machine
     ),
@@ -773,6 +776,9 @@ mod Std.Regex.Runtime.FinalSinks
     {depth: Nat},
     {n: Nat},
     {@erased machine: PatternMachine(n)},
+    @erased aligned: AtomicPathRecursiveCommitSelectedChildSameAlignedPackage(
+      depth, n, machine
+    ),
     pair: AtomicPathRejectedSelectedTracePairExistentialPackage(
       depth, n, machine
     ),
@@ -799,6 +805,7 @@ mod Std.Regex.Runtime.FinalSinks
           )
         Cons(_, Cons(_, _)) ->
           atomic_path_active_child_rejection_recursive_destination_pair_excludes_trace(
+            aligned,
             pair,
             otherwise_case
           )
@@ -821,30 +828,64 @@ mod Std.Regex.Runtime.FinalSinks
     ),
     otherwise_case: () -> Empty
   ) -> Empty = match directional
-    AtomicPathActiveChildDirectionalHerePacked(_) ->
+    AtomicPathActiveChildDirectionalHerePacked(
+      AtomicPathActiveChildProofPairPacked(
+        AtomicPathActiveChildCanonicalPairPacked(
+          aligned,
+          _,
+          _,
+          _
+        )
+      )
+    ) ->
       atomic_path_active_child_rejection_singleton_destination_pair_excludes_trace(
+        aligned,
         pair,
         otherwise_case
       )
-    AtomicPathActiveChildDirectionalTherePacked(_, _, _, direction) -> match direction
+    AtomicPathActiveChildDirectionalTherePacked(
+      AtomicPathActiveChildProofPairPacked(
+        AtomicPathActiveChildCanonicalPairPacked(
+          aligned,
+          _,
+          _,
+          _
+        )
+      ),
+      direction
+    ) -> match direction
       AtomicPathActiveChildShapeThereSameDrop(_) ->
         atomic_path_active_child_rejection_recursive_destination_pair_excludes_trace(
+          aligned,
           pair,
           otherwise_case
         )
       AtomicPathActiveChildShapeThereRightAfter(_) ->
         atomic_path_active_child_rejection_recursive_destination_pair_excludes_trace(
+          aligned,
           pair,
           otherwise_case
         )
-    AtomicPathActiveChildDirectionalReversePacked(_, _, _, direction) -> match direction
+    AtomicPathActiveChildDirectionalReversePacked(
+      AtomicPathActiveChildProofPairPacked(
+        AtomicPathActiveChildCanonicalPairPacked(
+          aligned,
+          _,
+          _,
+          _
+        )
+      ),
+      direction
+    ) -> match direction
       AtomicPathCursorShapesLeftAfterHere() ->
         atomic_path_active_child_rejection_recursive_destination_pair_excludes_trace(
+          aligned,
           pair,
           otherwise_case
         )
       AtomicPathCursorShapesLeftAfterDrop(_) ->
         atomic_path_active_child_rejection_recursive_destination_pair_excludes_trace(
+          aligned,
           pair,
           otherwise_case
         )

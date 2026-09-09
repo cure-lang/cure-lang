@@ -4664,13 +4664,16 @@ induction: its `failure` is the rejected cursor, its nested
 The retained pair already contains the rejected cursor package and selected
 trace package, while the directional carrier already retains the aligned
 recursive-commit package and the relevant `SameDrop`/`RightAfter` or reverse
-authority. The final-sink consumer must thread those correlated packages into
-that fold at the construction site. It must not reconstruct a child failure
-from erased fields, pass the six dependent direction callbacks through the
-recursive dispatcher, or replace the tail fold with a continuation that simply
-returns the outer `AfterFailure` case. Until that handoff is implemented, the
-directional dispatcher remains transport-only and the `There`/`Reverse`
-obligations remain open.
+authority. The final-sink consumer now threads the aligned package through the
+directional dispatcher, the `Here` singleton handoff, and the common recursive
+pair boundary. This preserves the construction-site authority without
+reconstructing a child failure from erased fields or passing the six dependent
+direction callbacks through the recursive dispatcher. The actual tail-fold
+handoff remains open: the aligned package still has to drive
+`atomic_path_rejected_tail_fold_to_active`, rather than a continuation that
+simply returns the outer `AfterFailure` case. Until that handoff is implemented,
+the dispatcher is transport-only semantically and the `There`/`Reverse`
+induction obligations remain open.
 
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in

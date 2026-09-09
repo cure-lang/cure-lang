@@ -192,6 +192,23 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              "atomic_path_active_child_rejection_recursive_destination_pair_excludes_trace("
   end
 
+  test "directional recursive pair keeps the aligned authority at the tail fold" do
+    source = runtime_fragment_source()
+
+    assert source =~
+             "AtomicPathActiveChildDirectionalTherePacked("
+
+    assert Regex.match?(
+             ~r/AtomicPathActiveChildCanonicalPairPacked\(\s+aligned,/,
+             source
+           )
+
+    assert Regex.match?(
+             ~r/atomic_path_active_child_rejection_recursive_destination_pair_excludes_trace\(\s+aligned,/,
+             source
+           )
+  end
+
   test "directional recursive rejection consumer is callable at its package boundary" do
     source = ~S'''
     mod RegexDirectionalRecursivePackageConsumerRegression
