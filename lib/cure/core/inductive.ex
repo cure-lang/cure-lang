@@ -224,6 +224,12 @@ defmodule Cure.Core.Env do
   def add_def(%__MODULE__{} = env, name, type_term, body_term, quantities, plicities) do
     name = owned_name(env, name)
 
+    # Closedness is established before certification. Cache the invariant on
+    # the definition so repeated delta-unfolding does not rescan a large Core
+    # body on every reduction step. Legacy definition maps without this field
+    # use the compatibility fallback in `closed_body?/1`.
+    closed_body = closed_body_value(body_term)
+
     preserve_sealed? =
       body_term == {:hole, "__pending__"} and total?(env, name)
 
@@ -246,6 +252,7 @@ defmodule Cure.Core.Env do
             name: name,
             type: type_term,
             body: body_term,
+            closed_body: closed_body,
             quantities: quantities,
             plicities: plicities
           }),
@@ -390,6 +397,35 @@ defmodule Cure.Core.Env do
   @doc "The global definition `%{name, type, body}` for `name`, or nil."
   @spec get_def(t(), atom() | String.t()) :: map() | nil
   def get_def(%__MODULE__{} = env, name), do: Map.get(env.defs, resolve_key(env, env.defs, name))
+
+  @doc "Whether a definition body is known to be closed."
+  @spec closed_body?(map()) :: boolean()
+  def closed_body?(%{closed_body: value}) when is_boolean(value), do: value
+
+  # Interfaces and hand-built test environments from before the cached field
+  # was introduced remain valid. They pay the old traversal once per lookup
+  # rather than making the new registration path depend on a migration pass.
+  def closed_body?(%{body: body}), do: closed_body_value(body)
+  def closed_body?(_), do: false
+
+  @doc "Populate the cached closedness bit on definitions loaded from an interface."
+  @spec cache_closed_bodies(t()) :: t()
+  def cache_closed_bodies(%__MODULE__{} = env) do
+    defs =
+      Map.new(env.defs, fn {name, definition} ->
+        {name,
+         case definition do
+           %{closed_body: value} when is_boolean(value) -> definition
+           %{body: body} -> Map.put(definition, :closed_body, closed_body_value(body))
+           _ -> definition
+         end}
+      end)
+
+    %{env | defs: defs}
+  end
+
+  defp closed_body_value(body) when is_tuple(body), do: Cure.Core.Term.closed?(body)
+  defp closed_body_value(_body), do: false
 
   @doc "Mark a definition as an authored transparent type alias."
   @spec put_typealias(t(), atom()) :: t()
@@ -714,8 +750,8 @@ defmodule Cure.Core.Env do
     name = resolve_key(env, env.defs, name)
 
     case get_def(env, name) do
-      %{body: body} ->
-        unless Cure.Core.Term.closed?(body) do
+      definition = %{body: _body} ->
+        unless closed_body?(definition) do
           raise ArgumentError,
                 "cannot certify #{inspect(name)}: body has a free de Bruijn variable " <>
                   "(open body). Certification requires a closed, kernel-validated body (M7.2 / A5)."

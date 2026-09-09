@@ -200,10 +200,15 @@ defmodule Cure.Compiler.ModulePipeline.Interface do
       extensions = interface.extension_payloads
       empty = Env.empty()
 
+      defs =
+        %{empty | defs: Map.get(declarations, :defs, %{})}
+        |> Env.cache_closed_bodies()
+        |> Map.fetch!(:defs)
+
       env =
         %Env{
           empty
-          | defs: Map.get(declarations, :defs, %{}),
+          | defs: defs,
             direct_call_summaries: Map.get(declarations, :direct_call_summaries, %{}),
             totality_components: Map.get(declarations, :totality_components, %{}),
             totality_component_of: Map.get(declarations, :totality_component_of, %{}),

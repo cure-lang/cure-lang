@@ -716,7 +716,7 @@ defmodule Cure.Elab.Unify do
 
   def whnf_meta_aware(term, ctx, sig, depth, opts) do
     z = zonk(term, ctx)
-    subst = metas_to_placeholders(z)
+    {subst, closed?, placeholders?} = metas_to_placeholders_with_closedness(z)
     fuel = Keyword.get(opts, :fuel, :infinity)
 
     # Only reduce a CLOSED term. `unify_d`'s `depth` counts binders crossed *within*
@@ -726,14 +726,14 @@ defmodule Cure.Elab.Unify do
     # indices). A closed term is context-independent, so `env = []` / read-back at
     # `depth` is sound; the computed-index unifications this feature targets
     # (`plus(Z, ?m) =? S(Z)`) are closed once metavariables become placeholders.
-    if Cure.Core.Term.closed?(subst) do
-      reduce_closed(z, subst, sig, depth, fuel)
+    if closed? do
+      reduce_closed(z, subst, sig, depth, fuel, placeholders?)
     else
       z
     end
   end
 
-  defp reduce_closed(z, subst, sig, depth, fuel) do
+  defp reduce_closed(z, subst, sig, depth, fuel, placeholders?) do
     reduced =
       Cure.Core.Normalise.with_fuel(fuel, fn ->
         env = for level <- (depth - 1)..0//-1, do: {:vneutral, {:nvar, level}}
@@ -751,24 +751,143 @@ defmodule Cure.Elab.Unify do
 
     case reduced do
       :fuel_exhausted -> z
-      other -> placeholders_to_metas(other)
+      other when placeholders? -> placeholders_to_metas(other)
+      other -> other
     end
   end
 
-  # Replace each unsolved `{:meta, id}` with its reserved opaque-global placeholder.
-  # Generic tuple/list walk (mirrors `zonk/2`) so a metavariable buried in ANY Core
-  # shape is substituted.
-  defp metas_to_placeholders({:meta, id}), do: {:global, :"#{@meta_placeholder_prefix}#{id}"}
+  # Placeholder conversion and the closedness guard used to be three separate
+  # generic walks (`metas_to_placeholders/1`, `Term.closed?/1`, and
+  # `placeholders_to_metas/1`). This path runs for every deferred constructor
+  # equation, so a large indexed type paid for a full tuple-to-list traversal
+  # before normalization even when it contained no metavariable. Keep the
+  # closedness proof adjacent to the conversion and use the Core grammar's
+  # binder-aware clauses so a single pass answers both questions.
+  #
+  # The final generic tuple/list clauses remain a completeness firewall for
+  # elaborator-only nodes. Unknown nodes are traversed conservatively, exactly
+  # as the old pair of generic walkers did; only the known Core binders adjust
+  # the de-Bruijn depth.
+  defp metas_to_placeholders_with_closedness(term), do: prepare_meta_term(term, 0)
 
-  defp metas_to_placeholders(tup) when is_tuple(tup),
-    do: tup |> Tuple.to_list() |> Enum.map(&metas_to_placeholders/1) |> List.to_tuple()
+  defp prepare_meta_term({:meta, id}, _depth),
+    do: {{:global, :"#{@meta_placeholder_prefix}#{id}"}, true, true}
 
-  defp metas_to_placeholders(list) when is_list(list),
-    do: Enum.map(list, &metas_to_placeholders/1)
+  defp prepare_meta_term({:var, index} = term, depth),
+    do: {term, is_integer(index) and index < depth, false}
 
-  defp metas_to_placeholders(leaf), do: leaf
+  defp prepare_meta_term({:pi, grade, domain, codomain}, depth) do
+    {domain, domain_closed?, domain_placeholders?} = prepare_meta_term(domain, depth)
+    {codomain, codomain_closed?, codomain_placeholders?} = prepare_meta_term(codomain, depth + 1)
 
-  # Inverse of `metas_to_placeholders/1`: map each placeholder global back to its
+    {{:pi, grade, domain, codomain}, domain_closed? and codomain_closed?,
+     domain_placeholders? or codomain_placeholders?}
+  end
+
+  defp prepare_meta_term({:lam, grade, domain, body}, depth) do
+    {domain, domain_closed?, domain_placeholders?} = prepare_meta_term(domain, depth)
+    {body, body_closed?, body_placeholders?} = prepare_meta_term(body, depth + 1)
+    {{:lam, grade, domain, body}, domain_closed? and body_closed?, domain_placeholders? or body_placeholders?}
+  end
+
+  defp prepare_meta_term({:let, grade, type, value, body}, depth) do
+    {type, type_closed?, type_placeholders?} = prepare_meta_term(type, depth)
+    {value, value_closed?, value_placeholders?} = prepare_meta_term(value, depth)
+    {body, body_closed?, body_placeholders?} = prepare_meta_term(body, depth + 1)
+
+    {{:let, grade, type, value, body}, type_closed? and value_closed? and body_closed?,
+     type_placeholders? or value_placeholders? or body_placeholders?}
+  end
+
+  defp prepare_meta_term({:app, function, argument}, depth) do
+    {function, function_closed?, function_placeholders?} = prepare_meta_term(function, depth)
+    {argument, argument_closed?, argument_placeholders?} = prepare_meta_term(argument, depth)
+
+    {{:app, function, argument}, function_closed? and argument_closed?,
+     function_placeholders? or argument_placeholders?}
+  end
+
+  defp prepare_meta_term({:data, name, parameters, indices}, depth) do
+    {parameters, parameters_closed?, parameters_placeholders?} = prepare_meta_children(parameters, depth)
+    {indices, indices_closed?, indices_placeholders?} = prepare_meta_children(indices, depth)
+
+    {{:data, name, parameters, indices}, parameters_closed? and indices_closed?,
+     parameters_placeholders? or indices_placeholders?}
+  end
+
+  defp prepare_meta_term({:ctor, name, arguments}, depth) do
+    {arguments, arguments_closed?, arguments_placeholders?} = prepare_meta_children(arguments, depth)
+    {{:ctor, name, arguments}, arguments_closed?, arguments_placeholders?}
+  end
+
+  defp prepare_meta_term({:case, scrutinee, motive, branches}, depth) do
+    {scrutinee, scrutinee_closed?, scrutinee_placeholders?} = prepare_meta_term(scrutinee, depth)
+    {motive, motive_closed?, motive_placeholders?} = prepare_meta_term(motive, depth)
+
+    {branches, {branches_closed?, branches_placeholders?}} =
+      Enum.map_reduce(branches, {true, false}, fn {constructor, arity, body}, {closed?, placeholders?} ->
+        {body, body_closed?, body_placeholders?} = prepare_meta_term(body, depth + arity)
+        {{constructor, arity, body}, {closed? and body_closed?, placeholders? or body_placeholders?}}
+      end)
+
+    {{:case, scrutinee, motive, branches}, scrutinee_closed? and motive_closed? and branches_closed?,
+     scrutinee_placeholders? or motive_placeholders? or branches_placeholders?}
+  end
+
+  defp prepare_meta_term({:effect_type, type}, depth) do
+    {type, closed?, placeholders?} = prepare_meta_term(type, depth)
+    {{:effect_type, type}, closed?, placeholders?}
+  end
+
+  defp prepare_meta_term({:effect_pure, value}, depth) do
+    {value, closed?, placeholders?} = prepare_meta_term(value, depth)
+    {{:effect_pure, value}, closed?, placeholders?}
+  end
+
+  defp prepare_meta_term({:effect_bind, effect, continuation}, depth) do
+    {effect, effect_closed?, effect_placeholders?} = prepare_meta_term(effect, depth)
+    {continuation, continuation_closed?, continuation_placeholders?} = prepare_meta_term(continuation, depth)
+
+    {{:effect_bind, effect, continuation}, effect_closed? and continuation_closed?,
+     effect_placeholders? or continuation_placeholders?}
+  end
+
+  defp prepare_meta_term({tag} = leaf, _depth)
+       when tag in [:int_type, :float_type, :binary_type, :atom_type, :absurd],
+       do: {leaf, true, false}
+
+  defp prepare_meta_term({tag, _payload} = leaf, _depth)
+       when tag in [
+              :type,
+              :global,
+              :int_lit,
+              :nat_lit,
+              :bounded_lit,
+              :float_lit,
+              :atom_lit,
+              :hole
+            ],
+       do: {leaf, true, false}
+
+  defp prepare_meta_term(tuple, depth) when is_tuple(tuple) do
+    {children, closed?, placeholders?} = prepare_meta_children(Tuple.to_list(tuple), depth)
+    {List.to_tuple(children), closed?, placeholders?}
+  end
+
+  defp prepare_meta_term(list, depth) when is_list(list), do: prepare_meta_children(list, depth)
+  defp prepare_meta_term(leaf, _depth), do: {leaf, true, false}
+
+  defp prepare_meta_children(children, depth) do
+    {children, {closed?, placeholders?}} =
+      Enum.map_reduce(children, {true, false}, fn child, {closed?, placeholders?} ->
+        {child, child_closed?, child_placeholders?} = prepare_meta_term(child, depth)
+        {child, {closed? and child_closed?, placeholders? or child_placeholders?}}
+      end)
+
+    {children, closed?, placeholders?}
+  end
+
+  # Inverse of the placeholder conversion above: map each placeholder global back to its
   # metavariable. A `{:global, :"$meta$…"}` cannot arise from real source (the
   # prefix is not a legal identifier), so this is unambiguous.
   defp placeholders_to_metas({:global, name} = t) do
@@ -778,13 +897,68 @@ defmodule Cure.Elab.Unify do
     end
   end
 
+  defp placeholders_to_metas({:pi, grade, domain, codomain}),
+    do: {:pi, grade, placeholders_to_metas(domain), placeholders_to_metas(codomain)}
+
+  defp placeholders_to_metas({:lam, grade, domain, body}),
+    do: {:lam, grade, placeholders_to_metas(domain), placeholders_to_metas(body)}
+
+  defp placeholders_to_metas({:let, grade, type, value, body}),
+    do: {:let, grade, placeholders_to_metas(type), placeholders_to_metas(value), placeholders_to_metas(body)}
+
+  defp placeholders_to_metas({:app, function, argument}),
+    do: {:app, placeholders_to_metas(function), placeholders_to_metas(argument)}
+
+  defp placeholders_to_metas({:data, name, parameters, indices}),
+    do: {:data, name, placeholders_to_metas_list(parameters), placeholders_to_metas_list(indices)}
+
+  defp placeholders_to_metas({:ctor, name, arguments}),
+    do: {:ctor, name, placeholders_to_metas_list(arguments)}
+
+  defp placeholders_to_metas({:case, scrutinee, motive, branches}) do
+    branches =
+      Enum.map(branches, fn {constructor, arity, body} ->
+        {constructor, arity, placeholders_to_metas(body)}
+      end)
+
+    {:case, placeholders_to_metas(scrutinee), placeholders_to_metas(motive), branches}
+  end
+
+  defp placeholders_to_metas({:effect_type, type}),
+    do: {:effect_type, placeholders_to_metas(type)}
+
+  defp placeholders_to_metas({:effect_pure, value}),
+    do: {:effect_pure, placeholders_to_metas(value)}
+
+  defp placeholders_to_metas({:effect_bind, effect, continuation}),
+    do: {:effect_bind, placeholders_to_metas(effect), placeholders_to_metas(continuation)}
+
+  defp placeholders_to_metas({tag} = leaf)
+       when tag in [:int_type, :float_type, :binary_type, :atom_type, :absurd],
+       do: leaf
+
+  defp placeholders_to_metas({tag, _payload} = leaf)
+       when tag in [
+              :type,
+              :var,
+              :int_lit,
+              :nat_lit,
+              :bounded_lit,
+              :float_lit,
+              :atom_lit,
+              :hole
+            ],
+       do: leaf
+
   defp placeholders_to_metas(tup) when is_tuple(tup),
     do: tup |> Tuple.to_list() |> Enum.map(&placeholders_to_metas/1) |> List.to_tuple()
 
   defp placeholders_to_metas(list) when is_list(list),
-    do: Enum.map(list, &placeholders_to_metas/1)
+    do: placeholders_to_metas_list(list)
 
   defp placeholders_to_metas(leaf), do: leaf
+
+  defp placeholders_to_metas_list(list), do: Enum.map(list, &placeholders_to_metas/1)
 
   defp placeholder_id(name) when is_atom(name) do
     case Atom.to_string(name) do

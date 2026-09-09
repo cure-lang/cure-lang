@@ -281,7 +281,7 @@ defmodule Cure.Core.Normalise do
             _ ->
               with true <- Env.certified?(sig, name),
                    %{body: body} <- definition,
-                   true <- Cure.Core.Term.closed?(body) do
+                   true <- Env.closed_body?(definition) do
                 case eval_certified_application(body, args) do
                   # A certified identity (or any definition whose open
                   # application evaluates back to the exact same neutral)
