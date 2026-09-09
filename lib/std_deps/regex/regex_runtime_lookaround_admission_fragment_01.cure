@@ -341,27 +341,6 @@ mod Std.Regex.Runtime.LookaroundAdmission
   ) -> LookaroundAdmittedStateCursorSuffixPackage(n, Cons(head, outer), inner) =
     LookaroundAdmittedStateCursorSuffixDropPacked(head, package)
 
-  ## Reify the relevant cursor package only at a proof boundary.  Packages
-  ## retain the same finite `Here`/`Drop` spine as the erased suffix witness;
-  ## this inverse is the single authority for recovering that witness when a
-  ## later theorem needs its indexed equality.  No runtime value is derived
-  ## from the package: every constructor field except the recursive package is
-  ## erased, and the result is used by proof-only consumers.
-  @reducible
-  fn lookaround_admitted_cursor_suffix_from_package(
-    {n: Nat},
-    {outer: List(LookaroundAdmittedState(n))},
-    {inner: List(LookaroundAdmittedState(n))},
-    package: LookaroundAdmittedStateCursorSuffixPackage(n, outer, inner)
-  ) -> LookaroundAdmittedStateCursorSuffix(n, outer, inner) = match package
-    LookaroundAdmittedStateCursorSuffixHerePacked(equality) ->
-      LookaroundAdmittedStateCursorSuffixHere(equality)
-    LookaroundAdmittedStateCursorSuffixDropPacked(head, prior) ->
-      LookaroundAdmittedStateCursorSuffixDrop(
-        head,
-        lookaround_admitted_cursor_suffix_from_package(prior)
-      )
-
   ## Advance the inner cursor by one candidate while preserving its original
   ## outer spine. `Here` creates the first drop; an existing drop recurses into
   ## its retained prior package and rebuilds the same finite shape.

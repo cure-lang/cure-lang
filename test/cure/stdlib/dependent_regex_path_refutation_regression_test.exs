@@ -155,16 +155,16 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert body =~ "otherwise_case()"
   end
 
-  test "cursor-package consumers have one canonical package-to-suffix inverse" do
+  test "cursor-package consumers use one canonical package-to-suffix inverse" do
     source = runtime_fragment_source()
 
     assert source =~
-             "fn lookaround_admitted_cursor_suffix_from_package("
+             "fn lookaround_admitted_cursor_suffix_package_evidence("
 
     [_prefix, body] =
       String.split(
         source,
-        "fn lookaround_admitted_cursor_suffix_from_package(",
+        "fn lookaround_admitted_cursor_suffix_package_evidence(",
         parts: 2
       )
 
@@ -172,7 +172,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert body =~ "LookaroundAdmittedStateCursorSuffixHerePacked(equality)"
     assert body =~ "LookaroundAdmittedStateCursorSuffixDropPacked(head, prior)"
     assert body =~
-             "lookaround_admitted_cursor_suffix_from_package(prior)"
+             "lookaround_admitted_cursor_suffix_package_evidence(prior)"
   end
 
   test "common Same dispatch enters the pair-aware continuation boundary" do
