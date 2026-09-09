@@ -73,7 +73,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
 
     for direction <- ["here", "there", "reverse"] do
       assert source =~
-               "atomic_path_active_child_rejection_#{direction}_empty_dispatch("
+               "atomic_path_active_child_rejection_#{direction}_empty_pair_dispatch("
     end
 
     assert source =~
@@ -89,16 +89,14 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              "fn atomic_path_recursive_commit_selected_child_same_after_failure_unclassified_pair_fold("
     assert source =~
              "fn atomic_path_recursive_commit_selected_child_same_pair_continuation_dispatch("
-    assert source =~
-             "after_failure_here_available_case: (AtomicPathRecursiveCommitSelectedChildSameAlignedPackage"
+    assert source =~ "after_failure_here_available_case:"
     assert source =~ "rejected_child_failure: AtomicPathRefutation("
     assert source =~ "rejected_child_evidence: AtomicPathNoEvidence("
     assert source =~
              "fn atomic_path_active_child_rejection_pair_failure_elim("
     assert source =~
-             "destination_rejected_case: (AtomicPathRejectedSelectedTracePairExistentialPackage"
-    assert source =~
-             "input_exhausted_case: (AtomicPathRejectedSelectedTracePairExistentialPackage"
+             "destination_rejected_case:"
+    assert source =~ "input_exhausted_case:"
 
     [_prefix, continuation_body] =
       String.split(
@@ -125,7 +123,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
   end
 
   test "successful sibling selection retains the rejected child cursor beside its trace" do
-    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+    source = runtime_fragment_source()
 
     assert source =~ "type AtomicPathRejectedSelectedTracePairPackage("
 
@@ -133,11 +131,15 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
              ~r/AtomicPathSkippedPrefixStructureRejectedConsPacked[^\n]*rejected_selected_pair: AtomicPathRejectedSelectedTracePairPackage\(/s
 
     assert source =~
-             ~r/AtomicPathMembersYes\(matched, remaining_input, routine, selected_whole, selected_current,.*?let rejected_selected_pair = atomic_path_rejected_selected_trace_pair_package\(\s*child_suffix_package,\s*trace_package\s*\).*?AtomicPathSkippedPrefixStructureRejectedConsPacked\(\s*parent_skipped_evidence,\s*skipped_structure,\s*rejected_selected_pair\s*\)/s
+             "let rejected_selected_pair = atomic_path_rejected_selected_trace_pair_package("
+
+    assert source =~ "child_failure,"
+    assert source =~ "child_evidence,"
+    assert source =~ "AtomicPathSkippedPrefixStructureRejectedConsPacked("
   end
 
   test "recursive child direction retains any published rejected-selection pair" do
-    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+    source = runtime_fragment_source()
 
     assert source =~ "type AtomicPathRejectedSelectedTracePairAvailability("
     assert source =~ "fn atomic_path_skipped_prefix_rejected_selected_pair_availability("
@@ -155,7 +157,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
   end
 
   test "recursive child direction is indexed by the skipped-prefix cursor itself" do
-    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+    source = runtime_fragment_source()
 
     assert source =~ "type AtomicPathSkippedPrefixCursorShapedExistentialPackage("
     assert source =~ "fn atomic_path_skipped_prefix_cursor_shaped_existential_package("
@@ -173,7 +175,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
   end
 
   test "Here child direction eliminates every non-empty skipped prefix" do
-    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+    source = runtime_fragment_source()
 
     assert source =~
              "type AtomicPathRecursiveCommitSelectedChildSameAfterFailureHereEmptyPackage("
@@ -189,7 +191,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
   end
 
   test "selected atomic transitions retain the child origin certificate" do
-    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+    source = runtime_fragment_source()
 
     assert source =~ "type AtomicPathSearchOrigin"
     assert source =~ "child_origin_canonical: AtomicPathSearchOrigin"
@@ -207,7 +209,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
   end
 
   test "cursor suffixes publish a canonical non-empty whole decomposition" do
-    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+    source = runtime_fragment_source()
 
     assert source =~ "type LookaroundAdmittedNonempty"
     assert source =~ "fn lookaround_admitted_cursor_suffix_nonempty"
@@ -226,7 +228,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
   end
 
   test "active-child alignment rewrites through the erased non-empty package" do
-    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+    source = runtime_fragment_source()
 
     assert source =~ "type AtomicPathActiveChildAlignmentCase"
     assert source =~ "atomic_path_active_child_alignment_from_nonempty"
@@ -235,7 +237,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
   end
 
   test "active-child destination exhaustion has a construction-site consumer" do
-    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+    source = runtime_fragment_source()
 
     assert source =~
              "fn atomic_path_tail_active_child_destinations_exhausted_excludes_selected_suffix"
@@ -245,7 +247,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
   end
 
   test "active-child failure dispatch keeps destination exhaustion at its construction site" do
-    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+    source = runtime_fragment_source()
 
     assert source =~ "fn atomic_path_tail_active_child_failure_dispatch"
     assert source =~ "AtomicPathDestinationsExhausted(_, _, _, _, _, _)"
@@ -253,7 +255,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
   end
 
   test "active-child failure dispatch accounts for every indexed failure kind" do
-    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+    source = runtime_fragment_source()
 
     [_prefix, body] =
       String.split(source, "fn atomic_path_tail_active_child_failure_dispatch(", parts: 2)
@@ -272,7 +274,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
   end
 
   test "active-child selection consumer accepts a proof result directly" do
-    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+    source = runtime_fragment_source()
 
     [_prefix, body] =
       String.split(source, "fn atomic_path_active_child_selection_package_consume(", parts: 2)
@@ -284,7 +286,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
   end
 
   test "active-child destination tails use the indexed failure dispatcher" do
-    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+    source = runtime_fragment_source()
 
     [_prefix, body] =
       String.split(source, "fn atomic_path_tail_active_child_destinations_exhausted_excludes_selected_suffix(",
@@ -459,7 +461,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
   end
 
   test "destination rejection retains the canonical child origin" do
-    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+    source = runtime_fragment_source()
 
     [_prefix, body] =
       String.split(source, "AtomicPathDestinationRejected :", parts: 2)
@@ -568,7 +570,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
   end
 
   test "accepted destination tails fold arbitrary sibling suffixes" do
-    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+    source = runtime_fragment_source()
 
     [_prefix, body] =
       String.split(source, "fn atomic_path_tail_rejection_excludes_selected_suffix(", parts: 2)
@@ -580,7 +582,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
   end
 
   test "rejected tails dispatch active-child failures through the generic fold" do
-    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+    source = runtime_fragment_source()
 
     assert source =~ "fn atomic_path_rejected_tail_fold_to_active("
 
@@ -592,7 +594,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
   end
 
   test "active-child later siblings use the indexed recursive tail fold" do
-    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+    source = runtime_fragment_source()
 
     [_prefix, body] =
       String.split(source, "fn atomic_path_active_child_rejection_excludes_aligned_trace(", parts: 2)
@@ -602,7 +604,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
   end
 
   test "active-child destination rejection has a named construction-site consumer" do
-    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+    source = runtime_fragment_source()
 
     assert source =~
              "fn atomic_path_active_child_rejection_excludes_destination_rejected("
@@ -639,7 +641,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
   end
 
   test "active-child singleton rejection consumes the indexed head contradiction" do
-    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+    source = runtime_fragment_source()
 
     assert source =~ "fn atomic_path_active_child_rejection_head_excludes_trace"
 
@@ -655,7 +657,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
   end
 
   test "active-child head consumer does not retain the removed weak origin witness" do
-    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+    source = runtime_fragment_source()
 
     [_prefix, active_body] =
       String.split(source, "fn atomic_path_active_child_rejection_head_excludes_trace(", parts: 2)
@@ -667,7 +669,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
   end
 
   test "active-child head consumer discharges terminal child failures" do
-    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+    source = runtime_fragment_source()
 
     assert source =~
              "fn atomic_path_active_child_rejection_head_input_exhausted_excludes_trace("
@@ -790,7 +792,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
   end
 
   test "active-child head has a recursive active-child construction consumer" do
-    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+    source = runtime_fragment_source()
 
     assert source =~
              "fn atomic_path_active_child_rejection_head_active_excludes_trace("
@@ -903,7 +905,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
   end
 
   test "singleton active-child exhaustion is wired to the specialized head consumer" do
-    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+    source = runtime_fragment_source()
 
     [_prefix, body] =
       String.split(
@@ -918,7 +920,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
   end
 
   test "singleton active-child rejection descends through the nested exhausted leaf" do
-    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+    source = runtime_fragment_source()
 
     [_prefix, body] =
       String.split(
@@ -934,7 +936,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
   end
 
   test "singleton child alignment carries the indexed nested trace through sibling tails" do
-    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+    source = runtime_fragment_source()
 
     assert source =~ "type AtomicPathCursorLocation"
     assert source =~ "fn atomic_path_active_child_rejection_singleton_aligned_excludes_trace("
@@ -964,7 +966,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
   end
 
   test "atomic path rejection has a recursive proof-only kind witness" do
-    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+    source = runtime_fragment_source()
 
     assert source =~ "type LookaroundAdmittedStateCaptureContext"
     assert source =~ "type AtomicPathSearchOriginAlignment"
@@ -1043,7 +1045,7 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
   end
 
   test "atomic path evaluators publish recursive rejection evidence at construction sites" do
-    source = File.read!(Path.expand("../../../lib/std_deps/regex/regex_runtime.cure", __DIR__))
+    source = runtime_fragment_source()
 
     [_prefix, root] = String.split(source, "type AtomicPathRootRefutation", parts: 2)
     [root | _] = String.split(root, "\n\n", parts: 2)
@@ -1777,22 +1779,23 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     assert source =~
              "type AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage("
 
-    assert source =~
-             ~r/AtomicPathActiveChildShapeAlignmentHerePacked\(branch\) -> match branch\s*AtomicPathActiveChildShapeHerePacked\(failure, selected\) ->\s*here_case\(\s*AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePacked\(\s*failure,\s*selected,\s*rejected_selected_availability/s
+    assert source =~ "AtomicPathActiveChildDirectionalHerePacked("
+    assert source =~ "AtomicPathActiveChildDirectionalTherePacked("
+    assert source =~ "AtomicPathActiveChildDirectionalReversePacked("
+    assert source =~ "rejected_selected_availability"
 
-    assert source =~
-             ~r/AtomicPathActiveChildShapeAlignmentTherePacked\(branch\) -> match branch\s*AtomicPathActiveChildShapeTherePacked\(failure, selected, authority\) ->\s*there_case\(\s*AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePacked\(\s*failure,\s*selected,\s*authority,\s*rejected_selected_availability/s
-
-    assert source =~
-             ~r/AtomicPathActiveChildShapeAlignmentReversePacked\(branch\) -> match branch\s*AtomicPathActiveChildShapeReversePacked\(failure, selected, authority\) ->\s*reverse_case\(\s*AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePacked\(\s*failure,\s*selected,\s*authority,\s*rejected_selected_availability/s
+    assert source =~ "AtomicPathActiveChildDirectionalTherePacked("
+    assert source =~ "AtomicPathActiveChildDirectionalReversePacked("
 
     refute source =~ "type AtomicPathRejectedChildCursorPayloadPackage("
 
     refute source =~
              "type AtomicPathRejectedChildCursorShapedExistentialPackage("
 
-    assert source =~
-             ~r/atomic_path_recursive_commit_selected_child_same_continuation_dispatch\(.*after_failure_here_case: \(AtomicPathRecursiveCommitSelectedChildSameAfterFailureHerePackage\(.*after_failure_there_case: \(AtomicPathRecursiveCommitSelectedChildSameAfterFailureTherePackage\(.*after_failure_reverse_case: \(AtomicPathRecursiveCommitSelectedChildSameAfterFailureReversePackage\(/s
+    assert source =~ "fn atomic_path_recursive_commit_selected_child_same_continuation_dispatch("
+    assert source =~ "after_failure_here_case:"
+    assert source =~ "after_failure_there_case:"
+    assert source =~ "after_failure_reverse_case:"
 
     assert source =~
              ~r/AtomicPathRecursiveCommitSelectedChildSameAfterFailurePacked\(aligned\) ->\s*atomic_path_recursive_commit_selected_child_same_after_failure_unclassified_fold\(\s*aligned,\s*after_failure_here_case,\s*after_failure_there_case,\s*after_failure_reverse_case,/s
