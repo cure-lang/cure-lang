@@ -4655,6 +4655,23 @@ adding direction-specific dependent callbacks. It is still a plumbing slice:
 the sibling-tail and mixed-prefix induction obligations remain open and are
 not claimed discharged by this dispatcher.
 
+The source audit for the next slice identifies the exact authority that must
+be consumed. `atomic_path_rejected_tail_fold_to_active` in
+`regex_runtime_leaf_cluster_30.cure` is the existing construction-site
+induction: its `failure` is the rejected cursor, its nested
+`AtomicPathDestinationRejected` tail is the smaller sibling failure, and its
+`child_failure`/`child_path` pair is the selected active-child contradiction.
+The retained pair already contains the rejected cursor package and selected
+trace package, while the directional carrier already retains the aligned
+recursive-commit package and the relevant `SameDrop`/`RightAfter` or reverse
+authority. The final-sink consumer must thread those correlated packages into
+that fold at the construction site. It must not reconstruct a child failure
+from erased fields, pass the six dependent direction callbacks through the
+recursive dispatcher, or replace the tail fold with a continuation that simply
+returns the outer `AfterFailure` case. Until that handoff is implemented, the
+directional dispatcher remains transport-only and the `There`/`Reverse`
+obligations remain open.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
