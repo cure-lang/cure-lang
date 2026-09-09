@@ -666,7 +666,6 @@ mod Std.Regex.Runtime.FinalSinks
   ## needs.  The selected suffix is transported back to the rejected child's
   ## outer list using the two canonical origin equalities, so no erased list
   ## is reconstructed as a runtime value.
-  @reducible
   fn atomic_path_active_child_rejection_here_recursive_destination_pair_excludes_trace(
     {depth: Nat},
     {n: Nat},
