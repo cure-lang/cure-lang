@@ -181,7 +181,8 @@ defmodule Cure.Stdlib.DependentRegexPathRefutationRegressionTest do
     mod RegexHereRecursivePackageConsumerRegression
       use Std.Core
       use Std.Regex.Core
-      use Std.Regex.Runtime
+      use Std.Regex.Runtime.FinalSinks
+      use Std.Regex.Runtime.SinkLookaroundProofs
 
       fn probe(
         {depth: Nat},
