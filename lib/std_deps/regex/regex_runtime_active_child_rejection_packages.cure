@@ -87,13 +87,21 @@ mod Std.Regex.Runtime.ActiveChildRejectionPackages
     pair: AtomicPathRejectedSelectedTracePairExistentialPackage(
       depth, n, machine
     ),
-    input_exhausted_case: () -> Empty,
-    exact_accepted_case: () -> Empty,
-    destinations_exhausted_case: () -> Empty,
+    input_exhausted_case: (
+      AtomicPathRejectedSelectedTracePairExistentialPackage(depth, n, machine)
+    ) -> Empty,
+    exact_accepted_case: (
+      AtomicPathRejectedSelectedTracePairExistentialPackage(depth, n, machine)
+    ) -> Empty,
+    destinations_exhausted_case: (
+      AtomicPathRejectedSelectedTracePairExistentialPackage(depth, n, machine)
+    ) -> Empty,
     destination_rejected_case: (
       AtomicPathRejectedSelectedTracePairExistentialPackage(depth, n, machine)
     ) -> Empty,
-    invalid_case: () -> Empty
+    invalid_case: (
+      AtomicPathRejectedSelectedTracePairExistentialPackage(depth, n, machine)
+    ) -> Empty
   ) -> Empty = match pair
     AtomicPathRejectedSelectedTracePairExistentialPacked(package) -> match package
       AtomicPathRejectedSelectedTracePairPacked(
@@ -101,9 +109,9 @@ mod Std.Regex.Runtime.ActiveChildRejectionPackages
         child_failure,
         _, _, _, _, _, _
       ) -> match child_failure
-        AtomicPathInputExhausted(_, _) -> input_exhausted_case()
-        AtomicPathExactAcceptedWithInput(_, _, _, _) -> exact_accepted_case()
-        AtomicPathDestinationsExhausted(_, _, _, _, _, _) -> destinations_exhausted_case()
+        AtomicPathInputExhausted(_, _) -> input_exhausted_case(pair)
+        AtomicPathExactAcceptedWithInput(_, _, _, _) -> exact_accepted_case(pair)
+        AtomicPathDestinationsExhausted(_, _, _, _, _, _) -> destinations_exhausted_case(pair)
         AtomicPathDestinationRejected(
           _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _
         ) -> destination_rejected_case(pair)
