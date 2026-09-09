@@ -33,6 +33,21 @@ The current engine is not yet a claim of complete PCRE2, OTP `re`, or Elixir
 `Regex` parity.  Compatibility claims must always name the pinned oracle and
 the exact checked subset.
 
+## Machine-model boundary
+
+The admitted matcher is a finite-state machine (with finite typed control,
+including the explicitly bounded assertion and atomicity state). It can
+recognize every language in the admitted regular fragment and can model a
+fixed maximum of any feature that is compiled into a finite bound.
+
+It does not recognize arbitrary balanced delimiters such as every string of
+properly nested parentheses. That language needs unbounded memory—a stack or
+an equivalent pushdown machine—and is therefore a parser/grammar concern, not
+an additional regex instruction. A bounded-depth approximation can be
+compiled as a finite machine, but its bound is part of the semantics and must
+be stated explicitly. No feature or compatibility claim may silently turn
+that bounded approximation into a claim about unbounded balancing.
+
 ## What is implemented now
 
 ### Compile-time interface

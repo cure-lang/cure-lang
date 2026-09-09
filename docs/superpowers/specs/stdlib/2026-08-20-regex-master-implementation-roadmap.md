@@ -21,6 +21,16 @@ stdlib bootstrap. A package-specific ordering property now rebuilds that
 manifest from reversed and rotated source lists and requires identical
 canonical entries, so filename order cannot rekey the embedded modules.
 
+The machine-model boundary is explicit throughout this roadmap: the admitted
+matcher is a finite-state machine with finite typed control and explicit
+bounds for assertions, atomic scopes, and other resource-limited features.
+Arbitrarily balanced delimiters are not a hidden regex capability; recognizing
+all properly nested parentheses would require unbounded stack memory and a
+pushdown/parser layer. A bounded-depth delimiter language may be admitted only
+when the bound is part of the compiled semantics, with its own preservation
+and resource proof. The implementation and compatibility ledger must never
+describe such a bounded approximation as unbounded balancing.
+
 The first Phase 2 evidence slice is also landed: successful lookahead and
 lookbehind decisions carry an existential package containing the indexed finite
 child path. Lookahead admission now also requires the atomic prefix traversal
