@@ -4572,6 +4572,16 @@ failure constructor can therefore select a runtime-valued branch, and a
 terminal consumer can still open the same retained pair to reach its exact
 selected suffix package.
 
+The pair-aware common-induction dispatcher now consumes that eliminator at the
+directional boundary. An available `Here`, `There`, or `Reverse` sibling pair
+routes `InputExhausted`, `ExactAccepted`, and `DestinationsExhausted` to the
+explicit impossible obligation; only `DestinationRejected` reaches the
+direction-specific recursive callback. This prevents terminal child evidence
+from being mistaken for a smaller induction case while keeping the original
+direction package and sibling pair correlated. The dispatcher remains an
+additive entry point until the construction-site theorem supplies its concrete
+unavailable and recursive callbacks.
+
 **Read:** `2026-08-19-pure-portable-regex-engine-design.md`, Sections 6–10 and
 Feature Phases 1–2. Cross-reference the bounded-lookaround foundation in
 `2026-08-18-finite-pcre-extension-design.md` Phase F.
