@@ -13,6 +13,7 @@ defmodule Cure.Compiler.Parser.FixityScan do
   alias Cure.Compiler.Parser.FixityTable
 
   @empty %{fixity: [], uses: [], qualified_targets: [], prelude?: false, module: nil}
+  @module_container_types [:module, :proof]
 
   @spec harvest_source(String.t(), String.t(), FixityTable.t()) :: %{
           fixity: [tuple()],
@@ -27,18 +28,59 @@ defmodule Cure.Compiler.Parser.FixityScan do
         exprs = Parser.harvest(tokens, file, base, Cure.Edition.current())
         facts = collect_module_facts(exprs)
         qualified_targets = normalize_qualified_targets(collect_qualified_targets(exprs), facts.uses)
+        {prelude?, module} = collect_header_facts(exprs)
 
         %{
           fixity: facts.fixity,
           uses: facts.uses,
           qualified_targets: qualified_targets,
-          prelude?: prelude?(exprs),
-          module: module_name(exprs)
+          prelude?: prelude?,
+          module: module
         }
 
       _ ->
         @empty
     end
+  end
+
+  # `@prelude` and the module name are independent header facts, but the old
+  # implementation traversed the harvested tree once for each. Fold them in a
+  # single traversal while retaining the public scanners' exact behavior.
+  defp collect_header_facts(ast) do
+    deep_reduce(ast, {false, nil}, fn
+      {:property, meta, _}, {false, module} when is_list(meta) ->
+        {Keyword.get(meta, :name) == "prelude", module}
+
+      {_tag, meta, _} = node, {prelude?, module} when is_list(meta) ->
+        prelude? =
+          prelude? or
+            case Keyword.get(meta, :decorator) do
+              {:prelude, _} -> true
+              {:decorator, dm, _args} when is_list(dm) -> Keyword.get(dm, :name) == :prelude
+              _ -> false
+            end
+
+        module =
+          if is_nil(module) do
+            case node do
+              {:lift_module, _, _} ->
+                Keyword.get(meta, :module)
+
+              {:container, _, _} ->
+                if Keyword.get(meta, :container_type) in @module_container_types, do: Keyword.get(meta, :name)
+
+              _ ->
+                nil
+            end
+          else
+            module
+          end
+
+        {prelude?, module}
+
+      _node, acc ->
+        acc
+    end)
   end
 
   @spec collect_fixity(term()) :: [tuple()]
@@ -334,8 +376,6 @@ defmodule Cure.Compiler.Parser.FixityScan do
   # returning a nested type's name instead of the module's, especially on a
   # `synchronize_to_statement`-recovered harvest of malformed source where
   # node order/nesting can't be assumed well-formed.
-  @module_container_types [:module, :proof]
-
   @spec module_name(term()) :: String.t() | nil
   def module_name(ast) do
     deep_reduce(ast, nil, fn

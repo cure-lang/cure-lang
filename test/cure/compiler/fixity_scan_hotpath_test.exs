@@ -15,4 +15,11 @@ defmodule Cure.Compiler.Parser.FixityScanHotpathTest do
     assert source =~ "defp deep_reduce_tuple"
     assert source =~ "defp collect_qualified_targets_tuple"
   end
+
+  test "harvest_source combines header fact traversal" do
+    source = File.read!("lib/cure/compiler/parser/fixity_scan.ex")
+
+    assert source =~ "collect_header_facts(exprs)"
+    assert source =~ "defp collect_header_facts"
+  end
 end
