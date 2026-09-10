@@ -1422,8 +1422,67 @@ defmodule Cure.Core.Inductive do
   defp data_heads(env, term),
     do: term |> gather_data_heads(env, MapSet.new(), MapSet.new()) |> MapSet.to_list()
 
-  defp gather_data_heads({:data, n, ps, is}, env, acc, seen),
-    do: Enum.reduce(ps ++ is, MapSet.put(acc, n), &gather_data_heads(&1, env, &2, seen))
+  defp gather_data_heads({:data, n, ps, is}, env, acc, seen) do
+    acc = gather_data_heads_list(ps, env, MapSet.put(acc, n), seen)
+    gather_data_heads_list(is, env, acc, seen)
+  end
+
+  defp gather_data_heads({:type, _level}, _env, acc, _seen), do: acc
+  defp gather_data_heads({:var, _index}, _env, acc, _seen), do: acc
+
+  defp gather_data_heads({:pi, _grade, domain, codomain}, env, acc, seen) do
+    acc = gather_data_heads(domain, env, acc, seen)
+    gather_data_heads(codomain, env, acc, seen)
+  end
+
+  defp gather_data_heads({:lam, _grade, domain, body}, env, acc, seen) do
+    acc = gather_data_heads(domain, env, acc, seen)
+    gather_data_heads(body, env, acc, seen)
+  end
+
+  defp gather_data_heads({:let, _grade, type, value, body}, env, acc, seen) do
+    acc = gather_data_heads(type, env, acc, seen)
+    acc = gather_data_heads(value, env, acc, seen)
+    gather_data_heads(body, env, acc, seen)
+  end
+
+  defp gather_data_heads({:app, function, argument}, env, acc, seen) do
+    acc = gather_data_heads(function, env, acc, seen)
+    gather_data_heads(argument, env, acc, seen)
+  end
+
+  defp gather_data_heads({:ctor, _name, args}, env, acc, seen),
+    do: gather_data_heads_list(args, env, acc, seen)
+
+  defp gather_data_heads({:case, scrutinee, motive, branches}, env, acc, seen) do
+    acc = gather_data_heads(scrutinee, env, acc, seen)
+    acc = gather_data_heads(motive, env, acc, seen)
+    gather_data_heads_branches(branches, env, acc, seen)
+  end
+
+  defp gather_data_heads({:int_type}, _env, acc, _seen), do: acc
+  defp gather_data_heads({:int_lit, _value}, _env, acc, _seen), do: acc
+  defp gather_data_heads({:nat_lit, _value}, _env, acc, _seen), do: acc
+  defp gather_data_heads({:bounded_lit, _value}, _env, acc, _seen), do: acc
+  defp gather_data_heads({:float_type}, _env, acc, _seen), do: acc
+  defp gather_data_heads({:float_lit, _value}, _env, acc, _seen), do: acc
+  defp gather_data_heads({:binary_type}, _env, acc, _seen), do: acc
+  defp gather_data_heads({:atom_type}, _env, acc, _seen), do: acc
+  defp gather_data_heads({:atom_lit, _value}, _env, acc, _seen), do: acc
+
+  defp gather_data_heads({:effect_type, inner}, env, acc, seen),
+    do: gather_data_heads(inner, env, acc, seen)
+
+  defp gather_data_heads({:effect_pure, value}, env, acc, seen),
+    do: gather_data_heads(value, env, acc, seen)
+
+  defp gather_data_heads({:effect_bind, effect, continuation}, env, acc, seen) do
+    acc = gather_data_heads(effect, env, acc, seen)
+    gather_data_heads(continuation, env, acc, seen)
+  end
+
+  defp gather_data_heads({:hole, _name}, _env, acc, _seen), do: acc
+  defp gather_data_heads({:absurd}, _env, acc, _seen), do: acc
 
   defp gather_data_heads({:global, g}, env, acc, seen) do
     if MapSet.member?(seen, g) do
@@ -1443,9 +1502,31 @@ defmodule Cure.Core.Inductive do
     do: t |> Tuple.to_list() |> Enum.reduce(acc, &gather_data_heads(&1, env, &2, seen))
 
   defp gather_data_heads(l, env, acc, seen) when is_list(l),
-    do: Enum.reduce(l, acc, &gather_data_heads(&1, env, &2, seen))
+    do: gather_data_heads_list(l, env, acc, seen)
 
   defp gather_data_heads(_t, _env, acc, _seen), do: acc
+
+  defp gather_data_heads_list([], _env, acc, _seen), do: acc
+
+  defp gather_data_heads_list([head | tail], env, acc, seen) do
+    acc = gather_data_heads(head, env, acc, seen)
+    gather_data_heads_list(tail, env, acc, seen)
+  end
+
+  defp gather_data_heads_branches([], _env, acc, _seen), do: acc
+
+  defp gather_data_heads_branches([{_name, _arity, body} | rest], env, acc, seen) do
+    acc = gather_data_heads(body, env, acc, seen)
+    gather_data_heads_branches(rest, env, acc, seen)
+  end
+
+  # Keep malformed/future branch shapes fail-closed just like the unknown-node
+  # fallback below. Well-formed Core branches take the clause above and avoid
+  # allocating a list for their constructor metadata.
+  defp gather_data_heads_branches([branch | rest], env, acc, seen) do
+    acc = gather_data_heads(branch, env, acc, seen)
+    gather_data_heads_branches(rest, env, acc, seen)
+  end
 
   # Does the family name `fname` occur anywhere in `term` (as an applied family)?
   #
@@ -1500,11 +1581,76 @@ defmodule Cure.Core.Inductive do
     end
   end
 
+  defp occurs?(_env, _fname, {:type, _level}, _seen), do: false
+  defp occurs?(_env, _fname, {:var, _index}, _seen), do: false
+
+  defp occurs?(env, fname, {:pi, _grade, domain, codomain}, seen),
+    do: occurs?(env, fname, domain, seen) or occurs?(env, fname, codomain, seen)
+
+  defp occurs?(env, fname, {:lam, _grade, domain, body}, seen),
+    do: occurs?(env, fname, domain, seen) or occurs?(env, fname, body, seen)
+
+  defp occurs?(env, fname, {:let, _grade, type, value, body}, seen),
+    do:
+      occurs?(env, fname, type, seen) or
+        occurs?(env, fname, value, seen) or
+        occurs?(env, fname, body, seen)
+
+  defp occurs?(env, fname, {:app, function, argument}, seen),
+    do: occurs?(env, fname, function, seen) or occurs?(env, fname, argument, seen)
+
+  defp occurs?(env, fname, {:data, _name, params, indices}, seen),
+    do: occurs_list?(env, fname, params, seen) or occurs_list?(env, fname, indices, seen)
+
+  defp occurs?(env, fname, {:ctor, _name, args}, seen),
+    do: occurs_list?(env, fname, args, seen)
+
+  defp occurs?(env, fname, {:case, scrutinee, motive, branches}, seen) do
+    occurs?(env, fname, scrutinee, seen) or
+      occurs?(env, fname, motive, seen) or
+      occurs_branches?(env, fname, branches, seen)
+  end
+
+  defp occurs?(_env, _fname, {:int_type}, _seen), do: false
+  defp occurs?(_env, _fname, {:int_lit, _value}, _seen), do: false
+  defp occurs?(_env, _fname, {:nat_lit, _value}, _seen), do: false
+  defp occurs?(_env, _fname, {:bounded_lit, _value}, _seen), do: false
+  defp occurs?(_env, _fname, {:float_type}, _seen), do: false
+  defp occurs?(_env, _fname, {:float_lit, _value}, _seen), do: false
+  defp occurs?(_env, _fname, {:binary_type}, _seen), do: false
+  defp occurs?(_env, _fname, {:atom_type}, _seen), do: false
+  defp occurs?(_env, _fname, {:atom_lit, _value}, _seen), do: false
+  defp occurs?(env, fname, {:effect_type, inner}, seen), do: occurs?(env, fname, inner, seen)
+  defp occurs?(env, fname, {:effect_pure, value}, seen), do: occurs?(env, fname, value, seen)
+
+  defp occurs?(env, fname, {:effect_bind, effect, continuation}, seen),
+    do: occurs?(env, fname, effect, seen) or occurs?(env, fname, continuation, seen)
+
+  defp occurs?(_env, _fname, {:hole, _name}, _seen), do: false
+  defp occurs?(_env, _fname, {:absurd}, _seen), do: false
+
   defp occurs?(env, fname, t, seen) when is_tuple(t),
     do: t |> Tuple.to_list() |> Enum.any?(&occurs?(env, fname, &1, seen))
 
   defp occurs?(env, fname, l, seen) when is_list(l),
-    do: Enum.any?(l, &occurs?(env, fname, &1, seen))
+    do: occurs_list?(env, fname, l, seen)
 
   defp occurs?(_env, _fname, _leaf, _seen), do: false
+
+  defp occurs_list?(_env, _fname, [], _seen), do: false
+
+  defp occurs_list?(env, fname, [head | tail], seen) do
+    occurs?(env, fname, head, seen) or occurs_list?(env, fname, tail, seen)
+  end
+
+  defp occurs_branches?(_env, _fname, [], _seen), do: false
+
+  defp occurs_branches?(env, fname, [{_name, _arity, body} | rest], seen) do
+    occurs?(env, fname, body, seen) or occurs_branches?(env, fname, rest, seen)
+  end
+
+  # Preserve the fail-closed behavior for malformed/future branch shapes.
+  defp occurs_branches?(env, fname, [branch | rest], seen) do
+    occurs?(env, fname, branch, seen) or occurs_branches?(env, fname, rest, seen)
+  end
 end
