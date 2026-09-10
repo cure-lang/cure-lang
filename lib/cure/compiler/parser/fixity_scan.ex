@@ -192,7 +192,7 @@ defmodule Cure.Compiler.Parser.FixityScan do
           acc
       end
 
-    Enum.reduce(Tuple.to_list(node), acc, &collect_qualified_targets(&1, line, &2))
+    collect_qualified_targets_tuple(node, 0, tuple_size(node), line, acc)
   end
 
   defp collect_qualified_targets(nodes, inherited_line, acc) when is_list(nodes),
@@ -217,6 +217,14 @@ defmodule Cure.Compiler.Parser.FixityScan do
   end
 
   defp collect_qualified_targets(_leaf, _inherited_line, acc), do: acc
+
+  defp collect_qualified_targets_tuple(_node, index, size, _line, acc) when index >= size,
+    do: acc
+
+  defp collect_qualified_targets_tuple(node, index, size, line, acc) do
+    acc = collect_qualified_targets(elem(node, index), line, acc)
+    collect_qualified_targets_tuple(node, index + 1, size, line, acc)
+  end
 
   @doc "Collect qualified targets and canonicalize applied-type owners against explicit imports."
   @spec collect_qualified_targets(term(), [%{target: String.t(), line: pos_integer()}]) ::
@@ -361,13 +369,20 @@ defmodule Cure.Compiler.Parser.FixityScan do
   # the same order at the boundary.
   defp deep_collect(node, f, acc) when is_tuple(node) do
     acc = Enum.reduce(f.(node), acc, &[&1 | &2])
-    Enum.reduce(Tuple.to_list(node), acc, &deep_collect(&1, f, &2))
+    deep_collect_tuple(node, 0, tuple_size(node), f, acc)
   end
 
   defp deep_collect(list, f, acc) when is_list(list),
     do: Enum.reduce(list, acc, &deep_collect(&1, f, &2))
 
   defp deep_collect(_other, _f, acc), do: acc
+
+  defp deep_collect_tuple(_node, index, size, _f, acc) when index >= size, do: acc
+
+  defp deep_collect_tuple(node, index, size, f, acc) do
+    acc = deep_collect(elem(node, index), f, acc)
+    deep_collect_tuple(node, index + 1, size, f, acc)
+  end
 
   defp deep_scan(node, fixity, uses) when is_tuple(node) do
     {fixity, uses} =
@@ -391,9 +406,7 @@ defmodule Cure.Compiler.Parser.FixityScan do
           {fixity, uses}
       end
 
-    Enum.reduce(Tuple.to_list(node), {fixity, uses}, fn child, acc ->
-      deep_scan(child, elem(acc, 0), elem(acc, 1))
-    end)
+    deep_scan_tuple(node, 0, tuple_size(node), fixity, uses)
   end
 
   defp deep_scan(list, fixity, uses) when is_list(list),
@@ -401,13 +414,28 @@ defmodule Cure.Compiler.Parser.FixityScan do
 
   defp deep_scan(_other, fixity, uses), do: {fixity, uses}
 
+  defp deep_scan_tuple(_node, index, size, fixity, uses) when index >= size,
+    do: {fixity, uses}
+
+  defp deep_scan_tuple(node, index, size, fixity, uses) do
+    {next_fixity, next_uses} = deep_scan(elem(node, index), fixity, uses)
+    deep_scan_tuple(node, index + 1, size, next_fixity, next_uses)
+  end
+
   defp deep_reduce(node, acc, f) when is_tuple(node) do
     acc = f.(node, acc)
-    node |> Tuple.to_list() |> deep_reduce(acc, f)
+    deep_reduce_tuple(node, 0, tuple_size(node), acc, f)
   end
 
   defp deep_reduce(list, acc, f) when is_list(list),
     do: Enum.reduce(list, acc, fn el, a -> deep_reduce(el, a, f) end)
 
   defp deep_reduce(_other, acc, _f), do: acc
+
+  defp deep_reduce_tuple(_node, index, size, acc, _f) when index >= size, do: acc
+
+  defp deep_reduce_tuple(node, index, size, acc, f) do
+    acc = deep_reduce(elem(node, index), acc, f)
+    deep_reduce_tuple(node, index + 1, size, acc, f)
+  end
 end
