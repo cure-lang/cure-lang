@@ -8527,19 +8527,15 @@ defmodule Cure.Compiler.Parser do
   # the original file.  Keep the node's explicit span and widen it over every
   # child span in source order.
   defp ast_source_span({_, meta, children}) when is_list(meta) and is_list(children) do
-    spans =
-      [metadata_whole_span(meta) | Enum.map(children, &ast_source_span/1)]
-      |> Enum.reject(&is_nil/1)
-
-    span_sequence(spans)
+    merge_ast_children(metadata_whole_span(meta), children)
   end
 
   defp ast_source_span({_, meta, child}) when is_list(meta) do
-    span_sequence([metadata_whole_span(meta), ast_source_span(child)])
+    merge_ast_children(metadata_whole_span(meta), [child])
   end
 
   defp ast_source_span(children) when is_list(children) do
-    children |> Enum.map(&ast_source_span/1) |> Enum.reject(&is_nil/1) |> span_sequence()
+    merge_ast_children(nil, children)
   end
 
   defp ast_source_span(_), do: nil
@@ -8551,11 +8547,14 @@ defmodule Cure.Compiler.Parser do
     end
   end
 
-  defp span_sequence(spans) do
-    case Enum.reject(spans, &is_nil/1) do
-      [] -> nil
-      [first | rest] -> Enum.reduce(rest, first, &merge_source_spans/2)
-    end
+  defp merge_ast_children(seed, children) do
+    Enum.reduce(children, seed, fn child, acc ->
+      case ast_source_span(child) do
+        nil -> acc
+        span when is_nil(acc) -> span
+        span -> merge_source_spans(span, acc)
+      end
+    end)
   end
 
   defp parse_fn_clauses(state) do
