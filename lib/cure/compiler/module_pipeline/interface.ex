@@ -9,6 +9,12 @@ defmodule Cure.Compiler.ModulePipeline.Interface do
   @artifact_magic "CUREIFACE\0"
   @artifact_version 1
   @extension ".cureinterface"
+  # `to_env/1` is pure, and one dependency closure can visit the same
+  # interface through many incoming edges. Keep only the immutable conversion
+  # in the process that owns the current compilation; artifact validation still
+  # runs on every cache miss, and no cross-build/global state is retained.
+  @to_env_cache_key {__MODULE__, :to_env}
+  @to_env_cache_limit 512
 
   @spec path(Path.t(), String.t()) :: Path.t()
   def path(root, module_name) when is_binary(root) and is_binary(module_name),
@@ -195,43 +201,68 @@ defmodule Cure.Compiler.ModulePipeline.Interface do
 
   @spec to_env(ModuleInterface.t()) :: {:ok, Env.t()} | {:error, term()}
   def to_env(%ModuleInterface{} = interface) do
-    with :ok <- ModuleInterface.validate(interface) do
-      declarations = interface.canonical_declarations
-      extensions = interface.extension_payloads
-      empty = Env.empty()
+    cache = Process.get(@to_env_cache_key, %{})
 
-      defs =
-        %{empty | defs: Map.get(declarations, :defs, %{})}
-        |> Env.cache_closed_bodies()
-        |> Map.fetch!(:defs)
+    case Map.get(cache, interface.interface_hash) do
+      {^interface, env} ->
+        {:ok, env}
 
-      env =
-        %Env{
-          empty
-          | defs: defs,
-            direct_call_summaries: Map.get(declarations, :direct_call_summaries, %{}),
-            totality_components: Map.get(declarations, :totality_components, %{}),
-            totality_component_of: Map.get(declarations, :totality_component_of, %{}),
-            families: Map.get(declarations, :families, %{}),
-            ctors: Map.get(declarations, :ctors, %{}),
-            ctor_to_family: Map.get(declarations, :ctor_to_family, %{}),
-            equations: Map.get(declarations, :equations, %{}),
-            interfaces: %{},
-            coherence: Map.get(extensions, :coherence),
-            primitives: Map.get(extensions, :primitives, %{}),
-            builtins: Map.get(extensions, :builtins, %{}),
-            constrained: Map.get(extensions, :constrained, %{}),
-            lemmas: Map.get(extensions, :lemmas, %{}),
-            certified:
-              MapSet.intersection(
-                Map.get(declarations, :delta_certified, MapSet.new()),
-                transparent_definitions(Map.get(declarations, :defs, %{}))
-              ),
-            totality_certified: Map.get(declarations, :totality_certified, MapSet.new()),
-            module_owner: interface.module_name
-        }
+      _ ->
+        with :ok <- ModuleInterface.validate(interface),
+             {:ok, env} <- to_env_uncached(interface) do
+          Process.put(@to_env_cache_key, cache_put(cache, interface, env))
+          {:ok, env}
+        end
+    end
+  end
 
-      {:ok, Env.with_interfaces(env, Map.get(extensions, :interfaces, %{}))}
+  defp to_env_uncached(%ModuleInterface{} = interface) do
+    declarations = interface.canonical_declarations
+    extensions = interface.extension_payloads
+    empty = Env.empty()
+
+    defs =
+      %{empty | defs: Map.get(declarations, :defs, %{})}
+      |> Env.cache_closed_bodies()
+      |> Map.fetch!(:defs)
+
+    env =
+      %Env{
+        empty
+        | defs: defs,
+          direct_call_summaries: Map.get(declarations, :direct_call_summaries, %{}),
+          totality_components: Map.get(declarations, :totality_components, %{}),
+          totality_component_of: Map.get(declarations, :totality_component_of, %{}),
+          families: Map.get(declarations, :families, %{}),
+          ctors: Map.get(declarations, :ctors, %{}),
+          ctor_to_family: Map.get(declarations, :ctor_to_family, %{}),
+          equations: Map.get(declarations, :equations, %{}),
+          interfaces: %{},
+          coherence: Map.get(extensions, :coherence),
+          primitives: Map.get(extensions, :primitives, %{}),
+          builtins: Map.get(extensions, :builtins, %{}),
+          constrained: Map.get(extensions, :constrained, %{}),
+          lemmas: Map.get(extensions, :lemmas, %{}),
+          certified:
+            MapSet.intersection(
+              Map.get(declarations, :delta_certified, MapSet.new()),
+              transparent_definitions(Map.get(declarations, :defs, %{}))
+            ),
+          totality_certified: Map.get(declarations, :totality_certified, MapSet.new()),
+          module_owner: interface.module_name
+      }
+
+    {:ok, Env.with_interfaces(env, Map.get(extensions, :interfaces, %{}))}
+  end
+
+  defp cache_put(cache, interface, env) do
+    cache = Map.put(cache, interface.interface_hash, {interface, env})
+
+    if map_size(cache) > @to_env_cache_limit do
+      {key, _value} = Enum.at(cache, 0)
+      Map.delete(cache, key)
+    else
+      cache
     end
   end
 
