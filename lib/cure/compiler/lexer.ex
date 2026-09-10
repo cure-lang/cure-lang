@@ -1887,13 +1887,7 @@ defmodule Cure.Compiler.Lexer do
     {index + 1, column}
   end
 
-  defp scalar_length(binary) do
-    case :unicode.characters_to_list(binary, :utf8) do
-      characters when is_list(characters) -> length(characters)
-      {:error, valid, rest} -> length(valid) + byte_size(rest)
-      {:incomplete, valid, rest} -> length(valid) + byte_size(rest)
-    end
-  end
+  defp scalar_length(binary), do: String.length(binary)
 
   defp line_index(starts, byte, low, high) when low >= high do
     if elem(starts, high) <= byte, do: high, else: max(0, high - 1)
