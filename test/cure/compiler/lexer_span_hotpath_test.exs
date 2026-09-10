@@ -5,6 +5,7 @@ defmodule Cure.Compiler.LexerSpanHotpathTest do
     source = File.read!("lib/cure/compiler/lexer.ex")
 
     assert source =~ "defp scalar_length(binary), do: String.length(binary)"
+    assert source =~ "defp advance_coordinates"
     refute source =~ ":unicode.characters_to_list(binary, :utf8)"
   end
 

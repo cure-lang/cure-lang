@@ -1822,11 +1822,40 @@ defmodule Cure.Compiler.Lexer do
   end
 
   defp attach_token_spans(tokens, source, file, line_starts, initial_cursor) do
-    Enum.map_reduce(tokens, initial_cursor, fn token, cursor ->
+    {initial_line, initial_col} = source_coordinates(source, line_starts, initial_cursor)
+
+    Enum.map_reduce(tokens, {initial_cursor, initial_line, initial_col}, fn token, {cursor, line, col} ->
       {start_byte, end_byte, next_cursor} = token_bytes(token, source, cursor)
-      span = token_span(source, file, line_starts, start_byte, end_byte)
+
+      {start_line, start_col} = advance_coordinates(source, cursor, start_byte, line, col)
+      {end_line, end_col} = advance_coordinates(source, start_byte, end_byte, start_line, start_col)
+
+      span =
+        token_span(
+          file,
+          start_byte,
+          end_byte,
+          {start_line, start_col},
+          {end_line, end_col}
+        )
+
       token = %Token{token | span: span, line: span.start_line, col: span.start_column}
-      {attach_interpolation_spans(token, source, file, line_starts), next_cursor}
+      token = attach_interpolation_spans(token, source, file, line_starts)
+
+      next_state =
+        cond do
+          next_cursor == end_byte ->
+            {next_cursor, end_line, end_col}
+
+          next_cursor == cursor ->
+            {next_cursor, line, col}
+
+          true ->
+            {next_line, next_col} = advance_coordinates(source, end_byte, next_cursor, end_line, end_col)
+            {next_cursor, next_line, next_col}
+        end
+
+      {token, next_state}
     end)
   end
 
@@ -1864,10 +1893,13 @@ defmodule Cure.Compiler.Lexer do
     List.to_tuple([0 | starts])
   end
 
-  defp token_span(source, file, line_starts, start_byte, end_byte) do
-    {start_line, start_column} = source_coordinates(source, line_starts, start_byte)
-    {end_line, end_column} = source_coordinates(source, line_starts, end_byte)
-
+  defp token_span(
+         file,
+         start_byte,
+         end_byte,
+         {start_line, start_column},
+         {end_line, end_column}
+       ) do
     Cure.Diagnostic.Span.new(
       source_id: file,
       path: file,
@@ -1879,6 +1911,39 @@ defmodule Cure.Compiler.Lexer do
       end_column: end_column
     )
   end
+
+  # Token boundaries are visited in source order. Carrying the previous
+  # coordinate through the span pass lets us scan each source byte once,
+  # instead of binary-searching the line table and recounting every line
+  # prefix for every token endpoint.
+  defp advance_coordinates(_source, byte, target, line, col) when byte >= target,
+    do: {line, col}
+
+  defp advance_coordinates(source, byte, target, line, col) do
+    current = :binary.at(source, byte)
+
+    cond do
+      current == ?\n ->
+        advance_coordinates(source, byte + 1, target, line + 1, 1)
+
+      current < 0x80 ->
+        advance_coordinates(source, byte + 1, target, line, col + 1)
+
+      true ->
+        width = utf8_width(current)
+
+        if byte + width <= target do
+          advance_coordinates(source, byte + width, target, line, col + 1)
+        else
+          advance_coordinates(source, byte + 1, target, line, col + 1)
+        end
+    end
+  end
+
+  defp utf8_width(byte) when byte >= 0xC0 and byte < 0xE0, do: 2
+  defp utf8_width(byte) when byte >= 0xE0 and byte < 0xF0, do: 3
+  defp utf8_width(byte) when byte >= 0xF0 and byte < 0xF8, do: 4
+  defp utf8_width(_byte), do: 1
 
   defp source_coordinates(source, line_starts, byte) do
     index = line_index(line_starts, byte, 0, tuple_size(line_starts) - 1)
