@@ -344,14 +344,103 @@ defmodule Cure.Compiler.ModulePipeline.Interface do
     if MapSet.equal?(next, keys), do: keys, else: close_transparency(defs, next)
   end
 
-  defp mentioned_globals({:global, key}) when is_atom(key), do: [key]
-  defp mentioned_globals(term) when is_tuple(term), do: term |> Tuple.to_list() |> mentioned_globals()
-  defp mentioned_globals(terms) when is_list(terms), do: Enum.flat_map(terms, &mentioned_globals/1)
+  # Core's term grammar is closed and these scans run for every published
+  # definition. Dispatching on the grammar avoids allocating a list for every
+  # node just to inspect its tag and metadata. The final tuple/list/map clauses
+  # remain a fail-closed escape hatch for extension payloads and future nodes.
+  defp mentioned_globals(term), do: term |> mentioned_globals([]) |> Enum.reverse()
 
-  defp mentioned_globals(%{} = term) when not is_struct(term),
-    do: term |> Map.to_list() |> mentioned_globals()
+  defp mentioned_globals({:global, key}, acc) when is_atom(key), do: [key | acc]
 
-  defp mentioned_globals(_term), do: []
+  defp mentioned_globals({:type, _level}, acc), do: acc
+  defp mentioned_globals({:var, _index}, acc), do: acc
+
+  defp mentioned_globals({:pi, _grade, domain, codomain}, acc) do
+    acc = mentioned_globals(domain, acc)
+    mentioned_globals(codomain, acc)
+  end
+
+  defp mentioned_globals({:lam, _grade, domain, body}, acc) do
+    acc = mentioned_globals(domain, acc)
+    mentioned_globals(body, acc)
+  end
+
+  defp mentioned_globals({:let, _grade, type, value, body}, acc) do
+    acc = mentioned_globals(type, acc)
+    acc = mentioned_globals(value, acc)
+    mentioned_globals(body, acc)
+  end
+
+  defp mentioned_globals({:app, function, argument}, acc) do
+    acc = mentioned_globals(function, acc)
+    mentioned_globals(argument, acc)
+  end
+
+  defp mentioned_globals({:data, _name, params, indices}, acc) do
+    acc = mentioned_globals(params, acc)
+    mentioned_globals(indices, acc)
+  end
+
+  defp mentioned_globals({:ctor, _name, args}, acc), do: mentioned_globals(args, acc)
+
+  defp mentioned_globals({:case, scrutinee, motive, branches}, acc) do
+    acc = mentioned_globals(scrutinee, acc)
+    acc = mentioned_globals(motive, acc)
+    mentioned_globals_branches(branches, acc)
+  end
+
+  defp mentioned_globals({:int_type}, acc), do: acc
+  defp mentioned_globals({:int_lit, _value}, acc), do: acc
+  defp mentioned_globals({:nat_lit, _value}, acc), do: acc
+  defp mentioned_globals({:bounded_lit, _value}, acc), do: acc
+  defp mentioned_globals({:float_type}, acc), do: acc
+  defp mentioned_globals({:float_lit, _value}, acc), do: acc
+  defp mentioned_globals({:binary_type}, acc), do: acc
+  defp mentioned_globals({:atom_type}, acc), do: acc
+  defp mentioned_globals({:atom_lit, _value}, acc), do: acc
+  defp mentioned_globals({:effect_type, inner}, acc), do: mentioned_globals(inner, acc)
+  defp mentioned_globals({:effect_pure, value}, acc), do: mentioned_globals(value, acc)
+
+  defp mentioned_globals({:effect_bind, effect, continuation}, acc) do
+    acc = mentioned_globals(effect, acc)
+    mentioned_globals(continuation, acc)
+  end
+
+  defp mentioned_globals({:hole, _name}, acc), do: acc
+  defp mentioned_globals({:absurd}, acc), do: acc
+
+  defp mentioned_globals(term, acc) when is_tuple(term),
+    do: term |> Tuple.to_list() |> mentioned_globals(acc)
+
+  defp mentioned_globals(terms, acc) when is_list(terms),
+    do: mentioned_globals_list(terms, acc)
+
+  defp mentioned_globals(%{} = term, acc) when not is_struct(term),
+    do: term |> Map.to_list() |> mentioned_globals(acc)
+
+  defp mentioned_globals(_term, acc), do: acc
+
+  defp mentioned_globals_list([], acc), do: acc
+
+  defp mentioned_globals_list([head | tail], acc) do
+    acc = mentioned_globals(head, acc)
+    mentioned_globals_list(tail, acc)
+  end
+
+  defp mentioned_globals_branches([], acc), do: acc
+
+  defp mentioned_globals_branches([{_name, _arity, body} | rest], acc) do
+    acc = mentioned_globals(body, acc)
+    mentioned_globals_branches(rest, acc)
+  end
+
+  # Unknown/future branch metadata is still traversed rather than treated as
+  # transparent. This is the same conservative behavior as the generic tuple
+  # fallback and keeps transparency closure sound across schema evolution.
+  defp mentioned_globals_branches([branch | rest], acc) do
+    acc = mentioned_globals(branch, acc)
+    mentioned_globals_branches(rest, acc)
+  end
 
   defp opaque_definition(%{body: {:extern, _}} = definition), do: definition
   defp opaque_definition(%{body: nil} = definition), do: definition
