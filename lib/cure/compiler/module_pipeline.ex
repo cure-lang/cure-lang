@@ -1304,30 +1304,6 @@ defmodule Cure.Compiler.ModulePipeline do
     end
   end
 
-  defp dependency_order(manifest) do
-    identities = manifest.entries |> Map.keys() |> Enum.sort()
-    {_visited, order} = Enum.reduce(identities, {MapSet.new(), []}, &visit_dependency(&1, manifest, &2))
-    Enum.reverse(order)
-  end
-
-  defp visit_dependency(identity, manifest, {visited, order}) do
-    if MapSet.member?(visited, identity) do
-      {visited, order}
-    else
-      visited = MapSet.put(visited, identity)
-
-      {visited, order} =
-        manifest
-        |> ModuleManifest.dependencies(identity)
-        |> Enum.map(& &1.target)
-        |> Enum.filter(&Map.has_key?(manifest.entries, &1))
-        |> Enum.sort()
-        |> Enum.reduce({visited, order}, &visit_dependency(&1, manifest, &2))
-
-      {visited, [identity | order]}
-    end
-  end
-
   # A published interface is only self-contained together with what it names. A
   # method signature written `Std.Bool.Bool` has to lower in the *consumer's*
   # environment, and the consumer never wrote that name — so what a module can
@@ -1427,69 +1403,13 @@ defmodule Cure.Compiler.ModulePipeline do
   end
 
   defp strongly_connected_components(manifest) do
-    order = dependency_order(manifest)
-
-    Enum.reduce(order, [], fn identity, components ->
-      if Enum.any?(components, &(identity in &1)) do
-        components
-      else
-        forward = reachable_modules(manifest, identity)
-
-        component =
-          order
-          |> Enum.filter(fn candidate ->
-            MapSet.member?(forward, candidate) and
-              MapSet.member?(reachable_modules(manifest, candidate), identity)
-          end)
-          |> Enum.sort()
-
-        components ++ [component]
-      end
-    end)
-    |> condensation_order(manifest)
-  end
-
-  # Grouping and ordering are two questions, and only the first is answered by
-  # mutual reachability. A depth-first post-order over the module graph is a
-  # dependency order only when that graph is acyclic, so once the cycles are
-  # collapsed the components are ordered again over the condensation — which is
-  # acyclic by construction — instead of inheriting the order their members
-  # happened to be discovered in.
-  defp condensation_order(components, manifest) do
-    indexed = components |> Enum.with_index() |> Map.new(fn {component, index} -> {index, component} end)
-
-    owner =
-      for {index, component} <- indexed, identity <- component, into: %{}, do: {identity, index}
-
-    edges =
-      Map.new(indexed, fn {index, component} ->
-        targets =
-          component
-          |> Enum.flat_map(&(manifest |> ModuleManifest.dependencies(&1) |> Enum.map(fn edge -> edge.target end)))
-          |> Enum.filter(&Map.has_key?(owner, &1))
-          |> Enum.map(&Map.fetch!(owner, &1))
-          |> Enum.reject(&(&1 == index))
-          |> Enum.uniq()
-          |> Enum.sort()
-
-        {index, targets}
-      end)
-
-    {_visited, order} =
-      indexed |> Map.keys() |> Enum.sort() |> Enum.reduce({MapSet.new(), []}, &visit_component(&1, edges, &2))
-
-    order |> Enum.reverse() |> Enum.map(&Map.fetch!(indexed, &1))
-  end
-
-  defp visit_component(index, edges, {visited, order}) do
-    if MapSet.member?(visited, index) do
-      {visited, order}
-    else
-      {visited, order} =
-        Enum.reduce(Map.fetch!(edges, index), {MapSet.put(visited, index), order}, &visit_component(&1, edges, &2))
-
-      {visited, [index | order]}
-    end
+    # `DepGraph.components/3` is the canonical SCC implementation. The old
+    # local partition walked the transitive graph once for every module pair;
+    # a dense Regex graph therefore paid seconds for a result that the shared
+    # implementation computes in milliseconds. Keeping the manifest edge map
+    # here also makes every pipeline entry point obey the same dependency-first
+    # ordering and cycle laws.
+    DepGraph.components(manifest.dependencies, Map.keys(manifest.entries))
   end
 
   defp reachable_modules(manifest, root), do: reachable_modules(manifest, [root], MapSet.new())

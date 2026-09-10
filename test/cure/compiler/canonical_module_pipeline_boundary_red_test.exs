@@ -50,6 +50,13 @@ defmodule Cure.Compiler.CanonicalModulePipelineBoundaryRedTest do
     """
   end
 
+  test "SCC partitioning uses the canonical dependency-graph implementation" do
+    source = File.read!("lib/cure/compiler/module_pipeline.ex")
+
+    assert source =~ "DepGraph.components("
+    refute source =~ "reachable_modules(manifest, candidate)"
+  end
+
   defp source_files do
     Enum.filter(@semantic_boundary_files, &File.regular?/1)
   end
