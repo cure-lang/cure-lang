@@ -4752,6 +4752,22 @@ defmodule Cure.Elab.Elaborator do
   defp call_placeholder?({:variable, _meta, "_"}), do: true
   defp call_placeholder?(_arg), do: false
 
+  # Core terms dominate the convoy/reducible-dependency walks below.  The old
+  # catch-all converted every tuple to a list and then dropped its tag, which
+  # put `tuple_to_list/1` on the hottest path even for the fixed Core grammar.
+  # Keep the complete post-tag field list (including grades and names):
+  # `rebuild/2` relies on its arity, while these clauses avoid allocating a
+  # temporary list just to rediscover fields the pattern already exposes.
+  defp children({:pi, grade, domain, codomain}), do: [grade, domain, codomain]
+  defp children({:lam, grade, domain, body}), do: [grade, domain, body]
+  defp children({:let, grade, type, value, body}), do: [grade, type, value, body]
+  defp children({:app, function, argument}), do: [function, argument]
+  defp children({:data, name, parameters, indices}), do: [name, parameters, indices]
+  defp children({:ctor, name, arguments}), do: [name, arguments]
+  defp children({:case, scrutinee, motive, branches}), do: [scrutinee, motive, branches]
+  defp children({:effect_type, type}), do: [type]
+  defp children({:effect_pure, value}), do: [value]
+  defp children({:effect_bind, effect, continuation}), do: [effect, continuation]
   defp children(term) when is_tuple(term), do: term |> Tuple.to_list() |> tl()
 
   # Free de Bruijn indices in `term`, counted from `depth` binders in (binder-
