@@ -547,7 +547,7 @@ defmodule Cure.Elab.Implementation do
         arity = length(params) + length(indices)
 
         if arity > length(args) do
-          args ++ Enum.map((length(args)..(arity - 1))//1, &fresh_head_var(&1, depth))
+          args ++ Enum.map(length(args)..(arity - 1)//1, &fresh_head_var(&1, depth))
         else
           args
         end

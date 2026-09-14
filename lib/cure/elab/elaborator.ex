@@ -2976,6 +2976,7 @@ defmodule Cure.Elab.Elaborator do
   def elaborate_expr_checked({:block, meta, stmts}, expected_core, names, ctx, env) do
     elaborate_let_block(stmts, expected_core, names, ctx, env, Keyword.get(meta, :bind_pipe, false))
   end
+
   # `return e` in a checking position (e.g. an `if`/`match` branch tail): the
   # identity on `e`, checked against the expected type. See the inference clause.
   def elaborate_expr_checked({:early_return, _meta, [e]}, expected_core, names, ctx, env),
@@ -11839,8 +11840,7 @@ defmodule Cure.Elab.Elaborator do
          )}
 
       count_surface_uses(rest, name) != 1 ->
-        {:error,
-         local_binding_annotation_error(:let_needs_annotation, name, meta, rhs, count_surface_uses(rest, name))}
+        {:error, local_binding_annotation_error(:let_needs_annotation, name, meta, rhs, count_surface_uses(rest, name))}
 
       true ->
         rest
@@ -12020,11 +12020,17 @@ defmodule Cure.Elab.Elaborator do
   defp monadic_bind_surface(name, rhs, meta, rest, expected_core, names, ctx, env) do
     body = block_or_single(rest)
 
-    lambda = {:lambda, [params: [lambda_param(name, expected_core, ctx, env)], line: Keyword.get(meta, :line, 1), col: Keyword.get(meta, :col, 1)],
-              [body]}
+    lambda =
+      {:lambda,
+       [
+         params: [lambda_param(name, expected_core, ctx, env)],
+         line: Keyword.get(meta, :line, 1),
+         col: Keyword.get(meta, :col, 1)
+       ], [body]}
 
     call =
-      {:function_call, [name: "and_then", bind_pipe_desugar: true, line: Keyword.get(meta, :line, 1), col: Keyword.get(meta, :col, 1)],
+      {:function_call,
+       [name: "and_then", bind_pipe_desugar: true, line: Keyword.get(meta, :line, 1), col: Keyword.get(meta, :col, 1)],
        [rhs, lambda]}
 
     checked =
