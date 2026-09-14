@@ -1,0 +1,69 @@
+@group(:core)
+mod Std.Monad
+  ## Monad interface — structures that support sequencing with a failure arm.
+  ##
+  ## A monad is a type constructor `m` equipped with `pure` (embed a value)
+  ## and `and_then` (sequence, threading the unwrapped payload and
+  ## short-circuiting on the failure arm). `and_then` is the operation the
+  ## binder pipe `|x|>` desugars to: `a |x|> f(x)` lowers to
+  ## `and_then(a, fn(x) -> f(x))` (see `docs/BIND_PIPE.md` § 7).
+  ##
+  ## `Monad` is genuinely higher-kinded: its head `m` has kind
+  ## `Type -> Type`, so `pure` lifts an `a` to `m(a)` and `and_then` threads
+  ## an `a -> m(b)` through an `m(a)`. The built-in instances cover `Result`
+  ## and `Option`; additional instances can be declared for user-defined
+  ## container types.
+  ##
+  ## A binary constructor such as `Result(T, E)` is admitted by applying the
+  ## head to its payload only — `m(a)` — with the remaining parameters
+  ## (`E`) filled by a fresh, universally-quantified variable on each
+  ## instance method (`Result(a, e)`). This is what lets one payload-only
+  ## interface cover both the unary `Option` and the binary `Result`.
+  ##
+  ## ## Examples
+  ##
+  ## ```cure
+  ## use Std.Monad
+  ##
+  ## and_then(Ok(1), fn(x: Int) -> Result(Int, Atom) = Ok(x + 1))   # => Ok(2)
+  ## and_then(Error(:e), fn(x: Int) -> Result(Int, Atom) = Ok(x))   # => Error(:e)
+  ## pure(42)                                                        # => Ok(42)
+  ## ```
+
+  use Std.Result
+  use Std.Option
+
+  ## Group tag consumed by `Cure.Stdlib.Preload`.
+  ## `Monad(m)` equips a type constructor `m` with `pure` and `and_then`.
+  interface Monad(m)
+    ## Embed a pure value into the monad: `a -> m(a)`.
+    fn pure(x: a) -> m(a)
+
+    ## Sequence a monadic value with a continuation, short-circuiting on the
+    ## failure arm: `m(a) -> (a -> m(b)) -> m(b)`.
+    fn and_then(ma: m(a), f: a -> m(b)) -> m(b)
+
+  ## `Monad` implementation for `Result`: `pure` is `Ok`, `and_then`
+  ## short-circuits on `Error`. The error type `e` is a fresh variable on each
+  ## method — the head is applied to the payload only.
+  implementation Monad for Result
+    ## Embed `x` as `Ok(x)`.
+    fn pure(x: a) -> Result(a, e) = Ok(x)
+
+    ## Bind over the `Ok` arm; pass `Error` through unchanged.
+    fn and_then(result: Result(a, e), f: a -> Result(b, e)) -> Result(b, e) =
+      match result
+        Ok(v) -> f(v)
+        Error(e) -> Error(e)
+
+  ## `Monad` implementation for `Option`: `pure` is `Some`, `and_then`
+  ## short-circuits on `None`.
+  implementation Monad for Option
+    ## Embed `x` as `Some(x)`.
+    fn pure(x: a) -> Option(a) = Some(x)
+
+    ## Bind over the `Some` arm; pass `None` through unchanged.
+    fn and_then(opt: Option(a), f: a -> Option(b)) -> Option(b) =
+      match opt
+        Some(v) -> f(v)
+        None() -> None()

@@ -17,6 +17,7 @@ defmodule Cure.Elab.Implementation do
   """
 
   alias Cure.Core.Env
+  alias Cure.Core.Inductive
   alias Cure.Elab.{Coherence, Declarations, Resolve}
   alias Cure.MetaAST.Metadata
 
@@ -283,7 +284,7 @@ defmodule Cure.Elab.Implementation do
     Enum.reduce_while(desc.method_order, {:ok, %{}, []}, fn method, {:ok, mm, fns} ->
       mangled = mangled_name(env, iface, head, method)
 
-      with {:ok, fn_decl, origin} <- method_def(desc, method, for_type, body),
+      with {:ok, fn_decl, origin} <- method_def(desc, method, for_type, body, env),
            :ok <- check_method_signature(desc, iface, method, for_type, fn_decl, origin, env) do
         renamed = rename_fn(fn_decl, mangled, constraints)
         {:cont, {:ok, Map.put(mm, method, mangled), fns ++ [renamed]}}
@@ -309,7 +310,7 @@ defmodule Cure.Elab.Implementation do
   # An instance clause for `method`, or the interface default specialised to the
   # instance's head type, or `:missing`. The tag says which — a default is synthesised
   # FROM the interface signature and so conforms by construction.
-  defp method_def(desc, method, for_type, body) do
+  defp method_def(desc, method, for_type, body, env) do
     mstr = Atom.to_string(method)
 
     case Enum.find(body, &function_def_named?(&1, mstr)) do
@@ -319,7 +320,7 @@ defmodule Cure.Elab.Implementation do
       nil ->
         case Map.fetch(desc.defaults, mstr) do
           {:ok, default_body} ->
-            {:ok, default_fn_def(desc, method, default_body, for_type), :default}
+            {:ok, default_fn_def(desc, method, default_body, for_type, env), :default}
 
           :error ->
             :missing
@@ -358,7 +359,7 @@ defmodule Cure.Elab.Implementation do
   defp check_method_signature(desc, iface, method, for_type, {:function_def, m, _b}, :instance, env) do
     info = Map.fetch!(desc.methods, method)
 
-    expected_ast = subst_head(info.type_ast, desc.head_var, for_type)
+    expected_ast = subst_head(info.type_ast, desc.head_var, for_type, env)
     actual_ast = function_type_ast(Keyword.get(m, :params, []), Keyword.get(m, :return_type))
 
     # The method's OWN type variables (`fmap`'s `a`/`b`) are universally quantified
@@ -476,16 +477,16 @@ defmodule Cure.Elab.Implementation do
   # Synthesise a concrete function_def from the interface method's signature and
   # the default body, substituting the head variable with the instance's head
   # type in every parameter/return type.
-  defp default_fn_def(desc, method, default_body, for_type) do
+  defp default_fn_def(desc, method, default_body, for_type, env) do
     info = Map.fetch!(desc.methods, method)
     head_var = desc.head_var
 
     params =
       Enum.map(info.params, fn {:param, pm, pname} ->
-        {:param, Keyword.put(pm, :type, subst_head(Keyword.fetch!(pm, :type), head_var, for_type)), pname}
+        {:param, Keyword.put(pm, :type, subst_head(Keyword.fetch!(pm, :type), head_var, for_type, env)), pname}
       end)
 
-    return_type = subst_head(info.return_type, head_var, for_type)
+    return_type = subst_head(info.return_type, head_var, for_type, env)
 
     meta = [
       name: info.name,
@@ -504,14 +505,29 @@ defmodule Cure.Elab.Implementation do
   # not among its children). Missing the applied case left `f(a)` unsubstituted, which
   # both mis-specialised a higher-kinded interface DEFAULT and made signature checking
   # impossible.
-  defp subst_head({:variable, _m, name}, head_var, for_type) when name == head_var, do: for_type
-  defp subst_head({:variable, _m, _} = v, _head_var, _for_type), do: v
+  #
+  # A higher-kinded interface head is applied to the PAYLOAD only (`m(a)`), but the
+  # instance's head may be a constructor of arity > 1 (`Result` is `Type -> Type ->
+  # Type`). Substituting the bare name alone would leave `Result(a)` under-applied and
+  # fail the arity check. So when the head is applied to fewer arguments than the
+  # constructor's family arity, the remaining parameters are filled with fresh type
+  # variables — `m(a)` with `m := Result` becomes `Result(a, ?e)`. The fresh names are
+  # deterministic and appear in the same order on both the expected and actual sides,
+  # so `free_type_vars` + `lower_type` bind them to the same de Bruijn positions and
+  # the kernel's conversion accepts the instance's own spelling (`Result(a, e)`).
+  defp subst_head(ast, head_var, for_type, env), do: subst_head(ast, head_var, for_type, env, 0)
 
-  defp subst_head({:function_call, m, args}, head_var, for_type) do
-    args = Enum.map(args, &subst_head(&1, head_var, for_type))
+  defp subst_head({:variable, _m, name}, head_var, for_type, _env, _depth) when name == head_var,
+    do: for_type
+
+  defp subst_head({:variable, _m, _} = v, _head_var, _for_type, _env, _depth), do: v
+
+  defp subst_head({:function_call, m, args}, head_var, for_type, env, depth) do
+    args = Enum.map(args, &subst_head(&1, head_var, for_type, env, depth))
 
     case {Keyword.get(m, :name), type_ctor_name(for_type)} do
       {^head_var, ctor} when is_binary(ctor) and is_binary(head_var) ->
+        args = pad_head_args(ctor, args, env, depth)
         {:function_call, Keyword.put(m, :name, ctor), args}
 
       _ ->
@@ -519,7 +535,34 @@ defmodule Cure.Elab.Implementation do
     end
   end
 
-  defp subst_head(other, _head_var, _for_type), do: other
+  defp subst_head(other, _head_var, _for_type, _env, _depth), do: other
+
+  # Pad a head application to the constructor's family arity with fresh type
+  # variables (`Result(a)` → `Result(a, ?e)`), so a binary instance head can be
+  # expressed through a payload-only higher-kinded interface. A constructor whose
+  # arity is unknown (not a family) is left untouched — the existing behaviour.
+  defp pad_head_args(ctor, args, env, depth) do
+    case Inductive.get_family(env, String.to_atom(ctor)) do
+      %{params: params, indices: indices} ->
+        arity = length(params) + length(indices)
+
+        if arity > length(args) do
+          args ++ Enum.map((length(args)..(arity - 1))//1, &fresh_head_var(&1, depth))
+        else
+          args
+        end
+
+      _ ->
+        args
+    end
+  end
+
+  # A fresh, deterministic type-variable name for a padded head parameter. The
+  # index keeps distinct padded parameters distinct within one signature. The name
+  # must be a valid Cure type-variable spelling (lowercase initial) so
+  # `Declarations.free_type_vars/2` collects it and `lower_type` binds it as a
+  # de Bruijn variable — a leading underscore would be skipped as a wildcard.
+  defp fresh_head_var(index, depth), do: {:variable, [scope: :local], "monad_ctx#{depth}_#{index}"}
 
   defp type_ctor_name({:variable, _m, name}), do: name
   defp type_ctor_name(_other), do: nil

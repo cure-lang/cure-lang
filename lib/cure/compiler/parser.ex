@@ -3178,6 +3178,25 @@ defmodule Cure.Compiler.Parser do
         {left, state} = parse_record_construction(state, left)
         parse_infix(state, left, min_bp, ctx_op)
 
+      # Binder pipe `expr |x|> stage` (docs/BIND_PIPE.md). `|` is not an infix
+      # operator, so the fixity lookup below would stop the loop here. Detect the
+      # `|x|>` opener first and build the `do`-block node the construct is
+      # normatively sugar for. A lone `|` (list cons, or a syntax error in
+      # expression position) is untouched: the recogniser demands the full
+      # adjacent `:bar :identifier :pipe` shape.
+      #
+      # Binds at `|>`'s own left binding power (the construct is sugar built
+      # around the pipe operator), gated by `min_bp` exactly like the ordinary
+      # infix branch below. Without this a stage's own VALUE -- parsed at
+      # `bp_above(state, "|>")` by `build_bind_pipe_stage/3` specifically so it
+      # stops before a following `|y|>` -- would instead swallow that next link
+      # right here (this clause ignored `min_bp` entirely), nesting every
+      # chained stage one level deeper instead of folding into one flat
+      # `do`-block (docs/BIND_PIPE.md §7.1).
+      token.type == :bar and bind_pipe_stage?(state) and bind_pipe_bp(state) >= min_bp ->
+        {ast, state} = build_bind_pipe_stage(state, left, min_bp)
+        parse_infix(state, ast, min_bp, ctx_op)
+
       true ->
         table = fixity_table(state)
         lexeme = lexeme_of(token)
@@ -3199,6 +3218,89 @@ defmodule Cure.Compiler.Parser do
     end
   end
 
+  # `|x|>` opens with `:bar`, an identifier, then `:pipe` (the lexer's greedy
+  # `|>` token — docs/BIND_PIPE.md §3.1 leaves the lexer alone). The adjacency
+  # requirement (no whitespace) is what makes it unambiguous against a lone `|`
+  # followed by an expression, and is normative (§3.3). The current token is the
+  # leading `:bar` (checked by the `cond`), so the recogniser starts at offset 0.
+  defp bind_pipe_stage?(state), do: bind_pipe_ahead?(state, 0)
+
+  # The left binding power a binder-pipe opener binds at: `|>`'s own registered
+  # precedence, since the construct is sugar built around the pipe operator
+  # (see the `parse_infix` cond clause above). `0` when `|>` is somehow
+  # unregistered (never true for the built-in table `bind_pipe_stage?` already
+  # implies is loaded), so the guard degenerates to "always eligible" rather
+  # than raising.
+  defp bind_pipe_bp(state) do
+    case FixityTable.infix_bp(fixity_table(state), "|>") do
+      {left_bp, _right_bp} -> left_bp
+      :not_infix -> 0
+    end
+  end
+
+  # Parse one `|x|> stage` whose left operand (the previous stage's value, or the
+  # chain's head) is already parsed, and fold it into the chain's `do`-block.
+  #
+  # `a |x|> f(x)` is `do { x <- a; f(x) }`: the chain HEAD is the first bind's
+  # right-hand side, and the stage VALUE `f(x)` is the block's final expression.
+  # The Pratt loop is left-associative, so a second `|y|>` arrives with the first
+  # stage's `{:block, [do: true, bind_pipe: true], ...}` as its `left`; in that
+  # case the previous block's final expression becomes THIS stage's right-hand
+  # side, and the new stage value replaces it as the block's final expression.
+  defp build_bind_pipe_stage(state, left, _min_bp) do
+    bar_token = peek(state)
+    binder = peek_at(state, 1)
+    # Consume `|`, identifier, `|>`. The lexer emits `|>` as one `:pipe` token,
+    # so the construct is three tokens, not the four `:bar :identifier :bar :gt`
+    # the design doc spells out (§3.1 — the lexer is not modified).
+    state = state |> advance() |> advance() |> advance()
+    state = state |> skip_newlines() |> open_continuation()
+
+    pattern = variable(binder)
+    pattern_meta = elem(pattern, 1)
+    right_bp = bp_above(state, "|>")
+    {value, state} = parse_expr(state, right_bp, {"|>", bar_token.span})
+
+    assignment_meta = [
+      let: true,
+      do_bind: true,
+      bind_pipe: true,
+      line: Keyword.get(pattern_meta, :line, bar_token.line),
+      col: Keyword.get(pattern_meta, :col, bar_token.col)
+    ]
+
+    block_meta = [do: true, bind_pipe: true, line: bar_token.line, col: bar_token.col]
+
+    case left do
+      # A continued chain: the previous block's final expression becomes this
+      # stage's right-hand side; `value` becomes the new final expression.
+      {:block, existing_meta, stmts} ->
+        if Keyword.get(existing_meta, :bind_pipe, false) do
+          {head, binds} = split_bind_pipe_block(stmts)
+          assignment = {:assignment, assignment_meta, [pattern, head]}
+          {{:block, existing_meta, binds ++ [assignment, value]}, state}
+        else
+          # `left` is some other block (e.g. a `do` block); treat it as the head.
+          assignment = {:assignment, assignment_meta, [pattern, left]}
+          {{:block, block_meta, [assignment, value]}, state}
+        end
+
+      head ->
+        assignment = {:assignment, assignment_meta, [pattern, head]}
+        {{:block, block_meta, [assignment, value]}, state}
+    end
+  end
+
+  # A bind-pipe block is `[bind_1, bind_2, ..., final_expr]`: every element but
+  # the last is an `{:assignment, [do_bind: true], ...}`. Split off the final
+  # expression (the previous stage's value) from the preceding binds.
+  defp split_bind_pipe_block(stmts) do
+    case Enum.reverse(stmts) do
+      [final | rev_binds] -> {final, Enum.reverse(rev_binds)}
+      [] -> {nil, []}
+    end
+  end
+
   # Tokens whose only grammatical role is to join two operands: the two built-in
   # connectives, plus `:operator`, which exists only because something declared
   # it `infix`. A line may open with one of these and still be a continuation,
@@ -3217,15 +3319,55 @@ defmodule Cure.Compiler.Parser do
   defp continuation_infix?(state) do
     case peek_ahead(state, 1) do
       %Token{type: :indent} ->
-        infix_token?(fixity_table(state), peek_ahead(state, 2))
+        # A binder pipe `|x|>` opens a continuation line with `:bar`, which is
+        # NOT a fixity-table operator (docs/BIND_PIPE.md §3.1: no new lexeme).
+        # Recognise its four-token shape here too, or the line is taken as a
+        # fresh statement and the chain never reaches `parse_infix`'s
+        # `bind_pipe_stage?` clause.
+        bind_pipe_ahead?(state, 2) or infix_token?(fixity_table(state), peek_ahead(state, 2))
 
       %Token{type: type} = candidate when type in @pure_infix_tokens ->
         infix_token?(fixity_table(state), candidate)
+
+      # A `|x|>` at the enclosing block's own level continues the line above,
+      # exactly like a leading `|>`. `:bar` is otherwise a list-cons separator
+      # or a syntax error, so demanding the full four-token shape keeps a lone
+      # `|` untouched (docs/BIND_PIPE.md §4.2).
+      %Token{type: :bar} ->
+        bind_pipe_ahead?(state, 1)
 
       _ ->
         false
     end
   end
+
+  # Does the binder-pipe opener `|x|>` begin at `offset`?
+  #
+  # The lexer is greedy: `|>` is a single `:pipe` token, so `|x|>` arrives as
+  # THREE tokens — `:bar`, `:identifier`, `:pipe` — not the four the design doc
+  # spells out as `:bar :identifier :bar :gt` (docs/BIND_PIPE.md §3.1: the lexer
+  # is not modified; `:pipe` IS the `|` + `>` pair). The adjacency requirement
+  # (no whitespace between any of them) is what disambiguates the construct from
+  # a lone `|` followed by an expression, and is normative (§3.3). A `:bar`
+  # immediately followed by an identifier immediately followed by `:pipe`, all
+  # byte-adjacent, is the only shape.
+  defp bind_pipe_ahead?(state, offset) do
+    case {peek_ahead(state, offset), peek_ahead(state, offset + 1), peek_ahead(state, offset + 2)} do
+      {%Token{type: :bar} = bar, %Token{type: :identifier} = id, %Token{type: :pipe} = pipe} ->
+        adjacent?(bar, id) and adjacent?(id, pipe)
+
+      _ ->
+        false
+    end
+  end
+
+  # Two tokens are adjacent in the source character stream when the first ends
+  # exactly where the second begins (no whitespace, no comment). Used only by
+  # the binder-pipe recogniser, whose strictness is normative.
+  defp adjacent?(%Token{span: %Cure.Diagnostic.Span{end_byte: e}}, %Token{span: %Cure.Diagnostic.Span{start_byte: s}}),
+    do: e == s
+
+  defp adjacent?(_, _), do: false
 
   defp skip_infix_continuation_layout(state) do
     state |> advance() |> open_continuation()

@@ -22,6 +22,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `Cure.Project.source_roots/1`: the project's own `.cure` source roots
   (`[project] source_paths`), for tooling that compiles or checks files living
   outside them.
+- **Binder pipe `|x|>`** (`docs/BIND_PIPE.md`): a monadic pipe that threads the
+  previous stage's *unwrapped* value into a named binder and short-circuits on
+  the monad's failure arm, flattening the `Result`/`Option` staircase:
+
+  ```cure
+  find_account(id)
+  |account|> subtract(account.balance, amount)
+  |new_balance|> add(account.held, new_balance)
+  ```
+
+  It introduces no new lexeme (recognition is a parser-side, adjacency-required
+  lookahead over the existing `:bar`/`:identifier`/`:pipe` tokens) and no new AST
+  node: a chain parses to the exact `do`-block node a `let`-chain desugars to,
+  and elaborates through the ordinary interface coherence — `a |x|> f(x)` lowers
+  to `and_then(a, fn(x) -> f(x))`, and a pure final stage auto-lifts with `pure`.
+  A lone `|` (list cons) is untouched.
+- `Std.Monad` (`lib/std/monad.cure`): the `Monad(m)` interface (`pure` /
+  `and_then`) that the binder pipe resolves its bind through, with built-in
+  instances for `Result` and `Option`. The interface is genuinely higher-kinded
+  (`m : Type -> Type`); a binary constructor such as `Result(T, E)` is admitted
+  by applying the head to its payload only, the remaining parameters filled by a
+  fresh universally-quantified variable on each instance method.
 
 ### Fixed
 
