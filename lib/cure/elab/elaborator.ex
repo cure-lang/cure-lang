@@ -11491,8 +11491,13 @@ defmodule Cure.Elab.Elaborator do
                   # the author knows which stage to change. Otherwise keep the
                   # original error (the stage is simply ill-typed here).
                   case final_stage_monad_mismatch(final, head, names, ctx, env) do
-                    {:ok, actual} -> {:error, {:bind_pipe_monad_mismatch, %{expected: head, actual: actual}}}
-                    :no -> error
+                    {:ok, actual} ->
+                      {:error,
+                       {:source_context, {:bind_pipe_monad_mismatch, %{expected: head, actual: actual}},
+                        %{span: surface_expression_span(final), expression_category: :bind_pipe_stage}}}
+
+                    :no ->
+                      error
                   end
               end
           end
@@ -11743,7 +11748,9 @@ defmodule Cure.Elab.Elaborator do
 
               :not_monadic ->
                 if bind_pipe? do
-                  {:error, {:bind_pipe_no_monad, monad_head}}
+                  {:error,
+                   {:source_context, {:bind_pipe_no_monad, monad_head},
+                    %{span: surface_expression_span(rhs), expression_category: :bind_pipe_stage, checking: name}}}
                 else
                   pure_let_binding(name, rhs, meta, grade, rest, expected_core, names, ctx, env, rhs_core, rhs_type)
                 end

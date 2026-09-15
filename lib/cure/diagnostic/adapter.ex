@@ -494,6 +494,23 @@ defmodule Cure.Diagnostic.Adapter do
       when is_map(context),
       do: TypeAdapter.from_error(error, opts)
 
+  # Binder pipe `|x|>` diagnostics (docs/BIND_PIPE.md §11): E122 (no `Monad`
+  # instance in scope for a stage's type) and E121 (stages resolve to different
+  # monads). `Cure.Diagnostic.Adapter.Type` already implements both — this
+  # module must route to it, or the raw domain tuple reaches the presentation
+  # boundary's catch-all and raises `Cure.Diagnostic.UnhandledError`.
+  def from_error({:source_context, {:bind_pipe_no_monad, _head}, context} = error, opts)
+      when is_map(context),
+      do: TypeAdapter.from_error(error, opts)
+
+  def from_error({:source_context, {:bind_pipe_monad_mismatch, details}, context} = error, opts)
+      when is_map(details) and is_map(context),
+      do: TypeAdapter.from_error(error, opts)
+
+  def from_error({:source_context, {:bind_pipe_monad_mismatch, _expected, _actual}, context} = error, opts)
+      when is_map(context),
+      do: TypeAdapter.from_error(error, opts)
+
   def from_error({:source_context, {:constraint_head_not_determined, details}, context} = error, opts)
       when is_map(details) and is_map(context),
       do: TypeAdapter.from_error(error, opts)
@@ -1469,6 +1486,19 @@ defmodule Cure.Diagnostic.Adapter do
     do: KernelAdapter.from_error(error, opts)
 
   def from_error({:no_instance, _interface, _head} = error, opts),
+    do: TypeAdapter.from_error(error, opts)
+
+  # Binder pipe `|x|>` diagnostics raised bare (no `:source_context` wrapper
+  # yet attached), e.g. directly from `Cure.Elab.Program.elaborate/2` before
+  # the compiler presentation boundary wraps them. See the `:source_context`
+  # clauses above for the wrapped shapes.
+  def from_error({:bind_pipe_no_monad, _head} = error, opts),
+    do: TypeAdapter.from_error(error, opts)
+
+  def from_error({:bind_pipe_monad_mismatch, details} = error, opts) when is_map(details),
+    do: TypeAdapter.from_error(error, opts)
+
+  def from_error({:bind_pipe_monad_mismatch, _expected, _actual} = error, opts),
     do: TypeAdapter.from_error(error, opts)
 
   def from_error({:constraint_head_not_determined, details} = error, opts) when is_map(details),
