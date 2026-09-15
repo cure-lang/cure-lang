@@ -191,15 +191,46 @@ defmodule Cure.Elab.BindPipeTest do
   end
 
   describe "static rejection (§A.5)" do
-    test "no `Monad` instance in scope is a clean error" do
-      # `Int` has no `Monad` instance, so the chain cannot resolve a bind.
+    test "no `Monad` instance in scope is a clean E122 diagnostic" do
+      # `Int` has no `Monad` instance, so the chain cannot resolve a bind. The
+      # error must convert to a registered diagnostic (E122), not raise
+      # `Cure.Diagnostic.UnhandledError` at the compiler's presentation boundary.
       src = """
       mod BP10
         fn go() -> Int = 1 |x|> x + 1
       end
       """
 
-      assert {:error, _} = Program.elaborate(src)
+      assert {:error, reason} = Program.elaborate(src)
+      assert {:bind_pipe_no_monad, _} = Cure.Elab.Program.semantic_error(reason)
+
+      diagnostic = Cure.Diagnostic.Adapter.from_error(reason)
+      assert diagnostic.code == "E122"
+      assert diagnostic.key == :bind_pipe_no_monad
+    end
+
+    test "a monad mismatch is a clean E121 diagnostic, not a crash" do
+      # `ok(1) |x|> Some(x)` fixes `Result` at the head, then a stage produces
+      # `Option`. The chain must reject with the spec's E121; before the fix the
+      # final-stage lift's error escaped `elaborate_let_block/6` as a
+      # `CaseClauseError`.
+      src = """
+      mod BP11
+        use Std.Monad
+        use Std.Result
+        use Std.Option
+        fn go() -> Result(Int, Atom) = ok(1) |x|> Some(x)
+      end
+      """
+
+      assert {:error, reason} = Program.elaborate(src)
+
+      assert {:bind_pipe_monad_mismatch, %{expected: _, actual: _}} =
+               Cure.Elab.Program.semantic_error(reason)
+
+      diagnostic = Cure.Diagnostic.Adapter.from_error(reason)
+      assert diagnostic.code == "E121"
+      assert diagnostic.key == :bind_pipe_monad_mismatch
     end
   end
 end

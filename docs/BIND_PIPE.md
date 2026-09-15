@@ -90,7 +90,7 @@ with `_` (a silent binding, § 5.5). It MUST NOT be a reserved word.
 ### 3.3 Whitespace
 
 Whitespace is **not** permitted between the four tokens. `| x |> e`, `|x |> e`,
-and `|x| > e` are all syntax errors (`E120`). The four tokens MUST be adjacent
+and `|x| > e` are all syntax errors (`E094`). The four tokens MUST be adjacent
 in the source character stream. (This is the one place the construct is stricter
 than `|>`, which tolerates surrounding whitespace; the strictness is what makes
 the construct unambiguous against `|` followed by an expression.)
@@ -408,8 +408,11 @@ fn charge(wallet: Wallet, amount: Money) -> Result(Receipt, String) =
 
 ## 11. Errors and Diagnostics
 
-- `E120` / `E-BIND-PIPE-MALFORMED` — the four tokens `|`, identifier, `|`, `>`
-  are not adjacent, or the binder is a reserved word. Severity: error.
+- `E094` / syntax error — the four tokens `|`, identifier, `|`, `>` are not
+  adjacent, or the binder is a reserved word. A malformed binder pipe is a
+  syntax error like any other (the recogniser demands the exact adjacent
+  `:bar :identifier :pipe` shape and otherwise leaves the stream to the ordinary
+  parser). Severity: error.
 - `E121` / `E-BIND-PIPE-MONAD-MISMATCH` — stages resolve to different monads.
   Severity: error, reported at the first disagreeing stage.
 - `E122` / `E-BIND-PIPE-NO-MONAD` — no `Monad` instance is in scope for a
@@ -489,8 +492,8 @@ ok(1) |x|> ok(x + 1) |y|> ok(x + y)
 
 ```text
 ok(1) |x|> Some(x)          -- E121 (Result then Option)
-ok(1) |x |> x + 1           -- E120 (whitespace between tokens)
-ok(1) | x |> x + 1          -- E120
+ok(1) |x |> x + 1           -- E094 (whitespace between tokens)
+ok(1) | x |> x + 1          -- E094
 ```
 
 ### A.6 Equivalence with `do`

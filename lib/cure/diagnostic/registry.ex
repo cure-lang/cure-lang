@@ -99,7 +99,7 @@ defmodule Cure.Diagnostic.Registry do
     "W088" =>
       "No first-party producer remains; the dependent-only pipeline rejects unresolved imported names as E091 before any fallback resolution can occur."
   }
-  @structured ~w[E002 E003 E011 E013 E014 E021 E022 E026 E035 E056 E057 E063 E076 E077 E078 E087 E089 E090 E091 E092 E093 E094 E102 E103 E104 E105 E106 E107 E108 E109 E110 E111 E112 E113 E114 E115 E116 E117 E118 E119 E120 W086 W088]
+  @structured ~w[E002 E003 E011 E013 E014 E021 E022 E026 E035 E056 E057 E063 E076 E077 E078 E087 E089 E090 E091 E092 E093 E094 E102 E103 E104 E105 E106 E107 E108 E109 E110 E111 E112 E113 E114 E115 E116 E117 E118 E119 E120 E121 E122 W086 W088]
   @known_producers ~w[
     beam_writer dependency_graph elaboration kernel lexer macro_expansion
     name_resolution operational parser pattern_checker proof_checker
@@ -181,6 +181,8 @@ defmodule Cure.Diagnostic.Registry do
     "E118" => :pattern_coverage,
     "E119" => :pattern_structure,
     "E120" => :primitive_declaration,
+    "E121" => :bind_pipe_monad_mismatch,
+    "E122" => :bind_pipe_no_monad,
     "W000" => :compiler_warning,
     "W001" => :migration_warning,
     "W002" => :configuration_warning,
@@ -1468,6 +1470,25 @@ defmodule Cure.Diagnostic.Registry do
     Use only the supported `:float`, `:binary`, and `:atom` builtin tags, and
     keep seeded primitive names paired with their established representation.
     """,
+    "E121" => """
+    E121: Binder Pipe Monad Mismatch
+
+    Every stage of a `|x|>` chain must run in the same monad. The chain's first
+    stage fixes the monad; a later stage that resolves to a different one is
+    rejected at that stage.
+
+    Make every stage produce the same monad, or start the chain in the monad
+    the later stage needs.
+    """,
+    "E122" => """
+    E122: Binder Pipe Stage Has No `Monad` Instance
+
+    A `|x|>` stage produces a type for which no `Monad` instance is in scope,
+    so the chain cannot resolve its bind (`and_then`).
+
+    Bring a `Monad` instance for the stage's type into scope, for example with
+    `use Std.Monad`.
+    """,
     "W000" => """
     W000: Compiler Warning
 
@@ -1814,6 +1835,8 @@ defmodule Cure.Diagnostic.Registry do
   defp stable_key("E118", _title), do: :pattern_coverage
   defp stable_key("E119", _title), do: :pattern_structure
   defp stable_key("E120", _title), do: :primitive_declaration
+  defp stable_key("E121", _title), do: :bind_pipe_monad_mismatch
+  defp stable_key("E122", _title), do: :bind_pipe_no_monad
 
   defp stable_key(_code, title) do
     title
@@ -1940,6 +1963,8 @@ defmodule Cure.Diagnostic.Registry do
   defp producers("E118"), do: [:elaboration]
   defp producers("E119"), do: [:elaboration]
   defp producers("E120"), do: [:elaboration]
+  defp producers("E121"), do: [:elaboration]
+  defp producers("E122"), do: [:elaboration]
   defp producers("E008"), do: [:operational]
   defp producers("W086"), do: [:dependency_graph]
   defp producers("W088"), do: [:name_resolution]
@@ -2007,6 +2032,8 @@ defmodule Cure.Diagnostic.Registry do
   defp subsystem("E118"), do: :elaboration
   defp subsystem("E119"), do: :elaboration
   defp subsystem("E120"), do: :elaboration
+  defp subsystem("E121"), do: :elaboration
+  defp subsystem("E122"), do: :elaboration
   defp subsystem("E091"), do: :resolution
   defp subsystem("E092"), do: :macros
   defp subsystem("E093"), do: :elaboration

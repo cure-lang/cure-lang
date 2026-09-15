@@ -11371,6 +11371,7 @@ defmodule Cure.Elab.Elaborator do
         if bind_pipe? do
           case monadic_final_lift(final, expected_core, names, ctx, env) do
             {:ok, term} -> {:ok, term}
+            {:error, _} = error -> error
             :not_monadic -> elaborate_expr_checked(final, expected_core, names, ctx, env)
           end
         else
@@ -11479,8 +11480,20 @@ defmodule Cure.Elab.Elaborator do
               pure_call = {:function_call, [name: "pure", bind_pipe_lift: true], [final]}
 
               case elaborate_expr_checked(pure_call, expected_core, names, ctx, env) do
-                {:ok, term} -> {:ok, term}
-                {:error, _} = error -> error
+                {:ok, term} ->
+                  {:ok, term}
+
+                {:error, _} = error ->
+                  # Neither the stage itself nor its `pure`-lift checks against the
+                  # chain's goal. If the stage's OWN type is a different registered
+                  # monad, this is the spec's E121 monad mismatch (docs/BIND_PIPE.md
+                  # §5.2/§A.5), not a generic type error: report the two monads so
+                  # the author knows which stage to change. Otherwise keep the
+                  # original error (the stage is simply ill-typed here).
+                  case final_stage_monad_mismatch(final, head, names, ctx, env) do
+                    {:ok, actual} -> {:error, {:bind_pipe_monad_mismatch, %{expected: head, actual: actual}}}
+                    :no -> error
+                  end
               end
           end
         else
@@ -11489,6 +11502,25 @@ defmodule Cure.Elab.Elaborator do
 
       _ ->
         :not_monadic
+    end
+  end
+
+  # The head of the final stage's own inferred type, when that head is a monad
+  # different from the chain's `expected` head. `:no` when the stage has no
+  # inferable type, its head is not a monad, or it agrees with the chain.
+  defp final_stage_monad_mismatch(final, expected, names, ctx, env) do
+    case elaborate_expr_typed(final, names, ctx, env) do
+      {:ok, _core, type_value} ->
+        case Normalise.whnf_value(type_value, Context.signature(ctx)) do
+          {:vdata, actual, _args} when actual != expected ->
+            if monad_registered?(env, actual), do: {:ok, actual}, else: :no
+
+          _ ->
+            :no
+        end
+
+      {:error, _} ->
+        :no
     end
   end
 

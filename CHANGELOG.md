@@ -47,6 +47,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Binder pipe `|x|>` (`docs/BIND_PIPE.md`) rejected a chain whose stage had no
+  `Monad` instance in scope (the spec's `E122`, e.g. `1 |x|> x + 1`) by raising
+  `Cure.Diagnostic.UnhandledError` at the compiler's presentation boundary: the
+  elaborator returned `{:bind_pipe_no_monad, _}` with no registered diagnostic
+  conversion, so `cure check`/`build`/`run` crashed instead of reporting the
+  error. `E122` is now a registered code with its own diagnostic, and the
+  binder-pipe diagnostics no longer borrow the `E120` slot (which belongs to
+  `primitive_declaration`; a malformed binder pipe is an ordinary `E094` syntax
+  error). `E121` (`:bind_pipe_monad_mismatch`) is registered alongside it.
+- Binder pipe `|x|>` crashed with a `CaseClauseError` when a stage's final
+  auto-lift failed (the spec's `E121` mismatch case, e.g. `ok(1) |x|> Some(x)`):
+  `elaborate_let_block/6` matched only the lift's `{:ok, _}` and `:not_monadic`
+  results, so an `{:error, _}` escaped as an unhandled case. The error now
+  propagates as an ordinary clean rejection.
 - `cure run` did not load the current project's own `lib/` before executing the
   file it was given, so any multi-module project died with `:undef` on its first
   cross-module call even though the file compiled. It now bootstraps the project
