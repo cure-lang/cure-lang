@@ -99,7 +99,7 @@ defmodule Cure.Elab.Resolve do
         checked_dispatch(abstract(env, desc, method, args, level, names, ctx))
 
       {:concrete, head, type_value} ->
-        checked_dispatch(concrete(env, desc, method, head, type_value, args, names, ctx))
+        concrete_checked(env, desc, method, head, type_value, args, expected_core, names, ctx)
 
       :unknown ->
         method_call_checked_candidates(env, desc, method, args, expected_core, names, ctx)
@@ -108,6 +108,83 @@ defmodule Cure.Elab.Resolve do
 
   defp checked_dispatch({:ok, term, _type}), do: {:ok, term}
   defp checked_dispatch({:error, _reason} = error), do: error
+
+  @doc """
+  Resolve a HEAD-dispatched interface method in checking mode, threading the
+  expected result type into the application.
+
+  `method_call/5` elaborates the head-positioned argument in INFERENCE mode, so a
+  constructor whose type carries a parameter that no argument determines — the
+  error arm `e` of `Result(a, e)` — is left as an unsolved metavariable and the
+  call is rejected. In checking mode the goal already fixes that parameter
+  (`and_then(ok(1), …) : Result(Int, Atom)` pins `e := Atom`), so we resolve the
+  instance's mangled method global and elaborate the application goal-first,
+  exactly as an ordinary implicit-carrying def is elaborated. Falls back to the
+  inference path when the head cannot be classified from the argument alone.
+  """
+  @spec method_call_checked_head(Env.t(), atom(), [term()], term(), [term()], term()) ::
+          {:ok, term()} | {:error, term()}
+  def method_call_checked_head(env, method, args, expected_core, names, ctx) do
+    desc = Interface.for_method(env, method)
+    idx = head_param_index(desc, method)
+    head_ast = Enum.at(args, idx)
+
+    # Classify the dispatch head. Prefer the head-positioned ARGUMENT's inferred
+    # type; when that inference itself needs the goal (a constructor whose type
+    # carries an unsolved parameter — `ok(1) : Result(Int, ?e)`), fall back to the
+    # method's declared RESULT shape unified against the goal (`and_then(…) :
+    # Result(b, e)` at goal `Result(Int, Atom)` names `Result`). Either way the
+    # instance global is elaborated goal-first below, which solves the parameter
+    # the inference could not.
+    head =
+      case classify_head_from_argument(env, head_ast, names, ctx) do
+        {:concrete, head} -> {:ok, head}
+        {:rigid, level} -> {:rigid, level}
+        :unknown -> classify_head_from_goal(env, desc, method, expected_core, ctx)
+      end
+
+    with {:ok, head} <- head,
+         {:ok, ref} <- Coherence.lookup_anon(Env.coherence(env), desc.name, head) do
+      mangled = Map.fetch!(ref.methods, method)
+
+      case Elaborator.elaborate_global_app_expected(env, mangled, args, names, ctx, expected_core) do
+        {:ok, term, _type} ->
+          case Cure.Core.Kernel.check(ctx, term, Eval.eval(expected_core, Context.env(ctx))) do
+            :ok -> {:ok, term}
+            {:error, _} = err -> err
+          end
+
+        {:error, _} = error ->
+          error
+      end
+    else
+      {:rigid, level} -> checked_dispatch(abstract(env, desc, method, args, level, names, ctx))
+      :unknown -> method_call_checked_candidates(env, desc, method, args, expected_core, names, ctx)
+      {:error, _} = err -> err
+    end
+  end
+
+  # Classify the head from the head-positioned argument's inferred type. Returns
+  # `{:ok, head}` for a concrete head, `{:rigid, level}` for a rigid one, and
+  # `:unknown` when inference fails or the head cannot be classified (so the
+  # caller can try the goal instead).
+  defp classify_head_from_argument(env, head_ast, names, ctx) do
+    case Elaborator.elaborate_expr_typed(head_ast, names, ctx, env) do
+      {:ok, _term, tval} -> classify(env, tval, MapSet.new())
+      {:error, _} -> :unknown
+    end
+  end
+
+  # Classify the head from the method's declared RESULT shape unified against the
+  # goal — the same recovery `result_head_value/5` uses for result-dispatched
+  # methods, applied here to a head-positioned argument that could not be inferred.
+  defp classify_head_from_goal(env, desc, method, expected_core, ctx) do
+    case result_head_value(desc, method, expected_core, ctx, env) do
+      {:concrete, head, _type_value} -> {:ok, head}
+      {:rigid, level} -> {:rigid, level}
+      :unknown -> :unknown
+    end
+  end
 
   defp method_call_checked_candidates(env, desc, method, args, expected_core, names, ctx) do
     candidates =
@@ -160,8 +237,18 @@ defmodule Cure.Elab.Resolve do
 
   defp result_head_core({:variable, _meta, head_var}, core, head_var), do: {:ok, core}
 
-  defp result_head_core({:function_call, _meta, ast_args}, {:data, _family, params, indices}, head_var) do
-    find_result_head(ast_args, params ++ indices, head_var)
+  # The head variable applied to the payload — `m(b)` in a method's declared
+  # result `m(b)`. The head name lives in the node's META (the function name),
+  # not among the children, so a bare `find_result_head` over the args misses it
+  # entirely and reports `:unknown` for every higher-kinded method. When the head
+  # is applied to FEWER arguments than the goal's family arity (`m(b)` vs
+  # `Result(Int, Atom)`), the goal's family IS the head.
+  defp result_head_core({:function_call, meta, ast_args}, {:data, family, params, indices}, head_var) do
+    if Keyword.get(meta, :name) == head_var do
+      {:ok, {:data, family, params, indices}}
+    else
+      find_result_head(ast_args, params ++ indices, head_var)
+    end
   end
 
   defp result_head_core(_ast, _core, _head_var), do: :error
@@ -327,6 +414,31 @@ defmodule Cure.Elab.Resolve do
 
         with {:ok, dict_asts} <- instance_constraint_dict_asts(ref, type_value, names, ctx, env) do
           Elaborator.elaborate_implicit_global_app(env, mangled, args ++ dict_asts, names, ctx)
+        end
+
+      {:error, _} ->
+        {:error, {:no_instance, desc.name, head}}
+    end
+  end
+
+  # `concrete/8`'s checking-mode counterpart. A result-dispatched method whose
+  # instance carries a parameter no argument determines — `Std.Monad#pure`'s
+  # error arm `e` in `Result(a, e)`, fixed only by the RESULT type — leaves that
+  # parameter an unsolved metavariable under `concrete/8`'s plain inference-mode
+  # application (`elaborate_implicit_global_app`, which has no goal to solve
+  # against). Thread `expected_core` into a goal-first application instead,
+  # exactly as `method_call_checked_head/6` does for a HEAD-dispatched method,
+  # then re-check the assembled term against the goal.
+  defp concrete_checked(env, desc, method, head, type_value, args, expected_core, names, ctx) do
+    case Coherence.lookup_anon(Env.coherence(env), desc.name, head) do
+      {:ok, ref} ->
+        mangled = Map.fetch!(ref.methods, method)
+
+        with {:ok, dict_asts} <- instance_constraint_dict_asts(ref, type_value, names, ctx, env),
+             {:ok, term, _type} <-
+               Elaborator.elaborate_global_app_expected(env, mangled, args ++ dict_asts, names, ctx, expected_core),
+             :ok <- Cure.Core.Kernel.check(ctx, term, Eval.eval(expected_core, Context.env(ctx))) do
+          {:ok, term}
         end
 
       {:error, _} ->

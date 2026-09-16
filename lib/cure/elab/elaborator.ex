@@ -14,7 +14,7 @@ defmodule Cure.Elab.Elaborator do
   """
 
   alias Cure.Core.{Context, Conv, Env, Eval, Grade, Inductive, Kernel, Normalise, Quote, Term}
-  alias Cure.Elab.{AttemptCache, CallAttemptProfile, GuardLint, MetaCtx, Rewrite, Subst, Unify}
+  alias Cure.Elab.{AttemptCache, CallAttemptProfile, Coherence, GuardLint, MetaCtx, Rewrite, Subst, Unify}
   alias Cure.Elab.Subst.{Frame, Prefix}
 
   import Cure.Elab.Rewrite,
@@ -2702,6 +2702,15 @@ defmodule Cure.Elab.Elaborator do
       Cure.Elab.Resolve.result_dispatched_method?(env, atom) ->
         Cure.Elab.Resolve.method_call_checked(env, atom, args, expected_core, names, ctx)
 
+      # A HEAD-dispatched interface method in checking mode. The goal fixes a
+      # constructor parameter that no argument determines (`Result`'s error arm),
+      # which inference mode cannot solve — so resolve the instance and elaborate
+      # the application goal-first. `result_dispatched_method?` above is false here
+      # (this method determines its head from an argument), so the two clauses are
+      # disjoint.
+      Cure.Elab.Resolve.method?(env, atom) ->
+        Cure.Elab.Resolve.method_call_checked_head(env, atom, args, expected_core, names, ctx)
+
       Cure.Elab.Resolve.constrained?(env, atom) ->
         Cure.Elab.Resolve.constrained_call_checked(env, atom, args, expected_core, names, ctx)
 
@@ -2964,8 +2973,8 @@ defmodule Cure.Elab.Elaborator do
   # complex `e` (e.g. a guarded match's scrutinee) cannot get that by routing
   # through here; it would need a real Core binder built directly. A rebinding of
   # `x` in a later statement is refused (would capture).
-  def elaborate_expr_checked({:block, _meta, stmts}, expected_core, names, ctx, env) do
-    elaborate_let_block(stmts, expected_core, names, ctx, env)
+  def elaborate_expr_checked({:block, meta, stmts}, expected_core, names, ctx, env) do
+    elaborate_let_block(stmts, expected_core, names, ctx, env, Keyword.get(meta, :bind_pipe, false))
   end
 
   # `return e` in a checking position (e.g. an `if`/`match` branch tail): the
@@ -4716,7 +4725,13 @@ defmodule Cure.Elab.Elaborator do
   # fallback. This ordering matters when eager inference can produce a complete but
   # wrong hidden family (for example the predicate of a refinement constructor).
   # The caller re-checks the assembled term against the goal in either path.
-  defp elaborate_global_app_expected(env, atom, args, names, ctx, expected) do
+  #
+  # Public so `Cure.Elab.Resolve` can reuse it for a goal-first interface-method
+  # application (a head-dispatched method whose instance global is known): the same
+  # goal-directed solving that fixes a return-type-only implicit also fixes a
+  # constructor parameter no argument determines (`Result`'s error arm).
+  @doc false
+  def elaborate_global_app_expected(env, atom, args, names, ctx, expected) do
     if Enum.any?(args, &call_placeholder?/1) do
       profile_attempt(atom, :goal_placeholder_bidirectional, fn ->
         elaborate_implicit_app_bidirectional(env, atom, args, names, ctx, expected)
@@ -11307,7 +11322,10 @@ defmodule Cure.Elab.Elaborator do
   # elaborator's own context gets the same treatment via `Context.extend_def/3`,
   # so `elaborate_expr_typed` on the remainder sees `x` as its value and dependent
   # lets keep checking. The kernel re-checks the emitted `:let` regardless.
-  defp elaborate_let_block([final], expected_core, names, ctx, env) do
+  defp elaborate_let_block(stmts, expected_core, names, ctx, env),
+    do: elaborate_let_block(stmts, expected_core, names, ctx, env, false)
+
+  defp elaborate_let_block([final], expected_core, names, ctx, env, bind_pipe?) do
     sig = Context.signature(ctx)
 
     case Normalise.whnf_value(Eval.eval(expected_core, Context.env(ctx)), sig) do
@@ -11344,9 +11362,21 @@ defmodule Cure.Elab.Elaborator do
             end
         end
 
-      # A pure block — the existing behaviour.
+      # A pure block — the existing behaviour. When the block IS a binder pipe
+      # (`bind_pipe?`) and its goal is a MONAD (`m(R)` for an `m` with an in-scope
+      # `Monad` instance), a pure final expression is the monadic `return` and is
+      # lifted with `pure` — the final-stage auto-lift (docs/BIND_PIPE.md §5.4),
+      # the exact analogue of the `Effect` lift above.
       _ ->
-        elaborate_expr_checked(final, expected_core, names, ctx, env)
+        if bind_pipe? do
+          case monadic_final_lift(final, expected_core, names, ctx, env) do
+            {:ok, term} -> {:ok, term}
+            {:error, _} = error -> error
+            :not_monadic -> elaborate_expr_checked(final, expected_core, names, ctx, env)
+          end
+        else
+          elaborate_expr_checked(final, expected_core, names, ctx, env)
+        end
     end
   end
 
@@ -11355,13 +11385,14 @@ defmodule Cure.Elab.Elaborator do
          expected_core,
          names,
          ctx,
-         env
+         env,
+         bind_pipe?
        )
        when rest != [] do
     with {:ok, condition_core} <-
            elaborate_expr_checked(condition, bool_type_term(Context.signature(ctx)), names, ctx, env),
          {:ok, failure_core} <- elaborate_expr_checked(failure, expected_core, names, ctx, env),
-         {:ok, body_core} <- elaborate_let_block(rest, expected_core, names, ctx, env) do
+         {:ok, body_core} <- elaborate_let_block(rest, expected_core, names, ctx, env, bind_pipe?) do
       {:ok, bool_case(condition_core, expected_core, body_core, failure_core, ctx)}
     end
   end
@@ -11371,7 +11402,8 @@ defmodule Cure.Elab.Elaborator do
          expected_core,
          names,
          ctx,
-         env
+         env,
+         bind_pipe?
        ) do
     if not Keyword.get(meta, :let, false) do
       {:error, {:unsupported_block_statement, assignment}}
@@ -11380,7 +11412,7 @@ defmodule Cure.Elab.Elaborator do
       grade = Keyword.get(meta, :grade, Grade.unrestricted())
 
       case Keyword.get(meta, :type_annotation) do
-        nil -> let_inferred(name, rhs, meta, grade, rest, expected_core, names, ctx, env)
+        nil -> let_inferred(name, rhs, meta, grade, rest, expected_core, names, ctx, env, bind_pipe?)
         ann -> let_ascribed(name, rhs, ann, meta, grade, rest, expected_core, names, ctx, env)
       end
     end
@@ -11397,7 +11429,8 @@ defmodule Cure.Elab.Elaborator do
          expected_core,
          names,
          ctx,
-         env
+         env,
+         bind_pipe?
        )
        when rest != [] do
     if Keyword.get(meta, :let, false) do
@@ -11416,14 +11449,85 @@ defmodule Cure.Elab.Elaborator do
       binding =
         {:assignment, Keyword.merge(Keyword.take(meta, [:line, :col]), let: true, opaque: true), [scrutinee, rhs]}
 
-      elaborate_let_block([binding, match], expected_core, names, ctx, env)
+      elaborate_let_block([binding, match], expected_core, names, ctx, env, bind_pipe?)
     else
       {:error, {:unsupported_block_statement, assignment}}
     end
   end
 
-  defp elaborate_let_block(other, _expected_core, _names, _ctx, _env),
+  defp elaborate_let_block(other, _expected_core, _names, _ctx, _env, _bind_pipe?),
     do: {:error, {:unsupported_block, other}}
+
+  # The binder-pipe final-stage auto-lift (docs/BIND_PIPE.md §5.4). When the goal
+  # is `m(R)` for a monad `m` with an in-scope `Monad` instance, the final stage
+  # is either already monadic (`used as-is`) or pure (lifted with `pure`). The
+  # already-monadic case is tried first; the pure case is a surface `pure(final)`
+  # checked goal-first, so the same goal-directed solving that fixes a
+  # constructor parameter no argument determines also fixes `pure`'s payload.
+  # Returns `:not_monadic` when the goal's head has no `Monad` instance, so the
+  # caller keeps the ordinary pure-block behaviour byte-for-byte.
+  defp monadic_final_lift(final, expected_core, names, ctx, env) do
+    sig = Context.signature(ctx)
+
+    case Normalise.whnf_value(Eval.eval(expected_core, Context.env(ctx)), sig) do
+      {:vdata, head, _args} ->
+        if monad_registered?(env, head) do
+          case elaborate_expr_checked(final, expected_core, names, ctx, env) do
+            {:ok, term} ->
+              {:ok, term}
+
+            {:error, _} ->
+              pure_call = {:function_call, [name: "pure", bind_pipe_lift: true], [final]}
+
+              case elaborate_expr_checked(pure_call, expected_core, names, ctx, env) do
+                {:ok, term} ->
+                  {:ok, term}
+
+                {:error, _} = error ->
+                  # Neither the stage itself nor its `pure`-lift checks against the
+                  # chain's goal. If the stage's OWN type is a different registered
+                  # monad, this is the spec's E121 monad mismatch (docs/BIND_PIPE.md
+                  # §5.2/§A.5), not a generic type error: report the two monads so
+                  # the author knows which stage to change. Otherwise keep the
+                  # original error (the stage is simply ill-typed here).
+                  case final_stage_monad_mismatch(final, head, names, ctx, env) do
+                    {:ok, actual} ->
+                      {:error,
+                       {:source_context, {:bind_pipe_monad_mismatch, %{expected: head, actual: actual}},
+                        %{span: surface_expression_span(final), expression_category: :bind_pipe_stage}}}
+
+                    :no ->
+                      error
+                  end
+              end
+          end
+        else
+          :not_monadic
+        end
+
+      _ ->
+        :not_monadic
+    end
+  end
+
+  # The head of the final stage's own inferred type, when that head is a monad
+  # different from the chain's `expected` head. `:no` when the stage has no
+  # inferable type, its head is not a monad, or it agrees with the chain.
+  defp final_stage_monad_mismatch(final, expected, names, ctx, env) do
+    case elaborate_expr_typed(final, names, ctx, env) do
+      {:ok, _core, type_value} ->
+        case Normalise.whnf_value(type_value, Context.signature(ctx)) do
+          {:vdata, actual, _args} when actual != expected ->
+            if monad_registered?(env, actual), do: {:ok, actual}, else: :no
+
+          _ ->
+            :no
+        end
+
+      {:error, _} ->
+        :no
+    end
+  end
 
   defp elaborate_macro_failure(meta, args, names, ctx, env) do
     syntax_family = Env.resolve_key(env, env.families, :Syntax)
@@ -11598,7 +11702,7 @@ defmodule Cure.Elab.Elaborator do
   end
 
   # `let x = e` — synthesise `e`'s type, then bind once.
-  defp let_inferred(name, rhs, meta, grade, rest, expected_core, names, ctx, env) do
+  defp let_inferred(name, rhs, meta, grade, rest, expected_core, names, ctx, env, bind_pipe?) do
     case elaborate_expr_typed(rhs, names, ctx, env) do
       {:ok, rhs_core, rhs_type} ->
         case Normalise.whnf_value(rhs_type, Context.signature(ctx)) do
@@ -11615,6 +11719,43 @@ defmodule Cure.Elab.Elaborator do
             # kernel's `bind` accepts the continuation's own grade.
             effectful_let_bind(name, rhs_core, payload_val, grade, rest, expected_core, names, ctx, env)
 
+          # A MONADIC rhs (non-`Effect`): `let x = m() ⏎ rest` where `m() : M(T)`
+          # for a monad `M` with an in-scope `Monad` instance (`Result`, `Option`,
+          # …). This is the binder pipe `|x|>` (docs/BIND_PIPE.md) and the
+          # monadic `do`-bind. Desugar the whole `let x <- e ⏎ rest` into a
+          # surface `and_then(e, fn(x) -> rest)`, which reuses the ordinary
+          # interface-coherence machinery to pick the instance; if no `Monad`
+          # instance exists the existing `no_instance` diagnostic surfaces.
+          #
+          # `Effect` is handled by the clause above (its own kernel bind), so we
+          # only reach here for a genuine data monad. A pure binding whose type
+          # is NOT a monad falls through to the `_` clause below unchanged.
+          #
+          # A genuine binder-pipe stage (`bind_pipe?`) whose value's type has NO
+          # `Monad` instance is a hard rejection (docs/BIND_PIPE.md §5.3/§11,
+          # `:bind_pipe_no_monad`/E122) -- NOT a silent fall-through to an
+          # ordinary pure `let`. Without this guard, `1 |x|> x + 1` at a plain
+          # `Int` goal (no `Monad(Int)` instance) desugared to plain `let x = 1
+          # ⏎ x + 1` and quietly returned `2`, instead of rejecting the chain as
+          # the spec's static-rejection acceptance test (§A.5) requires.
+          monad_head when is_tuple(monad_head) ->
+            case monadic_bind_desugar(name, rhs, meta, rest, monad_head, expected_core, names, ctx, env) do
+              {:ok, term} ->
+                {:ok, term}
+
+              {:error, _reason} = error ->
+                error
+
+              :not_monadic ->
+                if bind_pipe? do
+                  {:error,
+                   {:source_context, {:bind_pipe_no_monad, monad_head},
+                    %{span: surface_expression_span(rhs), expression_category: :bind_pipe_stage, checking: name}}}
+                else
+                  pure_let_binding(name, rhs, meta, grade, rest, expected_core, names, ctx, env, rhs_core, rhs_type)
+                end
+            end
+
           # A PURE rhs — the existing path. SIGNATURE-AWARE reify: a
           # `{:vdata, name, args}` value flattens a family's params and indices
           # into one list; without the signature the split is not recoverable and
@@ -11622,26 +11763,7 @@ defmodule Cure.Elab.Elaborator do
           # family fails the kernel's arity check (`:arg_arity`). Agda
           # `getNumberOfParameters` / Lean `inductive_val.get_nparams`.
           _ ->
-            ty_core = Quote.reify(rhs_type, Context.length(ctx), Context.signature(ctx))
-
-            rest =
-              if Keyword.get(meta, :opaque, false),
-                do: rest,
-                else: expose_transparent_tuple_scrutinee(rest, name, rhs)
-
-            bind_once_let(
-              name,
-              rhs_core,
-              ty_core,
-              rhs_type,
-              grade,
-              rest,
-              expected_core,
-              names,
-              ctx,
-              env,
-              Keyword.get(meta, :opaque, false)
-            )
+            pure_let_binding(name, rhs, meta, grade, rest, expected_core, names, ctx, env, rhs_core, rhs_type)
         end
 
       # The rhs has no INFERABLE type — a bare lambda, an `if`/`pickup`, any
@@ -11650,6 +11772,29 @@ defmodule Cure.Elab.Elaborator do
       # commit to one type up front, so it needs `let x : T = e` (`let_ascribed/8`).
       {:error, _} ->
         cond do
+          # A monadic BIND statement (`|x|>` or plain `do`'s `x <- e`, both marked
+          # `do_bind: true` -- docs/BIND_PIPE.md §7.2's "one desugaring, one AST
+          # node, three spellings") whose rhs has no inferable type (`ok(1) :
+          # Result(Int, ?e)` — the error arm is undetermined). The chain's goal
+          # (`m(R)`) fixes the monad head, so desugar to `and_then(rhs, fn(x) ->
+          # rest)` and let the goal-directed application solve the rhs's
+          # parameter. Without this the stage fell through to surface
+          # substitution, which re-elaborated the rhs at the use site and lost the
+          # monadic bind entirely (reproduced by a plain `do` block whose bind rhs
+          # is a bare `ok(1)`/`Some(1)` call, exactly as `|x|>` was).
+          bind_pipe? or Keyword.get(meta, :do_bind, false) ->
+            case monad_head_from_goal(expected_core, ctx, env) do
+              {:ok, head} ->
+                case monadic_bind_desugar(name, rhs, meta, rest, head, expected_core, names, ctx, env) do
+                  {:ok, term} -> {:ok, term}
+                  {:error, _} = error -> error
+                  :not_monadic -> let_inferred_substitute(name, rhs, meta, rest, expected_core, names, ctx, env)
+                end
+
+              :error ->
+                let_inferred_substitute(name, rhs, meta, rest, expected_core, names, ctx, env)
+            end
+
           # A GRADE cannot survive this branch. Every path below abandons the `:let`
           # node and surface-substitutes the rhs, so there is nowhere to record the
           # grade and it would be silently dropped — the program would compile, pass,
@@ -11705,12 +11850,330 @@ defmodule Cure.Elab.Elaborator do
           # Exactly one use: the rhs is elaborated once, in checking mode, at that
           # use site. No duplication, and it IS type-checked.
           true ->
-            rest
-            |> Enum.map(&subst_surface_var(&1, name, rhs))
-            |> elaborate_let_block(expected_core, names, ctx, env)
+            let_inferred_substitute(name, rhs, meta, rest, expected_core, names, ctx, env)
         end
     end
   end
+
+  # The surface-substitution fallback for a non-inferable `let` rhs: the rhs is
+  # elaborated once, in checking mode, at its single use site. Refuses a graded
+  # binding (the grade would be dropped), a shadowed binding (substitution would
+  # capture), and a binding used ≠ 1 times (duplication or silent drop). Shared by
+  # the ordinary non-inferable path and the binder-pipe fallback.
+  defp let_inferred_substitute(name, rhs, meta, rest, expected_core, names, ctx, env) do
+    cond do
+      Keyword.has_key?(meta, :grade) ->
+        {:error,
+         local_binding_annotation_error(:graded_let_needs_annotation, name, meta, rhs, count_surface_uses(rest, name))}
+
+      Enum.any?(rest, &binds_any?(&1, [name])) ->
+        {:error,
+         local_binding_annotation_error(
+           :let_needs_annotation,
+           name,
+           meta,
+           rhs,
+           count_surface_uses(rest, name),
+           :shadowed_before_use,
+           first_binding_span(rest, name)
+         )}
+
+      count_surface_uses(rest, name) != 1 ->
+        {:error, local_binding_annotation_error(:let_needs_annotation, name, meta, rhs, count_surface_uses(rest, name))}
+
+      true ->
+        rest
+        |> Enum.map(&subst_surface_var(&1, name, rhs))
+        |> elaborate_let_block(expected_core, names, ctx, env)
+    end
+  end
+
+  # The monad head of a binder-pipe chain's goal `m(R)`: the outer type constructor
+  # of the expected type, when it has an in-scope `Monad` instance. Used to desugar
+  # a stage whose rhs has no inferable type — the goal fixes the monad the rhs's
+  # own inference could not.
+  defp monad_head_from_goal(nil, _ctx, _env), do: :error
+
+  defp monad_head_from_goal(expected_core, ctx, env) do
+    case Normalise.whnf_value(Eval.eval(expected_core, Context.env(ctx)), Context.signature(ctx)) do
+      {:vdata, head, _args} -> if monad_registered?(env, head), do: {:ok, head}, else: :error
+      _ -> :error
+    end
+  end
+
+  # The PURE `let` path: bind `x` once at its inferred type via a Core `:let`
+  # (SIGNATURE-AWARE reify, so an indexed family's params/indices split correctly).
+  defp pure_let_binding(name, rhs, meta, grade, rest, expected_core, names, ctx, env, rhs_core, rhs_type) do
+    ty_core = Quote.reify(rhs_type, Context.length(ctx), Context.signature(ctx))
+
+    rest =
+      if Keyword.get(meta, :opaque, false),
+        do: rest,
+        else: expose_transparent_tuple_scrutinee(rest, name, rhs)
+
+    bind_once_let(
+      name,
+      rhs_core,
+      ty_core,
+      rhs_type,
+      grade,
+      rest,
+      expected_core,
+      names,
+      ctx,
+      env,
+      Keyword.get(meta, :opaque, false)
+    )
+  end
+
+  # `let x = e ⏎ rest` where `e : M(T)` for a monad `M` (Result/Option/…), but NOT
+  # `Effect` (handled by `effectful_let_bind`). Desugar to the surface call
+  # `and_then(e, fn(x) -> rest)` and re-elaborate it, so the ordinary interface
+  # coherence picks the `Monad(M)` instance. Returns `:not_monadic` when `M` has
+  # no `Monad` instance in scope, so the caller falls back to a plain pure `let`.
+  #
+  # This is the binder pipe `|x|>` (docs/BIND_PIPE.md §7.2) and the monadic
+  # `do`-bind: one desugaring, one AST node, three spellings.
+  defp monadic_bind_desugar(name, rhs, meta, rest, monad_head, expected_core, names, ctx, env) do
+    if monad_instance?(monad_head, env) do
+      # Build the monadic bind DIRECTLY in Core, exactly as `effectful_let_bind`
+      # does for `Effect`. Resolving the instance's mangled `and_then` and applying
+      # it to a properly-typed continuation lambda sidesteps the surface solver,
+      # whose goal-directed argument ordering cannot fix a stage whose rhs has no
+      # inferable type (`ok(1) : Result(Int, ?e)` — the error arm is undetermined)
+      # and therefore defers it. The kernel re-checks the assembled application.
+      case monadic_bind_core(name, rhs, meta, rest, monad_head, expected_core, names, ctx, env) do
+        {:ok, term} ->
+          {:ok, term}
+
+        :not_monadic ->
+          monadic_bind_surface(name, rhs, meta, rest, expected_core, names, ctx, env)
+
+        {:error, _} = error ->
+          error
+      end
+    else
+      :not_monadic
+    end
+  end
+
+  # The direct-Core monadic bind: `and_then(rhs, λx:T. rest)` where `T` is the
+  # monad's payload type. `T` is recovered by inferring `rhs` (when possible) or,
+  # failing that, by checking `rhs` against the chain's goal — which fixes the
+  # monad's undetermined parameter (`ok(1)` at `Result(Int, Atom)`). A stage whose
+  # rhs determines neither is left to the surface fallback.
+  defp monadic_bind_core(name, rhs, meta, rest, monad_head, expected_core, names, ctx, env) do
+    with {:ok, head} <- monad_head_atom(monad_head),
+         {:ok, ref} <- Coherence.lookup_anon(Env.coherence(env), :Monad, head),
+         mangled = Map.fetch!(ref.methods, :and_then),
+         {:ok, rhs_core, payload_val, rhs_rest} <- monadic_rhs(rhs, expected_core, head, names, ctx, env) do
+      grade = Keyword.get(meta, :grade, Grade.unrestricted())
+      t_core = Quote.reify(payload_val, Context.length(ctx), Context.signature(ctx))
+      ctx1 = Context.extend(ctx, payload_val)
+      names1 = [name | names]
+      expected1 = Subst.shift(expected_core, 1, 0)
+
+      with {:ok, body_core} <- elaborate_let_block(rest, expected1, names1, ctx1, env, true) do
+        # The mangled `and_then` is a global whose erased type parameters (`a`, `b`,
+        # `c`) lead its Π telescope; apply them explicitly — as the implicit
+        # applicator would — then the two explicit arguments (the monad value and
+        # the continuation). `a` is the rhs payload, `b` the monad's remaining
+        # parameter (the error arm), and `c` the chain's result payload (the goal's
+        # payload; equal to `a` for a single stage). The kernel re-checks the
+        # assembled application.
+        c_val = goal_payload(expected_core, head, ctx, env) || payload_val
+        type_args = [payload_val | rhs_rest] ++ [c_val]
+        type_cores = Enum.map(type_args, &Quote.reify(&1, Context.length(ctx), Context.signature(ctx)))
+        head_app = Enum.reduce(type_cores, {:global, mangled}, fn t, acc -> {:app, acc, t} end)
+        app = {:app, {:app, head_app, rhs_core}, {:lam, grade, t_core, body_core}}
+        {:ok, app}
+      end
+    else
+      _ -> :not_monadic
+    end
+  end
+
+  defp goal_payload(nil, _head, _ctx, _env), do: nil
+
+  defp goal_payload(expected_core, head, ctx, _env) do
+    case Normalise.whnf_value(Eval.eval(expected_core, Context.env(ctx)), Context.signature(ctx)) do
+      {:vdata, ^head, [payload | _]} -> payload
+      _ -> nil
+    end
+  end
+
+  defp monad_head_atom({:vdata, name, _args}) when is_atom(name), do: {:ok, name}
+  defp monad_head_atom(name) when is_atom(name), do: {:ok, name}
+  defp monad_head_atom(_), do: :error
+
+  # The rhs's Core term, the monad's payload value, and the monad value type's
+  # remaining parameters (the error arm `b`). Infer the rhs first (a
+  # `Result(Int, ?e)`-typed `Ok(1)` infers with `?e` free, which is fine — the
+  # payload is `Int`); when inference fails, check the rhs against the chain's goal
+  # and take the goal's payload. A rhs that neither infers nor checks against the
+  # goal is rejected, and the caller falls back to the surface desugaring.
+  defp monadic_rhs(rhs, expected_core, head, names, ctx, env) do
+    case elaborate_expr_typed(rhs, names, ctx, env) do
+      {:ok, rhs_core, rhs_type} ->
+        case monad_type_args(rhs_type, head, ctx, env) do
+          {:ok, payload_val, rest} -> {:ok, rhs_core, payload_val, rest}
+          :error -> monadic_rhs_checked(rhs, expected_core, head, names, ctx, env)
+        end
+
+      {:error, _} ->
+        monadic_rhs_checked(rhs, expected_core, head, names, ctx, env)
+    end
+  end
+
+  defp monadic_rhs_checked(rhs, expected_core, head, names, ctx, env) do
+    with true <- not is_nil(expected_core),
+         {:ok, rhs_core} <- elaborate_expr_checked(rhs, expected_core, names, ctx, env),
+         {:ok, payload_val, rest} <- monad_goal_args(expected_core, head, ctx, env) do
+      {:ok, rhs_core, payload_val, rest}
+    else
+      _ -> :error
+    end
+  end
+
+  # The payload value and the remaining type parameters of a monad value type
+  # `m(a, b)`: `a` is the payload, `[b]` the monad's other parameter (the error
+  # arm).
+  defp monad_type_args(type_value, head, ctx, _env) do
+    case Normalise.whnf_value(type_value, Context.signature(ctx)) do
+      {:vdata, ^head, [payload | rest]} -> {:ok, payload, rest}
+      _ -> :error
+    end
+  end
+
+  defp monad_goal_args(expected_core, head, ctx, _env) do
+    sig = Context.signature(ctx)
+
+    case Normalise.whnf_value(Eval.eval(expected_core, Context.env(ctx)), sig) do
+      {:vdata, ^head, [payload | rest]} -> {:ok, payload, rest}
+      _ -> :error
+    end
+  end
+
+  # The SURFACE fallback: desugar to `and_then(rhs, λx. rest)` and let the
+  # bidirectional solver resolve the interface instance and the lambda's domain.
+  defp monadic_bind_surface(name, rhs, meta, rest, expected_core, names, ctx, env) do
+    body = block_or_single(rest)
+
+    lambda =
+      {:lambda,
+       [
+         params: [lambda_param(name, expected_core, ctx, env)],
+         line: Keyword.get(meta, :line, 1),
+         col: Keyword.get(meta, :col, 1)
+       ], [body]}
+
+    call =
+      {:function_call,
+       [name: "and_then", bind_pipe_desugar: true, line: Keyword.get(meta, :line, 1), col: Keyword.get(meta, :col, 1)],
+       [rhs, lambda]}
+
+    checked =
+      if expected_core do
+        elaborate_expr_checked(call, expected_core, names, ctx, env)
+      else
+        {:error, :no_goal}
+      end
+
+    case checked do
+      {:ok, term} ->
+        {:ok, term}
+
+      {:error, _} ->
+        case elaborate_expr_typed(call, names, ctx, env) do
+          {:ok, term, _type} -> {:ok, term}
+          {:error, _} = error -> error
+        end
+    end
+  end
+
+  # Wrap a statement list as a binder-pipe block (marked so the final-stage
+  # auto-lift fires), or return the single statement as a one-statement
+  # binder-pipe block. The desugared `and_then(e, fn(x) -> <rest>)` checks the
+  # lambda body against the monad's result type, so the block's final expression
+  # is where `pure`-lifting happens (docs/BIND_PIPE.md §5.4).
+  defp block_or_single(stmts), do: {:block, [do: true, bind_pipe: true, line: 1, col: 1], stmts}
+
+  # The binder-pipe stage's continuation binder, annotated with the monad's
+  # payload type recovered from the chain's goal (`m(R)` → `R`). The annotation is
+  # what lets the goal-directed application solver fix the lambda's domain: an
+  # unannotated binder leaves the domain a metavariable, and a stage whose rhs
+  # cannot infer standalone (`ok(1) : Result(Int, ?e)`) is then deferred. The
+  # payload is the monad's FIRST type argument — the position the `Monad(m)`
+  # interface applies its head to (`m(a)`), which `subst_head` pads for a binary
+  # constructor (`Result(a, e)`). Falls back to an unannotated binder when the
+  # goal or its payload is not recoverable, preserving the previous behaviour.
+  defp lambda_param(name, expected_core, ctx, env) do
+    case payload_surface_type(expected_core, ctx, env) do
+      nil -> {:param, [], name}
+      type -> {:param, [type: type], name}
+    end
+  end
+
+  defp payload_surface_type(nil, _ctx, _env), do: nil
+
+  defp payload_surface_type(expected_core, ctx, _env) do
+    case Normalise.whnf_value(Eval.eval(expected_core, Context.env(ctx)), Context.signature(ctx)) do
+      {:vdata, _head, [payload | _]} -> core_type_to_surface(payload)
+      _ -> nil
+    end
+  end
+
+  # Render a Core type value back to a surface type AST, for the payload
+  # annotation above. Covers the shapes a monad payload takes: a data family
+  # application (`Int`, `List(Int)`, `Option(String)`), the primitive homes, and
+  # `Type`. A shape outside this set yields `nil`, and the binder stays
+  # unannotated (never a wrong annotation).
+  defp core_type_to_surface({:vdata, family, args}) do
+    surfaces = Enum.map(args, &core_type_to_surface/1)
+
+    if Enum.all?(surfaces, &(&1 != nil)) do
+      {:function_call, [name: surface_family_name(family)], surfaces}
+    else
+      nil
+    end
+  end
+
+  defp core_type_to_surface({:vint_type}), do: {:variable, [], "Int"}
+  defp core_type_to_surface({:vfloat_type}), do: {:variable, [], "Float"}
+  defp core_type_to_surface({:vatom_type}), do: {:variable, [], "Atom"}
+  defp core_type_to_surface({:vbinary_type}), do: {:variable, [], "Binary"}
+  defp core_type_to_surface({:vtype, _level}), do: {:variable, [], "Type"}
+  defp core_type_to_surface(_), do: nil
+
+  # A family's canonical atom (`:"Std.Result#Result"`) to its surface spelling
+  # (`"Result"`) — the part after the `#`, which is what the surface type parser
+  # resolves.
+  defp surface_family_name(family) do
+    family |> Atom.to_string() |> String.split("#") |> List.last()
+  end
+
+  # Does the type value `head` (a `{:vdata, name, …}`/`{:vtype, …}`/…) name a type
+  # constructor `M` with a `Monad(M)` instance in scope? A conservative positive
+  # check: only a concrete data head is considered, so a rigid/unknown type
+  # falls back to the pure `let` (never a spurious monadic rewrite). A bare head
+  # ATOM is also accepted — `monad_head_from_goal/3` recovers the head from the
+  # chain's goal and hands it over as an atom.
+  defp monad_instance?({:vdata, name, _args}, env) when is_atom(name) do
+    monad_registered?(env, name)
+  end
+
+  defp monad_instance?(name, env) when is_atom(name), do: monad_registered?(env, name)
+
+  defp monad_instance?(_, _env), do: false
+
+  # Is there a `Monad` instance whose head is the type constructor `name`? The
+  # coherence registry keys anonymous instances on `{iface, head}` (both atoms),
+  # so a `{:Monad, name}` entry is exactly what makes the bind monadic.
+  defp monad_registered?(%{coherence: %Cure.Elab.Coherence{anon: anon}}, name) when is_map(anon) do
+    Map.has_key?(anon, {:Monad, name})
+  end
+
+  defp monad_registered?(_env, _name), do: false
 
   # Preserve the single Core `let`, but expose a pure tuple initializer to a
   # directly following match. Tuple-matrix lowering needs the authored element

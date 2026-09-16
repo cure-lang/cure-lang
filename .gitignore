@@ -61,6 +61,11 @@ cure-*.tar
 /scratchpad/
 
 .dsh/
+.yoke/
 .ragex/
 dllb.redb
 dllb.redb.search/
+
+.cache/
+.hex/
+.mix/

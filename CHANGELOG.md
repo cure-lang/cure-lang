@@ -22,9 +22,45 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `Cure.Project.source_roots/1`: the project's own `.cure` source roots
   (`[project] source_paths`), for tooling that compiles or checks files living
   outside them.
+- **Binder pipe `|x|>`** (`docs/BIND_PIPE.md`): a monadic pipe that threads the
+  previous stage's *unwrapped* value into a named binder and short-circuits on
+  the monad's failure arm, flattening the `Result`/`Option` staircase:
+
+  ```cure
+  find_account(id)
+  |account|> subtract(account.balance, amount)
+  |new_balance|> add(account.held, new_balance)
+  ```
+
+  It introduces no new lexeme (recognition is a parser-side, adjacency-required
+  lookahead over the existing `:bar`/`:identifier`/`:pipe` tokens) and no new AST
+  node: a chain parses to the exact `do`-block node a `let`-chain desugars to,
+  and elaborates through the ordinary interface coherence — `a |x|> f(x)` lowers
+  to `and_then(a, fn(x) -> f(x))`, and a pure final stage auto-lifts with `pure`.
+  A lone `|` (list cons) is untouched.
+- `Std.Monad` (`lib/std/monad.cure`): the `Monad(m)` interface (`pure` /
+  `and_then`) that the binder pipe resolves its bind through, with built-in
+  instances for `Result` and `Option`. The interface is genuinely higher-kinded
+  (`m : Type -> Type`); a binary constructor such as `Result(T, E)` is admitted
+  by applying the head to its payload only, the remaining parameters filled by a
+  fresh universally-quantified variable on each instance method.
 
 ### Fixed
 
+- Binder pipe `|x|>` (`docs/BIND_PIPE.md`) rejected a chain whose stage had no
+  `Monad` instance in scope (the spec's `E122`, e.g. `1 |x|> x + 1`) by raising
+  `Cure.Diagnostic.UnhandledError` at the compiler's presentation boundary: the
+  elaborator returned `{:bind_pipe_no_monad, _}` with no registered diagnostic
+  conversion, so `cure check`/`build`/`run` crashed instead of reporting the
+  error. `E122` is now a registered code with its own diagnostic, and the
+  binder-pipe diagnostics no longer borrow the `E120` slot (which belongs to
+  `primitive_declaration`; a malformed binder pipe is an ordinary `E094` syntax
+  error). `E121` (`:bind_pipe_monad_mismatch`) is registered alongside it.
+- Binder pipe `|x|>` crashed with a `CaseClauseError` when a stage's final
+  auto-lift failed (the spec's `E121` mismatch case, e.g. `ok(1) |x|> Some(x)`):
+  `elaborate_let_block/6` matched only the lift's `{:ok, _}` and `:not_monadic`
+  results, so an `{:error, _}` escaped as an unhandled case. The error now
+  propagates as an ordinary clean rejection.
 - `cure run` did not load the current project's own `lib/` before executing the
   file it was given, so any multi-module project died with `:undef` on its first
   cross-module call even though the file compiled. It now bootstraps the project

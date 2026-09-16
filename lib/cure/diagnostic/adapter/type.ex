@@ -336,6 +336,35 @@ defmodule Cure.Diagnostic.Adapter.Type do
   def from_error({:no_instance, interface, head}, opts),
     do: instance_failure(interface, head, %{}, opts)
 
+  # Binder pipe `|x|>` (docs/BIND_PIPE.md §11). A stage whose type has no
+  # `Monad` instance in scope is a hard rejection (E122, `:bind_pipe_no_monad`),
+  # distinct from the ordinary `no_instance` diagnostic because the fix is to
+  # bring a `Monad` instance into scope, not to implement an unrelated
+  # interface. The elaborator emits the bare tuple; the checker wraps it in a
+  # `:source_context`, so both shapes are handled.
+  def from_error({:bind_pipe_no_monad, head}, opts),
+    do: bind_pipe_failure(:no_monad, head, %{}, opts)
+
+  def from_error({:source_context, {:bind_pipe_no_monad, head}, context}, opts) when is_map(context),
+    do: bind_pipe_failure(:no_monad, head, context, opts)
+
+  # A chain whose stages resolve to different monads (E121,
+  # `:bind_pipe_monad_mismatch`). The first stage fixes the chain's monad; a
+  # later stage that resolves to a different one is reported at that stage.
+  def from_error({:bind_pipe_monad_mismatch, details}, opts) when is_map(details),
+    do: bind_pipe_failure(:monad_mismatch, details, %{}, opts)
+
+  def from_error({:bind_pipe_monad_mismatch, expected, actual}, opts),
+    do: bind_pipe_failure(:monad_mismatch, %{expected: expected, actual: actual}, %{}, opts)
+
+  def from_error({:source_context, {:bind_pipe_monad_mismatch, details}, context}, opts)
+      when is_map(details) and is_map(context),
+      do: bind_pipe_failure(:monad_mismatch, details, context, opts)
+
+  def from_error({:source_context, {:bind_pipe_monad_mismatch, expected, actual}, context}, opts)
+      when is_map(context),
+      do: bind_pipe_failure(:monad_mismatch, %{expected: expected, actual: actual}, context, opts)
+
   def from_error({:ambiguous_instance_for_expected_type, interface, expected}, opts),
     do: ambiguous_instance_failure(interface, expected, opts)
 
@@ -3186,6 +3215,77 @@ defmodule Cure.Diagnostic.Adapter.Type do
         checking: Map.get(context, :checking)
       }
     )
+  end
+
+  # Binder pipe `|x|>` diagnostics (docs/BIND_PIPE.md §11). `:no_monad` is the
+  # spec's E122: a stage whose type has no `Monad` instance in scope, so the
+  # chain's bind cannot be resolved. `:monad_mismatch` is the spec's E121: a
+  # stage resolves to a different monad than the one the chain's head fixed.
+  # Both name the offending monad and point the author at the `Monad` instance
+  # they must bring into scope (or the stage they must make agree).
+  defp bind_pipe_failure(:no_monad, head, context, opts) do
+    surface = bind_pipe_head_surface(head)
+
+    Diagnostic.new(
+      code: "E122",
+      key: :bind_pipe_no_monad,
+      severity: :error,
+      title: "Binder pipe stage has no `Monad` instance",
+      body:
+        Doc.paragraph(
+          "This `|x|>` stage produces `#{surface}`, but no `Monad` instance is in scope for `#{surface}`, so the chain cannot resolve its bind. `|x|>` threads the previous stage's unwrapped value through `and_then`, which needs a `Monad` instance for the stage's type."
+        ),
+      primary: primary(opts, "this `|x|>` stage has no `Monad` instance in scope"),
+      suggestions: [
+        %Suggestion{
+          message: "Bring a `Monad` instance for `#{surface}` into scope (e.g. `use Std.Monad`)",
+          applicability: :manual
+        }
+      ],
+      payload: %{
+        kind: :bind_pipe_no_monad,
+        monad_head: surface,
+        checking: Map.get(context, :checking)
+      }
+    )
+  end
+
+  defp bind_pipe_failure(:monad_mismatch, details, context, opts) do
+    expected = bind_pipe_head_surface(Map.get(details, :expected))
+    actual = bind_pipe_head_surface(Map.get(details, :actual))
+
+    Diagnostic.new(
+      code: "E121",
+      key: :bind_pipe_monad_mismatch,
+      severity: :error,
+      title: "Binder pipe stages resolve to different monads",
+      body:
+        Doc.paragraph(
+          "Every stage of a `|x|>` chain must run in the same monad. This chain fixes `#{expected}` at its first stage, but this stage produces `#{actual}`."
+        ),
+      primary: primary(opts, "this stage produces `#{actual}`, but the chain is `#{expected}`"),
+      suggestions: [
+        %Suggestion{
+          message: "Make every stage produce `#{expected}`, or start the chain in `#{actual}`",
+          applicability: :manual
+        }
+      ],
+      payload: %{
+        kind: :bind_pipe_monad_mismatch,
+        expected_monad: expected,
+        actual_monad: actual,
+        checking: Map.get(context, :checking)
+      }
+    )
+  end
+
+  defp bind_pipe_head_surface(nil), do: "a value"
+
+  defp bind_pipe_head_surface({:vdata, name, _args}) when is_atom(name), do: bind_pipe_head_surface(name)
+
+  defp bind_pipe_head_surface(head) do
+    %{surface: surface} = instance_head(head)
+    surface
   end
 
   # A `requires Iface(a)` whose `a` occurs in no parameter type is resolved from
