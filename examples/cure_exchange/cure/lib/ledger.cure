@@ -14,6 +14,7 @@ mod Exchange.Ledger
   ###
 
   use Std.Result
+  use Std.Monad
   use Std.Io
   use Exchange.Money
 

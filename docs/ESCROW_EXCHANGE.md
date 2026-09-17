@@ -79,6 +79,7 @@ To prevent double-spending, accounts maintain two separate amounts: `balance` (a
 ```text
 mod Exchange.Ledger
   use Std.Result
+  use Std.Monad
   use Exchange.Money
 
   rec Account
