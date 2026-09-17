@@ -85,39 +85,23 @@ mod Exchange.Ledger
   ## Move `amount` from account `id`'s available balance into its hold.
   ## This is what backs the `LockFunds` transition.
   fn reserve(ledger: Ledger, id: Int, amount: Exchange.Money.Money) -> Result(Ledger, String) =
-    match find_account(ledger.accounts, id)
-      Error(e) -> ledger_error(e)
-      Ok(account) ->
-        match Exchange.Money.subtract(account.balance, amount)
-          Error(e) -> ledger_error(e)
-          Ok(new_balance) ->
-            match Exchange.Money.add(account.held, amount)
-              Error(e) -> ledger_error(e)
-              Ok(new_held) ->
-                ledger_ok(update_account(ledger, Account{account | balance: new_balance, held: new_held}))
+    find_account(ledger.accounts, id)
+    |account|> Exchange.Money.subtract(account.balance, amount)
+    |new_balance|> Exchange.Money.add(account.held, amount)
+    |new_held|> update_account(ledger, Account{account | balance: new_balance, held: new_held})
 
   ## Remove `amount` from account `id`'s hold entirely -- the funds have left
   ## the escrow (paid to the counterparty). This is what backs
   ## `BankConfirmed` / `Completed`.
   fn capture(ledger: Ledger, id: Int, amount: Exchange.Money.Money) -> Result(Ledger, String) =
-    match find_account(ledger.accounts, id)
-      Error(e) -> ledger_error(e)
-      Ok(account) ->
-        match Exchange.Money.subtract(account.held, amount)
-          Error(e) -> ledger_error(e)
-          Ok(new_held) ->
-            ledger_ok(update_account(ledger, Account{account | held: new_held}))
+    find_account(ledger.accounts, id)
+    |account|> Exchange.Money.subtract(account.held, amount)
+    |new_held|> update_account(ledger, Account{account | held: new_held})
 
   ## Move `amount` from account `id`'s hold back to its available balance --
   ## a refund. This is what backs `Refunding` -> `RefundCompleted`.
   fn release(ledger: Ledger, id: Int, amount: Exchange.Money.Money) -> Result(Ledger, String) =
-    match find_account(ledger.accounts, id)
-      Error(e) -> ledger_error(e)
-      Ok(account) ->
-        match Exchange.Money.subtract(account.held, amount)
-          Error(e) -> ledger_error(e)
-          Ok(new_held) ->
-            match Exchange.Money.add(account.balance, amount)
-              Error(e) -> ledger_error(e)
-              Ok(new_balance) ->
-                ledger_ok(update_account(ledger, Account{account | balance: new_balance, held: new_held}))
+    find_account(ledger.accounts, id)
+    |account|> Exchange.Money.subtract(account.held, amount)
+    |new_held|> Exchange.Money.add(account.balance, amount)
+    |new_balance|> update_account(ledger, Account{account | balance: new_balance, held: new_held})

@@ -91,7 +91,9 @@ mod Exchange.Ledger
     accounts: List(Account)
 ```
 
-The escrow hold lifecycle is governed by three total operations:
+The escrow hold lifecycle is governed by three total operations, each expressed as a
+binder pipe (`|x|>`) over `Result` -- the monadic pipe flattens the nested `match`
+staircase into a linear chain that short-circuits on the first `Error`:
 
 1. `reserve(ledger, account_id, amount)`: Moves `amount` from `balance` into `held` (`LockFunds`).
 2. `capture(ledger, account_id, amount)`: Debits `held` entirely when a trade completes (`BankConfirmed`).
@@ -100,17 +102,29 @@ The escrow hold lifecycle is governed by three total operations:
 ```text
   ## Move amount from available balance into hold
   fn reserve(ledger: Ledger, id: Int, amount: Exchange.Money.Money) -> Result(Ledger, String) =
-    match find_account(ledger.accounts, id)
-      Error(e) -> ledger_error(e)
-      Ok(account) ->
-        match Exchange.Money.subtract(account.balance, amount)
-          Error(e) -> ledger_error(e)
-          Ok(new_balance) ->
-            match Exchange.Money.add(account.held, amount)
-              Error(e) -> ledger_error(e)
-              Ok(new_held) ->
-                ledger_ok(update_account(ledger, Account{account | balance: new_balance, held: new_held}))
+    find_account(ledger.accounts, id)
+    |account|> Exchange.Money.subtract(account.balance, amount)
+    |new_balance|> Exchange.Money.add(account.held, amount)
+    |new_held|> update_account(ledger, Account{account | balance: new_balance, held: new_held})
+
+  ## Debit the hold entirely (payout to the counterparty)
+  fn capture(ledger: Ledger, id: Int, amount: Exchange.Money.Money) -> Result(Ledger, String) =
+    find_account(ledger.accounts, id)
+    |account|> Exchange.Money.subtract(account.held, amount)
+    |new_held|> update_account(ledger, Account{account | held: new_held})
+
+  ## Move the hold back into the available balance (a refund)
+  fn release(ledger: Ledger, id: Int, amount: Exchange.Money.Money) -> Result(Ledger, String) =
+    find_account(ledger.accounts, id)
+    |account|> Exchange.Money.subtract(account.held, amount)
+    |new_held|> Exchange.Money.add(account.balance, amount)
+    |new_balance|> update_account(ledger, Account{account | balance: new_balance, held: new_held})
 ```
+
+Each stage names the previous stage's *unwrapped* value (`account`, `new_held`, ...)
+and threads it through the `Result` monad; the first `Error` short-circuits the chain,
+and the pure final stage (`update_account(...)`) auto-lifts with `pure`. See
+`docs/BIND_PIPE.md` for the full specification.
 
 ### Pure FSM Transition Function (`lib/escrow_fsm.cure`)
 
