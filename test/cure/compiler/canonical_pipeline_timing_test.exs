@@ -6,8 +6,11 @@ defmodule Cure.Compiler.CanonicalPipelineTimingTest do
   test "reports canonical phase and component timings through the request event sink", %{tmp_dir: dir} do
     provider = Path.join(dir, "provider.cure")
     consumer = Path.join(dir, "consumer.cure")
-    File.write!(provider, "mod Timing.Provider\n  fn value() -> Int = 41\n")
-    File.write!(consumer, "mod Timing.Consumer\n  use Timing.Provider\n  fn result() -> Int = value() + 1\n")
+    # The consumer sorts before its provider by name. This catches a lost
+    # dependency edge in the canonical manifest-to-SCC adapter: alphabetical
+    # fallback order would try to compile the consumer first.
+    File.write!(provider, "mod Timing.ZProvider\n  fn value() -> Int = 41\n")
+    File.write!(consumer, "mod Timing.AConsumer\n  use Timing.ZProvider\n  fn result() -> Int = value() + 1\n")
 
     owner = self()
 
@@ -31,7 +34,7 @@ defmodule Cure.Compiler.CanonicalPipelineTimingTest do
         modules
       end
 
-    assert components == [["Timing.Provider"], ["Timing.Consumer"]]
+    assert components == [["Timing.ZProvider"], ["Timing.AConsumer"]]
 
     preparations =
       for {:module_pipeline_preparation, module, declaration_count} <- events do
@@ -39,7 +42,7 @@ defmodule Cure.Compiler.CanonicalPipelineTimingTest do
         module
       end
 
-    assert preparations == ["Timing.Provider", "Timing.Consumer"]
+    assert preparations == ["Timing.ZProvider", "Timing.AConsumer"]
 
     for phase <- [:component_register, :component_merge, :component_bodies, :component_freeze] do
       assert Enum.count(
@@ -54,7 +57,7 @@ defmodule Cure.Compiler.CanonicalPipelineTimingTest do
         {module, declaration}
       end
 
-    assert declarations == [{"Timing.Provider", "value"}, {"Timing.Consumer", "result"}]
+    assert declarations == [{"Timing.ZProvider", "value"}, {"Timing.AConsumer", "result"}]
 
     for stage <- [:macro_expansion, :signature, :induction, :typed_elaboration] do
       assert Enum.count(

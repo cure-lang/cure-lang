@@ -1408,8 +1408,15 @@ defmodule Cure.Compiler.ModulePipeline do
     # a dense Regex graph therefore paid seconds for a result that the shared
     # implementation computes in milliseconds. Keeping the manifest edge map
     # here also makes every pipeline entry point obey the same dependency-first
-    # ordering and cycle laws.
-    DepGraph.components(manifest.dependencies, Map.keys(manifest.entries))
+    # ordering and cycle laws. The manifest stores dependency records with
+    # source locations and edge kinds; the graph algorithm consumes target
+    # identities, so adapt the values without discarding the richer manifest.
+    dependencies =
+      Map.new(manifest.dependencies, fn {identity, edges} ->
+        {identity, Enum.map(edges, & &1.target)}
+      end)
+
+    DepGraph.components(dependencies, Map.keys(manifest.entries))
   end
 
   defp reachable_modules(manifest, root), do: reachable_modules(manifest, [root], MapSet.new())
