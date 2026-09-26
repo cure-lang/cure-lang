@@ -67,4 +67,29 @@ defmodule Cure.Elab.NestedLiteralPatternTest do
     assert apply(module, :plus, []) == 2
     assert apply(module, :other, []) == 3
   end
+
+  test "list patterns nested inside a constructor within a list pattern remain refutable" do
+    module =
+      compile("""
+      mod NestedListConstructorListPattern
+        rec Leaf
+          values: List(Int)
+
+        rec Grove
+          leaves: List(Leaf)
+
+        fn has_value(grove: Grove) -> Bool = match grove
+          Grove{leaves: [Leaf{values: [value | _]} | _]} -> true
+          _ -> false
+
+        fn nested_head() -> Bool = has_value(Grove{leaves: [Leaf{values: [1]}]})
+        fn nested_empty() -> Bool = has_value(Grove{leaves: [Leaf{values: []}]})
+        fn outer_empty() -> Bool = has_value(Grove{leaves: []})
+      end
+      """)
+
+    assert apply(module, :nested_head, []) == true
+    assert apply(module, :nested_empty, []) == false
+    assert apply(module, :outer_empty, []) == false
+  end
 end

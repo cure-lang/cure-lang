@@ -12658,7 +12658,8 @@ defmodule Cure.Elab.Elaborator do
   # matrix: it sees neither a constructor nor a variable in that column and
   # drops the row while constructing the fallback branch. Normalize recursively
   # so every downstream pattern pass receives the same Cons/Nil representation.
-  defp desugar_pattern_lists({:list, _, _} = pattern), do: desugar_list(pattern)
+  defp desugar_pattern_lists({:list, _, _} = pattern),
+    do: pattern |> desugar_list() |> desugar_pattern_lists()
 
   defp desugar_pattern_lists({:function_call, meta, args}) do
     {:function_call, meta, Enum.map(args, &desugar_pattern_lists/1)}
