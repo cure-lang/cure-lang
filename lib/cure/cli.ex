@@ -16,7 +16,6 @@ defmodule Cure.CLI do
 
       --output-dir DIR    Output directory (default: _build/cure/project/ebin)
       --verbose           Show detailed compilation output
-      --warn-import-cycles  Report legal `use` cycles after compilation
   """
 
   # Delegate to `Cure.version/0`, which is itself resolved at compile
@@ -34,7 +33,6 @@ defmodule Cure.CLI do
       OptionParser.parse(args,
         strict: [
           output_dir: :string,
-          warn_import_cycles: :boolean,
           type_check: :boolean,
           optimize: :boolean,
           verbose: :boolean,
@@ -442,7 +440,6 @@ defmodule Cure.CLI do
   defp cmd_compile(paths, opts) do
     output_dir = Keyword.get(opts, :output_dir, "_build/cure/project/ebin")
     verbose? = Keyword.get(opts, :verbose, false)
-    warn_import_cycles? = Keyword.get(opts, :warn_import_cycles, false)
 
     # Preload the stdlib so sources that `use Std.Iter`, `use Std.Gen`,
     # etc. can resolve their imports at compile time. Without this, a
@@ -510,11 +507,9 @@ defmodule Cure.CLI do
            compile_opts: Keyword.take(compile_opts, [:emit_events, :source_roots])
          ) do
       {:ok, result} ->
-        if warn_import_cycles? do
-          Enum.each(result.cycles, fn walk ->
-            emit_host_diagnostic({:import_cycle, walk}, hd(paths))
-          end)
-        end
+        Enum.each(result.cycles, fn walk ->
+          emit_host_diagnostic({:import_cycle, walk}, hd(paths))
+        end)
 
         result.rebuilt
         |> Enum.sort_by(&elem(&1, 0))
@@ -543,9 +538,7 @@ defmodule Cure.CLI do
   # -- run ---------------------------------------------------------------------
 
   @dialyzer {:nowarn_function, cmd_run: 2}
-  defp cmd_run(path, opts) do
-    warn_import_cycles? = Keyword.get(opts, :warn_import_cycles, false)
-
+  defp cmd_run(path, _opts) do
     project =
       case Cure.Project.load() do
         {:ok, p} -> p
@@ -562,7 +555,7 @@ defmodule Cure.CLI do
     # exactly what `cure test` does for the same reason. Without a `Cure.toml`
     # (a loose script such as `cure run examples/hello.cure`) there is no
     # project to bootstrap and this is a no-op.
-    if project, do: load_project_lib(project, warn_import_cycles: warn_import_cycles?)
+    if project, do: load_project_lib(project)
 
     source_roots =
       [Path.dirname(Path.expand(path))] ++
@@ -791,7 +784,6 @@ defmodule Cure.CLI do
 
   defp cmd_stdlib(opts) do
     output_dir = Keyword.get(opts, :output_dir, "_build/cure/ebin")
-    warn_import_cycles? = Keyword.get(opts, :warn_import_cycles, false)
     stdlib_dir = Path.join([:code.priv_dir(:cure) |> to_string(), "..", "lib", "std"])
 
     stdlib_dir =
@@ -826,12 +818,6 @@ defmodule Cure.CLI do
             info("  #{Path.basename(path, ".cure")}: compilation failed")
             emit_host_diagnostic(reason, path)
           end)
-
-          if warn_import_cycles? do
-            Enum.each(result.cycles, fn walk ->
-              emit_host_diagnostic({:import_cycle, walk}, stdlib_dir)
-            end)
-          end
 
           info("Output: #{output_dir}")
           if result.errors != [], do: exit({:shutdown, 1})
@@ -971,7 +957,7 @@ defmodule Cure.CLI do
     # A test module lives outside `lib/`, so resolving its `use MyModule` needs
     # the project's own source roots alongside the dependency roots.
     dependency_roots = project_source_roots(project) ++ dependency_source_roots(project)
-    load_project_lib(project, warn_import_cycles: Keyword.get(opts, :warn_import_cycles, false))
+    load_project_lib(project)
 
     if cover? do
       Cure.Cover.start("_build/cure/project/ebin")
@@ -1081,8 +1067,7 @@ defmodule Cure.CLI do
         %Cure.Project{} ->
           Cure.Project.compile_project(project,
             output_dir: "_build/cure/project/ebin",
-            emit_events: false,
-            warn_import_cycles: Keyword.get(opts, :warn_import_cycles, false)
+            emit_events: false
           )
 
         _ ->
@@ -1093,19 +1078,12 @@ defmodule Cure.CLI do
             source_roots: ["lib"],
             continue_on_error: true,
             verify_stdlib: true,
-            warn_import_cycles: Keyword.get(opts, :warn_import_cycles, false),
             stdlib_artifact_digest: Cure.Compiler.Artifacts.stdlib_fingerprint()
           )
       end
 
     case result do
       {:ok, result} ->
-        if Keyword.get(opts, :warn_import_cycles, false) do
-          Enum.each(Map.get(result, :cycles, []), fn walk ->
-            emit_host_diagnostic({:import_cycle, walk}, "lib")
-          end)
-        end
-
         Enum.each(Map.get(result, :errors, []), fn {file, reason} ->
           emit_host_diagnostic(reason, file)
         end)
@@ -2502,7 +2480,6 @@ defmodule Cure.CLI do
       --registry URL         Override registry base URL
       --include-erts         `cure release --include-erts` bundles ERTS
       --overwrite            `cure release --overwrite` wipes output dir (default)
-      --warn-import-cycles   Report legal `use` cycles after compilation
       -v, --verbose          Verbose output
       -h, --help             Show help
     """)

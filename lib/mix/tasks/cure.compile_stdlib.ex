@@ -10,7 +10,6 @@ defmodule Mix.Tasks.Cure.CompileStdlib do
 
       mix cure.compile_stdlib
       mix cure.compile_stdlib --output-dir path/to/ebin
-      mix cure.compile_stdlib --warn-import-cycles
   """
 
   use Mix.Task
@@ -21,7 +20,7 @@ defmodule Mix.Tasks.Cure.CompileStdlib do
   def run(args) do
     {opts, _, _} =
       OptionParser.parse(args,
-        switches: [output_dir: :string, warn_import_cycles: :boolean],
+        switches: [output_dir: :string],
         aliases: [o: :output_dir]
       )
 
@@ -104,11 +103,9 @@ defmodule Mix.Tasks.Cure.CompileStdlib do
             Application.put_env(:cure, :stdlib_beam_dir, result.artifact_root)
             Application.put_env(:cure, :stdlib_compiled_in_vm, result.artifact_root)
 
-            if Keyword.get(opts, :warn_import_cycles, false) do
-              Enum.each(result.cycles, fn walk ->
-                Mix.shell().error(render_host_diagnostic({:import_cycle, walk}, stdlib_dir))
-              end)
-            end
+            Enum.each(result.cycles, fn walk ->
+              Mix.shell().error(render_host_diagnostic({:import_cycle, walk}, stdlib_dir))
+            end)
 
             Mix.shell().info(
               "  #{map_size(result.rebuilt)} compiled, " <>

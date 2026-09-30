@@ -10,7 +10,6 @@ defmodule Mix.Tasks.Cure.Compile do
   ## Options
 
   - `--output-dir` -- artifact-set root (default: `_build/cure/project/ebin`)
-  - `--warn-import-cycles` -- report legal `use` cycles after compilation
   """
 
   use Mix.Task
@@ -23,7 +22,7 @@ defmodule Mix.Tasks.Cure.Compile do
   def run(args) do
     {opts, paths, invalid} =
       OptionParser.parse(args,
-        strict: [output_dir: :string, warn_import_cycles: :boolean],
+        strict: [output_dir: :string],
         aliases: [o: :output_dir]
       )
 
@@ -32,7 +31,6 @@ defmodule Mix.Tasks.Cure.Compile do
     end
 
     output_dir = Keyword.get(opts, :output_dir, "_build/cure/project/ebin")
-    warn_import_cycles? = Keyword.get(opts, :warn_import_cycles, false)
 
     if paths == [] do
       usage_error("Usage: mix cure.compile <path> [--output-dir DIR]")
@@ -43,14 +41,14 @@ defmodule Mix.Tasks.Cure.Compile do
 
     Enum.each(paths, fn path ->
       if File.dir?(path) do
-        compile_dir(path, output_dir, warn_import_cycles?)
+        compile_dir(path, output_dir)
       else
-        compile_one(path, output_dir, warn_import_cycles?)
+        compile_one(path, output_dir)
       end
     end)
   end
 
-  defp compile_dir(path, output_dir, warn_import_cycles?) do
+  defp compile_dir(path, output_dir) do
     files = path |> Path.join("**/*.cure") |> Path.wildcard()
 
     case Cure.Compiler.Artifacts.sweep(
@@ -63,11 +61,9 @@ defmodule Mix.Tasks.Cure.Compile do
            stdlib_artifact_digest: Cure.Compiler.Artifacts.stdlib_fingerprint()
          ) do
       {:ok, result} ->
-        if warn_import_cycles? do
-          Enum.each(result.cycles, fn walk ->
-            Mix.shell().error(render_host_diagnostic({:import_cycle, walk}, path))
-          end)
-        end
+        Enum.each(result.cycles, fn walk ->
+          Mix.shell().error(render_host_diagnostic({:import_cycle, walk}, path))
+        end)
 
         Mix.shell().info(
           "  #{map_size(result.rebuilt)} compiled, " <>
@@ -81,7 +77,7 @@ defmodule Mix.Tasks.Cure.Compile do
     end
   end
 
-  defp compile_one(path, output_dir, warn_import_cycles?) do
+  defp compile_one(path, output_dir) do
     Mix.shell().info("Compiling #{path}")
 
     case Cure.Compiler.Artifacts.sweep(
@@ -95,12 +91,6 @@ defmodule Mix.Tasks.Cure.Compile do
            stdlib_artifact_digest: Cure.Compiler.Artifacts.stdlib_fingerprint()
          ) do
       {:ok, result} ->
-        if warn_import_cycles? do
-          Enum.each(result.cycles, fn walk ->
-            Mix.shell().error(render_host_diagnostic({:import_cycle, walk}, path))
-          end)
-        end
-
         Mix.shell().info("  -> #{result.rebuilt |> Map.keys() |> Enum.join(", ")}")
 
       {:error, reason} ->
