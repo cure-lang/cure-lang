@@ -428,6 +428,61 @@ defmodule Cure.Compiler.ArtifactsTest do
     assert log =~ "waiting for generation <<1, 2, 3>> to finish"
   end
 
+  if System.find_executable("perl") do
+    test "perl lock backend acquires, releases, and recovers on owner exit", %{root: root} do
+      Application.put_env(:cure, :artifact_lock_backend, :perl)
+      on_exit(fn -> Application.delete_env(:cure, :artifact_lock_backend) end)
+
+      assert :ok = Lock.with_lock(root, fn -> :ok end)
+
+      parent = self()
+
+      owner =
+        Task.async(fn ->
+          Lock.with_lock(root, fn ->
+            send(parent, :artifact_lock_held_perl)
+            Process.sleep(:infinity)
+          end)
+        end)
+
+      assert_receive :artifact_lock_held_perl, 2_000
+      Task.shutdown(owner, :brutal_kill)
+
+      assert :recovered = Lock.with_lock(root, fn -> :recovered end)
+    end
+  end
+
+  if System.find_executable("python3") || System.find_executable("python") do
+    test "python lock backend acquires, releases, and recovers on owner exit", %{root: root} do
+      Application.put_env(:cure, :artifact_lock_backend, :python)
+      on_exit(fn -> Application.delete_env(:cure, :artifact_lock_backend) end)
+
+      assert :ok = Lock.with_lock(root, fn -> :ok end)
+
+      parent = self()
+
+      owner =
+        Task.async(fn ->
+          Lock.with_lock(root, fn ->
+            send(parent, :artifact_lock_held_python)
+            Process.sleep(:infinity)
+          end)
+        end)
+
+      assert_receive :artifact_lock_held_python, 2_000
+      Task.shutdown(owner, :brutal_kill)
+
+      assert :recovered = Lock.with_lock(root, fn -> :recovered end)
+    end
+  end
+
+  test "informative diagnostic on lock failure" do
+    diag = Cure.Diagnostic.Adapter.Operational.from_error({:artifact_lock_failed, :kernel_file_lock_unavailable})
+    assert diag.code == "E100"
+    assert diag.title == "Artifact lock failed"
+    assert Cure.Diagnostic.message(diag) =~ "No supported file lock utility was found"
+  end
+
   defp entry(artifact) do
     %{
       source: %{

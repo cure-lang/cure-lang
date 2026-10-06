@@ -11,10 +11,12 @@ env:
 
 jobs:
   test:
-    name: Test (Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp }})
-    runs-on: ubuntu-latest
+    name: Test (${{ matrix.os }} / Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp }})
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
+        os: [ubuntu-latest, macos-latest]
         elixir: ["1.20"]
         otp: ["29"]
 
@@ -22,8 +24,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install z3
+      - name: Install z3 (Linux)
+        if: runner.os == 'Linux'
         run: sudo apt-get install -y z3
+
+      - name: Install z3 (macOS)
+        if: runner.os == 'macOS'
+        run: brew install z3
 
       - name: Set up Elixir
         uses: erlef/setup-beam@v1
@@ -66,9 +73,11 @@ jobs:
         run: mix compile --warnings-as-errors
 
       - name: Check formatting
+        if: runner.os == 'Linux'
         run: mix format --check-formatted
 
       - name: Credo (strict)
+        if: runner.os == 'Linux'
         run: mix credo --strict
 
       # `--include slow` re-enables the `:slow` tests that `test_helper.exs`

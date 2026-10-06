@@ -137,6 +137,35 @@ defmodule Cure.Diagnostic.Adapter.Operational do
     )
   end
 
+  def from_error({:artifact_lock_failed, reason}, _opts) do
+    message =
+      case reason do
+        :kernel_file_lock_unavailable ->
+          "No supported file lock utility was found on this system (requires flock, perl, or python3)."
+
+        {:kernel_lock_exited, status} ->
+          "Artifact lock process failed with exit code #{status}."
+
+        {:kernel_lock, detail} ->
+          "Failed to spawn artifact lock process: #{detail}."
+
+        other ->
+          "Could not acquire build artifact lock: #{inspect(other)}."
+      end
+
+    Diagnostic.new(
+      code: "E100",
+      key: :artifact_error,
+      severity: :error,
+      title: "Artifact lock failed",
+      message: message,
+      notes: [
+        "A system file locking utility (flock, perl, or python3) is required to safely synchronize compiler artifact publishing."
+      ],
+      payload: %{kind: :artifact_lock_failed, reason: inspect(reason)}
+    )
+  end
+
   def from_error(error, _opts)
       when is_tuple(error) and tuple_size(error) > 0 and
              elem(error, 0) in @artifact_failure_tags do
