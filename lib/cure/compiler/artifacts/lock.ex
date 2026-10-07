@@ -92,32 +92,81 @@ defmodule Cure.Compiler.Artifacts.Lock do
   end
 
   defp kernel_lock_command(path) do
+    backend = Application.get_env(:cure, :artifact_lock_backend, :auto)
     shell = System.find_executable("sh")
-    lockf = System.find_executable("lockf")
     flock = System.find_executable("flock")
+    perl = System.find_executable("perl")
+    python = System.find_executable("python3") || System.find_executable("python")
 
-    cond do
-      shell && lockf ->
-        script =
-          "exec 9>>\"$1\" || exit 73; " <>
-            "if \"$2\" -s -t 0 9; then :; " <>
-            "else printf 'CURE_LOCK_BUSY\\n'; \"$2\" -s 9 || exit 75; fi; " <>
-            "printf 'CURE_LOCK_ACQUIRED\\n'; IFS= read -r _"
+    case backend do
+      :flock when is_binary(shell) and is_binary(flock) ->
+        flock_command(shell, flock, path)
 
-        {:ok, shell, ["-c", script, "cure-artifact-lock", path, lockf]}
+      :perl when is_binary(perl) ->
+        perl_command(perl, path)
 
-      shell && flock ->
-        script =
-          "exec 9>>\"$1\" || exit 73; " <>
-            "if \"$2\" -n 9; then :; " <>
-            "else printf 'CURE_LOCK_BUSY\\n'; \"$2\" 9 || exit 75; fi; " <>
-            "printf 'CURE_LOCK_ACQUIRED\\n'; IFS= read -r _"
+      :python when is_binary(python) ->
+        python_command(python, path)
 
-        {:ok, shell, ["-c", script, "cure-artifact-lock", path, flock]}
+      :auto ->
+        cond do
+          shell && flock -> flock_command(shell, flock, path)
+          perl -> perl_command(perl, path)
+          python -> python_command(python, path)
+          true -> :unavailable
+        end
 
-      true ->
+      _ ->
         :unavailable
     end
+  end
+
+  defp flock_command(shell, flock, path) do
+    script =
+      "exec 9>>\"$1\" || exit 73; " <>
+        "if \"$2\" -n 9; then :; " <>
+        "else printf 'CURE_LOCK_BUSY\\n'; \"$2\" 9 || exit 75; fi; " <>
+        "printf 'CURE_LOCK_ACQUIRED\\n'; IFS= read -r _"
+
+    {:ok, shell, ["-c", script, "cure-artifact-lock", path, flock]}
+  end
+
+  defp perl_command(perl, path) do
+    script =
+      "$| = 1; " <>
+        "open(my $fh, '>>', $ARGV[0]) or exit 73; " <>
+        "use Fcntl qw(:flock); " <>
+        "if (!flock($fh, LOCK_EX | LOCK_NB)) { " <>
+        "  print \"CURE_LOCK_BUSY\\n\"; " <>
+        "  flock($fh, LOCK_EX) or exit 75; " <>
+        "} " <>
+        "print \"CURE_LOCK_ACQUIRED\\n\"; " <>
+        "<STDIN>;"
+
+    {:ok, perl, ["-e", script, "--", path]}
+  end
+
+  defp python_command(python, path) do
+    script =
+      "import fcntl, sys\n" <>
+        "try:\n" <>
+        "    f = open(sys.argv[1], 'a')\n" <>
+        "except OSError:\n" <>
+        "    sys.exit(73)\n" <>
+        "try:\n" <>
+        "    fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)\n" <>
+        "except (BlockingIOError, OSError):\n" <>
+        "    sys.stdout.write('CURE_LOCK_BUSY\\n')\n" <>
+        "    sys.stdout.flush()\n" <>
+        "    try:\n" <>
+        "        fcntl.flock(f.fileno(), fcntl.LOCK_EX)\n" <>
+        "    except OSError:\n" <>
+        "        sys.exit(75)\n" <>
+        "sys.stdout.write('CURE_LOCK_ACQUIRED\\n')\n" <>
+        "sys.stdout.flush()\n" <>
+        "sys.stdin.readline()\n"
+
+    {:ok, python, ["-c", script, path]}
   end
 
   defp release({:kernel, port}) do
