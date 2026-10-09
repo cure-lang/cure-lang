@@ -546,7 +546,7 @@ fn unified() -> List(Int) = singleton(5)
 **Hole** — A deliberate gap you leave where you don't yet have the term; the compiler
 replies with the expected type and what's in scope.
 
-```cure
+```cure E014
 fn f(n: Nat) -> Nat = ?goal     # compiler reports:  ?goal : Nat,  with n : Nat in scope
 ```
 

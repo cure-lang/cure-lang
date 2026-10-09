@@ -7,7 +7,7 @@ defmodule Cure.Elab.ProofSearch do
   the kernel (`Cure.Core.Kernel.check/3`), so search can never make an
   ill-typed program type-check.
   """
-  alias Cure.Core.{Context, Eval, Kernel}
+  alias Cure.Core.{Context, Eval, Inductive, Kernel}
   alias Cure.Elab.{MetaCtx, Unify, Subst}
 
   @type goal :: term()
@@ -190,22 +190,114 @@ defmodule Cure.Elab.ProofSearch do
   end
 
   # Local-context search: every binder whose type checks against the goal.
-  defp local_candidates(goal, ctx, _env) do
-    goal_val = Eval.eval(goal, Context.env(ctx))
-    len = Context.length(ctx)
+  #
+  # A bare local binder is a legitimate PROOF only when the goal is a
+  # proposition (proof-irrelevant). For a proof-relevant value type — `Nat`,
+  # `Bool`, an ordinary data family — a local of the goal type is just a VALUE,
+  # and using it to fill a hole silently chooses an inhabitant the author never
+  # wrote. That is exactly the firewall breach the typed-hole guarantee forbids:
+  # `fn f(n: Nat) -> Nat = ?goal` must keep its hole (and block codegen), not
+  # become `λn. n`. Gating on `proposition?/3` restores the guarantee while
+  # keeping the load-bearing proof cases (`evidence : IsTrue(x > 0)` proving
+  # `IsTrue(x > 0)`) intact. The projection/lemma/positivity sources are
+  # unaffected — they build proof-specific terms, not bare values.
+  defp local_candidates(goal, ctx, env) do
+    if proposition?(goal, ctx, env) do
+      goal_val = Eval.eval(goal, Context.env(ctx))
+      len = Context.length(ctx)
 
-    if len > 0 do
-      for k <- 0..(len - 1)//1 do
-        term = {:var, k}
+      if len > 0 do
+        for k <- 0..(len - 1)//1 do
+          term = {:var, k}
 
-        case Kernel.check(ctx, term, goal_val) do
-          :ok -> {term, {:local, k}}
-          _ -> {nil, {:local, k}}
+          case Kernel.check(ctx, term, goal_val) do
+            :ok -> {term, {:local, k}}
+            _ -> {nil, {:local, k}}
+          end
         end
+        |> Enum.filter(fn {term, _} -> term != nil end)
+      else
+        []
       end
-      |> Enum.filter(fn {term, _} -> term != nil end)
     else
       []
+    end
+  end
+
+  # Is `goal` a proposition (proof-irrelevant type)? A bare local variable is a
+  # sound proof of `goal` only when `goal` has at most one inhabitant up to
+  # proof, i.e. it is a proof-irrelevant family. The structural criterion:
+  #
+  #   * the goal WHNFs to a data family `{:data, fam, params, indices}`;
+  #   * `fam` has AT MOST ONE constructor (`Nat`/`Bool`/`List` have two or more
+  #     and are therefore proof-RELEVANT — distinct values, not proofs);
+  #   * every RELEVANT argument of that constructor is itself a proposition,
+  #     recursively. Erased/implicit constructor arguments are INDICES (e.g.
+  #     `PositiveSuccessor : IsPositive(S(predecessor))` carries an erased
+  #     `predecessor : Nat`), determined by the goal, so they are ignored.
+  #
+  # This admits `IsPositive(n)`, `IsTrue(claim)`, `Equivalent(a, b)`, `Unit`, and
+  # any user proof family whose constructors carry only proofs; it rejects `Nat`,
+  # `Bool`, `Int`, `List(a)`, and any single-constructor family carrying a
+  # value argument (e.g. a `Box = { Box(Int) }`, whose distinct `Int` payloads
+  # give distinct inhabitants). `depth` bounds the recursion so a self-referential
+  # family cannot loop. Conservative by construction: an unrecognized shape
+  # returns `false`, so a hole survives rather than being silently filled.
+  @proposition_depth_limit 8
+
+  defp proposition?(goal, ctx, env), do: proposition?(goal, ctx, env, @proposition_depth_limit)
+
+  defp proposition?(_goal, _ctx, _env, depth) when depth <= 0, do: false
+
+  defp proposition?(goal, ctx, env, depth) do
+    # A metavariable-bearing goal cannot be normalised (`Kernel.normalize` is
+    # `Normalise.nf`, which has no rule for an unsolved meta). The search is
+    # reached from check-position elaboration where the goal is normally closed,
+    # but be conservative: treat a meta-bearing goal as non-propositional so the
+    # hole survives rather than crashing the normaliser.
+    if Unify.has_meta?(goal) do
+      false
+    else
+      case Kernel.normalize(ctx, goal) do
+        {:data, fam_key, _params, _indices} ->
+          proposition_family?(fam_key, ctx, env, depth)
+
+        # A Π is a function, never a proposition (a local function value is not a
+        # proof of it in the sense that matters here).
+        _ ->
+          false
+      end
+    end
+  end
+
+  defp proposition_family?(fam_key, ctx, env, depth) do
+    case Inductive.ctors_of(env, fam_key) do
+      # Zero constructors: an empty (uninhabited) family is vacuously
+      # proof-irrelevant — every proof of it is absurd, so a local of that type
+      # is a sound (if unreachable) proof.
+      [] ->
+        true
+
+      [ctor] ->
+        # Only RELEVANT constructor arguments bear on proof-relevance. A
+        # constructor's erased/implicit arguments are its INDICES (e.g.
+        # `PositiveSuccessor : IsPositive(S(predecessor))` carries an erased
+        # `predecessor : Nat`), not proof-relevant fields — an index is
+        # determined by the goal, so it cannot make the type proof-relevant.
+        # Counting it would wrongly demote `IsPositive`/`IsLessThan` to
+        # proof-relevant just because their index is a `Nat`.
+        quantities = Map.get(ctor, :quantities, [])
+
+        ctor.args
+        |> Enum.with_index()
+        |> Enum.filter(fn {_arg, i} -> Enum.at(quantities, i, :unrestricted) != :erased end)
+        |> Enum.all?(fn {{_name, arg_type}, _i} ->
+          proposition?(arg_type, ctx, env, depth - 1)
+        end)
+
+      # Two or more constructors: proof-relevant (distinct inhabitants).
+      _many ->
+        false
     end
   end
 
