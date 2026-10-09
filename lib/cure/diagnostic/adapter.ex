@@ -1108,7 +1108,7 @@ defmodule Cure.Diagnostic.Adapter do
     do: NameAdapter.from_error({:cyclic_typealiases, aliases}, opts)
 
   def from_error({:module_identity_missing, path}, _opts),
-    do: Cure.Diagnostic.Operational.file_read(path, :module_identity_missing)
+    do: Cure.Diagnostic.Operational.module_identity_missing(path)
 
   def from_error({:module_identity_mismatch, requested, declared, path}, opts),
     do: NameAdapter.from_error({:module_identity_mismatch, requested, declared, path}, opts)

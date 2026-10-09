@@ -198,7 +198,7 @@ defmodule Cure.Compiler.ModuleManifest do
       # folds in whatever expansion reveals as it converges; duplicating that
       # work in the header scan would make the cheap pass expensive without
       # changing the manifest the round loop settles on.
-      case facts.module || FixityScan.expanded_module_name(source, path, "Main") do
+      case facts.module || FixityScan.expanded_module_name(source, path) do
         module_name when is_binary(module_name) ->
           identity = {package, module_name}
 

@@ -190,6 +190,21 @@ defmodule Cure.Diagnostic.Adapter.Operational do
         reason: inspect(reason)
       })
 
+  # A source that declares no module identity is not a file-system failure: the
+  # file was read successfully and its contents are simply not a module. Routing
+  # this through `file_read/2` rendered it as `:file.format_error/1`'s output for
+  # a non-errno atom — the literal string "unknown POSIX error" — which points a
+  # reader at permissions or a missing path when the real problem is the source's
+  # shape. Report it as the structural diagnostic it is, and name both spellings
+  # that DO give a file an identity so the fix is actionable.
+  def module_identity_missing(path),
+    do:
+      diagnostic(
+        "E095",
+        :module_identity_missing,
+        "`#{path}` declares no module identity",
+        %{path: path}
+      )
   def file_write(path, reason),
     do:
       diagnostic("E096", :file_write, "Cannot write `#{path}`: #{file_reason(reason)}", %{

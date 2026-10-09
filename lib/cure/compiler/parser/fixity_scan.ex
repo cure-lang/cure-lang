@@ -57,20 +57,22 @@ defmodule Cure.Compiler.Parser.FixityScan do
   # stdlib, so it is far more expensive than a header scan, and callers that
   # already have an identity (the common case) must not pay for it.
   #
-  # `owner` is the enclosing module spelling (`"Main"` at top level, matching
-  # `Cure.Elab.Program.module_atom/1`), because a bare container's name is
-  # relative to its lexical owner: `sup Colony` at top level is `Main.Colony`.
-  @spec expanded_module_name(String.t(), String.t(), String.t()) :: String.t() | nil
-  def expanded_module_name(source, file, owner) do
+  # The returned name is the EMITTED module name, which is what the manifest
+  # indexes and what `ModulePipeline.Emission` reconstructs as
+  # `"Cure." <> entry.module_name` when it looks the beam up. That is the lifted
+  # module's OWN name (`Colony`), NOT its scoped spelling: the expander reports
+  # the lifted module as `Cure.Main.Colony`, but it emits `Cure.Colony.beam`, and
+  # the `Main` segment is the enclosing unit's scope rather than part of the
+  # module's address. Prepending the owner here would name a module no beam
+  # answers to, which surfaces later as `:beam_missing`.
+  @spec expanded_module_name(String.t(), String.t()) :: String.t() | nil
+  def expanded_module_name(source, file) do
     with {:ok, tokens} <- Lexer.tokenize(source, file: file, emit_events: false),
          {:ok, ast} <- Parser.parse(tokens, file: file, emit_events: false),
          {:ok, expanded} <- Cure.Elab.Program.expand_declaration_uses(ast) do
       case module_name(expanded) do
         nil -> nil
-        # The expansion already carries the full `Cure.`-prefixed owner
-        # (`Cure.Main.Colony`); the manifest indexes the authored spelling, so
-        # strip the compiler's prefix back off.
-        name -> name |> String.replace_prefix("Cure.", "") |> qualify_with_owner(owner)
+        name -> name |> String.replace_prefix("Cure.", "") |> strip_owner_scope()
       end
     else
       _ -> nil
@@ -82,18 +84,17 @@ defmodule Cure.Compiler.Parser.FixityScan do
     _ -> nil
   end
 
-  # The expander names a lifted module after its owner (`Cure.Main.Colony`).
-  # `module_name/1` on the expanded AST therefore already returns the qualified
-  # spelling, and re-qualifying it would double the owner. Only an unqualified
-  # name needs the owner prepended.
-  defp qualify_with_owner(name, owner) do
-    cond do
-      String.contains?(name, ".") -> name
-      owner in [nil, "", "Main"] -> name
-      true -> owner <> "." <> name
+  # `Cure.Main.Colony` addresses the emitted module `Cure.Colony`: `Main` is the
+  # implicit top-level owner the expander scopes a bare container under, and the
+  # beam is written under the lifted module's own name. Drop that one leading
+  # scope segment. A name with no owner segment (`Colony`, or an authored
+  # `mod Colony`) is already the emitted name and is returned unchanged.
+  defp strip_owner_scope(name) do
+    case String.split(name, ".", parts: 2) do
+      ["Main", rest] -> rest
+      _ -> name
     end
   end
-
   @spec collect_fixity(term()) :: [tuple()]
   def collect_fixity(ast),
     do:

@@ -188,7 +188,7 @@ defmodule Cure.Compiler.ModuleIndex do
         # unidentified. Both indexes must agree on what a file declares, or a
         # module resolvable through one is `module_unavailable` through the
         # other.
-        case facts.module || FixityScan.expanded_module_name(source, path, "Main") do
+        case facts.module || FixityScan.expanded_module_name(source, path) do
           module_name when is_binary(module_name) ->
             direct_edges =
               Enum.map(facts.uses, fn use ->
