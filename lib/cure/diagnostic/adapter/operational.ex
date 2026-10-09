@@ -195,16 +195,16 @@ defmodule Cure.Diagnostic.Adapter.Operational do
   # this through `file_read/2` rendered it as `:file.format_error/1`'s output for
   # a non-errno atom — the literal string "unknown POSIX error" — which points a
   # reader at permissions or a missing path when the real problem is the source's
-  # shape. Report it as the structural diagnostic it is, and name both spellings
-  # that DO give a file an identity so the fix is actionable.
+  # shape.
+  #
+  # It gets its own code rather than sharing E095 because the two conditions are
+  # not the same failure and must stay distinguishable: E095 means the host could
+  # not hand us the bytes, this means the bytes are not a module. One code for
+  # both would make a reader's `cure explain` and any downstream filter on the
+  # code unable to tell a permissions problem from a source-shape problem.
   def module_identity_missing(path),
-    do:
-      diagnostic(
-        "E095",
-        :module_identity_missing,
-        "`#{path}` declares no module identity",
-        %{path: path}
-      )
+    do: diagnostic("E123", :module_identity_missing, "`#{path}` declares no module identity", %{path: path})
+
   def file_write(path, reason),
     do:
       diagnostic("E096", :file_write, "Cannot write `#{path}`: #{file_reason(reason)}", %{
@@ -489,6 +489,7 @@ defmodule Cure.Diagnostic.Adapter.Operational do
 
   defp title(:file_read), do: "Could not read file"
   defp title(:file_write), do: "Could not write file"
+  defp title(:module_identity_missing), do: "Source declares no module identity"
   defp title(:dependency_resolution), do: "Dependency resolution failed"
   defp title(:command_failure), do: "Command failed"
   defp title(:export_type_unmappable), do: "Type cannot cross this boundary"

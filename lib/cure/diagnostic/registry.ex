@@ -51,7 +51,7 @@ defmodule Cure.Diagnostic.Registry do
   alias Cure.Diagnostic.Registry.Entry
 
   @retired ~w[E001 E002 E004 E005 E006 E007 E009 E010 E012 E015 E016 E017 E018 E019 E020 E023 E024 E025 E027 E028 E029 E031 E032 E033 E034 E036 E037 E063 E071 E072 E073 E074 E075 E079 E080 E085 E086 H083 H084 W081 W082 W088]
-  @operational ~w[E008 E030 E038 E039 E040 E041 E042 E065 E066 E067 E068 E069 E070 E095 E096 E097 E098 E099 E100 E101 W000 W001 W002 W003]
+  @operational ~w[E008 E030 E038 E039 E040 E041 E042 E065 E066 E067 E068 E069 E070 E095 E096 E097 E098 E099 E100 E101 E123 W000 W001 W002 W003]
   @retirement_reasons %{
     "E001" => "No first-party producer remains; contextual E093 is the active type-mismatch path.",
     "E002" => "No first-party producer remains; unresolved value names are reported as contextual E091 diagnostics.",
@@ -183,6 +183,7 @@ defmodule Cure.Diagnostic.Registry do
     "E120" => :primitive_declaration,
     "E121" => :bind_pipe_monad_mismatch,
     "E122" => :bind_pipe_no_monad,
+    "E123" => :module_identity_missing,
     "W000" => :compiler_warning,
     "W001" => :migration_warning,
     "W002" => :configuration_warning,
@@ -1489,6 +1490,19 @@ defmodule Cure.Diagnostic.Registry do
     Bring a `Monad` instance for the stage's type into scope, for example with
     `use Std.Monad`.
     """,
+    "E123" => """
+    E123: Source Declares No Module Identity
+
+    A source file in the compilation set names no module, so the compiler cannot
+    decide what the file's beams should be called or how other modules address
+    it. The file itself was read successfully — this is a source-shape problem,
+    not a file-system one.
+
+    A file gains identity either from a `mod` declaration or from a bare
+    top-level macro container (`sup`, `actor`, `app`, `fsm`), whose name is the
+    module it lifts. Wrap the declarations in `mod <Name>`, or make the file a
+    macro container, so the file's identity is explicit.
+    """,
     "W000" => """
     W000: Compiler Warning
 
@@ -1837,6 +1851,7 @@ defmodule Cure.Diagnostic.Registry do
   defp stable_key("E120", _title), do: :primitive_declaration
   defp stable_key("E121", _title), do: :bind_pipe_monad_mismatch
   defp stable_key("E122", _title), do: :bind_pipe_no_monad
+  defp stable_key("E123", _title), do: :module_identity_missing
 
   defp stable_key(_code, title) do
     title
@@ -1914,7 +1929,7 @@ defmodule Cure.Diagnostic.Registry do
   defp producers(code) when code in @retired, do: []
 
   defp producers(code)
-       when code in ~w[E030 E038 E039 E040 E041 E042 E065 E066 E067 E068 E069 E070 E095 E096 E097 E098 E099 E100 W000 W001 W002 W003],
+       when code in ~w[E030 E038 E039 E040 E041 E042 E065 E066 E067 E068 E069 E070 E095 E096 E097 E098 E099 E100 E123 W000 W001 W002 W003],
        do: [:operational]
 
   defp producers(code) when code in ~w[E011 E014], do: [:elaboration]
@@ -2038,7 +2053,7 @@ defmodule Cure.Diagnostic.Registry do
   defp subsystem("E092"), do: :macros
   defp subsystem("E093"), do: :elaboration
   defp subsystem("E094"), do: :parser
-  defp subsystem(code) when code in ~w[E095 E096 E097 E098 E099 E100], do: :operations
+  defp subsystem(code) when code in ~w[E095 E096 E097 E098 E099 E100 E123], do: :operations
   defp subsystem("W" <> _), do: :analysis
   defp subsystem(_code), do: :compiler
 

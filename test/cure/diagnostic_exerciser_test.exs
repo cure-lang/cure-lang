@@ -140,7 +140,7 @@ defmodule Cure.DiagnosticExerciserTest do
       {"constructor needs checking", "E093", {:ctor_requires_checking_mode, :Nat}},
       {"non-concrete bound", "E093", {:bounded_bound_not_concrete, {:var, 0}}},
       {"cyclic type aliases", "E105", {:cyclic_typealiases, ["A", "B", "A"]}},
-      {"module identity missing", "E095", {:module_identity_missing, "demo.cure"}},
+      {"module identity missing", "E123", {:module_identity_missing, "demo.cure"}},
       {"character bound missing", "E093", {:char_literal_needs_bounded, 97}},
       {"character range failure", "E093", {:char_literal_out_of_range, 0x110000}},
       {"extern returns union", "E093", {:extern_returns_union, :foreign, {:union, []}}},
@@ -385,6 +385,7 @@ defmodule Cure.DiagnosticExerciserTest do
     diagnostics = [
       {:file_read, Operational.file_read("demo.cure", :enoent)},
       {:file_write, Operational.file_write("demo.cure", :eacces)},
+      {:module_identity_missing, Operational.module_identity_missing("demo.cure")},
       {:dependency, Operational.dependency(:locked)},
       {:command, Operational.command_failure("compile", :failed)},
       {:migration_warning,
@@ -442,7 +443,7 @@ defmodule Cure.DiagnosticExerciserTest do
              )
 
     assert operational_codes ==
-             ~w[E095 E096 E097 E098 W001 W000 E068 E070 E065 E066 E067 E069 E041 E042 E038 E039 E040 E030 E008 W002 W003 E099 E100 E101]
+             ~w[E095 E096 E123 E097 E098 W001 W000 E068 E070 E065 E066 E067 E069 E041 E042 E038 E039 E040 E030 E008 W002 W003 E099 E100 E101]
 
     registered_codes = Cure.Diagnostic.Registry.reachable() |> Enum.map(& &1.code) |> MapSet.new()
     covered_codes = MapSet.new(compiler_codes ++ operational_codes)

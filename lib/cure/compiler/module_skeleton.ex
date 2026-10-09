@@ -106,7 +106,9 @@ defmodule Cure.Compiler.ModuleSkeleton do
   # carries. Compare on the normalized spelling so either surface matches.
   defp find_lifted_module({:lift_module, meta, _body} = node, module_name) when is_list(meta) do
     case Keyword.get(meta, :module) do
-      value when is_binary(value) -> if value == module_name, do: node
+      value when is_binary(value) ->
+        if value == module_name, do: node
+
       value when is_atom(value) and not is_nil(value) ->
         if Atom.to_string(value) == module_name or
              String.replace_prefix(Atom.to_string(value), "Cure.", "") == module_name,

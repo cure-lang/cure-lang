@@ -127,7 +127,11 @@ defmodule Cure.Compiler.ModulePipeline.Emission do
            true <- provenance.compiler_hash == BuildManifest.toolchain_fingerprint(),
            path <- Path.join(published.artifact_root, artifact.path),
            {:ok, binary} <- File.read(path),
-           module <- String.to_existing_atom("Cure." <> entry.module_name),
+           # `to_atom/1` for the same reason as `Artifacts.Sweep`: a bare
+           # (mod-less) macro container's module atom is created by the emitter
+           # for the beam it wrote, never by a container declaration, so
+           # `to_existing_atom/1` would raise for a module that compiled fine.
+           module <- String.to_atom("Cure." <> entry.module_name),
            :ok <- Artifacts.verify_binary(binary, module) do
         Map.put(reusable, identity, {module, binary})
       else
