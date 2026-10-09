@@ -186,7 +186,19 @@ defmodule Cure.Compiler.ModuleManifest do
     with {:ok, source} <- File.read(path) do
       facts = FixityScan.harvest_source(source, path, BuiltinFixity.table())
 
-      case facts.module do
+      # A bare (mod-less) macro container (`sup Colony`, `actor Echo`, `app X`,
+      # `fsm M`) declares its identity through a computed macro, so the harvest
+      # scan above cannot see it and reports `nil`. That is not a malformed
+      # file — the single-file path compiles it fine — so before rejecting the
+      # source, recover the identity the same way that path does: run the
+      # declaration-position expansion and read the lifted module's name.
+      #
+      # Only the identity is taken from the expansion here. Dependencies stay
+      # the harvest's, because `Expansion.run/2` already re-reads the source and
+      # folds in whatever expansion reveals as it converges; duplicating that
+      # work in the header scan would make the cheap pass expensive without
+      # changing the manifest the round loop settles on.
+      case facts.module || FixityScan.expanded_module_name(source, path, "Main") do
         module_name when is_binary(module_name) ->
           identity = {package, module_name}
 

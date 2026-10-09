@@ -41,6 +41,59 @@ defmodule Cure.Compiler.Parser.FixityScan do
     end
   end
 
+  # A bare (mod-less) macro container — `sup Colony`, `actor Echo`, `app X`,
+  # `fsm M` — declares its module identity through a COMPUTED MACRO, so the
+  # harvest scan cannot see it: `harvest/4` runs with no macro grammar active
+  # and yields plain `{:variable, …}` nodes for `sup` and `Colony` alike. The
+  # identity only exists once the declaration-position expansion has run, which
+  # is why the manifest (a cheap header scan) reported
+  # `{:module_identity_missing, path}` for a file the single-file path compiles
+  # without complaint.
+  #
+  # This recovers that identity by running exactly the expansion the single-file
+  # path runs, then reading the lifted module's name off the result. It is
+  # deliberately a SEPARATE entry point rather than folded into
+  # `harvest_source/3`: expansion needs the dependent environment and the
+  # stdlib, so it is far more expensive than a header scan, and callers that
+  # already have an identity (the common case) must not pay for it.
+  #
+  # `owner` is the enclosing module spelling (`"Main"` at top level, matching
+  # `Cure.Elab.Program.module_atom/1`), because a bare container's name is
+  # relative to its lexical owner: `sup Colony` at top level is `Main.Colony`.
+  @spec expanded_module_name(String.t(), String.t(), String.t()) :: String.t() | nil
+  def expanded_module_name(source, file, owner) do
+    with {:ok, tokens} <- Lexer.tokenize(source, file: file, emit_events: false),
+         {:ok, ast} <- Parser.parse(tokens, file: file, emit_events: false),
+         {:ok, expanded} <- Cure.Elab.Program.expand_declaration_uses(ast) do
+      case module_name(expanded) do
+        nil -> nil
+        # The expansion already carries the full `Cure.`-prefixed owner
+        # (`Cure.Main.Colony`); the manifest indexes the authored spelling, so
+        # strip the compiler's prefix back off.
+        name -> name |> String.replace_prefix("Cure.", "") |> qualify_with_owner(owner)
+      end
+    else
+      _ -> nil
+    end
+  rescue
+    # Identity recovery is a best-effort fallback: a source that cannot even be
+    # expanded has no recoverable identity, and the caller's existing
+    # `module_identity_missing` error stays the correct answer for it.
+    _ -> nil
+  end
+
+  # The expander names a lifted module after its owner (`Cure.Main.Colony`).
+  # `module_name/1` on the expanded AST therefore already returns the qualified
+  # spelling, and re-qualifying it would double the owner. Only an unqualified
+  # name needs the owner prepended.
+  defp qualify_with_owner(name, owner) do
+    cond do
+      String.contains?(name, ".") -> name
+      owner in [nil, "", "Main"] -> name
+      true -> owner <> "." <> name
+    end
+  end
+
   @spec collect_fixity(term()) :: [tuple()]
   def collect_fixity(ast),
     do:
@@ -332,10 +385,7 @@ defmodule Cure.Compiler.Parser.FixityScan do
   def module_name(ast) do
     deep_reduce(ast, nil, fn
       {:lift_module, meta, _}, nil when is_list(meta) ->
-        case Keyword.get(meta, :module) do
-          name when is_binary(name) -> name
-          _macro_hole_or_missing -> nil
-        end
+        normalize_declared_name(Keyword.get(meta, :module))
 
       {:container, meta, _}, nil when is_list(meta) ->
         if Keyword.get(meta, :container_type) in @module_container_types,
@@ -346,6 +396,15 @@ defmodule Cure.Compiler.Parser.FixityScan do
         acc
     end)
   end
+
+  # A computed macro reflects its module name as a `Std.Syntax` literal, which
+  # reaches this scan as an ATOM (`:"Cure.Main.Colony"`) rather than the binary
+  # an authored `mod` declaration carries. Both spell the same identity, and the
+  # manifest requires a binary, so normalize here instead of leaving the caller
+  # to guess which surface produced the node.
+  defp normalize_declared_name(name) when is_binary(name), do: name
+  defp normalize_declared_name(name) when is_atom(name) and not is_nil(name), do: Atom.to_string(name)
+  defp normalize_declared_name(_macro_hole_or_missing), do: nil
 
   # -- deep walkers (mirror BuiltinFixity.collect_fixity_nodes shape) --------
 

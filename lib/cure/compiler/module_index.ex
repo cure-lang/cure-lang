@@ -182,7 +182,13 @@ defmodule Cure.Compiler.ModuleIndex do
       else
         facts = FixityScan.harvest_source(source, path, BuiltinFixity.table())
 
-        case facts.module do
+        # Mirrors `ModuleManifest.scan_entry/2`: a bare (mod-less) macro
+        # container carries no identity in the harvest scan, so recover it from
+        # the declaration-position expansion before treating the source as
+        # unidentified. Both indexes must agree on what a file declares, or a
+        # module resolvable through one is `module_unavailable` through the
+        # other.
+        case facts.module || FixityScan.expanded_module_name(source, path, "Main") do
           module_name when is_binary(module_name) ->
             direct_edges =
               Enum.map(facts.uses, fn use ->

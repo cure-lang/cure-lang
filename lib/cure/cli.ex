@@ -755,6 +755,21 @@ defmodule Cure.CLI do
       [Path.dirname(Path.expand(path))] ++
         project_source_roots(project) ++ dependency_source_roots(project)
 
+    # `check` must load the stdlib for the same reason `compile` does, and the
+    # consequence of skipping it is sharper than a lint warning. A stdlib
+    # computed macro (`fsm`, `sup`, `actor`, `app`) is normally executed through
+    # `execute_compiled_stdlib_macro/4`, which runs the already-checked BEAM
+    # implementation and returns an erased `{:Expanded, syntax}` value. That path
+    # requires the provider module to be LOADED; with no stdlib in the VM the
+    # expander falls back to the Core evaluator, which hands back the result
+    # wrapped in its own `{:app, {:global, name}, value}` application node.
+    # `MacroSyntax.decode_core/1` has no clause for `:app`, so every macro
+    # container was reported as `E092 unsupported_syntax_core` — a diagnostic
+    # about the user's invocation for a failure that is purely a missing preload.
+    # `cure check` is the command a user reaches for first, so it has to see the
+    # same stdlib surface `cure compile` already guarantees.
+    preload_runtime_dependencies!(project)
+
     case Cure.Compiler.check_source(source, file: path, source_roots: source_roots) do
       {:ok, _env} ->
         info("#{path}: OK")
