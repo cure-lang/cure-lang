@@ -83,6 +83,7 @@ defmodule Cure.Compiler.Parser.FixityScan do
     # `module_identity_missing` error stays the correct answer for it.
     _ -> nil
   end
+
   @spec collect_fixity(term()) :: [tuple()]
   def collect_fixity(ast),
     do:
