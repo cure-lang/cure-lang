@@ -1,7 +1,9 @@
 # Cure 0.34 — Launch Checklist
 
-**Status:** open
-**Target version:** 0.34.0 (`mix.exs` currently pins `@version "0.33.1"`)
+**Status:** open (partially superseded — the version has since moved to 0.34.3)
+**Target version:** 0.34.0 (`mix.exs` now pins `@version "0.34.3"`; the
+`@version` bump below has landed and the remaining open items are tracked
+here for the historical 0.34 line)
 
 What 0.34 *is* lives in [`../ROADMAP-0.34.md`](../ROADMAP-0.34.md) — the feature
 narrative for the dependent-pipeline release. This document is the complementary
@@ -321,8 +323,9 @@ proof vocabulary is reachable from the REPL at all.
       This also exposed and fixed multi-declaration submissions: each entry now
       slices its own parser span instead of storing/re-emitting the entire input
       once per sibling declaration.
-- [ ] **Version banner.** The REPL prints `Cure REPL v0.33.1`; covered by the
-      `mix.exs` bump in §7 but worth confirming it reads the bumped version.
+- [ ] **Version banner.** The REPL prints `Cure REPL v0.33.1` as recorded at
+      the time of writing; `mix.exs` has since moved to `0.34.3` (§7), but
+      confirm the banner reads the bumped version rather than a hardcoded string.
 - [x] **First launch pays a silent multi-minute stdlib build.** A cold
       `mix cure.repl` took ~6 minutes here (74-module stdlib compile + 7.5 MB
       escript). The delay belongs to the project's `compile` alias, not REPL
@@ -346,8 +349,8 @@ proof vocabulary is reachable from the REPL at all.
 
 ## 7. Release mechanics
 
-- [ ] Bump `@version` in `mix.exs` to `0.34.0` (also drives `source_ref:
-      "v#{@version}"` for docs links).
+- [x] Bump `@version` in `mix.exs`. Done — it now reads `0.34.3` (also drives
+      `source_ref: "v#{@version}"` for docs links).
 - [x] `cure migrate` rule coverage for every 0.34 rename. Strict check mode is
       clean with zero output over both `lib/std/` and `examples/`. The final
       pass also fixed source-path propagation, canonical resolution of
@@ -471,8 +474,9 @@ Incidental observations from the same session:
   escript build) behind the single line `Compiling Cure standard library
   (74 modules)`, and emitted the §5 `W001` warning mid-build. Warm launch is
   ~9 s.
-- Banner reads `Cure REPL v0.33.1` — will follow the `mix.exs` bump in §7, but
-  confirm it reads the bumped value rather than a hardcoded string.
+- Banner read `Cure REPL v0.33.1` at the time of writing — it follows the
+  `mix.exs` bump (§7, now `0.34.3`); confirm it reads the bumped value rather
+  than a hardcoded string.
 - `test/cure/repl/` holds eleven test files (completer, config, docs, highlight,
   history, line_editor, markdown, options, render, session, terminal) and none
   of them exercises `incomplete?/2` against real multi-line source or the
