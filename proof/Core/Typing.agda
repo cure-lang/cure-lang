@@ -60,12 +60,23 @@ data All2 {A : Set} (R : A → A → Set) : List A → List A → Set where
 Context : Set
 Context = List Term
 
--- Variable lookup: index 0 is the head.
-infix 4 _∋_
+-- Variable lookup, indexed by the de Bruijn index `k`: variable `k` has
+-- type `T` in `Γ`. Index 0 is the most-recently-bound variable (the head).
+--
+-- Indexing by `k` (rather than leaving it implicit) is what makes the
+-- weakening and substitution lemmas provable: the de Bruijn bookkeeping
+-- becomes explicit arithmetic, exactly as in the kernel's
+-- `Context.lookup(ctx, k)`.
+infix 4 _∋_at_
 
-data _∋_ : Context → Term → Set where
-  here  : ∀ {Γ T} → (T ∷ Γ) ∋ T
-  there : ∀ {Γ T S} → Γ ∋ T → (S ∷ Γ) ∋ T
+data _∋_at_ : Context → Term → ℕ → Set where
+  here  : ∀ {Γ T} → (T ∷ Γ) ∋ T at 0
+  there : ∀ {Γ T S k} → Γ ∋ T at k → (S ∷ Γ) ∋ T at suc k
+
+-- The type at index `k`, when one exists.
+infix 4 _∋_
+_∋_ : Context → ℕ → Set
+Γ ∋ k = ∃ (λ T → Γ ∋ T at k)
 
 -- Context extension.
 extend : Context → Term → Context
@@ -155,7 +166,7 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
            → Γ ⊢ tm-type l ⇒ tm-type l′
 
     -- Variables.
-    ⇒-var : ∀ {Γ k T} → Γ ∋ T → Γ ⊢ tm-var k ⇒ T
+    ⇒-var : ∀ {Γ k T} → Γ ∋ T at k → Γ ⊢ tm-var k ⇒ T
 
     -- Π formation: dom : Type l1, cod : Type l2 under the binder, so
     -- Π lives at max(l1, l2).

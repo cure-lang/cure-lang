@@ -11,6 +11,7 @@ MODULES=(
   Core/Grade Core/Universe Core/Syntax Core/Value Core/Reduction
   Core/Signature Core/Typing
   Proof/Values Proof/Inversion Proof/CanonicalForms Proof/Substitution
+  Proof/Context
   Proof/Progress Proof/Preservation Proof/Soundness
 )
 
