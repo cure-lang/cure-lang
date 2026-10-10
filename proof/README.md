@@ -192,31 +192,39 @@ Substitution is the algebraic heart of the β and ζ cases of Preservation.
 Getting its *operation* right was the main finding of this slice.
 
 Naively, substituting the head variable is `substT 0 a t`. But this is
-wrong: substituting index 0 **shrinks the context**, so a variable that was
-at index `suc k` in `extend Γ A` must become index `k` in `Γ`. The correct
-operation renumbers as it substitutes:
+wrong twice over:
 
-    substTop a t = rename pred (substT 0 a t)
+1. Substituting index 0 **shrinks the context**, so a variable at index
+   `suc k` in `extend Γ A` must become index `k` in `Γ`.
+2. A post-hoc `rename pred` would also renumber the substituted term `a`,
+   which lives in `Γ` and must be inserted unchanged.
 
-where `pred` maps `zero ↦ zero` and `suc k ↦ k`. This is the term-side
-counterpart of the context surgery `removeAt` / `embedFin` in
-`Proof/ContextSubst.agda`.
+The correct operation is a **simultaneous substitution** (`Core.Syntax`
+`Sub = ℕ → Term`), which replaces every free variable at once:
 
-With the operation fixed, the `⇒-var` cases are clean:
+    topSub a zero    = a
+    topSub a (suc k) = tm-var k
 
-- **index 0** (the substituted variable): the term becomes `a`, and the
-  type `A` is `0`-free (it is scoped in `Γ`, and the global convention
-  keeps its free variables above the new binder), so `substTop a A = A`.
-  The goal is `Γ ⊢ a ⇐ A`, the hypothesis.
-- **index `suc k`**: the term becomes `tm-var k` (renumbered), and the type
+so the substituted term is inserted as-is while every other variable is
+renumbered down by one. Under a binder the substitution is extended by
+`extSub` (the new binder maps to itself, everything else shifts).
+
+This is the term-side counterpart of the context surgery `removeAt` /
+`embedFin` in `Proof/ContextSubst.agda`. With it, the `⇒-var` cases are
+clean:
+
+- **index 0**: the term becomes `a`, and the type `A` is `0`-free (it is
+  scoped in `Γ`, and the global convention keeps its free variables above
+  the new binder), so `substTop a A = A`. The goal is `Γ ⊢ a ⇐ A`.
+- **index `suc k`**: the term becomes `tm-var k`, and the type
   `rename wk (lookup Γ k)` becomes `lookup Γ k`. The goal is
   `Γ ⊢ tm-var k ⇒ lookup Γ k`, which is `⇒-var k`.
 
 All the syntactic pieces are proved (`subst-id`, `subst-var-eq/neq`,
 `rename-id`, `lookup-extend`, `lookup-remove`); what remains is the
-induction threading `substTop` through every typing rule.
+induction threading `substS` through every typing rule.
 
-## Building## Building
+## Building## Building## Building
 
 Requires Agda 2.8.0 and the Agda standard library.
 

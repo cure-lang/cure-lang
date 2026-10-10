@@ -102,14 +102,15 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   -- counterpart of the context surgery `removeAt` (Proof/ContextSubst.agda).
   ------------------------------------------------------------------------
 
-  -- The renumbering that removes a binder.
-  pred : Ren
-  pred zero = zero
-  pred (suc k) = k
+  -- The substitution that replaces index 0 with `a` and renumbers the
+  -- indices above it down by one.
+  topSub : Term → Sub
+  topSub a zero = a
+  topSub a (suc k) = tm-var k
 
-  -- Substitution at the top: replace index 0 and renumber.
+  -- Substitution at the top of a term.
   substTop : Term → Term → Term
-  substTop a t = rename pred (substT 0 a t)
+  substTop a t = substS (topSub a) t
 
   postulate
     subst⇒ :

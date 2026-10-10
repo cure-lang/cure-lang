@@ -306,3 +306,71 @@ mutual
   rename ρ (tm-hole n) = tm-hole n
   rename ρ (tm-absurd) = tm-absurd
 
+
+------------------------------------------------------------------------
+-- Simultaneous substitution.
+--
+-- A simultaneous substitution maps every source index to a term. Applying
+-- it replaces every free variable at once, which is what the substitution
+-- lemma needs: substituting index 0 with `a` AND renumbering the indices
+-- above it down by one is the single substitution
+--
+--     σ zero     = a
+--     σ (suc k)  = tm-var k
+--
+-- Under a binder the substitution is extended: the new binder maps to
+-- itself, and every other index is shifted by one to make room.
+------------------------------------------------------------------------
+
+Sub : Set
+Sub = ℕ → Term
+
+-- Extend a substitution under one binder.
+extSub : Sub → Sub
+extSub σ zero = tm-var zero
+extSub σ (suc k) = shift 1 0 (σ k)
+
+
+-- `extSub` iterated `n` times.
+extSub^ : ℕ → Sub → Sub
+extSub^ zero σ = σ
+extSub^ (suc n) σ = extSub (extSub^ n σ)
+
+mutual
+  substTermsS : Sub → List Term → List Term
+  substTermsS σ [] = []
+  substTermsS σ (x ∷ xs) = substS σ x ∷ substTermsS σ xs
+
+  substBranchesS : Sub → List Branch → List Branch
+  substBranchesS σ [] = []
+  substBranchesS σ (x ∷ xs) = substBranchS σ x ∷ substBranchesS σ xs
+
+  substBranchS : Sub → Branch → Branch
+  substBranchS σ (cn , ar , b) = cn , ar , substS (extSub^ ar σ) b
+
+  substS : Sub → Term → Term
+  substS σ (tm-type l) = tm-type l
+  substS σ (tm-var k) = σ k
+  substS σ (tm-pi g d c) = tm-pi g (substS σ d) (substS (extSub σ) c)
+  substS σ (tm-lam g d b) = tm-lam g (substS σ d) (substS (extSub σ) b)
+  substS σ (tm-let g ty v b) = tm-let g (substS σ ty) (substS σ v) (substS (extSub σ) b)
+  substS σ (tm-app f a) = tm-app (substS σ f) (substS σ a)
+  substS σ (tm-data n ps is) = tm-data n (substTermsS σ ps) (substTermsS σ is)
+  substS σ (tm-ctor n args) = tm-ctor n (substTermsS σ args)
+  substS σ (tm-case s m brs) = tm-case (substS σ s) (substS σ m) (substBranchesS σ brs)
+  substS σ (tm-global n) = tm-global n
+  substS σ (tm-int_type) = tm-int_type
+  substS σ (tm-int_lit k) = tm-int_lit k
+  substS σ (tm-nat_lit k) = tm-nat_lit k
+  substS σ (tm-bounded_lit k) = tm-bounded_lit k
+  substS σ (tm-float_type) = tm-float_type
+  substS σ (tm-float_lit) = tm-float_lit
+  substS σ (tm-binary_type) = tm-binary_type
+  substS σ (tm-atom_type) = tm-atom_type
+  substS σ (tm-atom_lit n) = tm-atom_lit n
+  substS σ (tm-effect_type t) = tm-effect_type (substS σ t)
+  substS σ (tm-effect_pure t) = tm-effect_pure (substS σ t)
+  substS σ (tm-effect_bind e k) = tm-effect_bind (substS σ e) (substS σ k)
+  substS σ (tm-hole n) = tm-hole n
+  substS σ (tm-absurd) = tm-absurd
+
