@@ -2,3 +2,7 @@
 _build/
 *.agdai
 MAlonzo/
+
+# Scratch probe files (development only)
+probe_*.agda
+probe_*.agdai
