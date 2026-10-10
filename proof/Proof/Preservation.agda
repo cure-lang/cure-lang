@@ -131,60 +131,94 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
       → Γ ⊢ e ⇒ tm-effect_type A → Γ ⊢ k ⇒ tm-pi unrestricted A (tm-effect_type B)
       → Δ ⊢ rename ρ (tm-effect_bind e k) ⇒ rename ρ (tm-effect_type B)
 
-  ren⇒ : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {t T ρ}
-         (idx : Fin n → Fin m)
-       → (∀ i → toℕ (idx i) ≡ ρ (toℕ i))
-       → (∀ i → lookup Δ (idx i) ≡ rename ρ (lookup Γ i))
-       → Γ ⊢ t ⇒ T → Δ ⊢ rename ρ t ⇒ rename ρ T
-  ren⇒ idx coh law (⇒-type p) = ⇒-type p
-  ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-var i) =
-    subst (λ k → Δ ⊢ tm-var k ⇒ rename ρ (lookup Γ i)) (coh i)
-          (subst (λ X → Δ ⊢ tm-var (toℕ (idx i)) ⇒ X) (law i) (⇒-var (idx i)))
-  ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-pi {d = d} dd dc) =
-    ⇒-pi (ren⇒ idx coh law dd) (ren⇒ (ext-idx idx) (ext-coh ρ idx coh) (ext-law d idx law) dc)
-  ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-lam {d = d} dd db) =
-    ⇒-lam (ren⇒ idx coh law dd) (ren⇒ (ext-idx idx) (ext-coh ρ idx coh) (ext-law d idx law) db)
-  ren⇒ idx coh law (⇒-app df da) = ren-app idx coh law df da
-  ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-let {ty = ty} dty dv db) =
-    ren-let idx coh law dty dv db
-  ren⇒ {Δ = Δ} {ρ = ρ} idx coh law (⇒-global {f = f} {T = T} p) =
-    subst (λ X → Δ ⊢ tm-global f ⇒ X) (sym (rename-global-type ρ f T p)) (⇒-global p)
-  ren⇒ idx coh law (⇒-int_type) = ⇒-int_type
-  ren⇒ idx coh law (⇒-float_type) = ⇒-float_type
-  ren⇒ idx coh law (⇒-binary_type) = ⇒-binary_type
-  ren⇒ idx coh law (⇒-atom_type) = ⇒-atom_type
-  ren⇒ idx coh law (⇒-int_lit) = ⇒-int_lit
-  ren⇒ idx coh law (⇒-float_lit) = ⇒-float_lit
-  ren⇒ idx coh law (⇒-atom_lit) = ⇒-atom_lit
-  ren⇒ idx coh law (⇒-nat_lit p) = ⇒-nat_lit p
-  ren⇒ idx coh law (⇒-bounded_lit p) = ⇒-bounded_lit p
-  ren⇒ idx coh law (⇒-data p q r) = ren-data idx coh law p q r
-  ren⇒ idx coh law (⇒-ctor p q) = ren-ctor idx coh law p q
-  ren⇒ idx coh law (⇒-case p q r) = ren-case idx coh law p q r
-  ren⇒ idx coh law (⇒-effect_type p) = ⇒-effect_type (ren⇒ idx coh law p)
-  ren⇒ idx coh law (⇒-effect_pure p) = ⇒-effect_pure (ren⇒ idx coh law p)
-  ren⇒ idx coh law (⇒-effect_bind p q) = ren-effect-bind idx coh law p q
+  -- The signature's telescopes are closed, so renaming leaves them unchanged.
+  postulate
+    tele-closed : ∀ (ρ : Ren) (f : Family) (tele tele′ : Telescope)
+      → (∀ {T} → T ∈Tele tele → rename ρ T ≡ T)
+
+  -- A constructor's result type is closed in its family's parameters and
+  -- indices, so renaming leaves it unchanged.
+  postulate
+    rename-ctor-result : ∀ (ρ : Ren) (f : Family) (ct : Ctor)
+      → rename ρ (tm-data (fam-name f) (ctor-params ct) (ctor-indices ct))
+      ≡ tm-data (fam-name f) (ctor-params ct) (ctor-indices ct)
 
   -- Conversion is a congruence for renaming.
   postulate
     rename-conv : ∀ {t u} (ρ : Ren) → Conversion._≈_ conv t u
                 → Conversion._≈_ conv (rename ρ t) (rename ρ u)
 
-  -- The fundamental renaming lemma for the checking judgment.
-  ren⇐ : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {t T ρ}
-         (idx : Fin n → Fin m)
-       → (∀ i → toℕ (idx i) ≡ ρ (toℕ i))
-       → (∀ i → lookup Δ (idx i) ≡ rename ρ (lookup Γ i))
-       → Γ ⊢ t ⇐ T → Δ ⊢ rename ρ t ⇐ rename ρ T
-  ren⇐ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇐-lam {g = g} {d = d} {b = b} {g′ = g′} {d′ = d′} {c = c} eq conv-eq body) =
-    ⇐-lam {g = g} {d = rename ρ d} {b = rename (ext ρ) b}
-          {g′ = g′} {d′ = rename ρ d′} {c = rename (ext ρ) c}
-          eq
-          (rename-conv ρ conv-eq)
-          (ren⇐ (ext-idx idx) (ext-coh ρ idx coh) (ext-law d′ idx law) body)
-  ren⇐ idx coh law (⇐-hole) = ⇐-hole
-  ren⇐ idx coh law (⇐-infer der eq) = ⇐-infer (ren⇒ idx coh law der) (rename-conv _ eq)
-  ren⇐ idx coh law (⇐-cumul der le) = ⇐-cumul (ren⇒ idx coh law der) le
+  mutual
+    ren⇒ : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {t T ρ}
+           (idx : Fin n → Fin m)
+         → (∀ i → toℕ (idx i) ≡ ρ (toℕ i))
+         → (∀ i → lookup Δ (idx i) ≡ rename ρ (lookup Γ i))
+         → Γ ⊢ t ⇒ T → Δ ⊢ rename ρ t ⇒ rename ρ T
+    ren⇒ idx coh law (⇒-type p) = ⇒-type p
+    ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-var i) =
+      subst (λ k → Δ ⊢ tm-var k ⇒ rename ρ (lookup Γ i)) (coh i)
+            (subst (λ X → Δ ⊢ tm-var (toℕ (idx i)) ⇒ X) (law i) (⇒-var (idx i)))
+    ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-pi {d = d} dd dc) =
+      ⇒-pi (ren⇒ idx coh law dd) (ren⇒ (ext-idx idx) (ext-coh ρ idx coh) (ext-law d idx law) dc)
+    ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-lam {d = d} dd db) =
+      ⇒-lam (ren⇒ idx coh law dd) (ren⇒ (ext-idx idx) (ext-coh ρ idx coh) (ext-law d idx law) db)
+    ren⇒ idx coh law (⇒-app df da) = ren-app idx coh law df da
+    ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-let {ty = ty} dty dv db) =
+      ren-let idx coh law dty dv db
+    ren⇒ {Δ = Δ} {ρ = ρ} idx coh law (⇒-global {f = f} {T = T} p) =
+      subst (λ X → Δ ⊢ tm-global f ⇒ X) (sym (rename-global-type ρ f T p)) (⇒-global p)
+    ren⇒ idx coh law (⇒-int_type) = ⇒-int_type
+    ren⇒ idx coh law (⇒-float_type) = ⇒-float_type
+    ren⇒ idx coh law (⇒-binary_type) = ⇒-binary_type
+    ren⇒ idx coh law (⇒-atom_type) = ⇒-atom_type
+    ren⇒ idx coh law (⇒-int_lit) = ⇒-int_lit
+    ren⇒ idx coh law (⇒-float_lit) = ⇒-float_lit
+    ren⇒ idx coh law (⇒-atom_lit) = ⇒-atom_lit
+    ren⇒ idx coh law (⇒-nat_lit p) = ⇒-nat_lit p
+    ren⇒ idx coh law (⇒-bounded_lit p) = ⇒-bounded_lit p
+    ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-data {ps = ps} {is = is} {f = f} p q r) =
+      ⇒-data p
+        (subst (λ zs → Δ ⊢* zs ⇐* fam-params f) (sym (renameTerms-map ρ ps))
+               (ren-spine idx coh law (tele-closed ρ f (fam-params f) (fam-params f)) q))
+        (subst (λ zs → Δ ⊢* zs ⇐* fam-indices f) (sym (renameTerms-map ρ is))
+               (ren-spine idx coh law (tele-closed ρ f (fam-indices f) (fam-indices f)) r))
+    ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-ctor {c = c} {args = args} {f = f} {ct = ct} p q) =
+      subst (λ X → Δ ⊢ tm-ctor c (renameTerms ρ args) ⇒ X)
+            (sym (rename-ctor-result ρ f ct))
+            (⇒-ctor p (subst (λ zs → Δ ⊢* zs ⇐* ctor-args ct) (sym (renameTerms-map ρ args)) (ren-spine idx coh law (tele-closed ρ f (ctor-args ct) (ctor-args ct)) q)))
+    ren⇒ idx coh law (⇒-case p q r) = ren-case idx coh law p q r
+    ren⇒ idx coh law (⇒-effect_type p) = ⇒-effect_type (ren⇒ idx coh law p)
+    ren⇒ idx coh law (⇒-effect_pure p) = ⇒-effect_pure (ren⇒ idx coh law p)
+    ren⇒ idx coh law (⇒-effect_bind p q) = ren-effect-bind idx coh law p q
+
+    ren⇐ : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {t T ρ}
+           (idx : Fin n → Fin m)
+         → (∀ i → toℕ (idx i) ≡ ρ (toℕ i))
+         → (∀ i → lookup Δ (idx i) ≡ rename ρ (lookup Γ i))
+         → Γ ⊢ t ⇐ T → Δ ⊢ rename ρ t ⇐ rename ρ T
+    ren⇐ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇐-lam {g = g} {d = d} {b = b} {g′ = g′} {d′ = d′} {c = c} eq conv-eq body) =
+      ⇐-lam {g = g} {d = rename ρ d} {b = rename (ext ρ) b}
+            {g′ = g′} {d′ = rename ρ d′} {c = rename (ext ρ) c}
+            eq
+            (rename-conv ρ conv-eq)
+            (ren⇐ (ext-idx idx) (ext-coh ρ idx coh) (ext-law d′ idx law) body)
+    ren⇐ idx coh law (⇐-hole) = ⇐-hole
+    ren⇐ idx coh law (⇐-infer der eq) = ⇐-infer (ren⇒ idx coh law der) (rename-conv _ eq)
+    ren⇐ idx coh law (⇐-cumul der le) = ⇐-cumul (ren⇒ idx coh law der) le
+
+    -- The telescope is a fixed (closed) telescope from the signature, so
+    -- its types are unchanged by renaming.
+    ren-spine : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {ts tele ρ}
+           (idx : Fin n → Fin m)
+         → (∀ i → toℕ (idx i) ≡ ρ (toℕ i))
+         → (∀ i → lookup Δ (idx i) ≡ rename ρ (lookup Γ i))
+         → (∀ {T} → T ∈Tele tele → rename ρ T ≡ T)
+         → Γ ⊢* ts ⇐* tele → Δ ⊢* map (rename ρ) ts ⇐* tele
+    ren-spine idx coh law cl ⊢*[] = ⊢*[]
+    ren-spine {Δ = Δ} {ρ = ρ} idx coh law cl (⊢*∷ {x = x} {T = T} {tele = tele} {nm = nm} dx dxs) =
+      ⊢*∷ (subst (λ X → Δ ⊢ rename ρ x ⇐ X) (cl ∈-here)
+                 (ren⇐ idx coh law dx))
+          (ren-spine idx coh law (λ p → cl (∈-there p)) dxs)
 
   -- Weakening is the instance of the fundamental lemma at `wk`.
   weaken⇒ : ∀ {n} {Γ : Ctx n} {t T S} → Γ ⊢ t ⇒ T → extend Γ S ⊢ rename wk t ⇒ rename wk T

@@ -168,6 +168,21 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   extendⁿ Γ zero = subst Ctx (sym (+-identityʳ _)) Γ
   extendⁿ Γ (suc k) = subst Ctx (sym (+-suc _ k)) (extendⁿ (extend Γ (tm-hole "field")) k)
 
+  -- Telescope membership.
+  data _∈Tele_ : Term → Telescope → Set where
+    ∈-here  : ∀ {T tele nm} → T ∈Tele ((nm , T) ∷ tele)
+    ∈-there : ∀ {T U tele nm} → T ∈Tele tele → T ∈Tele ((nm , U) ∷ tele)
+
+  -- Rename every type in a telescope.
+  renameTele : Ren → Telescope → Telescope
+  renameTele ρ [] = []
+  renameTele ρ ((nm , T) ∷ tele) = (nm , rename ρ T) ∷ renameTele ρ tele
+
+  -- Substitute into every type in a telescope.
+  substTele : Sub → Telescope → Telescope
+  substTele σ [] = []
+  substTele σ ((nm , T) ∷ tele) = (nm , substS σ T) ∷ substTele σ tele
+
   -- Substituting a value at the top of a type (for the `let` rule).
   substTopT : Term → Term → Term
   substTopT v T = substS (topSub v) T

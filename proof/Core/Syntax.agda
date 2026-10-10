@@ -483,3 +483,11 @@ ext-wk-rename ρ t =
   trans (rename-compose wk ρ t)
         (trans (cong (λ x → rename x t) (funext-ren (ext-wk-compose ρ)))
                (sym (rename-compose (ext ρ) wk t)))
+
+------------------------------------------------------------------------
+-- `renameTerms ρ ts ≡ map (rename ρ) ts`.
+------------------------------------------------------------------------
+
+renameTerms-map : ∀ ρ ts → renameTerms ρ ts ≡ map (rename ρ) ts
+renameTerms-map ρ [] = refl
+renameTerms-map ρ (x ∷ xs) = cong₂ _∷_ refl (renameTerms-map ρ xs)
