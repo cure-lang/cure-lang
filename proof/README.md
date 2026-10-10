@@ -228,10 +228,19 @@ The one structural subtlety still to resolve is the interaction between
 `extSub` and the weakening renaming. The "substitution undoes weakening"
 law needs `substS (topSub a) (rename wk T) ≡ T`, but under a binder
 `rename (ext wk)` maps `suc j ↦ suc (suc j)` while `extSub (topSub a)`
-maps `suc (suc j) ↦ suc j` — the two extensions are *adjoint*, and the
-induction must thread the coherence condition between the substitution and
-the context. This is the standard substitution/weakening adjunction; the
-machinery (`extSub`, `extSub^`, `substS`) is in place.
+maps `suc (suc j) ↦ suc j` — the two extensions are *adjoint*.
+
+The clean fix is to define the substitution's binder extension **relative
+to the renaming**: for a simultaneous substitution `σ` and a renaming `ρ`,
+the extension under a binder maps `zero ↦ var zero` and `suc (ρ j) ↦ σ j`.
+Then the general law
+
+    substS (extSub ρ σ) (rename (ext ρ) t) ≡ substS σ t
+
+holds by induction, and the "undo weakening" law is its instance at
+`ρ = wk` and `σ = topSub a`. The machinery (`extSub`, `extSub^`, `substS`)
+is in place; the parameterisation of `extSub` by `ρ` is the concrete next
+step.
 
 ## Building## Building## Building
 
