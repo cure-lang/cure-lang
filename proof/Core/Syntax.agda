@@ -326,9 +326,13 @@ Sub : Set
 Sub = ℕ → Term
 
 -- Extend a substitution under one binder.
+-- The weakening renaming: shift every index up by one.
+wk : Ren
+wk k = suc k
+
 extSub : Sub → Sub
 extSub σ zero = tm-var zero
-extSub σ (suc k) = shift 1 0 (σ k)
+extSub σ (suc k) = rename wk (σ k)
 
 
 -- `extSub` iterated `n` times.

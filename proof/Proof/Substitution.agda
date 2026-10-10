@@ -301,3 +301,92 @@ mutual
   subst-id (sc-effect_bind se sk) = cong₂ tm-effect_bind (subst-id se) (subst-id sk)
   subst-id (sc-hole {n}) = refl
   subst-id (sc-absurd) = refl
+
+------------------------------------------------------------------------
+-- The substitution/renaming interaction.
+--
+-- `substS σ (rename ρ t) ≡ substS (σ ∘s ρ) t`: substituting after renaming
+-- is the same as substituting with the composed substitution. This is the
+-- key law that makes the substitution lemma's binder case go through.
+--
+-- The proof is by mutual induction on the term. Under a binder the
+-- substitution is extended by `extSub` and the renaming by `ext`; the two
+-- extensions are related by `extSub σ ∘s ext ρ ≡ extSub (σ ∘s ρ)`, which
+-- is `exts^-comp` at `n = 1`.
+--
+-- Function extensionality is assumed (standard for de Bruijn metatheory).
+------------------------------------------------------------------------
+
+postulate
+  funext : ∀ {a b} {A : Set a} {B : A → Set b} {f g : (x : A) → B x}
+         → (∀ x → f x ≡ g x) → f ≡ g
+
+-- Composition of a substitution with a renaming.
+_∘s_ : Sub → Ren → Sub
+(σ ∘s ρ) k = σ (ρ k)
+
+-- The composition law: `extSub^ n σ ∘s ext^ n ρ ≡ extSub^ n (σ ∘s ρ)`.
+extSub^-comp : ∀ n σ ρ j → (extSub^ n σ ∘s ext^ n ρ) j ≡ extSub^ n (σ ∘s ρ) j
+extSub^-comp zero σ ρ j = refl
+extSub^-comp (suc n) σ ρ zero = refl
+extSub^-comp (suc n) σ ρ (suc k) = cong (rename wk) (extSub^-comp n σ ρ k)
+
+-- Three-argument congruence (duplicated here to keep the module self-contained).
+cong₃′ : ∀ {A B C D : Set} {a a′ : A} {b b′ : B} {c c′ : C}
+      → (f : A → B → C → D) → a ≡ a′ → b ≡ b′ → c ≡ c′ → f a b c ≡ f a′ b′ c′
+cong₃′ f refl refl refl = refl
+
+mutual
+  subst-rename-terms : ∀ σ ρ ts → substTermsS σ (renameTerms ρ ts) ≡ substTermsS (σ ∘s ρ) ts
+  subst-rename-terms σ ρ [] = refl
+  subst-rename-terms σ ρ (x ∷ xs) = cong₂ _∷_ (subst-rename σ ρ x) (subst-rename-terms σ ρ xs)
+
+  subst-rename-branches : ∀ σ ρ bs → substBranchesS σ (renameBranches ρ bs) ≡ substBranchesS (σ ∘s ρ) bs
+  subst-rename-branches σ ρ [] = refl
+  subst-rename-branches σ ρ (x ∷ xs) = cong₂ _∷_ (subst-rename-branch σ ρ x) (subst-rename-branches σ ρ xs)
+
+  subst-rename-branch : ∀ σ ρ b → substBranchS σ (renameBranch ρ b) ≡ substBranchS (σ ∘s ρ) b
+  subst-rename-branch σ ρ (cn , ar , b) =
+    cong (λ x → cn , ar , x)
+         (trans (subst-rename (extSub^ ar σ) (ext^ ar ρ) b)
+                (cong (λ σ' → substS σ' b) (funext (λ k → extSub^-comp ar σ ρ k))))
+
+  -- The composition law at n = 1, as a function equality.
+  extSub-comp : ∀ σ ρ → (extSub σ ∘s ext ρ) ≡ extSub (σ ∘s ρ)
+  extSub-comp σ ρ = funext (λ j → extSub^-comp 1 σ ρ j)
+
+  subst-rename : ∀ σ ρ t → substS σ (rename ρ t) ≡ substS (σ ∘s ρ) t
+  subst-rename σ ρ (tm-type l) = refl
+  subst-rename σ ρ (tm-var k) = refl
+  subst-rename σ ρ (tm-pi g d c) =
+    cong₂ (tm-pi g) (subst-rename σ ρ d)
+          (trans (subst-rename (extSub σ) (ext ρ) c)
+                 (cong (λ σ' → substS σ' c) (extSub-comp σ ρ)))
+  subst-rename σ ρ (tm-lam g d b) =
+    cong₂ (tm-lam g) (subst-rename σ ρ d)
+          (trans (subst-rename (extSub σ) (ext ρ) b)
+                 (cong (λ σ' → substS σ' b) (extSub-comp σ ρ)))
+  subst-rename σ ρ (tm-let g ty v b) =
+    cong₃′ (tm-let g) (subst-rename σ ρ ty) (subst-rename σ ρ v)
+           (trans (subst-rename (extSub σ) (ext ρ) b)
+                  (cong (λ σ' → substS σ' b) (extSub-comp σ ρ)))
+  subst-rename σ ρ (tm-app f a) = cong₂ tm-app (subst-rename σ ρ f) (subst-rename σ ρ a)
+  subst-rename σ ρ (tm-data n ps is) = cong₂ (tm-data n) (subst-rename-terms σ ρ ps) (subst-rename-terms σ ρ is)
+  subst-rename σ ρ (tm-ctor n args) = cong (tm-ctor n) (subst-rename-terms σ ρ args)
+  subst-rename σ ρ (tm-case s m brs) =
+    cong₃′ tm-case (subst-rename σ ρ s) (subst-rename σ ρ m) (subst-rename-branches σ ρ brs)
+  subst-rename σ ρ (tm-global n) = refl
+  subst-rename σ ρ (tm-int_type) = refl
+  subst-rename σ ρ (tm-int_lit k) = refl
+  subst-rename σ ρ (tm-nat_lit k) = refl
+  subst-rename σ ρ (tm-bounded_lit k) = refl
+  subst-rename σ ρ (tm-float_type) = refl
+  subst-rename σ ρ (tm-float_lit) = refl
+  subst-rename σ ρ (tm-binary_type) = refl
+  subst-rename σ ρ (tm-atom_type) = refl
+  subst-rename σ ρ (tm-atom_lit n) = refl
+  subst-rename σ ρ (tm-effect_type t) = cong tm-effect_type (subst-rename σ ρ t)
+  subst-rename σ ρ (tm-effect_pure t) = cong tm-effect_pure (subst-rename σ ρ t)
+  subst-rename σ ρ (tm-effect_bind e k) = cong₂ tm-effect_bind (subst-rename σ ρ e) (subst-rename σ ρ k)
+  subst-rename σ ρ (tm-hole n) = refl
+  subst-rename σ ρ (tm-absurd) = refl

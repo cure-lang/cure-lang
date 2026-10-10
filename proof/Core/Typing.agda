@@ -85,10 +85,6 @@ lookup : (Γ : Context) → Fin (lengthCtx Γ) → Term
 lookup (Γ ▷ T) zero = T
 lookup (Γ ▷ T) (suc i) = lookup Γ i
 
--- The weakening renaming: shift every index up by one.
-wk : Ren
-wk k = suc k
-
 -- Rename every type in a context.
 renameCtx : Ren → Context → Context
 renameCtx ρ ⟨⟩ = ⟨⟩

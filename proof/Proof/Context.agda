@@ -20,7 +20,7 @@ open import Relation.Binary.PropositionalEquality
   using (_≡_; refl; sym; trans; cong; cong₂; subst)
 
 open import Core.Syntax
-open import Core.Typing using (Context; ⟨⟩; _▷_; lengthCtx; lookup; extend; wk; wkFin; lookup-extend; length-renameCtx; subst-fin-suc)
+open import Core.Typing using (Context; ⟨⟩; _▷_; lengthCtx; lookup; extend; wkFin; lookup-extend; length-renameCtx; subst-fin-suc)
 
 ------------------------------------------------------------------------
 -- Weakening a lookup.
