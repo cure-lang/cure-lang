@@ -102,11 +102,21 @@ recommends.
 - **The canonical-form lemmas** `canonical-pi-value` and `canonical-ctor`
   (`Proof/CanonicalForms.agda`), proved by composing the checking-mode
   head-inversion lemmas.
-- **The `shift-0` identity law** (`Proof/Substitution.agda`): shifting by
-  zero is the identity at any cutoff.
-- **The weakening lookup law** (`Proof/Context.agda`): with the
-  length-indexed context, `lookup (extend Γ T) (suc i) ≡ lookup Γ i` is
-  `refl`, and `toℕ-wkFin` gives the index arithmetic.
+- **The `shift-0` identity law** and the rename/subst laws
+  (`Proof/Substitution.agda`): `rename-id`, `rename-compose`,
+  `rename-subst`, `subst-compose`, `subst-extSub-wk`, `topSub-rename`.
+- **The weakening lookup law** (`Core.Typing`): with the length-indexed
+  context, `lookup (extend Γ T) (suc i) ≡ rename wk (lookup Γ i)` is a
+  clean `refl`-level induction.
+- **The fundamental renaming lemma** `ren⇒`/`ren⇐` and its spine lifting
+  `ren-spine` (`Proof/Preservation.agda`): a context morphism transports
+  typing across a renaming. The `data` and `ctor` cases are proved from
+  `ren-spine`.
+- **Weakening** `weaken⇒`/`weaken⇐`: the instance of the renaming lemma at
+  `wk`.
+- **The substitution lemma** `subst⇒`/`subst⇐`: proved by mutual induction,
+  with the binder cases resting on the extended coherence `coh-extend`
+  (itself proved from `subst-extSub-wk` and weakening).
 
 ### In progress (statements given, proofs open)
 
@@ -120,19 +130,18 @@ These are the `postulate`s, each with a named proof strategy in the source:
 2. **`conv-injective-data` / `conv-injective-pi`** (`Proof/Inversion.agda`) —
    conversion injectivity on type constructors. *Strategy:* the FSCD'25
    result; provable in a meta-theory weaker than the object theory.
-3. **`weaken⇒` / `weaken⇐`** (`Proof/Preservation.agda`) — weakening. The
-   `⇒-var` case is the definitional lookup law; the binder case needs a
-   context *morphism* (see "The context representation" below).
-4. **`subst⇒` / `subst⇐`** (`Proof/Preservation.agda`) — the substitution
-   lemma, conditioned on `WfCtx` (the well-formed-context invariant). The
-   `⇒-var` cases split on whether the looked-up index is the substituted
-   one; see "The substitution lemma" below for the remaining subtlety.
-5. **`progress`** (`Proof/Progress.agda`) — by cases on the typing
+3. **The application/let/case/effect-bind cases** of the renaming and
+   substitution lemmas (`ren-app`, `ren-let`, `ren-case`,
+   `ren-effect-bind`, `subst-app`, `subst-data`, `subst-ctor`,
+   `subst-case`, `subst-effect-bind`). *Strategy:* the `⇒-app` case needs
+   the `substT`/`rename` commutation (which holds for shift-like
+   renamings); the others are structural.
+4. **`progress`** (`Proof/Progress.agda`) — by cases on the typing
    derivation, consuming the canonical-form lemmas to show β and ι fire.
-6. **`preservation`** (`Proof/Preservation.agda`) — the four cases β, ζ, ι,
+5. **`preservation`** (`Proof/Preservation.agda`) — the four cases β, ζ, ι,
    δ. β/ζ consume `subst⇐`; ι is the branch-coverage lemma; δ consumes
    `Certified`.
-7. **`soundness`** (`Proof/Soundness.agda`) — the type-safety induction
+6. **`soundness`** (`Proof/Soundness.agda`) — the type-safety induction
    combining Progress and Preservation.
 
 ### Open research questions (docs/SOUNDNESS.md §7, §8)
