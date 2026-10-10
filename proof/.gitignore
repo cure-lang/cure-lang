@@ -1,0 +1,4 @@
+# Agda interface files and build cache
+_build/
+*.agdai
+MAlonzo/
