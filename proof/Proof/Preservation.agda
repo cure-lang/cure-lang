@@ -165,12 +165,33 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   ren⇒ idx coh law (⇒-effect_pure p) = ⇒-effect_pure (ren⇒ idx coh law p)
   ren⇒ idx coh law (⇒-effect_bind p q) = ren-effect-bind idx coh law p q
 
+  -- Conversion is a congruence for renaming.
+  postulate
+    rename-conv : ∀ {t u} (ρ : Ren) → Conversion._≈_ conv t u
+                → Conversion._≈_ conv (rename ρ t) (rename ρ u)
+
+  -- The fundamental renaming lemma for the checking judgment.
+  ren⇐ : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {t T ρ}
+         (idx : Fin n → Fin m)
+       → (∀ i → toℕ (idx i) ≡ ρ (toℕ i))
+       → (∀ i → lookup Δ (idx i) ≡ rename ρ (lookup Γ i))
+       → Γ ⊢ t ⇐ T → Δ ⊢ rename ρ t ⇐ rename ρ T
+  ren⇐ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇐-lam {g = g} {d = d} {b = b} {g′ = g′} {d′ = d′} {c = c} eq conv-eq body) =
+    ⇐-lam {g = g} {d = rename ρ d} {b = rename (ext ρ) b}
+          {g′ = g′} {d′ = rename ρ d′} {c = rename (ext ρ) c}
+          eq
+          (rename-conv ρ conv-eq)
+          (ren⇐ (ext-idx idx) (ext-coh ρ idx coh) (ext-law d′ idx law) body)
+  ren⇐ idx coh law (⇐-hole) = ⇐-hole
+  ren⇐ idx coh law (⇐-infer der eq) = ⇐-infer (ren⇒ idx coh law der) (rename-conv _ eq)
+  ren⇐ idx coh law (⇐-cumul der le) = ⇐-cumul (ren⇒ idx coh law der) le
+
   -- Weakening is the instance of the fundamental lemma at `wk`.
   weaken⇒ : ∀ {n} {Γ : Ctx n} {t T S} → Γ ⊢ t ⇒ T → extend Γ S ⊢ rename wk t ⇒ rename wk T
   weaken⇒ {n} {Γ} {S = S} der = ren⇒ (suc {n}) (λ i → refl) (λ i → lookup-extend Γ S i) der
 
-  postulate
-    weaken⇐ : ∀ {n} {Γ : Ctx n} {t T S} → Γ ⊢ t ⇐ T → extend Γ S ⊢ rename wk t ⇐ rename wk T
+  weaken⇐ : ∀ {n} {Γ : Ctx n} {t T S} → Γ ⊢ t ⇐ T → extend Γ S ⊢ rename wk t ⇐ rename wk T
+  weaken⇐ {n} {Γ} {S = S} der = ren⇐ (suc {n}) (λ i → refl) (λ i → lookup-extend Γ S i) der
 
   ------------------------------------------------------------------------
   -- Substitution.
@@ -193,13 +214,21 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
 
   -- `extend Δ (substS σ d) ⊢ extSub σ (toℕ k) ⇒ substS (extSub σ) (lookup (extend Γ d) k)`.
   --
-  -- OPEN OBLIGATION: the index-0 case is `subst-extSub-wk`; the index-suc
-  -- case is weakening of the original coherence.
-  postulate
-    coh-extend :
-      ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {σ d}
-      → Coherent {n} {m} Γ Δ σ
-      → Coherent (extend Γ d) (extend Δ (substS σ d)) (extSub σ)
+  -- PROVED: the index-0 case is `subst-extSub-wk`; the index-suc case is
+  -- weakening of the original coherence.
+  coh-extend :
+    ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {σ d}
+    → Coherent {n} {m} Γ Δ σ
+    → Coherent (extend Γ d) (extend Δ (substS σ d)) (extSub σ)
+  coh-extend {Γ = Γ} {Δ = Δ} {σ = σ} {d = d} coh zero =
+    subst (λ X → extend Δ (substS σ d) ⊢ tm-var 0 ⇒ X)
+          (sym (subst-extSub-wk σ d))
+          (⇒-var zero)
+  coh-extend {Γ = Γ} {Δ = Δ} {σ = σ} {d = d} coh (suc k) =
+    subst (λ X → extend Δ (substS σ d) ⊢ rename wk (σ (toℕ k)) ⇒ X)
+          (trans (sym (subst-extSub-wk σ (lookup Γ k)))
+                 (cong (substS (extSub σ)) (sym (lookup-renameCtx wk Γ k))))
+          (weaken⇒ (coh k))
 
   -- The length of a context, exposed for the metatheory.
   lengthCtx : ∀ {n} → Ctx n → ℕ
