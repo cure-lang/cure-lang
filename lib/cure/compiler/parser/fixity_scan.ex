@@ -41,6 +41,49 @@ defmodule Cure.Compiler.Parser.FixityScan do
     end
   end
 
+  # A bare (mod-less) macro container — `sup Colony`, `actor Echo`, `app X`,
+  # `fsm M` — declares its module identity through a COMPUTED MACRO, so the
+  # harvest scan cannot see it: `harvest/4` runs with no macro grammar active
+  # and yields plain `{:variable, …}` nodes for `sup` and `Colony` alike. The
+  # identity only exists once the declaration-position expansion has run, which
+  # is why the manifest (a cheap header scan) reported
+  # `{:module_identity_missing, path}` for a file the single-file path compiles
+  # without complaint.
+  #
+  # This recovers that identity by running exactly the expansion the single-file
+  # path runs, then asking the SAME function the emitter asks for the unit name.
+  # It is deliberately a SEPARATE entry point rather than folded into
+  # `harvest_source/3`: expansion needs the dependent environment and the
+  # stdlib, so it is far more expensive than a header scan, and callers that
+  # already have an identity (the common case) must not pay for it.
+  #
+  # The name returned is the COMPILATION UNIT's, because that is what the
+  # manifest indexes and what the emitter writes a beam for. For a bare
+  # container the unit is `Main` (the implicit top-level owner), and the lifted
+  # module is emitted as a separate artifact *within* it — so the manifest entry
+  # must say `Main`, not the lifted name. Reading the lifted module's name here
+  # instead produced a manifest naming a beam nothing ever wrote, which surfaced
+  # as `:beam_missing` after the identity error was fixed. Delegating to
+  # `Program.module_atom/1` keeps this in step with the emitter by construction.
+  @spec expanded_module_name(String.t(), String.t()) :: String.t() | nil
+  def expanded_module_name(source, file) do
+    with {:ok, tokens} <- Lexer.tokenize(source, file: file, emit_events: false),
+         {:ok, ast} <- Parser.parse(tokens, file: file, emit_events: false),
+         {:ok, expanded} <- Cure.Elab.Program.expand_declaration_uses(ast) do
+      expanded
+      |> Cure.Elab.Program.module_atom()
+      |> Atom.to_string()
+      |> String.replace_prefix("Cure.", "")
+    else
+      _ -> nil
+    end
+  rescue
+    # Identity recovery is a best-effort fallback: a source that cannot even be
+    # expanded has no recoverable identity, and the caller's existing
+    # `module_identity_missing` error stays the correct answer for it.
+    _ -> nil
+  end
+
   @spec collect_fixity(term()) :: [tuple()]
   def collect_fixity(ast),
     do:
@@ -332,10 +375,7 @@ defmodule Cure.Compiler.Parser.FixityScan do
   def module_name(ast) do
     deep_reduce(ast, nil, fn
       {:lift_module, meta, _}, nil when is_list(meta) ->
-        case Keyword.get(meta, :module) do
-          name when is_binary(name) -> name
-          _macro_hole_or_missing -> nil
-        end
+        normalize_declared_name(Keyword.get(meta, :module))
 
       {:container, meta, _}, nil when is_list(meta) ->
         if Keyword.get(meta, :container_type) in @module_container_types,
@@ -346,6 +386,15 @@ defmodule Cure.Compiler.Parser.FixityScan do
         acc
     end)
   end
+
+  # A computed macro reflects its module name as a `Std.Syntax` literal, which
+  # reaches this scan as an ATOM (`:"Cure.Main.Colony"`) rather than the binary
+  # an authored `mod` declaration carries. Both spell the same identity, and the
+  # manifest requires a binary, so normalize here instead of leaving the caller
+  # to guess which surface produced the node.
+  defp normalize_declared_name(name) when is_binary(name), do: name
+  defp normalize_declared_name(name) when is_atom(name) and not is_nil(name), do: Atom.to_string(name)
+  defp normalize_declared_name(_macro_hole_or_missing), do: nil
 
   # -- deep walkers (mirror BuiltinFixity.collect_fixity_nodes shape) --------
 

@@ -317,7 +317,15 @@ defmodule Cure.Compiler.Artifacts.Sweep do
     checked.manifest.entries
     |> Enum.sort_by(fn {identity, _entry} -> identity end)
     |> Enum.reduce_while({:ok, %{}}, fn {identity, entry}, {:ok, modules} ->
-      beam_module = String.to_existing_atom("Cure." <> entry.module_name)
+      # `to_atom/1`, not `to_existing_atom/1`: a bare (mod-less) macro container
+      # emits its LIFTED module under `Cure.<name>` while the enclosing unit is
+      # `Cure.Main`, so nothing in this VM ever interned `:"Cure.<name>"` — the
+      # atom is created by the emitter for the beam it wrote, not by a container
+      # declaration. `to_existing_atom/1` therefore raised ArgumentError for a
+      # module that compiled perfectly. The name is the compiler's own manifest
+      # identity, not user input, so interning it here is bounded by the
+      # compilation set and safe.
+      beam_module = String.to_atom("Cure." <> entry.module_name)
       beam_path = Atom.to_string(beam_module) <> ".beam"
 
       with {:ok, artifact} <- Artifacts.record(beam_path, stage, verification: :full),

@@ -12,6 +12,7 @@ defmodule Cure.Diagnostic.Operational do
   def from_error(error, opts \\ []), do: Operational.from_error(error, opts)
   defdelegate file_read(path, reason), to: Operational
   defdelegate file_write(path, reason), to: Operational
+  defdelegate module_identity_missing(path), to: Operational
   defdelegate dependency(reason), to: Operational
   defdelegate command_failure(command, reason), to: Operational
   defdelegate migration_failure(kind, details), to: Operational

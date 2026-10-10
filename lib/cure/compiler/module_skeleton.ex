@@ -78,13 +78,56 @@ defmodule Cure.Compiler.ModuleSkeleton do
   # The module container is not always the root node: an item-level decorator
   # such as `@prelude` wraps it in a block. Search for the container that
   # declares this module rather than assuming the root shape.
+  #
+  # A bare (mod-less) macro container has no `{:container, …}` at all: its
+  # expansion is a lifted module, so `find_module_container/2` alone would return
+  # nil and the skeleton would publish an EMPTY interface for a module that
+  # genuinely declares things. Accept the lifted form as a body source too, so
+  # the identity the manifest recovered and the declarations the skeleton
+  # publishes come from the same construct.
   defp module_body(ast, module_name) do
     case find_module_container(ast, module_name) do
       {:container, _meta, body} when is_list(body) -> body
       {:container, _meta, body} -> [body]
+      nil -> lifted_module_body(ast, module_name)
+    end
+  end
+
+  defp lifted_module_body(ast, module_name) do
+    case find_lifted_module(ast, module_name) do
+      {:lift_module, _meta, body} when is_list(body) -> body
+      {:lift_module, _meta, body} -> [body]
       nil -> []
     end
   end
+
+  # A lifted module is named by its `:module` key, which a computed macro emits
+  # as an atom (`:"Cure.Main.Colony"`) rather than the binary an authored `mod`
+  # carries. Compare on the normalized spelling so either surface matches.
+  defp find_lifted_module({:lift_module, meta, _body} = node, module_name) when is_list(meta) do
+    case Keyword.get(meta, :module) do
+      value when is_binary(value) ->
+        if value == module_name, do: node
+
+      value when is_atom(value) and not is_nil(value) ->
+        if Atom.to_string(value) == module_name or
+             String.replace_prefix(Atom.to_string(value), "Cure.", "") == module_name,
+           do: node
+
+      _ ->
+        nil
+    end
+  end
+
+  defp find_lifted_module(node, module_name) when is_tuple(node) do
+    node |> Tuple.to_list() |> find_lifted_module(module_name)
+  end
+
+  defp find_lifted_module(nodes, module_name) when is_list(nodes) do
+    Enum.find_value(nodes, &find_lifted_module(&1, module_name))
+  end
+
+  defp find_lifted_module(_leaf, _module_name), do: nil
 
   defp find_module_container({:container, meta, _} = node, module_name) when is_list(meta) do
     if Keyword.get(meta, :container_type) in @module_container_types and

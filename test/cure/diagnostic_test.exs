@@ -277,7 +277,7 @@ defmodule Cure.DiagnosticTest do
       {{:ctor_requires_checking_mode, "Nat"}, "E093"},
       {{:bounded_bound_not_concrete, {:literal, 10}}, "E093"},
       {{:cyclic_typealiases, ["A", "B"]}, "E105"},
-      {{:module_identity_missing, "demo.cure"}, "E095"},
+      {{:module_identity_missing, "demo.cure"}, "E123"},
       {{:module_identity_mismatch, "Demo", "Other", "demo.cure"}, "E105"},
       {{:char_literal_needs_bounded, 97}, "E093"},
       {{:char_literal_out_of_range, 0x110000}, "E093"},
