@@ -35,7 +35,7 @@ open import Data.List using (List; []; _∷_; _++_; length; map)
 open import Data.String using (String)
 open import Data.Product using (Σ; _×_; _,_; proj₁; proj₂)
 open import Relation.Binary.PropositionalEquality
-  using (_≡_; refl; sym; trans; cong; subst)
+  using (_≡_; refl; sym; trans; cong; cong₂; subst)
 
 open import Core.Grade using (Grade; erased; linear; affine; unrestricted)
 open import Core.Universe using (Level; l0; l1; l2)
@@ -378,3 +378,88 @@ mutual
   substS σ (tm-hole n) = tm-hole n
   substS σ (tm-absurd) = tm-absurd
 
+
+------------------------------------------------------------------------
+-- Renaming composes.
+--
+-- `rename ρ (rename σ t) ≡ rename (ρ ∘ σ) t`: two renamings compose.
+-- The binder case uses `ext ρ ∘ ext σ ≡ ext (ρ ∘ σ)`, which holds
+-- definitionally.
+------------------------------------------------------------------------
+
+open import Function using (_∘_)
+
+cong₃ : ∀ {A B C D : Set} {a a′ : A} {b b′ : B} {c c′ : C}
+     → (f : A → B → C → D) → a ≡ a′ → b ≡ b′ → c ≡ c′ → f a b c ≡ f a′ b′ c′
+cong₃ f refl refl refl = refl
+
+postulate funext-ren : ∀ {ρ σ : Ren} → (∀ k → ρ k ≡ σ k) → ρ ≡ σ
+
+mutual
+  rename-compose-terms : ∀ ρ σ ts → renameTerms ρ (renameTerms σ ts) ≡ renameTerms (ρ ∘ σ) ts
+  rename-compose-terms ρ σ [] = refl
+  rename-compose-terms ρ σ (x ∷ xs) =
+    cong₂ _∷_ (rename-compose ρ σ x) (rename-compose-terms ρ σ xs)
+
+  rename-compose-branches : ∀ ρ σ bs → renameBranches ρ (renameBranches σ bs) ≡ renameBranches (ρ ∘ σ) bs
+  rename-compose-branches ρ σ [] = refl
+  rename-compose-branches ρ σ (x ∷ xs) =
+    cong₂ _∷_ (rename-compose-branch ρ σ x) (rename-compose-branches ρ σ xs)
+
+  rename-compose-branch : ∀ ρ σ b → renameBranch ρ (renameBranch σ b) ≡ renameBranch (ρ ∘ σ) b
+  rename-compose-branch ρ σ (cn , ar , b) =
+    cong (λ x → cn , ar , x)
+         (trans (rename-compose (ext^ ar ρ) (ext^ ar σ) b)
+                (cong (λ x → rename x b) (funext-ren (λ k → sym (ext^-compose ar ρ σ k)))))
+    where
+      ext^-compose : ∀ n ρ σ k → ext^ n (ρ ∘ σ) k ≡ ext^ n ρ (ext^ n σ k)
+      ext^-compose zero ρ σ k = refl
+      ext^-compose (suc n) ρ σ zero = refl
+      ext^-compose (suc n) ρ σ (suc k) = cong suc (ext^-compose n ρ σ k)
+
+  ext-compose : ∀ ρ σ k → (ext ρ ∘ ext σ) k ≡ ext (ρ ∘ σ) k
+  ext-compose ρ σ zero = refl
+  ext-compose ρ σ (suc k) = refl
+
+  rename-compose : ∀ ρ σ t → rename ρ (rename σ t) ≡ rename (ρ ∘ σ) t
+  rename-compose ρ σ (tm-type l) = refl
+  rename-compose ρ σ (tm-var k) = refl
+  rename-compose ρ σ (tm-pi g d c) =
+    cong₂ (tm-pi g) (rename-compose ρ σ d)
+          (trans (rename-compose (ext ρ) (ext σ) c)
+                 (cong (λ x → rename x c) (funext-ren (ext-compose ρ σ))))
+  rename-compose ρ σ (tm-lam g d b) =
+    cong₂ (tm-lam g) (rename-compose ρ σ d)
+          (trans (rename-compose (ext ρ) (ext σ) b)
+                 (cong (λ x → rename x b) (funext-ren (ext-compose ρ σ))))
+  rename-compose ρ σ (tm-let g ty v b) =
+    cong₃ (tm-let g) (rename-compose ρ σ ty) (rename-compose ρ σ v)
+          (trans (rename-compose (ext ρ) (ext σ) b)
+                 (cong (λ x → rename x b) (funext-ren (ext-compose ρ σ))))
+  rename-compose ρ σ (tm-app f a) = cong₂ tm-app (rename-compose ρ σ f) (rename-compose ρ σ a)
+  rename-compose ρ σ (tm-data n ps is) = cong₂ (tm-data n) (rename-compose-terms ρ σ ps) (rename-compose-terms ρ σ is)
+  rename-compose ρ σ (tm-ctor n args) = cong (tm-ctor n) (rename-compose-terms ρ σ args)
+  rename-compose ρ σ (tm-case s m brs) =
+    cong₃ tm-case (rename-compose ρ σ s) (rename-compose ρ σ m) (rename-compose-branches ρ σ brs)
+  rename-compose ρ σ (tm-global n) = refl
+  rename-compose ρ σ (tm-int_type) = refl
+  rename-compose ρ σ (tm-int_lit k) = refl
+  rename-compose ρ σ (tm-nat_lit k) = refl
+  rename-compose ρ σ (tm-bounded_lit k) = refl
+  rename-compose ρ σ (tm-float_type) = refl
+  rename-compose ρ σ (tm-float_lit) = refl
+  rename-compose ρ σ (tm-binary_type) = refl
+  rename-compose ρ σ (tm-atom_type) = refl
+  rename-compose ρ σ (tm-atom_lit n) = refl
+  rename-compose ρ σ (tm-effect_type t) = cong tm-effect_type (rename-compose ρ σ t)
+  rename-compose ρ σ (tm-effect_pure t) = cong tm-effect_pure (rename-compose ρ σ t)
+  rename-compose ρ σ (tm-effect_bind e k) = cong₂ tm-effect_bind (rename-compose ρ σ e) (rename-compose ρ σ k)
+  rename-compose ρ σ (tm-hole n) = refl
+  rename-compose ρ σ (tm-absurd) = refl
+
+------------------------------------------------------------------------
+-- `ext ρ ∘ wk ≡ wk ∘ ρ`.
+------------------------------------------------------------------------
+
+ext-wk-compose : ∀ ρ k → (ext ρ ∘ wk) k ≡ (wk ∘ ρ) k
+ext-wk-compose ρ k = refl

@@ -23,12 +23,8 @@ open import Data.Product using (_×_; _,_; proj₁; proj₂)
 open import Relation.Binary.PropositionalEquality
   using (_≡_; refl; sym; trans; cong; cong₂; subst)
 
+open import Function using (_∘_)
 open import Core.Syntax
-
--- Three-argument congruence (not in the stdlib under this name).
-cong₃ : ∀ {A B C D : Set} {a a′ : A} {b b′ : B} {c c′ : C}
-     → (f : A → B → C → D) → a ≡ a′ → b ≡ b′ → c ≡ c′ → f a b c ≡ f a′ b′ c′
-cong₃ f refl refl refl = refl
 
 ------------------------------------------------------------------------
 -- `n + 0 ≡ n`
@@ -390,3 +386,101 @@ mutual
   subst-rename σ ρ (tm-effect_bind e k) = cong₂ tm-effect_bind (subst-rename σ ρ e) (subst-rename σ ρ k)
   subst-rename σ ρ (tm-hole n) = refl
   subst-rename σ ρ (tm-absurd) = refl
+
+------------------------------------------------------------------------
+-- Consequences of `subst-rename` at the weakening renaming.
+--
+-- These are the two facts the substitution lemma's binder case needs.
+------------------------------------------------------------------------
+
+-- Rename every term in a substitution.
+renameSub : Ren → Sub → Sub
+renameSub ρ σ k = rename ρ (σ k)
+
+-- `extSub σ ∘s wk ≡ renameSub wk σ`.
+extSub-wk : ∀ σ → (extSub σ ∘s wk) ≡ renameSub wk σ
+extSub-wk σ = funext (λ j → refl)
+
+-- `rename ρ (substS σ t) ≡ substS (renameSub ρ σ) t` — renaming after
+-- substituting is substituting with the renamed substitution.
+mutual
+  rename-subst-terms : ∀ ρ σ ts → renameTerms ρ (substTermsS σ ts) ≡ substTermsS (renameSub ρ σ) ts
+  rename-subst-terms ρ σ [] = refl
+  rename-subst-terms ρ σ (x ∷ xs) =
+    cong₂ _∷_ (rename-subst ρ σ x) (rename-subst-terms ρ σ xs)
+
+  rename-subst-branches : ∀ ρ σ bs → renameBranches ρ (substBranchesS σ bs) ≡ substBranchesS (renameSub ρ σ) bs
+  rename-subst-branches ρ σ [] = refl
+  rename-subst-branches ρ σ (x ∷ xs) =
+    cong₂ _∷_ (rename-subst-branch ρ σ x) (rename-subst-branches ρ σ xs)
+
+  rename-subst-branch : ∀ ρ σ b → renameBranch ρ (substBranchS σ b) ≡ substBranchS (renameSub ρ σ) b
+  rename-subst-branch ρ σ (cn , ar , b) =
+    cong (λ x → cn , ar , x)
+         (trans (rename-subst (ext^ ar ρ) (extSub^ ar σ) b)
+                (cong (λ σ' → substS σ' b)
+                      (funext (λ k → renameSub-extSub ρ σ ar k))))
+    where
+      -- renameSub (ext^ n ρ) (extSub^ n σ) ≡ extSub^ n (renameSub ρ σ)
+      renameSub-extSub : ∀ ρ σ n k
+        → renameSub (ext^ n ρ) (extSub^ n σ) k ≡ extSub^ n (renameSub ρ σ) k
+      renameSub-extSub ρ σ zero k = refl
+      renameSub-extSub ρ σ (suc n) zero = refl
+      renameSub-extSub ρ σ (suc n) (suc k) =
+        trans (rename-compose (ext (ext^ n ρ)) wk (extSub^ n σ k))
+              (trans (cong (λ x → rename x (extSub^ n σ k))
+                           (funext-ren (ext-wk-compose (ext^ n ρ))))
+                     (trans (sym (rename-compose wk (ext^ n ρ) (extSub^ n σ k)))
+                            (cong (rename wk) (renameSub-extSub ρ σ n k))))
+
+
+  renameSub-extSub-eq : ∀ ρ σ → renameSub (ext ρ) (extSub σ) ≡ extSub (renameSub ρ σ)
+  renameSub-extSub-eq ρ σ = funext (λ { zero → refl
+                                      ; (suc k) →
+                                          trans (rename-compose (ext ρ) wk (σ k))
+                                                (trans (cong (λ x → rename x (σ k))
+                                                             (funext-ren (ext-wk-compose ρ)))
+                                                       (sym (rename-compose wk ρ (σ k)))) })
+
+  rename-subst : ∀ ρ σ t → rename ρ (substS σ t) ≡ substS (renameSub ρ σ) t
+  rename-subst ρ σ (tm-type l) = refl
+  rename-subst ρ σ (tm-var k) = refl
+  rename-subst ρ σ (tm-pi g d c) =
+    cong₂ (tm-pi g) (rename-subst ρ σ d)
+          (trans (rename-subst (ext ρ) (extSub σ) c)
+                 (cong (λ σ' → substS σ' c) (renameSub-extSub-eq ρ σ)))
+  rename-subst ρ σ (tm-lam g d b) =
+    cong₂ (tm-lam g) (rename-subst ρ σ d)
+          (trans (rename-subst (ext ρ) (extSub σ) b)
+                 (cong (λ σ' → substS σ' b) (renameSub-extSub-eq ρ σ)))
+  rename-subst ρ σ (tm-let g ty v b) =
+    cong₃′ (tm-let g) (rename-subst ρ σ ty) (rename-subst ρ σ v)
+           (trans (rename-subst (ext ρ) (extSub σ) b)
+                  (cong (λ σ' → substS σ' b) (renameSub-extSub-eq ρ σ)))
+  rename-subst ρ σ (tm-app f a) = cong₂ tm-app (rename-subst ρ σ f) (rename-subst ρ σ a)
+  rename-subst ρ σ (tm-data n ps is) = cong₂ (tm-data n) (rename-subst-terms ρ σ ps) (rename-subst-terms ρ σ is)
+  rename-subst ρ σ (tm-ctor n args) = cong (tm-ctor n) (rename-subst-terms ρ σ args)
+  rename-subst ρ σ (tm-case s m brs) =
+    cong₃′ tm-case (rename-subst ρ σ s) (rename-subst ρ σ m) (rename-subst-branches ρ σ brs)
+  rename-subst ρ σ (tm-global n) = refl
+  rename-subst ρ σ (tm-int_type) = refl
+  rename-subst ρ σ (tm-int_lit k) = refl
+  rename-subst ρ σ (tm-nat_lit k) = refl
+  rename-subst ρ σ (tm-bounded_lit k) = refl
+  rename-subst ρ σ (tm-float_type) = refl
+  rename-subst ρ σ (tm-float_lit) = refl
+  rename-subst ρ σ (tm-binary_type) = refl
+  rename-subst ρ σ (tm-atom_type) = refl
+  rename-subst ρ σ (tm-atom_lit n) = refl
+  rename-subst ρ σ (tm-effect_type t) = cong tm-effect_type (rename-subst ρ σ t)
+  rename-subst ρ σ (tm-effect_pure t) = cong tm-effect_pure (rename-subst ρ σ t)
+  rename-subst ρ σ (tm-effect_bind e k) = cong₂ tm-effect_bind (rename-subst ρ σ e) (rename-subst ρ σ k)
+  rename-subst ρ σ (tm-hole n) = refl
+  rename-subst ρ σ (tm-absurd) = refl
+
+-- `substS (extSub σ) (rename wk t) ≡ rename wk (substS σ t)`.
+subst-extSub-wk : ∀ σ t → substS (extSub σ) (rename wk t) ≡ rename wk (substS σ t)
+subst-extSub-wk σ t =
+  trans (subst-rename (extSub σ) wk t)
+        (trans (cong (λ σ' → substS σ' t) (extSub-wk σ))
+               (sym (rename-subst wk σ t)))
