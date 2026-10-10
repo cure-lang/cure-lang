@@ -470,3 +470,16 @@ mutual
 ext-wk-compose : ∀ ρ k → (ext ρ ∘ wk) k ≡ (wk ∘ ρ) k
 ext-wk-compose ρ k = refl
 
+
+------------------------------------------------------------------------
+-- `rename wk (rename ρ t) ≡ rename (ext ρ) (rename wk t)`.
+--
+-- The two ways of shifting a renamed term agree, because
+-- `wk ∘ ρ ≡ ext ρ ∘ wk` (both map `k ↦ suc (ρ k)`).
+------------------------------------------------------------------------
+
+ext-wk-rename : ∀ ρ t → rename wk (rename ρ t) ≡ rename (ext ρ) (rename wk t)
+ext-wk-rename ρ t =
+  trans (rename-compose wk ρ t)
+        (trans (cong (λ x → rename x t) (funext-ren (ext-wk-compose ρ)))
+               (sym (rename-compose (ext ρ) wk t)))

@@ -24,6 +24,7 @@ module Core.Typing where
 open import Data.Bool using (Bool; true; false)
 open import Data.String using (_==_)
 open import Data.Nat using (ℕ; zero; suc; _+_; _≤_; z≤n; s≤s; _<_; _≤ᵇ_)
+open import Data.Nat.Properties using (+-identityʳ; +-suc)
 open import Data.List using (List; []; _∷_; _++_; length; map)
 open import Data.Fin using (Fin; zero; suc; toℕ)
 open import Data.Product using (Σ; _×_; _,_; proj₁; proj₂; ∃; ∃-syntax)
@@ -58,91 +59,46 @@ data All2 {A : Set} (R : A → A → Set) : List A → List A → Set where
 -- lookup judgment: variable `k` has type `T` in `Γ`.
 ------------------------------------------------------------------------
 
--- A context is a telescope of types, most-recent first. Indexing by length
--- (rather than a bare list) makes variable lookup a total FUNCTION on
--- `Fin n`, which is what makes the weakening and substitution lemmas
--- clean: the de Bruijn bookkeeping becomes a `refl`-level identity rather
--- than an inductive relation to be inverted.
+-- A context is a LENGTH-INDEXED telescope of types, most-recent first.
+-- Putting the length in the type makes `extend` definitional
+-- (`extend : Ctx n → Term → Ctx (suc n)`), which removes every `Fin`
+-- transport from the weakening and substitution lemmas.
 --
--- The context stores types in the GLOBAL de Bruijn convention: prepending
--- a binder renames every existing type by `wk` (`wk k = suc k`), so that a
--- type's free variables keep referring to the same binders. This is what
--- makes weakening's term operation (`rename wk`) and its context operation
--- (`extend`) agree, which is the crux of the de Bruijn bookkeeping.
-data Context : Set where
-  ⟨⟩  : Context
-  _▷_ : Context → Term → Context
+-- The context stores types in the GLOBAL de Bruijn convention: prepending a
+-- binder renames every existing type by `wk` (`wk k = suc k`), so a stored
+-- type's free variables keep referring to the same binders.
+data Ctx : ℕ → Set where
+  ⟨⟩  : Ctx zero
+  _▷_ : ∀ {n} → Ctx n → Term → Ctx (suc n)
 
--- The length of a context.
-lengthCtx : Context → ℕ
-lengthCtx ⟨⟩ = 0
-lengthCtx (Γ ▷ T) = suc (lengthCtx Γ)
-
--- Variable lookup: a `Fin (lengthCtx Γ)` into a context gives the type of
--- that variable. Index 0 is the most-recently-bound variable (the head).
--- This is a total function, mirroring the kernel's `Context.lookup(ctx, k)`.
-lookup : (Γ : Context) → Fin (lengthCtx Γ) → Term
+-- Variable lookup: a `Fin n` into a `Ctx n` gives the type of that variable.
+-- Index 0 is the most-recently-bound variable (the head). This is a total
+-- function, mirroring the kernel's `Context.lookup(ctx, k)`.
+lookup : ∀ {n} → Ctx n → Fin n → Term
 lookup (Γ ▷ T) zero = T
 lookup (Γ ▷ T) (suc i) = lookup Γ i
 
 -- Rename every type in a context.
-renameCtx : Ren → Context → Context
+renameCtx : Ren → ∀ {n} → Ctx n → Ctx n
 renameCtx ρ ⟨⟩ = ⟨⟩
 renameCtx ρ (Γ ▷ T) = renameCtx ρ Γ ▷ rename ρ T
 
 -- Context extension: prepend a fresh binder, renaming every existing type
--- by `wk` (the global de Bruijn convention). This keeps a stored type's
--- free variables referring to the same binders after the prepend, which is
--- what makes the substitution lemma's `⇒-var` cases go through.
-extend : Context → Term → Context
+-- by `wk` (the global de Bruijn convention). Definitional length.
+extend : ∀ {n} → Ctx n → Term → Ctx (suc n)
 extend Γ T = renameCtx wk Γ ▷ rename wk T
 
--- `lengthCtx (renameCtx ρ Γ) ≡ lengthCtx Γ`.
-length-renameCtx : ∀ ρ Γ → lengthCtx (renameCtx ρ Γ) ≡ lengthCtx Γ
-length-renameCtx ρ ⟨⟩ = refl
-length-renameCtx ρ (Γ ▷ T) = cong suc (length-renameCtx ρ Γ)
-
--- `lengthCtx (extend Γ T) ≡ suc (lengthCtx Γ)`.
-length-extend : ∀ Γ T → lengthCtx (extend Γ T) ≡ suc (lengthCtx Γ)
-length-extend Γ T = cong suc (length-renameCtx wk Γ)
-
--- `subst Fin refl i ≡ i`.
-subst-refl : ∀ {n} (i : Fin n) → subst Fin refl i ≡ i
-subst-refl i = refl
-
--- `subst Fin (sym (cong suc p)) zero ≡ zero`.
-subst-fin-zero : ∀ {n m : ℕ} (p : m ≡ n) → subst Fin (sym (cong suc p)) zero ≡ zero
-subst-fin-zero refl = refl
-
--- `subst Fin (sym (cong suc p)) (suc i) ≡ suc (subst Fin (sym p) i)`.
-subst-fin-suc : ∀ {n m : ℕ} (p : m ≡ n) (i : Fin n)
-              → subst (λ k → Fin k) (sym (cong {A = ℕ} suc p)) (suc i)
-              ≡ suc (subst (λ k → Fin k) (sym p) i)
-subst-fin-suc refl i = cong suc (subst-refl i)
-
-
-
--- Weakening: a `Fin (lengthCtx Γ)` embeds into `Fin (lengthCtx (extend Γ T))`.
-wkFin : ∀ Γ T → Fin (lengthCtx Γ) → Fin (lengthCtx (extend Γ T))
-wkFin Γ T i = subst (λ n → Fin n) (sym (length-extend Γ T)) (suc i)
-
--- Looking up a renamed context, stated with the index in the original
--- context and the length transport applied to the index.
-lookup-renameCtx : ∀ {Γ} ρ (i : Fin (lengthCtx Γ))
-                 → lookup (renameCtx ρ Γ) (subst (λ n → Fin n) (sym (length-renameCtx ρ Γ)) i) ≡ rename ρ (lookup Γ i)
-lookup-renameCtx {⟨⟩} ρ ()
-lookup-renameCtx {Γ ▷ T} ρ zero = cong (lookup (renameCtx ρ (Γ ▷ T))) (subst-fin-zero (length-renameCtx ρ Γ))
-lookup-renameCtx {Γ ▷ T} ρ (suc i) =
-  trans (cong (lookup (renameCtx ρ (Γ ▷ T))) (subst-fin-suc (length-renameCtx ρ Γ) i))
-        (lookup-renameCtx {Γ} ρ i)
+-- Looking up a renamed context.
+lookup-renameCtx : ∀ {n} (ρ : Ren) (Γ : Ctx n) (i : Fin n)
+                 → lookup (renameCtx ρ Γ) i ≡ rename ρ (lookup Γ i)
+lookup-renameCtx ρ (Γ ▷ T) zero = refl
+lookup-renameCtx ρ (Γ ▷ T) (suc i) = lookup-renameCtx ρ Γ i
 
 -- The weakening lookup law: after extending, an existing variable is found
 -- at the lifted index, with its type renamed by `wk`.
-lookup-extend : ∀ {Γ} (T : Term) (i : Fin (lengthCtx Γ))
-              → lookup (extend Γ T) (wkFin Γ T i) ≡ rename wk (lookup Γ i)
-lookup-extend {Γ} T i =
-  trans (cong (lookup (extend Γ T)) (subst-fin-suc (length-renameCtx wk Γ) i))
-        (lookup-renameCtx wk i)
+lookup-extend : ∀ {n} (Γ : Ctx n) (T : Term) (i : Fin n)
+              → lookup (extend Γ T) (suc i) ≡ rename wk (lookup Γ i)
+lookup-extend Γ T i = lookup-renameCtx wk Γ i
 
 ------------------------------------------------------------------------
 -- Conversion (definitional equality)
@@ -192,14 +148,14 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   infix 4 _⊢_⇒_ _⊢_⇐_
 
   -- Bidirectional typing, mutually recursive (check falls back to infer).
-  data _⊢_⇒_ : Context → Term → Term → Set
-  data _⊢_⇐_ : Context → Term → Term → Set
+  data _⊢_⇒_ : ∀ {n} → Ctx n → Term → Term → Set
+  data _⊢_⇐_ : ∀ {n} → Ctx n → Term → Term → Set
 
   -- Spine checking: a list of terms against a dependent telescope.
-  data _⊢*_⇐*_ : Context → List Term → Telescope → Set
+  data _⊢*_⇐*_ : ∀ {n} → Ctx n → List Term → Telescope → Set
 
   -- Branch checking: a list of branches against a family and its motive.
-  data _⊢*brs_⇐*ᵇ_ : Context → List Branch → (Name × Term) → Set
+  data _⊢*brs_⇐*ᵇ_ : ∀ {n} → Ctx n → List Branch → (Name × Term) → Set
 
   ------------------------------------------------------------------------
   -- Helpers
@@ -208,9 +164,9 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   -- Extend a context by `n` fresh binders (the branch fields). The field
   -- types are not needed for the *positive* branch obligation; a later
   -- slice threads the constructor's argument telescope through here.
-  extendⁿ : Context → ℕ → Context
-  extendⁿ Γ zero = Γ
-  extendⁿ Γ (suc n) = extendⁿ (extend Γ (tm-hole "field")) n
+  extendⁿ : ∀ {m} → Ctx m → (k : ℕ) → Ctx (m + k)
+  extendⁿ Γ zero = subst Ctx (sym (+-identityʳ _)) Γ
+  extendⁿ Γ (suc k) = subst Ctx (sym (+-suc _ k)) (extendⁿ (extend Γ (tm-hole "field")) k)
 
   -- Substituting a value at the top of a type (for the `let` rule).
   substTopT : Term → Term → Term
@@ -231,16 +187,16 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   data _⊢_⇒_ where
 
     -- Type l : Type (l+1), when the successor is in range.
-    ⇒-type : ∀ {Γ l l′} → succLevel l ≡ just l′
+    ⇒-type : ∀ {n} {Γ : Ctx n} {l l′} → succLevel l ≡ just l′
            → Γ ⊢ tm-type l ⇒ tm-type l′
 
     -- Variables: the type is the context's entry at the variable's index.
-    ⇒-var : ∀ {Γ} (i : Fin (lengthCtx Γ))
+    ⇒-var : ∀ {n} {Γ : Ctx n} (i : Fin n)
           → Γ ⊢ tm-var (toℕ i) ⇒ lookup Γ i
 
     -- Π formation: dom : Type l1, cod : Type l2 under the binder, so
     -- Π lives at max(l1, l2).
-    ⇒-pi : ∀ {Γ g d c l1 l2}
+    ⇒-pi : ∀ {n} {Γ : Ctx n} {g d c l1 l2}
          → Γ ⊢ d ⇒ tm-type l1
          → extend Γ d ⊢ c ⇒ tm-type l2
          → Γ ⊢ tm-pi g d c ⇒ tm-type (l1 ⊔ˡ l2)
@@ -248,7 +204,7 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
     -- λ inference: infer the domain's sort, infer the body's type, and
     -- form the Π type. (The kernel reifies the codomain via `Quote`; the
     -- syntactic presentation keeps the inferred body type directly.)
-    ⇒-lam : ∀ {Γ g d b l T}
+    ⇒-lam : ∀ {n} {Γ : Ctx n} {g d b l T}
           → Γ ⊢ d ⇒ tm-type l
           → extend Γ d ⊢ b ⇒ T
           → Γ ⊢ tm-lam g d b ⇒ tm-pi g d T
@@ -256,7 +212,7 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
     -- Application: infer the function type, require it to be a Π, check
     -- the argument against the domain, and return the codomain instantiated
     -- at the argument.
-    ⇒-app : ∀ {Γ f a g d c}
+    ⇒-app : ∀ {n} {Γ : Ctx n} {f a g d c}
           → Γ ⊢ f ⇒ tm-pi g d c
           → Γ ⊢ a ⇐ d
           → Γ ⊢ tm-app f a ⇒ substT 0 a c
@@ -266,33 +222,33 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
     -- result type substitutes the value for the bound variable, mirroring
     -- the kernel's `Context.extend_def` (the variable is definitionally its
     -- value), so the reported type lives in `Γ`.
-    ⇒-let : ∀ {Γ g ty v b l T}
+    ⇒-let : ∀ {n} {Γ : Ctx n} {g ty v b l T}
           → Γ ⊢ ty ⇒ tm-type l
           → Γ ⊢ v ⇐ ty
           → extend Γ ty ⊢ b ⇒ T
           → Γ ⊢ tm-let g ty v b ⇒ substTopT v T
 
     -- Global: look up the declared type in the signature.
-    ⇒-global : ∀ {Γ f T} → Signature.type-of sig f ≡ just T → Γ ⊢ tm-global f ⇒ T
+    ⇒-global : ∀ {n} {Γ : Ctx n} {f T} → Signature.type-of sig f ≡ just T → Γ ⊢ tm-global f ⇒ T
 
     -- Primitive base types live in Type 0.
-    ⇒-int_type    : ∀ {Γ} → Γ ⊢ tm-int_type ⇒ tm-type l0
-    ⇒-float_type  : ∀ {Γ} → Γ ⊢ tm-float_type ⇒ tm-type l0
-    ⇒-binary_type : ∀ {Γ} → Γ ⊢ tm-binary_type ⇒ tm-type l0
-    ⇒-atom_type   : ∀ {Γ} → Γ ⊢ tm-atom_type ⇒ tm-type l0
+    ⇒-int_type    : ∀ {n} {Γ : Ctx n} → Γ ⊢ tm-int_type ⇒ tm-type l0
+    ⇒-float_type  : ∀ {n} {Γ : Ctx n} → Γ ⊢ tm-float_type ⇒ tm-type l0
+    ⇒-binary_type : ∀ {n} {Γ : Ctx n} → Γ ⊢ tm-binary_type ⇒ tm-type l0
+    ⇒-atom_type   : ∀ {n} {Γ : Ctx n} → Γ ⊢ tm-atom_type ⇒ tm-type l0
 
     -- Literals inhabit their base types.
-    ⇒-int_lit   : ∀ {Γ k} → Γ ⊢ tm-int_lit k ⇒ tm-int_type
-    ⇒-float_lit : ∀ {Γ} → Γ ⊢ tm-float_lit ⇒ tm-float_type
-    ⇒-atom_lit  : ∀ {Γ n} → Γ ⊢ tm-atom_lit n ⇒ tm-atom_type
+    ⇒-int_lit   : ∀ {n} {Γ : Ctx n} {k} → Γ ⊢ tm-int_lit k ⇒ tm-int_type
+    ⇒-float_lit : ∀ {n} {Γ : Ctx n} → Γ ⊢ tm-float_lit ⇒ tm-float_type
+    ⇒-atom_lit  : ∀ {n} {Γ : Ctx n} {m} → Γ ⊢ tm-atom_lit m ⇒ tm-atom_type
 
     -- Nat/Bounded literals inhabit their (builtin) families.
-    ⇒-nat_lit     : ∀ {Γ n N} → IndEnv.builtins ind "nat" ≡ just N → Γ ⊢ tm-nat_lit n ⇒ tm-data N [] []
-    ⇒-bounded_lit : ∀ {Γ k B} → IndEnv.builtins ind "bounded" ≡ just B → Γ ⊢ tm-bounded_lit k ⇒ tm-data B [] []
+    ⇒-nat_lit     : ∀ {n} {Γ : Ctx n} {m N} → IndEnv.builtins ind "nat" ≡ just N → Γ ⊢ tm-nat_lit m ⇒ tm-data N [] []
+    ⇒-bounded_lit : ∀ {n} {Γ : Ctx n} {k B} → IndEnv.builtins ind "bounded" ≡ just B → Γ ⊢ tm-bounded_lit k ⇒ tm-data B [] []
 
     -- Data formation: check the params and indices against the family's
     -- telescopes; the family lives at its declared level.
-    ⇒-data : ∀ {Γ n ps is f}
+    ⇒-data : ∀ {n} {Γ : Ctx n} {n ps is f}
            → findFamily n (IndEnv.families ind) ≡ just f
            → Γ ⊢* ps ⇐* fam-params f
            → Γ ⊢* is ⇐* fam-indices f
@@ -300,7 +256,7 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
 
     -- Constructor: check the args against the constructor's telescope and
     -- compute the result data type.
-    ⇒-ctor : ∀ {Γ c args f ct}
+    ⇒-ctor : ∀ {n} {Γ : Ctx n} {c args f ct}
            → findCtor c (IndEnv.families ind) ≡ just (f , ct)
            → Γ ⊢* args ⇐* ctor-args ct
            → Γ ⊢ tm-ctor c args ⇒ tm-data (fam-name f) (ctor-params ct) (ctor-indices ct)
@@ -311,16 +267,16 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
     --
     -- The result type is the motive applied to the scrutinee
     -- (`apply_motive` in the kernel).
-    ⇒-case : ∀ {Γ s m brs n ps is T}
+    ⇒-case : ∀ {n} {Γ : Ctx n} {s m brs n ps is T}
            → Γ ⊢ s ⇒ tm-data n ps is
            → Γ ⊢ m ⇒ T
            → Γ ⊢*brs brs ⇐*ᵇ (n , m)
            → Γ ⊢ tm-case s m brs ⇒ tm-app m s
 
     -- Inert effects: Effect(t) is level-preserving.
-    ⇒-effect_type : ∀ {Γ t l} → Γ ⊢ t ⇒ tm-type l → Γ ⊢ tm-effect_type t ⇒ tm-type l
-    ⇒-effect_pure : ∀ {Γ a A} → Γ ⊢ a ⇒ A → Γ ⊢ tm-effect_pure a ⇒ tm-effect_type A
-    ⇒-effect_bind : ∀ {Γ e k A B}
+    ⇒-effect_type : ∀ {n} {Γ : Ctx n} {t l} → Γ ⊢ t ⇒ tm-type l → Γ ⊢ tm-effect_type t ⇒ tm-type l
+    ⇒-effect_pure : ∀ {n} {Γ : Ctx n} {a A} → Γ ⊢ a ⇒ A → Γ ⊢ tm-effect_pure a ⇒ tm-effect_type A
+    ⇒-effect_bind : ∀ {n} {Γ : Ctx n} {e k A B}
                   → Γ ⊢ e ⇒ tm-effect_type A
                   → Γ ⊢ k ⇒ tm-pi unrestricted A (tm-effect_type B)
                   → Γ ⊢ tm-effect_bind e k ⇒ tm-effect_type B
@@ -333,23 +289,23 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
 
     -- A λ checks against a Π of the SAME grade; the domain must convert and
     -- the body checks against the codomain.
-    ⇐-lam : ∀ {Γ g d b g′ d′ c}
+    ⇐-lam : ∀ {n} {Γ : Ctx n} {g d b g′ d′ c}
           → g ≡ g′
           → Conversion._≈_ conv d d′
           → extend Γ d′ ⊢ b ⇐ c
           → Γ ⊢ tm-lam g d b ⇐ tm-pi g′ d′ c
 
     -- A hole is accepted at any goal type.
-    ⇐-hole : ∀ {Γ name T} → Γ ⊢ tm-hole name ⇐ T
+    ⇐-hole : ∀ {n} {Γ : Ctx n} {name T} → Γ ⊢ tm-hole name ⇐ T
 
     -- Fallback: infer, then convert.
-    ⇐-infer : ∀ {Γ t T T′}
+    ⇐-infer : ∀ {n} {Γ : Ctx n} {t T T′}
             → Γ ⊢ t ⇒ T′
             → Conversion._≈_ conv T′ T
             → Γ ⊢ t ⇐ T
 
     -- Cumulative sorts: a term of type Type i checks against Type j when i ≤ j.
-    ⇐-cumul : ∀ {Γ t i j}
+    ⇐-cumul : ∀ {n} {Γ : Ctx n} {t i j}
             → Γ ⊢ t ⇒ tm-type i
             → i ≤ˡ j
             → Γ ⊢ t ⇐ tm-type j
@@ -359,8 +315,8 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   ------------------------------------------------------------------------
 
   data _⊢*_⇐*_ where
-    ⊢*[] : ∀ {Γ} → Γ ⊢* [] ⇐* []
-    ⊢*∷  : ∀ {Γ x xs T tele nm}
+    ⊢*[] : ∀ {n} {Γ : Ctx n} → Γ ⊢* [] ⇐* []
+    ⊢*∷  : ∀ {n} {Γ : Ctx n} {x xs T tele nm}
          → Γ ⊢ x ⇐ T
          → Γ ⊢* xs ⇐* tele
          → Γ ⊢* (x ∷ xs) ⇐* ((nm , T) ∷ tele)
@@ -377,8 +333,8 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   ------------------------------------------------------------------------
 
   data _⊢*brs_⇐*ᵇ_ where
-    brs[] : ∀ {Γ n m} → Γ ⊢*brs [] ⇐*ᵇ (n , m)
-    brs∷  : ∀ {Γ cn ar b brs n m f ct}
+    brs[] : ∀ {k} {Γ : Ctx k} {n m} → Γ ⊢*brs [] ⇐*ᵇ (n , m)
+    brs∷  : ∀ {k} {Γ : Ctx k} {cn ar b brs n m f ct}
           → findCtor cn (IndEnv.families ind) ≡ just (f , ct)
           → length (ctor-args ct) ≡ ar
           → extendⁿ Γ ar ⊢ b ⇐ tm-app m (tm-ctor cn (branch-field-vars ar))

@@ -41,7 +41,7 @@ open import Core.Universe using (Level; l0; l1; l2)
 open import Core.Syntax
 open import Core.Signature
 open import Core.Reduction using (Signature)
-open import Core.Typing using (Context; ⟨⟩; _▷_; lengthCtx; lookup; extend; Conversion)
+open import Core.Typing using (Ctx; ⟨⟩; _▷_; lookup; extend; Conversion)
 open import Proof.Values using (Canonical; Neutral; Value; canonical; neutral)
 
 module Invert (ind : IndEnv) (sig : Signature) (conv : Conversion) where
@@ -74,7 +74,7 @@ module Invert (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   -- neutral head.
   postulate
     invert-pi :
-      ∀ {Γ t g d c}
+      ∀ {k} {Γ : Ctx k} {t g d c}
       → Γ ⊢ t ⇒ tm-pi g d c
       → Canonical t
       → Σ Grade (λ g′ → Σ Term (λ d′ → Σ Term (λ b → t ≡ tm-lam g′ d′ b)))
@@ -90,7 +90,7 @@ module Invert (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   -- require a neutral head.
   postulate
     invert-data :
-      ∀ {Γ t n ps is}
+      ∀ {k} {Γ : Ctx k} {t n ps is}
       → Γ ⊢ t ⇒ tm-data n ps is
       → Canonical t
       → Σ Name (λ c → Σ (List Term) (λ args → t ≡ tm-ctor c args))
@@ -123,22 +123,22 @@ module Invert (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   ------------------------------------------------------------------------
 
   invert-data-check :
-    ∀ {Γ t n ps is}
-    → Γ ⊢ t ⇐ tm-data n ps is
+    ∀ (k : ℕ) (Γ : Ctx k) {t n ps is}
+    (d : Γ ⊢ t ⇐ tm-data n ps is)
     → Canonical t
     → Σ Name (λ c → Σ (List Term) (λ args → t ≡ tm-ctor c args))
-  invert-data-check (⇐-infer der eq) can
+  invert-data-check _ _ (⇐-infer der eq) can
     with conv-injective-data eq
   ... | ps′ , is′ , refl = invert-data der can
-  invert-data-check (⇐-hole) ()
+  invert-data-check _ _ ⇐-hole ()
 
   invert-pi-check :
-    ∀ {Γ t g d c}
-    → Γ ⊢ t ⇐ tm-pi g d c
+    ∀ (k : ℕ) (Γ : Ctx k) {t g d c}
+    (d : Γ ⊢ t ⇐ tm-pi g d c)
     → Canonical t
     → Σ Grade (λ g′ → Σ Term (λ d′ → Σ Term (λ b → t ≡ tm-lam g′ d′ b)))
-  invert-pi-check (⇐-lam eq x x₁) can = _ , _ , _ , refl
-  invert-pi-check (⇐-infer der eq) can
+  invert-pi-check _ _ (⇐-lam eq x x₁) can = _ , _ , _ , refl
+  invert-pi-check _ _ (⇐-infer der eq) can
     with conv-injective-pi eq
   ... | g′ , d′ , c′ , refl = invert-pi der can
-  invert-pi-check (⇐-hole) ()
+  invert-pi-check _ _ ⇐-hole ()

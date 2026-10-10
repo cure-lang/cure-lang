@@ -42,7 +42,7 @@ open import Core.Universe using (Level; l0; l1; l2)
 open import Core.Syntax
 open import Core.Signature
 open import Core.Reduction using (Signature)
-open import Core.Typing using (Context; ⟨⟩; _▷_; lengthCtx; lookup; extend; Conversion;
+open import Core.Typing using (Ctx; ⟨⟩; _▷_; lookup; extend; Conversion;
                                 All2; a2[]; a2∷)
 open import Proof.Values using (Canonical; Neutral; Value; canonical; neutral)
 open import Proof.Inversion
@@ -53,7 +53,7 @@ module CF (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   open Proof.Inversion.Invert ind sig conv
 
   -- A λ is checkable against a Π of the same grade when its body is.
-  lam-checks : ∀ {Γ g d b c}
+  lam-checks : ∀ {k} {Γ : Ctx k} {g d b c}
              → extend Γ d ⊢ b ⇐ c
              → Γ ⊢ tm-lam g d b ⇐ tm-pi g d c
   lam-checks {Γ} {g} {d} {b} {c} body = ⇐-lam refl (Conversion.≈-refl conv) body
@@ -64,11 +64,11 @@ module CF (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   -- Progress's `app` case consumes it: if the function position is
   -- canonical it is a λ, so β fires.
   canonical-pi-value :
-    ∀ {Γ g d c v}
+    ∀ {k} {Γ : Ctx k} {g d c v}
     → Γ ⊢ v ⇐ tm-pi g d c
     → Canonical v
     → Σ Grade (λ g′ → Σ Term (λ d′ → Σ Term (λ b → v ≡ tm-lam g′ d′ b)))
-  canonical-pi-value = invert-pi-check
+  canonical-pi-value = invert-pi-check _ _
 
   -- A CANONICAL value of data type is a ctor.
   --
@@ -76,8 +76,8 @@ module CF (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   -- Progress's `case` case consumes it: if the scrutinee is canonical it is
   -- a ctor, so ι fires.
   canonical-ctor :
-    ∀ {Γ n ps is v}
+    ∀ {k} {Γ : Ctx k} {n ps is v}
     → Γ ⊢ v ⇐ tm-data n ps is
     → Canonical v
     → Σ Name (λ c → Σ (List Term) (λ args → v ≡ tm-ctor c args))
-  canonical-ctor = invert-data-check
+  canonical-ctor = invert-data-check _ _
