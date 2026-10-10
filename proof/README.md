@@ -124,8 +124,9 @@ These are the `postulate`s, each with a named proof strategy in the source:
    `⇒-var` case is the definitional lookup law; the binder case needs a
    context *morphism* (see "The context representation" below).
 4. **`subst⇒` / `subst⇐`** (`Proof/Preservation.agda`) — the substitution
-   lemma. *Strategy:* induction on the derivation; `⇒-var` splits on
-   whether the looked-up index is the substituted one.
+   lemma, conditioned on `WfCtx` (the well-formed-context invariant). The
+   `⇒-var` cases split on whether the looked-up index is the substituted
+   one; see "The substitution lemma" below for the remaining subtlety.
 5. **`progress`** (`Proof/Progress.agda`) — by cases on the typing
    derivation, consuming the canonical-form lemmas to show β and ι fire.
 6. **`preservation`** (`Proof/Preservation.agda`) — the four cases β, ζ, ι,
@@ -185,7 +186,35 @@ issue: prepending the fresh binder `S` does not commute with prepending the
 the order automatically. The lookup law it rests on (`lookup-extend`) is
 proved; the morphism plumbing is the next step.
 
-## Building## Building
+## The substitution lemma
+
+Substitution is the algebraic heart of the β and ζ cases of Preservation.
+The development states it conditioned on `WfCtx` — the well-formed-context
+invariant that the type at index `k` is scoped in the prefix below it.
+
+The `⇒-var` cases are where the subtlety lives:
+
+- **`k = j`** (the substituted variable): the term becomes `a`, and the
+  type `lookup Γ j` is `j`-scoped by `WfCtx`, so `substT j a (lookup Γ j)`
+  is `lookup Γ j` by `subst-id`. The goal is `Γ ⊢ a ⇐ A`, which is the
+  hypothesis.
+- **`k ≠ j`**: the term is unchanged. If `k < j`, the type `lookup Γ k` is
+  `k`-scoped hence `j`-free, so it is unchanged by `subst-id`. **If
+  `k > j`, the type may mention `j`**, so `substT j a (lookup Γ k)` differs
+  from `lookup Γ k`, and the context itself must be adjusted by the
+  substitution.
+
+That last point is the remaining obligation: the substitution lemma needs
+a **context-substitution** operation (`Γ` with index `j` removed and the
+types above it adjusted), so that the statement reads
+
+    Γ[j := a] ⊢ substT j a t ⇒ substT j a T
+
+The syntactic pieces are all in place (`subst-id`, `subst-var-eq/neq`,
+`rename-id`); what remains is the context surgery and threading it through
+the induction.
+
+## Building
 
 Requires Agda 2.8.0 and the Agda standard library.
 
