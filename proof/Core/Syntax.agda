@@ -240,3 +240,69 @@ Closed t = Scoped 0 t
 
 ClosedBranch : Branch → Set
 ClosedBranch b = ScopedBranch 0 b
+
+------------------------------------------------------------------------
+-- Renaming.
+--
+-- `rename ρ t` applies the index map `ρ` to every free variable of `t`.
+-- Under a binder, `ρ` is extended by `ext ρ` (the new binder maps to
+-- itself, older variables shift).
+--
+-- Renaming is the standard vehicle for weakening: a weakening is a
+-- renaming that maps every index into a larger context. Using renaming
+-- (rather than a raw `shift`) makes the context-extension naturality
+-- automatic, which is exactly the binder-order issue raw shifting runs
+-- into.
+------------------------------------------------------------------------
+
+Ren : Set
+Ren = ℕ → ℕ
+
+-- Extend a renaming under one binder.
+ext : Ren → Ren
+ext ρ zero = zero
+ext ρ (suc k) = suc (ρ k)
+
+-- `ext` iterated `n` times.
+ext^ : ℕ → Ren → Ren
+ext^ zero ρ = ρ
+ext^ (suc n) ρ = ext (ext^ n ρ)
+
+mutual
+  renameBranch : Ren → Branch → Branch
+  renameBranch ρ (cn , ar , b) = cn , ar , rename (λ k → ext^ ar ρ k) b
+
+  renameBranches : Ren → List Branch → List Branch
+  renameBranches ρ [] = []
+  renameBranches ρ (x ∷ xs) = renameBranch ρ x ∷ renameBranches ρ xs
+
+  renameTerms : Ren → List Term → List Term
+  renameTerms ρ [] = []
+  renameTerms ρ (x ∷ xs) = rename ρ x ∷ renameTerms ρ xs
+
+  rename : Ren → Term → Term
+  rename ρ (tm-type l) = tm-type l
+  rename ρ (tm-var k) = tm-var (ρ k)
+  rename ρ (tm-pi g d c) = tm-pi g (rename ρ d) (rename (ext ρ) c)
+  rename ρ (tm-lam g d b) = tm-lam g (rename ρ d) (rename (ext ρ) b)
+  rename ρ (tm-let g ty v b) = tm-let g (rename ρ ty) (rename ρ v) (rename (ext ρ) b)
+  rename ρ (tm-app f a) = tm-app (rename ρ f) (rename ρ a)
+  rename ρ (tm-data n ps is) = tm-data n (renameTerms ρ ps) (renameTerms ρ is)
+  rename ρ (tm-ctor n args) = tm-ctor n (renameTerms ρ args)
+  rename ρ (tm-case s m brs) = tm-case (rename ρ s) (rename ρ m) (renameBranches ρ brs)
+  rename ρ (tm-global n) = tm-global n
+  rename ρ (tm-int_type) = tm-int_type
+  rename ρ (tm-int_lit k) = tm-int_lit k
+  rename ρ (tm-nat_lit k) = tm-nat_lit k
+  rename ρ (tm-bounded_lit k) = tm-bounded_lit k
+  rename ρ (tm-float_type) = tm-float_type
+  rename ρ (tm-float_lit) = tm-float_lit
+  rename ρ (tm-binary_type) = tm-binary_type
+  rename ρ (tm-atom_type) = tm-atom_type
+  rename ρ (tm-atom_lit n) = tm-atom_lit n
+  rename ρ (tm-effect_type t) = tm-effect_type (rename ρ t)
+  rename ρ (tm-effect_pure t) = tm-effect_pure (rename ρ t)
+  rename ρ (tm-effect_bind e k) = tm-effect_bind (rename ρ e) (rename ρ k)
+  rename ρ (tm-hole n) = tm-hole n
+  rename ρ (tm-absurd) = tm-absurd
+

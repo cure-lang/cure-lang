@@ -25,7 +25,7 @@ open import Data.Bool.Base using (T)
 open import Data.Bool.Properties using (T?)
 open import Data.Unit using (tt)
 open import Relation.Nullary using (Dec; yes; no)
-open import Data.List using (List; []; _∷_; length)
+open import Data.List using (List; []; _∷_; length; map)
 open import Data.Product using (_×_; _,_; proj₁; proj₂; ∃; ∃-syntax)
 open import Relation.Binary.PropositionalEquality
   using (_≡_; refl; sym; trans; cong; cong₂; subst)
@@ -38,10 +38,10 @@ open import Proof.Substitution using (cong₃)
 -- Weakening a lookup.
 --
 -- If `Γ ∋ T at k`, then `(S ∷ Γ) ∋ T at suc k`: every existing variable is
--- still in scope after a fresh binder is added, found at an index one
--- higher. The stored type `T` is UNCHANGED — the context stores types in
--- the local de Bruijn convention, so prepending a binder shifts indices
--- but not the types themselves.
+-- still in scope after a fresh binder is added, at an index one higher.
+-- The stored type `T` is UNCHANGED: the context stores types in the
+-- well-scoped convention (the type at index `k` is scoped in the prefix
+-- of length `k`), so prepending a binder does not disturb it.
 ------------------------------------------------------------------------
 
 ∋-weaken : ∀ {Γ T k} (S : Term) → Γ ∋ T at k → (S ∷ Γ) ∋ T at suc k
@@ -169,3 +169,4 @@ mutual
   subst-id {j} {r} (sc-effect_bind se sk) = cong₂ tm-effect_bind (subst-id se) (subst-id sk)
   subst-id {j} {r} (sc-hole {n}) = refl
   subst-id {j} {r} (sc-absurd) = refl
+

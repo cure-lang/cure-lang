@@ -82,3 +82,28 @@ mutual
   shift-0 c (tm-effect_bind e k) = cong₂ tm-effect_bind (shift-0 c e) (shift-0 c k)
   shift-0 c (tm-hole n) = refl
   shift-0 c (tm-absurd) = refl
+
+------------------------------------------------------------------------
+-- Shift on a variable.
+--
+-- `shift 1 0 (tm-var k) ≡ tm-var (suc k)`: shifting by one a bare variable
+-- bumps its index by one. This is the `⇒-var` case of weakening.
+------------------------------------------------------------------------
+
+0≤ᵇ : ∀ k → (0 ≤ᵇ k) ≡ true
+0≤ᵇ zero = refl
+0≤ᵇ (suc k) = 0≤ᵇ k
+
+shift-var-1 : ∀ k → shift 1 0 (tm-var k) ≡ tm-var (suc k)
+shift-var-1 k rewrite 0≤ᵇ k = cong tm-var (trans (+-suc k 0) (cong suc (+-identityʳ k)))
+
+------------------------------------------------------------------------
+-- Shifting composes.
+--
+-- `shift a c (shift b c t) ≡ shift (a + b) c t` — two shifts at the same
+-- cutoff compose into one. This is needed when weakening a term that is
+-- already shifted (the `⇒-app` case, where the codomain is instantiated).
+--
+-- STATUS: the statement is given; the proof is by induction on the term,
+-- with the cutoff bumped under binders. It is the current obligation.
+------------------------------------------------------------------------
