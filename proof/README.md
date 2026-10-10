@@ -221,8 +221,17 @@ clean:
   `Γ ⊢ tm-var k ⇒ lookup Γ k`, which is `⇒-var k`.
 
 All the syntactic pieces are proved (`subst-id`, `subst-var-eq/neq`,
-`rename-id`, `lookup-extend`, `lookup-remove`); what remains is the
-induction threading `substS` through every typing rule.
+`rename-id`, `lookup-extend`, `lookup-remove`, `substS`/`extSub`). What
+remains is the induction threading `substS` through every typing rule.
+
+The one structural subtlety still to resolve is the interaction between
+`extSub` and the weakening renaming. The "substitution undoes weakening"
+law needs `substS (topSub a) (rename wk T) ≡ T`, but under a binder
+`rename (ext wk)` maps `suc j ↦ suc (suc j)` while `extSub (topSub a)`
+maps `suc (suc j) ↦ suc j` — the two extensions are *adjoint*, and the
+induction must thread the coherence condition between the substitution and
+the context. This is the standard substitution/weakening adjunction; the
+machinery (`extSub`, `extSub^`, `substS`) is in place.
 
 ## Building## Building## Building
 
