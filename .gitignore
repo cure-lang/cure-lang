@@ -69,3 +69,6 @@ dllb.redb.search/
 .cache/
 .hex/
 .mix/
+
+# Agda library registration created when HOME resolves to the project dir
+.config/
