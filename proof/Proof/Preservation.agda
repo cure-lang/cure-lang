@@ -88,10 +88,28 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   ------------------------------------------------------------------------
   -- Substitution.
   --
-  -- If `extend Γ A ⊢ t ⇒ T` and `Γ ⊢ a ⇐ A`, then `Γ ⊢ substT 0 a t ⇒ substT 0 a T`.
+  -- If `extend Γ A ⊢ t ⇒ T` and `Γ ⊢ a ⇐ A`, then the term with index 0
+  -- replaced by `a` — AND every variable above 0 renumbered down by one —
+  -- has type `T` with the same treatment.
   --
-  -- The well-formedness of the context is required for the `⇒-var` cases.
+  -- The renumbering is the crux: substituting index 0 SHRINKS the context,
+  -- so a variable that was at index `suc k` in `extend Γ A` must become
+  -- index `k` in `Γ`. The operation is therefore
+  --
+  --     substTop a t = rename pred (substT 0 a t)
+  --
+  -- where `pred` maps `zero ↦ zero` and `suc k ↦ k`. This is the term-side
+  -- counterpart of the context surgery `removeAt` (Proof/ContextSubst.agda).
   ------------------------------------------------------------------------
+
+  -- The renumbering that removes a binder.
+  pred : Ren
+  pred zero = zero
+  pred (suc k) = k
+
+  -- Substitution at the top: replace index 0 and renumber.
+  substTop : Term → Term → Term
+  substTop a t = rename pred (substT 0 a t)
 
   postulate
     subst⇒ :
@@ -99,7 +117,7 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
       → WfCtx (extend Γ A)
       → extend Γ A ⊢ t ⇒ T
       → Γ ⊢ a ⇐ A
-      → Γ ⊢ substT 0 a t ⇒ substT 0 a T
+      → Γ ⊢ substTop a t ⇒ substTop a T
 
   postulate
     subst⇐ :
@@ -107,7 +125,7 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
       → WfCtx (extend Γ A)
       → extend Γ A ⊢ t ⇐ T
       → Γ ⊢ a ⇐ A
-      → Γ ⊢ substT 0 a t ⇐ substT 0 a T
+      → Γ ⊢ substTop a t ⇐ substTop a T
 
   ------------------------------------------------------------------------
   -- Preservation
