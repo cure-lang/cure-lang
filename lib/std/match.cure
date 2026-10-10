@@ -11,6 +11,13 @@
 ## return an `Option` rather than a padded tuple, matching the
 ## Haskell-style `uncons`.
 ##
+## ## Extractor naming
+##
+## The stdlib uses one extractor convention: `unwrap` for the `Option`
+## happy path, `unwrap_ok` / `unwrap_error` for the two `Result` arms,
+## and `unwrap_some` as an explicit synonym for `unwrap`. The helpers
+## below follow it: `unwrap_ok`, `unwrap_error`, and `unwrap_some`.
+##
 ## ## Examples
 ##
 ## ```cure
@@ -88,7 +95,15 @@ mod Std.Match
       Error(_) -> default
 
   ## Extract the value from a `Some`; falls back to `default` on `None`.
+  ## Synonym for `Std.Option.unwrap`, named to mirror `unwrap_ok`.
   fn unwrap_some(o: Option(a), default: a) -> a =
     match o
       Some(v) -> v
       None()  -> default
+
+  ## Extract the reason from an `Error`; falls back to `default` on `Ok`.
+  ## Mirror of `unwrap_ok` for the error arm.
+  fn unwrap_error(r: Result(t, e), default: e) -> e =
+    match r
+      Ok(_)    -> default
+      Error(e) -> e

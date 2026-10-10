@@ -37,7 +37,44 @@ The documentation below is organised by topic:
   `Std.Iter`, `Std.Gen`.
 - [Replicated data types](#replicated-data-types)  -- `Std.CRDT`.
 
-All source line references point at `lib/std/<module>.cure`.
+All source line references point at `lib/std/<module>.cure`, with one
+deliberate exception: the `Std.Regex` family lives in
+`lib/std_deps/regex/` (see [Packaging](#packaging) below).
+
+## Packaging: foundational stdlib vs embedded packages
+
+The stdlib source tree is split in two on purpose:
+
+- **`lib/std/*.cure`** — the *foundational* modules (`Std.Core`,
+  `Std.List`, `Std.Option`, …). These are swept first and always
+  available.
+- **`lib/std_deps/regex/*.cure`** — the *embedded package* `Std.Regex`
+  and its `Std.Regex.*` family. Regex is proof-heavy dependent code, so
+  it is swept as its own compilation stage and bundled under
+  `priv/std_deps/regex/`. A caller that does not need Regex can skip the
+  stage entirely with `embedded_packages: false`
+  (`Cure.Stdlib.Packages.compile/3`), avoiding its cold cost.
+
+`Std.Regex` is still the public façade users `use`; only its *source
+location* differs. `Cure.Stdlib.Paths.embedded_source_dirs/0` resolves
+the embedded package independently of `source_dirs/0`.
+
+## Decorator placement
+
+Two decorators carry placement rules:
+
+- **`@group(:g)`** must sit **above** the `mod` line, never inside the
+  body (spec `2026-07-10-group-decorator-placement`). An in-body
+  `@group` is a hard parse error. `test/cure/stdlib/group_placement_test.exs`
+  and `consistency_test.exs` guard this.
+- **`@prelude`** is either *whole-module* (written above `mod`, making
+  every declaration ambient) or *declaration-level* (written directly
+  above a single `type` / `typealias` / `fn`, making only that
+  declaration ambient). Both forms are meaningful and load-bearing:
+  whole-module membership is read by
+  `Cure.Elab.Program.module_prelude_decorated?/1`, declaration-level
+  membership by `prelude_decorated?/1`. A free-floating in-body
+  `@prelude` is not a valid placement.
 
 ## Module groups and selective preload
 

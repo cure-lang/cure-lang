@@ -4,8 +4,17 @@ mod Std.Option
   ##
   ## Parallel to the Option half of `Std.Core`, kept separate so that
   ## callers can `use Std.Option` without pulling in the rest of the
-  ## core combinators. `Some(v)` lowers to `{:Some, v}` and the nullary
-  ## `None()` to the bare atom `:None` on the BEAM.
+  ## core combinators. `Some(v)` lowers to `{:some, v}` and the nullary
+  ## `None()` to the bare atom `:none` on the BEAM — the OTP-conventional
+  ## shape Erlang, Elixir, and AtomVM FFI expect.
+  ##
+  ## ## Extractor naming
+  ##
+  ## The stdlib uses one extractor convention: `unwrap` for the `Option`
+  ## happy path, `unwrap_ok` / `unwrap_error` for the two `Result` arms,
+  ## and `unwrap_some` as an explicit synonym for `unwrap` when a call site
+  ## wants to name the `Some` arm for symmetry with `unwrap_ok`. All four
+  ## take the value and a default, and never raise.
   ##
   ## ## Examples
   ##
@@ -27,7 +36,7 @@ mod Std.Option
 
   ## Group tag consumed by `Cure.Stdlib.Preload`.
   ## An optional value: either present (`Some`) or absent (`None`). `Some(v)`
-  ## erases to `{:Some, v}` and the nullary `None()` to the bare atom `:None`
+  ## erases to `{:some, v}` and the nullary `None()` to the bare atom `:none`
   ## on the BEAM.
   @prelude
   type Option(t) = Some(t) | None()
@@ -46,6 +55,13 @@ mod Std.Option
 
   ## Extract the value; returns `default` on `None`.
   fn unwrap(opt: Option(t), default: t) -> t =
+    match opt
+      Some(v) -> v
+      None() -> default
+
+  ## Explicit synonym for `unwrap` that names the `Some` arm, for symmetry
+  ## with `unwrap_ok`/`unwrap_error` on `Result`. Returns `default` on `None`.
+  fn unwrap_some(opt: Option(t), default: t) -> t =
     match opt
       Some(v) -> v
       None() -> default

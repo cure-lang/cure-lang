@@ -178,7 +178,7 @@ mod Std.Core
 
   # -- Option type operations -------------------------------------------------
   # Option is represented as Some(value) -> {:some, value}
-  #                          None()      -> {:none}
+  #                          None()      -> :none
 
   ## Build a `Some(value)` Option.
   fn some(value: t) -> Option(t) = Some(value)
