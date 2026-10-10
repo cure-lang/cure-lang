@@ -103,6 +103,10 @@ recommends.
   head-inversion lemmas.
 - **The `shift-0` identity law** (`Proof/Substitution.agda`): shifting by
   zero is the identity at any cutoff.
+- **The weakening lookup law** `wk-lookup` (`Proof/Preservation.agda`):
+  under the `lift` renaming (which fixes index 0), a context lookup
+  transforms correctly. Weakening `weaken⇒` is derived from it via the
+  fundamental renaming lemma.
 
 ### In progress (statements given, proofs open)
 
@@ -116,17 +120,23 @@ These are the `postulate`s, each with a named proof strategy in the source:
 2. **`conv-injective-data` / `conv-injective-pi`** (`Proof/Inversion.agda`) —
    conversion injectivity on type constructors. *Strategy:* the FSCD'25
    result; provable in a meta-theory weaker than the object theory.
-3. **`weaken⇒`** (`Proof/Preservation.agda`) — context extension preserves
-   typability up to `shift 1 0`.
-4. **`subst⇒` / `subst⇐`** (`Proof/Preservation.agda`) — the substitution
-   lemma. *Strategy:* induction on the derivation; `⇒-var here` closes
-   immediately, `⇒-lam`/`⇒-pi` descend under the binder.
-5. **`progress`** (`Proof/Progress.agda`) — by cases on the typing
+3. **`lk-ext` / `lk-extⁿ`** (`Proof/Preservation.agda`) — the lookup lemma
+   extends under a binder. *Strategy:* see "The context representation"
+   below; this is the one place where the flat context representation
+   bites, and the length-indexed context removes the obligation entirely.
+4. **`ren⇒` / `ren⇐`** (`Proof/Preservation.agda`) — the fundamental
+   renaming lemma (typing is stable under a context morphism). Once
+   `lk-ext` is in hand the induction is mechanical; `weaken⇒` is its
+   instance at `lift`.
+5. **`subst⇒` / `subst⇐`** (`Proof/Preservation.agda`) — the substitution
+   lemma. *Strategy:* induction on the derivation; `⇒-var` splits on
+   whether the looked-up index is the substituted one.
+6. **`progress`** (`Proof/Progress.agda`) — by cases on the typing
    derivation, consuming the canonical-form lemmas to show β and ι fire.
-6. **`preservation`** (`Proof/Preservation.agda`) — the four cases β, ζ, ι,
+7. **`preservation`** (`Proof/Preservation.agda`) — the four cases β, ζ, ι,
    δ. β/ζ consume `subst⇐`; ι is the branch-coverage lemma; δ consumes
    `Certified`.
-7. **`soundness`** (`Proof/Soundness.agda`) — the type-safety induction
+8. **`soundness`** (`Proof/Soundness.agda`) — the type-safety induction
    combining Progress and Preservation.
 
 ### Open research questions (docs/SOUNDNESS.md §7, §8)
@@ -144,6 +154,44 @@ These are the `postulate`s, each with a named proof strategy in the source:
   (the specification). A separate obligation is that the kernel's `Eval`
   function implements exactly that relation — the operational refinement
   the written argument assumes.
+
+## The context representation (a finding from this slice)
+
+The single hardest piece of de Bruijn bookkeeping in this development is
+**weakening and substitution** — the lemmas that make the β and ζ cases of
+Preservation go through. This slice established exactly why, and what the
+fix is.
+
+`Core.Typing` currently represents a context as a flat `List Term` with an
+*inductive* lookup relation `_∋_at_`. With that representation, the
+fundamental renaming lemma (`ren⇒`) cannot be proved: its binder case
+requires the target context under `ext ρ` to be built by recursion on the
+source (the head type is `rename ρ` of the source head, not
+`rename (ext ρ)`), which a flat `renameCtx ρ Γ` cannot express. The
+`lk-ext` obligation in `Proof/Preservation.agda` is precisely this gap.
+
+The fix — confirmed by working prototypes during this slice — is a
+**length-indexed context** with lookup as a total function on `Fin`:
+
+```agda
+data Context : Set where
+  ⟨⟩  : Context
+  _▷_ : Context → Term → Context
+
+lookup : (Γ : Context) → Fin (lengthCtx Γ) → Term
+```
+
+With this representation:
+
+- the weakening lookup law `lookup (extend Γ T) (suc i) ≡ lookup Γ i` is
+  `refl`;
+- the lookup lemma under a context morphism is a `refl`-based induction;
+- the binder-order issue disappears because the morphism's target is built
+  structurally.
+
+The refactor touches `Core.Typing` and the seven modules that consume the
+context; it is the recommended next step and unblocks the whole
+weakening/substitution chain.
 
 ## Building
 
