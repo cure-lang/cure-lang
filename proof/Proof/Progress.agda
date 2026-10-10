@@ -37,7 +37,7 @@ open import Core.Universe using (Level; l0; l1; l2)
 open import Core.Syntax
 open import Core.Signature
 open import Core.Reduction
-open import Core.Typing using (Context; ⟨⟩; _▷_; lengthCtx; lookup; extend; Conversion)
+open import Core.Typing using (Ctx; ⟨⟩; _▷_; lookup; extend; Conversion)
 open import Proof.Values using (Value; Canonical; Neutral; canonical; neutral)
 
 ------------------------------------------------------------------------
