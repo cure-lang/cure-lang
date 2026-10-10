@@ -7,10 +7,11 @@ Core kernel. It is the machine-checked counterpart of the written argument in
 development.
 
 > **Status: in progress.** The formalisation of the Core calculus and the
-> typing judgment is complete and compiles clean. The Progress and Preservation
-> statements are given, with the load-bearing lemmas isolated. The proofs of
-> those lemmas are the current research frontier — see
-> [Status](#status) below for a lemma-by-lemma breakdown.
+> typing judgment is complete and compiles clean. The canonical-form lemmas
+> are **proved**. The Progress/Preservation/Soundness theorems are stated,
+> with their remaining obligations isolated as `postulate`s, each carrying a
+> named proof strategy. See [Status](#status) for the lemma-by-lemma
+> breakdown.
 
 ## What is being proved
 
@@ -73,8 +74,13 @@ recommends.
 | `Core.Reduction` | The reduction relation `_⇝_` (β, ζ, ι, δ, congruence) and its reflexive-transitive closure | ✅ complete |
 | `Core.Signature` | Inductive families, constructors, telescopes; nested strict positivity | ✅ complete |
 | `Core.Typing` | The bidirectional `infer`/`check` judgment `_⊢_⇒_` / `_⊢_⇐_` | ✅ complete |
-| `Proof.CanonicalForms` | The `Value` predicate; canonical-form lemmas | ⚠️ statements done, value-level lemmas `postulate` |
-| `Proof.Progress` | `Final` Core; the side conditions; `progress`, `preservation`, `soundness` | ⚠️ statements done, proofs `postulate` |
+| `Proof.Values` | The `Canonical`/`Neutral`/`Value` split (a value includes neutrals) | ✅ complete |
+| `Proof.Inversion` | Head-inversion lemmas; conversion injectivity | ⚠️ `invert-pi`/`invert-data` open; `invert-*-check` **proved** |
+| `Proof.CanonicalForms` | `canonical-pi-value`, `canonical-ctor` | ✅ **proved** (= `invert-*-check`) |
+| `Proof.Substitution` | shift/subst algebraic laws | ⚠️ `shift-0` **proved**; interaction laws open |
+| `Proof.Progress` | `Final` Core; the three side conditions; `progress` | ⚠️ statement done, proof open |
+| `Proof.Preservation` | `weaken`, `subst⇒`, `subst⇐`, `preservation` | ⚠️ statements done, proofs open |
+| `Proof.Soundness` | `EvalResult`; `soundness` | ⚠️ statement done, proof open |
 
 ## Status
 
@@ -92,39 +98,39 @@ recommends.
 - The inductive-family signature with the nested strict-positivity checker.
 - The bidirectional typing judgment, with every rule from
   `Cure.Core.Kernel`'s `infer`/`check`.
+- **The canonical-form lemmas** `canonical-pi-value` and `canonical-ctor`
+  (`Proof/CanonicalForms.agda`), proved by composing the checking-mode
+  head-inversion lemmas.
+- **The `shift-0` identity law** (`Proof/Substitution.agda`): shifting by
+  zero is the identity at any cutoff.
 
 ### In progress (statements given, proofs open)
 
 These are the `postulate`s, each with a named proof strategy in the source:
 
-1. **`canonical-pi-value`** (`Proof/CanonicalForms.agda`) — a closed value of
-   Π type is a λ. *Strategy:* case analysis on the typing derivation; the only
-   infer rule yielding `tm-pi` from a canonical value is `⇒-lam`; the
-   elimination rules produce neutrals, impossible for a closed canonical value.
-2. **`canonical-ctor`** (`Proof/CanonicalForms.agda`) — a closed value of data
-   type is a ctor. *Strategy:* the only infer rule yielding `tm-data` from a
-   value is `⇒-ctor`; `⇒-data` yields a sort, not a data value.
-3. **`progress`** (`Proof/Progress.agda`) — by cases on the typing derivation,
-   consuming the two canonical-form lemmas to show β and ι fire.
-4. **`preservation`** (`Proof/Progress.agda`) — the four cases β, ζ, ι, δ.
-   β/ζ are substitution lemmas; ι is the branch-coverage lemma; δ consumes
+1. **`invert-pi` / `invert-data`** (`Proof/Inversion.agda`) — inference-mode
+   head inversion: a canonical value that infers a Π type is a λ; a canonical
+   value that infers a data type is a ctor. *Strategy:* induction on the
+   inference derivation; each canonical head has exactly one applicable
+   infer rule.
+2. **`conv-injective-data` / `conv-injective-pi`** (`Proof/Inversion.agda`) —
+   conversion injectivity on type constructors. *Strategy:* the FSCD'25
+   result; provable in a meta-theory weaker than the object theory.
+3. **`weaken⇒`** (`Proof/Preservation.agda`) — context extension preserves
+   typability up to `shift 1 0`.
+4. **`subst⇒` / `subst⇐`** (`Proof/Preservation.agda`) — the substitution
+   lemma. *Strategy:* induction on the derivation; `⇒-var here` closes
+   immediately, `⇒-lam`/`⇒-pi` descend under the binder.
+5. **`progress`** (`Proof/Progress.agda`) — by cases on the typing
+   derivation, consuming the canonical-form lemmas to show β and ι fire.
+6. **`preservation`** (`Proof/Preservation.agda`) — the four cases β, ζ, ι,
+   δ. β/ζ consume `subst⇐`; ι is the branch-coverage lemma; δ consumes
    `Certified`.
-5. **`soundness`** (`Proof/Progress.agda`) — the induction combining Progress
-   and Preservation.
+7. **`soundness`** (`Proof/Soundness.agda`) — the type-safety induction
+   combining Progress and Preservation.
 
 ### Open research questions (docs/SOUNDNESS.md §7, §8)
 
-- **Substitution commutes with typing.** The β and ζ Preservation cases need
-  a substitution lemma: if `Γ, x:A ⊢ b : B` and `Γ ⊢ a : A`, then
-  `Γ ⊢ b[x := a] : B[x := a]`. This requires a weakening lemma and a proof
-  that `substT` agrees with the typing judgment's context manipulation.
-- **Conversion is sound.** `Core.Typing` takes `_≈_` as an abstract
-  `Conversion` record. A complete development must define it (as the
-  syntactic counterpart of the kernel's NbE `Conv`) and prove it is an
-  equivalence stable under substitution and reduction. Per Lennon-Bertrand's
-  *What does it take to certify a conversion checker?* (FSCD'25), conversion
-  soundness needs only injectivity of type constructors — provable in a
-  meta-theory weaker than the object theory.
 - **The totality certificate.** `Certified` is a stated hypothesis. A
   separate, smaller proof that the *size-change certificate verifier* is
   sound (the "translation validation" discipline) is the recommended next
@@ -134,6 +140,10 @@ These are the `postulate`s, each with a named proof strategy in the source:
   with reduction (docs/SOUNDNESS.md §8.3).
 - **η and proof irrelevance.** If Cure's NbE has η-laws or definitional proof
   irrelevance, they are not covered and need an η-aware treatment.
+- **The NbE evaluator.** This development formalises the reduction *relation*
+  (the specification). A separate obligation is that the kernel's `Eval`
+  function implements exactly that relation — the operational refinement
+  the written argument assumes.
 
 ## Building
 
@@ -148,7 +158,9 @@ echo "/usr/share/agda-stdlib/standard-library.agda-lib" >> ~/.config/agda/librar
 cd proof
 agda Core/Grade.agda Core/Universe.agda Core/Syntax.agda Core/Value.agda \
      Core/Reduction.agda Core/Signature.agda Core/Typing.agda \
-     Proof/CanonicalForms.agda Proof/Progress.agda
+     Proof/Values.agda Proof/Inversion.agda Proof/CanonicalForms.agda \
+     Proof/Substitution.agda Proof/Progress.agda Proof/Preservation.agda \
+     Proof/Soundness.agda
 ```
 
 The library descriptor is `cure-core.agda-lib`. Interface files (`_build/`)
