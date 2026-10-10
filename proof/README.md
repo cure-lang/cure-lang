@@ -144,6 +144,24 @@ These are the `postulate`s, each with a named proof strategy in the source:
 6. **`soundness`** (`Proof/Soundness.agda`) — the type-safety induction
    combining Progress and Preservation.
 
+### The `⇒-app` obstruction (a finding from this slice)
+
+The `⇒-app` case of the renaming lemma needs
+
+    rename ρ (substT 0 a c) ≡ substT 0 (rename ρ a) (rename (ext ρ) c)
+
+where `c` is the codomain under the binder. At index `suc k` this requires
+`ρ (suc k) ≡ suc (ρ k)` — the renaming must **preserve `suc`**. `wk` does
+(`wk (suc k) = suc (suc k) = suc (wk k)`), but `ext wk` does **not**
+(`ext wk 1 = 2 ≠ 1 = suc (ext wk 0)`), and `ext wk` is exactly the
+renaming the codomain is subject to.
+
+The standard fix is to state the renaming lemma with `ρ` preserving `suc`
+*and* fixing `0` (`ρ 0 ≡ 0`), which makes the extension `ext ρ` preserve
+`suc` too. `wk` fixes neither, so the weakening instance needs the
+`substS`-based formulation (`subst-rename`, already proved) rather than the
+`substT`-based one. This is the concrete next step for `ren-app`.
+
 ### Open research questions (docs/SOUNDNESS.md §7, §8)
 
 - **The totality certificate.** `Certified` is a stated hypothesis. A
