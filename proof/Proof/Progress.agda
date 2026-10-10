@@ -144,60 +144,7 @@ module Progress (ind : IndEnv) (sig : Signature) (conv : Conversion)
       → Final t
       → Value t ⊎ (∃ λ t′ → _⇝_ sig t t′)
 
-------------------------------------------------------------------------
--- Preservation (docs/SOUNDNESS.md §4)
---
--- If `· ⊢ e : T` and `e ⇝ e′`, then `· ⊢ e′ : T`.
---
--- The four cases are β, ζ, ι, δ. β and ζ are substitution lemmas (the
--- kernel's `Term.subst/3` agrees with the typing judgment's substitution);
--- ι is the branch-coverage lemma; δ is where `Certified` is consumed.
-------------------------------------------------------------------------
+-- Preservation and Soundness live in Proof/Preservation.agda and
+-- Proof/Soundness.agda respectively; this module owns Progress and the
+-- three side conditions it consumes.
 
-module Preservation (ind : IndEnv) (sig : Signature) (conv : Conversion)
-                    (pos : StrictlyPositive ind) (cert : Certified sig) (cov : Covers ind) where
-
-  open Core.Typing.Typing ind sig conv
-
-  postulate
-    preservation :
-      ∀ {t t′ T}
-      → [] ⊢ t ⇒ T
-      → _⇝_ sig t t′
-      → [] ⊢ t′ ⇒ T
-
-------------------------------------------------------------------------
--- Soundness (docs/SOUNDNESS.md §1.4)
---
--- Combining Progress and Preservation: a closed, hole-free, final-Core
--- term `e` with `· ⊢ e : T` either reaches a value `v` with `· ⊢ v : T`,
--- or raises, or diverges. In particular it never reaches a STUCK state.
---
--- The three-way conclusion is captured by the relation `EvalResult`.
-------------------------------------------------------------------------
-
-module Soundness (ind : IndEnv) (sig : Signature) (conv : Conversion)
-                 (pos : StrictlyPositive ind) (cert : Certified sig) (cov : Covers ind) where
-
-  open Core.Typing.Typing ind sig conv
-
-  -- The possible outcomes of evaluating a closed term.
-  data EvalResult (t T : Term) : Set where
-    -- (1) reaches a value v with · ⊢ v : T
-    reaches-value : ∀ v → [] ⊢ v ⇐ T → Value v → _⇝*_ sig t v → EvalResult t T
-    -- (2) raises (modelled as a distinguished error outcome)
-    raises : EvalResult t T
-    -- (3) diverges
-    diverges : (∀ v → _⇝*_ sig t v → Value v → ⊥) → EvalResult t T
-
-  -- The soundness theorem.
-  --
-  -- OPEN OBLIGATION: the induction combining Progress and Preservation.
-  -- The two ingredients are proved (or postulated with a named strategy)
-  -- in Proof/Progress.agda and Proof/Preservation.agda.
-  postulate
-    soundness :
-      ∀ {t T}
-      → [] ⊢ t ⇒ T
-      → Final t
-      → EvalResult t T
