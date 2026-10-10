@@ -47,6 +47,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- `@total true` was a documented no-op: the decorator was parsed and attached to
+  the function's meta, but nothing consumed it, so `cure check` accepted a
+  non-terminating function marked `@total true` (`AUDIT-20261009.md` §4.3). It is
+  now enforced. `Declarations` records the obligation on the environment and the
+  program pipeline rejects the module (`E013`) unless the kernel certifies every
+  `@total true` definition total. `@total false` is an explicit opt-out; a bare
+  `@total` or a non-boolean argument is a malformed-annotation error rather than a
+  silently-ignored one.
 - Binder pipe `|x|>` (`docs/BIND_PIPE.md`) rejected a chain whose stage had no
   `Monad` instance in scope (the spec's `E122`, e.g. `1 |x|> x + 1`) by raising
   `Cure.Diagnostic.UnhandledError` at the compiler's presentation boundary: the

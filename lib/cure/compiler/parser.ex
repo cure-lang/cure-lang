@@ -14209,6 +14209,15 @@ defmodule Cure.Compiler.Parser do
           arg = {:literal, [subtype: :boolean], bval}
           {[arg], nil, state}
 
+        # `@total` is validated by the elaborator, which rejects a non-boolean
+        # argument. Consume a following literal on the SAME line so `@total 5`
+        # reaches that validation as `[{:literal, _, 5}]` rather than parsing as
+        # a bare `@total` (which would leave `5` as a stray expression and the
+        # decorator unattached, silently accepting the malformed annotation).
+        %Token{type: :integer, value: v} when dec_name == "total" ->
+          state = advance(state)
+          {[{:literal, [subtype: :integer], v}], nil, state}
+
         _ ->
           {[], nil, state}
       end

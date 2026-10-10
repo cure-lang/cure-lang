@@ -43,6 +43,7 @@ defmodule Cure.Core.Env do
             qualified_aliases: %{},
             lemmas: %{},
             equations: %{},
+            totality_required: nil,
             module_owner: nil,
             current_def: nil
 
@@ -96,6 +97,13 @@ defmodule Cure.Core.Env do
           # Inert elaborator metadata describing kernel-checked defining
           # equations. The kernel never consults this index.
           equations: %{atom() => [map()]},
+          # Inert elaborator metadata (the kernel never reads it): the
+          # owner-qualified names of defs carrying a surface `@total true`
+          # decorator. `nil` means "no requirements registered" (the common
+          # case); a real elaboration installs an explicit set. The program
+          # pipeline consults this after totality certification to reject any
+          # required def the kernel could not prove total (LANGUAGE_SPEC §4.3).
+          totality_required: MapSet.t(atom()) | nil,
           # Inert elaborator metadata (the kernel never reads it): the name of the
           # def whose body is currently being elaborated, set for the duration of
           # `Declarations.elaborate_real_body/3`. Consumed ONLY by
@@ -741,6 +749,31 @@ defmodule Cure.Core.Env do
   def total?(%__MODULE__{} = env, name) do
     MapSet.member?(env.totality_certified || MapSet.new(), resolve_key(env, env.defs, name))
   end
+
+  @doc """
+  Record that global `name` carries a surface `@total true` requirement: the
+  program pipeline must reject the module unless the kernel certifies it total.
+
+  The requirement is stored owner-qualified (via `owned_name/2`) so it survives
+  the signature→body pass and matches what `total?/2` consults. Storing it in a
+  top-level set rather than on the def record matters: `add_def/6` overwrites
+  the whole record on the body pass, which would silently drop a per-def flag.
+  """
+  @spec require_total(t(), atom()) :: t()
+  def require_total(%__MODULE__{totality_required: req} = env, name) do
+    %{env | totality_required: MapSet.put(req || MapSet.new(), owned_name(env, name))}
+  end
+
+  @doc "Does global `name` carry a `@total true` requirement?"
+  @spec total_required?(t(), atom()) :: boolean()
+  def total_required?(%__MODULE__{} = env, name) do
+    MapSet.member?(env.totality_required || MapSet.new(), resolve_key(env, env.defs, name))
+  end
+
+  @doc "Every owner-qualified global carrying a `@total true` requirement."
+  @spec required_totals(t()) :: [atom()]
+  def required_totals(%__MODULE__{totality_required: nil}), do: []
+  def required_totals(%__MODULE__{totality_required: req}), do: req |> MapSet.to_list() |> Enum.sort()
 
   @doc """
   Mark an already-registered global def as a builtin arithmetic/comparison op,

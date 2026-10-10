@@ -331,7 +331,9 @@ defmodule Cure.Diagnostic.Registry do
 
     A function annotated `@total true` is not provably total. Either
     coverage is incomplete or a recursive call doesn't shrink any
-    structural argument.
+    structural argument. The same code also reports a malformed
+    `@total` annotation (a bare `@total` or a non-boolean argument),
+    which is an error rather than a silently-ignored one.
 
     Fix: add the missing patterns, restructure the recursion to use
     a smaller sub-term, or remove `@total true` if partiality is OK.

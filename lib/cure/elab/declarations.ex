@@ -592,6 +592,7 @@ defmodule Cure.Elab.Declarations do
 
   defp do_register_signature({:function_def, meta, _body}, env) do
     with :ok <- validate_extern_typed_head(meta),
+         :ok <- validate_total_decorator(meta),
          {:ok, sig} <- function_signature(meta, env) do
       env1 =
         env
@@ -605,6 +606,7 @@ defmodule Cure.Elab.Declarations do
         |> register_declaration_span(sig.name, meta)
         |> maybe_register_unsafe(sig.name, meta)
         |> maybe_register_lemma(sig, meta)
+        |> maybe_require_total(sig.name, meta)
 
       env2 =
         case sig.constraints do
@@ -4622,6 +4624,67 @@ defmodule Cure.Elab.Declarations do
 
   defp pi_arity({:pi, _g, _dom, cod}), do: 1 + pi_arity(cod)
   defp pi_arity(_), do: 0
+
+  # `@total true` — a per-declaration opt-in to the compile-time totality proof
+  # (LANGUAGE_SPEC §4.3). The decorator is attached generically by the parser to
+  # the function_def meta as `{:decorator, [name: :total], args}`, so this is the
+  # consumer that turns it into an obligation. `@total false` is an explicit
+  # opt-out and registers nothing. Any other shape — a bare `@total`, a non-boolean
+  # argument, or more than one argument — is a MALFORMED decorator, not an absent
+  # one: it is reported here rather than silently ignored, because a typo'd opt-in
+  # that reads as "no requirement" would defeat the whole point of the annotation.
+  defp validate_total_decorator(meta) do
+    case total_decorator(meta) do
+      :absent -> :ok
+      true -> :ok
+      false -> :ok
+      {:error, _} = error -> error
+    end
+  end
+
+  defp maybe_require_total(env, name, meta) do
+    if total_decorator(meta) == true, do: Env.require_total(env, name), else: env
+  end
+
+  # The boolean payload of an `@total` decorator on this def's meta, or `:absent`
+  # when no `@total` is present, or `{:error, {:total_bad_argument, name, shape}}`
+  # for a malformed one. Only the FIRST decorator slot is consulted — the parser
+  # records one attached decorator per declaration (see `attach_decorator/4`).
+  defp total_decorator(meta) do
+    case Keyword.get(meta, :decorator) do
+      {:decorator, dm, args} when is_list(dm) ->
+        if Keyword.get(dm, :name) == :total do
+          total_argument(decorator_owner_name(meta), args)
+        else
+          :absent
+        end
+
+      _ ->
+        :absent
+    end
+  end
+
+  # The def's authored name as an atom, for the diagnostic. `meta[:name]` is the
+  # parser's string spelling; every other declaration diagnostic names an atom.
+  defp decorator_owner_name(meta) do
+    case Keyword.get(meta, :name) do
+      name when is_atom(name) -> name
+      name when is_binary(name) -> String.to_atom(name)
+      other -> other
+    end
+  end
+
+  defp total_argument(_name, [{:literal, _meta, value}]) when is_boolean(value), do: value
+
+  defp total_argument(name, [{:literal, _meta, value}]),
+    do: {:error, {:total_bad_argument, name, {:not_boolean, value}}}
+
+  defp total_argument(name, []), do: {:error, {:total_bad_argument, name, :missing_argument}}
+
+  defp total_argument(name, args) when is_list(args),
+    do: {:error, {:total_bad_argument, name, {:too_many_arguments, length(args)}}}
+
+  defp total_argument(name, _other), do: {:error, {:total_bad_argument, name, :malformed_argument}}
 
   # The fixed tag→Core-node table — the ONLY inherent mapping (keyed by builtin
   # tag, not by surface name). Exactly three tags are legal now that `Int` has

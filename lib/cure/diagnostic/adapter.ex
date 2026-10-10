@@ -1677,6 +1677,12 @@ defmodule Cure.Diagnostic.Adapter do
   def from_error({:totality_required, _name} = error, opts),
     do: StaticAnalysis.from_error(error, opts)
 
+  def from_error({:total_required_by_decorator, _name} = error, opts),
+    do: StaticAnalysis.from_error(error, opts)
+
+  def from_error({:total_bad_argument, _name, _shape} = error, opts),
+    do: StaticAnalysis.from_error(error, opts)
+
   def from_error({:compile_time_totality, _name, _reason} = error, opts),
     do: StaticAnalysis.from_error(error, opts)
 

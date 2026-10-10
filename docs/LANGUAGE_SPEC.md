@@ -315,13 +315,17 @@ that reports the goal type and the local context at the hole position.
 
 ```cure
 @total true
-fn factorial(n: Int) -> Int
-  | 0 -> 1
-  | n -> n * factorial(n - 1)
+fn double(n: Nat) -> Nat
+  | Z() -> Z()
+  | S(k) -> S(S(double(k)))
 ```
 
 The dependent totality closure classifies definitions before certification.
-Add `@total true` to require a successful totality proof at compile time.
+Add `@total true` to require a successful totality proof at compile time. A
+definition the kernel cannot certify while carrying `@total true` is a compile
+error (`E013`), naming the function. `@total false` is an explicit opt-out and
+registers no obligation; a bare `@total` or a non-boolean argument is a
+malformed-annotation error rather than a silently-ignored one.
 
 ### Indexed families
 
