@@ -6,6 +6,14 @@ mod Std.Result
   ## callers can import it without dragging in every combinator.
   ## `Result(T, E)` lowers to `{:ok, v}` / `{:error, e}`.
   ##
+  ## ## Extractor naming
+  ##
+  ## The stdlib uses one extractor convention: `unwrap` for the `Option`
+  ## happy path, `unwrap_ok` / `unwrap_error` for the two `Result` arms,
+  ## and `unwrap_some` as an explicit synonym for `unwrap`. Here the
+  ## canonical `Result` extractor is `unwrap_ok`; a bare `unwrap` is kept
+  ## as a synonym on `Result` for call-site brevity.
+  ##
   ## ## Examples
   ##
   ## ```cure
@@ -19,7 +27,7 @@ mod Std.Result
   ## ok(42)
   ##   |> map(fn(x) -> x * 2)
   ##   |> and_then(positive)
-  ##   |> unwrap(0)                          # => 84
+  ##   |> unwrap_ok(0)                       # => 84
   ## ```
   ##
   ## ```cure
@@ -33,8 +41,9 @@ mod Std.Result
 
   ## Group tag consumed by `Cure.Stdlib.Preload`.
   ## A computation that either succeeded with a value (`Ok`) or failed with a
-  ## reason (`Error`). `Ok(v)` erases to `{:Ok, v}` and `Error(e)` to
-  ## `{:Error, e}` on the BEAM.
+  ## reason (`Error`). `Ok(v)` erases to `{:ok, v}` and `Error(e)` to
+  ## `{:error, e}` on the BEAM — the OTP-conventional shape Erlang, Elixir,
+  ## and AtomVM FFI expect.
   type Result(t, e) = Ok(t) | Error(e)
 
   ## Build an `Ok(value)` Result.
@@ -58,6 +67,14 @@ mod Std.Result
       Error(_) -> true
 
   ## Extract the `Ok` value or fall back to `default` on `Error`.
+  ## The canonical `Result` extractor name; `unwrap` below is a synonym.
+  fn unwrap_ok(result: Result(t, e), default: t) -> t =
+    match result
+      Ok(v) -> v
+      Error(_) -> default
+
+  ## Synonym for `unwrap_ok`, kept so call sites can read as a bare
+  ## `unwrap` on a `Result`. Same behaviour, same default.
   fn unwrap(result: Result(t, e), default: t) -> t =
     match result
       Ok(v) -> v

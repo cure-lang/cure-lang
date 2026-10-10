@@ -281,7 +281,11 @@ mod Std.String
   # -- Split / Repeat / Reverse -----------------------------------------------
 
   ## Private helper: `:string.split/3` splitting on the first occurrence.
-  ## Representation-preserving.
+  ## Representation-preserving. This and `split_all_cl` below are two
+  ## distinct wrappers over the same Erlang `:string.split/3`; each needs
+  ## its own `@extern` annotation (an `@extern` binds to the single
+  ## declaration that follows it), so the repeated target is intentional,
+  ## not a duplicate declaration.
   @extern(:string, :split, 3)
   local fn split_first_cl(s: List(Char), sep: List(Char), where: Atom) -> List(List(Char))
 
@@ -294,6 +298,9 @@ mod Std.String
   fn split_on(s: String, separator: Char) -> List(String) =
     omit_empty(strings_from_charlists(split_all_cl(as_charlist(s), [separator], :all)))
 
+  ## Private helper: the `:all` mode of `:string.split/3`, used by `split_on`.
+  ## A second wrapper over the same Erlang target as `split_first_cl`; its own
+  ## `@extern` is required and is not a duplicate of the one above.
   @extern(:string, :split, 3)
   local fn split_all_cl(s: List(Char), sep: List(Char), where: Atom) -> List(List(Char))
 

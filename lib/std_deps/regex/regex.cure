@@ -1,6 +1,19 @@
 @group(:text)
 mod Std.Regex
   ## Public verified Regex API and compatibility façade.
+  ##
+  ## ## Packaging
+  ##
+  ## Unlike the foundational `Std.*` modules, which live in `lib/std/`,
+  ## the Regex family lives in `lib/std_deps/regex/`. This is deliberate:
+  ## Regex is an *embedded package* — a self-contained, proof-heavy
+  ## dependent library that is swept as its own compilation stage and
+  ## bundled under `priv/std_deps/regex/` (see `Cure.Stdlib.Packages` and
+  ## `Cure.Stdlib.Paths.embedded_source_dirs/0`). Keeping it out of
+  ## `lib/std/` keeps the foundational sweep small and lets a caller opt
+  ## out of the embedded-package stage entirely (`embedded_packages:
+  ## false`). `Std.Regex` is still the public façade users import; only
+  ## its source location differs.
   use Std.Regex.Core
   use Std.Regex.Runtime
   public use Std.Regex.Core
