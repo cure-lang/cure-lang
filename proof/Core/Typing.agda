@@ -63,6 +63,12 @@ data All2 {A : Set} (R : A → A → Set) : List A → List A → Set where
 -- `Fin n`, which is what makes the weakening and substitution lemmas
 -- clean: the de Bruijn bookkeeping becomes a `refl`-level identity rather
 -- than an inductive relation to be inverted.
+--
+-- The context stores types in the GLOBAL de Bruijn convention: prepending
+-- a binder renames every existing type by `wk` (`wk k = suc k`), so that a
+-- type's free variables keep referring to the same binders. This is what
+-- makes weakening's term operation (`rename wk`) and its context operation
+-- (`extend`) agree, which is the crux of the de Bruijn bookkeeping.
 data Context : Set where
   ⟨⟩  : Context
   _▷_ : Context → Term → Context
@@ -79,20 +85,24 @@ lookup : (Γ : Context) → Fin (lengthCtx Γ) → Term
 lookup (Γ ▷ T) zero = T
 lookup (Γ ▷ T) (suc i) = lookup Γ i
 
+-- The weakening renaming: shift every index up by one.
+wk : Ren
+wk k = suc k
+
 -- Context extension: prepend a fresh binder.
 extend : Context → Term → Context
 extend Γ T = Γ ▷ T
 
--- Weakening: a `Fin n` embeds into `Fin (suc n)` by shifting up one.
+-- Weakening: a `Fin (lengthCtx Γ)` embeds into `Fin (lengthCtx (extend Γ T))`
+-- by shifting up one. Definitional, since `extend` prepends.
 wkFin : ∀ {n} → Fin n → Fin (suc n)
 wkFin = suc
 
 -- The weakening lookup law: after extending, an existing variable is found
--- at the shifted index, with its type UNCHANGED (the well-scoped
--- convention: the type at index `i` is scoped in the prefix below it).
-lookup-weaken : ∀ {Γ} (T : Term) (i : Fin (lengthCtx Γ))
+-- at the lifted index, with its type UNCHANGED (well-scoped convention).
+lookup-extend : ∀ {Γ} (T : Term) (i : Fin (lengthCtx Γ))
               → lookup (extend Γ T) (wkFin i) ≡ lookup Γ i
-lookup-weaken T i = refl
+lookup-extend T i = refl
 
 ------------------------------------------------------------------------
 -- Conversion (definitional equality)

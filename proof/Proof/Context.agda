@@ -3,8 +3,8 @@
 --
 -- The weakening and substitution lemmas (Proof/Preservation.agda) need
 -- algebraic facts about the typing context. With the length-indexed
--- context of Core.Typing, lookup is a total function on `Fin`, so the
--- de Bruijn bookkeeping reduces to `refl`-level identities.
+-- context of Core.Typing, lookup is a total function on `Fin`, and
+-- extending prepends a binder (so existing indices shift up by one).
 --
 -- STATUS: all lemmas in this module are PROVED.
 ------------------------------------------------------------------------
@@ -27,29 +27,24 @@ open import Core.Typing using (Context; ⟨⟩; _▷_; lengthCtx; lookup; extend
 --
 -- Extending a context with a fresh binder shifts every existing variable
 -- up by one, leaving its type unchanged. With the length-indexed context
--- this is definitional.
+-- this is definitional (`lookup-extend` from Core.Typing, re-exported).
 ------------------------------------------------------------------------
 
-lookup-extend : ∀ {Γ} (T : Term) (i : Fin (lengthCtx Γ))
+lookup-weaken : ∀ {Γ} (T : Term) (i : Fin (lengthCtx Γ))
               → lookup (extend Γ T) (wkFin i) ≡ lookup Γ i
-lookup-extend T i = refl
+lookup-weaken T i = refl
 
 ------------------------------------------------------------------------
--- The lookup/substitution correspondence.
+-- The head variable.
 --
--- For the `⇒-var` case of `subst⇒`: looking up a non-head variable is
--- unaffected by substituting the head. Definitional with the function
--- lookup.
+-- Looking up index 0 in an extended context gives the fresh binder's type.
 ------------------------------------------------------------------------
 
-lookup-tail : ∀ {Γ} (A : Term) (i : Fin (lengthCtx Γ))
-            → lookup (extend Γ A) (suc i) ≡ lookup Γ i
-lookup-tail A i = refl
+lookup-head : ∀ {Γ} (T : Term) → lookup (extend Γ T) zero ≡ T
+lookup-head T = refl
 
 ------------------------------------------------------------------------
--- `suc` on `Fin` indices.
---
--- `toℕ (wkFin i) ≡ toℕ i + 1`: the weakened index is one higher.
+-- `toℕ (wkFin i) ≡ toℕ i + 1`.
 ------------------------------------------------------------------------
 
 toℕ-wkFin : ∀ {n} (i : Fin n) → toℕ (wkFin i) ≡ toℕ i + 1
