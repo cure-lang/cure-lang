@@ -33,7 +33,7 @@ open import Relation.Binary.PropositionalEquality
   using (_≡_; refl; sym; trans; cong; cong₂; subst)
 open import Relation.Nullary using (Dec; yes; no)
 
-open import Core.Grade using (Grade)
+open import Core.Grade using (Grade; unrestricted)
 open import Core.Universe using (Level; l0; l1; l2)
 open import Core.Syntax
 open import Core.Signature using (IndEnv; Family; Ctor; Telescope; findFamily; findCtor;
@@ -63,67 +63,156 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   WfCtx (Γ ▷ T) = WfCtx Γ × Scoped (lengthCtx Γ) T
 
   ------------------------------------------------------------------------
-  -- Weakening.
-  --
-  -- If `Γ ⊢ t ⇒ T` then `extend Γ S ⊢ shift 1 0 t ⇒ T`: adding a fresh
-  -- binder preserves typability, shifting the term by one. The type is
-  -- UNCHANGED (the fresh binder is not in the term's scope).
-  --
-  -- OPEN OBLIGATION: the `⇒-var` case is the definitional lookup law, but
-  -- the binder cases need the context-extension to commute with the
-  -- Π/λ binder, which the flat prepend does not do. The standard fix is a
-  -- context morphism (a `Fin` map); see proof/README.md.
-  ------------------------------------------------------------------------
-
-  -- Shifting a branch body at the branch's arity.
-  shiftBranchBody : Branch → Branch
-  shiftBranchBody (cn , ar , b) = cn , ar , shift 1 ar b
-
-  postulate
-    weaken⇒ : ∀ {Γ t T S} → Γ ⊢ t ⇒ T → extend Γ S ⊢ shift 1 0 t ⇒ T
-
-  postulate
-    weaken⇐ : ∀ {Γ t T S} → Γ ⊢ t ⇐ T → extend Γ S ⊢ shift 1 0 t ⇐ T
-
-  ------------------------------------------------------------------------
   -- Substitution.
   --
-  -- If `extend Γ A ⊢ t ⇒ T` and `Γ ⊢ a ⇐ A`, then the term with index 0
-  -- replaced by `a` — AND every variable above 0 renumbered down by one —
-  -- has type `T` with the same treatment.
+  -- The general substitution lemma. Given a substitution `σ` and a target
+  -- context `Δ` with the coherence
   --
-  -- The renumbering is the crux: substituting index 0 SHRINKS the context,
-  -- so a variable that was at index `suc k` in `extend Γ A` must become
-  -- index `k` in `Γ`. The operation is therefore
+  --     coh : ∀ k → Δ ⊢ σ k ⇐ substS σ (lookup Γ k)
   --
-  --     substTop a t = rename pred (substT 0 a t)
+  -- then `Γ ⊢ t ⇐ T` implies `Δ ⊢ substS σ t ⇐ substS σ T`.
   --
-  -- where `pred` maps `zero ↦ zero` and `suc k ↦ k`. This is the term-side
-  -- counterpart of the context surgery `removeAt` (Proof/ContextSubst.agda).
+  -- The binder case extends the coherence to `extSub σ` at the context
+  -- `extend Δ (substS σ d)`, using `subst-extSub-wk` and weakening.
   ------------------------------------------------------------------------
 
-  -- The substitution that replaces index 0 with `a` and renumbers the
-  -- indices above it down by one.
-  topSub : Term → Sub
-  topSub a zero = a
-  topSub a (suc k) = tm-var k
+  -- The coherence condition: every substituted term infers the substituted
+  -- type of the variable it replaces.
+  Coherent : Context → Context → Sub → Set
+  Coherent Γ Δ σ = ∀ (k : Fin (lengthCtx Γ)) → Δ ⊢ σ (toℕ k) ⇒ substS σ (lookup Γ k)
 
-  -- Substitution at the top of a term.
+  ------------------------------------------------------------------------
+  -- Weakening (needed for the extended coherence).
+  --
+  -- OPEN OBLIGATION: the binder cases need `rename (ext wk)` threaded
+  -- through the body. The lookup law is proved; the term-level induction is
+  -- the remaining piece.
+  ------------------------------------------------------------------------
+
+  postulate
+    weaken⇒ : ∀ {Γ t T S} → Γ ⊢ t ⇒ T → extend Γ S ⊢ rename wk t ⇒ rename wk T
+
+  postulate
+    weaken⇐ : ∀ {Γ t T S} → Γ ⊢ t ⇐ T → extend Γ S ⊢ rename wk t ⇐ rename wk T
+
+  ------------------------------------------------------------------------
+  -- The extended coherence for the binder case.
+  ------------------------------------------------------------------------
+
+  -- `extend Δ (substS σ d) ⊢ extSub σ (toℕ k) ⇒ substS (extSub σ) (lookup (extend Γ d) k)`.
+  -- The index-0 case is `subst-extSub-wk`; the index-suc case is weakening
+  -- of the original coherence.
+  postulate
+    coh-extend :
+      ∀ {Γ Δ σ d}
+      → Coherent Γ Δ σ
+      → Coherent (extend Γ d) (extend Δ (substS σ d)) (extSub σ)
+
+  ------------------------------------------------------------------------
+  -- The substitution lemma.
+  ------------------------------------------------------------------------
+
+  -- Helper obligations for the spine/branch cases and conversion.
+  postulate
+    subst-app : ∀ {Γ Δ f a g d c σ}
+      → Coherent Γ Δ σ
+      → Γ ⊢ f ⇒ tm-pi g d c → Γ ⊢ a ⇐ d
+      → Δ ⊢ substS σ (tm-app f a) ⇒ substS σ (substT 0 a c)
+    subst-data : ∀ {Γ Δ n ps is f σ}
+      → Coherent Γ Δ σ
+      → findFamily n (IndEnv.families ind) ≡ just f
+      → Γ ⊢* ps ⇐* fam-params f → Γ ⊢* is ⇐* fam-indices f
+      → Δ ⊢ substS σ (tm-data n ps is) ⇒ substS σ (tm-type (fam-level f))
+    subst-ctor : ∀ {Γ Δ c args f ct σ}
+      → Coherent Γ Δ σ
+      → findCtor c (IndEnv.families ind) ≡ just (f , ct)
+      → Γ ⊢* args ⇐* ctor-args ct
+      → Δ ⊢ substS σ (tm-ctor c args) ⇒ substS σ (tm-data (fam-name f) (ctor-params ct) (ctor-indices ct))
+    subst-case : ∀ {Γ Δ s m brs n ps is T σ}
+      → Coherent Γ Δ σ
+      → Γ ⊢ s ⇒ tm-data n ps is → Γ ⊢ m ⇒ T → Γ ⊢*brs brs ⇐*ᵇ (n , m)
+      → Δ ⊢ substS σ (tm-case s m brs) ⇒ substS σ (tm-app m s)
+    subst-effect-bind : ∀ {Γ Δ e k A B σ}
+      → Coherent Γ Δ σ
+      → Γ ⊢ e ⇒ tm-effect_type A
+      → Γ ⊢ k ⇒ tm-pi unrestricted A (tm-effect_type B)
+      → Δ ⊢ substS σ (tm-effect_bind e k) ⇒ substS σ (tm-effect_type B)
+    subst-global : ∀ {Δ f} (T : Term) (σ : Sub)
+      → Signature.type-of sig f ≡ just T
+      → Δ ⊢ tm-global f ⇒ substS σ T
+    subst-conv : ∀ {Γ Δ t u σ}
+      → Coherent Γ Δ σ
+      → Conversion._≈_ conv t u
+      → Conversion._≈_ conv (substS σ t) (substS σ u)
+    ren-conv-eq : ∀ {Γ Δ d d′ σ}
+      → Coherent Γ Δ σ
+      → Conversion._≈_ conv d d′
+      → Conversion._≈_ conv (substS σ d) (substS σ d′)
+
+  mutual
+   subst⇒ : ∀ {Γ Δ t T σ}
+          → Coherent Γ Δ σ
+          → Γ ⊢ t ⇒ T
+          → Δ ⊢ substS σ t ⇒ substS σ T
+   subst⇒ coh (⇒-type p) = ⇒-type p
+   subst⇒ coh (⇒-var i) = coh i
+   subst⇒ coh (⇒-pi dd dc) = ⇒-pi (subst⇒ coh dd) (subst⇒ (coh-extend coh) dc)
+   subst⇒ coh (⇒-lam dd db) = ⇒-lam (subst⇒ coh dd) (subst⇒ (coh-extend coh) db)
+   subst⇒ coh (⇒-app df da) = subst-app coh df da
+   subst⇒ {Δ = Δ} {σ = σ} coh (⇒-let {g = g} {ty = ty} {v = v} {b = b} {l = l} {T = T} dty dv db) =
+    subst (λ X → Δ ⊢ tm-let g (substS σ ty) (substS σ v) (substS (extSub σ) b) ⇒ X)
+          (sym (subst-topSub σ v T))
+          (⇒-let (subst⇒ coh dty) (subst⇐ coh dv) (subst⇒ (coh-extend coh) db))
+   subst⇒ {Δ = Δ} {σ = σ} coh (⇒-global {f = f} {T = T} p) = subst-global {Δ = Δ} T σ p
+   subst⇒ coh (⇒-int_type) = ⇒-int_type
+   subst⇒ coh (⇒-float_type) = ⇒-float_type
+   subst⇒ coh (⇒-binary_type) = ⇒-binary_type
+   subst⇒ coh (⇒-atom_type) = ⇒-atom_type
+   subst⇒ coh (⇒-int_lit) = ⇒-int_lit
+   subst⇒ coh (⇒-float_lit) = ⇒-float_lit
+   subst⇒ coh (⇒-atom_lit) = ⇒-atom_lit
+   subst⇒ coh (⇒-nat_lit p) = ⇒-nat_lit p
+   subst⇒ coh (⇒-bounded_lit p) = ⇒-bounded_lit p
+   subst⇒ coh (⇒-data p q r) = subst-data coh p q r
+   subst⇒ coh (⇒-ctor p q) = subst-ctor coh p q
+   subst⇒ coh (⇒-case p q r) = subst-case coh p q r
+   subst⇒ coh (⇒-effect_type p) = ⇒-effect_type (subst⇒ coh p)
+   subst⇒ coh (⇒-effect_pure p) = ⇒-effect_pure (subst⇒ coh p)
+   subst⇒ coh (⇒-effect_bind p q) = subst-effect-bind coh p q
+
+   subst⇐ : ∀ {Γ Δ t T σ}
+         → Coherent Γ Δ σ
+         → Γ ⊢ t ⇐ T
+         → Δ ⊢ substS σ t ⇐ substS σ T
+   subst⇐ {σ = σ} coh (⇐-lam {g = g} {d = d} {b = b} {g′ = g′} {d′ = d′} {c = c} eq conv-eq body) =
+    ⇐-lam {g = g} {d = substS σ d} {b = substS (extSub σ) b}
+          {g′ = g′} {d′ = substS σ d′} {c = substS (extSub σ) c}
+          eq
+          (ren-conv-eq coh conv-eq)
+          (subst⇐ (coh-extend coh) body)
+   subst⇐ coh (⇐-hole) = ⇐-hole
+   subst⇐ coh (⇐-infer der eq) = ⇐-infer (subst⇒ coh der) (subst-conv coh eq)
+   subst⇐ coh (⇐-cumul der le) = ⇐-cumul (subst⇒ coh der) le
+
+  ------------------------------------------------------------------------
+  -- The top-level substitution (for β and ζ).
+  ------------------------------------------------------------------------
+
+  -- Substitution at the top of a term (using `topSub` from
+  -- Proof/Substitution).
   substTop : Term → Term → Term
   substTop a t = substS (topSub a) t
 
   postulate
-    subst⇒ :
+    substTop⇒ :
       ∀ {Γ t T A a}
-      → WfCtx (extend Γ A)
       → extend Γ A ⊢ t ⇒ T
       → Γ ⊢ a ⇐ A
       → Γ ⊢ substTop a t ⇒ substTop a T
 
   postulate
-    subst⇐ :
+    substTop⇐ :
       ∀ {Γ t T A a}
-      → WfCtx (extend Γ A)
       → extend Γ A ⊢ t ⇐ T
       → Γ ⊢ a ⇐ A
       → Γ ⊢ substTop a t ⇐ substTop a T

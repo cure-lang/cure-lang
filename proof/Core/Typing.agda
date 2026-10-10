@@ -212,6 +212,13 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   extendⁿ Γ zero = Γ
   extendⁿ Γ (suc n) = extendⁿ (extend Γ (tm-hole "field")) n
 
+  -- Substituting a value at the top of a type (for the `let` rule).
+  substTopT : Term → Term → Term
+  substTopT v T = substS (topSub v) T
+
+  substTopT-unfold : ∀ v T → substTopT v T ≡ substS (topSub v) T
+  substTopT-unfold v T = refl
+
   -- The field variables bound by a branch of arity `ar`. The kernel binds
   -- the LAST field at index 0, so the field list is `[ar-1, …, 0]`.
   branch-field-vars : ℕ → List Term
@@ -255,12 +262,15 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
           → Γ ⊢ tm-app f a ⇒ substT 0 a c
 
     -- let (ζ-transparent): check the value against the ascription, then
-    -- infer the body under a context extended with the value's type.
+    -- infer the body under a context extended with the value's type. The
+    -- result type substitutes the value for the bound variable, mirroring
+    -- the kernel's `Context.extend_def` (the variable is definitionally its
+    -- value), so the reported type lives in `Γ`.
     ⇒-let : ∀ {Γ g ty v b l T}
           → Γ ⊢ ty ⇒ tm-type l
           → Γ ⊢ v ⇐ ty
           → extend Γ ty ⊢ b ⇒ T
-          → Γ ⊢ tm-let g ty v b ⇒ T
+          → Γ ⊢ tm-let g ty v b ⇒ substTopT v T
 
     -- Global: look up the declared type in the signature.
     ⇒-global : ∀ {Γ f T} → Signature.type-of sig f ≡ just T → Γ ⊢ tm-global f ⇒ T

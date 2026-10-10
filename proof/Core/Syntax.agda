@@ -340,6 +340,12 @@ extSub^ : ℕ → Sub → Sub
 extSub^ zero σ = σ
 extSub^ (suc n) σ = extSub (extSub^ n σ)
 
+-- The "top" substitution: replace index 0 with `a` and renumber the indices
+-- above it down by one. This is the substitution the β and ζ rules use.
+topSub : Term → Sub
+topSub a zero = a
+topSub a (suc k) = tm-var k
+
 mutual
   substTermsS : Sub → List Term → List Term
   substTermsS σ [] = []
@@ -463,3 +469,4 @@ mutual
 
 ext-wk-compose : ∀ ρ k → (ext ρ ∘ wk) k ≡ (wk ∘ ρ) k
 ext-wk-compose ρ k = refl
+

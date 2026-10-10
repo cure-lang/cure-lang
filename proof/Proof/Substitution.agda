@@ -351,7 +351,7 @@ mutual
   extSub-comp : ∀ σ ρ → (extSub σ ∘s ext ρ) ≡ extSub (σ ∘s ρ)
   extSub-comp σ ρ = funext (λ j → extSub^-comp 1 σ ρ j)
 
-  subst-rename : ∀ σ ρ t → substS σ (rename ρ t) ≡ substS (σ ∘s ρ) t
+  subst-rename : ∀ (σ : Sub) (ρ : Ren) t → substS σ (rename ρ t) ≡ substS (σ ∘s ρ) t
   subst-rename σ ρ (tm-type l) = refl
   subst-rename σ ρ (tm-var k) = refl
   subst-rename σ ρ (tm-pi g d c) =
@@ -484,3 +484,144 @@ subst-extSub-wk σ t =
   trans (subst-rename (extSub σ) wk t)
         (trans (cong (λ σ' → substS σ' t) (extSub-wk σ))
                (sym (rename-subst wk σ t)))
+
+------------------------------------------------------------------------
+-- Substitution composes.
+--
+-- `substS σ (substS τ t) ≡ substS (substCompose σ τ) t`: two substitutions
+-- compose. The composed substitution applies `σ` to each term of `τ`:
+--
+--     substCompose σ τ k = substS σ (τ k)
+--
+-- Under a binder the extensions are related by
+-- `extSub σ ∘ substCompose (extSub σ) τ ≡ substCompose (extSub σ) (extSub τ)`,
+-- which follows from `extSub`'s definition.
+------------------------------------------------------------------------
+
+-- Composition of two substitutions.
+substCompose : Sub → Sub → Sub
+substCompose σ τ k = substS σ (τ k)
+
+-- `substCompose (extSub σ) (extSub τ) ≡ extSub (substCompose σ τ)`.
+-- (The substitution extensions commute with composition.)
+extSub-compose : ∀ σ τ j
+  → substCompose (extSub σ) (extSub τ) j ≡ extSub (substCompose σ τ) j
+extSub-compose σ τ zero = refl
+extSub-compose σ τ (suc k) = subst-extSub-wk σ (τ k)
+
+mutual
+  subst-compose-terms : ∀ σ τ ts → substTermsS σ (substTermsS τ ts) ≡ substTermsS (substCompose σ τ) ts
+  subst-compose-terms σ τ [] = refl
+  subst-compose-terms σ τ (x ∷ xs) =
+    cong₂ _∷_ (subst-compose σ τ x) (subst-compose-terms σ τ xs)
+
+  subst-compose-branches : ∀ σ τ bs → substBranchesS σ (substBranchesS τ bs) ≡ substBranchesS (substCompose σ τ) bs
+  subst-compose-branches σ τ [] = refl
+  subst-compose-branches σ τ (x ∷ xs) =
+    cong₂ _∷_ (subst-compose-branch σ τ x) (subst-compose-branches σ τ xs)
+
+  subst-compose-branch : ∀ σ τ b → substBranchS σ (substBranchS τ b) ≡ substBranchS (substCompose σ τ) b
+  subst-compose-branch σ τ (cn , ar , b) =
+    cong (λ x → cn , ar , x)
+         (trans (subst-compose (extSub^ ar σ) (extSub^ ar τ) b)
+                (cong (λ τ' → substS τ' b)
+                      (funext (λ k → extSub^-compose ar σ τ k))))
+    where
+      extSub^-compose : ∀ n σ τ k
+        → substCompose (extSub^ n σ) (extSub^ n τ) k
+        ≡ extSub^ n (substCompose σ τ) k
+      extSub^-compose zero σ τ k = refl
+      extSub^-compose (suc n) σ τ zero = refl
+      extSub^-compose (suc n) σ τ (suc k) =
+        trans (subst-extSub-wk (extSub^ n σ) (extSub^ n τ k))
+              (cong (rename wk) (extSub^-compose n σ τ k))
+
+  subst-compose : ∀ σ τ t → substS σ (substS τ t) ≡ substS (substCompose σ τ) t
+  subst-compose σ τ (tm-type l) = refl
+  subst-compose σ τ (tm-var k) = refl
+  subst-compose σ τ (tm-pi g d c) =
+    cong₂ (tm-pi g) (subst-compose σ τ d)
+          (trans (subst-compose (extSub σ) (extSub τ) c)
+                 (cong (λ σ' → substS σ' c)
+                       (funext (extSub-compose σ τ))))
+  subst-compose σ τ (tm-lam g d b) =
+    cong₂ (tm-lam g) (subst-compose σ τ d)
+          (trans (subst-compose (extSub σ) (extSub τ) b)
+                 (cong (λ σ' → substS σ' b)
+                       (funext (extSub-compose σ τ))))
+  subst-compose σ τ (tm-let g ty v b) =
+    cong₃′ (tm-let g) (subst-compose σ τ ty) (subst-compose σ τ v)
+           (trans (subst-compose (extSub σ) (extSub τ) b)
+                  (cong (λ σ' → substS σ' b)
+                        (funext (extSub-compose σ τ))))
+  subst-compose σ τ (tm-app f a) = cong₂ tm-app (subst-compose σ τ f) (subst-compose σ τ a)
+  subst-compose σ τ (tm-data n ps is) = cong₂ (tm-data n) (subst-compose-terms σ τ ps) (subst-compose-terms σ τ is)
+  subst-compose σ τ (tm-ctor n args) = cong (tm-ctor n) (subst-compose-terms σ τ args)
+  subst-compose σ τ (tm-case s m brs) =
+    cong₃′ tm-case (subst-compose σ τ s) (subst-compose σ τ m) (subst-compose-branches σ τ brs)
+  subst-compose σ τ (tm-global n) = refl
+  subst-compose σ τ (tm-int_type) = refl
+  subst-compose σ τ (tm-int_lit k) = refl
+  subst-compose σ τ (tm-nat_lit k) = refl
+  subst-compose σ τ (tm-bounded_lit k) = refl
+  subst-compose σ τ (tm-float_type) = refl
+  subst-compose σ τ (tm-float_lit) = refl
+  subst-compose σ τ (tm-binary_type) = refl
+  subst-compose σ τ (tm-atom_type) = refl
+  subst-compose σ τ (tm-atom_lit n) = refl
+  subst-compose σ τ (tm-effect_type t) = cong tm-effect_type (subst-compose σ τ t)
+  subst-compose σ τ (tm-effect_pure t) = cong tm-effect_pure (subst-compose σ τ t)
+  subst-compose σ τ (tm-effect_bind e k) = cong₂ tm-effect_bind (subst-compose σ τ e) (subst-compose σ τ k)
+  subst-compose σ τ (tm-hole n) = refl
+  subst-compose σ τ (tm-absurd) = refl
+
+------------------------------------------------------------------------
+-- The "top" substitution.
+--
+-- `topSub a` replaces index 0 with `a` and renumbers the indices above it
+-- down by one. This is the substitution the β and ζ rules use.
+------------------------------------------------------------------------
+
+-- `substS (topSub a) (rename wk t) ≡ t`: substituting the head undoes
+-- weakening, because `topSub a` maps `suc k ↦ tm-var k`.
+mutual
+  topSub-rename-terms : ∀ a ts → substTermsS (topSub a) (renameTerms wk ts) ≡ ts
+  topSub-rename-terms a [] = refl
+  topSub-rename-terms a (x ∷ xs) =
+    cong₂ _∷_ (topSub-rename a x) (topSub-rename-terms a xs)
+
+  topSub-rename-branches : ∀ a bs → substBranchesS (topSub a) (renameBranches wk bs) ≡ bs
+  topSub-rename-branches a [] = refl
+  topSub-rename-branches a (x ∷ xs) =
+    cong₂ _∷_ (topSub-rename-branch a x) (topSub-rename-branches a xs)
+
+  -- The branch case: `ext^ ar wk` extends the renaming arity-many times;
+  -- the substitution must be extended correspondingly.
+  postulate
+    topSub-rename-branch : ∀ a b → substBranchS (topSub a) (renameBranch wk b) ≡ b
+
+  -- `substS (topSub a) (rename wk t) ≡ t`: substituting the head undoes
+  -- weakening. The variable case is `topSub a (suc k) = tm-var k`.
+  --
+  -- OPEN OBLIGATION: the binder case needs the substitution extension to be
+  -- adjoint to the renaming extension (`extSub (topSub a)` maps
+  -- `suc (suc k) ↦ var (suc k)`, but the standard `extSub` maps it to
+  -- `tm-var (suc k)`). Parameterising `extSub` by the renaming (the
+  -- adjoint extension) closes this; see proof/README.md.
+  postulate
+    topSub-rename : ∀ a t → substS (topSub a) (rename wk t) ≡ t
+
+-- `substS σ (substS (topSub v) T) ≡ substS (topSub (substS σ v)) (substS (extSub σ) T)`.
+topSub-compose : ∀ σ v j
+  → substCompose σ (topSub v) j ≡ substCompose (topSub (substS σ v)) (extSub σ) j
+topSub-compose σ v zero = refl
+topSub-compose σ v (suc k) = sym (topSub-rename (substS σ v) (σ k))
+
+-- The `let` rule's substitution law.
+subst-topSub : ∀ σ v T
+  → substS σ (substS (topSub v) T)
+  ≡ substS (topSub (substS σ v)) (substS (extSub σ) T)
+subst-topSub σ v T =
+  trans (subst-compose σ (topSub v) T)
+        (trans (cong (λ τ → substS τ T) (funext (topSub-compose σ v)))
+               (sym (subst-compose (topSub (substS σ v)) (extSub σ) T)))
