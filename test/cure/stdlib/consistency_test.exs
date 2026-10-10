@@ -146,22 +146,26 @@ defmodule Cure.Stdlib.ConsistencyTest do
     group_idx != nil and mod_idx != nil and group_idx > mod_idx
   end
 
-  # True iff some `@prelude` line is not immediately followed (skipping blank
-  # lines and `##` doc lines) by a `mod`, `type`, `typealias`, or `fn`.
+  # True iff the file has at least one `@prelude` line and some `@prelude` is
+  # not immediately followed (skipping blank lines, `##` doc lines, and other
+  # decorators) by a declaration (`mod`, `type`, `typealias`, `rec`, `fn`, or
+  # `opaque`). A file with no `@prelude` at all is not an offender.
   defp floating_prelude?(path) do
     lines = path |> File.read!() |> String.split("\n")
 
-    lines
-    |> Enum.with_index()
-    |> Enum.any?(fn {line, idx} ->
-      if line =~ ~r/^\s*@prelude\s*$/ do
-        next = next_code_line(lines, idx + 1)
-        next != nil and next =~ ~r/^\s*(mod|type|typealias|fn|opaque)\b/
-      else
-        false
-      end
-    end)
-    |> Kernel.not()
+    has_prelude = Enum.any?(lines, &(&1 =~ ~r/^\s*@prelude\s*$/))
+
+    misplaced =
+      Enum.any?(Enum.with_index(lines), fn {line, idx} ->
+        if line =~ ~r/^\s*@prelude\s*$/ do
+          next = next_code_line(lines, idx + 1)
+          not (next != nil and next =~ ~r/^\s*(mod|type|typealias|rec|fn|opaque)\b/)
+        else
+          false
+        end
+      end)
+
+    has_prelude and misplaced
   end
 
   # The next non-blank, non-doc, non-decorator line after `idx`, or nil.
