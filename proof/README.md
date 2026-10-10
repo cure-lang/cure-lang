@@ -104,10 +104,9 @@ recommends.
   head-inversion lemmas.
 - **The `shift-0` identity law** (`Proof/Substitution.agda`): shifting by
   zero is the identity at any cutoff.
-- **The weakening lookup law** `wk-lookup` (`Proof/Preservation.agda`):
-  under the `lift` renaming (which fixes index 0), a context lookup
-  transforms correctly. Weakening `weaken⇒` is derived from it via the
-  fundamental renaming lemma.
+- **The weakening lookup law** (`Proof/Context.agda`): with the
+  length-indexed context, `lookup (extend Γ T) (suc i) ≡ lookup Γ i` is
+  `refl`, and `toℕ-wkFin` gives the index arithmetic.
 
 ### In progress (statements given, proofs open)
 
@@ -121,23 +120,18 @@ These are the `postulate`s, each with a named proof strategy in the source:
 2. **`conv-injective-data` / `conv-injective-pi`** (`Proof/Inversion.agda`) —
    conversion injectivity on type constructors. *Strategy:* the FSCD'25
    result; provable in a meta-theory weaker than the object theory.
-3. **`lk-ext` / `lk-extⁿ`** (`Proof/Preservation.agda`) — the lookup lemma
-   extends under a binder. *Strategy:* see "The context representation"
-   below; this is the one place where the flat context representation
-   bites, and the length-indexed context removes the obligation entirely.
-4. **`ren⇒` / `ren⇐`** (`Proof/Preservation.agda`) — the fundamental
-   renaming lemma (typing is stable under a context morphism). Once
-   `lk-ext` is in hand the induction is mechanical; `weaken⇒` is its
-   instance at `lift`.
-5. **`subst⇒` / `subst⇐`** (`Proof/Preservation.agda`) — the substitution
+3. **`weaken⇒` / `weaken⇐`** (`Proof/Preservation.agda`) — weakening. The
+   `⇒-var` case is the definitional lookup law; the binder case needs a
+   context *morphism* (see "The context representation" below).
+4. **`subst⇒` / `subst⇐`** (`Proof/Preservation.agda`) — the substitution
    lemma. *Strategy:* induction on the derivation; `⇒-var` splits on
    whether the looked-up index is the substituted one.
-6. **`progress`** (`Proof/Progress.agda`) — by cases on the typing
+5. **`progress`** (`Proof/Progress.agda`) — by cases on the typing
    derivation, consuming the canonical-form lemmas to show β and ι fire.
-7. **`preservation`** (`Proof/Preservation.agda`) — the four cases β, ζ, ι,
+6. **`preservation`** (`Proof/Preservation.agda`) — the four cases β, ζ, ι,
    δ. β/ζ consume `subst⇐`; ι is the branch-coverage lemma; δ consumes
    `Certified`.
-8. **`soundness`** (`Proof/Soundness.agda`) — the type-safety induction
+7. **`soundness`** (`Proof/Soundness.agda`) — the type-safety induction
    combining Progress and Preservation.
 
 ### Open research questions (docs/SOUNDNESS.md §7, §8)
