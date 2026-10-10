@@ -146,6 +146,12 @@ defmodule Cure.Diagnostic.Adapter.StaticAnalysis do
   def from_error({:totality_required, name}, opts),
     do: totality_failure(name, %{}, opts)
 
+  def from_error({:total_required_by_decorator, name}, opts),
+    do: total_decorator_failure(name, %{}, opts)
+
+  def from_error({:total_bad_argument, name, shape}, opts),
+    do: total_bad_argument_failure(name, shape, opts)
+
   def from_error({:compile_time_totality, name, reason}, opts),
     do: totality_failure(name, %{totality_reason: reason}, opts)
 
@@ -167,6 +173,10 @@ defmodule Cure.Diagnostic.Adapter.StaticAnalysis do
   def from_error({:source_context, {:totality_required, name}, context}, opts)
       when is_map(context),
       do: totality_failure(name, context, opts)
+
+  def from_error({:source_context, {:total_required_by_decorator, name}, context}, opts)
+      when is_map(context),
+      do: total_decorator_failure(name, context, opts)
 
   def from_error({:source_context, {:compile_time_totality, name, reason}, context}, opts)
       when is_map(context),
@@ -588,6 +598,73 @@ defmodule Cure.Diagnostic.Adapter.StaticAnalysis do
       }
     )
   end
+
+  # `@total true` on a definition the kernel could not certify total. Distinct
+  # from `totality_failure/3` because the obligation is the author's explicit
+  # opt-in, not an inferred type-level use — the message and hint say so.
+  defp total_decorator_failure(name, context, opts) do
+    calls = Map.get(context, :recursive_call_spans, [])
+    definition = Map.get(context, :definition_span)
+    {primary, secondary} = totality_labels(calls, definition, opts)
+
+    Diagnostic.new(
+      code: "E013",
+      key: :total_decorator_unproven,
+      severity: :error,
+      title: "Function is not total",
+      body:
+        Doc.paragraph(
+          "`#{name_to_string(name)}` is marked `@total true`, so the compiler must prove that every call to it terminates, but it cannot."
+        ),
+      primary: primary,
+      secondary: secondary,
+      suggestions: [
+        %Suggestion{
+          message:
+            "Make each recursive call use a structurally smaller argument, or remove the `@total true` annotation",
+          applicability: :manual
+        }
+      ],
+      notes: totality_notes(Map.get(context, :totality_reason)),
+      payload: %{
+        name: name,
+        checking: Map.get(context, :checking, Keyword.get(opts, :checking)),
+        reason: Map.get(context, :totality_reason),
+        requirement_origin: :total_decorator
+      }
+    )
+  end
+
+  # A malformed `@total` decorator: a bare `@total`, a non-boolean argument, or
+  # more than one argument. Reported rather than ignored so a typo'd opt-in
+  # cannot silently read as "no requirement".
+  defp total_bad_argument_failure(name, shape, opts) do
+    Diagnostic.new(
+      code: "E013",
+      key: :total_bad_argument,
+      severity: :error,
+      title: "Malformed `@total` annotation",
+      body: Doc.paragraph(total_bad_argument_body(name, shape)),
+      primary: primary(opts, "this `@total` annotation is malformed"),
+      suggestions: [
+        %Suggestion{message: "Write `@total true` to require a totality proof", applicability: :manual}
+      ],
+      payload: %{name: name, shape: shape}
+    )
+  end
+
+  defp total_bad_argument_body(name, :missing_argument),
+    do:
+      "`@total` on `#{name_to_string(name)}` needs a boolean argument: write `@total true` to require a totality proof."
+
+  defp total_bad_argument_body(name, {:not_boolean, value}),
+    do: "`@total` on `#{name_to_string(name)}` expects `true` or `false`, but got `#{inspect(value)}`."
+
+  defp total_bad_argument_body(name, {:too_many_arguments, count}),
+    do: "`@total` on `#{name_to_string(name)}` takes a single boolean argument, but #{count} were supplied."
+
+  defp total_bad_argument_body(name, _shape),
+    do: "`@total` on `#{name_to_string(name)}` expects a single boolean argument: write `@total true`."
 
   defp totality_notes(reason) do
     base = ["Runtime-only functions may remain partial; only compile-time computation requires a total definition."]

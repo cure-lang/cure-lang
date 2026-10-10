@@ -222,6 +222,7 @@ defmodule Cure.Elab.Program do
          checked = TotalityClosure.certify_deferred(checked),
          :ok <- MacroValidate.check_program(ast, checked),
          {:ok, certified} <- certify_type_level_with_source(ast, checked, source_opts),
+         :ok <- enforce_total_requirements(ast, certified, source_opts),
          {:ok, certified} <- Cure.Elab.Equation.generate_all(certified, ast) do
       {:ok, mark_inline_hints(certified, owner)}
     end
@@ -925,6 +926,7 @@ defmodule Cure.Elab.Program do
          {:ok, env} <- elaborate_declarations(declarations(ast), env0, prelude_source?(ast)),
          :ok <- MacroValidate.check_program(ast, env),
          {:ok, certified} <- certify_type_level_with_source(ast, env, source_opts),
+         :ok <- enforce_total_requirements(ast, certified, source_opts),
          {:ok, certified} <- Cure.Elab.Equation.generate_all(certified, ast) do
       # Self-compilation of a hinted module (Std.Bool/Std.Sigma) marks its own
       # defs so their intra-module uses keep inlining; any other module name
@@ -1023,6 +1025,26 @@ defmodule Cure.Elab.Program do
       anon_origins: Map.take(coherence.anon_origins, Map.keys(anon)),
       named_origins: Map.take(coherence.named_origins, Map.keys(named))
     }
+  end
+
+  # `@total true` enforcement (LANGUAGE_SPEC §4.3). Every def carrying the
+  # decorator was recorded in `Env.required_totals/1` at signature registration;
+  # here, after the type-level closure and the deferred sweep have had their
+  # chance to certify it, any required def still uncertified is a hard error.
+  # The kernel is the sole authority on totality, so this only *reports* the
+  # kernel's verdict — it never re-derives termination itself. Reuses the E013
+  # diagnostic path via a `:source_context` wrapper, but with a distinct reason
+  # so the message names the explicit opt-in rather than a type-level use.
+  defp enforce_total_requirements(ast, env, opts) do
+    case Enum.find(Env.required_totals(env), &(not Env.total?(env, &1))) do
+      nil ->
+        :ok
+
+      name ->
+        detail = %{reason: :total_decorator_unproven, members: [name]}
+        reason = {:total_required_by_decorator, name}
+        {:error, {:source_context, reason, totality_source_context(ast, name, detail, opts)}}
+    end
   end
 
   defp certify_type_level_with_source(ast, env, opts) do
@@ -4490,7 +4512,7 @@ defmodule Cure.Elab.Program do
   # omission into a compile error rather than a runtime mystery.
   @merged_env_keys ~w(families ctors ctor_to_family defs direct_call_summaries totality_components totality_component_of certified totality_certified builtins
                       primitives interfaces interface_methods coherence constrained import_modules bare_modules bare_bindings
-                      qualified_modules qualified_aliases lemmas equations module_owner current_def)a
+                      qualified_modules qualified_aliases lemmas equations totality_required module_owner current_def)a
 
   @env_keys Map.keys(Map.from_struct(%Env{}))
   missing = @env_keys -- @merged_env_keys
@@ -4538,6 +4560,11 @@ defmodule Cure.Elab.Program do
           qualified_aliases: Map.merge(left.qualified_aliases, right.qualified_aliases),
           lemmas: Map.merge(left.lemmas, right.lemmas, fn _head, ls, rs -> Enum.uniq(ls ++ rs) end),
           equations: Map.merge(left.equations, right.equations, fn _owner, ls, rs -> Enum.uniq(ls ++ rs) end),
+          # A `@total true` obligation from either side survives the merge: a
+          # requirement is a proof obligation, so dropping one across a module
+          # boundary would silently weaken the check.
+          totality_required:
+            MapSet.union(left.totality_required || MapSet.new(), right.totality_required || MapSet.new()),
           module_owner: left.module_owner || right.module_owner,
           # Transient (set only for the duration of one def's body elaboration in
           # `Declarations.elaborate_real_body/3`, never part of a stored/merged

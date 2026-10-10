@@ -127,13 +127,13 @@ Compile, and Cure tells you the goal type and the local context.
 Add `@total true` above a function to require totality:
 ```cure
 @total true
-fn factorial(n: Int) -> Int
-  | 0 -> 1
-  | n -> n * factorial(n - 1)
+fn double(n: Nat) -> Nat
+  | Z() -> Z()
+  | S(k) -> S(S(double(k)))
 ```
 The totality checker classifies functions by coverage and structural
-recursion. `factorial` is total because every recursive call shrinks
-its structural argument (`n` -> `n - 1`).
+recursion. `double` is total because every recursive call shrinks
+its structural argument (`S(k)` -> `k`).
 ## 11. Binary parsing
 Cure supports full Erlang-style binary pattern matching in
 `match` arms, multi-clause function heads, and `let` bindings.
