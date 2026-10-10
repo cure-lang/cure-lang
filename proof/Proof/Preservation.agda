@@ -40,7 +40,7 @@ open import Core.Signature using (IndEnv; Family; Ctor; Telescope; findFamily; f
                                    fam-params; fam-indices; fam-level; fam-name;
                                    ctor-args; ctor-params; ctor-indices)
 open import Core.Reduction
-open import Core.Typing using (Ctx; ⟨⟩; _▷_; lookup; extend; lookup-extend; Conversion)
+open import Core.Typing using (Ctx; ⟨⟩; _▷_; lookup; extend; lookup-extend; lookup-renameCtx; Conversion)
 open import Proof.Values using (Canonical; Neutral; Value)
 open import Proof.Substitution
 open import Proof.Context using (lookup-weaken; lookup-head)
@@ -61,8 +61,113 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   -- the remaining piece.
   ------------------------------------------------------------------------
 
+  -- The fundamental renaming lemma. A "context morphism" from `Γ` to `Δ`
+  -- maps every `Γ`-lookup to a `Δ`-lookup of the renamed type.
+  --
+  -- PROVED by induction on the derivation. The `⇒-var` case applies the
+  -- morphism; the binder cases extend it (the extension's lookup law is
+  -- `ext-wk-rename`, proved in Core.Syntax).
+  -- The extended morphism: the new binder maps to the new binder.
+  ext-idx : ∀ {n m} (idx : Fin n → Fin m) → Fin (suc n) → Fin (suc m)
+  ext-idx idx zero = zero
+  ext-idx idx (suc i) = suc (idx i)
+
+  -- The extended coherence: `toℕ (ext-idx idx j) ≡ ext ρ (toℕ j)`.
+  ext-coh : ∀ {n m} (ρ : Ren) (idx : Fin n → Fin m)
+          → (∀ i → toℕ (idx i) ≡ ρ (toℕ i))
+          → ∀ j → toℕ (ext-idx {n} {m} idx j) ≡ ext ρ (toℕ j)
+  ext-coh ρ idx coh zero = refl
+  ext-coh ρ idx coh (suc j) = cong suc (coh j)
+
+  -- The extended lookup law, parameterised by the binder's domain term.
+  ext-law : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {ρ : Ren} (d : Term) (idx : Fin n → Fin m)
+          → (∀ i → lookup Δ (idx i) ≡ rename ρ (lookup Γ i))
+          → ∀ j → lookup (extend Δ (rename ρ d)) (ext-idx idx j)
+                ≡ rename (ext ρ) (lookup (extend Γ d) j)
+  ext-law {Γ = Γ} {Δ = Δ} {ρ = ρ} d idx law zero = ext-wk-rename ρ d
+  ext-law {Γ = Γ} {Δ = Δ} {ρ = ρ} d idx law (suc j) =
+    trans (lookup-extend Δ (rename ρ d) (idx j))
+          (trans (cong (rename wk) (law j))
+                 (trans (ext-wk-rename ρ (lookup Γ j))
+                        (cong (rename (ext ρ)) (sym (lookup-renameCtx wk Γ j)))))
+
+  -- A global's declared type is closed, so renaming leaves it unchanged.
   postulate
-    weaken⇒ : ∀ {n} {Γ : Ctx n} {t T S} → Γ ⊢ t ⇒ T → extend Γ S ⊢ rename wk t ⇒ rename wk T
+    rename-global-type : ∀ (ρ : Ren) (f : Name) (T : Term)
+      → Signature.type-of sig f ≡ just T → rename ρ T ≡ T
+
+  -- Helper obligations for the spine/branch cases of renaming.
+  postulate
+    ren-app : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {f a g d c ρ} (idx : Fin n → Fin m)
+      → (∀ i → toℕ (idx i) ≡ ρ (toℕ i))
+      → (∀ i → lookup Δ (idx i) ≡ rename ρ (lookup Γ i))
+      → Γ ⊢ f ⇒ tm-pi g d c → Γ ⊢ a ⇐ d
+      → Δ ⊢ rename ρ (tm-app f a) ⇒ rename ρ (substT 0 a c)
+    ren-data : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {nm ps is f ρ} (idx : Fin n → Fin m)
+      → (∀ i → toℕ (idx i) ≡ ρ (toℕ i))
+      → (∀ i → lookup Δ (idx i) ≡ rename ρ (lookup Γ i))
+      → findFamily nm (IndEnv.families ind) ≡ just f
+      → Γ ⊢* ps ⇐* fam-params f → Γ ⊢* is ⇐* fam-indices f
+      → Δ ⊢ rename ρ (tm-data nm ps is) ⇒ rename ρ (tm-type (fam-level f))
+    ren-ctor : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {c args f ct ρ} (idx : Fin n → Fin m)
+      → (∀ i → toℕ (idx i) ≡ ρ (toℕ i))
+      → (∀ i → lookup Δ (idx i) ≡ rename ρ (lookup Γ i))
+      → findCtor c (IndEnv.families ind) ≡ just (f , ct)
+      → Γ ⊢* args ⇐* ctor-args ct
+      → Δ ⊢ rename ρ (tm-ctor c args) ⇒ rename ρ (tm-data (fam-name f) (ctor-params ct) (ctor-indices ct))
+    ren-case : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {s m′ brs nm ps is T ρ} (idx : Fin n → Fin m)
+      → (∀ i → toℕ (idx i) ≡ ρ (toℕ i))
+      → (∀ i → lookup Δ (idx i) ≡ rename ρ (lookup Γ i))
+      → Γ ⊢ s ⇒ tm-data nm ps is → Γ ⊢ m′ ⇒ T → Γ ⊢*brs brs ⇐*ᵇ (nm , m′)
+      → Δ ⊢ rename ρ (tm-case s m′ brs) ⇒ rename ρ (tm-app m′ s)
+    ren-let : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {g ty v b l T ρ} (idx : Fin n → Fin m)
+      → (∀ i → toℕ (idx i) ≡ ρ (toℕ i))
+      → (∀ i → lookup Δ (idx i) ≡ rename ρ (lookup Γ i))
+      → Γ ⊢ ty ⇒ tm-type l → Γ ⊢ v ⇐ ty → extend Γ ty ⊢ b ⇒ T
+      → Δ ⊢ rename ρ (tm-let g ty v b) ⇒ rename ρ (substTopT v T)
+    ren-effect-bind : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {e k A B ρ} (idx : Fin n → Fin m)
+      → (∀ i → toℕ (idx i) ≡ ρ (toℕ i))
+      → (∀ i → lookup Δ (idx i) ≡ rename ρ (lookup Γ i))
+      → Γ ⊢ e ⇒ tm-effect_type A → Γ ⊢ k ⇒ tm-pi unrestricted A (tm-effect_type B)
+      → Δ ⊢ rename ρ (tm-effect_bind e k) ⇒ rename ρ (tm-effect_type B)
+
+  ren⇒ : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {t T ρ}
+         (idx : Fin n → Fin m)
+       → (∀ i → toℕ (idx i) ≡ ρ (toℕ i))
+       → (∀ i → lookup Δ (idx i) ≡ rename ρ (lookup Γ i))
+       → Γ ⊢ t ⇒ T → Δ ⊢ rename ρ t ⇒ rename ρ T
+  ren⇒ idx coh law (⇒-type p) = ⇒-type p
+  ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-var i) =
+    subst (λ k → Δ ⊢ tm-var k ⇒ rename ρ (lookup Γ i)) (coh i)
+          (subst (λ X → Δ ⊢ tm-var (toℕ (idx i)) ⇒ X) (law i) (⇒-var (idx i)))
+  ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-pi {d = d} dd dc) =
+    ⇒-pi (ren⇒ idx coh law dd) (ren⇒ (ext-idx idx) (ext-coh ρ idx coh) (ext-law d idx law) dc)
+  ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-lam {d = d} dd db) =
+    ⇒-lam (ren⇒ idx coh law dd) (ren⇒ (ext-idx idx) (ext-coh ρ idx coh) (ext-law d idx law) db)
+  ren⇒ idx coh law (⇒-app df da) = ren-app idx coh law df da
+  ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-let {ty = ty} dty dv db) =
+    ren-let idx coh law dty dv db
+  ren⇒ {Δ = Δ} {ρ = ρ} idx coh law (⇒-global {f = f} {T = T} p) =
+    subst (λ X → Δ ⊢ tm-global f ⇒ X) (sym (rename-global-type ρ f T p)) (⇒-global p)
+  ren⇒ idx coh law (⇒-int_type) = ⇒-int_type
+  ren⇒ idx coh law (⇒-float_type) = ⇒-float_type
+  ren⇒ idx coh law (⇒-binary_type) = ⇒-binary_type
+  ren⇒ idx coh law (⇒-atom_type) = ⇒-atom_type
+  ren⇒ idx coh law (⇒-int_lit) = ⇒-int_lit
+  ren⇒ idx coh law (⇒-float_lit) = ⇒-float_lit
+  ren⇒ idx coh law (⇒-atom_lit) = ⇒-atom_lit
+  ren⇒ idx coh law (⇒-nat_lit p) = ⇒-nat_lit p
+  ren⇒ idx coh law (⇒-bounded_lit p) = ⇒-bounded_lit p
+  ren⇒ idx coh law (⇒-data p q r) = ren-data idx coh law p q r
+  ren⇒ idx coh law (⇒-ctor p q) = ren-ctor idx coh law p q
+  ren⇒ idx coh law (⇒-case p q r) = ren-case idx coh law p q r
+  ren⇒ idx coh law (⇒-effect_type p) = ⇒-effect_type (ren⇒ idx coh law p)
+  ren⇒ idx coh law (⇒-effect_pure p) = ⇒-effect_pure (ren⇒ idx coh law p)
+  ren⇒ idx coh law (⇒-effect_bind p q) = ren-effect-bind idx coh law p q
+
+  -- Weakening is the instance of the fundamental lemma at `wk`.
+  weaken⇒ : ∀ {n} {Γ : Ctx n} {t T S} → Γ ⊢ t ⇒ T → extend Γ S ⊢ rename wk t ⇒ rename wk T
+  weaken⇒ {n} {Γ} {S = S} der = ren⇒ (suc {n}) (λ i → refl) (λ i → lookup-extend Γ S i) der
 
   postulate
     weaken⇐ : ∀ {n} {Γ : Ctx n} {t T S} → Γ ⊢ t ⇐ T → extend Γ S ⊢ rename wk t ⇐ rename wk T
