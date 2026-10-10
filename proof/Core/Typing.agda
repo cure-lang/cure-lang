@@ -99,7 +99,7 @@ renameCtx ρ (Γ ▷ T) = renameCtx ρ Γ ▷ rename ρ T
 -- free variables referring to the same binders after the prepend, which is
 -- what makes the substitution lemma's `⇒-var` cases go through.
 extend : Context → Term → Context
-extend Γ T = renameCtx wk Γ ▷ T
+extend Γ T = renameCtx wk Γ ▷ rename wk T
 
 -- `lengthCtx (renameCtx ρ Γ) ≡ lengthCtx Γ`.
 length-renameCtx : ∀ ρ Γ → lengthCtx (renameCtx ρ Γ) ≡ lengthCtx Γ

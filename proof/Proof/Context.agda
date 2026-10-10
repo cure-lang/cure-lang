@@ -40,7 +40,7 @@ lookup-weaken = lookup-extend
 -- Looking up index 0 in an extended context gives the fresh binder's type.
 ------------------------------------------------------------------------
 
-lookup-head : ∀ {Γ} (T : Term) → lookup (extend Γ T) zero ≡ T
+lookup-head : ∀ {Γ} (T : Term) → lookup (extend Γ T) zero ≡ rename wk T
 lookup-head {Γ} T = refl
 
 ------------------------------------------------------------------------
