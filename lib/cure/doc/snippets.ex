@@ -106,6 +106,7 @@ defmodule Cure.Doc.Snippets do
         "DEPENDENT_KERNEL_PEERNESS_ROADMAP.md",
         "DEPENDENT_TYPE_SLICES.md",
         "STDLIB_DEPENDENT_CLAIMS_AUDIT.md",
+        "AUDIT-20261009.md",
         "AUTOPILOT-REPORT-anonymous-adts.md"
       ] or
       normalized in [Path.expand("docs/STDLIB.md"), Path.expand("docs/DOC.md")]
