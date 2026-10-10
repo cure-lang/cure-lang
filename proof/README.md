@@ -73,11 +73,12 @@ recommends.
 | `Core.Value` | The NbE value domain: closures, neutrals, size-indexed so closures are structurally smaller | ✅ complete |
 | `Core.Reduction` | The reduction relation `_⇝_` (β, ζ, ι, δ, congruence) and its reflexive-transitive closure | ✅ complete |
 | `Core.Signature` | Inductive families, constructors, telescopes; nested strict positivity | ✅ complete |
-| `Core.Typing` | The bidirectional `infer`/`check` judgment `_⊢_⇒_` / `_⊢_⇐_` | ✅ complete |
+| `Core.Typing` | The bidirectional `infer`/`check` judgment `_⊢_⇒_` / `_⊢_⇐_`, over a length-indexed context with `Fin` lookup | ✅ complete |
 | `Proof.Values` | The `Canonical`/`Neutral`/`Value` split (a value includes neutrals) | ✅ complete |
 | `Proof.Inversion` | Head-inversion lemmas; conversion injectivity | ⚠️ `invert-pi`/`invert-data` open; `invert-*-check` **proved** |
 | `Proof.CanonicalForms` | `canonical-pi-value`, `canonical-ctor` | ✅ **proved** (= `invert-*-check`) |
-| `Proof.Substitution` | shift/subst algebraic laws | ⚠️ `shift-0` **proved**; interaction laws open |
+| `Proof.Substitution` | shift/subst algebraic laws | ⚠️ `shift-0` and `shift-var-1` **proved**; interaction laws open |
+| `Proof.Context` | Length-indexed context laws: weakening lookup, `toℕ-wkFin` | ✅ **proved** |
 | `Proof.Progress` | `Final` Core; the three side conditions; `progress` | ⚠️ statement done, proof open |
 | `Proof.Preservation` | `weaken`, `subst⇒`, `subst⇐`, `preservation` | ⚠️ statements done, proofs open |
 | `Proof.Soundness` | `EvalResult`; `soundness` | ⚠️ statement done, proof open |
@@ -155,23 +156,14 @@ These are the `postulate`s, each with a named proof strategy in the source:
   function implements exactly that relation — the operational refinement
   the written argument assumes.
 
-## The context representation (a finding from this slice)
+## The context representation
 
-The single hardest piece of de Bruijn bookkeeping in this development is
-**weakening and substitution** — the lemmas that make the β and ζ cases of
-Preservation go through. This slice established exactly why, and what the
-fix is.
+The hardest piece of de Bruijn bookkeeping is **weakening and
+substitution** — the lemmas that make the β and ζ cases of Preservation go
+through. This slice settled the representation question.
 
-`Core.Typing` currently represents a context as a flat `List Term` with an
-*inductive* lookup relation `_∋_at_`. With that representation, the
-fundamental renaming lemma (`ren⇒`) cannot be proved: its binder case
-requires the target context under `ext ρ` to be built by recursion on the
-source (the head type is `rename ρ` of the source head, not
-`rename (ext ρ)`), which a flat `renameCtx ρ Γ` cannot express. The
-`lk-ext` obligation in `Proof/Preservation.agda` is precisely this gap.
-
-The fix — confirmed by working prototypes during this slice — is a
-**length-indexed context** with lookup as a total function on `Fin`:
+`Core.Typing` uses a **length-indexed context** with lookup as a total
+function on `Fin`:
 
 ```agda
 data Context : Set where
@@ -181,19 +173,25 @@ data Context : Set where
 lookup : (Γ : Context) → Fin (lengthCtx Γ) → Term
 ```
 
-With this representation:
+This makes the de Bruijn bookkeeping `refl`-level:
 
 - the weakening lookup law `lookup (extend Γ T) (suc i) ≡ lookup Γ i` is
-  `refl`;
-- the lookup lemma under a context morphism is a `refl`-based induction;
-- the binder-order issue disappears because the morphism's target is built
-  structurally.
+  `refl` (`Proof/Context.agda`);
+- the type at index `i` is UNCHANGED by extension (well-scoped convention).
 
-The refactor touches `Core.Typing` and the seven modules that consume the
-context; it is the recommended next step and unblocks the whole
-weakening/substitution chain.
+A flat `List Term` with an inductive lookup relation was tried first and
+rejected: its binder case for the fundamental renaming lemma cannot be
+expressed, because the target context must be built by recursion on the
+source.
 
-## Building
+**Remaining obligation.** Weakening's binder case still hits a binder-order
+issue: prepending the fresh binder `S` does not commute with prepending the
+Π/λ binder `d`. The standard fix is to state weakening via a context
+*morphism* (a `Fin`-preserving map), whose extension under a binder handles
+the order automatically. The lookup law it rests on (`lookup-extend`) is
+proved; the morphism plumbing is the next step.
+
+## Building## Building
 
 Requires Agda 2.8.0 and the Agda standard library.
 

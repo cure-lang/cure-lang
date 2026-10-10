@@ -42,7 +42,7 @@ open import Core.Universe using (Level; l0; l1; l2)
 open import Core.Syntax
 open import Core.Signature
 open import Core.Reduction using (Signature)
-open import Core.Typing using (Context; _∋_; here; there; extend; Conversion;
+open import Core.Typing using (Context; ⟨⟩; _▷_; lengthCtx; lookup; extend; Conversion;
                                 All2; a2[]; a2∷)
 open import Proof.Values using (Canonical; Neutral; Value; canonical; neutral)
 open import Proof.Inversion

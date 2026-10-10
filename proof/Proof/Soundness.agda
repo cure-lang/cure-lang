@@ -31,7 +31,7 @@ open import Core.Universe using (Level; l0; l1; l2)
 open import Core.Syntax
 open import Core.Signature
 open import Core.Reduction
-open import Core.Typing using (Context; _∋_; here; there; extend; Conversion)
+open import Core.Typing using (Context; ⟨⟩; _▷_; lengthCtx; lookup; extend; Conversion)
 open import Proof.Values using (Value; Canonical; Neutral; canonical; neutral)
 open import Proof.Progress using (Final; FinalTerms; FinalBranches;
                                     StrictlyPositive; Certified; Covers)
@@ -50,7 +50,7 @@ module Sound (ind : IndEnv) (sig : Signature) (conv : Conversion)
 
   data EvalResult (t T : Term) : Set where
     -- (1) reaches a value v with · ⊢ v : T
-    reaches-value : ∀ v → [] ⊢ v ⇐ T → Value v → _⇝*_ sig t v → EvalResult t T
+    reaches-value : ∀ v → ⟨⟩ ⊢ v ⇐ T → Value v → _⇝*_ sig t v → EvalResult t T
     -- (2) raises (modelled as a distinguished error outcome)
     raises : EvalResult t T
     -- (3) diverges
@@ -76,6 +76,6 @@ module Sound (ind : IndEnv) (sig : Signature) (conv : Conversion)
   postulate
     soundness :
       ∀ {t T}
-      → [] ⊢ t ⇒ T
+      → ⟨⟩ ⊢ t ⇒ T
       → Final t
       → EvalResult t T

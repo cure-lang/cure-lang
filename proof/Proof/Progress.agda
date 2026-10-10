@@ -37,7 +37,7 @@ open import Core.Universe using (Level; l0; l1; l2)
 open import Core.Syntax
 open import Core.Signature
 open import Core.Reduction
-open import Core.Typing using (Context; _∋_; here; there; extend; Conversion)
+open import Core.Typing using (Context; ⟨⟩; _▷_; lengthCtx; lookup; extend; Conversion)
 open import Proof.Values using (Value; Canonical; Neutral; canonical; neutral)
 
 ------------------------------------------------------------------------
@@ -127,7 +127,7 @@ module Progress (ind : IndEnv) (sig : Signature) (conv : Conversion)
 
   -- A closed term is well-typed at `T`.
   Closed⊢ : Term → Term → Set
-  Closed⊢ t T = [] ⊢ t ⇒ T
+  Closed⊢ t T = ⟨⟩ ⊢ t ⇒ T
 
   -- Progress: a well-typed closed final term is a value or it steps.
   --

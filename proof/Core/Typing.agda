@@ -25,6 +25,7 @@ open import Data.Bool using (Bool; true; false)
 open import Data.String using (_==_)
 open import Data.Nat using (ℕ; zero; suc; _+_; _≤_; z≤n; s≤s; _<_; _≤ᵇ_)
 open import Data.List using (List; []; _∷_; _++_; length; map)
+open import Data.Fin using (Fin; zero; suc; toℕ)
 open import Data.Product using (Σ; _×_; _,_; proj₁; proj₂; ∃; ∃-syntax)
 open import Data.Maybe using (Maybe; just; nothing)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
@@ -57,30 +58,41 @@ data All2 {A : Set} (R : A → A → Set) : List A → List A → Set where
 -- lookup judgment: variable `k` has type `T` in `Γ`.
 ------------------------------------------------------------------------
 
-Context : Set
-Context = List Term
+-- A context is a telescope of types, most-recent first. Indexing by length
+-- (rather than a bare list) makes variable lookup a total FUNCTION on
+-- `Fin n`, which is what makes the weakening and substitution lemmas
+-- clean: the de Bruijn bookkeeping becomes a `refl`-level identity rather
+-- than an inductive relation to be inverted.
+data Context : Set where
+  ⟨⟩  : Context
+  _▷_ : Context → Term → Context
 
--- Variable lookup, indexed by the de Bruijn index `k`: variable `k` has
--- type `T` in `Γ`. Index 0 is the most-recently-bound variable (the head).
---
--- Indexing by `k` (rather than leaving it implicit) is what makes the
--- weakening and substitution lemmas provable: the de Bruijn bookkeeping
--- becomes explicit arithmetic, exactly as in the kernel's
--- `Context.lookup(ctx, k)`.
-infix 4 _∋_at_
+-- The length of a context.
+lengthCtx : Context → ℕ
+lengthCtx ⟨⟩ = 0
+lengthCtx (Γ ▷ T) = suc (lengthCtx Γ)
 
-data _∋_at_ : Context → Term → ℕ → Set where
-  here  : ∀ {Γ T} → (T ∷ Γ) ∋ T at 0
-  there : ∀ {Γ T S k} → Γ ∋ T at k → (S ∷ Γ) ∋ T at suc k
+-- Variable lookup: a `Fin (lengthCtx Γ)` into a context gives the type of
+-- that variable. Index 0 is the most-recently-bound variable (the head).
+-- This is a total function, mirroring the kernel's `Context.lookup(ctx, k)`.
+lookup : (Γ : Context) → Fin (lengthCtx Γ) → Term
+lookup (Γ ▷ T) zero = T
+lookup (Γ ▷ T) (suc i) = lookup Γ i
 
--- The type at index `k`, when one exists.
-infix 4 _∋_
-_∋_ : Context → ℕ → Set
-Γ ∋ k = ∃ (λ T → Γ ∋ T at k)
-
--- Context extension.
+-- Context extension: prepend a fresh binder.
 extend : Context → Term → Context
-extend Γ T = T ∷ Γ
+extend Γ T = Γ ▷ T
+
+-- Weakening: a `Fin n` embeds into `Fin (suc n)` by shifting up one.
+wkFin : ∀ {n} → Fin n → Fin (suc n)
+wkFin = suc
+
+-- The weakening lookup law: after extending, an existing variable is found
+-- at the shifted index, with its type UNCHANGED (the well-scoped
+-- convention: the type at index `i` is scoped in the prefix below it).
+lookup-weaken : ∀ {Γ} (T : Term) (i : Fin (lengthCtx Γ))
+              → lookup (extend Γ T) (wkFin i) ≡ lookup Γ i
+lookup-weaken T i = refl
 
 ------------------------------------------------------------------------
 -- Conversion (definitional equality)
@@ -165,8 +177,9 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
     ⇒-type : ∀ {Γ l l′} → succLevel l ≡ just l′
            → Γ ⊢ tm-type l ⇒ tm-type l′
 
-    -- Variables.
-    ⇒-var : ∀ {Γ k T} → Γ ∋ T at k → Γ ⊢ tm-var k ⇒ T
+    -- Variables: the type is the context's entry at the variable's index.
+    ⇒-var : ∀ {Γ} (i : Fin (lengthCtx Γ))
+          → Γ ⊢ tm-var (toℕ i) ⇒ lookup Γ i
 
     -- Π formation: dom : Type l1, cod : Type l2 under the binder, so
     -- Π lives at max(l1, l2).
