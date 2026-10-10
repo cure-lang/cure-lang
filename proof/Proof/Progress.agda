@@ -38,12 +38,7 @@ open import Core.Syntax
 open import Core.Signature
 open import Core.Reduction
 open import Core.Typing using (Context; _∋_; here; there; extend; Conversion)
-open import Proof.CanonicalForms using (Value; v-type; v-pi; v-lam; v-data; v-ctor;
-                                        v-int_type; v-int_lit; v-nat_lit; v-bounded_lit;
-                                        v-float_type; v-float_lit; v-binary_type;
-                                        v-atom_type; v-atom_lit; v-effect_type;
-                                        v-effect_pure; v-effect_bind; v-var; v-global;
-                                        v-hole; v-app-stuck; v-case-stuck)
+open import Proof.Values using (Value; Canonical; Neutral; canonical; neutral)
 
 ------------------------------------------------------------------------
 -- Final Core: hole-free and absurd-free.
