@@ -20,7 +20,7 @@ open import Relation.Binary.PropositionalEquality
   using (_≡_; refl; sym; trans; cong; cong₂; subst)
 
 open import Core.Syntax
-open import Core.Typing using (Context; ⟨⟩; _▷_; lengthCtx; lookup; extend; wkFin)
+open import Core.Typing using (Context; ⟨⟩; _▷_; lengthCtx; lookup; extend; wk; wkFin; lookup-extend; length-renameCtx; subst-fin-suc)
 
 ------------------------------------------------------------------------
 -- Weakening a lookup.
@@ -31,8 +31,8 @@ open import Core.Typing using (Context; ⟨⟩; _▷_; lengthCtx; lookup; extend
 ------------------------------------------------------------------------
 
 lookup-weaken : ∀ {Γ} (T : Term) (i : Fin (lengthCtx Γ))
-              → lookup (extend Γ T) (wkFin i) ≡ lookup Γ i
-lookup-weaken T i = refl
+              → lookup (extend Γ T) (wkFin Γ T i) ≡ rename wk (lookup Γ i)
+lookup-weaken = lookup-extend
 
 ------------------------------------------------------------------------
 -- The head variable.
@@ -41,11 +41,19 @@ lookup-weaken T i = refl
 ------------------------------------------------------------------------
 
 lookup-head : ∀ {Γ} (T : Term) → lookup (extend Γ T) zero ≡ T
-lookup-head T = refl
+lookup-head {Γ} T = refl
 
 ------------------------------------------------------------------------
 -- `toℕ (wkFin i) ≡ toℕ i + 1`.
 ------------------------------------------------------------------------
 
-toℕ-wkFin : ∀ {n} (i : Fin n) → toℕ (wkFin i) ≡ toℕ i + 1
-toℕ-wkFin i = trans (cong suc (sym (+-identityʳ (toℕ i)))) (sym (+-suc (toℕ i) 0))
+-- `toℕ (subst Fin p i) ≡ toℕ i`.
+toℕ-subst : ∀ {n m} (p : n ≡ m) (i : Fin n) → toℕ (subst Fin p i) ≡ toℕ i
+toℕ-subst refl i = refl
+
+toℕ-wkFin : ∀ {Γ} (T : Term) (i : Fin (lengthCtx Γ))
+          → toℕ (wkFin Γ T i) ≡ toℕ i + 1
+toℕ-wkFin {Γ} T i =
+  trans (cong toℕ (subst-fin-suc (length-renameCtx wk Γ) i))
+        (trans (cong suc (toℕ-subst (sym (length-renameCtx wk Γ)) i))
+               (trans (cong suc (sym (+-identityʳ (toℕ i)))) (sym (+-suc (toℕ i) 0))))

@@ -89,20 +89,64 @@ lookup (Γ ▷ T) (suc i) = lookup Γ i
 wk : Ren
 wk k = suc k
 
--- Context extension: prepend a fresh binder.
-extend : Context → Term → Context
-extend Γ T = Γ ▷ T
+-- Rename every type in a context.
+renameCtx : Ren → Context → Context
+renameCtx ρ ⟨⟩ = ⟨⟩
+renameCtx ρ (Γ ▷ T) = renameCtx ρ Γ ▷ rename ρ T
 
--- Weakening: a `Fin (lengthCtx Γ)` embeds into `Fin (lengthCtx (extend Γ T))`
--- by shifting up one. Definitional, since `extend` prepends.
-wkFin : ∀ {n} → Fin n → Fin (suc n)
-wkFin = suc
+-- Context extension: prepend a fresh binder, renaming every existing type
+-- by `wk` (the global de Bruijn convention). This keeps a stored type's
+-- free variables referring to the same binders after the prepend, which is
+-- what makes the substitution lemma's `⇒-var` cases go through.
+extend : Context → Term → Context
+extend Γ T = renameCtx wk Γ ▷ T
+
+-- `lengthCtx (renameCtx ρ Γ) ≡ lengthCtx Γ`.
+length-renameCtx : ∀ ρ Γ → lengthCtx (renameCtx ρ Γ) ≡ lengthCtx Γ
+length-renameCtx ρ ⟨⟩ = refl
+length-renameCtx ρ (Γ ▷ T) = cong suc (length-renameCtx ρ Γ)
+
+-- `lengthCtx (extend Γ T) ≡ suc (lengthCtx Γ)`.
+length-extend : ∀ Γ T → lengthCtx (extend Γ T) ≡ suc (lengthCtx Γ)
+length-extend Γ T = cong suc (length-renameCtx wk Γ)
+
+-- `subst Fin refl i ≡ i`.
+subst-refl : ∀ {n} (i : Fin n) → subst Fin refl i ≡ i
+subst-refl i = refl
+
+-- `subst Fin (sym (cong suc p)) zero ≡ zero`.
+subst-fin-zero : ∀ {n m : ℕ} (p : m ≡ n) → subst Fin (sym (cong suc p)) zero ≡ zero
+subst-fin-zero refl = refl
+
+-- `subst Fin (sym (cong suc p)) (suc i) ≡ suc (subst Fin (sym p) i)`.
+subst-fin-suc : ∀ {n m : ℕ} (p : m ≡ n) (i : Fin n)
+              → subst (λ k → Fin k) (sym (cong {A = ℕ} suc p)) (suc i)
+              ≡ suc (subst (λ k → Fin k) (sym p) i)
+subst-fin-suc refl i = cong suc (subst-refl i)
+
+
+
+-- Weakening: a `Fin (lengthCtx Γ)` embeds into `Fin (lengthCtx (extend Γ T))`.
+wkFin : ∀ Γ T → Fin (lengthCtx Γ) → Fin (lengthCtx (extend Γ T))
+wkFin Γ T i = subst (λ n → Fin n) (sym (length-extend Γ T)) (suc i)
+
+-- Looking up a renamed context, stated with the index in the original
+-- context and the length transport applied to the index.
+lookup-renameCtx : ∀ {Γ} ρ (i : Fin (lengthCtx Γ))
+                 → lookup (renameCtx ρ Γ) (subst (λ n → Fin n) (sym (length-renameCtx ρ Γ)) i) ≡ rename ρ (lookup Γ i)
+lookup-renameCtx {⟨⟩} ρ ()
+lookup-renameCtx {Γ ▷ T} ρ zero = cong (lookup (renameCtx ρ (Γ ▷ T))) (subst-fin-zero (length-renameCtx ρ Γ))
+lookup-renameCtx {Γ ▷ T} ρ (suc i) =
+  trans (cong (lookup (renameCtx ρ (Γ ▷ T))) (subst-fin-suc (length-renameCtx ρ Γ) i))
+        (lookup-renameCtx {Γ} ρ i)
 
 -- The weakening lookup law: after extending, an existing variable is found
--- at the lifted index, with its type UNCHANGED (well-scoped convention).
+-- at the lifted index, with its type renamed by `wk`.
 lookup-extend : ∀ {Γ} (T : Term) (i : Fin (lengthCtx Γ))
-              → lookup (extend Γ T) (wkFin i) ≡ lookup Γ i
-lookup-extend T i = refl
+              → lookup (extend Γ T) (wkFin Γ T i) ≡ rename wk (lookup Γ i)
+lookup-extend {Γ} T i =
+  trans (cong (lookup (extend Γ T)) (subst-fin-suc (length-renameCtx wk Γ) i))
+        (lookup-renameCtx wk i)
 
 ------------------------------------------------------------------------
 -- Conversion (definitional equality)
