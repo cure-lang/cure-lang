@@ -411,12 +411,9 @@ substS-closed st = substS-scoped st (λ k ())
 -- extensions are related by `extSub σ ∘s ext ρ ≡ extSub (σ ∘s ρ)`, which
 -- is `exts^-comp` at `n = 1`.
 --
--- Function extensionality is assumed (standard for de Bruijn metatheory).
+-- Function extensionality (`funext`, Core.Syntax) is the development's single
+-- axiom.
 ------------------------------------------------------------------------
-
-postulate
-  funext : ∀ {a b} {A : Set a} {B : A → Set b} {f g : (x : A) → B x}
-         → (∀ x → f x ≡ g x) → f ≡ g
 
 -- Composition of a substitution with a renaming.
 _∘s_ : Sub → Ren → Sub

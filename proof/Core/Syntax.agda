@@ -346,8 +346,17 @@ cong₃ : ∀ {A B C D : Set} {a a′ : A} {b b′ : B} {c c′ : C}
      → (f : A → B → C → D) → a ≡ a′ → b ≡ b′ → c ≡ c′ → f a b c ≡ f a′ b′ c′
 cong₃ f refl refl refl = refl
 
-postulate funext-ren : ∀ {ρ σ : Ren} → (∀ k → ρ k ≡ σ k) → ρ ≡ σ
+-- Function extensionality. This is the SINGLE axiom of the development: it is
+-- not derivable in intensional (non-cubical) type theory, and is standard for
+-- de Bruijn metatheory (every `rename`/`subst` law is a pointwise equality
+-- lifted to a function equality). Everything else is proved.
+postulate
+  funext : ∀ {a b} {A : Set a} {B : A → Set b} {f g : (x : A) → B x}
+         → (∀ x → f x ≡ g x) → f ≡ g
 
+-- Renaming extensionality is the `ℕ`-instance of `funext`.
+funext-ren : ∀ {ρ σ : Ren} → (∀ k → ρ k ≡ σ k) → ρ ≡ σ
+funext-ren = funext
 mutual
   rename-compose-terms : ∀ ρ σ ts → renameTerms ρ (renameTerms σ ts) ≡ renameTerms (ρ ∘ σ) ts
   rename-compose-terms ρ σ [] = refl
