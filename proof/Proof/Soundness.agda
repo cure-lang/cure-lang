@@ -34,15 +34,16 @@ open import Core.Reduction
 open import Core.Typing using (Ctx; ⟨⟩; _▷_; lookup; extend; Conversion)
 open import Proof.Values using (Value; Canonical; Neutral; canonical; neutral)
 open import Proof.Progress using (Final; FinalTerms; FinalBranches;
-                                    StrictlyPositive; Certified; Covers)
+                                    StrictlyPositive; Certified; Covers; BuiltinCtors)
 open import Proof.Preservation
 
 module Sound (ind : IndEnv) (sig : Signature) (conv : Conversion)
              (pos : StrictlyPositive ind) (cert : Certified sig) (cov : Covers ind)
+             (bc : BuiltinCtors ind)
              (closed : ClosedSig ind sig) where
 
   open Core.Typing.Typing ind sig conv
-  open Proof.Progress.Progress ind sig conv pos cert cov
+  open Proof.Progress.Progress ind sig conv pos cert cov bc
   open Proof.Preservation.Preserve ind sig conv closed
   ------------------------------------------------------------------------
   -- The possible outcomes of evaluating a closed term.

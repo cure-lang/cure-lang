@@ -53,6 +53,7 @@ here (docs/SOUNDNESS.md §3):
 | Strict positivity (§3.1) | `StrictlyPositive` | `Inductive.positive?/2` (nested) |
 | Totality gates δ (§3.2) | `Certified` | `Env.certified?` + `Normalise.unfold_certified_head` |
 | Coverage (§3.3) | `Covers` | `check_coverage` + `branch_unify` |
+| Builtin ctor names | `BuiltinCtors` | `@builtin_ctor_aliases` |
 
 The hole/absurd discipline (§3.4) is expressed by restricting the theorem to
 **final** Core — hole-free and absurd-free terms (`Final` in
@@ -80,7 +81,7 @@ recommends.
 | `Proof.CanonicalForms` | `canonical-pi-value`, `canonical-ctor` | ✅ **proved** (= `invert-*-check`) |
 | `Proof.Substitution` | shift/subst algebraic laws | ✅ `shift-0`, `shift-var-1`, the rename/subst interaction laws, and the branch-field lemmas **proved**; only `shift-subst` (app case) open |
 | `Proof.Context` | Length-indexed context laws: weakening lookup, `extendⁿ` lookup, branch morphism `extF` | ✅ **proved** |
-| `Proof.Progress` | `Final` Core; the three side conditions; `progress` | ⚠️ statement done; all inputs proved, proof is bookkeeping |
+| `Proof.Progress` | `Final` Core; the four side conditions; `progress` | ✅ **proved** |
 | `Proof.Preservation` | `weaken`, `subst⇒`, `subst⇐`, `preservation` | ⚠️ renaming/substitution lemmas **proved** except `ren-app`/`subst-app`; `preservation` open |
 | `Proof.Soundness` | `EvalResult`; `soundness` | ⚠️ statement done, proof open |
 
@@ -165,14 +166,9 @@ These are the `postulate`s, each with a named proof strategy in the source:
    **derived** from the single hypothesis `ClosedSig ind sig` (a `Scoped 0`
    predicate on signature entries) via `rename-closed` / `substS-closed` —
    no longer postulated.
-4. **`progress`** (`Proof/Progress.agda`) — by mutual cases on the typing
-   derivation (infer and check), consuming the canonical-form lemmas to show
-   β and ι fire. All the inputs are now proved: the canonical-form lemmas,
-   `spine-length` + `brs-arity` (branch-arity alignment), `findBranch-complete`
-   (coverage → `findBranch`), and the literal-peeling reduction rules. The
-   remaining work is bookkeeping: extracting the scrutinee's constructor
-   membership (`c ∈ allCtorNames`) from its inference derivation so the
-   coverage witness applies. See [The `progress` inputs](#the-progress-inputs).
+4. **`progress`** (`Proof/Progress.agda`) — **PROVED** by mutual cases on the
+   typing derivation (infer and check), consuming the canonical-form lemmas to
+   show β and ι fire. See [The `progress` inputs](#the-progress-inputs).
 5. **`preservation`** (`Proof/Preservation.agda`) — the four cases β, ζ, ι,
    δ. β/ζ consume `subst⇐`; ι is the branch-coverage lemma; δ consumes
    `Certified`. The β/ζ/ι cases are independent of the app case; the
