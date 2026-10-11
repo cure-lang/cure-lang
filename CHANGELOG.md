@@ -46,6 +46,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `neovim-cure/syntax/cure.vim` (the fallback without tree-sitter) declared a
   `#| |#` block comment and keywords Cure does not have (`state`, `event`,
   `erased`, ...); it now follows the tree-sitter grammar's tokens.
+- `highlightjs-cure` missed twenty keywords (`interface`, `deriving`,
+  `quote`, `band`, ...), treated `assert_type`/`rewrite`/`with` as keywords,
+  and its `dist/` bundle was a hand-kept copy of the source. Its keyword
+  lists are now generated and `dist/cure.min.js` is built from the source.
 
 ## [0.34.0] -- One Dependent Pipeline -- 2026-10-10
 
