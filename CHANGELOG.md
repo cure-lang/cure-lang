@@ -74,6 +74,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (a regex over each line), so editors coloured `type` or `when` in doc
   comments over their own grammar. Semantic tokens now come from the lexer's
   tokens, with columns in the negotiated position encoding.
+- `cure-lsp` put every inlay hint and code lens on the first line: symbols
+  read a `:line` key the parser no longer sets. They now take the line from
+  the source span. Sum-type variants were listed as functions, which gave
+  constructor calls raw-AST parameter hints; they are constructors now. The
+  `# fn name(...)` inlay hint, which repeated the line it sat on, is gone, and
+  so is the `Type | Effects` code lens, whose `cure.type.*` command no client
+  implements.
 
 ## [0.34.0] -- One Dependent Pipeline -- 2026-10-10
 

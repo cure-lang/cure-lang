@@ -10,12 +10,21 @@ defmodule Cure.LSP.ServerV17Test do
   """
 
   describe "compute_inlay_hints/1" do
-    test "produces a hint per function definition" do
-      hints = Server.compute_inlay_hints(@sample)
-      assert is_list(hints)
-      labels = Enum.map(hints, & &1["label"])
-      assert Enum.any?(labels, fn l -> l =~ "fn add" end)
-      assert Enum.any?(labels, fn l -> l =~ "fn double" end)
+    test "does not repeat a declaration's own signature" do
+      assert Server.compute_inlay_hints(@sample) == []
+    end
+
+    test "gives constructor calls no hints and places call hints on their line" do
+      source = """
+      mod Payload
+        type Callback = On(Int -> Int) | Off
+        fn apply(cb: Callback, x: Int) -> Int = x
+        fn main() -> Int = apply(On(fn(n) -> n + 1), 10)
+      """
+
+      hints = Server.compute_inlay_hints(source)
+      assert Enum.map(hints, & &1["label"]) == ["cb:", "x:"]
+      assert Enum.all?(hints, &(&1["position"]["line"] == 3))
     end
 
     test "offers parameter-name hints for positional calls but not already named arguments" do
@@ -109,10 +118,8 @@ defmodule Cure.LSP.ServerV17Test do
   end
 
   describe "compute_code_lenses/2" do
-    test "lenses for every function" do
-      lenses = Server.compute_code_lenses("file://x", @sample)
-      titles = Enum.map(lenses, & &1["command"]["title"])
-      assert Enum.all?(titles, &(&1 == "Type | Effects"))
+    test "offers no lenses without a command behind them" do
+      assert Server.compute_code_lenses("file://x", @sample) == []
     end
   end
 

@@ -420,6 +420,18 @@ defmodule Cure.LSP.LspTest do
       fn_names = Enum.filter(symbols, &(&1.kind == :function)) |> Enum.map(& &1.name)
       assert "add" in fn_names
       assert "hello" in fn_names
+      assert %{line: 3} = Enum.find(symbols, &(&1.name == "hello"))
+    end
+
+    test "records sum-type variants as constructors, not functions" do
+      source = "mod Test\n  type Callback = On(Int -> Int) | Off\n"
+
+      {:ok, tokens} = Cure.Compiler.Lexer.tokenize(source, emit_events: false)
+      {:ok, ast} = Cure.Compiler.Parser.parse(tokens, emit_events: false)
+      symbols = Server.build_symbol_table(ast)
+
+      assert %{kind: :constructor, line: 2} = Enum.find(symbols, &(&1.name == "On"))
+      refute Enum.any?(symbols, &(&1.kind == :function))
     end
 
     test "extracts module name" do

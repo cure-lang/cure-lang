@@ -136,7 +136,6 @@ defmodule Cure.LSP.Server do
           "full" => true,
           "range" => false
         },
-        "codeLensProvider" => %{"resolveProvider" => false},
         "codeActionProvider" => %{
           "codeActionKinds" => ["quickfix"]
         },
@@ -826,8 +825,7 @@ defmodule Cure.LSP.Server do
 
           ordinary =
             Enum.map(symbols, fn s ->
-              kind = if s.kind == :function, do: 3, else: 2
-              %{"label" => s.name, "kind" => kind, "detail" => s.signature}
+              %{"label" => s.name, "kind" => completion_kind(s.kind), "detail" => s.signature}
             end)
 
           equations =
@@ -1263,9 +1261,9 @@ defmodule Cure.LSP.Server do
 
   defp extract_symbols({:container, meta, body}, acc, source, encoding) do
     name = Keyword.get(meta, :name, "unknown")
-    line = Keyword.get(meta, :line, 1)
     type = Keyword.get(meta, :container_type, :module)
     info = Metadata.source_info(meta)
+    line = symbol_line(meta, info)
     acc = [%{name: name, kind: :module, line: line, signature: "#{type} #{name}", span: info && info.whole} | acc]
     Enum.reduce(body, acc, &extract_symbols(&1, &2, source, encoding))
   end
@@ -1274,15 +1272,44 @@ defmodule Cure.LSP.Server do
     Enum.reduce(children, acc, &extract_symbols(&1, &2, source, encoding))
   end
 
+  # A sum type's variants are `function_def`s carrying `:variant`; they are
+  # constructors, not functions a user declared with `fn`.
   defp extract_symbols({:function_def, meta, _body}, acc, _source, _encoding) do
+    if Keyword.has_key?(meta, :variant) do
+      constructor_symbol(meta, acc)
+    else
+      function_symbol(meta, acc)
+    end
+  end
+
+  defp extract_symbols(_, acc, _source, _encoding), do: acc
+
+  defp constructor_symbol(meta, acc) do
+    name = Keyword.get(meta, :name, "unknown")
+    info = Metadata.source_info(meta)
+
+    [
+      %{
+        name: name,
+        kind: :constructor,
+        line: symbol_line(meta, info),
+        signature: name,
+        parameters: [],
+        span: info && info.whole
+      }
+      | acc
+    ]
+  end
+
+  defp function_symbol(meta, acc) do
     name = Keyword.get(meta, :name, "unknown")
     params = Keyword.get(meta, :params, [])
-    line = Keyword.get(meta, :line, 1)
+    info = Metadata.source_info(meta)
+    line = symbol_line(meta, info)
 
     param_str = Enum.map_join(params, ", ", &format_param/1)
 
     sig = "fn #{name}(#{param_str})"
-    info = Metadata.source_info(meta)
 
     [
       %{
@@ -1297,7 +1324,10 @@ defmodule Cure.LSP.Server do
     ]
   end
 
-  defp extract_symbols(_, acc, _source, _encoding), do: acc
+  # The parser records positions in `source_info`; `:line` is a legacy key.
+  defp symbol_line(meta, info) do
+    Keyword.get(meta, :line) || (info && info.whole && info.whole.start_line) || 1
+  end
 
   # Parameter pretty-printer tolerant of the various AST shapes the parser
   # can emit (full `:param` tuples, bare `:variable` tuples in generic type
@@ -1390,34 +1420,13 @@ defmodule Cure.LSP.Server do
 
   # -- Inlay hints --------------------------------------------------------------
 
+  # Parameter names at positional call arguments. A declaration needs no hint:
+  # its own line already shows the signature.
   @doc false
   def compute_inlay_hints(text) do
     case parse_to_ast(text) do
-      {:ok, ast} ->
-        symbols = build_symbol_table(ast)
-
-        declaration_hints =
-          Enum.flat_map(symbols, fn s ->
-            case s do
-              %{kind: :function, line: l, signature: sig} ->
-                [
-                  %{
-                    "position" => %{"line" => l - 1, "character" => 0},
-                    "label" => "# " <> sig,
-                    "kind" => 2,
-                    "paddingRight" => true
-                  }
-                ]
-
-              _ ->
-                []
-            end
-          end)
-
-        declaration_hints ++ named_call_inlay_hints(ast, symbols)
-
-      _ ->
-        []
+      {:ok, ast} -> named_call_inlay_hints(ast, build_symbol_table(ast))
+      _ -> []
     end
   end
 
@@ -1599,32 +1608,11 @@ defmodule Cure.LSP.Server do
 
   # -- Code lens ----------------------------------------------------------------
 
+  # No lenses: the "Type | Effects" placeholder pointed at a `cure.type.*`
+  # command no client implements, so clicking it failed. `codeLensProvider` is
+  # no longer advertised; this answers clients that ask anyway.
   @doc false
-  def compute_code_lenses(_uri, text) do
-    case parse_to_ast(text) do
-      {:ok, ast} ->
-        ast
-        |> build_symbol_table()
-        |> Enum.flat_map(fn
-          %{kind: :function, line: l, name: n} ->
-            [
-              %{
-                "range" => %{
-                  "start" => %{"line" => l - 1, "character" => 0},
-                  "end" => %{"line" => l - 1, "character" => 0}
-                },
-                "command" => %{"title" => "Type | Effects", "command" => "cure.type." <> n}
-              }
-            ]
-
-          _ ->
-            []
-        end)
-
-      _ ->
-        []
-    end
-  end
+  def compute_code_lenses(_uri, _text), do: []
 
   # -- Semantic tokens ----------------------------------------------------------
 
@@ -1691,6 +1679,14 @@ defmodule Cure.LSP.Server do
     Enum.reverse(data)
   end
 
+  defp completion_kind(:function), do: 3
+  defp completion_kind(:constructor), do: 4
+  defp completion_kind(_kind), do: 2
+
+  defp workspace_symbol_kind(:function), do: 12
+  defp workspace_symbol_kind(:constructor), do: 9
+  defp workspace_symbol_kind(_kind), do: 2
+
   # -- Workspace symbols --------------------------------------------------------
 
   @doc false
@@ -1705,7 +1701,7 @@ defmodule Cure.LSP.Server do
           |> Enum.map(fn s ->
             %{
               "name" => s.name,
-              "kind" => if(s.kind == :function, do: 12, else: 2),
+              "kind" => workspace_symbol_kind(s.kind),
               "location" => %{
                 "uri" => uri,
                 "range" =>
