@@ -7,6 +7,54 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
+# ---------------------------------------------------------------------------
+# Pre-flight: fail once, with an actionable message, instead of FAILing every
+# module with the same environment error.
+# ---------------------------------------------------------------------------
+preflight_fail() {
+  echo "pre-flight check failed: $1" >&2
+  shift
+  for line in "$@"; do echo "  $line" >&2; done
+  exit 2
+}
+
+if ! command -v agda >/dev/null 2>&1; then
+  preflight_fail "'agda' was not found in PATH." \
+    "Install Agda 2.8.0 (e.g. 'sudo apt install agda' or 'cabal install Agda-2.8.0')."
+fi
+
+agda_version=$(agda --version | head -n1)
+case "$agda_version" in
+  *' 2.8.'*) ;;
+  *) echo "warning: expected Agda 2.8.x, found: $agda_version" >&2 ;;
+esac
+
+# Probe: a throwaway library depending on 'standard-library' that imports a
+# stdlib module. This resolves libraries exactly as the real modules will
+# (AGDA_DIR, XDG config dir, ~/.agda, --library-file, ...).
+probe_dir=$(mktemp -d)
+trap 'rm -rf "$probe_dir"' EXIT
+printf 'name: cure-preflight\ninclude: .\ndepend: standard-library\n' \
+  > "$probe_dir/cure-preflight.agda-lib"
+printf 'module Probe where\nopen import Data.Nat using (ℕ)\n' \
+  > "$probe_dir/Probe.agda"
+
+if ! probe_out=$(cd "$probe_dir" && agda Probe.agda 2>&1); then
+  app_dir=$(agda --print-agda-app-dir 2>/dev/null || echo "~/.config/agda")
+  stdlib_hint=$(find /usr/share /usr/local/share "$HOME" -maxdepth 4 \
+    -name standard-library.agda-lib 2>/dev/null | head -n1 || true)
+  preflight_fail "the Agda standard library is not usable." \
+    "Agda said:" \
+    "$(echo "$probe_out" | head -n 8 | sed 's/^/    /')" \
+    "" \
+    "Register it by adding the path of its standard-library.agda-lib to" \
+    "  $app_dir/libraries" \
+    "for example:" \
+    "  mkdir -p '$app_dir'" \
+    "  echo '${stdlib_hint:-/path/to/standard-library.agda-lib}' >> '$app_dir/libraries'" \
+    "See proof/README.md for details."
+fi
+
 MODULES=(
   Core/Grade Core/Universe Core/Syntax Core/Value Core/Reduction
   Core/Signature Core/Typing
