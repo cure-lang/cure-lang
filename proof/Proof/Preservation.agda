@@ -842,9 +842,6 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
       → Γ ⊢ tm-global f ⇒ T
       → Signature.body sig f ≡ just body′
       → Γ ⊢ body′ ⇒ T
-    preservation-other :
-      ∀ {n} {Γ : Ctx n} {t t′ T} → Γ ⊢ t ⇐ T → _⇝_ sig t t′ → Γ ⊢ t′ ⇐ T
-
     preservation⇒-β : ∀ {n} {Γ : Ctx n} {g d b a T}
       → Γ ⊢ tm-app (tm-lam g d b) a ⇒ T
       → Value a
@@ -858,20 +855,12 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
     preservation⇒-case : ∀ {n} {Γ : Ctx n} {s s′ m brs n′ ps is T}
       → Γ ⊢ s ⇒ tm-data n′ ps is
       → Γ ⊢ m ⇒ T
-      → Γ ⊢*brs brs ⇐*ᵇ (n′ , m)
-      → _⇝_ sig s s′
-      → Γ ⊢ tm-case s′ m brs ⇒ tm-app m s
-
     preservation⇒-case-motive : ∀ {n} {Γ : Ctx n} {s m m′ brs n′ ps is T}
       → Γ ⊢ s ⇒ tm-data n′ ps is
       → Γ ⊢ m ⇒ T
       → Γ ⊢*brs brs ⇐*ᵇ (n′ , m)
       → _⇝_ sig m m′
       → Γ ⊢ tm-case s m′ brs ⇒ tm-app m s
-  mutual
-    -- Spine preservation: a checked spine stays checked when its entries step.
-    preservation-spine : ∀ {n} {Γ : Ctx n} {ts ts′} {tele : Telescope}
-                       → Γ ⊢* ts ⇐* tele
                        → _⇝*ᵗ_ sig ts ts′
                        → Γ ⊢* ts′ ⇐* tele
     preservation-spine ⊢*[] ⇝*-nil = ⊢*[]
@@ -893,7 +882,10 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
     preservation⇒ {Γ = Γ} (⇒-let {v = v} {T = T} dty dv db) (ξ-let {v′ = v′} step) =
       ⇒-conv (⇒-let dty (preservation dv step) db)
               (Conversion.≈-sym conv (≈-substTopT-cong {c = T} (rc step)))
-    preservation⇒ (⇒-case ds dm dbrs) (ξ-case step) = preservation⇒-case ds dm dbrs step
+    preservation⇒ (⇒-case ds dm dbrs) (ξ-case step) =
+      ⇒-conv (⇒-case (preservation⇒ ds step) dm dbrs)
+              (Conversion.≈-app conv (Conversion.≈-refl conv)
+                                    (Conversion.≈-sym conv (rc step)))
     preservation⇒ (⇒-case ds dm dbrs) (ξ-case-motive step) = preservation⇒-case-motive ds dm dbrs step
     preservation⇒ {Γ = Γ} (⇒-pi {d = d} dd dc) (ξ-pi-dom {d′ = d′} step) =
       ⇒-pi (preservation⇒ dd step)
@@ -926,5 +918,15 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
     preservation (⇐-infer der eq) rw = ⇐-infer (preservation⇒ der rw) eq
     preservation (⇐-conv der eq) rw = ⇐-conv (preservation der rw) eq
     preservation (⇐-cumul der le) rw = ⇐-cumul (preservation⇒ der rw) le
-    preservation (⇐-lam ds body) rw = preservation-other (⇐-lam ds body) rw
-    preservation (⇐-hole) rw = preservation-other ⇐-hole rw
+    -- A checked λ reduces only under its domain or its body (`ξ-lam-dom` /
+    -- `ξ-lam-body`); every other rule's head is a different former, so the
+    -- `rw` pattern-match is exhaustive.
+    preservation (⇐-lam {g = g} {d = d} {b = b} {c = c} {l = l} ds body) (ξ-lam-dom {d′ = d′} step) =
+      ⇐-conv (⇐-lam (preservation⇒ ds step)
+                     (conv⇐ (ext-conv (rc step) (λ i → Conversion.≈-refl conv))
+                            (Conversion.≈-refl conv) body))
+              (Conversion.≈-sym conv (Conversion.≈-pi conv (rc step) (Conversion.≈-refl conv)))
+    preservation (⇐-lam ds body) (ξ-lam-body step) =
+      ⇐-lam ds (preservation body step)
+    -- A hole has no reduction rule, so `rw` is impossible.
+    preservation (⇐-hole) ()

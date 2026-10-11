@@ -8,10 +8,13 @@ development.
 
 > **Status: in progress.** The formalisation of the Core calculus and the
 > typing judgment is complete and compiles clean. The canonical-form lemmas
-> are **proved**, as are the renaming and substitution lemmas **except for
-> their application case** — the one documented obstruction. The
-> Progress/Preservation/Soundness theorems are stated, with their remaining
-> obligations isolated as `postulate`s, each carrying a named proof
+> are **proved**, as are the renaming and substitution lemmas (the
+> application case is now resolved). **Progress** and **`Final`-preservation**
+> are **proved**, and so are both constructive forms of the soundness
+> theorem: the **fuel-indexed `soundness-fuel`** and the **coinductive
+> `soundness-tree`**. The remaining obligations — the classical three-way
+> `soundness`, the ι/δ Preservation cases, and the conversion-injectivity
+> axioms — are isolated as `postulate`s, each carrying a named proof
 > strategy. See [Status](#status) for the lemma-by-lemma breakdown.
 
 ## What is being proved
@@ -84,7 +87,7 @@ recommends.
 | `Proof.Progress` | `Final` Core; the four side conditions; `progress` | ✅ **proved** |
 | `Proof.Preservation` | `weaken`, `subst⇒`, `subst⇐`, `preservation` | ⚠️ renaming/substitution + `ξ-*` congruence cases **proved**; β/ζ/ι/δ inference-preservation open |
 | `Proof.FinalPreservation` | `substS-final` (closure of `Final` under a final substitution); `final-preservation` | ✅ **proved** |
-| `Proof.Soundness` | `EvalResult`; `soundness-fuel` (constructive); `soundness` (classical) | ✅ **`soundness-fuel` proved**; classical `soundness` open (needs coinduction) |
+| `Proof.Soundness` | `EvalResult`; `soundness-fuel` (constructive); `Diverges`/`EvalTree`/`soundness-tree` (coinductive); `soundness` (classical) | ✅ **`soundness-fuel` and `soundness-tree` proved**; classical `soundness` open (needs the tree collapse) |
 
 ## Status
 
@@ -157,6 +160,14 @@ recommends.
   reached value (with its type, value witness, and multi-step reduction) or
   `exhausted`. Its positive outcome is the classical first disjunct
   (`reached→eval`), and `never-stuck` records the "never stuck" corollary.
+- **The coinductive soundness theorem** `soundness-tree`
+  (`Proof/Soundness.agda`, under `--guardedness`): the outcome as a
+  coinductive tree `EvalTree`, proved by guarded corecursion. Divergence is
+  given positively by the greatest fixed point `Diverges`, inter-derivable
+  with the tree's never-reaching spine `NeverReached`
+  (`never-reached→diverges` / `diverges→never-reached`), and the fuel-indexed
+  run is exactly the depth-`n` truncation of the tree
+  (`soundness-fuel≡truncate`).
 
 ### In progress (statements given, proofs open)
 
@@ -190,11 +201,13 @@ These are the `postulate`s, each with a named proof strategy in the source:
    only checked), and the `ξ-app₂` / `ξ-case` result types name their subterm
    syntactically. See [The `preservation` findings](#the-preservation-findings).
 6. **`soundness`** (`Proof/Soundness.agda`) — the type-safety induction
-   combining Progress and Preservation. Its **constructive fuel-indexed
-   form `soundness-fuel` is PROVED** (see
-   [The `soundness` finding](#the-soundness-finding)); the classical
-   three-way `soundness` remains a `postulate` because its `diverges`
-   disjunct is a negative statement needing coinduction.
+   combining Progress and Preservation. Both constructive forms are
+   **PROVED**: the **fuel-indexed `soundness-fuel`** and the **coinductive
+   `soundness-tree`** (see [The `soundness` finding](#the-soundness-finding-resolved-by-fuel-indexing-and-coinduction)).
+   The classical three-way `soundness` remains a `postulate` because
+   collapsing the outcome tree into a `data` disjunction requires deciding
+   whether the tree is finite (non-constructive, since `_⇝_` is not
+   deterministic).
 ### The `progress` inputs
 
 The `progress` proof is not blocked on a design question — every input it
@@ -259,15 +272,16 @@ just proof work:
   weakening-from-`⟨⟩` lemma, since a body types in `⟨⟩` but must type in
   `Γ`).
 
-### The `soundness` finding, resolved by fuel-indexing
+### The `soundness` finding, resolved by fuel-indexing and coinduction
 
 `soundness` as stated ("reaches a value, OR raises, OR diverges") is a
 **classical** disjunction: the `diverges` outcome is a negative statement
 (no value is reachable), and deciding which disjunct holds requires
-coinduction (or a well-founded measure), neither of which the development
-sets up.
+coinduction (or a well-founded measure). The module supplies **both
+constructive views**, and keeps the classical statement as the
+(non-constructive) collapse of them.
 
-**The constructive content is now PROVED.** The fuel-indexed theorem
+**The bounded unfolding: `soundness-fuel`.** The fuel-indexed theorem
 
 ```agda
 soundness-fuel :
@@ -284,11 +298,44 @@ lemmas the argument needs:
 - **`final-preservation`** — the reduct is still final, so `progress⇐`
   applies again.
 
-The `reached` outcome IS the classical first disjunct (`reached→eval`
-packages it as `reaches-value`); the only gap to the classical statement is
-the coinductive decision of the negative (`diverges`) disjunct. The
-"never stuck" corollary is `never-stuck` (= `progress⇐`): a well-typed
-final term is never stuck.
+**The coinductive completion: `soundness-tree`.** The full outcome is a
+(possibly infinite) tree, defined as a coinductive record:
+
+```agda
+record EvalTree (t T : Term) : Set where
+  coinductive
+  field outcome : Reached t T ⊎ (∃ λ t′ → _⇝_ sig t t′ × EvalTree t′ T)
+
+soundness-tree : ⟨⟩ ⊢ t ⇐ T → Final t → EvalTree t T
+```
+
+proved by **guarded corecursion** (`{-# OPTIONS --guardedness #-}`): a
+`Reached` leaf is a terminating evaluation, and a `Stepped` node continues
+at the reduct (which keeps its type and stays final). An INFINITE
+evaluation is now a finite (cyclic) proof object — divergence is given
+POSITIVELY by the greatest fixed point
+
+```agda
+record Diverges (t : Term) : Set where
+  coinductive
+  field diverges-step : ∃ λ t′ → _⇝_ sig t t′ × Diverges t′
+```
+
+`Diverges` and the tree's never-reaching spine `NeverReached` are
+inter-derivable (`never-reached→diverges` / `diverges→never-reached`), and
+the fuel-indexed run is exactly the depth-`n` truncation of the tree
+(`soundness-fuel≡truncate`).
+
+**The classical statement** is the collapse of the tree into a `data`
+disjunction: extracting the finite `reaches-value` branch or the infinite
+`diverges` branch requires deciding whether the tree is finite. That
+decision is not constructive here because `_⇝_` is **not deterministic**
+(`(λx. b) a` both β-reduces and reduces under the λ), so `Diverges` does
+not contradict a separate reduction to a value without a confluence lemma.
+The `reached` outcome does inhabit the classical first disjunct
+(`tree-reached→eval`); the `raises` outcome is the coverage guard,
+unreachable under `Covers`. The "never stuck" corollary is `never-stuck`
+(= `progress⇐`): a well-typed final term is never stuck.
 
 ### `Final`-preservation (the new module `Proof.FinalPreservation`)
 

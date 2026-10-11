@@ -416,21 +416,35 @@ that stays outside the TCB and outside the mechanised proof.
 
 A partial mechanisation now exists in [`proof/`](../proof/README.md): the Core
 calculus, the typing judgment, the canonical-form and head-inversion lemmas,
-the renaming/substitution lemmas, **Progress**, and — with the three side
-conditions carried as hypotheses — **the constructive, fuel-indexed soundness
-theorem** `soundness-fuel`:
+the renaming/substitution lemmas, **Progress**, **`Final`-preservation**, and —
+with the three side conditions carried as hypotheses — **both constructive
+forms of the soundness theorem**:
 
 ```agda
+-- the bounded unfolding, by induction on the fuel
 soundness-fuel : ∀ (n : ℕ) {t T} → ⟨⟩ ⊢ t ⇐ T → Final t → FuelResult t T
+
+-- the coinductive completion, by guarded corecursion
+soundness-tree : ∀ {t T} → ⟨⟩ ⊢ t ⇐ T → Final t → EvalTree t T
 ```
 
-It runs the type-safety induction for `n` steps and returns either a reached
-value (with its type, value witness, and multi-step reduction) or "fuel
-exhausted", consuming Progress, Preservation, and `Final`-preservation. The
-classical three-way statement §1.4 remains a `postulate`: its `diverges`
-disjunct is a negative statement, so deciding it needs coinduction (or a
-well-founded measure) — the fuel-indexed theorem is its constructive content,
-with the `reached` outcome inhabiting the classical first disjunct.
+`soundness-fuel` runs the type-safety induction for `n` steps and returns
+either a reached value (with its type, value witness, and multi-step
+reduction) or "fuel exhausted", consuming Progress, Preservation, and
+`Final`-preservation. `soundness-tree` is the full outcome as a coinductive
+tree: a `Reached` leaf is a terminating evaluation, a `Stepped` node continues
+at the reduct. Divergence is given POSITIVELY by the greatest fixed point
+`Diverges` (a term that can always step), inter-derivable with the tree's
+never-reaching spine; and the fuel-indexed run is exactly the depth-`n`
+truncation of the tree.
+
+The classical three-way statement §1.4 remains a `postulate`: it is the
+collapse of the outcome tree into a `data` disjunction, which requires
+deciding whether the tree is finite — not constructive here, because `_⇝_` is
+not deterministic (`(λx. b) a` both β-reduces and reduces under the λ), so
+`Diverges` does not contradict a separate reduction to a value without a
+confluence lemma. The constructive `soundness-tree` is the replacement, with
+the `reached` outcome inhabiting the classical first disjunct.
 
 ---
 
