@@ -38,12 +38,12 @@ open import Proof.Progress using (Final; FinalTerms; FinalBranches;
 open import Proof.Preservation
 
 module Sound (ind : IndEnv) (sig : Signature) (conv : Conversion)
-             (pos : StrictlyPositive ind) (cert : Certified sig) (cov : Covers ind) where
+             (pos : StrictlyPositive ind) (cert : Certified sig) (cov : Covers ind)
+             (closed : ClosedSig ind sig) where
 
   open Core.Typing.Typing ind sig conv
   open Proof.Progress.Progress ind sig conv pos cert cov
-  open Proof.Preservation.Preserve ind sig conv
-
+  open Proof.Preservation.Preserve ind sig conv closed
   ------------------------------------------------------------------------
   -- The possible outcomes of evaluating a closed term.
   ------------------------------------------------------------------------

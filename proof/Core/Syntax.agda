@@ -29,8 +29,7 @@
 ------------------------------------------------------------------------
 module Core.Syntax where
 
-open import Data.Bool using (Bool; true; false; if_then_else_)
-open import Data.Nat using (ℕ; zero; suc; _+_; _≥_; _≤ᵇ_; _≡ᵇ_; _<_; _≤_)
+open import Data.Nat using (ℕ; zero; suc; _+_; _<_)
 open import Data.Nat.Properties using (+-identityʳ; +-suc; +-assoc)
 open import Data.List using (List; []; _∷_; _++_; length; map)
 open import Data.String using (String)
@@ -297,7 +296,7 @@ mutual
 -- Substituting a value at the top of a type.
 --
 -- This is the `let` rule's result type (`substTopT v T`), and the
--- codomain instantiation of `⇒-app` (`substT 0 a c`). It lives here, in
+-- codomain instantiation of `⇒-app` (`substTopT a c`). It lives here, in
 -- the syntactic layer, so the purely-syntactic renaming/substitution laws
 -- can speak about it without importing the typing judgment.
 ------------------------------------------------------------------------
@@ -314,7 +313,7 @@ substTopT v T = substS (topSub v) T
 
 -- The shift renaming, defined by recursion on the CUTOFF so that its
 -- extension under a binder is DEFINITIONAL: `ext (shiftRen a c) ≡ shiftRen a (suc c)`.
--- This is what makes `shift` commute with `rename` (and hence with `substT`).
+-- This is what makes `shift` commute with `rename` (and hence with `substS`).
 shiftRen : ℕ → ℕ → Ren
 shiftRen a zero k = k + a
 shiftRen a (suc c) zero = zero
@@ -334,54 +333,6 @@ shift a c t = rename (shiftRen a c) t
 shiftBranch : ℕ → ℕ → Branch → Branch
 shiftBranch a c (cn , ar , b) = cn , ar , shift a (c + ar) b
 
-
-------------------------------------------------------------------------
--- Targeted substitution: replace de Bruijn index `j` with `r` everywhere.
---
--- Mirrors `Term.subst/3` exactly: descends under binders, incrementing the
--- target index and shifting the replacement so its free variables are not
--- captured. Under a binder introducing `d` variables, the target becomes
--- `j + d` and the replacement is `shift d 0 r`.
-------------------------------------------------------------------------
-
-mutual
-  substBranch : ℕ → Term → Branch → Branch
-  substBranch j r (cn , ar , b) = cn , ar , substT (j + ar) (shift ar 0 r) b
-
-  substBranches : ℕ → Term → List Branch → List Branch
-  substBranches j r [] = []
-  substBranches j r (x ∷ xs) = substBranch j r x ∷ substBranches j r xs
-
-  substTerms : ℕ → Term → List Term → List Term
-  substTerms j r [] = []
-  substTerms j r (x ∷ xs) = substT j r x ∷ substTerms j r xs
-
-  substT : ℕ → Term → Term → Term
-  substT j r (tm-type l) = tm-type l
-  substT j r (tm-var k) = if k ≡ᵇ j then r else tm-var k
-  substT j r (tm-pi g d b) = tm-pi g (substT j r d) (substT (suc j) (shift 1 0 r) b)
-  substT j r (tm-lam g d b) = tm-lam g (substT j r d) (substT (suc j) (shift 1 0 r) b)
-  substT j r (tm-let g ty v b) = tm-let g (substT j r ty) (substT j r v) (substT (suc j) (shift 1 0 r) b)
-  substT j r (tm-app f x) = tm-app (substT j r f) (substT j r x)
-  substT j r (tm-data n ps is) = tm-data n (substTerms j r ps) (substTerms j r is)
-  substT j r (tm-ctor n args) = tm-ctor n (substTerms j r args)
-  substT j r (tm-case s m brs) = tm-case (substT j r s) (substT j r m) (substBranches j r brs)
-  substT j r (tm-global n) = tm-global n
-  substT j r (tm-int_type) = tm-int_type
-  substT j r (tm-int_lit k) = tm-int_lit k
-  substT j r (tm-nat_lit k) = tm-nat_lit k
-  substT j r (tm-bounded_lit k) = tm-bounded_lit k
-  substT j r (tm-float_type) = tm-float_type
-  substT j r (tm-float_lit) = tm-float_lit
-  substT j r (tm-binary_type) = tm-binary_type
-  substT j r (tm-atom_type) = tm-atom_type
-  substT j r (tm-atom_lit n) = tm-atom_lit n
-  substT j r (tm-effect_type t) = tm-effect_type (substT j r t)
-  substT j r (tm-effect_pure t) = tm-effect_pure (substT j r t)
-  substT j r (tm-effect_bind e k) = tm-effect_bind (substT j r e) (substT j r k)
-  substT j r (tm-hole n) = tm-hole n
-  substT j r (tm-absurd) = tm-absurd
-
 ------------------------------------------------------------------------
 -- Renaming composes.
 --
@@ -389,7 +340,6 @@ mutual
 -- The binder case uses `ext ρ ∘ ext σ ≡ ext (ρ ∘ σ)`, which holds
 -- definitionally.
 ------------------------------------------------------------------------
-
 open import Function using (_∘_)
 
 cong₃ : ∀ {A B C D : Set} {a a′ : A} {b b′ : B} {c c′ : C}

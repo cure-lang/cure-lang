@@ -25,7 +25,7 @@ module Core.Reduction where
 open import Data.Bool using (Bool; true; false)
 open import Data.String using (_==_)
 open import Data.Nat using (ℕ; zero; suc; _+_; _≤_; z≤n; s≤s)
-open import Data.List using (List; []; _∷_; _++_; length; map; find)
+open import Data.List using (List; []; _∷_; _++_; length; map; find; reverse)
 open import Data.Product using (Σ; _×_; _,_; proj₁; proj₂; ∃; ∃-syntax)
 open import Data.Maybe using (Maybe; just; nothing)
 open import Relation.Binary.PropositionalEquality
@@ -41,13 +41,31 @@ open import Core.Syntax
 --
 -- The branch binds `arity` fields; `args` are the fields in surface order.
 -- The LAST field is de Bruijn 0 (matching `Eval.reduce_branch_body`, which
--- binds `reverse(fields) ++ base_env`). We substitute field i at index
--- `arity - 1 - i`, then shift the remaining args as we descend.
+-- binds `reverse(fields) ++ base_env`). This is a SIMULTANEOUS substitution
+-- (`substS`), the presentation used throughout the development: field i
+-- (counting the last as 0) replaces de Bruijn index i, and indices above the
+-- fields are left unchanged.
+--
+-- The simultaneous form is not merely stylistic here: the former targeted
+-- definition (`substT` composed field-by-field) applied the substitutions in
+-- sequence, so a later `substT` could capture an earlier field inserted under
+-- a binder. One simultaneous substitution inserts every field at once, so no
+-- field is re-scanned — matching the kernel's single `eval(body, reverse
+-- fields ++ base_env)`.
 ------------------------------------------------------------------------
+-- The simultaneous substitution of a branch's fields: `args` in surface
+-- order, the LAST field at index 0 (so the list is reversed onto the
+-- indices). Indices at or above the field count are fixed.
+argsSub : List Term → Sub
+argsSub args = go 0 (reverse args)
+  where
+    go : ℕ → List Term → Sub
+    go k [] i = tm-var (i + k)
+    go k (a ∷ as) zero = a
+    go k (a ∷ as) (suc i) = go (suc k) as i
 
 substArgs : List Term → Term → Term
-substArgs [] b = b
-substArgs (a ∷ as) b = substArgs as (substT (length as) a b)
+substArgs args b = substS (argsSub args) b
 
 ------------------------------------------------------------------------
 -- The δ-table: a signature mapping certified global names to their bodies.

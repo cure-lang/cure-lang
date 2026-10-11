@@ -4,7 +4,8 @@
 -- The β and ζ cases of Preservation (docs/SOUNDNESS.md §4) need a
 -- substitution lemma: if `Γ , x : A ⊢ b : B` and `Γ ⊢ a : A`, then
 -- `Γ ⊢ b[x := a] : B[x := a]`. That lemma in turn needs the algebraic
--- properties of `shift` and `substT` established here.
+-- properties of `shift` and the simultaneous substitution `substS`
+-- established here.
 --
 -- This module proves the *syntactic* laws (shift/subst interaction). The
 -- typing-level substitution lemma is stated in Proof/Preservation.agda,
@@ -15,11 +16,12 @@
 ------------------------------------------------------------------------
 module Proof.Substitution where
 
-open import Data.Bool using (Bool; true; false; if_then_else_)
-open import Data.Nat using (ℕ; zero; suc; _+_; _≤ᵇ_; _≡ᵇ_; _<_; _≤_; s≤s)
-open import Data.Nat.Properties using (+-identityʳ; +-assoc; +-suc; ≤-refl; m≤n⇒m≤1+n; ≤-trans)
+open import Data.Bool using (true)
+open import Data.Nat using (ℕ; zero; suc; _+_; _≤ᵇ_; _<_; _≤_; s≤s; z≤n)
+open import Data.Nat.Properties using (+-identityʳ; +-assoc; +-suc; +-comm; ≤-refl; m≤n⇒m≤1+n; ≤-trans)
 open import Data.List using (List; []; _∷_; _++_; map)
-open import Data.Product using (_×_; _,_; proj₁; proj₂)
+open import Data.Product using (_×_; _,_; Σ)
+open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Relation.Binary.PropositionalEquality
   using (_≡_; refl; sym; trans; cong; cong₂; subst)
 
@@ -206,82 +208,196 @@ shift-0 c t =
   trans (cong (λ ρ → rename ρ t) (funext-ren (shiftRen-0 c))) (rename-id t)
 
 ------------------------------------------------------------------------
--- Substitution is the identity on a term with no free occurrence of the
--- target index.
+-- Substitution is the identity on a closed term.
 --
--- `substT j r t ≡ t` when `Scoped j t` (every free variable of `t` is `< j`,
--- so none is `j`). This is the workhorse for the `⇒-var` cases of the
--- substitution lemma: the context's types are `j`-free, so substituting
--- the `j`-th variable leaves them unchanged.
+-- The development uses a SINGLE substitution presentation: the simultaneous
+-- substitution `substS : Sub → Term → Term` (Core.Syntax). The legacy
+-- targeted substitution `substT` has been removed; the closedness facts it
+-- used to provide are the `substS-scoped` / `substS-closed` lemmas below.
 ------------------------------------------------------------------------
 
--- `n ≡ᵇ n` is `true`.
-≡ᵇ-refl : ∀ n → (n ≡ᵇ n) ≡ true
-≡ᵇ-refl zero = refl
-≡ᵇ-refl (suc n) = ≡ᵇ-refl n
+ext^-fix : ∀ ar (ρ : Ren) k → k < ar → ext^ ar ρ k ≡ k
+ext^-fix (suc ar) ρ zero (s≤s p) = refl
+ext^-fix (suc ar) ρ (suc k) (s≤s p) = cong suc (ext^-fix ar ρ k p)
 
--- `substT j r (tm-var j) ≡ r`.
-subst-var-eq : ∀ {j r} → substT j r (tm-var j) ≡ r
-subst-var-eq {j} {r} rewrite ≡ᵇ-refl j = refl
+-- `ext^ ar ρ` on `ar + j` is `ar + ρ j`.
+ext^-raise : ∀ ar (ρ : Ren) j → ext^ ar ρ (ar + j) ≡ ar + ρ j
+ext^-raise zero ρ j = refl
+ext^-raise (suc ar) ρ j = cong suc (ext^-raise ar ρ j)
 
--- `substT j r (tm-var k) ≡ tm-var k` when `k ≢ j`.
-subst-var-neq : ∀ {j k r} → (k ≡ᵇ j) ≡ false → substT j r (tm-var k) ≡ tm-var k
-subst-var-neq {j} {k} {r} p rewrite p = refl
+-- Every index is either below `ar` or of the form `ar + j`.
+lt-or : ∀ ar k → k < ar ⊎ (Σ ℕ (λ j → k ≡ ar + j))
+lt-or zero k = inj₂ (k , refl)
+lt-or (suc ar) zero = inj₁ (s≤s z≤n)
+lt-or (suc ar) (suc k) with lt-or ar k
+... | inj₁ p = inj₁ (s≤s p)
+... | inj₂ (j , refl) = inj₂ (j , refl)
 
--- `k < j` gives `(k ≡ᵇ j) ≡ false`.
-open import Data.Nat.Properties using (<⇒≢; ≡ᵇ⇒≡)
-open import Data.Empty using (⊥; ⊥-elim)
-open import Data.Bool.Base using (T)
-open import Data.Bool.Properties using (T?)
-open import Data.Unit using (tt)
-open import Relation.Nullary using (yes; no)
+-- Cancel `ar +` on a strict inequality.
+lt-cancel : ∀ ar j d → ar + j < ar + d → j < d
+lt-cancel zero j d p = p
+lt-cancel (suc ar) j d (s≤s p) = lt-cancel ar j d p
 
-<-false : ∀ k j → k < j → (k ≡ᵇ j) ≡ false
-<-false k j lt with T? (k ≡ᵇ j)
-... | yes t = ⊥-elim (<⇒≢ lt (≡ᵇ⇒≡ k j t))
-... | no ¬t with k ≡ᵇ j
-...   | false = refl
-...   | true  = ⊥-elim (¬t tt)
+-- `ext^ ar ρ` fixes every index `< d + ar` when `ρ` fixes every index `< d`.
+ext^-fix+ : ∀ ar (ρ : Ren) d → (∀ k → k < d → ρ k ≡ k)
+          → ∀ k → k < d + ar → ext^ ar ρ k ≡ k
+ext^-fix+ ar ρ d h k p with lt-or ar k
+... | inj₁ q = ext^-fix ar ρ k q
+... | inj₂ (j , refl) = trans (ext^-raise ar ρ j) (cong (ar +_) (h j (lt-cancel′ ar j d p)))
+  where
+    -- `ar + j < d + ar` implies `j < d`.
+    lt-cancel′ : ∀ ar j d → ar + j < d + ar → j < d
+    lt-cancel′ ar j d p = lt-cancel ar j d (subst (λ Z → ar + j < Z) (+-comm d ar) p)
 
--- Substitution is the identity on a `j`-scoped term.
+------------------------------------------------------------------------
+-- Renaming a scoped term.
+--
+-- A term scoped at `d` is fixed by any renaming that fixes every index
+-- `< d`. In particular a CLOSED term (`Scoped 0`) is fixed by every
+-- renaming — the fact that the signature's telescopes and declared types
+-- are closed, so renaming/substitution leaves them unchanged.
+------------------------------------------------------------------------
+
 mutual
-  substTerms-id : ∀ {j r ts} → ScopedTerms j ts → substTerms j r ts ≡ ts
-  substTerms-id st[] = refl
-  substTerms-id (st∷ sx sxs) = cong₂ _∷_ (subst-id sx) (substTerms-id sxs)
+  rename-scoped : ∀ {d ρ} {t : Term} → Scoped d t
+                → (∀ k → k < d → ρ k ≡ k) → rename ρ t ≡ t
+  rename-scoped (sc-type {l}) h = refl
+  rename-scoped (sc-var {k} k<d) h = cong tm-var (h k k<d)
+  rename-scoped (sc-pi sd sc) h = cong₂ (tm-pi _) (rename-scoped sd h) (rename-scoped sc (ext-ok h))
+  rename-scoped (sc-lam sd sb) h = cong₂ (tm-lam _) (rename-scoped sd h) (rename-scoped sb (ext-ok h))
+  rename-scoped (sc-let st sv sb) h = cong₃ (tm-let _) (rename-scoped st h) (rename-scoped sv h) (rename-scoped sb (ext-ok h))
+  rename-scoped (sc-app sf sa) h = cong₂ tm-app (rename-scoped sf h) (rename-scoped sa h)
+  rename-scoped (sc-data sps sis) h = cong₂ (tm-data _) (renameTerms-scoped sps h) (renameTerms-scoped sis h)
+  rename-scoped (sc-ctor sargs) h = cong (tm-ctor _) (renameTerms-scoped sargs h)
+  rename-scoped (sc-case ss sm sbs) h = cong₃ tm-case (rename-scoped ss h) (rename-scoped sm h) (renameBranches-scoped sbs h)
+  rename-scoped (sc-global {n}) h = refl
+  rename-scoped (sc-int_type) h = refl
+  rename-scoped (sc-int_lit {k}) h = refl
+  rename-scoped (sc-nat_lit {k}) h = refl
+  rename-scoped (sc-bounded_lit {k}) h = refl
+  rename-scoped (sc-float_type) h = refl
+  rename-scoped (sc-float_lit) h = refl
+  rename-scoped (sc-binary_type) h = refl
+  rename-scoped (sc-atom_type) h = refl
+  rename-scoped (sc-atom_lit {n}) h = refl
+  rename-scoped (sc-effect_type st) h = cong tm-effect_type (rename-scoped st h)
+  rename-scoped (sc-effect_pure st) h = cong tm-effect_pure (rename-scoped st h)
+  rename-scoped (sc-effect_bind se sk) h = cong₂ tm-effect_bind (rename-scoped se h) (rename-scoped sk h)
+  rename-scoped (sc-hole {n}) h = refl
+  rename-scoped (sc-absurd) h = refl
 
-  substBranches-id : ∀ {j r bs} → ScopedBranches j bs → substBranches j r bs ≡ bs
-  substBranches-id sb[] = refl
-  substBranches-id {j} {r} (sb∷ sx sxs) = cong₂ _∷_ (substBranch-id {j} {r} sx) (substBranches-id {j} {r} sxs)
+  ext-ok : ∀ {d ρ} → (∀ k → k < d → ρ k ≡ k) → (∀ k → k < suc d → ext ρ k ≡ k)
+  ext-ok h zero p = refl
+  ext-ok h (suc k) (s≤s p) = cong suc (h k p)
 
-  substBranch-id : ∀ {j r b} → ScopedBranch j b → substBranch j r b ≡ b
-  substBranch-id {j} {r} (sbranch {cn = cn} {ar = ar} {b = b} sb) =
-    cong (λ x → cn , ar , x) (subst-id {j = j + ar} {r = shift ar 0 r} sb)
+  renameTerms-scoped : ∀ {d ρ} {ts} → ScopedTerms d ts
+                     → (∀ k → k < d → ρ k ≡ k) → renameTerms ρ ts ≡ ts
+  renameTerms-scoped st[] h = refl
+  renameTerms-scoped (st∷ sx sxs) h = cong₂ _∷_ (rename-scoped sx h) (renameTerms-scoped sxs h)
 
-  subst-id : ∀ {j r t} → Scoped j t → substT j r t ≡ t
-  subst-id (sc-type {l}) = refl
-  subst-id (sc-var {k} k<j) = subst-var-neq {j = _} {k} {r = _} (<-false k _ k<j)
-  subst-id (sc-pi sd sc) = cong₂ (tm-pi _) (subst-id sd) (subst-id sc)
-  subst-id (sc-lam sd sb) = cong₂ (tm-lam _) (subst-id sd) (subst-id sb)
-  subst-id (sc-let st sv sb) = cong₃ (tm-let _) (subst-id st) (subst-id sv) (subst-id sb)
-  subst-id (sc-app sf sa) = cong₂ tm-app (subst-id sf) (subst-id sa)
-  subst-id (sc-data sps sis) = cong₂ (tm-data _) (substTerms-id sps) (substTerms-id sis)
-  subst-id (sc-ctor sargs) = cong (tm-ctor _) (substTerms-id sargs)
-  subst-id (sc-case ss sm sbs) = cong₃ tm-case (subst-id ss) (subst-id sm) (substBranches-id sbs)
-  subst-id (sc-global {n}) = refl
-  subst-id (sc-int_type) = refl
-  subst-id (sc-int_lit {k}) = refl
-  subst-id (sc-nat_lit {k}) = refl
-  subst-id (sc-bounded_lit {k}) = refl
-  subst-id (sc-float_type) = refl
-  subst-id (sc-float_lit) = refl
-  subst-id (sc-binary_type) = refl
-  subst-id (sc-atom_type) = refl
-  subst-id (sc-atom_lit {n}) = refl
-  subst-id (sc-effect_type st) = cong tm-effect_type (subst-id st)
-  subst-id (sc-effect_pure st) = cong tm-effect_pure (subst-id st)
-  subst-id (sc-effect_bind se sk) = cong₂ tm-effect_bind (subst-id se) (subst-id sk)
-  subst-id (sc-hole {n}) = refl
-  subst-id (sc-absurd) = refl
+  renameBranches-scoped : ∀ {d ρ} {bs} → ScopedBranches d bs
+                        → (∀ k → k < d → ρ k ≡ k) → renameBranches ρ bs ≡ bs
+  renameBranches-scoped sb[] h = refl
+  renameBranches-scoped (sb∷ sx sxs) h = cong₂ _∷_ (renameBranch-scoped sx h) (renameBranches-scoped sxs h)
+
+  renameBranch-scoped : ∀ {d ρ} {b} → ScopedBranch d b
+                      → (∀ k → k < d → ρ k ≡ k) → renameBranch ρ b ≡ b
+  renameBranch-scoped {d = d} {ρ = ρ} (sbranch {cn = cn} {ar = ar} {b = b} sb) h =
+    cong (λ x → cn , ar , x) (rename-scoped sb (ext^-fix+ ar ρ d h))
+
+-- A CLOSED term is fixed by every renaming.
+rename-closed : ∀ {ρ} {t : Term} → Scoped 0 t → rename ρ t ≡ t
+rename-closed st = rename-scoped st (λ k ())
+
+-- `extSub^ ar σ` fixes every index `< ar` (maps it to its own variable).
+extSub^-fix : ∀ ar (σ : Sub) k → k < ar → extSub^ ar σ k ≡ tm-var k
+extSub^-fix (suc ar) σ zero (s≤s p) = refl
+extSub^-fix (suc ar) σ (suc k) (s≤s p) = cong (rename wk) (extSub^-fix ar σ k p)
+
+-- `shiftRen a 0 k ≡ k + a` (the `a`-fold weakening).
+shiftRen-k0 : ∀ a k → shiftRen a 0 k ≡ k + a
+shiftRen-k0 zero k = refl
+shiftRen-k0 (suc a) k = refl
+
+-- `extSub^ ar σ` on `ar + j` is `rename (shiftRen ar 0) (σ j)`.
+extSub^-raise : ∀ ar (σ : Sub) j → extSub^ ar σ (ar + j) ≡ rename (shiftRen ar 0) (σ j)
+extSub^-raise zero σ j = sym (shift-0 0 (σ j))
+extSub^-raise (suc ar) σ j =
+  trans (cong (rename wk) (extSub^-raise ar σ j))
+        (trans (rename-compose wk (shiftRen ar 0) (σ j))
+               (cong (λ ρ → rename ρ (σ j)) (funext-ren (wk-shiftRen ar))))
+  where
+    wk-shiftRen : ∀ ar k → (wk ∘ shiftRen ar 0) k ≡ shiftRen (suc ar) 0 k
+    wk-shiftRen ar k = sym (+-suc k ar)
+
+-- `extSub^ ar σ` fixes every index `< d + ar` when `σ` fixes every index `< d`.
+extSub^-fix+ : ∀ ar (σ : Sub) d → (∀ k → k < d → σ k ≡ tm-var k)
+             → ∀ k → k < d + ar → extSub^ ar σ k ≡ tm-var k
+extSub^-fix+ ar σ d h k p with lt-or ar k
+... | inj₁ q = extSub^-fix ar σ k q
+... | inj₂ (j , refl) =
+  trans (extSub^-raise ar σ j)
+        (trans (cong (rename (shiftRen ar 0)) (h j (lt-cancel′ ar j d p)))
+               (rename-var-shiftRen ar j))
+  where
+    lt-cancel′ : ∀ ar j d → ar + j < d + ar → j < d
+    lt-cancel′ ar j d p = lt-cancel ar j d (subst (λ Z → ar + j < Z) (+-comm d ar) p)
+    rename-var-shiftRen : ∀ ar j → rename (shiftRen ar 0) (tm-var j) ≡ tm-var (ar + j)
+    rename-var-shiftRen ar j = cong tm-var (trans (shiftRen-k0 ar j) (+-comm j ar))
+
+-- A term scoped at `d` is fixed by any substitution that fixes every index
+-- `< d` (maps it to its own variable).
+mutual
+  substS-scoped : ∀ {d σ} {t : Term} → Scoped d t
+                → (∀ k → k < d → σ k ≡ tm-var k) → substS σ t ≡ t
+  substS-scoped (sc-type {l}) h = refl
+  substS-scoped (sc-var {k} k<d) h = h k k<d
+  substS-scoped (sc-pi sd sc) h = cong₂ (tm-pi _) (substS-scoped sd h) (substS-scoped sc (extSub-ok h))
+  substS-scoped (sc-lam sd sb) h = cong₂ (tm-lam _) (substS-scoped sd h) (substS-scoped sb (extSub-ok h))
+  substS-scoped (sc-let st sv sb) h = cong₃ (tm-let _) (substS-scoped st h) (substS-scoped sv h) (substS-scoped sb (extSub-ok h))
+  substS-scoped (sc-app sf sa) h = cong₂ tm-app (substS-scoped sf h) (substS-scoped sa h)
+  substS-scoped (sc-data sps sis) h = cong₂ (tm-data _) (substTermsS-scoped sps h) (substTermsS-scoped sis h)
+  substS-scoped (sc-ctor sargs) h = cong (tm-ctor _) (substTermsS-scoped sargs h)
+  substS-scoped (sc-case ss sm sbs) h = cong₃ tm-case (substS-scoped ss h) (substS-scoped sm h) (substBranchesS-scoped sbs h)
+  substS-scoped (sc-global {n}) h = refl
+  substS-scoped (sc-int_type) h = refl
+  substS-scoped (sc-int_lit {k}) h = refl
+  substS-scoped (sc-nat_lit {k}) h = refl
+  substS-scoped (sc-bounded_lit {k}) h = refl
+  substS-scoped (sc-float_type) h = refl
+  substS-scoped (sc-float_lit) h = refl
+  substS-scoped (sc-binary_type) h = refl
+  substS-scoped (sc-atom_type) h = refl
+  substS-scoped (sc-atom_lit {n}) h = refl
+  substS-scoped (sc-effect_type st) h = cong tm-effect_type (substS-scoped st h)
+  substS-scoped (sc-effect_pure st) h = cong tm-effect_pure (substS-scoped st h)
+  substS-scoped (sc-effect_bind se sk) h = cong₂ tm-effect_bind (substS-scoped se h) (substS-scoped sk h)
+  substS-scoped (sc-hole {n}) h = refl
+  substS-scoped (sc-absurd) h = refl
+
+  extSub-ok : ∀ {d σ} → (∀ k → k < d → σ k ≡ tm-var k)
+            → (∀ k → k < suc d → extSub σ k ≡ tm-var k)
+  extSub-ok h zero p = refl
+  extSub-ok h (suc k) (s≤s p) = cong (rename wk) (h k p)
+
+  substTermsS-scoped : ∀ {d σ} {ts} → ScopedTerms d ts
+                     → (∀ k → k < d → σ k ≡ tm-var k) → substTermsS σ ts ≡ ts
+  substTermsS-scoped st[] h = refl
+  substTermsS-scoped (st∷ sx sxs) h = cong₂ _∷_ (substS-scoped sx h) (substTermsS-scoped sxs h)
+
+  substBranchesS-scoped : ∀ {d σ} {bs} → ScopedBranches d bs
+                        → (∀ k → k < d → σ k ≡ tm-var k) → substBranchesS σ bs ≡ bs
+  substBranchesS-scoped sb[] h = refl
+  substBranchesS-scoped (sb∷ sx sxs) h = cong₂ _∷_ (substBranchS-scoped sx h) (substBranchesS-scoped sxs h)
+
+  substBranchS-scoped : ∀ {d σ} {b} → ScopedBranch d b
+                      → (∀ k → k < d → σ k ≡ tm-var k) → substBranchS σ b ≡ b
+  substBranchS-scoped {d = d} {σ = σ} (sbranch {cn = cn} {ar = ar} {b = b} sb) h =
+    cong (λ x → cn , ar , x) (substS-scoped sb (extSub^-fix+ ar σ d h))
+
+-- A CLOSED term is fixed by every substitution.
+substS-closed : ∀ {σ} {t : Term} → Scoped 0 t → substS σ t ≡ t
+substS-closed st = substS-scoped st (λ k ())
 
 ------------------------------------------------------------------------
 -- The substitution/renaming interaction.
@@ -794,10 +910,7 @@ rename-raise ar ρ t =
 -- go through.
 ------------------------------------------------------------------------
 
--- `ext^ ar ρ` fixes every index `< ar`.
-ext^-fix : ∀ ar (ρ : Ren) k → k < ar → ext^ ar ρ k ≡ k
-ext^-fix (suc ar) ρ zero (s≤s p) = refl
-ext^-fix (suc ar) ρ (suc k) (s≤s p) = cong suc (ext^-fix ar ρ k p)
+
 
 -- `renameTerms (ext^ ar ρ) (branch-field-vars ar) ≡ branch-field-vars ar`.
 renameTerms-field-vars : ∀ ar (ρ : Ren)

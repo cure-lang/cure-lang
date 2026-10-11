@@ -177,6 +177,29 @@ branch-field-vars : ℕ → List Term
 branch-field-vars ar = map tm-var (countdown ar)
 
 ------------------------------------------------------------------------
+-- Telescope membership and maps.
+--
+-- Purely syntactic, so they live at the TOP LEVEL (outside `module Typing`):
+-- the signature-closedness side condition (`Proof.Preservation.ClosedSig`)
+-- needs `_∈Tele_` in its own module header.
+------------------------------------------------------------------------
+
+-- Telescope membership.
+data _∈Tele_ : Term → Telescope → Set where
+  ∈-here  : ∀ {T tele nm} → T ∈Tele ((nm , T) ∷ tele)
+  ∈-there : ∀ {T U tele nm} → T ∈Tele tele → T ∈Tele ((nm , U) ∷ tele)
+
+-- Rename every type in a telescope.
+renameTele : Ren → Telescope → Telescope
+renameTele ρ [] = []
+renameTele ρ ((nm , T) ∷ tele) = (nm , rename ρ T) ∷ renameTele ρ tele
+
+-- Substitute into every type in a telescope.
+substTele : Sub → Telescope → Telescope
+substTele σ [] = []
+substTele σ ((nm , T) ∷ tele) = (nm , substS σ T) ∷ substTele σ tele
+
+------------------------------------------------------------------------
 -- The typing judgment
 --
 -- Parameterised by the inductive environment, the δ-signature, and the
@@ -184,7 +207,6 @@ branch-field-vars ar = map tm-var (countdown ar)
 ------------------------------------------------------------------------
 
 module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
-
   open IndEnv ind
   open Signature sig
   open Conversion conv
@@ -205,26 +227,10 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   -- Helpers
   ------------------------------------------------------------------------
 
-  -- Telescope membership.
-  data _∈Tele_ : Term → Telescope → Set where
-    ∈-here  : ∀ {T tele nm} → T ∈Tele ((nm , T) ∷ tele)
-    ∈-there : ∀ {T U tele nm} → T ∈Tele tele → T ∈Tele ((nm , U) ∷ tele)
-
-  -- Rename every type in a telescope.
-  renameTele : Ren → Telescope → Telescope
-  renameTele ρ [] = []
-  renameTele ρ ((nm , T) ∷ tele) = (nm , rename ρ T) ∷ renameTele ρ tele
-
-  -- Substitute into every type in a telescope.
-  substTele : Sub → Telescope → Telescope
-  substTele σ [] = []
-  substTele σ ((nm , T) ∷ tele) = (nm , substS σ T) ∷ substTele σ tele
-
   -- Substituting a value at the top of a type (for the `let` rule). This is
   -- `substTopT` from Core.Syntax, re-exported inside the typing module.
   substTopT-unfold : ∀ v T → substTopT v T ≡ substS (topSub v) T
   substTopT-unfold v T = refl
-
 
   data _⊢_⇒_ where
 
@@ -257,7 +263,8 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
     -- codomain instantiated at the argument.
     --
     -- The instantiation is the TOP substitution `substTopT a c = substS
-    -- (topSub a) c`, NOT `substT 0 a c`. This matches the kernel's
+    -- (topSub a) c` — the simultaneous-substitution presentation used
+    -- throughout. This matches the kernel's
     -- `Eval.apply_closure(cod_closure, a_value)`, which evaluates the
     -- codomain in the environment `[a_value | env]` — i.e. it PREPENDS the
     -- argument (index 0) and shifts everything else.

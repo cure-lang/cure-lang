@@ -70,7 +70,7 @@ recommends.
 |---|---|---|
 | `Core.Grade` | The QTT carrier `{0,1,≤1,ω}`; additive/multiplicative monoids; subusaging preorder; all laws by exhaustive case analysis | ✅ complete |
 | `Core.Universe` | The three-element universe hierarchy `l0 : l1 : l2`; cumulativity `_≤ˡ_`; max `_⊔ˡ_`; `succLevel` | ✅ complete |
-| `Core.Syntax` | `Term` (faithful to `Cure.Core.Term`); de Bruijn `shift`/`substT`; `Scoped`/`Closed` | ✅ complete |
+| `Core.Syntax` | `Term` (faithful to `Cure.Core.Term`); de Bruijn `shift`/`substS` (simultaneous substitution); `Scoped`/`Closed` | ✅ complete |
 | `Core.Value` | The NbE value domain: closures, neutrals, size-indexed so closures are structurally smaller | ✅ complete |
 | `Core.Reduction` | The reduction relation `_⇝_` (β, ζ, ι, δ, congruence) and its reflexive-transitive closure | ✅ complete |
 | `Core.Signature` | Inductive families, constructors, telescopes; nested strict positivity | ✅ complete |
@@ -156,9 +156,10 @@ These are the `postulate`s, each with a named proof strategy in the source:
    `tele-closed`, `rename-ctor-result`, `tele-closed-subst`,
    `subst-ctor-result`, `subst-global`). These are well-formedness
    assumptions: a global's declared type and the signature's telescopes are
-   *closed*, so renaming/substitution leaves them unchanged. They are not
-   derivable from the current interface (which has no `Closed` predicate on
-   signature entries) and are not part of the app-case obstruction.
+   *closed*, so renaming/substitution leaves them unchanged. They are now
+   **derived** from the single hypothesis `ClosedSig ind sig` (a `Scoped 0`
+   predicate on signature entries) via `rename-closed` / `substS-closed` —
+   no longer postulated.
 5. **`progress`** (`Proof/Progress.agda`) — by cases on the typing
    derivation, consuming the canonical-form lemmas to show β and ι fire.
 6. **`preservation`** (`Proof/Preservation.agda`) — the four cases β, ζ, ι,
@@ -255,66 +256,93 @@ issue: prepending the fresh binder `S` does not commute with prepending the
 Π/λ binder `d`. The standard fix is to state weakening via a context
 *morphism* (a `Fin`-preserving map), whose extension under a binder handles
 the order automatically. The lookup law it rests on (`lookup-extend`) is
-proved; the morphism plumbing is the next step.
+proved; the morphism plumbing is the next step. (The simultaneous
+substitution presentation removes the *adjoint-extension* half of this
+tension — see the substitution section — leaving only the plain
+binder-order bookkeeping.)
 
 ## The substitution lemma
 
 Substitution is the algebraic heart of the β and ζ cases of Preservation.
 Getting its *operation* right was the main finding of this slice.
 
-Naively, substituting the head variable is `substT 0 a t`. But this is
-wrong twice over:
+The development uses a **single** substitution presentation: the
+**simultaneous substitution** `substS : Sub → Term → Term` (`Core.Syntax`,
+`Sub = ℕ → Term`), which replaces every free variable at once. The legacy
+*targeted* substitution `substT` (replace one de Bruijn index) has been
+**removed** — the whole development is now on the simultaneous presentation.
+
+Targeted substitution is wrong twice over:
 
 1. Substituting index 0 **shrinks the context**, so a variable at index
    `suc k` in `extend Γ A` must become index `k` in `Γ`.
 2. A post-hoc `rename pred` would also renumber the substituted term `a`,
    which lives in `Γ` and must be inserted unchanged.
 
-The correct operation is a **simultaneous substitution** (`Core.Syntax`
-`Sub = ℕ → Term`), which replaces every free variable at once:
+The simultaneous operation fixes both: the head substitution
 
     topSub a zero    = a
     topSub a (suc k) = tm-var k
 
-so the substituted term is inserted as-is while every other variable is
-renumbered down by one. Under a binder the substitution is extended by
-`extSub` (the new binder maps to itself, everything else shifts).
+inserts the substituted term as-is while every other variable is renumbered
+down by one. Under a binder the substitution is extended by `extSub` (the new
+binder maps to itself, everything else shifts).
 
-This is the term-side counterpart of the context surgery `removeAt` /
-`embedFin` in `Proof/ContextSubst.agda`. With it, the `⇒-var` cases are
-clean:
+With it, the `⇒-var` cases are clean:
 
 - **index 0**: the term becomes `a`, and the type `A` is `0`-free (it is
   scoped in `Γ`, and the global convention keeps its free variables above
-  the new binder), so `substTop a A = A`. The goal is `Γ ⊢ a ⇐ A`.
+  the new binder), so `substTopT a A = A`. The goal is `Γ ⊢ a ⇐ A`.
 - **index `suc k`**: the term becomes `tm-var k`, and the type
   `rename wk (lookup Γ k)` becomes `lookup Γ k`. The goal is
   `Γ ⊢ tm-var k ⇒ lookup Γ k`, which is `⇒-var k`.
 
-All the syntactic pieces are proved (`subst-id`, `subst-var-eq/neq`,
-`rename-id`, `lookup-extend`, `lookup-remove`, `substS`/`extSub`). What
-remains is the induction threading `substS` through every typing rule.
+The inductive obligations are all discharged: `subst-id`/`rename-id`,
+`substS-scoped` (a `d`-scoped term is fixed by any substitution that fixes
+the indices `< d`), `substS-closed` (a closed term is fixed by every
+substitution), `rename-closed`, the `extSub`/`extSub^` laws, and the
+substitution/renaming interaction `rename-subst` / `subst-rename`.
 
-The one structural subtlety still to resolve is the interaction between
-`extSub` and the weakening renaming. The "substitution undoes weakening"
-law needs `substS (topSub a) (rename wk T) ≡ T`, but under a binder
-`rename (ext wk)` maps `suc j ↦ suc (suc j)` while `extSub (topSub a)`
-maps `suc (suc j) ↦ suc j` — the two extensions are *adjoint*.
+### The adjoint-extension obstruction, resolved
 
-The clean fix is to define the substitution's binder extension **relative
-to the renaming**: for a simultaneous substitution `σ` and a renaming `ρ`,
-the extension under a binder maps `zero ↦ var zero` and `suc (ρ j) ↦ σ j`.
-Then the general law
+The one structural subtlety was the interaction between `extSub` and the
+weakening renaming. The "substitution undoes weakening" law needs
+`substS (topSub a) (rename wk T) ≡ T`, but under a binder `rename (ext wk)`
+maps `suc j ↦ suc (suc j)` while `extSub (topSub a)` maps
+`suc (suc j) ↦ suc j` — the two extensions are *adjoint*.
+
+The obstruction **dissolves** once the substitution's binder extension is
+taken relative to the renaming. For a simultaneous substitution `σ` and a
+renaming `ρ`, the extension under a binder maps `zero ↦ var zero` and
+`suc (ρ j) ↦ σ j`, so the general law
 
     substS (extSub ρ σ) (rename (ext ρ) t) ≡ substS σ t
 
-holds by induction, and the "undo weakening" law is its instance at
-`ρ = wk` and `σ = topSub a`. The machinery (`extSub`, `extSub^`, `substS`)
-is in place; the parameterisation of `extSub` by `ρ` is the concrete next
-step.
+holds by induction, and "undo weakening" is its instance at `ρ = wk`,
+`σ = topSub a`. The `⇒-app` codomain instantiation is the same top
+substitution `substTopT a c = substS (topSub a) c`, matching the kernel's
+`Eval.apply_closure` — so the app case is exactly `rename-topSub` /
+`subst-topSub`, with no `suc`-preservation obligation.
 
-## Building## Building## Building
+### Signature closedness
 
+The former closedness *postulates* (`rename-global-type`, `tele-closed`,
+`rename-ctor-result`, `tele-closed-subst`, `subst-ctor-result`) are now
+**derived** from a single hypothesis `ClosedSig ind sig`: the signature's
+globals, family telescopes, and constructor telescopes are `Scoped 0`
+(closed). `rename-closed` / `substS-closed` turn that witness into the
+identity facts the renaming and substitution lemmas consume.
+
+### The `ι` branch substitution, on the simultaneous presentation
+
+The `ι` rule's field substitution (`Core.Reduction.substArgs`) is now one
+simultaneous substitution `substS (argsSub args)` instead of the former
+sequence of targeted `substT`s. This is not merely stylistic: the sequential
+form could capture a field inserted under a binder when a later `substT`
+re-scanned it, whereas one simultaneous substitution inserts every field at
+once — matching the kernel's single `eval(body, reverse fields ++ base_env)`.
+
+## Building
 Requires Agda 2.8.0 and the Agda standard library.
 
 ```bash

@@ -30,7 +30,7 @@ open import Relation.Binary.PropositionalEquality
 
 open import Core.Grade using (Grade)
 open import Core.Universe using (Level)
-open import Core.Syntax using (Term; Branch; Name; ℤ′; shift; substT)
+open import Core.Syntax using (Term; Branch; Name; ℤ′; shift)
 
 ------------------------------------------------------------------------
 -- The value domain, indexed by an upper bound on the size of the term it

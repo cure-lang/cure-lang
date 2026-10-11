@@ -40,7 +40,7 @@ open import Core.Signature using (IndEnv; Family; Ctor; Telescope; findFamily; f
                                    fam-params; fam-indices; fam-level; fam-name;
                                    ctor-args; ctor-params; ctor-indices)
 open import Core.Reduction
-open import Core.Typing using (Ctx; ⟨⟩; _▷_; lookup; extend; lookup-extend; lookup-renameCtx; Conversion; extendⁿ)
+open import Core.Typing using (Ctx; ⟨⟩; _▷_; lookup; extend; lookup-extend; lookup-renameCtx; Conversion; extendⁿ; _∈Tele_; ∈-here; ∈-there)
 open import Proof.Values using (Canonical; Neutral; Value)
 open import Proof.Inversion
 open import Proof.Substitution
@@ -48,8 +48,31 @@ open import Proof.Context using (lookup-weaken; lookup-head;
                                   lookup-extendⁿ-zero; lookup-extendⁿ-raise;
                                   extF; extF-coh; lookup-extF)
 
-module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
+------------------------------------------------------------------------
+-- Signature closedness.
+--
+-- The signature's entries (a global's declared type, a family's
+-- telescopes, a constructor's argument telescope and result type) are
+-- CLOSED: they mention no free variable. This is a well-formedness side
+-- condition on the signature, carried as a hypothesis (like
+-- `StrictlyPositive`), and it makes renaming/substitution the identity on
+-- them via `rename-closed` / `substS-closed`.
+--
+-- Defined at the TOP LEVEL (outside `Preserve`) so the module header can
+-- name it.
+------------------------------------------------------------------------
 
+ClosedSig : IndEnv → Signature → Set
+ClosedSig ind sig =
+    (∀ (f : Name) {T} → Signature.type-of sig f ≡ just T → Scoped 0 T)
+  × (∀ (f : Family) {T} → T ∈Tele (fam-params f) → Scoped 0 T)
+  × (∀ (f : Family) {T} → T ∈Tele (fam-indices f) → Scoped 0 T)
+  × (∀ (f : Family) (ct : Ctor) {T} → T ∈Tele (ctor-args ct) → Scoped 0 T)
+  × (∀ (f : Family) (ct : Ctor)
+     → Scoped 0 (tm-data (fam-name f) (ctor-params ct) (ctor-indices ct)))
+
+module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
+               (closed : ClosedSig ind sig) where
   open Core.Typing.Typing ind sig conv
   open Proof.Inversion.Invert ind sig conv using (conv-pi-components)
 
@@ -95,35 +118,66 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
                  (trans (ext-wk-rename ρ (lookup Γ j))
                         (cong (rename (ext ρ)) (sym (lookup-renameCtx wk Γ j)))))
 
+  ------------------------------------------------------------------------
+  -- Signature closedness.
+  --
+  -- `ClosedSig` is defined at the top level (above `module Preserve`); the
+  -- module takes a witness `closed` as a parameter. The lemmas below turn
+  -- that witness into the `rename`/`substS`-is-identity facts the renaming
+  -- and substitution lemmas consume.
+  ------------------------------------------------------------------------
+
   -- A global's declared type is closed, so renaming leaves it unchanged.
-  postulate
-    rename-global-type : ∀ (ρ : Ren) (f : Name) (T : Term)
-      → Signature.type-of sig f ≡ just T → rename ρ T ≡ T
+  rename-global-type : ∀ (ρ : Ren) (f : Name) (T : Term)
+    → Signature.type-of sig f ≡ just T → rename ρ T ≡ T
+  rename-global-type ρ f T p = rename-closed (proj₁ closed f p)
 
-  -- The signature's telescopes are closed, so renaming leaves them unchanged.
-  postulate
-    tele-closed : ∀ (ρ : Ren) (f : Family) (tele tele′ : Telescope)
-      → (∀ {T} → T ∈Tele tele → rename ρ T ≡ T)
+  -- The signature's telescopes are closed, so renaming leaves them
+  -- unchanged.
+  tele-closed-params : ∀ (ρ : Ren) (f : Family) {T : Term}
+    → T ∈Tele (fam-params f) → rename ρ T ≡ T
+  tele-closed-params ρ f h = rename-closed (proj₁ (proj₂ closed) f h)
 
-  -- A constructor's result type is closed in its family's parameters and
-  -- indices, so renaming leaves it unchanged.
-  postulate
-    rename-ctor-result : ∀ (ρ : Ren) (f : Family) (ct : Ctor)
-      → rename ρ (tm-data (fam-name f) (ctor-params ct) (ctor-indices ct))
-      ≡ tm-data (fam-name f) (ctor-params ct) (ctor-indices ct)
+  tele-closed-indices : ∀ (ρ : Ren) (f : Family) {T : Term}
+    → T ∈Tele (fam-indices f) → rename ρ T ≡ T
+  tele-closed-indices ρ f h = rename-closed (proj₁ (proj₂ (proj₂ closed)) f h)
+
+  tele-closed-ctor : ∀ (ρ : Ren) (f : Family) (ct : Ctor) {T : Term}
+    → T ∈Tele (ctor-args ct) → rename ρ T ≡ T
+  tele-closed-ctor ρ f ct h = rename-closed (proj₁ (proj₂ (proj₂ (proj₂ closed))) f ct h)
+
+  -- A constructor's result type is closed, so renaming leaves it
+  -- unchanged.
+  rename-ctor-result : ∀ (ρ : Ren) (f : Family) (ct : Ctor)
+    → rename ρ (tm-data (fam-name f) (ctor-params ct) (ctor-indices ct))
+    ≡ tm-data (fam-name f) (ctor-params ct) (ctor-indices ct)
+  rename-ctor-result ρ f ct = rename-closed (proj₂ (proj₂ (proj₂ (proj₂ closed))) f ct)
+
+  -- A closed term is fixed by substitution (its substitution is the
+  -- identity substitution on its free variables).
+  subst-closed : ∀ (σ : Sub) {T : Term} → Scoped 0 T → substS σ T ≡ T
+  subst-closed σ st = substS-closed st
 
   -- The signature's telescopes are closed, so substituting into them
-  -- leaves them unchanged (the substitution analogue of `tele-closed`).
-  postulate
-    tele-closed-subst : ∀ (σ : Sub) (f : Family) (tele tele′ : Telescope)
-      → (∀ {T} → T ∈Tele tele → substS σ T ≡ T)
+  -- leaves them unchanged.
+  tele-closed-subst-params : ∀ (σ : Sub) (f : Family) {T : Term}
+    → T ∈Tele (fam-params f) → substS σ T ≡ T
+  tele-closed-subst-params σ f h = subst-closed σ (proj₁ (proj₂ closed) f h)
+
+  tele-closed-subst-indices : ∀ (σ : Sub) (f : Family) {T : Term}
+    → T ∈Tele (fam-indices f) → substS σ T ≡ T
+  tele-closed-subst-indices σ f h = subst-closed σ (proj₁ (proj₂ (proj₂ closed)) f h)
+
+  tele-closed-subst-ctor : ∀ (σ : Sub) (f : Family) (ct : Ctor) {T : Term}
+    → T ∈Tele (ctor-args ct) → substS σ T ≡ T
+  tele-closed-subst-ctor σ f ct h = subst-closed σ (proj₁ (proj₂ (proj₂ (proj₂ closed))) f ct h)
 
   -- A constructor's result type is closed, so substituting into it leaves
   -- it unchanged.
-  postulate
-    subst-ctor-result : ∀ (σ : Sub) (f : Family) (ct : Ctor)
-      → substS σ (tm-data (fam-name f) (ctor-params ct) (ctor-indices ct))
-      ≡ tm-data (fam-name f) (ctor-params ct) (ctor-indices ct)
+  subst-ctor-result : ∀ (σ : Sub) (f : Family) (ct : Ctor)
+    → substS σ (tm-data (fam-name f) (ctor-params ct) (ctor-indices ct))
+    ≡ tm-data (fam-name f) (ctor-params ct) (ctor-indices ct)
+  subst-ctor-result σ f ct = subst-closed σ (proj₂ (proj₂ (proj₂ (proj₂ closed))) f ct)
 
   -- Conversion is a congruence for renaming. This is a field of the
   -- `Conversion` record (Core/Typing.agda): the kernel's conversion is
@@ -171,13 +225,13 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
     ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-data {ps = ps} {is = is} {f = f} p q r) =
       ⇒-data p
         (subst (λ zs → Δ ⊢* zs ⇐* fam-params f) (sym (renameTerms-map ρ ps))
-               (ren-spine idx coh law (tele-closed ρ f (fam-params f) (fam-params f)) q))
+               (ren-spine idx coh law (tele-closed-params ρ f) q))
         (subst (λ zs → Δ ⊢* zs ⇐* fam-indices f) (sym (renameTerms-map ρ is))
-               (ren-spine idx coh law (tele-closed ρ f (fam-indices f) (fam-indices f)) r))
+               (ren-spine idx coh law (tele-closed-indices ρ f) r))
     ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-ctor {c = c} {args = args} {f = f} {ct = ct} p q) =
       subst (λ X → Δ ⊢ tm-ctor c (renameTerms ρ args) ⇒ X)
             (sym (rename-ctor-result ρ f ct))
-            (⇒-ctor p (subst (λ zs → Δ ⊢* zs ⇐* ctor-args ct) (sym (renameTerms-map ρ args)) (ren-spine idx coh law (tele-closed ρ f (ctor-args ct) (ctor-args ct)) q)))
+            (⇒-ctor p (subst (λ zs → Δ ⊢* zs ⇐* ctor-args ct) (sym (renameTerms-map ρ args)) (ren-spine idx coh law (tele-closed-ctor ρ f ct) q)))
     ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-case {s = s} {m = m′} {brs = brs} p q r) =
       ⇒-case (ren⇒ idx coh law p) (ren⇒ idx coh law q) (ren-branches idx coh law r)
     ren⇒ idx coh law (⇒-effect_type p) = ⇒-effect_type (ren⇒ idx coh law p)
@@ -384,15 +438,15 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
    subst⇒ coh (⇒-bounded_lit p) = ⇒-bounded_lit p
    subst⇒ {Δ = Δ} {σ = σ} coh (⇒-data {ps = ps} {is = is} {f = f} p q r) =
      ⇒-data p
-       (subst (λ zs → Δ ⊢* zs ⇐* fam-params f) (sym (substTerms-map σ ps))
-              (subst-spine coh (tele-closed-subst σ f (fam-params f) (fam-params f)) q))
-       (subst (λ zs → Δ ⊢* zs ⇐* fam-indices f) (sym (substTerms-map σ is))
-              (subst-spine coh (tele-closed-subst σ f (fam-indices f) (fam-indices f)) r))
+        (subst (λ zs → Δ ⊢* zs ⇐* fam-params f) (sym (substTerms-map σ ps))
+               (subst-spine coh (tele-closed-subst-params σ f) q))
+        (subst (λ zs → Δ ⊢* zs ⇐* fam-indices f) (sym (substTerms-map σ is))
+               (subst-spine coh (tele-closed-subst-indices σ f) r))
    subst⇒ {Δ = Δ} {σ = σ} coh (⇒-ctor {c = c} {args = args} {f = f} {ct = ct} p q) =
-     subst (λ X → Δ ⊢ tm-ctor c (substTermsS σ args) ⇒ X)
-           (sym (subst-ctor-result σ f ct))
-           (⇒-ctor p (subst (λ zs → Δ ⊢* zs ⇐* ctor-args ct) (sym (substTerms-map σ args))
-                            (subst-spine coh (tele-closed-subst σ f (ctor-args ct) (ctor-args ct)) q)))
+      subst (λ X → Δ ⊢ tm-ctor c (substTermsS σ args) ⇒ X)
+            (sym (subst-ctor-result σ f ct))
+            (⇒-ctor p (subst (λ zs → Δ ⊢* zs ⇐* ctor-args ct) (sym (substTerms-map σ args))
+                             (subst-spine coh (tele-closed-subst-ctor σ f ct) q)))
    subst⇒ {Δ = Δ} {σ = σ} coh (⇒-case {s = s} {m = m′} {brs = brs} p q r) =
      ⇒-case (subst⇒ coh p) (subst⇒ coh q) (subst-branches coh r)
    subst⇒ coh (⇒-effect_type p) = ⇒-effect_type (subst⇒ coh p)
