@@ -30,7 +30,20 @@ const MODULE = `${TYPE}(?:\\.${TYPE})*`;
 // positional patterns below.
 const PLAIN_IDENT = `(?!${words([...KEYWORDS, ...CONTAINERS, 'macro'])})${IDENT}`;
 
-const controlKeywords = KEYWORDS.filter(k => !WORD_OPERATORS.includes(k));
+// The token before a regex literal. Oniguruma needs each look-behind
+// alternative to have a fixed width, so the context is spelled out.
+const REGEX_START = '(?:' + [
+  '(?<=[^=<>!:|&^~\\\\+\\-*/.%$?]=)',
+  '(?<=[^-]->)',
+  '(?<==>)',
+  '(?<=\\|>)',
+  '(?<=[^:]:)',
+  '(?<=[^|\\-]\\|)',
+  '(?<=[,;(\\[{])',
+  '(?<=\\breturn)',
+].join('|') + ')';
+
+const controlKeywords =KEYWORDS.filter(k => !WORD_OPERATORS.includes(k));
 const wordOperators = KEYWORDS.filter(k => WORD_OPERATORS.includes(k));
 
 const grammar = {
@@ -101,9 +114,13 @@ const grammar = {
       match: "'''|'[^'\\\\\\n]'|'\\\\.[^'\\n]*'",
     },
 
+    // `/.../flags`. A `/` opens a regex only where an expression can begin
+    // (after `=`, `->`, `=>`, `:`, `|`, `|>`, `,`, `;`, an opening bracket or
+    // `return`, as in the lexer's `regex_literal_start?`), and divides
+    // everywhere else.
     regexes: {
-      name: 'string.regexp.cure',
-      match: '~r/(?:[^/\\\\\\n]|\\\\.)*/[a-zA-Z]*',
+      match: `${REGEX_START}\\s*(/(?:[^/\\\\\\n]|\\\\.)*/[imsxufrUE]*)`,
+      captures: { 1: { name: 'string.regexp.cure' } },
     },
 
     declarations: {

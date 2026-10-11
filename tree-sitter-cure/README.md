@@ -5,7 +5,7 @@ extension in [`../zed-cure`](../zed-cure) and the Neovim plugin in
 [`../neovim-cure`](../neovim-cure) build it from this directory.
 
 It recognises Cure's tokens (keywords, identifiers, strings with `#{}`
-interpolation, atoms, chars, `~r//` regexes, `#`/`##`/`###…###` comments,
+interpolation, atoms, chars, `/.../` regexes, `#`/`##`/`###…###` comments,
 operators, FSM transitions `--event-->`, decorators), declaration heads
 (`mod`, `fn`, `type`, `rec`, `interface`, `fsm`, `actor`, `sup`, `app`,
 `macro`, ...) and line boundaries. It does not model the indentation-structured

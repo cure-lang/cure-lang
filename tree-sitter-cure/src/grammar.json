@@ -77,7 +77,7 @@
         },
         {
           "type": "SYMBOL",
-          "name": "keyword"
+          "name": "_regex_start"
         },
         {
           "type": "SYMBOL",
@@ -121,10 +121,6 @@
         },
         {
           "type": "SYMBOL",
-          "name": "regex"
-        },
-        {
-          "type": "SYMBOL",
           "name": "comment"
         },
         {
@@ -134,10 +130,6 @@
         {
           "type": "SYMBOL",
           "name": "operator"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "punctuation"
         },
         {
           "type": "SYMBOL",
@@ -225,6 +217,18 @@
           ]
         },
         {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "regex"
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
           "type": "REPEAT",
           "content": {
             "type": "SYMBOL",
@@ -250,6 +254,18 @@
             {
               "type": "STRING",
               "value": "$("
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "regex"
+            },
+            {
+              "type": "BLANK"
             }
           ]
         },
@@ -283,6 +299,18 @@
           ]
         },
         {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "regex"
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
           "type": "REPEAT",
           "content": {
             "type": "SYMBOL",
@@ -294,6 +322,74 @@
           "value": "]"
         }
       ]
+    },
+    "_regex_start": {
+      "type": "PREC_RIGHT",
+      "value": 0,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "keyword"
+              },
+              {
+                "type": "ALIAS",
+                "content": {
+                  "type": "CHOICE",
+                  "members": [
+                    {
+                      "type": "STRING",
+                      "value": "="
+                    },
+                    {
+                      "type": "STRING",
+                      "value": "->"
+                    },
+                    {
+                      "type": "STRING",
+                      "value": "=>"
+                    },
+                    {
+                      "type": "STRING",
+                      "value": ":"
+                    },
+                    {
+                      "type": "STRING",
+                      "value": "|"
+                    },
+                    {
+                      "type": "STRING",
+                      "value": "|>"
+                    }
+                  ]
+                },
+                "named": true,
+                "value": "operator"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "punctuation"
+              }
+            ]
+          },
+          {
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "regex"
+              },
+              {
+                "type": "BLANK"
+              }
+            ]
+          }
+        ]
+      }
     },
     "module_declaration": {
       "type": "PREC",
@@ -1053,7 +1149,7 @@
         "members": [
           {
             "type": "STRING",
-            "value": "~r/"
+            "value": "/"
           },
           {
             "type": "REPEAT",
@@ -1077,7 +1173,7 @@
           },
           {
             "type": "PATTERN",
-            "value": "[a-zA-Z]*"
+            "value": "[imsxufrUE]*"
           }
         ]
       }
@@ -1137,10 +1233,6 @@
           {
             "type": "STRING",
             "value": "::"
-          },
-          {
-            "type": "STRING",
-            "value": ":"
           },
           {
             "type": "STRING",

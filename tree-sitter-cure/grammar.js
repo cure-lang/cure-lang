@@ -42,7 +42,7 @@ module.exports = grammar({
       alias('@', $.operator),
       $.transition,
       $.transition_arrow,
-      $.keyword,
+      $._regex_start,
       $.boolean,
       $.nil,
       $.identifier,
@@ -53,23 +53,35 @@ module.exports = grammar({
       $.number,
       $.string,
       $.char,
-      $.regex,
       $.comment,
       $.doc_comment,
       $.operator,
-      $.punctuation,
       $.newline,
       ...CONTAINERS.map(word => alias(word, $.identifier)),
       alias('macro', $.identifier),
     ),
 
-    brace_group: $ => seq(choice('{', '%{'), repeat($._item), '}'),
+    brace_group: $ => seq(choice('{', '%{'), optional($.regex), repeat($._item), '}'),
 
     // `(...)` and quasiquote splices `$(...)`.
-    paren_group: $ => seq(choice('(', '$('), repeat($._item), ')'),
+    paren_group: $ => seq(choice('(', '$('), optional($.regex), repeat($._item), ')'),
 
     // `[...]` and tuples `%[...]`.
-    bracket_group: $ => seq(choice('[', '%['), repeat($._item), ']'),
+    bracket_group: $ => seq(choice('[', '%['), optional($.regex), repeat($._item), ']'),
+
+    // The lexer reads `/` as a regex delimiter only where an expression can
+    // begin (`regex_literal_start?`), and as division everywhere else. Here
+    // a regex is only valid right after those tokens (or an opening
+    // bracket, above), so `a / b / c` stays two divisions. A keyword is
+    // never followed by division, so any keyword may precede one.
+    _regex_start: $ => prec.right(seq(
+      choice(
+        $.keyword,
+        alias(choice('=', '->', '=>', ':', '|', '|>'), $.operator),
+        $.punctuation,
+      ),
+      optional($.regex),
+    )),
 
     // -- Declaration heads --------------------------------------------------
 
@@ -173,7 +185,8 @@ module.exports = grammar({
       /'\\.[^'\n]*'/,
     )),
 
-    regex: _ => token(seq('~r/', repeat(choice(/[^\/\\\n]/, /\\./)), '/', /[a-zA-Z]*/)),
+    // `/^[A-Z]\w+$/i`; the modifiers are the lexer's `regex_flag?/1`.
+    regex: _ => token(seq('/', repeat(choice(/[^\/\\\n]/, /\\./)), '/', /[imsxufrUE]*/)),
 
     // -- Comments ------------------------------------------------------------
 
@@ -192,7 +205,7 @@ module.exports = grammar({
 
     operator: _ => token(choice(
       /[+\-*\/=<>!|&^~\\]+/,
-      '..', '..=', '::', ':', '.', '%', '$', '?', '✉',
+      '..', '..=', '::', '.', '%', '$', '?', '✉',
     )),
 
     punctuation: _ => choice(',', ';'),

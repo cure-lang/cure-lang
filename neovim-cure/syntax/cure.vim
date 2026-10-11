@@ -59,11 +59,10 @@ syn region cureString start='"' skip='\\\\\|\\"' end='"' contains=cureEscape,cur
 syn match cureEscape "\\." contained
 syn region cureInterpolation matchgroup=cureInterpolationDelimiter start="#{" end="}" contained contains=TOP
 
-" Chars and regexes
+" Chars
 syn match cureChar "'''"
 syn match cureChar "'[^'\\]'"
 syn match cureChar "'\\.[^']*'"
-syn match cureRegex "\~r/\([^/\\]\|\\.\)*/[a-zA-Z]*"
 
 " Atoms and holes
 syn match cureAtom ":[a-zA-Z_][a-zA-Z0-9_]*[?!]\?"
@@ -87,6 +86,12 @@ syn match curePipe "|>"
 " win at the same position.
 syn match cureTransition "--[a-zA-Z_][a-zA-Z0-9_]*?\?"
 syn match cureTransition "!\?-->"
+
+" Regexes: `/.../flags`. A `/` opens one only where an expression can begin
+" (after `=`, `->`, `=>`, `:`, `|`, `|>`, `,`, `;`, an opening bracket or
+" `return`) and divides everywhere else. After the operators, so it wins at
+" the same position.
+syn match cureRegex "\%(\%([^=<>!:|&^~\\+\-*/.%$?]=\|[^-]->\|=>\||>\|[^:]:\|[^|-]|\|[,;([{]\|\<return\)\s*\)\@<=/\%([^/\\]\|\\.\)*/[imsxufrUE]*"
 
 " Highlight Links
 hi def link cureComment Comment

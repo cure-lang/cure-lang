@@ -39,7 +39,7 @@ Neovim and VS Code grammars use. The rest of the grammar started as a port of
   `--event-->`.
 - Literals: integers (including `0xFF`, `0b1010`, digit-grouped),
   floats, booleans, atoms, chars, strings with `#{...}`
-  interpolation, regexes `~r/.../flags`, maps `%{...}`, tuples
+  interpolation, regexes `/.../flags`, maps `%{...}`, tuples
   `%[...]`, binaries `<<...>>`.
 - Comments: plain `#`, single-line doc `##`, fenced multi-line
   `### ... ###` (the last two carry `doctag` sub-scope for `@tag`

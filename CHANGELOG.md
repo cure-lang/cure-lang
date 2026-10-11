@@ -64,8 +64,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `vscode-cure`'s TextMate grammar is generated from `tree-sitter-cure`'s
   keyword list (`scripts/build-grammar.js`) and follows the tree-sitter
   grammar's tokens: `##`/`###` doc comments instead of a `#| |#` block
-  comment Cure does not have, chars, `~r//` regexes, holes, decorators, FSM
+  comment Cure does not have, chars, regexes, holes, decorators, FSM
   transitions, contextual keywords and macro vocabulary.
+- Every editor grammar (tree-sitter, TextMate, Vim, highlight.js) matched
+  regexes as `~r/.../`, which Cure does not have, so a real `/.../flags`
+  literal was never highlighted, and one holding `#` or `"` turned the rest
+  of the line into a comment or a string. They now match `/.../` where the
+  lexer does: where an expression can begin, so `a / b / c` still divides.
   `language-configuration.json` no longer declares `#| |#` either.
 - `neovim-cure/syntax/cure.vim` (the fallback without tree-sitter) declared a
   `#| |#` block comment and keywords Cure does not have (`state`, `event`,
