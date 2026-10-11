@@ -167,16 +167,19 @@ Two things make this bite:
    map) handles the order — and that is exactly the lemma whose `⇒-app`
    case needs `suc`-preservation.
 
-**The fix** is to make the weakening *append* its binder at the end with the
-**identity** renaming, while the substitution lemma's `extend` *prepends*.
-Then the two commute definitionally:
+**The candidate fix** is to make the weakening *append* its binder at the
+end with the **identity** renaming, while the substitution lemma's `extend`
+*prepends*. In the *plain* de Bruijn convention the two commute
+definitionally (`(Γ ++ [S]) ▷ d ≡ (Γ ▷ d) ++ [S]`, both `d ∷ (Γ ++ [S])`),
+and the identity renaming trivially preserves `suc` and fixes `0`.
 
-    extend (extendEnd Γ S) d ≡ extendEnd (extend Γ d) S
-
-(both are `d ∷ (Γ ++ [S])`), the weakening renaming is the identity (which
-trivially preserves `suc` and fixes `0`), and the `⇒-app` case goes through.
-This requires a second, append-at-end context view alongside the
-prepend-at-front one — the concrete next step.
+**But this conflicts with the global convention.** The typing judgment's
+`extend Γ T = renameCtx wk Γ ▷ rename wk T` renames the existing types, so
+`extend (Γ ++e S) d` is *not* `(Γ ++e S) ▷ d`, and the commutation with the
+append-at-end view fails. Resolving this requires either (a) dropping the
+global convention (and re-deriving the substitution lemma's `⇒-var` cases,
+which is what motivated it), or (b) defining the append-at-end view in the
+same renaming convention. This is the concrete next step.
 
 ### Open research questions (docs/SOUNDNESS.md §7, §8)### Open research questions (docs/SOUNDNESS.md §7, §8)
 
