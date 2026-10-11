@@ -10,7 +10,7 @@ authors = ["Cure Core Team <info@cure-lang.org>"]
 # The grammar lives in this repository under `tree-sitter-cure/`. `rev` must be
 # a commit on the remote that contains it; bump it whenever the grammar changes.
 repository = "https://github.com/cure-lang/cure-lang"
-rev = "ecec7d9dffc2266c2ecf220f6b5219688eeec73b"
+rev = "0f1a8bb170b07e80e695fdb3bf3e3f6e74400ce4"
 path = "tree-sitter-cure"
 
 
