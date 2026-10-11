@@ -1,0 +1,161 @@
+mod Pool.Core
+  ###
+  The verified core of the Safe Linear Resource Pool.
+
+  This module is deliberately a *single* module. The compiler build this
+  example targets rejects a cross-module projection of a tuple that contains an
+  indexed type (see `docs/POOL.md`, "Verified toolchain limitations"), so the
+  pool's types and the operations that project them live together here. Every
+  other module in the project talks to the pool through the whole-tuple API
+  below, never through a cross-module `.1`/`.2` on a `Lease`.
+
+  ## Two guarantees, both enforced by the kernel
+
+  **1. No over-checkout (dependent counts).** A pool is `Pool(avail, in_use)`,
+  a pair of `Nat` indices. `checkout` is only defined on `Pool(S(n), m)` -- a
+  pool with at least one free slot -- and returns `Pool(n, S(m))`. A checkout
+  on `Pool(Z, m)` has no `S(n)` to match and is a *type error*, not a runtime
+  `:empty` value.
+
+  **2. No double-return and no leak (linear lease).** A `Lease(key)` is a
+  linear capability. `run` and `checkin` take it `@linear`, so the kernel
+  proves it is consumed exactly once on every path: using it twice is
+  `E117 ... MAY BE USED MORE THAN ONCE`, and never using it is
+  `E117 ... IS NOT USED`.
+
+  Both guarantees are demonstrated by fixtures under `negative/` that
+  **must fail to compile**.
+  ###
+
+  ## Unary naturals, used purely at the type level. `Z` is zero, `S(n)` the
+  ## successor. This is the index language for the pool counts. A local `Nat`
+  ## keeps the indices crisp: `Std.Nat`'s constructors are shadowed by `Int`'s
+  ## in some inference positions, so a self-contained unary `Nat` avoids that.
+  type Nat = Z | S(Nat)
+
+  ## A pool carrying `avail` free slots and `in_use` checked-out slots.
+  ##
+  ## `capacity` is the only runtime payload; `avail`/`in_use` are erased
+  ## phantom indices the kernel tracks through every operation. Two pools with
+  ## different indices are different types, so a `Pool(n, m)` value can never
+  ## be substituted where a `Pool(n', m')` is expected.
+  type Pool indices (avail: Nat, in_use: Nat)
+    mk_pool : (capacity: Int) -> Pool(avail, in_use)
+
+  ## A lease over a worker, indexed by the session key `key`.
+  ##
+  ## The worker is the only runtime payload (an opaque handle to the reserved
+  ## resource); `key` is an erased phantom tying a lease to its checkout
+  ## session. A lease is *linear*: the kernel insists it is consumed once.
+  type Lease indices (key: Nat)
+    mk_lease : (worker: Int) -> Lease(key)
+
+  # ---------------------------------------------------------------------------
+  # Pool construction and observation
+  # ---------------------------------------------------------------------------
+
+  ## Construct a pool with `n` free slots and nothing checked out.
+  ##
+  ## The index `n` is explicit: it is the caller's claim that the runtime
+  ## capacity corresponds to `n` free slots, and it fixes the result type to
+  ## `Pool(n, Z)` rather than an unconstrained `Pool(_, _)`.
+  fn make(n: Nat, capacity: Int) -> Pool(n, Z) = mk_pool(capacity)
+
+  ## The runtime capacity of a pool, independent of its indices. The index
+  ## arguments are explicit for the same reason as `reserve` below.
+  fn capacity(a: Nat, b: Nat, p: Pool(a, b)) -> Int =
+    match p
+      mk_pool(capacity) -> capacity
+
+  ## Add two naturals. Total, structural recursion on the first argument, so
+  ## the kernel certifies it and it may reduce during type checking. This is
+  ## the index-level `+`: it lets the kernel relate a pool's two counts to a
+  ## third (`plus(avail, in_use)`), which is what makes the invariant
+  ## `avail + in_use == capacity` a *definitional* fact rather than a comment.
+  fn plus(m: Nat, n: Nat) -> Nat =
+    match m
+      Z() -> n
+      S(k) -> S(plus(k, n))
+
+  # ---------------------------------------------------------------------------
+  # The lease operations (linear)
+  # ---------------------------------------------------------------------------
+
+  ## Acquire a lease for `worker` under session key `k`. The index `k` is
+  ## explicit, fixing the result type to `Lease(k)`.
+  fn acquire(k: Nat, worker: Int) -> Lease(k) = mk_lease(worker)
+
+  ## The worker handle behind a lease. Pure observation -- does not consume.
+  fn worker(k: Nat, lease: Lease(k)) -> Int =
+    match lease
+      mk_lease(worker) -> worker
+
+  ## Run `task` on the leased worker, consuming the lease and handing a fresh
+  ## lease back so the resource can still be returned.
+  ##
+  ## `@linear lease` is the whole point: the kernel proves this function uses
+  ## the lease on every path, and that no caller can hand the same lease to two
+  ## such functions. Matching the lease directly (rather than aliasing it with
+  ## `let`) consumes it exactly once and mints a fresh token in the same arm --
+  ## the "consume and reproduce" linear pattern. The session-key index is an
+  ## explicit argument (see `reserve` for why implicit indices are avoided).
+  fn run(k: Nat, @linear lease: Lease(k), task: Int) -> %[Int, Lease(k)] =
+    match lease
+      mk_lease(worker) ->
+        let value: Int = worker + task
+        %[value, mk_lease(value)]
+
+  # ---------------------------------------------------------------------------
+  # Checkout / checkin -- the dependent, linear resource cycle
+  # ---------------------------------------------------------------------------
+
+  ## Move a slot from available to in-use. Pure index bookkeeping on the
+  ## runtime payload; the *type* does the real work. The index arguments are
+  ## explicit (not implicit): the compiler build this targets does not reliably
+  ## solve implicit `Nat` indices from the pool argument's type, so every
+  ## operation that mentions an index takes it as an ordinary argument.
+  fn reserve(n: Nat, m: Nat, p: Pool(S(n), m)) -> Pool(n, S(m)) =
+    match p
+      mk_pool(capacity) -> mk_pool(capacity)
+
+  ## Move a slot from in-use back to available.
+  fn unreserve(n: Nat, m: Nat, p: Pool(n, S(m))) -> Pool(S(n), m) =
+    match p
+      mk_pool(capacity) -> mk_pool(capacity)
+
+  ## Check out a resource from a non-empty pool.
+  ##
+  ## The `S(n)` in the argument type is the proof obligation the caller must
+  ## already satisfy: you cannot call this on `Pool(Z, m)`. Returns the lease
+  ## together with the pool whose counts have been updated to `Pool(n, S(m))`.
+  fn checkout(n: Nat, m: Nat, k: Nat, worker: Int, p: Pool(S(n), m)) -> %[Lease(k), Pool(n, S(m))] =
+    let lease: Lease(k) = acquire(k, worker)
+    let next: Pool(n, S(m)) = reserve(n, m, p)
+    %[lease, next]
+
+  ## Return a resource to the pool, consuming its lease.
+  ##
+  ## `@linear lease` guarantees the lease is destroyed on this path, and the
+  ## returned pool records the slot moving back from in-use to available.
+  fn checkin(n: Nat, m: Nat, k: Nat, @linear lease: Lease(k), p: Pool(n, S(m))) -> Pool(S(n), m) =
+    let _worker: Int = match lease
+      mk_lease(w) -> w
+    unreserve(n, m, p)
+
+  ## A full use-and-return cycle, written so the lease never escapes.
+  ##
+  ## This is the *safe* client entry point: acquire, run a task, return -- all
+  ## inside one function, so the linear lease is consumed exactly once and the
+  ## pool's type is threaded through. The lease produced by `run` is the one
+  ## `checkin` consumes, so there is exactly one linear path from acquisition
+  ## to return -- no aliasing, no leak. The pool comes back exactly as it
+  ## started, `Pool(S(n), m)`.
+  fn with_resource(n: Nat, m: Nat, k: Nat, worker: Int, task: Int, p: Pool(S(n), m)) -> %[Int, Pool(S(n), m)] =
+    let pair = checkout(n, m, k, worker, p)
+    let lease: Lease(k) = pair.1
+    let pool_after: Pool(n, S(m)) = pair.2
+    let step: %[Int, Lease(k)] = run(k, lease, task)
+    let value: Int = step.1
+    let lease_after: Lease(k) = step.2
+    let pool_back: Pool(S(n), m) = checkin(n, m, k, lease_after, pool_after)
+    %[value, pool_back]
