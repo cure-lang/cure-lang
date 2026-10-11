@@ -4,6 +4,7 @@
   "description": "Rich language support, LSP diagnostics, MCP AI tooling, and interactive REPL for Cure",
   "version": "0.34.0",
   "publisher": "cure-lang",
+  "icon": "images/icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/cure-lang/cure-lang.git"
@@ -34,7 +35,11 @@
         "extensions": [
           ".cure"
         ],
-        "configuration": "./language-configuration.json"
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./images/cure-file.svg",
+          "dark": "./images/cure-file.svg"
+        }
       }
     ],
     "grammars": [
