@@ -1,0 +1,5 @@
+(paren_group ["(" "$("] @open ")" @close)
+(bracket_group ["[" "%["] @open "]" @close)
+(brace_group ["{" "%{"] @open "}" @close)
+(interpolation "#{" @open "}" @close)
+(string "\"" @open "\"" @close)

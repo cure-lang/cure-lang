@@ -1,0 +1,25 @@
+{
+  "name": "tree-sitter-cure",
+  "version": "0.1.0",
+  "description": "Lexical tree-sitter grammar for the Cure programming language",
+  "license": "MIT",
+  "tree-sitter": [
+    {
+      "scope": "source.cure",
+      "file-types": [
+        "cure"
+      ]
+    }
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cure-lang/cure-lang",
+    "directory": "tree-sitter-cure"
+  },
+  "files": [
+    "grammar.js",
+    "src",
+    "queries",
+    "tree-sitter.json"
+  ]
+}
