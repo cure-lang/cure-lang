@@ -10,6 +10,8 @@ local default_config = {
     cmd = nil,
     auto_attach = true,
     settings = {},
+    capabilities = nil,
+    on_attach = nil,
   },
   mcp = {
     enabled = true,
@@ -31,11 +33,6 @@ M.config = {}
 ---@param user_opts table|nil
 function M.setup(user_opts)
   M.config = vim.tbl_deep_extend("force", default_config, user_opts or {})
-
-  -- Configure LSP
-  if M.config.lsp.enabled then
-    lsp.setup_lspconfig(M.config.lsp)
-  end
 
   -- Auto-start MCP server if configured
   if M.config.mcp.enabled and M.config.mcp.auto_start then

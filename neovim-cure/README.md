@@ -67,6 +67,26 @@ use {
 
 ---
 
+## ⚡ LSP
+
+The plugin starts `cure-lsp` itself with `vim.lsp.start`, one client per
+project (the nearest directory with a `Cure.toml`, `mix.exs` or `.git`). It
+looks for `cure-lsp` on `PATH`, then in the current directory; set `lsp.cmd`
+to point elsewhere. Don't also configure `cure` through nvim-lspconfig, or
+each buffer gets two clients.
+
+```lua
+require("cure").setup({
+  lsp = {
+    cmd = { "/path/to/cure-lang/cure-lsp" },
+    capabilities = require("cmp_nvim_lsp").default_capabilities(), -- optional
+    on_attach = function(client, bufnr) end,                     -- optional
+  },
+})
+```
+
+---
+
 ## 🛠️ Commands & Keymaps
 
 | Command | Keymap | Description |
