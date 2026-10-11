@@ -142,6 +142,10 @@ record Conversion : Set₁ where
     -- (Proof/Preservation.agda), which become projections.
     ≈-rename   : ∀ {t u} (ρ : Ren) → t ≈ u → rename ρ t ≈ rename ρ u
     ≈-subst    : ∀ {t u} (σ : Sub) → t ≈ u → substS σ t ≈ substS σ u
+    -- Substitution congruence: pointwise-convertible substitutions give
+    -- convertible results. This is what lets `ξ-app₂` / `ξ-let` / `ξ-case`
+    -- relate `substTopT a c` to `substTopT a′ c` when the argument steps.
+    ≈-subst-cong : ∀ {t} {σ σ′ : Sub} → (∀ i → σ i ≈ σ′ i) → substS σ t ≈ substS σ′ t
     -- REFLECTION OF THE HEAD CONSTRUCTOR (the FSCD'25 injectivity property).
     --
     -- The kernel's conversion is structural on WHNF values, so a type

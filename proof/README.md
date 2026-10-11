@@ -82,7 +82,7 @@ recommends.
 | `Proof.Substitution` | shift/subst algebraic laws | ✅ `shift-0`, `shift-var-1`, the rename/subst interaction laws, and the branch-field lemmas **proved**; only `shift-subst` (app case) open |
 | `Proof.Context` | Length-indexed context laws: weakening lookup, `extendⁿ` lookup, branch morphism `extF` | ✅ **proved** |
 | `Proof.Progress` | `Final` Core; the four side conditions; `progress` | ✅ **proved** |
-| `Proof.Preservation` | `weaken`, `subst⇒`, `subst⇐`, `preservation` | ⚠️ renaming/substitution lemmas **proved** except `ren-app`/`subst-app`; `preservation` open |
+| `Proof.Preservation` | `weaken`, `subst⇒`, `subst⇐`, `preservation` | ⚠️ renaming/substitution + `ξ-*` congruence cases **proved**; β/ζ/ι/δ inference-preservation open |
 | `Proof.Soundness` | `EvalResult`; `soundness` | ⚠️ statement done, proof open |
 
 ## Status
@@ -169,13 +169,14 @@ These are the `postulate`s, each with a named proof strategy in the source:
 4. **`progress`** (`Proof/Progress.agda`) — **PROVED** by mutual cases on the
    typing derivation (infer and check), consuming the canonical-form lemmas to
    show β and ι fire. See [The `progress` inputs](#the-progress-inputs).
-5. **`preservation`** (`Proof/Preservation.agda`) — the four cases β, ζ, ι,
-   δ. β/ζ consume `subst⇐`; ι is the branch-coverage lemma; δ consumes
-   `Certified`. The β/ζ/ι cases are independent of the app case; the
-   statement is left open pending the app case and the closedness axioms.
+5. **`preservation`** (`Proof/Preservation.agda`) — **the `ξ-*` congruence
+   cases and the β/ζ CHECKING cases are proved** (generalised to an arbitrary
+   context `Γ`). The remaining obligations are the inference-preservation
+   gaps: β/ζ/ι/δ do not preserve INFERABILITY (the reduct's continuation is
+   only checked), and the `ξ-app₂` / `ξ-case` result types name their subterm
+   syntactically. See [The `preservation` findings](#the-preservation-findings).
 6. **`soundness`** (`Proof/Soundness.agda`) — the type-safety induction
    combining Progress and Preservation.
-
 ### The `progress` inputs
 
 The `progress` proof is not blocked on a design question — every input it
@@ -200,6 +201,30 @@ needs is now proved or present:
 `Covers` (`Proof.Progress`) is strengthened to yield a branch NAMED `c`
 (not merely some branch in the list) — the honest reading of "a branch for
 constructor `c`", and what `findBranch` needs.
+
+### The `preservation` findings
+
+Proving `preservation` surfaced three genuine tensions in the framework,
+all resolved by extending it:
+
+- **β / ζ / ι / δ do not preserve INFERABILITY.** The β reduct
+  `substTopT a b` has its continuation only *checked* (`b` checks the
+  codomain, it does not infer it), so it cannot be shown to infer `T`. The
+  CHECKING-mode `preserve-β` / `preserve-ζ` are what the soundness argument
+  needs; the inferring-mode statements are recorded as obligations.
+- **The `ξ-app₂` / `ξ-let` / `ξ-case` result types name their subterm
+  SYNTACTICALLY** (`⇒-app` returns `substTopT a c`, `⇒-case` returns
+  `tm-app m s`), so the reduced subterm's type differs unless the two are
+  convertible. Resolved by the `ReduceConv` hypothesis (`⇝ ⊆ ≈`): the
+  kernel's `conv?` normalises both sides, so a reduct is definitionally
+  equal to its redex. `≈-subst-cong` (substitution congruence) then relates
+  `substTopT a c` to `substTopT a′ c`.
+- **The `ξ-lam-body` / `ξ-pi-cod` congruences reduce UNDER A BINDER**, so
+  `preservation` is generalised from `⟨⟩` to an arbitrary context `Γ`; the
+  `ξ-lam-dom` / `ξ-pi-dom` cases (which change the binder's domain) are
+  transported by the CONTEXT CONVERSION lemma (`conv⇒` / `conv⇐`).
+
+### The `invert-data` finding
 
 ### The `invert-data` finding
 The naive canonical-form lemma "a canonical value of data type is a

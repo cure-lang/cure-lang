@@ -42,6 +42,7 @@ open import Core.Signature using (IndEnv; Family; Ctor; Telescope; findFamily; f
 open import Core.Reduction
 open import Core.Typing using (Ctx; ⟨⟩; _▷_; lookup; extend; lookup-extend; lookup-renameCtx; renameCtx; Conversion; extendⁿ; _∈Tele_; ∈-here; ∈-there)
 open import Proof.Values using (Canonical; Neutral; Value)
+open import Proof.Progress using (Final)
 open import Proof.Inversion
 open import Proof.Substitution
 open import Proof.Context using (lookup-weaken; lookup-head;
@@ -71,8 +72,16 @@ ClosedSig ind sig =
   × (∀ (f : Family) (ct : Ctor)
      → Scoped 0 (tm-data (fam-name f) (ctor-params ct) (ctor-indices ct)))
 
+-- Reduction implies conversion: the kernel's `conv?` normalises both sides,
+-- so a one-step reduct is definitionally equal to its redex. This makes the
+-- `ξ-*` congruences type-preserving (the result type of `⇒-app` / `⇒-let` /
+-- `⇒-case` names the argument SYNTACTICALLY). A hypothesis (not a `Conversion`
+-- field) because it mentions the signature-parameterised `_⇝_`.
+ReduceConv : Signature → Conversion → Set
+ReduceConv sig conv = ∀ {t t′} → _⇝_ sig t t′ → Conversion._≈_ conv t t′
+
 module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
-               (closed : ClosedSig ind sig) where
+               (closed : ClosedSig ind sig) (rc : ReduceConv sig conv) where
   open Core.Typing.Typing ind sig conv
   open Proof.Inversion.Invert ind sig conv using (conv-pi-components)
 
@@ -727,38 +736,38 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
   -- Π type `tm-pi g′ d′ c′`; Π injectivity gives `d′ ≈ d` and `c′ ≈ c`; the
   -- body (which checks `c′` under `d′`) is converted to check `c` under `d`
   -- by CONTEXT CONVERSION, and `substTop⇐` instantiates it.
-  preserve-β-conv-aux : ∀ {g g′ d′ d b a c T₀}
-    → ⟨⟩ ⊢ tm-lam g′ d′ b ⇒ T₀
+  preserve-β-conv-aux : ∀ {n} {Γ : Ctx n} {g g′ d′ d b a c T₀}
+    → Γ ⊢ tm-lam g′ d′ b ⇒ T₀
     → Conversion._≈_ conv T₀ (tm-pi g d c)
-    → ⟨⟩ ⊢ a ⇒ d
-    → ⟨⟩ ⊢ substTopT a b ⇐ substTopT a c
-  preserve-β-conv-aux {g = g} {d = d} {b = b} {a = a} {c = c} {T₀ = T₀} dflam ceq da =
-    substTop⇐ {n = zero} {Γ = ⟨⟩} {A = d} body-checks da
+    → Γ ⊢ a ⇒ d
+    → Γ ⊢ substTopT a b ⇐ substTopT a c
+  preserve-β-conv-aux {Γ = Γ} {g = g} {d = d} {b = b} {a = a} {c = c} {T₀ = T₀} dflam ceq da =
+    substTop⇐ {Γ = Γ} {A = d} body-checks da
     where
       c′ : Term
       c′ = proj₁ (lam-type-pi dflam)
       eq″ : Conversion._≈_ conv T₀ (tm-pi _ _ c′)
       eq″ = proj₁ (proj₂ (lam-type-pi dflam))
-      der′ : ⟨⟩ ⊢ tm-lam _ _ b ⇒ tm-pi _ _ c′
+      der′ : Γ ⊢ tm-lam _ _ b ⇒ tm-pi _ _ c′
       der′ = proj₂ (proj₂ (lam-type-pi dflam))
       comps = conv-pi-components (Conversion.≈-trans conv (Conversion.≈-sym conv eq″) ceq)
-      body-checks : extend ⟨⟩ d ⊢ b ⇐ c
-      body-checks = conv⇐ (ext-conv (proj₁ (proj₂ comps)) (λ ())) (proj₂ (proj₂ comps)) (⇒-lam-inv der′)
+      body-checks : extend Γ d ⊢ b ⇐ c
+      body-checks = conv⇐ (ext-conv (proj₁ (proj₂ comps)) (λ i → Conversion.≈-refl conv)) (proj₂ (proj₂ comps)) (⇒-lam-inv der′)
   -- β: `(λx. b) a ⇝ b[x := a]`.
   --
-  -- PROVED. `⇒-app` gives `⟨⟩ ⊢ tm-lam g d b ⇒ tm-pi g d c` (so `T =
-  -- substTopT a c`) and `⟨⟩ ⊢ a ⇒ d`; `⇒-lam-inv` gives
-  -- `extend ⟨⟩ d ⊢ b ⇐ c`. `substTop⇐` yields
-  -- `⟨⟩ ⊢ substTopT a b ⇐ substTopT a c`.
+  -- PROVED. `⇒-app` gives `Γ ⊢ tm-lam g d b ⇒ tm-pi g d c` (so `T =
+  -- substTopT a c`) and `Γ ⊢ a ⇒ d`; `⇒-lam-inv` gives
+  -- `extend Γ d ⊢ b ⇐ c`. `substTop⇐` yields
+  -- `Γ ⊢ substTopT a b ⇐ substTopT a c`.
   preserve-β :
-    ∀ {g d b a T}
-    → ⟨⟩ ⊢ tm-app (tm-lam g d b) a ⇒ T
-    → ⟨⟩ ⊢ substTopT a b ⇐ T
-  preserve-β {g = g} {d = d} {b = b} {a = a} (⇒-app {g = g} {d = d} {c = c} (⇒-lam {g = g} {d = d} {b = b} {c = c} dd db) da) =
-    substTop⇐ {n = zero} {Γ = ⟨⟩} {A = d}
+    ∀ {n} {Γ : Ctx n} {g d b a T}
+    → Γ ⊢ tm-app (tm-lam g d b) a ⇒ T
+    → Γ ⊢ substTopT a b ⇐ T
+  preserve-β {Γ = Γ} {g = g} {d = d} {b = b} {a = a} (⇒-app {g = g} {d = d} {c = c} (⇒-lam {g = g} {d = d} {b = b} {c = c} dd db) da) =
+    substTop⇐ {Γ = Γ} {A = d}
               (⇒-lam-inv {g = g} {d = d} {b = b} {c = c}
                          (⇒-lam {g = g} {d = d} {b = b} {c = c} dd db)) da
-  preserve-β {g = g} {d = d} {b = b} {a = a} (⇒-app {c = c} (⇒-conv {T = T₀} dflam ceq) da) =
+  preserve-β {Γ = Γ} {g = g} {d = d} {b = b} {a = a} (⇒-app {c = c} (⇒-conv {T = T₀} dflam ceq) da) =
     preserve-β-conv-aux dflam ceq da
 
   preserve-β (⇒-conv der eq) = ⇐-conv (preserve-β der) eq
@@ -767,55 +776,155 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
 
   -- ζ: `let x = v in b ⇝ b[x := v]`.
   --
-  -- Similar to β: `⇒-let` gives `⟨⟩ ⊢ v ⇐ ty` and `extend ⟨⟩ ty ⊢ b ⇒ T`
+  -- Similar to β: `⇒-let` gives `Γ ⊢ v ⇐ ty` and `extend Γ ty ⊢ b ⇒ T`
   -- (so the result type is `substTopT v T`); `value-infer` turns the
   -- checked value into an inferring one, and `substTop⇐` gives the result.
   preserve-ζ :
-    ∀ {g ty v b T}
-    → ⟨⟩ ⊢ tm-let g ty v b ⇒ T
+    ∀ {n} {Γ : Ctx n} {g ty v b T}
+    → Γ ⊢ tm-let g ty v b ⇒ T
     → Value v
     → HoleFree v
-    → ⟨⟩ ⊢ substTopT v b ⇐ T
-  preserve-ζ {g = g} {ty = ty} {v = v} {b = b} {T = T} (⇒-let {l = l} dty dv db) val hf =
-    substTop⇐ {n = zero} {Γ = ⟨⟩} {A = ty} (⇒-check db) (value-infer hf val dv)
+    → Γ ⊢ substTopT v b ⇐ T
+  preserve-ζ {Γ = Γ} {g = g} {ty = ty} {v = v} {b = b} {T = T} (⇒-let {l = l} dty dv db) val hf =
+    substTop⇐ {Γ = Γ} {A = ty} (⇒-check db) (value-infer hf val dv)
     where
       ⇒-check : ∀ {n} {Γ : Ctx n} {t T} → Γ ⊢ t ⇒ T → Γ ⊢ t ⇐ T
       ⇒-check der = ⇐-infer der (Conversion.≈-refl conv)
   preserve-ζ (⇒-conv der eq) val hf = ⇐-conv (preserve-ζ der val hf) eq
 
 
+  ------------------------------------------------------------------------
 
-  -- The remaining reduction rules (ι, δ, and the congruence rules).
+  -- `substTopT` congruence under a convertible argument (via `≈-subst-cong`).
+  ≈-substTopT-cong : ∀ {a a′ c} → Conversion._≈_ conv a a′
+                   → Conversion._≈_ conv (substTopT a c) (substTopT a′ c)
+  ≈-substTopT-cong {a} {a′} {c} eq =
+    Conversion.≈-subst-cong conv {t = c} (λ { zero → eq ; (suc k) → Conversion.≈-refl conv })
+  -- A final term is hole-free (its subterms are too).
+  final-hole-free : ∀ {t} → Final t → HoleFree t
+  final-hole-free ft name eq = absurd-hole (subst Final eq ft)
+    where
+      absurd-hole : Final (tm-hole name) → ⊥
+      absurd-hole ()
+
+  ------------------------------------------------------------------------
+  -- The ι (branch substitution) and δ (certified unfolding) cases, and the
+  -- inference-preservation gaps (β/ζ do not preserve inferability; the
+  -- `ξ-app₂` / `ξ-case` result types name their subterm syntactically).
+  ------------------------------------------------------------------------
   postulate
+    preservation-ι : ∀ {n} {Γ : Ctx n} {m brs c ar b args T}
+      → Γ ⊢ tm-case (tm-ctor c args) m brs ⇒ T
+      → findBranch c brs ≡ just (c , ar , b)
+      → length args ≡ ar
+      → Γ ⊢ substArgs args b ⇒ T
+
+    preservation-ι-nat-zero : ∀ {n} {Γ : Ctx n} {m brs ar b T}
+      → Γ ⊢ tm-case (tm-nat_lit 0) m brs ⇒ T
+      → findBranch "Z" brs ≡ just ("Z" , ar , b)
+      → Γ ⊢ substArgs [] b ⇒ T
+
+    preservation-ι-nat-suc : ∀ {n} {Γ : Ctx n} {m brs ar b k T}
+      → Γ ⊢ tm-case (tm-nat_lit (suc k)) m brs ⇒ T
+      → findBranch "S" brs ≡ just ("S" , ar , b)
+      → Γ ⊢ substArgs (tm-nat_lit k ∷ []) b ⇒ T
+
+    preservation-ι-bounded-zero : ∀ {n} {Γ : Ctx n} {m brs ar b T}
+      → Γ ⊢ tm-case (tm-bounded_lit 0) m brs ⇒ T
+      → findBranch "First" brs ≡ just ("First" , ar , b)
+      → Γ ⊢ substArgs (tm-nat_lit 0 ∷ []) b ⇒ T
+
+    preservation-ι-bounded-suc : ∀ {n} {Γ : Ctx n} {m brs ar b k T}
+      → Γ ⊢ tm-case (tm-bounded_lit (suc k)) m brs ⇒ T
+      → findBranch "Next" brs ≡ just ("Next" , ar , b)
+      → Γ ⊢ substArgs (tm-nat_lit k ∷ tm-bounded_lit k ∷ []) b ⇒ T
+    preservation-δ : ∀ {n} {Γ : Ctx n} {f body′ T}
+      → Γ ⊢ tm-global f ⇒ T
+      → Signature.body sig f ≡ just body′
+      → Γ ⊢ body′ ⇒ T
     preservation-other :
-      ∀ {t t′ T} → ⟨⟩ ⊢ t ⇐ T → _⇝_ sig t t′ → ⟨⟩ ⊢ t′ ⇐ T
+      ∀ {n} {Γ : Ctx n} {t t′ T} → Γ ⊢ t ⇐ T → _⇝_ sig t t′ → Γ ⊢ t′ ⇐ T
 
-    preservation⇒-other :
-      ∀ {t t′ T} → ⟨⟩ ⊢ t ⇒ T → _⇝_ sig t t′ → ⟨⟩ ⊢ t′ ⇒ T
+    preservation⇒-β : ∀ {n} {Γ : Ctx n} {g d b a T}
+      → Γ ⊢ tm-app (tm-lam g d b) a ⇒ T
+      → Value a
+      → Γ ⊢ substTopT a b ⇒ T
 
+    preservation⇒-ζ : ∀ {n} {Γ : Ctx n} {g ty v b T}
+      → Γ ⊢ tm-let g ty v b ⇒ T
+      → Value v
+      → Γ ⊢ substTopT v b ⇒ T
 
-  preservation⇒ :
-    ∀ {t t′ T}
-    → ⟨⟩ ⊢ t ⇒ T
-    → _⇝_ sig t t′
-    → ⟨⟩ ⊢ t′ ⇒ T
-  preservation⇒ der rw = preservation⇒-other der rw
+    preservation⇒-case : ∀ {n} {Γ : Ctx n} {s s′ m brs n′ ps is T}
+      → Γ ⊢ s ⇒ tm-data n′ ps is
+      → Γ ⊢ m ⇒ T
+      → Γ ⊢*brs brs ⇐*ᵇ (n′ , m)
+      → _⇝_ sig s s′
+      → Γ ⊢ tm-case s′ m brs ⇒ tm-app m s
 
-  -- Preservation (docs/SOUNDNESS.md §4).
-  --
-  --   If `⟨⟩ ⊢ t ⇐ T` and `t ⇝ t′` then `⟨⟩ ⊢ t′ ⇐ T`.
-  --
-  -- The β and ζ cases are PROVED (see `preserve-β` / `preserve-ζ` above);
-  -- the ι (branch substitution), δ (certified unfolding), and congruence
-  -- cases are the remaining obligations, isolated in `preservation-other`.
-  preservation :
-    ∀ {t t′ T}
-    → ⟨⟩ ⊢ t ⇐ T
-    → _⇝_ sig t t′
-    → ⟨⟩ ⊢ t′ ⇐ T
-  preservation (⇐-infer der eq) rw = ⇐-infer (preservation⇒ der rw) eq
-  preservation (⇐-conv der eq) rw = ⇐-conv (preservation der rw) eq
-  preservation (⇐-cumul der le) rw = ⇐-cumul (preservation⇒ der rw) le
-  preservation (⇐-lam ds body) rw = preservation-other (⇐-lam ds body) rw
-  preservation ⇐-hole rw = preservation-other ⇐-hole rw
+    preservation⇒-case-motive : ∀ {n} {Γ : Ctx n} {s m m′ brs n′ ps is T}
+      → Γ ⊢ s ⇒ tm-data n′ ps is
+      → Γ ⊢ m ⇒ T
+      → Γ ⊢*brs brs ⇐*ᵇ (n′ , m)
+      → _⇝_ sig m m′
+      → Γ ⊢ tm-case s m′ brs ⇒ tm-app m s
+  mutual
+    -- Spine preservation: a checked spine stays checked when its entries step.
+    preservation-spine : ∀ {n} {Γ : Ctx n} {ts ts′} {tele : Telescope}
+                       → Γ ⊢* ts ⇐* tele
+                       → _⇝*ᵗ_ sig ts ts′
+                       → Γ ⊢* ts′ ⇐* tele
+    preservation-spine ⊢*[] ⇝*-nil = ⊢*[]
+    preservation-spine (⊢*∷ dx dxs) (⇝*-cons step steps) =
+      ⊢*∷ (preservation dx step) (preservation-spine dxs steps)
 
+    preservation⇒ :
+      ∀ {n} {Γ : Ctx n} {t t′ T}
+      → Γ ⊢ t ⇒ T
+      → _⇝_ sig t t′
+      → Γ ⊢ t′ ⇒ T
+    preservation⇒ (⇒-conv der eq) rw = ⇒-conv (preservation⇒ der rw) eq
+    preservation⇒ der (β va) = preservation⇒-β der va
+    preservation⇒ der (ζ vv) = preservation⇒-ζ der vv
+    preservation⇒ (⇒-app df da) (ξ-app₁ step) = ⇒-app (preservation⇒ df step) da
+    preservation⇒ {Γ = Γ} (⇒-app {a = a} {c = c} df da) (ξ-app₂ {a′ = a′} step) =
+      ⇒-conv (⇒-app df (preservation⇒ da step))
+              (Conversion.≈-sym conv (≈-substTopT-cong {c = c} (rc step)))
+    preservation⇒ {Γ = Γ} (⇒-let {v = v} {T = T} dty dv db) (ξ-let {v′ = v′} step) =
+      ⇒-conv (⇒-let dty (preservation dv step) db)
+              (Conversion.≈-sym conv (≈-substTopT-cong {c = T} (rc step)))
+    preservation⇒ (⇒-case ds dm dbrs) (ξ-case step) = preservation⇒-case ds dm dbrs step
+    preservation⇒ (⇒-case ds dm dbrs) (ξ-case-motive step) = preservation⇒-case-motive ds dm dbrs step
+    preservation⇒ {Γ = Γ} (⇒-pi {d = d} dd dc) (ξ-pi-dom {d′ = d′} step) =
+      ⇒-pi (preservation⇒ dd step)
+           (conv⇒ (ext-conv (rc step) (λ i → Conversion.≈-refl conv)) (Conversion.≈-refl conv) dc)
+    preservation⇒ (⇒-pi dd dc) (ξ-pi-cod step) = ⇒-pi dd (preservation⇒ dc step)
+    preservation⇒ {Γ = Γ} (⇒-lam {d = d} dd db) (ξ-lam-dom {d′ = d′} step) =
+      ⇒-conv (⇒-lam (preservation⇒ dd step)
+                     (conv⇐ (ext-conv (rc step) (λ i → Conversion.≈-refl conv)) (Conversion.≈-refl conv) db))
+              (Conversion.≈-sym conv (Conversion.≈-pi conv (rc step) (Conversion.≈-refl conv)))
+    preservation⇒ (⇒-lam dd db) (ξ-lam-body step) = ⇒-lam dd (preservation db step)
+    preservation⇒ (⇒-data p q r) (ξ-data-params step) = ⇒-data p (preservation-spine q step) r
+    preservation⇒ (⇒-data p q r) (ξ-data-indices step) = ⇒-data p q (preservation-spine r step)
+    preservation⇒ (⇒-ctor p q) (ξ-ctor step steps) = ⇒-ctor p (preservation-spine q (⇝*-cons step steps))
+    preservation⇒ (⇒-effect_type p) (ξ-effect_type step) = ⇒-effect_type (preservation⇒ p step)
+    preservation⇒ (⇒-effect_pure p) (ξ-effect_pure step) = ⇒-effect_pure (preservation⇒ p step)
+    preservation⇒ (⇒-effect_bind p q) (ξ-effect_bind₁ step) = ⇒-effect_bind (preservation⇒ p step) q
+    preservation⇒ (⇒-effect_bind p q) (ξ-effect_bind₂ step) = ⇒-effect_bind p (preservation⇒ q step)
+    preservation⇒ der (ι found len) = preservation-ι der found len
+    preservation⇒ der (ι-nat-zero found) = preservation-ι-nat-zero der found
+    preservation⇒ der (ι-nat-suc found) = preservation-ι-nat-suc der found
+    preservation⇒ der (ι-bounded-zero found) = preservation-ι-bounded-zero der found
+    preservation⇒ der (ι-bounded-suc found) = preservation-ι-bounded-suc der found
+    preservation⇒ der (δ p) = preservation-δ der p
+
+    preservation :
+      ∀ {n} {Γ : Ctx n} {t t′ T}
+      → Γ ⊢ t ⇐ T
+      → _⇝_ sig t t′
+      → Γ ⊢ t′ ⇐ T
+    preservation (⇐-infer der eq) rw = ⇐-infer (preservation⇒ der rw) eq
+    preservation (⇐-conv der eq) rw = ⇐-conv (preservation der rw) eq
+    preservation (⇐-cumul der le) rw = ⇐-cumul (preservation⇒ der rw) le
+    preservation (⇐-lam ds body) rw = preservation-other (⇐-lam ds body) rw
+    preservation (⇐-hole) rw = preservation-other ⇐-hole rw
