@@ -59,13 +59,16 @@ open import Core.Syntax
 -- The simultaneous substitution of a branch's fields: `args` in surface
 -- order, the LAST field at index 0 (so the list is reversed onto the
 -- indices). Indices at or above the field count are fixed.
+-- The worker is exposed at the top level (rather than `where`-bound) so the
+-- metatheory can reason about the shape of `argsSub`'s images: the first
+-- `length args` indices map to the fields, the rest to variables.
+argsSub-go : ℕ → List Term → Sub
+argsSub-go k [] i = tm-var (i + k)
+argsSub-go k (a ∷ as) zero = a
+argsSub-go k (a ∷ as) (suc i) = argsSub-go (suc k) as i
+
 argsSub : List Term → Sub
-argsSub args = go 0 (reverse args)
-  where
-    go : ℕ → List Term → Sub
-    go k [] i = tm-var (i + k)
-    go k (a ∷ as) zero = a
-    go k (a ∷ as) (suc i) = go (suc k) as i
+argsSub args = argsSub-go 0 (reverse args)
 
 substArgs : List Term → Term → Term
 substArgs args b = substS (argsSub args) b

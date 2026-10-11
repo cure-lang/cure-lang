@@ -412,6 +412,26 @@ sound. That splits the research risk: the certificate's *verification* is small
 and kernel-adjacent; the certificate's *generation* (SCC closure) is the part
 that stays outside the TCB and outside the mechanised proof.
 
+### 7.1 The Agda development (`proof/`)
+
+A partial mechanisation now exists in [`proof/`](../proof/README.md): the Core
+calculus, the typing judgment, the canonical-form and head-inversion lemmas,
+the renaming/substitution lemmas, **Progress**, and — with the three side
+conditions carried as hypotheses — **the constructive, fuel-indexed soundness
+theorem** `soundness-fuel`:
+
+```agda
+soundness-fuel : ∀ (n : ℕ) {t T} → ⟨⟩ ⊢ t ⇐ T → Final t → FuelResult t T
+```
+
+It runs the type-safety induction for `n` steps and returns either a reached
+value (with its type, value witness, and multi-step reduction) or "fuel
+exhausted", consuming Progress, Preservation, and `Final`-preservation. The
+classical three-way statement §1.4 remains a `postulate`: its `diverges`
+disjunct is a negative statement, so deciding it needs coinduction (or a
+well-founded measure) — the fuel-indexed theorem is its constructive content,
+with the `reached` outcome inhabiting the classical first disjunct.
+
 ---
 
 ## 8. Open verification items

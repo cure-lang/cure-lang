@@ -12,7 +12,7 @@ MODULES=(
   Core/Signature Core/Typing
   Proof/Values Proof/Inversion Proof/CanonicalForms Proof/Substitution
   Proof/Context
-  Proof/Progress Proof/Preservation Proof/Soundness
+  Proof/Progress Proof/Preservation Proof/FinalPreservation Proof/Soundness
 )
 
 fail=0

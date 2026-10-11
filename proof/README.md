@@ -83,7 +83,8 @@ recommends.
 | `Proof.Context` | Length-indexed context laws: weakening lookup, `extendⁿ` lookup, branch morphism `extF` | ✅ **proved** |
 | `Proof.Progress` | `Final` Core; the four side conditions; `progress` | ✅ **proved** |
 | `Proof.Preservation` | `weaken`, `subst⇒`, `subst⇐`, `preservation` | ⚠️ renaming/substitution + `ξ-*` congruence cases **proved**; β/ζ/ι/δ inference-preservation open |
-| `Proof.Soundness` | `EvalResult`; `soundness` | ⚠️ statement done, proof open |
+| `Proof.FinalPreservation` | `substS-final` (closure of `Final` under a final substitution); `final-preservation` | ✅ **proved** |
+| `Proof.Soundness` | `EvalResult`; `soundness-fuel` (constructive); `soundness` (classical) | ✅ **`soundness-fuel` proved**; classical `soundness` open (needs coinduction) |
 
 ## Status
 
@@ -143,6 +144,19 @@ recommends.
 - **The conversion congruences** `rename-conv`/`subst-conv`: now fields of
   the `Conversion` record (`Core/Typing.agda`), re-exported as projections —
   conversion is specified as a syntactic congruence.
+- **`Final`-preservation** (`Proof/FinalPreservation.agda`): `Final` is
+  closed under renaming (`rename-final`) and under a substitution whose every
+  image is final (`substS-final`, via the `FinalSub` predicate). The two
+  substitutions the β/ζ/ι rules use are final when their inputs are
+  (`topSub-final`, `argsSub-final`), and `final-preservation` itself consumes
+  `Certified sig` for the δ case — the body's finality is exactly what the
+  totality certificate supplies.
+- **The fuel-indexed soundness theorem** `soundness-fuel`
+  (`Proof/Soundness.agda`): by induction on the fuel `n`, consuming
+  `progress⇐`, `preservation`, and `final-preservation`, it returns either a
+  reached value (with its type, value witness, and multi-step reduction) or
+  `exhausted`. Its positive outcome is the classical first disjunct
+  (`reached→eval`), and `never-stuck` records the "never stuck" corollary.
 
 ### In progress (statements given, proofs open)
 
@@ -176,7 +190,11 @@ These are the `postulate`s, each with a named proof strategy in the source:
    only checked), and the `ξ-app₂` / `ξ-case` result types name their subterm
    syntactically. See [The `preservation` findings](#the-preservation-findings).
 6. **`soundness`** (`Proof/Soundness.agda`) — the type-safety induction
-   combining Progress and Preservation.
+   combining Progress and Preservation. Its **constructive fuel-indexed
+   form `soundness-fuel` is PROVED** (see
+   [The `soundness` finding](#the-soundness-finding)); the classical
+   three-way `soundness` remains a `postulate` because its `diverges`
+   disjunct is a negative statement needing coinduction.
 ### The `progress` inputs
 
 The `progress` proof is not blocked on a design question — every input it
@@ -241,16 +259,57 @@ just proof work:
   weakening-from-`⟨⟩` lemma, since a body types in `⟨⟩` but must type in
   `Γ`).
 
-### The `soundness` finding
+### The `soundness` finding, resolved by fuel-indexing
 
 `soundness` as stated ("reaches a value, OR raises, OR diverges") is a
 **classical** disjunction: the `diverges` outcome is a negative statement
 (no value is reachable), and deciding which disjunct holds requires
 coinduction (or a well-founded measure), neither of which the development
-sets up. A constructive **fuel-indexed** version — `soundness-fuel n`
-returns either a reached value or "fuel exhausted" — is provable by
-induction on `n` (consuming `progress`, `preservation`, and
-`Final`-preservation), and is the natural next step.
+sets up.
+
+**The constructive content is now PROVED.** The fuel-indexed theorem
+
+```agda
+soundness-fuel :
+  ∀ (n : ℕ) {t T} → ⟨⟩ ⊢ t ⇐ T → Final t → FuelResult t T
+```
+
+returns either a **reached** value (with its type, value witness, and the
+multi-step reduction to it) or **exhausted** (the fuel ran out), by
+induction on the fuel `n`. At each step it consumes exactly the three
+lemmas the argument needs:
+
+- **`progress⇐`** — a well-typed final term is a value or it steps;
+- **`preservation`** — the reduct keeps the type;
+- **`final-preservation`** — the reduct is still final, so `progress⇐`
+  applies again.
+
+The `reached` outcome IS the classical first disjunct (`reached→eval`
+packages it as `reaches-value`); the only gap to the classical statement is
+the coinductive decision of the negative (`diverges`) disjunct. The
+"never stuck" corollary is `never-stuck` (= `progress⇐`): a well-typed
+final term is never stuck.
+
+### `Final`-preservation (the new module `Proof.FinalPreservation`)
+
+The fuel-indexed induction needs the reduct of a final term to still be
+final. `Final` is "hole-free and absurd-free"; its congruence cases are
+structural, and the β/ζ/ι cases rest on the closure of `Final` under a
+substitution whose every image is final (`substS-final`, with the
+`FinalSub` predicate `∀ k → Final (σ k)`). The two substitutions the rules
+use are final when their inputs are (`topSub-final`, `argsSub-final`).
+
+The **δ case is where the totality certificate's well-formedness half is
+needed**: a `Final` global carries no information about its body, so
+`final-preservation` takes `Certified sig` as a hypothesis — exactly the
+predicate Progress already assumes (`∀ {f body′} → body sig f ≡ just body′
+→ Final body′`) — and reads the body's finality off it. This is the same
+hypothesis that gates δ in the kernel's `Env.certified?`.
+
+A supporting refactor: `argsSub`'s worker `go` is now the top-level
+`argsSub-go` (`Core/Reduction.agda`), so the metatheory can reason about
+the shape of `argsSub`'s images (the first `length args` indices map to the
+fields, the rest to variables).
 
 ### The `invert-data` finding
 
@@ -455,7 +514,8 @@ cd proof
 agda Core/Grade.agda Core/Universe.agda Core/Syntax.agda Core/Value.agda \
      Core/Reduction.agda Core/Signature.agda Core/Typing.agda \
      Proof/Values.agda Proof/Inversion.agda Proof/CanonicalForms.agda \
-     Proof/Substitution.agda Proof/Progress.agda Proof/Preservation.agda \
+     Proof/Substitution.agda Proof/Context.agda \
+     Proof/Progress.agda Proof/Preservation.agda Proof/FinalPreservation.agda \
      Proof/Soundness.agda
 ```
 

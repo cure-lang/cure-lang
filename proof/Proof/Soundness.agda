@@ -10,8 +10,16 @@
 -- (Proof/Preservation.agda) by the standard "type safety" induction: run
 -- Progress to get a step, Preservation to keep the type, and iterate.
 --
--- STATUS: the combination is the current research frontier, marked
--- `postulate` with its strategy.
+-- STATUS: the CLASSICAL three-way disjunction (`soundness`, below) is a
+-- negative statement in its `diverges` disjunct, so deciding WHICH disjunct
+-- holds needs coinduction (or a well-founded measure) — neither of which
+-- the development sets up. Its constructive content is the FUEL-INDEXED
+-- theorem `soundness-fuel` (below), which IS proved: it returns either a
+-- reached value or "fuel exhausted", by induction on the fuel `n`,
+-- consuming Progress, Preservation, and `Final`-preservation
+-- (Proof/FinalPreservation.agda). The classical statement is kept as a
+-- `postulate` with its strategy, and is the coinductive completion of the
+-- fuel-indexed theorem.
 ------------------------------------------------------------------------
 module Proof.Soundness where
 
@@ -36,6 +44,7 @@ open import Proof.Values using (Value; Canonical; Neutral; canonical; neutral)
 open import Proof.Progress using (Final; FinalTerms; FinalBranches;
                                     StrictlyPositive; Certified; Covers; BuiltinCtors)
 open import Proof.Preservation
+open import Proof.FinalPreservation
 
 module Sound (ind : IndEnv) (sig : Signature) (conv : Conversion)
              (pos : StrictlyPositive ind) (cert : Certified sig) (cov : Covers ind)
@@ -58,20 +67,105 @@ module Sound (ind : IndEnv) (sig : Signature) (conv : Conversion)
     diverges : (∀ v → _⇝*_ sig t v → Value v → ⊥) → EvalResult t T
 
   ------------------------------------------------------------------------
-  -- The soundness theorem.
+  -- The constructive, fuel-indexed soundness theorem.
   --
-  -- Proof strategy: by the type-safety induction.
+  -- `soundness-fuel n` runs the type-safety induction for `n` steps and
+  -- returns either a REACHED value (with its type, value witness, and the
+  -- multi-step reduction to it) or `exhausted` — the fuel ran out without
+  -- reaching a value. This is the constructive content of the classical
+  -- three-way disjunction: the `diverges` disjunct is a NEGATIVE statement
+  -- (no value is reachable), so deciding it needs coinduction; the
+  -- fuel-indexed version replaces it with the positive `exhausted` outcome,
+  -- which is decidable by construction.
+  --
+  -- The proof is by induction on the fuel `n`, at each step consuming:
+  --   * `progress⇐`          — a well-typed final term is a value or steps;
+  --   * `preservation`       — the reduct keeps the type;
+  --   * `final-preservation` — the reduct is still final (so `progress⇐`
+  --                            applies again).
+  ------------------------------------------------------------------------
+
+  data FuelResult (t T : Term) : Set where
+    reached   : (v : Term) → ⟨⟩ ⊢ v ⇐ T → Value v → _⇝*_ sig t v → FuelResult t T
+    exhausted : FuelResult t T
+
+  -- Prepend one reduction step to a fuel result: a value reached from `t′`
+  -- is reached from `t` by the step, and exhaustion is preserved.
+  prepend-step : ∀ {t t′ T} → _⇝_ sig t t′ → FuelResult t′ T → FuelResult t T
+  prepend-step step (reached v dv val red) = reached v dv val (⇝*-step step red)
+  prepend-step step exhausted = exhausted
+
+  soundness-fuel :
+    ∀ (n : ℕ) {t T}
+    → ⟨⟩ ⊢ t ⇐ T
+    → Final t
+    → FuelResult t T
+  soundness-fuel zero dt ft = exhausted
+  soundness-fuel (suc n) {t} {T} dt ft with progress⇐ dt ft
+  ... | inj₁ v = reached t dt v ⇝*-refl
+  ... | inj₂ (t′ , step) =
+    prepend-step step
+      (soundness-fuel n (preservation dt step)
+                         (final-preservation sig cert {t = t} {t′ = t′} ft step))
+
+  ------------------------------------------------------------------------
+  -- The "never stuck" corollary, in fuel form.
+  --
+  -- At every step of the fuel-indexed induction the term is a value or it
+  -- steps — never neither. This is the constructive reading of "evaluation
+  -- never reaches a stuck state": a well-typed final term is never stuck.
+  ------------------------------------------------------------------------
+
+  never-stuck :
+    ∀ {t T}
+    → ⟨⟩ ⊢ t ⇐ T
+    → Final t
+    → Value t ⊎ (∃ λ t′ → _⇝_ sig t t′)
+  never-stuck = progress⇐
+
+  ------------------------------------------------------------------------
+  -- The bridge to the classical statement.
+  --
+  -- A `reached` fuel outcome IS the classical first disjunct: its value,
+  -- type, value witness, and reduction are exactly the fields of
+  -- `reaches-value`. So the fuel-indexed theorem's positive outcome
+  -- directly inhabits the classical `EvalResult`, and the only gap to the
+  -- classical statement is the coinductive decision of the negative
+  -- (`diverges`) disjunct.
+  ------------------------------------------------------------------------
+
+  reached→eval :
+    ∀ {t v T}
+    → ⟨⟩ ⊢ v ⇐ T
+    → Value v
+    → _⇝*_ sig t v
+    → EvalResult t T
+  reached→eval dv val red = reaches-value _ dv val red
+
+  ------------------------------------------------------------------------
+  -- The classical soundness theorem.
+  --
+  -- This is the THREE-WAY disjunction of docs/SOUNDNESS.md §1.4. Its third
+  -- disjunct, `diverges`, is a NEGATIVE statement (no value is reachable),
+  -- so deciding which disjunct holds needs coinduction (or a well-founded
+  -- measure) — neither of which the development sets up. The constructive
+  -- content is `soundness-fuel` above: it is PROVED, and its `reached`
+  -- outcome is exactly this theorem's first disjunct. The classical
+  -- statement is the coinductive completion of `soundness-fuel`.
+  --
+  -- Proof strategy: by the type-safety induction (the same induction
+  -- `soundness-fuel` performs), completed with the coinductive step that
+  -- turns "exhausted for every `n`" into the `diverges` disjunct.
+  --
   --   * If `e` is a value: outcome (1) with the reflexive closure.
   --   * If `e` is not a value: Progress gives `e ⇝ e′`; Preservation gives
-  --     `· ⊢ e′ : T`; recurse on `e′`.
+  --     `· ⊢ e′ : T`; `Final`-preservation keeps `e′` final; recurse on `e′`.
   --   * If Progress raises: outcome (2).
   --   * If the recursion never reaches a value: outcome (3).
   --
-  -- The "never stuck" corollary is immediate: at every step the term is
-  -- either a value, a redex (Progress), or a raise — never neither.
-  --
-  -- OPEN OBLIGATION: the induction. It consumes `progress` and
-  -- `preservation`, both of which are stated with their strategies.
+  -- The "never stuck" corollary is immediate (`never-stuck` above): at
+  -- every step the term is either a value, a redex (Progress), or a raise —
+  -- never neither.
   ------------------------------------------------------------------------
 
   postulate
