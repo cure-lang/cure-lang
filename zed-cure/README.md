@@ -8,7 +8,7 @@ Provides high-performance language support, tree-sitter syntax queries, `cure-ls
 
 ## ✨ Features
 
-- 🎨 **Tree-sitter Syntax Highlighting**: Clean highlighting for Cure modules, dependent types, quantitative annotations (`erased`, `linear`, `affine`), OTP containers (`actor`, `sup`, `app`, `fsm`), Melquiades operator (`<-|`/`✉`), strings, atoms, and comments.
+- 🎨 **Syntax Highlighting**: Full highlighting for Cure code, including actors, FSMs, macros, decorators, string interpolation, and doc comments.
 - ⚡ **Language Server Protocol (LSP)**: Automatic discovery and connection to `cure-lsp` over stdio (diagnostics, auto-completion, hover signatures, formatting, symbol outline).
 - 🤖 **Model Context Protocol (MCP)**: Native integration with Zed's Assistant via `cure-mcp`. Registers Cure MCP context server (`cure mcp`) for AI capabilities directly in Zed!
 - 📐 **Indentation & Bracket Matching**: Smart indentation rules and auto-closing bracket pairs for `.cure` files.

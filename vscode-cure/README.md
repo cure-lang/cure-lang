@@ -8,7 +8,7 @@ Provides language support, LSP diagnostics, MCP AI integration, and REPL support
 
 ## ✨ Features
 
-- 🎨 **Syntax Highlighting**: TextMate grammar generated from the keyword list in [`tree-sitter-cure/`](../tree-sitter-cure), so it highlights the same words as the Zed and Neovim grammars: declarations (`mod`, `fn`, `type`, `actor`, `fsm`, `macro`, ...), contextual keywords (`have`, `requires`, `precedencegroup`, `infix`, ...), macro vocabulary, decorators (`@extern`, `@linear`), FSM transitions (`--coin-->`), the Melquiades operator (`<-|`/`✉`), string interpolation, chars, regexes, atoms, numbers, and `#`/`##`/`###` comments.
+- 🎨 **Syntax Highlighting**: Full highlighting for Cure code, including actors, FSMs, macros, decorators, string interpolation, and doc comments, the same as in Zed and Neovim.
 - ⚡ **Language Server Protocol (LSP)**: Automatic connection to `cure-lsp` over stdio:
   - Real-time compile diagnostics
   - Signature help & hover tooltips
