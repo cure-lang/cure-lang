@@ -320,6 +320,14 @@ defmodule Cure.LSP.LspTest do
       refute value =~ "A.helper"
     end
 
+    test "hover keeps a predicate's trailing ?" do
+      source = "mod P\n  ## Positive.\n  fn positive?(x: Int) -> Bool = x > 0\n  fn t() -> Bool = positive?(1)\n"
+
+      for char <- [19, 26] do
+        assert hover_value(source, 3, char) =~ "P.positive?(x: Int) -> Bool\n```\n\n---\n\nPositive."
+      end
+    end
+
     test "hover on non-definition returns nil" do
       state = %{
         initialized: true,

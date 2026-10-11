@@ -721,13 +721,15 @@ defmodule Cure.LSP.Server do
 
   # The dotted name ending with the identifier under the cursor: hovering
   # `List` in `Std.List.map` yields `Std.List`, hovering `map` yields
-  # `Std.List.map`.
+  # `Std.List.map`. Identifiers may contain `$` and end in a predicate `?`
+  # (`positive?`), as in the lexer.
   defp qualified_name_at(line, char) do
     graphemes = String.graphemes(line)
     {before, after_cursor} = Enum.split(graphemes, min(char, length(graphemes)))
-    prefix = before |> Enum.reverse() |> Enum.take_while(&(&1 =~ ~r/[a-zA-Z0-9_.]/)) |> Enum.reverse() |> Enum.join()
-    suffix = after_cursor |> Enum.take_while(&(&1 =~ ~r/[a-zA-Z0-9_]/)) |> Enum.join()
-    String.trim(prefix <> suffix, ".")
+    prefix = before |> Enum.reverse() |> Enum.take_while(&(&1 =~ ~r/[a-zA-Z0-9_$.]/)) |> Enum.reverse() |> Enum.join()
+    {word, rest} = Enum.split_while(after_cursor, &(&1 =~ ~r/[a-zA-Z0-9_$]/))
+    predicate = if match?(["?" | _], rest), do: "?", else: ""
+    String.trim(prefix <> Enum.join(word) <> predicate, ".")
   end
 
   defp extract_dotted_word_at(line, char) do
