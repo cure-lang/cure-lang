@@ -224,9 +224,36 @@ all resolved by extending it:
   `ξ-lam-dom` / `ξ-pi-dom` cases (which change the binder's domain) are
   transported by the CONTEXT CONVERSION lemma (`conv⇒` / `conv⇐`).
 
-### The `invert-data` finding
+Two further `preservation` obligations need a **framework extension**, not
+just proof work:
+
+- **The ι (branch substitution) case.** The `⊢*brs` rule types a branch's
+  field binders with `tm-hole "field"` (`extendⁿ`), but the ι reduction
+  substitutes the constructor's REAL arguments (typed by `ctor-args ct`).
+  The substitution lemma therefore cannot relate the hole-typed field
+  variables to the actual args. Proving ι needs `brs∷` to type the field
+  binders with the constructor's argument telescope (a change to the typing
+  judgment, rippling through the renaming/substitution lemmas).
+- **The δ (certified unfolding) case.** `Certified` (Proof.Progress) gives
+  only that a global's body is FINAL; δ preservation needs it to INFER the
+  global's declared type. This is the well-typedness half of the kernel's
+  `Env.certified?` and needs a strengthened signature hypothesis (plus a
+  weakening-from-`⟨⟩` lemma, since a body types in `⟨⟩` but must type in
+  `Γ`).
+
+### The `soundness` finding
+
+`soundness` as stated ("reaches a value, OR raises, OR diverges") is a
+**classical** disjunction: the `diverges` outcome is a negative statement
+(no value is reachable), and deciding which disjunct holds requires
+coinduction (or a well-founded measure), neither of which the development
+sets up. A constructive **fuel-indexed** version — `soundness-fuel n`
+returns either a reached value or "fuel exhausted" — is provable by
+induction on `n` (consuming `progress`, `preservation`, and
+`Final`-preservation), and is the natural next step.
 
 ### The `invert-data` finding
+
 The naive canonical-form lemma "a canonical value of data type is a
 `tm-ctor`" is **false**. `tm-nat_lit m` and `tm-bounded_lit k` are canonical
 (`c-nat_lit` / `c-bounded_lit`) and infer `tm-data Nat [] []` /
@@ -282,8 +309,6 @@ obligations are the ι (branch substitution) and δ (certified unfolding)
 cases and the congruence cases, plus the signature closedness axioms.
 
 ### Open research questions (docs/SOUNDNESS.md §7, §8)
-### Open research questions (docs/SOUNDNESS.md §7, §8)### Open research questions (docs/SOUNDNESS.md §7, §8)
-
 - **The totality certificate.** `Certified` is a stated hypothesis. A
   separate, smaller proof that the *size-change certificate verifier* is
   sound (the "translation validation" discipline) is the recommended next
