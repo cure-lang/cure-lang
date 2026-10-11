@@ -28,6 +28,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   Zed does not recognise (`indent_pattern`, `outdent_pattern`,
   `autoclosing_pairs`) and a `#| |#` block comment Cure does not have; it now
   uses `increase_indent_pattern` / `decrease_indent_pattern`.
+- `neovim-cure` could not be installed: its README pointed lazy.nvim and
+  packer at `cure-lang/neovim-cure`, a repository that does not exist. It now
+  installs `cure-lang/cure-lang` and adds `neovim-cure/` to the runtimepath;
+  `setup()` registers the filetype itself, since lazy.nvim does not source
+  `ftdetect/` in a subdirectory.
 - `neovim-cure` started two LSP clients per buffer when nvim-lspconfig was
   installed (one through lspconfig, one through `vim.lsp.start`), and one
   client per directory. It now starts a single client per project root.

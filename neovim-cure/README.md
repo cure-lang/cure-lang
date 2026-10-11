@@ -1,6 +1,6 @@
 # neovim-cure 🚀
 
-Comprehensive, modern Neovim plugin for the [Cure programming language](https://github.com/cure-lang/cure).
+Comprehensive, modern Neovim plugin for the [Cure programming language](https://github.com/cure-lang/cure-lang).
 
 Features first-class support for **Cure 0.34+**, including **LSP** (Language Server Protocol) and **MCP** (Model Context Protocol) integration.
 
@@ -24,18 +24,19 @@ Features first-class support for **Cure 0.34+**, including **LSP** (Language Ser
 
 ## 📦 Installation
 
+The plugin lives in the `neovim-cure/` directory of the Cure repository, next
+to the tree-sitter grammar it builds. Install the repository and put that
+directory on the runtimepath.
+
 ### Using [lazy.nvim](https://github.com/folke/lazy.nvim)
 
 ```lua
 {
-  "cure-lang/neovim-cure",
-  -- Or for local development:
-  -- dir = "/path/to/cure/neovim-cure",
-  ft = "cure",
-  dependencies = {
-    "neovim/nvim-lspconfig", -- Optional but recommended
-  },
-  config = function()
+  "cure-lang/cure-lang",
+  name = "cure",
+  lazy = false,
+  config = function(plugin)
+    vim.opt.rtp:append(plugin.dir .. "/neovim-cure")
     require("cure").setup({
       lsp = {
         enabled = true,
@@ -54,17 +55,16 @@ Features first-class support for **Cure 0.34+**, including **LSP** (Language Ser
 }
 ```
 
-### Using [packer.nvim](https://github.com/wbthomason/packer.nvim)
+For a local checkout, replace the first line with
+`dir = "/path/to/cure-lang"`.
 
-```lua
-use {
-  'cure-lang/neovim-cure',
-  ft = {'cure'},
-  config = function()
-    require('cure').setup()
-  end
-}
+### Using [vim-plug](https://github.com/junegunn/vim-plug)
+
+```vim
+Plug 'cure-lang/cure-lang', { 'rtp': 'neovim-cure' }
 ```
+
+and call `require('cure').setup()` from your config.
 
 ---
 
