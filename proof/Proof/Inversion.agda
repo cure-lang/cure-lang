@@ -64,19 +64,19 @@ module Invert (ind : IndEnv) (sig : Signature) (conv : Conversion) where
 
   -- A type convertible to a Π IS a Π (with a convertible domain and
   -- codomain); a type convertible to a data type IS a data type (with
-  -- convertible spines).
-  postulate
-    conv-injective-data :
-      ∀ {T′ n ps is}
-      → Conversion._≈_ conv T′ (tm-data n ps is)
-      → Σ (List Term) (λ ps′ → Σ (List Term) (λ is′ → T′ ≡ tm-data n ps′ is′))
+  -- convertible spines). Projections of the `Conversion` record's reflection
+  -- fields (`Core/Typing.agda`).
+  conv-injective-data :
+    ∀ {T′ n ps is}
+    → Conversion._≈_ conv T′ (tm-data n ps is)
+    → Σ (List Term) (λ ps′ → Σ (List Term) (λ is′ → T′ ≡ tm-data n ps′ is′))
+  conv-injective-data {T′} eq = Conversion.≈-data-inj conv (Conversion.≈-sym conv eq)
 
-  postulate
-    conv-injective-pi :
-      ∀ {T′ g d c}
-      → Conversion._≈_ conv T′ (tm-pi g d c)
-      → Σ Grade (λ g′ → Σ Term (λ d′ → Σ Term (λ c′ → T′ ≡ tm-pi g′ d′ c′)))
-
+  conv-injective-pi :
+    ∀ {T′ g d c}
+    → Conversion._≈_ conv T′ (tm-pi g d c)
+    → Σ Grade (λ g′ → Σ Term (λ d′ → Σ Term (λ c′ → T′ ≡ tm-pi g′ d′ c′)))
+  conv-injective-pi {T′} eq = Conversion.≈-pi-inj conv (Conversion.≈-sym conv eq)
   ------------------------------------------------------------------------
   -- Inversion of `infer` on a canonical head.
   --
@@ -149,11 +149,12 @@ module Invert (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   ... | ps′ , is′ , refl = invert-data can der
   -- The componentwise form of Π injectivity, used by Preservation's β case:
   -- convertible Πs have equal grades and convertible domains and codomains.
-  postulate
-    conv-pi-components :
-      ∀ {g d c g′ d′ c′}
-      → Conversion._≈_ conv (tm-pi g′ d′ c′) (tm-pi g d c)
-      → g′ ≡ g × (Conversion._≈_ conv d′ d) × (Conversion._≈_ conv c′ c)
+  -- A projection of the `Conversion` record's reflection field.
+  conv-pi-components :
+    ∀ {g d c g′ d′ c′}
+    → Conversion._≈_ conv (tm-pi g′ d′ c′) (tm-pi g d c)
+    → g′ ≡ g × (Conversion._≈_ conv d′ d) × (Conversion._≈_ conv c′ c)
+  conv-pi-components = Conversion.≈-pi-components conv
   ------------------------------------------------------------------------
   -- Checking-mode inversion, via conversion injectivity.
   ------------------------------------------------------------------------

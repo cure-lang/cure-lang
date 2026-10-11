@@ -140,7 +140,25 @@ record Conversion : Set₁ where
     -- (Proof/Preservation.agda), which become projections.
     ≈-rename   : ∀ {t u} (ρ : Ren) → t ≈ u → rename ρ t ≈ rename ρ u
     ≈-subst    : ∀ {t u} (σ : Sub) → t ≈ u → substS σ t ≈ substS σ u
-
+    -- REFLECTION OF THE HEAD CONSTRUCTOR (the FSCD'25 injectivity property).
+    --
+    -- The kernel's conversion is structural on WHNF values, so a type
+    -- convertible to `tm-data n ps is` IS a data type (with convertible
+    -- spines), and one convertible to `tm-pi g d c` IS a Π (with equal grade
+    -- and convertible components). Recording it here (rather than deriving
+    -- it) is what lets the head-inversion lemmas (Proof/Inversion.agda) lift
+    -- inference-mode inversion to checking mode; it is provable in a
+    -- meta-theory weaker than the object theory, which is why conversion
+    -- soundness does not require normalisation.
+    ≈-data-inj : ∀ {n ps is T′}
+               → tm-data n ps is ≈ T′
+               → Σ (List Term) (λ ps′ → Σ (List Term) (λ is′ → T′ ≡ tm-data n ps′ is′))
+    ≈-pi-inj   : ∀ {g d c T′}
+               → tm-pi g d c ≈ T′
+               → Σ Grade (λ g′ → Σ Term (λ d′ → Σ Term (λ c′ → T′ ≡ tm-pi g′ d′ c′)))
+    ≈-pi-components : ∀ {g d c g′ d′ c′}
+                    → tm-pi g′ d′ c′ ≈ tm-pi g d c
+                    → g′ ≡ g × (d′ ≈ d) × (c′ ≈ c)
 open Conversion public
 
 ------------------------------------------------------------------------
