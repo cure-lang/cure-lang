@@ -1,19 +1,19 @@
-; Code outline rules for Cure in Zed
-
 (module_declaration
-  name: (identifier) @name) @item
+  "mod" @context
+  name: (_) @name) @item
 
 (function_declaration
-  name: (identifier) @name) @item
+  "fn" @context
+  name: (_) @name) @item
 
 (type_declaration
-  name: (identifier) @name) @item
+  kind: (_) @context
+  name: (_) @name) @item
 
-(record_declaration
-  name: (identifier) @name) @item
+(container_declaration
+  kind: (_) @context
+  name: (_) @name) @item
 
-(actor_declaration
-  name: (identifier) @name) @item
-
-(fsm_declaration
-  name: (identifier) @name) @item
+(macro_declaration
+  kind: (_) @context
+  name: (_) @name) @item
