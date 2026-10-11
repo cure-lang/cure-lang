@@ -85,7 +85,7 @@ recommends.
 | `Proof.Substitution` | shift/subst algebraic laws | ✅ `shift-0`, `shift-var-1`, the rename/subst interaction laws, and the branch-field lemmas **proved**; only `shift-subst` (app case) open |
 | `Proof.Context` | Length-indexed context laws: weakening lookup, `extendⁿ` lookup, branch morphism `extF` | ✅ **proved** |
 | `Proof.Progress` | `Final` Core; the four side conditions; `progress` | ✅ **proved** |
-| `Proof.Preservation` | `weaken`, `subst⇒`, `subst⇐`, `preservation` | ⚠️ renaming/substitution + `ξ-*` congruence cases **proved**; β/ζ/ι/δ inference-preservation open |
+| `Proof.Preservation` | `weaken`, `subst⇒`, `subst⇐`, `check-infer`, `preservation` | ⚠️ renaming/substitution + `ξ-*`/β/ζ/λ/hole cases **proved**; only ι and δ open |
 | `Proof.FinalPreservation` | `substS-final` (closure of `Final` under a final substitution); `final-preservation` | ✅ **proved** |
 | `Proof.Soundness` | `EvalResult`; `soundness-fuel` (constructive); `Diverges`/`EvalTree`/`soundness-tree` (coinductive); `soundness` (classical) | ✅ **`soundness-fuel` and `soundness-tree` proved**; classical `soundness` open (needs the tree collapse) |
 
@@ -147,6 +147,19 @@ recommends.
 - **The conversion congruences** `rename-conv`/`subst-conv`: now fields of
   the `Conversion` record (`Core/Typing.agda`), re-exported as projections —
   conversion is specified as a syntactic congruence.
+- **`check-infer`** (`Proof/Preservation.agda`): a hole-free term that CHECKS
+  against a type INFERS it. This is the generalisation of `value-infer` that
+  needs no value structure, and it dissolves the β/ζ inference-preservation
+  gaps: the checking-mode `preserve-β`/`preserve-ζ` reducts infer their type
+  once the redex is `Final` (`substTop-hole-free`).
+- **`branches-conv`** (`Proof/Preservation.agda`): branch typing is stable
+  under CONVERSION of the motive (via `≈-rename`), which types the
+  `ξ-case-motive` congruence.
+- **`preservation`'s checking-mode cases** (`Proof/Preservation.agda`): the
+  β/ζ cases (via `preserve-β`/`preserve-ζ` + `check-infer`) and the
+  checking-mode λ/hole cases are proved, threading a `Final t` hypothesis.
+  The former `preservation-other`, `preservation⇒-β`, `preservation⇒-ζ`,
+  and `preservation⇒-case` postulates are gone.
 - **`Final`-preservation** (`Proof/FinalPreservation.agda`): `Final` is
   closed under renaming (`rename-final`) and under a substitution whose every
   image is final (`substS-final`, via the `FinalSub` predicate). The two
@@ -194,12 +207,15 @@ These are the `postulate`s, each with a named proof strategy in the source:
 4. **`progress`** (`Proof/Progress.agda`) — **PROVED** by mutual cases on the
    typing derivation (infer and check), consuming the canonical-form lemmas to
    show β and ι fire. See [The `progress` inputs](#the-progress-inputs).
-5. **`preservation`** (`Proof/Preservation.agda`) — **the `ξ-*` congruence
-   cases and the β/ζ CHECKING cases are proved** (generalised to an arbitrary
-   context `Γ`). The remaining obligations are the inference-preservation
-   gaps: β/ζ/ι/δ do not preserve INFERABILITY (the reduct's continuation is
-   only checked), and the `ξ-app₂` / `ξ-case` result types name their subterm
-   syntactically. See [The `preservation` findings](#the-preservation-findings).
+5. **`preservation`** (`Proof/Preservation.agda`) — **PROVED for every case
+   except ι and δ.** The `ξ-*` congruence cases, the β/ζ cases, and the
+   checking-mode λ/hole cases are all proved (generalised to an arbitrary
+   context `Γ`, threading a `Final t` hypothesis). The former
+   inference-preservation gaps are dissolved by `check-infer`; the
+   `ξ-app₂`/`ξ-let`/`ξ-case`/`ξ-case-motive` conversions by `ReduceConv`
+   and `branches-conv`. Only the ι (branch substitution) and δ (certified
+   unfolding) cases remain, both needing a framework extension. See
+   [The `preservation` findings](#the-preservation-findings).
 6. **`soundness`** (`Proof/Soundness.agda`) — the type-safety induction
    combining Progress and Preservation. Both constructive forms are
    **PROVED**: the **fuel-indexed `soundness-fuel`** and the **coinductive
@@ -238,24 +254,34 @@ constructor `c`", and what `findBranch` needs.
 Proving `preservation` surfaced three genuine tensions in the framework,
 all resolved by extending it:
 
-- **β / ζ / ι / δ do not preserve INFERABILITY.** The β reduct
+- **β / ζ do not preserve INFERABILITY — DISSOLVED.** The β reduct
   `substTopT a b` has its continuation only *checked* (`b` checks the
-  codomain, it does not infer it), so it cannot be shown to infer `T`. The
-  CHECKING-mode `preserve-β` / `preserve-ζ` are what the soundness argument
-  needs; the inferring-mode statements are recorded as obligations.
-- **The `ξ-app₂` / `ξ-let` / `ξ-case` result types name their subterm
-  SYNTACTICALLY** (`⇒-app` returns `substTopT a c`, `⇒-case` returns
-  `tm-app m s`), so the reduced subterm's type differs unless the two are
-  convertible. Resolved by the `ReduceConv` hypothesis (`⇝ ⊆ ≈`): the
-  kernel's `conv?` normalises both sides, so a reduct is definitionally
-  equal to its redex. `≈-subst-cong` (substitution congruence) then relates
-  `substTopT a c` to `substTopT a′ c`.
+  codomain, it does not infer it), so it cannot be shown to infer `T`
+  directly. The resolution is `check-infer` (`Proof/Preservation.agda`):
+  **a hole-free term that CHECKS against a type INFERS it.** The only
+  checking rule without a matching inference rule is `⇐-hole`, and a
+  hole-free term is never a hole; every other rule (`⇐-lam`, `⇐-infer`,
+  `⇐-conv`, `⇐-cumul`) has an inference rule with the same premises. So the
+  checking-mode `preserve-β` / `preserve-ζ` reducts infer their type as soon
+  as the redex is `Final` (hence the reduct is hole-free,
+  `substTop-hole-free`). The former `preservation⇒-β` / `preservation⇒-ζ`
+  postulates are gone.
+- **The `ξ-app₂` / `ξ-let` / `ξ-case` / `ξ-case-motive` result types name
+  their subterm SYNTACTICALLY** (`⇒-app` returns `substTopT a c`, `⇒-case`
+  returns `tm-app m s`), so the reduced subterm's type differs unless the
+  two are convertible. Resolved by the `ReduceConv` hypothesis (`⇝ ⊆ ≈`):
+  the kernel's `conv?` normalises both sides, so a reduct is definitionally
+  equal to its redex. `≈-subst-cong` (substitution congruence) relates
+  `substTopT a c` to `substTopT a′ c`, and `branches-conv` (conversion
+  stability of branch typing, via `≈-rename`) handles the motive.
 - **The `ξ-lam-body` / `ξ-pi-cod` congruences reduce UNDER A BINDER**, so
   `preservation` is generalised from `⟨⟩` to an arbitrary context `Γ`; the
   `ξ-lam-dom` / `ξ-pi-dom` cases (which change the binder's domain) are
   transported by the CONTEXT CONVERSION lemma (`conv⇒` / `conv⇐`).
 
-Two further `preservation` obligations need a **framework extension**, not
+The `preservation` function now threads a `Final t` hypothesis (needed by
+`check-infer`), and handles the checking-mode λ/hole cases directly. Two
+`preservation` obligations remain and need a **framework extension**, not
 just proof work:
 
 - **The ι (branch substitution) case.** The `⊢*brs` rule types a branch's

@@ -113,7 +113,7 @@ module Sound (ind : IndEnv) (sig : Signature) (conv : Conversion)
   ... | inj₁ v = reached t dt v ⇝*-refl
   ... | inj₂ (t′ , step) =
     prepend-step step
-      (soundness-fuel n (preservation dt step)
+      (soundness-fuel n (preservation ft dt step)
                          (final-preservation sig cert {t = t} {t′ = t′} ft step))
 
   ------------------------------------------------------------------------
@@ -207,7 +207,7 @@ module Sound (ind : IndEnv) (sig : Signature) (conv : Conversion)
     ... | inj₁ v = inj₁ (t , dt , v , ⇝*-refl)
     ... | inj₂ (t′ , step) =
       inj₂ (t′ , step ,
-            soundness-tree (preservation dt step)
+            soundness-tree (preservation ft dt step)
                            (final-preservation sig cert {t = t} {t′ = t′} ft step))
 
     soundness-tree :
@@ -236,7 +236,7 @@ module Sound (ind : IndEnv) (sig : Signature) (conv : Conversion)
   diverges→never-reached : ∀ {t T} → Diverges t → ⟨⟩ ⊢ t ⇐ T → Final t → NeverReached t T
   NeverReached.nr-step (diverges→never-reached div dt ft) with Diverges.diverges-step div
   ... | t′ , step , div′ = t′ , step ,
-    diverges→never-reached div′ (preservation dt step)
+    diverges→never-reached div′ (preservation ft dt step)
                               (final-preservation sig cert {t = _} {t′ = t′} ft step)
 
   ------------------------------------------------------------------------
@@ -265,7 +265,7 @@ module Sound (ind : IndEnv) (sig : Signature) (conv : Conversion)
   ... | inj₁ v = refl
   ... | inj₂ (t′ , step) =
     cong (prepend-step step)
-         (soundness-fuel≡truncate n (preservation dt step)
+         (soundness-fuel≡truncate n (preservation ft dt step)
                                     (final-preservation sig cert {t = t} {t′ = t′} ft step))
 
   ------------------------------------------------------------------------

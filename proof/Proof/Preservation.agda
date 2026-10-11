@@ -42,7 +42,14 @@ open import Core.Signature using (IndEnv; Family; Ctor; Telescope; findFamily; f
 open import Core.Reduction
 open import Core.Typing using (Ctx; ⟨⟩; _▷_; lookup; extend; lookup-extend; lookup-renameCtx; renameCtx; Conversion; extendⁿ; _∈Tele_; ∈-here; ∈-there)
 open import Proof.Values using (Canonical; Neutral; Value)
-open import Proof.Progress using (Final)
+open import Proof.Progress using (Final; FinalTerms; FinalBranches;
+                                    f-type; f-var; f-pi; f-lam; f-let; f-app;
+                                    f-data; f-ctor; f-case; f-global;
+                                    f-int_type; f-int_lit; f-nat_lit; f-bounded_lit;
+                                    f-float_type; f-float_lit; f-binary_type;
+                                    f-atom_type; f-atom_lit;
+                                    f-effect_type; f-effect_pure; f-effect_bind;
+                                    ft[]; ft∷; fb[]; fb∷)
 open import Proof.Inversion
 open import Proof.Substitution
 open import Proof.Context using (lookup-weaken; lookup-head;
@@ -597,6 +604,69 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
   value-infer hf (canonical ()) ⇐-hole
   value-infer hf (neutral n-hole) ⇐-hole = ⊥-elim (hf _ refl)
 
+  -- GENERALISATION: a hole-free term that CHECKS against a type INFERS it.
+  --
+  -- The only checking rule that does not already give an inference is
+  -- `⇐-hole`, and a hole-free term is never a hole. Every other rule
+  -- (`⇐-lam`, `⇐-infer`, `⇐-conv`, `⇐-cumul`) has a matching inference rule
+  -- with the SAME premises — `⇐-lam` and `⇒-lam` share theirs — so the proof
+  -- is a direct structural recursion, with no `Value` side condition.
+  --
+  -- This is the lemma that DISSOLVES the inference-preservation gaps: the
+  -- checking-mode β/ζ reducts (`preserve-β` / `preserve-ζ`) infer their
+  -- type as soon as they are hole-free, which they are when the redex is
+  -- final. `value-infer` is the special case at a value, but the general
+  -- form needs no value structure at all.
+  check-infer : ∀ {n} {Γ : Ctx n} {a A} → HoleFree a → Γ ⊢ a ⇐ A → Γ ⊢ a ⇒ A
+  check-infer hf (⇐-infer der eq) = ⇒-conv der eq
+  check-infer hf (⇐-conv der eq) = ⇒-conv (check-infer hf der) eq
+  check-infer hf (⇐-cumul der le) = ⇒-cumul-infer der le
+  check-infer hf (⇐-lam {g = g} {d = d} {b = b} {c = c} ds body) =
+    ⇒-lam {g = g} {d = d} {b = b} {c = c} ds body
+  check-infer hf ⇐-hole = ⊥-elim (hf _ refl)
+
+  -- `HoleFree` is preserved by substitution: the only former that can
+  -- become a hole is a variable (handled by the substitution) or a hole
+  -- (excluded by the hypothesis); every other former is not a hole by
+  -- constructor discrimination.
+  HoleFreeSub : Sub → Set
+  HoleFreeSub σ = ∀ k → HoleFree (σ k)
+
+  substS-hole-free : ∀ (t : Term) (σ : Sub) → HoleFreeSub σ → HoleFree t → HoleFree (substS σ t)
+  substS-hole-free (tm-type l) σ hfs hf name ()
+  substS-hole-free (tm-var k) σ hfs hf = hfs k
+  substS-hole-free (tm-pi g d c) σ hfs hf name ()
+  substS-hole-free (tm-lam g d b) σ hfs hf name ()
+  substS-hole-free (tm-let g ty v b) σ hfs hf name ()
+  substS-hole-free (tm-app f a) σ hfs hf name ()
+  substS-hole-free (tm-data n ps is) σ hfs hf name ()
+  substS-hole-free (tm-ctor n args) σ hfs hf name ()
+  substS-hole-free (tm-case s m brs) σ hfs hf name ()
+  substS-hole-free (tm-global n) σ hfs hf name ()
+  substS-hole-free (tm-int_type) σ hfs hf name ()
+  substS-hole-free (tm-int_lit k) σ hfs hf name ()
+  substS-hole-free (tm-nat_lit k) σ hfs hf name ()
+  substS-hole-free (tm-bounded_lit k) σ hfs hf name ()
+  substS-hole-free (tm-float_type) σ hfs hf name ()
+  substS-hole-free (tm-float_lit) σ hfs hf name ()
+  substS-hole-free (tm-binary_type) σ hfs hf name ()
+  substS-hole-free (tm-atom_type) σ hfs hf name ()
+  substS-hole-free (tm-atom_lit n) σ hfs hf name ()
+  substS-hole-free (tm-effect_type t) σ hfs hf name ()
+  substS-hole-free (tm-effect_pure t) σ hfs hf name ()
+  substS-hole-free (tm-effect_bind e k) σ hfs hf name ()
+  substS-hole-free (tm-hole n) σ hfs hf = ⊥-elim (hf n refl)
+  substS-hole-free (tm-absurd) σ hfs hf name ()
+
+  -- The two substitutions the β/ζ rules use are hole-free when their
+  -- inputs are.
+  topSub-hole-free : ∀ {a} → HoleFree a → HoleFreeSub (topSub a)
+  topSub-hole-free hf zero = hf
+  topSub-hole-free hf (suc k) name ()
+
+  substTop-hole-free : ∀ {a t} → HoleFree a → HoleFree t → HoleFree (substTopT a t)
+  substTop-hole-free hf hft = substS-hole-free _ (topSub _) (topSub-hole-free hf) hft
+
   -- A λ's infer derivation, inverted to the Π type it infers (the type
   -- equation is up to conversion).
   lam-pi-trans : ∀ {n} {Γ : Ctx n} {g d b} (T T′ : Term)
@@ -731,6 +801,23 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
               → ∀ k → ∀ i → Conversion._≈_ conv (lookup (extendⁿ Γ k) i) (lookup (extendⁿ Γ′ k) i)
     extⁿ-conv w zero = w
     extⁿ-conv w (suc k) = ext-conv (Conversion.≈-refl conv) (extⁿ-conv w k)
+
+  -- Branch checking is stable under CONVERSION of the motive. Each branch
+  -- body checks against `tm-app (rename (λ j → j + ar) m) (tm-ctor cn …)`;
+  -- the motive only appears under `rename (λ j → j + ar)`, and conversion is
+  -- stable under renaming (`≈-rename`), so the body's type converts.
+  -- This is what lets `ξ-case-motive` be typed: the reduct's motive is only
+  -- CONVERTIBLE to the redex's, not equal to it (`ReduceConv`).
+  branches-conv : ∀ {n} {Γ : Ctx n} {brs nm m m′}
+                → Conversion._≈_ conv m m′
+                → Γ ⊢*brs brs ⇐*ᵇ (nm , m) → Γ ⊢*brs brs ⇐*ᵇ (nm , m′)
+  branches-conv eq brs[] = brs[]
+  branches-conv {Γ = Γ} eq (brs∷ {cn = cn} {ar = ar} {b = b} fc len body rest) =
+    brs∷ fc len
+         (⇐-conv body (Conversion.≈-app conv
+                        (Conversion.≈-rename conv (λ j → j + ar) eq)
+                        (Conversion.≈-refl conv)))
+         (branches-conv eq rest)
   -- The `⇒-conv`-on-function case of β: `dflam` is a λ derivation whose
   -- type `T₀` converts to `tm-pi g d c`. `lam-type-pi` exposes the λ's own
   -- Π type `tm-pi g′ d′ c′`; Π injectivity gives `d′ ≈ d` and `c′ ≈ c`; the
@@ -809,8 +896,16 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
 
   ------------------------------------------------------------------------
   -- The ι (branch substitution) and δ (certified unfolding) cases, and the
-  -- inference-preservation gaps (β/ζ do not preserve inferability; the
-  -- `ξ-app₂` / `ξ-case` result types name their subterm syntactically).
+  -- `ξ-case-motive` congruence.
+  --
+  -- The former β/ζ inference-preservation gaps are DISSOLVED: the
+  -- checking-mode `preserve-β` / `preserve-ζ` give the reduct CHECKED, and
+  -- `check-infer` turns that into an INFERENCE because the redex is `Final`
+  -- (hence the reduct is hole-free). Likewise `preservation⇒-case` is
+  -- proved directly from the `ReduceConv` hypothesis. What remains are the
+  -- ι cases (needing the `brs∷` field-telescope change), δ (needing a
+  -- strengthened `Certified`), and `ξ-case-motive` (needing a
+  -- rename-commutes-with-reduction lemma).
   ------------------------------------------------------------------------
   postulate
     preservation-ι : ∀ {n} {Γ : Ctx n} {m brs c ar b args T}
@@ -842,91 +937,101 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
       → Γ ⊢ tm-global f ⇒ T
       → Signature.body sig f ≡ just body′
       → Γ ⊢ body′ ⇒ T
-    preservation⇒-β : ∀ {n} {Γ : Ctx n} {g d b a T}
-      → Γ ⊢ tm-app (tm-lam g d b) a ⇒ T
-      → Value a
-      → Γ ⊢ substTopT a b ⇒ T
-
-    preservation⇒-ζ : ∀ {n} {Γ : Ctx n} {g ty v b T}
-      → Γ ⊢ tm-let g ty v b ⇒ T
-      → Value v
-      → Γ ⊢ substTopT v b ⇒ T
-
-    preservation⇒-case : ∀ {n} {Γ : Ctx n} {s s′ m brs n′ ps is T}
-      → Γ ⊢ s ⇒ tm-data n′ ps is
-      → Γ ⊢ m ⇒ T
-    preservation⇒-case-motive : ∀ {n} {Γ : Ctx n} {s m m′ brs n′ ps is T}
-      → Γ ⊢ s ⇒ tm-data n′ ps is
-      → Γ ⊢ m ⇒ T
-      → Γ ⊢*brs brs ⇐*ᵇ (n′ , m)
-      → _⇝_ sig m m′
-      → Γ ⊢ tm-case s m′ brs ⇒ tm-app m s
+  mutual
+    -- Spine preservation: a checked spine stays checked when its entries step.
+    preservation-spine : ∀ {n} {Γ : Ctx n} {ts ts′} {tele : Telescope}
+                       → FinalTerms ts
+                       → Γ ⊢* ts ⇐* tele
                        → _⇝*ᵗ_ sig ts ts′
                        → Γ ⊢* ts′ ⇐* tele
-    preservation-spine ⊢*[] ⇝*-nil = ⊢*[]
-    preservation-spine (⊢*∷ dx dxs) (⇝*-cons step steps) =
-      ⊢*∷ (preservation dx step) (preservation-spine dxs steps)
+    preservation-spine ft[] ⊢*[] ⇝*-nil = ⊢*[]
+    preservation-spine (ft∷ fx fxs) (⊢*∷ dx dxs) (⇝*-cons step steps) =
+      ⊢*∷ (preservation fx dx step) (preservation-spine fxs dxs steps)
 
     preservation⇒ :
       ∀ {n} {Γ : Ctx n} {t t′ T}
+      → Final t
       → Γ ⊢ t ⇒ T
       → _⇝_ sig t t′
       → Γ ⊢ t′ ⇒ T
-    preservation⇒ (⇒-conv der eq) rw = ⇒-conv (preservation⇒ der rw) eq
-    preservation⇒ der (β va) = preservation⇒-β der va
-    preservation⇒ der (ζ vv) = preservation⇒-ζ der vv
-    preservation⇒ (⇒-app df da) (ξ-app₁ step) = ⇒-app (preservation⇒ df step) da
-    preservation⇒ {Γ = Γ} (⇒-app {a = a} {c = c} df da) (ξ-app₂ {a′ = a′} step) =
-      ⇒-conv (⇒-app df (preservation⇒ da step))
+    preservation⇒ ft (⇒-conv der eq) rw = ⇒-conv (preservation⇒ ft der rw) eq
+    -- β: the checking-mode `preserve-β` gives the reduct CHECKED; the redex
+    -- is final, so the reduct is hole-free and INFERS its type (`check-infer`).
+    preservation⇒ (f-app (f-lam fd fb) fa) (⇒-app df da) (β va) =
+      check-infer (substTop-hole-free (final-hole-free fa) (final-hole-free fb))
+                  (preserve-β (⇒-app df da))
+    -- ζ: likewise, via `preserve-ζ`.
+    preservation⇒ (f-let fty fv fb) (⇒-let {g = g} {ty = ty} {v = v} {b = b} {T = T} dty dv db) (ζ vv) =
+      check-infer (substTop-hole-free (final-hole-free fv) (final-hole-free fb))
+                  (preserve-ζ (⇒-let {g = g} {ty = ty} {v = v} {b = b} {T = T} dty dv db)
+                              vv (final-hole-free fv))
+    preservation⇒ (f-app ff fa) (⇒-app df da) (ξ-app₁ step) =
+      ⇒-app (preservation⇒ ff df step) da
+    preservation⇒ {Γ = Γ} (f-app ff fa) (⇒-app {a = a} {c = c} df da) (ξ-app₂ {a′ = a′} step) =
+      ⇒-conv (⇒-app df (preservation⇒ fa da step))
               (Conversion.≈-sym conv (≈-substTopT-cong {c = c} (rc step)))
-    preservation⇒ {Γ = Γ} (⇒-let {v = v} {T = T} dty dv db) (ξ-let {v′ = v′} step) =
-      ⇒-conv (⇒-let dty (preservation dv step) db)
+    preservation⇒ {Γ = Γ} (f-let fty fv fb) (⇒-let {v = v} {T = T} dty dv db) (ξ-let {v′ = v′} step) =
+      ⇒-conv (⇒-let dty (preservation fv dv step) db)
               (Conversion.≈-sym conv (≈-substTopT-cong {c = T} (rc step)))
-    preservation⇒ (⇒-case ds dm dbrs) (ξ-case step) =
-      ⇒-conv (⇒-case (preservation⇒ ds step) dm dbrs)
+    preservation⇒ (f-case fs fm fbs) (⇒-case ds dm dbrs) (ξ-case step) =
+      ⇒-conv (⇒-case (preservation⇒ fs ds step) dm dbrs)
               (Conversion.≈-app conv (Conversion.≈-refl conv)
                                     (Conversion.≈-sym conv (rc step)))
-    preservation⇒ (⇒-case ds dm dbrs) (ξ-case-motive step) = preservation⇒-case-motive ds dm dbrs step
-    preservation⇒ {Γ = Γ} (⇒-pi {d = d} dd dc) (ξ-pi-dom {d′ = d′} step) =
-      ⇒-pi (preservation⇒ dd step)
+    preservation⇒ (f-case fs fm fbs) (⇒-case ds dm dbrs) (ξ-case-motive step) =
+      ⇒-conv (⇒-case ds (preservation⇒ fm dm step)
+                       (branches-conv (rc step) dbrs))
+              (Conversion.≈-app conv (Conversion.≈-sym conv (rc step))
+                                    (Conversion.≈-refl conv))
+    preservation⇒ {Γ = Γ} (f-pi fd fc) (⇒-pi {d = d} dd dc) (ξ-pi-dom {d′ = d′} step) =
+      ⇒-pi (preservation⇒ fd dd step)
            (conv⇒ (ext-conv (rc step) (λ i → Conversion.≈-refl conv)) (Conversion.≈-refl conv) dc)
-    preservation⇒ (⇒-pi dd dc) (ξ-pi-cod step) = ⇒-pi dd (preservation⇒ dc step)
-    preservation⇒ {Γ = Γ} (⇒-lam {d = d} dd db) (ξ-lam-dom {d′ = d′} step) =
-      ⇒-conv (⇒-lam (preservation⇒ dd step)
+    preservation⇒ (f-pi fd fc) (⇒-pi dd dc) (ξ-pi-cod step) =
+      ⇒-pi dd (preservation⇒ fc dc step)
+    preservation⇒ {Γ = Γ} (f-lam fd fb) (⇒-lam {d = d} dd db) (ξ-lam-dom {d′ = d′} step) =
+      ⇒-conv (⇒-lam (preservation⇒ fd dd step)
                      (conv⇐ (ext-conv (rc step) (λ i → Conversion.≈-refl conv)) (Conversion.≈-refl conv) db))
               (Conversion.≈-sym conv (Conversion.≈-pi conv (rc step) (Conversion.≈-refl conv)))
-    preservation⇒ (⇒-lam dd db) (ξ-lam-body step) = ⇒-lam dd (preservation db step)
-    preservation⇒ (⇒-data p q r) (ξ-data-params step) = ⇒-data p (preservation-spine q step) r
-    preservation⇒ (⇒-data p q r) (ξ-data-indices step) = ⇒-data p q (preservation-spine r step)
-    preservation⇒ (⇒-ctor p q) (ξ-ctor step steps) = ⇒-ctor p (preservation-spine q (⇝*-cons step steps))
-    preservation⇒ (⇒-effect_type p) (ξ-effect_type step) = ⇒-effect_type (preservation⇒ p step)
-    preservation⇒ (⇒-effect_pure p) (ξ-effect_pure step) = ⇒-effect_pure (preservation⇒ p step)
-    preservation⇒ (⇒-effect_bind p q) (ξ-effect_bind₁ step) = ⇒-effect_bind (preservation⇒ p step) q
-    preservation⇒ (⇒-effect_bind p q) (ξ-effect_bind₂ step) = ⇒-effect_bind p (preservation⇒ q step)
-    preservation⇒ der (ι found len) = preservation-ι der found len
-    preservation⇒ der (ι-nat-zero found) = preservation-ι-nat-zero der found
-    preservation⇒ der (ι-nat-suc found) = preservation-ι-nat-suc der found
-    preservation⇒ der (ι-bounded-zero found) = preservation-ι-bounded-zero der found
-    preservation⇒ der (ι-bounded-suc found) = preservation-ι-bounded-suc der found
-    preservation⇒ der (δ p) = preservation-δ der p
+    preservation⇒ (f-lam fd fb) (⇒-lam dd db) (ξ-lam-body step) =
+      ⇒-lam dd (preservation fb db step)
+    preservation⇒ (f-data fps fis) (⇒-data p q r) (ξ-data-params step) =
+      ⇒-data p (preservation-spine fps q step) r
+    preservation⇒ (f-data fps fis) (⇒-data p q r) (ξ-data-indices step) =
+      ⇒-data p q (preservation-spine fis r step)
+    preservation⇒ (f-ctor fargs) (⇒-ctor p q) (ξ-ctor step steps) =
+      ⇒-ctor p (preservation-spine fargs q (⇝*-cons step steps))
+    preservation⇒ (f-effect_type ft) (⇒-effect_type p) (ξ-effect_type step) =
+      ⇒-effect_type (preservation⇒ ft p step)
+    preservation⇒ (f-effect_pure ft) (⇒-effect_pure p) (ξ-effect_pure step) =
+      ⇒-effect_pure (preservation⇒ ft p step)
+    preservation⇒ (f-effect_bind fe fk) (⇒-effect_bind p q) (ξ-effect_bind₁ step) =
+      ⇒-effect_bind (preservation⇒ fe p step) q
+    preservation⇒ (f-effect_bind fe fk) (⇒-effect_bind p q) (ξ-effect_bind₂ step) =
+      ⇒-effect_bind p (preservation⇒ fk q step)
+    preservation⇒ ft der (ι found len) = preservation-ι der found len
+    preservation⇒ ft der (ι-nat-zero found) = preservation-ι-nat-zero der found
+    preservation⇒ ft der (ι-nat-suc found) = preservation-ι-nat-suc der found
+    preservation⇒ ft der (ι-bounded-zero found) = preservation-ι-bounded-zero der found
+    preservation⇒ ft der (ι-bounded-suc found) = preservation-ι-bounded-suc der found
+    preservation⇒ ft der (δ p) = preservation-δ der p
 
     preservation :
       ∀ {n} {Γ : Ctx n} {t t′ T}
+      → Final t
       → Γ ⊢ t ⇐ T
       → _⇝_ sig t t′
       → Γ ⊢ t′ ⇐ T
-    preservation (⇐-infer der eq) rw = ⇐-infer (preservation⇒ der rw) eq
-    preservation (⇐-conv der eq) rw = ⇐-conv (preservation der rw) eq
-    preservation (⇐-cumul der le) rw = ⇐-cumul (preservation⇒ der rw) le
+    preservation ft (⇐-infer der eq) rw = ⇐-infer (preservation⇒ ft der rw) eq
+    preservation ft (⇐-conv der eq) rw = ⇐-conv (preservation ft der rw) eq
+    preservation ft (⇐-cumul der le) rw = ⇐-cumul (preservation⇒ ft der rw) le
     -- A checked λ reduces only under its domain or its body (`ξ-lam-dom` /
     -- `ξ-lam-body`); every other rule's head is a different former, so the
     -- `rw` pattern-match is exhaustive.
-    preservation (⇐-lam {g = g} {d = d} {b = b} {c = c} {l = l} ds body) (ξ-lam-dom {d′ = d′} step) =
-      ⇐-conv (⇐-lam (preservation⇒ ds step)
+    preservation (f-lam fd fb) (⇐-lam {g = g} {d = d} {b = b} {c = c} {l = l} ds body) (ξ-lam-dom {d′ = d′} step) =
+      ⇐-conv (⇐-lam (preservation⇒ fd ds step)
                      (conv⇐ (ext-conv (rc step) (λ i → Conversion.≈-refl conv))
                             (Conversion.≈-refl conv) body))
               (Conversion.≈-sym conv (Conversion.≈-pi conv (rc step) (Conversion.≈-refl conv)))
-    preservation (⇐-lam ds body) (ξ-lam-body step) =
-      ⇐-lam ds (preservation body step)
+    preservation (f-lam fd fb) (⇐-lam ds body) (ξ-lam-body step) =
+      ⇐-lam ds (preservation fb body step)
     -- A hole has no reduction rule, so `rw` is impossible.
-    preservation (⇐-hole) ()
+    preservation () (⇐-hole) rw
