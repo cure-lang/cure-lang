@@ -11,7 +11,7 @@ Provides language support, LSP diagnostics, MCP AI integration, and REPL support
 - 🎨 **Syntax Highlighting**: Full highlighting for Cure code, including actors, FSMs, macros, decorators, string interpolation, and doc comments, the same as in Zed and Neovim.
 - ⚡ **Language Server Protocol (LSP)**: Automatic connection to `cure-lsp` over stdio:
   - Real-time compile diagnostics
-  - Signature help & hover tooltips
+  - Signature help & hover with `##` docs
   - Code completion
   - Auto-formatting on save
 - 🤖 **Model Context Protocol (MCP)**: Deep MCP stdio integration:

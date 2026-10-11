@@ -9,9 +9,9 @@ Features first-class support for **Cure 0.34+**, including **LSP** (Language Ser
 ## ⚡ Features
 
 - 🌳 **Tree-sitter Highlighting**: Uses the grammar in [`tree-sitter-cure/`](../tree-sitter-cure) and the same highlight queries as the Zed extension. The parser is compiled from the repository on first use (needs a C compiler); without one the plugin falls back to the Vim syntax file.
-- 🎨 **Vim Syntax Fallback**: Regex highlighting for Cure keywords (`mod`, `fn`, `type`, `rec`, `actor`, `sup`, `app`, `fsm`, dependent types, quantitative modes, Melquiades operator `<-|`/`✉`, string interpolation, and comments).
+- 🎨 **Vim Syntax Fallback**: Full highlighting from `syntax/cure.vim` when the tree-sitter parser cannot be built.
 - 📐 **Indentation & Filetype Detection**: Smart indentation rules for Cure's layout-sensitive structure.
-- ⚡ **LSP Integration**: Automatic integration with `cure-lsp` (diagnostics, auto-completion, hover signatures, formatting, semantic tokens, inlay hints, definition lookup).
+- ⚡ **LSP Integration**: Automatic integration with `cure-lsp` (diagnostics, auto-completion, hover with signatures and `##` docs, formatting, semantic tokens, inlay hints, definition lookup).
 - 🤖 **Model Context Protocol (MCP)**: Native stdio JSON-RPC client connecting Neovim to Cure's MCP server:
   - `:CureMcpDocs [module]` — Floating documentation window for standard library modules (`Std.List`, `Std.Math`, `Std.Otp`, etc.).
   - `:CureMcpHelp [topic]` — Syntax guide floating windows (`functions`, `types`, `fsm`, `interfaces`, `records`, `pattern_matching`).
