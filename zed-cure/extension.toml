@@ -3,7 +3,7 @@ name = "Cure"
 version = "0.34.0"
 schema_version = 1
 description = "Official language support, LSP diagnostics, and MCP context server integration for Cure in Zed"
-repository = "https://github.com/cure-lang/cure"
+repository = "https://github.com/cure-lang/cure-lang"
 authors = ["Cure Core Team <info@cure-lang.org>"]
 
 [grammars.cure]

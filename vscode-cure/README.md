@@ -1,6 +1,6 @@
 # VS Code Extension for Cure 🚀
 
-Official Visual Studio Code extension for the [Cure programming language](https://github.com/cure-lang/cure).
+Official Visual Studio Code extension for the [Cure programming language](https://github.com/cure-lang/cure-lang).
 
 Provides language support, LSP diagnostics, MCP AI integration, and REPL support for Cure **0.34+**.
 

@@ -1,5 +1,5 @@
 /**
- * Tree-sitter grammar for Cure (https://github.com/cure-lang/cure).
+ * Tree-sitter grammar for Cure (https://github.com/cure-lang/cure-lang).
  *
  * This is a deliberately *lexical* grammar: it recognises Cure's tokens
  * (keywords, identifiers, literals, comments, operators, FSM transitions)

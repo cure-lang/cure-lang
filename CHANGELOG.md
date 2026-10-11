@@ -81,6 +81,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `# fn name(...)` inlay hint, which repeated the line it sat on, is gone, and
   so is the `Type | Effects` code lens, whose `cure.type.*` command no client
   implements.
+- Repository links in `zed-cure`, `vscode-cure`, `highlightjs-cure` and
+  `tree-sitter-cure` pointed at `cure-lang/cure` or `am-kantox/cure`, which
+  do not exist; they now point at `cure-lang/cure-lang`.
 
 ## [0.34.0] -- One Dependent Pipeline -- 2026-10-10
 

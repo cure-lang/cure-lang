@@ -1,6 +1,6 @@
 # zed-cure 🚀
 
-Official [Zed](https://zed.dev) editor extension for the [Cure programming language](https://github.com/cure-lang/cure).
+Official [Zed](https://zed.dev) editor extension for the [Cure programming language](https://github.com/cure-lang/cure-lang).
 
 Provides high-performance language support, tree-sitter syntax queries, `cure-lsp` diagnostics, and Model Context Protocol (MCP) context server integration for Cure **0.34+**.
 
