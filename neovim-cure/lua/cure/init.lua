@@ -50,6 +50,7 @@ function M.bootstrap()
   bootstrapped = true
 
   vim.filetype.add({ extension = { cure = "cure" } })
+  M.set_icon()
 
   treesitter.set_highlights()
   vim.api.nvim_create_autocmd("ColorScheme", {
@@ -60,6 +61,18 @@ function M.bootstrap()
   vim.api.nvim_create_user_command("CureTSBuild", function()
     treesitter.build(M.treesitter_config())
   end, { desc = "Build the Cure tree-sitter parser from tree-sitter-cure/" })
+end
+
+--- Registers the `.cure` file icon with nvim-web-devicons when it is
+--- installed. Nerd Font glyph: nf-fa-medkit; color from the Cure logo.
+function M.set_icon()
+  local ok, devicons = pcall(require, "nvim-web-devicons")
+  if not ok then
+    return
+  end
+  local icon = { icon = "", color = "#F76D2A", cterm_color = "208", name = "Cure" }
+  devicons.set_icon({ cure = icon })
+  devicons.set_icon_by_filetype({ cure = "cure" })
 end
 
 --- Main setup entrypoint for cure.nvim
