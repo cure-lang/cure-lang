@@ -1,6 +1,10 @@
 @group(:core)
 @prelude
 mod Std.Equatable
+  ## Equality: the `Equatable(t)` interface behind `==`, its instances for
+  ## `Int`, `Float`, `Bool`, `Atom`, `Nat`, `Option(t)` and `List(t)`, and the
+  ## derived `!=`.
+
   ## `use Std.Bool` supplies `` `not` `` for the derived `` `!=` ``.
   use Std.Bool
   ## `use Std.Nat` keeps the `Nat` type name in scope for the `Nat` instance.

@@ -1,6 +1,10 @@
 @group(:core)
 @prelude
 mod Std.Comparable
+  ## Total ordering: the `Comparable(t)` interface, its `Int` and `Float`
+  ## instances, and what derives from `<` alone: `<=`, `>`, `>=`, `compare`,
+  ## `min`, `max` and `clamp`.
+
   ## `use Std.Bool` supplies `` `not` `` for the derived `` `<=` ``/`` `>=` ``;
   ## `use Std.Equatable` provides the `Equatable(t)` superinterface required by
   ## `Comparable(t)`.

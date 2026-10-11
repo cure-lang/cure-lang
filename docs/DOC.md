@@ -237,6 +237,29 @@ mod Std.List
   ## ```
 ```
 
+### Module docs and the first definition
+
+A `##` block right after `mod Name` documents the module only when a
+blank line separates it from what follows. A block that touches the
+first definition documents that definition, like any other:
+
+```text
+mod Shapes
+  ## Plane shapes and their areas.
+
+  ## The area of a circle of radius `r`.
+  fn circle_area(r: Float) -> Float = 3.14159 * r * r
+```
+
+```text
+mod DoctestDemo
+  ## Add two integers.
+  fn add(a: Int, b: Int) -> Int = a + b
+```
+
+`Shapes` gets the first block and `circle_area` the second;
+`DoctestDemo` has no module doc and `add` gets the block.
+
 ### `###` fenced multi-line docstrings
 
 The `###` fence still works for cases where a docstring would
@@ -254,6 +277,7 @@ mod MyApp
   MyApp.run()
   ```
   ###
+
   fn run() -> Atom = :ok
 ````
 

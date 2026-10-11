@@ -52,4 +52,22 @@ defmodule Cure.Compiler.ModuleDocDecoratorTest do
     assert Keyword.get(meta, :doc) == "Module."
     assert Keyword.get(fn_meta, :doc) == "Function."
   end
+
+  test "a doc block touching the first definition documents that definition" do
+    for doc <- ["  ## Adds.\n", "  ###\n  Adds.\n  ###\n"] do
+      {:ok, tokens} = Lexer.tokenize("mod M\n" <> doc <> "  fn add(a: Int) -> Int = a\n", emit_events: false)
+      {:ok, {:container, meta, [{:function_def, fn_meta, _}]}} = Parser.parse(tokens, emit_events: false)
+
+      assert Keyword.get(meta, :doc) == nil
+      assert Keyword.get(fn_meta, :doc) == "Adds."
+    end
+  end
+
+  test "a lone doc block followed by a blank line documents the module" do
+    {:ok, tokens} = Lexer.tokenize("mod M\n  ## Module.\n\n  fn f() -> Int = 1\n", emit_events: false)
+    {:ok, {:container, meta, [{:function_def, fn_meta, _}]}} = Parser.parse(tokens, emit_events: false)
+
+    assert Keyword.get(meta, :doc) == "Module."
+    assert Keyword.get(fn_meta, :doc) == nil
+  end
 end

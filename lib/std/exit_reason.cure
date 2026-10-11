@@ -3,6 +3,7 @@ mod Std.ExitReason
   ## Typed reasons understood by Cure's safe process APIs. `Because` is the
   ## deliberate raw-atom escape hatch for application- and OTP-specific
   ## reasons; callers do not need to abandon the typed API to use one.
+
   type ExitReason = Normal | Kill | Shutdown | Because(Atom)
 
   fn from_atom(reason: Atom) -> ExitReason =

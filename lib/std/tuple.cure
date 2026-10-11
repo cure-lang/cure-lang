@@ -1,5 +1,8 @@
 @group(:collections)
 mod Std.Tuple
+  ## Fixed-size heterogeneous tuples (`%[a, b, ...]`): the `Tuple` type and
+  ## positional accessors such as `first`, `second`, `third` and `swap`.
+
   ## `use Std.Sigma` supplies the projection globals `.1`/`.2`/`.i` lower to
   ## (`sigma_first`, `sigma_second`, `tproj2`…`tproj8`). Every ordinary module
   ## receives those ambiently — `Std.Sigma` is a whole-module `@prelude` — but

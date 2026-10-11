@@ -14,4 +14,5 @@ mod Std.Atom
   ## encoded at the private BEAM boundary. Raw atoms remain appropriate for
   ## foreign module/name identities, open Erlang protocols, syntax literals, and
   ## explicitly unsafe operations.
+
   @builtin(:atom) primitive Atom

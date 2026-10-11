@@ -14116,9 +14116,22 @@ defmodule Cure.Compiler.Parser do
   # further doc comments when searching for `:indent`, and feed the
   # first-definition doc back in via `attach_leading_doc/2` so it
   # binds to the first body statement.
+  #
+  # A single leading block that touches the first definition (no blank line
+  # between them) documents that definition, not the container:
+  #
+  #     mod M
+  #       ## Adds two integers.
+  #       fn add(a: Int, b: Int) -> Int = a + b
   defp parse_definition_block_with_lead_doc(state) do
     {leading_doc, state} = collect_leading_docs(state)
     {pending_first_doc, state} = collect_leading_docs(state)
+
+    {leading_doc, pending_first_doc} =
+      if pending_first_doc == "" and leading_doc != "" and doc_touches_next_line?(state),
+        do: {"", leading_doc},
+        else: {leading_doc, pending_first_doc}
+
     {leading_comments, state} = collect_leading_line_comments(state)
 
     case peek(state) do
@@ -14137,6 +14150,36 @@ defmodule Cure.Compiler.Parser do
         {[], leading_doc, state}
     end
   end
+
+  # Whether the doc comment just consumed ends on the line right before the
+  # next authored token (looking past the block's `:indent`).
+  defp doc_touches_next_line?(state) do
+    with %Token{} = doc <- previous_doc_comment(state, state.pos - 1),
+         %Token{} = next <- next_authored_token(state, state.pos) do
+      next.line == doc_end_line(doc) + 1
+    else
+      _ -> false
+    end
+  end
+
+  defp previous_doc_comment(state, idx) do
+    case token_at(state, idx) do
+      %Token{type: :newline} -> previous_doc_comment(state, idx - 1)
+      %Token{type: :doc_comment} = token -> token
+      _ -> nil
+    end
+  end
+
+  defp next_authored_token(state, idx) do
+    case token_at(state, idx) do
+      %Token{type: type} when type in [:newline, :indent] -> next_authored_token(state, idx + 1)
+      %Token{type: type} = token when type not in [:dedent, :eof] -> token
+      _ -> nil
+    end
+  end
+
+  defp doc_end_line(%Token{span: %{end_line: line}}) when is_integer(line), do: line
+  defp doc_end_line(%Token{line: line}), do: line
 
   # Collect any doc_comment tokens (intermixed with newlines) and return
   # their concatenated text plus the advanced state. Returns `{"", state}`

@@ -8,6 +8,7 @@ mod E6SimUni02
   ## The assembled term is kernel-re-checked, so a fabricated solution could not slip
   ## through even if the elaborator tried. Both Cure and Idris reject — the tolerance
   ## makes progress possible without making an unsound program typecheck.
+
   type Tag = TA | TB
   fn add(m: Nat, n: Nat) -> Nat = match m
     Z()  -> n

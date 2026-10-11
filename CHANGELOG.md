@@ -78,6 +78,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   position, so the parser could not see a blank line between two doc blocks:
   the doc of a module's first definition was merged into the module doc.
   Doc comments now start on their own line.
+- A `##` block right after `mod Name` always became the module doc, even
+  when it sat on the first definition, so in
+  `mod M` / `## Adds.` / `fn add(...)` the doc went to `M` instead of
+  `add`. A block that touches the first definition now documents it; a
+  module doc is separated from what follows by a blank line, as
+  `docs/DOC.md` now says. The stdlib modules written the other way
+  (`Std.Atom`, `Std.Float`, `Std.Int`, `Std.ExitReason`, `Std.Syntax`,
+  `Std.Syntax.Raw`, `Std.Proof.LinearArithmetic`, `Std.Regex`,
+  `Std.Regex.Core`, `Std.Regex.Runtime`) gain that blank line.
+  `Std.Comparable`, `Std.Equatable` and `Std.Tuple` had only a note on
+  their `use` line where the module doc goes; they now have module docs.
 - `cure-lsp` put every inlay hint and code lens on the first line: symbols
   read a `:line` key the parser no longer sets. They now take the line from
   the source span. Sum-type variants were listed as functions, which gave
