@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `tree-sitter-cure/`: a lexical tree-sitter grammar for Cure. It mirrors
+  `Cure.Compiler.Lexer`, treats line boundaries as tokens so the highlight
+  queries can recognise macro vocabulary (`syntax family`, `accepts`,
+  `expands with`, family fields) at the start of a line, and parses every
+  `.cure` file in the repository without errors.
+
+### Fixed
+
+- `zed-cure` could not be installed: its `extension.toml` pointed at
+  `cure-lang/tree-sitter-cure`, a repository that does not exist, so Zed failed
+  while fetching the grammar. It now builds the grammar from
+  `tree-sitter-cure/` in this repository, and its highlight, outline and
+  bracket queries are rewritten for it. `languages/cure/config.toml` used keys
+  Zed does not recognise (`indent_pattern`, `outdent_pattern`,
+  `autoclosing_pairs`) and a `#| |#` block comment Cure does not have; it now
+  uses `increase_indent_pattern` / `decrease_indent_pattern`.
+
 ## [0.34.0] -- One Dependent Pipeline -- 2026-10-10
 
 ### Added

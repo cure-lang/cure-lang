@@ -1,0 +1,18 @@
+{
+  "grammars": [
+    {
+      "name": "cure",
+      "camelcase": "Cure",
+      "scope": "source.cure",
+      "path": ".",
+      "file-types": ["cure"],
+      "highlights": "queries/highlights.scm"
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": "Lexical tree-sitter grammar for the Cure programming language",
+    "links": { "repository": "https://github.com/cure-lang/cure-lang" }
+  }
+}

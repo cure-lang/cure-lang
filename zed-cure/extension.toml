@@ -7,8 +7,12 @@ repository = "https://github.com/cure-lang/cure"
 authors = ["Cure Core Team <info@cure-lang.org>"]
 
 [grammars.cure]
-repository = "https://github.com/cure-lang/tree-sitter-cure"
-commit = "main"
+# The grammar lives in this repository under `tree-sitter-cure/`. `rev` must be
+# a commit on the remote that contains it; bump it whenever the grammar changes.
+repository = "https://github.com/cure-lang/cure-lang"
+rev = "ecec7d9dffc2266c2ecf220f6b5219688eeec73b"
+path = "tree-sitter-cure"
+
 
 [language_servers.cure-lsp]
 name = "Cure LSP"

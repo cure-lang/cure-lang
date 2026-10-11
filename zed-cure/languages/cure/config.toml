@@ -1,23 +1,28 @@
 name = "Cure"
 grammar = "cure"
 path_suffixes = ["cure"]
-line_comments = ["# "]
-block_comment = ["#|", "|#"]
+line_comments = ["# ", "## "]
+tab_size = 2
+hard_tabs = false
 
+# `not_in` scopes are defined by overrides.scm.
 brackets = [
     { start = "{", end = "}", close = true, newline = true },
     { start = "[", end = "]", close = true, newline = true },
     { start = "(", end = ")", close = true, newline = true },
-    { start = "\"", end = "\"", close = true, newline = false }
+    { start = "\"", end = "\"", close = true, newline = false, not_in = ["string", "comment"] },
 ]
 
-autoclosing_pairs = [
-    { start = "{", end = "}" },
-    { start = "[", end = "]" },
-    { start = "(", end = ")" },
-    { start = "\"", end = "\"" },
-    { start = "#|", end = "|#" }
-]
+# Indent after a line that opens a block whose body is on the next lines:
+#   - ends in `=` or `->` (`fn f(x) -> Int =`, `Some(t) ->`);
+#   - is a block head with no `=` on it (`mod M`, `fsm T with D`, `rec P`,
+#     a GADT head `type Vec(a: Type) indices (n: Nat)`), so one-line
+#     declarations such as `type Color = Red | Green` do not indent;
+#   - opens a `match` / `pickup`, at line start or after `=` / `->`;
+#   - is a `syntax family` head.
+# FSM transitions are left alone: some have an indented `update`, most do not.
+increase_indent_pattern = '(=|->)\s*(#.*)?$|^\s*(mod|type|typealias|rec|interface|implementation|proto|impl|actor|sup|app|fsm|proof|macro|try|catch|finally|receive|after|explain)\b[^=]*$|(^\s*|=\s*|->\s*)(match|pickup)\b.*$|^\s*syntax\s+family\b'
 
-indent_pattern = "^\\s*(mod|fn|type|typealias|rec|interface|implementation|actor|sup|app|fsm|state|event|transition|match|pickup|if|elif|else|try|catch|finally|receive|after|on_transition|on_enter|on_exit|on_failure|on_timer)\\b|=\\s*$"
-outdent_pattern = "^\\s*(elif|else|catch|finally|after)\\b"
+# `else` is deliberately absent: in Cure it is usually a `pickup` arm, which
+# sits at the same level as the arms before it.
+decrease_indent_pattern = '^\s*(catch|finally|after)\b'
