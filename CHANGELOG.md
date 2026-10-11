@@ -43,6 +43,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `cure.lsp.path` / `cure.mcp.path`, and says which setting to change when
   it finds nothing. The REPL command uses the same lookup, and
   `cure.trace.server` now takes effect.
+- `neovim-cure/syntax/cure.vim` (the fallback without tree-sitter) declared a
+  `#| |#` block comment and keywords Cure does not have (`state`, `event`,
+  `erased`, ...); it now follows the tree-sitter grammar's tokens.
 
 ## [0.34.0] -- One Dependent Pipeline -- 2026-10-10
 
