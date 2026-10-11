@@ -131,6 +131,25 @@ BuiltinCtors ind =
   × "S" ∈ allCtorNames (IndEnv.families ind)
   × "First" ∈ allCtorNames (IndEnv.families ind)
   × "Next" ∈ allCtorNames (IndEnv.families ind)
+  -- The `nat` and `bounded` builtin families exist.
+  × (∃ λ N → IndEnv.builtins ind "nat" ≡ just N)
+  × (∃ λ B → IndEnv.builtins ind "bounded" ≡ just B)
+  -- The builtin constructors' ARGUMENT TELESCOPES are the canonical ones:
+  -- `Z` takes no fields; `S` takes the predecessor (a `Nat`); `First` takes
+  -- the bound (a `Nat`); `Next` takes the bound and the predecessor. This is
+  -- what lets the literal-peel ι rules (`ι-nat-*` / `ι-bounded-*`) relate the
+  -- branch body's field variables to the peeled arguments.
+  × (∀ {f} {ct} → findCtor "Z" (IndEnv.families ind) ≡ just (f , ct) → ctor-args ct ≡ [])
+  × (∀ {f} {ct} {N} → IndEnv.builtins ind "nat" ≡ just N
+      → findCtor "S" (IndEnv.families ind) ≡ just (f , ct)
+      → ctor-args ct ≡ ("_" , tm-data N [] []) ∷ [])
+  × (∀ {f} {ct} {N} → IndEnv.builtins ind "nat" ≡ just N
+      → findCtor "First" (IndEnv.families ind) ≡ just (f , ct)
+      → ctor-args ct ≡ ("_" , tm-data N [] []) ∷ [])
+  × (∀ {f} {ct} {N} {B} → IndEnv.builtins ind "nat" ≡ just N
+      → IndEnv.builtins ind "bounded" ≡ just B
+      → findCtor "Next" (IndEnv.families ind) ≡ just (f , ct)
+      → ctor-args ct ≡ ("_" , tm-data N [] []) ∷ ("_" , tm-data B [] []) ∷ [])
 
 -- Progress (docs/SOUNDNESS.md §2)
 --
@@ -156,8 +175,9 @@ module Progress (ind : IndEnv) (sig : Signature) (conv : Conversion)
   ProgressResult : Term → Set
   ProgressResult t = Value t ⊎ (∃ λ t′ → _⇝_ sig t t′)
 
-  -- A branch's arity equals its constructor's argument-telescope length. Read
-  -- off the `⊢*brs` derivation: `brs∷` records `length (ctor-args ct) ≡ ar`.
+  -- A branch's arity equals its constructor's argument-telescope length.
+  -- Read off the `⊢*brs` derivation: the new `brs∷` stores
+  -- `length (ctor-args ct)` AS the branch arity, so the equation is `refl`.
   brs-arity : ∀ {brs n m}
             → ⟨⟩ ⊢*brs brs ⇐*ᵇ (n , m)
             → ∀ {c ar b} → (c , ar , b) ∈ brs
@@ -165,8 +185,8 @@ module Progress (ind : IndEnv) (sig : Signature) (conv : Conversion)
             → findCtor c (IndEnv.families ind) ≡ just (f , ct)
               × length (ctor-args ct) ≡ ar
   brs-arity brs[] ()
-  brs-arity (brs∷ {ct = ct} fc len _body rest) (here refl) = _ , ct , fc , len
-  brs-arity (brs∷ fc len _body rest) (there p) = brs-arity rest p
+  brs-arity (brs∷ {ct = ct} fc _body rest) (here refl) = _ , ct , fc , refl
+  brs-arity (brs∷ fc _body rest) (there p) = brs-arity rest p
 
   -- A constructor inference derivation gives the ctor's membership in
   -- `allCtorNames`, so the coverage witness applies.
@@ -235,7 +255,7 @@ module Progress (ind : IndEnv) (sig : Signature) (conv : Conversion)
     let (ar , b , (found , membr)) = branch-for "First" brs m (proj₁ (proj₂ (proj₂ bc)))
     in inj₂ (substArgs (tm-nat_lit 0 ∷ []) b , ι-bounded-zero found)
   case-bounded-step (suc k) brs m =
-    let (ar , b , (found , membr)) = branch-for "Next" brs m (proj₂ (proj₂ (proj₂ bc)))
+    let (ar , b , (found , membr)) = branch-for "Next" brs m (proj₁ (proj₂ (proj₂ (proj₂ bc))))
     in inj₂ (substArgs (tm-nat_lit k ∷ tm-bounded_lit k ∷ []) b , ι-bounded-suc found)
   -- Progress: a well-typed closed final term is a value or it steps.
   --

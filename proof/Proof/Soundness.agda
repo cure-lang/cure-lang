@@ -63,7 +63,7 @@ module Sound (ind : IndEnv) (sig : Signature) (conv : Conversion)
 
   open Core.Typing.Typing ind sig conv
   open Proof.Progress.Progress ind sig conv pos cert cov bc
-  open Proof.Preservation.Preserve ind sig conv closed rc ctyped
+  open Proof.Preservation.Preserve ind sig conv closed rc ctyped bc
 
   ------------------------------------------------------------------------
   -- The possible outcomes of evaluating a closed term (the classical

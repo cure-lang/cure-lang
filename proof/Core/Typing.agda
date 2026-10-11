@@ -25,8 +25,10 @@ open import Data.Bool using (Bool; true; false)
 open import Data.String using (_==_)
 open import Data.Nat using (ℕ; zero; suc; _+_; _≤_; z≤n; s≤s; _<_; _≤ᵇ_)
 open import Data.Nat.Properties using (+-identityʳ; +-suc)
-open import Data.List using (List; []; _∷_; _++_; length; map)
-open import Data.Fin using (Fin; zero; suc; toℕ)
+open import Data.List using (List; []; _∷_; _++_; length; map; reverse)
+open import Data.List using () renaming (lookup to listLookup)
+open import Data.List.Properties using (length-reverse)
+open import Data.Fin using (Fin; zero; suc; toℕ; _↑ˡ_)
 open import Data.Product using (Σ; _×_; _,_; proj₁; proj₂; ∃; ∃-syntax)
 open import Data.Maybe using (Maybe; just; nothing)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
@@ -165,6 +167,19 @@ record Conversion : Set₁ where
     ≈-pi-components : ∀ {g d c g′ d′ c′}
                     → tm-pi g′ d′ c′ ≈ tm-pi g d c
                     → g′ ≡ g × (d′ ≈ d) × (c′ ≈ c)
+    -- THE COMPACT-LITERAL IDENTIFICATION.
+    --
+    -- The kernel treats a compact `{:vnat, n}` as the `Z`/`S` tower
+    -- (`Eval.nat_to_ctor`; `bounded_to_ctor` for bounded), so a `case` on a
+    -- literal fires ι after PEELING the literal to a constructor. These
+    -- fields record that identification: a compact literal is
+    -- definitionally equal to the constructor term it peels to. This is
+    -- what makes the literal-peel ι rules (`ι-nat-*` / `ι-bounded-*`)
+    -- type-preserving.
+    ≈-nat-zero  : tm-ctor "Z" [] ≈ tm-nat_lit 0
+    ≈-nat-suc   : ∀ {k} → tm-ctor "S" (tm-nat_lit k ∷ []) ≈ tm-nat_lit (suc k)
+    ≈-bounded-zero : tm-ctor "First" (tm-nat_lit 0 ∷ []) ≈ tm-bounded_lit 0
+    ≈-bounded-suc  : ∀ {k} → tm-ctor "Next" (tm-nat_lit k ∷ tm-bounded_lit k ∷ []) ≈ tm-bounded_lit (suc k)
 open Conversion public
 
 ------------------------------------------------------------------------
@@ -186,19 +201,53 @@ extendⁿ Γ zero = Γ
 extendⁿ Γ (suc k) = extend (extendⁿ Γ k) (tm-hole "field")
 
 ------------------------------------------------------------------------
--- The field variables bound by a `case` branch of arity `ar`.
+-- Extending a context by a TELESCOPE.
 --
--- The kernel binds the LAST field at index 0, so the field list is
--- `[ar-1, …, 0]`. Defined at the top level so the branch lemmas in
--- Proof/Substitution.agda can speak about it.
+-- `extendTele Γ [(nm₁ , A₁) , … , (nm_ar , A_ar)]` binds the telescope's
+-- entries, the FIRST entry INNERMOST:
+--
+--     Γ ▷ A_ar ▷ … ▷ A₁
+--
+-- so `A₁` is at index 0 and `A_i` at index `i - 1`. This matches
+-- `branch-field-vars ar = [0, …, ar-1]`: field `i` (1-indexed) is the
+-- variable at index `i - 1`.
+--
+-- This is the context the `case` branch rule uses: a branch for constructor
+-- `cn` binds the constructor's REAL argument telescope (`ctor-args ct`),
+-- not holes, so the ι reduction's substitution lemma can relate the field
+-- variables to the constructor's actual arguments.
+--
+-- Indexed by `length tele + m` and CAST-FREE (like `extendⁿ`).
 ------------------------------------------------------------------------
 
-countdown : ℕ → List ℕ
-countdown zero = []
-countdown (suc n) = n ∷ countdown n
+extendTele : ∀ {m} (Γ : Ctx m) (tele : Telescope) → Ctx (length tele + m)
+extendTele Γ [] = Γ
+extendTele Γ ((nm , T) ∷ tele) = extend (extendTele Γ tele) T
+
+-- The type bound at de Bruijn index `i` by `extendTele Γ tele`, for a FIELD
+-- position (`i < length tele`): the `i`-th telescope entry (0-indexed).
+teleField : (tele : Telescope) → Fin (length tele) → Term
+teleField tele i = proj₂ (listLookup tele i)
+
+-- The field index `i` as an index into `extendTele Γ tele`.
+fieldFin : ∀ {m} (tele : Telescope) → Fin (length tele) → Fin (length tele + m)
+fieldFin tele i = i ↑ˡ _
+
+------------------------------------------------------------------------
+-- The field variables bound by a `case` branch of arity `ar`.
+--
+-- Field `i` (1-indexed) is the variable at index `i - 1`, matching the
+-- branch context `extendTele Γ (ctor-args ct)`, where the FIRST telescope
+-- entry is INNERMOST (index 0). Defined at the top level so the branch
+-- lemmas in Proof/Substitution.agda can speak about it.
+------------------------------------------------------------------------
+
+upto : ℕ → List ℕ
+upto zero = []
+upto (suc n) = 0 ∷ map suc (upto n)
 
 branch-field-vars : ℕ → List Term
-branch-field-vars ar = map tm-var (countdown ar)
+branch-field-vars ar = map tm-var (upto ar)
 
 ------------------------------------------------------------------------
 -- Telescope membership and maps.
@@ -212,6 +261,12 @@ branch-field-vars ar = map tm-var (countdown ar)
 data _∈Tele_ : Term → Telescope → Set where
   ∈-here  : ∀ {T tele nm} → T ∈Tele ((nm , T) ∷ tele)
   ∈-there : ∀ {T U tele nm} → T ∈Tele tele → T ∈Tele ((nm , U) ∷ tele)
+
+-- The `j`-th telescope entry is a member of the telescope.
+listLookup-∈Tele : ∀ (tele : Telescope) (j : Fin (length tele))
+                 → proj₂ (listLookup tele j) ∈Tele tele
+listLookup-∈Tele (x ∷ tele) zero = ∈-here
+listLookup-∈Tele (x ∷ tele) (suc j) = ∈-there (listLookup-∈Tele tele j)
 
 -- Rename every type in a telescope.
 renameTele : Ren → Telescope → Telescope
@@ -444,10 +499,11 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
 
   data _⊢*brs_⇐*ᵇ_ where
     brs[] : ∀ {k} {Γ : Ctx k} {n m} → Γ ⊢*brs [] ⇐*ᵇ (n , m)
-    brs∷  : ∀ {k} {Γ : Ctx k} {cn ar b brs n m f ct}
+    brs∷  : ∀ {k} {Γ : Ctx k} {cn b brs n m f ct}
           → findCtor cn (IndEnv.families ind) ≡ just (f , ct)
-          → length (ctor-args ct) ≡ ar
-          → extendⁿ Γ ar ⊢ b ⇐ tm-app (rename (λ j → j + ar) m) (tm-ctor cn (branch-field-vars ar))
+          → extendTele Γ (ctor-args ct)
+              ⊢ b ⇐ tm-app (rename (λ j → j + length (ctor-args ct)) m)
+                           (tm-ctor cn (branch-field-vars (length (ctor-args ct))))
           → Γ ⊢*brs brs ⇐*ᵇ (n , m)
-          → Γ ⊢*brs ((cn , ar , b) ∷ brs) ⇐*ᵇ (n , m)
+          → Γ ⊢*brs ((cn , length (ctor-args ct) , b) ∷ brs) ⇐*ᵇ (n , m)
 

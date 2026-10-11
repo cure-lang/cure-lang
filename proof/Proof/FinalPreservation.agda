@@ -167,24 +167,12 @@ topSub-final fa (suc k) = f-var
 
 ------------------------------------------------------------------------
 -- `argsSub args` is final when `args` are: the field indices map to `args`
--- (final), the rest to variables. `argsSub` reverses its argument and
--- walks it onto the indices, so the proof reverses the `FinalTerms`
--- witness and walks the reversed list in step with `go`.
+-- (final), the rest to variables. `argsSub` walks its argument onto the
+-- indices in order, so the proof walks the `FinalTerms` witness in step.
 ------------------------------------------------------------------------
 
--- `xs ∷ʳ x` (snoc) preserves `FinalTerms`.
-snoc-final : ∀ {xs} {x} → FinalTerms xs → Final x → FinalTerms (xs ∷ʳ x)
-snoc-final ft[] fx = ft∷ fx ft[]
-snoc-final (ft∷ fy fys) fx = ft∷ fy (snoc-final fys fx)
-
--- `reverse` preserves `FinalTerms`.
-reverse-final : ∀ {xs} → FinalTerms xs → FinalTerms (reverse xs)
-reverse-final ft[] = ft[]
-reverse-final (ft∷ {x = x} {xs = xs} fx fxs) =
-  subst FinalTerms (sym (unfold-reverse x xs)) (snoc-final (reverse-final fxs) fx)
-
 argsSub-final : ∀ {args} → FinalTerms args → FinalSub (argsSub args)
-argsSub-final {args} ft = go-final 0 (reverse args) (reverse-final ft)
+argsSub-final {args} ft = go-final 0 args ft
   where
     go-final : ∀ k (ys : List Term) → FinalTerms ys → FinalSub (argsSub-go k ys)
     go-final k [] ft[] i = f-var
@@ -201,14 +189,6 @@ finalBranches-member : ∀ {bs} → FinalBranches bs → ∀ {cn ar b}
                      → (cn , ar , b) ∈ bs → Final b
 finalBranches-member (fb∷ fb fbs) (here refl) = fb
 finalBranches-member (fb∷ fb fbs) (there p) = finalBranches-member fbs p
-
--- `findBranch` only returns branches that are in the list.
-findBranch-sound : ∀ c bs {ar b} → findBranch c bs ≡ just (c , ar , b) → (c , ar , b) ∈ bs
-findBranch-sound c [] ()
-findBranch-sound c ((cn , ar′ , b′) ∷ xs) {ar} {b} eq with c ≟ cn
-... | yes refl = subst (λ q → q ∈ ((c , ar′ , b′) ∷ xs)) (just-inj eq) (here refl)
-... | no _ = there (findBranch-sound c xs eq)
-
 -- Head and tail of a non-empty `FinalTerms`.
 ft-head : ∀ {x xs} → FinalTerms (x ∷ xs) → Final x
 ft-head (ft∷ fx fxs) = fx

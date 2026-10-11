@@ -8,16 +8,14 @@ development.
 
 > **Status: in progress.** The formalisation of the Core calculus and the
 > typing judgment is complete and compiles clean. The canonical-form lemmas
-> are **proved**, as are the renaming and substitution lemmas (the
-> application case is now resolved). **Progress** and **`Final`-preservation**
-> are **proved**, and so are both constructive forms of the soundness
+> are **proved**, as are the renaming and substitution lemmas. **Progress**,
+> **`Final`-preservation**, and **`preservation` (every case, including ι and
+> δ)** are **proved**, and so are both constructive forms of the soundness
 > theorem: the **fuel-indexed `soundness-fuel`** and the **coinductive
-> `soundness-tree`**. **`preservation` is proved for every case except ι**
-> (the β/ζ inference gaps are dissolved by `check-infer`, and δ by
-> `CertifiedTyped`). The remaining obligations — the classical three-way
-> `soundness`, the ι Preservation case, and the conversion-injectivity
-> axioms — are isolated as `postulate`s, each carrying a named proof
-> strategy. See [Status](#status) for the lemma-by-lemma breakdown.
+> `soundness-tree`**. The single remaining obligation is the classical
+> three-way `soundness`, kept as a `postulate` because collapsing the outcome
+> tree into a `data` disjunction needs confluence. See [Status](#status) for
+> the lemma-by-lemma breakdown.
 
 ## What is being proved
 
@@ -87,7 +85,7 @@ recommends.
 | `Proof.Substitution` | shift/subst algebraic laws | ✅ `shift-0`, `shift-var-1`, the rename/subst interaction laws, and the branch-field lemmas **proved**; only `shift-subst` (app case) open |
 | `Proof.Context` | Length-indexed context laws: weakening lookup, `extendⁿ` lookup, branch morphism `extF` | ✅ **proved** |
 | `Proof.Progress` | `Final` Core; the four side conditions; `progress` | ✅ **proved** |
-| `Proof.Preservation` | `weaken`, `subst⇒`, `subst⇐`, `check-infer`, `preservation` | ⚠️ renaming/substitution + `ξ-*`/β/ζ/λ/hole/δ cases **proved**; only ι open |
+| `Proof.Preservation` | `weaken`, `subst⇒`, `subst⇐`, `check-infer`, `preservation` | ✅ **fully proved** (all cases incl. β/ζ/ι/δ) |
 | `Proof.FinalPreservation` | `substS-final` (closure of `Final` under a final substitution); `final-preservation` | ✅ **proved** |
 | `Proof.Soundness` | `EvalResult`; `soundness-fuel` (constructive); `Diverges`/`EvalTree`/`soundness-tree` (coinductive); `soundness` (classical) | ✅ **`soundness-fuel` and `soundness-tree` proved**; classical `soundness` open (needs the tree collapse) |
 
@@ -157,13 +155,27 @@ recommends.
 - **`branches-conv`** (`Proof/Preservation.agda`): branch typing is stable
   under CONVERSION of the motive (via `≈-rename`), which types the
   `ξ-case-motive` congruence.
-- **`preservation`'s checking-mode cases** (`Proof/Preservation.agda`): the
-  β/ζ cases (via `preserve-β`/`preserve-ζ` + `check-infer`), the
-  checking-mode λ/hole cases, and the δ case (via `CertifiedTyped` +
-  `weaken-closed`) are proved, threading a `Final t` hypothesis. The former
-  `preservation-other`, `preservation⇒-β`, `preservation⇒-ζ`,
-  `preservation⇒-case`, `preservation⇒-case-motive`, and `preservation-δ`
-  postulates are gone.
+- **`preservation` — every case** (`Proof/Preservation.agda`, **no
+  postulates**): the `ξ-*` congruence cases, the β/ζ cases (via
+  `preserve-β`/`preserve-ζ` + `check-infer`), the checking-mode λ/hole cases,
+  the δ case (via `CertifiedTyped` + `weaken-closed`), and the ι case
+  (including all four literal-peel variants), threading a `Final t`
+  hypothesis. The former `preservation-other`, `preservation⇒-β`,
+  `preservation⇒-ζ`, `preservation⇒-case`, `preservation⇒-case-motive`,
+  `preservation-δ`, and the five `preservation-ι*` postulates are all gone.
+- **The `brs∷` field-telescope change** (`Core/Typing.agda`): the branch rule
+  now types the field binders with the constructor's argument telescope
+  (`extendTele Γ (ctor-args ct)`) and stores `length (ctor-args ct)` as the
+  branch arity, so the ι substitution lemma relates the field variables to
+  the constructor's actual arguments. The supporting context machinery
+  (`extendTele`, `teleField`, `fieldFin`, `lookup-extendTele-*`, `extF-tele`,
+  `lookup-extF-tele`) is in `Core/Typing.agda` / `Proof/Context.agda`.
+- **The compact-literal identification** (`Core/Typing.agda`): the
+  `Conversion` record gains `≈-nat-zero`/`≈-nat-suc`/`≈-bounded-zero`/
+  `≈-bounded-suc`, recording that a compact `tm-nat_lit`/`tm-bounded_lit` is
+  definitionally the constructor term it peels to (as the kernel's
+  `Eval.nat_to_ctor`/`bounded_to_ctor` do). `BuiltinCtors` is strengthened to
+  give the builtin constructors' argument telescopes.
 - **`weaken-closed`** (`Proof/Preservation.agda`): a CLOSED term that types
   in the empty context types in any context (the context morphism
   `Fin 0 → Fin n` is vacuous, and renaming is the identity on closed terms).
@@ -218,16 +230,16 @@ These are the `postulate`s, each with a named proof strategy in the source:
 4. **`progress`** (`Proof/Progress.agda`) — **PROVED** by mutual cases on the
    typing derivation (infer and check), consuming the canonical-form lemmas to
    show β and ι fire. See [The `progress` inputs](#the-progress-inputs).
-5. **`preservation`** (`Proof/Preservation.agda`) — **PROVED for every case
-   except ι.** The `ξ-*` congruence cases, the β/ζ cases, the checking-mode
-   λ/hole cases, and the δ (certified unfolding) case are all proved
-   (generalised to an arbitrary context `Γ`, threading a `Final t`
-   hypothesis). The former inference-preservation gaps are dissolved by
+5. **`preservation`** (`Proof/Preservation.agda`) — **FULLY PROVED** (no
+   postulates). The `ξ-*` congruence cases, the β/ζ cases, the checking-mode
+   λ/hole cases, the δ (certified unfolding) case, and the **ι (branch
+   substitution) case** (including all four literal-peel variants) are all
+   proved, generalised to an arbitrary context `Γ` and threading a `Final t`
+   hypothesis. The former inference-preservation gaps are dissolved by
    `check-infer`; the `ξ-app₂`/`ξ-let`/`ξ-case`/`ξ-case-motive` conversions
    by `ReduceConv` and `branches-conv`; δ by the `CertifiedTyped` hypothesis
-   and `weaken-closed`. Only the ι (branch substitution) case remains,
-   needing the `brs∷` field-telescope change. See
-   [The `preservation` findings](#the-preservation-findings).
+   and `weaken-closed`; and ι by the `brs∷` field-telescope change (below).
+   See [The `preservation` findings](#the-preservation-findings).
 6. **`soundness`** (`Proof/Soundness.agda`) — the type-safety induction
    combining Progress and Preservation. Both constructive forms are
    **PROVED**: the **fuel-indexed `soundness-fuel`** and the **coinductive
@@ -291,19 +303,26 @@ all resolved by extending it:
   `ξ-lam-dom` / `ξ-pi-dom` cases (which change the binder's domain) are
   transported by the CONTEXT CONVERSION lemma (`conv⇒` / `conv⇐`).
 
-The `preservation` function now threads a `Final t` hypothesis (needed by
-`check-infer`), and handles the checking-mode λ/hole cases directly. The δ
-(certified unfolding) case is **proved** via the new `CertifiedTyped`
-hypothesis (below). One `preservation` obligation remains and needs a
-**framework extension**, not just proof work:
+The `preservation` function threads a `Final t` hypothesis (needed by
+`check-infer`), and handles the checking-mode λ/hole cases directly. **Every
+case is now proved** — the δ (certified unfolding) case via the
+`CertifiedTyped` hypothesis (below), and the ι (branch substitution) case via
+the `brs∷` field-telescope change:
 
-- **The ι (branch substitution) case.** The `⊢*brs` rule types a branch's
-  field binders with `tm-hole "field"` (`extendⁿ`), but the ι reduction
-  substitutes the constructor's REAL arguments (typed by `ctor-args ct`).
-  The substitution lemma therefore cannot relate the hole-typed field
-  variables to the actual args. Proving ι needs `brs∷` to type the field
-  binders with the constructor's argument telescope (a change to the typing
-  judgment, rippling through the renaming/substitution lemmas).
+- **The ι (branch substitution) case.** The `⊢*brs` rule originally typed a
+  branch's field binders with `tm-hole "field"` (`extendⁿ`), but the ι
+  reduction substitutes the constructor's REAL arguments (typed by
+  `ctor-args ct`), so the substitution lemma could not relate the hole-typed
+  field variables to the actual args. **Resolved** by changing `brs∷` to type
+  the field binders with the constructor's argument telescope
+  (`extendTele Γ (ctor-args ct)`), and by making the branch arity literally
+  `length (ctor-args ct)`. The ι proof is then a direct application of the
+  substitution lemma with the coherence `argsSub-coh` (field positions map to
+  the constructor arguments, base-environment positions are the identity).
+  The four literal-peel variants (`ι-nat-zero`/`ι-nat-suc`/`ι-bounded-zero`/
+  `ι-bounded-suc`) additionally use the `Conversion` record's compact-literal
+  identification (`≈-nat-zero`/`≈-nat-suc`/`≈-bounded-zero`/`≈-bounded-suc`)
+  and the `BuiltinCtors` telescope facts.
 
 ### The `CertifiedTyped` hypothesis (the δ case)
 

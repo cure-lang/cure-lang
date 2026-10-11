@@ -27,7 +27,7 @@ open import Relation.Binary.PropositionalEquality
 
 open import Function using (_∘_)
 open import Core.Syntax
-open import Core.Typing using (countdown; branch-field-vars)
+open import Core.Typing using (upto; branch-field-vars)
 
 ------------------------------------------------------------------------
 -- `n + 0 ≡ n`
@@ -914,29 +914,34 @@ renameTerms-field-vars : ∀ ar (ρ : Ren)
   → renameTerms (ext^ ar ρ) (branch-field-vars ar) ≡ branch-field-vars ar
 renameTerms-field-vars ar ρ =
   trans (renameTerms-map (ext^ ar ρ) (branch-field-vars ar))
-        (trans (cong (map (rename (ext^ ar ρ))) (sym (map-tm-var-countdown ar)))
-               (trans (map-compose (rename (ext^ ar ρ)) tm-var (countdown ar))
-                      (trans (map-countdown-fix ar ar ρ (≤-refl {ar}))
-                              (sym (map-tm-var-countdown ar)))))
+        (trans (cong (map (rename (ext^ ar ρ))) (sym (map-tm-var-upto ar)))
+               (trans (map-compose (rename (ext^ ar ρ)) tm-var (upto ar))
+                      (trans (map-upto-fix ar ar ρ (≤-refl {ar}))
+                              (sym (map-tm-var-upto ar)))))
   where
-    map-tm-var-countdown : ∀ ar → branch-field-vars ar ≡ map tm-var (countdown ar)
-    map-tm-var-countdown ar = refl
+    map-tm-var-upto : ∀ ar → branch-field-vars ar ≡ map tm-var (upto ar)
+    map-tm-var-upto ar = refl
 
     map-compose : ∀ {A B C : Set} (f : B → C) (g : A → B) xs → map f (map g xs) ≡ map (f ∘ g) xs
     map-compose f g [] = refl
     map-compose f g (x ∷ xs) = cong₂ _∷_ refl (map-compose f g xs)
 
-    -- `map (λ k → tm-var (ext^ n ρ k)) (countdown ar) ≡ map tm-var (countdown ar)`
+    -- `map f (upto ar) ≡ map g (upto ar)` when `f` and `g` agree below `ar`.
+    map-upto-cong : ∀ ar {f g : ℕ → Term} → (∀ k → k < ar → f k ≡ g k)
+      → map f (upto ar) ≡ map g (upto ar)
+    map-upto-cong zero h = refl
+    map-upto-cong (suc ar) h =
+      cong₂ _∷_ (h 0 (s≤s z≤n))
+            (trans (map-compose _ suc (upto ar))
+                   (trans (map-upto-cong ar (λ k p → h (suc k) (s≤s p)))
+                          (sym (map-compose _ suc (upto ar)))))
+
+    -- `map (λ k → tm-var (ext^ n ρ k)) (upto ar) ≡ map tm-var (upto ar)`
     -- when `ar ≤ n`: every field index (`< ar ≤ n`) is fixed by `ext^ n ρ`.
-    map-countdown-fix : ∀ ar n (ρ : Ren) → ar ≤ n
-      → map (λ k → tm-var (ext^ n ρ k)) (countdown ar) ≡ map tm-var (countdown ar)
-    map-countdown-fix zero n ρ le = refl
-    map-countdown-fix (suc ar) n ρ le = cong₂ _∷_ head tail
-      where
-        head : tm-var (ext^ n ρ ar) ≡ tm-var ar
-        head = cong tm-var (ext^-fix n ρ ar le)
-        tail : map (λ k → tm-var (ext^ n ρ k)) (countdown ar) ≡ map tm-var (countdown ar)
-        tail = map-countdown-fix ar n ρ (≤-trans (m≤n⇒m≤1+n (≤-refl {ar})) le)
+    map-upto-fix : ∀ ar n (ρ : Ren) → ar ≤ n
+      → map (λ k → tm-var (ext^ n ρ k)) (upto ar) ≡ map tm-var (upto ar)
+    map-upto-fix ar n ρ le =
+      map-upto-cong ar (λ k p → cong tm-var (ext^-fix n ρ k (≤-trans p le)))
 
 ------------------------------------------------------------------------
 -- The branch motive under a renaming.
@@ -1021,27 +1026,32 @@ substTerms-field-vars : ∀ ar σ
   → substTermsS (extSub^ ar σ) (branch-field-vars ar) ≡ branch-field-vars ar
 substTerms-field-vars ar σ =
   trans (substTerms-map (extSub^ ar σ) (branch-field-vars ar))
-        (trans (cong (map (substS (extSub^ ar σ))) (sym (map-tm-var-countdown ar)))
-               (trans (map-compose (substS (extSub^ ar σ)) tm-var (countdown ar))
-                      (trans (map-countdown-subst-fix ar ar σ (≤-refl {ar}))
-                             (sym (map-tm-var-countdown ar)))))
+        (trans (cong (map (substS (extSub^ ar σ))) (sym (map-tm-var-upto ar)))
+               (trans (map-compose (substS (extSub^ ar σ)) tm-var (upto ar))
+                      (trans (map-upto-subst-fix ar ar σ (≤-refl {ar}))
+                             (sym (map-tm-var-upto ar)))))
   where
-    map-tm-var-countdown : ∀ ar → branch-field-vars ar ≡ map tm-var (countdown ar)
-    map-tm-var-countdown ar = refl
+    map-tm-var-upto : ∀ ar → branch-field-vars ar ≡ map tm-var (upto ar)
+    map-tm-var-upto ar = refl
 
     map-compose : ∀ {A B C : Set} (f : B → C) (g : A → B) xs → map f (map g xs) ≡ map (f ∘ g) xs
     map-compose f g [] = refl
     map-compose f g (x ∷ xs) = cong₂ _∷_ refl (map-compose f g xs)
 
-    map-countdown-subst-fix : ∀ ar n σ → ar ≤ n
-      → map (λ k → substS (extSub^ n σ) (tm-var k)) (countdown ar) ≡ map tm-var (countdown ar)
-    map-countdown-subst-fix zero n σ le = refl
-    map-countdown-subst-fix (suc ar) n σ le = cong₂ _∷_ head tail
-      where
-        head : substS (extSub^ n σ) (tm-var ar) ≡ tm-var ar
-        head = substS-extSub^-fix n σ ar le
-        tail : map (λ k → substS (extSub^ n σ) (tm-var k)) (countdown ar) ≡ map tm-var (countdown ar)
-        tail = map-countdown-subst-fix ar n σ (≤-trans (m≤n⇒m≤1+n (≤-refl {ar})) le)
+    -- `map f (upto ar) ≡ map g (upto ar)` when `f` and `g` agree below `ar`.
+    map-upto-cong : ∀ ar {f g : ℕ → Term} → (∀ k → k < ar → f k ≡ g k)
+      → map f (upto ar) ≡ map g (upto ar)
+    map-upto-cong zero h = refl
+    map-upto-cong (suc ar) h =
+      cong₂ _∷_ (h 0 (s≤s z≤n))
+            (trans (map-compose _ suc (upto ar))
+                   (trans (map-upto-cong ar (λ k p → h (suc k) (s≤s p)))
+                          (sym (map-compose _ suc (upto ar)))))
+
+    map-upto-subst-fix : ∀ ar n σ → ar ≤ n
+      → map (λ k → substS (extSub^ n σ) (tm-var k)) (upto ar) ≡ map tm-var (upto ar)
+    map-upto-subst-fix ar n σ le =
+      map-upto-cong ar (λ k p → substS-extSub^-fix n σ k (≤-trans p le))
 
 -- The branch motive under a substitution.
 subst-branch-motive : ∀ ar σ (m : Term) (cn : Name)

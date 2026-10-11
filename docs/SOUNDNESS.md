@@ -417,8 +417,9 @@ that stays outside the TCB and outside the mechanised proof.
 A partial mechanisation now exists in [`proof/`](../proof/README.md): the Core
 calculus, the typing judgment, the canonical-form and head-inversion lemmas,
 the renaming/substitution lemmas, **Progress**, **`Final`-preservation**,
-**`preservation` for every case except ι**, and — with the side conditions
-carried as hypotheses — **both constructive forms of the soundness theorem**:
+**`preservation` (every case, including ι and δ)**, and — with the side
+conditions carried as hypotheses — **both constructive forms of the soundness
+theorem**:
 
 ```agda
 -- the bounded unfolding, by induction on the fuel
@@ -447,6 +448,15 @@ checking-mode β/ζ reducts infer their type once the redex is final. Second,
 well-typedness half of `Env.certified?` — plus `weaken-closed` (a closed term
 that types in `⟨⟩` types in any context).
 
+The **ι (branch substitution) case** — the one remaining Preservation
+obligation — is now **proved**. The `⊢*brs` rule was changed to type a
+branch's field binders with the constructor's argument telescope
+(`extendTele Γ (ctor-args ct)`) rather than with `tm-hole "field"`, so the ι
+substitution lemma relates the field variables to the constructor's real
+arguments. The four literal-peel variants additionally use a compact-literal
+identification on the `Conversion` record (`tm-ctor "Z" [] ≈ tm-nat_lit 0`,
+etc.), mirroring the kernel's `Eval.nat_to_ctor`/`bounded_to_ctor`.
+
 The classical three-way statement §1.4 remains a `postulate`: it is the
 collapse of the outcome tree into a `data` disjunction, which requires
 deciding whether the tree is finite — not constructive here, because `_⇝_` is
@@ -454,13 +464,6 @@ not deterministic (`(λx. b) a` both β-reduces and reduces under the λ), so
 `Diverges` does not contradict a separate reduction to a value without a
 confluence lemma. The constructive `soundness-tree` is the replacement, with
 the `reached` outcome inhabiting the classical first disjunct.
-
-The one remaining Preservation obligation is the **ι (branch substitution)
-case**: the `⊢*brs` rule types a branch's field binders with `tm-hole
-"field"`, but ι substitutes the constructor's real arguments, so the
-substitution lemma cannot relate them. Proving ι needs the branch rule to
-type the field binders with the constructor's argument telescope — a change
-to the typing judgment (§4).
 
 ---
 

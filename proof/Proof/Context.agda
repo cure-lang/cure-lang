@@ -19,9 +19,14 @@ open import Relation.Binary.PropositionalEquality
 open import Function using (_∘_)
 
 open import Core.Syntax
+open import Core.Signature using (Telescope)
 open import Core.Typing using (Ctx; ⟨⟩; _▷_; lookup; extend; lookup-extend;
-                                extendⁿ)
-open import Proof.Substitution using (shift-0)
+                                lookup-renameCtx;
+                                extendⁿ; extendTele; teleField; fieldFin)
+open import Proof.Substitution using (shift-0; rename-closed; shiftRen-k0)
+open import Data.List using (List; []; _∷_; length; reverse; map)
+open import Data.Nat.Properties using (+-suc)
+open import Data.Product using (_,_; proj₂)
 
 ------------------------------------------------------------------------
 -- Weakening a lookup.
@@ -127,3 +132,96 @@ lookup-extF Γ Δ (suc k) ρ idx law (suc j) =
                (trans (ext-wk-rename (ext^ k ρ) (lookup (extendⁿ Γ k) j))
                       (cong (rename (ext^ (suc k) ρ))
                             (sym (lookup-extend (extendⁿ Γ k) (tm-hole "field") j)))))
+
+------------------------------------------------------------------------
+-- The telescope extension `extendTele`.
+--
+-- `extendTele Γ tele` binds the telescope's entries, the FIRST entry
+-- INNERMOST (`Γ ▷ A_ar ▷ … ▷ A₁`). Its two lookup laws are the workhorses
+-- of the `case` branch cases of the renaming and substitution lemmas:
+--
+--   * a FIELD position (index `i < length tele`) holds the `i`-th
+--     telescope entry, which is CLOSED;
+--   * an EXISTING variable, lifted by `_↑ʳ_` (as `length tele ↑ʳ j`),
+--     holds `lookup Γ j` renamed by the `length tele`-fold weakening
+--     `shiftRen (length tele) 0`.
+------------------------------------------------------------------------
+
+-- A field position holds the corresponding telescope entry, provided the
+-- telescope is CLOSED (so `extend`'s `wk`-renaming is the identity).
+lookup-extendTele-field : ∀ {m} (Γ : Ctx m) (tele : Telescope) (i : Fin (length tele))
+  → (∀ j → Scoped 0 (teleField tele j))
+  → lookup (extendTele Γ tele) (fieldFin tele i) ≡ teleField tele i
+lookup-extendTele-field Γ [] ()
+lookup-extendTele-field Γ ((nm , T) ∷ tele) zero cl = rename-closed (cl zero)
+lookup-extendTele-field Γ ((nm , T) ∷ tele) (suc i) cl =
+  trans (lookup-renameCtx wk (extendTele Γ tele) (fieldFin tele i))
+        (trans (cong (rename wk) (lookup-extendTele-field Γ tele i (λ j → cl (suc j))))
+               (rename-closed (cl (suc i))))
+
+-- An existing variable, lifted by `_↑ʳ_`, is found with its type renamed
+-- by `shiftRen (length tele) 0` (the `length tele`-fold weakening).
+lookup-extendTele-raise : ∀ {m} (Γ : Ctx m) (tele : Telescope) (j : Fin m)
+  → lookup (extendTele Γ tele) (length tele ↑ʳ j)
+  ≡ rename (shiftRen (length tele) 0) (lookup Γ j)
+lookup-extendTele-raise Γ [] j = sym (shift-0 0 (lookup Γ j))
+lookup-extendTele-raise Γ ((nm , T) ∷ tele) j =
+  trans (lookup-extend (extendTele Γ tele) T (length tele ↑ʳ j))
+        (trans (cong (rename wk) (lookup-extendTele-raise Γ tele j))
+               (trans (rename-compose wk (shiftRen (length tele) 0) (lookup Γ j))
+                      (cong (λ ρ → rename ρ (lookup Γ j))
+                            (funext-ren (λ k → sym (+-suc k (length tele)))))))
+
+------------------------------------------------------------------------
+-- The branch context morphism for a TELESCOPE extension.
+--
+-- `extF-tele tele idx` extends a morphism `idx : Fin n → Fin m` to the
+-- field binders: a field position maps to itself (`_↑ˡ_`), an existing
+-- variable is lifted by `length tele ↑ʳ_`. It is the `Fin` analogue of the
+-- renaming-level `ext^ (length tele)`.
+------------------------------------------------------------------------
+
+extF-tele : ∀ {n m} (tele : Telescope) → (Fin n → Fin m)
+          → Fin (length tele + n) → Fin (length tele + m)
+extF-tele [] idx i = idx i
+extF-tele ((nm , T) ∷ tele) idx zero = zero
+extF-tele ((nm , T) ∷ tele) idx (suc j) = suc (extF-tele tele idx j)
+
+-- The morphism realises the renaming `ext^ (length tele) ρ`.
+extF-tele-coh : ∀ {n m} (tele : Telescope) (ρ : Ren) (idx : Fin n → Fin m)
+  → (∀ i → toℕ (idx i) ≡ ρ (toℕ i))
+  → ∀ (j : Fin (length tele + n))
+  → toℕ (extF-tele tele idx j) ≡ ext^ (length tele) ρ (toℕ j)
+extF-tele-coh [] ρ idx coh j = coh j
+extF-tele-coh ((nm , T) ∷ tele) ρ idx coh zero = refl
+extF-tele-coh ((nm , T) ∷ tele) ρ idx coh (suc j) = cong suc (extF-tele-coh tele ρ idx coh j)
+
+-- The lookup law: the morphism transports the branch context lookup, with
+-- the type renamed by `ext^ (length tele) ρ`. The FIELD positions hold
+-- CLOSED telescope entries (so the renaming is the identity there); the
+-- EXISTING variables use the raise law.
+lookup-extF-tele : ∀ {n m} (Γ : Ctx n) (Δ : Ctx m) (tele : Telescope)
+                   (ρ : Ren) (idx : Fin n → Fin m)
+  → (∀ i → lookup Δ (idx i) ≡ rename ρ (lookup Γ i))
+  → (∀ j → Scoped 0 (teleField tele j))
+  → ∀ (j : Fin (length tele + n))
+  → lookup (extendTele Δ tele) (extF-tele tele idx j)
+  ≡ rename (ext^ (length tele) ρ) (lookup (extendTele Γ tele) j)
+lookup-extF-tele Γ Δ [] ρ idx law cl j = law j
+lookup-extF-tele Γ Δ ((nm , T) ∷ tele) ρ idx law cl zero =
+  sym (trans (rename-compose (ext^ (suc (length tele)) ρ) wk T)
+             (trans (cong (λ ρ′ → rename ρ′ T)
+                          (funext-ren (λ k → ext^-wk (length tele) ρ k)))
+                    (trans (sym (rename-compose wk (ext^ (length tele) ρ) T))
+                           (cong (rename wk) (rename-closed {ρ = ext^ (length tele) ρ} (cl zero))))))
+  where
+    -- `ext^ (suc n) ρ (suc k) ≡ suc (ext^ n ρ k)`, i.e., the extension
+    -- commutes with `wk`.
+    ext^-wk : ∀ n (ρ : Ren) k → ext^ (suc n) ρ (suc k) ≡ (wk ∘ ext^ n ρ) k
+    ext^-wk n ρ k = refl
+lookup-extF-tele Γ Δ ((nm , T) ∷ tele) ρ idx law cl (suc j) =
+  trans (lookup-extend (extendTele Δ tele) T (extF-tele tele idx j))
+        (trans (cong (rename wk) (lookup-extF-tele Γ Δ tele ρ idx law (λ k → cl (suc k)) j))
+               (trans (ext-wk-rename (ext^ (length tele) ρ) (lookup (extendTele Γ tele) j))
+                      (cong (rename (ext^ (suc (length tele)) ρ))
+                            (sym (lookup-extend (extendTele Γ tele) T j)))))

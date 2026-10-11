@@ -26,6 +26,8 @@ open import Data.Bool using (Bool; true; false)
 open import Data.String.Properties using (_≟_)
 open import Data.Nat using (ℕ; zero; suc; _+_; _≤_; z≤n; s≤s)
 open import Data.List using (List; []; _∷_; _++_; length; map; find; reverse)
+open import Data.List using () renaming (lookup to listLookup)
+open import Data.Fin using (Fin; zero; suc; toℕ)
 open import Data.List.Membership.Propositional using (_∈_)
 open import Data.List.Relation.Unary.Any using (here; there)
 open import Data.Empty using (⊥; ⊥-elim)
@@ -38,6 +40,7 @@ open import Relation.Nullary using (Dec; yes; no)
 open import Core.Grade using (Grade)
 open import Core.Universe using (Level)
 open import Core.Syntax
+open import Core.Signature using (just-inj)
 
 ------------------------------------------------------------------------
 -- Substituting a list of constructor arguments into a branch body.
@@ -57,18 +60,32 @@ open import Core.Syntax
 -- fields ++ base_env)`.
 ------------------------------------------------------------------------
 -- The simultaneous substitution of a branch's fields: `args` in surface
--- order, the LAST field at index 0 (so the list is reversed onto the
--- indices). Indices at or above the field count are fixed.
+-- order, the FIRST field at index 0 (matching `branch-field-vars ar =
+-- [0, …, ar-1]` and the branch context `extendTele Γ (ctor-args ct)`, whose
+-- FIRST telescope entry is innermost). Indices at or above the field count
+-- are fixed.
 -- The worker is exposed at the top level (rather than `where`-bound) so the
 -- metatheory can reason about the shape of `argsSub`'s images: the first
 -- `length args` indices map to the fields, the rest to variables.
 argsSub-go : ℕ → List Term → Sub
-argsSub-go k [] i = tm-var (i + k)
+argsSub-go k [] i = tm-var i
 argsSub-go k (a ∷ as) zero = a
 argsSub-go k (a ∷ as) (suc i) = argsSub-go (suc k) as i
 
 argsSub : List Term → Sub
-argsSub args = argsSub-go 0 (reverse args)
+argsSub args = argsSub-go 0 args
+
+-- `argsSub-go` on a base-environment index (at or above the field count) is
+-- the identity: `argsSub-go k ys (length ys + i) ≡ tm-var i`.
+argsSub-go-raise : ∀ k (ys : List Term) i → argsSub-go k ys (length ys + i) ≡ tm-var i
+argsSub-go-raise k [] i = refl
+argsSub-go-raise k (y ∷ ys) i = argsSub-go-raise (suc k) ys i
+
+-- `argsSub-go` on a FIELD index (below the field count) is the field.
+argsSub-go-field : ∀ k (ys : List Term) (i : Fin (length ys))
+  → argsSub-go k ys (toℕ i) ≡ listLookup ys i
+argsSub-go-field k (y ∷ ys) zero = refl
+argsSub-go-field k (y ∷ ys) (suc i) = argsSub-go-field (suc k) ys i
 
 substArgs : List Term → Term → Term
 substArgs args b = substS (argsSub args) b
@@ -115,6 +132,13 @@ findBranch-complete c ((cn , ar , b) ∷ xs) (here refl) with c ≟ cn
 findBranch-complete c ((cn , ar , b) ∷ xs) (there p) with c ≟ cn
 ... | yes refl = _ , _ , refl
 ... | no _     = findBranch-complete c xs p
+
+-- `findBranch` is SOUND: it only returns branches that are in the list.
+findBranch-sound : ∀ c brs {ar b} → findBranch c brs ≡ just (c , ar , b) → (c , ar , b) ∈ brs
+findBranch-sound c [] ()
+findBranch-sound c ((cn , ar′ , b′) ∷ xs) {ar} {b} eq with c ≟ cn
+... | yes refl = subst (λ q → q ∈ ((c , ar′ , b′) ∷ xs)) (just-inj eq) (here refl)
+... | no _     = there (findBranch-sound c xs eq)
 ------------------------------------------------------------------------
 -- The reduction relation, parameterised by the signature.
 ------------------------------------------------------------------------
