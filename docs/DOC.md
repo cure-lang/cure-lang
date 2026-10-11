@@ -260,6 +260,15 @@ mod DoctestDemo
 `Shapes` gets the first block and `circle_area` the second;
 `DoctestDemo` has no module doc and `add` gets the block.
 
+A `use` line or a plain `#` comment is not documentable, so a block that
+touches one stays with the module:
+
+```text
+mod Lists
+  ## Helpers over `Std.List`.
+  use Std.List
+```
+
 ### `###` fenced multi-line docstrings
 
 The `###` fence still works for cases where a docstring would

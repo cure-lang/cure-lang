@@ -63,6 +63,24 @@ defmodule Cure.Compiler.ModuleDocDecoratorTest do
     end
   end
 
+  test "a doc block touching a use line documents the module" do
+    {:ok, tokens} = Lexer.tokenize("mod M\n  ## Module.\n  use Std.List\n  fn f() -> Int = 1\n", emit_events: false)
+    {:ok, {:container, meta, _body}} = Parser.parse(tokens, emit_events: false)
+
+    assert Keyword.get(meta, :doc) == "Module."
+  end
+
+  test "a doc block touching a plain comment documents the module, with or without comment tokens" do
+    src = "mod M\n  ## Module.\n  # note\n  fn f() -> Int = 1\n"
+
+    for preserve <- [false, true] do
+      {:ok, tokens} = Lexer.tokenize(src, emit_events: false, preserve_comments: preserve)
+      {:ok, {:container, meta, _body}} = Parser.parse(tokens, emit_events: false, preserve_comments: preserve)
+
+      assert Keyword.get(meta, :doc) == "Module."
+    end
+  end
+
   test "a lone doc block followed by a blank line documents the module" do
     {:ok, tokens} = Lexer.tokenize("mod M\n  ## Module.\n\n  fn f() -> Int = 1\n", emit_events: false)
     {:ok, {:container, meta, [{:function_def, fn_meta, _}]}} = Parser.parse(tokens, emit_events: false)

@@ -94,7 +94,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `mod M` / `## Adds.` / `fn add(...)` the doc went to `M` instead of
   `add`. A block that touches the first definition now documents it; a
   module doc is separated from what follows by a blank line, as
-  `docs/DOC.md` now says. The stdlib modules written the other way
+  `docs/DOC.md` now says. A block above a `use` line or a plain `#`
+  comment still documents the module. The stdlib modules written the other way
   (`Std.Atom`, `Std.Float`, `Std.Int`, `Std.ExitReason`, `Std.Syntax`,
   `Std.Syntax.Raw`, `Std.Proof.LinearArithmetic`, `Std.Regex`,
   `Std.Regex.Core`, `Std.Regex.Runtime`) gain that blank line.

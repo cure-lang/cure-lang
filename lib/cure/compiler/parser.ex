@@ -14152,15 +14152,21 @@ defmodule Cure.Compiler.Parser do
   end
 
   # Whether the doc comment just consumed ends on the line right before the
-  # next authored token (looking past the block's `:indent`).
+  # next authored token (looking past the block's `:indent`), and that token
+  # starts something a doc can describe. A `use` line or a plain `#` comment
+  # is not documentable, so a doc above one stays with the container.
   defp doc_touches_next_line?(state) do
     with %Token{} = doc <- previous_doc_comment(state, state.pos - 1),
          %Token{} = next <- next_authored_token(state, state.pos) do
-      next.line == doc_end_line(doc) + 1
+      next.line == doc_end_line(doc) + 1 and documentable_start?(next)
     else
       _ -> false
     end
   end
+
+  defp documentable_start?(%Token{type: :keyword, value: :use}), do: false
+  defp documentable_start?(%Token{type: :line_comment}), do: false
+  defp documentable_start?(%Token{}), do: true
 
   defp previous_doc_comment(state, idx) do
     case token_at(state, idx) do
