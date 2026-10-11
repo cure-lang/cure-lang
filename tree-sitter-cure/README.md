@@ -1,7 +1,8 @@
 # tree-sitter-cure
 
 Lexical [tree-sitter](https://tree-sitter.github.io) grammar for Cure. The Zed
-extension in [`../zed-cure`](../zed-cure) builds it from this directory.
+extension in [`../zed-cure`](../zed-cure) and the Neovim plugin in
+[`../neovim-cure`](../neovim-cure) build it from this directory.
 
 It recognises Cure's tokens (keywords, identifiers, strings with `#{}`
 interpolation, atoms, chars, `~r//` regexes, `#`/`##`/`###…###` comments,
@@ -32,4 +33,5 @@ find .. -name '*.cure' -not -path '*/deps/*' -not -path '*/_build/*' \
 ```
 
 `queries/` is the source of truth for the editor queries; `zed-cure` carries
-copies under `languages/cure/`.
+copies under `languages/cure/` and `neovim-cure` carries `highlights.scm`
+under `queries/cure/`.

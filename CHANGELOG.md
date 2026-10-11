@@ -13,6 +13,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   queries can recognise macro vocabulary (`syntax family`, `accepts`,
   `expands with`, family fields) at the start of a line, and parses every
   `.cure` file in the repository without errors.
+- `neovim-cure` highlights with tree-sitter on Neovim 0.11+, using
+  `tree-sitter-cure/` and the same highlight queries as `zed-cure`. It
+  compiles the parser from the repository on first use and falls back to
+  `syntax/cure.vim` without a C compiler; `:CureTSBuild` builds it by hand.
 
 ### Fixed
 

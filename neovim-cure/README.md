@@ -8,7 +8,8 @@ Features first-class support for **Cure 0.34+**, including **LSP** (Language Ser
 
 ## ⚡ Features
 
-- 🎨 **Syntax Highlighting**: Complete grammar highlighting for Cure keywords (`mod`, `fn`, `type`, `rec`, `actor`, `sup`, `app`, `fsm`, dependent types, quantitative modes, Melquiades operator `<-|`/`✉`, string interpolation, and comments).
+- 🌳 **Tree-sitter Highlighting**: Uses the grammar in [`tree-sitter-cure/`](../tree-sitter-cure) and the same highlight queries as the Zed extension. The parser is compiled from the repository on first use (needs a C compiler); without one the plugin falls back to the Vim syntax file.
+- 🎨 **Vim Syntax Fallback**: Regex highlighting for Cure keywords (`mod`, `fn`, `type`, `rec`, `actor`, `sup`, `app`, `fsm`, dependent types, quantitative modes, Melquiades operator `<-|`/`✉`, string interpolation, and comments).
 - 📐 **Indentation & Filetype Detection**: Smart indentation rules for Cure's layout-sensitive structure.
 - ⚡ **LSP Integration**: Automatic integration with `cure-lsp` (diagnostics, auto-completion, hover signatures, formatting, semantic tokens, inlay hints, definition lookup).
 - 🤖 **Model Context Protocol (MCP)**: Native stdio JSON-RPC client connecting Neovim to Cure's MCP server:
@@ -67,6 +68,28 @@ use {
 
 ---
 
+## 🌳 Tree-sitter
+
+Highlighting uses tree-sitter on Neovim 0.11+; older versions keep the Vim
+syntax file. The first time a `.cure` file is opened, the plugin compiles
+`tree-sitter-cure/src/parser.c` with `$CC` (or `cc`, `gcc`, `clang`) into
+`neovim-cure/parser/cure.so`, and recompiles it when the grammar changes.
+Run `:CureTSBuild` to build it by hand. A rebuilt parser takes effect after
+restarting Neovim.
+
+```lua
+require("cure").setup({
+  treesitter = {
+    enabled = true,       -- false keeps the Vim syntax file
+    auto_install = true,  -- false: only build with :CureTSBuild
+  },
+})
+```
+
+Highlighting works without calling `setup()`. nvim-treesitter is not needed.
+
+---
+
 ## ⚡ LSP
 
 The plugin starts `cure-lsp` itself with `vim.lsp.start`, one client per
@@ -98,6 +121,7 @@ require("cure").setup({
 | `:CureMcpCheck` | `<leader>cc` | Type-check active buffer using Cure MCP |
 | `:CureMcpParse` | `<leader>cp` | Inspect MetaAST summary of current buffer |
 | `:CureCompile` | — | Compile active file using `cure compile` |
+| `:CureTSBuild` | — | Build the tree-sitter parser from `tree-sitter-cure/` |
 
 ---
 
