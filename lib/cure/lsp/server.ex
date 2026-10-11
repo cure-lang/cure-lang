@@ -4,7 +4,7 @@ defmodule Cure.LSP.Server do
 
   Implements the LSP over stdio, providing:
   - Real-time diagnostics (compile errors) on document changes
-  - Hover information (function signatures, types)
+  - Hover information (signatures and `##` documentation)
   - Document synchronization (full sync mode)
 
   ## Usage
@@ -20,6 +20,7 @@ defmodule Cure.LSP.Server do
 
   use GenServer
 
+  alias Cure.LSP.Docs
   alias Cure.LSP.Transport
   alias Cure.LSP.Positions
   alias Cure.Compiler.{Formatter, Lexer, Parser, Printer, Token}
@@ -27,6 +28,7 @@ defmodule Cure.LSP.Server do
 
   defstruct [
     :reader_pid,
+    :root,
     initialized: false,
     position_encoding: :utf16,
     documents: %{},
@@ -150,7 +152,14 @@ defmodule Cure.LSP.Server do
     }
 
     Transport.send_response(id, result)
-    {state |> Map.put(:initialized, true) |> Map.put(:position_encoding, position_encoding), []}
+
+    state =
+      state
+      |> Map.put(:initialized, true)
+      |> Map.put(:position_encoding, position_encoding)
+      |> Map.put(:root, workspace_root(params))
+
+    {state, []}
   end
 
   defp do_handle("initialized", _id, _params, state) do
@@ -239,7 +248,7 @@ defmodule Cure.LSP.Server do
 
     docs = Map.get(state, :documents, %{})
     text = Map.get(docs, uri, "")
-    result = compute_hover(text, line, char)
+    result = compute_hover(text, line, char, %{documents: docs, roots: source_roots(uri, Map.get(state, :root))})
 
     Transport.send_response(id, result)
     {state, []}
@@ -442,7 +451,7 @@ defmodule Cure.LSP.Server do
   # -- Hover -------------------------------------------------------------------
 
   @doc false
-  def compute_hover(text, line, char) do
+  def compute_hover(text, line, char, context \\ %{}) do
     # Try AST-based hover first, fall back to line-matching
     case parse_to_ast(text) do
       {:ok, ast} ->
@@ -451,6 +460,7 @@ defmodule Cure.LSP.Server do
         target_line = Enum.at(lines, line, "")
         word = extract_word_at(target_line, char)
         dotted_word = extract_dotted_word_at(target_line, char)
+        qualified_name = qualified_name_at(target_line, char)
 
         selected =
           cond do
@@ -465,7 +475,7 @@ defmodule Cure.LSP.Server do
                 Enum.find(induction_binding_symbols(ast), &(&1.name == word)) ||
                 Enum.find(equation_symbols(ast), &(&1.name == dotted_word)) ||
                 Enum.find(proof_rule_symbols(ast), &(&1.name == word)) ||
-                Enum.find(symbols, fn s -> s.name == word end)
+                documentation_hover(ast, qualified_name, context)
           end
 
         case selected do
@@ -510,8 +520,7 @@ defmodule Cure.LSP.Server do
 
             %{"contents" => %{"kind" => "markdown", "value" => hover_text}}
 
-          %{kind: :function, signature: sig, line: fn_line} ->
-            hover_text = "```cure\n#{sig}\n```\n\n*Defined at line #{fn_line}*"
+          %{kind: :documentation, markdown: hover_text} ->
             %{"contents" => %{"kind" => "markdown", "value" => hover_text}}
 
           %{kind: :named_argument, label: label, parameter: parameter, type: type, function: function} ->
@@ -536,6 +545,38 @@ defmodule Cure.LSP.Server do
         compute_hover_fallback(target_line)
     end
   end
+
+  defp documentation_hover(ast, name, context) do
+    case Docs.hover(ast, name, context) do
+      nil -> nil
+      markdown -> %{kind: :documentation, markdown: markdown}
+    end
+  end
+
+  # Directories that may hold the modules a document refers to: its own
+  # directory, and the workspace root with its default `lib/` source path.
+  defp source_roots(uri, root) do
+    document_dir =
+      case uri_to_path(uri) do
+        nil -> []
+        path -> [Path.dirname(path)]
+      end
+
+    workspace = if root, do: [root, Path.join(root, "lib")], else: []
+    Enum.uniq(document_dir ++ workspace)
+  end
+
+  defp workspace_root(params) do
+    case params do
+      %{"rootUri" => uri} when is_binary(uri) -> uri_to_path(uri)
+      %{"workspaceFolders" => [%{"uri" => uri} | _]} -> uri_to_path(uri)
+      %{"rootPath" => path} when is_binary(path) -> path
+      _ -> nil
+    end
+  end
+
+  defp uri_to_path("file://" <> path), do: URI.decode(path)
+  defp uri_to_path(_uri), do: nil
 
   defp compute_hover_fallback(target_line) do
     cond do
@@ -676,6 +717,17 @@ defmodule Cure.LSP.Server do
 
     word = prefix <> suffix
     if word == "", do: extract_word(line), else: word
+  end
+
+  # The dotted name ending with the identifier under the cursor: hovering
+  # `List` in `Std.List.map` yields `Std.List`, hovering `map` yields
+  # `Std.List.map`.
+  defp qualified_name_at(line, char) do
+    graphemes = String.graphemes(line)
+    {before, after_cursor} = Enum.split(graphemes, min(char, length(graphemes)))
+    prefix = before |> Enum.reverse() |> Enum.take_while(&(&1 =~ ~r/[a-zA-Z0-9_.]/)) |> Enum.reverse() |> Enum.join()
+    suffix = after_cursor |> Enum.take_while(&(&1 =~ ~r/[a-zA-Z0-9_]/)) |> Enum.join()
+    String.trim(prefix <> suffix, ".")
   end
 
   defp extract_dotted_word_at(line, char) do

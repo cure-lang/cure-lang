@@ -29,6 +29,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   or when an editor lacks a rule for a contextual keyword or macro word.
 - `behavior` (`Std.Actor`'s `macro behavior <name: ModuleName>`) is
   highlighted as a declaration head, like `actor`.
+- `cure-lsp` hover shows a declaration's `##` documentation under its
+  signature, as ElixirLS shows `@doc`: functions, modules, types, records,
+  interfaces and constructors. Hover follows `use` (including `as` aliases)
+  and qualified names (`Std.List.map`) into the standard library, other open
+  documents, and the document's directory and the workspace's `lib/`.
+  Signatures now carry parameter types, the return type and effects.
 
 ### Fixed
 

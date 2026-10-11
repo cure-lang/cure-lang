@@ -222,6 +222,75 @@ defmodule Cure.LSP.LspTest do
       # The response is sent via Transport, but we verify it doesn't crash
     end
 
+    test "hover shows a local function's signature and documentation" do
+      source = """
+      mod Docs
+        ## Module docs.
+
+        ## Adds two numbers.
+        ##
+        ## Returns the sum.
+        fn add(a: Int, b: Int) -> Int = a + b
+
+        fn main() -> Int = add(1, 2)
+      """
+
+      value = hover_value(source, 8, 22)
+      assert value =~ "```cure\nDocs.add(a: Int, b: Int) -> Int\n```"
+      assert value =~ "Adds two numbers.\n\nReturns the sum."
+      refute value =~ "Module docs."
+
+      assert hover_value(source, 0, 6) =~ "mod Docs\n```\n\n---\n\nModule docs."
+    end
+
+    test "hover shows types, records, aliases and constructors with their docs" do
+      source = """
+      mod Shapes
+        ## Shapes module.
+
+        ## A shape.
+        type Shape = Circle(Float) | Square(Float)
+        ## A point.
+        rec Point
+          x: Int
+          y: Int
+        ## An identifier.
+        type Id = Int
+        fn area(f: Float -> Float) -> Shape = Circle(1.0)
+      """
+
+      assert hover_value(source, 4, 8) =~ "type Shape = Circle(Float) | Square(Float)\n```\n\n---\n\nA shape."
+      assert hover_value(source, 6, 7) =~ "rec Point\n  x: Int\n  y: Int\n```\n\n---\n\nA point."
+      assert hover_value(source, 10, 8) =~ "type Id = Int\n```\n\n---\n\nAn identifier."
+      assert hover_value(source, 11, 42) =~ "Constructor of type `Shapes.Shape`"
+      assert hover_value(source, 11, 6) =~ "Shapes.area(f: Float -> Float) -> Shape"
+    end
+
+    test "hover follows `use` and qualifiers into the standard library" do
+      source = """
+      mod Client
+        use Std.List
+        use Std.Option as O
+        fn go(xs: List(Int)) -> Int = Std.List.length(map(xs, fn(x) -> O.unwrap(Some(x), 0)))
+      """
+
+      assert hover_value(source, 1, 10) =~ "mod Std.List\n```\n\n---\n\nEager, persistent"
+      assert hover_value(source, 3, 43) =~ "Std.List.length(list: List(t)) -> Int"
+      assert hover_value(source, 3, 50) =~ "Std.List.map(list: List(t), f: t -> u) -> List(u)\n```\n\n---\n\nMap `f`"
+      assert hover_value(source, 3, 69) =~ "Std.Option.unwrap(opt: Option(t), default: t) -> t"
+    end
+
+    test "hover reads modules from other open documents" do
+      other = "mod Helper\n  ## Helpers.\n\n  ## Doubles `n`.\n  fn double(n: Int) -> Int = n * 2\n"
+      source = "mod App\n  use Helper\n  fn go() -> Int = double(2) + Helper.double(1)\n"
+      context = %{documents: %{"file:///helper.cure" => other}}
+
+      for char <- [20, 38] do
+        value = get_in(Server.compute_hover(source, 2, char, context), ["contents", "value"])
+        assert value =~ "Helper.double(n: Int) -> Int\n```\n\n---\n\nDoubles `n`."
+      end
+    end
+
     test "hover on non-definition returns nil" do
       state = %{
         initialized: true,
@@ -622,5 +691,9 @@ defmodule Cure.LSP.LspTest do
       refute all["insertText"] =~ "case Z"
       assert all["insertText"] =~ "case S("
     end
+  end
+
+  defp hover_value(source, line, char) do
+    get_in(Server.compute_hover(source, line, char), ["contents", "value"])
   end
 end
