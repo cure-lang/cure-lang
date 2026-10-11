@@ -17,6 +17,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `tree-sitter-cure/` and the same highlight queries as `zed-cure`. It
   compiles the parser from the repository on first use and falls back to
   `syntax/cure.vim` without a C compiler; `:CureTSBuild` builds it by hand.
+- `mix cure.editors.sync` generates the keyword lists every editor grammar
+  shares from the compiler: keywords and contextual keywords from
+  `Cure.Compiler.Lexer` (new `Lexer.keywords/0`), declaration heads from the
+  stdlib macros that take a module name. It writes
+  `tree-sitter-cure/keywords.js` (used by `grammar.js` and vscode-cure's
+  grammar builder), the keyword blocks of `neovim-cure/syntax/cure.vim` and
+  `highlightjs-cure/src/languages/cure.js`, and `highlightjs-cure/dist/`.
+  `--check`, run by `mix test`, also fails when `tree-sitter-cure/src`, the
+  VS Code grammar or the query copies in `zed-cure`/`neovim-cure` are stale,
+  or when an editor lacks a rule for a contextual keyword or macro word.
+- `behavior` (`Std.Actor`'s `macro behavior <name: ModuleName>`) is
+  highlighted as a declaration head, like `actor`.
 
 ### Fixed
 

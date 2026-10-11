@@ -89,6 +89,17 @@
   (identifier) @keyword
   (#eq? @_first "computed")
   (#eq? @keyword "by"))
+; `computed directly by`
+((identifier) @keyword
+  .
+  (identifier) @_directly
+  (#eq? @keyword "computed")
+  (#eq? @_directly "directly"))
+((identifier) @_first
+  .
+  (identifier) @keyword
+  (#any-of? @_first "computed" "directly")
+  (#any-of? @keyword "directly" "by"))
 
 ; Expander functions: `expands with derive_table`, `computed by expand_quad`
 ((identifier) @_link

@@ -147,15 +147,6 @@
           "type": "ALIAS",
           "content": {
             "type": "STRING",
-            "value": "fsm"
-          },
-          "named": true,
-          "value": "identifier"
-        },
-        {
-          "type": "ALIAS",
-          "content": {
-            "type": "STRING",
             "value": "actor"
           },
           "named": true,
@@ -165,7 +156,7 @@
           "type": "ALIAS",
           "content": {
             "type": "STRING",
-            "value": "sup"
+            "value": "app"
           },
           "named": true,
           "value": "identifier"
@@ -174,7 +165,25 @@
           "type": "ALIAS",
           "content": {
             "type": "STRING",
-            "value": "app"
+            "value": "behavior"
+          },
+          "named": true,
+          "value": "identifier"
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "STRING",
+            "value": "fsm"
+          },
+          "named": true,
+          "value": "identifier"
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "STRING",
+            "value": "sup"
           },
           "named": true,
           "value": "identifier"
@@ -448,19 +457,23 @@
                 "members": [
                   {
                     "type": "STRING",
-                    "value": "fsm"
-                  },
-                  {
-                    "type": "STRING",
                     "value": "actor"
                   },
                   {
                     "type": "STRING",
-                    "value": "sup"
+                    "value": "app"
                   },
                   {
                     "type": "STRING",
-                    "value": "app"
+                    "value": "behavior"
+                  },
+                  {
+                    "type": "STRING",
+                    "value": "fsm"
+                  },
+                  {
+                    "type": "STRING",
+                    "value": "sup"
                   },
                   {
                     "type": "STRING",
@@ -520,15 +533,6 @@
                   "type": "ALIAS",
                   "content": {
                     "type": "STRING",
-                    "value": "fsm"
-                  },
-                  "named": true,
-                  "value": "identifier"
-                },
-                {
-                  "type": "ALIAS",
-                  "content": {
-                    "type": "STRING",
                     "value": "actor"
                   },
                   "named": true,
@@ -538,7 +542,7 @@
                   "type": "ALIAS",
                   "content": {
                     "type": "STRING",
-                    "value": "sup"
+                    "value": "app"
                   },
                   "named": true,
                   "value": "identifier"
@@ -547,7 +551,25 @@
                   "type": "ALIAS",
                   "content": {
                     "type": "STRING",
-                    "value": "app"
+                    "value": "behavior"
+                  },
+                  "named": true,
+                  "value": "identifier"
+                },
+                {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "STRING",
+                    "value": "fsm"
+                  },
+                  "named": true,
+                  "value": "identifier"
+                },
+                {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "STRING",
+                    "value": "sup"
                   },
                   "named": true,
                   "value": "identifier"

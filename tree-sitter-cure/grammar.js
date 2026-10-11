@@ -11,21 +11,7 @@
  * Token rules mirror `Cure.Compiler.Lexer` (lib/cure/compiler/lexer.ex).
  */
 
-const KEYWORDS = [
-  'mod', 'fn', 'let', 'type', 'typealias', 'opaque', 'primitive', 'indexed',
-  'indices', 'rec', 'proto', 'impl', 'local', 'use', 'as', 'interface',
-  'implementation', 'deriving', 'match', 'pickup', 'if', 'elif', 'else',
-  'then', 'for', 'do', 'end', 'in', 'try', 'catch', 'finally', 'throw',
-  'return', 'yield', 'spawn', 'send', 'receive', 'after', 'when', 'where',
-  'and', 'or', 'not', 'band', 'bor', 'bxor', 'bsl', 'bsr', 'bnot', 'extern',
-  'quote', 'unsafe',
-];
-
-// Containers: identifiers lexically, keywords only when they head a
-// declaration (`fsm Turnstile`, `actor Counter`, `proof ProofLaws`, ...).
-// `proof` is a contextual word in the lexer (`proof chain`, `proof: ...`),
-// so it lives here rather than in KEYWORDS.
-const CONTAINERS = ['fsm', 'actor', 'sup', 'app', 'proof'];
+const { KEYWORDS, CONTAINERS } = require('./keywords');
 
 module.exports = grammar({
   name: 'cure',

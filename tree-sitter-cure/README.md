@@ -14,7 +14,14 @@ family fields) is recognised by the highlight queries from its position at the
 start of a line.
 
 Token rules mirror `Cure.Compiler.Lexer` (`lib/cure/compiler/lexer.ex`); when
-the lexer changes, update `grammar.js` and regenerate.
+the lexer changes, run `mix cure.editors.sync` from the repository root: it
+regenerates `keywords.js` (keywords and contextual keywords from the lexer,
+declaration heads from the standard library), the Vim syntax file's and
+highlight.js's keyword lists, and reports what still needs regenerating here
+and in `vscode-cure/`. `mix test` fails while anything is out of date.
+
+After a grammar change lands on `main`, bump `rev` in
+`zed-cure/extension.toml` to that commit; Zed fetches the grammar from it.
 
 ## Development
 
