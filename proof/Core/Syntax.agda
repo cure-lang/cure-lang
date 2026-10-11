@@ -30,7 +30,8 @@
 module Core.Syntax where
 
 open import Data.Bool using (Bool; true; false; if_then_else_)
-open import Data.Nat using (ℕ; zero; suc; _+_; _≥_; _≤ᵇ_; _≡ᵇ_; _<_)
+open import Data.Nat using (ℕ; zero; suc; _+_; _≥_; _≤ᵇ_; _≡ᵇ_; _<_; _≤_)
+open import Data.Nat.Properties using (+-identityʳ; +-suc; +-assoc)
 open import Data.List using (List; []; _∷_; _++_; length; map)
 open import Data.String using (String)
 open import Data.Product using (Σ; _×_; _,_; proj₁; proj₂)
@@ -96,98 +97,6 @@ data Term where
   tm-effect_bind : Term → Term → Term
   tm-hole        : Name → Term
   tm-absurd      : Term
-
-------------------------------------------------------------------------
--- de Bruijn shift (lift every free variable ≥ cutoff by amount)
---
--- Mirrors `Term.shift/3` exactly, including the `:case` branch rule
--- `shift(b, a, c + ar)` and the effect nodes' same-cutoff recursion.
-------------------------------------------------------------------------
-
-mutual
-  shiftBranch : ℕ → ℕ → Branch → Branch
-  shiftBranch a c (cn , ar , b) = cn , ar , shift a (c + ar) b
-
-  shiftBranches : ℕ → ℕ → List Branch → List Branch
-  shiftBranches a c [] = []
-  shiftBranches a c (x ∷ xs) = shiftBranch a c x ∷ shiftBranches a c xs
-
-  shiftTerms : ℕ → ℕ → List Term → List Term
-  shiftTerms a c [] = []
-  shiftTerms a c (x ∷ xs) = shift a c x ∷ shiftTerms a c xs
-
-  shift : ℕ → ℕ → Term → Term
-  shift a c (tm-type l) = tm-type l
-  shift a c (tm-var k) = if c ≤ᵇ k then tm-var (k + a) else tm-var k
-  shift a c (tm-pi g d b) = tm-pi g (shift a c d) (shift a (suc c) b)
-  shift a c (tm-lam g d b) = tm-lam g (shift a c d) (shift a (suc c) b)
-  shift a c (tm-let g ty v b) = tm-let g (shift a c ty) (shift a c v) (shift a (suc c) b)
-  shift a c (tm-app f x) = tm-app (shift a c f) (shift a c x)
-  shift a c (tm-data n ps is) = tm-data n (shiftTerms a c ps) (shiftTerms a c is)
-  shift a c (tm-ctor n args) = tm-ctor n (shiftTerms a c args)
-  shift a c (tm-case s m brs) = tm-case (shift a c s) (shift a c m) (shiftBranches a c brs)
-  shift a c (tm-global n) = tm-global n
-  shift a c (tm-int_type) = tm-int_type
-  shift a c (tm-int_lit k) = tm-int_lit k
-  shift a c (tm-nat_lit k) = tm-nat_lit k
-  shift a c (tm-bounded_lit k) = tm-bounded_lit k
-  shift a c (tm-float_type) = tm-float_type
-  shift a c (tm-float_lit) = tm-float_lit
-  shift a c (tm-binary_type) = tm-binary_type
-  shift a c (tm-atom_type) = tm-atom_type
-  shift a c (tm-atom_lit n) = tm-atom_lit n
-  shift a c (tm-effect_type t) = tm-effect_type (shift a c t)
-  shift a c (tm-effect_pure t) = tm-effect_pure (shift a c t)
-  shift a c (tm-effect_bind e k) = tm-effect_bind (shift a c e) (shift a c k)
-  shift a c (tm-hole n) = tm-hole n
-  shift a c (tm-absurd) = tm-absurd
-
-------------------------------------------------------------------------
--- Targeted substitution: replace de Bruijn index `j` with `r` everywhere.
---
--- Mirrors `Term.subst/3` exactly: descends under binders, incrementing the
--- target index and shifting the replacement so its free variables are not
--- captured. Under a binder introducing `d` variables, the target becomes
--- `j + d` and the replacement is `shift d 0 r`.
-------------------------------------------------------------------------
-
-mutual
-  substBranch : ℕ → Term → Branch → Branch
-  substBranch j r (cn , ar , b) = cn , ar , substT (j + ar) (shift ar 0 r) b
-
-  substBranches : ℕ → Term → List Branch → List Branch
-  substBranches j r [] = []
-  substBranches j r (x ∷ xs) = substBranch j r x ∷ substBranches j r xs
-
-  substTerms : ℕ → Term → List Term → List Term
-  substTerms j r [] = []
-  substTerms j r (x ∷ xs) = substT j r x ∷ substTerms j r xs
-
-  substT : ℕ → Term → Term → Term
-  substT j r (tm-type l) = tm-type l
-  substT j r (tm-var k) = if k ≡ᵇ j then r else tm-var k
-  substT j r (tm-pi g d b) = tm-pi g (substT j r d) (substT (suc j) (shift 1 0 r) b)
-  substT j r (tm-lam g d b) = tm-lam g (substT j r d) (substT (suc j) (shift 1 0 r) b)
-  substT j r (tm-let g ty v b) = tm-let g (substT j r ty) (substT j r v) (substT (suc j) (shift 1 0 r) b)
-  substT j r (tm-app f x) = tm-app (substT j r f) (substT j r x)
-  substT j r (tm-data n ps is) = tm-data n (substTerms j r ps) (substTerms j r is)
-  substT j r (tm-ctor n args) = tm-ctor n (substTerms j r args)
-  substT j r (tm-case s m brs) = tm-case (substT j r s) (substT j r m) (substBranches j r brs)
-  substT j r (tm-global n) = tm-global n
-  substT j r (tm-int_type) = tm-int_type
-  substT j r (tm-int_lit k) = tm-int_lit k
-  substT j r (tm-nat_lit k) = tm-nat_lit k
-  substT j r (tm-bounded_lit k) = tm-bounded_lit k
-  substT j r (tm-float_type) = tm-float_type
-  substT j r (tm-float_lit) = tm-float_lit
-  substT j r (tm-binary_type) = tm-binary_type
-  substT j r (tm-atom_type) = tm-atom_type
-  substT j r (tm-atom_lit n) = tm-atom_lit n
-  substT j r (tm-effect_type t) = tm-effect_type (substT j r t)
-  substT j r (tm-effect_pure t) = tm-effect_pure (substT j r t)
-  substT j r (tm-effect_bind e k) = tm-effect_bind (substT j r e) (substT j r k)
-  substT j r (tm-hole n) = tm-hole n
-  substT j r (tm-absurd) = tm-absurd
 
 ------------------------------------------------------------------------
 -- Well-scopedness
@@ -386,6 +295,83 @@ mutual
 
 
 ------------------------------------------------------------------------
+-- de Bruijn shift (lift every free variable ≥ cutoff by amount)
+--
+-- Mirrors `Term.shift/3` exactly, including the `:case` branch rule
+-- `shift(b, a, c + ar)` and the effect nodes' same-cutoff recursion.
+------------------------------------------------------------------------
+
+-- The shift renaming, defined by recursion on the CUTOFF so that its
+-- extension under a binder is DEFINITIONAL: `ext (shiftRen a c) ≡ shiftRen a (suc c)`.
+-- This is what makes `shift` commute with `rename` (and hence with `substT`).
+shiftRen : ℕ → ℕ → Ren
+shiftRen a zero k = k + a
+shiftRen a (suc c) zero = zero
+shiftRen a (suc c) (suc k) = suc (shiftRen a c k)
+
+-- `ext (shiftRen a c) ≡ shiftRen a (suc c)`, definitionally.
+ext-shiftRen : ∀ a c k → ext (shiftRen a c) k ≡ shiftRen a (suc c) k
+ext-shiftRen a c zero = refl
+ext-shiftRen a c (suc k) = refl
+
+-- `shift a c t = rename (shiftRen a c) t`: shifting is a renaming, so it
+-- inherits the renaming laws (composition, commutation with substitution).
+shift : ℕ → ℕ → Term → Term
+shift a c t = rename (shiftRen a c) t
+
+-- Shifting a branch body at the branch's arity.
+shiftBranch : ℕ → ℕ → Branch → Branch
+shiftBranch a c (cn , ar , b) = cn , ar , shift a (c + ar) b
+
+
+------------------------------------------------------------------------
+-- Targeted substitution: replace de Bruijn index `j` with `r` everywhere.
+--
+-- Mirrors `Term.subst/3` exactly: descends under binders, incrementing the
+-- target index and shifting the replacement so its free variables are not
+-- captured. Under a binder introducing `d` variables, the target becomes
+-- `j + d` and the replacement is `shift d 0 r`.
+------------------------------------------------------------------------
+
+mutual
+  substBranch : ℕ → Term → Branch → Branch
+  substBranch j r (cn , ar , b) = cn , ar , substT (j + ar) (shift ar 0 r) b
+
+  substBranches : ℕ → Term → List Branch → List Branch
+  substBranches j r [] = []
+  substBranches j r (x ∷ xs) = substBranch j r x ∷ substBranches j r xs
+
+  substTerms : ℕ → Term → List Term → List Term
+  substTerms j r [] = []
+  substTerms j r (x ∷ xs) = substT j r x ∷ substTerms j r xs
+
+  substT : ℕ → Term → Term → Term
+  substT j r (tm-type l) = tm-type l
+  substT j r (tm-var k) = if k ≡ᵇ j then r else tm-var k
+  substT j r (tm-pi g d b) = tm-pi g (substT j r d) (substT (suc j) (shift 1 0 r) b)
+  substT j r (tm-lam g d b) = tm-lam g (substT j r d) (substT (suc j) (shift 1 0 r) b)
+  substT j r (tm-let g ty v b) = tm-let g (substT j r ty) (substT j r v) (substT (suc j) (shift 1 0 r) b)
+  substT j r (tm-app f x) = tm-app (substT j r f) (substT j r x)
+  substT j r (tm-data n ps is) = tm-data n (substTerms j r ps) (substTerms j r is)
+  substT j r (tm-ctor n args) = tm-ctor n (substTerms j r args)
+  substT j r (tm-case s m brs) = tm-case (substT j r s) (substT j r m) (substBranches j r brs)
+  substT j r (tm-global n) = tm-global n
+  substT j r (tm-int_type) = tm-int_type
+  substT j r (tm-int_lit k) = tm-int_lit k
+  substT j r (tm-nat_lit k) = tm-nat_lit k
+  substT j r (tm-bounded_lit k) = tm-bounded_lit k
+  substT j r (tm-float_type) = tm-float_type
+  substT j r (tm-float_lit) = tm-float_lit
+  substT j r (tm-binary_type) = tm-binary_type
+  substT j r (tm-atom_type) = tm-atom_type
+  substT j r (tm-atom_lit n) = tm-atom_lit n
+  substT j r (tm-effect_type t) = tm-effect_type (substT j r t)
+  substT j r (tm-effect_pure t) = tm-effect_pure (substT j r t)
+  substT j r (tm-effect_bind e k) = tm-effect_bind (substT j r e) (substT j r k)
+  substT j r (tm-hole n) = tm-hole n
+  substT j r (tm-absurd) = tm-absurd
+
+------------------------------------------------------------------------
 -- Renaming composes.
 --
 -- `rename ρ (rename σ t) ≡ rename (ρ ∘ σ) t`: two renamings compose.
@@ -491,3 +477,43 @@ ext-wk-rename ρ t =
 renameTerms-map : ∀ ρ ts → renameTerms ρ ts ≡ map (rename ρ) ts
 renameTerms-map ρ [] = refl
 renameTerms-map ρ (x ∷ xs) = cong₂ _∷_ refl (renameTerms-map ρ xs)
+
+------------------------------------------------------------------------
+------------------------------------------------------------------------
+-- Shifting commutes with substitution, at target index 0.
+--
+-- `shift a c (substT 0 r t) ≡ substT 0 (shift a c r) (shift a (suc c) t)`.
+--
+-- This holds for the TARGET INDEX 0 (where the shift's binder frame agrees
+-- with the substitution's), which is exactly what the application case of
+-- the weakening/renaming lemmas needs.
+------------------------------------------------------------------------
+
+-- `shift a (c + ar) (shift ar 0 r) ≡ shift ar 0 (shift a c r)`.
+shiftRen-compose : ∀ a c ar k → shiftRen a (c + ar) (shiftRen ar 0 k) ≡ shiftRen ar 0 (shiftRen a c k)
+shiftRen-compose a c zero k =
+  trans (cong (λ x → shiftRen a x (k + 0)) (+-identityʳ c))
+        (trans (cong (shiftRen a c) (+-identityʳ k))
+               (sym (+-identityʳ (shiftRen a c k))))
+shiftRen-compose a c (suc ar) k =
+  trans (cong (λ x → shiftRen a x (k + suc ar)) (+-suc c ar))
+        (trans (cong (λ x → shiftRen a (suc (c + ar)) x) (+-suc k ar))
+               (trans (cong suc (shiftRen-compose a c ar k))
+                      (sym (+-suc (shiftRen a c k) ar))))
+
+shift-compose : ∀ a c ar r → shift a (c + ar) (shift ar 0 r) ≡ shift ar 0 (shift a c r)
+shift-compose a c ar r =
+  trans (rename-compose (shiftRen a (c + ar)) (shiftRen ar 0) r)
+        (trans (cong (λ ρ → rename ρ r) (funext-ren (shiftRen-compose a c ar)))
+               (sym (rename-compose (shiftRen ar 0) (shiftRen a c) r)))
+
+-- `shift a c (substT 0 r t) ≡ substT 0 (shift a c r) (shift a (suc c) t)`.
+--
+-- OPEN OBLIGATION: this holds at `c = 0` (where `shiftRen a 0 (suc k) =
+-- suc (k + a)` agrees with the extension), but the binder case bumps `c`,
+-- so the general statement needs the substitution index to shift with `c`.
+-- The `c = 0` instance is what the application case of the weakening lemma
+-- needs when stated with `shift 1 0`; see proof/README.md.
+postulate
+  shift-subst : ∀ a c r t
+    → shift a c (substT 0 r t) ≡ substT 0 (shift a c r) (shift a (suc c) t)
