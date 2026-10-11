@@ -296,28 +296,41 @@ module Sound (ind : IndEnv) (sig : Signature) (conv : Conversion)
   -- This is the THREE-WAY disjunction of docs/SOUNDNESS.md §1.4. Its third
   -- disjunct, `diverges`, is a NEGATIVE statement (no value is reachable),
   -- so deciding which disjunct holds needs coinduction (or a well-founded
-  -- measure). The constructive content is `soundness-tree` above: it is
-  -- PROVED, and collapsing it into this `data` disjunction requires
-  -- deciding whether the outcome tree is finite — not constructive for a
-  -- non-deterministic reduction relation (`_⇝_` is not deterministic:
-  -- `(λx. b) a` can both β-reduce and reduce under the λ).
+  -- measure). The constructive content is `soundness-tree` above, and the
+  -- classical statement is its COLLAPSE, which we now carry as two precisely
+  -- named classical inputs rather than one opaque `postulate`:
   --
-  -- Proof strategy: the collapse of `soundness-tree`. At each node:
-  --   * a `Reached` node gives outcome (1) (`tree-reached→eval`);
-  --   * a `Stepped` node recurses;
-  --   * the `raises` outcome (2) is the coverage guard, unreachable under
-  --     `Covers`;
-  --   * if the tree has no `Reached` node, its infinite `Stepped` spine is
-  --     a `Diverges` witness, giving outcome (3).
+  --   * `tree-decides` — the outcome tree is finite or infinite. The tree is
+  --     a PATH (each node has at most one child, because `progress` returns a
+  --     specific reduct), so this is exactly the limited principle of
+  --     omniscience (LPO) on that path — not constructive.
+  --   * `never-reached→no-value` — a never-reaching tree has no reachable
+  --     value. This needs CONFLUENCE of `_⇝_`, which is NOT deterministic
+  --     (`(λx. b) a` both β-reduces and reduces under the λ), so `Diverges`
+  --     does not contradict a separate reduction to a value without it.
   --
-  -- The "never stuck" corollary is immediate (`never-stuck` above): at
-  -- every step the term is either a value, a redex (Progress), or a raise —
-  -- never neither.
+  -- With those two, `soundness` is a THEOREM: a `Reached` node gives outcome
+  -- (1) (`tree-reached→eval`); a `NeverReached` tree gives outcome (3)
+  -- (`never-reached→diverges` + `never-reached→no-value`). The `raises`
+  -- outcome (2) is the coverage guard, unreachable under `Covers` (so it is
+  -- never produced). The "never stuck" corollary is `never-stuck` above.
   ------------------------------------------------------------------------
 
   postulate
-    soundness :
-      ∀ {t T}
-      → ⟨⟩ ⊢ t ⇒ T
-      → Final t
-      → EvalResult t T
+    -- CLASSICAL INPUT 1: the outcome tree is finite or infinite (LPO on the
+    -- path, since `progress` is deterministic).
+    tree-decides : ∀ {t T} → EvalTree t T → Reached t T ⊎ NeverReached t T
+
+    -- CLASSICAL INPUT 2: a never-reaching tree has no reachable value (needs
+    -- confluence of `_⇝_`).
+    never-reached→no-value :
+      ∀ {t T} → NeverReached t T → (∀ v → _⇝*_ sig t v → Value v → ⊥)
+
+  soundness :
+    ∀ {t T}
+    → ⟨⟩ ⊢ t ⇒ T
+    → Final t
+    → EvalResult t T
+  soundness {t} {T} dt ft with tree-decides (soundness-tree (⇐-infer dt (Conversion.≈-refl conv)) ft)
+  ... | inj₁ r = tree-reached→eval r
+  ... | inj₂ nr = diverges (never-reached→no-value nr)

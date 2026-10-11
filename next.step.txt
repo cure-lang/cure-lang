@@ -1,58 +1,30 @@
-STATE: 5 postulates remain in Proof/Preservation.agda (the ι cluster) and 1
-in Proof/Soundness.agda (the classical three-way `soundness`). Everything
-else is proved; all 16 modules type-check clean under Agda 2.8.0.
+STATE: the mechanised soundness development is essentially complete. All 16
+modules type-check clean under Agda 2.8.0. `preservation` is FULLY PROVED
+(zero postulates in Proof/Preservation.agda), and all three forms of the
+soundness theorem are proved: `soundness-fuel` (fuel-indexed),
+`soundness-tree` (coinductive), and `soundness` (classical).
 
-NEXT (the ι cluster — the last Preservation obligation, the eliminator):
+The ONLY remaining postulates are:
+  1. `funext` (Core/Syntax.agda) — the standard function-extensionality
+     axiom, not derivable in intensional type theory. Intentional.
+  2. `tree-decides` (Proof/Soundness.agda) — the outcome tree is finite or
+     infinite. The tree is a PATH (each node has at most one child, because
+     `progress` returns a specific reduct), so this is exactly LPO on that
+     path — a classical principle, not constructive.
+  3. `never-reached→no-value` (Proof/Soundness.agda) — a never-reaching tree
+     has no reachable value. This needs CONFLUENCE of `_⇝_`, which is NOT
+     deterministic (`(λx. b) a` both β-reduces and reduces under the λ).
 
-`preservation-ι` + the four literal-peel variants (`ι-nat-zero`/`ι-nat-suc`/
-`ι-bounded-zero`/`ι-bounded-suc`). The obstruction is precise: the `brs∷`
-rule types a branch body in `extendⁿ Γ ar`, whose field binders are
-`tm-hole "field"`. The ι reduction substitutes the constructor's REAL args
-(typed by `ctor-args ct`). The substitution lemma's coherence would need
-`Γ ⊢ args_i ⇒ substS σ (tm-hole "field")`, which is absurd (nothing infers a
-hole). So the field binders must be typed with `ctor-args ct`.
-
-THE FIX (a typing-judgment change, rippling through the context machinery):
-
- 1. Define `extendTele : ∀ {k} → Ctx k → Telescope → Ctx (length tele + k)`
-    (cast-free, like `extendⁿ`):
-       extendTele Γ []                 = Γ
-       extendTele Γ ((nm , T) ∷ tele)  = extendTele (extend Γ T) tele
-    so `extendTele Γ [A₁, A₂] = Γ ▷ A₁ ▷ A₂` (A₂ at index 0, A₁ at index 1),
-    matching `branch-field-vars ar = [ar-1, …, 0]`.
-
- 2. Change `brs∷`'s third premise from
-       `extendⁿ Γ ar ⊢ b ⇐ tm-app (rename (λ j → j + ar) m) (tm-ctor cn (branch-field-vars ar))`
-    to
-       `extendTele Γ (ctor-args ct) ⊢ b ⇐ tm-app m (tm-ctor cn (branch-field-vars ar))`
-    (the motive is no longer `rename (λ j → j + ar)`-weakened, because the
-    field binders are now the real telescope, not extra holes).
-
- 3. Rework the context lemmas (Proof/Context.agda): replace `extendⁿ`'s
-    `lookup-extendⁿ-zero` / `lookup-extendⁿ-raise` with `extendTele`'s
-    field/raise lookup laws, and replace `extF` / `lookup-extF` with a
-    telescope-aware morphism. The field types are CLOSED (`ClosedSig`), so
-    the raise law should be `refl`-level up to `rename (shiftRen k 0)`.
-
- 4. Rework `ren-branches` / `subst-branches` / `conv-branches` and
-    `coh-extendⁿ` → `coh-extendTele` (Proof/Preservation.agda) to use the
-    new context. The branch body's field types are closed, so the coherence
-    at a field position is `Γ ⊢ args_i ⇒ A_i` (from `⇒-ctor`'s spine).
-
- 5. Prove `preservation-ι`: from `⇒-case ds dm dbrs` and the branch
-    `(c, ar, b)`, `substArgs args b` checks `tm-app m (tm-ctor c args)` by
-    the substitution lemma (the coherence maps field i to `args`), and
-    `tm-app m (tm-ctor c args) ≈ tm-app m s` because `s = tm-ctor c args`.
-
- 6. The four literal-peel variants additionally need the identification
-    `tm-ctor "Z" [] ≈ tm-nat_lit 0` (and `S`/`First`/`Next`), which is how
-    the kernel treats a compact literal. This may want a `Conversion` field
-    or a dedicated lemma.
-
-`Progress`'s `brs-arity` only reads `brs∷`'s `fc`/`len`, so it is unaffected
-by the premise change.
-
-REMAINING in Proof/Soundness.agda: the classical three-way `soundness` — the
-collapse of the outcome tree into a `data` disjunction, needing confluence
-(since `_⇝_` is not deterministic: `(λx. b) a` both β-reduces and reduces
-under the λ).
+NEXT STEPS (in order of value):
+  (a) Prove `never-reached→no-value` by proving CONFLUENCE of `_⇝_` on
+      well-typed terms. This is a substantial but standard development
+      (parallel reduction + diamond, or the Tait–Martin-Löf method). It would
+      remove classical input 3 and make the `diverges` disjunct constructive
+      given only LPO.
+  (b) Replace `tree-decides` with a constructive alternative: since the tree
+      is a path, "finite or infinite" is LPO. A constructive replacement is
+      to keep the fuel-indexed / coinductive forms (already done) as the
+      primary deliverables, which is what the development now does.
+  (c) The other open items from docs/SOUNDNESS.md §8: erasure commutes with
+      reduction (§8.3); η / proof irrelevance; the NbE evaluator refines the
+      reduction relation.

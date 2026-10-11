@@ -457,13 +457,14 @@ arguments. The four literal-peel variants additionally use a compact-literal
 identification on the `Conversion` record (`tm-ctor "Z" [] ≈ tm-nat_lit 0`,
 etc.), mirroring the kernel's `Eval.nat_to_ctor`/`bounded_to_ctor`.
 
-The classical three-way statement §1.4 remains a `postulate`: it is the
-collapse of the outcome tree into a `data` disjunction, which requires
-deciding whether the tree is finite — not constructive here, because `_⇝_` is
-not deterministic (`(λx. b) a` both β-reduces and reduces under the λ), so
-`Diverges` does not contradict a separate reduction to a value without a
-confluence lemma. The constructive `soundness-tree` is the replacement, with
-the `reached` outcome inhabiting the classical first disjunct.
+The classical three-way statement §1.4 is now a **theorem**, derived from
+two precisely-named classical inputs: `tree-decides` (the outcome tree is
+finite or infinite — LPO on the path, since `progress` is deterministic) and
+`never-reached→no-value` (a never-reaching tree has no reachable value —
+which needs CONFLUENCE of `_⇝_`, since it is not deterministic: `(λx. b) a`
+both β-reduces and reduces under the λ). The constructive `soundness-tree`
+is the replacement for the second input, with the `reached` outcome
+inhabiting the classical first disjunct.
 
 ---
 
