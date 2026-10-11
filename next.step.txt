@@ -1,38 +1,58 @@
-DONE this slice: dissolved the β/ζ inference-preservation gaps and proved the
-δ case; postulates in Proof/Preservation.agda drop from 11 to 5.
+STATE: 5 postulates remain in Proof/Preservation.agda (the ι cluster) and 1
+in Proof/Soundness.agda (the classical three-way `soundness`). Everything
+else is proved; all 16 modules type-check clean under Agda 2.8.0.
 
-Key finding: **`check-infer`** (Proof/Preservation.agda) — a hole-free term
-that CHECKS against a type INFERS it. The only checking rule without a
-matching inference rule is `⇐-hole`, and a hole-free term is never a hole;
-every other rule (`⇐-lam`, `⇐-infer`, `⇐-conv`, `⇐-cumul`) has an inference
-rule with the SAME premises. So the checking-mode `preserve-β`/`preserve-ζ`
-reducts infer their type once the redex is `Final` (hence the reduct is
-hole-free, via `substTop-hole-free`). This DISSOLVES the former
-`preservation⇒-β`/`preservation⇒-ζ` postulates, which were documented as
-"β/ζ do not preserve inferability".
+NEXT (the ι cluster — the last Preservation obligation, the eliminator):
 
-Also proved and removed:
-  * `preservation-other` (the checking-mode λ/hole cases) — direct.
-  * `preservation⇒-case` (the `ξ-case` congruence) — via `ReduceConv`.
-  * `preservation⇒-case-motive` (the `ξ-case-motive` congruence) — via
-    `branches-conv` (branch typing is stable under motive CONVERSION, using
-    the `≈-rename` field), no rename-commutes-with-reduction needed.
-  * `preservation-δ` (certified unfolding) — via the new `CertifiedTyped`
-    hypothesis (body closed + infers the declared type in `⟨⟩`) and
-    `weaken-closed` (a closed term that types in `⟨⟩` types in any `Γ`).
-  * `substS-hole-free` / `substTop-hole-free` (HoleFree is preserved).
+`preservation-ι` + the four literal-peel variants (`ι-nat-zero`/`ι-nat-suc`/
+`ι-bounded-zero`/`ι-bounded-suc`). The obstruction is precise: the `brs∷`
+rule types a branch body in `extendⁿ Γ ar`, whose field binders are
+`tm-hole "field"`. The ι reduction substitutes the constructor's REAL args
+(typed by `ctor-args ct`). The substitution lemma's coherence would need
+`Γ ⊢ args_i ⇒ substS σ (tm-hole "field")`, which is absurd (nothing infers a
+hole). So the field binders must be typed with `ctor-args ct`.
 
-`preservation` now threads a `Final t` hypothesis; `Soundness.agda`'s four
-call sites pass `ft`, and its module header takes `ctyped : CertifiedTyped`.
+THE FIX (a typing-judgment change, rippling through the context machinery):
 
-REMAINING in Proof/Preservation.agda (5 postulates): `preservation-ι` + the
-four literal-peel variants. They need the `brs∷` typing-judgment change: type
-the branch field binders with the constructor's argument telescope
-(`ctor-args ct`) instead of `tm-hole "field"` (`extendⁿ`), so the ι
-substitution lemma can relate the field variables to the real args. Ripples
-through renaming/substitution (`extF`, `ren-branches`, `subst-branches`,
-`coh-extendⁿ`).
+ 1. Define `extendTele : ∀ {k} → Ctx k → Telescope → Ctx (length tele + k)`
+    (cast-free, like `extendⁿ`):
+       extendTele Γ []                 = Γ
+       extendTele Γ ((nm , T) ∷ tele)  = extendTele (extend Γ T) tele
+    so `extendTele Γ [A₁, A₂] = Γ ▷ A₁ ▷ A₂` (A₂ at index 0, A₁ at index 1),
+    matching `branch-field-vars ar = [ar-1, …, 0]`.
 
-REMAINING in Proof/Soundness.agda (1 postulate): the classical three-way
-`soundness` — the collapse of the outcome tree into a `data` disjunction,
-needing confluence (since `_⇝_` is not deterministic).
+ 2. Change `brs∷`'s third premise from
+       `extendⁿ Γ ar ⊢ b ⇐ tm-app (rename (λ j → j + ar) m) (tm-ctor cn (branch-field-vars ar))`
+    to
+       `extendTele Γ (ctor-args ct) ⊢ b ⇐ tm-app m (tm-ctor cn (branch-field-vars ar))`
+    (the motive is no longer `rename (λ j → j + ar)`-weakened, because the
+    field binders are now the real telescope, not extra holes).
+
+ 3. Rework the context lemmas (Proof/Context.agda): replace `extendⁿ`'s
+    `lookup-extendⁿ-zero` / `lookup-extendⁿ-raise` with `extendTele`'s
+    field/raise lookup laws, and replace `extF` / `lookup-extF` with a
+    telescope-aware morphism. The field types are CLOSED (`ClosedSig`), so
+    the raise law should be `refl`-level up to `rename (shiftRen k 0)`.
+
+ 4. Rework `ren-branches` / `subst-branches` / `conv-branches` and
+    `coh-extendⁿ` → `coh-extendTele` (Proof/Preservation.agda) to use the
+    new context. The branch body's field types are closed, so the coherence
+    at a field position is `Γ ⊢ args_i ⇒ A_i` (from `⇒-ctor`'s spine).
+
+ 5. Prove `preservation-ι`: from `⇒-case ds dm dbrs` and the branch
+    `(c, ar, b)`, `substArgs args b` checks `tm-app m (tm-ctor c args)` by
+    the substitution lemma (the coherence maps field i to `args`), and
+    `tm-app m (tm-ctor c args) ≈ tm-app m s` because `s = tm-ctor c args`.
+
+ 6. The four literal-peel variants additionally need the identification
+    `tm-ctor "Z" [] ≈ tm-nat_lit 0` (and `S`/`First`/`Next`), which is how
+    the kernel treats a compact literal. This may want a `Conversion` field
+    or a dedicated lemma.
+
+`Progress`'s `brs-arity` only reads `brs∷`'s `fc`/`len`, so it is unaffected
+by the premise change.
+
+REMAINING in Proof/Soundness.agda: the classical three-way `soundness` — the
+collapse of the outcome tree into a `data` disjunction, needing confluence
+(since `_⇝_` is not deterministic: `(λx. b) a` both β-reduces and reduces
+under the λ).
