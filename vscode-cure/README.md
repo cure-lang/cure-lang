@@ -37,12 +37,39 @@ Provides language support, LSP diagnostics, MCP AI integration, and REPL support
 
 ---
 
+## 📥 Installation
+
+The extension is not on the Marketplace yet. Build it from a checkout of the
+Cure repository and install the `.vsix`:
+
+```bash
+cd vscode-cure
+npm ci
+npx @vscode/vsce package
+code --install-extension vscode-cure-0.34.0.vsix
+```
+
+---
+
 ## ⚙️ Configuration Settings
 
-- `cure.lsp.path`: Custom path to `cure-lsp` binary (default: `cure-lsp`).
-- `cure.mcp.path`: Custom path to `cure` binary for MCP (default: `cure`).
+- `cure.lsp.path`: Path to `cure-lsp` (default: `cure-lsp`).
+- `cure.mcp.path`: Path to the `cure` executable, used for `cure mcp` and the REPL (default: `cure`).
 - `cure.mcp.enabled`: Enable/disable MCP background client (default: `true`).
 - `cure.trace.server`: Traces communication between VS Code and LSP server (`off`, `messages`, `verbose`).
+
+With the default values, the extension looks for `cure-lsp` and `cure` on
+`PATH`, then at the root of each workspace folder (a checkout of the Cure
+repository has both there). Any other value is used as given; `~` and
+`${workspaceFolder}` are expanded. For example, to use a checkout from any
+project:
+
+```json
+{
+  "cure.lsp.path": "~/cure-lang/cure-lsp",
+  "cure.mcp.path": "~/cure-lang/cure"
+}
+```
 
 ---
 
@@ -54,7 +81,3 @@ npm install
 npm run compile
 ```
 
-To build a `.vsix` package:
-```bash
-npx vsce package
-```

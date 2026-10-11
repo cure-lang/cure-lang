@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { spawn, ChildProcess } from 'child_process';
-import * as path from 'path';
+import { reportMissing, resolveExecutable } from './executables';
 
 export class CureMcpClient implements vscode.Disposable {
     private process: ChildProcess | null = null;
@@ -13,27 +13,43 @@ export class CureMcpClient implements vscode.Disposable {
         this.outputChannel = vscode.window.createOutputChannel('Cure MCP Server');
     }
 
-    public start(): boolean {
+    /**
+     * Starts `cure mcp`. At activation (`interactive` false) a missing `cure`
+     * is only logged; an MCP command the user runs reports it.
+     */
+    public start(interactive = false): boolean {
         if (this.process) {
             return true;
         }
 
         const config = vscode.workspace.getConfiguration('cure');
-        const customPath = config.get<string>('mcp.path', 'cure');
-        const workspaceFolders = vscode.workspace.workspaceFolders;
-        const cwd = workspaceFolders && workspaceFolders.length > 0 ? workspaceFolders[0].uri.fsPath : process.cwd();
+        const setting = config.get<string>('mcp.path', 'cure');
+        const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
 
-        let executable = customPath;
-        let args: string[] = ['mcp'];
-
-        // Fallback checks
-        if (executable === 'cure' && !this.isExecutableInPath(executable)) {
-            const localCure = path.join(cwd, 'cure');
-            executable = localCure;
+        const executable = resolveExecutable(setting, 'cure');
+        if (!executable) {
+            this.outputChannel.appendLine('[MCP]: `cure` not found on PATH or in the workspace; set cure.mcp.path.');
+            if (interactive) {
+                reportMissing('cure', 'cure.mcp.path');
+            }
+            return false;
         }
+        const args: string[] = ['mcp'];
 
         try {
             this.process = spawn(executable, args, { cwd, env: process.env });
+
+            this.process.on('error', (err) => {
+                this.outputChannel.appendLine(`[MCP spawn error]: ${err.message}`);
+                this.process = null;
+                if (interactive) {
+                    vscode.window.showErrorMessage(`Failed to launch Cure MCP Server: ${err.message}`);
+                }
+            });
+
+            this.process.stdin?.on('error', (err) => {
+                this.outputChannel.appendLine(`[MCP stdin error]: ${err.message}`);
+            });
 
             this.process.stdout?.on('data', (chunk: Buffer) => {
                 this.buffer += chunk.toString('utf8');
@@ -82,7 +98,7 @@ export class CureMcpClient implements vscode.Disposable {
 
     public sendRequest(method: string, params: any): Promise<any> {
         return new Promise((resolve, reject) => {
-            if (!this.process && !this.start()) {
+            if (!this.process && !this.start(true)) {
                 reject(new Error('MCP process not running'));
                 return;
             }
@@ -226,11 +242,6 @@ export class CureMcpClient implements vscode.Disposable {
 
     private escapeHtml(text: string): string {
         return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    }
-
-    private isExecutableInPath(exec: string): boolean {
-        // Simplified check
-        return true;
     }
 
     public dispose() {

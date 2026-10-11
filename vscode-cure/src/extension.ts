@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
 import {
     LanguageClient,
     LanguageClientOptions,
@@ -7,6 +6,7 @@ import {
     Executable
 } from 'vscode-languageclient/node';
 import { CureMcpClient } from './mcpClient';
+import { reportMissing, resolveExecutable } from './executables';
 
 let client: LanguageClient | undefined;
 let mcpClient: CureMcpClient | undefined;
@@ -15,7 +15,7 @@ export function activate(context: vscode.ExtensionContext) {
     console.log('Activating vscode-cure extension...');
 
     // 1. Setup LSP Client
-    setupLspClient(context);
+    startLspClient();
 
     // 2. Setup MCP Client
     mcpClient = new CureMcpClient();
@@ -29,15 +29,20 @@ export function activate(context: vscode.ExtensionContext) {
     // 3. Register Commands
     context.subscriptions.push(
         vscode.commands.registerCommand('cure.restartLsp', async () => {
+            await restartLspClient();
             if (client) {
-                await client.stop();
-                await client.start();
                 vscode.window.showInformationMessage('Cure LSP server restarted.');
             }
         }),
 
         vscode.commands.registerCommand('cure.openRepl', () => {
-            const terminal = vscode.window.createTerminal('Cure REPL', 'cure', ['repl']);
+            const setting = vscode.workspace.getConfiguration('cure').get<string>('mcp.path', 'cure');
+            const cure = resolveExecutable(setting, 'cure');
+            if (!cure) {
+                reportMissing('cure', 'cure.mcp.path');
+                return;
+            }
+            const terminal = vscode.window.createTerminal('Cure REPL', cure, ['repl']);
             terminal.show();
         }),
 
@@ -55,29 +60,28 @@ export function activate(context: vscode.ExtensionContext) {
 
         vscode.commands.registerCommand('cure.mcp.parse', () => {
             mcpClient?.parseCurrentDocument();
+        }),
+
+        vscode.workspace.onDidChangeConfiguration(event => {
+            if (event.affectsConfiguration('cure.lsp.path')) {
+                restartLspClient();
+            }
         })
     );
 }
 
-function setupLspClient(context: vscode.ExtensionContext) {
-    const config = vscode.workspace.getConfiguration('cure');
-    const customLspPath = config.get<string>('lsp.path', 'cure-lsp');
-
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    const cwd = workspaceFolders && workspaceFolders.length > 0 ? workspaceFolders[0].uri.fsPath : process.cwd();
-
-    let command = customLspPath;
-    let args: string[] = [];
-
-    // Fallback checks for local executable binary
-    if (command === 'cure-lsp') {
-        const localLsp = path.join(cwd, 'cure-lsp');
-        command = localLsp;
+function startLspClient() {
+    const setting = vscode.workspace.getConfiguration('cure').get<string>('lsp.path', 'cure-lsp');
+    const command = resolveExecutable(setting, 'cure-lsp');
+    if (!command) {
+        reportMissing('cure-lsp', 'cure.lsp.path');
+        return;
     }
 
+    const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     const serverExecutable: Executable = {
         command,
-        args,
+        args: [],
         options: { cwd }
     };
 
@@ -93,14 +97,24 @@ function setupLspClient(context: vscode.ExtensionContext) {
         }
     };
 
+    // The id `cure` makes the client read `cure.trace.server`.
     client = new LanguageClient(
-        'cureLanguageServer',
+        'cure',
         'Cure Language Server',
         serverOptions,
         clientOptions
     );
 
     client.start();
+}
+
+async function restartLspClient() {
+    if (client) {
+        const old = client;
+        client = undefined;
+        await old.stop().catch(() => undefined);
+    }
+    startLspClient();
 }
 
 export function deactivate(): Thenable<void> | undefined {

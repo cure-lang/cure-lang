@@ -36,6 +36,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `neovim-cure` started two LSP clients per buffer when nvim-lspconfig was
   installed (one through lspconfig, one through `vim.lsp.start`), and one
   client per directory. It now starts a single client per project root.
+- `vscode-cure` only found `cure-lsp` at the root of the workspace, so the
+  LSP did not start in any project other than the Cure repository, and its
+  check for `cure` on `PATH` always answered yes. It now looks on `PATH`,
+  then in each workspace folder, expands `~` and `${workspaceFolder}` in
+  `cure.lsp.path` / `cure.mcp.path`, and says which setting to change when
+  it finds nothing. The REPL command uses the same lookup, and
+  `cure.trace.server` now takes effect.
 
 ## [0.34.0] -- One Dependent Pipeline -- 2026-10-10
 
