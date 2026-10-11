@@ -243,21 +243,34 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
          → extend Γ d ⊢ c ⇒ tm-type l2
          → Γ ⊢ tm-pi g d c ⇒ tm-type (l1 ⊔ˡ l2)
 
-    -- λ inference: infer the domain's sort, infer the body's type, and
-    -- form the Π type. (The kernel reifies the codomain via `Quote`; the
-    -- syntactic presentation keeps the inferred body type directly.)
-    ⇒-lam : ∀ {n} {Γ : Ctx n} {g d b l T}
+    -- λ inference: infer the domain's sort, CHECK the body against the
+    -- codomain, and form the Π type. Checking (rather than inferring) the
+    -- body is what lets `value-infer` turn a checked λ into an inferring
+    -- one, which Preservation's β/ζ cases need.
+    ⇒-lam : ∀ {n} {Γ : Ctx n} {g d b l c}
           → Γ ⊢ d ⇒ tm-type l
-          → extend Γ d ⊢ b ⇒ T
-          → Γ ⊢ tm-lam g d b ⇒ tm-pi g d T
+          → extend Γ d ⊢ b ⇐ c
+          → Γ ⊢ tm-lam g d b ⇒ tm-pi g d c
 
-    -- Application: infer the function type, require it to be a Π, check
-    -- the argument against the domain, and return the codomain instantiated
-    -- at the argument.
+    -- Application: infer the function type, require it to be a Π, INFER
+    -- the argument's type (which must convert to the domain), and return the
+    -- codomain instantiated at the argument.
+    --
+    -- The instantiation is the TOP substitution `substTopT a c = substS
+    -- (topSub a) c`, NOT `substT 0 a c`. This matches the kernel's
+    -- `Eval.apply_closure(cod_closure, a_value)`, which evaluates the
+    -- codomain in the environment `[a_value | env]` — i.e. it PREPENDS the
+    -- argument (index 0) and shifts everything else.
+    --
+    -- The argument is INFERRED (not checked): the substitution lemma's head
+    -- case needs the argument to infer its type, and a checked argument does
+    -- not in general infer it (a λ checked via `⇐-lam` need not have an
+    -- inferable domain). The kernel's `check_via_infer` infers the argument
+    -- internally, so inferring it here is faithful.
     ⇒-app : ∀ {n} {Γ : Ctx n} {f a g d c}
           → Γ ⊢ f ⇒ tm-pi g d c
-          → Γ ⊢ a ⇐ d
-          → Γ ⊢ tm-app f a ⇒ substT 0 a c
+          → Γ ⊢ a ⇒ d
+          → Γ ⊢ tm-app f a ⇒ substTopT a c
 
     -- let (ζ-transparent): check the value against the ascription, then
     -- infer the body under a context extended with the value's type. The
@@ -323,6 +336,15 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
                   → Γ ⊢ k ⇒ tm-pi unrestricted A (tm-effect_type (rename wk B))
                   → Γ ⊢ tm-effect_bind e k ⇒ tm-effect_type B
 
+    -- Conversion on the inferred type. This is the syntactic closure of
+    -- inference under conversion; it is what lets a CHECKED value be
+    -- treated as an INFERRING one (`value-infer`), which Preservation's
+    -- ζ case needs.
+    ⇒-conv : ∀ {n} {Γ : Ctx n} {t T T′}
+           → Γ ⊢ t ⇒ T
+           → Conversion._≈_ conv T T′
+           → Γ ⊢ t ⇒ T′
+
     -- A hole has no inference rule (it is checkable at any type).
     -- {:absurd} is rejected in reachable position (no inference rule).
 
@@ -331,11 +353,10 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
 
     -- A λ checks against a Π of the SAME grade; the domain must convert and
     -- the body checks against the codomain.
-    ⇐-lam : ∀ {n} {Γ : Ctx n} {g d b g′ d′ c}
-          → g ≡ g′
-          → Conversion._≈_ conv d d′
-          → extend Γ d′ ⊢ b ⇐ c
-          → Γ ⊢ tm-lam g d b ⇐ tm-pi g′ d′ c
+    ⇐-lam : ∀ {n} {Γ : Ctx n} {g d b c l}
+          → Γ ⊢ d ⇒ tm-type l
+          → extend Γ d ⊢ b ⇐ c
+          → Γ ⊢ tm-lam g d b ⇐ tm-pi g d c
 
     -- A hole is accepted at any goal type.
     ⇐-hole : ∀ {n} {Γ : Ctx n} {name T} → Γ ⊢ tm-hole name ⇐ T
@@ -345,6 +366,14 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
             → Γ ⊢ t ⇒ T′
             → Conversion._≈_ conv T′ T
             → Γ ⊢ t ⇐ T
+
+    -- Conversion on the checked type: if `t` checks against `T` and `T ≈ T′`,
+    -- then `t` checks against `T′`. (Checking is closed under conversion of
+    -- the goal type.)
+    ⇐-conv : ∀ {n} {Γ : Ctx n} {t T T′}
+           → Γ ⊢ t ⇐ T
+           → Conversion._≈_ conv T T′
+           → Γ ⊢ t ⇐ T′
 
     -- Cumulative sorts: a term of type Type i checks against Type j when i ≤ j.
     ⇐-cumul : ∀ {n} {Γ : Ctx n} {t i j}

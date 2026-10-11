@@ -34,7 +34,7 @@ open import Relation.Binary.PropositionalEquality
 open import Relation.Nullary using (Dec; yes; no)
 
 open import Core.Grade using (Grade; unrestricted)
-open import Core.Universe using (Level; l0; l1; l2)
+open import Core.Universe using (Level; l0; l1; l2; _≤ˡ_)
 open import Core.Syntax
 open import Core.Signature using (IndEnv; Family; Ctor; Telescope; findFamily; findCtor;
                                    fam-params; fam-indices; fam-level; fam-name;
@@ -42,6 +42,7 @@ open import Core.Signature using (IndEnv; Family; Ctor; Telescope; findFamily; f
 open import Core.Reduction
 open import Core.Typing using (Ctx; ⟨⟩; _▷_; lookup; extend; lookup-extend; lookup-renameCtx; Conversion; extendⁿ)
 open import Proof.Values using (Canonical; Neutral; Value)
+open import Proof.Inversion
 open import Proof.Substitution
 open import Proof.Context using (lookup-weaken; lookup-head;
                                   lookup-extendⁿ-zero; lookup-extendⁿ-raise;
@@ -50,6 +51,7 @@ open import Proof.Context using (lookup-weaken; lookup-head;
 module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
 
   open Core.Typing.Typing ind sig conv
+  open Proof.Inversion.Invert ind sig conv using (conv-pi-components)
 
   ------------------------------------------------------------------------
   -- Weakening.
@@ -98,14 +100,6 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
     rename-global-type : ∀ (ρ : Ren) (f : Name) (T : Term)
       → Signature.type-of sig f ≡ just T → rename ρ T ≡ T
 
-  -- Helper obligations for the spine/branch cases of renaming.
-  postulate
-    ren-app : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {f a g d c ρ} (idx : Fin n → Fin m)
-      → (∀ i → toℕ (idx i) ≡ ρ (toℕ i))
-      → (∀ i → lookup Δ (idx i) ≡ rename ρ (lookup Γ i))
-      → Γ ⊢ f ⇒ tm-pi g d c → Γ ⊢ a ⇐ d
-      → Δ ⊢ rename ρ (tm-app f a) ⇒ rename ρ (substT 0 a c)
-
   -- The signature's telescopes are closed, so renaming leaves them unchanged.
   postulate
     tele-closed : ∀ (ρ : Ren) (f : Family) (tele tele′ : Telescope)
@@ -152,8 +146,11 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
     ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-pi {d = d} dd dc) =
       ⇒-pi (ren⇒ idx coh law dd) (ren⇒ (ext-idx idx) (ext-coh ρ idx coh) (ext-law d idx law) dc)
     ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-lam {d = d} dd db) =
-      ⇒-lam (ren⇒ idx coh law dd) (ren⇒ (ext-idx idx) (ext-coh ρ idx coh) (ext-law d idx law) db)
-    ren⇒ idx coh law (⇒-app df da) = ren-app idx coh law df da
+      ⇒-lam (ren⇒ idx coh law dd) (ren⇐ (ext-idx idx) (ext-coh ρ idx coh) (ext-law d idx law) db)
+    ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-app {f = f} {a = a} {c = c} df da) =
+      subst (λ X → Δ ⊢ tm-app (rename ρ f) (rename ρ a) ⇒ X)
+            (sym (rename-topSub ρ a c))
+            (⇒-app (ren⇒ idx coh law df) (ren⇒ idx coh law da))
     ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-let {ty = ty} {v = v} {T = T} dty dv db) =
       subst (λ X → Δ ⊢ tm-let _ (rename ρ ty) (rename ρ v) (rename (ext ρ) _) ⇒ X)
             (sym (rename-topSub ρ v T))
@@ -185,6 +182,8 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
       ⇒-case (ren⇒ idx coh law p) (ren⇒ idx coh law q) (ren-branches idx coh law r)
     ren⇒ idx coh law (⇒-effect_type p) = ⇒-effect_type (ren⇒ idx coh law p)
     ren⇒ idx coh law (⇒-effect_pure p) = ⇒-effect_pure (ren⇒ idx coh law p)
+    ren⇒ idx coh law (⇒-conv der eq) =
+      ⇒-conv (ren⇒ idx coh law der) (rename-conv _ eq)
     ren⇒ {Δ = Δ} {ρ = ρ} idx coh law (⇒-effect_bind {A = A} {B = B} p q) =
       ⇒-effect_bind (ren⇒ idx coh law p)
                     (subst (λ X → Δ ⊢ rename ρ _ ⇒ tm-pi unrestricted (rename ρ A) (tm-effect_type X))
@@ -196,12 +195,11 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
          → (∀ i → toℕ (idx i) ≡ ρ (toℕ i))
          → (∀ i → lookup Δ (idx i) ≡ rename ρ (lookup Γ i))
          → Γ ⊢ t ⇐ T → Δ ⊢ rename ρ t ⇐ rename ρ T
-    ren⇐ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇐-lam {g = g} {d = d} {b = b} {g′ = g′} {d′ = d′} {c = c} eq conv-eq body) =
-      ⇐-lam {g = g} {d = rename ρ d} {b = rename (ext ρ) b}
-            {g′ = g′} {d′ = rename ρ d′} {c = rename (ext ρ) c}
-            eq
-            (rename-conv ρ conv-eq)
-            (ren⇐ (ext-idx idx) (ext-coh ρ idx coh) (ext-law d′ idx law) body)
+    ren⇐ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇐-lam {g = g} {d = d} {b = b} {c = c} {l = l} ds body) =
+      ⇐-lam {g = g} {d = rename ρ d} {b = rename (ext ρ) b} {c = rename (ext ρ) c}
+            (ren⇒ idx coh law ds)
+            (ren⇐ (ext-idx idx) (ext-coh ρ idx coh) (ext-law d idx law) body)
+    ren⇐ idx coh law (⇐-conv der eq) = ⇐-conv (ren⇐ idx coh law der) (rename-conv _ eq)
     ren⇐ idx coh law (⇐-hole) = ⇐-hole
     ren⇐ idx coh law (⇐-infer der eq) = ⇐-infer (ren⇒ idx coh law der) (rename-conv _ eq)
     ren⇐ idx coh law (⇐-cumul der le) = ⇐-cumul (ren⇒ idx coh law der) le
@@ -340,12 +338,8 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   -- The substitution lemma.
   ------------------------------------------------------------------------
 
-  -- Helper obligations for the spine/branch cases and conversion.
+  -- Helper obligation for the global case.
   postulate
-    subst-app : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {f a g d c σ}
-      → Coherent {n} {m} Γ Δ σ
-      → Γ ⊢ f ⇒ tm-pi g d c → Γ ⊢ a ⇐ d
-      → Δ ⊢ substS σ (tm-app f a) ⇒ substS σ (substT 0 a c)
     subst-global : ∀ {m} {Δ : Ctx m} {f} (T : Term) (σ : Sub)
       → Signature.type-of sig f ≡ just T
       → Δ ⊢ tm-global f ⇒ substS σ T
@@ -369,8 +363,11 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
    subst⇒ {n = n} {m = m} {Γ = Γ} {Δ = Δ} coh (⇒-pi dd dc) =
      ⇒-pi (subst⇒ coh dd) (subst⇒ (coh-extend {Γ = Γ} {Δ = Δ} coh) dc)
    subst⇒ {Γ = Γ} {Δ = Δ} coh (⇒-lam dd db) =
-     ⇒-lam (subst⇒ coh dd) (subst⇒ (coh-extend {Γ = Γ} {Δ = Δ} coh) db)
-   subst⇒ coh (⇒-app df da) = subst-app coh df da
+     ⇒-lam (subst⇒ coh dd) (subst⇐ (coh-extend {Γ = Γ} {Δ = Δ} coh) db)
+   subst⇒ {Δ = Δ} {σ = σ} coh (⇒-app {f = f} {a = a} {c = c} df da) =
+     subst (λ X → Δ ⊢ tm-app (substS σ f) (substS σ a) ⇒ X)
+           (sym (subst-topSub σ a c))
+           (⇒-app (subst⇒ coh df) (subst⇒ coh da))
    subst⇒ {Γ = Γ} {Δ = Δ} {σ = σ} coh (⇒-let {g = g} {ty = ty} {v = v} {b = b} {l = l} {T = T} dty dv db) =
     subst (λ X → Δ ⊢ tm-let g (substS σ ty) (substS σ v) (substS (extSub σ) b) ⇒ X)
           (sym (subst-topSub σ v T))
@@ -400,6 +397,7 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
      ⇒-case (subst⇒ coh p) (subst⇒ coh q) (subst-branches coh r)
    subst⇒ coh (⇒-effect_type p) = ⇒-effect_type (subst⇒ coh p)
    subst⇒ coh (⇒-effect_pure p) = ⇒-effect_pure (subst⇒ coh p)
+   subst⇒ coh (⇒-conv der eq) = ⇒-conv (subst⇒ coh der) (subst-conv eq)
    subst⇒ {Δ = Δ} {σ = σ} coh (⇒-effect_bind {e = e} {k = k} {A = A} {B = B} p q) =
      ⇒-effect_bind (subst⇒ coh p)
                    (subst (λ X → Δ ⊢ substS σ k ⇒ tm-pi unrestricted (substS σ A) (tm-effect_type X))
@@ -410,12 +408,11 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
           → Coherent {n} {m} Γ Δ σ
           → Γ ⊢ t ⇐ T
           → Δ ⊢ substS σ t ⇐ substS σ T
-   subst⇐ {Γ = Γ} {Δ = Δ} {σ = σ} coh (⇐-lam {g = g} {d = d} {b = b} {g′ = g′} {d′ = d′} {c = c} eq conv-eq body) =
-    ⇐-lam {g = g} {d = substS σ d} {b = substS (extSub σ) b}
-          {g′ = g′} {d′ = substS σ d′} {c = substS (extSub σ) c}
-          eq
-          (subst-conv conv-eq)
-          (subst⇐ {Γ = extend Γ d′} {Δ = extend Δ (substS σ d′)} (coh-extend {Γ = Γ} {Δ = Δ} coh) body)
+   subst⇐ {Γ = Γ} {Δ = Δ} {σ = σ} coh (⇐-lam {g = g} {d = d} {b = b} {c = c} {l = l} ds body) =
+    ⇐-lam {g = g} {d = substS σ d} {b = substS (extSub σ) b} {c = substS (extSub σ) c}
+          (subst⇒ coh ds)
+          (subst⇐ {Γ = extend Γ d} {Δ = extend Δ (substS σ d)} (coh-extend {Γ = Γ} {Δ = Δ} coh) body)
+   subst⇐ coh (⇐-conv der eq) = ⇐-conv (subst⇐ coh der) (subst-conv eq)
    subst⇐ coh (⇐-hole) = ⇐-hole
    subst⇐ coh (⇐-infer der eq) = ⇐-infer (subst⇒ coh der) (subst-conv eq)
    subst⇐ coh (⇐-cumul der le) = ⇐-cumul (subst⇒ coh der) le
@@ -456,27 +453,211 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   substTop : Term → Term → Term
   substTop a t = substS (topSub a) t
 
-  postulate
-    substTop⇒ :
-      ∀ {n} {Γ : Ctx n} {t T A a}
-      → extend Γ A ⊢ t ⇒ T
-      → Γ ⊢ a ⇐ A
-      → Γ ⊢ substTop a t ⇒ substTop a T
+  -- The top-substitution coherence: `topSub a` maps index 0 to `a` and
+  -- index `suc j` to `tm-var j`. At the head we need the argument `a` to
+  -- INFER its type `A` (the β case supplies this, since the argument of a
+  -- λ is checked against the domain and values infer their type).
+  CohTop : ∀ {n} (Γ : Ctx n) (A a : Term) (k : Fin (suc n)) → Set
+  CohTop Γ A a k =
+    Γ ⊢ topSub a (toℕ k) ⇒ substS (topSub a) (lookup (extend Γ A) k)
 
-  postulate
-    substTop⇐ :
-      ∀ {n} {Γ : Ctx n} {t T A a}
-      → extend Γ A ⊢ t ⇐ T
-      → Γ ⊢ a ⇐ A
-      → Γ ⊢ substTop a t ⇐ substTop a T
+  -- `CohTop` at the head: `Γ ⊢ a ⇒ substS (topSub a) (rename wk A)`, which
+  -- is `Γ ⊢ a ⇒ A` by `topSub-rename`.
+  cohTop-zero : ∀ {n} {Γ : Ctx n} {A a} → Γ ⊢ a ⇒ A → CohTop Γ A a zero
+  cohTop-zero {Γ = Γ} {A = A} {a = a} h =
+    subst (λ X → Γ ⊢ a ⇒ X)
+          (trans (sym (topSub-rename a A))
+                 (sym (cong (substS (topSub a)) (lookup-head Γ A))))
+          h
+
+  -- `CohTop` at a variable: `Γ ⊢ tm-var j ⇒ lookup Γ j`.
+  cohTop-suc : ∀ {n} {Γ : Ctx n} {A a} (k : Fin n)
+    → CohTop Γ A a (suc k)
+  cohTop-suc {Γ = Γ} {A = A} {a = a} k =
+    subst (λ X → Γ ⊢ tm-var (toℕ k) ⇒ X)
+          (trans (sym (topSub-rename a (lookup Γ k)))
+                 (sym (cong (substS (topSub a)) (lookup-extend Γ A k))))
+          (⇒-var k)
+
+  substTop⇒ :
+    ∀ {n} {Γ : Ctx n} {t T A a}
+    → extend Γ A ⊢ t ⇒ T
+    → Γ ⊢ a ⇒ A
+    → Γ ⊢ substTop a t ⇒ substTop a T
+  substTop⇒ {Γ = Γ} {A = A} {a = a} dt h =
+    subst⇒ {Γ = extend Γ A} {Δ = Γ}
+           (λ { zero → cohTop-zero {Γ = Γ} {A = A} {a = a} h
+              ; (suc k) → cohTop-suc {Γ = Γ} {A = A} {a = a} k })
+           dt
+
+  substTop⇐ :
+    ∀ {n} {Γ : Ctx n} {t T A a}
+    → extend Γ A ⊢ t ⇐ T
+    → Γ ⊢ a ⇒ A
+    → Γ ⊢ substTop a t ⇐ substTop a T
+  substTop⇐ {Γ = Γ} {A = A} {a = a} dt h =
+    subst⇐ {Γ = extend Γ A} {Δ = Γ}
+           (λ { zero → cohTop-zero {Γ = Γ} {A = A} {a = a} h
+              ; (suc k) → cohTop-suc {Γ = Γ} {A = A} {a = a} k })
+           dt
 
   ------------------------------------------------------------------------
   -- Preservation
   ------------------------------------------------------------------------
 
+  ------------------------------------------------------------------------
+  -- Value inversion: a checked value infers its type.
+  ------------------------------------------------------------------------
+
+  -- `HoleFree a`: `a` contains no `tm-hole`. (A hole checks at any type
+  -- but never infers, so `value-infer` needs this side condition.)
+  HoleFree : Term → Set
+  HoleFree a = (name : Name) → a ≡ tm-hole name → ⊥
+
+  -- Cumulativity as a conversion: `Type i ≈ Type j` when `i ≤ j`.
   postulate
-    preservation :
-      ∀ {t t′ T}
-      → ⟨⟩ ⊢ t ⇒ T
-      → _⇝_ sig t t′
-      → ⟨⟩ ⊢ t′ ⇒ T
+    ≈-cumul : ∀ {i j} → i ≤ˡ j → Conversion._≈_ conv (tm-type i) (tm-type j)
+
+  -- Cumulativity on the inferred type.
+  ⇒-cumul-infer : ∀ {n} {Γ : Ctx n} {t i j} → Γ ⊢ t ⇒ tm-type i → i ≤ˡ j → Γ ⊢ t ⇒ tm-type j
+  ⇒-cumul-infer der le = ⇒-conv der (≈-cumul le)
+
+  -- A hole-free VALUE that checks against a type infers that type. `⇐-lam`
+  -- and `⇒-lam` share their premises, so the λ case is direct; `⇐-infer`
+  -- uses `⇒-conv`; `⇐-hole` is impossible (the value would be a hole).
+  value-infer : ∀ {n} {Γ : Ctx n} {a A} → HoleFree a → Value a → Γ ⊢ a ⇐ A → Γ ⊢ a ⇒ A
+  value-infer hf v (⇐-infer der eq) = ⇒-conv der eq
+  value-infer hf v (⇐-conv der eq) = ⇒-conv (value-infer hf v der) eq
+  value-infer hf v (⇐-cumul der le) = ⇒-cumul-infer der le
+  value-infer hf (canonical c-lam) (⇐-lam {g = g} {d = d} {b = b} {c = c} ds body) =
+    ⇒-lam {g = g} {d = d} {b = b} {c = c} ds body
+  value-infer hf (canonical ()) ⇐-hole
+  value-infer hf (neutral n-hole) ⇐-hole = ⊥-elim (hf _ refl)
+
+  -- A λ's infer derivation, inverted to the Π type it infers (the type
+  -- equation is up to conversion).
+  lam-pi-trans : ∀ {n} {Γ : Ctx n} {g d b} (T T′ : Term)
+    → Σ Term (λ c → (Conversion._≈_ conv T′ (tm-pi g d c))
+                    × (Γ ⊢ tm-lam g d b ⇒ tm-pi g d c))
+    → Conversion._≈_ conv T′ T
+    → Σ Term (λ c → (Conversion._≈_ conv T (tm-pi g d c))
+                    × (Γ ⊢ tm-lam g d b ⇒ tm-pi g d c))
+  lam-pi-trans T T′ (c , eq″ , der′) eq =
+    c , Conversion.≈-trans conv (Conversion.≈-sym conv eq) eq″ , der′
+
+  lam-type-pi : ∀ {n} {Γ : Ctx n} {g d b T} → Γ ⊢ tm-lam g d b ⇒ T
+              → Σ Term (λ c → (Conversion._≈_ conv T (tm-pi g d c))
+                              × (Γ ⊢ tm-lam g d b ⇒ tm-pi g d c))
+  lam-type-pi (⇒-lam dd db) = _ , Conversion.≈-refl conv , ⇒-lam dd db
+  lam-type-pi {g = g} {d = d} {T = T} (⇒-conv {T = T′} der eq) =
+    lam-pi-trans T T′ (lam-type-pi der) eq
+
+  -- `⇒-lam-inv-aux`: a λ that infers `T` has its body check any `c` with
+  -- `T ≈ tm-pi g d c`. Structural on the derivation.
+  ⇒-lam-inv-aux : ∀ {n} {Γ : Ctx n} {g d b} (T : Term) (c : Term)
+                → Γ ⊢ tm-lam g d b ⇒ T
+                → Conversion._≈_ conv T (tm-pi g d c)
+                → extend Γ d ⊢ b ⇐ c
+  ⇒-lam-inv-aux (tm-pi g d c₀) c (⇒-lam dd db) eq =
+    ⇐-conv db (proj₂ (proj₂ (conv-pi-components eq)))
+  ⇒-lam-inv-aux T c (⇒-conv {T = T′} der eq′) eq =
+    ⇒-lam-inv-aux T′ c der (Conversion.≈-trans conv eq′ eq)
+
+  -- The body of a λ that infers a Π type checks the codomain.
+  ⇒-lam-inv : ∀ {n} {Γ : Ctx n} {g d b c}
+            → Γ ⊢ tm-lam g d b ⇒ tm-pi g d c
+            → extend Γ d ⊢ b ⇐ c
+  ⇒-lam-inv der = ⇒-lam-inv-aux _ _ der (Conversion.≈-refl conv)
+
+
+  -- `substTopT` is a congruence for conversion of the codomain.
+  postulate
+    substTopT-conv : ∀ a {c c′} → Conversion._≈_ conv c c′
+                   → Conversion._≈_ conv (substTopT a c) (substTopT a c′)
+
+
+  -- The `⇒-conv`-on-function case of β: `dflam` is a λ derivation whose
+  -- type `T₀ = tm-pi g′ d′ c′` converts to `tm-pi g d c`; Π injectivity
+  -- gives `c′ ≈ c`, and the body (which checks `c′`) then checks `c`.
+  postulate
+    preserve-β-conv-aux : ∀ {g g′ d d′ b a c T₀}
+      → ⟨⟩ ⊢ tm-lam g′ d′ b ⇒ T₀
+      → Conversion._≈_ conv T₀ (tm-pi g d c)
+      → ⟨⟩ ⊢ a ⇒ d
+      → ⟨⟩ ⊢ substTopT a b ⇐ substTopT a c
+
+  -- β: `(λx. b) a ⇝ b[x := a]`.
+  --
+  -- PROVED. `⇒-app` gives `⟨⟩ ⊢ tm-lam g d b ⇒ tm-pi g d c` (so `T =
+  -- substTopT a c`) and `⟨⟩ ⊢ a ⇒ d`; `⇒-lam-inv` gives
+  -- `extend ⟨⟩ d ⊢ b ⇐ c`. `substTop⇐` yields
+  -- `⟨⟩ ⊢ substTopT a b ⇐ substTopT a c`.
+  preserve-β :
+    ∀ {g d b a T}
+    → ⟨⟩ ⊢ tm-app (tm-lam g d b) a ⇒ T
+    → ⟨⟩ ⊢ substTopT a b ⇐ T
+  preserve-β {g = g} {d = d} {b = b} {a = a} (⇒-app {g = g} {d = d} {c = c} (⇒-lam {g = g} {d = d} {b = b} {c = c} dd db) da) =
+    substTop⇐ {n = zero} {Γ = ⟨⟩} {A = d}
+              (⇒-lam-inv {g = g} {d = d} {b = b} {c = c}
+                         (⇒-lam {g = g} {d = d} {b = b} {c = c} dd db)) da
+  preserve-β {g = g} {d = d} {b = b} {a = a} (⇒-app {c = c} (⇒-conv {T = T₀} dflam ceq) da) =
+    preserve-β-conv-aux dflam ceq da
+
+  preserve-β (⇒-conv der eq) = ⇐-conv (preserve-β der) eq
+
+
+
+  -- ζ: `let x = v in b ⇝ b[x := v]`.
+  --
+  -- Similar to β: `⇒-let` gives `⟨⟩ ⊢ v ⇐ ty` and `extend ⟨⟩ ty ⊢ b ⇒ T`
+  -- (so the result type is `substTopT v T`); `value-infer` turns the
+  -- checked value into an inferring one, and `substTop⇐` gives the result.
+  preserve-ζ :
+    ∀ {g ty v b T}
+    → ⟨⟩ ⊢ tm-let g ty v b ⇒ T
+    → Value v
+    → HoleFree v
+    → ⟨⟩ ⊢ substTopT v b ⇐ T
+  preserve-ζ {g = g} {ty = ty} {v = v} {b = b} {T = T} (⇒-let {l = l} dty dv db) val hf =
+    substTop⇐ {n = zero} {Γ = ⟨⟩} {A = ty} (⇒-check db) (value-infer hf val dv)
+    where
+      ⇒-check : ∀ {n} {Γ : Ctx n} {t T} → Γ ⊢ t ⇒ T → Γ ⊢ t ⇐ T
+      ⇒-check der = ⇐-infer der (Conversion.≈-refl conv)
+  preserve-ζ (⇒-conv der eq) val hf = ⇐-conv (preserve-ζ der val hf) eq
+
+
+
+  -- The remaining reduction rules (ι, δ, and the congruence rules).
+  postulate
+    preservation-other :
+      ∀ {t t′ T} → ⟨⟩ ⊢ t ⇐ T → _⇝_ sig t t′ → ⟨⟩ ⊢ t′ ⇐ T
+
+    preservation⇒-other :
+      ∀ {t t′ T} → ⟨⟩ ⊢ t ⇒ T → _⇝_ sig t t′ → ⟨⟩ ⊢ t′ ⇒ T
+
+
+  preservation⇒ :
+    ∀ {t t′ T}
+    → ⟨⟩ ⊢ t ⇒ T
+    → _⇝_ sig t t′
+    → ⟨⟩ ⊢ t′ ⇒ T
+  preservation⇒ der rw = preservation⇒-other der rw
+
+  -- Preservation (docs/SOUNDNESS.md §4).
+  --
+  --   If `⟨⟩ ⊢ t ⇐ T` and `t ⇝ t′` then `⟨⟩ ⊢ t′ ⇐ T`.
+  --
+  -- The β and ζ cases are PROVED (see `preserve-β` / `preserve-ζ` above);
+  -- the ι (branch substitution), δ (certified unfolding), and congruence
+  -- cases are the remaining obligations, isolated in `preservation-other`.
+  preservation :
+    ∀ {t t′ T}
+    → ⟨⟩ ⊢ t ⇐ T
+    → _⇝_ sig t t′
+    → ⟨⟩ ⊢ t′ ⇐ T
+  preservation (⇐-infer der eq) rw = ⇐-infer (preservation⇒ der rw) eq
+  preservation (⇐-conv der eq) rw = ⇐-conv (preservation der rw) eq
+  preservation (⇐-cumul der le) rw = ⇐-cumul (preservation⇒ der rw) le
+  preservation (⇐-lam ds body) rw = preservation-other (⇐-lam ds body) rw
+  preservation ⇐-hole rw = preservation-other ⇐-hole rw
+

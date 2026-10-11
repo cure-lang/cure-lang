@@ -495,14 +495,7 @@ substTerms-map σ [] = refl
 substTerms-map σ (x ∷ xs) = cong₂ _∷_ refl (substTerms-map σ xs)
 
 ------------------------------------------------------------------------
-------------------------------------------------------------------------
--- Shifting commutes with substitution, at target index 0.
---
--- `shift a c (substT 0 r t) ≡ substT 0 (shift a c r) (shift a (suc c) t)`.
---
--- This holds for the TARGET INDEX 0 (where the shift's binder frame agrees
--- with the substitution's), which is exactly what the application case of
--- the weakening/renaming lemmas needs.
+-- Shift composition.
 ------------------------------------------------------------------------
 
 -- `shift a (c + ar) (shift ar 0 r) ≡ shift ar 0 (shift a c r)`.
@@ -523,13 +516,57 @@ shift-compose a c ar r =
         (trans (cong (λ ρ → rename ρ r) (funext-ren (shiftRen-compose a c ar)))
                (sym (rename-compose (shiftRen ar 0) (shiftRen a c) r)))
 
--- `shift a c (substT 0 r t) ≡ substT 0 (shift a c r) (shift a (suc c) t)`.
+
+
+------------------------------------------------------------------------
+-- Canonical forms, neutrals, and values.
 --
--- OPEN OBLIGATION: this holds at `c = 0` (where `shiftRen a 0 (suc k) =
--- suc (k + a)` agrees with the extension), but the binder case bumps `c`,
--- so the general statement needs the substitution index to shift with `c`.
--- The `c = 0` instance is what the application case of the weakening lemma
--- needs when stated with `shift 1 0`; see proof/README.md.
-postulate
-  shift-subst : ∀ a c r t
-    → shift a c (substT 0 r t) ≡ substT 0 (shift a c r) (shift a (suc c) t)
+-- The kernel's notion of a value (`MetaCheck.canonical_head?/1`) includes
+-- both introduction forms (λ, ctor, Π, Type, data, literals, effect
+-- formers) and NEUTRALS (stuck computations):
+--
+--   * `Canonical` — the introduction forms, which cannot be stuck;
+--   * `Neutral`   — a variable, global, hole, or eliminator stuck on a
+--                   neutral;
+--   * `Value`     — their union, recovering the kernel's notion.
+--
+-- These live here (rather than in Proof/Values.agda) because the reduction
+-- relation needs `Value` to state its β/ζ rules: the kernel's β fires only
+-- on `apply(vlam, varg)` — the argument is a VALUE. Requiring the argument
+-- to be a value is what makes Preservation's β/ζ cases go through, since a
+-- value of a given type INFERS that type (`value-infer` below).
+--
+-- The `Canonical`/`Neutral` split still matters for the canonical-form
+-- lemmas (Proof/CanonicalForms.agda): "every value of Π type is a λ" is
+-- FALSE for neutrals (a stuck application of Π type is a value).
+------------------------------------------------------------------------
+
+data Canonical : Term → Set where
+  c-type    : ∀ {l} → Canonical (tm-type l)
+  c-pi      : ∀ {g d c} → Canonical (tm-pi g d c)
+  c-lam     : ∀ {g d b} → Canonical (tm-lam g d b)
+  c-data    : ∀ {n ps is} → Canonical (tm-data n ps is)
+  c-ctor    : ∀ {n args} → Canonical (tm-ctor n args)
+  c-int_type    : Canonical tm-int_type
+  c-int_lit     : ∀ {k} → Canonical (tm-int_lit k)
+  c-nat_lit     : ∀ {k} → Canonical (tm-nat_lit k)
+  c-bounded_lit : ∀ {k} → Canonical (tm-bounded_lit k)
+  c-float_type  : Canonical tm-float_type
+  c-float_lit   : Canonical tm-float_lit
+  c-binary_type : Canonical tm-binary_type
+  c-atom_type   : Canonical tm-atom_type
+  c-atom_lit    : ∀ {n} → Canonical (tm-atom_lit n)
+  c-effect_type : ∀ {t} → Canonical (tm-effect_type t)
+  c-effect_pure : ∀ {t} → Canonical (tm-effect_pure t)
+  c-effect_bind : ∀ {e k} → Canonical (tm-effect_bind e k)
+
+data Neutral : Term → Set where
+  n-var    : ∀ {k} → Neutral (tm-var k)
+  n-global : ∀ {n} → Neutral (tm-global n)
+  n-hole   : ∀ {n} → Neutral (tm-hole n)
+  n-app    : ∀ {f a} → Neutral f → Neutral (tm-app f a)
+  n-case   : ∀ {s m brs} → Neutral s → Neutral (tm-case s m brs)
+
+data Value : Term → Set where
+  canonical : ∀ {t} → Canonical t → Value t
+  neutral   : ∀ {t} → Neutral t → Value t

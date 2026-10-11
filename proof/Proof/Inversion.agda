@@ -41,7 +41,8 @@ open import Core.Universe using (Level; l0; l1; l2)
 open import Core.Syntax
 open import Core.Signature
 open import Core.Reduction using (Signature)
-open import Core.Typing using (Ctx; ⟨⟩; _▷_; lookup; extend; Conversion)
+open import Core.Typing using (Ctx; ⟨⟩; _▷_; lookup; extend; Conversion;
+                                All2; a2[]; a2∷)
 open import Proof.Values using (Canonical; Neutral; Value; canonical; neutral)
 
 module Invert (ind : IndEnv) (sig : Signature) (conv : Conversion) where
@@ -106,6 +107,10 @@ module Invert (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   -- require normalisation.
   ------------------------------------------------------------------------
 
+  -- Conversion injectivity on the type constructors: a type convertible to
+  -- a Π IS a Π (with a convertible domain and codomain); a type convertible
+  -- to a data type IS a data type (with convertible spines). This is the
+  -- FSCD'25 property, stated in the form the inversion and β lemmas consume.
   postulate
     conv-injective-data :
       ∀ {T′ n ps is}
@@ -117,6 +122,14 @@ module Invert (ind : IndEnv) (sig : Signature) (conv : Conversion) where
       ∀ {T′ g d c}
       → Conversion._≈_ conv T′ (tm-pi g d c)
       → Σ Grade (λ g′ → Σ Term (λ d′ → Σ Term (λ c′ → T′ ≡ tm-pi g′ d′ c′)))
+
+  -- The componentwise form of Π injectivity, used by Preservation's β case:
+  -- convertible Πs have equal grades and convertible domains and codomains.
+  postulate
+    conv-pi-components :
+      ∀ {g d c g′ d′ c′}
+      → Conversion._≈_ conv (tm-pi g′ d′ c′) (tm-pi g d c)
+      → g′ ≡ g × (Conversion._≈_ conv d′ d) × (Conversion._≈_ conv c′ c)
 
   ------------------------------------------------------------------------
   -- Checking-mode inversion, via conversion injectivity.
@@ -130,6 +143,9 @@ module Invert (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   invert-data-check _ _ (⇐-infer der eq) can
     with conv-injective-data eq
   ... | ps′ , is′ , refl = invert-data der can
+  invert-data-check _ _ (⇐-conv der eq) can
+    with conv-injective-data eq
+  ... | ps′ , is′ , refl = invert-data-check _ _ der can
   invert-data-check _ _ ⇐-hole ()
 
   invert-pi-check :
@@ -137,8 +153,11 @@ module Invert (ind : IndEnv) (sig : Signature) (conv : Conversion) where
     (d : Γ ⊢ t ⇐ tm-pi g d c)
     → Canonical t
     → Σ Grade (λ g′ → Σ Term (λ d′ → Σ Term (λ b → t ≡ tm-lam g′ d′ b)))
-  invert-pi-check _ _ (⇐-lam eq x x₁) can = _ , _ , _ , refl
+  invert-pi-check _ _ (⇐-lam ds x) can = _ , _ , _ , refl
   invert-pi-check _ _ (⇐-infer der eq) can
     with conv-injective-pi eq
   ... | g′ , d′ , c′ , refl = invert-pi der can
+  invert-pi-check _ _ (⇐-conv der eq) can
+    with conv-injective-pi eq
+  ... | g′ , d′ , c′ , refl = invert-pi-check _ _ der can
   invert-pi-check _ _ ⇐-hole ()

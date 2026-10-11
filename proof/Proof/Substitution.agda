@@ -567,6 +567,66 @@ mutual
 -- down by one. This is the substitution the β and ζ rules use.
 ------------------------------------------------------------------------
 
+-- `substS (λ k → tm-var k) t ≡ t`: the identity substitution is the
+-- identity. (The `substS` analogue of `rename-id`.)
+mutual
+  substTermsS-idSub : ∀ ts → substTermsS (λ k → tm-var k) ts ≡ ts
+  substTermsS-idSub [] = refl
+  substTermsS-idSub (x ∷ xs) = cong₂ _∷_ (substS-idSub x) (substTermsS-idSub xs)
+
+  substBranchesS-idSub : ∀ bs → substBranchesS (λ k → tm-var k) bs ≡ bs
+  substBranchesS-idSub [] = refl
+  substBranchesS-idSub (x ∷ xs) = cong₂ _∷_ (substBranchS-idSub x) (substBranchesS-idSub xs)
+
+  substBranchS-idSub : ∀ b → substBranchS (λ k → tm-var k) b ≡ b
+  substBranchS-idSub (cn , ar , b) =
+    cong (λ x → cn , ar , x)
+         (trans (cong (λ σ → substS σ b)
+                      (funext (λ k → extSub^-idSub ar k)))
+                (substS-idSub b))
+    where
+      extSub^-idSub : ∀ ar k → extSub^ ar (λ j → tm-var j) k ≡ tm-var k
+      extSub^-idSub zero k = refl
+      extSub^-idSub (suc ar) zero = refl
+      extSub^-idSub (suc ar) (suc k) = cong (rename wk) (extSub^-idSub ar k)
+
+  -- `extSub` fixes the identity substitution.
+  extSub-idSub : ∀ k → extSub (λ j → tm-var j) k ≡ tm-var k
+  extSub-idSub zero = refl
+  extSub-idSub (suc k) = refl
+
+  substS-idSub : ∀ t → substS (λ k → tm-var k) t ≡ t
+  substS-idSub (tm-type l) = refl
+  substS-idSub (tm-var k) = refl
+  substS-idSub (tm-pi g d c) =
+    cong₂ (tm-pi g) (substS-idSub d)
+          (trans (cong (λ σ → substS σ c) (funext extSub-idSub)) (substS-idSub c))
+  substS-idSub (tm-lam g d b) =
+    cong₂ (tm-lam g) (substS-idSub d)
+          (trans (cong (λ σ → substS σ b) (funext extSub-idSub)) (substS-idSub b))
+  substS-idSub (tm-let g ty v b) =
+    cong₃ (tm-let g) (substS-idSub ty) (substS-idSub v)
+          (trans (cong (λ σ → substS σ b) (funext extSub-idSub)) (substS-idSub b))
+  substS-idSub (tm-app f a) = cong₂ tm-app (substS-idSub f) (substS-idSub a)
+  substS-idSub (tm-data n ps is) = cong₂ (tm-data n) (substTermsS-idSub ps) (substTermsS-idSub is)
+  substS-idSub (tm-ctor n args) = cong (tm-ctor n) (substTermsS-idSub args)
+  substS-idSub (tm-case s m brs) = cong₃ tm-case (substS-idSub s) (substS-idSub m) (substBranchesS-idSub brs)
+  substS-idSub (tm-global n) = refl
+  substS-idSub (tm-int_type) = refl
+  substS-idSub (tm-int_lit k) = refl
+  substS-idSub (tm-nat_lit k) = refl
+  substS-idSub (tm-bounded_lit k) = refl
+  substS-idSub (tm-float_type) = refl
+  substS-idSub (tm-float_lit) = refl
+  substS-idSub (tm-binary_type) = refl
+  substS-idSub (tm-atom_type) = refl
+  substS-idSub (tm-atom_lit n) = refl
+  substS-idSub (tm-effect_type t) = cong tm-effect_type (substS-idSub t)
+  substS-idSub (tm-effect_pure t) = cong tm-effect_pure (substS-idSub t)
+  substS-idSub (tm-effect_bind e k) = cong₂ tm-effect_bind (substS-idSub e) (substS-idSub k)
+  substS-idSub (tm-hole n) = refl
+  substS-idSub (tm-absurd) = refl
+
 -- `substS (topSub a) (rename wk t) ≡ t`: substituting the head undoes
 -- weakening, because `topSub a` maps `suc k ↦ tm-var k`.
 mutual
@@ -580,21 +640,76 @@ mutual
   topSub-rename-branches a (x ∷ xs) =
     cong₂ _∷_ (topSub-rename-branch a x) (topSub-rename-branches a xs)
 
-  -- The branch case: `ext^ ar wk` extends the renaming arity-many times;
-  -- the substitution must be extended correspondingly.
-  postulate
-    topSub-rename-branch : ∀ a b → substBranchS (topSub a) (renameBranch wk b) ≡ b
+  -- The key composition: `extSub^ ar (topSub a) ∘ ext^ ar wk` is the
+  -- IDENTITY substitution. This is what dissolves the "adjoint extension"
+  -- obstruction: the `ar`-fold extended substitution is exactly inverse to
+  -- the `ar`-fold extended weakening, so the branch case is `subst-id`.
+  extSub^-topSub-ext^-wk : ∀ ar a k
+    → (extSub^ ar (topSub a) ∘s ext^ ar wk) k ≡ tm-var k
+  extSub^-topSub-ext^-wk zero a k = refl
+  extSub^-topSub-ext^-wk (suc ar) a zero = refl
+  extSub^-topSub-ext^-wk (suc ar) a (suc k) =
+    cong (rename wk) (extSub^-topSub-ext^-wk ar a k)
+
+  -- The branch case: the extended substitution is inverse to the extended
+  -- weakening, so the branch body is unchanged.
+  topSub-rename-branch : ∀ a b → substBranchS (topSub a) (renameBranch wk b) ≡ b
+  topSub-rename-branch a (cn , ar , b) =
+    cong (λ x → cn , ar , x)
+         (trans (subst-rename (extSub^ ar (topSub a)) (ext^ ar wk) b)
+                (trans (cong (λ σ → substS σ b)
+                             (funext (λ k → extSub^-topSub-ext^-wk ar a k)))
+                       (substS-idSub b)))
 
   -- `substS (topSub a) (rename wk t) ≡ t`: substituting the head undoes
-  -- weakening. The variable case is `topSub a (suc k) = tm-var k`.
+  -- weakening. The binder case uses the composition identity
+  -- `extSub (topSub a) ∘ ext wk ≡ idSub`; the branch case is
+  -- `topSub-rename-branch`.
   --
-  -- OPEN OBLIGATION: the binder case needs the substitution extension to be
-  -- adjoint to the renaming extension (`extSub (topSub a)` maps
-  -- `suc (suc k) ↦ var (suc k)`, but the standard `extSub` maps it to
-  -- `tm-var (suc k)`). Parameterising `extSub` by the renaming (the
-  -- adjoint extension) closes this; see proof/README.md.
-  postulate
-    topSub-rename : ∀ a t → substS (topSub a) (rename wk t) ≡ t
+  -- The binder case:
+  --   substS (extSub (topSub a)) (rename (ext wk) b)
+  --     = substS (extSub (topSub a) ∘s ext wk) b   (subst-rename)
+  --     = substS idSub b                            (extSub-topSub-ext-wk)
+  --     = b                                          (substS-idSub)
+  topSub-rename : ∀ a t → substS (topSub a) (rename wk t) ≡ t
+  topSub-rename a (tm-type l) = refl
+  topSub-rename a (tm-var k) = refl
+  topSub-rename a (tm-pi g d c) =
+    cong₂ (tm-pi g) (topSub-rename a d) (topSub-rename-binder a c)
+  topSub-rename a (tm-lam g d b) =
+    cong₂ (tm-lam g) (topSub-rename a d) (topSub-rename-binder a b)
+  topSub-rename a (tm-let g ty v b) =
+    cong₃ (tm-let g) (topSub-rename a ty) (topSub-rename a v) (topSub-rename-binder a b)
+  topSub-rename a (tm-app f x) = cong₂ tm-app (topSub-rename a f) (topSub-rename a x)
+  topSub-rename a (tm-data n ps is) = cong₂ (tm-data n) (topSub-rename-terms a ps) (topSub-rename-terms a is)
+  topSub-rename a (tm-ctor n args) = cong (tm-ctor n) (topSub-rename-terms a args)
+  topSub-rename a (tm-case s m brs) =
+    cong₃ tm-case (topSub-rename a s) (topSub-rename a m) (topSub-rename-branches a brs)
+  topSub-rename a (tm-global n) = refl
+  topSub-rename a (tm-int_type) = refl
+  topSub-rename a (tm-int_lit k) = refl
+  topSub-rename a (tm-nat_lit k) = refl
+  topSub-rename a (tm-bounded_lit k) = refl
+  topSub-rename a (tm-float_type) = refl
+  topSub-rename a (tm-float_lit) = refl
+  topSub-rename a (tm-binary_type) = refl
+  topSub-rename a (tm-atom_type) = refl
+  topSub-rename a (tm-atom_lit n) = refl
+  topSub-rename a (tm-effect_type t) = cong tm-effect_type (topSub-rename a t)
+  topSub-rename a (tm-effect_pure t) = cong tm-effect_pure (topSub-rename a t)
+  topSub-rename a (tm-effect_bind e k) = cong₂ tm-effect_bind (topSub-rename a e) (topSub-rename a k)
+  topSub-rename a (tm-hole n) = refl
+  topSub-rename a (tm-absurd) = refl
+
+  -- The binder case of `topSub-rename`: the extended substitution is
+  -- inverse to the extended weakening.
+  topSub-rename-binder : ∀ a t
+    → substS (extSub (topSub a)) (rename (ext wk) t) ≡ t
+  topSub-rename-binder a t =
+    trans (subst-rename (extSub (topSub a)) (ext wk) t)
+          (trans (cong (λ σ → substS σ t)
+                       (funext (λ k → extSub^-topSub-ext^-wk 1 a k)))
+                 (substS-idSub t))
 
 -- `substS σ (substS (topSub v) T) ≡ substS (topSub (substS σ v)) (substS (extSub σ) T)`.
 topSub-compose : ∀ σ v j

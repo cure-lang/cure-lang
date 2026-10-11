@@ -147,14 +147,11 @@ These are the `postulate`s, each with a named proof strategy in the source:
    conversion injectivity on type constructors. *Strategy:* the FSCD'25
    result; provable in a meta-theory weaker than the object theory.
 3. **The application case** of the renaming and substitution lemmas
-   (`ren-app`, `subst-app`, and the underlying `shift-subst` in
-   `Core.Syntax`). This is the **one documented obstruction**: the `⇒-app`
-   case needs `shift a c (substT 0 r t) ≡ substT 0 (shift a c r)
-   (shift a (suc c) t)`, which requires the renaming to preserve `suc` —
-   see [The `⇒-app` obstruction](#the--app-obstruction-and-its-fix-a-finding-from-this-slice)
-   below. All the *other* cases of the two lemmas (`data`, `ctor`, `let`,
-   `case`, `effect-bind`) are now **proved**; only the application case
-   remains.
+   (`ren-app`, `subst-app`). This was the **one documented obstruction**; it
+   is now **resolved** by using the top substitution `substTopT` for the
+   codomain instantiation (see
+   [The `⇒-app` obstruction](#the--app-obstruction-and-how-it-dissolves-a-finding-from-this-slice)).
+   All cases of the renaming and substitution lemmas are now proved.
 4. **The closedness axioms for the signature** (`rename-global-type`,
    `tele-closed`, `rename-ctor-result`, `tele-closed-subst`,
    `subst-ctor-result`, `subst-global`). These are well-formedness
@@ -171,56 +168,44 @@ These are the `postulate`s, each with a named proof strategy in the source:
 7. **`soundness`** (`Proof/Soundness.agda`) — the type-safety induction
    combining Progress and Preservation.
 
-### The `⇒-app` obstruction and its fix (a finding from this slice)
+### The `⇒-app` obstruction, and how it dissolves (a finding from this slice)
 
 The `⇒-app` case of the renaming lemma needs
 
-    rename ρ (substT 0 a c) ≡ substT 0 (rename ρ a) (rename (ext ρ) c)
+    rename ρ (cod[a]) ≡ cod[rename ρ a]
 
-where `c` is the codomain under the binder. At index `suc k` this requires
-`ρ (suc k) ≡ suc (ρ k)` — the renaming must **preserve `suc`**. `wk` does
-(`wk (suc k) = suc (suc k) = suc (wk k)`), but `ext wk` does **not**
-(`ext wk 1 = 2 ≠ 1 = suc (ext wk 0)`), and `ext wk` is exactly the
+where `cod` is the codomain under the binder. The README previously recorded
+this as the one hard obstruction: with the naive codomain instantiation
+`substT 0 a c`, the identity at index `suc k` requires the renaming to
+preserve `suc`, which `ext wk` does not — and `ext wk` is exactly the
 renaming the codomain is subject to.
 
-Two things make this bite:
+**The obstruction dissolves once the codomain instantiation is the RIGHT
+operation.** The kernel's `Eval.apply_closure(cod_closure, a_value)` evaluates
+the codomain in the environment `[a_value | env]` — it PREPENDS the argument
+at index 0 and shifts everything else. That is the **top substitution**
+`substTopT a c = substS (topSub a) c`, NOT `substT 0 a c` (which leaves the
+indices above 0 dangling). With `substTopT`:
 
-1. **`ext` breaks `suc`-preservation unless `ρ 0 ≡ 0`.** `ext ρ` preserves
-   `suc` iff `ρ 0 ≡ 0` *and* `ρ` preserves `suc`. `wk 0 = 1`, so the
-   extension of the weakening renaming fails.
-2. **The binder-order issue forces the general renaming lemma.** A direct
-   weakening proof hits `extend (extend Γ S) (shift 1 0 d)` vs
-   `extend (extend Γ d) S`, which differ; only a context morphism (a `Fin`
-   map) handles the order — and that is exactly the lemma whose `⇒-app`
-   case needs `suc`-preservation.
+    rename ρ (substTopT a c) ≡ substTopT (rename ρ a) (rename (ext ρ) c)
 
-**The candidate fix** is to make the weakening *append* its binder at the
-end with the **identity** renaming, while the substitution lemma's `extend`
-*prepends*. In the *plain* de Bruijn convention the two commute
-definitionally (`(Γ ++ [S]) ▷ d ≡ (Γ ▷ d) ++ [S]`, both `d ∷ (Γ ++ [S])`),
-and the identity renaming trivially preserves `suc` and fixes `0`.
+is exactly `rename-topSub` (Proof/Substitution.agda), proved from
+`rename-subst` + `subst-rename` — no `suc`-preservation needed. The
+substitution side is the dual `subst-topSub`.
 
-**But this conflicts with the global convention.** The typing judgment's
-`extend Γ T = renameCtx wk Γ ▷ rename wk T` renames the existing types, so
-`extend (Γ ++e S) d` is *not* `(Γ ++e S) ▷ d`, and the commutation fails.
-Worse, the substitution lemma's binder case *needs* the global convention:
-`lookup (extend Γ d) 0 = rename wk d`, and `subst-extSub-wk` turns
-`substS (extSub σ) (rename wk d)` into `rename wk (substS σ d)`, matching the
-target context's head. In the plain convention `lookup (extend Γ d) 0 = d`,
-and the match fails.
+Two further rule fixes make the remaining cases well-scoped and provable:
 
-So the two lemmas pull in opposite directions on the context convention:
+- **`⇒-app` and the β/ζ rules use `substTopT`** (matching the kernel's
+  `apply_closure`), not `substT 0`.
+- **`⇒-lam` CHECKS the body** and **`⇐-lam` shares its premises**, so a
+  checked λ can be turned into an inferring one (`value-infer`), which the
+  β/ζ cases need (the argument of `⇒-app` is only checked).
 
-- the **substitution** lemma needs `extend` to *rename* (global convention),
-  so the head type lines up with the substituted binder;
-- the **weakening** lemma needs `extend` to *not rename* (plain convention),
-  so it commutes with the append-at-end view.
+The β and ζ cases of Preservation are now **proved**. The remaining
+obligations are the ι (branch substitution) and δ (certified unfolding)
+cases and the congruence cases, plus the signature closedness axioms.
 
-The concrete next step is to reconcile these — e.g. by giving the
-append-at-end view its own renaming that matches `extend`, or by
-reformulating the substitution lemma's binder case to not need the head to
-line up (using the `appSub`-style simultaneous substitution throughout).
-
+### Open research questions (docs/SOUNDNESS.md §7, §8)
 ### Open research questions (docs/SOUNDNESS.md §7, §8)### Open research questions (docs/SOUNDNESS.md §7, §8)
 
 - **The totality certificate.** `Certified` is a stated hypothesis. A

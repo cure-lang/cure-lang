@@ -52,11 +52,13 @@ module CF (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   open Core.Typing.Typing ind sig conv
   open Proof.Inversion.Invert ind sig conv
 
-  -- A λ is checkable against a Π of the same grade when its body is.
-  lam-checks : ∀ {k} {Γ : Ctx k} {g d b c}
+  -- A λ is checkable against a Π of the same grade when its body is and its
+  -- domain is a well-formed type.
+  lam-checks : ∀ {k} {Γ : Ctx k} {g d b c l}
+             → Γ ⊢ d ⇒ tm-type l
              → extend Γ d ⊢ b ⇐ c
              → Γ ⊢ tm-lam g d b ⇐ tm-pi g d c
-  lam-checks {Γ} {g} {d} {b} {c} body = ⇐-lam refl (Conversion.≈-refl conv) body
+  lam-checks {Γ} {g} {d} {b} {c} ds body = ⇐-lam ds body
 
   -- A CANONICAL value of Π type is a λ.
   --
