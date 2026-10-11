@@ -30,6 +30,8 @@ defmodule Mix.Tasks.Cure.Editors.Sync do
     * the copies of the tree-sitter queries in `zed-cure` and `neovim-cure`
     * every contextual keyword and macro word is handled by the tree-sitter
       queries, the TextMate grammar, the Vim syntax file and highlight.js
+    * the language server's semantic tokens know the same containers and
+      every contextual keyword
   """
 
   use Mix.Task
@@ -152,7 +154,8 @@ defmodule Mix.Tasks.Cure.Editors.Sync do
       check_tree_sitter(root, vocab) ++
       check_tm_language(root, vocab) ++
       check_query_copies(root) ++
-      check_positional_words(root, vocab)
+      check_positional_words(root, vocab) ++
+      check_semantic_tokens(vocab)
   end
 
   defp check_parser_vocabulary(root) do
@@ -231,6 +234,23 @@ defmodule Mix.Tasks.Cure.Editors.Sync do
         missing -> ["#{path} has no rule for #{Enum.join(missing, ", ")}"]
       end
     end)
+  end
+
+  # The language server marks contextual words as keywords from its own lists.
+  defp check_semantic_tokens(vocab) do
+    semantic = Cure.LSP.Server.semantic_vocabulary()
+    where = "Cure.LSP.Server's semantic-token vocabulary"
+
+    containers =
+      if MapSet.new(semantic.containers) == MapSet.new(vocab.containers),
+        do: [],
+        else: ["#{where} lists containers #{inspect(semantic.containers)}, expected #{inspect(vocab.containers)}"]
+
+    containers ++
+      case vocab.contextual -- semantic.words do
+        [] -> []
+        missing -> ["#{where} has no rule for #{Enum.join(missing, ", ")}"]
+      end
   end
 
   # A word, possibly right after a regex word boundary (`\b`, `\<`, `\zs`).

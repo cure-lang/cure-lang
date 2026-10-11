@@ -1670,9 +1670,23 @@ defmodule Cure.LSP.Server do
 
   # -- Semantic tokens ----------------------------------------------------------
 
-  # Identifiers highlighted as keywords: container heads and proof vocabulary
-  # the parser recognises by position. Reserved words come from the lexer.
-  @semantic_vocabulary ~w(actor fsm sup app have proof because rewrite simplify induction case requires)
+  # Identifiers highlighted as keywords, each only in the position that makes
+  # it one (see `semantic_keyword?/4`); reserved words come from the lexer.
+  # `mix cure.editors.sync --check` keeps the containers in step with the
+  # stdlib macros that declare them, and checks every contextual keyword of
+  # the lexer is handled here.
+  @semantic_containers ~w(actor app behavior fsm sup proof)
+  @semantic_heads ~w(requires precedencegroup)
+  @semantic_fixities ~w(infix prefix postfix)
+  @semantic_proof_words ~w(have because rewrite simplify induction case)
+
+  @doc false
+  def semantic_vocabulary do
+    %{
+      containers: @semantic_containers,
+      words: @semantic_containers ++ @semantic_heads ++ @semantic_fixities ++ @semantic_proof_words
+    }
+  end
 
   # Keyword tokens taken from the lexer, so words inside comments and strings
   # are never marked. Text that does not tokenize gets no semantic tokens and
@@ -1685,9 +1699,12 @@ defmodule Cure.LSP.Server do
         starts = lines |> Enum.scan(0, &(byte_size(&1) + 1 + &2)) |> then(&[0 | &1]) |> List.to_tuple()
         lines = List.to_tuple(lines)
 
-        tokens
-        |> Enum.filter(&semantic_keyword?/1)
-        |> Enum.map(&semantic_position(&1, lines, starts, encoding))
+        authored = Enum.filter(tokens, &(&1.span != nil and &1.type not in [:newline, :indent, :dedent, :eof]))
+
+        ([nil | authored] ++ [nil])
+        |> Enum.chunk_every(3, 1, :discard)
+        |> Enum.filter(fn [prev, token, next] -> semantic_keyword?(token, prev, next, text) end)
+        |> Enum.map(fn [_prev, token, _next] -> semantic_position(token, lines, starts, encoding) end)
         |> encode_semantic_tokens()
 
       _ ->
@@ -1695,10 +1712,44 @@ defmodule Cure.LSP.Server do
     end
   end
 
-  defp semantic_keyword?(%Token{span: nil}), do: false
-  defp semantic_keyword?(%Token{type: :keyword}), do: true
-  defp semantic_keyword?(%Token{type: :identifier, value: value}), do: value in @semantic_vocabulary
-  defp semantic_keyword?(_token), do: false
+  defp semantic_keyword?(%Token{type: :keyword}, _prev, _next, _text), do: true
+
+  # `actor Counter`, `requires Ord`, `precedencegroup Additive`,
+  # `infix `<+>``, `proof chain`, and proof steps such as `have fact = ...`
+  # unless the word stands as a name: `fn proof(x: Int)`, `let case = 1`.
+  defp semantic_keyword?(%Token{type: :identifier, value: word} = token, prev, next, text) do
+    cond do
+      word == "proof" and word?(next, "chain") and same_line?(token, next) -> true
+      word == "chain" -> word?(prev, "proof") and same_line?(prev, token)
+      word in @semantic_containers or word in @semantic_heads -> same_line_type_name?(token, next, text)
+      word in @semantic_fixities -> same_line?(token, next) and quoted_identifier?(next, text)
+      word in @semantic_proof_words -> not name_position?(prev, next)
+      true -> false
+    end
+  end
+
+  defp semantic_keyword?(_token, _prev, _next, _text), do: false
+
+  defp same_line?(%Token{span: a}, %Token{span: b}), do: a.end_line == b.start_line
+  defp same_line?(_a, _b), do: false
+
+  defp word?(%Token{type: :identifier, value: word}, word), do: true
+  defp word?(_token, _word), do: false
+
+  defp same_line_type_name?(token, %Token{type: :identifier, value: <<c, _::binary>>} = next, text) when c in ?A..?Z,
+    do: same_line?(token, next) and not quoted_identifier?(next, text)
+
+  defp same_line_type_name?(_token, _next, _text), do: false
+
+  defp quoted_identifier?(%Token{type: :identifier, span: span}, text),
+    do: binary_part(text, span.start_byte, 1) == "`"
+
+  defp quoted_identifier?(_token, _text), do: false
+
+  defp name_position?(%Token{type: :keyword, value: value}, _next) when value in [:fn, :let], do: true
+  defp name_position?(%Token{type: type}, _next) when type in [:dot, :lparen, :comma], do: true
+  defp name_position?(_prev, %Token{type: type}) when type in [:lparen, :assign, :colon, :comma, :rparen, :dot], do: true
+  defp name_position?(_prev, _next), do: false
 
   defp semantic_position(%Token{span: span}, lines, starts, encoding) do
     line = span.start_line - 1

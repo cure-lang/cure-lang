@@ -164,6 +164,21 @@ defmodule Cure.LSP.ServerV17Test do
       assert words == ["mod", "fn"]
     end
 
+    test "marks contextual words only where they are keywords" do
+      keywords = fn source ->
+        for [_dl, _dc, len, 0, 0] <- Enum.chunk_every(Server.compute_semantic_tokens(source), 5), do: len
+      end
+
+      # `fn` only: `proof`, `case` and `app` stand as names here.
+      assert keywords.("fn proof(x: Int) -> Int = x") == [2]
+      assert keywords.("let case = 1") == [3]
+      assert keywords.("let app = start(app)") == [3]
+      assert keywords.("fn prefix(s: String) -> String = s") == [2]
+
+      assert keywords.("behavior Store") == [8]
+      assert keywords.("infix `<+>`") == [5]
+    end
+
     test "counts columns in UTF-16 units" do
       # `if` starts at byte 7 but UTF-16 unit 5: the emoji is 4 bytes, 2 units.
       assert [0, 5, 2, 0, 0] = Server.compute_semantic_tokens(~s("😀" if))

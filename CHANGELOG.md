@@ -84,7 +84,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `cure-lsp` marked keywords inside comments and strings as semantic tokens
   (a regex over each line), so editors coloured `type` or `when` in doc
   comments over their own grammar. Semantic tokens now come from the lexer's
-  tokens, with columns in the negotiated position encoding.
+  tokens, with columns in the negotiated position encoding. Contextual words
+  (`proof`, `case`, `app`, `have`, ...) are keywords only in the position
+  that makes them one, so `fn proof(...)` or `let case = 1` keep the
+  editor's own colours.
 - A `##` doc comment that followed another comment-only line got that line's
   position, so the parser could not see a blank line between two doc blocks:
   the doc of a module's first definition was merged into the module doc.
