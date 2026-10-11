@@ -215,6 +215,7 @@ defmodule Cure.MixProject do
         "docs/JOHN.md",
         "docs/PGO.md",
         "docs/PROOF_CARRYING.md",
+        "docs/SOUNDNESS.md",
         "docs/EXPORT_TYPES.md",
         "docs/SNAP.md",
         "docs/STORY.md",

@@ -1,0 +1,30 @@
+STATE: the mechanised soundness development is essentially complete. All 16
+modules type-check clean under Agda 2.8.0. `preservation` is FULLY PROVED
+(zero postulates in Proof/Preservation.agda), and all three forms of the
+soundness theorem are proved: `soundness-fuel` (fuel-indexed),
+`soundness-tree` (coinductive), and `soundness` (classical).
+
+The ONLY remaining postulates are:
+  1. `funext` (Core/Syntax.agda) — the standard function-extensionality
+     axiom, not derivable in intensional type theory. Intentional.
+  2. `tree-decides` (Proof/Soundness.agda) — the outcome tree is finite or
+     infinite. The tree is a PATH (each node has at most one child, because
+     `progress` returns a specific reduct), so this is exactly LPO on that
+     path — a classical principle, not constructive.
+  3. `never-reached→no-value` (Proof/Soundness.agda) — a never-reaching tree
+     has no reachable value. This needs CONFLUENCE of `_⇝_`, which is NOT
+     deterministic (`(λx. b) a` both β-reduces and reduces under the λ).
+
+NEXT STEPS (in order of value):
+  (a) Prove `never-reached→no-value` by proving CONFLUENCE of `_⇝_` on
+      well-typed terms. This is a substantial but standard development
+      (parallel reduction + diamond, or the Tait–Martin-Löf method). It would
+      remove classical input 3 and make the `diverges` disjunct constructive
+      given only LPO.
+  (b) Replace `tree-decides` with a constructive alternative: since the tree
+      is a path, "finite or infinite" is LPO. A constructive replacement is
+      to keep the fuel-indexed / coinductive forms (already done) as the
+      primary deliverables, which is what the development now does.
+  (c) The other open items from docs/SOUNDNESS.md §8: erasure commutes with
+      reduction (§8.3); η / proof irrelevance; the NbE evaluator refines the
+      reduction relation.
