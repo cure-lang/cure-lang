@@ -40,7 +40,7 @@ open import Core.Signature using (IndEnv; Family; Ctor; Telescope; findFamily; f
                                    fam-params; fam-indices; fam-level; fam-name;
                                    ctor-args; ctor-params; ctor-indices)
 open import Core.Reduction
-open import Core.Typing using (Ctx; ⟨⟩; _▷_; lookup; extend; lookup-extend; lookup-renameCtx; Conversion; extendⁿ; _∈Tele_; ∈-here; ∈-there)
+open import Core.Typing using (Ctx; ⟨⟩; _▷_; lookup; extend; lookup-extend; lookup-renameCtx; renameCtx; Conversion; extendⁿ; _∈Tele_; ∈-here; ∈-there)
 open import Proof.Values using (Canonical; Neutral; Value)
 open import Proof.Inversion
 open import Proof.Substitution
@@ -392,15 +392,15 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
   -- The substitution lemma.
   ------------------------------------------------------------------------
 
-  -- Helper obligation for the global case.
-  postulate
-    subst-global : ∀ {m} {Δ : Ctx m} {f} (T : Term) (σ : Sub)
-      → Signature.type-of sig f ≡ just T
-      → Δ ⊢ tm-global f ⇒ substS σ T
-
-
-  -- Conversion is a congruence for substitution. A field of the
-  -- `Conversion` record (Core/Typing.agda), re-exported under the local
+  -- Helper obligation for the global case: a global's declared type is
+  -- CLOSED, so substituting into it leaves it unchanged.
+  subst-global : ∀ {m} {Δ : Ctx m} {f} (T : Term) (σ : Sub)
+    → Signature.type-of sig f ≡ just T
+    → Δ ⊢ tm-global f ⇒ substS σ T
+  subst-global {f = f} T σ p = ⇒-conv (⇒-global p) (Conversion.≈-sym conv (≈-subst-closed σ (proj₁ closed f p)))
+    where
+      ≈-subst-closed : ∀ (σ : Sub) {T} → Scoped 0 T → Conversion._≈_ conv (substS σ T) T
+      ≈-subst-closed σ st = subst (λ X → Conversion._≈_ conv X _) (sym (substS-closed st)) (Conversion.≈-refl conv)
   -- name the substitution lemma uses.
   subst-conv : ∀ {t u σ}
     → Conversion._≈_ conv t u
@@ -568,10 +568,10 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
   HoleFree : Term → Set
   HoleFree a = (name : Name) → a ≡ tm-hole name → ⊥
 
-  -- Cumulativity as a conversion: `Type i ≈ Type j` when `i ≤ j`.
-  postulate
-    ≈-cumul : ∀ {i j} → i ≤ˡ j → Conversion._≈_ conv (tm-type i) (tm-type j)
-
+  -- Cumulativity as a conversion: `Type i ≈ Type j` when `i ≤ j`. A
+  -- projection of the `Conversion` record's cumulativity field.
+  ≈-cumul : ∀ {i j} → i ≤ˡ j → Conversion._≈_ conv (tm-type i) (tm-type j)
+  ≈-cumul = Conversion.≈-type conv
   -- Cumulativity on the inferred type.
   ⇒-cumul-infer : ∀ {n} {Γ : Ctx n} {t i j} → Γ ⊢ t ⇒ tm-type i → i ≤ˡ j → Γ ⊢ t ⇒ tm-type j
   ⇒-cumul-infer der le = ⇒-conv der (≈-cumul le)
@@ -623,23 +623,127 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
             → extend Γ d ⊢ b ⇐ c
   ⇒-lam-inv der = ⇒-lam-inv-aux _ _ der (Conversion.≈-refl conv)
 
+  -- `substTopT` is a congruence for conversion of the codomain: it is
+  -- `substS (topSub a)`, and conversion is stable under substitution.
+  substTopT-conv : ∀ a {c c′} → Conversion._≈_ conv c c′
+                 → Conversion._≈_ conv (substTopT a c) (substTopT a c′)
+  substTopT-conv a = Conversion.≈-subst conv (topSub a)
 
-  -- `substTopT` is a congruence for conversion of the codomain.
-  postulate
-    substTopT-conv : ∀ a {c c′} → Conversion._≈_ conv c c′
-                   → Conversion._≈_ conv (substTopT a c) (substTopT a c′)
+  ------------------------------------------------------------------------
+  -- Context conversion.
+  --
+  -- If two contexts have pointwise-convertible lookups, then a term's
+  -- typability transports between them (with the type converted). This is
+  -- the lemma the `⇒-app`-under-`⇒-conv` case of β needs: a λ whose own
+  -- domain `d′` converts to the application's `d` still has its body
+  -- checking the codomain under `d`.
+  ------------------------------------------------------------------------
 
+  -- Extend a pointwise-convertible context witness under a binder.
+  ext-conv : ∀ {n} {Γ Γ′ : Ctx n} {d d′}
+           → Conversion._≈_ conv d d′
+           → (∀ i → Conversion._≈_ conv (lookup Γ i) (lookup Γ′ i))
+           → ∀ i → Conversion._≈_ conv (lookup (extend Γ d) i) (lookup (extend Γ′ d′) i)
+  ext-conv dd w zero = rename-conv wk dd
+  ext-conv {Γ = Γ} {Γ′ = Γ′} dd w (suc i) =
+    Conversion.≈-trans conv
+      (≡→≈ (lookup-renameCtx wk Γ i))
+      (Conversion.≈-trans conv
+        (rename-conv wk (w i))
+        (≡→≈ (sym (lookup-renameCtx wk Γ′ i))))
+    where
+      ≡→≈ : ∀ {t u} → t ≡ u → Conversion._≈_ conv t u
+      ≡→≈ refl = Conversion.≈-refl conv
 
+  mutual
+    conv⇒ : ∀ {n} {Γ Γ′ : Ctx n} {t T T′}
+          → (∀ i → Conversion._≈_ conv (lookup Γ i) (lookup Γ′ i))
+          → Conversion._≈_ conv T T′
+          → Γ ⊢ t ⇒ T → Γ′ ⊢ t ⇒ T′
+    conv⇒ w eq (⇒-type p) = ⇒-conv (⇒-type p) eq
+    conv⇒ {Γ = Γ} {Γ′ = Γ′} w eq (⇒-var i) =
+      ⇒-conv (⇒-var i) (Conversion.≈-trans conv (Conversion.≈-sym conv (w i)) eq)
+    conv⇒ w eq (⇒-pi {d = d} dd dc) =
+      ⇒-conv (⇒-pi (conv⇒ w (Conversion.≈-refl conv) dd)
+                   (conv⇒ (ext-conv (Conversion.≈-refl conv) w) (Conversion.≈-refl conv) dc)) eq
+    conv⇒ w eq (⇒-lam {d = d} dd db) =
+      ⇒-conv (⇒-lam (conv⇒ w (Conversion.≈-refl conv) dd)
+                    (conv⇐ (ext-conv (Conversion.≈-refl conv) w) (Conversion.≈-refl conv) db)) eq
+    conv⇒ {Γ = Γ} {Γ′ = Γ′} w eq (⇒-app {f = f} {a = a} {c = c} df da) =
+      ⇒-conv (⇒-app (conv⇒ w (Conversion.≈-refl conv) df) (conv⇒ w (Conversion.≈-refl conv) da)) eq
+    conv⇒ {Γ = Γ} {Γ′ = Γ′} w eq (⇒-let {ty = ty} {v = v} {T = T} dty dv db) =
+      ⇒-conv (⇒-let (conv⇒ w (Conversion.≈-refl conv) dty)
+                    (conv⇐ w (Conversion.≈-refl conv) dv)
+                    (conv⇒ (ext-conv (Conversion.≈-refl conv) w) (Conversion.≈-refl conv) db)) eq
+    conv⇒ w eq (⇒-global p) = ⇒-conv (⇒-global p) eq
+    conv⇒ w eq (⇒-int_type) = ⇒-conv (⇒-int_type) eq
+    conv⇒ w eq (⇒-float_type) = ⇒-conv (⇒-float_type) eq
+    conv⇒ w eq (⇒-binary_type) = ⇒-conv (⇒-binary_type) eq
+    conv⇒ w eq (⇒-atom_type) = ⇒-conv (⇒-atom_type) eq
+    conv⇒ w eq (⇒-int_lit) = ⇒-conv (⇒-int_lit) eq
+    conv⇒ w eq (⇒-float_lit) = ⇒-conv (⇒-float_lit) eq
+    conv⇒ w eq (⇒-atom_lit) = ⇒-conv (⇒-atom_lit) eq
+    conv⇒ w eq (⇒-nat_lit p) = ⇒-conv (⇒-nat_lit p) eq
+    conv⇒ w eq (⇒-bounded_lit p) = ⇒-conv (⇒-bounded_lit p) eq
+    conv⇒ w eq (⇒-data p q r) = ⇒-conv (⇒-data p (conv-spine w q) (conv-spine w r)) eq
+    conv⇒ w eq (⇒-ctor p q) = ⇒-conv (⇒-ctor p (conv-spine w q)) eq
+    conv⇒ w eq (⇒-case p q r) = ⇒-conv (⇒-case (conv⇒ w (Conversion.≈-refl conv) p) (conv⇒ w (Conversion.≈-refl conv) q) (conv-branches w r)) eq
+    conv⇒ w eq (⇒-effect_type p) = ⇒-conv (⇒-effect_type (conv⇒ w (Conversion.≈-refl conv) p)) eq
+    conv⇒ w eq (⇒-effect_pure p) = ⇒-conv (⇒-effect_pure (conv⇒ w (Conversion.≈-refl conv) p)) eq
+    conv⇒ w eq (⇒-effect_bind p q) = ⇒-conv (⇒-effect_bind (conv⇒ w (Conversion.≈-refl conv) p) (conv⇒ w (Conversion.≈-refl conv) q)) eq
+    conv⇒ w eq (⇒-conv der eq′) = conv⇒ w (Conversion.≈-trans conv eq′ eq) der
+
+    conv⇐ : ∀ {n} {Γ Γ′ : Ctx n} {t T T′}
+          → (∀ i → Conversion._≈_ conv (lookup Γ i) (lookup Γ′ i))
+          → Conversion._≈_ conv T T′
+          → Γ ⊢ t ⇐ T → Γ′ ⊢ t ⇐ T′
+    conv⇐ w eq (⇐-lam ds body) =
+      ⇐-conv (⇐-lam (conv⇒ w (Conversion.≈-refl conv) ds)
+                     (conv⇐ (ext-conv (Conversion.≈-refl conv) w) (Conversion.≈-refl conv) body)) eq
+    conv⇐ w eq (⇐-hole) = ⇐-hole
+    conv⇐ w eq (⇐-infer der eq′) = ⇐-infer (conv⇒ w eq′ der) eq
+    conv⇐ w eq (⇐-conv der eq′) = conv⇐ w (Conversion.≈-trans conv eq′ eq) der
+    conv⇐ w eq (⇐-cumul der le) = ⇐-conv (⇐-cumul (conv⇒ w (Conversion.≈-refl conv) der) le) eq
+    conv-spine : ∀ {n} {Γ Γ′ : Ctx n} {ts tele}
+               → (∀ i → Conversion._≈_ conv (lookup Γ i) (lookup Γ′ i))
+               → Γ ⊢* ts ⇐* tele → Γ′ ⊢* ts ⇐* tele
+    conv-spine w ⊢*[] = ⊢*[]
+    conv-spine w (⊢*∷ dx dxs) = ⊢*∷ (conv⇐ w (Conversion.≈-refl conv) dx) (conv-spine w dxs)
+
+    conv-branches : ∀ {n} {Γ Γ′ : Ctx n} {brs nm m}
+                  → (∀ i → Conversion._≈_ conv (lookup Γ i) (lookup Γ′ i))
+                  → Γ ⊢*brs brs ⇐*ᵇ (nm , m) → Γ′ ⊢*brs brs ⇐*ᵇ (nm , m)
+    conv-branches w brs[] = brs[]
+    conv-branches {Γ = Γ} {Γ′ = Γ′} w (brs∷ {cn = cn} {ar = ar} {b = b} fc len body rest) =
+      brs∷ fc len (conv⇐ (extⁿ-conv w ar) (Conversion.≈-refl conv) body) (conv-branches w rest)
+
+    -- Extend the witness under `k` hole binders (a `case` branch context).
+    extⁿ-conv : ∀ {n} {Γ Γ′ : Ctx n} (w : ∀ i → Conversion._≈_ conv (lookup Γ i) (lookup Γ′ i))
+              → ∀ k → ∀ i → Conversion._≈_ conv (lookup (extendⁿ Γ k) i) (lookup (extendⁿ Γ′ k) i)
+    extⁿ-conv w zero = w
+    extⁿ-conv w (suc k) = ext-conv (Conversion.≈-refl conv) (extⁿ-conv w k)
   -- The `⇒-conv`-on-function case of β: `dflam` is a λ derivation whose
-  -- type `T₀ = tm-pi g′ d′ c′` converts to `tm-pi g d c`; Π injectivity
-  -- gives `c′ ≈ c`, and the body (which checks `c′`) then checks `c`.
-  postulate
-    preserve-β-conv-aux : ∀ {g g′ d d′ b a c T₀}
-      → ⟨⟩ ⊢ tm-lam g′ d′ b ⇒ T₀
-      → Conversion._≈_ conv T₀ (tm-pi g d c)
-      → ⟨⟩ ⊢ a ⇒ d
-      → ⟨⟩ ⊢ substTopT a b ⇐ substTopT a c
-
+  -- type `T₀` converts to `tm-pi g d c`. `lam-type-pi` exposes the λ's own
+  -- Π type `tm-pi g′ d′ c′`; Π injectivity gives `d′ ≈ d` and `c′ ≈ c`; the
+  -- body (which checks `c′` under `d′`) is converted to check `c` under `d`
+  -- by CONTEXT CONVERSION, and `substTop⇐` instantiates it.
+  preserve-β-conv-aux : ∀ {g g′ d′ d b a c T₀}
+    → ⟨⟩ ⊢ tm-lam g′ d′ b ⇒ T₀
+    → Conversion._≈_ conv T₀ (tm-pi g d c)
+    → ⟨⟩ ⊢ a ⇒ d
+    → ⟨⟩ ⊢ substTopT a b ⇐ substTopT a c
+  preserve-β-conv-aux {g = g} {d = d} {b = b} {a = a} {c = c} {T₀ = T₀} dflam ceq da =
+    substTop⇐ {n = zero} {Γ = ⟨⟩} {A = d} body-checks da
+    where
+      c′ : Term
+      c′ = proj₁ (lam-type-pi dflam)
+      eq″ : Conversion._≈_ conv T₀ (tm-pi _ _ c′)
+      eq″ = proj₁ (proj₂ (lam-type-pi dflam))
+      der′ : ⟨⟩ ⊢ tm-lam _ _ b ⇒ tm-pi _ _ c′
+      der′ = proj₂ (proj₂ (lam-type-pi dflam))
+      comps = conv-pi-components (Conversion.≈-trans conv (Conversion.≈-sym conv eq″) ceq)
+      body-checks : extend ⟨⟩ d ⊢ b ⇐ c
+      body-checks = conv⇐ (ext-conv (proj₁ (proj₂ comps)) (λ ())) (proj₂ (proj₂ comps)) (⇒-lam-inv der′)
   -- β: `(λx. b) a ⇝ b[x := a]`.
   --
   -- PROVED. `⇒-app` gives `⟨⟩ ⊢ tm-lam g d b ⇒ tm-pi g d c` (so `T =

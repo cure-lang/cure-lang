@@ -120,6 +120,8 @@ record Conversion : Set₁ where
     ≈-trans    : ∀ {t u v} → t ≈ u → u ≈ v → t ≈ v
     -- Congruence for Π (the load-bearing case for Preservation's β rule).
     ≈-pi       : ∀ {g d d′ c c′} → d ≈ d′ → c ≈ c′ → tm-pi g d c ≈ tm-pi g d′ c′
+    -- Universe cumulativity: `Type i ≈ Type j` when `i ≤ j`.
+    ≈-type     : ∀ {i j} → i ≤ˡ j → tm-type i ≈ tm-type j
     -- Congruence for application.
     ≈-app      : ∀ {f f′ a a′} → f ≈ f′ → a ≈ a′ → tm-app f a ≈ tm-app f′ a′
     -- Congruence for data/ctor spines.
