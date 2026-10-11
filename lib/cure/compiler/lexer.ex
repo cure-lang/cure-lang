@@ -67,6 +67,9 @@ defmodule Cure.Compiler.Lexer do
                       |> MapSet.new()
                       |> MapSet.difference(MapSet.new(Enum.map(@contextual_keywords, &Atom.to_string/1)))
 
+  @doc "Reserved words, including the contextual ones (see `contextual_keywords/0`)."
+  def keywords, do: @keywords
+
   @doc "Words lexed as identifiers and promoted contextually by the parser."
   def contextual_keywords, do: @contextual_keywords
 
