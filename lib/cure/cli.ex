@@ -309,10 +309,10 @@ defmodule Cure.CLI do
 
         [unknown | _] ->
           known_commands = ~w(
-            compile run check lsp stdlib version init deps test
+            compile run check lsp mcp stdlib version init deps test
             explain doc repl fmt watch new bench why doctor fix migrate
             publish search info keys release trace replay
-            john draw verify export-types snap story help
+            john draw verify export-types snap story audit help
           )
 
           suffix =
@@ -2471,6 +2471,14 @@ defmodule Cure.CLI do
       keys list            List trusted publisher keys
       release              Build a BEAM release (requires `app`)
       trace <M.f/a>        Typed tracer over :dbg (--duration N)
+      replay <journal>     Replay a recorded observation journal (--module M, --step)
+      draw <path.cure>     Render lifted modules as ASCII (--filter lifted|all)
+      verify [path]        Verify compiled artifacts against their sources (--strict)
+      export-types [path]  Export type definitions (--target protobuf, --out FILE)
+      snap <save|load|list> Snapshot and restore compiler state (--out FILE)
+      story                Narrate the project as a build story (--out FILE, --diagrams)
+      audit trust <Module> Print the unproved assumptions reachable from a module
+      mcp                  Start the Model Context Protocol server
       john                 Print everything: VM stats, tooling, project, logs
       version              Show version
       help                 Show this help
@@ -2485,7 +2493,7 @@ defmodule Cure.CLI do
       --strict               Reject review-required migration warnings
       --edition YYYY         Target language edition for `migrate`
       --lib | --app | --fsm  `cure new` template selector
-      --filter PATTERN       `cure test` filter
+      --filter PATTERN       `cure test` filter; `cure draw --filter` lifted|all
       --doctests             `cure test` includes doctests
       --cover                `cure test --cover` emits _build/cure/cover/index.html
       --dry-run              `cure fix --dry-run`, `cure publish --dry-run`
@@ -2495,6 +2503,11 @@ defmodule Cure.CLI do
       --registry URL         Override registry base URL
       --include-erts         `cure release --include-erts` bundles ERTS
       --overwrite            `cure release --overwrite` wipes output dir (default)
+      --target TARGET        `cure export-types --target` (default: protobuf)
+      --out FILE             `cure export-types` / `cure snap` / `cure story` output file
+      --module M             `cure replay --module` module to replay into
+      --step                 `cure replay --step` step through entries interactively
+      --diagrams             `cure story --diagrams` include ASCII diagrams
       -v, --verbose          Verbose output
       -h, --help             Show help
     """)

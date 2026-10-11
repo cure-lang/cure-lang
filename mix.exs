@@ -195,7 +195,6 @@ defmodule Cure.MixProject do
         "docs/TYPE_SYSTEM.md",
         "docs/DEPENDENT_TYPES.md",
         "docs/KERNEL.md",
-        "docs/DEPENDENT_KERNEL_PEERNESS_ROADMAP.md",
         "docs/PATTERNS.md",
         "docs/BINARIES.md",
         "docs/PROOFS.md",

@@ -25,9 +25,14 @@ cure run lib/main.cure
 ```
 You should see the project's hello message.
 ## 2. The compilation pipeline
-Cure compiles `.cure` source through five stages: lex, parse, type
-check, optimise, codegen. Every stage emits structured events you
-can subscribe to from Elixir for tooling work.
+Cure compiles `.cure` source through a single dependent pipeline:
+**elaborate** (surface syntax to `Cure.Core`), **kernel-check**
+(`Cure.Core.Kernel` validates the Core term), **erase** (quantitative
+erasure removes compile-time-only evidence), and **emit** (BEAM
+bytecode). The former classic `lex -> parse -> type check -> optimise ->
+codegen` pipeline has been deleted; there is no unchecked fallback path.
+Every stage emits structured events you can subscribe to from Elixir for
+tooling work.
 Run `cure check lib/main.cure` to type-check without producing BEAM
 output. Use it in your editor; you will see this command run on every
 save once you turn on `cure watch lib/ --action check`.
