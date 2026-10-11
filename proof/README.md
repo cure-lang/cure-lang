@@ -12,8 +12,10 @@ development.
 > application case is now resolved). **Progress** and **`Final`-preservation**
 > are **proved**, and so are both constructive forms of the soundness
 > theorem: the **fuel-indexed `soundness-fuel`** and the **coinductive
-> `soundness-tree`**. The remaining obligations — the classical three-way
-> `soundness`, the ι/δ Preservation cases, and the conversion-injectivity
+> `soundness-tree`**. **`preservation` is proved for every case except ι**
+> (the β/ζ inference gaps are dissolved by `check-infer`, and δ by
+> `CertifiedTyped`). The remaining obligations — the classical three-way
+> `soundness`, the ι Preservation case, and the conversion-injectivity
 > axioms — are isolated as `postulate`s, each carrying a named proof
 > strategy. See [Status](#status) for the lemma-by-lemma breakdown.
 
@@ -54,7 +56,7 @@ here (docs/SOUNDNESS.md §3):
 | Side condition | Agda name | Kernel enforcement |
 |---|---|---|
 | Strict positivity (§3.1) | `StrictlyPositive` | `Inductive.positive?/2` (nested) |
-| Totality gates δ (§3.2) | `Certified` | `Env.certified?` + `Normalise.unfold_certified_head` |
+| Totality gates δ (§3.2) | `Certified` + `CertifiedTyped` | `Env.certified?` + `Normalise.unfold_certified_head` |
 | Coverage (§3.3) | `Covers` | `check_coverage` + `branch_unify` |
 | Builtin ctor names | `BuiltinCtors` | `@builtin_ctor_aliases` |
 
@@ -85,7 +87,7 @@ recommends.
 | `Proof.Substitution` | shift/subst algebraic laws | ✅ `shift-0`, `shift-var-1`, the rename/subst interaction laws, and the branch-field lemmas **proved**; only `shift-subst` (app case) open |
 | `Proof.Context` | Length-indexed context laws: weakening lookup, `extendⁿ` lookup, branch morphism `extF` | ✅ **proved** |
 | `Proof.Progress` | `Final` Core; the four side conditions; `progress` | ✅ **proved** |
-| `Proof.Preservation` | `weaken`, `subst⇒`, `subst⇐`, `check-infer`, `preservation` | ⚠️ renaming/substitution + `ξ-*`/β/ζ/λ/hole cases **proved**; only ι and δ open |
+| `Proof.Preservation` | `weaken`, `subst⇒`, `subst⇐`, `check-infer`, `preservation` | ⚠️ renaming/substitution + `ξ-*`/β/ζ/λ/hole/δ cases **proved**; only ι open |
 | `Proof.FinalPreservation` | `substS-final` (closure of `Final` under a final substitution); `final-preservation` | ✅ **proved** |
 | `Proof.Soundness` | `EvalResult`; `soundness-fuel` (constructive); `Diverges`/`EvalTree`/`soundness-tree` (coinductive); `soundness` (classical) | ✅ **`soundness-fuel` and `soundness-tree` proved**; classical `soundness` open (needs the tree collapse) |
 
@@ -156,10 +158,19 @@ recommends.
   under CONVERSION of the motive (via `≈-rename`), which types the
   `ξ-case-motive` congruence.
 - **`preservation`'s checking-mode cases** (`Proof/Preservation.agda`): the
-  β/ζ cases (via `preserve-β`/`preserve-ζ` + `check-infer`) and the
-  checking-mode λ/hole cases are proved, threading a `Final t` hypothesis.
-  The former `preservation-other`, `preservation⇒-β`, `preservation⇒-ζ`,
-  and `preservation⇒-case` postulates are gone.
+  β/ζ cases (via `preserve-β`/`preserve-ζ` + `check-infer`), the
+  checking-mode λ/hole cases, and the δ case (via `CertifiedTyped` +
+  `weaken-closed`) are proved, threading a `Final t` hypothesis. The former
+  `preservation-other`, `preservation⇒-β`, `preservation⇒-ζ`,
+  `preservation⇒-case`, `preservation⇒-case-motive`, and `preservation-δ`
+  postulates are gone.
+- **`weaken-closed`** (`Proof/Preservation.agda`): a CLOSED term that types
+  in the empty context types in any context (the context morphism
+  `Fin 0 → Fin n` is vacuous, and renaming is the identity on closed terms).
+- **`CertifiedTyped`** (`Proof/Preservation.agda`): the well-typedness half
+  of the totality certificate — a certified global's body is closed and
+  infers the global's declared type in `⟨⟩`. This is what makes the δ
+  (certified unfolding) case type-preserving.
 - **`Final`-preservation** (`Proof/FinalPreservation.agda`): `Final` is
   closed under renaming (`rename-final`) and under a substitution whose every
   image is final (`substS-final`, via the `FinalSub` predicate). The two
@@ -208,13 +219,14 @@ These are the `postulate`s, each with a named proof strategy in the source:
    typing derivation (infer and check), consuming the canonical-form lemmas to
    show β and ι fire. See [The `progress` inputs](#the-progress-inputs).
 5. **`preservation`** (`Proof/Preservation.agda`) — **PROVED for every case
-   except ι and δ.** The `ξ-*` congruence cases, the β/ζ cases, and the
-   checking-mode λ/hole cases are all proved (generalised to an arbitrary
-   context `Γ`, threading a `Final t` hypothesis). The former
-   inference-preservation gaps are dissolved by `check-infer`; the
-   `ξ-app₂`/`ξ-let`/`ξ-case`/`ξ-case-motive` conversions by `ReduceConv`
-   and `branches-conv`. Only the ι (branch substitution) and δ (certified
-   unfolding) cases remain, both needing a framework extension. See
+   except ι.** The `ξ-*` congruence cases, the β/ζ cases, the checking-mode
+   λ/hole cases, and the δ (certified unfolding) case are all proved
+   (generalised to an arbitrary context `Γ`, threading a `Final t`
+   hypothesis). The former inference-preservation gaps are dissolved by
+   `check-infer`; the `ξ-app₂`/`ξ-let`/`ξ-case`/`ξ-case-motive` conversions
+   by `ReduceConv` and `branches-conv`; δ by the `CertifiedTyped` hypothesis
+   and `weaken-closed`. Only the ι (branch substitution) case remains,
+   needing the `brs∷` field-telescope change. See
    [The `preservation` findings](#the-preservation-findings).
 6. **`soundness`** (`Proof/Soundness.agda`) — the type-safety induction
    combining Progress and Preservation. Both constructive forms are
@@ -280,9 +292,10 @@ all resolved by extending it:
   transported by the CONTEXT CONVERSION lemma (`conv⇒` / `conv⇐`).
 
 The `preservation` function now threads a `Final t` hypothesis (needed by
-`check-infer`), and handles the checking-mode λ/hole cases directly. Two
-`preservation` obligations remain and need a **framework extension**, not
-just proof work:
+`check-infer`), and handles the checking-mode λ/hole cases directly. The δ
+(certified unfolding) case is **proved** via the new `CertifiedTyped`
+hypothesis (below). One `preservation` obligation remains and needs a
+**framework extension**, not just proof work:
 
 - **The ι (branch substitution) case.** The `⊢*brs` rule types a branch's
   field binders with `tm-hole "field"` (`extendⁿ`), but the ι reduction
@@ -291,12 +304,26 @@ just proof work:
   variables to the actual args. Proving ι needs `brs∷` to type the field
   binders with the constructor's argument telescope (a change to the typing
   judgment, rippling through the renaming/substitution lemmas).
-- **The δ (certified unfolding) case.** `Certified` (Proof.Progress) gives
-  only that a global's body is FINAL; δ preservation needs it to INFER the
-  global's declared type. This is the well-typedness half of the kernel's
-  `Env.certified?` and needs a strengthened signature hypothesis (plus a
-  weakening-from-`⟨⟩` lemma, since a body types in `⟨⟩` but must type in
-  `Γ`).
+
+### The `CertifiedTyped` hypothesis (the δ case)
+
+`Certified` (`Proof.Progress`) says a certified global's body is FINAL, but
+δ preservation needs it to INFER the global's declared type. This is the
+well-typedness half of the kernel's `Env.certified?`, and it is carried as a
+separate hypothesis `CertifiedTyped` (`Proof/Preservation.agda`):
+
+```agda
+CertifiedTyped ind sig conv =
+  ∀ {f body′ T} → body sig f ≡ just body′ → type-of sig f ≡ just T
+    → Scoped 0 body′ × ⟨⟩ ⊢ body′ ⇒ T
+```
+
+It is separate from `Certified` because it mentions the typing judgment,
+which `Certified` cannot (being defined before the judgment). The body is
+CLOSED, so `weaken-closed` types it in any `Γ` (the context morphism
+`Fin 0 → Fin n` is vacuous and the renaming is the identity on closed
+terms). `preservation-δ` is then a direct application, and the former
+postulate is gone.
 
 ### The `soundness` finding, resolved by fuel-indexing and coinduction
 

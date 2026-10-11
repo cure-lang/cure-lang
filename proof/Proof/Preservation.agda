@@ -79,6 +79,27 @@ ClosedSig ind sig =
   × (∀ (f : Family) (ct : Ctor)
      → Scoped 0 (tm-data (fam-name f) (ctor-params ct) (ctor-indices ct)))
 
+------------------------------------------------------------------------
+-- The well-typedness half of the totality certificate.
+--
+-- `Certified` (Proof.Progress) says a certified global's body is FINAL.
+-- The δ rule also needs the body to INFER the global's declared type — the
+-- well-typedness half of the kernel's `Env.certified?`. We carry it as a
+-- separate hypothesis (it mentions the typing judgment, which `Certified`
+-- cannot, being defined before the judgment). The body is also CLOSED, so
+-- the weakening-from-`⟨⟩` transport (`weaken-closed`) types it in any `Γ`.
+--
+-- Defined at the TOP LEVEL (outside `Preserve`) so the module header can
+-- name it.
+------------------------------------------------------------------------
+
+CertifiedTyped : (ind : IndEnv) (sig : Signature) (conv : Conversion) → Set
+CertifiedTyped ind sig conv =
+  ∀ {f body′ T}
+  → Signature.body sig f ≡ just body′
+  → Signature.type-of sig f ≡ just T
+  → Scoped 0 body′ × Core.Typing.Typing._⊢_⇒_ ind sig conv ⟨⟩ body′ T
+
 -- Reduction implies conversion: the kernel's `conv?` normalises both sides,
 -- so a one-step reduct is definitionally equal to its redex. This makes the
 -- `ξ-*` congruences type-preserving (the result type of `⇒-app` / `⇒-let` /
@@ -88,7 +109,8 @@ ReduceConv : Signature → Conversion → Set
 ReduceConv sig conv = ∀ {t t′} → _⇝_ sig t t′ → Conversion._≈_ conv t t′
 
 module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
-               (closed : ClosedSig ind sig) (rc : ReduceConv sig conv) where
+               (closed : ClosedSig ind sig) (rc : ReduceConv sig conv)
+               (ctyped : CertifiedTyped ind sig conv) where
   open Core.Typing.Typing ind sig conv
   open Proof.Inversion.Invert ind sig conv using (conv-pi-components)
 
@@ -337,6 +359,17 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
 
   weaken⇐ : ∀ {n} {Γ : Ctx n} {t T S} → Γ ⊢ t ⇐ T → extend Γ S ⊢ rename wk t ⇐ rename wk T
   weaken⇐ {n} {Γ} {S = S} der = ren⇐ (suc {n}) (λ i → refl) (λ i → lookup-extend Γ S i) der
+
+  -- Weakening-from-`⟨⟩`: a CLOSED term that types in the empty context types
+  -- in any context, because the context morphism `Fin 0 → Fin n` is vacuous
+  -- and the renaming is the identity on closed terms. This is what the δ
+  -- case needs: a global's body types in `⟨⟩` but must type in `Γ`.
+  weaken-closed : ∀ {n} {Γ : Ctx n} {t T}
+    → Scoped 0 t → Scoped 0 T → ⟨⟩ ⊢ t ⇒ T → Γ ⊢ t ⇒ T
+  weaken-closed {Γ = Γ} {t = t} {T = T} st sT der =
+    subst (λ X → Γ ⊢ X ⇒ T) (rename-closed {ρ = λ k → k} st)
+          (subst (λ X → Γ ⊢ rename (λ k → k) t ⇒ X) (rename-closed {ρ = λ k → k} sT)
+                 (ren⇒ {Γ = ⟨⟩} {Δ = Γ} {ρ = λ k → k} (λ ()) (λ ()) (λ ()) der))
 
   ------------------------------------------------------------------------
   -- Substitution.
@@ -933,10 +966,6 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
       → Γ ⊢ tm-case (tm-bounded_lit (suc k)) m brs ⇒ T
       → findBranch "Next" brs ≡ just ("Next" , ar , b)
       → Γ ⊢ substArgs (tm-nat_lit k ∷ tm-bounded_lit k ∷ []) b ⇒ T
-    preservation-δ : ∀ {n} {Γ : Ctx n} {f body′ T}
-      → Γ ⊢ tm-global f ⇒ T
-      → Signature.body sig f ≡ just body′
-      → Γ ⊢ body′ ⇒ T
   mutual
     -- Spine preservation: a checked spine stays checked when its entries step.
     preservation-spine : ∀ {n} {Γ : Ctx n} {ts ts′} {tele : Telescope}
@@ -1012,7 +1041,8 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
     preservation⇒ ft der (ι-nat-suc found) = preservation-ι-nat-suc der found
     preservation⇒ ft der (ι-bounded-zero found) = preservation-ι-bounded-zero der found
     preservation⇒ ft der (ι-bounded-suc found) = preservation-ι-bounded-suc der found
-    preservation⇒ ft der (δ p) = preservation-δ der p
+    preservation⇒ ft (⇒-global {f = f} {T = T} p) (δ {body′ = body′} q) =
+      weaken-closed (proj₁ (ctyped q p)) (proj₁ closed f p) (proj₂ (ctyped q p))
 
     preservation :
       ∀ {n} {Γ : Ctx n} {t t′ T}

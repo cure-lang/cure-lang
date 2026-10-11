@@ -1,5 +1,5 @@
-DONE this slice: dissolved the β/ζ inference-preservation gaps and proved
-four more preservation postulates.
+DONE this slice: dissolved the β/ζ inference-preservation gaps and proved the
+δ case; postulates in Proof/Preservation.agda drop from 11 to 5.
 
 Key finding: **`check-infer`** (Proof/Preservation.agda) — a hole-free term
 that CHECKS against a type INFERS it. The only checking rule without a
@@ -11,31 +11,27 @@ hole-free, via `substTop-hole-free`). This DISSOLVES the former
 `preservation⇒-β`/`preservation⇒-ζ` postulates, which were documented as
 "β/ζ do not preserve inferability".
 
-Also proved:
+Also proved and removed:
   * `preservation-other` (the checking-mode λ/hole cases) — direct.
   * `preservation⇒-case` (the `ξ-case` congruence) — via `ReduceConv`.
   * `preservation⇒-case-motive` (the `ξ-case-motive` congruence) — via
     `branches-conv` (branch typing is stable under motive CONVERSION, using
     the `≈-rename` field), no rename-commutes-with-reduction needed.
+  * `preservation-δ` (certified unfolding) — via the new `CertifiedTyped`
+    hypothesis (body closed + infers the declared type in `⟨⟩`) and
+    `weaken-closed` (a closed term that types in `⟨⟩` types in any `Γ`).
   * `substS-hole-free` / `substTop-hole-free` (HoleFree is preserved).
 
 `preservation` now threads a `Final t` hypothesis; `Soundness.agda`'s four
-call sites pass `ft`.
+call sites pass `ft`, and its module header takes `ctyped : CertifiedTyped`.
 
-REMAINING in Proof/Preservation.agda (6 postulates, down from 11):
-  * `preservation-ι` + the four literal-peel variants — need the `brs∷`
-    typing-judgment change: type the branch field binders with the
-    constructor's argument telescope (`ctor-args ct`) instead of
-    `tm-hole "field"` (`extendⁿ`), so the ι substitution lemma can relate
-    the field variables to the real args. Ripples through renaming/
-    substitution (`extF`, `ext-branches`, `subst-branches`).
-  * `preservation-δ` — needs a STRENGTHENED `Certified`: not just
-    `Final body′` but `Scoped 0 body′ × ⟨⟩ ⊢ body′ ⇒ T` (the well-typedness
-    half of the kernel's `Env.certified?`). Then a weakening-from-`⟨⟩`
-    (rename-closed transport) gives `Γ ⊢ body′ ⇒ T`. `Certified` is defined
-    at the top level of Progress.agda where the typing judgment is out of
-    scope, so this likely wants a new top-level predicate in Preservation.agda
-    (or a new module parameter), rippling to Soundness/FinalPreservation.
+REMAINING in Proof/Preservation.agda (5 postulates): `preservation-ι` + the
+four literal-peel variants. They need the `brs∷` typing-judgment change: type
+the branch field binders with the constructor's argument telescope
+(`ctor-args ct`) instead of `tm-hole "field"` (`extendⁿ`), so the ι
+substitution lemma can relate the field variables to the real args. Ripples
+through renaming/substitution (`extF`, `ren-branches`, `subst-branches`,
+`coh-extendⁿ`).
 
 REMAINING in Proof/Soundness.agda (1 postulate): the classical three-way
 `soundness` — the collapse of the outcome tree into a `data` disjunction,

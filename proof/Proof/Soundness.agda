@@ -58,11 +58,12 @@ open import Proof.FinalPreservation
 module Sound (ind : IndEnv) (sig : Signature) (conv : Conversion)
              (pos : StrictlyPositive ind) (cert : Certified sig) (cov : Covers ind)
              (bc : BuiltinCtors ind)
-             (closed : ClosedSig ind sig) (rc : ReduceConv sig conv) where
+             (closed : ClosedSig ind sig) (rc : ReduceConv sig conv)
+             (ctyped : CertifiedTyped ind sig conv) where
 
   open Core.Typing.Typing ind sig conv
   open Proof.Progress.Progress ind sig conv pos cert cov bc
-  open Proof.Preservation.Preserve ind sig conv closed rc
+  open Proof.Preservation.Preserve ind sig conv closed rc ctyped
 
   ------------------------------------------------------------------------
   -- The possible outcomes of evaluating a closed term (the classical
