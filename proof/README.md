@@ -8,10 +8,11 @@ development.
 
 > **Status: in progress.** The formalisation of the Core calculus and the
 > typing judgment is complete and compiles clean. The canonical-form lemmas
-> are **proved**. The Progress/Preservation/Soundness theorems are stated,
-> with their remaining obligations isolated as `postulate`s, each carrying a
-> named proof strategy. See [Status](#status) for the lemma-by-lemma
-> breakdown.
+> are **proved**, as are the renaming and substitution lemmas **except for
+> their application case** — the one documented obstruction. The
+> Progress/Preservation/Soundness theorems are stated, with their remaining
+> obligations isolated as `postulate`s, each carrying a named proof
+> strategy. See [Status](#status) for the lemma-by-lemma breakdown.
 
 ## What is being proved
 
@@ -77,10 +78,10 @@ recommends.
 | `Proof.Values` | The `Canonical`/`Neutral`/`Value` split (a value includes neutrals) | ✅ complete |
 | `Proof.Inversion` | Head-inversion lemmas; conversion injectivity | ⚠️ `invert-pi`/`invert-data` open; `invert-*-check` **proved** |
 | `Proof.CanonicalForms` | `canonical-pi-value`, `canonical-ctor` | ✅ **proved** (= `invert-*-check`) |
-| `Proof.Substitution` | shift/subst algebraic laws | ⚠️ `shift-0` and `shift-var-1` **proved**; interaction laws open |
-| `Proof.Context` | Length-indexed context laws: weakening lookup, `toℕ-wkFin` | ✅ **proved** |
-| `Proof.Progress` | `Final` Core; the three side conditions; `progress` | ⚠️ statement done, proof open |
-| `Proof.Preservation` | `weaken`, `subst⇒`, `subst⇐`, `preservation` | ⚠️ statements done, proofs open |
+| `Proof.Substitution` | shift/subst algebraic laws | ✅ `shift-0`, `shift-var-1`, the rename/subst interaction laws, and the branch-field lemmas **proved**; only `shift-subst` (app case) open |
+| `Proof.Context` | Length-indexed context laws: weakening lookup, `extendⁿ` lookup, branch morphism `extF` | ✅ **proved** |
+| `Proof.Progress` | `Final` Core; the three side conditions; `progress` | ⚠️ statement done, proof open (needs canonical forms) |
+| `Proof.Preservation` | `weaken`, `subst⇒`, `subst⇐`, `preservation` | ⚠️ renaming/substitution lemmas **proved** except `ren-app`/`subst-app`; `preservation` open |
 | `Proof.Soundness` | `EvalResult`; `soundness` | ⚠️ statement done, proof open |
 
 ## Status
@@ -102,21 +103,36 @@ recommends.
 - **The canonical-form lemmas** `canonical-pi-value` and `canonical-ctor`
   (`Proof/CanonicalForms.agda`), proved by composing the checking-mode
   head-inversion lemmas.
-- **The `shift-0` identity law** and the rename/subst laws
-  (`Proof/Substitution.agda`): `rename-id`, `rename-compose`,
-  `rename-subst`, `subst-compose`, `subst-extSub-wk`, `topSub-rename`.
+- **The `shift-0` identity law** (`Proof/Substitution.agda`), proved from
+  `shiftRen-0` and `rename-id` — no term induction needed.
+- **The rename/subst interaction laws** (`Proof/Substitution.agda`):
+  `rename-id`, `rename-compose`, `rename-subst`, `subst-compose`,
+  `subst-extSub-wk`, `subst-extSub^-shift` (the `ar`-fold generalisation),
+  `rename-raise`, `rename-topSub`, and the branch-field lemmas
+  `renameTerms-field-vars` / `substTerms-field-vars` / `rename-branch-motive`
+  / `subst-branch-motive`.
+- **The `extendⁿ` context laws** (`Proof/Context.agda`): the field-hole and
+  `raise`-lookup laws, and the branch context morphism `extF` with its
+  coherence `extF-coh` and lookup law `lookup-extF`.
 - **The weakening lookup law** (`Core.Typing`): with the length-indexed
   context, `lookup (extend Γ T) (suc i) ≡ rename wk (lookup Γ i)` is a
   clean `refl`-level induction.
-- **The fundamental renaming lemma** `ren⇒`/`ren⇐` and its spine lifting
-  `ren-spine` (`Proof/Preservation.agda`): a context morphism transports
-  typing across a renaming. The `data` and `ctor` cases are proved from
-  `ren-spine`.
+- **The fundamental renaming lemma** `ren⇒`/`ren⇐` and its spine/branch
+  liftings `ren-spine`/`ren-branches` (`Proof/Preservation.agda`): a context
+  morphism transports typing across a renaming. The `data`, `ctor`, `let`,
+  `case`, and `effect-bind` cases are all proved — the `case` case via
+  `ren-branches` and the branch morphism `extF`, the `let` case via
+  `rename-topSub`, and `effect-bind` via `ext-wk-rename`.
 - **Weakening** `weaken⇒`/`weaken⇐`: the instance of the renaming lemma at
   `wk`.
 - **The substitution lemma** `subst⇒`/`subst⇐`: proved by mutual induction,
-  with the binder cases resting on the extended coherence `coh-extend`
-  (itself proved from `subst-extSub-wk` and weakening).
+  with the binder cases resting on the extended coherence `coh-extend`, the
+  `case` case on the `ar`-fold coherence `coh-extendⁿ`, and the spine/branch
+  liftings `subst-spine`/`subst-branches`. The `data`, `ctor`, `let`, `case`,
+  and `effect-bind` cases are all proved.
+- **The conversion congruences** `rename-conv`/`subst-conv`: now fields of
+  the `Conversion` record (`Core/Typing.agda`), re-exported as projections —
+  conversion is specified as a syntactic congruence.
 
 ### In progress (statements given, proofs open)
 
@@ -130,18 +146,29 @@ These are the `postulate`s, each with a named proof strategy in the source:
 2. **`conv-injective-data` / `conv-injective-pi`** (`Proof/Inversion.agda`) —
    conversion injectivity on type constructors. *Strategy:* the FSCD'25
    result; provable in a meta-theory weaker than the object theory.
-3. **The application/let/case/effect-bind cases** of the renaming and
-   substitution lemmas (`ren-app`, `ren-let`, `ren-case`,
-   `ren-effect-bind`, `subst-app`, `subst-data`, `subst-ctor`,
-   `subst-case`, `subst-effect-bind`). *Strategy:* the `⇒-app` case needs
-   the `substT`/`rename` commutation (which holds for shift-like
-   renamings); the others are structural.
-4. **`progress`** (`Proof/Progress.agda`) — by cases on the typing
+3. **The application case** of the renaming and substitution lemmas
+   (`ren-app`, `subst-app`, and the underlying `shift-subst` in
+   `Core.Syntax`). This is the **one documented obstruction**: the `⇒-app`
+   case needs `shift a c (substT 0 r t) ≡ substT 0 (shift a c r)
+   (shift a (suc c) t)`, which requires the renaming to preserve `suc` —
+   see [The `⇒-app` obstruction](#the--app-obstruction-and-its-fix-a-finding-from-this-slice)
+   below. All the *other* cases of the two lemmas (`data`, `ctor`, `let`,
+   `case`, `effect-bind`) are now **proved**; only the application case
+   remains.
+4. **The closedness axioms for the signature** (`rename-global-type`,
+   `tele-closed`, `rename-ctor-result`, `tele-closed-subst`,
+   `subst-ctor-result`, `subst-global`). These are well-formedness
+   assumptions: a global's declared type and the signature's telescopes are
+   *closed*, so renaming/substitution leaves them unchanged. They are not
+   derivable from the current interface (which has no `Closed` predicate on
+   signature entries) and are not part of the app-case obstruction.
+5. **`progress`** (`Proof/Progress.agda`) — by cases on the typing
    derivation, consuming the canonical-form lemmas to show β and ι fire.
-5. **`preservation`** (`Proof/Preservation.agda`) — the four cases β, ζ, ι,
+6. **`preservation`** (`Proof/Preservation.agda`) — the four cases β, ζ, ι,
    δ. β/ζ consume `subst⇐`; ι is the branch-coverage lemma; δ consumes
-   `Certified`.
-6. **`soundness`** (`Proof/Soundness.agda`) — the type-safety induction
+   `Certified`. The β/ζ/ι cases are independent of the app case; the
+   statement is left open pending the app case and the closedness axioms.
+7. **`soundness`** (`Proof/Soundness.agda`) — the type-safety induction
    combining Progress and Preservation.
 
 ### The `⇒-app` obstruction and its fix (a finding from this slice)

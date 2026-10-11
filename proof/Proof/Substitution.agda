@@ -16,8 +16,8 @@
 module Proof.Substitution where
 
 open import Data.Bool using (Bool; true; false; if_then_else_)
-open import Data.Nat using (ℕ; zero; suc; _+_; _≤ᵇ_; _≡ᵇ_; _<_)
-open import Data.Nat.Properties using (+-identityʳ; +-assoc; +-suc)
+open import Data.Nat using (ℕ; zero; suc; _+_; _≤ᵇ_; _≡ᵇ_; _<_; _≤_; s≤s)
+open import Data.Nat.Properties using (+-identityʳ; +-assoc; +-suc; ≤-refl; m≤n⇒m≤1+n; ≤-trans)
 open import Data.List using (List; []; _∷_; _++_; map)
 open import Data.Product using (_×_; _,_; proj₁; proj₂)
 open import Relation.Binary.PropositionalEquality
@@ -25,6 +25,7 @@ open import Relation.Binary.PropositionalEquality
 
 open import Function using (_∘_)
 open import Core.Syntax
+open import Core.Typing using (countdown; branch-field-vars)
 
 ------------------------------------------------------------------------
 -- `n + 0 ≡ n`
@@ -48,11 +49,6 @@ shiftRen-0 : ∀ c k → shiftRen 0 c k ≡ k
 shiftRen-0 zero k = +-zero k
 shiftRen-0 (suc c) zero = refl
 shiftRen-0 (suc c) (suc k) = cong suc (shiftRen-0 c k)
-
--- Shifting by 0 is the identity, at any cutoff. (The binder case needs the
--- `ext (shiftRen 0 c) ≡ shiftRen 0 (suc c)` commutation; stated here.)
-postulate
-  shift-0 : ∀ c (t : Term) → shift 0 c t ≡ t
 
 ------------------------------------------------------------------------
 -- Shift on a variable.
@@ -194,6 +190,20 @@ mutual
   rename-id (tm-effect_bind e k) = cong₂ tm-effect_bind (rename-id e) (rename-id k)
   rename-id (tm-hole n) = refl
   rename-id (tm-absurd) = refl
+
+------------------------------------------------------------------------
+-- Shifting by 0 is the identity, at any cutoff.
+--
+-- `shift 0 c t = rename (shiftRen 0 c) t`, and `shiftRen 0 c` is pointwise
+-- the identity (`shiftRen-0`), so `shift-0` is `rename-id` transported
+-- across the pointwise-equal renaming. No induction on the term is needed:
+-- the whole content is the renaming identity, which `rename-id` already
+-- establishes.
+------------------------------------------------------------------------
+
+shift-0 : ∀ c (t : Term) → shift 0 c t ≡ t
+shift-0 c t =
+  trans (cong (λ ρ → rename ρ t) (funext-ren (shiftRen-0 c))) (rename-id t)
 
 ------------------------------------------------------------------------
 -- Substitution is the identity on a term with no free occurrence of the
@@ -600,3 +610,219 @@ subst-topSub σ v T =
   trans (subst-compose σ (topSub v) T)
         (trans (cong (λ τ → substS τ T) (funext (topSub-compose σ v)))
                (sym (subst-compose (topSub (substS σ v)) (extSub σ) T)))
+
+------------------------------------------------------------------------
+-- Renaming commutes with the top substitution.
+--
+-- `rename ρ (substTopT v T) ≡ substTopT (rename ρ v) (rename (ext ρ) T)`.
+--
+-- This is the `let` rule's renaming law: the result type `substTopT v T`
+-- (the substitution of the value into the inferred body type) must be
+-- renamed consistently with how the `⇒-let` rule re-forms it under `ρ`.
+--
+-- Both sides are `substS`-applications, so the proof is `rename-subst`
+-- on the left and `subst-rename` on the right, bridged by a pointwise
+-- equality of substitutions that holds definitionally at both indices.
+------------------------------------------------------------------------
+
+rename-topSub : ∀ ρ v T
+  → rename ρ (substTopT v T) ≡ substTopT (rename ρ v) (rename (ext ρ) T)
+rename-topSub ρ v T =
+  trans (rename-subst ρ (topSub v) T)
+        (trans (cong (λ σ → substS σ T) (funext (rename-topSub-coh ρ v)))
+               (sym (subst-rename (topSub (rename ρ v)) (ext ρ) T)))
+  where
+    -- `renameSub ρ (topSub v) ≡ topSub (rename ρ v) ∘s ext ρ`, pointwise.
+    rename-topSub-coh : ∀ ρ v k
+      → renameSub ρ (topSub v) k ≡ (topSub (rename ρ v) ∘s ext ρ) k
+    rename-topSub-coh ρ v zero = refl
+    rename-topSub-coh ρ v (suc k) = refl
+
+------------------------------------------------------------------------
+-- Lifting a term into an extended context.
+--
+-- `rename (λ j → j + ar)` weakens a term by `ar` binders. The `case`
+-- branch case of the renaming lemma must commute this weakening with a
+-- renaming `ρ`: lifting then renaming is renaming then lifting, with the
+-- renaming extended by `ext^ ar ρ`.
+--
+--     rename (λ j → j + ar) (rename ρ t)
+--       ≡ rename (ext^ ar ρ) (rename (λ j → j + ar) t)
+--
+-- The proof is `rename-compose` twice, bridged by the pointwise identity
+-- `ext^ ar ρ ∘ (λ j → j + ar) ≡ (λ j → j + ar) ∘ ρ`.
+------------------------------------------------------------------------
+
+-- `ext^ ar ρ ∘ (λ j → j + ar) ≡ (λ j → j + ar) ∘ ρ`, pointwise.
+ext-raise : ∀ ar ρ k → (ext^ ar ρ ∘ (λ j → j + ar)) k ≡ ((λ j → j + ar) ∘ ρ) k
+ext-raise zero ρ k = trans (cong ρ (+-identityʳ k)) (sym (+-identityʳ (ρ k)))
+ext-raise (suc ar) ρ k =
+  trans (cong (ext (ext^ ar ρ)) (+-suc k ar))
+        (trans (cong suc (ext-raise ar ρ k)) (sym (+-suc (ρ k) ar)))
+
+rename-raise : ∀ ar (ρ : Ren) t
+  → rename (λ j → j + ar) (rename ρ t)
+  ≡ rename (ext^ ar ρ) (rename (λ j → j + ar) t)
+rename-raise ar ρ t =
+  trans (rename-compose (λ j → j + ar) ρ t)
+        (trans (sym (cong (λ x → rename x t) (funext-ren (ext-raise ar ρ))))
+               (sym (rename-compose (ext^ ar ρ) (λ j → j + ar) t)))
+
+------------------------------------------------------------------------
+-- The branch field variables are fixed by `ext^ ar ρ`.
+--
+-- A branch body lives under `ar` field binders, so it is renamed by
+-- `ext^ ar ρ`. The field variables `branch-field-vars ar` are exactly the
+-- indices `0, …, ar-1`, and `ext^ ar ρ` fixes every index `< ar`. Hence
+-- the constructor applied to the field variables is unchanged by the
+-- renaming — the fact that makes the branch case of the renaming lemma
+-- go through.
+------------------------------------------------------------------------
+
+-- `ext^ ar ρ` fixes every index `< ar`.
+ext^-fix : ∀ ar (ρ : Ren) k → k < ar → ext^ ar ρ k ≡ k
+ext^-fix (suc ar) ρ zero (s≤s p) = refl
+ext^-fix (suc ar) ρ (suc k) (s≤s p) = cong suc (ext^-fix ar ρ k p)
+
+-- `renameTerms (ext^ ar ρ) (branch-field-vars ar) ≡ branch-field-vars ar`.
+renameTerms-field-vars : ∀ ar (ρ : Ren)
+  → renameTerms (ext^ ar ρ) (branch-field-vars ar) ≡ branch-field-vars ar
+renameTerms-field-vars ar ρ =
+  trans (renameTerms-map (ext^ ar ρ) (branch-field-vars ar))
+        (trans (cong (map (rename (ext^ ar ρ))) (sym (map-tm-var-countdown ar)))
+               (trans (map-compose (rename (ext^ ar ρ)) tm-var (countdown ar))
+                      (trans (map-countdown-fix ar ar ρ (≤-refl {ar}))
+                              (sym (map-tm-var-countdown ar)))))
+  where
+    map-tm-var-countdown : ∀ ar → branch-field-vars ar ≡ map tm-var (countdown ar)
+    map-tm-var-countdown ar = refl
+
+    map-compose : ∀ {A B C : Set} (f : B → C) (g : A → B) xs → map f (map g xs) ≡ map (f ∘ g) xs
+    map-compose f g [] = refl
+    map-compose f g (x ∷ xs) = cong₂ _∷_ refl (map-compose f g xs)
+
+    -- `map (λ k → tm-var (ext^ n ρ k)) (countdown ar) ≡ map tm-var (countdown ar)`
+    -- when `ar ≤ n`: every field index (`< ar ≤ n`) is fixed by `ext^ n ρ`.
+    map-countdown-fix : ∀ ar n (ρ : Ren) → ar ≤ n
+      → map (λ k → tm-var (ext^ n ρ k)) (countdown ar) ≡ map tm-var (countdown ar)
+    map-countdown-fix zero n ρ le = refl
+    map-countdown-fix (suc ar) n ρ le = cong₂ _∷_ head tail
+      where
+        head : tm-var (ext^ n ρ ar) ≡ tm-var ar
+        head = cong tm-var (ext^-fix n ρ ar le)
+        tail : map (λ k → tm-var (ext^ n ρ k)) (countdown ar) ≡ map tm-var (countdown ar)
+        tail = map-countdown-fix ar n ρ (≤-trans (m≤n⇒m≤1+n (≤-refl {ar})) le)
+
+------------------------------------------------------------------------
+-- The branch motive under a renaming.
+--
+-- A `case` branch body checks against the motive applied to the
+-- constructor of the field variables,
+--
+--     tm-app (rename (λ j → j + ar) m) (tm-ctor cn (branch-field-vars ar))
+--
+-- (the motive is weakened by `ar` into the branch context). Renaming the
+-- whole thing by `ext^ ar ρ` agrees with renaming the motive by `ρ` and
+-- re-weakening: the motive commutes by `rename-raise`, and the field
+-- variables are fixed by `ext^ ar ρ` (`renameTerms-field-vars`).
+------------------------------------------------------------------------
+
+rename-branch-motive : ∀ ar (ρ : Ren) (m : Term) (cn : Name)
+  → rename (ext^ ar ρ) (tm-app (rename (λ j → j + ar) m) (tm-ctor cn (branch-field-vars ar)))
+  ≡ tm-app (rename (λ j → j + ar) (rename ρ m)) (tm-ctor cn (branch-field-vars ar))
+rename-branch-motive ar ρ m cn =
+  cong₂ tm-app
+        (sym (rename-raise ar ρ m))
+        (cong (tm-ctor cn) (renameTerms-field-vars ar ρ))
+
+------------------------------------------------------------------------
+-- Substituting under `ar` field binders undoes the `ar`-fold weakening.
+--
+--     substS (extSub^ ar σ) (shift ar 0 T) ≡ shift ar 0 (substS σ T)
+--
+-- This is the `ar`-fold generalisation of `subst-extSub-wk`; it is the
+-- law the `case` branch case of the substitution lemma needs, because a
+-- branch body lives under `ar` field binders.
+------------------------------------------------------------------------
+
+subst-extSub^-shift : ∀ ar σ T
+  → substS (extSub^ ar σ) (shift ar 0 T) ≡ shift ar 0 (substS σ T)
+subst-extSub^-shift zero σ T =
+  trans (cong (λ x → substS σ x) (shift-0 0 T)) (sym (shift-0 0 (substS σ T)))
+subst-extSub^-shift (suc ar) σ T =
+  trans (cong (substS (extSub (extSub^ ar σ))) (shift-suc-wk ar T))
+        (trans (cong (λ t → substS (extSub (extSub^ ar σ)) t) (shift-1-wk (shift ar 0 T)))
+               (trans (subst-extSub-wk (extSub^ ar σ) (shift ar 0 T))
+                      (trans (sym (shift-1-wk (substS (extSub^ ar σ) (shift ar 0 T))))
+                             (trans (cong (shift 1 0) (subst-extSub^-shift ar σ T))
+                                    (sym (shift-suc-wk ar (substS σ T)))))))
+  where
+    plus1 : ∀ m → m + 1 ≡ suc m
+    plus1 m = trans (+-suc m 0) (cong suc (+-identityʳ m))
+
+    -- `shift 1 0 t ≡ rename wk t`.
+    shift-1-wk : ∀ t → shift 1 0 t ≡ rename wk t
+    shift-1-wk t = cong (λ ρ → rename ρ t) (funext-ren (λ k → plus1 k))
+
+    -- `shift (suc ar) 0 T ≡ shift 1 0 (shift ar 0 T)`.
+    shift-suc-wk : ∀ ar T → shift (suc ar) 0 T ≡ shift 1 0 (shift ar 0 T)
+    shift-suc-wk ar T =
+      trans (cong (λ ρ → rename ρ T) (funext-ren (pt ar)))
+            (sym (rename-compose (shiftRen 1 0) (shiftRen ar 0) T))
+      where
+        pt : ∀ ar k → shiftRen (suc ar) 0 k ≡ shiftRen 1 0 (shiftRen ar 0 k)
+        pt ar k = trans (+-suc k ar) (sym (plus1 (k + ar)))
+
+------------------------------------------------------------------------
+-- The branch field variables are fixed by the extended substitution.
+--
+-- `substS (extSub^ ar σ) (tm-var k) ≡ tm-var k` for every field index
+-- `k < ar`, because `extSub^ ar σ` maps the first `ar` indices to
+-- themselves. Hence the constructor applied to the field variables is
+-- unchanged by the substitution — the substitution analogue of
+-- `renameTerms-field-vars`.
+------------------------------------------------------------------------
+
+-- `substS (extSub^ ar σ) (tm-var k) ≡ tm-var k` for `k < ar`.
+substS-extSub^-fix : ∀ ar σ k → k < ar → substS (extSub^ ar σ) (tm-var k) ≡ tm-var k
+substS-extSub^-fix (suc ar) σ zero (s≤s p) = refl
+substS-extSub^-fix (suc ar) σ (suc k) (s≤s p) =
+  trans (cong (substS (extSub (extSub^ ar σ))) refl)
+        (trans (subst-extSub-wk (extSub^ ar σ) (tm-var k))
+               (cong (rename wk) (substS-extSub^-fix ar σ k p)))
+
+-- `substTermsS (extSub^ ar σ) (branch-field-vars ar) ≡ branch-field-vars ar`.
+substTerms-field-vars : ∀ ar σ
+  → substTermsS (extSub^ ar σ) (branch-field-vars ar) ≡ branch-field-vars ar
+substTerms-field-vars ar σ =
+  trans (substTerms-map (extSub^ ar σ) (branch-field-vars ar))
+        (trans (cong (map (substS (extSub^ ar σ))) (sym (map-tm-var-countdown ar)))
+               (trans (map-compose (substS (extSub^ ar σ)) tm-var (countdown ar))
+                      (trans (map-countdown-subst-fix ar ar σ (≤-refl {ar}))
+                             (sym (map-tm-var-countdown ar)))))
+  where
+    map-tm-var-countdown : ∀ ar → branch-field-vars ar ≡ map tm-var (countdown ar)
+    map-tm-var-countdown ar = refl
+
+    map-compose : ∀ {A B C : Set} (f : B → C) (g : A → B) xs → map f (map g xs) ≡ map (f ∘ g) xs
+    map-compose f g [] = refl
+    map-compose f g (x ∷ xs) = cong₂ _∷_ refl (map-compose f g xs)
+
+    map-countdown-subst-fix : ∀ ar n σ → ar ≤ n
+      → map (λ k → substS (extSub^ n σ) (tm-var k)) (countdown ar) ≡ map tm-var (countdown ar)
+    map-countdown-subst-fix zero n σ le = refl
+    map-countdown-subst-fix (suc ar) n σ le = cong₂ _∷_ head tail
+      where
+        head : substS (extSub^ n σ) (tm-var ar) ≡ tm-var ar
+        head = substS-extSub^-fix n σ ar le
+        tail : map (λ k → substS (extSub^ n σ) (tm-var k)) (countdown ar) ≡ map tm-var (countdown ar)
+        tail = map-countdown-subst-fix ar n σ (≤-trans (m≤n⇒m≤1+n (≤-refl {ar})) le)
+
+-- The branch motive under a substitution.
+subst-branch-motive : ∀ ar σ (m : Term) (cn : Name)
+  → substS (extSub^ ar σ) (tm-app (rename (λ j → j + ar) m) (tm-ctor cn (branch-field-vars ar)))
+  ≡ tm-app (rename (λ j → j + ar) (substS σ m)) (tm-ctor cn (branch-field-vars ar))
+subst-branch-motive ar σ m cn =
+  cong₂ tm-app
+        (subst-extSub^-shift ar σ m)
+        (cong (tm-ctor cn) (substTerms-field-vars ar σ))

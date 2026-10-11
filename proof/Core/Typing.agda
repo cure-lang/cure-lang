@@ -129,8 +129,52 @@ record Conversion : Set₁ where
     ≈-effect_type : ∀ {t t′} → t ≈ t′ → tm-effect_type t ≈ tm-effect_type t′
     ≈-effect_pure : ∀ {t t′} → t ≈ t′ → tm-effect_pure t ≈ tm-effect_pure t′
     ≈-effect_bind : ∀ {e e′ k k′} → e ≈ e′ → k ≈ k′ → tm-effect_bind e k ≈ tm-effect_bind e′ k′
+    -- STABILITY UNDER RENAMING AND SUBSTITUTION.
+    --
+    -- Conversion is a *syntactic* congruence: the kernel's NbE conversion
+    -- is stable under renaming (weakening) and substitution, because it is
+    -- decided structurally on the two terms. We record that here rather
+    -- than derive it, because the record's other fields only constrain the
+    -- type formers. These two fields are exactly the `rename-conv` /
+    -- `subst-conv` obligations of the renaming and substitution lemmas
+    -- (Proof/Preservation.agda), which become projections.
+    ≈-rename   : ∀ {t u} (ρ : Ren) → t ≈ u → rename ρ t ≈ rename ρ u
+    ≈-subst    : ∀ {t u} (σ : Sub) → t ≈ u → substS σ t ≈ substS σ u
 
 open Conversion public
+
+------------------------------------------------------------------------
+-- The multi-binder context extension.
+--
+-- `extendⁿ Γ k` prepends `k` fresh `tm-hole "field"` binders (the branch
+-- fields of a `case`). It is defined at the top level (it depends only on
+-- `Ctx`/`extend`, not on the typing judgment), so the context lemmas in
+-- Proof/Context.agda can import it directly.
+--
+-- The result is indexed by `k + m` (NOT `m + k`): with `_+_` recursing on
+-- its FIRST argument, `suc k + m ≡ suc (k + m)` and `zero + m ≡ m` hold
+-- definitionally, so this recursion is CAST-FREE. That is what makes the
+-- branch lookup laws `refl`-level, matching the rest of the context design.
+------------------------------------------------------------------------
+
+extendⁿ : ∀ {m} → Ctx m → (k : ℕ) → Ctx (k + m)
+extendⁿ Γ zero = Γ
+extendⁿ Γ (suc k) = extend (extendⁿ Γ k) (tm-hole "field")
+
+------------------------------------------------------------------------
+-- The field variables bound by a `case` branch of arity `ar`.
+--
+-- The kernel binds the LAST field at index 0, so the field list is
+-- `[ar-1, …, 0]`. Defined at the top level so the branch lemmas in
+-- Proof/Substitution.agda can speak about it.
+------------------------------------------------------------------------
+
+countdown : ℕ → List ℕ
+countdown zero = []
+countdown (suc n) = n ∷ countdown n
+
+branch-field-vars : ℕ → List Term
+branch-field-vars ar = map tm-var (countdown ar)
 
 ------------------------------------------------------------------------
 -- The typing judgment
@@ -161,13 +205,6 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   -- Helpers
   ------------------------------------------------------------------------
 
-  -- Extend a context by `n` fresh binders (the branch fields). The field
-  -- types are not needed for the *positive* branch obligation; a later
-  -- slice threads the constructor's argument telescope through here.
-  extendⁿ : ∀ {m} → Ctx m → (k : ℕ) → Ctx (m + k)
-  extendⁿ Γ zero = subst Ctx (sym (+-identityʳ _)) Γ
-  extendⁿ Γ (suc k) = subst Ctx (sym (+-suc _ k)) (extendⁿ (extend Γ (tm-hole "field")) k)
-
   -- Telescope membership.
   data _∈Tele_ : Term → Telescope → Set where
     ∈-here  : ∀ {T tele nm} → T ∈Tele ((nm , T) ∷ tele)
@@ -183,21 +220,11 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   substTele σ [] = []
   substTele σ ((nm , T) ∷ tele) = (nm , substS σ T) ∷ substTele σ tele
 
-  -- Substituting a value at the top of a type (for the `let` rule).
-  substTopT : Term → Term → Term
-  substTopT v T = substS (topSub v) T
-
+  -- Substituting a value at the top of a type (for the `let` rule). This is
+  -- `substTopT` from Core.Syntax, re-exported inside the typing module.
   substTopT-unfold : ∀ v T → substTopT v T ≡ substS (topSub v) T
   substTopT-unfold v T = refl
 
-  -- The field variables bound by a branch of arity `ar`. The kernel binds
-  -- the LAST field at index 0, so the field list is `[ar-1, …, 0]`.
-  branch-field-vars : ℕ → List Term
-  branch-field-vars ar = map tm-var (countdown ar)
-    where
-      countdown : ℕ → List ℕ
-      countdown zero = []
-      countdown (suc n) = n ∷ countdown n
 
   data _⊢_⇒_ where
 
@@ -293,7 +320,7 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
     ⇒-effect_pure : ∀ {n} {Γ : Ctx n} {a A} → Γ ⊢ a ⇒ A → Γ ⊢ tm-effect_pure a ⇒ tm-effect_type A
     ⇒-effect_bind : ∀ {n} {Γ : Ctx n} {e k A B}
                   → Γ ⊢ e ⇒ tm-effect_type A
-                  → Γ ⊢ k ⇒ tm-pi unrestricted A (tm-effect_type B)
+                  → Γ ⊢ k ⇒ tm-pi unrestricted A (tm-effect_type (rename wk B))
                   → Γ ⊢ tm-effect_bind e k ⇒ tm-effect_type B
 
     -- A hole has no inference rule (it is checkable at any type).
@@ -352,7 +379,7 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
     brs∷  : ∀ {k} {Γ : Ctx k} {cn ar b brs n m f ct}
           → findCtor cn (IndEnv.families ind) ≡ just (f , ct)
           → length (ctor-args ct) ≡ ar
-          → extendⁿ Γ ar ⊢ b ⇐ tm-app m (tm-ctor cn (branch-field-vars ar))
+          → extendⁿ Γ ar ⊢ b ⇐ tm-app (rename (λ j → j + ar) m) (tm-ctor cn (branch-field-vars ar))
           → Γ ⊢*brs brs ⇐*ᵇ (n , m)
           → Γ ⊢*brs ((cn , ar , b) ∷ brs) ⇐*ᵇ (n , m)
 

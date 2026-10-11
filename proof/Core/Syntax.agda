@@ -293,6 +293,17 @@ mutual
   substS σ (tm-hole n) = tm-hole n
   substS σ (tm-absurd) = tm-absurd
 
+------------------------------------------------------------------------
+-- Substituting a value at the top of a type.
+--
+-- This is the `let` rule's result type (`substTopT v T`), and the
+-- codomain instantiation of `⇒-app` (`substT 0 a c`). It lives here, in
+-- the syntactic layer, so the purely-syntactic renaming/substitution laws
+-- can speak about it without importing the typing judgment.
+------------------------------------------------------------------------
+
+substTopT : Term → Term → Term
+substTopT v T = substS (topSub v) T
 
 ------------------------------------------------------------------------
 -- de Bruijn shift (lift every free variable ≥ cutoff by amount)
@@ -477,6 +488,11 @@ ext-wk-rename ρ t =
 renameTerms-map : ∀ ρ ts → renameTerms ρ ts ≡ map (rename ρ) ts
 renameTerms-map ρ [] = refl
 renameTerms-map ρ (x ∷ xs) = cong₂ _∷_ refl (renameTerms-map ρ xs)
+
+-- `substTermsS σ ts ≡ map (substS σ) ts`.
+substTerms-map : ∀ σ ts → substTermsS σ ts ≡ map (substS σ) ts
+substTerms-map σ [] = refl
+substTerms-map σ (x ∷ xs) = cong₂ _∷_ refl (substTerms-map σ xs)
 
 ------------------------------------------------------------------------
 ------------------------------------------------------------------------

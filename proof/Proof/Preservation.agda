@@ -40,10 +40,12 @@ open import Core.Signature using (IndEnv; Family; Ctor; Telescope; findFamily; f
                                    fam-params; fam-indices; fam-level; fam-name;
                                    ctor-args; ctor-params; ctor-indices)
 open import Core.Reduction
-open import Core.Typing using (Ctx; ⟨⟩; _▷_; lookup; extend; lookup-extend; lookup-renameCtx; Conversion)
+open import Core.Typing using (Ctx; ⟨⟩; _▷_; lookup; extend; lookup-extend; lookup-renameCtx; Conversion; extendⁿ)
 open import Proof.Values using (Canonical; Neutral; Value)
 open import Proof.Substitution
-open import Proof.Context using (lookup-weaken; lookup-head)
+open import Proof.Context using (lookup-weaken; lookup-head;
+                                  lookup-extendⁿ-zero; lookup-extendⁿ-raise;
+                                  extF; extF-coh; lookup-extF)
 
 module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
 
@@ -103,33 +105,6 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
       → (∀ i → lookup Δ (idx i) ≡ rename ρ (lookup Γ i))
       → Γ ⊢ f ⇒ tm-pi g d c → Γ ⊢ a ⇐ d
       → Δ ⊢ rename ρ (tm-app f a) ⇒ rename ρ (substT 0 a c)
-    ren-data : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {nm ps is f ρ} (idx : Fin n → Fin m)
-      → (∀ i → toℕ (idx i) ≡ ρ (toℕ i))
-      → (∀ i → lookup Δ (idx i) ≡ rename ρ (lookup Γ i))
-      → findFamily nm (IndEnv.families ind) ≡ just f
-      → Γ ⊢* ps ⇐* fam-params f → Γ ⊢* is ⇐* fam-indices f
-      → Δ ⊢ rename ρ (tm-data nm ps is) ⇒ rename ρ (tm-type (fam-level f))
-    ren-ctor : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {c args f ct ρ} (idx : Fin n → Fin m)
-      → (∀ i → toℕ (idx i) ≡ ρ (toℕ i))
-      → (∀ i → lookup Δ (idx i) ≡ rename ρ (lookup Γ i))
-      → findCtor c (IndEnv.families ind) ≡ just (f , ct)
-      → Γ ⊢* args ⇐* ctor-args ct
-      → Δ ⊢ rename ρ (tm-ctor c args) ⇒ rename ρ (tm-data (fam-name f) (ctor-params ct) (ctor-indices ct))
-    ren-case : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {s m′ brs nm ps is T ρ} (idx : Fin n → Fin m)
-      → (∀ i → toℕ (idx i) ≡ ρ (toℕ i))
-      → (∀ i → lookup Δ (idx i) ≡ rename ρ (lookup Γ i))
-      → Γ ⊢ s ⇒ tm-data nm ps is → Γ ⊢ m′ ⇒ T → Γ ⊢*brs brs ⇐*ᵇ (nm , m′)
-      → Δ ⊢ rename ρ (tm-case s m′ brs) ⇒ rename ρ (tm-app m′ s)
-    ren-let : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {g ty v b l T ρ} (idx : Fin n → Fin m)
-      → (∀ i → toℕ (idx i) ≡ ρ (toℕ i))
-      → (∀ i → lookup Δ (idx i) ≡ rename ρ (lookup Γ i))
-      → Γ ⊢ ty ⇒ tm-type l → Γ ⊢ v ⇐ ty → extend Γ ty ⊢ b ⇒ T
-      → Δ ⊢ rename ρ (tm-let g ty v b) ⇒ rename ρ (substTopT v T)
-    ren-effect-bind : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {e k A B ρ} (idx : Fin n → Fin m)
-      → (∀ i → toℕ (idx i) ≡ ρ (toℕ i))
-      → (∀ i → lookup Δ (idx i) ≡ rename ρ (lookup Γ i))
-      → Γ ⊢ e ⇒ tm-effect_type A → Γ ⊢ k ⇒ tm-pi unrestricted A (tm-effect_type B)
-      → Δ ⊢ rename ρ (tm-effect_bind e k) ⇒ rename ρ (tm-effect_type B)
 
   -- The signature's telescopes are closed, so renaming leaves them unchanged.
   postulate
@@ -143,10 +118,26 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
       → rename ρ (tm-data (fam-name f) (ctor-params ct) (ctor-indices ct))
       ≡ tm-data (fam-name f) (ctor-params ct) (ctor-indices ct)
 
-  -- Conversion is a congruence for renaming.
+  -- The signature's telescopes are closed, so substituting into them
+  -- leaves them unchanged (the substitution analogue of `tele-closed`).
   postulate
-    rename-conv : ∀ {t u} (ρ : Ren) → Conversion._≈_ conv t u
-                → Conversion._≈_ conv (rename ρ t) (rename ρ u)
+    tele-closed-subst : ∀ (σ : Sub) (f : Family) (tele tele′ : Telescope)
+      → (∀ {T} → T ∈Tele tele → substS σ T ≡ T)
+
+  -- A constructor's result type is closed, so substituting into it leaves
+  -- it unchanged.
+  postulate
+    subst-ctor-result : ∀ (σ : Sub) (f : Family) (ct : Ctor)
+      → substS σ (tm-data (fam-name f) (ctor-params ct) (ctor-indices ct))
+      ≡ tm-data (fam-name f) (ctor-params ct) (ctor-indices ct)
+
+  -- Conversion is a congruence for renaming. This is a field of the
+  -- `Conversion` record (Core/Typing.agda): the kernel's conversion is
+  -- decided structurally, so it is stable under renaming. We re-export it
+  -- under the local name the renaming lemma uses.
+  rename-conv : ∀ {t u} (ρ : Ren) → Conversion._≈_ conv t u
+              → Conversion._≈_ conv (rename ρ t) (rename ρ u)
+  rename-conv = Conversion.≈-rename conv
 
   mutual
     ren⇒ : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {t T ρ}
@@ -163,8 +154,12 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
     ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-lam {d = d} dd db) =
       ⇒-lam (ren⇒ idx coh law dd) (ren⇒ (ext-idx idx) (ext-coh ρ idx coh) (ext-law d idx law) db)
     ren⇒ idx coh law (⇒-app df da) = ren-app idx coh law df da
-    ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-let {ty = ty} dty dv db) =
-      ren-let idx coh law dty dv db
+    ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-let {ty = ty} {v = v} {T = T} dty dv db) =
+      subst (λ X → Δ ⊢ tm-let _ (rename ρ ty) (rename ρ v) (rename (ext ρ) _) ⇒ X)
+            (sym (rename-topSub ρ v T))
+            (⇒-let (ren⇒ idx coh law dty)
+                   (ren⇐ idx coh law dv)
+                   (ren⇒ (ext-idx idx) (ext-coh ρ idx coh) (ext-law ty idx law) db))
     ren⇒ {Δ = Δ} {ρ = ρ} idx coh law (⇒-global {f = f} {T = T} p) =
       subst (λ X → Δ ⊢ tm-global f ⇒ X) (sym (rename-global-type ρ f T p)) (⇒-global p)
     ren⇒ idx coh law (⇒-int_type) = ⇒-int_type
@@ -186,10 +181,15 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
       subst (λ X → Δ ⊢ tm-ctor c (renameTerms ρ args) ⇒ X)
             (sym (rename-ctor-result ρ f ct))
             (⇒-ctor p (subst (λ zs → Δ ⊢* zs ⇐* ctor-args ct) (sym (renameTerms-map ρ args)) (ren-spine idx coh law (tele-closed ρ f (ctor-args ct) (ctor-args ct)) q)))
-    ren⇒ idx coh law (⇒-case p q r) = ren-case idx coh law p q r
+    ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-case {s = s} {m = m′} {brs = brs} p q r) =
+      ⇒-case (ren⇒ idx coh law p) (ren⇒ idx coh law q) (ren-branches idx coh law r)
     ren⇒ idx coh law (⇒-effect_type p) = ⇒-effect_type (ren⇒ idx coh law p)
     ren⇒ idx coh law (⇒-effect_pure p) = ⇒-effect_pure (ren⇒ idx coh law p)
-    ren⇒ idx coh law (⇒-effect_bind p q) = ren-effect-bind idx coh law p q
+    ren⇒ {Δ = Δ} {ρ = ρ} idx coh law (⇒-effect_bind {A = A} {B = B} p q) =
+      ⇒-effect_bind (ren⇒ idx coh law p)
+                    (subst (λ X → Δ ⊢ rename ρ _ ⇒ tm-pi unrestricted (rename ρ A) (tm-effect_type X))
+                           (sym (ext-wk-rename ρ B))
+                           (ren⇒ idx coh law q))
 
     ren⇐ : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {t T ρ}
            (idx : Fin n → Fin m)
@@ -219,6 +219,49 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
       ⊢*∷ (subst (λ X → Δ ⊢ rename ρ x ⇐ X) (cl ∈-here)
                  (ren⇐ idx coh law dx))
           (ren-spine idx coh law (λ p → cl (∈-there p)) dxs)
+
+    -- Branch checking is preserved by renaming. The branch context
+    -- `extendⁿ Γ ar` is transported by the extended morphism `extF ar idx`;
+    -- the body is renamed by `ext^ ar ρ`. The motive's renaming is the
+    -- subtle step: `m′` is used in the extended context, so renaming it
+    -- under `ext^ ar ρ` agrees with renaming it under `ρ` because the
+    -- field indices (`< ar`) are fixed by `ext^ ar ρ` and the existing
+    -- indices are `raise ar`-shifted.
+    ren-branches : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {brs nm m′ ρ}
+           (idx : Fin n → Fin m)
+         → (∀ i → toℕ (idx i) ≡ ρ (toℕ i))
+         → (∀ i → lookup Δ (idx i) ≡ rename ρ (lookup Γ i))
+         → Γ ⊢*brs brs ⇐*ᵇ (nm , m′)
+         → Δ ⊢*brs renameBranches ρ brs ⇐*ᵇ (nm , rename ρ m′)
+    ren-branches idx coh law brs[] = brs[]
+    ren-branches {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law
+                 (brs∷ {cn = cn} {ar = ar} {b = b} {brs = brs} {n = nm} {m = m′} {f = f} {ct = ct} fc len db dbrs) =
+      brs∷ fc len
+           (subst (λ X → extendⁿ Δ ar ⊢ rename (ext^ ar ρ) b ⇐ X)
+                  (rename-branch-motive ar ρ m′ cn)
+                  (ren⇐ (extF ar idx) (extF-coh ar ρ idx coh)
+                        (lookup-extF Γ Δ ar ρ idx law) db))
+           (ren-branches idx coh law dbrs)
+
+  -- The `let` case of the renaming lemma. PROVED: it is the `⇒-let` rule,
+  -- with the result type transported across `rename-topSub` (the
+  -- commutation of `rename` with the top substitution, Proof/Substitution).
+  --
+  -- It is stated outside the `mutual` block because it is a *derived*
+  -- lemma: it consumes `ren⇒`/`ren⇐` rather than participating in their
+  -- recursion. The value `v` and body type `T` are explicit so the
+  -- transport can name them.
+  ren-let : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {g ty b l ρ} (v T : Term) (idx : Fin n → Fin m)
+    → (∀ i → toℕ (idx i) ≡ ρ (toℕ i))
+    → (∀ i → lookup Δ (idx i) ≡ rename ρ (lookup Γ i))
+    → Γ ⊢ ty ⇒ tm-type l → Γ ⊢ v ⇐ ty → extend Γ ty ⊢ b ⇒ T
+    → Δ ⊢ rename ρ (tm-let g ty v b) ⇒ rename ρ (substTopT v T)
+  ren-let {ρ = ρ} v T idx coh law dty dv db =
+    subst (λ X → _ ⊢ tm-let _ (rename ρ _) (rename ρ v) (rename (ext ρ) _) ⇒ X)
+          (sym (rename-topSub ρ v T))
+          (⇒-let (ren⇒ idx coh law dty)
+                 (ren⇐ idx coh law dv)
+                 (ren⇒ (ext-idx idx) (ext-coh ρ idx coh) (ext-law _ idx law) db))
 
   -- Weakening is the instance of the fundamental lemma at `wk`.
   weaken⇒ : ∀ {n} {Γ : Ctx n} {t T S} → Γ ⊢ t ⇒ T → extend Γ S ⊢ rename wk t ⇒ rename wk T
@@ -264,6 +307,31 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
                  (cong (substS (extSub σ)) (sym (lookup-renameCtx wk Γ k))))
           (weaken⇒ (coh k))
 
+  ------------------------------------------------------------------------
+  -- The `ar`-fold extended coherence (for the `case` branch case).
+  ------------------------------------------------------------------------
+
+  -- Lifting the coherence under `ar` field binders: the branch context
+  -- `extendⁿ Γ ar` is matched by `extendⁿ Δ ar`, with the substitution
+  -- `extSub^ ar σ`. The field positions are holes (fixed by the
+  -- substitution); the existing positions are `raise ar`-shifted, where
+  -- `subst-extSub^-shift` undoes the `ar`-fold weakening.
+  coh-extendⁿ :
+    ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {σ} (ar : ℕ)
+    → Coherent {n} {m} Γ Δ σ
+    → Coherent (extendⁿ Γ ar) (extendⁿ Δ ar) (extSub^ ar σ)
+  coh-extendⁿ {Γ = Γ} {Δ = Δ} {σ = σ} zero coh = coh
+  coh-extendⁿ {Γ = Γ} {Δ = Δ} {σ = σ} (suc ar) coh zero =
+    subst (λ X → extendⁿ Δ (suc ar) ⊢ tm-var 0 ⇒ X)
+          (sym (lookup-extendⁿ-zero Δ ar))
+          (⇒-var zero)
+  coh-extendⁿ {Γ = Γ} {Δ = Δ} {σ = σ} (suc ar) coh (suc j) =
+    subst (λ X → extendⁿ Δ (suc ar) ⊢ rename wk (extSub^ ar σ (toℕ j)) ⇒ X)
+          (trans (sym (subst-extSub-wk (extSub^ ar σ) (lookup (extendⁿ Γ ar) j)))
+                 (cong (substS (extSub (extSub^ ar σ)))
+                       (sym (lookup-extend (extendⁿ Γ ar) (tm-hole "field") j))))
+          (weaken⇒ (coh-extendⁿ ar coh j))
+
   -- The length of a context, exposed for the metatheory.
   lengthCtx : ∀ {n} → Ctx n → ℕ
   lengthCtx {n} _ = n
@@ -278,31 +346,18 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
       → Coherent {n} {m} Γ Δ σ
       → Γ ⊢ f ⇒ tm-pi g d c → Γ ⊢ a ⇐ d
       → Δ ⊢ substS σ (tm-app f a) ⇒ substS σ (substT 0 a c)
-    subst-data : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {nm ps is f σ}
-      → Coherent {n} {m} Γ Δ σ
-      → findFamily nm (IndEnv.families ind) ≡ just f
-      → Γ ⊢* ps ⇐* fam-params f → Γ ⊢* is ⇐* fam-indices f
-      → Δ ⊢ substS σ (tm-data nm ps is) ⇒ substS σ (tm-type (fam-level f))
-    subst-ctor : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {c args f ct σ}
-      → Coherent {n} {m} Γ Δ σ
-      → findCtor c (IndEnv.families ind) ≡ just (f , ct)
-      → Γ ⊢* args ⇐* ctor-args ct
-      → Δ ⊢ substS σ (tm-ctor c args) ⇒ substS σ (tm-data (fam-name f) (ctor-params ct) (ctor-indices ct))
-    subst-case : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {s m′ brs nm ps is T σ}
-      → Coherent {n} {m} Γ Δ σ
-      → Γ ⊢ s ⇒ tm-data nm ps is → Γ ⊢ m′ ⇒ T → Γ ⊢*brs brs ⇐*ᵇ (nm , m′)
-      → Δ ⊢ substS σ (tm-case s m′ brs) ⇒ substS σ (tm-app m′ s)
-    subst-conv : ∀ {t u σ}
-      → Conversion._≈_ conv t u
-      → Conversion._≈_ conv (substS σ t) (substS σ u)
     subst-global : ∀ {m} {Δ : Ctx m} {f} (T : Term) (σ : Sub)
       → Signature.type-of sig f ≡ just T
       → Δ ⊢ tm-global f ⇒ substS σ T
-    subst-effect-bind : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {e k A B σ}
-      → Coherent {n} {m} Γ Δ σ
-      → Γ ⊢ e ⇒ tm-effect_type A
-      → Γ ⊢ k ⇒ tm-pi unrestricted A (tm-effect_type B)
-      → Δ ⊢ substS σ (tm-effect_bind e k) ⇒ substS σ (tm-effect_type B)
+
+
+  -- Conversion is a congruence for substitution. A field of the
+  -- `Conversion` record (Core/Typing.agda), re-exported under the local
+  -- name the substitution lemma uses.
+  subst-conv : ∀ {t u σ}
+    → Conversion._≈_ conv t u
+    → Conversion._≈_ conv (substS σ t) (substS σ u)
+  subst-conv = Conversion.≈-subst conv _
 
   mutual
    subst⇒ : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {t T σ}
@@ -330,12 +385,26 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
    subst⇒ coh (⇒-atom_lit) = ⇒-atom_lit
    subst⇒ coh (⇒-nat_lit p) = ⇒-nat_lit p
    subst⇒ coh (⇒-bounded_lit p) = ⇒-bounded_lit p
-   subst⇒ coh (⇒-data p q r) = subst-data coh p q r
-   subst⇒ coh (⇒-ctor p q) = subst-ctor coh p q
-   subst⇒ coh (⇒-case p q r) = subst-case coh p q r
+   subst⇒ {Δ = Δ} {σ = σ} coh (⇒-data {ps = ps} {is = is} {f = f} p q r) =
+     ⇒-data p
+       (subst (λ zs → Δ ⊢* zs ⇐* fam-params f) (sym (substTerms-map σ ps))
+              (subst-spine coh (tele-closed-subst σ f (fam-params f) (fam-params f)) q))
+       (subst (λ zs → Δ ⊢* zs ⇐* fam-indices f) (sym (substTerms-map σ is))
+              (subst-spine coh (tele-closed-subst σ f (fam-indices f) (fam-indices f)) r))
+   subst⇒ {Δ = Δ} {σ = σ} coh (⇒-ctor {c = c} {args = args} {f = f} {ct = ct} p q) =
+     subst (λ X → Δ ⊢ tm-ctor c (substTermsS σ args) ⇒ X)
+           (sym (subst-ctor-result σ f ct))
+           (⇒-ctor p (subst (λ zs → Δ ⊢* zs ⇐* ctor-args ct) (sym (substTerms-map σ args))
+                            (subst-spine coh (tele-closed-subst σ f (ctor-args ct) (ctor-args ct)) q)))
+   subst⇒ {Δ = Δ} {σ = σ} coh (⇒-case {s = s} {m = m′} {brs = brs} p q r) =
+     ⇒-case (subst⇒ coh p) (subst⇒ coh q) (subst-branches coh r)
    subst⇒ coh (⇒-effect_type p) = ⇒-effect_type (subst⇒ coh p)
    subst⇒ coh (⇒-effect_pure p) = ⇒-effect_pure (subst⇒ coh p)
-   subst⇒ coh (⇒-effect_bind p q) = subst-effect-bind coh p q
+   subst⇒ {Δ = Δ} {σ = σ} coh (⇒-effect_bind {e = e} {k = k} {A = A} {B = B} p q) =
+     ⇒-effect_bind (subst⇒ coh p)
+                   (subst (λ X → Δ ⊢ substS σ k ⇒ tm-pi unrestricted (substS σ A) (tm-effect_type X))
+                          (subst-extSub-wk σ B)
+                          (subst⇒ coh q))
 
    subst⇐ : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {t T σ}
           → Coherent {n} {m} Γ Δ σ
@@ -350,6 +419,34 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion) where
    subst⇐ coh (⇐-hole) = ⇐-hole
    subst⇐ coh (⇐-infer der eq) = ⇐-infer (subst⇒ coh der) (subst-conv eq)
    subst⇐ coh (⇐-cumul der le) = ⇐-cumul (subst⇒ coh der) le
+
+   -- The telescope is a fixed (closed) telescope from the signature, so
+   -- its types are unchanged by substitution.
+   subst-spine : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {ts tele σ}
+          → Coherent {n} {m} Γ Δ σ
+        → (∀ {T} → T ∈Tele tele → substS σ T ≡ T)
+        → Γ ⊢* ts ⇐* tele → Δ ⊢* map (substS σ) ts ⇐* tele
+   subst-spine coh cl ⊢*[] = ⊢*[]
+   subst-spine {Δ = Δ} {σ = σ} coh cl (⊢*∷ {x = x} {T = T} {tele = tele} {nm = nm} dx dxs) =
+     ⊢*∷ (subst (λ X → Δ ⊢ substS σ x ⇐ X) (cl ∈-here) (subst⇐ coh dx))
+         (subst-spine coh (λ p → cl (∈-there p)) dxs)
+
+   -- Branch checking is preserved by substitution. The branch context
+   -- `extendⁿ Γ ar` is matched by `extendⁿ Δ ar` via `coh-extendⁿ`; the
+   -- body is substituted by `extSub^ ar σ`. The motive's substitution is
+   -- the subtle step, discharged by `subst-branch-motive`.
+   subst-branches : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {brs nm m′ σ}
+          → Coherent {n} {m} Γ Δ σ
+        → Γ ⊢*brs brs ⇐*ᵇ (nm , m′)
+        → Δ ⊢*brs substBranchesS σ brs ⇐*ᵇ (nm , substS σ m′)
+   subst-branches coh brs[] = brs[]
+   subst-branches {Γ = Γ} {Δ = Δ} {σ = σ} coh
+                  (brs∷ {cn = cn} {ar = ar} {b = b} {brs = brs} {n = nm} {m = m′} {f = f} {ct = ct} fc len db dbrs) =
+     brs∷ fc len
+          (subst (λ X → extendⁿ Δ ar ⊢ substS (extSub^ ar σ) b ⇐ X)
+                 (subst-branch-motive ar σ m′ cn)
+                 (subst⇐ (coh-extendⁿ ar coh) db))
+          (subst-branches coh dbrs)
 
   ------------------------------------------------------------------------
   -- The top-level substitution (for β and ζ).
