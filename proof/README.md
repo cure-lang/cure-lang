@@ -144,7 +144,7 @@ These are the `postulate`s, each with a named proof strategy in the source:
 6. **`soundness`** (`Proof/Soundness.agda`) — the type-safety induction
    combining Progress and Preservation.
 
-### The `⇒-app` obstruction (a finding from this slice)
+### The `⇒-app` obstruction and its fix (a finding from this slice)
 
 The `⇒-app` case of the renaming lemma needs
 
@@ -156,13 +156,29 @@ where `c` is the codomain under the binder. At index `suc k` this requires
 (`ext wk 1 = 2 ≠ 1 = suc (ext wk 0)`), and `ext wk` is exactly the
 renaming the codomain is subject to.
 
-The standard fix is to state the renaming lemma with `ρ` preserving `suc`
-*and* fixing `0` (`ρ 0 ≡ 0`), which makes the extension `ext ρ` preserve
-`suc` too. `wk` fixes neither, so the weakening instance needs the
-`substS`-based formulation (`subst-rename`, already proved) rather than the
-`substT`-based one. This is the concrete next step for `ren-app`.
+Two things make this bite:
 
-### Open research questions (docs/SOUNDNESS.md §7, §8)
+1. **`ext` breaks `suc`-preservation unless `ρ 0 ≡ 0`.** `ext ρ` preserves
+   `suc` iff `ρ 0 ≡ 0` *and* `ρ` preserves `suc`. `wk 0 = 1`, so the
+   extension of the weakening renaming fails.
+2. **The binder-order issue forces the general renaming lemma.** A direct
+   weakening proof hits `extend (extend Γ S) (shift 1 0 d)` vs
+   `extend (extend Γ d) S`, which differ; only a context morphism (a `Fin`
+   map) handles the order — and that is exactly the lemma whose `⇒-app`
+   case needs `suc`-preservation.
+
+**The fix** is to make the weakening *append* its binder at the end with the
+**identity** renaming, while the substitution lemma's `extend` *prepends*.
+Then the two commute definitionally:
+
+    extend (extendEnd Γ S) d ≡ extendEnd (extend Γ d) S
+
+(both are `d ∷ (Γ ++ [S])`), the weakening renaming is the identity (which
+trivially preserves `suc` and fixes `0`), and the `⇒-app` case goes through.
+This requires a second, append-at-end context view alongside the
+prepend-at-front one — the concrete next step.
+
+### Open research questions (docs/SOUNDNESS.md §7, §8)### Open research questions (docs/SOUNDNESS.md §7, §8)
 
 - **The totality certificate.** `Certified` is a stated hypothesis. A
   separate, smaller proof that the *size-change certificate verifier* is
