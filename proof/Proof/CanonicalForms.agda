@@ -72,14 +72,19 @@ module CF (ind : IndEnv) (sig : Signature) (conv : Conversion) where
     → Σ Grade (λ g′ → Σ Term (λ d′ → Σ Term (λ b → v ≡ tm-lam g′ d′ b)))
   canonical-pi-value = invert-pi-check _ _
 
-  -- A CANONICAL value of data type is a ctor.
+  -- A CANONICAL value of data type is CONSTRUCTOR-LIKE: a `tm-ctor`, or a
+  -- builtin `tm-nat_lit` / `tm-bounded_lit` (which the kernel peels to a
+  -- ctor). The naive "is a `tm-ctor`" statement is false — see
+  -- `invert-data` in Proof/Inversion.agda for the counterexample.
   --
   -- PROVED: this is exactly `invert-data-check` from Proof/Inversion.agda.
   -- Progress's `case` case consumes it: if the scrutinee is canonical it is
-  -- a ctor, so ι fires.
+  -- constructor-like, so ι fires (peeling a literal to a ctor first).
   canonical-ctor :
     ∀ {k} {Γ : Ctx k} {n ps is v}
     → Γ ⊢ v ⇐ tm-data n ps is
     → Canonical v
-    → Σ Name (λ c → Σ (List Term) (λ args → v ≡ tm-ctor c args))
+    → (Σ Name (λ c → Σ (List Term) (λ args → v ≡ tm-ctor c args)))
+      ⊎ (Σ ℕ (λ m → v ≡ tm-nat_lit m))
+      ⊎ (Σ ℕ (λ b → v ≡ tm-bounded_lit b))
   canonical-ctor = invert-data-check _ _

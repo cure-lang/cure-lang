@@ -76,7 +76,7 @@ recommends.
 | `Core.Signature` | Inductive families, constructors, telescopes; nested strict positivity | ✅ complete |
 | `Core.Typing` | The bidirectional `infer`/`check` judgment `_⊢_⇒_` / `_⊢_⇐_`, over a length-indexed context with `Fin` lookup | ✅ complete |
 | `Proof.Values` | The `Canonical`/`Neutral`/`Value` split (a value includes neutrals) | ✅ complete |
-| `Proof.Inversion` | Head-inversion lemmas; conversion injectivity | ⚠️ `invert-pi`/`invert-data` open; `invert-*-check` **proved** |
+| `Proof.Inversion` | Head-inversion lemmas; conversion injectivity | ✅ `invert-pi`/`invert-data`/`invert-*-check` **proved**; `conv-injective-*` open |
 | `Proof.CanonicalForms` | `canonical-pi-value`, `canonical-ctor` | ✅ **proved** (= `invert-*-check`) |
 | `Proof.Substitution` | shift/subst algebraic laws | ✅ `shift-0`, `shift-var-1`, the rename/subst interaction laws, and the branch-field lemmas **proved**; only `shift-subst` (app case) open |
 | `Proof.Context` | Length-indexed context laws: weakening lookup, `extendⁿ` lookup, branch morphism `extF` | ✅ **proved** |
@@ -103,6 +103,15 @@ recommends.
 - **The canonical-form lemmas** `canonical-pi-value` and `canonical-ctor`
   (`Proof/CanonicalForms.agda`), proved by composing the checking-mode
   head-inversion lemmas.
+- **The head-inversion lemmas** `invert-pi` / `invert-data`
+  (`Proof/Inversion.agda`), proved by induction on the inference derivation:
+  the only rule whose conclusion type is the target former is the matching
+  introduction rule; every other rule is ruled out by the type index or by
+  the head being neutral (`Canonical` excludes it). The `⇒-conv` case recurses
+  via conversion injectivity. `invert-data` is stated as a three-way
+  disjunction — a `tm-ctor` OR a builtin `tm-nat_lit`/`tm-bounded_lit` —
+  because a nat/bounded literal is canonical and infers a data type but is
+  not a `tm-ctor` (see [The `invert-data` finding](#the-invert-data-finding)).
 - **The `shift-0` identity law** (`Proof/Substitution.agda`), proved from
   `shiftRen-0` and `rename-id` — no term induction needed.
 - **The rename/subst interaction laws** (`Proof/Substitution.agda`):
@@ -138,21 +147,17 @@ recommends.
 
 These are the `postulate`s, each with a named proof strategy in the source:
 
-1. **`invert-pi` / `invert-data`** (`Proof/Inversion.agda`) — inference-mode
-   head inversion: a canonical value that infers a Π type is a λ; a canonical
-   value that infers a data type is a ctor. *Strategy:* induction on the
-   inference derivation; each canonical head has exactly one applicable
-   infer rule.
-2. **`conv-injective-data` / `conv-injective-pi`** (`Proof/Inversion.agda`) —
+1. **`conv-injective-data` / `conv-injective-pi`** (`Proof/Inversion.agda`) —
    conversion injectivity on type constructors. *Strategy:* the FSCD'25
-   result; provable in a meta-theory weaker than the object theory.
-3. **The application case** of the renaming and substitution lemmas
+   result; provable in a meta-theory weaker than the object theory. These are
+   now the ONLY inputs the head-inversion lemmas depend on (see below).
+2. **The application case** of the renaming and substitution lemmas
    (`ren-app`, `subst-app`). This was the **one documented obstruction**; it
    is now **resolved** by using the top substitution `substTopT` for the
    codomain instantiation (see
    [The `⇒-app` obstruction](#the--app-obstruction-and-how-it-dissolves-a-finding-from-this-slice)).
    All cases of the renaming and substitution lemmas are now proved.
-4. **The closedness axioms for the signature** (`rename-global-type`,
+3. **The closedness axioms for the signature** (`rename-global-type`,
    `tele-closed`, `rename-ctor-result`, `tele-closed-subst`,
    `subst-ctor-result`, `subst-global`). These are well-formedness
    assumptions: a global's declared type and the signature's telescopes are
@@ -160,15 +165,34 @@ These are the `postulate`s, each with a named proof strategy in the source:
    **derived** from the single hypothesis `ClosedSig ind sig` (a `Scoped 0`
    predicate on signature entries) via `rename-closed` / `substS-closed` —
    no longer postulated.
-5. **`progress`** (`Proof/Progress.agda`) — by cases on the typing
+4. **`progress`** (`Proof/Progress.agda`) — by cases on the typing
    derivation, consuming the canonical-form lemmas to show β and ι fire.
-6. **`preservation`** (`Proof/Preservation.agda`) — the four cases β, ζ, ι,
+5. **`preservation`** (`Proof/Preservation.agda`) — the four cases β, ζ, ι,
    δ. β/ζ consume `subst⇐`; ι is the branch-coverage lemma; δ consumes
    `Certified`. The β/ζ/ι cases are independent of the app case; the
    statement is left open pending the app case and the closedness axioms.
-7. **`soundness`** (`Proof/Soundness.agda`) — the type-safety induction
+6. **`soundness`** (`Proof/Soundness.agda`) — the type-safety induction
    combining Progress and Preservation.
 
+### The `invert-data` finding
+
+The naive canonical-form lemma "a canonical value of data type is a
+`tm-ctor`" is **false**. `tm-nat_lit m` and `tm-bounded_lit k` are canonical
+(`c-nat_lit` / `c-bounded_lit`) and infer `tm-data Nat [] []` /
+`tm-data Bounded [] []` (via `⇒-nat_lit` / `⇒-bounded_lit`), but they are not
+`tm-ctor`s. The kernel resolves this by treating a `{:vnat, n}` as
+*definitionally* the `Z`/`S` tower (`Eval.nat_to_ctor`; `bounded_to_ctor` for
+bounded), so a `case` on a literal still fires ι after peeling the literal to
+a constructor.
+
+The honest lemma is therefore the three-way disjunction
+
+    invert-data : ... → (Σ Name (λ c → Σ (List Term) (λ args → t ≡ tm-ctor c args)))
+                      ⊎ (Σ ℕ (λ m → t ≡ tm-nat_lit m))
+                      ⊎ (Σ ℕ (λ b → t ≡ tm-bounded_lit b))
+
+which `progress`'s `case` branch consumes by peeling the literal disjuncts to
+a ctor. `canonical-ctor` (`Proof/CanonicalForms.agda`) is restated to match.
 ### The `⇒-app` obstruction, and how it dissolves (a finding from this slice)
 
 The `⇒-app` case of the renaming lemma needs

@@ -39,6 +39,26 @@ open import Core.Syntax
 open import Core.Syntax public using (Canonical; Neutral; Value;
                                       canonical; neutral)
 
+------------------------------------------------------------------------
+-- The Canonical/Neutral split is a genuine partition
+--
+-- `Canonical` and `Neutral` are disjoint by construction: every
+-- `Canonical` constructor names an introduction form (`tm-type`, `tm-pi`,
+-- `tm-lam`, `tm-data`, `tm-ctor`, the base types/literals, and the effect
+-- formers) and every `Neutral` constructor names a stuck computation
+-- (`tm-var`, `tm-global`, `tm-hole`, `tm-app`, `tm-case`). No term is both.
+--
+-- This is what lets the head-inversion lemmas (Proof/Inversion.agda)
+-- discharge the elimination rules (`⇒-var`, `⇒-app`, `⇒-case`, `⇒-global`)
+-- from a `Canonical` head: their head is neutral, so `Canonical` is absurd.
+------------------------------------------------------------------------
+
+canonical-not-neutral : ∀ {t} → Canonical t → Neutral t → ⊥
+canonical-not-neutral () (n-var {k})
+canonical-not-neutral () (n-global {n})
+canonical-not-neutral () (n-hole {n})
+canonical-not-neutral () (n-app {f} {a} nf)
+canonical-not-neutral () (n-case {s} {m} {brs} ns)
 -- A closed term is never a neutral: a neutral's head is a free variable,
 -- an opaque global, or a hole, none of which is closed-and-final. This is
 -- the fact that lets Progress treat the `Neutral` branch as a value.
