@@ -152,6 +152,35 @@ module _ (sig : Signature) where
         → length args ≡ ar
         → tm-case (tm-ctor c args) m brs ⇝ substArgs args b
 
+      -- ι-nat / ι-bounded: a COMPACT builtin literal scrutinee peels ONE layer
+      -- to its constructor form and reuses the ι rule above, exactly as the
+      -- kernel's `Eval.nat_to_ctor_if` / `bounded_to_ctor_if` do at each ι-site.
+      --
+      --   nat_lit 0     ≙ Z            (0 args)
+      --   nat_lit (n+1) ≙ S(nat_lit n) (1 arg, predecessor left compact)
+      --   bounded_lit 0     ≙ First(nat_lit 0)                (1 arg: the bound)
+      --   bounded_lit (k+1) ≙ Next(nat_lit k, bounded_lit k)  (2 args: bound, pred)
+      --
+      -- The constructor names are the builtin basenames (`Z`/`S`/`First`/`Next`),
+      -- matching the kernel's `@builtin_ctor_aliases`; the metatheory uses the
+      -- basename directly rather than the owner-qualified identity.
+      ι-nat-zero : ∀ {m brs ar b}
+        → findBranch "Z" brs ≡ just ("Z" , ar , b)
+        → tm-case (tm-nat_lit 0) m brs ⇝ substArgs [] b
+
+      ι-nat-suc : ∀ {m brs ar b n}
+        → findBranch "S" brs ≡ just ("S" , ar , b)
+        → tm-case (tm-nat_lit (suc n)) m brs ⇝ substArgs (tm-nat_lit n ∷ []) b
+
+      ι-bounded-zero : ∀ {m brs ar b}
+        → findBranch "First" brs ≡ just ("First" , ar , b)
+        → tm-case (tm-bounded_lit 0) m brs ⇝ substArgs (tm-nat_lit 0 ∷ []) b
+
+      ι-bounded-suc : ∀ {m brs ar b k}
+        → findBranch "Next" brs ≡ just ("Next" , ar , b)
+        → tm-case (tm-bounded_lit (suc k)) m brs ⇝ substArgs (tm-nat_lit k ∷ tm-bounded_lit k ∷ []) b
+
+
       -- δ: global f ⇝ body(f), only when the signature supplies a body.
       δ : ∀ {f body′} → Signature.body sig f ≡ just body′ → tm-global f ⇝ body′
 

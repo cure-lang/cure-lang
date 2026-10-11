@@ -72,7 +72,7 @@ recommends.
 | `Core.Universe` | The three-element universe hierarchy `l0 : l1 : l2`; cumulativity `_≤ˡ_`; max `_⊔ˡ_`; `succLevel` | ✅ complete |
 | `Core.Syntax` | `Term` (faithful to `Cure.Core.Term`); de Bruijn `shift`/`substS` (simultaneous substitution); `Scoped`/`Closed` | ✅ complete |
 | `Core.Value` | The NbE value domain: closures, neutrals, size-indexed so closures are structurally smaller | ✅ complete |
-| `Core.Reduction` | The reduction relation `_⇝_` (β, ζ, ι, δ, congruence) and its reflexive-transitive closure | ✅ complete |
+| `Core.Reduction` | The reduction relation `_⇝_` (β, ζ, ι, δ, congruence, and the `ι-nat-*`/`ι-bounded-*` literal peels) and its reflexive-transitive closure | ✅ complete |
 | `Core.Signature` | Inductive families, constructors, telescopes; nested strict positivity | ✅ complete |
 | `Core.Typing` | The bidirectional `infer`/`check` judgment `_⊢_⇒_` / `_⊢_⇐_`, over a length-indexed context with `Fin` lookup | ✅ complete |
 | `Proof.Values` | The `Canonical`/`Neutral`/`Value` split (a value includes neutrals) | ✅ complete |
@@ -80,7 +80,7 @@ recommends.
 | `Proof.CanonicalForms` | `canonical-pi-value`, `canonical-ctor` | ✅ **proved** (= `invert-*-check`) |
 | `Proof.Substitution` | shift/subst algebraic laws | ✅ `shift-0`, `shift-var-1`, the rename/subst interaction laws, and the branch-field lemmas **proved**; only `shift-subst` (app case) open |
 | `Proof.Context` | Length-indexed context laws: weakening lookup, `extendⁿ` lookup, branch morphism `extF` | ✅ **proved** |
-| `Proof.Progress` | `Final` Core; the three side conditions; `progress` | ⚠️ statement done, proof open (needs canonical forms) |
+| `Proof.Progress` | `Final` Core; the three side conditions; `progress` | ⚠️ statement done; all inputs proved, proof is bookkeeping |
 | `Proof.Preservation` | `weaken`, `subst⇒`, `subst⇐`, `preservation` | ⚠️ renaming/substitution lemmas **proved** except `ren-app`/`subst-app`; `preservation` open |
 | `Proof.Soundness` | `EvalResult`; `soundness` | ⚠️ statement done, proof open |
 
@@ -165,8 +165,14 @@ These are the `postulate`s, each with a named proof strategy in the source:
    **derived** from the single hypothesis `ClosedSig ind sig` (a `Scoped 0`
    predicate on signature entries) via `rename-closed` / `substS-closed` —
    no longer postulated.
-4. **`progress`** (`Proof/Progress.agda`) — by cases on the typing
-   derivation, consuming the canonical-form lemmas to show β and ι fire.
+4. **`progress`** (`Proof/Progress.agda`) — by mutual cases on the typing
+   derivation (infer and check), consuming the canonical-form lemmas to show
+   β and ι fire. All the inputs are now proved: the canonical-form lemmas,
+   `spine-length` + `brs-arity` (branch-arity alignment), `findBranch-complete`
+   (coverage → `findBranch`), and the literal-peeling reduction rules. The
+   remaining work is bookkeeping: extracting the scrutinee's constructor
+   membership (`c ∈ allCtorNames`) from its inference derivation so the
+   coverage witness applies. See [The `progress` inputs](#the-progress-inputs).
 5. **`preservation`** (`Proof/Preservation.agda`) — the four cases β, ζ, ι,
    δ. β/ζ consume `subst⇐`; ι is the branch-coverage lemma; δ consumes
    `Certified`. The β/ζ/ι cases are independent of the app case; the
@@ -174,8 +180,32 @@ These are the `postulate`s, each with a named proof strategy in the source:
 6. **`soundness`** (`Proof/Soundness.agda`) — the type-safety induction
    combining Progress and Preservation.
 
-### The `invert-data` finding
+### The `progress` inputs
 
+The `progress` proof is not blocked on a design question — every input it
+needs is now proved or present:
+
+- **Canonical-form lemmas** (`canonical-pi-value` / `canonical-ctor`): turn a
+  canonical Π/data value into a λ / constructor-like head, so β and ι fire.
+- **`spine-length`** (`Core.Typing`) and **`brs-arity`** (`Proof.Progress`):
+  match the ι branch's arity to the constructor's argument telescope.
+- **`findBranch-complete`** (`Core.Reduction`): turns the coverage witness
+  into the `findBranch c brs ≡ just (c , ar , b)` premise of ι.
+- **The literal-peeling reduction rules** (`ι-nat-zero` / `ι-nat-suc` /
+  `ι-bounded-zero` / `ι-bounded-suc` in `Core.Reduction`): a `case` on a
+  compact `tm-nat_lit` / `tm-bounded_lit` scrutinee is NOT stuck — it peels
+  one layer to `Z`/`S` / `First`/`Next`, exactly as the kernel's
+  `Eval.nat_to_ctor_if` / `bounded_to_ctor_if` do. This closes the gap the
+  `invert-data` finding exposed: without it, a well-typed case on a literal
+  would be stuck.
+- **Neutral terms are `Value`s** (the `inj₁` branch), so the elimination
+  rules are never stuck; `⇒-var` is vacuous (`Fin 0` is empty).
+
+`Covers` (`Proof.Progress`) is strengthened to yield a branch NAMED `c`
+(not merely some branch in the list) — the honest reading of "a branch for
+constructor `c`", and what `findBranch` needs.
+
+### The `invert-data` finding
 The naive canonical-form lemma "a canonical value of data type is a
 `tm-ctor`" is **false**. `tm-nat_lit m` and `tm-bounded_lit k` are canonical
 (`c-nat_lit` / `c-bounded_lit`) and infer `tm-data Nat [] []` /

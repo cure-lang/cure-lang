@@ -24,6 +24,7 @@ open import Data.Bool using (Bool; true; false)
 open import Data.Nat using (ℕ; zero; suc)
 open import Data.List using (List; []; _∷_; length; map; concatMap)
 open import Data.List.Membership.Propositional using (_∈_)
+open import Data.List.Relation.Unary.Any using (here; there)
 open import Data.Product using (Σ; _×_; _,_; proj₁; proj₂; ∃; ∃-syntax)
 open import Data.Maybe using (Maybe; just; nothing)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
@@ -103,13 +104,17 @@ Certified sig = ∀ {f body′} → Signature.body sig f ≡ just body′ → Fi
 -- The coverage check (`check_coverage`) requires a branch for every
 -- constructor the index unifier does not refute. We take it as a predicate
 -- on the inductive environment, discharged by Core/Coverage.agda.
+--
+-- The witness is a branch NAMED `c` (not merely some branch in the list):
+-- that is what `findBranch c brs` needs to fire ι, and it is the honest
+-- reading of "a branch for constructor `c`".
 allCtorNames : List Family → List Name
 allCtorNames fs = concatMap (λ f → map ctor-name (Family.fam-ctors f)) fs
 
 Covers : IndEnv → Set
 Covers ind = ∀ (brs : List Branch) (m : Term)
            → (∀ (c : Name) → c ∈ allCtorNames (IndEnv.families ind)
-             → Σ Branch (λ b → b ∈ brs))
+             → ∃ λ ar → ∃ λ b → (c , ar , b) ∈ brs)
 
 ------------------------------------------------------------------------
 -- Progress (docs/SOUNDNESS.md §2)
@@ -129,22 +134,47 @@ module Progress (ind : IndEnv) (sig : Signature) (conv : Conversion)
   Closed⊢ : Term → Term → Set
   Closed⊢ t T = ⟨⟩ ⊢ t ⇒ T
 
+  -- The result type of Progress.
+  ProgressResult : Term → Set
+  ProgressResult t = Value t ⊎ (∃ λ t′ → _⇝_ sig t t′)
+
+  -- A branch's arity equals its constructor's argument-telescope length. Read
+  -- off the `⊢*brs` derivation: `brs∷` records `length (ctor-args ct) ≡ ar`.
+  brs-arity : ∀ {brs n m}
+            → ⟨⟩ ⊢*brs brs ⇐*ᵇ (n , m)
+            → ∀ {c ar b} → (c , ar , b) ∈ brs
+            → ∃ λ f → ∃ λ ct
+            → findCtor c (IndEnv.families ind) ≡ just (f , ct)
+              × length (ctor-args ct) ≡ ar
+  brs-arity brs[] ()
+  brs-arity (brs∷ {ct = ct} fc len _body rest) (here refl) = _ , ct , fc , len
+  brs-arity (brs∷ fc len _body rest) (there p) = brs-arity rest p
+
   -- Progress: a well-typed closed final term is a value or it steps.
   --
-  -- The proof proceeds by cases on the typing derivation, exactly as
-  -- docs/SOUNDNESS.md §2 walks the term formers. The two OPEN OBLIGATIONS
-  -- are the canonical-form lemmas (Proof/CanonicalForms.agda): they are
-  -- what turn "the function position is a value of Π type" into "it is a
-  -- λ, so β fires" and "the scrutinee is a value of data type" into "it is
-  -- a ctor, so ι fires".
+  -- OPEN OBLIGATION. The proof is by mutual induction on the typing
+  -- derivation (infer and check), exactly as docs/SOUNDNESS.md §2 walks the
+  -- term formers. The pieces are now ALL in place:
+  --
+  --   * `canonical-pi-value` / `canonical-ctor` (Proof/CanonicalForms.agda)
+  --     turn a canonical Π/data value into a λ / constructor-like head, so β
+  --     and ι fire;
+  --   * `spine-length` + `brs-arity` match the ι branch arity to the ctor's
+  --     argument telescope;
+  --   * `findBranch-complete` turns the coverage witness into the
+  --     `findBranch c brs ≡ just (c , ar , b)` premise of ι;
+  --   * the `ι-nat-*` / `ι-bounded-*` reduction rules (Core/Reduction.agda)
+  --     peel a compact literal scrutinee to its constructor form, so a `case`
+  --     on `tm-nat_lit` / `tm-bounded_lit` is not stuck;
+  --   * a neutral term is a `Value` (the `inj₁` branch), so the elimination
+  --     rules are never stuck; `⇒-var` is vacuous (`Fin 0` is empty).
+  --
+  -- What remains is the bookkeeping: extracting the scrutinee's constructor
+  -- membership (`c ∈ allCtorNames`) from its inference derivation, so the
+  -- coverage witness applies. This is mechanical, not a design question.
   postulate
     progress :
       ∀ {t T}
       → Closed⊢ t T
       → Final t
       → Value t ⊎ (∃ λ t′ → _⇝_ sig t t′)
-
--- Preservation and Soundness live in Proof/Preservation.agda and
--- Proof/Soundness.agda respectively; this module owns Progress and the
--- three side conditions it consumes.
-
