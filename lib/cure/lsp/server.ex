@@ -22,7 +22,7 @@ defmodule Cure.LSP.Server do
 
   alias Cure.LSP.Transport
   alias Cure.LSP.Positions
-  alias Cure.Compiler.{Formatter, Lexer, Parser, Printer}
+  alias Cure.Compiler.{Formatter, Lexer, Parser, Printer, Token}
   alias Cure.MetaAST.Metadata
 
   defstruct [
@@ -372,7 +372,8 @@ defmodule Cure.LSP.Server do
     docs = Map.get(state, :documents, %{})
     text = Map.get(docs, uri, "")
 
-    Transport.send_response(id, %{"data" => compute_semantic_tokens(text)})
+    encoding = Map.get(state, :position_encoding, :utf16)
+    Transport.send_response(id, %{"data" => compute_semantic_tokens(text, encoding)})
     {state, []}
   end
 
@@ -1627,39 +1628,67 @@ defmodule Cure.LSP.Server do
 
   # -- Semantic tokens ----------------------------------------------------------
 
+  # Identifiers highlighted as keywords: container heads and proof vocabulary
+  # the parser recognises by position. Reserved words come from the lexer.
+  @semantic_vocabulary ~w(actor fsm sup app have proof because rewrite simplify induction case requires)
+
+  # Keyword tokens taken from the lexer, so words inside comments and strings
+  # are never marked. Text that does not tokenize gets no semantic tokens and
+  # the editor keeps its own grammar.
   @doc false
-  def compute_semantic_tokens(text) do
-    keywords =
-      ~w(fn mod rec actor fsm sup app interface implementation type typealias primitive let have proof because rewrite simplify induction case pickup else match return throw try catch finally use local when requires where deriving quote unsafe)
+  def compute_semantic_tokens(text, encoding \\ :utf16) do
+    case Lexer.tokenize(text, emit_events: false) do
+      {:ok, tokens} ->
+        lines = String.split(text, "\n")
+        starts = lines |> Enum.scan(0, &(byte_size(&1) + 1 + &2)) |> then(&[0 | &1]) |> List.to_tuple()
+        lines = List.to_tuple(lines)
 
-    lines = String.split(text, "\n")
+        tokens
+        |> Enum.filter(&semantic_keyword?/1)
+        |> Enum.map(&semantic_position(&1, lines, starts, encoding))
+        |> encode_semantic_tokens()
 
+      _ ->
+        []
+    end
+  end
+
+  defp semantic_keyword?(%Token{span: nil}), do: false
+  defp semantic_keyword?(%Token{type: :keyword}), do: true
+  defp semantic_keyword?(%Token{type: :identifier, value: value}), do: value in @semantic_vocabulary
+  defp semantic_keyword?(_token), do: false
+
+  defp semantic_position(%Token{span: span}, lines, starts, encoding) do
+    line = span.start_line - 1
+    text = elem(lines, line)
+    line_start = elem(starts, line)
+    start = encoded_columns(text, span.start_byte - line_start, encoding)
+    finish = encoded_columns(text, span.end_byte - line_start, encoding)
+    {line, start, finish - start}
+  end
+
+  # LSP columns count units of the negotiated encoding, not bytes.
+  defp encoded_columns(text, byte_column, :utf8), do: min(byte_column, byte_size(text))
+
+  defp encoded_columns(text, byte_column, encoding) do
+    prefix = binary_part(text, 0, min(byte_column, byte_size(text)))
+
+    case encoding do
+      :utf32 -> String.length(prefix)
+      _ -> prefix |> :unicode.characters_to_binary(:utf8, {:utf16, :little}) |> byte_size() |> div(2)
+    end
+  end
+
+  # [delta line, delta start, length, token type (0 = keyword), modifiers]
+  defp encode_semantic_tokens(positions) do
     {data, _} =
-      Enum.reduce(Enum.with_index(lines), {[], {0, 0}}, fn {line, idx}, {acc, prev} ->
-        tokens = scan_keyword_tokens(line, keywords, idx)
-
-        Enum.reduce(tokens, {acc, prev}, fn {l, c, len, ttype}, {acc2, {pl, pc}} ->
-          delta_line = l - pl
-          delta_start = if delta_line == 0, do: c - pc, else: c
-          # Prepend in reverse field order so that the final Enum.reverse/1
-          # produces the LSP-required 5-int tuple sequence
-          # [delta_line, delta_start, length, token_type, token_modifiers].
-          {[0, ttype, len, delta_start, delta_line | acc2], {l, c}}
-        end)
+      Enum.reduce(positions, {[], {0, 0}}, fn {line, col, len}, {acc, {prev_line, prev_col}} ->
+        delta_line = line - prev_line
+        delta_col = if delta_line == 0, do: col - prev_col, else: col
+        {[0, 0, len, delta_col, delta_line | acc], {line, col}}
       end)
 
     Enum.reverse(data)
-  end
-
-  defp scan_keyword_tokens(line, keywords, line_idx) do
-    keywords
-    |> Enum.flat_map(fn kw ->
-      pat = Regex.compile!("\\b" <> Regex.escape(kw) <> "\\b")
-
-      Regex.scan(pat, line, return: :index)
-      |> Enum.map(fn [{start, len}] -> {line_idx, start, len, 0} end)
-    end)
-    |> Enum.sort()
   end
 
   # -- Workspace symbols --------------------------------------------------------

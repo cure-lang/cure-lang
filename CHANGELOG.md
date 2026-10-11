@@ -70,6 +70,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `quote`, `band`, ...), treated `assert_type`/`rewrite`/`with` as keywords,
   and its `dist/` bundle was a hand-kept copy of the source. Its keyword
   lists are now generated and `dist/cure.min.js` is built from the source.
+- `cure-lsp` marked keywords inside comments and strings as semantic tokens
+  (a regex over each line), so editors coloured `type` or `when` in doc
+  comments over their own grammar. Semantic tokens now come from the lexer's
+  tokens, with columns in the negotiated position encoding.
 
 ## [0.34.0] -- One Dependent Pipeline -- 2026-10-10
 

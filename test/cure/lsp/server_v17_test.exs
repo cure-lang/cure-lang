@@ -134,6 +134,35 @@ defmodule Cure.LSP.ServerV17Test do
       assert 6 in keyword_lengths
     end
 
+    test "ignores keywords inside comments and strings" do
+      source = """
+      mod Demo
+        ###
+        any type expression
+        ###
+        ## identity when Off
+        fn f() -> String = "type match"
+      """
+
+      words =
+        for [dl, dc, len, 0, 0] <- Enum.chunk_every(Server.compute_semantic_tokens(source), 5), reduce: {[], 0, 0} do
+          {acc, line, col} ->
+            {line, col} = if dl == 0, do: {line, col + dc}, else: {line + dl, dc}
+            text = source |> String.split("\n") |> Enum.at(line) |> String.slice(col, len)
+            {[text | acc], line, col}
+        end
+        |> elem(0)
+        |> Enum.reverse()
+
+      assert words == ["mod", "fn"]
+    end
+
+    test "counts columns in UTF-16 units" do
+      # `if` starts at byte 7 but UTF-16 unit 5: the emoji is 4 bytes, 2 units.
+      assert [0, 5, 2, 0, 0] = Server.compute_semantic_tokens(~s("😀" if))
+      assert [0, 4, 2, 0, 0] = Server.compute_semantic_tokens(~s("😀" if), :utf32)
+    end
+
     test "produces an LSP token integer stream" do
       tokens = Server.compute_semantic_tokens(@sample)
       assert is_list(tokens)
