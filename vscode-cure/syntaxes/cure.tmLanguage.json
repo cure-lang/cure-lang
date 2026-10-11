@@ -4,40 +4,84 @@
   "scopeName": "source.cure",
   "patterns": [
     {
-      "include": "#comments"
-    },
-    {
-      "include": "#strings"
-    },
-    {
-      "include": "#atoms"
-    },
-    {
-      "include": "#numbers"
-    },
-    {
-      "include": "#keywords"
-    },
-    {
-      "include": "#otp_keywords"
-    },
-    {
-      "include": "#types"
-    },
-    {
-      "include": "#constructors"
-    },
-    {
-      "include": "#operators"
+      "include": "#code"
     }
   ],
   "repository": {
+    "code": {
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "include": "#strings"
+        },
+        {
+          "include": "#chars"
+        },
+        {
+          "include": "#regexes"
+        },
+        {
+          "include": "#declarations"
+        },
+        {
+          "include": "#contextual"
+        },
+        {
+          "include": "#macro_vocabulary"
+        },
+        {
+          "include": "#decorators"
+        },
+        {
+          "include": "#transitions"
+        },
+        {
+          "include": "#keywords"
+        },
+        {
+          "include": "#constants"
+        },
+        {
+          "include": "#atoms"
+        },
+        {
+          "include": "#numbers"
+        },
+        {
+          "include": "#holes"
+        },
+        {
+          "include": "#calls"
+        },
+        {
+          "include": "#identifiers"
+        },
+        {
+          "include": "#types"
+        },
+        {
+          "include": "#groups"
+        },
+        {
+          "include": "#operators"
+        },
+        {
+          "include": "#punctuation"
+        }
+      ]
+    },
     "comments": {
       "patterns": [
         {
-          "name": "comment.block.cure",
-          "begin": "#\\|",
-          "end": "\\|#"
+          "name": "comment.block.documentation.cure",
+          "begin": "###",
+          "end": "^\\s*###.*$"
+        },
+        {
+          "name": "comment.line.documentation.cure",
+          "match": "##.*$"
         },
         {
           "name": "comment.line.number-sign.cure",
@@ -56,50 +100,271 @@
         },
         {
           "name": "meta.embedded.line.cure",
+          "contentName": "source.cure",
           "begin": "#\\{",
           "end": "\\}",
-          "captures": {
+          "beginCaptures": {
             "0": {
-              "name": "punctuation.section.embedded.cure"
+              "name": "punctuation.section.embedded.begin.cure"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.section.embedded.end.cure"
             }
           },
           "patterns": [
             {
-              "include": "source.cure"
+              "include": "#code"
             }
           ]
         }
       ]
     },
-    "atoms": {
+    "chars": {
+      "name": "constant.character.cure",
+      "match": "'''|'[^'\\\\\\n]'|'\\\\.[^'\\n]*'"
+    },
+    "regexes": {
+      "name": "string.regexp.cure",
+      "match": "~r/(?:[^/\\\\\\n]|\\\\.)*/[a-zA-Z]*"
+    },
+    "declarations": {
       "patterns": [
         {
-          "name": "constant.other.symbol.cure",
-          "match": ":[a-zA-Z_][a-zA-Z0-9_]*"
+          "match": "\\b(mod)\\s+([A-Z][a-zA-Z0-9_]*(?:\\.[A-Z][a-zA-Z0-9_]*)*)",
+          "captures": {
+            "1": {
+              "name": "keyword.control.cure"
+            },
+            "2": {
+              "name": "entity.name.namespace.cure"
+            }
+          }
         },
         {
-          "name": "constant.other.symbol.cure",
-          "match": ":\"[^\"]*\""
+          "match": "\\b(fn)\\s+([a-z_][a-zA-Z0-9_$]*\\??|`[^`\\n]*`)",
+          "captures": {
+            "1": {
+              "name": "storage.type.function.cure"
+            },
+            "2": {
+              "name": "entity.name.function.cure"
+            }
+          }
+        },
+        {
+          "match": "(\\b(?:type|typealias|rec|interface|implementation|proto|impl)\\b)\\s+([A-Z][a-zA-Z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "keyword.control.cure"
+            },
+            "2": {
+              "name": "entity.name.type.cure"
+            }
+          }
+        },
+        {
+          "match": "(\\b(?:actor|app|behavior|fsm|sup|proof)\\b)\\s+([A-Z][a-zA-Z0-9_]*(?:\\.[A-Z][a-zA-Z0-9_]*)*)",
+          "captures": {
+            "1": {
+              "name": "storage.type.cure"
+            },
+            "2": {
+              "name": "entity.name.type.cure"
+            }
+          }
+        },
+        {
+          "match": "\\b(macro)\\s+([A-Z][a-zA-Z0-9_]*(?:\\.[A-Z][a-zA-Z0-9_]*)*|[a-z_][a-zA-Z0-9_$]*\\??)",
+          "captures": {
+            "1": {
+              "name": "storage.type.cure"
+            },
+            "2": {
+              "name": "entity.name.function.macro.cure"
+            }
+          }
         }
       ]
     },
-    "numbers": {
+    "contextual": {
       "patterns": [
         {
-          "name": "constant.numeric.hex.cure",
-          "match": "\\b0x[0-9a-fA-F_]+\\b"
+          "match": "^\\s*(have)\\s+(?=[a-z_])",
+          "captures": {
+            "1": {
+              "name": "keyword.control.cure"
+            }
+          }
         },
         {
-          "name": "constant.numeric.binary.cure",
-          "match": "\\b0b[01_]+\\b"
+          "match": "\\b(requires)\\s+(?=[A-Z])",
+          "captures": {
+            "1": {
+              "name": "keyword.control.cure"
+            }
+          }
         },
         {
-          "name": "constant.numeric.float.cure",
-          "match": "\\b[0-9][0-9_]*\\.[0-9][0-9_]*\\b"
+          "match": "^\\s*(precedencegroup)\\s+(?=[A-Z])",
+          "captures": {
+            "1": {
+              "name": "keyword.control.cure"
+            }
+          }
         },
         {
-          "name": "constant.numeric.integer.cure",
-          "match": "\\b[0-9][0-9_]*\\b"
+          "match": "^\\s*(infix|prefix|postfix)\\s+(?=`)",
+          "captures": {
+            "1": {
+              "name": "keyword.control.cure"
+            }
+          }
+        },
+        {
+          "match": "\\b(proof)\\s+(chain)\\b",
+          "captures": {
+            "1": {
+              "name": "keyword.control.cure"
+            },
+            "2": {
+              "name": "keyword.control.cure"
+            }
+          }
+        },
+        {
+          "match": "^\\s*(because)\\b",
+          "captures": {
+            "1": {
+              "name": "keyword.control.cure"
+            }
+          }
+        },
+        {
+          "match": "^\\s*(on_[a-z_]+)\\b",
+          "captures": {
+            "1": {
+              "name": "keyword.other.special.cure"
+            }
+          }
+        }
+      ]
+    },
+    "macro_vocabulary": {
+      "patterns": [
+        {
+          "match": "^\\s*(syntax)\\s+(family)\\b",
+          "captures": {
+            "1": {
+              "name": "keyword.control.cure"
+            },
+            "2": {
+              "name": "keyword.control.cure"
+            }
+          }
+        },
+        {
+          "match": "^\\s*(syntax|example|literal)\\s+((?!\\b(?:mod|fn|let|type|typealias|opaque|primitive|indexed|indices|rec|proto|impl|local|use|as|interface|implementation|deriving|match|pickup|if|elif|else|then|for|do|end|in|try|catch|finally|throw|return|yield|spawn|send|receive|after|when|where|and|or|not|band|bor|bxor|bsl|bsr|bnot|extern|quote|unsafe|actor|app|behavior|fsm|sup|proof|macro)\\b)[a-z_][a-zA-Z0-9_$]*\\??)",
+          "captures": {
+            "1": {
+              "name": "keyword.control.cure"
+            },
+            "2": {
+              "name": "entity.name.function.macro.cure"
+            }
+          }
+        },
+        {
+          "match": "(?:^\\s*)?\\b(expands\\s+with|computed(?:\\s+directly)?\\s+by)\\s+([a-z_][a-zA-Z0-9_$]*\\??)",
+          "captures": {
+            "1": {
+              "name": "keyword.control.cure"
+            },
+            "2": {
+              "name": "entity.name.function.cure"
+            }
+          }
+        },
+        {
+          "match": "^\\s*(optional|repeated|one_or_more)\\s+((?!\\b(?:mod|fn|let|type|typealias|opaque|primitive|indexed|indices|rec|proto|impl|local|use|as|interface|implementation|deriving|match|pickup|if|elif|else|then|for|do|end|in|try|catch|finally|throw|return|yield|spawn|send|receive|after|when|where|and|or|not|band|bor|bxor|bsl|bsr|bnot|extern|quote|unsafe|actor|app|behavior|fsm|sup|proof|macro)\\b)[a-z_][a-zA-Z0-9_$]*\\??)",
+          "captures": {
+            "1": {
+              "name": "keyword.control.cure"
+            },
+            "2": {
+              "name": "variable.other.property.cure"
+            }
+          }
+        },
+        {
+          "match": "^\\s*(accepts|expands|explain|fail|open|includes|keyword)\\b",
+          "captures": {
+            "1": {
+              "name": "keyword.control.cure"
+            }
+          }
+        },
+        {
+          "match": "\\b(becomes|contextual|expands)\\b",
+          "name": "keyword.control.cure"
+        },
+        {
+          "match": "^\\s*((?!\\b(?:mod|fn|let|type|typealias|opaque|primitive|indexed|indices|rec|proto|impl|local|use|as|interface|implementation|deriving|match|pickup|if|elif|else|then|for|do|end|in|try|catch|finally|throw|return|yield|spawn|send|receive|after|when|where|and|or|not|band|bor|bxor|bsl|bsr|bnot|extern|quote|unsafe|actor|app|behavior|fsm|sup|proof|macro)\\b)[a-z_][a-zA-Z0-9_$]*\\??)\\s+([A-Z][a-zA-Z0-9_]*)\\s*$",
+          "captures": {
+            "1": {
+              "name": "variable.other.property.cure"
+            },
+            "2": {
+              "name": "entity.name.type.cure"
+            }
+          }
+        },
+        {
+          "match": "(?<=<)([a-z_][a-zA-Z0-9_$]*\\??)(?=\\s*:)",
+          "captures": {
+            "1": {
+              "name": "variable.parameter.cure"
+            }
+          }
+        },
+        {
+          "match": "(?<=>)\\s*(is)\\b",
+          "captures": {
+            "1": {
+              "name": "keyword.control.cure"
+            }
+          }
+        }
+      ]
+    },
+    "decorators": {
+      "match": "(@)([a-z_][a-zA-Z0-9_$]*\\??)",
+      "captures": {
+        "1": {
+          "name": "punctuation.definition.decorator.cure"
+        },
+        "2": {
+          "name": "entity.name.function.decorator.cure"
+        }
+      }
+    },
+    "transitions": {
+      "patterns": [
+        {
+          "match": "(--)([a-zA-Z_][a-zA-Z0-9_]*\\??)",
+          "captures": {
+            "1": {
+              "name": "keyword.operator.transition.cure"
+            },
+            "2": {
+              "name": "entity.name.label.cure"
+            }
+          }
+        },
+        {
+          "name": "keyword.operator.transition.cure",
+          "match": "!?-->"
         }
       ]
     },
@@ -107,73 +372,140 @@
       "patterns": [
         {
           "name": "keyword.control.cure",
-          "match": "\\b(match|pickup|if|elif|else|then|for|do|end|in|try|catch|finally|throw|return|yield|spawn|send|receive|after|when|where)\\b"
+          "match": "\\b(?:mod|fn|let|type|typealias|opaque|primitive|indexed|indices|rec|proto|impl|local|use|as|interface|implementation|deriving|match|pickup|if|elif|else|then|for|do|end|in|try|catch|finally|throw|return|yield|spawn|send|receive|after|when|where|extern|quote|unsafe)\\b"
         },
         {
-          "name": "keyword.other.declaration.cure",
-          "match": "\\b(mod|use|as|type|typealias|opaque|primitive|indexed|indices|rec|proto|impl|local|interface|implementation|deriving)\\b"
-        },
-        {
-          "name": "keyword.other.function.cure",
-          "match": "\\b(fn|let|extern|proof|unsafe|quote)\\b"
-        },
-        {
-          "name": "storage.type.quantity.cure",
-          "match": "\\b(erased|linear|affine)\\b"
-        },
-        {
-          "name": "keyword.operator.logical.cure",
-          "match": "\\b(and|or|not|band|bor|bxor|bsl|bsr|bnot)\\b"
-        },
-        {
-          "name": "constant.language.cure",
-          "match": "\\b(true|false|nil)\\b"
+          "name": "keyword.operator.word.cure",
+          "match": "\\b(?:and|or|not|band|bor|bxor|bsl|bsr|bnot)\\b"
         }
       ]
     },
-    "otp_keywords": {
+    "constants": {
       "patterns": [
         {
-          "name": "keyword.other.otp.cure",
-          "match": "\\b(actor|sup|app|fsm|state|event|transition|on_transition|on_enter|on_exit|on_failure|on_timer)\\b"
+          "name": "constant.language.boolean.cure",
+          "match": "\\b(?:true|false)\\b"
+        },
+        {
+          "name": "constant.language.nil.cure",
+          "match": "\\bnil\\b"
+        },
+        {
+          "name": "support.constant.constructor.cure",
+          "match": "\\b(?:Ok|Error|Some|None|True|False|Z|S)\\b"
+        }
+      ]
+    },
+    "atoms": {
+      "name": "constant.other.symbol.cure",
+      "match": ":[a-zA-Z_][a-zA-Z0-9_]*[?!]?"
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.hex.cure",
+          "match": "\\b0[xX][0-9a-fA-F_]+\\b"
+        },
+        {
+          "name": "constant.numeric.binary.cure",
+          "match": "\\b0[bB][01_]+\\b"
+        },
+        {
+          "name": "constant.numeric.octal.cure",
+          "match": "\\b0[oO][0-7_]+\\b"
+        },
+        {
+          "name": "constant.numeric.decimal.cure",
+          "match": "\\b[0-9][0-9_]*(?:\\.[0-9][0-9_]*)?(?:[eE][+-]?[0-9]+)?\\b"
+        }
+      ]
+    },
+    "holes": {
+      "name": "variable.language.hole.cure",
+      "match": "\\?[a-zA-Z_][a-zA-Z0-9_]*"
+    },
+    "calls": {
+      "match": "\\b([a-z_][a-zA-Z0-9_$]*\\??)(?=\\()",
+      "captures": {
+        "1": {
+          "name": "entity.name.function.call.cure"
+        }
+      }
+    },
+    "identifiers": {
+      "patterns": [
+        {
+          "name": "variable.other.quoted.cure",
+          "match": "`[^`\\n]*`"
+        },
+        {
+          "name": "variable.other.cure",
+          "match": "\\b[a-z_][a-zA-Z0-9_$]*\\??"
         }
       ]
     },
     "types": {
-      "patterns": [
-        {
-          "name": "support.type.cure",
-          "match": "\\b(Int|Float|String|Atom|Bool|List|Map|Tuple|Result|Option|Effect|Unit|Pid|Reference|Port)\\b"
-        },
-        {
-          "name": "entity.name.type.cure",
-          "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
-        }
-      ]
-    },
-    "constructors": {
-      "patterns": [
-        {
-          "name": "constant.language.constructor.cure",
-          "match": "\\b(Ok|Error|Some|None|True|False)\\b"
-        }
-      ]
+      "name": "entity.name.type.cure",
+      "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
     },
     "operators": {
       "patterns": [
         {
-          "name": "keyword.operator.melquiades.cure",
-          "match": "(<-\\||✉)"
+          "name": "keyword.operator.send.cure",
+          "match": "<-\\||✉"
+        },
+        {
+          "name": "keyword.operator.pipe.cure",
+          "match": "\\|>"
         },
         {
           "name": "keyword.operator.arrow.cure",
-          "match": "(->|=>)"
+          "match": "->|=>"
+        },
+        {
+          "name": "keyword.operator.range.cure",
+          "match": "\\.\\.=?"
         },
         {
           "name": "keyword.operator.cure",
-          "match": "([:=|&\\-+*/%<>!^~]+)"
+          "match": "::|[+\\-*/=<>!|&^~\\\\]+|[:.%$?]"
         }
       ]
+    },
+    "groups": {
+      "patterns": [
+        {
+          "begin": "%?\\{",
+          "end": "\\}",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.section.braces.begin.cure"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.section.braces.end.cure"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#code"
+            }
+          ]
+        },
+        {
+          "name": "punctuation.section.parens.cure",
+          "match": "\\$?\\(|\\)"
+        },
+        {
+          "name": "punctuation.section.brackets.cure",
+          "match": "%?\\[|\\]"
+        }
+      ]
+    },
+    "punctuation": {
+      "name": "punctuation.separator.cure",
+      "match": "[,;]"
     }
   }
 }

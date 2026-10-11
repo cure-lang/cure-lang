@@ -55,9 +55,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `cure.lsp.path` / `cure.mcp.path`, and says which setting to change when
   it finds nothing. The REPL command uses the same lookup, and
   `cure.trace.server` now takes effect.
+- `vscode-cure`'s TextMate grammar is generated from `tree-sitter-cure`'s
+  keyword list (`scripts/build-grammar.js`) and follows the tree-sitter
+  grammar's tokens: `##`/`###` doc comments instead of a `#| |#` block
+  comment Cure does not have, chars, `~r//` regexes, holes, decorators, FSM
+  transitions, contextual keywords and macro vocabulary.
+  `language-configuration.json` no longer declares `#| |#` either.
 - `neovim-cure/syntax/cure.vim` (the fallback without tree-sitter) declared a
   `#| |#` block comment and keywords Cure does not have (`state`, `event`,
   `erased`, ...); it now follows the tree-sitter grammar's tokens.
+- No editor grammar knew `directly` in `computed directly by` (used by
+  `Std.Supervisor`'s `child` rule); all of them highlight it now.
 - `highlightjs-cure` missed twenty keywords (`interface`, `deriving`,
   `quote`, `band`, ...), treated `assert_type`/`rewrite`/`with` as keywords,
   and its `dist/` bundle was a hand-kept copy of the source. Its keyword
