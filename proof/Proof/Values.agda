@@ -59,14 +59,18 @@ canonical-not-neutral () (n-global {n})
 canonical-not-neutral () (n-hole {n})
 canonical-not-neutral () (n-app {f} {a} nf)
 canonical-not-neutral () (n-case {s} {m} {brs} ns)
--- A closed term is never a neutral: a neutral's head is a free variable,
--- an opaque global, or a hole, none of which is closed-and-final. This is
--- the fact that lets Progress treat the `Neutral` branch as a value.
+-- A closed term has no free variable: `Scoped 0 (tm-var k)` is absurd.
 --
--- OPEN OBLIGATION: proved by induction on `Neutral`, using that a closed
--- term has no free `tm-var` (from `Closed`) and that `tm-global`/`tm-hole`
--- are excluded by `Final` + the signature's totality.
-postulate
-  closed-not-neutral :
-    ∀ {t} → Neutral t → ⊥
-
+-- A FINDING: the earlier statement `Neutral t → ⊥` ("a closed term is never
+-- a neutral") is FALSE. `tm-global n` is closed (`sc-global`) and final
+-- (`f-global`) yet neutral (`n-global`) — an opaque global is a legitimate
+-- closed value. The only closed neutral heads that are genuinely absurd are
+-- the free variable (`tm-var`, ruled out by closedness) and the hole
+-- (`tm-hole`, ruled out by `Final`).
+--
+-- The fact Progress actually consumes is the free-variable one: a closed
+-- term cannot be a bare variable. (In the typing judgment the `⇒-var` case
+-- is already vacuous, because it needs `Fin 0`, which is empty; this lemma
+-- records the underlying syntactic fact for reuse.)
+closed-no-var : ∀ {k} → Scoped 0 (tm-var k) → ⊥
+closed-no-var (sc-var ())

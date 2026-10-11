@@ -399,6 +399,14 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
          → Γ ⊢* xs ⇐* tele
          → Γ ⊢* (x ∷ xs) ⇐* ((nm , T) ∷ tele)
 
+  -- A checked spine has the same length as its telescope. Used by Progress's
+  -- `case`/ι case to discharge the `length args ≡ ar` premise of the ι rule:
+  -- `⇒-ctor` checks the constructor args against `ctor-args ct`, and the
+  -- branch's `brs∷` fixes `ar = length (ctor-args ct)`.
+  spine-length : ∀ {n} {Γ : Ctx n} {ts tele}
+               → Γ ⊢* ts ⇐* tele → length ts ≡ length tele
+  spine-length ⊢*[] = refl
+  spine-length (⊢*∷ _ dxs) = cong suc (spine-length dxs)
   ------------------------------------------------------------------------
   -- Branch checking
   --

@@ -23,9 +23,12 @@
 module Core.Reduction where
 
 open import Data.Bool using (Bool; true; false)
-open import Data.String using (_==_)
+open import Data.String.Properties using (_≟_)
 open import Data.Nat using (ℕ; zero; suc; _+_; _≤_; z≤n; s≤s)
 open import Data.List using (List; []; _∷_; _++_; length; map; find; reverse)
+open import Data.List.Membership.Propositional using (_∈_)
+open import Data.List.Relation.Unary.Any using (here; there)
+open import Data.Empty using (⊥; ⊥-elim)
 open import Data.Product using (Σ; _×_; _,_; proj₁; proj₂; ∃; ∃-syntax)
 open import Data.Maybe using (Maybe; just; nothing)
 open import Relation.Binary.PropositionalEquality
@@ -90,15 +93,25 @@ record Signature : Set where
 open Signature public
 
 ------------------------------------------------------------------------
--- Branch lookup: find the branch for a constructor name.
-------------------------------------------------------------------------
-
 findBranch : Name → List Branch → Maybe Branch
 findBranch c [] = nothing
-findBranch c ((cn , ar , b) ∷ xs) with c == cn
-... | true  = just (cn , ar , b)
-... | false = findBranch c xs
+findBranch c ((cn , ar , b) ∷ xs) with c ≟ cn
+... | yes refl = just (c , ar , b)
+... | no _     = findBranch c xs
 
+-- `findBranch` is COMPLETE: if a branch named `c` is in the list, the lookup
+-- finds a branch named `c`. Used by Progress's `case`/ι case to turn the
+-- coverage witness (`Covers`) into the `findBranch c brs ≡ just (c , ar , b)`
+-- premise of the ι rule.
+findBranch-complete : ∀ c brs {ar b}
+                    → (c , ar , b) ∈ brs
+                    → ∃ λ ar′ → ∃ λ b′ → findBranch c brs ≡ just (c , ar′ , b′)
+findBranch-complete c ((cn , ar , b) ∷ xs) (here refl) with c ≟ cn
+... | yes refl = _ , _ , refl
+... | no ¬q = ⊥-elim (¬q refl)
+findBranch-complete c ((cn , ar , b) ∷ xs) (there p) with c ≟ cn
+... | yes refl = _ , _ , refl
+... | no _     = findBranch-complete c xs p
 ------------------------------------------------------------------------
 -- The reduction relation, parameterised by the signature.
 ------------------------------------------------------------------------
