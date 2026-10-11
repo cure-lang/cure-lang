@@ -291,6 +291,35 @@ defmodule Cure.LSP.LspTest do
       end
     end
 
+    test "hover finds a module declared after another in an open document" do
+      other = "mod X\n  fn a() -> Int = 1\n\nmod Y\n  ## Y's foo.\n  fn foo() -> Int = 1\n"
+      neighbour = "mod Z\n  fn a() -> Int = 1\n\nmod W\n  ## W's foo.\n  fn foo() -> Int = 1\n"
+      source = "mod App\n  fn go() -> Int = Y.foo()\n  fn no() -> Int = Z.foo()\n"
+      context = %{documents: %{"file:///y.cure" => other, "file:///w.cure" => neighbour}}
+
+      assert get_in(Server.compute_hover(source, 1, 22, context), ["contents", "value"]) =~
+               "Y.foo() -> Int\n```\n\n---\n\nY's foo."
+
+      refute get_in(Server.compute_hover(source, 2, 22, context), ["contents", "value"]) =~ "W's foo."
+    end
+
+    test "hover on an unqualified name shows the enclosing module's declaration" do
+      source = """
+      mod A
+        ## A's helper.
+        fn helper(x: Int) -> Int = x
+
+      mod B
+        ## B's helper.
+        fn helper(y: Int) -> Int = y
+        fn run() -> Int = helper(1)
+      """
+
+      value = hover_value(source, 7, 21)
+      assert value =~ "B.helper(y: Int) -> Int\n```\n\n---\n\nB's helper."
+      refute value =~ "A.helper"
+    end
+
     test "hover on non-definition returns nil" do
       state = %{
         initialized: true,

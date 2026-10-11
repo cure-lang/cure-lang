@@ -475,7 +475,7 @@ defmodule Cure.LSP.Server do
                 Enum.find(induction_binding_symbols(ast), &(&1.name == word)) ||
                 Enum.find(equation_symbols(ast), &(&1.name == dotted_word)) ||
                 Enum.find(proof_rule_symbols(ast), &(&1.name == word)) ||
-                documentation_hover(ast, qualified_name, context)
+                documentation_hover(ast, qualified_name, Map.put(context, :line, line + 1))
           end
 
         case selected do

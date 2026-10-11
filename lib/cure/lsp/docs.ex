@@ -8,7 +8,9 @@ defmodule Cure.LSP.Docs do
 
     1. qualified (`Std.List.map`, `L.map` under `use Std.List as L`) -- in the
        named module, which may be the open document itself;
-    2. unqualified -- in the open document, then in every module it `use`s;
+    2. unqualified -- in the module around the cursor (`:line` in the
+       context) and the modules enclosing it, then in every module the
+       document `use`s;
     3. a capitalised name that is neither -- as a module (`use Std.List`).
 
   Modules are read from the open documents first, so unsaved edits show up,
@@ -18,14 +20,19 @@ defmodule Cure.LSP.Docs do
   """
 
   alias Cure.Compiler.{Lexer, Parser, Printer}
+  alias Cure.MetaAST.Metadata
 
   @cache_key {__MODULE__, :declarations}
 
   @typedoc """
   Where to look for modules the document refers to: the open documents by URI,
-  and extra source directories.
+  and extra source directories. `:line` is the cursor's 1-based line.
   """
-  @type context :: %{optional(:documents) => %{String.t() => String.t()}, optional(:roots) => [String.t()]}
+  @type context :: %{
+          optional(:documents) => %{String.t() => String.t()},
+          optional(:roots) => [String.t()],
+          optional(:line) => pos_integer()
+        }
 
   @doc """
   Markdown hover for the dotted `name` ending at the cursor, or `nil` when it
@@ -53,8 +60,9 @@ defmodule Cure.LSP.Docs do
 
   defp resolve_unqualified(name, ast, context) do
     imported = fn -> Enum.find_value(imports(ast), &find(module_declarations(&1.source, ast, context), name)) end
+    local = ast |> declarations() |> in_scope(enclosing_module(ast, Map.get(context, :line)))
 
-    find(declarations(ast), name) || imported.() ||
+    find(local, name) || imported.() ||
       if(lowercase?(name), do: nil, else: find_module(module_declarations(name, ast, context), name))
   end
 
@@ -64,6 +72,39 @@ defmodule Cure.LSP.Docs do
 
     find(module_declarations(module, ast, context), name) ||
       if(lowercase?(name), do: nil, else: find_module(module_declarations(full, ast, context), full))
+  end
+
+  # The declarations visible unqualified from inside `scope`: its own, those
+  # of the modules enclosing it, and the top-level ones. Without a cursor
+  # line every declaration in the document is.
+  defp in_scope(declarations, nil), do: declarations
+
+  defp in_scope(declarations, scope) do
+    Enum.filter(declarations, &(&1.module == nil or &1.module == scope or String.starts_with?(scope, &1.module <> ".")))
+  end
+
+  # The innermost module whose source span holds `line`, named the way
+  # `declarations/1` names it.
+  defp enclosing_module(_ast, nil), do: nil
+  defp enclosing_module(ast, line), do: enclosing_module(ast, line, nil)
+
+  defp enclosing_module({:block, _, children}, line, module) when is_list(children),
+    do: Enum.find_value(children, &enclosing_module(&1, line, module))
+
+  defp enclosing_module({:container, meta, body}, line, module) when is_list(meta) and is_list(body) do
+    if Keyword.get(meta, :container_type) not in [:enum, :struct] and spans_line?(meta, line) do
+      nested = qualify(module, to_string(Keyword.get(meta, :name, "unknown")))
+      Enum.find_value(body, &enclosing_module(&1, line, nested)) || nested
+    end
+  end
+
+  defp enclosing_module(_node, _line, _module), do: nil
+
+  defp spans_line?(meta, line) do
+    case Metadata.source_info(meta) do
+      %{whole: %{start_line: first, end_line: last}} -> line in first..last//1
+      _ -> false
+    end
   end
 
   defp find(declarations, name) do
@@ -113,11 +154,21 @@ defmodule Cure.LSP.Docs do
   defp module_declarations(module, ast, context) do
     local = declarations(ast)
 
-    if Enum.any?(local, &(&1.kind == :module and same_module?(&1.name, module))) do
-      Enum.filter(local, &(&1.module == nil or same_module?(&1.module, module)))
+    if declares?(local, module) do
+      in_module(local, module)
     else
       open_module_declarations(module, context) || disk_module_declarations(module, context)
     end
+  end
+
+  # A document may declare several modules; only `module`'s own declarations
+  # (and the top-level ones, which include the module itself) belong to it.
+  defp in_module(declarations, module) do
+    Enum.filter(declarations, &(&1.module == nil or same_module?(&1.module, module)))
+  end
+
+  defp declares?(declarations, module) do
+    Enum.any?(declarations, &(&1.kind == :module and same_module?(&1.name, module)))
   end
 
   defp open_module_declarations(module, context) do
@@ -126,8 +177,10 @@ defmodule Cure.LSP.Docs do
     |> Map.values()
     |> Enum.find_value(fn text ->
       with true <- declares_module?(text, module),
-           {:ok, ast} <- parse(text) do
-        declarations(ast)
+           {:ok, ast} <- parse(text),
+           found = declarations(ast),
+           true <- declares?(found, module) do
+        in_module(found, module)
       else
         _ -> nil
       end
@@ -141,11 +194,14 @@ defmodule Cure.LSP.Docs do
     end
   end
 
+  # A cheap scan before parsing; `mod` lines may be nested, so a module's last
+  # segment is enough to make the document worth parsing.
   defp declares_module?(text, module) do
-    case Regex.run(~r/^\s*mod\s+([A-Za-z_][\w.]*)/m, text) do
-      [_, declared] -> same_module?(declared, module)
-      _ -> false
-    end
+    last = module |> String.split(".") |> List.last()
+
+    ~r/^\s*mod\s+([A-Za-z_][\w.]*)/m
+    |> Regex.scan(text, capture: :all_but_first)
+    |> Enum.any?(fn [declared] -> same_module?(declared, module) or String.ends_with?(declared, last) end)
   end
 
   defp cached_file_declarations(path) do
