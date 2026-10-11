@@ -175,11 +175,24 @@ and the identity renaming trivially preserves `suc` and fixes `0`.
 
 **But this conflicts with the global convention.** The typing judgment's
 `extend Γ T = renameCtx wk Γ ▷ rename wk T` renames the existing types, so
-`extend (Γ ++e S) d` is *not* `(Γ ++e S) ▷ d`, and the commutation with the
-append-at-end view fails. Resolving this requires either (a) dropping the
-global convention (and re-deriving the substitution lemma's `⇒-var` cases,
-which is what motivated it), or (b) defining the append-at-end view in the
-same renaming convention. This is the concrete next step.
+`extend (Γ ++e S) d` is *not* `(Γ ++e S) ▷ d`, and the commutation fails.
+Worse, the substitution lemma's binder case *needs* the global convention:
+`lookup (extend Γ d) 0 = rename wk d`, and `subst-extSub-wk` turns
+`substS (extSub σ) (rename wk d)` into `rename wk (substS σ d)`, matching the
+target context's head. In the plain convention `lookup (extend Γ d) 0 = d`,
+and the match fails.
+
+So the two lemmas pull in opposite directions on the context convention:
+
+- the **substitution** lemma needs `extend` to *rename* (global convention),
+  so the head type lines up with the substituted binder;
+- the **weakening** lemma needs `extend` to *not rename* (plain convention),
+  so it commutes with the append-at-end view.
+
+The concrete next step is to reconcile these — e.g. by giving the
+append-at-end view its own renaming that matches `extend`, or by
+reformulating the substitution lemma's binder case to not need the head to
+line up (using the `appSub`-style simultaneous substitution throughout).
 
 ### Open research questions (docs/SOUNDNESS.md §7, §8)### Open research questions (docs/SOUNDNESS.md §7, §8)
 
