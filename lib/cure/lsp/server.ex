@@ -1748,7 +1748,10 @@ defmodule Cure.LSP.Server do
 
   defp name_position?(%Token{type: :keyword, value: value}, _next) when value in [:fn, :let], do: true
   defp name_position?(%Token{type: type}, _next) when type in [:dot, :lparen, :comma], do: true
-  defp name_position?(_prev, %Token{type: type}) when type in [:lparen, :assign, :colon, :comma, :rparen, :dot], do: true
+
+  defp name_position?(_prev, %Token{type: type}) when type in [:lparen, :assign, :colon, :comma, :rparen, :dot],
+    do: true
+
   defp name_position?(_prev, _next), do: false
 
   defp semantic_position(%Token{span: span}, lines, starts, encoding) do
