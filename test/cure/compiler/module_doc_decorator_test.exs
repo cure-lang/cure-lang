@@ -44,4 +44,12 @@ defmodule Cure.Compiler.ModuleDocDecoratorTest do
     assert module_docs("## Doc line.\n@group(:core)\n@prelude\n" <> @body) == ["Doc line."]
     assert module_docs("## Doc line.\n@prelude\n@group(:core)\n" <> @body) == ["Doc line."]
   end
+
+  test "a blank line splits the module doc from the first definition's doc" do
+    {:ok, tokens} = Lexer.tokenize("mod M\n  ## Module.\n\n  ## Function.\n  fn f() -> Int = 1\n", emit_events: false)
+    {:ok, {:container, meta, [{:function_def, fn_meta, _}]}} = Parser.parse(tokens, emit_events: false)
+
+    assert Keyword.get(meta, :doc) == "Module."
+    assert Keyword.get(fn_meta, :doc) == "Function."
+  end
 end
