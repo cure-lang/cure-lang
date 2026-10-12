@@ -478,3 +478,24 @@ module Conf (sig : Signature) (la : LiteralArity) (cb : ClosedBody sig) where
     ⇉-substBranchesS σ σ′ h (⇉ᵇ-cons {ar = ar} sbs sbs′) =
       ⇉ᵇ-cons (⇉-substS-star (extSub^ ar σ) (extSub^ ar σ′) (⇉-extSub^ ar h) sbs)
               (⇉-substBranchesS σ σ′ h sbs′)
+
+  ------------------------------------------------------------------------
+  -- `substTopT` commutes with multi-step parallel reduction.
+  --
+  -- This is the lemma the diamond's β/ζ redex cases need: the argument's
+  -- reduct is reached in MULTIPLE steps (`a ⇉* a′`), which the single-step
+  -- hypothesis of `⇉-substS-star` cannot consume directly.
+  ------------------------------------------------------------------------
+
+  -- `topSub` commutes with a single parallel step.
+  topSub-⇉ : ∀ {a a′} → _⇉_ a a′ → ∀ k → _⇉_ (topSub a k) (topSub a′ k)
+  topSub-⇉ sa zero = sa
+  topSub-⇉ sa (suc k) = p-var
+
+  substTopT-⇉* : ∀ {a a′ b b′} → _⇉*_ a a′ → _⇉*_ b b′
+                → _⇉*_ (substTopT a b) (substTopT a′ b′)
+  substTopT-⇉* {a = a} ⇉*-refl bb =
+    ⇉-substS-star (topSub a) (topSub a) (λ k → ⇉-refl _) bb
+  substTopT-⇉* {a = a} {a′ = a′} {b = b} {b′ = b′} (⇉*-step {u = a″} s ss) bb =
+    ⇉*-trans (⇉-substS-star (topSub a) (topSub a″) (topSub-⇉ s) bb)
+             (substTopT-⇉* ss (⇉*-refl {b′}))

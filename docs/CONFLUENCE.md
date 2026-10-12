@@ -112,6 +112,11 @@ The module type-checks clean (no holes, no new postulates) and contains, all
   `p-ι-bounded-suc`), and δ.
 - `⇉-substS-star`, `⇉-substS-terms`, `⇉-substS-terms-refl`,
   `⇉-substBranchesS`, `⇉-substS-ctor-tail*`, `length-substTermsS`.
+- **`substTopT-⇉*`** (with `topSub-⇉`) — `substTopT` commutes with a
+  MULTI-step parallel reduction: `a ⇉* a′ → b ⇉* b′ → substTopT a b ⇉*
+  substTopT a′ b′`. This is the lemma the diamond's β/ζ redex cases need
+  (the argument's reduct is reached in several steps, which the single-step
+  hypothesis of `⇉-substS-star` cannot consume).
 
 This is the crux the plan identified. **It is done.**
 
@@ -147,6 +152,25 @@ This is the crux the plan identified. **It is done.**
    A partial development exists in `/tmp/Confluence.diamond.wip.agda`
    (session-local): the same-constructor, `p-ctor-*`, and `p-δ` cases are
    proved; the redex cross-cases and the list diamonds are the remaining work.
+
+   **DESIGN NOTE (the one real subtlety).** The diamond must be stated with
+   MULTI-step conclusions (`∃ λ w → u ⇉* w × v ⇉* w`), because the redex cases
+   are closed by the multi-step substitution lemma. `⇉-substS`'s hypothesis
+   is SINGLE-step, while the diamond supplies a MULTI-step reduct for the
+   argument. This gap is now BRIDGED by `substTopT-⇉*` (proved in
+   `Proof/Confluence.agda`), so the β/ζ redex cases are a direct application:
+
+       ⇉-diamond (p-β sd sb sa) (p-β sd′ sb′ sa′) =
+         let (a‴ , ad , ae) = ⇉-diamond sa sa′
+             (b‴ , bd , be) = ⇉-diamond-star sb sb′
+         in substTopT a‴ b‴ , substTopT-⇉* ad bd , substTopT-⇉* ae be
+
+   The remaining cases are the redex-vs-CONGRUENCE cases (β vs `p-app`, ζ vs
+   `p-let`, ι vs `p-case`), the ι redex cases, and the list diamonds
+   `⇉-diamond-star`/`⇉-diamond-terms`/`⇉-diamond-brs` plus the ctor-spine
+   diamond `⇉-diamond-ctor`. Note `⇉-diamond-ctor`'s witness must be a
+   `tm-ctor` (not a bare `Term`), which needs small `_⇉*ᵗ*_ → _⇉_` /
+   `_⇉*_ → _⇉_` "head" projections for the `p-ctor`/`p-ctor-head` cases.
 
 2. **`confluence : _⇝_`** from the diamond + the two inclusions, then
    discharging `never-reached→no-value` in `Proof/Soundness.agda`.
