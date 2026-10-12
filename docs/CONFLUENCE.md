@@ -118,8 +118,35 @@ This is the crux the plan identified. **It is done.**
 ## What remains
 
 1. **`⇉-diamond`** — the diamond property itself, from `⇉-substS`. This is the
-   next concrete step (a large but standard Tait–Martin-Löf double induction;
-   the β/ζ/ι cases consume `⇉-substS`).
+   next concrete step. It is a large Tait–Martin-Löf double induction on the
+   two derivations `t ⇉ u` and `t ⇉ v`. The case analysis splits into:
+
+   - **same-constructor** cases (atomic forms, `p-pi`, `p-lam`, `p-let`,
+     `p-app`, `p-data`, `p-ctor`, `p-case`, the effect formers): structural,
+     using the IH on the premises. NOTE `p-lam`/`p-let`'s body premise is a
+     SINGLE step (`_⇉_`), so the IH is `⇉-diamond`, not `⇉-diamond-star`.
+   - **`p-ctor-head`/`p-ctor-tail`** mixed cases: the common reduct is
+     `tm-ctor n (x′ ∷ xs′)`; both sides are re-derived by `p-ctor-tail` /
+     `p-ctor-head`. The `p-ctor-tail`/`p-ctor-tail` case needs a
+     **ctor-spine diamond** (`⇉-diamond-ctor`) that returns a `tm-ctor` witness
+     (the plain `⇉-diamond` returns a `Term`, which Agda cannot see is a
+     `tm-ctor`).
+   - **`p-δ`/`p-δ`**: the two bodies are equal by `just-inj` of the two
+     `Signature.body` equations; transport `⇉-refl`.
+   - **β/ζ/ι vs β/ζ/ι** (the redex cases): both sides reduce to
+     `substTopT`-forms; the diamond is closed by `⇉-substS` (this is where the
+     substitution lemma is consumed).
+   - **β/ζ/ι vs their congruence** (`p-β` vs `p-app`, `p-ζ` vs `p-let`,
+     `p-ι*` vs `p-case`): the redex side steps by the rule, the congruence
+     side steps by the rule applied to the reduced components; the two are
+     reconciled by `⇉-substS` / `⇉-substS-star`.
+   - **the list/multi-step diamonds** `⇉-diamond-star` (for `_⇉*_`),
+     `⇉-diamond-terms` (for `_⇉*ᵗ_`), `⇉-diamond-brs` (for `_⇉*ᵇ_`), and the
+     ctor-spine diamond `⇉-diamond-ctor`.
+
+   A partial development exists in `/tmp/Confluence.diamond.wip.agda`
+   (session-local): the same-constructor, `p-ctor-*`, and `p-δ` cases are
+   proved; the redex cross-cases and the list diamonds are the remaining work.
 
 2. **`confluence : _⇝_`** from the diamond + the two inclusions, then
    discharging `never-reached→no-value` in `Proof/Soundness.agda`.
