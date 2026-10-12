@@ -141,6 +141,16 @@ defmodule Cure.Diagnostic.Adapter do
   def from_error({:sibling_module_collision, %{name: _name}} = error, opts),
     do: NameAdapter.from_error(error, opts)
 
+  # A module the manifest could not resolve (or a dependency module its package
+  # does not export) is an ordinary unknown-name failure, not a compiler
+  # invariant. Without these clauses the tuple reached `UnhandledError` and was
+  # reported as E101.
+  def from_error({:missing_module, %{target: {_package, _module}}} = error, opts),
+    do: NameAdapter.from_error(error, opts)
+
+  def from_error({:package_module_not_exported, %{target: {_package, _module}}} = error, opts),
+    do: NameAdapter.from_error(error, opts)
+
   def from_error({:precedence_cycle, _groups} = error, opts), do: NameAdapter.from_error(error, opts)
   def from_error({:conflicting_operator_fixity, _details} = error, opts), do: NameAdapter.from_error(error, opts)
   def from_error({:conflicting_precedence_group, _details} = error, opts), do: NameAdapter.from_error(error, opts)

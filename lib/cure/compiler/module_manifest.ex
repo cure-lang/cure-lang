@@ -489,7 +489,11 @@ defmodule Cure.Compiler.ModuleManifest do
             requester: missing.source,
             target: missing.target,
             kind: missing.kind,
-            span: missing.span
+            span: missing.span,
+            # Every module the compilation could have resolved the reference
+            # to. The diagnostic adapter ranks these against the missing
+            # spelling to offer a "did you mean" for a mistyped `use`.
+            candidates: known |> Enum.map(&elem(&1, 1)) |> Enum.uniq() |> Enum.sort()
           }}}
 
       true ->

@@ -16,6 +16,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- A module that a `use` or qualified reference could not resolve was reported
+  as `E101 INTERNAL COMPILER ERROR` (`unregistered_diagnostic`). It is now an
+  ordinary `E091 Unknown module` diagnostic that names the importing module and
+  how it reached the missing one, labels the module name in the source, offers a
+  "did you mean" for a near-miss spelling, and otherwise explains that compiling
+  a single file does not pick up its siblings. A dependency module outside its
+  package's export surface gets the same treatment instead of crashing the
+  presentation layer. Compiling `cure_pool`'s `lib/main.cure` on its own is the
+  reproducer.
+- A `use` was always attributed to line 1 of its file in the module manifest,
+  because the harvester read a `:line` key that import nodes do not carry. It
+  now uses the node's source position, as qualified references already did, so
+  dependency diagnostics point at the `use` that wrote them.
 - `zed-cure` could not be installed: its `extension.toml` pointed at
   `cure-lang/tree-sitter-cure`, a repository that does not exist, so Zed failed
   while fetching the grammar. It now builds the grammar from
