@@ -100,12 +100,12 @@ module Par (sig : Signature) where
       -- a VALUE (the same side condition as `_⇝_`'s β rule), and its parallel
       -- reduct `a′` is ALSO a value.
       p-β : ∀ {g d d′ b b′ a a′}
-          → Value a → Value a′ → d ⇉ d′ → b ⇉ b′ → a ⇉ a′
+          → Value a → Value a′ → d ⇉ d′ → b ⇉* b′ → a ⇉ a′
           → tm-app (tm-lam g d b) a ⇉ substTopT a′ b′
 
       -- ζ: let x = v in b ⇉ b′[x := v′], with `v` and `v′` values.
       p-ζ : ∀ {g ty ty′ v v′ b b′}
-          → Value v → Value v′ → ty ⇉ ty′ → v ⇉ v′ → b ⇉ b′
+          → Value v → Value v′ → ty ⇉ ty′ → v ⇉ v′ → b ⇉* b′
           → tm-let g ty v b ⇉ substTopT v′ b′
 
       -- ι: case (ctor c args) of … ⇉ b[args′] (the branch body `b` is taken
@@ -205,9 +205,9 @@ module Par (sig : Signature) where
   mutual
     ⇝→⇉ : ∀ {t t′} → _⇝_ sig t t′ → _⇉_ t t′
     ⇝→⇉ (β {g} {d} {b} {a} va) =
-      p-β va va (⇉-refl d) (⇉-refl b) (⇉-refl a)
+      p-β va va (⇉-refl d) ⇉*-refl (⇉-refl a)
     ⇝→⇉ (ζ {g} {ty} {v} {b} vv) =
-      p-ζ vv vv (⇉-refl ty) (⇉-refl v) (⇉-refl b)
+      p-ζ vv vv (⇉-refl ty) (⇉-refl v) ⇉*-refl
     ⇝→⇉ (ι {m} {brs} {c} {ar} {b} {args} found len) =
       p-ι found len (⇉-refl m) (⇉-refl-brs brs) ⇉*-refl (⇉-refl-terms args)
     ⇝→⇉ (ι-nat-zero {m} {brs} {ar} {b} found) =
@@ -455,6 +455,10 @@ module Par (sig : Signature) where
   ⇝*-source : ∀ {t t′ u} → t ≡ u → _⇝*_ sig t t′ → _⇝*_ sig u t′
   ⇝*-source refl r = r
 
+  -- Rewrite the SOURCE of a multi-step PARALLEL reduction along an equation.
+  ⇉*-source : ∀ {t t′ u} → t ≡ u → _⇉*_ t t′ → _⇉*_ u t′
+  ⇉*-source refl r = r
+
   -- `pre ++ x ∷ zs ≡ (pre ++ x ∷ []) ++ zs`.
   ++-left-cons : ∀ (pre : List Term) (x : Term) (zs : List Term)
                → pre ++ x ∷ zs ≡ (pre ++ x ∷ []) ++ zs
@@ -479,6 +483,112 @@ module Par (sig : Signature) where
                         ≡ pre ++ x′ ∷ xs
   setAt-prefix-index [] = refl
   setAt-prefix-index (z ∷ zs) = cong (z ∷_) (setAt-prefix-index zs)
+
+  -- A single parallel step reducing the element at position `i` of a ctor.
+  p-ctor-at : ∀ {c} (xs : List Term) (i : Fin (len xs)) {x′}
+            → _⇉_ (lookupAt xs i) x′
+            → _⇉_ (tm-ctor c xs) (tm-ctor c (setAt xs i x′))
+  p-ctor-at (y ∷ ys) zero sx = p-ctor-head sx
+  p-ctor-at (y ∷ ys) (suc i) sx = p-ctor-tail (p-ctor-at ys i sx)
+
+  -- Reduce the element at position `i` of a ctor spine by a multi-step.
+  -- (Terminating: recurses on `ss`; Agda cannot see this because the spine is
+  -- re-indexed by `setAt`.)
+  {-# TERMINATING #-}
+  ⇉*-at-ctor : ∀ {c} (xs : List Term) (i : Fin (len xs)) {x′}
+             → _⇉*_ (lookupAt xs i) x′
+             → _⇉*_ (tm-ctor c xs) (tm-ctor c (setAt xs i x′))
+  ⇉*-at-ctor {c} xs i ⇉*-refl =
+    subst (λ zs → _⇉*_ (tm-ctor c xs) (tm-ctor c zs)) (sym (setAt-id i)) ⇉*-refl
+  ⇉*-at-ctor {c} xs i {x′ = fin} (⇉*-step {u = u} s ss) =
+    ⇉*-trans (⇉*-step (p-ctor-at xs i s) ⇉*-refl)
+             (subst (λ zs → _⇉*_ (tm-ctor c (setAt xs i u)) (tm-ctor c zs))
+                    (setAt-setAt {xs = xs} i {x′ = u} {x″ = fin})
+                    (⇉*-at-ctor (setAt xs i u) (cast (sym (len-setAt i)) i)
+                                (⇉*-source (sym (lookup-setAt {xs = xs} i {u = u})) ss)))
+
+  -- A single parallel step reducing the element at position `i` of a data spine.
+  p-data-params-at : ∀ {n is} (ps : List Term) (i : Fin (len ps)) {x′}
+                   → _⇉_ (lookupAt ps i) x′
+                   → _⇉_ (tm-data n ps is) (tm-data n (setAt ps i x′) is)
+  p-data-params-at (y ∷ ys) zero sx = p-data (⇉*-cons sx (⇉-refl-terms _)) (⇉-refl-terms _)
+  p-data-params-at (y ∷ ys) (suc i) sx = p-data (⇉*-cons (⇉-refl y) (⇉-at ys i sx)) (⇉-refl-terms _)
+
+  p-data-indices-at : ∀ {n ps} (is : List Term) (i : Fin (len is)) {x′}
+                    → _⇉_ (lookupAt is i) x′
+                    → _⇉_ (tm-data n ps is) (tm-data n ps (setAt is i x′))
+  p-data-indices-at (y ∷ ys) zero sx = p-data (⇉-refl-terms _) (⇉*-cons sx (⇉-refl-terms _))
+  p-data-indices-at (y ∷ ys) (suc i) sx = p-data (⇉-refl-terms _) (⇉*-cons (⇉-refl y) (⇉-at ys i sx))
+
+  {-# TERMINATING #-}
+  ⇉*-at-data-params : ∀ {n is} (ps : List Term) (i : Fin (len ps)) {x′}
+                    → _⇉*_ (lookupAt ps i) x′
+                    → _⇉*_ (tm-data n ps is) (tm-data n (setAt ps i x′) is)
+  ⇉*-at-data-params {n} {is} ps i ⇉*-refl =
+    subst (λ zs → _⇉*_ (tm-data n ps is) (tm-data n zs is)) (sym (setAt-id i)) ⇉*-refl
+  ⇉*-at-data-params {n} {is} ps i {x′ = fin} (⇉*-step {u = u} s ss) =
+    ⇉*-trans (⇉*-step (p-data-params-at ps i s) ⇉*-refl)
+             (subst (λ zs → _⇉*_ (tm-data n (setAt ps i u) is) (tm-data n zs is))
+                    (setAt-setAt {xs = ps} i {x′ = u} {x″ = fin})
+                    (⇉*-at-data-params (setAt ps i u) (cast (sym (len-setAt i)) i)
+                                       (⇉*-source (sym (lookup-setAt {xs = ps} i {u = u})) ss)))
+
+  {-# TERMINATING #-}
+  ⇉*-at-data-indices : ∀ {n ps} (is : List Term) (i : Fin (len is)) {x′}
+                     → _⇉*_ (lookupAt is i) x′
+                     → _⇉*_ (tm-data n ps is) (tm-data n ps (setAt is i x′))
+  ⇉*-at-data-indices {n} {ps} is i ⇉*-refl =
+    subst (λ zs → _⇉*_ (tm-data n ps is) (tm-data n ps zs)) (sym (setAt-id i)) ⇉*-refl
+  ⇉*-at-data-indices {n} {ps} is i {x′ = fin} (⇉*-step {u = u} s ss) =
+    ⇉*-trans (⇉*-step (p-data-indices-at is i s) ⇉*-refl)
+             (subst (λ zs → _⇉*_ (tm-data n ps (setAt is i u)) (tm-data n ps zs))
+                    (setAt-setAt {xs = is} i {x′ = u} {x″ = fin})
+                    (⇉*-at-data-indices (setAt is i u) (cast (sym (len-setAt i)) i)
+                                        (⇉*-source (sym (lookup-setAt {xs = is} i {u = u})) ss)))
+
+  -- List-wise MULTI-step parallel reduction (for the substitution lemma).
+  data _⇉*ᵗ*_ : List Term → List Term → Set where
+    ⇉ᵗ*-nil  : [] ⇉*ᵗ* []
+    ⇉ᵗ*-cons : ∀ {x x′ xs xs′} → _⇉*_ x x′ → xs ⇉*ᵗ* xs′ → (x ∷ xs) ⇉*ᵗ* (x′ ∷ xs′)
+
+  ⇉*-ctor* : ∀ {c} (pre ts ts′ : List Term) → _⇉*ᵗ*_ ts ts′
+           → _⇉*_ (tm-ctor c (pre ++ ts)) (tm-ctor c (pre ++ ts′))
+  ⇉*-ctor* pre [] [] ⇉ᵗ*-nil = ⇉*-refl
+  ⇉*-ctor* pre (x ∷ xs) (x′ ∷ xs′) (⇉ᵗ*-cons sx sxs) =
+    ⇉*-trans (⇉*-at-ctor (pre ++ x ∷ xs) (prefix-index pre) (⇉*-source (sym (lookup-prefix-index pre)) sx))
+             (subst (λ zs → _⇉*_ (tm-ctor _ zs) (tm-ctor _ (pre ++ x′ ∷ xs′)))
+                    (sym (setAt-prefix-index pre))
+                    (subst (λ zs → _⇉*_ (tm-ctor _ zs) (tm-ctor _ (pre ++ x′ ∷ xs′)))
+                           (++-assoc pre (x′ ∷ []) xs)
+                           (subst (λ zs → _⇉*_ (tm-ctor _ ((pre ++ x′ ∷ []) ++ xs)) (tm-ctor _ zs))
+                                  (++-assoc pre (x′ ∷ []) xs′)
+                                  (⇉*-ctor* (pre ++ x′ ∷ []) xs xs′ sxs))))
+
+  ⇉*-data-params* : ∀ {n} (pre ps ps′ is : List Term) → _⇉*ᵗ*_ ps ps′
+                  → _⇉*_ (tm-data n (pre ++ ps) is) (tm-data n (pre ++ ps′) is)
+  ⇉*-data-params* pre [] [] is ⇉ᵗ*-nil = ⇉*-refl
+  ⇉*-data-params* pre (x ∷ xs) (x′ ∷ xs′) is (⇉ᵗ*-cons sx sxs) =
+    ⇉*-trans (⇉*-at-data-params (pre ++ x ∷ xs) (prefix-index pre) (⇉*-source (sym (lookup-prefix-index pre)) sx))
+             (subst (λ zs → _⇉*_ (tm-data _ zs is) (tm-data _ (pre ++ x′ ∷ xs′) is))
+                    (sym (setAt-prefix-index pre))
+                    (subst (λ zs → _⇉*_ (tm-data _ zs is) (tm-data _ (pre ++ x′ ∷ xs′) is))
+                           (++-assoc pre (x′ ∷ []) xs)
+                           (subst (λ zs → _⇉*_ (tm-data _ ((pre ++ x′ ∷ []) ++ xs) is) (tm-data _ zs is))
+                                  (++-assoc pre (x′ ∷ []) xs′)
+                                  (⇉*-data-params* (pre ++ x′ ∷ []) xs xs′ is sxs))))
+
+  ⇉*-data-indices* : ∀ {n} (pre is is′ ps : List Term) → _⇉*ᵗ*_ is is′
+                   → _⇉*_ (tm-data n ps (pre ++ is)) (tm-data n ps (pre ++ is′))
+  ⇉*-data-indices* pre [] [] ps ⇉ᵗ*-nil = ⇉*-refl
+  ⇉*-data-indices* pre (x ∷ xs) (x′ ∷ xs′) ps (⇉ᵗ*-cons sx sxs) =
+    ⇉*-trans (⇉*-at-data-indices (pre ++ x ∷ xs) (prefix-index pre) (⇉*-source (sym (lookup-prefix-index pre)) sx))
+             (subst (λ zs → _⇉*_ (tm-data _ ps zs) (tm-data _ ps (pre ++ x′ ∷ xs′)))
+                    (sym (setAt-prefix-index pre))
+                    (subst (λ zs → _⇉*_ (tm-data _ ps zs) (tm-data _ ps (pre ++ x′ ∷ xs′)))
+                           (++-assoc pre (x′ ∷ []) xs)
+                           (subst (λ zs → _⇉*_ (tm-data _ ps ((pre ++ x′ ∷ []) ++ xs)) (tm-data _ ps zs))
+                                  (++-assoc pre (x′ ∷ []) xs′)
+                                  (⇉*-data-indices* (pre ++ x′ ∷ []) xs xs′ ps sxs))))
 
   -- `findBranch` commutes with a branch-list parallel reduction: the branch
   -- found has the same name and arity, and its body parallel-reduces.
@@ -541,12 +651,12 @@ module Par (sig : Signature) where
     ⇉→⇝* (p-β {g} {d} {d′} {b} {b′} {a} {a′} va va′ sd sb sa) =
       ⇝*-trans (⇝*-app₂ (⇉→⇝* sa))
         (⇝*-trans (⇝*-app₁ (⇝*-trans (⇝*-lam-dom (⇉→⇝* sd))
-                                      (⇝*-lam-body (⇉→⇝* sb))))
+                                      (⇝*-lam-body (⇉→⇝*-star sb))))
           (⇝*-step (β va′) ⇝*-refl))
     ⇉→⇝* (p-ζ {g} {ty} {ty′} {v} {v′} {b} {b′} vv vv′ sty sv sb) =
       ⇝*-trans (⇝*-let-ty (⇉→⇝* sty))
         (⇝*-trans (⇝*-let-val (⇉→⇝* sv))
-          (⇝*-trans (⇝*-let-body (⇉→⇝* sb)) (⇝*-step (ζ vv′) ⇝*-refl)))
+          (⇝*-trans (⇝*-let-body (⇉→⇝*-star sb)) (⇝*-step (ζ vv′) ⇝*-refl)))
     ⇉→⇝* (p-ι {m} {m′} {brs} {brs′} {c} {ar} {b} {b′} {args} {args′} found len sm sbrs sbs sargs) =
       ⇝*-trans (⇝*-case (⇉→⇝*-spine-ctor [] _ _ sargs))
         (⇝*-trans (⇝*-case-brs (⇉→⇝*-brs sbrs))
