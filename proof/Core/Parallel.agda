@@ -267,6 +267,71 @@ module Par (sig : Signature) where
   ⇝*-trans ⇝*-refl q = q
   ⇝*-trans (⇝*-step s ss) q = ⇝*-step s (⇝*-trans ss q)
 
+  -- Transitivity and congruence lifters for the multi-step parallel relation.
+  ⇉*-trans : ∀ {t u v} → _⇉*_ t u → _⇉*_ u v → _⇉*_ t v
+  ⇉*-trans ⇉*-refl q = q
+  ⇉*-trans (⇉*-step s ss) q = ⇉*-step s (⇉*-trans ss q)
+
+  ⇉*-app₁ : ∀ {f f′ a} → _⇉*_ f f′ → _⇉*_ (tm-app f a) (tm-app f′ a)
+  ⇉*-app₁ ⇉*-refl = ⇉*-refl
+  ⇉*-app₁ (⇉*-step s ss) = ⇉*-step (p-app s (⇉-refl _)) (⇉*-app₁ ss)
+
+  ⇉*-app₂ : ∀ {f a a′} → _⇉*_ a a′ → _⇉*_ (tm-app f a) (tm-app f a′)
+  ⇉*-app₂ ⇉*-refl = ⇉*-refl
+  ⇉*-app₂ (⇉*-step s ss) = ⇉*-step (p-app (⇉-refl _) s) (⇉*-app₂ ss)
+
+  ⇉*-lam-dom : ∀ {g d d′ b} → _⇉*_ d d′ → _⇉*_ (tm-lam g d b) (tm-lam g d′ b)
+  ⇉*-lam-dom ⇉*-refl = ⇉*-refl
+  ⇉*-lam-dom (⇉*-step s ss) = ⇉*-step (p-lam s (⇉-refl _)) (⇉*-lam-dom ss)
+
+  ⇉*-lam-body : ∀ {g d b b′} → _⇉*_ b b′ → _⇉*_ (tm-lam g d b) (tm-lam g d b′)
+  ⇉*-lam-body ⇉*-refl = ⇉*-refl
+  ⇉*-lam-body (⇉*-step s ss) = ⇉*-step (p-lam (⇉-refl _) s) (⇉*-lam-body ss)
+
+  ⇉*-pi-dom : ∀ {g d d′ c} → _⇉*_ d d′ → _⇉*_ (tm-pi g d c) (tm-pi g d′ c)
+  ⇉*-pi-dom ⇉*-refl = ⇉*-refl
+  ⇉*-pi-dom (⇉*-step s ss) = ⇉*-step (p-pi s (⇉-refl _)) (⇉*-pi-dom ss)
+
+  ⇉*-pi-cod : ∀ {g d c c′} → _⇉*_ c c′ → _⇉*_ (tm-pi g d c) (tm-pi g d c′)
+  ⇉*-pi-cod ⇉*-refl = ⇉*-refl
+  ⇉*-pi-cod (⇉*-step s ss) = ⇉*-step (p-pi (⇉-refl _) s) (⇉*-pi-cod ss)
+
+  ⇉*-let-ty : ∀ {g ty ty′ v b} → _⇉*_ ty ty′ → _⇉*_ (tm-let g ty v b) (tm-let g ty′ v b)
+  ⇉*-let-ty ⇉*-refl = ⇉*-refl
+  ⇉*-let-ty (⇉*-step s ss) = ⇉*-step (p-let s (⇉-refl _) (⇉-refl _)) (⇉*-let-ty ss)
+
+  ⇉*-let-val : ∀ {g ty v v′ b} → _⇉*_ v v′ → _⇉*_ (tm-let g ty v b) (tm-let g ty v′ b)
+  ⇉*-let-val ⇉*-refl = ⇉*-refl
+  ⇉*-let-val (⇉*-step s ss) = ⇉*-step (p-let (⇉-refl _) s (⇉-refl _)) (⇉*-let-val ss)
+
+  ⇉*-let-body : ∀ {g ty v b b′} → _⇉*_ b b′ → _⇉*_ (tm-let g ty v b) (tm-let g ty v b′)
+  ⇉*-let-body ⇉*-refl = ⇉*-refl
+  ⇉*-let-body (⇉*-step s ss) = ⇉*-step (p-let (⇉-refl _) (⇉-refl _) s) (⇉*-let-body ss)
+
+  ⇉*-case : ∀ {s s′ m brs} → _⇉*_ s s′ → _⇉*_ (tm-case s m brs) (tm-case s′ m brs)
+  ⇉*-case ⇉*-refl = ⇉*-refl
+  ⇉*-case (⇉*-step s ss) = ⇉*-step (p-case s (⇉-refl _) (⇉-refl-brs _)) (⇉*-case ss)
+
+  ⇉*-case-motive : ∀ {s m m′ brs} → _⇉*_ m m′ → _⇉*_ (tm-case s m brs) (tm-case s m′ brs)
+  ⇉*-case-motive ⇉*-refl = ⇉*-refl
+  ⇉*-case-motive (⇉*-step s ss) = ⇉*-step (p-case (⇉-refl _) s (⇉-refl-brs _)) (⇉*-case-motive ss)
+
+  ⇉*-effect_type : ∀ {t t′} → _⇉*_ t t′ → _⇉*_ (tm-effect_type t) (tm-effect_type t′)
+  ⇉*-effect_type ⇉*-refl = ⇉*-refl
+  ⇉*-effect_type (⇉*-step s ss) = ⇉*-step (p-effect_type s) (⇉*-effect_type ss)
+
+  ⇉*-effect_pure : ∀ {t t′} → _⇉*_ t t′ → _⇉*_ (tm-effect_pure t) (tm-effect_pure t′)
+  ⇉*-effect_pure ⇉*-refl = ⇉*-refl
+  ⇉*-effect_pure (⇉*-step s ss) = ⇉*-step (p-effect_pure s) (⇉*-effect_pure ss)
+
+  ⇉*-effect_bind₁ : ∀ {e e′ k} → _⇉*_ e e′ → _⇉*_ (tm-effect_bind e k) (tm-effect_bind e′ k)
+  ⇉*-effect_bind₁ ⇉*-refl = ⇉*-refl
+  ⇉*-effect_bind₁ (⇉*-step s ss) = ⇉*-step (p-effect_bind s (⇉-refl _)) (⇉*-effect_bind₁ ss)
+
+  ⇉*-effect_bind₂ : ∀ {e k k′} → _⇉*_ k k′ → _⇉*_ (tm-effect_bind e k) (tm-effect_bind e k′)
+  ⇉*-effect_bind₂ ⇉*-refl = ⇉*-refl
+  ⇉*-effect_bind₂ (⇉*-step s ss) = ⇉*-step (p-effect_bind (⇉-refl _) s) (⇉*-effect_bind₂ ss)
+
   -- Parallel reduction preserves the length of a term spine.
   ⇉-terms-length : ∀ {xs xs′} → _⇉*ᵗ_ xs xs′ → length xs′ ≡ length xs
   ⇉-terms-length ⇉*-nil = refl
