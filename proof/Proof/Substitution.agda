@@ -1112,7 +1112,7 @@ substS-argsSub-wk x xs t =
 -- `substS σ (argsSub args k) ≡ substS (argsSub (map (substS σ) args)) (extSub^ (length args) σ k)`.
 subst-argsSub-coh : ∀ σ (args : List Term) k
   → substS σ (argsSub args k)
-  ≡ substS (argsSub (map (substS σ) args)) (extSub^ (length args) σ k)
+  ≡ substS (argsSub (substTermsS σ args)) (extSub^ (length args) σ k)
 subst-argsSub-coh σ [] k = sym (substS-idSub (σ k))
 subst-argsSub-coh σ (a ∷ args) zero = refl
 subst-argsSub-coh σ (a ∷ args) (suc k) =
@@ -1121,16 +1121,16 @@ subst-argsSub-coh σ (a ∷ args) (suc k) =
   where
     -- The `suc` step: `extSub^`'s extension matches `argsSub`'s tail.
     subst-argsSub-suc : ∀ σ (a : Term) (args : List Term) k
-      → substS (argsSub (map (substS σ) (a ∷ args))) (extSub^ (length (a ∷ args)) σ (suc k))
-      ≡ substS (argsSub (map (substS σ) args)) (extSub^ (length args) σ k)
+      → substS (argsSub (substTermsS σ (a ∷ args))) (extSub^ (length (a ∷ args)) σ (suc k))
+      ≡ substS (argsSub (substTermsS σ args)) (extSub^ (length args) σ k)
     subst-argsSub-suc σ a args k =
-      substS-argsSub-wk (substS σ a) (map (substS σ) args) (extSub^ (length args) σ k)
+      substS-argsSub-wk (substS σ a) (substTermsS σ args) (extSub^ (length args) σ k)
 
 -- `substS σ (substArgs args b) ≡ substArgs (map (substS σ) args) (substS (extSub^ (length args) σ) b)`.
 subst-argsSub : ∀ σ args b
   → substS σ (substArgs args b)
-  ≡ substArgs (map (substS σ) args) (substS (extSub^ (length args) σ) b)
+  ≡ substArgs (substTermsS σ args) (substS (extSub^ (length args) σ) b)
 subst-argsSub σ args b =
   trans (subst-compose σ (argsSub args) b)
         (trans (cong (λ τ → substS τ b) (funext (subst-argsSub-coh σ args)))
-               (sym (subst-compose (argsSub (map (substS σ) args)) (extSub^ (length args) σ) b)))
+               (sym (subst-compose (argsSub (substTermsS σ args)) (extSub^ (length args) σ) b)))

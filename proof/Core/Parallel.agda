@@ -31,11 +31,14 @@ open import Data.List using (List; []; _∷_; _++_; length; map; find; reverse)
 open import Data.List using () renaming (lookup to listLookup)
 open import Data.Fin using (Fin; zero; suc; toℕ; cast)
 open import Data.Empty using (⊥; ⊥-elim)
+open import Data.List.Membership.Propositional using (_∈_)
+open import Data.List.Relation.Unary.Any using (here; there)
+open import Data.Unit using (⊤; tt)
 open import Data.Product using (Σ; _×_; _,_; proj₁; proj₂; ∃; ∃-syntax)
 open import Data.Maybe using (Maybe; just; nothing)
 open import Relation.Binary.PropositionalEquality
   using (_≡_; refl; sym; trans; cong; subst)
-open import Relation.Nullary using (Dec; yes; no)
+open import Relation.Nullary using (Dec; yes; no; ¬_)
 
 open import Core.Grade using (Grade)
 open import Core.Universe using (Level)
@@ -107,33 +110,36 @@ module Par (sig : Signature) where
 
       -- ι: case (ctor c args) of … ⇉ b[args′] (the branch body `b` is taken
       -- from `findBranch`, matching `_⇝_`'s ι rule).
-      p-ι : ∀ {m m′ brs c ar b args args′}
-          → findBranch c brs ≡ just (c , ar , b)
+      -- The branch list reduces (`brs ⇉*ᵇ brs′`) and the branch body `b` comes
+      -- from the SOURCE `findBranch`; the premise `b ⇉* b′` relates it to the
+      -- reduct's body (which the caller obtains from `findBranch` on `brs′`).
+      p-ι : ∀ {m m′ brs brs′ c ar b b′ args args′}
+          → findBranch c brs′ ≡ just (c , ar , b′)
           → length args ≡ ar
-          → m ⇉ m′ → args ⇉*ᵗ args′
-          → tm-case (tm-ctor c args) m brs ⇉ substArgs args′ b
+          → m ⇉ m′ → brs ⇉*ᵇ brs′ → b ⇉* b′ → args ⇉*ᵗ args′
+          → tm-case (tm-ctor c args) m brs ⇉ substArgs args′ b′
 
       -- ι-nat / ι-bounded: the compact-literal peels.
-      p-ι-nat-zero : ∀ {m m′ brs ar b}
-        → findBranch "Z" brs ≡ just ("Z" , ar , b)
-        → m ⇉ m′
-        → tm-case (tm-nat_lit 0) m brs ⇉ substArgs [] b
+      p-ι-nat-zero : ∀ {m m′ brs brs′ ar b b′}
+        → findBranch "Z" brs′ ≡ just ("Z" , ar , b′)
+        → m ⇉ m′ → brs ⇉*ᵇ brs′ → b ⇉* b′
+        → tm-case (tm-nat_lit 0) m brs ⇉ substArgs [] b′
 
-      p-ι-nat-suc : ∀ {m m′ brs ar b n}
-        → findBranch "S" brs ≡ just ("S" , ar , b)
-        → m ⇉ m′
-        → tm-case (tm-nat_lit (suc n)) m brs ⇉ substArgs (tm-nat_lit n ∷ []) b
+      p-ι-nat-suc : ∀ {m m′ brs brs′ ar b b′ n}
+        → findBranch "S" brs′ ≡ just ("S" , ar , b′)
+        → m ⇉ m′ → brs ⇉*ᵇ brs′ → b ⇉* b′
+        → tm-case (tm-nat_lit (suc n)) m brs ⇉ substArgs (tm-nat_lit n ∷ []) b′
 
-      p-ι-bounded-zero : ∀ {m m′ brs ar b}
-        → findBranch "First" brs ≡ just ("First" , ar , b)
-        → m ⇉ m′
-        → tm-case (tm-bounded_lit 0) m brs ⇉ substArgs (tm-nat_lit 0 ∷ []) b
+      p-ι-bounded-zero : ∀ {m m′ brs brs′ ar b b′}
+        → findBranch "First" brs′ ≡ just ("First" , ar , b′)
+        → m ⇉ m′ → brs ⇉*ᵇ brs′ → b ⇉* b′
+        → tm-case (tm-bounded_lit 0) m brs ⇉ substArgs (tm-nat_lit 0 ∷ []) b′
 
-      p-ι-bounded-suc : ∀ {m m′ brs ar b k}
-        → findBranch "Next" brs ≡ just ("Next" , ar , b)
-        → m ⇉ m′
+      p-ι-bounded-suc : ∀ {m m′ brs brs′ ar b b′ k}
+        → findBranch "Next" brs′ ≡ just ("Next" , ar , b′)
+        → m ⇉ m′ → brs ⇉*ᵇ brs′ → b ⇉* b′
         → tm-case (tm-bounded_lit (suc k)) m brs
-          ⇉ substArgs (tm-nat_lit k ∷ tm-bounded_lit k ∷ []) b
+          ⇉ substArgs (tm-nat_lit k ∷ tm-bounded_lit k ∷ []) b′
 
       -- δ: unfold a certified global to its body.
       p-δ : ∀ {f body′} → Signature.body sig f ≡ just body′ → tm-global f ⇉ body′
@@ -203,15 +209,15 @@ module Par (sig : Signature) where
     ⇝→⇉ (ζ {g} {ty} {v} {b} vv) =
       p-ζ vv vv (⇉-refl ty) (⇉-refl v) (⇉-refl b)
     ⇝→⇉ (ι {m} {brs} {c} {ar} {b} {args} found len) =
-      p-ι found len (⇉-refl m) (⇉-refl-terms args)
+      p-ι found len (⇉-refl m) (⇉-refl-brs brs) ⇉*-refl (⇉-refl-terms args)
     ⇝→⇉ (ι-nat-zero {m} {brs} {ar} {b} found) =
-      p-ι-nat-zero found (⇉-refl m)
+      p-ι-nat-zero found (⇉-refl m) (⇉-refl-brs brs) ⇉*-refl
     ⇝→⇉ (ι-nat-suc {m} {brs} {ar} {b} {n} found) =
-      p-ι-nat-suc found (⇉-refl m)
+      p-ι-nat-suc found (⇉-refl m) (⇉-refl-brs brs) ⇉*-refl
     ⇝→⇉ (ι-bounded-zero {m} {brs} {ar} {b} found) =
-      p-ι-bounded-zero found (⇉-refl m)
+      p-ι-bounded-zero found (⇉-refl m) (⇉-refl-brs brs) ⇉*-refl
     ⇝→⇉ (ι-bounded-suc {m} {brs} {ar} {b} {k} found) =
-      p-ι-bounded-suc found (⇉-refl m)
+      p-ι-bounded-suc found (⇉-refl m) (⇉-refl-brs brs) ⇉*-refl
     ⇝→⇉ (δ eq) = p-δ eq
     ⇝→⇉ (ξ-app₁ step) = p-app (⇝→⇉ step) (⇉-refl _)
     ⇝→⇉ (ξ-app₂ step) = p-app (⇉-refl _) (⇝→⇉ step)
@@ -389,6 +395,21 @@ module Par (sig : Signature) where
   setAt-prefix-index [] = refl
   setAt-prefix-index (z ∷ zs) = cong (z ∷_) (setAt-prefix-index zs)
 
+  -- `findBranch` commutes with a branch-list parallel reduction: the branch
+  -- found has the same name and arity, and its body parallel-reduces.
+  --
+  -- Proved by induction on the membership witness rather than by matching the
+  -- `Dec` equality, to avoid Agda's `with`-on-`Dec` rewriting friction.
+  findBranch-⇉*ᵇ : ∀ c {bs bs′} ar b → _⇉*ᵇ_ bs bs′
+                 → (c , ar , b) ∈ bs
+                 → ∃ λ b′ → (c , ar , b′) ∈ bs′ × _⇉*_ b b′
+  findBranch-⇉*ᵇ c ar b ⇉ᵇ-nil ()
+  findBranch-⇉*ᵇ c ar b (⇉ᵇ-cons {cn = cn} {ar = ar₁} {b = b₁} {b′ = b′} sbs sbs′) (here refl) =
+    b′ , here refl , sbs
+  findBranch-⇉*ᵇ c ar b (⇉ᵇ-cons {cn = cn} {ar = ar₁} {b = b₁} {b′ = b′} sbs sbs′) (there p) =
+    let (b″ , mem , red) = findBranch-⇉*ᵇ c ar b sbs′ p
+    in b″ , there mem , red
+
   -- Termination: the `⇝*-at-*` helpers recurse on the multi-step reduction
   -- `ss`, which is structurally smaller at each call. Agda cannot see this
   -- because the SPINE argument is re-indexed by `setAt` (which preserves the
@@ -441,17 +462,18 @@ module Par (sig : Signature) where
       ⇝*-trans (⇝*-let-ty (⇉→⇝* sty))
         (⇝*-trans (⇝*-let-val (⇉→⇝* sv))
           (⇝*-trans (⇝*-let-body (⇉→⇝* sb)) (⇝*-step (ζ vv′) ⇝*-refl)))
-    ⇉→⇝* (p-ι {m} {m′} {brs} {c} {ar} {b} {args} {args′} found len sm sargs) =
+    ⇉→⇝* (p-ι {m} {m′} {brs} {brs′} {c} {ar} {b} {b′} {args} {args′} found len sm sbrs sbs sargs) =
       ⇝*-trans (⇝*-case (⇉→⇝*-spine-ctor [] _ _ sargs))
-               (⇝*-step (ι found (trans (⇉-terms-length sargs) len)) ⇝*-refl)
-    ⇉→⇝* (p-ι-nat-zero {m} {m′} {brs} {ar} {b} found sm) =
-      ⇝*-step (ι-nat-zero found) ⇝*-refl
-    ⇉→⇝* (p-ι-nat-suc {m} {m′} {brs} {ar} {b} {n} found sm) =
-      ⇝*-step (ι-nat-suc found) ⇝*-refl
-    ⇉→⇝* (p-ι-bounded-zero {m} {m′} {brs} {ar} {b} found sm) =
-      ⇝*-step (ι-bounded-zero found) ⇝*-refl
-    ⇉→⇝* (p-ι-bounded-suc {m} {m′} {brs} {ar} {b} {k} found sm) =
-      ⇝*-step (ι-bounded-suc found) ⇝*-refl
+        (⇝*-trans (⇝*-case-brs (⇉→⇝*-brs sbrs))
+          (⇝*-step (ι found (trans (⇉-terms-length sargs) len)) ⇝*-refl))
+    ⇉→⇝* (p-ι-nat-zero {m} {m′} {brs} {brs′} {ar} {b} {b′} found sm sbrs sbs) =
+      ⇝*-trans (⇝*-case-brs (⇉→⇝*-brs sbrs)) (⇝*-step (ι-nat-zero found) ⇝*-refl)
+    ⇉→⇝* (p-ι-nat-suc {m} {m′} {brs} {brs′} {ar} {b} {b′} {n} found sm sbrs sbs) =
+      ⇝*-trans (⇝*-case-brs (⇉→⇝*-brs sbrs)) (⇝*-step (ι-nat-suc found) ⇝*-refl)
+    ⇉→⇝* (p-ι-bounded-zero {m} {m′} {brs} {brs′} {ar} {b} {b′} found sm sbrs sbs) =
+      ⇝*-trans (⇝*-case-brs (⇉→⇝*-brs sbrs)) (⇝*-step (ι-bounded-zero found) ⇝*-refl)
+    ⇉→⇝* (p-ι-bounded-suc {m} {m′} {brs} {brs′} {ar} {b} {b′} {k} found sm sbrs sbs) =
+      ⇝*-trans (⇝*-case-brs (⇉→⇝*-brs sbrs)) (⇝*-step (ι-bounded-suc found) ⇝*-refl)
     ⇉→⇝* (p-δ eq) = ⇝*-step (δ eq) ⇝*-refl
 
     -- Simulate a parallel spine reduction by `_⇝_` steps, element by element.

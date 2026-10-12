@@ -139,6 +139,19 @@ findBranch-sound c [] ()
 findBranch-sound c ((cn , ar′ , b′) ∷ xs) {ar} {b} eq with c ≟ cn
 ... | yes refl = subst (λ q → q ∈ ((c , ar′ , b′) ∷ xs)) (just-inj eq) (here refl)
 ... | no _     = there (findBranch-sound c xs eq)
+
+-- `findBranch` commutes with `substBranchesS`: looking up a constructor in a
+-- substituted branch list gives the substituted branch body.
+findBranch-substBranchesS : ∀ σ c brs {ar b}
+  → findBranch c brs ≡ just (c , ar , b)
+  → findBranch c (substBranchesS σ brs) ≡ just (c , ar , substS (extSub^ ar σ) b)
+findBranch-substBranchesS σ c [] ()
+findBranch-substBranchesS σ c ((cn , ar′ , b′) ∷ xs) {ar} {b} eq with c ≟ cn
+... | yes refl =
+  cong (λ q → just (c , proj₁ (proj₂ q) , substS (extSub^ (proj₁ (proj₂ q)) σ) (proj₂ (proj₂ q))))
+       (just-inj eq)
+... | no ¬q = findBranch-substBranchesS σ c xs eq
+
 ------------------------------------------------------------------------
 -- The reduction relation, parameterised by the signature.
 ------------------------------------------------------------------------
