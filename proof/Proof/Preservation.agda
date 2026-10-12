@@ -924,21 +924,21 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
 
   -- ζ: `let x = v in b ⇝ b[x := v]`.
   --
-  -- Similar to β: `⇒-let` gives `Γ ⊢ v ⇐ ty` and `extend Γ ty ⊢ b ⇒ T`
-  -- (so the result type is `substTopT v T`); `value-infer` turns the
-  -- checked value into an inferring one, and `substTop⇐` gives the result.
+  -- `⇒-let` gives `Γ ⊢ v ⇐ ty` and `extend Γ ty ⊢ b ⇒ T` (so the result
+  -- type is `substTopT v T`); `check-infer` turns the checked term into an
+  -- inferring one (it needs only hole-freeness, which `Final` supplies —
+  -- no `Value v` side condition), and `substTop⇐` gives the result.
   preserve-ζ :
     ∀ {n} {Γ : Ctx n} {g ty v b T}
     → Γ ⊢ tm-let g ty v b ⇒ T
-    → Value v
     → HoleFree v
     → Γ ⊢ substTopT v b ⇐ T
-  preserve-ζ {Γ = Γ} {g = g} {ty = ty} {v = v} {b = b} {T = T} (⇒-let {l = l} dty dv db) val hf =
-    substTop⇐ {Γ = Γ} {A = ty} (⇒-check db) (value-infer hf val dv)
+  preserve-ζ {Γ = Γ} {g = g} {ty = ty} {v = v} {b = b} {T = T} (⇒-let {l = l} dty dv db) hf =
+    substTop⇐ {Γ = Γ} {A = ty} (⇒-check db) (check-infer hf dv)
     where
       ⇒-check : ∀ {n} {Γ : Ctx n} {t T} → Γ ⊢ t ⇒ T → Γ ⊢ t ⇐ T
       ⇒-check der = ⇐-infer der (Conversion.≈-refl conv)
-  preserve-ζ (⇒-conv der eq) val hf = ⇐-conv (preserve-ζ der val hf) eq
+  preserve-ζ (⇒-conv der eq) hf = ⇐-conv (preserve-ζ der hf) eq
 
 
   ------------------------------------------------------------------------
@@ -1498,14 +1498,14 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
     preservation⇒ ft (⇒-conv der eq) rw = ⇒-conv (preservation⇒ ft der rw) eq
     -- β: the checking-mode `preserve-β` gives the reduct CHECKED; the redex
     -- is final, so the reduct is hole-free and INFERS its type (`check-infer`).
-    preservation⇒ (f-app (f-lam fd fb) fa) (⇒-app df da) (β va) =
+    preservation⇒ (f-app (f-lam fd fb) fa) (⇒-app df da) β =
       check-infer (substTop-hole-free (final-hole-free fa) (final-hole-free fb))
                   (preserve-β (⇒-app df da))
     -- ζ: likewise, via `preserve-ζ`.
-    preservation⇒ (f-let fty fv fb) (⇒-let {g = g} {ty = ty} {v = v} {b = b} {T = T} dty dv db) (ζ vv) =
+    preservation⇒ (f-let fty fv fb) (⇒-let {g = g} {ty = ty} {v = v} {b = b} {T = T} dty dv db) ζ =
       check-infer (substTop-hole-free (final-hole-free fv) (final-hole-free fb))
                   (preserve-ζ (⇒-let {g = g} {ty = ty} {v = v} {b = b} {T = T} dty dv db)
-                              vv (final-hole-free fv))
+                              (final-hole-free fv))
     preservation⇒ (f-app ff fa) (⇒-app df da) (ξ-app₁ step) =
       ⇒-app (preservation⇒ ff df step) da
     preservation⇒ {Γ = Γ} (f-app ff fa) (⇒-app {a = a} {c = c} df da) (ξ-app₂ {a′ = a′} step) =

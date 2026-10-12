@@ -207,10 +207,10 @@ module _ (sig : Signature) (cert : Certified sig) where
   mutual
     final-preservation : ∀ {t t′} → Final t → _⇝_ sig t t′ → Final t′
     -- β: `(λx. b) a ⇝ b[x := a]`; `b` and `a` are final.
-    final-preservation (f-app (f-lam fd fb) fa) (β va) =
+    final-preservation (f-app (f-lam fd fb) fa) β =
       substS-final (topSub _) (topSub-final fa) fb
     -- ζ: `let x = v in b ⇝ b[x := v]`; `b` and `v` are final.
-    final-preservation (f-let fty fv fb) (ζ vv) =
+    final-preservation (f-let fty fv fb) ζ =
       substS-final (topSub _) (topSub-final fv) fb
     -- ι: `case (ctor c args) of … ⇝ b_c[args]`; `b` and `args` are final.
     final-preservation (f-case (f-ctor {args = args} fargs) fm fbs) (ι {c = c} {ar = ar} {b = b} found len) =

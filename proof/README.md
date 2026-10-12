@@ -491,9 +491,26 @@ Two further rule fixes make the remaining cases well-scoped and provable:
   checked λ can be turned into an inferring one (`value-infer`), which the
   β/ζ cases need (the argument of `⇒-app` is only checked).
 
-The β and ζ cases of Preservation are now **proved**. The remaining
-obligations are the ι (branch substitution) and δ (certified unfolding)
-cases and the congruence cases, plus the signature closedness axioms.
+### The β/ζ `Value` side conditions are vestigial (a finding from this slice)
+
+An earlier formulation carried a `Value` side condition on β/ζ in **both**
+`_⇝_` (`Core/Reduction.agda`) and `_⇉_` (`Core/Parallel.agda`), mirroring the
+kernel's `Eval.apply(vlam, varg)`. This was believed load-bearing for
+Preservation's β/ζ cases. Inspection of the actual proofs shows it is **not**:
+
+- `preserve-β` never uses `Value a` — it applies `substTop⇐` to the argument's
+  *checking* derivation `da : Γ ⊢ a ⇐ d` directly.
+- `preserve-ζ` used `Value v` only to call `value-infer`, but the general
+  `check-infer` (a hole-free term that checks infers its type) subsumes it, and
+  hole-freeness comes from the `Final t` hypothesis the induction threads.
+
+So the `Value` premises were **removed** from `_⇝_`'s `β`/`ζ` and `_⇉_`'s
+`p-β`/`p-ζ`. The whole development still type-checks green. The payoff is for
+the confluence development (`docs/CONFLUENCE.md`): `_⇉_` is now **value-free**,
+so its substitution-commutation lemma is the standard textbook proof with no
+`substS-Value-or-redex` case analysis, and `p-rename` needs no
+`Canonical`/`Neutral`/`Value` transport. **Do not re-introduce the side
+conditions.**
 
 ### Open research questions (docs/SOUNDNESS.md §7, §8)
 - **The totality certificate.** `Certified` is a stated hypothesis. A

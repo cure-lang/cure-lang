@@ -183,18 +183,18 @@ module _ (sig : Signature) where
       -- evaluates the body in the environment `[a_value | env]` (prepend
       -- the argument at index 0, shift everything else).
       --
-      -- The ARGUMENT must be a VALUE: the kernel's β fires only on
-      -- `apply(vlam, varg)`, and the `ξ-app₂` congruence reduces the
-      -- argument to a value first. Requiring `Value a` is what makes the β
-      -- case of Preservation go through: a value of a type INFERS that
-      -- type (`value-infer`), which is what the substitution lemma's head
-      -- case needs (the argument is only CHECKED by `⇒-app`).
-      β : ∀ {g d b a} → Value a → tm-app (tm-lam g d b) a ⇝ substTopT a b
+      -- The ARGUMENT need NOT be a value: `⇒-app` only CHECKS it, and
+      -- Preservation's β case uses `check-infer` (a hole-free term that
+      -- checks infers its type), which needs no value structure. Removing
+      -- the `Value a` side condition is what makes the parallel reduction
+      -- `_⇉_` VALUE-FREE, so its substitution-commutation lemma is the
+      -- standard textbook proof with no `substS-Value-or-redex` case.
+      β : ∀ {g d b a} → tm-app (tm-lam g d b) a ⇝ substTopT a b
 
-      -- ζ: let x = v in b ⇝ b[x := v]. The bound value must likewise be a
-      -- value (the kernel's `let` is ζ-transparent and its value is a
-      -- value).
-      ζ : ∀ {g ty v b} → Value v → tm-let g ty v b ⇝ substTopT v b
+      -- ζ: let x = v in b ⇝ b[x := v]. Like β, the bound term need not be a
+      -- value: `⇒-let` only CHECKS it, and `check-infer` recovers its type
+      -- from hole-freeness (which `Final` supplies).
+      ζ : ∀ {g ty v b} → tm-let g ty v b ⇝ substTopT v b
 
       -- ι: case (ctor c args) of … ⇝ b_c[args]
       -- The branch body lives under `arity` binders; we substitute the fields

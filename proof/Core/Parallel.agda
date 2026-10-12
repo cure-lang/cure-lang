@@ -96,16 +96,16 @@ module Par (sig : Signature) where
       p-effect_bind : ∀ {e e′ k k′} → e ⇉ e′ → k ⇉ k′
                     → tm-effect_bind e k ⇉ tm-effect_bind e′ k′
 
-      -- β: contract the redex AND its subterms at once. The argument `a` is
-      -- a VALUE (the same side condition as `_⇝_`'s β rule), and its parallel
-      -- reduct `a′` is ALSO a value.
+      -- β: contract the redex AND its subterms at once. VALUE-FREE: the
+      -- argument need not be a value (see `_⇝_`'s β), which is what makes
+      -- the substitution-commutation lemma `⇉-substS` the standard proof.
       p-β : ∀ {g d d′ b b′ a a′}
-          → Value a → Value a′ → d ⇉ d′ → b ⇉* b′ → a ⇉ a′
+          → d ⇉ d′ → b ⇉* b′ → a ⇉ a′
           → tm-app (tm-lam g d b) a ⇉ substTopT a′ b′
 
-      -- ζ: let x = v in b ⇉ b′[x := v′], with `v` and `v′` values.
+      -- ζ: let x = v in b ⇉ b′[x := v′]. VALUE-FREE (see `_⇝_`'s ζ).
       p-ζ : ∀ {g ty ty′ v v′ b b′}
-          → Value v → Value v′ → ty ⇉ ty′ → v ⇉ v′ → b ⇉* b′
+          → ty ⇉ ty′ → v ⇉ v′ → b ⇉* b′
           → tm-let g ty v b ⇉ substTopT v′ b′
 
       -- ι: case (ctor c args) of … ⇉ b[args′] (the branch body `b` is taken
@@ -204,10 +204,10 @@ module Par (sig : Signature) where
 
   mutual
     ⇝→⇉ : ∀ {t t′} → _⇝_ sig t t′ → _⇉_ t t′
-    ⇝→⇉ (β {g} {d} {b} {a} va) =
-      p-β va va (⇉-refl d) ⇉*-refl (⇉-refl a)
-    ⇝→⇉ (ζ {g} {ty} {v} {b} vv) =
-      p-ζ vv vv (⇉-refl ty) (⇉-refl v) ⇉*-refl
+    ⇝→⇉ (β {g} {d} {b} {a}) =
+      p-β (⇉-refl d) ⇉*-refl (⇉-refl a)
+    ⇝→⇉ (ζ {g} {ty} {v} {b}) =
+      p-ζ (⇉-refl ty) (⇉-refl v) ⇉*-refl
     ⇝→⇉ (ι {m} {brs} {c} {ar} {b} {args} found len) =
       p-ι found len (⇉-refl m) (⇉-refl-brs brs) ⇉*-refl (⇉-refl-terms args)
     ⇝→⇉ (ι-nat-zero {m} {brs} {ar} {b} found) =
@@ -648,15 +648,15 @@ module Par (sig : Signature) where
     ⇉→⇝* (p-effect_pure st) = ⇝*-effect_pure (⇉→⇝* st)
     ⇉→⇝* (p-effect_bind se sk) =
       ⇝*-trans (⇝*-effect_bind₁ (⇉→⇝* se)) (⇝*-effect_bind₂ (⇉→⇝* sk))
-    ⇉→⇝* (p-β {g} {d} {d′} {b} {b′} {a} {a′} va va′ sd sb sa) =
+    ⇉→⇝* (p-β {g} {d} {d′} {b} {b′} {a} {a′} sd sb sa) =
       ⇝*-trans (⇝*-app₂ (⇉→⇝* sa))
         (⇝*-trans (⇝*-app₁ (⇝*-trans (⇝*-lam-dom (⇉→⇝* sd))
                                       (⇝*-lam-body (⇉→⇝*-star sb))))
-          (⇝*-step (β va′) ⇝*-refl))
-    ⇉→⇝* (p-ζ {g} {ty} {ty′} {v} {v′} {b} {b′} vv vv′ sty sv sb) =
+          (⇝*-step β ⇝*-refl))
+    ⇉→⇝* (p-ζ {g} {ty} {ty′} {v} {v′} {b} {b′} sty sv sb) =
       ⇝*-trans (⇝*-let-ty (⇉→⇝* sty))
         (⇝*-trans (⇝*-let-val (⇉→⇝* sv))
-          (⇝*-trans (⇝*-let-body (⇉→⇝*-star sb)) (⇝*-step (ζ vv′) ⇝*-refl)))
+          (⇝*-trans (⇝*-let-body (⇉→⇝*-star sb)) (⇝*-step ζ ⇝*-refl)))
     ⇉→⇝* (p-ι {m} {m′} {brs} {brs′} {c} {ar} {b} {b′} {args} {args′} found len sm sbrs sbs sargs) =
       ⇝*-trans (⇝*-case (⇉→⇝*-spine-ctor [] _ _ sargs))
         (⇝*-trans (⇝*-case-brs (⇉→⇝*-brs sbrs))
