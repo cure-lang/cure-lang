@@ -17,7 +17,7 @@ crashes. Those are *runtime* failures you discover in production. Here they are
 
 A pool is `Pool(avail, in_use)`, a pair of `Nat` indices:
 
-```cure
+```text
 type Pool indices (avail: Nat, in_use: Nat)
   mk_pool : (capacity: Int) -> Pool(avail, in_use)
 

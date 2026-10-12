@@ -8,7 +8,7 @@ was reproduced with a `cure run` invocation; nothing is assumed from the docs.
 
 Indexed family, `Nat` index, explicit index argument:
 
-```cure
+```text
 type Nat = Z | S(Nat)
 type Pool indices (avail: Nat, in_use: Nat)
   mk_pool : (capacity: Int) -> Pool(avail, in_use)
@@ -36,7 +36,7 @@ The kernel's `{0,1,ω}` usage checker enforces linearity on `@linear`
 
 The accepted idiom is the one the stdlib uses for `@linear from : Reply(r)`:
 
-```cure
+```text
 ## match the lease directly and reproduce it in the same arm
 fn run(k: Nat, @linear lease: Lease(k), task: Int) -> %[Int, Lease(k)] =
   match lease
