@@ -46,7 +46,7 @@ open import Core.Signature using (IndEnv; Family; Ctor; Telescope; findFamily; f
 open import Core.Reduction
 open import Core.Typing using (Ctx; ⟨⟩; _▷_; lookup; extend; lookup-extend; lookup-renameCtx; renameCtx; Conversion; extendⁿ; extendTele; teleField; fieldFin; listLookup-∈Tele; branch-field-vars; upto; _∈Tele_; ∈-here; ∈-there)
 open import Proof.Values using (Canonical; Neutral; Value)
-open import Proof.Progress using (Final; FinalTerms; FinalBranches; BuiltinCtors;
+open import Proof.Progress using (Final; FinalTerms; FinalBranches; BuiltinCtors; Certified;
                                     f-type; f-var; f-pi; f-lam; f-let; f-app;
                                     f-data; f-ctor; f-case; f-global;
                                     f-int_type; f-int_lit; f-nat_lit; f-bounded_lit;
@@ -56,6 +56,7 @@ open import Proof.Progress using (Final; FinalTerms; FinalBranches; BuiltinCtors
                                     ft[]; ft∷; fb[]; fb∷)
 open import Proof.Inversion
 open import Proof.Substitution
+open import Proof.FinalPreservation using (final-preservation)
 open import Proof.Context using (lookup-weaken; lookup-head;
                                   lookup-extendⁿ-zero; lookup-extendⁿ-raise;
                                   extF; extF-coh; lookup-extF;
@@ -116,7 +117,8 @@ ReduceConv sig conv = ∀ {t t′} → _⇝_ sig t t′ → Conversion._≈_ con
 
 module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
                (closed : ClosedSig ind sig) (rc : ReduceConv sig conv)
-               (ctyped : CertifiedTyped ind sig conv) (bc : BuiltinCtors ind) where
+               (ctyped : CertifiedTyped ind sig conv) (bc : BuiltinCtors ind)
+               (cert : Certified sig) where
   open Core.Typing.Typing ind sig conv
   open Proof.Inversion.Invert ind sig conv using (conv-pi-components; conv-injective-data)
 
@@ -1449,7 +1451,25 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
                  refl
   preservation-ι-bounded-suc (f-case f-bounded_lit fm fbs) (⇒-conv der eqc) found =
     ⇒-conv (preservation-ι-bounded-suc (f-case f-bounded_lit fm fbs) der found) eqc
+  -- Head and tail of a non-empty `FinalTerms` (local copies; the ones in
+  -- Proof.FinalPreservation are not exported into this module).
+  ft-head : ∀ {x xs} → FinalTerms (x ∷ xs) → Final x
+  ft-head (ft∷ fx fxs) = fx
+
+  ft-tail : ∀ {x xs} → FinalTerms (x ∷ xs) → FinalTerms xs
+  ft-tail (ft∷ fx fxs) = fxs
+
   mutual
+    -- The HEAD of a checked spine, projected out.
+    head-spine : ∀ {n} {Γ : Ctx n} {x xs T tele nm}
+               → Γ ⊢* (x ∷ xs) ⇐* ((nm , T) ∷ tele) → Γ ⊢ x ⇐ T
+    head-spine (⊢*∷ dx dxs) = dx
+
+    -- The TAIL of a checked spine, projected out.
+    tail-spine : ∀ {n} {Γ : Ctx n} {x xs T tele nm}
+               → Γ ⊢* (x ∷ xs) ⇐* ((nm , T) ∷ tele) → Γ ⊢* xs ⇐* tele
+    tail-spine (⊢*∷ dx dxs) = dxs
+
     -- Spine preservation: a checked spine stays checked when its entries step.
     preservation-spine : ∀ {n} {Γ : Ctx n} {ts ts′} {tele : Telescope}
                        → FinalTerms ts
@@ -1459,6 +1479,22 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
     preservation-spine ft[] ⊢*[] ⇝*-nil = ⊢*[]
     preservation-spine (ft∷ fx fxs) (⊢*∷ dx dxs) (⇝*-cons step steps) =
       ⊢*∷ (preservation fx dx step) (preservation-spine fxs dxs steps)
+
+    -- A spine whose HEAD steps, leaving the tail alone.
+    spine-head-step : ∀ {n} {Γ : Ctx n} {x x′ xs} {T tele nm}
+                    → Final x
+                    → Γ ⊢* (x ∷ xs) ⇐* ((nm , T) ∷ tele)
+                    → _⇝_ sig x x′
+                    → Γ ⊢* (x′ ∷ xs) ⇐* ((nm , T) ∷ tele)
+    spine-head-step fx (⊢*∷ dx dxs) step = ⊢*∷ (preservation fx dx step) dxs
+
+    -- A spine whose TAIL steps, leaving the head alone.
+    spine-tail-step : ∀ {n} {Γ : Ctx n} {x xs xs′} {T tele nm}
+                    → FinalTerms xs
+                    → Γ ⊢* (x ∷ xs) ⇐* ((nm , T) ∷ tele)
+                    → _⇝*ᵗ_ sig xs xs′
+                    → Γ ⊢* (x ∷ xs′) ⇐* ((nm , T) ∷ tele)
+    spine-tail-step fxs (⊢*∷ dx dxs) steps = ⊢*∷ dx (preservation-spine fxs dxs steps)
 
     preservation⇒ :
       ∀ {n} {Γ : Ctx n} {t t′ T}
@@ -1485,6 +1521,21 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
     preservation⇒ {Γ = Γ} (f-let fty fv fb) (⇒-let {v = v} {T = T} dty dv db) (ξ-let {v′ = v′} step) =
       ⇒-conv (⇒-let dty (preservation fv dv step) db)
               (Conversion.≈-sym conv (≈-substTopT-cong {c = T} (rc step)))
+    -- ξ-let-ty: only the declared type reduces; the result type is unchanged.
+    -- The value was checked against `ty`; it checks against `ty′` by conversion
+    -- (`rc` gives `⇝ ⊆ ≈`), and the body is transported across the context
+    -- conversion `extend Γ ty ≈ extend Γ ty′`.
+    preservation⇒ (f-let fty fv fb) (⇒-let dty dv db) (ξ-let-ty step) =
+      ⇒-let (preservation⇒ fty dty step) (⇐-conv dv (rc step))
+            (conv⇒ (ext-conv (rc step) (λ i → Conversion.≈-refl conv)) (Conversion.≈-refl conv) db)
+    -- ξ-let-body: the body reduces under the extended context; the result type
+    -- is unchanged (it substitutes the value, which does not move). The reduct
+    -- is final (`final-preservation`), hence hole-free, so `check-infer`
+    -- recovers the inference the `⇒-let` rule needs.
+    preservation⇒ (f-let fty fv fb) (⇒-let dty dv db) (ξ-let-body step) =
+      ⇒-let dty dv
+            (check-infer (final-hole-free (final-preservation sig cert fb step))
+                         (preservation fb (⇐-infer db (Conversion.≈-refl conv)) step))
     preservation⇒ (f-case fs fm fbs) (⇒-case ds dm dbrs) (ξ-case step) =
       ⇒-conv (⇒-case (preservation⇒ fs ds step) dm dbrs)
               (Conversion.≈-app conv (Conversion.≈-refl conv)
@@ -1509,8 +1560,23 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
       ⇒-data p (preservation-spine fps q step) r
     preservation⇒ (f-data fps fis) (⇒-data p q r) (ξ-data-indices step) =
       ⇒-data p q (preservation-spine fis r step)
+    preservation⇒ (f-data fps fis) (⇒-data p (⊢*∷ dx dxs) r) (ξ-data-params-head step) =
+      ⇒-data p (⊢*∷ (preservation (ft-head fps) dx step) dxs) r
+    preservation⇒ (f-data fps fis) (⇒-data p (⊢*∷ dx dxs) r) (ξ-data-params-tail steps) =
+      ⇒-data p (⊢*∷ dx (preservation-spine (ft-tail fps) dxs steps)) r
+    preservation⇒ (f-data fps fis) (⇒-data p q (⊢*∷ dx dxs)) (ξ-data-indices-head step) =
+      ⇒-data p q (⊢*∷ (preservation (ft-head fis) dx step) dxs)
+    preservation⇒ (f-data fps fis) (⇒-data p q (⊢*∷ dx dxs)) (ξ-data-indices-tail steps) =
+      ⇒-data p q (⊢*∷ dx (preservation-spine (ft-tail fis) dxs steps))
     preservation⇒ (f-ctor fargs) (⇒-ctor p q) (ξ-ctor step steps) =
       ⇒-ctor p (preservation-spine fargs q (⇝*-cons step steps))
+    -- ξ-ctor-head: only the head argument reduces; the tail is unchanged, so
+    -- the tail's typing is reused as-is.
+    preservation⇒ (f-ctor fargs) (⇒-ctor p (⊢*∷ dx dxs)) (ξ-ctor-head step) =
+      ⇒-ctor p (⊢*∷ (preservation (ft-head fargs) dx step) dxs)
+    -- ξ-ctor-tail: only the tail reduces; the head's typing is reused.
+    preservation⇒ (f-ctor fargs) (⇒-ctor p (⊢*∷ dx dxs)) (ξ-ctor-tail steps) =
+      ⇒-ctor p (⊢*∷ dx (preservation-spine (ft-tail fargs) dxs steps))
     preservation⇒ (f-effect_type ft) (⇒-effect_type p) (ξ-effect_type step) =
       ⇒-effect_type (preservation⇒ ft p step)
     preservation⇒ (f-effect_pure ft) (⇒-effect_pure p) (ξ-effect_pure step) =

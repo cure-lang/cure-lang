@@ -232,12 +232,36 @@ module _ (sig : Signature) where
       -- Congruence: let forces its value.
       ξ-let : ∀ {g ty v v′ b} → v ⇝ v′ → tm-let g ty v b ⇝ tm-let g ty v′ b
 
+      -- Congruence: let forces its declared type and its body.
+      --
+      -- A `let` body is normally reached only AFTER ζ fires, but a CONTEXT
+      -- may reduce it directly (the body is a subterm). These rules make the
+      -- relation able to reduce every subterm of a `let`, which the
+      -- confluence development's parallel reduction needs.
+      ξ-let-ty : ∀ {g ty ty′ v b} → ty ⇝ ty′ → tm-let g ty v b ⇝ tm-let g ty′ v b
+      ξ-let-body : ∀ {g ty v b b′} → b ⇝ b′ → tm-let g ty v b ⇝ tm-let g ty v b′
+
       -- Congruence: constructors force their arguments (one at a time).
       ξ-ctor : ∀ {n xs ys x y} → x ⇝ y → xs ⇝*ᵗ ys → tm-ctor n (x ∷ xs) ⇝ tm-ctor n (y ∷ ys)
+
+      -- Congruence: a constructor's HEAD argument, leaving the tail alone.
+      -- This is the finer-grained form of `ξ-ctor` (which forces head AND
+      -- tail together); it lets the relation reduce a single constructor
+      -- argument, which the confluence development needs.
+      ξ-ctor-head : ∀ {n x x′ xs} → x ⇝ x′ → tm-ctor n (x ∷ xs) ⇝ tm-ctor n (x′ ∷ xs)
+
+      -- Congruence: a constructor's TAIL arguments, leaving the head alone.
+      ξ-ctor-tail : ∀ {n x xs xs′} → xs ⇝*ᵗ xs′ → tm-ctor n (x ∷ xs) ⇝ tm-ctor n (x ∷ xs′)
 
       -- Congruence: data spines force their arguments.
       ξ-data-params : ∀ {n xs ys is} → xs ⇝*ᵗ ys → tm-data n xs is ⇝ tm-data n ys is
       ξ-data-indices : ∀ {n ps xs ys} → xs ⇝*ᵗ ys → tm-data n ps xs ⇝ tm-data n ps ys
+
+      -- Congruence: a data spine's HEAD argument, leaving the tail alone.
+      ξ-data-params-head : ∀ {n x x′ xs is} → x ⇝ x′ → tm-data n (x ∷ xs) is ⇝ tm-data n (x′ ∷ xs) is
+      ξ-data-params-tail : ∀ {n x xs xs′ is} → xs ⇝*ᵗ xs′ → tm-data n (x ∷ xs) is ⇝ tm-data n (x ∷ xs′) is
+      ξ-data-indices-head : ∀ {n ps x x′ xs} → x ⇝ x′ → tm-data n ps (x ∷ xs) ⇝ tm-data n ps (x′ ∷ xs)
+      ξ-data-indices-tail : ∀ {n ps x xs xs′} → xs ⇝*ᵗ xs′ → tm-data n ps (x ∷ xs) ⇝ tm-data n ps (x ∷ xs′)
 
       -- Congruence: Π/λ force their domain (the codomain/body are under a binder).
       ξ-pi-dom : ∀ {g d d′ b} → d ⇝ d′ → tm-pi g d b ⇝ tm-pi g d′ b

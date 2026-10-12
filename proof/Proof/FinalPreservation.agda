@@ -232,6 +232,8 @@ module _ (sig : Signature) (cert : Certified sig) where
     final-preservation (f-app ff fa) (ξ-app₁ step) = f-app (final-preservation ff step) fa
     final-preservation (f-app ff fa) (ξ-app₂ step) = f-app ff (final-preservation fa step)
     final-preservation (f-let fty fv fb) (ξ-let step) = f-let fty (final-preservation fv step) fb
+    final-preservation (f-let fty fv fb) (ξ-let-ty step) = f-let (final-preservation fty step) fv fb
+    final-preservation (f-let fty fv fb) (ξ-let-body step) = f-let fty fv (final-preservation fb step)
     final-preservation (f-case fs fm fbs) (ξ-case step) = f-case (final-preservation fs step) fm fbs
     final-preservation (f-case fs fm fbs) (ξ-case-motive step) = f-case fs (final-preservation fm step) fbs
     final-preservation (f-pi fd fc) (ξ-pi-dom step) = f-pi (final-preservation fd step) fc
@@ -240,8 +242,20 @@ module _ (sig : Signature) (cert : Certified sig) where
     final-preservation (f-lam fd fb) (ξ-lam-body step) = f-lam fd (final-preservation fb step)
     final-preservation (f-data fps fis) (ξ-data-params step) = f-data (final-preservation-terms fps step) fis
     final-preservation (f-data fps fis) (ξ-data-indices step) = f-data fps (final-preservation-terms fis step)
+    final-preservation (f-data fps fis) (ξ-data-params-head step) =
+      f-data (ft∷ (final-preservation (ft-head fps) step) (ft-tail fps)) fis
+    final-preservation (f-data fps fis) (ξ-data-params-tail steps) =
+      f-data (ft∷ (ft-head fps) (final-preservation-terms (ft-tail fps) steps)) fis
+    final-preservation (f-data fps fis) (ξ-data-indices-head step) =
+      f-data fps (ft∷ (final-preservation (ft-head fis) step) (ft-tail fis))
+    final-preservation (f-data fps fis) (ξ-data-indices-tail steps) =
+      f-data fps (ft∷ (ft-head fis) (final-preservation-terms (ft-tail fis) steps))
     final-preservation (f-ctor fargs) (ξ-ctor step steps) =
       f-ctor (ft∷ (final-preservation (ft-head fargs) step) (final-preservation-terms (ft-tail fargs) steps))
+    final-preservation (f-ctor fargs) (ξ-ctor-head step) =
+      f-ctor (ft∷ (final-preservation (ft-head fargs) step) (ft-tail fargs))
+    final-preservation (f-ctor fargs) (ξ-ctor-tail steps) =
+      f-ctor (ft∷ (ft-head fargs) (final-preservation-terms (ft-tail fargs) steps))
     final-preservation (f-effect_type ft) (ξ-effect_type step) = f-effect_type (final-preservation ft step)
     final-preservation (f-effect_pure ft) (ξ-effect_pure step) = f-effect_pure (final-preservation ft step)
     final-preservation (f-effect_bind fe fk) (ξ-effect_bind₁ step) = f-effect_bind (final-preservation fe step) fk
