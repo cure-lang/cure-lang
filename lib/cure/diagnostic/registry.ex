@@ -1203,6 +1203,19 @@ defmodule Cure.Diagnostic.Registry do
     Fix: correct the spelling, import or qualify the definition, or use a name
     from the required namespace. Suggestions are filtered by namespace and
     visibility before they are shown.
+
+    In the module namespace this means a `use` or a qualified reference names a
+    module that is not part of the compilation. Compiling one file does not pick
+    up its siblings, so a module declared in another file is missing unless that
+    file is compiled too:
+
+      lib/demo.cure:  mod Pool.Demo
+                        use Pool.Core     # declared in lib/pool_core.cure
+
+    Fix: compile the project directory (`cure compile lib`) or add the declaring
+    file, or correct a mistyped module name. A module that exists but is not on
+    its package's export surface is reported the same way and is private to that
+    package.
     """,
     "E092" => """
     E092: Macro Expansion Failed

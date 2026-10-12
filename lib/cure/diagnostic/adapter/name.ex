@@ -213,6 +213,15 @@ defmodule Cure.Diagnostic.Adapter.Name do
         opts
       )
 
+  def from_error({:missing_module, %{target: {package, module}, requester: {_, requester}} = details}, opts),
+    do: missing_module(package, module, requester, details, opts)
+
+  def from_error(
+        {:package_module_not_exported, %{target: {package, module}, requester: {_, requester}} = details},
+        opts
+      ),
+      do: module_not_exported(package, module, requester, details, opts)
+
   def from_error(:shadowed, opts), do: declaration_conflict(:shadowed, %{}, opts)
 
   def from_error({:sibling_module_collision, name, owners}, opts) when is_list(owners),
@@ -391,6 +400,163 @@ defmodule Cure.Diagnostic.Adapter.Name do
       ],
       payload: %{namespace: :value, name: spelling, owners: owners}
     )
+  end
+
+  @doc """
+  A module a source depends on is not part of the compilation.
+
+  The module manifest harvests every `use`, qualified reference and ambient
+  prelude provider before any body is elaborated, and reports the first target
+  that no compiled file or loaded interface provides. This is an authoring
+  problem -- a mistyped name, or a sibling file left out of the compile set --
+  so it is an `E091` unknown name in the `:module` namespace rather than an
+  internal error.
+
+  The manifest only knows the dependency's file and line, not a column. A span
+  is therefore attached only when that file is the registered source and the
+  module's spelling is found on that line; otherwise the diagnostic stays
+  locationless and names the origin in a note instead of blaming whatever the
+  first line of the registered source happens to be.
+  """
+  @spec missing_module(String.t(), String.t(), String.t(), map(), keyword()) :: Diagnostic.t()
+  def missing_module(package, module, requester, details, opts) do
+    kind = Map.get(details, :kind)
+    span = dependency_span(Map.get(details, :span), module, opts) || Keyword.get(opts, :span)
+
+    opts =
+      opts
+      |> Keyword.put(:span, span)
+      |> Keyword.put(:candidates, details |> Map.get(:candidates, []) |> Enum.reject(&(&1 in [module, requester])))
+      |> Keyword.put(:label, "`#{module}` is not part of this compilation")
+      |> Keyword.put(:owner, requester)
+      |> Keyword.put(:notes, dependency_notes(Map.get(details, :span), span))
+
+    %Diagnostic{} = diagnostic = unknown_name(:module, module, opts)
+
+    suggestions =
+      case diagnostic.suggestions do
+        # A near-miss spelling is a guess, never a safe automatic rewrite: the
+        # author may well mean a module they have yet to write.
+        [_ | _] = ranked -> Enum.map(ranked, &%{&1 | applicability: :maybe_incorrect})
+        [] -> [missing_module_suggestion(module)]
+      end
+
+    %Diagnostic{
+      diagnostic
+      | body:
+          Doc.paragraph(
+            "#{dependency_clause(kind, requester, module)}, but no module with that name is part of this compilation."
+          ),
+        suggestions: suggestions,
+        payload:
+          Map.merge(diagnostic.payload, %{
+            kind: :missing_module,
+            package: package,
+            requester: requester,
+            dependency_kind: kind
+          })
+    }
+  end
+
+  @doc """
+  A dependency's module exists but is not on its package's export surface.
+  """
+  @spec module_not_exported(String.t(), String.t(), String.t(), map(), keyword()) :: Diagnostic.t()
+  def module_not_exported(package, module, requester, details, opts) do
+    kind = Map.get(details, :kind)
+    span = dependency_span(Map.get(details, :span), module, opts) || Keyword.get(opts, :span)
+
+    Diagnostic.new(
+      code: "E091",
+      key: :unknown_name,
+      severity: :error,
+      title: "Module `#{module}` is not exported by `#{package}`",
+      body:
+        Doc.paragraph(
+          "#{dependency_clause(kind, requester, module)}, but package `#{package}` does not export it. A module outside a package's export surface is private to that package."
+        ),
+      primary: primary(Keyword.put(opts, :span, span), "`#{module}` is private to `#{package}`"),
+      notes: dependency_notes(Map.get(details, :span), span),
+      suggestions: [
+        %Suggestion{
+          message: "Use a module that `#{package}` exports, or ask its maintainers to export `#{module}`",
+          applicability: :manual
+        }
+      ],
+      payload: %{
+        namespace: :module,
+        name: module,
+        candidates: [],
+        candidate_details: [],
+        kind: :package_module_not_exported,
+        package: package,
+        requester: requester,
+        dependency_kind: kind
+      }
+    )
+  end
+
+  defp dependency_clause(:use_import, requester, module), do: "`#{requester}` imports `#{module}` with `use`"
+
+  defp dependency_clause(:qualified_reference, requester, module),
+    do: "`#{requester}` refers to `#{module}` by its qualified name"
+
+  defp dependency_clause(:prelude_symbol_use, requester, module),
+    do: "`#{requester}` relies on `#{module}` as an ambient prelude provider"
+
+  defp dependency_clause(_kind, requester, module), do: "`#{requester}` depends on `#{module}`"
+
+  defp missing_module_suggestion(module) do
+    %Suggestion{
+      message:
+        "Add the file that declares `#{module}` to the compilation (compiling a single file does not pick up its siblings; compile the project directory, for example `cure compile lib`), or correct the module name",
+      applicability: :manual
+    }
+  end
+
+  # Without an inline label the reader would not learn where the dependency was
+  # written, so say so in a note.
+  defp dependency_notes(%{path: path, line: line}, nil) when is_binary(path) and is_integer(line),
+    do: ["Required at #{Path.relative_to_cwd(path)}:#{line}."]
+
+  defp dependency_notes(_origin, _span), do: []
+
+  # Resolve the manifest's `%{path, line}` origin to an exact span, or `nil`
+  # when it cannot be done honestly. The origin file must be the registered
+  # source (a diagnostic can only render a snippet of a registered buffer) and
+  # the module's spelling must actually appear on that line (an ambient prelude
+  # provider, for one, is attributed to line 1 without being written anywhere).
+  defp dependency_span(%{path: path, line: line}, module, opts)
+       when is_binary(path) and is_integer(line) and line > 0 do
+    with registry when not is_nil(registry) <- Keyword.get(opts, :source_registry),
+         source_file when is_binary(source_file) <- Keyword.get(opts, :source_file),
+         true <- Path.expand(path) == Path.expand(source_file),
+         {:ok, source} <- Diagnostic.SourceRegistry.fetch(registry, source_file),
+         text when is_binary(text) <- source |> String.split("\n") |> Enum.at(line - 1),
+         {column, length} <- module_column(String.trim_trailing(text, "\r"), module),
+         {:ok, span} <- Diagnostic.SourceRegistry.span_at(registry, source_file, line, column, length) do
+      span
+    else
+      _ -> nil
+    end
+  end
+
+  defp dependency_span(_origin, _module, _opts), do: nil
+
+  # One-based Unicode column and length of `module` as a whole dotted name: not
+  # the tail of a longer qualifier (`Other.Pool.Core`) and not the head of a
+  # longer identifier (`Pool.CoreExtra`), but fine as a qualifier itself
+  # (`Pool.Core.run`).
+  defp module_column(text, module) do
+    pattern = Regex.compile!("(?<![A-Za-z0-9_.])" <> Regex.escape(module) <> "(?![A-Za-z0-9_])")
+
+    case Regex.run(pattern, text, return: :index) do
+      [{byte_start, _byte_length}] ->
+        {String.length(binary_part(text, 0, byte_start)) + 1, String.length(module)}
+
+      nil ->
+        nil
+    end
   end
 
   @doc false
