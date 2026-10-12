@@ -1,12 +1,11 @@
 # Confluence of the Cure Core reduction relation
 
-**Status: in progress (~90% mechanised).** This document records the state of
-the mechanised confluence development so it can be resumed cleanly. The
-development lives in `proof/` (Agda 2.8.0) alongside the soundness argument
-(`docs/SOUNDNESS.md`). The substitution-commutation lemma `⇉-substS` — the
-crux — is **fully proved** (`proof/Proof/Confluence.agda`, in the build);
-the remaining work is the diamond property `⇉-diamond` and the final
-`confluence` assembly.
+**Status: COMPLETE.** The mechanised confluence development is finished:
+`⇉-substS` (the substitution-commutation lemma), `⇉-diamond` (the diamond
+property), and `confluence : _⇝_` are all **proved** in
+`proof/Proof/Confluence.agda`, which type-checks clean (no holes, no new
+postulates) and is in the build (`proof/check.sh`). The development lives in
+`proof/` (Agda 2.8.0) alongside the soundness argument (`docs/SOUNDNESS.md`).
 
 ## Why confluence
 
@@ -120,60 +119,35 @@ The module type-checks clean (no holes, no new postulates) and contains, all
 
 This is the crux the plan identified. **It is done.**
 
+### `⇉-diamond` and `confluence` (also in `Proof/Confluence.agda`)
+
+- **`⇉-diamond`** — the diamond property of `_⇉_`, with MULTI-step
+  conclusions (`t ⇉ u → t ⇉ v → ∃ w → u ⇉* w × v ⇉* w`). All cases proved:
+  the same-constructor cases; the `p-ctor`/`p-ctor-head`/`p-ctor-tail`
+  cross cases (via the ctor-spine diamond `⇉-diamond-ctor`, whose witness is
+  a `tm-ctor`); `p-δ`/`p-δ` (bodies equal by `just-inj`); the β/ζ redex cases
+  (via **`substTopT-⇉*`**); the ι redex cases (via **`substArgs-⇉*ᵗ*`**); and
+  the redex-vs-congruence cases (β vs `p-app`, ζ vs `p-let`, ι vs `p-case`,
+  and the literal peels vs `p-case`).
+- Supporting: `⇉-diamond-star` (multi-step), `⇉-diamond-terms`,
+  `⇉-diamond-brs`, `⇉-diamond-ctor`, `ctor-of-step`, `ctor-spine`,
+  `⇉-ctor-spine`, `ctor-inj`, `ctor-spine-rewrite`, `⇉-ctor-terms`,
+  `⇉*-ctor-tail`, `findBranch-⇉*ᵇ-eq`, `findBranch-⇉*ᵇ-rev`,
+  `findBranch-unique`, `substTopT-⇉*`, `substArgs-⇉*`, `substArgs-⇉*ᵗ*`,
+  `argsSub-⇉`, `argsSub-go-⇉*`, `⇉-substS-refl*`, `⇉-substS-star*`.
+- **`confluence : _⇝_`** — `_⇝_` is confluent, from `⇉-confluent` (= the
+  diamond, iterated) and the two inclusions `⇝→⇉*` / `⇉→⇝*-star`.
+
+**The confluence development is complete.**
+
 ## What remains
 
-1. **`⇉-diamond`** — the diamond property itself, from `⇉-substS`. This is the
-   next concrete step. It is a large Tait–Martin-Löf double induction on the
-   two derivations `t ⇉ u` and `t ⇉ v`. The case analysis splits into:
-
-   - **same-constructor** cases (atomic forms, `p-pi`, `p-lam`, `p-let`,
-     `p-app`, `p-data`, `p-ctor`, `p-case`, the effect formers): structural,
-     using the IH on the premises. NOTE `p-lam`/`p-let`'s body premise is a
-     SINGLE step (`_⇉_`), so the IH is `⇉-diamond`, not `⇉-diamond-star`.
-   - **`p-ctor-head`/`p-ctor-tail`** mixed cases: the common reduct is
-     `tm-ctor n (x′ ∷ xs′)`; both sides are re-derived by `p-ctor-tail` /
-     `p-ctor-head`. The `p-ctor-tail`/`p-ctor-tail` case needs a
-     **ctor-spine diamond** (`⇉-diamond-ctor`) that returns a `tm-ctor` witness
-     (the plain `⇉-diamond` returns a `Term`, which Agda cannot see is a
-     `tm-ctor`).
-   - **`p-δ`/`p-δ`**: the two bodies are equal by `just-inj` of the two
-     `Signature.body` equations; transport `⇉-refl`.
-   - **β/ζ/ι vs β/ζ/ι** (the redex cases): both sides reduce to
-     `substTopT`-forms; the diamond is closed by `⇉-substS` (this is where the
-     substitution lemma is consumed).
-   - **β/ζ/ι vs their congruence** (`p-β` vs `p-app`, `p-ζ` vs `p-let`,
-     `p-ι*` vs `p-case`): the redex side steps by the rule, the congruence
-     side steps by the rule applied to the reduced components; the two are
-     reconciled by `⇉-substS` / `⇉-substS-star`.
-   - **the list/multi-step diamonds** `⇉-diamond-star` (for `_⇉*_`),
-     `⇉-diamond-terms` (for `_⇉*ᵗ_`), `⇉-diamond-brs` (for `_⇉*ᵇ_`), and the
-     ctor-spine diamond `⇉-diamond-ctor`.
-
-   A partial development exists in `/tmp/Confluence.diamond.wip.agda`
-   (session-local): the same-constructor, `p-ctor-*`, and `p-δ` cases are
-   proved; the redex cross-cases and the list diamonds are the remaining work.
-
-   **DESIGN NOTE (the one real subtlety).** The diamond must be stated with
-   MULTI-step conclusions (`∃ λ w → u ⇉* w × v ⇉* w`), because the redex cases
-   are closed by the multi-step substitution lemma. `⇉-substS`'s hypothesis
-   is SINGLE-step, while the diamond supplies a MULTI-step reduct for the
-   argument. This gap is now BRIDGED by `substTopT-⇉*` (proved in
-   `Proof/Confluence.agda`), so the β/ζ redex cases are a direct application:
-
-       ⇉-diamond (p-β sd sb sa) (p-β sd′ sb′ sa′) =
-         let (a‴ , ad , ae) = ⇉-diamond sa sa′
-             (b‴ , bd , be) = ⇉-diamond-star sb sb′
-         in substTopT a‴ b‴ , substTopT-⇉* ad bd , substTopT-⇉* ae be
-
-   The remaining cases are the redex-vs-CONGRUENCE cases (β vs `p-app`, ζ vs
-   `p-let`, ι vs `p-case`), the ι redex cases, and the list diamonds
-   `⇉-diamond-star`/`⇉-diamond-terms`/`⇉-diamond-brs` plus the ctor-spine
-   diamond `⇉-diamond-ctor`. Note `⇉-diamond-ctor`'s witness must be a
-   `tm-ctor` (not a bare `Term`), which needs small `_⇉*ᵗ*_ → _⇉_` /
-   `_⇉*_ → _⇉_` "head" projections for the `p-ctor`/`p-ctor-head` cases.
-
-2. **`confluence : _⇝_`** from the diamond + the two inclusions, then
-   discharging `never-reached→no-value` in `Proof/Soundness.agda`.
+**Nothing in the confluence development itself.** The next step is to
+DISCHARGE the classical input `never-reached→no-value` in
+`Proof/Soundness.agda` using `confluence`: a never-reaching tree has no
+reachable value because two reductions from the same term have a common
+reduct (confluence), so a value reachable from a diverging term would be
+reachable from every reduct — contradicting the never-reaching spine.
 
 ## Notes
 

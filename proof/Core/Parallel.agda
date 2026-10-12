@@ -605,6 +605,37 @@ module Par (sig : Signature) where
     let (b″ , mem , red) = findBranch-⇉*ᵇ c ar b sbs′ p
     in b″ , there mem , red
 
+  -- `findBranch` commutes with a branch-list reduction, exposing the reduct's
+  -- branch EQUATION (for `just-inj` / determinism reasoning). Proved by
+  -- induction on the reduction, matching the `Dec` equality as `findBranch`
+  -- itself does.
+  pair-inj : ∀ {A B : Set} {a a′ : A} {b b′ : B} → (a , b) ≡ (a′ , b′) → a ≡ a′ × b ≡ b′
+  pair-inj refl = refl , refl
+
+  findBranch-⇉*ᵇ-eq : ∀ c {bs bs′} ar b → _⇉*ᵇ_ bs bs′
+                    → findBranch c bs ≡ just (c , ar , b)
+                    → ∃ λ b′ → findBranch c bs′ ≡ just (c , ar , b′) × _⇉*_ b b′
+  findBranch-⇉*ᵇ-eq c ar b ⇉ᵇ-nil ()
+  findBranch-⇉*ᵇ-eq c ar b (⇉ᵇ-cons {cn = cn} {ar = ar₁} {b = b₁} {b′ = b′} sbs sbs′) eq
+    with c ≟ cn
+  ... | yes refl = b′ , cong (λ q → just (c , proj₁ (proj₂ q) , b′)) (just-inj eq)
+                        , subst (λ z → _⇉*_ z b′) (cong (λ q → proj₂ (proj₂ q)) (just-inj eq)) sbs
+  ... | no ¬q = findBranch-⇉*ᵇ-eq c ar b sbs′ eq
+  -- `findBranch` commutes with a branch-list reduction, in the REVERSE
+  -- direction: a branch found in the reduct comes from a branch in the source.
+  findBranch-⇉*ᵇ-rev : ∀ c {bs bs′} ar b → _⇉*ᵇ_ bs bs′
+                     → findBranch c bs′ ≡ just (c , ar , b)
+                     → ∃ λ b′ → findBranch c bs ≡ just (c , ar , b′) × _⇉*_ b′ b
+  findBranch-⇉*ᵇ-rev c ar b ⇉ᵇ-nil eq = _ , eq , ⇉*-refl
+  findBranch-⇉*ᵇ-rev c ar b (⇉ᵇ-cons {cn = cn} {ar = ar₁} {b = b₁} {b′ = b′} sbs sbs′) eq
+    with c ≟ cn
+  ... | yes refl =
+    let ar-eq = proj₁ (pair-inj (proj₂ (pair-inj (just-inj eq))))
+        b-eq = proj₂ (pair-inj (proj₂ (pair-inj (just-inj eq))))
+    in b₁ , cong (λ z → just (c , z , b₁)) ar-eq
+            , subst (λ z → _⇉*_ b₁ z) b-eq sbs
+  ... | no ¬q = findBranch-⇉*ᵇ-rev c ar b sbs′ eq
+
   -- Termination: the `⇝*-at-*` helpers recurse on the multi-step reduction
   -- `ss`, which is structurally smaller at each call. Agda cannot see this
   -- because the SPINE argument is re-indexed by `setAt` (which preserves the
