@@ -1,0 +1,53 @@
+mod Pool.WorkerFsm
+  ###
+  The pool worker's lifecycle, as a compile-time-verified state machine.
+
+  The transition graph below is checked while this file compiles: every state
+  is reachable from `Idle`, no non-terminal state is deadlocked, and every
+  event's payload shape is consistent across its rows.
+
+      Idle --Reserve(client)--> Reserved --Activate(key)--> Active
+      Active --Return--> Returning --Reclaim--> Idle
+      Active --Timeout--> Returning
+
+  The `Timeout` edge is the safety net the brief calls out: a client that
+  checks a worker out and then goes away does not strand it, because the
+  machine models the timeout as an ordinary transition back toward `Idle`.
+
+  Validate this declaration with:
+
+      cure run lib/worker_fsm.cure
+
+  `cure run` expands and verifies the `fsm` macro before calling `main/0`
+  below. `main/0` does nothing but print -- a deliberately boring, reliable
+  signal that the graph passed verification. Delete a transition or a state
+  and re-run to see the compiler reject the graph (`fsm_deadlocked_state`,
+  `fsm_unreachable_state`, ...) before `main/0` ever runs.
+  ###
+
+  use Std.Fsm
+  use Std.Io
+
+  ## The worker's payload: who holds it and under which session key. Both are
+  ## plain `Int`s here so the machine is self-contained; in the Elixir-hosted
+  ## runtime the client is a pid and the key a reference, but the *graph* is
+  ## the same and it is what the compiler verifies.
+  rec WorkerData
+    client: Int
+    key: Int
+
+  fsm Worker with WorkerData
+    initial Idle
+
+    Idle --Reserve(client: Int)--> Reserved
+      update WorkerData{data | client: client}
+    Reserved --Activate(key: Int)--> Active
+      update WorkerData{data | key: key}
+    Active --Return--> Returning
+    Active --Timeout--> Returning
+    Returning --Reclaim--> Idle
+      update WorkerData{data | client: 0, key: 0}
+
+  fn main() -> Atom =
+    let _: Unit = Std.Io.println("worker_fsm: Idle/Reserved/Active/Returning graph verified")
+    :ok

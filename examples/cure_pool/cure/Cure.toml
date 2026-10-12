@@ -1,0 +1,14 @@
+[project]
+name = "cure_pool"
+version = "0.1.0"
+edition = "2026"
+
+[dependencies]
+
+[compiler]
+type_check = false
+optimize = false
+
+[doc]
+title = "cure_pool"
+main = "Pool.Demo"

@@ -1,0 +1,23 @@
+###
+## NEGATIVE FIXTURE -- this file MUST fail to compile.
+##
+## Guarantee G1: no over-checkout.
+##
+## `checkout` is only defined on `Pool(S(n), m)` -- a pool with at least one
+## free slot. Here the pool has zero free slots (`Pool(Z(), Z())`), so the
+## `S(n)` argument type has no inhabitant and the call is a *type error*.
+##
+## Expected diagnostic: E093 ANNOTATION DOES NOT MATCH, with
+##   Expected: Pool(S(Z), Z)
+##   Found:    Pool(Z, Z)
+##
+## The driver `test/negative/run_negative.sh` asserts this file is rejected.
+###
+
+mod Pool.Negative.CheckoutEmpty
+  use Pool.Core
+
+  fn main() -> Atom =
+    let empty: Pool(Z(), Z()) = make(Z(), 0)
+    let bad: Pool(Z(), S(Z())) = checkout(Z(), Z(), Z(), 7, empty)
+    :ok

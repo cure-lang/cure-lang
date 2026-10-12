@@ -1,0 +1,24 @@
+###
+## NEGATIVE FIXTURE -- this file MUST fail to compile.
+##
+## Guarantee G2a: no double-return / use-after-free.
+##
+## A `Lease` is a `@linear` capability. Passing the same lease to `run` twice
+## is the classic "checked out twice / used after return" bug. The kernel's
+## `{0,1,ω}` usage checker rejects it.
+##
+## Expected diagnostic: E117 LINEAR VALUE MAY BE USED MORE THAN ONCE.
+##
+## The driver `test/negative/run_negative.sh` asserts this file is rejected.
+###
+
+mod Pool.Negative.DoubleReturn
+  use Pool.Core
+
+  ## `lease` is linear; this body consumes it twice on one path.
+  fn bad(k: Nat, @linear lease: Lease(k)) -> Int =
+    let first = run(k, lease, 1)
+    let second = run(k, lease, 2)
+    first.1 + second.1
+
+  fn main() -> Atom = :ok
