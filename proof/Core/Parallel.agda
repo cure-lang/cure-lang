@@ -48,7 +48,7 @@ open import Core.Reduction
 ------------------------------------------------------------------------
 
 
-module _ (sig : Signature) where
+module Par (sig : Signature) where
 
   infix 4 _⇉_
 
@@ -86,8 +86,8 @@ module _ (sig : Signature) where
       p-ctor-head : ∀ {n x x′ xs} → x ⇉ x′ → tm-ctor n (x ∷ xs) ⇉ tm-ctor n (x′ ∷ xs)
       p-ctor-tail : ∀ {n x xs xs′} → tm-ctor n xs ⇉ tm-ctor n xs′
                   → tm-ctor n (x ∷ xs) ⇉ tm-ctor n (x ∷ xs′)
-      p-case : ∀ {s s′ m m′ brs} → s ⇉ s′ → m ⇉ m′
-             → tm-case s m brs ⇉ tm-case s′ m′ brs
+      p-case : ∀ {s s′ m m′ brs brs′} → s ⇉ s′ → m ⇉ m′ → brs ⇉*ᵇ brs′
+             → tm-case s m brs ⇉ tm-case s′ m′ brs′
       p-effect_type : ∀ {t t′} → t ⇉ t′ → tm-effect_type t ⇉ tm-effect_type t′
       p-effect_pure : ∀ {t t′} → t ⇉ t′ → tm-effect_pure t ⇉ tm-effect_pure t′
       p-effect_bind : ∀ {e e′ k k′} → e ⇉ e′ → k ⇉ k′
@@ -138,9 +138,20 @@ module _ (sig : Signature) where
       -- δ: unfold a certified global to its body.
       p-δ : ∀ {f body′} → Signature.body sig f ≡ just body′ → tm-global f ⇉ body′
 
+    -- Multi-step parallel reduction.
+    data _⇉*_ : Term → Term → Set where
+      ⇉*-refl : ∀ {t} → t ⇉* t
+      ⇉*-step : ∀ {t u v} → t ⇉ u → u ⇉* v → t ⇉* v
+
     data _⇉*ᵗ_ : List Term → List Term → Set where
       ⇉*-nil  : [] ⇉*ᵗ []
       ⇉*-cons : ∀ {x x′ xs xs′} → x ⇉ x′ → xs ⇉*ᵗ xs′ → (x ∷ xs) ⇉*ᵗ (x′ ∷ xs′)
+
+    -- List-wise MULTI-step branch reduction (each body reduces by `_⇉*_`).
+    data _⇉*ᵇ_ : List Branch → List Branch → Set where
+      ⇉ᵇ-nil  : [] ⇉*ᵇ []
+      ⇉ᵇ-cons : ∀ {cn ar b b′ bs bs′} → b ⇉* b′ → bs ⇉*ᵇ bs′
+              → ((cn , ar , b) ∷ bs) ⇉*ᵇ ((cn , ar , b′) ∷ bs′)
 
   ------------------------------------------------------------------------
   -- Reflexivity of `_⇉_`.
@@ -156,7 +167,7 @@ module _ (sig : Signature) where
     ⇉-refl (tm-app f a) = p-app (⇉-refl f) (⇉-refl a)
     ⇉-refl (tm-data n ps is) = p-data (⇉-refl-terms ps) (⇉-refl-terms is)
     ⇉-refl (tm-ctor n args) = p-ctor (⇉-refl-terms args)
-    ⇉-refl (tm-case s m brs) = p-case (⇉-refl s) (⇉-refl m)
+    ⇉-refl (tm-case s m brs) = p-case (⇉-refl s) (⇉-refl m) (⇉-refl-brs brs)
     ⇉-refl (tm-global n) = p-global
     ⇉-refl (tm-int_type) = p-int_type
     ⇉-refl (tm-int_lit k) = p-int_lit
@@ -176,6 +187,10 @@ module _ (sig : Signature) where
     ⇉-refl-terms : ∀ (ts : List Term) → _⇉*ᵗ_ ts ts
     ⇉-refl-terms [] = ⇉*-nil
     ⇉-refl-terms (x ∷ xs) = ⇉*-cons (⇉-refl x) (⇉-refl-terms xs)
+
+    ⇉-refl-brs : ∀ (bs : List Branch) → _⇉*ᵇ_ bs bs
+    ⇉-refl-brs [] = ⇉ᵇ-nil
+    ⇉-refl-brs ((cn , ar , b) ∷ bs) = ⇉ᵇ-cons (⇉*-refl) (⇉-refl-brs bs)
 
   ------------------------------------------------------------------------
   -- `_⇝_ ⊆ _⇉_`.
@@ -200,8 +215,9 @@ module _ (sig : Signature) where
     ⇝→⇉ (δ eq) = p-δ eq
     ⇝→⇉ (ξ-app₁ step) = p-app (⇝→⇉ step) (⇉-refl _)
     ⇝→⇉ (ξ-app₂ step) = p-app (⇉-refl _) (⇝→⇉ step)
-    ⇝→⇉ (ξ-case step) = p-case (⇝→⇉ step) (⇉-refl _)
-    ⇝→⇉ (ξ-case-motive step) = p-case (⇉-refl _) (⇝→⇉ step)
+    ⇝→⇉ (ξ-case step) = p-case (⇝→⇉ step) (⇉-refl _) (⇉-refl-brs _)
+    ⇝→⇉ (ξ-case-motive step) = p-case (⇉-refl _) (⇝→⇉ step) (⇉-refl-brs _)
+    ⇝→⇉ (ξ-case-brs steps) = p-case (⇉-refl _) (⇉-refl _) (⇝→⇉-brs steps)
     ⇝→⇉ (ξ-effect_type step) = p-effect_type (⇝→⇉ step)
     ⇝→⇉ (ξ-effect_pure step) = p-effect_pure (⇝→⇉ step)
     ⇝→⇉ (ξ-effect_bind₁ step) = p-effect_bind (⇝→⇉ step) (⇉-refl _)
@@ -216,6 +232,18 @@ module _ (sig : Signature) where
     ⇝→⇉ (ξ-pi-cod step) = p-pi (⇉-refl _) (⇝→⇉ step)
     ⇝→⇉ (ξ-lam-dom step) = p-lam (⇝→⇉ step) (⇉-refl _)
     ⇝→⇉ (ξ-lam-body step) = p-lam (⇉-refl _) (⇝→⇉ step)
+
+    ⇝→⇉-terms : ∀ {ts ts′} → _⇝*ᵗ_ sig ts ts′ → _⇉*ᵗ_ ts ts′
+    ⇝→⇉-terms ⇝*-nil = ⇉*-nil
+    ⇝→⇉-terms (⇝*-cons step steps) = ⇉*-cons (⇝→⇉ step) (⇝→⇉-terms steps)
+
+    ⇝→⇉-brs : ∀ {bs bs′} → _⇝*ᵇ_ sig bs bs′ → _⇉*ᵇ_ bs bs′
+    ⇝→⇉-brs ⇝ᵇ-nil = ⇉ᵇ-nil
+    ⇝→⇉-brs (⇝ᵇ-cons steps steps′) = ⇉ᵇ-cons (⇝→⇉* steps) (⇝→⇉-brs steps′)
+
+    ⇝→⇉* : ∀ {t t′} → _⇝*_ sig t t′ → _⇉*_ t t′
+    ⇝→⇉* ⇝*-refl = ⇉*-refl
+    ⇝→⇉* (⇝*-step s ss) = ⇉*-step (⇝→⇉ s) (⇝→⇉* ss)
 
     -- Update the element at `i` by a parallel step, leaving the rest by
     -- reflexivity.
@@ -282,6 +310,10 @@ module _ (sig : Signature) where
   ⇝*-case-motive : ∀ {s m m′ brs} → _⇝*_ sig m m′ → _⇝*_ sig (tm-case s m brs) (tm-case s m′ brs)
   ⇝*-case-motive ⇝*-refl = ⇝*-refl
   ⇝*-case-motive (⇝*-step s ss) = ⇝*-step (ξ-case-motive s) (⇝*-case-motive ss)
+
+  ⇝*-case-brs : ∀ {s m brs brs′} → _⇝*ᵇ_ sig brs brs′ → _⇝*_ sig (tm-case s m brs) (tm-case s m brs′)
+  ⇝*-case-brs ⇝ᵇ-nil = ⇝*-refl
+  ⇝*-case-brs (⇝ᵇ-cons s ss) = ⇝*-step (ξ-case-brs (⇝ᵇ-cons s ss)) ⇝*-refl
 
   ⇝*-effect_type : ∀ {t t′} → _⇝*_ sig t t′ → _⇝*_ sig (tm-effect_type t) (tm-effect_type t′)
   ⇝*-effect_type ⇝*-refl = ⇝*-refl
@@ -393,8 +425,9 @@ module _ (sig : Signature) where
     ⇉→⇝* (p-ctor sargs) = ⇉→⇝*-spine-ctor [] _ _ sargs
     ⇉→⇝* (p-ctor-head {x = x} {x′ = x′} {xs = xs} sx) = ⇝*-at-ctor (x ∷ xs) zero (⇉→⇝* sx)
     ⇉→⇝* (p-ctor-tail {x = x} {xs = xs} {xs′ = xs′} st) = ⇝*-ctor-tail-shift x (⇉→⇝* st)
-    ⇉→⇝* (p-case ss sm) =
-      ⇝*-trans (⇝*-case (⇉→⇝* ss)) (⇝*-case-motive (⇉→⇝* sm))
+    ⇉→⇝* (p-case ss sm sbs) =
+      ⇝*-trans (⇝*-case (⇉→⇝* ss))
+        (⇝*-trans (⇝*-case-motive (⇉→⇝* sm)) (⇝*-case-brs (⇉→⇝*-brs sbs)))
     ⇉→⇝* (p-effect_type st) = ⇝*-effect_type (⇉→⇝* st)
     ⇉→⇝* (p-effect_pure st) = ⇝*-effect_pure (⇉→⇝* st)
     ⇉→⇝* (p-effect_bind se sk) =
@@ -452,6 +485,14 @@ module _ (sig : Signature) where
     ⇝*-ctor-tail-shift : ∀ {c} (x : Term) {xs xs′}
                        → _⇝*_ sig (tm-ctor c xs) (tm-ctor c xs′)
                        → _⇝*_ sig (tm-ctor c (x ∷ xs)) (tm-ctor c (x ∷ xs′))
+    ⇉→⇝*-brs : ∀ {bs bs′} → _⇉*ᵇ_ bs bs′ → _⇝*ᵇ_ sig bs bs′
+    ⇉→⇝*-brs ⇉ᵇ-nil = ⇝ᵇ-nil
+    ⇉→⇝*-brs (⇉ᵇ-cons sbs sbs′) = ⇝ᵇ-cons (⇉→⇝*-star sbs) (⇉→⇝*-brs sbs′)
+
+    ⇉→⇝*-star : ∀ {t t′} → _⇉*_ t t′ → _⇝*_ sig t t′
+    ⇉→⇝*-star ⇉*-refl = ⇝*-refl
+    ⇉→⇝*-star (⇉*-step s ss) = ⇝*-trans (⇉→⇝* s) (⇉→⇝*-star ss)
+
     ⇝*-ctor-tail-shift x ⇝*-refl = ⇝*-refl
     ⇝*-ctor-tail-shift {c} x (⇝*-step (ξ-ctor-at i s) ss) =
       ⇝*-trans (⇝*-step (ξ-ctor-at (suc i) s) ⇝*-refl) (⇝*-ctor-tail-shift x ss)

@@ -1474,6 +1474,21 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
     preservation-spine (suc i) (ft∷ fx fxs) (⊢*∷ dx dxs) step =
       ⊢*∷ dx (preservation-spine i fxs dxs step)
 
+    -- A checked branch list stays checked when its bodies reduce.
+    preservation-brs : ∀ {n} {Γ : Ctx n} {brs brs′ nm m}
+                     → FinalBranches brs
+                     → Γ ⊢*brs brs ⇐*ᵇ (nm , m)
+                     → _⇝*ᵇ_ sig brs brs′
+                     → Γ ⊢*brs brs′ ⇐*ᵇ (nm , m)
+    preservation-brs fb[] brs[] ⇝ᵇ-nil = brs[]
+    preservation-brs (fb∷ fb fbs) (brs∷ fc body rest) (⇝ᵇ-cons steps steps′) =
+      brs∷ fc (preservation-star fb body steps) (preservation-brs fbs rest steps′)
+
+    preservation-star : ∀ {n} {Γ : Ctx n} {b b′ T}
+                      → Final b → Γ ⊢ b ⇐ T → _⇝*_ sig b b′ → Γ ⊢ b′ ⇐ T
+    preservation-star fb db ⇝*-refl = db
+    preservation-star fb db (⇝*-step s ss) = preservation-star (final-preservation sig cert fb s) (preservation fb db s) ss
+
     preservation⇒ :
       ∀ {n} {Γ : Ctx n} {t t′ T}
       → Final t
@@ -1518,6 +1533,8 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
       ⇒-conv (⇒-case (preservation⇒ fs ds step) dm dbrs)
               (Conversion.≈-app conv (Conversion.≈-refl conv)
                                     (Conversion.≈-sym conv (rc step)))
+    preservation⇒ (f-case fs fm fbs) (⇒-case ds dm dbrs) (ξ-case-brs steps) =
+      ⇒-case ds dm (preservation-brs fbs dbrs steps)
     preservation⇒ (f-case fs fm fbs) (⇒-case ds dm dbrs) (ξ-case-motive step) =
       ⇒-conv (⇒-case ds (preservation⇒ fm dm step)
                        (branches-conv (rc step) dbrs))

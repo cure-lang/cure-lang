@@ -238,6 +238,7 @@ module _ (sig : Signature) (cert : Certified sig) where
     final-preservation (f-let fty fv fb) (ξ-let-body step) = f-let fty fv (final-preservation fb step)
     final-preservation (f-case fs fm fbs) (ξ-case step) = f-case (final-preservation fs step) fm fbs
     final-preservation (f-case fs fm fbs) (ξ-case-motive step) = f-case fs (final-preservation fm step) fbs
+    final-preservation (f-case fs fm fbs) (ξ-case-brs steps) = f-case fs fm (final-preservation-brs fbs steps)
     final-preservation (f-pi fd fc) (ξ-pi-dom step) = f-pi (final-preservation fd step) fc
     final-preservation (f-pi fd fc) (ξ-pi-cod step) = f-pi fd (final-preservation fc step)
     final-preservation (f-lam fd fb) (ξ-lam-dom step) = f-lam (final-preservation fd step) fb
@@ -261,3 +262,13 @@ module _ (sig : Signature) (cert : Certified sig) where
                 → FinalTerms (setAt xs i x′)
     setAt-final (ft∷ fx fxs) zero step = ft∷ (final-preservation fx step) fxs
     setAt-final (ft∷ fx fxs) (suc i) step = ft∷ fx (setAt-final fxs i step)
+
+    -- A branch list whose bodies reduce stays final.
+    final-preservation-brs : ∀ {bs bs′} → FinalBranches bs → _⇝*ᵇ_ sig bs bs′ → FinalBranches bs′
+    final-preservation-brs fb[] ⇝ᵇ-nil = fb[]
+    final-preservation-brs (fb∷ fb fbs) (⇝ᵇ-cons steps steps′) =
+      fb∷ (final-preservation-star fb steps) (final-preservation-brs fbs steps′)
+
+    final-preservation-star : ∀ {b b′} → Final b → _⇝*_ sig b b′ → Final b′
+    final-preservation-star fb ⇝*-refl = fb
+    final-preservation-star fb (⇝*-step s ss) = final-preservation-star (final-preservation fb s) ss

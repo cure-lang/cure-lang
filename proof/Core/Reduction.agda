@@ -220,6 +220,9 @@ module _ (sig : Signature) where
       -- Congruence: case forces the scrutinee.
       ξ-case : ∀ {s s′ m brs} → s ⇝ s′ → tm-case s m brs ⇝ tm-case s′ m brs
 
+      -- Congruence: case forces its BRANCH bodies (each by one step).
+      ξ-case-brs : ∀ {s m brs brs′} → brs ⇝*ᵇ brs′ → tm-case s m brs ⇝ tm-case s m brs′
+
       -- Congruence: case motive.
       ξ-case-motive : ∀ {s m m′ brs} → m ⇝ m′ → tm-case s m brs ⇝ tm-case s m′ brs
 
@@ -273,12 +276,13 @@ module _ (sig : Signature) where
       ⇝*-nil  : [] ⇝*ᵗ []
       ⇝*-cons : ∀ {x x′ xs xs′} → x ⇝ x′ → xs ⇝*ᵗ xs′ → (x ∷ xs) ⇝*ᵗ (x′ ∷ xs′)
 
-  ------------------------------------------------------------------------
-  -- Multi-step reduction: the reflexive-transitive closure.
-  ------------------------------------------------------------------------
+    data _⇝*_ : Term → Term → Set where
+      ⇝*-refl  : ∀ {t} → t ⇝* t
+      ⇝*-step  : ∀ {t u v} → t ⇝ u → u ⇝* v → t ⇝* v
 
-  infix 4 _⇝*_
+    data _⇝*ᵇ_ : List Branch → List Branch → Set where
+      ⇝ᵇ-nil  : [] ⇝*ᵇ []
+      ⇝ᵇ-cons : ∀ {cn ar b b′ bs bs′} → b ⇝* b′ → bs ⇝*ᵇ bs′
+              → ((cn , ar , b) ∷ bs) ⇝*ᵇ ((cn , ar , b′) ∷ bs′)
 
-  data _⇝*_ : Term → Term → Set where
-    ⇝*-refl  : ∀ {t} → t ⇝* t
-    ⇝*-step  : ∀ {t u v} → t ⇝ u → u ⇝* v → t ⇝* v
+
