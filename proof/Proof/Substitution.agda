@@ -1134,3 +1134,27 @@ subst-argsSub σ args b =
   trans (subst-compose σ (argsSub args) b)
         (trans (cong (λ τ → substS τ b) (funext (subst-argsSub-coh σ args)))
                (sym (subst-compose (argsSub (substTermsS σ args)) (extSub^ (length args) σ) b)))
+
+
+------------------------------------------------------------------------
+-- Renaming commutes with the branch-field substitution `argsSub`.
+--
+-- `rename ρ (substArgs args b) ≡ substArgs (renameTerms ρ args) (rename (ext^ (length args) ρ) b)`.
+-- The proof is the `rename`-analogue of `subst-argsSub`: the two composed
+-- renamings agree pointwise.
+------------------------------------------------------------------------
+
+rename-argsSub-coh : ∀ ρ args k
+  → rename ρ (argsSub args k)
+  ≡ argsSub (renameTerms ρ args) (ext^ (length args) ρ k)
+rename-argsSub-coh ρ [] k = refl
+rename-argsSub-coh ρ (a ∷ args) zero = refl
+rename-argsSub-coh ρ (a ∷ args) (suc k) = rename-argsSub-coh ρ args k
+
+rename-substArgs : ∀ ρ args b
+  → rename ρ (substArgs args b)
+  ≡ substArgs (renameTerms ρ args) (rename (ext^ (length args) ρ) b)
+rename-substArgs ρ args b =
+  trans (rename-subst ρ (argsSub args) b)
+        (trans (cong (λ τ → substS τ b) (funext (rename-argsSub-coh ρ args)))
+               (sym (subst-rename (argsSub (renameTerms ρ args)) (ext^ (length args) ρ) b)))

@@ -332,6 +332,26 @@ module Par (sig : Signature) where
   ⇉*-effect_bind₂ ⇉*-refl = ⇉*-refl
   ⇉*-effect_bind₂ (⇉*-step s ss) = ⇉*-step (p-effect_bind (⇉-refl _) s) (⇉*-effect_bind₂ ss)
 
+  ⇉*-data-params : ∀ {n ps ps′ is} → _⇉*ᵗ_ ps ps′ → _⇉*_ (tm-data n ps is) (tm-data n ps′ is)
+  ⇉*-data-params ⇉*-nil = ⇉*-refl
+  ⇉*-data-params (⇉*-cons sx sxs) = ⇉*-step (p-data (⇉*-cons sx sxs) (⇉-refl-terms _)) ⇉*-refl
+
+  ⇉*-data-indices : ∀ {n ps is is′} → _⇉*ᵗ_ is is′ → _⇉*_ (tm-data n ps is) (tm-data n ps is′)
+  ⇉*-data-indices ⇉*-nil = ⇉*-refl
+  ⇉*-data-indices (⇉*-cons sx sxs) = ⇉*-step (p-data (⇉-refl-terms _) (⇉*-cons sx sxs)) ⇉*-refl
+
+  ⇉*-ctor : ∀ {c args args′} → _⇉*ᵗ_ args args′ → _⇉*_ (tm-ctor c args) (tm-ctor c args′)
+  ⇉*-ctor ⇉*-nil = ⇉*-refl
+  ⇉*-ctor (⇉*-cons sx sxs) = ⇉*-step (p-ctor (⇉*-cons sx sxs)) ⇉*-refl
+
+  ⇉*-ctor-head : ∀ {c x x′ xs} → _⇉*_ x x′ → _⇉*_ (tm-ctor c (x ∷ xs)) (tm-ctor c (x′ ∷ xs))
+  ⇉*-ctor-head ⇉*-refl = ⇉*-refl
+  ⇉*-ctor-head (⇉*-step s ss) = ⇉*-step (p-ctor-head s) (⇉*-ctor-head ss)
+
+  ⇉*-case-brs : ∀ {s m brs brs′} → _⇉*ᵇ_ brs brs′ → _⇉*_ (tm-case s m brs) (tm-case s m brs′)
+  ⇉*-case-brs ⇉ᵇ-nil = ⇉*-refl
+  ⇉*-case-brs (⇉ᵇ-cons sbs sbs′) = ⇉*-step (p-case (⇉-refl _) (⇉-refl _) (⇉ᵇ-cons sbs sbs′)) ⇉*-refl
+
   -- Parallel reduction preserves the length of a term spine.
   ⇉-terms-length : ∀ {xs xs′} → _⇉*ᵗ_ xs xs′ → length xs′ ≡ length xs
   ⇉-terms-length ⇉*-nil = refl

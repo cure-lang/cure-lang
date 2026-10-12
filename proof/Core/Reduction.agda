@@ -152,6 +152,18 @@ findBranch-substBranchesS σ c ((cn , ar′ , b′) ∷ xs) {ar} {b} eq with c �
        (just-inj eq)
 ... | no ¬q = findBranch-substBranchesS σ c xs eq
 
+-- `findBranch` commutes with `renameBranches`: looking up a constructor in a
+-- renamed branch list gives the renamed branch body.
+findBranch-rename : ∀ ρ c brs {ar b}
+  → findBranch c brs ≡ just (c , ar , b)
+  → findBranch c (renameBranches ρ brs) ≡ just (c , ar , rename (ext^ ar ρ) b)
+findBranch-rename ρ c [] ()
+findBranch-rename ρ c ((cn , ar′ , b′) ∷ xs) {ar} {b} eq with c ≟ cn
+... | yes refl =
+  cong (λ q → just (c , proj₁ (proj₂ q) , rename (ext^ (proj₁ (proj₂ q)) ρ) (proj₂ (proj₂ q))))
+       (just-inj eq)
+... | no ¬q = findBranch-rename ρ c xs eq
+
 ------------------------------------------------------------------------
 -- The reduction relation, parameterised by the signature.
 ------------------------------------------------------------------------
