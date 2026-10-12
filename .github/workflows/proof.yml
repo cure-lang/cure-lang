@@ -1,0 +1,92 @@
+name: Proof
+
+# Machine-check the mechanised soundness development under `proof/`.
+#
+# This is the CI counterpart of the written argument in `docs/SOUNDNESS.md`
+# §7 / `proof/README.md`: where the Antigen assays (run by `ci.yml`) turn each
+# lemma into a runnable, falsifiable claim, this workflow turns the same lemmas
+# into machine-checked theorems. It is intentionally a SEPARATE workflow from
+# `ci.yml` so that a slow Agda toolchain install never blocks the Elixir test
+# matrix, and so the proof job can be required independently.
+
+on:
+  push:
+    branches: [main]
+    # Only re-run when the proof (or its documentation) actually changes.
+    paths:
+      - "proof/**"
+      - "docs/SOUNDNESS.md"
+      - ".github/workflows/proof.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "proof/**"
+      - "docs/SOUNDNESS.md"
+      - ".github/workflows/proof.yml"
+
+jobs:
+  check:
+    name: Agda soundness development
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Agda 2.8.0 is the version the development is pinned to (see
+      # `proof/README.md` and `proof/check.sh`). `ubuntu-latest` ships an
+      # older Agda, so we install the exact version from the Haskell
+      # toolchain via `cabal`. The `ghcup` action provides a pinned GHC.
+      - name: Set up Haskell (GHC + cabal)
+        uses: haskell-actions/setup@v2
+        with:
+          ghc-version: "9.6.6"
+          cabal-version: "3.10.3.0"
+
+      - name: Cache cabal store
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cabal/store
+            ~/.cabal/packages
+          key: ${{ runner.os }}-agda-2.8.0-ghc9.6.6-${{ hashFiles('.github/workflows/proof.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-agda-2.8.0-ghc9.6.6-
+
+      - name: Install Agda 2.8.0
+        run: |
+          cabal update
+          cabal install Agda-2.8.0 --overwrite-policy=always
+          echo "$HOME/.cabal/bin" >> "$GITHUB_PATH"
+
+      - name: Verify Agda version
+        run: agda --version
+
+      # The Agda standard library is a dependency of the development
+      # (`proof/cure-core.agda-lib` declares `depend: standard-library`).
+      # Pin the tag that matches Agda 2.8.0 and register it the way
+      # `proof/README.md` documents.
+      - name: Checkout Agda standard library
+        uses: actions/checkout@v4
+        with:
+          repository: agda/agda-stdlib
+          ref: v2.3
+          path: agda-stdlib
+
+      - name: Register standard library
+        run: |
+          mkdir -p "$HOME/.config/agda"
+          echo "$GITHUB_WORKSPACE/agda-stdlib/standard-library.agda-lib" \
+            >> "$HOME/.config/agda/libraries"
+
+      # The full type-check. `check.sh` fails on any module that does not
+      # compile AND on any warning, so a warning is a CI failure here.
+      - name: Type-check the soundness development
+        run: ./proof/check.sh
+
+      # Guard against a regression in the postulate surface: the development
+      # is allowed exactly the axioms it documents (`funext` and the two named
+      # classical inputs). A new `postulate` is a new unproven assumption and
+      # must be a deliberate, reviewed change -- this step makes it loud.
+      - name: Guard the postulate surface
+        run: ./proof/scripts/check-postulates.sh

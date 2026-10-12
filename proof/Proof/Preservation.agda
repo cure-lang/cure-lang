@@ -46,7 +46,7 @@ open import Core.Signature using (IndEnv; Family; Ctor; Telescope; findFamily; f
 open import Core.Reduction
 open import Core.Typing using (Ctx; ⟨⟩; _▷_; lookup; extend; lookup-extend; lookup-renameCtx; renameCtx; Conversion; extendⁿ; extendTele; teleField; fieldFin; listLookup-∈Tele; branch-field-vars; upto; _∈Tele_; ∈-here; ∈-there)
 open import Proof.Values using (Canonical; Neutral; Value)
-open import Proof.Progress using (Final; FinalTerms; FinalBranches; BuiltinCtors;
+open import Proof.Progress using (Final; FinalTerms; FinalBranches; BuiltinCtors; Certified;
                                     f-type; f-var; f-pi; f-lam; f-let; f-app;
                                     f-data; f-ctor; f-case; f-global;
                                     f-int_type; f-int_lit; f-nat_lit; f-bounded_lit;
@@ -56,6 +56,7 @@ open import Proof.Progress using (Final; FinalTerms; FinalBranches; BuiltinCtors
                                     ft[]; ft∷; fb[]; fb∷)
 open import Proof.Inversion
 open import Proof.Substitution
+open import Proof.FinalPreservation using (final-preservation)
 open import Proof.Context using (lookup-weaken; lookup-head;
                                   lookup-extendⁿ-zero; lookup-extendⁿ-raise;
                                   extF; extF-coh; lookup-extF;
@@ -116,7 +117,8 @@ ReduceConv sig conv = ∀ {t t′} → _⇝_ sig t t′ → Conversion._≈_ con
 
 module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
                (closed : ClosedSig ind sig) (rc : ReduceConv sig conv)
-               (ctyped : CertifiedTyped ind sig conv) (bc : BuiltinCtors ind) where
+               (ctyped : CertifiedTyped ind sig conv) (bc : BuiltinCtors ind)
+               (cert : Certified sig) where
   open Core.Typing.Typing ind sig conv
   open Proof.Inversion.Invert ind sig conv using (conv-pi-components; conv-injective-data)
 
@@ -922,21 +924,21 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
 
   -- ζ: `let x = v in b ⇝ b[x := v]`.
   --
-  -- Similar to β: `⇒-let` gives `Γ ⊢ v ⇐ ty` and `extend Γ ty ⊢ b ⇒ T`
-  -- (so the result type is `substTopT v T`); `value-infer` turns the
-  -- checked value into an inferring one, and `substTop⇐` gives the result.
+  -- `⇒-let` gives `Γ ⊢ v ⇐ ty` and `extend Γ ty ⊢ b ⇒ T` (so the result
+  -- type is `substTopT v T`); `check-infer` turns the checked term into an
+  -- inferring one (it needs only hole-freeness, which `Final` supplies —
+  -- no `Value v` side condition), and `substTop⇐` gives the result.
   preserve-ζ :
     ∀ {n} {Γ : Ctx n} {g ty v b T}
     → Γ ⊢ tm-let g ty v b ⇒ T
-    → Value v
     → HoleFree v
     → Γ ⊢ substTopT v b ⇐ T
-  preserve-ζ {Γ = Γ} {g = g} {ty = ty} {v = v} {b = b} {T = T} (⇒-let {l = l} dty dv db) val hf =
-    substTop⇐ {Γ = Γ} {A = ty} (⇒-check db) (value-infer hf val dv)
+  preserve-ζ {Γ = Γ} {g = g} {ty = ty} {v = v} {b = b} {T = T} (⇒-let {l = l} dty dv db) hf =
+    substTop⇐ {Γ = Γ} {A = ty} (⇒-check db) (check-infer hf dv)
     where
       ⇒-check : ∀ {n} {Γ : Ctx n} {t T} → Γ ⊢ t ⇒ T → Γ ⊢ t ⇐ T
       ⇒-check der = ⇐-infer der (Conversion.≈-refl conv)
-  preserve-ζ (⇒-conv der eq) val hf = ⇐-conv (preserve-ζ der val hf) eq
+  preserve-ζ (⇒-conv der eq) hf = ⇐-conv (preserve-ζ der hf) eq
 
 
   ------------------------------------------------------------------------
@@ -1449,16 +1451,43 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
                  refl
   preservation-ι-bounded-suc (f-case f-bounded_lit fm fbs) (⇒-conv der eqc) found =
     ⇒-conv (preservation-ι-bounded-suc (f-case f-bounded_lit fm fbs) der found) eqc
+  -- Head and tail of a non-empty `FinalTerms` (local copies; the ones in
+  -- Proof.FinalPreservation are not exported into this module).
+  ft-head : ∀ {x xs} → FinalTerms (x ∷ xs) → Final x
+  ft-head (ft∷ fx fxs) = fx
+
+  ft-tail : ∀ {x xs} → FinalTerms (x ∷ xs) → FinalTerms xs
+  ft-tail (ft∷ fx fxs) = fxs
+
   mutual
-    -- Spine preservation: a checked spine stays checked when its entries step.
-    preservation-spine : ∀ {n} {Γ : Ctx n} {ts ts′} {tele : Telescope}
+    -- Spine preservation under an element update: a checked spine stays
+    -- checked when the element at position `i` steps (every other entry is
+    -- unchanged).
+    preservation-spine : ∀ {n} {Γ : Ctx n} {ts} {tele : Telescope}
+                         (i : Fin (len ts)) {x′}
                        → FinalTerms ts
                        → Γ ⊢* ts ⇐* tele
-                       → _⇝*ᵗ_ sig ts ts′
-                       → Γ ⊢* ts′ ⇐* tele
-    preservation-spine ft[] ⊢*[] ⇝*-nil = ⊢*[]
-    preservation-spine (ft∷ fx fxs) (⊢*∷ dx dxs) (⇝*-cons step steps) =
-      ⊢*∷ (preservation fx dx step) (preservation-spine fxs dxs steps)
+                       → _⇝_ sig (lookupAt ts i) x′
+                       → Γ ⊢* setAt ts i x′ ⇐* tele
+    preservation-spine zero (ft∷ fx fxs) (⊢*∷ dx dxs) step =
+      ⊢*∷ (preservation fx dx step) dxs
+    preservation-spine (suc i) (ft∷ fx fxs) (⊢*∷ dx dxs) step =
+      ⊢*∷ dx (preservation-spine i fxs dxs step)
+
+    -- A checked branch list stays checked when its bodies reduce.
+    preservation-brs : ∀ {n} {Γ : Ctx n} {brs brs′ nm m}
+                     → FinalBranches brs
+                     → Γ ⊢*brs brs ⇐*ᵇ (nm , m)
+                     → _⇝*ᵇ_ sig brs brs′
+                     → Γ ⊢*brs brs′ ⇐*ᵇ (nm , m)
+    preservation-brs fb[] brs[] ⇝ᵇ-nil = brs[]
+    preservation-brs (fb∷ fb fbs) (brs∷ fc body rest) (⇝ᵇ-cons steps steps′) =
+      brs∷ fc (preservation-star fb body steps) (preservation-brs fbs rest steps′)
+
+    preservation-star : ∀ {n} {Γ : Ctx n} {b b′ T}
+                      → Final b → Γ ⊢ b ⇐ T → _⇝*_ sig b b′ → Γ ⊢ b′ ⇐ T
+    preservation-star fb db ⇝*-refl = db
+    preservation-star fb db (⇝*-step s ss) = preservation-star (final-preservation sig cert fb s) (preservation fb db s) ss
 
     preservation⇒ :
       ∀ {n} {Γ : Ctx n} {t t′ T}
@@ -1469,14 +1498,14 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
     preservation⇒ ft (⇒-conv der eq) rw = ⇒-conv (preservation⇒ ft der rw) eq
     -- β: the checking-mode `preserve-β` gives the reduct CHECKED; the redex
     -- is final, so the reduct is hole-free and INFERS its type (`check-infer`).
-    preservation⇒ (f-app (f-lam fd fb) fa) (⇒-app df da) (β va) =
+    preservation⇒ (f-app (f-lam fd fb) fa) (⇒-app df da) β =
       check-infer (substTop-hole-free (final-hole-free fa) (final-hole-free fb))
                   (preserve-β (⇒-app df da))
     -- ζ: likewise, via `preserve-ζ`.
-    preservation⇒ (f-let fty fv fb) (⇒-let {g = g} {ty = ty} {v = v} {b = b} {T = T} dty dv db) (ζ vv) =
+    preservation⇒ (f-let fty fv fb) (⇒-let {g = g} {ty = ty} {v = v} {b = b} {T = T} dty dv db) ζ =
       check-infer (substTop-hole-free (final-hole-free fv) (final-hole-free fb))
                   (preserve-ζ (⇒-let {g = g} {ty = ty} {v = v} {b = b} {T = T} dty dv db)
-                              vv (final-hole-free fv))
+                              (final-hole-free fv))
     preservation⇒ (f-app ff fa) (⇒-app df da) (ξ-app₁ step) =
       ⇒-app (preservation⇒ ff df step) da
     preservation⇒ {Γ = Γ} (f-app ff fa) (⇒-app {a = a} {c = c} df da) (ξ-app₂ {a′ = a′} step) =
@@ -1485,10 +1514,27 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
     preservation⇒ {Γ = Γ} (f-let fty fv fb) (⇒-let {v = v} {T = T} dty dv db) (ξ-let {v′ = v′} step) =
       ⇒-conv (⇒-let dty (preservation fv dv step) db)
               (Conversion.≈-sym conv (≈-substTopT-cong {c = T} (rc step)))
+    -- ξ-let-ty: only the declared type reduces; the result type is unchanged.
+    -- The value was checked against `ty`; it checks against `ty′` by conversion
+    -- (`rc` gives `⇝ ⊆ ≈`), and the body is transported across the context
+    -- conversion `extend Γ ty ≈ extend Γ ty′`.
+    preservation⇒ (f-let fty fv fb) (⇒-let dty dv db) (ξ-let-ty step) =
+      ⇒-let (preservation⇒ fty dty step) (⇐-conv dv (rc step))
+            (conv⇒ (ext-conv (rc step) (λ i → Conversion.≈-refl conv)) (Conversion.≈-refl conv) db)
+    -- ξ-let-body: the body reduces under the extended context; the result type
+    -- is unchanged (it substitutes the value, which does not move). The reduct
+    -- is final (`final-preservation`), hence hole-free, so `check-infer`
+    -- recovers the inference the `⇒-let` rule needs.
+    preservation⇒ (f-let fty fv fb) (⇒-let dty dv db) (ξ-let-body step) =
+      ⇒-let dty dv
+            (check-infer (final-hole-free (final-preservation sig cert fb step))
+                         (preservation fb (⇐-infer db (Conversion.≈-refl conv)) step))
     preservation⇒ (f-case fs fm fbs) (⇒-case ds dm dbrs) (ξ-case step) =
       ⇒-conv (⇒-case (preservation⇒ fs ds step) dm dbrs)
               (Conversion.≈-app conv (Conversion.≈-refl conv)
                                     (Conversion.≈-sym conv (rc step)))
+    preservation⇒ (f-case fs fm fbs) (⇒-case ds dm dbrs) (ξ-case-brs steps) =
+      ⇒-case ds dm (preservation-brs fbs dbrs steps)
     preservation⇒ (f-case fs fm fbs) (⇒-case ds dm dbrs) (ξ-case-motive step) =
       ⇒-conv (⇒-case ds (preservation⇒ fm dm step)
                        (branches-conv (rc step) dbrs))
@@ -1505,12 +1551,12 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
               (Conversion.≈-sym conv (Conversion.≈-pi conv (rc step) (Conversion.≈-refl conv)))
     preservation⇒ (f-lam fd fb) (⇒-lam dd db) (ξ-lam-body step) =
       ⇒-lam dd (preservation fb db step)
-    preservation⇒ (f-data fps fis) (⇒-data p q r) (ξ-data-params step) =
-      ⇒-data p (preservation-spine fps q step) r
-    preservation⇒ (f-data fps fis) (⇒-data p q r) (ξ-data-indices step) =
-      ⇒-data p q (preservation-spine fis r step)
-    preservation⇒ (f-ctor fargs) (⇒-ctor p q) (ξ-ctor step steps) =
-      ⇒-ctor p (preservation-spine fargs q (⇝*-cons step steps))
+    preservation⇒ (f-data fps fis) (⇒-data p q r) (ξ-data-params-at i step) =
+      ⇒-data p (preservation-spine i fps q step) r
+    preservation⇒ (f-data fps fis) (⇒-data p q r) (ξ-data-indices-at i step) =
+      ⇒-data p q (preservation-spine i fis r step)
+    preservation⇒ (f-ctor fargs) (⇒-ctor p q) (ξ-ctor-at i step) =
+      ⇒-ctor p (preservation-spine i fargs q step)
     preservation⇒ (f-effect_type ft) (⇒-effect_type p) (ξ-effect_type step) =
       ⇒-effect_type (preservation⇒ ft p step)
     preservation⇒ (f-effect_pure ft) (⇒-effect_pure p) (ξ-effect_pure step) =

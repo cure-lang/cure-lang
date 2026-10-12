@@ -23,7 +23,9 @@ module Proof.FinalPreservation where
 
 open import Data.Bool using (Bool; true; false)
 open import Data.String.Properties using (_≟_)
-open import Data.List using (List; []; _∷_; _++_; _∷ʳ_; reverse; length; map)
+open import Data.List using (List; []; _∷_; _++_; _∷ʳ_; reverse; length; map; updateAt)
+open import Data.List using () renaming (lookup to listLookup)
+open import Data.Fin using (Fin; zero; suc)
 open import Data.List.Properties using (unfold-reverse)
 open import Data.Nat using (ℕ; zero; suc; _+_)
 open import Data.List.Membership.Propositional using (_∈_)
@@ -205,10 +207,10 @@ module _ (sig : Signature) (cert : Certified sig) where
   mutual
     final-preservation : ∀ {t t′} → Final t → _⇝_ sig t t′ → Final t′
     -- β: `(λx. b) a ⇝ b[x := a]`; `b` and `a` are final.
-    final-preservation (f-app (f-lam fd fb) fa) (β va) =
+    final-preservation (f-app (f-lam fd fb) fa) β =
       substS-final (topSub _) (topSub-final fa) fb
     -- ζ: `let x = v in b ⇝ b[x := v]`; `b` and `v` are final.
-    final-preservation (f-let fty fv fb) (ζ vv) =
+    final-preservation (f-let fty fv fb) ζ =
       substS-final (topSub _) (topSub-final fv) fb
     -- ι: `case (ctor c args) of … ⇝ b_c[args]`; `b` and `args` are final.
     final-preservation (f-case (f-ctor {args = args} fargs) fm fbs) (ι {c = c} {ar = ar} {b = b} found len) =
@@ -232,22 +234,41 @@ module _ (sig : Signature) (cert : Certified sig) where
     final-preservation (f-app ff fa) (ξ-app₁ step) = f-app (final-preservation ff step) fa
     final-preservation (f-app ff fa) (ξ-app₂ step) = f-app ff (final-preservation fa step)
     final-preservation (f-let fty fv fb) (ξ-let step) = f-let fty (final-preservation fv step) fb
+    final-preservation (f-let fty fv fb) (ξ-let-ty step) = f-let (final-preservation fty step) fv fb
+    final-preservation (f-let fty fv fb) (ξ-let-body step) = f-let fty fv (final-preservation fb step)
     final-preservation (f-case fs fm fbs) (ξ-case step) = f-case (final-preservation fs step) fm fbs
     final-preservation (f-case fs fm fbs) (ξ-case-motive step) = f-case fs (final-preservation fm step) fbs
+    final-preservation (f-case fs fm fbs) (ξ-case-brs steps) = f-case fs fm (final-preservation-brs fbs steps)
     final-preservation (f-pi fd fc) (ξ-pi-dom step) = f-pi (final-preservation fd step) fc
     final-preservation (f-pi fd fc) (ξ-pi-cod step) = f-pi fd (final-preservation fc step)
     final-preservation (f-lam fd fb) (ξ-lam-dom step) = f-lam (final-preservation fd step) fb
     final-preservation (f-lam fd fb) (ξ-lam-body step) = f-lam fd (final-preservation fb step)
-    final-preservation (f-data fps fis) (ξ-data-params step) = f-data (final-preservation-terms fps step) fis
-    final-preservation (f-data fps fis) (ξ-data-indices step) = f-data fps (final-preservation-terms fis step)
-    final-preservation (f-ctor fargs) (ξ-ctor step steps) =
-      f-ctor (ft∷ (final-preservation (ft-head fargs) step) (final-preservation-terms (ft-tail fargs) steps))
+    final-preservation (f-data fps fis) (ξ-data-params-at i step) =
+      f-data (setAt-final fps i step) fis
+    final-preservation (f-data fps fis) (ξ-data-indices-at i step) =
+      f-data fps (setAt-final fis i step)
+    final-preservation (f-ctor fargs) (ξ-ctor-at i step) =
+      f-ctor (setAt-final fargs i step)
     final-preservation (f-effect_type ft) (ξ-effect_type step) = f-effect_type (final-preservation ft step)
     final-preservation (f-effect_pure ft) (ξ-effect_pure step) = f-effect_pure (final-preservation ft step)
     final-preservation (f-effect_bind fe fk) (ξ-effect_bind₁ step) = f-effect_bind (final-preservation fe step) fk
     final-preservation (f-effect_bind fe fk) (ξ-effect_bind₂ step) = f-effect_bind fe (final-preservation fk step)
 
-    final-preservation-terms : ∀ {ts ts′} → FinalTerms ts → _⇝*ᵗ_ sig ts ts′ → FinalTerms ts′
-    final-preservation-terms ft[] ⇝*-nil = ft[]
-    final-preservation-terms (ft∷ fx fxs) (⇝*-cons step steps) =
-      ft∷ (final-preservation fx step) (final-preservation-terms fxs steps)
+    -- Updating the element at position `i` with the reduct of a `_⇝_` step
+    -- keeps a spine final: the element at `i` is final by `final-preservation`,
+    -- every other element is unchanged.
+    setAt-final : ∀ {xs} (fxs : FinalTerms xs) (i : Fin (len xs)) {x′}
+                → _⇝_ sig (lookupAt xs i) x′
+                → FinalTerms (setAt xs i x′)
+    setAt-final (ft∷ fx fxs) zero step = ft∷ (final-preservation fx step) fxs
+    setAt-final (ft∷ fx fxs) (suc i) step = ft∷ fx (setAt-final fxs i step)
+
+    -- A branch list whose bodies reduce stays final.
+    final-preservation-brs : ∀ {bs bs′} → FinalBranches bs → _⇝*ᵇ_ sig bs bs′ → FinalBranches bs′
+    final-preservation-brs fb[] ⇝ᵇ-nil = fb[]
+    final-preservation-brs (fb∷ fb fbs) (⇝ᵇ-cons steps steps′) =
+      fb∷ (final-preservation-star fb steps) (final-preservation-brs fbs steps′)
+
+    final-preservation-star : ∀ {b b′} → Final b → _⇝*_ sig b b′ → Final b′
+    final-preservation-star fb ⇝*-refl = fb
+    final-preservation-star fb (⇝*-step s ss) = final-preservation-star (final-preservation fb s) ss

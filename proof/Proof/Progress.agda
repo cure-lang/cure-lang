@@ -304,12 +304,12 @@ module Progress (ind : IndEnv) (sig : Signature) (conv : Conversion)
     ... | inj₁ (canonical cf) with canonical-pi-value {v = f} (⇐-infer p (Conversion.≈-refl conv)) cf
     ...   | g′ , d′ , b , refl with progress⇒ q fa
     ...     | inj₂ (a′ , step) = inj₂ (tm-app (tm-lam g′ d′ b) a′ , ξ-app₂ step)
-    ...     | inj₁ va = inj₂ (substTopT a b , β va)
+    ...     | inj₁ _ = inj₂ (substTopT a b , β)
 
     -- let: reduce the value, then ζ.
     progress⇒ (⇒-let {v = v} {b = b} p q r) (f-let fty fv fb) with progress⇐ q fv
     ... | inj₂ (v′ , step) = inj₂ (tm-let _ _ v′ b , ξ-let step)
-    ... | inj₁ vv = inj₂ (substTopT v b , ζ vv)
+    ... | inj₁ _ = inj₂ (substTopT v b , ζ)
 
     -- global: δ-unfold if the signature supplies a body, else an opaque neutral.
     progress⇒ (⇒-global {f = f} p) ff with Signature.body sig f in eq

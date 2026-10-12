@@ -31,6 +31,7 @@ module Core.Syntax where
 
 open import Data.Nat using (ℕ; zero; suc; _+_; _<_)
 open import Data.Nat.Properties using (+-identityʳ; +-suc; +-assoc)
+open import Data.Fin using (Fin; zero; suc)
 open import Data.List using (List; []; _∷_; _++_; length; map)
 open import Data.String using (String)
 open import Data.Product using (Σ; _×_; _,_; proj₁; proj₂)
@@ -96,6 +97,29 @@ data Term where
   tm-effect_bind : Term → Term → Term
   tm-hole        : Name → Term
   tm-absurd      : Term
+
+------------------------------------------------------------------------
+-- Spine indexing: a definitionally-reducing length.
+--
+-- The stdlib's `length` is `foldr (const suc) 0`, which does NOT reduce on
+-- `_∷_`, so it cannot index a `Fin` for pattern matching. `len` reduces
+-- structurally, which is what the element-indexed spine rules
+-- (`ξ-ctor-at` / `ξ-data-*-at`) and the parallel reduction need.
+------------------------------------------------------------------------
+
+len : List Term → ℕ
+len [] = 0
+len (x ∷ xs) = suc (len xs)
+
+-- Look up the element at a `len`-index.
+lookupAt : (xs : List Term) → Fin (len xs) → Term
+lookupAt (x ∷ xs) zero = x
+lookupAt (x ∷ xs) (suc i) = lookupAt xs i
+
+-- Set the element at a `len`-index.
+setAt : (xs : List Term) → Fin (len xs) → Term → List Term
+setAt (x ∷ xs) zero y = y ∷ xs
+setAt (x ∷ xs) (suc i) y = x ∷ setAt xs i y
 
 ------------------------------------------------------------------------
 -- Well-scopedness
