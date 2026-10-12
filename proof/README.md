@@ -89,7 +89,7 @@ recommends.
 | `Proof.Preservation` | `weaken`, `subst⇒`, `subst⇐`, `check-infer`, `preservation` | ✅ **fully proved** (all cases incl. β/ζ/ι/δ) |
 | `Proof.FinalPreservation` | `substS-final` (closure of `Final` under a final substitution); `final-preservation` | ✅ **proved** |
 | `Proof.Soundness` | `EvalResult`; `soundness-fuel` (constructive); `Diverges`/`EvalTree`/`soundness-tree` (coinductive); `soundness` (classical, from two named inputs) | ✅ **`soundness-fuel`, `soundness-tree`, and `soundness` all proved** |
-| `Proof.Confluence` | Parallel reduction `⇉` (value-free); the substitution-commutation lemma `⇉-substS` (all cases) and `p-rename` | ✅ **`⇉-substS` and `p-rename` proved**; `⇉-diamond` / `confluence` open |
+| `Proof.Confluence` | Parallel reduction `⇉` (value-free); the substitution-commutation lemma `⇉-substS` (all cases), `p-rename`, the diamond `⇉-diamond`, and `confluence : _⇝_` | ✅ **complete** (`⇉-substS`, `⇉-diamond`, `confluence` all proved) |
 
 ## Status
 
@@ -408,9 +408,15 @@ classical inputs (rather than one opaque `postulate`):
   reduct), so this is exactly the limited principle of omniscience (LPO) on
   that path — not constructive.
 - **`never-reached→no-value`** — a never-reaching tree has no reachable
-  value. This needs CONFLUENCE of `_⇝_`, which is **not deterministic**
-  (`(λx. b) a` both β-reduces and reduces under the λ), so `Diverges` does not
-  contradict a separate reduction to a value without a confluence lemma.
+  value. **This is FALSE as stated** for the mechanised `_⇝_`, which reduces
+  UNDER BINDERS (`ξ-lam-body`): `Ω = (λx. x x) (λx. x x)` satisfies `Ω ⇝ Ω`,
+  so `tm-lam g d Ω` is a canonical `Value` that steps to itself (hence
+  `NeverReached`), yet `tm-lam g d Ω ⇝* tm-lam g d Ω` with
+  `Value (tm-lam g d Ω)`. Confluence (`Proof.Confluence.confluence`, now
+  PROVED) does not rescue it — the counterexample is a value stepping to
+  values forever. The statement holds only if "value" means a stuck-free
+  NORMAL FORM (a term that has finished evaluating), strictly stronger than
+  `Value` (canonical/neutral). See docs/CONFLUENCE.md for the full finding.
 
 With those, `soundness` is a theorem: a `Reached` node gives outcome (1)
 (`tree-reached→eval`); a `NeverReached` tree gives outcome (3)

@@ -140,14 +140,39 @@ This is the crux the plan identified. **It is done.**
 
 **The confluence development is complete.**
 
+## FINDING: `never-reached→no-value` is false as stated
+
+With `confluence` proved, the natural next step is to discharge the classical
+input `never-reached→no-value` in `Proof/Soundness.agda`. **It cannot be
+discharged, because it is false** for the mechanised `_⇝_`:
+
+- `_⇝_` reduces UNDER BINDERS (`ξ-lam-body`, `ξ-pi-cod`, `ξ-let-body`).
+- Let `Ω = (λx. x x) (λx. x x)`. Then `Ω ⇝ Ω` (β, since
+  `substTopT Ω (x x) = Ω`), so `Ω` diverges.
+- `tm-lam g d Ω` is CANONICAL (`c-lam`), hence a `Value`, and it steps to
+  itself via `ξ-lam-body (Ω ⇝ Ω)`. So `NeverReached (tm-lam g d Ω) T` holds.
+- But `tm-lam g d Ω ⇝* tm-lam g d Ω` (refl) with `Value (tm-lam g d Ω)`.
+
+So `never-reached→no-value` would give `⊥` from a consistent hypothesis. The
+root cause is that `Value` (canonical/neutral) does NOT mean "cannot step":
+a canonical λ with a diverging body is a `Value` that steps forever. The
+statement is only true if "value" means a term that has FINISHED evaluating
+(a stuck-free normal form), which is a strictly stronger predicate than
+`Value`.
+
+This is a comment on the SOUNDNESS development's classical input, not on
+confluence: `confluence` is correct and complete as proved. Discharging
+`never-reached→no-value` would require either (a) a reduction relation that
+does not reduce under binders, or (b) a stronger "final value" predicate in
+the statement.
+
 ## What remains
 
-**Nothing in the confluence development itself.** The next step is to
-DISCHARGE the classical input `never-reached→no-value` in
-`Proof/Soundness.agda` using `confluence`: a never-reaching tree has no
-reachable value because two reductions from the same term have a common
-reduct (confluence), so a value reachable from a diverging term would be
-reachable from every reduct — contradicting the never-reaching spine.
+**Nothing in the confluence development itself.** `confluence : _⇝_` is
+proved. The next step would be to discharge the classical input
+`never-reached→no-value` in `Proof/Soundness.agda` using `confluence` —
+**but this input is FALSE as stated** for the mechanised `_⇝_`, so it cannot
+be discharged (see the finding below).
 
 ## Notes
 

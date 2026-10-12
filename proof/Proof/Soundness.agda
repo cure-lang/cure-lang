@@ -321,8 +321,16 @@ module Sound (ind : IndEnv) (sig : Signature) (conv : Conversion)
     -- path, since `progress` is deterministic).
     tree-decides : ∀ {t T} → EvalTree t T → Reached t T ⊎ NeverReached t T
 
-    -- CLASSICAL INPUT 2: a never-reaching tree has no reachable value (needs
-    -- confluence of `_⇝_`).
+    -- CLASSICAL INPUT 2: a never-reaching tree has no reachable value.
+    --
+    -- NOTE (docs/CONFLUENCE.md): this is FALSE as stated for the mechanised
+    -- `_⇝_`, which reduces UNDER BINDERS (`ξ-lam-body`). Let
+    -- `Ω = (λx. x x) (λx. x x)`; then `Ω ⇝ Ω`, so `tm-lam g d Ω` is a
+    -- canonical `Value` that steps to itself, hence `NeverReached` — yet
+    -- `tm-lam g d Ω ⇝* tm-lam g d Ω` with `Value (tm-lam g d Ω)`. So the
+    -- statement is not merely unproved: it is unprovable. It would hold if
+    -- "value" meant a stuck-free NORMAL FORM (a term that has finished
+    -- evaluating), which is stronger than `Value` (canonical/neutral).
     never-reached→no-value :
       ∀ {t T} → NeverReached t T → (∀ v → _⇝*_ sig t v → Value v → ⊥)
 

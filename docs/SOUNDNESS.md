@@ -460,11 +460,20 @@ etc.), mirroring the kernel's `Eval.nat_to_ctor`/`bounded_to_ctor`.
 The classical three-way statement §1.4 is now a **theorem**, derived from
 two precisely-named classical inputs: `tree-decides` (the outcome tree is
 finite or infinite — LPO on the path, since `progress` is deterministic) and
-`never-reached→no-value` (a never-reaching tree has no reachable value —
-which needs CONFLUENCE of `_⇝_`, since it is not deterministic: `(λx. b) a`
-both β-reduces and reduces under the λ). The constructive `soundness-tree`
-is the replacement for the second input, with the `reached` outcome
-inhabiting the classical first disjunct.
+`never-reached→no-value` (a never-reaching tree has no reachable value).
+The constructive `soundness-tree` is the replacement for the second input,
+with the `reached` outcome inhabiting the classical first disjunct.
+
+**Correction (confluence slice).** Confluence of `_⇝_` is now MECHANISED
+(`proof/Proof/Confluence.agda`: `confluence : _⇝_`), but it does NOT
+discharge `never-reached→no-value` — that input is **false as stated** for
+the mechanised `_⇝_`, which reduces UNDER BINDERS (`ξ-lam-body`). Let
+`Ω = (λx. x x) (λx. x x)`; then `Ω ⇝ Ω`, so `tm-lam g d Ω` is a canonical
+`Value` that steps to itself, hence `NeverReached` — yet
+`tm-lam g d Ω ⇝* tm-lam g d Ω` with `Value (tm-lam g d Ω)`. The statement
+would hold only if "value" meant a stuck-free NORMAL FORM (a term that has
+finished evaluating), which is strictly stronger than `Value`
+(canonical/neutral). See docs/CONFLUENCE.md for the full finding.
 
 ---
 
