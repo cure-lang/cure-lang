@@ -25,7 +25,7 @@ module Core.Reduction where
 open import Data.Bool using (Bool; true; false)
 open import Data.String.Properties using (_≟_)
 open import Data.Nat using (ℕ; zero; suc; _+_; _≤_; z≤n; s≤s)
-open import Data.List using (List; []; _∷_; _++_; length; map; find; reverse)
+open import Data.List using (List; []; _∷_; _++_; length; map; find; reverse; updateAt)
 open import Data.List using () renaming (lookup to listLookup)
 open import Data.Fin using (Fin; zero; suc; toℕ)
 open import Data.List.Membership.Propositional using (_∈_)
@@ -241,27 +241,25 @@ module _ (sig : Signature) where
       ξ-let-ty : ∀ {g ty ty′ v b} → ty ⇝ ty′ → tm-let g ty v b ⇝ tm-let g ty′ v b
       ξ-let-body : ∀ {g ty v b b′} → b ⇝ b′ → tm-let g ty v b ⇝ tm-let g ty v b′
 
-      -- Congruence: constructors force their arguments (one at a time).
-      ξ-ctor : ∀ {n xs ys x y} → x ⇝ y → xs ⇝*ᵗ ys → tm-ctor n (x ∷ xs) ⇝ tm-ctor n (y ∷ ys)
+      -- Congruence: constructors force their arguments. The rule is
+      -- ELEMENT-INDEXED by a `Fin`: it reduces the argument at position `i`,
+      -- leaving every other argument alone. This is what the confluence
+      -- development's parallel reduction needs (it must simulate a parallel
+      -- step by reducing one argument at a time), and it is unambiguous
+      -- because the position is part of the rule.
+      ξ-ctor-at : ∀ {n} {args : List Term} (i : Fin (len args)) {x′}
+                → lookupAt args i ⇝ x′
+                → tm-ctor n args ⇝ tm-ctor n (setAt args i x′)
 
-      -- Congruence: a constructor's HEAD argument, leaving the tail alone.
-      -- This is the finer-grained form of `ξ-ctor` (which forces head AND
-      -- tail together); it lets the relation reduce a single constructor
-      -- argument, which the confluence development needs.
-      ξ-ctor-head : ∀ {n x x′ xs} → x ⇝ x′ → tm-ctor n (x ∷ xs) ⇝ tm-ctor n (x′ ∷ xs)
-
-      -- Congruence: a constructor's TAIL arguments, leaving the head alone.
-      ξ-ctor-tail : ∀ {n x xs xs′} → xs ⇝*ᵗ xs′ → tm-ctor n (x ∷ xs) ⇝ tm-ctor n (x ∷ xs′)
-
-      -- Congruence: data spines force their arguments.
-      ξ-data-params : ∀ {n xs ys is} → xs ⇝*ᵗ ys → tm-data n xs is ⇝ tm-data n ys is
-      ξ-data-indices : ∀ {n ps xs ys} → xs ⇝*ᵗ ys → tm-data n ps xs ⇝ tm-data n ps ys
-
-      -- Congruence: a data spine's HEAD argument, leaving the tail alone.
-      ξ-data-params-head : ∀ {n x x′ xs is} → x ⇝ x′ → tm-data n (x ∷ xs) is ⇝ tm-data n (x′ ∷ xs) is
-      ξ-data-params-tail : ∀ {n x xs xs′ is} → xs ⇝*ᵗ xs′ → tm-data n (x ∷ xs) is ⇝ tm-data n (x ∷ xs′) is
-      ξ-data-indices-head : ∀ {n ps x x′ xs} → x ⇝ x′ → tm-data n ps (x ∷ xs) ⇝ tm-data n ps (x′ ∷ xs)
-      ξ-data-indices-tail : ∀ {n ps x xs xs′} → xs ⇝*ᵗ xs′ → tm-data n ps (x ∷ xs) ⇝ tm-data n ps (x ∷ xs′)
+      -- Congruence: data spines force their arguments, element-indexed. The
+      -- params and indices carry separate positions, so the two rules are
+      -- distinguishable by their `Fin` index.
+      ξ-data-params-at : ∀ {n is} {ps : List Term} (i : Fin (len ps)) {x′}
+                       → lookupAt ps i ⇝ x′
+                       → tm-data n ps is ⇝ tm-data n (setAt ps i x′) is
+      ξ-data-indices-at : ∀ {n ps} {is : List Term} (i : Fin (len is)) {x′}
+                        → lookupAt is i ⇝ x′
+                        → tm-data n ps is ⇝ tm-data n ps (setAt is i x′)
 
       -- Congruence: Π/λ force their domain (the codomain/body are under a binder).
       ξ-pi-dom : ∀ {g d d′ b} → d ⇝ d′ → tm-pi g d b ⇝ tm-pi g d′ b

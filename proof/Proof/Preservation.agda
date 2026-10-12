@@ -1460,41 +1460,19 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
   ft-tail (ft∷ fx fxs) = fxs
 
   mutual
-    -- The HEAD of a checked spine, projected out.
-    head-spine : ∀ {n} {Γ : Ctx n} {x xs T tele nm}
-               → Γ ⊢* (x ∷ xs) ⇐* ((nm , T) ∷ tele) → Γ ⊢ x ⇐ T
-    head-spine (⊢*∷ dx dxs) = dx
-
-    -- The TAIL of a checked spine, projected out.
-    tail-spine : ∀ {n} {Γ : Ctx n} {x xs T tele nm}
-               → Γ ⊢* (x ∷ xs) ⇐* ((nm , T) ∷ tele) → Γ ⊢* xs ⇐* tele
-    tail-spine (⊢*∷ dx dxs) = dxs
-
-    -- Spine preservation: a checked spine stays checked when its entries step.
-    preservation-spine : ∀ {n} {Γ : Ctx n} {ts ts′} {tele : Telescope}
+    -- Spine preservation under an element update: a checked spine stays
+    -- checked when the element at position `i` steps (every other entry is
+    -- unchanged).
+    preservation-spine : ∀ {n} {Γ : Ctx n} {ts} {tele : Telescope}
+                         (i : Fin (len ts)) {x′}
                        → FinalTerms ts
                        → Γ ⊢* ts ⇐* tele
-                       → _⇝*ᵗ_ sig ts ts′
-                       → Γ ⊢* ts′ ⇐* tele
-    preservation-spine ft[] ⊢*[] ⇝*-nil = ⊢*[]
-    preservation-spine (ft∷ fx fxs) (⊢*∷ dx dxs) (⇝*-cons step steps) =
-      ⊢*∷ (preservation fx dx step) (preservation-spine fxs dxs steps)
-
-    -- A spine whose HEAD steps, leaving the tail alone.
-    spine-head-step : ∀ {n} {Γ : Ctx n} {x x′ xs} {T tele nm}
-                    → Final x
-                    → Γ ⊢* (x ∷ xs) ⇐* ((nm , T) ∷ tele)
-                    → _⇝_ sig x x′
-                    → Γ ⊢* (x′ ∷ xs) ⇐* ((nm , T) ∷ tele)
-    spine-head-step fx (⊢*∷ dx dxs) step = ⊢*∷ (preservation fx dx step) dxs
-
-    -- A spine whose TAIL steps, leaving the head alone.
-    spine-tail-step : ∀ {n} {Γ : Ctx n} {x xs xs′} {T tele nm}
-                    → FinalTerms xs
-                    → Γ ⊢* (x ∷ xs) ⇐* ((nm , T) ∷ tele)
-                    → _⇝*ᵗ_ sig xs xs′
-                    → Γ ⊢* (x ∷ xs′) ⇐* ((nm , T) ∷ tele)
-    spine-tail-step fxs (⊢*∷ dx dxs) steps = ⊢*∷ dx (preservation-spine fxs dxs steps)
+                       → _⇝_ sig (lookupAt ts i) x′
+                       → Γ ⊢* setAt ts i x′ ⇐* tele
+    preservation-spine zero (ft∷ fx fxs) (⊢*∷ dx dxs) step =
+      ⊢*∷ (preservation fx dx step) dxs
+    preservation-spine (suc i) (ft∷ fx fxs) (⊢*∷ dx dxs) step =
+      ⊢*∷ dx (preservation-spine i fxs dxs step)
 
     preservation⇒ :
       ∀ {n} {Γ : Ctx n} {t t′ T}
@@ -1556,27 +1534,12 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
               (Conversion.≈-sym conv (Conversion.≈-pi conv (rc step) (Conversion.≈-refl conv)))
     preservation⇒ (f-lam fd fb) (⇒-lam dd db) (ξ-lam-body step) =
       ⇒-lam dd (preservation fb db step)
-    preservation⇒ (f-data fps fis) (⇒-data p q r) (ξ-data-params step) =
-      ⇒-data p (preservation-spine fps q step) r
-    preservation⇒ (f-data fps fis) (⇒-data p q r) (ξ-data-indices step) =
-      ⇒-data p q (preservation-spine fis r step)
-    preservation⇒ (f-data fps fis) (⇒-data p (⊢*∷ dx dxs) r) (ξ-data-params-head step) =
-      ⇒-data p (⊢*∷ (preservation (ft-head fps) dx step) dxs) r
-    preservation⇒ (f-data fps fis) (⇒-data p (⊢*∷ dx dxs) r) (ξ-data-params-tail steps) =
-      ⇒-data p (⊢*∷ dx (preservation-spine (ft-tail fps) dxs steps)) r
-    preservation⇒ (f-data fps fis) (⇒-data p q (⊢*∷ dx dxs)) (ξ-data-indices-head step) =
-      ⇒-data p q (⊢*∷ (preservation (ft-head fis) dx step) dxs)
-    preservation⇒ (f-data fps fis) (⇒-data p q (⊢*∷ dx dxs)) (ξ-data-indices-tail steps) =
-      ⇒-data p q (⊢*∷ dx (preservation-spine (ft-tail fis) dxs steps))
-    preservation⇒ (f-ctor fargs) (⇒-ctor p q) (ξ-ctor step steps) =
-      ⇒-ctor p (preservation-spine fargs q (⇝*-cons step steps))
-    -- ξ-ctor-head: only the head argument reduces; the tail is unchanged, so
-    -- the tail's typing is reused as-is.
-    preservation⇒ (f-ctor fargs) (⇒-ctor p (⊢*∷ dx dxs)) (ξ-ctor-head step) =
-      ⇒-ctor p (⊢*∷ (preservation (ft-head fargs) dx step) dxs)
-    -- ξ-ctor-tail: only the tail reduces; the head's typing is reused.
-    preservation⇒ (f-ctor fargs) (⇒-ctor p (⊢*∷ dx dxs)) (ξ-ctor-tail steps) =
-      ⇒-ctor p (⊢*∷ dx (preservation-spine (ft-tail fargs) dxs steps))
+    preservation⇒ (f-data fps fis) (⇒-data p q r) (ξ-data-params-at i step) =
+      ⇒-data p (preservation-spine i fps q step) r
+    preservation⇒ (f-data fps fis) (⇒-data p q r) (ξ-data-indices-at i step) =
+      ⇒-data p q (preservation-spine i fis r step)
+    preservation⇒ (f-ctor fargs) (⇒-ctor p q) (ξ-ctor-at i step) =
+      ⇒-ctor p (preservation-spine i fargs q step)
     preservation⇒ (f-effect_type ft) (⇒-effect_type p) (ξ-effect_type step) =
       ⇒-effect_type (preservation⇒ ft p step)
     preservation⇒ (f-effect_pure ft) (⇒-effect_pure p) (ξ-effect_pure step) =

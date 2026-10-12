@@ -23,7 +23,9 @@ module Proof.FinalPreservation where
 
 open import Data.Bool using (Bool; true; false)
 open import Data.String.Properties using (_≟_)
-open import Data.List using (List; []; _∷_; _++_; _∷ʳ_; reverse; length; map)
+open import Data.List using (List; []; _∷_; _++_; _∷ʳ_; reverse; length; map; updateAt)
+open import Data.List using () renaming (lookup to listLookup)
+open import Data.Fin using (Fin; zero; suc)
 open import Data.List.Properties using (unfold-reverse)
 open import Data.Nat using (ℕ; zero; suc; _+_)
 open import Data.List.Membership.Propositional using (_∈_)
@@ -240,28 +242,22 @@ module _ (sig : Signature) (cert : Certified sig) where
     final-preservation (f-pi fd fc) (ξ-pi-cod step) = f-pi fd (final-preservation fc step)
     final-preservation (f-lam fd fb) (ξ-lam-dom step) = f-lam (final-preservation fd step) fb
     final-preservation (f-lam fd fb) (ξ-lam-body step) = f-lam fd (final-preservation fb step)
-    final-preservation (f-data fps fis) (ξ-data-params step) = f-data (final-preservation-terms fps step) fis
-    final-preservation (f-data fps fis) (ξ-data-indices step) = f-data fps (final-preservation-terms fis step)
-    final-preservation (f-data fps fis) (ξ-data-params-head step) =
-      f-data (ft∷ (final-preservation (ft-head fps) step) (ft-tail fps)) fis
-    final-preservation (f-data fps fis) (ξ-data-params-tail steps) =
-      f-data (ft∷ (ft-head fps) (final-preservation-terms (ft-tail fps) steps)) fis
-    final-preservation (f-data fps fis) (ξ-data-indices-head step) =
-      f-data fps (ft∷ (final-preservation (ft-head fis) step) (ft-tail fis))
-    final-preservation (f-data fps fis) (ξ-data-indices-tail steps) =
-      f-data fps (ft∷ (ft-head fis) (final-preservation-terms (ft-tail fis) steps))
-    final-preservation (f-ctor fargs) (ξ-ctor step steps) =
-      f-ctor (ft∷ (final-preservation (ft-head fargs) step) (final-preservation-terms (ft-tail fargs) steps))
-    final-preservation (f-ctor fargs) (ξ-ctor-head step) =
-      f-ctor (ft∷ (final-preservation (ft-head fargs) step) (ft-tail fargs))
-    final-preservation (f-ctor fargs) (ξ-ctor-tail steps) =
-      f-ctor (ft∷ (ft-head fargs) (final-preservation-terms (ft-tail fargs) steps))
+    final-preservation (f-data fps fis) (ξ-data-params-at i step) =
+      f-data (setAt-final fps i step) fis
+    final-preservation (f-data fps fis) (ξ-data-indices-at i step) =
+      f-data fps (setAt-final fis i step)
+    final-preservation (f-ctor fargs) (ξ-ctor-at i step) =
+      f-ctor (setAt-final fargs i step)
     final-preservation (f-effect_type ft) (ξ-effect_type step) = f-effect_type (final-preservation ft step)
     final-preservation (f-effect_pure ft) (ξ-effect_pure step) = f-effect_pure (final-preservation ft step)
     final-preservation (f-effect_bind fe fk) (ξ-effect_bind₁ step) = f-effect_bind (final-preservation fe step) fk
     final-preservation (f-effect_bind fe fk) (ξ-effect_bind₂ step) = f-effect_bind fe (final-preservation fk step)
 
-    final-preservation-terms : ∀ {ts ts′} → FinalTerms ts → _⇝*ᵗ_ sig ts ts′ → FinalTerms ts′
-    final-preservation-terms ft[] ⇝*-nil = ft[]
-    final-preservation-terms (ft∷ fx fxs) (⇝*-cons step steps) =
-      ft∷ (final-preservation fx step) (final-preservation-terms fxs steps)
+    -- Updating the element at position `i` with the reduct of a `_⇝_` step
+    -- keeps a spine final: the element at `i` is final by `final-preservation`,
+    -- every other element is unchanged.
+    setAt-final : ∀ {xs} (fxs : FinalTerms xs) (i : Fin (len xs)) {x′}
+                → _⇝_ sig (lookupAt xs i) x′
+                → FinalTerms (setAt xs i x′)
+    setAt-final (ft∷ fx fxs) zero step = ft∷ (final-preservation fx step) fxs
+    setAt-final (ft∷ fx fxs) (suc i) step = ft∷ fx (setAt-final fxs i step)
