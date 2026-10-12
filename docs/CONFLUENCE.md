@@ -1,9 +1,12 @@
 # Confluence of the Cure Core reduction relation
 
-**Status: in progress (~85% mechanised).** This document records the state of
+**Status: in progress (~90% mechanised).** This document records the state of
 the mechanised confluence development so it can be resumed cleanly. The
 development lives in `proof/` (Agda 2.8.0) alongside the soundness argument
-(`docs/SOUNDNESS.md`).
+(`docs/SOUNDNESS.md`). The substitution-commutation lemma `⇉-substS` — the
+crux — is **fully proved** (`proof/Proof/Confluence.agda`, in the build);
+the remaining work is the diamond property `⇉-diamond` and the final
+`confluence` assembly.
 
 ## Why confluence
 
@@ -91,45 +94,34 @@ removes the entire hard case.
   (not `Value v`) and uses `check-infer`; the `β`/`ζ` call sites in `progress`
   and `final-preservation` drop the value witness.
 
-### `Proof/Confluence.agda` (WIP, NOT in the tree)
-The module is written and ~90% type-checks. It contains, all **proved**:
+### `Proof/Confluence.agda` (IN the tree and the build)
+
+The module type-checks clean (no holes, no new postulates) and contains, all
+**proved**:
 
 - `⇉-substS-refl` and its list helpers `⇉-substS-refl-terms` /
   `⇉-substBranchesS-refl` — the `⇉-refl` case of the substitution lemma, a
   **pure structural recursion on the term** (no redex can be created), which is
   what makes the termination of the main lemma structural.
 - `⇉-extSub`, `⇉-extSub^`, `p-rename`, `p-rename-terms`, `p-rename-brs`,
-  `p-rename-star`, `length-renameTerms` — `⇉` commutes with renaming, now a
-  plain structural recursion (no value transport).
-- `⇉-substS` proved for **all non-ι cases**: every congruence, the **β/ζ
-  cases** (standard, value-free), and δ.
+  `p-rename-star`, `length-renameTerms` — `⇉` commutes with renaming, a plain
+  structural recursion (no value transport).
+- **`⇉-substS` — the substitution-commutation lemma, ALL cases proved**: every
+  congruence, the **β/ζ cases** (standard, value-free), **all five ι cases**
+  (`p-ι`, `p-ι-nat-zero`, `p-ι-nat-suc`, `p-ι-bounded-zero`,
+  `p-ι-bounded-suc`), and δ.
 - `⇉-substS-star`, `⇉-substS-terms`, `⇉-substS-terms-refl`,
-  `⇉-substBranchesS`, `⇉-substS-ctor-tail*`.
+  `⇉-substBranchesS`, `⇉-substS-ctor-tail*`, `length-substTermsS`.
 
-The latest snapshot is `/tmp/Confluence.routeA.wip2.agda` (session-local).
+This is the crux the plan identified. **It is done.**
 
 ## What remains
 
-1. **The ι cases of `⇉-substS`** (5 rules: `p-ι`, `p-ι-nat-zero`,
-   `p-ι-nat-suc`, `p-ι-bounded-zero`, `p-ι-bounded-suc`). The proof shape is
-   clear: reduce the scrutinee's args (`⇉*-ctor*`), the motive, and the
-   branches; then apply the corresponding `p-ι*` rule with
-   `findBranch-substBranchesS` (for `p-ι`) or `findBranch-rename`-style
-   reasoning (for the literal peels), transporting the branch body's arity via
-   `length-substTermsS` / `⇉-terms-length`, and closing with `subst-argsSub`.
-   The remaining work is Agda implicit-argument plumbing, not mathematics.
+1. **`⇉-diamond`** — the diamond property itself, from `⇉-substS`. This is the
+   next concrete step (a large but standard Tait–Martin-Löf double induction;
+   the β/ζ/ι cases consume `⇉-substS`).
 
-2. **The four literal-peel cases of `p-rename`** (`p-ι-nat-zero`,
-   `p-ι-nat-suc`, `p-ι-bounded-zero`, `p-ι-bounded-suc`). These currently
-   leave unsolved `findBranch`-metas because the literal-peel rules' source
-   branch list is unconstrained by the source term (a literal), so Agda cannot
-   infer the reduct's branch list. The fix is to pass the implicit `brs`/`brs′`
-   explicitly (and possibly bind the arity equation from `la` via a `where`).
-   The `p-ι` (non-literal) case of `p-rename` is already proved.
-
-3. **`⇉-diamond`** — the diamond property itself, from `⇉-substS`.
-
-4. **`confluence : _⇝_`** from the diamond + the two inclusions, then
+2. **`confluence : _⇝_`** from the diamond + the two inclusions, then
    discharging `never-reached→no-value` in `Proof/Soundness.agda`.
 
 ## Notes
@@ -137,9 +129,11 @@ The latest snapshot is `/tmp/Confluence.routeA.wip2.agda` (session-local).
 - Two `{-# TERMINATING #-}` pragmas in `Core/Parallel.agda` cover the
   `⇉*-at-*` helpers (they recurse on the multi-step `ss`; the spine is
   re-indexed by `setAt`).
-- The WIP `Confluence.agda` is kept out of the tree; snapshots are in
-  `/tmp/Confluence.routeA.wip*.agda` (session-local). The earlier
-  value-or-redex approach is in `/tmp/Confluence.wip11.agda` and is now
-  **superseded** by the value-free formulation.
+- The WIP `Confluence.agda` is now **in the tree and the build**
+  (`proof/check.sh`); it type-checks clean with no holes and no new postulates.
+  Snapshots of the intermediate states are in `/tmp/Confluence.routeA.wip*.agda`
+  (session-local). The earlier value-or-redex approach is in
+  `/tmp/Confluence.wip11.agda` and is now **superseded** by the value-free
+  formulation.
 - **Do not re-introduce the `Value` side conditions.** They are not needed and
   they re-create the `substS-Value-or-redex` obligation.

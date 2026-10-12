@@ -89,6 +89,7 @@ recommends.
 | `Proof.Preservation` | `weaken`, `subst⇒`, `subst⇐`, `check-infer`, `preservation` | ✅ **fully proved** (all cases incl. β/ζ/ι/δ) |
 | `Proof.FinalPreservation` | `substS-final` (closure of `Final` under a final substitution); `final-preservation` | ✅ **proved** |
 | `Proof.Soundness` | `EvalResult`; `soundness-fuel` (constructive); `Diverges`/`EvalTree`/`soundness-tree` (coinductive); `soundness` (classical, from two named inputs) | ✅ **`soundness-fuel`, `soundness-tree`, and `soundness` all proved** |
+| `Proof.Confluence` | Parallel reduction `⇉` (value-free); the substitution-commutation lemma `⇉-substS` (all cases) and `p-rename` | ✅ **`⇉-substS` and `p-rename` proved**; `⇉-diamond` / `confluence` open |
 
 ## Status
 
