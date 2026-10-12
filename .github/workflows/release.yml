@@ -35,11 +35,27 @@ jobs:
         id: tag
         run: echo "name=${{ inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
 
+      # Always spell the ref out as `refs/tags/...`. A bare `vX.Y.Z` is
+      # ambiguous when a branch of the same name exists on the remote, and
+      # `actions/checkout` then builds the branch tip instead of the tag --
+      # which would publish a binary that does not match the tagged commit.
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ steps.tag.outputs.name }}
+          ref: refs/tags/${{ steps.tag.outputs.name }}
           fetch-depth: 0
+
+      # Belt and braces: refuse to build anything but the tagged commit.
+      - name: Verify checkout matches tag
+        run: |
+          head="$(git rev-parse HEAD)"
+          tagged="$(git rev-parse "refs/tags/${TAG}^{commit}")"
+          if [ "$head" != "$tagged" ]; then
+            echo "checked out $head, but tag ${TAG} points at $tagged" >&2
+            exit 1
+          fi
+        env:
+          TAG: ${{ steps.tag.outputs.name }}
 
       # The Cure toolchain shells out to z3 for constraint solving; the
       # stdlib compilation performed by the `compile` alias needs it.
