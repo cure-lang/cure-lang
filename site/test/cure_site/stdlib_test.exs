@@ -21,7 +21,9 @@ defmodule CureSite.StdlibTest do
     assert is_list(groups)
 
     group_names = Enum.map(groups, &elem(&1, 0))
-    refute "Other" in group_names, "Expected no modules to fall into the fallback 'Other' bucket, but found leftover modules"
+
+    refute "Other" in group_names,
+           "Expected no modules to fall into the fallback 'Other' bucket, but found leftover modules"
 
     expected_groups = [
       "Core & Type System",

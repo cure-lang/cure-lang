@@ -39,6 +39,23 @@ defmodule CureSite.MarkdownConverter do
     * `{{cure_version}}`  -> the bare version string (e.g. `0.29.0`)
     * `{{cure_vversion}}` -> the version prefixed with `v`
       (e.g. `v0.29.0`)
+
+  ## Math
+
+  TeX math is parsed server side via comrak's math extensions, so
+  `$x^2$` (inline), `$$x^2$$` (display) and ```` ```math ```` code
+  blocks survive CommonMark's backslash escaping and reach the
+  browser verbatim inside
+  `<span data-math-style="inline|display">...</span>` wrappers.
+  Typesetting itself happens on the client: `assets/js/app.js`
+  bundles KaTeX and renders every `[data-math-style]` node it finds.
+  Nothing is typeset here because KaTeX has no BEAM implementation
+  and shelling out to Node at render time is not an option for
+  runtime-rendered stdlib docs.
+
+  Dollar signs inside code spans and fenced code blocks are left
+  alone by the extension, so shell snippets such as `` `$EDITOR` ``
+  keep rendering literally.
   """
 
   @default_highlighters [:makeup_cure, :makeup_elixir, :makeup_erlang]
@@ -104,6 +121,9 @@ defmodule CureSite.MarkdownConverter do
   #     highlighter so the Makeup-based pass below keeps ownership of
   #     the visual styling (the site already ships Makeup's stylesheet
   #     and CSS classes).
+  #   * `math_dollars` / `math_code` emit
+  #     `<span data-math-style="inline|display">` wrappers that the
+  #     client-side KaTeX pass in `assets/js/app.js` typesets.
   defp mdex_options do
     [
       render: [unsafe: true],
@@ -112,7 +132,9 @@ defmodule CureSite.MarkdownConverter do
         strikethrough: true,
         autolink: true,
         tasklist: true,
-        footnotes: true
+        footnotes: true,
+        math_dollars: true,
+        math_code: true
       ],
       syntax_highlight: nil
     ]
