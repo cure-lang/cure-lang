@@ -68,6 +68,11 @@ defmodule Cure.LSP.Server do
 
   @impl true
   def init(_opts) do
+    # LSP frames are measured in bytes. Elixir leaves stdio in unicode mode,
+    # where `IO.binwrite/1` re-encodes every non-ASCII byte (overrunning the
+    # Content-Length) and `IO.binread/2` counts characters, not bytes.
+    :io.setopts(:standard_io, binary: true, encoding: :latin1)
+
     # Start the stdin reader process that reads LSP frames and sends messages
     server = self()
 
