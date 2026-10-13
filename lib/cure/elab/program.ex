@@ -2860,6 +2860,9 @@ defmodule Cure.Elab.Program do
       false -> :not_published
       :error -> :not_published
       {:error, {:no_verified_artifact_set, _}} -> :not_published
+      # A generation built by another compiler is not this toolchain's
+      # publication; fall back to the source loader like a cold build.
+      {:error, :canonical_artifact_toolchain_mismatch} -> :not_published
       {:error, reason} -> {:error, reason}
     end
   end
