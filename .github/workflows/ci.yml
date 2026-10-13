@@ -16,10 +16,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # The primary toolchain (both OSes) plus the DECLARED FLOOR from mix.exs
+        # (`elixir: "~> 1.18"`). Without the floor entry the declared minimum was
+        # never exercised, so a construct that needs 1.20 could ship unnoticed.
         os: [ubuntu-latest, macos-latest]
         elixir: ["1.20"]
         otp: ["29"]
-
+        include:
+          - os: ubuntu-latest
+            elixir: "1.18"
+            otp: "27"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -81,16 +87,35 @@ jobs:
         run: mix credo --strict
 
       # `--include slow` re-enables the `:slow` tests that `test_helper.exs`
-      # excludes for local runs. CI must run the whole suite.
+      # excludes for local runs. `--include examples` re-enables the `:examples`
+      # tests (the `examples/hello.cure` CLI smoke tests), which are likewise
+      # excluded by default so a local `mix test` does not depend on the example
+      # tree. CI must run the whole suite, so both are included here.
       - name: Run tests
-        run: mix test --include slow
+        run: mix test --include slow --include examples
 
-      # - name: Build Dialyzer PLTs
-      #   run: mix dialyzer --plt
+      # Coverage gate. `mix.exs` configures `minimum_coverage`, so this step
+      # FAILS if line coverage drops below the configured floor. Linux only:
+      # the number is platform-independent and the run is expensive.
+      #
+      # `--exclude cover_machinery` skips the Antigen tests that drive the
+      # node-global `:cover` server directly: they call `:cover.stop/0`, which
+      # tears down ExCoveralls' own session and makes the report read `0.0%`.
+      # Those tests still run in the normal `mix test --include slow` step above.
+      - name: Coverage gate
+        if: runner.os == 'Linux'
+        run: mix coveralls --exclude cover_machinery
+      # Dialyzer runs on Linux only: the PLT is large and the analysis is
+      # platform-independent, so there is no value in paying for it on both
+      # runners. The PLT cache above is keyed on mix.exs/mix.lock so a version
+      # bump or dependency change rebuilds it.
+      - name: Build Dialyzer PLTs
+        if: runner.os == 'Linux'
+        run: mix dialyzer --plt
 
-      # - name: Dialyzer
-      #   run: mix dialyzer --format github
-
+      - name: Dialyzer
+        if: runner.os == 'Linux'
+        run: mix dialyzer --format github
       - name: Compile Cure standard library
         run: mix cure.compile_stdlib
 

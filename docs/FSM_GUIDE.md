@@ -399,30 +399,25 @@ compiler (declaring minimal reproductions and running `cure check`/`cure
 compile`/`cure test`/`cure run` directly, including against the officially
 scaffolded `cure new --fsm` template). They are toolchain behavior, not `fsm`
 grammar or semantics, and are recorded here so they don't have to be
-rediscovered by every project that hits them.
+rediscovered by every project that hits them. The first two are current; the
+third is kept as a record of a limitation that has since been fixed.
 
 - **A macro-generated submodule cannot be called from *project-mode* code.**
   Compiling a whole project (`cure compile <dir>`, and therefore `cure test`)
-  fails with an internal `missing_module` resolution error as soon as any
-  module -- same file or a different one -- calls another module's
-  `fsm`-generated API (`.start`, `.send`, even the pure `.decide`). Declaring
-  the macro on its own, without calling its generated API from elsewhere in a
-  directory-mode build, compiles fine; the nested generated submodule is
-  simply never referenced. The one currently reliable way to exercise a
-  generated `fsm`'s own API end to end is `cure run <single-file>`, or driving
-  it from a *different* language entirely (an Elixir project compiling the
-  `.cure` file with `Cure.Compiler.compile_file/2` and calling the result by
-  its raw BEAM atom, the way `examples/cure_turnstile` and
+  does not resolve a call to another module's `fsm`-generated API (`.start`,
+  `.send`, even the pure `.decide`) -- same file or a different one. The `fsm`
+  submodule is folded into its enclosing module and no callable generated
+  module is emitted, so the reference fails with `E091 UNKNOWN MODULE` /
+  `UNKNOWN VALUE` (the older build reported an internal `missing_module`).
+  Declaring the macro on its own, without calling its generated API from
+  elsewhere in a directory-mode build, compiles fine; the nested generated
+  submodule is simply never referenced. The one currently reliable way to
+  exercise a generated `fsm`'s own API end to end is `cure run <single-file>`,
+  or driving it from a *different* language entirely (an Elixir project
+  compiling the `.cure` file with `Cure.Compiler.compile_file/2` and calling the
+  result by its raw BEAM atom, the way `examples/cure_turnstile` and
   `examples/cure_moneta` do -- that path never goes through the project-mode
   resolver at all).
-- **`cure check` does not currently validate an `fsm` declaration reliably.**
-  Even a trivial two-state, two-edge graph (as produced by `cure new --fsm`)
-  fails `cure check` with a generic macro-expansion-rejected diagnostic,
-  independent of whether a `Cure.toml` is in scope. The graph verification
-  logic itself is not the problem -- it runs, and correctly rejects an
-  actually-broken graph (e.g. a missing `terminal`) -- but `cure run` on a
-  single file that both declares the `fsm` and has a `main/0` is the reliable
-  way to see that result today; `cure check` is not.
 - **A macro's generated constructors are not independently namespaced from
   the rest of their enclosing module.** Unlike a plain nested `mod`, if a
   module both declares `fsm Escrow with Data` (whose graph derives a `State`
@@ -431,12 +426,21 @@ rediscovered by every project that hits them.
   duplicate-constructor error. Keep a hand-written mirror of an `fsm`'s
   state/event ADTs (if you need one, e.g. because of the limitation above) in
   its own module.
+- **(Fixed) `cure check` now validates an `fsm` declaration.** The older build
+  failed `cure check` on even a trivial two-state, two-edge graph (as produced
+  by `cure new --fsm`) with a generic macro-expansion-rejected diagnostic,
+  independent of whether a `Cure.toml` was in scope; `cure run` on a single
+  file that both declared the `fsm` and had a `main/0` was the only reliable
+  way to see the graph-verification result. `cure check lib/fsm.cure` now
+  prints `OK` and exits 0, and project-mode `cure compile lib/` emits the
+  generated module, so `cure check` is the direct way to validate a declaration.
 
 None of this affects the `fsm` macro's own compile-time graph verification
 (§ "Compile-Time Validation"), which runs correctly wherever expansion runs at
-all -- it affects only *which* command reliably shows you the result, and
-whether the generated runtime API is reachable from other project-mode Cure
-code. See `examples/cure_exchange/cure/README.md` for a worked-through example
-of designing a project around these constraints, and
+all -- the remaining items affect only whether the generated *runtime* API is
+reachable from other project-mode Cure code, and how an `fsm`'s derived
+constructors interact with a module's own types. See
+`examples/cure_exchange/cure/README.md` for a worked-through example of
+designing a project around these constraints, and
 `examples/cure_exchange/elixir/README.md` for the unaffected Elixir-hosted
 path.

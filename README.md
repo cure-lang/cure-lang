@@ -364,19 +364,46 @@ mix test
 mix format
 mix credo --strict
 mix dialyzer
+mix coveralls
 ```
+
+All four run in CI (Dialyzer on Linux, where the PLT is built and cached).
+`mix coveralls` enforces a minimum line-coverage floor configured in `mix.exs`.
 
 ## Status
 
 The classic checker/code-generator has been removed. Every source file now
 passes through the dependent elaborator, trusted Core validator, erasure, and
-BEAM emitter. The current unreleased work includes indexed families,
+BEAM emitter. **v0.35.0** adds a machine-checked soundness proof of that kernel
+(an 18-module Agda development in [`proof/`](proof/) plus the written argument
+in [`docs/SOUNDNESS.md`](docs/SOUNDNESS.md)), a first-class Tree-Sitter grammar
+and Zed extension, and audit-driven kernel hardening (the hole firewall and
+enforced `@total true`). See [`CHANGELOG.md`](CHANGELOG.md) for the full
+inventory and [`blog/2026-10-11-cure-v0.35.0.md`](blog/2026-10-11-cure-v0.35.0.md)
+for the release narrative. The 0.34 dependent-pipeline work (indexed families,
 quantitative binders, interfaces and implementations, structural derivation,
-canonical module interfaces, macro expansion, structured diagnostics, and
-authoritative compilation/runtime checks for the root example corpus. See
-[`ROADMAP-0.34.md`](ROADMAP-0.34.md) and the Unreleased section of
-[`CHANGELOG.md`](CHANGELOG.md).
+canonical module interfaces, macro expansion, structured diagnostics) is
+described in [`ROADMAP-0.34.md`](ROADMAP-0.34.md).
+
 ### Release history
+- **v0.35.0 -- Mechanised Soundness, Tree-Sitter & Kernel Hardening**: an
+  18-module Agda formalisation of the Core calculus proving Progress,
+  Preservation (zero postulates), and the fuel-indexed, coinductive, and
+  classical soundness theorems, plus confluence of `_⇝_`; the written soundness
+  argument `docs/SOUNDNESS.md`; the `tree-sitter-cure` grammar and the rebuilt
+  `zed-cure` extension; the hole firewall (`Emit.reject_holes/2`, `E014`);
+  enforced `@total true` (`E013`); `E123` for a missing module identity; and
+  normalised `unwrap`/`unwrap_or` across `Std.Option`/`Std.Result`.
+- **v0.34.0 / v0.34.3 -- One Dependent Pipeline**: the classic checker and code
+  generator were removed; every program elaborates to dependent Core, is
+  checked by the kernel, quantitatively erased, and emitted as BEAM through one
+  path. Added indexed families, quantitative binders, interfaces and
+  implementations, structural derivation, canonical module interfaces, macro
+  expansion, and structured diagnostics; the `fsm`/`actor`/`sup`/`app`
+  containers became transparent lifted modules.
+- **v0.33.0**: the dependent-core convergence line leading into 0.34 (kernel
+  convergence, proof-ergonomics vocabulary, and the migration to the single
+  pipeline).
 - **v0.32.0 -- Trust, Export, Recall, Narrate**: proof-carrying packages
   (`mix cure.verify`), cross-language ADT export to proto3
   (`mix cure.export_types`), REPL session snapshots (`cure snap`), and a

@@ -20,20 +20,24 @@ mod Exchange.EscrowFsmDslReference
   2. In *project-mode* compilation (`cure compile <dir>`, and therefore
      `cure test`), calling this macro's generated API (`.start`, `.send`,
      even the pure `.decide`) from another module -- same file or not --
-     fails with an internal `missing_module` resolution error. Declaring it
+     does not resolve: the `fsm` submodule is folded into its enclosing
+     module and no callable generated module is emitted. Declaring it
      on its own, as done here, is unaffected.
 
   Validate this declaration with:
 
-    cure run lib/escrow_fsm_dsl_reference.cure
+    cure check lib/escrow_fsm_dsl_reference.cure
 
-  `cure run` compiles this file -- fully expanding and verifying the `fsm`
-  macro -- before calling `main/0` below. `main/0` here does nothing but
-  return `:ok`; printing it is a deliberately boring, reliable signal that
-  the DSL declaration above it is well-formed and its graph passed
-  verification. Try deleting a `terminal` line or an edge below and
-  re-running to see the compiler reject the graph (`fsm_deadlocked_state`,
-  `fsm_unreachable_state`, ...) before `main/0` ever runs.
+  `cure check` expands and verifies the `fsm` declaration like any other
+  module (this is now the direct way to see the result; older builds could
+  only show it through `cure run`). `cure run lib/escrow_fsm_dsl_reference.cure`
+  also works -- it compiles this file, fully expanding and verifying the `fsm`
+  macro, before calling `main/0` below. `main/0` here does nothing but return
+  `:ok`; printing it is a deliberately boring, reliable signal that the DSL
+  declaration above it is well-formed and its graph passed verification. Try
+  deleting a `terminal` line or an edge below and re-running to see the
+  compiler reject the graph (`fsm_deadlocked_state`, `fsm_unreachable_state`,
+  ...) before `main/0` ever runs.
   ###
 
   use Std.Fsm

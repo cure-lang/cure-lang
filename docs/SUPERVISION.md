@@ -96,15 +96,27 @@ shape of what you supply chooses how the module is derived.
 
 The raw form splices full GenServer callback results verbatim, which is what
 lets value-equality dispatch and `pickup`/`else` appear where the structured
-surface cannot express them:
+surface cannot express them. Like every Cure construct, the actor's clauses are
+indentation-structured -- each field on its own line, nested under the `actor`
+header:
 
+```text
+actor Clock
+  state Int
+  initial 0
+  messages Atom
+  handle_cast
+    pickup
+      message == :tick -> %[:noreply, state + 1]
+      message == :reset -> %[:noreply, 0]
+      else -> %[:noreply, state]
 ```
-actor Clock state Int initial 0 messages Atom handle_cast
-  pickup
-    message == :tick -> %[:noreply, state + 1]
-    message == :reset -> %[:noreply, 0]
-    else -> %[:noreply, state]
-```
+
+> **Note.** This fence is `text`, not `cure`, because the raw `handle_cast`
+> form is not self-contained: it needs the example packages' preload to
+> elaborate, and `mix cure.check.docs` checks every `cure` fence standalone.
+> The form shown is the real, indentation-structured syntax; the query fence
+> below is checked and describes emitted code.
 
 Synchronous calls are declared as typed queries, each naming its request, its
 parameters, and the type of its reply:
@@ -131,12 +143,6 @@ capitalised, and the adapter the caller uses is its downcased form -- `Value()`
 gives `value/1`, `Bump(step: Int)` gives `bump/2`. Spelling the request itself
 in lower case makes the constructor and its own adapter the same name, and the
 lifted module is rejected with `constructor_function_collision`.
-
-> **Known gap.** The raw fence above is shown unchecked because the one-line
-> positional form does not parse from a unit that only says `use Std.Actor`;
-> `actor Clock state ...` is rejected with a macro-syntax mismatch on the name.
-> The example packages that use this form compile it through their own preload.
-> The query fence beside it is checked and does describe emitted code.
 
 Callback results are checked as erased `Effect(...)` values. Pure values are
 lifted automatically, while `beam_ops` expressions must satisfy the ordinary

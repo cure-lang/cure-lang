@@ -1,9 +1,12 @@
-defmodule Cure.Compiler.CanonicalModulePipelineFullRedTest do
+defmodule Cure.Compiler.CanonicalModulePipelineFullTest do
   use ExUnit.Case, async: true
   use ExUnitProperties
   import ExUnitProperties, except: [check: 2]
 
-  @moduletag :canonical_module_pipeline_red
+  # The canonical module pipeline is the live pipeline (the `_red` build-to-green
+  # pin landed in commit 36b1dee2). These tests run in the default suite; the tag
+  # only groups the pipeline's own suites for a focused `--only` run.
+  @moduletag :canonical_module_pipeline
   @moduletag :tmp_dir
 
   describe "prelude and environment laws" do

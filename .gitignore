@@ -70,5 +70,9 @@ dllb.redb.search/
 .hex/
 .mix/
 
+# Compiler runtime cache (package registry + local signing keys), created on
+# first run. Machine-local, never committed.
+.cure/
+
 # Agda library registration created when HOME resolves to the project dir
 .config/

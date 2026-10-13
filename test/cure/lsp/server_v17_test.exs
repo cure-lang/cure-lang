@@ -109,10 +109,13 @@ defmodule Cure.LSP.ServerV17Test do
   end
 
   describe "compute_code_lenses/2" do
-    test "lenses for every function" do
+    test "lenses for every function carry a self-describing type/effect title" do
       lenses = Server.compute_code_lenses("file://x", @sample)
       titles = Enum.map(lenses, & &1["command"]["title"])
-      assert Enum.all?(titles, &(&1 == "Type | Effects"))
+      assert Enum.all?(titles, &String.starts_with?(&1, "Type | Effects: fn "))
+      # No dead command reference: the lens is informational, not a click that
+      # invokes an unregistered client command.
+      assert Enum.all?(lenses, &(&1["command"]["command"] == ""))
     end
   end
 
@@ -124,7 +127,10 @@ defmodule Cure.LSP.ServerV17Test do
 
     test "classifies proof-chain vocabulary as keywords" do
       data = Server.compute_semantic_tokens("proof chain\n  x == x because evidence")
-      assert Enum.chunk_every(data, 5) |> Enum.count(fn [_dl, _dc, length, 0, 0] -> length in [5, 7] end) >= 2
+      # Keyword tokens (type 0) of length 5 (`proof`) and 7 (`because`) are present.
+      keyword_lengths = for [_dl, _dc, length, 0, 0] <- Enum.chunk_every(data, 5), do: length
+      assert 5 in keyword_lengths
+      assert 7 in keyword_lengths
     end
 
     test "classifies canonical interface and pickup vocabulary as keywords" do

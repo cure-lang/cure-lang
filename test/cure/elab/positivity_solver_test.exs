@@ -1,6 +1,14 @@
 defmodule Cure.Elab.PositivitySolverTest do
   use ExUnit.Case, async: true
-  alias Cure.Elab.Program
+  alias Cure.Elab.{Emit, Program}
+
+  # Emit ONLY the program's own definitions through the live codegen gate
+  # (`Emit.reject_holes/2`). Emitting the whole env would also validate imported
+  # stdlib bodies, which carry their own holes.
+  defp codegen_gate(env, module) do
+    names = env |> Program.program_owned_definitions() |> Map.keys()
+    Emit.compile_forms(env, module, names)
+  end
 
   # These fixtures drive the SYNTAX-DIRECTED positivity solver — the second entry
   # in ProofSearch's ordered solver seam. It covers the arithmetic-sign fragment
@@ -47,7 +55,7 @@ defmodule Cure.Elab.PositivitySolverTest do
   test "IsPositive(S(n)) is discharged by the untagged successor lemma via positivity" do
     assert {:ok, env} = Program.elaborate(@successor)
 
-    assert :ok = Program.check_codegen_ready(env),
+    assert {:ok, _forms} = codegen_gate(env, :PositivitySuccessor),
            "the successor positivity rule must fill the hole so codegen is ready"
   end
 
@@ -56,7 +64,7 @@ defmodule Cure.Elab.PositivitySolverTest do
     # If the two overlapping add lemmas were pooled, this would be an
     # :ambiguous_proof_search decline and the hole would survive. A ready codegen
     # gate proves the solver picked one deterministically.
-    assert :ok = Program.check_codegen_ready(env),
+    assert {:ok, _forms} = codegen_gate(env, :PositivityPlus),
            "the addition positivity rule must discharge the hole with a single, ordered choice"
   end
 end

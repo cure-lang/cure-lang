@@ -23,6 +23,11 @@ end
 defmodule Antigen.CoverGuidedTest do
   # :cover (+ :cover.reset) is node-wide global
   use ExUnit.Case, async: false
+
+  # Drives the node-global `:cover` server via `Antigen.Cover.with_cover`, which
+  # is incompatible with `mix coveralls` owning the same server. Excluded from the
+  # coverage run via `--exclude cover_machinery`; see test/antigen/cover_test.exs.
+  @moduletag :cover_machinery
   alias Antigen.{Cover, Triage, Challenge, Corpus}
 
   @nat {:data, :Nat, [], []}

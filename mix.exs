@@ -20,7 +20,13 @@ defmodule Cure.MixProject do
       docs: docs(),
       aliases: aliases(),
       package: package(),
-      test_coverage: [tool: ExCoveralls],
+      # Coverage gate. `mix coveralls` (run in CI) FAILS when line coverage
+      # drops below `minimum_coverage`, so coverage can no longer regress
+      # silently. The floor is a ratchet: raise it as coverage improves, never
+      # lower it to make a red build green. Measured baseline at the time of
+      # introduction was 80.6% (Elixir 1.20 / OTP 29); the floor sits a little
+      # below that to absorb cross-version variance.
+      test_coverage: [tool: ExCoveralls, minimum_coverage: 78],
       # Fixtures under test/**/fixtures are loaded manually by tests, not run as
       # test files — exclude them from the loader so 1.20 doesn't warn on them.
       test_ignore_filters: [~r{/fixtures/}],
@@ -189,7 +195,9 @@ defmodule Cure.MixProject do
       extras: [
         "README.md",
         "CHANGELOG.md",
+        "docs/GETTING_STARTED.md",
         "docs/TUTORIAL.md",
+        "docs/GLOSSARY.md",
         "docs/LANGUAGE_SPEC.md",
         "docs/MACROS.md",
         "docs/TYPE_SYSTEM.md",
@@ -197,6 +205,7 @@ defmodule Cure.MixProject do
         "docs/KERNEL.md",
         "docs/PATTERNS.md",
         "docs/BINARIES.md",
+        "docs/BIND_PIPE.md",
         "docs/PROOFS.md",
         "docs/PACKAGE_REGISTRY.md",
         "docs/PUBLISHING.md",

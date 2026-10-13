@@ -68,11 +68,14 @@ pattern that both consumes the token once and returns a fresh one.
    on inference. The types are still fully checked; they are just not repeated
    at every binding. (`cure run` on a single concatenated file is unaffected.)
 
-3. **`cure check` does not reliably validate an `fsm` declaration**, and a
-   macro-generated submodule cannot be called from project-mode Cure code.
-   → The FSM is validated with `cure run <single-file>`; the *live* runtime
-   lives in the Elixir-hosted half, driven by the raw BEAM atom (the
-   `cure_moneta` / `cure_exchange` pattern).
+3. **A macro-generated submodule cannot be called from project-mode Cure
+   code.** The `fsm` submodule is folded into its enclosing module and no
+   callable generated module is emitted, so a `.start`/`.send`/`.decide` call
+   from project-mode code does not resolve (`E091 UNKNOWN MODULE`/`UNKNOWN
+   VALUE`). → The *live* runtime lives in the Elixir-hosted half, driven by the
+   raw BEAM atom (the `cure_moneta` / `cure_exchange` pattern). (`cure check`
+   now validates the `fsm` declaration itself -- that part of the old note is
+   fixed; only the generated-API call remains unavailable.)
 
 4. **`Std.Otp.spawn` is rejected outside a managed `actor`/`fsm`/`sup`
    declaration.** → All live processes are `fsm`/`actor`/`sup`-declared or

@@ -16,6 +16,12 @@ defmodule Antigen.CoverageBaselineTest do
   use ExUnit.Case, async: false
   alias Antigen.CoverageBaseline, as: CB
 
+  # `CB.measure/0` drives the node-global `:cover` server via
+  # `Antigen.Cover.with_cover`, which is incompatible with `mix coveralls` owning
+  # the same server. Excluded from the coverage run via `--exclude
+  # cover_machinery`; see test/antigen/cover_test.exs.
+  @moduletag :cover_machinery
+
   @regen "mix antigen cover --record-new-coverage-baseline"
 
   test "the committed coverage corpus decodes and replays git-clean" do

@@ -10,6 +10,11 @@ defmodule Cure.Compiler.AtomVMContainerTest do
     packbeam = Path.join(atomvm_root, "build/tools/packbeam/packbeam")
     estdlib = Path.join(atomvm_root, "build/libs/estdlib/src/beams")
 
+    # `:atomvm` is excluded from the default suite (test_helper.exs): CI installs
+    # no AtomVM, so reaching here means the tag was explicitly included
+    # (`mix test --include atomvm`) and the toolchain was expected to be present.
+    # A missing binary is therefore a setup error to surface, not a silent pass —
+    # the old `assert true` guard made this test green while testing nothing.
     if File.exists?(atomvm) and File.exists?(packbeam) and File.dir?(estdlib) do
       out = Path.join(System.tmp_dir!(), "cure_atomvm_test_#{System.unique_integer([:positive])}")
       File.mkdir_p!(out)
@@ -90,7 +95,18 @@ defmodule Cure.Compiler.AtomVMContainerTest do
       {output, 0} = System.cmd(atomvm, [archive], cd: atomvm_root)
       assert output =~ "CURE_ATOMVM_PROOF_OK"
     else
-      assert true
+      flunk("""
+      AtomVM not found under ATOMVM_ROOT=#{inspect(atomvm_root)}.
+
+      This test is tagged `:atomvm` and excluded by default. Running it with
+      `--include atomvm` requires a built AtomVM checkout providing:
+        #{atomvm}
+        #{packbeam}
+        #{estdlib}
+
+      Build AtomVM (or point ATOMVM_ROOT at a built tree) and re-run, or drop
+      `--include atomvm` to skip it.
+      """)
     end
   end
 

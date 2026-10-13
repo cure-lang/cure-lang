@@ -373,6 +373,16 @@ defmodule Cure.Diagnostic.Adapter do
     )
   end
 
+  # A hole that survives to the emission boundary is a USER error, not an
+  # internal compiler failure: the program typechecks (that is what makes holes
+  # usable) but `Emit.reject_holes/2` refuses to emit it. Routing it to the
+  # `Hole` adapter keeps the user-facing E014 ("Unfilled hole") instead of
+  # dressing it up as an E101 "internal compiler failure" that asks the user to
+  # report a compiler bug. The emission reason carries the same
+  # `{:unfilled_hole, name | details}` shape the direct codegen path does.
+  def from_error({:beam_emission_failed, _module, {:unfilled_hole, _} = reason}, opts),
+    do: Hole.from_error(reason, opts)
+
   def from_error({:beam_emission_failed, module, reason}, opts) do
     Codegen.from_error(
       {:codegen_failure,

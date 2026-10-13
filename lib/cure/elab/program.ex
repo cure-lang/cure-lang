@@ -21,7 +21,7 @@ defmodule Cure.Elab.Program do
 
   alias Cure.Compiler.ModulePipeline.Interface, as: PipelineInterface
   alias Cure.Compiler.Parser.FixityScan
-  alias Cure.Core.{Env, Inductive, Validator}
+  alias Cure.Core.{Env, Inductive}
 
   alias Cure.Elab.{
     AttemptCache,
@@ -2219,52 +2219,6 @@ defmodule Cure.Elab.Program do
   defp split_pi({:pi, _g, dom, cod}, acc), do: split_pi(cod, [dom | acc])
   defp split_pi(goal, acc), do: {Enum.reverse(acc), goal}
 
-  @doc """
-  Codegen gate (§6 negative #5): a program with an unfilled hole typechecks but
-  must not be emitted. Authored definitions return exact source metadata for the
-  rejected hole; synthetic Core environments retain the legacy definition name.
-  """
-  @spec check_codegen_ready(Env.t()) ::
-          :ok | {:error, {:unfilled_hole, atom() | %{required(:definition) => atom()}}}
-  def check_codegen_ready(%Env{} = env) do
-    defs = program_owned_definitions(env)
-
-    # Route through the single Final-Core enforcement point (K3): the validator
-    # descends into every node (prim args, rewrite proof/motive, eq/refl args)
-    # where the hand-rolled `has_hole?` walker had gaps.
-    finding =
-      Enum.find_value(defs, fn {name, %{body: body}} ->
-        case Validator.validate(body, Validator.release_config()) do
-          {:ok, _warnings} ->
-            nil
-
-          {:error, rejections} ->
-            if Enum.any?(rejections, &(&1.clause == :no_hole)), do: {name, rejections}
-        end
-      end)
-
-    case finding do
-      nil ->
-        :ok
-
-      {name, rejections} ->
-        rejection = Enum.find(rejections, &(&1.clause == :no_hole))
-
-        hole_id =
-          case rejection do
-            %{node: {:hole, id}} -> id
-            _ -> nil
-          end
-
-        source_holes = defs |> Map.fetch!(name) |> Map.get(:source_holes, %{})
-
-        case Map.get(source_holes, hole_id) do
-          nil -> {:error, {:unfilled_hole, name}}
-          source -> {:error, {:unfilled_hole, Map.merge(%{definition: name, hole_id: hole_id}, source)}}
-        end
-    end
-  end
-
   # A checked program environment contains the semantic bodies of its imported
   # interfaces so conversion, proof search, and reachability can use them.  They
   # are dependencies, not declarations being released by this program.  Global
@@ -2272,9 +2226,19 @@ defmodule Cure.Elab.Program do
   # interface publication; emission separately validates the explicit reachable
   # closure it was asked to emit.  Ownerless synthetic environments retain the
   # historical all-definitions behavior used by kernel-level tests.
-  defp program_owned_definitions(%Env{module_owner: nil, defs: defs}), do: defs
+  @doc """
+  The definitions a program OWNS (as opposed to the imported interfaces it
+  carries for conversion/proof search). Scoped by the canonical module owner;
+  an ownerless synthetic environment returns every definition.
 
-  defp program_owned_definitions(%Env{module_owner: owner, defs: defs}) do
+  This is the correct name set for a codegen gate: `Emit.compile_forms/3` with
+  these names validates exactly the definitions this program will emit, not the
+  imported stdlib bodies (which may legitimately carry their own holes).
+  """
+  @spec program_owned_definitions(Env.t()) :: %{optional(atom()) => map()}
+  def program_owned_definitions(%Env{module_owner: nil, defs: defs}), do: defs
+
+  def program_owned_definitions(%Env{module_owner: owner, defs: defs}) do
     Map.filter(defs, fn {name, _definition} -> Cure.Elab.Name.owner(name) == owner end)
   end
 

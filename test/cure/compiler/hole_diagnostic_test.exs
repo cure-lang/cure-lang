@@ -172,6 +172,26 @@ defmodule Cure.Compiler.HoleDiagnosticTest do
              """)
   end
 
+  # The canonical pipeline reports an unfilled hole at its emission boundary as
+  # `{:beam_emission_failed, module, {:unfilled_hole, _}}`, a DIFFERENT shape
+  # from the direct-codegen `{:codegen_error, {:unfilled_hole, _}}` above. It
+  # used to fall through the codegen adapter's generic clause and render as an
+  # E101 "internal compiler failure; report it" — a user error dressed as a
+  # compiler bug. It now routes to the same user-facing E014.
+  test "the canonical emission boundary renders an unfilled hole as E014, not E101" do
+    {diagnostic, _registry} =
+      Errors.to_diagnostic(
+        {:beam_emission_failed, :"Cure.HoleDiagnostic", {:unfilled_hole, :missing}},
+        "hole_diagnostic.cure",
+        @source
+      )
+
+    assert diagnostic.code == "E014"
+    assert diagnostic.key == :unfilled_hole
+    refute diagnostic.code == "E101"
+    refute Enum.any?(diagnostic.notes, &(&1 =~ "internal compiler failure"))
+  end
+
   defp byte_offset!(source, needle, occurrence \\ 1) do
     {offset, _length} = source |> :binary.matches(needle) |> Enum.at(occurrence - 1)
     offset

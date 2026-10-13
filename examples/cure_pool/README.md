@@ -173,12 +173,12 @@ where the compiler's edges are — a language whose value is *"the compiler
 proves things"* is only as credible as its honesty about what it does and does
 not yet prove. `docs/POOL.md` records each of these with the reproduction:
 
-- `cure check` does not reliably validate an `fsm` declaration; `cure run` on a
-  single file does. The FSM here is validated that way.
 - A macro-generated submodule cannot be called from project-mode Cure code, so
   the *live* process half is hosted in Elixir and drives the FSM by its raw
   BEAM atom — the same pattern `examples/cure_moneta` and
-  `examples/cure_exchange` use.
+  `examples/cure_exchange` use. (`cure check` does validate the `fsm`
+  declaration itself now; it is only the generated API that is unreachable
+  from project-mode code.)
 - A cross-file annotation on a nested indexed type is rejected by a
   definitional-equality bug, so the core's types are written once (in
   `Pool.Core`) and callers rely on inference. The types are still checked; they

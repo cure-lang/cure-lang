@@ -404,6 +404,34 @@ defmodule Cure.CLITest do
       refute output =~ "[E101]"
       refute output =~ ": OK"
     end
+
+    # §4.2: a file with an unfilled hole typechecks, so `check` used to print a
+    # plain `OK` while `cure compile` refused the same file — a false green. The
+    # hole goal is now surfaced as an E014 warning; the exit stays 0 by default
+    # (a hole is a development state) and only `--strict` fails the command.
+    test "a file with an unfilled hole warns (E014) instead of a bare OK" do
+      path = Path.join(System.tmp_dir!(), "cure_cli_check_hole_#{System.unique_integer([:positive])}.cure")
+      File.write!(path, "mod HoleCheck\n  use Std.Nat\n  fn f(n: Nat) -> Nat = ?goal\nend\n")
+      on_exit(fn -> File.rm(path) end)
+
+      output =
+        capture_io(:stderr, fn ->
+          Cure.CLI.main(["check", path])
+        end)
+
+      assert output =~ "[E014]"
+      assert output =~ "f"
+    end
+
+    test "--strict promotes an unfilled hole to a non-zero exit" do
+      path = Path.join(System.tmp_dir!(), "cure_cli_check_hole_strict_#{System.unique_integer([:positive])}.cure")
+      File.write!(path, "mod HoleCheckStrict\n  use Std.Nat\n  fn f(n: Nat) -> Nat = ?goal\nend\n")
+      on_exit(fn -> File.rm(path) end)
+
+      capture_io(:stderr, fn ->
+        assert catch_exit(Cure.CLI.main(["check", "--strict", path])) == {:shutdown, 1}
+      end)
+    end
   end
 
   describe "cure stdlib" do
@@ -446,6 +474,22 @@ defmodule Cure.CLITest do
       assert stderr =~ "INVALID COMMAND USAGE [E099]"
       assert stderr =~ "Unknown command: foobar"
       refute stderr =~ "[E098]"
+    end
+  end
+
+  describe "cure watch --action" do
+    test "an unknown action is a usage error, not a silently-minted atom" do
+      # `--action` is user input. It used to be `String.to_atom/1`-ed verbatim
+      # and handed to `Cure.Watch`, which would then report an unknown action
+      # from deep inside the watcher. It is now validated at the CLI boundary.
+      stderr =
+        capture_io(:stderr, fn ->
+          assert catch_exit(Cure.CLI.main(["watch", "lib", "--action", "bogus"])) == {:shutdown, 1}
+        end)
+
+      assert stderr =~ "INVALID COMMAND USAGE [E099]"
+      assert stderr =~ "Unknown --action: bogus"
+      assert stderr =~ "compile, check, or test"
     end
   end
 
