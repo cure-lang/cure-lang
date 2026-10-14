@@ -405,7 +405,7 @@ defmodule Cure.LSP.Server do
 
   @doc false
   def compute_diagnostics(uri, text, encoding \\ :utf16) do
-    case Cure.Elab.Program.elaborate(text, file: uri) do
+    case elaborate_document(uri, text) do
       {:ok, _env} ->
         []
 
@@ -413,6 +413,21 @@ defmodule Cure.LSP.Server do
         reason
         |> lsp_error_list()
         |> Enum.map(&source_diagnostic(&1, uri, text, encoding))
+    end
+  end
+
+  # The elaborator resolves `use` from the process's source roots. Give it the
+  # roots `cure check` uses, so a module under `test/` sees the project's `lib/`.
+  defp elaborate_document(uri, text) do
+    previous = Process.get(:cure_source_roots)
+    Process.put(:cure_source_roots, source_roots(uri, nil))
+
+    try do
+      Cure.Elab.Program.elaborate(text, file: uri)
+    after
+      if previous == nil,
+        do: Process.delete(:cure_source_roots),
+        else: Process.put(:cure_source_roots, previous)
     end
   end
 
@@ -559,16 +574,26 @@ defmodule Cure.LSP.Server do
   end
 
   # Directories that may hold the modules a document refers to: its own
-  # directory, and the workspace root with its default `lib/` source path.
+  # directory, the source paths and dependencies of the nearest `Cure.toml`,
+  # and the workspace root with its default `lib/` source path.
   defp source_roots(uri, root) do
-    document_dir =
+    document =
       case uri_to_path(uri) do
         nil -> []
-        path -> [Path.dirname(path)]
+        path -> [Path.dirname(path) | project_source_roots(path)]
       end
 
     workspace = if root, do: [root, Path.join(root, "lib")], else: []
-    Enum.uniq(document_dir ++ workspace)
+    Enum.uniq(document ++ workspace)
+  end
+
+  defp project_source_roots(path) do
+    with root when is_binary(root) <- Cure.Project.find_root(path),
+         {:ok, project} <- Cure.Project.load(root) do
+      Cure.Project.source_roots(project) ++ Cure.Project.dependency_source_paths(project)
+    else
+      _ -> []
+    end
   end
 
   defp workspace_root(params) do

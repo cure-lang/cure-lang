@@ -179,6 +179,34 @@ defmodule Cure.LSP.LspTest do
       assert diagnostic["range"]["start"]["line"] == 2
     end
 
+    test "a test module resolves the project's lib modules" do
+      root = Path.join(System.tmp_dir!(), "cure_lsp_project_#{System.unique_integer([:positive])}")
+      File.mkdir_p!(Path.join(root, "lib"))
+      File.mkdir_p!(Path.join(root, "test"))
+      on_exit(fn -> File.rm_rf!(root) end)
+
+      File.write!(Path.join(root, "Cure.toml"), """
+      [project]
+      name = "lsp_project"
+      version = "0.1.0"
+      """)
+
+      File.write!(Path.join(root, "lib/lsp_greeter.cure"), """
+      mod LspGreeter
+        fn hello() -> String = "hello"
+      """)
+
+      source = """
+      mod LspGreeter.Test
+        use LspGreeter
+
+        fn greeting() -> String = LspGreeter.hello()
+      """
+
+      uri = "file://" <> Path.join(root, "test/lsp_greeter_test.cure")
+      assert Server.compute_diagnostics(uri, source) == []
+    end
+
     test "unsaved Unicode buffers use the negotiated position encoding" do
       source = "mod X\n  fn bad() -> Int = \"😀\"\n"
       uri = "file:///unsaved-unicode.cure"
