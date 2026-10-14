@@ -86,6 +86,11 @@ defmodule CureSite.MixProject do
         "cmd --cd assets npm install"
       ],
       "assets.build": ["compile", "tailwind cure_site", "esbuild cure_site"],
+      # Rebuilds the playground's highlighting grammar after a change to
+      # ../tree-sitter-cure. Needs the tree-sitter CLI.
+      "assets.grammar": [
+        "cmd tree-sitter build --wasm -o assets/vendor/tree-sitter-cure.wasm ../tree-sitter-cure"
+      ],
       "assets.deploy": [
         "cmd --cd assets npm ci",
         "tailwind cure_site --minify",

@@ -177,6 +177,58 @@
   :root:not([data-theme]) .makeup .cm { color: #7b88a1; }
 }
 
+/* Playground editor: a transparent textarea over its highlighted copy,
+   with a line-number gutter. The layers must lay text out identically, so
+   they share every metric. The textarea stays opaque until the highlighter
+   has loaded. */
+.cure-editor { position: relative; }
+.cure-editor pre,
+.cure-editor textarea {
+  margin: 0;
+  padding: 1.25rem 1.25rem 1.25rem 3.5rem;
+  border: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.875rem;
+  line-height: 1.75rem;
+  tab-size: 2;
+  font-variant-ligatures: none;
+  white-space: pre;
+  overflow-wrap: normal;
+}
+.cure-editor code { font: inherit; }
+.cure-editor pre {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  visibility: hidden;
+}
+.cure-editor .cure-editor-gutter {
+  right: auto;
+  width: 2.5rem;
+  padding: 1.25rem 0.75rem 1.25rem 0;
+  text-align: right;
+  color: color-mix(in oklab, var(--color-base-content) 30%, transparent);
+  background: var(--color-base-200);
+  user-select: none;
+}
+.cure-editor textarea {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 28rem;
+  overflow: auto;
+  resize: vertical;
+  background: transparent;
+  outline: none;
+}
+.cure-editor.cure-editor-ready pre { visibility: visible; }
+.cure-editor.cure-editor-ready textarea {
+  color: transparent;
+  caret-color: var(--color-base-content);
+}
+.cure-editor textarea::selection { background: color-mix(in oklab, var(--color-primary) 30%, transparent); }
+
 /* Prose content styling */
 .prose-cure h2 { margin-top: 2rem; margin-bottom: 0.75rem; font-size: 1.5rem; font-weight: 700; }
 .prose-cure h3 { margin-top: 1.5rem; margin-bottom: 0.5rem; font-size: 1.25rem; font-weight: 700; }
