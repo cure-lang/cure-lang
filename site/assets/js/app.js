@@ -25,6 +25,7 @@ import {LiveSocket} from "phoenix_live_view"
 // self-registering Lit Web Component, so no explicit hook entry is needed.
 import "phoenix-colocated/yeesh"
 import topbar from "../vendor/topbar"
+import {CureEditor} from "./cure_editor"
 // KaTeX typesets the TeX that `CureSite.MarkdownConverter` leaves in the
 // markup. Its stylesheet is pulled in from assets/css/app.css and its web
 // fonts are staged by `mix katex.fonts`.
@@ -34,6 +35,7 @@ const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
+  hooks: {CureEditor},
 })
 
 topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})

@@ -36,6 +36,27 @@ COMMANDS                                                        *cure-commands*
 :CureMcpHelp [topic] Fetches syntax topic help via Cure MCP and shows floating window.
 :CureMcpCheck       Type-checks current buffer via Cure MCP.
 :CureMcpParse       Shows MetaAST summary of current buffer via Cure MCP.
+:CureTSBuild        Builds the tree-sitter parser from `tree-sitter-cure/`.
+
+==============================================================================
+TREE-SITTER                                                 *cure-treesitter*
+
+On Neovim 0.11+ Cure buffers are highlighted with tree-sitter, using the
+grammar in `tree-sitter-cure/` of the Cure repository and the same highlight
+queries as the Zed extension. The parser is compiled with `$CC` (or `cc`,
+`gcc`, `clang`) into `neovim-cure/parser/cure.so` the first time a `.cure`
+file is opened, and again when the grammar is newer than the built parser.
+A rebuilt parser takes effect after restarting Neovim. Without a C compiler
+the plugin keeps the Vim syntax file.
+
+>lua
+    require('cure').setup({
+      treesitter = {
+        enabled = true,       -- false keeps the Vim syntax file
+        auto_install = true,  -- false: only build with :CureTSBuild
+      },
+    })
+<
 
 ==============================================================================
 MCP INTEGRATION                                                     *cure-mcp*

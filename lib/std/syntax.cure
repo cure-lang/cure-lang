@@ -12,6 +12,7 @@ mod Std.Syntax
   ## (`SList`), a nested AST (`SSyntax`), and a lookup table (`SMap`), each
   ## losslessly. Source positions are not represented (the expansion is
   ## re-elaborated, K3 firewall).
+
   use Std.String
   use Std.Char
   use Std.Option

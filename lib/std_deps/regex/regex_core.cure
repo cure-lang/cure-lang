@@ -1,6 +1,7 @@
 @group(:text)
 mod Std.Regex.Core
   ## Shared indexed Regex vocabulary and definitionally relevant shape operations.
+
   use Std.Char
   use Std.Option
   use Std.String

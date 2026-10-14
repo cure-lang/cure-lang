@@ -4,7 +4,7 @@ defmodule Cure.LSP.Server do
 
   Implements the LSP over stdio, providing:
   - Real-time diagnostics (compile errors) on document changes
-  - Hover information (function signatures, types)
+  - Hover information (signatures and `##` documentation)
   - Document synchronization (full sync mode)
 
   ## Usage
@@ -20,13 +20,15 @@ defmodule Cure.LSP.Server do
 
   use GenServer
 
+  alias Cure.LSP.Docs
   alias Cure.LSP.Transport
   alias Cure.LSP.Positions
-  alias Cure.Compiler.{Formatter, Lexer, Parser, Printer}
+  alias Cure.Compiler.{Formatter, Lexer, Parser, Printer, Token}
   alias Cure.MetaAST.Metadata
 
   defstruct [
     :reader_pid,
+    :root,
     initialized: false,
     position_encoding: :utf16,
     documents: %{},
@@ -66,6 +68,11 @@ defmodule Cure.LSP.Server do
 
   @impl true
   def init(_opts) do
+    # LSP frames are measured in bytes. Elixir leaves stdio in unicode mode,
+    # where `IO.binwrite/1` re-encodes every non-ASCII byte (overrunning the
+    # Content-Length) and `IO.binread/2` counts characters, not bytes.
+    :io.setopts(:standard_io, binary: true, encoding: :latin1)
+
     # Start the stdin reader process that reads LSP frames and sends messages
     server = self()
 
@@ -145,7 +152,6 @@ defmodule Cure.LSP.Server do
           "full" => true,
           "range" => false
         },
-        "codeLensProvider" => %{"resolveProvider" => false},
         "codeActionProvider" => %{
           "codeActionKinds" => ["quickfix"]
         },
@@ -160,7 +166,14 @@ defmodule Cure.LSP.Server do
     }
 
     Transport.send_response(id, result)
-    {state |> Map.put(:initialized, true) |> Map.put(:position_encoding, position_encoding), []}
+
+    state =
+      state
+      |> Map.put(:initialized, true)
+      |> Map.put(:position_encoding, position_encoding)
+      |> Map.put(:root, workspace_root(params))
+
+    {state, []}
   end
 
   defp do_handle("initialized", _id, _params, state) do
@@ -249,7 +262,7 @@ defmodule Cure.LSP.Server do
 
     docs = Map.get(state, :documents, %{})
     text = Map.get(docs, uri, "")
-    result = compute_hover(text, line, char)
+    result = compute_hover(text, line, char, %{documents: docs, roots: source_roots(uri, Map.get(state, :root))})
 
     Transport.send_response(id, result)
     {state, []}
@@ -381,7 +394,8 @@ defmodule Cure.LSP.Server do
     docs = Map.get(state, :documents, %{})
     text = Map.get(docs, uri, "")
 
-    Transport.send_response(id, %{"data" => compute_semantic_tokens(text)})
+    encoding = Map.get(state, :position_encoding, :utf16)
+    Transport.send_response(id, %{"data" => compute_semantic_tokens(text, encoding)})
     {state, []}
   end
 
@@ -491,10 +505,11 @@ defmodule Cure.LSP.Server do
   diagnostics agree with the command line. Calling only
   `Elab.Program.elaborate/2` skipped the declaration-use expansion and lifted
   module validation, so a file could be clean in the editor and rejected by
-  `cure check`.
+  `cure check`. `use` resolves from the same roots `cure check` gives the file
+  (see `source_roots/2`), so a module under `test/` sees the project's `lib/`.
   """
   def compute_diagnostics(uri, text, encoding \\ :utf16) do
-    case Cure.Compiler.check_source(text, file: uri) do
+    case Cure.Compiler.check_source(text, file: uri_to_path(uri) || uri, source_roots: source_roots(uri, nil)) do
       {:ok, _env} ->
         []
 
@@ -545,7 +560,7 @@ defmodule Cure.LSP.Server do
   # -- Hover -------------------------------------------------------------------
 
   @doc false
-  def compute_hover(text, line, char) do
+  def compute_hover(text, line, char, context \\ %{}) do
     # Try AST-based hover first, fall back to line-matching
     case parse_to_ast(text) do
       {:ok, ast} ->
@@ -554,6 +569,7 @@ defmodule Cure.LSP.Server do
         target_line = Enum.at(lines, line, "")
         word = extract_word_at(target_line, char)
         dotted_word = extract_dotted_word_at(target_line, char)
+        qualified_name = qualified_name_at(target_line, char)
 
         selected =
           cond do
@@ -568,7 +584,7 @@ defmodule Cure.LSP.Server do
                 Enum.find(induction_binding_symbols(ast), &(&1.name == word)) ||
                 Enum.find(equation_symbols(ast), &(&1.name == dotted_word)) ||
                 Enum.find(proof_rule_symbols(ast), &(&1.name == word)) ||
-                Enum.find(symbols, fn s -> s.name == word end)
+                documentation_hover(ast, qualified_name, Map.put(context, :line, line + 1))
           end
 
         case selected do
@@ -613,8 +629,7 @@ defmodule Cure.LSP.Server do
 
             %{"contents" => %{"kind" => "markdown", "value" => hover_text}}
 
-          %{kind: :function, signature: sig, line: fn_line} ->
-            hover_text = "```cure\n#{sig}\n```\n\n*Defined at line #{fn_line}*"
+          %{kind: :documentation, markdown: hover_text} ->
             %{"contents" => %{"kind" => "markdown", "value" => hover_text}}
 
           %{kind: :named_argument, label: label, parameter: parameter, type: type, function: function} ->
@@ -639,6 +654,48 @@ defmodule Cure.LSP.Server do
         compute_hover_fallback(target_line)
     end
   end
+
+  defp documentation_hover(ast, name, context) do
+    case Docs.hover(ast, name, context) do
+      nil -> nil
+      markdown -> %{kind: :documentation, markdown: markdown}
+    end
+  end
+
+  # Directories that may hold the modules a document refers to: its own
+  # directory, the source paths and dependencies of the nearest `Cure.toml`,
+  # and the workspace root with its default `lib/` source path.
+  defp source_roots(uri, root) do
+    document =
+      case uri_to_path(uri) do
+        nil -> []
+        path -> [Path.dirname(path) | project_source_roots(path)]
+      end
+
+    workspace = if root, do: [root, Path.join(root, "lib")], else: []
+    Enum.uniq(document ++ workspace)
+  end
+
+  defp project_source_roots(path) do
+    with root when is_binary(root) <- Cure.Project.find_root(path),
+         {:ok, project} <- Cure.Project.load(root) do
+      Cure.Project.source_roots(project) ++ Cure.Project.dependency_source_paths(project)
+    else
+      _ -> []
+    end
+  end
+
+  defp workspace_root(params) do
+    case params do
+      %{"rootUri" => uri} when is_binary(uri) -> uri_to_path(uri)
+      %{"workspaceFolders" => [%{"uri" => uri} | _]} -> uri_to_path(uri)
+      %{"rootPath" => path} when is_binary(path) -> path
+      _ -> nil
+    end
+  end
+
+  defp uri_to_path("file://" <> path), do: URI.decode(path)
+  defp uri_to_path(_uri), do: nil
 
   defp compute_hover_fallback(target_line) do
     cond do
@@ -779,6 +836,19 @@ defmodule Cure.LSP.Server do
 
     word = prefix <> suffix
     if word == "", do: extract_word(line), else: word
+  end
+
+  # The dotted name ending with the identifier under the cursor: hovering
+  # `List` in `Std.List.map` yields `Std.List`, hovering `map` yields
+  # `Std.List.map`. Identifiers may contain `$` and end in a predicate `?`
+  # (`positive?`), as in the lexer.
+  defp qualified_name_at(line, char) do
+    graphemes = String.graphemes(line)
+    {before, after_cursor} = Enum.split(graphemes, min(char, length(graphemes)))
+    prefix = before |> Enum.reverse() |> Enum.take_while(&(&1 =~ ~r/[a-zA-Z0-9_$.]/)) |> Enum.reverse() |> Enum.join()
+    {word, rest} = Enum.split_while(after_cursor, &(&1 =~ ~r/[a-zA-Z0-9_$]/))
+    predicate = if match?(["?" | _], rest), do: "?", else: ""
+    String.trim(prefix <> Enum.join(word) <> predicate, ".")
   end
 
   defp extract_dotted_word_at(line, char) do
@@ -928,8 +998,7 @@ defmodule Cure.LSP.Server do
 
           ordinary =
             Enum.map(symbols, fn s ->
-              kind = if s.kind == :function, do: 3, else: 2
-              %{"label" => s.name, "kind" => kind, "detail" => s.signature}
+              %{"label" => s.name, "kind" => completion_kind(s.kind), "detail" => s.signature}
             end)
 
           equations =
@@ -1365,9 +1434,9 @@ defmodule Cure.LSP.Server do
 
   defp extract_symbols({:container, meta, body}, acc, source, encoding) do
     name = Keyword.get(meta, :name, "unknown")
-    line = Keyword.get(meta, :line, 1)
     type = Keyword.get(meta, :container_type, :module)
     info = Metadata.source_info(meta)
+    line = symbol_line(meta, info)
     acc = [%{name: name, kind: :module, line: line, signature: "#{type} #{name}", span: info && info.whole} | acc]
     Enum.reduce(body, acc, &extract_symbols(&1, &2, source, encoding))
   end
@@ -1376,15 +1445,44 @@ defmodule Cure.LSP.Server do
     Enum.reduce(children, acc, &extract_symbols(&1, &2, source, encoding))
   end
 
+  # A sum type's variants are `function_def`s carrying `:variant`; they are
+  # constructors, not functions a user declared with `fn`.
   defp extract_symbols({:function_def, meta, _body}, acc, _source, _encoding) do
+    if Keyword.has_key?(meta, :variant) do
+      constructor_symbol(meta, acc)
+    else
+      function_symbol(meta, acc)
+    end
+  end
+
+  defp extract_symbols(_, acc, _source, _encoding), do: acc
+
+  defp constructor_symbol(meta, acc) do
+    name = Keyword.get(meta, :name, "unknown")
+    info = Metadata.source_info(meta)
+
+    [
+      %{
+        name: name,
+        kind: :constructor,
+        line: symbol_line(meta, info),
+        signature: name,
+        parameters: [],
+        span: info && info.whole
+      }
+      | acc
+    ]
+  end
+
+  defp function_symbol(meta, acc) do
     name = Keyword.get(meta, :name, "unknown")
     params = Keyword.get(meta, :params, [])
-    line = Keyword.get(meta, :line, 1)
+    info = Metadata.source_info(meta)
+    line = symbol_line(meta, info)
 
     param_str = Enum.map_join(params, ", ", &format_param/1)
 
     sig = "fn #{name}(#{param_str})"
-    info = Metadata.source_info(meta)
 
     [
       %{
@@ -1399,7 +1497,10 @@ defmodule Cure.LSP.Server do
     ]
   end
 
-  defp extract_symbols(_, acc, _source, _encoding), do: acc
+  # The parser records positions in `source_info`; `:line` is a legacy key.
+  defp symbol_line(meta, info) do
+    Keyword.get(meta, :line) || (info && info.whole && info.whole.start_line) || 1
+  end
 
   # Parameter pretty-printer tolerant of the various AST shapes the parser
   # can emit (full `:param` tuples, bare `:variable` tuples in generic type
@@ -1492,34 +1593,13 @@ defmodule Cure.LSP.Server do
 
   # -- Inlay hints --------------------------------------------------------------
 
+  # Parameter names at positional call arguments. A declaration needs no hint:
+  # its own line already shows the signature.
   @doc false
   def compute_inlay_hints(text) do
     case parse_to_ast(text) do
-      {:ok, ast} ->
-        symbols = build_symbol_table(ast)
-
-        declaration_hints =
-          Enum.flat_map(symbols, fn s ->
-            case s do
-              %{kind: :function, line: l, signature: sig} ->
-                [
-                  %{
-                    "position" => %{"line" => l - 1, "character" => 0},
-                    "label" => "# " <> sig,
-                    "kind" => 2,
-                    "paddingRight" => true
-                  }
-                ]
-
-              _ ->
-                []
-            end
-          end)
-
-        declaration_hints ++ named_call_inlay_hints(ast, symbols)
-
-      _ ->
-        []
+      {:ok, ast} -> named_call_inlay_hints(ast, build_symbol_table(ast))
+      _ -> []
     end
   end
 
@@ -2082,151 +2162,138 @@ defmodule Cure.LSP.Server do
 
   # -- Code lens ----------------------------------------------------------------
 
+  # No lenses: the "Type | Effects" placeholder pointed at a `cure.type.*`
+  # command no client implements, so clicking it failed. `codeLensProvider` is
+  # no longer advertised; this answers clients that ask anyway.
   @doc false
-  def compute_code_lenses(_uri, text) do
-    case parse_to_ast(text) do
-      {:ok, ast} ->
-        ast
-        |> build_symbol_table()
-        |> Enum.flat_map(fn
-          %{kind: :function, line: l, signature: sig} ->
-            [
-              %{
-                "range" => %{
-                  "start" => %{"line" => l - 1, "character" => 0},
-                  "end" => %{"line" => l - 1, "character" => 0}
-                },
-                # A code lens whose `command` is not a registered client command
-                # is a dead reference the client cannot execute. The lens is
-                # therefore self-describing: its title IS the type/effect
-                # summary (the function's signature). A client that wants a
-                # clickable action can resolve it via `codeLens/resolve` using
-                # the `data` payload.
-                "command" => %{"title" => "Type | Effects: " <> sig, "command" => ""},
-                "data" => %{"cure" => "function", "signature" => sig}
-              }
-            ]
+  def compute_code_lenses(_uri, _text), do: []
 
-          _ ->
-            []
-        end)
+  # -- Semantic tokens ----------------------------------------------------------
+
+  # Identifiers highlighted as keywords, each only in the position that makes
+  # it one (see `semantic_keyword?/4`); reserved words come from the lexer.
+  # `mix cure.editors.sync --check` keeps the containers in step with the
+  # stdlib macros that declare them, and checks every contextual keyword of
+  # the lexer is handled here.
+  @semantic_containers ~w(actor app behavior fsm sup proof)
+  @semantic_heads ~w(requires precedencegroup)
+  @semantic_fixities ~w(infix prefix postfix)
+  @semantic_proof_words ~w(have because rewrite simplify induction case)
+
+  @doc false
+  def semantic_vocabulary do
+    %{
+      containers: @semantic_containers,
+      words: @semantic_containers ++ @semantic_heads ++ @semantic_fixities ++ @semantic_proof_words
+    }
+  end
+
+  # Keyword tokens taken from the lexer, so words inside comments and strings
+  # are never marked. Text that does not tokenize gets no semantic tokens and
+  # the editor keeps its own grammar.
+  @doc false
+  def compute_semantic_tokens(text, encoding \\ :utf16) do
+    case Lexer.tokenize(text, emit_events: false) do
+      {:ok, tokens} ->
+        lines = String.split(text, "\n")
+        starts = lines |> Enum.scan(0, &(byte_size(&1) + 1 + &2)) |> then(&[0 | &1]) |> List.to_tuple()
+        lines = List.to_tuple(lines)
+
+        authored = Enum.filter(tokens, &(&1.span != nil and &1.type not in [:newline, :indent, :dedent, :eof]))
+
+        ([nil | authored] ++ [nil])
+        |> Enum.chunk_every(3, 1, :discard)
+        |> Enum.filter(fn [prev, token, next] -> semantic_keyword?(token, prev, next, text) end)
+        |> Enum.map(fn [_prev, token, _next] -> semantic_position(token, lines, starts, encoding) end)
+        |> encode_semantic_tokens()
 
       _ ->
         []
     end
   end
 
-  # -- Semantic tokens ----------------------------------------------------------
+  defp semantic_keyword?(%Token{type: :keyword}, _prev, _next, _text), do: true
 
-  @doc """
-  Compute the LSP semantic-token integer stream for a document.
+  # `actor Counter`, `requires Ord`, `precedencegroup Additive`,
+  # `infix `<+>``, `proof chain`, and proof steps such as `have fact = ...`
+  # unless the word stands as a name: `fn proof(x: Int)`, `let case = 1`.
+  defp semantic_keyword?(%Token{type: :identifier, value: word} = token, prev, next, text) do
+    cond do
+      word == "proof" and word?(next, "chain") and same_line?(token, next) -> true
+      word == "chain" -> word?(prev, "proof") and same_line?(prev, token)
+      word in @semantic_containers or word in @semantic_heads -> same_line_type_name?(token, next, text)
+      word in @semantic_fixities -> same_line?(token, next) and quoted_identifier?(next, text)
+      word in @semantic_proof_words -> not name_position?(prev, next)
+      true -> false
+    end
+  end
 
-  Emits the token types the legend declares — keywords, function names, type
-  names, string literals, numbers, comments and operators — not just keywords.
-  (The legend previously declared eight types while the scanner only ever emitted
-  type 0, so functions/types/strings/numbers/comments got no semantic
-  highlighting.) Comments and strings are masked out of the identifier scan so an
-  identifier inside a comment or string is not mistaken for code.
-  """
-  def compute_semantic_tokens(text) do
-    lines = String.split(text, "\n")
+  defp semantic_keyword?(_token, _prev, _next, _text), do: false
 
+  defp same_line?(%Token{span: a}, %Token{span: b}), do: a.end_line == b.start_line
+  defp same_line?(_a, _b), do: false
+
+  defp word?(%Token{type: :identifier, value: word}, word), do: true
+  defp word?(_token, _word), do: false
+
+  defp same_line_type_name?(token, %Token{type: :identifier, value: <<c, _::binary>>} = next, text) when c in ?A..?Z,
+    do: same_line?(token, next) and not quoted_identifier?(next, text)
+
+  defp same_line_type_name?(_token, _next, _text), do: false
+
+  defp quoted_identifier?(%Token{type: :identifier, span: span}, text),
+    do: binary_part(text, span.start_byte, 1) == "`"
+
+  defp quoted_identifier?(_token, _text), do: false
+
+  defp name_position?(%Token{type: :keyword, value: value}, _next) when value in [:fn, :let], do: true
+  defp name_position?(%Token{type: type}, _next) when type in [:dot, :lparen, :comma], do: true
+
+  defp name_position?(_prev, %Token{type: type}) when type in [:lparen, :assign, :colon, :comma, :rparen, :dot],
+    do: true
+
+  defp name_position?(_prev, _next), do: false
+
+  defp semantic_position(%Token{span: span}, lines, starts, encoding) do
+    line = span.start_line - 1
+    text = elem(lines, line)
+    line_start = elem(starts, line)
+    start = encoded_columns(text, span.start_byte - line_start, encoding)
+    finish = encoded_columns(text, span.end_byte - line_start, encoding)
+    {line, start, finish - start}
+  end
+
+  # LSP columns count units of the negotiated encoding, not bytes.
+  defp encoded_columns(text, byte_column, :utf8), do: min(byte_column, byte_size(text))
+
+  defp encoded_columns(text, byte_column, encoding) do
+    prefix = binary_part(text, 0, min(byte_column, byte_size(text)))
+
+    case encoding do
+      :utf32 -> String.length(prefix)
+      _ -> prefix |> :unicode.characters_to_binary(:utf8, {:utf16, :little}) |> byte_size() |> div(2)
+    end
+  end
+
+  # [delta line, delta start, length, token type (0 = keyword), modifiers]
+  defp encode_semantic_tokens(positions) do
     {data, _} =
-      lines
-      |> Enum.with_index()
-      |> Enum.reduce({[], {0, 0}}, fn {line, idx}, {acc, prev} ->
-        line
-        |> scan_semantic_tokens(idx)
-        |> Enum.reduce({acc, prev}, fn {l, c, len, ttype}, {acc2, {pl, pc}} ->
-          delta_line = l - pl
-          delta_start = if delta_line == 0, do: c - pc, else: c
-          # Prepend in reverse field order so the final Enum.reverse/1 produces
-          # the LSP-required [delta_line, delta_start, length, token_type, mods].
-          {[0, ttype, len, delta_start, delta_line | acc2], {l, c}}
-        end)
+      Enum.reduce(positions, {[], {0, 0}}, fn {line, col, len}, {acc, {prev_line, prev_col}} ->
+        delta_line = line - prev_line
+        delta_col = if delta_line == 0, do: col - prev_col, else: col
+        {[0, 0, len, delta_col, delta_line | acc], {line, col}}
       end)
 
     Enum.reverse(data)
   end
 
-  defp scan_semantic_tokens(line, line_idx) do
-    masked = mask_line(line)
+  defp completion_kind(:function), do: 3
+  defp completion_kind(:constructor), do: 4
+  defp completion_kind(_kind), do: 2
 
-    (comment_token(line, line_idx) ++ literal_tokens(line, line_idx) ++ identifier_tokens(masked, line_idx))
-    |> Enum.sort()
-  end
-
-  # A trailing `#` comment (masked line blanks it, so we read it from the raw line).
-  defp comment_token(line, line_idx) do
-    masked = mask_line(line)
-
-    case :binary.match(masked, "#") do
-      {start, _} -> [{line_idx, start, String.length(line) - start, 6}]
-      :nomatch -> []
-    end
-  end
-
-  # String literals (double- or single-quoted) as type 4.
-  defp literal_tokens(line, line_idx) do
-    line
-    |> String.graphemes()
-    |> scan_quoted([], line_idx, 0)
-  end
-
-  defp scan_quoted([], acc, _line_idx, _col), do: Enum.reverse(acc)
-
-  defp scan_quoted([g | rest], acc, line_idx, col) do
-    cond do
-      g in ["\"", "'"] ->
-        {len, remaining} = take_until_quote(rest, g, 1)
-        scan_quoted(remaining, [{line_idx, col, len, 4} | acc], line_idx, col + len)
-
-      g == "#" ->
-        Enum.reverse(acc)
-
-      true ->
-        scan_quoted(rest, acc, line_idx, col + 1)
-    end
-  end
-
-  defp take_until_quote([], _quote, len), do: {len, []}
-
-  defp take_until_quote([g | rest], quote, len) do
-    if g == quote, do: {len + 1, rest}, else: take_until_quote(rest, quote, len + 1)
-  end
-
-  defp identifier_tokens(masked, line_idx) do
-    keyword_set = keyword_set()
-
-    ~r/[A-Za-z_][A-Za-z0-9_]*|\d+(?:\.\d+)?|[+\-*\/=<>!&|^%.,:;()\[\]{}]+/
-    |> Regex.scan(masked, return: :index)
-    |> Enum.map(fn [{start, len}] ->
-      text = binary_part(masked, start, len)
-      {line_idx, start, len, classify_token(text, masked, start, len, keyword_set)}
-    end)
-  end
-
-  defp classify_token(text, masked, start, len, keyword_set) do
-    cond do
-      text in keyword_set -> 0
-      Regex.match?(~r/^\d/, text) -> 5
-      Regex.match?(~r/^[A-Z]/, text) -> 3
-      Regex.match?(~r/^[a-z_]/, text) -> if(function_position?(masked, start + len), do: 1, else: 2)
-      true -> 7
-    end
-  end
-
-  # A lowercase identifier is a function name when it is immediately followed by
-  # `(` (a call or definition) or preceded by the `fn` keyword.
-  defp function_position?(masked, after_index) do
-    next = String.slice(masked, after_index, 1)
-    next == "("
-  end
-
-  defp keyword_set do
-    ~w(fn mod rec actor fsm sup app interface implementation type typealias primitive let have proof because rewrite simplify induction case pickup else match return throw try catch finally use local when requires where deriving quote unsafe)
-    |> MapSet.new()
-  end
+  defp workspace_symbol_kind(:function), do: 12
+  defp workspace_symbol_kind(:constructor), do: 9
+  defp workspace_symbol_kind(_kind), do: 2
 
   # -- Workspace symbols --------------------------------------------------------
 
@@ -2242,7 +2309,7 @@ defmodule Cure.LSP.Server do
           |> Enum.map(fn s ->
             %{
               "name" => s.name,
-              "kind" => if(s.kind == :function, do: 12, else: 2),
+              "kind" => workspace_symbol_kind(s.kind),
               "location" => %{
                 "uri" => uri,
                 "range" =>

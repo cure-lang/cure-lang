@@ -67,6 +67,9 @@ defmodule Cure.Compiler.Lexer do
                       |> MapSet.new()
                       |> MapSet.difference(MapSet.new(Enum.map(@contextual_keywords, &Atom.to_string/1)))
 
+  @doc "Reserved words, including the contextual ones (see `contextual_keywords/0`)."
+  def keywords, do: @keywords
+
   @doc "Words lexed as identifiers and promoted contextually by the parser."
   def contextual_keywords, do: @contextual_keywords
 
@@ -1922,8 +1925,18 @@ defmodule Cure.Compiler.Lexer do
     {start, min(start + 1, byte_size(source)), min(start + 1, byte_size(source))}
   end
 
-  defp token_bytes(%Token{type: type} = token, source, cursor) when type in [:doc_comment, :line_comment] do
-    start = skip_space_only(source, cursor)
+  # Comment-only lines emit no `:newline`, so a comment that follows another
+  # comment starts past line breaks the cursor has not consumed. A doc comment
+  # also skips plain `#` comments, which are tokens only with
+  # `preserve_comments: true`.
+  defp token_bytes(%Token{type: :doc_comment} = token, source, cursor) do
+    start = skip_to_doc_comment(source, cursor)
+    ending = start + authored_length(token, binary_part(source, start, byte_size(source) - start))
+    {start, ending, ending}
+  end
+
+  defp token_bytes(%Token{type: :line_comment} = token, source, cursor) do
+    start = skip_whitespace(source, cursor)
     ending = start + authored_length(token, binary_part(source, start, byte_size(source) - start))
     {start, ending, ending}
   end
@@ -2056,12 +2069,27 @@ defmodule Cure.Compiler.Lexer do
     end
   end
 
-  defp skip_space_only(source, cursor) when cursor >= byte_size(source), do: byte_size(source)
+  defp skip_whitespace(source, cursor) when cursor >= byte_size(source), do: byte_size(source)
 
-  defp skip_space_only(source, cursor) do
+  defp skip_whitespace(source, cursor) do
     case :binary.at(source, cursor) do
-      byte when byte in [?\s, ?\t, ?\r] -> skip_space_only(source, cursor + 1)
+      byte when byte in [?\s, ?\t, ?\r, ?\n] -> skip_whitespace(source, cursor + 1)
       _ -> cursor
+    end
+  end
+
+  defp skip_to_doc_comment(source, cursor) do
+    cursor = skip_whitespace(source, cursor)
+
+    cond do
+      cursor + 1 < byte_size(source) and binary_part(source, cursor, 2) == "##" ->
+        cursor
+
+      cursor < byte_size(source) and :binary.at(source, cursor) == ?# ->
+        skip_to_doc_comment(source, skip_comment(source, cursor))
+
+      true ->
+        cursor
     end
   end
 

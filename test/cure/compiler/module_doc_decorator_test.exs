@@ -44,4 +44,48 @@ defmodule Cure.Compiler.ModuleDocDecoratorTest do
     assert module_docs("## Doc line.\n@group(:core)\n@prelude\n" <> @body) == ["Doc line."]
     assert module_docs("## Doc line.\n@prelude\n@group(:core)\n" <> @body) == ["Doc line."]
   end
+
+  test "a blank line splits the module doc from the first definition's doc" do
+    {:ok, tokens} = Lexer.tokenize("mod M\n  ## Module.\n\n  ## Function.\n  fn f() -> Int = 1\n", emit_events: false)
+    {:ok, {:container, meta, [{:function_def, fn_meta, _}]}} = Parser.parse(tokens, emit_events: false)
+
+    assert Keyword.get(meta, :doc) == "Module."
+    assert Keyword.get(fn_meta, :doc) == "Function."
+  end
+
+  test "a doc block touching the first definition documents that definition" do
+    for doc <- ["  ## Adds.\n", "  ###\n  Adds.\n  ###\n"] do
+      {:ok, tokens} = Lexer.tokenize("mod M\n" <> doc <> "  fn add(a: Int) -> Int = a\n", emit_events: false)
+      {:ok, {:container, meta, [{:function_def, fn_meta, _}]}} = Parser.parse(tokens, emit_events: false)
+
+      assert Keyword.get(meta, :doc) == nil
+      assert Keyword.get(fn_meta, :doc) == "Adds."
+    end
+  end
+
+  test "a doc block touching a use line documents the module" do
+    {:ok, tokens} = Lexer.tokenize("mod M\n  ## Module.\n  use Std.List\n  fn f() -> Int = 1\n", emit_events: false)
+    {:ok, {:container, meta, _body}} = Parser.parse(tokens, emit_events: false)
+
+    assert Keyword.get(meta, :doc) == "Module."
+  end
+
+  test "a doc block touching a plain comment documents the module, with or without comment tokens" do
+    src = "mod M\n  ## Module.\n  # note\n  fn f() -> Int = 1\n"
+
+    for preserve <- [false, true] do
+      {:ok, tokens} = Lexer.tokenize(src, emit_events: false, preserve_comments: preserve)
+      {:ok, {:container, meta, _body}} = Parser.parse(tokens, emit_events: false, preserve_comments: preserve)
+
+      assert Keyword.get(meta, :doc) == "Module."
+    end
+  end
+
+  test "a lone doc block followed by a blank line documents the module" do
+    {:ok, tokens} = Lexer.tokenize("mod M\n  ## Module.\n\n  fn f() -> Int = 1\n", emit_events: false)
+    {:ok, {:container, meta, [{:function_def, fn_meta, _}]}} = Parser.parse(tokens, emit_events: false)
+
+    assert Keyword.get(meta, :doc) == "Module."
+    assert Keyword.get(fn_meta, :doc) == nil
+  end
 end

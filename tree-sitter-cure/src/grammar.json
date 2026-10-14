@@ -77,7 +77,7 @@
         },
         {
           "type": "SYMBOL",
-          "name": "keyword"
+          "name": "_regex_start"
         },
         {
           "type": "SYMBOL",
@@ -121,10 +121,6 @@
         },
         {
           "type": "SYMBOL",
-          "name": "regex"
-        },
-        {
-          "type": "SYMBOL",
           "name": "comment"
         },
         {
@@ -137,20 +133,7 @@
         },
         {
           "type": "SYMBOL",
-          "name": "punctuation"
-        },
-        {
-          "type": "SYMBOL",
           "name": "newline"
-        },
-        {
-          "type": "ALIAS",
-          "content": {
-            "type": "STRING",
-            "value": "fsm"
-          },
-          "named": true,
-          "value": "identifier"
         },
         {
           "type": "ALIAS",
@@ -165,7 +148,7 @@
           "type": "ALIAS",
           "content": {
             "type": "STRING",
-            "value": "sup"
+            "value": "app"
           },
           "named": true,
           "value": "identifier"
@@ -174,7 +157,25 @@
           "type": "ALIAS",
           "content": {
             "type": "STRING",
-            "value": "app"
+            "value": "behavior"
+          },
+          "named": true,
+          "value": "identifier"
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "STRING",
+            "value": "fsm"
+          },
+          "named": true,
+          "value": "identifier"
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "STRING",
+            "value": "sup"
           },
           "named": true,
           "value": "identifier"
@@ -216,6 +217,18 @@
           ]
         },
         {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "regex"
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
           "type": "REPEAT",
           "content": {
             "type": "SYMBOL",
@@ -241,6 +254,18 @@
             {
               "type": "STRING",
               "value": "$("
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "regex"
+            },
+            {
+              "type": "BLANK"
             }
           ]
         },
@@ -274,6 +299,18 @@
           ]
         },
         {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "regex"
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
           "type": "REPEAT",
           "content": {
             "type": "SYMBOL",
@@ -285,6 +322,74 @@
           "value": "]"
         }
       ]
+    },
+    "_regex_start": {
+      "type": "PREC_RIGHT",
+      "value": 0,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "keyword"
+              },
+              {
+                "type": "ALIAS",
+                "content": {
+                  "type": "CHOICE",
+                  "members": [
+                    {
+                      "type": "STRING",
+                      "value": "="
+                    },
+                    {
+                      "type": "STRING",
+                      "value": "->"
+                    },
+                    {
+                      "type": "STRING",
+                      "value": "=>"
+                    },
+                    {
+                      "type": "STRING",
+                      "value": ":"
+                    },
+                    {
+                      "type": "STRING",
+                      "value": "|"
+                    },
+                    {
+                      "type": "STRING",
+                      "value": "|>"
+                    }
+                  ]
+                },
+                "named": true,
+                "value": "operator"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "punctuation"
+              }
+            ]
+          },
+          {
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "regex"
+              },
+              {
+                "type": "BLANK"
+              }
+            ]
+          }
+        ]
+      }
     },
     "module_declaration": {
       "type": "PREC",
@@ -448,19 +553,23 @@
                 "members": [
                   {
                     "type": "STRING",
-                    "value": "fsm"
-                  },
-                  {
-                    "type": "STRING",
                     "value": "actor"
                   },
                   {
                     "type": "STRING",
-                    "value": "sup"
+                    "value": "app"
                   },
                   {
                     "type": "STRING",
-                    "value": "app"
+                    "value": "behavior"
+                  },
+                  {
+                    "type": "STRING",
+                    "value": "fsm"
+                  },
+                  {
+                    "type": "STRING",
+                    "value": "sup"
                   },
                   {
                     "type": "STRING",
@@ -520,15 +629,6 @@
                   "type": "ALIAS",
                   "content": {
                     "type": "STRING",
-                    "value": "fsm"
-                  },
-                  "named": true,
-                  "value": "identifier"
-                },
-                {
-                  "type": "ALIAS",
-                  "content": {
-                    "type": "STRING",
                     "value": "actor"
                   },
                   "named": true,
@@ -538,7 +638,7 @@
                   "type": "ALIAS",
                   "content": {
                     "type": "STRING",
-                    "value": "sup"
+                    "value": "app"
                   },
                   "named": true,
                   "value": "identifier"
@@ -547,7 +647,25 @@
                   "type": "ALIAS",
                   "content": {
                     "type": "STRING",
-                    "value": "app"
+                    "value": "behavior"
+                  },
+                  "named": true,
+                  "value": "identifier"
+                },
+                {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "STRING",
+                    "value": "fsm"
+                  },
+                  "named": true,
+                  "value": "identifier"
+                },
+                {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "STRING",
+                    "value": "sup"
                   },
                   "named": true,
                   "value": "identifier"
@@ -1031,7 +1149,7 @@
         "members": [
           {
             "type": "STRING",
-            "value": "~r/"
+            "value": "/"
           },
           {
             "type": "REPEAT",
@@ -1055,7 +1173,7 @@
           },
           {
             "type": "PATTERN",
-            "value": "[a-zA-Z]*"
+            "value": "[imsxufrUE]*"
           }
         ]
       }
@@ -1115,10 +1233,6 @@
           {
             "type": "STRING",
             "value": "::"
-          },
-          {
-            "type": "STRING",
-            "value": ":"
           },
           {
             "type": "STRING",

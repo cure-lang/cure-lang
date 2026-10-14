@@ -3,6 +3,7 @@ mod Std.Proof.LinearArithmetic
   ## Executable affine syntax for verified LIA reflection. This module is total
   ## and deliberately rejects malformed dimensions instead of inheriting
   ## List.zip_with's truncating semantics.
+
   use Std.Bool
   use Std.Nat
   use Std.Int

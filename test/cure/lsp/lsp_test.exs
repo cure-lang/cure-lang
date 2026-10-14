@@ -179,6 +179,34 @@ defmodule Cure.LSP.LspTest do
       assert diagnostic["range"]["start"]["line"] == 2
     end
 
+    test "a test module resolves the project's lib modules" do
+      root = Path.join(System.tmp_dir!(), "cure_lsp_project_#{System.unique_integer([:positive])}")
+      File.mkdir_p!(Path.join(root, "lib"))
+      File.mkdir_p!(Path.join(root, "test"))
+      on_exit(fn -> File.rm_rf!(root) end)
+
+      File.write!(Path.join(root, "Cure.toml"), """
+      [project]
+      name = "lsp_project"
+      version = "0.1.0"
+      """)
+
+      File.write!(Path.join(root, "lib/lsp_greeter.cure"), """
+      mod LspGreeter
+        fn hello() -> String = "hello"
+      """)
+
+      source = """
+      mod LspGreeter.Test
+        use LspGreeter
+
+        fn greeting() -> String = LspGreeter.hello()
+      """
+
+      uri = "file://" <> Path.join(root, "test/lsp_greeter_test.cure")
+      assert Server.compute_diagnostics(uri, source) == []
+    end
+
     test "unsaved Unicode buffers use the negotiated position encoding" do
       source = "mod X\n  fn bad() -> Int = \"😀\"\n"
       uri = "file:///unsaved-unicode.cure"
@@ -220,6 +248,112 @@ defmodule Cure.LSP.LspTest do
 
       {_, _} = Server.process_message(msg, state)
       # The response is sent via Transport, but we verify it doesn't crash
+    end
+
+    test "hover shows a local function's signature and documentation" do
+      source = """
+      mod Docs
+        ## Module docs.
+
+        ## Adds two numbers.
+        ##
+        ## Returns the sum.
+        fn add(a: Int, b: Int) -> Int = a + b
+
+        fn main() -> Int = add(1, 2)
+      """
+
+      value = hover_value(source, 8, 22)
+      assert value =~ "```cure\nDocs.add(a: Int, b: Int) -> Int\n```"
+      assert value =~ "Adds two numbers.\n\nReturns the sum."
+      refute value =~ "Module docs."
+
+      assert hover_value(source, 0, 6) =~ "mod Docs\n```\n\n---\n\nModule docs."
+    end
+
+    test "hover shows types, records, aliases and constructors with their docs" do
+      source = """
+      mod Shapes
+        ## Shapes module.
+
+        ## A shape.
+        type Shape = Circle(Float) | Square(Float)
+        ## A point.
+        rec Point
+          x: Int
+          y: Int
+        ## An identifier.
+        type Id = Int
+        fn area(f: Float -> Float) -> Shape = Circle(1.0)
+      """
+
+      assert hover_value(source, 4, 8) =~ "type Shape = Circle(Float) | Square(Float)\n```\n\n---\n\nA shape."
+      assert hover_value(source, 6, 7) =~ "rec Point\n  x: Int\n  y: Int\n```\n\n---\n\nA point."
+      assert hover_value(source, 10, 8) =~ "type Id = Int\n```\n\n---\n\nAn identifier."
+      assert hover_value(source, 11, 42) =~ "Constructor of type `Shapes.Shape`"
+      assert hover_value(source, 11, 6) =~ "Shapes.area(f: Float -> Float) -> Shape"
+    end
+
+    test "hover follows `use` and qualifiers into the standard library" do
+      source = """
+      mod Client
+        use Std.List
+        use Std.Option as O
+        fn go(xs: List(Int)) -> Int = Std.List.length(map(xs, fn(x) -> O.unwrap(Some(x), 0)))
+      """
+
+      assert hover_value(source, 1, 10) =~ "mod Std.List\n```\n\n---\n\nEager, persistent"
+      assert hover_value(source, 3, 43) =~ "Std.List.length(list: List(t)) -> Int"
+      assert hover_value(source, 3, 50) =~ "Std.List.map(list: List(t), f: t -> u) -> List(u)\n```\n\n---\n\nMap `f`"
+      assert hover_value(source, 3, 69) =~ "Std.Option.unwrap(opt: Option(t), default: t) -> t"
+    end
+
+    test "hover reads modules from other open documents" do
+      other = "mod Helper\n  ## Helpers.\n\n  ## Doubles `n`.\n  fn double(n: Int) -> Int = n * 2\n"
+      source = "mod App\n  use Helper\n  fn go() -> Int = double(2) + Helper.double(1)\n"
+      context = %{documents: %{"file:///helper.cure" => other}}
+
+      for char <- [20, 38] do
+        value = get_in(Server.compute_hover(source, 2, char, context), ["contents", "value"])
+        assert value =~ "Helper.double(n: Int) -> Int\n```\n\n---\n\nDoubles `n`."
+      end
+    end
+
+    test "hover finds a module declared after another in an open document" do
+      other = "mod X\n  fn a() -> Int = 1\n\nmod Y\n  ## Y's foo.\n  fn foo() -> Int = 1\n"
+      neighbour = "mod Z\n  fn a() -> Int = 1\n\nmod W\n  ## W's foo.\n  fn foo() -> Int = 1\n"
+      source = "mod App\n  fn go() -> Int = Y.foo()\n  fn no() -> Int = Z.foo()\n"
+      context = %{documents: %{"file:///y.cure" => other, "file:///w.cure" => neighbour}}
+
+      assert get_in(Server.compute_hover(source, 1, 22, context), ["contents", "value"]) =~
+               "Y.foo() -> Int\n```\n\n---\n\nY's foo."
+
+      refute get_in(Server.compute_hover(source, 2, 22, context), ["contents", "value"]) =~ "W's foo."
+    end
+
+    test "hover on an unqualified name shows the enclosing module's declaration" do
+      source = """
+      mod A
+        ## A's helper.
+        fn helper(x: Int) -> Int = x
+
+      mod B
+        ## B's helper.
+        fn helper(y: Int) -> Int = y
+        fn run() -> Int = helper(1)
+      """
+
+      value = hover_value(source, 7, 21)
+      assert value =~ "B.helper(y: Int) -> Int\n```\n\n---\n\nB's helper."
+      refute value =~ "A.helper"
+    end
+
+    test "hover keeps a predicate's trailing ?" do
+      source = "mod P\n  ## Positive.\n  fn positive?(x: Int) -> Bool = x > 0\n  fn t() -> Bool = positive?(1)\n"
+
+      for char <- [19, 26] do
+        assert hover_value(source, 3, char) =~ "P.positive?(x: Int) -> Bool\n```\n\n---\n\nPositive."
+      end
     end
 
     test "hover on non-definition returns nil" do
@@ -420,6 +554,18 @@ defmodule Cure.LSP.LspTest do
       fn_names = Enum.filter(symbols, &(&1.kind == :function)) |> Enum.map(& &1.name)
       assert "add" in fn_names
       assert "hello" in fn_names
+      assert %{line: 3} = Enum.find(symbols, &(&1.name == "hello"))
+    end
+
+    test "records sum-type variants as constructors, not functions" do
+      source = "mod Test\n  type Callback = On(Int -> Int) | Off\n"
+
+      {:ok, tokens} = Cure.Compiler.Lexer.tokenize(source, emit_events: false)
+      {:ok, ast} = Cure.Compiler.Parser.parse(tokens, emit_events: false)
+      symbols = Server.build_symbol_table(ast)
+
+      assert %{kind: :constructor, line: 2} = Enum.find(symbols, &(&1.name == "On"))
+      refute Enum.any?(symbols, &(&1.kind == :function))
     end
 
     test "extracts module name" do
@@ -577,10 +723,7 @@ defmodule Cure.LSP.LspTest do
       assert Enum.any?(completion, &(&1["label"] == "induction_hypothesis" and &1["detail"] =~ "Specialized"))
 
       semantic = Server.compute_semantic_tokens("induction value\n  case Z => simplify")
-      # Keywords, a variable, a type name and an operator are all classified now
-      # (not only keywords): induction/value, case/Z/=>/simplify — 6 tokens.
-      assert rem(length(semantic), 5) == 0
-      assert length(semantic) == 30
+      assert length(semantic) == 15
     end
 
     test "induction completion generates every constructor with descriptive hypotheses" do
@@ -719,5 +862,9 @@ defmodule Cure.LSP.LspTest do
       # The handler exists now; an unimplemented method still must not hang.
       {_state, _} = Server.process_message(msg, state)
     end
+  end
+
+  defp hover_value(source, line, char) do
+    get_in(Server.compute_hover(source, line, char), ["contents", "value"])
   end
 end

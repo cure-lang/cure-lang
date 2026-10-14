@@ -60,6 +60,22 @@ defmodule Cure.Compiler.TokenSpanTest do
     assert {string.span.start_line, string.span.end_line} == {4, 5}
   end
 
+  test "a comment after a comment-only line spans its own line" do
+    source = "## first\n\n  ## second\n# plain\n## third\n# kept\nx\n"
+    assert {:ok, tokens} = Lexer.tokenize(source, file: "comments.cure", preserve_comments: true, emit_events: false)
+
+    comments =
+      tokens
+      |> Enum.filter(&(&1.type in [:doc_comment, :line_comment]))
+      |> Enum.map(&{slice(source, &1), &1.line})
+
+    assert comments == [{"## first", 1}, {"## second", 3}, {"# plain", 4}, {"## third", 5}, {"# kept", 6}]
+
+    assert {:ok, tokens} = Lexer.tokenize(source, file: "comments.cure", emit_events: false)
+    docs = tokens |> Enum.filter(&(&1.type == :doc_comment)) |> Enum.map(&{slice(source, &1), &1.line})
+    assert docs == [{"## first", 1}, {"## second", 3}, {"## third", 5}]
+  end
+
   test "literal and delimiter families retain their authored spelling" do
     source = "0xCA_FE 0b10_01 12.5e-2 'x' '\\n' :ready? = /a+/iu <<x::8>> %[1] %{key: true} \"\#{\"quoted\"}\""
     assert {:ok, tokens} = Lexer.tokenize(source, file: "literals.cure", emit_events: false)

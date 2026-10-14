@@ -4,9 +4,10 @@
   "description": "Rich language support, LSP diagnostics, MCP AI tooling, and interactive REPL for Cure",
   "version": "0.34.0",
   "publisher": "cure-lang",
+  "icon": "images/icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/cure-lang/cure.git"
+    "url": "https://github.com/cure-lang/cure-lang.git"
   },
   "engines": {
     "vscode": "^1.80.0"
@@ -24,6 +25,12 @@
     "onCommand:cure.mcp.getHelp"
   ],
   "contributes": {
+    "configurationDefaults": {
+      "[cure]": {
+        "editor.tabSize": 2,
+        "editor.insertSpaces": true
+      }
+    },
     "languages": [
       {
         "id": "cure",
@@ -34,7 +41,11 @@
         "extensions": [
           ".cure"
         ],
-        "configuration": "./language-configuration.json"
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./images/cure-file.svg",
+          "dark": "./images/cure-file.svg"
+        }
       }
     ],
     "grammars": [
@@ -116,7 +127,8 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
+    "build-grammar": "node scripts/build-grammar.js",
+    "compile": "npm run build-grammar && tsc -p ./",
     "watch": "tsc -watch -p ./"
   },
   "dependencies": {

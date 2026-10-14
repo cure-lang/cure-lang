@@ -1,10 +1,6 @@
 {
   "comments": {
-    "lineComment": "#",
-    "blockComment": [
-      "#|",
-      "|#"
-    ]
+    "lineComment": "#"
   },
   "brackets": [
     [
@@ -39,10 +35,6 @@
       "notIn": [
         "string"
       ]
-    },
-    {
-      "open": "#|",
-      "close": "|#"
     }
   ],
   "surroundingPairs": [
@@ -64,7 +56,10 @@
     ]
   ],
   "indentationRules": {
-    "increaseIndentPattern": "^\\s*(mod|fn|type|typealias|rec|interface|implementation|actor|sup|app|fsm|state|event|transition|match|pickup|if|elif|else|try|catch|finally|receive|after|on_transition|on_enter|on_exit|on_failure|on_timer)\\b|=\\s*$",
-    "decreaseIndentPattern": "^\\s*(elif|else|catch|finally|after)\\b"
-  }
+    "increaseIndentPattern": "^\\s*(mod|type|typealias|rec|interface|implementation|proto|impl|actor|sup|app|fsm|macro|match|pickup|if|elif|else|try|catch|finally|receive|after|on_[a-z_]+)\\b|^\\s*fn\\b[^=]*$|(=>|\\bdo)\\s*$",
+    "decreaseIndentPattern": "^\\s*(elif|else|catch|finally|after)\\b",
+    "indentNextLinePattern": "(^|[^=!<>])=\\s*$|->\\s*$",
+    "unIndentedLinePattern": "^\\s*let\\b(?!.*(=|->)\\s*$)"
+  },
+  "wordPattern": "[a-zA-Z_][a-zA-Z0-9_$]*\\??|:[a-zA-Z_][a-zA-Z0-9_]*[?!]?"
 }

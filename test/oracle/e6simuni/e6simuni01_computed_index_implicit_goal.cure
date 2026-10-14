@@ -17,6 +17,7 @@ mod E6SimUni01
   ## position 0; present-field elaboration then pins `m1`, `m2` and the deferred
   ## measure equation `add(m1, m2) = S(Z)` retries green. Idris accepts by ordinary
   ## dependent unification; Cure now does too. `a` is implicit in both.
+
   type Tag = TA | TB
   fn add(m: Nat, n: Nat) -> Nat = match m
     Z()  -> n

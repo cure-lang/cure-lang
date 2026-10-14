@@ -3,7 +3,8 @@ defmodule CureSiteWeb.PlaygroundLive do
   Cure Playground LiveView (v0.28.0).
 
   Two-pane editor with:
-  - Left: editable source with live syntax highlighting.
+  - Left: editable source, highlighted in the browser by the
+    tree-sitter-cure grammar (the `CureEditor` hook).
   - Right: live type-check panel (always on, debounced at 150 ms).
 
   An optional "Run" button triggers the sandboxed evaluator
@@ -12,12 +13,9 @@ defmodule CureSiteWeb.PlaygroundLive do
 
   use CureSiteWeb, :live_view
 
-  alias Makeup.Registry
-
   @impl true
   def mount(_params, _session, socket) do
     source = default_source()
-    highlighted = highlight(source)
     type_result = type_check(source)
 
     {:ok,
@@ -25,10 +23,8 @@ defmodule CureSiteWeb.PlaygroundLive do
      |> assign(:page_title, "Cure Playground")
      |> assign(:json_ld, CureSiteWeb.JsonLd.for_playground())
      |> assign(:source, source)
-     |> assign(:highlighted, highlighted)
      |> assign(:type_result, type_result)
      |> assign(:eval_output, nil)
-     |> assign(:eval_running, false)
      |> assign(:form, to_form(%{"source" => source}, as: "playground"))}
   end
 
@@ -41,28 +37,13 @@ defmodule CureSiteWeb.PlaygroundLive do
     {:noreply,
      socket
      |> assign(:source, source)
-     |> assign(:highlighted, highlight(source))
      |> assign(:type_result, type_check(source))
      |> assign(:form, to_form(%{"source" => source}, as: "playground"))}
   end
 
   @impl true
   def handle_event("run", _params, socket) do
-    socket = assign(socket, :eval_running, true)
-
-    case CureSiteWeb.Eval.eval(socket.assigns.source) do
-      {:ok, output, result} ->
-        {:noreply,
-         socket
-         |> assign(:eval_output, {:ok, output, result})
-         |> assign(:eval_running, false)}
-
-      {:error, reason} ->
-        {:noreply,
-         socket
-         |> assign(:eval_output, {:error, reason})
-         |> assign(:eval_running, false)}
-    end
+    {:noreply, assign(socket, :eval_output, CureSiteWeb.Eval.eval(socket.assigns.source))}
   end
 
   # -- Internals ---------------------------------------------------------------
@@ -77,22 +58,6 @@ defmodule CureSiteWeb.PlaygroundLive do
 
       fn main() -> Int = add(1, 2)
     """
-  end
-
-  defp highlight(source) when is_binary(source) do
-    case Registry.fetch_lexer_by_name("cure") do
-      {:ok, {lexer, opts}} ->
-        source
-        |> lexer.lex(opts)
-        |> Makeup.Formatters.HTML.HTMLFormatter.format_as_iolist([])
-        |> IO.iodata_to_binary()
-
-      :error ->
-        Phoenix.HTML.html_escape(source) |> Phoenix.HTML.safe_to_string()
-    end
-  rescue
-    _ ->
-      Phoenix.HTML.html_escape(source) |> Phoenix.HTML.safe_to_string()
   end
 
   # Run the same dependent compiler pipeline used by builds, stopping at a
@@ -115,80 +80,77 @@ defmodule CureSiteWeb.PlaygroundLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash}>
-      <main class="mx-auto max-w-6xl p-6">
-        <h1 class="text-3xl font-bold mb-2">Cure Playground</h1>
-        <p class="text-gray-500 text-sm mb-6">
-          Live type-checking powered by Cure's dependent compiler.
-          Hit <strong>Run</strong> to evaluate in a sandboxed process.
+      <div>
+        <h1 class="text-3xl font-bold">Playground</h1>
+        <p class="mt-2 text-base-content/70">
+          Type-checked as you write by Cure's dependent compiler. <strong>Run</strong>
+          evaluates it in a sandboxed process.
         </p>
 
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <%!-- Left: editor + run button --%>
-          <div class="flex flex-col gap-3">
-            <.form
-              for={@form}
-              id="playground-form"
-              phx-change="update"
-              class="flex flex-col gap-2"
-            >
-              <label class="block text-sm font-semibold">Source</label>
-              <.input
-                field={@form[:source]}
-                type="textarea"
-                rows="24"
-                class="w-full font-mono text-sm border rounded p-3"
+        <div class="mt-8 grid items-start gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+          <.form for={@form} id="playground-form" phx-change="update" class="cure-code-window !mb-0">
+            <div class="cure-code-window-bar">
+              <span class="cure-code-window-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+              <label for={@form[:source].id} class="cure-code-window-label">playground.cure</label>
+              <button
+                type="button"
+                phx-click="run"
+                phx-disable-with="Running…"
+                class="ml-auto rounded-md bg-primary px-3 py-1 text-xs font-semibold text-primary-content transition hover:bg-primary/90"
+              >
+                Run
+              </button>
+            </div>
+            <%!-- CureEditor (assets/js/cure_editor.js) highlights the source
+                 with tree-sitter-cure into the pre behind the textarea. The
+                 editor is client-owned: the server only seeds its text. --%>
+            <div id="playground-editor" class="cure-editor" phx-hook="CureEditor" phx-update="ignore">
+              <pre aria-hidden="true"><code class="makeup cure"></code></pre>
+              <pre class="cure-editor-gutter" aria-hidden="true"></pre>
+              <textarea
+                id={@form[:source].id}
+                name={@form[:source].name}
+                wrap="off"
+                spellcheck="false"
+                autocapitalize="off"
+                autocomplete="off"
                 phx-debounce="150"
-              />
-            </.form>
+              >{Phoenix.HTML.Form.normalize_value("textarea", @form[:source].value)}</textarea>
+            </div>
+          </.form>
 
-            <button
-              phx-click="run"
-              disabled={@eval_running}
-              class="self-start px-4 py-2 bg-indigo-600 text-white rounded text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {if @eval_running, do: "Running...", else: "Run"}
-            </button>
-
-            <%= if @eval_output do %>
-              <div class="border rounded p-3 bg-gray-50 font-mono text-sm">
-                <%= case @eval_output do %>
-                  <% {:ok, output, result} -> %>
-                    <%= if output != "" do %>
-                      <p class="text-gray-600 mb-1 whitespace-pre">{output}</p>
-                    <% end %>
-                    <p class="text-green-700">=&gt; {result}</p>
-                  <% {:error, reason} -> %>
-                    <p class="text-red-700 whitespace-pre-wrap">{reason}</p>
-                <% end %>
-              </div>
-            <% end %>
-          </div>
-
-          <%!-- Right: type-check panel + highlighted preview --%>
-          <div class="flex flex-col gap-3">
-            <div>
-              <label class="block text-sm font-semibold mb-2">Type Checker</label>
-              <div class="border rounded p-3 min-h-16 font-mono text-sm bg-gray-50">
+          <div class="flex min-w-0 flex-col gap-6">
+            <section>
+              <h2 class="mb-2 text-sm font-semibold">Type checker</h2>
+              <div class="overflow-x-auto rounded-xl border border-base-300 bg-base-200 p-4 font-mono text-sm">
                 <%= case @type_result do %>
                   <% {:ok, []} -> %>
-                    <span class="text-green-700 font-semibold">OK -- no type errors</span>
+                    <p class="flex items-center gap-2 text-success">
+                      <.icon name="hero-check-circle" class="size-4" /> No type errors
+                    </p>
                   <% {:error, errors} -> %>
-                    <%= for err <- errors do %>
-                      <p class="text-red-700 mb-1">
-                        {Cure.Diagnostic.Host.render(err, "playground.cure", @source)}
-                      </p>
-                    <% end %>
+                    <pre :for={err <- errors} class="text-error">{Cure.Diagnostic.Host.render(err, "playground.cure", @source)}</pre>
                 <% end %>
               </div>
-            </div>
+            </section>
 
-            <div>
-              <label class="block text-sm font-semibold mb-2">Highlighted</label>
-              <pre class="border rounded p-3 overflow-auto font-mono text-sm bg-gray-900 text-gray-100 min-h-64"><code class="makeup cure">{Phoenix.HTML.raw(@highlighted)}</code></pre>
-            </div>
+            <section>
+              <h2 class="mb-2 text-sm font-semibold">Output</h2>
+              <div class="rounded-xl border border-base-300 bg-base-200 p-4 font-mono text-sm">
+                <%= case @eval_output do %>
+                  <% nil -> %>
+                    <p class="text-base-content/50">Run the program to see its output.</p>
+                  <% {:ok, output, result} -> %>
+                    <pre :if={output != ""} class="mb-1 whitespace-pre-wrap text-base-content/70">{output}</pre>
+                    <p class="text-success">=&gt; {result}</p>
+                  <% {:error, reason} -> %>
+                    <p class="whitespace-pre-wrap text-error">{reason}</p>
+                <% end %>
+              </div>
+            </section>
           </div>
         </div>
-      </main>
+      </div>
     </Layouts.app>
     """
   end

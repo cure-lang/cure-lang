@@ -58,7 +58,7 @@
   fn bin() -> Int = 0b1010_0101
   fn pi() -> Float = 3.141_592
   fn greeting(who: String) -> String = "Hi, #{who}!\n"
-  fn is_email(s: String) -> Bool = s ~= ~r/^[^@]+@[^@]+$/i</code></pre>
+  fn is_email(s: String) -> Bool = Std.Regex.matches(/^[^@]+@[^@]+$/i, s)</code></pre>
 
   <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release/build/highlight.min.js"></script>
   <script src="../dist/cure.min.js"></script>

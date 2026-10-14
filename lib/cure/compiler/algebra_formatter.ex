@@ -63,7 +63,7 @@ defmodule Cure.Compiler.AlgebraFormatter do
         Algebra.string("# " <> text)
 
       _ ->
-        Algebra.string(Printer.quoted_to_string(ast, indent: indent))
+        printed_doc(ast, indent)
     end
   end
 
@@ -110,7 +110,7 @@ defmodule Cure.Compiler.AlgebraFormatter do
   end
 
   defp single_node_doc(node, indent, _depth) do
-    Algebra.string(Printer.quoted_to_string(node, indent: indent))
+    printed_doc(node, indent)
   end
 
   # Module-like containers have their header emitted explicitly so we
@@ -131,7 +131,7 @@ defmodule Cure.Compiler.AlgebraFormatter do
         ])
 
       _ ->
-        Algebra.string(Printer.quoted_to_string({:container, meta, body}, indent: indent))
+        printed_doc({:container, meta, body}, indent)
     end
   end
 
@@ -166,6 +166,22 @@ defmodule Cure.Compiler.AlgebraFormatter do
   defp tp_string(list), do: "(" <> Enum.join(list, ", ") <> ")"
 
   # -- Helpers ---------------------------------------------------------------
+
+  # The Printer renders a node relative to column 0. Its lines are joined
+  # with `Algebra.line/0` rather than kept in one string so that an
+  # enclosing `nest` indents every line of a multi-line node (a `match` or
+  # `pickup` body, say), not just the first. A blank line is a bare "\n"
+  # so it carries no indentation.
+  defp printed_doc(node, indent) do
+    [first | rest] = String.split(Printer.quoted_to_string(node, indent: indent), "\n")
+
+    rest
+    |> Enum.map(fn
+      "" -> Algebra.string("\n")
+      line -> Algebra.concat(Algebra.line(), Algebra.string(line))
+    end)
+    |> then(&Algebra.concat([Algebra.string(first) | &1]))
+  end
 
   defp intersperse([], _sep), do: []
   defp intersperse([single], _sep), do: [single]

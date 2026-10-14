@@ -26,7 +26,7 @@ config :esbuild,
   version: "0.25.4",
   cure_site: [
     args:
-      ~w(js/app.js --bundle --target=es2022 --outdir=../priv/static/assets/js --external:/fonts/* --external:/images/* --alias:@=.),
+      ~w(js/app.js --bundle --target=es2022 --outdir=../priv/static/assets/js --public-path=/assets/js --loader:.wasm=file --loader:.scm=text --external:module --external:fs/promises --external:/fonts/* --external:/images/* --alias:@=.),
     cd: Path.expand("../assets", __DIR__),
     env: %{
       "NODE_PATH" => [

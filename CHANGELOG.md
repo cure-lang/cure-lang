@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `neovim-cure` highlights with tree-sitter on Neovim 0.11+, using
+  `tree-sitter-cure/` and the same highlight queries as `zed-cure`. It
+  compiles the parser from the repository on first use and falls back to
+  `syntax/cure.vim` without a C compiler; `:CureTSBuild` builds it by hand.
+- `mix cure.editors.sync` generates the keyword lists every editor grammar
+  shares from the compiler: keywords and contextual keywords from
+  `Cure.Compiler.Lexer` (new `Lexer.keywords/0`), declaration heads from the
+  stdlib macros that take a module name. It writes
+  `tree-sitter-cure/keywords.js` (used by `grammar.js` and vscode-cure's
+  grammar builder), the keyword blocks of `neovim-cure/syntax/cure.vim` and
+  `highlightjs-cure/src/languages/cure.js`, and `highlightjs-cure/dist/`.
+  `--check`, run by `mix test`, also fails when `tree-sitter-cure/src`, the
+  VS Code grammar or the query copies in `zed-cure`/`neovim-cure` are stale,
+  or when an editor lacks a rule for a contextual keyword or macro word.
+- `behavior` (`Std.Actor`'s `macro behavior <name: ModuleName>`) is
+  highlighted as a declaration head, like `actor`.
+- `cure-lsp` hover shows a declaration's `##` documentation under its
+  signature, as ElixirLS shows `@doc`: functions, modules, types, records,
+  interfaces and constructors. Hover follows `use` (including `as` aliases)
+  and qualified names (`Std.List.map`) into the standard library, other open
+  documents, and the document's directory and the workspace's `lib/`.
+  Signatures now carry parameter types, the return type and effects.
+
 ### Changed
 
 - `cure help` is now generated from a single command registry
@@ -43,6 +68,74 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `docs/GLOSSARY.md`, and `docs/BIND_PIPE.md` were added to the HexDocs
   `extras`; the stdlib module count is stated once as 80 (69 + 11); and a
   `docs/README.md` index was added.
+- `neovim-cure` could not be installed: its README pointed lazy.nvim and
+  packer at `cure-lang/neovim-cure`, a repository that does not exist. It now
+  installs `cure-lang/cure-lang` and adds `neovim-cure/` to the runtimepath;
+  `setup()` registers the filetype itself, since lazy.nvim does not source
+  `ftdetect/` in a subdirectory.
+- `neovim-cure` started two LSP clients per buffer when nvim-lspconfig was
+  installed (one through lspconfig, one through `vim.lsp.start`), and one
+  client per directory. It now starts a single client per project root.
+- `vscode-cure` only found `cure-lsp` at the root of the workspace, so the
+  LSP did not start in any project other than the Cure repository, and its
+  check for `cure` on `PATH` always answered yes. It now looks on `PATH`,
+  then in each workspace folder, expands `~` and `${workspaceFolder}` in
+  `cure.lsp.path` / `cure.mcp.path`, and says which setting to change when
+  it finds nothing. The REPL command uses the same lookup, and
+  `cure.trace.server` now takes effect.
+- `vscode-cure`'s TextMate grammar is generated from `tree-sitter-cure`'s
+  keyword list (`scripts/build-grammar.js`) and follows the tree-sitter
+  grammar's tokens: `##`/`###` doc comments instead of a `#| |#` block
+  comment Cure does not have, chars, regexes, holes, decorators, FSM
+  transitions, contextual keywords and macro vocabulary.
+- Every editor grammar (tree-sitter, TextMate, Vim, highlight.js) matched
+  regexes as `~r/.../`, which Cure does not have, so a real `/.../flags`
+  literal was never highlighted, and one holding `#` or `"` turned the rest
+  of the line into a comment or a string. They now match `/.../` where the
+  lexer does: where an expression can begin, so `a / b / c` still divides.
+  `language-configuration.json` no longer declares `#| |#` either.
+- `neovim-cure/syntax/cure.vim` (the fallback without tree-sitter) declared a
+  `#| |#` block comment and keywords Cure does not have (`state`, `event`,
+  `erased`, ...); it now follows the tree-sitter grammar's tokens.
+- No editor grammar knew `directly` in `computed directly by` (used by
+  `Std.Supervisor`'s `child` rule); all of them highlight it now.
+- `highlightjs-cure` missed twenty keywords (`interface`, `deriving`,
+  `quote`, `band`, ...), treated `assert_type`/`rewrite`/`with` as keywords,
+  and its `dist/` bundle was a hand-kept copy of the source. Its keyword
+  lists are now generated and `dist/cure.min.js` is built from the source.
+- `cure-lsp` marked keywords inside comments and strings as semantic tokens
+  (a regex over each line), so editors coloured `type` or `when` in doc
+  comments over their own grammar. Semantic tokens now come from the lexer's
+  tokens, with columns in the negotiated position encoding. Contextual words
+  (`proof`, `case`, `app`, `have`, ...) are keywords only in the position
+  that makes them one, so `fn proof(...)` or `let case = 1` keep the
+  editor's own colours.
+- A `##` doc comment that followed another comment-only line got that line's
+  position, so the parser could not see a blank line between two doc blocks:
+  the doc of a module's first definition was merged into the module doc.
+  Doc comments now start on their own line.
+- A `##` block right after `mod Name` always became the module doc, even
+  when it sat on the first definition, so in
+  `mod M` / `## Adds.` / `fn add(...)` the doc went to `M` instead of
+  `add`. A block that touches the first definition now documents it; a
+  module doc is separated from what follows by a blank line, as
+  `docs/DOC.md` now says. A block above a `use` line or a plain `#`
+  comment still documents the module. The stdlib modules written the other way
+  (`Std.Atom`, `Std.Float`, `Std.Int`, `Std.ExitReason`, `Std.Syntax`,
+  `Std.Syntax.Raw`, `Std.Proof.LinearArithmetic`, `Std.Regex`,
+  `Std.Regex.Core`, `Std.Regex.Runtime`) gain that blank line.
+  `Std.Comparable`, `Std.Equatable` and `Std.Tuple` had only a note on
+  their `use` line where the module doc goes; they now have module docs.
+- `cure-lsp` put every inlay hint and code lens on the first line: symbols
+  read a `:line` key the parser no longer sets. They now take the line from
+  the source span. Sum-type variants were listed as functions, which gave
+  constructor calls raw-AST parameter hints; they are constructors now. The
+  `# fn name(...)` inlay hint, which repeated the line it sat on, is gone, and
+  so is the `Type | Effects` code lens, whose `cure.type.*` command no client
+  implements.
+- Repository links in `zed-cure`, `vscode-cure`, `highlightjs-cure` and
+  `tree-sitter-cure` pointed at `cure-lang/cure` or `am-kantox/cure`, which
+  do not exist; they now point at `cure-lang/cure-lang`.
 
 ## [0.35.0] -- Mechanised Soundness, Tree-Sitter & Kernel Hardening -- 2026-10-11
 

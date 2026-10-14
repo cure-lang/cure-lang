@@ -13,7 +13,7 @@
     "fsm"
   ],
   "homepage": "https://cure-lang.org",
-  "bugs": "https://github.com/am-kantox/cure/issues",
+  "bugs": "https://github.com/cure-lang/cure-lang/issues",
   "license": "MIT",
   "author": "Aleksei Matiushkin <matiouchkine@gmail.com>",
   "main": "src/languages/cure.js",
@@ -29,7 +29,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/am-kantox/cure.git",
+    "url": "git+https://github.com/cure-lang/cure-lang.git",
     "directory": "highlightjs-cure"
   }
 }

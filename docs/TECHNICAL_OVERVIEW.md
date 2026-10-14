@@ -514,8 +514,8 @@ Notable tools:
 - **`Cure.Protocol`** — session-typed binary protocols.
 - **`cure test`** — test runner with `Std.Test` and property-based testing.
 - **`cure watch`** — incremental recompile on change.
-- **LSP server** (`cure lsp`) — inlay hints, rename, semantic tokens,
-  code actions, definitions.
+- **LSP server** (`cure lsp`) — hover with signatures and `##` docs, inlay
+  hints, rename, semantic tokens, code actions, definitions.
 
 ### 7.1 Diagnostics
 

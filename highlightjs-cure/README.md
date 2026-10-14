@@ -9,24 +9,29 @@ applications, SMT-backed verification, and propositional equality. Its
 syntax is indentation-significant and ML-influenced, with Erlang-style
 bitstring segments and FSM transition literals.
 
-The grammar tracks the surface syntax of Cure as of **v0.28.0** (see
-the Cure [CHANGELOG.md](../CHANGELOG.md)). It is a direct port of
+The keyword lists are generated from the Cure compiler by
+`mix cure.editors.sync` (keywords and contextual keywords from the lexer,
+declaration heads from the standard library), the same source the Zed,
+Neovim and VS Code grammars use. The rest of the grammar started as a port of
 `Makeup.Lexers.CureLexer` from the
-[makeup_cure](https://hex.pm/packages/makeup_cure) package, so the
-browser-side and ExDoc-side renderings stay in step.
+[makeup_cure](https://hex.pm/packages/makeup_cure) package.
 
 ## What it highlights
 
-- Container declarations: `mod`, `fn`, `rec`, `type`, `proto`, `impl`,
-  `fsm`, `actor`, `sup`, `app`, `proof`.
+- Every reserved word of the Cure lexer, and the declaration heads
+  `fsm`, `actor`, `sup`, `app`, `behavior`, `proof` when they head a
+  declaration (`fsm Turnstile`).
+- Contextual keywords in their positions (`have`, `requires`,
+  `precedencegroup`, `infix`/`prefix`/`postfix`, `proof chain`, `because`)
+  and macro-entry vocabulary (`syntax family`, `accepts`, `expands with`,
+  ...).
 - Control flow and pattern matching: `if` / `elif` / `else` / `then`,
   `match` / `when`, `for` / `in`, `try` / `catch` / `finally`, `throw`,
   `return`, `yield`, `end`.
-- Dependent-type constructs: `assert_type`, `rewrite`, typed holes
-  (`?_`, `?name`), predicate identifiers (`even?`, `is_empty?`).
-- FSM / actor / supervisor / application lifecycle callbacks:
-  `on_start`, `on_stop`, `on_transition`, `on_enter`, `on_exit`,
-  `on_failure`, `on_timer`, `on_message`, `on_phase`.
+- Typed holes (`?_`, `?name`) and predicate identifiers (`even?`,
+  `is_empty?`).
+- Lifecycle callbacks at the start of a line: `on_start`,
+  `on_transition`, `on_enter`, ... (any `on_*`).
 - Operators: pipe `|>`, string concat `<>`, range `..` / `..=`,
   Melquiades send `<-|` (and its unicode alias `U+2709`), binary
   generator `<-`, bitstring segment specifier `::`, augmented
@@ -34,7 +39,7 @@ browser-side and ExDoc-side renderings stay in step.
   `--event-->`.
 - Literals: integers (including `0xFF`, `0b1010`, digit-grouped),
   floats, booleans, atoms, chars, strings with `#{...}`
-  interpolation, regexes `~r/.../flags`, maps `%{...}`, tuples
+  interpolation, regexes `/.../flags`, maps `%{...}`, tuples
   `%[...]`, binaries `<<...>>`.
 - Comments: plain `#`, single-line doc `##`, fenced multi-line
   `### ... ###` (the last two carry `doctag` sub-scope for `@tag`
@@ -80,11 +85,12 @@ Tag fenced code blocks with the `cure` language:
       fn main() -> Int = 42
     ```
 
-## Versioning
+## Development
 
-The grammar version follows the Cure language version it targets. When
-the Cure syntax changes, both `makeup_cure` and this package should be
-updated together.
+Edit `src/languages/cure.js`, except the block between the
+`BEGIN/END generated` markers, then run `mix cure.editors.sync` from the
+repository root. It regenerates the keyword block and builds
+`dist/cure.min.js` from the source; `mix test` fails when either is stale.
 
 ## License
 

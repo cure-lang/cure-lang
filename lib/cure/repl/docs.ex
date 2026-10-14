@@ -377,6 +377,10 @@ defmodule Cure.REPL.Docs do
       |> Enum.filter(&is_binary/1)
       |> Enum.map(&Path.dirname/1)
 
+    # Source directories a host passes directly (the language server's
+    # workspace and document directories).
+    roots = state |> Map.get(:roots, []) |> Enum.filter(&is_binary/1)
+
     configured =
       case Application.get_env(:cure, :repl) do
         kw when is_list(kw) -> Keyword.get(kw, :cure_source_roots, [])
@@ -389,7 +393,7 @@ defmodule Cure.REPL.Docs do
     # `lib/std/`. Prepending them to the search roots means host
     # applications -- notably the REPL embedded in `:cure_site` --
     # resolve `:doc Std.List` without any extra configuration.
-    (Paths.source_dirs() ++ extras ++ configured)
+    (Paths.source_dirs() ++ roots ++ extras ++ configured)
     |> Enum.uniq()
     |> Enum.filter(&File.dir?/1)
   end

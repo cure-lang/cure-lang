@@ -18,6 +18,7 @@
   },
   "files": [
     "grammar.js",
+    "keywords.js",
     "src",
     "queries",
     "tree-sitter.json"

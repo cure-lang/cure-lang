@@ -91,6 +91,11 @@ defmodule CureSite.MixProject do
       # references inlined into the Tailwind bundle resolve. It has to run
       # before `phx.digest` so the fonts are digested too.
       "assets.build": ["compile", "tailwind cure_site", "esbuild cure_site", "katex.fonts"],
+      # Rebuilds the playground's highlighting grammar after a change to
+      # ../tree-sitter-cure. Needs the tree-sitter CLI.
+      "assets.grammar": [
+        "cmd tree-sitter build --wasm -o assets/vendor/tree-sitter-cure.wasm ../tree-sitter-cure"
+      ],
       "assets.deploy": [
         "cmd --cd assets npm ci",
         "tailwind cure_site --minify",
