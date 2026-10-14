@@ -25,6 +25,12 @@
     "onCommand:cure.mcp.getHelp"
   ],
   "contributes": {
+    "configurationDefaults": {
+      "[cure]": {
+        "editor.tabSize": 2,
+        "editor.insertSpaces": true
+      }
+    },
     "languages": [
       {
         "id": "cure",
