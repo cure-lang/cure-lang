@@ -39,9 +39,10 @@ mix compile
 mix escript.build
 ```
 
-`mix compile` also compiles the self-hosted standard library (79 modules under
-`lib/std/`) into `_build/cure/ebin/`. `mix escript.build` produces a single
-executable `cure` in the repository root:
+`mix compile` also compiles the self-hosted standard library (69 modules under
+`lib/std/`, plus the 11-module embedded Regex package -- 80 modules total) into
+`_build/cure/ebin/`. `mix escript.build` produces a single executable `cure` in
+the repository root:
 
 ```bash
 ./cure version

@@ -24,7 +24,7 @@ defmodule Cure.Diagnostic.Adapter.Hole do
     Diagnostic.new(
       code: "E014",
       key: :unfilled_hole,
-      severity: :error,
+      severity: Map.get(details, :severity, :error),
       title: "Unfilled hole",
       body: Doc.paragraph("The definition `#{name_to_string(details.definition)}` still contains an unfinished hole."),
       primary: primary,

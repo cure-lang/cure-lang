@@ -1,0 +1,47 @@
+mod Pool.Demo
+  ###
+  The pure-Cure entry point: a scripted, verified walk through the pool.
+
+  Run it with:
+
+      cure run lib/main.cure
+
+  It constructs a pool of two resources, checks one out, runs a task through
+  the linear lease, checks it back in, and prints the results. Every step is
+  type-checked: the pool's counts move `Pool(2,0) -> Pool(1,1) -> Pool(2,0)`
+  in the *type*, and the lease is consumed exactly once. Nothing here can
+  over-checkout, double-return, or leak -- those are compile errors, shown
+  under `negative/`.
+
+  Note on style: the pool counts are *not* spelled out as `Pool(...)`
+  annotations here. The compiler build this example targets rejects a
+  cross-file annotation on an indexed type (see `docs/POOL.md`); the types are
+  still fully inferred and checked, they are just not repeated at every
+  binding. The one place the counts are written explicitly is inside
+  `Pool.Core` itself.
+  ###
+
+  use Pool.Core
+  use Std.Io
+
+  ## Run one full checkout/use/checkin cycle on a two-slot pool and return the
+  ## task result. The pool comes back exactly as it started -- the compiler
+  ## tracks that through the return type of `with_resource`.
+  fn cycle_once() -> Int =
+    let p0 = make(S(S(Z())), 2)
+    let cycle = with_resource(S(Z()), Z(), S(Z()), 7, 3, p0)
+    cycle.1
+
+  ## The demo entry point.
+  fn main() -> Atom =
+    let _: Unit = Std.Io.println("cure_pool -- a safe linear resource pool in Cure")
+    let _: Unit = Std.Io.println("")
+    let result: Int = cycle_once()
+    let _: Unit = Std.Io.println("checkout -> run(3) -> checkin on a 2-slot pool")
+    let _: Unit = Std.Io.println(Std.Io.int_to_string(result))
+    let _: Unit = Std.Io.println("")
+    let _: Unit = Std.Io.println("the pool's counts are a TYPE, not a counter:")
+    let _: Unit = Std.Io.println("  Pool(2,0)  all free")
+    let _: Unit = Std.Io.println("  Pool(1,1)  one checked out   (checkout)")
+    let _: Unit = Std.Io.println("  Pool(2,0)  all free again     (checkin)")
+    :ok

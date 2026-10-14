@@ -1,6 +1,15 @@
 defmodule Antigen.CoverTest do
   # :cover is node-wide global
   use ExUnit.Case, async: false
+
+  # These tests drive the node-global Erlang `:cover` server directly
+  # (`Antigen.Cover.with_cover` starts/stops it). That is fundamentally
+  # incompatible with `mix coveralls`, which owns the same server and would be
+  # torn down by `:cover.stop/0` — the coverage report then comes back as
+  # `[TOTAL] 0.0%`. The tag lets the coverage CI step exclude them
+  # (`mix coveralls --exclude cover_machinery`) while the normal test run still
+  # exercises them.
+  @moduletag :cover_machinery
   alias Antigen.Cover
 
   test "cover_compilable? is true for a debug_info module, and with_cover cleans up" do

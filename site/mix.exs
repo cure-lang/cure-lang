@@ -83,9 +83,14 @@ defmodule CureSite.MixProject do
       "assets.setup": [
         "tailwind.install --if-missing",
         "esbuild.install --if-missing",
-        "cmd --cd assets npm install"
+        "cmd --cd assets npm install",
+        "katex.fonts"
       ],
-      "assets.build": ["compile", "tailwind cure_site", "esbuild cure_site"],
+      # `katex.fonts` stages KaTeX's web fonts under
+      # priv/static/assets/css/fonts, where the relative `url(fonts/...)`
+      # references inlined into the Tailwind bundle resolve. It has to run
+      # before `phx.digest` so the fonts are digested too.
+      "assets.build": ["compile", "tailwind cure_site", "esbuild cure_site", "katex.fonts"],
       # Rebuilds the playground's highlighting grammar after a change to
       # ../tree-sitter-cure. Needs the tree-sitter CLI.
       "assets.grammar": [
@@ -95,6 +100,7 @@ defmodule CureSite.MixProject do
         "cmd --cd assets npm ci",
         "tailwind cure_site --minify",
         "esbuild cure_site --minify",
+        "katex.fonts",
         "phx.digest"
       ],
       precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]

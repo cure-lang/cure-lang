@@ -19,7 +19,7 @@ module Proof.Substitution where
 open import Data.Bool using (true)
 open import Data.Nat using (ℕ; zero; suc; _+_; _≤ᵇ_; _<_; _≤_; s≤s; z≤n)
 open import Data.Nat.Properties using (+-identityʳ; +-assoc; +-suc; +-comm; ≤-refl; m≤n⇒m≤1+n; ≤-trans)
-open import Data.List using (List; []; _∷_; _++_; map)
+open import Data.List using (List; []; _∷_; _++_; map; length)
 open import Data.Product using (_×_; _,_; Σ)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Relation.Binary.PropositionalEquality
@@ -28,6 +28,7 @@ open import Relation.Binary.PropositionalEquality
 open import Function using (_∘_)
 open import Core.Syntax
 open import Core.Typing using (upto; branch-field-vars)
+open import Core.Reduction using (argsSub; argsSub-go; argsSub-go-raise; substArgs)
 
 ------------------------------------------------------------------------
 -- `n + 0 ≡ n`
@@ -1061,3 +1062,99 @@ subst-branch-motive ar σ m cn =
   cong₂ tm-app
         (subst-extSub^-shift ar σ m)
         (cong (tm-ctor cn) (substTerms-field-vars ar σ))
+
+------------------------------------------------------------------------
+-- Substitution commutes with the branch-field substitution `argsSub`.
+--
+-- `substArgs args b = substS (argsSub args) b` substitutes the constructor's
+-- fields into a branch body. Substituting the WHOLE thing by `σ` is the same
+-- as substituting the (σ-substituted) fields and applying `σ` only to the
+-- body's NON-field variables (via the `length args`-fold extension
+-- `extSub^ (length args) σ`):
+--
+--   substS σ (substArgs args b)
+--     ≡ substArgs (map (substS σ) args) (substS (extSub^ (length args) σ) b)
+--
+-- This is the law the ι case of the confluence development's substitution
+-- commutation lemma needs.
+------------------------------------------------------------------------
+
+tailOf : List Term → List Term
+tailOf [] = []
+tailOf (x ∷ xs) = xs
+
+-- `argsSub args ∘s shiftRen (length args) 0` is the identity substitution:
+-- the shift maps every index into the "base environment" region, which
+-- `argsSub` maps back to a variable.
+argsSub-shift : ∀ (args : List Term) j
+  → (argsSub args ∘s shiftRen (length args) 0) j ≡ tm-var j
+argsSub-shift args j =
+  trans (cong (argsSub args) (+-comm j (length args)))
+        (argsSub-go-raise 0 args j)
+
+-- `substS (argsSub args) (rename (shiftRen (length args) 0) t) ≡ t`.
+substS-argsSub-shift : ∀ (args : List Term) t
+  → substS (argsSub args) (rename (shiftRen (length args) 0) t) ≡ t
+substS-argsSub-shift args t =
+  trans (subst-rename (argsSub args) (shiftRen (length args) 0) t)
+        (trans (cong (λ σ → substS σ t) (funext (argsSub-shift args)))
+               (substS-idSub t))
+
+-- `substS (argsSub xs) (rename wk t) ≡ substS (argsSub (tailOf xs)) t` for a
+-- non-empty `xs`: the `wk` shift moves every variable into the field region,
+-- which `argsSub` maps back down.
+substS-argsSub-wk : ∀ (x : Term) (xs : List Term) t
+  → substS (argsSub (x ∷ xs)) (rename wk t) ≡ substS (argsSub xs) t
+substS-argsSub-wk x xs t =
+  trans (subst-rename (argsSub (x ∷ xs)) wk t)
+        (cong (λ τ → substS τ t) (funext (λ j → refl)))
+
+-- `substS σ (argsSub args k) ≡ substS (argsSub (map (substS σ) args)) (extSub^ (length args) σ k)`.
+subst-argsSub-coh : ∀ σ (args : List Term) k
+  → substS σ (argsSub args k)
+  ≡ substS (argsSub (substTermsS σ args)) (extSub^ (length args) σ k)
+subst-argsSub-coh σ [] k = sym (substS-idSub (σ k))
+subst-argsSub-coh σ (a ∷ args) zero = refl
+subst-argsSub-coh σ (a ∷ args) (suc k) =
+  trans (subst-argsSub-coh σ args k)
+        (sym (subst-argsSub-suc σ a args k))
+  where
+    -- The `suc` step: `extSub^`'s extension matches `argsSub`'s tail.
+    subst-argsSub-suc : ∀ σ (a : Term) (args : List Term) k
+      → substS (argsSub (substTermsS σ (a ∷ args))) (extSub^ (length (a ∷ args)) σ (suc k))
+      ≡ substS (argsSub (substTermsS σ args)) (extSub^ (length args) σ k)
+    subst-argsSub-suc σ a args k =
+      substS-argsSub-wk (substS σ a) (substTermsS σ args) (extSub^ (length args) σ k)
+
+-- `substS σ (substArgs args b) ≡ substArgs (map (substS σ) args) (substS (extSub^ (length args) σ) b)`.
+subst-argsSub : ∀ σ args b
+  → substS σ (substArgs args b)
+  ≡ substArgs (substTermsS σ args) (substS (extSub^ (length args) σ) b)
+subst-argsSub σ args b =
+  trans (subst-compose σ (argsSub args) b)
+        (trans (cong (λ τ → substS τ b) (funext (subst-argsSub-coh σ args)))
+               (sym (subst-compose (argsSub (substTermsS σ args)) (extSub^ (length args) σ) b)))
+
+
+------------------------------------------------------------------------
+-- Renaming commutes with the branch-field substitution `argsSub`.
+--
+-- `rename ρ (substArgs args b) ≡ substArgs (renameTerms ρ args) (rename (ext^ (length args) ρ) b)`.
+-- The proof is the `rename`-analogue of `subst-argsSub`: the two composed
+-- renamings agree pointwise.
+------------------------------------------------------------------------
+
+rename-argsSub-coh : ∀ ρ args k
+  → rename ρ (argsSub args k)
+  ≡ argsSub (renameTerms ρ args) (ext^ (length args) ρ k)
+rename-argsSub-coh ρ [] k = refl
+rename-argsSub-coh ρ (a ∷ args) zero = refl
+rename-argsSub-coh ρ (a ∷ args) (suc k) = rename-argsSub-coh ρ args k
+
+rename-substArgs : ∀ ρ args b
+  → rename ρ (substArgs args b)
+  ≡ substArgs (renameTerms ρ args) (rename (ext^ (length args) ρ) b)
+rename-substArgs ρ args b =
+  trans (rename-subst ρ (argsSub args) b)
+        (trans (cong (λ τ → substS τ b) (funext (rename-argsSub-coh ρ args)))
+               (sym (subst-rename (argsSub (renameTerms ρ args)) (ext^ (length args) ρ) b)))

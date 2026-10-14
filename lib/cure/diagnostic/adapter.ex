@@ -141,6 +141,16 @@ defmodule Cure.Diagnostic.Adapter do
   def from_error({:sibling_module_collision, %{name: _name}} = error, opts),
     do: NameAdapter.from_error(error, opts)
 
+  # A module the manifest could not resolve (or a dependency module its package
+  # does not export) is an ordinary unknown-name failure, not a compiler
+  # invariant. Without these clauses the tuple reached `UnhandledError` and was
+  # reported as E101.
+  def from_error({:missing_module, %{target: {_package, _module}}} = error, opts),
+    do: NameAdapter.from_error(error, opts)
+
+  def from_error({:package_module_not_exported, %{target: {_package, _module}}} = error, opts),
+    do: NameAdapter.from_error(error, opts)
+
   def from_error({:precedence_cycle, _groups} = error, opts), do: NameAdapter.from_error(error, opts)
   def from_error({:conflicting_operator_fixity, _details} = error, opts), do: NameAdapter.from_error(error, opts)
   def from_error({:conflicting_precedence_group, _details} = error, opts), do: NameAdapter.from_error(error, opts)
@@ -362,6 +372,16 @@ defmodule Cure.Diagnostic.Adapter do
       opts
     )
   end
+
+  # A hole that survives to the emission boundary is a USER error, not an
+  # internal compiler failure: the program typechecks (that is what makes holes
+  # usable) but `Emit.reject_holes/2` refuses to emit it. Routing it to the
+  # `Hole` adapter keeps the user-facing E014 ("Unfilled hole") instead of
+  # dressing it up as an E101 "internal compiler failure" that asks the user to
+  # report a compiler bug. The emission reason carries the same
+  # `{:unfilled_hole, name | details}` shape the direct codegen path does.
+  def from_error({:beam_emission_failed, _module, {:unfilled_hole, _} = reason}, opts),
+    do: Hole.from_error(reason, opts)
 
   def from_error({:beam_emission_failed, module, reason}, opts) do
     Codegen.from_error(

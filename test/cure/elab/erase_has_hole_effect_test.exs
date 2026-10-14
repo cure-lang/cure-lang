@@ -7,7 +7,7 @@ defmodule Cure.Elab.EraseHasHoleEffectTest do
   `{:effect_bind, …}` was reported as "no hole here".
 
   This is NOT the codegen firewall, and today it is not reachable from the surface either.
-  `Program.check_codegen_ready/1` routes through `Validator`, which descends everywhere, so an
+  The live gate `Emit.reject_holes/2` routes through `Validator`, which descends everywhere, so an
   unfilled hole still cannot reach the backend (that is exactly why the validator was
   introduced — see the comment at `program.ex:1009` about "gaps" in this hand-rolled walker).
   And the surface only admits a hole as an entire function body: `emit(?rest)` and a `?rest`

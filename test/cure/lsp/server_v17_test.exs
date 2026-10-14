@@ -131,7 +131,10 @@ defmodule Cure.LSP.ServerV17Test do
 
     test "classifies proof-chain vocabulary as keywords" do
       data = Server.compute_semantic_tokens("proof chain\n  x == x because evidence")
-      assert Enum.chunk_every(data, 5) |> Enum.count(fn [_dl, _dc, length, 0, 0] -> length in [5, 7] end) >= 2
+      # Keyword tokens (type 0) of length 5 (`proof`) and 7 (`because`) are present.
+      keyword_lengths = for [_dl, _dc, length, 0, 0] <- Enum.chunk_every(data, 5), do: length
+      assert 5 in keyword_lengths
+      assert 7 in keyword_lengths
     end
 
     test "classifies canonical interface and pickup vocabulary as keywords" do

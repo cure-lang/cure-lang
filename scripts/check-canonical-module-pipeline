@@ -1,9 +1,17 @@
 #!/bin/sh
 # Focused loop for the interface-first module pipeline.
 #
-#   scripts/check-canonical-module-pipeline            # the canonical red/green suites
-#   scripts/check-canonical-module-pipeline --full     # add the full + boundary red suites
+#   scripts/check-canonical-module-pipeline            # the canonical pipeline suites
+#   scripts/check-canonical-module-pipeline --full     # add the full + boundary suites
 #   scripts/check-canonical-module-pipeline <args...>  # raw `elixir` args (ad-hoc scripts)
+#
+# This is a CONVENIENCE loop, not a gate and not an exclusion list. The pipeline
+# suites it runs are ordinary green tests that also run in the default `mix test`
+# (and in CI); running them here just skips the rest of the suite while iterating
+# on the pipeline. The former `_red` filenames suggested these tests were meant
+# to be held out of the default run — they were not (the build-to-green pin
+# landed in commit 36b1dee2), so the names and the `:canonical_module_pipeline_red`
+# tag were retired to remove that ambiguity.
 #
 # In MIX_ENV=test the compile alias builds the host compiler and a VM-local
 # stdlib generation only. Packaging and escript gates are deliberately absent,
@@ -30,9 +38,9 @@ lib/cure/compiler/module_pipeline/publication.ex
 lib/cure/compiler/module_pipeline.ex
 test/cure/compiler/fixity_scan_test.exs
 test/cure/compiler/canonical_module_pipeline_gate_test.exs
-test/cure/compiler/canonical_module_pipeline_contract_red_test.exs
-test/cure/compiler/canonical_module_pipeline_full_red_test.exs
-test/cure/compiler/canonical_module_pipeline_boundary_red_test.exs
+test/cure/compiler/canonical_module_pipeline_contract_test.exs
+test/cure/compiler/canonical_module_pipeline_full_test.exs
+test/cure/compiler/canonical_module_pipeline_boundary_test.exs
 test/cure/compiler/canonical_module_pipeline_beam_product_test.exs
 "
 
@@ -49,14 +57,14 @@ fi
 suites='
     Code.require_file("test/cure/compiler/fixity_scan_test.exs")
     Code.require_file("test/cure/compiler/canonical_module_pipeline_gate_test.exs")
-    Code.require_file("test/cure/compiler/canonical_module_pipeline_contract_red_test.exs")
+    Code.require_file("test/cure/compiler/canonical_module_pipeline_contract_test.exs")
     Code.require_file("test/cure/compiler/canonical_module_pipeline_beam_product_test.exs")
 '
 
 if [ "${1:-}" = "--full" ]; then
   suites="$suites
-    Code.require_file(\"test/cure/compiler/canonical_module_pipeline_full_red_test.exs\")
-    Code.require_file(\"test/cure/compiler/canonical_module_pipeline_boundary_red_test.exs\")
+    Code.require_file(\"test/cure/compiler/canonical_module_pipeline_full_test.exs\")
+    Code.require_file(\"test/cure/compiler/canonical_module_pipeline_boundary_test.exs\")
 "
 fi
 

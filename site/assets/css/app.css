@@ -6,6 +6,18 @@
 @source "../js";
 @source "../../lib/cure_site_web";
 
+/* KaTeX stylesheet, bundled straight out of node_modules (the package is
+   declared in assets/package.json and installed by `mix assets.setup`).
+   It must stay after the Tailwind import so KaTeX's own rules survive
+   preflight.
+
+   KaTeX references its web fonts relatively, as `url(fonts/KaTeX_*)`, and
+   Tailwind inlines imports without rewriting those URLs. Since the bundle is
+   emitted to priv/static/assets/css/app.css, the browser resolves them to
+   /assets/css/fonts/KaTeX_* -- which is exactly where `mix katex.fonts`
+   stages them. */
+@import "../node_modules/katex/dist/katex.min.css";
+
 /* A Tailwind plugin that makes "hero-#{ICON}" classes available.
    The heroicons installation itself is managed by your mix.exs */
 @plugin "../vendor/heroicons";
@@ -262,4 +274,38 @@
   padding-left: 1rem;
   margin-bottom: 0.75rem;
   font-style: italic;
+}
+
+/* Math typeset by KaTeX (see the renderer in assets/js/app.js). The markup
+   is <span class="cure-math">, so `.prose-cure :not(pre) > code` and the
+   inline-code chrome above never apply to it. */
+.cure-math { font-size: 1.02em; line-height: normal; }
+.cure-math .katex { color: inherit; }
+
+/* Display math is a span (it may legitimately sit inside a <p>), so it has
+   to be promoted to a block by hand. Long equations scroll instead of
+   forcing the article to. */
+.cure-math-display {
+  display: block;
+  margin: 1.25rem 0;
+  padding: 0.25rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.cure-math-display .katex-display { margin: 0; }
+
+/* KaTeX leaves `.katex-error` behind for formulae it could not parse
+   (throwOnError is off). Make that legible rather than alarming. */
+.cure-math .katex-error {
+  color: var(--color-error);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+/* Fallback for the brief moment before app.js runs -- and permanently when
+   JavaScript is off: show the raw TeX as monospace source rather than as
+   mangled prose. Rendered nodes no longer carry `data-math-style`. */
+.prose-cure [data-math-style] {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.9em;
 }

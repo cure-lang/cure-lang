@@ -178,7 +178,7 @@ defmodule Cure.Compiler.Parser.FixityScan do
       deep_collect(ast, fn
         {:import, meta, _} when is_list(meta) ->
           case Keyword.get(meta, :source) do
-            s when is_binary(s) -> [%{target: s, line: Keyword.get(meta, :line, 1)}]
+            s when is_binary(s) -> [%{target: s, line: source_line(meta) || 1}]
             _ -> []
           end
 
@@ -429,8 +429,12 @@ defmodule Cure.Compiler.Parser.FixityScan do
 
         {:import, meta, _} when is_list(meta) ->
           case Keyword.get(meta, :source) do
+            # `source_line/1`, not `Keyword.get(meta, :line, 1)`: an import node
+            # carries its position as `source_info`, so reading `:line` alone
+            # attributed every `use` to line 1 and made a diagnostic about a
+            # missing module point at the `mod` header instead of the `use`.
             source when is_binary(source) ->
-              {fixity, [%{target: source, line: Keyword.get(meta, :line, 1)} | uses]}
+              {fixity, [%{target: source, line: source_line(meta) || 1} | uses]}
 
             _ ->
               {fixity, uses}

@@ -16,7 +16,15 @@ defmodule Cure.Elab.HoleFirewallTest do
   (`IsTrue(x > 0)`, `IsPositive(n)`) still discharge as before.
   """
   use ExUnit.Case, async: true
-  alias Cure.Elab.Program
+  alias Cure.Elab.{Emit, Program}
+
+  # Emit ONLY the program's own definitions through the live codegen gate
+  # (`Emit.reject_holes/2`), the single enforcement point. Emitting the whole env
+  # would also validate imported stdlib bodies, which carry their own holes.
+  defp codegen_gate(env, module) do
+    names = env |> Program.program_owned_definitions() |> Map.keys()
+    Emit.compile_forms(env, module, names)
+  end
 
   defp has_hole?({:hole, _}), do: true
   defp has_hole?(t) when is_tuple(t), do: t |> Tuple.to_list() |> Enum.any?(&has_hole?/1)
@@ -57,7 +65,7 @@ defmodule Cure.Elab.HoleFirewallTest do
     assert has_hole?(def_body(env, "HoleCall#f")),
            "the value-position hole must SURVIVE in the elaborated body"
 
-    assert {:error, {:unfilled_hole, details}} = Program.check_codegen_ready(env)
+    assert {:error, {:unfilled_hole, details}} = codegen_gate(env, :FirewallHoleCall)
     assert to_string(details.definition) |> String.contains?("f")
   end
 
@@ -67,7 +75,7 @@ defmodule Cure.Elab.HoleFirewallTest do
     assert has_hole?(def_body(env, "HoleArg#f")),
            "the value-position argument hole must SURVIVE in the elaborated body"
 
-    assert {:error, {:unfilled_hole, _details}} = Program.check_codegen_ready(env)
+    assert {:error, {:unfilled_hole, _details}} = codegen_gate(env, :FirewallHoleArg)
   end
 
   # The load-bearing legitimate case the firewall must NOT break: a hole whose
@@ -83,7 +91,7 @@ defmodule Cure.Elab.HoleFirewallTest do
 
   test "a proposition goal is still discharged by a matching local hypothesis" do
     assert {:ok, env} = Program.elaborate(@proof_obligation)
-    assert :ok = Program.check_codegen_ready(env)
+    assert {:ok, _forms} = codegen_gate(env, :FirewallRefineWire)
   end
 
   # A hole still TYPECHECKS (development proceeds around it) — only codegen is

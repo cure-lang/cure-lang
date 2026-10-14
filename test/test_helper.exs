@@ -226,6 +226,23 @@ end
 # `--include slow` (see `.github/workflows/ci.yml`). Run them locally with
 # `mix test --include slow`. Tag a test `:slow` only when it is genuinely
 # stdlib-scale — not merely to quiet a test that has become slow by accident.
+#
+# `:atomvm` marks tests that shell out to a locally-built AtomVM (`packbeam` +
+# `AtomVM`) to run compiled Cure bytecode on a non-BEAM VM. They are excluded by
+# default because CI installs no AtomVM: without the binary the assertions cannot
+# run at all, and a guarded `assert true` would be a false green (the test would
+# "pass" while testing nothing). Excluding them keeps that vacuous pass out of
+# the default suite entirely. Run them locally with `mix test --include atomvm`
+# after building AtomVM and pointing `ATOMVM_ROOT` at it; the tests skip loudly
+# (not silently) when the binary is absent. See
+# `test/cure/compiler/atomvm_container_test.exs`.
+#
+# `:cover_machinery` marks tests that drive the node-global Erlang `:cover`
+# server directly (`Antigen.Cover.with_cover`). They are NOT excluded by default
+# — `mix test` runs them. They ARE excluded from the coverage CI step
+# (`mix coveralls --exclude cover_machinery`) because `with_cover` calls
+# `:cover.stop/0`, which tears down ExCoveralls' own cover session and makes the
+# report read `[TOTAL] 0.0%`. See `test/antigen/cover_test.exs`.
 # `Cure.SummaryFormatter` replaces the stock dot formatter to kill the stream of
 # per-test green dots (see its @moduledoc). `CURE_TEST_DOTS=1` restores
 # `ExUnit.CLIFormatter` for the cases that need it (notably `--trace`).
@@ -235,7 +252,7 @@ progress_formatter =
     else: Cure.SummaryFormatter
 
 ExUnit.start(
-  exclude: [:slow],
+  exclude: [:slow, :atomvm],
   formatters: [progress_formatter, Cure.FailureTailFormatter]
 )
 

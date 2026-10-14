@@ -42,6 +42,19 @@ defmodule Cure.LSP.Transport do
   end
 
   @doc """
+  Send a JSON-RPC error response for a request with the given id.
+
+  `code` is a JSON-RPC error code (`-32601` method not found, `-32602` invalid
+  params, `-32603` internal error, `-32700` parse error) and `message` is the
+  human-readable reason. Without this, an unsupported request with an `id` left
+  the client waiting forever for a reply that never came.
+  """
+  @spec send_error(term(), integer(), String.t()) :: :ok
+  def send_error(id, code, message) do
+    send_message(%{"jsonrpc" => "2.0", "id" => id, "error" => %{"code" => code, "message" => message}})
+  end
+
+  @doc """
   Parse a buffer that may contain one or more framed LSP messages.
 
   Returns `{messages, remaining_buffer}` where `messages` is a list of

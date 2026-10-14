@@ -1,0 +1,21 @@
+###
+## NEGATIVE FIXTURE -- this file MUST fail to compile.
+##
+## Guarantee G2b: no leak / forgot-to-check-in.
+##
+## A `@linear` lease that is never consumed is the poolboy "worker checked out
+## and never returned" bug. The kernel requires every linear value to be used
+## exactly once on every path.
+##
+## Expected diagnostic: E117 LINEAR VALUE IS NOT USED.
+##
+## The driver `test/negative/run_negative.sh` asserts this file is rejected.
+###
+
+mod Pool.Negative.DroppedLease
+  use Pool.Core
+
+  ## `lease` is linear but the body never touches it.
+  fn bad(k: Nat, @linear lease: Lease(k)) -> Int = 42
+
+  fn main() -> Atom = :ok

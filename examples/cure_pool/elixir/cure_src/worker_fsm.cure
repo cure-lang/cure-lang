@@ -1,0 +1,32 @@
+###
+## The worker FSM, compiled to a raw BEAM `gen_statem` module and driven from
+## Elixir by its atom (`:"Cure.Main.WorkerFsm"`).
+##
+## This is the live half of the pool: the Elixir `CurePool.Pool` GenServer owns
+## the slot bookkeeping and supervises workers; each worker's lifecycle is this
+## machine. The graph is verified at *Cure* compile time (see
+## `cure/lib/worker_fsm.cure` for the annotated version); here the payload uses
+## the BEAM-native shapes the Elixir side actually sends.
+##
+##   Idle --Reserve(client)--> Reserved --Activate(key)--> Active
+##   Active --Return--> Returning --Reclaim--> Idle
+##   Active --Timeout--> Returning
+###
+
+use Std.Fsm
+
+rec WorkerData
+  client: Atom
+  key: Atom
+
+fsm WorkerFsm with WorkerData
+  initial Idle
+
+  Idle --Reserve(client: Atom)--> Reserved
+    update WorkerData{data | client: client}
+  Reserved --Activate(key: Atom)--> Active
+    update WorkerData{data | key: key}
+  Active --Return--> Returning
+  Active --Timeout--> Returning
+  Returning --Reclaim--> Idle
+    update WorkerData{data | client: :none, key: :none}

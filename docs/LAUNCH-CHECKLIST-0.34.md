@@ -1,17 +1,28 @@
 # Cure 0.34 — Launch Checklist
 
-**Status:** open (partially superseded — the version has since moved to 0.34.3)
-**Target version:** 0.34.0 (`mix.exs` now pins `@version "0.34.3"`; the
-`@version` bump below has landed and the remaining open items are tracked
-here for the historical 0.34 line)
+**Status:** closed (historical). The 0.34 line shipped; this checklist is kept
+as a record of what the 0.34 tag required and is no longer the live gate.
+**Target version:** 0.34.0 (the 0.34 line shipped at `0.34.3`; the current
+toolchain is 0.35.0 — see [`../CHANGELOG.md`](../CHANGELOG.md) and
+[`../RELEASE.md`](../RELEASE.md)).
+
+The 0.35 release procedure lives in [`../RELEASE.md`](../RELEASE.md); the 0.35
+feature narrative lives in [`../blog/2026-10-11-cure-v0.35.0.md`](../blog/2026-10-11-cure-v0.35.0.md).
 
 What 0.34 *is* lives in [`../ROADMAP-0.34.md`](../ROADMAP-0.34.md) — the feature
 narrative for the dependent-pipeline release. This document is the complementary
-list: the work that must be finished before the tag goes out. Roadmap answers
-"what shipped"; this answers "what's blocking".
+list: the work that had to be finished before the 0.34 tag went out. Roadmap
+answers "what shipped"; this answers "what was blocking".
 
-Items are grouped by kind, not priority. Anything marked **breaking** must land
-before the tag, because it cannot land after one without a 0.35.
+Items are grouped by kind, not priority. Anything marked **breaking** had to land
+before the tag, because it could not land after one without a 0.35.
+
+> **Note on the remaining unchecked boxes.** A handful of items below are still
+> unchecked (`[ ]`). They were either superseded by the 0.35 line (the website
+> redesign, the `llms`/`sitemap` doc coverage, the full downstream gate pass) or
+> are tracked in the current release procedure. They are left as-is so the
+> historical record is honest about what 0.34 did and did not close; the live
+gates are in [`../RELEASE.md`](../RELEASE.md).
 
 ---
 

@@ -113,6 +113,10 @@ defmodule Cure.LSP.Server do
         },
         "hoverProvider" => true,
         "definitionProvider" => true,
+        "referencesProvider" => true,
+        "documentHighlightProvider" => true,
+        "foldingRangeProvider" => true,
+        "callHierarchyProvider" => true,
         "documentSymbolProvider" => true,
         "workspaceSymbolProvider" => true,
         # Formatting is handled by `Cure.Compiler.Formatter`, a
@@ -121,6 +125,11 @@ defmodule Cure.LSP.Server do
         # The destructive AST pretty printer is still available via
         # `cure fmt --aggressive` for users who want canonicalisation.
         "documentFormattingProvider" => true,
+        "documentRangeFormattingProvider" => true,
+        "documentOnTypeFormattingProvider" => %{
+          "firstTriggerCharacter" => "\n",
+          "moreTriggerCharacter" => ["|", "="]
+        },
         "renameProvider" => %{"prepareProvider" => true},
         "signatureHelpProvider" => %{
           "triggerCharacters" => ["(", ","]
@@ -397,15 +406,110 @@ defmodule Cure.LSP.Server do
     {state, []}
   end
 
+  defp do_handle("textDocument/references", id, params, state) do
+    {uri, text, line, char} = request_position(params, state)
+    include_decl = get_in(params, ["context", "includeDeclaration"]) != false
+
+    Transport.send_response(
+      id,
+      compute_references(uri, text, line, char, include_decl, Map.get(state, :position_encoding, :utf16))
+    )
+
+    {state, []}
+  end
+
+  defp do_handle("textDocument/documentHighlight", id, params, state) do
+    {_uri, text, line, char} = request_position(params, state)
+    Transport.send_response(id, compute_document_highlights(text, line, char))
+    {state, []}
+  end
+
+  defp do_handle("textDocument/foldingRange", id, params, state) do
+    {_uri, text, _line, _char} = request_position(params, state)
+    Transport.send_response(id, compute_folding_ranges(text))
+    {state, []}
+  end
+
+  defp do_handle("textDocument/rangeFormatting", id, params, state) do
+    {_uri, text, _line, _char} = request_position(params, state)
+    Transport.send_response(id, compute_formatting_edits(text))
+    {state, []}
+  end
+
+  defp do_handle("textDocument/onTypeFormatting", id, params, state) do
+    {_uri, text, _line, _char} = request_position(params, state)
+    Transport.send_response(id, compute_formatting_edits(text))
+    {state, []}
+  end
+
+  # `prepareCallHierarchy` returns the symbol at the cursor as a call-hierarchy
+  # item; `incomingCalls`/`outgoingCalls` report the same-document callers and
+  # callees. Cross-file resolution is out of scope (the server holds only open
+  # buffers), so the item carries the current document's uri.
+  defp do_handle("textDocument/prepareCallHierarchy", id, params, state) do
+    {uri, text, line, char} = request_position(params, state)
+    Transport.send_response(id, compute_prepare_call_hierarchy(uri, text, line, char))
+    {state, []}
+  end
+
+  defp do_handle("callHierarchy/incomingCalls", id, params, state) do
+    item = Map.get(params, "item", %{})
+    {uri, text} = item_document(item, state)
+    Transport.send_response(id, compute_incoming_calls(uri, text, item))
+    {state, []}
+  end
+
+  defp do_handle("callHierarchy/outgoingCalls", id, params, state) do
+    item = Map.get(params, "item", %{})
+    {uri, text} = item_document(item, state)
+    Transport.send_response(id, compute_outgoing_calls(uri, text, item))
+    {state, []}
+  end
+
+  # A request the server does not implement MUST still be answered, or the client
+  # blocks forever waiting for a reply. Only requests (those carrying an `id`) get
+  # an error; notifications (no `id`) are silently ignored, per JSON-RPC 2.0.
+  defp do_handle(method, id, _params, state) when is_binary(method) and not is_nil(id) do
+    Transport.send_error(id, -32601, "Method not found: #{method}")
+    {state, []}
+  end
+
   defp do_handle(_method, _id, _params, state) do
     {state, []}
   end
 
+  # Shared extraction of the (uri, text, line, char) a position-based request needs.
+  defp request_position(params, state) do
+    td = Map.get(params, "textDocument", %{})
+    uri = Map.get(td, "uri", "")
+    pos = Map.get(params, "position", %{})
+    line = Map.get(pos, "line", 0)
+    char = Map.get(pos, "character", 0)
+    text = Map.get(Map.get(state, :documents, %{}), uri, "")
+    {uri, text, line, char}
+  end
+
+  defp item_document(item, state) do
+    uri = Map.get(item, "uri", "")
+    {uri, Map.get(Map.get(state, :documents, %{}), uri, "")}
+  end
+
   # -- Diagnostics -------------------------------------------------------------
 
-  @doc false
+  @doc """
+  Compute LSP diagnostics for a document.
+
+  Runs the SAME front-end pipeline `cure check` uses
+  (`Cure.Compiler.check_source/2`: lex, parse, declaration-use expansion, lifted
+  module validation, elaboration, totality certification), so the editor's
+  diagnostics agree with the command line. Calling only
+  `Elab.Program.elaborate/2` skipped the declaration-use expansion and lifted
+  module validation, so a file could be clean in the editor and rejected by
+  `cure check`. `use` resolves from the same roots `cure check` gives the file
+  (see `source_roots/2`), so a module under `test/` sees the project's `lib/`.
+  """
   def compute_diagnostics(uri, text, encoding \\ :utf16) do
-    case elaborate_document(uri, text) do
+    case Cure.Compiler.check_source(text, file: uri_to_path(uri) || uri, source_roots: source_roots(uri, nil)) do
       {:ok, _env} ->
         []
 
@@ -413,21 +517,6 @@ defmodule Cure.LSP.Server do
         reason
         |> lsp_error_list()
         |> Enum.map(&source_diagnostic(&1, uri, text, encoding))
-    end
-  end
-
-  # The elaborator resolves `use` from the process's source roots. Give it the
-  # roots `cure check` uses, so a module under `test/` sees the project's `lib/`.
-  defp elaborate_document(uri, text) do
-    previous = Process.get(:cure_source_roots)
-    Process.put(:cure_source_roots, source_roots(uri, nil))
-
-    try do
-      Cure.Elab.Program.elaborate(text, file: uri)
-    after
-      if previous == nil,
-        do: Process.delete(:cure_source_roots),
-        else: Process.put(:cure_source_roots, previous)
     end
   end
 
@@ -1651,7 +1740,14 @@ defmodule Cure.LSP.Server do
     end
   end
 
-  @doc false
+  @doc """
+  Compute rename edits for the symbol under the cursor.
+
+  The match is **scope-aware**: comments and string/char literals are masked out
+  before scanning, so a rename never rewrites the symbol inside a comment or a
+  string. (The previous implementation matched `\\bword\\b` on every raw line and
+  happily renamed occurrences in `# rename foo here` and `"foo"`.)
+  """
   def compute_rename(uri, text, line, char, new_name) do
     lines = String.split(text, "\n")
     target = Enum.at(lines, line, "")
@@ -1659,9 +1755,10 @@ defmodule Cure.LSP.Server do
 
     edits =
       lines
+      |> mask_non_code_lines()
       |> Enum.with_index()
-      |> Enum.flat_map(fn {l, i} ->
-        case word_occurrences(l, old) do
+      |> Enum.flat_map(fn {masked, i} ->
+        case word_occurrences(masked, old) do
           [] ->
             []
 
@@ -1689,6 +1786,379 @@ defmodule Cure.LSP.Server do
   end
 
   defp word_occurrences(_line, _word), do: []
+
+  # -- References / highlights --------------------------------------------------
+
+  @doc """
+  Find every reference to the symbol under the cursor, as LSP `Location`s.
+
+  Scope-aware (comments and string literals are excluded), and by default the
+  declaration line is included unless the client sets
+  `context.includeDeclaration` to false.
+  """
+  def compute_references(uri, text, line, char, include_declaration, _encoding \\ :utf16) do
+    lines = String.split(text, "\n")
+    target = Enum.at(lines, line, "")
+    word = extract_word_at(target, char)
+
+    if word == "" do
+      []
+    else
+      declaration = declaration_line(lines, word)
+
+      lines
+      |> mask_non_code_lines()
+      |> Enum.with_index()
+      |> Enum.flat_map(fn {masked, i} ->
+        if not include_declaration and i == declaration do
+          []
+        else
+          Enum.map(word_occurrences(masked, word), fn {start_col, end_col} ->
+            %{
+              "uri" => uri,
+              "range" => %{
+                "start" => %{"line" => i, "character" => start_col},
+                "end" => %{"line" => i, "character" => end_col}
+              }
+            }
+          end)
+        end
+      end)
+    end
+  end
+
+  @doc """
+  Highlight every occurrence of the symbol under the cursor in the current
+  document, as LSP `DocumentHighlight`s. The declaration is marked `Write`
+  (kind 3), every other occurrence `Read` (kind 2).
+  """
+  def compute_document_highlights(text, line, char) do
+    lines = String.split(text, "\n")
+    target = Enum.at(lines, line, "")
+    word = extract_word_at(target, char)
+
+    if word == "" do
+      []
+    else
+      declaration = declaration_line(lines, word)
+
+      lines
+      |> mask_non_code_lines()
+      |> Enum.with_index()
+      |> Enum.flat_map(fn {masked, i} ->
+        kind = if i == declaration, do: 3, else: 2
+
+        Enum.map(word_occurrences(masked, word), fn {start_col, end_col} ->
+          %{
+            "range" => %{
+              "start" => %{"line" => i, "character" => start_col},
+              "end" => %{"line" => i, "character" => end_col}
+            },
+            "kind" => kind
+          }
+        end)
+      end)
+    end
+  end
+
+  # The first line that declares `word` as a function, so references/highlights
+  # can distinguish the definition site from its uses.
+  defp declaration_line(lines, word) do
+    Enum.find_index(lines, fn l ->
+      String.contains?(l, "fn #{word}(") or String.contains?(l, "fn #{word} ")
+    end)
+  end
+
+  # -- Folding ranges -----------------------------------------------------------
+
+  @doc """
+  Compute folding ranges from indentation: a run of deeper-indented lines folds
+  under the shallower line that precedes it. Also folds consecutive comment
+  blocks. Indentation-based folding needs no parse, so it works on a buffer that
+  does not yet compile.
+  """
+  def compute_folding_ranges(text) do
+    lines = String.split(text, "\n")
+
+    indentation_folds(lines) ++ comment_folds(lines)
+  end
+
+  defp indentation_folds(lines) do
+    lines
+    |> Enum.with_index()
+    |> Enum.reduce([], fn {line, i}, acc ->
+      cond do
+        String.trim(line) == "" ->
+          acc
+
+        true ->
+          case block_end(lines, i) do
+            nil -> acc
+            end_i -> [%{"startLine" => i, "endLine" => end_i} | acc]
+          end
+      end
+    end)
+    |> Enum.reverse()
+  end
+
+  # The last line of the contiguous block of lines indented MORE than line `i`.
+  # Returns nil when the next non-blank line is not deeper-indented (nothing to
+  # fold). Blank lines inside the block are absorbed; a blank line followed by a
+  # line at or below the header's indent ends the block.
+  defp block_end(lines, i) do
+    header_indent = indent_of(Enum.at(lines, i))
+    first = next_non_blank(lines, i + 1)
+
+    if first != nil and indent_of(Enum.at(lines, first)) > header_indent do
+      find_block_end(lines, first, header_indent)
+    else
+      nil
+    end
+  end
+
+  defp find_block_end(lines, i, header_indent) do
+    cond do
+      i >= length(lines) ->
+        i - 1
+
+      String.trim(Enum.at(lines, i)) == "" ->
+        # A blank line may be interior or trailing; look past it.
+        case next_non_blank(lines, i + 1) do
+          nil ->
+            i - 1
+
+          next_i ->
+            if indent_of(Enum.at(lines, next_i)) > header_indent,
+              do: find_block_end(lines, next_i, header_indent),
+              else: i - 1
+        end
+
+      indent_of(Enum.at(lines, i)) > header_indent ->
+        find_block_end(lines, i + 1, header_indent)
+
+      true ->
+        i - 1
+    end
+  end
+
+  defp next_non_blank(lines, i) do
+    cond do
+      i >= length(lines) -> nil
+      String.trim(Enum.at(lines, i)) == "" -> next_non_blank(lines, i + 1)
+      true -> i
+    end
+  end
+
+  defp comment_folds(lines) do
+    lines
+    |> Enum.with_index()
+    |> Enum.reduce({[], nil, nil}, fn {line, i}, {acc, start, prev} ->
+      trimmed = String.trim_leading(line)
+
+      if String.starts_with?(trimmed, "#") do
+        start = start || i
+        {acc, start, i}
+      else
+        {close_comment_fold(acc, start, prev), nil, nil}
+      end
+    end)
+    |> then(fn {acc, start, prev} -> close_comment_fold(acc, start, prev) end)
+    |> Enum.reverse()
+  end
+
+  defp close_comment_fold(acc, start, prev) when is_integer(start) and is_integer(prev) and prev > start,
+    do: [%{"startLine" => start, "endLine" => prev, "kind" => "comment"} | acc]
+
+  defp close_comment_fold(acc, _start, _prev), do: acc
+
+  defp indent_of(line), do: line |> String.length() |> Kernel.-(String.trim_leading(line) |> String.length())
+
+  # -- Call hierarchy -----------------------------------------------------------
+
+  @doc """
+  Return a single call-hierarchy item for the function under the cursor, or nil.
+  """
+  def compute_prepare_call_hierarchy(uri, text, line, char) do
+    lines = String.split(text, "\n")
+    target = Enum.at(lines, line, "")
+    word = extract_word_at(target, char)
+
+    with true <- word != "",
+         {:ok, ast} <- parse_to_ast(text),
+         %{kind: :function, line: l, span: span} <-
+           Enum.find(build_symbol_table(ast), &(&1.kind == :function and &1.name == word)) do
+      range =
+        if span,
+          do: Positions.range(span, text, :utf16),
+          else: Positions.line_range(l, text, :utf16)
+
+      [%{"name" => word, "kind" => 12, "uri" => uri, "range" => range, "selectionRange" => range}]
+    else
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Same-document callers of the function named in `item`. Each entry is an LSP
+  `CallHierarchyIncomingCall` (a caller item plus the ranges it calls from).
+  """
+  def compute_incoming_calls(uri, text, item) do
+    name = Map.get(item, "name", "")
+
+    with true <- name != "",
+         {:ok, ast} <- parse_to_ast(text) do
+      call_sites = call_sites(ast, name, text)
+
+      call_sites
+      |> Enum.group_by(& &1.caller)
+      |> Enum.flat_map(fn {caller, sites} ->
+        case Enum.find(build_symbol_table(ast), &(&1.kind == :function and &1.name == caller)) do
+          nil ->
+            []
+
+          %{span: span, line: l} ->
+            range = if span, do: Positions.range(span, text, :utf16), else: Positions.line_range(l, text, :utf16)
+
+            [
+              %{
+                "from" => %{
+                  "name" => caller,
+                  "kind" => 12,
+                  "uri" => uri,
+                  "range" => range,
+                  "selectionRange" => range
+                },
+                "fromRanges" => Enum.map(sites, & &1.range)
+              }
+            ]
+        end
+      end)
+    else
+      _ -> []
+    end
+  end
+
+  @doc """
+  Same-document callees of the function named in `item`.
+  """
+  def compute_outgoing_calls(uri, text, item) do
+    name = Map.get(item, "name", "")
+
+    with true <- name != "",
+         {:ok, ast} <- parse_to_ast(text) do
+      callees = outgoing_callees(ast, name, text)
+
+      callees
+      |> Enum.uniq()
+      |> Enum.flat_map(fn callee ->
+        case Enum.find(build_symbol_table(ast), &(&1.kind == :function and &1.name == callee)) do
+          nil ->
+            []
+
+          %{span: span, line: l} ->
+            range = if span, do: Positions.range(span, text, :utf16), else: Positions.line_range(l, text, :utf16)
+
+            [
+              %{
+                "to" => %{
+                  "name" => callee,
+                  "kind" => 12,
+                  "uri" => uri,
+                  "range" => range,
+                  "selectionRange" => range
+                },
+                "fromRanges" => []
+              }
+            ]
+        end
+      end)
+    else
+      _ -> []
+    end
+  end
+
+  # Every call site of `name` in the AST, tagged with the enclosing function.
+  defp call_sites(ast, name, text) do
+    ast
+    |> collect_functions()
+    |> Enum.flat_map(fn {fn_name, body, _span} ->
+      body
+      |> collect_calls(text)
+      |> Enum.filter(&(&1.name == name))
+      |> Enum.map(fn call -> %{caller: fn_name, range: call.range} end)
+    end)
+  end
+
+  defp outgoing_callees(ast, name, text) do
+    ast
+    |> collect_functions()
+    |> Enum.filter(fn {fn_name, _body, _span} -> fn_name == name end)
+    |> Enum.flat_map(fn {_fn_name, body, _span} -> body |> collect_calls(text) |> Enum.map(& &1.name) end)
+  end
+
+  defp collect_functions({:function_def, meta, body}) do
+    name = Keyword.get(meta, :name)
+    info = Metadata.source_info(meta)
+    span = info && info.whole
+
+    own = if name, do: [{name, body, span}], else: []
+    own ++ Enum.flat_map(body, &collect_functions/1)
+  end
+
+  defp collect_functions({_tag, _meta, children}) when is_list(children),
+    do: Enum.flat_map(children, &collect_functions/1)
+
+  defp collect_functions(list) when is_list(list), do: Enum.flat_map(list, &collect_functions/1)
+  defp collect_functions(_other), do: []
+
+  defp collect_calls({:function_call, meta, args}, text) do
+    name = Keyword.get(meta, :name)
+    info = Metadata.source_info(meta)
+
+    own =
+      case {name, info && info.whole} do
+        {nil, _} -> []
+        {_, nil} -> []
+        {name, span} -> [%{name: name, range: Positions.range(span, text, :utf16)}]
+      end
+
+    own ++ Enum.flat_map(args, &collect_calls(&1, text))
+  end
+
+  defp collect_calls({_tag, _meta, children}, text) when is_list(children),
+    do: Enum.flat_map(children, &collect_calls(&1, text))
+
+  defp collect_calls(list, text) when is_list(list), do: Enum.flat_map(list, &collect_calls(&1, text))
+  defp collect_calls(_other, _text), do: []
+
+  # -- Non-code masking ---------------------------------------------------------
+
+  # Replace the contents of comments and string/char literals with spaces,
+  # preserving character positions, so word matching never touches them. Takes a
+  # list of lines (the callers have already split the document).
+  defp mask_non_code_lines(lines) when is_list(lines), do: Enum.map(lines, &mask_line/1)
+
+  defp mask_line(line), do: mask_line(String.graphemes(line), [], :code)
+
+  defp mask_line([], acc, _mode), do: acc |> Enum.reverse() |> Enum.join()
+
+  defp mask_line([g | rest], acc, :code) do
+    cond do
+      g == "#" -> mask_line(rest, [" " | acc], :comment)
+      g in ["\"", "'"] -> mask_line(rest, [" " | acc], {:string, g})
+      true -> mask_line(rest, [g | acc], :code)
+    end
+  end
+
+  defp mask_line([_g | rest], acc, :comment), do: mask_line(rest, [" " | acc], :comment)
+
+  defp mask_line([g | rest], acc, {:string, quote}) do
+    if g == quote do
+      mask_line(rest, [" " | acc], :code)
+    else
+      mask_line(rest, [" " | acc], {:string, quote})
+    end
+  end
 
   # -- Code lens ----------------------------------------------------------------
 

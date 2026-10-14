@@ -8,11 +8,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- `tree-sitter-cure/`: a lexical tree-sitter grammar for Cure. It mirrors
-  `Cure.Compiler.Lexer`, treats line boundaries as tokens so the highlight
-  queries can recognise macro vocabulary (`syntax family`, `accepts`,
-  `expands with`, family fields) at the start of a line, and parses every
-  `.cure` file in the repository without errors.
 - `neovim-cure` highlights with tree-sitter on Neovim 0.11+, using
   `tree-sitter-cure/` and the same highlight queries as `zed-cure`. It
   compiles the parser from the repository on first use and falls back to
@@ -36,16 +31,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   documents, and the document's directory and the workspace's `lib/`.
   Signatures now carry parameter types, the return type and effects.
 
+### Changed
+
+- `cure help` is now generated from a single command registry
+  (`Cure.CLI.Commands`) instead of a list hard-coded in three places (the
+  `@moduledoc`, the unknown-command suggestion list, and the `help/0` text).
+  Adding or renaming a subcommand now touches one list; the registry names are
+  cross-checked against the dispatch `case`.
+
 ### Fixed
 
-- `zed-cure` could not be installed: its `extension.toml` pointed at
-  `cure-lang/tree-sitter-cure`, a repository that does not exist, so Zed failed
-  while fetching the grammar. It now builds the grammar from
-  `tree-sitter-cure/` in this repository, and its highlight, outline and
-  bracket queries are rewritten for it. `languages/cure/config.toml` used keys
-  Zed does not recognise (`indent_pattern`, `outdent_pattern`,
-  `autoclosing_pairs`) and a `#| |#` block comment Cure does not have; it now
-  uses `increase_indent_pattern` / `decrease_indent_pattern`.
+- A hole that survives to the canonical emission boundary now renders as the
+  user-facing `E014 UNFILLED HOLE` (source span, caret, hint) instead of
+  `E101 CODE GENERATION FAILED` with the note "This is an internal compiler
+  failure; report it with the diagnostic fingerprint". A user who simply left a
+  hole was being told to file a compiler bug. `cure compile hole.cure` now prints
+  `-- UNFILLED HOLE [E014]`.
+- `cure watch --action` is validated against `compile | check | test` at the CLI
+  boundary; an unknown value is an `E099` usage error instead of a
+  `String.to_atom/1` of untrusted input handed to `Cure.Watch`.
+- `Term.from_external/1` decodes an `atom_lit` through the same bounded-interning
+  path (`sym_atom/1`, existing atoms only) as every other symbol, closing the one
+  atom-minting path that could exhaust the atom table from untrusted JSON (K12 §D).
+- `cure migrate`'s error path uses `exit({:shutdown, 1})` rather than the lone
+  `System.halt(1)` in the CLI, so output flushes and shutdown hooks run.
+- `cmd_keys_generate`'s unreachable `exit({:shutdown, 1})` (after a `raise`) was
+  removed; the `rescue` already owns the single exit.
+- Documentation and version drift (audit §4.6): the CHANGELOG gained its
+  `[0.35.0]` section; `RELEASE.md` was updated to 0.35.0 and the 0.34 launch
+  checklist marked closed; the README "Status" and release history were
+  refreshed; `examples/cure_exchange/cure/README.md`'s "Known limitations" was
+  corrected (limitation 2 is fixed, 1/3/4 remain) along with the same claims in
+  `docs/FSM_GUIDE.md`, `examples/cure_exchange/cure/lib/{escrow_fsm_dsl_reference,otp_demo}.cure`,
+  and `examples/cure_pool/{README.md,docs/POOL.md}`; the `docs/SUPERVISION.md`
+  actor example is now indentation-structured; `docs/GETTING_STARTED.md`,
+  `docs/GLOSSARY.md`, and `docs/BIND_PIPE.md` were added to the HexDocs
+  `extras`; the stdlib module count is stated once as 80 (69 + 11); and a
+  `docs/README.md` index was added.
 - `neovim-cure` could not be installed: its README pointed lazy.nvim and
   packer at `cure-lang/neovim-cure`, a repository that does not exist. It now
   installs `cure-lang/cure-lang` and adds `neovim-cure/` to the runtimepath;
@@ -114,6 +136,104 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Repository links in `zed-cure`, `vscode-cure`, `highlightjs-cure` and
   `tree-sitter-cure` pointed at `cure-lang/cure` or `am-kantox/cure`, which
   do not exist; they now point at `cure-lang/cure-lang`.
+
+## [0.35.0] -- Mechanised Soundness, Tree-Sitter & Kernel Hardening -- 2026-10-11
+
+### Added
+
+- **A machine-checked soundness proof** (`proof/`): an 18-module Agda
+  development that formalises the Core calculus (three-level universe
+  hierarchy, QTT usage grades, graded `let`, indexed families, totality-gated
+  δ-unfolding, inert effect formers) and proves **Progress**, **Preservation**
+  (every case incl. β/ζ/ι/δ, with zero postulates), **canonical forms / head
+  inversion**, **simultaneous substitution**, the **fuel-indexed** and
+  **coinductive** soundness theorems, the **classical three-way soundness**
+  theorem, and — new in this cycle — **confluence** of `_⇝_` via parallel
+  reduction (`⇉-substS`, `⇉-diamond`). It is machine-checked in CI by a
+  dedicated path-filtered workflow (`proof.yml`) that fails on any warning and
+  guards the axiom surface. The development is honest about its remaining
+  postulates (`funext`, two named classical inputs) and records a *falsified*
+  lemma (`never-reached→no-value`) with a counterexample.
+- **`docs/SOUNDNESS.md`**: an exhaustive written soundness argument mapping each
+  lemma to the executable Antigen assay that tests it, covering the trusted
+  computing base and the three load-bearing side conditions (strict positivity,
+  totality-gated δ-reduction, coverage/branch unification).
+- **`tree-sitter-cure/`**: a lexical tree-sitter grammar for Cure. It mirrors
+  `Cure.Compiler.Lexer`, treats line boundaries as tokens so the highlight
+  queries can recognise macro vocabulary (`syntax family`, `accepts`,
+  `expands with`, family fields) at the start of a line, and parses every
+  `.cure` file in the repository without errors.
+- **`zed-cure/`**: the Zed extension now bundles and builds directly from the
+  in-tree `tree-sitter-cure/` grammar, with complete highlight, outline, bracket
+  and indentation queries.
+- **`examples/cure_pool/`**: a linear-resource pool whose three headline
+  guarantees (no over-checkout, no double-return, no leak) are proved by the
+  compiler and demonstrated by fixtures that must fail to compile.
+
+### Changed
+
+- **`@total true` is now enforced.** `Cure.Elab.Declarations` records explicit
+  totality obligations on the environment, and the compiler rejects any function
+  decorated `@total true` with `E013` unless the size-change termination checker
+  certifies structural descent. `@total false` is the explicit opt-out.
+- **Standard-library unwrapping is normalised.** `Std.Option` and `Std.Result`
+  now provide consistent `unwrap` and `unwrap_or` signatures with matching
+  semantics, pinned by `test/cure/stdlib/consistency_test.exs`.
+
+### Fixed
+
+- **The hole firewall blocks code generation.** Unfilled holes (`?goal`)
+  previously could bypass codegen checks under some compilation paths.
+  `Emit.reject_holes/2` now guards every code-generation entry point, so an
+  artifact containing an unfilled hole halts emission with `E014`
+  (`{:codegen_error, {:unfilled_hole, details}}`). Pinned by
+  `test/cure/elab/hole_firewall_test.exs`.
+- A macro container missing an explicit module declaration previously crashed
+  with an uninformative `POSIX error: module_identity_missing`. It is now
+  surfaced as the ordinary `E123 MODULE IDENTITY MISSING` diagnostic.
+- The test suite no longer contains false-green tests. The `:atomvm` tests
+  (`atomvm_container_test.exs`, `atomvm_regex_container_test.exs`) guarded every
+  assertion behind `File.exists?/1` on a hard-coded macOS AtomVM path and fell
+  through to `assert true` when it was absent — so they passed while testing
+  nothing (CI installs no AtomVM). `:atomvm` is now excluded by default in
+  `test_helper.exs`, and when explicitly requested (`mix test --include atomvm`)
+  a missing AtomVM fails loudly with the paths it needs instead of passing
+  vacuously.
+- The `:canonical_module_pipeline_red` test tag and the `_red` filenames were
+  stale: the build-to-green pin had landed (commit `36b1dee2`), but the naming
+  implied the tests were held out of the default suite — they were not, and a
+  separate `scripts/check-canonical-module-pipeline` read as if they should be.
+  The three files are renamed to
+  `canonical_module_pipeline_{contract,full,boundary}_test.exs`, the modules drop
+  the `Red` suffix, and the tag is `:canonical_module_pipeline` (grouping only).
+- The `:examples` tests (the `examples/hello.cure` CLI smoke tests) were excluded
+  by default and CI passed only `--include slow`, so they never ran. CI now runs
+  `mix test --include slow --include examples`.
+- A stale "genuinely red" comment on `type_directed_overload_test.exs` told the
+  reader to "delete the `@tag :skip`" for a feature that had since landed (and
+  there was no `@tag :skip`). The comment now records that the feature is landed
+  and the module is green.
+- A module that a `use` or qualified reference could not resolve was reported
+  as `E101 INTERNAL COMPILER ERROR` (`unregistered_diagnostic`). It is now an
+  ordinary `E091 Unknown module` diagnostic that names the importing module and
+  how it reached the missing one, labels the module name in the source, offers a
+  "did you mean" for a near-miss spelling, and otherwise explains that compiling
+  a single file does not pick up its siblings. A dependency module outside its
+  package's export surface gets the same treatment instead of crashing the
+  presentation layer. Compiling `cure_pool`'s `lib/main.cure` on its own is the
+  reproducer.
+- A `use` was always attributed to line 1 of its file in the module manifest,
+  because the harvester read a `:line` key that import nodes do not carry. It
+  now uses the node's source position, as qualified references already did, so
+  dependency diagnostics point at the `use` that wrote them.
+- `zed-cure` could not be installed: its `extension.toml` pointed at
+  `cure-lang/tree-sitter-cure`, a repository that does not exist, so Zed failed
+  while fetching the grammar. It now builds the grammar from
+  `tree-sitter-cure/` in this repository, and its highlight, outline and
+  bracket queries are rewritten for it. `languages/cure/config.toml` used keys
+  Zed does not recognise (`indent_pattern`, `outdent_pattern`,
+  `autoclosing_pairs`) and a `#| |#` block comment Cure does not have; it now
+  uses `increase_indent_pattern` / `decrease_indent_pattern`.
 
 ## [0.34.0] -- One Dependent Pipeline -- 2026-10-10
 

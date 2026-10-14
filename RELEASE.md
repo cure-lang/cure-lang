@@ -1,21 +1,29 @@
-# Releasing Cure 0.34.0
+# Releasing Cure 0.35.0
 
-Cure 0.34 is the dependent-pipeline release. The classic checker and code
-generator are gone: every program is elaborated to dependent Core, checked by
-the kernel, quantitatively erased, and emitted as BEAM code through one path.
+Cure 0.35 is the mechanised-soundness release. It adds an 18-module Agda
+formalisation that machine-checks the Core kernel's metatheory (Progress,
+Preservation, and the fuel-indexed, coinductive, and classical soundness
+theorems, plus confluence), a written soundness argument in
+[`docs/SOUNDNESS.md`](docs/SOUNDNESS.md), a first-class Tree-Sitter grammar and
+Zed extension, and audit-driven kernel hardening (the hole firewall and enforced
+`@total true`). The 0.34 dependent pipeline is unchanged: every program is still
+elaborated to dependent Core, checked by the kernel, quantitatively erased, and
+emitted as BEAM code through one path.
 
 This file is the operational release procedure. The feature narrative belongs
-in [`ROADMAP-0.34.md`](ROADMAP-0.34.md), the public change inventory in
-[`CHANGELOG.md`](CHANGELOG.md), and the live blockers in
-[`docs/LAUNCH-CHECKLIST-0.34.md`](docs/LAUNCH-CHECKLIST-0.34.md).
+in [`blog/2026-10-11-cure-v0.35.0.md`](blog/2026-10-11-cure-v0.35.0.md), the
+public change inventory in [`CHANGELOG.md`](CHANGELOG.md), and the live blockers
+in [`docs/LAUNCH-CHECKLIST-0.34.md`](docs/LAUNCH-CHECKLIST-0.34.md) (the
+historical 0.34 checklist; the 0.35 line's release gates are the repository
+gates below).
 
 ## 1. Prepare the release metadata
 
 1. Finish every non-deferred item in the launch checklist.
-2. Set `@version` in `mix.exs` to `0.34.0`. This also sets the HexDocs
+2. Set `@version` in `mix.exs` to `0.35.0`. This also sets the HexDocs
    `source_ref` and the CLI/REPL version returned by `Cure.version/0`.
-3. Promote `CHANGELOG.md`'s `[Unreleased]` section to `[0.34.0] -- YYYY-MM-DD`.
-4. Confirm its breaking-change list matches `ROADMAP-0.34.md`.
+3. Promote `CHANGELOG.md`'s `[Unreleased]` section to `[0.35.0] -- YYYY-MM-DD`.
+4. Confirm its breaking-change list matches the release narrative.
 5. Build the docs and inspect the generated version, source links, macro page,
    proof page, and standard-library pages.
 
@@ -88,26 +96,26 @@ cure check <small dependent example>
 cure compile <small dependent example>
 ```
 
-The CLI and REPL must both report `0.34.0`; the REPL must evaluate an expression,
+The CLI and REPL must both report `0.35.0`; the REPL must evaluate an expression,
 accept a multiline definition, and expose `:type`, `:doc`, `:holes`, and proof
 inspection without rebuilding the stdlib from source.
 
 ## 5. Tag and publish
 
 1. Commit the reviewed release metadata and generated package inputs.
-2. Create the signed tag `v0.34.0` at that exact commit.
+2. Create the signed tag `v0.35.0` at that exact commit.
 3. Push the commit and tag.
 4. Publish to Hex only from the tagged tree.
 5. Build and publish HexDocs.
 6. Deploy the website and verify `/`, `/roadmap`, `/stdlib`, `/llms.txt`, and
    `/sitemap.xml` against the released version.
-7. Edit the GitHub release created by the tag push with the 0.34 changelog and
-   roadmap narrative.
+7. Edit the GitHub release created by the tag push with the 0.35 changelog and
+   release narrative.
 
 Pushing the tag triggers `.github/workflows/release.yml`, which builds the
 `cure` escript with `mix escript.build` from the tagged tree, refuses to
 continue unless `cure version` matches the tag, and creates the GitHub release
-with `cure-v0.34.0-linux-x86_64` and its `.sha256` attached. The binary handed
+with `cure-v0.35.0-linux-x86_64` and its `.sha256` attached. The binary handed
 to users is therefore built by the release job, never uploaded by hand from a
 workstation. Re-run the workflow via `workflow_dispatch` with the same tag if
 the job fails for an environmental reason; never move the tag to force a
@@ -119,6 +127,6 @@ development commit. Never amend or move the published tag.
 ## 6. Rollback boundary
 
 Before Hex publication, fix the candidate and recreate the unpublished tag if
-necessary. After Hex publication, do not replace `0.34.0`; issue a new patch
+necessary. After Hex publication, do not replace `0.35.0`; issue a new patch
 release, document the correction, and repeat the full gates appropriate to the
 change.

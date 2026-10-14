@@ -29,8 +29,9 @@ Cure compiles `.cure` source through a single dependent pipeline:
 **elaborate** (surface syntax to `Cure.Core`), **kernel-check**
 (`Cure.Core.Kernel` validates the Core term), **erase** (quantitative
 erasure removes compile-time-only evidence), and **emit** (BEAM
-bytecode). The former classic `lex -> parse -> type check -> optimise ->
-codegen` pipeline has been deleted; there is no unchecked fallback path.
+bytecode). There is no unchecked fallback path: the former classic
+`lex -> parse -> type check -> optimise -> codegen` pipeline was deleted
+and is not available in any mode.
 Every stage emits structured events you can subscribe to from Elixir for
 tooling work.
 Run `cure check lib/main.cure` to type-check without producing BEAM

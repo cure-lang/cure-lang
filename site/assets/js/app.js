@@ -26,6 +26,10 @@ import {LiveSocket} from "phoenix_live_view"
 import "phoenix-colocated/yeesh"
 import topbar from "../vendor/topbar"
 import {CureEditor} from "./cure_editor"
+// KaTeX typesets the TeX that `CureSite.MarkdownConverter` leaves in the
+// markup. Its stylesheet is pulled in from assets/css/app.css and its web
+// fonts are staged by `mix katex.fonts`.
+import katex from "katex"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
@@ -128,8 +132,72 @@ const setupStdlibFilter = () => {
   })
 }
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", setupStdlibFilter)
-} else {
-  setupStdlibFilter()
+// Math typesetting.
+//
+// `CureSite.MarkdownConverter` enables comrak's math extensions, so TeX
+// written as `$x^2$`, `$$x^2$$`, `` $`x^2`$ `` or a ```math fence reaches
+// the browser untouched, wrapped in `data-math-style="inline|display"`:
+//
+//   <span data-math-style="inline">\Pi</span>
+//   <span data-math-style="display">a^2 + b^2 = c^2</span>
+//   <code data-math-style="inline">\sqrt{3}</code>
+//   <pre><code data-math-style="display">\sum_{i=0}^n i</code></pre>
+//
+// Each of those is replaced here by the KaTeX rendering. Elements that fail
+// to render keep their literal TeX so the page degrades to readable source
+// instead of an empty gap.
+const MATH_SELECTOR = "[data-math-style]:not([data-math-rendered])"
+
+const renderMathElement = (el) => {
+  const display = el.dataset.mathStyle === "display"
+  // A ```math fence arrives as <pre><code>: the whole <pre> has to go,
+  // otherwise KaTeX would render inside a `white-space: pre` monospace box.
+  const replaceable =
+    el.tagName === "CODE" && el.parentElement && el.parentElement.tagName === "PRE"
+      ? el.parentElement
+      : el
+
+  const tex = el.textContent
+  const host = document.createElement("span")
+  host.className = display ? "cure-math cure-math-display" : "cure-math"
+  host.setAttribute("data-math-rendered", "")
+
+  try {
+    katex.render(tex, host, {
+      displayMode: display,
+      // Render both HTML and MathML: the former is what the KaTeX fonts
+      // style, the latter is what screen readers and copy-paste pick up.
+      output: "htmlAndMathml",
+      // Never blow up a whole page over one bad formula; KaTeX inlines the
+      // offending source in red instead.
+      throwOnError: false,
+      strict: "ignore",
+      trust: false,
+    })
+  } catch (error) {
+    console.error("[katex] could not render", tex, error)
+    el.setAttribute("data-math-rendered", "")
+    return
+  }
+
+  replaceable.replaceWith(host)
 }
+
+const renderMath = (root = document) => {
+  root.querySelectorAll(MATH_SELECTOR).forEach(renderMathElement)
+}
+
+// Re-run after live navigation, which swaps in markup the initial pass never
+// saw.
+window.addEventListener("phx:page-loading-stop", () => renderMath())
+
+const onReady = (fn) => {
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", fn)
+  } else {
+    fn()
+  }
+}
+
+onReady(setupStdlibFilter)
+onReady(() => renderMath())

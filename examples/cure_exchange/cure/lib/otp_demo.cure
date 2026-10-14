@@ -4,21 +4,19 @@ mod Exchange.OtpDemo
   send yourself a message through a typed `Pid(Atom)` handle.
 
   This project does not spawn a live process per escrow trade (that is what
-  `examples/cure_exchange/elixir` is for). Three independent, hand-found
+  `examples/cure_exchange/elixir` is for). Two independent, hand-found
   limitations of this compiler build rule it out here:
 
     - `Std.Otp.spawn` -- a raw process from an arbitrary closure -- is
-      explicitly rejected outside of an `actor`/`fsm`/`sup` declaration
-      ("unavailable in dependent code"); those macros exist precisely to
-      give the runtime a managed lowering path a bare closure does not have.
+      rejected outside of an `actor`/`fsm`/`sup` declaration ("this
+      asynchronous operation has no dependent-runtime lowering"); those macros
+      exist precisely to give the runtime a managed lowering path a bare
+      closure does not have.
     - An `actor`/`fsm`/`sup` declaration's own generated module cannot be
       *called* (`.start`, `.send`, even the pure `.decide`) from project-mode
-      code (`cure compile <dir>`, and therefore `cure test`) -- see
-      `lib/escrow_fsm_dsl_reference.cure` and `README.md`.
-    - A *self-recursive* `Effect`-returning function (the natural shape of an
-      actor's own receive loop, had one been reachable) is unreliable in
-      this build -- it can report a branch-type mismatch even when every
-      branch is logically consistent.
+      code (`cure compile <dir>`, and therefore `cure test`) -- the submodule
+      is folded into its enclosing module and no callable generated module is
+      emitted. See `lib/escrow_fsm_dsl_reference.cure` and `README.md`.
 
   What remains -- and is genuinely reliable -- is `self()` and a typed `tell`
   to it, which is what this module demonstrates.

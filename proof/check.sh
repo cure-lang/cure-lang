@@ -57,10 +57,11 @@ fi
 
 MODULES=(
   Core/Grade Core/Universe Core/Syntax Core/Value Core/Reduction
-  Core/Signature Core/Typing
+  Core/Signature Core/Typing Core/Parallel
   Proof/Values Proof/Inversion Proof/CanonicalForms Proof/Substitution
   Proof/Context
   Proof/Progress Proof/Preservation Proof/FinalPreservation Proof/Soundness
+  Proof/Confluence
 )
 
 fail=0

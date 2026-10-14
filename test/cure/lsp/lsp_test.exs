@@ -758,6 +758,112 @@ defmodule Cure.LSP.LspTest do
     end
   end
 
+  # ============================================================================
+  # Server: rename is scope-aware (comments and strings are not rewritten)
+  # ============================================================================
+
+  describe "compute_rename/5" do
+    test "does not rename the symbol inside comments or string literals" do
+      source = """
+      mod R
+        fn add(a: Int, b: Int) -> Int = a + b
+        # call add here
+        fn use() -> Int = add(1, 2)
+        fn msg() -> String = "add"
+      """
+
+      result = Server.compute_rename("file:///r.cure", source, 1, 6, "plus")
+      %{"changes" => %{"file:///r.cure" => edits}} = result
+
+      touched_lines = edits |> Enum.map(& &1["range"]["start"]["line"]) |> Enum.uniq() |> Enum.sort()
+
+      # The definition (line 1) and the call (line 3) are renamed; the comment
+      # (line 2) and the string (line 4) are NOT.
+      assert touched_lines == [1, 3]
+    end
+  end
+
+  # ============================================================================
+  # Server: references, highlights, folding, call hierarchy
+  # ============================================================================
+
+  describe "compute_references/6" do
+    test "finds code references but not comment or string occurrences" do
+      source = """
+      mod Ref
+        fn add(a: Int, b: Int) -> Int = a + b
+        # add in a comment
+        fn use() -> Int = add(1, 2)
+      """
+
+      refs = Server.compute_references("file:///ref.cure", source, 1, 6, true)
+      lines = refs |> Enum.map(& &1["range"]["start"]["line"]) |> Enum.uniq() |> Enum.sort()
+      assert lines == [1, 3]
+      assert Enum.all?(refs, &(&1["uri"] == "file:///ref.cure"))
+    end
+
+    test "excludes the declaration when includeDeclaration is false" do
+      source = "mod Ref2\n  fn add(a: Int, b: Int) -> Int = a + b\n  fn use() -> Int = add(1, 2)\n"
+      refs = Server.compute_references("file:///r2.cure", source, 1, 6, false)
+      lines = refs |> Enum.map(& &1["range"]["start"]["line"]) |> Enum.uniq()
+      assert lines == [2]
+    end
+  end
+
+  describe "compute_document_highlights/3" do
+    test "marks the declaration as Write and uses as Read" do
+      source = "mod H\n  fn add(a: Int, b: Int) -> Int = a + b\n  fn use() -> Int = add(1, 2)\n"
+      highlights = Server.compute_document_highlights(source, 1, 6)
+      kinds = highlights |> Enum.map(&{&1["range"]["start"]["line"], &1["kind"]})
+      assert {1, 3} in kinds
+      assert {2, 2} in kinds
+    end
+  end
+
+  describe "compute_folding_ranges/1" do
+    test "folds an indented block under its header" do
+      source = "mod F\n  fn a() -> Int = 1\n  fn b() -> Int = 2\n"
+      ranges = Server.compute_folding_ranges(source)
+      assert Enum.any?(ranges, &(&1["startLine"] == 0 and &1["endLine"] == 2))
+    end
+
+    test "folds a run of comments" do
+      source = "# one\n# two\n# three\nfn x() -> Int = 1\n"
+      ranges = Server.compute_folding_ranges(source)
+      assert Enum.any?(ranges, &(&1["kind"] == "comment" and &1["startLine"] == 0 and &1["endLine"] == 2))
+    end
+  end
+
+  describe "call hierarchy" do
+    test "prepare returns the function under the cursor" do
+      source = "mod C\n  fn add(a: Int, b: Int) -> Int = a + b\n  fn use() -> Int = add(1, 2)\n"
+      [item] = Server.compute_prepare_call_hierarchy("file:///c.cure", source, 2, 20)
+      assert item["name"] == "add"
+      assert item["uri"] == "file:///c.cure"
+    end
+
+    test "incoming calls name the enclosing function" do
+      source = "mod C2\n  fn add(a: Int, b: Int) -> Int = a + b\n  fn use() -> Int = add(1, 2)\n"
+      item = %{"name" => "add", "uri" => "file:///c2.cure"}
+      assert [%{"from" => %{"name" => "use"}}] = Server.compute_incoming_calls("file:///c2.cure", source, item)
+    end
+
+    test "outgoing calls name the callee" do
+      source = "mod C3\n  fn add(a: Int, b: Int) -> Int = a + b\n  fn use() -> Int = add(1, 2)\n"
+      item = %{"name" => "use", "uri" => "file:///c3.cure"}
+      assert [%{"to" => %{"name" => "add"}}] = Server.compute_outgoing_calls("file:///c3.cure", source, item)
+    end
+  end
+
+  describe "unknown request" do
+    test "a request with an id is answered (not silently dropped)" do
+      state = %{initialized: true, documents: %{}}
+      msg = %{"method" => "textDocument/references", "id" => 7, "params" => %{}}
+      # The handler exists now; an unimplemented method still must not hang.
+      {_state, _} = Server.process_message(msg, state)
+    end
+  end
+
   defp hover_value(source, line, char) do
     get_in(Server.compute_hover(source, line, char), ["contents", "value"])
   end

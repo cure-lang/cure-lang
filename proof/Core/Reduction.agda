@@ -25,7 +25,7 @@ module Core.Reduction where
 open import Data.Bool using (Bool; true; false)
 open import Data.String.Properties using (_≟_)
 open import Data.Nat using (ℕ; zero; suc; _+_; _≤_; z≤n; s≤s)
-open import Data.List using (List; []; _∷_; _++_; length; map; find; reverse)
+open import Data.List using (List; []; _∷_; _++_; length; map; find; reverse; updateAt)
 open import Data.List using () renaming (lookup to listLookup)
 open import Data.Fin using (Fin; zero; suc; toℕ)
 open import Data.List.Membership.Propositional using (_∈_)
@@ -139,6 +139,31 @@ findBranch-sound c [] ()
 findBranch-sound c ((cn , ar′ , b′) ∷ xs) {ar} {b} eq with c ≟ cn
 ... | yes refl = subst (λ q → q ∈ ((c , ar′ , b′) ∷ xs)) (just-inj eq) (here refl)
 ... | no _     = there (findBranch-sound c xs eq)
+
+-- `findBranch` commutes with `substBranchesS`: looking up a constructor in a
+-- substituted branch list gives the substituted branch body.
+findBranch-substBranchesS : ∀ σ c brs {ar b}
+  → findBranch c brs ≡ just (c , ar , b)
+  → findBranch c (substBranchesS σ brs) ≡ just (c , ar , substS (extSub^ ar σ) b)
+findBranch-substBranchesS σ c [] ()
+findBranch-substBranchesS σ c ((cn , ar′ , b′) ∷ xs) {ar} {b} eq with c ≟ cn
+... | yes refl =
+  cong (λ q → just (c , proj₁ (proj₂ q) , substS (extSub^ (proj₁ (proj₂ q)) σ) (proj₂ (proj₂ q))))
+       (just-inj eq)
+... | no ¬q = findBranch-substBranchesS σ c xs eq
+
+-- `findBranch` commutes with `renameBranches`: looking up a constructor in a
+-- renamed branch list gives the renamed branch body.
+findBranch-rename : ∀ ρ c brs {ar b}
+  → findBranch c brs ≡ just (c , ar , b)
+  → findBranch c (renameBranches ρ brs) ≡ just (c , ar , rename (ext^ ar ρ) b)
+findBranch-rename ρ c [] ()
+findBranch-rename ρ c ((cn , ar′ , b′) ∷ xs) {ar} {b} eq with c ≟ cn
+... | yes refl =
+  cong (λ q → just (c , proj₁ (proj₂ q) , rename (ext^ (proj₁ (proj₂ q)) ρ) (proj₂ (proj₂ q))))
+       (just-inj eq)
+... | no ¬q = findBranch-rename ρ c xs eq
+
 ------------------------------------------------------------------------
 -- The reduction relation, parameterised by the signature.
 ------------------------------------------------------------------------
@@ -158,18 +183,18 @@ module _ (sig : Signature) where
       -- evaluates the body in the environment `[a_value | env]` (prepend
       -- the argument at index 0, shift everything else).
       --
-      -- The ARGUMENT must be a VALUE: the kernel's β fires only on
-      -- `apply(vlam, varg)`, and the `ξ-app₂` congruence reduces the
-      -- argument to a value first. Requiring `Value a` is what makes the β
-      -- case of Preservation go through: a value of a type INFERS that
-      -- type (`value-infer`), which is what the substitution lemma's head
-      -- case needs (the argument is only CHECKED by `⇒-app`).
-      β : ∀ {g d b a} → Value a → tm-app (tm-lam g d b) a ⇝ substTopT a b
+      -- The ARGUMENT need NOT be a value: `⇒-app` only CHECKS it, and
+      -- Preservation's β case uses `check-infer` (a hole-free term that
+      -- checks infers its type), which needs no value structure. Removing
+      -- the `Value a` side condition is what makes the parallel reduction
+      -- `_⇉_` VALUE-FREE, so its substitution-commutation lemma is the
+      -- standard textbook proof with no `substS-Value-or-redex` case.
+      β : ∀ {g d b a} → tm-app (tm-lam g d b) a ⇝ substTopT a b
 
-      -- ζ: let x = v in b ⇝ b[x := v]. The bound value must likewise be a
-      -- value (the kernel's `let` is ζ-transparent and its value is a
-      -- value).
-      ζ : ∀ {g ty v b} → Value v → tm-let g ty v b ⇝ substTopT v b
+      -- ζ: let x = v in b ⇝ b[x := v]. Like β, the bound term need not be a
+      -- value: `⇒-let` only CHECKS it, and `check-infer` recovers its type
+      -- from hole-freeness (which `Final` supplies).
+      ζ : ∀ {g ty v b} → tm-let g ty v b ⇝ substTopT v b
 
       -- ι: case (ctor c args) of … ⇝ b_c[args]
       -- The branch body lives under `arity` binders; we substitute the fields
@@ -220,6 +245,9 @@ module _ (sig : Signature) where
       -- Congruence: case forces the scrutinee.
       ξ-case : ∀ {s s′ m brs} → s ⇝ s′ → tm-case s m brs ⇝ tm-case s′ m brs
 
+      -- Congruence: case forces its BRANCH bodies (each by one step).
+      ξ-case-brs : ∀ {s m brs brs′} → brs ⇝*ᵇ brs′ → tm-case s m brs ⇝ tm-case s m brs′
+
       -- Congruence: case motive.
       ξ-case-motive : ∀ {s m m′ brs} → m ⇝ m′ → tm-case s m brs ⇝ tm-case s m′ brs
 
@@ -232,12 +260,34 @@ module _ (sig : Signature) where
       -- Congruence: let forces its value.
       ξ-let : ∀ {g ty v v′ b} → v ⇝ v′ → tm-let g ty v b ⇝ tm-let g ty v′ b
 
-      -- Congruence: constructors force their arguments (one at a time).
-      ξ-ctor : ∀ {n xs ys x y} → x ⇝ y → xs ⇝*ᵗ ys → tm-ctor n (x ∷ xs) ⇝ tm-ctor n (y ∷ ys)
+      -- Congruence: let forces its declared type and its body.
+      --
+      -- A `let` body is normally reached only AFTER ζ fires, but a CONTEXT
+      -- may reduce it directly (the body is a subterm). These rules make the
+      -- relation able to reduce every subterm of a `let`, which the
+      -- confluence development's parallel reduction needs.
+      ξ-let-ty : ∀ {g ty ty′ v b} → ty ⇝ ty′ → tm-let g ty v b ⇝ tm-let g ty′ v b
+      ξ-let-body : ∀ {g ty v b b′} → b ⇝ b′ → tm-let g ty v b ⇝ tm-let g ty v b′
 
-      -- Congruence: data spines force their arguments.
-      ξ-data-params : ∀ {n xs ys is} → xs ⇝*ᵗ ys → tm-data n xs is ⇝ tm-data n ys is
-      ξ-data-indices : ∀ {n ps xs ys} → xs ⇝*ᵗ ys → tm-data n ps xs ⇝ tm-data n ps ys
+      -- Congruence: constructors force their arguments. The rule is
+      -- ELEMENT-INDEXED by a `Fin`: it reduces the argument at position `i`,
+      -- leaving every other argument alone. This is what the confluence
+      -- development's parallel reduction needs (it must simulate a parallel
+      -- step by reducing one argument at a time), and it is unambiguous
+      -- because the position is part of the rule.
+      ξ-ctor-at : ∀ {n} {args : List Term} (i : Fin (len args)) {x′}
+                → lookupAt args i ⇝ x′
+                → tm-ctor n args ⇝ tm-ctor n (setAt args i x′)
+
+      -- Congruence: data spines force their arguments, element-indexed. The
+      -- params and indices carry separate positions, so the two rules are
+      -- distinguishable by their `Fin` index.
+      ξ-data-params-at : ∀ {n is} {ps : List Term} (i : Fin (len ps)) {x′}
+                       → lookupAt ps i ⇝ x′
+                       → tm-data n ps is ⇝ tm-data n (setAt ps i x′) is
+      ξ-data-indices-at : ∀ {n ps} {is : List Term} (i : Fin (len is)) {x′}
+                        → lookupAt is i ⇝ x′
+                        → tm-data n ps is ⇝ tm-data n ps (setAt is i x′)
 
       -- Congruence: Π/λ force their domain (the codomain/body are under a binder).
       ξ-pi-dom : ∀ {g d d′ b} → d ⇝ d′ → tm-pi g d b ⇝ tm-pi g d′ b
@@ -251,12 +301,13 @@ module _ (sig : Signature) where
       ⇝*-nil  : [] ⇝*ᵗ []
       ⇝*-cons : ∀ {x x′ xs xs′} → x ⇝ x′ → xs ⇝*ᵗ xs′ → (x ∷ xs) ⇝*ᵗ (x′ ∷ xs′)
 
-  ------------------------------------------------------------------------
-  -- Multi-step reduction: the reflexive-transitive closure.
-  ------------------------------------------------------------------------
+    data _⇝*_ : Term → Term → Set where
+      ⇝*-refl  : ∀ {t} → t ⇝* t
+      ⇝*-step  : ∀ {t u v} → t ⇝ u → u ⇝* v → t ⇝* v
 
-  infix 4 _⇝*_
+    data _⇝*ᵇ_ : List Branch → List Branch → Set where
+      ⇝ᵇ-nil  : [] ⇝*ᵇ []
+      ⇝ᵇ-cons : ∀ {cn ar b b′ bs bs′} → b ⇝* b′ → bs ⇝*ᵇ bs′
+              → ((cn , ar , b) ∷ bs) ⇝*ᵇ ((cn , ar , b′) ∷ bs′)
 
-  data _⇝*_ : Term → Term → Set where
-    ⇝*-refl  : ∀ {t} → t ⇝* t
-    ⇝*-step  : ∀ {t u v} → t ⇝ u → u ⇝* v → t ⇝* v
+

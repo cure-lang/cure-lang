@@ -6,7 +6,15 @@ defmodule Cure.Elab.Slice1ConformanceTest do
   """
   use ExUnit.Case, async: true
   alias Cure.Core.Env
-  alias Cure.Elab.{Erase, Program}
+  alias Cure.Elab.{Emit, Erase, Program}
+
+  # Emit ONLY the program's own definitions through the live codegen gate
+  # (`Emit.reject_holes/2`). Emitting the whole env would also validate imported
+  # stdlib bodies, which carry their own holes.
+  defp codegen_gate(env, module) do
+    names = env |> Program.program_owned_definitions() |> Map.keys()
+    Emit.compile_forms(env, module, names)
+  end
 
   @fixture Path.join([__DIR__, "..", "..", "fixtures", "slice1.cure"])
 
@@ -78,7 +86,7 @@ defmodule Cure.Elab.Slice1ConformanceTest do
 
   test "negative #5: the program has an unfilled hole and is refused for codegen" do
     {:ok, env} = Program.elaborate(File.read!(@fixture))
-    assert {:error, {:unfilled_hole, details}} = Program.check_codegen_ready(env)
+    assert {:error, {:unfilled_hole, details}} = codegen_gate(env, :Slice1Conformance)
     assert details.definition == :"Main#sketch"
     assert %Cure.Diagnostic.Span{} = details.span
   end

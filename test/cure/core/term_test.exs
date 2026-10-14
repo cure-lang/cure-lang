@@ -78,4 +78,17 @@ defmodule Cure.Core.TermTest do
 
     assert {:global, :and} == Term.from_external(%{"node" => "global", "name" => "and"})
   end
+
+  test "from_external decodes an atom_lit through the same bounded interning" do
+    # An atom literal's value is user data, but it is still decoded through
+    # `sym_atom/1` (existing atoms only): a real term's atom literal was minted
+    # when its source was parsed, so it is already interned and round-trips.
+    # `String.to_atom/1` here was the one atom-minting path that could exhaust
+    # the atom table from untrusted input (K12 §D).
+    assert {:atom_lit, :ok} == Term.from_external(%{"node" => "atom_lit", "value" => "ok"})
+
+    assert_raise ArgumentError, fn ->
+      Term.from_external(%{"node" => "atom_lit", "value" => "cure_k12_fe_unseen_atom_qz"})
+    end
+  end
 end

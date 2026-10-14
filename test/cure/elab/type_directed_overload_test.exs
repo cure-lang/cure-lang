@@ -24,13 +24,11 @@ defmodule Cure.Elab.TypeDirectedOverloadTest do
   # (alongside the existing Semigroup and Ord routing). That test arrives with
   # the precedence-group spec, not this pin.
   #
-  # TODAY (genuinely red — verified against the tree): an overload SET is
-  # rejected outright — two `fn plus` in scope fail with
-  # `{:codegen_error, {:duplicate_definition, :plus}}`. The surface cannot even
-  # EXPRESS a set: globals resolve by bare name, so a duplicate is a collision,
-  # not a candidate list. GREEN REQUIRES the front-end to gather an overload set
-  # under one name, then prune by argument type at the call site (spec §4). When
-  # implemented, delete the `@tag :skip` and this must pass.
+  # LANDED — the front-end now gathers an overload set under one name and prunes
+  # it by argument type (and by written label) at the call site (spec §4). Two
+  # `fn plus` in scope no longer collide; the tests below exercise the resolution
+  # and the diagnostics that the deferred build promised. There is no `@tag
+  # :skip` to delete: this module is green and runs in the default suite.
   test "a bare overloaded name resolves by argument type at the call site" do
     src = """
     mod TypeDirectedOverloadName

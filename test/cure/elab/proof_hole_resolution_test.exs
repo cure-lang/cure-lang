@@ -1,6 +1,14 @@
 defmodule Cure.Elab.ProofHoleResolutionTest do
   use ExUnit.Case, async: true
-  alias Cure.Elab.Program
+  alias Cure.Elab.{Emit, Program}
+
+  # Emit ONLY the program's own definitions through the live codegen gate
+  # (`Emit.reject_holes/2`). Emitting the whole env would also validate imported
+  # stdlib bodies, which carry their own holes.
+  defp codegen_gate(env, module) do
+    names = env |> Program.program_owned_definitions() |> Map.keys()
+    Emit.compile_forms(env, module, names)
+  end
 
   # These fixtures exercise the resolver's TAG-GATING over a LOCAL proposition
   # (`IsFoo`) that no stdlib module proves. That isolation is deliberate: once
@@ -68,7 +76,7 @@ defmodule Cure.Elab.ProofHoleResolutionTest do
 
     # The surviving hole type-checks but must NOT be emittable: the codegen gate
     # refuses the whole program until the hole is filled.
-    assert {:error, {:unfilled_hole, details}} = Program.check_codegen_ready(env)
+    assert {:error, {:unfilled_hole, details}} = codegen_gate(env, :ProofHoleRed)
     assert to_string(details.definition) |> String.contains?("demo")
 
     assert binary_part(@red, details.span.start_byte, details.span.end_byte - details.span.start_byte) ==
@@ -137,7 +145,7 @@ defmodule Cure.Elab.ProofHoleResolutionTest do
 
   test "tagging the lemma discharges the hole and the program passes the codegen gate" do
     assert {:ok, env} = Program.elaborate(@green)
-    assert :ok = Program.check_codegen_ready(env)
+    assert {:ok, _forms} = codegen_gate(env, :ProofHoleGreen)
   end
 
   test "the found proof term equals the hand-written proof term (same-run differential)" do

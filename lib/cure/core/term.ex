@@ -427,7 +427,13 @@ defmodule Cure.Core.Term do
   defp decode_external(%{"node" => "float_lit", "value" => f}), do: {:float_lit, f}
   defp decode_external(%{"node" => "binary_type"}), do: {:binary_type}
   defp decode_external(%{"node" => "atom_type"}), do: {:atom_type}
-  defp decode_external(%{"node" => "atom_lit", "value" => a}), do: {:atom_lit, String.to_atom(a)}
+  # An atom literal's value is user data (`:ok`, `:tick`, ...), but it is still
+  # decoded through the same bounded-interning path as every other symbol:
+  # a real term's atom literal was minted when its source was parsed, so it is
+  # already interned and `sym_atom/1` decodes it. Using `String.to_atom/1` here
+  # was the one atom-minting path in this module that could exhaust the atom
+  # table from untrusted `from_external` input (K12 §D).
+  defp decode_external(%{"node" => "atom_lit", "value" => a}), do: {:atom_lit, sym_atom(a)}
 
   defp decode_external(%{"node" => "effect_type", "arg" => t}), do: {:effect_type, decode_external(t)}
   defp decode_external(%{"node" => "effect_pure", "arg" => a}), do: {:effect_pure, decode_external(a)}

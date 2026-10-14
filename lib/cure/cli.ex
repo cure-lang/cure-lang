@@ -4,13 +4,10 @@ defmodule Cure.CLI do
 
   ## Subcommands
 
-      cure compile <file|dir>   Compile .cure files to BEAM bytecode
-      cure run <file>           Compile and execute a .cure file
-      cure check <file>         Type-check a .cure file without compiling
-      cure lsp                  Start the Language Server Protocol server
-      cure stdlib               Compile the standard library
-      cure version              Show the Cure version
-      cure help                 Show this help message
+  The full, authoritative list of subcommands is the single registry in
+  `Cure.CLI.Commands`; `cure help` (and `cure --help`) prints it. Run
+  `cure help` for the complete, always-current command list and the shared
+  option reference.
 
   ## Options
 
@@ -209,7 +206,11 @@ defmodule Cure.CLI do
         ["migrate" | paths] ->
           case cmd_migrate(paths, opts) do
             :ok -> :ok
-            {:error, _} -> System.halt(1)
+            # `exit({:shutdown, 1})` (not `System.halt(1)`) — every other
+            # non-zero exit in this module uses the graceful form, which lets
+            # the VM run its shutdown hooks and flush output. `System.halt/1`
+            # was the lone exception here.
+            {:error, _} -> exit({:shutdown, 1})
           end
 
         ["watch" | rest] ->
@@ -308,12 +309,7 @@ defmodule Cure.CLI do
           help()
 
         [unknown | _] ->
-          known_commands = ~w(
-            compile run check lsp mcp stdlib version init deps test
-            explain doc repl fmt watch new bench why doctor fix migrate
-            publish search info keys release trace replay
-            john draw verify export-types snap story audit help
-          )
+          known_commands = Cure.CLI.Commands.names()
 
           suffix =
             case Cure.Compiler.Errors.suggest(unknown, known_commands) do
@@ -738,7 +734,7 @@ defmodule Cure.CLI do
   # -- check -------------------------------------------------------------------
 
   @dialyzer {:nowarn_function, cmd_check: 2}
-  defp cmd_check(path, _opts) do
+  defp cmd_check(path, opts) do
     project =
       case Cure.Project.load() do
         {:ok, p} -> p
@@ -771,8 +767,26 @@ defmodule Cure.CLI do
     preload_runtime_dependencies!(project)
 
     case Cure.Compiler.check_source(source, file: path, source_roots: source_roots) do
-      {:ok, _env} ->
-        info("#{path}: OK")
+      {:ok, env} ->
+        # A hole typechecks but blocks codegen (Emit.reject_holes/2). Reporting
+        # `OK` for a file that `cure compile` will later refuse is a false green:
+        # the user is told the file is fine and only discovers otherwise at the
+        # next step. Surface the hole goals here so `check` and `compile` agree.
+        # The warning is non-fatal by default (a hole is a development state, not
+        # an error); `--strict` promotes it to a failure for CI. See §4.2.
+        holes = Cure.Elab.Program.hole_goals(env)
+
+        if holes == [] do
+          info("#{path}: OK")
+        else
+          Enum.each(holes, &emit_hole_warning(&1, path))
+
+          if Keyword.get(opts, :strict, false) do
+            exit({:shutdown, 1})
+          else
+            info("#{path}: OK (with #{length(holes)} unfilled hole(s))")
+          end
+        end
 
       {:error, reason} ->
         # The dependent checker returns a tagged `{:error, term}`; funnel it
@@ -780,6 +794,24 @@ defmodule Cure.CLI do
         emit_host_diagnostic(reason, path, source)
         exit({:shutdown, 1})
     end
+  end
+
+  # A hole goal (`Program.hole_goals/1`) rendered as the public E014 diagnostic.
+  # The goal/context are the payload the REPL already displays; here they are
+  # reported as a non-fatal warning so `cure check` stops returning a false green.
+  defp emit_hole_warning(%{function: name, goal: goal, context: context}, path) do
+    definition = Cure.Elab.Name.base(name) || Atom.to_string(name)
+
+    reason =
+      {:unfilled_hole,
+       %{
+         definition: definition,
+         goal: goal,
+         context: context,
+         severity: :warning
+       }}
+
+    emit_host_diagnostic(reason, path)
   end
 
   # -- lsp ---------------------------------------------------------------------
@@ -2096,12 +2128,15 @@ defmodule Cure.CLI do
   defp cmd_watch(paths, opts) do
     path = List.first(paths) || "."
 
+    # `--action` is user input; validate it against the known set instead of
+    # `String.to_atom/1`-ing an arbitrary string (which would mint an atom from
+    # untrusted input and silently pass an unknown action down to `Cure.Watch`).
     action =
       case Keyword.get(opts, :action, "compile") do
         "compile" -> :compile
         "check" -> :check
         "test" -> :test
-        other -> String.to_atom(other)
+        other -> usage_error("Unknown --action: #{other}. Use compile, check, or test.")
       end
 
     watch_opts = [action: action]
@@ -2371,8 +2406,10 @@ defmodule Cure.CLI do
           info("Generated keypair for '#{handle}' under ~/.cure/keys/")
 
         other ->
+          # `raise` never returns, so the old trailing `exit({:shutdown, 1})`
+          # here was unreachable. The rescue below turns the raise into the
+          # user-facing internal-exception diagnostic and the single exit.
           raise Cure.Diagnostic.UnhandledError, error: {:unexpected_key_generation_result, other}
-          exit({:shutdown, 1})
       end
     rescue
       e ->
@@ -2439,49 +2476,17 @@ defmodule Cure.CLI do
   end
 
   defp help do
+    commands =
+      Cure.CLI.Commands.help_lines()
+      |> Enum.join("\n")
+
     IO.puts("""
     Cure #{version()} -- Dependently-typed language for the BEAM
 
     Usage: cure <command> [options] [arguments]
 
     Commands:
-      compile <file|dir>   Compile .cure files to BEAM bytecode
-      run <file>           Compile and execute a .cure file
-      check <file>         Type-check without compiling
-      lsp                  Start the Language Server Protocol server
-      stdlib               Compile the standard library
-      doc [path|dir]       Generate HTML documentation
-      fmt [path|dir]       Format .cure source files (algebra by default; --safe, --aggressive, --check)
-      migrate [path|dir]   Port source to an edition (--check, --print, --strict, --edition YYYY)
-      repl                 Interactive Cure session (multi-line, :help for commands)
-      watch [path]         Recompile/check/test on every save
-      new <name>           Scaffold a new project (--lib | --app | --fsm)
-      init <name>          Same as `new --lib`
-      deps                 Resolve project dependencies
-      test [--cover]       Run .cure tests under test/, optionally with coverage
-      bench [path]         Run .cure benchmarks under bench/
-      explain <Eddd>       Explain an error code
-      why <Eddd>           Alias for `explain`
-      doctor               Environment + project + source health report
-      fix [--dry-run]      Apply safe project-wide code fixes
-      publish [opts]       Package and upload to the Cure registry
-      search <query>       Search the registry for packages
-      info <name[:ver]>    Show registry manifest / version list
-      keys generate <h>    Generate an Ed25519 signing keypair
-      keys list            List trusted publisher keys
-      release              Build a BEAM release (requires `app`)
-      trace <M.f/a>        Typed tracer over :dbg (--duration N)
-      replay <journal>     Replay a recorded observation journal (--module M, --step)
-      draw <path.cure>     Render lifted modules as ASCII (--filter lifted|all)
-      verify [path]        Verify compiled artifacts against their sources (--strict)
-      export-types [path]  Export type definitions (--target protobuf, --out FILE)
-      snap <save|load|list> Snapshot and restore compiler state (--out FILE)
-      story                Narrate the project as a build story (--out FILE, --diagrams)
-      audit trust <Module> Print the unproved assumptions reachable from a module
-      mcp                  Start the Model Context Protocol server
-      john                 Print everything: VM stats, tooling, project, logs
-      version              Show version
-      help                 Show this help
+    #{commands}
 
     Options:
       -o, --output-dir DIR   Output directory (default: _build/cure/project/ebin)

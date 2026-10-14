@@ -1,7 +1,10 @@
-defmodule Cure.Compiler.CanonicalModulePipelineContractRedTest do
+defmodule Cure.Compiler.CanonicalModulePipelineContractTest do
   use ExUnit.Case, async: true
 
-  @moduletag :canonical_module_pipeline_red
+  # The canonical module pipeline is the live pipeline (the `_red` build-to-green
+  # pin landed in commit 36b1dee2). These tests run in the default suite; the tag
+  # only groups the pipeline's own suites for a focused `--only` run.
+  @moduletag :canonical_module_pipeline
   @moduletag :tmp_dir
 
   test "one immutable manifest owns canonical identity and dependency availability", %{tmp_dir: dir} do

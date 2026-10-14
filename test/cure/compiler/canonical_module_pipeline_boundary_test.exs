@@ -1,7 +1,10 @@
-defmodule Cure.Compiler.CanonicalModulePipelineBoundaryRedTest do
+defmodule Cure.Compiler.CanonicalModulePipelineBoundaryTest do
   use ExUnit.Case, async: true
 
-  @moduletag :canonical_module_pipeline_red
+  # The canonical module pipeline is the live pipeline (the `_red` build-to-green
+  # pin landed in commit 36b1dee2). These tests run in the default suite; the tag
+  # only groups the pipeline's own suites for a focused `--only` run.
+  @moduletag :canonical_module_pipeline
 
   @forbidden [
     {"env_with_generated_dependencies", "stamped-AST dependency recovery"},
