@@ -27,6 +27,7 @@ cure-*.tar
 
 /.elixir-tools/
 /.erl.history/
+/.cure_history
 
 .tool-versions*
 
