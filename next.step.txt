@@ -93,15 +93,21 @@ NEXT STEPS (in order of value):
              but EARLIER — macro expansion rejects it with
              `{:unsupported_syntax_core, …}`, because a `?hole` is not
              representable as macro-input syntax.
-             IMPORTANT CAVEAT: actor/sup modules emit NO functions at all
-             through the canonical pipeline (a HOLE-FREE actor compiles to a
-             .beam exporting only module_info/0,1, while a plain module in
-             the same pipeline exports its functions). So the hole question
-             is MASKED for actors — nothing ships, hole or not. That is a
-             separate pre-existing EMISSION GAP, not a soundness hole.
-             The §8.1 regression test was deliberately NOT added: it would
-             pass for the wrong reason until actor emission works.
-             NEXT: fix actor emission, then add the test.
+             RETRACTED: an earlier revision of this file claimed actor/sup
+             modules emit NO functions (empty .beam exporting only
+             module_info/0,1) and called it an "emission gap". THAT WAS
+             WRONG. `Compiler.compile_and_load/2` deliberately does not
+             persist bytecode — it only loads into the VM via
+             `:code.load_binary` — so the .beam files under
+             `_build/…/.cure_generations/` are unrelated artifacts and say
+             nothing about what was emitted. Actor emission WORKS:
+             `test/cure/compiler/actor_family_raw_test.exs` calls the emitted
+             handle_cast/2, init/1, start_link/1 and drives a real gen_server
+             (5 tests, green). Lesson: verify via the load path, not by
+             inspecting files on disk.
+             The §8.1 regression test is still unwritten, for the ordinary
+             reason (needs a fixture on the canonical pipeline), not because
+             emission is broken.
         §8.3 erasure commutes with reduction: PARTIAL EVIDENCE ADDED.
              `test/cure/elab/erase_test.exs` now has a
              "erasure commutes with β-reduction (§8.3)" describe block (3
