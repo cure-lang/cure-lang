@@ -653,13 +653,20 @@ determined adversary should look first.
      branches exist to preserve it), so this is the first piece of §8.3 to
      become a theorem rather than evidence.
 
-   **What the mechanisation deliberately omits, and why.** Two clauses of the
-   real `Erase.erase/2` are NOT modelled:
-   - the administrative identity `let x = v in x ↦ erase v`. That clause
-     inspects the body's syntax from inside a mutually-recursive definition,
-     which defeats Agda's reduction during the idempotence proof (the collapse
-     does not fire definitionally inside the `mutual` block). The module
-     therefore models the plain `let` recursion only, and says so.
+   **What the mechanisation omits, and an honest correction about why.**
+   - the administrative identity `let x = v in x ↦ erase v`. An earlier
+     revision of this note claimed the obstruction was that the clause "does
+     not fire definitionally inside the `mutual` block". **That diagnosis was
+     wrong.** The real cause was a missing import: `zero` was not in scope
+     from `Data.Nat`, so the pattern `tm-var zero` bound a FRESH VARIABLE and
+     the clause matched every body. With `zero` imported the clause fires
+     correctly (verified with a standalone probe). The remaining difficulty is
+     purely in the idempotence PROOF for the `let` case — the `with` on the
+     erased body abstracts the goal, so the non-collapse branch cannot unfold
+     `eraseTerm` — which needs a `subst`-based transport that I did not get to
+     type-check. The clause itself is sound; only its idempotence proof is
+     unfinished, and the module models the plain `let` recursion until it
+     lands.
    - the kernel's heuristic refinements (collapsible-family case elimination,
      convoy discharge, the `cure_erased` placeholder) — optimisations whose
      correctness is a separate obligation.
