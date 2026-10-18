@@ -263,10 +263,9 @@ defmodule Cure.Elab.EraseTest do
       env = build_env()
 
       # `Causal` is nullary, so ι substitutes no fields and the reduct IS the
-      # branch body.
+      # branch body. (The case term itself is built in the sibling test below,
+      # which asserts erasure preserves it.)
       branch_body = {:ctor, :prim, [{:ctor, :SVNil, []}, {:ctor, :SVNil, []}]}
-      branches = [{:Causal, 0, branch_body}]
-      redex = {:case, {:ctor, :Causal, []}, {:data, :Dec, [], []}, branches}
 
       # Erasure keeps the case (it is not collapsible), so the two sides are
       # compared at the level that matters: the REDUCT.
