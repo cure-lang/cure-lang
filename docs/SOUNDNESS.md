@@ -640,10 +640,35 @@ determined adversary should look first.
      `effect_bind` (effect position). This covers every ξ-rule at once rather
      than one redex at a time.
 
-   Still evidence, not a proof: the δ result above is a refutation rather than
-   a commutation lemma, and none of this is mechanised. A real proof would
-   need an Agda formalisation of `Erase` — the Agda tree has no `Erase`
-   module, so that is a new development rather than an extension.
+   **MECHANISED (new): `proof/Proof/Erase.agda`.** The Agda tree previously
+   had no `Erase` module; it now has one, and it is in `check.sh`:
+
+   - `eraseTerm` formalises the STRUCTURAL core of `Erase.erase/2`: every
+     former recurses, and `eraseSpine` drops the constructor arguments whose
+     declared quantity is `erased` (with the kernel's over-application
+     padding: once the quantities run out, remaining arguments are kept).
+   - `erase-idem` — erasure is idempotent (`erase ∘ erase ≡ erase`), PROVED
+     with **no postulates**. `Erase.erase/2`'s own comments rely on this
+     ("erase(erase(t)) == erase(t)"; the "already erased, keep every arg"
+     branches exist to preserve it), so this is the first piece of §8.3 to
+     become a theorem rather than evidence.
+
+   **What the mechanisation deliberately omits, and why.** Two clauses of the
+   real `Erase.erase/2` are NOT modelled:
+   - the administrative identity `let x = v in x ↦ erase v`. That clause
+     inspects the body's syntax from inside a mutually-recursive definition,
+     which defeats Agda's reduction during the idempotence proof (the collapse
+     does not fire definitionally inside the `mutual` block). The module
+     therefore models the plain `let` recursion only, and says so.
+   - the kernel's heuristic refinements (collapsible-family case elimination,
+     convoy discharge, the `cure_erased` placeholder) — optimisations whose
+     correctness is a separate obligation.
+
+   **Still not mechanised:** commutation itself. It needs `erase` to be stable
+   under substitution, which fails for the same reason δ fails — the
+   quantities live in the SIGNATURE, not in the term. So the Elixir tests
+   remain the evidence for β/ζ/ι/congruence, and the δ result above remains a
+   refutation.
 
 4. **The effect fragment is inert.** `{:effect_type,_}` / `{:effect_pure,_}` /
    `{:effect_bind,_,_}` have zero reduction rules by design (§1.1), so they
