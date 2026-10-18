@@ -457,17 +457,20 @@ arguments. The four literal-peel variants additionally use a compact-literal
 identification on the `Conversion` record (`tm-ctor "Z" [] ≈ tm-nat_lit 0`,
 etc.), mirroring the kernel's `Eval.nat_to_ctor`/`bounded_to_ctor`.
 
-The classical three-way statement §1.4 is now a **theorem**, derived from
-two precisely-named classical inputs: `tree-decides` (the outcome tree is
-finite or infinite — LPO on the path, since `progress` is deterministic) and
-`never-reached→no-value` (a never-reaching tree has no reachable value).
-The constructive `soundness-tree` is the replacement for the second input,
-with the `reached` outcome inhabiting the classical first disjunct.
+The constructive soundness theorems are **proved**: the fuel-indexed
+`soundness-fuel` and the coinductive `soundness-tree`
+(`proof/Proof/Soundness.agda`). The classical statement is `soundness-nf`
+(`proof/Proof/SoundnessConfluence.agda`), the dichotomy
+`Reached ⊎ DivergesNF` over NORMAL FORMS, resting on ONE classical input:
+`tree-decides` (the outcome tree is finite or infinite — LPO on the path,
+since `progress` is deterministic).
 
-**Correction (confluence slice).** Confluence of `_⇝_` is now MECHANISED
-(`proof/Proof/Confluence.agda`: `confluence : _⇝_`), but it does NOT
-discharge `never-reached→no-value` — that input is **false as stated** for
-the mechanised `_⇝_`, which reduces UNDER BINDERS (`ξ-lam-body`). Let
+**Correction (confluence slice).** An earlier revision derived a classical
+three-way `soundness` from a SECOND input, `never-reached→no-value` (a
+never-reaching tree has no reachable value). Confluence of `_⇝_` is now
+MECHANISED (`proof/Proof/Confluence.agda`: `confluence : _⇝_`), but it does
+NOT discharge that input — the input is **false as stated** for the
+mechanised `_⇝_`, which reduces UNDER BINDERS (`ξ-lam-body`). Let
 `Ω = (λx. x x) (λx. x x)`; then `Ω ⇝ Ω`, so `tm-lam g d Ω` is a canonical
 `Value` that steps to itself, hence `NeverReached` — yet
 `tm-lam g d Ω ⇝* tm-lam g d Ω` with `Value (tm-lam g d Ω)`. The statement
@@ -480,13 +483,14 @@ proves the TRUE form of the input over normal forms, with **zero new
 postulates**: `never-reached-not-nf` (a never-reaching tree is not a normal
 form), `DivergesNF` + `never-reached→divergesNF` (positive divergence), and
 `soundness-nf` — the dichotomy `Reached ⊎ DivergesNF`, which leaves
-`tree-decides` (LPO) as the only classical input there. The false
-`never-reached→no-value` is retained in `Proof/Soundness.agda` only so the
-classical `soundness` still type-checks; `soundness-nf` is the honest
-statement. Note also that the tempting strengthening "reaches a
-NORMAL-FORM value, or diverges" is *not* provable from `soundness-tree` (a
-`Reached` leaf supplies only `Value v`, and `progress⇐` at `v` returns
-`Value v` again), which is why the first disjunct stays `Reached`.
+`tree-decides` (LPO) as the only classical input. The false
+`never-reached→no-value` and the `soundness` built on it have been
+**REMOVED** from `Proof/Soundness.agda`; the development now rests on exactly
+two axioms, `funext` and `tree-decides`. Note also that the tempting
+strengthening "reaches a NORMAL-FORM value, or diverges" is *not* provable
+from `soundness-tree` (a `Reached` leaf supplies only `Value v`, and
+`progress⇐` at `v` returns `Value v` again), which is why the first disjunct
+stays `Reached`.
 
 ---
 

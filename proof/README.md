@@ -6,25 +6,26 @@ Core kernel. It is the machine-checked counterpart of the written argument in
 [`../docs/SOUNDNESS.md`](../docs/SOUNDNESS.md), whose §7 scopes exactly this
 development.
 
-> **Status: essentially complete.** The formalisation of the Core calculus and
-> the typing judgment is complete and compiles clean. The canonical-form
-> lemmas, the renaming and substitution lemmas, **Progress**,
-> **`Final`-preservation**, and **`preservation` (every case, including ι and
-> δ)** are all **proved**, and so are all three forms of the soundness
-> theorem: the **fuel-indexed `soundness-fuel`**, the **coinductive
-> `soundness-tree`**, and the **classical three-way `soundness`** (the latter
-> from the two named classical inputs `tree-decides` and
-> `never-reached→no-value`).
+> **Status: complete.** The formalisation of the Core calculus and the typing
+> judgment is complete and compiles clean. The canonical-form lemmas, the
+> renaming and substitution lemmas, **Progress**, **`Final`-preservation**,
+> and **`preservation` (every case, including ι and δ)** are all **proved**,
+> and so are the constructive soundness theorems: the **fuel-indexed
+> `soundness-fuel`** and the **coinductive `soundness-tree`**.
 >
-> **Correction.** The second of those inputs, `never-reached→no-value`, is
+> The classical statement is `soundness-nf` in `Proof/SoundnessConfluence.agda`
+> — the dichotomy **`Reached ⊎ DivergesNF`** over NORMAL FORMS, proved with
+> **zero postulates**. The whole development now rests on exactly **two**
+> axioms: `funext` (standard function extensionality) and `tree-decides`
+> (LPO on the outcome path).
+>
+> **Correction.** An earlier revision derived a classical three-way
+> `soundness` from a second input, `never-reached→no-value`. That input is
 > **FALSE** for the mechanised `_⇝_` (it reduces under binders, so
-> `tm-lam g d Ω` is a canonical `Value` that steps to itself forever). It is
-> retained only so the classical `soundness` still type-checks.
-> `Proof/SoundnessConfluence.agda` supplies the TRUE replacement over NORMAL
-> FORMS — `soundness-nf`, the dichotomy `Reached ⊎ DivergesNF`, proved with
-> **zero postulates** — leaving `tree-decides` (LPO) as the only classical
-> input there. The only remaining `postulate` besides `tree-decides` is
-> `funext` (the standard function-extensionality axiom).
+> `tm-lam g d Ω` is a canonical `Value` that steps to itself forever, and is
+> therefore both `NeverReached` and `Reached`). Both the postulate and the
+> theorem built on it have been **removed**; `soundness-nf` is the honest
+> replacement.
 > See [Status](#status) for the lemma-by-lemma breakdown.
 
 ## What is being proved
@@ -97,7 +98,7 @@ recommends.
 | `Proof.Progress` | `Final` Core; the four side conditions; `progress` | ✅ **proved** |
 | `Proof.Preservation` | `weaken`, `subst⇒`, `subst⇐`, `check-infer`, `preservation` | ✅ **fully proved** (all cases incl. β/ζ/ι/δ) |
 | `Proof.FinalPreservation` | `substS-final` (closure of `Final` under a final substitution); `final-preservation` | ✅ **proved** |
-| `Proof.Soundness` | `EvalResult`; `soundness-fuel` (constructive); `Diverges`/`EvalTree`/`soundness-tree` (coinductive); `soundness` (classical, from two named inputs) | ✅ **`soundness-fuel`, `soundness-tree`, and `soundness` all proved** |
+| `Proof.Soundness` | `EvalResult`; `soundness-fuel` (constructive); `Diverges`/`EvalTree`/`soundness-tree` (coinductive); `tree-decides` (the only classical input) | ✅ **`soundness-fuel` and `soundness-tree` proved**; the classical `soundness` and its false postulate were **removed** (see `Proof.SoundnessConfluence`) |
 | `Proof.Confluence` | Parallel reduction `⇉` (value-free); the substitution-commutation lemma `⇉-substS` (all cases), `p-rename`, the diamond `⇉-diamond`, and `confluence : _⇝_` | ✅ **complete** (`⇉-substS`, `⇉-diamond`, `confluence` all proved) |
 | `Proof.SoundnessConfluence` | `NormalForm`; `never-reached-not-nf` (the TRUE form of classical input 3, over normal forms); `DivergesNF` + `never-reached→divergesNF`; `soundness-nf` — the dichotomy `Reached ⊎ DivergesNF`, leaving `tree-decides` as the only classical input | ✅ **complete** (zero postulates; replaces the false `never-reached→no-value`) |
 
@@ -252,13 +253,14 @@ These are the `postulate`s, each with a named proof strategy in the source:
    by `ReduceConv` and `branches-conv`; δ by the `CertifiedTyped` hypothesis
    and `weaken-closed`; and ι by the `brs∷` field-telescope change (below).
    See [The `preservation` findings](#the-preservation-findings).
-6. **`soundness`** (`Proof/Soundness.agda`) — the type-safety induction
-   combining Progress and Preservation. **All three forms are PROVED**: the
-   **fuel-indexed `soundness-fuel`**, the **coinductive `soundness-tree`**,
-   and the **classical three-way `soundness`** (the latter from the two
-   precisely-named classical inputs `tree-decides` and
-   `never-reached→no-value`; see
-   [The `soundness` finding](#the-soundness-finding-resolved-by-fuel-indexing-and-coinduction)).
+6. **`soundness`** — the type-safety induction combining Progress and
+   Preservation. **Both constructive forms are PROVED**: the **fuel-indexed
+   `soundness-fuel`** and the **coinductive `soundness-tree`**
+   (`Proof/Soundness.agda`). The **classical** statement is
+   **`soundness-nf`** (`Proof/SoundnessConfluence.agda`), the dichotomy
+   `Reached ⊎ DivergesNF` over normal forms, resting only on `tree-decides`;
+   see
+   [The `soundness` finding](#the-soundness-finding-resolved-by-fuel-indexing-and-coinduction).
 ### The `progress` inputs
 
 The `progress` proof is not blocked on a design question — every input it
@@ -409,35 +411,33 @@ inter-derivable (`never-reached→diverges` / `diverges→never-reached`), and
 the fuel-indexed run is exactly the depth-`n` truncation of the tree
 (`soundness-fuel≡truncate`).
 
-**The classical statement** is the collapse of the tree into a `data`
-disjunction, and it is now a **THEOREM** derived from two precisely-named
-classical inputs (rather than one opaque `postulate`):
+**The classical statement** now lives in `Proof/SoundnessConfluence.agda` as
+`soundness-nf`, the dichotomy `Reached t T ⊎ DivergesNF t` over NORMAL FORMS.
+It rests on ONE classical input:
 
 - **`tree-decides`** — the outcome tree is finite or infinite. The tree is a
   PATH (each node has at most one child, because `progress` returns a specific
   reduct), so this is exactly the limited principle of omniscience (LPO) on
   that path — not constructive.
-- **`never-reached→no-value`** — a never-reaching tree has no reachable
-  value. **This is FALSE as stated** for the mechanised `_⇝_`, which reduces
-  UNDER BINDERS (`ξ-lam-body`): `Ω = (λx. x x) (λx. x x)` satisfies `Ω ⇝ Ω`,
-  so `tm-lam g d Ω` is a canonical `Value` that steps to itself (hence
-  `NeverReached`), yet `tm-lam g d Ω ⇝* tm-lam g d Ω` with
-  `Value (tm-lam g d Ω)`. Confluence (`Proof.Confluence.confluence`, now
-  PROVED) does not rescue it — the counterexample is a value stepping to
-  values forever. The statement holds only if "value" means a stuck-free
-  NORMAL FORM (a term that has finished evaluating), strictly stronger than
-  `Value` (canonical/neutral). See docs/CONFLUENCE.md for the full finding.
-  **REPAIRED:** `Proof/SoundnessConfluence.agda` states and proves the true
-  form over normal forms (`never-reached-not-nf`, `soundness-nf`), with zero
-  postulates. The false input is retained here only so the classical
-  `soundness` below still type-checks; prefer `soundness-nf`.
 
-With those, `soundness` is a theorem: a `Reached` node gives outcome (1)
-(`tree-reached→eval`); a `NeverReached` tree gives outcome (3)
-(`never-reached→diverges` + `never-reached→no-value`). The `raises` outcome
-(2) is the coverage guard, unreachable under `Covers` (so never produced).
-The "never stuck" corollary is `never-stuck` (= `progress⇐`): a well-typed
-final term is never stuck.
+**REMOVED — `never-reached→no-value`.** An earlier revision derived a
+classical three-way `soundness` here from a second input, a never-reaching
+tree has no reachable value. **That input is FALSE** for the mechanised
+`_⇝_`, which reduces UNDER BINDERS (`ξ-lam-body`): `Ω = (λx. x x) (λx. x x)`
+satisfies `Ω ⇝ Ω`, so `tm-lam g d Ω` is a canonical `Value` that steps to
+itself (hence `NeverReached`), yet `tm-lam g d Ω ⇝* tm-lam g d Ω` with
+`Value (tm-lam g d Ω)`. Confluence (`Proof.Confluence.confluence`, PROVED)
+does not rescue it — the counterexample is a value stepping to values
+forever. Both the postulate and the `soundness` built on it have been
+**deleted**; the true form over normal forms is `never-reached-not-nf` /
+`soundness-nf`. See docs/CONFLUENCE.md for the full finding.
+
+The constructive content is unchanged: a `Reached` node gives the first
+disjunct (`tree-reached→eval`), and a `NeverReached` tree gives positive
+divergence (`never-reached→diverges`). The `raises` outcome is the coverage
+guard, unreachable under `Covers` (so never produced). The "never stuck"
+corollary is `never-stuck` (= `progress⇐`): a well-typed final term is never
+stuck.
 
 ### `Final`-preservation (the new module `Proof.FinalPreservation`)
 

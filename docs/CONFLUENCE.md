@@ -189,6 +189,11 @@ replaces the false input by its true form, over NORMAL FORMS rather than
 - `soundness-nf` — the dichotomy `Reached ⊎ DivergesNF`, leaving
   `tree-decides` (LPO) as the ONLY classical input.
 
+**The false postulate has been DELETED** from `Proof/Soundness.agda`,
+together with the classical three-way `soundness` that depended on it. The
+development now rests on exactly two axioms: `funext` and `tree-decides`
+(`proof/scripts/check-postulates.sh` enforces this).
+
 **A second negative result, recorded in that module.** The tempting
 strengthening "reaches a NORMAL-FORM value, or diverges" is NOT provable
 from `soundness-tree`. A `Reached` leaf supplies only `Value v`, and
