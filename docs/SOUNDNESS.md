@@ -616,10 +616,25 @@ determined adversary should look first.
    dropping depends on `ctor_quantities` being available, so the tests build a
    real env rather than using `Env.empty()`.
 
-   Still evidence, not a proof: **δ (certified global unfolding) is not
-   covered**, and neither are the general congruence cases. A real proof would
-   need an Agda formalisation of `Erase` — the Agda tree has no `Erase`
-   module, so that is a new development rather than an extension.
+   - **δ — a NEGATIVE result, and the most substantive finding here.** δ does
+     NOT commute with erasure, and must not be expected to. Erasure drops an
+     argument when the *callee's signature* marks that position erased; after
+     δ the callee is gone (the head is the body), so those positions can no
+     longer be identified. Concretely: `certified_prim` takes two `:erased`
+     parameters, so erasing the CALL `certified_prim(cs)(es)` drops both and
+     yields `{:global, :certified_prim}`; but its body `prim` is NULLARY, so
+     erasing the UNFOLDED form treats the two arguments as over-application
+     and keeps them. Two tests pin this (`describe "erasure and
+     δ-reduction"`).
+     *Consequence for the argument:* erasure must run on the **unfolded**
+     Core — which is what the pipeline does — and "erasure commutes with δ"
+     is the **wrong property to prove**. The right one is that erasure is
+     applied once, after unfolding, so no δ step can invalidate it.
+
+   Still evidence, not a proof: the general congruence cases are not covered,
+   and the δ result above is a refutation rather than a commutation lemma. A
+   real proof would need an Agda formalisation of `Erase` — the Agda tree has
+   no `Erase` module, so that is a new development rather than an extension.
 
 4. **The effect fragment is inert.** `{:effect_type,_}` / `{:effect_pure,_}` /
    `{:effect_bind,_,_}` have zero reduction rules by design (§1.1), so they

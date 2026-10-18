@@ -133,10 +133,20 @@ NEXT STEPS (in order of value):
              application's argument; erase does NOT perform β or ι; and
              erased-field dropping needs `ctor_quantities`, so the tests build
              a real env (Env.empty() would keep all fields).
-             NOT COVERED: δ (certified global unfolding) and the general
-             congruence cases. A real proof needs an Agda formalisation of
-             `Erase` — the Agda tree has NO `Erase` module, so that is a new
-             development, not an extension.
+             δ: NEGATIVE RESULT (2 more tests, 16 total). δ does NOT commute
+             with erasure and must not be expected to: erasure drops an
+             argument based on the CALLEE's signature, and after δ the callee
+             is gone. Concretely `certified_prim` takes two :erased params, so
+             erasing the CALL drops both (-> {:global, :certified_prim}), but
+             its body `prim` is NULLARY, so erasing the UNFOLDED form treats
+             the args as over-application and keeps them.
+             CONSEQUENCE: erasure must run on the UNFOLDED core (which the
+             pipeline does); "erasure commutes with δ" is the WRONG property
+             to prove. The right one: erasure is applied once, after
+             unfolding, so no δ step can invalidate it.
+             NOT COVERED: the general congruence cases. A real proof needs an
+             Agda formalisation of `Erase` — the Agda tree has NO `Erase`
+             module, so that is a new development, not an extension.
 
         §8.4 effect fragment: unchanged (inert by design; a future monad law
              would need re-argument).

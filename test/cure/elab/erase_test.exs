@@ -295,4 +295,76 @@ defmodule Cure.Elab.EraseTest do
       assert erased_body == {:ctor, :prim, []}
     end
   end
+
+  # ---------------------------------------------------------------------
+  # §8.3 — δ (certified global unfolding) commutation.
+  #
+  # δ: `global f` reduces to `body(f)` once `f` is certified total. Erasure
+  # has NO clause for a bare `{:global, name}` — it falls through to the
+  # identity catch-all — so erasure never performs δ itself.
+  #
+  # FINDING (this is a negative result, not a commutation proof): δ does NOT
+  # commute with erasure in general, and it must not be expected to. Erasure
+  # drops an argument when the CALLEE's signature marks that position erased;
+  # after δ the callee's signature is gone (the head is the body), so the
+  # positions can no longer be identified. Here `certified_prim` takes two
+  # ERASED parameters, so erasing the call drops both; but its body `prim` is
+  # NULLARY, so erasing the unfolded form treats the two arguments as
+  # over-application and keeps them.
+  #
+  # The consequence for the soundness argument: erasure must run on the
+  # UNFOLDED Core (which is what the pipeline does), and "erasure commutes
+  # with δ" is the WRONG property to prove. The right one is that erasure is
+  # insensitive to δ only for globals whose arity matches their body's — or,
+  # more simply, that erasure is applied once, after all unfolding.
+  # ---------------------------------------------------------------------
+  describe "erasure and δ-reduction (§8.3)" do
+    test "a global call: erasure drops the callee's erased args, δ destroys that information" do
+      env = build_env()
+
+      # `certified_prim` takes two ERASED parameters and returns a prim.
+      body = {:ctor, :prim, [{:ctor, :SVNil, []}, {:ctor, :SVNil, []}]}
+
+      env =
+        Env.add_def(
+          env,
+          :certified_prim,
+          {:pi, Grade.unrestricted(), {:data, :Sig, [], []},
+           {:pi, Grade.unrestricted(), {:data, :Sig, [], []}, {:data, :SF, [], []}}},
+          body,
+          [:erased, :erased]
+        )
+
+      # `certified_prim(cs, es)` — both arguments occupy erased positions.
+      call = {:app, {:app, {:global, :certified_prim}, {:ctor, :CSig, []}}, {:ctor, :ESig, []}}
+
+      # Erase the CALL (the global is not unfolded).
+      erased_call = Erase.erase(env, call)
+      # Erase the same call after δ has replaced the head with the body.
+      unfolded = {:app, {:app, body, {:ctor, :CSig, []}}, {:ctor, :ESig, []}}
+      erased_unfolded = Erase.erase(env, unfolded)
+
+      # Erasing the CALL drops both erased arguments, leaving the bare global.
+      assert erased_call == {:global, :certified_prim}
+
+      # Erasing the UNFOLDED form is different, and correctly so: `prim` is
+      # NULLARY, so `prim(cs)(es)` is an over-application — the two arguments
+      # apply to the RESULT and are always kept. δ therefore does not commute
+      # with erasure here, which is exactly why erasure must run on the
+      # UNFOLDED core: the erased-argument positions are a property of the
+      # callee's signature, and after δ that signature is gone.
+      assert erased_unfolded ==
+               {:app, {:app, {:ctor, :prim, []}, {:ctor, :CSig, []}}, {:ctor, :ESig, []}}
+    end
+
+    test "erasure does NOT unfold a bare global (δ stays a runtime reference)" do
+      env = build_env()
+      body = {:ctor, :prim, [{:ctor, :SVNil, []}, {:ctor, :SVNil, []}]}
+      env = Env.add_def(env, :certified_prim2, {:data, :SF, [], []}, body, [])
+
+      # Pins the behaviour the test above depends on: erase leaves a bare
+      # global alone rather than substituting its body.
+      assert Erase.erase(env, {:global, :certified_prim2}) == {:global, :certified_prim2}
+    end
+  end
 end
