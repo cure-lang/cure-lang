@@ -62,8 +62,40 @@ NEXT STEPS (in order of value):
   (a) `tree-decides` remains LPO on the outcome path. The fuel-indexed and
       coinductive forms are the constructive deliverables; no constructive
       replacement for LPO itself is expected. This is the only remaining
-      classical input, and it is deliberate.
-  (b) The other open items from docs/SOUNDNESS.md §8: erasure commutes with
-      reduction (§8.3); η / proof irrelevance; the NbE evaluator refines the
-      reduction relation.
+      classical input, and it is deliberate. NOT ACTIONABLE — leave it.
+  (b) docs/SOUNDNESS.md §8 items — STATUS after this slice:
+        §8.3 erasure commutes with reduction: PARTIAL EVIDENCE ADDED.
+             `test/cure/elab/erase_test.exs` now has a
+             "erasure commutes with β-reduction (§8.3)" describe block (3
+             tests, all green) asserting
+                 erase(instantiate(body,[arg]))
+                   == instantiate(erase(body),[erase(arg)])
+             on three shapes, computing both sides independently. Running
+             them pinned two facts: `erase` RECURSES into an application's
+             argument, and `erase` does NOT perform β (it preserves the
+             `{:app, {:lam, …}}` shape). Still NOT a proof: β only, and only
+             the shapes the tests build. ζ/ι/δ and the general congruence
+             cases are open. A real proof needs an Agda formalisation of
+             `Erase` — the Agda tree has NO `Erase` module (erasure lives
+             only in `lib/cure/elab/erase.ex`), so that is a new
+             development, not an extension.
+        §8.5 η / proof irrelevance: CHARACTERISED, NOT CLOSED.
+             The kernel's `Conv.conv_struct?/4` DOES perform η (`eta_eq?/4`,
+             λ-vs-non-λ and λ-vs-λ with grade equality). The mechanised
+             `Conversion` record in proof/Core/Typing.agda has NO η field.
+             This is a SCOPE LIMIT, not a soundness gap: η only makes
+             conversion coarser, and no proof obligation uses it (verified by
+             inspecting every `Conversion.≈-*` use site). The theorems hold
+             for a SUBSET of the kernel's conversion, so anything proved safe
+             here is safe under the kernel's. The converse does not follow.
+             Both facts are now recorded in the `Conversion` record's header
+             and in docs/SOUNDNESS.md §8.5. Proof irrelevance remains
+             unmodelled.
+        §8.4 effect fragment: unchanged (inert by design; a future monad law
+             would need re-argument).
+  (c) The NbE evaluator refines the reduction relation (docs/SOUNDNESS.md
+      §8, the "operational refinement" obligation). NOT STARTED — this is the
+      largest remaining item: the development formalises the reduction
+      RELATION (the spec), not the kernel's `Eval` function.
+
 
