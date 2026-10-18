@@ -530,6 +530,39 @@ determined adversary should look first.
 2. **Certificate generation is sound.** §5.3(2): the SCC closure in
    `Cure.Elab.TotalityGraph` is outside the TCB. A bug there is invisible to the
    kernel. This is the highest-value item to audit or move into the TCB.
+   *Audited (this slice) — the design does NOT trust the proposer, and the
+   verifier is tested against forged partitions.* Findings:
+   - `TotalityGraph.propose_partition/2` is explicitly untrusted: it only
+     *proposes* an SCC partition plus witnesses. `Kernel.validate_scc_certificates/4`
+     first calls `SCCCertificate.verify_partition/2`, which **re-derives the
+     edge set from the environment** (`Env.direct_call_summary`) rather than
+     trusting `certificate.edges` — so a proposer cannot hide a call edge
+     (`:direct_edges_mismatch`).
+   - The verifier independently enforces: universe/domain agreement, no
+     duplicate or missing members, canonical component ids, a strict
+     topological rank (`:rank_not_decreasing`), and spanning forward+reverse
+     trees inside each component (`:tree_edge_count`, `:tree_not_spanning`).
+     A shrunken universe is caught with the omitted callee and a verified
+     path (`:totality_scc_incomplete`, e.g. `verified_path: [:a, :b]`).
+   - **The SCC-splitting attack is closed by the rank check.** Splitting a
+     genuine cycle `a -> b -> a` into singleton components would make each
+     look trivially terminating. Ranks must be a permutation of `0..n-1`
+     (`:rank_not_total`), and every inter-component edge must be strictly
+     rank-decreasing — which no distinct rank assignment can satisfy for a
+     2-cycle, in either orientation. So the verifier re-derives mutual
+     reachability from the edges alone. Verified for both `%{a: 0, b: 1}`
+     and `%{a: 1, b: 0}`.
+   - New tests: `test/cure/core/scc_certificate_tamper_test.exs` (6 tests)
+     forge partitions directly, bypassing `TotalityGraph`, and assert each is
+     rejected **for the intended reason** (not merely "some error"), so the
+     tests cannot pass vacuously. The existing
+     `totality_certificate_property_test.exs` covered only the honest path.
+   - **Residual assumption (unchanged, and still outside the TCB):** the
+     verifier checks the PARTITION, not the size-change MATRICES inside each
+     component's totality certificate. That a certified component actually
+     terminates is still the `Certified` hypothesis the Agda development
+     carries. So §8.2 is *narrowed*, not closed: SCC discovery is now
+     verifier-checked, matrix soundness is not.
 3. **`Erase.erase` preserves the operational semantics.** Erasure is assumed to
    drop only `:erased`-graded binders, which the relevance check enforces — but
    the argument here does not prove erasure commutes with reduction.

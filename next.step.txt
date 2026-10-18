@@ -64,6 +64,27 @@ NEXT STEPS (in order of value):
       replacement for LPO itself is expected. This is the only remaining
       classical input, and it is deliberate. NOT ACTIONABLE — leave it.
   (b) docs/SOUNDNESS.md §8 items — STATUS after this slice:
+        §8.2 certificate generation: NARROWED, NOT CLOSED.
+             `TotalityGraph.propose_partition/2` is untrusted by design;
+             `Kernel.validate_scc_certificates/4` calls
+             `SCCCertificate.verify_partition/2`, which RE-DERIVES the edge
+             set from the environment instead of trusting the proposal. The
+             verifier enforces universe/domain agreement, canonical component
+             ids, a strict topological rank, and spanning forward+reverse
+             trees. The SCC-SPLITTING attack (split `a -> b -> a` into
+             singletons so each looks terminating) is closed by the rank
+             check: ranks must be a permutation of 0..n-1 AND every
+             inter-component edge strictly decreasing, which no distinct
+             assignment satisfies for a 2-cycle in either orientation.
+             New: test/cure/core/scc_certificate_tamper_test.exs (6 tests)
+             forges partitions directly and asserts each is rejected FOR THE
+             INTENDED REASON. The prior property test covered only the honest
+             path.
+             RESIDUAL: the verifier checks the PARTITION, not the size-change
+             MATRICES in each component's certificate. That a certified
+             component terminates is still the `Certified` hypothesis the
+             Agda development carries. Closing it means verifying the
+             matrix/size-change checker — the next substantive step here.
         §8.1 hole firewall: AUDITED, AUDIT'S "RUNNING HOLE" NOT REPRODUCED.
              Both `Emit` entry points guard with `reject_holes`;
              `LiftModule.emit/1` routes through `Emit.compile_forms/3`, so
