@@ -117,16 +117,26 @@ NEXT STEPS (in order of value):
              itself — the `Certified` hypothesis the Agda development
              carries.
 
-        §8.3 erasure commutes with reduction: PARTIAL EVIDENCE.
-             `test/cure/elab/erase_test.exs` has a
-             "erasure commutes with β-reduction (§8.3)" block asserting
-                 erase(instantiate(body,[arg]))
-                   == instantiate(erase(body),[erase(arg)])
-             on three shapes, computing both sides independently. Running
-             them pinned two facts: `erase` RECURSES into an application's
-             argument, and `erase` does NOT perform β (it preserves the
-             `{:app, {:lam, …}}` shape). β only; ζ/ι/δ and the general
-             congruence cases remain unproved.
+        §8.3 erasure commutes with reduction: PARTIAL EVIDENCE (β, ζ, ι).
+             test/cure/elab/erase_test.exs asserts
+                 erase(reduce(redex)) == reduce(erase(redex))
+             with both sides computed independently, on:
+               * β (3 tests): erased arg, present arg via identity body,
+                 nested redex;
+               * ζ (2 tests): the administrative identity `let x = v in x`
+                 (erasure collapses it to erase(v)), and a non-identity let
+                 whose binder erasure KEEPS;
+               * ι (2 tests): case on a nullary ctor, plus a test pinning that
+                 erase does NOT perform ι — it keeps a `:runtime` case and
+                 erases only inside it (only a COLLAPSIBLE case is dropped).
+             Three facts pinned by running them: erase RECURSES into an
+             application's argument; erase does NOT perform β or ι; and
+             erased-field dropping needs `ctor_quantities`, so the tests build
+             a real env (Env.empty() would keep all fields).
+             NOT COVERED: δ (certified global unfolding) and the general
+             congruence cases. A real proof needs an Agda formalisation of
+             `Erase` — the Agda tree has NO `Erase` module, so that is a new
+             development, not an extension.
 
         §8.4 effect fragment: unchanged (inert by design; a future monad law
              would need re-argument).

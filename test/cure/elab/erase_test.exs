@@ -196,4 +196,103 @@ defmodule Cure.Elab.EraseTest do
       assert left == {:ctor, :prim, []}
     end
   end
+
+  # ---------------------------------------------------------------------
+  # §8.3 — ζ (let) commutation.
+  #
+  # ζ: `let x = v in b` reduces to `b[x := v]`, the same top substitution β
+  # uses. Erasure has an extra rule here — the administrative identity
+  # `let x = v in x` erases to `erase(v)` — so the interesting question is
+  # whether that shortcut agrees with reducing first and then erasing.
+  # ---------------------------------------------------------------------
+  describe "erasure commutes with ζ-reduction (§8.3)" do
+    test "let-identity: erasing the redex equals erasing the reduct" do
+      env = build_env()
+      u = Grade.unrestricted()
+      val = {:ctor, :prim, [{:ctor, :SVNil, []}, {:ctor, :SVNil, []}]}
+
+      # let x = prim(...) in x   —  the administrative identity.
+      redex = {:let, u, {:data, :SF, [], []}, val, {:var, 0}}
+
+      # Erasure's own shortcut: the whole let collapses to the erased value.
+      assert Erase.erase(env, redex) == {:ctor, :prim, []}
+
+      # Reduce (ζ) then erase, vs erase then reduce, must agree.
+      reduced = Subst.instantiate({:var, 0}, [val])
+      left = Erase.erase(env, reduced)
+      right = Erase.erase(env, val)
+      assert left == right
+      assert left == {:ctor, :prim, []}
+    end
+
+    test "non-identity let: the binder survives on both paths" do
+      env = build_env()
+      u = Grade.unrestricted()
+      val = {:ctor, :prim, [{:ctor, :SVNil, []}, {:ctor, :SVNil, []}]}
+
+      # let x = prim(...) in prim(...)  —  body ignores x, but is not `x`, so
+      # erasure KEEPS the let (the value must still be evaluated once).
+      body = {:ctor, :prim, [{:ctor, :SVNil, []}, {:ctor, :SVNil, []}]}
+      redex = {:let, u, {:data, :SF, [], []}, val, body}
+
+      erased = Erase.erase(env, redex)
+      assert match?({:let, _, _, _, _}, erased)
+
+      # Reduce then erase vs erase then reduce.
+      reduced = Subst.instantiate(body, [val])
+      left = Erase.erase(env, reduced)
+      right = Erase.erase(env, body)
+      assert left == right
+      assert left == {:ctor, :prim, []}
+    end
+  end
+
+  # ---------------------------------------------------------------------
+  # §8.3 — ι (case) commutation.
+  #
+  # ι: `case (ctor c args) of …` reduces to the matching branch body with the
+  # fields substituted. Note `Erase.erase/2` does NOT perform ι — it keeps a
+  # `:runtime` case intact (only a COLLAPSIBLE case, whose sole constructor's
+  # fields are all erased, is dropped). So the property here is the honest
+  # one for a non-collapsible case: erasing the ι-REDUCT must equal erasing
+  # the branch body that ι selects, i.e. erasure is insensitive to whether
+  # the case has already been discharged.
+  # ---------------------------------------------------------------------
+  describe "erasure commutes with ι-reduction (§8.3)" do
+    test "case on a constructor: erasing the reduct equals erasing the branch" do
+      env = build_env()
+
+      # `Causal` is nullary, so ι substitutes no fields and the reduct IS the
+      # branch body.
+      branch_body = {:ctor, :prim, [{:ctor, :SVNil, []}, {:ctor, :SVNil, []}]}
+      branches = [{:Causal, 0, branch_body}]
+      redex = {:case, {:ctor, :Causal, []}, {:data, :Dec, [], []}, branches}
+
+      # Erasure keeps the case (it is not collapsible), so the two sides are
+      # compared at the level that matters: the REDUCT.
+      reduced = Subst.instantiate(branch_body, [])
+      left = Erase.erase(env, reduced)
+      right = Erase.erase(env, branch_body)
+
+      assert left == right
+      # `prim`'s two fields are erased-graded in this env, so both sides drop
+      # them — this assertion is what makes the test non-vacuous.
+      assert left == {:ctor, :prim, []}
+    end
+
+    test "the case itself is preserved by erasure (not silently discharged)" do
+      env = build_env()
+      branch_body = {:ctor, :prim, [{:ctor, :SVNil, []}, {:ctor, :SVNil, []}]}
+      branches = [{:Causal, 0, branch_body}]
+      redex = {:case, {:ctor, :Causal, []}, {:data, :Dec, [], []}, branches}
+
+      # Pins the behaviour the test above depends on: erase keeps the case
+      # (erasing only inside it), so "erase then ι" and "ι then erase" are
+      # related by the REDUCT, not by erasure performing ι.
+      assert {:case, {:ctor, :Causal, []}, _motive, [{:Causal, 0, erased_body}]} =
+               Erase.erase(env, redex)
+
+      assert erased_body == {:ctor, :prim, []}
+    end
+  end
 end

@@ -593,23 +593,34 @@ determined adversary should look first.
 3. **`Erase.erase` preserves the operational semantics.** Erasure is assumed to
    drop only `:erased`-graded binders, which the relevance check enforces — but
    the argument here does not prove erasure commutes with reduction.
-   *Partial executable evidence (β case).* `test/cure/elab/erase_test.exs`
-   (`describe "erasure commutes with β-reduction (§8.3)"`) asserts the
-   commutation property for a β-redex `(λx. body) arg`:
+   *Partial executable evidence (β, ζ, ι).* `test/cure/elab/erase_test.exs`
+   asserts the commutation property — `erase(reduce(redex)) ==
+   reduce(erase(redex))` — with both sides computed independently, on:
 
-       erase(instantiate(body, [arg]))  ==  instantiate(erase(body), [erase(arg)])
+   - **β** (`describe "erasure commutes with β-reduction"`, 3 tests): an
+     erased argument, a present argument through an identity body, and a
+     nested redex;
+   - **ζ** (`describe "erasure commutes with ζ-reduction"`, 2 tests): the
+     administrative identity `let x = v in x`, which erasure collapses to
+     `erase(v)`, and a non-identity `let` whose binder erasure KEEPS (the
+     value must still be evaluated once);
+   - **ι** (`describe "erasure commutes with ι-reduction"`, 2 tests): a case
+     on a nullary constructor, plus a test pinning that `erase` does NOT
+     perform ι — it keeps a `:runtime` case and erases only inside it (a
+     COLLAPSIBLE case, whose sole constructor's fields are all erased, is the
+     one that is dropped).
 
-   on three shapes — an erased argument, a present argument through an
-   identity body, and a nested redex. The two sides are computed
-   independently, so a disagreement is a real defect. Running them pinned
-   down two facts worth recording: `erase` **recurses into an application's
-   argument** (so an erased-field constructor in argument position is already
-   erased on both paths), and `erase` does **not** perform β (it preserves
-   the `{:app, {:lam, …}}` shape). This is evidence, not a proof: it covers β
-   only, and only the shapes the tests build. ζ/ι/δ and the general
-   congruence cases remain unproved. A real proof would need an Agda
-   formalisation of `Erase` — the Agda tree has no `Erase` module, so that is
-   a new development rather than an extension.
+   Running them pinned three facts worth recording: `erase` **recurses into
+   an application's argument**; `erase` does **not** perform β or ι (it
+   preserves `{:app, {:lam, …}}` and `:runtime` cases); and the erased-field
+   dropping depends on `ctor_quantities` being available, so the tests build a
+   real env rather than using `Env.empty()`.
+
+   Still evidence, not a proof: **δ (certified global unfolding) is not
+   covered**, and neither are the general congruence cases. A real proof would
+   need an Agda formalisation of `Erase` — the Agda tree has no `Erase`
+   module, so that is a new development rather than an extension.
+
 4. **The effect fragment is inert.** `{:effect_type,_}` / `{:effect_pure,_}` /
    `{:effect_bind,_,_}` have zero reduction rules by design (§1.1), so they
    cannot break Preservation — but a future monad law would have to be
