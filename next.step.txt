@@ -64,6 +64,23 @@ NEXT STEPS (in order of value):
       replacement for LPO itself is expected. This is the only remaining
       classical input, and it is deliberate. NOT ACTIONABLE — leave it.
   (b) docs/SOUNDNESS.md §8 items — STATUS after this slice:
+        §8.1 hole firewall: AUDITED, AUDIT'S "RUNNING HOLE" NOT REPRODUCED.
+             Both `Emit` entry points guard with `reject_holes`;
+             `LiftModule.emit/1` routes through `Emit.compile_forms/3`, so
+             the lifted path is guarded too. A hole in an ordinary def is
+             refused (E014). A hole in an actor handler body is ALSO refused,
+             but EARLIER — macro expansion rejects it with
+             `{:unsupported_syntax_core, …}`, because a `?hole` is not
+             representable as macro-input syntax.
+             IMPORTANT CAVEAT: actor/sup modules emit NO functions at all
+             through the canonical pipeline (a HOLE-FREE actor compiles to a
+             .beam exporting only module_info/0,1, while a plain module in
+             the same pipeline exports its functions). So the hole question
+             is MASKED for actors — nothing ships, hole or not. That is a
+             separate pre-existing EMISSION GAP, not a soundness hole.
+             The §8.1 regression test was deliberately NOT added: it would
+             pass for the wrong reason until actor emission works.
+             NEXT: fix actor emission, then add the test.
         §8.3 erasure commutes with reduction: PARTIAL EVIDENCE ADDED.
              `test/cure/elab/erase_test.exs` now has a
              "erasure commutes with β-reduction (§8.3)" describe block (3

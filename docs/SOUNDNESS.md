@@ -504,6 +504,29 @@ determined adversary should look first.
    inspection that no emission path bypasses `Emit.reject_holes/2`, and add a
    regression test asserting `cure compile` fails on a reachable `?goal` (the
    audit's §5.2 recommendation).
+   *Audited (this slice) — the firewall holds where code is actually emitted,
+   but the audit's "running hole" could not be reproduced.* Findings:
+   - Both `Emit` entry points guard: `compile_and_load/2` and
+     `compile_forms/3,5` each run `validate_emission_closure` then
+     `reject_holes` before any forms are built. `LiftModule.emit/1` routes
+     through `Emit.compile_forms/3`, so the lifted path is guarded too.
+   - A hole in an ordinary definition is refused: `pub fn probe(x: Int) ->
+     Int = ?probe` fails with **E014 / unfilled_hole**.
+   - A hole in an `actor` handler body (`?handler_hole` inside `handle_cast`)
+     is ALSO refused — but earlier and for a different reason: macro expansion
+     rejects it with `{:unsupported_syntax_core, …}`, because a `?hole` cannot
+     be represented as macro-input syntax. So it never reaches emission.
+   - **Caveat, and why this is not a clean bill of health:** `actor`/`sup`
+     modules emit NO functions at all through the canonical pipeline — a
+     hole-free actor compiles to a `.beam` exporting only `module_info/0,1`,
+     while a plain module in the same pipeline exports its functions. So the
+     hole question is currently MASKED for actors: nothing ships, hole or not.
+     That is a separate, pre-existing emission gap (not a soundness hole, and
+     not this item), but it means "actors don't ship holes" is true only
+     because "actors don't ship". A regression test asserting `cure compile`
+     fails on a reachable `?goal` in an actor would currently pass for the
+     wrong reason, so none was added; the honest test needs actor emission to
+     work first.
 2. **Certificate generation is sound.** §5.3(2): the SCC closure in
    `Cure.Elab.TotalityGraph` is outside the TCB. A bug there is invisible to the
    kernel. This is the highest-value item to audit or move into the TCB.
