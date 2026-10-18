@@ -117,8 +117,9 @@ NEXT STEPS (in order of value):
              itself — the `Certified` hypothesis the Agda development
              carries.
 
-        §8.3 erasure commutes with reduction: PARTIAL EVIDENCE (β, ζ, ι).
-             test/cure/elab/erase_test.exs asserts
+        §8.3 erasure commutes with reduction: PARTIAL EVIDENCE (β, ζ, ι, δ,
+             congruence) — 20 tests in test/cure/elab/erase_test.exs.
+             It asserts
                  erase(reduce(redex)) == reduce(erase(redex))
              with both sides computed independently, on:
                * β (3 tests): erased arg, present arg via identity body,
