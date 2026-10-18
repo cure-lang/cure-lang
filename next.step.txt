@@ -64,6 +64,28 @@ NEXT STEPS (in order of value):
       replacement for LPO itself is expected. This is the only remaining
       classical input, and it is deliberate. NOT ACTIONABLE — leave it.
   (b) docs/SOUNDNESS.md §8 items — STATUS after this slice:
+        §8.1 hole firewall: CLOSED.
+             Both `Emit` entry points guard with `reject_holes`;
+             `LiftModule.emit/1` routes through `Emit.compile_forms/3`, so
+             the lifted path is guarded too. Verified end-to-end:
+               * ordinary definition with a hole -> {:codegen_error,
+                 {:unfilled_hole, ...}} (E014);
+               * ACTOR handler body with a hole -> {:lift_module_error,
+                 %{cause: {:unfilled_hole, details}}} carrying the exact
+                 source span. (An earlier revision said actor holes were
+                 caught by macro expansion instead; that was wrong — it came
+                 from a malformed probe.)
+             Regression tests ADDED (test/cure/elab/emit_hole_firewall_test.exs,
+             3 new / 7 total green): ordinary refusal; actor-body refusal
+             asserting the :lift_module_error -> :unfilled_hole chain and the
+             span; and a CONTROL that a hole-free actor still compiles and
+             emits callable functions (handle_cast/2 -> {:noreply, 7}).
+             RETRACTED: the earlier "actor/sup modules emit NO functions"
+             claim was a false positive from inspecting a stale .beam —
+             `compile_and_load/2` does not persist bytecode, it only calls
+             `:code.load_binary`. Verify through the load path, never by
+             reading files on disk.
+
         §8.2 certificate generation: NARROWED, NOT CLOSED.
              `TotalityGraph.propose_partition/2` is untrusted by design;
              `Kernel.validate_scc_certificates/4` calls
@@ -80,61 +102,35 @@ NEXT STEPS (in order of value):
              forges partitions directly and asserts each is rejected FOR THE
              INTENDED REASON. The prior property test covered only the honest
              path.
-             RESIDUAL: NOT the matrices — an earlier revision of this file
-             wrongly said the size-change matrices were assumed.
+             RESIDUAL: NOT the matrices — an earlier revision wrongly said
+             the size-change matrices were assumed.
              `Cure.Core.TotalityCertificate.verify/3` IS a trusted verifier:
              it derives expected base matrices from
              `Env.direct_call_summary` (independent of the candidate), replays
              every `{:compose, l, r}` derivation by recomputing
              `SizeChange.compose_edges` and requiring `same_edge?`, rejects
-             cyclic derivations, and checks saturation (every composable pair
-             must have its composite present). It then requires an idempotent
-             edge with a smaller diagonal per recursive component.
+             cyclic derivations, and checks saturation. It then requires an
+             idempotent edge with a smaller diagonal per recursive component.
              The REAL residual is the TERMINATION THEOREM: the verifier
              establishes "saturated closure with a smaller diagonal"; that
              such a closure implies termination is the size-change principle
              itself — the `Certified` hypothesis the Agda development
-             carries. So §8.2 is narrowed to: SCC discovery, matrix
-             composition and saturation are all verifier-checked; the
-             size-change PRINCIPLE remains an assumed theorem.
-        §8.1 hole firewall: AUDITED, AUDIT'S "RUNNING HOLE" NOT REPRODUCED.
-             Both `Emit` entry points guard with `reject_holes`;
-             `LiftModule.emit/1` routes through `Emit.compile_forms/3`, so
-             the lifted path is guarded too. A hole in an ordinary def is
-             refused (E014). A hole in an actor handler body is ALSO refused,
-             but EARLIER — macro expansion rejects it with
-             `{:unsupported_syntax_core, …}`, because a `?hole` is not
-             representable as macro-input syntax.
-             RETRACTED: an earlier revision of this file claimed actor/sup
-             modules emit NO functions (empty .beam exporting only
-             module_info/0,1) and called it an "emission gap". THAT WAS
-             WRONG. `Compiler.compile_and_load/2` deliberately does not
-             persist bytecode — it only loads into the VM via
-             `:code.load_binary` — so the .beam files under
-             `_build/…/.cure_generations/` are unrelated artifacts and say
-             nothing about what was emitted. Actor emission WORKS:
-             `test/cure/compiler/actor_family_raw_test.exs` calls the emitted
-             handle_cast/2, init/1, start_link/1 and drives a real gen_server
-             (5 tests, green). Lesson: verify via the load path, not by
-             inspecting files on disk.
-             The §8.1 regression test is still unwritten, for the ordinary
-             reason (needs a fixture on the canonical pipeline), not because
-             emission is broken.
-        §8.3 erasure commutes with reduction: PARTIAL EVIDENCE ADDED.
-             `test/cure/elab/erase_test.exs` now has a
-             "erasure commutes with β-reduction (§8.3)" describe block (3
-             tests, all green) asserting
+             carries.
+
+        §8.3 erasure commutes with reduction: PARTIAL EVIDENCE.
+             `test/cure/elab/erase_test.exs` has a
+             "erasure commutes with β-reduction (§8.3)" block asserting
                  erase(instantiate(body,[arg]))
                    == instantiate(erase(body),[erase(arg)])
              on three shapes, computing both sides independently. Running
              them pinned two facts: `erase` RECURSES into an application's
              argument, and `erase` does NOT perform β (it preserves the
-             `{:app, {:lam, …}}` shape). Still NOT a proof: β only, and only
-             the shapes the tests build. ζ/ι/δ and the general congruence
-             cases are open. A real proof needs an Agda formalisation of
-             `Erase` — the Agda tree has NO `Erase` module (erasure lives
-             only in `lib/cure/elab/erase.ex`), so that is a new
-             development, not an extension.
+             `{:app, {:lam, …}}` shape). β only; ζ/ι/δ and the general
+             congruence cases remain unproved.
+
+        §8.4 effect fragment: unchanged (inert by design; a future monad law
+             would need re-argument).
+
         §8.5 η / proof irrelevance: CHARACTERISED, NOT CLOSED.
              The kernel's `Conv.conv_struct?/4` DOES perform η (`eta_eq?/4`,
              λ-vs-non-λ and λ-vs-λ with grade equality). The mechanised
@@ -142,13 +138,9 @@ NEXT STEPS (in order of value):
              This is a SCOPE LIMIT, not a soundness gap: η only makes
              conversion coarser, and no proof obligation uses it (verified by
              inspecting every `Conversion.≈-*` use site). The theorems hold
-             for a SUBSET of the kernel's conversion, so anything proved safe
-             here is safe under the kernel's. The converse does not follow.
-             Both facts are now recorded in the `Conversion` record's header
-             and in docs/SOUNDNESS.md §8.5. Proof irrelevance remains
-             unmodelled.
-        §8.4 effect fragment: unchanged (inert by design; a future monad law
-             would need re-argument).
+             for a SUBSET of the kernel's conversion. Proof irrelevance
+             remains unmodelled.
+
   (c) The NbE evaluator refines the reduction relation (docs/SOUNDNESS.md
       §8, the "operational refinement" obligation). NOT STARTED — this is the
       largest remaining item: the development formalises the reduction

@@ -512,11 +512,23 @@ determined adversary should look first.
      through `Emit.compile_forms/3`, so the lifted (macro-generated) path is
      guarded too.
    - A hole in an ordinary definition is refused: `pub fn probe(x: Int) ->
-     Int = ?probe` fails with **E014 / unfilled_hole**.
-   - A hole in an `actor` handler body (`?handler_hole` inside `handle_cast`)
-     is ALSO refused — but earlier and for a different reason: macro expansion
-     rejects it with `{:unsupported_syntax_core, …}`, because a `?hole` cannot
-     be represented as macro-input syntax. So it never reaches emission.
+     Int = ?probe` fails with **E014 / unfilled_hole**
+     (`{:codegen_error, {:unfilled_hole, …}}`).
+   - A hole in an `actor` handler body is refused **by the same firewall**,
+     reached through the lifted path: `LiftModule.emit/1` →
+     `Emit.compile_forms/3` → `reject_holes`, surfacing as
+     `{:lift_module_error, %{cause: {:unfilled_hole, details}}}` with the
+     exact source span of the hole. (An earlier revision of this note said
+     actor-body holes were caught only by macro expansion; that was wrong —
+     it came from a malformed probe whose body failed for an unrelated
+     reason.)
+   - **Regression tests added** (`test/cure/elab/emit_hole_firewall_test.exs`,
+     3 new tests, 7 total green): the ordinary-definition refusal end-to-end
+     through the real compiler; the actor-body refusal asserting the
+     `:lift_module_error` → `:unfilled_hole` chain and the hole's source
+     span; and a CONTROL asserting a hole-free actor still compiles and
+     emits callable functions (`handle_cast/2` returns `{:noreply, 7}`), so
+     the refusal cannot be an artifact of broken emission.
    - **A retracted claim, recorded so it is not re-derived:** an earlier
      revision of this note asserted that `actor`/`sup` modules emit NO
      functions at all, based on finding a `.beam` in
@@ -525,12 +537,10 @@ determined adversary should look first.
      persist bytecode — it only loads into the VM
      (`compile_and_load_units/2` calls `:code.load_binary`). The `.beam` files
      on disk are unrelated artifacts, so inspecting them says nothing about
-     what was emitted. Actor emission works: `test/cure/compiler/
-     actor_family_raw_test.exs` calls the emitted `handle_cast/2`, `init/1`,
-     `start_link/1` and drives a real `:gen_server` (5 tests, green).
-   - Consequently the §8.1 regression test is still NOT written, but for the
-     ordinary reason (it needs a fixture on the canonical pipeline), not
-     because emission is broken.
+     what was emitted. Actor emission works:
+     `test/cure/compiler/actor_family_raw_test.exs` calls the emitted
+     `handle_cast/2`, `init/1`, `start_link/1` and drives a real
+     `:gen_server` (5 tests, green).
 2. **Certificate generation is sound.** §5.3(2): the SCC closure in
    `Cure.Elab.TotalityGraph` is outside the TCB. A bug there is invisible to the
    kernel. This is the highest-value item to audit or move into the TCB.
