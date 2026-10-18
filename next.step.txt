@@ -144,9 +144,16 @@ NEXT STEPS (in order of value):
              pipeline does); "erasure commutes with δ" is the WRONG property
              to prove. The right one: erasure is applied once, after
              unfolding, so no δ step can invalidate it.
-             NOT COVERED: the general congruence cases. A real proof needs an
-             Agda formalisation of `Erase` — the Agda tree has NO `Erase`
-             module, so that is a new development, not an extension.
+             CONGRUENCE CASES (4 more tests, 20 total): asserts the
+             HOMOMORPHISM property directly — reducing a subterm then erasing
+             equals erasing the whole term then reducing the corresponding
+             erased subterm — for app (argument), lam (body), data (spine
+             element) and effect_bind (effect). Covers every ξ-rule at once.
+             Note erase performs NO reduction, so the erased subterm is still
+             a redex (verified by the non-vacuous assertions).
+             NOT MECHANISED. A real proof needs an Agda formalisation of
+             `Erase` — the Agda tree has NO `Erase` module, so that is a new
+             development, not an extension.
 
         §8.4 effect fragment: unchanged (inert by design; a future monad law
              would need re-argument).

@@ -631,10 +631,19 @@ determined adversary should look first.
      is the **wrong property to prove**. The right one is that erasure is
      applied once, after unfolding, so no δ step can invalidate it.
 
-   Still evidence, not a proof: the general congruence cases are not covered,
-   and the δ result above is a refutation rather than a commutation lemma. A
-   real proof would need an Agda formalisation of `Erase` — the Agda tree has
-   no `Erase` module, so that is a new development rather than an extension.
+   - **Congruence cases** (`describe "erasure is a homomorphism over the term
+     formers"`, 4 tests): the ξ-rules reduce a SUBTERM, and erasure recurses
+     structurally into exactly those positions. The tests assert the
+     homomorphism property directly — reducing a subterm then erasing equals
+     erasing the whole term then reducing the corresponding erased subterm —
+     for `app` (argument position), `lam` (body), `data` (spine element), and
+     `effect_bind` (effect position). This covers every ξ-rule at once rather
+     than one redex at a time.
+
+   Still evidence, not a proof: the δ result above is a refutation rather than
+   a commutation lemma, and none of this is mechanised. A real proof would
+   need an Agda formalisation of `Erase` — the Agda tree has no `Erase`
+   module, so that is a new development rather than an extension.
 
 4. **The effect fragment is inert.** `{:effect_type,_}` / `{:effect_pure,_}` /
    `{:effect_bind,_,_}` have zero reduction rules by design (§1.1), so they

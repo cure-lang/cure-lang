@@ -366,4 +366,101 @@ defmodule Cure.Elab.EraseTest do
       assert Erase.erase(env, {:global, :certified_prim2}) == {:global, :certified_prim2}
     end
   end
+
+  # ---------------------------------------------------------------------
+  # §8.3 — congruence cases.
+  #
+  # The ξ-rules reduce a SUBTERM: `app f a` reduces under f or a, `lam` under
+  # its domain or body, and so on. Erasure recurses structurally into exactly
+  # those positions. The property: reducing a subterm and then erasing must
+  # equal erasing the whole term and then reducing the corresponding erased
+  # subterm. Equivalently — and this is what these tests assert — erasure is a
+  # HOMOMORPHISM over the term formers, so a step anywhere commutes.
+  #
+  # This is the general shape the β/ζ/ι/δ tests above instantiate; testing it
+  # directly covers every ξ-rule at once instead of one redex at a time.
+  # ---------------------------------------------------------------------
+  describe "erasure is a homomorphism over the term formers (§8.3)" do
+    test "app: reducing the argument commutes with erasure" do
+      env = build_env()
+      u = Grade.unrestricted()
+
+      # f = λx. x, argument = a β-redex whose reduct is `prim`.
+      prim = {:ctor, :prim, [{:ctor, :SVNil, []}, {:ctor, :SVNil, []}]}
+      inner = {:app, {:lam, u, {:data, :SF, [], []}, {:var, 0}}, prim}
+      whole = {:app, {:lam, u, {:data, :SF, [], []}, {:var, 0}}, inner}
+
+      # Reduce the ARGUMENT (ξ-app₂), then erase.
+      arg_reduct = Subst.instantiate({:var, 0}, [prim])
+      left = Erase.erase(env, {:app, {:lam, u, {:data, :SF, [], []}, {:var, 0}}, arg_reduct})
+
+      # Erase the whole term, then reduce the erased argument.
+      {:app, erased_fn, erased_arg} = Erase.erase(env, whole)
+      right = {:app, erased_fn, Erase.erase(env, arg_reduct)}
+
+      assert left == right
+      # Non-vacuous: erase does NOT perform β, so the erased argument is still
+      # the redex — with its erased fields already dropped inside.
+      assert erased_arg == {:app, {:lam, u, {:data, :SF, [], []}, {:var, 0}}, {:ctor, :prim, []}}
+    end
+
+    test "lam: reducing the body commutes with erasure" do
+      env = build_env()
+      u = Grade.unrestricted()
+
+      prim = {:ctor, :prim, [{:ctor, :SVNil, []}, {:ctor, :SVNil, []}]}
+      # λx. ((λy. y) prim)  —  reduce the inner redex (a body step).
+      inner = {:app, {:lam, u, {:data, :SF, [], []}, {:var, 0}}, prim}
+      whole = {:lam, u, {:data, :SF, [], []}, inner}
+
+      body_reduct = Subst.instantiate({:var, 0}, [prim])
+      left = Erase.erase(env, {:lam, u, {:data, :SF, [], []}, body_reduct})
+
+      {:lam, g, erased_dom, erased_body} = Erase.erase(env, whole)
+      right = {:lam, g, erased_dom, Erase.erase(env, body_reduct)}
+
+      assert left == right
+      # `erase` keeps the inner redex (no β) but erases inside it.
+      assert erased_body == {:app, {:lam, u, {:data, :SF, [], []}, {:var, 0}}, {:ctor, :prim, []}}
+    end
+
+    test "data: reducing a spine element commutes with erasure" do
+      env = build_env()
+      u = Grade.unrestricted()
+
+      prim = {:ctor, :prim, [{:ctor, :SVNil, []}, {:ctor, :SVNil, []}]}
+      inner = {:app, {:lam, u, {:data, :SF, [], []}, {:var, 0}}, prim}
+      whole = {:data, :SF, [inner], []}
+
+      elem_reduct = Subst.instantiate({:var, 0}, [prim])
+      left = Erase.erase(env, {:data, :SF, [elem_reduct], []})
+
+      {:data, name, erased_ps, erased_is} = Erase.erase(env, whole)
+      right = {:data, name, [Erase.erase(env, elem_reduct)], erased_is}
+
+      assert left == right
+      # The spine element is erased in place, still a redex.
+      assert erased_ps == [{:app, {:lam, u, {:data, :SF, [], []}, {:var, 0}}, {:ctor, :prim, []}}]
+    end
+
+    test "effect_bind: reducing the effect commutes with erasure" do
+      env = build_env()
+      u = Grade.unrestricted()
+
+      prim = {:ctor, :prim, [{:ctor, :SVNil, []}, {:ctor, :SVNil, []}]}
+      inner = {:app, {:lam, u, {:data, :SF, [], []}, {:var, 0}}, prim}
+      k = {:lam, u, {:data, :SF, [], []}, {:var, 0}}
+      whole = {:effect_bind, inner, k}
+
+      elem_reduct = Subst.instantiate({:var, 0}, [prim])
+      left = Erase.erase(env, {:effect_bind, elem_reduct, k})
+
+      {:effect_bind, erased_e, erased_k} = Erase.erase(env, whole)
+      right = {:effect_bind, Erase.erase(env, elem_reduct), erased_k}
+
+      assert left == right
+      # Erasure recurses into the effect's subterm but keeps the redex.
+      assert erased_e == {:app, {:lam, u, {:data, :SF, [], []}, {:var, 0}}, {:ctor, :prim, []}}
+    end
+  end
 end
