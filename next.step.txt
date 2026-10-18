@@ -1,8 +1,8 @@
-STATE: the mechanised soundness development is essentially complete. All 16
-modules type-check clean under Agda 2.8.0. `preservation` is FULLY PROVED
-(zero postulates in Proof/Preservation.agda), and all three forms of the
-soundness theorem are proved: `soundness-fuel` (fuel-indexed),
-`soundness-tree` (coinductive), and `soundness` (classical).
+STATE: the mechanised soundness development is complete. All 19 modules
+type-check clean under Agda 2.8.0. `preservation` is FULLY PROVED (zero
+postulates in Proof/Preservation.agda), and all three forms of the soundness
+theorem are proved: `soundness-fuel` (fuel-indexed), `soundness-tree`
+(coinductive), and `soundness` (classical).
 
 The ONLY remaining postulates are:
   1. `funext` (Core/Syntax.agda) — the standard function-extensionality
@@ -12,19 +12,65 @@ The ONLY remaining postulates are:
      `progress` returns a specific reduct), so this is exactly LPO on that
      path — a classical principle, not constructive.
   3. `never-reached→no-value` (Proof/Soundness.agda) — a never-reaching tree
-     has no reachable value. This needs CONFLUENCE of `_⇝_`, which is NOT
-     deterministic (`(λx. b) a` both β-reduces and reduces under the λ).
+     has no reachable value. THIS ONE IS FALSE (see below); it is retained
+     only so that the classical `soundness` of Proof/Soundness.agda still
+     type-checks. Use Proof/SoundnessConfluence.agda instead.
+
+RESOLVED — item (a) from the previous revision of this file.
+
+The previous "next step (a)" proposed proving `never-reached→no-value` by
+proving CONFLUENCE of `_⇝_`. Confluence HAS since been proved
+(Proof/Confluence.agda: `⇉-diamond`, `confluence`), and it does NOT
+discharge the input, because the input is REFUTABLE. The refutation:
+
+  * `progress⇐ (⇐-lam p q) = inj₁ (canonical c-lam)` (Proof/Progress.agda)
+    — a λ is ALWAYS reported as a `Value`, whatever its body does;
+  * `_⇝_` reduces UNDER BINDERS (`ξ-lam-body`, Core/Reduction.agda).
+
+So with `Ω = (λx. x x) (λx. x x)` (and `Ω ⇝ Ω` by β), the term
+`tm-lam g d Ω` is a canonical `Value` that steps to itself forever. It is
+`NeverReached`, yet it reaches a `Value` in zero steps. Input 3 would
+derive `⊥` from a consistent hypothesis.
+
+Confluence cannot help: the counterexample is a value stepping to VALUES
+forever, which is a property of `Value` (canonical/neutral), not of the
+reduction's branching. (The shortcut "a value's reduct is a value" is not
+refuted by β — the redex `tm-app (tm-lam …) a` is not a `Value` at all,
+since `n-app` needs a NEUTRAL head and `tm-lam` is canonical — but it is
+also not needed: `soundness-nf` is proved without it.)
+
+The fix that DOES work is in Proof/SoundnessConfluence.agda (new, proved,
+zero postulates): replace `Value` by the strictly stronger NORMAL FORM.
+
+  * `NormalForm t` = `t` admits no reduction step ("finished evaluating");
+  * `never-reached-not-nf` — a never-reaching tree is not a normal form.
+    This is the TRUE form of input 3: input 3 said "no VALUE is reachable"
+    (false); "no NORMAL FORM is reachable" is immediate from
+    `NeverReached`'s step at every node;
+  * `DivergesNF` / `never-reached→divergesNF` — positive divergence over
+    normal forms, by guarded corecursion;
+  * `soundness-nf` — the dichotomy `Reached ⊎ DivergesNF`, leaving
+    `tree-decides` as the ONLY classical input.
+
+An honest negative result, also recorded in that module: the tempting
+strengthening "reaches a NORMAL-FORM value, or diverges" is NOT provable
+from `soundness-tree`. A `Reached` leaf supplies only `Value v`, and
+`progress⇐` at `v` returns `Value v` again on its `inj₁` branch — never
+`NormalForm v`. `tm-lam g d Ω` is exactly such a `Value`. So the first
+disjunct stays `Reached` as-is.
 
 NEXT STEPS (in order of value):
-  (a) Prove `never-reached→no-value` by proving CONFLUENCE of `_⇝_` on
-      well-typed terms. This is a substantial but standard development
-      (parallel reduction + diamond, or the Tait–Martin-Löf method). It would
-      remove classical input 3 and make the `diverges` disjunct constructive
-      given only LPO.
-  (b) Replace `tree-decides` with a constructive alternative: since the tree
-      is a path, "finite or infinite" is LPO. A constructive replacement is
-      to keep the fuel-indexed / coinductive forms (already done) as the
-      primary deliverables, which is what the development now does.
+  (a) Retire the false postulate. `Proof/Soundness.agda`'s classical
+      `soundness` still depends on `never-reached→no-value`; the honest
+      replacement is `Proof.SoundnessConfluence.soundness-nf`. To finish
+      the job: delete the postulate and the classical `soundness` (or
+      restate it over `Reached ⊎ DivergesNF`), then update
+      proof/scripts/check-postulates.sh and the status sections of
+      proof/README.md and docs/SOUNDNESS.md. The postulate surface would
+      then be `funext` + `tree-decides` only.
+  (b) `tree-decides` remains LPO on the outcome path. The fuel-indexed and
+      coinductive forms (already done) are the constructive deliverables;
+      no constructive replacement for LPO itself is expected.
   (c) The other open items from docs/SOUNDNESS.md §8: erasure commutes with
       reduction (§8.3); η / proof irrelevance; the NbE evaluator refines the
       reduction relation.

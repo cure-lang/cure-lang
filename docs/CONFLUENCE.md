@@ -169,10 +169,40 @@ the statement.
 ## What remains
 
 **Nothing in the confluence development itself.** `confluence : _⇝_` is
-proved. The next step would be to discharge the classical input
-`never-reached→no-value` in `Proof/Soundness.agda` using `confluence` —
-**but this input is FALSE as stated** for the mechanised `_⇝_`, so it cannot
-be discharged (see the finding below).
+proved. The classical input `never-reached→no-value` in
+`Proof/Soundness.agda` **cannot** be discharged using `confluence`, because
+it is FALSE as stated for the mechanised `_⇝_` (see the finding above).
+
+**RESOLVED (repair, not discharge).** `proof/Proof/SoundnessConfluence.agda`
+replaces the false input by its true form, over NORMAL FORMS rather than
+`Value`, and is proved with **zero new postulates**:
+
+- `NormalForm t` — `t` admits no reduction step (strictly stronger than
+  `Value`: every λ is a `Value`, but only a λ with a normal body is a
+  `NormalForm`);
+- `never-reached-not-nf` — a never-reaching tree is not a normal form. This
+  is the honest form of the input: the original said "no VALUE is
+  reachable" (false); "no NORMAL FORM is reachable" follows immediately
+  from `NeverReached`'s step at every node;
+- `DivergesNF` / `never-reached→divergesNF` — positive divergence over
+  normal forms, by guarded corecursion;
+- `soundness-nf` — the dichotomy `Reached ⊎ DivergesNF`, leaving
+  `tree-decides` (LPO) as the ONLY classical input.
+
+**A second negative result, recorded in that module.** The tempting
+strengthening "reaches a NORMAL-FORM value, or diverges" is NOT provable
+from `soundness-tree`. A `Reached` leaf supplies only `Value v`, and
+`progress⇐` at `v` returns `Value v` again on its `inj₁` branch — never
+`NormalForm v`. `tm-lam g d Ω` is exactly such a `Value` (reached in zero
+steps, and still stepping). So the first disjunct stays `Reached` as-is.
+
+**Also worth recording:** "a value's reduct is a value" is not available as a
+shortcut either. It is not refuted by β — the redex `tm-app (tm-lam …) a` is
+neither `Canonical` nor `Neutral` (there is no `Canonical` rule for `tm-app`,
+and `n-app` requires a NEUTRAL head, while `tm-lam` is canonical), so it is
+not a `Value` at all. But the lemma is not needed: `soundness-nf` above is
+proved without it, and the `Ω` counterexample concerns a value stepping to
+VALUES (`ξ-lam-body`), not to non-values.
 
 ## Notes
 

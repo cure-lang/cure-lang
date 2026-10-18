@@ -14,8 +14,17 @@ development.
 > theorem: the **fuel-indexed `soundness-fuel`**, the **coinductive
 > `soundness-tree`**, and the **classical three-way `soundness`** (the latter
 > from the two named classical inputs `tree-decides` and
-> `never-reached→no-value`). The only remaining `postulate` besides the two
-> classical inputs is `funext` (the standard function-extensionality axiom).
+> `never-reached→no-value`).
+>
+> **Correction.** The second of those inputs, `never-reached→no-value`, is
+> **FALSE** for the mechanised `_⇝_` (it reduces under binders, so
+> `tm-lam g d Ω` is a canonical `Value` that steps to itself forever). It is
+> retained only so the classical `soundness` still type-checks.
+> `Proof/SoundnessConfluence.agda` supplies the TRUE replacement over NORMAL
+> FORMS — `soundness-nf`, the dichotomy `Reached ⊎ DivergesNF`, proved with
+> **zero postulates** — leaving `tree-decides` (LPO) as the only classical
+> input there. The only remaining `postulate` besides `tree-decides` is
+> `funext` (the standard function-extensionality axiom).
 > See [Status](#status) for the lemma-by-lemma breakdown.
 
 ## What is being proved
@@ -90,6 +99,7 @@ recommends.
 | `Proof.FinalPreservation` | `substS-final` (closure of `Final` under a final substitution); `final-preservation` | ✅ **proved** |
 | `Proof.Soundness` | `EvalResult`; `soundness-fuel` (constructive); `Diverges`/`EvalTree`/`soundness-tree` (coinductive); `soundness` (classical, from two named inputs) | ✅ **`soundness-fuel`, `soundness-tree`, and `soundness` all proved** |
 | `Proof.Confluence` | Parallel reduction `⇉` (value-free); the substitution-commutation lemma `⇉-substS` (all cases), `p-rename`, the diamond `⇉-diamond`, and `confluence : _⇝_` | ✅ **complete** (`⇉-substS`, `⇉-diamond`, `confluence` all proved) |
+| `Proof.SoundnessConfluence` | `NormalForm`; `never-reached-not-nf` (the TRUE form of classical input 3, over normal forms); `DivergesNF` + `never-reached→divergesNF`; `soundness-nf` — the dichotomy `Reached ⊎ DivergesNF`, leaving `tree-decides` as the only classical input | ✅ **complete** (zero postulates; replaces the false `never-reached→no-value`) |
 
 ## Status
 
@@ -417,6 +427,10 @@ classical inputs (rather than one opaque `postulate`):
   values forever. The statement holds only if "value" means a stuck-free
   NORMAL FORM (a term that has finished evaluating), strictly stronger than
   `Value` (canonical/neutral). See docs/CONFLUENCE.md for the full finding.
+  **REPAIRED:** `Proof/SoundnessConfluence.agda` states and proves the true
+  form over normal forms (`never-reached-not-nf`, `soundness-nf`), with zero
+  postulates. The false input is retained here only so the classical
+  `soundness` below still type-checks; prefer `soundness-nf`.
 
 With those, `soundness` is a theorem: a `Reached` node gives outcome (1)
 (`tree-reached→eval`); a `NeverReached` tree gives outcome (3)

@@ -61,7 +61,7 @@ MODULES=(
   Proof/Values Proof/Inversion Proof/CanonicalForms Proof/Substitution
   Proof/Context
   Proof/Progress Proof/Preservation Proof/FinalPreservation Proof/Soundness
-  Proof/Confluence
+  Proof/Confluence Proof/SoundnessConfluence
 )
 
 fail=0

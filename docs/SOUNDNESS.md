@@ -475,6 +475,19 @@ would hold only if "value" meant a stuck-free NORMAL FORM (a term that has
 finished evaluating), which is strictly stronger than `Value`
 (canonical/neutral). See docs/CONFLUENCE.md for the full finding.
 
+**Repair (same slice).** `proof/Proof/SoundnessConfluence.agda` states and
+proves the TRUE form of the input over normal forms, with **zero new
+postulates**: `never-reached-not-nf` (a never-reaching tree is not a normal
+form), `DivergesNF` + `never-reached→divergesNF` (positive divergence), and
+`soundness-nf` — the dichotomy `Reached ⊎ DivergesNF`, which leaves
+`tree-decides` (LPO) as the only classical input there. The false
+`never-reached→no-value` is retained in `Proof/Soundness.agda` only so the
+classical `soundness` still type-checks; `soundness-nf` is the honest
+statement. Note also that the tempting strengthening "reaches a
+NORMAL-FORM value, or diverges" is *not* provable from `soundness-tree` (a
+`Reached` leaf supplies only `Value v`, and `progress⇐` at `v` returns
+`Value v` again), which is why the first disjunct stays `Reached`.
+
 ---
 
 ## 8. Open verification items
