@@ -80,11 +80,23 @@ NEXT STEPS (in order of value):
              forges partitions directly and asserts each is rejected FOR THE
              INTENDED REASON. The prior property test covered only the honest
              path.
-             RESIDUAL: the verifier checks the PARTITION, not the size-change
-             MATRICES in each component's certificate. That a certified
-             component terminates is still the `Certified` hypothesis the
-             Agda development carries. Closing it means verifying the
-             matrix/size-change checker — the next substantive step here.
+             RESIDUAL: NOT the matrices — an earlier revision of this file
+             wrongly said the size-change matrices were assumed.
+             `Cure.Core.TotalityCertificate.verify/3` IS a trusted verifier:
+             it derives expected base matrices from
+             `Env.direct_call_summary` (independent of the candidate), replays
+             every `{:compose, l, r}` derivation by recomputing
+             `SizeChange.compose_edges` and requiring `same_edge?`, rejects
+             cyclic derivations, and checks saturation (every composable pair
+             must have its composite present). It then requires an idempotent
+             edge with a smaller diagonal per recursive component.
+             The REAL residual is the TERMINATION THEOREM: the verifier
+             establishes "saturated closure with a smaller diagonal"; that
+             such a closure implies termination is the size-change principle
+             itself — the `Certified` hypothesis the Agda development
+             carries. So §8.2 is narrowed to: SCC discovery, matrix
+             composition and saturation are all verifier-checked; the
+             size-change PRINCIPLE remains an assumed theorem.
         §8.1 hole firewall: AUDITED, AUDIT'S "RUNNING HOLE" NOT REPRODUCED.
              Both `Emit` entry points guard with `reject_holes`;
              `LiftModule.emit/1` routes through `Emit.compile_forms/3`, so

@@ -561,12 +561,25 @@ determined adversary should look first.
      rejected **for the intended reason** (not merely "some error"), so the
      tests cannot pass vacuously. The existing
      `totality_certificate_property_test.exs` covered only the honest path.
-   - **Residual assumption (unchanged, and still outside the TCB):** the
-     verifier checks the PARTITION, not the size-change MATRICES inside each
-     component's totality certificate. That a certified component actually
-     terminates is still the `Certified` hypothesis the Agda development
-     carries. So §8.2 is *narrowed*, not closed: SCC discovery is now
-     verifier-checked, matrix soundness is not.
+   - **The size-change matrices ARE verified — an earlier revision of this
+     note wrongly said they were assumed.** `Cure.Core.TotalityCertificate.verify/3`
+     is a trusted verifier that: derives the expected base matrices from
+     `Env.direct_call_summary` (independent of the candidate, so a proposer
+     cannot submit a wrong base edge — `:invalid_base_derivation`); replays
+     every `{:compose, left, right}` derivation by recomputing
+     `SizeChange.compose_edges` and requiring `same_edge?`
+     (`:composition_mismatch`); rejects cyclic derivations
+     (`:cyclic_derivation`); and checks saturation — every composable pair of
+     edges must have its composite present (`:not_saturated`). It then
+     requires an idempotent edge with a smaller diagonal for each recursive
+     component (`{:not_total, …}` otherwise).
+   - **The real residual is the TERMINATION THEOREM, not the matrices.** The
+     verifier establishes "this closure is saturated and has a smaller
+     diagonal". That such a closure implies termination is the size-change
+     principle itself — carried as the `Certified` hypothesis in the Agda
+     development. So §8.2 is narrowed to: SCC discovery is verifier-checked
+     and tamper-tested, matrix composition and saturation are verifier-checked,
+     and the size-change *principle* remains an assumed theorem.
 3. **`Erase.erase` preserves the operational semantics.** Erasure is assumed to
    drop only `:erased`-graded binders, which the relevance check enforces — but
    the argument here does not prove erasure commutes with reduction.
