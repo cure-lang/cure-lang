@@ -82,6 +82,8 @@ MODULES=(
   Proof/DependentInstantiationExamples
   Proof/DependentResult
   Proof/DependentResultExamples
+  Proof/DependentRegistry
+  Proof/DependentRegistryExamples
 )
 
 fail=0

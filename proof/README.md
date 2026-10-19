@@ -778,15 +778,52 @@ refute its closedness premise for the genuinely dependent local family.
 Consequently no dependent global constructor is silently admitted through
 the old rules.
 
-Eight independent tests in
+Eleven independent tests in
 `test/cure/core/dependent_result_correspondence_test.exs` kernel-check the
 corresponding declarations and positive result types. They exercise whole
 dependent/computed vectors, prior-index type dependencies, well-typed result
 mismatch, exact result arity, universe bounds, non-uniform parameters and
 out-of-frame references. No kernel/runtime implementation changes are made.
-Recursive signature validity/positivity, global registration, broad dependent
-typing/preservation and executable refinement remain open. These theorems
-still use the current closed-signature substitution infrastructure.
+These local theorems still use the current closed-signature substitution
+infrastructure. The next checkpoint connects them to a separate bounded
+registry; unified dependent typing/preservation and refinement remain open.
+
+### Base-checked dependent registry admission
+`Proof.DependentRegistry.Layer base sig conv registry` keeps two environments
+explicit. Declaration types and caller arguments are checked in `base`;
+genuinely dependent records live in `registry`, not in the base signature
+whose closed-entry hypothesis the existing substitution proof requires.
+
+`Registry` attaches checked family and constructor declaration certificates
+to actual `findFamily`/`findCtor` results. It also requires visible ownership
+and fresh family/constructor identities relative to the base. Those guards
+are proved policies of this bounded layer, not an assertion that every
+executable registration path enforces these exact policies.
+
+`Application` and `Formation` are explicit bounded admission judgments,
+**not `Core.Typing._⊢_⇒_`**. They carry registry validity, real lookup
+evidence and checked parameter/field or result spines. Actual arguments are
+final. `result-formation` derives a checked registered result from an
+admitted constructor application; `subst-formation` transports formation
+through a coherent BASE caller substitution. No closedness or new
+preservation oracle for the dependent registry is assumed.
+
+`Proof.DependentRegistryExamples` registers both ordinary and computed
+dependent constructors and exercises closed/open application, result
+formation and caller substitution. Missing names/fields, bad indices,
+base-name shadowing and inconsistent visible ownership are rejected.
+The module REFUTES both `ClosedFragmentSig registry sig` and base typing of
+the new data type, explicitly preventing a claim that the old soundness
+theorem has been broadened.
+
+The executable result suite adds lookup/visible-owner, missing registration
+and same-shaped foreign-family rejection controls. It now has eleven tests;
+the separate frame suite retains sixteen. No kernel/runtime library source
+changes. Recursive extension checking, positivity certification, dependent
+elimination, unification of these judgments with full Core typing,
+preservation/refinement and release certification remain open. In
+particular, final actual arguments alone do not certify finality of every
+declaration/result term.
 
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe

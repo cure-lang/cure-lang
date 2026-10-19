@@ -703,15 +703,49 @@ the family's parameter/index entries are individually closed and a real
 lookup succeeds. A registered Bounded example exercises it; the genuinely
 dependent local family's closedness requirement is explicitly refuted.
 
-Eight additional independently kernel-checked executable tests cover
+Eleven independently kernel-checked executable result tests cover
 whole dependent/computed result vectors, prior-index dependencies,
 well-typed mismatch, arity, uniformity, field universes and scope.
-No runtime/kernel library source changes. Dependent global registration,
-recursive signature validity/positivity and broad dependent preservation
-remain open. The result theorems still rely on the current closed-signature
-substitution infrastructure; parameter filtering, erased slots, η,
-typed erasure simulation, totality and full implementation refinement are
-not established by these local declaration witnesses.
+The result theorems still rely on the current closed-signature substitution
+infrastructure. The next checkpoint links local certificates to bounded
+registered admission without claiming full dependent soundness.
+
+**Base-checked registered admission — a separate bounded layer.**
+`Proof.DependentRegistry.Layer base sig conv registry` separates the
+closed-entry base used for declaration/argument checking from a fresh
+registry containing genuine dependent records. `Registry` requires family
+and constructor certificates only for actual lookups, visible constructor
+ownership, and identities fresh relative to the base. No universal oracle
+over arbitrary fabricated records is introduced.
+
+Its `Application` and `Formation` records are bounded admission judgments,
+NOT the active `Core.Typing` relation. They include the checked registry,
+actual lookup evidence and argument/result checks. `result-formation`
+proves that an admitted constructor application has a checked registered
+result; `subst-formation` preserves formation under a coherent BASE caller
+substitution. The proof does not require closed dependent registry entries
+or assume a new dependent-preservation theorem.
+
+The registry examples instantiate all certificates with registered
+ordinary/computed constructors, closed/open callers and caller substitution.
+They reject unknown names, missing fields, bad result indices, base-name
+shadowing and inconsistent visible ownership. They explicitly REFUTE the
+registry's old `ClosedFragmentSig` premise and base typing of its new data
+type. This is therefore not a disguised claim of extending the old full
+soundness model.
+
+Three executable controls extend the result suite to eleven tests:
+lookup/visible-owner agreement, missing registration rejection and rejection
+of a same-shaped foreign result family. The layer's freshness policy is
+formal evidence, not a proved correspondence with all executable namespace
+guards. No kernel/runtime source changes.
+
+Unified dependent global typing, recursive extension/signature validity and
+positivity, dependent elimination, broad preservation and implementation
+refinement remain open. The new records are also not release certificates:
+final actual arguments alone do not imply every declaration/result term is
+final. Parameter filtering, erased slots, η, typed erasure simulation and
+semantic totality remain separate obligations.
 
 `Core.Coverage` is now connected to the active typing and proof consumers.
 `Proof.CoverageExamples` gives concrete Nat coverage in an environment also

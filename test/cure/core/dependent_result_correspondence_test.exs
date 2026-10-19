@@ -96,4 +96,32 @@ defmodule Cure.Core.DependentResultCorrespondenceTest do
 
     assert {:error, _reason} = Kernel.check_ctor(env, family, ctor)
   end
+
+  test "registered constructor lookup and visible family agree on result ownership", %{ctx: ctx, env: env} do
+    assert %{name: :ResultChain} = Inductive.get_family(env, :ResultChain)
+    assert %{name: :ResultMk} = Inductive.get_ctor(env, :ResultMk)
+    assert :ResultChain == Inductive.ctor_family(env, :ResultMk)
+    assert :ok = Kernel.check(ctx, {:ctor, :ResultMk, @values}, Eval.eval(@goal, []))
+  end
+
+  test "missing family and constructor registrations cannot be admitted", %{ctx: ctx, env: env} do
+    assert nil == Inductive.get_family(env, :UnregisteredResult)
+    assert nil == Inductive.get_ctor(env, :UnregisteredResultMk)
+    assert {:error, _reason} = Kernel.infer(ctx, {:data, :UnregisteredResult, [@carrier], @values})
+
+    assert {:error, _reason} =
+             Kernel.check(ctx, {:ctor, :UnregisteredResultMk, @values}, Eval.eval(@goal, []))
+  end
+
+  test "matching telescope shapes do not change a registered constructor's owner", %{env: env} do
+    other = Inductive.family(:OtherResultChain, [{:A, {:type, 0}}], @fields, 1)
+    env = Inductive.declare(env, other, [])
+    ctx = Context.empty(env)
+    other_goal = {:data, :OtherResultChain, [@carrier], @values}
+
+    assert :ok = Kernel.check_family(env, other)
+    assert {:ok, {:vtype, 1}} = Kernel.infer(ctx, other_goal)
+    assert :ResultChain == Inductive.ctor_family(env, :ResultMk)
+    assert {:error, _reason} = Kernel.check(ctx, {:ctor, :ResultMk, @values}, Eval.eval(other_goal, []))
+  end
 end
