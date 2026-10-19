@@ -124,24 +124,28 @@ module Par (sig : Signature) where
           → m ⇉ m′ → brs ⇉*ᵇ brs′ → b ⇉* b′ → args ⇉*ᵗ args′
           → tm-case (tm-ctor c args) m brs ⇉ substArgs args′ b′
 
-      -- ι-nat / ι-bounded: the compact-literal peels.
+      -- ι-nat / ι-bounded: compact-literal peels with local arity witnesses.
       p-ι-nat-zero : ∀ {m m′ brs brs′ ar b b′}
         → findBranch "Z" brs′ ≡ just ("Z" , ar , b′)
+        → 0 ≡ ar
         → m ⇉ m′ → brs ⇉*ᵇ brs′ → b ⇉* b′
         → tm-case (tm-nat_lit 0) m brs ⇉ substArgs [] b′
 
       p-ι-nat-suc : ∀ {m m′ brs brs′ ar b b′ n}
         → findBranch "S" brs′ ≡ just ("S" , ar , b′)
+        → 1 ≡ ar
         → m ⇉ m′ → brs ⇉*ᵇ brs′ → b ⇉* b′
         → tm-case (tm-nat_lit (suc n)) m brs ⇉ substArgs (tm-nat_lit n ∷ []) b′
 
       p-ι-bounded-zero : ∀ {m m′ brs brs′ ar b b′}
         → findBranch "First" brs′ ≡ just ("First" , ar , b′)
+        → 1 ≡ ar
         → m ⇉ m′ → brs ⇉*ᵇ brs′ → b ⇉* b′
         → tm-case (tm-bounded_lit 0) m brs ⇉ substArgs (tm-nat_lit 0 ∷ []) b′
 
       p-ι-bounded-suc : ∀ {m m′ brs brs′ ar b b′ k}
         → findBranch "Next" brs′ ≡ just ("Next" , ar , b′)
+        → 2 ≡ ar
         → m ⇉ m′ → brs ⇉*ᵇ brs′ → b ⇉* b′
         → tm-case (tm-bounded_lit (suc k)) m brs
           ⇉ substArgs (tm-nat_lit k ∷ tm-bounded_lit k ∷ []) b′
@@ -215,14 +219,14 @@ module Par (sig : Signature) where
       p-ζ (⇉-refl ty) (⇉-refl v) ⇉*-refl
     ⇝→⇉ (ι {m} {brs} {c} {ar} {b} {args} found len) =
       p-ι found len (⇉-refl m) (⇉-refl-brs brs) ⇉*-refl (⇉-refl-terms args)
-    ⇝→⇉ (ι-nat-zero {m} {brs} {ar} {b} found) =
-      p-ι-nat-zero found (⇉-refl m) (⇉-refl-brs brs) ⇉*-refl
-    ⇝→⇉ (ι-nat-suc {m} {brs} {ar} {b} {n} found) =
-      p-ι-nat-suc found (⇉-refl m) (⇉-refl-brs brs) ⇉*-refl
-    ⇝→⇉ (ι-bounded-zero {m} {brs} {ar} {b} found) =
-      p-ι-bounded-zero found (⇉-refl m) (⇉-refl-brs brs) ⇉*-refl
-    ⇝→⇉ (ι-bounded-suc {m} {brs} {ar} {b} {k} found) =
-      p-ι-bounded-suc found (⇉-refl m) (⇉-refl-brs brs) ⇉*-refl
+    ⇝→⇉ (ι-nat-zero {m} {brs} {ar} {b} found refl) =
+      p-ι-nat-zero found refl (⇉-refl m) (⇉-refl-brs brs) ⇉*-refl
+    ⇝→⇉ (ι-nat-suc {m} {brs} {ar} {b} {n} found refl) =
+      p-ι-nat-suc found refl (⇉-refl m) (⇉-refl-brs brs) ⇉*-refl
+    ⇝→⇉ (ι-bounded-zero {m} {brs} {ar} {b} found refl) =
+      p-ι-bounded-zero found refl (⇉-refl m) (⇉-refl-brs brs) ⇉*-refl
+    ⇝→⇉ (ι-bounded-suc {m} {brs} {ar} {b} {k} found refl) =
+      p-ι-bounded-suc found refl (⇉-refl m) (⇉-refl-brs brs) ⇉*-refl
     ⇝→⇉ (δ eq) = p-δ eq
     ⇝→⇉ (ξ-app₁ step) = p-app (⇝→⇉ step) (⇉-refl _)
     ⇝→⇉ (ξ-app₂ step) = p-app (⇉-refl _) (⇝→⇉ step)
@@ -697,14 +701,14 @@ module Par (sig : Signature) where
       ⇝*-trans (⇝*-case (⇉→⇝*-spine-ctor [] _ _ sargs))
         (⇝*-trans (⇝*-case-brs (⇉→⇝*-brs sbrs))
           (⇝*-step (ι found (trans (⇉-terms-length sargs) len)) ⇝*-refl))
-    ⇉→⇝* (p-ι-nat-zero {m} {m′} {brs} {brs′} {ar} {b} {b′} found sm sbrs sbs) =
-      ⇝*-trans (⇝*-case-brs (⇉→⇝*-brs sbrs)) (⇝*-step (ι-nat-zero found) ⇝*-refl)
-    ⇉→⇝* (p-ι-nat-suc {m} {m′} {brs} {brs′} {ar} {b} {b′} {n} found sm sbrs sbs) =
-      ⇝*-trans (⇝*-case-brs (⇉→⇝*-brs sbrs)) (⇝*-step (ι-nat-suc found) ⇝*-refl)
-    ⇉→⇝* (p-ι-bounded-zero {m} {m′} {brs} {brs′} {ar} {b} {b′} found sm sbrs sbs) =
-      ⇝*-trans (⇝*-case-brs (⇉→⇝*-brs sbrs)) (⇝*-step (ι-bounded-zero found) ⇝*-refl)
-    ⇉→⇝* (p-ι-bounded-suc {m} {m′} {brs} {brs′} {ar} {b} {b′} {k} found sm sbrs sbs) =
-      ⇝*-trans (⇝*-case-brs (⇉→⇝*-brs sbrs)) (⇝*-step (ι-bounded-suc found) ⇝*-refl)
+    ⇉→⇝* (p-ι-nat-zero {m} {m′} {brs} {brs′} {ar} {b} {b′} found refl sm sbrs sbs) =
+      ⇝*-trans (⇝*-case-brs (⇉→⇝*-brs sbrs)) (⇝*-step (ι-nat-zero found refl) ⇝*-refl)
+    ⇉→⇝* (p-ι-nat-suc {m} {m′} {brs} {brs′} {ar} {b} {b′} {n} found refl sm sbrs sbs) =
+      ⇝*-trans (⇝*-case-brs (⇉→⇝*-brs sbrs)) (⇝*-step (ι-nat-suc found refl) ⇝*-refl)
+    ⇉→⇝* (p-ι-bounded-zero {m} {m′} {brs} {brs′} {ar} {b} {b′} found refl sm sbrs sbs) =
+      ⇝*-trans (⇝*-case-brs (⇉→⇝*-brs sbrs)) (⇝*-step (ι-bounded-zero found refl) ⇝*-refl)
+    ⇉→⇝* (p-ι-bounded-suc {m} {m′} {brs} {brs′} {ar} {b} {b′} {k} found refl sm sbrs sbs) =
+      ⇝*-trans (⇝*-case-brs (⇉→⇝*-brs sbrs)) (⇝*-step (ι-bounded-suc found refl) ⇝*-refl)
     ⇉→⇝* (p-δ eq) = ⇝*-step (δ eq) ⇝*-refl
 
     -- Simulate a parallel spine reduction by `_⇝_` steps, element by element.

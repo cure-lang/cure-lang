@@ -18,11 +18,13 @@ today. It is deliberately honest about what is *proved*, what is *assumed*, and
 what is *tested but not proved*.
 
 **Formal applicability warning.** `proof/Proof/InterfaceAudit.agda` refutes
-four legacy interfaces: `Covers` together with `BuiltinCtors`, `ClosedSig`,
-literal syntax-head conversion reflection together with `ReduceConv`, and
-`LiteralArity`. Successful compilation of the existing parameterised
-Progress/Preservation/soundness/confluence modules does **not** establish an
-applicable kernel soundness theorem. Their derivations are retained for
+three active legacy interfaces: `Covers` together with `BuiltinCtors`,
+`ClosedSig`, and literal syntax-head conversion reflection together with
+`ReduceConv`. A fourth, `LiteralArity`, was removed from active confluence:
+literal reduction steps now carry local arity witnesses. Successful
+compilation of the existing parameterised Progress/Preservation/soundness
+modules does **not** establish an applicable kernel soundness theorem.
+Their derivations are retained for
 repair, not presented as completed certification. There are also five
 existing termination-check overrides in the parallel/confluence development,
 separate from the two named postulates. See §8.
@@ -503,8 +505,9 @@ form), `DivergesNF` + `never-reached→divergesNF` (positive divergence), and
 **REMOVED** from `Proof/Soundness.agda`; the development now rests on exactly
 two named postulates, `funext` and `tree-decides`. This count does not include
 module parameters, conversion record fields, or the five existing
-termination-check overrides. `LiteralArity`, required by confluence, is itself
-refuted in `Proof.InterfaceAudit`. Note also that the tempting
+termination-check overrides. The former `LiteralArity` oracle was refuted
+and removed from active confluence; its old shape is kept as a negative
+regression in `Proof.InterfaceAudit`. Note also that the tempting
 strengthening "reaches a NORMAL-FORM value, or diverges" is *not* provable
 from `soundness-tree` (a `Reached` leaf supplies only `Value v`, and
 `progress⇐` at `v` returns `Value v` again), which is why the first disjunct
@@ -529,9 +532,16 @@ that an uninhabitable theorem interface is useful.
 - **Signature scoping:** `ClosedSig` requires arbitrary fabricated families'
   telescope entries to be closed. Choosing a parameter `var 0` refutes it,
   independently of the actual signature.
-- **Literal arities:** `LiteralArity` requires every raw `Z` branch to have
-  arity zero; a fabricated arity-one branch refutes it. Arity constraints
-  belong to checked cases or reduction-rule premises, not all raw syntax.
+- **Literal arities — repaired:** the former `LiteralArity` required every
+  raw `Z` branch to have arity zero; a fabricated arity-one branch refutes it.
+  Arity constraints
+  now belong to the four literal reduction-rule premises in both small-step
+  and parallel reduction. Progress derives the witnesses from checked
+  branches and builtin telescopes. `Conf` no longer takes this impossible
+  parameter. `Proof.LiteralCases` checks valid steps, rejects malformed
+  arities in both relations, and instantiates a real confluence peak with a
+  concrete closed-body signature. The five termination overrides remain
+  unresolved, so this is not a fully trusted confluence completion.
 
 Further correspondence repairs are required: dependent spine tails and
 constructor result indices must be instantiated; branches must bind the last

@@ -9,7 +9,9 @@ development.
 > **Status: foundation repair in progress.** The legacy full theorem interfaces
 > cannot be jointly instantiated. `Proof.InterfaceAudit` machine-checks
 > contradictions in global coverage, signature closedness, syntax-head
-> reflection with reduction conversion, and global literal arities.
+> reflection with reduction conversion. A fourth contradiction, global literal
+> arities, is now retained only as a frozen negative regression: the active
+> reduction rules carry local arity witnesses and `Conf` no longer assumes it.
 > The existing derivations below are retained for repair, not certification.
 > `Core.Verification` and `Proof.VerificationExamples` provide candidate local
 > interfaces and concrete instances; the broad typing/proof migration has not
@@ -562,10 +564,19 @@ conditions.**
 - `Covers ind` and `BuiltinCtors ind` are incompatible.
 - `ClosedSig ind sig` is uninhabited.
 - Legacy `Conversion` and `ReduceConv sig conv` are incompatible.
-- `LiteralArity` is uninhabited.
+- The frozen historical `LiteralArity` is uninhabited; it is no longer an
+  active confluence parameter.
 
 These are refutations, not additional axioms. Do not interpret successful
 compilation of the legacy soundness/confluence modules as applicable proofs.
+
+The local literal-arity repair is connected to the existing proof consumers:
+small-step and parallel literal rules require arity witnesses, and progress
+derives these from the actual checked branches and builtin constructor
+telescopes. Renaming, substitution, finality, preservation, and confluence
+are migrated. `Proof.LiteralCases` contains positive/negative rule tests
+and a concrete confluence peak using only an inhabited `ClosedBody`
+signature parameter. The existing termination overrides still need proofs.
 
 `Core.Verification` defines local full-family coverage,
 preceding-binder-scoped telescopes, and constraints on actual signature

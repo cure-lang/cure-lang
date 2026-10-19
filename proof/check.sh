@@ -64,6 +64,7 @@ MODULES=(
   Proof/Confluence Proof/SoundnessConfluence Proof/Erase
   Proof/InterfaceAudit Proof/EffectInert
   Core/Verification Proof/VerificationExamples
+  Proof/LiteralCases
 )
 
 fail=0

@@ -11,9 +11,10 @@ module Proof.InterfaceAudit where
 
 open import Data.Bool using (true)
 open import Data.Empty using (⊥)
-open import Data.List using ([]; _∷_)
+open import Data.List using (List; []; _∷_)
 open import Data.Nat using (zero)
-open import Data.Product using (_,_; proj₁; proj₂)
+open import Data.Product using (_×_; _,_; proj₁; proj₂)
+open import Data.Maybe using (just)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 
 open import Core.Grade using (unrestricted)
@@ -24,7 +25,6 @@ open import Core.Reduction
 open import Core.Typing using (Conversion; ∈-here)
 open import Proof.Progress using (Covers; BuiltinCtors)
 open import Proof.Preservation using (ClosedSig; ReduceConv)
-open import Proof.Confluence using (LiteralArity)
 
 -- Covers requires a Z branch even in the empty list.
 covers-incompatible-with-builtins :
@@ -73,7 +73,15 @@ closedSig-impossible : ∀ ind sig → ClosedSig ind sig → ⊥
 closedSig-impossible ind sig closed =
   var0-not-closed (proj₁ (proj₂ closed) open-family ∈-here)
 
--- LiteralArity has the same global-quantification problem as Covers.
+-- Frozen historical interface: no active theorem takes this parameter.
+LiteralArity : Set
+LiteralArity =
+    (∀ {brs : List Branch} {ar b} → findBranch "Z" brs ≡ just ("Z" , ar , b) → 0 ≡ ar)
+  × (∀ {brs : List Branch} {ar b} → findBranch "S" brs ≡ just ("S" , ar , b) → 1 ≡ ar)
+  × (∀ {brs : List Branch} {ar b} → findBranch "First" brs ≡ just ("First" , ar , b) → 1 ≡ ar)
+  × (∀ {brs : List Branch} {ar b} → findBranch "Next" brs ≡ just ("Next" , ar , b) → 2 ≡ ar)
+
+-- LiteralArity had the same global-quantification problem as Covers.
 -- A raw Z branch can declare arity one; typing must reject that branch,
 -- rather than a confluence theorem assuming that raw syntax cannot exist.
 zero-not-one : zero ≡ 1 → ⊥

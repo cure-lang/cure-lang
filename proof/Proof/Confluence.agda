@@ -47,24 +47,16 @@ open import Core.Reduction
 import Core.Parallel as P
 open import Proof.Substitution
 
--- LEGACY INTERFACE: this quantifies over arbitrary raw branches and is
--- uninhabitable (Proof.InterfaceAudit.literalArity-impossible). Arity must
--- instead be enforced by the reduction rules/checked term invariant.
--- The derivations below also contain a termination-check override.
--- They are not an applicable confluence proof until both are repaired.
--- The literal-peel rules' branch arities: `Z`/`First` take 0/1 fields, etc.
-LiteralArity : Set
-LiteralArity =
-    (∀ {brs ar b} → findBranch "Z" brs ≡ just ("Z" , ar , b) → 0 ≡ ar)
-  × (∀ {brs ar b} → findBranch "S" brs ≡ just ("S" , ar , b) → 1 ≡ ar)
-  × (∀ {brs ar b} → findBranch "First" brs ≡ just ("First" , ar , b) → 1 ≡ ar)
-  × (∀ {brs ar b} → findBranch "Next" brs ≡ just ("Next" , ar , b) → 2 ≡ ar)
+-- Literal-peel arities are premises of each reduction step, not a
+-- hypothesis about every raw branch list. The historical impossible
+-- interface is retained only in Proof.InterfaceAudit as a refutation.
+-- The termination-check overrides remain separate unresolved obligations.
 
 -- A global's body is closed (so `substS σ` fixes it).
 ClosedBody : Signature → Set
 ClosedBody sig = ∀ {f body′} → Signature.body sig f ≡ just body′ → Scoped 0 body′
 
-module Conf (sig : Signature) (la : LiteralArity) (cb : ClosedBody sig) where
+module Conf (sig : Signature) (cb : ClosedBody sig) where
 
   open P.Par sig public
 
@@ -132,58 +124,26 @@ module Conf (sig : Signature) (la : LiteralArity) (cb : ClosedBody sig) where
                         (trans (length-renameTerms ρ args) len)
                         (p-rename ρ sm) (p-rename-brs ρ sbrs) (p-rename-star (ext^ ar ρ) sbs)
                         (p-rename-terms ρ sargs)))
-    p-rename ρ (p-ι-nat-zero {m} {m′} {brs} {brs′ = brs′} {ar} {b} {b′} found sm sbrs sbs) =
+    p-rename ρ (p-ι-nat-zero {m = m} {brs = brs} {brs′ = brs′} {b′ = b′} found refl sm sbrs sbs) =
       subst (λ z → _⇉_ (rename ρ (tm-case (tm-nat_lit 0) m brs)) z)
             (sym (rename-substArgs ρ [] b′))
-            (subst (λ n → _⇉_ (rename ρ (tm-case (tm-nat_lit 0) m brs))
-                              (substArgs [] (rename (ext^ n ρ) b′)))
-                   (sym (la-Z {brs = renameBranches ρ brs′} (findBranch-rename ρ "Z" brs′ found)))
-                   (p-ι-nat-zero {brs = renameBranches ρ brs} {brs′ = renameBranches ρ brs′}
-                                 {ar = ar} {b = rename (ext^ ar ρ) b} {b′ = rename (ext^ ar ρ) b′}
-                                 (findBranch-rename ρ "Z" brs′ found)
-                                 (p-rename ρ sm) (p-rename-brs ρ sbrs) (p-rename-star (ext^ ar ρ) sbs)))
-      where
-        la-Z : ∀ {brs} {ar} {b} → findBranch "Z" brs ≡ just ("Z" , ar , b) → 0 ≡ ar
-        la-Z {brs} = proj₁ la {brs}
-    p-rename ρ (p-ι-nat-suc {m} {m′} {brs} {brs′ = brs′} {ar} {b} {b′} {n} found sm sbrs sbs) =
+            (p-ι-nat-zero (findBranch-rename ρ "Z" brs′ found) refl
+              (p-rename ρ sm) (p-rename-brs ρ sbrs) (p-rename-star (ext^ 0 ρ) sbs))
+    p-rename ρ (p-ι-nat-suc {m = m} {brs = brs} {brs′ = brs′} {b′ = b′} {n = n} found refl sm sbrs sbs) =
       subst (λ z → _⇉_ (rename ρ (tm-case (tm-nat_lit (suc n)) m brs)) z)
             (sym (rename-substArgs ρ (tm-nat_lit n ∷ []) b′))
-            (subst (λ m′ → _⇉_ (rename ρ (tm-case (tm-nat_lit (suc n)) m brs))
-                               (substArgs (tm-nat_lit n ∷ []) (rename (ext^ m′ ρ) b′)))
-                   (sym (la-S {brs = renameBranches ρ brs′} (findBranch-rename ρ "S" brs′ found)))
-                   (p-ι-nat-suc {brs = renameBranches ρ brs} {brs′ = renameBranches ρ brs′}
-                                {ar = ar} {b = rename (ext^ ar ρ) b} {b′ = rename (ext^ ar ρ) b′}
-                                (findBranch-rename ρ "S" brs′ found)
-                                (p-rename ρ sm) (p-rename-brs ρ sbrs) (p-rename-star (ext^ ar ρ) sbs)))
-      where
-        la-S : ∀ {brs} {ar} {b} → findBranch "S" brs ≡ just ("S" , ar , b) → 1 ≡ ar
-        la-S {brs} = proj₁ (proj₂ la) {brs}
-    p-rename ρ (p-ι-bounded-zero {m} {m′} {brs} {brs′ = brs′} {ar} {b} {b′} found sm sbrs sbs) =
+            (p-ι-nat-suc (findBranch-rename ρ "S" brs′ found) refl
+              (p-rename ρ sm) (p-rename-brs ρ sbrs) (p-rename-star (ext^ 1 ρ) sbs))
+    p-rename ρ (p-ι-bounded-zero {m = m} {brs = brs} {brs′ = brs′} {b′ = b′} found refl sm sbrs sbs) =
       subst (λ z → _⇉_ (rename ρ (tm-case (tm-bounded_lit 0) m brs)) z)
             (sym (rename-substArgs ρ (tm-nat_lit 0 ∷ []) b′))
-            (subst (λ m′ → _⇉_ (rename ρ (tm-case (tm-bounded_lit 0) m brs))
-                               (substArgs (tm-nat_lit 0 ∷ []) (rename (ext^ m′ ρ) b′)))
-                   (sym (la-First {brs = renameBranches ρ brs′} (findBranch-rename ρ "First" brs′ found)))
-                   (p-ι-bounded-zero {brs = renameBranches ρ brs} {brs′ = renameBranches ρ brs′}
-                                     {ar = ar} {b = rename (ext^ ar ρ) b} {b′ = rename (ext^ ar ρ) b′}
-                                     (findBranch-rename ρ "First" brs′ found)
-                                     (p-rename ρ sm) (p-rename-brs ρ sbrs) (p-rename-star (ext^ ar ρ) sbs)))
-      where
-        la-First : ∀ {brs} {ar} {b} → findBranch "First" brs ≡ just ("First" , ar , b) → 1 ≡ ar
-        la-First {brs} = proj₁ (proj₂ (proj₂ la)) {brs}
-    p-rename ρ (p-ι-bounded-suc {m} {m′} {brs} {brs′ = brs′} {ar} {b} {b′} {k} found sm sbrs sbs) =
+            (p-ι-bounded-zero (findBranch-rename ρ "First" brs′ found) refl
+              (p-rename ρ sm) (p-rename-brs ρ sbrs) (p-rename-star (ext^ 1 ρ) sbs))
+    p-rename ρ (p-ι-bounded-suc {m = m} {brs = brs} {brs′ = brs′} {b′ = b′} {k = k} found refl sm sbrs sbs) =
       subst (λ z → _⇉_ (rename ρ (tm-case (tm-bounded_lit (suc k)) m brs)) z)
             (sym (rename-substArgs ρ (tm-nat_lit k ∷ tm-bounded_lit k ∷ []) b′))
-            (subst (λ m′ → _⇉_ (rename ρ (tm-case (tm-bounded_lit (suc k)) m brs))
-                               (substArgs (tm-nat_lit k ∷ tm-bounded_lit k ∷ []) (rename (ext^ m′ ρ) b′)))
-                   (sym (la-Next {brs = renameBranches ρ brs′} (findBranch-rename ρ "Next" brs′ found)))
-                   (p-ι-bounded-suc {brs = renameBranches ρ brs} {brs′ = renameBranches ρ brs′}
-                                    {ar = ar} {b = rename (ext^ ar ρ) b} {b′ = rename (ext^ ar ρ) b′}
-                                    (findBranch-rename ρ "Next" brs′ found)
-                                    (p-rename ρ sm) (p-rename-brs ρ sbrs) (p-rename-star (ext^ ar ρ) sbs)))
-      where
-        la-Next : ∀ {brs} {ar} {b} → findBranch "Next" brs ≡ just ("Next" , ar , b) → 2 ≡ ar
-        la-Next {brs} = proj₂ (proj₂ (proj₂ la)) {brs}
+            (p-ι-bounded-suc (findBranch-rename ρ "Next" brs′ found) refl
+              (p-rename ρ sm) (p-rename-brs ρ sbrs) (p-rename-star (ext^ 2 ρ) sbs))
     p-rename ρ (p-δ eq) = subst (λ z → _⇉_ (tm-global _) z) (sym (rename-closed (cb eq))) (p-δ eq)
 
     p-rename-terms : ∀ (ρ : Ren) {ts ts′} → _⇉*ᵗ_ ts ts′ → _⇉*ᵗ_ (renameTerms ρ ts) (renameTerms ρ ts′)
@@ -363,83 +323,54 @@ module Conf (sig : Signature) (la : LiteralArity) (cb : ClosedBody sig) where
                                                        (⇉-extSub^ ar h) sbs)
                                         (⇉-refl-terms (substTermsS σ′ args′)))
                                    ⇉*-refl)))))
-    ⇉-substS σ σ′ h (p-ι-nat-zero {m} {m′} {brs} {brs′} {ar} {b} {b′} found sm sbrs sbs) =
+    ⇉-substS σ σ′ h (p-ι-nat-zero {m = m} {brs = brs} {brs′ = brs′} {b′ = b′} found refl sm sbrs sbs) =
       subst (λ z → _⇉*_ (substS σ (tm-case (tm-nat_lit 0) m brs)) z)
             (sym (subst-argsSub σ′ [] b′))
-            (subst (λ n → _⇉*_ (substS σ (tm-case (tm-nat_lit 0) m brs))
-                                (substArgs [] (substS (extSub^ n σ′) b′)))
-                   (sym (la-Z {brs = substBranchesS σ′ brs′} (findBranch-substBranchesS σ′ "Z" brs′ found)))
-                   (⇉*-trans (⇉*-case-motive (⇉-substS σ σ′ h sm))
-                     (⇉*-trans (⇉*-case-brs (⇉-substBranchesS σ σ′ h sbrs))
-                       (⇉*-step (p-ι-nat-zero {brs = substBranchesS σ′ brs′}
-                                               {brs′ = substBranchesS σ′ brs′}
-                                               (findBranch-substBranchesS σ′ "Z" brs′ found)
-                                               (⇉-refl _)
-                                               (⇉-refl-brs (substBranchesS σ′ brs′))
-                                               (⇉-substS-star (extSub^ ar σ) (extSub^ ar σ′)
-                                                              (⇉-extSub^ ar h) sbs))
-                                 ⇉*-refl))))
-      where
-        la-Z : ∀ {brs} {ar} {b} → findBranch "Z" brs ≡ just ("Z" , ar , b) → 0 ≡ ar
-        la-Z {brs} = proj₁ la {brs}
-    ⇉-substS σ σ′ h (p-ι-nat-suc {m} {m′} {brs} {brs′} {ar} {b} {b′} {n} found sm sbrs sbs) =
+            (⇉*-trans (⇉*-case-motive (⇉-substS σ σ′ h sm))
+              (⇉*-trans (⇉*-case-brs (⇉-substBranchesS σ σ′ h sbrs))
+                (⇉*-step (p-ι-nat-zero {brs = substBranchesS σ′ brs′}
+                                         {brs′ = substBranchesS σ′ brs′}
+                                         (findBranch-substBranchesS σ′ "Z" brs′ found) refl
+                                         (⇉-refl _) (⇉-refl-brs (substBranchesS σ′ brs′))
+                                         (⇉-substS-star (extSub^ 0 σ) (extSub^ 0 σ′)
+                                                        (⇉-extSub^ 0 h) sbs))
+                          ⇉*-refl)))
+    ⇉-substS σ σ′ h (p-ι-nat-suc {m = m} {brs = brs} {brs′ = brs′} {b′ = b′} {n = n} found refl sm sbrs sbs) =
       subst (λ z → _⇉*_ (substS σ (tm-case (tm-nat_lit (suc n)) m brs)) z)
             (sym (subst-argsSub σ′ (tm-nat_lit n ∷ []) b′))
-            (subst (λ k → _⇉*_ (substS σ (tm-case (tm-nat_lit (suc n)) m brs))
-                                (substArgs (tm-nat_lit n ∷ []) (substS (extSub^ k σ′) b′)))
-                   (sym (la-S {brs = substBranchesS σ′ brs′} (findBranch-substBranchesS σ′ "S" brs′ found)))
-                   (⇉*-trans (⇉*-case-motive (⇉-substS σ σ′ h sm))
-                     (⇉*-trans (⇉*-case-brs (⇉-substBranchesS σ σ′ h sbrs))
-                       (⇉*-step (p-ι-nat-suc {brs = substBranchesS σ′ brs′}
-                                              {brs′ = substBranchesS σ′ brs′}
-                                              (findBranch-substBranchesS σ′ "S" brs′ found)
-                                              (⇉-refl _)
-                                              (⇉-refl-brs (substBranchesS σ′ brs′))
-                                              (⇉-substS-star (extSub^ ar σ) (extSub^ ar σ′)
-                                                             (⇉-extSub^ ar h) sbs))
-                                 ⇉*-refl))))
-      where
-        la-S : ∀ {brs} {ar} {b} → findBranch "S" brs ≡ just ("S" , ar , b) → 1 ≡ ar
-        la-S {brs} = proj₁ (proj₂ la) {brs}
-    ⇉-substS σ σ′ h (p-ι-bounded-zero {m} {m′} {brs} {brs′} {ar} {b} {b′} found sm sbrs sbs) =
+            (⇉*-trans (⇉*-case-motive (⇉-substS σ σ′ h sm))
+              (⇉*-trans (⇉*-case-brs (⇉-substBranchesS σ σ′ h sbrs))
+                (⇉*-step (p-ι-nat-suc {brs = substBranchesS σ′ brs′}
+                                         {brs′ = substBranchesS σ′ brs′}
+                                         (findBranch-substBranchesS σ′ "S" brs′ found) refl
+                                         (⇉-refl _) (⇉-refl-brs (substBranchesS σ′ brs′))
+                                         (⇉-substS-star (extSub^ 1 σ) (extSub^ 1 σ′)
+                                                        (⇉-extSub^ 1 h) sbs))
+                          ⇉*-refl)))
+    ⇉-substS σ σ′ h (p-ι-bounded-zero {m = m} {brs = brs} {brs′ = brs′} {b′ = b′} found refl sm sbrs sbs) =
       subst (λ z → _⇉*_ (substS σ (tm-case (tm-bounded_lit 0) m brs)) z)
             (sym (subst-argsSub σ′ (tm-nat_lit 0 ∷ []) b′))
-            (subst (λ k → _⇉*_ (substS σ (tm-case (tm-bounded_lit 0) m brs))
-                                (substArgs (tm-nat_lit 0 ∷ []) (substS (extSub^ k σ′) b′)))
-                   (sym (la-First {brs = substBranchesS σ′ brs′} (findBranch-substBranchesS σ′ "First" brs′ found)))
-                   (⇉*-trans (⇉*-case-motive (⇉-substS σ σ′ h sm))
-                     (⇉*-trans (⇉*-case-brs (⇉-substBranchesS σ σ′ h sbrs))
-                       (⇉*-step (p-ι-bounded-zero {brs = substBranchesS σ′ brs′}
-                                                   {brs′ = substBranchesS σ′ brs′}
-                                                   (findBranch-substBranchesS σ′ "First" brs′ found)
-                                                   (⇉-refl _)
-                                                   (⇉-refl-brs (substBranchesS σ′ brs′))
-                                                   (⇉-substS-star (extSub^ ar σ) (extSub^ ar σ′)
-                                                                  (⇉-extSub^ ar h) sbs))
-                                 ⇉*-refl))))
-      where
-        la-First : ∀ {brs} {ar} {b} → findBranch "First" brs ≡ just ("First" , ar , b) → 1 ≡ ar
-        la-First {brs} = proj₁ (proj₂ (proj₂ la)) {brs}
-    ⇉-substS σ σ′ h (p-ι-bounded-suc {m} {m′} {brs} {brs′} {ar} {b} {b′} {k} found sm sbrs sbs) =
+            (⇉*-trans (⇉*-case-motive (⇉-substS σ σ′ h sm))
+              (⇉*-trans (⇉*-case-brs (⇉-substBranchesS σ σ′ h sbrs))
+                (⇉*-step (p-ι-bounded-zero {brs = substBranchesS σ′ brs′}
+                                         {brs′ = substBranchesS σ′ brs′}
+                                         (findBranch-substBranchesS σ′ "First" brs′ found) refl
+                                         (⇉-refl _) (⇉-refl-brs (substBranchesS σ′ brs′))
+                                         (⇉-substS-star (extSub^ 1 σ) (extSub^ 1 σ′)
+                                                        (⇉-extSub^ 1 h) sbs))
+                          ⇉*-refl)))
+    ⇉-substS σ σ′ h (p-ι-bounded-suc {m = m} {brs = brs} {brs′ = brs′} {b′ = b′} {k = k} found refl sm sbrs sbs) =
       subst (λ z → _⇉*_ (substS σ (tm-case (tm-bounded_lit (suc k)) m brs)) z)
             (sym (subst-argsSub σ′ (tm-nat_lit k ∷ tm-bounded_lit k ∷ []) b′))
-            (subst (λ j → _⇉*_ (substS σ (tm-case (tm-bounded_lit (suc k)) m brs))
-                                (substArgs (tm-nat_lit k ∷ tm-bounded_lit k ∷ [])
-                                           (substS (extSub^ j σ′) b′)))
-                   (sym (la-Next {brs = substBranchesS σ′ brs′} (findBranch-substBranchesS σ′ "Next" brs′ found)))
-                   (⇉*-trans (⇉*-case-motive (⇉-substS σ σ′ h sm))
-                     (⇉*-trans (⇉*-case-brs (⇉-substBranchesS σ σ′ h sbrs))
-                       (⇉*-step (p-ι-bounded-suc {brs = substBranchesS σ′ brs′}
-                                                  {brs′ = substBranchesS σ′ brs′}
-                                                  (findBranch-substBranchesS σ′ "Next" brs′ found)
-                                                  (⇉-refl _)
-                                                  (⇉-refl-brs (substBranchesS σ′ brs′))
-                                                  (⇉-substS-star (extSub^ ar σ) (extSub^ ar σ′)
-                                                                 (⇉-extSub^ ar h) sbs))
-                                 ⇉*-refl))))
-      where
-        la-Next : ∀ {brs} {ar} {b} → findBranch "Next" brs ≡ just ("Next" , ar , b) → 2 ≡ ar
-        la-Next {brs} = proj₂ (proj₂ (proj₂ la)) {brs}
+            (⇉*-trans (⇉*-case-motive (⇉-substS σ σ′ h sm))
+              (⇉*-trans (⇉*-case-brs (⇉-substBranchesS σ σ′ h sbrs))
+                (⇉*-step (p-ι-bounded-suc {brs = substBranchesS σ′ brs′}
+                                         {brs′ = substBranchesS σ′ brs′}
+                                         (findBranch-substBranchesS σ′ "Next" brs′ found) refl
+                                         (⇉-refl _) (⇉-refl-brs (substBranchesS σ′ brs′))
+                                         (⇉-substS-star (extSub^ 2 σ) (extSub^ 2 σ′)
+                                                        (⇉-extSub^ 2 h) sbs))
+                          ⇉*-refl)))
     ⇉-substS σ σ′ h (p-δ eq) =
       ⇉*-step (subst (λ z → _⇉_ (tm-global _) z) (sym (substS-closed (cb eq))) (p-δ eq)) ⇉*-refl
 
@@ -814,61 +745,44 @@ module Conf (sig : Signature) (la : LiteralArity) (cb : ClosedBody sig) where
        , substArgs-⇉*ᵗ* args′ args‴ ad b′-⇉
        , subst (λ z → _⇉*_ (substArgs args″ b″) (substArgs args‴ z)) (sym b-eq)
                (substArgs-⇉*ᵗ* args″ args‴ ae b″-⇉)
-    ⇉-diamond (p-ι-nat-zero {brs = brs} {brs′ = brs′} {ar = ar} {b′ = b′} found sm sbrs sbs)
-              (p-ι-nat-zero {brs = .brs} {brs′ = brs′₁} {ar = ar′} {b′ = b″} found′ sm′ sbrs′ sbs′) =
+    ⇉-diamond (p-ι-nat-zero {brs = brs} {brs′ = brs′} {ar = ar} {b′ = b′} found refl sm sbrs sbs)
+              (p-ι-nat-zero {brs = .brs} {brs′ = brs′₁} {ar = ar′} {b′ = b″} found′ refl sm′ sbrs′ sbs′) =
       let (brs‴ , bs-d , bs-e) = ⇉-diamond-brs sbrs sbrs′
           (b‴ , found‴ , b′-⇉) = findBranch-⇉*ᵇ-eq "Z" ar _ bs-d found
           (b‴′ , found‴′ , b″-⇉) = findBranch-⇉*ᵇ-eq "Z" ar′ _ bs-e found′
-          b-eq = proj₂ (findBranch-unique "Z" brs‴ found‴
-                          (subst (λ z → findBranch "Z" brs‴ ≡ just ("Z" , z , b‴′))
-                                 (sym (trans (sym (la-Z {brs = brs′} found)) (la-Z {brs = brs′₁} found′))) found‴′))
+          b-eq = proj₂ (findBranch-unique "Z" brs‴ found‴ found‴′)
       in substArgs [] b‴
        , substArgs-⇉*ᵗ* [] [] ⇉ᵗ*-nil b′-⇉
        , subst (λ z → _⇉*_ (substArgs [] b″) (substArgs [] z)) (sym b-eq)
                (substArgs-⇉*ᵗ* [] [] ⇉ᵗ*-nil b″-⇉)
-      where
-        la-Z : ∀ {brs ar b} → findBranch "Z" brs ≡ just ("Z" , ar , b) → 0 ≡ ar
-        la-Z {brs} = proj₁ la {brs}
-    ⇉-diamond (p-ι-nat-suc {brs = brs} {brs′ = brs′} {ar = ar} {b′ = b′} {n = n} found sm sbrs sbs)
-              (p-ι-nat-suc {brs = .brs} {brs′ = brs′₁} {ar = ar′} {b′ = b″} {n = n} found′ sm′ sbrs′ sbs′) =
+    ⇉-diamond (p-ι-nat-suc {brs = brs} {brs′ = brs′} {ar = ar} {b′ = b′} {n = n} found refl sm sbrs sbs)
+              (p-ι-nat-suc {brs = .brs} {brs′ = brs′₁} {ar = ar′} {b′ = b″} {n = n} found′ refl sm′ sbrs′ sbs′) =
       let (brs‴ , bs-d , bs-e) = ⇉-diamond-brs sbrs sbrs′
           (b‴ , found‴ , b′-⇉) = findBranch-⇉*ᵇ-eq "S" ar _ bs-d found
           (b‴′ , found‴′ , b″-⇉) = findBranch-⇉*ᵇ-eq "S" ar′ _ bs-e found′
-          b-eq = proj₂ (findBranch-unique "S" brs‴ found‴
-                          (subst (λ z → findBranch "S" brs‴ ≡ just ("S" , z , b‴′))
-                                 (sym (trans (sym (la-S {brs = brs′} found)) (la-S {brs = brs′₁} found′))) found‴′))
+          b-eq = proj₂ (findBranch-unique "S" brs‴ found‴ found‴′)
           a⇉ = ⇉ᵗ*-cons (⇉*-step p-nat_lit ⇉*-refl) ⇉ᵗ*-nil
       in substArgs (tm-nat_lit n ∷ []) b‴
        , substArgs-⇉*ᵗ* (tm-nat_lit n ∷ []) (tm-nat_lit n ∷ []) a⇉ b′-⇉
        , subst (λ z → _⇉*_ (substArgs (tm-nat_lit n ∷ []) b″) (substArgs (tm-nat_lit n ∷ []) z))
                (sym b-eq) (substArgs-⇉*ᵗ* (tm-nat_lit n ∷ []) (tm-nat_lit n ∷ []) a⇉ b″-⇉)
-      where
-        la-S : ∀ {brs ar b} → findBranch "S" brs ≡ just ("S" , ar , b) → 1 ≡ ar
-        la-S {brs} = proj₁ (proj₂ la) {brs}
-    ⇉-diamond (p-ι-bounded-zero {brs = brs} {brs′ = brs′} {ar = ar} {b′ = b′} found sm sbrs sbs)
-              (p-ι-bounded-zero {brs = .brs} {brs′ = brs′₁} {ar = ar′} {b′ = b″} found′ sm′ sbrs′ sbs′) =
+    ⇉-diamond (p-ι-bounded-zero {brs = brs} {brs′ = brs′} {ar = ar} {b′ = b′} found refl sm sbrs sbs)
+              (p-ι-bounded-zero {brs = .brs} {brs′ = brs′₁} {ar = ar′} {b′ = b″} found′ refl sm′ sbrs′ sbs′) =
       let (brs‴ , bs-d , bs-e) = ⇉-diamond-brs sbrs sbrs′
           (b‴ , found‴ , b′-⇉) = findBranch-⇉*ᵇ-eq "First" ar _ bs-d found
           (b‴′ , found‴′ , b″-⇉) = findBranch-⇉*ᵇ-eq "First" ar′ _ bs-e found′
-          b-eq = proj₂ (findBranch-unique "First" brs‴ found‴
-                          (subst (λ z → findBranch "First" brs‴ ≡ just ("First" , z , b‴′))
-                                 (sym (trans (sym (la-First {brs = brs′} found)) (la-First {brs = brs′₁} found′))) found‴′))
+          b-eq = proj₂ (findBranch-unique "First" brs‴ found‴ found‴′)
           a⇉ = ⇉ᵗ*-cons (⇉*-step p-nat_lit ⇉*-refl) ⇉ᵗ*-nil
       in substArgs (tm-nat_lit 0 ∷ []) b‴
        , substArgs-⇉*ᵗ* (tm-nat_lit 0 ∷ []) (tm-nat_lit 0 ∷ []) a⇉ b′-⇉
        , subst (λ z → _⇉*_ (substArgs (tm-nat_lit 0 ∷ []) b″) (substArgs (tm-nat_lit 0 ∷ []) z))
                (sym b-eq) (substArgs-⇉*ᵗ* (tm-nat_lit 0 ∷ []) (tm-nat_lit 0 ∷ []) a⇉ b″-⇉)
-      where
-        la-First : ∀ {brs ar b} → findBranch "First" brs ≡ just ("First" , ar , b) → 1 ≡ ar
-        la-First {brs} = proj₁ (proj₂ (proj₂ la)) {brs}
-    ⇉-diamond (p-ι-bounded-suc {brs = brs} {brs′ = brs′} {ar = ar} {b′ = b′} {k = k} found sm sbrs sbs)
-              (p-ι-bounded-suc {brs = .brs} {brs′ = brs′₁} {ar = ar′} {b′ = b″} {k = k} found′ sm′ sbrs′ sbs′) =
+    ⇉-diamond (p-ι-bounded-suc {brs = brs} {brs′ = brs′} {ar = ar} {b′ = b′} {k = k} found refl sm sbrs sbs)
+              (p-ι-bounded-suc {brs = .brs} {brs′ = brs′₁} {ar = ar′} {b′ = b″} {k = k} found′ refl sm′ sbrs′ sbs′) =
       let (brs‴ , bs-d , bs-e) = ⇉-diamond-brs sbrs sbrs′
           (b‴ , found‴ , b′-⇉) = findBranch-⇉*ᵇ-eq "Next" ar _ bs-d found
           (b‴′ , found‴′ , b″-⇉) = findBranch-⇉*ᵇ-eq "Next" ar′ _ bs-e found′
-          b-eq = proj₂ (findBranch-unique "Next" brs‴ found‴
-                          (subst (λ z → findBranch "Next" brs‴ ≡ just ("Next" , z , b‴′))
-                                 (sym (trans (sym (la-Next {brs = brs′} found)) (la-Next {brs = brs′₁} found′))) found‴′))
+          b-eq = proj₂ (findBranch-unique "Next" brs‴ found‴ found‴′)
           args = tm-nat_lit k ∷ tm-bounded_lit k ∷ []
           a⇉ = ⇉ᵗ*-cons (⇉*-step p-nat_lit ⇉*-refl)
                        (⇉ᵗ*-cons (⇉*-step p-bounded_lit ⇉*-refl) ⇉ᵗ*-nil)
@@ -876,9 +790,6 @@ module Conf (sig : Signature) (la : LiteralArity) (cb : ClosedBody sig) where
        , substArgs-⇉*ᵗ* args args a⇉ b′-⇉
        , subst (λ z → _⇉*_ (substArgs args b″) (substArgs args z)) (sym b-eq)
                (substArgs-⇉*ᵗ* args args a⇉ b″-⇉)
-      where
-        la-Next : ∀ {brs ar b} → findBranch "Next" brs ≡ just ("Next" , ar , b) → 2 ≡ ar
-        la-Next {brs} = proj₂ (proj₂ (proj₂ la)) {brs}
     -- ι vs case: the case side reduces the constructor scrutinee. We
     -- delegate to helpers that pattern-match the ctor reduction `ss`.
     ⇉-diamond (p-ι {brs = brs} {c = c} {ar = ar} {b′ = b′} {args = args} {args′ = args′} found len sm sbrs sbs sargs)
@@ -891,7 +802,7 @@ module Conf (sig : Signature) (la : LiteralArity) (cb : ClosedBody sig) where
                 red found len sbs sbrs′ sargs′ ss sm sm′
     -- ι-nat / ι-bounded vs case: the scrutinee is a literal, which only
     -- reduces to itself (`p-nat_lit`), so the case side's scrutinee is fixed.
-    ⇉-diamond (p-ι-nat-zero {brs′ = brs′} {ar = ar} {b′ = b′} found sm sbrs sbs)
+    ⇉-diamond (p-ι-nat-zero {brs′ = brs′} {ar = ar} {b′ = b′} found refl sm sbrs sbs)
               (p-case {s′ = .(tm-nat_lit 0)} {brs′ = red′} p-nat_lit sm′ sbs′) =
       let (brs‴ , bs-d , bs-e) = ⇉-diamond-brs sbrs sbs′
           (b‴ , found‴ , b′-⇉) = findBranch-⇉*ᵇ-eq "Z" {bs = _} {bs′ = brs‴} ar _ bs-d found
@@ -901,9 +812,9 @@ module Conf (sig : Signature) (la : LiteralArity) (cb : ClosedBody sig) where
        , ⇉*-trans (⇉*-trans (⇉*-case (⇉*-step p-nat_lit ⇉*-refl)) (⇉*-case-motive me))
                   (⇉*-trans (⇉*-case-brs bs-e)
                     (⇉*-step (p-ι-nat-zero {brs = brs‴} {brs′ = brs‴} {ar = _} {b = _} {b′ = b‴}
-                                   found‴ (⇉-refl _) (⇉-refl-brs _) ⇉*-refl) ⇉*-refl))
+                                   found‴ refl (⇉-refl _) (⇉-refl-brs _) ⇉*-refl) ⇉*-refl))
     ⇉-diamond (p-case {s = s} {brs = src} p-nat_lit sm sbs)
-              (p-ι-nat-zero {ar = ar} {b′ = b′} found sm′ sbrs′ sbs′) =
+              (p-ι-nat-zero {ar = ar} {b′ = b′} found refl sm′ sbrs′ sbs′) =
       let (brs‴ , bs-d , bs-e) = ⇉-diamond-brs sbs sbrs′
           (b‴ , found‴ , b′-⇉) = findBranch-⇉*ᵇ-eq "Z" {bs = _} {bs′ = brs‴} ar _ bs-e found
           (m‴ , md , me) = ⇉-diamond sm sm′
@@ -911,10 +822,10 @@ module Conf (sig : Signature) (la : LiteralArity) (cb : ClosedBody sig) where
        , ⇉*-trans (⇉*-trans (⇉*-case (⇉*-step p-nat_lit ⇉*-refl)) (⇉*-case-motive md))
                   (⇉*-trans (⇉*-case-brs bs-d)
                     (⇉*-step (p-ι-nat-zero {brs = brs‴} {brs′ = brs‴} {ar = _} {b = _} {b′ = b‴}
-                                   found‴ (⇉-refl _) (⇉-refl-brs _) ⇉*-refl) ⇉*-refl))
+                                   found‴ refl (⇉-refl _) (⇉-refl-brs _) ⇉*-refl) ⇉*-refl))
        , substArgs-⇉*ᵗ* [] [] ⇉ᵗ*-nil b′-⇉
 
-    ⇉-diamond (p-ι-nat-suc {brs′ = brs′} {ar = ar} {b′ = b′} {n = n} found sm sbrs sbs)
+    ⇉-diamond (p-ι-nat-suc {brs′ = brs′} {ar = ar} {b′ = b′} {n = n} found refl sm sbrs sbs)
               (p-case {s′ = .(tm-nat_lit (suc n))} {brs′ = red′} p-nat_lit sm′ sbs′) =
       let (brs‴ , bs-d , bs-e) = ⇉-diamond-brs sbrs sbs′
           (b‴ , found‴ , b′-⇉) = findBranch-⇉*ᵇ-eq "S" ar _ bs-d found
@@ -925,9 +836,9 @@ module Conf (sig : Signature) (la : LiteralArity) (cb : ClosedBody sig) where
        , ⇉*-trans (⇉*-trans (⇉*-case (⇉*-step p-nat_lit ⇉*-refl)) (⇉*-case-motive me))
                   (⇉*-trans (⇉*-case-brs bs-e)
                     (⇉*-step (p-ι-nat-suc {brs = brs‴} {brs′ = brs‴} {ar = _} {b = _} {b′ = b‴}
-                                   found‴ (⇉-refl _) (⇉-refl-brs _) ⇉*-refl) ⇉*-refl))
+                                   found‴ refl (⇉-refl _) (⇉-refl-brs _) ⇉*-refl) ⇉*-refl))
     ⇉-diamond (p-case {s = s} {brs = src} p-nat_lit sm sbs)
-              (p-ι-nat-suc {ar = ar} {b′ = b′} {n = n} found sm′ sbrs′ sbs′) =
+              (p-ι-nat-suc {ar = ar} {b′ = b′} {n = n} found refl sm′ sbrs′ sbs′) =
       let (brs‴ , bs-d , bs-e) = ⇉-diamond-brs sbs sbrs′
           (b‴ , found‴ , b′-⇉) = findBranch-⇉*ᵇ-eq "S" ar _ bs-e found
           (m‴ , md , me) = ⇉-diamond sm sm′
@@ -936,9 +847,9 @@ module Conf (sig : Signature) (la : LiteralArity) (cb : ClosedBody sig) where
        , ⇉*-trans (⇉*-trans (⇉*-case (⇉*-step p-nat_lit ⇉*-refl)) (⇉*-case-motive md))
                   (⇉*-trans (⇉*-case-brs bs-d)
                     (⇉*-step (p-ι-nat-suc {brs = brs‴} {brs′ = brs‴} {ar = _} {b = _} {b′ = b‴}
-                                   found‴ (⇉-refl _) (⇉-refl-brs _) ⇉*-refl) ⇉*-refl))
+                                   found‴ refl (⇉-refl _) (⇉-refl-brs _) ⇉*-refl) ⇉*-refl))
        , substArgs-⇉*ᵗ* (tm-nat_lit n ∷ []) (tm-nat_lit n ∷ []) a⇉ b′-⇉
-    ⇉-diamond (p-ι-bounded-zero {brs′ = brs′} {ar = ar} {b′ = b′} found sm sbrs sbs)
+    ⇉-diamond (p-ι-bounded-zero {brs′ = brs′} {ar = ar} {b′ = b′} found refl sm sbrs sbs)
               (p-case {s′ = .(tm-bounded_lit 0)} {brs′ = red′} p-bounded_lit sm′ sbs′) =
       let (brs‴ , bs-d , bs-e) = ⇉-diamond-brs sbrs sbs′
           (b‴ , found‴ , b′-⇉) = findBranch-⇉*ᵇ-eq "First" ar _ bs-d found
@@ -949,9 +860,9 @@ module Conf (sig : Signature) (la : LiteralArity) (cb : ClosedBody sig) where
        , ⇉*-trans (⇉*-trans (⇉*-case (⇉*-step p-bounded_lit ⇉*-refl)) (⇉*-case-motive me))
                   (⇉*-trans (⇉*-case-brs bs-e)
                     (⇉*-step (p-ι-bounded-zero {brs = brs‴} {brs′ = brs‴} {ar = _} {b = _} {b′ = b‴}
-                                   found‴ (⇉-refl _) (⇉-refl-brs _) ⇉*-refl) ⇉*-refl))
+                                   found‴ refl (⇉-refl _) (⇉-refl-brs _) ⇉*-refl) ⇉*-refl))
     ⇉-diamond (p-case {s = s} {brs = src} p-bounded_lit sm sbs)
-              (p-ι-bounded-zero {ar = ar} {b′ = b′} found sm′ sbrs′ sbs′) =
+              (p-ι-bounded-zero {ar = ar} {b′ = b′} found refl sm′ sbrs′ sbs′) =
       let (brs‴ , bs-d , bs-e) = ⇉-diamond-brs sbs sbrs′
           (b‴ , found‴ , b′-⇉) = findBranch-⇉*ᵇ-eq "First" ar _ bs-e found
           (m‴ , md , me) = ⇉-diamond sm sm′
@@ -960,9 +871,9 @@ module Conf (sig : Signature) (la : LiteralArity) (cb : ClosedBody sig) where
        , ⇉*-trans (⇉*-trans (⇉*-case (⇉*-step p-bounded_lit ⇉*-refl)) (⇉*-case-motive md))
                   (⇉*-trans (⇉*-case-brs bs-d)
                     (⇉*-step (p-ι-bounded-zero {brs = brs‴} {brs′ = brs‴} {ar = _} {b = _} {b′ = b‴}
-                                   found‴ (⇉-refl _) (⇉-refl-brs _) ⇉*-refl) ⇉*-refl))
+                                   found‴ refl (⇉-refl _) (⇉-refl-brs _) ⇉*-refl) ⇉*-refl))
        , substArgs-⇉*ᵗ* (tm-nat_lit 0 ∷ []) (tm-nat_lit 0 ∷ []) a⇉ b′-⇉
-    ⇉-diamond (p-ι-bounded-suc {brs′ = brs′} {ar = ar} {b′ = b′} {k = k} found sm sbrs sbs)
+    ⇉-diamond (p-ι-bounded-suc {brs′ = brs′} {ar = ar} {b′ = b′} {k = k} found refl sm sbrs sbs)
               (p-case {s′ = .(tm-bounded_lit (suc k))} {brs′ = red′} p-bounded_lit sm′ sbs′) =
       let (brs‴ , bs-d , bs-e) = ⇉-diamond-brs sbrs sbs′
           (b‴ , found‴ , b′-⇉) = findBranch-⇉*ᵇ-eq "Next" ar _ bs-d found
@@ -975,9 +886,9 @@ module Conf (sig : Signature) (la : LiteralArity) (cb : ClosedBody sig) where
        , ⇉*-trans (⇉*-trans (⇉*-case (⇉*-step p-bounded_lit ⇉*-refl)) (⇉*-case-motive me))
                   (⇉*-trans (⇉*-case-brs bs-e)
                     (⇉*-step (p-ι-bounded-suc {brs = brs‴} {brs′ = brs‴} {ar = _} {b = _} {b′ = b‴}
-                                   found‴ (⇉-refl _) (⇉-refl-brs _) ⇉*-refl) ⇉*-refl))
+                                   found‴ refl (⇉-refl _) (⇉-refl-brs _) ⇉*-refl) ⇉*-refl))
     ⇉-diamond (p-case {s = s} {brs = src} p-bounded_lit sm sbs)
-              (p-ι-bounded-suc {ar = ar} {b′ = b′} {k = k} found sm′ sbrs′ sbs′) =
+              (p-ι-bounded-suc {ar = ar} {b′ = b′} {k = k} found refl sm′ sbrs′ sbs′) =
       let (brs‴ , bs-d , bs-e) = ⇉-diamond-brs sbs sbrs′
           (b‴ , found‴ , b′-⇉) = findBranch-⇉*ᵇ-eq "Next" ar _ bs-e found
           (m‴ , md , me) = ⇉-diamond sm sm′
@@ -988,7 +899,7 @@ module Conf (sig : Signature) (la : LiteralArity) (cb : ClosedBody sig) where
        , ⇉*-trans (⇉*-trans (⇉*-case (⇉*-step p-bounded_lit ⇉*-refl)) (⇉*-case-motive md))
                   (⇉*-trans (⇉*-case-brs bs-d)
                     (⇉*-step (p-ι-bounded-suc {brs = brs‴} {brs′ = brs‴} {ar = _} {b = _} {b′ = b‴}
-                                   found‴ (⇉-refl _) (⇉-refl-brs _) ⇉*-refl) ⇉*-refl))
+                                   found‴ refl (⇉-refl _) (⇉-refl-brs _) ⇉*-refl) ⇉*-refl))
        , substArgs-⇉*ᵗ* args args a⇉ b′-⇉
 
     ⇉-diamond (p-case ss sm sbs) (p-case ss′ sm′ sbs′) =

@@ -216,15 +216,15 @@ module _ (sig : Signature) (cert : Certified sig) where
     final-preservation (f-case (f-ctor {args = args} fargs) fm fbs) (ι {c = c} {ar = ar} {b = b} found len) =
       substS-final (argsSub args) (argsSub-final fargs) (finalBranches-member fbs (findBranch-sound c _ found))
     -- ι on a compact Nat literal: the peeled fields are literals (final).
-    final-preservation (f-case (f-nat_lit {k = zero}) fm fbs) (ι-nat-zero {ar = ar} {b = b} found) =
+    final-preservation (f-case (f-nat_lit {k = zero}) fm fbs) (ι-nat-zero {ar = ar} {b = b} found refl) =
       substS-final (argsSub []) (argsSub-final ft[]) (finalBranches-member fbs (findBranch-sound "Z" _ found))
-    final-preservation (f-case (f-nat_lit {k = suc k}) fm fbs) (ι-nat-suc {ar = ar} {b = b} found) =
+    final-preservation (f-case (f-nat_lit {k = suc k}) fm fbs) (ι-nat-suc {ar = ar} {b = b} found refl) =
       substS-final (argsSub (tm-nat_lit k ∷ [])) (argsSub-final (ft∷ f-nat_lit ft[]))
                    (finalBranches-member fbs (findBranch-sound "S" _ found))
-    final-preservation (f-case (f-bounded_lit {k = zero}) fm fbs) (ι-bounded-zero {ar = ar} {b = b} found) =
+    final-preservation (f-case (f-bounded_lit {k = zero}) fm fbs) (ι-bounded-zero {ar = ar} {b = b} found refl) =
       substS-final (argsSub (tm-nat_lit 0 ∷ [])) (argsSub-final (ft∷ f-nat_lit ft[]))
                    (finalBranches-member fbs (findBranch-sound "First" _ found))
-    final-preservation (f-case (f-bounded_lit {k = suc k}) fm fbs) (ι-bounded-suc {ar = ar} {b = b} found) =
+    final-preservation (f-case (f-bounded_lit {k = suc k}) fm fbs) (ι-bounded-suc {ar = ar} {b = b} found refl) =
       substS-final (argsSub (tm-nat_lit k ∷ tm-bounded_lit k ∷ []))
                    (argsSub-final (ft∷ f-nat_lit (ft∷ f-bounded_lit ft[])))
                    (finalBranches-member fbs (findBranch-sound "Next" _ found))

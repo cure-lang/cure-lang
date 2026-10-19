@@ -1,6 +1,17 @@
 # Confluence of the Cure Core reduction relation
 
-**Status: COMPLETE.** The mechanised confluence development is finished:
+**Status: local literal arities repaired; termination checking still open.**
+The old impossible `LiteralArity` parameter has been removed from `Conf`.
+Each small-step and parallel literal rule now carries its branch-arity
+witness, and progress derives that witness from checked branches.
+`Proof.LiteralCases` exercises valid and malformed arities and instantiates
+a genuine reduction peak with a concrete `ClosedBody` signature.
+
+The existing confluence derivations type-check, but four `TERMINATING`
+pragmas in `Core.Parallel` and one in `Proof.Confluence` remain unresolved
+trust obligations. They are inventoried by `proof/scripts/check-hygiene.py`;
+guard success is not a termination proof. The historical account below
+describes the derivations, not a completed trusted certification:
 `⇉-substS` (the substitution-commutation lemma), `⇉-diamond` (the diamond
 property), and `confluence : _⇝_` are all **proved** in
 `proof/Proof/Confluence.agda`, which type-checks clean (no holes, no new
@@ -9,11 +20,12 @@ postulates) and is in the build (`proof/check.sh`). The development lives in
 
 ## Why confluence
 
-The classical three-way soundness theorem (`docs/SOUNDNESS.md` §1.4,
-`proof/Proof/Soundness.agda`) is derived from two named classical inputs. The
-second, `never-reached→no-value`, needs **confluence** of the reduction
-relation `_⇝_`: a never-reaching evaluation tree has no reachable value. The
-relation is **not deterministic** (`(λx. b) a` both β-reduces and reduces under
+Historically, a classical three-way soundness statement
+(`docs/SOUNDNESS.md` §1.4, `proof/Proof/Soundness.agda`) was derived from
+two named classical inputs. The
+second, `never-reached→no-value`, was originally expected to follow from
+confluence, but is false for this relation and has been removed (see below).
+The relation is **not deterministic** (`(λx. b) a` both β-reduces and reduces under
 the λ), so confluence is not immediate.
 
 ## The method
@@ -58,7 +70,7 @@ So the `Value` premises were **removed** from `_⇝_`'s `β`/`ζ` and `_⇉_`'s
   recursion).
 - The whole existing development (`Core/*`, `Proof/*` including Progress,
   Preservation, FinalPreservation, Soundness) type-checks **green** with the
-  value-free rules — verified by `proof/check.sh` (all 17 modules OK).
+  value-free rules — verified by `proof/check.sh`.
 
 This is the single most important simplification of the confluence work: it
 removes the entire hard case.
@@ -138,7 +150,9 @@ This is the crux the plan identified. **It is done.**
 - **`confluence : _⇝_`** — `_⇝_` is confluent, from `⇉-confluent` (= the
   diamond, iterated) and the two inclusions `⇝→⇉*` / `⇉→⇝*-star`.
 
-**The confluence development is complete.**
+The literal-arity premise is now locally enforced and inhabitable.
+The termination overrides must still be eliminated before calling the
+confluence development complete.
 
 ## FINDING: `never-reached→no-value` is false as stated
 
@@ -161,15 +175,20 @@ statement is only true if "value" means a term that has FINISHED evaluating
 `Value`.
 
 This is a comment on the SOUNDNESS development's classical input, not on
-confluence: `confluence` is correct and complete as proved. Discharging
+confluence: the false classical input is a separate issue from the
+remaining termination obligations in `confluence`. Discharging
 `never-reached→no-value` would require either (a) a reduction relation that
 does not reduce under binders, or (b) a stronger "final value" predicate in
 the statement.
 
 ## What remains
 
-**Nothing in the confluence development itself.** `confluence : _⇝_` is
-proved. The classical input `never-reached→no-value` in
+**Termination checking remains in the confluence development.** The
+literal-arity migration is complete, but the five existing termination
+overrides are not proofs of total recursion. In particular, a joinability
+conclusion for a single parallel peak must not be lifted to arbitrary
+multi-step confluence using unchecked recursion on generated witnesses.
+The classical input `never-reached→no-value` formerly in
 `Proof/Soundness.agda` **cannot** be discharged using `confluence`, because
 it is FALSE as stated for the mechanised `_⇝_` (see the finding above).
 
@@ -191,8 +210,11 @@ replaces the false input by its true form, over NORMAL FORMS rather than
 
 **The false postulate has been DELETED** from `Proof/Soundness.agda`,
 together with the classical three-way `soundness` that depended on it. The
-development now rests on exactly two axioms: `funext` and `tree-decides`
-(`proof/scripts/check-postulates.sh` enforces this).
+development has exactly two explicit named postulates: `funext` and
+`tree-decides` (`proof/scripts/check-postulates.sh` enforces this).
+Module parameters and the five termination overrides are additional trust
+obligations; the current full soundness interfaces are separately refuted
+in `Proof.InterfaceAudit` (see `docs/SOUNDNESS.md` §8).
 
 **A second negative result, recorded in that module.** The tempting
 strengthening "reaches a NORMAL-FORM value, or diverges" is NOT provable
@@ -211,14 +233,12 @@ VALUES (`ξ-lam-body`), not to non-values.
 
 ## Notes
 
-- Two `{-# TERMINATING #-}` pragmas in `Core/Parallel.agda` cover the
-  `⇉*-at-*` helpers (they recurse on the multi-step `ss`; the spine is
-  re-indexed by `setAt`).
+- Four `TERMINATING` pragmas remain in `Core/Parallel.agda`, and one in
+  `Proof/Confluence.agda`. Their explanations are not substitutes for
+  machine-checked termination.
 - The WIP `Confluence.agda` is now **in the tree and the build**
   (`proof/check.sh`); it type-checks clean with no holes and no new postulates.
-  Snapshots of the intermediate states are in `/tmp/Confluence.routeA.wip*.agda`
-  (session-local). The earlier value-or-redex approach is in
-  `/tmp/Confluence.wip11.agda` and is now **superseded** by the value-free
-  formulation.
+  The durable local-arity regressions are in `Proof/LiteralCases.agda`;
+  session-local intermediate snapshots are not required to reproduce them.
 - **Do not re-introduce the `Value` side conditions.** They are not needed and
   they re-create the `substS-Value-or-redex` obligation.

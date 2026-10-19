@@ -189,6 +189,33 @@ module Progress (ind : IndEnv) (sig : Signature) (conv : Conversion)
   brs-arity (brs∷ {ct = ct} fc _body rest) (here refl) = _ , ct , fc , refl
   brs-arity (brs∷ fc _body rest) (there p) = brs-arity rest p
 
+  -- Local arity evidence comes from THIS branch typing derivation.
+  -- No assertion about arbitrary raw branch lists is needed.
+  literal-branch-arity : ∀ {brs n m c ar b} (expected : ℕ)
+    → (∀ {f ct} → findCtor c (IndEnv.families ind) ≡ just (f , ct)
+      → length (ctor-args ct) ≡ expected)
+    → ⟨⟩ ⊢*brs brs ⇐*ᵇ (n , m)
+    → findBranch c brs ≡ just (c , ar , b)
+    → expected ≡ ar
+  literal-branch-arity expected ctor-length checked found
+    with brs-arity checked (findBranch-sound _ _ found)
+  ... | f , ct , fc , len = trans (sym (ctor-length fc)) len
+
+  builtin-arities : BuiltinCtors ind
+    → (∀ {f ct} → findCtor "Z" (IndEnv.families ind) ≡ just (f , ct)
+        → length (ctor-args ct) ≡ 0)
+    × (∀ {f ct} → findCtor "S" (IndEnv.families ind) ≡ just (f , ct)
+        → length (ctor-args ct) ≡ 1)
+    × (∀ {f ct} → findCtor "First" (IndEnv.families ind) ≡ just (f , ct)
+        → length (ctor-args ct) ≡ 1)
+    × (∀ {f ct} → findCtor "Next" (IndEnv.families ind) ≡ just (f , ct)
+        → length (ctor-args ct) ≡ 2)
+  builtin-arities (_ , _ , _ , _ , (N , nat) , (B , bounded) , z , s , first , next) =
+      (λ fc → cong length (z fc))
+    , (λ fc → cong length (s nat fc))
+    , (λ fc → cong length (first nat fc))
+    , (λ fc → cong length (next nat bounded fc))
+
   -- A constructor inference derivation gives the ctor's membership in
   -- `allCtorNames`, so the coverage witness applies.
   ctor-member : ∀ {c args n ps is}
@@ -240,24 +267,32 @@ module Progress (ind : IndEnv) (sig : Signature) (conv : Conversion)
                            (proj₂ (proj₂ (proj₂ (brs-arity r membr)))))
 
   -- ι for a compact Nat literal scrutinee (peeled to `Z`/`S`).
-  case-nat-step : ∀ (k : ℕ) (brs : List Branch) (m : Term)
+  case-nat-step : ∀ {n} (k : ℕ) (brs : List Branch) (m : Term)
+                → ⟨⟩ ⊢*brs brs ⇐*ᵇ (n , m)
                 → ProgressResult (tm-case (tm-nat_lit k) m brs)
-  case-nat-step zero brs m =
+  case-nat-step zero brs m checked =
     let (ar , b , (found , membr)) = branch-for "Z" brs m (proj₁ bc)
-    in inj₂ (substArgs [] b , ι-nat-zero found)
-  case-nat-step (suc k) brs m =
+    in inj₂ (substArgs [] b ,
+      ι-nat-zero found (literal-branch-arity 0 (proj₁ (builtin-arities bc)) checked found))
+  case-nat-step (suc k) brs m checked =
     let (ar , b , (found , membr)) = branch-for "S" brs m (proj₁ (proj₂ bc))
-    in inj₂ (substArgs (tm-nat_lit k ∷ []) b , ι-nat-suc found)
+    in inj₂ (substArgs (tm-nat_lit k ∷ []) b ,
+      ι-nat-suc found (literal-branch-arity 1 (proj₁ (proj₂ (builtin-arities bc))) checked found))
 
   -- ι for a compact Bounded literal scrutinee (peeled to `First`/`Next`).
-  case-bounded-step : ∀ (k : ℕ) (brs : List Branch) (m : Term)
+  case-bounded-step : ∀ {n} (k : ℕ) (brs : List Branch) (m : Term)
+                    → ⟨⟩ ⊢*brs brs ⇐*ᵇ (n , m)
                     → ProgressResult (tm-case (tm-bounded_lit k) m brs)
-  case-bounded-step zero brs m =
+  case-bounded-step zero brs m checked =
     let (ar , b , (found , membr)) = branch-for "First" brs m (proj₁ (proj₂ (proj₂ bc)))
-    in inj₂ (substArgs (tm-nat_lit 0 ∷ []) b , ι-bounded-zero found)
-  case-bounded-step (suc k) brs m =
+    in inj₂ (substArgs (tm-nat_lit 0 ∷ []) b ,
+      ι-bounded-zero found
+        (literal-branch-arity 1 (proj₁ (proj₂ (proj₂ (builtin-arities bc)))) checked found))
+  case-bounded-step (suc k) brs m checked =
     let (ar , b , (found , membr)) = branch-for "Next" brs m (proj₁ (proj₂ (proj₂ (proj₂ bc))))
-    in inj₂ (substArgs (tm-nat_lit k ∷ tm-bounded_lit k ∷ []) b , ι-bounded-suc found)
+    in inj₂ (substArgs (tm-nat_lit k ∷ tm-bounded_lit k ∷ []) b ,
+      ι-bounded-suc found
+        (literal-branch-arity 2 (proj₂ (proj₂ (proj₂ (builtin-arities bc)))) checked found))
   -- Progress: a well-typed closed final term is a value or it steps.
   --
   -- PROVED by mutual induction on the typing derivation (infer and check),
@@ -323,8 +358,8 @@ module Progress (ind : IndEnv) (sig : Signature) (conv : Conversion)
     ... | inj₁ (neutral ns) = inj₁ (neutral (n-case ns))
     ... | inj₁ (canonical cs) with canonical-ctor {v = s} (⇐-infer p (Conversion.≈-refl conv)) cs
     ...   | inj₁ (c , args , refl) = case-ctor-step p r
-    ...   | inj₂ (inj₁ (k , refl)) = case-nat-step k brs m
-    ...   | inj₂ (inj₂ (k , refl)) = case-bounded-step k brs m
+    ...   | inj₂ (inj₁ (k , refl)) = case-nat-step k brs m r
+    ...   | inj₂ (inj₂ (k , refl)) = case-bounded-step k brs m r
 
     -- Conversion on the inferred type: recurse on the same term.
     progress⇒ (⇒-conv der eq) ff = progress⇒ der ff

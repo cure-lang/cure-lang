@@ -1567,10 +1567,10 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
     preservation⇒ (f-effect_bind fe fk) (⇒-effect_bind p q) (ξ-effect_bind₂ step) =
       ⇒-effect_bind p (preservation⇒ fk q step)
     preservation⇒ ft der (ι found len) = preservation-ι ft der found len
-    preservation⇒ ft der (ι-nat-zero found) = preservation-ι-nat-zero ft der found
-    preservation⇒ ft der (ι-nat-suc found) = preservation-ι-nat-suc ft der found
-    preservation⇒ ft der (ι-bounded-zero found) = preservation-ι-bounded-zero ft der found
-    preservation⇒ ft der (ι-bounded-suc found) = preservation-ι-bounded-suc ft der found
+    preservation⇒ ft der (ι-nat-zero found refl) = preservation-ι-nat-zero ft der found
+    preservation⇒ ft der (ι-nat-suc found refl) = preservation-ι-nat-suc ft der found
+    preservation⇒ ft der (ι-bounded-zero found refl) = preservation-ι-bounded-zero ft der found
+    preservation⇒ ft der (ι-bounded-suc found refl) = preservation-ι-bounded-suc ft der found
     preservation⇒ ft (⇒-global {f = f} {T = T} p) (δ {body′ = body′} q) =
       weaken-closed (proj₁ (ctyped q p)) (proj₁ closed f p) (proj₂ (ctyped q p))
 

@@ -222,20 +222,26 @@ module _ (sig : Signature) where
       -- The constructor names are the builtin basenames (`Z`/`S`/`First`/`Next`),
       -- matching the kernel's `@builtin_ctor_aliases`; the metatheory uses the
       -- basename directly rather than the owner-qualified identity.
+      -- Each literal step carries its branch arity locally. Malformed raw
+      -- branches do exist; no global arity axiom is assumed.
       ι-nat-zero : ∀ {m brs ar b}
         → findBranch "Z" brs ≡ just ("Z" , ar , b)
+        → 0 ≡ ar
         → tm-case (tm-nat_lit 0) m brs ⇝ substArgs [] b
 
       ι-nat-suc : ∀ {m brs ar b n}
         → findBranch "S" brs ≡ just ("S" , ar , b)
+        → 1 ≡ ar
         → tm-case (tm-nat_lit (suc n)) m brs ⇝ substArgs (tm-nat_lit n ∷ []) b
 
       ι-bounded-zero : ∀ {m brs ar b}
         → findBranch "First" brs ≡ just ("First" , ar , b)
+        → 1 ≡ ar
         → tm-case (tm-bounded_lit 0) m brs ⇝ substArgs (tm-nat_lit 0 ∷ []) b
 
       ι-bounded-suc : ∀ {m brs ar b k}
         → findBranch "Next" brs ≡ just ("Next" , ar , b)
+        → 2 ≡ ar
         → tm-case (tm-bounded_lit (suc k)) m brs ⇝ substArgs (tm-nat_lit k ∷ tm-bounded_lit k ∷ []) b
 
 
