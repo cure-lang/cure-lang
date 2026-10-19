@@ -12,8 +12,9 @@ module Proof.InterfaceAudit where
 open import Data.Bool using (true)
 open import Data.Empty using (⊥)
 open import Data.List using (List; []; _∷_)
+open import Data.List.Membership.Propositional using (_∈_)
 open import Data.Nat using (zero)
-open import Data.Product using (_×_; _,_; proj₁; proj₂)
+open import Data.Product using (_×_; ∃; _,_; proj₁; proj₂)
 open import Data.Maybe using (just)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 
@@ -23,10 +24,17 @@ open import Core.Syntax
 open import Core.Signature
 open import Core.Reduction
 open import Core.Typing using (Conversion; ∈-here)
-open import Proof.Progress using (Covers; BuiltinCtors)
+open import Proof.Progress using (BuiltinCtors; allCtorNames)
 open import Proof.Preservation using (ClosedSig; ReduceConv)
 
--- Covers requires a Z branch even in the empty list.
+-- Frozen historical interface; no active theorem accepts this oracle.
+Covers : IndEnv → Set
+Covers ind = ∀ (brs : List Branch) (m : Term)
+           → (∀ (c : Name) → c ∈ allCtorNames (IndEnv.families ind)
+             → ∃ λ ar → ∃ λ b
+             → findBranch c brs ≡ just (c , ar , b) × (c , ar , b) ∈ brs)
+
+-- The historical Covers required a Z branch even in the empty list.
 covers-incompatible-with-builtins :
   ∀ ind → Covers ind → BuiltinCtors ind → ⊥
 covers-incompatible-with-builtins ind cov bc

@@ -18,16 +18,17 @@ today. It is deliberately honest about what is *proved*, what is *assumed*, and
 what is *tested but not proved*.
 
 **Formal applicability warning.** `proof/Proof/InterfaceAudit.agda` refutes
-three active legacy interfaces: `Covers` together with `BuiltinCtors`,
-`ClosedSig`, and literal syntax-head conversion reflection together with
-`ReduceConv`. A fourth, `LiteralArity`, was removed from active confluence:
-literal reduction steps now carry local arity witnesses. Successful
+two active legacy interfaces: `ClosedSig` and literal syntax-head conversion
+reflection together with `ReduceConv`. The former global `Covers` oracle
+is now frozen only as a negative regression: admitted cases carry local
+`CaseCoverage` evidence. `LiteralArity` was also removed from active confluence:
+literal reduction steps carry local arity witnesses. Successful
 compilation of the existing parameterised Progress/Preservation/soundness
 modules does **not** establish an applicable kernel soundness theorem.
-Their derivations are retained for
-repair, not presented as completed certification. There are also five
-existing termination-check overrides in the parallel/confluence development,
-separate from the two named postulates. See §8.
+Their derivations are retained for repair, not completed certification.
+One termination-check override remains in `Proof.Confluence`, separate from
+the two named postulates. All four former `Core.Parallel` overrides have
+been eliminated by structurally checked spine lifting. See §8.
 
 ---
 
@@ -504,8 +505,8 @@ form), `DivergesNF` + `never-reached→divergesNF` (positive divergence), and
 `never-reached→no-value` and the `soundness` built on it have been
 **REMOVED** from `Proof/Soundness.agda`; the development now rests on exactly
 two named postulates, `funext` and `tree-decides`. This count does not include
-module parameters, conversion record fields, or the five existing
-termination-check overrides. The former `LiteralArity` oracle was refuted
+module parameters, conversion record fields, or the remaining
+termination-check override in `Proof.Confluence`. The former `LiteralArity` oracle was refuted
 and removed from active confluence; its old shape is kept as a negative
 regression in `Proof.InterfaceAudit`. Note also that the tempting
 strengthening "reaches a NORMAL-FORM value, or diverges" is *not* provable
@@ -523,9 +524,13 @@ that an uninhabitable theorem interface is useful.
 
 ### Foundational blockers and the migration gate
 `proof/Proof/InterfaceAudit.agda` machine-checks these negative results:
-- **Coverage:** `Covers` quantifies over every branch list, including `[]`,
-  while `BuiltinCtors` requires a `Z` constructor. No `Z` branch exists in
-  `[]`, so those hypotheses are incompatible.
+- **Coverage — migrated:** the old `Covers` quantified over every branch
+  list, including `[]`, and was incompatible with `BuiltinCtors`. It is
+  now frozen only in the audit. `Core.Coverage.CaseCoverage` constrains one
+  family and branch list; `⇒-case` requires this evidence alongside branch
+  typing. Progress and both soundness modules no longer take a global
+  coverage parameter. Renaming, substitution, context conversion, and
+  branch/scrutinee/motive reduction preservation propagate the local evidence.
 - **Conversion:** `ReduceConv` makes a let reducing to a Π convertible to
   that Π. `Conversion.≈-pi-inj` would require that raw let to have literal Π
   syntax, which is impossible.
@@ -540,8 +545,8 @@ that an uninhabitable theorem interface is useful.
   branches and builtin telescopes. `Conf` no longer takes this impossible
   parameter. `Proof.LiteralCases` checks valid steps, rejects malformed
   arities in both relations, and instantiates a real confluence peak with a
-  concrete closed-body signature. The five termination overrides remain
-  unresolved, so this is not a fully trusted confluence completion.
+  concrete closed-body signature. One termination override remains in
+  confluence, so this is not a fully trusted confluence completion.
 
 Further correspondence repairs are required: dependent spine tails and
 constructor result indices must be instantiated; branches must bind the last
@@ -549,22 +554,41 @@ field at index zero as the evaluator does; cumulativity must be separate from
 symmetric conversion. `Certified` currently means only that unfoldable
 bodies are `Final` (hole/absurd-free), **not** that they terminate.
 
-`Core.Verification` and `Proof.VerificationExamples` introduce and exercise
-candidate local coverage, scoped dependent telescopes, membership-indexed
-signature scoping, last-field-at-zero substitution, and reduction-based head
-exposure. They include positive instances and missing/wrong-arity rejection
-examples. **They are not connected to the legacy typing/soundness modules and
-are not a complete replacement conversion relation.** Review of replacement
-interfaces precedes the broad proof migration. A concrete instance of the
-repaired full theorem, not merely these predicate examples, is required
-before restoring the soundness claim.
+`Core.Coverage` is now connected to the active typing and proof consumers.
+`Proof.CoverageExamples` gives concrete Nat coverage in an environment also
+containing Bool and Void, without requiring unrelated Bool branches. It
+rejects missing Nat/ordinary constructors, wrong arities and wrong-arity
+first duplicates, admits empty-family coverage, and exercises coverage after
+renaming, substitution and real branch reduction. A typing-level refutation
+rejects an empty Nat case even through `⇒-conv` wrappers.
+
+This first coverage interface is deliberately conservative: it requires all
+constructors of the scrutinee family, not index-unification-based omission
+of impossible branches. The local witnesses are not a verified implementation
+of the kernel's indexed coverage checker.
+
+`Core.Verification` and `Proof.VerificationExamples` still contain candidate
+scoped dependent telescopes, membership-indexed signature scoping,
+last-field-at-zero substitution and reduction-based head exposure.
+**These remaining candidates are not connected to the legacy typing/soundness
+modules and are not a complete replacement conversion relation.** The
+coverage examples do not instantiate a full soundness model: `ClosedSig`,
+conversion/reduction correspondence and the other stated obligations remain
+open. The typing-level missing-case refutation is parameterised by legacy
+`Conversion`, without assuming `ReduceConv`.
 
 The postulate guard is supplemented by `proof/scripts/check-hygiene.py`,
 which rejects new holes, unreviewed options/postulate blocks, and changes to
-the reviewed check-bypass inventory. The existing four `TERMINATING` pragmas
-in `Core.Parallel` and one in `Proof.Confluence` remain unresolved proof
-obligations. Guard success does not certify consistency or prove those
-recursive definitions terminate.
+the reviewed check-bypass inventory. `Core.Parallel` now contains **no**
+termination overrides: generic `⇉*-at-spine` / `⇝*-at-spine` lifters carry
+source-alignment equations separately and recurse on the unchanged tail
+derivation. All six constructor/data spine wrappers and the complete
+parallel-to-small-step simulation are termination-checked. `Proof.SpineLifting`
+exercises two real reduction steps at a non-head position, unchanged neighbour
+fields/opposite data spines, zero-step paths, symbolic alignment, and simulation.
+The guard now forbids any bypass from being reintroduced in `Core.Parallel`.
+The single `TERMINATING` pragma in `Proof.Confluence` remains unresolved;
+guard success does not prove that recursion terminates.
 
 ### Item-by-item evidence
 

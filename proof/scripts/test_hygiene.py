@@ -33,11 +33,18 @@ class HygieneTest(unittest.TestCase):
         self.assertTrue(HYGIENE.inspect_source("Proof/Example.agda", "{-# TERMINATING #-}"))
 
     def test_legacy_overrides_must_match_exact_counts(self):
-        path = "Core/Parallel.agda"
-        source = "{-# TERMINATING #-}\n" * 4
+        path = "Proof/Confluence.agda"
+        source = "{-# TERMINATING #-}\n"
         self.assertEqual(HYGIENE.inspect_source(path, source), [])
         self.assertTrue(HYGIENE.inspect_source(path, source + "{-# TERMINATING #-}"))
         self.assertTrue(HYGIENE.inspect_source(path, source.replace("TERMINATING", "NON_TERMINATING", 1)))
+
+    def test_parallel_module_cannot_reintroduce_a_termination_override(self):
+        path = "Core/Parallel.agda"
+        self.assertEqual(HYGIENE.inspect_source(path, "module Core.Parallel where"), [])
+        for pragma in ("TERMINATING", "NON_TERMINATING", "NO_TERMINATION_CHECK"):
+            with self.subTest(pragma=pragma):
+                self.assertTrue(HYGIENE.inspect_source(path, "{-# " + pragma + " #-}"))
 
     def test_safe_options_are_explicit(self):
         self.assertEqual(

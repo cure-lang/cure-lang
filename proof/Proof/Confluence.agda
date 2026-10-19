@@ -50,7 +50,8 @@ open import Proof.Substitution
 -- Literal-peel arities are premises of each reduction step, not a
 -- hypothesis about every raw branch list. The historical impossible
 -- interface is retained only in Proof.InterfaceAudit as a refutation.
--- The termination-check overrides remain separate unresolved obligations.
+-- Its one termination-check override remains an unresolved obligation;
+-- Core.Parallel's lifters and simulation are now termination-checked.
 
 -- A global's body is closed (so `substS σ` fixes it).
 ClosedBody : Signature → Set
@@ -604,11 +605,12 @@ module Conf (sig : Signature) (cb : ClosedBody sig) where
   ⇉*-ctor-tail (⇉*-step (p-ctor-head sx) ss) = ⇉*-step (p-ctor-tail (p-ctor-head sx)) (⇉*-ctor-tail ss)
   ⇉*-ctor-tail (⇉*-step (p-ctor-tail st) ss) = ⇉*-step (p-ctor-tail (p-ctor-tail st)) (⇉*-ctor-tail ss)
 
-  -- Termination: `⇉-diamond` recurses on the two derivations and
-  -- `⇉-diamond-star` on the pair; the recursion is structurally decreasing in
-  -- the derivations, but Agda cannot see it through the diamond witnesses
-  -- (which are `∃`-packed). We mark the block terminating with that
-  -- justification.
+  -- LEGACY UNCHECKED BLOCK. ⇉-diamond-star recursively consumes generated
+  -- joining paths, not just structurally smaller input derivations.
+  -- Single-peak joinability is only local confluence; lifting it to an
+  -- arbitrary multi-step diamond needs a stronger argument or a redesigned
+  -- complete-development proof. This audited override does NOT supply that
+  -- argument. Core.Parallel's checked spine lifters do not discharge it.
   {-# TERMINATING #-}
   mutual
     ⇉-diamond : ∀ {t u v} → _⇉_ t u → _⇉_ t v → ∃ λ w → _⇉*_ u w × _⇉*_ v w

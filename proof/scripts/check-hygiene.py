@@ -13,7 +13,6 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 LEGACY_OVERRIDES = {
-    "Core/Parallel.agda": Counter({"TERMINATING": 4}),
     "Proof/Confluence.agda": Counter({"TERMINATING": 1}),
 }
 POSTULATE_BLOCKS = {
@@ -135,7 +134,10 @@ def main():
         print("\n".join(errors), file=sys.stderr)
         return 1
     print(f"Proof hygiene OK: {len(paths)} modules; no new holes or check bypasses.")
-    print("UNRESOLVED legacy bypasses: Core/Parallel.agda (4), Proof/Confluence.agda (1).")
+    remaining = "; ".join(
+        f"{path} ({sum(counts.values())})" for path, counts in LEGACY_OVERRIDES.items()
+    )
+    print(f"UNRESOLVED legacy bypasses: {remaining or 'none'}.")
     print("This guard does not establish satisfiability of theorem parameters.")
     return 0
 

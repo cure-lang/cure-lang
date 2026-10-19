@@ -500,21 +500,45 @@ module Par (sig : Signature) where
   p-ctor-at (y ∷ ys) zero sx = p-ctor-head sx
   p-ctor-at (y ∷ ys) (suc i) sx = p-ctor-tail (p-ctor-at ys i sx)
 
-  -- Reduce the element at position `i` of a ctor spine by a multi-step.
-  -- (Terminating: recurses on `ss`; Agda cannot see this because the spine is
-  -- re-indexed by `setAt`.)
-  {-# TERMINATING #-}
+  -- Keep source alignment separate from the path. The recursive argument
+  -- is the UNCHANGED tail ss, not an equality-transported proof, so Agda
+  -- checks termination directly even when the spine/index is re-indexed.
+  ⇉*-at-spine : (node : List Term → Term)
+    → (∀ {xs} (i : Fin (len xs)) {x′}
+       → _⇉_ (lookupAt xs i) x′ → _⇉_ (node xs) (node (setAt xs i x′)))
+    → ∀ {u v} → _⇉*_ u v
+    → (xs : List Term) (i : Fin (len xs)) → lookupAt xs i ≡ u
+    → _⇉*_ (node xs) (node (setAt xs i v))
+  ⇉*-at-spine node lift ⇉*-refl xs i refl =
+    subst (λ ys → _⇉*_ (node xs) (node ys)) (sym (setAt-id i)) ⇉*-refl
+  ⇉*-at-spine node lift {v = finish} (⇉*-step {u = middle} step ss) xs i refl =
+    ⇉*-trans (⇉*-step (lift i step) ⇉*-refl)
+      (subst (λ ys → _⇉*_ (node (setAt xs i middle)) (node ys))
+             (setAt-setAt {xs = xs} i {x′ = middle} {x″ = finish})
+             (⇉*-at-spine node lift ss (setAt xs i middle)
+               (cast (sym (len-setAt i)) i) (lookup-setAt {xs = xs} i)))
+
+  ⇝*-at-spine : (node : List Term → Term)
+    → (∀ {xs} (i : Fin (len xs)) {x′}
+       → _⇝_ sig (lookupAt xs i) x′ → _⇝_ sig (node xs) (node (setAt xs i x′)))
+    → ∀ {u v} → _⇝*_ sig u v
+    → (xs : List Term) (i : Fin (len xs)) → lookupAt xs i ≡ u
+    → _⇝*_ sig (node xs) (node (setAt xs i v))
+  ⇝*-at-spine node lift ⇝*-refl xs i refl =
+    subst (λ ys → _⇝*_ sig (node xs) (node ys)) (sym (setAt-id i)) ⇝*-refl
+  ⇝*-at-spine node lift {v = finish} (⇝*-step {u = middle} step ss) xs i refl =
+    ⇝*-trans (⇝*-step (lift i step) ⇝*-refl)
+      (subst (λ ys → _⇝*_ sig (node (setAt xs i middle)) (node ys))
+             (setAt-setAt {xs = xs} i {x′ = middle} {x″ = finish})
+             (⇝*-at-spine node lift ss (setAt xs i middle)
+               (cast (sym (len-setAt i)) i) (lookup-setAt {xs = xs} i)))
+
+  -- Reduce one constructor field by a multi-step parallel path.
   ⇉*-at-ctor : ∀ {c} (xs : List Term) (i : Fin (len xs)) {x′}
              → _⇉*_ (lookupAt xs i) x′
              → _⇉*_ (tm-ctor c xs) (tm-ctor c (setAt xs i x′))
-  ⇉*-at-ctor {c} xs i ⇉*-refl =
-    subst (λ zs → _⇉*_ (tm-ctor c xs) (tm-ctor c zs)) (sym (setAt-id i)) ⇉*-refl
-  ⇉*-at-ctor {c} xs i {x′ = fin} (⇉*-step {u = u} s ss) =
-    ⇉*-trans (⇉*-step (p-ctor-at xs i s) ⇉*-refl)
-             (subst (λ zs → _⇉*_ (tm-ctor c (setAt xs i u)) (tm-ctor c zs))
-                    (setAt-setAt {xs = xs} i {x′ = u} {x″ = fin})
-                    (⇉*-at-ctor (setAt xs i u) (cast (sym (len-setAt i)) i)
-                                (⇉*-source (sym (lookup-setAt {xs = xs} i {u = u})) ss)))
+  ⇉*-at-ctor {c} xs i steps =
+    ⇉*-at-spine (tm-ctor c) (λ {ys} j step → p-ctor-at ys j step) steps xs i refl
 
   -- A single parallel step reducing the element at position `i` of a data spine.
   p-data-params-at : ∀ {n is} (ps : List Term) (i : Fin (len ps)) {x′}
@@ -529,31 +553,19 @@ module Par (sig : Signature) where
   p-data-indices-at (y ∷ ys) zero sx = p-data (⇉-refl-terms _) (⇉*-cons sx (⇉-refl-terms _))
   p-data-indices-at (y ∷ ys) (suc i) sx = p-data (⇉-refl-terms _) (⇉*-cons (⇉-refl y) (⇉-at ys i sx))
 
-  {-# TERMINATING #-}
   ⇉*-at-data-params : ∀ {n is} (ps : List Term) (i : Fin (len ps)) {x′}
                     → _⇉*_ (lookupAt ps i) x′
                     → _⇉*_ (tm-data n ps is) (tm-data n (setAt ps i x′) is)
-  ⇉*-at-data-params {n} {is} ps i ⇉*-refl =
-    subst (λ zs → _⇉*_ (tm-data n ps is) (tm-data n zs is)) (sym (setAt-id i)) ⇉*-refl
-  ⇉*-at-data-params {n} {is} ps i {x′ = fin} (⇉*-step {u = u} s ss) =
-    ⇉*-trans (⇉*-step (p-data-params-at ps i s) ⇉*-refl)
-             (subst (λ zs → _⇉*_ (tm-data n (setAt ps i u) is) (tm-data n zs is))
-                    (setAt-setAt {xs = ps} i {x′ = u} {x″ = fin})
-                    (⇉*-at-data-params (setAt ps i u) (cast (sym (len-setAt i)) i)
-                                       (⇉*-source (sym (lookup-setAt {xs = ps} i {u = u})) ss)))
+  ⇉*-at-data-params {n} {is} ps i steps =
+    ⇉*-at-spine (λ ys → tm-data n ys is)
+      (λ {ys} j step → p-data-params-at ys j step) steps ps i refl
 
-  {-# TERMINATING #-}
   ⇉*-at-data-indices : ∀ {n ps} (is : List Term) (i : Fin (len is)) {x′}
                      → _⇉*_ (lookupAt is i) x′
                      → _⇉*_ (tm-data n ps is) (tm-data n ps (setAt is i x′))
-  ⇉*-at-data-indices {n} {ps} is i ⇉*-refl =
-    subst (λ zs → _⇉*_ (tm-data n ps is) (tm-data n ps zs)) (sym (setAt-id i)) ⇉*-refl
-  ⇉*-at-data-indices {n} {ps} is i {x′ = fin} (⇉*-step {u = u} s ss) =
-    ⇉*-trans (⇉*-step (p-data-indices-at is i s) ⇉*-refl)
-             (subst (λ zs → _⇉*_ (tm-data n ps (setAt is i u)) (tm-data n ps zs))
-                    (setAt-setAt {xs = is} i {x′ = u} {x″ = fin})
-                    (⇉*-at-data-indices (setAt is i u) (cast (sym (len-setAt i)) i)
-                                        (⇉*-source (sym (lookup-setAt {xs = is} i {u = u})) ss)))
+  ⇉*-at-data-indices {n} {ps} is i steps =
+    ⇉*-at-spine (tm-data n ps)
+      (λ {ys} j step → p-data-indices-at ys j step) steps is i refl
 
   -- List-wise MULTI-step parallel reduction (for the substitution lemma).
   data _⇉*ᵗ*_ : List Term → List Term → Set where
@@ -645,12 +657,9 @@ module Par (sig : Signature) where
             , subst (λ z → _⇉*_ b₁ z) b-eq sbs
   ... | no ¬q = findBranch-⇉*ᵇ-rev c ar b sbs′ eq
 
-  -- Termination: the `⇝*-at-*` helpers recurse on the multi-step reduction
-  -- `ss`, which is structurally smaller at each call. Agda cannot see this
-  -- because the SPINE argument is re-indexed by `setAt` (which preserves the
-  -- length but is not a subterm), so we mark the block terminating with the
-  -- recursion-on-`ss` justification.
-  {-# TERMINATING #-}
+  -- Conversion recurses on parallel derivations and their list/path
+  -- subderivations. Spine updates use the checked ⇝*-at-spine lifter above
+  -- rather than recursively transporting the tail of a generated path.
   mutual
     ⇉→⇝* : ∀ {t t′} → _⇉_ t t′ → _⇝*_ sig t t′
     ⇉→⇝* p-type = ⇝*-refl
@@ -729,14 +738,8 @@ module Par (sig : Signature) where
     ⇝*-at-ctor : ∀ {c} (xs : List Term) (i : Fin (len xs)) {x′}
                → _⇝*_ sig (lookupAt xs i) x′
                → _⇝*_ sig (tm-ctor c xs) (tm-ctor c (setAt xs i x′))
-    ⇝*-at-ctor {c} xs i ⇝*-refl =
-      subst (λ zs → _⇝*_ sig (tm-ctor c xs) (tm-ctor c zs)) (sym (setAt-id i)) ⇝*-refl
-    ⇝*-at-ctor {c} xs i {x′} (⇝*-step {u = u} s ss) =
-      ⇝*-trans (⇝*-step (ξ-ctor-at i s) ⇝*-refl)
-               (subst (λ zs → _⇝*_ sig (tm-ctor c (setAt xs i u)) (tm-ctor c zs))
-                      (setAt-setAt {xs = xs} i {x′ = u} {x″ = x′})
-                      (⇝*-at-ctor (setAt xs i u) (cast (sym (len-setAt i)) i)
-                                  (⇝*-source (sym (lookup-setAt {xs = xs} i {u = u})) ss)))
+    ⇝*-at-ctor {c} xs i steps =
+      ⇝*-at-spine (tm-ctor c) (λ j step → ξ-ctor-at j step) steps xs i refl
 
     -- Lift a multi-step constructor reduction into the tail position.
     ⇝*-ctor-tail-shift : ∀ {c} (x : Term) {xs xs′}
@@ -784,26 +787,16 @@ module Par (sig : Signature) where
     ⇝*-at-params : ∀ {n is} (ps : List Term) (i : Fin (len ps)) {x′}
                  → _⇝*_ sig (lookupAt ps i) x′
                  → _⇝*_ sig (tm-data n ps is) (tm-data n (setAt ps i x′) is)
-    ⇝*-at-params {n} {is} ps i ⇝*-refl =
-      subst (λ zs → _⇝*_ sig (tm-data n ps is) (tm-data n zs is)) (sym (setAt-id i)) ⇝*-refl
-    ⇝*-at-params {n} {is} ps i {x′} (⇝*-step {u = u} s ss) =
-      ⇝*-trans (⇝*-step (ξ-data-params-at i s) ⇝*-refl)
-               (subst (λ zs → _⇝*_ sig (tm-data n (setAt ps i u) is) (tm-data n zs is))
-                      (setAt-setAt {xs = ps} i {x′ = u} {x″ = x′})
-                      (⇝*-at-params (setAt ps i u) (cast (sym (len-setAt i)) i)
-                                    (⇝*-source (sym (lookup-setAt {xs = ps} i {u = u})) ss)))
+    ⇝*-at-params {n} {is} ps i steps =
+      ⇝*-at-spine (λ ys → tm-data n ys is)
+        (λ j step → ξ-data-params-at j step) steps ps i refl
 
     ⇝*-at-indices : ∀ {n ps} (is : List Term) (i : Fin (len is)) {x′}
                   → _⇝*_ sig (lookupAt is i) x′
                   → _⇝*_ sig (tm-data n ps is) (tm-data n ps (setAt is i x′))
-    ⇝*-at-indices {n} {ps} is i ⇝*-refl =
-      subst (λ zs → _⇝*_ sig (tm-data n ps is) (tm-data n ps zs)) (sym (setAt-id i)) ⇝*-refl
-    ⇝*-at-indices {n} {ps} is i {x′} (⇝*-step {u = u} s ss) =
-      ⇝*-trans (⇝*-step (ξ-data-indices-at i s) ⇝*-refl)
-               (subst (λ zs → _⇝*_ sig (tm-data n ps (setAt is i u)) (tm-data n ps zs))
-                      (setAt-setAt {xs = is} i {x′ = u} {x″ = x′})
-                      (⇝*-at-indices (setAt is i u) (cast (sym (len-setAt i)) i)
-                                     (⇝*-source (sym (lookup-setAt {xs = is} i {u = u})) ss)))
+    ⇝*-at-indices {n} {ps} is i steps =
+      ⇝*-at-spine (tm-data n ps)
+        (λ j step → ξ-data-indices-at j step) steps is i refl
 
     ⇉→⇝*-spine-params : ∀ {n is} (pre ps ps′ : List Term) → _⇉*ᵗ_ ps ps′
                       → _⇝*_ sig (tm-data n (pre ++ ps) is) (tm-data n (pre ++ ps′) is)

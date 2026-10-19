@@ -7,10 +7,11 @@ witness, and progress derives that witness from checked branches.
 `Proof.LiteralCases` exercises valid and malformed arities and instantiates
 a genuine reduction peak with a concrete `ClosedBody` signature.
 
-The existing confluence derivations type-check, but four `TERMINATING`
-pragmas in `Core.Parallel` and one in `Proof.Confluence` remain unresolved
-trust obligations. They are inventoried by `proof/scripts/check-hygiene.py`;
-guard success is not a termination proof. The historical account below
+All four former `TERMINATING` pragmas in `Core.Parallel` have been eliminated.
+Its spine lifters and parallel-to-small-step simulation are now structurally
+termination-checked. One pragma remains in `Proof.Confluence`, an unresolved
+trust obligation inventoried by `proof/scripts/check-hygiene.py`.
+Guard success is not a proof of that remaining recursion. The historical account below
 describes the derivations, not a completed trusted certification:
 `⇉-substS` (the substitution-commutation lemma), `⇉-diamond` (the diamond
 property), and `confluence : _⇝_` are all **proved** in
@@ -96,6 +97,15 @@ removes the entire hard case.
   `⇉*-ctor*`/`⇉*-data-*-*`.
 - `findBranch-⇉*ᵇ`.
 
+All definitions in this module are now termination-checked. The two generic
+spine lifters `⇉*-at-spine` and `⇝*-at-spine` take a source-alignment
+equation separately from the path and recurse on the unchanged tail. The old
+definitions transported that tail before recursing, hiding the decrease.
+The six position-indexed wrappers retain their original statements.
+`Proof.SpineLifting` covers two-step non-head updates for constructors and
+both data spines, unchanged neighbouring fields, zero-step paths, symbolic
+source alignment, and conversion of a lifted parallel path to small steps.
+
 ### `Proof/Substitution.agda`
 - `subst-argsSub`, `rename-substArgs`, and the rename/subst interaction laws.
 
@@ -151,7 +161,7 @@ This is the crux the plan identified. **It is done.**
   diamond, iterated) and the two inclusions `⇝→⇉*` / `⇉→⇝*-star`.
 
 The literal-arity premise is now locally enforced and inhabitable.
-The termination overrides must still be eliminated before calling the
+The remaining confluence override must still be eliminated before calling the
 confluence development complete.
 
 ## FINDING: `never-reached→no-value` is false as stated
@@ -184,8 +194,9 @@ the statement.
 ## What remains
 
 **Termination checking remains in the confluence development.** The
-literal-arity migration is complete, but the five existing termination
-overrides are not proofs of total recursion. In particular, a joinability
+literal-arity migration is complete and all parallel helper overrides are
+removed. The one override on the confluence recursion is not a proof of
+total recursion. In particular, a joinability
 conclusion for a single parallel peak must not be lifted to arbitrary
 multi-step confluence using unchecked recursion on generated witnesses.
 The classical input `never-reached→no-value` formerly in
@@ -212,7 +223,7 @@ replaces the false input by its true form, over NORMAL FORMS rather than
 together with the classical three-way `soundness` that depended on it. The
 development has exactly two explicit named postulates: `funext` and
 `tree-decides` (`proof/scripts/check-postulates.sh` enforces this).
-Module parameters and the five termination overrides are additional trust
+Module parameters and the remaining confluence termination override are additional trust
 obligations; the current full soundness interfaces are separately refuted
 in `Proof.InterfaceAudit` (see `docs/SOUNDNESS.md` §8).
 
@@ -233,9 +244,9 @@ VALUES (`ξ-lam-body`), not to non-values.
 
 ## Notes
 
-- Four `TERMINATING` pragmas remain in `Core/Parallel.agda`, and one in
-  `Proof/Confluence.agda`. Their explanations are not substitutes for
-  machine-checked termination.
+- No termination override remains in `Core/Parallel.agda`; the hygiene
+  guard rejects their reintroduction. One remains in `Proof/Confluence.agda`,
+  whose explanation is not a substitute for machine-checked termination.
 - The WIP `Confluence.agda` is now **in the tree and the build**
   (`proof/check.sh`); it type-checks clean with no holes and no new postulates.
   The durable local-arity regressions are in `Proof/LiteralCases.agda`;

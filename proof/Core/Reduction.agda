@@ -126,9 +126,9 @@ findBranch c ((cn , ar , b) ∷ xs) with c ≟ cn
 ... | no _     = findBranch c xs
 
 -- `findBranch` is COMPLETE: if a branch named `c` is in the list, the lookup
--- finds a branch named `c`. Used by Progress's `case`/ι case to turn the
--- coverage witness (`Covers`) into the `findBranch c brs ≡ just (c , ar , b)`
--- premise of the ι rule.
+-- finds a branch named `c`. Local CaseCoverage now carries the stronger
+-- first-match equation with the required arity directly; this membership
+-- lemma remains available for other clients.
 findBranch-complete : ∀ c brs {ar b}
                     → (c , ar , b) ∈ brs
                     → ∃ λ ar′ → ∃ λ b′ → findBranch c brs ≡ just (c , ar′ , b′)

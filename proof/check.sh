@@ -57,7 +57,7 @@ fi
 
 MODULES=(
   Core/Grade Core/Universe Core/Syntax Core/Value Core/Reduction
-  Core/Signature Core/Typing Core/Parallel
+  Core/Signature Core/Coverage Core/Typing Core/Parallel
   Proof/Values Proof/Inversion Proof/CanonicalForms Proof/Substitution
   Proof/Context
   Proof/Progress Proof/Preservation Proof/FinalPreservation Proof/Soundness
@@ -65,6 +65,8 @@ MODULES=(
   Proof/InterfaceAudit Proof/EffectInert
   Core/Verification Proof/VerificationExamples
   Proof/LiteralCases
+  Proof/SpineLifting
+  Proof/CoverageExamples
 )
 
 fail=0

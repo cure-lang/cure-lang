@@ -2,9 +2,9 @@
 -- Candidate verification interfaces for the soundness repair.
 --
 -- These predicates have concrete instances in Proof.VerificationExamples.
--- They do NOT replace the legacy typing/preservation interfaces yet, and
--- do not assert a conversion checker, termination theorem, or type safety.
--- The broad migration is a separate review gate (SOUNDNESS §8).
+-- Scoping and head-exposure remain prototypes, not a conversion checker,
+-- termination theorem, or type-safety proof. Active case-local coverage is
+-- now in Core.Coverage and is required by Core.Typing's ⇒-case rule.
 ------------------------------------------------------------------------
 module Core.Verification where
 

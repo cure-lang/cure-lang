@@ -3,9 +3,9 @@
 -- Soundness (docs/SOUNDNESS.md §1.4).
 --
 -- LEGACY DERIVATIONS, NOT AN APPLICABLE CERTIFICATE: Proof.InterfaceAudit
--- refutes the joint coverage/builtin hypotheses and ClosedSig, as well as
--- Conversion with ReduceConv. These parameters must be repaired before
--- this module can be instantiated for an executable Core model.
+-- refutes ClosedSig and Conversion with ReduceConv. These parameters must
+-- be repaired before instantiation for an executable Core model. Coverage
+-- is repaired: each ⇒-case carries family-local CaseCoverage evidence.
 --
 --   Let `e` be a closed, hole-free, final-Core term with `· ⊢ e : T` for a
 --   closed type `T`. Then evaluation of `e` either reaches a value `v` with
@@ -55,18 +55,18 @@ open import Core.Reduction
 open import Core.Typing using (Ctx; ⟨⟩; _▷_; lookup; extend; Conversion)
 open import Proof.Values using (Value; Canonical; Neutral; canonical; neutral)
 open import Proof.Progress using (Final; FinalTerms; FinalBranches;
-                                    StrictlyPositive; Certified; Covers; BuiltinCtors)
+                                    StrictlyPositive; Certified; BuiltinCtors)
 open import Proof.Preservation
 open import Proof.FinalPreservation
 
 module Sound (ind : IndEnv) (sig : Signature) (conv : Conversion)
-             (pos : StrictlyPositive ind) (cert : Certified sig) (cov : Covers ind)
+             (pos : StrictlyPositive ind) (cert : Certified sig)
              (bc : BuiltinCtors ind)
              (closed : ClosedSig ind sig) (rc : ReduceConv sig conv)
              (ctyped : CertifiedTyped ind sig conv) where
 
   open Core.Typing.Typing ind sig conv
-  open Proof.Progress.Progress ind sig conv pos cert cov bc
+  open Proof.Progress.Progress ind sig conv pos cert bc
   open Proof.Preservation.Preserve ind sig conv closed rc ctyped bc cert
 
   ------------------------------------------------------------------------
@@ -197,7 +197,7 @@ module Sound (ind : IndEnv) (sig : Signature) (conv : Conversion)
   --
   -- This is the constructive content of §1.4: a well-typed final term
   -- either reaches a value (a FINITE tree) or steps forever (an INFINITE
-  -- tree). The `raises` outcome never occurs here, because `Covers` makes
+  -- tree). The `raises` outcome never occurs here, because case-local coverage makes
   -- the ι coverage guard unreachable (Progress always returns a value or a
   -- step).
   ------------------------------------------------------------------------
@@ -306,7 +306,7 @@ module Sound (ind : IndEnv) (sig : Signature) (conv : Conversion)
   -- A `Reached` node gives the classical first disjunct
   -- (`tree-reached→eval`); a `NeverReached` tree gives positive divergence
   -- (`never-reached→diverges`). The `raises` outcome is the coverage guard,
-  -- unreachable under `Covers` (so never produced). The "never stuck"
+  -- unreachable under case-local coverage (so never produced). The "never stuck"
   -- corollary is `never-stuck` above.
   ------------------------------------------------------------------------
 

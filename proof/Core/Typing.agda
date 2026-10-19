@@ -44,6 +44,7 @@ open import Core.Universe using (Level; l0; l1; l2; InRange; in-range;
                                   _⊔ˡ_; ⊔ˡ-left; ⊔ˡ-right)
 open import Core.Syntax
 open import Core.Signature
+open import Core.Coverage using (CaseCoverage)
 open import Core.Reduction using (Signature; body; type-of)
 
 ------------------------------------------------------------------------
@@ -434,6 +435,7 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
            → Γ ⊢ s ⇒ tm-data n ps is
            → Γ ⊢ m ⇒ T
            → Γ ⊢*brs brs ⇐*ᵇ (n , m)
+           → CaseCoverage ind n brs
            → Γ ⊢ tm-case s m brs ⇒ tm-app m s
 
     -- Inert effects: Effect(t) is level-preserving.
@@ -516,7 +518,8 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   -- that constructor's result indices and value. Coverage (§3.3) requires
   -- a branch for every constructor not refuted by index unification; we
   -- model the *positive* obligation here (each present branch is
-  -- well-typed) and leave the coverage side condition to Core/Coverage.agda.
+  -- well-typed). The ⇒-case rule separately requires local CaseCoverage;
+  -- an empty list of checked branches alone does not admit an inhabited case.
   ------------------------------------------------------------------------
 
   data _⊢*brs_⇐*ᵇ_ where

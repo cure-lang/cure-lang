@@ -8,14 +8,17 @@ development.
 
 > **Status: foundation repair in progress.** The legacy full theorem interfaces
 > cannot be jointly instantiated. `Proof.InterfaceAudit` machine-checks
-> contradictions in global coverage, signature closedness, syntax-head
-> reflection with reduction conversion. A fourth contradiction, global literal
+> remaining contradictions in signature closedness and syntax-head reflection
+> with reduction conversion. The old global coverage oracle is now frozen
+> only as a negative regression: each admitted case carries local coverage.
+> A fourth historical contradiction, global literal
 > arities, is now retained only as a frozen negative regression: the active
 > reduction rules carry local arity witnesses and `Conf` no longer assumes it.
 > The existing derivations below are retained for repair, not certification.
-> `Core.Verification` and `Proof.VerificationExamples` provide candidate local
-> interfaces and concrete instances; the broad typing/proof migration has not
-> happened. They are not an instance of the full soundness theorem.
+> Coverage is migrated into case typing. `Core.Verification` and
+> `Proof.VerificationExamples` still provide unintegrated scoping/conversion
+> candidates; those remaining interfaces have not been migrated.
+> Their examples are not an instance of the full soundness theorem.
 >
 > The following is the **historical derivation status**, subject to that
 > applicability warning. The formalisation of the Core calculus and the typing
@@ -30,8 +33,9 @@ development.
 > **zero postulates**. The whole development now rests on exactly **two**
 > named postulates: `funext` (standard function extensionality) and
 > `tree-decides` (LPO on the outcome path). This inventory does not account
-> for the refuted module hypotheses or the five existing `TERMINATING`
-> pragmas in `Core.Parallel` (four) and `Proof.Confluence` (one).
+> for the refuted module hypotheses or the one remaining `TERMINATING`
+> pragma in `Proof.Confluence`. The four former `Core.Parallel` overrides
+> have been eliminated; its lifters and simulation are termination-checked.
 >
 > **Correction.** An earlier revision derived a classical three-way
 > `soundness` from a second input, `never-reached→no-value`. That input is
@@ -80,7 +84,7 @@ here (docs/SOUNDNESS.md §3):
 |---|---|---|
 | Strict positivity (§3.1) | `StrictlyPositive` | `Inductive.positive?/2` (nested) |
 | Totality gates δ (§3.2) | `Certified` + `CertifiedTyped` | `Env.certified?` + `Normalise.unfold_certified_head` |
-| Coverage (§3.3) | `Covers` | `check_coverage` + `branch_unify` |
+| Coverage (§3.3) | `CaseCoverage` in each `⇒-case` | `check_coverage` + `branch_unify` (indexed omissions still outside the model) |
 | Builtin ctor names | `BuiltinCtors` | `@builtin_ctor_aliases` |
 
 The hole/absurd discipline (§3.4) is expressed by restricting the theorem to
@@ -278,15 +282,16 @@ These are the `postulate`s, each with a named proof strategy in the source:
    [The `soundness` finding](#the-soundness-finding-resolved-by-fuel-indexing-and-coinduction).
 ### The `progress` inputs
 
-The `progress` proof is not blocked on a design question — every input it
-needs is now proved or present:
+The coverage input is now repaired and local to each admitted case. The
+following derivation inputs remain subject to the conversion applicability
+warning above:
 
 - **Canonical-form lemmas** (`canonical-pi-value` / `canonical-ctor`): turn a
   canonical Π/data value into a λ / constructor-like head, so β and ι fire.
-- **`spine-length`** (`Core.Typing`) and **`brs-arity`** (`Proof.Progress`):
-  match the ι branch's arity to the constructor's argument telescope.
-- **`findBranch-complete`** (`Core.Reduction`): turns the coverage witness
-  into the `findBranch c brs ≡ just (c , ar , b)` premise of ι.
+- **`spine-length`** (`Core.Typing`) and local `CaseCoverage` evidence:
+  match checked constructor arguments to the selected branch's arity.
+- **`ctor-info`** (`Proof.Progress`): connects an inferred constructor to
+  its actual owning family, so coverage asks only for that family's branches.
 - **The literal-peeling reduction rules** (`ι-nat-zero` / `ι-nat-suc` /
   `ι-bounded-zero` / `ι-bounded-suc` in `Core.Reduction`): a `case` on a
   compact `tm-nat_lit` / `tm-bounded_lit` scrutinee is NOT stuck — it peels
@@ -297,9 +302,10 @@ needs is now proved or present:
 - **Neutral terms are `Value`s** (the `inj₁` branch), so the elimination
   rules are never stuck; `⇒-var` is vacuous (`Fin 0` is empty).
 
-`Covers` (`Proof.Progress`) is strengthened to yield a branch NAMED `c`
-(not merely some branch in the list) — the honest reading of "a branch for
-constructor `c`", and what `findBranch` needs.
+`CaseCoverage` (`Core.Coverage`) now belongs to each `⇒-case` derivation.
+It provides named lookup and arity witnesses, with compact-literal branches
+required only for the relevant builtin family identity. The impossible old
+global `Covers` interface exists only in `Proof.InterfaceAudit`.
 
 ### The `preservation` findings
 
@@ -450,7 +456,7 @@ forever. Both the postulate and the `soundness` built on it have been
 The constructive content is unchanged: a `Reached` node gives the first
 disjunct (`tree-reached→eval`), and a `NeverReached` tree gives positive
 divergence (`never-reached→diverges`). The `raises` outcome is the coverage
-guard, unreachable under `Covers` (so never produced). The "never stuck"
+guard, unreachable with case-local coverage (so never produced). The "never stuck"
 corollary is `never-stuck` (= `progress⇐`): a well-typed final term is never
 stuck.
 
@@ -561,7 +567,8 @@ conditions.**
 
 ### Interface audit and replacement examples
 `Proof.InterfaceAudit` proves:
-- `Covers ind` and `BuiltinCtors ind` are incompatible.
+- The frozen historical `Covers ind` and `BuiltinCtors ind` are incompatible;
+  no active theorem accepts that oracle anymore.
 - `ClosedSig ind sig` is uninhabited.
 - Legacy `Conversion` and `ReduceConv sig conv` are incompatible.
 - The frozen historical `LiteralArity` is uninhabited; it is no longer an
@@ -576,17 +583,45 @@ derives these from the actual checked branches and builtin constructor
 telescopes. Renaming, substitution, finality, preservation, and confluence
 are migrated. `Proof.LiteralCases` contains positive/negative rule tests
 and a concrete confluence peak using only an inhabited `ClosedBody`
-signature parameter. The existing termination overrides still need proofs.
+signature parameter. The remaining confluence termination override still
+needs a checked proof.
 
-`Core.Verification` defines local full-family coverage,
-preceding-binder-scoped telescopes, and constraints on actual signature
-members. It also defines executable-order field instantiation and
+### Active case-local coverage
+`Core.Coverage` defines `CaseCoverage ind family branches`, required by the
+`⇒-case` typing rule. Progress and the soundness modules no longer take
+`Covers`; renaming, substitution, context conversion, and all case-reduction
+preservation consumers carry or transport local coverage. The interface
+requires full-family coverage and canonical compact-literal branch
+names/arities; index-based impossible-branch omission remains outside it.
+
+`Proof.CoverageExamples` provides positive Nat coverage in an environment
+with unrelated Bool constructors, empty-family coverage, missing-constructor,
+wrong-arity and duplicate-first-match rejection, and preservation under
+renaming, substitution and a real branch reduction. It also rejects an empty
+Nat case at the inference-derivation level, including `⇒-conv` wrappers.
+This refutation is parameterised by legacy `Conversion`; these examples
+do not instantiate the full soundness theorem.
+
+`Core.Verification` still defines candidate preceding-binder-scoped
+telescopes and constraints on actual signature members. It also defines executable-order field instantiation and
 reduction-based Π/data exposure. `Proof.VerificationExamples` provides a
 scoped dependent constructor, a nonempty scoped signature, missing/wrong-arity
 rejection, empty-family coverage, distinguishable field substitutions,
 result-index instantiation, and a let exposing a Π.
 These establish inhabited predicates, **not declaration typing, a verified
 conversion relation, or a repaired progress/preservation theorem**.
+
+### Structurally checked parallel spine lifting
+`Core.Parallel` no longer uses any termination override. Its generic
+`⇉*-at-spine` / `⇝*-at-spine` lifters carry source alignment separately
+and recurse on an unchanged tail derivation; the six constructor/data spine
+wrappers and the complete parallel-to-small-step simulation now pass Agda's
+termination checker. The original statements are preserved.
+`Proof.SpineLifting` exercises genuine two-step non-head updates, fixed
+neighbours and opposite data spines, zero-step paths, symbolic alignment,
+and conversion of a lifted parallel path to small steps. This proof layer
+does not use the confluence theorem or any of the refuted typing hypotheses.
+The hygiene guard forbids reinstating any parallel-module check bypass.
 
 ### Inert effects
 `Proof.EffectInert` proves one-step inversion and arbitrary finite-step
@@ -754,8 +789,9 @@ The maintained complete runner, including interface refutations, candidate
 model examples, and effect inversion, is `./proof/check.sh` from the repository
 root. Also run `./proof/scripts/check-postulates.sh`,
 `python3 proof/scripts/test_hygiene.py`, and
-`python3 proof/scripts/check-hygiene.py`. The last guard inventories the five
-legacy termination bypasses rather than silently treating them as checked.
+`python3 proof/scripts/check-hygiene.py`. The last guard inventories the one
+remaining confluence termination bypass, rejects any new parallel bypass,
+and does not silently treat the remaining recursion as checked.
 All these checks run in `.github/workflows/proof.yml`.
 
 ## Relationship to the executable evidence

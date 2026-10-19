@@ -45,6 +45,7 @@ open import Core.Signature using (IndEnv; Family; Ctor; Telescope; findFamily; f
                                    fam-params; fam-indices; fam-level; fam-name;
                                    ctor-args; ctor-params; ctor-indices; just-inj)
 open import Core.Reduction
+open import Core.Coverage
 open import Core.Typing using (Ctx; ⟨⟩; _▷_; lookup; extend; lookup-extend; lookup-renameCtx; renameCtx; Conversion; extendⁿ; extendTele; teleField; fieldFin; listLookup-∈Tele; branch-field-vars; upto; _∈Tele_; ∈-here; ∈-there)
 open import Proof.Values using (Canonical; Neutral; Value)
 open import Proof.Progress using (Final; FinalTerms; FinalBranches; BuiltinCtors; Certified;
@@ -286,8 +287,9 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
       subst (λ X → Δ ⊢ tm-ctor c (renameTerms ρ args) ⇒ X)
             (sym (rename-ctor-result ρ f ct))
             (⇒-ctor p (subst (λ zs → Δ ⊢* zs ⇐* ctor-args ct) (sym (renameTerms-map ρ args)) (ren-spine idx coh law (tele-closed-ctor ρ f ct) q)))
-    ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-case {s = s} {m = m′} {brs = brs} p q r) =
+    ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-case {s = s} {m = m′} {brs = brs} p q r covered) =
       ⇒-case (ren⇒ idx coh law p) (ren⇒ idx coh law q) (ren-branches idx coh law r)
+        (case-coverage-rename {brs = brs} ρ covered)
     ren⇒ idx coh law (⇒-effect_type p) = ⇒-effect_type (ren⇒ idx coh law p)
     ren⇒ idx coh law (⇒-effect_pure p) = ⇒-effect_pure (ren⇒ idx coh law p)
     ren⇒ idx coh law (⇒-conv der eq) =
@@ -518,8 +520,9 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
             (sym (subst-ctor-result σ f ct))
             (⇒-ctor p (subst (λ zs → Δ ⊢* zs ⇐* ctor-args ct) (sym (substTerms-map σ args))
                              (subst-spine coh (tele-closed-subst-ctor σ f ct) q)))
-   subst⇒ {Δ = Δ} {σ = σ} coh (⇒-case {s = s} {m = m′} {brs = brs} p q r) =
+   subst⇒ {Δ = Δ} {σ = σ} coh (⇒-case {s = s} {m = m′} {brs = brs} p q r covered) =
      ⇒-case (subst⇒ coh p) (subst⇒ coh q) (subst-branches coh r)
+       (case-coverage-subst {brs = brs} σ covered)
    subst⇒ coh (⇒-effect_type p) = ⇒-effect_type (subst⇒ coh p)
    subst⇒ coh (⇒-effect_pure p) = ⇒-effect_pure (subst⇒ coh p)
    subst⇒ coh (⇒-conv der eq) = ⇒-conv (subst⇒ coh der) (subst-conv eq)
@@ -822,7 +825,7 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
     conv⇒ w eq (⇒-bounded_lit p) = ⇒-conv (⇒-bounded_lit p) eq
     conv⇒ w eq (⇒-data p q r) = ⇒-conv (⇒-data p (conv-spine w q) (conv-spine w r)) eq
     conv⇒ w eq (⇒-ctor p q) = ⇒-conv (⇒-ctor p (conv-spine w q)) eq
-    conv⇒ w eq (⇒-case p q r) = ⇒-conv (⇒-case (conv⇒ w (Conversion.≈-refl conv) p) (conv⇒ w (Conversion.≈-refl conv) q) (conv-branches w r)) eq
+    conv⇒ w eq (⇒-case p q r covered) = ⇒-conv (⇒-case (conv⇒ w (Conversion.≈-refl conv) p) (conv⇒ w (Conversion.≈-refl conv) q) (conv-branches w r) covered) eq
     conv⇒ w eq (⇒-effect_type p) = ⇒-conv (⇒-effect_type (conv⇒ w (Conversion.≈-refl conv) p)) eq
     conv⇒ w eq (⇒-effect_pure p) = ⇒-conv (⇒-effect_pure (conv⇒ w (Conversion.≈-refl conv) p)) eq
     conv⇒ w eq (⇒-effect_bind p q) = ⇒-conv (⇒-effect_bind (conv⇒ w (Conversion.≈-refl conv) p) (conv⇒ w (Conversion.≈-refl conv) q)) eq
@@ -1143,7 +1146,7 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
     → Γ ⊢ substArgs args b ⇒ T
   preservation-ι {Γ = Γ} {m = m} {brs = brs} {c = c} {ar = ar} {b = b} {args = args}
                  (f-case (f-ctor fargs) fm fbs)
-                 (⇒-case {ps = ps} {is = is} ds dm dbrs) found len =
+                 (⇒-case {ps = ps} {is = is} ds dm dbrs covered) found len =
     subst (λ X → Γ ⊢ substArgs args b ⇒ X) eq
           (check-infer (substS-hole-free b (argsSub args) (argsSub-final fargs)
                                        (final-hole-free (finalBranches-member fbs (findBranch-sound c brs found))))
@@ -1192,7 +1195,7 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
     → Γ ⊢ substArgs [] b ⇒ T
   preservation-ι-nat-zero {Γ = Γ} {m = m} {brs = brs} {b = b} {T = tm-app m (tm-nat_lit 0)}
                           (f-case f-nat_lit fm fbs)
-                          (⇒-case {s = tm-nat_lit 0} {ps = ps} {is = is} ds dm dbrs) found =
+                          (⇒-case {s = tm-nat_lit 0} {ps = ps} {is = is} ds dm dbrs covered) found =
     ⇒-conv (check-infer (subst (λ X → HoleFree X) (sym (substS-idSub b))
                                       (final-hole-free (finalBranches-member fbs (findBranch-sound "Z" brs found))))
                          db″)
@@ -1271,7 +1274,7 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
     → Γ ⊢ substArgs (tm-nat_lit k ∷ []) b ⇒ T
   preservation-ι-nat-suc {Γ = Γ} {m = m} {brs = brs} {b = b} {k = k} {T = tm-app m (tm-nat_lit (suc k))}
                         (f-case f-nat_lit fm fbs)
-                        (⇒-case {s = tm-nat_lit (suc k)} {n = N} {ps = ps} {is = is} ds dm dbrs) found =
+                        (⇒-case {s = tm-nat_lit (suc k)} {n = N} {ps = ps} {is = is} ds dm dbrs covered) found =
     ⇒-conv (check-infer hf (subst (λ X → Γ ⊢ substS (argsSub (tm-nat_lit k ∷ [])) b ⇐ X) eq
                                        (subst⇐ (argsSub-coh-single p (⇒-nat_lit p)) db′)))
            (Conversion.≈-app conv (Conversion.≈-refl conv) (Conversion.≈-nat-suc conv))
@@ -1322,7 +1325,7 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
   preservation-ι-bounded-zero {Γ = Γ} {m = m} {brs = brs} {b = b}
                               {T = tm-app m (tm-bounded_lit 0)}
                               (f-case f-bounded_lit fm fbs)
-                              (⇒-case {s = tm-bounded_lit 0} {n = B} {ps = ps} {is = is} ds dm dbrs) found =
+                              (⇒-case {s = tm-bounded_lit 0} {n = B} {ps = ps} {is = is} ds dm dbrs covered) found =
     ⇒-conv (check-infer hf (subst (λ X → Γ ⊢ substS (argsSub (tm-nat_lit 0 ∷ [])) b ⇐ X) eq
                                        (subst⇐ (argsSub-coh-single p (⇒-nat_lit p)) db′)))
            (Conversion.≈-app conv (Conversion.≈-refl conv) (Conversion.≈-bounded-zero conv))
@@ -1414,7 +1417,7 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
   preservation-ι-bounded-suc {Γ = Γ} {m = m} {brs = brs} {b = b} {k = k}
                              {T = tm-app m (tm-bounded_lit (suc k))}
                              (f-case f-bounded_lit fm fbs)
-                             (⇒-case {s = tm-bounded_lit (suc k)} {n = B} {ps = ps} {is = is} ds dm dbrs) found =
+                             (⇒-case {s = tm-bounded_lit (suc k)} {n = B} {ps = ps} {is = is} ds dm dbrs covered) found =
     ⇒-conv (check-infer hf (subst (λ X → Γ ⊢ substS (argsSub (tm-nat_lit k ∷ tm-bounded_lit k ∷ [])) b ⇐ X) eq
                                        (subst⇐ (argsSub-coh-double p q (⇒-nat_lit p) (⇒-bounded_lit q)) db′)))
            (Conversion.≈-app conv (Conversion.≈-refl conv) (Conversion.≈-bounded-suc conv))
@@ -1530,15 +1533,15 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
       ⇒-let dty dv
             (check-infer (final-hole-free (final-preservation sig cert fb step))
                          (preservation fb (⇐-infer db (Conversion.≈-refl conv)) step))
-    preservation⇒ (f-case fs fm fbs) (⇒-case ds dm dbrs) (ξ-case step) =
-      ⇒-conv (⇒-case (preservation⇒ fs ds step) dm dbrs)
+    preservation⇒ (f-case fs fm fbs) (⇒-case ds dm dbrs covered) (ξ-case step) =
+      ⇒-conv (⇒-case (preservation⇒ fs ds step) dm dbrs covered)
               (Conversion.≈-app conv (Conversion.≈-refl conv)
                                     (Conversion.≈-sym conv (rc step)))
-    preservation⇒ (f-case fs fm fbs) (⇒-case ds dm dbrs) (ξ-case-brs steps) =
-      ⇒-case ds dm (preservation-brs fbs dbrs steps)
-    preservation⇒ (f-case fs fm fbs) (⇒-case ds dm dbrs) (ξ-case-motive step) =
+    preservation⇒ (f-case fs fm fbs) (⇒-case ds dm dbrs covered) (ξ-case-brs steps) =
+      ⇒-case ds dm (preservation-brs fbs dbrs steps) (case-coverage-reduce sig steps covered)
+    preservation⇒ (f-case fs fm fbs) (⇒-case ds dm dbrs covered) (ξ-case-motive step) =
       ⇒-conv (⇒-case ds (preservation⇒ fm dm step)
-                       (branches-conv (rc step) dbrs))
+                       (branches-conv (rc step) dbrs) covered)
               (Conversion.≈-app conv (Conversion.≈-sym conv (rc step))
                                     (Conversion.≈-refl conv))
     preservation⇒ {Γ = Γ} (f-pi fd fc) (⇒-pi {d = d} dd dc) (ξ-pi-dom {d′ = d′} step) =
