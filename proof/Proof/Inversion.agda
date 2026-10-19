@@ -1,189 +1,214 @@
 ------------------------------------------------------------------------
--- Head inversion lemmas.
---
--- The canonical-form lemmas (Proof/CanonicalForms.agda) need to invert an
--- inference derivation on a canonical head: if `Γ ⊢ c args ⇒ T` and the
--- head `c` is a canonical introduction form, then `T` has a specific shape.
---
--- These are the standard "inversion of typing" lemmas. They are stated
--- here, separately from the canonical-form lemmas, because they are the
--- reusable core: Progress, Preservation, and the canonical-form lemmas all
--- consume them.
---
--- A NOTE ON CONVERSION. The checking-mode lemmas (`⇐-infer` composes an
--- inference with a conversion test) cannot be inverted without knowing
--- that conversion is INJECTIVE on type constructors: `T′ ≈ tm-data n ps is`
--- does not syntactically determine `T′`. That injectivity is exactly the
--- property Lennon-Bertrand's *What does it take to certify a conversion
--- checker?* (FSCD'25) isolates as the sole requirement for conversion
--- soundness. We therefore state the inversion lemmas over INFERENCE
--- derivations, where the type is syntactically determined, and record the
--- conversion-injectivity obligation separately.
---
--- STATUS: legacy derivations over Conversion's reflection fields.
--- Proof.InterfaceAudit refutes those fields together with ReduceConv.
--- These are not independently established NbE injectivity theorems.
+-- Canonical inversion by induction on typing, accumulating conversion.
+-- Intermediate result types need not expose any particular raw head.
+-- Only introduction rules compare TWO rigid heads. These are conditional
+-- derivations over Conversion, not a proof of executable NbE correctness.
 ------------------------------------------------------------------------
 module Proof.Inversion where
 
-open import Data.Bool using (Bool; true; false)
-open import Data.Nat using (ℕ; zero; suc)
-open import Data.List using (List; []; _∷_)
-open import Data.Product using (Σ; _×_; _,_; proj₁; proj₂; ∃; ∃-syntax)
-open import Data.Maybe using (Maybe; just; nothing)
+open import Data.Nat using (ℕ)
+open import Data.List using (List; [])
+open import Data.Product using (Σ; _×_; _,_; ∃)
+open import Data.Maybe using (just)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
-open import Relation.Binary.PropositionalEquality
-  using (_≡_; refl; sym; trans; cong; subst)
-open import Relation.Nullary using (Dec; yes; no)
-
-open import Core.Grade using (Grade; erased; linear; affine; unrestricted)
-open import Core.Universe using (Level; l0; l1; l2)
+open import Data.Empty using (⊥; ⊥-elim)
+open import Relation.Binary.PropositionalEquality using (_≡_; refl)
+open import Core.Grade using (Grade)
 open import Core.Syntax
+open import Core.TypeHeads
 open import Core.Signature
 open import Core.Reduction using (Signature)
-open import Core.Typing using (Ctx; ⟨⟩; _▷_; lookup; extend; Conversion;
-                                All2; a2[]; a2∷)
-open import Proof.Values using (Canonical; Neutral; Value; canonical; neutral)
+open import Core.Typing using (Ctx; Conversion)
+open import Proof.Values using (Canonical)
+
+IsLam : Term → Set
+IsLam t = Σ Grade (λ g → Σ Term (λ d → Σ Term (λ b → t ≡ tm-lam g d b)))
+
+IsDataValue : Term → Set
+IsDataValue t =
+    (Σ Name (λ c → Σ (List Term) (λ args → t ≡ tm-ctor c args)))
+  ⊎ (Σ ℕ (λ m → t ≡ tm-nat_lit m))
+  ⊎ (Σ ℕ (λ b → t ≡ tm-bounded_lit b))
 
 module Invert (ind : IndEnv) (sig : Signature) (conv : Conversion) where
-
   open Core.Typing.Typing ind sig conv
 
-  ------------------------------------------------------------------------
-  -- Conversion injectivity (the FSCD'25 obligation).
-  --
-  -- To lift the inference-mode inversion lemmas to checking mode, we need
-  -- that conversion reflects the head constructor: if `T′ ≈ tm-data n ps is`
-  -- then `T′` is itself a data type (with convertible arguments). This is
-  -- the injectivity property, and it is provable in a meta-theory weaker
-  -- than the object theory — which is why conversion soundness does not
-  -- require normalisation.
-  --
-  -- Stated BEFORE the inversion lemmas: `invert-pi` / `invert-data` consume
-  -- them in their `⇒-conv` case.
-  ------------------------------------------------------------------------
+  private
+    infix 4 _∼_
+    _∼_ = Conversion._≈_ conv
+    reflexive = Conversion.≈-refl conv
+    compose = Conversion.≈-trans conv
 
-  -- A type convertible to a Π IS a Π (with a convertible domain and
-  -- codomain); a type convertible to a data type IS a data type (with
-  -- convertible spines). Projections of the `Conversion` record's reflection
-  -- fields (`Core/Typing.agda`).
-  conv-injective-data :
-    ∀ {T′ n ps is}
-    → Conversion._≈_ conv T′ (tm-data n ps is)
-    → Σ (List Term) (λ ps′ → Σ (List Term) (λ is′ → T′ ≡ tm-data n ps′ is′))
-  conv-injective-data {T′} eq = Conversion.≈-data-inj conv (Conversion.≈-sym conv eq)
+  rigid-clash : ∀ {t u h h′}
+    → HasTypeHead t h → HasTypeHead u h′
+    → (h ≡ h′ → ⊥) → t ∼ u → ⊥
+  rigid-clash ht hu unequal eq =
+    unequal (Conversion.≈-heads conv ht hu eq)
 
-  conv-injective-pi :
-    ∀ {T′ g d c}
-    → Conversion._≈_ conv T′ (tm-pi g d c)
-    → Σ Grade (λ g′ → Σ Term (λ d′ → Σ Term (λ c′ → T′ ≡ tm-pi g′ d′ c′)))
-  conv-injective-pi {T′} eq = Conversion.≈-pi-inj conv (Conversion.≈-sym conv eq)
-  ------------------------------------------------------------------------
-  -- Inversion of `infer` on a canonical head.
-  --
-  -- If `Γ ⊢ t ⇒ T` and `t` is canonical, then `T` is determined by the
-  -- head of `t`. Each canonical head has exactly one applicable infer rule;
-  -- the elimination rules (`⇒-app`, `⇒-case`) require the head to be a
-  -- neutral, contradicting `Canonical`.
-  --
-  -- PROVED by induction on the inference derivation. For a canonical head,
-  -- the only constructors that can apply are the corresponding introduction
-  -- rule; every other rule either produces a different type shape (ruled
-  -- out by the type index) or requires a non-canonical head (ruled out by
-  -- `Canonical`). The `⇒-conv` case recurses via conversion injectivity.
-  ------------------------------------------------------------------------
-  -- A canonical value that infers a Π type is a λ.
-  --
-  -- This is the "app" case of Progress: the function position's type is a
-  -- Π, so if the function is canonical it is a λ and β fires.
-  --
-  -- PROVED by induction on the inference derivation. The only rule whose
-  -- conclusion type is `tm-pi g d c` is `⇒-lam` (returning the λ witness).
-  -- Every other rule either yields a different type former (`⇒-type`,
-  -- `⇒-pi`, `⇒-data`, the base types, `⇒-effect_*`), which Agda rules out by
-  -- the type index, or has a NEUTRAL head (`⇒-var`, `⇒-global`, `⇒-app`,
-  -- `⇒-let`, `⇒-case`), which `Canonical` rules out. The `⇒-conv` case is
-  -- the only non-structural one: `conv-injective-pi` turns the convertible
-  -- type back into a literal Π, and we recurse.
-  invert-pi :
-    ∀ {k} {Γ : Ctx k} {t g d c}
-    → Canonical t
-    → Γ ⊢ t ⇒ tm-pi g d c
-    → Σ Grade (λ g′ → Σ Term (λ d′ → Σ Term (λ b → t ≡ tm-lam g′ d′ b)))
-  invert-pi c-lam (⇒-lam ds body) = _ , _ , _ , refl
-  invert-pi can (⇒-conv der eq) with conv-injective-pi eq
-  ... | g′ , d′ , c′ , refl = invert-pi can der
-  -- A canonical value that infers a data type is a CONSTRUCTOR-LIKE head.
-  --
-  -- This is the "case" case of Progress: the scrutinee's type is a data
-  -- type, so if the scrutinee is canonical it is a constructor (or a
-  -- builtin literal, which the kernel peels to a constructor via
-  -- `nat_to_ctor` / `bounded_to_ctor`) and ι fires.
-  --
-  -- A FINDING: the naive statement "a canonical value of data type is a
-  -- `tm-ctor`" is FALSE. `tm-nat_lit m` and `tm-bounded_lit k` are
-  -- canonical (`c-nat_lit` / `c-bounded_lit`) and infer `tm-data Nat [] []`
-  -- / `tm-data Bounded [] []` (via `⇒-nat_lit` / `⇒-bounded_lit`), but they
-  -- are not `tm-ctor`s. The kernel resolves this by treating a `{:vnat, n}`
-  -- as definitionally the `Z`/`S` tower (`Eval.nat_to_ctor`), so the honest
-  -- canonical-form lemma is the three-way disjunction below. Progress's
-  -- `case` branch consumes it by peeling the literal to a ctor.
-  --
-  -- PROVED by induction on the inference derivation. The conclusion type
-  -- `tm-data n ps is` is produced by exactly three rules from a canonical
-  -- term: `⇒-ctor` (the `tm-ctor` disjunct), `⇒-nat_lit` (the `tm-nat_lit`
-  -- disjunct), and `⇒-bounded_lit` (the `tm-bounded_lit` disjunct). Every
-  -- other rule yields a different type former (ruled out by the index) or
-  -- has a neutral head (ruled out by `Canonical`). The `⇒-conv` case
-  -- recurses after `conv-injective-data`.
-  invert-data :
-    ∀ {k} {Γ : Ctx k} {t n ps is}
-    → Canonical t
-    → Γ ⊢ t ⇒ tm-data n ps is
-    → (Σ Name (λ c → Σ (List Term) (λ args → t ≡ tm-ctor c args)))
-      ⊎ (Σ ℕ (λ m → t ≡ tm-nat_lit m))
-      ⊎ (Σ ℕ (λ b → t ≡ tm-bounded_lit b))
-  invert-data c-ctor (⇒-ctor p q) = inj₁ (_ , _ , refl)
-  invert-data c-nat_lit (⇒-nat_lit p) = inj₂ (inj₁ (_ , refl))
-  invert-data c-bounded_lit (⇒-bounded_lit p) = inj₂ (inj₂ (_ , refl))
-  invert-data can (⇒-conv der eq) with conv-injective-data eq
-  ... | ps′ , is′ , refl = invert-data can der
-  -- The componentwise form of Π injectivity, used by Preservation's β case:
-  -- convertible Πs have equal grades and convertible domains and codomains.
-  -- A projection of the `Conversion` record's reflection field.
-  conv-pi-components :
-    ∀ {g d c g′ d′ c′}
-    → Conversion._≈_ conv (tm-pi g′ d′ c′) (tm-pi g d c)
-    → g′ ≡ g × (Conversion._≈_ conv d′ d) × (Conversion._≈_ conv c′ c)
+  universe-not-pi : ∀ {l g d c} → tm-type l ∼ tm-pi g d c → ⊥
+  universe-not-pi = rigid-clash ty-universe ty-pi (λ ())
+
+  invert-pi-conv : ∀ {k} {Γ : Ctx k} {t T g d c}
+    → Canonical t → Γ ⊢ t ⇒ T → T ∼ tm-pi g d c → IsLam t
+  invert-pi-conv c-type (⇒-type p) eq = ⊥-elim (universe-not-pi eq)
+  invert-pi-conv c-pi (⇒-pi p q) eq = ⊥-elim (universe-not-pi eq)
+  invert-pi-conv c-lam (⇒-lam p q) eq = _ , _ , _ , refl
+  invert-pi-conv c-data (⇒-data p q r) eq = ⊥-elim (universe-not-pi eq)
+  invert-pi-conv c-ctor (⇒-ctor p q) eq =
+    ⊥-elim (rigid-clash ty-data ty-pi (λ ()) eq)
+  invert-pi-conv c-int_type ⇒-int_type eq = ⊥-elim (universe-not-pi eq)
+  invert-pi-conv c-int_lit ⇒-int_lit eq =
+    ⊥-elim (rigid-clash ty-int ty-pi (λ ()) eq)
+  invert-pi-conv c-nat_lit (⇒-nat_lit p) eq =
+    ⊥-elim (rigid-clash ty-data ty-pi (λ ()) eq)
+  invert-pi-conv c-bounded_lit (⇒-bounded_lit p) eq =
+    ⊥-elim (rigid-clash ty-data ty-pi (λ ()) eq)
+  invert-pi-conv c-float_type ⇒-float_type eq = ⊥-elim (universe-not-pi eq)
+  invert-pi-conv c-float_lit ⇒-float_lit eq =
+    ⊥-elim (rigid-clash ty-float ty-pi (λ ()) eq)
+  invert-pi-conv c-binary_type ⇒-binary_type eq = ⊥-elim (universe-not-pi eq)
+  invert-pi-conv c-atom_type ⇒-atom_type eq = ⊥-elim (universe-not-pi eq)
+  invert-pi-conv c-atom_lit ⇒-atom_lit eq =
+    ⊥-elim (rigid-clash ty-atom ty-pi (λ ()) eq)
+  invert-pi-conv c-effect_type (⇒-effect_type p) eq = ⊥-elim (universe-not-pi eq)
+  invert-pi-conv c-effect_pure (⇒-effect_pure p) eq =
+    ⊥-elim (rigid-clash ty-effect ty-pi (λ ()) eq)
+  invert-pi-conv c-effect_bind (⇒-effect_bind p q) eq =
+    ⊥-elim (rigid-clash ty-effect ty-pi (λ ()) eq)
+  invert-pi-conv can (⇒-conv der eq′) eq =
+    invert-pi-conv can der (compose eq′ eq)
+  invert-pi-conv can (⇒-cumul der le) eq = ⊥-elim (universe-not-pi eq)
+
+  invert-pi : ∀ {k} {Γ : Ctx k} {t g d c}
+    → Canonical t → Γ ⊢ t ⇒ tm-pi g d c → IsLam t
+  invert-pi can der = invert-pi-conv can der reflexive
+
+  invert-data-conv : ∀ {k} {Γ : Ctx k} {t T n ps is}
+    → Canonical t → Γ ⊢ t ⇒ T → T ∼ tm-data n ps is → IsDataValue t
+  invert-data-conv c-type (⇒-type p) eq =
+    ⊥-elim (rigid-clash ty-universe ty-data (λ ()) eq)
+  invert-data-conv c-pi (⇒-pi p q) eq =
+    ⊥-elim (rigid-clash ty-universe ty-data (λ ()) eq)
+  invert-data-conv c-lam (⇒-lam p q) eq =
+    ⊥-elim (rigid-clash ty-pi ty-data (λ ()) eq)
+  invert-data-conv c-data (⇒-data p q r) eq =
+    ⊥-elim (rigid-clash ty-universe ty-data (λ ()) eq)
+  invert-data-conv c-ctor (⇒-ctor p q) eq = inj₁ (_ , _ , refl)
+  invert-data-conv c-int_type ⇒-int_type eq =
+    ⊥-elim (rigid-clash ty-universe ty-data (λ ()) eq)
+  invert-data-conv c-int_lit ⇒-int_lit eq =
+    ⊥-elim (rigid-clash ty-int ty-data (λ ()) eq)
+  invert-data-conv c-nat_lit (⇒-nat_lit p) eq = inj₂ (inj₁ (_ , refl))
+  invert-data-conv c-bounded_lit (⇒-bounded_lit p) eq = inj₂ (inj₂ (_ , refl))
+  invert-data-conv c-float_type ⇒-float_type eq =
+    ⊥-elim (rigid-clash ty-universe ty-data (λ ()) eq)
+  invert-data-conv c-float_lit ⇒-float_lit eq =
+    ⊥-elim (rigid-clash ty-float ty-data (λ ()) eq)
+  invert-data-conv c-binary_type ⇒-binary_type eq =
+    ⊥-elim (rigid-clash ty-universe ty-data (λ ()) eq)
+  invert-data-conv c-atom_type ⇒-atom_type eq =
+    ⊥-elim (rigid-clash ty-universe ty-data (λ ()) eq)
+  invert-data-conv c-atom_lit ⇒-atom_lit eq =
+    ⊥-elim (rigid-clash ty-atom ty-data (λ ()) eq)
+  invert-data-conv c-effect_type (⇒-effect_type p) eq =
+    ⊥-elim (rigid-clash ty-universe ty-data (λ ()) eq)
+  invert-data-conv c-effect_pure (⇒-effect_pure p) eq =
+    ⊥-elim (rigid-clash ty-effect ty-data (λ ()) eq)
+  invert-data-conv c-effect_bind (⇒-effect_bind p q) eq =
+    ⊥-elim (rigid-clash ty-effect ty-data (λ ()) eq)
+  invert-data-conv can (⇒-conv der eq′) eq =
+    invert-data-conv can der (compose eq′ eq)
+  invert-data-conv can (⇒-cumul der le) eq =
+    ⊥-elim (rigid-clash ty-universe ty-data (λ ()) eq)
+
+  invert-data : ∀ {k} {Γ : Ctx k} {t n ps is}
+    → Canonical t → Γ ⊢ t ⇒ tm-data n ps is → IsDataValue t
+  invert-data can der = invert-data-conv can der reflexive
+
+  conv-pi-components : ∀ {g d c g′ d′ c′}
+    → tm-pi g′ d′ c′ ∼ tm-pi g d c
+    → g′ ≡ g × (d′ ∼ d) × (c′ ∼ c)
   conv-pi-components = Conversion.≈-pi-components conv
-  ------------------------------------------------------------------------
-  -- Checking-mode inversion, via conversion injectivity.
-  ------------------------------------------------------------------------
 
-  invert-data-check :
-    ∀ (k : ℕ) (Γ : Ctx k) {t n ps is}
-    (d : Γ ⊢ t ⇐ tm-data n ps is)
-    → Canonical t
-    → (Σ Name (λ c → Σ (List Term) (λ args → t ≡ tm-ctor c args)))
-      ⊎ (Σ ℕ (λ m → t ≡ tm-nat_lit m))
-      ⊎ (Σ ℕ (λ b → t ≡ tm-bounded_lit b))
-  invert-data-check _ _ (⇐-infer der eq) can
-    with conv-injective-data eq
-  ... | ps′ , is′ , refl = invert-data can der
-  invert-data-check _ _ (⇐-conv der eq) can
-    with conv-injective-data eq
-  ... | ps′ , is′ , refl = invert-data-check _ _ der can
-  invert-data-check _ _ ⇐-hole ()
-  invert-pi-check :
-    ∀ (k : ℕ) (Γ : Ctx k) {t g d c}
-    (d : Γ ⊢ t ⇐ tm-pi g d c)
-    → Canonical t
-    → Σ Grade (λ g′ → Σ Term (λ d′ → Σ Term (λ b → t ≡ tm-lam g′ d′ b)))
-  invert-pi-check _ _ (⇐-lam ds x) can = _ , _ , _ , refl
-  invert-pi-check _ _ (⇐-infer der eq) can
-    with conv-injective-pi eq
-  ... | g′ , d′ , c′ , refl = invert-pi can der
-  invert-pi-check _ _ (⇐-conv der eq) can
-    with conv-injective-pi eq
-  ... | g′ , d′ , c′ , refl = invert-pi-check _ _ der can
-  invert-pi-check _ _ ⇐-hole ()
+  invert-data-check-conv : ∀ {k} {Γ : Ctx k} {t T n ps is}
+    → Γ ⊢ t ⇐ T → Canonical t → T ∼ tm-data n ps is → IsDataValue t
+  invert-data-check-conv (⇐-lam ds body) can eq =
+    ⊥-elim (rigid-clash ty-pi ty-data (λ ()) eq)
+  invert-data-check-conv (⇐-infer der eq′) can eq =
+    invert-data-conv can der (compose eq′ eq)
+  invert-data-check-conv (⇐-conv der eq′) can eq =
+    invert-data-check-conv der can (compose eq′ eq)
+  invert-data-check-conv (⇐-cumul der le) can eq =
+    ⊥-elim (rigid-clash ty-universe ty-data (λ ()) eq)
+  invert-data-check-conv ⇐-hole () eq
+
+  invert-data-check : ∀ (k : ℕ) (Γ : Ctx k) {t n ps is}
+    → Γ ⊢ t ⇐ tm-data n ps is → Canonical t → IsDataValue t
+  invert-data-check _ _ der can = invert-data-check-conv der can reflexive
+
+  invert-pi-check-conv : ∀ {k} {Γ : Ctx k} {t T g d c}
+    → Γ ⊢ t ⇐ T → Canonical t → T ∼ tm-pi g d c → IsLam t
+  invert-pi-check-conv (⇐-lam ds body) can eq = _ , _ , _ , refl
+  invert-pi-check-conv (⇐-infer der eq′) can eq =
+    invert-pi-conv can der (compose eq′ eq)
+  invert-pi-check-conv (⇐-conv der eq′) can eq =
+    invert-pi-check-conv der can (compose eq′ eq)
+  invert-pi-check-conv (⇐-cumul der le) can eq = ⊥-elim (universe-not-pi eq)
+  invert-pi-check-conv ⇐-hole () eq
+
+  invert-pi-check : ∀ (k : ℕ) (Γ : Ctx k) {t g d c}
+    → Γ ⊢ t ⇐ tm-pi g d c → Canonical t → IsLam t
+  invert-pi-check _ _ der can = invert-pi-check-conv der can reflexive
+
+  -- Metadata extraction uses the same accumulator. Equal exposed data
+  -- heads preserve the family NAME even through non-rigid intermediate T.
+  constructor-data-conv : ∀ {k} {Γ : Ctx k} {c args T n ps is}
+    → Γ ⊢ tm-ctor c args ⇒ T → T ∼ tm-data n ps is
+    → ∃ λ f → ∃ λ ct
+    → findCtor c (IndEnv.families ind) ≡ just (f , ct)
+      × fam-name f ≡ n × (Γ ⊢* args ⇐* ctor-args ct)
+  constructor-data-conv (⇒-ctor fc sp) eq =
+    _ , _ , fc , data-head-injective (Conversion.≈-heads conv ty-data ty-data eq) , sp
+  constructor-data-conv (⇒-conv der eq′) eq =
+    constructor-data-conv der (compose eq′ eq)
+  constructor-data-conv (⇒-cumul der le) eq =
+    ⊥-elim (rigid-clash ty-universe ty-data (λ ()) eq)
+
+  constructor-data : ∀ {k} {Γ : Ctx k} {c args n ps is}
+    → Γ ⊢ tm-ctor c args ⇒ tm-data n ps is
+    → ∃ λ f → ∃ λ ct
+    → findCtor c (IndEnv.families ind) ≡ just (f , ct)
+      × fam-name f ≡ n × (Γ ⊢* args ⇐* ctor-args ct)
+  constructor-data der = constructor-data-conv der reflexive
+
+  nat-data-family-conv : ∀ {k} {Γ : Ctx k} {m T n ps is}
+    → Γ ⊢ tm-nat_lit m ⇒ T → T ∼ tm-data n ps is
+    → IndEnv.builtins ind "nat" ≡ just n
+  nat-data-family-conv (⇒-nat_lit builtin) eq
+    with data-head-injective (Conversion.≈-heads conv ty-data ty-data eq)
+  ... | refl = builtin
+  nat-data-family-conv (⇒-conv der eq′) eq =
+    nat-data-family-conv der (compose eq′ eq)
+  nat-data-family-conv (⇒-cumul der le) eq =
+    ⊥-elim (rigid-clash ty-universe ty-data (λ ()) eq)
+
+  nat-data-family : ∀ {k} {Γ : Ctx k} {m n ps is}
+    → Γ ⊢ tm-nat_lit m ⇒ tm-data n ps is
+    → IndEnv.builtins ind "nat" ≡ just n
+  nat-data-family der = nat-data-family-conv der reflexive
+
+  bounded-data-family-conv : ∀ {k} {Γ : Ctx k} {m T n ps is}
+    → Γ ⊢ tm-bounded_lit m ⇒ T → T ∼ tm-data n ps is
+    → IndEnv.builtins ind "bounded" ≡ just n
+  bounded-data-family-conv (⇒-bounded_lit builtin) eq
+    with data-head-injective (Conversion.≈-heads conv ty-data ty-data eq)
+  ... | refl = builtin
+  bounded-data-family-conv (⇒-conv der eq′) eq =
+    bounded-data-family-conv der (compose eq′ eq)
+  bounded-data-family-conv (⇒-cumul der le) eq =
+    ⊥-elim (rigid-clash ty-universe ty-data (λ ()) eq)
+
+  bounded-data-family : ∀ {k} {Γ : Ctx k} {m n ps is}
+    → Γ ⊢ tm-bounded_lit m ⇒ tm-data n ps is
+    → IndEnv.builtins ind "bounded" ≡ just n
+  bounded-data-family der = bounded-data-family-conv der reflexive

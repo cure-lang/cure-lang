@@ -169,23 +169,17 @@ module Progress (ind : IndEnv) (sig : Signature) (conv : Conversion)
     → ∃ λ f → ∃ λ ct
     → findCtor c (IndEnv.families ind) ≡ just (f , ct)
       × fam-name f ≡ n × (⟨⟩ ⊢* args ⇐* ctor-args ct)
-  ctor-info (⇒-ctor fc sp) = _ , _ , fc , refl , sp
-  ctor-info (⇒-conv der eq) with conv-injective-data eq
-  ... | ps′ , is′ , refl = ctor-info der
+  ctor-info = constructor-data
 
   nat-lit-family : ∀ {k n ps is}
     → ⟨⟩ ⊢ tm-nat_lit k ⇒ tm-data n ps is
     → IndEnv.builtins ind "nat" ≡ just n
-  nat-lit-family (⇒-nat_lit eq) = eq
-  nat-lit-family (⇒-conv der eq) with conv-injective-data eq
-  ... | ps′ , is′ , refl = nat-lit-family der
+  nat-lit-family = nat-data-family
 
   bounded-lit-family : ∀ {k n ps is}
     → ⟨⟩ ⊢ tm-bounded_lit k ⇒ tm-data n ps is
     → IndEnv.builtins ind "bounded" ≡ just n
-  bounded-lit-family (⇒-bounded_lit eq) = eq
-  bounded-lit-family (⇒-conv der eq) with conv-injective-data eq
-  ... | ps′ , is′ , refl = bounded-lit-family der
+  bounded-lit-family = bounded-data-family
 
   case-ctor-step : ∀ {c args n ps is m brs}
     → ⟨⟩ ⊢ tm-ctor c args ⇒ tm-data n ps is
@@ -281,6 +275,7 @@ module Progress (ind : IndEnv) (sig : Signature) (conv : Conversion)
 
     -- Conversion on the inferred type: recurse on the same term.
     progress⇒ (⇒-conv der eq) ff = progress⇒ der ff
+    progress⇒ (⇒-cumul der le) ff = progress⇒ der ff
 
     -- Checking cases.
     progress⇐ (⇐-lam p q) (f-lam fd fb) = inj₁ (canonical c-lam)

@@ -7,9 +7,16 @@ of the Cure Core kernel. It is the formal counterpart of the written argument in
 development.
 
 > **Status: foundation repair in progress.** The legacy full theorem interfaces
-> cannot be jointly instantiated. `Proof.InterfaceAudit` machine-checks
-> remaining contradictions in signature closedness and syntax-head reflection
-> with reduction conversion. The old global coverage oracle is now frozen
+> were refuted and are now frozen only in `Proof.InterfaceAudit`. Active
+> conversion compares TWO rigid type heads, not arbitrary raw syntax;
+> universe cumulativity belongs to declarative typing, not equality.
+> `Proof.ConversionModel` inhabits every conversion-record field with a
+> bounded ζ-only algebra, but a checked negative control rejects full
+> `ReduceConv` for it. No joint full-reduction model or executable NbE
+> refinement has been established. The old `ClosedSig` oracle is frozen:
+> active consumers use
+> inhabited `ClosedFragmentSig`, restricted to individually closed entries,
+> **not** full dependent telescopes. The old global coverage oracle is now frozen
 > only as a negative regression: each admitted case carries local coverage.
 > A fourth historical contradiction, global literal
 > arities, is now retained only as a frozen negative regression: the active
@@ -20,10 +27,10 @@ development.
 > candidates; those remaining interfaces have not been migrated.
 > Their examples are not an instance of the full soundness theorem.
 >
-> The following is the **historical derivation status**, subject to that
-> applicability warning. The formalisation of the Core calculus and the typing
-> judgment is complete and compiles clean. The canonical-form lemmas, the
-> renaming and substitution lemmas, **Progress**, **`Final`-preservation**,
+> The following is the **conditional derivation status**, subject to that
+> applicability warning. The current restricted Core typing specification
+> compiles cleanly; full dependent-signature support is unfinished.
+> The canonical-form, renaming and substitution lemmas, **Progress**, **`Final`-preservation**,
 > and **`preservation` (every case, including ι and δ)** are all **proved**,
 > and so are the constructive soundness theorems: the **fuel-indexed
 > `soundness-fuel`** and the **coinductive `soundness-tree`**.
@@ -33,7 +40,7 @@ development.
 > **zero postulates**. The whole development now rests on exactly **two**
 > named postulates: `funext` (standard function extensionality) and
 > `tree-decides` (LPO on the outcome path). This inventory does not account
-> for the refuted module hypotheses or the one remaining `TERMINATING`
+> for the remaining model/refinement obligations or the one `TERMINATING`
 > pragma in `Proof.Confluence`. The four former `Core.Parallel` overrides
 > have been eliminated; its lifters and simulation are termination-checked.
 >
@@ -108,9 +115,9 @@ its connection to certified unfolding remain unproved here.
 | `Core.Value` | The NbE value domain: closures, neutrals, size-indexed so closures are structurally smaller | ✅ complete |
 | `Core.Reduction` | The reduction relation `_⇝_` (β, ζ, ι, δ, congruence, and the `ι-nat-*`/`ι-bounded-*` literal peels) and its reflexive-transitive closure | ✅ complete |
 | `Core.Signature` | Inductive families, constructors, telescopes; nested strict positivity | ✅ complete |
-| `Core.Typing` | The bidirectional `infer`/`check` judgment `_⊢_⇒_` / `_⊢_⇐_`, over a length-indexed context with `Fin` lookup | ✅ complete |
+| `Core.Typing` | Declarative infer/check judgments with conversion and cumulative-sort closure, over a length-indexed context with `Fin` lookup | Conditional specification; not executable minimal synthesis |
 | `Proof.Values` | The `Canonical`/`Neutral`/`Value` split (a value includes neutrals) | ✅ complete |
-| `Proof.Inversion` | Head-inversion lemmas; conversion injectivity | ✅ `invert-pi`/`invert-data`/`invert-*-check` **proved**; `conv-injective-*` open |
+| `Proof.Inversion` | Accumulated-conversion inversion; constructor/literal metadata | Derived from rigid-head separation and exposed Π injectivity; raw `conv-injective-*` removed |
 | `Proof.CanonicalForms` | `canonical-pi-value`, `canonical-ctor` | ✅ **proved** (= `invert-*-check`) |
 | `Proof.Substitution` | shift/subst algebraic laws | ✅ `shift-0`, `shift-var-1`, the rename/subst interaction laws, and the branch-field lemmas **proved**; only `shift-subst` (app case) open |
 | `Proof.Context` | Length-indexed context laws: weakening lookup, `extendⁿ` lookup, branch morphism `extF` | ✅ **proved** |
@@ -135,17 +142,18 @@ its connection to certified unfolding remain unproved here.
 - The reduction relation `_⇝_`, with all four reduction rules and the
   congruence rules, matching docs/SOUNDNESS.md §1.3.
 - The inductive-family signature with the nested strict-positivity checker.
-- The bidirectional typing judgment, with every rule from
-  `Cure.Core.Kernel`'s `infer`/`check`.
+- The declarative typing judgment built from bidirectional rules, explicitly
+  closed under conversion and cumulative sorts. It is not the graph of
+  `Cure.Core.Kernel`'s minimal type synthesis.
 - **The canonical-form lemmas** `canonical-pi-value` and `canonical-ctor`
   (`Proof/CanonicalForms.agda`), proved by composing the checking-mode
   head-inversion lemmas.
 - **The head-inversion lemmas** `invert-pi` / `invert-data`
   (`Proof/Inversion.agda`), proved by induction on the inference derivation:
-  the only rule whose conclusion type is the target former is the matching
-  introduction rule; every other rule is ruled out by the type index or by
-  the head being neutral (`Canonical` excludes it). The `⇒-conv` case recurses
-  via conversion injectivity. `invert-data` is stated as a three-way
+  conversion witnesses are accumulated across arbitrary intermediate types.
+  Only at introduction rules are two rigid type heads compared; no
+  converted raw term is forced to have literal Π/data syntax.
+  `invert-data` is stated as a three-way
   disjunction — a `tm-ctor` OR a builtin `tm-nat_lit`/`tm-bounded_lit` —
   because a nat/bounded literal is canonical and infers a data type but is
   not a `tm-ctor` (see [The `invert-data` finding](#the-invert-data-finding)).
@@ -180,8 +188,9 @@ its connection to certified unfolding remain unproved here.
   the `Conversion` record (`Core/Typing.agda`), re-exported as projections —
   conversion is specified as a syntactic congruence.
 - **`check-infer`** (`Proof/Preservation.agda`): a hole-free term that CHECKS
-  against a type INFERS it. This is the generalisation of `value-infer` that
-  needs no value structure, and it dissolves the β/ζ inference-preservation
+  against a type has a matching DECLARATIVE inference derivation, not a
+  claim about executable minimal synthesis. This generalises `value-infer`,
+  needs no value structure, and dissolves the β/ζ inference-preservation
   gaps: the checking-mode `preserve-β`/`preserve-ζ` reducts infer their type
   once the redex is `Final` (`substTop-hole-free`).
 - **`branches-conv`** (`Proof/Preservation.agda`): branch typing is stable
@@ -239,12 +248,12 @@ its connection to certified unfolding remain unproved here.
 
 ### Historical proof-development notes (superseded by the interface audit)
 
-These are the `postulate`s, each with a named proof strategy in the source:
+These are historical proof-development inputs, not the current postulate inventory:
 
 1. **`conv-injective-data` / `conv-injective-pi`** (`Proof/Inversion.agda`) —
-   conversion injectivity on type constructors. *Strategy:* the FSCD'25
-   result; provable in a meta-theory weaker than the object theory. These are
-   now the ONLY inputs the head-inversion lemmas depend on (see below).
+   were based on raw syntax reflection, later refuted with reduction.
+   Those helpers are now removed. Generalized inversion accumulates
+   conversion and uses separation only when both heads are rigid.
 2. **The application case** of the renaming and substitution lemmas
    (`ren-app`, `subst-app`). This was the **one documented obstruction**; it
    is now **resolved** by using the top substitution `substTopT` for the
@@ -256,9 +265,10 @@ These are the `postulate`s, each with a named proof strategy in the source:
    `subst-ctor-result`, `subst-global`). These are well-formedness
    assumptions: a global's declared type and the signature's telescopes are
    *closed*, so renaming/substitution leaves them unchanged. They are now
-   **derived** from the single hypothesis `ClosedSig ind sig` (a `Scoped 0`
-   predicate on signature entries) via `rename-closed` / `substS-closed` —
-   no longer postulated.
+   **derived for the explicit closed-entry fragment** from
+   `ClosedFragmentSig ind sig`, using actual lookup/membership witnesses and
+   `rename-closed` / `substS-closed`. The original arbitrary-record
+   `ClosedSig` hypothesis was refuted and is frozen only in the audit.
 4. **`progress`** (`Proof/Progress.agda`) — **PROVED** by mutual cases on the
    typing derivation (infer and check), consuming the canonical-form lemmas to
    show β and ι fire. See [The `progress` inputs](#the-progress-inputs).
@@ -569,8 +579,10 @@ conditions.**
 `Proof.InterfaceAudit` proves:
 - The frozen historical `Covers ind` and `BuiltinCtors ind` are incompatible;
   no active theorem accepts that oracle anymore.
-- `ClosedSig ind sig` is uninhabited.
-- Legacy `Conversion` and `ReduceConv sig conv` are incompatible.
+- The frozen historical `ClosedSig ind sig` is uninhabited; active consumers
+  now require the membership-indexed closed-entry fragment.
+- The frozen historical `RawPiReflection conv` and `ReduceConv sig conv`
+  are incompatible. Active `Conversion` no longer accepts raw reflection.
 - The frozen historical `LiteralArity` is uninhabited; it is no longer an
   active confluence parameter.
 
@@ -599,7 +611,7 @@ with unrelated Bool constructors, empty-family coverage, missing-constructor,
 wrong-arity and duplicate-first-match rejection, and preservation under
 renaming, substitution and a real branch reduction. It also rejects an empty
 Nat case at the inference-derivation level, including `⇒-conv` wrappers.
-This refutation is parameterised by legacy `Conversion`; these examples
+This refutation is parameterised by abstract `Conversion`; these examples
 do not instantiate the full soundness theorem.
 
 `Core.Verification` still defines candidate preceding-binder-scoped
@@ -610,6 +622,48 @@ rejection, empty-family coverage, distinguishable field substitutions,
 result-index instantiation, and a let exposing a Π.
 These establish inhabited predicates, **not declaration typing, a verified
 conversion relation, or a repaired progress/preservation theorem**.
+
+### Active closed-telescope signature fragment
+`Core.ClosedFragment` defines `ClosedFragmentSig`: global types and
+registered family/constructor entries/results are closed, with obligations
+restricted to actual members. Preservation's renaming/substitution helpers
+and its branch transports now require actual lookup/membership evidence.
+The preservation and both soundness module parameters are migrated.
+
+`Proof.ClosedFragmentExamples` proves the invariant for registered
+Nat/Bool/Void families and a nonempty global type table. It rejects
+registered open parameters/fields/results without constraining unregistered
+open records. A well-scoped dependent telescope is deliberately rejected by
+this fragment, while its candidate `ScopedFamily` witness remains inhabited.
+**This does not complete dependent telescope/result instantiation or prove
+that full Cure signatures satisfy this closed-entry restriction.**
+Those typing/scoping migrations remain open, as does conversion applicability.
+
+### Active rigid-head conversion and separate cumulativity
+`Core.TypeHeads` records exposed type formers, including exact universe
+levels and data family names. `Conversion.≈-heads` compares two such heads;
+it never recovers raw syntax for an arbitrary convertible term.
+`Proof.Inversion` accumulates conversion through inference/checking
+derivations and extracts constructor/literal metadata without raw reflection.
+All active progress/preservation consumers are migrated.
+
+The old `≈-type` field is removed. `⇒-cumul` explicitly closes DECLARATIVE
+inference under cumulative sorts; renaming, substitution, context conversion,
+progress and preservation handle it. `check-infer` targets this declarative
+closure, not executable synthesis. Unequal universe levels cannot convert.
+
+`Proof.ConversionModel` inhabits every field using a total ζ-only
+interpretation. It preserves rigid heads and proves rename/substitution
+commutation with existing `funext`; it deliberately collapses all
+constructors/literals to one opaque leaf and leaves applications
+uninterpreted. It is not faithful value equality or an NbE implementation.
+`Proof.ConversionExamples` exercises inference/checking conversion chains
+through let-wrapped types, family metadata, a global with a let-wrapped
+type, exact sorts, grades and distinct holes, and separate upward typing.
+A well-typed β counterexample explicitly rejects full `ReduceConv` for
+this witness. These are non-vacuous RECORD/typing examples, not a joint
+preservation/soundness model. Full β/ι/δ/η conversion and executable
+refinement remain open.
 
 ### Structurally checked parallel spine lifting
 `Core.Parallel` no longer uses any termination override. Its generic
@@ -631,15 +685,16 @@ is independent of the refuted legacy hypotheses. This closes inertness for
 the present Core reduction specification, not BEAM effect execution.
 
 ### Open research questions (docs/SOUNDNESS.md §7, §8)
-- **The totality certificate.** `Certified` is a stated hypothesis. A
-  separate, smaller proof that the *size-change certificate verifier* is
-  sound (the "translation validation" discipline) is the recommended next
-  step; see `docs/superpowers/specs/kernel/2026-08-14-agda-style-scc-totality-certificates.md`.
-- **Erasure commutes with reduction.** `Erase.erase` is assumed to drop only
-  `:erased`-graded binders; the argument here does not prove erasure commutes
-  with reduction (docs/SOUNDNESS.md §8.3).
-- **η and proof irrelevance.** If Cure's NbE has η-laws or definitional proof
-  irrelevance, they are not covered and need an η-aware treatment.
+- **The totality certificate.** `Certified` means body finality, not
+  termination. Verifier acceptance, call-extraction soundness, well-founded
+  descent and the size-change principle must be linked to termination;
+  finite certificate replay alone is insufficient.
+- **Typed erasure simulation.** `Erase.erase` needs a source/runtime
+  simulation accounting for filtered signatures, runtime binder maps and
+  divergence; raw commutation is not the target (docs/SOUNDNESS.md §8.3).
+- **η and proof irrelevance.** Cure's NbE DOES implement function η.
+  Its soundness/refinement remains open. Proof erasure does not establish
+  definitional proof irrelevance; no blanket rule is assumed.
 - **The NbE evaluator.** This development formalises the reduction *relation*
   (the specification). A separate obligation is that the kernel's `Eval`
   function implements exactly that relation — the operational refinement
@@ -748,12 +803,13 @@ substitution `substTopT a c = substS (topSub a) c`, matching the kernel's
 
 ### Signature closedness
 
-The former closedness *postulates* (`rename-global-type`, `tele-closed`,
-`rename-ctor-result`, `tele-closed-subst`, `subst-ctor-result`) are now
-**derived** from a single hypothesis `ClosedSig ind sig`: the signature's
-globals, family telescopes, and constructor telescopes are `Scoped 0`
-(closed). `rename-closed` / `substS-closed` turn that witness into the
-identity facts the renaming and substitution lemmas consume.
+The current closedness lemmas (`rename-global-type`, `tele-closed`,
+`rename-ctor-result`, `tele-closed-subst`, `subst-ctor-result`) are derived
+from membership-indexed `ClosedFragmentSig ind sig`, not the refuted
+arbitrary-record oracle. `rename-closed` / `substS-closed` apply only after
+actual lookups justify the relevant family/constructor memberships.
+This remains an explicit individually-closed-entry fragment; a dependent
+telescope scoped under preceding binders is not automatically closed.
 
 ### The `ι` branch substitution, on the simultaneous presentation
 

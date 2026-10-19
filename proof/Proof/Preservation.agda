@@ -14,9 +14,12 @@
 -- by mutual induction on the typing derivation, stated with a coherence
 -- condition on the substitution.
 --
--- STATUS: legacy derivations retained for repair. ClosedSig is uninhabited
--- and Conversion is incompatible with ReduceConv (Proof.InterfaceAudit).
--- Compilation is NOT an applicable preservation theorem for Cure.
+-- STATUS: the explicit closed-telescope fragment uses the inhabited,
+-- membership-indexed ClosedFragmentSig invariant. This does NOT cover
+-- genuinely dependent telescope entries. The conversion RECORD now has a
+-- bounded inhabited witness, but no joint model with full ReduceConv or
+-- executable NbE refinement. This is a conditional specification theorem,
+-- not yet an applicable executable Cure preservation certificate.
 ------------------------------------------------------------------------
 module Proof.Preservation where
 
@@ -46,6 +49,7 @@ open import Core.Signature using (IndEnv; Family; Ctor; Telescope; findFamily; f
                                    ctor-args; ctor-params; ctor-indices; just-inj)
 open import Core.Reduction
 open import Core.Coverage
+open import Core.ClosedFragment public using (ClosedFragmentSig; family-lookup-member)
 open import Core.Typing using (Ctx; ⟨⟩; _▷_; lookup; extend; lookup-extend; lookup-renameCtx; renameCtx; Conversion; extendⁿ; extendTele; teleField; fieldFin; listLookup-∈Tele; branch-field-vars; upto; _∈Tele_; ∈-here; ∈-there)
 open import Proof.Values using (Canonical; Neutral; Value)
 open import Proof.Progress using (Final; FinalTerms; FinalBranches; BuiltinCtors; Certified;
@@ -68,25 +72,13 @@ open import Proof.Context using (lookup-weaken; lookup-head;
 ------------------------------------------------------------------------
 -- Signature closedness.
 --
--- The signature's entries (a global's declared type, a family's
--- telescopes, a constructor's argument telescope and result type) are
--- CLOSED: they mention no free variable. This is a well-formedness side
--- condition on the signature, carried as a hypothesis (like
--- `StrictlyPositive`), and it makes renaming/substitution the identity on
--- them via `rename-closed` / `substS-closed`.
---
--- Defined at the TOP LEVEL (outside `Preserve`) so the module header can
--- name it.
+-- Core.ClosedFragment constrains only actual signature members. Individual
+-- entries/results are still closed, because the current spine/context
+-- proofs require rename/substitution identity. This is an explicit
+-- fragment restriction, not a proof of well-scoped dependent telescopes.
+-- Migrating ScopedSignature together with dependent typing remains open.
 ------------------------------------------------------------------------
 
-ClosedSig : IndEnv → Signature → Set
-ClosedSig ind sig =
-    (∀ (f : Name) {T} → Signature.type-of sig f ≡ just T → Scoped 0 T)
-  × (∀ (f : Family) {T} → T ∈Tele (fam-params f) → Scoped 0 T)
-  × (∀ (f : Family) {T} → T ∈Tele (fam-indices f) → Scoped 0 T)
-  × (∀ (f : Family) (ct : Ctor) {T} → T ∈Tele (ctor-args ct) → Scoped 0 T)
-  × (∀ (f : Family) (ct : Ctor)
-     → Scoped 0 (tm-data (fam-name f) (ctor-params ct) (ctor-indices ct)))
 
 ------------------------------------------------------------------------
 -- The well-typedness half of the totality certificate.
@@ -118,11 +110,13 @@ ReduceConv : Signature → Conversion → Set
 ReduceConv sig conv = ∀ {t t′} → _⇝_ sig t t′ → Conversion._≈_ conv t t′
 
 module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
-               (closed : ClosedSig ind sig) (rc : ReduceConv sig conv)
+               (closed : ClosedFragmentSig ind sig) (rc : ReduceConv sig conv)
                (ctyped : CertifiedTyped ind sig conv) (bc : BuiltinCtors ind)
                (cert : Certified sig) where
   open Core.Typing.Typing ind sig conv
-  open Proof.Inversion.Invert ind sig conv using (conv-pi-components; conv-injective-data)
+  open Proof.Inversion.Invert ind sig conv
+    using (conv-pi-components; universe-not-pi; constructor-data;
+           nat-data-family; bounded-data-family)
 
   ------------------------------------------------------------------------
   -- Weakening.
@@ -169,10 +163,9 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
   ------------------------------------------------------------------------
   -- Signature closedness.
   --
-  -- `ClosedSig` is defined at the top level (above `module Preserve`); the
-  -- module takes a witness `closed` as a parameter. The lemmas below turn
-  -- that witness into the `rename`/`substS`-is-identity facts the renaming
-  -- and substitution lemmas consume.
+  -- ClosedFragmentSig is defined in Core.ClosedFragment. The lemmas below
+  -- use actual lookup/membership witnesses to obtain the rename/subst
+  -- identity facts required by this closed-entry fragment.
   ------------------------------------------------------------------------
 
   -- A global's declared type is closed, so renaming leaves it unchanged.
@@ -180,64 +173,94 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
     → Signature.type-of sig f ≡ just T → rename ρ T ≡ T
   rename-global-type ρ f T p = rename-closed (proj₁ closed f p)
 
-  -- The signature's telescopes are closed, so renaming leaves them
-  -- unchanged.
-  tele-closed-params : ∀ (ρ : Ren) (f : Family) {T : Term}
-    → T ∈Tele (fam-params f) → rename ρ T ≡ T
-  tele-closed-params ρ f h = rename-closed (proj₁ (proj₂ closed) f h)
+  -- Membership witnesses are mandatory for signature entries. The
+  -- fragment still requires individual entries to be closed.
+  tele-closed-params : ∀ (ρ : Ren) (f : Family)
+    → f ∈ IndEnv.families ind
+    → ∀ {T} → T ∈Tele (fam-params f) → rename ρ T ≡ T
+  tele-closed-params ρ f member h =
+    rename-closed (proj₁ (proj₂ closed) f member h)
 
-  tele-closed-indices : ∀ (ρ : Ren) (f : Family) {T : Term}
-    → T ∈Tele (fam-indices f) → rename ρ T ≡ T
-  tele-closed-indices ρ f h = rename-closed (proj₁ (proj₂ (proj₂ closed)) f h)
+  tele-closed-indices : ∀ (ρ : Ren) (f : Family)
+    → f ∈ IndEnv.families ind
+    → ∀ {T} → T ∈Tele (fam-indices f) → rename ρ T ≡ T
+  tele-closed-indices ρ f member h =
+    rename-closed (proj₁ (proj₂ (proj₂ closed)) f member h)
 
-  tele-closed-ctor : ∀ (ρ : Ren) (f : Family) (ct : Ctor) {T : Term}
-    → T ∈Tele (ctor-args ct) → rename ρ T ≡ T
-  tele-closed-ctor ρ f ct h = rename-closed (proj₁ (proj₂ (proj₂ (proj₂ closed))) f ct h)
+  ctor-members : ∀ {c f ct}
+    → findCtor c (IndEnv.families ind) ≡ just (f , ct)
+    → f ∈ IndEnv.families ind × ct ∈ Core.Signature.fam-ctors f
+  ctor-members {c} {f} {ct} found
+    with lookup-ctor-members {c = c} {fs = IndEnv.families ind} {f = f} {ct = ct} found
+  ... | family-member , ctor-member , name = family-member , ctor-member
 
-  -- Every entry of a constructor's argument telescope is CLOSED. This is
-  -- what makes the branch context `extendTele Γ (ctor-args ct)` have
-  -- rename-invariant field types.
-  teleField-closed : ∀ (f : Family) (ct : Ctor)
+  ctor-field-closed : ∀ f ct {c T}
+    → findCtor c (IndEnv.families ind) ≡ just (f , ct)
+    → T ∈Tele (ctor-args ct) → Scoped 0 T
+  ctor-field-closed f ct {c} found entry
+    with ctor-members {c = c} {f = f} {ct = ct} found
+  ... | family-member , ctor-member =
+    proj₁ (proj₂ (proj₂ (proj₂ closed))) f family-member ct ctor-member entry
+
+  ctor-result-closed : ∀ f ct {c}
+    → findCtor c (IndEnv.families ind) ≡ just (f , ct)
+    → Scoped 0 (tm-data (fam-name f) (ctor-params ct) (ctor-indices ct))
+  ctor-result-closed f ct {c} found
+    with ctor-members {c = c} {f = f} {ct = ct} found
+  ... | family-member , ctor-member =
+    proj₂ (proj₂ (proj₂ (proj₂ closed))) f family-member ct ctor-member
+
+  tele-closed-ctor : ∀ (ρ : Ren) (f : Family) (ct : Ctor) {c}
+    → findCtor c (IndEnv.families ind) ≡ just (f , ct)
+    → ∀ {T} → T ∈Tele (ctor-args ct) → rename ρ T ≡ T
+  tele-closed-ctor ρ f ct {c} found h =
+    rename-closed (ctor-field-closed f ct {c = c} found h)
+
+  teleField-closed : ∀ (f : Family) (ct : Ctor) {c}
+    → findCtor c (IndEnv.families ind) ≡ just (f , ct)
     → (j : Fin (length (ctor-args ct))) → Scoped 0 (teleField (ctor-args ct) j)
-  teleField-closed f ct j = proj₁ (proj₂ (proj₂ (proj₂ closed))) f ct (listLookup-∈Tele (ctor-args ct) j)
+  teleField-closed f ct {c} found j =
+    ctor-field-closed f ct {c = c} found (listLookup-∈Tele (ctor-args ct) j)
 
-  -- A constructor's result type is closed, so renaming leaves it
-  -- unchanged.
-  rename-ctor-result : ∀ (ρ : Ren) (f : Family) (ct : Ctor)
+  rename-ctor-result : ∀ (ρ : Ren) (f : Family) (ct : Ctor) {c}
+    → findCtor c (IndEnv.families ind) ≡ just (f , ct)
     → rename ρ (tm-data (fam-name f) (ctor-params ct) (ctor-indices ct))
-    ≡ tm-data (fam-name f) (ctor-params ct) (ctor-indices ct)
-  rename-ctor-result ρ f ct = rename-closed (proj₂ (proj₂ (proj₂ (proj₂ closed))) f ct)
+      ≡ tm-data (fam-name f) (ctor-params ct) (ctor-indices ct)
+  rename-ctor-result ρ f ct {c} found =
+    rename-closed (ctor-result-closed f ct {c = c} found)
 
-  -- A closed term is fixed by substitution (its substitution is the
-  -- identity substitution on its free variables).
   subst-closed : ∀ (σ : Sub) {T : Term} → Scoped 0 T → substS σ T ≡ T
   subst-closed σ st = substS-closed st
 
-  -- The signature's telescopes are closed, so substituting into them
-  -- leaves them unchanged.
-  tele-closed-subst-params : ∀ (σ : Sub) (f : Family) {T : Term}
-    → T ∈Tele (fam-params f) → substS σ T ≡ T
-  tele-closed-subst-params σ f h = subst-closed σ (proj₁ (proj₂ closed) f h)
+  tele-closed-subst-params : ∀ (σ : Sub) (f : Family)
+    → f ∈ IndEnv.families ind
+    → ∀ {T} → T ∈Tele (fam-params f) → substS σ T ≡ T
+  tele-closed-subst-params σ f member h =
+    subst-closed σ (proj₁ (proj₂ closed) f member h)
 
-  tele-closed-subst-indices : ∀ (σ : Sub) (f : Family) {T : Term}
-    → T ∈Tele (fam-indices f) → substS σ T ≡ T
-  tele-closed-subst-indices σ f h = subst-closed σ (proj₁ (proj₂ (proj₂ closed)) f h)
+  tele-closed-subst-indices : ∀ (σ : Sub) (f : Family)
+    → f ∈ IndEnv.families ind
+    → ∀ {T} → T ∈Tele (fam-indices f) → substS σ T ≡ T
+  tele-closed-subst-indices σ f member h =
+    subst-closed σ (proj₁ (proj₂ (proj₂ closed)) f member h)
 
-  tele-closed-subst-ctor : ∀ (σ : Sub) (f : Family) (ct : Ctor) {T : Term}
-    → T ∈Tele (ctor-args ct) → substS σ T ≡ T
-  tele-closed-subst-ctor σ f ct h = subst-closed σ (proj₁ (proj₂ (proj₂ (proj₂ closed))) f ct h)
+  tele-closed-subst-ctor : ∀ (σ : Sub) (f : Family) (ct : Ctor) {c}
+    → findCtor c (IndEnv.families ind) ≡ just (f , ct)
+    → ∀ {T} → T ∈Tele (ctor-args ct) → substS σ T ≡ T
+  tele-closed-subst-ctor σ f ct {c} found h =
+    subst-closed σ (ctor-field-closed f ct {c = c} found h)
 
-  -- A constructor's result type is closed, so substituting into it leaves
-  -- it unchanged.
-  subst-ctor-result : ∀ (σ : Sub) (f : Family) (ct : Ctor)
+  subst-ctor-result : ∀ (σ : Sub) (f : Family) (ct : Ctor) {c}
+    → findCtor c (IndEnv.families ind) ≡ just (f , ct)
     → substS σ (tm-data (fam-name f) (ctor-params ct) (ctor-indices ct))
-    ≡ tm-data (fam-name f) (ctor-params ct) (ctor-indices ct)
-  subst-ctor-result σ f ct = subst-closed σ (proj₂ (proj₂ (proj₂ (proj₂ closed))) f ct)
+      ≡ tm-data (fam-name f) (ctor-params ct) (ctor-indices ct)
+  subst-ctor-result σ f ct {c} found =
+    subst-closed σ (ctor-result-closed f ct {c = c} found)
 
   -- Conversion is a congruence for renaming. This is a field of the
-  -- `Conversion` record (Core/Typing.agda): the kernel's conversion is
-  -- decided structurally, so it is stable under renaming. We re-export it
-  -- under the local name the renaming lemma uses.
+  -- `Conversion` record (Core/Typing.agda). Implementation refinement of
+  -- this required law remains open. We re-export it under the local name
+  -- the renaming lemma uses.
   rename-conv : ∀ {t u} (ρ : Ren) → Conversion._≈_ conv t u
               → Conversion._≈_ conv (rename ρ t) (rename ρ u)
   rename-conv = Conversion.≈-rename conv
@@ -280,13 +303,13 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
     ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-data {ps = ps} {is = is} {f = f} p q r) =
       ⇒-data p
         (subst (λ zs → Δ ⊢* zs ⇐* fam-params f) (sym (renameTerms-map ρ ps))
-               (ren-spine idx coh law (tele-closed-params ρ f) q))
+               (ren-spine idx coh law (tele-closed-params ρ f (family-lookup-member {fs = IndEnv.families ind} p)) q))
         (subst (λ zs → Δ ⊢* zs ⇐* fam-indices f) (sym (renameTerms-map ρ is))
-               (ren-spine idx coh law (tele-closed-indices ρ f) r))
+               (ren-spine idx coh law (tele-closed-indices ρ f (family-lookup-member {fs = IndEnv.families ind} p)) r))
     ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-ctor {c = c} {args = args} {f = f} {ct = ct} p q) =
       subst (λ X → Δ ⊢ tm-ctor c (renameTerms ρ args) ⇒ X)
-            (sym (rename-ctor-result ρ f ct))
-            (⇒-ctor p (subst (λ zs → Δ ⊢* zs ⇐* ctor-args ct) (sym (renameTerms-map ρ args)) (ren-spine idx coh law (tele-closed-ctor ρ f ct) q)))
+            (sym (rename-ctor-result ρ f ct {c = c} p))
+            (⇒-ctor p (subst (λ zs → Δ ⊢* zs ⇐* ctor-args ct) (sym (renameTerms-map ρ args)) (ren-spine idx coh law (tele-closed-ctor ρ f ct {c = c} p) q)))
     ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-case {s = s} {m = m′} {brs = brs} p q r covered) =
       ⇒-case (ren⇒ idx coh law p) (ren⇒ idx coh law q) (ren-branches idx coh law r)
         (case-coverage-rename {brs = brs} ρ covered)
@@ -294,6 +317,7 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
     ren⇒ idx coh law (⇒-effect_pure p) = ⇒-effect_pure (ren⇒ idx coh law p)
     ren⇒ idx coh law (⇒-conv der eq) =
       ⇒-conv (ren⇒ idx coh law der) (rename-conv _ eq)
+    ren⇒ idx coh law (⇒-cumul der le) = ⇒-cumul (ren⇒ idx coh law der) le
     ren⇒ {Δ = Δ} {ρ = ρ} idx coh law (⇒-effect_bind {A = A} {B = B} p q) =
       ⇒-effect_bind (ren⇒ idx coh law p)
                     (subst (λ X → Δ ⊢ rename ρ _ ⇒ tm-pi unrestricted (rename ρ A) (tm-effect_type X))
@@ -351,7 +375,7 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
                   (ren⇐ {Γ = extendTele Γ (ctor-args ct)} {Δ = extendTele Δ (ctor-args ct)}
                         (extF-tele (ctor-args ct) idx) (extF-tele-coh (ctor-args ct) ρ idx coh)
                   (lookup-extF-tele Γ Δ (ctor-args ct) ρ idx law
-                                    (λ j → teleField-closed f ct j)) db))
+                                    (λ j → teleField-closed f ct fc j)) db))
            (ren-branches idx coh law dbrs)
 
   -- The `let` case of the renaming lemma. PROVED: it is the `⇒-let` rule,
@@ -512,20 +536,21 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
    subst⇒ {Δ = Δ} {σ = σ} coh (⇒-data {ps = ps} {is = is} {f = f} p q r) =
      ⇒-data p
         (subst (λ zs → Δ ⊢* zs ⇐* fam-params f) (sym (substTerms-map σ ps))
-               (subst-spine coh (tele-closed-subst-params σ f) q))
+               (subst-spine coh (tele-closed-subst-params σ f (family-lookup-member {fs = IndEnv.families ind} p)) q))
         (subst (λ zs → Δ ⊢* zs ⇐* fam-indices f) (sym (substTerms-map σ is))
-               (subst-spine coh (tele-closed-subst-indices σ f) r))
+               (subst-spine coh (tele-closed-subst-indices σ f (family-lookup-member {fs = IndEnv.families ind} p)) r))
    subst⇒ {Δ = Δ} {σ = σ} coh (⇒-ctor {c = c} {args = args} {f = f} {ct = ct} p q) =
       subst (λ X → Δ ⊢ tm-ctor c (substTermsS σ args) ⇒ X)
-            (sym (subst-ctor-result σ f ct))
+            (sym (subst-ctor-result σ f ct {c = c} p))
             (⇒-ctor p (subst (λ zs → Δ ⊢* zs ⇐* ctor-args ct) (sym (substTerms-map σ args))
-                             (subst-spine coh (tele-closed-subst-ctor σ f ct) q)))
+                             (subst-spine coh (tele-closed-subst-ctor σ f ct {c = c} p) q)))
    subst⇒ {Δ = Δ} {σ = σ} coh (⇒-case {s = s} {m = m′} {brs = brs} p q r covered) =
      ⇒-case (subst⇒ coh p) (subst⇒ coh q) (subst-branches coh r)
        (case-coverage-subst {brs = brs} σ covered)
    subst⇒ coh (⇒-effect_type p) = ⇒-effect_type (subst⇒ coh p)
    subst⇒ coh (⇒-effect_pure p) = ⇒-effect_pure (subst⇒ coh p)
    subst⇒ coh (⇒-conv der eq) = ⇒-conv (subst⇒ coh der) (subst-conv eq)
+   subst⇒ coh (⇒-cumul der le) = ⇒-cumul (subst⇒ coh der) le
    subst⇒ {Δ = Δ} {σ = σ} coh (⇒-effect_bind {e = e} {k = k} {A = A} {B = B} p q) =
      ⇒-effect_bind (subst⇒ coh p)
                    (subst (λ X → Δ ⊢ substS σ k ⇒ tm-pi unrestricted (substS σ A) (tm-effect_type X))
@@ -571,7 +596,7 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
      brs∷ fc
           (subst (λ X → extendTele Δ (ctor-args ct) ⊢ substS (extSub^ (length (ctor-args ct)) σ) b ⇐ X)
                  (subst-branch-motive (length (ctor-args ct)) σ m′ cn)
-                 (subst⇐ (coh-extendTele (ctor-args ct) (λ j → teleField-closed f ct j) coh) db))
+                 (subst⇐ (coh-extendTele (ctor-args ct) (λ j → teleField-closed f ct fc j) coh) db))
           (subst-branches coh dbrs)
 
   ------------------------------------------------------------------------
@@ -643,13 +668,9 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
   HoleFree : Term → Set
   HoleFree a = (name : Name) → a ≡ tm-hole name → ⊥
 
-  -- Cumulativity as a conversion: `Type i ≈ Type j` when `i ≤ j`. A
-  -- projection of the `Conversion` record's cumulativity field.
-  ≈-cumul : ∀ {i j} → i ≤ˡ j → Conversion._≈_ conv (tm-type i) (tm-type j)
-  ≈-cumul = Conversion.≈-type conv
-  -- Cumulativity on the inferred type.
+  -- Cumulativity in the declarative typing closure, NOT conversion.
   ⇒-cumul-infer : ∀ {n} {Γ : Ctx n} {t i j} → Γ ⊢ t ⇒ tm-type i → i ≤ˡ j → Γ ⊢ t ⇒ tm-type j
-  ⇒-cumul-infer der le = ⇒-conv der (≈-cumul le)
+  ⇒-cumul-infer = ⇒-cumul
 
   -- A hole-free VALUE that checks against a type infers that type. `⇐-lam`
   -- and `⇒-lam` share their premises, so the λ case is direct; `⇐-infer`
@@ -683,6 +704,25 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
   check-infer hf (⇐-lam {g = g} {d = d} {b = b} {c = c} ds body) =
     ⇒-lam {g = g} {d = d} {b = b} {c = c} ds body
   check-infer hf ⇐-hole = ⊥-elim (hf _ refl)
+
+  -- Checking cumulativity also covers a reduct that is a development
+  -- hole. All other checking derivations give declarative inference;
+  -- no inference rule for holes is added.
+  check-infer-or-hole : ∀ {n} {Γ : Ctx n} {a A}
+    → Γ ⊢ a ⇐ A → (Γ ⊢ a ⇒ A) ⊎ (∃ λ name → a ≡ tm-hole name)
+  check-infer-or-hole (⇐-lam ds body) = inj₁ (⇒-lam ds body)
+  check-infer-or-hole (⇐-infer der eq) = inj₁ (⇒-conv der eq)
+  check-infer-or-hole (⇐-cumul der le) = inj₁ (⇒-cumul der le)
+  check-infer-or-hole ⇐-hole = inj₂ (_ , refl)
+  check-infer-or-hole (⇐-conv der eq) with check-infer-or-hole der
+  ... | inj₁ inferred = inj₁ (⇒-conv inferred eq)
+  ... | inj₂ hole = inj₂ hole
+
+  check-cumul : ∀ {n} {Γ : Ctx n} {a i j}
+    → Γ ⊢ a ⇐ tm-type i → i ≤ˡ j → Γ ⊢ a ⇐ tm-type j
+  check-cumul der le with check-infer-or-hole der
+  ... | inj₁ inferred = ⇐-cumul inferred le
+  ... | inj₂ (name , refl) = ⇐-hole
 
   -- `HoleFree` is preserved by substitution: the only former that can
   -- become a hole is a variable (handled by the substitution) or a hole
@@ -743,6 +783,8 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
   lam-type-pi (⇒-lam dd db) = _ , Conversion.≈-refl conv , ⇒-lam dd db
   lam-type-pi {g = g} {d = d} {T = T} (⇒-conv {T = T′} der eq) =
     lam-pi-trans T T′ (lam-type-pi der) eq
+  lam-type-pi (⇒-cumul der le) with lam-type-pi der
+  ... | c , eq , pi-der = ⊥-elim (universe-not-pi eq)
 
   -- `⇒-lam-inv-aux`: a λ that infers `T` has its body check any `c` with
   -- `T ≈ tm-pi g d c`. Structural on the derivation.
@@ -754,6 +796,7 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
     ⇐-conv db (proj₂ (proj₂ (conv-pi-components eq)))
   ⇒-lam-inv-aux T c (⇒-conv {T = T′} der eq′) eq =
     ⇒-lam-inv-aux T′ c der (Conversion.≈-trans conv eq′ eq)
+  ⇒-lam-inv-aux T c (⇒-cumul der le) eq = ⊥-elim (universe-not-pi eq)
 
   -- The body of a λ that infers a Π type checks the codomain.
   ⇒-lam-inv : ∀ {n} {Γ : Ctx n} {g d b c}
@@ -830,6 +873,8 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
     conv⇒ w eq (⇒-effect_pure p) = ⇒-conv (⇒-effect_pure (conv⇒ w (Conversion.≈-refl conv) p)) eq
     conv⇒ w eq (⇒-effect_bind p q) = ⇒-conv (⇒-effect_bind (conv⇒ w (Conversion.≈-refl conv) p) (conv⇒ w (Conversion.≈-refl conv) q)) eq
     conv⇒ w eq (⇒-conv der eq′) = conv⇒ w (Conversion.≈-trans conv eq′ eq) der
+    conv⇒ w eq (⇒-cumul der le) =
+      ⇒-conv (⇒-cumul (conv⇒ w (Conversion.≈-refl conv) der) le) eq
 
     conv⇐ : ∀ {n} {Γ Γ′ : Ctx n} {t T T′}
           → (∀ i → Conversion._≈_ conv (lookup Γ i) (lookup Γ′ i))
@@ -923,6 +968,7 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
     preserve-β-conv-aux dflam ceq da
 
   preserve-β (⇒-conv der eq) = ⇐-conv (preserve-β der) eq
+  preserve-β (⇒-cumul der le) = check-cumul (preserve-β der) le
 
 
 
@@ -943,6 +989,7 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
       ⇒-check : ∀ {n} {Γ : Ctx n} {t T} → Γ ⊢ t ⇒ T → Γ ⊢ t ⇐ T
       ⇒-check der = ⇐-infer der (Conversion.≈-refl conv)
   preserve-ζ (⇒-conv der eq) hf = ⇐-conv (preserve-ζ der hf) eq
+  preserve-ζ (⇒-cumul der le) hf = check-cumul (preserve-ζ der hf) le
 
 
   ------------------------------------------------------------------------
@@ -1133,9 +1180,8 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
            → ∃ λ f → ∃ λ ct
            → findCtor c (IndEnv.families ind) ≡ just (f , ct)
              × (Γ ⊢* args ⇐* ctor-args ct)
-  ctor-inv (⇒-ctor fc sp) = _ , _ , fc , sp
-  ctor-inv (⇒-conv der eq) with conv-injective-data eq
-  ... | ps′ , is′ , refl = ctor-inv der
+  ctor-inv der with constructor-data der
+  ... | f , ct , fc , owner , sp = f , ct , fc , sp
 
   -- ι for a `tm-ctor` scrutinee.
   preservation-ι : ∀ {n} {Γ : Ctx n} {m brs c ar b args T}
@@ -1150,7 +1196,7 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
     subst (λ X → Γ ⊢ substArgs args b ⇒ X) eq
           (check-infer (substS-hole-free b (argsSub args) (argsSub-final fargs)
                                        (final-hole-free (finalBranches-member fbs (findBranch-sound c brs found))))
-                      (subst⇐ (argsSub-coh (ctor-args ct) args 0 fargs (λ j → teleField-closed f ct j) sp) db′))
+                      (subst⇐ (argsSub-coh (ctor-args ct) args 0 fargs (λ j → teleField-closed f ct fc j) sp) db′))
     where
       ci = ctor-inv ds
       f = proj₁ ci
@@ -1186,6 +1232,8 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
       eq = trans (cong₂ tm-app eq-motive eq-args) refl
   preservation-ι ft (⇒-conv der eq) found len =
     ⇒-conv (preservation-ι ft der found len) eq
+  preservation-ι ft (⇒-cumul der le) found len =
+    ⇒-cumul (preservation-ι ft der found len) le
 
   -- ι for a compact `tm-nat_lit 0` scrutinee (peeled to `Z`).
   preservation-ι-nat-zero : ∀ {n} {Γ : Ctx n} {m brs ar b T}
@@ -1225,6 +1273,8 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
                    (sym (substS-idSub b)) db′
   preservation-ι-nat-zero (f-case f-nat_lit fm fbs) (⇒-conv der eq) found =
     ⇒-conv (preservation-ι-nat-zero (f-case f-nat_lit fm fbs) der found) eq
+  preservation-ι-nat-zero ft (⇒-cumul der le) found =
+    ⇒-cumul (preservation-ι-nat-zero ft der found) le
 
   -- The coherence for a single `Nat` field (the `S` / `First` cases).
   argsSub-coh-single : ∀ {n} {Γ : Ctx n} {N a}
@@ -1262,9 +1312,7 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
   nat-lit-inv : ∀ {k} {Γ : Ctx k} {m N ps is}
               → Γ ⊢ tm-nat_lit m ⇒ tm-data N ps is
               → IndEnv.builtins ind "nat" ≡ just N
-  nat-lit-inv (⇒-nat_lit p) = p
-  nat-lit-inv (⇒-conv der eq) with conv-injective-data eq
-  ... | ps′ , is′ , refl = nat-lit-inv der
+  nat-lit-inv = nat-data-family
 
   -- ι for a compact `tm-nat_lit (suc k)` scrutinee (peeled to `S`).
   preservation-ι-nat-suc : ∀ {n} {Γ : Ctx n} {m brs ar b k T}
@@ -1307,14 +1355,14 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
                  refl
   preservation-ι-nat-suc (f-case f-nat_lit fm fbs) (⇒-conv der eqc) found =
     ⇒-conv (preservation-ι-nat-suc (f-case f-nat_lit fm fbs) der found) eqc
+  preservation-ι-nat-suc ft (⇒-cumul der le) found =
+    ⇒-cumul (preservation-ι-nat-suc ft der found) le
 
   -- Invert a `tm-bounded_lit` inference: it exposes the builtin `Bounded` family.
   bounded-lit-inv : ∀ {k} {Γ : Ctx k} {m B ps is}
                   → Γ ⊢ tm-bounded_lit m ⇒ tm-data B ps is
                   → IndEnv.builtins ind "bounded" ≡ just B
-  bounded-lit-inv (⇒-bounded_lit p) = p
-  bounded-lit-inv (⇒-conv der eq) with conv-injective-data eq
-  ... | ps′ , is′ , refl = bounded-lit-inv der
+  bounded-lit-inv = bounded-data-family
 
   -- ι for a compact `tm-bounded_lit 0` scrutinee (peeled to `First`).
   preservation-ι-bounded-zero : ∀ {n} {Γ : Ctx n} {m brs ar b T}
@@ -1359,6 +1407,8 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
                  refl
   preservation-ι-bounded-zero (f-case f-bounded_lit fm fbs) (⇒-conv der eqc) found =
     ⇒-conv (preservation-ι-bounded-zero (f-case f-bounded_lit fm fbs) der found) eqc
+  preservation-ι-bounded-zero ft (⇒-cumul der le) found =
+    ⇒-cumul (preservation-ι-bounded-zero ft der found) le
 
   argsSub-double-wk : ∀ a c i → (argsSub (a ∷ c ∷ []) ∘s shiftRen 2 0) i ≡ tm-var i
   argsSub-double-wk a c i =
@@ -1455,6 +1505,8 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
                  refl
   preservation-ι-bounded-suc (f-case f-bounded_lit fm fbs) (⇒-conv der eqc) found =
     ⇒-conv (preservation-ι-bounded-suc (f-case f-bounded_lit fm fbs) der found) eqc
+  preservation-ι-bounded-suc ft (⇒-cumul der le) found =
+    ⇒-cumul (preservation-ι-bounded-suc ft der found) le
   -- Head and tail of a non-empty `FinalTerms` (local copies; the ones in
   -- Proof.FinalPreservation are not exported into this module).
   ft-head : ∀ {x xs} → FinalTerms (x ∷ xs) → Final x
@@ -1500,6 +1552,7 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
       → _⇝_ sig t t′
       → Γ ⊢ t′ ⇒ T
     preservation⇒ ft (⇒-conv der eq) rw = ⇒-conv (preservation⇒ ft der rw) eq
+    preservation⇒ ft (⇒-cumul der le) rw = ⇒-cumul (preservation⇒ ft der rw) le
     -- β: the checking-mode `preserve-β` gives the reduct CHECKED; the redex
     -- is final, so the reduct is hole-free and INFERS its type (`check-infer`).
     preservation⇒ (f-app (f-lam fd fb) fa) (⇒-app df da) β =

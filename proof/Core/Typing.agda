@@ -1,20 +1,20 @@
 ------------------------------------------------------------------------
--- The typing judgment: bidirectional infer/check.
+-- Declarative typing built from bidirectional introduction/elimination.
 --
--- Faithful to `Cure.Core.Kernel` (lib/cure/core/kernel.ex):
+-- The executable `Cure.Core.Kernel` (lib/cure/core/kernel.ex) provides:
 --
 --   infer(Γ, e) = {:ok, T}   — synthesise the type T
 --   check(Γ, e, T) = :ok     — verify e against the expected type T,
 --                              falling back to infer plus a cumulative
 --                              conversion test (`check_via_infer`).
 --
--- We write `Γ ⊢ e ⇒ T` for infer and `Γ ⊢ e ⇐ T` for check, where `Γ` is a
--- context (a telescope of types) and `T` is a syntactic type (a Term).
+-- Here `Γ ⊢ e ⇒ T` is CLOSED under conversion and cumulative sorts; it is
+-- NOT the graph of executable minimal type synthesis. `Γ ⊢ e ⇐ T` is the
+-- checking judgment. Contexts are telescopes; types are raw Terms.
 --
--- Types are compared by the conversion relation `_≈_` (Core/Conv.agda),
--- which is the syntactic counterpart of the kernel's NbE definitional
--- equality. Cumulativity is applied at the sort level: `Type i <: Type j`
--- when `i ≤ j`.
+-- Types are compared by an abstract Conversion record, not an established
+-- implementation of NbE. Cumulativity is separate from equality:
+-- `Type i <: Type j` when `i ≤ j`.
 --
 -- The context is a list of types, most-recent first (de Bruijn index 0 at
 -- the head), matching `Cure.Core.Context`.
@@ -43,6 +43,7 @@ open import Core.Universe using (Level; l0; l1; l2; InRange; in-range;
                                   _≤ˡ_; l≤-refl; l0≤l1; l0≤l2; l1≤l2; ≤ˡ-trans;
                                   _⊔ˡ_; ⊔ˡ-left; ⊔ˡ-right)
 open import Core.Syntax
+open import Core.TypeHeads
 open import Core.Signature
 open import Core.Coverage using (CaseCoverage)
 open import Core.Reduction using (Signature; body; type-of)
@@ -107,8 +108,8 @@ lookup-extend Γ T i = lookup-renameCtx wk Γ i
 -- Conversion (definitional equality)
 --
 -- We take `_≈_` as a parameter of the typing judgment — it is the
--- syntactic counterpart of the kernel's NbE conversion. In Core/Conv.agda
--- we will define it and prove its laws. Here we only need its interface.
+-- proposed syntactic counterpart of the kernel's NbE conversion. Here we
+-- specify the laws consumed by the conditional typing proofs.
 --
 -- Making it a record (rather than a bare relation) keeps the soundness
 -- theorem honest about what it assumes: conversion is an equivalence that
@@ -122,19 +123,16 @@ lookup-extend Γ T i = lookup-renameCtx wk Γ i
 -- against `vlam` by grade equality plus the same η test. This record has no
 -- η field — there is no `≈-lam` congruence and no "λ x. f x ≈ f" rule.
 --
--- APPLICABILITY WARNING: no subset/refinement proof for executable
--- conversion exists. Proof.InterfaceAudit proves that this record's raw
--- syntax-head reflection conflicts with ReduceConv: a let can reduce to
--- a Pi without itself having Pi syntax. The legacy cumulative ≈-type field
--- also differs from executable equality (which compares universe levels
--- exactly and handles cumulative checking separately).
+-- Raw syntax-head reflection has been removed; the historical impossible
+-- property is frozen only in Proof.InterfaceAudit. Rigid head separation
+-- applies only to two exposed type formers, preserving exact universe
+-- levels and family names. Cumulative sorts belong to typing, not ≈.
 --
--- This interface and its consumers are retained for repair, not presented
--- as an applicable soundness theorem. Core.Verification defines candidate
--- reduction-based head exposure evidence, NOT a replacement conversion
--- relation or an assumed injectivity theorem. That relation, its laws, and
--- its implementation correspondence must be reviewed and proved before
--- migrating the broad typing/preservation development.
+-- APPLICABILITY WARNING: Proof.ConversionModel inhabits this RECORD using
+-- a deliberately coarse zeta-only algebra, not executable conversion.
+-- Proof.ConversionExamples explicitly refutes full ReduceConv for that
+-- witness. A joint full-reduction model, eta and implementation refinement
+-- remain open; the conditional soundness theorem is not certification.
 ------------------------------------------------------------------------
 
 record Conversion : Set₁ where
@@ -145,8 +143,6 @@ record Conversion : Set₁ where
     ≈-trans    : ∀ {t u v} → t ≈ u → u ≈ v → t ≈ v
     -- Congruence for Π (the load-bearing case for Preservation's β rule).
     ≈-pi       : ∀ {g d d′ c c′} → d ≈ d′ → c ≈ c′ → tm-pi g d c ≈ tm-pi g d′ c′
-    -- Universe cumulativity: `Type i ≈ Type j` when `i ≤ j`.
-    ≈-type     : ∀ {i j} → i ≤ˡ j → tm-type i ≈ tm-type j
     -- Congruence for application.
     ≈-app      : ∀ {f f′ a a′} → f ≈ f′ → a ≈ a′ → tm-app f a ≈ tm-app f′ a′
     -- Congruence for data/ctor spines.
@@ -158,11 +154,9 @@ record Conversion : Set₁ where
     ≈-effect_bind : ∀ {e e′ k k′} → e ≈ e′ → k ≈ k′ → tm-effect_bind e k ≈ tm-effect_bind e′ k′
     -- STABILITY UNDER RENAMING AND SUBSTITUTION.
     --
-    -- Conversion is a *syntactic* congruence: the kernel's NbE conversion
-    -- is stable under renaming (weakening) and substitution, because it is
-    -- decided structurally on the two terms. We record that here rather
-    -- than derive it, because the record's other fields only constrain the
-    -- type formers. These two fields are exactly the `rename-conv` /
+    -- Required laws, not consequences of structurally deciding equality.
+    -- Their implementation refinement remains to be proved. These fields
+    -- are exactly the `rename-conv` /
     -- `subst-conv` obligations of the renaming and substitution lemmas
     -- (Proof/Preservation.agda), which become projections.
     ≈-rename   : ∀ {t u} (ρ : Ren) → t ≈ u → rename ρ t ≈ rename ρ u
@@ -171,22 +165,11 @@ record Conversion : Set₁ where
     -- convertible results. This is what lets `ξ-app₂` / `ξ-let` / `ξ-case`
     -- relate `substTopT a c` to `substTopT a′ c` when the argument steps.
     ≈-subst-cong : ∀ {t} {σ σ′ : Sub} → (∀ i → σ i ≈ σ′ i) → substS σ t ≈ substS σ′ t
-    -- REFLECTION OF THE HEAD CONSTRUCTOR (the FSCD'25 injectivity property).
-    --
-    -- The kernel's conversion is structural on WHNF values, so a type
-    -- convertible to `tm-data n ps is` IS a data type (with convertible
-    -- spines), and one convertible to `tm-pi g d c` IS a Π (with equal grade
-    -- and convertible components). Recording it here (rather than deriving
-    -- it) is what lets the head-inversion lemmas (Proof/Inversion.agda) lift
-    -- inference-mode inversion to checking mode; it is provable in a
-    -- meta-theory weaker than the object theory, which is why conversion
-    -- soundness does not require normalisation.
-    ≈-data-inj : ∀ {n ps is T′}
-               → tm-data n ps is ≈ T′
-               → Σ (List Term) (λ ps′ → Σ (List Term) (λ is′ → T′ ≡ tm-data n ps′ is′))
-    ≈-pi-inj   : ∀ {g d c T′}
-               → tm-pi g d c ≈ T′
-               → Σ Grade (λ g′ → Σ Term (λ d′ → Σ Term (λ c′ → T′ ≡ tm-pi g′ d′ c′)))
+    -- RIGID HEAD SEPARATION AND PI COMPONENT INJECTIVITY.
+    -- Separation is required only for TWO rigid type formers. It never
+    -- concludes that an arbitrary converted term is literally a Pi/data.
+    ≈-heads : ∀ {t u h h′}
+      → HasTypeHead t h → HasTypeHead u h′ → t ≈ u → h ≡ h′
     ≈-pi-components : ∀ {g d c g′ d′ c′}
                     → tm-pi g′ d′ c′ ≈ tm-pi g d c
                     → g′ ≡ g × (d′ ≈ d) × (c′ ≈ c)
@@ -276,8 +259,8 @@ branch-field-vars ar = map tm-var (upto ar)
 -- Telescope membership and maps.
 --
 -- Purely syntactic, so they live at the TOP LEVEL (outside `module Typing`):
--- the signature-closedness side condition (`Proof.Preservation.ClosedSig`)
--- needs `_∈Tele_` in its own module header.
+-- the explicit closed-entry fragment invariant
+-- (`Core.ClosedFragment.ClosedFragmentSig`) consumes `_∈Tele_`.
 ------------------------------------------------------------------------
 
 -- Telescope membership.
@@ -454,6 +437,12 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
            → Γ ⊢ t ⇒ T
            → Conversion._≈_ conv T T′
            → Γ ⊢ t ⇒ T′
+
+    -- Declarative closure of synthesis under cumulative sorts. This does
+    -- not identify universe levels by symmetric conversion and does NOT
+    -- claim the executable inference algorithm returns the larger sort.
+    ⇒-cumul : ∀ {n} {Γ : Ctx n} {t i j}
+            → Γ ⊢ t ⇒ tm-type i → i ≤ˡ j → Γ ⊢ t ⇒ tm-type j
 
     -- A hole has no inference rule (it is checkable at any type).
     -- {:absurd} is rejected in reachable position (no inference rule).

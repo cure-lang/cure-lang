@@ -2,10 +2,11 @@
 ------------------------------------------------------------------------
 -- Soundness (docs/SOUNDNESS.md §1.4).
 --
--- LEGACY DERIVATIONS, NOT AN APPLICABLE CERTIFICATE: Proof.InterfaceAudit
--- refutes ClosedSig and Conversion with ReduceConv. These parameters must
--- be repaired before instantiation for an executable Core model. Coverage
--- is repaired: each ⇒-case carries family-local CaseCoverage evidence.
+-- CONDITIONAL DERIVATIONS, NOT AN EXECUTABLE CERTIFICATE: the conversion
+-- record is inhabited by a bounded witness, but no joint model with full
+-- ReduceConv or executable refinement is available. ClosedFragmentSig is
+-- inhabited but explicitly restricted to closed entries, not dependent
+-- telescopes. Each ⇒-case carries family-local CaseCoverage evidence.
 --
 --   Let `e` be a closed, hole-free, final-Core term with `· ⊢ e : T` for a
 --   closed type `T`. Then evaluation of `e` either reaches a value `v` with
@@ -62,7 +63,7 @@ open import Proof.FinalPreservation
 module Sound (ind : IndEnv) (sig : Signature) (conv : Conversion)
              (pos : StrictlyPositive ind) (cert : Certified sig)
              (bc : BuiltinCtors ind)
-             (closed : ClosedSig ind sig) (rc : ReduceConv sig conv)
+             (closed : ClosedFragmentSig ind sig) (rc : ReduceConv sig conv)
              (ctyped : CertifiedTyped ind sig conv) where
 
   open Core.Typing.Typing ind sig conv

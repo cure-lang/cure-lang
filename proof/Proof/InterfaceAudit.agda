@@ -1,11 +1,10 @@
 ------------------------------------------------------------------------
--- Regression witnesses for UNSATISFIABLE legacy soundness hypotheses.
+-- Regression witnesses for UNSATISFIABLE historical soundness hypotheses.
 --
 -- These are refutations of interfaces, not assumptions of a soundness
--- theorem. Type-checking the legacy parameterised modules does not make
--- their hypotheses jointly inhabitable. Keep these witnesses until the
--- corresponding interfaces are replaced, then retain their old shapes
--- locally as negative regression specifications.
+-- theorem. The old shapes are now frozen locally, not accepted by active
+-- soundness modules. Their replacements still require a joint model and
+-- implementation refinement; successful compilation alone proves neither.
 ------------------------------------------------------------------------
 module Proof.InterfaceAudit where
 
@@ -23,9 +22,9 @@ open import Core.Universe using (l0)
 open import Core.Syntax
 open import Core.Signature
 open import Core.Reduction
-open import Core.Typing using (Conversion; ∈-here)
+open import Core.Typing using (Conversion; _∈Tele_; ∈-here)
 open import Proof.Progress using (BuiltinCtors; allCtorNames)
-open import Proof.Preservation using (ClosedSig; ReduceConv)
+open import Proof.Preservation using (ReduceConv)
 
 -- Frozen historical interface; no active theorem accepts this oracle.
 Covers : IndEnv → Set
@@ -54,14 +53,32 @@ let-pi-step sig = ζ
 let-not-pi : ∀ g d c → let-pi ≡ tm-pi g d c → ⊥
 let-not-pi g d c ()
 
+-- Exact shape of the historical Pi-reflection field, now frozen here.
+-- Active Conversion no longer includes this property.
+RawPiReflection : Conversion → Set
+RawPiReflection conv = ∀ {g d c T′}
+  → Conversion._≈_ conv (tm-pi g d c) T′
+  → ∃ λ g′ → ∃ λ d′ → ∃ λ c′ → T′ ≡ tm-pi g′ d′ c′
+
 reflection-incompatible-with-reduction :
-  ∀ sig (conv : Conversion) → ReduceConv sig conv → ⊥
-reflection-incompatible-with-reduction sig conv rc
-  with Conversion.≈-pi-inj conv
+  ∀ sig (conv : Conversion) → RawPiReflection conv → ReduceConv sig conv → ⊥
+reflection-incompatible-with-reduction sig conv legacy-reflection rc
+  with legacy-reflection
     (Conversion.≈-sym conv (rc (let-pi-step sig)))
 ... | g , d , c , eq = let-not-pi g d c eq
 
--- ClosedSig quantifies over this fabricated family, independently of ind.
+-- Frozen historical oracle. Active preservation uses ClosedFragmentSig,
+-- whose closed-telescope fragment is explicit in its name and docs.
+ClosedSig : IndEnv → Signature → Set
+ClosedSig ind sig =
+    (∀ (f : Name) {T} → Signature.type-of sig f ≡ just T → Scoped 0 T)
+  × (∀ (f : Family) {T} → T ∈Tele (fam-params f) → Scoped 0 T)
+  × (∀ (f : Family) {T} → T ∈Tele (fam-indices f) → Scoped 0 T)
+  × (∀ (f : Family) (ct : Ctor) {T} → T ∈Tele (ctor-args ct) → Scoped 0 T)
+  × (∀ (f : Family) (ct : Ctor)
+     → Scoped 0 (tm-data (fam-name f) (ctor-params ct) (ctor-indices ct)))
+
+-- ClosedSig quantified over this fabricated family, independently of ind.
 -- Its first parameter refers to variable zero, which is not scoped at 0.
 open-family : Family
 open-family = record

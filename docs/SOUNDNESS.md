@@ -17,15 +17,23 @@ argument rests on, and maps each lemma to the executable evidence that tests it
 today. It is deliberately honest about what is *proved*, what is *assumed*, and
 what is *tested but not proved*.
 
-**Formal applicability warning.** `proof/Proof/InterfaceAudit.agda` refutes
-two active legacy interfaces: `ClosedSig` and literal syntax-head conversion
-reflection together with `ReduceConv`. The former global `Covers` oracle
+**Formal applicability warning.** The four refuted historical interfaces
+are now frozen only in `proof/Proof/InterfaceAudit.agda`. Conversion uses
+separation of two exposed rigid type heads, not raw syntax-head reflection;
+universe cumulativity belongs to declarative typing, not symmetric equality.
+`Proof.ConversionModel` inhabits the conversion **record** with a bounded
+ζ-only algebra, but explicitly cannot supply full `ReduceConv`. No joint
+full-reduction model or executable NbE refinement has been established.
+The old `ClosedSig` oracle is frozen only in
+the audit; active preservation/soundness now use inhabited `ClosedFragmentSig`,
+explicitly restricted to individually closed telescope entries/results.
+This does **not** establish dependent telescope support. The former global `Covers` oracle
 is now frozen only as a negative regression: admitted cases carry local
 `CaseCoverage` evidence. `LiteralArity` was also removed from active confluence:
 literal reduction steps carry local arity witnesses. Successful
 compilation of the existing parameterised Progress/Preservation/soundness
 modules does **not** establish an applicable kernel soundness theorem.
-Their derivations are retained for repair, not completed certification.
+Their conditional derivations are not completed executable certification.
 One termination-check override remains in `Proof.Confluence`, separate from
 the two named postulates. All four former `Core.Parallel` overrides have
 been eliminated by structurally checked spine lifting. See §8.
@@ -123,8 +131,10 @@ raising.
 - **It does not claim the emitter is correct.** BEAM emission is out of scope;
   §5 states the (small) interface the argument assumes of it.
 - **It is not an end-to-end mechanised implementation theorem.** Parts of the
-  syntax and algebra are machine-checked; the existing full soundness
-  interfaces have been refuted and require repair. See §§7–8.
+  syntax and algebra are machine-checked; historical soundness interfaces
+  were refuted and repaired for a restricted fragment;
+  a joint full-reduction model and implementation refinement remain open.
+  See §§7–8.
 
 ---
 
@@ -399,10 +409,11 @@ Enumerated by `cure audit trust <Module>`:
 
 ## 7. Toward mechanisation
 
-The implementation theorem is not machine-checked end to end. The existing
-formal calculus has checked derivations, but the interface audit in §8
-establishes that its full theorem parameters cannot be jointly instantiated.
-Repairing those interfaces comes before the remaining obligations below:
+The implementation theorem is not machine-checked end to end. The interface
+audit in §8 refuted four historical contracts, now frozen only as negative
+regressions. Their replacements have checked consumers and bounded inhabited
+witnesses, but a joint model of full reduction and executable correspondence
+has not been established. Remaining obligations include:
 
 1. **NbE conversion.** A mechanised proof must model `Eval`/`Quote`/`Conv` and
    prove conversion sound (positive *and* negative). Per Lennon-Bertrand's
@@ -435,9 +446,9 @@ calculus, the typing judgment, the canonical-form and head-inversion lemmas,
 the renaming/substitution lemmas, **Progress**, **`Final`-preservation**,
 **`preservation` (every case, including ι and δ)**, and — with the side
 conditions carried as hypotheses — **derivations of both constructive forms
-of the soundness theorem**. The following statements belong to legacy
-parameterised modules whose interfaces are refuted; they must not be read as
-a certificate for an inhabited model:
+of the soundness theorem**. The following statements belong to conditional
+parameterised modules; there is still no joint full-reduction model or
+implementation refinement making them an executable kernel certificate:
 
 ```agda
 -- the bounded unfolding, by induction on the fuel
@@ -459,8 +470,11 @@ truncation of the tree.
 
 Two findings from the mechanisation are worth recording here. First, the
 β/ζ "inference-preservation" gaps (§4) are **dissolved** by `check-infer`: a
-hole-free term that CHECKS against a type INFERS it, because the only
-checking rule without a matching inference rule is `⇐-hole`. So the
+hole-free term that CHECKS against a type has a corresponding **declarative**
+inference derivation, because the only checking rule without a matching
+inference rule is `⇐-hole`. This judgment includes explicit `⇒-conv` and
+`⇒-cumul` closure: it does not assert executable synthesis returns the same
+type syntax or a larger cumulative sort. So the
 checking-mode β/ζ reducts infer their type once the redex is final. Second,
 δ preservation is discharged by a `CertifiedTyped` hypothesis — the
 well-typedness half of `Env.certified?` — plus `weaken-closed` (a closed term
@@ -531,12 +545,28 @@ that an uninhabitable theorem interface is useful.
   typing. Progress and both soundness modules no longer take a global
   coverage parameter. Renaming, substitution, context conversion, and
   branch/scrutinee/motive reduction preservation propagate the local evidence.
-- **Conversion:** `ReduceConv` makes a let reducing to a Π convertible to
-  that Π. `Conversion.≈-pi-inj` would require that raw let to have literal Π
-  syntax, which is impossible.
-- **Signature scoping:** `ClosedSig` requires arbitrary fabricated families'
-  telescope entries to be closed. Choosing a parameter `var 0` refutes it,
-  independently of the actual signature.
+- **Conversion — rigid-head migration implemented:** `ReduceConv` makes a
+  let reducing to a Π convertible to that Π. The historical raw Π-reflection
+  property, now frozen as `RawPiReflection`, would require the raw let to
+  have literal Π syntax. Active `Conversion` instead separates two exposed
+  type heads (`Core.TypeHeads`) and retains component injectivity for two
+  exposed Πs. Head tags preserve exact universe levels and family names.
+  Inversion and constructor/literal metadata extraction now recurse over
+  arbitrary intermediate types while accumulating conversion witnesses.
+  Cumulativity is separate: `⇒-cumul` explicitly closes declarative typing;
+  the old `≈-type` field is removed. Progress, preservation, renaming,
+  substitution, context conversion and checking inversion are migrated.
+  **Full reduction/NbE correspondence remains open.**
+- **Signature oracle — repaired for the closed-entry fragment:** the old
+  `ClosedSig` required arbitrary fabricated records to be closed and is now
+  frozen only in the audit. `Core.ClosedFragment.ClosedFragmentSig` constrains
+  only actual family and constructor members. Preservation's renaming,
+  substitution and branch helpers obtain those memberships from lookups;
+  the preservation and soundness module parameters are migrated.
+  **This is not the full dependent-signature repair:** individual entries
+  and constructor results are still required to be closed because the
+  current spine/context proofs rely on their renaming/substitution identity.
+  The explicit fragment name replaces the previous misleading generality.
 - **Literal arities — repaired:** the former `LiteralArity` required every
   raw `Z` branch to have arity zero; a fabricated arity-one branch refutes it.
   Arity constraints
@@ -550,9 +580,8 @@ that an uninhabitable theorem interface is useful.
 
 Further correspondence repairs are required: dependent spine tails and
 constructor result indices must be instantiated; branches must bind the last
-field at index zero as the evaluator does; cumulativity must be separate from
-symmetric conversion. `Certified` currently means only that unfoldable
-bodies are `Final` (hole/absurd-free), **not** that they terminate.
+field at index zero as the evaluator does. `Certified` currently means only
+that unfoldable bodies are `Final` (hole/absurd-free), **not** that they terminate.
 
 `Core.Coverage` is now connected to the active typing and proof consumers.
 `Proof.CoverageExamples` gives concrete Nat coverage in an environment also
@@ -570,12 +599,35 @@ of the kernel's indexed coverage checker.
 `Core.Verification` and `Proof.VerificationExamples` still contain candidate
 scoped dependent telescopes, membership-indexed signature scoping,
 last-field-at-zero substitution and reduction-based head exposure.
-**These remaining candidates are not connected to the legacy typing/soundness
+**These remaining candidates are not connected to the active typing/soundness
 modules and are not a complete replacement conversion relation.** The
-coverage examples do not instantiate a full soundness model: `ClosedSig`,
-conversion/reduction correspondence and the other stated obligations remain
-open. The typing-level missing-case refutation is parameterised by legacy
+coverage examples do not instantiate a full soundness model: dependent
+signature typing, conversion/reduction correspondence and other obligations remain
+open. The typing-level missing-case refutation is parameterised by abstract
 `Conversion`, without assuming `ReduceConv`.
+
+`Proof.ClosedFragmentExamples` provides an inhabited `ClosedFragmentSig`
+with registered Nat/Bool/Void families and a registered global type.
+Unregistered open family/constructor records do not obstruct the witness;
+registered open parameters, fields and results are rejected. A final
+boundary regression shows that a genuinely scoped dependent telescope
+inhabits the candidate `ScopedFamily` interface but **cannot** inhabit
+this individually-closed-entry fragment. These are signature-invariant
+examples, not a full executable soundness-model instance.
+
+`Proof.ConversionModel` supplies an actual inhabitant of **every conversion
+record field**, using a structurally terminating ζ-only interpretation.
+It proves commutation with renaming/substitution, head separation and Π
+component injectivity, using existing function extensionality and no new
+postulates or bypasses. Applications are uninterpreted; all constructors
+and literals deliberately map to one opaque leaf. This is a non-vacuity
+witness, **not faithful value conversion or NbE**.
+`Proof.ConversionExamples` exercises inference/checking inversion through
+let-wrapped types, constructor/literal family metadata, a registered global
+with a let-wrapped type, exact-universe rejection, and upward cumulative
+typing without universe equality. It also **refutes full `ReduceConv` for
+this witness using a well-typed β redex**. Thus record inhabitation does not
+silently become a full preservation/soundness-model claim.
 
 The postulate guard is supplemented by `proof/scripts/check-hygiene.py`,
 which rejects new holes, unreviewed options/postulate blocks, and changes to
@@ -800,11 +852,11 @@ guard success does not prove that recursion terminates.
    `Conv.conv_struct?/4` (`lib/cure/core/conv.ex`) compares a `vlam` against a
    non-`vlam` by applying both to a fresh neutral (`eta_eq?/4`), and compares
    `vlam` against `vlam` by grade equality plus the same η test.
-   *Open implementation correspondence.* The legacy `Conversion` record
+   *Open implementation correspondence.* The repaired `Conversion` record
    (`proof/Core/Typing.agda`) has **no** η field — no `≈-lam` congruence and
-   no "λ x. f x ≈ f" rule. The relation has not been instantiated or proved
-   a subset of executable conversion, and some of its other fields are
-   incompatible with reduction conversion (see the audit above). Merely
+   no "λ x. f x ≈ f" rule. Its bounded ζ-only inhabitant is not a subset
+   or refinement proof for executable conversion and cannot validate full
+   reduction. A joint full-reduction model is still missing. Merely
    adding more equalities does not automatically preserve type safety.
    Closing this item requires a coherent declarative conversion relation,
    η-aware head/injectivity and substitution proofs, and refinement of
@@ -851,8 +903,9 @@ size-change totality certificate. This document argues that it is sound —
 Progress and Preservation for the Core calculus — **conditional on** three side
 conditions (strict positivity, totality-gated δ, coverage), each enforced in
 code and each tested by an Antigen assay. Some syntactic/algebraic results are
-mechanised. The legacy full theorem interfaces are refuted; §8 records their
-repair and the remaining implementation-refinement obligations.
+mechanised. Four historical interfaces are refuted and frozen; their active
+replacements have bounded witnesses, not a joint executable soundness model.
+§8 records the remaining model and implementation-refinement obligations.
 
 The honest headline: **the inspected executable paths have passing regression
 evidence; standalone formal results include structural erasure idempotence and

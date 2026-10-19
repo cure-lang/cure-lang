@@ -104,13 +104,13 @@ open import Core.Typing using (Ctx; ⟨⟩; Conversion)
 open import Proof.Values using (Value; Canonical; Neutral; canonical; neutral)
 open import Proof.Progress using (Final; StrictlyPositive; Certified;
                                     BuiltinCtors)
-open import Proof.Preservation using (ClosedSig; ReduceConv; CertifiedTyped)
+open import Proof.Preservation using (ClosedFragmentSig; ReduceConv; CertifiedTyped)
 open import Proof.Soundness
 
 module SoundNF (ind : IndEnv) (sig : Signature) (conv : Conversion)
                (pos : StrictlyPositive ind) (cert : Certified sig)
                (bc : BuiltinCtors ind)
-               (closed : ClosedSig ind sig) (rc : ReduceConv sig conv)
+               (closed : ClosedFragmentSig ind sig) (rc : ReduceConv sig conv)
                (ctyped : CertifiedTyped ind sig conv) where
 
   open Core.Typing.Typing ind sig conv

@@ -2,7 +2,7 @@
 -- Local coverage is inhabited, rejects missing/wrong branches, and is
 -- carried by actual case typing. No global Covers/ClosedSig/ReduceConv
 -- premise is used. The final typing refutation is parameterised by the
--- legacy Conversion interface, not a full soundness-model instance.
+-- abstract Conversion interface, not a full soundness-model instance.
 ------------------------------------------------------------------------
 module Proof.CoverageExamples where
 
@@ -164,14 +164,12 @@ reduced-covered = case-coverage-reduce sig branches-reduce nat-covered
 -- ⇒-conv wrappers. No assumption about all possible branch lists appears.
 module TypingChecks (conv : Conversion) where
   open Core.Typing.Typing env sig conv
-  open Invert env sig conv using (conv-injective-data)
+  open Invert env sig conv using (nat-data-family)
 
   nat-family-from-typing : ∀ {k n ps is}
     → ⟨⟩ ⊢ tm-nat_lit k ⇒ tm-data n ps is
     → IndEnv.builtins env "nat" ≡ just n
-  nat-family-from-typing (⇒-nat_lit eq) = eq
-  nat-family-from-typing (⇒-conv der eq) with conv-injective-data eq
-  ... | ps′ , is′ , refl = nat-family-from-typing der
+  nat-family-from-typing = nat-data-family
 
   missing-case : Term
   missing-case = tm-case (tm-nat_lit 0) (tm-lam unrestricted nat-type nat-type) []
@@ -181,3 +179,4 @@ module TypingChecks (conv : Conversion) where
     with nat-zero-covered covered (nat-family-from-typing ds)
   ... | body , ()
   missing-case-not-typable (⇒-conv der eq) = missing-case-not-typable der
+  missing-case-not-typable (⇒-cumul der le) = missing-case-not-typable der
