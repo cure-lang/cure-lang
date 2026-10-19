@@ -128,11 +128,13 @@ lookup-extend Γ T i = lookup-renameCtx wk Γ i
 -- applies only to two exposed type formers, preserving exact universe
 -- levels and family names. Cumulative sorts belong to typing, not ≈.
 --
--- APPLICABILITY WARNING: Proof.ConversionModel inhabits this RECORD using
--- a deliberately coarse zeta-only algebra, not executable conversion.
--- Proof.ConversionExamples explicitly refutes full ReduceConv for that
--- witness. A joint full-reduction model, eta and implementation refinement
--- remain open; the conditional soundness theorem is not certification.
+-- Proof.ReductionConversion inhabits this record together with FULL
+-- ReduceConv, via common reducts after literal expansion and checked
+-- confluence. Proof.SoundnessModel jointly instantiates the current
+-- closed-entry soundness hypotheses on a nonempty fragment.
+-- APPLICABILITY WARNING: this model omits eta (a negative control proves
+-- that omission). Executable NbE refinement, dependent signatures and
+-- field-order correspondence remain open; it is not Cure certification.
 ------------------------------------------------------------------------
 
 record Conversion : Set₁ where

@@ -21,9 +21,11 @@ what is *tested but not proved*.
 are now frozen only in `proof/Proof/InterfaceAudit.agda`. Conversion uses
 separation of two exposed rigid type heads, not raw syntax-head reflection;
 universe cumulativity belongs to declarative typing, not symmetric equality.
-`Proof.ConversionModel` inhabits the conversion **record** with a bounded
-ζ-only algebra, but explicitly cannot supply full `ReduceConv`. No joint
-full-reduction model or executable NbE refinement has been established.
+`Proof.ReductionConversion` now inhabits the full conversion record AND
+`ReduceConv` by common reducts after compact-literal expansion.
+`Proof.SoundnessModel` jointly instantiates the current soundness hypotheses
+on a nonempty closed-entry fragment, including a finite typed global table.
+This closes the formal-model inhabitation gap, NOT executable NbE/η refinement.
 The old `ClosedSig` oracle is frozen only in
 the audit; active preservation/soundness now use inhabited `ClosedFragmentSig`,
 explicitly restricted to individually closed telescope entries/results.
@@ -132,8 +134,9 @@ raising.
   §5 states the (small) interface the argument assumes of it.
 - **It is not an end-to-end mechanised implementation theorem.** Parts of the
   syntax and algebra are machine-checked; historical soundness interfaces
-  were refuted and repaired for a restricted fragment;
-  a joint full-reduction model and implementation refinement remain open.
+  were refuted and repaired for a restricted fragment. A joint formal
+  full-reduction instance now exists; dependent signatures, field order,
+  η and implementation refinement remain open.
   See §§7–8.
 
 ---
@@ -411,9 +414,10 @@ Enumerated by `cure audit trust <Module>`:
 
 The implementation theorem is not machine-checked end to end. The interface
 audit in §8 refuted four historical contracts, now frozen only as negative
-regressions. Their replacements have checked consumers and bounded inhabited
-witnesses, but a joint model of full reduction and executable correspondence
-has not been established. Remaining obligations include:
+regressions. Their replacements now have checked consumers and a joint
+full-reduction instance for the closed-entry specification. Executable
+correspondence and dependent-signature support are not established.
+Remaining obligations include:
 
 1. **NbE conversion.** A mechanised proof must model `Eval`/`Quote`/`Conv` and
    prove conversion sound (positive *and* negative). Per Lennon-Bertrand's
@@ -447,8 +451,9 @@ the renaming/substitution lemmas, **Progress**, **`Final`-preservation**,
 **`preservation` (every case, including ι and δ)**, and — with the side
 conditions carried as hypotheses — **derivations of both constructive forms
 of the soundness theorem**. The following statements belong to conditional
-parameterised modules; there is still no joint full-reduction model or
-implementation refinement making them an executable kernel certificate:
+parameterised modules, now jointly instantiated by `Proof.SoundnessModel`
+for the closed-entry specification. There is no implementation refinement
+making them an executable kernel certificate:
 
 ```agda
 -- the bounded unfolding, by induction on the fuel
@@ -556,7 +561,9 @@ that an uninhabitable theorem interface is useful.
   Cumulativity is separate: `⇒-cumul` explicitly closes declarative typing;
   the old `≈-type` field is removed. Progress, preservation, renaming,
   substitution, context conversion and checking inversion are migrated.
-  **Full reduction/NbE correspondence remains open.**
+  Full formal reduction compatibility is now constructed in
+  `Proof.ReductionConversion`, including compact-literal equations.
+  **Executable NbE/η correspondence remains open.**
 - **Signature oracle — repaired for the closed-entry fragment:** the old
   `ClosedSig` required arbitrary fabricated records to be closed and is now
   frozen only in the audit. `Core.ClosedFragment.ClosedFragmentSig` constrains
@@ -602,9 +609,10 @@ scoped dependent telescopes, membership-indexed signature scoping,
 last-field-at-zero substitution and reduction-based head exposure.
 **These remaining candidates are not connected to the active typing/soundness
 modules and are not a complete replacement conversion relation.** The
-coverage examples do not instantiate a full soundness model: dependent
-signature typing, conversion/reduction correspondence and other obligations remain
-open. The typing-level missing-case refutation is parameterised by abstract
+coverage examples alone do not instantiate soundness. The separate
+`Proof.SoundnessModel` now inhabits the closed-entry theorem parameters,
+while dependent signature typing and executable correspondence remain open.
+The typing-level missing-case refutation is parameterised by abstract
 `Conversion`, without assuming `ReduceConv`.
 
 `Proof.ClosedFragmentExamples` provides an inhabited `ClosedFragmentSig`
@@ -630,6 +638,41 @@ typing without universe equality. It also **refutes full `ReduceConv` for
 this witness using a well-typed β redex**. Thus record inhabitation does not
 silently become a full preservation/soundness-model claim.
 
+**Full formal reduction conversion — constructed.** `Core.LiteralExpansion`
+expands compact Nat/Bounded literals into distinct constructor towers while
+preserving all other term structure, values, grades, variables and binders.
+It commutes with renaming/substitution and preserves scoping and closed
+global bodies. `Proof.ExpansionSimulation` maps EVERY original reduction rule
+to a finite path in the expanded signature: β/ζ, ordinary and all literal
+ι rules, δ, and all congruences, including arbitrary branch-body paths.
+This is representation expansion, not erasure or an NbE algorithm.
+
+`Proof.ReductionConversion` defines equality by a common reduct of expanded
+terms. Checked confluence proves transitivity; rigid-head preservation and
+Π-path decomposition prove separation and component injectivity. All
+conversion fields and full `ReduceConv` for the ORIGINAL signature are
+supplied, using closed global bodies and existing function extensionality,
+with no new postulates or bypasses. Pointwise substitution congruence uses
+structural term induction, not a uniform bound on infinitely many entries.
+
+`Proof.SoundnessModel` jointly inhabits the EXISTING soundness hypotheses:
+registered Nat/Bounded families, positivity, local coverage, `BuiltinCtors`,
+`ClosedFragmentSig`, body finality, `CertifiedTyped`, the constructed
+conversion and full `ReduceConv`. Its finite global table contains a typed
+body at a let-wrapped declared type, whose kind is checked. It invokes
+actual β/ζ/ι/δ preservation and the constructive fuel theorem.
+The formal closed-entry baseline is therefore non-vacuous.
+Its BuiltinCtors-compatible Bounded family is explicitly **unindexed**;
+it is not the full executable dependent builtin signature.
+
+`Proof.ReductionConversionExamples` rejects unequal Nat/Bounded/Int values,
+universe/grade/family confusion and distinct holes. It also explicitly
+**refutes η between well-typed open functions in this model**. Thus neither η-aware
+executable conversion nor full dependent Cure soundness follows from this
+inhabited specification. Field-order correspondence, indexed coverage,
+typed erasure simulation, semantic totality and evaluator/readback
+refinement remain open.
+
 The postulate guard is supplemented by `proof/scripts/check-hygiene.py`,
 which rejects new holes, unreviewed options/postulate blocks, and changes to
 the reviewed check-bypass inventory. `Core.Parallel` now contains **no**
@@ -652,8 +695,9 @@ paths, translated to strict-parallel closure rather than one strict step.
 exposed branch redex that cannot be compressed to one strict step, distinct
 fields/non-head updates, all literal peels and malformed arities, recursive
 δ, and normal-form uniqueness. No typing/conversion/termination oracle is
-used by this confluence theorem. Executable field order, full conversion
-compatibility and the other soundness/refinement obligations remain open.
+used by this confluence theorem. Full formal conversion compatibility is
+constructed above; executable field order, η and the other implementation
+soundness/refinement obligations remain open.
 
 ### Item-by-item evidence
 
@@ -867,9 +911,9 @@ compatibility and the other soundness/refinement obligations remain open.
    `vlam` against `vlam` by grade equality plus the same η test.
    *Open implementation correspondence.* The repaired `Conversion` record
    (`proof/Core/Typing.agda`) has **no** η field — no `≈-lam` congruence and
-   no "λ x. f x ≈ f" rule. Its bounded ζ-only inhabitant is not a subset
-   or refinement proof for executable conversion and cannot validate full
-   reduction. A joint full-reduction model is still missing. Merely
+   no "λ x. f x ≈ f" rule. The new common-reduct model supports FULL
+   formal reduction and compact literals, but explicitly rejects a neutral
+   function η equation. It is not an executable conversion refinement. Merely
    adding more equalities does not automatically preserve type safety.
    Closing this item requires a coherent declarative conversion relation,
    η-aware head/injectivity and substitution proofs, and refinement of
@@ -917,9 +961,11 @@ Progress and Preservation for the Core calculus — **conditional on** three sid
 conditions (strict positivity, totality-gated δ, coverage), each enforced in
 code and each tested by an Antigen assay. Some syntactic/algebraic results are
 mechanised. Four historical interfaces are refuted and frozen; their active
-replacements have bounded witnesses, not a joint executable soundness model.
-§8 records the remaining model and implementation-refinement obligations.
+replacements now admit a joint formal closed-entry soundness instance with
+full reduction conversion, not a joint EXECUTABLE soundness model.
+§8 records the remaining dependent-signature and refinement obligations.
 
 The honest headline: **the inspected executable paths have passing regression
-evidence; standalone formal results include structural erasure idempotence and
-effect inertness. Full kernel soundness is not yet certified by this Agda tree.**
+evidence; formal results include checked confluence, structural erasure
+idempotence, effect inertness and an inhabited closed-entry soundness model.
+Full executable kernel soundness is not yet certified by this Agda tree.**

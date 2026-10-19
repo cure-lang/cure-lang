@@ -10,10 +10,12 @@ development.
 > were refuted and are now frozen only in `Proof.InterfaceAudit`. Active
 > conversion compares TWO rigid type heads, not arbitrary raw syntax;
 > universe cumulativity belongs to declarative typing, not equality.
-> `Proof.ConversionModel` inhabits every conversion-record field with a
-> bounded ζ-only algebra, but a checked negative control rejects full
-> `ReduceConv` for it. No joint full-reduction model or executable NbE
-> refinement has been established. The old `ClosedSig` oracle is frozen:
+> `Proof.ReductionConversion` now inhabits every conversion-record field
+> AND full `ReduceConv`, using common reducts after compact-literal
+> expansion. `Proof.SoundnessModel` jointly instantiates the current
+> soundness hypotheses on a nonempty closed-entry fragment with a finite
+> typed global table. This is NOT executable NbE/η refinement.
+> The old `ClosedSig` oracle is frozen:
 > active consumers use
 > inhabited `ClosedFragmentSig`, restricted to individually closed entries,
 > **not** full dependent telescopes. The old global coverage oracle is now frozen
@@ -637,7 +639,7 @@ open records. A well-scoped dependent telescope is deliberately rejected by
 this fragment, while its candidate `ScopedFamily` witness remains inhabited.
 **This does not complete dependent telescope/result instantiation or prove
 that full Cure signatures satisfy this closed-entry restriction.**
-Those typing/scoping migrations remain open, as does conversion applicability.
+Those dependent typing/scoping migrations and executable refinement remain open.
 
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
@@ -662,8 +664,41 @@ through let-wrapped types, family metadata, a global with a let-wrapped
 type, exact sorts, grades and distinct holes, and separate upward typing.
 A well-typed β counterexample explicitly rejects full `ReduceConv` for
 this witness. These are non-vacuous RECORD/typing examples, not a joint
-preservation/soundness model. Full β/ι/δ/η conversion and executable
-refinement remain open.
+preservation/soundness model. It is retained as historical bounded evidence;
+the stronger reduction model below now supplies full β/ζ/ι/δ compatibility.
+
+### Full formal reduction conversion and an inhabited soundness fragment
+`Core.LiteralExpansion` expands compact Nat/Bounded literals into distinct
+constructor towers without evaluating β/ζ/ι/δ or erasing/collapsing values.
+It proves renaming/substitution commutation, scoping and closed global bodies,
+and lookup/top/field-substitution identities.
+`Proof.ExpansionSimulation` simulates EVERY existing reduction rule into
+the expanded signature, including all four literal peels and all congruences.
+
+`Proof.ReductionConversion.Model sig closed` compares expanded terms by a
+common reduct. Checked confluence proves transitivity; rigid-head
+preservation and Π-path decomposition prove head separation/component
+injectivity. Structural term induction handles pointwise substitutions
+without assuming uniformly bounded path lengths. Every `Conversion` field,
+including compact-literal equations, is supplied. `reduce-converts`
+inhabits full `ReduceConv` for the ORIGINAL signature. This is a relational
+model, not a normalization algorithm or decision procedure.
+
+`Proof.SoundnessModel` jointly inhabits positivity, local coverage,
+`BuiltinCtors`, `ClosedFragmentSig`, body finality, `CertifiedTyped`,
+`Conversion` and `ReduceConv`. It has registered Nat/Bounded families and
+a finite nonempty global table whose declared type is let-wrapped, with a
+checked kind. It invokes actual β/ζ/ι/δ preservation and the existing
+constructive fuel theorem. These are now non-vacuous specification results,
+not merely independently inhabited predicates.
+
+The fixture's BuiltinCtors-compatible Bounded family is deliberately
+**unindexed**. Full dependent signatures, executable last-field-at-zero
+order, indexed coverage omission, totality, erasure and evaluator/readback
+refinement remain open. `Proof.ReductionConversionExamples` rejects
+unequal Nat/Bounded/Int values, universe/grade/family confusion and distinct
+holes. It explicitly refutes η between well-typed open functions in this model, so
+full executable η conversion has NOT been covered.
 
 ### Structurally checked parallel spine lifting
 `Core.Parallel` no longer uses any termination override. Its generic
@@ -844,7 +879,10 @@ simultaneous substitution `substS (argsSub args)` instead of the former
 sequence of targeted `substT`s. This is not merely stylistic: the sequential
 form could capture a field inserted under a binder when a later `substT`
 re-scanned it, whereas one simultaneous substitution inserts every field at
-once — matching the kernel's single `eval(body, reverse fields ++ base_env)`.
+once. This does NOT yet match the kernel's field ORDER: formal `argsSub`
+puts the first field at zero, while `reverse fields ++ base_env` puts the
+last there. Aligning that convention and dependent result instantiation
+remains an explicit implementation-correspondence repair.
 
 ## Building
 Requires Agda 2.8.0 and the Agda standard library.
@@ -871,9 +909,9 @@ The maintained complete runner, including interface refutations, candidate
 model examples, and effect inversion, is `./proof/check.sh` from the repository
 root. Also run `./proof/scripts/check-postulates.sh`,
 `python3 proof/scripts/test_hygiene.py`, and
-`python3 proof/scripts/check-hygiene.py`. The last guard inventories the one
-remaining confluence termination bypass, rejects any new parallel bypass,
-and does not silently treat the remaining recursion as checked.
+`python3 proof/scripts/check-hygiene.py`. The last guard enforces an EMPTY
+bypass allowlist, rejects new holes/unreviewed trust mechanisms, and does
+not turn compilation success into an implementation-refinement proof.
 All these checks run in `.github/workflows/proof.yml`.
 
 ## Relationship to the executable evidence
@@ -886,7 +924,8 @@ precisely stated goals). The two are complementary — Antigen can find
 counterexamples but cannot establish the theorem; a mechanised proof can
 establish the theorem but only for the calculus it formalises.
 
-The `postulate`s here correspond exactly to the Antigen assays: `progress` ↔
-`MetaCheck.progresses?/2`, `preservation` ↔ `MetaCheck.type_preserved?/2`,
-`canonical-ctor` ↔ the `ι`-coverage assays, and `Certified` ↔ the
-`Antigen.Assays.Totality` family.
+The assays complement derived lemmas, not an inventory of postulates:
+`progress` is compared with `MetaCheck.progresses?/2`, `preservation` with
+`MetaCheck.type_preserved?/2`, and `canonical-ctor` with the coverage assays.
+`Certified` means only body finality and must not be identified with the
+semantic termination obligations tested by `Antigen.Assays.Totality`.

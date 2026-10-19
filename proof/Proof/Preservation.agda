@@ -16,10 +16,10 @@
 --
 -- STATUS: the explicit closed-telescope fragment uses the inhabited,
 -- membership-indexed ClosedFragmentSig invariant. This does NOT cover
--- genuinely dependent telescope entries. The conversion RECORD now has a
--- bounded inhabited witness, but no joint model with full ReduceConv or
--- executable NbE refinement. This is a conditional specification theorem,
--- not yet an applicable executable Cure preservation certificate.
+-- genuinely dependent telescope entries. Proof.ReductionConversion
+-- supplies full formal ReduceConv; Proof.SoundnessModel jointly inhabits
+-- all current hypotheses. This is a closed-entry specification theorem,
+-- not an executable NbE/refinement or full dependent Cure certificate.
 ------------------------------------------------------------------------
 module Proof.Preservation where
 

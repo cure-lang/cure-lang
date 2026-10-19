@@ -11,8 +11,11 @@ through the substitution algebra; no classical principle is needed.
 
 This is confluence of the **formal reduction specification**, not executable
 NbE correctness or full kernel soundness. Dependent telescope/result
-instantiation, executable field order, a full reduction-compatible conversion
-model, η, erasure simulation and semantic totality remain separate obligations.
+instantiation, executable field order, η, erasure simulation and semantic
+totality remain separate obligations. The checked theorem now supports
+`Proof.ReductionConversion`'s full formal reduction-compatible model and
+`Proof.SoundnessModel`'s inhabited closed-entry instance; neither establishes
+executable conversion refinement.
 
 ## Why the old recursion was not a proof
 

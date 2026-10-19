@@ -59,6 +59,7 @@ MODULES=(
   Core/Grade Core/Universe Core/Syntax Core/Value Core/Reduction
   Core/Signature Core/Coverage Core/TypeHeads Core/Typing Core/ClosedFragment Core/Parallel
   Core/Relation Core/StrictParallel
+  Core/LiteralExpansion
   Proof/Values Proof/Inversion Proof/CanonicalForms Proof/Substitution
   Proof/Context
   Proof/Progress Proof/Preservation Proof/FinalPreservation Proof/Soundness
@@ -72,6 +73,8 @@ MODULES=(
   Proof/ConversionModel
   Proof/ConversionExamples
   Proof/ConfluenceExamples
+  Proof/ExpansionSimulation Proof/ReductionConversion
+  Proof/ReductionConversionExamples Proof/SoundnessModel
 )
 
 fail=0

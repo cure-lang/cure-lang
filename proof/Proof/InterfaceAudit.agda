@@ -3,8 +3,9 @@
 --
 -- These are refutations of interfaces, not assumptions of a soundness
 -- theorem. The old shapes are now frozen locally, not accepted by active
--- soundness modules. Their replacements still require a joint model and
--- implementation refinement; successful compilation alone proves neither.
+-- soundness modules. Proof.SoundnessModel now inhabits their replacements
+-- jointly for the closed-entry specification; implementation refinement
+-- and dependent signatures remain separate obligations.
 ------------------------------------------------------------------------
 module Proof.InterfaceAudit where
 
