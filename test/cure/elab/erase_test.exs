@@ -1,6 +1,6 @@
 defmodule Cure.Elab.EraseTest do
   use ExUnit.Case, async: true
-  alias Cure.Core.{Env, Grade}
+  alias Cure.Core.{Env, Eval, Grade}
   alias Cure.Elab.{Declarations, Erase, Subst}
 
   @src """
@@ -29,6 +29,9 @@ defmodule Cure.Elab.EraseTest do
       e2
     end)
   end
+
+  defp beta_reduce({:app, {:lam, _grade, _domain, body}, argument}),
+    do: Subst.instantiate(body, [argument])
 
   test "erases the erased index arguments from a seq value, keeping l and r" do
     env = build_env()
@@ -90,6 +93,54 @@ defmodule Cure.Elab.EraseTest do
     app = {:app, {:app, {:global, :g}, {:int_lit, 1}}, {:int_lit, 2}}
     once = Erase.erase(env, app)
     assert Erase.erase(env, once) == once
+  end
+
+  describe "let-collapse idempotence" do
+    test "collapses an identity let for every grade" do
+      env = Env.empty()
+      value = {:int_lit, 42}
+
+      for grade <- Grade.all() do
+        term = {:let, grade, {:int_type}, value, {:var, 0}}
+        assert Erase.erase(env, term) == value
+        assert Erase.erase(env, Erase.erase(env, term)) == value
+      end
+    end
+
+    test "tests the erased body so nested identities collapse in one pass" do
+      env = Env.empty()
+      inner = {:let, Grade.one(), {:int_type}, {:var, 0}, {:var, 0}}
+      term = {:let, Grade.affine(), {:int_type}, {:int_lit, 42}, inner}
+
+      # The original body is not a variable, but its erasure is variable zero.
+      assert Erase.erase(env, inner) == {:var, 0}
+      assert Erase.erase(env, term) == {:int_lit, 42}
+      assert Erase.erase(env, Erase.erase(env, term)) == {:int_lit, 42}
+    end
+
+    test "a nonzero variable body survives and its grade becomes unrestricted" do
+      env = Env.empty()
+      identity = fn value -> {:let, Grade.one(), {:int_type}, value, {:var, 0}} end
+
+      for grade <- Grade.all(), index <- [1, 2] do
+        term = {:let, grade, identity.({:int_type}), identity.({:int_lit, 42}), {:var, index}}
+        expected = {:let, Grade.unrestricted(), {:int_type}, {:int_lit, 42}, {:var, index}}
+
+        assert Erase.erase(env, term) == expected
+        assert Erase.erase(env, expected) == expected
+      end
+    end
+
+    test "recurses through a surviving let body and collapses its nested value" do
+      env = Env.empty()
+      identity = {:let, Grade.one(), {:int_type}, {:int_lit, 42}, {:var, 0}}
+      body = {:effect_pure, identity}
+      term = {:let, Grade.affine(), {:int_type}, identity, body}
+      expected = {:let, Grade.unrestricted(), {:int_type}, {:int_lit, 42}, {:effect_pure, {:int_lit, 42}}}
+
+      assert Erase.erase(env, term) == expected
+      assert Erase.erase(env, expected) == expected
+    end
   end
 
   test "detects holes in a term" do
@@ -217,12 +268,12 @@ defmodule Cure.Elab.EraseTest do
       # Erasure's own shortcut: the whole let collapses to the erased value.
       assert Erase.erase(env, redex) == {:ctor, :prim, []}
 
-      # Reduce (ζ) then erase, vs erase then reduce, must agree.
+      # Evaluate the erased original independently of the substituted reduct.
       reduced = Subst.instantiate({:var, 0}, [val])
-      left = Erase.erase(env, reduced)
-      right = Erase.erase(env, val)
+      left = Eval.eval(Erase.erase(env, reduced), [])
+      right = Eval.eval(Erase.erase(env, redex), [])
       assert left == right
-      assert left == {:ctor, :prim, []}
+      assert left == {:vctor, :prim, []}
     end
 
     test "non-identity let: the binder survives on both paths" do
@@ -238,12 +289,12 @@ defmodule Cure.Elab.EraseTest do
       erased = Erase.erase(env, redex)
       assert match?({:let, _, _, _, _}, erased)
 
-      # Reduce then erase vs erase then reduce.
+      # The right path evaluates the surviving erased let, including ζ.
       reduced = Subst.instantiate(body, [val])
-      left = Erase.erase(env, reduced)
-      right = Erase.erase(env, body)
+      left = Eval.eval(Erase.erase(env, reduced), [])
+      right = Eval.eval(erased, [])
       assert left == right
-      assert left == {:ctor, :prim, []}
+      assert left == {:vctor, :prim, []}
     end
   end
 
@@ -254,29 +305,28 @@ defmodule Cure.Elab.EraseTest do
   # fields substituted. Note `Erase.erase/2` does NOT perform ι — it keeps a
   # `:runtime` case intact (only a COLLAPSIBLE case, whose sole constructor's
   # fields are all erased, is dropped). So the property here is the honest
-  # one for a non-collapsible case: erasing the ι-REDUCT must equal erasing
-  # the branch body that ι selects, i.e. erasure is insensitive to whether
-  # the case has already been discharged.
+  # one for these raw, non-collapsible fixtures: independently evaluate the
+  # erased case and compare it with evaluation of the erased source reduct.
+  # Kernel-checked source/runtime comparisons live in erasure_simulation_test.
   # ---------------------------------------------------------------------
   describe "erasure commutes with ι-reduction (§8.3)" do
-    test "case on a constructor: erasing the reduct equals erasing the branch" do
+    test "case on a constructor: evaluating the erased case agrees with its erased reduct" do
       env = build_env()
 
-      # `Causal` is nullary, so ι substitutes no fields and the reduct IS the
-      # branch body. (The case term itself is built in the sibling test below,
-      # which asserts erasure preserves it.)
+      # `Causal` is nullary, so the source ι reduct substitutes no fields.
       branch_body = {:ctor, :prim, [{:ctor, :SVNil, []}, {:ctor, :SVNil, []}]}
 
-      # Erasure keeps the case (it is not collapsible), so the two sides are
-      # compared at the level that matters: the REDUCT.
+      redex =
+        {:case, {:ctor, :Causal, []}, {:data, :Dec, [], []}, [{:Causal, 0, branch_body}, {:Dcoupled, 0, branch_body}]}
+
       reduced = Subst.instantiate(branch_body, [])
-      left = Erase.erase(env, reduced)
-      right = Erase.erase(env, branch_body)
+      left = Eval.eval(Erase.erase(env, reduced), [])
+      right = Eval.eval(Erase.erase(env, redex), [])
 
       assert left == right
       # `prim`'s two fields are erased-graded in this env, so both sides drop
       # them — this assertion is what makes the test non-vacuous.
-      assert left == {:ctor, :prim, []}
+      assert left == {:vctor, :prim, []}
     end
 
     test "the case itself is preserved by erasure (not silently discharged)" do
@@ -302,8 +352,8 @@ defmodule Cure.Elab.EraseTest do
   # has NO clause for a bare `{:global, name}` — it falls through to the
   # identity catch-all — so erasure never performs δ itself.
   #
-  # FINDING (this is a negative result, not a commutation proof): δ does NOT
-  # commute with erasure in general, and it must not be expected to. Erasure
+  # RAW-SYNTAX FIXTURE (not a typed simulation counterexample): δ does NOT
+  # commute with erasure on these unchecked declarations. Erasure
   # drops an argument when the CALLEE's signature marks that position erased;
   # after δ the callee's signature is gone (the head is the body), so the
   # positions can no longer be identified. Here `certified_prim` takes two
@@ -311,11 +361,11 @@ defmodule Cure.Elab.EraseTest do
   # NULLARY, so erasing the unfolded form treats the two arguments as
   # over-application and keeps them.
   #
-  # The consequence for the soundness argument: erasure must run on the
-  # UNFOLDED Core (which is what the pipeline does), and "erasure commutes
-  # with δ" is the WRONG property to prove. The right one is that erasure is
-  # insensitive to δ only for globals whose arity matches their body's — or,
-  # more simply, that erasure is applied once, after all unfolding.
+  # The body below is not a lambda despite its declared function type, and
+  # the unfolded form over-applies a constructor. Do not infer a pipeline
+  # ordering requirement from this ill-typed example: Emit erases supplied
+  # bodies directly. The desired theorem relates a checked source program
+  # to an erased program/signature, with matching runtime arities.
   # ---------------------------------------------------------------------
   describe "erasure and δ-reduction (§8.3)" do
     test "a global call: erasure drops the callee's erased args, δ destroys that information" do
@@ -348,10 +398,8 @@ defmodule Cure.Elab.EraseTest do
 
       # Erasing the UNFOLDED form is different, and correctly so: `prim` is
       # NULLARY, so `prim(cs)(es)` is an over-application — the two arguments
-      # apply to the RESULT and are always kept. δ therefore does not commute
-      # with erasure here, which is exactly why erasure must run on the
-      # UNFOLDED core: the erased-argument positions are a property of the
-      # callee's signature, and after δ that signature is gone.
+      # apply to the RESULT and are always kept by this raw-syntax traversal.
+      # This fixture is not accepted by Kernel.check_def.
       assert erased_unfolded ==
                {:app, {:app, {:ctor, :prim, []}, {:ctor, :CSig, []}}, {:ctor, :ESig, []}}
     end
@@ -374,11 +422,8 @@ defmodule Cure.Elab.EraseTest do
   # its domain or body, and so on. Erasure recurses structurally into exactly
   # those positions. The property: reducing a subterm and then erasing must
   # equal erasing the whole term and then reducing the corresponding erased
-  # subterm. Equivalently — and this is what these tests assert — erasure is a
-  # HOMOMORPHISM over the term formers, so a step anywhere commutes.
-  #
-  # This is the general shape the β/ζ/ι/δ tests above instantiate; testing it
-  # directly covers every ξ-rule at once instead of one redex at a time.
+  # subterm. The erased subterm is reduced independently on the right.
+  # These cover selected raw β-congruence examples, not every ξ-rule.
   # ---------------------------------------------------------------------
   describe "erasure is a homomorphism over the term formers (§8.3)" do
     test "app: reducing the argument commutes with erasure" do
@@ -396,7 +441,7 @@ defmodule Cure.Elab.EraseTest do
 
       # Erase the whole term, then reduce the erased argument.
       {:app, erased_fn, erased_arg} = Erase.erase(env, whole)
-      right = {:app, erased_fn, Erase.erase(env, arg_reduct)}
+      right = {:app, erased_fn, beta_reduce(erased_arg)}
 
       assert left == right
       # Non-vacuous: erase does NOT perform β, so the erased argument is still
@@ -417,7 +462,7 @@ defmodule Cure.Elab.EraseTest do
       left = Erase.erase(env, {:lam, u, {:data, :SF, [], []}, body_reduct})
 
       {:lam, g, erased_dom, erased_body} = Erase.erase(env, whole)
-      right = {:lam, g, erased_dom, Erase.erase(env, body_reduct)}
+      right = {:lam, g, erased_dom, beta_reduce(erased_body)}
 
       assert left == right
       # `erase` keeps the inner redex (no β) but erases inside it.
@@ -436,7 +481,8 @@ defmodule Cure.Elab.EraseTest do
       left = Erase.erase(env, {:data, :SF, [elem_reduct], []})
 
       {:data, name, erased_ps, erased_is} = Erase.erase(env, whole)
-      right = {:data, name, [Erase.erase(env, elem_reduct)], erased_is}
+      assert [erased_elem] = erased_ps
+      right = {:data, name, [beta_reduce(erased_elem)], erased_is}
 
       assert left == right
       # The spine element is erased in place, still a redex.
@@ -456,7 +502,7 @@ defmodule Cure.Elab.EraseTest do
       left = Erase.erase(env, {:effect_bind, elem_reduct, k})
 
       {:effect_bind, erased_e, erased_k} = Erase.erase(env, whole)
-      right = {:effect_bind, Erase.erase(env, elem_reduct), erased_k}
+      right = {:effect_bind, beta_reduce(erased_e), erased_k}
 
       assert left == right
       # Erasure recurses into the effect's subterm but keeps the redex.

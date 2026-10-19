@@ -7,59 +7,66 @@
 -- of `lib/cure/elab/erase.ex`, so the property can be STATED — and, where it
 -- holds, proved — rather than assumed.
 --
--- SCOPE. This formalises the STRUCTURAL part of `Erase.erase/2`:
+-- SCOPE. This formalises structural recursion and let collapse:
 --
---   * a constructor drops the arguments whose quantity is `erased`
---     (`Inductive.ctor_quantities/2` + `Grade.present?/1`), recursing into
---     the survivors;
---   * every other former recurses structurally;
+--   * a let whose ERASED body is variable zero collapses to its erased
+--     value; surviving lets have the unrestricted runtime grade;
+--   * every other former recurses structurally, keeping constructor args;
 --   * a bare `global` is left alone — erasure never performs δ.
+--
+-- `eraseSpine` separately filters a supplied quantity vector. `eraseTerm`
+-- does not call it: signature lookup, arity guards, and application-spine
+-- filtering are outside this model and outside `erase-idem`.
 --
 -- It deliberately does NOT model:
 --
---   * the administrative-identity shortcut `let x = v in x ↦ erase v`.
---     That clause inspects the BODY's syntax from inside a mutually-recursive
---     definition, which defeats Agda's reduction during the idempotence
---     proof (the collapse does not fire definitionally inside the `mutual`
---     block). Dropping it keeps the development honest: the module proves
---     what it actually states, and the shortcut is recorded below as an
---     explicit assumption rather than silently omitted.
 --   * the kernel's heuristic refinements (collapsible-family case
 --     elimination, convoy discharge, the `cure_erased` placeholder). Those
 --     are optimisations whose correctness is a separate obligation.
 --
 -- WHAT IS PROVED HERE (no postulates):
 --
---   * `erase-idem` — erasure is idempotent (`erase ∘ erase ≡ erase`), a
---     property `Erase.erase/2`'s own comments rely on ("erase(erase(t)) ==
---     erase(t)"; the "already erased, keep every arg" branches exist to
---     preserve it).
+--   * `erase-idem` — structural erasure WITH let collapse is idempotent.
+--     This is not a proof of idempotence of the full executable eraser.
 --
 -- WHAT IS *NOT* PROVED, and why (docs/SOUNDNESS.md §8.3):
 --
---   * `erase` does NOT commute with δ. Erasure drops an argument based on the
---     CALLEE's declared quantities; after δ the callee is gone, so the
+--   * Executable erasure does NOT commute with δ. It drops arguments using
+--     the CALLEE's declared quantities; after δ the callee is gone, so the
 --     positions can no longer be identified. `Erase.erase/2` has no δ rule at
 --     all, and the Elixir tests pin the concrete counterexample.
---   * Commutation with β/ζ/ι is NOT proved. It would need `erase` to be
---     stable under substitution, which fails for the same reason δ fails: the
---     quantities live in the SIGNATURE, not in the term.
+--   * Executable erasure's commutation with β/ζ/ι is NOT proved. General
+--     substitution stability fails for the same reason δ commutation fails:
+--     the quantities live in the SIGNATURE, not in the term.
 ------------------------------------------------------------------------
 module Proof.Erase where
 
 open import Data.Bool using (Bool; true; false)
-open import Data.Nat using (ℕ)
+open import Data.Nat using (ℕ; zero; suc)
 open import Data.List using (List; []; _∷_)
 open import Data.Product using (_×_; _,_)
 open import Relation.Binary.PropositionalEquality
   using (_≡_; refl; cong; cong₂; trans)
 
-open import Core.Grade using (Grade; present?)
+open import Core.Grade using (Grade; unrestricted; present?)
 open import Core.Syntax
+------------------------------------------------------------------------
+-- Administrative identity elimination. Dispatch on the ERASED body: a
+-- nested let can expose variable zero even when its original body is not
+-- itself a variable. Surviving lets have the runtime unrestricted grade.
+-- Keep this non-recursive dispatcher outside the erasure mutual block.
+------------------------------------------------------------------------
+
+isVar0 : Term → Bool
+isVar0 (tm-var zero) = true
+isVar0 _ = false
+
+letStep : Bool → Term → Term → Term → Term
+letStep true  ty v b = v
+letStep false ty v b = tm-let unrestricted ty v b
 
 ------------------------------------------------------------------------
--- Erasure (mutually recursive: the constructor spine case needs the term
--- case, and the term case needs the spine case).
+-- Erasure (mutually recursive over terms, term lists, and branches).
 ------------------------------------------------------------------------
 
 mutual
@@ -69,7 +76,8 @@ mutual
   eraseTerm (tm-var k)           = tm-var k
   eraseTerm (tm-pi g d c)        = tm-pi g (eraseTerm d) (eraseTerm c)
   eraseTerm (tm-lam g d b)       = tm-lam g (eraseTerm d) (eraseTerm b)
-  eraseTerm (tm-let g ty v b)    = tm-let g (eraseTerm ty) (eraseTerm v) (eraseTerm b)
+  eraseTerm (tm-let g ty v b)    =
+    letStep (isVar0 (eraseTerm b)) (eraseTerm ty) (eraseTerm v) (eraseTerm b)
   eraseTerm (tm-app f a)         = tm-app (eraseTerm f) (eraseTerm a)
   eraseTerm (tm-data n ps is)    = tm-data n (eraseTerms ps) (eraseTerms is)
   eraseTerm (tm-ctor n args)     = tm-ctor n (eraseTerms args)
@@ -120,6 +128,16 @@ eraseSpine (q ∷ qs) (a ∷ args) with present? q
 ------------------------------------------------------------------------
 -- Idempotence.
 ------------------------------------------------------------------------
+-- Split the dispatcher BEFORE unfolding the outer erasure. In the false
+-- branch, body fixedness aligns the second pass's test with the first.
+-- No claim that erasure preserves a negative isVar0 test is needed.
+letStep-fixed : ∀ flag ty v b
+  → eraseTerm ty ≡ ty → eraseTerm v ≡ v → eraseTerm b ≡ b
+  → isVar0 b ≡ flag
+  → eraseTerm (letStep flag ty v b) ≡ letStep flag ty v b
+letStep-fixed true ty v b ty-fixed v-fixed b-fixed test = v-fixed
+letStep-fixed false ty v b ty-fixed v-fixed b-fixed test
+  rewrite ty-fixed | v-fixed | b-fixed | test = refl
 
 mutual
 
@@ -129,12 +147,8 @@ mutual
   eraseTerm-idem (tm-pi g d c) = cong₂ (tm-pi g) (eraseTerm-idem d) (eraseTerm-idem c)
   eraseTerm-idem (tm-lam g d b) = cong₂ (tm-lam g) (eraseTerm-idem d) (eraseTerm-idem b)
   eraseTerm-idem (tm-let g ty v b) =
-    trans (cong (λ x → tm-let g x (eraseTerm (eraseTerm v)) (eraseTerm (eraseTerm b)))
-                (eraseTerm-idem ty))
-          (trans (cong (λ y → tm-let g (eraseTerm ty) y (eraseTerm (eraseTerm b)))
-                       (eraseTerm-idem v))
-                 (cong (λ z → tm-let g (eraseTerm ty) (eraseTerm v) z)
-                       (eraseTerm-idem b)))
+    letStep-fixed (isVar0 (eraseTerm b)) (eraseTerm ty) (eraseTerm v) (eraseTerm b)
+      (eraseTerm-idem ty) (eraseTerm-idem v) (eraseTerm-idem b) refl
   eraseTerm-idem (tm-app f a) = cong₂ tm-app (eraseTerm-idem f) (eraseTerm-idem a)
   eraseTerm-idem (tm-data n ps is) = cong₂ (tm-data n) (eraseTerms-idem ps) (eraseTerms-idem is)
   eraseTerm-idem (tm-ctor n args) = cong (tm-ctor n) (eraseTerms-idem args)
@@ -180,3 +194,30 @@ mutual
 
 erase-idem : ∀ t → eraseTerm (eraseTerm t) ≡ eraseTerm t
 erase-idem = eraseTerm-idem
+
+------------------------------------------------------------------------
+-- Definitional regressions. In particular, a nested non-variable body can
+-- erase to variable zero: a negative isVar0 test is NOT preserved.
+------------------------------------------------------------------------
+
+erase-let-collapse : ∀ g ty v
+  → eraseTerm (tm-let g ty v (tm-var zero)) ≡ eraseTerm v
+erase-let-collapse g ty v = refl
+
+erase-let-nested-collapse : ∀ g h ty inner-ty v
+  → eraseTerm (tm-let g ty v (tm-let h inner-ty (tm-var zero) (tm-var zero)))
+    ≡ eraseTerm v
+erase-let-nested-collapse g h ty inner-ty v = refl
+
+erase-let-survives : ∀ g ty v k
+  → eraseTerm (tm-let g ty v (tm-var (suc k)))
+    ≡ tm-let unrestricted (eraseTerm ty) (eraseTerm v) (tm-var (suc k))
+erase-let-survives g ty v k = refl
+
+nested-body-not-var0 : ∀ g ty
+  → isVar0 (tm-let g ty (tm-var zero) (tm-var zero)) ≡ false
+nested-body-not-var0 g ty = refl
+
+erased-nested-body-is-var0 : ∀ g ty
+  → isVar0 (eraseTerm (tm-let g ty (tm-var zero) (tm-var zero))) ≡ true
+erased-nested-body-is-var0 g ty = refl

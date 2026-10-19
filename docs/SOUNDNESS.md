@@ -2,7 +2,7 @@
 
 **A written soundness argument for the trusted dependent-type kernel.**
 
-Status: draft for review.
+Status: written argument with executable evidence; formal interfaces under repair.
 Scope: the trusted kernel (`lib/cure/core/`, the TCB), not the elaborator, the
 emitter, or the surface language.
 Companion documents: [KERNEL.md](KERNEL.md) (what each mechanism is and why it
@@ -16,6 +16,16 @@ Progress and Preservation proofs by term former, enumerates the assumptions the
 argument rests on, and maps each lemma to the executable evidence that tests it
 today. It is deliberately honest about what is *proved*, what is *assumed*, and
 what is *tested but not proved*.
+
+**Formal applicability warning.** `proof/Proof/InterfaceAudit.agda` refutes
+four legacy interfaces: `Covers` together with `BuiltinCtors`, `ClosedSig`,
+literal syntax-head conversion reflection together with `ReduceConv`, and
+`LiteralArity`. Successful compilation of the existing parameterised
+Progress/Preservation/soundness/confluence modules does **not** establish an
+applicable kernel soundness theorem. Their derivations are retained for
+repair, not presented as completed certification. There are also five
+existing termination-check overrides in the parallel/confluence development,
+separate from the two named postulates. See §8.
 
 ---
 
@@ -109,7 +119,9 @@ raising.
   kernel is what makes a kernel-accepted Core term trustworthy.
 - **It does not claim the emitter is correct.** BEAM emission is out of scope;
   §5 states the (small) interface the argument assumes of it.
-- **It is not mechanised.** See §7.
+- **It is not an end-to-end mechanised implementation theorem.** Parts of the
+  syntax and algebra are machine-checked; the existing full soundness
+  interfaces have been refuted and require repair. See §§7–8.
 
 ---
 
@@ -273,11 +285,10 @@ tree:**
   a dependent module containing `?todo` is refused with
   `{:codegen_error, {:unfilled_hole, details}}`.
 
-The residual questions are (a) whether *every* codegen path routes through
-`reject_holes/2`, and (b) whether the audit's repro exercised `cure check`
-(which, by design, *passes* a file containing holes — only `cure compile`
-reports `E014`; see `PROOFS.md` §3.7) rather than `cure compile`. §8 records
-these as open verification items, not closed ones.
+The ordinary and lifted codegen paths were subsequently audited and tested
+(§8.1). `cure check` deliberately permits development holes; compilation must
+reject them. Maintaining release-entry-point coverage is an ongoing regression
+obligation, not evidence that the firewall is missing.
 
 ---
 
@@ -343,12 +354,12 @@ Enumerated by `cure audit trust <Module>`:
 
 1. **The signature is well-formed.** `Inductive.declare/3` enforced the universe
    check and strict positivity (§3.1) when each family was registered.
-2. **Certificates are genuinely valid.** The kernel verifies the *finite*
-   size-change certificates (`SizeChange.valid?`), but the SCC discovery and
-   transitive closure that *produce* them live outside the TCB
-   (`Cure.Elab.TotalityGraph`). A bug there could hand the kernel a certificate
-   that verifies as a matrix yet does not correspond to the real call graph.
-   This is the single largest assumption in the argument (§8).
+2. **The verified size-change criterion implies semantic termination.**
+   The kernel independently verifies SCC partitions, base edges, composed
+   matrices, and saturation; an untrusted proposer's output is not accepted
+   merely because its matrices have valid dimensions. What remains unproved
+   is the full chain from trusted Core call extraction to semantic size
+   descent and from the size-change criterion to termination (§8.2).
 3. **The emitter maps Core faithfully.** BEAM emission is assumed to preserve
    the operational semantics of §1.3. Out of scope here.
 4. **The host runtime is trusted.** Elixir/OTP integer and float semantics, the
@@ -385,8 +396,10 @@ Enumerated by `cure audit trust <Module>`:
 
 ## 7. Toward mechanisation
 
-This argument is written, not machine-checked. The obstacles, in rough order of
-difficulty:
+The implementation theorem is not machine-checked end to end. The existing
+formal calculus has checked derivations, but the interface audit in §8
+establishes that its full theorem parameters cannot be jointly instantiated.
+Repairing those interfaces comes before the remaining obligations below:
 
 1. **NbE conversion.** A mechanised proof must model `Eval`/`Quote`/`Conv` and
    prove conversion sound (positive *and* negative). Per Lennon-Bertrand's
@@ -418,8 +431,10 @@ A partial mechanisation now exists in [`proof/`](../proof/README.md): the Core
 calculus, the typing judgment, the canonical-form and head-inversion lemmas,
 the renaming/substitution lemmas, **Progress**, **`Final`-preservation**,
 **`preservation` (every case, including ι and δ)**, and — with the side
-conditions carried as hypotheses — **both constructive forms of the soundness
-theorem**:
+conditions carried as hypotheses — **derivations of both constructive forms
+of the soundness theorem**. The following statements belong to legacy
+parameterised modules whose interfaces are refuted; they must not be read as
+a certificate for an inhabited model:
 
 ```agda
 -- the bounded unfolding, by induction on the fuel
@@ -486,7 +501,10 @@ form), `DivergesNF` + `never-reached→divergesNF` (positive divergence), and
 `tree-decides` (LPO) as the only classical input. The false
 `never-reached→no-value` and the `soundness` built on it have been
 **REMOVED** from `Proof/Soundness.agda`; the development now rests on exactly
-two axioms, `funext` and `tree-decides`. Note also that the tempting
+two named postulates, `funext` and `tree-decides`. This count does not include
+module parameters, conversion record fields, or the five existing
+termination-check overrides. `LiteralArity`, required by confluence, is itself
+refuted in `Proof.InterfaceAudit`. Note also that the tempting
 strengthening "reaches a NORMAL-FORM value, or diverges" is *not* provable
 from `soundness-tree` (a `Reached` leaf supplies only `Value v`, and
 `progress⇐` at `v` returns `Value v` again), which is why the first disjunct
@@ -494,16 +512,55 @@ stays `Reached`.
 
 ---
 
-## 8. Open verification items
+## 8. Verification status and open obligations
 
-These are honestly *not* settled by this document. They are the places a
-determined adversary should look first.
+The enforcement and specification results below have different strengths.
+Neither passing tests nor counting `postulate` declarations establishes
+that an uninhabitable theorem interface is useful.
 
-1. **Every codegen path routes through `reject_holes/2`.** The firewall is
-   implemented (§3.4), but the audit reproduced a running hole. Confirm by
-   inspection that no emission path bypasses `Emit.reject_holes/2`, and add a
-   regression test asserting `cure compile` fails on a reachable `?goal` (the
-   audit's §5.2 recommendation).
+### Foundational blockers and the migration gate
+`proof/Proof/InterfaceAudit.agda` machine-checks these negative results:
+- **Coverage:** `Covers` quantifies over every branch list, including `[]`,
+  while `BuiltinCtors` requires a `Z` constructor. No `Z` branch exists in
+  `[]`, so those hypotheses are incompatible.
+- **Conversion:** `ReduceConv` makes a let reducing to a Π convertible to
+  that Π. `Conversion.≈-pi-inj` would require that raw let to have literal Π
+  syntax, which is impossible.
+- **Signature scoping:** `ClosedSig` requires arbitrary fabricated families'
+  telescope entries to be closed. Choosing a parameter `var 0` refutes it,
+  independently of the actual signature.
+- **Literal arities:** `LiteralArity` requires every raw `Z` branch to have
+  arity zero; a fabricated arity-one branch refutes it. Arity constraints
+  belong to checked cases or reduction-rule premises, not all raw syntax.
+
+Further correspondence repairs are required: dependent spine tails and
+constructor result indices must be instantiated; branches must bind the last
+field at index zero as the evaluator does; cumulativity must be separate from
+symmetric conversion. `Certified` currently means only that unfoldable
+bodies are `Final` (hole/absurd-free), **not** that they terminate.
+
+`Core.Verification` and `Proof.VerificationExamples` introduce and exercise
+candidate local coverage, scoped dependent telescopes, membership-indexed
+signature scoping, last-field-at-zero substitution, and reduction-based head
+exposure. They include positive instances and missing/wrong-arity rejection
+examples. **They are not connected to the legacy typing/soundness modules and
+are not a complete replacement conversion relation.** Review of replacement
+interfaces precedes the broad proof migration. A concrete instance of the
+repaired full theorem, not merely these predicate examples, is required
+before restoring the soundness claim.
+
+The postulate guard is supplemented by `proof/scripts/check-hygiene.py`,
+which rejects new holes, unreviewed options/postulate blocks, and changes to
+the reviewed check-bypass inventory. The existing four `TERMINATING` pragmas
+in `Core.Parallel` and one in `Proof.Confluence` remain unresolved proof
+obligations. Guard success does not certify consistency or prove those
+recursive definitions terminate.
+
+### Item-by-item evidence
+
+1. **Release firewall — implemented and regression-tested.** The ordinary
+   and lifted paths route through `Emit.reject_holes/2` (§3.4). Maintain
+   coverage when adding compilation/publication entry points.
    *Audited (this slice) — the firewall holds, and the audit's "running hole"
    could not be reproduced.* Findings:
    - Both `Emit` entry points guard: `compile_and_load/2` and
@@ -541,9 +598,8 @@ determined adversary should look first.
      `test/cure/compiler/actor_family_raw_test.exs` calls the emitted
      `handle_cast/2`, `init/1`, `start_link/1` and drives a real
      `:gen_server` (5 tests, green).
-2. **Certificate generation is sound.** §5.3(2): the SCC closure in
-   `Cure.Elab.TotalityGraph` is outside the TCB. A bug there is invisible to the
-   kernel. This is the highest-value item to audit or move into the TCB.
+2. **Certificate verification and semantic termination.** The proposer is
+   outside the TCB; the finite SCC and closure verifiers are inside it.
    *Audited (this slice) — the design does NOT trust the proposer, and the
    verifier is tested against forged partitions.* Findings:
    - `TotalityGraph.propose_partition/2` is explicitly untrusted: it only
@@ -580,22 +636,34 @@ determined adversary should look first.
      `SizeChange.compose_edges` and requiring `same_edge?`
      (`:composition_mismatch`); rejects cyclic derivations
      (`:cyclic_derivation`); and checks saturation — every composable pair of
-     edges must have its composite present (`:not_saturated`). It then
-     requires an idempotent edge with a smaller diagonal for each recursive
-     component (`{:not_total, …}` otherwise).
+     edges must have its composite present (`:closure_not_saturated`). It then
+     rejects **any idempotent self-edge without a smaller diagonal**
+     (`{:not_total, …}`); finding just one decreasing loop is not sufficient.
    - **The real residual is the TERMINATION THEOREM, not the matrices.** The
-     verifier establishes "this closure is saturated and has a smaller
-     diagonal". That such a closure implies termination is the size-change
-     principle itself — carried as the `Certified` hypothesis in the Agda
-     development. So §8.2 is narrowed to: SCC discovery is verifier-checked
+     verifier establishes "this closure is saturated and every idempotent
+     self-edge has a smaller diagonal". That this implies termination is the size-change
+     principle itself, together with sound semantic descent extraction.
+     Contrary to an earlier claim, Agda's `Certified` supplies only body
+     finality, not termination. So §8.2 is narrowed to: SCC discovery is verifier-checked
      and tamper-tested, matrix composition and saturation are verifier-checked,
      and the size-change *principle* remains an assumed theorem.
 3. **`Erase.erase` preserves the operational semantics.** Erasure is assumed to
    drop only `:erased`-graded binders, which the relevance check enforces — but
    the argument here does not prove erasure commutes with reduction.
    *Partial executable evidence (β, ζ, ι).* `test/cure/elab/erase_test.exs`
-   asserts the commutation property — `erase(reduce(redex)) ==
-   reduce(erase(redex))` — with both sides computed independently, on:
+   contains independent β substitution comparisons, let-collapse regressions,
+   and shape checks. The ζ/ι tests now evaluate erased original redexes
+   independently; the selected congruence tests reduce the erased subterm
+   rather than rebuilding it from the source reduct. These bounded raw-term
+   examples are not an operational preservation proof:
+
+   `test/cure/elab/erasure_simulation_test.exs` additionally kernel-checks
+   source definitions and compares their original Core evaluation with
+   independently emitted/executed BEAM. It covers direct/nested lets,
+   distinguishable first/last case fields, local global calls, and an erased
+   function parameter whose runtime arity shrinks. The source oracle does
+   not call erasure. These examples do not prove a universal simulation or
+   preservation of divergence.
 
    - **β** (`describe "erasure commutes with β-reduction"`, 3 tests): an
      erased argument, a present argument through an identity body, and a
@@ -626,10 +694,13 @@ determined adversary should look first.
      erasing the UNFOLDED form treats the two arguments as over-application
      and keeps them. Two tests pin this (`describe "erasure and
      δ-reduction"`).
-     *Consequence for the argument:* erasure must run on the **unfolded**
-     Core — which is what the pipeline does — and "erasure commutes with δ"
-     is the **wrong property to prove**. The right one is that erasure is
-     applied once, after unfolding, so no δ step can invalidate it.
+     *Scope correction:* this fixture inserts an unchecked declaration with
+     a non-function body at a function type. It refutes a raw-syntax equality,
+     not a well-typed source/runtime simulation. The emitter calls
+     `Erase.erase(env, body)` directly in `real_function_form/3`; neither
+     complete prior unfolding nor a single erasure pass may be assumed.
+     The required theorem relates checked source execution to an erased
+     program/signature with its runtime arities and branch environment.
 
    - **Congruence cases** (`describe "erasure is a homomorphism over the term
      formers"`, 4 tests): the ξ-rules reduce a SUBTERM, and erasure recurses
@@ -637,71 +708,82 @@ determined adversary should look first.
      homomorphism property directly — reducing a subterm then erasing equals
      erasing the whole term then reducing the corresponding erased subterm —
      for `app` (argument position), `lam` (body), `data` (spine element), and
-     `effect_bind` (effect position). This covers every ξ-rule at once rather
-     than one redex at a time.
+     `effect_bind` (effect position). These are selected structural checks,
+     not coverage of every ξ-rule or an independently executed simulation.
 
    **MECHANISED (new): `proof/Proof/Erase.agda`.** The Agda tree previously
    had no `Erase` module; it now has one, and it is in `check.sh`:
 
-   - `eraseTerm` formalises the STRUCTURAL core of `Erase.erase/2`: every
-     former recurses, and `eraseSpine` drops the constructor arguments whose
-     declared quantity is `erased` (with the kernel's over-application
-     padding: once the quantities run out, remaining arguments are kept).
-   - `erase-idem` — erasure is idempotent (`erase ∘ erase ≡ erase`), PROVED
-     with **no postulates**. `Erase.erase/2`'s own comments rely on this
-     ("erase(erase(t)) == erase(t)"; the "already erased, keep every arg"
-     branches exist to preserve it), so this is the first piece of §8.3 to
-     become a theorem rather than evidence.
+   - `eraseTerm` formalises structural recursion **with administrative let
+     collapse**: a let whose **erased body** is variable zero becomes its
+     erased value; surviving lets receive the unrestricted runtime grade.
+     These are the executable eraser's let rules.
+   - `erase-idem` — this structural erasure with let collapse is idempotent
+     (`eraseTerm ∘ eraseTerm ≡ eraseTerm`), PROVED with **no new postulates,
+     holes, or termination overrides**. `letStep-fixed` proves directly that
+     the Boolean-dispatched let constructor preserves fixed points, then the
+     term induction applies it to already-erased components.
+   - Definitional (`refl`) regressions cover identity collapse, nested collapse
+     exposed only after erasing the body, and surviving nonzero-variable
+     bodies with grade normalisation.
 
-   **What the mechanisation omits, and an honest correction about why.**
-   - the administrative identity `let x = v in x ↦ erase v`. An earlier
-     revision of this note claimed the obstruction was that the clause "does
-     not fire definitionally inside the `mutual` block". **That diagnosis was
-     wrong.** The real cause was a missing import: `zero` was not in scope
-     from `Data.Nat`, so the pattern `tm-var zero` bound a FRESH VARIABLE and
-     the clause matched every body. With `zero` imported the clause fires
-     correctly (verified with a standalone probe). The remaining difficulty is
-     purely in the idempotence PROOF for the `let` case — the `with` on the
-     erased body abstracts the goal, so the non-collapse branch cannot unfold
-     `eraseTerm` — which needs a `subst`-based transport that I did not get to
-     type-check. The clause itself is sound; only its idempotence proof is
-     unfinished, and the module models the plain `let` recursion until it
-     lands.
+   **Corrections to the earlier proof diagnosis.** A missing `Data.Nat.zero`
+   import previously made `tm-var zero` bind a fresh variable rather than
+   match index zero. That was not a failure of mutual recursion. A later
+   proposed bridge, `isVar0 b ≡ false → isVar0 (eraseTerm b) ≡ false`, is
+   **false**: `let y = var 0 in y` is not a variable, but erases to variable
+   zero. The correct test is on the erased body, and the fixed-point proof
+   aligns its second pass using body idempotence rather than transporting
+   that invalid bridge.
+
+   **What the mechanisation still omits.**
+   - Signature-dependent constructor/global argument filtering and its arity
+     guards. `eraseSpine` filters a supplied quantity vector (keeping excess
+     arguments), but is **not called by `eraseTerm`**. Constructor arguments
+     are recursively erased without filtering in `eraseTerm`. Consequently,
+     `erase-idem` does **not** prove idempotence of the full executable
+     `Erase.erase/2`, nor of applying `eraseSpine` twice with the same vector.
    - the kernel's heuristic refinements (collapsible-family case elimination,
      convoy discharge, the `cure_erased` placeholder) — optimisations whose
      correctness is a separate obligation.
 
-   **Still not mechanised:** commutation itself. It needs `erase` to be stable
-   under substitution, which fails for the same reason δ fails — the
-   quantities live in the SIGNATURE, not in the term. So the Elixir tests
-   remain the evidence for β/ζ/ι/congruence, and the δ result above remains a
-   refutation.
+   **Still not mechanised:** operational preservation. The target must account
+   for erased signatures, binders and runtime representations. The tests
+   provide bounded evidence; the unchecked δ fixture does not refute a
+   properly formulated typed simulation theorem.
 
 4. **The effect fragment is inert.** `{:effect_type,_}` / `{:effect_pure,_}` /
    `{:effect_bind,_,_}` have zero reduction rules by design (§1.1), so they
    cannot break Preservation — but a future monad law would have to be
-   re-argued.
+   re-argued. **Closed for the present Core specification:**
+   `Proof.EffectInert` proves single-step inversion and arbitrary finite-step
+   preservation of all three effect heads, with child reductions tracked.
+   These proofs use none of the refuted typing/conversion/coverage hypotheses.
+   `test/antigen/assays/effect_inert_test.exs` independently pins executable
+   skeleton preservation, payload normalisation, and rejection of monad laws.
+   This does not verify runtime execution of effectful BEAM code.
 5. **η and proof irrelevance.** Cure's NbE conversion DOES perform η:
    `Conv.conv_struct?/4` (`lib/cure/core/conv.ex`) compares a `vlam` against a
    non-`vlam` by applying both to a fresh neutral (`eta_eq?/4`), and compares
    `vlam` against `vlam` by grade equality plus the same η test.
-   *Scope, not a gap.* The mechanised `Conversion` record
+   *Open implementation correspondence.* The legacy `Conversion` record
    (`proof/Core/Typing.agda`) has **no** η field — no `≈-lam` congruence and
-   no "λ x. f x ≈ f" rule. This is a deliberate scope limit rather than an
-   unsoundness: η only makes conversion COARSER, and every proof obligation in
-   the development is discharged without it (verified by inspecting every
-   `Conversion.≈-*` use site in `proof/`). So the theorems hold for a
-   conversion relation that is a SUBSET of the kernel's, and anything proved
-   type-safe here is also type-safe under the kernel's coarser conversion. The
-   converse does not follow: a program the kernel accepts only by an η step is
-   not covered. Closing it needs an η-aware treatment; proof irrelevance is
-   likewise not modelled.
+   no "λ x. f x ≈ f" rule. The relation has not been instantiated or proved
+   a subset of executable conversion, and some of its other fields are
+   incompatible with reduction conversion (see the audit above). Merely
+   adding more equalities does not automatically preserve type safety.
+   Closing this item requires a coherent declarative conversion relation,
+   η-aware head/injectivity and substitution proofs, and refinement of
+   `Eval`/`Quote`/`Normalise`/`Conv`. Checker soundness, completeness, and
+   termination are distinct obligations. Definitional proof irrelevance is
+   not established by proof erasure; no blanket such rule was found in the
+   inspected executable conversion.
 
 ---
 
 ## 9. Executable evidence
 
-The argument is not mechanised, but it is not untested. Each lemma has a
+The full implementation theorem is not mechanised, but it is not untested. Each lemma has a
 property-based assay that generates known-label cases and asserts the kernel
 agrees. The mapping:
 
@@ -734,10 +816,10 @@ driven by first-order index unification, and δ-reduction is gated behind a
 size-change totality certificate. This document argues that it is sound —
 Progress and Preservation for the Core calculus — **conditional on** three side
 conditions (strict positivity, totality-gated δ, coverage), each enforced in
-code and each tested by an Antigen assay. The argument is written, not
-mechanised; §7 scopes the mechanisation, and §8 lists the items a mechanised or
-adversarial audit should attack first.
+code and each tested by an Antigen assay. Some syntactic/algebraic results are
+mechanised. The legacy full theorem interfaces are refuted; §8 records their
+repair and the remaining implementation-refinement obligations.
 
-The honest headline: **the kernel is sound in the cases that have been tested,
-and the argument for why it is sound in general is now written down where it can
-be attacked.**
+The honest headline: **the inspected executable paths have passing regression
+evidence; standalone formal results include structural erasure idempotence and
+effect inertness. Full kernel soundness is not yet certified by this Agda tree.**

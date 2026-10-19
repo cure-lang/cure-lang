@@ -12,7 +12,7 @@
 -- The three side conditions of the theorem (docs/SOUNDNESS.md §3) are
 -- carried as hypotheses:
 --   * `StrictlyPositive ind`   — every family is strictly positive (§3.1);
---   * `Certified sig`          — every δ-unfoldable global is total (§3.2);
+--   * `Certified sig`          — body FINALITY only, not termination;
 --   * `Covers ind`             — every case has full coverage (§3.3).
 --
 -- The hole/absurd discipline (§3.4) is expressed by restricting the
@@ -92,21 +92,22 @@ mutual
 StrictlyPositive : IndEnv → Set
 StrictlyPositive ind = ∀ f → f ∈ IndEnv.families ind → Family.positive f ≡ true
 
--- §3.2 Totality gates δ: every global the signature can unfold is total.
---
--- This is the SINGLE load-bearing hypothesis of the argument
--- (docs/SOUNDNESS.md §5.3(2)): we take `Certified` as an abstract
--- predicate with the property that a certified global's body is
--- terminating. The δ rule only fires on names in the signature's body map,
--- so this is the assumption that makes δ type-preserving (Preservation §4).
+-- Body finality only: this predicate does NOT express termination.
+-- Certified is retained as a compatibility name for legacy consumers.
+-- The full Progress module's coverage interface is refuted by
+-- Proof.InterfaceAudit; candidate local coverage is in Core.Verification.
+BodiesFinal : Signature → Set
+BodiesFinal sig = ∀ {f body′} → Signature.body sig f ≡ just body′ → Final body′
 Certified : Signature → Set
-Certified sig = ∀ {f body′} → Signature.body sig f ≡ just body′ → Final body′
+Certified = BodiesFinal
 
 -- §3.3 Coverage: every case has a branch for every constructor.
 --
 -- The coverage check (`check_coverage`) requires a branch for every
 -- constructor the index unifier does not refute. We take it as a predicate
--- on the inductive environment, discharged by Core/Coverage.agda.
+-- on the inductive environment. WARNING: this global quantification is
+-- uninhabitable with BuiltinCtors (Proof.InterfaceAudit). It is a legacy
+-- interface awaiting migration, not a verified coverage checker.
 --
 -- The witness is a branch NAMED `c` (not merely some branch in the list):
 -- that is what `findBranch c brs` needs to fire ι, and it is the honest

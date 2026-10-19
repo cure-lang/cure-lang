@@ -20,8 +20,9 @@
 -- derivations, where the type is syntactically determined, and record the
 -- conversion-injectivity obligation separately.
 --
--- STATUS: statements given; proofs are the current research frontier. Each
--- is marked `postulate` with a named strategy.
+-- STATUS: legacy derivations over Conversion's reflection fields.
+-- Proof.InterfaceAudit refutes those fields together with ReduceConv.
+-- These are not independently established NbE injectivity theorems.
 ------------------------------------------------------------------------
 module Proof.Inversion where
 

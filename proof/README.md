@@ -1,12 +1,22 @@
 # Mechanised soundness proof for the Cure Core kernel
 
-This directory holds **deliverable B**: a mechanised proof, in
-[Agda](https://wiki.portal.chalmers.se/agda/), of the soundness of the Cure
-Core kernel. It is the machine-checked counterpart of the written argument in
+This directory holds the **deliverable B development**: an
+[Agda](https://wiki.portal.chalmers.se/agda/) formalisation toward soundness
+of the Cure Core kernel. It is the formal counterpart of the written argument in
 [`../docs/SOUNDNESS.md`](../docs/SOUNDNESS.md), whose §7 scopes exactly this
 development.
 
-> **Status: complete.** The formalisation of the Core calculus and the typing
+> **Status: foundation repair in progress.** The legacy full theorem interfaces
+> cannot be jointly instantiated. `Proof.InterfaceAudit` machine-checks
+> contradictions in global coverage, signature closedness, syntax-head
+> reflection with reduction conversion, and global literal arities.
+> The existing derivations below are retained for repair, not certification.
+> `Core.Verification` and `Proof.VerificationExamples` provide candidate local
+> interfaces and concrete instances; the broad typing/proof migration has not
+> happened. They are not an instance of the full soundness theorem.
+>
+> The following is the **historical derivation status**, subject to that
+> applicability warning. The formalisation of the Core calculus and the typing
 > judgment is complete and compiles clean. The canonical-form lemmas, the
 > renaming and substitution lemmas, **Progress**, **`Final`-preservation**,
 > and **`preservation` (every case, including ι and δ)** are all **proved**,
@@ -16,8 +26,10 @@ development.
 > The classical statement is `soundness-nf` in `Proof/SoundnessConfluence.agda`
 > — the dichotomy **`Reached ⊎ DivergesNF`** over NORMAL FORMS, proved with
 > **zero postulates**. The whole development now rests on exactly **two**
-> axioms: `funext` (standard function extensionality) and `tree-decides`
-> (LPO on the outcome path).
+> named postulates: `funext` (standard function extensionality) and
+> `tree-decides` (LPO on the outcome path). This inventory does not account
+> for the refuted module hypotheses or the five existing `TERMINATING`
+> pragmas in `Core.Parallel` (four) and `Proof.Confluence` (one).
 >
 > **Correction.** An earlier revision derived a classical three-way
 > `soundness` from a second input, `never-reached→no-value`. That input is
@@ -73,13 +85,14 @@ The hole/absurd discipline (§3.4) is expressed by restricting the theorem to
 **final** Core — hole-free and absurd-free terms (`Final` in
 `Proof/Progress.agda`), mirroring `Validator.release_config/0`.
 
-The single largest assumption is `Certified`: the size-change certificate
-*generator* (SCC discovery and transitive closure) lives outside the TCB in
-`Cure.Elab.TotalityGraph`, so a mechanised proof takes "certified ⇒
-terminating" as a stated hypothesis. This is the split docs/SOUNDNESS.md §7.2
-recommends.
+The legacy `Certified` predicate is only body finality, now also named
+`BodiesFinal`; it does **not** express semantic termination.
+`CertifiedTyped` separately supplies closedness and body typing.
+The executable checks untrusted SCC/closure proposals using trusted finite
+verifiers. Extraction soundness, the size-change termination principle, and
+its connection to certified unfolding remain unproved here.
 
-## Module map
+## Legacy module map (historical derivation status, not certification)
 
 | Module | Contents | Status |
 |---|---|---|
@@ -104,7 +117,7 @@ recommends.
 
 ## Status
 
-### Complete (machine-checked, no holes)
+### Historical derivations (machine-checked, applicability under repair)
 
 - The QTT grade carrier and all its algebraic laws.
 - The universe hierarchy, cumulativity, and the max operation.
@@ -218,7 +231,7 @@ recommends.
   run is exactly the depth-`n` truncation of the tree
   (`soundness-fuel≡truncate`).
 
-### In progress (statements given, proofs open)
+### Historical proof-development notes (superseded by the interface audit)
 
 These are the `postulate`s, each with a named proof strategy in the source:
 
@@ -533,6 +546,44 @@ so its substitution-commutation lemma is the standard textbook proof with no
 `Canonical`/`Neutral`/`Value` transport. **Do not re-introduce the side
 conditions.**
 
+### Structural erasure with administrative let collapse
+- **Structural erasure with let collapse is idempotent.** `Proof.Erase`
+  proves `erase-idem` with no new postulates, holes, or termination overrides.
+  Lets collapse when their **erased body** is variable zero; surviving lets
+  receive the unrestricted runtime grade, matching the executable let rules.
+  The proof uses a direct fixed-point lemma for the Boolean-dispatched let
+  constructor. Definitional regressions cover direct/nested collapse and
+  nonzero-variable bodies. This theorem does **not** include signature-based
+  argument filtering: `eraseSpine` is separate and is not called by
+  `eraseTerm`. It is not an idempotence proof for the full executable eraser.
+
+### Interface audit and replacement examples
+`Proof.InterfaceAudit` proves:
+- `Covers ind` and `BuiltinCtors ind` are incompatible.
+- `ClosedSig ind sig` is uninhabited.
+- Legacy `Conversion` and `ReduceConv sig conv` are incompatible.
+- `LiteralArity` is uninhabited.
+
+These are refutations, not additional axioms. Do not interpret successful
+compilation of the legacy soundness/confluence modules as applicable proofs.
+
+`Core.Verification` defines local full-family coverage,
+preceding-binder-scoped telescopes, and constraints on actual signature
+members. It also defines executable-order field instantiation and
+reduction-based Π/data exposure. `Proof.VerificationExamples` provides a
+scoped dependent constructor, a nonempty scoped signature, missing/wrong-arity
+rejection, empty-family coverage, distinguishable field substitutions,
+result-index instantiation, and a let exposing a Π.
+These establish inhabited predicates, **not declaration typing, a verified
+conversion relation, or a repaired progress/preservation theorem**.
+
+### Inert effects
+`Proof.EffectInert` proves one-step inversion and arbitrary finite-step
+head preservation for `Effect`, `pure`, and `bind`, tracking child reductions.
+It has no coverage, conversion, finality, or well-formed-signature premise and
+is independent of the refuted legacy hypotheses. This closes inertness for
+the present Core reduction specification, not BEAM effect execution.
+
 ### Open research questions (docs/SOUNDNESS.md §7, §8)
 - **The totality certificate.** `Certified` is a stated hypothesis. A
   separate, smaller proof that the *size-change certificate verifier* is
@@ -687,6 +738,14 @@ agda Core/Grade.agda Core/Universe.agda Core/Syntax.agda Core/Value.agda \
 
 The library descriptor is `cure-core.agda-lib`. Interface files (`_build/`)
 are git-ignored.
+
+The maintained complete runner, including interface refutations, candidate
+model examples, and effect inversion, is `./proof/check.sh` from the repository
+root. Also run `./proof/scripts/check-postulates.sh`,
+`python3 proof/scripts/test_hygiene.py`, and
+`python3 proof/scripts/check-hygiene.py`. The last guard inventories the five
+legacy termination bypasses rather than silently treating them as checked.
+All these checks run in `.github/workflows/proof.yml`.
 
 ## Relationship to the executable evidence
 

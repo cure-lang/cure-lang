@@ -14,8 +14,9 @@
 -- by mutual induction on the typing derivation, stated with a coherence
 -- condition on the substitution.
 --
--- STATUS: the substitution lemma's binder cases are proved; the spine and
--- branch cases are the current research frontier.
+-- STATUS: legacy derivations retained for repair. ClosedSig is uninhabited
+-- and Conversion is incompatible with ReduceConv (Proof.InterfaceAudit).
+-- Compilation is NOT an applicable preservation theorem for Cure.
 ------------------------------------------------------------------------
 module Proof.Preservation where
 

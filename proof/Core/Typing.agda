@@ -121,24 +121,19 @@ lookup-extend Γ T i = lookup-renameCtx wk Γ i
 -- against `vlam` by grade equality plus the same η test. This record has no
 -- η field — there is no `≈-lam` congruence and no "λ x. f x ≈ f" rule.
 --
--- That is a genuine SCOPE LIMIT, not a soundness gap: η only ever makes
--- conversion COARSER (more terms equal), and the soundness argument never
--- needs it. Every proof obligation in this development is discharged from
--- `≈-refl`, `≈-sym`, `≈-trans`, `≈-app`, `≈-pi`, `≈-pi-inj`,
--- `≈-pi-components`, `≈-data`/`≈-ctor`/`≈-data-inj`, the compact-literal
--- identifications, and the rename/subst stability fields — verified by
--- inspecting every `Conversion.≈-*` use site in `proof/`. So the theorems
--- below hold for a conversion relation that is a SUBSET of the kernel's:
--- anything this development proves type-safe is also type-safe under the
--- kernel's (coarser) conversion.
+-- APPLICABILITY WARNING: no subset/refinement proof for executable
+-- conversion exists. Proof.InterfaceAudit proves that this record's raw
+-- syntax-head reflection conflicts with ReduceConv: a let can reduce to
+-- a Pi without itself having Pi syntax. The legacy cumulative ≈-type field
+-- also differs from executable equality (which compares universe levels
+-- exactly and handles cumulative checking separately).
 --
--- The converse does not follow: a program the kernel accepts by an η step
--- is not covered by these theorems. Closing that would need an η-aware
--- treatment, including a `≈-lam` congruence that compares GRADES by
--- equality (the kernel's `conv_struct?` does exactly that, and never uses
--- the `≤ᵍ` preorder — which belongs to the usage check). This record
--- currently has no `≈-lam` field at all, so no proof here depends on how
--- grades would be compared.
+-- This interface and its consumers are retained for repair, not presented
+-- as an applicable soundness theorem. Core.Verification defines candidate
+-- reduction-based head exposure evidence, NOT a replacement conversion
+-- relation or an assumed injectivity theorem. That relation, its laws, and
+-- its implementation correspondence must be reviewed and proved before
+-- migrating the broad typing/preservation development.
 ------------------------------------------------------------------------
 
 record Conversion : Set₁ where

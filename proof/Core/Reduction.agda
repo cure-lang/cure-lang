@@ -45,6 +45,12 @@ open import Core.Signature using (just-inj)
 ------------------------------------------------------------------------
 -- Substituting a list of constructor arguments into a branch body.
 --
+-- LEGACY CORRESPONDENCE WARNING: the worker below binds the FIRST field
+-- at index zero, unlike Eval.reduce_branch_body (LAST field at zero).
+-- The historical explanation immediately below describes the intended
+-- executable convention, not this worker's actual order. See
+-- Core.Verification.instantiateFields and Proof.VerificationExamples.
+--
 -- The branch binds `arity` fields; `args` are the fields in surface order.
 -- The LAST field is de Bruijn 0 (matching `Eval.reduce_branch_body`, which
 -- binds `reverse(fields) ++ base_env`). This is a SIMULTANEOUS substitution

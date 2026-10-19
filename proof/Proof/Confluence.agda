@@ -47,6 +47,11 @@ open import Core.Reduction
 import Core.Parallel as P
 open import Proof.Substitution
 
+-- LEGACY INTERFACE: this quantifies over arbitrary raw branches and is
+-- uninhabitable (Proof.InterfaceAudit.literalArity-impossible). Arity must
+-- instead be enforced by the reduction rules/checked term invariant.
+-- The derivations below also contain a termination-check override.
+-- They are not an applicable confluence proof until both are repaired.
 -- The literal-peel rules' branch arities: `Z`/`First` take 0/1 fields, etc.
 LiteralArity : Set
 LiteralArity =

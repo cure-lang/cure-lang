@@ -2,6 +2,11 @@
 ------------------------------------------------------------------------
 -- Soundness (docs/SOUNDNESS.md §1.4).
 --
+-- LEGACY DERIVATIONS, NOT AN APPLICABLE CERTIFICATE: Proof.InterfaceAudit
+-- refutes the joint coverage/builtin hypotheses and ClosedSig, as well as
+-- Conversion with ReduceConv. These parameters must be repaired before
+-- this module can be instantiated for an executable Core model.
+--
 --   Let `e` be a closed, hole-free, final-Core term with `· ⊢ e : T` for a
 --   closed type `T`. Then evaluation of `e` either reaches a value `v` with
 --   `· ⊢ v : T`; or raises; or diverges. In particular, evaluation never
