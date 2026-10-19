@@ -591,6 +591,33 @@ constructor result indices must be instantiated; branches must bind the last
 field at index zero as the evaluator does. `Certified` currently means only
 that unfoldable bodies are `Final` (hole/absurd-free), **not** that they terminate.
 
+**Forward-dependent spine foundation (not broad migration).**
+`Core.LocalFrame` now proves that declaration-order pushes implement a
+last-field-first simultaneous frame for arbitrary bodies, with parameter
+seeding and unchanged outer slots. The candidate `Core.Verification`
+operators use this frame and include result parameter/index instantiation.
+`Proof.LocalFrame` proves scoped local instantiation stable under ambient
+renaming/substitution. `Proof.DependentSpine.Spines.Checked` threads preceding
+values and requires entry scope, actual kinding and argument checking.
+Its scoping/arity and transport properties are checked; for closed entries
+it supplies the existing flat spine rule and a registered constructor example.
+
+Positive dependent/parameterized witnesses and negative type/scope/arity/
+kind controls live in `Proof.DependentSpineExamples`. A Type2 counterexample
+separates argument checking from declaration kinding: the old flat spine
+rule alone does not establish entry validity. Ten independent executable
+tests kernel-check genuine dependent declarations and positive programs
+before evaluation, checking indices, field/ambient order, lambda capture
+and parameter seeding. These tests use primitive Atom rather than requiring
+the Int facade's builtin bootstrap.
+
+The active soundness rules STILL use first-field-at-zero and individually
+closed entries/results. This foundation does not admit the dependent
+constructor through those rules. Parameters must be checked separately;
+the evaluator's parameter-spine filtering and missing erased-slot frame are
+outside the proved exact-arity fields-only contract. The typing/branch/
+preservation migration and executable refinement remain open.
+
 `Core.Coverage` is now connected to the active typing and proof consumers.
 `Proof.CoverageExamples` gives concrete Nat coverage in an environment also
 containing Bool and Void, without requiring unrelated Bool branches. It

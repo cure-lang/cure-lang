@@ -45,31 +45,28 @@ open import Core.Signature using (just-inj)
 ------------------------------------------------------------------------
 -- Substituting a list of constructor arguments into a branch body.
 --
--- LEGACY CORRESPONDENCE WARNING: the worker below binds the FIRST field
--- at index zero, unlike Eval.reduce_branch_body (LAST field at zero).
--- The historical explanation immediately below describes the intended
--- executable convention, not this worker's actual order. See
--- Core.Verification.instantiateFields and Proof.VerificationExamples.
+-- CORRESPONDENCE WARNING: argsSub consumes a de Bruijn-ordered environment
+-- prefix. The CURRENT substArgs passes surface-order fields unchanged,
+-- so the FIRST field is at zero, unlike Eval.reduce_branch_body (LAST at
+-- zero). Existing typing/branch proofs use that same first-field convention.
+-- Core.LocalFrame proves a forward-push/last-field-first interface, now
+-- used by the candidate Core.Verification API, not yet by this relation.
 --
--- The branch binds `arity` fields; `args` are the fields in surface order.
--- The LAST field is de Bruijn 0 (matching `Eval.reduce_branch_body`, which
--- binds `reverse(fields) ++ base_env`). This is a SIMULTANEOUS substitution
--- (`substS`), the presentation used throughout the development: field i
--- (counting the last as 0) replaces de Bruijn index i, and indices above the
--- fields are left unchanged.
+-- After consuming the prefix, remaining indices refer back to the caller
+-- context (the field count is removed), as argsSub-go-raise states.
 --
 -- The simultaneous form is not merely stylistic here: the former targeted
 -- definition (`substT` composed field-by-field) applied the substitutions in
 -- sequence, so a later `substT` could capture an earlier field inserted under
 -- a binder. One simultaneous substitution inserts every field at once, so no
--- field is re-scanned — matching the kernel's single `eval(body, reverse
--- fields ++ base_env)`.
+-- field is re-scanned. Agreement with the executable also needs the
+-- field-order/branch-context migration, parameter filtering and erased slots.
 ------------------------------------------------------------------------
 -- The simultaneous substitution of a branch's fields: `args` in surface
 -- order, the FIRST field at index 0 (matching `branch-field-vars ar =
 -- [0, …, ar-1]` and the branch context `extendTele Γ (ctor-args ct)`, whose
--- FIRST telescope entry is innermost). Indices at or above the field count
--- are fixed.
+-- FIRST telescope entry is innermost). Above-prefix indices return to the
+-- caller's context rather than retaining their field-offset indices.
 -- The worker is exposed at the top level (rather than `where`-bound) so the
 -- metatheory can reason about the shape of `argsSub`'s images: the first
 -- `length args` indices map to the fields, the rest to variables.

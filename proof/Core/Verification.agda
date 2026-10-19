@@ -2,8 +2,9 @@
 -- Candidate verification interfaces for the soundness repair.
 --
 -- These predicates have concrete instances in Proof.VerificationExamples.
--- Scoping and head-exposure remain prototypes, not a conversion checker,
--- termination theorem, or type-safety proof. Active case-local coverage is
+-- ScopedTele now supports Proof.DependentSpine's kind-checked judgment and
+-- the local frame has agreement proofs. Constructor/branch admission and
+-- head-exposure remain prototypes, not an executable refinement. Coverage is
 -- now in Core.Coverage and is required by Core.Typing's ⇒-case rule.
 ------------------------------------------------------------------------
 module Core.Verification where
@@ -19,6 +20,7 @@ open import Core.Grade using (Grade)
 open import Core.Syntax
 open import Core.Signature
 open import Core.Reduction
+import Core.LocalFrame as Frame
 
 -- Full-family coverage of THIS branch list. Indexed omission of an
 -- impossible constructor is deliberately not part of this first interface.
@@ -69,10 +71,18 @@ ScopedSignature ind sig =
 -- the last field has de Bruijn index zero. The legacy substArgs has the
 -- opposite convention and must not be used for this interface.
 instantiateFields : List Term → Term → Term
-instantiateFields fields body = substS (argsSub (reverse fields)) body
+instantiateFields = Frame.instantiateFields
 
 instantiateIndices : Ctor → List Term → List Term
-instantiateIndices ct fields = substTermsS (argsSub (reverse fields)) (ctor-indices ct)
+instantiateIndices ct fields = Data.List.map (Frame.instantiateFields fields) (ctor-indices ct)
+
+instantiateIndicesWithParameters : Ctor → List Term → List Term → List Term
+instantiateIndicesWithParameters ct parameters fields =
+  Frame.instantiateResults parameters fields (ctor-indices ct)
+
+instantiateParameters : Ctor → List Term → List Term → List Term
+instantiateParameters ct parameters fields =
+  Frame.instantiateResults parameters fields (ctor-params ct)
 
 -- An exposed head is reached by reduction, not identified with raw syntax.
 -- These are evidence types, NOT assumed reflection laws of an arbitrary

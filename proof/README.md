@@ -641,6 +641,44 @@ this fragment, while its candidate `ScopedFamily` witness remains inhabited.
 that full Cure signatures satisfy this closed-entry restriction.**
 Those dependent typing/scoping migrations and executable refinement remain open.
 
+### Checked forward-dependent spine foundation
+`Core.LocalFrame` models declaration-order arguments pushed into a
+most-recent-first frame. It proves agreement with reversed-field
+simultaneous substitution for **arbitrary bodies**, parameter-plus-field
+result instantiation, last-field-at-zero and preservation of outer slots.
+`Core.Verification` now uses that proved frame and exposes parameter-aware
+result-parameter/index instantiation.
+
+`Proof.LocalFrame` proves local declaration instantiation stable under
+ambient renaming/substitution, using the essential preceding-binder scope
+premise. `Proof.DependentSpine.Spines.Checked` requires scope, an actual kind
+derivation and argument checking for every instantiated entry, threading
+preceding values forward. It derives telescope scoping/arity and preserves
+the judgment under the existing context-morphism/coherent-substitution laws.
+For individually closed declarations it produces the ACTIVE flat spine
+judgment; an example feeds an existing registered constructor rule.
+
+`Proof.DependentSpineExamples` supplies `(A : Type0, x : A)` and
+parameter-seeded witnesses, result vectors, caller-variable transport and
+capture-avoidance under lambdas/nested branches. It rejects bad argument
+types, forward references, wrong arities and an ill-kinded `Type2` entry.
+A companion witness shows why the reverse adapter is not claimed: the old
+flat rule can check an argument at Type2 without proving Type2 itself has
+a kind. Scoping alone is not signature declaration validity.
+
+Ten independent tests in `test/cure/core/dependent_frame_correspondence_test.exs`
+kernel-check genuine dependent families, constructors and positive programs
+before evaluation. They pin result indices, first/last/ambient slots,
+captured fields under lambdas, parameter seeding and malformed inputs.
+Primitive Atom avoids depending on the modern Int facade's builtin seeding.
+
+**Migration boundary:** main constructor/data/branch rules and preservation
+still use the original closed-entry/first-field-at-zero calculus.
+The dependent judgment is not yet a constructor-admission rule or a
+replacement `ClosedFragmentSig`. Incoming parameters still need their own
+checking. Parameter-spine filtering, missing erased slots and full
+Eval/NbE correspondence are not proved by the frame algebra or these tests.
+
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;
