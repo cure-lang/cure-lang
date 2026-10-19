@@ -20,17 +20,43 @@ defmodule Cure.Core.DependentFrameCorrespondenceTest do
     box =
       Inductive.ctor(:FrameBox, [{:x, {:var, 0}}], [], [:unrestricted], [{:var, 1}])
 
+    dual = Inductive.family(:FrameDual, [{:A, {:type, 0}}, {:B, {:type, 0}}], [], 1)
+
+    pair =
+      Inductive.ctor(
+        :FramePair,
+        [{:x, {:var, 1}}, {:y, {:var, 1}}],
+        [],
+        [:unrestricted, :unrestricted],
+        [{:var, 3}, {:var, 2}]
+      )
+
+    indexed = Inductive.family(:FrameIndexed, [{:A, {:type, 0}}], [{:x, {:var, 0}}], 1)
+    witness = Inductive.ctor(:FrameWitness, [{:x, {:var, 0}}], [{:var, 0}], [:unrestricted], [{:var, 1}])
+    computed_index = {:app, {:lam, @g, {:var, 1}, {:var, 0}}, {:var, 0}}
+
+    computed =
+      Inductive.ctor(:FrameComputed, [{:x, {:var, 0}}], [computed_index], [:unrestricted], [{:var, 1}])
+
     env =
       Env.empty()
       |> Inductive.declare(packed, [pack])
       |> Inductive.declare(param_box, [box])
+      |> Inductive.declare(dual, [pair])
+      |> Inductive.declare(indexed, [witness, computed])
 
     assert :ok = Kernel.check_family(env, packed)
     assert :ok = Kernel.check_ctor(env, packed, pack)
     assert :ok = Kernel.check_family(env, param_box)
     assert :ok = Kernel.check_ctor(env, param_box, box)
 
-    {:ok, ctx: Context.empty(env)}
+    assert :ok = Kernel.check_family(env, dual)
+    assert :ok = Kernel.check_ctor(env, dual, pair)
+    assert :ok = Kernel.check_family(env, indexed)
+    assert :ok = Kernel.check_ctor(env, indexed, witness)
+    assert :ok = Kernel.check_ctor(env, indexed, computed)
+
+    {:ok, ctx: Context.empty(env), dual: dual, indexed: indexed}
   end
 
   test "a scoped field declaration still needs a valid kind", %{ctx: ctx} do
@@ -120,5 +146,75 @@ defmodule Cure.Core.DependentFrameCorrespondenceTest do
 
     wrong_goal = {:data, :FrameParamBox, [{:float_type}], []}
     assert {:error, _reason} = Kernel.check(ctx, constructor, Eval.eval(wrong_goal, []))
+  end
+
+  test "two distinct parameter types seed two fields without reversing surface order", %{ctx: ctx} do
+    goal = {:data, :FrameDual, [@carrier, {:float_type}], []}
+    constructor = {:ctor, :FramePair, [{:atom_lit, :payload}, {:float_lit, 0.5}]}
+
+    assert :ok = Kernel.check(ctx, constructor, Eval.eval(goal, []))
+
+    first =
+      {:let, @g, goal, constructor, {:case, {:var, 0}, {:lam, @g, goal, @carrier}, [{:FramePair, 2, {:var, 1}}]}}
+
+    last =
+      {:let, @g, goal, constructor, {:case, {:var, 0}, {:lam, @g, goal, {:float_type}}, [{:FramePair, 2, {:var, 0}}]}}
+
+    assert {:ok, {:vatom_type}} = Kernel.infer(ctx, first)
+    assert {:vatom, :payload} = Eval.eval(first, [])
+    assert {:ok, {:vfloat_type}} = Kernel.infer(ctx, last)
+    assert {:vfloat, 0.5} = Eval.eval(last, [])
+  end
+
+  test "swapping distinct expected parameter types rejects the same field values", %{ctx: ctx} do
+    constructor = {:ctor, :FramePair, [{:atom_lit, :payload}, {:float_lit, 0.5}]}
+    wrong_goal = {:data, :FrameDual, [{:float_type}, @carrier], []}
+
+    assert {:error, _reason} = Kernel.check(ctx, constructor, Eval.eval(wrong_goal, []))
+  end
+
+  test "a result index depends on the checked parameter and field", %{ctx: ctx} do
+    constructor = {:ctor, :FrameWitness, [{:atom_lit, :payload}]}
+    goal = {:data, :FrameIndexed, [@carrier], [{:atom_lit, :payload}]}
+    wrong_goal = {:data, :FrameIndexed, [@carrier], [{:atom_lit, :different}]}
+
+    assert :ok = Kernel.check(ctx, constructor, Eval.eval(goal, []))
+    assert {:error, _reason} = Kernel.check(ctx, constructor, Eval.eval(wrong_goal, []))
+  end
+
+  test "a computed dependent result index is instantiated before conversion", %{ctx: ctx} do
+    constructor = {:ctor, :FrameComputed, [{:atom_lit, :payload}]}
+    goal = {:data, :FrameIndexed, [@carrier], [{:atom_lit, :payload}]}
+    wrong_goal = {:data, :FrameIndexed, [@carrier], [{:atom_lit, :different}]}
+
+    assert :ok = Kernel.check(ctx, constructor, Eval.eval(goal, []))
+    assert {:error, _reason} = Kernel.check(ctx, constructor, Eval.eval(wrong_goal, []))
+  end
+
+  test "scoped but swapped result parameters fail uniformity", %{ctx: ctx, dual: dual} do
+    constructor =
+      Inductive.ctor(
+        :FrameNonUniform,
+        [{:x, {:var, 1}}, {:y, {:var, 1}}],
+        [],
+        [:unrestricted, :unrestricted],
+        [{:var, 2}, {:var, 3}]
+      )
+
+    assert {:error, {:non_uniform_parameter, %{position: 0}}} =
+             Kernel.check_ctor(Context.signature(ctx), dual, constructor)
+  end
+
+  test "a result index must type-check under the declared parameter and field", %{ctx: ctx, indexed: indexed} do
+    constructor =
+      Inductive.ctor(
+        :FrameBadIndex,
+        [{:x, {:var, 0}}],
+        [{:float_lit, 0.5}],
+        [:unrestricted],
+        [{:var, 1}]
+      )
+
+    assert {:error, _reason} = Kernel.check_ctor(Context.signature(ctx), indexed, constructor)
   end
 end

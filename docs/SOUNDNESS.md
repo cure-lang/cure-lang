@@ -607,7 +607,7 @@ it supplies the existing flat spine rule and a registered constructor example.
 Positive dependent/parameterized witnesses and negative type/scope/arity/
 kind controls live in `Proof.DependentSpineExamples`. A Type2 counterexample
 separates argument checking from declaration kinding: the old flat spine
-rule alone does not establish entry validity. Ten independent executable
+rule alone does not establish entry validity. Sixteen independent executable
 tests kernel-check genuine dependent declarations and positive programs
 before evaluation, checking indices, field/ambient order, lambda capture
 and parameter seeding. These tests use primitive Atom rather than requiring
@@ -644,6 +644,39 @@ admit the genuine dependent constructor through the active rules.
 Parameters must be checked separately. The evaluator's parameter-spine
 filtering, missing erased-slot frame and full executable refinement remain
 outside the proved exact-arity fields-only contract.
+
+**Typed declaration-to-frame bridge — constructed, not admission migration.**
+`Proof.DependentInstantiation` adds forward local `Declared` telescopes:
+each entry has preceding-binder scope and an actual kind derivation in its
+declaration context. `Arguments` checks the actual spine at prefix-instantiated
+types without asking again for those kinds. `instantiate` derives both the
+existing kind-checked dependent-spine judgment and a coherent substitution
+from the final declaration context into the caller.
+
+`coherent-push` realizes a fresh declaration binder by an actual term without
+adding a caller binder. Arguments must be final, because checking-only holes
+need not infer their types; neither a value nor termination premise is added.
+`result-frame` composes checked parameter and field frames, and
+`instantiate-result⇒` / `instantiate-result⇐` prove that locally typed terms
+AND their types remain typed after parameter-plus-field instantiation.
+The proof reuses the current conditional substitution theorem, not an
+assumed dependent-preservation law.
+
+The examples include `(A : Type0, x : A)`, two distinct Atom/Float parameters,
+computed-index typing/conversion, reducible actual parameters, and closed/open
+lambda capture avoidance.
+Bad parameter order, kind, scope and arity are rejected; an explicit
+checking-only hole demonstrates why finality cannot be inferred from
+argument checking. Six additional executable regressions kernel-check
+distinct parameter/field frames, dependent/computed result indices, result
+parameter uniformity and result-index typing.
+
+This establishes typed LOCAL instantiation over the existing inhabited
+closed-signature baseline. It does not admit dependent global declarations,
+prove family/field universe bounds or uniform result parameters, validate
+whole dependent result vectors, or replace the active constructor/data/branch
+rules. Those admission obligations and full dependent preservation remain
+open, alongside parameter filtering, erased slots and implementation refinement.
 
 `Core.Coverage` is now connected to the active typing and proof consumers.
 `Proof.CoverageExamples` gives concrete Nat coverage in an environment also

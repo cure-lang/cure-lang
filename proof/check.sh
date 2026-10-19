@@ -78,6 +78,8 @@ MODULES=(
   Proof/ReductionConversionExamples Proof/SoundnessModel
   Proof/LocalFrame Proof/DependentSpine Proof/DependentSpineExamples
   Proof/FieldOrderExamples
+  Proof/DependentInstantiation
+  Proof/DependentInstantiationExamples
 )
 
 fail=0

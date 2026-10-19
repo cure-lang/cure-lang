@@ -668,7 +668,7 @@ A companion witness shows why the reverse adapter is not claimed: the old
 flat rule can check an argument at Type2 without proving Type2 itself has
 a kind. Scoping alone is not signature declaration validity.
 
-Ten independent tests in `test/cure/core/dependent_frame_correspondence_test.exs`
+Sixteen independent tests in `test/cure/core/dependent_frame_correspondence_test.exs`
 kernel-check genuine dependent families, constructors and positive programs
 before evaluation. They pin result indices, first/last/ambient slots,
 captured fields under lambdas, parameter seeding and malformed inputs.
@@ -707,6 +707,44 @@ confluence example separately distinguishes two Nat values.
 This completes the exact-arity CLOSED-entry order migration, not dependent
 constructor/data admission, parameter-spine filtering, missing erased slots,
 η, erasure simulation or full evaluator refinement.
+
+### Typed dependent declaration instantiation
+`Proof.DependentInstantiation.Telescopes.Declared` records a forward-extended
+local declaration context with preceding-binder scope and a checked kind for
+every entry. It derives telescope scoping and the final context size.
+`Arguments` checks actual arguments using the accumulated local prefix,
+without repeating the entry-kind premises.
+
+`Instantiation.instantiate` derives the existing `DependentSpine.Checked`
+judgment AND a coherent substitution into the complete declaration context.
+Its `coherent-push` lemma replaces one declaration binder by an actual term
+without extending the caller context. Actual arguments must be `Final`:
+checking-only holes do not in general infer their expected types. No value
+or termination premise is required.
+
+`result-frame` checks parameters first, then seeds field checking with their
+reversed local frame. `instantiate-result⇒` and `instantiate-result⇐` transport
+ANY locally typed term and its type through the parameter-plus-field frame.
+These are typed substitution theorems, stronger than the earlier untyped
+frame equalities, but they still use the existing closed-signature
+preservation infrastructure.
+
+`Proof.DependentInstantiationExamples` supplies `(A : Type0, x : A)`,
+parameter/field result typing, two distinct Atom/Float parameters and fields,
+computed-index typing/conversion, reducible actual parameters, closed/open
+caller capture avoidance and checking-mode transport. It rejects swapped parameter frames, forward
+references, bad arities and ill-kinded declarations even when argument
+checking alone succeeds. A checking-only hole explicitly refutes automatic
+argument finality.
+
+The executable frame suite adds six kernel-checked regressions for distinct
+parameters and field projections, dependent and computed result indices,
+parameter uniformity and result-index typing. **Uniform result parameters,
+family/field universe bounds, dependent result-vector admission and a
+dependent registered signature are not established by these new theorems.**
+Active constructor/data/branch rules and their soundness hypotheses have not
+been broadened. Full dependent preservation and executable refinement remain
+open; no runtime/library source changes are involved.
 
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
