@@ -13,15 +13,16 @@
 -- reasons — it is a property of `Value`, not of branching — and has been
 -- removed; see Proof/SoundnessConfluence.agda and docs/CONFLUENCE.md.)
 --
--- The Tait–Martin-Löf method resolves it: define a PARALLEL reduction `_⇉_`
--- that contracts ALL redexes of a term in one step, prove the DIAMOND property
--- for `_⇉_`, and read confluence of `_⇝_` off the two inclusions
+-- This historical WIDE parallel relation has multi-step body premises.
+-- It supplies checked simulation machinery, NOT the strong diamond.
+-- Core.StrictParallel defines genuinely one-step parallel reduction;
+-- Proof.StrictConfluence proves its strong diamond and closure confluence.
 --
 --     _⇝_  ⊆  _⇉_        (every single step is a parallel step)
 --     _⇉_  ⊆  _⇝*_       (every parallel step is a sequence of single steps)
 --
--- This module defines `_⇉_` and the two inclusions. The diamond property
--- lives in Proof/Confluence.agda.
+-- This module defines `_⇉_` and the two checked inclusions. It has no
+-- dependency on Proof.Confluence or any unchecked recursion.
 --
 -- `_⇝_`'s spine congruences are ELEMENT-INDEXED (`ξ-ctor-at` / `ξ-data-*-at`,
 -- a `Fin` into the spine), which is what makes `⇉ ⊆ ⇝*` provable: a parallel

@@ -1,255 +1,137 @@
 # Confluence of the Cure Core reduction relation
 
-**Status: local literal arities repaired; termination checking still open.**
-The old impossible `LiteralArity` parameter has been removed from `Conf`.
-Each small-step and parallel literal rule now carries its branch-arity
-witness, and progress derives that witness from checked branches.
-`Proof.LiteralCases` exercises valid and malformed arities and instantiates
-a genuine reduction peak with a concrete `ClosedBody` signature.
+**Status: specification confluence is termination-checked, with no bypasses.**
+`Proof.Confluence.Conf.confluence` retains its original statement and the
+`ClosedBody sig` hypothesis. It now factors through genuine one-step parallel
+reduction, a strong diamond, and a structurally checked closure theorem.
+The small-step relation, literal-arity constraints and field convention have
+not been changed. No new postulates, unchecked options or termination
+pragmas are used. The proof uses the existing function-extensionality root
+through the substitution algebra; no classical principle is needed.
 
-All four former `TERMINATING` pragmas in `Core.Parallel` have been eliminated.
-Its spine lifters and parallel-to-small-step simulation are now structurally
-termination-checked. One pragma remains in `Proof.Confluence`, an unresolved
-trust obligation inventoried by `proof/scripts/check-hygiene.py`.
-Guard success is not a proof of that remaining recursion. The historical account below
-describes the derivations, not a completed trusted certification:
-`⇉-substS` (the substitution-commutation lemma), `⇉-diamond` (the diamond
-property), and `confluence : _⇝_` are all **proved** in
-`proof/Proof/Confluence.agda`, which type-checks clean (no holes, no new
-postulates) and is in the build (`proof/check.sh`). The development lives in
-`proof/` (Agda 2.8.0) alongside the soundness argument (`docs/SOUNDNESS.md`).
+This is confluence of the **formal reduction specification**, not executable
+NbE correctness or full kernel soundness. Dependent telescope/result
+instantiation, executable field order, a full reduction-compatible conversion
+model, η, erasure simulation and semantic totality remain separate obligations.
 
-## Why confluence
+## Why the old recursion was not a proof
 
-Historically, a classical three-way soundness statement
-(`docs/SOUNDNESS.md` §1.4, `proof/Proof/Soundness.agda`) was derived from
-two named classical inputs. The
-second, `never-reached→no-value`, was originally expected to follow from
-confluence, but is false for this relation and has been removed (see below).
-The relation is **not deterministic** (`(λx. b) a` both β-reduces and reduces under
-the λ), so confluence is not immediate.
+The historical `Core.Parallel._⇉_` permits multi-step reductions in β/ζ body
+premises and in branch bodies. The old function called `⇉-diamond` returned
+multi-step joins. That conclusion is **local confluence**, not a strong
+one-step diamond. Without termination or a stronger argument, local
+confluence cannot simply be iterated to prove confluence.
 
-## The method
+The old `⇉-diamond-star` recursively consumed generated joining paths rather
+than structurally smaller inputs. Its `TERMINATING` pragma suppressed a real
+missing argument. That implementation and its unchecked mutual block have
+been removed, not renamed, hidden behind a new assumption, or moved elsewhere.
 
-The Tait–Martin-Löf method, via the **parallel reduction** `_⇉_`
-(`proof/Core/Parallel.agda`):
+Creating a redex by substitution does not require contracting that new redex
+in the same parallel step. A congruence step can leave it intact. This is why
+a properly defined one-step substitution lemma suffices.
 
-1. `⇉-diamond` — `⇉` has the diamond property;
-2. `⇝ ⊆ ⇉` (`⇝→⇉`) and `⇉ ⊆ ⇝*` (`⇉→⇝*`) turn the diamond into confluence of
-   `_⇝_`.
+## The checked construction
 
-The crux is the **substitution commutation lemma** `⇉-substS`: parallel
-reduction is closed under substitution. It is stated **multi-step** (`_⇉*_`)
-because substituting into a neutral value can produce a redex.
+### `Core.StrictParallel`
+`_⇛_` has only **single-step** recursive premises, including branch bodies.
+It covers β, ζ, ordinary constructor ι, all four compact-literal ι rules, δ,
+and every structural congruence. Literal branch arities are enforced by the
+actual lookup shape; ordinary constructor ι retains its local length witness.
+There is no `Star` premise in its constructors.
 
-## KEY FINDING (this slice): the `Value` side conditions are vestigial
+The two simulation directions are checked:
+- `from-small-star` translates an original small-step path to `Star _⇛_`.
+- `to-small` translates `Star _⇛_` back to the original small-step closure.
 
-Earlier formulations carried a `Value` side condition on β/ζ in **both**
-`_⇝_` (`Core/Reduction.agda`) and `_⇉_` (`Core/Parallel.agda`), mirroring the
-kernel's `Eval.apply(vlam, varg)`. This was believed to be load-bearing for
-Preservation's β/ζ cases (via `value-infer`), and it was the *sole* source of
-the hard `substS-Value-or-redex` case analysis in the substitution lemma —
-because `⇉-substS` then had to show `Value (substS σ a)`, which substitution
-does not preserve.
+The inclusion for a SINGLE original small step is deliberately into the
+strict-parallel **closure**, not one strict step: `ξ-case-brs` may carry an
+arbitrarily long finite path in each branch. `from-small-branches` handles
+these paths structurally, and `at-star` handles non-head spine updates.
+No original reduction rule was weakened to obtain a simpler inclusion.
 
-**The side conditions are not needed.** Inspection of the actual proofs shows:
+`embed` maps each strict step into the historical wide parallel relation,
+using only `Core.Parallel`'s independently checked simulation. The dependency
+does not involve the removed confluence implementation or any typing model.
 
-- `preserve-β` (`Proof/Preservation.agda`) never uses `Value a` — it applies
-  `substTop⇐` to the argument's *checking* derivation `da : Γ ⊢ a ⇐ d`
-  directly.
-- `preserve-ζ` used `Value v` only to call `value-infer`, but the general
-  `check-infer` (a hole-free term that checks infers its type) subsumes it, and
-  hole-freeness is supplied by the `Final t` hypothesis the preservation
-  induction already threads.
+### `Proof.StrictConfluence`
+The `Laws sig closed` module assumes exactly that a body returned by
+`Signature.body` is closed. It derives:
+- `rename-step`, including binder and branch renaming;
+- `substitute`, with a **single strict-step conclusion** for pointwise
+  strict-step substitutions, including β/ζ, every ι rule and δ;
+- `substitute-top` and `substitute-args`, including argument duplication;
+- `lookup-step`, preserving first-match branch identity and arity;
+- `diamond`, with **one strict step on both joining sides**;
+- the pointwise term-list and branch-list strong diamonds.
 
-So the `Value` premises were **removed** from `_⇝_`'s `β`/`ζ` and `_⇉_`'s
-`p-β`/`p-ζ`. Consequences:
+All recursive calls in the diamond consume subderivations. Selected branch
+bodies are transported along the already constructed branch-list join;
+they are not passed back into an unchecked join recursion.
 
-- `_⇉_` is now **value-free**, so `⇉-substS` is the **standard textbook proof**:
-  no `substS-Value-or-redex`, no neutral/canonical case analysis, and `p-rename`
-  needs no `Canonical`/`Neutral`/`Value` transport (it is a plain structural
-  recursion).
-- The whole existing development (`Core/*`, `Proof/*` including Progress,
-  Preservation, FinalPreservation, Soundness) type-checks **green** with the
-  value-free rules — verified by `proof/check.sh`.
+### `Core.Relation`
+`Diamond R` requires one-step joins. `Closure.strip` recurses only on its
+input path; `Closure.confluent` recurses only on the first input path.
+Both are checked independently of the strict-parallel proof. The actual
+proved `diamond` supplies the parameter: there is no new diamond oracle.
 
-This is the single most important simplification of the confluence work: it
-removes the entire hard case.
+Combining these results with both simulation directions gives confluence of
+the **unchanged** original `_⇝_`. `normal-forms-unique` is a checked corollary.
+`Proof.Confluence.Conf` exposes this implementation under the existing
+`confluence` entry point and `ClosedBody` interface.
+The useful wide-parallel entry points `⇉-diamond`, `⇉-diamond-star` and
+`⇉-confluent` are retained as consequences of this checked theorem and
+both old simulation inclusions, not as unchecked closure recursion.
 
-## What is done (all green, no new postulates)
+## Regression witnesses
 
-### `Core/Reduction.agda`
-- `_⇝_`'s `β`/`ζ` are **value-free** (`β : tm-app (tm-lam g d b) a ⇝ substTopT a b`,
-  `ζ : tm-let g ty v b ⇝ substTopT v b`).
-- `_⇝_`'s spine congruences are **element-indexed** (`ξ-ctor-at`,
-  `ξ-data-params-at`, `ξ-data-indices-at`), using `len`/`lookupAt`/`setAt`
-  (`Core/Syntax.agda`).
-- `ξ-case-brs` (case reduces its branch bodies) with `_⇝*ᵇ_`.
-- `findBranch-substBranchesS`, `findBranch-rename`.
+`Proof.ConfluenceExamples` checks:
+- β versus simultaneous reduction of the body and argument;
+- one-step substitution of a reducible argument into two occurrences;
+- a two-step branch path whose first β contraction exposes a new redex,
+  together with a refutation of compressing that path into one strict step;
+- ordinary ι versus branch reduction and two distinct constructor fields,
+  including a non-head field update;
+- all four compact-literal peels and wrong-arity rejection in strict parallel;
+- an inhabited, nonempty recursive δ table and its confluence instance;
+- normal-form uniqueness using two nontrivial β/ζ paths.
 
-### `Core/Parallel.agda`
-- `_⇉_` (β/ζ/ι/δ + all congruences) is **value-free**; `_⇉*_`, `_⇉*ᵗ_`,
-  `_⇉*ᵇ_`, `_⇉*ᵗ*_`.
-- `⇝→⇉`, `⇉→⇝*` (both inclusions) — now simpler, with no value premises.
-- Multi-step congruence lifters `⇉*-*`.
-- Position-indexed spine lifters `p-ctor-at`/`⇉*-at-ctor`,
-  `p-data-*-at`/`⇉*-at-data-*`, and the prefix-accumulator lifters
-  `⇉*-ctor*`/`⇉*-data-*-*`.
-- `findBranch-⇉*ᵇ`.
+`Proof.LiteralCases` retains valid/malformed arity checks for small-step and
+wide parallel reduction, and its literal/branch peak now invokes the checked
+confluence theorem. `Proof.SpineLifting` retains the independent non-head,
+symbolic-alignment and simulation regressions.
 
-All definitions in this module are now termination-checked. The two generic
-spine lifters `⇉*-at-spine` and `⇝*-at-spine` take a source-alignment
-equation separately from the path and recurse on the unchanged tail. The old
-definitions transported that tail before recursing, hiding the decrease.
-The six position-indexed wrappers retain their original statements.
-`Proof.SpineLifting` covers two-step non-head updates for constructors and
-both data spines, unchanged neighbouring fields, zero-step paths, symbolic
-source alignment, and conversion of a lifted parallel path to small steps.
+The field-order example deliberately pins the current formal convention:
+**the first field is at zero**. It is not a claim that the executable's
+last-field-at-zero convention has been reconciled. The recursive δ example
+likewise demonstrates that closedness is **not** termination.
 
-### `Proof/Substitution.agda`
-- `subst-argsSub`, `rename-substArgs`, and the rename/subst interaction laws.
+## Scope and trust
 
-### `Proof/Preservation.agda`, `Proof/Progress.agda`,
-### `Proof/FinalPreservation.agda`
-- Updated to the value-free rules: `preserve-ζ` now takes only `HoleFree v`
-  (not `Value v`) and uses `check-infer`; the `β`/`ζ` call sites in `progress`
-  and `final-preservation` drop the value witness.
+`proof/scripts/check-hygiene.py` now allows **no** check-bypass pragmas in
+any proof module. Its regression tests reject reintroducing the retired
+confluence override as well as bypasses in either parallel module or the
+closure machinery. `proof/check.sh` checks all modules and fails on warnings.
+The named-postulate guard still permits exactly `funext` and `tree-decides`;
+module hypotheses and implementation correspondence must be assessed
+separately. Passing these guards alone is not a kernel soundness certificate.
 
-### `Proof/Confluence.agda` (IN the tree and the build)
+The reduction is not deterministic, but confluence does not imply
+normalization. The theorem applies even to the closed recursive δ table in
+the examples. It assumes no `Final`, `Certified`, typing, conversion,
+positivity, global coverage or literal-arity oracle.
 
-The module type-checks clean (no holes, no new postulates) and contains, all
-**proved**:
+## Why confluence does not rescue the old classical soundness input
 
-- `⇉-substS-refl` and its list helpers `⇉-substS-refl-terms` /
-  `⇉-substBranchesS-refl` — the `⇉-refl` case of the substitution lemma, a
-  **pure structural recursion on the term** (no redex can be created), which is
-  what makes the termination of the main lemma structural.
-- `⇉-extSub`, `⇉-extSub^`, `p-rename`, `p-rename-terms`, `p-rename-brs`,
-  `p-rename-star`, `length-renameTerms` — `⇉` commutes with renaming, a plain
-  structural recursion (no value transport).
-- **`⇉-substS` — the substitution-commutation lemma, ALL cases proved**: every
-  congruence, the **β/ζ cases** (standard, value-free), **all five ι cases**
-  (`p-ι`, `p-ι-nat-zero`, `p-ι-nat-suc`, `p-ι-bounded-zero`,
-  `p-ι-bounded-suc`), and δ.
-- `⇉-substS-star`, `⇉-substS-terms`, `⇉-substS-terms-refl`,
-  `⇉-substBranchesS`, `⇉-substS-ctor-tail*`, `length-substTermsS`.
-- **`substTopT-⇉*`** (with `topSub-⇉`) — `substTopT` commutes with a
-  MULTI-step parallel reduction: `a ⇉* a′ → b ⇉* b′ → substTopT a b ⇉*
-  substTopT a′ b′`. This is the lemma the diamond's β/ζ redex cases need
-  (the argument's reduct is reached in several steps, which the single-step
-  hypothesis of `⇉-substS-star` cannot consume).
+The removed `never-reached→no-value` input is false for this reduction,
+which reduces under binders. Let `Ω = (λx. x x) (λx. x x)`. Then `Ω ⇝ Ω`,
+and `tm-lam g d Ω` is a canonical `Value` that steps to itself forever.
+It also reaches itself, a value, in zero steps. Thus `Value` does not mean
+"cannot step". Confluence does not change that counterexample.
 
-This is the crux the plan identified. **It is done.**
-
-### `⇉-diamond` and `confluence` (also in `Proof/Confluence.agda`)
-
-- **`⇉-diamond`** — the diamond property of `_⇉_`, with MULTI-step
-  conclusions (`t ⇉ u → t ⇉ v → ∃ w → u ⇉* w × v ⇉* w`). All cases proved:
-  the same-constructor cases; the `p-ctor`/`p-ctor-head`/`p-ctor-tail`
-  cross cases (via the ctor-spine diamond `⇉-diamond-ctor`, whose witness is
-  a `tm-ctor`); `p-δ`/`p-δ` (bodies equal by `just-inj`); the β/ζ redex cases
-  (via **`substTopT-⇉*`**); the ι redex cases (via **`substArgs-⇉*ᵗ*`**); and
-  the redex-vs-congruence cases (β vs `p-app`, ζ vs `p-let`, ι vs `p-case`,
-  and the literal peels vs `p-case`).
-- Supporting: `⇉-diamond-star` (multi-step), `⇉-diamond-terms`,
-  `⇉-diamond-brs`, `⇉-diamond-ctor`, `ctor-of-step`, `ctor-spine`,
-  `⇉-ctor-spine`, `ctor-inj`, `ctor-spine-rewrite`, `⇉-ctor-terms`,
-  `⇉*-ctor-tail`, `findBranch-⇉*ᵇ-eq`, `findBranch-⇉*ᵇ-rev`,
-  `findBranch-unique`, `substTopT-⇉*`, `substArgs-⇉*`, `substArgs-⇉*ᵗ*`,
-  `argsSub-⇉`, `argsSub-go-⇉*`, `⇉-substS-refl*`, `⇉-substS-star*`.
-- **`confluence : _⇝_`** — `_⇝_` is confluent, from `⇉-confluent` (= the
-  diamond, iterated) and the two inclusions `⇝→⇉*` / `⇉→⇝*-star`.
-
-The literal-arity premise is now locally enforced and inhabitable.
-The remaining confluence override must still be eliminated before calling the
-confluence development complete.
-
-## FINDING: `never-reached→no-value` is false as stated
-
-With `confluence` proved, the natural next step is to discharge the classical
-input `never-reached→no-value` in `Proof/Soundness.agda`. **It cannot be
-discharged, because it is false** for the mechanised `_⇝_`:
-
-- `_⇝_` reduces UNDER BINDERS (`ξ-lam-body`, `ξ-pi-cod`, `ξ-let-body`).
-- Let `Ω = (λx. x x) (λx. x x)`. Then `Ω ⇝ Ω` (β, since
-  `substTopT Ω (x x) = Ω`), so `Ω` diverges.
-- `tm-lam g d Ω` is CANONICAL (`c-lam`), hence a `Value`, and it steps to
-  itself via `ξ-lam-body (Ω ⇝ Ω)`. So `NeverReached (tm-lam g d Ω) T` holds.
-- But `tm-lam g d Ω ⇝* tm-lam g d Ω` (refl) with `Value (tm-lam g d Ω)`.
-
-So `never-reached→no-value` would give `⊥` from a consistent hypothesis. The
-root cause is that `Value` (canonical/neutral) does NOT mean "cannot step":
-a canonical λ with a diverging body is a `Value` that steps forever. The
-statement is only true if "value" means a term that has FINISHED evaluating
-(a stuck-free normal form), which is a strictly stronger predicate than
-`Value`.
-
-This is a comment on the SOUNDNESS development's classical input, not on
-confluence: the false classical input is a separate issue from the
-remaining termination obligations in `confluence`. Discharging
-`never-reached→no-value` would require either (a) a reduction relation that
-does not reduce under binders, or (b) a stronger "final value" predicate in
-the statement.
-
-## What remains
-
-**Termination checking remains in the confluence development.** The
-literal-arity migration is complete and all parallel helper overrides are
-removed. The one override on the confluence recursion is not a proof of
-total recursion. In particular, a joinability
-conclusion for a single parallel peak must not be lifted to arbitrary
-multi-step confluence using unchecked recursion on generated witnesses.
-The classical input `never-reached→no-value` formerly in
-`Proof/Soundness.agda` **cannot** be discharged using `confluence`, because
-it is FALSE as stated for the mechanised `_⇝_` (see the finding above).
-
-**RESOLVED (repair, not discharge).** `proof/Proof/SoundnessConfluence.agda`
-replaces the false input by its true form, over NORMAL FORMS rather than
-`Value`, and is proved with **zero new postulates**:
-
-- `NormalForm t` — `t` admits no reduction step (strictly stronger than
-  `Value`: every λ is a `Value`, but only a λ with a normal body is a
-  `NormalForm`);
-- `never-reached-not-nf` — a never-reaching tree is not a normal form. This
-  is the honest form of the input: the original said "no VALUE is
-  reachable" (false); "no NORMAL FORM is reachable" follows immediately
-  from `NeverReached`'s step at every node;
-- `DivergesNF` / `never-reached→divergesNF` — positive divergence over
-  normal forms, by guarded corecursion;
-- `soundness-nf` — the dichotomy `Reached ⊎ DivergesNF`, leaving
-  `tree-decides` (LPO) as the ONLY classical input.
-
-**The false postulate has been DELETED** from `Proof/Soundness.agda`,
-together with the classical three-way `soundness` that depended on it. The
-development has exactly two explicit named postulates: `funext` and
-`tree-decides` (`proof/scripts/check-postulates.sh` enforces this).
-Module parameters and the remaining confluence termination override are additional trust
-obligations; the current full soundness interfaces are separately refuted
-in `Proof.InterfaceAudit` (see `docs/SOUNDNESS.md` §8).
-
-**A second negative result, recorded in that module.** The tempting
-strengthening "reaches a NORMAL-FORM value, or diverges" is NOT provable
-from `soundness-tree`. A `Reached` leaf supplies only `Value v`, and
-`progress⇐` at `v` returns `Value v` again on its `inj₁` branch — never
-`NormalForm v`. `tm-lam g d Ω` is exactly such a `Value` (reached in zero
-steps, and still stepping). So the first disjunct stays `Reached` as-is.
-
-**Also worth recording:** "a value's reduct is a value" is not available as a
-shortcut either. It is not refuted by β — the redex `tm-app (tm-lam …) a` is
-neither `Canonical` nor `Neutral` (there is no `Canonical` rule for `tm-app`,
-and `n-app` requires a NEUTRAL head, while `tm-lam` is canonical), so it is
-not a `Value` at all. But the lemma is not needed: `soundness-nf` above is
-proved without it, and the `Ω` counterexample concerns a value stepping to
-VALUES (`ξ-lam-body`), not to non-values.
-
-## Notes
-
-- No termination override remains in `Core/Parallel.agda`; the hygiene
-  guard rejects their reintroduction. One remains in `Proof/Confluence.agda`,
-  whose explanation is not a substitute for machine-checked termination.
-- The WIP `Confluence.agda` is now **in the tree and the build**
-  (`proof/check.sh`); it type-checks clean with no holes and no new postulates.
-  The durable local-arity regressions are in `Proof/LiteralCases.agda`;
-  session-local intermediate snapshots are not required to reproduce them.
-- **Do not re-introduce the `Value` side conditions.** They are not needed and
-  they re-create the `substS-Value-or-redex` obligation.
+`Proof.SoundnessConfluence` instead supplies `NormalForm`,
+`never-reached-not-nf`, positive `DivergesNF`, and the repaired outcome
+statement over the existing conditional soundness tree. Its `Reached`
+disjunct still promises a value, not a normal-form value. No false postulate
+is reinstated by this confluence repair, and the full executable soundness
+model remains open.

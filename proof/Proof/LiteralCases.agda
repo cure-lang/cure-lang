@@ -131,8 +131,8 @@ wrong-next-parallel-rejected (Par.p-case _ _ _) ()
 
 -- A genuine peak: contract the literal case first, or reduce its branch's
 -- let first. Conf now has a concrete ClosedBody instance and no impossible
--- literal-arity parameter. The one remaining confluence termination
--- override is audited; this example does not discharge that obligation.
+-- literal-arity parameter. The confluence theorem now uses the checked
+-- strong diamond of strict parallel reduction, with no bypass.
 branch-let : Term
 branch-let = tm-let unrestricted tm-int_type result (tm-var 0)
 
@@ -146,8 +146,7 @@ literal-peak-joins =
     (⇝*-step (ι-nat-zero refl refl) ⇝*-refl)
     (⇝*-step (ξ-case-brs (⇝ᵇ-cons (⇝*-step ζ ⇝*-refl) ⇝ᵇ-nil)) ⇝*-refl)
 
--- Independently build the same join without invoking the legacy
--- confluence recursion or any termination override.
+-- Independently build the same join without invoking confluence.
 literal-peak-joins-direct :
   ∃ λ w → _⇝*_ empty-sig branch-let w × _⇝*_ empty-sig z-case w
 literal-peak-joins-direct =

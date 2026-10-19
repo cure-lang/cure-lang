@@ -32,19 +32,24 @@ class HygieneTest(unittest.TestCase):
     def test_new_check_bypass_is_rejected(self):
         self.assertTrue(HYGIENE.inspect_source("Proof/Example.agda", "{-# TERMINATING #-}"))
 
-    def test_legacy_overrides_must_match_exact_counts(self):
+    def test_no_bypass_allowlist_remains(self):
+        self.assertEqual(HYGIENE.LEGACY_OVERRIDES, {})
+
+    def test_retired_confluence_override_cannot_be_reintroduced(self):
         path = "Proof/Confluence.agda"
         source = "{-# TERMINATING #-}\n"
-        self.assertEqual(HYGIENE.inspect_source(path, source), [])
+        self.assertEqual(HYGIENE.inspect_source(path, "module Proof.Confluence where"), [])
+        self.assertTrue(HYGIENE.inspect_source(path, source))
         self.assertTrue(HYGIENE.inspect_source(path, source + "{-# TERMINATING #-}"))
         self.assertTrue(HYGIENE.inspect_source(path, source.replace("TERMINATING", "NON_TERMINATING", 1)))
 
     def test_parallel_module_cannot_reintroduce_a_termination_override(self):
-        path = "Core/Parallel.agda"
-        self.assertEqual(HYGIENE.inspect_source(path, "module Core.Parallel where"), [])
-        for pragma in ("TERMINATING", "NON_TERMINATING", "NO_TERMINATION_CHECK"):
-            with self.subTest(pragma=pragma):
-                self.assertTrue(HYGIENE.inspect_source(path, "{-# " + pragma + " #-}"))
+        for path in ("Core/Parallel.agda", "Core/StrictParallel.agda",
+                     "Core/Relation.agda", "Proof/StrictConfluence.agda"):
+            self.assertEqual(HYGIENE.inspect_source(path, ""), [])
+            for pragma in ("TERMINATING", "NON_TERMINATING", "NO_TERMINATION_CHECK"):
+                with self.subTest(path=path, pragma=pragma):
+                    self.assertTrue(HYGIENE.inspect_source(path, "{-# " + pragma + " #-}"))
 
     def test_safe_options_are_explicit(self):
         self.assertEqual(

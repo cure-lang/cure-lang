@@ -34,9 +34,9 @@ literal reduction steps carry local arity witnesses. Successful
 compilation of the existing parameterised Progress/Preservation/soundness
 modules does **not** establish an applicable kernel soundness theorem.
 Their conditional derivations are not completed executable certification.
-One termination-check override remains in `Proof.Confluence`, separate from
-the two named postulates. All four former `Core.Parallel` overrides have
-been eliminated by structurally checked spine lifting. See §8.
+No termination-check overrides remain. `Proof.Confluence` now uses a
+strong one-step parallel diamond and checked strip/closure recursion.
+This establishes specification confluence, not executable soundness. See §8.
 
 ---
 
@@ -519,8 +519,8 @@ form), `DivergesNF` + `never-reached→divergesNF` (positive divergence), and
 `never-reached→no-value` and the `soundness` built on it have been
 **REMOVED** from `Proof/Soundness.agda`; the development now rests on exactly
 two named postulates, `funext` and `tree-decides`. This count does not include
-module parameters, conversion record fields, or the remaining
-termination-check override in `Proof.Confluence`. The former `LiteralArity` oracle was refuted
+module parameters or conversion record fields. No termination-check
+override remains in confluence or elsewhere. The former `LiteralArity` oracle was refuted
 and removed from active confluence; its old shape is kept as a negative
 regression in `Proof.InterfaceAudit`. Note also that the tempting
 strengthening "reaches a NORMAL-FORM value, or diverges" is *not* provable
@@ -575,8 +575,9 @@ that an uninhabitable theorem interface is useful.
   branches and builtin telescopes. `Conf` no longer takes this impossible
   parameter. `Proof.LiteralCases` checks valid steps, rejects malformed
   arities in both relations, and instantiates a real confluence peak with a
-  concrete closed-body signature. One termination override remains in
-  confluence, so this is not a fully trusted confluence completion.
+  concrete closed-body signature. Confluence now has a checked strong
+  diamond/closure proof with no termination override; it remains a theorem
+  about the formal specification, not executable refinement.
 
 Further correspondence repairs are required: dependent spine tails and
 constructor result indices must be instantiated; branches must bind the last
@@ -638,9 +639,21 @@ derivation. All six constructor/data spine wrappers and the complete
 parallel-to-small-step simulation are termination-checked. `Proof.SpineLifting`
 exercises two real reduction steps at a non-head position, unchanged neighbour
 fields/opposite data spines, zero-step paths, symbolic alignment, and simulation.
-The guard now forbids any bypass from being reintroduced in `Core.Parallel`.
-The single `TERMINATING` pragma in `Proof.Confluence` remains unresolved;
-guard success does not prove that recursion terminates.
+The guard now forbids any check bypass anywhere in the proof tree.
+`Proof.Confluence`'s final override has been eliminated by redesign, not
+by assuming termination or another diamond. `Core.StrictParallel` uses only
+one-step premises, including branch bodies. `Proof.StrictConfluence` proves
+one-step substitution and a strong diamond; `Core.Relation` separately
+checks strip/closure recursion on the input paths. Both simulations recover
+confluence of the unchanged small-step relation with the original
+`ClosedBody` hypothesis. `ξ-case-brs` still admits arbitrary finite body
+paths, translated to strict-parallel closure rather than one strict step.
+`Proof.ConfluenceExamples` includes β/ζ overlaps, duplication, a newly
+exposed branch redex that cannot be compressed to one strict step, distinct
+fields/non-head updates, all literal peels and malformed arities, recursive
+δ, and normal-form uniqueness. No typing/conversion/termination oracle is
+used by this confluence theorem. Executable field order, full conversion
+compatibility and the other soundness/refinement obligations remain open.
 
 ### Item-by-item evidence
 

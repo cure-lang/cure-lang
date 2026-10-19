@@ -40,9 +40,9 @@ development.
 > **zero postulates**. The whole development now rests on exactly **two**
 > named postulates: `funext` (standard function extensionality) and
 > `tree-decides` (LPO on the outcome path). This inventory does not account
-> for the remaining model/refinement obligations or the one `TERMINATING`
-> pragma in `Proof.Confluence`. The four former `Core.Parallel` overrides
-> have been eliminated; its lifters and simulation are termination-checked.
+> for the remaining model/refinement obligations. All five historical
+> termination overrides are eliminated. Confluence now uses a strong
+> strict-parallel diamond and checked closure recursion.
 >
 > **Correction.** An earlier revision derived a classical three-way
 > `soundness` from a second input, `never-reached→no-value`. That input is
@@ -125,7 +125,7 @@ its connection to certified unfolding remain unproved here.
 | `Proof.Preservation` | `weaken`, `subst⇒`, `subst⇐`, `check-infer`, `preservation` | ✅ **fully proved** (all cases incl. β/ζ/ι/δ) |
 | `Proof.FinalPreservation` | `substS-final` (closure of `Final` under a final substitution); `final-preservation` | ✅ **proved** |
 | `Proof.Soundness` | `EvalResult`; `soundness-fuel` (constructive); `Diverges`/`EvalTree`/`soundness-tree` (coinductive); `tree-decides` (the only classical input) | ✅ **`soundness-fuel` and `soundness-tree` proved**; the classical `soundness` and its false postulate were **removed** (see `Proof.SoundnessConfluence`) |
-| `Proof.Confluence` | Parallel reduction `⇉` (value-free); the substitution-commutation lemma `⇉-substS` (all cases), `p-rename`, the diamond `⇉-diamond`, and `confluence : _⇝_` | ✅ **complete** (`⇉-substS`, `⇉-diamond`, `confluence` all proved) |
+| `Proof.Confluence` | Exposes `Proof.StrictConfluence` under the original `Conf sig ClosedBody` interface | Specification confluence checked without bypasses; not executable refinement |
 | `Proof.SoundnessConfluence` | `NormalForm`; `never-reached-not-nf` (the TRUE form of classical input 3, over normal forms); `DivergesNF` + `never-reached→divergesNF`; `soundness-nf` — the dichotomy `Reached ⊎ DivergesNF`, leaving `tree-decides` as the only classical input | ✅ **complete** (zero postulates; replaces the false `never-reached→no-value`) |
 
 ## Status
@@ -557,12 +557,11 @@ Preservation's β/ζ cases. Inspection of the actual proofs shows it is **not**:
   hole-freeness comes from the `Final t` hypothesis the induction threads.
 
 So the `Value` premises were **removed** from `_⇝_`'s `β`/`ζ` and `_⇉_`'s
-`p-β`/`p-ζ`. The whole development still type-checks green. The payoff is for
-the confluence development (`docs/CONFLUENCE.md`): `_⇉_` is now **value-free**,
-so its substitution-commutation lemma is the standard textbook proof with no
-`substS-Value-or-redex` case analysis, and `p-rename` needs no
-`Canonical`/`Neutral`/`Value` transport. **Do not re-introduce the side
-conditions.**
+`p-β`/`p-ζ`. The strict-parallel `_⇛_` used for confluence is also value-free.
+Its one-step substitution proof needs no `substS-Value-or-redex` case
+analysis or value transport. The older wide `_⇉_` remains checked
+simulation machinery, not the strong-diamond relation.
+**Do not re-introduce the side conditions.**
 
 ### Structural erasure with administrative let collapse
 - **Structural erasure with let collapse is idempotent.** `Proof.Erase`
@@ -586,8 +585,9 @@ conditions.**
 - The frozen historical `LiteralArity` is uninhabited; it is no longer an
   active confluence parameter.
 
-These are refutations, not additional axioms. Do not interpret successful
-compilation of the legacy soundness/confluence modules as applicable proofs.
+These are refutations, not additional axioms. Successful compilation alone
+does not establish full soundness-model applicability. The independent
+specification confluence theorem now has a checked, inhabited interface.
 
 The local literal-arity repair is connected to the existing proof consumers:
 small-step and parallel literal rules require arity witnesses, and progress
@@ -595,8 +595,8 @@ derives these from the actual checked branches and builtin constructor
 telescopes. Renaming, substitution, finality, preservation, and confluence
 are migrated. `Proof.LiteralCases` contains positive/negative rule tests
 and a concrete confluence peak using only an inhabited `ClosedBody`
-signature parameter. The remaining confluence termination override still
-needs a checked proof.
+signature parameter. That confluence theorem now has a termination-checked
+strong-diamond/closure proof with no bypass.
 
 ### Active case-local coverage
 `Core.Coverage` defines `CaseCoverage ind family branches`, required by the
@@ -676,6 +676,32 @@ neighbours and opposite data spines, zero-step paths, symbolic alignment,
 and conversion of a lifted parallel path to small steps. This proof layer
 does not use the confluence theorem or any of the refuted typing hypotheses.
 The hygiene guard forbids reinstating any parallel-module check bypass.
+
+### Termination-checked specification confluence
+The last `Proof.Confluence` override is removed. `Core.StrictParallel`
+defines `_⇛_` with only one-step recursive premises, including branch bodies.
+`Proof.StrictConfluence` proves one-step renaming/substitution and a strong
+diamond with one joining step on each side. `Core.Relation` derives closure
+confluence using strip/closure recursion on input paths, not generated joins.
+The proved diamond supplies that generic theorem's parameter.
+
+`Proof.Confluence.Conf.confluence` retains its original small-step statement
+and `ClosedBody` hypothesis. Both simulations are checked; original
+`ξ-case-brs` paths remain arbitrary finite paths and translate into
+strict-parallel closure. No small-step rule was weakened, no termination
+oracle was added, and the old wide-parallel relation is used only for its
+checked simulation. The unchecked implementation and its obsolete helper
+API are replaced by the strict laws, not retained as trusted derivations.
+The wide-parallel `⇉-diamond`, `⇉-diamond-star` and `⇉-confluent` entry
+points remain as checked consequences, with a compatibility regression.
+
+`Proof.ConfluenceExamples` exercises β/ζ overlaps, argument duplication,
+newly exposed branch redexes, distinct fields/non-head updates, literal peels
+and malformed arities, recursive δ, and normal-form uniqueness.
+The recursive signature makes explicit that closedness is not termination.
+These are raw specification results, independent of typing/conversion.
+Full executable field-order and NbE correspondence remain open.
+The hygiene allowlist is empty: no bypass pragma is accepted anywhere.
 
 ### Inert effects
 `Proof.EffectInert` proves one-step inversion and arbitrary finite-step

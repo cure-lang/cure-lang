@@ -58,10 +58,11 @@ fi
 MODULES=(
   Core/Grade Core/Universe Core/Syntax Core/Value Core/Reduction
   Core/Signature Core/Coverage Core/TypeHeads Core/Typing Core/ClosedFragment Core/Parallel
+  Core/Relation Core/StrictParallel
   Proof/Values Proof/Inversion Proof/CanonicalForms Proof/Substitution
   Proof/Context
   Proof/Progress Proof/Preservation Proof/FinalPreservation Proof/Soundness
-  Proof/Confluence Proof/SoundnessConfluence Proof/Erase
+  Proof/StrictConfluence Proof/Confluence Proof/SoundnessConfluence Proof/Erase
   Proof/InterfaceAudit Proof/EffectInert
   Core/Verification Proof/VerificationExamples
   Proof/LiteralCases
@@ -70,6 +71,7 @@ MODULES=(
   Proof/ClosedFragmentExamples
   Proof/ConversionModel
   Proof/ConversionExamples
+  Proof/ConfluenceExamples
 )
 
 fail=0

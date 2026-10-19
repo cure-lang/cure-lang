@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Guard proof trust mechanisms, independently of successful type-checking.
 
-The reviewed legacy termination overrides remain obligations, not proofs.
+No termination overrides are allowed.
 This scanner is a regression guard, not an Agda parser or consistency proof.
 """
 
@@ -12,9 +12,7 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
-LEGACY_OVERRIDES = {
-    "Proof/Confluence.agda": Counter({"TERMINATING": 1}),
-}
+LEGACY_OVERRIDES = {}
 POSTULATE_BLOCKS = {
     "Core/Syntax.agda": 1,
     "Proof/Soundness.agda": 1,

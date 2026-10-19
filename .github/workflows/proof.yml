@@ -16,12 +16,14 @@ on:
     paths:
       - "proof/**"
       - "docs/SOUNDNESS.md"
+      - "docs/CONFLUENCE.md"
       - ".github/workflows/proof.yml"
   pull_request:
     branches: [main]
     paths:
       - "proof/**"
       - "docs/SOUNDNESS.md"
+      - "docs/CONFLUENCE.md"
       - ".github/workflows/proof.yml"
 
 jobs:
