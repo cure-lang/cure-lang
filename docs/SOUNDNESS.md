@@ -672,11 +672,46 @@ distinct parameter/field frames, dependent/computed result indices, result
 parameter uniformity and result-index typing.
 
 This establishes typed LOCAL instantiation over the existing inhabited
-closed-signature baseline. It does not admit dependent global declarations,
-prove family/field universe bounds or uniform result parameters, validate
-whole dependent result vectors, or replace the active constructor/data/branch
-rules. Those admission obligations and full dependent preservation remain
-open, alongside parameter filtering, erased slots and implementation refinement.
+closed-signature baseline. The typed-frame theorem alone does not validate
+complete result declarations; the next checkpoint adds that local evidence.
+It still does not admit dependent global declarations or replace the active
+constructor/data/branch rules.
+
+**Local dependent result declarations — evidence and transport constructed.**
+`Proof.DependentResult` packages kind-checked parameter/index/field
+telescopes, scoped result vectors, field-universe bounds, syntactically uniform
+result parameters and kind-checked result spines in `LocalDeclaration`.
+`LevelsBelow` refers to actual field-kind derivations, not a raw signature's
+`universe-ok`/`positive` booleans. This is local declaration evidence rather
+than a verified implementation of the global admission checker.
+
+`ResultSpines` checks parameter vectors before dependent index vectors and
+derives exact arities. `subst-result-spines` transports both vectors and
+their dependencies through coherent substitution. `uniform-instantiates`
+proves that result parameter slots instantiate EXACTLY to supplied
+parameters. `instantiate-results` combines those results with the checked
+parameter/field frame, producing a whole checked computed-index spine under
+the same actual parameters. It reuses existing, inhabited conditional
+substitution laws; no dependent-preservation oracle is added.
+
+The examples include `D(A : Type0; x : A, B : Type0, y : B)`, distinct
+Atom/Float actual types, computed indices and open caller variables.
+Wrong index/parameter types, missing/surplus indices, an undersized field
+budget and typed-but-nonuniform parameters have negative controls.
+The adapter `active-result-kind` supplies current data formation ONLY when
+the family's parameter/index entries are individually closed and a real
+lookup succeeds. A registered Bounded example exercises it; the genuinely
+dependent local family's closedness requirement is explicitly refuted.
+
+Eight additional independently kernel-checked executable tests cover
+whole dependent/computed result vectors, prior-index dependencies,
+well-typed mismatch, arity, uniformity, field universes and scope.
+No runtime/kernel library source changes. Dependent global registration,
+recursive signature validity/positivity and broad dependent preservation
+remain open. The result theorems still rely on the current closed-signature
+substitution infrastructure; parameter filtering, erased slots, η,
+typed erasure simulation, totality and full implementation refinement are
+not established by these local declaration witnesses.
 
 `Core.Coverage` is now connected to the active typing and proof consumers.
 `Proof.CoverageExamples` gives concrete Nat coverage in an environment also

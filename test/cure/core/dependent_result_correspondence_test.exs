@@ -1,0 +1,99 @@
+defmodule Cure.Core.DependentResultCorrespondenceTest do
+  @moduledoc """
+  Executable evidence for local dependent result-declaration obligations.
+  Positive declarations and result types are kernel-checked independently.
+  This is not registration of dependent signatures in the Agda soundness model.
+  """
+  use ExUnit.Case, async: true
+
+  alias Cure.Core.{Context, Env, Eval, Grade, Inductive, Kernel}
+
+  @g Grade.unrestricted()
+  @carrier {:atom_type}
+  @fields [{:x, {:var, 0}}, {:B, {:type, 0}}, {:y, {:var, 0}}]
+  @indices [{:var, 2}, {:var, 1}, {:var, 0}]
+  @grades [:unrestricted, :unrestricted, :unrestricted]
+  @values [{:atom_lit, :payload}, {:float_type}, {:float_lit, 0.5}]
+  @goal {:data, :ResultChain, [@carrier], @values}
+
+  setup do
+    family = Inductive.family(:ResultChain, [{:A, {:type, 0}}], @fields, 1)
+    ctor = Inductive.ctor(:ResultMk, @fields, @indices, @grades, [{:var, 3}])
+    computed_x = {:app, {:lam, @g, {:var, 3}, {:var, 0}}, {:var, 2}}
+
+    computed =
+      Inductive.ctor(
+        :ResultComputed,
+        @fields,
+        [computed_x, {:var, 1}, {:var, 0}],
+        @grades,
+        [{:var, 3}]
+      )
+
+    env = Inductive.declare(Env.empty(), family, [ctor, computed])
+    assert :ok = Kernel.check_family(env, family)
+    assert :ok = Kernel.check_ctor(env, family, ctor)
+    assert :ok = Kernel.check_ctor(env, family, computed)
+    ctx = Context.empty(env)
+    assert {:ok, {:vtype, 1}} = Kernel.infer(ctx, @goal)
+
+    {:ok, ctx: ctx, env: env, family: family}
+  end
+
+  test "whole result vectors depend on parameters and preceding index values", %{ctx: ctx} do
+    assert :ok = Kernel.check(ctx, {:ctor, :ResultMk, @values}, Eval.eval(@goal, []))
+  end
+
+  test "a later index must have the type supplied by an earlier index", %{ctx: ctx} do
+    malformed =
+      {:data, :ResultChain, [@carrier], [{:atom_lit, :payload}, @carrier, {:float_lit, 0.5}]}
+
+    assert {:error, _reason} = Kernel.infer(ctx, malformed)
+  end
+
+  test "a well-typed but different result index does not match", %{ctx: ctx} do
+    different =
+      {:data, :ResultChain, [@carrier], [{:atom_lit, :different}, {:float_type}, {:float_lit, 0.5}]}
+
+    assert {:ok, {:vtype, 1}} = Kernel.infer(ctx, different)
+    assert {:error, _reason} = Kernel.check(ctx, {:ctor, :ResultMk, @values}, Eval.eval(different, []))
+  end
+
+  test "computed result indices use the full parameter and field frame", %{ctx: ctx} do
+    term = {:ctor, :ResultComputed, @values}
+
+    assert :ok = Kernel.check(ctx, term, Eval.eval(@goal, []))
+
+    assert {:vctor, :ResultComputed, [{:vatom, :payload}, {:vfloat_type}, {:vfloat, 0.5}]} =
+             Eval.eval(term, [])
+  end
+
+  test "missing and surplus result indices fail the declaration arity check", %{env: env, family: family} do
+    for indices <- [[{:var, 2}, {:var, 1}], @indices ++ [{:var, 0}]] do
+      ctor = Inductive.ctor(:ResultBadArity, @fields, indices, @grades, [{:var, 3}])
+      assert {:error, :index_arity} = Kernel.check_ctor(env, family, ctor)
+    end
+  end
+
+  test "well-kinded fields must still fit the declared family universe", %{env: env, family: family} do
+    small = %{family | level: 0}
+    ctor = Inductive.ctor(:ResultTooLarge, @fields, @indices, @grades, [{:var, 3}])
+
+    assert :ok = Kernel.check_family(env, small)
+    assert {:error, :universe_level} = Kernel.check_ctor(env, small, ctor)
+  end
+
+  test "a closed well-typed result parameter is not a uniform fresh parameter", %{env: env, family: family} do
+    assert {:ok, {:vtype, 0}} = Kernel.infer(Context.empty(env), @carrier)
+    ctor = Inductive.ctor(:ResultNonUniform, @fields, @indices, @grades, [@carrier])
+
+    assert {:error, {:non_uniform_parameter, %{position: 0}}} = Kernel.check_ctor(env, family, ctor)
+  end
+
+  test "a result declaration cannot reference beyond its local frame", %{env: env, family: family} do
+    ctor =
+      Inductive.ctor(:ResultForwardReference, @fields, [{:var, 4}, {:var, 1}, {:var, 0}], @grades, [{:var, 3}])
+
+    assert {:error, _reason} = Kernel.check_ctor(env, family, ctor)
+  end
+end

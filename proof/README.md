@@ -739,12 +739,54 @@ argument finality.
 
 The executable frame suite adds six kernel-checked regressions for distinct
 parameters and field projections, dependent and computed result indices,
-parameter uniformity and result-index typing. **Uniform result parameters,
-family/field universe bounds, dependent result-vector admission and a
-dependent registered signature are not established by these new theorems.**
+parameter uniformity and result-index typing. Those typed-frame theorems
+alone do not validate complete result declarations; the following checkpoint
+adds LOCAL uniformity, universe-bound and result-vector evidence.
 Active constructor/data/branch rules and their soundness hypotheses have not
 been broadened. Full dependent preservation and executable refinement remain
 open; no runtime/library source changes are involved.
+
+### Local dependent result declarations
+`Proof.DependentResult.Results.LocalDeclaration` ties one family/constructor
+to kind-checked parameter, index and field telescopes, scoped result vectors,
+field-universe bounds, uniform result parameters and checked result spines.
+`LevelsBelow` constrains the levels in the actual field-kind derivations;
+raw `universe-ok`/`positive` booleans are not used to supply that evidence.
+This is a local certificate shape, not global signature registration.
+
+`ResultSpines` checks result parameters first, then dependent indices seeded
+with those parameters; it derives both vector arities. `subst-result-spines`
+transports the WHOLE judgment through a coherent substitution, including
+dependencies between earlier and later indices. `uniform-instantiates`
+proves the fresh parameter slots instantiate to the caller's supplied
+parameters exactly, not merely up to conversion. `instantiate-results`
+combines the typed parameter/field frame with these facts to produce checked
+computed indices under those same actual parameters.
+
+`Proof.DependentResultExamples` uses a local family
+`D(A : Type0; x : A, B : Type0, y : B)`, distinct Atom/Float actual types,
+computed result syntax and open caller variables. Missing/surplus indices,
+wrong parameter/index types, and an undersized field budget are rejected.
+A typed-but-swapped parameter vector fails the separate uniformity premise.
+The concrete declaration witnesses and all transport laws are inhabited
+over the existing soundness model, without adding axioms or changing it.
+
+`active-result-kind` connects result spines to existing data formation ONLY
+for registered families with individually closed parameter/index entries.
+The examples exercise this adapter on registered Bounded and explicitly
+refute its closedness premise for the genuinely dependent local family.
+Consequently no dependent global constructor is silently admitted through
+the old rules.
+
+Eight independent tests in
+`test/cure/core/dependent_result_correspondence_test.exs` kernel-check the
+corresponding declarations and positive result types. They exercise whole
+dependent/computed vectors, prior-index type dependencies, well-typed result
+mismatch, exact result arity, universe bounds, non-uniform parameters and
+out-of-frame references. No kernel/runtime implementation changes are made.
+Recursive signature validity/positivity, global registration, broad dependent
+typing/preservation and executable refinement remain open. These theorems
+still use the current closed-signature substitution infrastructure.
 
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe

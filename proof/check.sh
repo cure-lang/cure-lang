@@ -80,6 +80,8 @@ MODULES=(
   Proof/FieldOrderExamples
   Proof/DependentInstantiation
   Proof/DependentInstantiationExamples
+  Proof/DependentResult
+  Proof/DependentResultExamples
 )
 
 fail=0
