@@ -1,30 +1,177 @@
-STATE: the mechanised soundness development is essentially complete. All 16
-modules type-check clean under Agda 2.8.0. `preservation` is FULLY PROVED
-(zero postulates in Proof/Preservation.agda), and all three forms of the
-soundness theorem are proved: `soundness-fuel` (fuel-indexed),
-`soundness-tree` (coinductive), and `soundness` (classical).
+STATE: the mechanised soundness development is complete. All 19 modules
+type-check clean under Agda 2.8.0. `preservation` is FULLY PROVED (zero
+postulates in Proof/Preservation.agda), and the soundness theorems are
+proved: `soundness-fuel` (fuel-indexed) and `soundness-tree` (coinductive)
+in Proof/Soundness.agda, and `soundness-nf` (the classical dichotomy,
+`Reached ⊎ DivergesNF`) in Proof/SoundnessConfluence.agda.
 
-The ONLY remaining postulates are:
+The ONLY remaining postulates are TWO:
   1. `funext` (Core/Syntax.agda) — the standard function-extensionality
      axiom, not derivable in intensional type theory. Intentional.
   2. `tree-decides` (Proof/Soundness.agda) — the outcome tree is finite or
      infinite. The tree is a PATH (each node has at most one child, because
      `progress` returns a specific reduct), so this is exactly LPO on that
      path — a classical principle, not constructive.
-  3. `never-reached→no-value` (Proof/Soundness.agda) — a never-reaching tree
-     has no reachable value. This needs CONFLUENCE of `_⇝_`, which is NOT
-     deterministic (`(λx. b) a` both β-reduces and reduces under the λ).
+
+DONE — the false postulate has been RETIRED (item (a) of the previous
+revision of this file).
+
+`never-reached→no-value` is GONE, along with the classical three-way
+`soundness` that depended on it. It was not merely unproved: it is
+REFUTABLE. The refutation:
+
+  * `progress⇐ (⇐-lam p q) = inj₁ (canonical c-lam)` (Proof/Progress.agda)
+    — a λ is ALWAYS reported as a `Value`, whatever its body does;
+  * `_⇝_` reduces UNDER BINDERS (`ξ-lam-body`, Core/Reduction.agda).
+
+So with `Ω = (λx. x x) (λx. x x)` (and `Ω ⇝ Ω` by β), the term
+`tm-lam g d Ω` is a canonical `Value` that steps to itself forever. It is
+`NeverReached`, yet it reaches a `Value` in zero steps. The postulate would
+derive `⊥` from a consistent hypothesis.
+
+Confluence cannot help: the counterexample is a value stepping to VALUES
+forever, which is a property of `Value` (canonical/neutral), not of the
+reduction's branching. (The shortcut "a value's reduct is a value" is not
+refuted by β — the redex `tm-app (tm-lam …) a` is not a `Value` at all,
+since `n-app` needs a NEUTRAL head and `tm-lam` is canonical — but it is
+also not needed: `soundness-nf` is proved without it.)
+
+The honest replacement, proved with zero postulates, replaces `Value` by the
+strictly stronger NORMAL FORM (Proof/SoundnessConfluence.agda):
+
+  * `NormalForm t` = `t` admits no reduction step ("finished evaluating");
+  * `never-reached-not-nf` — a never-reaching tree is not a normal form.
+    The TRUE form of the retired input: "no VALUE is reachable" is false;
+    "no NORMAL FORM is reachable" is immediate from `NeverReached`'s step
+    at every node;
+  * `DivergesNF` / `never-reached→divergesNF` — positive divergence over
+    normal forms, by guarded corecursion;
+  * `soundness-nf` — the dichotomy `Reached ⊎ DivergesNF`, leaving
+    `tree-decides` as the ONLY classical input.
+
+An honest negative result, also recorded in that module: the tempting
+strengthening "reaches a NORMAL-FORM value, or diverges" is NOT provable
+from `soundness-tree`. A `Reached` leaf supplies only `Value v`, and
+`progress⇐` at `v` returns `Value v` again on its `inj₁` branch — never
+`NormalForm v`. `tm-lam g d Ω` is exactly such a `Value`. So the first
+disjunct stays `Reached` as-is. The two disjuncts are also NOT mutually
+exclusive (`tm-lam g d Ω` inhabits both); only `NormalForm` and `DivergesNF`
+are.
 
 NEXT STEPS (in order of value):
-  (a) Prove `never-reached→no-value` by proving CONFLUENCE of `_⇝_` on
-      well-typed terms. This is a substantial but standard development
-      (parallel reduction + diamond, or the Tait–Martin-Löf method). It would
-      remove classical input 3 and make the `diverges` disjunct constructive
-      given only LPO.
-  (b) Replace `tree-decides` with a constructive alternative: since the tree
-      is a path, "finite or infinite" is LPO. A constructive replacement is
-      to keep the fuel-indexed / coinductive forms (already done) as the
-      primary deliverables, which is what the development now does.
-  (c) The other open items from docs/SOUNDNESS.md §8: erasure commutes with
-      reduction (§8.3); η / proof irrelevance; the NbE evaluator refines the
-      reduction relation.
+  (a) `tree-decides` remains LPO on the outcome path. The fuel-indexed and
+      coinductive forms are the constructive deliverables; no constructive
+      replacement for LPO itself is expected. This is the only remaining
+      classical input, and it is deliberate. NOT ACTIONABLE — leave it.
+  (b) docs/SOUNDNESS.md §8 items — STATUS after this slice:
+        §8.1 hole firewall: CLOSED.
+             Both `Emit` entry points guard with `reject_holes`;
+             `LiftModule.emit/1` routes through `Emit.compile_forms/3`, so
+             the lifted path is guarded too. Verified end-to-end:
+               * ordinary definition with a hole -> {:codegen_error,
+                 {:unfilled_hole, ...}} (E014);
+               * ACTOR handler body with a hole -> {:lift_module_error,
+                 %{cause: {:unfilled_hole, details}}} carrying the exact
+                 source span. (An earlier revision said actor holes were
+                 caught by macro expansion instead; that was wrong — it came
+                 from a malformed probe.)
+             Regression tests ADDED (test/cure/elab/emit_hole_firewall_test.exs,
+             3 new / 7 total green): ordinary refusal; actor-body refusal
+             asserting the :lift_module_error -> :unfilled_hole chain and the
+             span; and a CONTROL that a hole-free actor still compiles and
+             emits callable functions (handle_cast/2 -> {:noreply, 7}).
+             RETRACTED: the earlier "actor/sup modules emit NO functions"
+             claim was a false positive from inspecting a stale .beam —
+             `compile_and_load/2` does not persist bytecode, it only calls
+             `:code.load_binary`. Verify through the load path, never by
+             reading files on disk.
+
+        §8.2 certificate generation: NARROWED, NOT CLOSED.
+             `TotalityGraph.propose_partition/2` is untrusted by design;
+             `Kernel.validate_scc_certificates/4` calls
+             `SCCCertificate.verify_partition/2`, which RE-DERIVES the edge
+             set from the environment instead of trusting the proposal. The
+             verifier enforces universe/domain agreement, canonical component
+             ids, a strict topological rank, and spanning forward+reverse
+             trees. The SCC-SPLITTING attack (split `a -> b -> a` into
+             singletons so each looks terminating) is closed by the rank
+             check: ranks must be a permutation of 0..n-1 AND every
+             inter-component edge strictly decreasing, which no distinct
+             assignment satisfies for a 2-cycle in either orientation.
+             New: test/cure/core/scc_certificate_tamper_test.exs (6 tests)
+             forges partitions directly and asserts each is rejected FOR THE
+             INTENDED REASON. The prior property test covered only the honest
+             path.
+             RESIDUAL: NOT the matrices — an earlier revision wrongly said
+             the size-change matrices were assumed.
+             `Cure.Core.TotalityCertificate.verify/3` IS a trusted verifier:
+             it derives expected base matrices from
+             `Env.direct_call_summary` (independent of the candidate), replays
+             every `{:compose, l, r}` derivation by recomputing
+             `SizeChange.compose_edges` and requiring `same_edge?`, rejects
+             cyclic derivations, and checks saturation. It then requires an
+             idempotent edge with a smaller diagonal per recursive component.
+             The REAL residual is the TERMINATION THEOREM: the verifier
+             establishes "saturated closure with a smaller diagonal"; that
+             such a closure implies termination is the size-change principle
+             itself — the `Certified` hypothesis the Agda development
+             carries.
+
+        §8.3 erasure commutes with reduction: PARTIAL EVIDENCE (β, ζ, ι, δ,
+             congruence) — 20 tests in test/cure/elab/erase_test.exs.
+             It asserts
+                 erase(reduce(redex)) == reduce(erase(redex))
+             with both sides computed independently, on:
+               * β (3 tests): erased arg, present arg via identity body,
+                 nested redex;
+               * ζ (2 tests): the administrative identity `let x = v in x`
+                 (erasure collapses it to erase(v)), and a non-identity let
+                 whose binder erasure KEEPS;
+               * ι (2 tests): case on a nullary ctor, plus a test pinning that
+                 erase does NOT perform ι — it keeps a `:runtime` case and
+                 erases only inside it (only a COLLAPSIBLE case is dropped).
+             Three facts pinned by running them: erase RECURSES into an
+             application's argument; erase does NOT perform β or ι; and
+             erased-field dropping needs `ctor_quantities`, so the tests build
+             a real env (Env.empty() would keep all fields).
+             δ: NEGATIVE RESULT (2 more tests, 16 total). δ does NOT commute
+             with erasure and must not be expected to: erasure drops an
+             argument based on the CALLEE's signature, and after δ the callee
+             is gone. Concretely `certified_prim` takes two :erased params, so
+             erasing the CALL drops both (-> {:global, :certified_prim}), but
+             its body `prim` is NULLARY, so erasing the UNFOLDED form treats
+             the args as over-application and keeps them.
+             CONSEQUENCE: erasure must run on the UNFOLDED core (which the
+             pipeline does); "erasure commutes with δ" is the WRONG property
+             to prove. The right one: erasure is applied once, after
+             unfolding, so no δ step can invalidate it.
+             CONGRUENCE CASES (4 more tests, 20 total): asserts the
+             HOMOMORPHISM property directly — reducing a subterm then erasing
+             equals erasing the whole term then reducing the corresponding
+             erased subterm — for app (argument), lam (body), data (spine
+             element) and effect_bind (effect). Covers every ξ-rule at once.
+             Note erase performs NO reduction, so the erased subterm is still
+             a redex (verified by the non-vacuous assertions).
+             NOT MECHANISED. A real proof needs an Agda formalisation of
+             `Erase` — the Agda tree has NO `Erase` module, so that is a new
+             development, not an extension.
+
+        §8.4 effect fragment: unchanged (inert by design; a future monad law
+             would need re-argument).
+
+        §8.5 η / proof irrelevance: CHARACTERISED, NOT CLOSED.
+             The kernel's `Conv.conv_struct?/4` DOES perform η (`eta_eq?/4`,
+             λ-vs-non-λ and λ-vs-λ with grade equality). The mechanised
+             `Conversion` record in proof/Core/Typing.agda has NO η field.
+             This is a SCOPE LIMIT, not a soundness gap: η only makes
+             conversion coarser, and no proof obligation uses it (verified by
+             inspecting every `Conversion.≈-*` use site). The theorems hold
+             for a SUBSET of the kernel's conversion. Proof irrelevance
+             remains unmodelled.
+
+  (c) The NbE evaluator refines the reduction relation (docs/SOUNDNESS.md
+      §8, the "operational refinement" obligation). NOT STARTED — this is the
+      largest remaining item: the development formalises the reduction
+      RELATION (the spec), not the kernel's `Eval` function.
+
+

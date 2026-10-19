@@ -457,23 +457,40 @@ arguments. The four literal-peel variants additionally use a compact-literal
 identification on the `Conversion` record (`tm-ctor "Z" [] ≈ tm-nat_lit 0`,
 etc.), mirroring the kernel's `Eval.nat_to_ctor`/`bounded_to_ctor`.
 
-The classical three-way statement §1.4 is now a **theorem**, derived from
-two precisely-named classical inputs: `tree-decides` (the outcome tree is
-finite or infinite — LPO on the path, since `progress` is deterministic) and
-`never-reached→no-value` (a never-reaching tree has no reachable value).
-The constructive `soundness-tree` is the replacement for the second input,
-with the `reached` outcome inhabiting the classical first disjunct.
+The constructive soundness theorems are **proved**: the fuel-indexed
+`soundness-fuel` and the coinductive `soundness-tree`
+(`proof/Proof/Soundness.agda`). The classical statement is `soundness-nf`
+(`proof/Proof/SoundnessConfluence.agda`), the dichotomy
+`Reached ⊎ DivergesNF` over NORMAL FORMS, resting on ONE classical input:
+`tree-decides` (the outcome tree is finite or infinite — LPO on the path,
+since `progress` is deterministic).
 
-**Correction (confluence slice).** Confluence of `_⇝_` is now MECHANISED
-(`proof/Proof/Confluence.agda`: `confluence : _⇝_`), but it does NOT
-discharge `never-reached→no-value` — that input is **false as stated** for
-the mechanised `_⇝_`, which reduces UNDER BINDERS (`ξ-lam-body`). Let
+**Correction (confluence slice).** An earlier revision derived a classical
+three-way `soundness` from a SECOND input, `never-reached→no-value` (a
+never-reaching tree has no reachable value). Confluence of `_⇝_` is now
+MECHANISED (`proof/Proof/Confluence.agda`: `confluence : _⇝_`), but it does
+NOT discharge that input — the input is **false as stated** for the
+mechanised `_⇝_`, which reduces UNDER BINDERS (`ξ-lam-body`). Let
 `Ω = (λx. x x) (λx. x x)`; then `Ω ⇝ Ω`, so `tm-lam g d Ω` is a canonical
 `Value` that steps to itself, hence `NeverReached` — yet
 `tm-lam g d Ω ⇝* tm-lam g d Ω` with `Value (tm-lam g d Ω)`. The statement
 would hold only if "value" meant a stuck-free NORMAL FORM (a term that has
 finished evaluating), which is strictly stronger than `Value`
 (canonical/neutral). See docs/CONFLUENCE.md for the full finding.
+
+**Repair (same slice).** `proof/Proof/SoundnessConfluence.agda` states and
+proves the TRUE form of the input over normal forms, with **zero new
+postulates**: `never-reached-not-nf` (a never-reaching tree is not a normal
+form), `DivergesNF` + `never-reached→divergesNF` (positive divergence), and
+`soundness-nf` — the dichotomy `Reached ⊎ DivergesNF`, which leaves
+`tree-decides` (LPO) as the only classical input. The false
+`never-reached→no-value` and the `soundness` built on it have been
+**REMOVED** from `Proof/Soundness.agda`; the development now rests on exactly
+two axioms, `funext` and `tree-decides`. Note also that the tempting
+strengthening "reaches a NORMAL-FORM value, or diverges" is *not* provable
+from `soundness-tree` (a `Reached` leaf supplies only `Value v`, and
+`progress⇐` at `v` returns `Value v` again), which is why the first disjunct
+stays `Reached`.
 
 ---
 
@@ -487,19 +504,166 @@ determined adversary should look first.
    inspection that no emission path bypasses `Emit.reject_holes/2`, and add a
    regression test asserting `cure compile` fails on a reachable `?goal` (the
    audit's §5.2 recommendation).
+   *Audited (this slice) — the firewall holds, and the audit's "running hole"
+   could not be reproduced.* Findings:
+   - Both `Emit` entry points guard: `compile_and_load/2` and
+     `compile_forms/3,5` each run `validate_emission_closure` then
+     `reject_holes` before any forms are built. `LiftModule.emit/1` routes
+     through `Emit.compile_forms/3`, so the lifted (macro-generated) path is
+     guarded too.
+   - A hole in an ordinary definition is refused: `pub fn probe(x: Int) ->
+     Int = ?probe` fails with **E014 / unfilled_hole**
+     (`{:codegen_error, {:unfilled_hole, …}}`).
+   - A hole in an `actor` handler body is refused **by the same firewall**,
+     reached through the lifted path: `LiftModule.emit/1` →
+     `Emit.compile_forms/3` → `reject_holes`, surfacing as
+     `{:lift_module_error, %{cause: {:unfilled_hole, details}}}` with the
+     exact source span of the hole. (An earlier revision of this note said
+     actor-body holes were caught only by macro expansion; that was wrong —
+     it came from a malformed probe whose body failed for an unrelated
+     reason.)
+   - **Regression tests added** (`test/cure/elab/emit_hole_firewall_test.exs`,
+     3 new tests, 7 total green): the ordinary-definition refusal end-to-end
+     through the real compiler; the actor-body refusal asserting the
+     `:lift_module_error` → `:unfilled_hole` chain and the hole's source
+     span; and a CONTROL asserting a hole-free actor still compiles and
+     emits callable functions (`handle_cast/2` returns `{:noreply, 7}`), so
+     the refusal cannot be an artifact of broken emission.
+   - **A retracted claim, recorded so it is not re-derived:** an earlier
+     revision of this note asserted that `actor`/`sup` modules emit NO
+     functions at all, based on finding a `.beam` in
+     `_build/…/.cure_generations/` that exported only `module_info/0,1`.
+     **That was wrong.** `Compiler.compile_and_load/2` deliberately does NOT
+     persist bytecode — it only loads into the VM
+     (`compile_and_load_units/2` calls `:code.load_binary`). The `.beam` files
+     on disk are unrelated artifacts, so inspecting them says nothing about
+     what was emitted. Actor emission works:
+     `test/cure/compiler/actor_family_raw_test.exs` calls the emitted
+     `handle_cast/2`, `init/1`, `start_link/1` and drives a real
+     `:gen_server` (5 tests, green).
 2. **Certificate generation is sound.** §5.3(2): the SCC closure in
    `Cure.Elab.TotalityGraph` is outside the TCB. A bug there is invisible to the
    kernel. This is the highest-value item to audit or move into the TCB.
+   *Audited (this slice) — the design does NOT trust the proposer, and the
+   verifier is tested against forged partitions.* Findings:
+   - `TotalityGraph.propose_partition/2` is explicitly untrusted: it only
+     *proposes* an SCC partition plus witnesses. `Kernel.validate_scc_certificates/4`
+     first calls `SCCCertificate.verify_partition/2`, which **re-derives the
+     edge set from the environment** (`Env.direct_call_summary`) rather than
+     trusting `certificate.edges` — so a proposer cannot hide a call edge
+     (`:direct_edges_mismatch`).
+   - The verifier independently enforces: universe/domain agreement, no
+     duplicate or missing members, canonical component ids, a strict
+     topological rank (`:rank_not_decreasing`), and spanning forward+reverse
+     trees inside each component (`:tree_edge_count`, `:tree_not_spanning`).
+     A shrunken universe is caught with the omitted callee and a verified
+     path (`:totality_scc_incomplete`, e.g. `verified_path: [:a, :b]`).
+   - **The SCC-splitting attack is closed by the rank check.** Splitting a
+     genuine cycle `a -> b -> a` into singleton components would make each
+     look trivially terminating. Ranks must be a permutation of `0..n-1`
+     (`:rank_not_total`), and every inter-component edge must be strictly
+     rank-decreasing — which no distinct rank assignment can satisfy for a
+     2-cycle, in either orientation. So the verifier re-derives mutual
+     reachability from the edges alone. Verified for both `%{a: 0, b: 1}`
+     and `%{a: 1, b: 0}`.
+   - New tests: `test/cure/core/scc_certificate_tamper_test.exs` (6 tests)
+     forge partitions directly, bypassing `TotalityGraph`, and assert each is
+     rejected **for the intended reason** (not merely "some error"), so the
+     tests cannot pass vacuously. The existing
+     `totality_certificate_property_test.exs` covered only the honest path.
+   - **The size-change matrices ARE verified — an earlier revision of this
+     note wrongly said they were assumed.** `Cure.Core.TotalityCertificate.verify/3`
+     is a trusted verifier that: derives the expected base matrices from
+     `Env.direct_call_summary` (independent of the candidate, so a proposer
+     cannot submit a wrong base edge — `:invalid_base_derivation`); replays
+     every `{:compose, left, right}` derivation by recomputing
+     `SizeChange.compose_edges` and requiring `same_edge?`
+     (`:composition_mismatch`); rejects cyclic derivations
+     (`:cyclic_derivation`); and checks saturation — every composable pair of
+     edges must have its composite present (`:not_saturated`). It then
+     requires an idempotent edge with a smaller diagonal for each recursive
+     component (`{:not_total, …}` otherwise).
+   - **The real residual is the TERMINATION THEOREM, not the matrices.** The
+     verifier establishes "this closure is saturated and has a smaller
+     diagonal". That such a closure implies termination is the size-change
+     principle itself — carried as the `Certified` hypothesis in the Agda
+     development. So §8.2 is narrowed to: SCC discovery is verifier-checked
+     and tamper-tested, matrix composition and saturation are verifier-checked,
+     and the size-change *principle* remains an assumed theorem.
 3. **`Erase.erase` preserves the operational semantics.** Erasure is assumed to
    drop only `:erased`-graded binders, which the relevance check enforces — but
    the argument here does not prove erasure commutes with reduction.
+   *Partial executable evidence (β, ζ, ι).* `test/cure/elab/erase_test.exs`
+   asserts the commutation property — `erase(reduce(redex)) ==
+   reduce(erase(redex))` — with both sides computed independently, on:
+
+   - **β** (`describe "erasure commutes with β-reduction"`, 3 tests): an
+     erased argument, a present argument through an identity body, and a
+     nested redex;
+   - **ζ** (`describe "erasure commutes with ζ-reduction"`, 2 tests): the
+     administrative identity `let x = v in x`, which erasure collapses to
+     `erase(v)`, and a non-identity `let` whose binder erasure KEEPS (the
+     value must still be evaluated once);
+   - **ι** (`describe "erasure commutes with ι-reduction"`, 2 tests): a case
+     on a nullary constructor, plus a test pinning that `erase` does NOT
+     perform ι — it keeps a `:runtime` case and erases only inside it (a
+     COLLAPSIBLE case, whose sole constructor's fields are all erased, is the
+     one that is dropped).
+
+   Running them pinned three facts worth recording: `erase` **recurses into
+   an application's argument**; `erase` does **not** perform β or ι (it
+   preserves `{:app, {:lam, …}}` and `:runtime` cases); and the erased-field
+   dropping depends on `ctor_quantities` being available, so the tests build a
+   real env rather than using `Env.empty()`.
+
+   - **δ — a NEGATIVE result, and the most substantive finding here.** δ does
+     NOT commute with erasure, and must not be expected to. Erasure drops an
+     argument when the *callee's signature* marks that position erased; after
+     δ the callee is gone (the head is the body), so those positions can no
+     longer be identified. Concretely: `certified_prim` takes two `:erased`
+     parameters, so erasing the CALL `certified_prim(cs)(es)` drops both and
+     yields `{:global, :certified_prim}`; but its body `prim` is NULLARY, so
+     erasing the UNFOLDED form treats the two arguments as over-application
+     and keeps them. Two tests pin this (`describe "erasure and
+     δ-reduction"`).
+     *Consequence for the argument:* erasure must run on the **unfolded**
+     Core — which is what the pipeline does — and "erasure commutes with δ"
+     is the **wrong property to prove**. The right one is that erasure is
+     applied once, after unfolding, so no δ step can invalidate it.
+
+   - **Congruence cases** (`describe "erasure is a homomorphism over the term
+     formers"`, 4 tests): the ξ-rules reduce a SUBTERM, and erasure recurses
+     structurally into exactly those positions. The tests assert the
+     homomorphism property directly — reducing a subterm then erasing equals
+     erasing the whole term then reducing the corresponding erased subterm —
+     for `app` (argument position), `lam` (body), `data` (spine element), and
+     `effect_bind` (effect position). This covers every ξ-rule at once rather
+     than one redex at a time.
+
+   Still evidence, not a proof: the δ result above is a refutation rather than
+   a commutation lemma, and none of this is mechanised. A real proof would
+   need an Agda formalisation of `Erase` — the Agda tree has no `Erase`
+   module, so that is a new development rather than an extension.
+
 4. **The effect fragment is inert.** `{:effect_type,_}` / `{:effect_pure,_}` /
    `{:effect_bind,_,_}` have zero reduction rules by design (§1.1), so they
    cannot break Preservation — but a future monad law would have to be
    re-argued.
-5. **η and proof irrelevance.** If Cure's NbE has η-laws or definitional proof
-   irrelevance, they are not covered by this argument and need an η-aware
-   treatment (Antigen research synthesis §3.2, #8/#9 gap).
+5. **η and proof irrelevance.** Cure's NbE conversion DOES perform η:
+   `Conv.conv_struct?/4` (`lib/cure/core/conv.ex`) compares a `vlam` against a
+   non-`vlam` by applying both to a fresh neutral (`eta_eq?/4`), and compares
+   `vlam` against `vlam` by grade equality plus the same η test.
+   *Scope, not a gap.* The mechanised `Conversion` record
+   (`proof/Core/Typing.agda`) has **no** η field — no `≈-lam` congruence and
+   no "λ x. f x ≈ f" rule. This is a deliberate scope limit rather than an
+   unsoundness: η only makes conversion COARSER, and every proof obligation in
+   the development is discharged without it (verified by inspecting every
+   `Conversion.≈-*` use site in `proof/`). So the theorems hold for a
+   conversion relation that is a SUBSET of the kernel's, and anything proved
+   type-safe here is also type-safe under the kernel's coarser conversion. The
+   converse does not follow: a program the kernel accepts only by an η step is
+   not covered. Closing it needs an η-aware treatment; proof irrelevance is
+   likewise not modelled.
 
 ---
 

@@ -4,9 +4,14 @@
 -- WHY PARALLEL REDUCTION. The reduction relation `_⇝_` (Core/Reduction.agda)
 -- is NOT deterministic: `(λx. b) a` both β-reduces (the `β` rule) AND reduces
 -- under the λ (the `ξ-lam-body` congruence). This non-determinism is exactly
--- what blocks a direct proof of CONFLUENCE of `_⇝_`, and it is why the
--- classical soundness theorem's second input (`never-reached→no-value`,
--- Proof/Soundness.agda) is carried as a postulate.
+-- what blocks a direct proof of CONFLUENCE of `_⇝_`, which is why the
+-- Tait–Martin-Löf method below is needed.
+--
+-- (Historically this non-determinism was also cited as the reason the
+-- classical soundness theorem's second input, `never-reached→no-value`, was
+-- carried as a postulate. That input turned out to be FALSE for other
+-- reasons — it is a property of `Value`, not of branching — and has been
+-- removed; see Proof/SoundnessConfluence.agda and docs/CONFLUENCE.md.)
 --
 -- The Tait–Martin-Löf method resolves it: define a PARALLEL reduction `_⇉_`
 -- that contracts ALL redexes of a term in one step, prove the DIAMOND property

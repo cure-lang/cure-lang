@@ -11,10 +11,7 @@
 -- (Proof/Preservation.agda) by the standard "type safety" induction: run
 -- Progress to get a step, Preservation to keep the type, and iterate.
 --
--- STATUS: the CLASSICAL three-way disjunction (`soundness`, below) is a
--- NEGATIVE statement in its `diverges` disjunct, so deciding WHICH disjunct
--- holds needs coinduction (or a well-founded measure). This module supplies
--- BOTH:
+-- STATUS: this module supplies the CONSTRUCTIVE deliverables:
 --
 --   * the FUEL-INDEXED theorem `soundness-fuel` — the bounded unfolding of
 --     the outcome, proved by induction on the fuel `n`;
@@ -22,13 +19,15 @@
 --     (possibly infinite) tree, proved by guarded corecursion, with
 --     divergence given POSITIVELY by the greatest fixed point `Diverges`.
 --
--- The classical statement is the (non-constructive) COLLAPSE of the tree
--- into a `data` disjunction: extracting the finite `reaches-value` branch or
--- the infinite `diverges` branch requires deciding whether the tree is
--- finite, which (for a non-deterministic reduction relation) is not
--- constructive. The coinductive `soundness-tree` is the constructive
--- replacement; the classical `soundness` is kept as a `postulate` whose
--- proof is exactly that collapse.
+-- The classical three-way statement ("reaches a value, or raises, or
+-- diverges") was formerly derived here from TWO postulates, the second of
+-- which — `never-reached→no-value` — is FALSE for the mechanised `_⇝_`
+-- (docs/CONFLUENCE.md). Both that postulate and the `soundness` built on it
+-- have been REMOVED. The classical statement now lives, proved and over
+-- NORMAL FORMS, in `Proof.SoundnessConfluence.soundness-nf`; the only
+-- classical input left in this module is `tree-decides` (LPO on the outcome
+-- path). `EvalResult` is retained as the shape of the classical disjunction,
+-- but no theorem below produces it.
 ------------------------------------------------------------------------
 module Proof.Soundness where
 
@@ -291,54 +290,44 @@ module Sound (ind : IndEnv) (sig : Signature) (conv : Conversion)
   tree-reached→eval (v , dv , val , red) = reaches-value v dv val red
 
   ------------------------------------------------------------------------
-  -- The classical soundness theorem.
+  -- The one classical input, and the (removed) second one.
   --
-  -- This is the THREE-WAY disjunction of docs/SOUNDNESS.md §1.4. Its third
-  -- disjunct, `diverges`, is a NEGATIVE statement (no value is reachable),
-  -- so deciding which disjunct holds needs coinduction (or a well-founded
-  -- measure). The constructive content is `soundness-tree` above, and the
-  -- classical statement is its COLLAPSE, which we now carry as two precisely
-  -- named classical inputs rather than one opaque `postulate`:
+  -- `tree-decides` is the ONLY classical input this module carries: the
+  -- outcome tree is finite or infinite. The tree is a PATH (each node has at
+  -- most one child, because `progress` returns a specific reduct), so this is
+  -- exactly the limited principle of omniscience (LPO) on that path — not
+  -- constructive.
   --
-  --   * `tree-decides` — the outcome tree is finite or infinite. The tree is
-  --     a PATH (each node has at most one child, because `progress` returns a
-  --     specific reduct), so this is exactly the limited principle of
-  --     omniscience (LPO) on that path — not constructive.
-  --   * `never-reached→no-value` — a never-reaching tree has no reachable
-  --     value. This needs CONFLUENCE of `_⇝_`, which is NOT deterministic
-  --     (`(λx. b) a` both β-reduces and reduces under the λ), so `Diverges`
-  --     does not contradict a separate reduction to a value without it.
-  --
-  -- With those two, `soundness` is a THEOREM: a `Reached` node gives outcome
-  -- (1) (`tree-reached→eval`); a `NeverReached` tree gives outcome (3)
-  -- (`never-reached→diverges` + `never-reached→no-value`). The `raises`
-  -- outcome (2) is the coverage guard, unreachable under `Covers` (so it is
-  -- never produced). The "never stuck" corollary is `never-stuck` above.
+  -- A `Reached` node gives the classical first disjunct
+  -- (`tree-reached→eval`); a `NeverReached` tree gives positive divergence
+  -- (`never-reached→diverges`). The `raises` outcome is the coverage guard,
+  -- unreachable under `Covers` (so never produced). The "never stuck"
+  -- corollary is `never-stuck` above.
   ------------------------------------------------------------------------
 
   postulate
-    -- CLASSICAL INPUT 1: the outcome tree is finite or infinite (LPO on the
-    -- path, since `progress` is deterministic).
+    -- THE ONLY CLASSICAL INPUT: the outcome tree is finite or infinite (LPO
+    -- on the path, since `progress` is deterministic).
     tree-decides : ∀ {t T} → EvalTree t T → Reached t T ⊎ NeverReached t T
 
-    -- CLASSICAL INPUT 2: a never-reaching tree has no reachable value.
-    --
-    -- NOTE (docs/CONFLUENCE.md): this is FALSE as stated for the mechanised
-    -- `_⇝_`, which reduces UNDER BINDERS (`ξ-lam-body`). Let
-    -- `Ω = (λx. x x) (λx. x x)`; then `Ω ⇝ Ω`, so `tm-lam g d Ω` is a
-    -- canonical `Value` that steps to itself, hence `NeverReached` — yet
-    -- `tm-lam g d Ω ⇝* tm-lam g d Ω` with `Value (tm-lam g d Ω)`. So the
-    -- statement is not merely unproved: it is unprovable. It would hold if
-    -- "value" meant a stuck-free NORMAL FORM (a term that has finished
-    -- evaluating), which is stronger than `Value` (canonical/neutral).
-    never-reached→no-value :
-      ∀ {t T} → NeverReached t T → (∀ v → _⇝*_ sig t v → Value v → ⊥)
-
-  soundness :
-    ∀ {t T}
-    → ⟨⟩ ⊢ t ⇒ T
-    → Final t
-    → EvalResult t T
-  soundness {t} {T} dt ft with tree-decides (soundness-tree (⇐-infer dt (Conversion.≈-refl conv)) ft)
-  ... | inj₁ r = tree-reached→eval r
-  ... | inj₂ nr = diverges (never-reached→no-value nr)
+  ------------------------------------------------------------------------
+  -- The classical statement lives in `Proof.SoundnessConfluence`.
+  --
+  -- This module previously ALSO postulated
+  --
+  --     never-reached→no-value :
+  --       ∀ {t T} → NeverReached t T → (∀ v → _⇝*_ sig t v → Value v → ⊥)
+  --
+  -- and derived a classical three-way `soundness` from it. That postulate is
+  -- FALSE for the mechanised `_⇝_` (docs/CONFLUENCE.md): `_⇝_` reduces UNDER
+  -- BINDERS (`ξ-lam-body`), so with `Ω = (λx. x x) (λx. x x)` the term
+  -- `tm-lam g d Ω` is a canonical `Value` that steps to itself, hence
+  -- `NeverReached` — yet it reaches a `Value` in zero steps. The postulate
+  -- would derive `⊥` from a consistent hypothesis, so BOTH it and the
+  -- `soundness` built on it have been REMOVED.
+  --
+  -- The honest replacement is `soundness-nf` in `Proof.SoundnessConfluence`:
+  -- the dichotomy `Reached t T ⊎ DivergesNF t` over NORMAL FORMS, proved with
+  -- no postulates beyond `tree-decides`. Use that instead of a classical
+  -- three-way statement.
+  ------------------------------------------------------------------------

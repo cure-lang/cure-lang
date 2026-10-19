@@ -4,12 +4,16 @@
 # The development (proof/, Agda 2.8.0) is allowed exactly the axioms it
 # documents in proof/README.md and docs/SOUNDNESS.md:
 #
-#   * `funext`                 (Core/Syntax.agda)     -- function extensionality,
-#                                                       the single standard axiom;
-#   * `tree-decides`           (Proof/Soundness.agda) -- LPO on the outcome
-#                                                       path (classical input 1);
-#   * `never-reached→no-value` (Proof/Soundness.agda) -- needs confluence of
-#                                                       `_⇝_` (classical input 2).
+#   * `funext`       (Core/Syntax.agda)     -- function extensionality, the
+#                                              single standard axiom;
+#   * `tree-decides` (Proof/Soundness.agda) -- LPO on the outcome path (the
+#                                              only classical input).
+#
+# The former second classical input `never-reached→no-value` was REMOVED: it
+# is false for the mechanised `_⇝_` (which reduces under binders, so
+# `tm-lam g d Ω` is a `Value` that steps to itself forever). Its honest
+# replacement, over NORMAL FORMS, is proved with no postulates in
+# Proof/SoundnessConfluence.agda (`soundness-nf`).
 #
 # A NEW `postulate` is a NEW unproven assumption. It must be a deliberate,
 # reviewed change -- never an accident of a proof in progress. This script
@@ -28,7 +32,6 @@ cd "$(dirname "$0")/.."
 EXPECTED=$(
   cat <<'EOF'
 Core/Syntax.agda:funext
-Proof/Soundness.agda:never-reached→no-value
 Proof/Soundness.agda:tree-decides
 EOF
 )
