@@ -19,7 +19,8 @@ module Proof.Substitution where
 open import Data.Bool using (true)
 open import Data.Nat using (ℕ; zero; suc; _+_; _≤ᵇ_; _<_; _≤_; s≤s; z≤n)
 open import Data.Nat.Properties using (+-identityʳ; +-assoc; +-suc; +-comm; ≤-refl; m≤n⇒m≤1+n; ≤-trans)
-open import Data.List using (List; []; _∷_; _++_; map; length)
+open import Data.List using (List; []; _∷_; _++_; map; length; reverse)
+open import Data.List.Properties using (reverse-map; length-reverse)
 open import Data.Product using (_×_; _,_; Σ)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Relation.Binary.PropositionalEquality
@@ -27,7 +28,7 @@ open import Relation.Binary.PropositionalEquality
 
 open import Function using (_∘_)
 open import Core.Syntax
-open import Core.Typing using (upto; branch-field-vars)
+open import Core.Typing using (upto; branch-field-vars; surface-field-vars)
 open import Core.Reduction using (argsSub; argsSub-go; argsSub-go-raise; substArgs)
 
 ------------------------------------------------------------------------
@@ -1127,10 +1128,10 @@ subst-argsSub-coh σ (a ∷ args) (suc k) =
       substS-argsSub-wk (substS σ a) (substTermsS σ args) (extSub^ (length args) σ k)
 
 -- `substS σ (substArgs args b) ≡ substArgs (map (substS σ) args) (substS (extSub^ (length args) σ) b)`.
-subst-argsSub : ∀ σ args b
-  → substS σ (substArgs args b)
-  ≡ substArgs (substTermsS σ args) (substS (extSub^ (length args) σ) b)
-subst-argsSub σ args b =
+subst-prefix : ∀ σ args b
+  → substS σ (substS (argsSub args) b)
+  ≡ substS (argsSub (substTermsS σ args)) (substS (extSub^ (length args) σ) b)
+subst-prefix σ args b =
   trans (subst-compose σ (argsSub args) b)
         (trans (cong (λ τ → substS τ b) (funext (subst-argsSub-coh σ args)))
                (sym (subst-compose (argsSub (substTermsS σ args)) (extSub^ (length args) σ) b)))
@@ -1151,10 +1152,66 @@ rename-argsSub-coh ρ [] k = refl
 rename-argsSub-coh ρ (a ∷ args) zero = refl
 rename-argsSub-coh ρ (a ∷ args) (suc k) = rename-argsSub-coh ρ args k
 
-rename-substArgs : ∀ ρ args b
-  → rename ρ (substArgs args b)
-  ≡ substArgs (renameTerms ρ args) (rename (ext^ (length args) ρ) b)
-rename-substArgs ρ args b =
+rename-prefix : ∀ ρ args b
+  → rename ρ (substS (argsSub args) b)
+  ≡ substS (argsSub (renameTerms ρ args)) (rename (ext^ (length args) ρ) b)
+rename-prefix ρ args b =
   trans (rename-subst ρ (argsSub args) b)
         (trans (cong (λ τ → substS τ b) (funext (rename-argsSub-coh ρ args)))
                (sym (subst-rename (argsSub (renameTerms ρ args)) (ext^ (length args) ρ) b)))
+
+-- Structural maps commute with list reversal.
+renameTerms-reverse : ∀ ρ xs → renameTerms ρ (reverse xs) ≡ reverse (renameTerms ρ xs)
+renameTerms-reverse ρ xs =
+  trans (renameTerms-map ρ (reverse xs))
+    (trans (reverse-map (rename ρ) xs) (cong reverse (sym (renameTerms-map ρ xs))))
+
+substTerms-reverse : ∀ σ xs → substTermsS σ (reverse xs) ≡ reverse (substTermsS σ xs)
+substTerms-reverse σ xs =
+  trans (substTerms-map σ (reverse xs))
+    (trans (reverse-map (substS σ) xs) (cong reverse (sym (substTerms-map σ xs))))
+
+-- Surface-order iota substitution, unlike an already ordered local prefix.
+subst-argsSub : ∀ σ args b → substS σ (substArgs args b)
+  ≡ substArgs (substTermsS σ args) (substS (extSub^ (length args) σ) b)
+subst-argsSub σ args b =
+  trans (subst-prefix σ (reverse args) b)
+    (trans (cong (λ xs → substS (argsSub xs) (substS (extSub^ (length (reverse args)) σ) b))
+      (substTerms-reverse σ args))
+      (cong (λ n → substS (argsSub (reverse (substTermsS σ args))) (substS (extSub^ n σ) b))
+        (length-reverse args)))
+
+rename-substArgs : ∀ ρ args b → rename ρ (substArgs args b)
+  ≡ substArgs (renameTerms ρ args) (rename (ext^ (length args) ρ) b)
+rename-substArgs ρ args b =
+  trans (rename-prefix ρ (reverse args) b)
+    (trans (cong (λ xs → substS (argsSub xs) (rename (ext^ (length (reverse args)) ρ) b))
+      (renameTerms-reverse ρ args))
+      (cong (λ n → substS (argsSub (reverse (renameTerms ρ args))) (rename (ext^ n ρ) b))
+        (length-reverse args)))
+
+rename-surface-fields : ∀ ar ρ
+  → renameTerms (ext^ ar ρ) (surface-field-vars ar) ≡ surface-field-vars ar
+rename-surface-fields ar ρ =
+  trans (renameTerms-reverse (ext^ ar ρ) (branch-field-vars ar))
+    (cong reverse (renameTerms-field-vars ar ρ))
+
+subst-surface-fields : ∀ ar σ
+  → substTermsS (extSub^ ar σ) (surface-field-vars ar) ≡ surface-field-vars ar
+subst-surface-fields ar σ =
+  trans (substTerms-reverse (extSub^ ar σ) (branch-field-vars ar))
+    (cong reverse (substTerms-field-vars ar σ))
+
+rename-surface-motive : ∀ ar ρ m cn
+  → rename (ext^ ar ρ)
+      (tm-app (rename (λ j → j + ar) m) (tm-ctor cn (surface-field-vars ar)))
+    ≡ tm-app (rename (λ j → j + ar) (rename ρ m)) (tm-ctor cn (surface-field-vars ar))
+rename-surface-motive ar ρ m cn =
+  cong₂ tm-app (sym (rename-raise ar ρ m)) (cong (tm-ctor cn) (rename-surface-fields ar ρ))
+
+subst-surface-motive : ∀ ar σ m cn
+  → substS (extSub^ ar σ)
+      (tm-app (rename (λ j → j + ar) m) (tm-ctor cn (surface-field-vars ar)))
+    ≡ tm-app (rename (λ j → j + ar) (substS σ m)) (tm-ctor cn (surface-field-vars ar))
+subst-surface-motive ar σ m cn =
+  cong₂ tm-app (subst-extSub^-shift ar σ m) (cong (tm-ctor cn) (subst-surface-fields ar σ))

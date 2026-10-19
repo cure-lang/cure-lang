@@ -1,7 +1,7 @@
 ------------------------------------------------------------------------
 -- Concrete witnesses for checked SPECIFICATION confluence, independently
--- of typing or conversion. Field zero is still the formal FIRST field;
--- executable last-field-at-zero correspondence remains a separate repair.
+-- of typing or conversion. Field zero is the LAST exact-arity field.
+-- Parameter filtering and missing erased slots remain separate repairs.
 ------------------------------------------------------------------------
 module Proof.ConfluenceExamples where
 
@@ -117,8 +117,8 @@ case-multi-step-join :
   ∃ λ w → _⇝*_ L.empty-sig case-left w × _⇝*_ L.empty-sig case-right w
 case-multi-step-join = C.confluence case-root case-other-path
 
--- The non-head field is distinguishable; the formal first field is 7.
-case-right-contracts : _⇝_ L.empty-sig case-right seven
+-- The non-head field is distinguishable; field zero is the last value, 9.
+case-right-contracts : _⇝_ L.empty-sig case-right nine
 case-right-contracts = ι refl refl
 
 -- Each compact-literal root participates in a genuine strong peak.

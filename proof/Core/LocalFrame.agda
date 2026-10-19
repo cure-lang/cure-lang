@@ -10,7 +10,7 @@ open import Data.List using (List; []; _∷_; _++_; length; reverse; map)
 open import Data.List.Properties using (unfold-reverse; length-reverse)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans; cong; cong₂)
 open import Core.Syntax
-open import Core.Reduction using (argsSub; argsSub-go)
+open import Core.Reduction using (argsSub; argsSub-go; substArgs)
 
 identity : Sub
 identity = tm-var
@@ -61,7 +61,7 @@ instantiateFields : List Term → Term → Term
 instantiateFields fields body = substS (advance fields identity) body
 
 fields-agree : ∀ fields body
-  → instantiateFields fields body ≡ substS (argsSub (reverse fields)) body
+  → instantiateFields fields body ≡ substArgs fields body
 fields-agree fields body =
   cong (λ σ → substS σ body)
     (funext (λ k → trans (advance-reverse fields identity k)

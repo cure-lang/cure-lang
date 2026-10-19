@@ -6,7 +6,8 @@
 -- Proof.SoundnessModel jointly inhabits the current hypotheses, including
 -- full ReduceConv from Proof.ReductionConversion. ClosedFragmentSig still
 -- restricts entries/results to be individually closed, not dependent
--- telescopes. Eta/executable refinement and field order remain open.
+-- telescopes. Exact-arity branch order is last-field-first; eta, dependent
+-- admission and full executable refinement remain open.
 -- Each ⇒-case carries family-local CaseCoverage evidence.
 --
 --   Let `e` be a closed, hole-free, final-Core term with `· ⊢ e : T` for a

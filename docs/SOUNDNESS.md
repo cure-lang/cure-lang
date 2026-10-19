@@ -135,7 +135,8 @@ raising.
 - **It is not an end-to-end mechanised implementation theorem.** Parts of the
   syntax and algebra are machine-checked; historical soundness interfaces
   were refuted and repaired for a restricted fragment. A joint formal
-  full-reduction instance now exists; dependent signatures, field order,
+  full-reduction instance now exists and exact-arity closed-entry branches
+  bind the last field at zero; dependent signatures, filtered/erased frames,
   η and implementation refinement remain open.
   See §§7–8.
 
@@ -587,8 +588,9 @@ that an uninhabitable theorem interface is useful.
   about the formal specification, not executable refinement.
 
 Further correspondence repairs are required: dependent spine tails and
-constructor result indices must be instantiated; branches must bind the last
-field at index zero as the evaluator does. `Certified` currently means only
+constructor result indices must be instantiated, with parameter filtering
+and erased-slot frame handling. Exact-arity closed-entry branches now bind
+the last field at zero as the evaluator does. `Certified` currently means only
 that unfoldable bodies are `Final` (hole/absurd-free), **not** that they terminate.
 
 **Forward-dependent spine foundation (not broad migration).**
@@ -611,12 +613,37 @@ before evaluation, checking indices, field/ambient order, lambda capture
 and parameter seeding. These tests use primitive Atom rather than requiring
 the Int facade's builtin bootstrap.
 
-The active soundness rules STILL use first-field-at-zero and individually
-closed entries/results. This foundation does not admit the dependent
-constructor through those rules. Parameters must be checked separately;
-the evaluator's parameter-spine filtering and missing erased-slot frame are
-outside the proved exact-arity fields-only contract. The typing/branch/
-preservation migration and executable refinement remain open.
+**Active field-order migration — exact-arity closed entries.**
+`Core.Reduction.substArgs` now reverses surface fields before simultaneous
+substitution. `argsSub` remains an already-de-Bruijn-ordered prefix helper:
+local declaration environments must not be reversed again.
+`Core.LocalFrame.fields-agree` connects declaration-order pushes directly to
+active `substArgs` for arbitrary bodies.
+
+`Core.Typing.branch-context` extends by the reversed telescope, while
+`surface-field-vars` reconstructs constructor arguments in declaration order.
+Branch arity uses the reversed length definitionally, equal to ordinary
+arity by `length-reverse`. Renaming, substitution, context conversion,
+finality and all five ordinary/literal ι preservation cases are migrated.
+`Proof.FieldOrder` supplies reversal facts; preservation's generic
+`contract-fields` reverses checked arguments and closed telescope entries
+together, substitutes the body, then restores the surface-order constructor.
+Strict-parallel substitution/confluence, literal-expansion simulation and the
+inhabited full-conversion/soundness model remain checked.
+
+`Proof.FieldOrderExamples` exercises heterogeneous `Next(Nat, Bounded)`
+fields: slot zero has type Bounded, slot one has type Nat, and the latter
+cannot check at Bounded even through conversion/cumulativity. Both ordinary
+constructor and compact-literal cases preserve typing when returning
+`Bounded 7`; a nested lambda retains that field without capture, and the
+case transports under weakening. Raw confluence examples distinguish two
+Nat values and now select the last field at zero.
+
+This migration retains individually closed entries/results; it does not
+admit the genuine dependent constructor through the active rules.
+Parameters must be checked separately. The evaluator's parameter-spine
+filtering, missing erased-slot frame and full executable refinement remain
+outside the proved exact-arity fields-only contract.
 
 `Core.Coverage` is now connected to the active typing and proof consumers.
 `Proof.CoverageExamples` gives concrete Nat coverage in an environment also
@@ -633,9 +660,10 @@ of the kernel's indexed coverage checker.
 
 `Core.Verification` and `Proof.VerificationExamples` still contain candidate
 scoped dependent telescopes, membership-indexed signature scoping,
-last-field-at-zero substitution and reduction-based head exposure.
-**These remaining candidates are not connected to the active typing/soundness
-modules and are not a complete replacement conversion relation.** The
+reduction-based head exposure and parameter-aware frame operators.
+**Dependent admission and exposure remain candidates, not a complete
+replacement conversion relation.** The exact-arity field frame is connected
+to active substitution as described above. The
 coverage examples alone do not instantiate soundness. The separate
 `Proof.SoundnessModel` now inhabits the closed-entry theorem parameters,
 while dependent signature typing and executable correspondence remain open.
@@ -696,7 +724,7 @@ it is not the full executable dependent builtin signature.
 universe/grade/family confusion and distinct holes. It also explicitly
 **refutes η between well-typed open functions in this model**. Thus neither η-aware
 executable conversion nor full dependent Cure soundness follows from this
-inhabited specification. Field-order correspondence, indexed coverage,
+inhabited specification. Filtered/erased-frame correspondence, indexed coverage,
 typed erasure simulation, semantic totality and evaluator/readback
 refinement remain open.
 
@@ -723,7 +751,7 @@ exposed branch redex that cannot be compressed to one strict step, distinct
 fields/non-head updates, all literal peels and malformed arities, recursive
 δ, and normal-form uniqueness. No typing/conversion/termination oracle is
 used by this confluence theorem. Full formal conversion compatibility is
-constructed above; executable field order, η and the other implementation
+constructed above; filtered/erased frames, η and the other implementation
 soundness/refinement obligations remain open.
 
 ### Item-by-item evidence

@@ -133,8 +133,9 @@ lookup-extend Γ T i = lookup-renameCtx wk Γ i
 -- confluence. Proof.SoundnessModel jointly instantiates the current
 -- closed-entry soundness hypotheses on a nonempty fragment.
 -- APPLICABILITY WARNING: this model omits eta (a negative control proves
--- that omission). Executable NbE refinement, dependent signatures and
--- field-order correspondence remain open; it is not Cure certification.
+-- that omission). Exact-arity closed-entry branch order now agrees with
+-- the executable frame; NbE refinement, dependent signatures, parameter
+-- filtering and missing erased slots remain open.
 ------------------------------------------------------------------------
 
 record Conversion : Set₁ where
@@ -220,10 +221,9 @@ extendⁿ Γ (suc k) = extend (extendⁿ Γ k) (tm-hole "field")
 -- `branch-field-vars ar = [0, …, ar-1]`: field `i` (1-indexed) is the
 -- variable at index `i - 1`.
 --
--- This is the context the `case` branch rule uses: a branch for constructor
--- `cn` binds the constructor's REAL argument telescope (`ctor-args ct`),
--- not holes, so the ι reduction's substitution lemma can relate the field
--- variables to the constructor's actual arguments.
+-- This is an environment-order algebraic helper, NOT the surface-order
+-- branch context. The active case rule uses branch-context, applying
+-- extendTele to the REVERSED closed-entry constructor telescope.
 --
 -- Indexed by `length tele + m` and CAST-FREE (like `extendⁿ`).
 ------------------------------------------------------------------------
@@ -242,12 +242,9 @@ fieldFin : ∀ {m} (tele : Telescope) → Fin (length tele) → Fin (length tele
 fieldFin tele i = i ↑ˡ _
 
 ------------------------------------------------------------------------
--- The field variables bound by a `case` branch of arity `ar`.
---
--- Field `i` (1-indexed) is the variable at index `i - 1`, matching the
--- branch context `extendTele Γ (ctor-args ct)`, where the FIRST telescope
--- entry is INNERMOST (index 0). Defined at the top level so the branch
--- lemmas in Proof/Substitution.agda can speak about it.
+-- Ascending environment-slot variables, used as an algebraic helper.
+-- Active branches reconstruct a constructor using surface-field-vars
+-- [ar-1, …, 0], since the LAST declared field is innermost.
 ------------------------------------------------------------------------
 
 upto : ℕ → List ℕ
@@ -256,6 +253,18 @@ upto (suc n) = 0 ∷ map suc (upto n)
 
 branch-field-vars : ℕ → List Term
 branch-field-vars ar = map tm-var (upto ar)
+
+-- Closed-entry runtime branch frame: the last declared field is innermost.
+-- The reversed length is used definitionally to avoid context-index casts;
+-- length-reverse proves it is the declaration's ordinary arity.
+branch-arity : Telescope → ℕ
+branch-arity tele = length (reverse tele)
+
+branch-context : ∀ {n} (Γ : Ctx n) (tele : Telescope) → Ctx (branch-arity tele + n)
+branch-context Γ tele = extendTele Γ (reverse tele)
+
+surface-field-vars : ℕ → List Term
+surface-field-vars ar = reverse (branch-field-vars ar)
 
 ------------------------------------------------------------------------
 -- Telescope membership and maps.
@@ -304,7 +313,8 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   data _⊢_⇒_ : ∀ {n} → Ctx n → Term → Term → Set
   data _⊢_⇐_ : ∀ {n} → Ctx n → Term → Term → Set
 
-  -- Spine checking: a list of terms against a dependent telescope.
+  -- Flat spine checking: declarations are not instantiated at preceding
+  -- arguments. Dependent checking lives in Proof.DependentSpine.
   data _⊢*_⇐*_ : ∀ {n} → Ctx n → List Term → Telescope → Set
 
   -- Branch checking: a list of branches against a family and its motive.
@@ -496,7 +506,8 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
   -- A checked spine has the same length as its telescope. Used by Progress's
   -- `case`/ι case to discharge the `length args ≡ ar` premise of the ι rule:
   -- `⇒-ctor` checks the constructor args against `ctor-args ct`, and the
-  -- branch's `brs∷` fixes `ar = length (ctor-args ct)`.
+  -- branch's `brs∷` fixes `ar = branch-arity (ctor-args ct)`,
+  -- equal to length (ctor-args ct) by length-reverse.
   spine-length : ∀ {n} {Γ : Ctx n} {ts tele}
                → Γ ⊢* ts ⇐* tele → length ts ≡ length tele
   spine-length ⊢*[] = refl
@@ -517,9 +528,9 @@ module Typing (ind : IndEnv) (sig : Signature) (conv : Conversion) where
     brs[] : ∀ {k} {Γ : Ctx k} {n m} → Γ ⊢*brs [] ⇐*ᵇ (n , m)
     brs∷  : ∀ {k} {Γ : Ctx k} {cn b brs n m f ct}
           → findCtor cn (IndEnv.families ind) ≡ just (f , ct)
-          → extendTele Γ (ctor-args ct)
-              ⊢ b ⇐ tm-app (rename (λ j → j + length (ctor-args ct)) m)
-                           (tm-ctor cn (branch-field-vars (length (ctor-args ct))))
+          → branch-context Γ (ctor-args ct)
+              ⊢ b ⇐ tm-app (rename (λ j → j + branch-arity (ctor-args ct)) m)
+                           (tm-ctor cn (surface-field-vars (branch-arity (ctor-args ct))))
           → Γ ⊢*brs brs ⇐*ᵇ (n , m)
-          → Γ ⊢*brs ((cn , length (ctor-args ct) , b) ∷ brs) ⇐*ᵇ (n , m)
+          → Γ ⊢*brs ((cn , branch-arity (ctor-args ct) , b) ∷ brs) ⇐*ᵇ (n , m)
 

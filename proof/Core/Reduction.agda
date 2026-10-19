@@ -45,12 +45,12 @@ open import Core.Signature using (just-inj)
 ------------------------------------------------------------------------
 -- Substituting a list of constructor arguments into a branch body.
 --
--- CORRESPONDENCE WARNING: argsSub consumes a de Bruijn-ordered environment
--- prefix. The CURRENT substArgs passes surface-order fields unchanged,
--- so the FIRST field is at zero, unlike Eval.reduce_branch_body (LAST at
--- zero). Existing typing/branch proofs use that same first-field convention.
--- Core.LocalFrame proves a forward-push/last-field-first interface, now
--- used by the candidate Core.Verification API, not yet by this relation.
+-- argsSub consumes an ALREADY de Bruijn-ordered environment prefix.
+-- substArgs reverses surface-order fields before using it: the LAST field
+-- is at zero, matching Eval.reduce_branch_body's exact-arity field frame.
+-- Active branch typing uses the reversed telescope and reconstructs the
+-- constructor in surface order. Core.LocalFrame.fields-agree connects
+-- this substitution to declaration-order pushes for arbitrary bodies.
 --
 -- After consuming the prefix, remaining indices refer back to the caller
 -- context (the field count is removed), as argsSub-go-raise states.
@@ -59,14 +59,13 @@ open import Core.Signature using (just-inj)
 -- definition (`substT` composed field-by-field) applied the substitutions in
 -- sequence, so a later `substT` could capture an earlier field inserted under
 -- a binder. One simultaneous substitution inserts every field at once, so no
--- field is re-scanned. Agreement with the executable also needs the
--- field-order/branch-context migration, parameter filtering and erased slots.
+-- field is re-scanned. Full executable correspondence still needs
+-- parameter filtering, missing erased slots and dependent admission.
 ------------------------------------------------------------------------
--- The simultaneous substitution of a branch's fields: `args` in surface
--- order, the FIRST field at index 0 (matching `branch-field-vars ar =
--- [0, …, ar-1]` and the branch context `extendTele Γ (ctor-args ct)`, whose
--- FIRST telescope entry is innermost). Above-prefix indices return to the
--- caller's context rather than retaining their field-offset indices.
+-- Environment-prefix worker: its FIRST entry maps to index zero.
+-- Above-prefix indices return to the caller's context rather than
+-- retaining their field-offset indices. Surface fields use substArgs,
+-- not argsSub directly; local declaration prefixes must NOT be reversed.
 -- The worker is exposed at the top level (rather than `where`-bound) so the
 -- metatheory can reason about the shape of `argsSub`'s images: the first
 -- `length args` indices map to the fields, the rest to variables.
@@ -91,7 +90,7 @@ argsSub-go-field k (y ∷ ys) zero = refl
 argsSub-go-field k (y ∷ ys) (suc i) = argsSub-go-field (suc k) ys i
 
 substArgs : List Term → Term → Term
-substArgs args b = substS (argsSub args) b
+substArgs args b = substS (argsSub (reverse args)) b
 
 ------------------------------------------------------------------------
 -- The δ-table: a signature mapping certified global names to their bodies.

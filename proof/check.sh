@@ -62,7 +62,7 @@ MODULES=(
   Core/LiteralExpansion
   Core/LocalFrame
   Proof/Values Proof/Inversion Proof/CanonicalForms Proof/Substitution
-  Proof/Context
+  Proof/Context Proof/FieldOrder
   Proof/Progress Proof/Preservation Proof/FinalPreservation Proof/Soundness
   Proof/StrictConfluence Proof/Confluence Proof/SoundnessConfluence Proof/Erase
   Proof/InterfaceAudit Proof/EffectInert
@@ -77,6 +77,7 @@ MODULES=(
   Proof/ExpansionSimulation Proof/ReductionConversion
   Proof/ReductionConversionExamples Proof/SoundnessModel
   Proof/LocalFrame Proof/DependentSpine Proof/DependentSpineExamples
+  Proof/FieldOrderExamples
 )
 
 fail=0

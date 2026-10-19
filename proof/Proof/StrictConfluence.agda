@@ -6,7 +6,8 @@
 module Proof.StrictConfluence where
 
 open import Data.Nat using (zero; suc)
-open import Data.List using (List; []; _∷_; length)
+open import Data.List using (List; []; _∷_; _++_; length; reverse)
+open import Data.List.Properties using (unfold-reverse)
 open import Data.Maybe using (just)
 open import Data.Empty using (⊥; ⊥-elim)
 open import Data.Product using (∃; _×_; _,_; proj₁; proj₂)
@@ -186,8 +187,20 @@ module Laws (sig : Signature)
   args-pointwise (st-cons p ps) n zero = p
   args-pointwise (st-cons p ps) n (suc k) = args-pointwise ps (suc n) k
 
+  append-steps : ∀ {xs ys us vs} → xs ⇛ᵗ ys → us ⇛ᵗ vs → (xs ++ us) ⇛ᵗ (ys ++ vs)
+  append-steps st-nil q = q
+  append-steps (st-cons p ps) q = st-cons p (append-steps ps q)
+
+  reverse-steps : ∀ {xs ys} → xs ⇛ᵗ ys → reverse xs ⇛ᵗ reverse ys
+  reverse-steps st-nil = st-nil
+  reverse-steps (st-cons {x = x} {y = y} {xs = xs} {ys = ys} p ps)
+    rewrite unfold-reverse x xs | unfold-reverse y ys =
+    append-steps (reverse-steps ps) (st-cons p st-nil)
+
   substitute-args : ∀ {xs ys b b′} → xs ⇛ᵗ ys → b ⇛ b′ → substArgs xs b ⇛ substArgs ys b′
-  substitute-args {xs} {ys} ps p = substitute (argsSub xs) (argsSub ys) (args-pointwise ps 0) p
+  substitute-args {xs} {ys} ps p =
+    substitute (argsSub (reverse xs)) (argsSub (reverse ys))
+      (args-pointwise (reverse-steps ps) 0) p
 
   lookup-step : ∀ c {bs cs ar b} → bs ⇛ᵇ cs
     → findBranch c bs ≡ just (c , ar , b)

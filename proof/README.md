@@ -28,6 +28,8 @@ development.
 > `Proof.VerificationExamples` still provide unintegrated scoping/conversion
 > candidates; those remaining interfaces have not been migrated.
 > Their examples are not an instance of the full soundness theorem.
+> Exact-arity closed-entry branch order IS migrated to last-field-first,
+> with heterogeneous preservation regressions and a proved frame bridge.
 >
 > The following is the **conditional derivation status**, subject to that
 > applicability warning. The current restricted Core typing specification
@@ -672,12 +674,39 @@ before evaluation. They pin result indices, first/last/ambient slots,
 captured fields under lambdas, parameter seeding and malformed inputs.
 Primitive Atom avoids depending on the modern Int facade's builtin seeding.
 
-**Migration boundary:** main constructor/data/branch rules and preservation
-still use the original closed-entry/first-field-at-zero calculus.
+**Migration boundary:** active branch typing, reduction and preservation now
+use last-field-first order for exact-arity closed-entry fields (below).
 The dependent judgment is not yet a constructor-admission rule or a
 replacement `ClosedFragmentSig`. Incoming parameters still need their own
 checking. Parameter-spine filtering, missing erased slots and full
 Eval/NbE correspondence are not proved by the frame algebra or these tests.
+### Active exact-arity closed-entry field order
+`substArgs` reverses surface fields before simultaneous substitution.
+`argsSub` remains an ALREADY de-Bruijn-ordered prefix helper, and local
+declaration instantiation uses the unreversed prefix laws.
+`Core.LocalFrame.fields-agree` now proves agreement directly with active
+`substArgs` for arbitrary bodies.
+
+`branch-context Γ tele = extendTele Γ (reverse tele)` puts the last field at
+zero. `surface-field-vars` reconstructs constructors with fields in original
+declaration order. Branch arity is the reversed length definitionally, with
+`length-reverse` proving equality to ordinary arity. Renaming, substitution,
+context conversion and preservation are migrated together with reduction.
+`Proof.FieldOrder` reverses checked spines, closed entries and final terms.
+Preservation's generic `contract-fields` replaces positional ordinary and
+all four literal ι proofs by reversed-spine coherent substitution, restoring
+the surface-order constructor after substitution.
+
+Strict-parallel substitution/diamond/closure confluence, finality, literal
+expansion simulation and the full reduction-conversion/soundness instances
+remain checked. `Proof.FieldOrderExamples` uses heterogeneous
+`Next(Nat, Bounded)` fields to check both slot types, reject the wrong slot
+at Bounded, invoke actual ordinary/literal preservation, transport the case
+under weakening and preserve a captured field beneath a lambda. The raw
+confluence example separately distinguishes two Nat values.
+This completes the exact-arity CLOSED-entry order migration, not dependent
+constructor/data admission, parameter-spine filtering, missing erased slots,
+η, erasure simulation or full evaluator refinement.
 
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
@@ -731,8 +760,8 @@ constructive fuel theorem. These are now non-vacuous specification results,
 not merely independently inhabited predicates.
 
 The fixture's BuiltinCtors-compatible Bounded family is deliberately
-**unindexed**. Full dependent signatures, executable last-field-at-zero
-order, indexed coverage omission, totality, erasure and evaluator/readback
+**unindexed**. Full dependent signatures, filtered/erased frames,
+indexed coverage omission, totality, erasure and evaluator/readback
 refinement remain open. `Proof.ReductionConversionExamples` rejects
 unequal Nat/Bounded/Int values, universe/grade/family confusion and distinct
 holes. It explicitly refutes η between well-typed open functions in this model, so
@@ -773,7 +802,7 @@ newly exposed branch redexes, distinct fields/non-head updates, literal peels
 and malformed arities, recursive δ, and normal-form uniqueness.
 The recursive signature makes explicit that closedness is not termination.
 These are raw specification results, independent of typing/conversion.
-Full executable field-order and NbE correspondence remain open.
+Full filtered/erased-frame and NbE correspondence remain open.
 The hygiene allowlist is empty: no bypass pragma is accepted anywhere.
 
 ### Inert effects
@@ -913,14 +942,16 @@ telescope scoped under preceding binders is not automatically closed.
 ### The `ι` branch substitution, on the simultaneous presentation
 
 The `ι` rule's field substitution (`Core.Reduction.substArgs`) is now one
-simultaneous substitution `substS (argsSub args)` instead of the former
+simultaneous substitution `substS (argsSub (reverse args))` instead of the former
 sequence of targeted `substT`s. This is not merely stylistic: the sequential
 form could capture a field inserted under a binder when a later `substT`
 re-scanned it, whereas one simultaneous substitution inserts every field at
-once. This does NOT yet match the kernel's field ORDER: formal `argsSub`
-puts the first field at zero, while `reverse fields ++ base_env` puts the
-last there. Aligning that convention and dependent result instantiation
-remains an explicit implementation-correspondence repair.
+once. The active substitution now matches the exact-arity fields-only
+kernel frame `reverse fields ++ base_env`, with the last field at zero;
+branch contexts, motive constructor variables and preservation are migrated
+together. `argsSub` alone is an environment-prefix helper, not a surface-field
+API. Dependent result instantiation, parameter filtering and missing erased
+slots remain explicit implementation-correspondence obligations.
 
 ## Building
 Requires Agda 2.8.0 and the Agda standard library.

@@ -4,14 +4,15 @@
 `Proof.Confluence.Conf.confluence` retains its original statement and the
 `ClosedBody sig` hypothesis. It now factors through genuine one-step parallel
 reduction, a strong diamond, and a structurally checked closure theorem.
-The small-step relation, literal-arity constraints and field convention have
-not been changed. No new postulates, unchecked options or termination
+The checked construction preserves the literal-arity constraints. A subsequent
+coupled typing/reduction migration changes field substitution to last-field-first,
+with all confluence laws rechecked. No new postulates, unchecked options or termination
 pragmas are used. The proof uses the existing function-extensionality root
 through the substitution algebra; no classical principle is needed.
 
 This is confluence of the **formal reduction specification**, not executable
 NbE correctness or full kernel soundness. Dependent telescope/result
-instantiation, executable field order, η, erasure simulation and semantic
+instantiation, filtered/erased frames, η, erasure simulation and semantic
 totality remain separate obligations. The checked theorem now supports
 `Proof.ReductionConversion`'s full formal reduction-compatible model and
 `Proof.SoundnessModel`'s inhabited closed-entry instance; neither establishes
@@ -79,7 +80,8 @@ Both are checked independently of the strict-parallel proof. The actual
 proved `diamond` supplies the parameter: there is no new diamond oracle.
 
 Combining these results with both simulation directions gives confluence of
-the **unchanged** original `_⇝_`. `normal-forms-unique` is a checked corollary.
+`_⇝_`, including its migrated last-field-first substitution.
+`normal-forms-unique` is a checked corollary.
 `Proof.Confluence.Conf` exposes this implementation under the existing
 `confluence` entry point and `ClosedBody` interface.
 The useful wide-parallel entry points `⇉-diamond`, `⇉-diamond-star` and
@@ -104,10 +106,13 @@ wide parallel reduction, and its literal/branch peak now invokes the checked
 confluence theorem. `Proof.SpineLifting` retains the independent non-head,
 symbolic-alignment and simulation regressions.
 
-The field-order example deliberately pins the current formal convention:
-**the first field is at zero**. It is not a claim that the executable's
-last-field-at-zero convention has been reconciled. The recursive δ example
-likewise demonstrates that closedness is **not** termination.
+The field-order example pins **the last field at zero** with distinct values.
+`Proof.FieldOrderExamples` separately checks active heterogeneous field types,
+ordinary/literal preservation, weakening and nested-lambda capture avoidance.
+`Core.LocalFrame.fields-agree` proves agreement with the exact-arity,
+fields-only forward-push frame; parameter filtering, missing erased slots
+and full executable refinement remain separate. The recursive δ example
+demonstrates that closedness is **not** termination.
 
 ## Scope and trust
 

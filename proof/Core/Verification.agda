@@ -68,8 +68,9 @@ ScopedSignature ind sig =
   × (∀ f → f ∈ IndEnv.families ind → ScopedFamily f)
 
 -- The executable evaluates branches under reverse(fields) ++ base-env:
--- the last field has de Bruijn index zero. The legacy substArgs has the
--- opposite convention and must not be used for this interface.
+-- the last field has de Bruijn index zero. Frame.fields-agree proves
+-- agreement with active substArgs for this exact-arity, fields-only frame.
+-- Parameter filtering and missing erased slots remain outside that theorem.
 instantiateFields : List Term → Term → Term
 instantiateFields = Frame.instantiateFields
 

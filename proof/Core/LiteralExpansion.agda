@@ -6,7 +6,8 @@
 module Core.LiteralExpansion where
 
 open import Data.Nat using (ℕ; zero; suc)
-open import Data.List using (List; []; _∷_)
+open import Data.List using (List; []; _∷_; reverse; map)
+open import Data.List.Properties using (reverse-map)
 open import Data.Product using (_×_; _,_)
 open import Relation.Binary.PropositionalEquality
   using (_≡_; refl; sym; trans; cong; cong₂; subst)
@@ -297,8 +298,18 @@ expand-argsSub n [] k = refl
 expand-argsSub n (x ∷ xs) zero = refl
 expand-argsSub n (x ∷ xs) (suc k) = expand-argsSub (suc n) xs k
 
+expandTerms-map : ∀ xs → expandTerms xs ≡ map expand xs
+expandTerms-map [] = refl
+expandTerms-map (x ∷ xs) = cong (expand x ∷_) (expandTerms-map xs)
+
+expandTerms-reverse : ∀ xs → expandTerms (reverse xs) ≡ reverse (expandTerms xs)
+expandTerms-reverse xs =
+  trans (expandTerms-map (reverse xs))
+    (trans (reverse-map expand xs) (cong reverse (sym (expandTerms-map xs))))
+
 expand-args : ∀ xs b → expand (substArgs xs b) ≡ substArgs (expandTerms xs) (expand b)
 expand-args xs b =
-  trans (expand-subst (argsSub xs) b)
-    (cong (λ σ → substS σ (expand b)) (funext (expand-argsSub 0 xs)))
+  trans (expand-subst (argsSub (reverse xs)) b)
+    (trans (cong (λ σ → substS σ (expand b)) (funext (expand-argsSub 0 (reverse xs))))
+      (cong (λ ys → substS (argsSub ys) (expand b)) (expandTerms-reverse xs)))
 
