@@ -1,8 +1,9 @@
 defmodule Cure.Core.DependentBranchCorrespondenceTest do
   @moduledoc """
   Executable selected-branch evidence for parameter-plus-field declarations.
-  Whole positive cases are kernel-checked here; this does not supply the
-  missing Agda theorem for whole dependent case typing or compiler refinement.
+  Whole positive cases are kernel-checked here. The native Agda ordinary
+  constructor iota theorem covers a supported substitution fragment; these
+  executable tests do not establish general preservation or compiler refinement.
   """
   use ExUnit.Case, async: true
 

@@ -69,6 +69,140 @@ defmodule Cure.Core.DependentResultCorrespondenceTest do
              Eval.eval(term, [])
   end
 
+  test "closing an open parameter and value agrees with independently checked computed results", %{ctx: ctx} do
+    open_ctx = Context.extend(ctx, {:vtype, 0})
+    open_ctx = Context.extend(open_ctx, Eval.eval({:var, 0}, Context.env(open_ctx)))
+    fields = [{:var, 0}, {:float_type}, {:float_lit, 0.5}]
+    goal = {:data, :ResultChain, [{:var, 1}], fields}
+    constructor = {:ctor, :ResultComputed, fields}
+
+    assert {:ok, {:vtype, 1}} = Kernel.infer(open_ctx, goal)
+    assert :ok = Kernel.check(open_ctx, constructor, Eval.eval(goal, Context.env(open_ctx)))
+
+    source =
+      {:lam, @g, {:type, 0}, {:lam, @g, {:var, 0}, {:let, @g, goal, constructor, {:var, 0}}}}
+
+    source_type = {:pi, @g, {:type, 0}, {:pi, @g, {:var, 0}, goal}}
+    closed = {:ctor, :ResultComputed, @values}
+
+    assert :ok = Kernel.check(ctx, source, Eval.eval(source_type, []))
+    assert :ok = Kernel.check(ctx, closed, Eval.eval(@goal, []))
+
+    caller_closed =
+      source
+      |> Eval.eval([])
+      |> Eval.apply({:vatom_type})
+      |> Eval.apply({:vatom, :payload})
+
+    assert {:vctor, :ResultComputed, [{:vatom, :payload}, {:vfloat_type}, {:vfloat, 0.5}]} = caller_closed
+    assert ^caller_closed = Eval.eval(closed, [])
+  end
+
+  test "a complete declaration frame closes a lambda without capturing its own argument", %{ctx: ctx} do
+    declaration =
+      {:lam, @g, {:type, 0},
+       {:lam, @g, {:var, 0}, {:lam, @g, {:type, 0}, {:lam, @g, {:var, 0}, {:lam, @g, {:var, 3}, {:var, 3}}}}}}
+
+    declaration_type =
+      {:pi, @g, {:type, 0},
+       {:pi, @g, {:var, 0}, {:pi, @g, {:type, 0}, {:pi, @g, {:var, 0}, {:pi, @g, {:var, 3}, {:var, 4}}}}}}
+
+    applied = Enum.reduce([@carrier | @values], declaration, fn arg, fun -> {:app, fun, arg} end)
+    closed = {:lam, @g, @carrier, {:atom_lit, :payload}}
+    expected_type = Eval.eval({:pi, @g, @carrier, @carrier}, [])
+
+    assert :ok = Kernel.check(ctx, declaration, Eval.eval(declaration_type, []))
+    assert :ok = Kernel.check(ctx, applied, expected_type)
+    assert :ok = Kernel.check(ctx, closed, expected_type)
+    assert {:vatom, :payload} = Eval.apply(Eval.eval(applied, []), {:vatom, :argument})
+    assert {:vatom, :payload} = Eval.apply(Eval.eval(closed, []), {:vatom, :argument})
+  end
+
+  test "a registry-valued caller substitution survives a fresh lambda binder", %{env: env} do
+    family = Inductive.family(:TransportWrapper, [], [{:d, @goal}], 1)
+    ctor = Inductive.ctor(:TransportWrap, [{:d, @goal}], [{:var, 0}], [:unrestricted], [])
+    env = Inductive.declare(env, family, [ctor])
+    ctx = Context.empty(env)
+    value = {:ctor, :ResultMk, @values}
+    wrapped = {:ctor, :TransportWrap, [value]}
+    wrapped_goal = {:data, :TransportWrapper, [], [value]}
+
+    assert :ok = Kernel.check_family(env, family)
+    assert :ok = Kernel.check_ctor(env, family, ctor)
+    assert :ok = Kernel.check(ctx, value, Eval.eval(@goal, []))
+    assert {:ok, {:vtype, 1}} = Kernel.infer(ctx, wrapped_goal)
+    assert :ok = Kernel.check(ctx, wrapped, Eval.eval(wrapped_goal, []))
+
+    open_ctx = Context.extend(ctx, Eval.eval(@goal, []))
+    open_goal = {:data, :TransportWrapper, [], [{:var, 0}]}
+
+    assert {:ok, {:vtype, 1}} = Kernel.infer(open_ctx, open_goal)
+
+    assert :ok =
+             Kernel.check(
+               open_ctx,
+               {:ctor, :TransportWrap, [{:var, 0}]},
+               Eval.eval(open_goal, Context.env(open_ctx))
+             )
+
+    source =
+      {:lam, @g, @goal, {:lam, @g, @carrier, {:ctor, :TransportWrap, [{:var, 1}]}}}
+
+    source_type =
+      {:pi, @g, @goal, {:pi, @g, @carrier, {:data, :TransportWrapper, [], [{:var, 1}]}}}
+
+    target = {:lam, @g, @carrier, wrapped}
+    target_type = {:pi, @g, @carrier, wrapped_goal}
+
+    assert :ok = Kernel.check(ctx, source, Eval.eval(source_type, []))
+    assert :ok = Kernel.check(ctx, {:app, source, value}, Eval.eval(target_type, []))
+    assert :ok = Kernel.check(ctx, target, Eval.eval(target_type, []))
+
+    source_value =
+      source
+      |> Eval.eval([])
+      |> Eval.apply(Eval.eval(value, []))
+      |> Eval.apply({:vatom, :unrelated_argument})
+
+    assert ^source_value =
+             target
+             |> Eval.eval([])
+             |> Eval.apply({:vatom, :unrelated_argument})
+
+    assert {:vctor, :TransportWrap, [{:vctor, :ResultMk, _fields}]} = source_value
+
+    assert {:error, _reason} =
+             Kernel.check(
+               ctx,
+               {:ctor, :TransportWrap, [{:atom_lit, :unrelated_argument}]},
+               Eval.eval(wrapped_goal, [])
+             )
+  end
+
+  test "a computed constructor case selects a non-head branch at one original dependent goal", %{ctx: ctx} do
+    scrutinee = {:data, :ResultChain, [@carrier], [{:var, 2}, {:var, 1}, {:var, 0}]}
+
+    motive =
+      {:lam, @g, @carrier, {:lam, @g, {:type, 0}, {:lam, @g, {:var, 0}, {:lam, @g, scrutinee, {:var, 2}}}}}
+
+    branches = [{:ResultMk, 3, {:var, 0}}, {:ResultComputed, 3, {:var, 0}}]
+
+    source =
+      {:let, @g, @goal, {:ctor, :ResultComputed, @values},
+       {:case, {:var, 0}, Cure.Core.Term.shift(motive, 1, 0), branches}}
+
+    reduct = {:float_lit, 0.5}
+    fixed_goal = {:vfloat_type}
+
+    assert :ok = Kernel.check(ctx, source, fixed_goal)
+    assert :ok = Kernel.check(ctx, reduct, fixed_goal)
+    assert {:ok, ^fixed_goal} = Kernel.infer(ctx, source)
+    assert {:vfloat, 0.5} = Eval.eval(source, [])
+    assert {:vfloat, 0.5} = Eval.eval(reduct, [])
+    assert {:error, _reason} = Kernel.check(ctx, source, {:vatom_type})
+    assert {:error, _reason} = Kernel.check(ctx, reduct, {:vatom_type})
+  end
+
   test "missing and surplus result indices fail the declaration arity check", %{env: env, family: family} do
     for indices <- [[{:var, 2}, {:var, 1}], @indices ++ [{:var, 0}]] do
       ctor = Inductive.ctor(:ResultBadArity, @fields, indices, @grades, [{:var, 3}])

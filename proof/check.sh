@@ -101,6 +101,16 @@ MODULES=(
   Proof/DependentTypingInversion
   Proof/DependentMotiveControls
   Proof/DependentTypingControls
+  Proof/DependentNaturality
+  Proof/DependentCoherence
+  Proof/DependentCoherenceExamples
+  Proof/DependentTransport
+  Proof/DependentTransportExamples
+  Proof/DependentIota
+  Proof/DependentIotaExamples
+  Proof/DependentIotaBranchExamples
+  Proof/DependentRootPreservation
+  Proof/DependentRootExamples
 )
 
 fail=0
