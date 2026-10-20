@@ -6,7 +6,7 @@ defmodule Cure.Core.DependentResultCorrespondenceTest do
   """
   use ExUnit.Case, async: true
 
-  alias Cure.Core.{Context, Env, Eval, Grade, Inductive, Kernel}
+  alias Cure.Core.{Context, Env, Eval, Grade, Inductive, Kernel, Term}
 
   @g Grade.unrestricted()
   @carrier {:atom_type}
@@ -203,6 +203,66 @@ defmodule Cure.Core.DependentResultCorrespondenceTest do
     assert {:error, _reason} = Kernel.check(ctx, reduct, {:vatom_type})
   end
 
+  test "an open case-valued substitution image avoids capture beneath a lambda", %{ctx: ctx} do
+    ctx = Context.extend(ctx, {:vatom_type})
+    fields = [{:var, 0}, {:float_type}, {:float_lit, 0.5}]
+    goal = {:data, :ResultChain, [@carrier], fields}
+    branches = [{:ResultMk, 3, {:var, 2}}, {:ResultComputed, 3, {:var, 2}}]
+    image = whole_case(goal, {:ctor, :ResultComputed, fields}, result_motive(@carrier), branches)
+    source = {:lam, @g, @carrier, {:lam, @g, @carrier, {:var, 1}}}
+    target = {:lam, @g, @carrier, Term.shift(image, 1, 0)}
+    captured = {:lam, @g, @carrier, image}
+    function_type = Eval.eval({:pi, @g, @carrier, @carrier}, [])
+    caller = [{:vatom, :ambient}]
+
+    assert :ok = Kernel.check(ctx, image, {:vatom_type})
+    assert :ok = Kernel.check(ctx, {:app, source, image}, function_type)
+    assert :ok = Kernel.check(ctx, target, function_type)
+    assert :ok = Kernel.check(ctx, captured, function_type)
+
+    original =
+      source
+      |> Eval.eval(caller)
+      |> Eval.apply(Eval.eval(image, caller))
+      |> Eval.apply({:vatom, :argument})
+
+    assert {:vatom, :ambient} = original
+    assert ^original = Eval.apply(Eval.eval(target, caller), {:vatom, :argument})
+    assert {:vatom, :argument} = Eval.apply(Eval.eval(captured, caller), {:vatom, :argument})
+  end
+
+  test "a selected computed branch can contain another whole dependent case", %{ctx: ctx} do
+    motive = result_motive({:var, 2})
+    plain_branches = [{:ResultMk, 3, {:var, 0}}, {:ResultComputed, 3, {:var, 0}}]
+    fresh_fields = [{:var, 2}, {:var, 1}, {:var, 0}]
+    fresh_goal = {:data, :ResultChain, [@carrier], fresh_fields}
+    nested = whole_case(fresh_goal, {:ctor, :ResultMk, fresh_fields}, motive, plain_branches)
+    branches = [{:ResultMk, 3, {:var, 0}}, {:ResultComputed, 3, nested}]
+    source = whole_case(@goal, {:ctor, :ResultComputed, @values}, motive, branches)
+    reduct = whole_case(@goal, {:ctor, :ResultMk, @values}, motive, plain_branches)
+
+    assert :ok = Kernel.check(ctx, source, {:vfloat_type})
+    assert :ok = Kernel.check(ctx, reduct, {:vfloat_type})
+    assert {:ok, {:vfloat_type}} = Kernel.infer(ctx, source)
+    assert {:vfloat, 0.5} = Eval.eval(source, [])
+    assert {:vfloat, 0.5} = Eval.eval(reduct, [])
+    assert {:error, _reason} = Kernel.check(ctx, source, {:vatom_type})
+  end
+
+  test "a binder domain containing a type-valued case reduces at the same function goal", %{ctx: ctx} do
+    branches = [{:ResultMk, 3, {:float_type}}, {:ResultComputed, 3, {:float_type}}]
+    domain = whole_case(@goal, {:ctor, :ResultComputed, @values}, result_motive({:type, 0}), branches)
+    source = {:lam, @g, domain, {:var, 0}}
+    reduct = {:lam, @g, {:float_type}, {:var, 0}}
+    goal = Eval.eval({:pi, @g, {:float_type}, {:float_type}}, [])
+
+    assert :ok = Kernel.check(ctx, domain, {:vtype, 0})
+    assert :ok = Kernel.check(ctx, source, goal)
+    assert :ok = Kernel.check(ctx, reduct, goal)
+    assert {:vfloat, 0.5} = Eval.apply(Eval.eval(source, []), {:vfloat, 0.5})
+    assert {:vfloat, 0.5} = Eval.apply(Eval.eval(reduct, []), {:vfloat, 0.5})
+  end
+
   test "missing and surplus result indices fail the declaration arity check", %{env: env, family: family} do
     for indices <- [[{:var, 2}, {:var, 1}], @indices ++ [{:var, 0}]] do
       ctor = Inductive.ctor(:ResultBadArity, @fields, indices, @grades, [{:var, 3}])
@@ -330,5 +390,15 @@ defmodule Cure.Core.DependentResultCorrespondenceTest do
     assert :ok = Kernel.check(ctx, target, goal_value)
     assert ^expected = Eval.eval(source, Context.env(ctx))
     assert ^expected = Eval.eval(target, Context.env(ctx))
+  end
+
+  defp result_motive(body) do
+    scrutinee = {:data, :ResultChain, [@carrier], [{:var, 2}, {:var, 1}, {:var, 0}]}
+
+    {:lam, @g, @carrier, {:lam, @g, {:type, 0}, {:lam, @g, {:var, 0}, {:lam, @g, scrutinee, body}}}}
+  end
+
+  defp whole_case(goal, ctor, motive, branches) do
+    {:let, @g, goal, ctor, {:case, {:var, 0}, Term.shift(motive, 1, 0), branches}}
   end
 end

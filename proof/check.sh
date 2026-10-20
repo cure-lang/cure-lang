@@ -111,6 +111,21 @@ MODULES=(
   Proof/DependentIotaBranchExamples
   Proof/DependentRootPreservation
   Proof/DependentRootExamples
+  Proof/DependentScoping
+  Proof/DependentScopedAlgebra
+  Proof/DependentContextSuffix
+  Proof/DependentContextSuffixExamples
+  Proof/DependentDataConversion
+  Proof/DependentConstructorInversion
+  Proof/DependentConstructorInversionExamples
+  Proof/DependentSpineConversion
+  Proof/DependentSpineConversionExamples
+  Proof/DependentGeneralTransport
+  Proof/DependentGeneralTransportExamples
+  Proof/DependentGeneralIota
+  Proof/DependentGeneralIotaExamples
+  Proof/DependentCongruence
+  Proof/DependentCongruenceExamples
 )
 
 fail=0
