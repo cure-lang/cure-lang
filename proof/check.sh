@@ -22,8 +22,11 @@ if ! command -v agda >/dev/null 2>&1; then
   preflight_fail "'agda' was not found in PATH." \
     "Install Agda 2.8.0 (e.g. 'sudo apt install agda' or 'cabal install Agda-2.8.0')."
 fi
+# Cap every Agda process, including pre-flight probes. This limits the GHC
+# heap, not total RSS; override explicitly for a different machine budget.
+AGDA=(agda +RTS "-M${AGDA_HEAP_LIMIT:-24G}" -RTS)
 
-agda_version=$(agda --version | head -n1)
+agda_version=$("${AGDA[@]}" --version | head -n1)
 case "$agda_version" in
   *' 2.8.'*) ;;
   *) echo "warning: expected Agda 2.8.x, found: $agda_version" >&2 ;;
@@ -39,8 +42,8 @@ printf 'name: cure-preflight\ninclude: .\ndepend: standard-library\n' \
 printf 'module Probe where\nopen import Data.Nat using (ℕ)\n' \
   > "$probe_dir/Probe.agda"
 
-if ! probe_out=$(cd "$probe_dir" && agda Probe.agda 2>&1); then
-  app_dir=$(agda --print-agda-app-dir 2>/dev/null || echo "~/.config/agda")
+if ! probe_out=$(cd "$probe_dir" && "${AGDA[@]}" Probe.agda 2>&1); then
+  app_dir=$("${AGDA[@]}" --print-agda-app-dir 2>/dev/null || echo "~/.config/agda")
   stdlib_hint=$(find /usr/share /usr/local/share "$HOME" -maxdepth 4 \
     -name standard-library.agda-lib 2>/dev/null | head -n1 || true)
   preflight_fail "the Agda standard library is not usable." \
@@ -93,12 +96,17 @@ MODULES=(
   Proof/MotiveAgreement
   Proof/MotiveAgreementExamples
   Proof/MotiveBoundaryAudit
+  Core/DependentTyping
+  Proof/DependentTypingExamples
+  Proof/DependentTypingInversion
+  Proof/DependentMotiveControls
+  Proof/DependentTypingControls
 )
 
 fail=0
 for m in "${MODULES[@]}"; do
   printf '%-28s ' "$m"
-  if out=$(agda "$m.agda" 2>&1); then
+  if out=$("${AGDA[@]}" "$m.agda" 2>&1); then
     if echo "$out" | grep -qiE 'warning'; then
       echo 'WARNINGS'; echo "$out" | grep -iE 'warning' | head -3; fail=1
     else

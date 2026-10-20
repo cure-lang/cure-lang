@@ -989,6 +989,65 @@ typing migration must explicitly resolve or retain this refinement gap.
 No unchecked motive certificate, closed-registry assumption, new typing
 rule or kernel/runtime change is introduced by this audit.
 
+### Native unified typing interfaces — review checkpoint
+`Core.DependentTyping` is the replacement judgment under review, not a
+migration of existing soundness consumers. Forward declarations, dependent
+argument spines, constructor result instantiation, well-formed callers,
+ordinary typed curried motives and fresh branch bodies all use ONE inductive
+environment. Coverage uses that same environment. No closed-base typing,
+`ClosedFragmentSig` premise or preservation callback certifies the new terms.
+Signature validity checks actual lookups, ownership, native declaration kinds,
+field universe bounds, uniform parameters, result vectors and global typings.
+It is not a finite signature verifier or a positivity/termination proof.
+
+`Proof.DependentTypingExamples` inhabits that validity for
+`D(A; x:A, B:Type0, y:B)`, with ordinary and computed constructors, plus a
+wrapper whose field AND index declarations use D. It types the constructors,
+family formation, a B-dependent whole case and an open caller case natively.
+`Admitted` bundles actual signature, context, scope and goal-kind witnesses.
+The formerly unavailable constructor-closing premise is inhabited natively;
+this does not supply the general native substitution theorem.
+The fixture has no globals or builtin identities; those validity clauses
+are vacuous here, not a new inhabited builtin/global soundness instance.
+
+`Proof.DependentTypingControls` rejects missing registration/fields, bad
+kinds/scope, insufficient field universes, wrong dependent parameters/indices,
+nonuniform results, missing/wrong-arity coverage and foreign-owner branches.
+`Proof.DependentMotiveControls` rejects unary motives and the executable's
+extensionally accepted misannotated motive under the stricter native contract.
+Those proofs use `Proof.DependentTypingInversion`, whose generic inversions
+are checked under a conversion parameter and exported as abstract proofs.
+This prevents elaboration from unfolding the concrete reduction-conversion
+model. No proof is replaced by a postulate or a checker bypass.
+
+The original combined controls consumed all available memory during checking.
+After splitting and abstracting the conversion-parametric inversions, the
+three separate checks completed in about four seconds each, with GHC reporting
+454–559 MiB total memory in use, under `+RTS -M24G -s -RTS`.
+`check.sh` now caps every Agda process, including pre-flight probes, at a
+24 GiB GHC heap by default; `AGDA_HEAP_LIMIT` overrides that budget.
+This is a heap cap, NOT a hard process-RSS or total-allocation limit.
+For diagnostics, run Agda with `--profile=definitions` and `+RTS -M24G -s -RTS`,
+under `timeout --signal=TERM --kill-after=10s 120s` on Linux.
+
+Validation of this checkpoint passes all 68 Agda modules without warnings,
+the exact `funext`/`tree-decides` postulate guard, nine hygiene scanner tests
+and the empty bypass inventory. The full default ExUnit replay completed
+with seed 420051: 6,772 tests, zero failures and eight excluded, followed by
+355 documentation snippets passed and zero failed. `VISUAL` was unset only
+in the test subprocess. The replay took about twelve minutes; earlier
+interrupted runs were not counted as successful validation.
+Strict Credo, formatting, shell syntax and whitespace checks also pass.
+No executable source or test selection/exclusions changed for this checkpoint.
+
+**Stop here for interface review before broad consumer migration.**
+Native renaming/substitution, context conversion, whole-case preservation and
+progress remain unproved. The old closed-entry theorem is unchanged.
+The typed motive contract is a conservative restriction, not refinement of
+all executable fresh-value validation. Recursive validity/positivity,
+indexed omission, eta/NbE, erased/filtered frames, erasure simulation and
+semantic totality remain open. No kernel/runtime implementation changed.
+
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;

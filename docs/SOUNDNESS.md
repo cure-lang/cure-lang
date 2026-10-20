@@ -903,6 +903,49 @@ broad migration; inserting registry entries into the old closedness premise
 or adding an unchecked motive certificate does not resolve this boundary.
 No existing typing rule or kernel/runtime implementation was changed.
 
+**Native unified typing — interfaces and inhabited examples under review.**
+`Core.DependentTyping` introduces native declaration, dependent-spine,
+constructor, motive and branch judgments over ONE environment. The new case
+rule checks a well-formed caller, an ordinary typed curried motive and
+same-environment coverage. Its fields-only constructor rule carries parameters
+as declarative witnesses, not additional runtime fields or a deterministic
+synthesis algorithm. Lookup-indexed native signature evidence checks kinds,
+field universe bounds, uniform parameters, result vectors and visible owners.
+
+`Proof.DependentTypingExamples` inhabits these interfaces for the dependent
+family D and a wrapper whose field and index types refer to D. It supplies
+ordinary/computed constructor typing, family formation, a B-dependent whole
+case and an open caller case. Constructor closing is now natively coherent.
+The fixture has no globals or builtin identities; it does not instantiate
+a new soundness theorem or establish literal-peeling compatibility.
+`Admitted` additionally exposes signature/context validity, scopes and the
+goal's native kind. Holes remain checkable; release finality is separate.
+
+Negative controls reject missing lookup/fields, bad declaration kinds/scope,
+field universe violations, wrong dependent parameters/indices, nonuniform
+results, missing/malformed coverage and foreign-owner branches. Unary motives
+and the executable's extensionally accepted misannotated motive are refuted
+under the stricter ordinary typed contract. Generic native inversions are
+checked against a conversion parameter and made abstract; separating these
+from concrete controls removes the observed elaboration memory blowup without
+new axioms or checker bypasses. The proof runner defaults to a 24 GiB GHC
+heap cap, not a hard total-process memory limit.
+
+The checkpoint passes all 68 Agda modules without warnings, the exact
+`funext`/`tree-decides` postulate guard, nine hygiene scanner tests and the
+empty bypass inventory. Full default ExUnit replay with seed 420051 completed:
+6,772 tests, zero failures, eight excluded, followed by 355 documentation
+snippets passed and zero failed. `VISUAL` was unset only in the subprocess;
+no test selection or exclusions changed. Strict Credo, formatting, shell
+syntax and whitespace checks pass. Earlier interrupted runs are not used
+as evidence of successful completion.
+
+This is the interface-review gate, NOT native substitution, progress or
+whole-case preservation. Existing `Core.Typing` and its closed-entry soundness
+consumers are unchanged. Native metatheory and consumer migration await
+review; executable extensional motive refinement, recursive verification/
+positivity and the other semantic/refinement obligations remain open.
+
 `Core.Coverage` is now connected to the active typing and proof consumers.
 `Proof.CoverageExamples` gives concrete Nat coverage in an environment also
 containing Bool and Void, without requiring unrelated Bool branches. It
