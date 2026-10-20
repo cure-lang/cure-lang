@@ -960,6 +960,35 @@ scrutinee, so migrating it to this curried indexed contract remains open.
 Coverage, unified typing and the other refinement/release obligations are
 not discharged. No runtime/kernel implementation changes.
 
+### Motive well-formedness boundary audit
+`Proof.MotiveBoundaryAudit` shows why the old BASE judgment cannot serve as
+a motive checker for the separate registry. A raw caller context may contain
+a registry-only scrutinee type. The old case rule then derives a sort-valued
+final empty case with vacuous base coverage. The actual registry admits
+`LocalMk`, so empty coverage there is refuted; base coverage cannot be
+transferred to it.
+
+The registered constructor has no base inference derivation. Closing that
+caller binder with the constructor therefore fails the base `Coherent`
+premise, and the closed case has no base typing derivation. This does not
+refute existing conditional preservation: it exposes exactly the missing
+premise. A raw context extension is not evidence of a well-formed base type.
+
+Three further executable tests pin registry coverage, unary-versus-indexed
+motive validation, and the difference between fresh-value validation and
+ordinary application typing. In the last test an Atom-annotated scrutinee
+lambda passes case motive validation but cannot be ordinarily applied to
+the data scrutinee. The positive whole case is kernel-checked and its value
+is independently evaluated. The branch suite now has seventeen tests;
+frame and result suites retain sixteen each.
+
+The executable gate applies evaluated closures to fresh indices and a
+scrutinee, then checks the resulting type value. A typed-Π motive contract
+would be stricter, not a proved correspondence with that gate. A unified
+typing migration must explicitly resolve or retain this refinement gap.
+No unchecked motive certificate, closed-registry assumption, new typing
+rule or kernel/runtime change is introduced by this audit.
+
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;

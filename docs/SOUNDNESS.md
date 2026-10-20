@@ -869,6 +869,40 @@ contract, motive well-formedness, coverage and unified dependent case
 typing remain open. The other §8 refinement/release/termination obligations
 are unchanged.
 
+**Motive boundary audit — the base judgment cannot certify the extension.**
+`Proof.MotiveBoundaryAudit` constructs a base derivation of a sort-valued,
+final empty case under a caller binder whose type mentions the registry-only
+`LocalResult`. Coverage is vacuous in the BASE environment. The registry
+actually admits `LocalMk`, and empty coverage there is explicitly refuted,
+as is any transfer of that base coverage to the registry.
+
+The admitted constructor cannot infer any base type. Consequently, replacing
+the caller binder by that constructor is not a coherent base substitution,
+and the resulting closed case cannot be base-typed. This is a boundary
+counterexample to reusing base typing as an extension-motive certificate,
+not a contradiction in the closed-entry preservation theorem: its coherent
+substitution premise is unavailable. Raw context extension does not establish
+that the binder's type is well-formed in the base environment.
+
+Three additional executable regressions distinguish the boundaries: a
+correct curried motive still requires registry coverage; ordinary inference
+of a unary motive does not validate the indexed contract; and a motive with
+an Atom-annotated scrutinee lambda can pass the executable's fresh-value
+validation while ordinary application to the family scrutinee is rejected.
+The last example has a kernel-checked positive whole case and independently
+evaluated result. The branch suite now has seventeen tests.
+
+`Kernel.check_motive_wf` evaluates the motive on fresh index/scrutinee values
+and classifies the resulting type value; it does not require ordinary
+inference of the entire curried application. Therefore a future ordinary
+typed-Π motive rule would be a conservative specification restriction, not
+an established refinement of every executable acceptance. Neither that
+correspondence nor extensional motive validation is mechanised here.
+Unified declaration/context/motive/branch typing must be reviewed before
+broad migration; inserting registry entries into the old closedness premise
+or adding an unchecked motive certificate does not resolve this boundary.
+No existing typing rule or kernel/runtime implementation was changed.
+
 `Core.Coverage` is now connected to the active typing and proof consumers.
 `Proof.CoverageExamples` gives concrete Nat coverage in an environment also
 containing Bool and Void, without requiring unrelated Bool branches. It

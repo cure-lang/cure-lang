@@ -92,6 +92,7 @@ MODULES=(
   Proof/DependentOpeningExamples
   Proof/MotiveAgreement
   Proof/MotiveAgreementExamples
+  Proof/MotiveBoundaryAudit
 )
 
 fail=0

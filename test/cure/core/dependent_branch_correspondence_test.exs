@@ -199,4 +199,35 @@ defmodule Cure.Core.DependentBranchCorrespondenceTest do
       assert {:error, _reason} = Kernel.infer(ctx, term)
     end
   end
+
+  test "a registry scrutinee still requires coverage when a correct motive returns a sort", %{ctx: ctx} do
+    ctx = Context.extend(ctx, Eval.eval(@goal, []))
+    term = {:case, {:var, 0}, motive(@carrier, {:type, 0}), []}
+
+    assert {:error, :coverage} = Kernel.infer(ctx, term)
+  end
+
+  test "ordinary unary motive inference is not indexed motive validation", %{ctx: ctx} do
+    unary = {:lam, @g, @carrier, {:type, 0}}
+    assert {:ok, {:vpi, _, _, _}} = Kernel.infer(ctx, unary)
+    ctx = Context.extend(ctx, Eval.eval(@goal, []))
+
+    assert {:error, :bad_motive} = Kernel.infer(ctx, {:case, {:var, 0}, unary, []})
+  end
+
+  test "motive validation checks fresh results rather than ordinary scrutinee-domain application", %{ctx: ctx} do
+    # The last lambda's annotation is Atom rather than the scrutinee family.
+    # Case motive validation applies the closure to the actual fresh values;
+    # ordinary term application checks the annotated Pi domain instead.
+    extensional =
+      {:lam, @g, @carrier, {:lam, @g, {:type, 0}, {:lam, @g, {:var, 0}, {:lam, @g, @carrier, {:var, 2}}}}}
+
+    term = program(@goal, @ctor, extensional, {:var, 0})
+    assert :ok = Kernel.check(ctx, term, {:vfloat_type})
+    assert {:vfloat, 0.5} = Eval.eval(term, [])
+
+    ctx = Context.extend(ctx, Eval.eval(@goal, []))
+    applied = Enum.reduce(@values ++ [{:var, 0}], extensional, fn arg, fun -> {:app, fun, arg} end)
+    assert {:error, _reason} = Kernel.infer(ctx, applied)
+  end
 end
