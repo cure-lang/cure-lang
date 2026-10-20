@@ -857,6 +857,44 @@ dependent case elimination, recursive extension checking or the unified
 `Core.Typing` judgment. Those integration and implementation-refinement
 obligations, and release certification, remain open.
 
+### Parameter-specialised selected-branch contraction
+`Core.LocalFrame.specializeParameters` substitutes actual parameters beneath
+the protected field binders. `Proof.LocalFrame.staged-contraction` proves
+that this stage followed by active fields-only `substArgs` equals the full
+parameter-plus-field `instantiateResult` for ARBITRARY bodies and open
+caller terms. Nested binders use the existing capture-avoiding substitution
+algebra. The pure push/weakening helper is shared with typed instantiation,
+without changing its public theorem.
+
+`Proof.DependentBranch.Contract` obtains the selected constructor's local
+declaration from the checked registry. `contract-typed` transports a body
+checked in that local parameter/field context to its fields-only contracted
+form, at the instantiated local goal. `contract-final` preserves finality
+for a final local body; `contract-infers` derives inference for that reduct.
+`selected-step` exhibits the actual ordinary ι rule using the declared
+FIELD arity, not the parameter-plus-field context size.
+
+`Proof.DependentBranchExamples` checks last-field projection, parameter
+replacement, lambda field capture/own-binder protection and open caller
+parameters shifted past the fields then restored. Negative controls show
+that unspecialised parameters become unrelated ambient variables, unprotected
+specialisation can select a field value, and parameters cannot inflate
+branch arity.
+
+Eight tests in `test/cure/core/dependent_branch_correspondence_test.exs`
+independently kernel-check whole positive cases and compare declaration-frame
+evaluation with fields-only case evaluation. They include open parameters,
+lambda capture, own variables and malformed slot/arity controls.
+No kernel/runtime implementation changes.
+
+**This is selected-branch typed substitution plus a raw ι witness, NOT
+preservation of a typed whole source case.** The formal body is checked in
+the local declaration context; fresh caller branch-context typing,
+motive/index agreement, coverage and integration with unified typing remain
+open. It also does not verify that the elaborator emits this specialisation.
+Parameter-prefix filtering and missing erased slots remain outside the
+exact-arity fields-only contract.
+
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;

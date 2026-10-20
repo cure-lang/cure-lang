@@ -777,6 +777,40 @@ elimination, release certification, evaluator/readback/η refinement,
 filtered/erased frames, typed erasure simulation and semantic totality
 remain open. No runtime/kernel library source changed.
 
+**Parameter-specialised selected-branch contraction — constructed.**
+`Core.LocalFrame.specializeParameters` replaces local parameter slots while
+protecting field binders. `Proof.LocalFrame.staged-contraction` proves exact
+agreement of parameter specialisation followed by active fields-only
+substitution with full parameter-plus-field instantiation, for arbitrary
+bodies and open callers. Existing binder-aware composition provides capture
+avoidance; the pure push/weakening helper is shared with typed instantiation.
+
+`Proof.DependentBranch.Contract` uses an actual checked registry application
+and its local constructor declaration. A body checked in that local
+parameter/field context contracts to a term checked at the instantiated
+local goal. Final local bodies yield final reducts and corresponding
+inference. A separate `selected-step` theorem exhibits ordinary ι with the
+constructor's FIELD arity and the parameter-specialised runtime body.
+Its motive and other branches are raw syntax, not certified case typing.
+
+Examples cover field projection, parameters replaced rather than captured,
+lambda domains/captured fields/own binders, and an open parameter shifted
+past fields then restored to its caller slot. Negative controls reject
+unspecialised/unprotected slot interpretations and treating parameters as
+branch fields.
+Eight independent executable tests kernel-check whole positive cases and
+compare declaration-frame and fields-only case evaluation, including open
+parameters and lambda capture. No kernel/runtime implementation changes.
+
+This is **typed selected-branch substitution and a raw ι witness**, not a
+whole-source-case preservation theorem. Fresh caller branch-context typing,
+motive/index agreement, coverage and unified dependent typing remain open,
+as does proving that elaboration emits the specified specialisation.
+The typed body here lives in the local declaration context, not an arbitrary
+fresh caller branch context. Parameter-prefix filtering, missing erased
+slots and the remaining erasure/totality/η/refinement obligations are not
+established by this result.
+
 `Core.Coverage` is now connected to the active typing and proof consumers.
 `Proof.CoverageExamples` gives concrete Nat coverage in an environment also
 containing Bool and Void, without requiring unrelated Bool branches. It

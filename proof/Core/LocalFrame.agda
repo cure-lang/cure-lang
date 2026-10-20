@@ -77,6 +77,13 @@ instantiateResult : List Term → List Term → Term → Term
 instantiateResult parameters fields ty =
   substS (advance fields (advance parameters identity)) ty
 
+-- A local declaration body sees parameters OUTSIDE its field binders.
+-- Runtime branch bodies have fields only, so specialise the parameters
+-- while protecting those field slots (and any nested binders).
+specializeParameters : ℕ → List Term → Term → Term
+specializeParameters ar parameters body =
+  substS (extSub^ ar (advance parameters identity)) body
+
 result-agree : ∀ parameters fields ty
   → instantiateResult parameters fields ty
     ≡ substS (argsSub (reverse fields ++ reverse parameters)) ty

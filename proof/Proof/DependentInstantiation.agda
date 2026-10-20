@@ -20,7 +20,7 @@ open import Core.Typing using (Ctx; Conversion; ⟨⟩; extend; lookup; lookup-e
 import Core.LocalFrame as F
 open import Core.Verification using (ScopedTele; tele[]; tele∷)
 open import Proof.Progress using (BuiltinCtors; Certified; FinalTerms; ft[]; ft∷)
-open import Proof.Substitution using (subst-rename)
+import Proof.LocalFrame as Local
 open import Proof.Preservation
   using (ClosedFragmentSig; ReduceConv; CertifiedTyped; module Preserve)
 import Proof.DependentSpine as Dependent
@@ -78,9 +78,7 @@ module Telescopes (ind : IndEnv) (sig : Signature) (conv : Conversion) where
 
     push-undoes-wk : ∀ arg σ T
       → substS (F.push arg σ) (rename wk T) ≡ substS σ T
-    push-undoes-wk arg σ T =
-      trans (subst-rename (F.push arg σ) wk T)
-        (cong (λ τ → substS τ T) (funext (λ i → refl)))
+    push-undoes-wk = Local.push-undoes-wk
 
     -- Pushing a checked final argument REALISES a declaration binder;
     -- unlike coh-extend this does not add a binder to the caller context.
