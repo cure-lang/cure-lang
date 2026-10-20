@@ -1006,7 +1006,8 @@ wrapper whose field AND index declarations use D. It types the constructors,
 family formation, a B-dependent whole case and an open caller case natively.
 `Admitted` bundles actual signature, context, scope and goal-kind witnesses.
 The formerly unavailable constructor-closing premise is inhabited natively;
-this does not supply the general native substitution theorem.
+that fixture alone does not supply substitution. The general native
+transport theorem described below now discharges that separate obligation.
 The fixture has no globals or builtin identities; those validity clauses
 are vacuous here, not a new inhabited builtin/global soundness instance.
 
@@ -1030,23 +1031,102 @@ This is a heap cap, NOT a hard process-RSS or total-allocation limit.
 For diagnostics, run Agda with `--profile=definitions` and `+RTS -M24G -s -RTS`,
 under `timeout --signal=TERM --kill-after=10s 120s` on Linux.
 
-Validation of this checkpoint passes all 68 Agda modules without warnings,
-the exact `funext`/`tree-decides` postulate guard, nine hygiene scanner tests
-and the empty bypass inventory. The full default ExUnit replay completed
-with seed 420051: 6,772 tests, zero failures and eight excluded, followed by
+Validation of this interface checkpoint passed all 68 Agda modules without
+warnings, the exact `funext`/`tree-decides` postulate guard, nine hygiene
+scanner tests and the empty bypass inventory. The full default ExUnit replay
+completed with seed 420051: 6,772 tests, zero failures and eight excluded, followed by
 355 documentation snippets passed and zero failed. `VISUAL` was unset only
 in the test subprocess. The replay took about twelve minutes; earlier
 interrupted runs were not counted as successful validation.
 Strict Credo, formatting, shell syntax and whitespace checks also pass.
 No executable source or test selection/exclusions changed for this checkpoint.
 
-**Stop here for interface review before broad consumer migration.**
-Native renaming/substitution, context conversion, whole-case preservation and
-progress remain unproved. The old closed-entry theorem is unchanged.
+Existing soundness consumers remain on the old closed-entry theorem.
+Native progress remains unproved; general transport and conditional
+preservation are supplied by the later modules below.
 The typed motive contract is a conservative restriction, not refinement of
 all executable fresh-value validation. Recursive validity/positivity,
 indexed omission, eta/NbE, erased/filtered frames, erasure simulation and
 semantic totality remain open. No kernel/runtime implementation changed.
+
+### General native transport and conversion inversion
+`Proof.DependentGeneralTransport` proves native inference/checking
+renaming and coherent substitution, including nested cases in terms,
+motives, branch bodies and well-formed fresh contexts. Images are native
+inference derivations, without case-free support certificates. Context
+conversion and fields-only branch contraction are derived from that
+substitution theorem. Target callers carry actual native well-formedness.
+`Proof.DependentScoping`, `Proof.DependentScopedAlgebra` and
+`Proof.DependentContextSuffix` supply scope-aware frame/motive equalities
+and structural traversal of the original context-kind derivations.
+
+`Proof.DependentDataConversion` proves data-component injectivity for the
+existing reduction-conversion model, separately from the legacy
+`Conversion` record. `Proof.DependentConstructorInversion` accumulates
+conversion through arbitrary inference/checking intermediates and exposes
+the actual registered constructor, owning family and checked parameter/field
+spines. `Proof.DependentSpineConversion` rebases convertible local prefixes
+and computed result vectors. No raw syntax reflection or closed dependent
+declaration premise is assumed.
+
+`Proof.DependentGeneralIota` consequently preserves ordinary native whole
+cases even when the constructor's hidden parameter witness and the case's
+parameter witness are convertible but syntactically different, and the
+selected body contains a nested case. `Proof.DependentCongruence` provides
+all nineteen compositional congruence closures; the following theorem
+derives their child endpoint typings recursively rather than assuming them.
+
+### Recursive native preservation and literal compatibility
+`Proof.DependentSubjectReduction.Preserve` proves inference/checking
+preservation for the complete existing small-step reduction relation,
+including all four compact-literal peels and every congruence. The checking
+goal is fixed, not recomputed after reduction. The mutually checked
+induction also handles selected dependent-spine updates, finite paths and
+finite branch-body paths. `preservation-infers` recovers native inference
+for the final reduct; `preservation-star⇐` preserves one checking goal
+through an arbitrary supplied finite path.
+
+Its explicit inputs are native `SignatureValid`, data-component inversion,
+raw reduction-to-conversion compatibility, `BodiesFinal sig` and static
+`BuiltinShapes ind`. Callers are natively well formed and source terms are
+`Final`. `BodiesFinal` means global body finality, not semantic termination.
+The data-component and reduction-conversion inputs are inhabited by the
+existing specification model. No child preservation callback, new
+postulate or check bypass supplies a recursive case.
+
+The builtin-layout input is necessary. `Proof.DependentLiteralBoundaryAudit`
+inhabits native validity, closed final source typing and coverage for an
+unindexed Nat whose successor field is Float. Its real literal ι step
+produces `nat_lit 0`, which cannot check at the source's Float goal.
+Thus native declaration validity alone does not justify literal peeling.
+`Proof.DependentPreservationControls` proves the new static layout contract
+rejects this registered metadata.
+
+`Proof.DependentLiteralPreservation` exposes static evidence for actual
+builtin identities, family/constructor lookups, argument telescope shapes,
+result indices and the Nat dependency used by Bounded peeling, and proves
+literal preservation from those witnesses. This is not an executable
+layout verifier. Its contract has no typing or preservation callback.
+It permits ordinary field names and is conditional,
+so builtin-free environments need not register these families.
+`Proof.DependentLiteralExamples` inhabits it for real native Nat/Bounded
+declarations. These are the explicitly unindexed literal families, not a
+certificate for the executable indexed-Bounded interface.
+
+The recursive examples invoke preservation on source derivations for
+nested selected cases, lambda-body/domain changes, non-head field/index
+updates, conversion/cumulativity wrappers, typed global unfolding and
+multi-step branch-body paths. This is native specification preservation,
+not yet native progress, an integrated native soundness theorem or
+compiler/evaluator refinement. The old closed-entry soundness consumers,
+native typing rules and reduction rules are unchanged.
+
+`Proof.DependentSubjectReductionLiterals` invokes all three one-step
+preservation entry points for each actual literal-peel rule, using source
+literal inference with conversion chains. Field-sensitive cases return the
+Nat predecessor, the Bounded predecessor or its distinct Nat bound, and
+also exercise the zero/fallback branches. Target typings are obtained only
+from the recursive theorem, not supplied as premises.
 
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe

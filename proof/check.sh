@@ -126,6 +126,13 @@ MODULES=(
   Proof/DependentGeneralIotaExamples
   Proof/DependentCongruence
   Proof/DependentCongruenceExamples
+  Proof/DependentLiteralPreservation
+  Proof/DependentLiteralExamples
+  Proof/DependentLiteralBoundaryAudit
+  Proof/DependentPreservationControls
+  Proof/DependentSubjectReduction
+  Proof/DependentSubjectReductionExamples
+  Proof/DependentSubjectReductionLiterals
 )
 
 fail=0
