@@ -88,6 +88,8 @@ MODULES=(
   Proof/DependentPreservationExamples
   Proof/DependentBranch
   Proof/DependentBranchExamples
+  Proof/DependentOpening
+  Proof/DependentOpeningExamples
 )
 
 fail=0

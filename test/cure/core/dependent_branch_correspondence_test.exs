@@ -130,4 +130,24 @@ defmodule Cure.Core.DependentBranchCorrespondenceTest do
     term = program(@goal, @ctor, motive(@carrier, {:type, 0}), @carrier, 4)
     assert {:error, :branch_arity} = Kernel.infer(ctx, term)
   end
+
+  test "a fresh branch reads an unrelated ambient value instead of the distinct first field", %{ctx: ctx} do
+    ctx = Context.extend(ctx, {:vatom_type})
+    term = program(@goal, @ctor, motive(@carrier, @carrier), {:var, 3})
+
+    assert :ok = Kernel.check(ctx, term, {:vatom_type})
+    assert {:vneutral, {:nvar, 0}} = Eval.eval(term, Context.env(ctx))
+    assert {:vatom, :payload} = Eval.eval({:var, 2}, @declaration_frame)
+  end
+
+  test "a fresh branch lambda captures the ambient value rather than a field or its argument", %{ctx: ctx} do
+    ctx = Context.extend(ctx, {:vatom_type})
+    result = {:pi, @g, @carrier, @carrier}
+    body = {:lam, @g, @carrier, {:var, 4}}
+    term = program(@goal, @ctor, motive(@carrier, result), body)
+
+    assert :ok = Kernel.check(ctx, term, Eval.eval(result, Context.env(ctx)))
+    runtime = Eval.eval(term, Context.env(ctx))
+    assert {:vneutral, {:nvar, 0}} = Eval.apply(runtime, {:vatom, :argument})
+  end
 end

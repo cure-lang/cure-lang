@@ -798,18 +798,47 @@ lambda domains/captured fields/own binders, and an open parameter shifted
 past fields then restored to its caller slot. Negative controls reject
 unspecialised/unprotected slot interpretations and treating parameters as
 branch fields.
-Eight independent executable tests kernel-check whole positive cases and
+Ten independent executable tests kernel-check whole positive cases and
 compare declaration-frame and fields-only case evaluation, including open
 parameters and lambda capture. No kernel/runtime implementation changes.
 
 This is **typed selected-branch substitution and a raw ι witness**, not a
-whole-source-case preservation theorem. Fresh caller branch-context typing,
-motive/index agreement, coverage and unified dependent typing remain open,
-as does proving that elaboration emits the specified specialisation.
+whole-source-case preservation theorem. The next checkpoint constructs the
+fresh caller-context bridge; motive/index agreement, coverage and unified
+dependent typing remain open, as does proving that elaboration emits the
+specified specialisation.
 The typed body here lives in the local declaration context, not an arbitrary
 fresh caller branch context. Parameter-prefix filtering, missing erased
 slots and the remaining erasure/totality/η/refinement obligations are not
 established by this result.
+
+**Fresh caller branch contexts — typed opening and closing constructed.**
+`Proof.DependentOpening.build` opens fields forwards in the ambient caller,
+specialising field types with actual parameters and preceding fresh fields.
+It derives exact caller-plus-FIELD context size, not a parameter-plus-field
+branch arity. `open-coherent` and `open-kinded` derive the embedding and
+field kinds from the actual registered local declaration; `local-to-branch`
+types the parameter-specialised local body in the resulting fresh context.
+
+`close-coherent` handles a general ambient substitution and checked actual
+field values. Its registered instance `branch-coherent` yields a coherent
+fields-only contraction from the fresh context to the caller.
+`contract-branch` / `contract-branch⇒` preserve checking/inference for any
+body typed THERE, including direct ambient references not expressible in
+the local parameter/field-only context. Both the reduct and its dependent
+type are substituted; no kinding or dependent-preservation oracle is added.
+
+Concrete witnesses separate caller and field values, protect caller capture
+and lambda-local variables, and embed/close open parameter-dependent bodies.
+Fresh dependent field types stay symbolic until actual-field contraction.
+Two additional executable whole-case tests exercise unrelated ambient
+value access/capture; the branch suite now has ten tests.
+The frame/result suites retain sixteen each. No kernel/runtime source changes.
+
+This strengthens the selected-branch bridge but does not establish whole
+dependent case preservation. Motive/index agreement, coverage, unified
+typing and recursive signature validity/positivity remain open, alongside
+elaboration/evaluator/readback refinement and the other §8 obligations.
 
 `Core.Coverage` is now connected to the active typing and proof consumers.
 `Proof.CoverageExamples` gives concrete Nat coverage in an environment also

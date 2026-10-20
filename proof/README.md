@@ -881,7 +881,7 @@ that unspecialised parameters become unrelated ambient variables, unprotected
 specialisation can select a field value, and parameters cannot inflate
 branch arity.
 
-Eight tests in `test/cure/core/dependent_branch_correspondence_test.exs`
+Ten tests in `test/cure/core/dependent_branch_correspondence_test.exs`
 independently kernel-check whole positive cases and compare declaration-frame
 evaluation with fields-only case evaluation. They include open parameters,
 lambda capture, own variables and malformed slot/arity controls.
@@ -889,11 +889,42 @@ No kernel/runtime implementation changes.
 
 **This is selected-branch typed substitution plus a raw ι witness, NOT
 preservation of a typed whole source case.** The formal body is checked in
-the local declaration context; fresh caller branch-context typing,
-motive/index agreement, coverage and integration with unified typing remain
-open. It also does not verify that the elaborator emits this specialisation.
+the local declaration context. The next checkpoint supplies typed fresh
+caller contexts; motive/index agreement, coverage and integration with
+unified typing remain open. Neither proves that elaboration emits the
+specified specialisation.
 Parameter-prefix filtering and missing erased slots remain outside the
 exact-arity fields-only contract.
+
+### Typed fresh caller branch contexts
+`Proof.DependentOpening.build` extends the AMBIENT caller context forwards,
+specialising each field type with the parameter substitution lifted through
+preceding fresh fields. The context size is exactly caller size plus field
+arity; parameters do not become additional branch binders.
+
+`open-coherent` and `open-kinded` derive a coherent declaration-to-caller
+embedding and actual field-kind witnesses from the registered local
+declaration. `local-to-branch` types the earlier parameter-specialised body
+in this fresh context. `close-coherent` proves a general closing law from
+checked actual fields and an ambient context substitution.
+`branch-coherent`, `contract-branch` and `contract-branch⇒` then close ANY
+body typed in the fresh context, including direct unrelated ambient-variable
+references absent from the local declaration context. Both the term and
+its dependent type use active fields-only substitution.
+
+The examples distinguish a literal first field from an ambient Atom caller
+variable, protect that caller under a lambda, retain the lambda's own
+binder, and embed/close open parameters and parameter-dependent lambdas.
+Fresh dependent field types remain symbolic until closing.
+Two added executable tests independently kernel-check whole cases returning
+or capturing the unrelated ambient value. The branch suite now has ten
+tests; the frame and result suites retain sixteen each.
+
+This closes the fresh caller-context/contraction bridge, not the remaining
+motive/index and coverage obligations or unified dependent case typing.
+The base and registry environments remain explicit, with the same
+conditional base substitution infrastructure. No kernel/runtime source
+changes, full compiler refinement or new release/termination claim.
 
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
