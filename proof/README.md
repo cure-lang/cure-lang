@@ -16,7 +16,7 @@ development.
 > soundness hypotheses on a nonempty closed-entry fragment with a finite
 > typed global table. This is NOT executable NbE/η refinement.
 > The old `ClosedSig` oracle is frozen:
-> active consumers use
+> legacy consumers use
 > inhabited `ClosedFragmentSig`, restricted to individually closed entries,
 > **not** full dependent telescopes. The old global coverage oracle is now frozen
 > only as a negative regression: each admitted case carries local coverage.
@@ -33,7 +33,7 @@ development.
 >
 > The following is the **conditional derivation status**, subject to that
 > applicability warning. The current restricted Core typing specification
-> compiles cleanly; full dependent-signature support is unfinished.
+> compiles cleanly; its dependent-signature migration is not performed.
 > The canonical-form, renaming and substitution lemmas, **Progress**, **`Final`-preservation**,
 > and **`preservation` (every case, including ι and δ)** are all **proved**,
 > and so are the constructive soundness theorems: the **fuel-indexed
@@ -56,6 +56,14 @@ development.
 > theorem built on it have been **removed**; `soundness-nf` is the honest
 > replacement.
 > See [Status](#status) for the lemma-by-lemma breakdown.
+
+The separate native development now proves general dependent transport,
+recursive preservation and closed final-term progress for
+`Core.DependentTyping`. `Proof.DependentSoundness` combines them into
+constructive fuel, finite-trace and guarded outcome-tree safety.
+`Proof.DependentSoundnessModel` jointly inhabits the native assumptions with
+dependent declarations, typed globals and real unindexed builtin layouts.
+These remain specification results, not executable kernel refinement.
 
 ## What is being proved
 
@@ -1041,9 +1049,9 @@ interrupted runs were not counted as successful validation.
 Strict Credo, formatting, shell syntax and whitespace checks also pass.
 No executable source or test selection/exclusions changed for this checkpoint.
 
-Existing soundness consumers remain on the old closed-entry theorem.
-Native progress remains unproved; general transport and conditional
-preservation are supplied by the later modules below.
+Existing legacy soundness consumers remain on the old closed-entry theorem.
+The later modules below supply general native transport, progress,
+preservation and constructive soundness separately.
 The typed motive contract is a conservative restriction, not refinement of
 all executable fresh-value validation. Recursive validity/positivity,
 indexed omission, eta/NbE, erased/filtered frames, erasure simulation and
@@ -1116,8 +1124,8 @@ certificate for the executable indexed-Bounded interface.
 The recursive examples invoke preservation on source derivations for
 nested selected cases, lambda-body/domain changes, non-head field/index
 updates, conversion/cumulativity wrappers, typed global unfolding and
-multi-step branch-body paths. This is native specification preservation,
-not yet native progress, an integrated native soundness theorem or
+multi-step branch-body paths. The following native soundness theorem now
+combines this specification preservation with native progress. This is not
 compiler/evaluator refinement. The old closed-entry soundness consumers,
 native typing rules and reduction rules are unchanged.
 
@@ -1127,6 +1135,76 @@ literal inference with conversion chains. Field-sensitive cases return the
 Nat predecessor, the Bounded predecessor or its distinct Nat bound, and
 also exercise the zero/fallback branches. Target typings are obtained only
 from the recursive theorem, not supplied as premises.
+
+### Native progress and constructive soundness
+`Proof.DependentCanonical` derives canonical function/data forms from
+native inference and checking, accumulating arbitrary conversion
+intermediates. Canonical functions at exposed Π types are lambdas;
+canonical data values may be constructors or compact Nat/Bounded literals.
+No arbitrary raw type is reflected back into exposed syntax.
+
+`Proof.DependentProgress.Progress` proves closed final native terms are
+either existing `Value`s or admit an actual small step. Source-local
+coverage supplies constructor/literal branch names and exact arities.
+This result needs no signature-validity, positivity, builtin-layout or
+data-component premise. Signature validity, data components and builtin
+layouts are separate preservation inputs.
+
+`Proof.DependentSoundness.Specification` packages the explicit native
+preservation inputs. `Sound.trace-safe` preserves native checking at one
+fixed goal and finality along any supplied finite specification path, and
+gives a value/step witness at its endpoint. `soundness-fuel` follows a
+proof-producing observation policy and returns either a reached native
+typed/final value with its source path or a typed/final prefix endpoint
+when fuel is exhausted. Exhaustion does not imply divergence or that the
+endpoint is not a value.
+
+`soundness-tree` constructs a guarded coinductive outcome tree whose nodes
+retain native typing and finality. `soundness-fuel≡truncate` proves its
+finite truncations agree with the actual fuel-indexed construction.
+Supplied positive infinite paths can be annotated by native typing through
+`annotate-divergence`. No `tree-decides`, LPO or claim that divergence
+excludes reachable values is used by these native constructions.
+
+`Proof.DependentObservation` only produces actual raw value/step
+witnesses. It checks first-match branch lookup and exact local arity; if
+its partial policy cannot choose, native progress supplies the fallback.
+It is not a type validator or an executable NbE implementation.
+`Proof.DependentObservationExamples` exhibits a final ill-typed β redex
+with a valid raw reduction but no native inference/checking derivation,
+so observation success cannot replace source typing.
+
+### Joint native model and outcome controls
+`Proof.DependentSoundnessModel` uses ONE native environment, signature and
+conversion model for `D(A; x:A, B:Type0, y:B)`, ordinary/computed
+constructors, unindexed Nat/Bounded layouts and a nonempty typed global
+table. The global body is a computed dependent constructor and its
+declared type is let-wrapped. Every local declaration/global typing,
+universe bound, uniformity, result spine, body-finality and layout witness
+is native; the assumptions are jointly inhabited, not assembled from
+different typing judgments.
+
+Its Nat and Bounded programs each follow three actual reductions:
+literal peeling, global unfolding inside the dependent case, and computed
+constructor contraction. `Proof.DependentSoundnessExamples` invokes the
+actual fuel/tree/trace theorems on these source derivations. Fuel zero
+stops at the source, fuel three stops at an already-final Float value,
+and fuel four observes that value as reached. Endpoint typings come from
+soundness, not independent target checks. Fuel/tree agreement holds at
+every budget.
+
+`Proof.DependentSoundnessControls` deliberately admits a recursive raw
+specification global to distinguish body finality from semantic
+termination. Its supplied infinite path is natively typed and all fuel
+budgets exhaust, while the global is also a neutral `Value` reachable in
+zero steps. This refutes the tempting no-reachable-value strengthening.
+An opaque typed global is reached immediately. This recursive fixture is
+not an executable totality certificate.
+
+Native safety is now integrated constructively. Kernel/NbE/η refinement,
+the executable fresh-value motive gate, indexed-Bounded/coverage omission,
+erased or filtered frames, erasure simulation, positivity/recursive
+validity certification and semantic totality remain separate obligations.
 
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe

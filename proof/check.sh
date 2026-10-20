@@ -133,6 +133,15 @@ MODULES=(
   Proof/DependentSubjectReduction
   Proof/DependentSubjectReductionExamples
   Proof/DependentSubjectReductionLiterals
+  Proof/DependentCanonical
+  Proof/DependentProgress
+  Proof/DependentProgressExamples
+  Proof/DependentObservation
+  Proof/DependentObservationExamples
+  Proof/DependentSoundness
+  Proof/DependentSoundnessModel
+  Proof/DependentSoundnessExamples
+  Proof/DependentSoundnessControls
 )
 
 fail=0
