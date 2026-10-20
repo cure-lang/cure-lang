@@ -15,6 +15,7 @@ defmodule Cure.Core.DependentResultCorrespondenceTest do
   @grades [:unrestricted, :unrestricted, :unrestricted]
   @values [{:atom_lit, :payload}, {:float_type}, {:float_lit, 0.5}]
   @goal {:data, :ResultChain, [@carrier], @values}
+  @type_redex {:app, {:lam, @g, {:type, 0}, {:var, 0}}, {:float_type}}
 
   setup do
     family = Inductive.family(:ResultChain, [{:A, {:type, 0}}], @fields, 1)
@@ -123,5 +124,77 @@ defmodule Cure.Core.DependentResultCorrespondenceTest do
     assert {:ok, {:vtype, 1}} = Kernel.infer(ctx, other_goal)
     assert :ResultChain == Inductive.ctor_family(env, :ResultMk)
     assert {:error, _reason} = Kernel.check(ctx, {:ctor, :ResultMk, @values}, Eval.eval(other_goal, []))
+  end
+
+  test "reducing a type-valued field preserves the later field at the same original goal", %{ctx: ctx} do
+    fields = [{:atom_lit, :payload}, @type_redex, {:float_lit, 0.5}]
+    goal = {:data, :ResultChain, [@carrier], fields}
+    source = {:ctor, :ResultMk, fields}
+    target = {:ctor, :ResultMk, @values}
+    goal_value = Eval.eval(goal, [])
+    expected = {:vctor, :ResultMk, [{:vatom, :payload}, {:vfloat_type}, {:vfloat, 0.5}]}
+
+    assert {:ok, {:vtype, 1}} = Kernel.infer(ctx, goal)
+    assert :ok = Kernel.check(ctx, source, goal_value)
+    assert :ok = Kernel.check(ctx, target, goal_value)
+    assert ^expected = Eval.eval(source, [])
+    assert ^expected = Eval.eval(target, [])
+  end
+
+  test "type and value field reductions keep one fixed goal along the whole sequence", %{ctx: ctx} do
+    value_redex = {:app, {:lam, @g, {:float_type}, {:var, 0}}, {:float_lit, 0.5}}
+    fields = [{:atom_lit, :payload}, @type_redex, value_redex]
+    goal = {:data, :ResultChain, [@carrier], fields}
+    goal_value = Eval.eval(goal, [])
+    expected = {:vctor, :ResultMk, [{:vatom, :payload}, {:vfloat_type}, {:vfloat, 0.5}]}
+
+    assert {:ok, {:vtype, 1}} = Kernel.infer(ctx, goal)
+
+    for args <- [fields, [{:atom_lit, :payload}, {:float_type}, value_redex], @values] do
+      term = {:ctor, :ResultMk, args}
+      assert :ok = Kernel.check(ctx, term, goal_value)
+      assert ^expected = Eval.eval(term, [])
+    end
+  end
+
+  test "computed result indices also preserve the original goal when a dependent field reduces", %{ctx: ctx} do
+    computed_x = {:app, {:lam, @g, @carrier, {:var, 0}}, {:atom_lit, :payload}}
+    goal = {:data, :ResultChain, [@carrier], [computed_x, @type_redex, {:float_lit, 0.5}]}
+    goal_value = Eval.eval(goal, [])
+    source = {:ctor, :ResultComputed, [{:atom_lit, :payload}, @type_redex, {:float_lit, 0.5}]}
+    target = {:ctor, :ResultComputed, @values}
+    expected = {:vctor, :ResultComputed, [{:vatom, :payload}, {:vfloat_type}, {:vfloat, 0.5}]}
+
+    assert {:ok, {:vtype, 1}} = Kernel.infer(ctx, goal)
+    assert :ok = Kernel.check(ctx, source, goal_value)
+    assert :ok = Kernel.check(ctx, target, goal_value)
+    assert ^expected = Eval.eval(source, [])
+    assert ^expected = Eval.eval(target, [])
+  end
+
+  test "an unrelated type-valued field replacement is not a preserving reduction", %{ctx: ctx} do
+    fields = [{:atom_lit, :payload}, @type_redex, {:float_lit, 0.5}]
+    goal = {:data, :ResultChain, [@carrier], fields}
+    goal_value = Eval.eval(goal, [])
+    bad = {:ctor, :ResultMk, [{:atom_lit, :payload}, @carrier, {:float_lit, 0.5}]}
+
+    assert :ok = Kernel.check(ctx, {:ctor, :ResultMk, fields}, goal_value)
+    assert {:error, _reason} = Kernel.check(ctx, bad, goal_value)
+  end
+
+  test "dependent field reduction preserves an open caller variable without capture", %{ctx: ctx} do
+    ctx = Context.extend(ctx, {:vatom_type})
+    fields = [{:var, 0}, @type_redex, {:float_lit, 0.5}]
+    goal = {:data, :ResultChain, [@carrier], fields}
+    goal_value = Eval.eval(goal, Context.env(ctx))
+    source = {:ctor, :ResultMk, fields}
+    target = {:ctor, :ResultMk, [{:var, 0}, {:float_type}, {:float_lit, 0.5}]}
+    expected = {:vctor, :ResultMk, [{:vneutral, {:nvar, 0}}, {:vfloat_type}, {:vfloat, 0.5}]}
+
+    assert {:ok, {:vtype, 1}} = Kernel.infer(ctx, goal)
+    assert :ok = Kernel.check(ctx, source, goal_value)
+    assert :ok = Kernel.check(ctx, target, goal_value)
+    assert ^expected = Eval.eval(source, Context.env(ctx))
+    assert ^expected = Eval.eval(target, Context.env(ctx))
   end
 end

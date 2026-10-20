@@ -703,7 +703,7 @@ the family's parameter/index entries are individually closed and a real
 lookup succeeds. A registered Bounded example exercises it; the genuinely
 dependent local family's closedness requirement is explicitly refuted.
 
-Eleven independently kernel-checked executable result tests cover
+Sixteen independently kernel-checked executable result tests cover
 whole dependent/computed result vectors, prior-index dependencies,
 well-typed mismatch, arity, uniformity, field universes and scope.
 The result theorems still rely on the current closed-signature substitution
@@ -734,7 +734,7 @@ registry's old `ClosedFragmentSig` premise and base typing of its new data
 type. This is therefore not a disguised claim of extending the old full
 soundness model.
 
-Three executable controls extend the result suite to eleven tests:
+Three executable controls add to the result suite:
 lookup/visible-owner agreement, missing registration rejection and rejection
 of a same-shaped foreign result family. The layer's freshness policy is
 formal evidence, not a proved correspondence with all executable namespace
@@ -746,6 +746,36 @@ refinement remain open. The new records are also not release certificates:
 final actual arguments alone do not imply every declaration/result term is
 final. Parameter filtering, erased slots, η, typed erasure simulation and
 semantic totality remain separate obligations.
+
+**Registered constructor congruence — fixed-goal preservation constructed.**
+`Proof.DependentPreservation` preserves dependent argument checking under a
+selected final field's reduction. The changed local prefix converts the
+expected types of later fields; this is not an unproved raw-type identity.
+Finality is retained, and pointwise frame/substitution congruence proves
+the newly computed result type convertible to the original result type.
+
+`CheckedApplication` fixes a checking goal in the bounded registry layer.
+`preserve-at` / `preserve-step` keep that exact goal for a selected field
+step or any small step from a constructor term. `preserve-star` handles
+arbitrary finite constructor paths by structural recursion on the input
+path. The proof does not replace the old goal by the newly inferred type,
+add a dependent-preservation oracle or assert termination.
+
+Concrete witnesses reduce a type-valued `B` field in
+`(x : A, B : Type0, y : B)`. Ordinary/computed constructors, open callers
+and a two-step type/value reduction retain their original goals. Raw result
+types are explicitly unequal while conversion is proved; unrelated field
+replacement and wrong-result-family controls fail.
+Five executable regressions check source/intermediate/reduced terms against
+ONE original kernel-checked goal and evaluate their values independently.
+The result and frame suites each contain sixteen tests.
+
+The new result is operational preservation for this bounded registered
+constructor fragment, not dependent case elimination or unified
+`Core.Typing` preservation. Recursive extension checking, positivity,
+elimination, release certification, evaluator/readback/η refinement,
+filtered/erased frames, typed erasure simulation and semantic totality
+remain open. No runtime/kernel library source changed.
 
 `Core.Coverage` is now connected to the active typing and proof consumers.
 `Proof.CoverageExamples` gives concrete Nat coverage in an environment also

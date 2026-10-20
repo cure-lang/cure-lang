@@ -778,7 +778,7 @@ refute its closedness premise for the genuinely dependent local family.
 Consequently no dependent global constructor is silently admitted through
 the old rules.
 
-Eleven independent tests in
+Sixteen independent tests in
 `test/cure/core/dependent_result_correspondence_test.exs` kernel-check the
 corresponding declarations and positive result types. They exercise whole
 dependent/computed vectors, prior-index type dependencies, well-typed result
@@ -817,13 +817,45 @@ the new data type, explicitly preventing a claim that the old soundness
 theorem has been broadened.
 
 The executable result suite adds lookup/visible-owner, missing registration
-and same-shaped foreign-family rejection controls. It now has eleven tests;
+and same-shaped foreign-family rejection controls. It now has sixteen tests,
+including the fixed-goal reduction checks below;
 the separate frame suite retains sixteen. No kernel/runtime library source
 changes. Recursive extension checking, positivity certification, dependent
 elimination, unification of these judgments with full Core typing,
 preservation/refinement and release certification remain open. In
 particular, final actual arguments alone do not certify finality of every
 declaration/result term.
+
+### Fixed-goal registered constructor preservation
+`Proof.DependentPreservation` proves operational preservation for constructor
+congruence in the bounded registry layer. `arguments-preserve-at` preserves
+dependent argument checking when ANY selected final field reduces. A changed
+earlier field transports the tail's expected types by convertible local
+prefixes, rather than falsely assuming those instantiated types are equal.
+Argument finality is preserved as well.
+
+`result-update-converts` proves the computed result data types convert across
+the field update. `CheckedApplication` records a registered application at a
+FIXED checking goal. `preserve-at` and `preserve-step` retain that SAME goal
+for a field step and any small step from a constructor term; `preserve-star`
+extends it to finite constructor reduction paths by checked input-path
+recursion. Recomputing a different result type alone is not presented as
+preservation.
+
+`Proof.DependentPreservationExamples` reduces the type-valued `B` field in
+`(x : A, B : Type0, y : B)`, so the later `y` goal really changes. Ordinary
+and computed constructors, open callers, and a two-step type/value path
+exercise the theorem. Raw result identity is refuted separately from
+their positive conversion; nonconvertible replacement and wrong-family
+controls reject spurious preservation.
+
+Five executable regressions check source/intermediate/reduced terms at ONE
+original, kernel-checked goal and independently evaluate their values.
+The two correspondence suites now contain sixteen tests each.
+No runtime/kernel implementation changes. This is not preservation for
+dependent case elimination, recursive extension checking or the unified
+`Core.Typing` judgment. Those integration and implementation-refinement
+obligations, and release certification, remain open.
 
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
