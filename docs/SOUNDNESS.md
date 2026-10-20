@@ -798,15 +798,15 @@ lambda domains/captured fields/own binders, and an open parameter shifted
 past fields then restored to its caller slot. Negative controls reject
 unspecialised/unprotected slot interpretations and treating parameters as
 branch fields.
-Ten independent executable tests kernel-check whole positive cases and
+Fourteen independent executable tests kernel-check whole positive cases and
 compare declaration-frame and fields-only case evaluation, including open
 parameters and lambda capture. No kernel/runtime implementation changes.
 
 This is **typed selected-branch substitution and a raw ι witness**, not a
 whole-source-case preservation theorem. The next checkpoint constructs the
-fresh caller-context bridge; motive/index agreement, coverage and unified
-dependent typing remain open, as does proving that elaboration emits the
-specified specialisation.
+fresh caller-context bridge, followed by curried goal agreement below;
+motive well-formedness, coverage and unified typing remain open, as does
+proving that elaboration emits the specified specialisation.
 The typed body here lives in the local declaration context, not an arbitrary
 fresh caller branch context. Parameter-prefix filtering, missing erased
 slots and the remaining erasure/totality/η/refinement obligations are not
@@ -832,13 +832,42 @@ Concrete witnesses separate caller and field values, protect caller capture
 and lambda-local variables, and embed/close open parameter-dependent bodies.
 Fresh dependent field types stay symbolic until actual-field contraction.
 Two additional executable whole-case tests exercise unrelated ambient
-value access/capture; the branch suite now has ten tests.
+value access/capture; the branch suite reached ten tests there and now has
+fourteen including the motive checks below.
 The frame/result suites retain sixteen each. No kernel/runtime source changes.
 
 This strengthens the selected-branch bridge but does not establish whole
-dependent case preservation. Motive/index agreement, coverage, unified
-typing and recursive signature validity/positivity remain open, alongside
+dependent case preservation. The next result supplies curried goal
+agreement; motive well-formedness, coverage, unified typing and recursive
+signature validity/positivity remain open, alongside
 elaboration/evaluator/readback refinement and the other §8 obligations.
+
+**Curried motive/index goal agreement — exact substitution constructed.**
+`Proof.MotiveAgreement` forms fresh branch goals by applying the weakened
+motive to specialised computed indices and then the surface-order
+constructor spine. `goal-agreement` proves fields-only contraction equals
+the actual motive goal at the computed index vector and actual constructor.
+It derives the index staging, ambient motive restoration and field-vector
+identities rather than assuming them.
+
+`contract-at-motive` combines this exact equality with typed fresh-context
+contraction, proving the selected reduct checks at that curried goal.
+A raw selected ι witness is supplied separately. The examples use a
+genuinely index-dependent result B in `D(A; x:A, B:Type0, y:B)`, ordinary
+and computed indices and open parameters. Alternate Float/Atom result goals
+are explicitly nonconvertible, not collapsed into a constant motive.
+
+Four executable tests kernel-check nonconstant B-dependent motives, open
+parameters and a B-dependent function result, and reject wrong motive
+binder positions. No kernel/runtime source changes.
+
+The formal result is **goal-substitution agreement plus selected-reduct
+typing**, not motive well-formedness or whole-case preservation. Raw motive
+validation is not derived. The old active `Core.Typing` case rule still
+applies a motive only to its scrutinee; migration to the curried indexed
+contract, motive well-formedness, coverage and unified dependent case
+typing remain open. The other §8 refinement/release/termination obligations
+are unchanged.
 
 `Core.Coverage` is now connected to the active typing and proof consumers.
 `Proof.CoverageExamples` gives concrete Nat coverage in an environment also

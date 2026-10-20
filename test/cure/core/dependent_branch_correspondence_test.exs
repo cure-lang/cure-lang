@@ -40,12 +40,13 @@ defmodule Cure.Core.DependentBranchCorrespondenceTest do
 
   # The motive binds x, B, y and the scrutinee; parameter/result terms are
   # relative to the caller, not those fresh binders.
-  defp motive(parameter, result) do
+  defp motive(parameter, result), do: motive_with_body(parameter, Term.shift(result, 4, 0))
+
+  defp motive_with_body(parameter, body) do
     scrutinee =
       {:data, :BranchStaged, [Term.shift(parameter, 3, 0)], [{:var, 2}, {:var, 1}, {:var, 0}]}
 
-    {:lam, @g, parameter,
-     {:lam, @g, {:type, 0}, {:lam, @g, {:var, 0}, {:lam, @g, scrutinee, Term.shift(result, 4, 0)}}}}
+    {:lam, @g, parameter, {:lam, @g, {:type, 0}, {:lam, @g, {:var, 0}, {:lam, @g, scrutinee, body}}}}
   end
 
   # Ascribe the ctor so its implicit parameter is checked. Adding that let
@@ -149,5 +150,53 @@ defmodule Cure.Core.DependentBranchCorrespondenceTest do
     assert :ok = Kernel.check(ctx, term, Eval.eval(result, Context.env(ctx)))
     runtime = Eval.eval(term, Context.env(ctx))
     assert {:vneutral, {:nvar, 0}} = Eval.apply(runtime, {:vatom, :argument})
+  end
+
+  test "the same nonconstant motive returns the selected B index type", %{ctx: ctx} do
+    motive = motive_with_body(@carrier, {:var, 2})
+
+    for {type, value, expected} <- [
+          {{:float_type}, {:float_lit, 0.5}, {:vfloat, 0.5}},
+          {@carrier, {:atom_lit, :other}, {:vatom, :other}}
+        ] do
+      fields = [{:atom_lit, :payload}, type, value]
+      goal = {:data, :BranchStaged, [@carrier], fields}
+      term = program(goal, {:ctor, :BranchStage, fields}, motive, {:var, 0})
+      expected_type = Eval.eval(type, [])
+
+      assert {:ok, {:vtype, 1}} = Kernel.infer(ctx, goal)
+      assert :ok = Kernel.check(ctx, term, expected_type)
+      assert {:ok, ^expected_type} = Kernel.infer(ctx, term)
+      assert ^expected = Eval.eval(term, [])
+    end
+  end
+
+  test "an index-dependent motive retains an open caller parameter", %{ctx: ctx} do
+    ctx = Context.extend(ctx, {:vtype, 0})
+    ctx = Context.extend(ctx, Eval.eval({:var, 0}, Context.env(ctx)))
+    fields = [{:var, 0}, {:float_type}, {:float_lit, 0.5}]
+    goal = {:data, :BranchStaged, [{:var, 1}], fields}
+    ctor = {:ctor, :BranchStage, fields}
+    term = program(goal, ctor, motive_with_body({:var, 1}, {:var, 2}), {:var, 0})
+
+    assert :ok = Kernel.check(ctx, term, {:vfloat_type})
+    assert {:vfloat, 0.5} = Eval.eval(term, Context.env(ctx))
+  end
+
+  test "a motive result function can depend on B beneath its own binder", %{ctx: ctx} do
+    motive = motive_with_body(@carrier, {:pi, @g, @carrier, {:var, 3}})
+    body = {:lam, @g, @carrier, {:var, 1}}
+    term = program(@goal, @ctor, motive, body)
+    result = {:pi, @g, @carrier, {:float_type}}
+
+    assert :ok = Kernel.check(ctx, term, Eval.eval(result, []))
+    assert {:vfloat, 0.5} = Eval.apply(Eval.eval(term, []), {:vatom, :argument})
+  end
+
+  test "y and the scrutinee cannot replace the type-valued B motive binder", %{ctx: ctx} do
+    for wrong_body <- [{:var, 0}, {:var, 1}] do
+      term = program(@goal, @ctor, motive_with_body(@carrier, wrong_body), {:var, 0})
+      assert {:error, _reason} = Kernel.infer(ctx, term)
+    end
   end
 end

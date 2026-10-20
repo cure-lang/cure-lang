@@ -881,7 +881,7 @@ that unspecialised parameters become unrelated ambient variables, unprotected
 specialisation can select a field value, and parameters cannot inflate
 branch arity.
 
-Ten tests in `test/cure/core/dependent_branch_correspondence_test.exs`
+Fourteen tests in `test/cure/core/dependent_branch_correspondence_test.exs`
 independently kernel-check whole positive cases and compare declaration-frame
 evaluation with fields-only case evaluation. They include open parameters,
 lambda capture, own variables and malformed slot/arity controls.
@@ -890,9 +890,9 @@ No kernel/runtime implementation changes.
 **This is selected-branch typed substitution plus a raw ι witness, NOT
 preservation of a typed whole source case.** The formal body is checked in
 the local declaration context. The next checkpoint supplies typed fresh
-caller contexts; motive/index agreement, coverage and integration with
-unified typing remain open. Neither proves that elaboration emits the
-specified specialisation.
+caller contexts; the curried goal agreement is supplied below, while motive
+well-formedness, coverage and unified typing remain open. None proves that
+elaboration emits the specified specialisation.
 Parameter-prefix filtering and missing erased slots remain outside the
 exact-arity fields-only contract.
 
@@ -917,14 +917,48 @@ variable, protect that caller under a lambda, retain the lambda's own
 binder, and embed/close open parameters and parameter-dependent lambdas.
 Fresh dependent field types remain symbolic until closing.
 Two added executable tests independently kernel-check whole cases returning
-or capturing the unrelated ambient value. The branch suite now has ten
-tests; the frame and result suites retain sixteen each.
+or capturing the unrelated ambient value. The branch suite reached ten
+tests here and now has fourteen after the motive
+checks below. The frame and result suites retain sixteen each.
 
-This closes the fresh caller-context/contraction bridge, not the remaining
-motive/index and coverage obligations or unified dependent case typing.
+This closes the fresh caller-context/contraction bridge. The following
+checkpoint proves curried goal agreement, but motive well-formedness,
+coverage and unified dependent case typing remain open.
 The base and registry environments remain explicit, with the same
 conditional base substitution infrastructure. No kernel/runtime source
 changes, full compiler refinement or new release/termination claim.
+
+### Curried motive/index goal agreement
+`Proof.MotiveAgreement` models motive application to the constructor's
+computed INDICES followed by its scrutinee value, matching the executable
+curried contract. In the fresh branch, result indices are specialised under
+protected fields, the motive is weakened over the field binders and the
+constructor uses surface-order field variables.
+
+`goal-agreement` proves that fields-only contraction gives EXACTLY the
+actual motive goal with computed indices and the actual constructor spine.
+It derives index-vector staging, restoration of the ambient motive and
+surface-field substitution; no conversion oracle is assumed.
+`contract-at-motive` combines that equality with fresh-context contraction
+to type the selected reduct at this goal. A separate theorem exhibits ι.
+
+The examples use `D(A; x:A, B:Type0, y:B)` eliminating to B. Ordinary and
+computed indices, open caller parameters and alternate B values are checked.
+The two resulting Float/Atom goals are proved nonconvertible, ruling out a
+constant-motive shortcut.
+
+Four executable tests independently kernel-check nonconstant B-dependent
+motives, open parameters and a function result depending on B, and reject
+using y/the scrutinee in the type-valued motive slot. The branch suite has
+fourteen tests.
+
+**This is goal-substitution agreement and selected-reduct typing, not
+motive well-formedness or whole-source-case preservation.** The algebra
+holds for raw motives; the executable's motive validation is still not
+mechanised. The old `Core.Typing` case goal applies the motive only to the
+scrutinee, so migrating it to this curried indexed contract remains open.
+Coverage, unified typing and the other refinement/release obligations are
+not discharged. No runtime/kernel implementation changes.
 
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe

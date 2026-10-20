@@ -90,6 +90,8 @@ MODULES=(
   Proof/DependentBranchExamples
   Proof/DependentOpening
   Proof/DependentOpeningExamples
+  Proof/MotiveAgreement
+  Proof/MotiveAgreementExamples
 )
 
 fail=0
