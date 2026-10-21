@@ -142,6 +142,24 @@ MODULES=(
   Proof/DependentSoundnessModel
   Proof/DependentSoundnessExamples
   Proof/DependentSoundnessControls
+  Core/CanonicalSnapshot
+  Core/AdmissionBoundary
+  Proof/AdmissionBoundaryExamples
+  Proof/CanonicalSnapshotExamples
+  Core/ExecutableSnapshot
+  Fixtures/ExecutableSnapshot
+  Core/AdmissionReplay
+  Core/ExecutableReplay
+  Proof/ExecutableSnapshotExamples
+  Proof/AdmissionReplayControls
+  Core/NativeCertificate
+  Proof/NativeCertificateExamples
+  Proof/NativeCertificateControls
+  Proof/NativeCertificateSafety
+  Core/SyntaxEquality
+  Core/NativeRecipe
+  Proof/NativeRecipeExamples
+  Proof/NativeRecipeControls
 )
 
 fail=0

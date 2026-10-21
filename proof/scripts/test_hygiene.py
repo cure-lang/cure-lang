@@ -3,6 +3,7 @@
 import importlib.util
 from pathlib import Path
 import sys
+from tempfile import TemporaryDirectory
 import unittest
 
 
@@ -13,6 +14,23 @@ SPEC.loader.exec_module(HYGIENE)
 
 
 class HygieneTest(unittest.TestCase):
+    def test_discovery_includes_fixtures_and_future_directories(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            names = ("Core/Example.agda", "Proof/Nested/Example.agda",
+                     "Fixtures/Generated.agda", "Future/Example.agda")
+            for name in names:
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("module Example where\n")
+            self.assertEqual(
+                {path.relative_to(root).as_posix() for path in HYGIENE.proof_sources(root)},
+                set(names),
+            )
+        for path in ("Fixtures/Generated.agda", "Future/Example.agda"):
+            self.assertTrue(HYGIENE.inspect_source(path, "postulate hidden : Set"))
+            self.assertTrue(HYGIENE.inspect_source(path, "{-# TERMINATING #-}"))
+
     def test_nested_comments_and_strings_are_not_code(self):
         source = '-- ?\n{- outer {- {!!} -} postulate hidden -}\nx = "postulate ?"\n'
         self.assertEqual(HYGIENE.inspect_source("Proof/Example.agda", source), [])

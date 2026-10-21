@@ -65,6 +65,25 @@ constructive fuel, finite-trace and guarded outcome-tree safety.
 dependent declarations, typed globals and real unindexed builtin layouts.
 These remain specification results, not executable kernel refinement.
 
+## Maintainer validation policy — 21 October 2026
+
+At the maintainer's explicit request, Mix/ExUnit test verification,
+documentation-snippet checks and stdlib/example verification are **not
+required for this soundness-proof work or its checkpoint commits**.
+Do not automatically run `mix test`, ExUnit suites, documentation checks or
+the `mix check` stdlib/example gate unless the maintainer requests them.
+Their omission is a deliberate validation-scope decision, not an unfinished
+proof task or a claim that those suites passed. Earlier recorded test results
+and cancellations remain historical evidence only.
+
+Required local checks remain the complete Agda runner, exact postulate and
+proof-hygiene guards, hygiene regression tests, applicable static analysis,
+formatting and whitespace checks. The waiver changes no theorem assumptions,
+trust roots, test selections/exclusions, performance thresholds, CI workflows
+or existing release requirements. See
+[`NEXT-STEPS.md`](NEXT-STEPS.md#validation-and-non-regression-requirements)
+for the proof-validation commands.
+
 ## What is being proved
 
 The object language is the **Core** calculus of `Cure.Core.Term`
@@ -1205,6 +1224,315 @@ Native safety is now integrated constructively. Kernel/NbE/η refinement,
 the executable fresh-value motive gate, indexed-Bounded/coverage omission,
 erased or filtered frames, erasure simulation, positivity/recursive
 validity certification and semantic totality remain separate obligations.
+
+### Canonical snapshot and conservative syntax boundary
+`Core.CanonicalSnapshot` defines finite named tables, constructive unique-key
+evidence, separate global types/optional visible bodies and a builtin-free
+snapshot view. Family-table and flattened constructor-table lookup agreement
+with the formal registry are DERIVED for arbitrary query names. Membership
+implies successful lookup under uniqueness; successful lookup implies
+membership. Visible constructor ownership is derived from family-key
+uniqueness and actual lookup membership, and feeds the native validity fixture.
+Duplicate inputs retain defined first-match lookup behavior but cannot supply
+the snapshot's unique-key evidence.
+
+`Core.AdmissionBoundary.Fragment` supplies a scoped, exact-key syntax
+judgment for terms, branch bodies, caller types, forward-scoped declaration
+telescopes, result vectors and global payloads. Branch arities match actual
+registered constructor field counts. It derives `Scoped` and `Final`
+structurally. The first grammar includes graded binders, applications,
+ordinary data/cases/globals, Atom literals and Float/Binary type formers.
+It excludes Int nodes, payload-free Float literals, all compact literals,
+effects, holes and absurd terms, including nested occurrences.
+
+`Eligible` SEPARATELY REQUIRES native `Admitted`, supported payloads, caller,
+source and goal. Its typing projection is not a checker-soundness theorem:
+syntax does not establish declaration kinds, goal kinds, typed motives,
+coverage, subtyping or conversion soundness. Exact string identities are
+opaque keys here; atom/string encoding, owner-name validation, Elixir map
+extraction, alias resolution, opaque/quantity metadata, certification
+visibility and semantic environment/frame correspondence are NOT proved.
+The snapshot must not be used to silently drop those executable obligations.
+
+`Proof.AdmissionBoundaryExamples` jointly inhabits these interfaces for
+`Boundary#Packed(A : Type0)` and `Boundary#Pack(A, x : A)`, a nonempty typed
+global table and a genuinely dependent motive returning A. The whole Atom-only
+case is natively admitted at its original Atom goal; existing native progress
+consumes its eligibility projections and an actual ordinary iota step returns
+the payload. Missing/foreign/bare names, escaped caller/branch variables,
+wrong branch arity and excluded syntax have negative controls.
+`Proof.CanonicalSnapshotExamples` rejects duplicate family/constructor/global
+keys, distinguishes first-match owners, and retains opaque global types
+without exposing bodies.
+
+Eleven tests in `test/cure/core/admission_boundary_audit_test.exs` independently
+pin the corresponding dependent Atom fixture, canonical versus bare lookup,
+declaration order, immutable snapshots, directional Any/List widening,
+non-eliminable opaque families, graded effects, Float payload distinction and
+fresh/let/branch frames. These are executable regressions, not a proof of
+Elixir-to-Agda refinement. Native typing/reduction/conversion and executable
+admission are unchanged. The next obligations are tracked in
+[`NEXT-STEPS.md`](NEXT-STEPS.md); Stage 0's complete acceptance-rule ledger,
+finite declaration checking and evaluator/readback refinement remain open.
+
+### Bounded executable snapshot capture and metadata replay
+`Cure.Core.ProofSnapshot` is an opt-in capture/render API, not an admission or
+release gate. It inspects the entire supplied Core registry, checks exact
+owner-qualified keys and key/name/owner/order consistency, and sorts family
+and global keys while retaining constructor declaration order. Its initial
+encoding is printable ASCII; quoted strings are escaped without creating
+atoms. It rejects builtins, primitives, aliases, opaque families, externs,
+unknown declaration metadata and erased/implicit constructor layouts.
+Global layout metadata must be absent or explicit and unrestricted with the
+right syntactic Pi arity. Every type, declaration vector and raw body is
+scanned for scope and supported syntax, INCLUDING uncertified/hidden bodies.
+This is intentionally narrower than ordinary executable acceptance.
+
+`Core.ExecutableSnapshot` models the exported constructor/family/global
+metadata, including raw bodies and separate certification/totality flags.
+Its `check` returns a constructive `Dec (Accepted source)` after checking
+layout restrictions and finite family/constructor/global key uniqueness.
+Accepted input projects to `Core.CanonicalSnapshot.Snapshot`. Ordinary body
+availability is gated by the certification flag; generic laws preserve
+declared types and distinguish uncertified hidden bodies from certified
+visible bodies. This concerns default certified-body availability, not
+delta options, lazy normalization, fuel or evaluation strategy.
+Neither certification semantics nor declaration typing is inferred.
+The projected positivity and universe-check flags are FALSE, not fabricated
+certificate booleans.
+
+`proof/Fixtures/ExecutableSnapshot.agda` is exact data generated from
+`Cure.Test.ProofSnapshotFixture`: one dependent family, two constructors
+(including a computed result index) and four globals, with both visible and
+hidden raw bodies. ExUnit kernel-checks its declarations/definitions and
+regenerates this file byte-for-byte. `Proof.ExecutableSnapshotExamples`
+independently runs the formal replay, derives lookup/ownership/visibility
+consequences and supplies supported-payload evidence, including the hidden
+raw dependent case. Rejection controls exercise duplicate tables, opaque
+families, erased/implicit or malformed layouts, missing certified bodies,
+inconsistent visibility and builtin registrations.
+
+This is a concrete checked cross-language artifact, NOT a universal theorem
+that Elixir capture/render implements the formal model. In particular,
+formal metadata acceptance alone does not check canonical name encoding,
+syntax support, declaration kinds, motive typing or coverage. Separate
+controls deliberately allow capture of an ill-typed application and of a
+low-level recursive certification CLAIM, preventing either capture or flags
+from being mistaken for typing/termination proofs.
+
+The new exporter suite and prior boundary/frame/result/branch suites passed
+89 isolated pure-kernel tests (seed 938458) without the normal stdlib startup.
+This is not a replacement claim for the default Mix/ExUnit documentation
+alias or the separately cancelled stdlib/example gate. Those gates are not
+required for this proof effort under the maintainer policy above; the default
+test configuration and exclusions are unchanged.
+
+### Acceptance-contract ledger for the first capture slice
+- **Represented, not admitted by capture:** universes through Type2,
+  scoped variables, all graded Pi/lambda/let binders, applications, ordinary
+  data/constructors/cases/globals, Atom literals and Float/Binary type formers.
+  Data/result vector lengths and exact fields-only branch/constructor arities
+  are checked; kinding, uniformity and actual parameter/index types are not.
+- **Names and environments:** direct canonical ASCII keys only; bare/import
+  alias resolution, broader name encodings and general Elixir-to-formal
+  snapshot correspondence remain outside the proof.
+- **Checking-mode behavior still unproved:** expected-goal lambda checking,
+  let-defined semantic values, parameter recovery in constructor checking,
+  infer/check conversion and cumulative-sort fallback. Syntactic support
+  must not be used as evidence of these rules' soundness.
+- **Cases still unproved as executable admission:** fresh-value motive
+  validation versus native typed motives, same-family branch ownership,
+  full or refined coverage, impossible-branch omission and coherent branch
+  substitution. The formal native `Admitted` requirement remains separate.
+- **Excluded rather than equated with conversion:** builtin Any top checking,
+  List covariance, compact Nat/Int/Bounded and Char literal rules, all effect
+  formation/pure/bind paths, holes and absurd terms. An empty builtin registry
+  prevents hidden builtin-dependent acceptance/folding from entering capture.
+- **Runtime/normalization still unproved:** eta, builtin arithmetic,
+  certified delta and semantic totality, filtered/erased frames, typed erasure,
+  emission and BEAM behavior. Parameter-prefix constructor spellings are
+  explicitly rejected even when executable checking accepts them.
+
+This ledger covers current syntax categories and dispatch differences for
+the capture slice, not a completed rule-by-rule admission derivation.
+The constructive syntax/payload stage below discharges support replay,
+and the finite native certificate stage derives validity/admission from
+checked native proof objects. Algorithmic certificate production/replay and
+its implementation-refinement relation remain next; fixture-only claims
+cannot replace those proofs.
+
+### Constructive syntax and complete raw payload replay
+`Core.AdmissionReplay.Replay snapshot` decides the EXISTING formal
+`Supported` judgment for arbitrary terms, term vectors and branches.
+It also decides forward-scoped telescope support, family/constructor/global
+payload support and finite caller support. Every positive decision carries
+the actual support derivation; every negative decision refutes one.
+Lookup failure and branch-layout inversion use the selected first-match
+equations and injectivity, not assumed agreement. Mutual recursion passes
+the ordinary Agda termination checker.
+
+From complete projected-payload evidence, it derives supported/scoped
+declared global types and supported/closed/final visible global bodies using
+actual finite lookup membership. `BodiesFinal` is therefore obtained by a
+theorem rather than an exporter-supplied callback. This remains body
+FINALITY, not semantic totality or native global typing.
+
+`Core.ExecutableReplay.Replay source metadata` is a second staged check,
+parameterized by the actual metadata evidence from the first stage. It
+decides both projected payload support AND support for every raw global
+body, even when uncertified. Fixing the metadata evidence explicitly avoids
+assuming proof irrelevance between different accepted-snapshot records.
+Raw support, closedness and finality are also available by actual input
+membership. The metadata-only checker remains deliberately separate.
+
+`Proof.ExecutableSnapshotExamples` now obtains its generated fixture's
+projected payloads and hidden-program support from this replay rather than
+handwritten trees. Its derived visible-body closedness instantiates the
+existing reduction-conversion model, with an actual global delta-conversion
+example. Declared-goal closedness and visible/hidden body finality consume the
+same checked finite payloads. Generated bytes and executable export behavior
+are unchanged.
+
+`Proof.AdmissionReplayControls.Hidden` proves for ANY raw term that an
+uncertified projection can still pass projected-payload support; complete
+replay nevertheless rejects hidden holes, absurd/effect terms and escaped
+variables, including under erased binders. Visible-hole, forward-reference,
+result/branch scope, missing-name and wrong-branch-arity controls exercise
+rejection paths. Nested cases, lambda capture, dependent callers and valid
+hidden lets exercise positive decisions.
+
+Syntax replay is NOT a type checker or a theorem about Elixir capture.
+Its existing grammar deliberately permits a represented ill-typed Atom
+application, Type2, missing constructor arguments and uncovered/non-data
+cases; controls retain those distinctions. Data/constructor vector lengths
+and ASCII/canonical encoding checks can be stricter in the exporter than in
+this formal grammar. Native declaration kinding, universe/uniformity bounds,
+typed motives, coverage, conversion/NbE refinement, semantic certification
+and whole-kernel admission remain unproved here. Native typing, reduction,
+release policy and theorem assumptions are unchanged.
+
+Both trust guards now discover ALL Agda source subdirectories under `proof/`,
+including generated `Fixtures/`, rather than scanning only `Core/` and
+`Proof/`. The exact two-name axiom inventory and empty bypass allowlist are
+unchanged. A tenth hygiene test covers generated/future-directory discovery
+and their rejection of postulates and termination overrides.
+
+### Finite native certificates and exported-snapshot safety
+`Core.NativeCertificate.Certificates` consumes one exported input, its actual
+metadata/complete-payload replay evidence and conversion. Its finite
+`Evidence` contains `All` proofs for each family declaration and every actual
+constructor declaration, plus each raw global's kind and optional body
+inference at its declared goal. Hidden raw definitions are included.
+`SignatureValid`, arbitrary lookup-typing functions, preservation and
+soundness callbacks are NOT certificate fields.
+
+The module derives native `SignatureValid` by actual family/constructor lookup
+membership, projected-to-raw global membership and finite proof lookup.
+Ownership comes from canonical snapshot uniqueness; scoping comes from
+complete replay. For any present raw body, it derives native `Admitted` and
+representation `Eligible` at that body's EXACT declared type, with actual
+goal kind, scope and caller evidence. This is a theorem about finite native
+PROOF OBJECTS checked by Agda, not an algorithm that reconstructs them from
+syntax or an executable checker returning success.
+
+`Proof.NativeCertificateExamples` inhabits the interface over the EXACT
+generated/replayed snapshot: the dependent Packed family, both ordinary and
+computed-index constructors, four raw globals, a typed curried motive and
+full same-family coverage. Its field-universe bounds, uniformity, result
+spines and global kinds/body typings are native. The projected metadata
+booleans remain false; no positivity or universe certificate is fabricated
+from a flag. Validity and ordinary/hidden-body admission are obtained from
+the general finite theorem rather than fixture-specific validity callbacks.
+
+`Proof.NativeCertificateSafety` jointly instantiates native specification
+soundness using that finite validity theorem, replay-derived body finality,
+the existing reduction conversion/data-component model and the snapshot's
+empty builtin registry. The exported dependent case and a computed-index
+alternative each have an actual iota trace whose endpoint retains the
+original Atom goal. A supplied certified-global delta trace is also safe.
+Fuel zero stops at the source; fuel one exhausts at an already-final Atom
+value; fuel two reaches it. Fuel/tree agreement holds at every budget.
+Endpoint typings come from the safety theorem, not independent target checks.
+
+`Proof.NativeCertificateControls` gives complete replayable inputs with NO
+finite native certificate: an ill-kinded Type2 published type and a HIDDEN
+Atom body declared at Float. Abstract conversion-parametric inversions prove
+these failures. Missing constructor fields, omitted alternative coverage and
+an undersized field-universe budget are rejected; finite evidence must also
+contain the second constructor even when the ordinary source selects the
+first one. Two executable regressions independently pin the computed case
+and capture-versus-kernel failures. The focused isolated suite now has
+91 passing tests with seed 938458.
+
+This connects checked finite native evidence for a concrete exported artifact
+to existing SPECIFICATION safety. It does not prove that Elixir capture or
+kernel acceptance produces such evidence, define a complete serialized native
+derivation protocol, validate semantic totality/positivity or refine NbE/eta,
+erasure, emission or BEAM execution. Mix/ExUnit/docs and stdlib/example
+verification are not required for this proof effort at the maintainer's
+request; earlier cancellations are not passing results.
+Native typing/reduction, executable capture and generated fixture bytes
+are unchanged.
+
+### Bounded data-only native recipe replay
+`Core.SyntaxEquality` provides constructive `Dec (t ≡ u)` for the COMPLETE
+current formal Core syntax. It preserves grades, exact universe levels,
+names, signed literals, parameter/index partitioning and branch arities/bodies.
+Equality is derived from decidable internal code equality and a proved
+encode/decode retraction, without raw-head reflection or new axioms.
+The auxiliary total decoder may default on malformed internal codes:
+it is NOT an external decoder or validation boundary. Only equality of
+actual encoded Terms is used. Structural equality is not conversion.
+
+`Core.NativeRecipe.Recipe` and `Packet` are plain data: rule tags, child
+recipes, constructor parameter witnesses, asserted types and cumulative
+target levels. They contain no native derivations, conversion proofs,
+lookup evidence or target-typing callbacks. The total replayer checks an
+ACTUAL term/context and constructs native inference/checking/kind/spine
+derivations on success. It verifies assertions by structural equality,
+checks variable bounds and actual lookups, checks dependent spines with
+the local-prefix frame, exposes only syntactic Pi/sort heads, and proves
+the direction of explicit universe cumulativity.
+
+Supported rules are sorts, variables, global references, Atom literals,
+Atom/Float/Binary type formers, Pi/lambda/application/let and ordinary
+parameter-seeded data/constructors. There is no case, effect, hole/absurd,
+primitive Int or compact-literal rule, eta/NbE or non-reflexive conversion.
+`Nothing` means the supplied recipe failed this bounded protocol; it is
+NOT a refutation of all native typing. Relative inference success alone
+also does not establish signature/caller validity, goal kinding, release
+eligibility or termination.
+
+The global adapter checks kind/body recipes against the ACTUAL entry type
+and raw body, including hidden bodies. Missing or surplus body recipes
+fail. Success yields the existing finite `GlobalEvidence`, not a claim
+that a client-supplied annotation was correct.
+`Proof.NativeRecipeExamples` computes native evidence for the exported
+answer, held and packed globals, the local computed-index expression and
+dependent Pi/lambda/let examples. Its MIXED certificate uses those three
+replayed globals, existing manual family/constructor evidence and the
+existing MANUAL dependent-case proof. The fourth global is explicitly not
+replayed; a copied case packet fails. Native validity/admission and a
+fixed-goal safe trace are composed through this mixed certificate.
+A separate parameter-bearing Box registry exercises a genuine nonempty
+constructor witness and rejects a Float seed for an Atom field; this is
+relative native typing evidence, not an automatically certified registry.
+
+`Proof.NativeRecipeControls` computes failures for forged types/kinds/grades,
+bad indices, non-function applications, unknown names, missing/surplus
+spine recipes, invented parameters, downcasts and dropped hidden bodies.
+It proves that ANY recipe fails on a case node, including recursively
+asserted/cumulative wrappers. A beta-converted goal has an actual native
+typing derivation but fails exact-syntax replay, while a typed eta expansion
+remains structurally distinct from its neutral. Neither is silently promoted
+to supported conversion.
+
+This is a verified replayer for arbitrary values of a PROOF-FREE RECIPE AST,
+not yet a byte/JSON parser, Elixir recipe producer, complete certificate
+assembler or checker-acceptance refinement theorem. The next extension is
+checked conversion evidence and dependent case/declaration recipes before
+claiming automatic replay of the complete exported certificate. Existing
+exporter/fixture bytes, native rules and trust inventories are unchanged.
 
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe

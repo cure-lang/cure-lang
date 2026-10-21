@@ -115,9 +115,14 @@ def inspect_source(path, source):
     return errors
 
 
+def proof_sources(root=ROOT):
+    """Include generated fixtures and future source directories, not just Core/Proof."""
+    return sorted(root.rglob("*.agda"))
+
+
 def main():
     errors = []
-    paths = sorted(path for folder in ("Core", "Proof") for path in (ROOT / folder).rglob("*.agda"))
+    paths = proof_sources()
     seen = set()
     for path in paths:
         relative = path.relative_to(ROOT).as_posix()

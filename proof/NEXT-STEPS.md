@@ -5,6 +5,133 @@ The next objective is a checked connection between actual release-admitted Cure 
 `proof/Proof/DependentSoundness.agda:30` packages native signature validity, data-component inversion, reduction/conversion compatibility, global body finality and builtin shapes. Its consumers prove fixed-goal finite-trace safety, typed fuel exhaustion/reached outcomes, guarded outcome trees and fuel/tree agreement. `DependentSoundnessModel`, `DependentSoundnessExamples` and `DependentSoundnessControls` jointly exercise dependent constructors, computed indices, typed globals and unindexed Nat/Bounded layouts.
 General native substitution, context conversion, progress and recursive preservation are complete for the existing specification. Preserve these results rather than restarting the dependent-typing migration. Legacy closed-entry developments remain historical or separately scoped; they are not the admission interface for arbitrary executable signatures.
 The recorded checkpoint passed 109 Agda modules, the exact two-name postulate inventory, nine hygiene tests, strict Credo and formatting. The full default replay passed 6,779 tests with eight exclusions and 355 documentation snippets. These are checkpoint results, not proofs of implementation refinement.
+## First boundary foundation — 21 October 2026
+The first implementation checkpoint adds `Core.CanonicalSnapshot`,
+`Core.AdmissionBoundary`, `Proof.AdmissionBoundaryExamples` and
+`Proof.CanonicalSnapshotExamples`. Finite family/constructor lookup agreement
+and visible ownership are derived; unique-key snapshots reject duplicate
+family/constructor/global keys. A name-allowlisted scoped grammar derives
+scope and finality for terms and nested branches, and records supported
+caller/declaration/global payloads. A genuinely dependent Atom-only case and a
+typed nonempty global table inhabit the boundary alongside native admission.
+Eleven executable audit tests pin snapshot, subtyping, opacity, effect, payload
+and frame contracts without changing kernel behavior.
+This is a representation foundation, not completion of Stage 0 or Stage 1.
+`Eligible` requires an existing native derivation; it does not derive one from
+syntax or from `Kernel.check`. The grammar currently excludes Int nodes,
+Float literals, all compact literals, effects and development leaves.
+Metadata (including opaque families, quantities and certification), actual
+Elixir snapshot extraction, atom/string identities and aliases, semantic
+contexts/frames and the complete acceptance-rule ledger remain unproved.
+No evaluator/NbE correspondence, finite signature validator or whole-kernel
+admission theorem is claimed. The next increment should connect a canonical
+executable snapshot representation to this formal view and make the remaining
+rule/metadata exclusions checkable, before broadening the admitted fragment.
+## Executable capture and replay continuation
+After pushed checkpoint `aed3cd9a0`, `Cure.Core.ProofSnapshot` adds a
+fail-closed, opt-in whole-registry capture and deterministic Agda data renderer.
+It checks canonical ASCII identities, map/name/owner/order consistency,
+declaration/result/term scope and exact field arities. Unsupported metadata,
+opaque families, builtins, aliases, externs and erased/implicit layouts are
+rejected; hidden raw bodies are inspected rather than silently discarded.
+`Core.ExecutableSnapshot` checks conservative metadata/layout restrictions and
+finite unique keys before constructing the formal canonical snapshot. Its
+body projection preserves declared types and distinguishes certification
+visibility from totality claims; unproved positivity/universe flags are false.
+The generated `Fixtures.ExecutableSnapshot` is checked by Agda and regenerated
+byte-for-byte in ExUnit. Its dependent family has ordinary/computed
+constructors and a nonempty global table. Formal replay examples establish
+lookup/ownership/body visibility and supported payloads, with malformed-input
+controls. An acceptance-contract ledger is maintained in `proof/README.md`.
+This establishes a concrete artifact bridge, NOT universal extraction
+refinement, declaration validation, kernel admission or semantic totality.
+The next increment should mechanise syntax/payload replay and finite
+declaration admission, retaining a separate representation relation and the
+unproved executable motive, conversion and environment contracts.
+## Constructive syntax and payload replay continuation
+After pushed checkpoint `0641f74d5`, `Core.AdmissionReplay` adds total
+proof-producing decisions for arbitrary snapshot-relative term/branch/spine,
+forward telescope, declaration/global payload and caller support.
+`Core.ExecutableReplay` separately checks complete projected payloads and
+ALL raw bodies, including uncertified bodies, using fixed metadata evidence.
+No proof-irrelevance axiom identifies different snapshot certificates.
+Visible global body support, closedness and finality, and declared global
+type closedness are derived from checked payloads and actual finite lookup.
+The generated fixture now consumes replay-derived support rather than manual
+trees, and its reduction-conversion model uses derived body closedness.
+Controls show that metadata/projected success alone can hide arbitrary
+unsupported raw terms, whereas complete replay rejects them. Positive
+nested/open cases and negative name/scope/arity checks exercise the decisions.
+This decides the existing representation grammar, not native typing or every
+stricter exporter policy. Explicit controls retain syntax success for
+ill-typed applications, Type2, missing constructor arguments and uncovered
+cases. The next obligation is finite native declaration/admission evidence
+with a representation relation, followed by the existing motive,
+conversion/environment and operational refinement obligations.
+Trust-guard discovery now includes every Agda source directory under
+`proof/`, including generated fixtures; the two-name axiom inventory and
+empty bypass allowlist remain unchanged, with a new discovery regression.
+## Finite native certificate continuation
+After pushed checkpoint `1670a39da`, `Core.NativeCertificate` derives native
+signature validity and fixed-declared-goal raw-body admission from finite
+per-family/constructor and raw-global proof evidence. The certificate has no
+validity, arbitrary lookup-typing or preservation callbacks. Actual lookup
+membership and checked replay supply ownership and scoping, including hidden
+definitions. Native proof objects remain required; this is not a type
+inference algorithm or a theorem about executable checker acceptance.
+The exact generated snapshot now has a native finite certificate covering
+ordinary/computed constructors, all four raw definitions, typed motives and
+full local coverage. `Proof.NativeCertificateSafety` composes it with replay
+finality and the existing conversion/components model to exercise fixed-goal
+trace, fuel and guarded-tree safety, including computed indices and global
+delta unfolding. Negative controls prove that complete representation replay
+can still accept inputs for which native certification is impossible.
+The next obligation is sound production/replay of native derivation
+certificates from serialized untrusted inputs, with explicit conversion and
+representation witnesses; whole-kernel acceptance, NbE/motive/context
+refinement and semantic positivity/totality remain separate. No native or
+executable semantics or generated fixture bytes are changed here.
+## Bounded data-only recipe replay continuation
+After pushed checkpoint `3c975fba8`, `Core.SyntaxEquality` derives constructive
+full structural Term equality through a checked internal code retraction;
+it is not conversion or an external decoder.
+`Core.NativeRecipe` adds proof-free raw recipe/packet data and a total
+case-free replayer constructing native inference, kind, checking and
+dependent-spine proofs. Assertions, variable bounds, actual lookup, spine
+alignment and explicit universe cumulativity are checked, not trusted.
+Global packets are bound to actual entry types/raw bodies; missing hidden
+body recipes fail. Three exported globals now replay, as does the local
+computed-index kind. A clearly MIXED finite certificate retains manual
+family/declaration evidence and the existing manual dependent-case proof;
+it composes with native validity/admission and a fixed-goal safe trace.
+Mutation controls reject forged annotations, invalid spines/indices/names
+and body omission. All case recipes fail, and native typing can exist at a
+beta-converted goal even when this exact-syntax protocol returns failure.
+There is no byte/JSON parser or Elixir producer yet, and no completeness or
+whole-kernel refinement claim. Checked conversion evidence and dependent
+case/declaration recipes are the next protocol extensions; only then can
+complete automated replay of the exported native certificate be claimed.
+## Current remaining work, in priority order
+1. Add checked non-reflexive conversion certificates to recipe replay.
+   Structural equality alone cannot replay beta-converted native goals.
+2. Add dependent case, motive/branch/coverage and family/constructor
+   declaration recipes, then assemble the complete exported certificate
+   without the remaining manual declaration and fourth-global case proofs.
+3. Define and validate the serialized byte/JSON format and Elixir producer.
+   Prove representation fidelity, snapshot/context correspondence and the
+   connection between actual kernel acceptance and checked native evidence.
+4. Refine executable evaluation, normalization, readback and conversion,
+   including eta, certified delta, stuck-case policy and builtin computation.
+   Resolve the stricter native versus executable motive contracts explicitly.
+5. Extend the proved executable fragment to the remaining literal/payload,
+   subtyping/effect, indexed-coverage and filtered/erased-frame contracts.
+6. Prove semantic positivity and totality certification, including extraction,
+   size-change descent and linkage to actual certified unfolding; finite
+   certificate replay and body finality are not those semantic theorems.
+7. Prove typed relevance/erasure simulation and BEAM lowering/execution
+   correspondence, with explicit effect, exception, FFI and host trust bounds.
+The detailed stages below expand these obligations. Waived Mix/ExUnit/docs
+and stdlib/example verification is not an additional outstanding proof task.
 ## Governing proof contracts
 - Target admission only under a related, validated signature, a well-formed caller context and a well-kinded expected type. Arbitrary success of the low-level `Kernel.check/3` API on caller-supplied semantic values is not sufficient. See `lib/cure/core/kernel.ex:645` and `proof/Core/DependentTyping.agda:254`.
 - Keep implementation observations, exported evidence, formal algorithm acceptance and declarative derivations separate. Differential tests and certificates generated by unverified Elixir code are useful evidence, not automatically a theorem about that code.
@@ -75,11 +202,26 @@ Acceptance: positive recursive examples and negative non-decreasing, incomplete-
 ## Dependencies and delivery policy
 The critical path is scope contracts → adequate representation/context relations → evaluator/readback/conversion → bounded admission → composition with native safety. Indexed coverage and erased frames then expand that boundary; typed erasure precedes compiler/runtime composition. Positivity and totality are independent semantic tracks with shared snapshot/evaluator prerequisites.
 The immediate implementation unit should be Stage 0 plus the smallest Stage 1 snapshot/lookup/frame bridge, with executable mismatch controls retained. Land that reviewed boundary before attempting a wholesale conversion rewrite. Subsequent units should each include one theorem, an inhabited instance, rejection controls and updated scope documentation.
-This roadmap preparation uses no child agents and implements none of the proposed source/proof changes. Future parallel work is appropriate only after ownership and theorem interfaces stabilize; tightly coupled changes to syntax, conversion and native inversion should be integrated before downstream proof work proceeds.
+The original roadmap preparation implemented none of the proposed source/proof changes; the first implemented boundary foundation is recorded above. Future parallel work is appropriate only after ownership and theorem interfaces stabilize; tightly coupled changes to syntax, conversion and native inversion should be integrated before downstream proof work proceeds.
 ## Validation and non-regression requirements
+**Maintainer directive — 21 October 2026:** Mix/ExUnit test verification,
+documentation-snippet checks and stdlib/example verification are not required
+for this soundness-proof effort or its checkpoint commits. Do not
+automatically run `mix test`, ExUnit suites, documentation checks or the
+`mix check` stdlib/example gate unless subsequently requested by the
+maintainer. Do not list the omission of these gates as outstanding proof
+work, and do not describe waived or cancelled runs as passing. This directive
+supersedes earlier local instructions to run those suites for every proof
+checkpoint. Existing historical results remain historical.
 For proof changes, run `./proof/check.sh`, `./proof/scripts/check-postulates.sh`, `python3 proof/scripts/test_hygiene.py` and `python3 proof/scripts/check-hygiene.py`. Register every new module in the runner. Use Agda 2.8.x and the configured standard library; retain the heap cap and explicit diagnostics for expensive checks.
 The global postulate inventory remains exactly `funext` and legacy `tree-decides`; constructive native safety must not depend on LPO. No holes, unsolved metas, termination/positivity bypasses, raw-reflection oracle, global coverage oracle or callback assuming the target theorem may be introduced.
-Run focused correspondence/regression suites first, then `mix test` including its documentation alias, `mix check` as the separate stdlib/example gate, `mix credo --strict`, `mix format --check-formatted` and `git diff --check`. Preserve default exclusions, warnings-as-errors and existing performance thresholds. Record actual command exit status, seed and scope; interrupted or partial runs are not a passing full replay.
+Run applicable static analysis (`mix credo --strict`), formatting and
+`git diff --check`; run `mix format` as the last code-validation step before
+an Elixir-project commit. Preserve default exclusions, warnings-as-errors
+and performance thresholds. This local proof-validation policy does not
+disable or alter repository CI, existing test configuration or release
+requirements, and does not waive any mathematical soundness obligation.
+Record the actual scope and exit status of checks performed.
 The existing `.github/workflows/proof.yml` gates main pushes and main-target pull requests. Any broader branch-trigger policy is a separate CI decision, not a prerequisite silently claimed to be present.
 Maintain a claim ledger in `proof/README.md` and the soundness documentation: theorem scope, related executable entry points, proved correspondence, exclusions and residual trust. Historical status prose should not be read as current certification.
 ## Definition of completion

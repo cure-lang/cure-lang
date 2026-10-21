@@ -446,6 +446,19 @@ that stays outside the TCB and outside the mechanised proof.
 
 ### 7.1 The Agda development (`proof/`)
 
+**Maintainer validation policy — 21 October 2026.** The maintainer explicitly
+does not require Mix/ExUnit suites, documentation-snippet verification or
+stdlib/example verification for this soundness-proof effort and its local
+checkpoint commits. Do not run those gates automatically or treat their
+omission as unfinished proof work; run them only if subsequently requested.
+Agda type-checking, the exact postulate and hygiene guards, hygiene
+regressions, applicable static analysis, formatting and whitespace checks
+remain required. This scoped policy changes no theorem assumptions, trust
+roots, CI workflows, test configuration or existing release requirements,
+and is not a claim that waived suites passed. The detailed policy is recorded
+in [`proof/README.md`](../proof/README.md) and
+[`proof/NEXT-STEPS.md`](../proof/NEXT-STEPS.md).
+
 A partial mechanisation now exists in [`proof/`](../proof/README.md): the Core
 calculus, the typing judgment, the canonical-form and head-inversion lemmas,
 the renaming/substitution lemmas, **Progress**, **`Final`-preservation**,
