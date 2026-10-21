@@ -16,12 +16,14 @@ on:
     paths:
       - "proof/**"
       - "docs/SOUNDNESS.md"
+      - "docs/CONFLUENCE.md"
       - ".github/workflows/proof.yml"
   pull_request:
     branches: [main]
     paths:
       - "proof/**"
       - "docs/SOUNDNESS.md"
+      - "docs/CONFLUENCE.md"
       - ".github/workflows/proof.yml"
 
 jobs:
@@ -85,8 +87,15 @@ jobs:
         run: ./proof/check.sh
 
       # Guard against a regression in the postulate surface: the development
-      # is allowed exactly the axioms it documents (`funext` and the two named
-      # classical inputs). A new `postulate` is a new unproven assumption and
+      # is allowed exactly the named axioms it documents (`funext` and
+      # `tree-decides`). Module parameters and check bypasses are separate
+      # obligations; this count alone is not a soundness certificate.
+      # A new `postulate` is a new unproven assumption and
       # must be a deliberate, reviewed change -- this step makes it loud.
       - name: Guard the postulate surface
         run: ./proof/scripts/check-postulates.sh
+
+      - name: Guard proof holes and check bypasses
+        run: |
+          python3 proof/scripts/test_hygiene.py
+          python3 proof/scripts/check-hygiene.py

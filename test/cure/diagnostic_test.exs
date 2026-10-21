@@ -1,5 +1,7 @@
 defmodule Cure.DiagnosticTest do
-  use ExUnit.Case, async: true
+  # Named stderr capture is VM-global. Other async modules emit diagnostics,
+  # so assertions that compilation stays silent must run in isolation.
+  use ExUnit.Case, async: false
   import ExUnit.CaptureIO
 
   alias Cure.Diagnostic

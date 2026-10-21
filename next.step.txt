@@ -152,9 +152,21 @@ NEXT STEPS (in order of value):
              element) and effect_bind (effect). Covers every ξ-rule at once.
              Note erase performs NO reduction, so the erased subterm is still
              a redex (verified by the non-vacuous assertions).
-             NOT MECHANISED. A real proof needs an Agda formalisation of
-             `Erase` — the Agda tree has NO `Erase` module, so that is a new
-             development, not an extension.
+             MECHANISED (new): proof/Proof/Erase.agda, in check.sh.
+             `eraseTerm` formalises the structural core (every former
+             recurses; `eraseSpine` drops ctor args whose declared quantity is
+             `erased`, with the kernel's over-application padding) and
+             `erase-idem` PROVES idempotence (erase ∘ erase ≡ erase) with no
+             postulates. That is the first §8.3 property to become a theorem
+             rather than evidence.
+             OMITTED, deliberately: the `let x = v in x ↦ erase v` shortcut
+             (it inspects the body's syntax inside a mutual block, which
+             defeats Agda's reduction in the idempotence proof) and the
+             kernel's heuristic refinements (collapsible cases, convoy,
+             cure_erased).
+             STILL NOT MECHANISED: commutation itself. It needs erase stable
+             under substitution, which fails for the same reason δ fails —
+             quantities live in the SIGNATURE, not the term.
 
         §8.4 effect fragment: unchanged (inert by design; a future monad law
              would need re-argument).

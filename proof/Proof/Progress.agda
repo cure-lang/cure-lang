@@ -9,11 +9,11 @@
 --   * the δ-signature `sig` (certified globals and their types);
 --   * the conversion relation `conv`.
 --
--- The three side conditions of the theorem (docs/SOUNDNESS.md §3) are
--- carried as hypotheses:
+-- Signature-side obligations (docs/SOUNDNESS.md §3) are carried as hypotheses:
 --   * `StrictlyPositive ind`   — every family is strictly positive (§3.1);
---   * `Certified sig`          — every δ-unfoldable global is total (§3.2);
---   * `Covers ind`             — every case has full coverage (§3.3).
+--   * `Certified sig`          — body FINALITY only, not termination;
+-- Coverage (§3.3) is now local evidence carried by each ⇒-case derivation,
+-- not a hypothesis about every possible raw branch list.
 --
 -- The hole/absurd discipline (§3.4) is expressed by restricting the
 -- theorem to hole-free, absurd-free terms (`Final`).
@@ -37,6 +37,7 @@ open import Relation.Nullary using (Dec; yes; no)
 open import Core.Grade using (Grade)
 open import Core.Syntax
 open import Core.Signature
+open import Core.Coverage
 open import Core.Reduction
 open import Core.Typing using (Ctx; ⟨⟩; _▷_; lookup; extend; Conversion)
 open import Proof.Values using (Value; Canonical; Neutral; canonical; neutral)
@@ -92,33 +93,19 @@ mutual
 StrictlyPositive : IndEnv → Set
 StrictlyPositive ind = ∀ f → f ∈ IndEnv.families ind → Family.positive f ≡ true
 
--- §3.2 Totality gates δ: every global the signature can unfold is total.
---
--- This is the SINGLE load-bearing hypothesis of the argument
--- (docs/SOUNDNESS.md §5.3(2)): we take `Certified` as an abstract
--- predicate with the property that a certified global's body is
--- terminating. The δ rule only fires on names in the signature's body map,
--- so this is the assumption that makes δ type-preserving (Preservation §4).
+-- Body finality only: this predicate does NOT express termination.
+-- Certified is retained as a compatibility name for legacy consumers.
+-- Case coverage is provided by Core.Coverage and the ⇒-case typing rule.
+BodiesFinal : Signature → Set
+BodiesFinal sig = ∀ {f body′} → Signature.body sig f ≡ just body′ → Final body′
 Certified : Signature → Set
-Certified sig = ∀ {f body′} → Signature.body sig f ≡ just body′ → Final body′
+Certified = BodiesFinal
 
--- §3.3 Coverage: every case has a branch for every constructor.
---
--- The coverage check (`check_coverage`) requires a branch for every
--- constructor the index unifier does not refute. We take it as a predicate
--- on the inductive environment, discharged by Core/Coverage.agda.
---
--- The witness is a branch NAMED `c` (not merely some branch in the list):
--- that is what `findBranch c brs` needs to fire ι, and it is the honest
--- reading of "a branch for constructor `c`".
+-- Constructor names used by the builtin signature invariant. Actual case
+-- coverage comes from CaseCoverage, not from this environment-wide list.
 allCtorNames : List Family → List Name
 allCtorNames fs = concatMap (λ f → map ctor-name (Family.fam-ctors f)) fs
 
-Covers : IndEnv → Set
-Covers ind = ∀ (brs : List Branch) (m : Term)
-           → (∀ (c : Name) → c ∈ allCtorNames (IndEnv.families ind)
-             → ∃ λ ar → ∃ λ b
-             → findBranch c brs ≡ just (c , ar , b) × (c , ar , b) ∈ brs)
 -- The builtin families' constructors carry their canonical basenames
 -- (`Z`/`S` for Nat, `First`/`Next` for Bounded). This is what lets Progress's
 -- `case` on a compact `tm-nat_lit` / `tm-bounded_lit` scrutinee find the
@@ -160,7 +147,7 @@ BuiltinCtors ind =
 ------------------------------------------------------------------------
 
 module Progress (ind : IndEnv) (sig : Signature) (conv : Conversion)
-                (pos : StrictlyPositive ind) (cert : Certified sig) (cov : Covers ind)
+                (pos : StrictlyPositive ind) (cert : Certified sig)
                 (bc : BuiltinCtors ind) where
 
   open Core.Typing.Typing ind sig conv
@@ -175,88 +162,49 @@ module Progress (ind : IndEnv) (sig : Signature) (conv : Conversion)
   ProgressResult : Term → Set
   ProgressResult t = Value t ⊎ (∃ λ t′ → _⇝_ sig t t′)
 
-  -- A branch's arity equals its constructor's argument-telescope length.
-  -- Read off the `⊢*brs` derivation: the new `brs∷` stores
-  -- `length (ctor-args ct)` AS the branch arity, so the equation is `refl`.
-  brs-arity : ∀ {brs n m}
-            → ⟨⟩ ⊢*brs brs ⇐*ᵇ (n , m)
-            → ∀ {c ar b} → (c , ar , b) ∈ brs
-            → ∃ λ f → ∃ λ ct
-            → findCtor c (IndEnv.families ind) ≡ just (f , ct)
-              × length (ctor-args ct) ≡ ar
-  brs-arity brs[] ()
-  brs-arity (brs∷ {ct = ct} fc _body rest) (here refl) = _ , ct , fc , refl
-  brs-arity (brs∷ fc _body rest) (there p) = brs-arity rest p
+  -- Constructor inference exposes the owning family and its checked
+  -- spine, so local coverage applies only to that family.
+  ctor-info : ∀ {c args n ps is}
+    → ⟨⟩ ⊢ tm-ctor c args ⇒ tm-data n ps is
+    → ∃ λ f → ∃ λ ct
+    → findCtor c (IndEnv.families ind) ≡ just (f , ct)
+      × fam-name f ≡ n × (⟨⟩ ⊢* args ⇐* ctor-args ct)
+  ctor-info = constructor-data
 
-  -- A constructor inference derivation gives the ctor's membership in
-  -- `allCtorNames`, so the coverage witness applies.
-  ctor-member : ∀ {c args n ps is}
-              → ⟨⟩ ⊢ tm-ctor c args ⇒ tm-data n ps is
-              → c ∈ allCtorNames (IndEnv.families ind)
-  ctor-member (⇒-ctor fc sp) = findCtor-sound {fs = IndEnv.families ind} fc
-  ctor-member (⇒-conv der eq) with conv-injective-data eq
-  ... | ps′ , is′ , refl = ctor-member der
+  nat-lit-family : ∀ {k n ps is}
+    → ⟨⟩ ⊢ tm-nat_lit k ⇒ tm-data n ps is
+    → IndEnv.builtins ind "nat" ≡ just n
+  nat-lit-family = nat-data-family
 
-  -- The argument spine a `tm-ctor` inference checked its args against.
-  ctor-spine : ∀ {c args n ps is}
-             → ⟨⟩ ⊢ tm-ctor c args ⇒ tm-data n ps is
-             → ∃ λ ct → ⟨⟩ ⊢* args ⇐* ctor-args ct
-  ctor-spine (⇒-ctor {ct = ct} fc sp) = ct , sp
-  ctor-spine (⇒-conv der eq) with conv-injective-data eq
-  ... | ps′ , is′ , refl = ctor-spine der
-  -- The branch for a constructor name, from coverage: both the `findBranch`
-  -- equation (for ι) and the membership (for `brs-arity`).
-  branch-for : ∀ (c : Name) (brs : List Branch) (m : Term)
-             → c ∈ allCtorNames (IndEnv.families ind)
-             → ∃ λ ar → ∃ λ b
-             → findBranch c brs ≡ just (c , ar , b) × (c , ar , b) ∈ brs
-  branch-for c brs m mem = cov brs m c mem
-  -- The ctor of a `tm-ctor` inference and the ctor of the matching branch
-  -- agree (both are `findCtor c`).
-  ct-eq : ∀ {c ar b args n ps is m brs} (q : ⟨⟩ ⊢ tm-ctor c args ⇒ tm-data n ps is)
-          (r : ⟨⟩ ⊢*brs brs ⇐*ᵇ (n , m)) (mem : (c , ar , b) ∈ brs)
-        → proj₁ (ctor-spine q) ≡ proj₁ (proj₂ (brs-arity r mem))
-  ct-eq (⇒-ctor fc sp) r mem = cong proj₂ (just-inj (trans (sym fc) (proj₁ (proj₂ (proj₂ (brs-arity r mem))))))
-  ct-eq (⇒-conv der eq) r mem with conv-injective-data eq
-  ... | ps′ , is′ , refl = ct-eq der r mem
-  -- ι for a `tm-ctor` scrutinee: coverage gives a branch named `c`,
-  -- `findBranch-complete` finds it, and `spine-length` + `brs-arity` match the
-  -- branch arity to the ctor's argument telescope.
+  bounded-lit-family : ∀ {k n ps is}
+    → ⟨⟩ ⊢ tm-bounded_lit k ⇒ tm-data n ps is
+    → IndEnv.builtins ind "bounded" ≡ just n
+  bounded-lit-family = bounded-data-family
+
   case-ctor-step : ∀ {c args n ps is m brs}
-                 → ⟨⟩ ⊢ tm-ctor c args ⇒ tm-data n ps is
-                 → ⟨⟩ ⊢*brs brs ⇐*ᵇ (n , m)
-                 → ProgressResult (tm-case (tm-ctor c args) m brs)
-  case-ctor-step {c} {args} {m = m} {brs} p r =
-    inj₂ (substArgs args b , ι found arity)
-    where
-      cover = cov brs m c (ctor-member p)
-      ar = proj₁ cover
-      b = proj₁ (proj₂ cover)
-      found = proj₁ (proj₂ (proj₂ cover))
-      membr = proj₂ (proj₂ (proj₂ cover))
-      arity = trans (spine-length (proj₂ (ctor-spine p)))
-                    (trans (cong (λ ct → length (ctor-args ct)) (ct-eq p r membr))
-                           (proj₂ (proj₂ (proj₂ (brs-arity r membr)))))
+    → ⟨⟩ ⊢ tm-ctor c args ⇒ tm-data n ps is
+    → CaseCoverage ind n brs
+    → ProgressResult (tm-case (tm-ctor c args) m brs)
+  case-ctor-step {c} {args} p covered with ctor-info p
+  ... | f , ct , fc , owner , sp with ctor-covered covered fc owner
+  ... | b , found = inj₂ (substArgs args b , ι found (spine-length sp))
 
-  -- ι for a compact Nat literal scrutinee (peeled to `Z`/`S`).
-  case-nat-step : ∀ (k : ℕ) (brs : List Branch) (m : Term)
-                → ProgressResult (tm-case (tm-nat_lit k) m brs)
-  case-nat-step zero brs m =
-    let (ar , b , (found , membr)) = branch-for "Z" brs m (proj₁ bc)
-    in inj₂ (substArgs [] b , ι-nat-zero found)
-  case-nat-step (suc k) brs m =
-    let (ar , b , (found , membr)) = branch-for "S" brs m (proj₁ (proj₂ bc))
-    in inj₂ (substArgs (tm-nat_lit k ∷ []) b , ι-nat-suc found)
+  case-nat-step : ∀ {n} (k : ℕ) (brs : List Branch) (m : Term)
+    → IndEnv.builtins ind "nat" ≡ just n → CaseCoverage ind n brs
+    → ProgressResult (tm-case (tm-nat_lit k) m brs)
+  case-nat-step zero brs m builtin covered with nat-zero-covered covered builtin
+  ... | b , found = inj₂ (substArgs [] b , ι-nat-zero found refl)
+  case-nat-step (suc k) brs m builtin covered with nat-suc-covered covered builtin
+  ... | b , found = inj₂ (substArgs (tm-nat_lit k ∷ []) b , ι-nat-suc found refl)
 
-  -- ι for a compact Bounded literal scrutinee (peeled to `First`/`Next`).
-  case-bounded-step : ∀ (k : ℕ) (brs : List Branch) (m : Term)
-                    → ProgressResult (tm-case (tm-bounded_lit k) m brs)
-  case-bounded-step zero brs m =
-    let (ar , b , (found , membr)) = branch-for "First" brs m (proj₁ (proj₂ (proj₂ bc)))
-    in inj₂ (substArgs (tm-nat_lit 0 ∷ []) b , ι-bounded-zero found)
-  case-bounded-step (suc k) brs m =
-    let (ar , b , (found , membr)) = branch-for "Next" brs m (proj₁ (proj₂ (proj₂ (proj₂ bc))))
-    in inj₂ (substArgs (tm-nat_lit k ∷ tm-bounded_lit k ∷ []) b , ι-bounded-suc found)
+  case-bounded-step : ∀ {n} (k : ℕ) (brs : List Branch) (m : Term)
+    → IndEnv.builtins ind "bounded" ≡ just n → CaseCoverage ind n brs
+    → ProgressResult (tm-case (tm-bounded_lit k) m brs)
+  case-bounded-step zero brs m builtin covered with bounded-zero-covered covered builtin
+  ... | b , found = inj₂ (substArgs (tm-nat_lit 0 ∷ []) b , ι-bounded-zero found refl)
+  case-bounded-step (suc k) brs m builtin covered with bounded-suc-covered covered builtin
+  ... | b , found = inj₂ (substArgs (tm-nat_lit k ∷ tm-bounded_lit k ∷ []) b ,
+                         ι-bounded-suc found refl)
   -- Progress: a well-typed closed final term is a value or it steps.
   --
   -- PROVED by mutual induction on the typing derivation (infer and check),
@@ -317,16 +265,17 @@ module Progress (ind : IndEnv) (sig : Signature) (conv : Conversion)
     ... | nothing = inj₁ (neutral n-global)
 
     -- case: reduce the scrutinee, then ι (peeling a literal scrutinee).
-    progress⇒ (⇒-case {s = s} {m = m} {brs = brs} p q r) (f-case fs fm fbs) with progress⇒ p fs
+    progress⇒ (⇒-case {s = s} {m = m} {brs = brs} p q r covered) (f-case fs fm fbs) with progress⇒ p fs
     ... | inj₂ (s′ , step) = inj₂ (tm-case s′ m brs , ξ-case step)
     ... | inj₁ (neutral ns) = inj₁ (neutral (n-case ns))
     ... | inj₁ (canonical cs) with canonical-ctor {v = s} (⇐-infer p (Conversion.≈-refl conv)) cs
-    ...   | inj₁ (c , args , refl) = case-ctor-step p r
-    ...   | inj₂ (inj₁ (k , refl)) = case-nat-step k brs m
-    ...   | inj₂ (inj₂ (k , refl)) = case-bounded-step k brs m
+    ...   | inj₁ (c , args , refl) = case-ctor-step p covered
+    ...   | inj₂ (inj₁ (k , refl)) = case-nat-step k brs m (nat-lit-family p) covered
+    ...   | inj₂ (inj₂ (k , refl)) = case-bounded-step k brs m (bounded-lit-family p) covered
 
     -- Conversion on the inferred type: recurse on the same term.
     progress⇒ (⇒-conv der eq) ff = progress⇒ der ff
+    progress⇒ (⇒-cumul der le) ff = progress⇒ der ff
 
     -- Checking cases.
     progress⇐ (⇐-lam p q) (f-lam fd fb) = inj₁ (canonical c-lam)

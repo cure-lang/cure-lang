@@ -102,19 +102,19 @@ open import Core.Signature
 open import Core.Reduction
 open import Core.Typing using (Ctx; ⟨⟩; Conversion)
 open import Proof.Values using (Value; Canonical; Neutral; canonical; neutral)
-open import Proof.Progress using (Final; StrictlyPositive; Certified; Covers;
+open import Proof.Progress using (Final; StrictlyPositive; Certified;
                                     BuiltinCtors)
-open import Proof.Preservation using (ClosedSig; ReduceConv; CertifiedTyped)
+open import Proof.Preservation using (ClosedFragmentSig; ReduceConv; CertifiedTyped)
 open import Proof.Soundness
 
 module SoundNF (ind : IndEnv) (sig : Signature) (conv : Conversion)
-               (pos : StrictlyPositive ind) (cert : Certified sig) (cov : Covers ind)
+               (pos : StrictlyPositive ind) (cert : Certified sig)
                (bc : BuiltinCtors ind)
-               (closed : ClosedSig ind sig) (rc : ReduceConv sig conv)
+               (closed : ClosedFragmentSig ind sig) (rc : ReduceConv sig conv)
                (ctyped : CertifiedTyped ind sig conv) where
 
   open Core.Typing.Typing ind sig conv
-  open Proof.Soundness.Sound ind sig conv pos cert cov bc closed rc ctyped
+  open Proof.Soundness.Sound ind sig conv pos cert bc closed rc ctyped
 
   ------------------------------------------------------------------------
   -- Normal forms.
@@ -199,7 +199,7 @@ module SoundNF (ind : IndEnv) (sig : Signature) (conv : Conversion)
   --   * `reaches` — a value is reached (the tree's own `Reached` leaf);
   --   * `steps-forever` — `t` `DivergesNF`.
   --
-  -- The `raises` outcome of `EvalResult` is dropped: under `Covers` it is
+  -- The `raises` outcome of `EvalResult` is dropped: under case-local coverage it is
   -- unreachable (`progress` never produces it), so carrying it would add a
   -- disjunct no proof can inhabit.
   ------------------------------------------------------------------------

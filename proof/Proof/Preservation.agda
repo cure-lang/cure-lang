@@ -14,8 +14,12 @@
 -- by mutual induction on the typing derivation, stated with a coherence
 -- condition on the substitution.
 --
--- STATUS: the substitution lemma's binder cases are proved; the spine and
--- branch cases are the current research frontier.
+-- STATUS: the explicit closed-telescope fragment uses the inhabited,
+-- membership-indexed ClosedFragmentSig invariant. This does NOT cover
+-- genuinely dependent telescope entries. Proof.ReductionConversion
+-- supplies full formal ReduceConv; Proof.SoundnessModel jointly inhabits
+-- all current hypotheses. This is a closed-entry specification theorem,
+-- not an executable NbE/refinement or full dependent Cure certificate.
 ------------------------------------------------------------------------
 module Proof.Preservation where
 
@@ -24,7 +28,8 @@ open import Data.Nat using (ℕ; zero; suc; _+_)
 open import Data.Nat.Properties using (+-suc; +-identityʳ; +-comm)
 open import Function using (_∘_)
 open import Data.Fin using (Fin; zero; suc; toℕ; cast)
-open import Data.List using (List; []; _∷_; _++_; length; map)
+open import Data.List using (List; []; _∷_; _++_; length; map; reverse)
+open import Data.List.Properties using (length-reverse; reverse-involutive)
 open import Data.List using () renaming (lookup to listLookup)
 open import Data.List.Membership.Propositional using (_∈_)
 open import Data.List.Relation.Unary.Any using (here; there)
@@ -44,7 +49,9 @@ open import Core.Signature using (IndEnv; Family; Ctor; Telescope; findFamily; f
                                    fam-params; fam-indices; fam-level; fam-name;
                                    ctor-args; ctor-params; ctor-indices; just-inj)
 open import Core.Reduction
-open import Core.Typing using (Ctx; ⟨⟩; _▷_; lookup; extend; lookup-extend; lookup-renameCtx; renameCtx; Conversion; extendⁿ; extendTele; teleField; fieldFin; listLookup-∈Tele; branch-field-vars; upto; _∈Tele_; ∈-here; ∈-there)
+open import Core.Coverage
+open import Core.ClosedFragment public using (ClosedFragmentSig; family-lookup-member)
+open import Core.Typing using (Ctx; ⟨⟩; _▷_; lookup; extend; lookup-extend; lookup-renameCtx; renameCtx; Conversion; extendⁿ; extendTele; teleField; fieldFin; listLookup-∈Tele; branch-field-vars; surface-field-vars; branch-context; branch-arity; upto; _∈Tele_; ∈-here; ∈-there)
 open import Proof.Values using (Canonical; Neutral; Value)
 open import Proof.Progress using (Final; FinalTerms; FinalBranches; BuiltinCtors; Certified;
                                     f-type; f-var; f-pi; f-lam; f-let; f-app;
@@ -56,6 +63,8 @@ open import Proof.Progress using (Final; FinalTerms; FinalBranches; BuiltinCtors
                                     ft[]; ft∷; fb[]; fb∷)
 open import Proof.Inversion
 open import Proof.Substitution
+open import Proof.FieldOrder using (closed-reverse; final-reverse)
+import Proof.FieldOrder as FieldOrder
 open import Proof.FinalPreservation using (final-preservation)
 open import Proof.Context using (lookup-weaken; lookup-head;
                                   lookup-extendⁿ-zero; lookup-extendⁿ-raise;
@@ -66,25 +75,13 @@ open import Proof.Context using (lookup-weaken; lookup-head;
 ------------------------------------------------------------------------
 -- Signature closedness.
 --
--- The signature's entries (a global's declared type, a family's
--- telescopes, a constructor's argument telescope and result type) are
--- CLOSED: they mention no free variable. This is a well-formedness side
--- condition on the signature, carried as a hypothesis (like
--- `StrictlyPositive`), and it makes renaming/substitution the identity on
--- them via `rename-closed` / `substS-closed`.
---
--- Defined at the TOP LEVEL (outside `Preserve`) so the module header can
--- name it.
+-- Core.ClosedFragment constrains only actual signature members. Individual
+-- entries/results are still closed, because the current spine/context
+-- proofs require rename/substitution identity. This is an explicit
+-- fragment restriction, not a proof of well-scoped dependent telescopes.
+-- Migrating ScopedSignature together with dependent typing remains open.
 ------------------------------------------------------------------------
 
-ClosedSig : IndEnv → Signature → Set
-ClosedSig ind sig =
-    (∀ (f : Name) {T} → Signature.type-of sig f ≡ just T → Scoped 0 T)
-  × (∀ (f : Family) {T} → T ∈Tele (fam-params f) → Scoped 0 T)
-  × (∀ (f : Family) {T} → T ∈Tele (fam-indices f) → Scoped 0 T)
-  × (∀ (f : Family) (ct : Ctor) {T} → T ∈Tele (ctor-args ct) → Scoped 0 T)
-  × (∀ (f : Family) (ct : Ctor)
-     → Scoped 0 (tm-data (fam-name f) (ctor-params ct) (ctor-indices ct)))
 
 ------------------------------------------------------------------------
 -- The well-typedness half of the totality certificate.
@@ -116,11 +113,14 @@ ReduceConv : Signature → Conversion → Set
 ReduceConv sig conv = ∀ {t t′} → _⇝_ sig t t′ → Conversion._≈_ conv t t′
 
 module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
-               (closed : ClosedSig ind sig) (rc : ReduceConv sig conv)
+               (closed : ClosedFragmentSig ind sig) (rc : ReduceConv sig conv)
                (ctyped : CertifiedTyped ind sig conv) (bc : BuiltinCtors ind)
                (cert : Certified sig) where
   open Core.Typing.Typing ind sig conv
-  open Proof.Inversion.Invert ind sig conv using (conv-pi-components; conv-injective-data)
+  module Ordered = FieldOrder.Spines ind sig conv
+  open Proof.Inversion.Invert ind sig conv
+    using (conv-pi-components; universe-not-pi; constructor-data;
+           nat-data-family; bounded-data-family)
 
   ------------------------------------------------------------------------
   -- Weakening.
@@ -129,9 +129,8 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
   -- fresh binder preserves typability, renaming the term and its type by
   -- `wk`. The `⇒-var` case is the definitional lookup law.
   --
-  -- OPEN OBLIGATION: the binder cases need `rename (ext wk)` threaded
-  -- through the body. The lookup law is proved; the term-level induction is
-  -- the remaining piece.
+  -- The fundamental context-morphism induction below threads the extended
+  -- renaming through binders and reversed closed-entry branch contexts.
   ------------------------------------------------------------------------
 
   -- The fundamental renaming lemma. A "context morphism" from `Γ` to `Δ`
@@ -167,10 +166,9 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
   ------------------------------------------------------------------------
   -- Signature closedness.
   --
-  -- `ClosedSig` is defined at the top level (above `module Preserve`); the
-  -- module takes a witness `closed` as a parameter. The lemmas below turn
-  -- that witness into the `rename`/`substS`-is-identity facts the renaming
-  -- and substitution lemmas consume.
+  -- ClosedFragmentSig is defined in Core.ClosedFragment. The lemmas below
+  -- use actual lookup/membership witnesses to obtain the rename/subst
+  -- identity facts required by this closed-entry fragment.
   ------------------------------------------------------------------------
 
   -- A global's declared type is closed, so renaming leaves it unchanged.
@@ -178,64 +176,102 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
     → Signature.type-of sig f ≡ just T → rename ρ T ≡ T
   rename-global-type ρ f T p = rename-closed (proj₁ closed f p)
 
-  -- The signature's telescopes are closed, so renaming leaves them
-  -- unchanged.
-  tele-closed-params : ∀ (ρ : Ren) (f : Family) {T : Term}
-    → T ∈Tele (fam-params f) → rename ρ T ≡ T
-  tele-closed-params ρ f h = rename-closed (proj₁ (proj₂ closed) f h)
+  -- Membership witnesses are mandatory for signature entries. The
+  -- fragment still requires individual entries to be closed.
+  tele-closed-params : ∀ (ρ : Ren) (f : Family)
+    → f ∈ IndEnv.families ind
+    → ∀ {T} → T ∈Tele (fam-params f) → rename ρ T ≡ T
+  tele-closed-params ρ f member h =
+    rename-closed (proj₁ (proj₂ closed) f member h)
 
-  tele-closed-indices : ∀ (ρ : Ren) (f : Family) {T : Term}
-    → T ∈Tele (fam-indices f) → rename ρ T ≡ T
-  tele-closed-indices ρ f h = rename-closed (proj₁ (proj₂ (proj₂ closed)) f h)
+  tele-closed-indices : ∀ (ρ : Ren) (f : Family)
+    → f ∈ IndEnv.families ind
+    → ∀ {T} → T ∈Tele (fam-indices f) → rename ρ T ≡ T
+  tele-closed-indices ρ f member h =
+    rename-closed (proj₁ (proj₂ (proj₂ closed)) f member h)
 
-  tele-closed-ctor : ∀ (ρ : Ren) (f : Family) (ct : Ctor) {T : Term}
-    → T ∈Tele (ctor-args ct) → rename ρ T ≡ T
-  tele-closed-ctor ρ f ct h = rename-closed (proj₁ (proj₂ (proj₂ (proj₂ closed))) f ct h)
+  ctor-members : ∀ {c f ct}
+    → findCtor c (IndEnv.families ind) ≡ just (f , ct)
+    → f ∈ IndEnv.families ind × ct ∈ Core.Signature.fam-ctors f
+  ctor-members {c} {f} {ct} found
+    with lookup-ctor-members {c = c} {fs = IndEnv.families ind} {f = f} {ct = ct} found
+  ... | family-member , ctor-member , name = family-member , ctor-member
 
-  -- Every entry of a constructor's argument telescope is CLOSED. This is
-  -- what makes the branch context `extendTele Γ (ctor-args ct)` have
-  -- rename-invariant field types.
-  teleField-closed : ∀ (f : Family) (ct : Ctor)
+  ctor-field-closed : ∀ f ct {c T}
+    → findCtor c (IndEnv.families ind) ≡ just (f , ct)
+    → T ∈Tele (ctor-args ct) → Scoped 0 T
+  ctor-field-closed f ct {c} found entry
+    with ctor-members {c = c} {f = f} {ct = ct} found
+  ... | family-member , ctor-member =
+    proj₁ (proj₂ (proj₂ (proj₂ closed))) f family-member ct ctor-member entry
+
+  ctor-result-closed : ∀ f ct {c}
+    → findCtor c (IndEnv.families ind) ≡ just (f , ct)
+    → Scoped 0 (tm-data (fam-name f) (ctor-params ct) (ctor-indices ct))
+  ctor-result-closed f ct {c} found
+    with ctor-members {c = c} {f = f} {ct = ct} found
+  ... | family-member , ctor-member =
+    proj₂ (proj₂ (proj₂ (proj₂ closed))) f family-member ct ctor-member
+
+  tele-closed-ctor : ∀ (ρ : Ren) (f : Family) (ct : Ctor) {c}
+    → findCtor c (IndEnv.families ind) ≡ just (f , ct)
+    → ∀ {T} → T ∈Tele (ctor-args ct) → rename ρ T ≡ T
+  tele-closed-ctor ρ f ct {c} found h =
+    rename-closed (ctor-field-closed f ct {c = c} found h)
+
+  teleField-closed : ∀ (f : Family) (ct : Ctor) {c}
+    → findCtor c (IndEnv.families ind) ≡ just (f , ct)
     → (j : Fin (length (ctor-args ct))) → Scoped 0 (teleField (ctor-args ct) j)
-  teleField-closed f ct j = proj₁ (proj₂ (proj₂ (proj₂ closed))) f ct (listLookup-∈Tele (ctor-args ct) j)
+  teleField-closed f ct {c} found j =
+    ctor-field-closed f ct {c = c} found (listLookup-∈Tele (ctor-args ct) j)
 
-  -- A constructor's result type is closed, so renaming leaves it
-  -- unchanged.
-  rename-ctor-result : ∀ (ρ : Ren) (f : Family) (ct : Ctor)
+  teleField-reversed-closed : ∀ (f : Family) (ct : Ctor) {c}
+    → findCtor c (IndEnv.families ind) ≡ just (f , ct)
+    → (j : Fin (length (reverse (ctor-args ct))))
+    → Scoped 0 (teleField (reverse (ctor-args ct)) j)
+  teleField-reversed-closed f ct {c} found j =
+    closed-reverse (ctor-args ct) (ctor-field-closed f ct {c = c} found)
+      (listLookup-∈Tele (reverse (ctor-args ct)) j)
+
+  rename-ctor-result : ∀ (ρ : Ren) (f : Family) (ct : Ctor) {c}
+    → findCtor c (IndEnv.families ind) ≡ just (f , ct)
     → rename ρ (tm-data (fam-name f) (ctor-params ct) (ctor-indices ct))
-    ≡ tm-data (fam-name f) (ctor-params ct) (ctor-indices ct)
-  rename-ctor-result ρ f ct = rename-closed (proj₂ (proj₂ (proj₂ (proj₂ closed))) f ct)
+      ≡ tm-data (fam-name f) (ctor-params ct) (ctor-indices ct)
+  rename-ctor-result ρ f ct {c} found =
+    rename-closed (ctor-result-closed f ct {c = c} found)
 
-  -- A closed term is fixed by substitution (its substitution is the
-  -- identity substitution on its free variables).
   subst-closed : ∀ (σ : Sub) {T : Term} → Scoped 0 T → substS σ T ≡ T
   subst-closed σ st = substS-closed st
 
-  -- The signature's telescopes are closed, so substituting into them
-  -- leaves them unchanged.
-  tele-closed-subst-params : ∀ (σ : Sub) (f : Family) {T : Term}
-    → T ∈Tele (fam-params f) → substS σ T ≡ T
-  tele-closed-subst-params σ f h = subst-closed σ (proj₁ (proj₂ closed) f h)
+  tele-closed-subst-params : ∀ (σ : Sub) (f : Family)
+    → f ∈ IndEnv.families ind
+    → ∀ {T} → T ∈Tele (fam-params f) → substS σ T ≡ T
+  tele-closed-subst-params σ f member h =
+    subst-closed σ (proj₁ (proj₂ closed) f member h)
 
-  tele-closed-subst-indices : ∀ (σ : Sub) (f : Family) {T : Term}
-    → T ∈Tele (fam-indices f) → substS σ T ≡ T
-  tele-closed-subst-indices σ f h = subst-closed σ (proj₁ (proj₂ (proj₂ closed)) f h)
+  tele-closed-subst-indices : ∀ (σ : Sub) (f : Family)
+    → f ∈ IndEnv.families ind
+    → ∀ {T} → T ∈Tele (fam-indices f) → substS σ T ≡ T
+  tele-closed-subst-indices σ f member h =
+    subst-closed σ (proj₁ (proj₂ (proj₂ closed)) f member h)
 
-  tele-closed-subst-ctor : ∀ (σ : Sub) (f : Family) (ct : Ctor) {T : Term}
-    → T ∈Tele (ctor-args ct) → substS σ T ≡ T
-  tele-closed-subst-ctor σ f ct h = subst-closed σ (proj₁ (proj₂ (proj₂ (proj₂ closed))) f ct h)
+  tele-closed-subst-ctor : ∀ (σ : Sub) (f : Family) (ct : Ctor) {c}
+    → findCtor c (IndEnv.families ind) ≡ just (f , ct)
+    → ∀ {T} → T ∈Tele (ctor-args ct) → substS σ T ≡ T
+  tele-closed-subst-ctor σ f ct {c} found h =
+    subst-closed σ (ctor-field-closed f ct {c = c} found h)
 
-  -- A constructor's result type is closed, so substituting into it leaves
-  -- it unchanged.
-  subst-ctor-result : ∀ (σ : Sub) (f : Family) (ct : Ctor)
+  subst-ctor-result : ∀ (σ : Sub) (f : Family) (ct : Ctor) {c}
+    → findCtor c (IndEnv.families ind) ≡ just (f , ct)
     → substS σ (tm-data (fam-name f) (ctor-params ct) (ctor-indices ct))
-    ≡ tm-data (fam-name f) (ctor-params ct) (ctor-indices ct)
-  subst-ctor-result σ f ct = subst-closed σ (proj₂ (proj₂ (proj₂ (proj₂ closed))) f ct)
+      ≡ tm-data (fam-name f) (ctor-params ct) (ctor-indices ct)
+  subst-ctor-result σ f ct {c} found =
+    subst-closed σ (ctor-result-closed f ct {c = c} found)
 
   -- Conversion is a congruence for renaming. This is a field of the
-  -- `Conversion` record (Core/Typing.agda): the kernel's conversion is
-  -- decided structurally, so it is stable under renaming. We re-export it
-  -- under the local name the renaming lemma uses.
+  -- `Conversion` record (Core/Typing.agda). Implementation refinement of
+  -- this required law remains open. We re-export it under the local name
+  -- the renaming lemma uses.
   rename-conv : ∀ {t u} (ρ : Ren) → Conversion._≈_ conv t u
               → Conversion._≈_ conv (rename ρ t) (rename ρ u)
   rename-conv = Conversion.≈-rename conv
@@ -278,19 +314,21 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
     ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-data {ps = ps} {is = is} {f = f} p q r) =
       ⇒-data p
         (subst (λ zs → Δ ⊢* zs ⇐* fam-params f) (sym (renameTerms-map ρ ps))
-               (ren-spine idx coh law (tele-closed-params ρ f) q))
+               (ren-spine idx coh law (tele-closed-params ρ f (family-lookup-member {fs = IndEnv.families ind} p)) q))
         (subst (λ zs → Δ ⊢* zs ⇐* fam-indices f) (sym (renameTerms-map ρ is))
-               (ren-spine idx coh law (tele-closed-indices ρ f) r))
+               (ren-spine idx coh law (tele-closed-indices ρ f (family-lookup-member {fs = IndEnv.families ind} p)) r))
     ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-ctor {c = c} {args = args} {f = f} {ct = ct} p q) =
       subst (λ X → Δ ⊢ tm-ctor c (renameTerms ρ args) ⇒ X)
-            (sym (rename-ctor-result ρ f ct))
-            (⇒-ctor p (subst (λ zs → Δ ⊢* zs ⇐* ctor-args ct) (sym (renameTerms-map ρ args)) (ren-spine idx coh law (tele-closed-ctor ρ f ct) q)))
-    ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-case {s = s} {m = m′} {brs = brs} p q r) =
+            (sym (rename-ctor-result ρ f ct {c = c} p))
+            (⇒-ctor p (subst (λ zs → Δ ⊢* zs ⇐* ctor-args ct) (sym (renameTerms-map ρ args)) (ren-spine idx coh law (tele-closed-ctor ρ f ct {c = c} p) q)))
+    ren⇒ {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law (⇒-case {s = s} {m = m′} {brs = brs} p q r covered) =
       ⇒-case (ren⇒ idx coh law p) (ren⇒ idx coh law q) (ren-branches idx coh law r)
+        (case-coverage-rename {brs = brs} ρ covered)
     ren⇒ idx coh law (⇒-effect_type p) = ⇒-effect_type (ren⇒ idx coh law p)
     ren⇒ idx coh law (⇒-effect_pure p) = ⇒-effect_pure (ren⇒ idx coh law p)
     ren⇒ idx coh law (⇒-conv der eq) =
       ⇒-conv (ren⇒ idx coh law der) (rename-conv _ eq)
+    ren⇒ idx coh law (⇒-cumul der le) = ⇒-cumul (ren⇒ idx coh law der) le
     ren⇒ {Δ = Δ} {ρ = ρ} idx coh law (⇒-effect_bind {A = A} {B = B} p q) =
       ⇒-effect_bind (ren⇒ idx coh law p)
                     (subst (λ X → Δ ⊢ rename ρ _ ⇒ tm-pi unrestricted (rename ρ A) (tm-effect_type X))
@@ -326,11 +364,11 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
           (ren-spine idx coh law (λ p → cl (∈-there p)) dxs)
 
     -- Branch checking is preserved by renaming. The branch context
-    -- `extendTele Γ (ctor-args ct)` is transported by the telescope morphism
-    -- `extF-tele (ctor-args ct) idx`; the body is renamed by
-    -- `ext^ (length (ctor-args ct)) ρ`. The motive's renaming is the subtle
+    -- `branch-context Γ (ctor-args ct)` is transported by the morphism
+    -- `extF-tele (reverse (ctor-args ct)) idx`; the body is renamed by
+    -- `ext^ (branch-arity (ctor-args ct)) ρ`. The motive's renaming is the subtle
     -- step: `m′` is used in the extended context, so renaming it under
-    -- `ext^ (length (ctor-args ct)) ρ` agrees with renaming it under `ρ`
+    -- `ext^ (branch-arity (ctor-args ct)) ρ` agrees with renaming it under `ρ`
     -- because the field indices are fixed and the existing indices are
     -- `raise`-shifted.
     ren-branches : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {brs nm m′ ρ}
@@ -343,12 +381,12 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
     ren-branches {Γ = Γ} {Δ = Δ} {ρ = ρ} idx coh law
                  (brs∷ {cn = cn} {b = b} {brs = brs} {n = nm} {m = m′} {f = f} {ct = ct} fc db dbrs) =
       brs∷ fc
-           (subst (λ X → extendTele Δ (ctor-args ct) ⊢ rename (ext^ (length (ctor-args ct)) ρ) b ⇐ X)
-                  (rename-branch-motive (length (ctor-args ct)) ρ m′ cn)
-                  (ren⇐ {Γ = extendTele Γ (ctor-args ct)} {Δ = extendTele Δ (ctor-args ct)}
-                        (extF-tele (ctor-args ct) idx) (extF-tele-coh (ctor-args ct) ρ idx coh)
-                  (lookup-extF-tele Γ Δ (ctor-args ct) ρ idx law
-                                    (λ j → teleField-closed f ct j)) db))
+           (subst (λ X → branch-context Δ (ctor-args ct) ⊢ rename (ext^ (branch-arity (ctor-args ct)) ρ) b ⇐ X)
+                  (rename-surface-motive (branch-arity (ctor-args ct)) ρ m′ cn)
+                  (ren⇐ {Γ = branch-context Γ (ctor-args ct)} {Δ = branch-context Δ (ctor-args ct)}
+                        (extF-tele (reverse (ctor-args ct)) idx) (extF-tele-coh (reverse (ctor-args ct)) ρ idx coh)
+                  (lookup-extF-tele Γ Δ (reverse (ctor-args ct)) ρ idx law
+                                    (λ j → teleField-reversed-closed f ct fc j)) db))
            (ren-branches idx coh law dbrs)
 
   -- The `let` case of the renaming lemma. PROVED: it is the `⇒-let` rule,
@@ -509,19 +547,21 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
    subst⇒ {Δ = Δ} {σ = σ} coh (⇒-data {ps = ps} {is = is} {f = f} p q r) =
      ⇒-data p
         (subst (λ zs → Δ ⊢* zs ⇐* fam-params f) (sym (substTerms-map σ ps))
-               (subst-spine coh (tele-closed-subst-params σ f) q))
+               (subst-spine coh (tele-closed-subst-params σ f (family-lookup-member {fs = IndEnv.families ind} p)) q))
         (subst (λ zs → Δ ⊢* zs ⇐* fam-indices f) (sym (substTerms-map σ is))
-               (subst-spine coh (tele-closed-subst-indices σ f) r))
+               (subst-spine coh (tele-closed-subst-indices σ f (family-lookup-member {fs = IndEnv.families ind} p)) r))
    subst⇒ {Δ = Δ} {σ = σ} coh (⇒-ctor {c = c} {args = args} {f = f} {ct = ct} p q) =
       subst (λ X → Δ ⊢ tm-ctor c (substTermsS σ args) ⇒ X)
-            (sym (subst-ctor-result σ f ct))
+            (sym (subst-ctor-result σ f ct {c = c} p))
             (⇒-ctor p (subst (λ zs → Δ ⊢* zs ⇐* ctor-args ct) (sym (substTerms-map σ args))
-                             (subst-spine coh (tele-closed-subst-ctor σ f ct) q)))
-   subst⇒ {Δ = Δ} {σ = σ} coh (⇒-case {s = s} {m = m′} {brs = brs} p q r) =
+                             (subst-spine coh (tele-closed-subst-ctor σ f ct {c = c} p) q)))
+   subst⇒ {Δ = Δ} {σ = σ} coh (⇒-case {s = s} {m = m′} {brs = brs} p q r covered) =
      ⇒-case (subst⇒ coh p) (subst⇒ coh q) (subst-branches coh r)
+       (case-coverage-subst {brs = brs} σ covered)
    subst⇒ coh (⇒-effect_type p) = ⇒-effect_type (subst⇒ coh p)
    subst⇒ coh (⇒-effect_pure p) = ⇒-effect_pure (subst⇒ coh p)
    subst⇒ coh (⇒-conv der eq) = ⇒-conv (subst⇒ coh der) (subst-conv eq)
+   subst⇒ coh (⇒-cumul der le) = ⇒-cumul (subst⇒ coh der) le
    subst⇒ {Δ = Δ} {σ = σ} coh (⇒-effect_bind {e = e} {k = k} {A = A} {B = B} p q) =
      ⇒-effect_bind (subst⇒ coh p)
                    (subst (λ X → Δ ⊢ substS σ k ⇒ tm-pi unrestricted (substS σ A) (tm-effect_type X))
@@ -553,10 +593,10 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
          (subst-spine coh (λ p → cl (∈-there p)) dxs)
 
     -- Branch checking is preserved by substitution. The branch context
-    -- `extendTele Γ (ctor-args ct)` is matched by `extendTele Δ (ctor-args ct)`
-    -- via `coh-extendTele`; the body is substituted by
-    -- `extSub^ (length (ctor-args ct)) σ`. The motive's substitution is the
-    -- subtle step, discharged by `subst-branch-motive`.
+    -- `branch-context Γ (ctor-args ct)` is matched in Δ by
+    -- `coh-extendTele` on the reversed telescope; the body is substituted
+    -- under branch-arity binders. `subst-surface-motive` preserves the
+    -- constructor's surface-order variables and shifted ambient motive.
    subst-branches : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {brs nm m′ σ}
           → Coherent {n} {m} Γ Δ σ
         → Γ ⊢*brs brs ⇐*ᵇ (nm , m′)
@@ -565,9 +605,9 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
    subst-branches {Γ = Γ} {Δ = Δ} {σ = σ} coh
                   (brs∷ {cn = cn} {b = b} {brs = brs} {n = nm} {m = m′} {f = f} {ct = ct} fc db dbrs) =
      brs∷ fc
-          (subst (λ X → extendTele Δ (ctor-args ct) ⊢ substS (extSub^ (length (ctor-args ct)) σ) b ⇐ X)
-                 (subst-branch-motive (length (ctor-args ct)) σ m′ cn)
-                 (subst⇐ (coh-extendTele (ctor-args ct) (λ j → teleField-closed f ct j) coh) db))
+          (subst (λ X → branch-context Δ (ctor-args ct) ⊢ substS (extSub^ (branch-arity (ctor-args ct)) σ) b ⇐ X)
+                 (subst-surface-motive (branch-arity (ctor-args ct)) σ m′ cn)
+                 (subst⇐ (coh-extendTele (reverse (ctor-args ct)) (λ j → teleField-reversed-closed f ct fc j) coh) db))
           (subst-branches coh dbrs)
 
   ------------------------------------------------------------------------
@@ -639,13 +679,9 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
   HoleFree : Term → Set
   HoleFree a = (name : Name) → a ≡ tm-hole name → ⊥
 
-  -- Cumulativity as a conversion: `Type i ≈ Type j` when `i ≤ j`. A
-  -- projection of the `Conversion` record's cumulativity field.
-  ≈-cumul : ∀ {i j} → i ≤ˡ j → Conversion._≈_ conv (tm-type i) (tm-type j)
-  ≈-cumul = Conversion.≈-type conv
-  -- Cumulativity on the inferred type.
+  -- Cumulativity in the declarative typing closure, NOT conversion.
   ⇒-cumul-infer : ∀ {n} {Γ : Ctx n} {t i j} → Γ ⊢ t ⇒ tm-type i → i ≤ˡ j → Γ ⊢ t ⇒ tm-type j
-  ⇒-cumul-infer der le = ⇒-conv der (≈-cumul le)
+  ⇒-cumul-infer = ⇒-cumul
 
   -- A hole-free VALUE that checks against a type infers that type. `⇐-lam`
   -- and `⇒-lam` share their premises, so the λ case is direct; `⇐-infer`
@@ -679,6 +715,25 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
   check-infer hf (⇐-lam {g = g} {d = d} {b = b} {c = c} ds body) =
     ⇒-lam {g = g} {d = d} {b = b} {c = c} ds body
   check-infer hf ⇐-hole = ⊥-elim (hf _ refl)
+
+  -- Checking cumulativity also covers a reduct that is a development
+  -- hole. All other checking derivations give declarative inference;
+  -- no inference rule for holes is added.
+  check-infer-or-hole : ∀ {n} {Γ : Ctx n} {a A}
+    → Γ ⊢ a ⇐ A → (Γ ⊢ a ⇒ A) ⊎ (∃ λ name → a ≡ tm-hole name)
+  check-infer-or-hole (⇐-lam ds body) = inj₁ (⇒-lam ds body)
+  check-infer-or-hole (⇐-infer der eq) = inj₁ (⇒-conv der eq)
+  check-infer-or-hole (⇐-cumul der le) = inj₁ (⇒-cumul der le)
+  check-infer-or-hole ⇐-hole = inj₂ (_ , refl)
+  check-infer-or-hole (⇐-conv der eq) with check-infer-or-hole der
+  ... | inj₁ inferred = inj₁ (⇒-conv inferred eq)
+  ... | inj₂ hole = inj₂ hole
+
+  check-cumul : ∀ {n} {Γ : Ctx n} {a i j}
+    → Γ ⊢ a ⇐ tm-type i → i ≤ˡ j → Γ ⊢ a ⇐ tm-type j
+  check-cumul der le with check-infer-or-hole der
+  ... | inj₁ inferred = ⇐-cumul inferred le
+  ... | inj₂ (name , refl) = ⇐-hole
 
   -- `HoleFree` is preserved by substitution: the only former that can
   -- become a hole is a variable (handled by the substitution) or a hole
@@ -739,6 +794,8 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
   lam-type-pi (⇒-lam dd db) = _ , Conversion.≈-refl conv , ⇒-lam dd db
   lam-type-pi {g = g} {d = d} {T = T} (⇒-conv {T = T′} der eq) =
     lam-pi-trans T T′ (lam-type-pi der) eq
+  lam-type-pi (⇒-cumul der le) with lam-type-pi der
+  ... | c , eq , pi-der = ⊥-elim (universe-not-pi eq)
 
   -- `⇒-lam-inv-aux`: a λ that infers `T` has its body check any `c` with
   -- `T ≈ tm-pi g d c`. Structural on the derivation.
@@ -750,6 +807,7 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
     ⇐-conv db (proj₂ (proj₂ (conv-pi-components eq)))
   ⇒-lam-inv-aux T c (⇒-conv {T = T′} der eq′) eq =
     ⇒-lam-inv-aux T′ c der (Conversion.≈-trans conv eq′ eq)
+  ⇒-lam-inv-aux T c (⇒-cumul der le) eq = ⊥-elim (universe-not-pi eq)
 
   -- The body of a λ that infers a Π type checks the codomain.
   ⇒-lam-inv : ∀ {n} {Γ : Ctx n} {g d b c}
@@ -821,11 +879,13 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
     conv⇒ w eq (⇒-bounded_lit p) = ⇒-conv (⇒-bounded_lit p) eq
     conv⇒ w eq (⇒-data p q r) = ⇒-conv (⇒-data p (conv-spine w q) (conv-spine w r)) eq
     conv⇒ w eq (⇒-ctor p q) = ⇒-conv (⇒-ctor p (conv-spine w q)) eq
-    conv⇒ w eq (⇒-case p q r) = ⇒-conv (⇒-case (conv⇒ w (Conversion.≈-refl conv) p) (conv⇒ w (Conversion.≈-refl conv) q) (conv-branches w r)) eq
+    conv⇒ w eq (⇒-case p q r covered) = ⇒-conv (⇒-case (conv⇒ w (Conversion.≈-refl conv) p) (conv⇒ w (Conversion.≈-refl conv) q) (conv-branches w r) covered) eq
     conv⇒ w eq (⇒-effect_type p) = ⇒-conv (⇒-effect_type (conv⇒ w (Conversion.≈-refl conv) p)) eq
     conv⇒ w eq (⇒-effect_pure p) = ⇒-conv (⇒-effect_pure (conv⇒ w (Conversion.≈-refl conv) p)) eq
     conv⇒ w eq (⇒-effect_bind p q) = ⇒-conv (⇒-effect_bind (conv⇒ w (Conversion.≈-refl conv) p) (conv⇒ w (Conversion.≈-refl conv) q)) eq
     conv⇒ w eq (⇒-conv der eq′) = conv⇒ w (Conversion.≈-trans conv eq′ eq) der
+    conv⇒ w eq (⇒-cumul der le) =
+      ⇒-conv (⇒-cumul (conv⇒ w (Conversion.≈-refl conv) der) le) eq
 
     conv⇐ : ∀ {n} {Γ Γ′ : Ctx n} {t T T′}
           → (∀ i → Conversion._≈_ conv (lookup Γ i) (lookup Γ′ i))
@@ -849,7 +909,7 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
                   → Γ ⊢*brs brs ⇐*ᵇ (nm , m) → Γ′ ⊢*brs brs ⇐*ᵇ (nm , m)
     conv-branches w brs[] = brs[]
     conv-branches {Γ = Γ} {Γ′ = Γ′} w (brs∷ {cn = cn} {b = b} {ct = ct} fc body rest) =
-      brs∷ fc (conv⇐ (extTele-conv w (ctor-args ct)) (Conversion.≈-refl conv) body) (conv-branches w rest)
+      brs∷ fc (conv⇐ (extTele-conv w (reverse (ctor-args ct))) (Conversion.≈-refl conv) body) (conv-branches w rest)
 
     -- Extend the witness under a TELESCOPE's binders (a `case` branch
     -- context). The field types are CLOSED, so they are convertible to
@@ -876,7 +936,7 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
   branches-conv {Γ = Γ} eq (brs∷ {cn = cn} {b = b} {ct = ct} fc body rest) =
     brs∷ fc
          (⇐-conv body (Conversion.≈-app conv
-                        (Conversion.≈-rename conv (λ j → j + length (ctor-args ct)) eq)
+                        (Conversion.≈-rename conv (λ j → j + branch-arity (ctor-args ct)) eq)
                         (Conversion.≈-refl conv)))
          (branches-conv eq rest)
   -- The `⇒-conv`-on-function case of β: `dflam` is a λ derivation whose
@@ -919,6 +979,7 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
     preserve-β-conv-aux dflam ceq da
 
   preserve-β (⇒-conv der eq) = ⇐-conv (preserve-β der) eq
+  preserve-β (⇒-cumul der le) = check-cumul (preserve-β der) le
 
 
 
@@ -939,6 +1000,7 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
       ⇒-check : ∀ {n} {Γ : Ctx n} {t T} → Γ ⊢ t ⇒ T → Γ ⊢ t ⇐ T
       ⇒-check der = ⇐-infer der (Conversion.≈-refl conv)
   preserve-ζ (⇒-conv der eq) hf = ⇐-conv (preserve-ζ der hf) eq
+  preserve-ζ (⇒-cumul der le) hf = check-cumul (preserve-ζ der hf) le
 
 
   ------------------------------------------------------------------------
@@ -956,38 +1018,25 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
       absurd-hole ()
 
   ------------------------------------------------------------------------
-  -- The ι (branch substitution) and δ (certified unfolding) cases, and the
-  -- `ξ-case-motive` congruence.
-  --
-  -- The former β/ζ inference-preservation gaps are DISSOLVED: the
-  -- checking-mode `preserve-β` / `preserve-ζ` give the reduct CHECKED, and
-  -- `check-infer` turns that into an INFERENCE because the redex is `Final`
-  -- (hence the reduct is hole-free). Likewise `preservation⇒-case` is
-  -- proved directly from the `ReduceConv` hypothesis. What remains are the
-  -- ι cases (needing the `brs∷` field-telescope change), δ (needing a
-  -- strengthened `Certified`), and `ξ-case-motive` (needing a
-  ------------------------------------------------------------------------
   -- The ι (branch substitution) case.
   --
-  -- With the branch rule typing the field binders with the constructor's
-  -- argument telescope (`extendTele Γ (ctor-args ct)`), the ι reduction's
-  -- substitution lemma applies directly: `argsSub args` maps the field
-  -- indices to the constructor's actual arguments and the base environment
-  -- back down to `Γ`.
+  -- branch-context reverses the closed-entry telescope. contract-fields
+  -- reverses its checked arguments too, reuses the prefix coherence below,
+  -- then restores the motive and SURFACE-order constructor arguments.
   ------------------------------------------------------------------------
 
   -- Extract the branch body's typing from a `⊢*brs` derivation, given the
-  -- branch's membership. The new `brs∷` stores `length (ctor-args ct)` as
-  -- the branch arity, so the arity equation is `refl`.
+  -- branch's membership. `brs∷` stores branch-arity (the reversed length)
+  -- definitionally; length-reverse equates it to the ordinary arity.
   brs-body : ∀ {k} {Γ : Ctx k} {brs n m}
            → Γ ⊢*brs brs ⇐*ᵇ (n , m)
            → ∀ {c ar b} → (c , ar , b) ∈ brs
            → ∃ λ f → ∃ λ ct
            → findCtor c (IndEnv.families ind) ≡ just (f , ct)
-             × length (ctor-args ct) ≡ ar
-             × (extendTele Γ (ctor-args ct) ⊢ b
-                  ⇐ tm-app (rename (λ j → j + length (ctor-args ct)) m)
-                           (tm-ctor c (branch-field-vars (length (ctor-args ct)))))
+             × branch-arity (ctor-args ct) ≡ ar
+             × (branch-context Γ (ctor-args ct) ⊢ b
+                  ⇐ tm-app (rename (λ j → j + branch-arity (ctor-args ct)) m)
+                           (tm-ctor c (surface-field-vars (branch-arity (ctor-args ct)))))
   brs-body brs[] ()
   brs-body (brs∷ {ct = ct} fc db dbrs) (here refl) = _ , ct , fc , refl , db
   brs-body (brs∷ fc db dbrs) (there p) = brs-body dbrs p
@@ -1034,15 +1083,9 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
                              (cong (λ σ → substS σ (lookup (extendTele Γ tele) j))
                                    (funext (λ i → refl)))))
   ------------------------------------------------------------------------
-  -- The ι (branch substitution) case.
-  --
-  -- With the branch rule typing the field binders with the constructor's
-  -- argument telescope (`extendTele Γ (ctor-args ct)`), the ι reduction's
-  -- substitution lemma applies directly: `argsSub args` maps the field
-  -- indices to the constructor's actual arguments and the base environment
-  -- back down to `Γ`. The motive, weakened by `length (ctor-args ct)` into
-  -- the branch context, is restored by the substitution; the constructor of
-  -- field variables becomes the constructor of the actual arguments.
+  -- Environment-prefix algebra used by contract-fields on reversed args.
+  -- Despite their historical substArgs-* names, the next helpers consume
+  -- ALREADY de Bruijn-ordered prefixes, not surface field lists.
   ------------------------------------------------------------------------
 
   -- `argsSub args` undoes the `length tele`-fold weakening of the motive.
@@ -1129,328 +1172,161 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
            → ∃ λ f → ∃ λ ct
            → findCtor c (IndEnv.families ind) ≡ just (f , ct)
              × (Γ ⊢* args ⇐* ctor-args ct)
-  ctor-inv (⇒-ctor fc sp) = _ , _ , fc , sp
-  ctor-inv (⇒-conv der eq) with conv-injective-data eq
-  ... | ps′ , is′ , refl = ctor-inv der
+  ctor-inv der with constructor-data der
+  ... | f , ct , fc , owner , sp = f , ct , fc , sp
 
-  -- ι for a `tm-ctor` scrutinee.
+  -- One generic CLOSED-entry branch substitution proof. The checked
+  -- surface spine and telescope are reversed together; local prefixes and
+  -- source constructor arguments keep their original order.
+  contract-fields : ∀ {n} {Γ : Ctx n} {m brs family c ar b args f ct}
+    → findCtor c (IndEnv.families ind) ≡ just (f , ct)
+    → Γ ⊢* args ⇐* ctor-args ct
+    → FinalTerms args → FinalBranches brs
+    → Γ ⊢*brs brs ⇐*ᵇ (family , m)
+    → findBranch c brs ≡ just (c , ar , b)
+    → Γ ⊢ substArgs args b ⇒ tm-app m (tm-ctor c args)
+  contract-fields {Γ = Γ} {m = m} {brs = brs} {c = c} {b = b} {args = args} {f = f} {ct = ct}
+    fc sp fargs fbs dbrs found =
+    subst (λ A → Γ ⊢ substArgs args b ⇒ A) goal-eq
+      (check-infer hf (subst⇐ coherent branch-check))
+    where
+      bd = brs-body dbrs (findBranch-sound c brs found)
+      ct′ = proj₁ (proj₂ bd)
+      fc′ = proj₁ (proj₂ (proj₂ bd))
+      ct-eq : ct′ ≡ ct
+      ct-eq = cong proj₂ (just-inj (trans (sym fc′) fc))
+      branch-check : branch-context Γ (ctor-args ct) ⊢ b
+        ⇐ tm-app (rename (λ j → j + branch-arity (ctor-args ct)) m)
+          (tm-ctor c (surface-field-vars (branch-arity (ctor-args ct))))
+      branch-check = subst (λ z → branch-context Γ (ctor-args z) ⊢ b
+        ⇐ tm-app (rename (λ j → j + branch-arity (ctor-args z)) m)
+          (tm-ctor c (surface-field-vars (branch-arity (ctor-args z)))))
+        ct-eq (proj₂ (proj₂ (proj₂ (proj₂ bd))))
+      reversed-spine = Ordered.spine-reverse sp
+      coherent : Coherent (branch-context Γ (ctor-args ct)) Γ (argsSub (reverse args))
+      coherent = argsSub-coh (reverse (ctor-args ct)) (reverse args) 0
+        (final-reverse fargs) (teleField-reversed-closed f ct {c = c} fc) reversed-spine
+      hf : HoleFree (substArgs args b)
+      hf = substS-hole-free b (argsSub (reverse args)) (argsSub-final (final-reverse fargs))
+        (final-hole-free (finalBranches-member fbs (findBranch-sound c brs found)))
+      fields-eq : substTermsS (argsSub (reverse args))
+        (surface-field-vars (branch-arity (ctor-args ct))) ≡ args
+      fields-eq = trans
+        (substTerms-reverse (argsSub (reverse args)) (branch-field-vars (branch-arity (ctor-args ct))))
+        (trans (cong reverse (substArgs-field-vars {args = reverse args}
+          (reverse (ctor-args ct)) (spine-length reversed-spine))) (reverse-involutive args))
+      goal-eq : substS (argsSub (reverse args))
+        (tm-app (rename (λ j → j + branch-arity (ctor-args ct)) m)
+          (tm-ctor c (surface-field-vars (branch-arity (ctor-args ct)))))
+        ≡ tm-app m (tm-ctor c args)
+      goal-eq = cong₂ tm-app
+        (substArgs-motive {args = reverse args} (reverse (ctor-args ct)) m (spine-length reversed-spine))
+        (cong (tm-ctor c) fields-eq)
+
   preservation-ι : ∀ {n} {Γ : Ctx n} {m brs c ar b args T}
     → Final (tm-case (tm-ctor c args) m brs)
     → Γ ⊢ tm-case (tm-ctor c args) m brs ⇒ T
-    → findBranch c brs ≡ just (c , ar , b)
-    → length args ≡ ar
+    → findBranch c brs ≡ just (c , ar , b) → length args ≡ ar
     → Γ ⊢ substArgs args b ⇒ T
-  preservation-ι {Γ = Γ} {m = m} {brs = brs} {c = c} {ar = ar} {b = b} {args = args}
-                 (f-case (f-ctor fargs) fm fbs)
-                 (⇒-case {ps = ps} {is = is} ds dm dbrs) found len =
-    subst (λ X → Γ ⊢ substArgs args b ⇒ X) eq
-          (check-infer (substS-hole-free b (argsSub args) (argsSub-final fargs)
-                                       (final-hole-free (finalBranches-member fbs (findBranch-sound c brs found))))
-                      (subst⇐ (argsSub-coh (ctor-args ct) args 0 fargs (λ j → teleField-closed f ct j) sp) db′))
-    where
-      ci = ctor-inv ds
-      f = proj₁ ci
-      ct = proj₁ (proj₂ ci)
-      fc = proj₁ (proj₂ (proj₂ ci))
-      sp = proj₂ (proj₂ (proj₂ ci))
-      bd = brs-body dbrs (findBranch-sound _ _ found)
-      f′ = proj₁ bd
-      ct′ = proj₁ (proj₂ bd)
-      fc′ = proj₁ (proj₂ (proj₂ bd))
-      len′ = proj₁ (proj₂ (proj₂ (proj₂ bd)))
-      db = proj₂ (proj₂ (proj₂ (proj₂ bd)))
-      ct-eq : ct′ ≡ ct
-      ct-eq = cong proj₂ (just-inj (trans (sym fc′) fc))
-      len″ : length (ctor-args ct) ≡ ar
-      len″ = subst (λ Z → length (ctor-args Z) ≡ ar) ct-eq len′
-      -- the branch body, re-typed at `ct`
-      db′ : extendTele Γ (ctor-args ct) ⊢ b
-          ⇐ tm-app (rename (λ j → j + length (ctor-args ct)) m)
-                   (tm-ctor c (branch-field-vars (length (ctor-args ct))))
-      db′ = subst (λ Z → extendTele Γ (ctor-args Z) ⊢ b
-                     ⇐ tm-app (rename (λ j → j + length (ctor-args Z)) m)
-                              (tm-ctor c (branch-field-vars (length (ctor-args Z)))))
-                  ct-eq db
-      eq-motive : substS (argsSub args) (rename (λ j → j + length (ctor-args ct)) m) ≡ m
-      eq-motive = substArgs-motive-ctor {args = args} ct m (trans len (sym len″))
-      eq-args : substS (argsSub args) (tm-ctor c (branch-field-vars (length (ctor-args ct)))) ≡ tm-ctor c args
-      eq-args = cong (tm-ctor c) (substArgs-field-vars {args = args} (ctor-args ct) (trans len (sym len″)))
-      eq : substS (argsSub args)
-                   (tm-app (rename (λ j → j + length (ctor-args ct)) m)
-                           (tm-ctor c (branch-field-vars (length (ctor-args ct)))))
-         ≡ tm-app m (tm-ctor c args)
-      eq = trans (cong₂ tm-app eq-motive eq-args) refl
-  preservation-ι ft (⇒-conv der eq) found len =
-    ⇒-conv (preservation-ι ft der found len) eq
+  preservation-ι (f-case (f-ctor fargs) fm fbs) (⇒-case ds dm dbrs covered) found len
+    with ctor-inv ds
+  ... | f , ct , fc , sp = contract-fields fc sp fargs fbs dbrs found
+  preservation-ι ft (⇒-conv der eq) found len = ⇒-conv (preservation-ι ft der found len) eq
+  preservation-ι ft (⇒-cumul der le) found len = ⇒-cumul (preservation-ι ft der found len) le
 
-  -- ι for a compact `tm-nat_lit 0` scrutinee (peeled to `Z`).
   preservation-ι-nat-zero : ∀ {n} {Γ : Ctx n} {m brs ar b T}
     → Final (tm-case (tm-nat_lit 0) m brs)
     → Γ ⊢ tm-case (tm-nat_lit 0) m brs ⇒ T
     → findBranch "Z" brs ≡ just ("Z" , ar , b)
     → Γ ⊢ substArgs [] b ⇒ T
-  preservation-ι-nat-zero {Γ = Γ} {m = m} {brs = brs} {b = b} {T = tm-app m (tm-nat_lit 0)}
-                          (f-case f-nat_lit fm fbs)
-                          (⇒-case {s = tm-nat_lit 0} {ps = ps} {is = is} ds dm dbrs) found =
-    ⇒-conv (check-infer (subst (λ X → HoleFree X) (sym (substS-idSub b))
-                                      (final-hole-free (finalBranches-member fbs (findBranch-sound "Z" brs found))))
-                         db″)
-           (Conversion.≈-app conv (Conversion.≈-refl conv) (Conversion.≈-nat-zero conv))
+  preservation-ι-nat-zero {Γ = Γ} {brs = brs} (f-case f-nat_lit fm fbs)
+    (⇒-case ds dm dbrs covered) found =
+    ⇒-conv (contract-fields fc sp ft[] fbs dbrs found)
+      (Conversion.≈-app conv (Conversion.≈-refl conv) (Conversion.≈-nat-zero conv))
     where
       bd = brs-body dbrs (findBranch-sound "Z" brs found)
-      f = proj₁ bd
       ct = proj₁ (proj₂ bd)
       fc = proj₁ (proj₂ (proj₂ bd))
-      db = proj₂ (proj₂ (proj₂ (proj₂ bd)))
-      args0 : ctor-args ct ≡ []
-      args0 = proj₁ (proj₂ (proj₂ (proj₂ (proj₂ (proj₂ (proj₂ bc)))))) fc
-      db′ : extendTele Γ [] ⊢ b ⇐ tm-app m (tm-ctor "Z" [])
-      db′ = subst (λ X → extendTele Γ [] ⊢ b ⇐ X)
-                  (cong₂ tm-app (rename-zero m) refl)
-                  (subst (λ Z → extendTele Γ Z ⊢ b
-                                 ⇐ tm-app (rename (λ j → j + length Z) m)
-                                          (tm-ctor "Z" (branch-field-vars (length Z))))
-                         args0 db)
-        where
-          rename-zero : ∀ t → rename (λ j → j + 0) t ≡ t
-          rename-zero t = trans (cong (λ ρ → rename ρ t)
-                                       (funext-ren (λ j → +-identityʳ j)))
-                                (rename-id t)
-      db″ : extendTele Γ [] ⊢ substArgs [] b ⇐ tm-app m (tm-ctor "Z" [])
-      db″ = subst (λ X → extendTele Γ [] ⊢ X ⇐ tm-app m (tm-ctor "Z" []))
-                   (sym (substS-idSub b)) db′
-  preservation-ι-nat-zero (f-case f-nat_lit fm fbs) (⇒-conv der eq) found =
-    ⇒-conv (preservation-ι-nat-zero (f-case f-nat_lit fm fbs) der found) eq
+      fields : ctor-args ct ≡ []
+      fields = proj₁ (proj₂ (proj₂ (proj₂ (proj₂ (proj₂ (proj₂ bc)))))) fc
+      sp : Γ ⊢* [] ⇐* ctor-args ct
+      sp = subst (λ tele → Γ ⊢* [] ⇐* tele) (sym fields) ⊢*[]
+  preservation-ι-nat-zero ft (⇒-conv der eq) found = ⇒-conv (preservation-ι-nat-zero ft der found) eq
+  preservation-ι-nat-zero ft (⇒-cumul der le) found = ⇒-cumul (preservation-ι-nat-zero ft der found) le
 
-  -- The coherence for a single `Nat` field (the `S` / `First` cases).
-  argsSub-coh-single : ∀ {n} {Γ : Ctx n} {N a}
-    → IndEnv.builtins ind "nat" ≡ just N
-    → Γ ⊢ a ⇒ tm-data N [] []
-    → Coherent (extendTele Γ (("_" , tm-data N [] []) ∷ [])) Γ (argsSub (a ∷ []))
-  -- `argsSub (a ∷ []) ∘ wk` is the identity substitution.
-  argsSub-single-wk : ∀ a i → (argsSub (a ∷ []) ∘s wk) i ≡ tm-var i
-  argsSub-single-wk a i = refl
-
-  argsSub-coh-single {n = n} {Γ = Γ} {N = N} {a = a} p da zero =
-    subst (λ X → Γ ⊢ a ⇒ X) eq da
-    where
-      eq : tm-data N [] [] ≡ substS (argsSub (a ∷ [])) (lookup (extendTele Γ (("_" , tm-data N [] []) ∷ [])) zero)
-      eq = sym (trans (cong (substS (argsSub (a ∷ [])))
-                             (lookup-head {n = n} Γ (tm-data N [] [])))
-                      (trans (subst-rename (argsSub (a ∷ [])) wk (tm-data N [] []))
-                             (trans (cong (λ σ → substS σ (tm-data N [] []))
-                                          (funext (λ i → argsSub-single-wk a i)))
-                                    (substS-idSub (tm-data N [] [])))))
-  argsSub-coh-single {Γ = Γ} {N = N} {a = a} p da (suc i) =
-    subst (λ X → Γ ⊢ tm-var (toℕ i) ⇒ X) eq (⇒-var i)
-    where
-      eq : lookup Γ i ≡ substS (argsSub (a ∷ [])) (lookup (extendTele Γ (("_" , tm-data N [] []) ∷ [])) (suc i))
-      eq = sym (trans (cong (substS (argsSub (a ∷ [])))
-                             (lookup-extend Γ (tm-data N [] []) i))
-                      (trans (subst-rename (argsSub (a ∷ [])) wk (lookup Γ i))
-                             (trans (cong (λ σ → substS σ (lookup Γ i))
-                                          (funext (λ j → argsSub-single-wk a j)))
-                                    (substS-idSub (lookup Γ i)))))
-
-  -- ι for a compact `tm-nat_lit (suc k)` scrutinee (peeled to `S`).
-
-  -- Invert a `tm-nat_lit` inference: it exposes the builtin `Nat` family.
-  nat-lit-inv : ∀ {k} {Γ : Ctx k} {m N ps is}
-              → Γ ⊢ tm-nat_lit m ⇒ tm-data N ps is
-              → IndEnv.builtins ind "nat" ≡ just N
-  nat-lit-inv (⇒-nat_lit p) = p
-  nat-lit-inv (⇒-conv der eq) with conv-injective-data eq
-  ... | ps′ , is′ , refl = nat-lit-inv der
-
-  -- ι for a compact `tm-nat_lit (suc k)` scrutinee (peeled to `S`).
   preservation-ι-nat-suc : ∀ {n} {Γ : Ctx n} {m brs ar b k T}
     → Final (tm-case (tm-nat_lit (suc k)) m brs)
     → Γ ⊢ tm-case (tm-nat_lit (suc k)) m brs ⇒ T
     → findBranch "S" brs ≡ just ("S" , ar , b)
     → Γ ⊢ substArgs (tm-nat_lit k ∷ []) b ⇒ T
-  preservation-ι-nat-suc {Γ = Γ} {m = m} {brs = brs} {b = b} {k = k} {T = tm-app m (tm-nat_lit (suc k))}
-                        (f-case f-nat_lit fm fbs)
-                        (⇒-case {s = tm-nat_lit (suc k)} {n = N} {ps = ps} {is = is} ds dm dbrs) found =
-    ⇒-conv (check-infer hf (subst (λ X → Γ ⊢ substS (argsSub (tm-nat_lit k ∷ [])) b ⇐ X) eq
-                                       (subst⇐ (argsSub-coh-single p (⇒-nat_lit p)) db′)))
-           (Conversion.≈-app conv (Conversion.≈-refl conv) (Conversion.≈-nat-suc conv))
+  preservation-ι-nat-suc {Γ = Γ} {brs = brs} {k = k} (f-case f-nat_lit fm fbs)
+    (⇒-case {s = tm-nat_lit (suc k)} {n = N} ds dm dbrs covered) found =
+    ⇒-conv (contract-fields fc sp (ft∷ f-nat_lit ft[]) fbs dbrs found)
+      (Conversion.≈-app conv (Conversion.≈-refl conv) (Conversion.≈-nat-suc conv))
     where
       p : IndEnv.builtins ind "nat" ≡ just N
-      p = nat-lit-inv ds
+      p = nat-data-family ds
       bd = brs-body dbrs (findBranch-sound "S" brs found)
-      f = proj₁ bd
       ct = proj₁ (proj₂ bd)
       fc = proj₁ (proj₂ (proj₂ bd))
-      db = proj₂ (proj₂ (proj₂ (proj₂ bd)))
-      argsS : ctor-args ct ≡ ("_" , tm-data N [] []) ∷ []
-      argsS = proj₁ (proj₂ (proj₂ (proj₂ (proj₂ (proj₂ (proj₂ (proj₂ bc))))))) p fc
-      db′ : extendTele Γ (("_" , tm-data N [] []) ∷ []) ⊢ b
-          ⇐ tm-app (rename (λ j → j + 1) m) (tm-ctor "S" (branch-field-vars 1))
-      db′ = subst (λ Z → extendTele Γ Z ⊢ b
-                     ⇐ tm-app (rename (λ j → j + length Z) m)
-                              (tm-ctor "S" (branch-field-vars (length Z))))
-                  argsS db
-      hf : HoleFree (substS (argsSub (tm-nat_lit k ∷ [])) b)
-      hf = substS-hole-free b (argsSub (tm-nat_lit k ∷ []))
-             (λ { zero → final-hole-free f-nat_lit ; (suc i) → λ name () })
-             (final-hole-free (finalBranches-member fbs (findBranch-sound "S" brs found)))
-      eq : substS (argsSub (tm-nat_lit k ∷ []))
-                   (tm-app (rename (λ j → j + 1) m) (tm-ctor "S" (branch-field-vars 1)))
-         ≡ tm-app m (tm-ctor "S" (tm-nat_lit k ∷ []))
-      eq = trans (cong₂ tm-app
-                        (substArgs-motive (("_" , tm-data N [] []) ∷ []) m refl)
-                        (cong (tm-ctor "S") (substTerms-map (argsSub (tm-nat_lit k ∷ [])) (branch-field-vars 1))))
-                 refl
-  preservation-ι-nat-suc (f-case f-nat_lit fm fbs) (⇒-conv der eqc) found =
-    ⇒-conv (preservation-ι-nat-suc (f-case f-nat_lit fm fbs) der found) eqc
+      fields : ctor-args ct ≡ ("_" , tm-data N [] []) ∷ []
+      fields = proj₁ (proj₂ (proj₂ (proj₂ (proj₂ (proj₂ (proj₂ (proj₂ bc))))))) p fc
+      sp : Γ ⊢* (tm-nat_lit k ∷ []) ⇐* ctor-args ct
+      sp = subst (λ tele → Γ ⊢* (tm-nat_lit k ∷ []) ⇐* tele) (sym fields)
+        (⊢*∷ (⇐-infer (⇒-nat_lit p) (Conversion.≈-refl conv)) ⊢*[])
+  preservation-ι-nat-suc ft (⇒-conv der eq) found = ⇒-conv (preservation-ι-nat-suc ft der found) eq
+  preservation-ι-nat-suc ft (⇒-cumul der le) found = ⇒-cumul (preservation-ι-nat-suc ft der found) le
 
-  -- Invert a `tm-bounded_lit` inference: it exposes the builtin `Bounded` family.
-  bounded-lit-inv : ∀ {k} {Γ : Ctx k} {m B ps is}
-                  → Γ ⊢ tm-bounded_lit m ⇒ tm-data B ps is
-                  → IndEnv.builtins ind "bounded" ≡ just B
-  bounded-lit-inv (⇒-bounded_lit p) = p
-  bounded-lit-inv (⇒-conv der eq) with conv-injective-data eq
-  ... | ps′ , is′ , refl = bounded-lit-inv der
-
-  -- ι for a compact `tm-bounded_lit 0` scrutinee (peeled to `First`).
   preservation-ι-bounded-zero : ∀ {n} {Γ : Ctx n} {m brs ar b T}
     → Final (tm-case (tm-bounded_lit 0) m brs)
     → Γ ⊢ tm-case (tm-bounded_lit 0) m brs ⇒ T
     → findBranch "First" brs ≡ just ("First" , ar , b)
     → Γ ⊢ substArgs (tm-nat_lit 0 ∷ []) b ⇒ T
-  preservation-ι-bounded-zero {Γ = Γ} {m = m} {brs = brs} {b = b}
-                              {T = tm-app m (tm-bounded_lit 0)}
-                              (f-case f-bounded_lit fm fbs)
-                              (⇒-case {s = tm-bounded_lit 0} {n = B} {ps = ps} {is = is} ds dm dbrs) found =
-    ⇒-conv (check-infer hf (subst (λ X → Γ ⊢ substS (argsSub (tm-nat_lit 0 ∷ [])) b ⇐ X) eq
-                                       (subst⇐ (argsSub-coh-single p (⇒-nat_lit p)) db′)))
-           (Conversion.≈-app conv (Conversion.≈-refl conv) (Conversion.≈-bounded-zero conv))
+  preservation-ι-bounded-zero {Γ = Γ} {brs = brs} (f-case f-bounded_lit fm fbs)
+    (⇒-case ds dm dbrs covered) found =
+    ⇒-conv (contract-fields fc sp (ft∷ f-nat_lit ft[]) fbs dbrs found)
+      (Conversion.≈-app conv (Conversion.≈-refl conv) (Conversion.≈-bounded-zero conv))
     where
       N = proj₁ (proj₁ (proj₂ (proj₂ (proj₂ (proj₂ bc)))))
       p : IndEnv.builtins ind "nat" ≡ just N
       p = proj₂ (proj₁ (proj₂ (proj₂ (proj₂ (proj₂ bc)))))
       bd = brs-body dbrs (findBranch-sound "First" brs found)
-      f = proj₁ bd
       ct = proj₁ (proj₂ bd)
       fc = proj₁ (proj₂ (proj₂ bd))
-      db = proj₂ (proj₂ (proj₂ (proj₂ bd)))
-      argsF : ctor-args ct ≡ ("_" , tm-data N [] []) ∷ []
-      argsF = proj₁ (proj₂ (proj₂ (proj₂ (proj₂ (proj₂ (proj₂ (proj₂ (proj₂ bc)))))))) p fc
-      db′ : extendTele Γ (("_" , tm-data N [] []) ∷ []) ⊢ b
-          ⇐ tm-app (rename (λ j → j + 1) m) (tm-ctor "First" (branch-field-vars 1))
-      db′ = subst (λ Z → extendTele Γ Z ⊢ b
-                     ⇐ tm-app (rename (λ j → j + length Z) m)
-                              (tm-ctor "First" (branch-field-vars (length Z))))
-                  argsF db
-      hf : HoleFree (substS (argsSub (tm-nat_lit 0 ∷ [])) b)
-      hf = substS-hole-free b (argsSub (tm-nat_lit 0 ∷ []))
-             (λ { zero → final-hole-free f-nat_lit ; (suc i) → λ name () })
-             (final-hole-free (finalBranches-member fbs (findBranch-sound "First" brs found)))
-      eq : substS (argsSub (tm-nat_lit 0 ∷ []))
-                   (tm-app (rename (λ j → j + 1) m) (tm-ctor "First" (branch-field-vars 1)))
-         ≡ tm-app m (tm-ctor "First" (tm-nat_lit 0 ∷ []))
-      eq = trans (cong₂ tm-app
-                        (substArgs-motive (("_" , tm-data N [] []) ∷ []) m refl)
-                        (cong (tm-ctor "First") (substTerms-map (argsSub (tm-nat_lit 0 ∷ [])) (branch-field-vars 1))))
-                 refl
-  preservation-ι-bounded-zero (f-case f-bounded_lit fm fbs) (⇒-conv der eqc) found =
-    ⇒-conv (preservation-ι-bounded-zero (f-case f-bounded_lit fm fbs) der found) eqc
+      fields : ctor-args ct ≡ ("_" , tm-data N [] []) ∷ []
+      fields = proj₁ (proj₂ (proj₂ (proj₂ (proj₂ (proj₂ (proj₂ (proj₂ (proj₂ bc)))))))) p fc
+      sp : Γ ⊢* (tm-nat_lit 0 ∷ []) ⇐* ctor-args ct
+      sp = subst (λ tele → Γ ⊢* (tm-nat_lit 0 ∷ []) ⇐* tele) (sym fields)
+        (⊢*∷ (⇐-infer (⇒-nat_lit p) (Conversion.≈-refl conv)) ⊢*[])
+  preservation-ι-bounded-zero ft (⇒-conv der eq) found = ⇒-conv (preservation-ι-bounded-zero ft der found) eq
+  preservation-ι-bounded-zero ft (⇒-cumul der le) found = ⇒-cumul (preservation-ι-bounded-zero ft der found) le
 
-  argsSub-double-wk : ∀ a c i → (argsSub (a ∷ c ∷ []) ∘s shiftRen 2 0) i ≡ tm-var i
-  argsSub-double-wk a c i =
-    subst (λ Z → argsSub-go 0 (a ∷ c ∷ []) Z ≡ tm-var i)
-          (sym (+-comm i 2))
-          (argsSub-go-raise 0 (a ∷ c ∷ []) i)
-
-  -- The coherence for two fields `Nat`, `Bounded` (the `Next` case).
-  argsSub-coh-double : ∀ {n} {Γ : Ctx n} {N B a c}
-    → IndEnv.builtins ind "nat" ≡ just N
-    → IndEnv.builtins ind "bounded" ≡ just B
-    → Γ ⊢ a ⇒ tm-data N [] []
-    → Γ ⊢ c ⇒ tm-data B [] []
-    → Coherent (extendTele Γ (("_" , tm-data N [] []) ∷ ("_" , tm-data B [] []) ∷ []))
-               Γ (argsSub (a ∷ c ∷ []))
-  argsSub-coh-double {n = n} {Γ = Γ} {N = N} {B = B} {a = a} {c = c} p q da dc zero =
-    subst (λ X → Γ ⊢ a ⇒ X) eq da
-    where
-      eq : tm-data N [] [] ≡ substS (argsSub (a ∷ c ∷ []))
-             (lookup (extendTele Γ (("_" , tm-data N [] []) ∷ ("_" , tm-data B [] []) ∷ [])) zero)
-      eq = sym (trans (cong (substS (argsSub (a ∷ c ∷ [])))
-                             (lookup-head {n = suc n} (extend Γ (tm-data B [] [])) (tm-data N [] [])))
-                      (substS-closed {σ = argsSub (a ∷ c ∷ [])} {t = tm-data N [] []} (sc-data {d = 0} (st[] {d = 0}) (st[] {d = 0}))))
-  argsSub-coh-double {n = n} {Γ = Γ} {N = N} {B = B} {a = a} {c = c} p q da dc (suc zero) =
-    subst (λ X → Γ ⊢ c ⇒ X) eq dc
-    where
-      eq : tm-data B [] [] ≡ substS (argsSub (a ∷ c ∷ []))
-             (lookup (extendTele Γ (("_" , tm-data N [] []) ∷ ("_" , tm-data B [] []) ∷ [])) (suc zero))
-      eq = sym (trans (cong (substS (argsSub (a ∷ c ∷ [])))
-                             (lookup-head {n = n} Γ (tm-data B [] [])))
-                      (substS-closed {σ = argsSub (a ∷ c ∷ [])} {t = tm-data B [] []} (sc-data {d = 0} (st[] {d = 0}) (st[] {d = 0}))))
-  argsSub-coh-double {Γ = Γ} {N = N} {B = B} {a = a} {c = c} p q da dc (suc (suc i)) =
-    subst (λ X → Γ ⊢ tm-var (toℕ i) ⇒ X) eq (⇒-var i)
-    where
-      eq : lookup Γ i ≡ substS (argsSub (a ∷ c ∷ []))
-             (lookup (extendTele Γ (("_" , tm-data N [] []) ∷ ("_" , tm-data B [] []) ∷ [])) (suc (suc i)))
-      eq = sym (trans (cong (substS (argsSub (a ∷ c ∷ [])))
-                             (trans (lookup-extend (extend Γ (tm-data B [] [])) (tm-data N [] []) (suc i))
-                                    (cong (rename wk) (lookup-extend Γ (tm-data B [] []) i))))
-                      (trans (subst-rename (argsSub (a ∷ c ∷ [])) wk (rename wk (lookup Γ i)))
-                             (trans (cong (λ σ → substS σ (rename wk (lookup Γ i)))
-                                          (funext (λ j → refl)))
-                                    (trans (subst-rename (argsSub (a ∷ c ∷ []) ∘s wk) wk (lookup Γ i))
-                                           (trans (cong (λ σ → substS σ (lookup Γ i)) (funext (λ j → argsSub-double-wk2 j)))
-                                                  (substS-idSub (lookup Γ i)))))))
-        where
-          argsSub-double-wk2 : ∀ j → ((argsSub (a ∷ c ∷ []) ∘s wk) ∘s wk) j ≡ tm-var j
-          argsSub-double-wk2 j = refl
-
-  -- ι for a compact `tm-bounded_lit (suc k)` scrutinee (peeled to `Next`).
   preservation-ι-bounded-suc : ∀ {n} {Γ : Ctx n} {m brs ar b k T}
     → Final (tm-case (tm-bounded_lit (suc k)) m brs)
     → Γ ⊢ tm-case (tm-bounded_lit (suc k)) m brs ⇒ T
     → findBranch "Next" brs ≡ just ("Next" , ar , b)
     → Γ ⊢ substArgs (tm-nat_lit k ∷ tm-bounded_lit k ∷ []) b ⇒ T
-  preservation-ι-bounded-suc {Γ = Γ} {m = m} {brs = brs} {b = b} {k = k}
-                             {T = tm-app m (tm-bounded_lit (suc k))}
-                             (f-case f-bounded_lit fm fbs)
-                             (⇒-case {s = tm-bounded_lit (suc k)} {n = B} {ps = ps} {is = is} ds dm dbrs) found =
-    ⇒-conv (check-infer hf (subst (λ X → Γ ⊢ substS (argsSub (tm-nat_lit k ∷ tm-bounded_lit k ∷ [])) b ⇐ X) eq
-                                       (subst⇐ (argsSub-coh-double p q (⇒-nat_lit p) (⇒-bounded_lit q)) db′)))
-           (Conversion.≈-app conv (Conversion.≈-refl conv) (Conversion.≈-bounded-suc conv))
+  preservation-ι-bounded-suc {Γ = Γ} {brs = brs} {k = k} (f-case f-bounded_lit fm fbs)
+    (⇒-case {s = tm-bounded_lit (suc k)} {n = B} ds dm dbrs covered) found =
+    ⇒-conv (contract-fields fc sp (ft∷ f-nat_lit (ft∷ f-bounded_lit ft[])) fbs dbrs found)
+      (Conversion.≈-app conv (Conversion.≈-refl conv) (Conversion.≈-bounded-suc conv))
     where
       N = proj₁ (proj₁ (proj₂ (proj₂ (proj₂ (proj₂ bc)))))
       p : IndEnv.builtins ind "nat" ≡ just N
       p = proj₂ (proj₁ (proj₂ (proj₂ (proj₂ (proj₂ bc)))))
       q : IndEnv.builtins ind "bounded" ≡ just B
-      q = bounded-lit-inv ds
+      q = bounded-data-family ds
       bd = brs-body dbrs (findBranch-sound "Next" brs found)
-      f = proj₁ bd
       ct = proj₁ (proj₂ bd)
       fc = proj₁ (proj₂ (proj₂ bd))
-      db = proj₂ (proj₂ (proj₂ (proj₂ bd)))
-      argsN : ctor-args ct ≡ ("_" , tm-data N [] []) ∷ ("_" , tm-data B [] []) ∷ []
-      argsN = (proj₂ (proj₂ (proj₂ (proj₂ (proj₂ (proj₂ (proj₂ (proj₂ (proj₂ bc))))))))) p q fc
-      db′ : extendTele Γ (("_" , tm-data N [] []) ∷ ("_" , tm-data B [] []) ∷ []) ⊢ b
-          ⇐ tm-app (rename (λ j → j + 2) m) (tm-ctor "Next" (branch-field-vars 2))
-      db′ = subst (λ Z → extendTele Γ Z ⊢ b
-                     ⇐ tm-app (rename (λ j → j + length Z) m)
-                              (tm-ctor "Next" (branch-field-vars (length Z))))
-                  argsN db
-      hf : HoleFree (substS (argsSub (tm-nat_lit k ∷ tm-bounded_lit k ∷ [])) b)
-      hf = substS-hole-free b (argsSub (tm-nat_lit k ∷ tm-bounded_lit k ∷ []))
-             (λ { zero → final-hole-free f-nat_lit
-                ; (suc zero) → final-hole-free f-bounded_lit
-                ; (suc (suc i)) → λ name () })
-             (final-hole-free (finalBranches-member fbs (findBranch-sound "Next" brs found)))
-      eq : substS (argsSub (tm-nat_lit k ∷ tm-bounded_lit k ∷ []))
-                   (tm-app (rename (λ j → j + 2) m) (tm-ctor "Next" (branch-field-vars 2)))
-         ≡ tm-app m (tm-ctor "Next" (tm-nat_lit k ∷ tm-bounded_lit k ∷ []))
-      eq = trans (cong₂ tm-app
-                        (substArgs-motive (("_" , tm-data N [] []) ∷ ("_" , tm-data B [] []) ∷ []) m refl)
-                        (cong (tm-ctor "Next") (substTerms-map (argsSub (tm-nat_lit k ∷ tm-bounded_lit k ∷ [])) (branch-field-vars 2))))
-                 refl
-  preservation-ι-bounded-suc (f-case f-bounded_lit fm fbs) (⇒-conv der eqc) found =
-    ⇒-conv (preservation-ι-bounded-suc (f-case f-bounded_lit fm fbs) der found) eqc
+      fields : ctor-args ct ≡ ("_" , tm-data N [] []) ∷ ("_" , tm-data B [] []) ∷ []
+      fields = (proj₂ (proj₂ (proj₂ (proj₂ (proj₂ (proj₂ (proj₂ (proj₂ (proj₂ bc))))))))) p q fc
+      sp : Γ ⊢* (tm-nat_lit k ∷ tm-bounded_lit k ∷ []) ⇐* ctor-args ct
+      sp = subst (λ tele → Γ ⊢* (tm-nat_lit k ∷ tm-bounded_lit k ∷ []) ⇐* tele) (sym fields)
+        (⊢*∷ (⇐-infer (⇒-nat_lit p) (Conversion.≈-refl conv))
+          (⊢*∷ (⇐-infer (⇒-bounded_lit q) (Conversion.≈-refl conv)) ⊢*[]))
+  preservation-ι-bounded-suc ft (⇒-conv der eq) found = ⇒-conv (preservation-ι-bounded-suc ft der found) eq
+  preservation-ι-bounded-suc ft (⇒-cumul der le) found = ⇒-cumul (preservation-ι-bounded-suc ft der found) le
   -- Head and tail of a non-empty `FinalTerms` (local copies; the ones in
   -- Proof.FinalPreservation are not exported into this module).
   ft-head : ∀ {x xs} → FinalTerms (x ∷ xs) → Final x
@@ -1496,6 +1372,7 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
       → _⇝_ sig t t′
       → Γ ⊢ t′ ⇒ T
     preservation⇒ ft (⇒-conv der eq) rw = ⇒-conv (preservation⇒ ft der rw) eq
+    preservation⇒ ft (⇒-cumul der le) rw = ⇒-cumul (preservation⇒ ft der rw) le
     -- β: the checking-mode `preserve-β` gives the reduct CHECKED; the redex
     -- is final, so the reduct is hole-free and INFERS its type (`check-infer`).
     preservation⇒ (f-app (f-lam fd fb) fa) (⇒-app df da) β =
@@ -1529,15 +1406,15 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
       ⇒-let dty dv
             (check-infer (final-hole-free (final-preservation sig cert fb step))
                          (preservation fb (⇐-infer db (Conversion.≈-refl conv)) step))
-    preservation⇒ (f-case fs fm fbs) (⇒-case ds dm dbrs) (ξ-case step) =
-      ⇒-conv (⇒-case (preservation⇒ fs ds step) dm dbrs)
+    preservation⇒ (f-case fs fm fbs) (⇒-case ds dm dbrs covered) (ξ-case step) =
+      ⇒-conv (⇒-case (preservation⇒ fs ds step) dm dbrs covered)
               (Conversion.≈-app conv (Conversion.≈-refl conv)
                                     (Conversion.≈-sym conv (rc step)))
-    preservation⇒ (f-case fs fm fbs) (⇒-case ds dm dbrs) (ξ-case-brs steps) =
-      ⇒-case ds dm (preservation-brs fbs dbrs steps)
-    preservation⇒ (f-case fs fm fbs) (⇒-case ds dm dbrs) (ξ-case-motive step) =
+    preservation⇒ (f-case fs fm fbs) (⇒-case ds dm dbrs covered) (ξ-case-brs steps) =
+      ⇒-case ds dm (preservation-brs fbs dbrs steps) (case-coverage-reduce sig steps covered)
+    preservation⇒ (f-case fs fm fbs) (⇒-case ds dm dbrs covered) (ξ-case-motive step) =
       ⇒-conv (⇒-case ds (preservation⇒ fm dm step)
-                       (branches-conv (rc step) dbrs))
+                       (branches-conv (rc step) dbrs) covered)
               (Conversion.≈-app conv (Conversion.≈-sym conv (rc step))
                                     (Conversion.≈-refl conv))
     preservation⇒ {Γ = Γ} (f-pi fd fc) (⇒-pi {d = d} dd dc) (ξ-pi-dom {d′ = d′} step) =
@@ -1566,10 +1443,10 @@ module Preserve (ind : IndEnv) (sig : Signature) (conv : Conversion)
     preservation⇒ (f-effect_bind fe fk) (⇒-effect_bind p q) (ξ-effect_bind₂ step) =
       ⇒-effect_bind p (preservation⇒ fk q step)
     preservation⇒ ft der (ι found len) = preservation-ι ft der found len
-    preservation⇒ ft der (ι-nat-zero found) = preservation-ι-nat-zero ft der found
-    preservation⇒ ft der (ι-nat-suc found) = preservation-ι-nat-suc ft der found
-    preservation⇒ ft der (ι-bounded-zero found) = preservation-ι-bounded-zero ft der found
-    preservation⇒ ft der (ι-bounded-suc found) = preservation-ι-bounded-suc ft der found
+    preservation⇒ ft der (ι-nat-zero found refl) = preservation-ι-nat-zero ft der found
+    preservation⇒ ft der (ι-nat-suc found refl) = preservation-ι-nat-suc ft der found
+    preservation⇒ ft der (ι-bounded-zero found refl) = preservation-ι-bounded-zero ft der found
+    preservation⇒ ft der (ι-bounded-suc found refl) = preservation-ι-bounded-suc ft der found
     preservation⇒ ft (⇒-global {f = f} {T = T} p) (δ {body′ = body′} q) =
       weaken-closed (proj₁ (ctyped q p)) (proj₁ closed f p) (proj₂ (ctyped q p))
 

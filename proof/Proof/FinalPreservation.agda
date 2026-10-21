@@ -21,6 +21,9 @@
 ------------------------------------------------------------------------
 module Proof.FinalPreservation where
 
+open import Data.List using (reverse)
+open import Proof.FieldOrder using (final-reverse)
+
 open import Data.Bool using (Bool; true; false)
 open import Data.String.Properties using (_≟_)
 open import Data.List using (List; []; _∷_; _++_; _∷ʳ_; reverse; length; map; updateAt)
@@ -181,6 +184,10 @@ argsSub-final {args} ft = go-final 0 args ft
     go-final k (y ∷ ys) (ft∷ fy fys) zero = fy
     go-final k (y ∷ ys) (ft∷ fy fys) (suc i) = go-final (suc k) ys fys i
 
+substArgs-final : ∀ {args b} → FinalTerms args → Final b → Final (substArgs args b)
+substArgs-final {args} fargs fb =
+  substS-final (argsSub (reverse args)) (argsSub-final (final-reverse fargs)) fb
+
 ------------------------------------------------------------------------
 -- A branch's body is final when the branch list is and the branch is a
 -- member. `findBranch` returns a member of the list, so this extracts the
@@ -214,20 +221,17 @@ module _ (sig : Signature) (cert : Certified sig) where
       substS-final (topSub _) (topSub-final fv) fb
     -- ι: `case (ctor c args) of … ⇝ b_c[args]`; `b` and `args` are final.
     final-preservation (f-case (f-ctor {args = args} fargs) fm fbs) (ι {c = c} {ar = ar} {b = b} found len) =
-      substS-final (argsSub args) (argsSub-final fargs) (finalBranches-member fbs (findBranch-sound c _ found))
+      substArgs-final fargs (finalBranches-member fbs (findBranch-sound c _ found))
     -- ι on a compact Nat literal: the peeled fields are literals (final).
-    final-preservation (f-case (f-nat_lit {k = zero}) fm fbs) (ι-nat-zero {ar = ar} {b = b} found) =
-      substS-final (argsSub []) (argsSub-final ft[]) (finalBranches-member fbs (findBranch-sound "Z" _ found))
-    final-preservation (f-case (f-nat_lit {k = suc k}) fm fbs) (ι-nat-suc {ar = ar} {b = b} found) =
-      substS-final (argsSub (tm-nat_lit k ∷ [])) (argsSub-final (ft∷ f-nat_lit ft[]))
-                   (finalBranches-member fbs (findBranch-sound "S" _ found))
-    final-preservation (f-case (f-bounded_lit {k = zero}) fm fbs) (ι-bounded-zero {ar = ar} {b = b} found) =
-      substS-final (argsSub (tm-nat_lit 0 ∷ [])) (argsSub-final (ft∷ f-nat_lit ft[]))
-                   (finalBranches-member fbs (findBranch-sound "First" _ found))
-    final-preservation (f-case (f-bounded_lit {k = suc k}) fm fbs) (ι-bounded-suc {ar = ar} {b = b} found) =
-      substS-final (argsSub (tm-nat_lit k ∷ tm-bounded_lit k ∷ []))
-                   (argsSub-final (ft∷ f-nat_lit (ft∷ f-bounded_lit ft[])))
-                   (finalBranches-member fbs (findBranch-sound "Next" _ found))
+    final-preservation (f-case (f-nat_lit {k = zero}) fm fbs) (ι-nat-zero {ar = ar} {b = b} found refl) =
+      substArgs-final ft[] (finalBranches-member fbs (findBranch-sound "Z" _ found))
+    final-preservation (f-case (f-nat_lit {k = suc k}) fm fbs) (ι-nat-suc {ar = ar} {b = b} found refl) =
+      substArgs-final (ft∷ f-nat_lit ft[]) (finalBranches-member fbs (findBranch-sound "S" _ found))
+    final-preservation (f-case (f-bounded_lit {k = zero}) fm fbs) (ι-bounded-zero {ar = ar} {b = b} found refl) =
+      substArgs-final (ft∷ f-nat_lit ft[]) (finalBranches-member fbs (findBranch-sound "First" _ found))
+    final-preservation (f-case (f-bounded_lit {k = suc k}) fm fbs) (ι-bounded-suc {ar = ar} {b = b} found refl) =
+      substArgs-final (ft∷ f-nat_lit (ft∷ f-bounded_lit ft[]))
+        (finalBranches-member fbs (findBranch-sound "Next" _ found))
     -- δ: the totality certificate supplies the body's finality.
     final-preservation (f-global {n = f}) (δ {body′ = body′} p) = cert p
     -- Congruences.

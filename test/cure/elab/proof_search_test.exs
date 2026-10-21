@@ -3,6 +3,23 @@ defmodule Cure.Elab.ProofSearchTest do
   alias Cure.Elab.ProofSearch
   alias Cure.Core.{Context, Env, Eval, Inductive}
 
+  setup_all do
+    # Elaboration loads/parses imports; it is not the cycle-search operation
+    # measured by the eight-second test below. Retain the original fixture.
+    source = """
+    mod CycLemma
+      use Std.Proof.Math
+      type Cyc indices (n: Nat)
+        MkCyc : Cyc(n) -> Cyc(n)
+      @lemma
+      fn cyc_step({n: Nat}, prev: Cyc(n)) -> Cyc(n) = MkCyc(prev)
+    end
+    """
+
+    assert {:ok, env} = Cure.Elab.Program.elaborate(source)
+    {:ok, cyclic_env: env}
+  end
+
   # A tiny hand-built context: one family P with a single ctor mkP : P, and a
   # local binder h : P in scope. resolve should find `h` by exact type.
   defp env_with_p do
@@ -105,26 +122,19 @@ defmodule Cure.Elab.ProofSearchTest do
   end
 
   @tag timeout: 8_000
-  test "a self-referential lemma set does not loop — cyclic goal abandons the branch" do
+  test "a self-referential lemma set does not loop — cyclic goal abandons the branch", %{cyclic_env: env} do
     # A lemma whose only hypothesis is its own conclusion: Cyc(n) -> Cyc(n).
     # With no base case and no local hypothesis, resolve must return :none
     # (not loop) because the sub-goal equals a goal already on the stack.
-    source = """
-    mod CycLemma
-      use Std.Proof.Math
-      type Cyc indices (n: Nat)
-        MkCyc : Cyc(n) -> Cyc(n)
-      @lemma
-      fn cyc_step({n: Nat}, prev: Cyc(n)) -> Cyc(n) = MkCyc(prev)
-    end
-    """
-
-    {:ok, env} = Cure.Elab.Program.elaborate(source)
 
     cyc_family = Cure.Core.Env.resolve_key(env, env.families, :Cyc)
     zero = {:ctor, Cure.Core.Env.resolve_key(env, env.ctors, :Z), []}
     goal = {:data, cyc_family, [], [zero]}
     ctx = Cure.Core.Context.empty(env)
+    lemma_name = Cure.Core.Env.resolve_key(env, env.defs, :cyc_step)
+
+    assert [%{name: ^lemma_name, arity: 2}] =
+             env.lemmas |> Map.fetch!(cyc_family) |> Enum.uniq()
 
     assert :none = Cure.Elab.ProofSearch.resolve(goal, ctx, env, %{depth: 0, trying: []})
   end

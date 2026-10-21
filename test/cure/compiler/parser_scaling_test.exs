@@ -13,6 +13,7 @@ defmodule Cure.Compiler.ParserScalingTest do
   # between the two so the test separates the algorithms rather than the machine.
   @growth_factor 4
   @max_ratio 8
+  @sample_count 7
 
   defp source(fn_count) do
     body =
@@ -28,8 +29,19 @@ defmodule Cure.Compiler.ParserScalingTest do
     {:ok, toks} = Lexer.tokenize(source(fn_count))
     # Warm up so the first-call cost is not attributed to the measured run.
     {:ok, _} = Parser.parse(toks, emit_events: false)
-    {us, {:ok, _ast}} = :timer.tc(fn -> Parser.parse(toks, emit_events: false) end)
-    {us, length(toks)}
+
+    # A single millisecond-scale sample can include an unrelated scheduler
+    # pause. Start each sample without earlier parse garbage, then compare
+    # medians while retaining the same linear-versus-quadratic ratio bound.
+    samples =
+      for _ <- 1..@sample_count do
+        :erlang.garbage_collect()
+        {us, {:ok, _ast}} = :timer.tc(fn -> Parser.parse(toks, emit_events: false) end)
+        us
+      end
+
+    median_us = samples |> Enum.sort() |> Enum.at(div(@sample_count, 2))
+    {median_us, length(toks)}
   end
 
   test "parse time grows about linearly with token count" do
@@ -46,7 +58,7 @@ defmodule Cure.Compiler.ParserScalingTest do
     time_ratio = large_us / max(small_us, 1)
 
     assert time_ratio < @max_ratio, """
-    Parse time scales super-linearly with input size.
+    Median parse time scales super-linearly with input size (#{@sample_count} samples).
 
       #{small_tokens} tokens: #{Float.round(small_us / 1000, 2)} ms \
     (#{Float.round(small_us / small_tokens, 2)} us/token)

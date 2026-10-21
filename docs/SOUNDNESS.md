@@ -2,7 +2,7 @@
 
 **A written soundness argument for the trusted dependent-type kernel.**
 
-Status: draft for review.
+Status: written argument with executable evidence; formal interfaces under repair.
 Scope: the trusted kernel (`lib/cure/core/`, the TCB), not the elaborator, the
 emitter, or the surface language.
 Companion documents: [KERNEL.md](KERNEL.md) (what each mechanism is and why it
@@ -16,6 +16,29 @@ Progress and Preservation proofs by term former, enumerates the assumptions the
 argument rests on, and maps each lemma to the executable evidence that tests it
 today. It is deliberately honest about what is *proved*, what is *assumed*, and
 what is *tested but not proved*.
+
+**Formal applicability warning.** The four refuted historical interfaces
+are now frozen only in `proof/Proof/InterfaceAudit.agda`. Conversion uses
+separation of two exposed rigid type heads, not raw syntax-head reflection;
+universe cumulativity belongs to declarative typing, not symmetric equality.
+`Proof.ReductionConversion` now inhabits the full conversion record AND
+`ReduceConv` by common reducts after compact-literal expansion.
+`Proof.SoundnessModel` jointly instantiates the current soundness hypotheses
+on a nonempty closed-entry fragment, including a finite typed global table.
+This closes the formal-model inhabitation gap, NOT executable NbE/η refinement.
+The old `ClosedSig` oracle is frozen only in
+the audit; active preservation/soundness now use inhabited `ClosedFragmentSig`,
+explicitly restricted to individually closed telescope entries/results.
+This does **not** establish dependent telescope support. The former global `Covers` oracle
+is now frozen only as a negative regression: admitted cases carry local
+`CaseCoverage` evidence. `LiteralArity` was also removed from active confluence:
+literal reduction steps carry local arity witnesses. Successful
+compilation of the existing parameterised Progress/Preservation/soundness
+modules does **not** establish an applicable kernel soundness theorem.
+Their conditional derivations are not completed executable certification.
+No termination-check overrides remain. `Proof.Confluence` now uses a
+strong one-step parallel diamond and checked strip/closure recursion.
+This establishes specification confluence, not executable soundness. See §8.
 
 ---
 
@@ -109,7 +132,13 @@ raising.
   kernel is what makes a kernel-accepted Core term trustworthy.
 - **It does not claim the emitter is correct.** BEAM emission is out of scope;
   §5 states the (small) interface the argument assumes of it.
-- **It is not mechanised.** See §7.
+- **It is not an end-to-end mechanised implementation theorem.** Parts of the
+  syntax and algebra are machine-checked; historical soundness interfaces
+  were refuted and repaired for a restricted fragment. A joint formal
+  full-reduction instance now exists and exact-arity closed-entry branches
+  bind the last field at zero; dependent signatures, filtered/erased frames,
+  η and implementation refinement remain open.
+  See §§7–8.
 
 ---
 
@@ -273,11 +302,10 @@ tree:**
   a dependent module containing `?todo` is refused with
   `{:codegen_error, {:unfilled_hole, details}}`.
 
-The residual questions are (a) whether *every* codegen path routes through
-`reject_holes/2`, and (b) whether the audit's repro exercised `cure check`
-(which, by design, *passes* a file containing holes — only `cure compile`
-reports `E014`; see `PROOFS.md` §3.7) rather than `cure compile`. §8 records
-these as open verification items, not closed ones.
+The ordinary and lifted codegen paths were subsequently audited and tested
+(§8.1). `cure check` deliberately permits development holes; compilation must
+reject them. Maintaining release-entry-point coverage is an ongoing regression
+obligation, not evidence that the firewall is missing.
 
 ---
 
@@ -343,12 +371,12 @@ Enumerated by `cure audit trust <Module>`:
 
 1. **The signature is well-formed.** `Inductive.declare/3` enforced the universe
    check and strict positivity (§3.1) when each family was registered.
-2. **Certificates are genuinely valid.** The kernel verifies the *finite*
-   size-change certificates (`SizeChange.valid?`), but the SCC discovery and
-   transitive closure that *produce* them live outside the TCB
-   (`Cure.Elab.TotalityGraph`). A bug there could hand the kernel a certificate
-   that verifies as a matrix yet does not correspond to the real call graph.
-   This is the single largest assumption in the argument (§8).
+2. **The verified size-change criterion implies semantic termination.**
+   The kernel independently verifies SCC partitions, base edges, composed
+   matrices, and saturation; an untrusted proposer's output is not accepted
+   merely because its matrices have valid dimensions. What remains unproved
+   is the full chain from trusted Core call extraction to semantic size
+   descent and from the size-change criterion to termination (§8.2).
 3. **The emitter maps Core faithfully.** BEAM emission is assumed to preserve
    the operational semantics of §1.3. Out of scope here.
 4. **The host runtime is trusted.** Elixir/OTP integer and float semantics, the
@@ -385,8 +413,12 @@ Enumerated by `cure audit trust <Module>`:
 
 ## 7. Toward mechanisation
 
-This argument is written, not machine-checked. The obstacles, in rough order of
-difficulty:
+The implementation theorem is not machine-checked end to end. The interface
+audit in §8 refuted four historical contracts, now frozen only as negative
+regressions. Their replacements now have checked consumers and a joint
+full-reduction instance for the closed-entry specification. Executable
+correspondence and dependent-signature support are not established.
+Remaining obligations include:
 
 1. **NbE conversion.** A mechanised proof must model `Eval`/`Quote`/`Conv` and
    prove conversion sound (positive *and* negative). Per Lennon-Bertrand's
@@ -418,8 +450,11 @@ A partial mechanisation now exists in [`proof/`](../proof/README.md): the Core
 calculus, the typing judgment, the canonical-form and head-inversion lemmas,
 the renaming/substitution lemmas, **Progress**, **`Final`-preservation**,
 **`preservation` (every case, including ι and δ)**, and — with the side
-conditions carried as hypotheses — **both constructive forms of the soundness
-theorem**:
+conditions carried as hypotheses — **derivations of both constructive forms
+of the soundness theorem**. The following statements belong to conditional
+parameterised modules, now jointly instantiated by `Proof.SoundnessModel`
+for the closed-entry specification. There is no implementation refinement
+making them an executable kernel certificate:
 
 ```agda
 -- the bounded unfolding, by induction on the fuel
@@ -441,8 +476,11 @@ truncation of the tree.
 
 Two findings from the mechanisation are worth recording here. First, the
 β/ζ "inference-preservation" gaps (§4) are **dissolved** by `check-infer`: a
-hole-free term that CHECKS against a type INFERS it, because the only
-checking rule without a matching inference rule is `⇐-hole`. So the
+hole-free term that CHECKS against a type has a corresponding **declarative**
+inference derivation, because the only checking rule without a matching
+inference rule is `⇐-hole`. This judgment includes explicit `⇒-conv` and
+`⇒-cumul` closure: it does not assert executable synthesis returns the same
+type syntax or a larger cumulative sort. So the
 checking-mode β/ζ reducts infer their type once the redex is final. Second,
 δ preservation is discharged by a `CertifiedTyped` hypothesis — the
 well-typedness half of `Env.certified?` — plus `weaken-closed` (a closed term
@@ -486,7 +524,11 @@ form), `DivergesNF` + `never-reached→divergesNF` (positive divergence), and
 `tree-decides` (LPO) as the only classical input. The false
 `never-reached→no-value` and the `soundness` built on it have been
 **REMOVED** from `Proof/Soundness.agda`; the development now rests on exactly
-two axioms, `funext` and `tree-decides`. Note also that the tempting
+two named postulates, `funext` and `tree-decides`. This count does not include
+module parameters or conversion record fields. No termination-check
+override remains in confluence or elsewhere. The former `LiteralArity` oracle was refuted
+and removed from active confluence; its old shape is kept as a negative
+regression in `Proof.InterfaceAudit`. Note also that the tempting
 strengthening "reaches a NORMAL-FORM value, or diverges" is *not* provable
 from `soundness-tree` (a `Reached` leaf supplies only `Value v`, and
 `progress⇐` at `v` returns `Value v` again), which is why the first disjunct
@@ -494,16 +536,530 @@ stays `Reached`.
 
 ---
 
-## 8. Open verification items
+## 8. Verification status and open obligations
 
-These are honestly *not* settled by this document. They are the places a
-determined adversary should look first.
+The enforcement and specification results below have different strengths.
+Neither passing tests nor counting `postulate` declarations establishes
+that an uninhabitable theorem interface is useful.
 
-1. **Every codegen path routes through `reject_holes/2`.** The firewall is
-   implemented (§3.4), but the audit reproduced a running hole. Confirm by
-   inspection that no emission path bypasses `Emit.reject_holes/2`, and add a
-   regression test asserting `cure compile` fails on a reachable `?goal` (the
-   audit's §5.2 recommendation).
+### Foundational blockers and the migration gate
+`proof/Proof/InterfaceAudit.agda` machine-checks these negative results:
+- **Coverage — migrated:** the old `Covers` quantified over every branch
+  list, including `[]`, and was incompatible with `BuiltinCtors`. It is
+  now frozen only in the audit. `Core.Coverage.CaseCoverage` constrains one
+  family and branch list; `⇒-case` requires this evidence alongside branch
+  typing. Progress and both soundness modules no longer take a global
+  coverage parameter. Renaming, substitution, context conversion, and
+  branch/scrutinee/motive reduction preservation propagate the local evidence.
+- **Conversion — rigid-head migration implemented:** `ReduceConv` makes a
+  let reducing to a Π convertible to that Π. The historical raw Π-reflection
+  property, now frozen as `RawPiReflection`, would require the raw let to
+  have literal Π syntax. Active `Conversion` instead separates two exposed
+  type heads (`Core.TypeHeads`) and retains component injectivity for two
+  exposed Πs. Head tags preserve exact universe levels and family names.
+  Inversion and constructor/literal metadata extraction now recurse over
+  arbitrary intermediate types while accumulating conversion witnesses.
+  Cumulativity is separate: `⇒-cumul` explicitly closes declarative typing;
+  the old `≈-type` field is removed. Progress, preservation, renaming,
+  substitution, context conversion and checking inversion are migrated.
+  Full formal reduction compatibility is now constructed in
+  `Proof.ReductionConversion`, including compact-literal equations.
+  **Executable NbE/η correspondence remains open.**
+- **Signature oracle — repaired for the closed-entry fragment:** the old
+  `ClosedSig` required arbitrary fabricated records to be closed and is now
+  frozen only in the audit. `Core.ClosedFragment.ClosedFragmentSig` constrains
+  only actual family and constructor members. Preservation's renaming,
+  substitution and branch helpers obtain those memberships from lookups;
+  the preservation and soundness module parameters are migrated.
+  **This is not the full dependent-signature repair:** individual entries
+  and constructor results are still required to be closed because the
+  current spine/context proofs rely on their renaming/substitution identity.
+  The explicit fragment name replaces the previous misleading generality.
+- **Literal arities — repaired:** the former `LiteralArity` required every
+  raw `Z` branch to have arity zero; a fabricated arity-one branch refutes it.
+  Arity constraints
+  now belong to the four literal reduction-rule premises in both small-step
+  and parallel reduction. Progress derives the witnesses from checked
+  branches and builtin telescopes. `Conf` no longer takes this impossible
+  parameter. `Proof.LiteralCases` checks valid steps, rejects malformed
+  arities in both relations, and instantiates a real confluence peak with a
+  concrete closed-body signature. Confluence now has a checked strong
+  diamond/closure proof with no termination override; it remains a theorem
+  about the formal specification, not executable refinement.
+
+Further correspondence repairs are required: dependent spine tails and
+constructor result indices must be instantiated, with parameter filtering
+and erased-slot frame handling. Exact-arity closed-entry branches now bind
+the last field at zero as the evaluator does. `Certified` currently means only
+that unfoldable bodies are `Final` (hole/absurd-free), **not** that they terminate.
+
+**Forward-dependent spine foundation (not broad migration).**
+`Core.LocalFrame` now proves that declaration-order pushes implement a
+last-field-first simultaneous frame for arbitrary bodies, with parameter
+seeding and unchanged outer slots. The candidate `Core.Verification`
+operators use this frame and include result parameter/index instantiation.
+`Proof.LocalFrame` proves scoped local instantiation stable under ambient
+renaming/substitution. `Proof.DependentSpine.Spines.Checked` threads preceding
+values and requires entry scope, actual kinding and argument checking.
+Its scoping/arity and transport properties are checked; for closed entries
+it supplies the existing flat spine rule and a registered constructor example.
+
+Positive dependent/parameterized witnesses and negative type/scope/arity/
+kind controls live in `Proof.DependentSpineExamples`. A Type2 counterexample
+separates argument checking from declaration kinding: the old flat spine
+rule alone does not establish entry validity. Sixteen independent executable
+tests kernel-check genuine dependent declarations and positive programs
+before evaluation, checking indices, field/ambient order, lambda capture
+and parameter seeding. These tests use primitive Atom rather than requiring
+the Int facade's builtin bootstrap.
+
+**Active field-order migration — exact-arity closed entries.**
+`Core.Reduction.substArgs` now reverses surface fields before simultaneous
+substitution. `argsSub` remains an already-de-Bruijn-ordered prefix helper:
+local declaration environments must not be reversed again.
+`Core.LocalFrame.fields-agree` connects declaration-order pushes directly to
+active `substArgs` for arbitrary bodies.
+
+`Core.Typing.branch-context` extends by the reversed telescope, while
+`surface-field-vars` reconstructs constructor arguments in declaration order.
+Branch arity uses the reversed length definitionally, equal to ordinary
+arity by `length-reverse`. Renaming, substitution, context conversion,
+finality and all five ordinary/literal ι preservation cases are migrated.
+`Proof.FieldOrder` supplies reversal facts; preservation's generic
+`contract-fields` reverses checked arguments and closed telescope entries
+together, substitutes the body, then restores the surface-order constructor.
+Strict-parallel substitution/confluence, literal-expansion simulation and the
+inhabited full-conversion/soundness model remain checked.
+
+`Proof.FieldOrderExamples` exercises heterogeneous `Next(Nat, Bounded)`
+fields: slot zero has type Bounded, slot one has type Nat, and the latter
+cannot check at Bounded even through conversion/cumulativity. Both ordinary
+constructor and compact-literal cases preserve typing when returning
+`Bounded 7`; a nested lambda retains that field without capture, and the
+case transports under weakening. Raw confluence examples distinguish two
+Nat values and now select the last field at zero.
+
+This migration retains individually closed entries/results; it does not
+admit the genuine dependent constructor through the active rules.
+Parameters must be checked separately. The evaluator's parameter-spine
+filtering, missing erased-slot frame and full executable refinement remain
+outside the proved exact-arity fields-only contract.
+
+**Typed declaration-to-frame bridge — constructed, not admission migration.**
+`Proof.DependentInstantiation` adds forward local `Declared` telescopes:
+each entry has preceding-binder scope and an actual kind derivation in its
+declaration context. `Arguments` checks the actual spine at prefix-instantiated
+types without asking again for those kinds. `instantiate` derives both the
+existing kind-checked dependent-spine judgment and a coherent substitution
+from the final declaration context into the caller.
+
+`coherent-push` realizes a fresh declaration binder by an actual term without
+adding a caller binder. Arguments must be final, because checking-only holes
+need not infer their types; neither a value nor termination premise is added.
+`result-frame` composes checked parameter and field frames, and
+`instantiate-result⇒` / `instantiate-result⇐` prove that locally typed terms
+AND their types remain typed after parameter-plus-field instantiation.
+The proof reuses the current conditional substitution theorem, not an
+assumed dependent-preservation law.
+
+The examples include `(A : Type0, x : A)`, two distinct Atom/Float parameters,
+computed-index typing/conversion, reducible actual parameters, and closed/open
+lambda capture avoidance.
+Bad parameter order, kind, scope and arity are rejected; an explicit
+checking-only hole demonstrates why finality cannot be inferred from
+argument checking. Six additional executable regressions kernel-check
+distinct parameter/field frames, dependent/computed result indices, result
+parameter uniformity and result-index typing.
+
+This establishes typed LOCAL instantiation over the existing inhabited
+closed-signature baseline. The typed-frame theorem alone does not validate
+complete result declarations; the next checkpoint adds that local evidence.
+It still does not admit dependent global declarations or replace the active
+constructor/data/branch rules.
+
+**Local dependent result declarations — evidence and transport constructed.**
+`Proof.DependentResult` packages kind-checked parameter/index/field
+telescopes, scoped result vectors, field-universe bounds, syntactically uniform
+result parameters and kind-checked result spines in `LocalDeclaration`.
+`LevelsBelow` refers to actual field-kind derivations, not a raw signature's
+`universe-ok`/`positive` booleans. This is local declaration evidence rather
+than a verified implementation of the global admission checker.
+
+`ResultSpines` checks parameter vectors before dependent index vectors and
+derives exact arities. `subst-result-spines` transports both vectors and
+their dependencies through coherent substitution. `uniform-instantiates`
+proves that result parameter slots instantiate EXACTLY to supplied
+parameters. `instantiate-results` combines those results with the checked
+parameter/field frame, producing a whole checked computed-index spine under
+the same actual parameters. It reuses existing, inhabited conditional
+substitution laws; no dependent-preservation oracle is added.
+
+The examples include `D(A : Type0; x : A, B : Type0, y : B)`, distinct
+Atom/Float actual types, computed indices and open caller variables.
+Wrong index/parameter types, missing/surplus indices, an undersized field
+budget and typed-but-nonuniform parameters have negative controls.
+The adapter `active-result-kind` supplies current data formation ONLY when
+the family's parameter/index entries are individually closed and a real
+lookup succeeds. A registered Bounded example exercises it; the genuinely
+dependent local family's closedness requirement is explicitly refuted.
+
+Sixteen independently kernel-checked executable result tests cover
+whole dependent/computed result vectors, prior-index dependencies,
+well-typed mismatch, arity, uniformity, field universes and scope.
+The result theorems still rely on the current closed-signature substitution
+infrastructure. The next checkpoint links local certificates to bounded
+registered admission without claiming full dependent soundness.
+
+**Base-checked registered admission — a separate bounded layer.**
+`Proof.DependentRegistry.Layer base sig conv registry` separates the
+closed-entry base used for declaration/argument checking from a fresh
+registry containing genuine dependent records. `Registry` requires family
+and constructor certificates only for actual lookups, visible constructor
+ownership, and identities fresh relative to the base. No universal oracle
+over arbitrary fabricated records is introduced.
+
+Its `Application` and `Formation` records are bounded admission judgments,
+NOT the active `Core.Typing` relation. They include the checked registry,
+actual lookup evidence and argument/result checks. `result-formation`
+proves that an admitted constructor application has a checked registered
+result; `subst-formation` preserves formation under a coherent BASE caller
+substitution. The proof does not require closed dependent registry entries
+or assume a new dependent-preservation theorem.
+
+The registry examples instantiate all certificates with registered
+ordinary/computed constructors, closed/open callers and caller substitution.
+They reject unknown names, missing fields, bad result indices, base-name
+shadowing and inconsistent visible ownership. They explicitly REFUTE the
+registry's old `ClosedFragmentSig` premise and base typing of its new data
+type. This is therefore not a disguised claim of extending the old full
+soundness model.
+
+Three executable controls add to the result suite:
+lookup/visible-owner agreement, missing registration rejection and rejection
+of a same-shaped foreign result family. The layer's freshness policy is
+formal evidence, not a proved correspondence with all executable namespace
+guards. No kernel/runtime source changes.
+
+Unified dependent global typing, recursive extension/signature validity and
+positivity, dependent elimination, broad preservation and implementation
+refinement remain open. The new records are also not release certificates:
+final actual arguments alone do not imply every declaration/result term is
+final. Parameter filtering, erased slots, η, typed erasure simulation and
+semantic totality remain separate obligations.
+
+**Registered constructor congruence — fixed-goal preservation constructed.**
+`Proof.DependentPreservation` preserves dependent argument checking under a
+selected final field's reduction. The changed local prefix converts the
+expected types of later fields; this is not an unproved raw-type identity.
+Finality is retained, and pointwise frame/substitution congruence proves
+the newly computed result type convertible to the original result type.
+
+`CheckedApplication` fixes a checking goal in the bounded registry layer.
+`preserve-at` / `preserve-step` keep that exact goal for a selected field
+step or any small step from a constructor term. `preserve-star` handles
+arbitrary finite constructor paths by structural recursion on the input
+path. The proof does not replace the old goal by the newly inferred type,
+add a dependent-preservation oracle or assert termination.
+
+Concrete witnesses reduce a type-valued `B` field in
+`(x : A, B : Type0, y : B)`. Ordinary/computed constructors, open callers
+and a two-step type/value reduction retain their original goals. Raw result
+types are explicitly unequal while conversion is proved; unrelated field
+replacement and wrong-result-family controls fail.
+Five executable regressions check source/intermediate/reduced terms against
+ONE original kernel-checked goal and evaluate their values independently.
+The result and frame suites each contain sixteen tests.
+
+The new result is operational preservation for this bounded registered
+constructor fragment, not dependent case elimination or unified
+`Core.Typing` preservation. Recursive extension checking, positivity,
+elimination, release certification, evaluator/readback/η refinement,
+filtered/erased frames, typed erasure simulation and semantic totality
+remain open. No runtime/kernel library source changed.
+
+**Parameter-specialised selected-branch contraction — constructed.**
+`Core.LocalFrame.specializeParameters` replaces local parameter slots while
+protecting field binders. `Proof.LocalFrame.staged-contraction` proves exact
+agreement of parameter specialisation followed by active fields-only
+substitution with full parameter-plus-field instantiation, for arbitrary
+bodies and open callers. Existing binder-aware composition provides capture
+avoidance; the pure push/weakening helper is shared with typed instantiation.
+
+`Proof.DependentBranch.Contract` uses an actual checked registry application
+and its local constructor declaration. A body checked in that local
+parameter/field context contracts to a term checked at the instantiated
+local goal. Final local bodies yield final reducts and corresponding
+inference. A separate `selected-step` theorem exhibits ordinary ι with the
+constructor's FIELD arity and the parameter-specialised runtime body.
+Its motive and other branches are raw syntax, not certified case typing.
+
+Examples cover field projection, parameters replaced rather than captured,
+lambda domains/captured fields/own binders, and an open parameter shifted
+past fields then restored to its caller slot. Negative controls reject
+unspecialised/unprotected slot interpretations and treating parameters as
+branch fields.
+Fourteen independent executable tests kernel-check whole positive cases and
+compare declaration-frame and fields-only case evaluation, including open
+parameters and lambda capture. No kernel/runtime implementation changes.
+
+This is **typed selected-branch substitution and a raw ι witness**, not a
+whole-source-case preservation theorem. The next checkpoint constructs the
+fresh caller-context bridge, followed by curried goal agreement below;
+motive well-formedness, coverage and unified typing remain open, as does
+proving that elaboration emits the specified specialisation.
+The typed body here lives in the local declaration context, not an arbitrary
+fresh caller branch context. Parameter-prefix filtering, missing erased
+slots and the remaining erasure/totality/η/refinement obligations are not
+established by this result.
+
+**Fresh caller branch contexts — typed opening and closing constructed.**
+`Proof.DependentOpening.build` opens fields forwards in the ambient caller,
+specialising field types with actual parameters and preceding fresh fields.
+It derives exact caller-plus-FIELD context size, not a parameter-plus-field
+branch arity. `open-coherent` and `open-kinded` derive the embedding and
+field kinds from the actual registered local declaration; `local-to-branch`
+types the parameter-specialised local body in the resulting fresh context.
+
+`close-coherent` handles a general ambient substitution and checked actual
+field values. Its registered instance `branch-coherent` yields a coherent
+fields-only contraction from the fresh context to the caller.
+`contract-branch` / `contract-branch⇒` preserve checking/inference for any
+body typed THERE, including direct ambient references not expressible in
+the local parameter/field-only context. Both the reduct and its dependent
+type are substituted; no kinding or dependent-preservation oracle is added.
+
+Concrete witnesses separate caller and field values, protect caller capture
+and lambda-local variables, and embed/close open parameter-dependent bodies.
+Fresh dependent field types stay symbolic until actual-field contraction.
+Two additional executable whole-case tests exercise unrelated ambient
+value access/capture; the branch suite reached ten tests there and now has
+fourteen including the motive checks below.
+The frame/result suites retain sixteen each. No kernel/runtime source changes.
+
+This strengthens the selected-branch bridge but does not establish whole
+dependent case preservation. The next result supplies curried goal
+agreement; motive well-formedness, coverage, unified typing and recursive
+signature validity/positivity remain open, alongside
+elaboration/evaluator/readback refinement and the other §8 obligations.
+
+**Curried motive/index goal agreement — exact substitution constructed.**
+`Proof.MotiveAgreement` forms fresh branch goals by applying the weakened
+motive to specialised computed indices and then the surface-order
+constructor spine. `goal-agreement` proves fields-only contraction equals
+the actual motive goal at the computed index vector and actual constructor.
+It derives the index staging, ambient motive restoration and field-vector
+identities rather than assuming them.
+
+`contract-at-motive` combines this exact equality with typed fresh-context
+contraction, proving the selected reduct checks at that curried goal.
+A raw selected ι witness is supplied separately. The examples use a
+genuinely index-dependent result B in `D(A; x:A, B:Type0, y:B)`, ordinary
+and computed indices and open parameters. Alternate Float/Atom result goals
+are explicitly nonconvertible, not collapsed into a constant motive.
+
+Four executable tests kernel-check nonconstant B-dependent motives, open
+parameters and a B-dependent function result, and reject wrong motive
+binder positions. No kernel/runtime source changes.
+
+The formal result is **goal-substitution agreement plus selected-reduct
+typing**, not motive well-formedness or whole-case preservation. Raw motive
+validation is not derived. The old active `Core.Typing` case rule still
+applies a motive only to its scrutinee; migration to the curried indexed
+contract, motive well-formedness, coverage and unified dependent case
+typing remain open. The other §8 refinement/release/termination obligations
+are unchanged.
+
+**Motive boundary audit — the base judgment cannot certify the extension.**
+`Proof.MotiveBoundaryAudit` constructs a base derivation of a sort-valued,
+final empty case under a caller binder whose type mentions the registry-only
+`LocalResult`. Coverage is vacuous in the BASE environment. The registry
+actually admits `LocalMk`, and empty coverage there is explicitly refuted,
+as is any transfer of that base coverage to the registry.
+
+The admitted constructor cannot infer any base type. Consequently, replacing
+the caller binder by that constructor is not a coherent base substitution,
+and the resulting closed case cannot be base-typed. This is a boundary
+counterexample to reusing base typing as an extension-motive certificate,
+not a contradiction in the closed-entry preservation theorem: its coherent
+substitution premise is unavailable. Raw context extension does not establish
+that the binder's type is well-formed in the base environment.
+
+Three additional executable regressions distinguish the boundaries: a
+correct curried motive still requires registry coverage; ordinary inference
+of a unary motive does not validate the indexed contract; and a motive with
+an Atom-annotated scrutinee lambda can pass the executable's fresh-value
+validation while ordinary application to the family scrutinee is rejected.
+The last example has a kernel-checked positive whole case and independently
+evaluated result. The branch suite now has seventeen tests.
+
+`Kernel.check_motive_wf` evaluates the motive on fresh index/scrutinee values
+and classifies the resulting type value; it does not require ordinary
+inference of the entire curried application. Therefore a future ordinary
+typed-Π motive rule would be a conservative specification restriction, not
+an established refinement of every executable acceptance. Neither that
+correspondence nor extensional motive validation is mechanised here.
+Unified declaration/context/motive/branch typing must be reviewed before
+broad migration; inserting registry entries into the old closedness premise
+or adding an unchecked motive certificate does not resolve this boundary.
+No existing typing rule or kernel/runtime implementation was changed.
+
+**Native unified typing — interfaces and inhabited examples under review.**
+`Core.DependentTyping` introduces native declaration, dependent-spine,
+constructor, motive and branch judgments over ONE environment. The new case
+rule checks a well-formed caller, an ordinary typed curried motive and
+same-environment coverage. Its fields-only constructor rule carries parameters
+as declarative witnesses, not additional runtime fields or a deterministic
+synthesis algorithm. Lookup-indexed native signature evidence checks kinds,
+field universe bounds, uniform parameters, result vectors and visible owners.
+
+`Proof.DependentTypingExamples` inhabits these interfaces for the dependent
+family D and a wrapper whose field and index types refer to D. It supplies
+ordinary/computed constructor typing, family formation, a B-dependent whole
+case and an open caller case. Constructor closing is now natively coherent.
+The fixture has no globals or builtin identities; it does not instantiate
+a new soundness theorem or establish literal-peeling compatibility.
+`Admitted` additionally exposes signature/context validity, scopes and the
+goal's native kind. Holes remain checkable; release finality is separate.
+
+Negative controls reject missing lookup/fields, bad declaration kinds/scope,
+field universe violations, wrong dependent parameters/indices, nonuniform
+results, missing/malformed coverage and foreign-owner branches. Unary motives
+and the executable's extensionally accepted misannotated motive are refuted
+under the stricter ordinary typed contract. Generic native inversions are
+checked against a conversion parameter and made abstract; separating these
+from concrete controls removes the observed elaboration memory blowup without
+new axioms or checker bypasses. The proof runner defaults to a 24 GiB GHC
+heap cap, not a hard total-process memory limit.
+
+The checkpoint passes all 68 Agda modules without warnings, the exact
+`funext`/`tree-decides` postulate guard, nine hygiene scanner tests and the
+empty bypass inventory. Full default ExUnit replay with seed 420051 completed:
+6,772 tests, zero failures, eight excluded, followed by 355 documentation
+snippets passed and zero failed. `VISUAL` was unset only in the subprocess;
+no test selection or exclusions changed. Strict Credo, formatting, shell
+syntax and whitespace checks pass. Earlier interrupted runs are not used
+as evidence of successful completion.
+
+This is the interface-review gate, NOT native substitution, progress or
+whole-case preservation. Existing `Core.Typing` and its closed-entry soundness
+consumers are unchanged. Native metatheory and consumer migration await
+review; executable extensional motive refinement, recursive verification/
+positivity and the other semantic/refinement obligations remain open.
+
+`Core.Coverage` is now connected to the active typing and proof consumers.
+`Proof.CoverageExamples` gives concrete Nat coverage in an environment also
+containing Bool and Void, without requiring unrelated Bool branches. It
+rejects missing Nat/ordinary constructors, wrong arities and wrong-arity
+first duplicates, admits empty-family coverage, and exercises coverage after
+renaming, substitution and real branch reduction. A typing-level refutation
+rejects an empty Nat case even through `⇒-conv` wrappers.
+
+This first coverage interface is deliberately conservative: it requires all
+constructors of the scrutinee family, not index-unification-based omission
+of impossible branches. The local witnesses are not a verified implementation
+of the kernel's indexed coverage checker.
+
+`Core.Verification` and `Proof.VerificationExamples` still contain candidate
+scoped dependent telescopes, membership-indexed signature scoping,
+reduction-based head exposure and parameter-aware frame operators.
+**Dependent admission and exposure remain candidates, not a complete
+replacement conversion relation.** The exact-arity field frame is connected
+to active substitution as described above. The
+coverage examples alone do not instantiate soundness. The separate
+`Proof.SoundnessModel` now inhabits the closed-entry theorem parameters,
+while dependent signature typing and executable correspondence remain open.
+The typing-level missing-case refutation is parameterised by abstract
+`Conversion`, without assuming `ReduceConv`.
+
+`Proof.ClosedFragmentExamples` provides an inhabited `ClosedFragmentSig`
+with registered Nat/Bool/Void families and a registered global type.
+Unregistered open family/constructor records do not obstruct the witness;
+registered open parameters, fields and results are rejected. A final
+boundary regression shows that a genuinely scoped dependent telescope
+inhabits the candidate `ScopedFamily` interface but **cannot** inhabit
+this individually-closed-entry fragment. These are signature-invariant
+examples, not a full executable soundness-model instance.
+
+`Proof.ConversionModel` supplies an actual inhabitant of **every conversion
+record field**, using a structurally terminating ζ-only interpretation.
+It proves commutation with renaming/substitution, head separation and Π
+component injectivity, using existing function extensionality and no new
+postulates or bypasses. Applications are uninterpreted; all constructors
+and literals deliberately map to one opaque leaf. This is a non-vacuity
+witness, **not faithful value conversion or NbE**.
+`Proof.ConversionExamples` exercises inference/checking inversion through
+let-wrapped types, constructor/literal family metadata, a registered global
+with a let-wrapped type, exact-universe rejection, and upward cumulative
+typing without universe equality. It also **refutes full `ReduceConv` for
+this witness using a well-typed β redex**. Thus record inhabitation does not
+silently become a full preservation/soundness-model claim.
+
+**Full formal reduction conversion — constructed.** `Core.LiteralExpansion`
+expands compact Nat/Bounded literals into distinct constructor towers while
+preserving all other term structure, values, grades, variables and binders.
+It commutes with renaming/substitution and preserves scoping and closed
+global bodies. `Proof.ExpansionSimulation` maps EVERY original reduction rule
+to a finite path in the expanded signature: β/ζ, ordinary and all literal
+ι rules, δ, and all congruences, including arbitrary branch-body paths.
+This is representation expansion, not erasure or an NbE algorithm.
+
+`Proof.ReductionConversion` defines equality by a common reduct of expanded
+terms. Checked confluence proves transitivity; rigid-head preservation and
+Π-path decomposition prove separation and component injectivity. All
+conversion fields and full `ReduceConv` for the ORIGINAL signature are
+supplied, using closed global bodies and existing function extensionality,
+with no new postulates or bypasses. Pointwise substitution congruence uses
+structural term induction, not a uniform bound on infinitely many entries.
+
+`Proof.SoundnessModel` jointly inhabits the EXISTING soundness hypotheses:
+registered Nat/Bounded families, positivity, local coverage, `BuiltinCtors`,
+`ClosedFragmentSig`, body finality, `CertifiedTyped`, the constructed
+conversion and full `ReduceConv`. Its finite global table contains a typed
+body at a let-wrapped declared type, whose kind is checked. It invokes
+actual β/ζ/ι/δ preservation and the constructive fuel theorem.
+The formal closed-entry baseline is therefore non-vacuous.
+Its BuiltinCtors-compatible Bounded family is explicitly **unindexed**;
+it is not the full executable dependent builtin signature.
+
+`Proof.ReductionConversionExamples` rejects unequal Nat/Bounded/Int values,
+universe/grade/family confusion and distinct holes. It also explicitly
+**refutes η between well-typed open functions in this model**. Thus neither η-aware
+executable conversion nor full dependent Cure soundness follows from this
+inhabited specification. Filtered/erased-frame correspondence, indexed coverage,
+typed erasure simulation, semantic totality and evaluator/readback
+refinement remain open.
+
+The postulate guard is supplemented by `proof/scripts/check-hygiene.py`,
+which rejects new holes, unreviewed options/postulate blocks, and changes to
+the reviewed check-bypass inventory. `Core.Parallel` now contains **no**
+termination overrides: generic `⇉*-at-spine` / `⇝*-at-spine` lifters carry
+source-alignment equations separately and recurse on the unchanged tail
+derivation. All six constructor/data spine wrappers and the complete
+parallel-to-small-step simulation are termination-checked. `Proof.SpineLifting`
+exercises two real reduction steps at a non-head position, unchanged neighbour
+fields/opposite data spines, zero-step paths, symbolic alignment, and simulation.
+The guard now forbids any check bypass anywhere in the proof tree.
+`Proof.Confluence`'s final override has been eliminated by redesign, not
+by assuming termination or another diamond. `Core.StrictParallel` uses only
+one-step premises, including branch bodies. `Proof.StrictConfluence` proves
+one-step substitution and a strong diamond; `Core.Relation` separately
+checks strip/closure recursion on the input paths. Both simulations recover
+confluence of the unchanged small-step relation with the original
+`ClosedBody` hypothesis. `ξ-case-brs` still admits arbitrary finite body
+paths, translated to strict-parallel closure rather than one strict step.
+`Proof.ConfluenceExamples` includes β/ζ overlaps, duplication, a newly
+exposed branch redex that cannot be compressed to one strict step, distinct
+fields/non-head updates, all literal peels and malformed arities, recursive
+δ, and normal-form uniqueness. No typing/conversion/termination oracle is
+used by this confluence theorem. Full formal conversion compatibility is
+constructed above; filtered/erased frames, η and the other implementation
+soundness/refinement obligations remain open.
+
+### Item-by-item evidence
+
+1. **Release firewall — implemented and regression-tested.** The ordinary
+   and lifted paths route through `Emit.reject_holes/2` (§3.4). Maintain
+   coverage when adding compilation/publication entry points.
    *Audited (this slice) — the firewall holds, and the audit's "running hole"
    could not be reproduced.* Findings:
    - Both `Emit` entry points guard: `compile_and_load/2` and
@@ -541,9 +1097,8 @@ determined adversary should look first.
      `test/cure/compiler/actor_family_raw_test.exs` calls the emitted
      `handle_cast/2`, `init/1`, `start_link/1` and drives a real
      `:gen_server` (5 tests, green).
-2. **Certificate generation is sound.** §5.3(2): the SCC closure in
-   `Cure.Elab.TotalityGraph` is outside the TCB. A bug there is invisible to the
-   kernel. This is the highest-value item to audit or move into the TCB.
+2. **Certificate verification and semantic termination.** The proposer is
+   outside the TCB; the finite SCC and closure verifiers are inside it.
    *Audited (this slice) — the design does NOT trust the proposer, and the
    verifier is tested against forged partitions.* Findings:
    - `TotalityGraph.propose_partition/2` is explicitly untrusted: it only
@@ -580,22 +1135,34 @@ determined adversary should look first.
      `SizeChange.compose_edges` and requiring `same_edge?`
      (`:composition_mismatch`); rejects cyclic derivations
      (`:cyclic_derivation`); and checks saturation — every composable pair of
-     edges must have its composite present (`:not_saturated`). It then
-     requires an idempotent edge with a smaller diagonal for each recursive
-     component (`{:not_total, …}` otherwise).
+     edges must have its composite present (`:closure_not_saturated`). It then
+     rejects **any idempotent self-edge without a smaller diagonal**
+     (`{:not_total, …}`); finding just one decreasing loop is not sufficient.
    - **The real residual is the TERMINATION THEOREM, not the matrices.** The
-     verifier establishes "this closure is saturated and has a smaller
-     diagonal". That such a closure implies termination is the size-change
-     principle itself — carried as the `Certified` hypothesis in the Agda
-     development. So §8.2 is narrowed to: SCC discovery is verifier-checked
+     verifier establishes "this closure is saturated and every idempotent
+     self-edge has a smaller diagonal". That this implies termination is the size-change
+     principle itself, together with sound semantic descent extraction.
+     Contrary to an earlier claim, Agda's `Certified` supplies only body
+     finality, not termination. So §8.2 is narrowed to: SCC discovery is verifier-checked
      and tamper-tested, matrix composition and saturation are verifier-checked,
      and the size-change *principle* remains an assumed theorem.
 3. **`Erase.erase` preserves the operational semantics.** Erasure is assumed to
    drop only `:erased`-graded binders, which the relevance check enforces — but
    the argument here does not prove erasure commutes with reduction.
    *Partial executable evidence (β, ζ, ι).* `test/cure/elab/erase_test.exs`
-   asserts the commutation property — `erase(reduce(redex)) ==
-   reduce(erase(redex))` — with both sides computed independently, on:
+   contains independent β substitution comparisons, let-collapse regressions,
+   and shape checks. The ζ/ι tests now evaluate erased original redexes
+   independently; the selected congruence tests reduce the erased subterm
+   rather than rebuilding it from the source reduct. These bounded raw-term
+   examples are not an operational preservation proof:
+
+   `test/cure/elab/erasure_simulation_test.exs` additionally kernel-checks
+   source definitions and compares their original Core evaluation with
+   independently emitted/executed BEAM. It covers direct/nested lets,
+   distinguishable first/last case fields, local global calls, and an erased
+   function parameter whose runtime arity shrinks. The source oracle does
+   not call erasure. These examples do not prove a universal simulation or
+   preservation of divergence.
 
    - **β** (`describe "erasure commutes with β-reduction"`, 3 tests): an
      erased argument, a present argument through an identity body, and a
@@ -626,10 +1193,13 @@ determined adversary should look first.
      erasing the UNFOLDED form treats the two arguments as over-application
      and keeps them. Two tests pin this (`describe "erasure and
      δ-reduction"`).
-     *Consequence for the argument:* erasure must run on the **unfolded**
-     Core — which is what the pipeline does — and "erasure commutes with δ"
-     is the **wrong property to prove**. The right one is that erasure is
-     applied once, after unfolding, so no δ step can invalidate it.
+     *Scope correction:* this fixture inserts an unchecked declaration with
+     a non-function body at a function type. It refutes a raw-syntax equality,
+     not a well-typed source/runtime simulation. The emitter calls
+     `Erase.erase(env, body)` directly in `real_function_form/3`; neither
+     complete prior unfolding nor a single erasure pass may be assumed.
+     The required theorem relates checked source execution to an erased
+     program/signature with its runtime arities and branch environment.
 
    - **Congruence cases** (`describe "erasure is a homomorphism over the term
      formers"`, 4 tests): the ξ-rules reduce a SUBTERM, and erasure recurses
@@ -637,39 +1207,82 @@ determined adversary should look first.
      homomorphism property directly — reducing a subterm then erasing equals
      erasing the whole term then reducing the corresponding erased subterm —
      for `app` (argument position), `lam` (body), `data` (spine element), and
-     `effect_bind` (effect position). This covers every ξ-rule at once rather
-     than one redex at a time.
+     `effect_bind` (effect position). These are selected structural checks,
+     not coverage of every ξ-rule or an independently executed simulation.
 
-   Still evidence, not a proof: the δ result above is a refutation rather than
-   a commutation lemma, and none of this is mechanised. A real proof would
-   need an Agda formalisation of `Erase` — the Agda tree has no `Erase`
-   module, so that is a new development rather than an extension.
+   **MECHANISED (new): `proof/Proof/Erase.agda`.** The Agda tree previously
+   had no `Erase` module; it now has one, and it is in `check.sh`:
+
+   - `eraseTerm` formalises structural recursion **with administrative let
+     collapse**: a let whose **erased body** is variable zero becomes its
+     erased value; surviving lets receive the unrestricted runtime grade.
+     These are the executable eraser's let rules.
+   - `erase-idem` — this structural erasure with let collapse is idempotent
+     (`eraseTerm ∘ eraseTerm ≡ eraseTerm`), PROVED with **no new postulates,
+     holes, or termination overrides**. `letStep-fixed` proves directly that
+     the Boolean-dispatched let constructor preserves fixed points, then the
+     term induction applies it to already-erased components.
+   - Definitional (`refl`) regressions cover identity collapse, nested collapse
+     exposed only after erasing the body, and surviving nonzero-variable
+     bodies with grade normalisation.
+
+   **Corrections to the earlier proof diagnosis.** A missing `Data.Nat.zero`
+   import previously made `tm-var zero` bind a fresh variable rather than
+   match index zero. That was not a failure of mutual recursion. A later
+   proposed bridge, `isVar0 b ≡ false → isVar0 (eraseTerm b) ≡ false`, is
+   **false**: `let y = var 0 in y` is not a variable, but erases to variable
+   zero. The correct test is on the erased body, and the fixed-point proof
+   aligns its second pass using body idempotence rather than transporting
+   that invalid bridge.
+
+   **What the mechanisation still omits.**
+   - Signature-dependent constructor/global argument filtering and its arity
+     guards. `eraseSpine` filters a supplied quantity vector (keeping excess
+     arguments), but is **not called by `eraseTerm`**. Constructor arguments
+     are recursively erased without filtering in `eraseTerm`. Consequently,
+     `erase-idem` does **not** prove idempotence of the full executable
+     `Erase.erase/2`, nor of applying `eraseSpine` twice with the same vector.
+   - the kernel's heuristic refinements (collapsible-family case elimination,
+     convoy discharge, the `cure_erased` placeholder) — optimisations whose
+     correctness is a separate obligation.
+
+   **Still not mechanised:** operational preservation. The target must account
+   for erased signatures, binders and runtime representations. The tests
+   provide bounded evidence; the unchecked δ fixture does not refute a
+   properly formulated typed simulation theorem.
 
 4. **The effect fragment is inert.** `{:effect_type,_}` / `{:effect_pure,_}` /
    `{:effect_bind,_,_}` have zero reduction rules by design (§1.1), so they
    cannot break Preservation — but a future monad law would have to be
-   re-argued.
+   re-argued. **Closed for the present Core specification:**
+   `Proof.EffectInert` proves single-step inversion and arbitrary finite-step
+   preservation of all three effect heads, with child reductions tracked.
+   These proofs use none of the refuted typing/conversion/coverage hypotheses.
+   `test/antigen/assays/effect_inert_test.exs` independently pins executable
+   skeleton preservation, payload normalisation, and rejection of monad laws.
+   This does not verify runtime execution of effectful BEAM code.
 5. **η and proof irrelevance.** Cure's NbE conversion DOES perform η:
    `Conv.conv_struct?/4` (`lib/cure/core/conv.ex`) compares a `vlam` against a
    non-`vlam` by applying both to a fresh neutral (`eta_eq?/4`), and compares
    `vlam` against `vlam` by grade equality plus the same η test.
-   *Scope, not a gap.* The mechanised `Conversion` record
+   *Open implementation correspondence.* The repaired `Conversion` record
    (`proof/Core/Typing.agda`) has **no** η field — no `≈-lam` congruence and
-   no "λ x. f x ≈ f" rule. This is a deliberate scope limit rather than an
-   unsoundness: η only makes conversion COARSER, and every proof obligation in
-   the development is discharged without it (verified by inspecting every
-   `Conversion.≈-*` use site in `proof/`). So the theorems hold for a
-   conversion relation that is a SUBSET of the kernel's, and anything proved
-   type-safe here is also type-safe under the kernel's coarser conversion. The
-   converse does not follow: a program the kernel accepts only by an η step is
-   not covered. Closing it needs an η-aware treatment; proof irrelevance is
-   likewise not modelled.
+   no "λ x. f x ≈ f" rule. The new common-reduct model supports FULL
+   formal reduction and compact literals, but explicitly rejects a neutral
+   function η equation. It is not an executable conversion refinement. Merely
+   adding more equalities does not automatically preserve type safety.
+   Closing this item requires a coherent declarative conversion relation,
+   η-aware head/injectivity and substitution proofs, and refinement of
+   `Eval`/`Quote`/`Normalise`/`Conv`. Checker soundness, completeness, and
+   termination are distinct obligations. Definitional proof irrelevance is
+   not established by proof erasure; no blanket such rule was found in the
+   inspected executable conversion.
 
 ---
 
 ## 9. Executable evidence
 
-The argument is not mechanised, but it is not untested. Each lemma has a
+The full implementation theorem is not mechanised, but it is not untested. Each lemma has a
 property-based assay that generates known-label cases and asserts the kernel
 agrees. The mapping:
 
@@ -702,10 +1315,13 @@ driven by first-order index unification, and δ-reduction is gated behind a
 size-change totality certificate. This document argues that it is sound —
 Progress and Preservation for the Core calculus — **conditional on** three side
 conditions (strict positivity, totality-gated δ, coverage), each enforced in
-code and each tested by an Antigen assay. The argument is written, not
-mechanised; §7 scopes the mechanisation, and §8 lists the items a mechanised or
-adversarial audit should attack first.
+code and each tested by an Antigen assay. Some syntactic/algebraic results are
+mechanised. Four historical interfaces are refuted and frozen; their active
+replacements now admit a joint formal closed-entry soundness instance with
+full reduction conversion, not a joint EXECUTABLE soundness model.
+§8 records the remaining dependent-signature and refinement obligations.
 
-The honest headline: **the kernel is sound in the cases that have been tested,
-and the argument for why it is sound in general is now written down where it can
-be attacked.**
+The honest headline: **the inspected executable paths have passing regression
+evidence; formal results include checked confluence, structural erasure
+idempotence, effect inertness and an inhabited closed-entry soundness model.
+Full executable kernel soundness is not yet certified by this Agda tree.**

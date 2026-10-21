@@ -45,25 +45,27 @@ open import Core.Signature using (just-inj)
 ------------------------------------------------------------------------
 -- Substituting a list of constructor arguments into a branch body.
 --
--- The branch binds `arity` fields; `args` are the fields in surface order.
--- The LAST field is de Bruijn 0 (matching `Eval.reduce_branch_body`, which
--- binds `reverse(fields) ++ base_env`). This is a SIMULTANEOUS substitution
--- (`substS`), the presentation used throughout the development: field i
--- (counting the last as 0) replaces de Bruijn index i, and indices above the
--- fields are left unchanged.
+-- argsSub consumes an ALREADY de Bruijn-ordered environment prefix.
+-- substArgs reverses surface-order fields before using it: the LAST field
+-- is at zero, matching Eval.reduce_branch_body's exact-arity field frame.
+-- Active branch typing uses the reversed telescope and reconstructs the
+-- constructor in surface order. Core.LocalFrame.fields-agree connects
+-- this substitution to declaration-order pushes for arbitrary bodies.
+--
+-- After consuming the prefix, remaining indices refer back to the caller
+-- context (the field count is removed), as argsSub-go-raise states.
 --
 -- The simultaneous form is not merely stylistic here: the former targeted
 -- definition (`substT` composed field-by-field) applied the substitutions in
 -- sequence, so a later `substT` could capture an earlier field inserted under
 -- a binder. One simultaneous substitution inserts every field at once, so no
--- field is re-scanned — matching the kernel's single `eval(body, reverse
--- fields ++ base_env)`.
+-- field is re-scanned. Full executable correspondence still needs
+-- parameter filtering, missing erased slots and dependent admission.
 ------------------------------------------------------------------------
--- The simultaneous substitution of a branch's fields: `args` in surface
--- order, the FIRST field at index 0 (matching `branch-field-vars ar =
--- [0, …, ar-1]` and the branch context `extendTele Γ (ctor-args ct)`, whose
--- FIRST telescope entry is innermost). Indices at or above the field count
--- are fixed.
+-- Environment-prefix worker: its FIRST entry maps to index zero.
+-- Above-prefix indices return to the caller's context rather than
+-- retaining their field-offset indices. Surface fields use substArgs,
+-- not argsSub directly; local declaration prefixes must NOT be reversed.
 -- The worker is exposed at the top level (rather than `where`-bound) so the
 -- metatheory can reason about the shape of `argsSub`'s images: the first
 -- `length args` indices map to the fields, the rest to variables.
@@ -88,7 +90,7 @@ argsSub-go-field k (y ∷ ys) zero = refl
 argsSub-go-field k (y ∷ ys) (suc i) = argsSub-go-field (suc k) ys i
 
 substArgs : List Term → Term → Term
-substArgs args b = substS (argsSub args) b
+substArgs args b = substS (argsSub (reverse args)) b
 
 ------------------------------------------------------------------------
 -- The δ-table: a signature mapping certified global names to their bodies.
@@ -120,9 +122,9 @@ findBranch c ((cn , ar , b) ∷ xs) with c ≟ cn
 ... | no _     = findBranch c xs
 
 -- `findBranch` is COMPLETE: if a branch named `c` is in the list, the lookup
--- finds a branch named `c`. Used by Progress's `case`/ι case to turn the
--- coverage witness (`Covers`) into the `findBranch c brs ≡ just (c , ar , b)`
--- premise of the ι rule.
+-- finds a branch named `c`. Local CaseCoverage now carries the stronger
+-- first-match equation with the required arity directly; this membership
+-- lemma remains available for other clients.
 findBranch-complete : ∀ c brs {ar b}
                     → (c , ar , b) ∈ brs
                     → ∃ λ ar′ → ∃ λ b′ → findBranch c brs ≡ just (c , ar′ , b′)
@@ -216,20 +218,26 @@ module _ (sig : Signature) where
       -- The constructor names are the builtin basenames (`Z`/`S`/`First`/`Next`),
       -- matching the kernel's `@builtin_ctor_aliases`; the metatheory uses the
       -- basename directly rather than the owner-qualified identity.
+      -- Each literal step carries its branch arity locally. Malformed raw
+      -- branches do exist; no global arity axiom is assumed.
       ι-nat-zero : ∀ {m brs ar b}
         → findBranch "Z" brs ≡ just ("Z" , ar , b)
+        → 0 ≡ ar
         → tm-case (tm-nat_lit 0) m brs ⇝ substArgs [] b
 
       ι-nat-suc : ∀ {m brs ar b n}
         → findBranch "S" brs ≡ just ("S" , ar , b)
+        → 1 ≡ ar
         → tm-case (tm-nat_lit (suc n)) m brs ⇝ substArgs (tm-nat_lit n ∷ []) b
 
       ι-bounded-zero : ∀ {m brs ar b}
         → findBranch "First" brs ≡ just ("First" , ar , b)
+        → 1 ≡ ar
         → tm-case (tm-bounded_lit 0) m brs ⇝ substArgs (tm-nat_lit 0 ∷ []) b
 
       ι-bounded-suc : ∀ {m brs ar b k}
         → findBranch "Next" brs ≡ just ("Next" , ar , b)
+        → 2 ≡ ar
         → tm-case (tm-bounded_lit (suc k)) m brs ⇝ substArgs (tm-nat_lit k ∷ tm-bounded_lit k ∷ []) b
 
 
