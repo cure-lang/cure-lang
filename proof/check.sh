@@ -156,6 +156,10 @@ MODULES=(
   Proof/NativeCertificateExamples
   Proof/NativeCertificateControls
   Proof/NativeCertificateSafety
+  Core/SyntaxEquality
+  Core/NativeRecipe
+  Proof/NativeRecipeExamples
+  Proof/NativeRecipeControls
 )
 
 fail=0

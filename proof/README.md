@@ -65,6 +65,25 @@ constructive fuel, finite-trace and guarded outcome-tree safety.
 dependent declarations, typed globals and real unindexed builtin layouts.
 These remain specification results, not executable kernel refinement.
 
+## Maintainer validation policy — 21 October 2026
+
+At the maintainer's explicit request, Mix/ExUnit test verification,
+documentation-snippet checks and stdlib/example verification are **not
+required for this soundness-proof work or its checkpoint commits**.
+Do not automatically run `mix test`, ExUnit suites, documentation checks or
+the `mix check` stdlib/example gate unless the maintainer requests them.
+Their omission is a deliberate validation-scope decision, not an unfinished
+proof task or a claim that those suites passed. Earlier recorded test results
+and cancellations remain historical evidence only.
+
+Required local checks remain the complete Agda runner, exact postulate and
+proof-hygiene guards, hygiene regression tests, applicable static analysis,
+formatting and whitespace checks. The waiver changes no theorem assumptions,
+trust roots, test selections/exclusions, performance thresholds, CI workflows
+or existing release requirements. See
+[`NEXT-STEPS.md`](NEXT-STEPS.md#validation-and-non-regression-requirements)
+for the proof-validation commands.
+
 ## What is being proved
 
 The object language is the **Core** calculus of `Cure.Core.Term`
@@ -1304,8 +1323,9 @@ from being mistaken for typing/termination proofs.
 The new exporter suite and prior boundary/frame/result/branch suites passed
 89 isolated pure-kernel tests (seed 938458) without the normal stdlib startup.
 This is not a replacement claim for the default Mix/ExUnit documentation
-alias or the separately cancelled stdlib/example gate. The default test
-configuration and exclusions are unchanged.
+alias or the separately cancelled stdlib/example gate. Those gates are not
+required for this proof effort under the maintainer policy above; the default
+test configuration and exclusions are unchanged.
 
 ### Acceptance-contract ledger for the first capture slice
 - **Represented, not admitted by capture:** universes through Type2,
@@ -1446,12 +1466,73 @@ and capture-versus-kernel failures. The focused isolated suite now has
 
 This connects checked finite native evidence for a concrete exported artifact
 to existing SPECIFICATION safety. It does not prove that Elixir capture or
-kernel acceptance produces such evidence, define a serialized native
-derivation replayer, validate semantic totality/positivity or refine NbE/eta,
-erasure, emission or BEAM execution. Default full Mix/ExUnit/docs and the
-stdlib/example gates remain unverified after earlier cancellations.
+kernel acceptance produces such evidence, define a complete serialized native
+derivation protocol, validate semantic totality/positivity or refine NbE/eta,
+erasure, emission or BEAM execution. Mix/ExUnit/docs and stdlib/example
+verification are not required for this proof effort at the maintainer's
+request; earlier cancellations are not passing results.
 Native typing/reduction, executable capture and generated fixture bytes
 are unchanged.
+
+### Bounded data-only native recipe replay
+`Core.SyntaxEquality` provides constructive `Dec (t ≡ u)` for the COMPLETE
+current formal Core syntax. It preserves grades, exact universe levels,
+names, signed literals, parameter/index partitioning and branch arities/bodies.
+Equality is derived from decidable internal code equality and a proved
+encode/decode retraction, without raw-head reflection or new axioms.
+The auxiliary total decoder may default on malformed internal codes:
+it is NOT an external decoder or validation boundary. Only equality of
+actual encoded Terms is used. Structural equality is not conversion.
+
+`Core.NativeRecipe.Recipe` and `Packet` are plain data: rule tags, child
+recipes, constructor parameter witnesses, asserted types and cumulative
+target levels. They contain no native derivations, conversion proofs,
+lookup evidence or target-typing callbacks. The total replayer checks an
+ACTUAL term/context and constructs native inference/checking/kind/spine
+derivations on success. It verifies assertions by structural equality,
+checks variable bounds and actual lookups, checks dependent spines with
+the local-prefix frame, exposes only syntactic Pi/sort heads, and proves
+the direction of explicit universe cumulativity.
+
+Supported rules are sorts, variables, global references, Atom literals,
+Atom/Float/Binary type formers, Pi/lambda/application/let and ordinary
+parameter-seeded data/constructors. There is no case, effect, hole/absurd,
+primitive Int or compact-literal rule, eta/NbE or non-reflexive conversion.
+`Nothing` means the supplied recipe failed this bounded protocol; it is
+NOT a refutation of all native typing. Relative inference success alone
+also does not establish signature/caller validity, goal kinding, release
+eligibility or termination.
+
+The global adapter checks kind/body recipes against the ACTUAL entry type
+and raw body, including hidden bodies. Missing or surplus body recipes
+fail. Success yields the existing finite `GlobalEvidence`, not a claim
+that a client-supplied annotation was correct.
+`Proof.NativeRecipeExamples` computes native evidence for the exported
+answer, held and packed globals, the local computed-index expression and
+dependent Pi/lambda/let examples. Its MIXED certificate uses those three
+replayed globals, existing manual family/constructor evidence and the
+existing MANUAL dependent-case proof. The fourth global is explicitly not
+replayed; a copied case packet fails. Native validity/admission and a
+fixed-goal safe trace are composed through this mixed certificate.
+A separate parameter-bearing Box registry exercises a genuine nonempty
+constructor witness and rejects a Float seed for an Atom field; this is
+relative native typing evidence, not an automatically certified registry.
+
+`Proof.NativeRecipeControls` computes failures for forged types/kinds/grades,
+bad indices, non-function applications, unknown names, missing/surplus
+spine recipes, invented parameters, downcasts and dropped hidden bodies.
+It proves that ANY recipe fails on a case node, including recursively
+asserted/cumulative wrappers. A beta-converted goal has an actual native
+typing derivation but fails exact-syntax replay, while a typed eta expansion
+remains structurally distinct from its neutral. Neither is silently promoted
+to supported conversion.
+
+This is a verified replayer for arbitrary values of a PROOF-FREE RECIPE AST,
+not yet a byte/JSON parser, Elixir recipe producer, complete certificate
+assembler or checker-acceptance refinement theorem. The next extension is
+checked conversion evidence and dependent case/declaration recipes before
+claiming automatic replay of the complete exported certificate. Existing
+exporter/fixture bytes, native rules and trust inventories are unchanged.
 
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
