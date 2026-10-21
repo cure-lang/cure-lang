@@ -169,7 +169,23 @@ result-parameter vector.
 Still open for this item: dependent case/motive/branch/coverage recipes and a
 derived (rather than per-field-recipe) account of the branch context's
 specialised field kinds, after which the complete exported certificate -- and
-therefore the fourth global's manual case proof -- can be assembled.
+therefore the fourth global's manual case proof -- can be assembled. Two
+concrete obligations were identified while scoping that step and are recorded
+here so they are not rediscovered:
+
+1. `Core.DependentTyping.Branches` requires the branch constructor's OWNER
+   record to be the case's scrutinee family, but `findCtor`/`findFamily`
+   agreement is only derivable under constructor/family NAME UNIQUENESS.
+   `Derive` therefore needs an owner-visibility parameter (the snapshot's
+   `Snapshot.owner-visible` discharges it; a singleton table is discharged by
+   membership inversion), which is an interface change, not a new axiom.
+2. A branch body is checked at `branchGoal`, which is the motive applied to
+   the specialised result indices and the surface constructor. For the
+   exported dependent case the recipe must therefore carry a CONVERSION
+   recipe for that curried motive application -- the manual proof is
+   `Proof.NativeCertificateExamples.pack-goal-converts` -- so case replay
+   cannot land before the conversion language covers `apps (shift …) …`
+   shapes, including the shifted-motive β chain.
 
 ## Current remaining work, in priority order
 1. Add dependent case, motive/branch/coverage recipes, then assemble the

@@ -1605,7 +1605,13 @@ a field universe overflow and a non-uniform result-parameter vector.
 
 This removes the manual declaration proofs from the exported certificate, not
 the manual dependent CASE: motive/branch/coverage recipes and the branch
-context's field kinds are still open, so the fourth global remains manual.
+context's field kinds are still open, so the fourth global remains manual. Two
+concrete prerequisites for that step are recorded in `NEXT-STEPS.md`: the
+`Branches` rule's `owner ≡ family` premise needs constructor/family name
+uniqueness (an owner-visibility parameter, discharged by the snapshot's
+`owner-visible`), and each branch body is checked at `branchGoal`, a curried
+motive application whose recipe needs the shifted-motive β chain that the
+manual `pack-goal-converts` proof currently supplies by hand.
 Scope is decided for the whole current Core syntax, but the branch context is
 currently reconstructed only through per-field recipes (a typed-substitution
 derivation of specialised field kinds is a separate theorem).
