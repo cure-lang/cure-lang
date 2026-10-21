@@ -1509,11 +1509,11 @@ fail. Success yields the existing finite `GlobalEvidence`, not a claim
 that a client-supplied annotation was correct.
 `Proof.NativeRecipeExamples` computes native evidence for the exported
 answer, held and packed globals, the local computed-index expression and
-dependent Pi/lambda/let examples. Its MIXED certificate uses those three
-replayed globals, existing manual family/constructor evidence and the
-existing MANUAL dependent-case proof. The fourth global is explicitly not
-replayed; a copied case packet fails. Native validity/admission and a
-fixed-goal safe trace are composed through this mixed certificate.
+dependent Pi/lambda/let examples. At THIS stage the certificate was still
+mixed: three replayed globals, manual family/constructor evidence and the
+manual dependent-case proof, with a copied case packet failing. Later
+sections replace both remaining halves with recipes, so the historical
+mixed certificate is no longer what the composed theorem consumes.
 A separate parameter-bearing Box registry exercises a genuine nonempty
 constructor witness and rejects a Float seed for an Atom field; this is
 relative native typing evidence, not an automatically certified registry.
@@ -1521,8 +1521,9 @@ relative native typing evidence, not an automatically certified registry.
 `Proof.NativeRecipeControls` computes failures for forged types/kinds/grades,
 bad indices, non-function applications, unknown names, missing/surplus
 spine recipes, invented parameters, downcasts and dropped hidden bodies.
-It proves that ANY recipe fails on a case node, including recursively
-asserted/cumulative wrappers. A beta-converted goal has an actual native
+It proved that ANY recipe failed on a case node at THIS stage; after case
+replay lands, the honest statement is that only a recipe CONTAINING an
+`r-case` node can replay a case (the `NoCase` grammar in the same module). A beta-converted goal has an actual native
 typing derivation but fails exact-syntax replay, while a typed eta expansion
 remains structurally distinct from its neutral. Neither is silently promoted
 to supported conversion.
@@ -1572,8 +1573,9 @@ versus `A`), a ζ/β transitivity chain, compact-literal identifications, a δ
 goal against a local alias signature and kind discovery through a β-redex
 declared type. `Proof.NativeRecipeControls` retains the exact-syntax failure
 for the same β-converted goal and adds the rejections above plus both attempts
-to manufacture η. The mixed certificate is unchanged: the exported dependent
-case is still MANUAL.
+to manufacture η. At THIS stage the certificate was still mixed, with the
+exported dependent case manual; the case-replay section below removes that
+last manual proof.
 
 ### Replayed family and constructor declarations
 `Core.NativeRecipe` also replays the DECLARATION evidence the finite
@@ -1603,18 +1605,66 @@ whole FAMILY half from those recipes instead of the manual proof objects.
 derivation, surplus/missing constructor recipes, a wrong result-index recipe,
 a field universe overflow and a non-uniform result-parameter vector.
 
-This removes the manual declaration proofs from the exported certificate, not
-the manual dependent CASE: motive/branch/coverage recipes and the branch
-context's field kinds are still open, so the fourth global remains manual. Two
-concrete prerequisites for that step are recorded in `NEXT-STEPS.md`: the
-`Branches` rule's `owner ≡ family` premise needs constructor/family name
-uniqueness (an owner-visibility parameter, discharged by the snapshot's
-`owner-visible`), and each branch body is checked at `branchGoal`, a curried
-motive application whose recipe needs the shifted-motive β chain that the
-manual `pack-goal-converts` proof currently supplies by hand.
-Scope is decided for the whole current Core syntax, but the branch context is
-currently reconstructed only through per-field recipes (a typed-substitution
-derivation of specialised field kinds is a separate theorem).
+This removes the manual declaration proofs from the exported certificate; the
+dependent CASE is replayed by the next section. Scope is decided for the whole
+current Core syntax, but the branch context is reconstructed through per-field
+kind recipes (a typed-substitution derivation of specialised field kinds is a
+separate theorem, not assumed).
+
+### Replayed dependent case and the complete exported certificate
+`Derive` also replays case ELIMINATION. `r-case` carries the scrutinee recipe,
+both scrutinee spines, the motive LEVEL (asserted), a kind recipe for
+`motiveType … level`, a motive recipe and one `(field kind recipes, body
+recipe)` pair per branch, in branch order. The replayer derives:
+
+- the scrutinee's inference, exposing a syntactic `tm-data` shape through a
+  checked view (no reflected raw type is trusted);
+- `WellFormed` of the ambient context, reconstructed for the EMPTY context
+  only — a case under a binder is outside this bounded context;
+- the family lookup and both parameter/index spines;
+- `Motive`: scope decided, the motive type's sort replayed, and the motive
+  inferred at that exact curried contract;
+- `Branches`: for each branch, its constructor lookup, the owner-name check,
+  the branch arity against the constructor's field count, a branch context
+  REBUILT by `opened-fields` (each specialised field type re-scoped and
+  re-kinded with a recipe), and the body checked at its `branchGoal`;
+- `CaseCoverage`, replayed by ENUMERATING every registered constructor and
+  matching its branch arity. A builtin-registered environment is outside this
+  protocol (the snapshot has none), so no canonical builtin branches are
+  guessed.
+
+The `Branches` rule's `owner ≡ family` premise needs constructor/family name
+uniqueness. `Derive` therefore takes an explicit `owner-visible` hypothesis,
+which the canonical snapshot discharges through `Snapshot.owner-visible`;
+`singleton-owner` discharges it for a one-family table. It is an interface
+change, not an axiom.
+
+Because a branch body is checked at `branchGoal` — the motive applied to the
+specialised result indices and the surface constructor — each branch recipe
+needs a CONVERSION recipe for that curried application. The exported fixture
+needs two β steps for the ordinary constructor and three for the computed
+index; the recipe names the interior redex, and `c-trans` checks both halves.
+
+`Proof.NativeRecipeExamples` now replays the whole exported artifact: the
+family, both constructors, all four globals — including the dependent case
+whose synthesized type is proved EQUAL to the curried motive application at
+the scrutinee's index and value — and every branch body, branch context and
+local coverage. `certificate` assembles one `Evidence` value from those
+recipes, `validity` derives the full signature validity from it, and the
+fixed-goal safe trace is composed from the replayed certificate rather than
+any manual proof object. `Proof.NativeRecipeControls` proves that ONLY a case
+recipe can replay a case (a `NoCase` grammar rejects every wrapper of a
+non-case recipe), and rejects a missing/surplus branch recipe, a wrong motive
+recipe/level/kind, short field recipes, an unchecked branch body, a wrong
+branch arity, an unknown branch constructor, real missing coverage, a
+non-data scrutinee, a case under a binder and a well-justified conversion
+smuggled in as the case's assertion.
+
+This still decides the EXISTING representation grammar, not native typing: a
+successful replay yields a native derivation for the represented term, with no
+claim that Elixir acceptance produces such a recipe, no η/NbE refinement, and
+no byte/JSON parser or Elixir producer. Semantic positivity, totality
+certification, typed erasure and lowering are untouched.
 
 This is a replayable conversion-derivation language for the EXISTING abstract
 `Conversion` record. It is not an NbE/readback refinement, a normalization

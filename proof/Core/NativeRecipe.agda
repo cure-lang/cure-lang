@@ -14,14 +14,16 @@
 ------------------------------------------------------------------------
 module Core.NativeRecipe where
 
+open import Data.Empty using (⊥-elim)
 open import Data.Nat using (ℕ; zero; suc; _+_; _<_)
 open import Data.List.Relation.Unary.Any using (here; there)
 import Data.List.Relation.Unary.All as All
+open import Data.List.Membership.Propositional using (_∈_)
 import Data.Nat.Properties as Nat
 import Data.Fin as Fin
-open import Data.List using (List; []; _∷_; reverse; length)
+open import Data.List using (List; []; _∷_; _++_; reverse; length)
 open import Data.Maybe using (Maybe; just; nothing)
-open import Data.Product using (∃; _,_)
+open import Data.Product using (∃; _×_; _,_; proj₁; proj₂)
 import Data.String.Properties as String
 open import Data.Unit using (tt)
 open import Relation.Nullary using (Dec; yes; no)
@@ -32,7 +34,8 @@ open import Core.Grade using (Grade)
 open import Core.Universe
   using (Level; l0; l1; l2; succLevel; _⊔ˡ_; _≤ˡ_; l≤-refl; l0≤l1; l0≤l2; l1≤l2)
 open import Core.Signature
-open import Core.Reduction using (Signature; _⇝_; β; ζ; δ)
+open import Core.Coverage using (CaseCoverage; HasBranch; lookup-ctor-members)
+open import Core.Reduction using (Signature; _⇝_; β; ζ; δ; findBranch)
 open import Core.Typing
   using (Ctx; ⟨⟩; _▷_; extend; lookup; Conversion; All2; a2[]; a2∷)
 import Core.LocalFrame as Frame
@@ -42,6 +45,24 @@ import Core.NativeCertificate as Certificate
 import Core.ExecutableSnapshot as Input
 import Core.ExecutableReplay as Payloads
 import Core.CanonicalSnapshot as S
+
+------------------------------------------------------------------------
+-- A SCRUTINEE SHAPE VIEW. `⇒-case` needs the scrutinee's inference to end
+-- at a syntactic `tm-data` type; this view exposes the components and the
+-- checked equation instead of trusting recipe data.
+------------------------------------------------------------------------
+
+record DataShape (T : Term) : Set where
+  constructor data-shape
+  field
+    data-name : Name
+    data-params : List Term
+    data-indices : List Term
+    data-equal : T ≡ tm-data data-name data-params data-indices
+
+shape? : (T : Term) → Maybe (DataShape T)
+shape? (tm-data name ps is) = just (data-shape name ps is refl)
+shape? other = nothing
 
 ------------------------------------------------------------------------
 -- CONVERSION RECIPES — untrusted data, checked into a derivation.
@@ -87,6 +108,125 @@ data Recipe : Set where
   -- reconstructs a conversion from the child's actual type to it. The
   -- target is untrusted data: it is checked, not assumed.
   r-convert : Term → ConvRecipe → Recipe → Recipe
+  -- DEPENDENT CASE. Scrutinee recipe, scrutinee parameter/index spines,
+  -- the motive LEVEL (asserted), a kind recipe for `motiveType … level`, a
+  -- motive recipe, and per-branch (field kind recipes, body recipe) in
+  -- branch order.
+  r-case : Recipe → List Recipe → List Recipe → Level → Recipe → Recipe
+    → List (List Recipe × Recipe) → Recipe
+
+------------------------------------------------------------------------
+-- ENVIRONMENT UNIQUENESS AND BRANCH COVERAGE.
+--
+-- `Branches` requires the branch constructor's OWNER record to be the
+-- case's scrutinee family. First-match lookup only provides that under
+-- name uniqueness, so the replayer takes it as an explicit environment
+-- hypothesis (the canonical snapshot derives it from unique keys).
+-- Coverage is replayed by ENUMERATING the registered constructors; a
+-- builtin-registered environment is outside this protocol, matching the
+-- builtin-free snapshot view.
+------------------------------------------------------------------------
+
+-- First-match lookup of a family finds its own head, for ANY name. The
+-- string decision is case-split rather than evaluated, so this holds for
+-- a symbolic family name.
+findFamily-head : ∀ {f : Family} {fs : List Family}
+  → findFamily (fam-name f) (f ∷ fs) ≡ just f
+findFamily-head {f} with String._≟_ (fam-name f) (fam-name f)
+... | yes refl = refl
+... | no different = ⊥-elim (different refl)
+
+-- In a SINGLETON environment the constructor's owner is the family found
+-- by name. This discharges the uniqueness hypothesis for small tables.
+singleton-owner : ∀ {name family ctor} {f : Family}
+  → findCtor name (f ∷ []) ≡ just (family , ctor)
+  → findFamily (fam-name family) (f ∷ []) ≡ just family
+singleton-owner {name} {family} {ctor} {f} found with findCtorIn name (fam-ctors f)
+... | nothing = ⊥-elim (nothing≠just found)
+... | just c = subst (λ fam → findFamily (fam-name fam) (f ∷ []) ≡ just fam)
+  (cong proj₁ (just-inj found)) (findFamily-head {f = f})
+
+-- `findBranch` returns the QUERIED name in its first component.
+findBranch-name : ∀ c brs {b : Branch} → findBranch c brs ≡ just b → proj₁ b ≡ c
+findBranch-name c [] ()
+findBranch-name c ((cn , bar , body) ∷ bs) {b} found with String._≟_ c cn
+... | yes refl = sym (cong proj₁ (just-inj found))
+... | no different = findBranch-name c bs found
+
+-- A branch with exactly this arity, computed from the ACTUAL branch list.
+branch-at : (c : Name) (ar : ℕ) (brs : List Branch) → Maybe (HasBranch c ar brs)
+branch-at c ar brs with findBranch c brs in found
+... | nothing = nothing
+... | just (cn , bar , body) with Nat._≟_ bar ar
+...   | no unequal = nothing
+...   | yes refl = just (body ,
+      cong (λ nm → just (nm , bar , body)) (findBranch-name c brs found))
+
+-- Every constructor of one family is covered (listed in declaration order).
+family-branches : (ctors : List Ctor) (brs : List Branch)
+  → Maybe (∀ {ct} → ct ∈ ctors → HasBranch (ctor-name ct) (length (ctor-args ct)) brs)
+family-branches [] brs = just (λ ())
+family-branches (c ∷ cs) brs with branch-at (ctor-name c) (length (ctor-args c)) brs
+... | nothing = nothing
+... | just here-branch with family-branches cs brs
+...   | nothing = nothing
+...   | just rest = just (λ { (here refl) → here-branch ; (there p) → rest p })
+
+-- Every constructor of EVERY registered family is covered.
+all-branches : (families : List Family) (brs : List Branch)
+  → Maybe (∀ {f ct} → f ∈ families → ct ∈ fam-ctors f
+    → HasBranch (ctor-name ct) (length (ctor-args ct)) brs)
+all-branches [] brs = just (λ ())
+all-branches (f ∷ fs) brs with family-branches (fam-ctors f) brs
+... | nothing = nothing
+... | just this with all-branches fs brs
+...   | nothing = nothing
+...   | just rest = just (λ { (here refl) → this ; (there p) → rest p })
+
+-- The `ctor-covered` obligation, using the ACTUAL first-match lookup.
+ctor-has-branch : (ind : IndEnv) (brs : List Branch)
+  (covered : ∀ {f ct} → f ∈ IndEnv.families ind → ct ∈ fam-ctors f
+    → HasBranch (ctor-name ct) (length (ctor-args ct)) brs)
+  → ∀ {c f ct} → findCtor c (IndEnv.families ind) ≡ just (f , ct)
+  → HasBranch c (length (ctor-args ct)) brs
+ctor-has-branch ind brs covered {c} {f} {ct} found =
+  subst (λ nm → HasBranch nm (length (ctor-args ct)) brs)
+    (sym ctor-name-eq) (covered f-member ct-member)
+  where
+    members = lookup-ctor-members {c = c} {fs = IndEnv.families ind} found
+    f-member : f ∈ IndEnv.families ind
+    f-member = proj₁ members
+    ct-member : ct ∈ fam-ctors f
+    ct-member = proj₁ (proj₂ members)
+    ctor-name-eq : c ≡ ctor-name ct
+    ctor-name-eq = proj₂ (proj₂ members)
+
+-- Coverage for a builtin-free environment. The two equations are the
+-- CHECKED absence of builtin identities; a registered identity would
+-- demand extra canonical branches, so this protocol fails there rather
+-- than guessing their shapes.
+coverage-free : (ind : IndEnv) (family-name : Name) (brs : List Branch)
+  (covered : ∀ {f ct} → f ∈ IndEnv.families ind → ct ∈ fam-ctors f
+    → HasBranch (ctor-name ct) (length (ctor-args ct)) brs)
+  (nat-none : IndEnv.builtins ind "nat" ≡ nothing)
+  (bounded-none : IndEnv.builtins ind "bounded" ≡ nothing)
+  → CaseCoverage ind family-name brs
+coverage-free ind family-name brs covered nat-none bounded-none = record
+  { ctor-covered = λ {c} {f} {ct} found owner → ctor-has-branch ind brs covered found
+  ; nat-zero-covered = λ eq → ⊥-elim (nothing≠just (trans (sym nat-none) eq))
+  ; nat-suc-covered = λ eq → ⊥-elim (nothing≠just (trans (sym nat-none) eq))
+  ; bounded-zero-covered = λ eq → ⊥-elim (nothing≠just (trans (sym bounded-none) eq))
+  ; bounded-suc-covered = λ eq → ⊥-elim (nothing≠just (trans (sym bounded-none) eq)) }
+
+coverage? : (ind : IndEnv) (family-name : Name) (brs : List Branch)
+  → Maybe (CaseCoverage ind family-name brs)
+coverage? ind family-name brs with all-branches (IndEnv.families ind) brs
+... | nothing = nothing
+... | just covered with IndEnv.builtins ind "nat" in nat-eq
+...   | just nat-name = nothing
+...   | nothing with IndEnv.builtins ind "bounded" in bounded-eq
+...     | just builtin-name = nothing
+...     | nothing = just (coverage-free ind family-name brs covered nat-eq bounded-eq)
 
 ------------------------------------------------------------------------
 -- DECLARATION RECIPES. Telescope entries are NOT recipe data: they are
@@ -219,7 +359,14 @@ grade-eq? g h with Nat._≟_ (Syntax.grade-number g) (Syntax.grade-number h)
 ... | no different = no (λ { refl → different refl })
 
 module Derive (ind : IndEnv) (sig : Signature) (conv : Conversion)
-  (reduce : ∀ {t u} → _⇝_ sig t u → Conversion._≈_ conv t u) where
+  (reduce : ∀ {t u} → _⇝_ sig t u → Conversion._≈_ conv t u)
+  -- ENVIRONMENT UNIQUENESS of the constructor OWNER. `Branches` requires
+  -- the branch's owner record to be the case's family; first-match lookup
+  -- only yields that under name uniqueness, which the canonical snapshot
+  -- derives from its unique-key evidence.
+  (owner-visible : ∀ {name family ctor}
+    → findCtor name (IndEnv.families ind) ≡ just (family , ctor)
+    → findFamily (fam-name family) (IndEnv.families ind) ≡ just family) where
   module N = Native.Typing ind sig conv
   open Conversion conv
 
@@ -414,6 +561,45 @@ module Derive (ind : IndEnv) (sig : Signature) (conv : Conversion)
     ... | just arguments = just
       (tm-data (fam-name family) ps (Frame.instantiateResults ps args (ctor-indices ctor)) ,
         N.⇒-ctor found params arguments)
+    -- DEPENDENT CASE. Every premise is replayed: the scrutinee's data
+    -- type, both parameter/index spines, the typed curried motive (at an
+    -- ASSERTED level), the branch bodies at their `branchGoal` inside a
+    -- RECONSTRUCTED well-formed branch context, and local coverage.
+    infer Γ (tm-case scrutinee motive-term brs)
+      (r-case scrutinee-recipe parameter-recipes index-recipes level
+        kind-recipe motive-recipe branch-recipes)
+      with infer Γ scrutinee scrutinee-recipe
+    ... | nothing = nothing
+    ... | just (inferred , scrutinee-typed) with shape? inferred
+    ...   | nothing = nothing
+    ...   | just shape with context? Γ
+    ...     | nothing = nothing
+    ...     | just context-wf
+      with findFamily (DataShape.data-name shape) (IndEnv.families ind) in family-found
+    ...       | nothing = nothing
+    ...       | just family
+      with spine Γ [] (DataShape.data-params shape) (fam-params family) parameter-recipes
+    ...         | nothing = nothing
+    ...         | just parameters
+      with spine Γ (reverse (DataShape.data-params shape)) (DataShape.data-indices shape)
+             (fam-indices family) index-recipes
+    ...           | nothing = nothing
+    ...           | just indices
+      with motive-proof Γ family (DataShape.data-params shape) motive-term level
+             kind-recipe motive-recipe
+    ...             | nothing = nothing
+    ...             | just motive-proof
+      with branches Γ family (DataShape.data-name shape) (DataShape.data-params shape)
+             motive-term brs branch-recipes family-found context-wf
+    ...               | nothing = nothing
+    ...               | just branches-typed
+      with coverage? ind (DataShape.data-name shape) brs
+    ...                 | nothing = nothing
+    ...                 | just coverage = just
+      ( Native.apps motive-term (DataShape.data-indices shape ++ scrutinee ∷ []) ,
+        N.⇒-case context-wf family-found
+          (subst (λ T → N._⊢_⇒_ Γ scrutinee T) (DataShape.data-equal shape) scrutinee-typed)
+          parameters indices motive-proof branches-typed coverage )
     infer Γ t recipe = nothing
 
     at : ∀ {n} (Γ : Ctx n) (t T : Term) → Recipe → Maybe (N._⊢_⇒_ Γ t T)
@@ -490,6 +676,80 @@ module Derive (ind : IndEnv) (sig : Signature) (conv : Conversion)
     ...       | just (size , Δ , declared , rest) =
       just (size , Δ , N.dt∷ scoped kinded declared , below-cap , rest)
 
+    ------------------------------------------------------------------
+    -- CASE REPLAY. The ambient context's well-formedness is
+    -- RECONSTRUCTED only for the empty context: a case under a binder
+    -- needs the extended context's kinds, which are not recipe data.
+    ------------------------------------------------------------------
+
+    context? : ∀ {n} (Γ : Ctx n) → Maybe (N.WellFormed Γ)
+    context? ⟨⟩ = just N.wf[]
+    context? (Γ ▷ T) = nothing
+
+    motive-proof : ∀ {n} (Γ : Ctx n) (family : Family) (ps : List Term)
+      (motive-term : Term) (level : Level) (kind-recipe motive-recipe : Recipe)
+      → Maybe (N.Motive Γ family ps motive-term level)
+    motive-proof {n} Γ family ps motive-term level kind-recipe motive-recipe
+      with scope? n motive-term
+    ... | nothing = nothing
+    ... | just scoped with kind Γ (Native.motiveType family ps level) kind-recipe
+    ...   | nothing = nothing
+    ...   | just (u , kinded)
+      with at Γ motive-term (Native.motiveType family ps level) motive-recipe
+    ...     | nothing = nothing
+    ...     | just typed = just (N.motive scoped kinded typed)
+
+    -- Open a declaration telescope as a WELL-FORMED branch context: each
+    -- specialised field type is re-checked (scope + kind recipe) inside
+    -- the context accumulated so far.
+    opened-fields : ∀ {n} (Γ : Ctx n) (σ : Sub) (tele : Telescope)
+      (recipes : List Recipe)
+      → N.WellFormed Γ
+      → Maybe (∃ λ m → ∃ λ (Δ : Ctx m) → N.WellFormed Δ × Native.Opened Γ σ tele Δ)
+    opened-fields Γ σ [] [] wf = just (_ , Γ , wf , Native.op[])
+    opened-fields Γ σ [] (recipe ∷ recipes) wf = nothing
+    opened-fields Γ σ (entry ∷ tele) [] wf = nothing
+    opened-fields {n} Γ σ ((name , T) ∷ tele) (recipe ∷ recipes) wf
+      with scope? n (substS σ T)
+    ... | nothing = nothing
+    ... | just scoped with kind Γ (substS σ T) recipe
+    ...   | nothing = nothing
+    ...   | just (level , kinded)
+      with opened-fields (extend Γ (substS σ T)) (extSub σ) tele recipes
+             (N.wf∷ wf scoped kinded)
+    ...     | nothing = nothing
+    ...     | just (m , Δ , wf-Δ , opened) = just (m , Δ , wf-Δ , Native.op∷ opened)
+
+    branches : ∀ {n} (Γ : Ctx n) (family : Family) (family-name : Name)
+      (ps : List Term) (motive-term : Term) (brs : List Branch)
+      (recipes : List (List Recipe × Recipe))
+      → findFamily family-name (IndEnv.families ind) ≡ just family
+      → N.WellFormed Γ
+      → Maybe (N.Branches Γ family ps motive-term brs)
+    branches Γ family family-name ps motive-term [] [] found wf = just N.br[]
+    branches Γ family family-name ps motive-term [] (r ∷ rs) found wf = nothing
+    branches Γ family family-name ps motive-term (b ∷ bs) [] found wf = nothing
+    branches Γ family family-name ps motive-term
+      ((name , arity , body) ∷ bs) ((field-recipes , body-recipe) ∷ recipes) found wf
+      with findCtor name (IndEnv.families ind) in ctor-found
+    ... | nothing = nothing
+    ... | just (owner , ctor) with String._≟_ (fam-name owner) family-name
+    ...   | no different = nothing
+    ...   | yes refl with Nat._≟_ arity (length (ctor-args ctor))
+    ...     | no unequal = nothing
+    ...     | yes refl
+      with opened-fields Γ (Frame.advance ps Frame.identity) (ctor-args ctor)
+             field-recipes wf
+    ...       | nothing = nothing
+    ...       | just (m , Δ , wf-Δ , opened)
+      with checking Δ body (Native.branchGoal name ps ctor motive-term) body-recipe
+    ...         | nothing = nothing
+    ...         | just typed with branches Γ family family-name ps motive-term bs recipes found wf
+    ...           | nothing = nothing
+    ...           | just rest = just
+      (N.br∷ ctor-found (just-inj (trans (sym (owner-visible ctor-found)) found))
+        opened wf-Δ typed rest)
+
   ----------------------------------------------------------------------
   -- Family and constructor declaration replay. The telescopes come from
   -- the actual declaration; the recipe supplies one kind derivation per
@@ -550,6 +810,7 @@ module Globals (source : Input.Input) (metadata : Input.Accepted source)
     → Conversion._≈_ conv t u) where
   module C = Certificate.Certificates source metadata payloads conv
   module D = Derive (S.Snapshot.ind C.R.snapshot) (S.Snapshot.sig C.R.snapshot) conv reduce
+    (S.Snapshot.owner-visible C.R.snapshot)
   body-proof : (goal : Term) (body : Maybe Term) → Maybe Recipe → Maybe (C.BodyTyped goal body)
   body-proof goal nothing nothing = just tt
   body-proof goal nothing (just recipe) = nothing

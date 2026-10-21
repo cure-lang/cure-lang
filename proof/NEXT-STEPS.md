@@ -166,43 +166,62 @@ vectors, a non-kind field derivation, surplus/missing constructor recipes, a
 wrong result-index recipe, field universe overflow and a non-uniform
 result-parameter vector.
 
-Still open for this item: dependent case/motive/branch/coverage recipes and a
-derived (rather than per-field-recipe) account of the branch context's
-specialised field kinds, after which the complete exported certificate -- and
-therefore the fourth global's manual case proof -- can be assembled. Two
-concrete obligations were identified while scoping that step and are recorded
-here so they are not rediscovered:
+## Dependent case replay and the complete exported certificate
+`Core.NativeRecipe.r-case` carries the scrutinee recipe, both scrutinee
+spines, the motive LEVEL (asserted), a kind recipe for `motiveType … level`, a
+motive recipe and one `(field kind recipes, body recipe)` pair per branch in
+branch order. From those the replayer derives the scrutinee's data shape
+through a checked view, `WellFormed` of the ambient context (reconstructed for
+the empty context only), the family lookup and both spines, `Motive` (scope
+decided, the motive type's sort replayed, the motive inferred at that exact
+curried contract), `Branches` (constructor lookup, owner-name check, branch
+arity against the constructor's field count, a branch context rebuilt entry by
+entry with re-scoped/re-kinded specialised field types, and the body checked
+at its `branchGoal`) and `CaseCoverage` (replayed by enumerating every
+registered constructor and matching branch arity; a builtin-registered
+environment is outside this protocol).
 
-1. `Core.DependentTyping.Branches` requires the branch constructor's OWNER
-   record to be the case's scrutinee family, but `findCtor`/`findFamily`
-   agreement is only derivable under constructor/family NAME UNIQUENESS.
-   `Derive` therefore needs an owner-visibility parameter (the snapshot's
-   `Snapshot.owner-visible` discharges it; a singleton table is discharged by
-   membership inversion), which is an interface change, not a new axiom.
-2. A branch body is checked at `branchGoal`, which is the motive applied to
-   the specialised result indices and the surface constructor. For the
-   exported dependent case the recipe must therefore carry a CONVERSION
-   recipe for that curried motive application -- the manual proof is
-   `Proof.NativeCertificateExamples.pack-goal-converts` -- so case replay
-   cannot land before the conversion language covers `apps (shift …) …`
-   shapes, including the shifted-motive β chain.
+Two obligations that blocked this step are now discharged interface changes
+rather than open questions. `Branches`'s `owner ≡ family` premise needs
+constructor/family name uniqueness, so `Derive` takes an `owner-visible`
+hypothesis: the canonical snapshot discharges it via
+`Snapshot.owner-visible`, and `singleton-owner` discharges it for a one-family
+table. And because a branch body is checked at `branchGoal`, each branch
+recipe carries a CONVERSION recipe for that curried motive application; the
+fixture needs two β steps for the ordinary constructor and three for the
+computed index, with the interior redex named and both halves of each
+`c-trans` checked.
+
+The examples now replay the whole exported artifact -- family, both
+constructors, all four globals (including the dependent case, whose
+synthesized type is proved EQUAL to the curried motive application at the
+scrutinee's index and value) and every branch body/context/coverage -- and
+assemble one `Evidence` from recipes, from which signature validity and the
+fixed-goal safe trace follow. Controls prove that ONLY a case recipe can
+replay a case, and reject missing/surplus branch recipes, a wrong motive
+recipe/level/kind, short field recipes, an unchecked branch body, a wrong
+branch arity, an unknown branch constructor, real missing coverage, a
+non-data scrutinee, a case under a binder and a well-justified conversion
+smuggled in as the assertion.
+
+This remains replay for represented inputs. Extraction fidelity, an Elixir
+producer, η/NbE refinement, a derived (rather than per-field-recipe) account
+of specialised field kinds, semantic positivity/totality, typed erasure and
+lowering are separate obligations; none is claimed here.
 
 ## Current remaining work, in priority order
-1. Add dependent case, motive/branch/coverage recipes, then assemble the
-   complete exported certificate without the remaining manual
-   fourth-global case proof.
-2. Define and validate the serialized byte/JSON format and Elixir producer.
+1. Define and validate the serialized byte/JSON format and Elixir producer.
    Prove representation fidelity, snapshot/context correspondence and the
    connection between actual kernel acceptance and checked native evidence.
-3. Refine executable evaluation, normalization, readback and conversion,
+2. Refine executable evaluation, normalization, readback and conversion,
    including eta, certified delta, stuck-case policy and builtin computation.
    Resolve the stricter native versus executable motive contracts explicitly.
-4. Extend the proved executable fragment to the remaining literal/payload,
+3. Extend the proved executable fragment to the remaining literal/payload,
    subtyping/effect, indexed-coverage and filtered/erased-frame contracts.
-5. Prove semantic positivity and totality certification, including extraction,
+4. Prove semantic positivity and totality certification, including extraction,
    size-change descent and linkage to actual certified unfolding; finite
    certificate replay and body finality are not those semantic theorems.
-6. Prove typed relevance/erasure simulation and BEAM lowering/execution
+5. Prove typed relevance/erasure simulation and BEAM lowering/execution
    correspondence, with explicit effect, exception, FFI and host trust bounds.
 The detailed stages below expand these obligations. Waived Mix/ExUnit/docs
 and stdlib/example verification is not an additional outstanding proof task.

@@ -10,7 +10,7 @@
 module Proof.NativeRecipeControls where
 
 open import Data.Bool using (Bool; true; false)
-open import Data.List using ([]; _∷_)
+open import Data.List using (List; []; _++_; _∷_)
 open import Data.Maybe using (just; nothing)
 open import Data.Product using (_,_)
 open import Relation.Nullary using (Dec; yes; no)
@@ -22,6 +22,7 @@ open import Core.Typing using (Ctx; ⟨⟩; extend; Conversion)
 open import Core.Reduction
 open import Core.NativeRecipe
 import Core.CanonicalSnapshot as S
+import Core.DependentTyping as NativeTyping
 import Core.SyntaxEquality as Syntax
 import Core.ExecutableSnapshot as Input
 import Proof.ExecutableSnapshotExamples as Snapshot
@@ -110,22 +111,41 @@ forged-kind : present
   (E.G.replay Snapshot.raw-answer (packet (r-claim (tm-type l2) r-leaf) (just r-leaf))) ≡ false
 forged-kind = refl
 
--- No recipe tag or asserted type can launder an unsupported case node.
-case-never-replayed : ∀ {n} (Γ : Ctx n) s m bs recipe
-  → D.infer Γ (tm-case s m bs) recipe ≡ nothing
-case-never-replayed Γ s m bs r-leaf = refl
-case-never-replayed Γ s m bs (r-pi a b) = refl
-case-never-replayed Γ s m bs (r-lam a b) = refl
-case-never-replayed Γ s m bs (r-app a b) = refl
-case-never-replayed Γ s m bs (r-let a b c) = refl
-case-never-replayed Γ s m bs (r-data ps is) = refl
-case-never-replayed Γ s m bs (r-ctor ps prs ars) = refl
-case-never-replayed Γ s m bs (r-claim claimed child)
-  rewrite case-never-replayed Γ s m bs child = refl
-case-never-replayed Γ s m bs (r-cumul target child)
-  rewrite case-never-replayed Γ s m bs child = refl
-case-never-replayed Γ s m bs (r-convert target conversion child)
-  rewrite case-never-replayed Γ s m bs child = refl
+-- ONLY a case recipe can replay a case: a recipe with no `r-case` node is
+-- rejected at a case term, whatever wrappers it carries. The positive
+-- replay of this very fixture lives in Proof.NativeRecipeExamples.
+mutual
+  data NoCase : Recipe → Set where
+    nc-leaf : NoCase r-leaf
+    nc-pi : ∀ {a b} → NoCase a → NoCase b → NoCase (r-pi a b)
+    nc-lam : ∀ {a b} → NoCase a → NoCase b → NoCase (r-lam a b)
+    nc-app : ∀ {a b} → NoCase a → NoCase b → NoCase (r-app a b)
+    nc-let : ∀ {a b c} → NoCase a → NoCase b → NoCase c → NoCase (r-let a b c)
+    nc-data : ∀ {ps is} → NoCaseTerms ps → NoCaseTerms is → NoCase (r-data ps is)
+    nc-ctor : ∀ {ps prs ars} → NoCaseTerms prs → NoCaseTerms ars → NoCase (r-ctor ps prs ars)
+    nc-claim : ∀ {t child} → NoCase child → NoCase (r-claim t child)
+    nc-cumul : ∀ {l child} → NoCase child → NoCase (r-cumul l child)
+    nc-convert : ∀ {t c child} → NoCase child → NoCase (r-convert t c child)
+
+  data NoCaseTerms : List Recipe → Set where
+    nct[] : NoCaseTerms []
+    nct∷ : ∀ {r rs} → NoCase r → NoCaseTerms rs → NoCaseTerms (r ∷ rs)
+
+case-needs-case-recipe : ∀ {n} (Γ : Ctx n) s m bs {recipe}
+  → NoCase recipe → D.infer Γ (tm-case s m bs) recipe ≡ nothing
+case-needs-case-recipe Γ s m bs nc-leaf = refl
+case-needs-case-recipe Γ s m bs (nc-pi a b) = refl
+case-needs-case-recipe Γ s m bs (nc-lam a b) = refl
+case-needs-case-recipe Γ s m bs (nc-app a b) = refl
+case-needs-case-recipe Γ s m bs (nc-let a b c) = refl
+case-needs-case-recipe Γ s m bs (nc-data ps is) = refl
+case-needs-case-recipe Γ s m bs (nc-ctor prs ars) = refl
+case-needs-case-recipe Γ s m bs (nc-claim child)
+  rewrite case-needs-case-recipe Γ s m bs child = refl
+case-needs-case-recipe Γ s m bs (nc-cumul child)
+  rewrite case-needs-case-recipe Γ s m bs child = refl
+case-needs-case-recipe Γ s m bs (nc-convert child)
+  rewrite case-needs-case-recipe Γ s m bs child = refl
 
 beta-type : Term
 beta-type = tm-app (tm-lam unrestricted tm-atom_type tm-atom_type) (tm-atom_lit "argument")
@@ -346,3 +366,95 @@ non-uniform-result-parameters : present
   (E.Box.constructor-declaration E.box-family
     (record E.box-ctor { ctor-params = tm-var 0 ∷ [] }) E.box-recipe) ≡ false
 non-uniform-result-parameters = refl
+
+------------------------------------------------------------------------
+-- DEPENDENT CASE CONTROLS
+--
+-- The positive replay of the exported case is in
+-- Proof.NativeRecipeExamples. Each failure below is a CHECKED rejection
+-- by the bounded protocol, not a refutation of native typing.
+------------------------------------------------------------------------
+
+missing-branch-recipe : present
+  (D.infer ⟨⟩ Native.program
+    (r-case (r-ctor [] [] (r-leaf ∷ r-leaf ∷ [])) [] (r-leaf ∷ []) l0
+      E.case-kind-recipe E.case-motive-recipe
+      ((E.case-field-recipes ,
+         r-convert (NativeTyping.branchGoal "Boundary#Pack" [] Native.pack Native.motive-term)
+           E.pack-conversion r-leaf) ∷ []))) ≡ false
+missing-branch-recipe = refl
+surplus-branch-recipe : present
+  (D.infer ⟨⟩ Native.program
+    (r-case (r-ctor [] [] (r-leaf ∷ r-leaf ∷ [])) [] (r-leaf ∷ []) l0
+      E.case-kind-recipe E.case-motive-recipe
+      (E.unpack-case-branches ++
+       ((E.case-field-recipes , r-leaf) ∷ [])))) ≡ false
+surplus-branch-recipe = refl
+wrong-motive-recipe : present
+  (D.infer ⟨⟩ Native.program
+    (r-case (r-ctor [] [] (r-leaf ∷ r-leaf ∷ [])) [] (r-leaf ∷ []) l0
+      E.case-kind-recipe r-leaf E.unpack-case-branches)) ≡ false
+wrong-motive-recipe = refl
+wrong-motive-level : present
+  (D.infer ⟨⟩ Native.program
+    (r-case (r-ctor [] [] (r-leaf ∷ r-leaf ∷ [])) [] (r-leaf ∷ []) l1
+      E.case-kind-recipe E.case-motive-recipe E.unpack-case-branches)) ≡ false
+wrong-motive-level = refl
+wrong-kind-recipe : present
+  (D.infer ⟨⟩ Native.program
+    (r-case (r-ctor [] [] (r-leaf ∷ r-leaf ∷ [])) [] (r-leaf ∷ []) l0
+      r-leaf E.case-motive-recipe E.unpack-case-branches)) ≡ false
+wrong-kind-recipe = refl
+short-field-recipes : present
+  (D.infer ⟨⟩ Native.program
+    (r-case (r-ctor [] [] (r-leaf ∷ r-leaf ∷ [])) [] (r-leaf ∷ []) l0
+      E.case-kind-recipe E.case-motive-recipe
+      (((r-leaf ∷ []) ,
+         r-convert (NativeTyping.branchGoal "Boundary#Pack" [] Native.pack Native.motive-term)
+           E.pack-conversion r-leaf) ∷
+       (E.case-field-recipes ,
+         r-convert (NativeTyping.branchGoal "Boundary#Alternate" [] Native.alternate
+           Native.motive-term) E.alternate-conversion r-leaf) ∷ []))) ≡ false
+short-field-recipes = refl
+unchecked-branch-body : present
+  (D.infer ⟨⟩ Native.program
+    (r-case (r-ctor [] [] (r-leaf ∷ r-leaf ∷ [])) [] (r-leaf ∷ []) l0
+      E.case-kind-recipe E.case-motive-recipe
+      ((E.case-field-recipes , r-leaf) ∷
+       (E.case-field-recipes ,
+         r-convert (NativeTyping.branchGoal "Boundary#Alternate" [] Native.alternate
+           Native.motive-term) E.alternate-conversion r-leaf) ∷ []))) ≡ false
+unchecked-branch-body = refl
+wrong-branch-arity : present
+  (D.infer ⟨⟩ (tm-case Native.value Native.motive-term
+    (("Boundary#Pack" , 3 , tm-var 0) ∷
+     ("Boundary#Alternate" , 2 , tm-var 0) ∷ []))
+    E.unpack-case-recipe) ≡ false
+wrong-branch-arity = refl
+unknown-branch-constructor : present
+  (D.infer ⟨⟩ (tm-case Native.value Native.motive-term
+    (("Boundary#Nope" , 2 , tm-var 0) ∷
+     ("Boundary#Alternate" , 2 , tm-var 0) ∷ []))
+    E.unpack-case-recipe) ≡ false
+unknown-branch-constructor = refl
+missing-coverage : present
+  (D.infer ⟨⟩ (tm-case Native.value Native.motive-term
+    (("Boundary#Pack" , 2 , tm-var 0) ∷ []))
+    E.unpack-case-recipe) ≡ false
+missing-coverage = refl
+non-data-scrutinee : present
+  (D.infer ⟨⟩ (tm-case (tm-atom_lit "not-a-data-value") Native.motive-term
+    Native.branches) E.unpack-case-recipe) ≡ false
+non-data-scrutinee = refl
+-- The ambient context's well-formedness is reconstructed only for `⟨⟩`,
+-- so a case under a binder is outside this bounded context.
+case-under-binder : present
+  (D.infer (extend ⟨⟩ tm-atom_type) Native.program E.unpack-case-recipe) ≡ false
+case-under-binder = refl
+-- A well-justified conversion to a DIFFERENT type cannot be smuggled in as
+-- the case's body assertion either: `at` still compares the asserted target
+-- with the requested goal by exact syntax.
+case-body-target-not-goal : present
+  (D.at ⟨⟩ Native.program Native.goal
+    (r-convert Native.goal E.unpack-conversion E.unpack-case-recipe)) ≡ false
+case-body-target-not-goal = refl

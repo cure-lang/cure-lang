@@ -1,9 +1,10 @@
 {-# OPTIONS --guardedness #-}
 ------------------------------------------------------------------------
--- Recipes are plain untrusted data. Three exported globals replay;
--- the dependent case proof remains MANUAL in the mixed certificate.
--- GOAL-DIRECTED CONVERSION IS NOW REPLAYED: recipes certify β/ζ/δ and
--- congruence steps, so β-converted goals no longer fail on syntax alone.
+-- Recipes are plain untrusted data. EVERY exported family, constructor
+-- and global -- including the dependent case -- now replays, so the whole
+-- finite certificate is assembled from recipes. Conversion recipes
+-- certify β/ζ/δ and congruence steps, so β-converted goals (the branch
+-- goals in particular) no longer fail on syntax alone.
 -- No byte parser, Elixir producer or η/NbE refinement is claimed.
 ------------------------------------------------------------------------
 module Proof.NativeRecipeExamples where
@@ -13,12 +14,15 @@ open import Data.List using (List; []; _∷_)
 import Data.List.Relation.Unary.All as All
 open import Data.List.Relation.Unary.Any using (here; there)
 open import Data.Maybe using (Maybe; just; nothing)
-open import Data.Product using (∃; _,_)
+open import Data.Product using (∃; _×_; _,_; proj₁)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; subst)
 open import Core.Syntax
 open import Core.Grade using (unrestricted)
 open import Core.Universe using (l0; l1)
-open import Core.Typing using (⟨⟩; Conversion)
+open import Core.Typing using (Ctx; ⟨⟩; extend; Conversion)
+open import Core.Coverage using (CaseCoverage; HasBranch; lookup-ctor-members)
+import Core.LocalFrame as Frame
+import Core.DependentTyping as NativeTyping
 open import Core.Signature
 open import Core.Reduction
 import Data.Bool as Bool
@@ -53,8 +57,9 @@ held : G.C.GlobalEvidence Input.raw-held
 held = require (G.replay Input.raw-held scalar-packet) refl
 packed : G.C.GlobalEvidence Input.raw-packed
 packed = require (G.replay Input.raw-packed packed-packet) refl
-case-not-replayed : present (G.replay Input.raw-unpack scalar-packet) ≡ false
-case-not-replayed = refl
+-- The wrong packet still fails; the case needs its own recipe (below).
+wrong-packet-for-case : present (G.replay Input.raw-unpack scalar-packet) ≡ false
+wrong-packet-for-case = refl
 
 computed-index-proof : E.N._⊢_⇒_ E.Φ E.computed-index (tm-type l0)
 computed-index-proof = require
@@ -171,6 +176,7 @@ alias-ind = record { families = [] ; builtins = λ _ → nothing }
 module AliasModel = Reduction.Model alias-sig
   (λ {f} {body′} → alias-closed {f = f} {body′ = body′})
 module Alias = Derive alias-ind alias-sig AliasModel.conversion AliasModel.reduce-converts
+  (λ ())
 
 alias-leaf : Alias.N._⊢_⇒_ ⟨⟩ (tm-global "Alias#atom") (tm-type l0)
 alias-leaf = require (Alias.at ⟨⟩ (tm-global "Alias#atom") (tm-type l0) r-leaf) refl
@@ -205,7 +211,16 @@ box-ind = record { families = box-family ∷ [] ; builtins = λ _ → nothing }
 box-sig : Signature
 box-sig = record { type-of = λ _ → nothing ; body = λ _ → nothing }
 module BoxConversion = Reduction.Model box-sig (λ ())
+box-owner-visible : ∀ {name family ctor}
+  → findCtor name (IndEnv.families box-ind) ≡ just (family , ctor)
+  → findFamily (fam-name family) (IndEnv.families box-ind) ≡ just family
+box-owner-visible {name} found
+  with lookup-ctor-members {c = name} {fs = box-family ∷ []} found
+... | here refl , rest = refl
+... | there () , rest
 module Box = Derive box-ind box-sig BoxConversion.conversion BoxConversion.reduce-converts
+  (λ {name} {family} {ctor} found →
+    box-owner-visible {name = name} {family = family} {ctor = ctor} found)
 box-typed : Box.N._⊢_⇒_ ⟨⟩ (tm-ctor "Recipe#BoxValue" (tm-atom_lit "v" ∷ []))
   (tm-data "Recipe#Box" (tm-atom_type ∷ []) [])
 box-typed = require
@@ -265,30 +280,142 @@ box-recipe = record
 box-declaration : Box.N.ConstructorDeclaration box-family box-ctor
 box-declaration = require (Box.constructor-declaration box-family box-ctor box-recipe) refl
 
--- This is intentionally mixed, not a claim that all four globals or
--- declaration certificates have been produced from untrusted recipes.
-mixed-evidence : G.C.Evidence
-mixed-evidence = record
-  { families = replayed-families
-  ; definitions = answer All.∷ held All.∷ packed All.∷
-      All.lookup (E.C.Evidence.definitions E.evidence) (there (there (there (here refl)))) All.∷ All.[] }
-mixed-valid : E.N.SignatureValid
-mixed-valid = G.C.validity mixed-evidence
-mixed-program-admitted : E.N.Admitted ⟨⟩ E.program tm-atom_type
-mixed-program-admitted = G.C.admitted mixed-evidence {entry = Input.raw-unpack}
+------------------------------------------------------------------------
+-- REPLAYED DEPENDENT CASE
+--
+-- The motive is the curried Π the native rule requires, at an ASSERTED
+-- level; each branch body is checked at its `branchGoal` inside a branch
+-- context rebuilt from per-field kind recipes; coverage is replayed by
+-- enumerating the registered constructors.
+------------------------------------------------------------------------
+
+case-field-recipes : List Recipe
+case-field-recipes = r-leaf ∷ r-leaf ∷ []
+case-kind-recipe : Recipe
+case-kind-recipe = r-pi r-leaf (r-pi (r-data [] (r-leaf ∷ [])) r-leaf)
+case-motive-recipe : Recipe
+case-motive-recipe = r-lam r-leaf (r-lam (r-data [] (r-leaf ∷ [])) r-leaf)
+
+-- `Boundary#Pack` takes its index from the field `A`, so its branch goal is
+-- the motive applied to `A` and the surface constructor: exactly two β
+-- steps, through the interior redex's lam.
+pack-middle : Term
+pack-middle =
+  tm-app
+    (tm-lam unrestricted (tm-data "Boundary#Packed" [] (tm-var 1 ∷ [])) (tm-var 2))
+    (tm-ctor "Boundary#Pack" (tm-var 1 ∷ tm-var 0 ∷ []))
+pack-conversion : ConvRecipe
+pack-conversion = c-sym (c-trans pack-middle (c-app c-beta c-refl) c-beta)
+
+-- `Boundary#Alternate` computes its index as `(λ A → A) A`, so the third β
+-- step is needed after the two motive applications.
+alternate-index : Term
+alternate-index =
+  tm-app (tm-lam unrestricted (tm-type l0) (tm-var 0)) (tm-var 1)
+alternate-middle : Term
+alternate-middle =
+  tm-app
+    (tm-lam unrestricted (tm-data "Boundary#Packed" [] (alternate-index ∷ []))
+      (tm-app (tm-lam unrestricted (tm-type l0) (tm-var 0)) (tm-var 2)))
+    (tm-ctor "Boundary#Alternate" (tm-var 1 ∷ tm-var 0 ∷ []))
+alternate-conversion : ConvRecipe
+alternate-conversion =
+  c-sym (c-trans alternate-middle (c-app c-beta c-refl)
+    (c-trans alternate-index c-beta c-beta))
+
+unpack-case-branches : List (List Recipe × Recipe)
+unpack-case-branches =
+  (case-field-recipes ,
+    r-convert (NativeTyping.branchGoal "Boundary#Pack" [] E.pack E.motive-term)
+      pack-conversion r-leaf) ∷
+  (case-field-recipes ,
+    r-convert (NativeTyping.branchGoal "Boundary#Alternate" [] E.alternate E.motive-term)
+      alternate-conversion r-leaf) ∷ []
+
+unpack-case-recipe : Recipe
+unpack-case-recipe =
+  r-case (r-ctor [] [] (r-leaf ∷ r-leaf ∷ [])) [] (r-leaf ∷ []) l0
+    case-kind-recipe case-motive-recipe unpack-case-branches
+
+-- The whole case synthesizes the motive applied to the scrutinee's index and
+-- value; the global's declared goal is the reduced sort inhabitant.
+unpack-middle : Term
+unpack-middle =
+  tm-app
+    (tm-lam unrestricted (tm-data "Boundary#Packed" [] (tm-atom_type ∷ [])) tm-atom_type)
+    (tm-ctor "Boundary#Pack" (tm-atom_type ∷ tm-atom_lit "payload" ∷ []))
+unpack-conversion : ConvRecipe
+unpack-conversion = c-trans unpack-middle (c-app c-beta c-refl) c-beta
+
+unpack-packet : Packet
+unpack-packet = packet r-leaf
+  (just (r-convert tm-atom_type unpack-conversion unpack-case-recipe))
+
+-- The case's synthesized type IS the curried motive application at the
+-- scrutinee's index and value, so the global's assertion needs a real
+-- conversion (below) rather than a claim.
+case-inferred : Term
+case-inferred = proj₁ (require (D.infer ⟨⟩ E.program unpack-case-recipe) refl)
+case-inferred-agrees : case-inferred ≡
+  NativeTyping.apps E.motive-term (tm-atom_type ∷ E.value ∷ [])
+case-inferred-agrees = refl
+
+-- Each branch body really is checked in a REBUILT branch context: scope
+-- and field kinds are re-derived, and the body is checked at its
+-- `branchGoal` (which is why each branch needs a conversion recipe).
+branch-context : Ctx 2
+branch-context = extend (extend ⟨⟩ (tm-type l0)) (tm-var 0)
+replayed-opened : ∃ λ m → ∃ λ (Δ : Ctx m) → D.N.WellFormed Δ
+  × NativeTyping.Opened ⟨⟩ (Frame.advance [] Frame.identity) (ctor-args E.pack) Δ
+replayed-opened = require
+  (D.opened-fields ⟨⟩ (Frame.advance [] Frame.identity) (ctor-args E.pack)
+    case-field-recipes D.N.wf[]) refl
+replayed-pack-body : D.N._⊢_⇐_ branch-context (tm-var 0)
+  (NativeTyping.branchGoal "Boundary#Pack" [] E.pack E.motive-term)
+replayed-pack-body = require
+  (D.checking branch-context (tm-var 0)
+    (NativeTyping.branchGoal "Boundary#Pack" [] E.pack E.motive-term)
+    (r-convert (NativeTyping.branchGoal "Boundary#Pack" [] E.pack E.motive-term)
+      pack-conversion r-leaf)) refl
+replayed-branches : D.N.Branches ⟨⟩ E.family [] E.motive-term E.branches
+replayed-branches = require
+  (D.branches ⟨⟩ E.family "Boundary#Packed" [] E.motive-term E.branches
+    unpack-case-branches Input.family-lookup D.N.wf[]) refl
+replayed-coverage : CaseCoverage E.ind "Boundary#Packed" E.branches
+replayed-coverage = require (coverage? E.ind "Boundary#Packed" E.branches) refl
+
+-- The fourth global's raw body is a dependent case: it now replays.
+unpack-evidence : G.C.GlobalEvidence Input.raw-unpack
+unpack-evidence = require (G.replay Input.raw-unpack unpack-packet) refl
+
+-- The COMPLETE exported certificate, with every family, constructor and
+-- global (including the dependent case) produced by replay.
+replayed-certificate : G.C.Evidence
+replayed-certificate = require
+  (G.certificate fixture-recipes
+    (scalar-packet ∷ scalar-packet ∷ packed-packet ∷ unpack-packet ∷ [])) refl
+
+-- The certificate used by the safety composition is the FULLY REPLAYED
+-- one: no family, constructor or global proof object is supplied by hand.
+replayed-evidence : G.C.Evidence
+replayed-evidence = replayed-certificate
+replayed-valid : E.N.SignatureValid
+replayed-valid = G.C.validity replayed-evidence
+replayed-program-admitted : E.N.Admitted ⟨⟩ E.program tm-atom_type
+replayed-program-admitted = G.C.admitted replayed-evidence {entry = Input.raw-unpack}
   (there (there (there (here refl)))) refl
-mixed-program-eligible : G.C.A.Eligible ⟨⟩ E.program tm-atom_type
-mixed-program-eligible = G.C.eligible mixed-evidence {entry = Input.raw-unpack}
+replayed-program-eligible : G.C.A.Eligible ⟨⟩ E.program tm-atom_type
+replayed-program-eligible = G.C.eligible replayed-evidence {entry = Input.raw-unpack}
   (there (there (there (here refl)))) refl
 
 specification : Safety.Specification E.ind E.sig E.conv
 specification = record Existing.specification
-  { signature-valid = mixed-valid
+  { signature-valid = replayed-valid
   ; reduction-converts = λ {t} {u} → Input.ConversionModel.reduce-converts {t = t} {u = u}
   ; global-bodies-final = λ {name} → Input.visible-bodies-final {name} }
 module Sound = Safety.Sound E.ind E.sig E.conv specification
-mixed-safe : Sound.SafeState (tm-atom_lit "payload") tm-atom_type
-mixed-safe = Sound.trace-safe
-  (G.C.A.Eligible.checked mixed-program-eligible)
-  (G.C.A.Eligible.source-final mixed-program-eligible)
+replayed-safe : Sound.SafeState (tm-atom_lit "payload") tm-atom_type
+replayed-safe = Sound.trace-safe
+  (G.C.A.Eligible.checked replayed-program-eligible)
+  (G.C.A.Eligible.source-final replayed-program-eligible)
   (⇝*-step (ι refl refl) ⇝*-refl)
