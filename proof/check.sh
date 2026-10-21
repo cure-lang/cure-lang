@@ -148,7 +148,10 @@ MODULES=(
   Proof/CanonicalSnapshotExamples
   Core/ExecutableSnapshot
   Fixtures/ExecutableSnapshot
+  Core/AdmissionReplay
+  Core/ExecutableReplay
   Proof/ExecutableSnapshotExamples
+  Proof/AdmissionReplayControls
 )
 
 fail=0

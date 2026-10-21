@@ -82,7 +82,15 @@ extract_postulates() {
   ' "$@" | sort
 }
 
-found=$(extract_postulates Core/*.agda Proof/*.agda)
+# Generated inputs and future source subdirectories are trust roots too.
+# Scope discovery to all Agda sources without changing the reviewed inventory.
+shopt -s globstar nullglob
+sources=(**/*.agda)
+if ((${#sources[@]} == 0)); then
+  printf 'No Agda sources found under proof/.\n' >&2
+  exit 1
+fi
+found=$(extract_postulates "${sources[@]}")
 
 if [[ "${1:-}" == "--list" ]]; then
   echo "$found"

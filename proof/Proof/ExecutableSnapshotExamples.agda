@@ -11,7 +11,7 @@ open import Data.Nat using (z≤n; s≤s)
 import Data.Fin as Fin
 open import Data.List using (List; []; _∷_)
 import Data.List as List
-import Data.List.Relation.Unary.All as All
+open import Data.List.Relation.Unary.Any using (here; there)
 open import Data.Maybe using (just; nothing)
 open import Data.Product using (_,_)
 open import Data.Unit using (tt)
@@ -24,7 +24,9 @@ open import Core.Universe using (l0)
 open import Core.Reduction using (Signature)
 open import Core.ExecutableSnapshot
 import Core.CanonicalSnapshot as S
-import Core.AdmissionBoundary as Boundary
+import Core.ExecutableReplay as Complete
+import Proof.Progress as Final
+import Proof.ReductionConversion as Reduction
 import Fixtures.ExecutableSnapshot as Fixture
 
 decision : ∀ {A : Set} → Dec A → Bool
@@ -38,8 +40,12 @@ accepted : Accepted Fixture.source
 accepted = witness (check Fixture.source) refl
 snapshot : S.Snapshot
 snapshot = Accepted.snapshot accepted
-module B = Boundary.Fragment snapshot
+module CompleteReplay = Complete.Replay Fixture.source accepted
+module B = CompleteReplay.R.B
 open B
+
+replayed : CompleteReplay.Payloads
+replayed = witness CompleteReplay.check refl
 
 raw-family : FamilyInput
 raw-family = List.lookup (Input.families Fixture.source) Fin.zero
@@ -77,41 +83,51 @@ hidden-raw-body-retained : GlobalInput.body raw-held ≡ just (tm-atom_lit "hidd
 hidden-raw-body-retained = refl
 
 goal-supported : ∀ {n} → Supported n (tm-data "Boundary#Packed" [] (tm-atom_type ∷ []))
-goal-supported = s-data refl s[] (s∷ s-atom_type s[])
+goal-supported {n} = witness
+  (CompleteReplay.R.supported? n (tm-data "Boundary#Packed" [] (tm-atom_type ∷ []))) refl
 value-supported : Supported 0
   (tm-ctor "Boundary#Pack" (tm-atom_type ∷ tm-atom_lit "payload" ∷ []))
-value-supported = s-ctor refl (s∷ s-atom_type (s∷ s-atom_lit s[]))
+value-supported = witness
+  (CompleteReplay.R.supported? 0
+    (tm-ctor "Boundary#Pack" (tm-atom_type ∷ tm-atom_lit "payload" ∷ []))) refl
 motive-supported : Supported 0
   (tm-lam unrestricted (tm-type l0)
     (tm-lam unrestricted (tm-data "Boundary#Packed" [] (tm-var 0 ∷ [])) (tm-var 1)))
-motive-supported = s-lam s-type
-  (s-lam (s-data refl s[] (s∷ (s-var (s≤s z≤n)) s[])) (s-var (s≤s (s≤s z≤n))))
+motive-supported = witness
+  (CompleteReplay.R.supported? 0
+    (tm-lam unrestricted (tm-type l0)
+      (tm-lam unrestricted (tm-data "Boundary#Packed" [] (tm-var 0 ∷ [])) (tm-var 1)))) refl
 raw-program-supported : BodySupported (GlobalInput.body raw-unpack)
-raw-program-supported = s-case value-supported motive-supported
-  (b∷ refl refl (s-var (s≤s z≤n)) (b∷ refl refl (s-var (s≤s z≤n)) b[]))
+raw-program-supported = CompleteReplay.raw-body-supported replayed {entry = raw-unpack}
+  (there (there (there (here refl)))) refl
 
 -- Projected payloads are supported, with independent support above for
 -- the hidden raw dependent program. No native typing is inferred here.
 payloads : PayloadsSupported
-payloads = record
-  { declarations = record
-      { parameters = t[] ; indices = t∷ s-type t[]
-      ; constructors =
-          record
-            { fields = t∷ s-type (t∷ (s-var (s≤s z≤n)) t[])
-            ; result-parameters = s[]
-            ; result-indices = s∷ (s-var (s≤s (s≤s z≤n))) s[] } All.∷
-          record
-            { fields = t∷ s-type (t∷ (s-var (s≤s z≤n)) t[])
-            ; result-parameters = s[]
-            ; result-indices = s∷
-                (s-app (s-lam s-type (s-var (s≤s z≤n))) (s-var (s≤s (s≤s z≤n)))) s[] }
-          All.∷ All.[] } All.∷ All.[]
-  ; definitions =
-      record { type = s-atom_type ; body = s-atom_lit } All.∷
-      record { type = s-atom_type ; body = tt } All.∷
-      record { type = goal-supported ; body = tt } All.∷
-      record { type = s-atom_type ; body = tt } All.∷ All.[] }
+payloads = CompleteReplay.Payloads.projected replayed
+
+visible-bodies-closed : ∀ {name b}
+  → Signature.body (S.Snapshot.sig snapshot) name ≡ just b → Scoped 0 b
+visible-bodies-closed {name} = CompleteReplay.bodies-closed replayed {name}
+visible-bodies-final : Final.BodiesFinal (S.Snapshot.sig snapshot)
+visible-bodies-final {name} = CompleteReplay.bodies-final replayed {name}
+declared-goal-closed : Scoped 0 (tm-data "Boundary#Packed" [] (tm-atom_type ∷ []))
+declared-goal-closed = CompleteReplay.types-closed replayed {name = "Boundary#packed"} refl
+hidden-program-final : Final.Final
+  (tm-case (tm-ctor "Boundary#Pack" (tm-atom_type ∷ tm-atom_lit "payload" ∷ []))
+    (tm-lam unrestricted (tm-type l0)
+      (tm-lam unrestricted (tm-data "Boundary#Packed" [] (tm-var 0 ∷ [])) (tm-var 1)))
+    (("Boundary#Pack" , 2 , tm-var 0) ∷ ("Boundary#Alternate" , 2 , tm-var 0) ∷ []))
+hidden-program-final = CompleteReplay.raw-body-final replayed {entry = raw-unpack}
+  (there (there (there (here refl)))) refl
+
+-- The reduction model now consumes a derived finite-payload invariant,
+-- rather than a fixture-specific closed-body callback.
+module ConversionModel = Reduction.Model (S.Snapshot.sig snapshot)
+  (λ {name} → visible-bodies-closed {name})
+answer-converts : ConversionModel._≈_ (tm-global "Boundary#answer") (tm-atom_lit "answer")
+answer-converts = ConversionModel.reduce-converts
+  {t = tm-global "Boundary#answer"} {u = tm-atom_lit "answer"} (Core.Reduction.δ refl)
 
 duplicate-families : Input
 duplicate-families = record Fixture.source { families = raw-family ∷ raw-family ∷ [] }
