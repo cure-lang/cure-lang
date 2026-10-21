@@ -1575,6 +1575,41 @@ for the same β-converted goal and adds the rejections above plus both attempts
 to manufacture η. The mixed certificate is unchanged: the exported dependent
 case is still MANUAL.
 
+### Replayed family and constructor declarations
+`Core.NativeRecipe` also replays the DECLARATION evidence the finite
+certificate needs. A `ConstructorRecipe` supplies one kind derivation per
+parameter entry, one per field entry, and one per result-parameter/index
+position; a `FamilyRecipe` adds one kind derivation per parameter/index entry
+and one constructor recipe per constructor. The TELESCOPE itself is never
+recipe data: it is read from the actual `Family`/`Ctor` declaration, and
+recipes are consumed in declaration order, so a surplus or missing recipe
+fails.
+
+`declare`/`declare-below` rebuild `Declared` entries forwards, checking scope
+with a decision procedure (`sc-var` needs `k < d`) and replaying each entry's
+kind in the context accumulated so far. `declare-below` additionally checks
+every field's universe level against the family's declared level.
+`constructor-declaration` also checks the result vector's scope, the
+`parameterSlots` uniformity equation and both result spines. `family-table`,
+`constructors`, `definitions` and `certificate` assemble the finite evidence
+in lockstep with the actual tables, so the resulting `Evidence` covers every
+entry by construction.
+
+`Proof.NativeRecipeExamples` replays the exported `Boundary#Packed` family and
+both of its constructors (including the computed result index) plus the
+parameter-bearing `Box` declaration, and the mixed certificate now takes its
+whole FAMILY half from those recipes instead of the manual proof objects.
+`Proof.NativeRecipeControls` rejects short field vectors, a non-kind field
+derivation, surplus/missing constructor recipes, a wrong result-index recipe,
+a field universe overflow and a non-uniform result-parameter vector.
+
+This removes the manual declaration proofs from the exported certificate, not
+the manual dependent CASE: motive/branch/coverage recipes and the branch
+context's field kinds are still open, so the fourth global remains manual.
+Scope is decided for the whole current Core syntax, but the branch context is
+currently reconstructed only through per-field recipes (a typed-substitution
+derivation of specialised field kinds is a separate theorem).
+
 This is a replayable conversion-derivation language for the EXISTING abstract
 `Conversion` record. It is not an NbE/readback refinement, a normalization
 algorithm or decision procedure, and it has no byte/JSON parser or Elixir

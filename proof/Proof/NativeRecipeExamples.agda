@@ -9,7 +9,7 @@
 module Proof.NativeRecipeExamples where
 
 open import Data.Bool using (Bool; true; false)
-open import Data.List using ([]; _∷_)
+open import Data.List using (List; []; _∷_)
 import Data.List.Relation.Unary.All as All
 open import Data.List.Relation.Unary.Any using (here; there)
 open import Data.Maybe using (Maybe; just; nothing)
@@ -25,6 +25,7 @@ import Data.Bool as Bool
 open import Proof.Confluence using (ClosedBody)
 import Proof.ReductionConversion as Reduction
 open import Core.NativeRecipe
+import Core.CanonicalSnapshot as S
 import Proof.ExecutableSnapshotExamples as Input
 import Proof.NativeCertificateExamples as E
 import Proof.NativeCertificateSafety as Existing
@@ -216,11 +217,59 @@ wrong-parameter-seed : present
     (r-ctor (tm-float_type ∷ []) (r-leaf ∷ []) (r-leaf ∷ []))) ≡ false
 wrong-parameter-seed = refl
 
+------------------------------------------------------------------------
+-- REPLAYED FAMILY AND CONSTRUCTOR DECLARATIONS
+--
+-- The telescopes are the ACTUAL declaration; the recipes supply one kind
+-- derivation per entry and the result spines. Scope, uniformity and field
+-- universe bounds are checked by the replayer.
+------------------------------------------------------------------------
+
+pack-recipe alternate-recipe : ConstructorRecipe
+pack-recipe = record
+  { ctor-parameter-recipes = []
+  ; ctor-field-recipes = r-leaf ∷ r-leaf ∷ []
+  ; ctor-result-parameter-recipes = []
+  ; ctor-result-index-recipes = r-leaf ∷ [] }
+alternate-recipe = record
+  { ctor-parameter-recipes = []
+  ; ctor-field-recipes = r-leaf ∷ r-leaf ∷ []
+  ; ctor-result-parameter-recipes = []
+  ; ctor-result-index-recipes = r-app (r-lam r-leaf r-leaf) r-leaf ∷ [] }
+fixture-recipes : List FamilyRecipe
+fixture-recipes = record
+  { fam-parameter-recipes = [] ; fam-index-recipes = r-leaf ∷ []
+  ; fam-constructor-recipes = pack-recipe ∷ alternate-recipe ∷ [] } ∷ []
+
+replayed-families : All.All G.C.FamilyEvidence (S.Snapshot.family-entries Input.snapshot)
+replayed-families = require
+  (G.family-table (S.Snapshot.family-entries Input.snapshot) fixture-recipes) refl
+replayed-family : D.N.FamilyDeclaration E.family
+replayed-family = G.C.FamilyEvidence.declaration (All.lookup replayed-families (here refl))
+replayed-pack : D.N.ConstructorDeclaration E.family E.pack
+replayed-pack = All.lookup
+  (G.C.FamilyEvidence.constructors (All.lookup replayed-families (here refl))) (here refl)
+replayed-alternate : D.N.ConstructorDeclaration E.family E.alternate
+replayed-alternate = All.lookup
+  (G.C.FamilyEvidence.constructors (All.lookup replayed-families (here refl)))
+  (there (here refl))
+
+-- A parameter-bearing declaration: `Box(A)` with a uniform result-parameter
+-- vector and a dependent field type.
+box-recipe : ConstructorRecipe
+box-recipe = record
+  { ctor-parameter-recipes = r-leaf ∷ []
+  ; ctor-field-recipes = r-leaf ∷ []
+  ; ctor-result-parameter-recipes = r-leaf ∷ []
+  ; ctor-result-index-recipes = [] }
+box-declaration : Box.N.ConstructorDeclaration box-family box-ctor
+box-declaration = require (Box.constructor-declaration box-family box-ctor box-recipe) refl
+
 -- This is intentionally mixed, not a claim that all four globals or
 -- declaration certificates have been produced from untrusted recipes.
 mixed-evidence : G.C.Evidence
 mixed-evidence = record
-  { families = E.C.Evidence.families E.evidence
+  { families = replayed-families
   ; definitions = answer All.∷ held All.∷ packed All.∷
       All.lookup (E.C.Evidence.definitions E.evidence) (there (there (there (here refl)))) All.∷ All.[] }
 mixed-valid : E.N.SignatureValid

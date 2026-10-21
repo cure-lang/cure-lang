@@ -14,10 +14,12 @@
 ------------------------------------------------------------------------
 module Core.NativeRecipe where
 
-open import Data.Nat using (ℕ; zero; suc)
+open import Data.Nat using (ℕ; zero; suc; _+_; _<_)
+open import Data.List.Relation.Unary.Any using (here; there)
+import Data.List.Relation.Unary.All as All
 import Data.Nat.Properties as Nat
 import Data.Fin as Fin
-open import Data.List using (List; []; _∷_; reverse)
+open import Data.List using (List; []; _∷_; reverse; length)
 open import Data.Maybe using (Maybe; just; nothing)
 open import Data.Product using (∃; _,_)
 import Data.String.Properties as String
@@ -32,7 +34,7 @@ open import Core.Universe
 open import Core.Signature
 open import Core.Reduction using (Signature; _⇝_; β; ζ; δ)
 open import Core.Typing
-  using (Ctx; ⟨⟩; extend; lookup; Conversion; All2; a2[]; a2∷)
+  using (Ctx; ⟨⟩; _▷_; extend; lookup; Conversion; All2; a2[]; a2∷)
 import Core.LocalFrame as Frame
 import Core.DependentTyping as Native
 import Core.SyntaxEquality as Syntax
@@ -86,6 +88,27 @@ data Recipe : Set where
   -- target is untrusted data: it is checked, not assumed.
   r-convert : Term → ConvRecipe → Recipe → Recipe
 
+------------------------------------------------------------------------
+-- DECLARATION RECIPES. Telescope entries are NOT recipe data: they are
+-- read from the actual `Family`/`Ctor` declaration. A recipe supplies one
+-- KIND derivation per entry, replayed in the accumulating context, plus
+-- the result spines. Scope, uniformity and field universe bounds are
+-- CHECKED, never asserted.
+------------------------------------------------------------------------
+
+record ConstructorRecipe : Set where
+  field
+    ctor-parameter-recipes : List Recipe
+    ctor-field-recipes : List Recipe
+    ctor-result-parameter-recipes : List Recipe
+    ctor-result-index-recipes : List Recipe
+
+record FamilyRecipe : Set where
+  field
+    fam-parameter-recipes : List Recipe
+    fam-index-recipes : List Recipe
+    fam-constructor-recipes : List ConstructorRecipe
+
 record Packet : Set where
   constructor packet
   field
@@ -107,6 +130,84 @@ level-le l1 l1 = just l≤-refl
 level-le l1 l2 = just l1≤l2
 level-le l2 l2 = just l≤-refl
 level-le _ _ = nothing
+
+------------------------------------------------------------------------
+-- SCOPE DECISION. Declarations, motives and branch bodies must be checked
+-- for scope, which is a DECISION here, not an assumption: `sc-var` needs
+-- `k < d` and every other rule is structural.
+------------------------------------------------------------------------
+
+mutual
+  scope? : (d : ℕ) (t : Term) → Maybe (Scoped d t)
+  scope? d (tm-type l) = just sc-type
+  scope? d (tm-var k) with Nat._<?_ k d
+  ... | yes inside = just (sc-var inside)
+  ... | no outside = nothing
+  scope? d (tm-pi g a b) with scope? d a | scope? (suc d) b
+  ... | just pa | just pb = just (sc-pi pa pb)
+  ... | _ | _ = nothing
+  scope? d (tm-lam g a b) with scope? d a | scope? (suc d) b
+  ... | just pa | just pb = just (sc-lam pa pb)
+  ... | _ | _ = nothing
+  scope? d (tm-let g ty v b) with scope? d ty | scope? d v | scope? (suc d) b
+  ... | just pty | just pv | just pb = just (sc-let pty pv pb)
+  ... | _ | _ | _ = nothing
+  scope? d (tm-app f a) with scope? d f | scope? d a
+  ... | just pf | just pa = just (sc-app pf pa)
+  ... | _ | _ = nothing
+  scope? d (tm-data n ps is) with scope-terms? d ps | scope-terms? d is
+  ... | just pp | just pi = just (sc-data pp pi)
+  ... | _ | _ = nothing
+  scope? d (tm-ctor n args) with scope-terms? d args
+  ... | just pargs = just (sc-ctor pargs)
+  ... | nothing = nothing
+  scope? d (tm-case s m brs) with scope? d s | scope? d m | scope-branches? d brs
+  ... | just ps | just pm | just pbs = just (sc-case ps pm pbs)
+  ... | _ | _ | _ = nothing
+  scope? d (tm-global n) = just sc-global
+  scope? d tm-int_type = just sc-int_type
+  scope? d (tm-int_lit k) = just sc-int_lit
+  scope? d (tm-nat_lit k) = just sc-nat_lit
+  scope? d (tm-bounded_lit k) = just sc-bounded_lit
+  scope? d tm-float_type = just sc-float_type
+  scope? d tm-float_lit = just sc-float_lit
+  scope? d tm-binary_type = just sc-binary_type
+  scope? d tm-atom_type = just sc-atom_type
+  scope? d (tm-atom_lit n) = just sc-atom_lit
+  scope? d (tm-effect_type t) with scope? d t
+  ... | just p = just (sc-effect_type p)
+  ... | nothing = nothing
+  scope? d (tm-effect_pure t) with scope? d t
+  ... | just p = just (sc-effect_pure p)
+  ... | nothing = nothing
+  scope? d (tm-effect_bind e k) with scope? d e | scope? d k
+  ... | just pe | just pk = just (sc-effect_bind pe pk)
+  ... | _ | _ = nothing
+  scope? d (tm-hole n) = just sc-hole
+  scope? d tm-absurd = just sc-absurd
+
+  scope-terms? : (d : ℕ) (ts : List Term) → Maybe (ScopedTerms d ts)
+  scope-terms? d [] = just st[]
+  scope-terms? d (t ∷ ts) with scope? d t | scope-terms? d ts
+  ... | just pt | just pts = just (st∷ pt pts)
+  ... | _ | _ = nothing
+
+  scope-branches? : (d : ℕ) (bs : List Branch) → Maybe (ScopedBranches d bs)
+  scope-branches? d [] = just sb[]
+  scope-branches? d ((cn , ar , b) ∷ bs) with scope? (d + ar) b | scope-branches? d bs
+  ... | just pb | just pbs = just (sb∷ (sbranch pb) pbs)
+  ... | _ | _ = nothing
+
+-- Vector equality is decided structurally from the single-term decision.
+terms-equal? : (xs ys : List Term) → Dec (xs ≡ ys)
+terms-equal? [] [] = yes refl
+terms-equal? [] (y ∷ ys) = no (λ ())
+terms-equal? (x ∷ xs) [] = no (λ ())
+terms-equal? (x ∷ xs) (y ∷ ys) with Syntax.equal? x y
+... | no unequal = no (λ { refl → unequal refl })
+... | yes refl with terms-equal? xs ys
+...   | no unequal = no (λ { refl → unequal refl })
+...   | yes refl = yes refl
 
 -- Grades must agree SYNTACTICALLY for the Π congruence, which is why the
 -- recipe carries no grade: only the context's own grades can be used.
@@ -345,6 +446,104 @@ module Derive (ind : IndEnv) (sig : Signature) (conv : Conversion)
     ... | just tail = just (N.sp∷ typed tail)
     spine Γ locals args tele recipes = nothing
 
+    ------------------------------------------------------------------
+    -- Forward telescope declaration replay: one kind recipe per entry,
+    -- replayed in the context accumulated so far. The telescope itself
+    -- is the ACTUAL declaration, not recipe data.
+    ------------------------------------------------------------------
+
+    declare : ∀ {n} (Γ : Ctx n) (tele : Telescope) → List Recipe
+      → Maybe (∃ λ size → ∃ λ (Δ : Ctx size) → N.Declared Γ tele Δ)
+    declare Γ [] [] = just (_ , Γ , N.dt[])
+    declare Γ [] (recipe ∷ recipes) = nothing
+    declare Γ (entry ∷ tele) [] = nothing
+    declare {n} Γ ((name , T) ∷ tele) (recipe ∷ recipes)
+      with scope? n T
+    ... | nothing = nothing
+    ... | just scoped with kind Γ T recipe
+    ...   | nothing = nothing
+    ...   | just (level , kinded) with declare (extend Γ T) tele recipes
+    ...     | nothing = nothing
+    ...     | just (size , Δ , rest) = just (size , Δ , N.dt∷ scoped kinded rest)
+
+    -- The same replay, additionally checking every entry's universe level
+    -- against the family's declared level.
+    DeclaredBelow : ∀ {n} (Γ : Ctx n) (tele : Telescope) (cap : Level) → Set
+    DeclaredBelow {n} Γ tele cap =
+      ∃ λ size → ∃ λ (Δ : Ctx size) → ∃ λ (declared : N.Declared Γ tele Δ)
+      → N.LevelsBelow cap declared
+
+    declare-below : ∀ {n} (Γ : Ctx n) (tele : Telescope) (cap : Level) → List Recipe
+      → Maybe (DeclaredBelow Γ tele cap)
+    declare-below Γ [] cap [] = just (_ , Γ , N.dt[] , tt)
+    declare-below Γ [] cap (recipe ∷ recipes) = nothing
+    declare-below Γ (entry ∷ tele) cap [] = nothing
+    declare-below {n} Γ ((name , T) ∷ tele) cap (recipe ∷ recipes)
+      with scope? n T
+    ... | nothing = nothing
+    ... | just scoped with kind Γ T recipe
+    ...   | nothing = nothing
+    ...   | just (level , kinded) with level-le level cap
+    ...     | nothing = nothing
+    ...     | just below-cap with declare-below (extend Γ T) tele cap recipes
+    ...       | nothing = nothing
+    ...       | just (size , Δ , declared , rest) =
+      just (size , Δ , N.dt∷ scoped kinded declared , below-cap , rest)
+
+  ----------------------------------------------------------------------
+  -- Family and constructor declaration replay. The telescopes come from
+  -- the actual declaration; the recipe supplies one kind derivation per
+  -- entry and the result spines. Scope, uniformity and field universe
+  -- bounds are checked, never asserted.
+  ----------------------------------------------------------------------
+
+  family-declaration : (family : Family) (recipe : FamilyRecipe)
+    → Maybe (N.FamilyDeclaration family)
+  family-declaration family recipe
+    with declare ⟨⟩ (fam-params family) (FamilyRecipe.fam-parameter-recipes recipe)
+  ... | nothing = nothing
+  ... | just (p , parameters , declared-parameters)
+    with declare parameters (fam-indices family) (FamilyRecipe.fam-index-recipes recipe)
+  ...   | nothing = nothing
+  ...   | just (i , indices , declared-indices) = just record
+    { parameter-context = parameters ; index-context = indices
+    ; parameters = declared-parameters ; indices = declared-indices }
+
+  constructor-declaration : (family : Family) (ctor : Ctor) (recipe : ConstructorRecipe)
+    → Maybe (N.ConstructorDeclaration family ctor)
+  constructor-declaration family ctor recipe
+    with declare ⟨⟩ (fam-params family) (ConstructorRecipe.ctor-parameter-recipes recipe)
+  ... | nothing = nothing
+  ... | just (p , parameters , declared-parameters)
+    with declare-below parameters (ctor-args ctor) (fam-level family)
+           (ConstructorRecipe.ctor-field-recipes recipe)
+  ...   | nothing = nothing
+  ...   | just (f , fields , declared-fields , field-levels)
+    with scope-terms? f (ctor-params ctor)
+  ...     | nothing = nothing
+  ...     | just scoped-parameters with scope-terms? f (ctor-indices ctor)
+  ...       | nothing = nothing
+  ...       | just scoped-indices
+    with terms-equal? (ctor-params ctor)
+           (Native.parameterSlots (length (ctor-args ctor)) (length (fam-params family)))
+  ...         | no unequal = nothing
+  ...         | yes uniform
+    with spine fields [] (ctor-params ctor) (fam-params family)
+           (ConstructorRecipe.ctor-result-parameter-recipes recipe)
+  ...           | nothing = nothing
+  ...           | just result-parameters
+    with spine fields (reverse (ctor-params ctor)) (ctor-indices ctor) (fam-indices family)
+           (ConstructorRecipe.ctor-result-index-recipes recipe)
+  ...             | nothing = nothing
+  ...             | just result-indices = just record
+    { parameter-context = parameters ; field-context = fields
+    ; parameters = declared-parameters ; fields = declared-fields
+    ; field-levels = field-levels
+    ; result-scoping = scoped-parameters , scoped-indices
+    ; uniform-parameters = uniform
+    ; result-parameters = result-parameters
+    ; result-indices = result-indices }
+
 module Globals (source : Input.Input) (metadata : Input.Accepted source)
   (payloads : Payloads.Replay.Payloads source metadata) (conv : Conversion)
   (reduce : ∀ {t u} → _⇝_ (S.Snapshot.sig (Payloads.Replay.snapshot source metadata)) t u
@@ -363,3 +562,58 @@ module Globals (source : Input.Input) (metadata : Input.Accepted source)
   ... | just (level , kind-typed) with body-proof (Input.GlobalInput.type entry) (Input.GlobalInput.body entry) br
   ... | nothing = nothing
   ... | just typed = just record { level = level ; kind = kind-typed ; body = typed }
+
+  ----------------------------------------------------------------------
+  -- Certificate assembly. Recipes are consumed in DECLARATION ORDER and
+  -- must cover every actual entry; a surplus or missing recipe fails.
+  ----------------------------------------------------------------------
+
+  constructors : (family : Family) (ctors : List Ctor) → List ConstructorRecipe
+    → Maybe (All.All (C.N.ConstructorDeclaration family) ctors)
+  constructors family [] [] = just All.[]
+  constructors family [] (recipe ∷ recipes) = nothing
+  constructors family (ctor ∷ ctors) [] = nothing
+  constructors family (ctor ∷ ctors) (recipe ∷ recipes)
+    with D.constructor-declaration family ctor recipe
+  ... | nothing = nothing
+  ... | just declaration with constructors family ctors recipes
+  ...   | nothing = nothing
+  ...   | just rest = just (declaration All.∷ rest)
+
+  family-table : (entries : List Family) (recipes : List FamilyRecipe)
+    → Maybe (All.All C.FamilyEvidence entries)
+  family-table [] [] = just All.[]
+  family-table [] (recipe ∷ recipes) = nothing
+  family-table (family ∷ entries) [] = nothing
+  family-table (family ∷ entries) (recipe ∷ recipes)
+    with D.family-declaration family recipe
+  ... | nothing = nothing
+  ... | just declaration
+    with constructors family (fam-ctors family) (FamilyRecipe.fam-constructor-recipes recipe)
+  ...   | nothing = nothing
+  ...   | just declarations with family-table entries recipes
+  ...     | nothing = nothing
+  ...     | just rest = just
+    (record { declaration = declaration ; constructors = declarations } All.∷ rest)
+
+  definitions : (entries : List Input.GlobalInput) (recipes : List Packet)
+    → Maybe (All.All C.GlobalEvidence entries)
+  definitions [] [] = just All.[]
+  definitions [] (recipe ∷ recipes) = nothing
+  definitions (entry ∷ entries) [] = nothing
+  definitions (entry ∷ entries) (recipe ∷ recipes) with replay entry recipe
+  ... | nothing = nothing
+  ... | just evidence with definitions entries recipes
+  ...   | nothing = nothing
+  ...   | just rest = just (evidence All.∷ rest)
+
+  certificate : (family-recipes : List FamilyRecipe) (packets : List Packet)
+    → Maybe C.Evidence
+  certificate family-recipes packets
+    with family-table (S.Snapshot.family-entries C.R.snapshot) family-recipes
+  ... | nothing = nothing
+  ... | just replayed-families
+    with definitions (Input.Input.globals source) packets
+  ...   | nothing = nothing
+  ...   | just replayed-definitions = just record
+    { families = replayed-families ; definitions = replayed-definitions }

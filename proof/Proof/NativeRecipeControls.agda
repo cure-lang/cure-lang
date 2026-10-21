@@ -21,6 +21,7 @@ open import Core.Universe using (l0; l1; l2)
 open import Core.Typing using (Ctx; ⟨⟩; extend; Conversion)
 open import Core.Reduction
 open import Core.NativeRecipe
+import Core.CanonicalSnapshot as S
 import Core.SyntaxEquality as Syntax
 import Core.ExecutableSnapshot as Input
 import Proof.ExecutableSnapshotExamples as Snapshot
@@ -303,3 +304,45 @@ eta-not-conversion = refl
 eta-not-application-conversion : present
   (D.conversion eta-term (tm-var 0) (c-app c-refl c-refl)) ≡ false
 eta-not-application-conversion = refl
+
+------------------------------------------------------------------------
+-- DECLARATION RECIPE CONTROLS
+--
+-- The telescope itself is the actual declaration, so these failures are
+-- about the RECIPE (per-entry kind derivations, result spines, coverage)
+-- and the checked scope/uniformity/universe conditions -- never about an
+-- asserted declaration.
+------------------------------------------------------------------------
+
+short-field-vector : present
+  (D.constructor-declaration Native.family Native.pack
+    (record E.pack-recipe { ctor-field-recipes = r-leaf ∷ [] })) ≡ false
+short-field-vector = refl
+non-kind-field : present
+  (D.constructor-declaration Native.family Native.pack
+    (record E.pack-recipe
+      { ctor-field-recipes = r-leaf ∷ r-claim tm-atom_type r-leaf ∷ [] })) ≡ false
+non-kind-field = refl
+surplus-constructor-recipe : present
+  (E.G.family-table (S.Snapshot.family-entries Snapshot.snapshot)
+    (record { fam-parameter-recipes = [] ; fam-index-recipes = r-leaf ∷ []
+            ; fam-constructor-recipes = E.pack-recipe ∷ E.alternate-recipe ∷ E.pack-recipe ∷ [] }
+      ∷ [])) ≡ false
+surplus-constructor-recipe = refl
+missing-constructor-recipe : present
+  (E.G.family-table (S.Snapshot.family-entries Snapshot.snapshot)
+    (record { fam-parameter-recipes = [] ; fam-index-recipes = r-leaf ∷ []
+            ; fam-constructor-recipes = E.pack-recipe ∷ [] } ∷ [])) ≡ false
+missing-constructor-recipe = refl
+wrong-result-index-recipe : present
+  (D.constructor-declaration Native.family Native.alternate
+    (record E.alternate-recipe { ctor-result-index-recipes = r-leaf ∷ [] })) ≡ false
+wrong-result-index-recipe = refl
+field-universe-overflow : present
+  (D.constructor-declaration (record Native.family { fam-level = l0 }) Native.pack
+    E.pack-recipe) ≡ false
+field-universe-overflow = refl
+non-uniform-result-parameters : present
+  (E.Box.constructor-declaration E.box-family
+    (record E.box-ctor { ctor-params = tm-var 0 ∷ [] }) E.box-recipe) ≡ false
+non-uniform-result-parameters = refl

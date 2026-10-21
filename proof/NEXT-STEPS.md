@@ -146,10 +146,35 @@ conservative extension of the same bounded protocol: `Nothing` still means
 only that this protocol failed. Native typing, reduction, executable source,
 generated fixture bytes and the postulate/bypass inventories are unchanged.
 
+## Declaration recipe replay continuation
+Family and constructor DECLARATION recipes now replay. A recipe supplies one
+kind derivation per telescope entry (parameters, fields, result parameters,
+result indices) and the result spines; the telescope itself is read from the
+actual declaration and recipes are consumed in declaration order, so surplus or
+missing recipes fail. `declare`/`declare-below` rebuild `Declared` entries
+forwards, deciding scope and checking every field level against the family's
+declared level; `constructor-declaration` additionally checks result scoping,
+the `parameterSlots` uniformity equation and both result spines.
+`family-table`/`constructors`/`definitions`/`certificate` assemble the finite
+evidence in lockstep with the actual tables.
+
+The examples replay the exported `Boundary#Packed` family, both its
+constructors (including the computed result index) and the parameter-bearing
+`Box` declaration, and the mixed certificate takes its whole family half from
+those recipes instead of manual proof objects. Controls reject short field
+vectors, a non-kind field derivation, surplus/missing constructor recipes, a
+wrong result-index recipe, field universe overflow and a non-uniform
+result-parameter vector.
+
+Still open for this item: dependent case/motive/branch/coverage recipes and a
+derived (rather than per-field-recipe) account of the branch context's
+specialised field kinds, after which the complete exported certificate -- and
+therefore the fourth global's manual case proof -- can be assembled.
+
 ## Current remaining work, in priority order
-1. Add dependent case, motive/branch/coverage and family/constructor
-   declaration recipes, then assemble the complete exported certificate
-   without the remaining manual declaration and fourth-global case proofs.
+1. Add dependent case, motive/branch/coverage recipes, then assemble the
+   complete exported certificate without the remaining manual
+   fourth-global case proof.
 2. Define and validate the serialized byte/JSON format and Elixir producer.
    Prove representation fidelity, snapshot/context correspondence and the
    connection between actual kernel acceptance and checked native evidence.
