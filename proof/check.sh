@@ -146,6 +146,9 @@ MODULES=(
   Core/AdmissionBoundary
   Proof/AdmissionBoundaryExamples
   Proof/CanonicalSnapshotExamples
+  Core/ExecutableSnapshot
+  Fixtures/ExecutableSnapshot
+  Proof/ExecutableSnapshotExamples
 )
 
 fail=0

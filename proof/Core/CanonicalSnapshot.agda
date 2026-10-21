@@ -14,7 +14,7 @@ open import Data.Maybe using (Maybe; just; nothing)
 import Data.Maybe as Maybe
 open import Data.Product using (_×_; _,_; proj₁; proj₂)
 open import Data.String.Properties using (_≟_)
-open import Relation.Nullary using (yes; no)
+open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary.PropositionalEquality
   using (_≡_; _≢_; refl; sym; trans; cong)
 open import Core.Syntax using (Name; Term)
@@ -57,6 +57,22 @@ data Unique {A : Set} : Table A → Set where
   unique[] : Unique []
   unique∷ : ∀ {name value rest}
     → Fresh name rest → Unique rest → Unique ((name , value) ∷ rest)
+
+fresh? : ∀ {A} (key : Name) (table : Table A) → Dec (Fresh key table)
+fresh? key [] = yes fresh[]
+fresh? key ((name , value) ∷ rest) with key ≟ name
+... | yes same = no (λ { (fresh∷ different tail) → different same })
+... | no different with fresh? key rest
+... | yes tail = yes (fresh∷ different tail)
+... | no absent = no (λ { (fresh∷ unequal tail) → absent tail })
+
+unique? : ∀ {A} (table : Table A) → Dec (Unique table)
+unique? [] = yes unique[]
+unique? ((name , value) ∷ rest) with fresh? name rest
+... | no absent = no (λ { (unique∷ fresh tail) → absent fresh })
+... | yes fresh with unique? rest
+... | yes tail = yes (unique∷ fresh tail)
+... | no absent = no (λ { (unique∷ fresh tail) → absent tail })
 
 fresh-misses : ∀ {A} {key} {table : Table A}
   → Fresh key table → lookup key table ≡ nothing

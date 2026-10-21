@@ -1256,6 +1256,89 @@ admission are unchanged. The next obligations are tracked in
 [`NEXT-STEPS.md`](NEXT-STEPS.md); Stage 0's complete acceptance-rule ledger,
 finite declaration checking and evaluator/readback refinement remain open.
 
+### Bounded executable snapshot capture and metadata replay
+`Cure.Core.ProofSnapshot` is an opt-in capture/render API, not an admission or
+release gate. It inspects the entire supplied Core registry, checks exact
+owner-qualified keys and key/name/owner/order consistency, and sorts family
+and global keys while retaining constructor declaration order. Its initial
+encoding is printable ASCII; quoted strings are escaped without creating
+atoms. It rejects builtins, primitives, aliases, opaque families, externs,
+unknown declaration metadata and erased/implicit constructor layouts.
+Global layout metadata must be absent or explicit and unrestricted with the
+right syntactic Pi arity. Every type, declaration vector and raw body is
+scanned for scope and supported syntax, INCLUDING uncertified/hidden bodies.
+This is intentionally narrower than ordinary executable acceptance.
+
+`Core.ExecutableSnapshot` models the exported constructor/family/global
+metadata, including raw bodies and separate certification/totality flags.
+Its `check` returns a constructive `Dec (Accepted source)` after checking
+layout restrictions and finite family/constructor/global key uniqueness.
+Accepted input projects to `Core.CanonicalSnapshot.Snapshot`. Ordinary body
+availability is gated by the certification flag; generic laws preserve
+declared types and distinguish uncertified hidden bodies from certified
+visible bodies. This concerns default certified-body availability, not
+delta options, lazy normalization, fuel or evaluation strategy.
+Neither certification semantics nor declaration typing is inferred.
+The projected positivity and universe-check flags are FALSE, not fabricated
+certificate booleans.
+
+`proof/Fixtures/ExecutableSnapshot.agda` is exact data generated from
+`Cure.Test.ProofSnapshotFixture`: one dependent family, two constructors
+(including a computed result index) and four globals, with both visible and
+hidden raw bodies. ExUnit kernel-checks its declarations/definitions and
+regenerates this file byte-for-byte. `Proof.ExecutableSnapshotExamples`
+independently runs the formal replay, derives lookup/ownership/visibility
+consequences and supplies supported-payload evidence, including the hidden
+raw dependent case. Rejection controls exercise duplicate tables, opaque
+families, erased/implicit or malformed layouts, missing certified bodies,
+inconsistent visibility and builtin registrations.
+
+This is a concrete checked cross-language artifact, NOT a universal theorem
+that Elixir capture/render implements the formal model. In particular,
+formal metadata acceptance alone does not check canonical name encoding,
+syntax support, declaration kinds, motive typing or coverage. Separate
+controls deliberately allow capture of an ill-typed application and of a
+low-level recursive certification CLAIM, preventing either capture or flags
+from being mistaken for typing/termination proofs.
+
+The new exporter suite and prior boundary/frame/result/branch suites passed
+89 isolated pure-kernel tests (seed 938458) without the normal stdlib startup.
+This is not a replacement claim for the default Mix/ExUnit documentation
+alias or the separately cancelled stdlib/example gate. The default test
+configuration and exclusions are unchanged.
+
+### Acceptance-contract ledger for the first capture slice
+- **Represented, not admitted by capture:** universes through Type2,
+  scoped variables, all graded Pi/lambda/let binders, applications, ordinary
+  data/constructors/cases/globals, Atom literals and Float/Binary type formers.
+  Data/result vector lengths and exact fields-only branch/constructor arities
+  are checked; kinding, uniformity and actual parameter/index types are not.
+- **Names and environments:** direct canonical ASCII keys only; bare/import
+  alias resolution, broader name encodings and general Elixir-to-formal
+  snapshot correspondence remain outside the proof.
+- **Checking-mode behavior still unproved:** expected-goal lambda checking,
+  let-defined semantic values, parameter recovery in constructor checking,
+  infer/check conversion and cumulative-sort fallback. Syntactic support
+  must not be used as evidence of these rules' soundness.
+- **Cases still unproved as executable admission:** fresh-value motive
+  validation versus native typed motives, same-family branch ownership,
+  full or refined coverage, impossible-branch omission and coherent branch
+  substitution. The formal native `Admitted` requirement remains separate.
+- **Excluded rather than equated with conversion:** builtin Any top checking,
+  List covariance, compact Nat/Int/Bounded and Char literal rules, all effect
+  formation/pure/bind paths, holes and absurd terms. An empty builtin registry
+  prevents hidden builtin-dependent acceptance/folding from entering capture.
+- **Runtime/normalization still unproved:** eta, builtin arithmetic,
+  certified delta and semantic totality, filtered/erased frames, typed erasure,
+  emission and BEAM behavior. Parameter-prefix constructor spellings are
+  explicitly rejected even when executable checking accepts them.
+
+This ledger covers current syntax categories and dispatch differences for
+the capture slice, not a completed rule-by-rule admission derivation.
+The next increment is proof-producing syntax/payload replay and finite
+declaration admission with an explicit representation relation; it must not
+replace missing implementation refinement with more fixture-only claims.
+
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;
