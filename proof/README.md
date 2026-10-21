@@ -1529,10 +1529,61 @@ to supported conversion.
 
 This is a verified replayer for arbitrary values of a PROOF-FREE RECIPE AST,
 not yet a byte/JSON parser, Elixir recipe producer, complete certificate
-assembler or checker-acceptance refinement theorem. The next extension is
-checked conversion evidence and dependent case/declaration recipes before
-claiming automatic replay of the complete exported certificate. Existing
-exporter/fixture bytes, native rules and trust inventories are unchanged.
+assembler or checker-acceptance refinement theorem. The following checkpoint
+adds checked conversion evidence; dependent case/declaration recipes are still
+required before claiming automatic replay of the complete exported
+certificate. Existing exporter/fixture bytes, native rules and trust
+inventories are unchanged.
+
+### Checked non-reflexive conversion replay
+`Core.NativeRecipe` replays CONVERSION. `ConvRecipe` is plain, proof-free data
+whose constructors mirror exactly the laws of the abstract `Conversion` record
+(`≈-refl`, `≈-sym`, `≈-trans`, the Π/application/data/constructor/effect
+congruences and the compact-literal identifications) PLUS the premise-free β/ζ
+rules and a δ rule whose only premise is a body lookup in the signature
+supplied to the replayer. There is no asserted-conversion constructor, no
+normalization or reduct oracle and NO η RULE, so a recipe can only NAME a
+derivation the replayer reconstructs.
+
+`Derive` therefore takes an explicit reduction witness
+`reduce : ∀ {t u} → _⇝_ sig t u → Conversion._≈_ conv t u` (inhabited by the
+existing reduction-conversion model) and exposes
+`conversion : (t u : Term) → ConvRecipe → Maybe (t ≈ u)`. Every success is a
+checked `Conversion._≈_` derivation: `c-beta`/`c-zeta` additionally require
+the asserted target to be the ACTUAL reduct, `c-delta` consumes the real body
+equation, `c-trans` checks BOTH halves against its untrusted intermediate
+term, and the compact-literal rules are the record's own identifications, not
+a decision procedure. A wrong direction, a forged target, a mismatched grade
+or family name, a spine-arity mismatch, a disconnected intermediate term and
+an absent or non-visible body all fail.
+
+`r-convert : Term → ConvRecipe → Recipe → Recipe` is an INFERENCE rule: it
+replays a child in inference mode and reports the ASSERTED target only when
+the recipe reconstructs a conversion from the type the child actually
+synthesizes, emitting an `⇒-conv` node. The asserted target stays recipe data,
+so `at` still compares it with the requested goal by exact syntax: a
+well-justified conversion to a DIFFERENT type cannot be substituted for the
+goal. `kind` consequently sees only asserted targets, so universe inflation
+fails even when a genuine conversion exists.
+
+`Proof.NativeRecipeExamples` replays a β-converted goal, a Π codomain redex
+(conversion under a binder), a dependent computed result index (`(λ A → A) A`
+versus `A`), a ζ/β transitivity chain, compact-literal identifications, a δ
+goal against a local alias signature and kind discovery through a β-redex
+declared type. `Proof.NativeRecipeControls` retains the exact-syntax failure
+for the same β-converted goal and adds the rejections above plus both attempts
+to manufacture η. The mixed certificate is unchanged: the exported dependent
+case is still MANUAL.
+
+This is a replayable conversion-derivation language for the EXISTING abstract
+`Conversion` record. It is not an NbE/readback refinement, a normalization
+algorithm or decision procedure, and it has no byte/JSON parser or Elixir
+producer. η remains outside the record, so an η-only conversion still fails
+the protocol, and the executable `Conv`'s η behaviour is not covered. Case,
+motive/branch/coverage and family/constructor declaration recipes, the
+serialized format with its representation-fidelity relation, and the
+kernel-acceptance-to-native-evidence connection remain open. Native typing,
+reduction, executable source and generated fixture bytes are unchanged.
 
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe

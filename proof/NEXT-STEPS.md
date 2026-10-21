@@ -111,24 +111,57 @@ There is no byte/JSON parser or Elixir producer yet, and no completeness or
 whole-kernel refinement claim. Checked conversion evidence and dependent
 case/declaration recipes are the next protocol extensions; only then can
 complete automated replay of the exported native certificate be claimed.
+## Checked non-reflexive conversion replay continuation
+`Core.NativeRecipe.ConvRecipe` is proof-free data whose constructors mirror
+exactly the `Conversion` record's laws (`≈-refl`, `≈-sym`, `≈-trans`, the
+Π/application/data/constructor/effect congruences, the compact-literal
+identifications) plus the premise-free β/ζ rules and a δ rule whose only
+premise is the ACTUAL signature body lookup. There is no
+asserted-conversion constructor, no reduct/normalization oracle and no η
+rule, so a recipe names a derivation the replayer reconstructs.
+
+`Derive` now takes an explicit reduction witness
+`∀ {t u} → _⇝_ sig t u → Conversion._≈_ conv t u` and exposes a checked
+`conversion` decision. β/ζ replay additionally requires the asserted target
+to be the actual reduct; `c-trans` checks both halves against its untrusted
+intermediate term; a wrong direction/target, grade or family mismatch, spine
+arity mismatch, absent or non-visible body, and mismatched compact literals
+all fail. `r-convert` is an inference rule that reports an ASSERTED target
+only with a replayed conversion from the type its child actually synthesizes,
+so exact syntax still separates that target from the requested goal and
+`kind` rejects universe inflation.
+
+The examples replay a beta-converted goal, a Π codomain redex (conversion
+under a binder), a dependent computed result index, a ζ/β transitivity chain,
+compact-literal identifications, a δ goal against a local alias signature and
+kind discovery through a β-redex declared type. Controls retain the
+exact-syntax failure for the same beta-converted goal and add the rejections
+above plus both attempted η derivations. The mixed certificate is unchanged
+and its dependent case proof is still manual.
+
+This is a replayable conversion-derivation language for the EXISTING record,
+not an NbE/readback/η refinement, normalization algorithm or decision
+procedure, and it has no byte/JSON parser or Elixir producer. It is a
+conservative extension of the same bounded protocol: `Nothing` still means
+only that this protocol failed. Native typing, reduction, executable source,
+generated fixture bytes and the postulate/bypass inventories are unchanged.
+
 ## Current remaining work, in priority order
-1. Add checked non-reflexive conversion certificates to recipe replay.
-   Structural equality alone cannot replay beta-converted native goals.
-2. Add dependent case, motive/branch/coverage and family/constructor
+1. Add dependent case, motive/branch/coverage and family/constructor
    declaration recipes, then assemble the complete exported certificate
    without the remaining manual declaration and fourth-global case proofs.
-3. Define and validate the serialized byte/JSON format and Elixir producer.
+2. Define and validate the serialized byte/JSON format and Elixir producer.
    Prove representation fidelity, snapshot/context correspondence and the
    connection between actual kernel acceptance and checked native evidence.
-4. Refine executable evaluation, normalization, readback and conversion,
+3. Refine executable evaluation, normalization, readback and conversion,
    including eta, certified delta, stuck-case policy and builtin computation.
    Resolve the stricter native versus executable motive contracts explicitly.
-5. Extend the proved executable fragment to the remaining literal/payload,
+4. Extend the proved executable fragment to the remaining literal/payload,
    subtyping/effect, indexed-coverage and filtered/erased-frame contracts.
-6. Prove semantic positivity and totality certification, including extraction,
+5. Prove semantic positivity and totality certification, including extraction,
    size-change descent and linkage to actual certified unfolding; finite
    certificate replay and body finality are not those semantic theorems.
-7. Prove typed relevance/erasure simulation and BEAM lowering/execution
+6. Prove typed relevance/erasure simulation and BEAM lowering/execution
    correspondence, with explicit effect, exception, FFI and host trust bounds.
 The detailed stages below expand these obligations. Waived Mix/ExUnit/docs
 and stdlib/example verification is not an additional outstanding proof task.

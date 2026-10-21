@@ -1,8 +1,11 @@
 {-# OPTIONS --guardedness #-}
 ------------------------------------------------------------------------
 -- Rejection means failure of this bounded protocol, NOT refutation of
--- all native typing. Beta-converted goals can be natively typed while
--- exact-syntax replay still fails. Cases have no rule in this protocol.
+-- all native typing. EXACT-SYNTAX results can fail where a CHECKED
+-- conversion recipe succeeds (the positive halves live in
+-- Proof.NativeRecipeExamples); the controls below show that a conversion
+-- recipe cannot be manufactured, guessed or used as an inference rule.
+-- Cases still have no rule in this protocol.
 ------------------------------------------------------------------------
 module Proof.NativeRecipeControls where
 
@@ -120,9 +123,14 @@ case-never-replayed Γ s m bs (r-claim claimed child)
   rewrite case-never-replayed Γ s m bs child = refl
 case-never-replayed Γ s m bs (r-cumul target child)
   rewrite case-never-replayed Γ s m bs child = refl
+case-never-replayed Γ s m bs (r-convert target conversion child)
+  rewrite case-never-replayed Γ s m bs child = refl
 
 beta-type : Term
 beta-type = tm-app (tm-lam unrestricted tm-atom_type tm-atom_type) (tm-atom_lit "argument")
+-- EXACT-SYNTAX replay still fails on a β-converted goal, even though the
+-- same goal replays once a checked conversion recipe is supplied
+-- (E.beta-goal-replayed). Exactness is a restriction, not a refutation.
 beta-goal-not-replayed : present (D.at ⟨⟩ (tm-atom_lit "v") beta-type r-leaf) ≡ false
 beta-goal-not-replayed = refl
 native-beta-goal-exists : Native.N._⊢_⇒_ ⟨⟩ (tm-atom_lit "v") beta-type
@@ -161,3 +169,137 @@ effect-nodes-distinct = refl
 literal-not-structural-constructor : decision
   (Syntax.equal? (tm-nat_lit 0) (tm-ctor "Z" [])) ≡ false
 literal-not-structural-constructor = refl
+
+------------------------------------------------------------------------
+-- CONVERSION RECIPE CONTROLS
+--
+-- A recipe names a DERIVATION; it can never assert one. Every failure
+-- below is a failure of this bounded protocol to reconstruct a checked
+-- `Conversion._≈_` derivation, not a refutation of the native judgment.
+------------------------------------------------------------------------
+
+-- β fires only on the redex, in the stated direction, at its own reduct.
+beta-reverse-not-replayed : present (D.conversion tm-atom_type beta-type c-beta) ≡ false
+beta-reverse-not-replayed = refl
+beta-wrong-target : present (D.conversion beta-type tm-float_type c-beta) ≡ false
+beta-wrong-target = refl
+beta-not-a-redex : present (D.conversion tm-atom_type tm-atom_type c-beta) ≡ false
+beta-not-a-redex = refl
+zeta-wrong-target : present
+  (D.conversion E.let-type (tm-type l0) c-zeta) ≡ false
+zeta-wrong-target = refl
+
+-- Congruence rules check the ACTUAL structure: grades, family names,
+-- constructor names and spine lengths are never inferred from the recipe.
+pi-grade-mismatch : present
+  (D.conversion (tm-pi unrestricted tm-atom_type tm-atom_type)
+    (tm-pi linear tm-atom_type tm-atom_type) (c-pi c-refl c-refl)) ≡ false
+pi-grade-mismatch = refl
+app-not-an-application : present
+  (D.conversion tm-atom_type tm-atom_type (c-app c-refl c-refl)) ≡ false
+app-not-an-application = refl
+data-name-mismatch : present
+  (D.conversion (tm-data "Boundary#Packed" [] (tm-atom_type ∷ []))
+    (tm-data "Other#Packed" [] (tm-atom_type ∷ []))
+    (c-data [] (c-refl ∷ []))) ≡ false
+data-name-mismatch = refl
+data-spine-arity-mismatch : present
+  (D.conversion (tm-data "Boundary#Packed" [] (tm-atom_type ∷ []))
+    (tm-data "Boundary#Packed" [] (tm-atom_type ∷ [])) (c-data [] [])) ≡ false
+data-spine-arity-mismatch = refl
+ctor-spine-arity-mismatch : present
+  (D.conversion (tm-ctor "Boundary#Pack" (tm-atom_type ∷ tm-atom_lit "p" ∷ []))
+    (tm-ctor "Boundary#Pack" (tm-atom_type ∷ tm-atom_lit "p" ∷ []))
+    (c-ctor (c-refl ∷ []))) ≡ false
+ctor-spine-arity-mismatch = refl
+
+-- Transitivity names an intermediate term, and BOTH halves are checked
+-- against it. A disconnected middle term is not a proof.
+trans-disconnected : present
+  (D.conversion E.let-type beta-type
+    (c-trans tm-float_type c-zeta (c-sym c-beta))) ≡ false
+trans-disconnected = refl
+trans-missing-half : present
+  (D.conversion E.let-type beta-type
+    (c-trans tm-atom_type c-zeta c-beta)) ≡ false
+trans-missing-half = refl
+
+-- Compact-literal identification is shape-exact: no arithmetic, no
+-- successor guessing, and no folding of a mutable bound.
+nat-zero-not-successor : present
+  (D.conversion (tm-ctor "S" (tm-nat_lit 0 ∷ [])) (tm-nat_lit 0) c-nat-zero) ≡ false
+nat-zero-not-successor = refl
+nat-suc-wrong-successor : present
+  (D.conversion (tm-ctor "S" (tm-nat_lit 0 ∷ [])) (tm-nat_lit 2) c-nat-suc) ≡ false
+nat-suc-wrong-successor = refl
+bounded-suc-unmatched-bound : present
+  (D.conversion (tm-ctor "Next" (tm-nat_lit 0 ∷ tm-bounded_lit 1 ∷ []))
+    (tm-bounded_lit 1) c-bounded-suc) ≡ false
+bounded-suc-unmatched-bound = refl
+
+-- δ replay uses the ACTUAL signature table. An absent or non-visible body
+-- does not unfold, and the unfolded body must be the asserted target.
+delta-unknown-name : present
+  (D.conversion (tm-global "missing") tm-atom_type (c-delta "missing")) ≡ false
+delta-unknown-name = refl
+delta-uncertified-body : present
+  (D.conversion (tm-global "Boundary#held") (tm-atom_lit "hidden")
+    (c-delta "Boundary#held")) ≡ false
+delta-uncertified-body = refl
+delta-wrong-target : present
+  (D.conversion (tm-global "Boundary#answer") tm-atom_type
+    (c-delta "Boundary#answer")) ≡ false
+delta-wrong-target = refl
+delta-wrong-name : present
+  (D.conversion (tm-global "Boundary#answer") (tm-atom_lit "answer")
+    (c-delta "Boundary#other")) ≡ false
+delta-wrong-name = refl
+
+-- A checked conversion cannot launder a WRONG goal: the dependent result
+-- index really is the reduced form, so an unrelated index is rejected
+-- even though the recipe is otherwise well-formed.
+wrong-dependent-index : present
+  (D.at ⟨⟩ E.computed-value (tm-data "Boundary#Packed" [] (tm-float_type ∷ []))
+    (r-convert (tm-data "Boundary#Packed" [] (tm-atom_type ∷ []))
+      (c-data [] (c-beta ∷ []))
+      (r-ctor [] [] (r-leaf ∷ r-leaf ∷ [])))) ≡ false
+wrong-dependent-index = refl
+wrong-dependent-family : present
+  (D.at ⟨⟩ E.computed-value (tm-data "Other#Packed" [] (tm-atom_type ∷ []))
+    (r-convert (tm-data "Other#Packed" [] (tm-atom_type ∷ []))
+      (c-data [] (c-beta ∷ []))
+      (r-ctor [] [] (r-leaf ∷ r-leaf ∷ [])))) ≡ false
+-- The asserted conversion target is data, so `at` still compares it with
+-- the actual goal by exact syntax; a well-justified conversion to a
+-- DIFFERENT type cannot be substituted for the goal.
+conversion-target-not-goal : present
+  (D.at ⟨⟩ (tm-atom_lit "v") tm-float_type
+    (r-convert beta-type (c-sym c-beta) r-leaf)) ≡ false
+conversion-target-not-goal = refl
+wrong-dependent-family = refl
+
+-- A type CLAIM is still compared by exact syntax; only `r-convert`
+-- closes a goal under conversion, and only with a replayed derivation.
+claim-not-closed-under-conversion : present
+  (D.infer ⟨⟩ (tm-atom_lit "v") (r-claim beta-type r-leaf)) ≡ false
+claim-not-closed-under-conversion = refl
+
+-- Kind discovery THROUGH conversion is bounded by the replayed recipe:
+-- the asserted sort must be the reduct the conversion actually reaches.
+kind-wrong-sort : present
+  (E.Alias.kind ⟨⟩ (tm-global "Alias#kind") (r-convert tm-float_type c-beta r-leaf))
+  ≡ false
+kind-wrong-sort = refl
+kind-universe-inflation : present
+  (E.Alias.kind ⟨⟩ (tm-global "Alias#kind") (r-convert (tm-type l1) c-beta r-leaf))
+  ≡ false
+kind-universe-inflation = refl
+
+-- There is NO η rule: no recipe tag relates an η-expansion to its
+-- neutral, so this record's construction cannot manufacture η even where
+-- the executable `Conv` accepts it.
+eta-not-conversion : present (D.conversion eta-term (tm-var 0) c-refl) ≡ false
+eta-not-conversion = refl
+eta-not-application-conversion : present
+  (D.conversion eta-term (tm-var 0) (c-app c-refl c-refl)) ≡ false
+eta-not-application-conversion = refl
