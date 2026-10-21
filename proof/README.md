@@ -1206,6 +1206,56 @@ the executable fresh-value motive gate, indexed-Bounded/coverage omission,
 erased or filtered frames, erasure simulation, positivity/recursive
 validity certification and semantic totality remain separate obligations.
 
+### Canonical snapshot and conservative syntax boundary
+`Core.CanonicalSnapshot` defines finite named tables, constructive unique-key
+evidence, separate global types/optional visible bodies and a builtin-free
+snapshot view. Family-table and flattened constructor-table lookup agreement
+with the formal registry are DERIVED for arbitrary query names. Membership
+implies successful lookup under uniqueness; successful lookup implies
+membership. Visible constructor ownership is derived from family-key
+uniqueness and actual lookup membership, and feeds the native validity fixture.
+Duplicate inputs retain defined first-match lookup behavior but cannot supply
+the snapshot's unique-key evidence.
+
+`Core.AdmissionBoundary.Fragment` supplies a scoped, exact-key syntax
+judgment for terms, branch bodies, caller types, forward-scoped declaration
+telescopes, result vectors and global payloads. Branch arities match actual
+registered constructor field counts. It derives `Scoped` and `Final`
+structurally. The first grammar includes graded binders, applications,
+ordinary data/cases/globals, Atom literals and Float/Binary type formers.
+It excludes Int nodes, payload-free Float literals, all compact literals,
+effects, holes and absurd terms, including nested occurrences.
+
+`Eligible` SEPARATELY REQUIRES native `Admitted`, supported payloads, caller,
+source and goal. Its typing projection is not a checker-soundness theorem:
+syntax does not establish declaration kinds, goal kinds, typed motives,
+coverage, subtyping or conversion soundness. Exact string identities are
+opaque keys here; atom/string encoding, owner-name validation, Elixir map
+extraction, alias resolution, opaque/quantity metadata, certification
+visibility and semantic environment/frame correspondence are NOT proved.
+The snapshot must not be used to silently drop those executable obligations.
+
+`Proof.AdmissionBoundaryExamples` jointly inhabits these interfaces for
+`Boundary#Packed(A : Type0)` and `Boundary#Pack(A, x : A)`, a nonempty typed
+global table and a genuinely dependent motive returning A. The whole Atom-only
+case is natively admitted at its original Atom goal; existing native progress
+consumes its eligibility projections and an actual ordinary iota step returns
+the payload. Missing/foreign/bare names, escaped caller/branch variables,
+wrong branch arity and excluded syntax have negative controls.
+`Proof.CanonicalSnapshotExamples` rejects duplicate family/constructor/global
+keys, distinguishes first-match owners, and retains opaque global types
+without exposing bodies.
+
+Eleven tests in `test/cure/core/admission_boundary_audit_test.exs` independently
+pin the corresponding dependent Atom fixture, canonical versus bare lookup,
+declaration order, immutable snapshots, directional Any/List widening,
+non-eliminable opaque families, graded effects, Float payload distinction and
+fresh/let/branch frames. These are executable regressions, not a proof of
+Elixir-to-Agda refinement. Native typing/reduction/conversion and executable
+admission are unchanged. The next obligations are tracked in
+[`NEXT-STEPS.md`](NEXT-STEPS.md); Stage 0's complete acceptance-rule ledger,
+finite declaration checking and evaluator/readback refinement remain open.
+
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;

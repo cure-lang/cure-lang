@@ -142,6 +142,10 @@ MODULES=(
   Proof/DependentSoundnessModel
   Proof/DependentSoundnessExamples
   Proof/DependentSoundnessControls
+  Core/CanonicalSnapshot
+  Core/AdmissionBoundary
+  Proof/AdmissionBoundaryExamples
+  Proof/CanonicalSnapshotExamples
 )
 
 fail=0
