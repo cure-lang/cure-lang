@@ -5,7 +5,7 @@ defmodule Cure.Core.ProofSnapshotTest do
   """
   use ExUnit.Case, async: true
 
-  alias Cure.Core.{Context, Env, Grade, Inductive, Kernel, ProofSnapshot, Term}
+  alias Cure.Core.{Context, Env, Eval, Grade, Inductive, Kernel, ProofSnapshot, Term}
   alias Cure.Test.ProofSnapshotFixture
 
   @fixture Path.expand("../../..", __DIR__) <> "/proof/Fixtures/ExecutableSnapshot.agda"
@@ -31,6 +31,26 @@ defmodule Cure.Core.ProofSnapshotTest do
 
     assert first["name"] == "Boundary#Pack"
     assert second["name"] == "Boundary#Alternate"
+  end
+
+  test "the computed constructor case retains the original Atom goal", %{env: env} do
+    %{body: {:case, {:ctor, @pack, args}, motive, branches}} = Env.get_def(env, :"Boundary#unpack")
+    program = {:case, {:ctor, :"Boundary#Alternate", args}, motive, branches}
+
+    assert :ok = Kernel.check(Context.empty(env), program, {:vatom_type})
+    assert {:ok, {:vatom_type}} = Kernel.infer(Context.empty(env), program)
+    assert {:vatom, :payload} = Eval.eval(program, [])
+  end
+
+  test "capture success does not discharge published kinds or hidden body goals", %{env: env} do
+    bad_kind = Env.add_def(env, :bad_kind, {:type, 2}, {:atom_lit, :payload})
+    assert {:ok, _snapshot} = ProofSnapshot.capture(bad_kind)
+    assert {:error, :universe_ceiling} = Kernel.check_def(bad_kind, :"Boundary#bad_kind")
+
+    bad_body = Env.add_def(env, :bad_body, {:float_type}, {:atom_lit, :payload})
+    refute Env.certified?(bad_body, :"Boundary#bad_body")
+    assert {:ok, _snapshot} = ProofSnapshot.capture(bad_body)
+    assert {:error, _reason} = Kernel.check_def(bad_body, :"Boundary#bad_body")
   end
 
   test "raw hidden bodies and certification claims remain distinct", %{env: env} do

@@ -152,6 +152,10 @@ MODULES=(
   Core/ExecutableReplay
   Proof/ExecutableSnapshotExamples
   Proof/AdmissionReplayControls
+  Core/NativeCertificate
+  Proof/NativeCertificateExamples
+  Proof/NativeCertificateControls
+  Proof/NativeCertificateSafety
 )
 
 fail=0

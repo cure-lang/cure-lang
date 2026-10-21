@@ -1335,9 +1335,11 @@ configuration and exclusions are unchanged.
 
 This ledger covers current syntax categories and dispatch differences for
 the capture slice, not a completed rule-by-rule admission derivation.
-The constructive syntax/payload stage below now discharges support replay.
-Finite declaration admission and its representation/refinement relation
-remain next; additional fixture-only claims cannot replace those proofs.
+The constructive syntax/payload stage below discharges support replay,
+and the finite native certificate stage derives validity/admission from
+checked native proof objects. Algorithmic certificate production/replay and
+its implementation-refinement relation remain next; fixture-only claims
+cannot replace those proofs.
 
 ### Constructive syntax and complete raw payload replay
 `Core.AdmissionReplay.Replay snapshot` decides the EXISTING formal
@@ -1394,6 +1396,62 @@ including generated `Fixtures/`, rather than scanning only `Core/` and
 `Proof/`. The exact two-name axiom inventory and empty bypass allowlist are
 unchanged. A tenth hygiene test covers generated/future-directory discovery
 and their rejection of postulates and termination overrides.
+
+### Finite native certificates and exported-snapshot safety
+`Core.NativeCertificate.Certificates` consumes one exported input, its actual
+metadata/complete-payload replay evidence and conversion. Its finite
+`Evidence` contains `All` proofs for each family declaration and every actual
+constructor declaration, plus each raw global's kind and optional body
+inference at its declared goal. Hidden raw definitions are included.
+`SignatureValid`, arbitrary lookup-typing functions, preservation and
+soundness callbacks are NOT certificate fields.
+
+The module derives native `SignatureValid` by actual family/constructor lookup
+membership, projected-to-raw global membership and finite proof lookup.
+Ownership comes from canonical snapshot uniqueness; scoping comes from
+complete replay. For any present raw body, it derives native `Admitted` and
+representation `Eligible` at that body's EXACT declared type, with actual
+goal kind, scope and caller evidence. This is a theorem about finite native
+PROOF OBJECTS checked by Agda, not an algorithm that reconstructs them from
+syntax or an executable checker returning success.
+
+`Proof.NativeCertificateExamples` inhabits the interface over the EXACT
+generated/replayed snapshot: the dependent Packed family, both ordinary and
+computed-index constructors, four raw globals, a typed curried motive and
+full same-family coverage. Its field-universe bounds, uniformity, result
+spines and global kinds/body typings are native. The projected metadata
+booleans remain false; no positivity or universe certificate is fabricated
+from a flag. Validity and ordinary/hidden-body admission are obtained from
+the general finite theorem rather than fixture-specific validity callbacks.
+
+`Proof.NativeCertificateSafety` jointly instantiates native specification
+soundness using that finite validity theorem, replay-derived body finality,
+the existing reduction conversion/data-component model and the snapshot's
+empty builtin registry. The exported dependent case and a computed-index
+alternative each have an actual iota trace whose endpoint retains the
+original Atom goal. A supplied certified-global delta trace is also safe.
+Fuel zero stops at the source; fuel one exhausts at an already-final Atom
+value; fuel two reaches it. Fuel/tree agreement holds at every budget.
+Endpoint typings come from the safety theorem, not independent target checks.
+
+`Proof.NativeCertificateControls` gives complete replayable inputs with NO
+finite native certificate: an ill-kinded Type2 published type and a HIDDEN
+Atom body declared at Float. Abstract conversion-parametric inversions prove
+these failures. Missing constructor fields, omitted alternative coverage and
+an undersized field-universe budget are rejected; finite evidence must also
+contain the second constructor even when the ordinary source selects the
+first one. Two executable regressions independently pin the computed case
+and capture-versus-kernel failures. The focused isolated suite now has
+91 passing tests with seed 938458.
+
+This connects checked finite native evidence for a concrete exported artifact
+to existing SPECIFICATION safety. It does not prove that Elixir capture or
+kernel acceptance produces such evidence, define a serialized native
+derivation replayer, validate semantic totality/positivity or refine NbE/eta,
+erasure, emission or BEAM execution. Default full Mix/ExUnit/docs and the
+stdlib/example gates remain unverified after earlier cancellations.
+Native typing/reduction, executable capture and generated fixture bytes
+are unchanged.
 
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
