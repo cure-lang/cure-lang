@@ -164,6 +164,10 @@ MODULES=(
   Proof/WireExamples
   Core/WireConversion
   Proof/WireConversionExamples
+  Core/WireRecipe
+  Proof/WireRecipeExamples
+  Core/WireCertificate
+  Proof/WireCertificateExamples
 )
 
 fail=0

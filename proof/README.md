@@ -1674,9 +1674,10 @@ algorithm or decision procedure, and it has no byte/JSON parser or Elixir
 producer at that checkpoint. η remains outside the record, so an η-only
 conversion still fails the protocol, and the executable `Conv`'s η behaviour
 is not covered. Case/declaration replay has since been implemented above;
-serialization of those recipe layers, general representation fidelity and
-the kernel-acceptance-to-native-evidence connection remain open. Native typing,
-reduction, executable source and generated fixture bytes are unchanged.
+serialization of those recipe layers has since been implemented below.
+General representation fidelity and the kernel-acceptance-to-native-evidence
+connection remain open. Native typing, reduction, executable source and
+generated fixture bytes are unchanged.
 
 ### Wire-format core with a checked codec (first serialization increment)
 `Core.Wire` fixes a SERIALISED FORMAT for certificate data and proves the
@@ -1759,13 +1760,11 @@ outstanding proof task and is not reported as a pass.
 
 REMAINING LEDGER for this item — none of these is claimed:
 
-- **Remaining recipe tag layers.** `ConvRecipe` now has a checked character
-  codec, described below. `Recipe`/`Packet`/`ConstructorRecipe`/`FamilyRecipe`
-  are not on the wire yet. The design is fixed: one tag atom per constructor,
-  payloads as ordered children, terms through the proved `Code` layer, names
-  interned, list payloads as node lists, and fidelity proved with the same
-  `Maybe`-plumbing lemma (`each-fidelity`) plus per-constructor rewrites on the
-  decoder's bind chain. It is mechanical but not written.
+- **Recipe/certificate production.** All current `ConvRecipe`, `Recipe`,
+  `Packet`, constructor/family declaration and whole-certificate payloads now
+  have Agda character codecs, described below. The Elixir producer still
+  produces TERMS only: recipe/certificate production, a generated complete
+  cross-language artifact and its implementation correspondence are open.
 - **Representation fidelity of snapshots.** That an executable registry
   (`Env`) corresponds to a formal `Snapshot`/`Signature` — name identity,
   declaration order, first-match lookup, owner-qualified keys, context
@@ -1817,11 +1816,66 @@ and visible delta unfolding on the exported snapshot; it rejects hidden
 delta bodies, a mismatched table and a well-formed but false conversion claim.
 Parsing a recipe is not evidence that its conversion succeeds.
 
-The ordinary Recipe, Packet and declaration layers and their producer are
-next. Snapshot/context representation fidelity, kernel-acceptance
-correspondence, NbE/eta, semantic certification and compiler/runtime
+The ordinary Recipe, Packet and declaration codecs are now complete below;
+their Elixir producer is still open. Snapshot/context representation fidelity,
+kernel-acceptance correspondence, NbE/eta, semantic certification and compiler/runtime
 refinement remain unproved; a concrete cross-language vector is not a
 substitute for those theorems.
+### Complete recipe and certificate character codecs
+`Core.WireRecipe` covers every ordinary recipe, with exact tags/child counts,
+strict universe atoms 0/1/2, canonical term payloads through `Core.Wire`,
+conversions through `Core.WireConversion`, and ordered recipe/term vectors.
+Nested cases carry seven fields and each branch is exactly a pair of a
+field-kind vector and a body recipe. Mutually structural traversal proves
+`fidelity`, `each-fidelity`, `branches-fidelity` and character `roundtrip`,
+conditional only on successful encoding with the SAME supplied name table.
+There is no defaulting level decoder, fuel, new axiom or checking override.
+
+The ordinary tags are 0 leaf, 1 Pi, 2 lambda, 3 application, 4 let, 5 data,
+6 constructor, 7 claim, 8 cumulativity, 9 conversion and 10 case. Tags in
+conversion or term payloads are interpreted by their own codecs, not by the
+ordinary recipe decoder. `Core.WireCertificate` adds 11 packet, 12 constructor
+declaration, 13 family declaration and 14 whole-certificate envelope. Lists
+remain ordered node lists; an absent packet body is an empty list and a
+present body is a singleton list. Other optional-body shapes fail. Declaration
+records carry only their existing recipe vectors; the envelope contains family
+recipes and global packets, never source declarations, native proofs or
+validity/lookup callbacks. Container and vector fidelity are proved generically.
+
+`WireCertificate.Replay.checked` composes character decoding with
+`NativeRecipe.Globals.certificate` against an actual accepted snapshot and
+replayed payloads. Only successful SEMANTIC replay returns native evidence.
+`Proof.WireCertificateExamples` serializes the complete exported fixture's
+family, both constructors and four global packets, including the converted
+dependent case. `certificate-from-characters` proves that the resulting native
+certificate is exactly the character pipeline's result. Derived validity,
+raw-body admission, eligibility and the fixed-goal safe trace consume that
+certificate, not manually substituted declaration/global evidence.
+Generic equality/status transport and opaque checked evidence avoid repeatedly
+normalizing the full scanner and proof value during downstream type checking;
+the decoder and native checker themselves are unchanged.
+
+`Proof.WireRecipeExamples` pins every recipe shape (including nested cases,
+nonempty parameter witnesses and all levels), an exact leaf character vector
+and arbitrary-vector fidelity. Controls reject malformed tags/arity, levels,
+term/conversion payloads, branch pairs, missing names and trailing characters.
+Certificate controls separate parser rejection from well-formed data rejected
+by actual replay: missing/surplus tables, swapped global/constructor/branch
+order, missing branches and omitted hidden-body recipes. A changed name table
+can still parse a canonical term, but a forged family claim fails actual
+source-bound typing. Interning is not name-table authentication.
+
+This completes the current Agda recipe/certificate CHARACTER layers, not an
+Elixir recipe producer, universal snapshot/context representation theorem,
+kernel-acceptance correspondence, eta/NbE refinement, semantic
+positivity/totality or BEAM correspondence. The generated snapshot and native
+typing/reduction rules are unchanged.
+Validation for this continuation: all 135 registered Agda modules, the exact
+`funext`/legacy `tree-decides` postulate inventory, ten Python hygiene
+regressions, all-directory hygiene and shell syntax checks pass. No new holes
+or check bypasses were introduced. Strict Credo reports no issues.
+Maintainer-waived Mix/ExUnit, documentation and stdlib/example verification
+were not run and are not reported as passing.
 
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
