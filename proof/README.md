@@ -1676,6 +1676,40 @@ serialized format with its representation-fidelity relation, and the
 kernel-acceptance-to-native-evidence connection remain open. Native typing,
 reduction, executable source and generated fixture bytes are unchanged.
 
+### Wire-format core with a checked codec (first serialization increment)
+`Core.Wire` fixes a SERIALISED FORMAT for certificate data and proves the
+properties a decoder must have. A tree is flattened to a prefix-free
+INSTRUCTION stream (`instructions`: `i-atom n`, `i-open`, `i-close`) and the
+stream is decoded by a STACK MACHINE (`run`) whose recursion is structural on
+the stream — no fuel, no termination override, no well-foundedness side
+condition. `run-instructions` proves `run (instructions t) ≡ just t` for every
+tree, so decoding inverts encoding.
+
+The stream is then RENDERED to characters (unary naturals terminated by `;`,
+`(` / `)` for list structure) and `render-injective` proves that a single
+instruction's rendering determines the instruction, so the characters cannot
+be read two ways; `Proof.WireExamples` fixes one worked example down to its
+exact character string and records the rejections (`i-close` with an empty
+stack, an unclosed list, trailing junk after the root, a nested unclosed
+list).
+
+NAMES ARE INTERNED, and this is a finding rather than a convenience: a
+character-faithful `String` round-trip is NOT provable here. The standard
+library provides only injectivity of `primStringToList`/`primStringFromList`;
+the missing direction (`fromList∘toList`) exists solely as a `trustMe`
+postulate in `Data.String.Unsafe`, which this development does not use. The
+wire therefore carries a TABLE INDEX, exactly as the canonical snapshot
+resolves owner-qualified keys against its registry: `index-of-sound` proves
+that an index produced by interning reads back as the name that was written,
+and a name absent from the table cannot be interned at all (`absent-name`).
+
+This is the FORMAT's structural core, not the whole of Stage 0's serialization
+obligation. Still open: an executable CHARACTER-level parser with its own
+termination argument (character unambiguity is proved, the scanner is not), the
+reflected `Code`/`Term`/recipe payload layers with their own round-trips, an
+Elixir producer with a generated fixture, and the representation-fidelity and
+kernel-acceptance correspondences. No claim about Elixir bytes is made.
+
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;

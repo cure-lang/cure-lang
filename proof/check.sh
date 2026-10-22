@@ -160,6 +160,8 @@ MODULES=(
   Core/NativeRecipe
   Proof/NativeRecipeExamples
   Proof/NativeRecipeControls
+  Core/Wire
+  Proof/WireExamples
 )
 
 fail=0

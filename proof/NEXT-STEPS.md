@@ -209,10 +209,35 @@ producer, η/NbE refinement, a derived (rather than per-field-recipe) account
 of specialised field kinds, semantic positivity/totality, typed erasure and
 lowering are separate obligations; none is claimed here.
 
+## Wire-format core continuation
+`Core.Wire` fixes a serialised format and proves the decoder properties that do
+not depend on Elixir. Trees flatten to a prefix-free INSTRUCTION stream and are
+decoded by a stack machine whose recursion is structural on the stream: no
+fuel, no termination override, and `run-instructions` proves decoding inverts
+encoding. The stream renders to characters (unary naturals plus bracketing),
+and `render-injective` proves a single instruction's rendering is unambiguous,
+so the characters cannot be read two ways. `Proof.WireExamples` pins one
+worked example's exact instruction stream and character string and records the
+rejections (stray close, unclosed lists, trailing junk).
+
+Name handling is a documented finding: a character-faithful `String`
+round-trip is NOT available (the stdlib has only injectivity, and
+`Data.String.Unsafe` supplies the missing direction as a postulate this
+development refuses to use), so names are INTERNED as table indices —
+matching the snapshot's registry-driven canonical keys. `index-of-sound`
+proves a written index reads back as the name written, and an absent name
+cannot be interned.
+
+Still open for this item: an executable character-level parser with its own
+termination argument, the reflected `Code`/`Term`/recipe payload layers, the
+Elixir producer with a generated fixture, and the representation-fidelity and
+kernel-acceptance correspondences.
+
 ## Current remaining work, in priority order
-1. Define and validate the serialized byte/JSON format and Elixir producer.
-   Prove representation fidelity, snapshot/context correspondence and the
-   connection between actual kernel acceptance and checked native evidence.
+1. Finish item 3: character-level scanner, payload layers, Elixir producer
+   with a generated fixture, then representation fidelity, snapshot/context
+   correspondence and the connection between actual kernel acceptance and
+   checked native evidence.
 2. Refine executable evaluation, normalization, readback and conversion,
    including eta, certified delta, stuck-case policy and builtin computation.
    Resolve the stricter native versus executable motive contracts explicitly.
