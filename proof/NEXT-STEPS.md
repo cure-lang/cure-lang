@@ -368,12 +368,37 @@ universal producer/extractor/snapshot/context representation, automatic
 kernel-acceptance certificates, executable conversion/motive refinement or
 runtime correspondence. Those remain the next bridge obligations; native
 rules and both generated artifacts are unchanged.
+## Complete source snapshot wire fidelity continuation
+`Core.WireSnapshot` now carries the entire formal metadata-bearing input,
+using proved product/vector/optional/tag/record combinators. Exact scalar and
+canonical term decoding, interned names and whole-record conditional fidelity
+preserve declarations, binder identities, result spines, layouts, raw hidden
+bodies, both certification flags, list order and builtin pairs. Unsupported
+metadata is decoded faithfully and subsequently rejected by semantic checks;
+it is not silently erased.
+`Core.WireAdmission.verify` now accepts a table and two character streams
+rather than a preconstructed source. Its checked result records exact source
+decoding and source-bound certificate verification equations and inherits
+named raw-body admission and native trace/fuel/tree safety. Equality-based
+source pinning supplies concrete original-goal consequences without assuming
+proof irrelevance or authentication of the supplied table.
+The bounded `ProofSnapshotWire` producer reuses the existing registry capture
+audit and term production. A new literal `Fixtures.ExecutableBundle` carries
+both source/certificate streams; deterministic generation/check preserves the
+two older artifacts. Agda independently proves exact whole-source recovery,
+metadata/family/global projection preservation and safe named-body admission
+from both streams. Controls cover all metadata carriers, malformed payloads,
+duplicate sources and a changed source paired with an old certificate.
+Producer regressions are written but not run under the maintainer policy.
+This completes GENERAL FORMAL source codec fidelity, not universal
+Elixir producer/map extraction or semantic context correspondence.
 ## Current remaining work, in priority order
-1. Prove representation fidelity and source/snapshot/context correspondence,
+1. Prove universal producer/extraction representation fidelity and
+   source/snapshot/context correspondence,
    then connect actual kernel acceptance to replayable recipes and checked
    native evidence. The character scanner, all current codecs, the explicit
-   Elixir recipe data producer and a generated complete artifact already exist;
-   universal producer correspondence and automatic recipe production do not.
+   Elixir source/recipe data producers and complete generated artifacts already
+   exist; universal producer correspondence and automatic recipe production do not.
 2. Refine executable evaluation, normalization, readback and conversion,
    including eta, certified delta, stuck-case policy and builtin computation.
    Resolve the stricter native versus executable motive contracts explicitly.

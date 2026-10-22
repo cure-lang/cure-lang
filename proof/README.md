@@ -1981,6 +1981,69 @@ the exact two-name postulate inventory, ten hygiene regressions and
 all-directory hygiene remain unchanged. Artifact reproduction, shell syntax,
 strict Credo covering all 1,414 source files, formatting and whitespace checks
 pass. No maintainer-waived executable/documentation/stdlib suites were run.
+### Complete source snapshot wire fidelity and character-only admission
+`Core.WireCombinators` proves fidelity for exact products, vectors,
+empty/singleton optionals, tag wrappers and record retractions.
+`Core.WireSnapshot` uses them to encode/decode the ENTIRE formal
+`ExecutableSnapshot.Input`: constructor names, telescope binder names/types,
+result parameters/indices and layouts; family parameters/indices/level,
+constructor order and opacity; global names/types, raw optional bodies,
+optional quantity/explicitness vectors and BOTH certification flags; and
+builtin name pairs. Record tags 15/16/17/18 carry right-nested two-child
+products. Booleans, grades and levels use exact finite scalar decoders;
+names use table indices and terms use canonical `Core.Wire` decoding.
+
+Arbitrary successful snapshot encodings round-trip through nodes and
+characters under the SAME supplied table. This is whole-record equality,
+preserving every field, list order and absent-versus-present-empty option.
+Parsing preserves semantically unsupported metadata, rather than filtering
+it or turning flags into proofs; the existing admission checks still reject
+unsupported layouts, opacity and builtins.
+
+`Core.WireAdmission.verify` takes only a table, SOURCE characters and
+CERTIFICATE characters. Its result stores the decoded source, the exact
+source-decoding equation and the existing checked-admission result/equation.
+Named raw-body admission and native trace/fuel/tree safety consume that
+decoded source. `Pin` identifies a known source solely from equality of
+actual decoder results, not a callback or proof-irrelevance assumption.
+This removes the constructed-source argument from the character admission
+boundary; it does not authenticate the caller's table or original registry.
+
+`Cure.Core.ProofSnapshotWire` encodes the existing `ProofSnapshot.capture`
+audit's bounded output, reusing term production and preserving all captured
+metadata/raw bodies. It exposes no raw-map input and retains capture's
+ASCII/canonical-identity, builtin, opacity, primitive and layout exclusions.
+Those producer exclusions are narrower than the lossless FORMAL input codec.
+`generate-wire-certificate.exs` now also generates/checks
+`Fixtures.ExecutableBundle`, containing an extended table and literal source
+and certificate character streams. The old source and certificate artifacts
+remain byte-for-byte unchanged.
+
+`Proof.WireSnapshotExamples` proves exact equality between the produced
+source characters and the independently encoded complete formal input;
+decoding recovers that whole input, with family/global projections and
+metadata preserved. Both produced streams then pass character-only
+admission, yielding original-goal named-body safety and retaining hidden raw
+bodies without exposing them to delta. Additional controls preserve all
+grades, optional layouts and builtin/opacity/certification metadata through
+the codec, while rejecting them where required during admission. Malformed
+scalars/products/optionals/tags/names/trailing characters, duplicate sources
+and a changed source paired with the old certificate have rejection controls.
+Producer regressions are recorded in `proof_snapshot_wire_test.exs` but
+remain unrun under the maintainer waiver.
+
+This discharges GENERAL FORMAL snapshot codec fidelity and establishes a
+concrete complete source/certificate artifact bridge. It does not prove
+universal Elixir map extraction/producer correspondence, semantic
+context/environment fidelity, kernel acceptance implies recipe production,
+NbE/motive refinement, semantic totality, typed erasure or BEAM correspondence.
+Native rules, admission restrictions and the postulate inventory are unchanged.
+Validation for this continuation: all 144 Agda modules pass, with the exact
+`funext`/legacy `tree-decides` inventory, ten hygiene regressions and no new
+holes or checking bypasses. Standalone producer compilation/artifact
+reproduction, strict Credo over all 1,417 source files, formatting, shell
+syntax and whitespace pass. The older two artifacts are unchanged; waived
+Mix/ExUnit, documentation and stdlib/example suites were not run.
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;

@@ -8,8 +8,10 @@ for source <- [
       "lib/cure/core/proof_wire.ex",
       "lib/cure/core/proof_recipe.ex",
       "lib/cure/core/proof_snapshot.ex",
+      "lib/cure/core/proof_snapshot_wire.ex",
       "test/support/proof_snapshot_fixture.ex",
-      "test/support/proof_recipe_fixture.ex"
+      "test/support/proof_recipe_fixture.ex",
+      "test/support/proof_bundle_fixture.ex"
     ] do
   Code.compile_file(Path.join(root, source))
 end
@@ -21,16 +23,26 @@ if File.read!(Path.join(root, "proof/Fixtures/ExecutableSnapshot.agda")) != snap
   do: raise("paired source snapshot differs; review its representation boundary")
 
 {:ok, generated} = Cure.Test.ProofRecipeFixture.to_agda()
-target = Path.join(root, "proof/Fixtures/ExecutableCertificate.agda")
+{:ok, bundle} = Cure.Test.ProofBundleFixture.to_agda()
+
+targets = [
+  {Path.join(root, "proof/Fixtures/ExecutableCertificate.agda"), generated},
+  {Path.join(root, "proof/Fixtures/ExecutableBundle.agda"), bundle}
+]
 
 case System.argv() do
   [] ->
-    File.write!(target, generated)
-    IO.puts("Generated #{Path.relative_to(target, root)}")
+    for {target, contents} <- targets do
+      File.write!(target, contents)
+      IO.puts("Generated #{Path.relative_to(target, root)}")
+    end
 
   ["--check"] ->
-    if File.read!(target) != generated, do: raise("certificate artifact differs; regenerate it")
-    IO.puts("Certificate artifact is byte-for-byte reproducible")
+    for {target, contents} <- targets do
+      if File.read!(target) != contents, do: raise("#{Path.relative_to(target, root)} differs; regenerate it")
+    end
+
+    IO.puts("Certificate and source bundle artifacts are byte-for-byte reproducible")
 
   _other ->
     raise ArgumentError, "expected no arguments or --check"

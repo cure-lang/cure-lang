@@ -172,6 +172,11 @@ MODULES=(
   Proof/ProducedCertificateExamples
   Core/CheckedAdmission
   Proof/CheckedAdmissionExamples
+  Core/WireCombinators
+  Core/WireSnapshot
+  Core/WireAdmission
+  Fixtures/ExecutableBundle
+  Proof/WireSnapshotExamples
 )
 
 fail=0
