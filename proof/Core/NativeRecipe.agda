@@ -1,5 +1,6 @@
 ------------------------------------------------------------------------
--- Data-only recipe replay for a CASE-FREE native fragment.
+-- Data-only recipe replay for a bounded native fragment, including
+-- checked conversion, declarations and closed-ambient dependent cases.
 -- A successful result contains a constructed native derivation; no
 -- native proof, lookup or conversion witness is an input field.
 --
@@ -172,26 +173,36 @@ family-branches (c ∷ cs) brs with branch-at (ctor-name c) (length (ctor-args c
 ...   | nothing = nothing
 ...   | just rest = just (λ { (here refl) → here-branch ; (there p) → rest p })
 
--- Every constructor of EVERY registered family is covered.
-all-branches : (families : List Family) (brs : List Branch)
-  → Maybe (∀ {f ct} → f ∈ families → ct ∈ fam-ctors f
+-- Enumerate actual members, but require branches ONLY for families with
+-- the selected name. Unrelated registered constructors impose no coverage.
+all-branches : (families : List Family) (selected : Name) (brs : List Branch)
+  → Maybe (∀ {f ct} → f ∈ families → fam-name f ≡ selected → ct ∈ fam-ctors f
     → HasBranch (ctor-name ct) (length (ctor-args ct)) brs)
-all-branches [] brs = just (λ ())
-all-branches (f ∷ fs) brs with family-branches (fam-ctors f) brs
+all-branches [] selected brs = just (λ ())
+all-branches (f ∷ fs) selected brs with String._≟_ (fam-name f) selected
+... | yes refl with family-branches (fam-ctors f) brs
 ... | nothing = nothing
-... | just this with all-branches fs brs
-...   | nothing = nothing
-...   | just rest = just (λ { (here refl) → this ; (there p) → rest p })
+... | just this with all-branches fs (fam-name f) brs
+... | nothing = nothing
+... | just rest = just (λ
+  { (here refl) owner member → this member
+  ; (there p) owner member → rest p owner member })
+all-branches (f ∷ fs) selected brs | no different with all-branches fs selected brs
+... | nothing = nothing
+... | just rest = just (λ
+  { (here refl) owner member → ⊥-elim (different owner)
+  ; (there p) owner member → rest p owner member })
 
 -- The `ctor-covered` obligation, using the ACTUAL first-match lookup.
-ctor-has-branch : (ind : IndEnv) (brs : List Branch)
-  (covered : ∀ {f ct} → f ∈ IndEnv.families ind → ct ∈ fam-ctors f
+ctor-has-branch : (ind : IndEnv) (selected : Name) (brs : List Branch)
+  (covered : ∀ {f ct} → f ∈ IndEnv.families ind → fam-name f ≡ selected → ct ∈ fam-ctors f
     → HasBranch (ctor-name ct) (length (ctor-args ct)) brs)
   → ∀ {c f ct} → findCtor c (IndEnv.families ind) ≡ just (f , ct)
+  → fam-name f ≡ selected
   → HasBranch c (length (ctor-args ct)) brs
-ctor-has-branch ind brs covered {c} {f} {ct} found =
+ctor-has-branch ind selected brs covered {c} {f} {ct} found owner =
   subst (λ nm → HasBranch nm (length (ctor-args ct)) brs)
-    (sym ctor-name-eq) (covered f-member ct-member)
+    (sym ctor-name-eq) (covered f-member owner ct-member)
   where
     members = lookup-ctor-members {c = c} {fs = IndEnv.families ind} found
     f-member : f ∈ IndEnv.families ind
@@ -206,13 +217,13 @@ ctor-has-branch ind brs covered {c} {f} {ct} found =
 -- demand extra canonical branches, so this protocol fails there rather
 -- than guessing their shapes.
 coverage-free : (ind : IndEnv) (family-name : Name) (brs : List Branch)
-  (covered : ∀ {f ct} → f ∈ IndEnv.families ind → ct ∈ fam-ctors f
+  (covered : ∀ {f ct} → f ∈ IndEnv.families ind → fam-name f ≡ family-name → ct ∈ fam-ctors f
     → HasBranch (ctor-name ct) (length (ctor-args ct)) brs)
   (nat-none : IndEnv.builtins ind "nat" ≡ nothing)
   (bounded-none : IndEnv.builtins ind "bounded" ≡ nothing)
   → CaseCoverage ind family-name brs
 coverage-free ind family-name brs covered nat-none bounded-none = record
-  { ctor-covered = λ {c} {f} {ct} found owner → ctor-has-branch ind brs covered found
+  { ctor-covered = λ {c} {f} {ct} found owner → ctor-has-branch ind family-name brs covered found owner
   ; nat-zero-covered = λ eq → ⊥-elim (nothing≠just (trans (sym nat-none) eq))
   ; nat-suc-covered = λ eq → ⊥-elim (nothing≠just (trans (sym nat-none) eq))
   ; bounded-zero-covered = λ eq → ⊥-elim (nothing≠just (trans (sym bounded-none) eq))
@@ -220,7 +231,7 @@ coverage-free ind family-name brs covered nat-none bounded-none = record
 
 coverage? : (ind : IndEnv) (family-name : Name) (brs : List Branch)
   → Maybe (CaseCoverage ind family-name brs)
-coverage? ind family-name brs with all-branches (IndEnv.families ind) brs
+coverage? ind family-name brs with all-branches (IndEnv.families ind) family-name brs
 ... | nothing = nothing
 ... | just covered with IndEnv.builtins ind "nat" in nat-eq
 ...   | just nat-name = nothing

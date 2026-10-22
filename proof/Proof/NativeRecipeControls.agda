@@ -5,7 +5,7 @@
 -- conversion recipe succeeds (the positive halves live in
 -- Proof.NativeRecipeExamples); the controls below show that a conversion
 -- recipe cannot be manufactured, guessed or used as an inference rule.
--- Cases still have no rule in this protocol.
+-- Dependent cases require their own checked recipes and local coverage.
 ------------------------------------------------------------------------
 module Proof.NativeRecipeControls where
 
@@ -16,6 +16,7 @@ open import Data.Product using (_,_)
 open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Core.Syntax
+open import Core.Signature using (Ctor; Family; IndEnv)
 open import Core.Grade using (linear; unrestricted)
 open import Core.Universe using (l0; l1; l2)
 open import Core.Typing using (Ctx; ⟨⟩; extend; Conversion)
@@ -458,3 +459,30 @@ case-body-target-not-goal : present
   (D.at ⟨⟩ Native.program Native.goal
     (r-convert Native.goal E.unpack-conversion E.unpack-case-recipe)) ≡ false
 case-body-target-not-goal = refl
+
+------------------------------------------------------------------------
+-- Unrelated registered families must not impose coverage obligations.
+------------------------------------------------------------------------
+
+unrelated-ctor : Ctor
+unrelated-ctor = record
+  { ctor-name = "Other#Only" ; ctor-args = [] ; ctor-params = [] ; ctor-indices = [] }
+unrelated-family : Family
+unrelated-family = record
+  { fam-name = "Other#Family" ; fam-params = [] ; fam-indices = [] ; fam-level = l0
+  ; fam-ctors = unrelated-ctor ∷ [] ; positive = false ; universe-ok = false }
+multi-family : IndEnv
+multi-family = record { families = Native.family ∷ unrelated-family ∷ [] ; builtins = λ _ → nothing }
+
+unrelated-coverage-not-required : present
+  (coverage? multi-family "Boundary#Packed" Native.branches) ≡ true
+unrelated-coverage-not-required = refl
+missing-selected-coverage-still-rejected : present
+  (coverage? multi-family "Boundary#Packed" (("Boundary#Pack" , 2 , tm-var 0) ∷ [])) ≡ false
+missing-selected-coverage-still-rejected = refl
+other-family-requires-its-own-branch : present
+  (coverage? multi-family "Other#Family" Native.branches) ≡ false
+other-family-requires-its-own-branch = refl
+other-family-covered-independently : present
+  (coverage? multi-family "Other#Family" (("Other#Only" , 0 , tm-atom_lit "v") ∷ [])) ≡ true
+other-family-covered-independently = refl

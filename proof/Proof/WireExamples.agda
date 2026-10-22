@@ -19,7 +19,7 @@ open import Data.String using (String)
 open import Relation.Nullary using (yes; no)
 open import Relation.Binary.PropositionalEquality
   using (_≡_; _≢_; refl; cong; sym; trans)
-open import Core.Syntax using (Name; Term; tm-atom_lit)
+open import Core.Syntax using (Name; Term; tm-atom_lit; tm-absurd; tm-hole)
 open import Core.Wire
 
 decision : ∀ {A : Set} → Maybe A → Bool
@@ -222,3 +222,46 @@ cross-characters = refl
 
 cross-decodes : decode-term cross-table (encode cross-node) ≡ just (tm-atom_lit "a")
 cross-decodes = decode-term-fidelity cross-table (tm-atom_lit "a") cross-node cross-wire
+
+------------------------------------------------------------------------
+-- Canonical term-code validation, not the internal defaulting decoder.
+------------------------------------------------------------------------
+
+code-node : Data.Nat.ℕ → Data.Nat.ℕ → List Node → Node
+code-node tag number kids = n-list (n-atom tag ∷ n-atom 0 ∷ n-atom number ∷ kids)
+atom-type-node : Node
+atom-type-node = code-node 18 0 []
+
+unknown-tag-rejected : wire-to-term cross-table (code-node 25 0 []) ≡ nothing
+unknown-tag-rejected = refl
+universe-overflow-rejected : wire-to-term cross-table (code-node 0 3 []) ≡ nothing
+universe-overflow-rejected = refl
+invalid-grade-rejected : wire-to-term cross-table
+  (code-node 2 4 (atom-type-node ∷ atom-type-node ∷ [])) ≡ nothing
+invalid-grade-rejected = refl
+missing-pi-children-rejected : wire-to-term cross-table (code-node 2 3 []) ≡ nothing
+missing-pi-children-rejected = refl
+noncanonical-number-rejected : wire-to-term cross-table (code-node 18 9 []) ≡ nothing
+noncanonical-number-rejected = refl
+noncanonical-name-rejected : wire-to-term cross-table
+  (n-list (n-atom 18 ∷ n-atom 1 ∷ n-atom 0 ∷ [])) ≡ nothing
+noncanonical-name-rejected = refl
+surplus-children-rejected : wire-to-term cross-table
+  (code-node 18 0 (atom-type-node ∷ [])) ≡ nothing
+surplus-children-rejected = refl
+nested-default-rejected : wire-to-term cross-table
+  (code-node 3 3 (atom-type-node ∷ code-node 25 0 [] ∷ [])) ≡ nothing
+nested-default-rejected = refl
+malformed-branch-rejected : wire-to-term cross-table
+  (code-node 8 0
+    (atom-type-node ∷ atom-type-node ∷
+      code-node 100 0 (code-node 99 1 (atom-type-node ∷ []) ∷ []) ∷ [])) ≡ nothing
+malformed-branch-rejected = refl
+
+-- Canonical development leaves are still syntax; release eligibility and
+-- native admission are checked by their own layers, not by this codec.
+canonical-absurd-syntax : wire-to-term cross-table (code-node 20 4 []) ≡ just tm-absurd
+canonical-absurd-syntax = refl
+canonical-hole-syntax : wire-to-term cross-table
+  (n-list (n-atom 20 ∷ n-atom 1 ∷ n-atom 3 ∷ [])) ≡ just (tm-hole "a")
+canonical-hole-syntax = refl

@@ -6,7 +6,8 @@ defmodule Cure.Core.ProofWire do
   This is a REPRESENTATION bridge, not a certificate, an admission gate or a
   proof: it renders data the formal side can decode, and nothing here is
   proved about Elixir. The Agda development carries the codec and its
-  round-trip (`Core.Wire.decode-encode`); this module is the producer side.
+  round-trip (`Core.Wire.decode-encode`) and validates canonical reflected
+  term codes before accepting them; this module is the producer side.
 
   ## Grammar (mirrored exactly from `Core/Wire.agda`)
 
@@ -25,8 +26,8 @@ defmodule Cure.Core.ProofWire do
   round-trip is not provable in the formal development (the standard library
   offers only injectivity, and the missing direction is a postulate it
   refuses to use). The caller supplies a NAME TABLE and the wire carries an
-  INDEX into it. The empty name `""` of the non-name code nodes must be in
-  the table, and `intern/2` returns `{:error, {:unknown_name, name}}` for a
+  INDEX into it. Include the empty name `""` whenever a term has non-name
+  code nodes. `intern/2` returns `{:error, {:unknown_name, name}}` for a
   name the table lacks — exactly as the formal encoder is partial.
 
   ## Tag table (from `Core.SyntaxEquality.encode`)
@@ -51,33 +52,54 @@ defmodule Cure.Core.ProofWire do
 
   ## Scope
 
-  Rendering is TOTAL over the Core taxonomy and PARTIAL over names, matching
-  the formal encoder. Nothing here decides typing, admission or coverage.
-  In particular `{:float_lit}` has no payload on the wire, mirroring the
-  formal syntax; and no byte-for-byte claim is made about any fixture until
-  the generated Agda fixture is regenerated and checked.
+  This is a PARTIAL representation bridge, not typing, admission or coverage.
+  Tuple shapes, universe bounds, grades, symbol representations and name tables
+  are checked. Symbolic names may be atoms or valid UTF-8 strings.
+
+  Actual `{:float_lit, value}` payloads cannot be represented by the current
+  payload-free formal Float node: they are explicitly unsupported, never
+  silently erased. The malformed placeholder `{:float_lit}` is rejected too.
+  Tag 16 remains part of the FORMAL codec, not this producer's supported slice.
+  No universal producer/decoder correspondence is established by concrete vectors.
   """
+  alias Cure.Core.{Grade, Universe}
+  @ceiling Universe.ceiling()
 
   @type table :: [atom() | String.t()]
-  @type error :: {:unknown_name, term()} | {:malformed_term, term()}
+  @type error ::
+          {:unknown_name, term()}
+          | {:malformed_term, term()}
+          | {:malformed_table, term()}
+          | {:malformed_code, term()}
+          | {:unsupported_term, term()}
 
   @doc """
   Render a Core term to wire characters, interning names against `table`.
 
   Returns `{:ok, characters}`, or `{:error, {:unknown_name, name}}` when a
-  name is absent from the table, or `{:error, {:malformed_term, term}}`.
+  name is absent from the table. Invalid shapes/tables return structured
+  `:malformed_term`/`:malformed_table` errors; actual Float payloads return
+  `:unsupported_term` until a payload-faithful formal representation exists.
   """
-  @spec encode_term(Cure.Core.Term.t(), table()) :: {:ok, String.t()} | {:error, error()}
-  def encode_term(term, table) when is_list(table) do
-    with {:ok, code} <- code(term),
-         {:ok, interned} <- intern(code, table) do
-      {:ok, render(interned)}
+  @spec encode_term(term(), table()) :: {:ok, String.t()} | {:error, error()}
+  def encode_term(term, table) do
+    if valid_table?(table) do
+      with {:ok, code} <- code(term),
+           {:ok, interned} <- intern_code(code, table) do
+        {:ok, render(interned)}
+      end
+    else
+      {:error, {:malformed_table, table}}
     end
   end
 
   @doc "The interned index of `name` in `table`, or `:error` when absent."
   @spec index_of(atom() | String.t(), table()) :: {:ok, non_neg_integer()} | :error
   def index_of(name, table) do
+    if valid_name?(name) and valid_table?(table), do: find_index(name, table), else: :error
+  end
+
+  defp find_index(name, table) do
     case Enum.find_index(table, &same_name?(&1, name)) do
       nil -> :error
       index -> {:ok, index}
@@ -89,29 +111,41 @@ defmodule Cure.Core.ProofWire do
 
   The tree carries names as strings; `intern/2` replaces them with indices.
   """
-  @spec code(Cure.Core.Term.t()) :: {:ok, tuple()} | {:error, error()}
+  @spec code(term()) :: {:ok, tuple()} | {:error, error()}
   def code(term)
 
-  def code({:type, level}) when is_integer(level) and level >= 0, do: {:ok, node(0, "", level, [])}
+  def code({:type, level}) when is_integer(level) and level >= 0 and level <= @ceiling,
+    do: {:ok, node(0, "", level, [])}
+
   def code({:var, k}) when is_integer(k) and k >= 0, do: {:ok, node(1, "", k, [])}
 
-  def code({:pi, grade, dom, cod}) do
-    with {:ok, d} <- code(dom), {:ok, c} <- code(cod) do
-      {:ok, node(2, "", grade_number(grade), [d, c])}
+  def code({:pi, grade, dom, cod} = term) do
+    with {:ok, number} <- grade_number(grade), {:ok, d} <- code(dom), {:ok, c} <- code(cod) do
+      {:ok, node(2, "", number, [d, c])}
+    else
+      :error -> {:error, {:malformed_term, term}}
+      {:error, _} = error -> error
     end
   end
 
-  def code({:lam, grade, dom, body}) do
-    with {:ok, d} <- code(dom), {:ok, b} <- code(body) do
-      {:ok, node(3, "", grade_number(grade), [d, b])}
+  def code({:lam, grade, dom, body} = term) do
+    with {:ok, number} <- grade_number(grade), {:ok, d} <- code(dom), {:ok, b} <- code(body) do
+      {:ok, node(3, "", number, [d, b])}
+    else
+      :error -> {:error, {:malformed_term, term}}
+      {:error, _} = error -> error
     end
   end
 
-  def code({:let, grade, ty, value, body}) do
-    with {:ok, t} <- code(ty),
+  def code({:let, grade, ty, value, body} = term) do
+    with {:ok, number} <- grade_number(grade),
+         {:ok, t} <- code(ty),
          {:ok, v} <- code(value),
          {:ok, b} <- code(body) do
-      {:ok, node(4, "", grade_number(grade), [t, v, b])}
+      {:ok, node(4, "", number, [t, v, b])}
+    else
+      :error -> {:error, {:malformed_term, term}}
+      {:error, _} = error -> error
     end
   end
 
@@ -121,15 +155,15 @@ defmodule Cure.Core.ProofWire do
     end
   end
 
-  def code({:data, name, params, indices}) do
+  def code({:data, name, params, indices} = term) do
     with {:ok, ps} <- codes(params), {:ok, is} <- codes(indices) do
-      {:ok, node(6, name_of(name), 0, [node(100, "", 0, ps), node(100, "", 0, is)])}
+      named(6, name, 0, [node(100, "", 0, ps), node(100, "", 0, is)], term)
     end
   end
 
-  def code({:ctor, name, args}) do
+  def code({:ctor, name, args} = term) do
     with {:ok, as} <- codes(args) do
-      {:ok, node(7, name_of(name), 0, as)}
+      named(7, name, 0, as, term)
     end
   end
 
@@ -141,7 +175,7 @@ defmodule Cure.Core.ProofWire do
     end
   end
 
-  def code({:global, name}), do: {:ok, node(9, name_of(name), 0, [])}
+  def code({:global, name} = term), do: named(9, name, 0, [], term)
   def code({:int_type}), do: {:ok, node(10, "", 0, [])}
 
   def code({:int_lit, value}) when is_integer(value) and value >= 0,
@@ -153,10 +187,10 @@ defmodule Cure.Core.ProofWire do
   def code({:nat_lit, k}) when is_integer(k) and k >= 0, do: {:ok, node(13, "", k, [])}
   def code({:bounded_lit, k}) when is_integer(k) and k >= 0, do: {:ok, node(14, "", k, [])}
   def code({:float_type}), do: {:ok, node(15, "", 0, [])}
-  def code({:float_lit}), do: {:ok, node(16, "", 0, [])}
+  def code({:float_lit, value} = term) when is_float(value), do: {:error, {:unsupported_term, term}}
   def code({:binary_type}), do: {:ok, node(17, "", 0, [])}
   def code({:atom_type}), do: {:ok, node(18, "", 0, [])}
-  def code({:atom_lit, name}), do: {:ok, node(19, name_of(name), 0, [])}
+  def code({:atom_lit, name} = term), do: named(19, name, 0, [], term)
 
   def code({:effect_type, inner}) do
     with {:ok, i} <- code(inner), do: {:ok, node(20, "", 0, [i])}
@@ -172,7 +206,7 @@ defmodule Cure.Core.ProofWire do
     end
   end
 
-  def code({:hole, name}), do: {:ok, node(20, name_of(name), 3, [])}
+  def code({:hole, name} = term), do: named(20, name, 3, [], term)
   def code({:absurd}), do: {:ok, node(20, "", 4, [])}
   def code(other), do: {:error, {:malformed_term, other}}
 
@@ -188,19 +222,23 @@ defmodule Cure.Core.ProofWire do
     end
   end
 
+  defp codes_loop(other, _acc), do: {:error, {:malformed_term, other}}
+
   defp branch_codes(branches) when is_list(branches), do: branch_loop(branches, [])
   defp branch_codes(other), do: {:error, {:malformed_term, other}}
 
   defp branch_loop([], acc), do: {:ok, Enum.reverse(acc)}
 
-  defp branch_loop([{name, arity, body} | rest], acc) when is_integer(arity) and arity >= 0 do
-    case code(body) do
-      {:ok, b} -> branch_loop(rest, [node(0, name_of(name), arity, [b]) | acc])
+  defp branch_loop([{name, arity, body} = branch | rest], acc) when is_integer(arity) and arity >= 0 do
+    with {:ok, b} <- code(body), {:ok, reflected} <- named(0, name, arity, [b], branch) do
+      branch_loop(rest, [reflected | acc])
+    else
       error -> error
     end
   end
 
   defp branch_loop([other | _rest], _acc), do: {:error, {:malformed_term, other}}
+  defp branch_loop(other, _acc), do: {:error, {:malformed_term, other}}
 
   @doc """
   Replace every name in a `Code` tree with its index in `table`.
@@ -209,34 +247,45 @@ defmodule Cure.Core.ProofWire do
   lacks, mirroring the formal encoder's partiality.
   """
   @spec intern(tuple(), table()) :: {:ok, tuple()} | {:error, error()}
-  def intern({:node, tag, name, number, kids}, table) do
-    with {:ok, index} <- interned_index(name, table),
-         {:ok, interned_kids} <- intern_all(kids, table) do
-      {:ok, {:node, tag, index, number, interned_kids}}
+  def intern(code, table) do
+    if valid_table?(table), do: intern_code(code, table), else: {:error, {:malformed_table, table}}
+  end
+
+  defp intern_code({:node, tag, name, number, kids} = code, table)
+       when is_integer(tag) and tag >= 0 and is_integer(number) and number >= 0 do
+    if valid_name?(name) do
+      with {:ok, index} <- interned_index(name, table),
+           {:ok, interned_kids} <- intern_all(kids, table) do
+        {:ok, {:node, tag, index, number, interned_kids}}
+      end
+    else
+      {:error, {:malformed_code, code}}
     end
   end
 
+  defp intern_code(other, _table), do: {:error, {:malformed_code, other}}
+
   defp interned_index(name, table) do
-    case index_of(name, table) do
+    case find_index(name, table) do
       {:ok, index} -> {:ok, index}
       :error -> {:error, {:unknown_name, name}}
     end
   end
 
-  defp intern_all(kids, table) do
-    Enum.reduce_while(kids, {:ok, []}, fn kid, {:ok, acc} ->
-      case intern(kid, table) do
-        {:ok, interned} -> {:cont, {:ok, [interned | acc]}}
-        error -> {:halt, error}
-      end
-    end)
-    |> case do
-      {:ok, reversed} -> {:ok, Enum.reverse(reversed)}
+  defp intern_all([], _table), do: {:ok, []}
+
+  defp intern_all([kid | rest], table) do
+    with {:ok, interned} <- intern_code(kid, table),
+         {:ok, tail} <- intern_all(rest, table) do
+      {:ok, [interned | tail]}
+    else
       error -> error
     end
   end
 
-  @doc "Render an interned code node to wire characters."
+  defp intern_all(other, _table), do: {:error, {:malformed_code, other}}
+
+  @doc "Render a validated interned code node to wire characters."
   @spec render(tuple()) :: String.t()
   def render({:node, _tag, _index, _number, _kids} = code), do: render_node(code)
 
@@ -249,16 +298,33 @@ defmodule Cure.Core.ProofWire do
 
   defp node(tag, name, number, kids), do: {:node, tag, name, number, kids}
 
+  defp named(tag, name, number, kids, term) do
+    if valid_name?(name),
+      do: {:ok, node(tag, name_of(name), number, kids)},
+      else: {:error, {:malformed_term, term}}
+  end
+
+  defp valid_name?(name) when is_atom(name), do: true
+  defp valid_name?(name) when is_binary(name), do: String.valid?(name)
+  defp valid_name?(_name), do: false
+  defp valid_table?([]), do: true
+  defp valid_table?([name | rest]), do: valid_name?(name) and valid_table?(rest)
+  defp valid_table?(_table), do: false
+
   # An atom and its string form are the same wire identity, matching the
   # formal side's first-match string keys.
   defp same_name?(left, right), do: name_of(left) == name_of(right)
 
   defp name_of(name) when is_atom(name), do: Atom.to_string(name)
   defp name_of(name) when is_binary(name), do: name
-  defp name_of(other), do: other
 
-  defp grade_number(:erased), do: 0
-  defp grade_number(:linear), do: 1
-  defp grade_number(:affine), do: 2
-  defp grade_number(:unrestricted), do: 3
+  defp grade_number(grade) do
+    cond do
+      grade == Grade.zero() -> {:ok, 0}
+      grade == Grade.one() -> {:ok, 1}
+      grade == Grade.affine() -> {:ok, 2}
+      grade == Grade.unrestricted() -> {:ok, 3}
+      true -> :error
+    end
+  end
 end

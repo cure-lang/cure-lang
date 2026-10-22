@@ -1628,8 +1628,9 @@ recipe)` pair per branch, in branch order. The replayer derives:
   the branch arity against the constructor's field count, a branch context
   REBUILT by `opened-fields` (each specialised field type re-scoped and
   re-kinded with a recipe), and the body checked at its `branchGoal`;
-- `CaseCoverage`, replayed by ENUMERATING every registered constructor and
-  matching its branch arity. A builtin-registered environment is outside this
+- `CaseCoverage`, replayed by ENUMERATING registered constructors of the
+  selected family and matching branch arity, without requiring unrelated
+  families' branches. A builtin-registered environment is outside this
   protocol (the snapshot has none), so no canonical builtin branches are
   guessed.
 
@@ -1660,20 +1661,21 @@ branch arity, an unknown branch constructor, real missing coverage, a
 non-data scrutinee, a case under a binder and a well-justified conversion
 smuggled in as the case's assertion.
 
-This still decides the EXISTING representation grammar, not native typing: a
-successful replay yields a native derivation for the represented term, with no
-claim that Elixir acceptance produces such a recipe, no η/NbE refinement, and
-no byte/JSON parser or Elixir producer. Semantic positivity, totality
-certification, typed erasure and lowering are untouched.
+Successful recipe replay constructs a native derivation for the represented
+term; it is not a complete native type decision procedure or a theorem that
+Elixir acceptance produces such a recipe. Semantic positivity, totality
+certification, typed erasure and lowering are untouched. The character codec
+and bounded producer are described below; snapshot/executable correspondence
+and η/NbE refinement remain separate.
 
 This is a replayable conversion-derivation language for the EXISTING abstract
 `Conversion` record. It is not an NbE/readback refinement, a normalization
 algorithm or decision procedure, and it has no byte/JSON parser or Elixir
-producer. η remains outside the record, so an η-only conversion still fails
-the protocol, and the executable `Conv`'s η behaviour is not covered. Case,
-motive/branch/coverage and family/constructor declaration recipes, the
-serialized format with its representation-fidelity relation, and the
-kernel-acceptance-to-native-evidence connection remain open. Native typing,
+producer at that checkpoint. η remains outside the record, so an η-only
+conversion still fails the protocol, and the executable `Conv`'s η behaviour
+is not covered. Case/declaration replay has since been implemented above;
+serialization of those recipe layers, general representation fidelity and
+the kernel-acceptance-to-native-evidence connection remain open. Native typing,
 reduction, executable source and generated fixture bytes are unchanged.
 
 ### Wire-format core with a checked codec (first serialization increment)
@@ -1715,7 +1717,15 @@ PAYLOADS travel as the EXISTING proved reflection: `Core.SyntaxEquality.Code`
 already has `roundtrip : decode (encode t) ≡ t`, so this layer only has to
 carry codes faithfully — tag and both naturals directly, children recursively,
 and the NAME as a sound table index with `index-of-sound` supplying the
-lookup. `code-fidelity`, `kids-fidelity`, `term-fidelity` and
+lookup. The INTERNAL retraction deliberately defaults on malformed codes,
+so `wire-to-term` now additionally validates that re-encoding the decoded
+candidate is EXACTLY the original code. `checked-term-exact` and
+`wire-to-term-exact` expose that successful-acceptance property; unknown tags,
+invalid universes/grades, missing/surplus children, incorrect marker nodes and
+ignored attributes/names (including nested ones) cannot silently become
+another valid term. Canonical holes/absurd remain syntax, not release
+eligibility or native typing.
+`code-fidelity`, `kids-fidelity`, `term-fidelity` and
 `decode-term-fidelity` then give `term-to-wire`/`wire-to-term`/
 `decode-term` their round-trips, so no new term-level argument is assumed.
 
@@ -1749,9 +1759,9 @@ outstanding proof task and is not reported as a pass.
 
 REMAINING LEDGER for this item — none of these is claimed:
 
-- **Recipe tag layers.** `Recipe`/`ConvRecipe`/`Packet`/`ConstructorRecipe`/
-  `FamilyRecipe` are NOT yet on the wire, so a certificate's *recipes* cannot
-  travel as characters yet. The design is fixed: one tag atom per constructor,
+- **Remaining recipe tag layers.** `ConvRecipe` now has a checked character
+  codec, described below. `Recipe`/`Packet`/`ConstructorRecipe`/`FamilyRecipe`
+  are not on the wire yet. The design is fixed: one tag atom per constructor,
   payloads as ordered children, terms through the proved `Code` layer, names
   interned, list payloads as node lists, and fidelity proved with the same
   `Maybe`-plumbing lemma (`each-fidelity`) plus per-constructor rewrites on the
@@ -1765,9 +1775,53 @@ REMAINING LEDGER for this item — none of these is claimed:
   REPRESENTED input has a native derivation. It does not prove the converse
   direction (every `Kernel.check` acceptance yields a replayable certificate);
   that is the Stage 3 correspondence and remains open.
-- **Payload losses.** `float_lit` carries no payload on the wire, mirroring the
-  formal syntax rather than the executable's Float conversion; `hole`/`absurd`
-  travel as development leaves and remain outside the replayed fragment.
+- **Float representation gap.** The formal `float_lit` has no payload.
+  The Elixir producer now explicitly rejects actual Float payloads as
+  unsupported, rather than erasing them, and rejects the malformed
+  `{:float_lit}` placeholder. `hole`/`absurd` travel as canonical development
+  syntax and remain outside release eligibility/replayed native inference.
+
+### Validated wire boundaries and conversion recipes
+Review of the existing codec found a distinction between round-trip fidelity
+and safe decoder ACCEPTANCE: using the internal defaulting `Syntax.decode`
+directly accepted malformed reflected codes. Canonical re-encoding validation
+now closes that boundary while retaining all valid encoder/decoder fidelity.
+Formal rejection controls include malformed nested terms and branch codes.
+The opt-in producer additionally validates universe bounds, grades, names
+and complete UTF-8 name tables, and returns structured errors for malformed
+spines/codes. Supported atom/string interning and existing character vectors
+are preserved. Additional ExUnit regressions were written but not run under
+the maintainer policy; producer source compilation is a separate static check.
+There is still no universal proof about the Elixir implementation.
+
+Review also found that recipe coverage unnecessarily checked unrelated
+families. It is now family-local, reconstructing the existing `CaseCoverage`
+obligations from actual membership, owner-name and arity evidence. A
+multi-family control accepts the selected family's complete branches while
+rejecting genuinely missing branches for either family. Native typing and
+reduction rules are unchanged; nonempty-ambient case reconstruction remains
+outside the current protocol.
+
+`Core.WireConversion` encodes/decodes EVERY current `ConvRecipe` constructor
+with exact tags and payload arities. Transitivity terms use the canonical
+term codec; delta names use sound table interning; recipe vectors preserve
+their order and grouping. `fidelity`, `each-fidelity`, `character-fidelity`
+and public `roundtrip` prove conditional encoder/decoder fidelity for
+arbitrary recipes, without new axioms or check overrides. Unknown tags,
+malformed children, invalid term payloads and absent/out-of-range names fail.
+
+`WireConversion.Replay.checked` composes character decoding with the actual
+conversion replayer and returns a checked conversion proof or failure.
+`Proof.WireConversionExamples` exercises a character-encoded zeta/beta chain
+and visible delta unfolding on the exported snapshot; it rejects hidden
+delta bodies, a mismatched table and a well-formed but false conversion claim.
+Parsing a recipe is not evidence that its conversion succeeds.
+
+The ordinary Recipe, Packet and declaration layers and their producer are
+next. Snapshot/context representation fidelity, kernel-acceptance
+correspondence, NbE/eta, semantic certification and compiler/runtime
+refinement remain unproved; a concrete cross-language vector is not a
+substitute for those theorems.
 
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe

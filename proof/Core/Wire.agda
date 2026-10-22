@@ -16,8 +16,8 @@
 --   i-close      ')'                   close the current child list
 --
 -- Natural payloads are unary so the round-trip needs no arithmetic
--- lemmas; a compact decimal or JSON layer is a purely syntactic
--- refinement and carries no soundness obligation.
+-- lemmas; a compact decimal or JSON layer would need its own checked
+-- representation refinement, rather than being assumed faithful.
 --
 -- NAMES ARE INTERNED. A character-faithful round-trip for `String` is NOT
 -- available here: the standard library only offers injectivity of
@@ -28,10 +28,11 @@
 -- keys against its registry: encoding is partial (a name absent from the
 -- table cannot be written) and decoding looks the index up.
 --
--- BOUNDARY. This module fixes the format and decodes INSTRUCTION STREAMS.
--- An executable character-level parser is the remaining syntactic step
--- (it needs a termination argument of its own); character-level
--- UNAMBIGUITY — the property a decoder must preserve — is proved here.
+-- BOUNDARY. The structural scanner and stack machine decode characters
+-- end to end. Reflected terms additionally require canonical code shape:
+-- the internal defaulting retraction is NOT trusted as an input parser.
+-- Names still require the caller-supplied table; source/producer fidelity
+-- and the recipe payload layers are separate obligations.
 ------------------------------------------------------------------------
 module Core.Wire where
 
@@ -549,17 +550,48 @@ mutual
 
 term-to-wire : (table : List Name) → Term → Maybe Node
 term-to-wire table term = code-to-node table (Syntax.encode term)
+checked-term : Syntax.Code → Maybe Term
+checked-term code with Syntax.code-equal? (Syntax.encode (Syntax.decode code)) code
+... | yes canonical = just (Syntax.decode code)
+... | no malformed = nothing
+
+checked-term-at : ∀ code term → Syntax.decode code ≡ term → Syntax.encode term ≡ code
+  → checked-term code ≡ just term
+checked-term-at code term decoded encoded
+  with Syntax.code-equal? (Syntax.encode (Syntax.decode code)) code
+... | yes canonical = cong just decoded
+... | no unequal = ⊥-elim (unequal (trans (cong Syntax.encode decoded) encoded))
+
+checked-term-roundtrip : ∀ term → checked-term (Syntax.encode term) ≡ just term
+checked-term-roundtrip term =
+  checked-term-at (Syntax.encode term) term (Syntax.roundtrip term) refl
+
+-- Successful validation preserves EVERY code field and child. In
+-- particular, unknown tags, defaulted levels/grades and wrong child
+-- shapes cannot silently become a different valid Term.
+checked-term-exact : ∀ code term → checked-term code ≡ just term → Syntax.encode term ≡ code
+checked-term-exact code term found
+  with Syntax.code-equal? (Syntax.encode (Syntax.decode code)) code
+... | no malformed = ⊥-elim (nothing≠just found)
+... | yes canonical with just-inj found
+... | refl = canonical
 
 wire-to-term : (table : List Name) → Node → Maybe Term
 wire-to-term table node with wire-to-code table node
 ... | nothing = nothing
-... | just code = just (Syntax.decode code)
+... | just code = checked-term code
+
+wire-to-term-exact : ∀ table node term → wire-to-term table node ≡ just term
+  → Σ Syntax.Code (λ code → wire-to-code table node ≡ just code × Syntax.encode term ≡ code)
+wire-to-term-exact table node term found with wire-to-code table node
+... | nothing = ⊥-elim (nothing≠just found)
+... | just code = code , refl , checked-term-exact code term found
 
 term-fidelity : ∀ table term node
   → term-to-wire table term ≡ just node → wire-to-term table node ≡ just term
 term-fidelity table term node found
-  rewrite code-fidelity table (Syntax.encode term) node found
-        | Syntax.roundtrip term = refl
+  rewrite code-fidelity table (Syntax.encode term) node found =
+  checked-term-roundtrip term
 
 ------------------------------------------------------------------------
 -- End-to-end term pipeline: characters ↔ reflected code ↔ term

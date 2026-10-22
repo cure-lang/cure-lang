@@ -162,6 +162,8 @@ MODULES=(
   Proof/NativeRecipeControls
   Core/Wire
   Proof/WireExamples
+  Core/WireConversion
+  Proof/WireConversionExamples
 )
 
 fail=0

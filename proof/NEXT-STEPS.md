@@ -177,8 +177,8 @@ decided, the motive type's sort replayed, the motive inferred at that exact
 curried contract), `Branches` (constructor lookup, owner-name check, branch
 arity against the constructor's field count, a branch context rebuilt entry by
 entry with re-scoped/re-kinded specialised field types, and the body checked
-at its `branchGoal`) and `CaseCoverage` (replayed by enumerating every
-registered constructor and matching branch arity; a builtin-registered
+at its `branchGoal`) and `CaseCoverage` (replayed by enumerating registered
+constructors of the selected family and matching branch arity; a builtin-registered
 environment is outside this protocol).
 
 Two obligations that blocked this step are now discharged interface changes
@@ -254,8 +254,9 @@ passing.
 
 Still open for this item, and none of it claimed:
 
-1. The RECIPE tag layers (`Recipe`/`ConvRecipe`/`Packet`/declaration records)
-   are not on the wire yet, so recipes cannot travel as characters. The design
+1. The remaining tag layers (`Recipe`/`Packet`/declaration records)
+   are not on the wire yet. `ConvRecipe` now has a checked character codec
+   described below. The design for the remaining layers
    is fixed (tag atom per constructor, ordered child payloads, terms through the
    proved `Code` layer, interned names, node lists for list payloads, fidelity
    from `each-fidelity` plus per-constructor rewrites on the decoder's bind
@@ -268,11 +269,35 @@ Still open for this item, and none of it claimed:
    represented inputs have native derivations, not that every `Kernel.check`
    acceptance yields a replayable certificate.
 
+## Validated wire boundaries and conversion-recipe codec
+The 129-module baseline passed proof/trust validation. Review additionally
+found and corrected decoder acceptance through the defaulting internal
+syntax retraction: term wire decoding now checks that the decoded candidate
+re-encodes to the exact input reflected code. Successful-code preservation
+and existing valid round-trips are proved; malformed levels, grades,
+children, names/attributes and nested branch codes have rejection controls.
+The bounded Elixir producer now returns structured errors for invalid
+shapes, names/tables and grades, and rejects real Float payloads (not yet
+represented faithfully) instead of silently erasing them. New executable
+regressions are recorded but not run under the maintainer's validation policy.
+Case coverage reconstruction is now family-local rather than requiring
+unrelated constructors; actual membership, owner-name and arity obligations
+remain checked, with positive/negative multi-family controls.
+`Core.WireConversion` gives all current conversion recipes an exact tagged
+node codec and character-level encoder/decoder with conditional fidelity
+proofs. Its checked replay composition validates decoded recipes against
+the actual source/target and signature, including a zeta/beta chain and
+visible delta on the exported snapshot, while rejecting false conversion
+claims, hidden bodies, malformed payloads and name-table mismatches.
+This completes the ConvRecipe layer, not the ordinary Recipe, Packet or
+declaration payloads or their Elixir producer, and proves no universal
+snapshot/executable/NbE or semantic certification correspondence.
 ## Current remaining work, in priority order
-1. Finish item 3: character-level scanner, payload layers, Elixir producer
-   with a generated fixture, then representation fidelity, snapshot/context
-   correspondence and the connection between actual kernel acceptance and
-   checked native evidence.
+1. Serialize ordinary recipes, packets and declaration records, extend the
+   producer with a generated fixture, then prove representation fidelity,
+   snapshot/context correspondence and the connection between actual kernel
+   acceptance and checked native evidence. The character scanner, tree/term
+   codecs and conversion-recipe character codec already exist.
 2. Refine executable evaluation, normalization, readback and conversion,
    including eta, certified delta, stuck-case policy and builtin computation.
    Resolve the stricter native versus executable motive contracts explicitly.
