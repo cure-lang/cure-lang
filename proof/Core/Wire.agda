@@ -35,22 +35,24 @@
 ------------------------------------------------------------------------
 module Core.Wire where
 
-open import Data.Char using (Char)
+open import Data.Char using (Char; _≟_)
 open import Data.Empty using (⊥; ⊥-elim)
 open import Data.List using (List; []; _∷_; _++_; length; reverse)
 open import Data.List.Properties using (length-++)
 open import Data.Nat using (pred)
 open import Data.Nat.Properties using (+-identityʳ; +-suc)
-open import Data.List.Properties using (++-assoc; ++-identityˡ; ++-identityʳ)
+open import Data.List.Properties using (++-assoc; ++-identityˡ; ++-identityʳ; reverse-involutive; unfold-reverse)
 open import Data.Maybe using (Maybe; just; nothing)
 open import Data.Nat using (ℕ; zero; suc; _+_)
 open import Data.Product using (_×_; Σ; _,_; proj₁; proj₂)
+open import Function using (_∘_)
 open import Relation.Nullary using (yes; no)
 open import Relation.Binary.PropositionalEquality
   using (_≡_; _≢_; refl; cong; cong₂; sym; trans; subst)
-open import Core.Syntax using (Name)
+open import Core.Syntax using (Name; Term)
 open import Core.Signature using (just-inj; nothing≠just)
 import Data.String.Properties as String
+import Core.SyntaxEquality as Syntax
 
 ------------------------------------------------------------------------
 -- Alphabet
@@ -278,3 +280,301 @@ index-of-sound name (x ∷ table) i found with name String.≟ x
 ...   | nothing = ⊥-elim (nothing≠just found)
 ...   | just j = subst (λ index → lookup-at index (x ∷ table) ≡ just name)
       (just-inj found) (index-of-sound name table j nested)
+
+------------------------------------------------------------------------
+-- THE CHARACTER-LEVEL SCANNER
+--
+-- Scanning is a FOLD over the character list: one character per step,
+-- structural recursion, no fuel and no termination side condition. The
+-- state records whether a unary run is open, and instructions are
+-- accumulated in reverse.
+--
+-- `scan-encode` proves that scanning the rendering of ANY instruction
+-- stream returns that stream, so `decode` (scan then run) inverts `encode`
+-- (instructions then render) for every tree.
+------------------------------------------------------------------------
+
+data Mode : Set where
+  m-ready : Mode
+  m-digits : ℕ → Mode
+
+record ScanState : Set where
+  constructor scan-st
+  field
+    scan-mode : Mode
+    scan-done : List Instr
+
+step-ready-close : ScanState → Char → Maybe ScanState
+step-ready-close s c with c ≟ close-paren
+... | yes refl = just (scan-st m-ready (i-close ∷ ScanState.scan-done s))
+... | no other = nothing
+
+step-ready-open : ScanState → Char → Maybe ScanState
+step-ready-open s c with c ≟ open-paren
+... | yes refl = just (scan-st m-ready (i-open ∷ ScanState.scan-done s))
+... | no other = step-ready-close s c
+
+step-ready-symbol : ScanState → Char → Maybe ScanState
+step-ready-symbol s c with c ≟ stop
+... | yes refl = just (scan-st m-ready (i-atom 0 ∷ ScanState.scan-done s))
+... | no other = step-ready-open s c
+
+step-ready : ScanState → Char → Maybe ScanState
+step-ready s c with c ≟ one
+... | yes refl = just (scan-st (m-digits 1) (ScanState.scan-done s))
+... | no other = step-ready-symbol s c
+
+step-digits-stop : ScanState → ℕ → Char → Maybe ScanState
+step-digits-stop s k c with c ≟ stop
+... | yes refl = just (scan-st m-ready (i-atom k ∷ ScanState.scan-done s))
+... | no other = nothing
+
+step-digits : ScanState → ℕ → Char → Maybe ScanState
+step-digits s k c with c ≟ one
+... | yes refl = just (scan-st (m-digits (suc k)) (ScanState.scan-done s))
+... | no other = step-digits-stop s k c
+
+step : ScanState → Char → Maybe ScanState
+step s c with ScanState.scan-mode s
+... | m-ready = step-ready s c
+... | m-digits k = step-digits s k c
+
+apply : ScanState → List Char → Maybe ScanState
+apply s [] = just s
+apply s (c ∷ cs) with step s c
+... | nothing = nothing
+... | just next = apply next cs
+
+finish : ScanState → Maybe (List Instr)
+finish s with ScanState.scan-mode s
+... | m-ready = just (reverse (ScanState.scan-done s))
+... | m-digits k = nothing
+
+maybe-finish : Maybe ScanState → Maybe (List Instr)
+maybe-finish nothing = nothing
+maybe-finish (just s) = finish s
+
+scan : List Char → Maybe (List Instr)
+scan cs = maybe-finish (apply (scan-st m-ready []) cs)
+
+------------------------------------------------------------------------
+-- The scanner round-trips the rendering
+------------------------------------------------------------------------
+
+one-plus : ∀ k → suc zero + k ≡ suc k
+one-plus zero = refl
+one-plus (suc k) = cong suc (one-plus k)
+
+suc-shuffle : ∀ j k → suc j + k ≡ j + suc k
+suc-shuffle j k = sym (+-suc j k)
+
+-- A unary run scanned from an open run of length `j`.
+apply-digits : ∀ d j k
+  → apply (scan-st (m-digits j) d) (unary k ++ stop ∷ [])
+  ≡ just (scan-st m-ready (i-atom (j + k) ∷ d))
+apply-digits d j zero =
+  cong (λ n → just (scan-st m-ready (i-atom n ∷ d))) (sym (+-identityʳ j))
+apply-digits d j (suc k) =
+  trans (apply-digits d (suc j) k)
+    (cong (λ n → just (scan-st m-ready (i-atom n ∷ d))) (suc-shuffle j k))
+
+-- A unary atom scanned from the ready state.
+apply-atom : ∀ d k
+  → apply (scan-st m-ready d) (unary k ++ stop ∷ [])
+  ≡ just (scan-st m-ready (i-atom k ∷ d))
+apply-atom d zero = refl
+apply-atom d (suc k) =
+  trans (apply-digits d 1 k)
+    (cong (λ n → just (scan-st m-ready (i-atom n ∷ d))) (one-plus k))
+
+apply-instr : ∀ i d
+  → apply (scan-st m-ready d) (render i)
+  ≡ just (scan-st m-ready (i ∷ d))
+apply-instr (i-atom k) d = apply-atom d k
+apply-instr i-open d = refl
+apply-instr i-close d = refl
+
+maybe-apply : Maybe ScanState → List Char → Maybe ScanState
+maybe-apply nothing cs = nothing
+maybe-apply (just s) cs = apply s cs
+
+apply-append : ∀ s xs ys → apply s (xs ++ ys) ≡ maybe-apply (apply s xs) ys
+apply-append s [] ys = refl
+apply-append s (x ∷ xs) ys with step s x
+... | nothing = refl
+... | just next = apply-append next xs ys
+
+apply-stream : ∀ is d
+  → apply (scan-st m-ready d) (render-items is)
+  ≡ just (scan-st m-ready (reverse is ++ d))
+apply-stream [] d = refl
+apply-stream (i ∷ is) d =
+  trans (apply-append (scan-st m-ready d) (render i) (render-items is))
+    (trans (cong (λ next → maybe-apply next (render-items is)) (apply-instr i d))
+      (trans (apply-stream is (i ∷ d))
+        (cong (λ dst → just (scan-st m-ready dst))
+          (sym (trans (cong (λ xs → xs ++ d) (unfold-reverse i is))
+            (++-assoc (reverse is) (i ∷ []) d))))))
+
+scan-encode : ∀ is → scan (render-items is) ≡ just is
+scan-encode is =
+  trans (cong maybe-finish (apply-stream is []))
+    (trans (cong (λ d → just (reverse d)) (++-identityʳ (reverse is)))
+      (cong (λ xs → just xs) (reverse-involutive is)))
+
+------------------------------------------------------------------------
+-- End-to-end: the characters encode the tree
+------------------------------------------------------------------------
+
+encode : Node → List Char
+encode = render-items ∘ instructions
+
+maybe-run : Maybe (List Instr) → Maybe Node
+maybe-run nothing = nothing
+maybe-run (just is) = run is
+
+decode : List Char → Maybe Node
+decode cs = maybe-run (scan cs)
+
+decode-encode : ∀ node → decode (encode node) ≡ just node
+decode-encode node with scan (render-items (instructions node)) | scan-encode (instructions node)
+... | .(just (instructions node)) | refl = run-instructions node
+
+------------------------------------------------------------------------
+-- REFLECTED CODES ON THE WIRE
+--
+-- Terms travel as `Core.SyntaxEquality.Code`, whose `encode`/`decode` pair
+-- is ALREADY proved to be a retraction (`Syntax.roundtrip`). This layer
+-- therefore only has to carry codes faithfully: the tag and the two
+-- naturals directly, the children recursively, and the NAME as a table
+-- index (proved sound above). Term fidelity then follows from that
+-- existing theorem — no new term-level argument is assumed.
+------------------------------------------------------------------------
+
+mutual
+  code-to-node : (table : List Name) → Syntax.Code → Maybe Node
+  code-to-node table (Syntax.node tag name number kids) with index-of name table
+  ... | nothing = nothing
+  ... | just i = code-kids table tag i number kids
+
+  code-kids : (table : List Name) → ℕ → ℕ → ℕ → List Syntax.Code → Maybe Node
+  code-kids table tag i number kids with encode-kids table kids
+  ... | nothing = nothing
+  ... | just nodes = just (n-list (n-atom tag ∷ n-atom i ∷ n-atom number ∷ nodes))
+
+  encode-kids : (table : List Name) → List Syntax.Code → Maybe (List Node)
+  encode-kids table [] = just []
+  encode-kids table (code ∷ codes) with code-to-node table code
+  ... | nothing = nothing
+  ... | just node with encode-kids table codes
+  ...   | nothing = nothing
+  ...   | just nodes = just (node ∷ nodes)
+
+mutual
+  wire-to-code : (table : List Name) → Node → Maybe Syntax.Code
+  wire-to-code table (n-atom k) = nothing
+  wire-to-code table (n-list (n-atom tag ∷ n-atom i ∷ n-atom number ∷ nodes))
+    with lookup-at i table
+  ... | nothing = nothing
+  ... | just name = wire-code table name tag number nodes
+  wire-to-code table (n-list other) = nothing
+
+  wire-code : (table : List Name) → Name → ℕ → ℕ → List Node → Maybe Syntax.Code
+  wire-code table name tag number nodes with decode-kids table nodes
+  ... | nothing = nothing
+  ... | just codes = just (Syntax.node tag name number codes)
+
+  maybe-prepend : Syntax.Code → Maybe (List Syntax.Code) → Maybe (List Syntax.Code)
+  maybe-prepend code nothing = nothing
+  maybe-prepend code (just codes) = just (code ∷ codes)
+
+  maybe-decode : (table : List Name) → Maybe Syntax.Code → List Node
+    → Maybe (List Syntax.Code)
+  maybe-decode table nothing nodes = nothing
+  maybe-decode table (just code) nodes = maybe-prepend code (decode-kids table nodes)
+
+  decode-kids : (table : List Name) → List Node → Maybe (List Syntax.Code)
+  decode-kids table [] = just []
+  decode-kids table (node ∷ nodes) =
+    maybe-decode table (wire-to-code table node) nodes
+
+------------------------------------------------------------------------
+-- Code fidelity
+------------------------------------------------------------------------
+
+mutual
+  code-fidelity : ∀ table code node
+    → code-to-node table code ≡ just node → wire-to-code table node ≡ just code
+  code-fidelity table (Syntax.node tag name number kids) node found
+    with index-of name table in indexed
+  ... | nothing = ⊥-elim (nothing≠just found)
+  ... | just i with encode-kids table kids in encoded
+  ...   | nothing = ⊥-elim (nothing≠just found)
+  ...   | just nodes =
+        subst (λ target → wire-to-code table target
+            ≡ just (Syntax.node tag name number kids))
+          (just-inj found)
+          (wire-code-at table name tag i number kids nodes indexed encoded)
+
+  wire-code-at : ∀ table name tag i number kids nodes
+    → index-of name table ≡ just i
+    → encode-kids table kids ≡ just nodes
+    → wire-to-code table (n-list (n-atom tag ∷ n-atom i ∷ n-atom number ∷ nodes))
+      ≡ just (Syntax.node tag name number kids)
+  wire-code-at table name tag i number kids nodes indexed encoded
+    rewrite index-of-sound name table i indexed
+          | kids-fidelity table kids nodes encoded = refl
+
+  kids-fidelity : ∀ table codes nodes
+    → encode-kids table codes ≡ just nodes → decode-kids table nodes ≡ just codes
+  kids-fidelity table [] nodes found with just-inj found
+  ... | refl = refl
+  kids-fidelity table (code ∷ codes) nodes found
+    with code-to-node table code in converted
+  ... | nothing = ⊥-elim (nothing≠just found)
+  ... | just node with encode-kids table codes in encoded
+  ...   | nothing = ⊥-elim (nothing≠just found)
+  ...   | just nodes′ =
+        subst (λ target → decode-kids table target ≡ just (code ∷ codes))
+          (just-inj found)
+          (trans (cong (λ next → maybe-decode table next nodes′)
+                   (code-fidelity table code node converted))
+            (trans (cong (maybe-prepend code)
+                     (kids-fidelity table codes nodes′ encoded))
+              refl))
+
+------------------------------------------------------------------------
+-- Term fidelity, through the existing proved retraction
+------------------------------------------------------------------------
+
+term-to-wire : (table : List Name) → Term → Maybe Node
+term-to-wire table term = code-to-node table (Syntax.encode term)
+
+wire-to-term : (table : List Name) → Node → Maybe Term
+wire-to-term table node with wire-to-code table node
+... | nothing = nothing
+... | just code = just (Syntax.decode code)
+
+term-fidelity : ∀ table term node
+  → term-to-wire table term ≡ just node → wire-to-term table node ≡ just term
+term-fidelity table term node found
+  rewrite code-fidelity table (Syntax.encode term) node found
+        | Syntax.roundtrip term = refl
+
+------------------------------------------------------------------------
+-- End-to-end term pipeline: characters ↔ reflected code ↔ term
+------------------------------------------------------------------------
+
+maybe-term : (table : List Name) → Maybe Node → Maybe Term
+maybe-term table nothing = nothing
+maybe-term table (just node) = wire-to-term table node
+
+decode-term : (List Name) → List Char → Maybe Term
+decode-term table cs = maybe-term table (decode cs)
+
+decode-term-fidelity : ∀ table term node
+  → term-to-wire table term ≡ just node
+  → decode-term table (encode node) ≡ just term
+decode-term-fidelity table term node found
+  rewrite decode-encode node
+        | term-fidelity table term node found = refl

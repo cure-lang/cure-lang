@@ -19,7 +19,7 @@ open import Data.String using (String)
 open import Relation.Nullary using (yes; no)
 open import Relation.Binary.PropositionalEquality
   using (_≡_; _≢_; refl; cong; sym; trans)
-open import Core.Syntax using (Name)
+open import Core.Syntax using (Name; Term; tm-atom_lit)
 open import Core.Wire
 
 decision : ∀ {A : Set} → Maybe A → Bool
@@ -97,3 +97,102 @@ absent-name = refl
 -- The soundness direction used by a decoder: what was written is read back.
 second-lookup : lookup-at (suc zero) table ≡ just "b"
 second-lookup = index-of-sound "b" table (suc zero) second-index
+
+------------------------------------------------------------------------
+-- The character-level scanner
+------------------------------------------------------------------------
+
+example-characters : List Char
+example-characters = '(' ∷ '1' ∷ ';' ∷ '(' ∷ ')' ∷ ';' ∷ ')' ∷ []
+
+example-encoded : encode example ≡ example-characters
+example-encoded = example-rendering
+
+-- Scanning the characters recovers the instruction stream …
+example-scanned : scan example-characters ≡ just example-instructions
+example-scanned = scan-encode example-instructions
+
+-- … and the whole codec decodes the worked example back to its tree.
+example-decoded : decode example-characters ≡ just example
+example-decoded = decode-encode example
+
+-- Every tree round-trips through the characters.
+roundtrip : ∀ node → decode (encode node) ≡ just node
+roundtrip = decode-encode
+
+------------------------------------------------------------------------
+-- Scanner rejection controls
+------------------------------------------------------------------------
+
+garbage-character : scan ('x' ∷ []) ≡ nothing
+garbage-character = refl
+unterminated-run : scan ('1' ∷ []) ≡ nothing
+unterminated-run = refl
+garbage-after-atom : scan (';' ∷ 'x' ∷ []) ≡ nothing
+garbage-after-atom = refl
+
+-- A closed empty list IS a tree …
+empty-list-decodes : decode ('(' ∷ ')' ∷ []) ≡ just (n-list [])
+empty-list-decodes = refl
+
+-- … but a list that never closes is rejected although every character is
+-- legal and the scan itself succeeds.
+unclosed-tree : decode ('(' ∷ '1' ∷ ';' ∷ []) ≡ nothing
+unclosed-tree = refl
+
+-- The root is complete before the stream ends.
+trailing-close : decode (';' ∷ ')' ∷ []) ≡ nothing
+trailing-close = refl
+
+------------------------------------------------------------------------
+-- Reflected terms on the wire
+--
+-- Terms travel as the existing proved `Code` reflection, with names
+-- interned. `atom-literals` uses a one-name table so the wire node is
+-- checkable by computation.
+------------------------------------------------------------------------
+
+name-table : List Name
+name-table = "a" ∷ []
+
+atom-wire : Node
+atom-wire = n-list (n-atom 19 ∷ n-atom 0 ∷ n-atom 0 ∷ [])
+
+example-term : Term
+example-term = tm-atom_lit "a"
+
+example-term-wire : term-to-wire name-table example-term ≡ just atom-wire
+example-term-wire = refl
+
+-- The wire node decodes back to the term it came from.
+example-term-decoded : wire-to-term name-table atom-wire ≡ just example-term
+example-term-decoded =
+  term-fidelity name-table example-term atom-wire example-term-wire
+
+-- And the whole character pipeline does too: characters → tree → term.
+example-term-characters : decode-term name-table (encode atom-wire)
+  ≡ just example-term
+example-term-characters =
+  decode-term-fidelity name-table example-term atom-wire example-term-wire
+
+------------------------------------------------------------------------
+-- Payload rejection controls
+------------------------------------------------------------------------
+
+-- A name absent from the table cannot be written at all.
+absent-name-term : decision (term-to-wire [] example-term) ≡ false
+absent-name-term = refl
+
+-- An out-of-range table index cannot be read.
+index-out-of-range : decision
+  (wire-to-term name-table (n-list (n-atom 19 ∷ n-atom 5 ∷ n-atom 0 ∷ []))) ≡ false
+index-out-of-range = refl
+
+-- A node that is not a reflected code (a bare atom) is rejected.
+not-a-code : decision (wire-to-term name-table (n-atom 19)) ≡ false
+not-a-code = refl
+
+-- A code node with a truncated payload is rejected.
+truncated-code : decision
+  (wire-to-term name-table (n-list (n-atom 19 ∷ n-atom 0 ∷ []))) ≡ false
+truncated-code = refl
