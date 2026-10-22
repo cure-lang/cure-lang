@@ -343,6 +343,31 @@ source but are not run under the maintainer policy.
 This establishes a concrete GENERATED artifact bridge, not universal Elixir
 producer/extractor correspondence, automatic certificates from accepted
 programs, kernel-acceptance refinement, semantic totality or executable safety.
+## Source-bound checked admission pipeline continuation
+`Core.CheckedAdmission.verify` now consumes a represented source, name table
+and certificate characters, deriving metadata/unique-key acceptance, complete
+projected/raw payload evidence, visible-body closedness, reduction conversion
+and native certificate evidence internally. Its source/table/characters-indexed
+`Checked` result stores actual decoding and semantic replay equations and
+derives signature validity and the complete native safety specification.
+No caller-supplied validity, conversion, lookup-typing or safety callback is
+needed, and metadata/payload proof identities are retained without a
+proof-irrelevance assumption.
+Named raw-body selection derives membership/name equations and admission at
+the actual declared goal. It exposes eligibility, finite-trace safety, fuel
+results, guarded outcome trees and budget agreement for closed native
+contexts. Hidden raw bodies remain checked/selectable without being exposed
+as delta bodies; absent names/bodies fail.
+The literal full generated fixture now traverses that unified pipeline and
+named selection. Controls reject malformed wire, duplicate/unsupported
+metadata, missing evidence, unsupported hidden syntax and well-represented
+but ill-kinded/ill-typed inputs. A recursive certification-claim control still
+passes with a native safe self-loop: no semantic termination is inferred.
+This discharges the generic represented-input CHECK COMPOSITION, not
+universal producer/extractor/snapshot/context representation, automatic
+kernel-acceptance certificates, executable conversion/motive refinement or
+runtime correspondence. Those remain the next bridge obligations; native
+rules and both generated artifacts are unchanged.
 ## Current remaining work, in priority order
 1. Prove representation fidelity and source/snapshot/context correspondence,
    then connect actual kernel acceptance to replayable recipes and checked

@@ -170,6 +170,8 @@ MODULES=(
   Proof/WireCertificateExamples
   Fixtures/ExecutableCertificate
   Proof/ProducedCertificateExamples
+  Core/CheckedAdmission
+  Proof/CheckedAdmissionExamples
 )
 
 fail=0

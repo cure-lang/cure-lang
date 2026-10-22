@@ -1929,6 +1929,58 @@ postulate/hygiene guards, ten hygiene regressions, shell syntax and strict
 Credo pass. Producer/fixture source compilation and the standalone byte
 reproduction check pass, with no changes to the existing snapshot. No waived
 executable/documentation/stdlib suites were run.
+### Source-bound checked admission pipeline
+`Core.CheckedAdmission.verify` takes only a represented
+`ExecutableSnapshot.Input`, a name table and certificate characters. It
+decodes the envelope, decides metadata/layout restrictions and unique keys,
+checks complete projected payloads AND every raw hidden body, derives visible
+body closedness, instantiates the existing reduction-compatible conversion
+model and runs native certificate replay. No accepted-metadata proof, payload
+proof, conversion model, reduction witness, validity proof or safety callback
+is a caller input.
+
+Success returns `Checked source table characters`. Its `decoded` and
+`replayed` equations bind the envelope and native evidence to those exact
+inputs; `character-result` proves the original character replayer returns that
+evidence. Metadata/payload proof identities remain explicit, with no
+proof-irrelevance axiom. Generic result/status transport avoids large
+concrete proof-value rewriting without skipping any validation stage.
+`Checked.valid` derives signature validity. `Checked.specification` also
+derives data-component inversion, reduction compatibility, body finality and
+the no-builtin shapes from existing constructive models, yielding native
+finite-trace, fuel and guarded-tree safety.
+
+`Bodies.admit` selects a raw definition by exact name using finite first-match
+lookup, carrying actual source membership and name equations. It returns
+native admission/eligibility at the original declared goal plus trace safety,
+fuel results, a guarded outcome tree and fuel/tree agreement. Absent names
+and absent bodies fail; a hidden raw body can be admitted without becoming
+visible to delta reduction. Contexts here are CLOSED/empty native contexts,
+not a semantic-environment or arbitrary-caller-context correspondence theorem.
+
+`Proof.CheckedAdmissionExamples` sends the literal generated certificate
+through the combined verifier and selects `Boundary#unpack` by name, deriving
+its original Atom goal and safe dependent-case trace without manual lookup or
+typing witnesses. It checks metadata/duplicate/layout failures, malformed
+characters, missing evidence, unsupported hidden syntax and absent body/name
+selection. Separate controls pin representation success for an ill-kinded
+sort and an ill-typed body before native replay rejects them.
+A certified recursive definition passes the bounded protocol and has a safe
+self-loop: body finality and certification FLAGS still do not prove semantic
+termination.
+
+This composes all current represented-input checks into native admission and
+specification safety for arbitrary successful inputs, not only the fixture.
+It does NOT prove universal Elixir producer/extraction fidelity, kernel
+acceptance implies recipe production, executable NbE/motive/context
+refinement, semantic positivity/totality or compiler/runtime correspondence.
+`Nothing` still means this protocol failed, not that native typing is
+impossible. Native semantics and generated artifacts are unchanged.
+Validation for this continuation: all 139 registered Agda modules pass;
+the exact two-name postulate inventory, ten hygiene regressions and
+all-directory hygiene remain unchanged. Artifact reproduction, shell syntax,
+strict Credo covering all 1,414 source files, formatting and whitespace checks
+pass. No maintainer-waived executable/documentation/stdlib suites were run.
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;
