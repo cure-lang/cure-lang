@@ -181,6 +181,10 @@ MODULES=(
   Core/WireCaller
   Fixtures/ExecutableCaller
   Proof/CallerAdmissionExamples
+  Core/FlatContext
+  Core/FlatContextTyping
+  Fixtures/ExecutableContext
+  Proof/FlatContextExamples
 )
 
 fail=0

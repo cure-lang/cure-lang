@@ -2097,6 +2097,67 @@ compilation/artifact reproduction, strict Credo covering all 1,419 source
 files, formatting, shell syntax and whitespace checks pass. All older
 artifacts are unchanged; maintainer-waived executable/docs/stdlib suites
 were not run.
+### Bounded semantic context/readback bridge
+`Core.FlatContext` introduces a deliberately CLOSURE-FREE semantic model:
+sorts, Atom type/literals and neutral variable levels. Partial readback
+rejects out-of-scope levels; successful readback is scoped. General proofs
+establish fresh-level readback and weakening, so unchanged semantic values
+read back to globally weakened syntax as depth increases.
+Length-indexed stores retain parallel types/grades/environments under a
+fixed source signature. Opaque extension introduces a new neutral level;
+defined extension stores its actual value and unrestricted grade.
+
+The constructive build relation derives native context type readback and
+pointwise lookup agreement. Materialized environments are proved to weaken
+correctly: an opaque head reads back to variable zero, but a defined head
+retains its actual term. Opaque-only environments are identity substitutions;
+that theorem explicitly does NOT apply to lets.
+`Core.FlatContextTyping` checks each added type's native kind and each defined
+value's native type, derives context well-formedness, then checks every image
+of the materialized environment as a native coherent substitution. No
+context-typing or substitution callback is trusted. Its checked result ties
+the native evidence to actual operation replay and supports general native
+typing transport.
+
+`Cure.Core.ProofContext` is a bounded observation audit of actual `Context`
+and `Quote` calls, not native typing or semantic validity. It validates all
+parallel lengths/grades, the full name table, the existing source-signature
+audit and supported value shapes before readback. Escaped levels and
+unsupported closures/applications/cases/data/effects/other primitives fail;
+negative indices are not silently identified with natural zero. Readback
+terms are rendered using the canonical term producer.
+
+The new `Fixtures.ExecutableContext` is generated from actual opaque/defined
+extensions, `Context.lookup`/`grade`/`env`/`length` and current `Quote.reify`
+observations. It contains a dependent variable, dependent let alias,
+Atom-valued let and later opaque binders, with all four grades retained.
+`Proof.FlatContextExamples` proves exact model/observation agreement,
+decodes actual readback characters, derives every native type lookup and
+checks native coherence. Let aliases/literals transport at their expected
+types; composing the SAME context with checked caller closing yields a safe
+closed payload at the instantiated Atom goal.
+
+A negative control distinguishes scope from semantic-frame coherence:
+inventing a fresh neutral for an already defined slot passes construction
+and kind checks but fails the native substitution image checker. Other
+controls reject escaped levels, ill-kinded binders and ill-typed definitions.
+Producer regressions are written but remain unrun under the maintainer
+waiver. Older generated artifacts and native/Elixir kernel semantics are
+unchanged.
+
+This establishes GENERAL flat-model readback/frame laws and a concrete
+actual Context/Quote artifact bridge. It does not prove universal Elixir
+context extraction or even all executions of those four readback clauses,
+closure evaluation/readback, eta, normalization, arbitrary semantic context
+validity, quantitative usage/erasure or BEAM refinement. Preserving grades
+is not a QTT usage theorem; scoped readback is not typing or evaluation.
+Validation for this continuation: all 152 Agda modules pass, with the exact
+`funext`/legacy `tree-decides` inventory, ten hygiene regressions and no new
+holes or checking bypasses. Actual Context/Quote/capture source compilation,
+artifact reproduction, strict Credo over all 1,422 source files, formatting,
+shell syntax and whitespace checks pass. Older artifacts are unchanged;
+maintainer-waived Mix/ExUnit, documentation and stdlib/example suites were
+not run.
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;

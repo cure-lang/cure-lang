@@ -412,6 +412,31 @@ This is a syntactic typed-instantiation bridge, NOT correspondence for
 arbitrary executable semantic `Context.env`/types or opaque-vs-let bindings,
 Eval/Quote or level/index readback. Native case replay in a nonempty context
 still fails deliberately; its restriction and the native rules are unchanged.
+## Bounded semantic context/readback continuation
+`Core.FlatContext` now models sorts, Atom values and neutral levels, with
+partial scope-checked readback. General model proofs cover fresh level/index
+conversion, readback scoping/weakening, parallel context stores, native type
+lookup correspondence and opaque-versus-defined environment extension.
+Opaque-only environments materialize to identity; defined binders retain
+their actual values through later weakening.
+`FlatContextTyping` replays native kinds/definition types and checks every
+quoted environment image into a coherent substitution. It derives native
+context well-formedness and general typing transport without context or
+substitution callbacks.
+The bounded `ProofContext` observation audit and generated
+`Fixtures.ExecutableContext` exercise the ACTUAL Context/Quote operations,
+including dependent aliases, Atom lets, later opaque binders, signature
+preservation and all four grades. Agda proves exact observation/model and
+readback character agreement, native coherence and staged closure/safety
+through the existing caller bridge. A scoped invented neutral at a defined
+slot passes kind construction but fails coherence, preserving the distinction
+between representation, native context well-formedness and environment typing.
+This completes general FLAT-MODEL laws and a concrete implementation artifact,
+not universal Context/Quote execution correspondence, closure/NbE/eta
+refinement, arbitrary semantic caller validity or typed relevance/erasure.
+The audit rejects unsupported values and malformed/escaped frames; kernel
+semantics and older artifacts are unchanged. ExUnit regressions remain unrun
+under the maintainer policy.
 ## Current remaining work, in priority order
 1. Prove universal producer/extraction representation fidelity and
    source/snapshot/context correspondence,

@@ -9,10 +9,14 @@ for source <- [
       "lib/cure/core/proof_recipe.ex",
       "lib/cure/core/proof_snapshot.ex",
       "lib/cure/core/proof_snapshot_wire.ex",
+      "lib/cure/core/context.ex",
+      "lib/cure/core/quote.ex",
+      "lib/cure/core/proof_context.ex",
       "test/support/proof_snapshot_fixture.ex",
       "test/support/proof_recipe_fixture.ex",
       "test/support/proof_bundle_fixture.ex",
-      "test/support/proof_caller_fixture.ex"
+      "test/support/proof_caller_fixture.ex",
+      "test/support/proof_context_fixture.ex"
     ] do
   Code.compile_file(Path.join(root, source))
 end
@@ -26,11 +30,13 @@ if File.read!(Path.join(root, "proof/Fixtures/ExecutableSnapshot.agda")) != snap
 {:ok, generated} = Cure.Test.ProofRecipeFixture.to_agda()
 {:ok, bundle} = Cure.Test.ProofBundleFixture.to_agda()
 {:ok, caller} = Cure.Test.ProofCallerFixture.to_agda()
+{:ok, context} = Cure.Test.ProofContextFixture.to_agda()
 
 targets = [
   {Path.join(root, "proof/Fixtures/ExecutableCertificate.agda"), generated},
   {Path.join(root, "proof/Fixtures/ExecutableBundle.agda"), bundle},
-  {Path.join(root, "proof/Fixtures/ExecutableCaller.agda"), caller}
+  {Path.join(root, "proof/Fixtures/ExecutableCaller.agda"), caller},
+  {Path.join(root, "proof/Fixtures/ExecutableContext.agda"), context}
 ]
 
 case System.argv() do
@@ -45,7 +51,7 @@ case System.argv() do
       if File.read!(target) != contents, do: raise("#{Path.relative_to(target, root)} differs; regenerate it")
     end
 
-    IO.puts("Source, certificate and caller artifacts are byte-for-byte reproducible")
+    IO.puts("Source, certificate, caller and context artifacts are byte-for-byte reproducible")
 
   _other ->
     raise ArgumentError, "expected no arguments or --check"
