@@ -177,6 +177,10 @@ MODULES=(
   Core/WireAdmission
   Fixtures/ExecutableBundle
   Proof/WireSnapshotExamples
+  Core/CallerAdmission
+  Core/WireCaller
+  Fixtures/ExecutableCaller
+  Proof/CallerAdmissionExamples
 )
 
 fail=0

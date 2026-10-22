@@ -61,6 +61,18 @@ defmodule Cure.Core.ProofRecipe do
   @spec encode_certificate(term(), ProofWire.table()) :: result()
   def encode_certificate(value, table), do: encode(:certificate, value, table)
 
+  @doc """
+  Encode a dependent caller request for `Core.WireCaller`.
+
+  The tuple is `{:caller, telescope, kind_recipes, closed_arguments,
+  argument_recipes, subject, goal, subject_recipe, goal_recipe}`. Telescope
+  entries are `{name, type_term}` in declaration order. This renders data;
+  context well-formedness, dependent argument typing and closure are checked
+  independently. It does not capture semantic `Context.env` values.
+  """
+  @spec encode_caller(term(), ProofWire.table()) :: result()
+  def encode_caller(value, table), do: encode(:caller, value, table)
+
   defp encode(kind, value, table) do
     if valid_table?(table) do
       with {:ok, node} <- node(kind, value, table), do: {:ok, IO.iodata_to_binary(render(node))}
@@ -166,6 +178,38 @@ defmodule Cure.Core.ProofRecipe do
   defp node(:certificate, {:certificate, fs, ps}, table),
     do: build(14, [{{:vector, :family}, fs}, {{:vector, :packet}, ps}], table)
 
+  defp node(:caller, {:caller, tele, kinds, args, arg_recipes, subject, goal, body, kind}, table) do
+    fields = [
+      {{:vector, :binder}, tele},
+      {{:vector, :recipe}, kinds},
+      {{:vector, :term}, args},
+      {{:vector, :recipe}, arg_recipes},
+      {:term, subject},
+      {:term, goal},
+      {:recipe, body},
+      {:recipe, kind}
+    ]
+
+    with {:ok, nodes} <- children(fields, table), do: {:ok, [19, nested(nodes)]}
+  end
+
+  defp node(:binder, {name, type}, table) do
+    with {:ok, index} <- node(:name, name, table), {:ok, term} <- node(:term, type, table) do
+      {:ok, [index, term]}
+    end
+  end
+
+  defp node(:name, name, table) do
+    if valid_name?(name) do
+      case ProofWire.index_of(name, table) do
+        {:ok, index} -> {:ok, index}
+        :error -> {:error, {:unknown_name, name}}
+      end
+    else
+      malformed(:name, name)
+    end
+  end
+
   defp node(:level, level, _table) when is_integer(level) and level in 0..2, do: {:ok, level}
   defp node(:body, nil, _table), do: {:ok, []}
 
@@ -216,6 +260,8 @@ defmodule Cure.Core.ProofRecipe do
   defp render(number) when is_integer(number), do: [String.duplicate("1", number), ";"]
   defp render(children) when is_list(children), do: ["(", Enum.map(children, &render/1), ")"]
   defp malformed(kind, value), do: {:error, {:malformed_recipe, kind, value}}
+  defp nested([last]), do: last
+  defp nested([first | rest]), do: [first, nested(rest)]
 
   defp valid_table?([]), do: true
   defp valid_table?([name | rest]), do: valid_name?(name) and valid_table?(rest)

@@ -2044,6 +2044,59 @@ holes or checking bypasses. Standalone producer compilation/artifact
 reproduction, strict Credo over all 1,417 source files, formatting, shell
 syntax and whitespace pass. The older two artifacts are unchanged; waived
 Mix/ExUnit, documentation and stdlib/example suites were not run.
+### Checked dependent caller frames and closing substitutions
+`Core.CallerAdmission` adds data-only requests: a forward caller telescope,
+per-entry kind recipes, closed actual argument TERMS and their recipes, an
+open subject/expected goal and subject/goal-kind recipes. Against an already
+verified source it reconstructs the native context and well-formedness,
+checks representation/scope, exact dependent argument spines, goal kind and
+subject typing. There is no caller-supplied lookup, well-formedness,
+substitution, typing or safety callback.
+
+The existing constructive frame theorem derives a coherent substitution:
+the last declared argument is index zero. General native substitution
+transports BOTH subject and expected goal into the empty context. The result
+derives closed scoping, goal kind, native admission and finality, then trace,
+fuel and guarded-tree safety plus fuel/tree agreement at that same
+INSTANTIATED goal. It does not claim the original open goal is closed or
+forget dependent substitutions in result indices.
+
+`Core.WireCaller` gives the entire eight-field request an exact tag-19
+right-nested-product codec, with node/character fidelity. Character replay
+returns actual decode and native replay equations; equality-based pinning
+relates its native evidence to a known request without manual proof
+substitution. `ProofRecipe.encode_caller` renders the corresponding explicit
+tuple grammar, validating tables, proper vectors, binder pairs and term
+payloads. Production is data-only; semantic vector alignment and typing
+remain replay obligations. The standalone generator also produces the new
+literal `Fixtures.ExecutableCaller`, preserving all older artifacts.
+
+`Proof.CallerAdmissionExamples` derives admission/safety for `(A : Type0,
+x : A)` instantiated by Atom and a payload, a dependent constructor whose
+result index becomes Atom, and an open let whose closed form has a safe
+zeta step. The literal caller's native evidence is tied to its character
+result against the previously verified literal source/certificate. Controls
+reject missing/surplus kind/argument recipes, missing/surplus/reversed or
+wrongly typed arguments, unsupported/escaped terms and ill-kinded/wrong goals,
+including rejection after character decoding.
+
+This is a CHECKED SYNTACTIC caller-frame bridge with closed actual terms,
+not full correspondence for executable `Context` semantic types/environments.
+`Context.extend` introduces fresh neutral levels; `extend_def` stores actual
+values. Neither arbitrary semantic-value readback, let-environment refinement,
+level/index conversion nor evaluation/quote/eta correctness is assumed or
+proved by these requests. Nonempty-ambient case recipe reconstruction is
+still unsupported and has a retained rejection control; an empty-caller
+dependent case still succeeds. Native typing/reduction rules and existing
+case protocol restrictions are unchanged. Producer ExUnit regressions are
+recorded but remain unrun under the maintainer waiver.
+Validation for this caller continuation: all 148 registered Agda modules pass;
+the exact `funext`/legacy `tree-decides` inventory, ten hygiene regressions
+and empty checking-bypass inventory are unchanged. Standalone producer
+compilation/artifact reproduction, strict Credo covering all 1,419 source
+files, formatting, shell syntax and whitespace checks pass. All older
+artifacts are unchanged; maintainer-waived executable/docs/stdlib suites
+were not run.
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;

@@ -392,6 +392,26 @@ duplicate sources and a changed source paired with an old certificate.
 Producer regressions are written but not run under the maintainer policy.
 This completes GENERAL FORMAL source codec fidelity, not universal
 Elixir producer/map extraction or semantic context correspondence.
+## Checked dependent caller frames continuation
+`Core.CallerAdmission` now reconstructs a nonempty native context from an
+untrusted forward telescope and kind recipes. It validates representation,
+closed supported actual arguments and their exact dependent spine, plus an
+open subject/goal, goal kind and subject recipe. Existing frame coherence
+constructs the typed substitution (last argument at index zero); general
+native transport closes BOTH subject and goal. Closed admission, kind,
+scope and finality derive trace/fuel/tree safety at the same instantiated
+goal, without caller-supplied well-formedness or substitution callbacks.
+`Core.WireCaller` proves fidelity for the complete tag-19 request and binds
+character replay to actual native evidence. An explicit Elixir caller
+producer and new literal artifact exercise `(A : Type0, x : A)` with closed
+Atom/payload arguments against the verified source/certificate; all older
+artifacts remain unchanged. Dependent constructor-index and open-let/zeta
+examples and malformed-frame/type/scope/goal controls pass. Producer
+regressions are recorded but not run under the maintainer policy.
+This is a syntactic typed-instantiation bridge, NOT correspondence for
+arbitrary executable semantic `Context.env`/types or opaque-vs-let bindings,
+Eval/Quote or level/index readback. Native case replay in a nonempty context
+still fails deliberately; its restriction and the native rules are unchanged.
 ## Current remaining work, in priority order
 1. Prove universal producer/extraction representation fidelity and
    source/snapshot/context correspondence,
