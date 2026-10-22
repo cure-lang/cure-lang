@@ -168,6 +168,8 @@ MODULES=(
   Proof/WireRecipeExamples
   Core/WireCertificate
   Proof/WireCertificateExamples
+  Fixtures/ExecutableCertificate
+  Proof/ProducedCertificateExamples
 )
 
 fail=0

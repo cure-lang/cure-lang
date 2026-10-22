@@ -255,9 +255,9 @@ passing.
 Still open for this item, and none of it claimed:
 
 1. All current recipe, packet, declaration and whole-certificate layers now
-   have proved Agda character codecs, described below. Their Elixir producer
-   and a generated complete cross-language certificate artifact remain open;
-   the current executable producer covers terms only.
+   have proved Agda codecs and an Elixir data producer with a generated full
+   artifact, described below. Universal producer correspondence and automatic
+   production from kernel acceptance remain open.
 2. Snapshot representation fidelity: registry-to-`Snapshot` correspondence
    (name identity, declaration order, first-match lookup, owner-qualified keys,
    context correspondence) is not proved; `ProofSnapshot` remains an executable
@@ -287,8 +287,8 @@ the actual source/target and signature, including a zeta/beta chain and
 visible delta on the exported snapshot, while rejecting false conversion
 claims, hidden bodies, malformed payloads and name-table mismatches.
 At that checkpoint only the ConvRecipe layer was complete. The ordinary
-Recipe, Packet and declaration codecs now follow below; their Elixir
-producer remains open. This proves no universal
+Recipe, Packet and declaration codecs and their Elixir data producer now
+follow below. This proves no universal
 snapshot/executable/NbE or semantic certification correspondence.
 ## Complete recipe and certificate character codec continuation
 `Core.WireRecipe` now serializes every current ordinary recipe, including
@@ -315,17 +315,40 @@ and trailing characters. Well-formed envelopes still fail semantic replay for
 missing/surplus or reordered declarations/globals/branches and hidden-body
 omission. A mismatched name table can parse but fails source-bound family
 typing: interning does not authenticate the supplied table.
-The current Agda character codec layers are complete. Elixir recipe/certificate
-production and generated artifacts, universal source/snapshot/context
-representation, kernel acceptance, evaluator/NbE/eta, semantic certification,
-typed erasure and BEAM correspondence remain separate open obligations.
+The current Agda character codec layers are complete. Universal
+source/snapshot/context representation, kernel acceptance, evaluator/NbE/eta,
+semantic certification, typed erasure and BEAM correspondence remain separate
+open obligations.
 Native rules and the generated snapshot bytes are unchanged.
+## Elixir producer and generated complete certificate continuation
+`Cure.Core.ProofRecipe` now renders explicitly supplied conversion/ordinary
+recipes and every current certificate container. It reuses checked term
+reflection/interning, validates complete UTF-8 atom/string tables and exact
+tuple shapes, and rejects malformed/improper vectors, invalid levels, unknown
+names and unsupported term payloads with structured errors. This is data
+production, not native proof construction, kernel admission or recipe search.
+An explicit annotated `ProofRecipeFixture` builds the case's asserted
+conversion terms from the actual exported fixture's motive/constructor
+metadata. The standalone `generate-wire-certificate.exs` emits literal
+characters and their name table in `Fixtures.ExecutableCertificate`; its
+`--check` mode compares bytes, and both modes also check reproduction of the
+paired existing source snapshot without modifying it. Neither mode invokes
+Mix/ExUnit, kernel checks, documentation or stdlib/example verification.
+`Proof.ProducedCertificateExamples` independently proves exact equality with
+the complete formal certificate's encoding and decoded data, and an explicit
+equation relating replay of the produced characters to the existing checked
+native evidence. Validity/admission, eligibility and fixed-goal safety consume
+that evidence. Producer vectors/rejection regressions are recorded in ExUnit
+source but are not run under the maintainer policy.
+This establishes a concrete GENERATED artifact bridge, not universal Elixir
+producer/extractor correspondence, automatic certificates from accepted
+programs, kernel-acceptance refinement, semantic totality or executable safety.
 ## Current remaining work, in priority order
-1. Extend the Elixir term producer to recipes/certificates with a generated
-   complete cross-language fixture, then prove representation fidelity,
-   snapshot/context correspondence and the connection between actual kernel
-   acceptance and checked native evidence. The character scanner and all
-   current tree/term/conversion/recipe/container character codecs already exist.
+1. Prove representation fidelity and source/snapshot/context correspondence,
+   then connect actual kernel acceptance to replayable recipes and checked
+   native evidence. The character scanner, all current codecs, the explicit
+   Elixir recipe data producer and a generated complete artifact already exist;
+   universal producer correspondence and automatic recipe production do not.
 2. Refine executable evaluation, normalization, readback and conversion,
    including eta, certified delta, stuck-case policy and builtin computation.
    Resolve the stricter native versus executable motive contracts explicitly.

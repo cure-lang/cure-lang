@@ -1760,11 +1760,11 @@ outstanding proof task and is not reported as a pass.
 
 REMAINING LEDGER for this item — none of these is claimed:
 
-- **Recipe/certificate production.** All current `ConvRecipe`, `Recipe`,
-  `Packet`, constructor/family declaration and whole-certificate payloads now
-  have Agda character codecs, described below. The Elixir producer still
-  produces TERMS only: recipe/certificate production, a generated complete
-  cross-language artifact and its implementation correspondence are open.
+- **Universal producer correspondence and automatic recipe production.**
+  All current recipe/container layers have Agda codecs and an Elixir data
+  producer, with a generated complete artifact described below. Recipes are
+  still supplied explicitly; no kernel-acceptance instrumentation/search or
+  theorem about arbitrary Elixir producer executions is established.
 - **Representation fidelity of snapshots.** That an executable registry
   (`Env`) corresponds to a formal `Snapshot`/`Signature` — name identity,
   declaration order, first-match lookup, owner-qualified keys, context
@@ -1816,8 +1816,8 @@ and visible delta unfolding on the exported snapshot; it rejects hidden
 delta bodies, a mismatched table and a well-formed but false conversion claim.
 Parsing a recipe is not evidence that its conversion succeeds.
 
-The ordinary Recipe, Packet and declaration codecs are now complete below;
-their Elixir producer is still open. Snapshot/context representation fidelity,
+The ordinary Recipe, Packet and declaration codecs and their Elixir data
+producer are now complete below. Snapshot/context representation fidelity,
 kernel-acceptance correspondence, NbE/eta, semantic certification and compiler/runtime
 refinement remain unproved; a concrete cross-language vector is not a
 substitute for those theorems.
@@ -1865,8 +1865,8 @@ order, missing branches and omitted hidden-body recipes. A changed name table
 can still parse a canonical term, but a forged family claim fails actual
 source-bound typing. Interning is not name-table authentication.
 
-This completes the current Agda recipe/certificate CHARACTER layers, not an
-Elixir recipe producer, universal snapshot/context representation theorem,
+This completes the current Agda recipe/certificate CHARACTER layers, not a
+universal snapshot/context representation theorem,
 kernel-acceptance correspondence, eta/NbE refinement, semantic
 positivity/totality or BEAM correspondence. The generated snapshot and native
 typing/reduction rules are unchanged.
@@ -1877,6 +1877,58 @@ or check bypasses were introduced. Strict Credo reports no issues.
 Maintainer-waived Mix/ExUnit, documentation and stdlib/example verification
 were not run and are not reported as passing.
 
+### Elixir recipe production and a generated complete artifact
+`Cure.Core.ProofRecipe` produces all current conversion/ordinary recipe,
+packet, constructor/family declaration and whole-certificate wire layers.
+Its public `encode_conversion`, `encode_recipe`, `encode_packet`,
+`encode_constructor`, `encode_family` and `encode_certificate` functions take
+explicit data and a supplied name table. Exact atom/tuple constructors mirror
+the Agda grammar; case branches are pairs, universe levels are integers
+0/1/2, ordered vectors must be proper lists, and optional packet bodies use
+`nil` or a present recipe. The whole UTF-8 atom/string name table is validated
+before traversal; canonical term reflection/interning is reused from
+`ProofWire`. Invalid payloads, callbacks, malformed/improper vectors, absent
+names and unsupported Float payloads return structured errors, never proof
+objects or default recipes. No atoms are minted.
+
+`Cure.Test.ProofRecipeFixture` contains explicit annotations for the existing
+dependent exported fixture. Asserted conversion terms are built from its
+actual motive and constructor result indices; this is ONE annotated fixture,
+not a certificate search algorithm or a hook into kernel checking.
+`proof/scripts/generate-wire-certificate.exs` compiles the producer/fixture
+sources and writes `Fixtures.ExecutableCertificate`: a name table and LITERAL
+wire characters, rather than a call to the Agda encoder. It also audits that
+the paired `Fixtures.ExecutableSnapshot` still matches its existing producer
+byte-for-byte; it never rewrites that snapshot.
+
+Regenerate with
+`elixir -pa _build/test/lib/cure/ebin proof/scripts/generate-wire-certificate.exs`;
+add `--check` for a read-only byte comparison. This uses an existing test-build
+Core beam path, not Mix startup or ExUnit; it does not run kernel admission,
+documentation checks or stdlib/example verification.
+`Proof.ProducedCertificateExamples` independently checks exact character
+equality with the complete Agda recipe certificate, its decoded data and the
+equation that native replay returns the same checked evidence. Derived native
+validity/admission, eligibility and fixed-goal safety therefore also hold for
+the literal produced artifact.
+
+`test/cure/core/proof_recipe_test.exs` records all constructor/container vectors,
+malformed inputs, table/name errors, payload exclusions and artifact
+reproduction controls. These ExUnit regressions are written but NOT executed
+under the maintainer waiver; artifact generation/check and source compilation
+are separate checks, not disguised test-suite passes.
+
+The concrete generated-artifact bridge is now established. Universal
+term/recipe producer and snapshot/context representation fidelity, automatic
+kernel-acceptance-to-recipe production, native/executable conversion and motive
+refinement, semantic certification, typed erasure and BEAM correspondence are
+still open. Neither explicit annotations nor a replayed artifact proves those
+directions, semantic termination or soundness of all executable acceptances.
+Validation for the producer continuation: all 137 Agda modules, exact
+postulate/hygiene guards, ten hygiene regressions, shell syntax and strict
+Credo pass. Producer/fixture source compilation and the standalone byte
+reproduction check pass, with no changes to the existing snapshot. No waived
+executable/documentation/stdlib suites were run.
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;
