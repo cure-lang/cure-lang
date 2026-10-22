@@ -11,7 +11,7 @@ module Proof.WireExamples where
 open import Data.Bool using (Bool; true; false)
 open import Data.Char using (Char)
 open import Data.Empty using (⊥-elim)
-open import Data.List using (List; []; _∷_; _++_)
+open import Data.List using (List; []; _∷_; _++_; replicate)
 open import Data.Maybe using (Maybe; just; nothing)
 open import Data.Nat using (zero; suc)
 open import Data.Product using (_,_)
@@ -196,3 +196,29 @@ not-a-code = refl
 truncated-code : decision
   (wire-to-term name-table (n-list (n-atom 19 ∷ n-atom 0 ∷ []))) ≡ false
 truncated-code = refl
+
+------------------------------------------------------------------------
+-- The SHARED CROSS-LANGUAGE VECTOR.
+--
+-- `Cure.Core.ProofWire` (the Elixir producer) and this codec pin the SAME
+-- characters for `tm-atom_lit "a"` under the table `["" , "a"]`:
+-- `(1111111111111111111;1;;)`. The Elixir side asserts the string in
+-- `test/cure/core/proof_wire_test.exs`; the producer itself is unverified
+-- code, and this vector is the hand-checked artifact they share.
+------------------------------------------------------------------------
+
+cross-table : List Name
+cross-table = "" ∷ "a" ∷ []
+
+cross-node : Node
+cross-node = n-list (n-atom 19 ∷ n-atom 1 ∷ n-atom 0 ∷ [])
+
+cross-wire : term-to-wire cross-table (tm-atom_lit "a") ≡ just cross-node
+cross-wire = refl
+
+cross-characters : encode cross-node ≡
+  '(' ∷ replicate 19 '1' ++ (';' ∷ '1' ∷ ';' ∷ ';' ∷ ')' ∷ [])
+cross-characters = refl
+
+cross-decodes : decode-term cross-table (encode cross-node) ≡ just (tm-atom_lit "a")
+cross-decodes = decode-term-fidelity cross-table (tm-atom_lit "a") cross-node cross-wire
