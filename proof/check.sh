@@ -185,6 +185,11 @@ MODULES=(
   Core/FlatContextTyping
   Fixtures/ExecutableContext
   Proof/FlatContextExamples
+  Core/ClosureEval
+  Proof/ClosureEvaluation
+  Proof/ClosureEvaluationSafety
+  Fixtures/ExecutableClosure
+  Proof/ClosureEvaluationExamples
 )
 
 fail=0

@@ -143,7 +143,7 @@ its connection to certified unfolding remain unproved here.
 | `Core.Grade` | The QTT carrier `{0,1,≤1,ω}`; additive/multiplicative monoids; subusaging preorder; all laws by exhaustive case analysis | ✅ complete |
 | `Core.Universe` | The three-element universe hierarchy `l0 : l1 : l2`; cumulativity `_≤ˡ_`; max `_⊔ˡ_`; `succLevel` | ✅ complete |
 | `Core.Syntax` | `Term` (faithful to `Cure.Core.Term`); de Bruijn `shift`/`substS` (simultaneous substitution); `Scoped`/`Closed` | ✅ complete |
-| `Core.Value` | The NbE value domain: closures, neutrals, size-indexed so closures are structurally smaller | ✅ complete |
+| `Core.Value` | Historical indexed value shape; closure bodies are arbitrary unindexed terms | Not evaluator termination, representation adequacy or Eval/Quote refinement |
 | `Core.Reduction` | The reduction relation `_⇝_` (β, ζ, ι, δ, congruence, and the `ι-nat-*`/`ι-bounded-*` literal peels) and its reflexive-transitive closure | ✅ complete |
 | `Core.Signature` | Inductive families, constructors, telescopes; nested strict positivity | ✅ complete |
 | `Core.Typing` | Declarative infer/check judgments with conversion and cumulative-sort closure, over a length-indexed context with `Fin` lookup | Conditional specification; not executable minimal synthesis |
@@ -168,8 +168,10 @@ its connection to certified unfolding remain unproved here.
 - The Core syntax: the full node taxonomy of `Cure.Core.Term`, with
   de Bruijn shift and substitution that mirror `Term.shift/3` and
   `Term.subst/3` exactly, and a well-scopedness predicate.
-- The NbE value domain, size-indexed so that closure environments are
-  structurally smaller (no postulates, no `{-# TERMINATING #-}`).
+- The historical indexed value domain has smaller-index captured
+  environments but arbitrary unindexed bodies. It adds no postulate or
+  checking override; it does NOT prove evaluator recursion decreases or
+  evaluation terminates. The checked fuelled closure model is described below.
 - The reduction relation `_⇝_`, with all four reduction rules and the
   congruence rules, matching docs/SOUNDNESS.md §1.3.
 - The inductive-family signature with the nested strict-positivity checker.
@@ -2158,6 +2160,72 @@ artifact reproduction, strict Credo over all 1,422 source files, formatting,
 shell syntax and whitespace checks pass. Older artifacts are unchanged;
 maintainer-waived Mix/ExUnit, documentation and stdlib/example suites were
 not run.
+### Positive closure evaluation refinement
+`Core.ClosureEval` adds finite closure/environment and neutral-spine data for
+the actively evaluated Pi/lambda/variable/Atom/let/application/global slice.
+Big-step evaluation/application evidence is constructed by the executor,
+not supplied as an evaluation or normalization oracle. Every recursive
+eval/apply call consumes HEIGHT fuel, including closure body application;
+each sibling gets the same smaller height bound. This is not total-step,
+native safety-policy or certified-delta fuel, and proves no unbounded
+evaluator totality.
+
+Outcomes distinguish exhausted, unsupported, unbound and non-function
+failures. Raw Elixir's out-of-environment free-variable fallback is
+deliberately outside the positive modeled slice. Let annotations are skipped,
+domains/operands evaluated eagerly, and globals remain neutral as in
+signature-free Eval. Captured bodies are syntax, not recursively evaluated
+until forced; returning a closure is not validation of all its latent syntax.
+
+`Proof.ClosureEvaluation` defines value/environment denotation with scoped
+neutral levels; arbitrary captured syntax is preserved, not thereby scoped.
+A closure denotes its captured syntax under a binder, NOT its fully
+normalized quoted body. The proved beta/environment extension equation
+handles capture avoidance; mutual evaluation/application simulation then
+produces an actual finite native reduction trace for EVERY positive model
+derivation under a represented environment and any signature. Flat-context
+readback embeds into that environment relation. No preservation,
+normalization, reduct or termination callback is a premise.
+`Proof.ClosureEvaluationSafety` consumes checked caller admission and
+positive model execution and derives a denoted result's native safe state
+at the SAME closed expected goal. Its fuelled `run-safe` preserves model
+failure/exhaustion instead of relabelling them as divergence or actual
+Elixir exceptions.
+
+The new literal `Fixtures.ExecutableClosure` records reviewed, terminating
+calls to CURRENT Eval/Quote: beta, eager arguments/domains, captured and
+higher-order closures, lets, Pi, neutral application and globals. Syntax and
+captured bodies travel through canonical term characters/decoding.
+The generator exposes no arbitrary submitted-program execution API and
+preserves all earlier artifacts. `Proof.ClosureEvaluationExamples`
+independently replays the observed values and captured environments, uses
+the general trace theorem, and derives original-goal native safety for the
+typed closed cases. A returned closure retains a beta redex in its denotation;
+an additional explicit checked native step under its binder reaches the
+observed quoted term. This is NOT a universal full-Quote theorem.
+
+Controls reject wrong captures, missing variables, non-functions and
+unsupported active forms. Finite-budget omega and unused-argument examples
+pin eager evaluation without invoking unbounded Elixir on omega; another
+specification path can reach a value despite model exhaustion. Exhaustion
+is not divergence or a no-reachable-value theorem. An ignored hole annotation
+has a raw evaluation trace but fails native admission, retaining the
+evaluation-versus-typing distinction. ExUnit regression sources are recorded
+but not executed under the maintainer waiver.
+
+This proves GENERAL positive closure evaluation refinement for the explicit
+MODEL and concrete implementation artifact agreement, not universal Elixir
+execution/producer correspondence, full Quote/NbE/eta, certified delta,
+data/case/builtin arithmetic, semantic totality, erasure or BEAM refinement.
+Legacy `Core.Value` documentation has been corrected: its environment index
+does not constrain arbitrary captured body syntax and never proved evaluator
+termination. No legacy datatype, native rule or Elixir kernel semantics changed.
+Validation for this continuation: all 157 Agda modules pass, with the exact
+`funext`/legacy `tree-decides` inventory, ten hygiene regressions and no new
+holes or checking bypasses. Current Eval/Quote and fixture source compilation,
+artifact reproduction, strict Credo over all 1,424 source files, formatting,
+shell syntax and whitespace checks pass. Older artifacts are unchanged;
+maintainer-waived executable/docs/stdlib suites were not run.
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;

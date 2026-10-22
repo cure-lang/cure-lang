@@ -1,9 +1,9 @@
 ------------------------------------------------------------------------
--- Semantic values for normalization-by-evaluation.
+-- Historical size-indexed semantic-value SHAPE, not evaluator refinement.
 --
--- Faithful to `Cure.Core.Value` (lib/cure/core/value.ex). `Eval.eval/2`
--- turns a `Term` into a `Value` under an environment; `Quote.reify/2`
--- reads a `Value` back into a β-normal `Term`.
+-- This models parts of `Cure.Core.Value`'s shape. It does not establish
+-- representation adequacy, Eval/Quote correctness or termination; payload
+-- and data-spine discrepancies remain separate obligations.
 --
 -- Binders are represented by CLOSURES `(env , body)` — an environment plus
 -- an unevaluated body. Stuck computations are NEUTRALS carrying a de Bruijn
@@ -12,12 +12,11 @@
 -- The environment is a `List Value` indexed by de Bruijn index: tm-var 0` is
 -- the most-recently-bound variable, at the head of the list.
 --
--- Because closures contain environments and environments contain values,
--- the domain is defined by recursion on the *size* of the term (all the
--- bodies appearing in a closure are strict subterms of the term being
--- evaluated), so we use a size-indexed family to keep Agda happy without
--- postulating anything. This is the standard "values as a recursive family
--- over a bound" trick.
+-- The stored environment uses a smaller index, but the body is an
+-- ARBITRARY Term: no relation to its syntax size is encoded. A captured
+-- body is not necessarily a subterm of the current application, so this
+-- index cannot justify evaluator recursion or totality. Core.ClosureEval
+-- instead exposes a structurally fuelled positive evaluation model.
 ------------------------------------------------------------------------
 module Core.Value where
 
@@ -33,11 +32,8 @@ open import Core.Universe using (Level)
 open import Core.Syntax using (Term; Branch; Name; ℤ′; shift)
 
 ------------------------------------------------------------------------
--- The value domain, indexed by an upper bound on the size of the term it
--- came from. `Val n` = values derived from terms of size < n.
---
--- We thread the bound so that a closure's captured environment and body
--- are strictly smaller, which Agda accepts as structurally decreasing.
+-- An index constrains nested captured environments, not originating term
+-- sizes or evaluation work. No evaluator is defined by this datatype.
 ------------------------------------------------------------------------
 
 mutual
@@ -62,8 +58,8 @@ mutual
     veffect_bind : Val n → Val n → Val n
 
   -- A closure: an environment plus an unevaluated body term. The captured
-  -- environment is drawn from a strictly smaller bound, which is what makes
-  -- evaluation structurally terminating.
+  -- environment is drawn from a smaller index; the unindexed body term
+  -- carries no termination or syntax-size proof.
   Clo : ℕ → Set
   Clo n = Σ ℕ (λ m → m < n × List (Val m) × Term)
 

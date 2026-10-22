@@ -437,6 +437,34 @@ refinement, arbitrary semantic caller validity or typed relevance/erasure.
 The audit rejects unsupported values and malformed/escaped frames; kernel
 semantics and older artifacts are unchanged. ExUnit regressions remain unrun
 under the maintainer policy.
+## Positive closure evaluation refinement continuation
+`Core.ClosureEval` now models finite Pi/lambda closures, environments, Atom
+values and neutrals with intrinsically certified positive evaluation and
+application. Every recursive eval/apply call consumes height fuel; exhausted,
+unsupported, unbound and non-function outcomes remain distinct. Captured
+bodies need not be subterms of the current application, so no syntax-size
+termination argument is assumed. The misleading legacy `Core.Value`
+termination commentary is corrected without changing its datatype.
+`Proof.ClosureEvaluation` proves the capture-avoiding beta/environment
+extension equation and GENERAL positive evaluation/application simulation:
+under a denoting environment, each positive model execution produces a
+native finite reduction trace to a denotation of its result. Flat-context
+readback embeds into that environment relation. `ClosureEvaluationSafety`
+composes checked caller admission with positive model execution into
+fixed-goal native safety and exposes a fuelled safe-result interface.
+Reviewed actual Eval/Quote observations in a new literal artifact cover
+captured/higher-order closures, eager operands/domains, lets, Pi and neutrals.
+Agda replays observed values, derives native traces and independently checks
+typed endpoints. Closure denotation is distinguished from full quotation:
+one example needs an extra native beta step under the returned binder.
+Wrong-capture, failure and finite-budget omega controls retain the differences
+between positive soundness, completeness, exhaustion, divergence and raw
+evaluation versus admission. No arbitrary-input unbounded observation API is
+introduced, no waived ExUnit suites run, and older artifacts/semantics remain
+unchanged.
+Universal Elixir execution/representation, full Quote/NbE/eta, certified
+delta, data/case/builtin and compiler/runtime refinement remain open; this
+is a theorem about the explicit positive MODEL plus concrete artifact agreement.
 ## Current remaining work, in priority order
 1. Prove universal producer/extraction representation fidelity and
    source/snapshot/context correspondence,
