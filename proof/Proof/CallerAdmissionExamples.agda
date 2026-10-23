@@ -142,10 +142,9 @@ case-query : Request
 case-query = record dependent
   { subject = E.program ; goal = tm-atom_type
   ; subject-recipe = r-convert tm-atom_type Recipes.unpack-conversion Recipes.unpack-case-recipe }
--- Supplying a validated caller does not silently broaden NativeRecipe's
--- current nonempty-ambient case protocol.
-nonempty-case-remains-unsupported : present (R.verify case-query) ≡ false
-nonempty-case-remains-unsupported = refl
+-- The declaration-derived context witness now reaches case replay.
+nonempty-case-now-checked : present (R.verify case-query) ≡ true
+nonempty-case-now-checked = refl
 empty-case-query : Request
 empty-case-query = record case-query
   { bindings = [] ; kind-recipes = [] ; arguments = [] ; argument-recipes = [] }

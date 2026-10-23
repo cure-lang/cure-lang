@@ -217,6 +217,8 @@ MODULES=(
   Proof/EvaluatedCaseExamples
   Fixtures/ExecutableRecursiveCase
   Proof/RecursiveCaseExamples
+  Fixtures/ExecutableCaseContext
+  Proof/CaseContextExamples
 )
 
 fail=0

@@ -447,8 +447,8 @@ non-data-scrutinee : present
   (D.infer ⟨⟩ (tm-case (tm-atom_lit "not-a-data-value") Native.motive-term
     Native.branches) E.unpack-case-recipe) ≡ false
 non-data-scrutinee = refl
--- The ambient context's well-formedness is reconstructed only for `⟨⟩`,
--- so a case under a binder is outside this bounded context.
+-- A directly supplied raw nonempty context still has no checked witness.
+-- This differs from descending under a domain whose scope/kind replayed.
 case-under-binder : present
   (D.infer (extend ⟨⟩ tm-atom_type) Native.program E.unpack-case-recipe) ≡ false
 case-under-binder = refl

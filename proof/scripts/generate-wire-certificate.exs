@@ -27,7 +27,8 @@ for source <- [
       "test/support/proof_case_fixture.ex",
       "test/support/proof_constructor_fixture.ex",
       "test/support/proof_scrutinee_fixture.ex",
-      "test/support/proof_recursive_case_fixture.ex"
+      "test/support/proof_recursive_case_fixture.ex",
+      "test/support/proof_case_context_fixture.ex"
     ] do
   Code.compile_file(Path.join(root, source))
 end
@@ -50,6 +51,7 @@ if File.read!(Path.join(root, "proof/Fixtures/ExecutableSnapshot.agda")) != snap
 {:ok, constructors} = Cure.Test.ProofConstructorFixture.to_agda()
 {:ok, scrutinees} = Cure.Test.ProofScrutineeFixture.to_agda()
 {:ok, recursive_cases} = Cure.Test.ProofRecursiveCaseFixture.to_agda()
+{:ok, case_contexts} = Cure.Test.ProofCaseContextFixture.to_agda()
 
 targets = [
   {Path.join(root, "proof/Fixtures/ExecutableCertificate.agda"), generated},
@@ -63,7 +65,8 @@ targets = [
   {Path.join(root, "proof/Fixtures/ExecutableCase.agda"), cases},
   {Path.join(root, "proof/Fixtures/ExecutableConstructor.agda"), constructors},
   {Path.join(root, "proof/Fixtures/ExecutableScrutinee.agda"), scrutinees},
-  {Path.join(root, "proof/Fixtures/ExecutableRecursiveCase.agda"), recursive_cases}
+  {Path.join(root, "proof/Fixtures/ExecutableRecursiveCase.agda"), recursive_cases},
+  {Path.join(root, "proof/Fixtures/ExecutableCaseContext.agda"), case_contexts}
 ]
 
 case System.argv() do

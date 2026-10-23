@@ -7,7 +7,7 @@ module Proof.RecursiveCaseExamples where
 
 open import Data.List using ([]; _∷_)
 open import Data.Maybe using (just)
-open import Data.Bool using (false)
+open import Data.Bool using (true; false)
 open import Data.Product using (_,_; proj₂)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Core.Syntax
@@ -140,14 +140,13 @@ latent-neutral-readback-stops : Quotation.failure (Q.run 64 0 latent-neutral) �
 latent-neutral-readback-stops = refl
 actual-neutral-readback-succeeds : Observed.latent-neutral-actual-quoted ≡ Observed.latent-neutral-program
 actual-neutral-readback-succeeds = refl
--- Shared execution broadens; the separate native recipe protocol still
--- does NOT reconstruct case contexts in a nonempty ambient caller.
-nonempty-case-replay-still-excluded : present (Previous.CallerReplay.verify
+-- Checked lambda-domain kinds now extend context evidence for its case.
+nonempty-case-replay-now-checked : present (Previous.CallerReplay.verify
   (Caller.request [] [] [] [] Observed.lambda-program (tm-pi unrestricted tm-atom_type tm-atom_type)
     (r-lam r-leaf (Earlier.native-recipe
       (tm-case (tm-ctor "Boundary#Pack" (tm-atom_type ∷ tm-var 0 ∷ [])) Existing.motive-term Existing.branches)
-      Earlier.ctor-recipe)) (r-pi r-leaf r-leaf))) ≡ false
-nonempty-case-replay-still-excluded = refl
+      Earlier.ctor-recipe)) (r-pi r-leaf r-leaf))) ≡ true
+nonempty-case-replay-now-checked = refl
 
 raw-case : Term → Term
 raw-case body = tm-case (tm-ctor "Boundary#Pack" []) tm-atom_type (("Boundary#Pack" , 0 , body) ∷ [])

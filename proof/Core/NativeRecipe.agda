@@ -1,6 +1,6 @@
 ------------------------------------------------------------------------
 -- Data-only recipe replay for a bounded native fragment, including
--- checked conversion, declarations and closed-ambient dependent cases.
+-- checked conversion, declarations and checked-context dependent cases.
 -- A successful result contains a constructed native derivation; no
 -- native proof, lookup or conversion witness is an input field.
 --
@@ -510,13 +510,22 @@ module Derive (ind : IndEnv) (sig : Signature) (conv : Conversion)
   ... | just T = just (T , N.⇒-global found)
   leaf Γ other = nothing
 
+  -- Missing evidence stays missing. Raw context length/lookup is never
+  -- promoted to well-formedness; a checked domain must ALSO be scoped.
+  extend-context : ∀ {n l} {Γ : Ctx n} → Maybe (N.WellFormed Γ)
+    → (T : Term) → N._⊢_⇒_ Γ T (tm-type l) → Maybe (N.WellFormed (extend Γ T))
+  extend-context nothing T typed = nothing
+  extend-context {n} (just wf) T typed with scope? n T
+  ... | nothing = nothing
+  ... | just scoped = just (N.wf∷ wf scoped typed)
+
   mutual
-    infer : ∀ {n} (Γ : Ctx n) (t : Term) → Recipe → Maybe (Result Γ t)
-    infer Γ t r-leaf = leaf Γ t
-    infer Γ t (r-claim claimed child) with at Γ t claimed child
+    infer-in : ∀ {n} (Γ : Ctx n) (wf : Maybe (N.WellFormed Γ)) (t : Term) → Recipe → Maybe (Result Γ t)
+    infer-in Γ wf t r-leaf = leaf Γ t
+    infer-in Γ wf t (r-claim claimed child) with at-in Γ wf t claimed child
     ... | nothing = nothing
     ... | just typed = just (claimed , typed)
-    infer Γ t (r-cumul target child) with kind Γ t child
+    infer-in Γ wf t (r-cumul target child) with kind-in Γ wf t child
     ... | nothing = nothing
     ... | just (level , typed) with level-le level target
     ... | nothing = nothing
@@ -524,50 +533,50 @@ module Derive (ind : IndEnv) (sig : Signature) (conv : Conversion)
     -- The asserted target is reported ONLY with a replayed conversion
     -- from the type the child actually synthesizes. A recipe that names
     -- the wrong target, or cannot justify the bridging steps, fails here.
-    infer Γ t (r-convert target recipe sub) with infer Γ t sub
+    infer-in Γ wf t (r-convert target recipe sub) with infer-in Γ wf t sub
     ... | nothing = nothing
     ... | just (inferred , typed) with conversion inferred target recipe
     ... | nothing = nothing
     ... | just proof = just (target , N.⇒-conv typed proof)
-    infer Γ (tm-pi grade domain codomain) (r-pi dr cr) with kind Γ domain dr
+    infer-in Γ wf (tm-pi grade domain codomain) (r-pi dr cr) with kind-in Γ wf domain dr
     ... | nothing = nothing
-    ... | just (i , domain-typed) with kind (extend Γ domain) codomain cr
+    ... | just (i , domain-typed) with kind-in (extend Γ domain) (extend-context wf domain domain-typed) codomain cr
     ... | nothing = nothing
     ... | just (j , codomain-typed) =
       just (tm-type (i ⊔ˡ j) , N.⇒-pi domain-typed codomain-typed)
-    infer Γ (tm-lam grade domain body) (r-lam dr br) with kind Γ domain dr
+    infer-in Γ wf (tm-lam grade domain body) (r-lam dr br) with kind-in Γ wf domain dr
     ... | nothing = nothing
-    ... | just (level , domain-typed) with infer (extend Γ domain) body br
+    ... | just (level , domain-typed) with infer-in (extend Γ domain) (extend-context wf domain domain-typed) body br
     ... | nothing = nothing
     ... | just (codomain , body-typed) = just (tm-pi grade domain codomain ,
       N.⇒-lam domain-typed (N.⇐-infer body-typed (Conversion.≈-refl conv {t = codomain})))
-    infer Γ (tm-app function argument) (r-app fr ar) with infer Γ function fr
+    infer-in Γ wf (tm-app function argument) (r-app fr ar) with infer-in Γ wf function fr
     ... | nothing = nothing
-    ... | just (tm-pi grade domain codomain , function-typed) with at Γ argument domain ar
+    ... | just (tm-pi grade domain codomain , function-typed) with at-in Γ wf argument domain ar
     ... | nothing = nothing
     ... | just argument-typed =
       just (substTopT argument codomain , N.⇒-app function-typed argument-typed)
-    infer Γ (tm-app function argument) (r-app fr ar) | just (other , typed) = nothing
-    infer Γ (tm-let grade ty value body) (r-let tr vr br) with kind Γ ty tr
+    infer-in Γ wf (tm-app function argument) (r-app fr ar) | just (other , typed) = nothing
+    infer-in Γ wf (tm-let grade ty value body) (r-let tr vr br) with kind-in Γ wf ty tr
     ... | nothing = nothing
-    ... | just (level , type-typed) with checking Γ value ty vr
+    ... | just (level , type-typed) with checking-in Γ wf value ty vr
     ... | nothing = nothing
-    ... | just value-typed with infer (extend Γ ty) body br
+    ... | just value-typed with infer-in (extend Γ ty) (extend-context wf ty type-typed) body br
     ... | nothing = nothing
     ... | just (T , body-typed) =
       just (substTopT value T , N.⇒-let type-typed value-typed body-typed)
-    infer Γ (tm-data name ps is) (r-data prs irs) with findFamily name (IndEnv.families ind) in found
+    infer-in Γ wf (tm-data name ps is) (r-data prs irs) with findFamily name (IndEnv.families ind) in found
     ... | nothing = nothing
-    ... | just family with spine Γ [] ps (fam-params family) prs
+    ... | just family with spine-in Γ wf [] ps (fam-params family) prs
     ... | nothing = nothing
-    ... | just params with spine Γ (reverse ps) is (fam-indices family) irs
+    ... | just params with spine-in Γ wf (reverse ps) is (fam-indices family) irs
     ... | nothing = nothing
     ... | just indices = just (tm-type (fam-level family) , N.⇒-data found params indices)
-    infer Γ (tm-ctor name args) (r-ctor ps prs ars) with findCtor name (IndEnv.families ind) in found
+    infer-in Γ wf (tm-ctor name args) (r-ctor ps prs ars) with findCtor name (IndEnv.families ind) in found
     ... | nothing = nothing
-    ... | just (family , ctor) with spine Γ [] ps (fam-params family) prs
+    ... | just (family , ctor) with spine-in Γ wf [] ps (fam-params family) prs
     ... | nothing = nothing
-    ... | just params with spine Γ (reverse ps) args (ctor-args ctor) ars
+    ... | just params with spine-in Γ wf (reverse ps) args (ctor-args ctor) ars
     ... | nothing = nothing
     ... | just arguments = just
       (tm-data (fam-name family) ps (Frame.instantiateResults ps args (ctor-indices ctor)) ,
@@ -576,30 +585,30 @@ module Derive (ind : IndEnv) (sig : Signature) (conv : Conversion)
     -- type, both parameter/index spines, the typed curried motive (at an
     -- ASSERTED level), the branch bodies at their `branchGoal` inside a
     -- RECONSTRUCTED well-formed branch context, and local coverage.
-    infer Γ (tm-case scrutinee motive-term brs)
+    infer-in Γ wf (tm-case scrutinee motive-term brs)
       (r-case scrutinee-recipe parameter-recipes index-recipes level
         kind-recipe motive-recipe branch-recipes)
-      with infer Γ scrutinee scrutinee-recipe
+      with infer-in Γ wf scrutinee scrutinee-recipe
     ... | nothing = nothing
     ... | just (inferred , scrutinee-typed) with shape? inferred
     ...   | nothing = nothing
-    ...   | just shape with context? Γ
+    ...   | just shape with wf
     ...     | nothing = nothing
     ...     | just context-wf
       with findFamily (DataShape.data-name shape) (IndEnv.families ind) in family-found
     ...       | nothing = nothing
     ...       | just family
-      with spine Γ [] (DataShape.data-params shape) (fam-params family) parameter-recipes
+      with spine-in Γ wf [] (DataShape.data-params shape) (fam-params family) parameter-recipes
     ...         | nothing = nothing
     ...         | just parameters
-      with spine Γ (reverse (DataShape.data-params shape)) (DataShape.data-indices shape)
+      with spine-in Γ wf (reverse (DataShape.data-params shape)) (DataShape.data-indices shape)
              (fam-indices family) index-recipes
     ...           | nothing = nothing
     ...           | just indices
-      with motive-proof Γ family (DataShape.data-params shape) motive-term level
+      with motive-proof-in Γ wf family (DataShape.data-params shape) motive-term level
              kind-recipe motive-recipe
     ...             | nothing = nothing
-    ...             | just motive-proof
+    ...             | just motive-evidence
       with branches Γ family (DataShape.data-name shape) (DataShape.data-params shape)
              motive-term brs branch-recipes family-found context-wf
     ...               | nothing = nothing
@@ -610,38 +619,38 @@ module Derive (ind : IndEnv) (sig : Signature) (conv : Conversion)
       ( Native.apps motive-term (DataShape.data-indices shape ++ scrutinee ∷ []) ,
         N.⇒-case context-wf family-found
           (subst (λ T → N._⊢_⇒_ Γ scrutinee T) (DataShape.data-equal shape) scrutinee-typed)
-          parameters indices motive-proof branches-typed coverage )
-    infer Γ t recipe = nothing
+          parameters indices motive-evidence branches-typed coverage )
+    infer-in Γ wf t recipe = nothing
 
-    at : ∀ {n} (Γ : Ctx n) (t T : Term) → Recipe → Maybe (N._⊢_⇒_ Γ t T)
-    at Γ t T recipe with infer Γ t recipe
+    at-in : ∀ {n} (Γ : Ctx n) (wf : Maybe (N.WellFormed Γ)) (t T : Term) → Recipe → Maybe (N._⊢_⇒_ Γ t T)
+    at-in Γ wf t T recipe with infer-in Γ wf t recipe
     ... | nothing = nothing
     ... | just (inferred , typed) with Syntax.equal? inferred T
     ... | no unequal = nothing
     ... | yes refl = just typed
 
-    checking : ∀ {n} (Γ : Ctx n) (t T : Term) → Recipe → Maybe (N._⊢_⇐_ Γ t T)
-    checking Γ t T recipe with at Γ t T recipe
+    checking-in : ∀ {n} (Γ : Ctx n) (wf : Maybe (N.WellFormed Γ)) (t T : Term) → Recipe → Maybe (N._⊢_⇐_ Γ t T)
+    checking-in Γ wf t T recipe with at-in Γ wf t T recipe
     ... | nothing = nothing
     ... | just typed = just (N.⇐-infer typed (Conversion.≈-refl conv {t = T}))
 
-    kind : ∀ {n} (Γ : Ctx n) (t : Term) → Recipe
+    kind-in : ∀ {n} (Γ : Ctx n) (wf : Maybe (N.WellFormed Γ)) (t : Term) → Recipe
       → Maybe (∃ λ level → N._⊢_⇒_ Γ t (tm-type level))
-    kind Γ t recipe with infer Γ t recipe
+    kind-in Γ wf t recipe with infer-in Γ wf t recipe
     ... | nothing = nothing
     ... | just (tm-type level , typed) = just (level , typed)
     ... | just (other , typed) = nothing
 
-    spine : ∀ {n} (Γ : Ctx n) (locals args : List Term) (tele : Telescope)
+    spine-in : ∀ {n} (Γ : Ctx n) (wf : Maybe (N.WellFormed Γ)) (locals args : List Term) (tele : Telescope)
       → List Recipe → Maybe (N.Spine Γ locals args tele)
-    spine Γ locals [] [] [] = just N.sp[]
-    spine Γ locals (arg ∷ args) ((name , T) ∷ tele) (recipe ∷ recipes)
-      with checking Γ arg (Frame.instantiatePrefix locals T) recipe
+    spine-in Γ wf locals [] [] [] = just N.sp[]
+    spine-in Γ wf locals (arg ∷ args) ((name , T) ∷ tele) (recipe ∷ recipes)
+      with checking-in Γ wf arg (Frame.instantiatePrefix locals T) recipe
     ... | nothing = nothing
-    ... | just typed with spine Γ (arg ∷ locals) args tele recipes
+    ... | just typed with spine-in Γ wf (arg ∷ locals) args tele recipes
     ... | nothing = nothing
     ... | just tail = just (N.sp∷ typed tail)
-    spine Γ locals args tele recipes = nothing
+    spine-in Γ wf locals args tele recipes = nothing
 
     ------------------------------------------------------------------
     -- Forward telescope declaration replay: one kind recipe per entry,
@@ -649,17 +658,17 @@ module Derive (ind : IndEnv) (sig : Signature) (conv : Conversion)
     -- is the ACTUAL declaration, not recipe data.
     ------------------------------------------------------------------
 
-    declare : ∀ {n} (Γ : Ctx n) (tele : Telescope) → List Recipe
+    declare-in : ∀ {n} (Γ : Ctx n) (wf : Maybe (N.WellFormed Γ)) (tele : Telescope) → List Recipe
       → Maybe (∃ λ size → ∃ λ (Δ : Ctx size) → N.Declared Γ tele Δ)
-    declare Γ [] [] = just (_ , Γ , N.dt[])
-    declare Γ [] (recipe ∷ recipes) = nothing
-    declare Γ (entry ∷ tele) [] = nothing
-    declare {n} Γ ((name , T) ∷ tele) (recipe ∷ recipes)
+    declare-in Γ wf [] [] = just (_ , Γ , N.dt[])
+    declare-in Γ wf [] (recipe ∷ recipes) = nothing
+    declare-in Γ wf (entry ∷ tele) [] = nothing
+    declare-in {n} Γ wf ((name , T) ∷ tele) (recipe ∷ recipes)
       with scope? n T
     ... | nothing = nothing
-    ... | just scoped with kind Γ T recipe
+    ... | just scoped with kind-in Γ wf T recipe
     ...   | nothing = nothing
-    ...   | just (level , kinded) with declare (extend Γ T) tele recipes
+    ...   | just (level , kinded) with declare-in (extend Γ T) (extend-context wf T kinded) tele recipes
     ...     | nothing = nothing
     ...     | just (size , Δ , rest) = just (size , Δ , N.dt∷ scoped kinded rest)
 
@@ -670,43 +679,43 @@ module Derive (ind : IndEnv) (sig : Signature) (conv : Conversion)
       ∃ λ size → ∃ λ (Δ : Ctx size) → ∃ λ (declared : N.Declared Γ tele Δ)
       → N.LevelsBelow cap declared
 
-    declare-below : ∀ {n} (Γ : Ctx n) (tele : Telescope) (cap : Level) → List Recipe
+    declare-below-in : ∀ {n} (Γ : Ctx n) (wf : Maybe (N.WellFormed Γ)) (tele : Telescope) (cap : Level) → List Recipe
       → Maybe (DeclaredBelow Γ tele cap)
-    declare-below Γ [] cap [] = just (_ , Γ , N.dt[] , tt)
-    declare-below Γ [] cap (recipe ∷ recipes) = nothing
-    declare-below Γ (entry ∷ tele) cap [] = nothing
-    declare-below {n} Γ ((name , T) ∷ tele) cap (recipe ∷ recipes)
+    declare-below-in Γ wf [] cap [] = just (_ , Γ , N.dt[] , tt)
+    declare-below-in Γ wf [] cap (recipe ∷ recipes) = nothing
+    declare-below-in Γ wf (entry ∷ tele) cap [] = nothing
+    declare-below-in {n} Γ wf ((name , T) ∷ tele) cap (recipe ∷ recipes)
       with scope? n T
     ... | nothing = nothing
-    ... | just scoped with kind Γ T recipe
+    ... | just scoped with kind-in Γ wf T recipe
     ...   | nothing = nothing
     ...   | just (level , kinded) with level-le level cap
     ...     | nothing = nothing
-    ...     | just below-cap with declare-below (extend Γ T) tele cap recipes
+    ...     | just below-cap with declare-below-in (extend Γ T) (extend-context wf T kinded) tele cap recipes
     ...       | nothing = nothing
     ...       | just (size , Δ , declared , rest) =
       just (size , Δ , N.dt∷ scoped kinded declared , below-cap , rest)
 
     ------------------------------------------------------------------
-    -- CASE REPLAY. The ambient context's well-formedness is
-    -- RECONSTRUCTED only for the empty context: a case under a binder
-    -- needs the extended context's kinds, which are not recipe data.
+    -- Raw entry points only recognise the empty root. Internal descent
+    -- carries actual checked binder/branch kinds instead of re-inventing
+    -- well-formedness from a globally shifted raw context.
     ------------------------------------------------------------------
 
     context? : ∀ {n} (Γ : Ctx n) → Maybe (N.WellFormed Γ)
     context? ⟨⟩ = just N.wf[]
     context? (Γ ▷ T) = nothing
 
-    motive-proof : ∀ {n} (Γ : Ctx n) (family : Family) (ps : List Term)
+    motive-proof-in : ∀ {n} (Γ : Ctx n) (wf : Maybe (N.WellFormed Γ)) (family : Family) (ps : List Term)
       (motive-term : Term) (level : Level) (kind-recipe motive-recipe : Recipe)
       → Maybe (N.Motive Γ family ps motive-term level)
-    motive-proof {n} Γ family ps motive-term level kind-recipe motive-recipe
+    motive-proof-in {n} Γ wf family ps motive-term level kind-recipe motive-recipe
       with scope? n motive-term
     ... | nothing = nothing
-    ... | just scoped with kind Γ (Native.motiveType family ps level) kind-recipe
+    ... | just scoped with kind-in Γ wf (Native.motiveType family ps level) kind-recipe
     ...   | nothing = nothing
     ...   | just (u , kinded)
-      with at Γ motive-term (Native.motiveType family ps level) motive-recipe
+      with at-in Γ wf motive-term (Native.motiveType family ps level) motive-recipe
     ...     | nothing = nothing
     ...     | just typed = just (N.motive scoped kinded typed)
 
@@ -723,7 +732,7 @@ module Derive (ind : IndEnv) (sig : Signature) (conv : Conversion)
     opened-fields {n} Γ σ ((name , T) ∷ tele) (recipe ∷ recipes) wf
       with scope? n (substS σ T)
     ... | nothing = nothing
-    ... | just scoped with kind Γ (substS σ T) recipe
+    ... | just scoped with kind-in Γ (just wf) (substS σ T) recipe
     ...   | nothing = nothing
     ...   | just (level , kinded)
       with opened-fields (extend Γ (substS σ T)) (extSub σ) tele recipes
@@ -753,13 +762,50 @@ module Derive (ind : IndEnv) (sig : Signature) (conv : Conversion)
              field-recipes wf
     ...       | nothing = nothing
     ...       | just (m , Δ , wf-Δ , opened)
-      with checking Δ body (Native.branchGoal name ps ctor motive-term) body-recipe
+      with checking-in Δ (just wf-Δ) body (Native.branchGoal name ps ctor motive-term) body-recipe
     ...         | nothing = nothing
     ...         | just typed with branches Γ family family-name ps motive-term bs recipes found wf
     ...           | nothing = nothing
     ...           | just rest = just
       (N.br∷ ctor-found (just-inj (trans (sym (owner-visible ctor-found)) found))
         opened wf-Δ typed rest)
+
+  -- Compatibility entry points preserve conservative raw-context replay.
+  infer : ∀ {n} (Γ : Ctx n) (t : Term) → Recipe → Maybe (Result Γ t)
+  infer Γ = infer-in Γ (context? Γ)
+  at : ∀ {n} (Γ : Ctx n) (t T : Term) → Recipe → Maybe (N._⊢_⇒_ Γ t T)
+  at Γ = at-in Γ (context? Γ)
+  checking : ∀ {n} (Γ : Ctx n) (t T : Term) → Recipe → Maybe (N._⊢_⇐_ Γ t T)
+  checking Γ = checking-in Γ (context? Γ)
+  kind : ∀ {n} (Γ : Ctx n) (t : Term) → Recipe → Maybe (∃ λ l → N._⊢_⇒_ Γ t (tm-type l))
+  kind Γ = kind-in Γ (context? Γ)
+  spine : ∀ {n} (Γ : Ctx n) (locals args : List Term) (tele : Telescope)
+    → List Recipe → Maybe (N.Spine Γ locals args tele)
+  spine Γ = spine-in Γ (context? Γ)
+  declare : ∀ {n} (Γ : Ctx n) (tele : Telescope) → List Recipe
+    → Maybe (∃ λ m → ∃ λ (Δ : Ctx m) → N.Declared Γ tele Δ)
+  declare Γ = declare-in Γ (context? Γ)
+  declare-below : ∀ {n} (Γ : Ctx n) (tele : Telescope) (cap : Level) → List Recipe
+    → Maybe (DeclaredBelow Γ tele cap)
+  declare-below Γ = declare-below-in Γ (context? Γ)
+  motive-proof : ∀ {n} (Γ : Ctx n) (family : Family) (ps : List Term) (m : Term)
+    (level : Level) → Recipe → Recipe → Maybe (N.Motive Γ family ps m level)
+  motive-proof Γ = motive-proof-in Γ (context? Γ)
+
+  -- These are INTERNAL proof-consuming entry points, not untrusted wire
+  -- fields. CallerAdmission supplies evidence derived from declaration replay.
+  infer-wf : ∀ {n} (Γ : Ctx n) → N.WellFormed Γ → (t : Term) → Recipe → Maybe (Result Γ t)
+  infer-wf Γ wf = infer-in Γ (just wf)
+  at-wf : ∀ {n} (Γ : Ctx n) → N.WellFormed Γ → (t T : Term) → Recipe → Maybe (N._⊢_⇒_ Γ t T)
+  at-wf Γ wf = at-in Γ (just wf)
+  kind-wf : ∀ {n} (Γ : Ctx n) → N.WellFormed Γ → (t : Term) → Recipe
+    → Maybe (∃ λ l → N._⊢_⇒_ Γ t (tm-type l))
+  kind-wf Γ wf = kind-in Γ (just wf)
+
+  declared-wf : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {tele}
+    → N.WellFormed Γ → N.Declared Γ tele Δ → N.WellFormed Δ
+  declared-wf wf N.dt[] = wf
+  declared-wf wf (N.dt∷ scoped kind rest) = declared-wf (N.wf∷ wf scoped kind) rest
 
   ----------------------------------------------------------------------
   -- Family and constructor declaration replay. The telescopes come from
@@ -774,7 +820,8 @@ module Derive (ind : IndEnv) (sig : Signature) (conv : Conversion)
     with declare ⟨⟩ (fam-params family) (FamilyRecipe.fam-parameter-recipes recipe)
   ... | nothing = nothing
   ... | just (p , parameters , declared-parameters)
-    with declare parameters (fam-indices family) (FamilyRecipe.fam-index-recipes recipe)
+    with declare-in parameters (just (declared-wf N.wf[] declared-parameters))
+           (fam-indices family) (FamilyRecipe.fam-index-recipes recipe)
   ...   | nothing = nothing
   ...   | just (i , indices , declared-indices) = just record
     { parameter-context = parameters ; index-context = indices
@@ -786,7 +833,7 @@ module Derive (ind : IndEnv) (sig : Signature) (conv : Conversion)
     with declare ⟨⟩ (fam-params family) (ConstructorRecipe.ctor-parameter-recipes recipe)
   ... | nothing = nothing
   ... | just (p , parameters , declared-parameters)
-    with declare-below parameters (ctor-args ctor) (fam-level family)
+    with declare-below-in parameters (just (declared-wf N.wf[] declared-parameters)) (ctor-args ctor) (fam-level family)
            (ConstructorRecipe.ctor-field-recipes recipe)
   ...   | nothing = nothing
   ...   | just (f , fields , declared-fields , field-levels)
@@ -799,11 +846,13 @@ module Derive (ind : IndEnv) (sig : Signature) (conv : Conversion)
            (Native.parameterSlots (length (ctor-args ctor)) (length (fam-params family)))
   ...         | no unequal = nothing
   ...         | yes uniform
-    with spine fields [] (ctor-params ctor) (fam-params family)
+    with spine-in fields (just (declared-wf (declared-wf N.wf[] declared-parameters) declared-fields))
+           [] (ctor-params ctor) (fam-params family)
            (ConstructorRecipe.ctor-result-parameter-recipes recipe)
   ...           | nothing = nothing
   ...           | just result-parameters
-    with spine fields (reverse (ctor-params ctor)) (ctor-indices ctor) (fam-indices family)
+    with spine-in fields (just (declared-wf (declared-wf N.wf[] declared-parameters) declared-fields))
+           (reverse (ctor-params ctor)) (ctor-indices ctor) (fam-indices family)
            (ConstructorRecipe.ctor-result-index-recipes recipe)
   ...             | nothing = nothing
   ...             | just result-indices = just record

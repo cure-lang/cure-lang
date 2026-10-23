@@ -48,8 +48,7 @@ module Replay {source table certificate-chars} (source-checked : P.Checked sourc
 
   declared-wf : ∀ {n m} {Γ : Ctx n} {Δ : Ctx m} {tele}
     → N.WellFormed Γ → N.Declared Γ tele Δ → N.WellFormed Δ
-  declared-wf wf N.dt[] = wf
-  declared-wf wf (N.dt∷ scoped kind rest) = declared-wf (N.wf∷ wf scoped kind) rest
+  declared-wf = D.declared-wf
 
   record Checked (query : Request) : Set where
     open Request query
@@ -117,9 +116,11 @@ module Replay {source table certificate-chars} (source-checked : P.Checked sourc
   ... | no rejected = nothing
   ... | yes supported-subject with R.supported? size (Request.goal query)
   ... | no rejected = nothing
-  ... | yes supported-goal with D.kind context (Request.goal query) (Request.goal-recipe query)
+  ... | yes supported-goal with D.kind-wf context (declared-wf N.wf[] declaration)
+    (Request.goal query) (Request.goal-recipe query)
   ... | nothing = nothing
-  ... | just (level , kind) with D.at context (Request.subject query) (Request.goal query) (Request.subject-recipe query)
+  ... | just (level , kind) with D.at-wf context (declared-wf N.wf[] declaration)
+    (Request.subject query) (Request.goal query) (Request.subject-recipe query)
   ... | nothing = nothing
   ... | just typed = just record
     { size = size ; context = context ; declaration = declaration
