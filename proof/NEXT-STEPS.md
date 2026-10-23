@@ -488,6 +488,30 @@ kernel semantics are unchanged. ExUnit regressions remain unrun.
 This completes scoped positive MODEL quotation/normalization refinement,
 not universal Elixir or whole-Cure NbE, eta/conversion, certified delta,
 data/case/builtin or compiler/runtime correspondence.
+## Bounded normalization comparison and admission continuation
+`NormalFormComparison` now returns proof-carrying equal, distinct-syntax or
+inconclusive outcomes, preserving failure side/reason. Equal normalized
+forms yield a common native reduct and the existing native conversion
+relation under scoped input/environment premises. Distinct syntax is NOT
+non-conversion, and no default false verdict hides unsupported/fuel failures.
+`NormalizingAdmission` replays actual synthesis and BOTH inferred/goal kinds
+before exact reflexivity or bounded normalization comparison constructs
+expected-goal native admission and trace/fuel/tree safety. Exact data typing
+works with zero normalization budget; non-exact unsupported data remains
+inconclusive. Cumulativity stays separate from conversion.
+A proved tag-20 checking codec, data-only Elixir producer and new literal
+request admit a payload at a beta-converted expected type without an input
+conversion recipe. Dependent Pi/under-binder, malformed-goal/syntax/grade and
+budget controls pin the guarded scope and original expected goal.
+Reviewed actual Conv/Quote observations retain beta/zeta agreement and
+eta, lambda-domain, certified-delta and unsupported-data boundary cases.
+A distinct-quote global pair is proved native-convertible by delta; raw
+lambda comparisons without a shared expected type are not classified as
+kernel unsoundness. Model positive conversion/admission is now proved,
+not universal executable Conv/extraction, eta completeness, delta
+normalization, data/case/builtin or compiler/runtime refinement.
+Older artifacts and semantics are unchanged; recorded ExUnit regressions
+remain unrun under the maintainer policy.
 ## Current remaining work, in priority order
 1. Prove universal producer/extraction representation fidelity and
    source/snapshot/context correspondence,

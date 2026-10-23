@@ -73,12 +73,26 @@ defmodule Cure.Core.ProofRecipe do
   @spec encode_caller(term(), ProofWire.table()) :: result()
   def encode_caller(value, table), do: encode(:caller, value, table)
 
+  @doc """
+  Encode `{:checking, subject, subject_recipe, inferred_kind_recipe, goal,
+  goal_kind_recipe}` for `Core.WireChecking`. No conversion recipe is a
+  field: independent replay checks inference/kinds and derives conversion
+  from exact syntax or bounded normalized equality. This only renders data.
+  """
+  @spec encode_checking(term(), ProofWire.table()) :: result()
+  def encode_checking(value, table), do: encode(:checking, value, table)
+
   defp encode(kind, value, table) do
     if valid_table?(table) do
       with {:ok, node} <- node(kind, value, table), do: {:ok, IO.iodata_to_binary(render(node))}
     else
       {:error, {:malformed_table, table}}
     end
+  end
+
+  defp node(:checking, {:checking, subject, recipe, kind, goal, goal_kind}, table) do
+    with {:ok, nodes} <- children([term: subject, recipe: recipe, recipe: kind, term: goal, recipe: goal_kind], table),
+         do: {:ok, [20, nested(nodes)]}
   end
 
   defp node(:conversion, :c_refl, _table), do: {:ok, [0]}

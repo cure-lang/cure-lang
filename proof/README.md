@@ -2284,6 +2284,70 @@ holes or checking bypasses. Current Eval/Quote/fixture compilation, complete
 artifact reproduction, strict Credo over all 1,426 source files, formatting,
 shell syntax and whitespace checks pass. Older artifacts are unchanged;
 maintainer-waived executable/docs/stdlib suites were not run.
+### Bounded normalization comparison and expected-goal admission
+`Core.NormalFormComparison` normalizes both operands in the represented
+environment and uses constructive syntax equality. Its three outcomes are
+EQUAL (both executions to one common form), DISTINCT (two successful forms
+with a structural inequality proof), and INCONCLUSIVE (side plus original
+model failure). Exhaustion, unsupported forms and unbound inputs never become
+a default false equality verdict. DISTINCT does NOT mean non-convertible:
+eta, residual delta and broader executable comparison remain separate.
+
+`Proof.NormalFormConversion` proves that equal results under scoped input
+and environment relations have a common native reduct. Actual reduction
+paths are expanded to derive the EXISTING source-specific native conversion
+witness; no conversion/normalization oracle or new record law is added.
+`Core.NormalizingAdmission` is an optional CLOSED checking protocol:
+replay actual inference, validate representation and BOTH synthesized/target
+type kinds, then use exact reflexivity or bounded normalized equality.
+The result derives native admission and trace/fuel/tree safety at the
+ORIGINAL expected goal, not its normal form. Mathematical conversion
+certificates are opaque to avoid expensive source-module proof expansion;
+inference, kind guards, normalization, comparison and rejection remain
+computational. Sort cumulativity is not equality; explicit existing
+cumulative recipes still work.
+
+Exact reflexivity runs before model normalization, but AFTER kind/scope
+guards, retaining reflexive data typing at zero normalization budget.
+Non-exact data comparison can remain inconclusive. The protocol is not
+complete native typing or a replacement release gate.
+`Core.WireChecking` proves whole-request fidelity for tag 20's five fields
+(subject, subject recipe, synthesized-kind recipe, goal, goal-kind recipe).
+Character replay retains decode and native verifier-result equations and
+preserves diagnostic rejections. `ProofRecipe.encode_checking` renders
+data only; no conversion recipe is an input field.
+
+The literal `Fixtures.ExecutableChecking` admits a payload at a beta-redex
+type without an asserted conversion path. Under-binder/dependent Pi
+examples derive conversion automatically. Wrong goals/kinds/grades,
+escaped/forged syntax, insufficient budgets and unsupported comparisons
+have explicit controls. The original expected goal survives safety and
+budget/tree agreement.
+
+The reviewed CURRENT Conv/Quote artifact in `ExecutableComparison` covers
+beta/zeta, lambda/Pi bodies, names/levels/grades, eta, raw lambda domains,
+certified delta and unsupported reflexive data. Actual Conv can accept
+eta or raw lambda comparisons whose quoted domains differ; the latter has
+no shared expected-type guard and is NOT labelled kernel unsoundness.
+A distinct-quote residual-global pair is explicitly native-convertible
+under delta, proving why a negative conversion claim would be false.
+Unsupported reflexive data is inconclusive for the model comparator while
+actual Conv and exact checking can succeed.
+
+This discharges general positive MODEL comparison-to-conversion and
+guarded expected-goal admission, not universal Elixir Conv/extraction,
+eta/conversion completeness, certified-delta normalization, data/case/builtin
+operational refinement or backend soundness. Only reviewed terminating
+comparisons are executed for artifact generation; ExUnit regressions remain
+unrun under the maintainer waiver. Native/Elixir semantics and older
+artifacts are unchanged.
+Validation for this comparison/checking continuation: all 172 Agda modules
+pass, with the exact `funext`/legacy `tree-decides` inventory, ten hygiene
+regressions and no new holes or checking bypasses. Current Conv/Normalise,
+Eval/Quote and producer/fixture compilation, artifact reproduction, strict
+Credo over all 1,429 source files, formatting, shell syntax and whitespace
+checks pass. Older artifacts and kernel semantics are unchanged; waived
+Mix/ExUnit, documentation and stdlib/example suites were not run.
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;

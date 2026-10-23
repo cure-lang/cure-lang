@@ -197,6 +197,14 @@ MODULES=(
   Proof/ClosureQuotationSafety
   Fixtures/ExecutableQuotation
   Proof/ClosureQuotationExamples
+  Core/NormalFormComparison
+  Proof/NormalFormConversion
+  Core/NormalizingAdmission
+  Core/WireChecking
+  Fixtures/ExecutableComparison
+  Fixtures/ExecutableChecking
+  Proof/NormalFormComparisonExamples
+  Proof/NormalizingAdmissionExamples
 )
 
 fail=0

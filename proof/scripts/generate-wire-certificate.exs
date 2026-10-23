@@ -12,6 +12,8 @@ for source <- [
       "lib/cure/core/context.ex",
       "lib/cure/core/eval.ex",
       "lib/cure/core/quote.ex",
+      "lib/cure/core/normalise.ex",
+      "lib/cure/core/conv.ex",
       "lib/cure/core/proof_context.ex",
       "test/support/proof_snapshot_fixture.ex",
       "test/support/proof_recipe_fixture.ex",
@@ -19,7 +21,9 @@ for source <- [
       "test/support/proof_caller_fixture.ex",
       "test/support/proof_context_fixture.ex",
       "test/support/proof_closure_fixture.ex",
-      "test/support/proof_quotation_fixture.ex"
+      "test/support/proof_quotation_fixture.ex",
+      "test/support/proof_comparison_fixture.ex",
+      "test/support/proof_checking_fixture.ex"
     ] do
   Code.compile_file(Path.join(root, source))
 end
@@ -36,6 +40,8 @@ if File.read!(Path.join(root, "proof/Fixtures/ExecutableSnapshot.agda")) != snap
 {:ok, context} = Cure.Test.ProofContextFixture.to_agda()
 {:ok, closure} = Cure.Test.ProofClosureFixture.to_agda()
 {:ok, quotation} = Cure.Test.ProofQuotationFixture.to_agda()
+{:ok, comparison} = Cure.Test.ProofComparisonFixture.to_agda()
+{:ok, checking} = Cure.Test.ProofCheckingFixture.to_agda()
 
 targets = [
   {Path.join(root, "proof/Fixtures/ExecutableCertificate.agda"), generated},
@@ -43,7 +49,9 @@ targets = [
   {Path.join(root, "proof/Fixtures/ExecutableCaller.agda"), caller},
   {Path.join(root, "proof/Fixtures/ExecutableContext.agda"), context},
   {Path.join(root, "proof/Fixtures/ExecutableClosure.agda"), closure},
-  {Path.join(root, "proof/Fixtures/ExecutableQuotation.agda"), quotation}
+  {Path.join(root, "proof/Fixtures/ExecutableQuotation.agda"), quotation},
+  {Path.join(root, "proof/Fixtures/ExecutableComparison.agda"), comparison},
+  {Path.join(root, "proof/Fixtures/ExecutableChecking.agda"), checking}
 ]
 
 case System.argv() do
@@ -58,7 +66,7 @@ case System.argv() do
       if File.read!(target) != contents, do: raise("#{Path.relative_to(target, root)} differs; regenerate it")
     end
 
-    IO.puts("All source, certificate, caller, context, closure and quotation artifacts are byte-for-byte reproducible")
+    IO.puts("All proof source, execution, comparison and checking artifacts are byte-for-byte reproducible")
 
   _other ->
     raise ArgumentError, "expected no arguments or --check"
