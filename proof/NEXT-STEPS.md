@@ -512,6 +512,36 @@ not universal executable Conv/extraction, eta completeness, delta
 normalization, data/case/builtin or compiler/runtime refinement.
 Older artifacts and semantics are unchanged; recorded ExUnit regressions
 remain unrun under the maintainer policy.
+## Bounded exact-arity constructor-case continuation
+`Core.ClosureCase` adds a separate proof-producing height-fuelled adapter:
+evaluate constructor fields through the existing closure slice, select the
+actual first exact-name branch, check the complete field count, and evaluate
+the body in the reversed field prefix plus caller environment. Motives and
+unused branches remain unevaluated. Explicit model failures preserve
+exhaustion, unsupported head, missing branch, wrong arity and field/body
+failure diagnostics; exhaustion is not divergence or executable failure.
+`Proof.ClosureCase` derives GENERAL arbitrary-signature native finite traces
+from denoting caller environments, using evaluated field congruence, the
+first-match equation, exact arity and a proved multi-binder substitution/frame
+law. Scope preservation and scoped positive quotation are proved separately,
+and `ClosureCaseSafety` composes checked caller admission into unchanged-goal
+native execution/readback safety. No preservation or normalization callback
+assumes those results.
+Thirteen fixed terminating actual observations capture the dependent unpack,
+heterogeneous fields, caller/nested captures, zero arity, beta/zeta and
+first-match/inert payload behavior. Eleven replay through the exact model;
+actual parameter filtering and missing-erased-slot padding succeed but are
+explicitly rejected by the model. Formal failure and bounded-omega controls
+retain the execution/admission/totality distinctions. ExUnit sources remain
+unrun under the maintainer waiver; kernel semantics and older artifact bytes
+are unchanged.
+This does not broaden existing closure normalization or normalized admission.
+Recursive data-valued fields/bodies, arbitrary computed scrutinees, neutral
+cases, compact literals/constructors, aliases, filtered/erased frames and
+universal Elixir/model correspondence remain open. The next operational
+increment can extend semantic data values and their scoped denotation/readback
+before integrating recursive exact cases; relevance and builtin contracts
+must not be silently folded into that extension.
 ## Current remaining work, in priority order
 1. Prove universal producer/extraction representation fidelity and
    source/snapshot/context correspondence,

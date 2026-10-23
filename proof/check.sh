@@ -205,6 +205,11 @@ MODULES=(
   Fixtures/ExecutableChecking
   Proof/NormalFormComparisonExamples
   Proof/NormalizingAdmissionExamples
+  Core/ClosureCase
+  Proof/ClosureCase
+  Proof/ClosureCaseSafety
+  Fixtures/ExecutableCase
+  Proof/ClosureCaseExamples
 )
 
 fail=0

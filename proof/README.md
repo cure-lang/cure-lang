@@ -2348,6 +2348,57 @@ Eval/Quote and producer/fixture compilation, artifact reproduction, strict
 Credo over all 1,429 source files, formatting, shell syntax and whitespace
 checks pass. Older artifacts and kernel semantics are unchanged; waived
 Mix/ExUnit, documentation and stdlib/example suites were not run.
+### Bounded exact-arity constructor-case execution
+`Core.ClosureCase` is a separate height-fuelled adapter for syntactically
+constructor-headed cases. It evaluates surface-order fields with the existing
+closure model, selects the actual first exact-name branch, checks its arity
+against the complete field count, and evaluates its body under
+`reverse(fields) ++ caller`. Motives and unused branches are not evaluated.
+Exhaustion, unsupported heads, missing branches, arity mismatches and
+field/body evaluator failures remain explicit MODEL outcomes. Budgets bound
+height, not total work or executable fuel, and exhaustion is not divergence.
+
+`Proof.ClosureCase` proves general positive execution refinement under a
+denoting caller environment and an arbitrary native signature. Field
+evaluation yields constructor congruence paths; the actual first-match
+equation and checked length supply the existing native iota rule.
+The multi-binder substitution/frame equation preserves arbitrary caller tails
+and nested binders without a scope or typing oracle. Scope preservation is
+proved separately from scoped fields, branches and semantic caller values.
+Consequently scoped positive quotation reduces from the original case as
+well, including closures capturing both field and outer-caller slots.
+`ClosureCaseSafety` composes independently checked caller admission with
+execution/readback into native safety at the SAME original closed goal.
+
+The new literal `Fixtures.ExecutableCase` captures thirteen reviewed
+terminating current Eval/Quote observations. Eleven exact-layout cases
+replay independently: the existing genuinely dependent unpack, heterogeneous
+first/last fields, outer and nested captures, zero fields, beta/zeta in fields
+and body, duplicate first-match lookup, and unused branches/motive.
+The other two observations record actual leading-parameter filtering and
+missing-erased-slot padding: actual Eval returns a payload but this MODEL
+rejects both with arity mismatch. This distinction is intentional.
+Formal controls cover malformed first-match arities, absent/foreign names,
+unbound and unsupported fields/bodies, non-functions, computed/neutral/compact
+scrutinees, recursive case bodies and finite-budget eager omega. Unbounded
+Elixir is never invoked on omega. Raw execution success can coexist with
+failed native admission; it does not validate declarations, motives, finality
+or coverage. ExUnit regression sources are written, not executed.
+
+This is positive exact-case MODEL refinement plus concrete artifact
+agreement, not universal Elixir correspondence or arbitrary data/case
+normalization. Existing closure evaluation, normalized comparison/admission,
+native reduction and executable kernel semantics are unchanged. Constructor
+fields and selected bodies retain the original closure slice: recursive data,
+arbitrary evaluated scrutinees, neutral eliminators, aliases, compact builtin
+constructors/literals, filtered parameters and erased-slot relevance remain
+separate obligations. Older generated artifact bytes are unchanged.
+Validation for this continuation: all 177 Agda modules pass without warnings,
+with the exact `funext`/legacy `tree-decides` inventory, ten hygiene regressions
+and no new holes or checking bypasses. Standalone current-source artifact
+generation/reproduction, strict Credo over all 1,431 source files, formatting,
+shell syntax and whitespace checks pass. Maintainer-waived Mix/ExUnit,
+documentation and stdlib/example suites were not run.
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;
