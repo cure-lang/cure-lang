@@ -18,7 +18,8 @@ for source <- [
       "test/support/proof_bundle_fixture.ex",
       "test/support/proof_caller_fixture.ex",
       "test/support/proof_context_fixture.ex",
-      "test/support/proof_closure_fixture.ex"
+      "test/support/proof_closure_fixture.ex",
+      "test/support/proof_quotation_fixture.ex"
     ] do
   Code.compile_file(Path.join(root, source))
 end
@@ -34,13 +35,15 @@ if File.read!(Path.join(root, "proof/Fixtures/ExecutableSnapshot.agda")) != snap
 {:ok, caller} = Cure.Test.ProofCallerFixture.to_agda()
 {:ok, context} = Cure.Test.ProofContextFixture.to_agda()
 {:ok, closure} = Cure.Test.ProofClosureFixture.to_agda()
+{:ok, quotation} = Cure.Test.ProofQuotationFixture.to_agda()
 
 targets = [
   {Path.join(root, "proof/Fixtures/ExecutableCertificate.agda"), generated},
   {Path.join(root, "proof/Fixtures/ExecutableBundle.agda"), bundle},
   {Path.join(root, "proof/Fixtures/ExecutableCaller.agda"), caller},
   {Path.join(root, "proof/Fixtures/ExecutableContext.agda"), context},
-  {Path.join(root, "proof/Fixtures/ExecutableClosure.agda"), closure}
+  {Path.join(root, "proof/Fixtures/ExecutableClosure.agda"), closure},
+  {Path.join(root, "proof/Fixtures/ExecutableQuotation.agda"), quotation}
 ]
 
 case System.argv() do
@@ -55,7 +58,7 @@ case System.argv() do
       if File.read!(target) != contents, do: raise("#{Path.relative_to(target, root)} differs; regenerate it")
     end
 
-    IO.puts("All source, certificate, caller, context and closure artifacts are byte-for-byte reproducible")
+    IO.puts("All source, certificate, caller, context, closure and quotation artifacts are byte-for-byte reproducible")
 
   _other ->
     raise ArgumentError, "expected no arguments or --check"

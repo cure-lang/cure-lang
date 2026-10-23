@@ -2226,6 +2226,64 @@ holes or checking bypasses. Current Eval/Quote and fixture source compilation,
 artifact reproduction, strict Credo over all 1,424 source files, formatting,
 shell syntax and whitespace checks pass. Older artifacts are unchanged;
 maintainer-waived executable/docs/stdlib suites were not run.
+### Scoped closure quotation and safe normalization
+`Core.ClosureScope` adds recursive scope for semantic values, captured
+environments and neutrals, INCLUDING each captured body's scope at
+`length(env)+1`. Positive model evaluation/application preserves that scope;
+semantic values remain unchanged when the ambient depth grows.
+`Proof.ClosureWeakening` proves denotation weakening and the fresh-binder
+opening/prefix equation using scoped substitution agreement. The body-scope
+premise is essential: raw denotation alone preserves arbitrary syntax and
+does not justify weakening unbound captured variables.
+
+`Core.ClosureQuote` now has intrinsically certified, height-fuelled readback
+for the existing closure slice. Like actual Quote, Pi/lambda readback first
+evaluates the captured body under a fresh neutral, then quotes domain/body
+at successive depths. Neutrals quote recursively, arguments included, and
+escaped levels fail explicitly. Evaluation outcomes are otherwise preserved.
+The combined model normalizer carries actual evaluation AND quotation
+evidence; its budgets are height bounds, not unbounded termination proofs or
+the executable Normalise engine's delta meter.
+
+Every positive quotation produces scoped beta/zeta-normal syntax.
+`Proof.ClosureQuotation` proves that positive quotation of a SCOPED semantic
+value reduces from its captured-syntax denotation, using the existing
+evaluation theorem under a weakened environment and the proved opening law.
+Evaluation and quotation compose into a general positive normalization
+trace. Normal-form evidence also proves native irreducibility under a
+signature with no delta bodies. It does NOT imply irreducibility under an
+arbitrary signature.
+`ClosureQuotationSafety` consumes checked caller admission and derives
+normalization safety at the SAME closed expected goal, without supplied
+normalization, preservation or reduct callbacks. Its safe runner preserves
+failure/exhaustion rather than interpreting them as ill-typing or divergence.
+
+All older actual closure observations now replay through the new readback
+model. A new literal `Fixtures.ExecutableQuotation` adds nested dependent
+binders, normalization inside a Pi-valued domain, a neutral application
+with a lambda argument, a global under a binder and an eta expansion.
+Agda derives typed closed endpoints and open-environment traces via the
+GENERAL quotation theorem, replacing the old captured-closure example's
+manual extra step. A beta/zeta-normal result with a residual native delta
+step and a retained eta expansion pin the two important non-claims.
+Malformed capture, escaped level, small-budget and latent-omega controls
+retain the difference between scoped evaluation, positive quotation and
+unbounded normalization. Unbounded Elixir is never invoked on omega.
+
+The standalone generator executes only reviewed terminating observations
+and preserves all older artifacts. Producer ExUnit regressions are written
+but remain unrun under the maintainer waiver. This completes general scoped
+positive Quote/normalization refinement for the explicit MODEL plus concrete
+implementation agreement, not universal Elixir execution/extraction,
+whole-Cure NbE, eta/conversion, certified delta, data/case/builtin readback,
+semantic totality, erasure or BEAM refinement. No native or Elixir kernel
+semantics changed; the prior model evaluator's behavior is unchanged.
+Validation for this continuation: all 164 Agda modules pass, with the exact
+`funext`/legacy `tree-decides` inventory, ten hygiene regressions and no new
+holes or checking bypasses. Current Eval/Quote/fixture compilation, complete
+artifact reproduction, strict Credo over all 1,426 source files, formatting,
+shell syntax and whitespace checks pass. Older artifacts are unchanged;
+maintainer-waived executable/docs/stdlib suites were not run.
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;

@@ -465,6 +465,29 @@ unchanged.
 Universal Elixir execution/representation, full Quote/NbE/eta, certified
 delta, data/case/builtin and compiler/runtime refinement remain open; this
 is a theorem about the explicit positive MODEL plus concrete artifact agreement.
+## Scoped closure quotation refinement continuation
+`ClosureScope` now tracks recursively scoped semantic values and captured
+bodies; positive evaluation/application preserves scope. Scope-aware
+denotation weakening and fresh-binder opening are proved rather than assumed.
+`ClosureQuote` implements intrinsically certified height-fuelled readback,
+including actual fresh-neutral closure evaluation order, neutral arguments,
+escaped-level rejection and combined evaluation/quotation evidence.
+`Proof.ClosureQuotation` proves GENERAL positive quotation/normalization
+reduction for that scoped model. Outputs are scoped beta/zeta-normal forms,
+with irreducibility proved for a no-delta signature only.
+`ClosureQuotationSafety` composes checked admission with those traces into
+fixed-goal native safe normalization without a normalization oracle.
+Older actual observations now replay through the general model. New literal
+current Quote observations cover dependent nested binders, Pi-valued domains,
+neutral lambda arguments, residual globals and retained eta expansions.
+Typed endpoints and raw open-environment traces derive from the general
+theorem, and delta-step, malformed-capture, escaped-level and latent-omega
+controls retain normality/scope/termination boundaries. No arbitrary-input
+unbounded evaluation API or new trust root is introduced; older artifacts and
+kernel semantics are unchanged. ExUnit regressions remain unrun.
+This completes scoped positive MODEL quotation/normalization refinement,
+not universal Elixir or whole-Cure NbE, eta/conversion, certified delta,
+data/case/builtin or compiler/runtime correspondence.
 ## Current remaining work, in priority order
 1. Prove universal producer/extraction representation fidelity and
    source/snapshot/context correspondence,

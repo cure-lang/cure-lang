@@ -58,6 +58,8 @@ mutual
 
 data Failure : Set where
   exhausted unsupported unbound non-function : Failure
+  -- Companion readback rejects escaped levels; run/apply are unchanged.
+  escaped-level : Failure
 data Result (A : Set) : Set where
   done : A → Result A
   stop : Failure → Result A

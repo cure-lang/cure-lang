@@ -190,6 +190,13 @@ MODULES=(
   Proof/ClosureEvaluationSafety
   Fixtures/ExecutableClosure
   Proof/ClosureEvaluationExamples
+  Core/ClosureScope
+  Proof/ClosureWeakening
+  Core/ClosureQuote
+  Proof/ClosureQuotation
+  Proof/ClosureQuotationSafety
+  Fixtures/ExecutableQuotation
+  Proof/ClosureQuotationExamples
 )
 
 fail=0
