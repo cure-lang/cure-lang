@@ -186,6 +186,7 @@ MODULES=(
   Fixtures/ExecutableContext
   Proof/FlatContextExamples
   Core/ClosureEval
+  Proof/ClosureFrame
   Proof/ClosureEvaluation
   Proof/ClosureEvaluationSafety
   Fixtures/ExecutableClosure
@@ -214,6 +215,8 @@ MODULES=(
   Proof/ConstructorEvaluationExamples
   Fixtures/ExecutableScrutinee
   Proof/EvaluatedCaseExamples
+  Fixtures/ExecutableRecursiveCase
+  Proof/RecursiveCaseExamples
 )
 
 fail=0

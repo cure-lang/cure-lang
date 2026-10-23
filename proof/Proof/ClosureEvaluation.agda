@@ -6,15 +6,17 @@
 module Proof.ClosureEvaluation where
 import Data.Empty
 
-open import Data.List using (List; []; _∷_)
+open import Data.List using (List; []; _∷_; _++_; reverse; length)
+open import Data.List.Properties using (unfold-reverse)
 open import Data.Fin using (zero; suc)
 open import Data.Maybe using (just)
 open import Data.Nat using (ℕ; zero; suc; _<_; _∸_)
 open import Data.Product using (∃; _×_; _,_)
-open import Relation.Binary.PropositionalEquality using (_≡_; refl; trans; cong)
+open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans; cong; subst)
 open import Core.Syntax
 open import Core.Signature using (nothing≠just; just-inj)
-open import Core.Reduction using (Signature; _⇝*_; ⇝*-refl; ⇝*-step; β; ζ)
+open import Core.Reduction using (Signature; _⇝*_; ⇝*-refl; ⇝*-step; β; ζ; ι; substArgs; findBranch-substBranchesS)
+import Proof.ClosureFrame as Frame
 import Core.ClosureEval as E
 import Core.LocalFrame as F
 import Core.Parallel as Parallel
@@ -55,6 +57,20 @@ mutual
     d-global : ∀ {name} → Neutrals depth (E.n-global name) (tm-global name)
     d-app : ∀ {function argument f a}
       → Neutrals depth function f → Denotes depth argument a → Neutrals depth (E.n-app function argument) (tm-app f a)
+
+environment-length : ∀ {d values terms} → Environments d values terms → length terms ≡ length values
+environment-length d[] = refl
+environment-length (d∷ head rest) = cong suc (environment-length rest)
+append-environments : ∀ {d vs ts ws us} → Environments d vs ts → Environments d ws us
+  → Environments d (vs ++ ws) (ts ++ us)
+append-environments d[] right = right
+append-environments (d∷ head rest) right = d∷ head (append-environments rest right)
+reverse-environments : ∀ {d vs ts} → Environments d vs ts → Environments d (reverse vs) (reverse ts)
+reverse-environments d[] = d[]
+reverse-environments (d∷ {value = v} {term = t} {env = vs} {terms = ts} head rest) =
+  subst (λ xs → Environments _ xs (reverse (t ∷ ts))) (sym (unfold-reverse v vs))
+    (subst (Environments _ (reverse vs ++ v ∷ [])) (sym (unfold-reverse t ts))
+      (append-environments (reverse-environments rest) (d∷ head d[])))
 
 flat-denotation : ∀ {depth value term} → Flat.Reads depth value term → Denotes depth (embed-flat value) term
 flat-denotation Flat.q-sort = d-type
@@ -115,6 +131,22 @@ module Simulation (sig : Signature) where
     ... | result , denoted , body-path = result , denoted ,
       O.⇝*-trans (O.⇝*-let-val value-path)
         (⇝*-step ζ (O.⇝*-trans (equal-path (beta-environment actual (environment-sub terms) body)) body-path))
+    evaluate {terms = caller} env
+      (E.e-case {branches = branches} {ar = ar} {body = body} evaluated found exact body-evaluated)
+      with evaluate env evaluated
+    ... | tm-ctor name results , d-ctor fields , scrutinee-path
+      with evaluate (append-environments (reverse-environments fields) env) body-evaluated
+    ... | result , denoted , body-path = result , denoted ,
+      O.⇝*-trans (O.⇝*-case scrutinee-path)
+        (⇝*-step (ι (findBranch-substBranchesS (environment-sub caller) name branches found) result-arity)
+          (O.⇝*-trans (equal-path frame) body-path))
+      where
+        result-arity : length results ≡ ar
+        result-arity = trans (environment-length fields) exact
+        frame : substArgs results (substS (extSub^ ar (environment-sub caller)) body)
+          ≡ substS (environment-sub (reverse results ++ caller)) body
+        frame = trans (cong (λ n → substArgs results (substS (extSub^ n (environment-sub caller)) body))
+          (sym result-arity)) (Frame.branch-environment results caller body)
 
     application : ∀ {depth function argument value f a}
       → Denotes depth function f → Denotes depth argument a → E.Applies function argument value

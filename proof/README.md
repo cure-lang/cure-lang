@@ -2509,6 +2509,64 @@ regressions pass, and all-directory hygiene finds no new holes or checking
 bypasses. Standalone artifact reproduction, shell syntax, strict Credo over
 all 1,435 source files, formatting and whitespace checks pass. Older generated
 artifact bytes remain unchanged; maintainer-waived suites were not run.
+### Shared recursive exact-case evaluation and readback
+`Core.ClosureEval` now recursively evaluates exact constructor cases within
+scrutinees, selected bodies, applications, constructor fields and closure
+bodies/domains. Positive `e-case` evidence carries scrutinee evaluation,
+actual first exact-name branch lookup, semantic field arity and selected-body
+evaluation under the reversed field prefix plus caller. Fuelled dispatch
+consumes height budget and preserves missing-branch, arity, neutral and
+non-constructor diagnostics. Motives and unused branches stay unevaluated.
+Exhaustion remains a bounded MODEL outcome, not divergence or an Elixir
+exception. Neutral-case values, aliases, compact literal peeling and
+filtered/erased frames are not silently added.
+
+`Proof.ClosureFrame` factors the existing simultaneous branch/caller algebra
+below evaluation, avoiding a quotation/simulation import cycle.
+`Proof.ClosureEvaluation` now proves GENERAL native simulation recursively
+through case evidence; semantic field denotation derives the iota arity.
+Shared scope preservation derives the selected body's scope from actual
+first-match membership and the field/caller frame length.
+The compatibility adapter has an explicit `to-shared` evidence bridge and
+reuses shared scope, simulation and frame lemmas rather than maintaining
+independent recursive proofs. Its direct/evaluated route bookkeeping remains;
+equal fuel budgets or proof objects are not asserted.
+
+Existing scoped quotation, normalization, no-delta irreducibility, checked
+safety and positive comparison/conversion compose with the richer evaluator.
+`Fixtures.ExecutableRecursiveCase` records ten fixed terminating actual
+observations, all independently replayed: nested scrutinees/bodies,
+applications/fields, cases under lambda readback, Pi-domain computation,
+case-computed types, returned captures and an outer caller slot beneath two
+field frames. Five independently replayed closed native programs instantiate
+unchanged-goal normalization safety. Raw/open observations are not all
+claimed natively admitted.
+
+A payload now checks through `NormalizingAdmission` at a case-computed
+expected type without an input iota-conversion path. Actual inference and
+BOTH kind proofs replay first; bounded execution/readback then derives
+conversion. Native safety and fuel/tree agreement retain the ORIGINAL case
+goal, not its Atom normal form. Insufficient comparison budget still rejects.
+The separate native recipe protocol still excludes nonempty-ambient case
+replay; successful model execution under a binder does not remove that guard.
+
+Former unsupported-recursive controls now pin positive execution and shared
+normalization. Missing/wrong-first-arity cases, non-constructor/unsupported
+inputs, unbound bodies, small budgets and nested omega retain negative
+controls. Actual unbounded Eval never sees omega. A latent neutral-case
+closure evaluates but MODEL readback stops explicitly; actual Quote preserves
+its neutral case. This remains positive exact-case MODEL refinement plus
+concrete implementation agreement, not universal Elixir/model correspondence,
+whole-kernel admission, totality, data-family split fidelity, neutral-case
+readback, certified delta/eta, relevance/erasure or BEAM refinement.
+Older artifact bytes and native/Elixir kernel semantics are unchanged.
+New ExUnit regression sources remain unrun under the maintainer waiver.
+Validation for this recursive integration: all 184 Agda modules pass without
+warnings, the exact `funext`/legacy `tree-decides` inventory is unchanged, all
+ten hygiene regressions pass and all-directory hygiene finds no new holes or
+checking bypasses. Standalone artifact reproduction, shell syntax, strict
+Credo over all 1,437 source files, formatting and whitespace checks pass.
+Older generated artifact bytes remain unchanged; waived suites were not run.
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;

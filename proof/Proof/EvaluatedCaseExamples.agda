@@ -181,24 +181,25 @@ unsupported-data = refl
 unbound-body : Previous.failure (Case.run 16 (wrap empty-ctor (singleton (tm-var 0))) [])
   ≡ just (Case.body-failure E.unbound)
 unbound-body = refl
-case-in-scrutinee-not-modelled : Previous.failure (Case.run 16 (wrap Old.zero-program []) [])
-  ≡ just (Case.scrutinee-failure E.unsupported)
-case-in-scrutinee-not-modelled = refl
-case-in-body-not-modelled : Previous.failure (Case.run 16 (wrap empty-ctor (singleton Old.zero-program)) [])
-  ≡ just (Case.body-failure E.unsupported)
-case-in-body-not-modelled = refl
+case-in-scrutinee-now-exposes-atom : Previous.failure (Case.run 16 (wrap Old.zero-program []) [])
+  ≡ just Case.non-constructor
+case-in-scrutinee-now-exposes-atom = refl
+case-in-body-now-evaluates : Previous.result-value (Case.run 16 (wrap empty-ctor (singleton Old.zero-program)) [])
+  ≡ just Old.zero-value
+case-in-body-now-evaluates = refl
 omega-budget : Previous.failure (Case.run 16 (wrap Closure.omega []) [])
   ≡ just (Case.scrutinee-failure E.exhausted)
 omega-budget = refl
 body-omega-budget : Previous.failure (Case.run 16 (wrap empty-ctor (singleton Closure.omega)) [])
   ≡ just (Case.body-failure E.exhausted)
 body-omega-budget = refl
--- Core Eval and its normalizer still reject case syntax; the extension is
--- intentionally isolated in this adapter.
-core-evaluator-unchanged : Closure.failure (E.run 64 Observed.beta-program []) ≡ just E.unsupported
-core-evaluator-unchanged = refl
-core-normalizer-unchanged : Closure.failure (Q.normalise 64 0 Observed.beta-program []) ≡ just E.unsupported
-core-normalizer-unchanged = refl
+-- The shared recursive evaluator and normalizer now discharge this case.
+core-evaluator-now-integrated : Closure.result-value (E.run 64 Observed.beta-program []) ≡ just Observed.beta-value
+core-evaluator-now-integrated = refl
+core-normalizer-now-integrated : Q.normalise 64 0 Observed.beta-program []
+  ≡ E.done (Observed.beta-quoted , Q.normalized Observed.beta-value
+    (Case.to-shared Beta.execution) Beta.Readback.evidence)
+core-normalizer-now-integrated = refl
 inert-motive-not-admitted : present (Closure.CallerReplay.verify
   (Caller.request [] [] [] [] Observed.inert-motive-program tm-atom_type
     (native-recipe Observed.inert-motive-program zeta-scrutinee-recipe) r-leaf)) ≡ false

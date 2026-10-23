@@ -159,10 +159,10 @@ non-function-body : failure (Case.run 16
   (case-term [] (("Boundary#Pack" , 0 , tm-app tm-atom_type payload) ∷ [])) [])
   ≡ just (Case.body-failure E.non-function)
 non-function-body = refl
-recursive-case-body-not-modelled : failure (Case.run 16
+recursive-case-body-now-evaluates : result-value (Case.run 16
   (case-term [] (("Boundary#Pack" , 0 , Observed.zero-program) ∷ [])) [])
-  ≡ just (Case.body-failure E.unsupported)
-recursive-case-body-not-modelled = refl
+  ≡ just Observed.zero-value
+recursive-case-body-now-evaluates = refl
 neutral-case-not-modelled : failure (Case.run 16
   (tm-case (tm-var 0) tm-atom_type []) (E.v-neutral (E.n-var 0) ∷ [])) ≡ just Case.neutral-scrutinee
 neutral-case-not-modelled = refl

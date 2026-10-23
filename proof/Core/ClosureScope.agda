@@ -4,15 +4,20 @@
 ------------------------------------------------------------------------
 module Core.ClosureScope where
 
-open import Data.List using (List; []; _∷_; length)
+open import Data.List using (List; []; _∷_; _++_; reverse; length)
+open import Data.List.Properties using (unfold-reverse; length-reverse; length-++)
+open import Data.List.Membership.Propositional using (_∈_)
+open import Data.List.Relation.Unary.Any using (here; there)
 open import Data.Nat using (ℕ; zero; suc; _<_)
 open import Data.Maybe using (just)
+open import Data.Product using (_,_)
 open import Data.Empty using (⊥-elim)
 import Data.Nat.Properties as Nat
-open import Relation.Binary.PropositionalEquality using (_≡_; refl)
+open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans; cong; subst)
 open import Core.Syntax
 open import Core.Signature using (nothing≠just; just-inj)
 import Core.ClosureEval as E
+open import Core.Reduction using (findBranch; findBranch-sound)
 
 mutual
   data ValueScoped (depth : ℕ) : E.Value → Set where
@@ -59,6 +64,24 @@ lookup-scoped {k = zero} (s∷ head rest) found with just-inj found
 ... | refl = head
 lookup-scoped {k = suc k} (s∷ head rest) found = lookup-scoped rest found
 
+append-scoped : ∀ {d vs ws} → EnvironmentScoped d vs → EnvironmentScoped d ws
+  → EnvironmentScoped d (vs ++ ws)
+append-scoped s[] right = right
+append-scoped (s∷ head rest) right = s∷ head (append-scoped rest right)
+reverse-scoped : ∀ {d vs} → EnvironmentScoped d vs → EnvironmentScoped d (reverse vs)
+reverse-scoped s[] = s[]
+reverse-scoped (s∷ {value = v} {env = vs} head rest) =
+  subst (EnvironmentScoped _) (sym (unfold-reverse v vs))
+    (append-scoped (reverse-scoped rest) (s∷ head s[]))
+selected-scope : ∀ {d name ar body branches} → ScopedBranches d branches
+  → findBranch name branches ≡ just (name , ar , body) → Scoped (d Data.Nat.+ ar) body
+selected-scope scopes found = member scopes (findBranch-sound _ _ found)
+  where
+    member : ∀ {d name ar body branches} → ScopedBranches d branches
+      → (name , ar , body) ∈ branches → Scoped (d Data.Nat.+ ar) body
+    member (sb∷ (sbranch body) rest) (here refl) = body
+    member (sb∷ head rest) (there inside) = member rest inside
+
 mutual
   evaluate-scoped : ∀ {d env term value} → EnvironmentScoped d env → Scoped (length env) term
     → E.Evaluates env term value → ValueScoped d value
@@ -76,6 +99,16 @@ mutual
     apply-scoped (evaluate-scoped env function f) (evaluate-scoped env argument a) applied
   evaluate-scoped env (sc-let annotation value body) (E.e-let v b) =
     evaluate-scoped (s∷ (evaluate-scoped env value v) env) body b
+  evaluate-scoped {env = env} scoped (sc-case scrutinee motive branches)
+    (E.e-case {values = values} {ar = ar} {body = body} evaluated found exact body-evaluated)
+    with evaluate-scoped scoped scrutinee evaluated
+  ... | s-ctor fields = evaluate-scoped (append-scoped (reverse-scoped fields) scoped)
+    (subst (λ n → Scoped n body) (sym frame-length) (selected-scope branches found)) body-evaluated
+    where
+      frame-length : length (reverse values ++ env) ≡ length env Data.Nat.+ ar
+      frame-length = trans (length-++ (reverse values))
+        (trans (cong (Data.Nat._+ length env) (trans (length-reverse values) exact))
+          (Nat.+-comm ar (length env)))
 
   apply-scoped : ∀ {d function argument value} → ValueScoped d function → ValueScoped d argument
     → E.Applies function argument value → ValueScoped d value

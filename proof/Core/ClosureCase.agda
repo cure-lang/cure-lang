@@ -1,6 +1,6 @@
 ------------------------------------------------------------------------
--- Separate positive exact-case MODEL. Scrutinees and selected bodies use
--- ClosureEval; case syntax is not added to that shared evaluator.
+-- Compatibility adapter retaining direct/evaluated execution routes.
+-- Both routes embed into the shared recursive exact-case evaluator.
 -- Exact names/arity only: no aliases, parameter filtering or erased slots.
 -- Fuel bounds recursive height, not total work; exhaustion is not divergence.
 ------------------------------------------------------------------------
@@ -50,6 +50,11 @@ as-computed : ∀ {env term value} → Executes env term value → Executes env 
 as-computed (executed fields found exact body) =
   computed (E.e-ctor (fields-evaluated fields)) found (trans (fields-length fields) exact) body
 as-computed (computed scrutinee found exact body) = computed scrutinee found exact body
+
+to-shared : ∀ {env term value} → Executes env term value → E.Evaluates env term value
+to-shared (executed fields found exact body) =
+  E.e-case (E.e-ctor (fields-evaluated fields)) found (trans (fields-length fields) exact) body
+to-shared (computed scrutinee found exact body) = E.e-case scrutinee found exact body
 
 data Route : Set where
   direct-route evaluated-route : Route
