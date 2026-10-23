@@ -31,7 +31,8 @@ for source <- [
       "test/support/proof_case_context_fixture.ex",
       "test/support/proof_data_spine_fixture.ex",
       "test/support/proof_recursive_data_fixture.ex",
-      "test/support/proof_branch_opening_fixture.ex"
+      "test/support/proof_branch_opening_fixture.ex",
+      "test/support/proof_residual_normal_fixture.ex"
     ] do
   Code.compile_file(Path.join(root, source))
 end
@@ -58,6 +59,7 @@ if File.read!(Path.join(root, "proof/Fixtures/ExecutableSnapshot.agda")) != snap
 {:ok, data_spines} = Cure.Test.ProofDataSpineFixture.to_agda()
 {:ok, recursive_data} = Cure.Test.ProofRecursiveDataFixture.to_agda()
 {:ok, branch_opening} = Cure.Test.ProofBranchOpeningFixture.to_agda()
+{:ok, residual_normal} = Cure.Test.ProofResidualNormalFixture.to_agda()
 
 targets = [
   {Path.join(root, "proof/Fixtures/ExecutableCertificate.agda"), generated},
@@ -75,7 +77,8 @@ targets = [
   {Path.join(root, "proof/Fixtures/ExecutableCaseContext.agda"), case_contexts},
   {Path.join(root, "proof/Fixtures/ExecutableDataSpine.agda"), data_spines},
   {Path.join(root, "proof/Fixtures/ExecutableRecursiveData.agda"), recursive_data},
-  {Path.join(root, "proof/Fixtures/ExecutableBranchOpening.agda"), branch_opening}
+  {Path.join(root, "proof/Fixtures/ExecutableBranchOpening.agda"), branch_opening},
+  {Path.join(root, "proof/Fixtures/ExecutableResidualNormal.agda"), residual_normal}
 ]
 
 case System.argv() do

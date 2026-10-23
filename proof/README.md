@@ -2798,6 +2798,59 @@ regressions pass and all-directory hygiene finds no new holes or checking
 bypasses. Standalone artifact reproduction, shell syntax, strict Credo over
 all 1,445 source files, formatting and whitespace checks pass. Older generated
 artifact bytes remain unchanged; waived suites were not run.
+### Residual forms modulo administrative native reduction
+`Core.ResidualNormal` adds an INDEPENDENT signature-relative residual-form
+grammar and total proof-producing syntax checker for the supported
+function/data/constructor/Atom slice. Cases require neutral scrutinees and
+normal motives/branch bodies; globals require the ACTUAL native body's
+absence. Delta-ready globals reject. Scope, data layout, native typing and
+checker completeness are separate: a form can be unscoped, ill-kinded or
+ill-typed, and an unsupported irreducible leaf can fail this fragment checker.
+This is a form checker, not an evaluator or normalization oracle.
+
+`Proof.ResidualNormal` classifies SUPPORTED administrative congruence by
+the actual native step/path/branch-path PROOF, excluding beta/zeta/iota/delta
+roots. Administrative endpoints agree. Every native step and finite path
+from an accepted residual form is proved administrative, yielding absence
+of changing reduction and finite-path invariance. Existing strict quoted
+normals embed under a no-delta signature; the old grammar, no-step theorem,
+normalizer, comparator and native semantics are not weakened or migrated.
+
+Provenance matters: endpoint equality ALONE also holds for beta omega and
+delta self-loops. Omega's beta proof cannot be administrative and no
+residual-form proof for omega exists. The syntax checker rejects it without
+evaluating it. A delta self-loop likewise fails the sufficient grammar even
+though every single global delta endpoint equals its source. These controls
+explicitly prevent turning invariance into completeness, totality or a
+classification of computational loops as harmless administrative stuttering.
+No actual unbounded Eval call is made on omega or the synthetic delta loop.
+
+`Fixtures.ExecutableResidualNormal` records ten fixed terminating current
+Eval/Quote observations: opaque residual cases, branch/motive redexes,
+nested/binder/constructor/data/open residual contexts, a delta-ready global
+and ordinary beta readback. Nine quoted forms pass the checked snapshot's
+residual checker; the delta-ready global rejects there but passes under a
+no-delta signature, as intended. Five independently replayed native programs
+derive original-goal safety. The branch-beta path uses the GENERAL scoped
+fresh-opening theorem before native outer congruence; other raw contexts
+are not all asserted natively typed.
+
+Normality remains separate from scope and typing in explicit controls.
+Real beta/zeta/iota redexes, unnormalized branches/motives and computational
+loops reject; actual Quote can leave certified globals that are not residual
+forms relative to their unfolding signature.
+This establishes the residual normality contract needed by future neutral
+readback, not full shared neutral-case evaluation/quotation or universal
+Elixir correspondence. Shared evaluation still reports `neutral-scrutinee`.
+Native/Elixir rules, strict normality contracts and older artifact bytes
+are unchanged. New ExUnit regression sources remain unrun under the
+maintainer waiver.
+Validation for this continuation: all 201 Agda modules pass without warnings,
+the exact `funext`/legacy `tree-decides` inventory is unchanged, ten hygiene
+regressions pass and all-directory hygiene finds no new holes or checking
+bypasses. Standalone artifact reproduction, shell syntax, strict Credo over
+all 1,447 source files, formatting and whitespace checks pass. Older generated
+artifact bytes remain unchanged; waived suites were not run.
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;

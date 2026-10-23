@@ -230,6 +230,10 @@ MODULES=(
   Proof/BranchOpening
   Fixtures/ExecutableBranchOpening
   Proof/BranchOpeningExamples
+  Core/ResidualNormal
+  Proof/ResidualNormal
+  Fixtures/ExecutableResidualNormal
+  Proof/ResidualNormalExamples
 )
 
 fail=0
