@@ -2851,6 +2851,64 @@ regressions pass and all-directory hygiene finds no new holes or checking
 bypasses. Standalone artifact reproduction, shell syntax, strict Credo over
 all 1,447 source files, formatting and whitespace checks pass. Older generated
 artifact bytes remain unchanged; waived suites were not run.
+### Bounded neutral-case capture and readback
+`Core.NeutralCase` adds a separate TOP-LEVEL component for capturing an
+existing shared neutral scrutinee and reading a residual case back.
+The motive and ALL branch closures share the SAME indexed caller
+environment; branch names, arities and order are preserved by the
+proof-producing branch relation and its metadata theorem.
+Capture does not force the motive/branches. Readback quotes the neutral
+head, normalizes the captured motive, then opens/normalizes every branch
+using the established fresh-field convention. One optional registry is
+threaded through the whole pipeline. Non-neutral heads, capture/head/motive
+failure, named branch failure and height exhaustion remain explicit.
+Neither capture success nor a raw branch arity certifies typing or coverage.
+
+`Proof.NeutralCase` proves output scope and residual-form evidence under a
+NO-DELTA signature. Actual-signature normality remains a separate check:
+Quote does not unfold certified globals, and a returned delta-ready head can
+still change under its actual signature.
+The GENERAL arbitrary-signature native readback path composes scrutinee
+evaluation/quotation, captured motive normalization and the proved scoped
+branch-opening paths. Its source is the original caller-substituted case,
+not an asserted reduct. Checked-caller safety then preserves the ORIGINAL
+closed expected goal, including when a coherent closing substitution comes
+from a nonempty caller. Source/body scope and denoting caller values remain
+real premises; there is no typing, reduct or normalization oracle.
+
+`Fixtures.ExecutableNeutralCase` records fourteen fixed terminating actual
+captures/readbacks. Generation checks actual motive/branch environment
+equality and branch metadata/order before recording terms. Twelve component
+readbacks replay, covering branch/motive redexes, beta-computed scrutinees,
+open neutral applications, zero/multiple fields, a defined caller slot,
+data and constructor-case bodies. A scrutinee's temporary let/application
+frame is not mistaken for the case caller.
+Five independently replayed native cases derive original-goal safety;
+the defined-caller example also retains native fuel/tree agreement.
+Two actual nested residual observations stay outside this bounded shared
+content slice and produce explicit capture/branch limits, not fabricated
+semantic values.
+
+Negative controls retain non-neutral heads (which need not be ill typed),
+escaped heads, unbound motives, zero-arity missing slots, motive/branch omega
+exhaustion and signature-sensitive residual normality. Actual unbounded Eval
+never sees omega. Explicit program and closing-image indices avoid expensive
+inverse elaboration through parsed/substituted terms; this is not a proof
+or verifier bypass.
+This proves bounded neutral-head capture/readback MODEL refinement plus
+concrete implementation agreement. It does NOT add residual cases to the
+shared recursive value domain, replace strict quotation/comparison, prove
+universal Elixir correspondence or supply general neutral-case readback
+inside every nested body/value. Existing shared neutral failures and strict
+normality contracts remain unchanged. Native/Elixir semantics and older
+artifact bytes are unchanged; new ExUnit regression sources remain unrun
+under the maintainer waiver.
+Validation for this continuation: all 205 Agda modules pass without warnings,
+the exact `funext`/legacy `tree-decides` inventory is unchanged, ten hygiene
+regressions pass and all-directory hygiene finds no new holes or checking
+bypasses. Standalone artifact reproduction, shell syntax, strict Credo over
+all 1,449 source files, formatting and whitespace checks pass. Older generated
+artifact bytes remain unchanged; waived suites were not run.
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;

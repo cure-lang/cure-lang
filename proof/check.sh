@@ -234,6 +234,10 @@ MODULES=(
   Proof/ResidualNormal
   Fixtures/ExecutableResidualNormal
   Proof/ResidualNormalExamples
+  Core/NeutralCase
+  Proof/NeutralCase
+  Fixtures/ExecutableNeutralCase
+  Proof/NeutralCaseExamples
 )
 
 fail=0

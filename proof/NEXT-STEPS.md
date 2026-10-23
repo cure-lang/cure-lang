@@ -769,6 +769,35 @@ results. Universal executable correspondence, eta/delta normalization,
 aliases/compact builtins, relevance/erasure and semantic totality remain
 open. Older artifacts and native/Elixir semantics are unchanged; new ExUnit
 sources remain unrun under the maintainer policy.
+## Bounded neutral-case capture/readback continuation
+`Core.NeutralCase` now captures existing shared neutral scrutinees and
+reads a top-level residual case through the same indexed caller environment
+for its motive and every branch. Proof-producing branch readback preserves
+metadata/order and uses the established fresh frame; one optional registry
+is threaded through all stages. Capture and phase/named-branch failures
+and height exhaustion remain explicit.
+`Proof.NeutralCase` derives output scope, residual-form evidence under no
+delta and GENERAL arbitrary-signature reduction from the original
+caller-substituted case. Scrutinee evaluation/quotation, motive normalization
+and scoped branch-opening simulation supply every path. Independent
+checked-caller admission composes into unchanged closed-goal safety without
+a reduct, typing or normalization callback.
+Fourteen actual terminating observations pin captured environments and
+branch metadata; twelve component readbacks replay. Five independently
+admitted native cases derive safety, including motive/branch normalization,
+a computed scrutinee and a defined caller with fuel/tree agreement.
+Two nested residual observations retain explicit limits in shared contents.
+Scope, non-neutral, unbound-phase, zero-slot, bounded-omega and delta-ready
+head controls preserve the partial-correctness boundaries.
+This is not full shared neutral-case values/readback. Shared evaluation,
+strict quote/comparison and their neutral failures remain unchanged.
+Future integration must extend the recursive value/denotation domain and
+use residual normality for captured nested motives/branches without
+discarding old strict contracts. Actual-signature normality is separate
+from no-delta readback shape. Universal correspondence, eta/delta,
+aliases/compact builtins, relevance/erasure and semantic totality remain
+open. Native/Elixir rules and older bytes are unchanged; new ExUnit sources
+remain unrun under the maintainer policy.
 ## Current remaining work, in priority order
 1. Prove universal producer/extraction representation fidelity and
    source/snapshot/context correspondence,
