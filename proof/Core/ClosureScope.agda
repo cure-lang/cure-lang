@@ -19,6 +19,7 @@ mutual
     s-type : ∀ {l} → ValueScoped depth (E.v-type l)
     s-atom-type : ValueScoped depth E.v-atom-type
     s-atom : ∀ {name} → ValueScoped depth (E.v-atom name)
+    s-ctor : ∀ {name values} → EnvironmentScoped depth values → ValueScoped depth (E.v-ctor name values)
     s-pi : ∀ {g domain env body} → ValueScoped depth domain → EnvironmentScoped depth env
       → Scoped (suc (length env)) body → ValueScoped depth (E.v-pi g domain env body)
     s-lam : ∀ {g domain env body} → ValueScoped depth domain → EnvironmentScoped depth env
@@ -39,6 +40,7 @@ mutual
   raise-value s-type = s-type
   raise-value s-atom-type = s-atom-type
   raise-value s-atom = s-atom
+  raise-value (s-ctor fields) = s-ctor (raise-environment fields)
   raise-value (s-pi domain env body) = s-pi (raise-value domain) (raise-environment env) body
   raise-value (s-lam domain env body) = s-lam (raise-value domain) (raise-environment env) body
   raise-value (s-neutral head) = s-neutral (raise-neutral head)
@@ -63,6 +65,7 @@ mutual
   evaluate-scoped env sc-type E.e-type = s-type
   evaluate-scoped env sc-atom_type E.e-atom-type = s-atom-type
   evaluate-scoped env sc-atom_lit E.e-atom = s-atom
+  evaluate-scoped env (sc-ctor args) (E.e-ctor fields) = s-ctor (spine-scoped env args fields)
   evaluate-scoped env sc-global E.e-global = s-neutral s-global
   evaluate-scoped env (sc-var inside) (E.e-var found) = lookup-scoped env found
   evaluate-scoped env (sc-pi domain body) (E.e-pi evaluated) =
@@ -79,3 +82,9 @@ mutual
   apply-scoped (s-lam domain env body) argument (E.a-closure evaluated) =
     evaluate-scoped (s∷ argument env) body evaluated
   apply-scoped (s-neutral function) argument E.a-neutral = s-neutral (s-app function argument)
+
+  spine-scoped : ∀ {d env terms values} → EnvironmentScoped d env → ScopedTerms (length env) terms
+    → E.EvaluatesSpine env terms values → EnvironmentScoped d values
+  spine-scoped env st[] E.e[] = s[]
+  spine-scoped env (st∷ head rest) (E.e∷ evaluated evaluations) =
+    s∷ (evaluate-scoped env head evaluated) (spine-scoped env rest evaluations)

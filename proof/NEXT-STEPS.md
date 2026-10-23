@@ -542,6 +542,37 @@ universal Elixir/model correspondence remain open. The next operational
 increment can extend semantic data values and their scoped denotation/readback
 before integrating recursive exact cases; relevance and builtin contracts
 must not be silently folded into that extension.
+## Recursive ordinary constructor continuation
+The shared closure evaluator/readback now supports recursive constructor
+spines, including closures and neutrals inside fields. Certified finite
+spine evaluation/quotation preserve eager order and original model failure
+diagnostics. Scope preservation/raising, denotation, scoped weakening and
+GENERAL native evaluation/quotation refinement recurse through those spines.
+No-delta irreducibility is proved using native element-indexed field
+inversion, not assumed for arbitrary signatures. Existing checked caller
+safety and positive comparison/conversion compose with the richer domain.
+The exact-case adapter consequently handles constructor-valued fields and
+selected results, while arbitrary scrutinees and recursive case bodies
+remain unsupported.
+Ten fixed terminating current Eval/Quote observations independently replay,
+with native paths and five checked closed constructor/function normalization
+safety instances at their original goals. Controls cover field redexes,
+constructor distinction, missing-field admission, scope/failure/exhaustion
+and eager versus latent omega without invoking unbounded Elixir on omega.
+The model's old unsupported-constructor control now checks unsupported
+data-family syntax. Older generated artifacts and native/Elixir semantics
+are unchanged; new ExUnit sources remain unrun.
+Additional actual controls retain generic-versus-compact `First` behavior
+(on explicitly RAW input, not a typing claim) and signature-dependent
+indexed-data readback. MODEL constructors preserve their named spines, not
+all executable compaction/alias policies. Data-family Eval flattens
+parameters/indices, so a metadata-dependent representation and split
+contract is needed before adding its readback; do not claim the original
+syntax split is recovered without a signature.
+Next operational work can establish that finite signature/split contract
+and extend semantic data-family values, or integrate evaluated exact-case
+scrutinees. Compact builtins, filtered/erased relevance and neutral cases
+remain separate obligations, as does universal Elixir/model correspondence.
 ## Current remaining work, in priority order
 1. Prove universal producer/extraction representation fidelity and
    source/snapshot/context correspondence,

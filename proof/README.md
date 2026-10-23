@@ -2399,6 +2399,63 @@ and no new holes or checking bypasses. Standalone current-source artifact
 generation/reproduction, strict Credo over all 1,431 source files, formatting,
 shell syntax and whitespace checks pass. Maintainer-waived Mix/ExUnit,
 documentation and stdlib/example suites were not run.
+### Recursive ordinary constructor evaluation and quotation
+The shared `Core.ClosureEval.Value` now includes recursive constructor
+spines. Intrinsically certified `EvaluatesSpine`/`run-spine` evaluate fields
+eagerly in surface order, with the same explicit model failures and
+height-budget interpretation as function evaluation. The generic MODEL
+constructs named spines; it does not infer declaration validity, arity,
+compact-Bounded identity or executable admission from raw syntax.
+The earlier constructor-unsupported control is consequently replaced by an
+unsupported DATA-FAMILY control; all older actual artifact bytes stay fixed.
+
+Scope preservation/raising, captured-environment denotation and scoped
+weakening now recurse through constructor fields. `Proof.ClosureEvaluation`
+derives native field congruence paths and general constructor evaluation
+refinement for arbitrary signatures and denoting environments.
+`Core.ClosureQuote` adds certified recursive spine quotation, scoped output
+and constructor normality. General scoped quotation and normalization
+refinement now include those values, and no-delta irreducibility descends
+through the native element-indexed constructor rule. Readback normalizes
+closure bodies inside fields, not just outer constructor nodes.
+Existing checked-caller safety and positive comparison/conversion proofs
+compose unchanged with this richer domain, preserving original goals.
+Data-family comparison/admission diagnostics remain unchanged because data
+nodes themselves are still unsupported by the evaluator.
+
+The exact-case adapter now accepts constructor-valued fields and selected
+bodies via the shared evaluator. It still does NOT evaluate arbitrary
+scrutinees or recursive case bodies. `Fixtures.ExecutableConstructor`
+records ten reviewed terminating actual observations: field beta/zeta,
+nested constructors, closures in fields, captured constructor values,
+constructors under binders, open neutral fields, residual globals, and
+constructor-valued case fields/results. Agda independently replays all ten,
+proves native paths, and derives unchanged-goal normalization safety for the
+five independently admitted closed constructor/function programs.
+Raw nested/case observations are not all claimed well typed.
+Controls retain distinct constructor names/fields, missing-field admission
+failure despite raw evaluation success, non-function application, eager and
+latent omega exhaustion, unbound/unsupported fields and escaped/unscoped
+nested captures. Actual unbounded Eval is never invoked on omega.
+
+Two additional actual boundary observations remain separate: a RAW `First`
+constructor compacts to a Bounded literal rather than the generic model
+constructor, and indexed data readback with and without a signature produces
+different parameter/index splits. The raw compaction input is not asserted
+well typed and this is not labelled kernel unsoundness. Generic model
+success is not an executable correspondence claim for compact constructors.
+Data-family readback needs a checked signature/split relation before it can
+join this positive refinement. Aliases, compact literal operations, neutral
+and recursive cases, filtered/erased frames, eta/delta normalization,
+universal Elixir/model correspondence and backend soundness remain open.
+Native and executable kernel semantics are unchanged. New ExUnit regression
+sources are recorded but remain unrun under the maintainer waiver.
+Validation for this continuation: all 179 Agda modules pass without warnings,
+the exact `funext`/legacy `tree-decides` inventory is unchanged, all ten hygiene
+regressions pass, and all-directory hygiene finds no new holes or checking
+bypasses. Standalone artifact reproduction, shell syntax, strict Credo over
+all 1,433 source files, formatting and whitespace checks pass. Older generated
+artifact bytes remain unchanged; waived suites were not run.
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;

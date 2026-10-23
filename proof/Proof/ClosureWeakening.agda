@@ -52,6 +52,7 @@ mutual
   value S.s-type M.d-type = M.d-type
   value S.s-atom-type M.d-atom-type = M.d-atom-type
   value S.s-atom M.d-atom = M.d-atom
+  value (S.s-ctor fields) (M.d-ctor denoted) = M.d-ctor (environments fields denoted)
   value {d} (S.s-pi domain env body)
     (M.d-pi {g = g} {domain = v} {env = vs} {body = b} {A = ty} {terms = terms} denoted environment) =
     subst (M.Denotes (suc d) (E.v-pi g v vs b))

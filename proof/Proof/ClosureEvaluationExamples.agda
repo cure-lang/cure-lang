@@ -144,7 +144,7 @@ unbound : failure (E.run 4 (tm-var 0) []) ≡ just E.unbound
 unbound = refl
 non-function : failure (E.run 8 (tm-app tm-atom_type (tm-atom_lit "payload")) []) ≡ just E.non-function
 non-function = refl
-unsupported : failure (E.run 8 (tm-ctor "Boundary#Pack" []) []) ≡ just E.unsupported
+unsupported : failure (E.run 8 (tm-data "Boundary#Packed" [] []) []) ≡ just E.unsupported
 unsupported = refl
 omega : Term
 omega = tm-app self self

@@ -5,7 +5,7 @@
 ------------------------------------------------------------------------
 module Core.ClosureQuote where
 
-open import Data.List using (List; _∷_)
+open import Data.List using (List; []; _∷_)
 open import Data.Nat using (ℕ; zero; suc; _<_; _∸_)
 import Data.Nat.Properties as Nat
 open import Data.Product using (Σ; _,_)
@@ -19,6 +19,8 @@ mutual
     q-type : ∀ {l} → Quoted depth (E.v-type l) (tm-type l)
     q-atom-type : Quoted depth E.v-atom-type tm-atom_type
     q-atom : ∀ {name} → Quoted depth (E.v-atom name) (tm-atom_lit name)
+    q-ctor : ∀ {name values terms} → SpineQuoted depth values terms
+      → Quoted depth (E.v-ctor name values) (tm-ctor name terms)
     q-pi : ∀ {g domain env body value D B}
       → E.Evaluates (E.v-neutral (E.n-var depth) ∷ env) body value
       → Quoted depth domain D → Quoted (suc depth) value B
@@ -33,6 +35,10 @@ mutual
     q-global : ∀ {name} → NeutralQuoted depth (E.n-global name) (tm-global name)
     q-app : ∀ {function argument f a} → NeutralQuoted depth function f → Quoted depth argument a
       → NeutralQuoted depth (E.n-app function argument) (tm-app f a)
+  data SpineQuoted (depth : ℕ) : List E.Value → List Term → Set where
+    q[] : SpineQuoted depth [] []
+    q∷ : ∀ {value values term terms} → Quoted depth value term → SpineQuoted depth values terms
+      → SpineQuoted depth (value ∷ values) (term ∷ terms)
 
 mutual
   run : (fuel depth : ℕ) (value : E.Value) → E.Result (Σ Term (Quoted depth value))
@@ -40,6 +46,9 @@ mutual
   run (suc fuel) depth (E.v-type l) = E.done (tm-type l , q-type)
   run (suc fuel) depth E.v-atom-type = E.done (tm-atom_type , q-atom-type)
   run (suc fuel) depth (E.v-atom name) = E.done (tm-atom_lit name , q-atom)
+  run (suc fuel) depth (E.v-ctor name values) with spine-run fuel depth values
+  ... | E.stop reason = E.stop reason
+  ... | E.done (terms , quoted) = E.done (tm-ctor name terms , q-ctor quoted)
   run (suc fuel) depth (E.v-pi g domain env body)
     with E.run fuel body (E.v-neutral (E.n-var depth) ∷ env)
   ... | E.stop reason = E.stop reason
@@ -72,6 +81,15 @@ mutual
   ... | E.stop reason = E.stop reason
   ... | E.done (a , argument-quoted) = E.done (tm-app f a , q-app function-quoted argument-quoted)
 
+  spine-run : (fuel depth : ℕ) (values : List E.Value) → E.Result (Σ (List Term) (SpineQuoted depth values))
+  spine-run zero depth values = E.stop E.exhausted
+  spine-run (suc fuel) depth [] = E.done ([] , q[])
+  spine-run (suc fuel) depth (value ∷ values) with run fuel depth value
+  ... | E.stop reason = E.stop reason
+  ... | E.done (term , quoted) with spine-run fuel depth values
+  ... | E.stop reason = E.stop reason
+  ... | E.done (terms , rest) = E.done (term ∷ terms , q∷ quoted rest)
+
 record Normalizes (depth : ℕ) (env : List E.Value) (term result : Term) : Set where
   constructor normalized
   field
@@ -91,6 +109,7 @@ mutual
     normal-type : ∀ {l} → BetaZetaNormal (tm-type l)
     normal-atom-type : BetaZetaNormal tm-atom_type
     normal-atom : ∀ {name} → BetaZetaNormal (tm-atom_lit name)
+    normal-ctor : ∀ {name terms} → SpineNormal terms → BetaZetaNormal (tm-ctor name terms)
     normal-pi : ∀ {g D B} → BetaZetaNormal D → BetaZetaNormal B → BetaZetaNormal (tm-pi g D B)
     normal-lam : ∀ {g D B} → BetaZetaNormal D → BetaZetaNormal B → BetaZetaNormal (tm-lam g D B)
     normal-neutral : ∀ {head} → NeutralNormal head → BetaZetaNormal head
@@ -98,12 +117,16 @@ mutual
     normal-var : ∀ {k} → NeutralNormal (tm-var k)
     normal-global : ∀ {name} → NeutralNormal (tm-global name)
     normal-app : ∀ {f a} → NeutralNormal f → BetaZetaNormal a → NeutralNormal (tm-app f a)
+  data SpineNormal : List Term → Set where
+    normal[] : SpineNormal []
+    normal∷ : ∀ {term terms} → BetaZetaNormal term → SpineNormal terms → SpineNormal (term ∷ terms)
 
 mutual
   quoted-normal : ∀ {d value term} → Quoted d value term → BetaZetaNormal term
   quoted-normal q-type = normal-type
   quoted-normal q-atom-type = normal-atom-type
   quoted-normal q-atom = normal-atom
+  quoted-normal (q-ctor fields) = normal-ctor (spine-normal fields)
   quoted-normal (q-pi evaluated domain body) = normal-pi (quoted-normal domain) (quoted-normal body)
   quoted-normal (q-lam evaluated domain body) = normal-lam (quoted-normal domain) (quoted-normal body)
   quoted-normal (q-neutral head) = normal-neutral (neutral-normal head)
@@ -111,12 +134,16 @@ mutual
   neutral-normal (q-var inside) = normal-var
   neutral-normal q-global = normal-global
   neutral-normal (q-app function argument) = normal-app (neutral-normal function) (quoted-normal argument)
+  spine-normal : ∀ {d values terms} → SpineQuoted d values terms → SpineNormal terms
+  spine-normal q[] = normal[]
+  spine-normal (q∷ head rest) = normal∷ (quoted-normal head) (spine-normal rest)
 
 mutual
   quoted-scoped : ∀ {d value term} → Quoted d value term → Scoped d term
   quoted-scoped q-type = sc-type
   quoted-scoped q-atom-type = sc-atom_type
   quoted-scoped q-atom = sc-atom_lit
+  quoted-scoped (q-ctor fields) = sc-ctor (spine-scoped fields)
   quoted-scoped (q-pi evaluated domain body) = sc-pi (quoted-scoped domain) (quoted-scoped body)
   quoted-scoped (q-lam evaluated domain body) = sc-lam (quoted-scoped domain) (quoted-scoped body)
   quoted-scoped (q-neutral head) = neutral-scoped head
@@ -124,3 +151,6 @@ mutual
   neutral-scoped {d} (q-var {level} inside) = sc-var (Flat.index-bounded d level inside)
   neutral-scoped q-global = sc-global
   neutral-scoped (q-app function argument) = sc-app (neutral-scoped function) (quoted-scoped argument)
+  spine-scoped : ∀ {d values terms} → SpineQuoted d values terms → ScopedTerms d terms
+  spine-scoped q[] = st[]
+  spine-scoped (q∷ head rest) = st∷ (quoted-scoped head) (spine-scoped rest)

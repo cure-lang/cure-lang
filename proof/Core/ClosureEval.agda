@@ -1,5 +1,5 @@
 ------------------------------------------------------------------------
--- Positive evaluation MODEL for the Pi/lambda/let/application slice.
+-- Positive evaluation MODEL for functions, lets and constructor trees.
 -- Every recursive eval/apply call consumes height fuel. Exhaustion is
 -- NOT divergence, nor a bound on total work or executable Elixir fuel.
 ------------------------------------------------------------------------
@@ -11,7 +11,7 @@ open import Data.Nat using (ℕ; zero; suc)
 open import Data.Product using (Σ; _,_)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Core.Syntax using (Name; Term; tm-type; tm-atom_type; tm-atom_lit; tm-global;
-  tm-var; tm-pi; tm-lam; tm-app; tm-let)
+  tm-var; tm-pi; tm-lam; tm-app; tm-let; tm-ctor)
 open import Core.Grade using (Grade)
 open import Core.Universe using (Level)
 
@@ -21,6 +21,7 @@ mutual
     v-atom-type : Value
     v-atom : Name → Value
     v-pi v-lam : Grade → Value → List Value → Term → Value
+    v-ctor : Name → List Value → Value
     v-neutral : Neutral → Value
   data Neutral : Set where
     n-var : ℕ → Neutral
@@ -43,6 +44,8 @@ mutual
       → Evaluates env domain value → Evaluates env (tm-pi g domain codomain) (v-pi g value env codomain)
     e-lam : ∀ {g domain body value}
       → Evaluates env domain value → Evaluates env (tm-lam g domain body) (v-lam g value env body)
+    e-ctor : ∀ {name args values} → EvaluatesSpine env args values
+      → Evaluates env (tm-ctor name args) (v-ctor name values)
     e-app : ∀ {function argument vf va value}
       → Evaluates env function vf → Evaluates env argument va → Applies vf va value
       → Evaluates env (tm-app function argument) value
@@ -55,10 +58,14 @@ mutual
       → Evaluates (argument ∷ env) body value → Applies (v-lam g domain env body) argument value
     a-neutral : ∀ {neutral argument}
       → Applies (v-neutral neutral) argument (v-neutral (n-app neutral argument))
+  data EvaluatesSpine (env : List Value) : List Term → List Value → Set where
+    e[] : EvaluatesSpine env [] []
+    e∷ : ∀ {term terms value values} → Evaluates env term value → EvaluatesSpine env terms values
+      → EvaluatesSpine env (term ∷ terms) (value ∷ values)
 
 data Failure : Set where
   exhausted unsupported unbound non-function : Failure
-  -- Companion readback rejects escaped levels; run/apply are unchanged.
+  -- Companion readback rejects escaped levels.
   escaped-level : Failure
 data Result (A : Set) : Set where
   done : A → Result A
@@ -80,6 +87,9 @@ mutual
   run (suc fuel) (tm-lam g domain body) env with run fuel domain env
   ... | stop reason = stop reason
   ... | done (value , evaluated) = done (v-lam g value env body , e-lam evaluated)
+  run (suc fuel) (tm-ctor name args) env with run-spine fuel args env
+  ... | stop reason = stop reason
+  ... | done (values , evaluated) = done (v-ctor name values , e-ctor evaluated)
   run (suc fuel) (tm-app function argument) env with run fuel function env
   ... | stop reason = stop reason
   ... | done (vf , function-evaluated) with run fuel argument env
@@ -101,3 +111,13 @@ mutual
   ... | done (value , evaluated) = done (value , a-closure evaluated)
   apply (suc fuel) (v-neutral neutral) argument = done (v-neutral (n-app neutral argument) , a-neutral)
   apply (suc fuel) other argument = stop non-function
+
+  run-spine : (fuel : ℕ) (terms : List Term) (env : List Value)
+    → Result (Σ (List Value) (EvaluatesSpine env terms))
+  run-spine zero terms env = stop exhausted
+  run-spine (suc fuel) [] env = done ([] , e[])
+  run-spine (suc fuel) (term ∷ terms) env with run fuel term env
+  ... | stop reason = stop reason
+  ... | done (value , evaluated) with run-spine fuel terms env
+  ... | stop reason = stop reason
+  ... | done (values , rest) = done (value ∷ values , e∷ evaluated rest)

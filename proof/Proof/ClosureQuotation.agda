@@ -6,14 +6,15 @@
 module Proof.ClosureQuotation where
 
 open import Data.Nat using (suc)
-open import Data.List using (length)
+open import Data.List using (length; []; _∷_)
+open import Data.Fin using (Fin; zero; suc)
 open import Data.Maybe using (nothing)
 open import Data.Empty using (⊥)
 import Data.Nat.Properties as Nat
 open import Data.Product using (_,_)
 open import Core.Syntax
 open import Core.Reduction using (Signature; _⇝_; _⇝*_; ⇝*-refl;
-  β; δ; ξ-pi-dom; ξ-pi-cod; ξ-lam-dom; ξ-lam-body; ξ-app₁; ξ-app₂)
+  β; δ; ξ-pi-dom; ξ-pi-cod; ξ-lam-dom; ξ-lam-body; ξ-app₁; ξ-app₂; ξ-ctor-at)
 import Core.ClosureScope as S
 import Core.ClosureQuote as Q
 import Core.FlatContext as Flat
@@ -29,6 +30,7 @@ mutual
   normal-no-step Q.normal-type ()
   normal-no-step Q.normal-atom-type ()
   normal-no-step Q.normal-atom ()
+  normal-no-step (Q.normal-ctor fields) (ξ-ctor-at i step) = spine-no-step fields i step
   normal-no-step (Q.normal-pi domain body) (ξ-pi-dom step) = normal-no-step domain step
   normal-no-step (Q.normal-pi domain body) (ξ-pi-cod step) = normal-no-step body step
   normal-no-step (Q.normal-lam domain body) (ξ-lam-dom step) = normal-no-step domain step
@@ -40,6 +42,10 @@ mutual
   neutral-no-step (Q.normal-app () argument) β
   neutral-no-step (Q.normal-app function argument) (ξ-app₁ step) = neutral-no-step function step
   neutral-no-step (Q.normal-app function argument) (ξ-app₂ step) = normal-no-step argument step
+  spine-no-step : ∀ {terms endpoint} → Q.SpineNormal terms → (i : Fin (len terms))
+    → _⇝_ no-delta (lookupAt terms i) endpoint → ⊥
+  spine-no-step (Q.normal∷ head rest) zero step = normal-no-step head step
+  spine-no-step (Q.normal∷ head rest) (suc i) step = spine-no-step rest i step
 
 module Simulation (sig : Signature) where
   module Eval = M.Simulation sig
@@ -50,6 +56,7 @@ module Simulation (sig : Signature) where
     quotation S.s-type M.d-type Q.q-type = ⇝*-refl
     quotation S.s-atom-type M.d-atom-type Q.q-atom-type = ⇝*-refl
     quotation S.s-atom M.d-atom Q.q-atom = ⇝*-refl
+    quotation (S.s-ctor fields) (M.d-ctor denoted) (Q.q-ctor quoted) = spine-quotation fields denoted quoted _
     quotation {depth} (S.s-pi domain-scope env-scope body-scope)
       (M.d-pi {body = body} {terms = terms} domain env)
       (Q.q-pi evaluated domain-quoted body-quoted)
@@ -85,6 +92,14 @@ module Simulation (sig : Signature) where
       (Q.q-app function-quoted argument-quoted) = O.⇝*-trans
         (O.⇝*-app₁ (neutral-quotation function-scope function function-quoted))
         (O.⇝*-app₂ (quotation argument-scope argument argument-quoted))
+
+    spine-quotation : ∀ {depth values terms quoted} → S.EnvironmentScoped depth values
+      → M.Environments depth values terms → Q.SpineQuoted depth values quoted
+      → ∀ name → _⇝*_ sig (tm-ctor name terms) (tm-ctor name quoted)
+    spine-quotation S.s[] M.d[] Q.q[] name = ⇝*-refl
+    spine-quotation (S.s∷ head rest) (M.d∷ denoted environment) (Q.q∷ quoted quotes) name =
+      O.⇝*-trans (O.⇝*-at-ctor _ zero (quotation head denoted quoted))
+        (O.⇝*-ctor-tail-shift _ (spine-quotation rest environment quotes name))
 
   normalization : ∀ {depth env terms term quoted}
     → S.EnvironmentScoped depth env → Scoped (length env) term → M.Environments depth env terms

@@ -210,6 +210,8 @@ MODULES=(
   Proof/ClosureCaseSafety
   Fixtures/ExecutableCase
   Proof/ClosureCaseExamples
+  Fixtures/ExecutableConstructor
+  Proof/ConstructorEvaluationExamples
 )
 
 fail=0

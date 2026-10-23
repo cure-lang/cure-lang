@@ -7,6 +7,7 @@ module Proof.ClosureEvaluation where
 import Data.Empty
 
 open import Data.List using (List; []; _∷_)
+open import Data.Fin using (zero; suc)
 open import Data.Maybe using (just)
 open import Data.Nat using (ℕ; zero; suc; _<_; _∸_)
 open import Data.Product using (∃; _×_; _,_)
@@ -35,6 +36,8 @@ mutual
     d-type : ∀ {l} → Denotes depth (E.v-type l) (tm-type l)
     d-atom-type : Denotes depth E.v-atom-type tm-atom_type
     d-atom : ∀ {name} → Denotes depth (E.v-atom name) (tm-atom_lit name)
+    d-ctor : ∀ {name values terms} → Environments depth values terms
+      → Denotes depth (E.v-ctor name values) (tm-ctor name terms)
     d-pi : ∀ {g domain env body A terms}
       → Denotes depth domain A → Environments depth env terms
       → Denotes depth (E.v-pi g domain env body) (tm-pi g A (substS (extSub (environment-sub terms)) body))
@@ -92,6 +95,8 @@ module Simulation (sig : Signature) where
     evaluate env E.e-type = _ , d-type , ⇝*-refl
     evaluate env E.e-atom-type = _ , d-atom-type , ⇝*-refl
     evaluate env E.e-atom = _ , d-atom , ⇝*-refl
+    evaluate env (E.e-ctor {name = name} fields) with spine env fields
+    ... | terms , denoted , paths = _ , d-ctor denoted , paths name
     evaluate env E.e-global = _ , d-neutral d-global , ⇝*-refl
     evaluate env (E.e-var found) with lookup-denotation env found
     ... | term , denoted , equal = term , denoted , equal-path equal
@@ -119,3 +124,12 @@ module Simulation (sig : Signature) where
     ... | result , denoted , path = result , denoted ,
       ⇝*-step β (O.⇝*-trans (equal-path (beta-environment _ (environment-sub terms) body)) path)
     application (d-neutral function) argument E.a-neutral = _ , d-neutral (d-app function argument) , ⇝*-refl
+
+    spine : ∀ {depth env terms args values} → Environments depth env terms → E.EvaluatesSpine env args values
+      → ∃ λ results → Environments depth values results ×
+        (∀ name → _⇝*_ sig (tm-ctor name (substTermsS (environment-sub terms) args)) (tm-ctor name results))
+    spine env E.e[] = [] , d[] , λ name → ⇝*-refl
+    spine env (E.e∷ head rest) with evaluate env head | spine env rest
+    ... | term , denoted , path | terms , environment , paths =
+      term ∷ terms , d∷ denoted environment , λ name →
+        O.⇝*-trans (O.⇝*-at-ctor _ zero path) (O.⇝*-ctor-tail-shift term (paths name))

@@ -24,7 +24,8 @@ for source <- [
       "test/support/proof_quotation_fixture.ex",
       "test/support/proof_comparison_fixture.ex",
       "test/support/proof_checking_fixture.ex",
-      "test/support/proof_case_fixture.ex"
+      "test/support/proof_case_fixture.ex",
+      "test/support/proof_constructor_fixture.ex"
     ] do
   Code.compile_file(Path.join(root, source))
 end
@@ -44,6 +45,7 @@ if File.read!(Path.join(root, "proof/Fixtures/ExecutableSnapshot.agda")) != snap
 {:ok, comparison} = Cure.Test.ProofComparisonFixture.to_agda()
 {:ok, checking} = Cure.Test.ProofCheckingFixture.to_agda()
 {:ok, cases} = Cure.Test.ProofCaseFixture.to_agda()
+{:ok, constructors} = Cure.Test.ProofConstructorFixture.to_agda()
 
 targets = [
   {Path.join(root, "proof/Fixtures/ExecutableCertificate.agda"), generated},
@@ -54,7 +56,8 @@ targets = [
   {Path.join(root, "proof/Fixtures/ExecutableQuotation.agda"), quotation},
   {Path.join(root, "proof/Fixtures/ExecutableComparison.agda"), comparison},
   {Path.join(root, "proof/Fixtures/ExecutableChecking.agda"), checking},
-  {Path.join(root, "proof/Fixtures/ExecutableCase.agda"), cases}
+  {Path.join(root, "proof/Fixtures/ExecutableCase.agda"), cases},
+  {Path.join(root, "proof/Fixtures/ExecutableConstructor.agda"), constructors}
 ]
 
 case System.argv() do
