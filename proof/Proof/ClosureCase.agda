@@ -63,6 +63,17 @@ evaluate-scoped {env = env} scoped (sc-case (sc-ctor args) motive branches)
     frame-length = trans (length-++ (reverse values))
       (trans (cong (Data.Nat._+ length env) (trans (length-reverse values)
         (trans (C.fields-length fields) exact))) (Nat.+-comm ar (length env)))
+evaluate-scoped {env = env} scoped (sc-case scrutinee motive branches)
+  (C.computed {ar = ar} {body = body} {values = values} evaluated found exact body-evaluated)
+  with Scope.evaluate-scoped scoped scrutinee evaluated
+... | Scope.s-ctor fields = Scope.evaluate-scoped
+  (append-scoped (reverse-scoped fields) scoped)
+  (subst (λ n → Scoped n body) (sym frame-length) (selected-scope branches found)) body-evaluated
+  where
+    frame-length : length (reverse values ++ env) ≡ length env Data.Nat.+ ar
+    frame-length = trans (length-++ (reverse values))
+      (trans (cong (Data.Nat._+ length env) (trans (length-reverse values) exact))
+        (Nat.+-comm ar (length env)))
 
 environment-length : ∀ {d values terms} → M.Environments d values terms → length terms ≡ length values
 environment-length M.d[] = refl
@@ -130,6 +141,22 @@ module Simulation (sig : Signature) where
       result-length = trans (environment-length denoted) (C.fields-length evaluated)
       result-arity : length results ≡ ar
       result-arity = trans result-length exact
+      frame : substArgs results (substS (extSub^ ar (M.environment-sub caller)) body)
+        ≡ substS (M.environment-sub (reverse results ++ caller)) body
+      frame = trans (cong (λ n → substArgs results (substS (extSub^ n (M.environment-sub caller)) body))
+        (sym result-arity)) (branch-environment results caller body)
+  evaluate {terms = caller} env
+    (C.computed {branches = branches} {ar = ar} {body = body} evaluated found exact body-evaluated)
+    with Eval.evaluate env evaluated
+  ... | tm-ctor name results , M.d-ctor fields , scrutinee-path
+    with Eval.evaluate (append-environments (reverse-environments fields) env) body-evaluated
+  ... | result , value-denoted , body-path = result , value-denoted ,
+    O.⇝*-trans (O.⇝*-case scrutinee-path)
+      (⇝*-step (ι (findBranch-substBranchesS (M.environment-sub caller) name branches found) result-arity)
+        (O.⇝*-trans (Eval.equal-path frame) body-path))
+    where
+      result-arity : length results ≡ ar
+      result-arity = trans (environment-length fields) exact
       frame : substArgs results (substS (extSub^ ar (M.environment-sub caller)) body)
         ≡ substS (M.environment-sub (reverse results ++ caller)) body
       frame = trans (cong (λ n → substArgs results (substS (extSub^ n (M.environment-sub caller)) body))

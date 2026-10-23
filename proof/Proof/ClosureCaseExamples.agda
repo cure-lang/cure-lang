@@ -164,14 +164,14 @@ recursive-case-body-not-modelled : failure (Case.run 16
   ≡ just (Case.body-failure E.unsupported)
 recursive-case-body-not-modelled = refl
 neutral-case-not-modelled : failure (Case.run 16
-  (tm-case (tm-var 0) tm-atom_type []) (E.v-neutral (E.n-var 0) ∷ [])) ≡ just Case.unsupported-head
+  (tm-case (tm-var 0) tm-atom_type []) (E.v-neutral (E.n-var 0) ∷ [])) ≡ just Case.neutral-scrutinee
 neutral-case-not-modelled = refl
-computed-scrutinee-not-modelled : failure (Case.run 16
+computed-non-constructor-rejected : failure (Case.run 16
   (tm-case (tm-let unrestricted tm-atom_type payload (tm-var 0)) tm-atom_type []) [])
-  ≡ just Case.unsupported-head
-computed-scrutinee-not-modelled = refl
+  ≡ just Case.non-constructor
+computed-non-constructor-rejected = refl
 compact-not-modelled : failure (Case.run 16 (tm-case (tm-nat_lit 0) tm-atom_type []) [])
-  ≡ just Case.unsupported-head
+  ≡ just (Case.scrutinee-failure E.unsupported)
 compact-not-modelled = refl
 
 -- Only the total fuelled MODEL sees this term, never actual unbounded Eval.

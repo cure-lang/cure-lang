@@ -573,6 +573,35 @@ Next operational work can establish that finite signature/split contract
 and extend semantic data-family values, or integrate evaluated exact-case
 scrutinees. Compact builtins, filtered/erased relevance and neutral cases
 remain separate obligations, as does universal Elixir/model correspondence.
+## Evaluated exact-case scrutinee continuation
+The separate `ClosureCase` adapter now evaluates beta/zeta and caller-variable
+scrutinees in the existing shared constructor/closure slice before exact
+first-match dispatch. Positive evidence carries the actual scrutinee
+execution, semantic field count, lookup equation and body execution under
+the reversed field prefix plus caller. The original direct-constructor
+path retains prior budget/diagnostic behavior. A proved evidence bridge
+exposes the evaluated route without identifying proof objects, algorithms
+or equal fuel budgets.
+General arbitrary-signature native reduction and scope preservation derive
+from scrutinee denotation/scope and the existing field substitution law.
+Scoped quotation and independently checked caller safety preserve the
+original expected goal. New diagnostics distinguish scrutinee model failure,
+neutral scrutinee and non-constructor result from branch/arity/body failure.
+Ten fixed terminating actual observations independently replay, including
+computed and eager scrutinees, constructor-valued caller slots, capture,
+nested fields and inert unused payloads. Three closed dependent cases
+independently replay reconstructed native recipes and inhabit the safety
+composition. Neutral preservation and filtered/erased-layout observations
+remain explicitly broader actual behavior; failure/budget and bounded-omega
+controls preserve strategy/typing/termination distinctions.
+This does not add case syntax to `ClosureEval` or normalized admission.
+Recursive case scrutinees/bodies and cases under function evaluation remain
+unsupported; integrating them requires one shared recursive evaluator and
+its corresponding scope/simulation/readback proofs. Data-family split
+fidelity, neutral-case readback, aliases, compact builtins and filtered/erased
+relevance also remain open, as does universal executable correspondence.
+Older artifact bytes and native/Elixir semantics are unchanged; new ExUnit
+regression sources remain unrun under the maintainer policy.
 ## Current remaining work, in priority order
 1. Prove universal producer/extraction representation fidelity and
    source/snapshot/context correspondence,

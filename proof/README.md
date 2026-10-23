@@ -2456,6 +2456,59 @@ regressions pass, and all-directory hygiene finds no new holes or checking
 bypasses. Standalone artifact reproduction, shell syntax, strict Credo over
 all 1,433 source files, formatting and whitespace checks pass. Older generated
 artifact bytes remain unchanged; waived suites were not run.
+### Evaluated exact-case scrutinees
+`Core.ClosureCase` now also evaluates a case scrutinee in the existing shared
+closure/constructor slice before dispatching on its semantic constructor.
+Positive `computed` evidence retains the actual scrutinee evaluation,
+first exact-name branch equation, complete SEMANTIC field count and selected
+body evaluation under `reverse(fields) ++ caller`. Beta/zeta computations and
+constructor-valued caller slots no longer require syntactic constructor heads.
+The original direct-constructor path retains its prior diagnostics and budget
+behavior. A checked direct-to-computed evidence bridge exposes the evaluated
+route explicitly; it does not assert proof irrelevance, algorithm equality or
+equal fuel behavior. A low-budget control demonstrates the budget distinction.
+
+The general arbitrary-signature native simulation now composes scrutinee
+reduction, exact iota and the existing simultaneous field/caller frame law.
+Semantic field denotation supplies its actual length; scoped scrutinee
+evaluation derives scoped field values rather than assuming them.
+Existing scoped quotation and checked-caller safety then apply at the SAME
+original expected goal. Failure outcomes now distinguish scrutinee evaluator
+failure, neutral scrutinee and non-constructor result from missing branch,
+wrong arity and body failure. Scrutinees are evaluated before branch lookup;
+motives and unused branches remain unevaluated.
+
+`Fixtures.ExecutableScrutinee` records ten reviewed terminating actual
+observations for beta/zeta and eager scrutinees, caller variables/outer slots,
+capture, nested fields, zero arity and unused payloads. All replay independently
+with native reduction and scoped readback evidence. Three closed dependent
+cases independently replay their native recipes and derive original-goal
+safety. Their conversion recipe reconstructs its asserted middle term at the
+NEW scrutinee syntax; an observed evaluation result is never used as typing.
+Raw/open examples are not all asserted natively admitted.
+Three additional actual observations retain neutral-case readback and
+computed filtered/erased layouts that the exact adapter rejects. Formal
+controls retain first-match arity, unbound/unsupported/non-function scrutinees,
+body failure, neutral/non-constructor outcomes and separate scrutinee/body
+omega exhaustion. Unbounded Elixir is never run on omega.
+
+This extension is isolated in the adapter: `ClosureEval`, its normalizer and
+normalized checking still reject case syntax. Case-containing scrutinees,
+selected case bodies and cases under ordinary function evaluation remain
+unsupported. Data-family splitting, neutral-case values/readback, compact
+builtin behavior, aliases, filtered/erased relevance, universal Elixir/model
+correspondence and semantic totality remain separate obligations.
+Older generated artifact bytes and native/Elixir kernel semantics are
+unchanged. New ExUnit regression sources remain unrun under the maintainer
+waiver. The next operational integration must deliberately share recursive
+case evaluation with closure application/readback rather than claim that this
+adapter already evaluates arbitrary nested programs.
+Validation for this continuation: all 181 Agda modules pass without warnings,
+the exact `funext`/legacy `tree-decides` inventory is unchanged, all ten hygiene
+regressions pass, and all-directory hygiene finds no new holes or checking
+bypasses. Standalone artifact reproduction, shell syntax, strict Credo over
+all 1,435 source files, formatting and whitespace checks pass. Older generated
+artifact bytes remain unchanged; maintainer-waived suites were not run.
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;
