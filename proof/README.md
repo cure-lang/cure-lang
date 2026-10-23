@@ -2620,6 +2620,65 @@ shell syntax, strict Credo over all 1,439 source files, formatting and
 whitespace checks pass. Older generated artifact bytes are unchanged;
 maintainer-waived Mix/ExUnit, documentation and stdlib/example suites were
 not run.
+### Checked signature-aware data-spine readback
+`Core.DataSpine` now models actual readback's clamped prefix split for
+arbitrary finite lists. Signature-free and unknown-family modes put every
+argument in parameters; successful exact family lookup selects its actual
+parameter telescope length. All modes preserve concatenation. Canonical
+source parameters/indices are recovered under the DECLARED parameter-count
+equation, not from flattening alone. The separate fail-closed alignment
+checker derives family lookup, complete parameter prefix, exact index count
+and flattened-spine equations; fallback or alignment success is not typing.
+
+`Core.DataReadback` checks that layout for a flattened list of existing
+closure values, then independently quotes parameter/index fields at the
+requested depth. Unknown families, missing parameters, surplus/short indices,
+exhaustion and field readback failures remain explicit.
+`Proof.DataReadback` proves GENERAL positive native data-head quotation and
+field evaluation/readback simulation under denoting scoped environments.
+The field relations are tied to the checked canonical split; no arbitrary
+raw source split is assumed to survive flattening.
+Native data congruence yields the finite path, and scoped field normality
+gives data-head irreducibility under a no-delta signature.
+Its checked-caller composition derives safety at the SAME original closed
+goal from independent admission, exact source shape and positive field
+executions, not from a typing or normalization callback.
+
+The independent `Fixtures.ExecutableDataSpine` snapshot/certificate has one
+parameter and one genuinely dependent index. Its finite declaration and
+native signature validity replay independently. Ten fixed terminating actual
+Eval/Quote observations cover canonical data, parameter/index redexes,
+closure fields, an open neutral field, short/surplus spines, unknown family,
+forged source split and ill-typed index. Five positive checked readbacks
+replay; four closed programs independently replay native admission and
+derive original-universe-goal safety. Ordinary fallback/clamped observations
+also agree with the explicit split model.
+
+Controls retain the critical distinctions: signature-free readback changes
+the canonical split; an unknown family falls back but fails checked alignment;
+ordinary Quote accepts truncated/surplus spines while checked alignment
+rejects them. A forged raw source split flattens to the SAME values as a valid
+one and is repaired by actual readback, but fails native source kind replay.
+Correct counts and successful field quote can still accompany an ill-typed
+index, which independently fails native replay. Scoped open fields work;
+escaped levels and insufficient budgets fail without an unbounded call.
+
+This completes finite split/canonical-layout and positive TOP-LEVEL data-head
+readback MODEL laws plus concrete artifact agreement, not universal Elixir
+execution/extraction or recursively integrated data normalization.
+`ClosureEval`, shared quotation/normalization and normalized admission
+continue to exclude data-family nodes; no trusted source split is added to
+their semantic values. Recursive data-valued closures, neutral-case readback,
+aliases/compact builtins, filtered/erased relevance, eta/delta normalization,
+semantic totality and backend correspondence remain separate.
+Native/Elixir semantics and older artifact bytes are unchanged. New ExUnit
+regression sources are written but remain unrun under the maintainer waiver.
+Validation for this continuation: all 191 Agda modules pass without warnings,
+the exact `funext`/legacy `tree-decides` inventory is unchanged, ten hygiene
+regressions pass and all-directory hygiene finds no new holes or checking
+bypasses. Standalone artifact reproduction, shell syntax, strict Credo over
+all 1,441 source files, formatting and whitespace checks pass. Older generated
+artifact bytes remain unchanged; waived suites were not run.
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;

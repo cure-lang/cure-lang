@@ -659,6 +659,33 @@ unchanged; new ExUnit sources remain unrun under the maintainer policy.
 Universal producer/checker correspondence, data-family split fidelity,
 neutral-case readback, aliases/compact builtins, filtered/erased relevance,
 semantic positivity/totality and compiler/runtime correspondence remain open.
+## Checked signature-aware data-spine continuation
+`Core.DataSpine` models clamped prefix splitting with explicit signature-free,
+unknown-family and exact finite family lookup behavior. Concatenation
+preservation and canonical source split recovery are proved; the latter
+requires the actual declared parameter count. A separate fail-closed
+alignment algorithm derives lookup, exact parameter/index counts and the
+flattened-spine equation, not native typing.
+`Core.DataReadback` checks a flattened spine of existing closure values and
+quotes fields separately into parameter/index slots. General native
+quotation and positive field evaluation/readback simulation follow through
+data congruence under the checked split and scoped denotation relations.
+No-delta irreducibility and checked-caller original-goal safety compose
+without a typing/normalization oracle.
+A new independent finite snapshot/certificate with one parameter and a
+dependent index replays natively. Ten terminating actual observations yield
+five positive checked readbacks and four independently admitted closed
+native safety instances. Fallback/clamped, missing/surplus, unknown-family,
+forged source split, ill-typed field, escaped-level and budget controls retain
+the layout-versus-typing and canonical-source boundaries.
+This is top-level data-head MODEL readback, not shared recursive data
+evaluation: `ClosureEval` and normalized checking still reject data-family
+nodes. Integrating them requires a coherent signature/split representation
+through captured values and readback, rather than retaining an unchecked
+raw source split. Universal producer/executable correspondence, neutral
+cases, aliases/compact builtins, filtered/erased relevance and semantic
+totality remain separate. Older artifact bytes and native/Elixir semantics
+are unchanged; new ExUnit sources remain unrun under the maintainer policy.
 ## Current remaining work, in priority order
 1. Prove universal producer/extraction representation fidelity and
    source/snapshot/context correspondence,

@@ -219,6 +219,11 @@ MODULES=(
   Proof/RecursiveCaseExamples
   Fixtures/ExecutableCaseContext
   Proof/CaseContextExamples
+  Core/DataSpine
+  Core/DataReadback
+  Proof/DataReadback
+  Fixtures/ExecutableDataSpine
+  Proof/DataSpineExamples
 )
 
 fail=0
