@@ -226,6 +226,10 @@ MODULES=(
   Proof/DataSpineExamples
   Fixtures/ExecutableRecursiveData
   Proof/RecursiveDataExamples
+  Core/BranchOpening
+  Proof/BranchOpening
+  Fixtures/ExecutableBranchOpening
+  Proof/BranchOpeningExamples
 )
 
 fail=0

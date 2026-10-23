@@ -2742,6 +2742,62 @@ regressions pass and all-directory hygiene finds no new holes or checking
 bypasses. Standalone artifact reproduction, shell syntax, strict Credo over
 all 1,443 source files, formatting and whitespace checks pass. Older generated
 artifact bytes remain unchanged; waived suites were not run.
+### Scoped fresh branch opening and residual normality audit
+`Core.BranchOpening` now models fresh branch frames independently of shared
+quotation: declaration-order levels ascend from the caller depth, and the
+reversed prefix places the LAST field at zero before the untouched caller
+environment. Zero arity adds no slot. A general proof relates the recursive
+prefix to ascending enumeration/reversal and `arity + depth` to actual
+`depth + arity`. Bounded execution wrappers reuse the existing evaluator,
+including explicit signature-aware mode; height fuel is not a total-work
+bound on constructing an arbitrary finite frame.
+
+`Proof.BranchOpening` derives arbitrary-arity environment scope and
+denotation by iterating scoped semantic weakening and fresh-neutral
+readback. The simultaneous substitution/opening equation protects every
+field binder and weakens caller images consistently, INCLUDING beneath
+nested binders. It requires actual captured-body scope: equality on
+arbitrary raw out-of-frame variables would be false. General positive
+shared normalization then yields a native branch-body readback path from
+the captured substitution under all field binders, for arbitrary signatures.
+An explicit arithmetic transport also states the theorem at executable
+`depth + arity`. No field typing, arbitrary weakening or normalization
+oracle is assumed.
+
+`Fixtures.ExecutableBranchOpening` records eleven reviewed terminating actual
+`Eval.open_branch` observations. A fixed identity-lambda probe exposes the
+ACTUAL captured frame independently of the tested body result. Frames,
+evaluation and signature-aware readback independently replay for zero/one/
+multiple fields, nonzero caller depth, first/last/outer variables,
+beta/zeta, captured lambdas/data, spines and nested case bodies. Native paths
+follow from the general opening theorem, not manually supplied reducts.
+Wrong order/arity, empty-frame lookup, out-of-frame substitution,
+unscoped caller values, signature-free data and bounded omega retain controls.
+Actual unbounded Eval never sees omega.
+
+The residual-case audit records an important prerequisite for full neutral
+readback. `Core.Reduction.ξ-case-brs` accepts REFLEXIVE branch paths, hence
+EVERY case has a native administrative self-step, even with a no-delta
+signature. A residual neutral case is also an existing native `Value`.
+Constructive controls therefore refute a proposed strict no-step theorem
+for residual cases and reject labelling them with the existing strict normal
+grammar. This is not kernel unsoundness, divergence or computational change.
+Existing native rules and strict no-delta normality results are unchanged.
+A future residual normality contract must distinguish genuine change from
+administrative self-steps; it cannot silently extend strict irreducibility.
+
+This supplies scoped multi-binder opening/readback prerequisites, not full
+neutral-case semantic values/readback, typed fresh field telescopes, native
+admission from raw opening success, universal Elixir correspondence or
+relevance/backend soundness. Older artifact bytes and native/Elixir semantics
+are unchanged; new ExUnit regression sources remain unrun under the
+maintainer waiver.
+Validation for this continuation: all 197 Agda modules pass without warnings,
+the exact `funext`/legacy `tree-decides` inventory is unchanged, ten hygiene
+regressions pass and all-directory hygiene finds no new holes or checking
+bypasses. Standalone artifact reproduction, shell syntax, strict Credo over
+all 1,445 source files, formatting and whitespace checks pass. Older generated
+artifact bytes remain unchanged; waived suites were not run.
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;
