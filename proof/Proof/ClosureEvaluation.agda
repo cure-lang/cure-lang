@@ -40,6 +40,8 @@ mutual
     d-atom : ∀ {name} → Denotes depth (E.v-atom name) (tm-atom_lit name)
     d-ctor : ∀ {name values terms} → Environments depth values terms
       → Denotes depth (E.v-ctor name values) (tm-ctor name terms)
+    d-data : ∀ {name pvs ivs ps is} → Environments depth pvs ps → Environments depth ivs is
+      → Denotes depth (E.v-data name pvs ivs) (tm-data name ps is)
     d-pi : ∀ {g domain env body A terms}
       → Denotes depth domain A → Environments depth env terms
       → Denotes depth (E.v-pi g domain env body) (tm-pi g A (substS (extSub (environment-sub terms)) body))
@@ -105,6 +107,10 @@ module Simulation (sig : Signature) where
   equal-path : ∀ {t u} → t ≡ u → _⇝*_ sig t u
   equal-path refl = ⇝*-refl
 
+  to-parallel : ∀ {t u} → _⇝*_ sig t u → O._⇉*_ t u
+  to-parallel ⇝*-refl = O.⇉*-refl
+  to-parallel (⇝*-step head rest) = O.⇉*-step (O.⇝→⇉ head) (to-parallel rest)
+
   mutual
     evaluate : ∀ {depth env terms term value} → Environments depth env terms → E.Evaluates env term value
       → ∃ λ result → Denotes depth value result × _⇝*_ sig (substS (environment-sub terms) term) result
@@ -113,6 +119,10 @@ module Simulation (sig : Signature) where
     evaluate env E.e-atom = _ , d-atom , ⇝*-refl
     evaluate env (E.e-ctor {name = name} fields) with spine env fields
     ... | terms , denoted , paths = _ , d-ctor denoted , paths name
+    evaluate env (E.e-data params indices) with parallel-spine env params | parallel-spine env indices
+    ... | ps , p-denoted , p-path | is , i-denoted , i-path =
+      _ , d-data p-denoted i-denoted , O.⇉→⇝*-star (O.⇉*-trans
+        (O.⇉*-data-params* [] _ ps _ p-path) (O.⇉*-data-indices* [] _ is ps i-path))
     evaluate env E.e-global = _ , d-neutral d-global , ⇝*-refl
     evaluate env (E.e-var found) with lookup-denotation env found
     ... | term , denoted , equal = term , denoted , equal-path equal
@@ -165,3 +175,11 @@ module Simulation (sig : Signature) where
     ... | term , denoted , path | terms , environment , paths =
       term ∷ terms , d∷ denoted environment , λ name →
         O.⇝*-trans (O.⇝*-at-ctor _ zero path) (O.⇝*-ctor-tail-shift term (paths name))
+
+    parallel-spine : ∀ {depth env terms args values} → Environments depth env terms
+      → E.EvaluatesSpine env args values → ∃ λ results → Environments depth values results ×
+        O._⇉*ᵗ*_ (substTermsS (environment-sub terms) args) results
+    parallel-spine env E.e[] = [] , d[] , O.⇉ᵗ*-nil
+    parallel-spine env (E.e∷ head rest) with evaluate env head | parallel-spine env rest
+    ... | term , denoted , path | terms , environment , paths =
+      term ∷ terms , d∷ denoted environment , O.⇉ᵗ*-cons (to-parallel path) paths

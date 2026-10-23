@@ -1,7 +1,8 @@
 ------------------------------------------------------------------------
 -- Checked top-level data-head readback of flattened closure values.
 -- Layout and field readback are checked; typing is a separate replay.
--- Shared ClosureEval deliberately still rejects tm-data.
+-- Compatibility layer: fields use signature-free closure readback.
+-- Shared signature-aware APIs additionally handle recursive data.
 ------------------------------------------------------------------------
 module Core.DataReadback where
 

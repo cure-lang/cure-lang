@@ -25,6 +25,8 @@ mutual
     s-atom-type : ValueScoped depth E.v-atom-type
     s-atom : ∀ {name} → ValueScoped depth (E.v-atom name)
     s-ctor : ∀ {name values} → EnvironmentScoped depth values → ValueScoped depth (E.v-ctor name values)
+    s-data : ∀ {name ps is} → EnvironmentScoped depth ps → EnvironmentScoped depth is
+      → ValueScoped depth (E.v-data name ps is)
     s-pi : ∀ {g domain env body} → ValueScoped depth domain → EnvironmentScoped depth env
       → Scoped (suc (length env)) body → ValueScoped depth (E.v-pi g domain env body)
     s-lam : ∀ {g domain env body} → ValueScoped depth domain → EnvironmentScoped depth env
@@ -46,6 +48,7 @@ mutual
   raise-value s-atom-type = s-atom-type
   raise-value s-atom = s-atom
   raise-value (s-ctor fields) = s-ctor (raise-environment fields)
+  raise-value (s-data params indices) = s-data (raise-environment params) (raise-environment indices)
   raise-value (s-pi domain env body) = s-pi (raise-value domain) (raise-environment env) body
   raise-value (s-lam domain env body) = s-lam (raise-value domain) (raise-environment env) body
   raise-value (s-neutral head) = s-neutral (raise-neutral head)
@@ -89,6 +92,8 @@ mutual
   evaluate-scoped env sc-atom_type E.e-atom-type = s-atom-type
   evaluate-scoped env sc-atom_lit E.e-atom = s-atom
   evaluate-scoped env (sc-ctor args) (E.e-ctor fields) = s-ctor (spine-scoped env args fields)
+  evaluate-scoped env (sc-data ps is) (E.e-data params indices) =
+    s-data (spine-scoped env ps params) (spine-scoped env is indices)
   evaluate-scoped env sc-global E.e-global = s-neutral s-global
   evaluate-scoped env (sc-var inside) (E.e-var found) = lookup-scoped env found
   evaluate-scoped env (sc-pi domain body) (E.e-pi evaluated) =

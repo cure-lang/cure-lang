@@ -224,6 +224,8 @@ MODULES=(
   Proof/DataReadback
   Fixtures/ExecutableDataSpine
   Proof/DataSpineExamples
+  Fixtures/ExecutableRecursiveData
+  Proof/RecursiveDataExamples
 )
 
 fail=0

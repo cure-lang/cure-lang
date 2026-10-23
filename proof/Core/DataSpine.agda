@@ -94,7 +94,7 @@ record Alignment {A : Set} (ind : IndEnv) (name : Name) (xs : List A) : Set wher
   selected rewrite found = cut-split parameter-prefix
 
 data Failure : Set where
-  unknown-family missing-parameters wrong-index-arity : Failure
+  unknown-family missing-parameters wrong-parameter-arity wrong-index-arity : Failure
 data Result (A : Set) : Set where
   accepted : A → Result A
   rejected : Failure → Result A
@@ -106,3 +106,25 @@ check ind name xs with findFamily name (IndEnv.families ind) in found
 ... | just (ps , is , cut) with Nat._≟_ (length is) (length (fam-indices family))
 ... | no _ = rejected wrong-index-arity
 ... | yes count = accepted (aligned family found ps is cut count)
+
+-- Source/value annotations are checked, not trusted merely because their
+-- flattened concatenation happens to have the right total length.
+record SourceLayout {A : Set} (ind : IndEnv) (name : Name) (ps is : List A) : Set where
+  constructor source-layout
+  field
+    family : Family
+    found : findFamily name (IndEnv.families ind) ≡ just family
+    parameter-count : length ps ≡ length (fam-params family)
+    index-count : length is ≡ length (fam-indices family)
+  canonical-split : split (signature ind) name (ps ++ is) ≡ (ps , is)
+  canonical-split = canonical ind name family found ps is parameter-count
+
+check-source : ∀ {A : Set} (ind : IndEnv) (name : Name) (ps is : List A)
+  → Result (SourceLayout ind name ps is)
+check-source ind name ps is with findFamily name (IndEnv.families ind) in found
+... | nothing = rejected unknown-family
+... | just family with Nat._≟_ (length ps) (length (fam-params family))
+... | no _ = rejected wrong-parameter-arity
+... | yes pc with Nat._≟_ (length is) (length (fam-indices family))
+... | no _ = rejected wrong-index-arity
+... | yes ic = accepted (source-layout family found pc ic)

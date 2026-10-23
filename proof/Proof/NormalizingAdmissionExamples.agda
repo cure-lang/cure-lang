@@ -89,9 +89,15 @@ data-beta-query : N.Request
 data-beta-query = record data-query
   { goal = tm-app (tm-lam unrestricted (tm-type l1) (tm-var 0)) Existing.goal
   ; goal-kind-recipe = r-app (r-lam r-leaf r-leaf) (r-data [] (r-leaf ∷ [])) }
-unsupported-comparison-is-inconclusive : R.verify 64 data-beta-query
-  ≡ N.rejected (N.inconclusive Compare.left-side E.unsupported)
-unsupported-comparison-is-inconclusive = refl
+data-comparison-now-checked : N.present (R.verify 64 data-beta-query) ≡ true
+data-comparison-now-checked = refl
+data-beta-checked : R.Checked data-beta-query
+data-beta-checked = pick (R.verify 64 data-beta-query) refl
+original-data-beta-goal-safe : R.C.Sound.SafeState Existing.value (N.Request.goal data-beta-query)
+original-data-beta-goal-safe = R.Checked.trace-safe data-beta-checked ⇝*-refl
+signature-free-data-still-inconclusive : Compare.compare 64 0 [] Existing.goal (N.Request.goal data-beta-query)
+  ≡ Compare.unknown Compare.left-side E.unsupported
+signature-free-data-still-inconclusive = refl
 
 exact-atom-zero-budget : N.present (R.verify 0 (record query { goal = tm-atom_type ; goal-kind-recipe = r-leaf })) ≡ true
 exact-atom-zero-budget = refl

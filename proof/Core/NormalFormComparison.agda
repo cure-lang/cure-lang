@@ -7,6 +7,8 @@ module Core.NormalFormComparison where
 open import Data.List using (List)
 open import Data.Nat using (ℕ)
 open import Data.Product using (_,_)
+open import Data.Maybe using (Maybe; just; nothing)
+open import Core.Signature using (IndEnv)
 open import Relation.Binary.PropositionalEquality using (_≢_; refl)
 open import Relation.Nullary using (yes; no)
 open import Core.Syntax using (Term)
@@ -42,10 +44,11 @@ classify (same evidence) = equal-forms
 classify (distinct evidence) = distinct-forms
 classify (unknown side reason) = inconclusive
 
-compare : (fuel depth : ℕ) (env : List E.Value) (left right : Term) → Verdict depth env left right
-compare fuel depth env left right with Q.normalise fuel depth left env
+compare-in : Maybe IndEnv → (fuel depth : ℕ) (env : List E.Value) (left right : Term)
+  → Verdict depth env left right
+compare-in mode fuel depth env left right with Q.normalise-in mode fuel depth left env
 ... | E.stop reason = unknown left-side reason
-... | E.done (l , left-execution) with Q.normalise fuel depth right env
+... | E.done (l , left-execution) with Q.normalise-in mode fuel depth right env
 ... | E.stop reason = unknown right-side reason
 ... | E.done (r , right-execution) with Syntax.equal? l r
 ... | no different = distinct record
@@ -53,3 +56,8 @@ compare fuel depth env left right with Q.normalise fuel depth left env
   ; right-execution = right-execution ; different-syntax = different }
 ... | yes refl = same record
   { common = l ; left-execution = left-execution ; right-execution = right-execution }
+
+compare : (fuel depth : ℕ) (env : List E.Value) (left right : Term) → Verdict depth env left right
+compare = compare-in nothing
+compare-with : IndEnv → (fuel depth : ℕ) (env : List E.Value) (left right : Term) → Verdict depth env left right
+compare-with ind = compare-in (just ind)

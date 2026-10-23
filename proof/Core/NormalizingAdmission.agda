@@ -98,7 +98,7 @@ module Replay {source table certificate-chars}
     → (Basis inferred (Request.goal query) → Checked query) → Result (Checked query)
   choose {query} fuel inferred build with Syntax.equal? inferred (Request.goal query)
   ... | yes same = accepted (build (exact same))
-  ... | no different with Compare.compare fuel 0 [] inferred (Request.goal query)
+  ... | no different with Compare.compare-with C.W.ind fuel 0 [] inferred (Request.goal query)
   ... | Compare.same equal = accepted (build (normalized equal))
   ... | Compare.distinct forms = rejected
     (distinct-forms (Compare.DistinctNormal.left-form forms) (Compare.DistinctNormal.right-form forms))

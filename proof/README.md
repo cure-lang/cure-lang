@@ -2679,6 +2679,69 @@ regressions pass and all-directory hygiene finds no new holes or checking
 bypasses. Standalone artifact reproduction, shell syntax, strict Credo over
 all 1,441 source files, formatting and whitespace checks pass. Older generated
 artifact bytes remain unchanged; waived suites were not run.
+### Checked recursive data evaluation and quotation
+Shared closure values now represent data with canonical parameter/index
+spines, related to actual flattened values using one explicit finite registry.
+This annotation is NOT a trusted raw source split:
+`DataSpine.check-source` verifies actual family lookup and BOTH source counts
+before signature-aware evaluation constructs it. Readback re-checks both
+semantic spine counts before quoting. Positive spine evaluation/quotation
+prove count and canonical-split preservation, rather than assuming it from
+the flattened total length.
+
+`ClosureEval` and `ClosureQuote` now expose signature-aware entry points,
+threading the SAME registry through all recursive calls, applications,
+constructor/case fields, captured closure evaluation and fresh-binder quote.
+Source/value unknown families and malformed split annotations fail explicitly.
+These guards are intentionally stricter than ordinary actual Quote fallback
+on malformed inputs. Existing signature-free entry points and standalone
+comparison retain data exclusion; actual signature-free Quote's flat fallback
+is not assigned a native reduction path.
+
+General intrinsic evaluation/quotation relations, semantic scope/raising,
+denotation and scoped weakening now include data. Arbitrary-signature native
+evaluation and quotation simulation reduce parameter/index fields separately,
+and normal data spines are irreducible under a no-delta signature. Existing
+checked normalization safety composes at unchanged goals; a new safe runner
+uses the checked source's registry. The older top-level data readback
+compatibility layer reuses shared field proofs.
+
+Normalized admission now compares with its CHECKED snapshot registry after
+actual inference and BOTH inferred/expected kind guards. The former
+non-exact-data inconclusive case now admits, while signature-free comparison
+of the same terms stays inconclusive. Exact zero-budget reflexivity and
+explicit cumulativity behavior are unchanged. Distinct successful forms
+still do not imply non-conversion.
+`Fixtures.ExecutableRecursiveData` records ten reviewed terminating actual
+observations, including nested data, data-domain/body closures, captured data,
+applications, Pi types, constructor/case results and open fields. All replay
+with the signature-aware model; six independently admitted closed programs
+derive original-goal normalization safety. Raw nested/Box observations are
+explicitly not all asserted typed or registered.
+
+An existing-tag checking request admits a data-domain identity at a
+beta-expanded expected Pi type, without a supplied conversion path. Character
+fidelity, inference/kinds, positive normalization and original expected-goal
+safety/fuel-tree agreement all check. The checker request uses the original
+checked registry's table; the observation-only raw Box name is separate.
+Forged source AND semantic splits, unknown/changed registries, wrong index
+counts, escaped levels and small budgets have negative controls; correct
+layout still does not imply native typing.
+
+This is bounded positive recursive data MODEL integration plus concrete
+implementation agreement, not universal producer/Elixir refinement or full
+NbE. Registry consistency is an explicit contract. Ordinary fallback, aliases,
+compact builtins, neutral-case readback, filtered/erased relevance,
+eta/certified-delta normalization, semantic totality and backend refinement
+remain separate. Native/Elixir semantics and older artifact bytes are
+unchanged. New ExUnit regression sources remain unrun under the maintainer
+waiver.
+Validation for this integration: all 193 Agda modules pass without warnings,
+the exact `funext`/legacy `tree-decides` inventory is unchanged, ten hygiene
+regressions pass and all-directory hygiene finds no new holes or checking
+bypasses. Standalone artifact reproduction, shell syntax, strict Credo over
+all 1,443 source files, formatting and whitespace checks pass. Older generated
+artifact bytes remain unchanged; waived suites were not run.
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;

@@ -1,5 +1,6 @@
 ------------------------------------------------------------------------
 -- Positive evaluation MODEL for functions, lets, constructors and exact cases.
+-- Data uses explicit signature-aware entry points; source splits are checked.
 -- Every recursive eval/apply call consumes height fuel. Exhaustion is
 -- NOT divergence, nor a bound on total work or executable Elixir fuel.
 ------------------------------------------------------------------------
@@ -9,9 +10,11 @@ open import Data.List using (List; []; _∷_; _++_; reverse; length)
 open import Data.Maybe using (Maybe; just; nothing)
 open import Data.Nat using (ℕ; zero; suc)
 open import Data.Product using (Σ; _,_)
-open import Relation.Binary.PropositionalEquality using (_≡_; refl)
+open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong; trans)
 open import Core.Syntax using (Name; Term; tm-type; tm-atom_type; tm-atom_lit; tm-global;
-  Branch; tm-var; tm-pi; tm-lam; tm-app; tm-let; tm-ctor; tm-case)
+  Branch; tm-var; tm-pi; tm-lam; tm-app; tm-let; tm-ctor; tm-case; tm-data)
+open import Core.Signature using (IndEnv)
+import Core.DataSpine as Layout
 open import Core.Reduction using (findBranch)
 import Data.Nat.Properties as Nat
 import Data.String.Properties
@@ -26,6 +29,7 @@ mutual
     v-atom : Name → Value
     v-pi v-lam : Grade → Value → List Value → Term → Value
     v-ctor : Name → List Value → Value
+    v-data : Name → List Value → List Value → Value
     v-neutral : Neutral → Value
   data Neutral : Set where
     n-var : ℕ → Neutral
@@ -50,6 +54,8 @@ mutual
       → Evaluates env domain value → Evaluates env (tm-lam g domain body) (v-lam g value env body)
     e-ctor : ∀ {name args values} → EvaluatesSpine env args values
       → Evaluates env (tm-ctor name args) (v-ctor name values)
+    e-data : ∀ {name ps is pvs ivs} → EvaluatesSpine env ps pvs → EvaluatesSpine env is ivs
+      → Evaluates env (tm-data name ps is) (v-data name pvs ivs)
     e-app : ∀ {function argument vf va value}
       → Evaluates env function vf → Evaluates env argument va → Applies vf va value
       → Evaluates env (tm-app function argument) value
@@ -78,76 +84,114 @@ data Failure : Set where
   missing-branch arity-mismatch neutral-scrutinee non-constructor : Failure
   -- Companion readback rejects escaped levels.
   escaped-level : Failure
+  data-layout : Layout.Failure → Failure
 data Result (A : Set) : Set where
   done : A → Result A
   stop : Failure → Result A
 
+spine-length : ∀ {env args values} → EvaluatesSpine env args values → length values ≡ length args
+spine-length e[] = refl
+spine-length (e∷ head rest) = cong suc (spine-length rest)
+evaluated-layout : ∀ {ind name env ps is pvs ivs} → Layout.SourceLayout ind name ps is
+  → EvaluatesSpine env ps pvs → EvaluatesSpine env is ivs → Layout.SourceLayout ind name pvs ivs
+evaluated-layout layout params indices = Layout.source-layout
+  (Layout.SourceLayout.family layout) (Layout.SourceLayout.found layout)
+  (trans (spine-length params) (Layout.SourceLayout.parameter-count layout))
+  (trans (spine-length indices) (Layout.SourceLayout.index-count layout))
+
 mutual
-  run : (fuel : ℕ) (term : Term) (env : List Value) → Result (Σ Value (Evaluates env term))
-  run zero term env = stop exhausted
-  run (suc fuel) (tm-type l) env = done (v-type l , e-type)
-  run (suc fuel) tm-atom_type env = done (v-atom-type , e-atom-type)
-  run (suc fuel) (tm-atom_lit name) env = done (v-atom name , e-atom)
-  run (suc fuel) (tm-global name) env = done (v-neutral (n-global name) , e-global)
-  run (suc fuel) (tm-var k) env with lookup-value env k in found
+  run-in : (mode : Maybe IndEnv) → (fuel : ℕ) (term : Term) (env : List Value) → Result (Σ Value (Evaluates env term))
+  run-in mode zero term env = stop exhausted
+  run-in mode (suc fuel) (tm-type l) env = done (v-type l , e-type)
+  run-in mode (suc fuel) tm-atom_type env = done (v-atom-type , e-atom-type)
+  run-in mode (suc fuel) (tm-atom_lit name) env = done (v-atom name , e-atom)
+  run-in mode (suc fuel) (tm-global name) env = done (v-neutral (n-global name) , e-global)
+  run-in mode (suc fuel) (tm-var k) env with lookup-value env k in found
   ... | nothing = stop unbound
   ... | just value = done (value , e-var found)
-  run (suc fuel) (tm-pi g domain codomain) env with run fuel domain env
+  run-in mode (suc fuel) (tm-pi g domain codomain) env with run-in mode fuel domain env
   ... | stop reason = stop reason
   ... | done (value , evaluated) = done (v-pi g value env codomain , e-pi evaluated)
-  run (suc fuel) (tm-lam g domain body) env with run fuel domain env
+  run-in mode (suc fuel) (tm-lam g domain body) env with run-in mode fuel domain env
   ... | stop reason = stop reason
   ... | done (value , evaluated) = done (v-lam g value env body , e-lam evaluated)
-  run (suc fuel) (tm-ctor name args) env with run-spine fuel args env
+  run-in mode (suc fuel) (tm-ctor name args) env with run-spine-in mode fuel args env
   ... | stop reason = stop reason
   ... | done (values , evaluated) = done (v-ctor name values , e-ctor evaluated)
-  run (suc fuel) (tm-app function argument) env with run fuel function env
+  run-in nothing (suc fuel) (tm-data name ps is) env = stop unsupported
+  run-in (just ind) (suc fuel) (tm-data name ps is) env with Layout.check-source ind name ps is
+  ... | Layout.rejected reason = stop (data-layout reason)
+  ... | Layout.accepted layout with run-spine-in (just ind) fuel ps env
   ... | stop reason = stop reason
-  ... | done (vf , function-evaluated) with run fuel argument env
+  ... | done (pvs , params) with run-spine-in (just ind) fuel is env
   ... | stop reason = stop reason
-  ... | done (va , argument-evaluated) with apply fuel vf va
+  ... | done (ivs , indices) = done (v-data name pvs ivs , e-data params indices)
+  run-in mode (suc fuel) (tm-app function argument) env with run-in mode fuel function env
+  ... | stop reason = stop reason
+  ... | done (vf , function-evaluated) with run-in mode fuel argument env
+  ... | stop reason = stop reason
+  ... | done (va , argument-evaluated) with apply-in mode fuel vf va
   ... | stop reason = stop reason
   ... | done (value , applied) = done (value , e-app function-evaluated argument-evaluated applied)
-  run (suc fuel) (tm-let g ty value body) env with run fuel value env
+  run-in mode (suc fuel) (tm-let g ty value body) env with run-in mode fuel value env
   ... | stop reason = stop reason
-  ... | done (actual , value-evaluated) with run fuel body (actual ∷ env)
+  ... | done (actual , value-evaluated) with run-in mode fuel body (actual ∷ env)
   ... | stop reason = stop reason
   ... | done (result , body-evaluated) = done (result , e-let value-evaluated body-evaluated)
-  run (suc fuel) (tm-case scrutinee motive branches) env with run fuel scrutinee env
+  run-in mode (suc fuel) (tm-case scrutinee motive branches) env with run-in mode fuel scrutinee env
   ... | stop reason = stop reason
-  ... | done (value , evaluated) = case-apply fuel motive branches value evaluated
-  run (suc fuel) other env = stop unsupported
+  ... | done (value , evaluated) = case-apply-in mode fuel motive branches value evaluated
+  run-in mode (suc fuel) other env = stop unsupported
 
-  apply : (fuel : ℕ) (function argument : Value) → Result (Σ Value (Applies function argument))
-  apply zero function argument = stop exhausted
-  apply (suc fuel) (v-lam g domain env body) argument with run fuel body (argument ∷ env)
+  apply-in : (mode : Maybe IndEnv) → (fuel : ℕ) (function argument : Value) → Result (Σ Value (Applies function argument))
+  apply-in mode zero function argument = stop exhausted
+  apply-in mode (suc fuel) (v-lam g domain env body) argument with run-in mode fuel body (argument ∷ env)
   ... | stop reason = stop reason
   ... | done (value , evaluated) = done (value , a-closure evaluated)
-  apply (suc fuel) (v-neutral neutral) argument = done (v-neutral (n-app neutral argument) , a-neutral)
-  apply (suc fuel) other argument = stop non-function
+  apply-in mode (suc fuel) (v-neutral neutral) argument = done (v-neutral (n-app neutral argument) , a-neutral)
+  apply-in mode (suc fuel) other argument = stop non-function
 
-  run-spine : (fuel : ℕ) (terms : List Term) (env : List Value)
+  run-spine-in : (mode : Maybe IndEnv) → (fuel : ℕ) (terms : List Term) (env : List Value)
     → Result (Σ (List Value) (EvaluatesSpine env terms))
-  run-spine zero terms env = stop exhausted
-  run-spine (suc fuel) [] env = done ([] , e[])
-  run-spine (suc fuel) (term ∷ terms) env with run fuel term env
+  run-spine-in mode zero terms env = stop exhausted
+  run-spine-in mode (suc fuel) [] env = done ([] , e[])
+  run-spine-in mode (suc fuel) (term ∷ terms) env with run-in mode fuel term env
   ... | stop reason = stop reason
-  ... | done (value , evaluated) with run-spine fuel terms env
+  ... | done (value , evaluated) with run-spine-in mode fuel terms env
   ... | stop reason = stop reason
   ... | done (values , rest) = done (value ∷ values , e∷ evaluated rest)
 
-  case-apply : ∀ {env scrutinee} (fuel : ℕ) (motive : Term) (branches : List Branch) (value : Value)
+  case-apply-in : (mode : Maybe IndEnv) → ∀ {env scrutinee} (fuel : ℕ) (motive : Term) (branches : List Branch) (value : Value)
     → Evaluates env scrutinee value → Result (Σ Value (Evaluates env (tm-case scrutinee motive branches)))
-  case-apply {env} zero motive branches value evaluated = stop exhausted
-  case-apply {env} (suc fuel) motive branches (v-ctor name values) evaluated
+  case-apply-in mode {env} zero motive branches value evaluated = stop exhausted
+  case-apply-in mode {env} (suc fuel) motive branches (v-ctor name values) evaluated
     with findBranch name branches in found
   ... | nothing = stop missing-branch
   ... | just (cn , ar , body) with name Data.String.Properties.≟ cn
   ... | no _ = stop missing-branch
   ... | yes refl with length values Nat.≟ ar
   ... | no _ = stop arity-mismatch
-  ... | yes exact with run fuel body (reverse values ++ env)
+  ... | yes exact with run-in mode fuel body (reverse values ++ env)
   ... | stop reason = stop reason
   ... | done (result , body-evaluated) = done (result , e-case evaluated found exact body-evaluated)
-  case-apply (suc fuel) motive branches (v-neutral head) evaluated = stop neutral-scrutinee
-  case-apply (suc fuel) motive branches other evaluated = stop non-constructor
+  case-apply-in mode (suc fuel) motive branches (v-neutral head) evaluated = stop neutral-scrutinee
+  case-apply-in mode (suc fuel) motive branches other evaluated = stop non-constructor
+
+-- Compatibility entry points retain signature-free data exclusion.
+run : (fuel : ℕ) (term : Term) (env : List Value) → Result (Σ Value (Evaluates env term))
+run = run-in nothing
+apply : (fuel : ℕ) (function argument : Value) → Result (Σ Value (Applies function argument))
+apply = apply-in nothing
+run-spine : (fuel : ℕ) (terms : List Term) (env : List Value)
+  → Result (Σ (List Value) (EvaluatesSpine env terms))
+run-spine = run-spine-in nothing
+case-apply : ∀ {env scrutinee} (fuel : ℕ) (motive : Term) (branches : List Branch) (value : Value)
+  → Evaluates env scrutinee value → Result (Σ Value (Evaluates env (tm-case scrutinee motive branches)))
+case-apply = case-apply-in nothing
+run-with : IndEnv → (fuel : ℕ) (term : Term) (env : List Value) → Result (Σ Value (Evaluates env term))
+run-with ind = run-in (just ind)
+apply-with : IndEnv → (fuel : ℕ) (function argument : Value) → Result (Σ Value (Applies function argument))
+apply-with ind = apply-in (just ind)
+run-spine-with : IndEnv → (fuel : ℕ) (terms : List Term) (env : List Value)
+  → Result (Σ (List Value) (EvaluatesSpine env terms))
+run-spine-with ind = run-spine-in (just ind)

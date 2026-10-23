@@ -14,7 +14,8 @@ import Data.Nat.Properties as Nat
 open import Data.Product using (_,_)
 open import Core.Syntax
 open import Core.Reduction using (Signature; _⇝_; _⇝*_; ⇝*-refl;
-  β; δ; ξ-pi-dom; ξ-pi-cod; ξ-lam-dom; ξ-lam-body; ξ-app₁; ξ-app₂; ξ-ctor-at)
+  β; δ; ξ-pi-dom; ξ-pi-cod; ξ-lam-dom; ξ-lam-body; ξ-app₁; ξ-app₂; ξ-ctor-at;
+  ξ-data-params-at; ξ-data-indices-at)
 import Core.ClosureScope as S
 import Core.ClosureQuote as Q
 import Core.FlatContext as Flat
@@ -31,6 +32,8 @@ mutual
   normal-no-step Q.normal-atom-type ()
   normal-no-step Q.normal-atom ()
   normal-no-step (Q.normal-ctor fields) (ξ-ctor-at i step) = spine-no-step fields i step
+  normal-no-step (Q.normal-data params indices) (ξ-data-params-at i step) = spine-no-step params i step
+  normal-no-step (Q.normal-data params indices) (ξ-data-indices-at i step) = spine-no-step indices i step
   normal-no-step (Q.normal-pi domain body) (ξ-pi-dom step) = normal-no-step domain step
   normal-no-step (Q.normal-pi domain body) (ξ-pi-cod step) = normal-no-step body step
   normal-no-step (Q.normal-lam domain body) (ξ-lam-dom step) = normal-no-step domain step
@@ -57,6 +60,10 @@ module Simulation (sig : Signature) where
     quotation S.s-atom-type M.d-atom-type Q.q-atom-type = ⇝*-refl
     quotation S.s-atom M.d-atom Q.q-atom = ⇝*-refl
     quotation (S.s-ctor fields) (M.d-ctor denoted) (Q.q-ctor quoted) = spine-quotation fields denoted quoted _
+    quotation (S.s-data ps is) (M.d-data params indices) (Q.q-data quoted-ps quoted-is) =
+      O.⇉→⇝*-star (O.⇉*-trans
+        (O.⇉*-data-params* [] _ _ _ (spine-parallel ps params quoted-ps))
+        (O.⇉*-data-indices* [] _ _ _ (spine-parallel is indices quoted-is)))
     quotation {depth} (S.s-pi domain-scope env-scope body-scope)
       (M.d-pi {body = body} {terms = terms} domain env)
       (Q.q-pi evaluated domain-quoted body-quoted)
@@ -100,6 +107,12 @@ module Simulation (sig : Signature) where
     spine-quotation (S.s∷ head rest) (M.d∷ denoted environment) (Q.q∷ quoted quotes) name =
       O.⇝*-trans (O.⇝*-at-ctor _ zero (quotation head denoted quoted))
         (O.⇝*-ctor-tail-shift _ (spine-quotation rest environment quotes name))
+
+    spine-parallel : ∀ {depth values terms quoted} → S.EnvironmentScoped depth values
+      → M.Environments depth values terms → Q.SpineQuoted depth values quoted → O._⇉*ᵗ*_ terms quoted
+    spine-parallel S.s[] M.d[] Q.q[] = O.⇉ᵗ*-nil
+    spine-parallel (S.s∷ head rest) (M.d∷ denoted environment) (Q.q∷ quoted quotes) =
+      O.⇉ᵗ*-cons (Eval.to-parallel (quotation head denoted quoted)) (spine-parallel rest environment quotes)
 
   normalization : ∀ {depth env terms term quoted}
     → S.EnvironmentScoped depth env → Scoped (length env) term → M.Environments depth env terms

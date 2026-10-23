@@ -40,13 +40,10 @@ module Simulation (sig : Signature) where
   module Quotation = Quote.Simulation sig
   module O = Quotation.O
   to-parallel : ∀ {t u} → _⇝*_ sig t u → O._⇉*_ t u
-  to-parallel ⇝*-refl = O.⇉*-refl
-  to-parallel (⇝*-step head rest) = O.⇉*-step (O.⇝→⇉ head) (to-parallel rest)
+  to-parallel = Quotation.Eval.to-parallel
   spine : ∀ {d values terms quoted} → Scope.EnvironmentScoped d values → Meaning.Environments d values terms
     → Q.SpineQuoted d values quoted → O._⇉*ᵗ*_ terms quoted
-  spine Scope.s[] Meaning.d[] Q.q[] = O.⇉ᵗ*-nil
-  spine (Scope.s∷ head rest) (Meaning.d∷ denoted environment) (Q.q∷ quoted quotes) =
-    O.⇉ᵗ*-cons (to-parallel (Quotation.quotation head denoted quoted)) (spine rest environment quotes)
+  spine = Quotation.spine-parallel
 
   quotation : ∀ {d ind name values ps is} (out : Read.Output d ind name values)
     → Scope.EnvironmentScoped d values
@@ -63,11 +60,7 @@ module Simulation (sig : Signature) where
     → E.EvaluatesSpine env args values
     → ∃ λ results → Meaning.Environments d values results ×
       O._⇉*ᵗ*_ (substTermsS (Meaning.environment-sub terms) args) results
-  evaluated-spine env E.e[] = [] , Meaning.d[] , O.⇉ᵗ*-nil
-  evaluated-spine env (E.e∷ head rest)
-    with Quotation.Eval.evaluate env head | evaluated-spine env rest
-  ... | term , denoted , path | terms , environment , paths =
-    term ∷ terms , Meaning.d∷ denoted environment , O.⇉ᵗ*-cons (to-parallel path) paths
+  evaluated-spine = Quotation.Eval.parallel-spine
 
   normalization : ∀ {d ind name values env terms ps is} (out : Read.Output d ind name values)
     → Scope.EnvironmentScoped d values → Meaning.Environments d env terms

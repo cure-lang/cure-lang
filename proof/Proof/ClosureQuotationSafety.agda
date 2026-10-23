@@ -43,3 +43,12 @@ module Safe {source table certificate-chars}
   ... | E.stop reason = E.stop reason
   ... | E.done (quoted , execution) with safe-normalization admitted execution
   ... | normal , safe = E.done (quoted , execution , normal , safe)
+
+  run-safe-with : ∀ {request} (fuel : ℕ) (admitted : R.Checked request)
+    → E.Result (Σ Term (λ quoted →
+        Q.Normalizes 0 [] (R.Checked.closed-subject admitted) quoted
+        × Q.BetaZetaNormal quoted × C.Sound.SafeState quoted (R.Checked.closed-goal admitted)))
+  run-safe-with fuel admitted with Q.normalise-with C.W.ind fuel 0 (R.Checked.closed-subject admitted) []
+  ... | E.stop reason = E.stop reason
+  ... | E.done (quoted , execution) with safe-normalization admitted execution
+  ... | normal , safe = E.done (quoted , execution , normal , safe)
