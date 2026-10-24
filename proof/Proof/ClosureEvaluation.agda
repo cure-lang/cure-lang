@@ -59,6 +59,9 @@ mutual
     d-global : ∀ {name} → Neutrals depth (E.n-global name) (tm-global name)
     d-app : ∀ {function argument f a}
       → Neutrals depth function f → Denotes depth argument a → Neutrals depth (E.n-app function argument) (tm-app f a)
+    d-case : ∀ {head env motive branches s terms} → Neutrals depth head s → Environments depth env terms
+      → Neutrals depth (E.n-case head env motive branches)
+          (tm-case s (substS (environment-sub terms) motive) (substBranchesS (environment-sub terms) branches))
 
 environment-length : ∀ {d values terms} → Environments d values terms → length terms ≡ length values
 environment-length d[] = refl
@@ -141,6 +144,9 @@ module Simulation (sig : Signature) where
     ... | result , denoted , body-path = result , denoted ,
       O.⇝*-trans (O.⇝*-let-val value-path)
         (⇝*-step ζ (O.⇝*-trans (equal-path (beta-environment actual (environment-sub terms) body)) body-path))
+    evaluate {terms = caller} env
+      (E.e-neutral-case evaluated) with evaluate env evaluated
+    ... | result , d-neutral head , path = _ , d-neutral (d-case head env) , O.⇝*-case path
     evaluate {terms = caller} env
       (E.e-case {branches = branches} {ar = ar} {body = body} evaluated found exact body-evaluated)
       with evaluate env evaluated

@@ -83,8 +83,8 @@ defmodule Cure.Test.ProofNeutralCaseFixture do
     if restored != branches, do: raise("neutral capture changed branch metadata or order")
     quoted = Quote.reify(actual, depth, ProofSnapshotFixture.environment())
     label = key |> Atom.to_string() |> String.replace("_", "-")
-    # Nested head syntax is retained as a boundary observation; shared
-    # E.Neutral cannot represent it yet, so do not invent a model value.
+    # Preserve this historical component artifact byte-for-byte. The newer
+    # recursive residual artifact separately records the complete value.
     captured_head =
       case key do
         :nested_scrutinee -> ""

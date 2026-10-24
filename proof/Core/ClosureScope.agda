@@ -41,6 +41,9 @@ mutual
     s-global : ∀ {name} → NeutralScoped depth (E.n-global name)
     s-app : ∀ {function argument} → NeutralScoped depth function → ValueScoped depth argument
       → NeutralScoped depth (E.n-app function argument)
+    s-case : ∀ {head env motive branches} → NeutralScoped depth head → EnvironmentScoped depth env
+      → Scoped (length env) motive → ScopedBranches (length env) branches
+      → NeutralScoped depth (E.n-case head env motive branches)
 
 mutual
   raise-value : ∀ {d value} → ValueScoped d value → ValueScoped (suc d) value
@@ -59,6 +62,8 @@ mutual
   raise-neutral {d} (s-var inside) = s-var (Nat.<-trans inside (Nat.n<1+n d))
   raise-neutral s-global = s-global
   raise-neutral (s-app function argument) = s-app (raise-neutral function) (raise-value argument)
+  raise-neutral (s-case head env motive branches) =
+    s-case (raise-neutral head) (raise-environment env) motive branches
 
 lookup-scoped : ∀ {d env k value} → EnvironmentScoped d env
   → E.lookup-value env k ≡ just value → ValueScoped d value
@@ -104,6 +109,9 @@ mutual
     apply-scoped (evaluate-scoped env function f) (evaluate-scoped env argument a) applied
   evaluate-scoped env (sc-let annotation value body) (E.e-let v b) =
     evaluate-scoped (s∷ (evaluate-scoped env value v) env) body b
+  evaluate-scoped env (sc-case scrutinee motive branches) (E.e-neutral-case evaluated)
+    with evaluate-scoped env scrutinee evaluated
+  ... | s-neutral head = s-neutral (s-case head env motive branches)
   evaluate-scoped {env = env} scoped (sc-case scrutinee motive branches)
     (E.e-case {values = values} {ar = ar} {body = body} evaluated found exact body-evaluated)
     with evaluate-scoped scoped scrutinee evaluated

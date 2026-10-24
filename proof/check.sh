@@ -193,6 +193,7 @@ MODULES=(
   Proof/ClosureEvaluationExamples
   Core/ClosureScope
   Proof/ClosureWeakening
+  Proof/BranchOpeningFrame
   Core/ClosureQuote
   Proof/ClosureQuotation
   Proof/ClosureQuotationSafety
@@ -238,6 +239,10 @@ MODULES=(
   Proof/NeutralCase
   Fixtures/ExecutableNeutralCase
   Proof/NeutralCaseExamples
+  Proof/ResidualQuotation
+  Fixtures/ExecutableResidualQuotation
+  Proof/ResidualQuotationExamples
+  Proof/ResidualQuotationSafetyExamples
 )
 
 fail=0

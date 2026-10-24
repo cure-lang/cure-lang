@@ -5,9 +5,10 @@
 module Proof.ClosureWeakening where
 
 open import Data.List using (List; []; _∷_; length)
-open import Data.Nat using (ℕ; zero; suc; _<_; s≤s)
+open import Data.Nat using (ℕ; zero; suc; _+_; _<_; s≤s)
+open import Data.Product using (_,_)
 import Data.Nat.Properties as Nat
-open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans; cong; subst)
+open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans; cong; cong₂; subst)
 open import Core.Syntax
 import Core.ClosureEval as E
 import Core.ClosureScope as S
@@ -27,6 +28,26 @@ prefix-map : ∀ ρ terms k → k < length terms
 prefix-map ρ [] k ()
 prefix-map ρ (term ∷ terms) zero inside = refl
 prefix-map ρ (term ∷ terms) (suc k) (s≤s inside) = prefix-map ρ terms k inside
+rename-captured : ∀ ar ρ terms body → Scoped (length terms + ar) body
+  → rename (ext^ ar ρ) (substS (extSub^ ar (M.environment-sub terms)) body)
+    ≡ substS (extSub^ ar (M.environment-sub (renameTerms ρ terms))) body
+rename-captured ar ρ terms body scoped =
+  trans (Substitution.rename-subst (ext^ ar ρ) (extSub^ ar (M.environment-sub terms)) body)
+    (trans (cong (λ σ → substS σ body) (A.renameSub-extended ar ρ (M.environment-sub terms)))
+      (A.subst-agree scoped (A.extendⁿ-agree ar (prefix-map ρ terms))))
+rename-motive : ∀ ρ terms body → Scoped (length terms) body
+  → rename ρ (substS (M.environment-sub terms) body)
+    ≡ substS (M.environment-sub (renameTerms ρ terms)) body
+rename-motive ρ terms body scoped =
+  trans (Substitution.rename-subst ρ (M.environment-sub terms) body)
+    (A.subst-agree scoped (prefix-map ρ terms))
+rename-branches : ∀ ρ terms branches → ScopedBranches (length terms) branches
+  → renameBranches ρ (substBranchesS (M.environment-sub terms) branches)
+    ≡ substBranchesS (M.environment-sub (renameTerms ρ terms)) branches
+rename-branches ρ terms [] sb[] = refl
+rename-branches ρ terms ((name , ar , body) ∷ rest) (sb∷ (sbranch scoped) scopes) =
+  cong₂ _∷_ (cong (λ b → name , ar , b) (rename-captured ar ρ terms body scoped))
+    (rename-branches ρ terms rest scopes)
 lifted-map : ∀ ρ terms → A.Agree (suc (length terms))
   (Substitution.renameSub (ext ρ) (extSub (M.environment-sub terms)))
   (extSub (M.environment-sub (renameTerms ρ terms)))
@@ -79,3 +100,12 @@ mutual
   neutrals S.s-global M.d-global = M.d-global
   neutrals (S.s-app function argument) (M.d-app denoted actual) = M.d-app
     (neutrals function denoted) (value argument actual)
+  neutrals {d} (S.s-case head-scope env-scope motive-scope branch-scopes)
+    (M.d-case {head = head} {env = env} {motive = motive} {branches = branches} {terms = terms} head-denoted denoted) =
+    subst (M.Neutrals (suc d) (E.n-case head env motive branches))
+      (cong₂ (tm-case _)
+        (sym (rename-motive wk terms motive
+          (subst (λ n → Scoped n motive) (environment-length denoted) motive-scope)))
+        (sym (rename-branches wk terms branches
+          (subst (λ n → ScopedBranches n branches) (environment-length denoted) branch-scopes))))
+      (M.d-case (neutrals head-scope head-denoted) (environments env-scope denoted))

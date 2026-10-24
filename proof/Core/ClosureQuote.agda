@@ -3,11 +3,13 @@
 -- Bodies are evaluated under a fresh neutral BEFORE domain/body quote.
 -- Explicit signature mode follows captured bodies and validates data splits.
 -- Beta/zeta normality is not full signature normality (globals remain).
+-- Residual permission is separate from signature mode and from typing.
 ------------------------------------------------------------------------
 module Core.ClosureQuote where
 
+open import Data.Bool using (Bool; false; true)
 open import Data.List using (List; []; _∷_; length)
-open import Data.Nat using (ℕ; zero; suc; _<_; _∸_)
+open import Data.Nat using (ℕ; zero; suc; _<_; _∸_; _+_)
 import Data.Nat.Properties as Nat
 open import Data.Product using (Σ; _,_)
 open import Data.Maybe using (Maybe; nothing; just)
@@ -18,34 +20,54 @@ open import Relation.Nullary using (yes; no)
 open import Core.Syntax
 import Core.ClosureEval as E
 import Core.FlatContext as Flat
+import Core.BranchOpening as Opening
 
 mutual
-  data Quoted (depth : ℕ) : E.Value → Term → Set where
-    q-type : ∀ {l} → Quoted depth (E.v-type l) (tm-type l)
-    q-atom-type : Quoted depth E.v-atom-type tm-atom_type
-    q-atom : ∀ {name} → Quoted depth (E.v-atom name) (tm-atom_lit name)
-    q-ctor : ∀ {name values terms} → SpineQuoted depth values terms
-      → Quoted depth (E.v-ctor name values) (tm-ctor name terms)
-    q-data : ∀ {name pvs ivs ps is} → SpineQuoted depth pvs ps → SpineQuoted depth ivs is
-      → Quoted depth (E.v-data name pvs ivs) (tm-data name ps is)
+  data QuotedIn (residual : Bool) (depth : ℕ) : E.Value → Term → Set where
+    q-type : ∀ {l} → QuotedIn residual depth (E.v-type l) (tm-type l)
+    q-atom-type : QuotedIn residual depth E.v-atom-type tm-atom_type
+    q-atom : ∀ {name} → QuotedIn residual depth (E.v-atom name) (tm-atom_lit name)
+    q-ctor : ∀ {name values terms} → SpineQuotedIn residual depth values terms
+      → QuotedIn residual depth (E.v-ctor name values) (tm-ctor name terms)
+    q-data : ∀ {name pvs ivs ps is} → SpineQuotedIn residual depth pvs ps → SpineQuotedIn residual depth ivs is
+      → QuotedIn residual depth (E.v-data name pvs ivs) (tm-data name ps is)
     q-pi : ∀ {g domain env body value D B}
       → E.Evaluates (E.v-neutral (E.n-var depth) ∷ env) body value
-      → Quoted depth domain D → Quoted (suc depth) value B
-      → Quoted depth (E.v-pi g domain env body) (tm-pi g D B)
+      → QuotedIn residual depth domain D → QuotedIn residual (suc depth) value B
+      → QuotedIn residual depth (E.v-pi g domain env body) (tm-pi g D B)
     q-lam : ∀ {g domain env body value D B}
       → E.Evaluates (E.v-neutral (E.n-var depth) ∷ env) body value
-      → Quoted depth domain D → Quoted (suc depth) value B
-      → Quoted depth (E.v-lam g domain env body) (tm-lam g D B)
-    q-neutral : ∀ {head term} → NeutralQuoted depth head term → Quoted depth (E.v-neutral head) term
-  data NeutralQuoted (depth : ℕ) : E.Neutral → Term → Set where
-    q-var : ∀ {level} → level < depth → NeutralQuoted depth (E.n-var level) (tm-var (depth ∸ suc level))
-    q-global : ∀ {name} → NeutralQuoted depth (E.n-global name) (tm-global name)
-    q-app : ∀ {function argument f a} → NeutralQuoted depth function f → Quoted depth argument a
-      → NeutralQuoted depth (E.n-app function argument) (tm-app f a)
-  data SpineQuoted (depth : ℕ) : List E.Value → List Term → Set where
-    q[] : SpineQuoted depth [] []
-    q∷ : ∀ {value values term terms} → Quoted depth value term → SpineQuoted depth values terms
-      → SpineQuoted depth (value ∷ values) (term ∷ terms)
+      → QuotedIn residual depth domain D → QuotedIn residual (suc depth) value B
+      → QuotedIn residual depth (E.v-lam g domain env body) (tm-lam g D B)
+    q-neutral : ∀ {head term} → NeutralQuotedIn residual depth head term → QuotedIn residual depth (E.v-neutral head) term
+  data NeutralQuotedIn (residual : Bool) (depth : ℕ) : E.Neutral → Term → Set where
+    q-var : ∀ {level} → level < depth → NeutralQuotedIn residual depth (E.n-var level) (tm-var (depth ∸ suc level))
+    q-global : ∀ {name} → NeutralQuotedIn residual depth (E.n-global name) (tm-global name)
+    q-app : ∀ {function argument f a} → NeutralQuotedIn residual depth function f → QuotedIn residual depth argument a
+      → NeutralQuotedIn residual depth (E.n-app function argument) (tm-app f a)
+    q-case : ∀ {head env motive branches s m results value}
+      → residual ≡ true → NeutralQuotedIn residual depth head s
+      → E.Evaluates env motive value → QuotedIn residual depth value m
+      → BranchesQuotedIn residual depth env branches results
+      → NeutralQuotedIn residual depth (E.n-case head env motive branches) (tm-case s m results)
+  data SpineQuotedIn (residual : Bool) (depth : ℕ) : List E.Value → List Term → Set where
+    q[] : SpineQuotedIn residual depth [] []
+    q∷ : ∀ {value values term terms} → QuotedIn residual depth value term → SpineQuotedIn residual depth values terms
+      → SpineQuotedIn residual depth (value ∷ values) (term ∷ terms)
+  data BranchesQuotedIn (residual : Bool) (depth : ℕ) (env : List E.Value) : List Branch → List Branch → Set where
+    qb[] : BranchesQuotedIn residual depth env [] []
+    qb∷ : ∀ {name ar body rest term terms value}
+      → E.Evaluates (Opening.environment depth ar env) body value
+      → QuotedIn residual (ar + depth) value term → BranchesQuotedIn residual depth env rest terms
+      → BranchesQuotedIn residual depth env ((name , ar , body) ∷ rest) ((name , ar , term) ∷ terms)
+
+-- Strict evidence is the residual-disabled specialization; no case can inhabit it.
+Quoted : ℕ → E.Value → Term → Set
+Quoted = QuotedIn false
+NeutralQuoted : ℕ → E.Neutral → Term → Set
+NeutralQuoted = NeutralQuotedIn false
+SpineQuoted : ℕ → List E.Value → List Term → Set
+SpineQuoted = SpineQuotedIn false
 
 spine-length : ∀ {depth values terms} → SpineQuoted depth values terms → length terms ≡ length values
 spine-length q[] = refl
@@ -58,62 +80,93 @@ quoted-layout layout params indices = Layout.source-layout
   (trans (spine-length indices) (Layout.SourceLayout.index-count layout))
 
 mutual
-  run-in : (mode : Maybe IndEnv) → (fuel depth : ℕ) (value : E.Value) → E.Result (Σ Term (Quoted depth value))
-  run-in mode zero depth value = E.stop E.exhausted
-  run-in mode (suc fuel) depth (E.v-type l) = E.done (tm-type l , q-type)
-  run-in mode (suc fuel) depth E.v-atom-type = E.done (tm-atom_type , q-atom-type)
-  run-in mode (suc fuel) depth (E.v-atom name) = E.done (tm-atom_lit name , q-atom)
-  run-in mode (suc fuel) depth (E.v-ctor name values) with spine-run-in mode fuel depth values
+  run-config : (residual : Bool) → (mode : Maybe IndEnv) → (fuel depth : ℕ) (value : E.Value) → E.Result (Σ Term (QuotedIn residual depth value))
+  run-config residual mode zero depth value = E.stop E.exhausted
+  run-config residual mode (suc fuel) depth (E.v-type l) = E.done (tm-type l , q-type)
+  run-config residual mode (suc fuel) depth E.v-atom-type = E.done (tm-atom_type , q-atom-type)
+  run-config residual mode (suc fuel) depth (E.v-atom name) = E.done (tm-atom_lit name , q-atom)
+  run-config residual mode (suc fuel) depth (E.v-ctor name values) with spine-config residual mode fuel depth values
   ... | E.stop reason = E.stop reason
   ... | E.done (terms , quoted) = E.done (tm-ctor name terms , q-ctor quoted)
-  run-in nothing (suc fuel) depth (E.v-data name pvs ivs) = E.stop E.unsupported
-  run-in (just ind) (suc fuel) depth (E.v-data name pvs ivs) with Layout.check-source ind name pvs ivs
+  run-config residual nothing (suc fuel) depth (E.v-data name pvs ivs) = E.stop E.unsupported
+  run-config residual (just ind) (suc fuel) depth (E.v-data name pvs ivs) with Layout.check-source ind name pvs ivs
   ... | Layout.rejected reason = E.stop (E.data-layout reason)
-  ... | Layout.accepted layout with spine-run-in (just ind) fuel depth pvs
+  ... | Layout.accepted layout with spine-config residual (just ind) fuel depth pvs
   ... | E.stop reason = E.stop reason
-  ... | E.done (ps , params) with spine-run-in (just ind) fuel depth ivs
+  ... | E.done (ps , params) with spine-config residual (just ind) fuel depth ivs
   ... | E.stop reason = E.stop reason
   ... | E.done (is , indices) = E.done (tm-data name ps is , q-data params indices)
-  run-in mode (suc fuel) depth (E.v-pi g domain env body)
-    with E.run-in mode fuel body (E.v-neutral (E.n-var depth) ∷ env)
+  run-config residual mode (suc fuel) depth (E.v-pi g domain env body)
+    with E.run-config residual mode fuel body (E.v-neutral (E.n-var depth) ∷ env)
   ... | E.stop reason = E.stop reason
-  ... | E.done (value , evaluated) with run-in mode fuel depth domain
+  ... | E.done (value , evaluated) with run-config residual mode fuel depth domain
   ... | E.stop reason = E.stop reason
-  ... | E.done (D , domain-quoted) with run-in mode fuel (suc depth) value
+  ... | E.done (D , domain-quoted) with run-config residual mode fuel (suc depth) value
   ... | E.stop reason = E.stop reason
   ... | E.done (B , body-quoted) = E.done (tm-pi g D B , q-pi evaluated domain-quoted body-quoted)
-  run-in mode (suc fuel) depth (E.v-lam g domain env body)
-    with E.run-in mode fuel body (E.v-neutral (E.n-var depth) ∷ env)
+  run-config residual mode (suc fuel) depth (E.v-lam g domain env body)
+    with E.run-config residual mode fuel body (E.v-neutral (E.n-var depth) ∷ env)
   ... | E.stop reason = E.stop reason
-  ... | E.done (value , evaluated) with run-in mode fuel depth domain
+  ... | E.done (value , evaluated) with run-config residual mode fuel depth domain
   ... | E.stop reason = E.stop reason
-  ... | E.done (D , domain-quoted) with run-in mode fuel (suc depth) value
+  ... | E.done (D , domain-quoted) with run-config residual mode fuel (suc depth) value
   ... | E.stop reason = E.stop reason
   ... | E.done (B , body-quoted) = E.done (tm-lam g D B , q-lam evaluated domain-quoted body-quoted)
-  run-in mode (suc fuel) depth (E.v-neutral head) with neutral-run-in mode fuel depth head
+  run-config residual mode (suc fuel) depth (E.v-neutral head) with neutral-config residual mode fuel depth head
   ... | E.stop reason = E.stop reason
   ... | E.done (term , quoted) = E.done (term , q-neutral quoted)
 
-  neutral-run-in : (mode : Maybe IndEnv) → (fuel depth : ℕ) (head : E.Neutral) → E.Result (Σ Term (NeutralQuoted depth head))
-  neutral-run-in mode zero depth head = E.stop E.exhausted
-  neutral-run-in mode (suc fuel) depth (E.n-var level) with Nat._<?_ level depth
+  neutral-config : (residual : Bool) → (mode : Maybe IndEnv) → (fuel depth : ℕ) (head : E.Neutral) → E.Result (Σ Term (NeutralQuotedIn residual depth head))
+  neutral-config residual mode zero depth head = E.stop E.exhausted
+  neutral-config residual mode (suc fuel) depth (E.n-var level) with Nat._<?_ level depth
   ... | yes inside = E.done (tm-var (depth ∸ suc level) , q-var inside)
   ... | no outside = E.stop E.escaped-level
-  neutral-run-in mode (suc fuel) depth (E.n-global name) = E.done (tm-global name , q-global)
-  neutral-run-in mode (suc fuel) depth (E.n-app function argument) with neutral-run-in mode fuel depth function
+  neutral-config residual mode (suc fuel) depth (E.n-global name) = E.done (tm-global name , q-global)
+  neutral-config residual mode (suc fuel) depth (E.n-app function argument) with neutral-config residual mode fuel depth function
   ... | E.stop reason = E.stop reason
-  ... | E.done (f , function-quoted) with run-in mode fuel depth argument
+  ... | E.done (f , function-quoted) with run-config residual mode fuel depth argument
   ... | E.stop reason = E.stop reason
   ... | E.done (a , argument-quoted) = E.done (tm-app f a , q-app function-quoted argument-quoted)
-
-  spine-run-in : (mode : Maybe IndEnv) → (fuel depth : ℕ) (values : List E.Value) → E.Result (Σ (List Term) (SpineQuoted depth values))
-  spine-run-in mode zero depth values = E.stop E.exhausted
-  spine-run-in mode (suc fuel) depth [] = E.done ([] , q[])
-  spine-run-in mode (suc fuel) depth (value ∷ values) with run-in mode fuel depth value
+  neutral-config false mode (suc fuel) depth (E.n-case head env motive branches) = E.stop E.neutral-scrutinee
+  neutral-config true mode (suc fuel) depth (E.n-case head env motive branches)
+    with neutral-config true mode fuel depth head
   ... | E.stop reason = E.stop reason
-  ... | E.done (term , quoted) with spine-run-in mode fuel depth values
+  ... | E.done (s , head-quoted) with E.run-residual-in mode fuel motive env
+  ... | E.stop reason = E.stop reason
+  ... | E.done (value , evaluated) with run-config true mode fuel depth value
+  ... | E.stop reason = E.stop reason
+  ... | E.done (m , motive-quoted) with branches-config true mode fuel depth env branches
+  ... | E.stop reason = E.stop reason
+  ... | E.done (results , bodies) = E.done (tm-case s m results , q-case refl head-quoted evaluated motive-quoted bodies)
+
+  spine-config : (residual : Bool) → (mode : Maybe IndEnv) → (fuel depth : ℕ) (values : List E.Value) → E.Result (Σ (List Term) (SpineQuotedIn residual depth values))
+  spine-config residual mode zero depth values = E.stop E.exhausted
+  spine-config residual mode (suc fuel) depth [] = E.done ([] , q[])
+  spine-config residual mode (suc fuel) depth (value ∷ values) with run-config residual mode fuel depth value
+  ... | E.stop reason = E.stop reason
+  ... | E.done (term , quoted) with spine-config residual mode fuel depth values
   ... | E.stop reason = E.stop reason
   ... | E.done (terms , rest) = E.done (term ∷ terms , q∷ quoted rest)
+
+  branches-config : (residual : Bool) → Maybe IndEnv → (fuel depth : ℕ) (env : List E.Value) (branches : List Branch)
+    → E.Result (Σ (List Branch) (BranchesQuotedIn residual depth env branches))
+  branches-config residual mode zero depth env branches = E.stop E.exhausted
+  branches-config residual mode (suc fuel) depth env [] = E.done ([] , qb[])
+  branches-config residual mode (suc fuel) depth env ((name , ar , body) ∷ rest)
+    with E.run-config residual mode fuel body (Opening.environment depth ar env)
+  ... | E.stop reason = E.stop reason
+  ... | E.done (value , evaluated) with run-config residual mode fuel (ar + depth) value
+  ... | E.stop reason = E.stop reason
+  ... | E.done (term , quoted) with branches-config residual mode fuel depth env rest
+  ... | E.stop reason = E.stop reason
+  ... | E.done (terms , tail) = E.done ((name , ar , term) ∷ terms , qb∷ evaluated quoted tail)
+
+run-in : Maybe IndEnv → (fuel depth : ℕ) (value : E.Value) → E.Result (Σ Term (Quoted depth value))
+run-in = run-config false
+neutral-run-in : Maybe IndEnv → (fuel depth : ℕ) (head : E.Neutral) → E.Result (Σ Term (NeutralQuoted depth head))
+neutral-run-in = neutral-config false
+spine-run-in : Maybe IndEnv → (fuel depth : ℕ) (values : List E.Value) → E.Result (Σ (List Term) (SpineQuoted depth values))
+spine-run-in = spine-config false
 
 run : (fuel depth : ℕ) (value : E.Value) → E.Result (Σ Term (Quoted depth value))
 run = run-in nothing
@@ -147,6 +200,28 @@ normalise-with : IndEnv → (fuel depth : ℕ) (term : Term) (env : List E.Value
   → E.Result (Σ Term (Normalizes depth env term))
 normalise-with ind = normalise-in (just ind)
 
+-- Residual forms have their OWN positive contract; strict no-step is not claimed.
+record ResidualNormalizes (depth : ℕ) (env : List E.Value) (term result : Term) : Set where
+  constructor residual-normalized
+  field
+    value : E.Value
+    evaluated : E.Evaluates env term value
+    quoted : QuotedIn true depth value result
+normalise-residual-in : Maybe IndEnv → (fuel depth : ℕ) (term : Term) (env : List E.Value)
+  → E.Result (Σ Term (ResidualNormalizes depth env term))
+normalise-residual-in mode zero depth term env = E.stop E.exhausted
+normalise-residual-in mode (suc fuel) depth term env with E.run-residual-in mode fuel term env
+... | E.stop reason = E.stop reason
+... | E.done (value , evaluated) with run-config true mode fuel depth value
+... | E.stop reason = E.stop reason
+... | E.done (result , quoted) = E.done (result , residual-normalized value evaluated quoted)
+normalise-residual : (fuel depth : ℕ) (term : Term) (env : List E.Value)
+  → E.Result (Σ Term (ResidualNormalizes depth env term))
+normalise-residual = normalise-residual-in nothing
+normalise-residual-with : IndEnv → (fuel depth : ℕ) (term : Term) (env : List E.Value)
+  → E.Result (Σ Term (ResidualNormalizes depth env term))
+normalise-residual-with ind = normalise-residual-in (just ind)
+
 mutual
   data BetaZetaNormal : Term → Set where
     normal-type : ∀ {l} → BetaZetaNormal (tm-type l)
@@ -179,12 +254,13 @@ mutual
   neutral-normal (q-var inside) = normal-var
   neutral-normal q-global = normal-global
   neutral-normal (q-app function argument) = normal-app (neutral-normal function) (quoted-normal argument)
+  neutral-normal (q-case () head evaluated motive branches)
   spine-normal : ∀ {d values terms} → SpineQuoted d values terms → SpineNormal terms
   spine-normal q[] = normal[]
   spine-normal (q∷ head rest) = normal∷ (quoted-normal head) (spine-normal rest)
 
 mutual
-  quoted-scoped : ∀ {d value term} → Quoted d value term → Scoped d term
+  quoted-scoped : ∀ {d value term residual} → QuotedIn residual d value term → Scoped d term
   quoted-scoped q-type = sc-type
   quoted-scoped q-atom-type = sc-atom_type
   quoted-scoped q-atom = sc-atom_lit
@@ -193,10 +269,17 @@ mutual
   quoted-scoped (q-pi evaluated domain body) = sc-pi (quoted-scoped domain) (quoted-scoped body)
   quoted-scoped (q-lam evaluated domain body) = sc-lam (quoted-scoped domain) (quoted-scoped body)
   quoted-scoped (q-neutral head) = neutral-scoped head
-  neutral-scoped : ∀ {d head term} → NeutralQuoted d head term → Scoped d term
-  neutral-scoped {d} (q-var {level} inside) = sc-var (Flat.index-bounded d level inside)
+  neutral-scoped : ∀ {d head term residual} → NeutralQuotedIn residual d head term → Scoped d term
+  neutral-scoped {d = d} (q-var {level} inside) = sc-var (Flat.index-bounded d level inside)
   neutral-scoped q-global = sc-global
   neutral-scoped (q-app function argument) = sc-app (neutral-scoped function) (quoted-scoped argument)
-  spine-scoped : ∀ {d values terms} → SpineQuoted d values terms → ScopedTerms d terms
+  neutral-scoped (q-case allowed head evaluated motive branches) =
+    sc-case (neutral-scoped head) (quoted-scoped motive) (branches-scoped branches)
+  branches-scoped : ∀ {residual d env source results} → BranchesQuotedIn residual d env source results → ScopedBranches d results
+  branches-scoped qb[] = sb[]
+  branches-scoped {d = d} (qb∷ {ar = ar} {term = term} evaluated quoted tail) = sb∷
+    (sbranch (Relation.Binary.PropositionalEquality.subst (λ n → Scoped n term) (Nat.+-comm ar d)
+      (quoted-scoped quoted))) (branches-scoped tail)
+  spine-scoped : ∀ {d values terms residual} → SpineQuotedIn residual d values terms → ScopedTerms d terms
   spine-scoped q[] = st[]
   spine-scoped (q∷ head rest) = st∷ (quoted-scoped head) (spine-scoped rest)

@@ -2909,6 +2909,77 @@ regressions pass and all-directory hygiene finds no new holes or checking
 bypasses. Standalone artifact reproduction, shell syntax, strict Credo over
 all 1,449 source files, formatting and whitespace checks pass. Older generated
 artifact bytes remain unchanged; waived suites were not run.
+### Opt-in recursive residual-case evaluation and readback
+`Core.ClosureEval.Neutral` now includes captured residual cases. Each node
+stores its neutral scrutinee, ONE caller environment, its raw motive and
+ordered raw branches. Positive evaluation captures this node without forcing
+the motive/branches. An explicit residual policy follows every recursive
+evaluation/application/spine/exact-case call. Existing entry points remain
+residual-disabled; `run-residual`, `run-residual-in` and
+`run-residual-with` opt in. Default data exclusion and exact constructor
+arity remain unchanged.
+
+`Core.ClosureScope`, `Proof.ClosureEvaluation` and `Proof.ClosureWeakening`
+extend to these recursive values. Scope includes captured motive/branch
+syntax at the captured environment's length, not merely ambient depth.
+Arbitrary-arity captured renaming is derived from bounded substitution
+agreement. The counterexample with an unbound captured motive still has a
+raw denotation but cannot be scoped or arbitrarily weakened.
+`Proof.BranchOpeningFrame` extracts the existing pure opening algebra below
+quotation; `Proof.BranchOpening` re-exports the same interface.
+
+`Core.ClosureQuote.QuotedIn` and its neutral/spine/branch relations carry
+residual permission independently of the optional signature.
+Existing `Quoted`, `Normalizes` and all old runtime entry points remain
+STRICT specializations. The new residual-case evidence is impossible in
+that specialization, preserving the old grammar and no-step theorem.
+`ResidualNormalizes` and `normalise-residual`/`normalise-residual-in`/
+`normalise-residual-with` have separate positive contracts. Enabled readback
+recursively quotes captured heads, evaluates/quotes motives and opens every
+branch under its actual arity. The same signature follows all recursive
+content, including data and captured residual values.
+
+`Proof.ClosureQuotation` proves native positive readback for either policy,
+including nested residual branches, under ARBITRARY native signatures.
+`Proof.ResidualQuotation` derives output residual forms under NO DELTA,
+preserves branch names/arities/order, constructively embeds old strict
+evidence, and composes checked-caller admission with the general native path
+at the ORIGINAL closed goal. Actual-signature normality is still separate:
+certified delta heads remain unchanged by Quote and can fail that check.
+Neither the policy bit nor evaluation/readback success is a typing or
+termination certificate.
+
+`Fixtures.ExecutableResidualQuotation` records 31 reviewed terminating
+actual evaluations/readbacks, now including complete recursively captured
+values. Generation checks that each actual case's motive and branches
+capture the SAME caller. All 31 values, outputs, source scope and residual
+forms replay independently. Coverage includes the two former nested limits,
+motives, binders, application heads/arguments, constructor/data fields,
+eager beta, lets, exact cases and residual-valued callers. Thirteen
+independently admitted instances derive original-goal safety, including
+genuinely typed nested scrutinees/branches and a residual caller argument
+with native fuel/tree agreement. A three-field opening followed by a lambda
+explicitly instantiates scoped weakening on that residual caller.
+Other observations are RAW operational controls, not all typed programs.
+
+Strict rejection, escaped/unbound captures, zero-field missing slots,
+finite motive/branch omega exhaustion, missing signature, wrong layouts,
+exact-arity rejection and delta-sensitive normality remain checked controls.
+No actual unbounded Eval call sees omega. Earlier artifact bytes and
+native/Elixir semantics are unchanged. The older top-level component still
+uses strict content APIs and retains its historical limits.
+This completes recursive residual MODEL readback for the named slice, not
+universal Elixir correspondence, eta/delta completeness or semantic totality.
+Existing normalized comparison/checking remains strict; positive residual
+comparison integration is a separate next increment. New ExUnit sources
+remain unrun under the maintainer waiver.
+Validation for this continuation: all 210 Agda modules pass without warnings,
+the exact `funext`/legacy `tree-decides` inventory is unchanged, ten hygiene
+regressions pass and all-directory hygiene finds no new holes or checking
+bypasses. Shell syntax and standalone byte-for-byte artifact reproduction
+pass. Strict Credo checks all 1,451 source files and 19,143 modules/functions
+without issues. All seven required gates returned exit code 0 after
+formatting; whitespace checks pass. Waived suites were not run.
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;
