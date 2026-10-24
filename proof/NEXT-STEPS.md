@@ -879,6 +879,48 @@ hygiene regressions, all-directory hygiene, shell syntax, standalone artifact
 reproduction and strict Credo over all 1,453 files pass. All seven required
 gates returned 0 after formatting; whitespace checks pass. Waived suites
 were not run.
+## Ambient residual checking and coherent caller closure continuation
+`Proof.FreshEnvironment` now proves scope-bounded identity, length,
+denotation and scope of arbitrary-size fresh caller frames. Out-of-prefix
+identity remains explicitly false.
+`Core.AmbientResidualAdmission` checks expected goals in a PROVED
+well-formed context, preserving subject/inferred/goal support, inference
+and BOTH kind guards before exact syntax or fresh-slot residual comparison.
+The identity theorem derives open native conversion and typing from the
+general environment-relative paths without using actual closing values.
+`Core.ResidualCallerAdmission` adds an inferred-kind recipe to the existing
+caller data, validates declarations/closed dependent actuals and builds
+the old coherent caller-closing evidence from ambient admission. The SAME
+substitution closes subject and original expected goal; native
+trace/fuel/tree safety and fuel/tree agreement are reused, not assumed.
+`Core.WireResidualCaller` composes the existing caller and ordinary-recipe
+packets with independent EOF checks, a combined roundtrip and exact pinning.
+No old codec or production Elixir API changes.
+Seven reviewed actual observations cover dependent variables/binders,
+open residual types, opaque versus constructor arguments, nested branches,
+empty contexts and a closing-coincidence counterexample. Six nonexact
+admissions independently check actual inferred/open/closed data and
+original-goal source/readback safety. In the counterexample a valid
+particular closed instance is safe, but its equal closing values cannot
+justify equality of distinct open types; fresh comparison and wire replay
+reject that open request.
+Frame/recipe lengths, order/dependency/scope, unsupported actuals,
+universe overflow, exact/nonexact fuel, both kind guards and malformed/
+trailing packets retain controls. Raw nonempty-context, strict, closed and
+original caller APIs, native/Elixir code and older artifact bytes remain
+unchanged. Waived suites stay unrun.
+This is syntactic caller checking, not arbitrary semantic-context
+extraction or defined-local normalization. Actual argument recipes still
+need to establish their declared instantiated types; automatic
+normalization-guided argument synthesis/checking, universal executable
+correspondence, eta/certified delta, erased layouts, semantic totality and
+backend soundness remain separate extensions.
+Validation: all 223 Agda modules pass without warnings and runner/source
+registration agrees exactly. The unchanged exact postulate guard, ten
+hygiene regressions, all-directory scanner, shell syntax, standalone artifact
+reproduction and strict Credo over all 1,455 files pass. Each of the seven
+required gates returned 0 after formatting; whitespace checks pass.
+Maintainer-waived suites remain unrun.
 ## Current remaining work, in priority order
 1. Prove universal producer/extraction representation fidelity and
    source/snapshot/context correspondence,

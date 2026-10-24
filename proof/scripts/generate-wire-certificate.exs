@@ -35,7 +35,8 @@ for source <- [
       "test/support/proof_residual_normal_fixture.ex",
       "test/support/proof_neutral_case_fixture.ex",
       "test/support/proof_residual_quotation_fixture.ex",
-      "test/support/proof_residual_comparison_fixture.ex"
+      "test/support/proof_residual_comparison_fixture.ex",
+      "test/support/proof_residual_caller_fixture.ex"
     ] do
   Code.compile_file(Path.join(root, source))
 end
@@ -66,6 +67,7 @@ if File.read!(Path.join(root, "proof/Fixtures/ExecutableSnapshot.agda")) != snap
 {:ok, neutral_cases} = Cure.Test.ProofNeutralCaseFixture.to_agda()
 {:ok, residual_quotation} = Cure.Test.ProofResidualQuotationFixture.to_agda()
 {:ok, residual_comparison} = Cure.Test.ProofResidualComparisonFixture.to_agda()
+{:ok, residual_callers} = Cure.Test.ProofResidualCallerFixture.to_agda()
 
 targets = [
   {Path.join(root, "proof/Fixtures/ExecutableCertificate.agda"), generated},
@@ -87,7 +89,8 @@ targets = [
   {Path.join(root, "proof/Fixtures/ExecutableResidualNormal.agda"), residual_normal},
   {Path.join(root, "proof/Fixtures/ExecutableNeutralCase.agda"), neutral_cases},
   {Path.join(root, "proof/Fixtures/ExecutableResidualQuotation.agda"), residual_quotation},
-  {Path.join(root, "proof/Fixtures/ExecutableResidualComparison.agda"), residual_comparison}
+  {Path.join(root, "proof/Fixtures/ExecutableResidualComparison.agda"), residual_comparison},
+  {Path.join(root, "proof/Fixtures/ExecutableResidualCaller.agda"), residual_callers}
 ]
 
 case System.argv() do

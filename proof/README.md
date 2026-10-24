@@ -3047,6 +3047,77 @@ bypasses. Shell syntax, standalone byte-for-byte artifact reproduction and
 strict Credo over all 1,453 source files pass. Each of the seven required
 gates returned exit code 0 after formatting; whitespace checks pass.
 Maintainer-waived suites were not run.
+### Ambient residual checking and coherent caller closure
+`Proof.FreshEnvironment` derives arbitrary-size neutral caller frames from
+the existing branch-opening construction. Length, scope and denotation are
+proved. Its substitution reconstructs OPEN syntax only within the declared
+scope; the out-of-prefix counterexample forbids upgrading this bounded
+agreement to a false global identity equation.
+
+`Core.AmbientResidualAdmission` is a separate, proof-consuming extension of
+residual expected-goal checking to a native well-formed context. It replays
+size-relative subject support/inference, inferred-type support/kind and
+goal support/kind with `infer-wf`/`kind-wf`, then chooses exact reflexivity
+or residual comparison under FRESH neutral slots. The fresh identity
+theorem turns the general substituted native conversion back into
+conversion of the original open types. Context-relative native typing and
+admission are derived, not trusted as input. The raw nonempty-context
+interfaces and all existing closed/strict APIs remain unchanged.
+
+`Core.ResidualCallerAdmission` pairs an existing caller request with one
+additional ordinary inferred-kind recipe. It checks forward declarations,
+declaration/argument support and closed dependent argument typing, then
+runs ambient checking. It constructs the EXISTING `CallerAdmission.Checked`
+closure evidence and reuses coherent substitution, closing BOTH subject
+and original expected goal, native finite-trace/fuel/tree safety and
+fuel/tree agreement. There is no new transport or normalization oracle.
+Caller slots remain abstract during open checking: actual arguments are
+used for closure, not as a shortcut to open equality.
+
+`Core.WireResidualCaller` reuses TWO existing character packets: the caller
+codec and ordinary-recipe codec. Each checks its own EOF. Their combined
+roundtrip and exact request pinning cover all caller fields plus the
+inferred-kind recipe. There is no new tag, old packet shape change or
+production Elixir API change.
+
+`Fixtures.ExecutableResidualCaller` records seven reviewed terminating
+actual open Conv/readback and closing observations. Six paired proposals
+independently replay nonexact native admission, actual inferred types,
+context sizes, fresh frames, both open forms, packet encoding and original
+closed subject/goal equations. They cover a dependent variable, conversion
+under a binder, genuinely open residual case types with opaque versus
+constructor arguments, nested residual branches and the empty-context
+specialization. Source and normalized readback safety retain the original
+closed goal, and every accepted caller retains native fuel/tree agreement.
+
+The seventh proposal validates a frame where two distinct OPEN types
+become the same type under one supplied closing assignment. Fresh checking
+and paired wire replay still reject that open comparison. A nearby exact
+request validates all declarations/actuals/kinds, and the particular closed
+instance is proved safe. Rejection is therefore not a closed-unsafety or
+non-conversion theorem. It prevents one instance's coincidence from being
+misused as a general open conversion proof.
+Missing/surplus/reversed frames/recipes, bad dependent arguments, escaped
+slots, unsupported payloads, universe overflow, both kind guards before
+zero-fuel exact checking, nonexact exhaustion and malformed/trailing
+packets retain controls. A syntactically valid kind packet can still fail
+semantic replay.
+
+This covers checked SYNTACTIC callers and explicit closed actual terms,
+not extraction of arbitrary semantic contexts or automatic normalization
+of defined local slots. Universal producer/Elixir correspondence,
+eta/certified-delta completeness, broader argument/layout inference,
+semantic totality and backend soundness remain separate.
+Native/Elixir semantics, all older artifact bytes and strict/closed APIs
+are unchanged. New ExUnit regression sources remain unrun under the
+maintainer waiver.
+Validation for this continuation: all 223 Agda modules pass without warnings,
+and every source is registered exactly once. The exact `funext`/legacy
+`tree-decides` inventory is unchanged. Ten hygiene regressions and the
+all-directory scanner pass without holes or checking bypasses. Shell syntax,
+standalone byte-for-byte artifact reproduction and strict Credo over all
+1,455 source files pass. All seven required gates returned exit code 0
+after formatting; whitespace checks pass. Waived suites were not run.
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;

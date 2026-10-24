@@ -250,6 +250,12 @@ MODULES=(
   Fixtures/ExecutableResidualComparison
   Proof/ResidualComparisonExamples
   Proof/ResidualAdmissionExamples
+  Proof/FreshEnvironment
+  Core/AmbientResidualAdmission
+  Core/ResidualCallerAdmission
+  Core/WireResidualCaller
+  Fixtures/ExecutableResidualCaller
+  Proof/ResidualCallerExamples
 )
 
 fail=0
