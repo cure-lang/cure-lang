@@ -243,6 +243,13 @@ MODULES=(
   Fixtures/ExecutableResidualQuotation
   Proof/ResidualQuotationExamples
   Proof/ResidualQuotationSafetyExamples
+  Core/ResidualComparison
+  Proof/ResidualConversion
+  Core/ResidualAdmission
+  Core/WireResidualChecking
+  Fixtures/ExecutableResidualComparison
+  Proof/ResidualComparisonExamples
+  Proof/ResidualAdmissionExamples
 )
 
 fail=0

@@ -2980,6 +2980,73 @@ bypasses. Shell syntax and standalone byte-for-byte artifact reproduction
 pass. Strict Credo checks all 1,451 source files and 19,143 modules/functions
 without issues. All seven required gates returned exit code 0 after
 formatting; whitespace checks pass. Waived suites were not run.
+### Positive residual comparison and original-goal checking
+`Core.ResidualComparison` is an OPT-IN comparator using recursive residual
+normalization. Equal results retain both executions and their common form;
+distinct results retain both executions and syntactic difference only.
+Failures identify the side and bounded evaluation/readback reason.
+One optional registry follows both normalizations. The old strict comparator
+and its contracts remain unchanged.
+
+`Proof.ResidualConversion` derives native joining for arbitrary signatures
+from the two scoped, environment-relative paths, and derives conversion
+for the checked signature.
+The common endpoint need not be strictly irreducible or normal relative to
+certified delta. Its no-delta residual-form evidence is separate.
+Existing strict equality evidence embeds constructively, without a claim
+about which strategy or fuel budget succeeds. Closed, open and
+residual-valued caller instances exercise the general conversion theorem.
+
+`Core.ResidualAdmission` reuses the SAME data-only checking request and
+diagnostics as `Core.NormalizingAdmission`, but has a separate residual
+comparison basis and checked result. It independently replays subject
+support/inference, inferred-type support/kind and goal support/kind BEFORE
+exact reflexivity or bounded comparison. Exact syntax can succeed at zero
+comparison fuel; it cannot bypass either kind check. Native admission,
+finite-trace/fuel/tree safety and fuel/tree agreement preserve the ORIGINAL
+goal. The normalized equality is derived internally, not supplied as an
+asserted conversion or normalization callback. This checker remains closed.
+
+`Core.WireResidualChecking` reuses the EXISTING tag-20 codec and its
+fidelity/roundtrip results, adding a separate opt-in replay. Parsed requests,
+successful admission and exact request pinning stay distinct. There is no
+new wire tag or residual permission flag controlled by untrusted input.
+The old strict checking/wire APIs and native/Elixir code are unchanged.
+
+`Fixtures.ExecutableResidualComparison` records 41 reviewed terminating
+actual Conv/readback pairs. Both model readbacks, source scope and
+classifications independently replay; 35 equal-readback pairs also record
+actual positive Conv results. They cover the complete prior recursive
+residual corpus and four new well-kinded residual-type pairs. Six distinct
+controls cover eta, delta, grades, universes, branch names and branch arity.
+Actual Conv accepts the eta/delta pairs despite distinct quoted forms;
+the delta pair additionally has a native conversion witness. Distinct forms
+therefore cannot serve as non-conversion proofs.
+
+Four actual serialized requests derive NONEXACT normalized admission in
+both directions, under data indices and through nested residual branches.
+Each independently checks its inferred type, normalized basis, wire pinning,
+original-goal source/readback safety and native fuel/tree agreement.
+The expected goals retain their original residual/beta syntax.
+Controls preserve strict nonexact rejection, strict/exact zero-fuel success,
+nonexact exhaustion, both kind guards, source scope, inference, universe
+ceiling, grades, separate explicit cumulativity and malformed/trailing
+wire rejection. Bounded omega tests stay entirely in the model; no actual
+unbounded Eval sees omega.
+
+This proves positive residual MODEL comparison/admission for the named
+slice, not universal Elixir checker/Conv correspondence, eta/certified-delta
+completeness or semantic termination. Normalization and syntax equality do
+not certify typing on their own. All older artifact bytes remain unchanged.
+New ExUnit regression sources remain unrun under the maintainer waiver.
+Validation for this continuation: all 217 Agda modules pass without warnings
+and every source is registered exactly once in the runner. The exact
+`funext`/legacy `tree-decides` inventory remains unchanged; ten hygiene
+regressions and all-directory hygiene pass without holes or checking
+bypasses. Shell syntax, standalone byte-for-byte artifact reproduction and
+strict Credo over all 1,453 source files pass. Each of the seven required
+gates returned exit code 0 after formatting; whitespace checks pass.
+Maintainer-waived suites were not run.
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;
