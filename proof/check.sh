@@ -253,6 +253,8 @@ MODULES=(
   Proof/FreshEnvironment
   Core/AmbientResidualAdmission
   Core/ResidualCallerAdmission
+  Core/ArgumentAdmission
+  Proof/ArgumentAdmissionExamples
   Core/WireResidualCaller
   Fixtures/ExecutableResidualCaller
   Proof/ResidualCallerExamples

@@ -921,6 +921,43 @@ hygiene regressions, all-directory scanner, shell syntax, standalone artifact
 reproduction and strict Credo over all 1,455 files pass. Each of the seven
 required gates returned 0 after formatting; whitespace checks pass.
 Maintainer-waived suites remain unrun.
+## Normalization-guided dependent argument continuation
+`Core.ArgumentAdmission` adds the M1 prefix lemmas and an opt-in argument
+comparator without touching the exact caller path, native typing rules or
+executable semantics.
+
+`CheckedPrefix` records per-argument finality plus a native checking
+derivation at the type obtained by substituting the PRECEDING arguments only.
+`prefix-step`/`prefix-coherent` lift one checked argument into the complete
+native `Coherent` frame for an arbitrary declaration telescope, and
+`prefix-kind` derives the instantiated next declared type's kind from the
+checked declaration entry. Later arguments are never substituted into earlier
+declaration types; coherence is never inferred from list lengths.
+
+`compare-argument` consumes the argument's REPLAYED inference derivation and
+returns `ArgumentResult`. Exact acceptance costs zero fuel and no model
+evaluation. Non-exact acceptance requires a bounded residual comparison of the
+argument's INFERRED TYPE against the declared expected type — the only shape
+the existing residual-conversion theorems support, and the honest one, since
+the argument is never re-normalized into its own specification.
+`compared-converts` reuses the general comparison-to-conversion theorem under
+fresh caller slots.
+
+`prefix-spine`/`instantiate` turn that evidence back into the EXISTING exact
+`Spine` judgment plus the coherent complete frame, so existing
+closing-substitution and original-goal safety apply unchanged. The examples
+instantiate everything on the verified `(A : Type0, x : A)` caller, derive the
+frame by the new theorem, and prove it equals `CallerAdmission`'s own
+substitution; controls prove a failed comparison carries no checking
+derivation.
+
+Still open: no opt-in CALLER driver consumes `ArgumentResult`s end-to-end, no
+new codec was added (the record contract is still settling), and the
+"later argument needs beta/zeta/residual conversion" acceptance case is not
+yet demonstrated on a genuinely dependent telescope. Universal producer
+correspondence, eta/certified delta, erased layouts, semantic totality and
+backend soundness remain separate.
+
 ## Current remaining work, in priority order
 1. Prove universal producer/extraction representation fidelity and
    source/snapshot/context correspondence,

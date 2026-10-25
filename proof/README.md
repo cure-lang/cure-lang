@@ -3118,6 +3118,55 @@ all-directory scanner pass without holes or checking bypasses. Shell syntax,
 standalone byte-for-byte artifact reproduction and strict Credo over all
 1,455 source files pass. All seven required gates returned exit code 0
 after formatting; whitespace checks pass. Waived suites were not run.
+### Normalization-guided dependent argument checking
+`Core.ArgumentAdmission` adds a SEPARATE, opt-in argument comparator and the
+prefix lemmas that make per-argument checking sound. It does not modify the
+existing exact caller path, native typing rules or executable semantics.
+
+`CheckedPrefix` records, for every consumed argument, its finality and a
+native checking derivation at the type obtained by substituting the PRECEDING
+arguments only. `prefix-step` shows one declared entry plus one checked actual
+argument preserves native `Coherent`; `prefix-coherent` lifts this to an
+arbitrary declaration telescope and produces the complete coherent frame; and
+`prefix-kind` derives the instantiated next declared type's kind from the
+checked declaration entry, so no caller supplies an argument's expected kind
+as an untrusted field. Later arguments are never substituted into earlier
+declaration types, and coherence is never inferred from list lengths.
+
+`compare-argument` consumes the argument's REPLAYED inference derivation —
+never a checking derivation and never a conversion witness — and returns
+`ArgumentResult`. The EXACT branch accepts at zero fuel with no model
+evaluation. The NON-EXACT branch requires a bounded residual comparison of the
+argument's INFERRED TYPE against the declared expected type, which is the only
+shape the existing `ResidualConversion`/`AmbientResidualAdmission` theorems
+support and the honest one: the argument is never re-normalized into the
+specification it is being checked against. `compared-converts` reuses the
+general comparison-to-conversion theorem under fresh caller slots, so a
+coincident closing assignment still cannot justify open equality.
+
+`prefix-spine` turns the comparator's evidence back into the EXISTING exact
+`Spine` judgment, and `instantiate` returns that spine together with the
+coherent complete frame, so the existing closing-substitution and
+original-goal safety theorems apply unchanged.
+
+`Proof.ArgumentAdmissionExamples` instantiates all of this on the existing
+verified dependent caller `(A : Type0, x : A)`: it recovers `CheckedPrefix`
+from the replayed spine plus supported-argument evidence, derives the complete
+frame by the new theorem rather than copying the caller path, and proves that
+frame equals `CallerAdmission`'s own substitution. Negative controls prove
+that a failed comparison carries NO checking derivation (`checked-argument`
+returns `nothing`) and that exact-only mode refuses a non-exact comparison
+outright.
+
+**Scope.** This is the prefix-kind/coherence foundation plus a comparator that
+composes at the spine/frame level. There is no separate opt-in CALLER driver
+consuming `ArgumentResult`s end-to-end, no new wire codec (the record contract
+is still settling, and old formats are untouched), and the "later argument
+needs beta/zeta/residual conversion" acceptance case is not yet demonstrated
+on a genuinely dependent telescope — the existing fixture's arguments are all
+exact. Universal producer correspondence, eta/certified delta, erased layouts,
+semantic totality and backend soundness remain separate obligations.
+
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe
 levels and data family names. `Conversion.≈-heads` compares two such heads;
