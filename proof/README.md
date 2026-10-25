@@ -3158,14 +3158,24 @@ that a failed comparison carries NO checking derivation (`checked-argument`
 returns `nothing`) and that exact-only mode refuses a non-exact comparison
 outright.
 
+**Acceptance gate — closed.** The examples exhibit a genuinely dependent
+argument whose instantiated declared type is the beta-redex `(λ A → A) Atom`
+while the argument infers `Atom`. The two are proved distinct, the declared
+type is proved well-kinded, and the comparator accepts the argument at the
+ORIGINAL declared type through the residual branch at fuel 4 — the first
+budget that reduces the redex. `beta-normalized` proves by computation that
+the acceptance went through the comparison rather than exact syntax. Controls
+pin the boundary: fuel 3 exhausts (inconclusive, not a false accept or
+reject), and the same convertible pair is refused with the residual switch
+off. The converted argument then pushes into the coherent frame via
+`prefix-step`.
+
 **Scope.** This is the prefix-kind/coherence foundation plus a comparator that
 composes at the spine/frame level. There is no separate opt-in CALLER driver
-consuming `ArgumentResult`s end-to-end, no new wire codec (the record contract
-is still settling, and old formats are untouched), and the "later argument
-needs beta/zeta/residual conversion" acceptance case is not yet demonstrated
-on a genuinely dependent telescope — the existing fixture's arguments are all
-exact. Universal producer correspondence, eta/certified delta, erased layouts,
-semantic totality and backend soundness remain separate obligations.
+consuming `ArgumentResult`s end-to-end, and no new wire codec (the record
+contract is still settling, and old formats are untouched). Universal producer
+correspondence, eta/certified delta, erased layouts, semantic totality and
+backend soundness remain separate obligations.
 
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe

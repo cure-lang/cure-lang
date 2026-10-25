@@ -951,12 +951,21 @@ frame by the new theorem, and prove it equals `CallerAdmission`'s own
 substitution; controls prove a failed comparison carries no checking
 derivation.
 
-Still open: no opt-in CALLER driver consumes `ArgumentResult`s end-to-end, no
-new codec was added (the record contract is still settling), and the
-"later argument needs beta/zeta/residual conversion" acceptance case is not
-yet demonstrated on a genuinely dependent telescope. Universal producer
-correspondence, eta/certified delta, erased layouts, semantic totality and
-backend soundness remain separate.
+The acceptance gate is closed: the examples exhibit a genuinely dependent
+argument whose instantiated declared type is the beta-redex `(λ A → A) Atom`
+while the argument infers `Atom`. The two are proved distinct, the declared
+type is proved well-kinded, and the comparator accepts at the ORIGINAL
+declared type through the residual branch at fuel 4, the first budget that
+reduces the redex; `beta-normalized` proves by computation that the acceptance
+went through the comparison rather than exact syntax. Fuel 3 exhausts
+(inconclusive, not a false verdict) and the same pair is refused with the
+residual switch off. The converted argument then pushes into the coherent
+frame via `prefix-step`.
+
+Still open: no opt-in CALLER driver consumes `ArgumentResult`s end-to-end, and
+no new codec was added (the record contract is still settling). Universal
+producer correspondence, eta/certified delta, erased layouts, semantic
+totality and backend soundness remain separate.
 
 ## Current remaining work, in priority order
 1. Prove universal producer/extraction representation fidelity and
