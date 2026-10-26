@@ -255,6 +255,9 @@ MODULES=(
   Core/ResidualCallerAdmission
   Core/ArgumentAdmission
   Proof/ArgumentAdmissionExamples
+  Core/ArgumentCallerAdmission
+  Core/WireArgumentCaller
+  Proof/ArgumentCallerExamples
   Core/WireResidualCaller
   Fixtures/ExecutableResidualCaller
   Proof/ResidualCallerExamples

@@ -8,6 +8,8 @@
 -- accepts a bounded residual comparison, and proves the prefix-kind and
 -- coherence lemmas that make per-argument checking sound in the first
 -- place.
+-- `Core.ArgumentCallerAdmission` consumes this comparator end-to-end;
+-- `Core.WireArgumentCaller` supplies its separate opt-in packet replay.
 --
 -- PROVED here (no new postulate, no callback, no checker-success-to-typing
 -- bridge):

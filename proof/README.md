@@ -3170,12 +3170,51 @@ reject), and the same convertible pair is refused with the residual switch
 off. The converted argument then pushes into the coherent frame via
 `prefix-step`.
 
-**Scope.** This is the prefix-kind/coherence foundation plus a comparator that
-composes at the spine/frame level. There is no separate opt-in CALLER driver
-consuming `ArgumentResult`s end-to-end, and no new wire codec (the record
-contract is still settling, and old formats are untouched). Universal producer
-correspondence, eta/certified delta, erased layouts, semantic totality and
-backend soundness remain separate obligations.
+**Caller integration — completed 26 October 2026.**
+`Core.ArgumentCallerAdmission` adds a separate data-only request with one
+ordinary inferred-kind recipe per actual, in addition to the existing residual
+caller request. Its recursive `walk` returns `CheckedPrefix` directly, with
+accumulated locals explicit; no dependent `Step` index is needed. Argument
+support/inference, inferred-type support/kind and expected-type support/kind
+precede comparison, even on the zero-fuel exact path. Expected kinds are DERIVED
+by transporting the checked declaration under the coherent prefix, not supplied
+as recipes or native proofs. Positive `ArgumentResult`s become a native spine
+and reuse `ResidualCallerAdmission.Checked`, coherent closure of BOTH subject
+and original goal, and native trace/fuel/tree safety and agreement.
+
+`Core.WireArgumentCaller` provides a separate tag-21 packet, built with the
+faithful combinators from the unchanged tag-19 caller, the open inferred-kind
+recipe and the argument inferred-kind recipe list. Its universal roundtrip,
+EOF checks, verification equation and exact request pinning bind all fields.
+Fuel and argument residual options are verifier configuration, not packet
+claims. Open subject comparison still uses fresh slots independently of the
+argument residual switch. Old codecs, bytes and exact drivers are unchanged.
+
+`Proof.ArgumentCallerExamples` accepts the genuinely dependent telescope
+`(A : Type0, x : (λ B → B) A)` from request data through packet replay and
+coherent closure, without an outer supplied conversion derivation. The second
+actual infers `Atom`; its original instantiated declared type is the distinct
+beta-redex. The closed literal is proved safe at that ORIGINAL beta-redex goal,
+with arbitrary fuel/tree agreement. Both older drivers refuse this request.
+Controls include fuel-3 exhaustion, residual-off refusal, zero-fuel exact
+success, recipe/actual arities, malformed recipes, kind failures, wrong/reversed
+dependent actuals, escaped/unsupported actuals, malformed/trailing packets,
+old-decoder refusal and equal closing values that must not prove open equality.
+Semantic packet controls reject decodable bad-kind and surplus-recipe inputs.
+
+**Scope.** M1 now includes end-to-end bounded formal caller/packet replay.
+The new packet has an Agda encoder/replayer, not an Elixir producer or release
+integration. Universal producer/kernel correspondence, eta/certified delta,
+semantic contexts, erased layouts, semantic totality and backend soundness
+remain separate obligations. No native/Elixir semantics or trust inventory
+changed.
+
+Validation for the M1 caller continuation: all 228 Agda modules pass without
+warnings, with every source registered exactly once. The exact
+`funext`/legacy `tree-decides` inventory is unchanged. Ten hygiene regressions,
+the all-directory scanner, shell syntax and byte-for-byte reproduction of all
+older generated artifacts pass. Strict Credo checks all 1,455 source files
+without issues. Maintainer-waived suites were not run; no commit was made.
 
 ### Active rigid-head conversion and separate cumulativity
 `Core.TypeHeads` records exposed type formers, including exact universe

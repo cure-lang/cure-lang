@@ -962,10 +962,50 @@ went through the comparison rather than exact syntax. Fuel 3 exhausts
 residual switch off. The converted argument then pushes into the coherent
 frame via `prefix-step`.
 
-Still open: no opt-in CALLER driver consumes `ArgumentResult`s end-to-end, and
-no new codec was added (the record contract is still settling). Universal
-producer correspondence, eta/certified delta, erased layouts, semantic
-totality and backend soundness remain separate.
+At this checkpoint the opt-in caller/packet driver was still missing. The
+26 October continuation below closes that bounded replay gap; it does not
+close universal producer or executable correspondence.
+
+## End-to-end M1 argument caller continuation — 26 October 2026
+`Core.ArgumentCallerAdmission.walk` avoids the earlier dependent `Step` index:
+it recurses directly into `CheckedPrefix`, with explicit accumulated locals.
+The declaration and coherent prefix derive each expected kind through general
+transport. Argument support/inference, inferred-type support and a replayed
+ordinary inferred-kind recipe, plus expected support/kind, precede comparison.
+No caller supplies an expected-kind proof, normalized-equality flag or outer
+conversion derivation. Positive `ArgumentResult`s build the native spine and
+reuse the existing residual caller's original-goal closure/safety interface.
+Every argument/recipe list must have exactly the declared arity.
+
+`Core.WireArgumentCaller` introduces a separate tag-21 packet with universal
+roundtrip, EOF checking, checked replay and exact request pinning. Its body
+uses the unchanged caller codec, an open inferred-kind recipe and per-actual
+inferred-kind recipes. Fuel and residual policy are verifier configuration;
+the argument switch does not disable the existing fresh open-subject checker.
+Existing exact drivers and all old packet formats/bytes remain unchanged.
+
+`Proof.ArgumentCallerExamples` checks `(A : Type0, x : (λ B → B) A)` end-to-end
+through encoding/decoding and coherent closure. The literal infers `Atom`
+but is checked at the original instantiated beta-redex, which remains the
+closed safety goal. The old drivers reject the same query. Controls cover
+zero-budget exact success, nonexact exhaustion, exact-only refusal, malformed
+and surplus recipes, kind/scope failures, wrong/reversed/incorrect-arity
+actuals, malformed/trailing packets, and equal closing values that still
+cannot justify distinct open type slots. Decodable bad-kind/surplus packets
+fail semantic replay. Native trace safety and arbitrary fuel/tree agreement
+are derived from the existing closure theorem.
+
+M1's bounded formal caller/packet delivery is now complete. There is no new
+Elixir producer or production release integration for this packet; universal
+producer/kernel correspondence, eta/certified delta, semantic contexts,
+erased layouts, semantic totality and backend soundness remain separate.
+Proceed to the M2/M4 implementation-correspondence bottleneck rather than
+treating further modeled examples as an implementation proof.
+Validation: all 228 Agda modules pass without warnings and every source is
+registered once. The exact postulate inventory, ten hygiene regressions,
+all-directory hygiene, shell syntax and older generated artifact reproduction
+pass. Strict Credo reports no issues across all 1,455 source files. Waived
+Mix/ExUnit, documentation and stdlib/example suites were not run.
 
 ## Current remaining work, in priority order
 1. Prove universal producer/extraction representation fidelity and
