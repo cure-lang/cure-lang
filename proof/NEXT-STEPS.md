@@ -921,6 +921,92 @@ hygiene regressions, all-directory scanner, shell syntax, standalone artifact
 reproduction and strict Credo over all 1,455 files pass. Each of the seven
 required gates returned 0 after formatting; whitespace checks pass.
 Maintainer-waived suites remain unrun.
+## Normalization-guided dependent argument continuation
+`Core.ArgumentAdmission` adds the M1 prefix lemmas and an opt-in argument
+comparator without touching the exact caller path, native typing rules or
+executable semantics.
+
+`CheckedPrefix` records per-argument finality plus a native checking
+derivation at the type obtained by substituting the PRECEDING arguments only.
+`prefix-step`/`prefix-coherent` lift one checked argument into the complete
+native `Coherent` frame for an arbitrary declaration telescope, and
+`prefix-kind` derives the instantiated next declared type's kind from the
+checked declaration entry. Later arguments are never substituted into earlier
+declaration types; coherence is never inferred from list lengths.
+
+`compare-argument` consumes the argument's REPLAYED inference derivation and
+returns `ArgumentResult`. Exact acceptance costs zero fuel and no model
+evaluation. Non-exact acceptance requires a bounded residual comparison of the
+argument's INFERRED TYPE against the declared expected type — the only shape
+the existing residual-conversion theorems support, and the honest one, since
+the argument is never re-normalized into its own specification.
+`compared-converts` reuses the general comparison-to-conversion theorem under
+fresh caller slots.
+
+`prefix-spine`/`instantiate` turn that evidence back into the EXISTING exact
+`Spine` judgment plus the coherent complete frame, so existing
+closing-substitution and original-goal safety apply unchanged. The examples
+instantiate everything on the verified `(A : Type0, x : A)` caller, derive the
+frame by the new theorem, and prove it equals `CallerAdmission`'s own
+substitution; controls prove a failed comparison carries no checking
+derivation.
+
+The acceptance gate is closed: the examples exhibit a genuinely dependent
+argument whose instantiated declared type is the beta-redex `(λ A → A) Atom`
+while the argument infers `Atom`. The two are proved distinct, the declared
+type is proved well-kinded, and the comparator accepts at the ORIGINAL
+declared type through the residual branch at fuel 4, the first budget that
+reduces the redex; `beta-normalized` proves by computation that the acceptance
+went through the comparison rather than exact syntax. Fuel 3 exhausts
+(inconclusive, not a false verdict) and the same pair is refused with the
+residual switch off. The converted argument then pushes into the coherent
+frame via `prefix-step`.
+
+At this checkpoint the opt-in caller/packet driver was still missing. The
+26 October continuation below closes that bounded replay gap; it does not
+close universal producer or executable correspondence.
+
+## End-to-end M1 argument caller continuation — 26 October 2026
+`Core.ArgumentCallerAdmission.walk` avoids the earlier dependent `Step` index:
+it recurses directly into `CheckedPrefix`, with explicit accumulated locals.
+The declaration and coherent prefix derive each expected kind through general
+transport. Argument support/inference, inferred-type support and a replayed
+ordinary inferred-kind recipe, plus expected support/kind, precede comparison.
+No caller supplies an expected-kind proof, normalized-equality flag or outer
+conversion derivation. Positive `ArgumentResult`s build the native spine and
+reuse the existing residual caller's original-goal closure/safety interface.
+Every argument/recipe list must have exactly the declared arity.
+
+`Core.WireArgumentCaller` introduces a separate tag-21 packet with universal
+roundtrip, EOF checking, checked replay and exact request pinning. Its body
+uses the unchanged caller codec, an open inferred-kind recipe and per-actual
+inferred-kind recipes. Fuel and residual policy are verifier configuration;
+the argument switch does not disable the existing fresh open-subject checker.
+Existing exact drivers and all old packet formats/bytes remain unchanged.
+
+`Proof.ArgumentCallerExamples` checks `(A : Type0, x : (λ B → B) A)` end-to-end
+through encoding/decoding and coherent closure. The literal infers `Atom`
+but is checked at the original instantiated beta-redex, which remains the
+closed safety goal. The old drivers reject the same query. Controls cover
+zero-budget exact success, nonexact exhaustion, exact-only refusal, malformed
+and surplus recipes, kind/scope failures, wrong/reversed/incorrect-arity
+actuals, malformed/trailing packets, and equal closing values that still
+cannot justify distinct open type slots. Decodable bad-kind/surplus packets
+fail semantic replay. Native trace safety and arbitrary fuel/tree agreement
+are derived from the existing closure theorem.
+
+M1's bounded formal caller/packet delivery is now complete. There is no new
+Elixir producer or production release integration for this packet; universal
+producer/kernel correspondence, eta/certified delta, semantic contexts,
+erased layouts, semantic totality and backend soundness remain separate.
+Proceed to the M2/M4 implementation-correspondence bottleneck rather than
+treating further modeled examples as an implementation proof.
+Validation: all 228 Agda modules pass without warnings and every source is
+registered once. The exact postulate inventory, ten hygiene regressions,
+all-directory hygiene, shell syntax and older generated artifact reproduction
+pass. Strict Credo reports no issues across all 1,455 source files. Waived
+Mix/ExUnit, documentation and stdlib/example suites were not run.
+
 ## Current remaining work, in priority order
 1. Prove universal producer/extraction representation fidelity and
    source/snapshot/context correspondence,
